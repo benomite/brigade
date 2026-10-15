@@ -153,7 +153,9 @@ function regarder(vus: Parameters<typeof veille.regarder>[0], commandes: readonl
 // commandes `installation` du runtime de sa box, lancées une à une par le passage du projet
 // comme les veilles. Chacune a deux minutes : la vérification joint l'origine du dépôt et
 // GitHub, la protection aussi. Sa session s'ouvre dans le second, son démarrage s'écrit dans
-// un shell. Chaque installation qui change est poussée à la vue.
+// un shell. Chaque installation qui change est poussée à la vue — et à la bande d'alertes du
+// projet : installé, ce que son contrôle dit qu'il a perdu y entre (alertes.ts), jamais l'écran
+// d'installation. Le contrôle d'un projet installé ne se refait pas plus d'une fois par minute.
 const services = tenirServices({
   delaiMs: 120_000,
   lancer: (servi, commande) => {
@@ -164,8 +166,20 @@ const services = tenirServices({
   },
   session: terminaux.session,
   shell: terminaux.shell,
-  surGuide: (guide) => dire("guide", guide),
+  surGuide: (guide) => {
+    dire("guide", guide);
+    dire("alertes", bandes.controle(guide.projet, guide.controle));
+  },
+  controleMs: 60_000,
 });
+// Ce qu'un projet installé a perdu — une station, un geste de box — se relit pour chacun,
+// quel que soit l'écran : sa pastille dans la barre le dit aussi. Toutes les cinq minutes, et
+// dès que la barre est posée ; un contrôle en route ne se double pas.
+const CONTROLE_MS = 5 * 60_000;
+const controlerTout = () => {
+  for (const projet of projets()) if (projet.box !== undefined) void services.controler(projet);
+};
+const controles = setInterval(controlerTout, CONTROLE_MS);
 
 // Le runner : ce poste joue les stations que ses projets lui confient (runner.ts) — celles
 // que leur box déclare `distante`. Il s'annonce, réclame, renouvelle et rend par le geste
@@ -520,6 +534,7 @@ ipcMain.on("faits", (_, demande: number) => {
   for (const bande of bandes.ouvrir(projets().filter(({ box }) => box !== undefined).map(({ nom }) => nom))) dire("alertes", bande);
   veilleDesFaits.regarder(projets(), [COMMANDE], demande);
   veilleDuManager.regarder(projets(), [COMMANDE_MANAGER], demande);
+  controlerTout();
 });
 // Un ticket du rail s'ouvre sur son issue, dans le navigateur du poste : la vue nomme le
 // projet et le ticket, l'adresse est celle que la box a rendue (faits.ts). Rend si elle a été ouverte.
@@ -561,6 +576,7 @@ app.on("will-quit", () => {
   veilleDuManager.fermer();
   pages.fermer();
   retards.fermer();
+  clearInterval(controles);
   // Les cooks du poste ne survivent pas à l'app : fermée, sa station est absente.
   void runner.fermer();
 });

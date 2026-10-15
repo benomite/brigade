@@ -28,6 +28,11 @@
 //
 // L'app ne décide d'aucune étape : elle lit ce que le runtime en dit, et lui fait
 // noter ce que le chef a fait. Rien n'est gardé ici qui ne se relise sur la box.
+//
+// L'installation terminée, l'écran ne revient plus (`termine`). Le projet est alors contrôlé :
+// ses stations (`installation stations --json`) et ce que la vérification dit manquer, relus
+// sans rien noter au journal — une étape remise à faire rouvrirait l'écran. Ce qu'il a perdu
+// se dit dans la bande d'alertes, avec son geste (alertes.ts, « Ce qu'un projet installé a perdu »).
 import { echecDe, type Echec, type Rendu as RenduDeBox, type Servi } from "./box.ts";
 import type { Projet } from "./config.ts";
 import { titreDEchec } from "./faits.ts";
@@ -264,6 +269,11 @@ export function commandeDeDemarrage(projet: Projet): { commande: string } | { re
   return { commande: `ssh -t ${mot(hote)} sudo systemctl enable --now brigade@${nom}.service` };
 }
 
+// Ce que le contrôle d'un projet installé a lu sur sa box. `a` : l'instant où il a fini.
+// `stations` : ce que la machine fournit et ce que le projet déclare ; `manques` : ce que la
+// vérification dit manquer — chacun absent quand la box ne l'a jamais rendu sous sa forme.
+export type Controle = { a: string; stations?: StationsLues; manques?: Manque[] };
+
 // --- Ce que la vue pose.
 
 // Ce que la vue pose d'une vérification : son titre, ce que l'app a obtenu, ce qu'elle
@@ -320,6 +330,8 @@ export type Guide = {
   // si une lecture échoue ensuite), ou rien n'a jamais dit qu'elle ne l'était pas. L'espace du
   // projet est alors le rail, et rien de l'écran d'installation.
   termine: boolean;
+  // Installée, ce que son dernier contrôle a lu : la bande d'alertes en tire ce qui est perdu.
+  controle?: Controle;
 };
 
 // Ce qu'un appel à la box a donné : la commande a répondu de son code (0, 1 ou 2 — les
@@ -342,6 +354,9 @@ type Tenu = {
   fini?: boolean;
   action?: string;
   fait?: Fait;
+  // Le dernier contrôle de l'installation terminée, et celui qui est en route : un seul à la fois.
+  controle?: Controle;
+  controlant?: Promise<void>;
 };
 
 export type Services = ReturnType<typeof tenirServices>;
@@ -382,6 +397,9 @@ export function tenirServices(options: {
   session(projet: Projet, commande: string): Terminal;
   shell(projet: Projet, ecrit: string): Terminal;
   surGuide(guide: Guide): void;
+  // L'écart minimal entre deux contrôles d'un projet installé, sauf s'il est demandé exprès :
+  // la vérification joint l'origine et GitHub, et tient le passage du projet le temps de le faire.
+  controleMs?: number;
 }) {
   const tenus = new Map<string, Tenu>();
 
@@ -439,6 +457,8 @@ export function tenirServices(options: {
     tenu.etapes = lues;
     tenu.fini = lues.courante === null;
     pousser(projet, tenu);
+    // Installée : le contrôle part à côté, sans retenir ce qui a relu les étapes.
+    if (lues.courante === null) void controler(projet, tenu);
     if (!deplie(tenu)) return;
     // La box vient de répondre pour ce projet, par son nom : il existe sur elle.
     if (!ajoutNote && lues.etapes.some(({ id, etat }) => id === "ajout" && etat !== "done")) {
@@ -510,6 +530,30 @@ export function tenirServices(options: {
     return tenu.verifiant;
   }
 
+  // Le contrôle d'un projet installé : ses stations, puis la vérification entière — rien n'est
+  // noté au journal. Une lecture qui ne rend pas sa forme laisse ce que la précédente avait dit.
+  function controler(projet: Projet & { box: NonNullable<Projet["box"]> }, tenu: Tenu, expres = false): Promise<void> {
+    if (tenu.controlant !== undefined) return tenu.controlant;
+    const dernier = tenu.controle === undefined ? undefined : Date.parse(tenu.controle.a);
+    if (!expres && dernier !== undefined && Date.now() - dernier < (options.controleMs ?? 0)) return Promise.resolve();
+    tenu.controlant = (async () => {
+      try {
+        const joue = await jouer(projet, COMMANDES.stations);
+        const stations = "echec" in joue || joue.code !== 0 ? undefined : lireStations(joue.sortie);
+        const verifiee = verdictDe(await options.lancer(servi(projet), VERIFICATION), projet.nom, options.delaiMs);
+        const manques = verifiee.etat === "pret" || verifiee.etat === "incomplete" ? manquesDe(verifiee.sortie) : undefined;
+        const avant = tenu.controle;
+        const lues = stations ?? avant?.stations;
+        const dits = manques ?? avant?.manques;
+        tenu.controle = { a: new Date().toISOString(), ...(lues === undefined ? {} : { stations: lues }), ...(dits === undefined ? {} : { manques: dits }) };
+      } finally {
+        tenu.controlant = undefined;
+      }
+      pousser(projet, tenu);
+    })();
+    return tenu.controlant;
+  }
+
   const deplie = (tenu: Tenu) => tenu.suivi || (tenu.etapes !== undefined && tenu.etapes.courante !== null && tenu.etapes.etapes.some(({ etat }) => etat !== "todo"));
 
   function vue(projet: Projet, tenu: Tenu): Guide {
@@ -558,6 +602,7 @@ export function tenirServices(options: {
       ...(tenu.action === undefined ? {} : { action: tenu.action }),
       ...(tenu.fait === undefined ? {} : { fait: tenu.fait }),
       demarrage,
+      ...(tenu.fini === true && tenu.controle !== undefined ? { controle: tenu.controle } : {}),
     };
   }
 
@@ -675,6 +720,31 @@ export function tenirServices(options: {
 
   return {
     guide,
+
+    // Le contrôle d'un projet installé — l'app le relance à son rythme, quel que soit l'écran, et
+    // pas plus souvent que `controleMs` : si la box dit l'installation terminée, ce qu'il a perdu.
+    // Une installation pas finie n'en est pas touchée : rien n'y est lu de plus, rien noté.
+    // `expres` : demandé par le chef, l'écart minimal ne le retient pas.
+    // Rend le contrôle tel qu'il en sort — rien, pour un projet sans box ou pas installé.
+    async controler(projet: Projet, expres = false): Promise<Controle | undefined> {
+      if (projet.box === undefined) return undefined;
+      const avec = { ...projet, box: projet.box };
+      const tenu = tenir(projet.nom, projet.box.hote);
+      if (tenu.fini !== true) {
+        // Terminée depuis la dernière lecture — ailleurs que dans l'app : l'écran l'apprend aussi.
+        const joue = await jouer(avec, COMMANDES.etapes);
+        const lues = "echec" in joue || joue.code !== 0 ? undefined : lireEtapes(joue.sortie);
+        if (lues?.courante !== null || !vivant(projet.nom, tenu)) return undefined;
+        tenu.lecture = { etat: "lue", a: joue.a };
+        tenu.etapes = lues;
+        tenu.fini = true;
+        tenu.detail = undefined;
+        pousser(projet, tenu);
+      }
+      if (!vivant(projet.nom, tenu)) return undefined;
+      await controler(avec, tenu, expres);
+      return tenu.controle;
+    },
 
     // Le chef ouvre l'écran replié, ou le projet vient d'être ajouté par l'écran d'ajout.
     deplier(projet: Projet): Promise<Guide | undefined> {
