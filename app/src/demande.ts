@@ -16,12 +16,14 @@ export const REFUS_CONTROLE = "nothing is written: what the queue says about thi
 export const REFUS_CONTROLE_TICKET = "nothing is written: what the box says about this ticket carries a control character, and a line break would have sent the request";
 export const REFUS_CONTROLE_ALERTE = "nothing is written: what the box says about this alert carries a control character, and a line break would have sent the request";
 
-// Ce que la note dit quand la demande est écrite. Le risque n'est pas écarté : devant un
-// dialogue (une permission, un choix numéroté), l'app ne peut pas savoir que le texte y
-// tombe, et une phrase contient des lettres et des chiffres que certains dialogues
-// prennent pour un choix, sans Entrée. Elle ne le prétend donc pas.
-export function noteDeLaDemande(demande: string): string {
-  return `request written in the second, without Enter: “${demande}” — a sentence, not a command: at \`claude\`'s prompt, it waits for your Enter, after what you were typing if you were typing. In front of a dialog (a permission, a choice) or vim mode, these characters are keystrokes, and a sentence contains some that certain dialogs take for a choice: this risk is not ruled out — look at the second before confirming`;
+// Ce que la note dit quand la demande est écrite : une ligne, sans la recopier — elle est dans le
+// terminal, juste en dessous. Elle disparaît à l'Entrée du chef (terminaux.ts, `ecrire`).
+// L'avertissement ne vient que si le second était devant un dialogue (une permission, un choix) au
+// moment d'écrire : ces caractères y sont des touches. Sinon, la note ne le dit pas.
+export function noteDeLaDemande(devantUnDialogue = false): string {
+  return devantUnDialogue
+    ? "demande écrite dans le second, qui attend une réponse à un dialogue : ces caractères y sont des touches — regarde le second avant d'appuyer sur Entrée"
+    : "demande écrite dans le second — appuie sur Entrée pour l'envoyer";
 }
 
 // La demande pour un ticket de ce projet d'après ce que la file en dit — ou pourquoi

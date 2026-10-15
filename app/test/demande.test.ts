@@ -59,21 +59,42 @@ describe("la demande d'une carte de T'attend", () => {
     assert.deepEqual(demandeDe("brigade", 30, [QUESTION], "titre\r"), { refus: REFUS_CONTROLE });
   });
 
-  test("écrite dans un second qui tourne : sans Entrée, et la note dit le risque d'un dialogue — il n'est pas écarté", () => {
+  test("écrite dans un second qui tourne : sans Entrée, et la note tient en une ligne, sans la recopier", () => {
     const { terminaux, ecrits } = registre();
     const projet = { nom: "brigade", dossier: "/projets/brigade" };
     terminaux.espace(projet);
     const ecrit = demandeDe("brigade", 30, [QUESTION]);
     assert.ok("demande" in ecrit);
 
-    const dit = terminaux.inscrire(projet, ecrit.demande, noteDeLaDemande(ecrit.demande));
+    const dit = terminaux.inscrire(projet, ecrit.demande, noteDeLaDemande);
 
     assert.deepEqual(ecrits, [ecrit.demande]);
     assert.ok(!/[\r\n]$/.test(ecrits[0] ?? ""));
-    assert.equal(dit.note, noteDeLaDemande(ecrit.demande));
-    assert.match(dit.note, /without Enter/);
-    assert.match(dit.note, /dialog/);
-    assert.match(dit.note, /this risk is not ruled out/);
+    assert.equal(dit.note, "demande écrite dans le second — appuie sur Entrée pour l'envoyer");
+    assert.ok(!dit.note.includes(ecrit.demande));
+  });
+
+  test("la note disparaît quand le chef envoie la demande, et l'avertissement tient en une ligne", () => {
+    const etats: string[] = [];
+    const terminaux = ouvrirTerminaux({
+      claude: "claude",
+      shell: "/bin/zsh",
+      ouvrirPty: () => ({ ecrire: () => {}, redimensionner: () => {}, tuer: () => {} }),
+      surSortie: () => {},
+      surEtat: (terminal) => void etats.push(terminal.note),
+    });
+    const projet = { nom: "brigade", dossier: "/projets/brigade" };
+    terminaux.espace(projet);
+    const ecrit = demandeDe("brigade", 30, [QUESTION]);
+    assert.ok("demande" in ecrit);
+    const dit = terminaux.inscrire(projet, ecrit.demande, noteDeLaDemande);
+
+    terminaux.ecrire(dit.id, "a");
+    assert.deepEqual(etats, []);
+    terminaux.ecrire(dit.id, "\r");
+
+    assert.deepEqual(etats, [""]);
+    assert.ok(!noteDeLaDemande(true).includes("\n"));
   });
 
   test("un second qui ne tourne pas est lancé, et rien n'y est écrit", () => {
@@ -84,7 +105,7 @@ describe("la demande d'une carte de T'attend", () => {
     assert.ok(second);
     // Un registre neuf : le second de ce projet n'a pas de pty tant que l'espace n'est pas ouvert.
     const neuf = registre();
-    const dit = neuf.terminaux.inscrire(projet, "Le ticket #30 m'attend", "note");
+    const dit = neuf.terminaux.inscrire(projet, "Le ticket #30 m'attend", () => "note");
     assert.deepEqual(neuf.ecrits, []);
     assert.match(dit.note, /is not written into a second that is starting/);
     assert.deepEqual(ecrits, []);
@@ -131,10 +152,10 @@ describe("la demande d'une ligne de la bande d'alertes : le geste avec jugement"
     const ecrit = demandeDeLAlerte("parade", GELEE);
     assert.ok("demande" in ecrit);
 
-    const dit = terminaux.inscrire(projet, ecrit.demande, noteDeLaDemande(ecrit.demande));
+    const dit = terminaux.inscrire(projet, ecrit.demande, noteDeLaDemande);
 
     assert.deepEqual(ecrits, [ecrit.demande]);
     assert.ok(ecrits.every((donnees) => !/[\r\n]/.test(donnees)));
-    assert.match(dit.note, /without Enter/);
+    assert.match(dit.note, /appuie sur Entrée/);
   });
 });

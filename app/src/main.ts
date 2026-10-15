@@ -540,7 +540,7 @@ ipcMain.handle("demander", (_, nom: unknown, ticket: unknown) => {
   const donne = dit === undefined ? (faits.ticket(vise.nom, ticket) ?? (amonts.adresse(vise.nom, ticket) === undefined ? undefined : {})) : undefined;
   if (dit === undefined && donne === undefined) return undefined;
   const ecrit = dit !== undefined ? demandeDe(vise.nom, ticket, dit.lignes, dit.titre) : demandeSurLeTicket(vise.nom, ticket, donne?.etat, donne?.titre);
-  return "refus" in ecrit ? ecrit : terminaux.inscrire(vise, ecrit.demande, noteDeLaDemande(ecrit.demande));
+  return "refus" in ecrit ? ecrit : terminaux.inscrire(vise, ecrit.demande, noteDeLaDemande);
 });
 // Les gestes de la fiche d'un ticket, à cet instant (gestes-fiche.ts) : d'après la carte cliquée,
 // ceux que la table du chef permet pour son état et dont l'action est branchée, chacun avec son prix.
@@ -643,7 +643,7 @@ ipcMain.handle("demanderAlerte", (_, nom: unknown, sujet: unknown, dit: unknown)
   const alerte = bandes.alerte(vise.nom, sujet, dit);
   if (alerte?.appel === undefined || !("demande" in alerte.appel)) return undefined;
   const ecrit = demandeDeLAlerte(vise.nom, alerte);
-  return "refus" in ecrit ? ecrit : terminaux.inscrire(vise, ecrit.demande, noteDeLaDemande(ecrit.demande));
+  return "refus" in ecrit ? ecrit : terminaux.inscrire(vise, ecrit.demande, noteDeLaDemande);
 });
 // Un geste : sa commande part dans le second du projet, qui est rendu — sa note dit ce qui est
 // parti, ou le refus dit pourquoi rien ne l'est, quand le second n'est pas dit libre. La vue nomme

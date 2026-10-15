@@ -16,7 +16,7 @@ import { compteDe, texteBandeau } from "./bandeau.ts";
 import type { Projet } from "./config.ts";
 import { lieuDe } from "./machines.ts";
 import { detruire as detruireSession, joindre as joindreMachine, nomDeSession, rattachement, type Cible, type Session } from "./persistance.ts";
-import { PREUVE, reglages, suivreSaisie, type Saisie, type Tours } from "./saisie.ts";
+import { DIT, PREUVE, reglages, suivreSaisie, type Saisie, type Tours } from "./saisie.ts";
 import type { Rappel, Souvenir, Souvenirs } from "./souvenirs.ts";
 
 export type Pty = {
@@ -68,6 +68,8 @@ type Tenu = Terminal & {
   persistant?: { rang: number; session: Session };
   ici?: string;
   attente?: Attente;
+  // La note est celle d'une demande écrite : elle disparaît à l'Entrée du chef.
+  demandeEcrite?: true;
 };
 
 // Les délais entre deux sondes d'une machine qui ne répond pas : vite d'abord, puis toutes les
@@ -205,8 +207,8 @@ export function ouvrirTerminaux(options: {
   // Un second qui ne tourne pas est lancé d'abord, et rien n'y est écrit : ce
   // qui démarre prendrait la commande pour des touches.
   // `dit` : ce que la note rend de ce qui est écrit, quand ce n'est pas une commande
-  // (demande.ts) — le risque d'un écran qui prend le texte pour des touches reste dit.
-  function inscrire(projet: Projet, commande: string, dit?: string): Terminal {
+  // (demande.ts), selon que le second était devant un dialogue.
+  function inscrire(projet: Projet, commande: string, dit?: (devantUnDialogue: boolean) => string): Terminal {
     const second = secondDe(projet);
     if (CONTROLE.test(commande)) {
       second.note = SANS_ECRIRE;
@@ -215,10 +217,15 @@ export function ouvrirTerminaux(options: {
       lancerSecond(second, true);
       second.note = `the second was not running: launched (\`claude --continue ${ROLE}\`) — the command is not written into a second that is starting, click again when it is ready`;
     } else {
+      // Devant un dialogue : le second attend une réponse, et ces caractères y seraient des touches.
+      const etat = second.saisie?.etat();
+      const devantUnDialogue = etat !== undefined && !etat.libre && etat.dit === DIT.attend;
       second.pty.ecrire(commande);
       // La saisie n'est plus vide : un geste direct ne s'y écrira pas à la suite.
       second.saisie?.entamer();
-      second.note = dit ?? `written into the second, without Enter: \`${commande}\` — at \`claude\`'s prompt, it waits for yours, after your typing if you were typing. On any other screen (a choice to make, vim mode), these characters are keystrokes: look at the second before confirming`;
+      if (dit !== undefined) second.demandeEcrite = true;
+      else delete second.demandeEcrite;
+      second.note = dit?.(devantUnDialogue) ?? `written into the second, without Enter: \`${commande}\` — at \`claude\`'s prompt, it waits for yours, after your typing if you were typing. On any other screen (a choice to make, vim mode), these characters are keystrokes: look at the second before confirming`;
     }
     return montre(second);
   }
@@ -491,6 +498,12 @@ export function ouvrirTerminaux(options: {
         // Ce que le chef tape dans le second se compte : sa saisie n'est dite vide qu'après son Entrée.
         tenu.saisie?.frappe(donnees);
         tenu.pty.ecrire(donnees);
+        // La demande est envoyée : son bandeau n'a plus de raison d'être.
+        if (donnees === "\r" && tenu.demandeEcrite !== undefined) {
+          delete tenu.demandeEcrite;
+          tenu.note = "";
+          options.surEtat(montre(tenu));
+        }
       } else if (tenu.attente !== undefined && tenu.persistant !== undefined) {
         // Une touche dans un shell qui attend sa machine : il essaie tout de suite, sans la sonde —
         // c'est `ssh`, dans le terminal, qui demande un mot de passe s'il en faut un. La touche,
