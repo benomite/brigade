@@ -1926,19 +1926,24 @@ function poserFiche() {
   lignes.append(
     rang("priority", dite(priorite)),
     rang("issue", issue === true ? lien(`open issue #${ticket}`, `open issue #${ticket} in the browser`, () => void ouvrirIssue(projet, ticket)) : dite(issue)),
-    rang("PR", pr === true ? lien("open the merged PR", `open #${ticket}'s merged PR in the browser`, () => void ouvrirPr(projet, ticket)) : dite(pr)),
+    // Une PR que la box ne donne pas (ticket pas servi) n'a pas de ligne : ce qui n'existe pas encore n'est pas affiché.
+    ...(pr === undefined ? [] : [rang("PR", pr === true ? lien("open the merged PR", `open #${ticket}'s merged PR in the browser`, () => void ouvrirPr(projet, ticket)) : dite(pr))]),
   );
   const nomme = "valeur" in titre ? bloc("h3", titre.valeur) : bloc("p", titre.sans);
   if ("sans" in titre) nomme.className = "sans";
   fiche.ariaLabel = `the sheet of #${ticket}`;
-  fiche.replaceChildren(tete, nomme, lignes);
+  // Le popup : un panneau de lecture, posé sur un voile qui laisse voir le rail, atténué.
+  const panneau = document.createElement("div");
+  panneau.className = "panneau";
+  panneau.append(tete, nomme, lignes);
+  fiche.replaceChildren(panneau);
   // Un ticket qui t'attend : la question que son issue pose, s'il en pose une — lue à l'ouverture —,
   // puis la demande au second, comme sa carte la faisait. Rien n'est envoyé sans un clic.
   if (attend.length > 0) {
     const cle = `${projet.nom}#${ticket}`;
     if (!questions.has(cle)) void lireQuestion(projet, ticket);
     const question = poserQuestion(projet, ticket, questions.get(cle) ?? {});
-    if (question !== undefined) fiche.append(question);
+    if (question !== undefined) panneau.append(question);
     const demande = bouton("ask the second", () => void demander(ticket));
     demande.className = "demander";
     demande.title = `write into the second a request about #${ticket}, from what the \`attend\` block says — nothing is sent: you press Enter`;
@@ -1946,7 +1951,7 @@ function poserFiche() {
     const gestes = document.createElement("div");
     gestes.className = "gestes";
     gestes.append(demande);
-    fiche.append(gestes);
+    panneau.append(gestes);
   }
 }
 // La fiche ouverte est-elle celle de ce ticket : ce qui revient pour lui ne se pose que là.
@@ -2074,6 +2079,11 @@ function poserQuestion(projet, ticket, { lue, envoi, rendue }) {
   }
   return section;
 }
+
+// Un clic à côté du popup, sur le voile, la ferme aussi.
+fiche.addEventListener("click", (evenement) => {
+  if (evenement.target === fiche) fermerFiche();
+});
 
 // Échap ferme la fiche : elle a le clavier dès qu'elle s'ouvre.
 fiche.addEventListener("keydown", (evenement) => {

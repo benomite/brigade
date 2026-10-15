@@ -633,6 +633,15 @@ describe("un clic sur une carte ouvre sa fiche par-dessus le rail (#635)", () =>
         assert.deepEqual([rail.hidden, rail.inert], [false, false]);
       }
     }
+    // Un clic à côté du popup, sur le voile, la ferme ; un clic dans le panneau, non.
+    const [premiere] = colonnes(vue).flatMap(bons);
+    premiere?.click();
+    await repos();
+    fiche(vue).declencher("click", { target: fiche(vue).dessous("header")[0] });
+    assert.equal(fiche(vue).hidden, false);
+    fiche(vue).declencher("click", { target: fiche(vue) });
+    await repos();
+    assert.equal(fiche(vue).hidden, true);
     // Ni rechargé ni redessiné : ce sont les mêmes cartes, et la fiche n'a rien demandé à la box.
     assert.deepEqual(rail.dessous("li"), poses);
     assert.ok(poses.every((pose) => rail.contains(pose)));
@@ -676,7 +685,6 @@ describe("un clic sur une carte ouvre sa fiche par-dessus le rail (#635)", () =>
     assert.deepEqual(lignesDeFiche(vue), [
       ["priority", "prio:1"],
       ["issue", "open issue #14"],
-      ["PR", "not given — the box only gives the PR of a served ticket"],
     ]);
     // La priorité se recopie : en monospace ; le numéro aussi.
     assert.equal(valeurDeFiche(vue, "priority").className, "mono");
@@ -685,7 +693,7 @@ describe("un clic sur une carte ouvre sa fiche par-dessus le rail (#635)", () =>
     valeurDeFiche(vue, "issue").dessous("button")[0]?.click();
     await repos();
     assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 14]);
-    assert.deepEqual(valeurDeFiche(vue, "PR").dessous("button"), []);
+    assert.deepEqual(lignesDeFiche(vue).map(([libelle]) => libelle), ["priority", "issue"], "pas de PR donnée : pas de ligne PR");
     fermer(vue);
 
     // Une issue sans `prio:` : `status` écrit `-`, la fiche le dit.
@@ -709,9 +717,11 @@ describe("un clic sur une carte ouvre sa fiche par-dessus le rail (#635)", () =>
     const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
     const corps = /(?:^|})\s*#fiche h3\s*\{([^}]*)\}/.exec(css)?.[1] ?? assert.fail("pas de règle pour le titre de la fiche");
     assert.doesNotMatch(corps, /overflow:\s*hidden|text-overflow|line-clamp|max-height|white-space:\s*nowrap/);
-    // Elle couvre le centre, sur son fond, et défile dans sa hauteur.
-    const regle = /(?:^|})\s*#fiche\s*\{([^}]*)\}/.exec(css)?.[1] ?? assert.fail("pas de règle pour la fiche");
-    for (const declaration of [/position:\s*absolute/, /inset:\s*0/, /overflow-y:\s*auto/, /background:\s*var\(--fond\)/]) assert.match(regle, declaration);
+    // Un popup : un voile sur le centre, le rail visible dessous, et un panneau de lecture, borné, qui défile.
+    const voile = /(?:^|})\s*#fiche\s*\{([^}]*)\}/.exec(css)?.[1] ?? assert.fail("pas de règle pour la fiche");
+    for (const declaration of [/position:\s*absolute/, /inset:\s*0/, /background:\s*var\(--ombre\)/]) assert.match(voile, declaration);
+    const panneau = /(?:^|})\s*#fiche \.panneau\s*\{([^}]*)\}/.exec(css)?.[1] ?? assert.fail("pas de règle pour le panneau de la fiche");
+    for (const declaration of [/width:\s*min\(/, /max-height:\s*100%/, /overflow-y:\s*auto/, /background:\s*var\(--fond\)/]) assert.match(panneau, declaration);
   });
 
   test("ce que la box ne donne pas est écrit « non communiqué », avec sa raison — jamais une valeur devinée, jamais une ligne vide", async () => {
@@ -726,10 +736,9 @@ describe("un clic sur une carte ouvre sa fiche par-dessus le rail (#635)", () =>
     assert.deepEqual(lignesDeFiche(vue), [
       ["priority", "not given — `facts` does not give it, and the `rail` line of `status` was not read"],
       ["issue", "not given — the box returns no address for this issue"],
-      ["PR", "not given — the box only gives the PR of a served ticket"],
     ]);
     // Chaque ligne non communiquée se lit comme telle : ce sont les mots de l'app.
-    for (const libelle of ["priority", "issue", "PR"]) assert.equal(valeurDeFiche(vue, libelle).className, "sans", libelle);
+    for (const libelle of ["priority", "issue"]) assert.equal(valeurDeFiche(vue, libelle).className, "sans", libelle);
     for (const [, valeur] of lignesDeFiche(vue)) assert.doesNotMatch(valeur ?? "", /^(|0|-|—|\?|aucun|none|inconnu)$/i);
     fermer(vue);
 
