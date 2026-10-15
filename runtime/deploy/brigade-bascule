@@ -11,9 +11,12 @@
 # du chef. Une variable de décision que le drop-in de l'unité porte et que le
 # journal n'a pas est recopiée une fois au journal, avant l'essai, une ligne
 # dite par réglage : le runtime ne relit plus le drop-in, le journal est sa
-# seule source. Le drop-in n'est pas touché — le retour arrière relance la
-# version d'avant sur ce qu'elle lisait. Une variable que le journal porte
-# déjà n'est pas écrasée : la bascule la nomme, avec le geste qui la remplace.
+# seule source. Le drop-in n'est pas touché tant que la version n'est pas
+# confirmée — le retour arrière relance la version d'avant sur ce qu'elle
+# lisait ; une fois confirmée, les réglages que le journal porte avec la même
+# valeur en sont retirés, et dits en une ligne. Une variable que le journal
+# porte déjà n'est pas écrasée : si sa valeur diffère, la bascule la nomme avec
+# les deux valeurs et le geste qui tranche, et elle reste au drop-in.
 #
 # La version — `runtime/` au commit nommé, sinon à celui du clone — est posée à
 # côté de celle qui tourne, sous <clone>-versions/<projet>/<commit>/. Elle est
@@ -312,6 +315,35 @@ try {
 }
 base.close();
 '
+# Compare des `NOM=valeur` du drop-in à ce que le journal porte : une ligne
+# `egal<TAB>NOM` si c'est la même valeur, `autre<TAB>NOM<TAB>valeur du journal
+# en JSON` sinon. Un réglage que le journal n'a pas n'est pas dit. Même
+# lecture que LIRE_LES_DECISIONS : seule, figée si le journal est au repos.
+COMPARER_LES_DECISIONS='
+const { DatabaseSync } = require("node:sqlite");
+const { existsSync } = require("node:fs");
+const { pathToFileURL } = require("node:url");
+const [chemin, ...reglages] = process.argv.slice(1);
+const adresse = pathToFileURL(chemin);
+if (!existsSync(`${chemin}-wal`)) adresse.searchParams.set("immutable", "1");
+const base = new DatabaseSync(adresse, { readOnly: true, timeout: 5000 });
+const posees = new Map();
+for (const { type, payload } of base.prepare("SELECT type, payload FROM events WHERE type IN (?, ?) ORDER BY seq").all("decision.set", "decision.withdrawn")) {
+  const { name, value } = JSON.parse(payload);
+  if (typeof name !== "string") continue;
+  if (type === "decision.withdrawn") posees.delete(name);
+  else if (typeof value === "string") posees.set(name, value);
+}
+base.close();
+for (const reglage of reglages) {
+  const egal = reglage.indexOf("=");
+  const nom = reglage.slice(0, egal);
+  const valeur = reglage.slice(egal + 1).trim();
+  if (!posees.has(nom)) continue;
+  if (posees.get(nom) === valeur) console.log(`egal\t${nom}`);
+  else console.log(`autre\t${nom}\t${JSON.stringify(posees.get(nom))}`);
+}
+'
 journal="$etat/log.db"
 # Lance un script node sur le journal sous le compte de l'unité, sans rien de
 # l'environnement de la bascule. `$1` est le script, le reste ses arguments.
@@ -366,14 +398,35 @@ if [ -n "$obligatoires" ] && [ -z "$illisible" ]; then
   fi
 fi
 
-# Ce qui reste au drop-in sans avoir été recopié — le journal le porte déjà, ou
-# n'a pas pu être écrit : ignoré du runtime, et dit avec son geste. Ce que le
-# journal porte déjà n'est pas écrasé.
+# Ce que le drop-in porte encore, rapproché du journal : la même valeur — le
+# réglage est retiré du drop-in une fois la version confirmée —, une autre —
+# dite avec les deux valeurs et le geste qui tranche —, ou rien au journal
+# (recopie impossible, ou version qui ne déclare rien) : ignoré du runtime, et
+# dit avec son geste. Ce que le journal porte déjà n'est jamais écrasé.
+a_retirer=()
+dans_le_drop_in=()
 while read -r variable geste; do
-  case "$copiees" in *" $variable "*) continue ;; esac
-  if dans_l_environnement "$variable"; then
-    dire "$variable est encore dans l'environnement de $unite : le runtime l'ignore — la poser par \`brigade $projet station $geste <valeur>\` puis la retirer du drop-in (\`sudo systemctl edit $unite\`) — $DOC" >&2
-  fi
+  [ -n "$variable" ] || continue
+  dans_l_environnement "$variable" && dans_le_drop_in+=("$variable=$donnee")
+done <<<"$GESTES_DES_DECISIONS"
+rapprochees=""
+if [ -n "$obligatoires" ] && [ -z "$illisible" ] && [ -f "$journal" ] && [ ${#dans_le_drop_in[@]} -gt 0 ]; then
+  rapprochees="$(sur_le_journal "$COMPARER_LES_DECISIONS" "$journal" "${dans_le_drop_in[@]}" 2>/dev/null)" || rapprochees=""
+fi
+while read -r variable geste; do
+  [ -n "$variable" ] || continue
+  dans_l_environnement "$variable" || continue
+  ligne="$(grep -m1 -P "^(egal|autre)\t$variable(\t|\$)" <<<"$rapprochees")"
+  case "$ligne" in
+    egal*) a_retirer+=("$variable") ;;
+    autre*)
+      du_journal="${ligne#*$'\t'*$'\t'}"
+      dire "$variable : le drop-in de $unite dit « $donnee », le journal du projet dit $du_journal — le runtime lit le journal ; pour garder celle du journal, retirer \`Environment=$variable\` du drop-in (\`sudo systemctl edit $unite\`) ; pour garder celle du drop-in, \`brigade $projet station $geste $donnee\`, et la prochaine mise en service la retire seule — $DOC" >&2
+      ;;
+    *)
+      dire "$variable est encore dans l'environnement de $unite : le runtime l'ignore — la poser par \`brigade $projet station $geste <valeur>\` puis la retirer du drop-in (\`sudo systemctl edit $unite\`) — $DOC" >&2
+      ;;
+  esac
 done <<<"$GESTES_DES_DECISIONS"
 manquent=()
 while read -r variable geste valeur; do
@@ -630,6 +683,47 @@ revenir() {
   exit $PAS_REVENUE
 }
 
+# Une fois la version confirmée : ce que le journal porte avec la même valeur
+# n'a plus rien à faire au drop-in, et la bascule l'en retire elle-même — une
+# ligne `Environment=NOM=…` seule, dans les drop-ins de l'instance. Jamais
+# avant : le retour arrière relance une version qui le lit encore. Dit en une
+# ligne ; ce qui reste dans l'environnement après le retrait (une ligne qui
+# porte plusieurs affectations, un autre répertoire) est dit comme avant.
+retirer_du_drop_in() {
+  [ ${#a_retirer[@]} -gt 0 ] || return 0
+  local retirees=() variable fichier tmp
+  for variable in "${a_retirer[@]}"; do
+    for fichier in "$posees/$unite.d"/*.conf; do
+      [ -f "$fichier" ] || continue
+      grep -q -E "^Environment=\"?$variable=" "$fichier" || continue
+      tmp="$(mktemp)" || continue
+      # Réécrit en place : le fichier garde son propriétaire et ses droits.
+      if grep -v -E "^Environment=\"?$variable=" "$fichier" >"$tmp" || [ ! -s "$tmp" ]; then
+        cat "$tmp" >"$fichier"
+      fi
+      rm -f "$tmp"
+    done
+    retirees+=("$variable")
+  done
+  systemctl daemon-reload || dire "systemd n'a pas rechargé ses unités après le retrait des réglages du drop-in de $unite (\`systemctl daemon-reload\`)" >&2
+  environnement="$(systemctl show -p Environment --value "$unite" 2>/dev/null)" || environnement=""
+  local restes=0
+  for variable in "${retirees[@]}"; do
+    if dans_l_environnement "$variable"; then
+      restes=$((restes + 1))
+      dire "$variable est encore dans l'environnement de $unite : le runtime l'ignore — la ligne n'a pas pu être retirée seule, la retirer du drop-in (\`sudo systemctl edit $unite\`) — $DOC" >&2
+    fi
+  done
+  local n=$((${#retirees[@]} - restes))
+  if [ $n -gt 0 ]; then
+    if [ $n = 1 ]; then
+      dire "1 ancien réglage retiré du drop-in de $unite, déjà dans le journal"
+    else
+      dire "$n anciens réglages retirés du drop-in de $unite, déjà dans le journal"
+    fi
+  fi
+}
+
 debut="$(date +%s)"
 # Posé avant l'arrêt : bash diffère le trap jusqu'à la fin de la commande, une
 # interruption reçue pendant `stop` doit déjà trouver un runtime à relancer.
@@ -664,6 +758,7 @@ if demarrer; then
   rendre_compte
   [ $cloisonne = 1 ] && avec=", sa porte avec lui"
   dire "$unite a démarré sur $(court "$commit")${avec:-}${precedente:+ — $(court "$precedente") reste posée, à quoi revenir (\`brigade-bascule $projet $(court "$precedente")\`)}"
+  retirer_du_drop_in
   exit 0
 fi
 
