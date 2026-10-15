@@ -384,7 +384,9 @@ export function commandeDeDemarrage(projet: Projet): { commande: string } | { re
 // Ce que le contrôle d'un projet installé a lu sur sa box. `a` : l'instant où il a fini.
 // `stations` : ce que la machine fournit et ce que le projet déclare ; `manques` : ce que la
 // vérification dit manquer — chacun absent quand la box ne l'a jamais rendu sous sa forme.
-export type Controle = { a: string; stations?: StationsLues; manques?: Manque[]; renouvellement?: RenouvellementEnEchec };
+// `verification` : le verdict tel que l'écran Verify le pose (phrase, manques, « à savoir », sortie
+// brute) — la bande d'alertes le reprend, sans le redire autrement.
+export type Controle = { a: string; stations?: StationsLues; manques?: Manque[]; renouvellement?: RenouvellementEnEchec; verification?: Montree };
 
 // --- Ce que la vue pose.
 
@@ -690,18 +692,23 @@ export function tenirServices(options: {
       try {
         const joue = await jouer(projet, COMMANDES.stations);
         const stations = "echec" in joue || joue.code !== 0 ? undefined : lireStations(joue.sortie);
-        const verifiee = verdictDe(await options.lancer(servi(projet), VERIFICATION), projet.nom, options.delaiMs);
-        const manques = verifiee.etat === "pret" || verifiee.etat === "incomplete" ? manquesDe(verifiee.sortie) : undefined;
+        const jugee = jugementDe(await options.lancer(servi(projet), JUGEMENT), options.delaiMs);
+        const lu = jugee.etat === "jugee" && jugee.jugement.verdict !== "plantee" ? jugee.jugement : undefined;
+        const manques = lu === undefined ? undefined : manquesDuJugement(lu);
         const avant = tenu.controle;
         const lues = stations ?? avant?.stations;
         const dits = manques ?? avant?.manques;
         // Une vérification lue qui ne dit plus d'échec lève l'alerte ; une lecture ratée laisse l'ancienne.
-        const renouvellement = verifiee.etat === "pret" || verifiee.etat === "incomplete" ? renouvellementDe(verifiee.sortie) : avant?.renouvellement;
+        const renouvellement = lu === undefined ? avant?.renouvellement : renouvellementDe(lu.aSavoir.map(({ texte }) => `  à savoir  ${texte}`).join("\n"));
+        // Ce que l'écran Verify poserait : la bande d'alertes dit le même verdict, les mêmes manques.
+        const etapes = (tenu.etapes?.etapes ?? []).map((etape, rang) => ({ ...etape, rang: rang + 1 })) as EtapeVue[];
+        const verification = jugee.etat === "sans-verdict" ? avant?.verification : montrer(jugee, etapes);
         tenu.controle = {
           a: new Date().toISOString(),
           ...(lues === undefined ? {} : { stations: lues }),
           ...(dits === undefined ? {} : { manques: dits }),
           ...(renouvellement === undefined ? {} : { renouvellement }),
+          ...(verification === undefined ? {} : { verification }),
         };
       } finally {
         tenu.controlant = undefined;

@@ -329,15 +329,16 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
   });
 
   test("un geste qui écrit dans le second le montre, si un shell le cachait — la note est la sienne", async () => {
-    const parti = { ...SECOND, note: "parti dans le second : `!ssh box brigade parade installation`" };
-    const vue = await ouvrir({ geste: () => parti });
+    const ecrit = { ...SECOND, note: "écrit dans le second, sans Entrée : `!ssh box brigade parade station cooks `" };
+    const vue = await ouvrir({ inscrire: () => ecrit });
+    await ouvrirLecture(vue, "Cooks");
     await cliquer(vue, vue.element("terminaux"), "+ shell");
     assert.deepEqual(montre(vue), ["shell 1"]);
 
-    await cliquer(vue, vue.element("gestes-projet"), "check the installation");
+    await cliquer(vue, vue.element("gestes-onglet"), "station cooks …");
 
     assert.deepEqual(montre(vue), ["second · claude"]);
-    assert.equal(vue.element("note-second").textContent, parti.note);
+    assert.equal(vue.element("note-second").textContent, ecrit.note);
   });
 
   test("chaque projet garde le terminal où il a été laissé : revenir dessus rend le shell montré", async () => {
@@ -365,26 +366,6 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
     assert.equal(vue.element("note-second").textContent, ecrit.note);
     // La note du centre reste celle de l'onglet ouvert.
     assert.match(vue.element("note").textContent, /^the output of `ssh box brigade parade station`/);
-  });
-
-  test("un geste direct part dans le second, ou dit sous son titre pourquoi il n'est pas parti — le centre, lui, ne bouge pas", async () => {
-    const OCCUPE = "le second est occupé : il est en plein tour — la commande n'est pas partie, et rien n'est écrit";
-    let rendu: Terminal | { refus: string } = { refus: OCCUPE };
-    const vue = await ouvrir({ geste: () => rendu });
-    await ouvrirLecture(vue, "Log");
-
-    // Vérifier l'installation est le geste du projet lui-même : en tête de son espace.
-    await cliquer(vue, vue.element("gestes-projet"), "check the installation");
-
-    assert.deepEqual(vue.dernier("geste"), ["parade", "installation", undefined, undefined]);
-    assert.equal(vue.element("note-second").textContent, OCCUPE);
-    assert.deepEqual(selectionne(vue), []);
-    assert.doesNotMatch(vue.element("note").textContent, /occupé/);
-    // Le second libre, le même geste part : la raison d'avant fait place à ce qui est parti.
-    rendu = { ...SECOND, note: "parti dans le second : `!ssh box brigade parade installation`" };
-    await cliquer(vue, vue.element("gestes-projet"), "check the installation");
-    assert.equal(vue.element("note-second").textContent, rendu.note);
-    assert.deepEqual(selectionne(vue), []);
   });
 
   test("un geste confirmé ouvre sa confirmation sur place, et ne part qu'à son « oui » — dans le second, sans que le centre change", async () => {
