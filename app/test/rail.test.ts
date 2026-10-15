@@ -17,7 +17,7 @@ import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
-import { ACTIONS, type Actions, gestesDeCarte, PRIX } from "../src/gestes-fiche.ts";
+import { gestesDeCarte, PRIX } from "../src/gestes-fiche.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
@@ -727,7 +727,7 @@ describe("un clic sur une carte ouvre sa fiche par-dessus le rail (#635)", () =>
     gesteDeLaFiche(vue, "issue").click();
     await repos();
     assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 14]);
-    assert.deepEqual(gestesDeLaFicheOuverte(vue).map(([id]) => id), ["issue", "second"], "pas de PR donnée : pas de geste PR");
+    assert.deepEqual(gestesDeLaFicheOuverte(vue).map(([id]) => id), ["issue", "second", "priorite"], "pas de PR donnée : pas de geste PR");
     fermer(vue);
 
     // Une issue sans `prio:` : `status` écrit `-`, la fiche le dit.
@@ -747,7 +747,7 @@ describe("un clic sur une carte ouvre sa fiche par-dessus le rail (#635)", () =>
     bonDe(vue, 188).click();
     await repos();
     assert.equal(valeurDeFiche(vue, "PR").textContent, "none — served without a merge");
-    assert.deepEqual(fiche(vue).dessous("button").map((pose) => pose.textContent), ["close", "open the issue", "ask the second"]);
+    assert.deepEqual(fiche(vue).dessous("button").map((pose) => pose.textContent), ["close", "open the issue", "ask the second", "change the priority"]);
 
     // Et la peau ne coupe pas le titre : aucune ligne bornée, aucun point de suspension.
     const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -809,9 +809,7 @@ describe("un clic sur une carte ouvre sa fiche par-dessus le rail (#635)", () =>
 // seulement ceux-là, chacun suivi de son prix. La vue pose ce que le process principal propose
 // (gestes-fiche.ts) ; ce qui part, elle le nomme — un geste, un ticket, une valeur —, jamais une commande.
 describe("la fiche propose les gestes possibles à cet instant, et seulement ceux-là (#639)", () => {
-  // Les actions de #637, branchées pour l'essai : aucune commande de box ne les expose aujourd'hui.
-  const BRANCHEES: Actions = { ...ACTIONS, priorite: { box: (ticket, valeur) => `essai-priorite ${ticket} ${valeur ?? ""}` }, retirer: { box: (ticket) => `essai-retirer ${ticket}` } };
-  const avecLeRuntime: Reponses = { gestesDeFiche: (carte) => gestesDeCarte(carte, BRANCHEES), gesteDeFiche: () => ({ ...SECOND, note: "commande envoyée dans le second" }) };
+  const avecLeRuntime: Reponses = { gesteDeFiche: () => ({ ...SECOND, note: "commande envoyée dans le second" }) };
   // #21 en attente, #14 pris, #30 en pass, #12 qui t'attend — sa ligne nomme une commande de la box.
   const NOMMEE = "  #12  depuis 2 j  remontée par la pass, rouge — à trancher : retirer `fire`, ou fermer l'issue — `brigade parade pass 12`";
   const AVEC_COMMANDE = STATUS.replace(/attend {5}1 décision[^]*?fin attend/, `attend     1 décision attend le chef depuis 2 j\n${NOMMEE}\nfin attend`);
@@ -821,14 +819,15 @@ describe("la fiche propose les gestes possibles à cet instant, et seulement ceu
     await repos();
   };
 
-  test("chaque état a ses gestes, chacun avec son prix ; aujourd'hui, ni priorité ni retrait : le runtime ne les expose pas encore", async () => {
+  test("chaque état a ses gestes, chacun avec son prix ; celui qui t'attend a en plus le geste que la file nomme", async () => {
     const vue = await ouvrir();
     recevoir(vue, dessinable(FAITS, AVEC_COMMANDE));
-    for (const numero of [21, 14, 30]) {
+    for (const numero of [14, 30]) {
       await ouvrirFiche(vue, numero);
       assert.deepEqual(gestesDeLaFicheOuverte(vue), [
         ["issue", "open the issue", `— cost: ${PRIX.issue}`],
         ["second", "ask the second", `— cost: ${PRIX.second}`],
+        ["priorite", "change the priority", `— cost: ${PRIX.priorite}`],
       ], `#${numero}`);
       fermer(vue);
     }
@@ -837,6 +836,7 @@ describe("la fiche propose les gestes possibles à cet instant, et seulement ceu
       ["issue", "open the issue", `— cost: ${PRIX.issue}`],
       ["second", "ask the second", `— cost: ${PRIX.second}`],
       ["file", "ssh box brigade parade pass 12", `— cost: ${PRIX.file}`],
+      ["priorite", "change the priority", `— cost: ${PRIX.priorite}`],
     ]);
     // La commande se lit telle qu'elle sera écrite : en monospace. Un clic la fait écrire, par son rang.
     assert.equal(gesteDeLaFiche(vue, "file").className, "mono");
@@ -849,7 +849,7 @@ describe("la fiche propose les gestes possibles à cet instant, et seulement ceu
     assert.deepEqual(vue.dernier("demander"), [PARADE, 12]);
   });
 
-  test("en attente : changer la priorité et retirer du rail, une fois branchés — rien au travail ni en pass", async () => {
+  test("en attente : changer la priorité et retirer du rail — au travail et en pass, la priorité seule", async () => {
     const vue = await ouvrir(avecLeRuntime);
     recevoir(vue);
     await ouvrirFiche(vue, 21);
@@ -919,6 +919,6 @@ describe("la fiche propose les gestes possibles à cet instant, et seulement ceu
     assert.deepEqual(gestesDeLaFicheOuverte(vue), []);
     rendre(gestesDeCarte({ ticket: 21, etat: "en attente", ouvrable: true, attendu: false, attend: [] }));
     await repos();
-    assert.deepEqual(gestesDeLaFicheOuverte(vue).map(([id]) => id), ["issue", "second"]);
+    assert.deepEqual(gestesDeLaFicheOuverte(vue).map(([id]) => id), ["issue", "second", "priorite", "retirer"]);
   });
 });

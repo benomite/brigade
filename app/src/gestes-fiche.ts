@@ -9,12 +9,8 @@
 // Un geste n'apparaît que si son action est branchée (`ACTIONS`) : la table dit ce qui est
 // permis, le branchement ce qui se fait. Une action qui n'est pas livrée n'a pas de branchement,
 // et son geste n'est jamais proposé — ni grisé, ni promis. Celles qui manquent aujourd'hui :
-//   - « mettre en WAITING » (#588) et « voir dans le navigateur » (#620) : leur épique n'est pas
-//     livrée — elle se branche ici à sa livraison, d'une ligne, sans rien toucher d'autre ;
-//   - « retirer du rail » et « changer la priorité » : le runtime sait les faire (#637,
-//     runtime/src/geste-ticket.ts), mais aucune commande de box ne les expose encore, et l'app ne
-//     lance que les commandes qui existent. Elles se branchent ici quand le runtime les expose :
-//     `{ box: (ticket, valeur) => "<commande> …" }`, ce qui suit `brigade <nom>`.
+// « mettre en WAITING » (#588) et « voir dans le navigateur » (#620) — leur épique n'est pas
+// livrée ; elle se branche ici à sa livraison, d'une ligne, sans rien toucher d'autre.
 // Ce module ne lance rien : il dit ce qui se propose, et compose ce qui part.
 import type { Projet } from "./config.ts";
 import { enPoste } from "./gestes.ts";
@@ -30,12 +26,16 @@ export type Branchement = ({ app: true } | { box: (ticket: number, valeur?: stri
 export type Actions = Readonly<Partial<Record<IdDeFiche, Branchement>>>;
 
 // Ce qui est branché aujourd'hui. Ouvrir l'issue et la PR, demander au second et écrire le geste
-// de la file : l'app les joue déjà. Les autres attendent leur action (en tête de ce fichier).
+// de la file : l'app les joue elle-même. Retirer du rail et changer la priorité : les actions du
+// runtime (#637, runtime/src/geste-ticket.ts), sous la commande `rail` de la box — elle dit le
+// prix du geste, ou pourquoi elle le refuse. Les autres attendent leur action (en tête de ce fichier).
 export const ACTIONS: Actions = {
   issue: { app: true },
   pr: { app: true },
   second: { app: true },
   file: { app: true },
+  priorite: { box: (ticket, valeur) => `rail priority ${ticket} ${valeur ?? ""}` },
+  retirer: { box: (ticket) => `rail remove ${ticket}` },
 };
 
 // Ce que la fiche lit de la carte cliquée (faits.ts, `Carte`) : son mot d'état, si elle s'ouvre

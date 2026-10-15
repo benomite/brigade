@@ -1,11 +1,12 @@
 // La commande par laquelle le chef lit le rail : `npm run rail`.
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { test } from "node:test";
+import { describe, test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../src/journal.ts";
 import { principal as montrerRail } from "../src/montrer-rail.ts";
+import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
 import { ouvrirRail } from "../src/rail.ts";
-import { appeler, horloge, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
+import { appeler, DEPOT, fauxGh, horloge, issueGitHub, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const MONTRER = join(import.meta.dirname, "../src/montrer-rail.ts");
 
@@ -217,4 +218,95 @@ test("la fiche d'un ticket qui demande une capacité la montre, et son 86 dit la
     `#15  86  -  depuis ${JOUR_HORLOGE}T10:00:02.000Z (no-station: chrome-connecté), sans heure de retour  Ticket 15`,
     "     fiche — attend : rien · zone : e2e/ · requiert : chrome-connecté",
   ]);
+});
+
+// Les deux gestes du chef sur un ticket du rail (geste-ticket.ts), tels que la fiche de l'app
+// les lance : `brigade <projet> rail remove <ticket>`, `… rail priority <ticket> <1-9 | none>`.
+describe("remove et priority", () => {
+  const ISSUE = (numero: number) => `repos/${DEPOT}/issues/${numero}`;
+  const LABELS = (numero: number) => `${ISSUE(numero)}/labels`;
+
+  // Le ticket 18 en attente, le 14 pris.
+  function cuisine(t: TestContext) {
+    const repertoire = repertoireTemporaire(t);
+    const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
+    t.after(() => journal.fermer());
+    const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:30:00.000Z`) });
+    for (const ticket of [14, 18]) {
+      const payload = { title: `Ticket ${ticket}`, priority: ticket === 14 ? 1 : 5, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://exemple.test/${ticket}` };
+      journal.ajouter({ project: "brigade", ticket, author: "github", type: "ticket.arrived", payload });
+    }
+    rail.prendre("box/claude");
+    const gh = fauxGh(t);
+    const jouer = (args: string[], env: Record<string, string> = {}) =>
+      appeler(montrerRail, args, { BRIGADE_STATE_DIR: repertoire, BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin, ...env });
+    return { repertoire, journal, gh, jouer };
+  }
+
+  test("remove retire du rail un ticket en attente : le label `fire` quitte l'issue, le rail ne le porte plus, et le prix est dit", async (t) => {
+    const { journal, gh, jouer } = cuisine(t);
+    gh.repondre(`${LABELS(18)}/fire`, { corps: [] });
+
+    const commande = jouer(["remove", "18"]);
+
+    assert.equal(await commande.fin, 0);
+    assert.match(commande.sortie(), /^#18 retiré du rail — cost: the ticket leaves the rail/);
+    assert.deepEqual(gh.appels(), [["api", "-i", "-X", "DELETE", `${LABELS(18)}/fire`]]);
+    assert.deepEqual(lireRail(journal.base).map(({ ticket }) => ticket), [14]);
+  });
+
+  test("remove refuse un ticket pris, sans rien toucher : la raison et le prix, en code 1", async (t) => {
+    const { journal, gh, jouer } = cuisine(t);
+
+    const commande = jouer(["remove", "14"]);
+
+    assert.equal(await commande.fin, 1);
+    assert.match(commande.sortie(), /#14 n'est pas touché : #14 is pris: a ticket in progress is not touched .* — cost: none: nothing was changed/);
+    assert.deepEqual(gh.appels(), []);
+    assert.equal(ticketDuRail(journal.base, 14)?.state, "taken");
+  });
+
+  test("priority change la priorité d'un ticket, même pris : le nouveau label est posé, l'ancien retiré, le rail la lit aussitôt", async (t) => {
+    const { journal, gh, jouer } = cuisine(t);
+    gh.repondre(ISSUE(14), { corps: issueGitHub(14, { labels: ["fire", "prio:1"] }) });
+    gh.repondre(LABELS(14), { corps: [] });
+    gh.repondre(`${LABELS(14)}/prio%3A1`, { corps: [] });
+
+    const commande = jouer(["priority", "14", "3"]);
+
+    assert.equal(await commande.fin, 0);
+    assert.match(commande.sortie(), /^#14 : priorité prio:3 — cost: none: only the order of service changes/);
+    assert.deepEqual(gh.appels().map((appel) => appel.at(-1)), [ISSUE(14), LABELS(14), `${LABELS(14)}/prio%3A1`]);
+    assert.equal(ticketDuRail(journal.base, 14)?.priority, 3);
+    assert.equal(ticketDuRail(journal.base, 14)?.state, "taken");
+  });
+
+  test("priority none retire la priorité ; une valeur hors de 1 à 9 est refusée sans rien demander à GitHub", async (t) => {
+    const { journal, gh, jouer } = cuisine(t);
+    gh.repondre(ISSUE(18), { corps: issueGitHub(18, { labels: ["fire", "prio:5"] }) });
+    gh.repondre(`${LABELS(18)}/prio%3A5`, { corps: [] });
+
+    const hors = jouer(["priority", "18", "12"]);
+    assert.equal(await hors.fin, 1);
+    assert.match(hors.sortie(), /priority 12 is not valid/);
+    assert.deepEqual(gh.appels(), []);
+
+    const aucune = jouer(["priority", "18", "none"]);
+    assert.equal(await aucune.fin, 0);
+    assert.match(aucune.sortie(), /^#18 : priorité retirée — cost: /);
+    assert.equal(ticketDuRail(journal.base, 18)?.priority, null);
+  });
+
+  test("une demande mal formée, ou sans dépôt déclaré, est refusée en 2 avant que rien ne parte", async (t) => {
+    const { gh, jouer } = cuisine(t);
+    for (const args of [["remove"], ["remove", "x"], ["remove", "18", "3"], ["priority", "18"], ["priority", "18", "3", "4"], ["supprimer", "18"]]) {
+      const commande = jouer(args);
+      assert.equal(await commande.fin, 2, args.join(" "));
+      assert.match(commande.sortie(), /usage/, args.join(" "));
+    }
+    const sansDepot = jouer(["remove", "18"], { BRIGADE_GITHUB_REPO: "" });
+    assert.equal(await sansDepot.fin, 2);
+    assert.match(sansDepot.sortie(), /BRIGADE_GITHUB_REPO n'est pas défini/);
+    assert.deepEqual(gh.appels(), []);
+  });
 });

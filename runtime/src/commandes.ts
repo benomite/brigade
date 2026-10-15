@@ -22,7 +22,7 @@ export type DeLaBox = { nom: string; description: string; ancien?: string; mots?
 export const COMMANDES: readonly DeLaBox[] = [
   { nom: "status", description: "The photo of the project; --follow [<ticket>] then follows the log live", mots: { "--suivre": "--follow" } },
   { nom: "facts", ancien: "faits", description: "The machine-readable form of status, for the app" },
-  { nom: "rail", description: "The ticket rail" },
+  { nom: "rail", description: "The ticket rail; remove <ticket>, priority <ticket> <1-9 | none>" },
   { nom: "log", ancien: "journal", description: "Read the log: [<ticket> | --ticks] [--last <N>]", mots: { "--derniers": "--last" } },
   { nom: "pass", description: "The pass and its verdicts: [<ticket>]" },
   { nom: "station", description: "A station's settings: cooks <N>, a chef's decision, remove <setting>, help", mots: { retirer: "remove", aide: "help" } },
