@@ -570,3 +570,58 @@ test("une relance du manager jugée rouge compte au disjoncteur, et l'ouvre au s
   assert.deepEqual(faits().filter((type) => type === "breaker.opened"), ["breaker.opened"]);
   assert.throws(() => cook(18, "fini"), LancementRefuse);
 });
+
+// Un cook signalé de l'extérieur (SIGTERM, 143) pendant que brigade demandait
+// l'arrêt — « stop » du chef ou mise à jour — n'est pas un échec du cook.
+function troisSignales(t: TestContext, ecrireLaCause: (repertoire: string) => void) {
+  const { runtime, repertoire, cook } = cuisine(t, { seuilDisjoncteur: 3 });
+  const feu = join(repertoire, "feu");
+  const lances = [7, 8, 9].map((ticket) =>
+    runtime.lancer({ ticket, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "meurt-sigterm", FAUX_CLAUDE_FEU: feu } }),
+  );
+  void cook;
+  ecrireLaCause(repertoire);
+  writeFileSync(feu, "");
+  return { runtime, lances };
+}
+
+test("trois cooks signalés pendant un « stop » du chef : ni échec compté, ni disjoncteur, la cause est au journal", async (t) => {
+  const { runtime, lances } = troisSignales(t, () => {});
+  // Le « stop » est au journal avant que le runtime ne le lise : la sortie 143
+  // arrive la première.
+  const journal = ouvrirJournal(runtime.journal.base.lire<{ file: string }>("PRAGMA database_list")[0]!.file.replace(/\/[^/]+$/, ""));
+  journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: "kitchen.stopped", payload: {} });
+  journal.fermer();
+  const fins = await Promise.all(lances.map((lance) => lance.fin));
+
+  assert.deepEqual(fins.map((fin) => fin.outcome), ["stop", "stop", "stop"]);
+  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 0);
+  assert.equal(runtime.journal.tout().some((e) => e.type === "breaker.opened"), false);
+  for (const e of runtime.journal.tout().filter((e) => e.type === "cook.exited")) assert.equal((e.payload as { cause?: string }).cause, "stop");
+});
+
+test("trois cooks signalés pendant une mise à jour : ni échec compté, ni disjoncteur, la cause est au journal", async (t) => {
+  const { runtime, lances } = troisSignales(t, () => {});
+  runtime.journal.ajouter({
+    project: "brigade",
+    ticket: null,
+    author: "runtime",
+    type: "deploy.launched",
+    payload: { command: ["sudo"], flying: [], log: "mise-en-service.log", served: null },
+  } as never);
+  const fins = await Promise.all(lances.map((lance) => lance.fin));
+
+  assert.deepEqual(fins.map((fin) => fin.outcome), ["stop", "stop", "stop"]);
+  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 0);
+  assert.equal(runtime.journal.tout().some((e) => e.type === "breaker.opened"), false);
+  for (const e of runtime.journal.tout().filter((e) => e.type === "cook.exited")) assert.equal((e.payload as { cause?: string }).cause, "update");
+});
+
+test("trois cooks signalés sans que brigade ait rien demandé comptent, et ouvrent le disjoncteur au seuil", async (t) => {
+  const { runtime, lances } = troisSignales(t, () => {});
+  const fins = await Promise.all(lances.map((lance) => lance.fin));
+
+  assert.deepEqual(fins.map((fin) => fin.outcome), ["failed", "failed", "failed"]);
+  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 3);
+  assert.equal(runtime.journal.tout().filter((e) => e.type === "breaker.opened").length, 1);
+});

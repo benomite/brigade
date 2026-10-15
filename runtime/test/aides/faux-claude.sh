@@ -296,6 +296,13 @@ FIN
       assistant
       code=1
       ;;
+    # Signalé de l'extérieur : il attend que FAUX_CLAUDE_FEU existe, puis se
+    # tue de SIGTERM — sans que le superviseur l'ait demandé.
+    meurt-sigterm)
+      assistant
+      while [ ! -e "$FAUX_CLAUDE_FEU" ]; do sleep 0.02; done
+      kill -TERM $$
+      ;;
     # Un même message livré en trois lignes (une par bloc de contenu), dont
     # l'usage grossit : un seul tour, et seul le dernier usage compte.
     morcele)
