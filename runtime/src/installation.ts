@@ -9,6 +9,8 @@
 // `claude auth status`, `systemctl cat` et `show`, les unités posées et ce que
 // le runtime a laissé de son code en démarrant — et ne lit le journal qu'en
 // lecture seule, pour y trouver la connexion Max telle que la station la tient.
+import { deduireLesHotes } from "./reseau-cli.ts";
+import { DECLARATION_RESEAU, lireDeclaration } from "./reseau.ts";
 import { execFile, execFileSync } from "node:child_process";
 import { geste } from "./geste.ts";
 import { accessSync, constants, existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
@@ -244,6 +246,23 @@ export function jugerUnites(lu: { posees: string; depot: string; unite: string; 
 // Sur quel code le runtime du projet tourne. `enService` : l'empreinte qu'il a
 // laissée en démarrant, ou null ; `installe` : celle du code installé ;
 // `clone` : le `runtime/` du clone, d'où la bascule se lance.
+// Les hôtes que le setup du projet joint (registres des installeurs connus,
+// URLs de dépendances) face à `.claude/brigade/reseau`. Un fichier absent
+// compte comme une déclaration vide. `null` : le setup n'ouvre rien à déclarer.
+export function jugerReseau(lu: { setup: string; declaration: string | null }): Pick<Constat, "etat" | "texte" | "geste"> {
+  const requis = deduireLesHotes(lu.setup).hotes.map(({ hote }) => hote);
+  const declares = lu.declaration === null ? [] : lireDeclaration(lu.declaration).hotes;
+  const manquants = requis.filter((hote) => !declares.includes(hote));
+  if (manquants.length === 0) {
+    return { etat: "ok", texte: requis.length === 0 ? `réseau : le setup n'a besoin d'aucun hôte hors socle` : `réseau : les ${requis.length} hôtes du setup sont déclarés dans \`${DECLARATION_RESEAU}\`` };
+  }
+  return {
+    etat: "manque",
+    texte: `réseau : le setup joint ${manquants.join(", ")}, ${lu.declaration === null ? `et \`${DECLARATION_RESEAU}\` est absent` : `absent${manquants.length > 1 ? "s" : ""} de \`${DECLARATION_RESEAU}\``} — sous cloison, le setup d'un cook y échouerait`,
+    geste: `ajouter ${manquants.length > 1 ? "ces hôtes" : "cet hôte"} à \`${DECLARATION_RESEAU}\` (\`/brigade:init\` le fait), commité sur la branche d'intégration`,
+  };
+}
+
 export function jugerCode(lu: { unite: string; projet: string; clone: string; sources: string; etat: string; enService: string | null; installe: string }): Pick<Constat, "etat" | "texte" | "geste"> {
   const { unite, sources } = lu;
   if (lu.etat !== "active" && lu.etat !== "inactive" && lu.etat !== "failed") {
@@ -867,6 +886,15 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
       noter("depot", "note", `pas de \`${SCRIPT_SETUP}\` sur \`${base}\` : le cook part dans un worktree neuf tel quel, sans dépendances installées`);
     } else if (!executable(SCRIPT_SETUP)) noter("depot", "manque", `\`${SCRIPT_SETUP}\` n'est pas exécutable : la station le lance tel quel`, rendre(SCRIPT_SETUP));
     else noter("depot", "ok", `setup du worktree : \`${SCRIPT_SETUP}\``);
+
+    if (porte.has(SCRIPT_SETUP)) {
+      const setup = await git("show", `${ref}:${SCRIPT_SETUP}`);
+      if (setup.code === 0) {
+        const declaration = await git("show", `${ref}:${DECLARATION_RESEAU}`);
+        const juge = jugerReseau({ setup: setup.stdout, declaration: declaration.code === 0 ? declaration.stdout : null });
+        noter("depot", juge.etat, juge.texte, juge.geste);
+      }
+    }
 
     const claudeMd = await git("show", `${ref}:CLAUDE.md`);
     const bindings = claudeMd.code === 0 ? lireBindings(claudeMd.stdout) : null;
