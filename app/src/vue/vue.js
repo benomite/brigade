@@ -2504,7 +2504,8 @@ async function demanderAuSecond(projet, ticket) {
     if ("refus" in rendu) dit = { refus: rendu.refus };
     else {
       garder(projet.nom, rendu);
-      dit = { parti: `request about #${ticket} written in the second, without Enter — it is waiting for your Enter` };
+      // Le second dit lui-même si la demande y est : non lancé, ou commande refusée, rien n'est écrit.
+      dit = rendu.demandeEcrite === true ? { parti: `request about #${ticket} written in the second, without Enter — it is waiting for your Enter` } : { refus: `nothing was written: ${rendu.note}` };
     }
   } catch (erreur) {
     dit = { refus: `nothing was written: ${erreur instanceof Error ? erreur.message : String(erreur)}` };

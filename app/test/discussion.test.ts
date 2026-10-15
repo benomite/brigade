@@ -179,6 +179,8 @@ describe("lire l'issue et commenter, sur la box du projet", () => {
 
 // La vue, jouée telle qu'elle est.
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
+// Ce que `inscrire` rend d'une demande écrite : le second la porte, la note la dit.
+const SECOND_ECRIT: Terminal = { ...SECOND, note: "demande écrite dans le second — appuie sur Entrée pour l'envoyer", demandeEcrite: true };
 const demarrage = () => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PROJET], hotes: ["box"] }),
   palette: PALETTE,
@@ -389,7 +391,7 @@ const demandeAuSecond = (vue: Jouee) => discussion(vue).dessous("button").find((
 
 describe("la fiche : le bouton « ask the second » et la question d'une carte Await (#686)", () => {
   test("rien ne part avant le clic ; le clic envoie l'issue et le texte du champ, sans rien recopier, et la fiche confirme", async () => {
-    const vue = await ouvrir({ lireDiscussion: () => lue(), demanderAuSecond: () => SECOND });
+    const vue = await ouvrir({ lireDiscussion: () => lue(), demanderAuSecond: () => SECOND_ECRIT });
     await ouvrirFiche(vue, 21);
     ecrire(vue, "le CSV d'abord");
     assert.equal(demandeAuSecond(vue).textContent, "ask the second");
@@ -404,7 +406,7 @@ describe("la fiche : le bouton « ask the second » et la question d'une carte A
   });
 
   test("le champ vide : le bouton sert quand même, avec un contexte vide", async () => {
-    const vue = await ouvrir({ lireDiscussion: () => lue(), demanderAuSecond: () => SECOND });
+    const vue = await ouvrir({ lireDiscussion: () => lue(), demanderAuSecond: () => SECOND_ECRIT });
     await ouvrirFiche(vue, 14);
     assert.equal(demandeAuSecond(vue).disabled, false);
     demandeAuSecond(vue).click();
@@ -421,6 +423,17 @@ describe("la fiche : le bouton « ask the second » et la question d'une carte A
     assert.equal(discussion(vue).dessous("p").find((p) => p.className === "refus")?.textContent, "nothing was written: the second's request was not composed — ssh: Connection refused");
     assert.ok(!discussion(vue).dessous("p").some((p) => p.className === "postee"));
     assert.equal(champ(vue).value, "du contexte");
+  });
+
+  test("un second qui ne tourne pas : lancé, rien n'est écrit — la fiche ne dit pas la demande partie", async () => {
+    const pasEcrit: Terminal = { ...SECOND, note: "the second was not running: launched (`claude --continue second`) — the command is not written into a second that is starting, click again when it is ready" };
+    const vue = await ouvrir({ lireDiscussion: () => lue(), demanderAuSecond: () => pasEcrit });
+    await ouvrirFiche(vue, 21);
+    demandeAuSecond(vue).click();
+    await repos();
+    const ps = discussion(vue).dessous("p");
+    assert.ok(!ps.some((p) => p.className === "postee"));
+    assert.ok(ps.find((p) => p.className === "refus")?.textContent.includes("not written"));
   });
 
   test("un appel qui lève est dit aussi", async () => {
