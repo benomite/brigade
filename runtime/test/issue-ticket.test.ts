@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { Commentaire, GitHub, Issue } from "../src/github.ts";
 import { ouvrirGitHub } from "../src/github.ts";
-import { commenterIssue, lireIssue } from "../src/issue-ticket.ts";
+import { commenterIssue, demanderAuSecond, lireIssue } from "../src/issue-ticket.ts";
 import { principal as pass } from "../src/montrer-pass.ts";
 import { appeler, DEPOT, fauxGh, issueGitHub } from "./outils.ts";
 
@@ -238,4 +238,53 @@ test("`pass -- <ticket> issue` : une panne de GitHub sort en 1 en le disant, une
   assert.equal(await sansDepot.fin, 2);
   assert.match(sansDepot.sortie(), /BRIGADE_GITHUB_REPO n'est pas défini/);
   assert.equal(gh.appels().length, avant);
+});
+
+// La demande au second : composée d'après l'issue lue, jamais écrite nulle part par le runtime.
+test("la demande au second nomme l'issue — numéro et titre — et le contexte saisi, sur une seule ligne, sans rien poster", async () => {
+  const { github, postes } = depot(issue(7, { title: "Livrer la facture" }));
+  const r = await demanderAuSecond(github, 7, "  Le fournisseur répond lundi.\nIl veut un devis.\n");
+  assert.ok(r.done);
+  assert.match(r.request, /#7/);
+  assert.match(r.request, /Livrer la facture/);
+  assert.match(r.request, /Le fournisseur répond lundi\. Il veut un devis\./);
+  assert.doesNotMatch(r.request, /[\n\r]/);
+  assert.deepEqual(postes, []);
+});
+
+test("sans contexte, la demande reste possible et nomme l'issue seule", async () => {
+  const { github } = depot(issue(7));
+  for (const vide of ["", "   \n", undefined, null]) {
+    const r = await demanderAuSecond(github, 7, vide);
+    assert.ok(r.done);
+    assert.match(r.request, /#7 \(« Ticket 7 »\)/);
+    assert.match(r.request, /pas de contexte/);
+  }
+});
+
+test("la demande est refusée, et le dit, pour une carte sans issue ; un GitHub en panne lève", async () => {
+  const { github } = depot(issue(30, { pr: true }));
+  const r = await demanderAuSecond(github, 30, "x");
+  assert.deepEqual(r.done, false);
+  assert.equal(r.done ? "" : r.reason, "#30 is a pull request, not an issue");
+  assert.equal((await demanderAuSecond(github, 9, "x")).done, false);
+  const panne = { issue: async () => { throw new Error("HTTP 502"); } } as unknown as GitHub;
+  await assert.rejects(demanderAuSecond(panne, 7, "x"), /HTTP 502/);
+});
+
+test("`pass -- <ticket> ask [<texte>]` rend la demande en JSON et ne poste rien ; sans issue, elle sort en 1", async (t) => {
+  const gh = fauxGh(t);
+  const env = { BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin };
+  gh.repondre(`repos/${DEPOT}/issues/7`, { corps: { ...issueGitHub(7), body: "Le corps", user: { login: "chef" } } });
+  const demande = appeler(pass, ["7", "ask", "Du contexte"], env);
+  assert.equal(await demande.fin, 0);
+  const rendu = JSON.parse(demande.sortie());
+  assert.equal(rendu.done, true);
+  assert.match(rendu.request, /#7/);
+  assert.match(rendu.request, /Du contexte/);
+  const seule = appeler(pass, ["7", "ask"], env);
+  assert.equal(await seule.fin, 0);
+  assert.equal(JSON.parse(seule.sortie()).done, true);
+  assert.deepEqual(gh.appels().filter((appel) => appel.includes("POST")), []);
+  assert.equal(await appeler(pass, ["7", "ask", "a", "b"], env).fin, 2);
 });

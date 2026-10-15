@@ -76,3 +76,36 @@ export async function commenterIssue(github: GitHub, ticket: number, texte: unkn
     price: `a comment is posted on issue #${ticket}, under the box's own gh account, not a role's App: it is public on GitHub, and whoever reads the issue next — the manager, the next cook — reads it. It is not withdrawn from here: edit or delete it on GitHub. No model is called, nothing is spent`,
   };
 }
+
+// Ce que la fiche écrit dans le second : la demande, en prose, que l'app inscrit
+// sans Entrée (#452 le fait pour `T'attend`). Le runtime ne tient aucun canal vers
+// le second — c'est une session `claude` dans un pty de l'app — : il compose la
+// phrase, d'après l'issue lue à l'instant, et la rend ; `done: true` dit que la
+// demande est prête à être écrite, pas qu'elle y est. Le second est le principal,
+// aucun LLM propre à la fiche. Un texte vide laisse la demande nommer l'issue seule.
+export type Demande = { done: true; request: string; price: string } | { done: false; reason: string; price: string };
+
+const RIEN_ECRIT = "none: nothing was written to the second";
+
+// Un retour à la ligne dans la demande l'enverrait : le contexte que le chef a saisi
+// sur plusieurs lignes devient une seule, ses blancs réduits à un.
+const surUneLigne = (texte: string) => texte.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029\s]+/g, " ").trim();
+
+export async function demanderAuSecond(github: GitHub, ticket: number, contexte: unknown): Promise<Demande> {
+  if (contexte !== undefined && contexte !== null && typeof contexte !== "string") {
+    return { done: false, reason: "the context is not a text", price: RIEN_ECRIT };
+  }
+  const { issue, reason } = await sansIssue(github, ticket);
+  if (!issue) return { done: false, reason, price: RIEN_ECRIT };
+  const saisi = surUneLigne(contexte ?? "");
+  const titre = surUneLigne(issue.title);
+  const request =
+    `Je te demande à propos de l'issue #${ticket}${titre === "" ? "" : ` (« ${titre} »)`}. ` +
+    (saisi === "" ? "Je n'ai pas de contexte à ajouter. " : `Voici le contexte que je viens d'écrire : « ${saisi} ». `) +
+    `Lis l'issue #${ticket} et sa discussion, puis dis-moi ce que tu en comprends et ce que tu proposes ; n'agis pas avant mon accord.`;
+  return {
+    done: true,
+    request,
+    price: "none: nothing is posted on GitHub and no model is called here — the app writes the request into the second, without Enter, and it is the second that answers",
+  };
+}
