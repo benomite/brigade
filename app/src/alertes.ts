@@ -20,6 +20,9 @@
 // sa ligne de tête dit qu'il l'est, son entrée `setup` du bloc `attend` en dit la cause et le
 // geste — c'est elle que la ligne de la bande reprend. Ce que la box dit se pose mot pour mot ; l'app n'y
 // ajoute que ses propres mots, à part. Aucun fait nouveau n'est demandé au runtime.
+// Un projet installé dit aussi ce qu'il a perdu depuis son installation : une station que la box
+// ne fournit plus, un geste de box qui n'y est plus (« Ce qu'un projet installé a perdu », plus
+// bas). Ce n'est pas l'écran d'installation qui revient : c'est une ligne de la bande, avec son geste.
 // Le geste d'une ligne est collé à l'état qu'il change, sous l'une de ses trois formes : un
 // geste du socle (gestes.ts), direct ou confirmé — la confirmation dit son prix
 // (confirmation.ts) ; ou, quand le lever demande de lire, juger ou agir sur la box à côté du
@@ -33,8 +36,10 @@ import { GRANTS } from "./gestes.ts";
 import { COMMANDE as MANAGER, managerDe, type Interrupteur } from "./manager.ts";
 import { ANNULER, COUPER, DEMANDER, type MiseEnService } from "./version.ts";
 import { nombre } from "./format.ts";
+import type { Controle } from "./service.ts";
 
-export type Sujet = "manager" | "version" | "cuisine" | "grant";
+// `station` et `box` : ce qu'un projet installé a perdu — une station, un geste de box.
+export type Sujet = "manager" | "version" | "cuisine" | "grant" | "station" | "box";
 // Ce que le bouton d'une ligne appelle : un geste du socle (gestes.ts), et le grant qu'il
 // nomme ; une demande au second, faite de ce que la ligne dit (demande.ts) ; un onglet de
 // contenu (onglets.ts).
@@ -56,7 +61,9 @@ export type Bande = { projet: string; alertes: Alerte[]; signal?: Signal };
 export type Sans = { sans: string };
 // Ce que la bande lit d'un projet. `status` : sa sortie, le bloc `attend` mis à part ou non ;
 // `attend` : ce bloc, quand il a été mis à part (attend.ts, `mettreAPart`).
-export type Lu = { projet: string; faits: Faits | Sans; status: string | Sans; attend?: string; manager: Interrupteur | Sans };
+// `controle` : ce que la box a dit d'un projet installé, ses stations et ses manques (service.ts) —
+// absent, rien n'en a été lu : un projet pas encore installé, ou pas encore contrôlé.
+export type Lu = { projet: string; faits: Faits | Sans; status: string | Sans; attend?: string; manager: Interrupteur | Sans; controle?: Controle };
 
 const s = (combien: number) => (combien > 1 ? "s" : "");
 const court = (commit: string) => commit.slice(0, 12);
@@ -423,10 +430,93 @@ function duGrant(status: string | Sans): Alerte[] {
     });
 }
 
+// --- Ce qu'un projet installé a perdu ---------------------------------------------
+//
+// Une fois l'installation terminée, l'écran d'installation ne revient jamais (service.ts,
+// `termine`) : ce que le projet perd ensuite se dit ici, comme une alerte, avec son geste. La box
+// le dit par deux commandes du runtime, que l'app relit pour un projet installé (service.ts,
+// `controler`) : `installation stations --json` — les stations que la machine fournit, celles
+// que le projet déclare — et `installation`, dont chaque ligne `MANQUE` porte la flèche du geste
+// qui la lève. Deux pertes s'en lisent :
+//   une station    déclarée sur cette machine, et que la box ne fournit plus — son moteur n'y est
+//                  plus trouvé ; ou plus aucune station déclarée
+//   un geste de box  le geste de mise en service, ou celui d'installation, que la vérification dit
+//                  manquer — la flèche les rattache à leur section de docs/installer.md
+// Le reste de ce que `installation` dit manquer n'entre pas ici : c'est l'installation qui le
+// règle, ou une autre ligne de la bande qui le dit déjà. Rien de lu, rien de dit : un contrôle
+// qui n'a pas pu se faire n'invente aucune perte — et la box pas jointe, les autres lignes le disent.
+
+// Les gestes de box, par la section de docs/installer.md que la flèche de leur manque nomme
+// (runtime/src/installation.ts, `jugerGesteDeMiseEnService`, `jugerReglageDuGeste`), et ce que
+// leur absence empêche, en mots simples.
+const GESTES_DE_BOX = [
+  { section: "« Le geste de mise en service »", nom: "deploy", empeche: "putting a waiting version into service from the app would fail" },
+  { section: "« Le geste d'installation »", nom: "install a project", empeche: "adding a project to this box from the app would be refused" },
+] as const;
+const SUR_LA_BOX = "the box itself: whoever has `sudo` there runs it — the app sends nothing";
+const RECONTROLE = "the alert leaves once the box says it is back: the app checks again every 5 min, and when this space opens";
+
+function desPertes(controle: Controle | undefined, status: string | Sans): Alerte[] {
+  if (controle === undefined) return [];
+  const { stations, manques = [] } = controle;
+  const pertes: Alerte[] = [];
+  if (stations !== undefined) {
+    const fournies = new Set(stations.proposees.map(({ nom }) => nom));
+    // Une station distante tourne sur un poste : ce que cette machine fournit n'en dit rien.
+    for (const { nom, moteur } of stations.declarees.filter(({ distante }) => !distante)) {
+      // Le manque qui dit son moteur introuvable par le service : la station ne lance rien, même
+      // si la commande qui la propose le trouve encore — et il porte le geste qui le remet, mot pour mot.
+      const introuvable = manques.find(({ texte }) => texte.startsWith(`\`${moteur}\` est introuvable`));
+      if (fournies.has(nom) && introuvable === undefined) continue;
+      const releve = introuvable?.texte ?? stations.absent;
+      pertes.push({
+        sujet: "station",
+        verifie: true,
+        ton: "rouge",
+        dit: `station “${nom}” missing: the box no longer provides it — no cook goes there`,
+        ...(releve === null ? {} : { releve }),
+        geste: introuvable?.geste ?? `put \`${moteur}\` back on the box, where the service finds it — \`installation\` on the box gives the exact command`,
+        appel: DEMANDE,
+        prix: `none for the kitchen: it is done on ${SUR_LA_BOX}; ${RECONTROLE}`,
+      });
+    }
+  }
+  // Plus aucune station déclarée : la ligne `stations` de `status`, quand elle est lue, le dit déjà.
+  const ditParStatus = typeof status === "string" && tetesDe(status).some(({ titre }) => titre === "stations");
+  const sansStation = manques.find(({ etape }) => etape === "stations");
+  if (sansStation !== undefined && !ditParStatus && (stations === undefined || stations.declarees.length === 0)) {
+    pertes.push({
+      sujet: "station",
+      verifie: true,
+      ton: "rouge",
+      dit: "no station declared any more: no cook goes, tickets wait on the rail",
+      releve: sansStation.texte,
+      geste: sansStation.geste ?? "declare a station again: `installation stations` on the box lists those it provides",
+      appel: DEMANDE,
+      prix: `none: the declaration is read at the runtime's next wake-up, without a restart; ${RECONTROLE}`,
+    });
+  }
+  for (const { section, nom, empeche } of GESTES_DE_BOX) {
+    const manque = manques.find(({ geste }) => geste?.includes(section));
+    if (manque === undefined) continue;
+    pertes.push({
+      sujet: "box",
+      verifie: true,
+      ton: "jaune",
+      dit: `box gesture “${nom}” missing: ${empeche}`,
+      releve: manque.texte,
+      geste: manque.geste ?? `set it up again on the box — docs/installer.md, ${section}`,
+      appel: DEMANDE,
+      prix: `none: no cook is interrupted — it is done on ${SUR_LA_BOX}; ${RECONTROLE}`,
+    });
+  }
+  return pertes;
+}
+
 // La bande d'un projet, d'après ce qui en a été lu : le manager, la version, la cuisine — et son
-// setup —, le grant.
-export function alertes({ projet, faits, status, attend, manager }: Lu): Alerte[] {
-  return parGravite([...duManager(manager), ...deLaVersion(faits), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status)]);
+// setup —, le grant, et ce que le projet installé a perdu.
+export function alertes({ projet, faits, status, attend, manager, controle }: Lu): Alerte[] {
+  return parGravite([...duManager(manager), ...deLaVersion(faits), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status), ...desPertes(controle, statusLu(status))]);
 }
 
 // La plus grave d'abord : une alerte lue avant un état non vérifié, le rouge avant le reste. Le tri
@@ -462,9 +552,19 @@ export function tenirBandes() {
   // Le bloc `attend` du dernier `status` lu, mis à part : il ne vit qu'avec lui.
   const attends = new Map<string, string>();
   const managers = new Map<string, Interrupteur | Sans>();
+  // Le dernier contrôle d'un projet installé (service.ts) : il vaut jusqu'au suivant.
+  const controles = new Map<string, Controle>();
   const bande = (projet: string): Bande => {
     const attend = attends.get(projet);
-    const dites = alertes({ projet, faits: faits.get(projet) ?? { sans: FAITS_PAS_ENCORE }, status: statuts.get(projet) ?? { sans: STATUS_PAS_LU }, ...(attend === undefined ? {} : { attend }), manager: managers.get(projet) ?? { sans: MANAGER_PAS_DIT } });
+    const controle = controles.get(projet);
+    const dites = alertes({
+      projet,
+      faits: faits.get(projet) ?? { sans: FAITS_PAS_ENCORE },
+      status: statuts.get(projet) ?? { sans: STATUS_PAS_LU },
+      ...(attend === undefined ? {} : { attend }),
+      manager: managers.get(projet) ?? { sans: MANAGER_PAS_DIT },
+      ...(controle === undefined ? {} : { controle }),
+    });
     return { projet, alertes: dites, signal: signalDe(dites) };
   };
   return {
@@ -472,7 +572,7 @@ export function tenirBandes() {
     // lu est oublié ; un projet qui n'en est plus n'a plus rien de tenu.
     ouvrir(projets: readonly string[]): Bande[] {
       faits.clear();
-      for (const tenus of [statuts, attends, managers]) for (const projet of tenus.keys()) if (!projets.includes(projet)) tenus.delete(projet);
+      for (const tenus of [statuts, attends, managers, controles]) for (const projet of tenus.keys()) if (!projets.includes(projet)) tenus.delete(projet);
       return projets.map(bande);
     },
     // Une lecture de `faits`.
@@ -512,6 +612,13 @@ export function tenirBandes() {
         "erreur" in lecture ? { sans: rate(MANAGER, lecture) } : lu === undefined ? { sans: "the reading did not return `manager`" } : "informe" in lu ? { sans: `the output of \`manager\` does not have the expected shape: ${lu.informe}` } : lu.interrupteur,
       );
       return bande(lecture.projet);
+    },
+    // Ce que l'installation d'un projet dit de lui (service.ts, `Guide`) : installé et contrôlé, ce
+    // qu'il a perdu ; sinon rien — un projet qui s'installe a son écran, pas d'alerte de perte.
+    controle(projet: string, controle: Controle | undefined): Bande {
+      if (controle === undefined) controles.delete(projet);
+      else controles.set(projet, controle);
+      return bande(projet);
     },
     // La ligne que la vue nomme par son sujet et ce qu'elle dit, telle que la bande la dit
     // maintenant — rien, si elle n'y est plus : la vue ne fait pas dire à la bande ce qu'elle a cessé de dire.
