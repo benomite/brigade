@@ -62,12 +62,12 @@ test("la forme d'une cuisine connue est figée, au caractère près : un champ r
       `"compteurs":{"rail":2,"auTravail":1,"aLaPass":1,"attend":1,"livres24h":1},` +
       `"dernierEvenement":{"seq":15,"at":"${JOUR_HORLOGE}T10:00:14.000Z","type":"ticket.served","ticket":19},` +
       `"rail":[` +
-      `{"ticket":14,"etat":"pris","titre":"Ticket 14","url":"https://exemple.test/14","activite":{"fait":"la station prépare le poste du cook","cible":null,"depuis":"${JOUR_HORLOGE}T10:00:08.000Z"},"attente":null,"tiers":null},` +
-      `{"ticket":15,"etat":"en pass","titre":"Ticket 15","url":"https://exemple.test/15","activite":null,"attente":null,"tiers":null},` +
-      `{"ticket":16,"etat":"en attente","titre":"Ticket 16","url":"https://exemple.test/16","activite":null,"attente":null,"tiers":null},` +
-      `{"ticket":17,"etat":"86","titre":"Ticket 17","url":"https://exemple.test/17","activite":null,"attente":{"raison":"attend : quota du compte épuisé","colonne":"86","retour":"${JOUR_HORLOGE}T15:00:00.000Z"},"tiers":null},` +
-      `{"ticket":19,"etat":"servi","titre":"Ticket 19","url":"https://exemple.test/19","activite":null,"attente":null,"tiers":null},` +
-      `{"ticket":18,"etat":"BLOQUÉ","titre":"Ticket 18","url":"https://exemple.test/18","activite":null,"attente":null,"tiers":null}],` +
+      `{"ticket":14,"etat":"pris","titre":"Ticket 14","url":"https://exemple.test/14","activite":{"fait":"la station prépare le poste du cook","cible":null,"depuis":"${JOUR_HORLOGE}T10:00:08.000Z"},"attente":null,"tiers":null,"revenu":null},` +
+      `{"ticket":15,"etat":"en pass","titre":"Ticket 15","url":"https://exemple.test/15","activite":null,"attente":null,"tiers":null,"revenu":null},` +
+      `{"ticket":16,"etat":"en attente","titre":"Ticket 16","url":"https://exemple.test/16","activite":null,"attente":null,"tiers":null,"revenu":null},` +
+      `{"ticket":17,"etat":"86","titre":"Ticket 17","url":"https://exemple.test/17","activite":null,"attente":{"raison":"attend : quota du compte épuisé","colonne":"86","retour":"${JOUR_HORLOGE}T15:00:00.000Z"},"tiers":null,"revenu":null},` +
+      `{"ticket":19,"etat":"servi","titre":"Ticket 19","url":"https://exemple.test/19","activite":null,"attente":null,"tiers":null,"revenu":null},` +
+      `{"ticket":18,"etat":"BLOQUÉ","titre":"Ticket 18","url":"https://exemple.test/18","activite":null,"attente":null,"tiers":null,"revenu":null}],` +
       `"cooks":[],` +
       `"attend":[{"ticket":18,"titre":"Ticket 18","url":"https://exemple.test/18"}],` +
       `"version":null,` +
