@@ -107,7 +107,7 @@ describe("ce qui n'est pas encore sur le rail, lu dans la sortie de `manager ups
       [
         ["non-lue", "not yet read by the manager", [20]],
         ["epique", "epic, not yet split", [16]],
-        ["attend", "awaiting your answer — it is also in Awaiting you", [12]],
+        ["attend", "awaiting your answer — it is also in TODO", [12]],
         ["ecartee", "set aside by the manager", [14]],
         ["sortie", "off the rail — still open", [11]],
       ],
@@ -148,7 +148,7 @@ describe("ce qui n'est pas encore sur le rail, lu dans la sortie de `manager ups
     // L'état du manager pas encore lu : l'app ne devine pas s'il les lit.
     assert.equal(
       amonts.recevoir(lecture(sortie)).vide,
-      "nothing on the rail — 5 issues upcoming (1 not yet read by the manager · 1 epic, not yet split · 1 awaiting your answer — it is also in Awaiting you · 1 set aside by the manager · 1 off the rail — still open) — the manager's state was not read: whether it is reading them is not known",
+      "nothing on the rail — 5 issues upcoming (1 not yet read by the manager · 1 epic, not yet split · 1 awaiting your answer — it is also in TODO · 1 set aside by the manager · 1 off the rail — still open) — the manager's state was not read: whether it is reading them is not known",
     );
     // Jamais allumé : éteint.
     assert.match(amonts.manager(lectureManager(manager()))?.vide ?? "", / — the manager is off: it reads none of them, and nothing new enters the rail until you turn it on$/);
@@ -275,7 +275,7 @@ describe("dans l'espace du projet, ce qui est à venir se lit à côté du rail"
     const groupes = (liste(vue) ?? assert.fail("la liste n'est pas dépliée")).children;
     assert.deepEqual(
       groupes.map((groupe) => groupe.dessous("h4")[0]?.textContent),
-      ["not yet read by the manager1", "epic, not yet split1", "awaiting your answer — it is also in Awaiting you1", "set aside by the manager1", "off the rail — still open1"],
+      ["not yet read by the manager1", "epic, not yet split1", "awaiting your answer — it is also in TODO1", "set aside by the manager1", "off the rail — still open1"],
     );
     const sortie11 = groupes[4]?.dessous("li")[0] ?? assert.fail("pas d'issue sortie du rail");
     assert.deepEqual(sortie11.children.map((pose) => pose.textContent), ["#11Le ticket sorti", "sortie du rail : label `fire` retiré"]);
