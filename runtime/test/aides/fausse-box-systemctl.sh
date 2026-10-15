@@ -5,6 +5,9 @@
 #   systemd/    ce que systemd tient de chaque unité : son état, et le
 #               `code.conf` qu'il a chargé au dernier `daemon-reload`
 #   etat/<p>/   le répertoire d'état du projet <p>
+#   unites/brigade-renouvellement.{service,timer}  s'ils existent : le minuteur
+#               est posé (`LoadState=loaded`) ; le service porte `User=` et
+#               `Environment=` que la mise en service lit
 #   appels      chaque appel reçu, dans l'ordre
 #   demarres    le répertoire réel de chaque démarrage du runtime, dans l'ordre
 #   portes      celui de chaque démarrage d'une porte, dans l'ordre
@@ -60,7 +63,12 @@ case "$1" in
     case "$propriete" in
       DropInPaths) ls "$unites/$unite.d"/*.conf 2>/dev/null | tr '\n' ' ' ;;
       FragmentPath) cat "$FAUSSE_BOX/fragment" 2>/dev/null || echo "$unites/brigade@.service" ;;
-      Environment) echo "BRIGADE_STATE_DIR=/nulle/part BRIGADE_PROJECT=$projet BRIGADE_STATE_DIR=$FAUSSE_BOX/etat/$projet $(des_drop_ins Environment "$unite")" ;;
+      Environment)
+        case "$unite" in
+          brigade-renouvellement.service) cat "$unites/$unite" "$unites/$unite.d"/*.conf 2>/dev/null | sed -n 's/^Environment=//p' | tr '\n' ' ' ;;
+          *) echo "BRIGADE_STATE_DIR=/nulle/part BRIGADE_PROJECT=$projet BRIGADE_STATE_DIR=$FAUSSE_BOX/etat/$projet $(des_drop_ins Environment "$unite")" ;;
+        esac
+        ;;
       Requires) des_drop_ins Requires "$unite" ;;
       ActiveState) cat "$(tenu "$unite")/ActiveState" 2>/dev/null || echo inactive ;;
       SubState) cat "$(tenu "$unite")/SubState" 2>/dev/null || echo dead ;;
@@ -69,6 +77,9 @@ case "$1" in
         impose="$(cat "$FAUSSE_BOX/travail-impose.$unite" "$FAUSSE_BOX/travail-impose" 2>/dev/null | head -n 1)"
         echo "${impose:-$(charge "$unite")}"
         ;;
+      LoadState) [ -e "$unites/$unite" ] && echo loaded || echo not-found ;;
+      UnitFileState) cat "$(tenu "$unite")/UnitFileState" 2>/dev/null || echo disabled ;;
+      User) sed -n 's/^User=//p' "$unites/$unite" 2>/dev/null ;;
       ExecMainStatus) cat "$(tenu "$unite")/ExecMainStatus" 2>/dev/null || echo 0 ;;
     esac
     ;;
@@ -94,11 +105,20 @@ case "$1" in
     noter "$2" ActiveState inactive
     noter "$2" SubState dead
     ;;
+  enable)
+    noter "$2" UnitFileState enabled
+    ;;
   reset-failed)
     noter "$2" NRestarts 0
     ;;
   start)
     unite="$2"
+    case "$unite" in
+      *.timer)
+        noter "$unite" ActiveState active
+        exit 0
+        ;;
+    esac
     [ -e "$FAUSSE_BOX/dit-les-demarrages" ] && echo "fausse box : start $unite" >&2
     projet_de "$unite"
     travail="$(charge "$unite")"
