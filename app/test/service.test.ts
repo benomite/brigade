@@ -865,19 +865,54 @@ describe("l'écran, tel que la vue le pose", () => {
     assert.deepEqual(vue.dernier("declarerStations"), ["calculus", [{ nom: "box/claude", cooks: 3 }]]);
   });
 
-  test("terminée : plus aucune étape à faire, plus rien d'annoncé — et l'écran se replie", async (t) => {
+  test("terminée : l'écran d'installation n'est plus posé — ni étapes numérotées, ni « Verify » : l'espace est le rail", async (t) => {
     const box = boxSimulee(t, { verification: () => ({ code: 0, sortie: PRET }) });
     const { services } = app(box);
     await guide(services);
     for (const etape of ["init", "stations", "protection", "decisions"]) await box.lancer({ nom: "calculus" }, `installation etapes ${etape} faite`);
     await box.lancer({ nom: "calculus" }, "installation etapes demarrage faite");
     const lu = await guide(services);
+    assert.equal(lu.termine, true);
 
     const vue = await ouvrirLEcran(lu);
 
-    assert.equal((vue.element("service") as Faux & { open?: boolean }).open, false);
-    assert.equal(vue.element("service-titre").textContent, "Installation — finished: the 7 steps are done");
-    assert.ok(vue.element("service-etapes").children.every(({ dataset }) => dataset.etat === "done"));
-    assert.ok(!vue.element("service-tete").textContent.includes("What the app cannot do for you"));
+    assert.equal((vue.element("service") as Faux & { hidden?: boolean }).hidden, true);
+    assert.equal(vue.element("service-etapes").children.length, 0);
+    assert.ok(!vue.element("service-tete").textContent.includes("Verify"));
+  });
+});
+
+describe("un projet installé n'affiche jamais l'écran d'installation", () => {
+  const finies = JSON.stringify({ courante: null, etapes: ETAPES.map(({ id, titre, sert, sauter, geste }) => ({ id, titre, etat: "done", sert, sauter, geste })) });
+  // Une box qui dit l'installation terminée, puis — si on le lui demande — ne répond plus.
+  function boxInstallee() {
+    const { terminaux } = fauxTerminaux();
+    const etat = { muette: false };
+    const lancer = async (_servi: unknown, commande: string): Promise<Rendu> => {
+      if (etat.muette) return { lance: "$ ssh box", erreur: Object.assign(new Error("ssh"), { code: 255, killed: false, cmd: "ssh" }), sortie: "", erreurs: "ssh: connect to host box port 22: Connection refused\n" };
+      return { lance: `$ ssh box ${commande}`, erreur: null, sortie: commande === COMMANDES.etapes ? `${finies}\n` : "", erreurs: "" };
+    };
+    const services = tenirServices({ delaiMs: 60_000, lancer, session: terminaux.session, shell: terminaux.shell, surGuide: () => {} });
+    return { services, etat };
+  }
+
+  test("installation terminée : le guide dit qu'il n'y a rien à montrer", async () => {
+    const { services } = boxInstallee();
+    assert.equal((await guide(services)).termine, true);
+  });
+
+  test("installée, puis la box ne répond plus : on ne retombe pas sur l'écran d'installation", async () => {
+    const { services, etat } = boxInstallee();
+    assert.equal((await guide(services)).termine, true);
+    etat.muette = true;
+    const lu = await guide(services);
+    assert.ok(lu.lecture.etat === "echec");
+    assert.equal(lu.termine, true);
+  });
+
+  test("installation pas terminée : l'écran s'affiche comme avant, même si la box cesse de répondre ensuite", async (t) => {
+    const box = boxSimulee(t);
+    const { services } = app(box);
+    assert.equal((await guide(services)).termine, false);
   });
 });

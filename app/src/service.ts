@@ -316,6 +316,10 @@ export type Guide = {
   action?: string;
   fait?: Fait;
   demarrage: { commande: string } | { refus: string };
+  // L'installation n'est plus à montrer : la box l'a dite terminée (et l'app s'en souvient, même
+  // si une lecture échoue ensuite), ou rien n'a jamais dit qu'elle ne l'était pas. L'espace du
+  // projet est alors le rail, et rien de l'écran d'installation.
+  termine: boolean;
 };
 
 // Ce qu'un appel à la box a donné : la commande a répondu de son code (0, 1 ou 2 — les
@@ -333,6 +337,9 @@ type Tenu = {
   verifiant?: Promise<void>;
   // La vérification d'ouverture est partie, une fois : on ne la relance pas à chaque regard.
   annoncee: boolean;
+  // Ce que la box a dit un jour de l'installation : terminée (aucune étape courante) ou pas.
+  // Une lecture qui échoue ensuite n'en défait rien.
+  fini?: boolean;
   action?: string;
   fait?: Fait;
 };
@@ -430,6 +437,7 @@ export function tenirServices(options: {
     }
     tenu.lecture = { etat: "lue", a: joue.a };
     tenu.etapes = lues;
+    tenu.fini = lues.courante === null;
     pousser(projet, tenu);
     if (!deplie(tenu)) return;
     // La box vient de répondre pour ce projet, par son nom : il existe sur elle.
@@ -530,8 +538,12 @@ export function tenirServices(options: {
           : courante === undefined
             ? `Installation — finished: the ${etapes.length} steps are done`
             : `Installation — ${faites} of ${etapes.length} steps done · now: ${courante.rang}. ${courante.titre}`;
+    // Sans parole de la box (lecture en échec) sur un projet dont on n'a jamais vu l'installation
+    // inachevée ni entamé les gestes, rien ne dit qu'elle l'est : l'écran ne s'affiche pas.
+    const termine = tenu.fini === true || (tenu.fini === undefined && !tenu.suivi && tenu.lecture.etat !== "en-cours" && tenu.lecture.etat !== "lue");
     return {
       projet: projet.nom,
+      termine,
       deplie: deplie(tenu),
       titre,
       lecture: tenu.lecture,
