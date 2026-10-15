@@ -684,7 +684,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     }
     if (comment === "disconnected") {
       noterDesStations((station) => ({ type: "station.disconnected", payload: { station, reason: "authentication_failed", run: review } }));
-      avertir(`brigade : connexion Max absente ou expirée, vue par une relecture du reviewer — \`claude /login\` sous le compte du service, puis « resume »`);
+      avertir(`brigade : connexion Max absente ou expirée, vue par une relecture du reviewer — \`claude /login\` sous le compte du service — la cuisine reprend seule dans la minute`);
       return null;
     }
     // Le modèle a refusé de relire. Ce n'est pas une panne : la relecture

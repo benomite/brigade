@@ -85,7 +85,7 @@ test("une connexion Max expirée se voit, avec ce qu'il faut faire", async (t) =
 
   const { sortie } = await montrer();
 
-  assert.match(sortie, new RegExp(String.raw`connexion Max\s+EXPIRÉE depuis le ${JOUR_HORLOGE}T10:00:01.000Z \(authentication_failed\).*claude \/login.*resume`));
+  assert.match(sortie, new RegExp(String.raw`connexion Max\s+EXPIRÉE depuis le ${JOUR_HORLOGE}T10:00:01.000Z \(authentication_failed\).*claude \/login.*reprend seule`));
 });
 
 test("à trente cooks, la station les montre tous, et ses dix derniers cooks finis", async (t) => {

@@ -14,14 +14,17 @@ import { configCloison, envelopper } from "../src/cloison.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import type { ObservationDeSession } from "../src/evenements/renouvellement.ts";
+import { etatDesGardeFous } from "../src/projections/garde-fous.ts";
 import { principal as gardeFous } from "../src/garde-fous-cli.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { alerteDeSession } from "../src/projections/renouvellement.ts";
+import { stationsDeconnectees } from "../src/projections/stations.ts";
 import { brancherSession, configSession, lireSession } from "../src/renouvellement.ts";
 import { ConfigInvalide, demarrer, type CauseReveil } from "../src/runtime.ts";
 import { appeler, FAUX_BWRAP, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const STATION = "box/claude";
+const GESTE_TOMBEE = "`claude /login` sous le compte du service — la cuisine reprend seule dans la minute, sans « resume »";
 const ETAT = "/var/lib/brigade/.session/renouvellement";
 const GESTE = "`claude /login` sous le compte du service, puis `brigade <projet> guardrails resume`";
 const RIEN = ["attend     rien n'attend le chef"];
@@ -124,9 +127,9 @@ test("une session déjà tombée se dit comme avant — depuis quand, et le gest
   aLHeure("08:05:00");
   noter({ type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run: null } }, `station:${STATION}`);
 
-  assert.deepEqual(bloc("08:25:00"), ["attend     1 décision attend le chef depuis 20 min", `  ${STATION}  depuis 20 min  connexion Max expirée (authentication_failed) — à rétablir : ${GESTE}`]);
+  assert.deepEqual(bloc("08:25:00"), ["attend     1 décision attend le chef depuis 20 min", `  ${STATION}  depuis 20 min  connexion Max expirée (authentication_failed) — à rétablir : ${GESTE_TOMBEE}`]);
   const station = decrireEtat(lireEtat(journal, new Date(a("08:25:00"))), new Date(a("08:25:00"))).filter((ligne) => ligne.startsWith("connexion"));
-  assert.deepEqual(station, [`connexion  Max EXPIRÉE depuis 20 min sur ${STATION} (authentication_failed) — plus aucun ticket n'est pris : ${GESTE}`]);
+  assert.deepEqual(station, [`connexion  Max EXPIRÉE depuis 20 min sur ${STATION} (authentication_failed) — plus aucun ticket n'est pris : ${GESTE_TOMBEE}`]);
 
   aLHeure("08:30:00");
   noter({ type: "kitchen.resumed", payload: {} }, "chef");
@@ -233,6 +236,49 @@ test("le fichier que le vrai `brigade-renouvellement` écrit se lit : son échec
   assert.ok(renouvelee.renewed !== null && renouvelee.renewed === renouvelee.written);
   // Rien de ce que le runtime a tiré du fichier ne cite les identifiants.
   assert.doesNotMatch(JSON.stringify([enEchec, renouvelee]), /jeton|neuf|credentials/);
+});
+
+test("une connexion tombée se rétablit seule : un passage réussi postérieur à la chute lève l'arrêt, un échec ou un passage d'avant n'y fait rien, et les autres arrêts restent", (t) => {
+  const repertoire = join(repertoireTemporaire(t), "brigade");
+  const etat = join(repertoireTemporaire(t), "renouvellement");
+  const runtime = demarrer({ repertoireEtat: repertoire, projet: "brigade", intervalleVeilleMs: 5, intervalleTickMs: 3_600_000 });
+  let tick: (cause: CauseReveil) => void = () => {};
+  t.after(() => runtime.arreter("test"));
+  const noter = (fait: Fait) => runtime.journal.ajouter({ project: "brigade", ticket: null, author: "runtime", ...fait });
+  const ecrire = (texte: string) => writeFileSync(etat, texte);
+  const tombees = () => stationsDeconnectees(runtime.journal.base);
+
+  noter({ type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["opus"], maxCooks: 2 } });
+  noter({ type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run: null } });
+  noter({ type: "kitchen.stopped", payload: {} });
+  brancherSession({ ...runtime, surReveil: (ecouter) => ((tick = ecouter), () => {}) }, CONFIG(etat));
+  assert.deepEqual(tombees(), [STATION]);
+
+  // Un passage d'avant la chute, puis un échec : la connexion n'est pas revenue.
+  ecrire("verifie=2000-01-01T00:00:00Z\n");
+  tick("tick");
+  ecrire("verifie=2000-01-01T00:00:00Z\nechec=2099-01-01T00:00:00Z\nechec_nature=session-refusee\n");
+  tick("tick");
+  assert.deepEqual(tombees(), [STATION]);
+
+  // Un passage réussi et frais, mais qui n'a pas vu les identifiants réécrits
+  // après la chute (`ecrits`/`renouvele` d'avant, ou absents) : pas de login.
+  ecrire("verifie=2099-01-01T00:01:00Z\necrits=2000-01-01T00:00:00Z\nrenouvele=2000-01-01T00:00:00Z\n");
+  tick("tick");
+  ecrire("verifie=2099-01-01T00:01:00Z\n");
+  tick("tick");
+  assert.deepEqual(tombees(), [STATION]);
+
+  // Le chef s'est reconnecté : le passage réussi suivant, qui voit les identifiants réécrits, lève l'arrêt, une fois.
+  ecrire("verifie=2099-01-01T00:01:00Z\nechec=2099-01-01T00:00:00Z\nechec_nature=session-refusee\necrits=2099-01-01T00:00:30Z\n");
+  tick("tick");
+  tick("tick");
+  assert.deepEqual(tombees(), []);
+  const levees = runtime.journal.tout().filter((e) => e.type === "session.restored");
+  assert.equal(levees.length, 1);
+  assert.deepEqual(levees[0]?.payload, { stations: [STATION], verified: "2099-01-01T00:00:30.000Z" });
+  // L'arrêt du chef, lui, n'est pas levé.
+  assert.notEqual(etatDesGardeFous(runtime.journal.base).stoppedAt, null);
 });
 
 test("le runtime écrit au journal ce qu'il lit au démarrage, puis ce qui change à chaque tick — un passage qui ne change rien n'écrit rien", (t) => {

@@ -42,7 +42,7 @@ import { direCommentLeVoir, direEcran, direEtatDeServeur, direPage, direServiceI
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
 import { versionComparee, type VersionComparee } from "./projections/version.ts";
-import { cookDeRun, cooksEnCoursDeStation, direDeconnexion, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
+import { cookDeRun, cooksEnCoursDeStation, direDeconnexion, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION_TOMBEE, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
 import { BLOQUE, direRetenue, EN_WAITING, etatLu, nomEtat } from "./rail.ts";
 import { PAR_LE_CHEF } from "./evenements/rail.ts";
 import { direAttenteDeTiers } from "./attente.ts";
@@ -258,7 +258,7 @@ function decrireConnexion({ stations }: EtatCuisine, depuis: (instant: string) =
       : [
           ligne(
             "connexion",
-            `Max ${direDeconnexion(raison).toUpperCase()} depuis ${depuis(disconnectedAt)} sur ${station}${raison === null ? "" : ` (${raison})`} — plus aucun ticket n'est pris : ${GESTE_DE_CONNEXION}`,
+            `Max ${direDeconnexion(raison).toUpperCase()} depuis ${depuis(disconnectedAt)} sur ${station}${raison === null ? "" : ` (${raison})`} — plus aucun ticket n'est pris : ${GESTE_DE_CONNEXION_TOMBEE}`,
           ),
         ],
   );

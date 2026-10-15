@@ -8,6 +8,7 @@ import type { Base } from "../base.ts";
 import { geste } from "../geste.ts";
 import type { FaitDistante } from "../evenements/distante.ts";
 import type { FaitGardeFous } from "../evenements/garde-fous.ts";
+import type { FaitRenouvellement } from "../evenements/renouvellement.ts";
 import type { FaitStation, Ressource, Retenue } from "../evenements/station.ts";
 import { definirProjection } from "../projection.ts";
 
@@ -71,7 +72,8 @@ export type CookDeStation = {
 type Ecoutes =
   | FaitStation
   | Extract<FaitGardeFous, { type: "cook.launched" | "cook.exited" | "cook.interrupted" | "kitchen.resumed" }>
-  | Extract<FaitDistante, { type: "remote.asked" }>;
+  | Extract<FaitDistante, { type: "remote.asked" }>
+  | Extract<FaitRenouvellement, { type: "session.restored" }>;
 
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur !== "";
 const texteOuRien = (valeur: unknown) => (texte(valeur) ? valeur : null);
@@ -104,11 +106,15 @@ export const SANS_CONNEXION = "not-logged-in";
 // démarrage ne l'a pas trouvée, expirée quand elle est tombée en route.
 export const direDeconnexion = (raison: string | null) => (raison === SANS_CONNEXION || raison?.startsWith("binaire introuvable") ? "absente" : "expirée");
 export const GESTE_DE_CONNEXION = `\`claude /login\` sous le compte du service, puis \`${geste("guardrails resume")}\``;
+// Le geste d'une connexion déjà tombée : le seul, `claude /login` — la cuisine
+// reprend seule au premier passage réussi du renouvellement (`session.restored`),
+// dans la minute. « resume » reste pour les autres arrêts.
+export const GESTE_DE_CONNEXION_TOMBEE = "`claude /login` sous le compte du service — la cuisine reprend seule dans la minute, sans « resume »";
 // La connexion Max tombée, dite d'un seul endroit : `run station` et
 // `run installation` la citent telle quelle — deux rendus d'un même fait, ce
 // serait deux endroits où il peut devenir faux.
 export const direConnexionTombee = (etat: Pick<EtatStation, "disconnectedAt" | "disconnectedReason">) =>
-  `EXPIRÉE depuis le ${etat.disconnectedAt} (${etat.disconnectedReason}) — plus aucun ticket n'est pris ; \`claude /login\` sous le compte du service, puis « resume »`;
+  `EXPIRÉE depuis le ${etat.disconnectedAt} (${etat.disconnectedReason}) — plus aucun ticket n'est pris ; \`claude /login\` sous le compte du service — la cuisine reprend seule dans la minute`;
 
 // Une station entre dans la table au premier fait qui la nomme : un quota
 // épuisé ou une déconnexion valent même si l'annonce s'est perdue.
@@ -252,6 +258,10 @@ export const stations = definirProjection<Ecoutes>({
     // « reprendre » : le chef tient la connexion pour rétablie.
     "kitchen.resumed": (base) => {
       base.executer("UPDATE stations SET disconnected_at = NULL, disconnected_reason = NULL");
+    },
+    // Le renouvellement a vu la connexion revenir : la levée se fait seule.
+    "session.restored": (base, { payload }) => {
+      for (const station of payload.stations) base.executer("UPDATE stations SET disconnected_at = NULL, disconnected_reason = NULL WHERE station = ?", station);
     },
     "cook.launched": (base, evenement) => {
       const { run, station, model, effort, branch, worktree } = evenement.payload;
