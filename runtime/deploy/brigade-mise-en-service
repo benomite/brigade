@@ -147,7 +147,9 @@ fi
 # brigade@<projet>.service : il y hérite de `IPAddressDeny=any` (cloison.conf),
 # qui laisse la boucle locale et rien d'autre — ni le résolveur, ni GitHub
 # (« Could not resolve host »). Il y hérite aussi de l'arrêt : la bascule
-# arrête cette unité, et `KillMode=control-group` emporterait le geste avec.
+# arrête cette unité : l'unité ne signale que son process (`KillMode=process`),
+# mais un `systemctl stop` à la main, ou une unité posée plus ancienne, emporterait
+# le geste avec.
 # Lancé à la main, il n'est dans aucune unité, et rien de tout cela ne le
 # touche. Dans une unité transitoire de systemd, il est dans le même cas : ses
 # mots passent au tube du runtime (`--pipe`), son code de sortie est rendu
