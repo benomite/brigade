@@ -41,6 +41,16 @@
 // en compte le plus, et à égalité le premier déclaré. Une déduction n'a pas de
 // phrase à elle.
 //
+// ── La page de l'écran, pour un projet web ──
+//
+// Un projet web se regarde dans un navigateur, sur le serveur du worktree de
+// la livraison (`servir.ts`) : la page à ouvrir est ce serveur, sur son port,
+// suivi de la route de l'écran — jamais la racine du site, qu'un serveur de
+// fichiers rend en liste de dossier. Un écran n'a de route que s'il en est
+// une : il commence par une seule barre (`/rail`, `/projets/12?onglet=notes`,
+// `/#/rail`). Un nom d'écran (`la carte`), une adresse complète, ou la racine
+// seule (`/`) n'en sont pas : sans route, pas de page — rien n'est deviné.
+//
 // Ce module ne lance rien et n'écrit rien : il lit le corps d'une PR, une
 // liste de fichiers et la déclaration du dépôt.
 import { readFileSync } from "node:fs";
@@ -180,4 +190,36 @@ export function ecranARegarder(livraison: { corps: string | null; changes: strin
 export function ecranDeLaLivraison(livraison: { worktree: string; corps: string | null; changes: string[] }): { ecran: EcranARegarder | null; problemes: string[] } {
   const { correspondances, problemes } = ecransDuWorktree(livraison.worktree);
   return { ecran: ecranARegarder({ corps: livraison.corps, changes: livraison.changes, correspondances }), problemes };
+}
+
+// L'hôte du serveur d'un worktree : il n'écoute que sur la boucle locale.
+export const HOTE_DU_SERVEUR = "127.0.0.1";
+
+// Une origine qui ne sert qu'à lire une route : une route qui en changerait
+// (`//ailleurs`) n'en est pas une.
+const LECTURE = "http://ecran.invalid";
+
+// La route d'un écran, telle qu'un navigateur l'ouvrirait, ou null : l'écran
+// n'est pas une route, ou n'est que la racine. Sans E/S.
+export function routeDeLEcran(ecran: string): string | null {
+  const brute = ecran.trim();
+  // Une barre inverse vaut une barre pour un navigateur : `/\ailleurs` change d'hôte.
+  if (!brute.startsWith("/") || brute.startsWith("//") || /[\s\\\p{Cc}]/u.test(brute)) return null;
+  let lue: URL;
+  try {
+    lue = new URL(brute, LECTURE);
+  } catch {
+    return null;
+  }
+  if (lue.origin !== LECTURE) return null;
+  const route = `${lue.pathname}${lue.search}${lue.hash}`;
+  return route === "/" ? null : route;
+}
+
+// La page à ouvrir pour regarder une livraison d'un projet web : le serveur de
+// son worktree, sur `port`, suivi de la route de son écran. Null : la
+// livraison n'a pas d'écran, ou son écran n'a pas de route. Sans E/S.
+export function pageDeLEcran(port: number, ecran: EcranARegarder | null): string | null {
+  const route = ecran === null ? null : routeDeLEcran(ecran.ecran);
+  return route === null ? null : `http://${HOTE_DU_SERVEUR}:${port}${route}`;
 }

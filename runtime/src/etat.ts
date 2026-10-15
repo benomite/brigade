@@ -38,7 +38,7 @@ import { demandeDeMiseEnService, type Demande } from "./projections/mise-en-serv
 import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, reparationDeLaBase, type ControleRetenu, type EtatDeLaBase, type Grant, type ReparationDeLaBase, type SansGrant } from "./projections/pass.ts";
 import { direMotifDeGarde, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/nettoyage.ts";
 import { lireRail, livresDepuis, type Etat as EtatTicket, type Livre, type TicketRail } from "./projections/rail.ts";
-import { direEtatDeServeur, direServiceIndisponible, serveursEnCours, servicesIndisponibles, type Serveur, type ServiceIndisponible } from "./projections/service.ts";
+import { direEtatDeServeur, direPage, direServiceIndisponible, serveursEnCours, servicesIndisponibles, type Serveur, type ServiceIndisponible } from "./projections/service.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
 import { versionComparee, type VersionComparee } from "./projections/version.ts";
@@ -496,7 +496,7 @@ function decrireServeurs({ serveurs, sansService, session }: EtatCuisine, depuis
       ? []
       : [
           ligne("serveurs", mort ? `${compte} sans fin au journal — leur runtime s'est arrêté sans les éteindre` : `${compte} — une livraison d'interface, servie depuis son worktree sur le port de ce worktree`),
-          ...serveurs.map(({ ticket, worktree, port, state, since, branch }) => `  #${ticket}  ${worktree}  port ${port}  ${direEtatDeServeur(state)} depuis ${depuis(since)}  ${branch}`),
+          ...serveurs.map((serveur) => `  #${serveur.ticket}  ${serveur.worktree}  port ${serveur.port}  ${direEtatDeServeur(serveur.state)} depuis ${depuis(serveur.since)}  ${serveur.branch}  ${direPage(serveur)}`),
         ]),
     ...sansService.map((indisponible) => ligne("service", `${direServiceIndisponible(indisponible)} — depuis ${depuis(indisponible.since)} sur ${indisponible.station}`)),
     "",

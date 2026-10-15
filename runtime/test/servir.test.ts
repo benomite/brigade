@@ -13,7 +13,8 @@ import { SCRIPT_GATES, SCRIPT_SETUP } from "../src/gates.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { ouvrirNettoyage } from "../src/nettoyage.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
-import { serveursEnCours, servicesIndisponibles } from "../src/projections/service.ts";
+import { DECLARATION_ECRANS } from "../src/ecran.ts";
+import { direPage, serveursEnCours, servicesIndisponibles, type Serveur } from "../src/projections/service.ts";
 import { DECLARATION_SERVICE, VARIABLE_DU_PORT } from "../src/service.ts";
 import { ouvrirServeurs, type Livraison } from "../src/servir.ts";
 import { principal as status } from "../src/status.ts";
@@ -83,14 +84,14 @@ function atelier(t: TestContext, options: { cloison?: boolean; graceMs?: number 
     journal.fermer();
   });
   // Une livraison dans son worktree : ce que son dépôt déclare, le port que son
-  // setup lui a attribué, et les fichiers qu'elle change.
-  const livraison = (ticket: number, declaration: string | null, changes: string[], port: number | null = 20000 + ticket): Livraison => {
+  // setup lui a attribué, les fichiers qu'elle change, et ce que son cook a livré.
+  const livraison = (ticket: number, declaration: string | null, changes: string[], port: number | null = 20000 + ticket, corps: string | null = null): Livraison => {
     const relatif = `worktrees/${ticket}-a`;
     const worktree = join(repertoire, relatif);
     mkdirSync(join(worktree, ".claude/brigade"), { recursive: true });
     if (declaration !== null) writeFileSync(join(worktree, DECLARATION_SERVICE), declaration);
     const env = { ...ENV_ENFANT, FAUX_BWRAP_TEMOIN: temoin, ...(port === null ? {} : { [VARIABLE_DU_PORT]: String(port) }) };
-    return { ticket, run: `${ticket}-a`, worktree, relatif, branche: `cook/${ticket}-a`, changes, env };
+    return { ticket, run: `${ticket}-a`, worktree, relatif, branche: `cook/${ticket}-a`, changes, corps, env };
   };
   const faits = (type: Fait["type"]) =>
     journal.tout().flatMap(({ ticket, author, type: sien, payload }) => (sien === type ? [{ ticket, author, payload: payload as Record<string, unknown> }] : []));
@@ -109,7 +110,7 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     const [lance] = faits("service.started");
     assert.deepEqual([lance?.ticket, lance?.author], [8, `station:${STATION}`]);
     const { pid, ...reste } = lance?.payload as { pid: number };
-    assert.deepEqual(reste, { station: STATION, run: "8-a", worktree: "worktrees/8-a", branch: "cook/8-a", port: 20008 });
+    assert.deepEqual(reste, { station: STATION, run: "8-a", worktree: "worktrees/8-a", branch: "cook/8-a", port: 20008, screen: null });
     assert.equal(vivant(pid), true);
     assert.deepEqual(serveurs.tenus(), [8]);
     // Rien ne répond sur son port : il démarre, et c'est ce qui se lit.
@@ -117,6 +118,44 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
       serveursEnCours(journal.base).map(({ ticket, worktree, port, state }) => ({ ticket, worktree, port, state })),
       [{ ticket: 8, worktree: "worktrees/8-a", port: 20008, state: "starting" }],
     );
+  });
+
+  test("pour un projet web, la page à ouvrir est le serveur du worktree suivi de la route de l'écran que le cook déclare — sans écran, aucune page", (t) => {
+    const { journal, serveurs, livraison, faits } = atelier(t);
+    const declaree = ["J'ai ajouté la page d'exemple.", "", "Écran : /exemple", "À regarder : la page dit bonjour"].join("\n");
+
+    assert.equal(serveurs.servir(livraison(7, declarer(TOURNE, "app"), ["app/exemple.html"], 20007, declaree)), true);
+    assert.equal(serveurs.servir(livraison(8, declarer(TOURNE, "app"), ["app/autre.html"], 20008, "J'ai changé une page.")), true);
+
+    assert.deepEqual(
+      faits("service.started").map(({ ticket, payload }) => [ticket, payload.screen]),
+      [
+        [7, { name: "/exemple", sentence: "la page dit bonjour", source: "declare" }],
+        [8, null],
+      ],
+    );
+    const [avec, sans] = serveursEnCours(journal.base);
+    assert.deepEqual(avec?.ecran, { ecran: "/exemple", phrase: "la page dit bonjour", source: "declare" });
+    // Le port du worktree, puis la route de l'écran : jamais la racine.
+    assert.equal(direPage(avec as Serveur), "http://127.0.0.1:20007/exemple");
+    assert.equal(sans?.ecran, null);
+    assert.equal(direPage(sans as Serveur), "aucune page à ouvrir : la livraison ne dit aucun écran, et n'en touche aucun que le projet déclare");
+  });
+
+  test("un écran déduit des fichiers changés donne sa page ; un écran qui n'est pas une route n'en donne aucune, et le dit ; une déclaration d'écrans mal écrite se dit", (t) => {
+    const { journal, serveurs, livraison, avertissements } = atelier(t);
+    const deduite = livraison(7, declarer(TOURNE, "app"), ["app/rail/vue.ts"]);
+    writeFileSync(join(deduite.worktree, DECLARATION_ECRANS), ["app/rail : /rail", "app/carte : la carte", "../ailleurs : /ailleurs", ""].join("\n"));
+    const nommee = livraison(8, declarer(TOURNE, "app"), ["app/x"], 20008, "Écran : la carte");
+
+    assert.equal(serveurs.servir(deduite), true);
+    assert.equal(serveurs.servir(nommee), true);
+
+    const [rail, carte] = serveursEnCours(journal.base);
+    assert.deepEqual([rail?.ecran?.source, direPage(rail as Serveur)], ["deduit", "http://127.0.0.1:20007/rail"]);
+    assert.deepEqual([carte?.ecran?.source, direPage(carte as Serveur)], ["declare", "aucune page à ouvrir : l'écran « la carte » n'est pas une route"]);
+    assert.equal(avertissements.length, 1);
+    assert.match(avertissements[0] ?? "", /^brigade : écran de la livraison du ticket #7 lu sans les lignes mal écrites — ligne 3 de `\.claude\/brigade\/ecrans` /);
   });
 
   test("un projet sans déclaration ne lance rien et le dit une fois, quelle que soit la livraison ; déclaré, ce n'est plus dit", (t) => {
@@ -378,10 +417,13 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
 
         const ligne = `  #15  ${echapper(lance.worktree)}  port ${port}  écoute depuis`;
         const station = await montrer(montrerStation, repertoire);
-        assert.match(station, new RegExp(`^serveurs\\s+1 — chacun sert une livraison d'interface depuis son worktree, sur le port de ce worktree\\n${ligne} le \\S+  ${echapper(lance.branch)}  http://127\\.0\\.0\\.1:${port}/$`, "m"));
+        // Son cook n'a déclaré aucun écran, et le projet n'en déclare aucun : il n'y a pas de page à ouvrir, pas même la racine.
+        const sansPage = "aucune page à ouvrir : la livraison ne dit aucun écran, et n'en touche aucun que le projet déclare";
+        assert.match(station, new RegExp(`^serveurs\\s+1 — chacun sert une livraison d'interface depuis son worktree, sur le port de ce worktree\\n${ligne} le \\S+  ${echapper(lance.branch)}  ${sansPage}$`, "m"));
+        assert.doesNotMatch(station, new RegExp(`http://127\\.0\\.0\\.1:${port}`));
         assert.doesNotMatch(station, /^service /m);
         const photo = await montrer(status, repertoire);
-        assert.match(photo, new RegExp(`^serveurs   1 serveur — une livraison d'interface, servie depuis son worktree sur le port de ce worktree\\n${ligne} .+  ${echapper(lance.branch)}$`, "m"));
+        assert.match(photo, new RegExp(`^serveurs   1 serveur — une livraison d'interface, servie depuis son worktree sur le port de ce worktree\\n${ligne} .+  ${echapper(lance.branch)}  ${sansPage}$`, "m"));
         assert.doesNotMatch(photo, /^service /m);
 
         // Le runtime s'en va : le serveur meurt avec lui, et plus rien n'est listé.
@@ -390,6 +432,24 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
         assert.notEqual((await interroger(port))?.cwd, reponse.cwd);
         assert.match(await montrer(montrerStation, repertoire), /^serveurs\s+aucun$/m);
         assert.doesNotMatch(await montrer(status, repertoire), /^serveurs /m);
+      });
+    });
+  });
+
+  test("pour un projet web, la page de la livraison est celle de l'écran que son cook déclare : le port de son worktree suivi de la route — `station` et `status` la montrent, et elle répond depuis ce worktree", async (t) => {
+    await surPortsLibres(1, async ([port = 0]) => {
+      await enCuisine(t, { lieux: projetServi(t, { interface: ["travail.txt"], ports: { 15: port } }), git: true, scenario: "livre-un-ecran" }, async (lieu) => {
+        const { repertoire, dernier } = lieu;
+
+        const reponse = await serviDepuis(lieu, 15);
+
+        assert.deepEqual(dernier("service.started", 15)?.screen, { name: "/exemple", sentence: "la page d'exemple montre `travail.txt`", source: "declare" });
+        const page = `http://127.0.0.1:${port}/exemple`;
+        const ligne = `  #15  \\S+  port ${port}  écoute depuis .+  ${echapper(page)}$`;
+        assert.match(await montrer(montrerStation, repertoire), new RegExp(ligne, "m"));
+        assert.match(await montrer(status, repertoire), new RegExp(ligne, "m"));
+        // La page de l'écran est servie par le serveur de ce worktree.
+        assert.equal(((await (await fetch(page)).json()) as Reponse).cwd, reponse.cwd);
       });
     });
   });

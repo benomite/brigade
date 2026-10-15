@@ -8,12 +8,18 @@
 // `orphaned` : son worktree n'existe plus. `shutdown` : le runtime s'en va.
 export type FinDeService = "exited" | "retaken" | "served" | "left" | "removed" | "orphaned" | "shutdown";
 
+export type EcranDuServeur = { name: string; sentence: string | null; source: "declare" | "deduit" };
+
 export type FaitService =
   // Un serveur est lancé : la commande que le projet déclare, depuis le
   // worktree de la livraison, sur le port que son setup lui a attribué.
   // `worktree` : son chemin, relatif au répertoire d'état. Rien ne dit encore
-  // que le port répond.
-  | { type: "service.started"; payload: { station: string; run: string; worktree: string; branch: string; port: number; pid: number } }
+  // que le port répond. `screen` : l'écran à regarder de la livraison
+  // (`ecran.ts`) — `name`, l'écran ou la route ; `sentence`, ce qu'il faut y
+  // regarder ; `source`, `declare` par le cook ou `deduit` de ses fichiers.
+  // Nul : elle n'en a pas, et il n'y a aucune page à ouvrir. Absent d'un fait
+  // écrit avant lui.
+  | { type: "service.started"; payload: { station: string; run: string; worktree: string; branch: string; port: number; pid: number; screen?: EcranDuServeur | null } }
   // Le port du worktree répond : la page peut être ouverte.
   | { type: "service.listening"; payload: { worktree: string; port: number } }
   // Le serveur ne tourne plus. `code`, `signal` : comment sa commande a fini.

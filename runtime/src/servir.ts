@@ -9,10 +9,14 @@
 // groupe de process — rien ne lui est donné qu'un cook n'avait déjà. Un serveur
 // tient son worktree : il ne se range qu'une fois le serveur arrêté. Aucun ne
 // survit à son runtime. Seul module qui lance la commande de service.
+//
+// Un serveur lancé dit aussi l'écran à regarder de sa livraison (`ecran.ts`) :
+// c'est de lui que se calcule la page à ouvrir, jamais la racine du site.
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { connect } from "node:net";
 import { envelopper, type Cloison } from "./cloison.ts";
+import { ecranDeLaLivraison } from "./ecran.ts";
 import type { FaitService, FinDeService } from "./evenements/service.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 import type { Journal } from "./journal.ts";
@@ -39,6 +43,9 @@ export type Livraison = {
   branche: string;
   // Les fichiers qu'elle change (`depot.changes`).
   changes: string[];
+  // Ce que son cook a livré, là où il déclare l'écran à regarder : le corps de
+  // sa PR. Nul : il n'a rien dit.
+  corps: string | null;
   // L'environnement que le setup du worktree a rendu : lui seul porte le port.
   env: NodeJS.ProcessEnv;
   // Le masque des secrets du projet que `env` porte.
@@ -186,6 +193,10 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
         return false;
       }
       disponible();
+      // L'écran à regarder : ce que la déclaration d'écrans du dépôt dit mal
+      // ne l'empêche pas d'être servi, mais se dit.
+      const { ecran, problemes } = ecranDeLaLivraison({ worktree: livraison.worktree, corps: livraison.corps, changes: livraison.changes });
+      if (problemes.length > 0) avertir(`brigade : écran de la livraison du ticket #${ticket} lu sans les lignes mal écrites — ${problemes.join(" ; ")}`);
 
       // Son propre groupe de process : arrêté, le serveur meurt avec tout ce
       // qu'il a lancé.
@@ -210,7 +221,8 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
       let rendre = () => {};
       const tenu: Tenu = { ticket, relatif, worktree: livraison.worktree, port: service.port, pid: enfant.pid, motif: null, fini: new Promise<void>((resoudre) => void (rendre = resoudre)) };
       tenus.set(ticket, tenu);
-      noter(ticket, { type: "service.started", payload: { station, run: livraison.run, worktree: relatif, branch: livraison.branche, port: tenu.port, pid: tenu.pid } });
+      const screen = ecran === null ? null : { name: ecran.ecran, sentence: ecran.phrase, source: ecran.source };
+      noter(ticket, { type: "service.started", payload: { station, run: livraison.run, worktree: relatif, branch: livraison.branche, port: tenu.port, pid: tenu.pid, screen } });
       sonder(tenu);
 
       let conclu = false;
