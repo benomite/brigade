@@ -3,7 +3,8 @@
 // ce qu'elle attend, de qui, la relance proposée à sept jours ; validé, la commande `waiting set` du
 // runtime part dans le second. Une carte de WAITING dit sans clic ce qu'elle attend, de qui, depuis
 // quand, sa relance et ce qui se passera à l'arrivée, et porte « resume » et « it arrived, back to
-// the kitchen ». Une carte revenue de WAITING dit pourquoi. Ce qui part se compare à la commande
+// the kitchen ». Une carte revenue de WAITING le dit — pas pourquoi : le runtime ne le rend pas
+// dans `faits`. Ce qui part se compare à la commande
 // du runtime (runtime/src/attente-cli.ts), passée par les deux shells qu'elle traverse ; la vue est
 // jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
@@ -132,8 +133,8 @@ const FAITS: Faits = {
     ticket(21, "en attente"),
     ticket(8, "WAITING", { attente: { raison: "attend : un tiers (WAITING)", colonne: "WAITING", retour: null }, tiers: TIERS }),
     ticket(12, "en pass"),
-    ticket(30, "86", { attente: { raison: "attend : le chef — revenu de WAITING", colonne: "86", retour: null }, tiers: null, revenu: "relance du 21/10 : pas de réponse" }),
-    ticket(31, "86", { attente: { raison: "attend : le chef — revenu de WAITING", colonne: "86", retour: null }, tiers: null, revenu: "nouveau sur l'issue" }),
+    ticket(30, "86", { attente: { raison: "attend : le chef — revenu de WAITING", colonne: "86", retour: null }, tiers: null }),
+    ticket(31, "86", { attente: { raison: "attend : le chef — revenu de WAITING", colonne: "86", retour: null }, tiers: null }),
   ],
   attend: [
     { ticket: 30, titre: "Ticket 30", url: "https://github.com/benomite/brigade/issues/30" },
@@ -196,22 +197,25 @@ describe("le rail en TODO et WAITING", () => {
     assert.equal(rail(FAITS).colonnes[0]?.cartes[0]?.gestes, undefined);
   });
 
-  test("une carte revenue de WAITING dit pourquoi, en premier : la relance passée sans réponse, ou du nouveau sur l'issue", () => {
-    const [relance, nouveau] = rail(FAITS).colonnes[3]?.cartes ?? [];
-    assert.deepEqual(relance?.dit[0], { libelle: "back from WAITING", valeur: "relance du 21/10 : pas de réponse" });
-    assert.deepEqual(nouveau?.dit[0], { libelle: "back from WAITING", valeur: "nouveau sur l'issue" });
+  // Le motif du retour (« relance du 21/10 : pas de réponse », « nouveau sur l'issue ») n'est pas
+  // dans `faits` : la carte dit ce que le runtime en rend, et rien de plus.
+  test("une carte revenue de WAITING le dit, dans les mots du runtime — sans motif inventé", () => {
+    const [relance] = rail(FAITS).colonnes[3]?.cartes ?? [];
+    assert.deepEqual(relance?.dit, [{ libelle: "set aside", valeur: "attend : le chef — revenu de WAITING" }]);
+    // Un champ que le runtime ne rend pas n'est pas lu.
+    const lu = comprendre(JSON.stringify({ ...FAITS, rail: [{ ...ticket(30, "86"), revenu: "relance du 21/10 : pas de réponse" }] }));
+    assert.ok(!("informe" in lu) && !("revenu" in (lu.rail[0] ?? {})));
   });
 
-  test("`tiers` et `revenu` se lisent dans la forme : absents d'un runtime d'avant eux, nuls pour un autre ticket — et une attente mal formée refuse la forme", () => {
+  test("`tiers` se lit dans la forme : absent d'un runtime d'avant lui, nul pour un autre ticket — et une attente mal formée refuse la forme", () => {
     const sortie = (rail: unknown[]) => JSON.stringify({ ...FAITS, rail });
     const lu = comprendre(sortie(FAITS.rail));
     assert.ok(!("informe" in lu));
     assert.deepEqual(lu.rail, FAITS.rail);
     const ancien = comprendre(sortie([{ ticket: 21, etat: "en attente", titre: "Ticket 21", url: "https://x/21" }]));
-    assert.ok(!("informe" in ancien) && !("tiers" in (ancien.rail[0] ?? {})) && !("revenu" in (ancien.rail[0] ?? {})));
+    assert.ok(!("informe" in ancien) && !("tiers" in (ancien.rail[0] ?? {})));
     assert.deepEqual(comprendre(sortie([{ ...ticket(8, "WAITING"), tiers: { ...TIERS, relance: "demain" } }])), { informe: "“rail[0].tiers.relance” is not a time" });
     assert.deepEqual(comprendre(sortie([{ ...ticket(8, "WAITING"), tiers: { ...TIERS, qui: 3 } }])), { informe: "“rail[0].tiers.qui” is not a string" });
-    assert.deepEqual(comprendre(sortie([{ ...ticket(8, "86"), revenu: 4 }])), { informe: "“rail[0].revenu” is not a string" });
   });
 });
 
@@ -355,22 +359,13 @@ describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
     reponse = SECOND;
     boutonDe(bonDe(vue, 31), "waiting for…").click();
     await repos();
-    recevoir(vue, dessinable({ ...FAITS, rail: FAITS.rail.map((pose) => (pose.ticket === 31 ? { ...pose, etat: "WAITING", tiers: TIERS, revenu: null } : pose)) }));
+    recevoir(vue, dessinable({ ...FAITS, rail: FAITS.rail.map((pose) => (pose.ticket === 31 ? { ...pose, etat: "WAITING", tiers: TIERS } : pose)) }));
     assert.ok(colonne(vue, "WAITING").contains(bonDe(vue, 31)));
     assert.equal(bonDe(vue, 31).dessous("form").length, 0);
     recevoir(vue);
     assert.equal(bonDe(vue, 31).dessous("form").length, 0, "le formulaire refermé ne revient pas");
   });
 
-  test("la carte revenue de WAITING dit pourquoi, sur l'écran", async () => {
-    const vue = await ouvrir();
-    recevoir(vue);
-    const premiers = [30, 31].map((numero) => bonDe(vue, numero).dessous("li")[0]?.children.map((pose) => pose.textContent));
-    assert.deepEqual(premiers, [
-      ["back from WAITING", "relance du 21/10 : pas de réponse"],
-      ["back from WAITING", "nouveau sur l'issue"],
-    ]);
-  });
 });
 
 const fiche = (vue: Jouee) => vue.element("fiche");

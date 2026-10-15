@@ -16,7 +16,7 @@
 // choses lues hors de la forme.
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
-import { lignesDuRail, porter, type Fait, type Porte } from "./bon.ts";
+import { lignesDuRail, porter, type Porte } from "./bon.ts";
 import type { Echec, Lecture } from "./box.ts";
 import { entete, type Entete } from "./fiche.ts";
 import { voir as voirVersion, type MiseEnService, type Version, type Vu as VersionVue } from "./version.ts";
@@ -92,10 +92,10 @@ export type Faits = {
   // attend et l'heure de son retour — nulle pour un autre, absente d'un runtime d'avant.
   // `tiers` : pour un ticket en WAITING, ce qu'il attend d'un tiers — nul pour un autre,
   // absent d'un runtime d'avant WAITING.
-  // `revenu` : pour un ticket revenu de WAITING, pourquoi, dans les mots du runtime
-  // (« relance du 21/10 : pas de réponse », « nouveau sur l'issue ») — nul pour un autre,
-  // absent d'un runtime qui ne le donne pas encore.
-  rail: { ticket: number; etat: string; titre: string; url: string; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null }[];
+  // Pourquoi un ticket est revenu de WAITING (relance passée, nouveau sur l'issue) :
+  // le runtime le retient (`ticket.resumed`) sans le rendre dans `faits` — la carte
+  // n'en dit que ce que son `attente` donne, « revenu de WAITING ».
+  rail: { ticket: number; etat: string; titre: string; url: string; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null }[];
   cooks?: Cook[];
   attend?: Attendu[];
   version?: Version | null;
@@ -279,8 +279,8 @@ function comprendreTiers(brut: unknown, lequel: string): Tiers {
 // La sortie de `faits`, champ pour champ — ou en quoi elle n'est pas la forme.
 // Rien n'y est complété : un champ qui manque refuse la forme entière — sauf
 // `cooks`, `attend`, `version`, `miseEnService`, `livres`, `urgence` et l'`activite`,
-// l'`attente`, les `tiers` et le `revenu` d'un ticket, qu'un runtime d'avant eux ne rend
-// pas, et qui manquent alors ici aussi.
+// l'`attente` et les `tiers` d'un ticket, qu'un runtime d'avant eux ne rend pas,
+// et qui manquent alors ici aussi.
 // Un champ de plus est laissé de côté, un mot d'état inconnu est gardé.
 export function comprendre(sortie: string): Faits | { informe: string } {
   if (sortie.trim() === "") return { informe: "the command returned nothing" };
@@ -325,7 +325,6 @@ export function comprendre(sortie: string): Faits | { informe: string } {
           ...(lu.activite === undefined ? {} : { activite: ouRien(lu.activite, `${lequel}.activite`, comprendreActivite) }),
           ...(lu.attente === undefined ? {} : { attente: ouRien(lu.attente, `${lequel}.attente`, comprendreAttente) }),
           ...(lu.tiers === undefined ? {} : { tiers: ouRien(lu.tiers, `${lequel}.tiers`, comprendreTiers) }),
-          ...(lu.revenu === undefined ? {} : { revenu: ouRien(lu.revenu, `${lequel}.revenu`, texte) }),
         };
       }),
       ...(racine.cooks === undefined
@@ -576,8 +575,6 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
       ...(connu === undefined ? {} : { enCeMoment: direEnCeMoment(connu, faits.lu) }),
       ...(connu?.attente == null ? {} : { attente: connu.attente.raison }),
     });
-    // Revenu de WAITING : pourquoi, d'abord — c'est ce qui le ramène devant le chef.
-    const revenu: Fait[] = connu?.revenu == null ? [] : [{ libelle: "back from WAITING", valeur: connu.revenu }];
     return {
       ticket,
       ...(connu === undefined ? {} : colore(TONS_DE_TICKET, connu.etat)),
@@ -588,7 +585,6 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
       // Livré, d'une box d'avant `livres` : la relecture n'en vient pas, la carte le dit.
       ...(connu?.etat === "servi" && faits.livres === undefined ? { livraison: livraison(undefined) } : {}),
       ...porte,
-      dit: [...revenu, ...porte.dit],
       // La PR n'est donnée que d'un ticket livré : ici, la box ne la donne pas.
       fiche: entete({ ...(titre === undefined ? {} : { titre }), url, ...sur(connu), ...(siennes === undefined ? {} : { lignes: siennes }) }),
       // Dans TODO, un ticket du rail que la cuisine ne tient pas peut attendre un tiers.
