@@ -1018,8 +1018,8 @@ const ETATS_D_ETAPE = { todo: "to do", done: "done", waiting: "waiting for you" 
 function poserService(projet, guide) {
   // Le chef a pu changer d'espace pendant que la box répondait.
   if (courant?.nom !== projet.nom) return;
-  service.hidden = guide === undefined;
-  if (guide === undefined) return serviceEtapes.replaceChildren(), serviceTete.replaceChildren();
+  service.hidden = guide === undefined || guide.termine;
+  if (guide === undefined || guide.termine) return serviceEtapes.replaceChildren(), serviceTete.replaceChildren();
   // En cours, ou entamée par le chef, elle s'ouvre d'elle-même ; ensuite, c'est lui qui la replie.
   if (misEnService !== projet.nom || (guide.deplie && !serviceDeplie)) {
     service.open = guide.deplie;
