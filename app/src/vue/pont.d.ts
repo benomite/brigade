@@ -12,6 +12,7 @@ import type { GESTES_DE_LA_CUISINE } from "../cuisine.ts";
 import type { BANNIERE, Dessinable } from "../faits.ts";
 import type { Confirmation } from "../confirmation.ts";
 import type { CONFIRMES, DIRECTS, GRANTS } from "../gestes.ts";
+import type { GESTES_D_ATTENTE, Saisie as SaisieDAttente } from "../attente.ts";
 import type { GESTES_DES_GRANTS, Vu as VuDesGrants } from "../grants.ts";
 import type { EFFORTS, Issue, MODELES, Saisie } from "../installation.ts";
 import type { GESTES_DU_MANAGER, Vu } from "../manager.ts";
@@ -25,7 +26,7 @@ import type { Guide } from "../service.ts";
 import type { Terminal } from "../terminaux.ts";
 
 export type Pont = {
-  demarrage(): Promise<{ configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined }>;
+  demarrage(): Promise<{ configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
   // Le dépôt GitHub du dossier choisi, lu dans son origine — ou pourquoi il reste à écrire.
@@ -123,6 +124,10 @@ export type Pont = {
   // Ce qu'un geste confirmé coûte, à dire avant son « oui » (confirmation.ts) : tiré des derniers
   // faits lus du projet. Rien ne part. Rien, pour un geste qui ne se confirme pas.
   confirmer(projet: string, id: string, grant?: string): Promise<Confirmation | { refus: string } | undefined>;
+  // Un geste de WAITING (attente.ts), sur la carte d'un ticket : sa commande part dans le second du
+  // projet, comme un geste du socle. `saisie` : ce que le chef a rempli pour « waiting for… » — ce
+  // qu'il attend, de qui, le jour de la relance. Rend le second, ou pourquoi rien n'est parti.
+  attente(projet: string, id: string, ticket: number, saisie?: SaisieDAttente): Promise<Terminal | { refus: string } | undefined>;
   // Un clone en retard sur son origine (retard.ts) : sa mise à jour, `git -C <clone> pull`, est
   // écrite dans un shell de l'espace d'un projet, ouvert pour elle, sans être envoyée. Rend ce
   // shell — son projet est celui où il s'est ouvert — ou pourquoi rien n'est écrit. Rien, pour un

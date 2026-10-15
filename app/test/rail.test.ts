@@ -1,4 +1,4 @@
-// Le rail est la vue principale de l'espace : au centre de l'écran, en cinq colonnes, posé quel
+// Le rail est la vue principale de l'espace : au centre de l'écran, en six colonnes, posé quel
 // que soit l'onglet affiché dessous. Chaque carte y montre ce que la file dit du ticket, écrit
 // ce qu'elle n'en dit pas, et relaie mot pour mot ce que la box a écrit. Le clic d'une carte, quelle
 // que soit sa colonne, ouvre sa fiche par-dessus le rail (#635) ; celle d'un ticket de T'attend écrit
@@ -152,7 +152,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     const vue = await ouvrir();
     recevoir(vue);
     const cinq = () => colonnes(vue).map((colonne) => colonne.children[0]?.children.map((pose) => pose.textContent));
-    const ATTENDU = [["On the rail", "2"], ["Taken", "1"], ["Pass", "1"], ["Awaiting you", "1"], ["Served", "1"]];
+    const ATTENDU = [["On the rail", "2"], ["Taken", "1"], ["Pass", "1"], ["TODO", "1"], ["WAITING", "0"], ["Served", "1"]];
 
     // L'espace s'ouvre sans page : le rail est seul au centre, le second à droite.
     assert.equal(vue.element("contenu").hidden, true);
@@ -176,7 +176,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     assert.deepEqual(cinq(), ATTENDU);
     // Aucun onglet ne lui est plus nécessaire : une lecture de `faits` le redessine où que l'on soit.
     recevoir(vue, dessinable({ ...FAITS, rail: [], attend: [], cooks: [] }, PAS_LU));
-    assert.deepEqual(cinq(), [["On the rail", "0"], ["Taken", "0"], ["Pass", "0"], ["Awaiting you", "0"], ["Served", "0"]]);
+    assert.deepEqual(cinq(), [["On the rail", "0"], ["Taken", "0"], ["Pass", "0"], ["TODO", "0"], ["WAITING", "0"], ["Served", "0"]]);
   });
 
   test("avant la première lecture il le dit ; un projet sans box n'en a pas — rien n'est lu de lui", async () => {
@@ -303,7 +303,7 @@ describe("T'attend est le seul endroit où un ticket attend une décision", () =
       recevoir(vue, dessinable(FAITS, status));
       const ou = colonnes(vue).filter((colonne) => bons(colonne).some((bon) => bon.children[0]?.children[0]?.textContent === "#12")).map((colonne) => colonne.children[0]?.children[0]?.textContent);
 
-      assert.deepEqual(ou, ["Awaiting you"]);
+      assert.deepEqual(ou, ["TODO"]);
       assert.equal(bons(vue.element("rail")).filter((bon) => bon.children[0]?.children[0]?.textContent === "#12").length, 1);
       // Sa pilule le dit en mots ; aucune autre carte ne la porte.
       const attendus = bons(vue.element("rail")).filter((bon) => bon.dessous("span").some((pose) => pose.className.split(" ").includes("attendu")));
@@ -588,7 +588,7 @@ describe("Livré garde ce que la cuisine a servi", () => {
   test("longue, elle défile dans sa hauteur : elle ne pousse rien sous la grille, et les autres colonnes restent en vue", async () => {
     const vue = await ouvrir();
     recevoir(vue, dessinable({ ...FAITS, livres: LIVRES }, PAS_LU));
-    assert.deepEqual(colonnes(vue).map((colonne) => "defile" in colonne.dataset), [false, false, false, false, true]);
+    assert.deepEqual(colonnes(vue).map((colonne) => "defile" in colonne.dataset), [false, false, false, false, false, true]);
 
     const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
     const corps = /(?:^|})\s*#rail \.colonne\[data-defile\] > ol\s*\{([^}]*)\}/.exec(css)?.[1] ?? assert.fail("pas de règle pour la colonne qui défile");
@@ -605,7 +605,9 @@ describe("un clic sur une carte ouvre sa fiche par-dessus le rail (#635)", () =>
     { ticket: 216, titre: "Le relevé des mesures", url: "https://github.com/benomite/brigade/issues/216", livre: "2026-10-13T10:03:58.000Z", station: "box/claude", pr: "https://github.com/benomite/brigade/pull/219" },
     { ticket: 188, titre: "Une fiche sans zone", url: "https://github.com/benomite/brigade/issues/188", livre: "2026-10-12T16:30:05.000Z", station: "box/claude", pr: null },
   ];
-  const AVEC_LIVRES = { ...FAITS, compteurs: { ...FAITS.compteurs, livres24h: 2 }, livres: LIVRES };
+  // Et un ticket qui attend un tiers : chaque colonne a sa carte, WAITING comprise.
+  const EN_WAITING = { ticket: 50, etat: "WAITING", titre: "Le devis du client", url: "https://github.com/benomite/brigade/issues/50", activite: null, tiers: { quoi: "sa validation écrite", qui: "le client", depuis: "2026-10-12T09:00:00.000Z", relance: "2026-10-19T00:00:00.000Z", aLArrivee: "il repart en cuisine" } };
+  const AVEC_LIVRES = { ...FAITS, rail: [...FAITS.rail, EN_WAITING], compteurs: { ...FAITS.compteurs, livres24h: 2 }, livres: LIVRES };
 
   test("une carte de chaque colonne l'ouvre, et la fermer — son bouton ou Échap — rend le rail tel qu'il était, sans le redessiner", async () => {
     const vue = await ouvrir();

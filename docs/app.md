@@ -1338,7 +1338,7 @@ livré, `livré`, `cuisiné par`, et sa PR mergée.
   minute : la box lit GitHub à chaque fois. Un clic déplie la liste, **regroupée par ce qui leur
   arrive**, dans les mots de la box :
   - `not yet read by the manager` ; `epic, not yet split` ; `awaiting your answer — it is also in
-    Awaiting you` ; `set aside by the manager` (avec sa raison en une ligne) ; `off the rail — still
+    TODO` ; `set aside by the manager` (avec sa raison en une ligne) ; `off the rail — still
     open` (`fire` retiré, ou `hors-cuisine` posé) ;
   - puis trois passages, quand il y en a : `on its way to the rail` (elle porte `fire`, ou le
     manager l'y a mise), `epic split — its tickets carry the work`, `served — its issue is still open`.

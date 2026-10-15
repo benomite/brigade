@@ -2,7 +2,7 @@
 // La vue : elle montre, elle ne tient rien. Les pty vivent dans le process
 // principal ; ici, un xterm par terminal, gardé tant que l'app est ouverte —
 // changer d'espace ou d'onglet ne fait que cacher l'un et montrer l'autre.
-// Au centre de l'espace, le rail : c'est la vue principale, en cinq colonnes. Chaque carte y
+// Au centre de l'espace, le rail : c'est la vue principale, en six colonnes. Chaque carte y
 // porte ce que la file dit du ticket — qui le tient, depuis quand, son bail, ce qu'il brûle, ce
 // qui le bloque — et écrit ce qu'elle ne dit pas. En haut, les onglets de pages — Rail, Cooks,
 // Manager, Grants, Log : chacune la sortie d'une commande, lue tant qu'elle est affichée — ; une
@@ -258,6 +258,15 @@ let GESTES_DE_LA_CUISINE = [];
 let GESTES_DES_GRANTS = [];
 /** @type {readonly string[]} */
 let GRANTS_NOMMES = [];
+// Les trois gestes de WAITING, dits de même (attente.ts) : « waiting for… » sur une carte de TODO,
+// « resume » et « it arrived » sur une carte de WAITING. La vue les nomme, elle ne sait pas ce qu'ils écrivent.
+/** @type {readonly { id: string, libelle: string }[]} */
+let GESTES_D_ATTENTE = [];
+// Le formulaire « waiting for… » ouvert sur une carte, par projet et ticket : ce que le chef y a
+// rempli, et pourquoi rien n'est parti quand c'est le cas. Le rail se redessine à chaque lecture :
+// le formulaire y revient tel que le chef l'a laissé. Absent : la carte porte son bouton.
+/** @type {Map<string, { quoi: string, qui: string, relance: string, refus?: string }>} */
+const formulairesDAttente = new Map();
 // Les gestes directs, et les confirmés, dits de même (gestes.ts) : le clic d'un direct fait partir
 // sa commande dans le second — ou dit pourquoi elle ne part pas ; celui d'un confirmé ouvre sa
 // confirmation, et rien ne part avant son « oui ». La vue ne le décide pas.
@@ -1617,7 +1626,7 @@ function poserBon(projet, carte, tonAttend) {
   bon.tabIndex = 0;
   bon.addEventListener("click", (evenement) => {
     const cible = /** @type {Element | null | undefined} */ (evenement.target);
-    if (cible?.closest?.("button, a, summary, input, select") || String(globalThis.getSelection?.() ?? "") !== "") return;
+    if (cible?.closest?.("button, a, summary, input, select, form") || String(globalThis.getSelection?.() ?? "") !== "") return;
     ouvrirFiche(projet, carte, bon);
   });
   bon.addEventListener("keydown", (evenement) => {
@@ -1684,8 +1693,120 @@ function poserBon(projet, carte, tonAttend) {
     bon.append(ligne);
   }
   bon.append(...attend.map((entree) => bloc("p", entree)));
+  bon.append(...poserGestesDAttente(projet, carte));
   bon.append(...(pagesServies.get(projet.nom)?.pages ?? []).filter((page) => page.ticket === ticket).map((page) => poserServie(projet, page)));
   return bon;
+}
+
+// Le jour de la relance que le formulaire propose : dans sept jours, au calendrier du poste
+// (attente.ts, `relanceProposee`) — modifiable.
+const relanceProposee = () => {
+  const maintenant = new Date();
+  const dans = new Date(maintenant.getFullYear(), maintenant.getMonth(), maintenant.getDate() + 7);
+  return `${dans.getFullYear()}-${String(dans.getMonth() + 1).padStart(2, "0")}-${String(dans.getDate()).padStart(2, "0")}`;
+};
+
+// Les gestes de WAITING d'une carte (faits.ts, `gestes`) : sur une carte de TODO, « waiting for… »,
+// qui ouvre son formulaire sur la carte — ce qu'elle attend, dans les mots du chef ; de qui ; le
+// jour de la relance, proposé à sept jours ; validé, la commande part dans le second, et la carte
+// passe dans WAITING à la lecture qui le voit. Sur une carte de WAITING, « resume » et « it arrived,
+// back to the kitchen » : chacun part au clic. Ce qui part se décide dans attente.ts.
+/** @param {Projet} projet @param {import("../faits.ts").Carte} carte */
+function poserGestesDAttente(projet, carte) {
+  const { ticket, gestes } = carte;
+  const siens = GESTES_D_ATTENTE.filter(({ id }) => gestes?.includes(/** @type {never} */ (id)));
+  if (siens.length === 0) return [];
+  const cle = `${projet.nom}#${ticket}`;
+  const ouvert = formulairesDAttente.get(cle);
+  const poser = siens.find(({ id }) => id === "attente-poser");
+  if (poser !== undefined && ouvert !== undefined) return [poserFormulaireDAttente(projet, ticket, cle, ouvert)];
+  const rangee = document.createElement("p");
+  rangee.className = "gestes attente";
+  rangee.append(
+    ...siens.map(({ id, libelle }) => {
+      const pose = bouton(libelle, () => {
+        if (id !== "attente-poser") return void ecrireAttente(projet, id, ticket);
+        formulairesDAttente.set(cle, { quoi: "", qui: "", relance: relanceProposee() });
+        poserRail(projet);
+      });
+      pose.dataset.attente = id;
+      pose.title =
+        id === "attente-poser"
+          ? `put #${ticket} in WAITING: say what it waits for, from whom, and when to come back to it`
+          : id === "attente-reprendre"
+            ? `bring #${ticket} back into TODO, now — it stops waiting`
+            : `#${ticket} goes back to the kitchen, without going through TODO`;
+      return pose;
+    }),
+  );
+  return [rangee];
+}
+
+// Le formulaire « waiting for… » d'une carte de TODO : trois champs, que le chef remplit, puis
+// « put in WAITING », qui fait partir la commande — ou dit, sous les champs, pourquoi elle ne part
+// pas ; « cancel » le referme, et rien ne part.
+/** @param {Projet} projet @param {number} ticket @param {string} cle @param {{ quoi: string, qui: string, relance: string, refus?: string }} ouvert */
+function poserFormulaireDAttente(projet, ticket, cle, ouvert) {
+  const formulaire = document.createElement("form");
+  formulaire.className = "attente";
+  /** @param {"quoi" | "qui" | "relance"} champ @param {string} libelle @param {string} [type] */
+  const saisie = (champ, libelle, type) => {
+    const etiquette = document.createElement("label");
+    const entree = /** @type {HTMLInputElement} */ (document.createElement("input"));
+    if (type !== undefined) entree.type = type;
+    entree.value = ouvert[champ];
+    entree.dataset.champ = champ;
+    entree.dataset.cle = cle;
+    entree.addEventListener("input", () => void (ouvert[champ] = entree.value));
+    etiquette.append(bloc("span", libelle), entree);
+    return etiquette;
+  };
+  const valider = bouton("put in WAITING", () => {});
+  valider.type = "submit";
+  valider.dataset.attente = "attente-poser";
+  const renoncer = bouton("cancel", () => {
+    formulairesDAttente.delete(cle);
+    poserRail(projet);
+  });
+  renoncer.type = "button";
+  const gestes = document.createElement("p");
+  gestes.className = "gestes";
+  gestes.append(valider, renoncer);
+  formulaire.append(
+    bloc("strong", `#${ticket} waits for a third party`),
+    saisie("quoi", "what it waits for, in your words"),
+    saisie("qui", "from whom"),
+    saisie("relance", "follow-up on", "date"),
+    ...(ouvert.refus === undefined ? [] : [Object.assign(bloc("p", ouvert.refus), { className: "refus" })]),
+    gestes,
+  );
+  formulaire.addEventListener("submit", (soumission) => {
+    soumission.preventDefault();
+    void ecrireAttente(projet, "attente-poser", ticket, { quoi: ouvert.quoi, qui: ouvert.qui, relance: ouvert.relance });
+  });
+  return formulaire;
+}
+
+// Un geste de WAITING part dans le second, comme un geste du socle : sa sortie s'y lit, sa note dit
+// ce qui est parti. Parti, le formulaire se referme ; refusé, il reste, et dit pourquoi.
+/** @param {Projet} projet @param {string} id @param {number} ticket @param {{ quoi: string, qui: string, relance: string }} [saisie] */
+async function ecrireAttente(projet, id, ticket, saisie) {
+  const cle = `${projet.nom}#${ticket}`;
+  nonEcrit = nonEcritSecond = "";
+  /** @type {string | undefined} */
+  let refus;
+  try {
+    const rendu = await brigade.attente(projet.nom, id, ticket, saisie);
+    if (rendu !== undefined && "refus" in rendu) refus = rendu.refus;
+    else if (rendu !== undefined) garder(projet.nom, rendu);
+  } catch (erreur) {
+    refus = `nothing sent: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+  }
+  const ouvert = formulairesDAttente.get(cle);
+  if (saisie !== undefined && ouvert !== undefined && refus !== undefined) ouvert.refus = refus;
+  else if (saisie !== undefined) formulairesDAttente.delete(cle);
+  if (refus !== undefined && saisie === undefined) nonEcritSecond = refus;
+  montrer();
 }
 
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture en entier, dans ses mots
@@ -2047,7 +2168,7 @@ function poserAmont(projet, { aucunTicket }, cartes) {
 }
 
 // La liste dépliée : chaque issue sous ce qui lui arrive, son numéro, son titre, ce que la box en dit.
-// Un clic ouvre sa fiche par-dessus le rail — celle de sa carte, si elle en a une dans T'attend.
+// Un clic ouvre sa fiche par-dessus le rail — celle de sa carte, si elle en a une dans TODO.
 /** @param {Projet} projet @param {import("../amont.ts").Vu} vu @param {import("../faits.ts").Carte[]} cartes */
 function listeAmont(projet, vu, cartes) {
   const liste = document.createElement("section");
@@ -2086,7 +2207,7 @@ function listeAmont(projet, vu, cartes) {
   return liste;
 }
 
-// Le rail en cinq colonnes — Sur le rail, Au travail, Pass, T'attend, Livré —,
+// Le rail en six colonnes — Sur le rail, Au travail, Pass, TODO, WAITING, Livré —,
 // tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
 // colonne. C'est la vue principale de l'espace : il est posé au centre, quel que soit
 // l'onglet affiché dessous. Un projet sans box n'en a pas : rien n'est lu de lui. Sans
@@ -2157,13 +2278,22 @@ function poserRail(projet) {
   };
   // La fiche ouverte suit la lecture : elle dit ce que la dernière dit de son ticket.
   if (ouverte !== undefined) suivreFiche([...colonnes.flatMap(({ cartes: siennes }) => siennes), ...hors], posees);
+  // Un formulaire « waiting for… » dont le ticket n'est plus dans TODO se referme : il n'a plus de carte où se poser.
+  for (const cle of formulairesDAttente.keys()) {
+    const [nom, numero] = cle.split("#");
+    if (nom === projet.nom && !colonnes.some(({ cartes: siennes }) => siennes.some(({ ticket, gestes }) => String(ticket) === numero && gestes?.includes("attente-poser")))) formulairesDAttente.delete(cle);
+  }
+  // Le champ où le chef tapait garde le clavier : le rail redessiné le lui rend.
+  const tape = /** @type {HTMLInputElement | null | undefined} */ (document.activeElement);
+  const reprise = tape?.dataset?.cle === undefined ? undefined : { cle: tape.dataset.cle, champ: tape.dataset.champ };
   rail.replaceChildren(
     ...fraicheur(tenu.a),
     ...poserAmont(projet, tenu.tableau.rail, [...colonnes.flatMap(({ cartes: siennes }) => siennes), ...hors]),
     grille,
-    ...(hors.length === 0 ? [] : [bloc("h3", `outside the five columns — their state is none of them, and nothing says they await you: the Rail read, in Settings, relays what \`${geste(projet, "rail")}\` says`), bons(hors)]),
+    ...(hors.length === 0 ? [] : [bloc("h3", `outside the six columns — their state is none of them, and nothing says they await you: the Rail read, in Settings, relays what \`${geste(projet, "rail")}\` says`), bons(hors)]),
     ...(sansCarte.length === 0 ? [] : [bloc("h3", `served, without a card on the rail — \`${geste(projet, "status")}\` shows their server`), servis(sansCarte)]),
   );
+  if (reprise !== undefined) [...rail.querySelectorAll("input")].find(({ dataset }) => dataset.cle === reprise.cle && dataset.champ === reprise.champ)?.focus();
 }
 
 // Une page servie : le worktree, son port, l'état de son serveur, et son geste — un seul, direct,
@@ -3295,6 +3425,7 @@ GESTES_DE_LA_CUISINE = demarrage.gestes.cuisine;
 CONFIRMES = demarrage.gestes.confirmes;
 GESTES_DES_GRANTS = demarrage.gestes.grants.gestes;
 GRANTS_NOMMES = demarrage.gestes.grants.nommes;
+GESTES_D_ATTENTE = demarrage.gestes.attente ?? [];
 DIRECTS = demarrage.gestes.directs;
 BANNIERE = demarrage.banniere;
 for (const champ of CALIBRAGE) proposer(calibre(champ), champ.endsWith("modele") ? demarrage.calibrage.modeles : demarrage.calibrage.efforts, champ.endsWith("modele") ? "— model —" : "— effort —");

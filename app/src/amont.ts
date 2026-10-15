@@ -25,7 +25,7 @@ export type Amont = { lu: string; depot: string; issues: Donnee[] };
 export const GROUPES = [
   { etat: "non-lue", nom: "not yet read by the manager" },
   { etat: "epique", nom: "epic, not yet split" },
-  { etat: "attend", nom: "awaiting your answer — it is also in Awaiting you" },
+  { etat: "attend", nom: "awaiting your answer — it is also in TODO" },
   { etat: "ecartee", nom: "set aside by the manager" },
   { etat: "sortie", nom: "off the rail — still open" },
   { etat: "en-route", nom: "on its way to the rail" },
