@@ -51,10 +51,23 @@ export type Activite = { fait: string; cible: string | null; depuis: string };
 // (« attend : setup du projet impossible »), `colonne` : celle du rail où il est.
 export type Attente = { raison: string; colonne: string; retour: string | null };
 
+// Une décision du chef qui retient toute la cuisine, comme le runtime la donne
+// (runtime/src/etat.ts, `DecisionUrgente`) : `decision`, ce qui la nomme en tête
+// de sa ligne du bloc `attend` (`#535`, une station, `base`, `setup`) ; `ticket`,
+// nul hors ticket ; `cause`, son mot ; `geste`, sa ligne du bloc — ce qui attend,
+// puis le geste du chef ; `url`, l'adresse de son issue, nulle sans elle.
+export type DecisionUrgente = { decision: string; ticket: number | null; cause: string; geste: string; url: string | null };
+// L'urgence : plus rien ne cuit, et c'est le chef que toute la cuisine attend.
+// `depuis` : le début de l'arrêt total, à l'horloge de la box ; `retenus` : les
+// tickets à l'arrêt ; `autres` : les autres décisions qui en retiennent aussi.
+export type Urgence = DecisionUrgente & { depuis: string; retenus: number[]; autres: DecisionUrgente[] };
+
 // La forme, telle que le runtime la fige (runtime/src/etat.ts, `Faits`).
-// `cooks`, `attend`, `version`, `miseEnService`, `livres` : absents, c'est un
+// `cooks`, `attend`, `version`, `miseEnService`, `livres`, `urgence` : absents, c'est un
 // runtime d'avant ce champ — les seuls que la forme laisse manquer. `version` nulle : le
-// runtime en marche n'a rien comparé, et ce n'est pas « à jour ».
+// runtime en marche n'a rien comparé, et ce n'est pas « à jour ». `urgence` nulle : la
+// cuisine n'attend pas le chef tout entière — une décision qui ne retient qu'une partie
+// du rail n'en est pas une.
 export type Faits = {
   etat: string;
   lu: string;
@@ -71,6 +84,7 @@ export type Faits = {
   version?: Version | null;
   miseEnService?: MiseEnService;
   livres?: Livre[];
+  urgence?: Urgence | null;
 };
 
 // Ce que la vue dessine d'un projet, prêt à poser : elle n'y calcule rien.
@@ -190,6 +204,30 @@ function comprendreMiseEnService(valeur: unknown): MiseEnService {
   };
 }
 
+function comprendreDecision(valeur: unknown, champ: string): DecisionUrgente {
+  const lu = objet(valeur, champ);
+  return {
+    decision: texte(lu.decision, `${champ}.decision`),
+    ticket: ouRien(lu.ticket, `${champ}.ticket`, entier),
+    cause: texte(lu.cause, `${champ}.cause`),
+    geste: texte(lu.geste, `${champ}.geste`),
+    url: ouRien(lu.url, `${champ}.url`, texte),
+  };
+}
+
+// L'urgence : la décision qui retient le plus de tickets, depuis quand tout est à l'arrêt,
+// les tickets retenus, les autres décisions.
+function comprendreUrgence(valeur: unknown, champ: string): Urgence {
+  const lu = objet(valeur, champ);
+  const liste = (brut: unknown, nom: string): unknown[] => (Array.isArray(brut) ? brut : refuser(nom, "a list"));
+  return {
+    ...comprendreDecision(lu, champ),
+    depuis: heure(lu.depuis, `${champ}.depuis`),
+    retenus: liste(lu.retenus, `${champ}.retenus`).map((ticket, rang) => entier(ticket, `${champ}.retenus[${rang}]`)),
+    autres: liste(lu.autres, `${champ}.autres`).map((autre, rang) => comprendreDecision(autre, `${champ}.autres[${rang}]`)),
+  };
+}
+
 function comprendreAttente(brut: unknown, lequel: string): Attente {
   const lu = objet(brut, lequel);
   return { raison: texte(lu.raison, `${lequel}.raison`), colonne: texte(lu.colonne, `${lequel}.colonne`), retour: ouRien(lu.retour, `${lequel}.retour`, texte) };
@@ -197,7 +235,7 @@ function comprendreAttente(brut: unknown, lequel: string): Attente {
 
 // La sortie de `faits`, champ pour champ — ou en quoi elle n'est pas la forme.
 // Rien n'y est complété : un champ qui manque refuse la forme entière — sauf
-// `cooks`, `attend`, `version`, `miseEnService`, `livres` et l'`activite` d'un
+// `cooks`, `attend`, `version`, `miseEnService`, `livres`, `urgence` et l'`activite` d'un
 // ticket, qu'un runtime d'avant eux ne rend pas, et qui manquent alors ici aussi.
 // Un champ de plus est laissé de côté, un mot d'état inconnu est gardé.
 export function comprendre(sortie: string): Faits | { informe: string } {
@@ -281,6 +319,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
               };
             }),
           }),
+      ...(racine.urgence === undefined ? {} : { urgence: ouRien(racine.urgence, "urgence", comprendreUrgence) }),
     };
   } catch (erreur) {
     if (erreur instanceof Informe) return { informe: erreur.message };
