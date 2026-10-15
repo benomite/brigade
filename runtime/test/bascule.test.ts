@@ -1021,14 +1021,18 @@ test("une variable de décision que le journal porte déjà et que le drop-in co
   environner(b, { BRIGADE_MANAGER_MODEL: "opus", BRIGADE_PROXY_PORT: "4100" });
   const commit = b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
 
-  const { code, erreur } = b.bascule();
+  const { code, sortie, erreur } = b.bascule();
 
   assert.equal(code, 0, erreur);
-  assert.match(erreur, /BRIGADE_MANAGER_MODEL est encore dans l'environnement de brigade@calculus\.service : le runtime l'ignore — la poser par `brigade calculus station manager-modele <valeur>` puis la retirer du drop-in/);
+  assert.match(erreur, /BRIGADE_MANAGER_MODEL : le drop-in de brigade@calculus\.service dit « opus », le journal du projet dit "sonnet" — le runtime lit le journal/);
+  assert.match(erreur, /`brigade calculus station manager-modele opus`/);
   // Un port n'est pas une décision : rien n'en est dit.
   assert.doesNotMatch(erreur, /BRIGADE_PROXY_PORT/);
   assert.equal(b.enService(), commit);
   assert.equal(lesDecisions(b).BRIGADE_MANAGER_MODEL, "sonnet");
+  // La valeur divergente reste au drop-in : rien n'est tranché à la place du chef.
+  assert.match(readFileSync(join(b.unites, `${UNITE}.d`, "decisions.conf"), "utf8"), /BRIGADE_MANAGER_MODEL=opus/);
+  assert.doesNotMatch(sortie, /retiré/);
 });
 
 // Les décisions que le journal porte, relues par le lecteur du runtime.
@@ -1060,7 +1064,6 @@ test("une version d'avant les décisions : les réglages du drop-in sont recopi�
   const b = box(t);
   environner(b, { ...DU_DROP_IN, BRIGADE_PROXY_PORT: "4100" });
   const commit = b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
-  const avant = readFileSync(join(b.unites, `${UNITE}.d`, "decisions.conf"), "utf8");
 
   const { code, sortie, erreur } = b.bascule();
 
@@ -1072,8 +1075,10 @@ test("une version d'avant les décisions : les réglages du drop-in sont recopi�
   assert.doesNotMatch(sortie, /BRIGADE_PROXY_PORT/);
   // Rien ne manque, rien n'est ignoré : la bascule ne réclame aucun geste.
   assert.doesNotMatch(erreur, /réclame|est encore dans l'environnement/);
-  // Le drop-in n'est pas touché : le retour arrière relance ce qui le lit.
-  assert.equal(readFileSync(join(b.unites, `${UNITE}.d`, "decisions.conf"), "utf8"), avant);
+  // La version confirmée, les réglages recopiés sont retirés du drop-in, en
+  // une ligne ; ce qui n'est pas une décision y reste.
+  assert.equal(readFileSync(join(b.unites, `${UNITE}.d`, "decisions.conf"), "utf8"), "[Service]\nEnvironment=BRIGADE_PROXY_PORT=4100\n");
+  assert.ok(sortie.includes(`12 anciens réglages retirés du drop-in de ${UNITE}, déjà dans le journal`), sortie);
   assert.equal(b.enService(), commit);
   // Les faits portent l'auteur de la bascule, au nom de la variable.
   const journal = ouvrirJournal(b.etat, { lectureSeule: true });
@@ -1133,16 +1138,60 @@ test("une version d'avant les décisions, refusée : la bascule revient, le drop
   assert.equal(readFileSync(join(b.unites, `${UNITE}.d`, "decisions.conf"), "utf8"), avant);
 });
 
-test("une version qui ne déclare aucune décision : le drop-in n'est pas recopié", (t) => {
+test("une version qui ne déclare aucune décision : le drop-in n'est ni recopié ni retiré", (t) => {
   const b = box(t);
   environner(b, DU_DROP_IN);
   b.livrer("ok");
+  const avant = readFileSync(join(b.unites, `${UNITE}.d`, "decisions.conf"), "utf8");
 
   const { code, sortie } = b.bascule();
 
   assert.equal(code, 0);
-  assert.doesNotMatch(sortie, /recopiée/);
+  assert.doesNotMatch(sortie, /recopiée|retiré/);
   assert.ok(!existsSync(join(b.etat, "log.db")));
+  assert.equal(readFileSync(join(b.unites, `${UNITE}.d`, "decisions.conf"), "utf8"), avant);
+});
+
+test("les réglages retirés du drop-in ne le sont qu'une fois : la mise en service suivante n'en dit plus rien", (t) => {
+  const b = box(t);
+  environner(b, DU_DROP_IN);
+  b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
+  assert.equal(b.bascule().code, 0);
+
+  b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
+  const { code, sortie, erreur } = b.bascule();
+
+  assert.equal(code, 0, erreur);
+  assert.doesNotMatch(sortie + erreur, /retiré|recopiée|encore dans l'environnement|BRIGADE_MANAGER/);
+});
+
+test("un réglage de même valeur que le journal est retiré du drop-in avec ses voisins, un autre fichier de drop-in et une ligne commentée n'y perdent rien d'autre", (t) => {
+  const b = box(t);
+  journalDu(t, b, { ...CALIBRAGE, BRIGADE_STATIONS: STATIONS });
+  writeFileSync(join(b.unites, `${UNITE}.d`, "decisions.conf"), `[Service]\nEnvironment=BRIGADE_MANAGER_MODEL=sonnet\n#Environment=BRIGADE_MANAGER_EFFORT=high\nEnvironment="BRIGADE_REVIEWER_MODEL=haiku"\nEnvironment=BRIGADE_PROXY_PORT=4100\n`);
+  b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
+
+  const { code, sortie, erreur } = b.bascule();
+
+  assert.equal(code, 0, erreur);
+  assert.equal(readFileSync(join(b.unites, `${UNITE}.d`, "decisions.conf"), "utf8"), "[Service]\n#Environment=BRIGADE_MANAGER_EFFORT=high\nEnvironment=BRIGADE_PROXY_PORT=4100\n");
+  assert.ok(sortie.includes("2 anciens réglages retirés du drop-in"), sortie);
+  assert.equal(readFileSync(join(b.unites, `${UNITE}.d`, "projet.conf"), "utf8"), "[Service]\nEnvironment=BRIGADE_BASE_BRANCH=main\n");
+});
+
+test("une ligne à plusieurs affectations n'est pas retirée, que la variable de décision y soit en premier ou en second : le drop-in reste intact et la ligne est dite", (t) => {
+  const b = box(t);
+  journalDu(t, b, { ...CALIBRAGE, BRIGADE_STATIONS: STATIONS });
+  const contenu = `[Service]\nEnvironment=BRIGADE_MANAGER_MODEL=sonnet BRIGADE_PROXY_PORT=4100\nEnvironment="BRIGADE_REVIEWER_MODEL=haiku" "BRIGADE_PROXY_HOST=h"\nEnvironment=BRIGADE_PROXY_TOKEN=x BRIGADE_MANAGER_EFFORT=medium\n`;
+  writeFileSync(join(b.unites, `${UNITE}.d`, "decisions.conf"), contenu);
+  b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
+
+  const { code, sortie, erreur } = b.bascule();
+
+  assert.equal(code, 0, erreur);
+  assert.equal(readFileSync(join(b.unites, `${UNITE}.d`, "decisions.conf"), "utf8"), contenu);
+  assert.doesNotMatch(sortie, /anciens? réglages? retirés?/);
+  assert.match(sortie + erreur, /BRIGADE_MANAGER_MODEL est encore dans l'environnement/);
 });
 
 test("le contrôle ne fait que lire : ni décision, ni drop-in, ni fichier du journal ne bouge — que le journal soit au repos ou tenu", (t) => {

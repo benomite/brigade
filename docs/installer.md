@@ -460,11 +460,16 @@ dans le drop-in de son instance, une variable de décision — stations, seuils 
 calibrage du manager, du reviewer et du closer — n'a rien à faire : **la bascule la recopie au
 journal du projet avant l'essai**, tel quel, et le dit à raison d'une ligne par réglage
 (`BRIGADE_MANAGER_MODEL recopiée du drop-in de … au journal du projet : sonnet`). Ensuite le journal
-est la seule source : le runtime ne relit pas le drop-in. La bascule ne touche pas au drop-in — le
-retour arrière relance la version d'avant sur ce qu'elle lisait — ; tu peux en retirer les lignes
-(`sudo systemctl edit brigade@<projet>.service`, puis `sudo systemctl daemon-reload`) quand tu veux.
-Elle n'écrase rien : une décision que le journal porte déjà, ou que tu y as retirée, n'est pas
-recopiée, et la bascule la nomme avec son geste (à reprendre dans l'app, à l'étape « Poser les décisions que le démarrage réclame »).
+est la seule source : le runtime ne relit pas le drop-in. **La bascule en retire elle-même les
+réglages** que le journal porte avec la même valeur, une fois la version confirmée — jamais avant :
+le retour arrière relance la version d'avant sur ce qu'elle lisait — et le dit en une ligne
+(`9 anciens réglages retirés du drop-in de …, déjà dans le journal`). Les mises en service suivantes
+n'en disent plus rien, et la vérification non plus.
+Elle n'écrase rien : une décision que tu as retirée du journal n'est pas recopiée ; une que le
+journal porte avec **une autre valeur** reste au drop-in, et la bascule la dit en une ligne avec les
+deux valeurs et le geste qui tranche — poser la valeur du drop-in par `station` (la mise en service
+suivante retire alors la ligne), ou retirer la ligne du drop-in (`sudo systemctl edit
+brigade@<projet>.service`).
 Ce qui manque encore à la version — aucune valeur au drop-in ni au journal — est dit **avant
 l'essai**, avec son geste (dans l'app, aux étapes « Déclarer les stations » et « Poser les décisions
 que le démarrage réclame »). Un projet qui tournait sur la station `box/claude` d'office n'en a plus aucune tant qu'il
@@ -755,8 +760,9 @@ redémarrer rien. Le runtime ne suppose aucune station : sans elles il démarre,
 part** ; la vérification du geste 8 le compte comme un manque (`aucune station déclarée`). Une
 variable de décision laissée dans un drop-in d'avant ce parcours est **recopiée au journal par la
 bascule**, une fois, avant l'essai (une ligne par réglage) ; le runtime ne la relit jamais. Celle que
-le journal porte déjà n'est pas écrasée : le runtime l'ignore, le dit à chaque démarrage et la
-vérification la nomme ; l'app la reprend à ces mêmes étapes.
+le journal porte avec la même valeur est retirée du drop-in par la bascule, une fois la version
+confirmée ; avec une autre valeur, elle n'est pas écrasée : le runtime l'ignore, la bascule et la
+vérification la nomment avec les deux valeurs ; l'app la reprend à ces mêmes étapes.
 
 Les **cinq variables** sans lesquelles le runtime refuse de démarrer, et d'où chacune vient :
 
