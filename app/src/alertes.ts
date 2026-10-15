@@ -632,7 +632,8 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
   // Le dernier contrôle d'un projet installé (service.ts) : il vaut jusqu'au suivant.
   const controles = new Map<string, Controle>();
   // Ce que la bande de chaque projet dit maintenant : le suivi de chaque ligne, et la bande rendue.
-  type Suivi = { vues: Partial<Record<Source, number>>; dite?: { alerte: Alerte; depuis: number } };
+  // `origine` : la lecture dont l'alerte vient ; `rates` : ses échecs de suite, et eux seuls.
+  type Suivi = { origine?: Source; rates: number; dite?: { alerte: Alerte; depuis: number } };
   const suivis = new Map<string, Map<string, Suivi>>();
   const rendues = new Map<string, Bande>();
   const brute = (projet: string): Alerte[] => {
@@ -649,6 +650,20 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
   };
   // La bande à dire après une réception de `source` : l'état lu, passé par ce que le chef a le temps de lire.
   // Un contenu identique à la précédente rend la même bande (même objet) : rien ne bouge.
+  // La lecture dont une alerte non vérifiée vient : celle qui n'a pas pu dire, dont l'alerte reprend les mots.
+  // Faute de mots reconnus (un mot que l'app ne connaît pas), la première lecture du sujet — celle qui l'a dit.
+  const origineDe = (projet: string, alerte: Alerte): Source => {
+    const sans: Partial<Record<Source, string>> = {};
+    const f = faits.get(projet);
+    if (f !== undefined && "sans" in f) sans.faits = f.sans;
+    const st = statuts.get(projet);
+    if (st !== undefined && typeof st !== "string") sans.status = st.sans;
+    const m = managers.get(projet);
+    if (m !== undefined && "sans" in m) sans.manager = m.sans;
+    const pourquoi = alerte.pourquoi ?? "";
+    const trouvee = LECTURES_DE[alerte.sujet].find((source) => sans[source] !== undefined && pourquoi.includes(sans[source]));
+    return trouvee ?? LECTURES_DE[alerte.sujet][0] ?? "faits";
+  };
   const bande = (projet: string, source?: Source): Bande => {
     const instant = maintenant();
     const suivi = suivis.get(projet) ?? new Map<string, Suivi>();
@@ -660,19 +675,24 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
       const k = cle(alerte);
       if (!alerte.verifie && EN_COURS.some((mot) => alerte.pourquoi?.includes(mot))) continue;
       presentes.add(k);
-      const etat = suivi.get(k) ?? { vues: {} };
+      const etat = suivi.get(k) ?? { rates: 0 };
       suivi.set(k, etat);
-      // Chaque source compte ses propres réceptions : celle d'une autre source n'établit rien.
-      if (source !== undefined && LECTURES_DE[alerte.sujet].includes(source)) etat.vues[source] = alerte.verifie ? 0 : (etat.vues[source] ?? 0) + 1;
-      if (etat.dite !== undefined || alerte.verifie || Object.values(etat.vues).some((n) => n >= etablir)) {
+      // Seule la lecture dont l'alerte vient la compte : la réception d'une autre source du même sujet n'établit rien, et ne défait rien.
+      if (!alerte.verifie) {
+        const origine = origineDe(projet, alerte);
+        if (etat.origine !== origine) etat.rates = 0;
+        etat.origine = origine;
+        if (source === origine) etat.rates++;
+      }
+      if (etat.dite !== undefined || alerte.verifie || etat.rates >= etablir) {
         etat.dite = { alerte, depuis: etat.dite?.depuis ?? instant };
         dites.push(alerte);
       }
     }
     for (const [k, etat] of suivi) {
       if (presentes.has(k)) continue;
-      // La source qui la lève repart de zéro, même si la ligne reste dite le temps d'être lue.
-      if (source !== undefined) etat.vues[source] = 0;
+      // La lecture dont elle vient, réussie, repart de zéro, même si la ligne reste dite le temps d'être lue.
+      if (source !== undefined && source === etat.origine) etat.rates = 0;
       if (etat.dite !== undefined && instant - etat.dite.depuis < minimum) dites.push(etat.dite.alerte);
       else suivi.delete(k);
     }

@@ -610,7 +610,7 @@ LE CODE DE CETTE APP EST EN RETARD DE 39 COMMITS SUR origin/v2 — lu à 14:32:0
   la pilule de la cuisine, les grants, le manager, et la pilule `t'attend` des bons de T'attend.
   Le libellé de chaque état reste du texte ; rien n'est lu en plus de ce que la box dit.
 - **Une pastille sans couleur n'est pas un état** : vide, c'est un mot que l'app ne connaît pas
-  (il se lit au survol, tel quel) ; en pointillé, la première lecture est en cours ; un `!`, l'app
+  (il se lit au survol, tel quel) ; un `!`, l'app
   n'a lu aucun fait de ce projet, et le survol dit pourquoi (`aucun fait lu — PAS JOINT`). Un
   projet sans `hote` n'a pas de pastille.
 - **Pas de compteur dans la barre** : les nombres sont dans la carte du projet.
@@ -2168,7 +2168,9 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
 La bande ne dit que ce qui est établi. Une lecture en cours n'affiche rien (« première lecture en
 cours » ne se montre jamais) ; une ligne « non vérifié » n'apparaît que si la lecture dont elle vient
 a raté **deux fois de suite** (`LECTURES_POUR_ETABLIR`) — une lecture ratée puis réussie au tour
-suivant ne montre rien, une box injoignable se dit une fois et reste. Une ligne dite reste au moins
+suivant ne montre rien, une box injoignable se dit une fois et reste. Le compte est celui de **cette
+lecture seule** : pour un sujet lu par deux sources (la cuisine, la station, la box), les réceptions de
+l'autre source ne l'établissent ni ne le défont (#746). Une ligne dite reste au moins
 `AFFICHAGE_MINIMUM` (20 s) ; elle part à la première réception qui suit, `faits` étant relu toutes les
 30 s. Une alerte vérifiée, lue d'une lecture réussie, se dit tout de suite. Un contenu identique d'une
 lecture à l'autre ne redessine pas la bande. Les deux seuils sont des constantes de `app/src/alertes.ts`.
