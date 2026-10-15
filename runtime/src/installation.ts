@@ -392,7 +392,7 @@ export const GESTE_DE_MISE_EN_SERVICE = { lien: "/usr/local/bin/brigade-mise-en-
 // ligne `# brigade-geste-version: <n>` : un geste posé qui n'en porte pas est
 // d'avant la version 1. À monter quand le runtime compte sur un comportement
 // que les gestes plus anciens n'ont pas — et le fichier du geste avec.
-export const VERSION_DU_GESTE_ATTENDUE = 1;
+export const VERSION_DU_GESTE_ATTENDUE = 2;
 
 export function versionDuGeste(contenu: string): number {
   const [, n] = /^# brigade-geste-version: (\d+)\s*$/m.exec(contenu) ?? [];
@@ -498,7 +498,7 @@ function jugerGesteLu(box: { lien: string; regle: string; sudo?: string }): Pick
       const mettre = lienSymbolique ? "sudo git -C /opt/brigade pull --ff-only" : `sudo install -m 755 ${deploy}/brigade-mise-en-service ${lien}`;
       return {
         etat: "manque",
-        texte: `le geste de mise en service posé (${lien}) est en version ${trouvee}, le runtime exige la version ${VERSION_DU_GESTE_ATTENDUE} — une mise en service lancée avec lui échouerait ou ferait autre chose que ce que le runtime attend`,
+        texte: `le geste de mise en service posé (${lien}) est en version ${trouvee}, le runtime exige la version ${VERSION_DU_GESTE_ATTENDUE} — une mise en service lancée avec lui échouerait ou ferait autre chose que ce que le runtime attend (la version 2 se relance hors de l'unité du runtime : en version 1, lancé par lui, il ne joint pas GitHub — « Could not resolve host »)`,
         geste: `\`${mettre}\` — ${doc}`,
       };
     }

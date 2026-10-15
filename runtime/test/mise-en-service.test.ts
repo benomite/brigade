@@ -54,6 +54,10 @@ type Box = {
   // Ce que la bascule témoin a reçu, ou `null` si elle n'a pas été lancée : ses
   // arguments, son environnement, et le commit du clone à ce moment.
   bascule: () => { args: string[]; env: Record<string, string>; commit: string } | null;
+  // Dès lors, le geste se croit dans le cgroup de l'unité du runtime.
+  dansLUnite: () => void;
+  // Les appels reçus par `systemd-run`, un par ligne : ses arguments.
+  transitoires: () => string[];
   // Dès lors, celui qui lance porte cet uid.
   lancePar: (uid: number) => void;
   // Les appels reçus par `systemctl`, dans l'ordre.
@@ -96,6 +100,15 @@ function box(t: TestContext): Box {
     `[ "$1 $2 $3" = "show -p DropInPaths" ] && printf '%s ' ${cite(join(unites, "brigade@.service.d/compte.conf"))}`,
     `FAUSSE_BOX=${cite(racine)} exec ${cite(FAUX_SYSTEMCTL)} "$@"`,
   ]);
+  // Comme systemd-run `--wait --pipe` : lance la commande, rend son code. Elle
+  // la lance hors de l'unité : le fichier de cgroup n'y est plus.
+  executable(join(bin, "systemd-run"), [
+    `echo "$*" >> ${cite(sous("transitoires"))}`,
+    `while [ "$1" != "--" ]; do shift; done; shift`,
+    `rm -f ${cite(sous("cgroup"))}`,
+    `exec "$@"`,
+  ]);
+  writeFileSync(sous("cgroup"), "0::/user.slice/session-1.scope\n");
   executable(join(bin, "journalctl"), [`echo "journald : $*"`]);
   executable(join(bin, "id"), [`[ "$*" = "-u" ] || exit 1`, `cat ${cite(sous("uid"))}`]);
   writeFileSync(sous("uid"), "0\n");
@@ -128,7 +141,8 @@ function box(t: TestContext): Box {
     const source = readFileSync(GESTE, "utf8");
     assert.equal(source.split(CHEMIN_DU_GESTE).length, 2, "le geste écrit son `PATH` une fois, celui de systemd");
     mkdirSync(repertoire, { recursive: true });
-    writeFileSync(join(repertoire, "brigade-mise-en-service"), source.replace(CHEMIN_DU_GESTE, `PATH=${cite(chemin)}\n`));
+    // Le cgroup du process se lit dans un fichier de la box d'essai.
+    writeFileSync(join(repertoire, "brigade-mise-en-service"), source.replace(CHEMIN_DU_GESTE, `PATH=${cite(chemin)}\n`).replace("/proc/self/cgroup", sous("cgroup")));
     chmodSync(join(repertoire, "brigade-mise-en-service"), 0o755);
     return join(repertoire, "brigade-mise-en-service");
   };
@@ -192,6 +206,8 @@ function box(t: TestContext): Box {
       const env = Object.fromEntries(lire("bascule.env").map((ligne) => [ligne.split("=", 1)[0] ?? "", ligne.slice(ligne.indexOf("=") + 1)]).filter(([nom = ""]) => !["PWD", "OLDPWD", "SHLVL", "_"].includes(nom)));
       return { args, env, commit: lire("bascule.commit")[0] ?? "" };
     },
+    dansLUnite: () => writeFileSync(sous("cgroup"), `0::/system.slice/system-brigade.slice/${UNITE}\n`),
+    transitoires: () => lire("transitoires"),
     lancePar: (uid) => writeFileSync(sous("uid"), `${uid}\n`),
     appels: () => lire("appels"),
     commit: () => git(clone, "rev-parse", "HEAD"),
@@ -464,6 +480,36 @@ describe("mettre un projet en service", () => {
     assert.equal(sortie, `brigade-mise-en-service : le clone (${b.clone}) n'a rien reçu de son origine : il reste sur ${courant.slice(0, 12)}\nla bascule a parlé\n`);
     assert.deepEqual(b.bascule()?.args, [PROJET]);
     assert.equal(b.commit(), courant);
+  });
+
+  test("lancé par le runtime, il se relance hors de son unité : sa cloison réseau n'est pas la sienne", (t) => {
+    const b = box(t);
+    const livre = b.livrer();
+    b.dansLUnite();
+
+    const { code, erreur } = b.geste([PROJET]);
+
+    assert.equal(code, 0, erreur);
+    assert.deepEqual(b.transitoires(), [`--quiet --wait --pipe --collect --unit=brigade-mise-en-service-${PROJET} -- ${join(b.clone, "runtime/deploy/brigade-mise-en-service")} ${PROJET}`]);
+    assert.equal(b.commit(), livre);
+    assert.deepEqual(b.bascule()?.args, [PROJET]);
+  });
+
+  test("lancé par le runtime, le code de la bascule reste celui du geste", (t) => {
+    const b = box(t);
+    b.livrer();
+    b.dansLUnite();
+    b.basculeRend(REVENUE);
+
+    assert.equal(b.geste([PROJET]).code, REVENUE);
+  });
+
+  test("lancé à la main, il ne passe pas par systemd-run", (t) => {
+    const b = box(t);
+    b.livrer();
+
+    assert.equal(b.geste([PROJET]).code, 0);
+    assert.deepEqual(b.transitoires(), []);
   });
 
   test("le code de sortie de la bascule est celui du geste", (t) => {
