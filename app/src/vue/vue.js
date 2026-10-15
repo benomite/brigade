@@ -217,7 +217,54 @@ appairage.textContent = "pair";
 const appairageDit = document.createElement("p");
 appairageDit.ariaLive = "polite";
 formulaireDAppairage.append(codeTape, appairage);
-stations.append(bloc("h3", "Stations"), listeDesStations, formulaireDAppairage, appairageDit);
+// Les projets de ses stations, dessous, et le parcours « Add a project » : le dépôt, ses stations, sa
+// principale — le serveur proposé d'office —, ses décisions, et valider. Rien ne s'y tape au terminal.
+const listeDesProjets = document.createElement("div");
+listeDesProjets.ariaLive = "polite";
+const ouvrirLeParcours = /** @type {HTMLButtonElement} */ (bloc("button", "add a project to your stations"));
+const formulaireDAjout = document.createElement("form");
+formulaireDAjout.hidden = true;
+const depotChoisi = /** @type {HTMLSelectElement} */ (document.createElement("select"));
+depotChoisi.ariaLabel = "repository";
+const baseChoisie = document.createElement("input");
+baseChoisie.ariaLabel = "integration branch";
+baseChoisie.placeholder = "integration branch";
+baseChoisie.spellcheck = false;
+const choixDesStations = document.createElement("div");
+const avertissementDeLaPrincipale = document.createElement("p");
+avertissementDeLaPrincipale.ariaLive = "polite";
+const cooksChoisis = document.createElement("input");
+cooksChoisis.type = "number";
+cooksChoisis.ariaLabel = "cooks at once";
+cooksChoisis.placeholder = "cooks at once, on its main station";
+/** @type {Record<"manager-modele" | "manager-effort" | "reviewer-modele" | "reviewer-effort", HTMLSelectElement>} */
+const calibrageDuProjet = {
+  "manager-modele": /** @type {HTMLSelectElement} */ (document.createElement("select")),
+  "manager-effort": /** @type {HTMLSelectElement} */ (document.createElement("select")),
+  "reviewer-modele": /** @type {HTMLSelectElement} */ (document.createElement("select")),
+  "reviewer-effort": /** @type {HTMLSelectElement} */ (document.createElement("select")),
+};
+for (const [champ, liste] of Object.entries(calibrageDuProjet)) liste.ariaLabel = champ.replace("-modele", " model").replace("-effort", " effort");
+const validerAjout = /** @type {HTMLButtonElement} */ (bloc("button", "add"));
+validerAjout.type = "submit";
+const annulerAjout = /** @type {HTMLButtonElement} */ (bloc("button", "cancel"));
+annulerAjout.type = "button";
+const ajoutRefuse = document.createElement("div");
+ajoutRefuse.ariaLive = "polite";
+const ajoutDit = document.createElement("p");
+ajoutDit.ariaLive = "polite";
+formulaireDAjout.append(
+  depotChoisi,
+  baseChoisie,
+  choixDesStations,
+  avertissementDeLaPrincipale,
+  cooksChoisis,
+  ...Object.values(calibrageDuProjet),
+  validerAjout,
+  annulerAjout,
+  ajoutRefuse,
+);
+stations.append(bloc("h3", "Stations"), listeDesStations, formulaireDAppairage, appairageDit, bloc("h3", "Projects on your stations"), listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit);
 
 /** @type {Map<number, { terminal: Terminal, xterm: Xterm, ajuste: FitAddon, cadre: HTMLDivElement }>} */
 const vues = new Map();
@@ -318,6 +365,9 @@ let aFocaliser;
 // La bannière d'arrêt, dite de même (faits.ts) : ce qu'elle dit, et le bouton qui écrit la relance.
 /** @type {typeof import("../faits.ts").BANNIERE | undefined} */
 let BANNIERE;
+// Le calibrage que la station accepte, pour le parcours « Add a project » : donné au démarrage.
+/** @type {{ modeles: readonly string[], efforts: readonly string[] }} */
+let CALIBRAGE_DU_PROJET = { modeles: [], efforts: [] };
 // Dans « Tous les projets », la carte, l'en-tête et le corps de chaque projet.
 /** @type {Map<string, { carte: HTMLElement, tete: HTMLElement, corps: HTMLElement }>} */
 const blocs = new Map();
@@ -444,6 +494,16 @@ let enPassage = false;
 // Ce que la dernière lecture des stations donne à poser (stations/stations.ts). Indéfini : pas encore lues.
 /** @type {import("../stations/stations.ts").VuDesStations | undefined} */
 let stationsVues;
+// Les projets des stations (projets/projets.ts). Indéfini : pas encore lus.
+/** @type {import("../projets/projets.ts").VuDesProjets | undefined} */
+let projetsVus;
+// Le parcours « Add a project », tant qu'il est ouvert : quand il l'a été, les dépôts lus, les
+// stations cochées et la principale — une relecture des stations ne les perd pas.
+/** @type {{ ouvertLe: string, depots: import("../projets/github.ts").DepotDuChef[], choisies: Set<string>, principale: string, touchee: boolean } | undefined} */
+let parcours;
+// Le projet dont le retrait attend un second clic.
+/** @type {string | undefined} */
+let retraitDemande;
 
 // La peau du terminal vient des jetons, comme le reste (jetons.css) : ni couleur ni police ne s'écrit ici.
 /** @param {string} nom */
@@ -3496,6 +3556,171 @@ function poserStations() {
   );
 }
 
+// Les projets des stations, un bloc chacun : son dépôt et sa branche, puis chacune de ses stations —
+// la principale d'abord — et ce qu'elle en dit : servi, à autoriser sur GitHub (un bouton par page),
+// en préparation, refusé et pourquoi. Puis le geste qui le retire, en deux clics.
+function poserProjets() {
+  if (projetsVus === undefined) return listeDesProjets.replaceChildren(bloc("p", stationsVues === undefined ? "" : "projects on your stations: reading GitHub…"));
+  const blocs = projetsVus.projets.map((projet) => {
+    const pose = document.createElement("div");
+    pose.className = "projet-de-station";
+    const tete = document.createElement("p");
+    tete.append(bloc("strong", projet.nom), bloc("span", ` — ${projet.depot} · ${projet.base}`));
+    pose.append(tete);
+    for (const station of projet.stations) {
+      const ligne = document.createElement("p");
+      ligne.dataset.etat = station.etat;
+      ligne.append(bloc("span", `${station.nom}${station.principale ? " (main)" : ""}: ${station.etat === "servi" ? "served" : station.etat === "a-autoriser" ? "waiting for your authorization on GitHub" : station.etat === "en-preparation" ? "being prepared" : station.etat === "refuse" ? "refused" : station.etat === "secondaire" ? "secondary" : "not read yet"} — ${station.dit}`));
+      for (const url of station.autoriser) {
+        const autoriser = bloc("button", `authorize on GitHub: ${url.replace(/^https:\/\/github\.com\/apps\/([^/]+).*$/, "$1")}`);
+        autoriser.addEventListener("click", () => void brigade.autoriserSurGitHub(url));
+        ligne.append(autoriser);
+      }
+      pose.append(ligne);
+    }
+    if (projet.servi !== null) pose.append(bloc("p", projet.servi));
+    const retirer = bloc("button", retraitDemande === projet.nom ? `remove ${projet.nom} from its stations? click again` : "remove");
+    retirer.addEventListener("click", () => void retirerProjet(projet.nom));
+    pose.append(retirer);
+    return pose;
+  });
+  listeDesProjets.replaceChildren(
+    ...(blocs.length === 0 ? [bloc("p", "no project on your stations yet")] : blocs),
+    ...(projetsVus.sans === undefined ? [] : [propos(projetsVus.sans)]),
+  );
+}
+
+// Retirer, en deux clics : le premier demande, le second retire le projet de la demande de chacune
+// de ses stations — elles le retirent de leur configuration.
+/** @param {string} nom */
+async function retirerProjet(nom) {
+  if (retraitDemande !== nom) {
+    retraitDemande = nom;
+    return poserProjets();
+  }
+  retraitDemande = undefined;
+  ajoutDit.textContent = `removing ${nom} from its stations…`;
+  poserProjets();
+  const rendu = await brigade.retirerDUneStation(nom);
+  ajoutDit.textContent = "refus" in rendu ? rendu.refus : `${rendu.retire} is removed: each of its stations takes it out of its configuration within a minute`;
+}
+
+// Les stations du parcours : une case par station appairée, et sa principale. Celle que l'app
+// recommande — un serveur — est proposée d'office ; choisir un ordinateur se dit tout de suite.
+function poserChoixDesStations() {
+  if (parcours === undefined) return;
+  const appairees = stationsVues?.stations ?? [];
+  if (!parcours.touchee && parcours.principale === "" && projetsVus?.recommandee) {
+    parcours.principale = projetsVus.recommandee;
+    parcours.choisies.add(projetsVus.recommandee);
+  }
+  const vise = parcours;
+  choixDesStations.replaceChildren(
+    ...(appairees.length === 0
+      ? [bloc("p", "no station to serve it: pair one above first")]
+      : appairees.map((station) => {
+          const ligne = document.createElement("p");
+          ligne.dataset.etat = station.etat;
+          const choisie = document.createElement("input");
+          choisie.type = "checkbox";
+          choisie.ariaLabel = `serve it on ${station.nom}`;
+          choisie.checked = vise.choisies.has(station.id);
+          choisie.addEventListener("change", () => {
+            vise.touchee = true;
+            if (choisie.checked) vise.choisies.add(station.id);
+            else vise.choisies.delete(station.id);
+            if (!choisie.checked && vise.principale === station.id) vise.principale = "";
+            poserChoixDesStations();
+          });
+          const principale = document.createElement("input");
+          principale.type = "radio";
+          principale.name = "principale";
+          principale.ariaLabel = `${station.nom} is its main station`;
+          principale.checked = vise.principale === station.id;
+          principale.addEventListener("change", () => {
+            vise.touchee = true;
+            vise.principale = station.id;
+            vise.choisies.add(station.id);
+            poserChoixDesStations();
+          });
+          ligne.append(choisie, bloc("span", ` ${station.nom}${station.machine === "" ? "" : ` — ${station.machine}`} · `), principale, bloc("span", station.id === projetsVus?.recommandee ? " main (recommended: always on)" : " main"));
+          return ligne;
+        })),
+  );
+  avertissementDeLaPrincipale.textContent = projetsVus?.avertissements[vise.principale] ?? "";
+  avertissementDeLaPrincipale.dataset.etat = avertissementDeLaPrincipale.textContent === "" ? "" : "hors-ligne";
+}
+
+// Ouvrir le parcours : l'heure en est gardée — c'est d'elle que se mesure le temps jusqu'au projet
+// servi —, et les dépôts du chef se lisent sur GitHub.
+ouvrirLeParcours.addEventListener("click", () => void ouvrirParcours());
+async function ouvrirParcours() {
+  parcours = { ouvertLe: new Date().toISOString(), depots: [], choisies: new Set(), principale: "", touchee: false };
+  formulaireDAjout.hidden = false;
+  ouvrirLeParcours.hidden = true;
+  ajoutDit.textContent = "";
+  ajoutRefuse.replaceChildren();
+  baseChoisie.value = "";
+  cooksChoisis.value = "";
+  for (const [champ, liste] of Object.entries(calibrageDuProjet)) proposer(liste, champ.endsWith("modele") ? CALIBRAGE_DU_PROJET.modeles : CALIBRAGE_DU_PROJET.efforts, champ.endsWith("modele") ? `— ${champ.split("-")[0]} model —` : `— ${champ.split("-")[0]} effort —`);
+  depotChoisi.replaceChildren(new Option("reading your repositories on GitHub…", ""));
+  poserChoixDesStations();
+  const vise = parcours;
+  const lus = await brigade.depotsDuChef();
+  if (parcours !== vise) return;
+  if ("refus" in lus) {
+    depotChoisi.replaceChildren(new Option("— repository —", ""));
+    ajoutRefuse.replaceChildren(bloc("p", lus.refus));
+    return;
+  }
+  vise.depots = lus.depots;
+  proposer(depotChoisi, lus.depots.map(({ depot }) => depot), "— repository —");
+}
+// Le dépôt choisi propose sa branche par défaut comme branche d'intégration.
+depotChoisi.addEventListener("change", () => {
+  const choisi = parcours?.depots.find(({ depot }) => depot === depotChoisi.value);
+  if (choisi !== undefined) baseChoisie.value = choisi.base;
+});
+annulerAjout.addEventListener("click", () => fermerParcours());
+function fermerParcours() {
+  parcours = undefined;
+  formulaireDAjout.hidden = true;
+  ouvrirLeParcours.hidden = false;
+}
+// Valider : la demande part au process principal, qui l'écrit dans le gist de chaque station
+// choisie — ou chaque champ qui manque se lit sous le formulaire, et rien n'est écrit.
+formulaireDAjout.addEventListener("submit", (evenement) => {
+  evenement.preventDefault();
+  void ajouterProjet();
+});
+async function ajouterProjet() {
+  if (parcours === undefined) return;
+  validerAjout.disabled = true;
+  ajoutRefuse.replaceChildren(bloc("p", "writing the request on your stations' gists…"));
+  try {
+    const rendu = await brigade.ajouterAUneStation({
+      depot: depotChoisi.value,
+      base: baseChoisie.value,
+      stations: [...parcours.choisies],
+      principale: parcours.principale,
+      cooks: cooksChoisis.value,
+      manager: { modele: calibrageDuProjet["manager-modele"].value, effort: calibrageDuProjet["manager-effort"].value },
+      reviewer: { modele: calibrageDuProjet["reviewer-modele"].value, effort: calibrageDuProjet["reviewer-effort"].value },
+      ouvertLe: parcours.ouvertLe,
+    });
+    if ("signales" in rendu) ajoutRefuse.replaceChildren(...Object.values(rendu.signales).map((raison) => bloc("p", raison ?? "")));
+    else if ("refus" in rendu) ajoutRefuse.replaceChildren(bloc("p", rendu.refus));
+    else {
+      fermerParcours();
+      ajoutRefuse.replaceChildren();
+      ajoutDit.textContent = `${rendu.ajoute} is asked of its stations: its main station prepares it and adds it within a minute — if GitHub asks you to authorize brigade, its button is below the project`;
+    }
+  } catch (erreur) {
+    ajoutRefuse.replaceChildren(bloc("p", `nothing was added: ${erreur instanceof Error ? erreur.message : String(erreur)}`));
+  }
+  validerAjout.disabled = false;
+}
+
 // Le code tapé part au process principal, qui cherche sur GitHub la station qui le montre : elle
 // est appairée, et la liste la montre — ou le refus se lit sous le champ, en une ligne.
 formulaireDAppairage.addEventListener("submit", (evenement) => {
@@ -3686,6 +3911,8 @@ function ouvrirTous() {
   blocs.clear();
   poserCode();
   poserStations();
+  poserProjets();
+  poserChoixDesStations();
   tous.replaceChildren(
     code,
     stations,
@@ -4091,6 +4318,13 @@ brigade.surCode((vu) => {
 brigade.surStations((vu) => {
   stationsVues = vu;
   poserStations();
+  poserChoixDesStations();
+});
+// Les projets des stations relus : leurs blocs remplacent ceux d'avant ; le parcours ouvert garde ses choix.
+brigade.surProjetsDesStations((vu) => {
+  projetsVus = vu;
+  poserProjets();
+  poserChoixDesStations();
 });
 // La colonne des terminaux change de taille avec la fenêtre : le terminal montré suit.
 new ResizeObserver(() => {
@@ -4277,6 +4511,8 @@ for (const champ of CALIBRAGE) proposer(calibre(champ), champ.endsWith("modele")
 // Une lecture arrivée pendant le démarrage est plus récente que celle qu'il rend.
 codeVu ??= demarrage.code;
 stationsVues ??= demarrage.stations;
+projetsVus ??= demarrage.projetsDesStations;
+CALIBRAGE_DU_PROJET = demarrage.calibrage;
 let configuration = demarrage.configuration;
 // Le terminal mesure ses cases à l'ouverture : sa police, embarquée, est chargée avant qu'aucun
 // ne s'ouvre. Si elle ne se charge pas, l'app s'ouvre quand même, sur la police de repli.

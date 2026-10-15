@@ -995,6 +995,47 @@ Trois réglages, tous facultatifs : `BRIGADE_GH_BIN` (le `gh` de la machine, `gh
 `BRIGADE_STATION_VERSION` (la version qu'elle annonce — posée par son paquet ; à défaut,
 l'empreinte de son code, `code 1a2b3c4d5e6f`).
 
+## Ajouter un projet à une station depuis l'app, sans terminal
+
+*Spec : [la station refaite de zéro](superpowers/specs/2026-10-15-station-refonte-design.md) (#795).*
+
+Un projet n'est qu'une ligne de la configuration de la station. Le chef l'ajoute depuis l'app
+([docs/app.md](app.md), « Ajouter un projet à tes stations ») ; l'app écrit sa demande dans le gist
+de chaque station qu'il a choisie, et la station l'y lit — toujours sans liaison directe
+(`runtime/src/projets/`).
+
+- **Ce que l'app écrit** : `brigade-projets.json` — par projet, son nom (tiré du dépôt), son dépôt,
+  sa branche d'intégration, si cette station en est la **principale** (celle qui fait tourner son
+  manager et sa pass), son plafond de cooks et le calibrage du manager et du reviewer, choisis par
+  le chef dans le parcours.
+- **Toutes les trente secondes** (ou sur `SIGHUP`), une station appairée relit cette demande. Pour
+  chaque projet dont elle est la principale :
+  1. **ses Apps GitHub** (`BRIGADE_GITHUB_APPS_DIR`, s'il est posé) doivent être installées sur le
+     dépôt ; sinon elle publie, pour chaque App, la page où le chef l'installe en un clic
+     (`https://github.com/apps/<app>/installations/new`), et attend. Sans Apps, elle agit sous le
+     compte de son `gh` : rien à autoriser ;
+  2. elle **clone** le dépôt par son `gh` (`gh repo clone`) dans `<BRIGADE_STATION_DIR>/clones/<projet>` ;
+  3. elle **pose au journal du projet** les décisions du parcours, sous le nom du chef —
+     `BRIGADE_STATIONS` (`<station>/claude:<cooks>:code+raisonnement`), le calibrage du manager et
+     du reviewer —, seulement celles qui n'y sont pas déjà : une décision changée depuis n'est pas
+     écrasée ;
+  4. elle écrit sa **ligne** (`<projet> <dépôt> <branche>`) dans sa configuration, dans un bloc
+     qu'elle tient seule, entre deux commentaires — les lignes écrites à la main, hors du bloc, ne
+     sont jamais touchées ; un projet qui y a déjà une ligne à la main la garde, et le suivi le dit.
+     Elle relit aussitôt sa configuration et publie sa présence : le projet est dans sa liste sur la
+     home (« 1 project »).
+- **Ce qu'elle en dit** : `brigade-projets-suivi.json`, réécrit quand il change — par projet, `servi`
+  (et depuis quand), `a-autoriser` (avec ses pages), `en-preparation`, `refuse` (et pourquoi : clone
+  raté, ligne à la main, refus de la station) ou `secondaire`.
+- **Retiré depuis l'app**, le projet quitte la demande : la station retire sa ligne du bloc et ne le
+  sert plus. Son état et son clone restent sur la machine.
+- **Une station qui n'est pas la principale** d'un projet ne lui écrit aucune ligne et le dit
+  `secondaire` : faire cuire une station secondaire viendra avec la station de bureau (#797).
+
+La recette (`runtime/test/projets/recette.test.ts`) mesure, sur une vraie station de test, le temps
+entre l'ouverture du parcours et le projet publié dans la liste de la station : la spec le borne à
+dix minutes ; la station y met au plus sa cadence, trente secondes, plus le clone.
+
 ## Regarder une livraison d'interface dans mon navigateur
 
 Une livraison qui touche l'interface d'un projet peut être regardée dans le navigateur du poste

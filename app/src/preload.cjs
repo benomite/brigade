@@ -1,4 +1,4 @@
-// Le pont entre la vue et le process principal : rien que ces soixante-treize gestes. La
+// Le pont entre la vue et le process principal : rien que ces soixante-dix-huit gestes. La
 // vue n'a ni Node ni accès aux fichiers.
 const { contextBridge, ipcRenderer } = require("electron");
 
@@ -55,6 +55,10 @@ const pont = {
   ecrireMiseAJour: (clone) => ipcRenderer.invoke("mettreAJour", clone),
   passer: () => ipcRenderer.invoke("passer"),
   appairer: (code) => ipcRenderer.invoke("appairer", code),
+  depotsDuChef: () => ipcRenderer.invoke("depotsDuChef"),
+  ajouterAUneStation: (saisie) => ipcRenderer.invoke("ajouterAUneStation", saisie),
+  retirerDUneStation: (nom) => ipcRenderer.invoke("retirerDUneStation", nom),
+  autoriserSurGitHub: (url) => ipcRenderer.invoke("autoriserSurGitHub", url),
   compter: (projet) => ipcRenderer.invoke("compter", projet),
   regarder: (projet, demande) => ipcRenderer.send("regarder", projet, demande),
   tous: (demande) => ipcRenderer.send("tous", demande),
@@ -76,6 +80,7 @@ const pont = {
   surAmont: (recevoir) => void ipcRenderer.on("amont", (_, vu) => recevoir(vu)),
   surCode: (recevoir) => void ipcRenderer.on("code", (_, vu) => recevoir(vu)),
   surStations: (recevoir) => void ipcRenderer.on("stations", (_, vu) => recevoir(vu)),
+  surProjetsDesStations: (recevoir) => void ipcRenderer.on("projetsDesStations", (_, vu) => recevoir(vu)),
   surConfiguration: (recevoir) => void ipcRenderer.on("configuration", (_, configuration, fermes) => recevoir(configuration, fermes)),
 };
 contextBridge.exposeInMainWorld("brigade", pont);

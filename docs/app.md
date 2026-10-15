@@ -648,6 +648,29 @@ poste (« Le poste est une station »). C'est le seul endroit où la plateforme 
 poste, et le dit au lancement, quand le runtime n'est pas à côté d'elle, ou avec
 `BRIGADE_APP_STATION=0`.
 
+### Ajouter un projet à tes stations, sans terminal
+
+**Sous tes stations**, « Projects on your stations » liste les projets que tu leur as ajoutés, et ce
+que chacune en dit — `served`, `waiting for your authorization on GitHub`, `being prepared`,
+`refused` (et pourquoi), `secondary` — puis, une fois servi, en combien de temps depuis que tu as
+ouvert le parcours (`served by box 1 min 12 s after “add a project” was opened`).
+
+- **« add a project to your stations »** ouvre le parcours : le **dépôt**, choisi parmi ceux que ton
+  `gh` lit (les plus récents d'abord ; sa branche par défaut est proposée comme branche
+  d'intégration) ; les **stations** qui le servent, et sa **principale** — celle de son manager et
+  de sa pass. L'app propose d'office une **station serveur**, toujours allumée ; choisir l'app d'un
+  ordinateur (Mac, Windows) dit tout de suite que la cuisine du projet s'arrête quand on ferme l'app.
+  Puis le nombre de **cooks** à la fois et le **calibrage** du manager et du reviewer : rien n'y est
+  choisi d'avance, ce sont tes décisions. « add » : ce qui manque est dit sous le formulaire, et rien
+  n'est écrit.
+- **Validé**, l'app écrit la demande dans le gist de chaque station choisie (`app/src/projets/`) ; la
+  principale la lit dans la demi-minute, le prépare et l'ajoute à sa configuration
+  ([docs/runtime.md](runtime.md), « Ajouter un projet à une station depuis l'app »). Si ses Apps
+  GitHub doivent être autorisées sur le dépôt, un bouton **« authorize on GitHub »** par App ouvre
+  la page de GitHub : un clic, et la station poursuit seule.
+- **« remove »**, puis un second clic pour confirmer, retire le projet de la demande de chacune de
+  ses stations : elles le retirent de leur configuration. Son état et son clone restent sur la machine.
+
 ## La barre d'icônes
 
 À gauche, une colonne de cases, façon Slack ou Discord :
