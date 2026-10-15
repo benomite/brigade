@@ -6,7 +6,8 @@ import { test, type TestContext } from "node:test";
 import type { Commentaire, GitHub, Issue } from "../src/github.ts";
 import { ouvrirGitHub } from "../src/github.ts";
 import { commenterIssue, lireIssue } from "../src/issue-ticket.ts";
-import { DEPOT, fauxGh, issueGitHub } from "./outils.ts";
+import { principal as pass } from "../src/montrer-pass.ts";
+import { appeler, DEPOT, fauxGh, issueGitHub } from "./outils.ts";
 
 const issue = (number: number, autres: Partial<Issue> = {}): Issue & { body: string; author: string } => ({
   number,
@@ -159,4 +160,82 @@ test("par `gh` : la lecture demande l'issue puis sa discussion, l'écriture post
   assert.equal((await commenterIssue(github, 7, "Du contexte")).done, true);
   const ecritures = gh.appels().filter((appel) => appel.includes("POST"));
   assert.deepEqual(ecritures, [["api", "-i", "-X", "POST", "-f", "body=Du contexte", `${chemin}/comments`]]);
+});
+
+// Le point d'entrée de l'app : `pass -- <ticket> issue | comment <texte>`, par le
+// `gh` du compte du service, sans journal.
+test("`pass -- <ticket> issue` rend l'issue en JSON sur une ligne, et `comment <texte>` y poste le texte — la seule écriture", async (t) => {
+  const gh = fauxGh(t);
+  const env = { BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin };
+  const chemin = `repos/${DEPOT}/issues/7`;
+  gh.repondre(chemin, { corps: { ...issueGitHub(7), body: "Le corps", user: { login: "chef" } } });
+  gh.repondre(`${chemin}/comments?per_page=100`, {
+    corps: [{ body: "Premier", user: { login: "brigade-manager[bot]" }, author_association: "NONE", created_at: "2026-10-02T08:00:00Z" }],
+  });
+  gh.repondre(`${chemin}/comments`, { statut: 201, corps: { id: 1 } });
+
+  const lue = appeler(pass, ["7", "issue"], env);
+  assert.equal(await lue.fin, 0);
+  assert.equal(lue.sortie().trimEnd().split("\n").length, 1);
+  assert.deepEqual(JSON.parse(lue.sortie()), {
+    found: true,
+    issue: {
+      ticket: 7,
+      title: "Ticket 7",
+      url: `https://github.com/${DEPOT}/issues/7`,
+      state: "open",
+      body: { author: "chef", at: "2026-10-01T00:00:07Z", body: "Le corps" },
+      comments: [{ author: "brigade-manager[bot]", at: "2026-10-02T08:00:00Z", body: "Premier" }],
+    },
+  });
+  assert.deepEqual(gh.appels().filter((appel) => appel.includes("POST")), []);
+
+  const postee = appeler(pass, ["7", "comment", "  Le fournisseur répond lundi.\n"], env);
+  assert.equal(await postee.fin, 0);
+  const resultat = JSON.parse(postee.sortie());
+  assert.equal(resultat.done, true);
+  assert.match(resultat.price, /comment is posted on issue #7, under the box's own gh account/);
+  assert.deepEqual(gh.appels().filter((appel) => appel.includes("POST")), [["api", "-i", "-X", "POST", "-f", "body=Le fournisseur répond lundi.", `${chemin}/comments`]]);
+});
+
+test("`pass -- <ticket> comment` refuse un texte vide et une carte sans issue en sortant en 1, sa raison en JSON, et ne poste rien", async (t) => {
+  const gh = fauxGh(t);
+  const env = { BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin };
+  gh.repondre(`repos/${DEPOT}/issues/7`, { corps: { ...issueGitHub(7), body: "Le corps", user: { login: "chef" } } });
+  gh.repondre(`repos/${DEPOT}/issues/9`, { statut: 404, corps: { message: "Not Found" } });
+
+  const vide = appeler(pass, ["7", "comment", "  \n "], env);
+  assert.equal(await vide.fin, 1);
+  assert.deepEqual(JSON.parse(vide.sortie()), { done: false, reason: "the comment is empty: write something to post", price: "none: nothing was posted" });
+
+  const sansIssue = appeler(pass, ["9", "comment", "Du contexte"], env);
+  assert.equal(await sansIssue.fin, 1);
+  assert.equal(JSON.parse(sansIssue.sortie()).reason, "#9 has no GitHub issue: it does not exist, or is gone");
+
+  const lue = appeler(pass, ["9", "issue"], env);
+  assert.equal(await lue.fin, 1);
+  assert.deepEqual(JSON.parse(lue.sortie()), { found: false, reason: "#9 has no GitHub issue: it does not exist, or is gone" });
+
+  assert.deepEqual(gh.appels().filter((appel) => appel.includes("POST")), []);
+});
+
+test("`pass -- <ticket> issue` : une panne de GitHub sort en 1 en le disant, une commande mal formée ou sans dépôt en 2, sans rien demander à GitHub", async (t) => {
+  const gh = fauxGh(t);
+  const env = { BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin };
+  gh.repondre(`repos/${DEPOT}/issues/7`, { statut: 502, corps: { message: "Bad Gateway" } });
+
+  const panne = appeler(pass, ["7", "issue"], env);
+  assert.equal(await panne.fin, 1);
+  assert.match(panne.sortie(), /^brigade : l'issue de #7 n'a pas été lue : .*HTTP 502/);
+
+  const avant = gh.appels().length;
+  for (const args of [["7", "comment"], ["7", "issue", "en trop"], ["7", "comment", "a", "b"], ["0", "issue"], ["x", "comment", "Du contexte"]]) {
+    const mal = appeler(pass, args, env);
+    assert.equal(await mal.fin, 2, args.join(" "));
+    assert.match(mal.sortie(), /usage/);
+  }
+  const sansDepot = appeler(pass, ["7", "issue"], { BRIGADE_GH_BIN: gh.bin });
+  assert.equal(await sansDepot.fin, 2);
+  assert.match(sansDepot.sortie(), /BRIGADE_GITHUB_REPO n'est pas défini/);
+  assert.equal(gh.appels().length, avant);
 });

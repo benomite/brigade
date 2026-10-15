@@ -1,6 +1,8 @@
 // L'issue GitHub d'une carte, depuis la fiche de l'app : la lire — son corps et
 // sa discussion —, et y poster un commentaire du chef. Aucun LLM : le texte part
-// tel que le chef l'a écrit, par le même GitHub que le reste du runtime.
+// tel que le chef l'a écrit, par le même GitHub que le reste du runtime. Le
+// point d'entrée est `pass -- <ticket> issue | comment <texte>` (montrer-pass.ts),
+// sous le `gh` du compte du service.
 //
 // La lecture ne demande pas que le ticket soit sur le rail : toute carte porte
 // un numéro d'issue, qu'elle soit en amont, sur le rail ou servie. Une carte
@@ -71,6 +73,6 @@ export async function commenterIssue(github: GitHub, ticket: number, texte: unkn
   await github.commenter(ticket, texte.trim());
   return {
     done: true,
-    price: `a comment is posted on issue #${ticket}, under the runtime's GitHub identity: it is public on GitHub, and whoever reads the issue next — the manager, the next cook — reads it. It is not withdrawn from here: edit or delete it on GitHub. No model is called, nothing is spent`,
+    price: `a comment is posted on issue #${ticket}, under the box's own gh account, not a role's App: it is public on GitHub, and whoever reads the issue next — the manager, the next cook — reads it. It is not withdrawn from here: edit or delete it on GitHub. No model is called, nothing is spent`,
   };
 }
