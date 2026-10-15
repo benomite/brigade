@@ -153,6 +153,8 @@ const pages = element("pages");
 const version = element("version");
 const note = element("note");
 const ongletsTerminaux = element("terminaux");
+const fermerShell = element("fermer-shell");
+const listeMachines = element("machines");
 const colonneSecond = element("second");
 const noteSecond = element("note-second");
 const fil = element("fil");
@@ -201,6 +203,9 @@ const laisse = new Map();
 // Le shell que chaque projet montre à droite, à la place du second. Aucun : c'est le second.
 /** @type {Map<string, number>} */
 const aDroite = new Map();
+// Les machines que « + shell » propose, tant que le chef n'a pas choisi — pour le projet où il a cliqué.
+/** @type {{ projet: string, machines: { id: string, titre: string }[] } | undefined} */
+let choixDeMachine;
 // Les shells fermés : ce qu'ils écrivent encore en mourant n'a plus d'onglet.
 /** @type {Set<number>} */
 const fermes = new Set();
@@ -475,6 +480,16 @@ function montrer() {
           ...terminaux.filter(({ genre }) => genre !== "second").map(({ titre, id }) => terminal(titre, id)),
           ...(ouvrable ? [bouton("+ shell", ouvrirShell)] : []),
         ]),
+  );
+  // Le shell montré se ferme pour de bon ; le second, jamais.
+  fermerShell.hidden = droite === undefined || droite.terminal.genre !== "shell";
+  fermerShell.textContent = fermerShell.hidden ? "" : `close ${droite?.terminal.titre}`;
+  const choix = ouvrable && choixDeMachine?.projet === courant?.nom ? choixDeMachine : undefined;
+  listeMachines.hidden = choix === undefined;
+  listeMachines.replaceChildren(
+    ...(choix === undefined
+      ? []
+      : [bloc("span", "open a shell on"), ...choix.machines.map(({ id, titre }) => bouton(titre, () => void ouvrirSur(choix.projet, id))), bouton("cancel", () => void ((choixDeMachine = undefined), montrer()))]),
   );
 
   note.textContent =
@@ -827,14 +842,49 @@ function recevoir(terminal) {
   vue(terminal.id).terminal = terminal;
 }
 
+// « + shell » demande où ouvrir : ce poste, la box, ou une station du projet. Là où il n'y a que ce
+// poste, rien n'est à choisir : le shell s'y ouvre. Recliqué, le choix se referme.
 async function ouvrirShell() {
   const projet = courant;
   if (projet === undefined) return;
-  const shell = await brigade.shell(projet.nom);
-  // Le chef a pu changer d'espace pendant que le shell s'ouvrait : il attend dans le sien.
-  garder(projet.nom, shell);
+  if (choixDeMachine?.projet === projet.nom) {
+    choixDeMachine = undefined;
+    return montrer();
+  }
+  const machines = await brigade.machines(projet.nom);
+  if (machines.length === 1 && machines[0] !== undefined) return ouvrirSur(projet.nom, machines[0].id);
+  choixDeMachine = { projet: projet.nom, machines };
   montrer();
 }
+
+// Le shell s'ouvre sur la machine choisie, dans une session qui lui survivra.
+/** @param {string} projet @param {string} machine */
+async function ouvrirSur(projet, machine) {
+  choixDeMachine = undefined;
+  nonEcritSecond = "";
+  const rendu = await brigade.shell(projet, machine);
+  if ("refus" in rendu) nonEcritSecond = rendu.refus;
+  // Le chef a pu changer d'espace pendant que le shell s'ouvrait : il attend dans le sien.
+  else garder(projet, rendu);
+  montrer();
+}
+
+// Fermer le shell montré : son onglet s'en va, et sa session avec — ou la note dit pourquoi elle reste.
+fermerShell.addEventListener("click", async () => {
+  const montre = montreADroite()?.terminal;
+  if (montre === undefined || montre.genre !== "shell") return;
+  nonEcritSecond = "";
+  const rendu = await brigade.fermerShell(montre.id);
+  if ("refus" in rendu) nonEcritSecond = rendu.refus;
+  montrer();
+});
+
+// Échap referme le choix de la machine, sans rien ouvrir.
+listeMachines.addEventListener("keydown", (evenement) => {
+  if (evenement.key !== "Escape") return;
+  choixDeMachine = undefined;
+  montrer();
+});
 
 /** @param {string} balise @param {string} texte */
 function bloc(balise, texte) {

@@ -20,6 +20,7 @@ import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterSurBox, declarerTelQuel, EFFORTS, installer, lireDepot, MODELES } from "./installation.ts";
 import { COMMANDE as COMMANDE_MANAGER, GESTES_DU_MANAGER, voir as voirManager } from "./manager.ts";
+import { machineChoisie, machinesDe } from "./machines.ts";
 import { commandeDe, ONGLETS, RUBRIQUES } from "./onglets.ts";
 import { ouvrirTransfert, tenirPages } from "./page.ts";
 import { lireRacine, proposerCalibrage } from "./proposition.ts";
@@ -33,6 +34,7 @@ import { ouvrirTours } from "./saisie.ts";
 import { DELAIS, lancerRetrait, tenirRetraits } from "./retrait.ts";
 import { ouvrirRunner } from "./runner.ts";
 import { tenirServices } from "./service.ts";
+import { souvenirsDansFichier } from "./souvenirs.ts";
 import { suivreConfiguration } from "./suivi.ts";
 import { ouvrirTerminaux } from "./terminaux.ts";
 
@@ -43,10 +45,15 @@ const dire = (canal: string, ...faits: unknown[]) => {
 
 // Chaque second dit ses tours à l'app, par ses crochets, dans un fichier à lui (saisie.ts) :
 // c'est d'après eux qu'un geste direct part, ou dit qu'il ne peut pas.
+// Les shells persistants ouverts sont retenus à côté du fichier des projets (souvenirs.ts) :
+// rouverte, l'app les rattache à leur session.
 const tours = ouvrirTours();
 const terminaux = ouvrirTerminaux({
   ouvrirPty,
   tours: tours.de,
+  souvenirs: souvenirsDansFichier(join(dirname(cheminConfiguration()), "shells.json")),
+  // Jamais posée hors des essais, comme pour la veille.
+  ssh: process.env.BRIGADE_SSH_BIN || "ssh",
   // La même doublure que le runtime : jamais posée hors des essais.
   claude: process.env.BRIGADE_CLAUDE_BIN || "claude",
   shell: process.env.SHELL || "/bin/zsh",
@@ -489,7 +496,19 @@ ipcMain.handle("desinstaller", (_, nom: unknown, confirmation: unknown) => {
   return vise === undefined ? undefined : apres(nom, retraits.desinstaller(vise, confirmation));
 });
 ipcMain.handle("espace", (_, nom: unknown) => terminaux.espace(projet(nom)));
-ipcMain.handle("shell", (_, nom: unknown) => terminaux.shell(projet(nom)));
+// « + shell » : les machines où ouvrir un shell persistant (machines.ts) — ce poste, la box, et les
+// stations que le dernier contrôle de la box a lues. La vue n'en reçoit que l'identifiant et le titre.
+const machinesDuProjet = (vise: Projet) => machinesDe(vise, services.controleDe(vise.nom)?.stations?.declarees);
+ipcMain.handle("machines", (_, nom: unknown) => machinesDuProjet(projet(nom)).map(({ id, titre }) => ({ id, titre })));
+// La vue rend la machine choisie, par son identifiant : le shell s'y ouvre dans une session neuve,
+// que l'app retient. Une machine qui n'est plus proposée n'ouvre rien.
+ipcMain.handle("shell", (_, nom: unknown, machine: unknown) => {
+  const vise = projet(nom);
+  const choisie = machineChoisie(machinesDuProjet(vise), machine);
+  return choisie === undefined ? { refus: `nothing was opened: “${String(machine)}” is not among the machines this project offers any more` } : terminaux.ouvrir(vise, choisie.cible);
+});
+// Fermer un shell pour de bon : il quitte l'espace, et sa session est détruite sur sa machine.
+ipcMain.handle("fermerShell", (_, id: unknown) => (typeof id === "number" ? terminaux.fermerShell(id) : { refus: "nothing was closed: no shell is named" }));
 // Un bouton : sa commande est écrite dans le second du projet, et rien ne l'envoie — le chef la
 // complète. La vue nomme le bouton ; ce qui s'écrit se décide ici (boutons.ts) — ou pourquoi
 // rien ne l'est. Rien, pour un projet sans box.

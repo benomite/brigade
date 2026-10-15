@@ -43,7 +43,7 @@ const demarrage = (projets: Parameters<typeof pourLaBarre>[0]["projets"] = [{ no
 });
 
 async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {
-  const vue = await jouerLaVue({ demarrage: () => demarrage(), espace: () => [SECOND], shell: () => SHELL, ...reponses });
+  const vue = await jouerLaVue({ demarrage: () => demarrage(), espace: () => [SECOND], machines: () => [{ id: "poste", titre: "this Mac" }], shell: () => SHELL, ...reponses });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
   return vue;

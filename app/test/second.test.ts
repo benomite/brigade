@@ -44,6 +44,7 @@ async function ouvrir(reponses: Reponses = {}, projets: Projet[] = [PARADE, FANF
       code: undefined,
     }),
     espace: (projet) => (projet === "fanfare" ? [AUTRE] : [SECOND]),
+    machines: () => [{ id: "poste", titre: "this Mac" }],
     shell: () => SHELL,
     ...reponses,
   });
@@ -244,6 +245,76 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
     // Rien ne s'ouvre au centre : ni page, ni zone sous le rail.
     assert.deepEqual(selectionne(vue), []);
     assert.equal(vue.element("contenu").hidden, true);
+  });
+
+  test("« + shell » demande sur quelle machine ouvrir : ce poste, la box et chaque station, sous leurs noms — le choix part au process principal, qui ouvre le shell", async () => {
+    const MACHINES = [
+      { id: "poste", titre: "this Mac" },
+      { id: "box", titre: "box parade-box — station box/claude" },
+      { id: "station:studio", titre: "station studio/claude" },
+    ];
+    const vue = await ouvrir({ machines: () => MACHINES, shell: () => ({ ...SHELL, titre: "shell 1 · parade-box" }) });
+    const machines = vue.element("machines");
+    assert.equal(machines.hidden, true);
+
+    await cliquer(vue, vue.element("terminaux"), "+ shell");
+
+    assert.equal(machines.hidden, false);
+    assert.deepEqual(machines.children.map((pose) => pose.textContent), ["open a shell on", ...MACHINES.map(({ titre }) => titre), "cancel"]);
+    assert.deepEqual(vue.dernier("machines"), ["parade"]);
+    // Rien ne s'ouvre avant le choix.
+    assert.deepEqual(vue.appels.filter(({ geste }) => geste === "shell"), []);
+    await cliquer(vue, machines, "box parade-box — station box/claude");
+
+    assert.deepEqual(vue.dernier("shell"), ["parade", "box"]);
+    assert.equal(machines.hidden, true);
+    assert.deepEqual(terminaux(vue), ["second · claude", "shell 1 · parade-box", "+ shell"]);
+    assert.deepEqual(montre(vue), ["shell 1 · parade-box"]);
+
+    // « cancel » referme le choix sans rien ouvrir ; recliquer « + shell » aussi.
+    await cliquer(vue, vue.element("terminaux"), "+ shell");
+    await cliquer(vue, machines, "cancel");
+    assert.equal(machines.hidden, true);
+    await cliquer(vue, vue.element("terminaux"), "+ shell");
+    await cliquer(vue, vue.element("terminaux"), "+ shell");
+    assert.equal(machines.hidden, true);
+    assert.equal(vue.appels.filter(({ geste }) => geste === "shell").length, 1);
+  });
+
+  test("là où il n'y a que ce poste, rien n'est à choisir : le shell s'y ouvre", async () => {
+    const vue = await ouvrir();
+    await cliquer(vue, vue.element("terminaux"), "+ shell");
+    assert.equal(vue.element("machines").hidden, true);
+    assert.deepEqual(vue.dernier("shell"), ["parade", "poste"]);
+  });
+
+  test("le shell montré se ferme pour de bon par son bouton ; le second n'en a pas", async () => {
+    const vue = await ouvrir({ fermerShell: () => ({ ferme: true }) });
+    const fermer = vue.element("fermer-shell");
+    assert.equal(fermer.hidden, true);
+
+    await cliquer(vue, vue.element("terminaux"), "+ shell");
+    assert.equal(fermer.hidden, false);
+    assert.equal(fermer.textContent, "close shell 1");
+    fermer.click();
+    await repos();
+    assert.deepEqual(vue.dernier("fermerShell"), [SHELL.id]);
+    // Le process principal dit le shell arrêté : son onglet s'en va, le second revient.
+    vue.dire("surEtat", { ...SHELL, arrete: true });
+    await repos();
+    assert.deepEqual(terminaux(vue), ["second · claude", "+ shell"]);
+    assert.equal(fermer.hidden, true);
+  });
+
+  test("une session qui n'a pas pu être détruite : la note du terminal dit où elle reste", async () => {
+    const refus = "shell 1 · parade-box is closed, but its session `brigade-parade-1` could not be destroyed on box parade-box: it is no longer listed, and stays there until it is destroyed — ssh: connect to host parade-box port 22: Connection refused";
+    const vue = await ouvrir({ fermerShell: () => ({ refus }) });
+    await cliquer(vue, vue.element("terminaux"), "+ shell");
+    vue.element("fermer-shell").click();
+    await repos();
+    vue.dire("surEtat", { ...SHELL, arrete: true });
+    await repos();
+    assert.equal(vue.element("note-second").textContent, refus);
   });
 
   test("un shell dont on sort ferme son onglet, et le second reprend sa place à droite", async () => {

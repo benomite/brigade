@@ -367,6 +367,36 @@ main > header,
   flex-direction: column;
   border-left: 1px solid var(--trait);
 }
+/* Fermer le shell montré, pour de bon : au bout du bandeau des terminaux. */
+#fermer-shell {
+  padding: 10px 14px;
+  color: var(--discret);
+  white-space: nowrap;
+}
+#fermer-shell:hover {
+  color: var(--texte-doux);
+}
+/* La machine où ouvrir un shell : sous les onglets des terminaux, tant que le chef n'a pas choisi. */
+#machines {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--trait-doux);
+}
+#machines > span {
+  color: var(--discret);
+}
+#machines > button {
+  padding: 4px 10px;
+  border: 1px solid var(--trait);
+  border-radius: 4px;
+}
+#machines > button:hover {
+  color: var(--texte);
+  border-color: var(--accent);
+}
 #note-second {
   margin: 0;
   padding: 6px 16px;
