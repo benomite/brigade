@@ -4,6 +4,7 @@
 // rien n'en sort que la nature du geste et ce qu'il vise.
 import { nommer } from "./activite.ts";
 import type { Base } from "./base.ts";
+import { DIRE_GATES_COUPEES, GATES_COUPEES } from "./evenements/pass.ts";
 import { dernierRunNomme, derniersCooks, type DernierCook } from "./projections/garde-fous.ts";
 import type { PassDeTicket } from "./projections/pass.ts";
 import { lirePass } from "./projections/pass.ts";
@@ -50,6 +51,8 @@ type Relecture = { launchedAt: string; endedAt: string | null };
 // jugement attend la CI ; avant elle, ce sont les gates.
 function aLaPass(pass: PassDeTicket | undefined, derniere: Relecture | null): ActiviteDeTicket | null {
   if (pass === undefined) return null;
+  // Des gates coupées sur une machine saturée : la ligne qui le dit.
+  if (pass.phase === "waiting" && pass.reason === GATES_COUPEES) return activite(DIRE_GATES_COUPEES, pass.since);
   if (pass.phase !== "judging") {
     const fait = PHASES[pass.phase];
     return fait === undefined ? null : activite(fait, pass.since);

@@ -51,6 +51,9 @@ const NOMBRE = "([0-9]+(?:[.,][0-9]+)?)";
 const MESURE_FRANCHIE = new RegExp(`^durée des gates : ${NOMBRE} s de processeur\\b.* pour un plafond de ${NOMBRE} s — `);
 const PLAFOND_FRANCHI = new RegExp(`^FAIL\\s+plafond des gates franchi : plus de ${NOMBRE} s de processeur\\s*$`);
 const lire = (nombre: string | undefined) => Number(nombre?.replace(",", "."));
+// Des tests coupés par la garde d'horloge des gates sans qu'aucun n'ait échoué
+// avant la coupure : leur ligne FAIL le dit en ces mots.
+const COUPEE_SANS_ECHEC = /^FAIL\s.*garde d'horloge, aucun test en échec/;
 // Ce qu'on laisse à la sortie d'un script pour se fermer une fois qu'il a fini.
 const DELAI_DE_FERMETURE_MS = 1000;
 
@@ -206,6 +209,10 @@ export async function jouerGates(demande: DemandeScript): Promise<Gates> {
   // Seule la ligne qui nomme le plafond reconnu n'est pas un échec : une autre,
   // qui en nomme un autre, n'a pas sa mesure.
   const echecs = lignes.filter((ligne) => /^FAIL\b/.test(ligne) && !(franchi && plafondDeLaLigne(ligne).includes(franchi.limitSeconds)));
+  // Coupées par leur garde d'horloge, et rien d'autre : aucune autre ligne
+  // FAIL. Une sortie dont le début manque peut en avoir perdu une.
+  const coupees = rouges && passage.code !== null && !passage.coupee ? echecs.filter((ligne) => COUPEE_SANS_ECHEC.test(ligne)) : [];
+  const coupee = coupees.length === echecs.length ? coupees[0] : undefined;
   return {
     // Le plafond de durée n'est pas jugé ici : il a été mesuré sur le poste de
     // ceux qui écrivent la suite, pas sur la machine du runtime. Des gates dont
@@ -215,6 +222,7 @@ export async function jouerGates(demande: DemandeScript): Promise<Gates> {
     failures: echecs.slice(0, ECHECS_MAX).map((ligne) => ligne.slice(0, LIGNE_MAX)),
     tail: lignes.slice(-LIGNES_DE_FIN).join("\n").slice(-FIN_MAX),
     ...(franchi ? { overCeiling: franchi } : {}),
+    ...(coupee === undefined ? {} : { clockGuardCut: coupee.slice(0, LIGNE_MAX) }),
     ...(mesures.length === 0 ? {} : { measures: Object.fromEntries(mesures.slice(-MESURES_MAX)) }),
     ...(masques === 0 ? {} : { credentialsMasked: masques }),
   };

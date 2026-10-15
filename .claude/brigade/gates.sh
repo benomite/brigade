@@ -239,7 +239,16 @@ suite() {
     # moins jusqu'où elle était allée.
     tail -40 "$JOURNAL" >&2
     echo "sortie complète des tests : $WT/$JOURNAL" >&2
-    fail "tests $DE arrêtés par la garde d'horloge : plus de $DELAI s sans rendre la main"
+    # Aucun test en échec avant la coupure : la suite n'a fait que trop durer.
+    # Sur une machine saturée, c'est un rouge de charge, pas de code — la ligne
+    # le dit, dans la forme que le runtime reconnaît pour rejouer ces gates
+    # plus tard au lieu d'y voir un rouge. Un test en échec — `✖` du lanceur,
+    # `not ok` en TAP — garde la ligne d'un rouge.
+    if grep -Eq '^[[:space:]]*(✖|not ok( |$))' "$JOURNAL"; then
+      fail "tests $DE arrêtés par la garde d'horloge : plus de $DELAI s sans rendre la main, et des tests en échec avant la coupure"
+    else
+      fail "tests $DE arrêtés par la garde d'horloge, aucun test en échec : plus de $DELAI s sans rendre la main"
+    fi
   else
     # Les tests en échec, par leur nom et leur erreur — sans les piles d'appels,
     # qui noient le reste. Une suite morte avant de conclure n'a pas ce relevé :

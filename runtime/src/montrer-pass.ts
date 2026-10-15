@@ -6,7 +6,7 @@ import { direBaseRouge, direControleRetenu, direPanne } from "./dire-base.ts";
 import { direSansGrant } from "./attend.ts";
 import type { Evenement } from "./evenements.ts";
 import type { ChoixDeReaction } from "./evenements/manager.ts";
-import { motifDArret, motifDeRemontee, type CI, type Finding, type Gates, type Review } from "./evenements/pass.ts";
+import { DIRE_GATES_COUPEES, GATES_COUPEES, motifDArret, motifDeRemontee, type CI, type Finding, type Gates, type Review } from "./evenements/pass.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { RENVOIS_MAX } from "./pass.ts";
@@ -45,7 +45,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
   };
 
   function decrire(pass: PassDeTicket): string {
-    const phase = `${PHASES[pass.phase] ?? pass.phase}${pass.reason === null ? "" : ` (${pass.reason}${pass.cause === null ? "" : ` : ${pass.cause}`})`}`;
+    const phase = `${PHASES[pass.phase] ?? pass.phase}${pass.reason === null ? "" : ` (${pass.reason}${pass.cause === null ? "" : ` : ${pass.cause}`})`}${pass.phase === "waiting" && pass.reason === GATES_COUPEES ? ` — ${DIRE_GATES_COUPEES}` : ""}`;
     // Hors du rail, le numéro est celui de la PR, et personne n'y est renvoyé.
     return [pass.horsRail ? `PR #${pass.ticket}  hors du rail (run ${pass.run})` : `#${pass.ticket}`, phase, pass.horsRail ? null : renvois(pass), `depuis ${pass.since}`, pass.pr ?? (pass.noDiff ? "sans diff" : null)]
       .filter((champ) => champ !== null)
@@ -154,7 +154,9 @@ export function principal({ args, env, dire, redire }: Appel): void {
       case "pass.outdated":
         return [`${tete}GitHub exige une branche à jour et refuse le merge — le verdict devient ROUGE`, ...evenement.payload.findings.map(indenter)];
       case "pass.waiting":
-        return [`${tete}en attente, ni jugée ni mergée pour l'instant : ${evenement.payload.reason}`];
+        return [
+          `${tete}en attente, ni jugée ni mergée pour l'instant : ${evenement.payload.reason}${evenement.payload.reason === GATES_COUPEES ? ` — ${DIRE_GATES_COUPEES}` : ""}`,
+        ];
       case "base.checked": {
         const { sha, outcome, gates, red, reason } = evenement.payload;
         const pourquoi = reason === undefined ? "la base n'a pas de gates" : `l'essai ne s'est pas fait (${reason})`;

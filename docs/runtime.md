@@ -256,7 +256,7 @@ Ce qu'en dit `faits` (`rail[].activite`) est l'activité **du ticket**, pas seul
 | pris, cook pas encore parti | `la station prépare le poste du cook` (depuis la prise) |
 | pris, cook parti | son dernier geste ; `démarre` avant son premier relevé ; `null` si son relevé ne le dit pas |
 | pris, cook fini | `la station livre son travail` (depuis la fin du cook) |
-| en pass | `attend la pass`, puis `gates en cours`, `relecture en cours` (le reviewer tourne), `jugement en cours` (relu, la pass attend la CI) ; après le verdict : `jugée verte, la pass décide`, `jugée rouge, la pass décide`, `merge en cours`, `la pass attend`, `arrêtée par la pass`, `remontée au chef` |
+| en pass | `attend la pass`, puis `gates en cours`, `relecture en cours` (le reviewer tourne), `jugement en cours` (relu, la pass attend la CI) ; après le verdict : `jugée verte, la pass décide`, `jugée rouge, la pass décide`, `merge en cours`, `la pass attend` — ou, quand ses gates ont été coupées sur une machine saturée, `gates rejouées plus tard : machine saturée, aucun test en échec` —, `arrêtée par la pass`, `remontée au chef` |
 
 ### Régler les plafonds
 
@@ -1562,6 +1562,37 @@ Rejuger ne coûte pas de cook, mais **consomme la machine** : saturée (les seui
 cooks à la fois »), la livraison à rejuger **attend** (`pass.waiting`, `machine-saturated`) et
 repart seule.
 
+#### Des gates coupées par leur garde d'horloge sur une machine saturée ne sont pas un rouge
+
+Sur une machine saturée, une suite saine peut mettre plus de temps que la garde d'horloge des gates
+ne lui en laisse : coupée, elle est rouge **sans qu'aucun test n'ait échoué**. Ce rouge vient de la
+charge, pas du code. Le compter comme un vrai rouge renverrait le ticket à un cook, puis à un autre,
+puis au manager, et pourrait rougir la base. **La pass le reconnaît à une ligne** du `gates.sh` :
+une ligne `FAIL` qui contient `garde d'horloge, aucun test en échec`. Celle de ce dépôt :
+`FAIL  tests du runtime arrêtés par la garde d'horloge, aucun test en échec : plus de 300 s sans
+rendre la main`. Avec un test en échec avant la coupure, `gates.sh` écrit une autre ligne, et c'est
+un rouge comme avant. **La pass ne prend la coupure pour un rouge de charge que si cette ligne est
+la seule ligne `FAIL`** (`gates.clockGuardCut`), et que la sortie a été gardée entière.
+
+| Les gates sont coupées sans test en échec, et | Ce que fait la pass |
+|---|---|
+| la machine est **saturée** (seuils de « Plusieurs cooks à la fois »), au départ des gates ou à l'arrivée | **ce n'est pas un rouge** : pas de verdict, pas de renvoi au cook, la base n'est pas jugée, rien ne compte au disjoncteur. La livraison **attend** (`pass.waiting`, `gates-cut-saturated`, avec le `sha`) et ses gates **sont rejouées seules** dès que la machine n'est plus saturée |
+| elles l'ont **déjà été une fois** sur ce commit, puis rejouées sur une machine calme | **rouge** : ce n'est plus la charge, c'est un test bloqué ou une suite devenue trop lente. Le renvoi le dit |
+| la machine est **calme** | **rouge**, dès la première fois, pour la même raison |
+
+**La file et la carte le disent en une ligne** pendant l'attente : `gates rejouées plus tard :
+machine saturée, aucun test en échec`. On la lit au bout de la ligne du ticket dans le rail de
+`run status`, dans l'activité de `faits` (`rail[].activite.fait`), donc sur la carte de l'app, et
+dans `run pass`. L'issue reçoit un commentaire (« Pass — en attente (`gates-cut-saturated`) »)
+avec la ligne des gates et la charge relevée, et journald une ligne.
+
+**La règle vaut pour la base jugée seule.** Ses gates ne partent que sur une machine calme. Si elles
+sont coupées sans test en échec et que la machine est saturée à l'arrivée, **aucun contrôle n'est
+écrit** : la base n'est pas vue rouge, et journald le dit. Ce qui demandait le contrôle (un merge à
+vérifier, un rejeu, une livraison rouge) le redemande, et il se rejoue seul une fois la machine
+calme. Coupées à nouveau sur cette tête, ses gates la rougissent. Cette mémoire de la base ne survit
+pas à un redémarrage du runtime : il lui accorde au plus un rejeu de plus.
+
 #### La base est jugée seule
 
 Les gates sont jouées **sur la base elle-même**, dans un worktree jetable, **hors ticket** (le
@@ -1716,7 +1747,7 @@ commandes n'écrivent jamais, et répondent pendant que le runtime tourne.
 | `merge.done` | Mergée. `by` : `pass` ou `outside` ; `actor` : le compte GitHub ; `reconciled` : constaté après un redémarrage ; `unverified` : fait hors du runtime, la base est à contrôler |
 | `merge.failed` | Le merge n'a pas abouti : `interrupted`, ou le refus de GitHub |
 | `pass.held` | Verte, non mergée : `reason` (`no-grant`, `review-required`, `merge-refused`), `cause`, `expired` |
-| `pass.waiting` | Ni jugée ni mergée pour l'instant : `base-red`, `machine-saturated`. Elle repart seule |
+| `pass.waiting` | Ni jugée ni mergée pour l'instant : `base-red`, `machine-saturated`, `gates-cut-saturated` (avec le `sha` dont les gates ont été coupées). Elle repart seule |
 | `pass.returned`, `pass.deferred`, `pass.outdated` | Rouge : renvoi `n` sur 2, avec les findings ; la main passe au manager ; GitHub exigeait une branche à jour et a refusé le merge, `findings` repart au cook |
 | `pass.escalated` | Remontée au chef : `reason` (`still-red`, `unjudged`, `manager-split`), `cause` |
 | `pass.pr-closed` | La PR a été fermée sans merge : la pass ne juge, ne renvoie ni ne merge plus cette livraison. Écrit une fois |
@@ -1838,7 +1869,7 @@ fin attend
 | `base` | **Absent tant que la base n'est pas rouge** — sauf si son contrôle est retenu parce qu'elle ne se rapatrie pas. Rouge, elle retient toute la cuisine : depuis quand, sur quel commit, le contrôle qui n'a pas pu se jouer, le rejeu demandé. Sans demande en cours, la dernière ligne est le geste : `npm --prefix runtime run base -- replay`. Voir « La base est jugée seule » |
 | `sauvegarde` | La dernière sauvegarde réussie (`backup.completed`) : son âge, son nom, son dernier événement. `TROP VIEILLE` : l'âge dépasse `BRIGADE_BACKUP_MAX_AGE_HOURS`. `JAMAIS FAITE` : le journal n'en porte aucune. Dans les deux cas : `systemctl status brigade-sauvegarde@<projet>` |
 | `attend` | **Toujours là**, de sa ligne `attend` à sa ligne `fin attend`. Quand rien ne t'attend, il le dit : `rien n'attend le chef`. Voir « Ce qui attend le chef », ci-dessous |
-| `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** (depuis que sa station a vu son worktree bouger). `COINCE` : la moitié de son bail est passée sans progrès, ou son bail est échu et il est encore pris. Un ticket en attente qui ne part pas dit ce qu'il attend — un autre ticket, une zone tenue, ce qui retient sa station ; `BLOQUÉ` : ce qu'il attendait a été abandonné (voir « Le rail ») |
+| `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** (depuis que sa station a vu son worktree bouger). `COINCE` : la moitié de son bail est passée sans progrès, ou son bail est échu et il est encore pris. Un ticket en attente qui ne part pas dit ce qu'il attend — un autre ticket, une zone tenue, ce qui retient sa station ; `BLOQUÉ` : ce qu'il attendait a été abandonné (voir « Le rail »). Un ticket en pass dont les gates ont été coupées sur une machine saturée finit par `— gates rejouées plus tard : machine saturée, aucun test en échec` |
 | `cooks` | Combien tournent, et le plafond de la station. **Si un cook coince, la ligne le nomme** (`— 2 COINCENT : #14, #22`). Dessous, `MACHINE SATURÉE` avec ce qui manque, et `SE RETIENT` avec la raison. Puis une ligne par cook, **le pire en tête** ; jugements et relectures à la fin, sans branche. Tours et tokens sont ceux du dernier relevé, dont l'âge est affiché ; la ligne finit par ce que le cook fait (`en ce moment : lit runtime/src/etat.ts, depuis 2 min`) quand son relevé le dit. Runtime arrêté, un cook encore listé est mort avec lui |
 | `consommé` | Ce que l'ensemble des lancements a consommé — cooks, relectures, jugements : en cours, 5 h (la fenêtre du quota Max), 24 h |
 | `worktrees`, `dérive`, `claude` | **Absents quand il n'y a rien à dire** : les worktrees que le runtime n'a pas pu ranger (« Ce qui reste après un cook ») ; les mesures qui ont franchi un seuil déclaré (« Le relevé des mesures ») ; sous cloison, le dernier rangement des transcripts (« Les transcripts du projet sont rangés ») |
@@ -3088,7 +3119,10 @@ Ce qui arrête un test bloqué :
 - **il boucle dans du code synchrone** — c'est la **garde d'horloge** de `gates.sh` qui le
   rattrape : passé 300 s (`BRIGADE_GATES_DELAI_TESTS`, en secondes entières ; illisible, elle
   rougit sans jouer la suite), le groupe de process de la suite est tué et les gates rougissent —
-  `FAIL  tests du runtime arrêtés par la garde d'horloge`. Elle ne nomme pas le test, et n'est
+  `FAIL  tests du runtime arrêtés par la garde d'horloge, aucun test en échec`, ou `…, et des
+  tests en échec avant la coupure` si sa sortie en montre un (`✖`, `not ok`). La première, sur une
+  machine saturée, n'est pas un rouge pour la pass (« Des gates coupées par leur garde d'horloge
+  sur une machine saturée ne sont pas un rouge »). Elle ne nomme pas le test, et n'est
   qu'aux gates : un `npm --prefix runtime test` lancé à la main reste retenu, et se tue par son
   pid. (`BRIGADE_GATES_GARDE_APRES` n'est que l'accroche de ses propres tests.)
 - **non tenu** : un process qu'un test a lancé sans le tuer lui survit, sans retenir la suite.
