@@ -39,7 +39,17 @@ const status = (...serveurs: string[]) =>
     "",
   ].join("\n");
 const SERVEURS = (nombre: number) => `serveurs   ${nombre} serveur${nombre > 1 ? "s" : ""} — une livraison d'interface, servie depuis son worktree sur le port de ce worktree`;
-const serveur = (ticket: number, port: number, etat = "écoute") => `  #${ticket}  worktrees/${ticket}-ab12cd34  port ${port}  ${etat} depuis 3 min  cook/${ticket}-ab12cd34`;
+// La ligne d'un serveur, et la page qu'elle écrit au bout : par défaut, celle de l'écran `/rail`.
+const serveur = (ticket: number, port: number, etat = "écoute", page = `http://127.0.0.1:${port}/rail`) =>
+  `  #${ticket}  worktrees/${ticket}-ab12cd34  port ${port}  ${etat} depuis 3 min  cook/${ticket}-ab12cd34${page === "" ? "" : `  ${page}`}`;
+// Ce que `status` écrit dessous (runtime/src/projections/service.ts, `direEcran`).
+const DECLARE = "    écran : /rail (déclaré par le cook)";
+const DEDUIT = "    écran : /rail (écran déduit des fichiers touchés, pas déclaré par le cook)";
+const PHRASE = "    à regarder : #591 : le rail a maintenant deux colonnes, TODO et WAITING";
+const SANS_ECRAN = "aucune page à ouvrir : la livraison ne dit aucun écran, et n'en touche aucun que le projet déclare";
+const A_LANCER = "à lancer   1 — le worktree d'une livraison d'une app qui ne s'ouvre pas dans un navigateur, tenu pour qu'on l'y lance : aucune page";
+const COMMENT = "pas de page dans un navigateur : lancer l'app sur le worktree de la livraison, `cd '/etat/worktrees/631-ab12cd34' && npm --prefix app start`, puis y ouvrir l'écran « la carte » — à regarder : la carte dit comment voir l'écran";
+const tenu = (ticket: number, comment = COMMENT) => `  #${ticket}  worktrees/${ticket}-ab12cd34  tenu depuis 3 min  cook/${ticket}-ab12cd34  ${comment}`;
 const NON_DECLARE =
   "service    NON DÉCLARÉ — le projet ne déclare pas comment il est servi : `.claude/brigade/service` manque (livraison du ticket #412) ; aucun serveur n'est lancé — depuis 3 min sur box";
 
@@ -106,7 +116,7 @@ function essai(t: TestContext, mode: "relaie" | "ouvre" | "refuse" | "muet" = "r
 
 const WORKTREE = "worktrees/412-ab12cd34";
 // Le port de ce poste où la page a été ouverte, et la prise du transfert que `ssh` a reçue.
-const portDe = (url: string | undefined) => Number(/^http:\/\/127\.0\.0\.1:(\d+)\/$/.exec(url ?? "")?.[1]);
+const portDe = (url: string | undefined) => Number(/^http:\/\/127\.0\.0\.1:(\d+)\/rail$/.exec(url ?? "")?.[1]);
 const TRANSFERT = /^-o BatchMode=yes -o ConnectTimeout=10 -o ControlPath=none -o ExitOnForwardFailure=yes -N -L (\S+):127\.0\.0\.1:(\d+) -- box$/;
 // La seule page d'un projet qui n'en a qu'une.
 const seule = (rendues: Pages | undefined) => {
@@ -121,16 +131,17 @@ describe("ce que `status` montre des serveurs", () => {
     assert.deepEqual(lus, {
       entete: "2 serveurs — une livraison d'interface, servie depuis son worktree sur le port de ce worktree",
       serveurs: [
-        { ticket: 412, worktree: "worktrees/412-ab12cd34", port: 20412, etat: "écoute" },
-        { ticket: 415, worktree: "worktrees/415-ab12cd34", port: 20415, etat: "démarre" },
+        { ticket: 412, worktree: "worktrees/412-ab12cd34", port: 20412, etat: "écoute", route: "/rail", ecran: null },
+        { ticket: 415, worktree: "worktrees/415-ab12cd34", port: 20415, etat: "démarre", route: "/rail", ecran: null },
       ],
+      aLancer: [],
       illisibles: [],
       empeche: [],
     });
   });
 
   test("sans ligne `serveurs`, aucun serveur — une ligne du rail qui leur ressemble n'en est pas un", () => {
-    assert.deepEqual(serveursDe(status()), { serveurs: [], illisibles: [], empeche: [] });
+    assert.deepEqual(serveursDe(status()), { serveurs: [], aLancer: [], illisibles: [], empeche: [] });
   });
 
   test("une ligne `service` est gardée mot pour mot : c'est elle qui dit ce qui empêche le projet d'être servi", () => {
@@ -144,9 +155,57 @@ describe("ce que `status` montre des serveurs", () => {
     const sansPort = "  #416  worktrees/416-ab12cd34  écoute depuis 3 min";
     const lus = serveursDe(status(SERVEURS(4), serveur(412, 20412), serveur(413, 70000), sansPort, serveur(412, 20499), ""));
 
-    assert.deepEqual(lus.serveurs, [{ ticket: 412, worktree: "worktrees/412-ab12cd34", port: 20412, etat: "écoute" }]);
+    assert.deepEqual(lus.serveurs, [{ ticket: 412, worktree: "worktrees/412-ab12cd34", port: 20412, etat: "écoute", route: "/rail", ecran: null }]);
     // Un port qui n'en est pas un, une ligne sans port, un worktree déjà lu.
     assert.deepEqual(lus.illisibles, [serveur(413, 70000), sansPort, serveur(412, 20499)]);
+  });
+
+  test("sous la ligne d'un serveur, l'écran que le cook déclare et sa phrase ; un écran déduit le dit, mot pour mot", () => {
+    const lus = serveursDe(status(SERVEURS(2), serveur(412, 20412), DECLARE, PHRASE, serveur(415, 20415), DEDUIT, ""));
+
+    assert.deepEqual(
+      lus.serveurs.map(({ ticket, route, ecran }) => ({ ticket, route, ecran })),
+      [
+        { ticket: 412, route: "/rail", ecran: { nom: "/rail", phrase: "#591 : le rail a maintenant deux colonnes, TODO et WAITING", deduit: null } },
+        { ticket: 415, route: "/rail", ecran: { nom: "/rail", phrase: null, deduit: "écran déduit des fichiers touchés, pas déclaré par le cook" } },
+      ],
+    );
+    assert.deepEqual(lus.illisibles, []);
+  });
+
+  test("une ligne qui n'écrit pas la page d'un écran n'a pas de route : ce qu'elle écrit à la place, la racine, une autre adresse, ou rien", () => {
+    const lus = serveursDe(
+      status(SERVEURS(5), serveur(412, 20412, "écoute", SANS_ECRAN), serveur(413, 20413, "écoute", "http://127.0.0.1:20413/"), serveur(414, 20414, "écoute", "http://127.0.0.1:20999/rail"), serveur(415, 20415, "écoute", ""), serveur(416, 20416, "écoute", "http://127.0.0.1:20416//ailleurs"), ""),
+    );
+
+    assert.deepEqual(
+      lus.serveurs.map(({ ticket, route, sansPage }) => ({ ticket, route, sansPage })),
+      [
+        { ticket: 412, route: null, sansPage: SANS_ECRAN },
+        { ticket: 413, route: null, sansPage: undefined },
+        { ticket: 414, route: null, sansPage: undefined },
+        { ticket: 415, route: null, sansPage: undefined },
+        { ticket: 416, route: null, sansPage: undefined },
+      ],
+    );
+  });
+
+  test("sous la ligne `à lancer`, la livraison d'une app : comment la voir, son écran et sa phrase — aucun serveur", () => {
+    const lus = serveursDe(status(A_LANCER, tenu(631), "    écran : la carte (déclaré par le cook)", "    à regarder : la carte dit comment voir l'écran", ""));
+
+    assert.deepEqual(lus.serveurs, []);
+    assert.deepEqual(lus.aLancer, [
+      { ticket: 631, worktree: "worktrees/631-ab12cd34", commentLeVoir: COMMENT, ecran: { nom: "la carte", phrase: "la carte dit comment voir l'écran", deduit: null } },
+    ]);
+    assert.deepEqual(lus.illisibles, []);
+  });
+
+  test("un retrait qui n'est ni un écran ni sa phrase, ou qui ne suit aucune entrée lisible, reste à lire tel quel", () => {
+    const autre = "    autre chose : rien";
+    const lus = serveursDe(status(SERVEURS(2), serveur(412, 20412), autre, PHRASE, serveur(413, 70000), DECLARE, ""));
+
+    assert.equal(lus.serveurs[0]?.ecran, null);
+    assert.deepEqual(lus.illisibles, [autre, PHRASE, serveur(413, 70000), DECLARE]);
   });
 });
 
@@ -157,10 +216,10 @@ describe("le geste posé", () => {
     const rendues = pages.recevoir(lue(status(SERVEURS(2), serveur(412, 20412), serveur(415, 20415, "démarre"), "")));
 
     assert.equal(rendues.projet, "calculus");
-    assert.deepEqual(rendues.pages[0], { ticket: 412, worktree: "worktrees/412-ab12cd34", port: 20412, etat: "écoute", enCours: false });
+    assert.deepEqual(rendues.pages[0], { ticket: 412, worktree: "worktrees/412-ab12cd34", port: 20412, etat: "écoute", route: "/rail", ecran: null, enCours: false });
     assert.deepEqual(
       { ...rendues.pages[1], raison: undefined },
-      { ticket: 415, worktree: "worktrees/415-ab12cd34", port: 20415, etat: "démarre", enCours: false, raison: undefined },
+      { ticket: 415, worktree: "worktrees/415-ab12cd34", port: 20415, etat: "démarre", route: "/rail", ecran: null, enCours: false, raison: undefined },
     );
     assert.match(rendues.pages[1]?.raison ?? "", /says “démarre”, not “écoute”/);
     assert.equal(rendues.vide, undefined);
@@ -209,6 +268,33 @@ describe("le geste posé", () => {
     assert.doesNotMatch(rendues.vide ?? "", /shows no server/);
   });
 
+  test("un serveur sans page d'écran n'a pas de geste — pas même inactif : ce que `status` écrit à la place se lit, et le rappel n'a rien à rappeler", (t) => {
+    const { pages } = essai(t);
+
+    const rendues = pages.recevoir(lue(status(SERVEURS(2), serveur(412, 20412, "écoute", SANS_ECRAN), serveur(413, 20413, "écoute", "http://127.0.0.1:20413/"), "")));
+
+    assert.deepEqual(
+      rendues.pages.map(({ ticket, route, sansPage, raison }) => ({ ticket, route, sansPage, raison })),
+      [
+        { ticket: 412, route: null, sansPage: SANS_ECRAN, raison: undefined },
+        { ticket: 413, route: null, sansPage: "no page to open: `ssh <hote> brigade <nom> status` writes no screen page for this server — the app never opens the root of a worktree, which a file server shows as a folder listing", raison: undefined },
+      ],
+    );
+    assert.equal(rendues.vide, undefined);
+    assert.equal(rendues.rappel, undefined);
+  });
+
+  test("une app qui ne s'ouvre pas dans un navigateur n'a aucun geste : sa livraison dit comment la voir", (t) => {
+    const { pages } = essai(t);
+
+    const rendues = pages.recevoir(lue(status(A_LANCER, tenu(631), "")));
+
+    assert.deepEqual(rendues.pages, []);
+    assert.deepEqual(rendues.aLancer, [{ ticket: 631, worktree: "worktrees/631-ab12cd34", commentLeVoir: COMMENT, ecran: null }]);
+    assert.equal(rendues.vide, undefined);
+    assert.equal(rendues.rappel, undefined);
+  });
+
   test("une ligne que l'app n'a pas su lire est montrée, sans geste", (t) => {
     const { pages } = essai(t);
 
@@ -231,7 +317,8 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     // La commande d'ouverture du poste, appelée une fois, avec l'adresse de ce poste.
     assert.equal(ouvertes.length, 1);
     const local = portDe(ouvertes[0]);
-    assert.deepEqual(ouvertes, [`http://127.0.0.1:${local}/`]);
+    // La page de l'écran : la route que `status` écrit, jamais la racine.
+    assert.deepEqual(ouvertes, [`http://127.0.0.1:${local}/rail`]);
     // La « box » est ce poste : le port du worktree y est pris, la page arrive sur un autre.
     assert.notEqual(local, port);
     assert.equal(await lire(ouvertes[0] as string), "la page du worktree 412");
@@ -242,7 +329,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     const page = seule(rendues);
     assert.equal(page.enCours, false);
     assert.equal(page.dit?.ouverte, true);
-    assert.ok(page.dit?.texte.startsWith(`opened in your browser: http://127.0.0.1:${local}/`));
+    assert.ok(page.dit?.texte.startsWith(`opened in your browser: http://127.0.0.1:${local}/rail — `));
     assert.ok(page.dit?.texte.includes(`to port ${local} on this workstation (port ${port} is taken there)`));
   });
 
@@ -257,7 +344,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
 
     const page = seule(await pages.ouvrir(CALCULUS, WORKTREE));
 
-    assert.deepEqual(ouvertes, [`http://127.0.0.1:${port}/`]);
+    assert.deepEqual(ouvertes, [`http://127.0.0.1:${port}/rail`]);
     assert.ok(page.dit?.texte.includes("to the same port on this workstation"));
   });
 
@@ -372,6 +459,32 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     assert.deepEqual(ouvertes, []);
   });
 
+  test("sur un serveur sans page d'écran, le geste ne part pas — rien n'est transféré ni ouvert, la racine moins que tout", async (t) => {
+    const { pages, ouvertes, appels } = essai(t);
+    pages.recevoir(lue(status(SERVEURS(3), serveur(412, 20412, "écoute", SANS_ECRAN), serveur(413, 20413, "écoute", "http://127.0.0.1:20413/"), serveur(414, 20414, "écoute", ""), "")));
+
+    const sansEcran = await pages.ouvrir(CALCULUS, WORKTREE);
+    const racine = await pages.ouvrir(CALCULUS, "worktrees/413-ab12cd34");
+    const muette = await pages.ouvrir(CALCULUS, "worktrees/414-ab12cd34");
+
+    assert.equal(sansEcran?.refus, `nothing opened: ${SANS_ECRAN}`);
+    assert.match(racine?.refus ?? "", /^nothing opened: .* never opens the root of a worktree/);
+    assert.match(muette?.refus ?? "", /^nothing opened: .* never opens the root of a worktree/);
+    assert.deepEqual(appels(), []);
+    assert.deepEqual(ouvertes, []);
+  });
+
+  test("l'écran déclaré ouvre sa route, quelle qu'elle soit — sa requête et son ancre comprises", async (t) => {
+    const port = await servir(t, "la page");
+    const { pages, ouvertes } = essai(t);
+    pages.recevoir(lue(status(SERVEURS(1), serveur(412, port, "écoute", `http://127.0.0.1:${port}/projets/12?onglet=notes#haut`), "")));
+
+    await pages.ouvrir(CALCULUS, WORKTREE);
+
+    assert.equal(ouvertes.length, 1);
+    assert.match(ouvertes[0] ?? "", /^http:\/\/127\.0\.0\.1:\d+\/projets\/12\?onglet=notes#haut$/);
+  });
+
   test("le poste n'a pas pu ouvrir l'adresse : le transfert reste, et l'adresse est dite pour être ouverte à la main", async (t) => {
     const port = await servir(t, "la page");
     const { pages } = essai(t, "relaie", {}, () => Promise.reject(new Error("aucun navigateur")));
@@ -381,7 +494,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
 
     assert.equal(page.dit?.ouverte, false);
     assert.ok(page.dit?.texte.includes("aucun navigateur"));
-    const [url] = /http:\/\/127\.0\.0\.1:\d+\//.exec(page.dit?.texte ?? "") ?? [];
+    const [url] = /http:\/\/127\.0\.0\.1:\d+\/rail/.exec(page.dit?.texte ?? "") ?? [];
     assert.equal(await lire(url as string), "la page");
   });
 

@@ -82,7 +82,7 @@ const silhouette = (declarations: Map<string, string>) => `${declarations.get("b
 describe("les trois états de pilotage ont chacun leur forme et leur couleur", () => {
   async function entete(lecture: object) {
     const vue = await ouvrir();
-    vue.dire("surLecture", { projet: PARADE, demande: vue.dernier("regarder")[1] as number, a: A, ...lecture } as never, { projet: PARADE, pages: [], illisibles: [], empeche: [] });
+    vue.dire("surLecture", { projet: PARADE, demande: vue.dernier("regarder")[1] as number, a: A, ...lecture } as never, { projet: PARADE, pages: [], aLancer: [], illisibles: [], empeche: [] });
     return vue.element("lu");
   }
 

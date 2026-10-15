@@ -14,7 +14,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { ouvrirNettoyage } from "../src/nettoyage.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
 import { DECLARATION_ECRANS } from "../src/ecran.ts";
-import { direCommentLeVoir, direPage, serveursEnCours, servicesIndisponibles, worktreesTenus, type Serveur } from "../src/projections/service.ts";
+import { direCommentLeVoir, direEcran, direPage, serveursEnCours, servicesIndisponibles, worktreesTenus, type Serveur } from "../src/projections/service.ts";
 import { DECLARATION_SERVICE, VARIABLE_DU_PORT } from "../src/service.ts";
 import { ouvrirServeurs, type Livraison } from "../src/servir.ts";
 import { principal as status } from "../src/status.ts";
@@ -143,6 +143,9 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     assert.equal(direPage(avec as Serveur), "http://127.0.0.1:20007/exemple");
     assert.equal(sans?.ecran, null);
     assert.equal(direPage(sans as Serveur), "aucune page à ouvrir : la livraison ne dit aucun écran, et n'en touche aucun que le projet déclare");
+    // La phrase du cook se dit sous l'écran ; sans écran, rien.
+    assert.deepEqual(direEcran(avec?.ecran ?? null), ["écran : /exemple (déclaré par le cook)", "à regarder : la page dit bonjour"]);
+    assert.deepEqual(direEcran(null), []);
   });
 
   test("un écran déduit des fichiers changés donne sa page ; un écran qui n'est pas une route n'en donne aucune, et le dit ; une déclaration d'écrans mal écrite se dit", (t) => {
@@ -157,6 +160,9 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     const [rail, carte] = serveursEnCours(journal.base);
     assert.deepEqual([rail?.ecran?.source, direPage(rail as Serveur)], ["deduit", "http://127.0.0.1:20007/rail"]);
     assert.deepEqual([carte?.ecran?.source, direPage(carte as Serveur)], ["declare", "aucune page à ouvrir : l'écran « la carte » n'est pas une route"]);
+    // Sous la ligne du serveur, `status` dit l'écran et qui l'a dit : déduit, il le dit en toutes lettres.
+    assert.deepEqual(direEcran(rail?.ecran ?? null), ["écran : /rail (écran déduit des fichiers touchés, pas déclaré par le cook)"]);
+    assert.deepEqual(direEcran(carte?.ecran ?? null), ["écran : la carte (déclaré par le cook)"]);
     assert.equal(avertissements.length, 1);
     assert.match(avertissements[0] ?? "", /^brigade : écran de la livraison du ticket #7 lu sans les lignes mal écrites — ligne 3 de `\.claude\/brigade\/ecrans` /);
   });
@@ -515,7 +521,9 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
         const page = `http://127.0.0.1:${port}/exemple`;
         const ligne = `  #15  \\S+  port ${port}  écoute depuis .+  ${echapper(page)}$`;
         assert.match(await montrer(montrerStation, repertoire), new RegExp(ligne, "m"));
-        assert.match(await montrer(status, repertoire), new RegExp(ligne, "m"));
+        // `status` dit dessous l'écran, qui l'a dit, et la phrase du cook — ce que l'app pose sur la carte.
+        const regard = ["    écran : /exemple (déclaré par le cook)", "    à regarder : la page d'exemple montre `travail.txt`"].map(echapper).join("\\n");
+        assert.match(await montrer(status, repertoire), new RegExp(`${ligne}\\n${regard}$`, "m"));
         // La page de l'écran est servie par le serveur de ce worktree.
         assert.equal(((await (await fetch(page)).json()) as Reponse).cwd, reponse.cwd);
       });
@@ -545,7 +553,8 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
       assert.match(station, /^serveurs\s+aucun$/m);
       assert.match(station, new RegExp(`^à lancer\\s+1 — .*\\n${ligne}`, "m"));
       const photo = await montrer(status, repertoire);
-      assert.match(photo, new RegExp(`^à lancer\\s+1 — .*\\n${ligne}`, "m"));
+      const regard = ["    écran : /exemple (déclaré par le cook)", "    à regarder : la page d'exemple montre `travail.txt`"].map(echapper).join("\\n");
+      assert.match(photo, new RegExp(`^à lancer\\s+1 — .*\\n${ligne}\\n${regard}$`, "m"));
       assert.doesNotMatch(`${station}\n${photo}`, /http:\/\/127\.0\.0\.1/);
 
       // Le runtime s'en va : plus rien n'est tenu, plus rien n'est listé.
