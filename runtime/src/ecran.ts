@@ -1,0 +1,183 @@
+// L'écran à regarder d'une livraison : ce que le chef doit ouvrir pour la
+// valider, et en une phrase ce qu'il doit y voir. Il vient d'abord du cook, qui
+// le déclare ; sinon il est déduit des fichiers que la livraison change ; sinon
+// il n'y en a pas — la livraison ne touche aucun écran.
+//
+// ── La déclaration du cook, dans le corps de sa PR ──
+//
+// Le corps de la PR porte le livrable du cook (`station.ts`) : c'est là qu'il
+// déclare, par deux lignes, chacune seule sur sa ligne et hors de tout bloc de
+// code :
+//
+//     Écran : <l'écran ou la route changé>
+//     À regarder : <une phrase : ce qu'il faut y regarder>
+//
+// Par exemple :
+//
+//     Écran : /rail
+//     À regarder : #591 : le rail a maintenant deux colonnes, TODO et WAITING
+//
+// - La clé se lit sans égard à la casse ni aux accents (`Ecran`, `A regarder`),
+//   en gras ou non (`**Écran** :`, `**Écran :**`), derrière une puce de liste ou non (`- `).
+// - La valeur est ce qui suit les premiers deux-points, telle quelle : une
+//   phrase en porte d'autres. Des backticks qui l'entourent toute entière
+//   tombent (`` Écran : `/rail` `` déclare `/rail`).
+// - Seul `Écran` fait une déclaration ; `À regarder` est sa phrase, et peut
+//   manquer. Une phrase sans écran ne déclare rien : l'écran est alors déduit,
+//   et la phrase du cook lui reste.
+// - `Écran : aucun` déclare que la livraison ne touche aucun écran : rien
+//   n'est déduit derrière.
+// - Écrite deux fois, la dernière ligne l'emporte. Une ligne citée — dans un
+//   bloc de code, ou commençant par un backtick — n'est pas une déclaration :
+//   un cook qui recopie le format ne déclare rien.
+//
+// ── La déduction, depuis les fichiers changés ──
+//
+// Le dépôt du projet déclare quels fichiers sont quel écran, à côté de son
+// setup de worktree, dans `.claude/brigade/ecrans` : une ligne
+// « <chemin> : <écran ou route> » par écran. Un chemin possède le fichier qu'il
+// nomme et tout ce qui est dessous (`zones.ts`). Chaque fichier changé est à
+// l'écran du chemin le plus précis qui le possède ; l'écran déduit est celui qui
+// en compte le plus, et à égalité le premier déclaré. Une déduction n'a pas de
+// phrase à elle.
+//
+// Ce module ne lance rien et n'écrit rien : il lit le corps d'une PR, une
+// liste de fichiers et la déclaration du dépôt.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { possede, refus } from "./zones.ts";
+
+// Ce que le dépôt du projet déclare : quels fichiers sont quel écran.
+export const DECLARATION_ECRANS = ".claude/brigade/ecrans";
+
+// L'écran à regarder. `ecran` : un écran ou une route, tel que déclaré.
+// `phrase` : ce qu'il faut y regarder ; nulle, personne ne l'a dit.
+// `source` : `declare` par le cook dans sa PR, `deduit` des fichiers changés.
+export type EcranARegarder = { ecran: string; phrase: string | null; source: "declare" | "deduit" };
+
+// Ce que le corps d'une PR déclare. `ecran` nul : aucune déclaration ;
+// `aucun` : le cook déclare qu'aucun écran n'est touché.
+export type Declaration = { ecran: string | null; aucun: boolean; phrase: string | null };
+
+// Une ligne de `.claude/brigade/ecrans`.
+export type Correspondance = { chemin: string; ecran: string };
+
+export type Ecrans = {
+  correspondances: Correspondance[];
+  // Ce qui n'a pas été compris. Une ligne mal écrite est écartée, les autres
+  // restent lues.
+  problemes: string[];
+};
+
+const sansAccents = (texte: string) => texte.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+
+// Une ligne de déclaration : puce facultative, clé en gras ou non, deux-points.
+const LIGNE = /^(?:[-*+]\s+)?(?:\*\*|__)?([\p{L} ]+?)(?:\*\*|__)?\s*:(?:\*\*|__)?(.*)$/u;
+const CLES = { ecran: "ecran", phrase: "a regarder" } as const;
+const AUCUN = "aucun";
+
+// Ce qui est dans un bloc de code clôturé ne se lit pas.
+const horsDesBlocs = (texte: string): string[] => {
+  const lignes: string[] = [];
+  let dansUnBloc = false;
+  for (const ligne of texte.split(/\r?\n/)) {
+    if (/^\s*(```|~~~)/.test(ligne)) dansUnBloc = !dansUnBloc;
+    else if (!dansUnBloc) lignes.push(ligne);
+  }
+  return lignes;
+};
+
+const valeurDe = (brute: string): string | null => {
+  const valeur = brute.trim().replace(/^`([^`]+)`$/, "$1").trim();
+  return valeur === "" ? null : valeur;
+};
+
+// Lit la déclaration du cook dans le corps de sa PR. Sans E/S.
+export function lireDeclaration(corps: string | null): Declaration {
+  let ecran: string | null = null;
+  let phrase: string | null = null;
+  for (const ligne of horsDesBlocs(corps ?? "")) {
+    const [, cle, suite] = LIGNE.exec(ligne.trim()) ?? [];
+    if (cle === undefined) continue;
+    const valeur = valeurDe(suite ?? "");
+    if (valeur === null) continue;
+    const lue = sansAccents(cle.trim());
+    if (lue === CLES.ecran) ecran = valeur;
+    else if (lue === CLES.phrase) phrase = valeur;
+  }
+  const aucun = ecran !== null && sansAccents(ecran) === AUCUN;
+  return { ecran: aucun ? null : ecran, aucun, phrase };
+}
+
+const profondeur = (chemin: string) => chemin.split("/").filter((segment) => segment !== "" && segment !== ".").length;
+
+// Lit la déclaration des écrans du dépôt, sans E/S. Tout ce qu'elle dit mal
+// devient un problème dit, et la ligne est écartée : jamais un écran deviné.
+export function lireEcrans(texte: string): Ecrans {
+  const ecrans: Ecrans = { correspondances: [], problemes: [] };
+  texte.split(/\r?\n/).forEach((brute, rang) => {
+    const ligne = brute.trim();
+    if (ligne === "" || ligne.startsWith("#")) return;
+    const probleme = (pourquoi: string) => void ecrans.problemes.push(`ligne ${rang + 1} de \`${DECLARATION_ECRANS}\` (« ${ligne.slice(0, 80)} ») : ${pourquoi}`);
+    const deuxPoints = ligne.indexOf(":");
+    if (deuxPoints < 0) return probleme("ce n'est pas une ligne « <chemin> : <écran ou route> »");
+    const chemin = ligne.slice(0, deuxPoints).trim().replace(/\/+$/, "");
+    const ecran = ligne.slice(deuxPoints + 1).trim();
+    if (chemin === "") return probleme("il manque le chemin");
+    const defaut = refus(chemin);
+    if (defaut !== null) return probleme(`« ${chemin} » ${defaut}`);
+    // `.` posséderait tout : une livraison de documentation aurait un écran.
+    if (profondeur(chemin) === 0) return probleme(`« ${chemin} » ne nomme aucun chemin — tout le dépôt n'est pas un écran`);
+    if (ecran === "") return probleme(`il manque l'écran de « ${chemin} »`);
+    const deja = ecrans.correspondances.find((lue) => lue.chemin === chemin);
+    if (deja) return probleme(`« ${chemin} » est déjà l'écran « ${deja.ecran} » — un chemin n'est qu'un écran`);
+    ecrans.correspondances.push({ chemin, ecran });
+  });
+  return ecrans;
+}
+
+// La déclaration des écrans d'un worktree. Absente : aucun écran ne se déduit.
+// Ne lève pas : ce qui ne se lit pas est dit.
+export function ecransDuWorktree(worktree: string): Ecrans {
+  try {
+    return lireEcrans(readFileSync(join(worktree, DECLARATION_ECRANS), "utf8"));
+  } catch (erreur) {
+    const { code, message } = erreur as NodeJS.ErrnoException;
+    if (code === "ENOENT" || code === "ENOTDIR") return { correspondances: [], problemes: [] };
+    return { correspondances: [], problemes: [`\`${DECLARATION_ECRANS}\` est illisible — ${code ?? message}`] };
+  }
+}
+
+// L'écran que les fichiers changés touchent le plus, ou null.
+export function deduireEcran(changes: string[], correspondances: Correspondance[]): string | null {
+  const comptes = new Map<string, number>();
+  for (const fichier of changes) {
+    const sien = correspondances.filter((lue) => possede(lue.chemin, fichier)).reduce<Correspondance | null>((plus, lue) => (plus === null || profondeur(lue.chemin) > profondeur(plus.chemin) ? lue : plus), null);
+    if (sien) comptes.set(sien.ecran, (comptes.get(sien.ecran) ?? 0) + 1);
+  }
+  // L'ordre de déclaration départage : le premier déclaré l'emporte à égalité.
+  let retenu: string | null = null;
+  for (const { ecran } of correspondances) {
+    if ((comptes.get(ecran) ?? 0) > (retenu === null ? 0 : (comptes.get(retenu) ?? 0))) retenu = ecran;
+  }
+  return retenu;
+}
+
+// L'écran à regarder d'une livraison : déclaré dans sa PR, sinon déduit des
+// fichiers qu'elle change, sinon null. Sans E/S.
+export function ecranARegarder(livraison: { corps: string | null; changes: string[]; correspondances: Correspondance[] }): EcranARegarder | null {
+  const declaration = lireDeclaration(livraison.corps);
+  if (declaration.aucun) return null;
+  if (declaration.ecran !== null) return { ecran: declaration.ecran, phrase: declaration.phrase, source: "declare" };
+  const deduit = deduireEcran(livraison.changes, livraison.correspondances);
+  return deduit === null ? null : { ecran: deduit, phrase: declaration.phrase, source: "deduit" };
+}
+
+// La même, lue dans le worktree de la livraison : `corps` est celui de sa PR,
+// `changes` ses fichiers changés (`depot.changes`). `problemes` : ce que la
+// déclaration des écrans du dépôt dit mal, à dire au chef — l'écran est lu
+// sans les lignes écartées.
+export function ecranDeLaLivraison(livraison: { worktree: string; corps: string | null; changes: string[] }): { ecran: EcranARegarder | null; problemes: string[] } {
+  const { correspondances, problemes } = ecransDuWorktree(livraison.worktree);
+  return { ecran: ecranARegarder({ corps: livraison.corps, changes: livraison.changes, correspondances }), problemes };
+}
