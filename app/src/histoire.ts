@@ -17,7 +17,7 @@ export type CoutDit = { tokens: string; duree: string; essais: string; minimum: 
 export type Histoire = { etapes: EtapeDite[]; cout: CoutDit } | { sans: string };
 
 // Un instant de la box, tel qu'elle l'a donné : son jour et son heure, en UTC.
-const instant = (iso: string) => `${new Date(iso).toISOString().slice(0, 16).replace("T", " ")} UTC`;
+export const instant = (iso: string) => `${new Date(iso).toISOString().slice(0, 16).replace("T", " ")} UTC`;
 const nombre = (valeur: unknown): valeur is number => typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 0;
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string";
 const heure = (valeur: unknown): valeur is string => texte(valeur) && !Number.isNaN(Date.parse(valeur));

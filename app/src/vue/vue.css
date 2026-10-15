@@ -1902,6 +1902,135 @@ main > header,
 #fiche .question .refus {
   color: var(--rouge-clair);
 }
+/* L'issue et sa discussion, sous les gestes : chaque message bordé à gauche, son auteur et sa date
+   en tête, puis son texte rendu — titres ramenés à la taille de la fiche, listes, citations, code,
+   tableaux, liens. Dessous, le champ du commentaire, comme celui d'une réponse. */
+#fiche .discussion {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: 8px;
+}
+#fiche .discussion > ol {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#fiche .discussion > ol > li {
+  padding: 6px 0 6px 10px;
+  border-left: 2px solid var(--trait);
+}
+#fiche .discussion > ol > li.corps {
+  border-left-color: var(--trait-fort);
+}
+#fiche .discussion > ol > li > header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 0 6px;
+  color: var(--discret);
+  font-size: 12px;
+}
+#fiche .discussion > ol > li > header strong {
+  color: var(--texte);
+}
+#fiche .rendu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+  line-height: 1.45;
+}
+#fiche .rendu :is(h1, h2, h3, h4, h5, h6) {
+  margin: 4px 0 0;
+  font-weight: 600;
+  line-height: 1.3;
+}
+#fiche .rendu h1 {
+  font-size: 17px;
+}
+#fiche .rendu h2 {
+  font-size: 15px;
+}
+#fiche .rendu :is(h3, h4, h5, h6) {
+  font-size: 14px;
+}
+#fiche .rendu :is(p, ul, ol, blockquote, table, details) {
+  margin: 0;
+}
+#fiche .rendu :is(ul, ol) {
+  padding-left: 20px;
+}
+#fiche .rendu li > p + :is(ul, ol, p) {
+  margin-top: 2px;
+}
+#fiche .rendu blockquote {
+  padding-left: 10px;
+  color: var(--texte-doux);
+  border-left: 3px solid var(--trait-fort);
+}
+#fiche .rendu table {
+  border-collapse: collapse;
+}
+#fiche .rendu :is(th, td) {
+  padding: 2px 8px;
+  text-align: left;
+  border: 1px solid var(--trait);
+}
+#fiche .rendu hr {
+  align-self: stretch;
+  border: none;
+  border-top: 1px solid var(--trait);
+}
+#fiche .rendu summary {
+  cursor: pointer;
+}
+#fiche .rendu a {
+  color: var(--bleu);
+  text-decoration: underline;
+  cursor: pointer;
+}
+#fiche .discussion .commentaire {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 6px;
+}
+#fiche .discussion textarea {
+  flex: 1 1 100%;
+  min-width: 0;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--texte);
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+  resize: vertical;
+}
+#fiche .discussion textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+#fiche .discussion button:disabled,
+#fiche .discussion textarea:disabled {
+  color: var(--discret);
+  background: none;
+  border-style: dashed;
+  cursor: default;
+}
+#fiche .discussion .postee {
+  margin: 0;
+  color: var(--vert);
+}
+#fiche .discussion .refus {
+  margin: 0;
+  color: var(--rouge-clair);
+  white-space: pre-wrap;
+}
 /* Les gestes de WAITING, sur un bon : ses boutons en ligne ; le formulaire « waiting for… », sous
    le bon, un champ par ligne — ce qu'il attend, de qui, le jour de la relance —, puis ce qui le
    fait partir ou y renonce. Ce qui l'a refusé se lit dessous, en rouge. */

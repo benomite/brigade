@@ -361,6 +361,18 @@ const titres = new Map();
 // `<projet>#<ticket>` : relus à chaque ouverture. Absente de la table, la lecture est en route.
 /** @type {Map<string, import("../histoire.ts").Histoire>} */
 const histoires = new Map();
+// L'issue de chaque ticket dont la fiche a été ouverte et sa discussion (discussion.ts), par
+// `<projet>#<ticket>` : relues à chaque ouverture, et après chaque commentaire. Absente de la
+// table, la lecture est en route.
+/** @type {Map<string, import("../discussion.ts").Discussion>} */
+const discussions = new Map();
+// Le commentaire que le chef écrit sur l'issue, par `<projet>#<ticket>` : une fiche reposée, ou
+// un envoi qui échoue, ne le perd pas. Il ne s'efface qu'une fois posté.
+/** @type {Map<string, string>} */
+const commentaires = new Map();
+// Ce qu'il en est du dernier commentaire envoyé, par `<projet>#<ticket>` : en route, ou ce qui en est advenu.
+/** @type {Map<string, { envoi: true } | { rendu: import("../discussion.ts").Commente }>} */
+const envoisDeCommentaire = new Map();
 // Ce que la fiche dit de la vie du ticket vivant (histoire.ts, `situation`), par `<projet>#<ticket>`.
 /** @type {Map<string, import("../histoire.ts").Situation>} */
 const situations = new Map();
@@ -2034,8 +2046,11 @@ function ouvrirFiche(projet, carte, retour) {
   situations.delete(`${projet.nom}#${carte.ticket}`);
   gestesDeFiches.delete(`${projet.nom}#${carte.ticket}`);
   refusDeFiches.delete(`${projet.nom}#${carte.ticket}`);
+  discussions.delete(`${projet.nom}#${carte.ticket}`);
+  envoisDeCommentaire.delete(`${projet.nom}#${carte.ticket}`);
   void lireHistoire(projet, carte);
   ouverte = { projet, carte, retour };
+  void lireDiscussion(projet, carte.ticket);
   void lireGestes(projet, carte);
   poserFiche();
   fiche.focus();
@@ -2129,7 +2144,7 @@ function poserFiche() {
       panneau.append(gestes);
     }
   }
-  panneau.append(poserGestesDeFiche(projet, carte));
+  panneau.append(poserGestesDeFiche(projet, carte), poserDiscussion(projet, ticket));
 }
 
 // Les gestes de la fiche : ceux qu'il est possible de faire sur ce ticket à cet instant, et seulement
@@ -2333,6 +2348,215 @@ async function lireHistoire(projet, carte) {
   histoires.set(cle, lue);
   poserFiche();
 }
+// L'issue du ticket et sa discussion, sous ses gestes : le corps, puis chaque commentaire dans
+// l'ordre, chacun avec son auteur et sa date, le markdown rendu (markdown.ts) — jamais en HTML :
+// chaque texte est posé par `textContent`. Dessous, le champ du commentaire : rien ne part sans un
+// clic sur son bouton, inactif tant que le champ est vide ; ce qui n'est pas parti se lit dessous,
+// et le texte reste dans le champ.
+/** @param {Projet} projet @param {number} ticket */
+function poserDiscussion(projet, ticket) {
+  const cle = `${projet.nom}#${ticket}`;
+  const section = document.createElement("section");
+  section.className = "discussion";
+  section.ariaLabel = `issue #${ticket} and its discussion`;
+  section.append(bloc("h4", "the issue and its discussion"));
+  const lue = discussions.get(cle);
+  if (lue === undefined) {
+    section.append(bloc("p", `reading issue #${ticket}…`));
+    return section;
+  }
+  if ("sans" in lue) {
+    const tue = bloc("p", lue.sans);
+    tue.className = "sans";
+    section.append(tue);
+    return section;
+  }
+  /** @param {string} url */
+  const ouvrir = (url) => void brigade.ouvrirLien(projet.nom, ticket, url);
+  const fil = document.createElement("ol");
+  for (const { auteur, at, blocs, corps } of lue.messages) {
+    const message = document.createElement("li");
+    if (corps === true) message.className = "corps";
+    const tete = document.createElement("header");
+    tete.append(bloc("strong", auteur), bloc("span", corps === true ? " opened the issue" : " commented"), exact("time", at));
+    const rendu = document.createElement("div");
+    rendu.className = "rendu";
+    if (blocs.length === 0) {
+      const rien = bloc("p", corps === true ? "no description" : "nothing visible — only markers GitHub does not show");
+      rien.className = "sans";
+      rendu.append(rien);
+    } else rendu.append(...poserBlocs(blocs, ouvrir));
+    message.append(tete, rendu);
+    fil.append(message);
+  }
+  section.append(fil);
+  if (!lue.ouverte) {
+    const fermee = bloc("p", "the issue is closed — a comment still posts on it");
+    fermee.className = "sans";
+    section.append(fermee);
+  }
+  section.append(...poserCommentaire(projet, ticket));
+  return section;
+}
+
+// Le champ du commentaire, son bouton et son prix, et ce qu'il est advenu du dernier envoi.
+/** @param {Projet} projet @param {number} ticket @returns {HTMLElement[]} */
+function poserCommentaire(projet, ticket) {
+  const cle = `${projet.nom}#${ticket}`;
+  const etat = envoisDeCommentaire.get(cle);
+  const envoi = etat !== undefined && "envoi" in etat;
+  const saisie = /** @type {HTMLTextAreaElement} */ (document.createElement("textarea"));
+  saisie.value = commentaires.get(cle) ?? "";
+  saisie.rows = 3;
+  saisie.ariaLabel = `a comment on issue #${ticket}`;
+  saisie.placeholder = "add context to the issue — markdown, as on GitHub";
+  saisie.disabled = envoi;
+  const poster = bouton("post this comment", () => void envoyerCommentaire(projet, ticket));
+  poster.dataset.geste = "commentaire";
+  poster.title = `post what you wrote on issue #${ticket}, as a comment — nothing leaves before this click`;
+  poster.disabled = envoi || saisie.value.trim() === "";
+  saisie.addEventListener("input", () => {
+    commentaires.set(cle, saisie.value);
+    poster.disabled = saisie.value.trim() === "";
+  });
+  const prix = bloc("span", "— cost: a comment is posted on the issue by the box, under its own gh account: it is public on GitHub, and the manager and the next cook read it. No model is called, nothing is spent");
+  prix.className = "prix";
+  const champ = document.createElement("div");
+  champ.className = "commentaire";
+  champ.append(saisie, poster, prix);
+  /** @type {HTMLElement[]} */
+  const poses = [champ];
+  if (envoi) poses.push(bloc("p", "posting your comment on the issue…"));
+  else if (etat !== undefined && etat.rendu.poste) {
+    const poste = bloc("p", `comment posted on #${ticket} — ${etat.rendu.prix}`);
+    poste.className = "postee";
+    poses.push(poste);
+  } else if (etat !== undefined && !etat.rendu.poste) {
+    const refus = bloc("p", etat.rendu.refus);
+    refus.className = "refus";
+    poses.push(refus);
+  }
+  return poses;
+}
+
+// Le commentaire part, au clic : le champ et son bouton attendent la réponse. Posté, le champ se
+// vide et la discussion est relue — il y apparaît. Pas parti, le texte reste, et la raison se lit
+// sous le champ ; un envoi dont rien ne dit s'il est arrivé fait aussi relire la discussion.
+/** @param {Projet} projet @param {number} ticket */
+async function envoyerCommentaire(projet, ticket) {
+  const cle = `${projet.nom}#${ticket}`;
+  const texte = commentaires.get(cle) ?? "";
+  const avant = envoisDeCommentaire.get(cle);
+  if (texte.trim() === "" || (avant !== undefined && "envoi" in avant)) return;
+  envoisDeCommentaire.set(cle, { envoi: true });
+  if (ficheDe(projet, ticket)) poserFiche();
+  /** @type {import("../discussion.ts").Commente} */
+  let rendu;
+  try {
+    rendu = await brigade.commenter(projet.nom, ticket, texte);
+  } catch (erreur) {
+    rendu = { poste: false, refus: `nothing was posted: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
+  }
+  envoisDeCommentaire.set(cle, { rendu });
+  // Un texte changé pendant l'envoi n'est pas celui qui est parti : il reste.
+  if (rendu.poste && commentaires.get(cle) === texte) commentaires.delete(cle);
+  if (ficheDe(projet, ticket)) poserFiche();
+  if (rendu.poste || rendu.peutEtre === true) await lireDiscussion(projet, ticket);
+}
+
+// L'issue de ce ticket et sa discussion, lues sur sa box par le process principal. Une lecture partie
+// avant une autre ne la remplace pas.
+/** @param {Projet} projet @param {number} ticket */
+async function lireDiscussion(projet, ticket) {
+  const cle = `${projet.nom}#${ticket}`;
+  /** @type {import("../discussion.ts").Discussion} */
+  let lue;
+  try {
+    lue = (await brigade.lireDiscussion(projet.nom, ticket)) ?? { sans: "no box for this project: the app has nothing to read" };
+  } catch (erreur) {
+    lue = { sans: `not read: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
+  }
+  if (!ficheDe(projet, ticket)) return;
+  discussions.set(cle, lue);
+  poserFiche();
+}
+
+// Le markdown rendu, bloc par bloc : chaque bloc sa balise, chaque texte par `textContent`.
+/** @param {import("../markdown.ts").Bloc[]} blocs @param {(url: string) => void} ouvrir @returns {HTMLElement[]} */
+function poserBlocs(blocs, ouvrir) {
+  return blocs.map((pose) => {
+    if ("titre" in pose) return avec(`h${Math.min(Math.max(pose.titre, 1), 6)}`, poserMots(pose.contenu, ouvrir));
+    if ("paragraphe" in pose) return avec("p", poserMots(pose.paragraphe, ouvrir));
+    if ("code" in pose) {
+      const pre = document.createElement("pre");
+      const code = bloc("code", pose.code);
+      if (pose.langue !== undefined) code.dataset.langue = pose.langue;
+      pre.append(code);
+      return pre;
+    }
+    if ("citation" in pose) return avec("blockquote", poserBlocs(pose.citation, ouvrir));
+    if ("liste" in pose) {
+      const liste = pose.debut === undefined ? document.createElement("ul") : Object.assign(document.createElement("ol"), { start: pose.debut });
+      for (const element of pose.liste) {
+        const ligne = document.createElement("li");
+        // Une case de liste de tâches se lit, elle ne se coche pas d'ici.
+        if (element.coche !== undefined) ligne.append(element.coche ? "☑ " : "☐ ");
+        ligne.append(...poserBlocs(element.blocs, ouvrir));
+        liste.append(ligne);
+      }
+      return liste;
+    }
+    if ("trait" in pose) return document.createElement("hr");
+    if ("tableau" in pose) {
+      const tableau = document.createElement("table");
+      /** @param {string} balise @param {import("../markdown.ts").Mot[][]} rang */
+      const ligne = (balise, rang) => {
+        const tr = document.createElement("tr");
+        tr.append(...rang.map((cellule) => avec(balise, poserMots(cellule, ouvrir))));
+        return tr;
+      };
+      tableau.append(avec("thead", [ligne("th", pose.tableau.tete)]), avec("tbody", pose.tableau.lignes.map((rang) => ligne("td", rang))));
+      return tableau;
+    }
+    const replie = document.createElement("details");
+    replie.append(avec("summary", poserMots(pose.replie.resume, ouvrir)), ...poserBlocs(pose.replie.blocs, ouvrir));
+    return replie;
+  });
+}
+
+// Les mots d'une ligne rendue. Un lien ne navigue pas dans l'app : un clic demande au process
+// principal de l'ouvrir dans le navigateur — l'adresse se lit au survol.
+/** @param {import("../markdown.ts").Mot[]} mots @param {(url: string) => void} ouvrir @returns {(HTMLElement | string)[]} */
+function poserMots(mots, ouvrir) {
+  return mots.map((mot) => {
+    if ("texte" in mot) return mot.texte;
+    if ("code" in mot) return bloc("code", mot.code);
+    if ("gras" in mot) return avec("strong", poserMots(mot.gras, ouvrir));
+    if ("italique" in mot) return avec("em", poserMots(mot.italique, ouvrir));
+    if ("barre" in mot) return avec("del", poserMots(mot.barre, ouvrir));
+    if ("saut" in mot) return document.createElement("br");
+    const lien = avec("a", poserMots(mot.contenu, ouvrir));
+    lien.title = `open ${mot.lien} in your browser`;
+    lien.tabIndex = 0;
+    lien.addEventListener("click", (evenement) => {
+      evenement.preventDefault();
+      ouvrir(mot.lien);
+    });
+    lien.addEventListener("keydown", (evenement) => {
+      if (evenement.key === "Enter") ouvrir(mot.lien);
+    });
+    return lien;
+  });
+}
+
+// Un élément et ce qu'il contient.
+/** @param {string} balise @param {(HTMLElement | string)[]} contenu */
+function avec(balise, contenu) {
+  const cree = document.createElement(balise);
+  cree.append(...contenu);
+  return cree;
+}
+
 // La fiche ouverte est-elle celle de ce ticket : ce qui revient pour lui ne se pose que là.
 /** @param {Projet} projet @param {number} ticket */
 const ficheDe = (projet, ticket) => ouverte?.projet.nom === projet.nom && ouverte.carte.ticket === ticket;

@@ -8,8 +8,9 @@ import { COMMANDE as COMMANDE_AMONT, tenirAmont } from "./amont.ts";
 import { mettreAPart } from "./attend.ts";
 import { pourLaBarre } from "./barre.ts";
 import { BOUTONS, ecritPar } from "./boutons.ts";
-import { lancerGeste, ouvrirVeille } from "./box.ts";
+import { lancerGeste, ouvrirVeille, type Servi } from "./box.ts";
 import { histoireDe, situationDe } from "./histoire.ts";
+import { commenter, lireDiscussion } from "./discussion.ts";
 import { boxes, cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { confirmationDe } from "./confirmation.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
@@ -574,6 +575,36 @@ ipcMain.handle("lireHistoire", async (_, nom: unknown, ticket: unknown) => {
   const rendu = await (passage.get(servi.nom) ?? Promise.resolve()).then(() => lancerGeste({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, `pass ${ticket} --json`));
   if (rendu.erreur !== null) return { sans: `not read: ${rendu.lance}\n${rendu.erreurs}${rendu.sortie}`.trim() };
   return histoireDe(rendu.sortie);
+});
+// L'issue d'un ticket et sa discussion, sur la fiche de toute carte : `pass <ticket> issue` sur la box
+// du projet (discussion.ts), le markdown rendu. Les adresses qu'elle montre sont gardées ici : un
+// clic de la vue n'ouvre que l'une d'elles, jamais une adresse qu'elle aurait composée.
+// Le commentaire du chef part par `pass <ticket> comment <texte>`, au clic : la vue nomme le
+// projet, le ticket et le texte ; la commande se compose ici.
+const liensLus = new Map<string, readonly string[]>();
+// Elles prennent leur tour dans le passage du projet : une connexion à la fois, comme les veilles.
+const lancerSurLaBox = (servi: Servi, commande: string) => {
+  const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => lancerGeste({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, commande));
+  passage.set(servi.nom, rendu);
+  return rendu;
+};
+ipcMain.handle("lireDiscussion", async (_, nom: unknown, ticket: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return undefined;
+  const lue = await lireDiscussion(lancerSurLaBox, vise, ticket, 30_000);
+  if (!("sans" in lue)) liensLus.set(`${vise.nom}#${String(ticket)}`, lue.liens);
+  return lue;
+});
+ipcMain.handle("commenter", (_, nom: unknown, ticket: unknown, texte: unknown) => {
+  const vise = connu(nom);
+  return vise === undefined ? { poste: false, refus: `nothing was posted: “${String(nom)}” is no longer in the projects file` } : commenter(lancerSurLaBox, vise, ticket, texte, 30_000);
+});
+ipcMain.handle("ouvrirLien", (_, nom: unknown, ticket: unknown, url: unknown) => {
+  if (typeof url !== "string" || !(liensLus.get(`${String(nom)}#${String(ticket)}`) ?? []).includes(url) || !/^https?:$/.test(URL.parse(url)?.protocol ?? "")) return false;
+  return shell.openExternal(url).then(
+    () => true,
+    () => false,
+  );
 });
 // Le titre d'une issue que la box ne donne pas (hors rail) : lu par le `gh` du poste, à l'adresse que
 // la box a rendue pour ce ticket — jamais une adresse venue de la vue.
