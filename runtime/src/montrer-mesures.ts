@@ -1,24 +1,26 @@
 // Le relevé des mesures, en lecture seule :
-//   npm --prefix runtime run mesures                 par tranches de 10 merges
-//   npm --prefix runtime run mesures -- --par <n>    par tranches de <n> merges
+//   npm --prefix runtime run measures                 par tranches de 10 merges
+//   npm --prefix runtime run measures -- --by <n>     par tranches de <n> merges
+// L'ancienne option `--par` répond encore, en disant la nouvelle (`commandes.ts`).
 // La commande n'écrit jamais, et répond pendant que le runtime tourne.
+import { enAnglais } from "./commandes.ts";
 import { ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { decrireReleve, PAR_DEFAUT } from "./mesures.ts";
 import { livraisonsMergees, seuilsEnVigueur } from "./projections/mesures.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run mesures -- [--par <nombre de merges>]";
+const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run measures -- [--by <nombre de merges>]";
 
 function echouer(code: number, message: string): never {
   console.error(`brigade : ${message}`);
   process.exit(code);
 }
 
-const args = process.argv.slice(2);
+const args = enAnglais("measures", process.argv.slice(2), (ligne) => console.error(ligne));
 const repertoireEtat = process.env.BRIGADE_STATE_DIR;
 if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
 const [option, taille] = args;
-if (args.length !== 0 && (args.length !== 2 || option !== "--par" || taille === undefined || !/^[1-9][0-9]*$/.test(taille))) echouer(2, USAGE);
+if (args.length !== 0 && (args.length !== 2 || option !== "--by" || taille === undefined || !/^[1-9][0-9]*$/.test(taille))) echouer(2, USAGE);
 const par = taille === undefined ? PAR_DEFAUT : Number(taille);
 
 let journal;

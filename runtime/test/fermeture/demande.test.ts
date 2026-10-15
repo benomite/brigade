@@ -49,7 +49,7 @@ test("une demande qui attend se lit dans la file : depuis quand, et ce qui la re
   assert.match(bloc, /^attend {5}1 décision attend le chef depuis 1 min\n/);
   assert.match(
     bloc,
-    /\n {2}fermeture {2}depuis 1 min {2}passe de fermeture demandée le \d{4}-\d\d-\d\dT[\d:.]+Z, elle attend — condition d'exécution non remplie : 1 cook en vol pour un seuil de 1 — la passe part quand il y en a moins que le seuil, ou quand le rail est vide \(il porte 1 ticket non servi\) ; elle part seule, une fois, dès que rien ne la retient, sans que personne la relance — pour y renoncer : `brigade <projet> fermeture annuler`\n/,
+    /\n {2}fermeture {2}depuis 1 min {2}passe de fermeture demandée le \d{4}-\d\d-\d\dT[\d:.]+Z, elle attend — condition d'exécution non remplie : 1 cook en vol pour un seuil de 1 — la passe part quand il y en a moins que le seuil, ou quand le rail est vide \(il porte 1 ticket non servi\) ; elle part seule, une fois, dès que rien ne la retient, sans que personne la relance — pour y renoncer : `brigade <projet> closing cancel`\n/,
   );
 
   // Et là où le chef observe.
@@ -129,7 +129,7 @@ test("une demande qui attend depuis deux heures est dite sans issue — une fois
   heure.avancer(60_000);
   await jusqua(() => types().includes("closing.stalled"));
   assert.deepEqual(dernier("closing.stalled"), { requestedAt: "2026-10-08T10:00:00.000Z", reason: "cooks", observed: 1, limit: 1, detail: "0" });
-  const dit = /PASSE DE FERMETURE SANS ISSUE : demandée le 2026-10-08T10:00:00\.000Z, elle attend depuis plus de 2 h — condition d'exécution non remplie : 1 cook en vol pour un seuil de 1 .* ; le rail ne se vide pas seul — à trancher : relever le seuil \(`brigade <projet> station closer-cooks <N>`\), éteindre le manager le temps que le rail se vide \(`brigade <projet> manager eteindre`\), ou y renoncer : `brigade <projet> fermeture annuler`/;
+  const dit = /PASSE DE FERMETURE SANS ISSUE : demandée le 2026-10-08T10:00:00\.000Z, elle attend depuis plus de 2 h — condition d'exécution non remplie : 1 cook en vol pour un seuil de 1 .* ; le rail ne se vide pas seul — à trancher : relever le seuil \(`brigade <projet> station closer-cooks <N>`\), éteindre le manager le temps que le rail se vide \(`brigade <projet> manager off`\), ou y renoncer : `brigade <projet> closing cancel`/;
   assert.match(avertissements.join("\n"), dit);
   assert.match(attend(cuisine), dit);
 

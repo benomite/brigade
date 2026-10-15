@@ -74,7 +74,7 @@ describe("la cloison vue par le chef", { concurrency: 8 }, () => {
     const compte = join(repertoireTemporaire(t), "compte");
     mkdirSync(join(compte, ".claude"), { recursive: true });
     writeFileSync(join(compte, ".claude/.credentials.json"), "{}");
-    const { code, sortie } = await commande(["eprouver", "2"], {
+    const { code, sortie } = await commande(["probe", "2"], {
       BRIGADE_REPO_DIR: join(repertoire, "depot"),
       BRIGADE_SANDBOX_BIN: FAUX_BWRAP,
       BRIGADE_SANDBOX_HIDDEN: repertoire,
@@ -93,11 +93,11 @@ describe("la cloison vue par le chef", { concurrency: 8 }, () => {
 
   test("éprouver sans cloison posée le dit, et une cloison mal posée est refusée avec son motif", async (t) => {
     const { repertoire, commande } = projet(t);
-    const sans = await commande(["eprouver"], { BRIGADE_REPO_DIR: join(repertoire, "depot") });
+    const sans = await commande(["probe"], { BRIGADE_REPO_DIR: join(repertoire, "depot") });
     assert.equal(sans.code, 1);
     assert.match(sans.sortie, /rien à éprouver — aucune \(BRIGADE_SANDBOX_BIN n'est pas défini\)/);
 
-    const malPosee = await commande(["eprouver"], { BRIGADE_REPO_DIR: join(repertoire, "depot"), BRIGADE_SANDBOX_BIN: FAUX_BWRAP, HOME: "/home/brigade" });
+    const malPosee = await commande(["probe"], { BRIGADE_REPO_DIR: join(repertoire, "depot"), BRIGADE_SANDBOX_BIN: FAUX_BWRAP, HOME: "/home/brigade" });
     assert.equal(malPosee.code, 2);
     assert.match(malPosee.sortie, /la cloison ne masquerait rien/);
   });

@@ -87,7 +87,7 @@ test("une interruption par redémarrage n'est pas un échec", (t) => {
   assert.equal(etatDesGardeFous(base).failures, 0);
 });
 
-test("le disjoncteur ouvert et le « stop » tiennent jusqu'à « reprendre », qui remet tout à zéro", (t) => {
+test("le disjoncteur ouvert et le « stop » tiennent jusqu'à « resume », qui remet tout à zéro", (t) => {
   const { base, noter, lancer, finir } = cuisine(t);
   lancer("a", 7);
   finir("a", 7, "failed");
@@ -105,7 +105,7 @@ test("le disjoncteur ouvert et le « stop » tiennent jusqu'à « reprendre », 
   assert.deepEqual([etat.failures, etat.breakerOpenedAt, etat.stoppedAt], [0, null, null]);
 });
 
-test("« reprendre » ne touche pas aux réglages", (t) => {
+test("« resume » ne touche pas aux réglages", (t) => {
   const { base, noter } = cuisine(t);
   noter({ type: "guard.configured", payload: { limits: PLAFONDS, breakerThreshold: 3 } });
   noter({ type: "kitchen.resumed", payload: {} }, null, "chef");
@@ -180,7 +180,7 @@ test("à plusieurs cooks, « d'affilée » se compte dans l'ordre des lancements
   assert.equal(echecs(), 1);
 });
 
-test("après « reprendre », seuls comptent les échecs jugés depuis", (t) => {
+test("après « resume », seuls comptent les échecs jugés depuis", (t) => {
   const { base, noter, lancer, finir } = cuisine(t);
   lancer("a", 7);
   lancer("b", 7);

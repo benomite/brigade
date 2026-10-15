@@ -1,11 +1,14 @@
 // Les garde-fous vus et commandés par le chef, depuis son propre process :
-//   npm --prefix runtime run garde-fous                 l'état : plafonds, cooks, disjoncteur, derniers arrêts
-//   npm --prefix runtime run garde-fous -- stop         arrête tous les cooks ; plus aucun n'est lancé
-//   npm --prefix runtime run garde-fous -- reprendre    rouvre la cuisine et referme le disjoncteur
+//   npm --prefix runtime run guardrails              l'état : plafonds, cooks, disjoncteur, derniers arrêts
+//   npm --prefix runtime run guardrails -- stop      arrête tous les cooks ; plus aucun n'est lancé
+//   npm --prefix runtime run guardrails -- resume    rouvre la cuisine et referme le disjoncteur
+// Les anciens mots (`garde-fous`, `reprendre`) répondent encore, en disant le
+// nouveau (`commandes.ts`).
 // Une commande s'écrit dans le journal ; le runtime qui tourne la voit dans la
 // seconde.
 import { existsSync } from "node:fs";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
+import { enAnglais } from "./commandes.ts";
 import type { Plafonds } from "./evenements/garde-fous.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
@@ -14,11 +17,12 @@ import { alerteDeSession } from "./projections/renouvellement.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import { stationsDeconnectees } from "./projections/stations.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run garde-fous -- [stop | reprendre]";
+const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run guardrails -- [stop | resume]";
 const AUTEUR = "chef";
 const ARRETS_MONTRES = 10;
 
-export function principal({ args, env, dire, redire }: Appel): void {
+export function principal({ args: tapes, env, dire, redire }: Appel): void {
+  const args = enAnglais("guardrails", tapes, redire);
   function echouer(code: number, message: string): never {
     redire(`brigade : ${message}`);
     throw new Sortie(code);
@@ -65,12 +69,12 @@ export function principal({ args, env, dire, redire }: Appel): void {
     const { base } = journal;
     const etat = etatDesGardeFous(base);
     ligne("plafonds par ticket", etat.limits ? decrirePlafonds(etat.limits) : "inconnus — le runtime n'a pas encore démarré avec ses garde-fous");
-    ligne("cuisine", etat.stoppedAt === null ? "ouverte" : `ARRÊTÉE par le chef le ${etat.stoppedAt} — « reprendre » pour relancer`);
+    ligne("cuisine", etat.stoppedAt === null ? "ouverte" : `ARRÊTÉE par le chef le ${etat.stoppedAt} — « resume » pour relancer`);
     ligne(
       "disjoncteur",
       etat.breakerOpenedAt === null
         ? `fermé — ${pluriel(etat.failures, "échec")} d'affilée, ouverture à ${etat.breakerThreshold ?? "?"}`
-        : `OUVERT depuis le ${etat.breakerOpenedAt} après ${pluriel(etat.failures, "échec")} d'affilée — plus aucun cook n'est lancé ; « reprendre » pour le refermer`,
+        : `OUVERT depuis le ${etat.breakerOpenedAt} après ${pluriel(etat.failures, "échec")} d'affilée — plus aucun cook n'est lancé ; « resume » pour le refermer`,
     );
     const cooks = cooksEnCours(base);
     ligne("cooks en cours", cooks.length === 0 ? "aucun" : String(cooks.length));
@@ -83,7 +87,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
 
   // Écrit la commande du chef si elle change quelque chose, et dit ce qu'il en
   // est. Vérifier et écrire tiennent dans une seule transaction.
-  function commander(journal: Journal, commande: "stop" | "reprendre"): string {
+  function commander(journal: Journal, commande: "stop" | "resume"): string {
     const { base } = journal;
     return base.transaction(() => {
       const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
@@ -96,9 +100,9 @@ export function principal({ args, env, dire, redire }: Appel): void {
       if (commande === "stop") {
         if (etat.stoppedAt !== null) return `cuisine déjà arrêtée depuis le ${etat.stoppedAt}`;
         noter("kitchen.stopped");
-        return `cuisine arrêtée : les cooks en cours sont arrêtés dans la seconde, plus aucun n'est lancé avant « reprendre »${absent}`;
+        return `cuisine arrêtée : les cooks en cours sont arrêtés dans la seconde, plus aucun n'est lancé avant « resume »${absent}`;
       }
-      // « reprendre » vaut aussi pour une station dont la connexion Max avait
+      // « resume » vaut aussi pour une station dont la connexion Max avait
       // expiré : le chef dit qu'il l'a refaite.
       const deconnectees = stationsDeconnectees(base);
       // Et pour une session Max annoncée près de son échéance, ou en échec de
@@ -122,7 +126,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
   const repertoireEtat = env.BRIGADE_STATE_DIR;
   if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
   const [commande] = args;
-  if (args.length > 1 || (commande !== undefined && commande !== "stop" && commande !== "reprendre")) echouer(2, USAGE);
+  if (args.length > 1 || (commande !== undefined && commande !== "stop" && commande !== "resume")) echouer(2, USAGE);
   // Une commande ouvre le journal en écriture : sans ce contrôle, elle en
   // créerait un là où il n'y en a pas.
   if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `aucun journal dans ${repertoireEtat}`);

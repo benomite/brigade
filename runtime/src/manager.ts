@@ -446,7 +446,7 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     }
     if (comment === "disconnected") {
       noterDesStations((station) => ({ type: "station.disconnected", payload: { station, reason: "authentication_failed", run } }));
-      avertir(`brigade : connexion Max absente ou expirée, vue par un ${sujet.nom} du manager — \`claude /login\` sous le compte du service, puis « reprendre »`);
+      avertir(`brigade : connexion Max absente ou expirée, vue par un ${sujet.nom} du manager — \`claude /login\` sous le compte du service, puis « resume »`);
       return null;
     }
     // Le modèle a refusé de répondre. Ce n'est pas une panne : la demande

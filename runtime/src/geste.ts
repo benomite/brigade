@@ -7,7 +7,7 @@
 // transmet à toute commande) ; sans lui, `<projet>` reste à remplir.
 export const nomDuProjet = (env: NodeJS.ProcessEnv = process.env): string => env.BRIGADE_PROJECT || "<projet>";
 
-// `geste("garde-fous reprendre")` → `brigade espace garde-fous reprendre`.
+// `geste("guardrails resume")` → `brigade espace guardrails resume`.
 // Pas de `--` : le geste de box en passe un lui-même à npm, et retire celui qu'on
 // lui donne.
 export const geste = (commande: string, env?: NodeJS.ProcessEnv): string => `brigade ${nomDuProjet(env)} ${commande}`;

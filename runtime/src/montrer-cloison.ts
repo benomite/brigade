@@ -1,10 +1,12 @@
 // La cloison du projet, vue et éprouvée par le chef, depuis son propre process :
-//   npm --prefix runtime run cloison                        ce qui est masqué, ce que le réseau laisse passer, ce qu'il a refusé et pourquoi
-//   npm --prefix runtime run cloison -- eprouver [<essais>]  lance de vraies sondes dans la cloison, et mesure ce qu'elle coûte par cook
+//   npm --prefix runtime run partition                        ce qui est masqué, ce que le réseau laisse passer, ce qu'il a refusé et pourquoi
+//   npm --prefix runtime run partition -- probe [<essais>]     lance de vraies sondes dans la cloison, et mesure ce qu'elle coûte par cook
+// L'ancien mot `eprouver` répond encore, en disant le nouveau (`commandes.ts`).
 // La première lit le journal : aucune configuration à ouvrir. La seconde lit
 // l'environnement du service, comme le runtime, et ne lance aucun cook.
 import { existsSync } from "node:fs";
 import { geste } from "./geste.ts";
+import { enAnglais } from "./commandes.ts";
 import { configCloison, direFichiers, direReseau } from "./cloison.ts";
 import { eprouver } from "./eprouver.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
@@ -13,7 +15,7 @@ import { AUTRES_HOTES } from "./porte.ts";
 import { DECLARATION_RESEAU, direRegle, POURQUOI, reglesDuProjet } from "./reseau.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run cloison -- [eprouver [<essais>]]";
+const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run partition -- [probe [<essais>]]";
 const REFUS_MONTRES = 10;
 const ESSAIS_PAR_DEFAUT = 20;
 // Le parallélisme que le jalon vise (#98) : le coût d'un cook s'y multiplie.
@@ -84,15 +86,15 @@ async function jouerLesSondes(essais: number): Promise<number> {
     }
   }
   const manques = sondes.filter((sonde) => sonde.tient === false).length;
-  console.log(manques === 0 ? `\nbrigade : la cloison tient ce qu'elle annonce — le filtre du réseau, lui, se lit au démarrage du runtime (\`${geste("cloison")}\`)` : `\nbrigade : ${manques} sonde${manques > 1 ? "s" : ""} en échec : la cloison ne tient pas ce qu'elle annonce`);
+  console.log(manques === 0 ? `\nbrigade : la cloison tient ce qu'elle annonce — le filtre du réseau, lui, se lit au démarrage du runtime (\`${geste("partition")}\`)` : `\nbrigade : ${manques} sonde${manques > 1 ? "s" : ""} en échec : la cloison ne tient pas ce qu'elle annonce`);
   return manques === 0 ? 0 : 1;
 }
 
-const args = process.argv.slice(2);
+const args = enAnglais("partition", process.argv.slice(2), (ligne) => console.error(ligne));
 const repertoireEtat = process.env.BRIGADE_STATE_DIR;
 if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
 
-if (args[0] === "eprouver" && args.length <= 2) {
+if (args[0] === "probe" && args.length <= 2) {
   const essais = args[1] === undefined ? ESSAIS_PAR_DEFAUT : Number(args[1]);
   if (!Number.isSafeInteger(essais) || essais < 1) echouer(2, USAGE);
   try {

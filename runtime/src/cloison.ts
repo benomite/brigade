@@ -278,7 +278,7 @@ export function envelopper(cloison: Cloison | null | undefined, lancement: Lance
 const AUTEUR = "runtime";
 
 // Écrit l'état de la cloison au journal s'il a changé : c'est là que le chef
-// le lit (`npm run cloison`), sans variable ni fichier d'unité.
+// le lit (`npm run partition`), sans variable ni fichier d'unité.
 export function annoncerCloison(runtime: Runtime, etat: EtatDeCloison): void {
   const { journal, projet } = runtime;
   const noter = (fait: Fait) => journal.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
@@ -288,7 +288,7 @@ export function annoncerCloison(runtime: Runtime, etat: EtatDeCloison): void {
   });
 }
 
-// Ce que le runtime dit de sa cloison au démarrage, et que `npm run cloison`
+// Ce que le runtime dit de sa cloison au démarrage, et que `npm run partition`
 // répète : sans elle, les projets se voient — c'est un choix, il se lit.
 export function direFichiers(sandbox: EtatDeCloison["sandbox"]): string {
   return sandbox

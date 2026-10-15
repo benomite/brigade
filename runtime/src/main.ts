@@ -206,7 +206,7 @@ console.log(
     : "brigade : version — non comparée à une origine : ce runtime ne tourne pas sur une version posée par la bascule (`deploy/brigade-bascule`)",
 );
 // La cloison se dit, présente ou non : sans elle, les projets se voient, et
-// c'est un choix qui se lit — ici, et au journal pour `npm run cloison`.
+// c'est un choix qui se lit — ici, et au journal pour `npm run partition`.
 const annoncee = socle;
 const direCloison = (enforced: boolean | null) => {
   const etat = {

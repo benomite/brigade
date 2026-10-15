@@ -167,7 +167,7 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
     base.tete = "base-2";
     await jusqua(() => reparationDeLaBase(journal.base)?.etat === "echouee");
     const [ligne] = ligneDeLaBase();
-    assert.match(ligne ?? "", /^ {2}base {2}depuis .+? {2}BASE ROUGE sur base-2, en échec : tests du projet en échec — sa réparation #501 mergée, ne l'a pas remise au vert — à réparer : corriger la base à la main ; .*`brigade <projet> base rejouer`$/);
+    assert.match(ligne ?? "", /^ {2}base {2}depuis .+? {2}BASE ROUGE sur base-2, en échec : tests du projet en échec — sa réparation #501 mergée, ne l'a pas remise au vert — à réparer : corriger la base à la main ; .*`brigade <projet> base replay`$/);
     await laisserTourner();
     assert.deepEqual([lance(18), gh.creations], [false, [501]]);
 

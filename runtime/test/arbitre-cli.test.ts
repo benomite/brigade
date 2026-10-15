@@ -74,20 +74,20 @@ test("le chef règle un poids et retire un projet : l'arbitre qui tourne le lit 
   ouvert.dire("brigade", mot(0));
   const part = (nom: string) => ouvert.etat().projets.find((projet) => projet.projet === nom)?.part;
 
-  assert.deepEqual(await commande("poids", "thermigo", "3"), { code: 0, sortie: "thermigo : poids 3 (était 1) ; l'arbitre le lit à sa prochaine décision\n" });
+  assert.deepEqual(await commande("weight", "thermigo", "3"), { code: 0, sortie: "thermigo : poids 3 (était 1) ; l'arbitre le lit à sa prochaine décision\n" });
   assert.deepEqual([part("thermigo"), part("brigade")], [6, 2]);
-  assert.deepEqual(await commande("poids", "espace", "2"), {
+  assert.deepEqual(await commande("weight", "espace", "2"), {
     code: 0,
     sortie: "espace : poids 2 — projet encore inconnu de l'arbitre : il n'aura de part qu'une fois son runtime entendu\n",
   });
   assert.equal(part("espace"), null);
 
-  assert.deepEqual(await commande("retirer", "brigade"), {
+  assert.deepEqual(await commande("remove", "brigade"), {
     code: 0,
     sortie: "brigade : retiré — sa part n'est plus réservée ; si son runtime tourne, il se réinscrit au poids 1 dès qu'il reparle\n",
   });
   assert.deepEqual(ouvert.etat().projets.map((projet) => projet.projet), ["espace", "thermigo"]);
-  assert.deepEqual(await commande("retirer", "brigade"), { code: 1, sortie: "brigade : brigade : projet inconnu de l'arbitre\n" });
+  assert.deepEqual(await commande("remove", "brigade"), { code: 1, sortie: "brigade : brigade : projet inconnu de l'arbitre\n" });
 });
 
 test("arbitre injoignable : la commande le dit, rappelle le mode dégradé, et montre les réglages qui restent lisibles", async (t) => {
@@ -109,7 +109,7 @@ test("arbitre injoignable : la commande le dit, rappelle le mode dégradé, et m
 
 test("ce que la commande ne comprend pas est refusé sans rien écrire", async (t) => {
   const { repertoire, commande } = await servi(t);
-  for (const args of [["poids", "thermigo", "0"], ["poids", "Pas Un Nom", "2"], ["peser", "thermigo", "2"]]) {
+  for (const args of [["weight", "thermigo", "0"], ["weight", "Pas Un Nom", "2"], ["peser", "thermigo", "2"]]) {
     const { code, sortie } = await commande(...args);
     assert.equal(code, 2, args.join(" "));
     assert.match(sortie, /usage : BRIGADE_ARBITER_PORT=/);
@@ -123,9 +123,9 @@ test("ce que la commande ne comprend pas est refusé sans rien écrire", async (
     return { code: await cli.fin, sortie: cli.sortie() };
   };
   assert.match((await sans({})).sortie, /BRIGADE_ARBITER_PORT n'est pas défini/);
-  assert.match((await sans({}, "poids", "thermigo", "2")).sortie, /BRIGADE_ARBITER_STATE_DIR n'est pas défini/);
+  assert.match((await sans({}, "weight", "thermigo", "2")).sortie, /BRIGADE_ARBITER_STATE_DIR n'est pas défini/);
   const vide = repertoireTemporaire(t);
-  assert.deepEqual(await sans({ BRIGADE_ARBITER_STATE_DIR: vide }, "poids", "thermigo", "2"), {
+  assert.deepEqual(await sans({ BRIGADE_ARBITER_STATE_DIR: vide }, "weight", "thermigo", "2"), {
     code: 1,
     sortie: `brigade : aucun arbitre n'a tourné dans ${vide} : pas de réglages à lire\n`,
   });

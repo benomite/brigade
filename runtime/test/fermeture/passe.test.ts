@@ -114,7 +114,7 @@ test("demandée avec trop de cooks en vol, la passe attend et dit la condition q
     /^brigade : passe de fermeture demandée — elle attend : condition d'exécution non remplie : 2 cooks en vol pour un seuil de 2 — la passe part quand il y en a moins que le seuil, ou quand le rail est vide \(il porte 2 tickets non servis\)\n/,
   );
   assert.match(demandee.sortie, /le runtime la fait partir seul, une fois, dès que rien ne la retient — rien à guetter, rien à relancer/);
-  assert.match(demandee.sortie, /pour y renoncer avant qu'elle parte : `brigade <projet> fermeture annuler`/);
+  assert.match(demandee.sortie, /pour y renoncer avant qu'elle parte : `brigade <projet> closing cancel`/);
   // Le runtime l'a relue à dix ticks : elle attend, rien n'est refusé, rien n'est parti.
   const vus = types().filter((type) => type === "runtime.ticked").length;
   await jusqua(() => types().filter((type) => type === "runtime.ticked").length >= vus + 10);
@@ -342,7 +342,7 @@ test("sans rien à ranger, sans closer réglé ou sans runtime qui tourne, la co
 
   const eteinte = cuisineFermee(t);
   eteinte.runtime.arreter("essai");
-  const seule = appeler(principal, ["ecrire"], { BRIGADE_STATE_DIR: eteinte.repertoire });
+  const seule = appeler(principal, ["write"], { BRIGADE_STATE_DIR: eteinte.repertoire });
   assert.equal(await seule.fin, 1);
   assert.match(seule.sortie(), /aucun runtime ne tourne sur ce projet : la passe n'est pas demandée/);
   const relu = ouvrirJournal(eteinte.repertoire, { lectureSeule: true });

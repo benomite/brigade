@@ -70,7 +70,7 @@ export function brancherDerive(runtime: Runtime, seuils: Seuils | (() => Seuils)
         for (const franchi of courants) {
           if (signales.includes(franchi.measure)) continue;
           noter({ type: "drift.crossed", payload: franchi });
-          avertir(`brigade : dérive du projet « ${projet} » — ${direJauge(franchi)} — voir : ${geste("mesures")}`);
+          avertir(`brigade : dérive du projet « ${projet} » — ${direJauge(franchi)} — voir : ${geste("measures")}`);
         }
         for (const measure of signales) {
           if (!courants.some((franchi) => franchi.measure === measure)) noter({ type: "drift.cleared", payload: { measure } });

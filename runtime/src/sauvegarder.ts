@@ -1,11 +1,11 @@
-// Sauvegarde l'état du projet : `npm --prefix runtime run sauvegarder`, ou le
+// Sauvegarde l'état du projet : `npm --prefix runtime run backup`, ou le
 // timer systemd (brigade-sauvegarde@<projet>.timer). Se joue pendant que le
 // runtime tourne. La destination vient de l'environnement, sans défaut : une
 // sauvegarde qui choisit seule où elle va finit sur le disque qu'elle devait
 // protéger.
 import { sauvegarder, SauvegardeRefusee } from "./sauvegarde.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> BRIGADE_BACKUP_DIR=<destination> npm --prefix runtime run sauvegarder";
+const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> BRIGADE_BACKUP_DIR=<destination> npm --prefix runtime run backup";
 const REFUS = 2;
 // Le nombre de sauvegardes datées gardées, sans BRIGADE_BACKUP_KEEP.
 const GARDEES = 14;

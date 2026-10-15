@@ -260,7 +260,7 @@ test("le chef lit les mesures dans le temps : une ligne par tranche, la pente, l
     "",
     "seuils     tests 622 pour un seuil de 500 — FRANCHI",
     "           suite 6,2 s pour un seuil de 10 s",
-    "fermeture  proposée — tests 622 pour un seuil de 500 · à lancer par toi : `brigade <projet> fermeture` observe, rien ne part seul",
+    "fermeture  proposée — tests 622 pour un seuil de 500 · à lancer par toi : `brigade <projet> closing` observe, rien ne part seul",
   ]);
 });
 
@@ -334,8 +334,8 @@ test("la commande montre le relevé sans rien écrire, et refuse un argument qu'
   livrer(2, { tests: 287 });
   const avant = journal.dernierSeq();
 
-  const commande = lancer(t, MESURES, ["--par", "1"], { BRIGADE_STATE_DIR: repertoire });
-  const refus = lancer(t, MESURES, ["--par", "zéro"], { BRIGADE_STATE_DIR: repertoire });
+  const commande = lancer(t, MESURES, ["--by", "1"], { BRIGADE_STATE_DIR: repertoire });
+  const refus = lancer(t, MESURES, ["--by", "zéro"], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
   assert.match(commande.sortie(), /^relevé {5}brigade — 2 merges au journal, par tranches de 1\n/);
@@ -448,7 +448,7 @@ test("un seuil de coût franchi est dans le bloc dérive de status, et ne change
   noter({ type: "drift.configured", payload: { limits: { ...SANS_SEUIL, ticketTokens: 1500, lostTokens: 500 } } });
   const franchi = await lire();
   assert.deepEqual(franchi.lignes.filter(estDerive), [
-    "dérive     tokens du ticket le plus cher des 10 derniers merges 2\u202f000 pour un seuil de 1\u202f500 · tokens perdus sur les 10 derniers merges 1\u202f000 pour un seuil de 500 — `brigade <projet> mesures`",
+    "dérive     tokens du ticket le plus cher des 10 derniers merges 2\u202f000 pour un seuil de 1\u202f500 · tokens perdus sur les 10 derniers merges 1\u202f000 pour un seuil de 500 — `brigade <projet> measures`",
   ]);
   // Seule la ligne de dérive en diffère, hors les derniers événements, où le
   // seuil déclaré s'écrit : le code de sortie, la cuisine, le rail restent.

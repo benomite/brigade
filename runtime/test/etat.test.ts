@@ -500,5 +500,5 @@ test("une mesure qui a franchi un seuil déclaré est signalée dans l'état, sa
 
   noter({ type: "merge.done", payload: { pr: "https://exemple.test/pull/17", sha: "sha-17", by: "pass", reconciled: false } }, 17, "pass");
 
-  assert.deepEqual(bloc(), ["dérive     tests 622 pour un seuil de 500 · suite 6,2 s pour un seuil de 5 s — `brigade <projet> mesures`"]);
+  assert.deepEqual(bloc(), ["dérive     tests 622 pour un seuil de 500 · suite 6,2 s pour un seuil de 5 s — `brigade <projet> measures`"]);
 });

@@ -116,7 +116,7 @@ test("--derniers ne rend que la fin du journal, dans l'ordre, sans compter les b
   runtime.journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.ticked", payload: { intervalMs: 60_000 } });
   runtime.journal.ajouter({ project: "brigade", ticket: 8, author: "pass", ...faitInconnu("pass.verdict", { vert: false }) });
 
-  const commande = appeler(relire, ["--derniers", "2"], { BRIGADE_STATE_DIR: repertoire });
+  const commande = appeler(relire, ["--last", "2"], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
   const lignes = commande.sortie().trimEnd().split("\n");
@@ -130,18 +130,18 @@ test("--derniers sur un journal plus court rend tout ce qu'il a, et se combine a
   const runtime = cuisine(repertoire);
   t.after(() => runtime.arreter("test"));
 
-  const tout = appeler(relire, ["--derniers", "100"], { BRIGADE_STATE_DIR: repertoire });
+  const tout = appeler(relire, ["--last", "100"], { BRIGADE_STATE_DIR: repertoire });
   assert.equal(await tout.fin, 0);
   assert.equal(tout.sortie().trimEnd().split("\n").length, 5);
 
-  const ticket = appeler(relire, ["7", "--derniers", "1"], { BRIGADE_STATE_DIR: repertoire });
+  const ticket = appeler(relire, ["7", "--last", "1"], { BRIGADE_STATE_DIR: repertoire });
   assert.equal(await ticket.fin, 0);
   assert.match(ticket.sortie().trimEnd(), /^5  .*#7  pass\.verdict/);
 });
 
 test("--derniers sans nombre valide est un usage", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  for (const args of [["--derniers"], ["--derniers", "x"], ["--derniers", "0"], ["--derniers", "99999999999999999999"]]) {
+  for (const args of [["--last"], ["--last", "x"], ["--last", "0"], ["--last", "99999999999999999999"]]) {
     const commande = appeler(relire, args, { BRIGADE_STATE_DIR: repertoire });
     assert.equal(await commande.fin, 2);
   }

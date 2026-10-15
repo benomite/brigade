@@ -25,7 +25,7 @@
 // L'essai seul ne part que d'une version posée par la bascule : ailleurs, rien
 // ne dit ce qui est en service, et il n'y a pas de box à mettre à jour.
 //
-// Le chef peut encore la demander (`run mise-en-service`, qui n'écrit qu'au
+// Le chef peut encore la demander (`run deploy`, qui n'écrit qu'au
 // journal) — pour réessayer une version ratée, par exemple. Une demande part
 // au réveil suivant, sans attendre : aucun cook n'est retenu, avant ni
 // pendant. Un cook de station survit au redémarrage, et le suivant le reprend.

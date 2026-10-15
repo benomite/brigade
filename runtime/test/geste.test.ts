@@ -110,7 +110,7 @@ function box(t: TestContext, environnement?: (chemin: string) => string): Box {
     `printf '%s\\n' "$@" > "${temoin}/args"; env > "${temoin}/env"; pwd -P > "${temoin}/cwd"`,
     `echo "sortie de la commande"; exit "\${FAUX_NPM_CODE:-0}"`,
   ]);
-  writeFileSync(join(installation, "package.json"), JSON.stringify({ scripts: { test: "node --test", typecheck: "tsc --noEmit", start: "node src/main.ts", status: "node src/status.ts", grant: "node src/grant-cli.ts", "plat-du-jour": "node src/plat-du-jour.ts", ailleurs: "node src/../../ailleurs.ts" } }));
+  writeFileSync(join(installation, "package.json"), JSON.stringify({ scripts: { test: "node --test", typecheck: "tsc --noEmit", start: "node src/main.ts", status: "node src/status.ts", grant: "node src/grant-cli.ts", help: "node src/aide.ts", "plat-du-jour": "node src/plat-du-jour.ts", ailleurs: "node src/../../ailleurs.ts", "plat-d-hier": "node src/ancien-nom.ts" } }));
 
   const chemin = [binUnite, dirname(process.execPath), "/usr/bin", "/bin"].join(":");
   writeFileSync(join(unites, "gabarit/User"), "brigade\n");
@@ -258,7 +258,7 @@ test("une commande qui n'est pas du runtime est refusée, en nommant celles de l
   for (const commande of ["journal", "status; true", "--version", "toString", "ailleurs"]) {
     const fin = b.geste(["calculus", commande]);
     assert.equal(fin.code, PAS_DU_RUNTIME, commande);
-    assert.equal(fin.erreur, `brigade : « ${commande} » n'est pas une commande du runtime — celles de cette installation : status, grant, plat-du-jour\n`);
+    assert.equal(fin.erreur, `brigade : « ${commande} » n'est pas une commande du runtime — celles de cette installation : status, grant, help, plat-du-jour\n`);
     assert.equal(fin.sortie, "");
   }
   assert.equal(b.npm(), null);
@@ -270,9 +270,37 @@ test("sans projet ou sans commande, il dit comment il se lance", (t) => {
   for (const args of [[], ["calculus"]]) {
     const fin = b.geste(args);
     assert.equal(fin.code, USAGE);
-    assert.match(fin.erreur, /^usage : brigade <projet> <commande> \[arguments…\]/);
+    assert.match(fin.erreur, /^usage: brigade <project> <command> \[arguments…\]/);
   }
   assert.equal(b.npm(), null);
+});
+
+test("`--help` sans projet dit comment il se lance, en anglais, sur la sortie standard et en 0 ; avec un projet, c'est la commande `help` du runtime", (t) => {
+  const b = box(t);
+
+  for (const option of ["--help", "-h"]) {
+    const fin = b.geste([option]);
+    assert.equal(fin.code, 0, option);
+    assert.equal(fin.sortie, "usage: brigade <project> <command> [arguments…]\n       brigade <project> help    lists the commands\n", option);
+    assert.equal(fin.erreur, "", option);
+  }
+  assert.equal(b.npm(), null);
+
+  for (const option of ["--help", "-h", "help"]) {
+    assert.equal(b.geste(["calculus", option]).code, 0, option);
+    assert.deepEqual(b.npm()?.args.slice(3), ["run", "help", "--"], option);
+  }
+});
+
+test("un ancien nom de commande — un script qui lance `ancien-nom.ts` — est lancé comme les autres, mais le refus d'une commande inconnue ne le nomme pas", (t) => {
+  const b = box(t);
+
+  assert.equal(b.geste(["calculus", "plat-d-hier", "--vite"]).code, 0);
+  assert.deepEqual(b.npm()?.args.slice(3), ["run", "plat-d-hier", "--", "--vite"]);
+
+  const fin = b.geste(["calculus", "plat-davant"]);
+  assert.equal(fin.code, PAS_DU_RUNTIME);
+  assert.doesNotMatch(fin.erreur, /plat-d-hier/);
 });
 
 test("`test`, `typecheck` et `start` ne sont pas des commandes d'un projet : refusées comme les autres", (t) => {
@@ -281,7 +309,7 @@ test("`test`, `typecheck` et `start` ne sont pas des commandes d'un projet : ref
   for (const commande of ["test", "typecheck", "start"]) {
     const fin = b.geste(["calculus", commande, "/tmp/nimporte.ts"]);
     assert.equal(fin.code, PAS_DU_RUNTIME, commande);
-    assert.match(fin.erreur, /celles de cette installation : status, grant, plat-du-jour\n$/);
+    assert.match(fin.erreur, /celles de cette installation : status, grant, help, plat-du-jour\n$/);
   }
   assert.equal(b.npm(), null);
 });
@@ -293,7 +321,7 @@ test("dans le runtime de ce dépôt, seuls `test`, `typecheck` et `start` ne lan
 
   assert.deepEqual(refuses, ["test", "typecheck", "start"]);
   // La forme que l'app lit passe par le geste, comme les autres.
-  assert.equal(scripts.faits, "node src/faits.ts");
+  assert.equal(scripts.facts, "node src/faits.ts");
 });
 
 test("un `systemctl` qui échoue arrête le geste en le disant : ni projet inconnu, ni compte ou environnement supposés", (t) => {

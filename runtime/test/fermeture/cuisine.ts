@@ -177,12 +177,12 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
     relectures: () => lancementsDuFauxClaude(temoin).filter((lance) => lance.args.includes("--tools")),
     // Le geste du chef, depuis son propre process : `run fermeture -- ecrire`.
     async demander(): Promise<{ code: number; sortie: string }> {
-      const appel = appeler(principal, ["ecrire"], { BRIGADE_STATE_DIR: repertoire });
+      const appel = appeler(principal, ["write"], { BRIGADE_STATE_DIR: repertoire });
       return { code: await appel.fin, sortie: appel.sortie() };
     },
     // Le chef y renonce : `run fermeture -- annuler`.
     async annuler(): Promise<{ code: number; sortie: string }> {
-      const appel = appeler(principal, ["annuler"], { BRIGADE_STATE_DIR: repertoire });
+      const appel = appeler(principal, ["cancel"], { BRIGADE_STATE_DIR: repertoire });
       return { code: await appel.fin, sortie: appel.sortie() };
     },
     // La fin de la passe, une fois au journal.

@@ -147,7 +147,7 @@ type AttenteHorsTicket = { ticket: null; title: null; since: string } & (
 
 export type Attente = AttenteDeTicket | AttenteHorsTicket;
 
-export const ACCORDER_LE_GRANT = geste("grant activer merge");
+export const ACCORDER_LE_GRANT = geste("grant enable merge");
 
 // Les 86 que la station pose sans heure de retour, et ce qu'elle attend du chef
 // pour chacun. Les deux premiers reviennent en attente seuls, une fois corrigés.
@@ -448,7 +448,7 @@ function direAttente(attente: Attente): string {
       return "question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue";
     case "repris": {
       const attendait = attente.attendait === null ? "" : ` (il attendait ${attente.attendait.who} : « ${attente.attendait.what} »)`;
-      return `revenu de WAITING, repris par le chef${attendait} — à trancher : \`${geste(`attente arrive ${attente.ticket}`)}\` le renvoie en cuisine ; \`${geste(`attente poser ${attente.ticket} --quoi <ce qu'il attend> --de <qui>`)}\` le remet en attente ; ou retirer \`fire\``;
+      return `revenu de WAITING, repris par le chef${attendait} — à trancher : \`${geste(`waiting arrived ${attente.ticket}`)}\` le renvoie en cuisine ; \`${geste(`waiting set ${attente.ticket} --what <ce qu'il attend> --from <qui>`)}\` le remet en attente ; ou retirer \`fire\``;
     }
     case "fermeture":
       return direDemandeDeFermeture(attente.demande, attente.retenue);

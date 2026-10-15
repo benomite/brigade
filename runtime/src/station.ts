@@ -545,7 +545,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       noter(station, par?.station === station ? par.ticket : null, { type: "station.disconnected", payload: { station, reason: raison, run: par?.run ?? null } });
     }
     avertir(
-      `brigade : connexion Max ${desStations()} absente ou expirée (${raison}) — \`claude /login\` sous le compte du service, puis « reprendre »`,
+      `brigade : connexion Max ${desStations()} absente ou expirée (${raison}) — \`claude /login\` sous le compte du service, puis « resume »`,
     );
   };
 

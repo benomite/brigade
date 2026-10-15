@@ -1,15 +1,18 @@
 // Le manager vu et commandé par le chef, depuis son propre process :
 //   npm --prefix runtime run manager                l'interrupteur, les dernières décisions, ce qu'il a écarté, les épiques, et ses réactions aux échecs
-//   npm --prefix runtime run manager -- allumer     il juge les issues ouvertes, pose `fire` et le calibrage, découpe les épiques
-//   npm --prefix runtime run manager -- eteindre    il ne juge plus rien
-//   npm --prefix runtime run manager -- rendre <n°> il rejuge à neuf une issue qu'il avait écartée parce que le chef y avait retiré un de ses labels
+//   npm --prefix runtime run manager -- on          il juge les issues ouvertes, pose `fire` et le calibrage, découpe les épiques
+//   npm --prefix runtime run manager -- off         il ne juge plus rien
+//   npm --prefix runtime run manager -- return <n°> il rejuge à neuf une issue qu'il avait écartée parce que le chef y avait retiré un de ses labels
 //   npm --prefix runtime run manager -- backlog     ce qu'allumer engage : combien d'issues sont ouvertes sur le dépôt, et combien portent `blocked-on-human`
+// Les anciens mots (`allumer`, `eteindre`, `rendre`) répondent encore, en
+// disant le nouveau (`commandes.ts`).
 // Une commande s'écrit dans le journal ; le runtime qui tourne la voit à son
 // prochain réveil, une seconde au plus, sans redémarrage. `backlog` n'écrit
 // rien, nulle part : elle lit GitHub, et ne touche pas au journal.
 import { existsSync } from "node:fs";
 import { configRail } from "./alimenter.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
+import { enAnglais } from "./commandes.ts";
 import { commandeRendre, NOMS_DE_NATURE, type Ecart, type Nature } from "./evenements/manager.ts";
 import { ouvrirGitHub } from "./github.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
@@ -21,7 +24,7 @@ import { reactionsDuManager, type ReactionDeTicket } from "./projections/reactio
 import { sessionEnCours } from "./projections/sessions.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run manager -- [allumer | eteindre | rendre <n° d'issue> | backlog]";
+const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run manager -- [on | off | return <n° d'issue> | backlog]";
 const AUTEUR = "chef";
 const DECISIONS_MONTREES = 15;
 const ECARTEES_MONTREES = 10;
@@ -29,7 +32,8 @@ const EPIQUES_MONTREES = 10;
 const REACTIONS_MONTREES = 10;
 
 // Seule `backlog` attend quelque chose — GitHub : les autres rendent la main aussitôt.
-export function principal({ args, env, dire, redire }: Appel): void | Promise<void> {
+export function principal({ args: tapes, env, dire, redire }: Appel): void | Promise<void> {
+  const args = enAnglais("manager", tapes, redire);
   function echouer(code: number, message: string): never {
     redire(`brigade : ${message}`);
     throw new Sortie(code);
@@ -149,7 +153,7 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
 
   // Écrit la commande du chef si elle change quelque chose, et dit ce qu'il en
   // est. Vérifier et écrire tiennent dans une seule transaction.
-  function commander(journal: Journal, commande: "allumer" | "eteindre"): string {
+  function commander(journal: Journal, commande: "on" | "off"): string {
     const { base } = journal;
     return base.transaction(() => {
       const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
@@ -157,7 +161,7 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
       const etat = etatDuManager(base);
       const absent = sessionEnCours(base) ? "" : " (aucun runtime ne tourne : la commande vaudra à son prochain démarrage)";
 
-      if (commande === "allumer") {
+      if (commande === "on") {
         if (etat?.active) return `manager déjà allumé depuis le ${etat.since}`;
         journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "manager.enabled", payload: {} });
         return `manager allumé : il juge les issues ouvertes, pose \`fire\` et le calibrage sur celles qui sont exécutables, découpe les épiques en tickets, et dit pourquoi sur les autres — une issue \`blocked-on-human\` ou \`hors-cuisine\` n'est jamais jugée${absent}`;
@@ -231,8 +235,8 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
   const repertoireEtat = env.BRIGADE_STATE_DIR;
   if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
   const montre = args.length === 0;
-  const numero = commande === "rendre" && args.length === 2 && /^[1-9][0-9]*$/.test(args[1] ?? "") ? Number(args[1]) : null;
-  if (!montre && numero === null && (args.length !== 1 || (commande !== "allumer" && commande !== "eteindre"))) echouer(2, USAGE);
+  const numero = commande === "return" && args.length === 2 && /^[1-9][0-9]*$/.test(args[1] ?? "") ? Number(args[1]) : null;
+  if (!montre && numero === null && (args.length !== 1 || (commande !== "on" && commande !== "off"))) echouer(2, USAGE);
   // Une commande ouvre le journal en écriture : sans ce contrôle, elle en
   // créerait un là où il n'y en a pas.
   if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `aucun journal dans ${repertoireEtat}`);
@@ -244,7 +248,7 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
       const { fait, message } = rendre(journal, numero);
       dire(`brigade : ${message}`);
       if (!fait) throw new Sortie(1);
-    } else dire(`brigade : ${commander(journal, commande as "allumer" | "eteindre")}`);
+    } else dire(`brigade : ${commander(journal, commande as "on" | "off")}`);
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant le manager.

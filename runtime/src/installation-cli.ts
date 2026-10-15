@@ -2,7 +2,7 @@
 //   npm --prefix runtime run installation                               le projet est-il prêt ? tout ce qui manque, d'un coup
 //   npm --prefix runtime run installation -- labels                     crée sur le dépôt les labels du rail qui y manquent
 //   npm --prefix runtime run installation -- setup [<cooks>]            joue le setup à blanc, le mesure, dit s'il tient à <cooks> cooks
-//   npm --prefix runtime run installation -- desinstaller [--confirmer] retire le clone réservé et les worktrees
+//   npm --prefix runtime run installation -- uninstall [--confirm]      retire le clone réservé et les worktrees
 //   npm --prefix runtime run installation -- etapes [...]               les étapes de l'installation, leur état, l'étape courante (`etapes-cli.ts`)
 //   npm --prefix runtime run installation -- stations [...]             les stations que la machine fournit ; déclare celles que le chef choisit (`declarer-stations.ts`)
 //   npm --prefix runtime run installation -- protection [...]           la branche d'intégration sur GitHub ; la protège (`proteger-branche.ts`)
@@ -12,10 +12,12 @@
 // `protection` et `decisions` écrivent au journal, quand le chef y note une
 // étape, y déclare ses stations, protège sa branche ou pose ses décisions —
 // `installation` le lit, en lecture seule, pour la connexion Max. Le parcours
-// entier est dans docs/installer.md.
+// entier est dans docs/installer.md. Les anciens mots (`desinstaller`,
+// `--confirmer`) répondent encore, en disant le nouveau (`commandes.ts`).
 import { configRail } from "./alimenter.ts";
 import { geste } from "./geste.ts";
 import { Sortie } from "./appel.ts";
+import { enAnglais } from "./commandes.ts";
 import { principal as declarerStations } from "./declarer-stations.ts";
 import { nommerEtape, principal as etapes } from "./etapes-cli.ts";
 import { desinstaller, etapesAReprendre, InstallationRefusee, mesurerSetup, poserLabels, tenir, verifier, type Constat } from "./installation.ts";
@@ -25,7 +27,7 @@ import { principal as protegerBranche } from "./proteger-branche.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { configStation } from "./station.ts";
 
-const USAGE = "usage : <environnement du service> npm --prefix runtime run installation -- [labels | setup [<cooks>] | desinstaller [--confirmer] | etapes [--json | <étape> <état>] | stations [--json | <déclaration>] | protection [--json | poser] | decisions [--json | <décision> <valeur>…]]";
+const USAGE = "usage : <environnement du service> npm --prefix runtime run installation -- [labels | setup [<cooks>] | uninstall [--confirm] | etapes [--json | <étape> <état>] | stations [--json | <déclaration>] | protection [--json | poser] | decisions [--json | <décision> <valeur>…]]";
 const REFUS = 2;
 const MO = 1024 ** 2;
 
@@ -112,12 +114,12 @@ function retirer(confirme: boolean): number {
   const parts = [bilan.clone === null ? [] : [`le clone réservé ${bilan.clone}`], bilan.worktrees === 0 ? [] : [`${pluriel(bilan.worktrees, "worktree")} de cook`]].flat();
   const quoi = parts.join(" et ");
   if (bilan.perdus.length > 0) {
-    console.log(`brigade : le clone porte ce que l'origine n'a pas — \`--confirmer\` refusera tant qu'il en reste :`);
+    console.log(`brigade : le clone porte ce que l'origine n'a pas — \`--confirm\` refusera tant qu'il en reste :`);
     for (const perdu of bilan.perdus) console.log(`  ${perdu}`);
   }
   if (bilan.retire) console.log(`brigade : retiré — ${quoi}${bilan.clone === null ? " (le clone réservé n'y était déjà plus)" : ""}`);
   else if (parts.length === 0) console.log("brigade : rien à retirer — ni clone réservé, ni worktree");
-  else console.log(`brigade : rien n'est retiré — \`desinstaller --confirmer\` retirerait ${quoi}`);
+  else console.log(`brigade : rien n'est retiré — \`uninstall --confirm\` retirerait ${quoi}`);
   console.log(
     [
       "",
@@ -132,7 +134,7 @@ function retirer(confirme: boolean): number {
   return 0;
 }
 
-const [commande, ...reste] = process.argv.slice(2);
+const [commande, ...reste] = enAnglais("installation", process.argv.slice(2), (ligne) => console.error(ligne));
 try {
   if (commande === undefined) process.exitCode = await montrer();
   else if (commande === "labels" && reste.length === 0) process.exitCode = await labelliser();
@@ -141,7 +143,7 @@ try {
   else if (commande === "setup" && reste.length <= 1 && /^[1-9][0-9]*$/.test(reste[0] ?? "1")) {
     process.exitCode = await mesurer(Number(reste[0] ?? Math.max(1, configStation(env).stations.reduce((somme, station) => somme + station.cooks, 0))));
   }
-  else if (commande === "desinstaller" && (reste.length === 0 || (reste.length === 1 && reste[0] === "--confirmer"))) process.exitCode = retirer(reste.length === 1);
+  else if (commande === "uninstall" && (reste.length === 0 || (reste.length === 1 && reste[0] === "--confirm"))) process.exitCode = retirer(reste.length === 1);
   else if (commande === "etapes") await etapes({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });
   else if (commande === "stations") declarerStations({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });
   else if (commande === "protection") await protegerBranche({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });

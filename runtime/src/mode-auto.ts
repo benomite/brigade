@@ -44,11 +44,11 @@ export const SSH = "ssh -o BatchMode=yes -o ConnectTimeout=10 --";
 // Les commandes du runtime que le geste de la box lance et qui, sans argument,
 // ne font que lire : elles n'écrivent jamais au journal. `status` est la
 // lecture de la file ; les autres, l'état de brigade. Aucune ne prend
-// d'argument ici : `station -- cooks 3`, `base -- rejouer` ou `garde-fous --
+// d'argument ici : `station -- cooks 3`, `base -- replay` ou `guardrails --
 // stop` écrivent, et une règle qui les laisserait passer ne serait plus une
 // lecture.
 export const LECTURE_DE_LA_FILE = "status";
-export const LECTURES_DE_L_ETAT = ["rail", "journal", "pass", "station", "base", "installation", "garde-fous", "cloison", "mesures", "faits"] as const;
+export const LECTURES_DE_L_ETAT = ["rail", "log", "pass", "station", "base", "installation", "guardrails", "partition", "measures", "facts"] as const;
 
 // La doc de brigade sur la box : le clone de `/opt/brigade` (docs/installer.md,
 // « Préparer la box »), lue fichier par fichier. Un `grep` ne s'y autorise pas :

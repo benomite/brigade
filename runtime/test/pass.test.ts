@@ -263,7 +263,7 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual(journal.duTicket(18).at(-1)?.payload, { reason: "no-grant", expired: echeance });
     const dit = gh.commentaires.find(([ticket, corps]) => ticket === 18 && /non mergée/.test(corps))?.[1] ?? "";
     assert.match(dit, /verte, non mergée \(`no-grant`\)[\s\S]*Le grant `merge` s'est éteint seul le /);
-    assert.match(dit, new RegExp(`${echeance}[\\s\\S]*activer merge`));
+    assert.match(dit, new RegExp(`${echeance}[\\s\\S]*enable merge`));
   });
 
   test("un grant échu pendant que le runtime était arrêté est éteint au redémarrage, pas réveillé : l'extinction s'écrit, datée de l'échéance, et rien n'est mergé", async (t) => {
@@ -430,7 +430,7 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.equal(relectures().length, 1);
     await jusqua(() => /mergée sur/.test(gh.commentaires.map(([, corps]) => corps).join("\n")));
     const dits = gh.commentaires.map(([, corps]) => corps).join("\n---\n");
-    assert.match(dits, /\*\*Pass — plafond des gates franchi, non jugé\.\*\*[\s\S]*178,3 s de processeur[\s\S]*pour un plafond de 165 s — 13,3 s de trop[\s\S]*Ce n'est pas un motif de renvoi[\s\S]*brigade <projet> mesures[\s\S]*verte, mergée sur/);
+    assert.match(dits, /\*\*Pass — plafond des gates franchi, non jugé\.\*\*[\s\S]*178,3 s de processeur[\s\S]*pour un plafond de 165 s — 13,3 s de trop[\s\S]*Ce n'est pas un motif de renvoi[\s\S]*brigade <projet> measures[\s\S]*verte, mergée sur/);
     assert.equal(avertissements.filter((ligne) => /plafond des gates franchi sur le ticket #17, non jugé — 178,3 s de processeur pour un plafond de 165 s/.test(ligne)).length, 1);
     assert.equal(avertissements.some((ligne) => /pass rouge/.test(ligne)), false);
   });

@@ -1,16 +1,19 @@
 // L'arbitre entre projets, vu et réglé par le chef, depuis son propre process :
-//   npm --prefix runtime run arbitre                          par projet : ce qui tourne, ce qui est encore autorisé, ce que les cooks ont consommé
-//   npm --prefix runtime run arbitre -- poids <projet> <n>    règle le poids d'un projet (1 par défaut)
-//   npm --prefix runtime run arbitre -- retirer <projet>      oublie un projet : sa part n'est plus réservée
+//   npm --prefix runtime run arbiter                          par projet : ce qui tourne, ce qui est encore autorisé, ce que les cooks ont consommé
+//   npm --prefix runtime run arbiter -- weight <projet> <n>   règle le poids d'un projet (1 par défaut)
+//   npm --prefix runtime run arbiter -- remove <projet>       oublie un projet : sa part n'est plus réservée
+// Les anciens mots (`arbitre`, `poids`, `retirer`) répondent encore, en disant
+// le nouveau (`commandes.ts`).
 // L'état se lit sur le port de l'arbitre ; les réglages s'écrivent dans sa
 // base, qu'il relit à chaque décision — rien n'est à redémarrer.
 import { existsSync } from "node:fs";
 import { cheminReglages, ouvrirReglages, type Connu, type EtatArbitre, type ProjetArbitre } from "./arbitre.ts";
 import { ArbitreInjoignable, configArbitrage, joindreArbitre } from "./arbitrage.ts";
+import { enAnglais } from "./commandes.ts";
 import { ConfigInvalide, NOM_DE_PROJET } from "./runtime.ts";
 
 const USAGE =
-  "usage : BRIGADE_ARBITER_PORT=<port> BRIGADE_ARBITER_STATE_DIR=<répertoire de l'arbitre> npm --prefix runtime run arbitre -- [poids <projet> <entier ≥ 1> | retirer <projet>]";
+  "usage : BRIGADE_ARBITER_PORT=<port> BRIGADE_ARBITER_STATE_DIR=<répertoire de l'arbitre> npm --prefix runtime run arbiter -- [weight <projet> <entier ≥ 1> | remove <projet>]";
 
 function echouer(code: number, message: string): never {
   console.error(`brigade : ${message}`);
@@ -68,7 +71,7 @@ function reglages() {
   return ouvrirReglages(repertoire);
 }
 
-const args = process.argv.slice(2);
+const args = enAnglais("arbiter", process.argv.slice(2), (ligne) => console.error(ligne));
 const [commande, projet, valeur] = args;
 
 if (commande === undefined) {
@@ -98,7 +101,7 @@ if (commande === undefined) {
     }
     process.exit(1);
   }
-} else if (commande === "poids" && args.length === 3 && projet !== undefined && valeur !== undefined) {
+} else if (commande === "weight" && args.length === 3 && projet !== undefined && valeur !== undefined) {
   if (!NOM_DE_PROJET.test(projet)) echouer(2, `nom de projet invalide : « ${projet} »\n${USAGE}`);
   if (!/^[1-9][0-9]{0,5}$/.test(valeur)) echouer(2, `poids invalide : « ${valeur} » — attendu un entier, 1 au moins\n${USAGE}`);
   const durables = reglages();
@@ -113,7 +116,7 @@ if (commande === undefined) {
   } finally {
     durables.fermer();
   }
-} else if (commande === "retirer" && args.length === 2 && projet !== undefined) {
+} else if (commande === "remove" && args.length === 2 && projet !== undefined) {
   const durables = reglages();
   try {
     if (!durables.retirer(projet)) echouer(1, `${projet} : projet inconnu de l'arbitre`);

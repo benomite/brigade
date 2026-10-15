@@ -189,10 +189,10 @@ test("le journal, s'il est là, dit les compteurs de la dérive : les merges dep
   journal.fermer();
 
   const avec = await observer(clone, { BRIGADE_STATE_DIR: etat });
-  assert.match(avec.sortie, /\njournal    3 merges depuis la dernière fermeture \(aucune au journal\) — 1 seuil franchi, le détail par `brigade <projet> mesures`\n {11}3 merges depuis la dernière fermeture pour un seuil de 2\n$/);
+  assert.match(avec.sortie, /\njournal    3 merges depuis la dernière fermeture \(aucune au journal\) — 1 seuil franchi, le détail par `brigade <projet> measures`\n {11}3 merges depuis la dernière fermeture pour un seuil de 2\n$/);
 
   const sans = await observer(clone);
-  assert.match(sans.sortie, /\njournal    non lu : BRIGADE_STATE_DIR n'est pas défini — les compteurs de la dérive se lisent par `brigade <projet> mesures`\n$/);
+  assert.match(sans.sortie, /\njournal    non lu : BRIGADE_STATE_DIR n'est pas défini — les compteurs de la dérive se lisent par `brigade <projet> measures`\n$/);
   const vide = await observer(clone, { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
   assert.match(vide.sortie, /\njournal    non lu : aucun journal dans /);
 });
@@ -205,7 +205,7 @@ test("la commande refuse ce qu'elle ne comprend pas, et dit ce qui lui manque du
     assert.equal(await appel.fin, 2);
     assert.match(appel.sortie(), new RegExp(`^brigade : ${variable} n'est pas défini\nusage : `));
   }
-  const bavard = await observer(clone, {}, ["ecrire"]);
+  const bavard = await observer(clone, {}, ["write"]);
   assert.equal(bavard.code, 2);
   assert.match(bavard.sortie, /^brigade : usage : BRIGADE_REPO_DIR=/);
 
@@ -218,9 +218,9 @@ test("la commande refuse ce qu'elle ne comprend pas, et dit ce qui lui manque du
   assert.match(sansBase.sortie, /^brigade : la branche `origin\/inconnue` n'est pas dans le clone /);
 });
 
-test("`run fermeture` joue l'observation dans son propre process", async (t) => {
+test("`run closing` joue l'observation dans son propre process", async (t) => {
   const scripts: Record<string, string> = JSON.parse(readFileSync(join(import.meta.dirname, "../../package.json"), "utf8")).scripts;
-  assert.equal(scripts.fermeture, "node src/fermeture.ts");
+  assert.equal(scripts.closing, "node src/fermeture.ts");
   const clone = depot(t, [{ merge: { "a.txt": lignes(5) } }]);
 
   const enfant = lancer(t, join(import.meta.dirname, "../../src/fermeture.ts"), [], env(clone));

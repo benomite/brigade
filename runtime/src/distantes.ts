@@ -1,7 +1,7 @@
 // Les stations distantes du projet, vues de la box : celles qui ne tournent
 // pas sur la machine du runtime — le poste du chef. La box n'a aucun chemin
 // vers elles, et n'en ouvre aucun : c'est la station qui vient, par le geste
-// de la box (`run tirer`, `tirer.ts`), écrire sa demande au journal ; ce module
+// de la box (`run pull`, `tirer.ts`), écrire sa demande au journal ; ce module
 // la lit au réveil du runtime et y répond de même. Rien ici ne lance un
 // process, n'ouvre une connexion, ni ne connaît l'adresse de qui que ce soit.
 //

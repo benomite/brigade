@@ -257,12 +257,12 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
     const lancement = base.transaction(() => {
       const etat = etatDesGardeFous(base);
       if (etat.stoppedAt !== null) {
-        throw new LancementRefuse("stopped", `cuisine arrêtée par le chef le ${etat.stoppedAt} : aucun cook n'est lancé avant « reprendre »`);
+        throw new LancementRefuse("stopped", `cuisine arrêtée par le chef le ${etat.stoppedAt} : aucun cook n'est lancé avant « resume »`);
       }
       if (etat.breakerOpenedAt !== null) {
         throw new LancementRefuse(
           "breaker",
-          `disjoncteur ouvert le ${etat.breakerOpenedAt} après ${etat.failures} échecs d'affilée : aucun cook n'est lancé avant « reprendre »`,
+          `disjoncteur ouvert le ${etat.breakerOpenedAt} après ${etat.failures} échecs d'affilée : aucun cook n'est lancé avant « resume »`,
         );
       }
       return noter(demande.ticket, { type: "cook.launched", payload: { run, limits: plafonds, stream, ...demande.contexte } })?.seq ?? 0;

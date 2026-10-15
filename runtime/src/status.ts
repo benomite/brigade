@@ -1,18 +1,21 @@
 // L'état de la cuisine, en lecture seule :
 //   npm --prefix runtime run status                          la photo : runtime, ce qui attend le chef, rail, cooks, serveurs, derniers événements
-//   npm --prefix runtime run status -- --suivre [<ticket>]   la photo, puis le journal en direct, jusqu'à Ctrl-C
+//   npm --prefix runtime run status -- --follow [<ticket>]   la photo, puis le journal en direct, jusqu'à Ctrl-C
+// L'ancien mot `--suivre` répond encore, en disant le nouveau (`commandes.ts`).
 // BRIGADE_BACKUP_MAX_AGE_HOURS règle l'âge au-delà duquel la dernière sauvegarde
 // est marquée (48 par défaut).
 // La commande n'écrit jamais, et répond pendant que le runtime et ses cooks
 // tournent.
 import { enProcess, Sortie, type Appel } from "./appel.ts";
+import { enAnglais } from "./commandes.ts";
 import { AGE_MAX_SAUVEGARDE_MS, decrireEtat, lireEtat, suivre } from "./etat.ts";
 import { ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--suivre [<numéro de ticket>]]";
+const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--follow [<numéro de ticket>]]";
 
-export function principal({ args, env, dire, redire }: Appel): void {
+export function principal({ args: tapes, env, dire, redire }: Appel): void {
+  const args = enAnglais("status", tapes, redire);
   function echouer(code: number, message: string): never {
     redire(`brigade : ${message}`);
     throw new Sortie(code);
@@ -21,7 +24,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
   const repertoireEtat = env.BRIGADE_STATE_DIR;
   if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
   const [option, ticket] = args;
-  if (args.length > 2 || (option !== undefined && option !== "--suivre") || (ticket !== undefined && !/^[0-9]+$/.test(ticket))) {
+  if (args.length > 2 || (option !== undefined && option !== "--follow") || (ticket !== undefined && !/^[0-9]+$/.test(ticket))) {
     echouer(2, USAGE);
   }
   const reglage = env.BRIGADE_BACKUP_MAX_AGE_HOURS;

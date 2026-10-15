@@ -105,14 +105,14 @@ test("« stop » arrête tous les cooks en cours, au nom du chef, et le chef le 
   assert.throws(() => cook(9, "fini"), /cuisine arrêtée/);
 
   const { sortie } = await lancee();
-  assert.match(sortie, /cuisine\s+ARRÊTÉE par le chef le \d{4}-\d{2}-\d{2}T.* — « reprendre » pour relancer/);
+  assert.match(sortie, /cuisine\s+ARRÊTÉE par le chef le \d{4}-\d{2}-\d{2}T.* — « resume » pour relancer/);
   assert.match(sortie, /cooks en cours\s+aucun/);
   assert.match(sortie, new RegExp(`#7\\s+${premier.run}\\s+« stop » du chef`));
   assert.match(sortie, new RegExp(`#8\\s+${second.run}\\s+« stop » du chef`));
   assert.equal(runtime.journal.duTicket(7).at(-1)?.type, "cook.exited");
 });
 
-test("« stop » deux fois ne s'écrit qu'une fois ; « reprendre » rouvre la cuisine", async (t) => {
+test("« stop » deux fois ne s'écrit qu'une fois ; « resume » rouvre la cuisine", async (t) => {
   const { cook, commande, commandes } = cuisine(t);
   await commande("stop");
   const encore = await commande("stop");
@@ -120,7 +120,7 @@ test("« stop » deux fois ne s'écrit qu'une fois ; « reprendre » rouvre la c
   assert.equal(encore.code, 0);
   assert.match(encore.sortie, /déjà arrêtée/);
 
-  const reprise = await commande("reprendre");
+  const reprise = await commande("resume");
 
   assert.equal(reprise.code, 0);
   assert.match(reprise.sortie, /cuisine rouverte/);
@@ -128,7 +128,7 @@ test("« stop » deux fois ne s'écrit qu'une fois ; « reprendre » rouvre la c
   assert.equal((await cook(7, "fini").fin).outcome, "ok");
 });
 
-test("« reprendre » rétablit une station dont la connexion Max avait expiré", async (t) => {
+test("« resume » rétablit une station dont la connexion Max avait expiré", async (t) => {
   const { runtime, commande, commandes } = cuisine(t);
   runtime.journal.ajouter({
     project: "brigade",
@@ -138,24 +138,24 @@ test("« reprendre » rétablit une station dont la connexion Max avait expiré"
     payload: { station: "box/claude", reason: "authentication_failed", run: null },
   });
 
-  const { code, sortie } = await commande("reprendre");
+  const { code, sortie } = await commande("resume");
 
   assert.equal(code, 0);
   assert.match(sortie, /connexion Max tenue pour rétablie/);
   assert.deepEqual(commandes().map((e) => e.type), ["kitchen.resumed"]);
 });
 
-test("« reprendre » quand rien n'est arrêté ne s'écrit pas", async (t) => {
+test("« resume » quand rien n'est arrêté ne s'écrit pas", async (t) => {
   const { commande, commandes } = cuisine(t);
 
-  const { code, sortie } = await commande("reprendre");
+  const { code, sortie } = await commande("resume");
 
   assert.equal(code, 0);
   assert.match(sortie, /rien à reprendre/);
   assert.deepEqual(commandes(), []);
 });
 
-test("le chef voit le disjoncteur ouvert et pourquoi chaque ticket s'est arrêté ; « reprendre » le referme", async (t) => {
+test("le chef voit le disjoncteur ouvert et pourquoi chaque ticket s'est arrêté ; « resume » le referme", async (t) => {
   const { cook, commande } = cuisine(t, { seuilDisjoncteur: 2, plafonds: { ...REGLAGES.plafonds, turns: 3 } });
   const tours = cook(7, "bavard");
   await tours.fin;
@@ -163,11 +163,11 @@ test("le chef voit le disjoncteur ouvert et pourquoi chaque ticket s'est arrêt�
 
   const { sortie } = await commande();
 
-  assert.match(sortie, new RegExp(`disjoncteur\\s+OUVERT depuis le ${JOUR_HORLOGE}T.* après 2 échecs d'affilée — plus aucun cook n'est lancé ; « reprendre » pour le refermer`));
+  assert.match(sortie, new RegExp(`disjoncteur\\s+OUVERT depuis le ${JOUR_HORLOGE}T.* après 2 échecs d'affilée — plus aucun cook n'est lancé ; « resume » pour le refermer`));
   assert.match(sortie, new RegExp(`#7\\s+${tours.run}\\s+plafond de tours dépassé : 4 pour 3`));
   assert.throws(() => cook(9, "fini"), /disjoncteur/);
 
-  assert.match((await commande("reprendre")).sortie, /disjoncteur refermé/);
+  assert.match((await commande("resume")).sortie, /disjoncteur refermé/);
   assert.match((await commande()).sortie, /disjoncteur\s+fermé — 0 échec/);
 });
 

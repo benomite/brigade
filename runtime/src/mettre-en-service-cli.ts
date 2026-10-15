@@ -1,7 +1,9 @@
 // La mise en service demandée par le chef, depuis son propre process :
-//   npm --prefix runtime run mise-en-service                 dit ce qui est en vol et ce que ça a coûté, puis demande : le geste de box part au réveil suivant, sans attendre et sans retenir aucun cook
-//   npm --prefix runtime run mise-en-service -- annuler      renonce à une demande qui attend
-//   npm --prefix runtime run mise-en-service -- voir         ce qui est en vol, où en est la demande et ce que le dernier geste a donné, sans rien demander
+//   npm --prefix runtime run deploy                 dit ce qui est en vol et ce que ça a coûté, puis demande : le geste de box part au réveil suivant, sans attendre et sans retenir aucun cook
+//   npm --prefix runtime run deploy -- cancel       renonce à une demande qui attend
+//   npm --prefix runtime run deploy -- show         ce qui est en vol, où en est la demande et ce que le dernier geste a donné, sans rien demander
+// Les anciens mots (`mise-en-service`, `annuler`, `voir`, `--couper`) répondent
+// encore, en disant le nouveau (`commandes.ts`).
 // La commande ne lance rien et ne redémarre rien : elle écrit la demande au
 // journal. C'est le runtime qui tourne qui lance le geste de box
 // (`mettre-en-service.ts`), une fois, au moment où il le peut.
@@ -12,6 +14,7 @@
 import { existsSync } from "node:fs";
 import { geste as commandeDeBox } from "./geste.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
+import { enAnglais } from "./commandes.ts";
 import { ANNULER, decrireEnVol, DEMANDER, direDemande, direFin, direGeste, direIssue, resumerEnVol } from "./dire-mise-en-service.ts";
 import { duree } from "./etat.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
@@ -23,15 +26,17 @@ import { lireRail } from "./projections/rail.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import { versionComparee } from "./projections/version.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run mise-en-service -- [annuler | voir]";
+const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run deploy -- [cancel | show]";
 const AUTEUR = "chef";
-// `--couper` : l'ancienne façon de ne pas attendre le rail calme, qui n'attend
-// plus. Acceptée sans effet, pour qui l'écrit encore ; plus proposée.
-const GESTES = ["--couper", "annuler", "voir"];
+// `--interrupt` (`--couper` avant lui) : l'ancienne façon de ne pas attendre le
+// rail calme, qui n'attend plus. Acceptée sans effet, pour qui l'écrit encore ;
+// plus proposée.
+const GESTES = ["--interrupt", "cancel", "show"];
 
 const court = (commit: string) => commit.slice(0, 12);
 
-export function principal({ args, env, dire, redire }: Appel): void {
+export function principal({ args: tapes, env, dire, redire }: Appel): void {
+  const args = enAnglais("deploy", tapes, redire);
   function echouer(code: number, message: string): never {
     redire(`brigade : ${message}`);
     throw new Sortie(code);
@@ -143,10 +148,10 @@ export function principal({ args, env, dire, redire }: Appel): void {
     for (const dite of direFin(rendu)) dire(`${" ".repeat(11)}${dite}`);
   }
 
-  const journal = ouvrirJournal(repertoireEtat, { lectureSeule: geste === "voir" });
+  const journal = ouvrirJournal(repertoireEtat, { lectureSeule: geste === "show" });
   try {
-    if (geste === "voir") voir(journal);
-    else if (geste === "annuler") annuler(journal);
+    if (geste === "show") voir(journal);
+    else if (geste === "cancel") annuler(journal);
     else demander(journal);
   } catch (erreur) {
     if (journalPasRejoue(erreur)) {

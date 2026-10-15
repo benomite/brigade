@@ -20,8 +20,8 @@ import { arbreDe, DepotIllisible, lireDepot, TAILLE_MAX, type Depot } from "./le
 import { direRatio, mesurerRatio, type Fenetre } from "./ratio.ts";
 
 const USAGE = [
-  "usage : BRIGADE_REPO_DIR=<clone du projet> BRIGADE_BASE_BRANCH=<branche d'intégration> npm --prefix runtime run fermeture",
-  "        BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run fermeture -- ecrire    la passe qui écrit",
+  "usage : BRIGADE_REPO_DIR=<clone du projet> BRIGADE_BASE_BRANCH=<branche d'intégration> npm --prefix runtime run closing",
+  "        BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run closing -- write     la passe qui écrit",
 ].join("\n");
 
 // `fichiers`, `modules` : parmi combien de fichiers les doublons et le code
@@ -127,7 +127,7 @@ function direPasse(journal: Journal, arbre: (commit: string) => string | null): 
 // n'est recompté ici. `arbre` : l'arbre d'un commit du clone, pour le bilan. Le journal est lu sans être ouvert en écriture, et son
 // absence n'empêche pas d'observer le dépôt.
 function direJournal(repertoireEtat: string | undefined, arbre: (commit: string) => string | null): string[] {
-  const nonLu = (pourquoi: string) => [ligne("journal", `non lu : ${pourquoi} — les compteurs de la dérive se lisent par \`${geste(`mesures`)}\``)];
+  const nonLu = (pourquoi: string) => [ligne("journal", `non lu : ${pourquoi} — les compteurs de la dérive se lisent par \`${geste(`measures`)}\``)];
   if (!repertoireEtat) return nonLu("BRIGADE_STATE_DIR n'est pas défini");
   let journal;
   try {
@@ -139,7 +139,7 @@ function direJournal(repertoireEtat: string | undefined, arbre: (commit: string)
     const livraisons = livraisonsMergees(journal.base);
     const seuils = seuilsEnVigueur(journal.base);
     const passes = franchis(livraisons, seuils ?? SANS_SEUIL);
-    const constat = seuils === null ? "aucun seuil déclaré" : passes.length === 0 ? "aucun seuil franchi" : `${pluriel(passes.length, "seuil")} franchi${passes.length > 1 ? "s" : ""}, le détail par \`${geste(`mesures`)}\``;
+    const constat = seuils === null ? "aucun seuil déclaré" : passes.length === 0 ? "aucun seuil franchi" : `${pluriel(passes.length, "seuil")} franchi${passes.length > 1 ? "s" : ""}, le détail par \`${geste(`measures`)}\``;
     return [ligne("journal", `${pluriel(livraisons.length, "merge")} depuis la dernière fermeture (aucune au journal) — ${constat}`), ...passes.map((franchi) => ligne("", direJauge(franchi))), ...direPasse(journal, arbre)];
   } catch (erreur) {
     if (journalPasRejoue(erreur)) return nonLu("il n'a pas encore le relevé des mesures, redémarrer le runtime le recalcule");

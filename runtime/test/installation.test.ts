@@ -1738,12 +1738,12 @@ describe("la commande du chef", () => {
   test("`desinstaller` ne retire rien sans `--confirmer`, puis dit ce qui reste à la main", async (t) => {
     const { env, clone } = projet(t);
 
-    const blanc = await commande(t, env, "desinstaller");
+    const blanc = await commande(t, env, "uninstall");
     assert.match(blanc.sortie, /rien n'est retiré/);
     assert.equal(existsSync(clone), true);
     assert.equal(blanc.code, 0);
 
-    const { code, sortie } = await commande(t, env, "desinstaller", "--confirmer");
+    const { code, sortie } = await commande(t, env, "uninstall", "--confirm");
     assert.equal(existsSync(clone), false);
     assert.match(sortie, new RegExp(`sudo systemctl disable --now brigade@${PROJET}\\.service`));
     assert.match(sortie, /Le dépôt reste un dépôt ordinaire/);
