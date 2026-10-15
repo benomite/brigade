@@ -59,8 +59,13 @@ export type Attente = { raison: string; colonne: string; retour: string | null }
 export type DecisionUrgente = { decision: string; ticket: number | null; cause: string; geste: string; url: string | null };
 // L'urgence : plus rien ne cuit, et c'est le chef que toute la cuisine attend.
 // `depuis` : le début de l'arrêt total, à l'horloge de la box ; `retenus` : les
-// tickets à l'arrêt ; `autres` : les autres décisions qui en retiennent aussi.
-export type Urgence = DecisionUrgente & { depuis: string; retenus: number[]; autres: DecisionUrgente[] };
+// tickets à l'arrêt ; `autres` : les autres décisions qui en retiennent aussi ;
+// `alerte` : celle que le runtime a émise pour cette urgence, nulle tant qu'il ne
+// l'a pas annoncée, absente d'un runtime d'avant ce champ.
+export type Urgence = DecisionUrgente & { depuis: string; retenus: number[]; autres: DecisionUrgente[]; alerte?: AlerteUrgence | null };
+// L'alerte d'urgence émise (runtime/src/etat.ts, `AlerteExposee`) : sa ligne, sa
+// première émission, la dernière, rappel compris, et le nombre de rappels.
+export type AlerteUrgence = { libelle: string; emiseLe: string; derniereLe: string; rappels: number };
 
 // La forme, telle que le runtime la fige (runtime/src/etat.ts, `Faits`).
 // `cooks`, `attend`, `version`, `miseEnService`, `livres`, `urgence` : absents, c'est un
@@ -225,6 +230,18 @@ function comprendreUrgence(valeur: unknown, champ: string): Urgence {
     depuis: heure(lu.depuis, `${champ}.depuis`),
     retenus: liste(lu.retenus, `${champ}.retenus`).map((ticket, rang) => entier(ticket, `${champ}.retenus[${rang}]`)),
     autres: liste(lu.autres, `${champ}.autres`).map((autre, rang) => comprendreDecision(autre, `${champ}.autres[${rang}]`)),
+    ...(lu.alerte === undefined ? {} : { alerte: ouRien(lu.alerte, `${champ}.alerte`, comprendreAlerteUrgence) }),
+  };
+}
+
+// L'alerte émise pour l'urgence : sa ligne, ses deux heures, ses rappels.
+function comprendreAlerteUrgence(valeur: unknown, champ: string): AlerteUrgence {
+  const lu = objet(valeur, champ);
+  return {
+    libelle: texte(lu.libelle, `${champ}.libelle`),
+    emiseLe: heure(lu.emiseLe, `${champ}.emiseLe`),
+    derniereLe: heure(lu.derniereLe, `${champ}.derniereLe`),
+    rappels: entier(lu.rappels, `${champ}.rappels`),
   };
 }
 
