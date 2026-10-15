@@ -747,11 +747,14 @@ describe("la vérification", () => {
 
   // Un `claude` que le shell trouve par son nom, comme l'installeur natif le
   // pose : dans un répertoire du compte, que systemd ne donne pas à l'unité.
-  function claudeDuCompte(racine: string, env: Record<string, string>) {
+  // Un autre nom que `claude` le cherche dans le vrai `PATH` de systemd sans
+  // l'y trouver : la box qui joue la suite peut y avoir posé le sien.
+  function claudeDuCompte(racine: string, env: Record<string, string>, nom = "claude") {
     const bin = join(racine, "local/bin");
     mkdirSync(bin, { recursive: true });
-    symlinkSync(FAUX_CLAUDE, join(bin, "claude"));
-    return { bin, env: { ...sans(env, "BRIGADE_CLAUDE_BIN"), PATH: `${bin}:${process.env.PATH}` } };
+    symlinkSync(FAUX_CLAUDE, join(bin, nom));
+    const appel = nom === "claude" ? sans(env, "BRIGADE_CLAUDE_BIN") : { ...env, BRIGADE_CLAUDE_BIN: nom };
+    return { bin, env: { ...appel, PATH: `${bin}:${process.env.PATH}` } };
   }
 
   test("un `claude` que le shell trouve mais pas l'unité manque : c'est le `PATH` de l'unité qui compte", async (t) => {
@@ -786,11 +789,12 @@ describe("la vérification", () => {
 
   test("là où le shell trouve `claude` et pas le `PATH` de systemd, le geste est un lien, pas un drop-in de plus", async (t) => {
     const { env, racine } = projet(t);
-    const compte = claudeDuCompte(racine, env);
+    // Sans `Environment=PATH=`, c'est le vrai `PATH` de systemd qui est fouillé.
+    const compte = claudeDuCompte(racine, env, "claude-du-compte-seulement");
 
     const constats = await verifier(compte.env);
 
-    assert.equal(constats.find((constat) => constat.etat === "manque")?.geste, `\`sudo ln -sfn ${compte.bin}/claude /usr/local/bin/claude\` — l'installeur natif pose \`claude\` sous \`~/.local/bin\` du compte, que systemd ne donne pas à l'unité ; docs/installer.md, « Préparer la box »`);
+    assert.equal(constats.find((constat) => constat.etat === "manque")?.geste, `\`sudo ln -sfn ${compte.bin}/claude-du-compte-seulement /usr/local/bin/claude-du-compte-seulement\` — l'installeur natif pose \`claude\` sous \`~/.local/bin\` du compte, que systemd ne donne pas à l'unité ; docs/installer.md, « Préparer la box »`);
   });
 
   test("un compte sans identité git manque : un cook n'y commiterait rien", async (t) => {
