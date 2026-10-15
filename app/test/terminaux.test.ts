@@ -631,3 +631,75 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
     assert.deepEqual(autre.lance(0).args.slice(0, 2), ["/brigade:init", "--settings"]);
   });
 });
+
+describe("le second reste local, sans multiplexeur, et sa conversation reprend à la réouverture", () => {
+  // Un registre comme l'app en ouvre un à chaque lancement : un `ssh` posé, et des shells persistants
+  // sur la box dont l'app se souvient — tout ce qui pourrait attirer le second ailleurs.
+  const BOX = { lieu: "box", nom: "parade-box", hote: "parade-box" } as const;
+  const SOUVENIRS = { parade: { dernier: 1, shells: [{ rang: 1, session: "brigade-parade-1", cible: BOX }] } };
+  function lancement() {
+    const lances: Lancement[] = [];
+    const terminaux = ouvrirTerminaux({
+      claude: "claude",
+      shell: "/bin/zsh",
+      ssh: "ssh",
+      souvenirs: { lire: () => SOUVENIRS, ecrire: () => undefined },
+      ouvrirPty(l) {
+        lances.push(l);
+        return { ecrire: () => undefined, redimensionner: () => undefined, tuer: () => undefined };
+      },
+      surSortie: () => undefined,
+      surEtat: () => undefined,
+    });
+    return { terminaux, lances };
+  }
+  const MOTS_DE_MULTIPLEXEUR = /tmux|screen|ssh|attach-session|new-session/;
+
+  test("la commande de lancement du second est `claude --continue` sur le rôle, dans le dossier du projet : ni tmux, ni screen, ni connexion distante", () => {
+    const { terminaux, lances } = lancement();
+
+    terminaux.espace(PARADE);
+
+    const [second, ...shells] = lances;
+    assert.ok(second);
+    assert.deepEqual([second.commande, ...second.args], ["claude", "--continue", "/brigade:po"]);
+    assert.equal(second.dossier, "/projets/parade");
+    assert.doesNotMatch([second.commande, ...second.args].join(" "), MOTS_DE_MULTIPLEXEUR);
+    // Le shell persistant de la box, lui, passe bien par ssh : la différence est voulue.
+    assert.match([shells[0]?.commande, ...(shells[0]?.args ?? [])].join(" "), /ssh/);
+  });
+
+  test("son relancement — touche après un arrêt, ou session neuve faute de fil — reste local lui aussi, sans multiplexeur", () => {
+    const { terminaux, lances } = lancement();
+    terminaux.espace(PARADE);
+    const claudes = () => lances.filter(({ commande }) => commande === "claude");
+    claudes()[0]?.surFin(1);
+    claudes()[1]?.surFin(0);
+    const [second] = terminaux.espace(PARADE);
+    assert.ok(second);
+    terminaux.ecrire(second.id, "x");
+
+    const seconds = lances.filter(({ commande }) => commande === "claude");
+    assert.deepEqual(seconds.map(({ args }) => args), [["--continue", "/brigade:po"], ["/brigade:po"], ["--continue", "/brigade:po"]]);
+    for (const { commande, args } of seconds) assert.doesNotMatch([commande, ...args].join(" "), MOTS_DE_MULTIPLEXEUR);
+  });
+
+  test("fermer l'app puis la rouvrir : un registre neuf relance `claude --continue` — il reprend la conversation, il ne se rattache à aucune session", () => {
+    const avant = lancement();
+    avant.terminaux.espace(PARADE);
+    avant.terminaux.fermer();
+
+    const apres = lancement();
+    apres.terminaux.espace(PARADE);
+
+    assert.deepEqual([apres.lances[0]?.commande, ...(apres.lances[0]?.args ?? [])], ["claude", "--continue", "/brigade:po"]);
+  });
+
+  test("le second n'est pas une machine de « + shell » : seules les cibles de shells y sont proposées", async () => {
+    const { machinesDe } = await import("../src/machines.ts");
+    const machines = machinesDe({ box: { hote: "parade-box" }, stations: ["studio/claude"] }, [{ nom: "studio/claude", distante: true }]);
+
+    assert.ok(machines.length > 0);
+    for (const { id, titre } of machines) assert.doesNotMatch(`${id} ${titre}`, /second/i);
+  });
+});
