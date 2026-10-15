@@ -10,6 +10,9 @@
 Description=brigade — la station de cette machine (tous ses projets)
 After=network-online.target
 Wants=network-online.target
+# Sa mise à jour, qui tourne tant qu'elle tourne : une version publiée est
+# installée seule (brigade-station-mise-a-jour.service).
+Wants=brigade-station-mise-a-jour.timer
 
 [Service]
 Type=simple
@@ -33,6 +36,10 @@ Environment=BRIGADE_STATION_DIR=/var/lib/brigade
 # n'est pas dessous : la cloison le rend en lecture seule.
 Environment=BRIGADE_SANDBOX_BIN=/usr/bin/bwrap
 Environment=BRIGADE_SANDBOX_HIDDEN=/var/lib/brigade:/etc/brigade
+
+# Ce que la mise à jour de la station a donné — à root, lisible de tous — :
+# la station le recopie au journal de chaque projet, la file le dit.
+Environment=BRIGADE_MISE_A_JOUR_DIR=/var/lib/brigade-station
 
 # L'état du renouvellement de la session Max, qu'écrit
 # brigade-station-renouvellement.service, et que chaque projet relit.

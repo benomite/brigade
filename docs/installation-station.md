@@ -104,6 +104,8 @@ reprendre : corrige ce qu'elle dit, et relance la même commande.
   échoue, et c'est normal : c'est ainsi que la station sait qu'elle attend un login.
 - **`/var/lib/brigade`**, où la station gardera la configuration, le journal et le clone de
   chacun de ses projets.
+- **Sa mise à jour**, deux minutes après chaque démarrage de la station puis toutes les dix
+  minutes : voir « 6. La mise à jour, seule ».
 
 Et rien d'autre : aucune règle `sudo`, aucun fichier dans `/etc`. Tout vient du paquet, et le
 suit : quand la station passe à une nouvelle version, ses unités, ses droits et son minuteur y
@@ -143,14 +145,51 @@ Un login fait autrement, sous le compte `brigade` (`claude auth login`), suffit 
 renouvellement le consigne à son passage suivant, dans la demi-minute, et la station reprend de
 même.
 
-## 6. La suite — pas encore dans ce guide
+## 6. La mise à jour, seule
 
-Deux étapes amènent ensuite la station jusqu'à toi, et une troisième la tient à jour. Elles ne
-sont pas encore écrites ici : ce guide les gagnera à mesure qu'elles arrivent.
+Quand une version de la station est publiée, la station y passe seule, comme un navigateur — tu
+n'as rien à faire. Toutes les dix minutes, sa mise à jour (`brigade-station-mise-a-jour`, livrée
+par le paquet, la seule part de la station qui tourne sous root) regarde les versions publiées ;
+s'il y en a une plus récente, elle la remet à `apt`. Le paquet pose le nouveau code et ses unités,
+puis relance la station — son seul process : **les cooks en cours finissent leur travail**, et la
+station qui repart les reprend.
+
+La nouvelle version est gardée quand la station s'y dit démarrée et sert tous les projets qu'elle
+servait avant. Sinon, **elle revient seule à la version d'avant**, dont elle a gardé le paquet. Une
+version ratée n'est pas réessayée ; la suivante le sera. Dans les deux cas, la file de chaque
+projet le dit en une ligne, le jour même :
+
+```
+  passée en version 0.20261016.091500+g1a2b3c4 à 09 h 17
+  mise à jour vers la version 0.20261016.120000+g5d6e7f8 ratée à 12 h 03 : la station s'est arrêtée en échec en 0.20261016.120000+g5d6e7f8 (systemd : failed) — revenue en version 0.20261016.091500+g1a2b3c4 ; 0.20261016.120000+g5d6e7f8 n'est pas réessayée, la suivante le sera
+```
+
+**Geler la version.** Pour qu'aucune nouvelle version ne soit installée, la station lit un réglage
+dans `/var/lib/brigade/reglages` :
+
+```
+gel=oui
+```
+
+`gel=non`, ou le fichier retiré, lève le gel : la version qui attend est installée au passage
+suivant. L'app le réglera d'un bouton ; d'ici là, c'est ce fichier. Un gel mal écrit gèle, dans le
+doute.
+
+**Où en est la mise à jour** : `/var/lib/brigade-station/etat.json` — la version installée, la plus
+récente publiée, le gel, ce qui retient la suivante et ce qu'a donné la dernière mise à jour. Le
+même état, en clair, sans root :
+
+```sh
+cd /usr/lib/brigade-station/runtime && BRIGADE_STATION_DIR=/var/lib/brigade BRIGADE_MISE_A_JOUR_DIR=/var/lib/brigade-station /usr/lib/brigade-station/node/bin/node src/mise-a-jour/main.ts etat
+```
+
+## 7. La suite — pas encore dans ce guide
+
+Deux étapes amènent ensuite la station jusqu'à toi. Elles ne sont pas encore écrites ici : ce
+guide les gagnera à mesure qu'elles arrivent.
 
 1. **L'appairage avec l'app** — le serveur affiche un code, tu le tapes dans l'app, et la station
-   apparaît sur sa home : « en ligne · version X · aucun projet ».
+   apparaît sur sa home : « en ligne · version X · aucun projet ». L'app y montrera aussi l'état
+   de sa mise à jour, et le bouton qui gèle sa version.
 2. **Ajouter un projet** — depuis l'app : le dépôt GitHub, ses stations, sa principale. Sans
    terminal.
-3. **La mise à jour automatique** — quand une version sort, la station y passe seule, comme un
-   navigateur ; les cooks en cours finissent. Tu pourras geler sa version depuis l'app.
