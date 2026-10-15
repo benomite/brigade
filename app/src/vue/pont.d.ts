@@ -111,6 +111,11 @@ export type Pont = {
   // l'issue lue par le `gh` du poste. La vue nomme le projet et le ticket. Rien pour un ticket que
   // le bloc `attend` ne nomme pas.
   lireQuestion(projet: string, ticket: number): Promise<QuestionLue | undefined>;
+  // Ce que la fiche dit d'un ticket vivant — ce que son cook fait, ou ce qui le bloque —, d'après
+  // la carte cliquée (histoire.ts, `situation`). Rien pour un ticket que la cuisine ne tient pas.
+  situation(carte: { etat?: string; attend: string[]; dit: { libelle: string; valeur: string }[] }): Promise<import("../histoire.ts").Situation>;
+  // L'histoire d'un ticket et son coût, lus par `pass <ticket> --json` sur la box (histoire.ts).
+  lireHistoire(projet: string, ticket: number): Promise<import("../histoire.ts").Histoire | undefined>;
   // Le titre d'une issue que la box ne donne pas, lu par le `gh` du poste à l'adresse que la box a rendue.
   lireTitre(projet: string, ticket: number): Promise<import("../question.ts").Titre | undefined>;
   // Lever la retenue `blocked-on-human` d'un ticket qui t'attend : retirer le label (`label`) ou

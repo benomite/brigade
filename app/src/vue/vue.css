@@ -1739,6 +1739,32 @@ main > header,
   font-style: italic;
   color: var(--discret);
 }
+/* L'histoire et le coût : les étapes dans l'ordre, chacune avec son heure ; la relecture et le
+   jugement prennent la couleur de leur verdict. */
+#fiche .histoire,
+#fiche .situation {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#fiche .histoire ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#fiche .histoire li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 2px 16px;
+}
+#fiche .histoire li[data-ton] > span {
+  color: var(--ton);
+}
+#fiche .histoire li p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--discret);
+}
 /* La question qu'une issue pose, sur la fiche d'un ticket qui t'attend : le commentaire du manager
    tel qu'il est écrit — ses blancs et ses lignes gardés —, ce qui a été écrit dessous depuis, puis
    la réponse : un bouton par choix, un champ pour une phrase. Bordée d'accent : c'est à toi. */
