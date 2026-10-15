@@ -366,8 +366,9 @@ test("aucun code du runtime n'ouvre le fichier d'identifiants : son nom n'y sert
   assert.deepEqual(qui(/\.credentials\.json/), ["cloison.ts", "identifiants.ts"]);
   // Son nom par la constante : les messages d'un refus de push, et le refus d'un fichier d'état qui le désignerait.
   assert.deepEqual(qui(/\bFICHIER_DES_IDENTIFIANTS\b/), ["identifiants.ts", "renouvellement.ts", "station.ts"]);
-  // Son chemin, tel que la cloison le donne : l'annonce au journal, et la sonde qui le regarde de l'intérieur de la cloison.
-  assert.deepEqual(qui(/\.identifiants\b/), ["eprouver.ts", "main.ts"]);
+  // Son chemin, tel que la cloison le donne : l'annonce au journal — par le runtime d'un projet, et par la cuisine
+  // que la station ouvre pour chacun des siens —, et la sonde qui le regarde de l'intérieur de la cloison.
+  assert.deepEqual(qui(/\.identifiants\b/), ["eprouver.ts", "main.ts", "station/cuisine.ts"]);
   // Et aucune lecture, ouverture ou copie de quoi que ce soit qui le nomme.
   assert.deepEqual(qui(/\b(readFileSync|readFile|openSync|open|createReadStream|copyFileSync|copyFile|cpSync|readSync)\s*\([^)]*(identifiants|credentials)/i), []);
   // La sonde n'ouvre rien : `test -r` et `test -w` n'en demandent que les droits.
