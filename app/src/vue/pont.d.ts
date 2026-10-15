@@ -111,6 +111,11 @@ export type Pont = {
   // l'issue lue par le `gh` du poste. La vue nomme le projet et le ticket. Rien pour un ticket que
   // le bloc `attend` ne nomme pas.
   lireQuestion(projet: string, ticket: number): Promise<QuestionLue | undefined>;
+  // Le titre d'une issue que la box ne donne pas, lu par le `gh` du poste à l'adresse que la box a rendue.
+  lireTitre(projet: string, ticket: number): Promise<import("../question.ts").Titre | undefined>;
+  // Lever la retenue `blocked-on-human` d'un ticket qui t'attend : retirer le label (`label`) ou
+  // fermer l'issue (`fermer`), par le `gh` du poste. Rien ne part pour un ticket que le bloc ne dit pas retenu.
+  leverRetenue(projet: string, ticket: number, geste: "label" | "fermer"): Promise<import("../question.ts").Leve>;
   // La réponse du chef à cette question — un choix par sa lettre, ou sa phrase —, postée sur
   // l'issue par le même `gh`. `question` : l'adresse de la question montrée — rien ne part sur une autre.
   repondreQuestion(projet: string, ticket: number, reponse: { question: string; choix: string } | { question: string; texte: string }): Promise<ReponseRendue>;

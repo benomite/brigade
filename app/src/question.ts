@@ -31,7 +31,7 @@ export type Commentaire = { auteur: string; association: string; a: string; url:
 export type Choix = { lettre: string; texte: string };
 // La question : le commentaire du manager, sans ses marqueurs — rien d'autre n'en est retiré —,
 // ses choix s'il en propose, et ce qui a été écrit sur l'issue depuis.
-export type Question = { url: string; auteur: string; a: string; texte: string; choix: Choix[]; depuis: { auteur: string; a: string; corps: string }[] };
+export type Question = { url: string; auteur: string; a: string; texte: string; resume: string; choix: Choix[]; depuis: { auteur: string; a: string; corps: string }[] };
 // Ce que la lecture de l'issue donne. `aucune` : l'issue est lue, le manager n'y pose pas de
 // question — l'entrée garde son geste à elle. `sans` : l'issue n'a pas été lue, et pourquoi.
 export type Lue = { a: string } & ({ question: Question } | { aucune: true } | { sans: string });
@@ -67,6 +67,7 @@ export function questionDe(commentaires: readonly Commentaire[]): Question | und
     auteur: posee.auteur,
     a: posee.a,
     texte,
+    resume: resumeDe(texte),
     choix: choixDe(texte),
     depuis: commentaires.slice(rang + 1).map(({ auteur, a, corps }) => ({ auteur, a, corps: sansMarqueurs(corps) })),
   };
@@ -222,4 +223,48 @@ export async function repondre(reglages: Reglages, adresse: string, envoyee: unk
   if (erreur !== null) return { poste: false, refus: `nothing was posted — ${echec(reglages, args, { ...rendu, erreur })}` };
   const dite = rendu.sortie.trim().split("\n").at(-1) ?? "";
   return { poste: true, corps, ...(URL.parse(dite)?.protocol === "https:" ? { adresse: dite } : {}) };
+}
+
+// Le titre d'une issue, lu par le `gh` du poste : ce que la box ne donne pas pour un ticket qui
+// n'est pas sur son rail, et que le chef ne devrait pas avoir à aller chercher sur GitHub.
+export type Titre = { titre: string } | { sans: string };
+export async function titreDe(reglages: Reglages, adresse: string): Promise<Titre> {
+  const args = ["issue", "view", adresse, "--json", "title"];
+  const rendu = await lancer(reglages, args);
+  const { erreur } = rendu;
+  if (erreur !== null) return { sans: echec(reglages, args, { ...rendu, erreur }) };
+  let titre: unknown;
+  try {
+    titre = (JSON.parse(rendu.sortie) as { title?: unknown } | null)?.title;
+  } catch {
+    return { sans: `$ ${reglages.gh} ${args.join(" ")} — its output is not JSON` };
+  }
+  return typeof titre === "string" && titre.trim() !== "" ? { titre: titre.trim() } : { sans: `$ ${reglages.gh} ${args.join(" ")} — its output has no \`title\`` };
+}
+
+// La question en une ou deux lignes, prise dans les mots du manager : la première ligne qui pose
+// une question (`?`), sinon les deux premières lignes écrites — chacune rognée, jamais reformulée.
+const LIGNE_MAX = 160;
+const rogner = (ligne: string) => (ligne.length > LIGNE_MAX ? `${ligne.slice(0, LIGNE_MAX - 1).trimEnd()}…` : ligne);
+export function resumeDe(texte: string): string {
+  const lignes = texte
+    .split("\n")
+    .map((ligne) => ligne.replace(/^[ \t]*(?:#+|>|[-*+])?[ \t]*/, "").replace(/\*\*|__/g, "").trim())
+    .filter((ligne) => ligne !== "" && !/^_.*_$/.test(ligne));
+  const posee = lignes.find((ligne) => ligne.includes("?"));
+  return (posee === undefined ? lignes.slice(0, 2) : [posee]).map(rogner).join("\n");
+}
+
+// Le label qui retient un ticket, et les deux gestes qui le lèvent : retirer le label — le manager
+// le juge à son prochain tour — ou fermer l'issue. Un clic du chef, par son `gh`, à son nom.
+export const LABEL_RETENUE = "blocked-on-human";
+export type GesteDeRetenue = "label" | "fermer";
+export type Leve = { fait: true; dit: string } | { fait: false; refus: string };
+export async function lever(reglages: Reglages, adresse: string, geste: unknown): Promise<Leve> {
+  if (geste !== "label" && geste !== "fermer") return { fait: false, refus: "nothing was done: the view named neither “remove the label” nor “close the issue”" };
+  const args = geste === "label" ? ["issue", "edit", adresse, "--remove-label", LABEL_RETENUE] : ["issue", "close", adresse];
+  const rendu = await lancer(reglages, args);
+  const { erreur } = rendu;
+  if (erreur !== null) return { fait: false, refus: `nothing was done — ${echec(reglages, args, { ...rendu, erreur })}` };
+  return { fait: true, dit: geste === "label" ? `\`${LABEL_RETENUE}\` removed: the manager judges the issue again at its next tick` : "issue closed" };
 }

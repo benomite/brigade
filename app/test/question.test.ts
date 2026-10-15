@@ -7,7 +7,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { choixDe, type Commentaire, lireQuestion, MARQUEUR_MANAGER, MARQUEUR_QUESTION, questionDe, repondre } from "../src/question.ts";
+import { choixDe, type Commentaire, lever, lireQuestion, MARQUEUR_MANAGER, MARQUEUR_QUESTION, questionDe, repondre, resumeDe, titreDe } from "../src/question.ts";
 
 const ISSUE = "https://github.com/benomite/brigade/issues/676";
 const A = "2026-10-15T08:00:00Z";
@@ -197,5 +197,35 @@ describe("la réponse du chef, postée sur l'issue", () => {
     const rendue = await repondre(reglages, ISSUE, { question: URL_QUESTION, choix: "a" });
     assert.equal(rendue.poste, false);
     assert.match(!rendue.poste ? rendue.refus : "", /issue comment .*--body-file -\nGraphQL: Could not resolve\n→ exit code 1$/);
+  });
+});
+
+describe("ce que la carte dit de la question", () => {
+  test("une ligne qui pose la question, sans la mise en forme ni les lignes d'étiquette — ou les deux premières lignes", () => {
+    assert.equal(resumeDe(`${MARQUEUR_MANAGER}\n**Manager — question.**\n\nFaut-il découper l'epic ?\n- a) oui\n- b) non\n_Lu par le manager_`), "Faut-il découper l'epic ?");
+    assert.equal(resumeDe("Une décision de produit.\nElle porte sur le rail.\nEt la suite."), "Une décision de produit.\nElle porte sur le rail.");
+    assert.equal(resumeDe(`${"x".repeat(300)}?`).length, 160);
+  });
+
+  test("la question lue porte son résumé", () => {
+    assert.equal(questionDe([commentaire(QUESTION)])?.resume, resumeDe(TEXTE));
+  });
+});
+
+describe("le titre et la retenue, par le `gh` du poste", () => {
+  test("`gh issue view <adresse> --json title` rend le titre ; une issue sans titre n'en invente pas", async (t) => {
+    const { reglages, appels } = essai(t, { vue: JSON.stringify({ title: " Un ticket " }) });
+    assert.deepEqual(await titreDe(reglages, ISSUE), { titre: "Un ticket" });
+    assert.deepEqual(appels(), [`issue view ${ISSUE} --json title`]);
+    const vide = essai(t, { vue: JSON.stringify({ title: "" }) });
+    assert.ok("sans" in (await titreDe(vide.reglages, ISSUE)));
+  });
+
+  test("retirer le label ou fermer : un seul `gh`, et rien d'autre qu'un de ces deux gestes", async (t) => {
+    const { reglages, appels } = essai(t, { vue: "" });
+    assert.deepEqual(await lever(reglages, ISSUE, "label"), { fait: true, dit: "`blocked-on-human` removed: the manager judges the issue again at its next tick" });
+    assert.deepEqual(await lever(reglages, ISSUE, "fermer"), { fait: true, dit: "issue closed" });
+    assert.equal((await lever(reglages, ISSUE, "supprimer")).fait, false);
+    assert.deepEqual(appels(), [`issue edit ${ISSUE} --remove-label blocked-on-human`, `issue close ${ISSUE}`]);
   });
 });
