@@ -1,0 +1,119 @@
+#!/bin/bash
+# Le geste d'enrôlement d'un serveur : une commande et un code, rien d'autre à
+# recopier (runtime/src/enrolement/).
+#
+# Chez le chef, la home prépare l'enrôlement :
+#
+#   brigade-enrolement prepare --to <destination ssh> [--name <nom>] [--repo <dépôt>] [--branch <branche>] [--registry <répertoire>]
+#
+# Il rend, en JSON sur sa sortie standard, un code à usage unique et la
+# commande qui le porte. `--to` dit comment le serveur joint la machine du chef
+# par `ssh` (`chef@box`, un hôte de son ~/.ssh/config).
+#
+# Sur le serveur, le chef lance cette commande telle quelle. Elle clone brigade
+# sous ~/.local/share/brigade s'il n'y est pas, puis appelle :
+#
+#   brigade-enrolement present <code> --to <destination> --receiver <geste> --registry <répertoire> [--name <nom>] [--capability <capacité>]…
+#
+# qui lit la machine (son nom, ce qu'elle est, ses capacités, sa cloison) et
+# la présente à la machine du chef — par `ssh`, dans ce sens seulement : le
+# serveur joint le chef, jamais l'inverse. Chez le chef, `receive` valide le
+# code avant d'écrire quoi que ce soit : un code faux, expiré ou déjà servi est
+# refusé et la machine n'apparaît pas au registre. Accepté, le serveur y entre
+# « en attente » : il ne cuit rien tant que le chef ne l'a pas accepté.
+#
+#   brigade-enrolement receive [--registry <répertoire>]   (lancé par `present`)
+#
+# BRIGADE_SSH_BIN remplace `ssh`, comme pour l'app : un test joue
+# l'enrôlement sans réseau.
+#
+# Codes de sortie : ceux du runtime (0 servi, 1 refusé, 2 mal écrit), sauf
+#   64  le geste est mal écrit
+#   70  `node` manque, ou n'est pas celui que le runtime réclame
+#   255 `ssh` n'a pas joint la machine du chef
+set -u
+
+USAGE=64
+NODE_INAPTE=70
+NODE_REQUIS=26
+
+racine="$(cd "$(dirname "$(readlink -f "$0")")/../.." && pwd)"
+CLI="$racine/runtime/src/enrolement/enrolement-cli.ts"
+
+usage() {
+  echo "usage: brigade-enrolement prepare --to <ssh destination> [--name <name>] [--repo <repository>] [--branch <branch>] [--registry <directory>]"
+  echo "       brigade-enrolement present <code> --to <ssh destination> --receiver <path> --registry <directory> [--name <name>] [--capability <capability>]…"
+  echo "       brigade-enrolement receive [--registry <directory>]"
+}
+mal_ecrit() {
+  echo "brigade-enrolement : $1" >&2
+  usage >&2
+  exit $USAGE
+}
+
+node_apte() {
+  local majeure
+  if ! command -v node >/dev/null 2>&1; then
+    echo "brigade-enrolement : \`node\` manque sur cette machine — installe Node $NODE_REQUIS (https://nodejs.org), puis relance la même commande" >&2
+    exit $NODE_INAPTE
+  fi
+  majeure="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null)"
+  case "$majeure" in
+    "" | *[!0-9]*) majeure=0 ;;
+  esac
+  if [ "$majeure" -lt $NODE_REQUIS ]; then
+    echo "brigade-enrolement : Node $NODE_REQUIS au moins est réclamé, celui de cette machine est en version $(node --version 2>/dev/null) — mets-le à jour, puis relance la même commande" >&2
+    exit $NODE_INAPTE
+  fi
+}
+
+case "${1:-}" in
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  prepare | receive)
+    node_apte
+    exec node "$CLI" "$@"
+    ;;
+  present) shift ;;
+  *) mal_ecrit "geste inconnu : « ${1:-} »" ;;
+esac
+
+# present : ce qui va à `ssh`, et ce qui va à la présentation.
+code="${1:-}"
+[ -n "$code" ] && [ "${code#-}" = "$code" ] || mal_ecrit "il manque le code"
+shift
+vers=
+recepteur=
+registre=
+presentation=()
+while [ $# -gt 0 ]; do
+  [ $# -ge 2 ] || mal_ecrit "« $1 » attend une valeur"
+  case "$1" in
+    --to) vers="$2" ;;
+    --receiver) recepteur="$2" ;;
+    --registry) registre="$2" ;;
+    --name | --capability) presentation+=("$1" "$2") ;;
+    *) mal_ecrit "option inconnue : « $1 »" ;;
+  esac
+  shift 2
+done
+[ -n "$vers" ] && [ "${vers#-}" = "$vers" ] || mal_ecrit "--to : la destination ssh de la machine du chef manque"
+# Ces deux-là s'écrivent entre apostrophes dans la commande que `ssh` fait
+# lancer chez le chef : rien qui en sorte.
+case "$recepteur" in
+  /* ) ;;
+  *) mal_ecrit "--receiver : le chemin absolu du geste chez le chef manque" ;;
+esac
+case "$registre" in
+  /* ) ;;
+  *) mal_ecrit "--registry : le chemin absolu du registre chez le chef manque" ;;
+esac
+case "$recepteur$registre" in
+  *"'"* | *$'\n'*) mal_ecrit "--receiver, --registry : un chemin ne porte ni apostrophe ni retour à la ligne" ;;
+esac
+
+node_apte
+demande="$(node "$CLI" present "$code" "${presentation[@]}")" || exit $?
+printf '%s\n' "$demande" | "${BRIGADE_SSH_BIN:-ssh}" -- "$vers" "'$recepteur' receive --registry '$registre'"
