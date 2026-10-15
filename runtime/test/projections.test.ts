@@ -37,6 +37,14 @@ function raconter(journal: Journal): void {
   raconterLeService(journal);
   raconterLaVersion(journal);
   raconterLaMiseEnService(journal);
+  raconterLUrgence(journal);
+}
+
+// Une urgence annoncée, puis rappelée : l'alerte en cours garde le rappel.
+function raconterLUrgence(journal: Journal): void {
+  const payload = { key: "k", label: "brigade : toute la cuisine attend ton merge de #7", decision: "#7", ticket: 7, cause: "merge", geste: "merge", since: `${JOUR_HORLOGE}T08:00:00.000Z`, retenus: [8] };
+  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "urgence.alerted", payload: { ...payload, reminder: false } });
+  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "urgence.alerted", payload: { ...payload, reminder: true } });
 }
 
 // Une demande dont le geste a redémarré le runtime : un premier se dit en
