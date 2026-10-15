@@ -47,9 +47,7 @@ export type Decision = (typeof DECISIONS)[number];
 
 // Celles sans lesquelles ce runtime ne sert pas : sans calibrage il refuse de
 // démarrer, sans station il démarre et aucun cook ne part. Les seuils n'en
-// sont pas : non déclarés, ils ne signalent rien. La bascule ne lance pas le
-// code qu'elle pose : elle les lit dans `deploy/decisions-obligatoires`, que
-// cette liste tient — un test les garde d'accord.
+// sont pas : non déclarés, ils ne signalent rien.
 export const OBLIGATOIRES: readonly Decision[] = ["BRIGADE_STATIONS", "BRIGADE_MANAGER_MODEL", "BRIGADE_MANAGER_EFFORT", "BRIGADE_REVIEWER_MODEL", "BRIGADE_REVIEWER_EFFORT"];
 export type Posees = Partial<Record<Decision, string>>;
 

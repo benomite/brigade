@@ -390,7 +390,6 @@ const FAITS: Dessinable = {
       attendLu: A,
       railLu: A,
     },
-    version: { etat: "à jour", ton: "vert", faits: [{ libelle: "en service", valeur: "3b0177804de6", exact: true }], lignes: ["rien n'attend d'être mis en service"], gestes: [] },
   },
 };
 const PAGES: Pages = { projet: PARADE, pages: [{ ticket: 470, worktree: "470-2a033691", port: 20470, etat: "sert", route: "/rail", ecran: null, enCours: false }], aLancer: [], illisibles: [], empeche: [], rappel: "rien ne s'y valide" };

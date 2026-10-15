@@ -135,6 +135,12 @@ switch (verbe) {
       if (options.includes("--now")) code ||= demarrer(unite);
     }
     break;
+  case "disable":
+    for (const unite of unites) {
+      rmSync(join(activees, unite), { force: true });
+      if (options.includes("--now")) await arreter(unite);
+    }
+    break;
   case "is-enabled":
     code = unites.every((unite) => existsSync(join(activees, unite))) ? 0 : 1;
     if (!silencieux) console.log(code === 0 ? "enabled" : "disabled");

@@ -34,7 +34,6 @@ function accepte(texte: string) {
 }
 
 test("les gestes cités en constantes sont ceux de la box", async () => {
-  const mise = await import("../src/dire-mise-en-service.ts");
   const fermeture = await import("../src/fermeture/dire.ts");
   const stations = await import("../src/projections/stations.ts");
   const declarees = await import("../src/stations-declarees.ts");
@@ -42,12 +41,10 @@ test("les gestes cités en constantes sont ceux de la box", async () => {
   const base = await import("../src/dire-base.ts");
   const manager = await import("../src/evenements/manager.ts");
   for (const texte of [
-    mise.DEMANDER, mise.ANNULER, mise.VOIR,
     fermeture.DEMANDER, fermeture.ANNULER,
     stations.GESTE_DE_CONNEXION, declarees.GESTE_DE_STATION_A_CHAUD,
     attend.ACCORDER_LE_GRANT, base.REJOUER_LA_BASE, manager.commandeRendre(12),
   ]) accepte(texte);
-  assert.equal(mise.DEMANDER, `brigade ${PROJET} deploy`);
 });
 
 test("aucun message du runtime n'écrit `run <commande>` : la forme de la box est la seule", () => {

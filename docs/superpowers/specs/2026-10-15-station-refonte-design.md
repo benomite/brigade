@@ -99,9 +99,9 @@ revenue en arrière, connexion Max perdue (un login). Jamais une suite de comman
 - Brigade y reprend **seul** les trois projets (`brigade`, `espace`, `calculus-workspace`) : leur
   journal, leurs décisions, leurs tickets en cours. Rien ne se perd ; la cuisine s'arrête quelques
   minutes.
-- Les trois services `brigade@<projet>`, la mise en service maison (`brigade-mise-en-service`,
-  `brigade-bascule`), leurs règles sudoers et les réglages restés dans les drop-ins sont
-  **retirés** par cette installation.
+- Les trois services `brigade@<projet>`, la mise en service maison (son geste et la bascule par
+  projet), leurs règles sudoers et les réglages restés dans les drop-ins sont **retirés** par
+  cette installation.
 
 ## Critères de sortie
 
@@ -122,8 +122,8 @@ revenue en arrière, connexion Max perdue (un login). Jamais une suite de comman
 
 ## Ce qui disparaît
 
-L'installation par projet, `brigade-mise-en-service`, `brigade-bascule`, les règles sudoers et leur
-doc — de l'ordre de 7 000 lignes d'après l'étude #739. Les tickets ouverts qui réparent ce chemin
+L'installation par projet, le geste de mise en service, la bascule par projet, leurs règles sudoers
+et leur doc — de l'ordre de 7 000 lignes d'après l'étude #739. Les tickets ouverts qui réparent ce chemin
 (#474, #560, #743, #756 et ceux de l'épique #602) sont fermés comme remplacés par cette spec, au
 moment où le manager la découpe.
 

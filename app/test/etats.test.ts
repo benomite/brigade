@@ -66,7 +66,6 @@ const faits = (etat: string, ton: string | undefined, arretee = false): Dessinab
       hors: [],
       attendLu: A,
     },
-    version: { etat: "à jour", ton: "vert", faits: [{ libelle: "en service", valeur: "3b0177804de6", exact: true }], lignes: ["rien n'attend d'être mis en service"], gestes: [] },
   },
 });
 

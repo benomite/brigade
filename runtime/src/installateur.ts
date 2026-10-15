@@ -264,8 +264,8 @@ export type Box = {
   journal: string;
   // `runtime/deploy/` du clone de brigade : la cloison s'y copie.
   deploiement: string;
-  // Là où la bascule pose, projet par projet, les versions du runtime qu'elle
-  // met en service (`brigade-bascule`).
+  // Là où l'ancienne mise à jour par projet posait les versions du runtime :
+  // le retrait d'un projet emporte celles qu'elle lui a laissées.
   versions: string;
   systemctl: string;
   getent: string;

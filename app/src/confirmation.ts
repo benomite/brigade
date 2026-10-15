@@ -3,28 +3,25 @@
 // devant ce qu'il coûte — pas devant « es-tu sûr ? » (docs/superpowers/specs/
 // 2026-10-13-app-poste-de-travail-design.md, « Le modèle, en quatre règles », la troisième).
 // La convention est celle du geste de désinstallation : dire ce qu'il va faire. Aucun LLM.
-// Le prix se tire de ce que la box a déjà dit : les cooks en vol et ce qu'ils ont dépensé
-// (`faits`, `miseEnService` — version.ts), le rail, la version qui attend. Ce qui n'est pas lu
-// se dit tel — jamais « aucun cook en vol » à la place d'un « pas lu ». Le prix d'« allumer »
-// se complète d'une lecture à la box, au moment du geste (allumage.ts) : la vue la demande.
-// Chaque « oui » est un geste du socle, qui part dans le second ; la mise en service en offre
-// deux — attendre le rail calme, ou couper. Ce module ne lance rien, n'écrit dans aucun
-// terminal, et ne fait rien partir : il dit.
+// Le prix se tire de ce que la box a déjà dit : les cooks en cours (`faits`), le rail. Ce qui
+// n'est pas lu se dit tel — jamais « aucun cook en vol » à la place d'un « pas lu ». Le prix
+// d'« allumer » se complète d'une lecture à la box, au moment du geste (allumage.ts) : la vue
+// la demande. Chaque « oui » est un geste du socle, qui part dans le second. Ce module ne lance
+// rien, n'écrit dans aucun terminal, et ne fait rien partir : il dit.
 import { AVERTISSEMENT as ALLUMER } from "./allumage.ts";
 import type { Projet } from "./config.ts";
-import { duree, type Faits } from "./faits.ts";
+import type { Faits } from "./faits.ts";
 import { commandeDuGeste, CONFIRMES } from "./gestes.ts";
-import { AVERTISSEMENT as REDEMARRER, COUPER, DEMANDER, enVolDe, voir as voirVersion, type Vu as VersionVue } from "./version.ts";
-import { heure, nombre } from "./format.ts";
+import { nombre } from "./format.ts";
 
 // Un « oui » : le geste du socle qu'il fait partir, ce que son bouton dit, et ce qu'il engage.
 export type Choix = { id: string; libelle: string; dit: string };
 // `titre` : ce que le geste fait. `prix` : ce qu'il coûte, dans les mots de l'app, une phrase par
-// ligne. `enVol` : les cooks en vol à la lecture, et ce qu'ils ont dépensé. `lu` : l'heure de la
+// ligne. `lu` : l'heure de la
 // lecture de `faits` dont le prix est tiré — absente, il n'en doit rien. `chiffrer` : le prix
 // se complète de `manager backlog`, que la vue demande à la box dès que la confirmation s'ouvre.
 // `choix` : les « oui » ; `renoncer` : le « non », qui ne fait rien partir.
-export type Confirmation = { titre: string; prix: string[]; enVol?: NonNullable<VersionVue["enVol"]>; lu?: string; chiffrer?: true; choix: Choix[]; renoncer: string };
+export type Confirmation = { titre: string; prix: string[]; lu?: string; chiffrer?: true; choix: Choix[]; renoncer: string };
 
 // Les derniers faits lus d'un projet, et l'heure de leur lecture — ou pourquoi il n'y en a pas.
 export type Lus = { faits: Faits; a: string } | { sans: string };
@@ -40,12 +37,10 @@ const REPRENDRE = "The “stop” is lifted, and the breaker closed: queued tick
 const MERGE_SANS_TOI = "A green pass will be merged without you: the pass merges what it judges green, with no expiry or number of uses — until you revoke it.";
 const PLUS_SANS_TOI = "Nothing is merged without you any more: the pass stops at the open PR, and every green delivery awaits you — until you enable it again.";
 
-// Les cooks en vol à cette lecture, d'après `faits` : chacun avec ses tokens, quand le runtime
-// les donne (`miseEnService`) ; sinon ce qu'il en donne, et ce qui manque, dit tel.
-function cooksEnVol(lus: Lus): { prix: string[]; enVol?: Confirmation["enVol"]; lu?: string } {
+// Les cooks en vol à cette lecture, d'après `faits` : ce qu'il en donne, et ce qui manque, dit tel.
+function cooksEnVol(lus: Lus): { prix: string[]; lu?: string } {
   if ("sans" in lus) return { prix: [`Cooks in flight are not read: ${lus.sans}. This is not “no cook in flight”.`] };
   const { faits, a } = lus;
-  if (faits.miseEnService !== undefined) return { prix: [], enVol: enVolDe(faits.miseEnService, new Map(faits.rail.map(({ ticket, titre }) => [ticket, titre]))), lu: a };
   if (faits.cooks === undefined) return { prix: ["Cooks in flight are not read: this box's runtime does not give them in `facts`. This is not “no cook in flight”."], lu: a };
   const tickets = faits.cooks.map(({ ticket }) => `#${ticket}`).join(", ");
   return {
@@ -61,21 +56,6 @@ function cooksEnVol(lus: Lus): { prix: string[]; enVol?: Confirmation["enVol"]; 
 // Les tickets que « reprendre » laisse partir, d'après `faits`.
 const surLeRail = (lus: Lus): string[] => ("sans" in lus ? [] : [`${nombre(lus.faits.compteurs.rail)} ticket${s(lus.faits.compteurs.rail)} on the rail at this reading.`]);
 
-// Ce qu'un « oui » sur la mise en service engage — ou pourquoi le geste ne s'offre pas.
-function deLaMiseEnService(id: string, lus: Lus): Confirmation | { refus: string } {
-  if ("sans" in lus) return { refus: `nothing is offered: the version is not read — ${lus.sans}` };
-  const { faits, a } = lus;
-  const vu = voirVersion(faits, undefined, (instant) => duree(Date.parse(faits.lu) - Date.parse(instant)));
-  const PAS_OFFERT = `nothing is offered: according to \`facts\` read at ${heure(a)}, this action does not apply right now — the version is “${vu.etat}”${vu.demande === undefined ? "" : `, and a deploy is ${vu.demande.etat}`}`;
-  if (id === DEMANDER) {
-    if (vu.mettre === undefined) return { refus: PAS_OFFERT };
-    return { titre: "deploy", prix: [vu.mettre.avertissement], ...(vu.enVol === undefined ? {} : { enVol: vu.enVol }), lu: a, choix: [...vu.mettre.choix], renoncer: vu.mettre.renoncer };
-  }
-  const couper = vu.gestes.find((offert) => offert.id === COUPER);
-  if (couper === undefined) return { refus: PAS_OFFERT };
-  return { titre: "interrupt without waiting for a quiet rail", prix: [REDEMARRER], ...(vu.enVol === undefined ? {} : { enVol: vu.enVol }), lu: a, choix: [couper], renoncer: "no, wait for a quiet rail" };
-}
-
 // Ce que ce geste confirmé dira avant de partir, pour ce projet — ou pourquoi il ne s'offre
 // pas. Rien pour un geste qui ne se confirme pas, ou que le socle ne connaît pas.
 export function confirmationDe(id: unknown, projet: Projet, lus: Lus, grant?: unknown): Confirmation | { refus: string } | undefined {
@@ -86,13 +66,12 @@ export function confirmationDe(id: unknown, projet: Projet, lus: Lus, grant?: un
   const nomme = String(grant);
   switch (id) {
     case "stop": {
-      const { prix, enVol, lu } = cooksEnVol(lus);
-      const perdus = enVol === undefined || enVol.cooks.length === 0 ? "" : ` — ${enVol.titre}`;
-      return { titre: "stop the kitchen", prix: [...STOP, ...prix], ...(enVol === undefined ? {} : { enVol }), ...(lu === undefined ? {} : { lu }), choix: [{ id, libelle: "yes, stop the kitchen", dit: `running cooks are stopped${perdus}` }], renoncer: "no, let it run" };
+      const { prix, lu } = cooksEnVol(lus);
+      return { titre: "stop the kitchen", prix: [...STOP, ...prix], ...(lu === undefined ? {} : { lu }), choix: [{ id, libelle: "yes, stop the kitchen", dit: "running cooks are stopped" }], renoncer: "no, let it run" };
     }
     case "reprendre": {
-      const { prix, enVol, lu } = cooksEnVol(lus);
-      return { titre: "resume the kitchen", prix: [REPRENDRE, ...surLeRail(lus), ...prix], ...(enVol === undefined ? {} : { enVol }), ...(lu === undefined ? {} : { lu }), choix: [{ id, libelle: "yes, resume the kitchen", dit: "queued tickets start again, on your quota" }], renoncer: "no, leave it stopped" };
+      const { prix, lu } = cooksEnVol(lus);
+      return { titre: "resume the kitchen", prix: [REPRENDRE, ...surLeRail(lus), ...prix], ...(lu === undefined ? {} : { lu }), choix: [{ id, libelle: "yes, resume the kitchen", dit: "queued tickets start again, on your quota" }], renoncer: "no, leave it stopped" };
     }
     case "grant-activer":
       return { titre: `enable the \`${nomme}\` grant`, prix: [MERGE_SANS_TOI], choix: [{ id, libelle: `yes, enable \`${nomme}\``, dit: "a green pass will be merged without you" }], renoncer: "no, keep control" };
@@ -101,6 +80,6 @@ export function confirmationDe(id: unknown, projet: Projet, lus: Lus, grant?: un
     case "manager-allumer":
       return { titre: "turn the manager on", prix: [ALLUMER], chiffrer: true, choix: [{ id, libelle: "yes, turn the manager on", dit: "what it judges executable is taken up right away" }], renoncer: "no, leave it off" };
     default:
-      return deLaMiseEnService(id, lus);
+      return undefined;
   }
 }

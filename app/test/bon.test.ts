@@ -99,15 +99,6 @@ const ETAT: EtatCuisine = {
     { station: "box/claude", ticket: 16 },
     { station: "box/claude", ticket: null },
   ],
-  miseEnService: {
-    demande: null,
-    enVol: [
-      { run: "16-aaaa0000", ticket: 16, station: "box/claude", launchedAt: ilYA(90), tokens: 1_204_500, measuredAt: ilYA(1) },
-      { run: "15-bbbb1111", ticket: 15, station: "mac/claude", launchedAt: ilYA(40), tokens: null, measuredAt: null },
-      { run: "14-3f9a01bc", ticket: 14, station: "box/claude", launchedAt: ilYA(12), tokens: 230_000, measuredAt: ilYA(1) },
-      { run: "manager-cccc", ticket: null, station: null, launchedAt: ilYA(1), tokens: 9_000, measuredAt: ilYA(1) },
-    ],
-  },
 };
 
 // Le rail que l'app en dessine, de bout en bout : la sortie de `status`, son bloc mis à part, et `faits`.
@@ -137,7 +128,7 @@ describe("ce qu'un bon porte, tenu contre ce que le runtime écrit", () => {
     assert.equal(lu.railLu, MAINTENANT.toISOString());
   });
 
-  test("un ticket pris : who holds it, since when, its lease, what it burns — chaque valeur est un morceau de ce que la box a écrit", () => {
+  test("un ticket pris : who holds it, since when, its lease — chaque valeur est un morceau de ce que la box a écrit", () => {
     const carte = carteDe(lu, 14);
 
     assert.deepEqual(carte.dit, [
@@ -145,17 +136,16 @@ describe("ce qu'un bon porte, tenu contre ce que le runtime écrit", () => {
       { libelle: "taken by", valeur: "box/claude", exact: true },
       { libelle: "since", valeur: "12 min" },
       { libelle: "lease", valeur: "sans progrès depuis 3 min, bail encore 27 min" },
-      { libelle: "burns", valeur: tokens(230_000) },
     ]);
-    // Rien ne le bloque d'après la file : c'est écrit, pas mis à « rien ».
-    assert.equal(carte.sans, `${NON_COMMUNIQUE} : what blocks it`);
+    // Ce qu'il brûle, et rien ne le bloque d'après la file : c'est écrit, pas mis à « rien ».
+    assert.equal(carte.sans, `${NON_COMMUNIQUE} : what it burns · what blocks it`);
     assert.ok(!("relais" in carte));
     for (const { valeur } of carte.dit.slice(3, 4)) assert.ok(status.includes(valeur), valeur);
   });
 
   test("un ticket qui coince, un bail échu : le bail le dit avec les mots du runtime", () => {
-    assert.deepEqual(dits(carteDe(lu, 15)), { "right now": "lance les tests, for 20 min", "taken by": "mac/claude", since: "40 min", lease: "COINCE : sans progrès depuis 20 min, bail encore 10 min", burns: "no reading yet" });
-    assert.deepEqual(dits(carteDe(lu, 16)), { "right now": "activity not given", "taken by": "box/claude", since: "1 h 30", lease: "COINCE : sans progrès depuis 35 min, bail échu depuis 5 min", burns: tokens(1_204_500) });
+    assert.deepEqual(dits(carteDe(lu, 15)), { "right now": "lance les tests, for 20 min", "taken by": "mac/claude", since: "40 min", lease: "COINCE : sans progrès depuis 20 min, bail encore 10 min" });
+    assert.deepEqual(dits(carteDe(lu, 16)), { "right now": "activity not given", "taken by": "box/claude", since: "1 h 30", lease: "COINCE : sans progrès depuis 35 min, bail échu depuis 5 min" });
   });
 
   test("un ticket en attente : since when, et en clair ce qui le retient — une zone tenue, d'autres tickets, un abandon", () => {
@@ -269,25 +259,14 @@ describe("rien n'est deviné", () => {
   });
 
   test("sans `status` lu, la carte dit ce que `faits` donne seul, et pourquoi le reste manque — jamais « personne », jamais « 0 »", () => {
-    const vol = { ticket: 14, run: "14-3f9a01bc", station: "box/claude", tokens: 230_000 };
-
-    assert.deepEqual(porter({ etat: "pris", titre: "Titre" }, { stations: ["box/claude"], vols: [vol], bloque: false }), {
-      dit: [{ libelle: "taken by", valeur: "box/claude", exact: true }, { libelle: "burns", valeur: tokens(230_000) }],
-      sans: "not given by `facts`, and the `rail` line of `status` was not read : since when · its lease · what blocks it",
+    assert.deepEqual(porter({ etat: "pris", titre: "Titre" }, { stations: ["box/claude"], bloque: false }), {
+      dit: [{ libelle: "taken by", valeur: "box/claude", exact: true }],
+      sans: "not given by `facts`, and the `rail` line of `status` was not read : since when · its lease · what it burns · what blocks it",
     });
-    // Un runtime d'avant les cooks et les cooks en vol dans `faits` : rien n'est dit, tout est écrit manquant.
+    // Un runtime d'avant les cooks dans `faits` : rien n'est dit, tout est écrit manquant.
     assert.deepEqual(porter({ etat: "pris", titre: "Titre" }, { bloque: false }), { dit: [], sans: "not given by `facts`, and the `rail` line of `status` was not read : who holds it · since when · its lease · what it burns · what blocks it" });
     // `status` lu, mais il ne dit rien de ce ticket : la file ne le communique pas.
     assert.deepEqual(porter({ etat: "pris", titre: "Titre" }, { ...SOURCES, lignes: [] }), { dit: [], sans: `${NON_COMMUNIQUE} : who holds it · since when · its lease · what it burns · what blocks it` });
-  });
-
-  test("plusieurs cooks en vol sur un même ticket : chacun sous son run, rien n'est additionné", () => {
-    const vols = [
-      { ticket: 14, run: "14-3f9a01bc", station: "box/claude", tokens: 230_000 },
-      { ticket: 14, run: "relecture-14", station: null, tokens: null },
-    ];
-
-    assert.deepEqual(porter({ etat: "pris", titre: "Titre" }, { ...SOURCES, vols }).dit, [{ libelle: "burns", valeur: `14-3f9a01bc: ${tokens(230_000)} · relecture-14: no reading yet` }]);
   });
 
   test("une sortie de `status` sans ligne `rail`, ou qui en a deux, ne donne aucune ligne : rien n'est pris ailleurs", () => {

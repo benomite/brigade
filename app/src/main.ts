@@ -119,11 +119,11 @@ const veilleDOnglet = ouvrirVeille({
   },
 });
 // Ce qui se dessine — la pastille de chaque projet dans la barre, sa carte, son rail,
-// sa bannière d'arrêt, la version de son runtime et sa mise en service — a la sienne aussi, et elle lit tous les projets, quel que soit
+// sa bannière d'arrêt — a la sienne aussi, et elle lit tous les projets, quel que soit
 // l'écran : la barre est toujours affichée. Une box qui ne rend pas `faits` (un runtime
 // plus ancien) le dit là où ils se dessinent, et `status` reste lisible à côté.
 const faits = tenirFaits();
-// La bande d'alertes de chaque projet (alertes.ts) : le manager, la version, la cuisine, le grant —
+// La bande d'alertes de chaque projet (alertes.ts) : le manager, la cuisine, le grant —
 // redessinée à chaque lecture qui la change, de `faits`, de `status` ou de `manager`.
 const bandes = tenirBandes();
 // Une lecture qui ne change rien à la bande ne la redessine pas : même contenu, aucun mouvement (#721).
@@ -722,7 +722,7 @@ ipcMain.handle("attente", (_, nom: unknown, id: unknown, ticket: unknown, saisie
   return vise === undefined ? parti(nom) : ecrireAttente(terminaux, id, vise, ticket, saisie);
 });
 // Ce qu'un geste confirmé coûte, dit avant son « oui » (confirmation.ts) : tiré des derniers faits
-// lus du projet — les cooks en vol et leurs tokens, la version qui attend. Rien ne part, rien
+// lus du projet — les cooks en cours, le rail. Rien ne part, rien
 // n'est lu de plus. Rien, pour un geste qui ne se confirme pas.
 ipcMain.handle("confirmer", (_, nom: unknown, id: unknown, grant: unknown) => {
   const vise = connu(nom);

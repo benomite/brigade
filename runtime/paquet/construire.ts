@@ -131,8 +131,11 @@ try {
   writeFileSync(join(runtime, "package.json"), `${JSON.stringify({ ...JSON.parse(readFileSync(join(RUNTIME, "package.json"), "utf8")), version }, null, 2)}\n`);
   chmodSync(join(runtime, "package.json"), 0o644);
   poser(node, dans(INSTALLATION.slice(1), "node", "bin", "node"), 0o755);
-  // Le renouvellement de la session Max, tel que l'ancien chemin le joue.
+  // Le renouvellement de la session Max.
   poser(join(RUNTIME, "deploy", "brigade-renouvellement"), dans(INSTALLATION.slice(1), "renouvellement"), 0o755);
+  // Le geste `brigade`, que l'app lance par `ssh` sur une machine basculée
+  // depuis l'ancien chemin : la bascule y pointe /usr/local/bin/brigade.
+  poser(join(RUNTIME, "deploy", "brigade"), dans(INSTALLATION.slice(1), "brigade"), 0o755);
   for (const unite of UNITES) poser(join(ICI, "systemd", unite), dans("usr", "lib", "systemd", "system", unite), 0o644);
   poser(join(RACINE, "LICENSE"), dans("usr", "share", "doc", PAQUET, "copyright"), 0o644);
 

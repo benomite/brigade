@@ -26,12 +26,6 @@ de cinq compteurs avec ses cooks en cours, le rail en cinq colonnes, et une bann
 reste — le journal, les grants, la station — reste du texte (voir « Ce qui est dessiné ») ; l'état
 du manager et celui des grants sont lus dans ce texte, et posés au-dessus de lui.
 
-**Et quand une version du runtime attend d'être mise en service**, elle le montre juste au-dessus
-de ce qui t'attend — depuis quand, combien de livraisons ne sont pas en service — avec le geste
-qui la met en service : il montre d'abord les cooks en vol et ce qu'ils ont déjà dépensé, puis te
-laisse choisir d'attendre le rail calme ou de couper (voir « La version du runtime, et sa mise en
-service »).
-
 L'app **n'ajoute rien au runtime** et ne double aucun geste : ce qui s'accorde, se règle ou se
 relance se fait dans son terminal. Ses boutons **écrivent** la commande dans le second, et ne
 l'envoient pas : c'est toi qui fais Entrée (voir « Les boutons écrivent, ils n'envoient pas »). Ce
@@ -856,7 +850,7 @@ espace (« Tous les projets », l'ajout), l'accent est celui de la peau.
 
 **Deux onglets seulement sont posés en haut, à côté du nom du projet : Coût et Paramètres.** **Coût** ouvre la lecture
 Cooks (`station` : le plafond, les cooks, **le consommé**). **Paramètres** ouvre l'état du projet —
-l'installation, **la sauvegarde et son ancienneté**, la version, les pages servies, le retrait, les couleurs du projet, et
+l'installation, **la sauvegarde et son ancienneté**, les pages servies, le retrait, les couleurs du projet, et
 `status` tel que la box le rend —, avec dessous une rangée de lectures : Réglages, Rail, Manager,
 Grants. Une ligne de la bande d'alertes dont la cause se règle là y mène en un clic. **Le journal
 (Log) n'a pas d'onglet** : le bouton « journal », à côté des onglets, ouvre la fin du journal
@@ -1089,8 +1083,7 @@ a aucun.
   gestes du manager : `allumer`, qui écrit dans un shell, et `éteindre`, qui part (« L'onglet Manager »). Le
   reste de « Piloter » (`manager rendre`, `base rejouer`…) se tape. « Tous les projets » n'en a
   aucun. La mise en service d'un projet qu'on vient d'ajouter a les siens, à part : `installation`
-  y est lancée pour toi, et `Démarrer` écrit dans un shell. Et la mise en service d'une version qui
-  attend a les siens aussi, écrits dans un shell (« La version du runtime, et sa mise en service »).
+  y est lancée pour toi, et `Démarrer` écrit dans un shell.
 - **La bannière d'arrêt reprend `garde-fous reprendre`** : le même bouton, la même commande écrite,
   posé là où l'arrêt se lit (« Ce qui est dessiné », « La bannière d'arrêt »).
 
@@ -1146,7 +1139,7 @@ parti dans le second : `!ssh box brigade parade installation` — `claude` s'est
 | `vérifier l'installation` | sous la carte du projet | `!ssh <hote> brigade <nom> installation` |
 
 **Les autres gestes restent écrits** — arrêter et reprendre la cuisine, accorder et révoquer un
-grant, mettre en service : ils détruisent ou engagent, et se lisent avant de partir. **Allumer le
+grant : ils détruisent ou engagent, et se lisent avant de partir. **Allumer le
 manager** aussi, pour l'instant : il engage, et son avertissement se pose sur la commande écrite.
 **Un geste avec jugement** — la carte de T'attend — écrit une demande dans le second et s'arrête :
 sans ton Entrée, rien n'est transmis.
@@ -1212,9 +1205,7 @@ pourquoi — toujours suivie de ``— la commande n'est pas partie, et rien n'es
 ## Ce qui est dessiné
 
 Quatre choses, et elles seules, parce qu'elles sont un **tableau à états** : la pastille de la
-barre, la carte de projet, le rail, la bannière d'arrêt. La version du runtime et sa mise en
-service viennent des mêmes faits, et se posent à côté de la file (« La version du runtime, et sa
-mise en service »). L'app ne les tire d'aucune phrase : elle
+barre, la carte de projet, le rail, la bannière d'arrêt. L'app ne les tire d'aucune phrase : elle
 lance `ssh <hote> brigade <nom> facts`, la commande par laquelle le runtime donne ses faits comme des faits
 (`docs/runtime.md`, « Les faits, pour un programme ») — un état est **un mot lu**, un compteur **un
 nombre lu**. Pour tous les projets qui ont un `hote`, toutes les trente secondes, quel que soit
@@ -1308,7 +1299,7 @@ de `docs/maquettes/app/Brigade.dc.html`.
 | `tient` | la station qui tient le ticket | `cooks`, dans `faits` ; à défaut, sa ligne de `status` (`par <station> …`) |
 | `depuis` | depuis quand il est dans cet état — pris, en attente, en pass, servi | sa ligne sous `rail`, dans `status` |
 | `bail` | son bail, avec les mots du runtime : `sans progrès depuis 3 min, bail encore 27 min`, `COINCE : …`, `bail échu depuis 5 min` | de même |
-| `brûle` | ce que son cook a dépensé à son dernier relevé — `230 000 tokens au dernier relevé`, ou `pas encore de relevé` | `miseEnService.enVol`, dans `faits` — relu toutes les trente secondes |
+| `brûle` | ce que son cook a dépensé — toujours écrit manquant : ni `faits` ni `status` ne le donnent | — |
 | `bloque` | en clair, ce qui le retient : `zone tenue par #14 (app/src)`, `attend #12, #13`, `#17 abandonné (…)`, `aucune station déclarée` | sa ligne sous `rail`, dans `status` |
 
 S'y ajoute, pour un ticket en pass ou servi, `cuisiné par` : qui l'a cuisiné n'est pas qui le tient.
@@ -1333,7 +1324,7 @@ livré, `livré`, `cuisiné par`, et sa PR mergée.
   sous son run.
 - **La ligne lue est celle que `status` écrit sous sa ligne `rail`** —
   `  #<ticket>  <état>  <priorité>  <détail>  <titre>` (`runtime/src/etat.ts`, `decrireEtat`). C'est,
-  avec le numéro en tête d'une ligne du bloc `attend` et son entrée `version`, **la troisième chose
+  avec le numéro en tête d'une ligne du bloc `attend`, **la seconde chose
   que l'app lit hors de la forme de `faits`**, et un contrat de plus sur un texte. Elle est bornée
   par l'état et le titre que `faits` donne pour ce ticket, et son détail n'est découpé que s'il a la
   forme que le runtime écrit pour cet état. **Sinon rien n'en est tiré : la ligne est relayée sur la
@@ -1417,7 +1408,7 @@ livré, `livré`, `cuisiné par`, et sa PR mergée.
   alors dans la colonne de leur mot d'état. La colonne ne dit jamais elle-même que rien ne
   t'attend : vide, elle dit `aucun ticket en tête d'une ligne du bloc `attend`` — ou, avant que le
   bloc soit lu, ``aucun ticket dans `attend`, d'après `faits` `` —, et c'est le bloc qui dit le
-  reste : une version, une connexion attendent aussi, et n'ont pas de carte.
+  reste : une connexion, la base attendent aussi, et n'ont pas de carte.
 - **Un ticket `86` qui ne t'attend pas** — sa station lui a donné une heure de retour — **n'est
   d'aucune colonne**, comme un ticket dont l'app ne connaît pas le mot d'état : il se lit **sous les
   colonnes**, sous le titre `hors des cinq colonnes`, avec son mot — et sa ligne de `status`, relayée telle
@@ -1613,8 +1604,7 @@ fin attend
   de ce que le bloc porte n'est compté ni reformulé. Elle ne sait donc pas *si* quelque chose
   t'attend : le bloc plein et le bloc vide ont le même fond, pas de couleur d'alerte, aucun compteur
   dans la barre.
-- **Le numéro qu'elle y lit** — pour ranger le rail (« Le rail », colonne T'attend), et avec
-  l'entrée `version` (ci-dessous, « La version du runtime, et sa mise en service ») c'est tout ce
+- **Le numéro qu'elle y lit** — pour ranger le rail (« Le rail », colonne T'attend) — c'est tout ce
   qu'elle lit dans le bloc : **le numéro de ticket en tête d'une ligne du bloc**. Les lignes plus en
   retrait posées sous une entrée — ce qui la précise — lui restent attachées, telles quelles. La forme est celle que `status`
   écrit : deux espaces, `#`, des chiffres, puis deux espaces ou la fin de la ligne (`  #12  depuis
@@ -1638,104 +1628,6 @@ fin attend
   (`docs/runtime.md`, « Piloter ») — mais l'app ne le devine pas : elle dit ce qu'elle n'a pas
   trouvé. Le projet reste `pilotable` : `status` a répondu.
 - Une lecture ratée n'a rien à mettre à part : l'erreur prend toute la place, comme avant.
-
-### La version du runtime, et sa mise en service
-
-Juste au-dessus du bloc `attend`, dans le panneau de l'espace : **la version du runtime**, telle
-que `faits` la donne (`docs/runtime.md`, « Les faits, pour un programme », champs `version` et
-`miseEnService`) — lue toutes les trente secondes, comme la carte.
-
-```
-la version du runtime, d'après `ssh <hote> brigade <nom> facts` — lu à 12:04:11
-◆ en attente
-attend                      origin/v2 (eec91320ee32)
-en service                  3b0177804de6
-en retard depuis            1 h 43
-livraisons non en service   26
-[ mettre en service… ]  montre d'abord les cooks en vol et ce qu'ils ont déjà dépensé : rien n'est écrit, rien n'est demandé
-```
-
-- **Depuis quand, et combien.** « En retard depuis » compte depuis l'heure de la plus ancienne
-  livraison qui n'est pas en service jusqu'à la lecture de la box — pas jusqu'à l'horloge de ton
-  poste. Le nombre de livraisons est celui que la box a compté.
-- **Le mot d'état est celui de la box**, avec sa couleur : `à jour` (vert), `en attente` (jaune),
-  `non comparée` (gris). Un mot que l'app ne connaît pas s'affiche tel quel, sans couleur, et sans
-  geste.
-- **Rien n'est dit à jour qui ne l'est pas.** `à jour` : la box le dit, et aucun geste n'est posé.
-  `non comparée` : sa raison, mot pour mot, et aucun geste — le runtime refuserait la demande.
-  Un runtime qui n'a encore rien comparé (`rien de comparé`), ou qui ne donne pas encore sa
-  version dans `faits` (`pas lue`) : l'app le dit, et dit que ce n'est pas « à jour ».
-
-**Le geste « mettre en service… » n'écrit rien.** Il ouvre ce que la mise en service
-interromprait, puis deux choix :
-
-```
-⚠️ La mise en service est un vrai redémarrage : les cooks en vol meurent avec le runtime, et leurs tickets repartent de zéro.
-3 cooks en vol — 450 775 tokens déjà dépensés en tout, 1 sans relevé encore
-  #14  Le journal en ajout seul   box/claude        230 000 tokens déjà dépensés
-  #30                             station inconnue  tokens : pas encore de relevé
-       un jugement du manager     box/claude        220 775 tokens déjà dépensés
-[ attendre le rail calme ]  aucun cook n'est interrompu : ceux qui sont en vol finissent, aucun autre ne part, et le runtime lance le geste de box dès que plus aucun n'est en vol
-[ couper sans attendre ]    le geste de box part sans attendre : 3 cooks en vol interrompus par le redémarrage, 450 775 tokens déjà dépensés
-[ ne rien demander ]
-```
-
-| Le choix | Ce qu'il écrit dans un shell de l'espace |
-|---|---|
-| `attendre le rail calme` | `ssh <hote> brigade <nom> deploy` |
-| `couper sans attendre` | `ssh <hote> brigade <nom> deploy --interrupt` |
-| `renoncer à la demande` (sur une demande qui attend) | `ssh <hote> brigade <nom> deploy cancel` |
-
-- **Les cooks en vol sont ceux de la dernière lecture de `faits`** — trente secondes au plus —,
-  chacun avec son ticket, son titre s'il est sur le rail, sa station et ce qu'il a déjà dépensé à
-  son dernier relevé ; un jugement du manager n'a pas de ticket. **Le total est celui que la box a
-  compté.** Ouvert, le choix suit les lectures : un cook qui part ou qui finit s'y voit sans le
-  refermer. La commande, une fois envoyée, redit ce qui est en vol à cet instant.
-- **Aucun redémarrage ne part sans un de ces deux choix**, et aucun choix n'envoie rien : chacun
-  est un geste du socle (`gestes.ts`), qui **écrit** la commande du runtime dans un shell ouvert
-  pour elle. Tu la lis, et **c'est ton Entrée qui demande**. `ne rien demander` referme, sans rien
-  écrire.
-- **Aucune commande à copier, et pas de `sudo`.** Ce qui s'écrit est la commande du runtime
-  (`docs/runtime.md`, « Mettre en service »), dans sa forme de poste. C'est **le runtime** qui lance
-  le geste de box, quand il le peut, sous la règle `sudo` de sa box : l'app n'a ni shell sur la
-  box, ni `sudo`, ni chemin vers `brigade-mise-en-service` ou `brigade-bascule` — et aucun geste de
-  l'app ne les écrit.
-- **Une demande qui vit se lit là** : `mise en service demandée` — elle attend le rail calme, ou
-  le prochain réveil du runtime — avec les cooks en vol dessous, et ses gestes : `couper sans
-  attendre` tant qu'elle attend, `renoncer à la demande`. `mise en service lancée` : le geste de
-  box est parti, plus aucun geste n'est offert — il ne se rappelle pas.
-- **Offert sur une version que la box dit en attente, et sur elle seule.** Un runtime qui dit sa
-  version mais pas encore ce qui est en vol n'a pas le geste : l'app dit pourquoi, et que ce
-  n'est pas « aucun cook en vol ».
-
-**Une mise en service qui a échoué se lit au même endroit**, sans ouvrir de terminal :
-
-```
-MISE EN SERVICE ÉCHOUÉE, lancée le 2026-10-12T10:00:00.000Z : eec91320ee32 n'a pas démarré — « le runtime est sorti en code 1, et systemd ne le relance pas (`failed`) » ; la version précédente (3b0177804de6) est revenue en service, le runtime est reparti sur elle le 2026-10-12T10:01:00.000Z
-les dernières lignes du geste de box :
-│ brigade-bascule : eec91320ee32 n'a pas démarré pour brigade@brigade.service — le runtime est sorti en code 1, et systemd ne le relance pas (`failed`)
-La version attend toujours. Une fois levé ce que le geste dit, elle se redemande ici, par « mettre en service ».
-d'après l'entrée `version` du bloc `attend` de `ssh <hote> brigade <nom> status` — lu à 12:04:40
-```
-
-- **C'est la phrase du runtime, mot pour mot** : la version refusée, le motif de la bascule, la
-  version précédente revenue — ou, quand rien n'a été redémarré, le code du geste, ce qu'il veut
-  dire et le commit qui reste en service (`docs/runtime.md`, « Une mise en service qui échoue »).
-  Les dernières lignes du geste de box suivent, telles quelles.
-- **D'où elle vient.** `faits` ne porte pas ce que le dernier geste a donné : l'app le prend dans
-  le bloc `attend`, à **l'entrée `version`** — la ligne qui commence par deux espaces, `version`,
-  deux espaces, et les lignes plus en retrait qui la suivent. Elle y lit la phrase à partir de
-  `MISE EN SERVICE ÉCHOUÉE` (ou de `la mise en service lancée le`, quand le geste a rendu la main
-  sans rien redémarrer), et s'arrête avant le geste à refaire que le runtime écrit pour un
-  terminal (`à redemander : …`) : ici, il se refait d'un bouton. **C'est un contrat de plus sur un
-  texte**, tenu comme l'autre : un test fait écrire le bloc par le runtime, une issue de chaque
-  sorte (`app/test/version.test.ts`). Une phrase qui ne finit pas ainsi est posée entière ; un
-  bloc sans cette entrée ne donne aucun échec.
-- **Son heure est celle du bloc**, pas celle des faits : deux lectures, deux heures, toutes deux
-  dites. Le bloc `attend`, dessous, dit la même chose en entier, geste de terminal compris.
-- **La version attend toujours**, et le geste reste offert : la redemander ne demande rien de plus.
-- « Tous les projets » ne pose pas cette section : la version qui attend s'y lit dans le bloc
-  `attend` de chaque projet, et le geste est dans l'espace du projet.
 
 ### Ce que `status` dit du reste
 
@@ -1864,7 +1756,7 @@ L'app a une langue visuelle, et une seule : celle de la maquette (`docs/maquette
 habille **le cadre**, jamais le contenu.
 
 - **Un fond sombre, des cartes dessus.** Tout ce qui se lit d'un bloc a sa carte : chaque projet de
-  « Tous les projets », la carte de projet, la mise en service, le retrait, les pages servies,
+  « Tous les projets », la carte de projet, la mise en service d'un projet ajouté, le retrait, les pages servies,
   l'état du manager, celui des grants, le formulaire d'ajout. Une colonne du rail est une carte,
   un ticket y est un **bon** — du papier clair sur le sombre —, et ce qui t'attend a la sienne, la
   même que le bloc soit plein ou vide. Il n'y a qu'un thème, sombre, et aucun réglage.
@@ -2156,13 +2048,8 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   `boutons.ts` (ce que chaque bouton écrit, comparé à « Piloter » de `docs/runtime.md` — et, dans
   le registre et sur le vrai pty, que rien n'est envoyé), `gestes.ts` (les gestes qui s'écrivent
   dans un shell de l'espace, et les deux qui partent dans le second : chaque commande comparée,
-  caractère pour caractère, à « Piloter » — à « Mettre en service » pour les trois de la mise en
-  service —, que rien n'envoie un geste écrit, et qu'aucun geste n'expose de shell, de `sudo` ni
-  de commande libre), `version.ts` (la version du
-  runtime à côté de la file : en attente, à jour, non comparée, pas lue ; les cooks en vol et
-  leurs tokens ; les deux choix ; l'échec lu dans l'entrée `version` du bloc que le test fait
-  écrire par `decrireAttentes` et `direIssue` du runtime — et, vue jouée, que « mettre en service »
-  n'écrit rien avant un choix), `manager.ts` (l'état du manager lu dans la sortie de `manager` : allumé,
+  caractère pour caractère, à « Piloter », que rien n'envoie un geste écrit, et qu'aucun geste
+  n'expose de shell, de `sudo` ni de commande libre), `manager.ts` (l'état du manager lu dans la sortie de `manager` : allumé,
   éteint, jamais allumé, sans décision, avec ses décisions et ses écarts — sur des sorties que le
   test fait écrire par `runtime/src/manager-cli.ts` lui-même, sur un vrai journal ; ce qui n'a pas
   la forme n'est jamais lu comme « éteint »), `allumage.ts` (ce qu'engage l'allumage : son
@@ -2267,17 +2154,9 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
   niveau. Si ça manque, c'est à lui de le dire.
 - Dire *pourquoi* une cuisine est retenue, ou ce qu'un ticket attend, autrement qu'en texte : la
   forme de `faits` ne le porte pas, et l'app ne lit de la sortie de `status` que le bord du bloc
-  `attend`, le numéro en tête de ses lignes et son entrée `version`.
-- Envoyer la mise en service à ta place : chaque choix écrit sa commande dans un shell, et c'est
-  ton Entrée qui demande. Ni suivre le geste de box pendant qu'il tourne : `faits` dit `lancée`,
-  puis le runtime qui repart dit ce qu'il en est advenu.
-- Dire une mise en service réussie : la version passe `à jour`, et rien d'autre ne le dit ici —
-  `ssh <hote> brigade <nom> deploy show` le dit sous `dernière`.
-- Dire l'échec d'une mise en service ailleurs que dans l'espace du projet, ou quand le bloc
-  `attend` n'a pas été pris : il n'est lu que là.
-- Ouvrir à la box le droit de lancer le geste : tant que la règle `sudo` de la box ne laisse pas
-  passer le compte du service, la demande échoue et la file le dit (`docs/runtime.md`, « Mettre en
-  service »).
+  `attend` et le numéro en tête de ses lignes.
+- Mettre le runtime à jour : la box passe à la station, une fois, par son paquet, qui se met
+  ensuite à jour seul ([`bascule.md`](bascule.md)) — l'app n'en a aucun geste.
 - Répondre depuis la fiche à autre chose qu'une question du manager, ou retirer un label à ta
   place : une issue qui porte `question` ou `decision` se tranche sur GitHub, ou avec le second.
 - Dire qu'un runtime ne bat plus : elle affiche l'écart entre son dernier tick et la lecture, sans

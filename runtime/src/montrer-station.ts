@@ -48,8 +48,7 @@ import {
 } from "./projections/stations.ts";
 
 // Les décisions du chef, chacune par son geste : ce qu'elle décide, et ce
-// qu'elle attend. L'ordre est celui de l'aide et de l'affichage. La bascule
-// nomme les mêmes gestes (`deploy/decisions-obligatoires`).
+// qu'elle attend. L'ordre est celui de l'aide et de l'affichage.
 const ou = (valeurs: readonly string[]) => `${valeurs.slice(0, -1).join(", ")} ou ${valeurs.at(-1)}`;
 export const GESTES: Record<string, { decision: Decision; quoi: string; valeur: string; attendu: string }> = {
   stations: { decision: "BRIGADE_STATIONS", quoi: "les stations du projet", valeur: "<déclaration>", attendu: `\`${FORME}\`, séparées par des virgules` },

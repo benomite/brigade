@@ -1,9 +1,8 @@
 // Ce qu'un bon du rail porte, outre son numéro, son état et son titre : ce que la
 // file dit déjà du ticket — ce que la cuisine en fait en ce moment, qui le tient,
 // depuis quand, son bail, ce qu'il brûle, ce qui le bloque. Rien n'y est compté ni déduit : chaque valeur est un morceau
-// de ce que la box a écrit, ou un nombre qu'elle a donné. Deux lectures y entrent :
-//   - `faits`, la forme : la station du cook en cours (`cooks`), et ce qu'il a
-//     dépensé à son dernier relevé (`miseEnService.enVol`) ;
+// de ce que la box a écrit. Deux lectures y entrent :
+//   - `faits`, la forme : la station du cook en cours (`cooks`) ;
 //   - `status`, du texte : la ligne du ticket sous la ligne `rail`, que le runtime
 //     écrit ainsi (runtime/src/etat.ts, `decrireEtat` et `detail`) —
 //       `  #<ticket>  <état>  <priorité>  <détail>  <titre>`
@@ -12,8 +11,6 @@
 //     est tiré : un texte reformulé ne devient jamais une valeur fausse.
 // Ce que la file ne dit pas est écrit comme tel, chose par chose : un bon ne se
 // tait sur rien, et n'invente rien à la place.
-import type { EnVol } from "./version.ts";
-import { nombre } from "./format.ts";
 
 // `exact` : ce qui se recopie tel quel — une station.
 export type Fait = { libelle: string; valeur: string; exact?: true };
@@ -28,14 +25,13 @@ export type Porte = { dit: Fait[]; sans?: string; relais?: string };
 // n'a pas été lue ; vides, elle l'a été et ne dit rien de lui.
 // `stations` : celles de ses cooks en cours, d'après `faits` — absentes, le
 // runtime ne donne pas les cooks.
-// `vols` : ses cooks en vol, d'après `faits` — absents, le runtime ne les donne pas.
 // `bloque` : le bloc `attend` dit ce qui l'arrête, et le bon le porte à part.
 // `enCeMoment` : ce que la cuisine fait du ticket, tel que `faits` le donne et que
 // l'app l'écrit (faits.ts, `direEnCeMoment`) — absent, le bon ne porte pas cette ligne.
 // `attente` : pour un ticket mis de côté, la raison en clair que le runtime donne
 // dans `faits` — elle remplace sa ligne brute de `status`, qui n'est plus relayée.
 // `revenu` : pour un ticket revenu de WAITING, le motif que le runtime en donne dans `faits`.
-export type Sources = { lignes?: readonly string[]; stations?: readonly string[]; vols?: readonly EnVol[]; bloque: boolean; enCeMoment?: string; attente?: string; revenu?: string };
+export type Sources = { lignes?: readonly string[]; stations?: readonly string[]; bloque: boolean; enCeMoment?: string; attente?: string; revenu?: string };
 
 const TETE_DE_TICKET = /^ {2}#(\d+) {2}(.*)$/;
 
@@ -107,9 +103,6 @@ function decouper(ligne: string, etat: string, titre: string): Lu | undefined {
   return lue === undefined || trouve === null ? undefined : lue.lire(trouve);
 }
 
-// Ce qu'un cook en vol a dépensé, d'après son dernier relevé — ou qu'il n'y en a pas encore.
-const depense = ({ tokens }: EnVol) => (tokens === null ? "no reading yet" : `${nombre(tokens)} tokens at the last reading`);
-
 // Les cinq choses qu'un bon porte, dans l'ordre où elles se lisent : le libellé
 // de chacune quand la file la dit, et comment elle se nomme quand elle ne la dit pas.
 const CHOSES = [
@@ -123,7 +116,7 @@ const CHOSES = [
 // Le bon d'un ticket : ce que la file en dit, ce qu'elle n'en dit pas, et sa
 // ligne de `status` telle quelle quand elle n'a pas pu être découpée. `etat` et
 // `titre` : ceux que `faits` donne — absents, le ticket n'est pas sur le rail.
-export function porter({ etat, titre }: { etat?: string; titre?: string }, { lignes, stations, vols, bloque, enCeMoment, attente, revenu }: Sources): Porte {
+export function porter({ etat, titre }: { etat?: string; titre?: string }, { lignes, stations, bloque, enCeMoment, attente, revenu }: Sources): Porte {
   // Un ticket n'a qu'une ligne sur le rail : deux ne disent pas laquelle croire.
   const [ligne] = lignes ?? [];
   const lu = ligne === undefined || lignes?.length !== 1 || etat === undefined || titre === undefined ? undefined : decouper(ligne, etat, titre);
@@ -133,8 +126,8 @@ export function porter({ etat, titre }: { etat?: string; titre?: string }, { lig
     tient: stations !== undefined && stations.length > 0 ? { valeur: stations.join(", "), exact: true } : lu?.tient === undefined ? undefined : { valeur: lu.tient, exact: true },
     depuis: lu === undefined ? undefined : { valeur: lu.depuis },
     bail: lu?.bail === undefined ? undefined : { valeur: lu.bail },
-    // Plusieurs cooks en vol sur le même ticket : chacun sous son run, rien n'est additionné.
-    brule: vols === undefined || vols.length === 0 ? undefined : { valeur: vols.length === 1 ? depense(vols[0] as EnVol) : vols.map((vol) => `${vol.run}: ${depense(vol)}`).join(" · ") },
+    // Ce qu'il brûle, la file ne le dit pas : ni la forme, ni sa ligne sous `rail`.
+    brule: undefined,
     bloque: lu?.bloque === undefined ? undefined : { valeur: lu.bloque },
   };
   // Ce que le bloc `attend` dit de lui est posé sur le bon, à part : c'est ce qui le bloque.

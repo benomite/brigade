@@ -90,7 +90,7 @@ const INCOMPLETS: Constat[] = [
 const PRET = ecrite(PRETS);
 const INCOMPLET = ecrite(INCOMPLETS);
 // La vérification qui plante sur /etc/sudoers.d : la panne connue #654.
-const EACCES = Object.assign(new Error("EACCES: permission denied, lstat '/etc/sudoers.d/brigade-mise-en-service'"), { code: "EACCES" });
+const EACCES = Object.assign(new Error("EACCES: permission denied, lstat '/etc/sudoers.d/brigade-installer'"), { code: "EACCES" });
 
 // Ce que la vérification rend, en texte (`installation`) et structurée (`installation --json`) —
 // l'une et l'autre par les fonctions du runtime qui les écrivent. Une erreur : elle a planté.
@@ -302,7 +302,7 @@ describe("« Vérifier » : `installation --json`, et le verdict que l'écran en
     assert.equal(rendu.jugement.panne.connue?.issue, 654);
     assert.match(rendu.jugement.phrase, /problème de brigade, pas de ton projet/);
     assert.equal(rendu.jugement.brut, `brigade : ${EACCES.message}\n`);
-    assert.match(rendu.obtenu, /lstat '\/etc\/sudoers\.d\/brigade-mise-en-service'\n\n→ exit code 1$/);
+    assert.match(rendu.obtenu, /lstat '\/etc\/sudoers\.d\/brigade-installer'\n\n→ exit code 1$/);
   });
 
   test("un runtime d'avant le verdict, une commande forcée, un verdict que son code dément : rien n'est lu, et ce que la box a rendu est gardé", async (t) => {
@@ -376,11 +376,11 @@ describe("ce que « Démarrer » écrit", () => {
 
 // --- L'installation guidée.
 
-// Ce qu'`installation` écrit quand le geste de mise en service de la box est trop vieux : un
+// Ce qu'`installation` écrit quand le code de brigade posé sur la box est trop vieux : un
 // manque sur la machine, que l'étape « verification » règle — dans la forme de
 // runtime/src/installation-cli.ts, son étape nommée par le runtime lui-même.
-const GESTE_A_NIVEAU = "`sudo git -C /opt/brigade pull --ff-only` — docs/installer.md, « Le geste de mise en service »";
-const GESTE_TROP_VIEUX = "le geste de mise en service posé (/usr/local/bin/brigade-mise-en-service) est en version 0, le runtime exige la version 1 — une mise en service lancée avec lui échouerait ou ferait autre chose que ce que le runtime attend";
+const GESTE_A_NIVEAU = "`sudo git -C /opt/brigade pull --ff-only` — docs/installer.md, « Mettre brigade à jour »";
+const GESTE_TROP_VIEUX = "le code de brigade posé sur la box (/opt/brigade) est en retard sur celui que le runtime exige — un projet lancé avec lui ferait autre chose que ce que le runtime attend";
 const SANS_GESTES: Constat[] = [
   {
     ou: "machine",
@@ -388,7 +388,7 @@ const SANS_GESTES: Constat[] = [
     texte: GESTE_TROP_VIEUX,
     geste: GESTE_A_NIVEAU,
     etape: "verification",
-    simple: "le geste de mise en service posé sur la box est trop ancien (version 0, il en faut la 1) : une mise en service échouerait",
+    simple: "le code de brigade posé sur la box est trop ancien : un projet lancé avec lui échouerait",
     remede: { qui: "chef", commande: "sudo git -C /opt/brigade pull --ff-only" },
   },
   {

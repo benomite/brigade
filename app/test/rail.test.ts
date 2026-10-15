@@ -69,8 +69,6 @@ const FAITS: Faits = {
   ],
   cooks: [{ ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" }],
   attend: [{ ticket: 12, titre: "Validation SIRET", url: "https://github.com/benomite/brigade/issues/12" }],
-  version: null,
-  miseEnService: { etat: "aucune", depuis: null, coupe: false, enVol: [{ ticket: 14, run: "14-3f9a01bc", station: "box/claude", tokens: 230000 }], tokens: 230000 },
 };
 // Ce que le bloc dit de #12 : une entrée longue, puis ce qui la précise sur plusieurs lignes —
 // des blancs en tête, en fin et au milieu, une tabulation, ce qui ressemble à du HTML.
@@ -213,7 +211,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
 });
 
 describe("une carte porte ce que la file dit", () => {
-  test("ce que la cuisine en fait en ce moment, qui tient le ticket, depuis quand, son bail, ce qu'il brûle, et en clair ce qui le bloque — quand la file les donne", async () => {
+  test("ce que la cuisine en fait en ce moment, qui tient le ticket, depuis quand, son bail, et en clair ce qui le bloque — quand la file les donne", async () => {
     const vue = await ouvrir();
     recevoir(vue);
 
@@ -222,7 +220,6 @@ describe("une carte porte ce que la file dit", () => {
       ["taken by", "box/claude"],
       ["since", "12 min"],
       ["lease", "sans progrès depuis 3 min, bail encore 27 min"],
-      ["burns", `${(230000).toLocaleString("en-US")} tokens at the last reading`],
     ]);
     assert.deepEqual(portes(bonDe(vue, 21)), [["since", "2 h 05"], ["blocked by", "zone tenue par #14 (app/src)"]]);
     // En pass, ce que la pass en fait ; la box qui ne le sait pas, la carte l'écrit.
@@ -249,7 +246,7 @@ describe("une carte porte ce que la file dit", () => {
     const vue = await ouvrir();
     recevoir(vue, dessinable(FAITS, PAS_LU));
 
-    assert.deepEqual(portes(bonDe(vue, 14)).map(([libelle]) => libelle), ["right now", "taken by", "burns"]);
+    assert.deepEqual(portes(bonDe(vue, 14)).map(([libelle]) => libelle), ["right now", "taken by"]);
     assert.deepEqual(sans(bonDe(vue, 14)), []);
     // Le haut du rail ne dit rien d'une lecture récente : la provenance est dans Paramètres.
     const provenance = () => vue.element("provenance-lignes").textContent;

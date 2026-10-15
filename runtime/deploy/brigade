@@ -1,41 +1,47 @@
 #!/bin/bash
-# Le geste de la box : lance une commande du runtime pour un projet.
+# Le geste d'une station : lance une commande du runtime pour un de ses projets.
 #
 #   brigade <projet> <commande> [arguments…]
 #   brigade <projet> help         les commandes du runtime, sous leur nom anglais
 #   brigade --help
 #
-# Une commande se tape sous son nom anglais (docs/glossary.md). Son ancien nom
-# français répond encore jusqu'à la date que CHANGELOG.md annonce : il est
-# accepté, mais ni l'aide ni le refus d'une commande inconnue ne le nomment.
+# C'est par lui que l'app lit et pilote, par `ssh`, les projets d'une machine
+# qui les servait avant la station (docs/bascule.md). Une commande se tape sous
+# son nom anglais (docs/glossary.md) ; son ancien nom français est accepté, mais
+# ni l'aide ni le refus d'une commande inconnue ne le nomment.
 #
-# Installation et règle sudoers : docs/installer.md, « Préparer la box ».
-#
-# Ce fichier se copie tel quel, comme les unités. Rien de la machine n'y est
-# écrit : le compte, l'installation et l'environnement se lisent dans l'unité
-# brigade@<projet>.service, drop-ins compris — la commande tourne avec ce que
-# le service du projet reçoit, pas avec une variable recopiée.
+# Le paquet de la station le porte (/usr/lib/brigade-station/brigade), à côté
+# du runtime et du `node` qu'il lance ; la bascule y pointe /usr/local/bin/brigade,
+# que nomme la règle sudoers du geste. Rien de la machine n'y est écrit : le
+# compte et l'environnement se lisent dans l'unité de la station, le projet
+# dans sa configuration — la commande tourne avec ce que la station donne au
+# projet, pas avec une variable recopiée (runtime/src/station/geste.ts).
 #
 # Codes de sortie : celui de la commande, sauf
 #   64  il manque le projet ou la commande
-#   65  projet inconnu sur cette box
+#   65  projet inconnu sur cette station
 #   66  la commande n'est pas une commande du runtime
-#   67  systemd n'a pas répondu pour l'unité du projet
-#   68  celui qui lance n'a pas le droit du geste sur cette box
-#   69  `sudo` manque sur cette box
-#   70  `node` ne démarre pas, ou n'est pas celui que le runtime réclame
+#   67  systemd n'a pas répondu pour l'unité de la station
+#   68  celui qui lance n'a pas le droit du geste sur cette machine
+#   69  `sudo` manque sur cette machine
+#   70  le `node` ou le runtime de la station manque ou ne démarre pas — le
+#       paquet n'est pas là, ou la machine n'a pas ce qu'il lui faut
+# Le geste refuse ici ce qui se juge sans lire la station (64, un nom qui n'est
+# pas un nom de projet en 65, 67 à 70) ; le projet que sa configuration ne
+# nomme pas (65) et la commande qui n'est pas du runtime (66) se jugent dans
+# `src/station/geste.ts`, sous le compte de la station, qui sort avec ces codes.
 set -u
 
 USAGE=64
 PROJET_INCONNU=65
-PAS_DU_RUNTIME=66
 SYSTEMD_MUET=67
 SANS_DROIT=68
 SUDO_ABSENT=69
 NODE_INAPTE=70
-DOC_DE_LA_BOX="docs/installer.md, « Préparer la box »"
-# Le `PATH` qu'une unité reçoit quand aucun de ses drop-ins n'en pose.
+DOC="docs/bascule.md, « Le geste brigade »"
+# Le `PATH` qu'une unité reçoit quand elle n'en pose pas.
 PATH_DE_SYSTEMD=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+UNITE=brigade-station.service
 
 usage() {
   echo "usage: brigade <project> <command> [arguments…]"
@@ -53,30 +59,23 @@ commande="$2"
 case "$commande" in
   -h | --help) commande=help ;;
 esac
-unite="brigade@$projet.service"
 
-inconnu() {
-  echo "brigade : projet inconnu sur cette box — « $projet » n'a pas de drop-in (\`sudo systemctl edit brigade@<projet>.service\`, docs/installer.md)" >&2
-  exit $PROJET_INCONNU
-}
 # Pose dans `lu` une propriété de l'unité. Appelée telle quelle, jamais dans
 # `$(…)` : son refus doit arrêter le geste, pas un sous-shell.
 de_l_unite() {
-  lu="$(systemctl show -p "$1" --value "$unite")" || {
-    echo "brigade : systemd n'a pas répondu pour $unite (\`systemctl show -p $1\` rend $?)" >&2
+  lu="$(systemctl show -p "$1" --value "$UNITE")" || {
+    echo "brigade : systemd n'a pas répondu pour $UNITE (\`systemctl show -p $1\` rend $?)" >&2
     exit $SYSTEMD_MUET
   }
 }
 
-# `systemctl show` répond pour toute instance du gabarit, même jamais déclarée :
-# ce qui fait un projet, c'est le drop-in de son instance.
+# Un nom qui n'est pas un nom de projet ne va pas plus loin. Le projet se
+# cherche dans la configuration de la station, que seul son compte lit.
 case "$projet" in
-  "" | *[!a-z0-9-]*) inconnu ;;
-esac
-de_l_unite DropInPaths
-case " $lu " in
-  *"/$unite.d/"*) ;;
-  *) inconnu ;;
+  "" | *[!a-z0-9-]*)
+    echo "brigade : projet inconnu sur cette station — « $projet » n'est pas un nom de projet" >&2
+    exit $PROJET_INCONNU
+    ;;
 esac
 
 de_l_unite User
@@ -84,7 +83,7 @@ compte="${lu:-root}"
 qui="$(id -un)"
 if [ "$qui" != "$compte" ]; then
   command -v sudo >/dev/null || {
-    echo "brigade : \`sudo\` manque sur cette box — le geste passe par lui sous le compte « $compte » ($DOC_DE_LA_BOX)" >&2
+    echo "brigade : \`sudo\` manque sur cette machine — le geste passe par lui sous le compte « $compte » ($DOC)" >&2
     exit $SUDO_ABSENT
   }
   # `sudo` demande son mot de passe sur le terminal, pas sur l'entrée. Sans
@@ -95,7 +94,7 @@ if [ "$qui" != "$compte" ]; then
   if ! (: </dev/tty) 2>/dev/null; then
     sudo -n -u "$compte" -- "$0" >/dev/null 2>&1
     if [ $? != $USAGE ]; then
-      echo "brigade : « $qui » n'a pas le droit de lancer le geste sur cette box — sans terminal, \`sudo\` ne le lui donne pas sous le compte « $compte » sans mot de passe (docs/installer.md, « Ajouter un humain »)" >&2
+      echo "brigade : « $qui » n'a pas le droit de lancer le geste sur cette machine — sans terminal, \`sudo\` ne le lui donne pas sous le compte « $compte » sans mot de passe ($DOC)" >&2
       exit $SANS_DROIT
     fi
   fi
@@ -105,9 +104,6 @@ if [ "$qui" != "$compte" ]; then
 fi
 shift 2
 [ "${1:-}" = "--" ] && shift
-
-de_l_unite WorkingDirectory
-installation="$lu"
 
 # Ce que systemd donne d'office à un service, puis ce que l'unité déclare.
 environnement=("PATH=$PATH_DE_SYSTEMD" "HOME=$HOME" "USER=$compte" "LOGNAME=$compte" ${LANG:+"LANG=$LANG"} ${TERM:+"TERM=$TERM"})
@@ -137,61 +133,28 @@ while [ $i -lt ${#brut} ]; do
 done
 [ $ouvert = 1 ] && environnement+=("$mot")
 
-# Le répertoire de celui qui lance n'est pas forcément lisible du compte.
-cd "$installation" || exit
+# Le projet, sa ligne et la commande se jugent dans le runtime, sous le compte
+# de la station : il dit le refus, ou lance la commande avec l'environnement
+# du projet. Le répertoire de celui qui lance n'est pas forcément lisible du
+# compte : la commande part de celui du runtime.
+# Ce que le paquet pose à côté de ce fichier : le runtime, et son `node`.
+ici="$(dirname "$(readlink -f "$0")")"
+node="$ici/node/bin/node"
 
-# `node` d'abord, tel que l'unité le trouvera : sans lui, ni commande ni
-# runtime. Son refus est rendu avec ses mots — sur un Debian nu, c'est
-# libatomic qui lui manque, et rien d'autre ne le dit.
-raison="$(env -i "${environnement[@]}" node --version 2>&1)" || {
-  for affectation in "${environnement[@]}"; do
-    case "$affectation" in PATH=*) chemin="${affectation#PATH=}" ;; esac
-  done
+# `node` d'abord, tel que la station le lance : sans lui, ni commande ni
+# runtime. Son refus est rendu avec ses mots — sur une machine où libatomic
+# manque, rien d'autre ne le dit ; sans le paquet, ce fichier est seul.
+raison="$(env -i "${environnement[@]}" "$node" --version 2>&1)" || {
   case "$raison" in
     *libatomic*) remede="\`sudo apt install libatomic1\`" ;;
-    *) remede="Node doit se lancer par son nom dans le \`PATH\` de l'unité ($chemin)" ;;
+    *) remede="le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\`" ;;
   esac
-  echo "brigade : \`node\` ne démarre pas dans l'environnement de $unite — $raison" >&2
-  echo "          → $remede ($DOC_DE_LA_BOX)" >&2
+  echo "brigade : le \`node\` de la station ($node) ne démarre pas — ${raison:-sans rien dire}" >&2
+  echo "          → $remede ($DOC)" >&2
   exit $NODE_INAPTE
 }
-
-# Puis sa version : celle que le runtime réclame, la majeure de l'`engines` de
-# son `package.json`. Écrit pour être lu du plus vieux `node` — un script qu'il
-# ne sait pas lire mourrait en erreur de syntaxe, sans rien dire de sa version.
-versions="$(env -i "${environnement[@]}" node -e '
-  var reclame = /\d+/.exec((JSON.parse(require("fs").readFileSync("package.json", "utf8")).engines || {}).node || "");
-  if (reclame && Number(process.versions.node.split(".")[0]) < Number(reclame[0])) {
-    console.log(process.version + " " + reclame[0]);
-    process.exit(4);
-  }
-')"
-if [ $? = 4 ]; then
-  echo "brigade : \`node\` est en ${versions% *} dans l'environnement de $unite, le runtime réclame la version ${versions#* } au moins ($DOC_DE_LA_BOX)" >&2
+cd "$ici/runtime" 2>/dev/null || {
+  echo "brigade : le runtime de la station ($ici/runtime) n'est pas là — le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\` ($DOC)" >&2
   exit $NODE_INAPTE
-fi
-
-# Une commande du runtime est un script de son `package.json`, lu là, qui lance
-# un fichier de `src/` : ni `test` ni `typecheck`, qui sont au dev et dont les
-# arguments feraient exécuter n'importe quel fichier sous le compte du service.
-# Ni `start` : le runtime du projet se lance par son unité. Le geste ne lance
-# rien d'autre, et ne passe rien à un shell. Un ancien nom (le script qui lance
-# `ancien-nom.ts`) est accepté, mais le refus ne nomme que les noms anglais.
-connues="$(env -i "${environnement[@]}" node -e '
-  const tous = Object.entries(JSON.parse(require("node:fs").readFileSync("package.json", "utf8")).scripts ?? {});
-  const scripts = tous.filter(([nom, script]) => nom !== "start" && /^node src\/[\w-]+\.ts$/.test(script));
-  if (scripts.some(([nom]) => nom === process.argv[1])) process.exit(0);
-  console.log(scripts.filter(([, script]) => script !== "node src/ancien-nom.ts").map(([nom]) => nom).join(", "));
-  process.exit(3);
-' -- "$commande")"
-code=$?
-if [ $code = 3 ]; then
-  echo "brigade : « $commande » n'est pas une commande du runtime — celles de cette installation : $connues" >&2
-  exit $PAS_DU_RUNTIME
-elif [ $code != 0 ]; then
-  echo "brigade : les commandes de $installation/package.json n'ont pas pu être lues (\`node\` rend $code)" >&2
-  exit $code
-fi
-
-# `--silent` : sans lui, `npm run` imprime sa bannière dans la sortie.
-exec env -i "${environnement[@]}" npm --silent --prefix "$installation" run "$commande" -- "$@"
+}
+exec env -i "${environnement[@]}" "$node" src/station/geste.ts "$projet" "$commande" "$@"

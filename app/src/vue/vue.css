@@ -1304,7 +1304,7 @@ main > header,
   color: var(--discret);
 }
 /* Les cooks en cours : un par ligne — son ticket, son titre en entier, qui passe à la ligne s'il
-   ne tient pas, sa station. Une confirmation pose de même les cooks en vol. */
+   ne tient pas, sa station. */
 :is(.carte, .confirmation) .cooks {
   display: flex;
   flex-direction: column;
@@ -1333,40 +1333,6 @@ main > header,
   flex: none;
   font-size: 12px;
   color: var(--discret);
-}
-/* La version du runtime et sa mise en service, juste au-dessus de ce qui t'attend : son état,
-   ce que la box en dit — un fait par ligne —, la demande qui vit, les cooks en vol, et ce que le
-   dernier geste de box a donné, en alerte. Son geste n'y est pas : il est sur la bande. */
-#version h3,
-#version small {
-  color: var(--discret);
-}
-#version .faits {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-#version .faits li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
-}
-#version .faits span {
-  color: var(--discret);
-}
-#version .faits strong {
-  overflow-wrap: anywhere;
-}
-#version .echec {
-  padding-left: 8px;
-  font-weight: 600;
-  color: var(--rouge-clair);
-  overflow-wrap: anywhere;
-  border-left: 4px solid var(--rouge);
 }
 /* Le rail : la vue principale, au centre de l'espace. Il a toute sa hauteur, et défile dans la
    sienne : aucune carte n'est cachée. */

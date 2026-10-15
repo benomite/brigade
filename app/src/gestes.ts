@@ -1,6 +1,5 @@
 // Les gestes du chef : ceux qu'il répète. Chacun est une commande de
-// docs/runtime.md — « Piloter », et « Mettre en service » pour les trois de la
-// mise en service —, reprise mot pour mot dans sa forme de poste
+// docs/runtime.md — « Piloter » —, reprise mot pour mot dans sa forme de poste
 // (`ssh <hote> brigade <nom> <commande>`). Chacun part dans le second : préfixée du `!`
 // qui la lance sur le Mac depuis la session `claude`, la commande y est écrite puis
 // envoyée par `envoyer` (terminaux.ts), et sa sortie se lit dans son fil. Elle ne part
@@ -15,13 +14,9 @@
 // mais une demande en prose, écrite dans le second sans Entrée (demande.ts).
 // Ce module ne lance rien — ni `ssh`, ni commande — et ne demande rien de plus
 // à la box : il n'a que cet `envoyer` pour toucher au monde.
-// Ce qui se joue sur la box à côté du runtime (`systemctl`, `brigade-bascule`,
-// `brigade-mise-en-service`, `claude /login`) n'est pas un geste de l'app :
-// rien de tel n'est ici, et aucun `sudo`. La mise en service ne fait pas
-// exception : ses trois gestes envoient la commande du runtime qui la demande,
-// la coupe ou y renonce (`mise-en-service`), comme les autres envoient la leur.
-// C'est le runtime qui lance le geste de box, quand il le peut, sous sa propre
-// règle `sudo` — l'app n'a ni shell sur la box, ni `sudo`, ni chemin vers lui.
+// Ce qui se joue sur la box à côté du runtime (`systemctl`, `claude /login`)
+// n'est pas un geste de l'app : rien de tel n'est ici — l'app n'a ni shell sur
+// la box, ni `sudo`.
 import { cite } from "./box.ts";
 import type { Projet } from "./config.ts";
 import { CONTROLE, SANS_ECRIRE, type Terminal } from "./terminaux.ts";
@@ -42,10 +37,6 @@ export const GESTES: readonly Geste[] = [
   { id: "reprendre", commande: "guardrails resume", forme: "confirmé" },
   { id: "stop", commande: "guardrails stop", forme: "confirmé" },
   { id: "installation", commande: "installation", forme: "direct" },
-  // Mettre en service est un vrai redémarrage ; y renoncer n'interrompt rien.
-  { id: "mise-en-service", commande: "deploy", forme: "confirmé" },
-  { id: "mise-en-service-couper", commande: "deploy --interrupt", forme: "confirmé" },
-  { id: "mise-en-service-annuler", commande: "deploy cancel", forme: "direct" },
 ];
 
 // Les gestes de chaque forme, par leur nom : la vue dit de chacun ce que son clic fait.

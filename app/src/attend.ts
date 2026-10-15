@@ -5,8 +5,7 @@
 // quand rien n'attend, c'est lui qui le dit. Le reste de la sortie reste mot
 // pour mot, à sa place. Une seule chose y est lue ici, pour le rail : le numéro
 // en tête d'une ligne (`ticketsDe`) — ce que la ligne dit ensuite, et ce qui la
-// précise dessous, plus en retrait, reste mot pour mot. L'entrée `version`, elle,
-// est lue par version.ts, pour dire ce que le dernier geste de mise en service a donné.
+// précise dessous, plus en retrait, reste mot pour mot.
 import type { Echec, Lecture, Sortie } from "./box.ts";
 
 // `attend` : le bloc, tel que `status` l'a écrit ; les `sorties` sont alors

@@ -145,11 +145,11 @@ test("sans journal ni projet nommé, rien n'est écrit : rien ne dit à quel pro
 // n'en lance aucun. Sur une box qui n'a ni `sudo`, ni `systemctl`, ni geste de
 // mise en service, elle déclare quand même — et un `sudo` ou un `systemctl`
 // lancé se verrait au témoin.
-test("l'action ne lance aucun geste de box : ni `sudo`, ni `systemctl`, ni la mise en service — rien ne peut y manquer", async (t) => {
+test("l'action ne lance aucun geste de box : ni `sudo`, ni `systemctl` — rien ne peut y manquer", async (t) => {
   const etat = repertoireTemporaire(t);
   const outils = repertoireTemporaire(t);
   const temoin = join(outils, "temoin");
-  for (const nom of ["sudo", "systemctl", "brigade-mise-en-service", "tee"]) {
+  for (const nom of ["sudo", "systemctl", "tee"]) {
     writeFileSync(join(outils, nom), `#!/bin/sh\necho "${nom} $*" >> "${temoin}"\nexit 1\n`, { mode: 0o755 });
   }
 

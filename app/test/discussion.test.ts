@@ -206,8 +206,6 @@ const FAITS: Faits = {
   ],
   cooks: [],
   attend: [],
-  version: null,
-  miseEnService: { etat: "aucune", depuis: null, coupe: false, enVol: [], tokens: 0 },
 };
 
 async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {

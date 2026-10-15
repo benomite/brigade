@@ -294,22 +294,6 @@ export function dernierRunNomme(base: Base, debut: string): { run: string; launc
   );
 }
 
-// Un cook en vol tel que la mise en service le montre avant d'agir : qui l'a
-// lancé, et ce qu'il avait consommé à son dernier relevé — nuls : aucun relevé
-// encore. `station` : nulle pour un lancement d'avant les stations.
-export type CookEnVol = { run: string; ticket: number | null; station: string | null; launchedAt: string; tokens: number | null; measuredAt: string | null };
-
-// Les cooks en vol, le plus ancien d'abord : tout lancement sans fin au
-// journal — cooks de tickets, relectures, jugements, passes de fermeture. Un
-// redémarrage du runtime les interrompt tous.
-export function cooksEnVol(base: Base): CookEnVol[] {
-  return base.lire<CookEnVol>(
-    `SELECT r.run, r.ticket, r.station, r.launched_at AS launchedAt, p.tokens, p.at AS measuredAt
-     FROM cook_runs r LEFT JOIN cook_progress p ON p.run = r.run
-     WHERE r.ended_seq IS NULL ORDER BY r.launched_seq`,
-  );
-}
-
 // Les derniers arrêts provoqués par un garde-fou, le plus récent d'abord.
 export function arretsRecents(base: Base, combien: number): Arret[] {
   return base.lire<Arret>(

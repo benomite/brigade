@@ -4,8 +4,6 @@
 // prouvent en y mettant n'importe quoi. Le rail, lui, y lit le numéro en tête
 // d'une ligne — et cette forme est tenue contre le bloc que le runtime écrit.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, test } from "node:test";
 import { decrireAttentes, type Attente } from "../../runtime/src/attend.ts";
 import { ditDe, mettreAPart, ticketsDe } from "../src/attend.ts";
@@ -162,13 +160,5 @@ describe("les tickets que le bloc nomme, pour le rail", () => {
     ]);
     assert.equal(ditDe(lus[0] ?? assert.fail("pas d'entrée")), "depuis 2 j  proposition de fermeture\n      │ une ligne de suite,   avec ses blancs  ");
     assert.equal(ditDe(lus[1] ?? assert.fail("pas d'entrée")), "depuis 3 h 02  BLOQUÉ");
-  });
-
-  test("la suite que le runtime écrit sous une entrée est plus en retrait qu'elle : c'est à ce retrait que l'app la reconnaît", () => {
-    // La seule entrée qui en porte aujourd'hui est celle de la version, sans ticket (runtime/src/attend.ts, `suiteDeLAttente`).
-    const source = readFileSync(join(import.meta.dirname, "../../runtime/src/attend.ts"), "utf8");
-    const [, retrait] = /const RETRAIT_DE_SUITE = "( +)";/.exec(source) ?? [];
-    assert.ok(retrait !== undefined && retrait.length >= 3, "le retrait d'une suite n'est plus celui que l'app lit");
-    assert.deepEqual(ticketsDe(`attend\n  #7  une entrée\n${retrait}sa suite\nfin attend`), [{ ticket: 7, ligne: "une entrée", suite: [`${retrait}sa suite`] }]);
   });
 });

@@ -52,7 +52,6 @@ function cuisine(t: TestContext) {
   const noter = (fait: Fait, ticket: number | null = null, author = "runtime") => void journal.ajouter({ project: "parade", ticket, author, ...fait });
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
   noter({ type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["opus"], maxCooks: 2 } });
-  noter({ type: "version.compared", payload: { outcome: "current", served: "a".repeat(40), branch: "origin/v2" } });
   noter({ type: "manager.enabled", payload: {} }, null, "chef");
   const rendre = () => {
     const maintenant = new Date(`${JOUR}T10:00:00.000Z`);

@@ -31,7 +31,6 @@ import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
-import { ANNULER, COUPER, DEMANDER } from "../src/version.ts";
 import { jouerLaVue, repos, type Reponses } from "./aides/fausse-vue.ts";
 
 const JOUR = "2026-10-13";
@@ -72,11 +71,10 @@ function cuisine(t: TestContext) {
   return { noter, a, rendre, bande };
 }
 
-// Une cuisine qui tourne, et où tout va bien : runtime en marche, version à jour, manager allumé.
+// Une cuisine qui tourne, et où tout va bien : runtime en marche, manager allumé.
 function saine(t: TestContext) {
   const servie = cuisine(t);
   servie.noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
-  servie.noter({ type: "version.compared", payload: { outcome: "current", served: "a".repeat(40), branch: "origin/v2" } });
   servie.noter({ type: "manager.enabled", payload: {} }, "chef");
   return servie;
 }
@@ -175,77 +173,6 @@ describe("le manager : sain, éteint, non dit", () => {
   });
 });
 
-describe("la version en service : à jour, en attente, non dite", () => {
-  test("à jour : rien", (t) => {
-    assert.deepEqual(du(saine(t).bande(), "version"), []);
-  });
-
-  test("en attente : depuis quand, combien de livraisons, et le geste « mettre en service » avec ce qu'il interromprait", (t) => {
-    const { noter, bande } = saine(t);
-    noter({ type: "version.compared", payload: { outcome: "waiting", served: "a".repeat(40), branch: "origin/v2", head: "b".repeat(40), since: `${JOUR}T05:00:00.000Z`, deliveries: 26 } });
-
-    const ligne = enPanne(bande(), "version");
-    assert.equal(ligne.dit, "a version has been waiting for 5 h 00 — 26 deliveries not in service");
-    assert.equal(ligne.pourquoi, `origin/v2 (${"b".repeat(12)}) is waiting, ${"a".repeat(12)} is in service`);
-    assert.equal(ligne.geste, "deploy");
-    // Le geste est sur la ligne, confirmé : sa confirmation montre d'abord ce qu'il interromprait.
-    assert.deepEqual(ligne.appel, { geste: DEMANDER });
-    assert.ok(CONFIRMES.includes(DEMANDER));
-    assert.equal(ligne.prix, "no cook in flight at this reading, nothing is interrupted");
-  });
-
-  // Le prix d'après les cooks en vol — l'exemple de la spec : « 1 cook en vol sera interrompu, son ticket repart de zéro ».
-  const FAITS: Faits = {
-    etat: "ouverte",
-    lu: `${JOUR}T10:00:00.000Z`,
-    dernierTick: `${JOUR}T09:59:30.000Z`,
-    compteurs: { rail: 0, auTravail: 1, aLaPass: 0, attend: 1, livres24h: 0 },
-    dernierEvenement: null,
-    rail: [],
-    version: { etat: "en attente", depuis: `${JOUR}T05:00:00.000Z`, branche: "origin/v2", enService: "a".repeat(40), enAttente: "b".repeat(40), livraisons: 1, raison: null },
-    miseEnService: { etat: "aucune", depuis: null, coupe: false, enVol: [{ ticket: 14, run: "14-aa", station: "box/claude", tokens: 230000 }], tokens: 230000 },
-  };
-  const lu = { projet: "parade", status: "cuisine    ouverte\n", manager: { allume: true, mot: "ALLUMÉ", dit: "" } };
-
-  test("en attente, un cook en vol : le prix le dit — attendre ne l'interrompt pas, couper l'interrompt et son ticket repart de zéro", () => {
-    const [ligne] = du(alertes({ ...lu, faits: FAITS }), "version");
-    assert.equal(ligne?.prix, `wait for a quiet rail: no cook interrupted, but none goes until then — or cut: 1 cook in flight interrupted, its ticket starts over from zero (${(230000).toLocaleString("en-US")} tokens already spent)`);
-  });
-
-  test("la mise en service demandée attend le rail calme : le geste est de couper, et son prix est dit — la cuisine qu'elle retient ne le redit pas", () => {
-    const bande = alertes({ ...lu, faits: { ...FAITS, etat: "retenue", miseEnService: { ...FAITS.miseEnService!, etat: "demandée", depuis: `${JOUR}T09:40:00.000Z` } } });
-    const [ligne] = du(bande, "version");
-    assert.equal(ligne?.dit, "deploy requested for 20 min: it is waiting for a quiet rail — no cook goes any more, 1 in flight finishes first");
-    assert.equal(ligne?.geste, "cut without waiting");
-    assert.deepEqual(ligne?.appel, { geste: COUPER });
-    assert.match(ligne?.prix ?? "", /^1 cook in flight interrupted, its ticket starts over from zero/);
-    // Y renoncer est sur la même ligne : direct, il n'interrompt rien.
-    assert.deepEqual(ligne?.aussi?.appel, { geste: ANNULER });
-    assert.ok(DIRECTS.includes(ANNULER));
-    assert.deepEqual(du(bande, "cuisine"), []);
-  });
-
-  test("non dite — le runtime vient de démarrer et n'a rien comparé : « version en service non vérifiée », pas « à jour »", (t) => {
-    const { noter, bande } = cuisine(t);
-    noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
-    noter({ type: "manager.enabled", payload: {} }, "chef");
-    assert.match(nonVerifie(bande(), "version", "version in service").pourquoi ?? "", /has compared nothing/);
-  });
-
-  test("non dite — la comparaison n'a pas pu se faire : non vérifiée, avec le motif du runtime mot pour mot", (t) => {
-    const { noter, bande } = saine(t);
-    noter({ type: "version.compared", payload: { outcome: "unreadable", served: "a".repeat(40), branch: "origin/v2", reason: "l'origine ne répond pas" } });
-    assert.equal(nonVerifie(bande(), "version", "version in service").releve, "l'origine ne répond pas");
-  });
-
-  test("non dite — un runtime d'avant le champ `version` : non vérifiée", (t) => {
-    const { version: _version, miseEnService: _miseEnService, ...ancien } = JSON.parse(saine(t).rendre("10:00:00").faits);
-    const faits = comprendre(JSON.stringify(ancien));
-    assert.ok(!("informe" in faits));
-    nonVerifie(alertes({ ...lu, faits }), "version", "version in service");
-  });
-});
-
 describe("la cuisine : ouverte, gelée, non dite", () => {
   test("ouverte : rien", (t) => {
     assert.deepEqual(du(saine(t).bande(), "cuisine"), []);
@@ -261,7 +188,7 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
     assert.equal(ligne.geste, GESTE_DE_STATION_A_CHAUD);
     // Déclarer une station se joue sur la box, hors de l'app : le geste est une demande au second.
     assert.deepEqual(ligne.appel, { demande: true });
-    assert.equal(ligne.prix, "a runtime restart: no cook in flight at this reading, nothing is interrupted");
+    assert.equal(ligne.prix, "a runtime restart: what is in flight is interrupted — the box does not say what is");
   });
 
   test("arrêtée par le « stop » du chef : reprendre, et ce que ça relance", (t) => {
@@ -455,10 +382,7 @@ describe("la bande, à l'écran", () => {
     const lignes = vue.element("alertes").children;
     assert.deepEqual(
       lignes.map((ligne) => [ligne.dataset.sujet, ligne.dataset.verifie]),
-      [
-        ["version", "non"],
-        ["cuisine", "non"],
-      ],
+      [["cuisine", "non"]],
     );
   });
 });

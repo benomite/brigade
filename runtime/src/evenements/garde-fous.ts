@@ -64,7 +64,8 @@ export type FaitGardeFous =
         durationMs: number;
         error?: string;
         // Pourquoi brigade a arrêté ce cook, quand c'est elle : `stop` (le
-        // chef), `update` (une mise à jour). Absent : sa fin n'est pas de
+        // chef) ; `update` (une mise à jour) ne se lit plus que dans les
+        // journaux d'avant la station. Absent : sa fin n'est pas de
         // son fait, et si elle est un échec, elle compte pour le disjoncteur.
         cause?: "stop" | "update";
         // Combien de fois ce qui a la forme d'identifiants de Claude a été

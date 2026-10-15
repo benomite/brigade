@@ -7,6 +7,11 @@ set -e
 
 COMPTE=brigade
 UNITES="brigade-station.service brigade-station-renouvellement.timer"
+# La bascule d'une machine qui servait ses projets avant le paquet, une unité
+# par projet (runtime/src/bascule/) : le node et le code que le paquet pose.
+RACINE=/
+NODE=/usr/lib/brigade-station/node/bin/node
+BASCULE=/usr/lib/brigade-station/runtime/src/bascule/main.ts
 
 case "$1" in
   configure)
@@ -22,6 +27,16 @@ case "$1" in
 
     # Sans systemd en marche (un chroot, un conteneur), rien à démarrer.
     if [ -d /run/systemd/system ]; then
+      # Une machine qui servait déjà ses projets, chacun par son unité : la
+      # station les reprend avant de démarrer — journal, décisions et tickets
+      # en cours laissés où ils sont —, et ce que cette installation avait
+      # posé dans le système part. Sans elle, rien à faire. Refusée, rien n'a
+      # changé : l'installation s'arrête et dit pourquoi.
+      bascule=""
+      if [ -x "$NODE" ]; then
+        "$NODE" "$BASCULE" --racine "$RACINE"
+        bascule=oui
+      fi
       systemctl daemon-reload
       if [ -z "${2:-}" ]; then
         # Première installation : la station démarre, et redémarrera avec la
@@ -36,6 +51,11 @@ case "$1" in
             systemctl restart "$unite"
           fi
         done
+      fi
+      # La cuisine des projets repris s'est arrêtée à la bascule : elle
+      # reprend quand la station les sert. Combien de temps, c'est dit ici.
+      if [ -n "$bascule" ]; then
+        "$NODE" "$BASCULE" attendre --racine "$RACINE" || true
       fi
     fi
     ;;

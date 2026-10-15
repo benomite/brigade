@@ -103,7 +103,7 @@ test("aucune règle ne généralise : ni un ssh vers une autre cible, ni une com
     `${SSH} mabox brigade espace base replay`,
     `${SSH} mabox brigade espace deploy`,
     `${SSH} mabox brigade espace status --follow`,
-    `${SSH} mabox sudo -n /usr/local/bin/brigade-mise-en-service espace`,
+    `${SSH} mabox sudo -n /usr/local/bin/brigade-installer espace`,
     `${SSH} mabox cat /etc/shadow`,
     `${SSH} mabox cat /opt/brigade/docs/installer.md /home/brigade/.claude/.credentials.json`,
     `${SSH} mabox 'brigade espace status; rm -rf ~'`,
