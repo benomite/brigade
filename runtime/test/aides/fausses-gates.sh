@@ -64,6 +64,14 @@ case "$scenario" in
     echo "gates : ROUGE" >&2
     exit 1
     ;;
+  # Des tests coupés par la garde d'horloge des gates, aucun en échec : la
+  # suite n'a fait que trop durer.
+  coupe)
+    echo "ok    JSON valide"
+    echo "FAIL  tests du projet arrêtés par la garde d'horloge, aucun test en échec : plus de 300 s sans rendre la main" >&2
+    echo "gates : ROUGE" >&2
+    exit 1
+    ;;
   lent)
     sleep 30
     ;;

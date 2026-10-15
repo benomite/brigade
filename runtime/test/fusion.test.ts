@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ouvrirDepot, type Depot } from "../src/depot.ts";
 import type { Machine } from "../src/machine.ts";
+import { decrireEtat, lireEtat } from "../src/etat.ts";
 import { controleRetenu, etatDeLaBase, mergesAVerifier, passDuTicket } from "../src/projections/pass.ts";
 import { chef, cuisine, fauxGitHub, issue, MACHINE_CALME, montre, type Options } from "./aides/cuisine.ts";
 import { BASE, commiter, depotGit, ENV_GIT, git, jusqua, repertoireTemporaire } from "./outils.ts";
@@ -16,7 +17,7 @@ import { BASE, commiter, depotGit, ENV_GIT, git, jusqua, repertoireTemporaire } 
 // `impossible` : le worktree jetable ne se fait pas — le dépôt lève, comme le
 // vrai (`git worktree add` raté), et les gates ne sont pas jouées.
 const PANNE_DE_WORKTREE = "git worktree : fatal: could not create leading directories of '.essais/base'";
-type Scenario = "vert" | "rouge" | "lent" | "impossible" | "plafond";
+type Scenario = "vert" | "rouge" | "lent" | "impossible" | "plafond" | "coupe";
 
 // Une cuisine sous grant, un ticket livré (`travail.txt`), et une base dont le
 // test tient la tête (`base.tete`).
@@ -427,6 +428,94 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
     machine = MACHINE_CALME;
     await jusquAu("merge.done");
     assert.deepEqual(histoire(), ["pass.judged", "pass.waiting", "pass.judged", "grant.used", "merge.done"]);
+  });
+
+  test("coupées par leur garde d'horloge sur une machine saturée, sans aucun test en échec : ni verdict, ni renvoi, ni base jugée — la livraison attend en le disant, et ses gates sont rejouées seules quand la machine se calme", async (t) => {
+    const pleine: Machine = { ...MACHINE_CALME, charge: 64 };
+    let machine = MACHINE_CALME;
+    const lieu = service(t, {
+      machine: () => machine,
+      essais: { "jugement-17": "coupe" },
+      // La machine sature pendant le jugement : le cook, lui, est parti.
+      apresFusion: (combien) => void (combien === 1 && (machine = pleine)),
+    });
+    const { journal, gates, cooks, histoire, pass, compter, jusquAu, laisserTourner, commentaires, avertissements, essais } = lieu;
+    await jusquAu("pass.waiting");
+    await laisserTourner();
+
+    assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.verdict, pass()?.returns], ["waiting", "gates-cut-saturated", null, 0]);
+    assert.deepEqual(histoire(), ["pass.waiting"]);
+    // Ni la base jouée, ni un cook renvoyé, ni rien de rejoué tant que la machine est saturée.
+    assert.deepEqual([gates.appels().length, compter("base.checked"), compter("pass.returned"), cooks().length], [1, 0, 0, 1]);
+    assert.match(
+      commentaires(),
+      /en attente \(`gates-cut-saturated`\)[\s\S]*gates rejouées plus tard : machine saturée, aucun test en échec[\s\S]*charge de 64 pour 12 au plus[\s\S]*aucun test en échec : plus de 300 s[\s\S]*Ce n'est pas un rouge/,
+    );
+    assert.doesNotMatch(commentaires(), /Pass — rouge/);
+    assert.match(avertissements.join("\n"), /gates rejouées plus tard : machine saturée, aucun test en échec — ticket #17, charge de 64 pour 12 au plus/);
+    // La file et la carte le disent en une ligne.
+    const etat = lireEtat(journal);
+    assert.equal(etat.activites.get(17)?.fait, "gates rejouées plus tard : machine saturée, aucun test en échec");
+    assert.match(decrireEtat(etat, new Date()).join("\n"), /#17 {2}en pass .* — gates rejouées plus tard : machine saturée, aucun test en échec/);
+
+    essais["jugement-17"] = "vert";
+    machine = MACHINE_CALME;
+    await jusquAu("merge.done");
+    assert.deepEqual(histoire(), ["pass.waiting", "pass.judged", "grant.used", "merge.done"]);
+    assert.equal(gates.appels().length, 2);
+  });
+
+  test("coupées à nouveau par leur garde d'horloge une fois rejouées sur une machine calme : c'est un rouge, et le renvoi le dit", async (t) => {
+    const pleine: Machine = { ...MACHINE_CALME, charge: 64 };
+    let machine = MACHINE_CALME;
+    const lieu = service(t, {
+      machine: () => machine,
+      essais: { "jugement-17": "coupe" },
+      scenario: "bavard",
+      suite: ["livre"],
+      apresFusion: (combien) => void (combien === 1 && (machine = pleine)),
+    });
+    const { dernier, histoire, pass, jusquAu } = lieu;
+    await jusquAu("pass.waiting");
+
+    machine = MACHINE_CALME;
+    await jusquAu("pass.returned");
+    assert.deepEqual(histoire(), ["pass.waiting", "pass.judged", "pass.returned"]);
+    assert.deepEqual([pass()?.verdict, pass()?.returns], ["red", 1]);
+    const [finding] = dernier("pass.returned", 17)?.findings as string[];
+    assert.match(String(finding), /aucun test en échec : plus de 300 s[\s\S]*ce rouge n'est pas mis sur le compte de la charge[\s\S]*c'est un rouge/);
+  });
+
+  test("coupées par leur garde d'horloge sur une machine calme : c'est un rouge dès la première fois", async (t) => {
+    const { histoire, dernier, jusquAu } = service(t, { essais: { "jugement-17": "coupe" }, scenario: "bavard", suite: ["livre"] });
+    await jusquAu("pass.returned");
+
+    assert.deepEqual(histoire(), ["pass.judged", "pass.returned"]);
+    assert.match(String((dernier("pass.returned", 17)?.findings as string[])[0]), /ce rouge n'est pas mis sur le compte de la charge/);
+  });
+
+  test("les gates de la base coupées par leur garde d'horloge sur une machine saturée, sans aucun test en échec, ne la rougissent pas : rejouées seules une fois la machine calme — et coupées à nouveau, elle est rouge", async (t) => {
+    const pleine: Machine = { ...MACHINE_CALME, charge: 64 };
+    let machine = MACHINE_CALME;
+    let essaisDeBase = 0;
+    const { journal, avertissements, compter, jusquAu, laisserTourner } = service(t, {
+      aLaMain: true,
+      essais: { base: "coupe" },
+      machine: () => machine,
+      // La machine sature pendant le premier contrôle de la base seule.
+      avantEssai: async (nom) => void (nom === "base" && ++essaisDeBase === 1 && (machine = pleine)),
+    });
+    await jusqua(() => avertissements.some((ligne) => /gates de v2 \(base-1\) — gates rejouées plus tard : machine saturée, aucun test en échec/.test(ligne)));
+    await laisserTourner();
+    assert.deepEqual([compter("base.checked"), etatDeLaBase(journal.base)?.outcome], [0, undefined]);
+    assert.deepEqual(mergesAVerifier(journal.base), [17]);
+
+    // Le premier contrôle écrit est celui du rejeu, sur une machine calme.
+    machine = MACHINE_CALME;
+    await jusquAu("base.checked");
+    const [rejeu] = journal.tout().flatMap((e) => (e.type === "base.checked" ? [e.payload] : []));
+    assert.deepEqual([rejeu?.sha, rejeu?.outcome, rejeu?.tickets], ["base-1", "red", [17]]);
+    assert.match(String(rejeu?.gates.failures), /aucun test en échec/);
   });
 
   test("un runtime tué pendant un jugement ne laisse pas son worktree jetable : au redémarrage il est retiré, le jugement repris, et rien n'est mergé deux fois", async (t) => {

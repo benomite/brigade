@@ -148,6 +148,34 @@ describe("les gates", { concurrency: 8 }, () => {
     assert.deepEqual([gates.outcome, gates.failures, gates.overCeiling], ["red", ["FAIL  plafond des gates franchi : plus de 165 s de processeur"], undefined]);
   });
 
+  // Ce que `gates.sh` écrit quand sa garde d'horloge coupe des tests dont aucun n'a échoué.
+  const COUPEE = "FAIL  tests du runtime arrêtés par la garde d'horloge, aucun test en échec : plus de 300 s sans rendre la main";
+
+  test("coupées par leur garde d'horloge sans aucun test en échec, et pour rien d'autre : des gates rouges qui le disent, avec leur ligne", async (t) => {
+    const gates = await jouer(worktree(t, { gates: `echo "ok    JSON valide"; echo "${COUPEE}"; echo "gates : ROUGE"; exit 1` }));
+
+    assert.deepEqual([gates.outcome, gates.failures, gates.clockGuardCut], ["red", [COUPEE], COUPEE]);
+  });
+
+  test("coupées par leur garde d'horloge et rouges sur autre chose, ou leur sortie gardée en partie : des gates rouges comme les autres", async (t) => {
+    const autre = await jouer(worktree(t, { gates: `echo "${COUPEE}"; echo "FAIL  contrôle de types du runtime en échec"; exit 1` }));
+    const enEchec = await jouer(
+      worktree(t, { gates: `echo "FAIL  tests du runtime arrêtés par la garde d'horloge : plus de 300 s sans rendre la main, et des tests en échec avant la coupure"; exit 1` }),
+    );
+    const coupee = await jouer(worktree(t, { gates: `echo "FAIL  tests de l'app en échec"; head -c 300000 /dev/zero | tr '\\0' x; echo; echo "${COUPEE}"; exit 1` }));
+    const verte = await jouer(worktree(t, { gates: `echo "${COUPEE}"` }));
+
+    assert.deepEqual(
+      [autre, enEchec, coupee, verte].map((gates) => [gates.outcome, gates.clockGuardCut]),
+      [
+        ["red", undefined],
+        ["red", undefined],
+        ["red", undefined],
+        ["green", undefined],
+      ],
+    );
+  });
+
   test("arrêtées au plafond de la pass, des gates ne sont pas vertes pour autant", async (t) => {
     const gates = await jouer(worktree(t, { gates: `${PLAFOND_FRANCHI}; sleep 30 & wait` }), 2000);
 
