@@ -1205,13 +1205,19 @@ S'y ajoute, pour un ticket en pass ou servi, `cuisiné par` : qui l'a cuisiné n
 Une carte de Livré, elle, porte ce que `livres` en dit (voir le tableau des colonnes) : ce qui a été
 livré, `livré`, `cuisiné par`, et sa PR mergée.
 
-- **Ce que la file ne dit pas est écrit sur la carte, chose par chose** — `non communiqué par la
-  file : qui le tient · son bail · ce qu'il brûle`. Rien n'est omis, et rien n'est mis à la place :
-  ni « personne », ni « 0 », ni un tiret. Un ticket en attente que rien ne retient porte donc
-  `non communiqué par la file : … ce qui le bloque` : la file n'en dit rien, l'app n'en conclut rien.
-  Tant que `status` n'a pas été lu — au retour sur un projet, le temps d'une lecture —, la carte dit
-  pourquoi : ``non communiqué par `faits`, et la ligne `rail` de `status` n'a pas été lue``, et la
-  provenance, dans Paramètres, le dit aussi.
+- **Ce que la file ne dit pas n'est pas affiché** (#747) — la carte n'écrit jamais « non communiqué
+  par la file : … » à la place d'une information : une chose absente n'a pas de ligne. Ni « personne »,
+  ni « 0 », ni un tiret non plus. (Le modèle garde `sans`, que la vue ne pose plus sur les cartes.)
+- **Toute carte porte son titre.** Celui que la box donne ; à défaut — un ticket hors rail, que le
+  journal ne connaît pas —, celui de son issue, lu une fois par le `gh` du poste à l'adresse que la box
+  a rendue (`question.ts`, `titreDe`). Illisible, la carte n'a pas de titre : rien n'est écrit à sa place.
+- **Un ticket retenu par `blocked-on-human` dit la question qu'on me pose** : en une ou deux lignes,
+  tirée du commentaire du manager qui l'a posée (`question.ts`, `resumeDe`), avec qui l'a écrite et
+  quand. Elle remplace la ligne brute de la file ; tant qu'elle n'est pas lue, la ligne brute reste.
+  Sur sa fiche, deux boutons lèvent la retenue sans commande à recopier : **retirer le label** — le
+  manager juge l'issue à son prochain tour — ou **fermer l'issue** (un second clic confirme), par le `gh`
+  du poste, à ton nom (`question.ts`, `lever`). Rien ne part pour un ticket que le bloc `attend` ne
+  dit pas retenu.
 - **Chaque valeur est un morceau de ce que la box a écrit, ou un nombre qu'elle a donné.** L'app ne
   compte aucune durée (hors l'âge de `en ce moment`, ci-dessus) et n'additionne rien : deux cooks en vol sur le même ticket se lisent chacun
   sous son run.

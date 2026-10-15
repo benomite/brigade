@@ -346,6 +346,15 @@ let ouverte;
 // `rendue` : ce qu'il est advenu de la dernière.
 /** @type {Map<string, { lue?: import("../question.ts").Lue, envoi?: boolean, rendue?: import("../question.ts").Rendue }>} */
 const questions = new Map();
+// Le titre des tickets que la box ne nomme pas, lu par le process principal (question.ts, `titreDe`),
+// par `<projet>#<ticket>` : `{ titre }`, ou `{ sans }` quand l'issue n'a pas pu être lue.
+/** @type {Map<string, { titre: string } | { sans: string } | undefined>} */
+const titres = new Map();
+// Le label qui retient un ticket (question.ts, `LABEL_RETENUE`) : ce que la ligne du bloc `attend` nomme.
+const LABEL_RETENUE = "blocked-on-human";
+// Ce que le chef a fait d'une retenue `blocked-on-human`, par `<projet>#<ticket>` : en cours, ou ce qui en est advenu.
+/** @type {Map<string, { envoi: true } | { leve: import("../question.ts").Leve } | { confirme: true }>} */
+const levees = new Map();
 // La phrase que le chef écrit en réponse, par projet et ticket : une fiche reposée ne la perd pas.
 /** @type {Map<string, string>} */
 const brouillons = new Map();
@@ -1675,7 +1684,7 @@ function poserCarte(ou, projet) {
 // numéro s'ouvre sur l'issue : l'adresse reste au process principal, la vue nomme le ticket.
 /** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {string | undefined} [tonAttend] le ton de T'attend, quand le bon y est posé */
 function poserBon(projet, carte, tonAttend) {
-  const { ticket, etat, ton, titre, ouvrable, attendu, attend, pr, livraison, dit, sans, relais } = carte;
+  const { ticket, etat, ton, titre, ouvrable, attendu, attend, pr, livraison, dit, relais } = carte;
   const bon = document.createElement("li");
   bon.className = "bon";
   // Un clic sur la carte, quelle que soit sa colonne, ouvre sa fiche par-dessus le rail. Ce qui s'y
@@ -1719,7 +1728,21 @@ function poserBon(projet, carte, tonAttend) {
     tete.append(pilule);
   }
   bon.append(tete);
-  if (titre !== undefined) bon.append(bloc("strong", titre));
+  const cleDuBon = `${projet.nom}#${ticket}`;
+  // Un ticket que la box ne nomme pas : son titre est lu sur l'issue, une fois. Ce qui n'est pas lu n'est pas écrit.
+  if (titre === undefined && ouvrable && !titres.has(cleDuBon)) void lireTitre(projet, ticket);
+  const nomme = titre ?? /** @type {{ titre?: string } | undefined} */ (titres.get(cleDuBon))?.titre;
+  if (nomme !== undefined) bon.append(bloc("strong", nomme));
+  // Un ticket retenu par `blocked-on-human` : la question qu'on me pose, en une ou deux lignes, et qui l'a posée.
+  const retenu = attendu && attend.some((entree) => entree.includes(LABEL_RETENUE));
+  if (retenu && ouvrable && !questions.has(cleDuBon)) void lireQuestion(projet, ticket);
+  const lueDuBon = retenu ? questions.get(cleDuBon)?.lue : undefined;
+  const poseeLa = lueDuBon !== undefined && "question" in lueDuBon ? lueDuBon.question : undefined;
+  if (poseeLa !== undefined) {
+    const resume = bloc("p", poseeLa.resume);
+    resume.className = "question-courte";
+    bon.append(resume, bloc("small", `asked by ${poseeLa.auteur}, ${dateHeure(poseeLa.a)}`));
+  }
   if (livraison !== undefined) bon.append(...poserLivraison(projet, ticket, livraison));
   if (dit.length > 0) {
     const porte = document.createElement("ul");
@@ -1733,8 +1756,7 @@ function poserBon(projet, carte, tonAttend) {
     );
     bon.append(porte);
   }
-  // Ce que la file ne dit pas : écrit, chose par chose — ce sont les mots de l'app.
-  if (sans !== undefined) bon.append(bloc("small", sans));
+  // Ce que la file ne dit pas n'est pas affiché : une information absente n'a pas de ligne sur la carte.
   // Livré : la PR mergée s'ouvre d'un clic. Son adresse reste au process principal, comme celle de l'issue.
   if (pr === true) {
     const ouvre = bouton("open the merged PR", () => void ouvrirPr(projet, ticket));
@@ -1750,7 +1772,8 @@ function poserBon(projet, carte, tonAttend) {
     ligne.title = `what \`${geste(projet, "status")}\` writes about #${ticket} under its \`rail\` line, word for word`;
     bon.append(ligne);
   }
-  bon.append(...attend.map((entree) => bloc("p", entree)));
+  // La ligne brute de la file cède la place à la question quand elle est lue : le geste est sur la fiche.
+  if (poseeLa === undefined) bon.append(...attend.map((entree) => bloc("p", entree)));
   bon.append(...poserGestesDAttente(projet, carte));
   bon.append(...(pagesServies.get(projet.nom)?.pages ?? []).filter((page) => page.ticket === ticket).map((page) => poserServie(projet, page)));
   return bon;
@@ -1870,14 +1893,10 @@ async function ecrireAttente(projet, id, ticket, saisie) {
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture en entier, dans ses mots
 // — rien n'est coupé ni reformulé —, puis ses constats sous leur nombre, qu'un clic déplie : le
 // fichier que chacun nomme, et son texte tel que le reviewer l'a écrit. Sans relecture, ce que
-// l'app en dit, en italique : ce sont ses mots.
+// l'app n'écrit rien : une relecture pas donnée n'est pas un texte de remplissage sur la carte.
 /** @param {Projet} projet @param {number} ticket @param {import("../faits.ts").Livraison} livraison */
 function poserLivraison(projet, ticket, livraison) {
-  if ("sans" in livraison) {
-    const sans = bloc("small", livraison.sans);
-    sans.className = "livraison";
-    return [sans];
-  }
+  if ("sans" in livraison) return [];
   const resume = bloc("p", livraison.resume);
   resume.className = "livraison";
   resume.title = `ce que la relecture dit de ce qui a été livré pour #${ticket}, mot pour mot`;
@@ -1987,13 +2006,14 @@ function poserFiche() {
     // Une PR que la box ne donne pas (ticket pas servi) n'a pas de ligne : ce qui n'existe pas encore n'est pas affiché.
     ...(pr === undefined ? [] : [rang("PR", pr === true ? lien("open the merged PR", `open #${ticket}'s merged PR in the browser`, () => void ouvrirPr(projet, ticket)) : dite(pr))]),
   );
-  const nomme = "valeur" in titre ? bloc("h3", titre.valeur) : bloc("p", titre.sans);
-  if ("sans" in titre) nomme.className = "sans";
+  // Le titre que la box ne donne pas est celui que l'issue porte, lu par le poste ; à défaut, aucune ligne.
+  const lu = /** @type {{ titre?: string } | undefined} */ (titres.get(`${projet.nom}#${ticket}`));
+  const nomme = "valeur" in titre ? bloc("h3", titre.valeur) : lu?.titre === undefined ? undefined : bloc("h3", lu.titre);
   fiche.ariaLabel = `the sheet of #${ticket}`;
   // Le popup : un panneau de lecture, posé sur un voile qui laisse voir le rail, atténué.
   const panneau = document.createElement("div");
   panneau.className = "panneau";
-  panneau.append(tete, nomme, lignes);
+  panneau.append(tete, ...(nomme === undefined ? [] : [nomme]), lignes);
   fiche.replaceChildren(panneau);
   // Un ticket qui t'attend : la question que son issue pose, s'il en pose une — lue à l'ouverture —,
   // puis la demande au second, comme sa carte la faisait. Rien n'est envoyé sans un clic.
@@ -2009,12 +2029,52 @@ function poserFiche() {
     const gestes = document.createElement("div");
     gestes.className = "gestes";
     gestes.append(demande);
+    // Retenu par `blocked-on-human` : lever la retenue d'un clic, sans commande à recopier.
+    if (attend.some((entree) => entree.includes(LABEL_RETENUE))) gestes.append(...poserLevees(projet, ticket));
     panneau.append(gestes);
   }
 }
 // La fiche ouverte est-elle celle de ce ticket : ce qui revient pour lui ne se pose que là.
 /** @param {Projet} projet @param {number} ticket */
 const ficheDe = (projet, ticket) => ouverte?.projet.nom === projet.nom && ouverte.carte.ticket === ticket;
+
+// Les deux gestes qui lèvent une retenue `blocked-on-human` : retirer le label — le manager juge
+// l'issue à son prochain tour —, ou la fermer, ce que le chef confirme d'un second clic. Ce qui en
+// advient est dit à la place des boutons.
+/** @param {Projet} projet @param {number} ticket */
+function poserLevees(projet, ticket) {
+  const cle = `${projet.nom}#${ticket}`;
+  const etat = levees.get(cle);
+  if (etat !== undefined && "envoi" in etat) return [bloc("p", "working on it…")];
+  if (etat !== undefined && "leve" in etat && etat.leve.fait) return [bloc("p", `${etat.leve.dit} — the card leaves your queue at the next read`)];
+  /** @param {"label" | "fermer"} geste */
+  const lancer = async (geste) => {
+    levees.set(cle, { envoi: true });
+    if (ficheDe(projet, ticket)) poserFiche();
+    /** @type {import("../question.ts").Leve} */
+    let leve;
+    try {
+      leve = await brigade.leverRetenue(projet.nom, ticket, geste);
+    } catch (erreur) {
+      leve = { fait: false, refus: `nothing was done: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
+    }
+    levees.set(cle, { leve });
+    if (ficheDe(projet, ticket)) poserFiche();
+  };
+  const retirer = bouton("remove the label", () => void lancer("label"));
+  retirer.title = `remove \`${LABEL_RETENUE}\` from #${ticket}: the manager judges it again at its next tick`;
+  retirer.dataset.geste = "levee";
+  const confirme = etat !== undefined && "confirme" in etat;
+  const fermer = bouton(confirme ? "yes, close the issue" : "close the issue", () => {
+    if (confirme) return void lancer("fermer");
+    levees.set(cle, { confirme: true });
+    if (ficheDe(projet, ticket)) poserFiche();
+  });
+  fermer.title = confirme ? `close issue #${ticket} on GitHub, in your name` : "close the issue — asks for a second click";
+  fermer.dataset.geste = "levee";
+  const refus = etat !== undefined && "leve" in etat && !etat.leve.fait ? [bloc("p", etat.leve.refus)] : [];
+  return [retirer, fermer, ...refus];
+}
 
 // La question de ce ticket, lue sur son issue par le process principal (question.ts) : la vue
 // nomme le projet et le ticket. Une lecture partie avant une autre ne la remplace pas.
@@ -2034,6 +2094,22 @@ async function lireQuestion(projet, ticket) {
   if (questions.get(cle) !== enRoute) return;
   questions.set(cle, { lue });
   if (ficheDe(projet, ticket)) poserFiche();
+  // La carte du ticket dit la question en deux lignes : le rail est redessiné de ce qui vient d'être lu —
+  // sauf sous une fiche ouverte, dont le rail reste tel qu'il était : la prochaine lecture le met à jour.
+  if (!ficheDe(projet, ticket) && courant?.nom === projet.nom && !rail.hidden && tenus.has(projet.nom)) poserRail(courant);
+}
+
+// Le titre de ce ticket, lu sur son issue par le process principal. À son arrivée le rail est redessiné.
+/** @param {Projet} projet @param {number} ticket */
+async function lireTitre(projet, ticket) {
+  const cle = `${projet.nom}#${ticket}`;
+  titres.set(cle, undefined);
+  try {
+    titres.set(cle, (await brigade.lireTitre(projet.nom, ticket)) ?? { sans: "no address" });
+  } catch (erreur) {
+    titres.set(cle, { sans: erreur instanceof Error ? erreur.message : String(erreur) });
+  }
+  if (courant?.nom === projet.nom && !rail.hidden && tenus.has(projet.nom)) poserRail(courant);
 }
 
 // La réponse du chef — un choix par sa lettre, ou sa phrase — part sur l'issue : c'est le process

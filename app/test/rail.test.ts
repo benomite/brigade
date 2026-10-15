@@ -222,20 +222,13 @@ describe("une carte porte ce que la file dit", () => {
     assert.deepEqual([tient?.children[1]?.className, depuis?.children[1]?.className], ["mono", ""]);
   });
 
-  test("ce que la file ne donne pas est écrit sur la carte, chose par chose : ni omis, ni remplacé par une valeur", async () => {
+  test("ce que la file ne donne pas n'est pas affiché : aucun texte de remplissage sur aucune carte (#747)", async () => {
     const vue = await ouvrir();
     recevoir(vue);
 
-    assert.deepEqual(sans(bonDe(vue, 14)), ["not given by the queue : what blocks it"]);
-    assert.deepEqual(sans(bonDe(vue, 21)), ["not given by the queue : who holds it · its lease · what it burns"]);
-    assert.deepEqual(sans(bonDe(vue, 22)), ["not given by the queue : who holds it · its lease · what it burns · what blocks it"]);
-    assert.deepEqual(sans(bonDe(vue, 30)), ["not given by the queue : who holds it · its lease · what it burns · what blocks it"]);
-    // Chaque bon, sans exception, dit les cinq choses ou écrit celles qui manquent.
     for (const bon of bons(vue.element("rail"))) {
-      const dites = portes(bon).map(([libelle]) => libelle).filter((libelle) => libelle !== "cooked by" && libelle !== "right now").length;
-      const tues = (sans(bon)[0] ?? "").split(" : ").at(-1)?.split(" · ").filter(Boolean).length ?? 0;
-      const bloqueAPart = relayes(bon).length > 0 && !portes(bon).some(([libelle]) => libelle === "blocked by") ? 1 : 0;
-      assert.equal(dites + tues + bloqueAPart, 5, bon.textContent);
+      assert.deepEqual(sans(bon), [], bon.textContent);
+      assert.doesNotMatch(bon.textContent, /not given by|not read by the app/);
     }
     // Aucune valeur n'est mise à la place de ce qui manque.
     for (const bon of bons(vue.element("rail"))) for (const [, valeur] of portes(bon)) assert.doesNotMatch(valeur ?? "", /^(|0|-|—|\?|aucun|personne|inconnu)$/i);
@@ -246,7 +239,7 @@ describe("une carte porte ce que la file dit", () => {
     recevoir(vue, dessinable(FAITS, PAS_LU));
 
     assert.deepEqual(portes(bonDe(vue, 14)).map(([libelle]) => libelle), ["right now", "taken by", "burns"]);
-    assert.deepEqual(sans(bonDe(vue, 14)), ["not given by `facts`, and the `rail` line of `status` was not read : since when · its lease · what blocks it"]);
+    assert.deepEqual(sans(bonDe(vue, 14)), []);
     // Le haut du rail ne dit rien d'une lecture récente : la provenance est dans Paramètres.
     const provenance = () => vue.element("provenance-lignes").textContent;
     assert.match(provenance(), /^the columns, from `ssh box brigade parade facts` — read at .*, in service order`ssh box brigade parade status` was not read: each card carries only what `facts` says/);
@@ -266,7 +259,7 @@ describe("une carte porte ce que la file dit", () => {
 
     assert.deepEqual(portes(bon), []);
     assert.deepEqual(bon.dessous("p").filter((p) => p.className === "ligne").map((p) => p.textContent), ["servi  -  une phrase que l'app ne connaît pas,   avec ses blancs  Servi hier"]);
-    assert.match(sans(bon)[0] ?? "", /^not given by `facts`, and not read by the app in what `status` writes about this ticket, relayed below as is : /);
+    assert.deepEqual(sans(bon), []);
   });
 });
 
@@ -371,7 +364,7 @@ describe("le clic d'une carte de T'attend (#452)", () => {
     bon.click();
     assert.equal(vue.element("fiche").hidden, false);
     assert.deepEqual(demandes(vue), []);
-    assert.match(sans(bon)[0] ?? "", / : who holds it · since when · its lease · what it burns · what blocks it$/);
+    assert.deepEqual(sans(bon), []);
   });
 
   test("le numéro d'une carte ouvre son issue : la vue nomme le projet et le ticket, jamais une adresse", async () => {
@@ -394,6 +387,7 @@ describe("la question qui t'attend, posée telle quelle, sans LLM (#681)", () =>
     a: "2026-10-15T10:00:00.000Z",
     question: {
       url: `${ISSUE}#issuecomment-2`,
+      resume: "Le popup remplace-t-il la fiche ?  (a) il la remplace, (b) il s'ouvre par-dessus",
       auteur: "benomite",
       a: "2026-10-15T08:00:00Z",
       texte: TEXTE,
@@ -427,6 +421,31 @@ describe("la question qui t'attend, posée telle quelle, sans LLM (#681)", () =>
     assert.equal(poster(vue).disabled, true);
     assert.ok(!vue.appels.some(({ geste }) => geste === "repondreQuestion"));
     assert.equal(demandes(vue).length, 1);
+  });
+
+  test("une carte retenue par `blocked-on-human` porte son titre et la question, en deux lignes, avec qui l'a posée — et la fiche lève la retenue d'un clic (#747)", async () => {
+    const retenue = "  #50  depuis 52 min  retenue, elle porte `blocked-on-human` — à lever : retirer le label, le manager la juge ; ou fermer l'issue";
+    const faits = { ...FAITS, attend: [...(FAITS.attend ?? []), { ticket: 50, titre: "", url: "https://github.com/benomite/brigade/issues/50" }] };
+    const vue = await ouvrir({
+      lireTitre: () => ({ titre: "Choisir le moteur de rendu" }),
+      lireQuestion: () => ({ ...QUESTION, question: { ...(QUESTION as { question: object }).question, auteur: "brigade-manager", resume: "Quel moteur de rendu garde-t-on ?" } }) as never,
+      leverRetenue: () => ({ fait: true, dit: "`blocked-on-human` removed" }),
+    });
+    recevoir(vue, dessinable(faits, STATUS.replace("fin attend", `${retenue}\nfin attend`)));
+    await repos();
+
+    const bon = bonDe(vue, 50);
+    assert.ok(bon.textContent.includes("Choisir le moteur de rendu"), bon.textContent);
+    assert.ok(bon.textContent.includes("Quel moteur de rendu garde-t-on ?"), bon.textContent);
+    assert.ok(bon.textContent.includes("asked by brigade-manager"), bon.textContent);
+    assert.doesNotMatch(bon.textContent, /à lever|not given by/);
+    bon.click();
+    await repos();
+    const retirer = fiche(vue).dessous("button").find((pose) => pose.textContent === "remove the label") ?? assert.fail("pas de bouton « remove the label »");
+    retirer.click();
+    await repos();
+    assert.deepEqual(vue.dernier("leverRetenue"), [PARADE, 50, "label"]);
+    assert.match(fiche(vue).textContent, /`blocked-on-human` removed/);
   });
 
   test("tant que l'issue n'est pas lue, la fiche le dit ; une carte qui ne t'attend pas ne lit rien", async () => {
@@ -556,11 +575,9 @@ describe("Livré garde ce que la cuisine a servi", () => {
       remarques?.dessous("li").map((constat) => constat.children.map((pose) => pose.textContent)),
       [["runtime/src/etat.ts", "Un commentaire répète le code."], ["bloquant", "La forme change sans que la doc suive."]],
     );
-    // Sans relecture, la carte le dit ; sans remarque, elle le dit aussi, sans rien à déplier.
-    assert.deepEqual(
-      bonDe(vue, 188).dessous("small").filter((pose) => pose.className === "livraison").map((pose) => pose.textContent),
-      ["what was delivered: not given — no readable review covers this delivery (merged by hand, served without going through pass, or from before the review)"],
-    );
+    // Sans relecture, la carte n'écrit aucun texte de remplissage ; sans remarque, elle le dit, sans rien à déplier.
+    assert.deepEqual(bonDe(vue, 188).dessous("small").map((pose) => pose.textContent), []);
+    assert.doesNotMatch(bonDe(vue, 188).textContent, /not given/);
     assert.deepEqual(bonDe(vue, 188).dessous("details"), []);
     assert.deepEqual(bonDe(vue, 201).dessous("details"), []);
     assert.deepEqual(bonDe(vue, 201).dessous("small").filter((pose) => pose.className === "remarques").map((pose) => pose.textContent), ["no remarks"]);
@@ -730,8 +747,8 @@ describe("un clic sur une carte ouvre sa fiche par-dessus le rail (#635)", () =>
     recevoir(vue, dessinable({ ...FAITS, attend: [...(FAITS.attend ?? []), { ticket: 40, titre: "", url: null }] }, PAS_LU));
 
     bonDe(vue, 40).click();
-    const sans = fiche(vue).dessous("p").filter((pose) => pose.className === "sans").map((pose) => pose.textContent);
-    assert.deepEqual(sans, ["not given — the box returns no title for this ticket"]);
+    // Pas de titre donné : aucune ligne à sa place.
+    assert.deepEqual(fiche(vue).dessous("p").filter((pose) => pose.className === "sans"), []);
     assert.deepEqual(fiche(vue).dessous("h3"), []);
     assert.deepEqual(lignesDeFiche(vue), [
       ["priority", "not given — `facts` does not give it, and the `rail` line of `status` was not read"],

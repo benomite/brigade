@@ -565,7 +565,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
     const connu = connus.get(ticket);
     const donne = faits.attend?.find((attendu) => attendu.ticket === ticket);
     const url = connu?.url ?? donne?.url;
-    const titre = connu?.titre ?? (donne === undefined || donne.titre === "" ? undefined : donne.titre);
+    const titre = [connu?.titre, donne?.titre].find((candidat) => candidat !== undefined && candidat !== "");
     const dit = dits.get(ticket);
     const siennes = lignes === undefined ? undefined : (lignes.get(ticket) ?? []);
     const porte = porter(connu === undefined ? {} : { etat: connu.etat, titre: connu.titre }, {
@@ -604,7 +604,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
     return {
       ticket,
       ...colore(TONS_DE_TICKET, connu.etat),
-      titre,
+      ...(titre === "" ? {} : { titre }),
       ouvrable: ouvrable(url),
       attendu: false,
       attend: [],
