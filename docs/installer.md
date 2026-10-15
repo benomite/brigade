@@ -413,7 +413,10 @@ groupe `brigade-chefs` ne le lance pas par ce chemin (il passe par `brigade <pro
 Sans mot de passe, sans `SETENV`, sans argument écrit, sans groupe : elle ne nomme que ce chemin,
 et c'est le geste qui refuse tout ce qui n'est pas, seul, le nom d'un projet déclaré sur la box.
 Les poser n'élargit le `sudo` de personne d'autre — ni celui du compte du service pour le geste
-d'installation. Aucune étape de plus pour une installation neuve : le bloc ci-dessus suffit.
+d'installation. Aucune étape de plus pour une installation neuve : le bloc ci-dessus suffit. La mise en service
+active aussi, seule, le minuteur de renouvellement de la session Max (`brigade-renouvellement.timer`,
+copié par le geste 5) et vérifie que `claude` se trouve dans le PATH de son service : rien à
+activer à la main. « Vérifier » (geste 8) affiche l'état du renouvellement en une ligne.
 La demande (`run deploy`) contrôle ce droit d'abord (`sudo -n -l`) : si sudo ne l'accorde pas
 sans mot de passe, elle est refusée tout de suite — aucun cook retenu, rien redémarré — et nomme le
 geste de mise à niveau ci-dessous.
