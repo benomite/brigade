@@ -591,4 +591,22 @@ describe("la bande ne clignote pas (#721)", () => {
     bandes.status(mettreAPart(lecture("status", rendre("10:00:00").status)));
     assert.equal(du(bandes.faits(PAS_JOINT).alertes, "cuisine").length, 1);
   });
+  test("les échecs de `status` ne comptent pas pour une alerte dont vient `faits`, et inversement (#746)", (t) => {
+    const { rendre } = saine(t);
+    const bandes = tenirBandes();
+    bandes.ouvrir(["parade"]);
+    bandes.veiller(["parade"]);
+    const statusRate = { ...PAS_JOINT, erreur: PAS_JOINT.erreur.replace("facts", "status") };
+    const cuisine = (b: { alertes: Alerte[] }) => du(b.alertes, "cuisine").filter(({ pourquoi }) => pourquoi?.includes("`facts`"));
+    // `status` rate deux fois de suite : ce qu'il dit est établi, pas ce que `faits` n'a raté qu'une fois.
+    bandes.status(mettreAPart({ ...statusRate, projet: "parade" }));
+    bandes.faits(PAS_JOINT);
+    const apres = bandes.status(mettreAPart({ ...statusRate, projet: "parade" }));
+    assert.deepEqual(cuisine(apres), []);
+    assert.deepEqual(cuisine(bandes.faits(OK(rendre))), []);
+    // `faits` rate deux fois de suite, entrelacé de `status` réussi : établie.
+    bandes.faits(PAS_JOINT);
+    bandes.status(mettreAPart(lecture("status", rendre("10:00:00").status)));
+    assert.equal(cuisine(bandes.faits(PAS_JOINT)).length, 1);
+  });
 });
