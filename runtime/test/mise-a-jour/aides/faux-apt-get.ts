@@ -3,7 +3,7 @@
 // Le vrai `dpkg-deb` ouvre le paquet ; ses fichiers remplacent ceux de la
 // version installée ; la version est notée là où la doublure de `dpkg-query`
 // la lit ; puis le vrai postinst du paquet est joué (`configure <version
-// d'avant>`), les chemins de systemd ramenés sous la racine d'essai — c'est lui
+// d'avant>`), les chemins de la machine ramenés sous la racine d'essai — c'est lui
 // qui recharge les unités et relance la station, par la doublure de
 // `systemctl`. Un postinst en échec fait rendre 100, comme apt.
 import { spawnSync } from "node:child_process";
@@ -44,7 +44,15 @@ try {
   const postinst = join(ouvert, "DEBIAN/postinst");
   if (existsSync(postinst)) {
     const ramene = join(ouvert, "postinst.essai");
-    writeFileSync(ramene, readFileSync(postinst, "utf8").replaceAll("/run/systemd/system", join(racine, "run/systemd/system")).replaceAll("/etc/systemd/system", join(racine, "etc/systemd/system")));
+    // Les chemins de la machine, sous la racine d'essai — la bascule y reçoit
+    // la sienne —, et le `node` du paquet remplacé par celui du test.
+    const ramenes = readFileSync(postinst, "utf8")
+      .replaceAll("/run/systemd/system", join(racine, "run/systemd/system"))
+      .replaceAll("/etc/systemd/system", join(racine, "etc/systemd/system"))
+      .replace(/^RACINE=\/$/m, `RACINE=${racine}`)
+      .replace(/^NODE=\/usr\/lib\/brigade-station\/node\/bin\/node$/m, `NODE=${process.execPath}`)
+      .replaceAll("=/usr/lib/brigade-station/runtime/", `=${racine}/usr/lib/brigade-station/runtime/`);
+    writeFileSync(ramene, ramenes);
     const joue = spawnSync("sh", [ramene, "configure", avant], { stdio: "inherit" });
     if (joue.status !== 0) {
       console.error(`E: le postinst de ${nom} ${version} a rendu ${joue.status}`);
