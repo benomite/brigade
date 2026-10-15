@@ -44,6 +44,7 @@ const pont = {
   lireHistoire: (projet, ticket) => ipcRenderer.invoke("lireHistoire", projet, ticket),
   lireDiscussion: (projet, ticket) => ipcRenderer.invoke("lireDiscussion", projet, ticket),
   commenter: (projet, ticket, texte) => ipcRenderer.invoke("commenter", projet, ticket, texte),
+  demanderAuSecond: (projet, ticket, contexte) => ipcRenderer.invoke("demanderAuSecond", projet, ticket, contexte),
   ouvrirLien: (projet, ticket, url) => ipcRenderer.invoke("ouvrirLien", projet, ticket, url),
   lireTitre: (projet, ticket) => ipcRenderer.invoke("lireTitre", projet, ticket),
   leverRetenue: (projet, ticket, geste) => ipcRenderer.invoke("leverRetenue", projet, ticket, geste),
