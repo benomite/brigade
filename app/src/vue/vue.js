@@ -198,6 +198,26 @@ const relecture = element("relecture");
 const code = document.createElement("section");
 code.id = "code";
 code.ariaLive = "polite";
+// Sous lui, les stations du chef : une ligne chacune, et le champ où il tape le code qu'une
+// station neuve affiche. Le champ est posé une fois : une relecture ne vide pas ce qu'il tape.
+const stations = document.createElement("section");
+stations.id = "stations";
+stations.className = "carte";
+const listeDesStations = document.createElement("div");
+listeDesStations.ariaLive = "polite";
+const formulaireDAppairage = document.createElement("form");
+const codeTape = document.createElement("input");
+codeTape.placeholder = "the code a new station shows, like 7KQ2-M9XD";
+codeTape.ariaLabel = "pairing code";
+codeTape.autocomplete = "off";
+codeTape.spellcheck = false;
+const appairage = document.createElement("button");
+appairage.type = "submit";
+appairage.textContent = "pair";
+const appairageDit = document.createElement("p");
+appairageDit.ariaLive = "polite";
+formulaireDAppairage.append(codeTape, appairage);
+stations.append(bloc("h3", "Stations"), listeDesStations, formulaireDAppairage, appairageDit);
 
 /** @type {Map<number, { terminal: Terminal, xterm: Xterm, ajuste: FitAddon, cadre: HTMLDivElement }>} */
 const vues = new Map();
@@ -421,6 +441,9 @@ let codeVu;
 let nonMisAJour = "";
 // L'app se met à jour : son bouton attend qu'elle se relance.
 let enPassage = false;
+// Ce que la dernière lecture des stations donne à poser (stations/stations.ts). Indéfini : pas encore lues.
+/** @type {import("../stations/stations.ts").VuDesStations | undefined} */
+let stationsVues;
 
 // La peau du terminal vient des jetons, comme le reste (jetons.css) : ni couleur ni police ne s'écrit ici.
 /** @param {string} nom */
@@ -3452,6 +3475,49 @@ async function passer() {
   poserCode();
 }
 
+// Les stations appairées, une ligne chacune : son nom, sa machine, et ce que GitHub dit d'elle —
+// « online · version X · no project », ou depuis quand elle est hors ligne. Une lecture ratée
+// laisse la liste d'avant, et le dit dessous.
+function poserStations() {
+  if (stationsVues === undefined) {
+    const tete = bloc("p", "your stations: first read on GitHub in progress…");
+    tete.dataset.etat = "en-cours";
+    return listeDesStations.replaceChildren(tete);
+  }
+  const lignes = stationsVues.stations.map(({ nom, machine, etat, ligne }) => {
+    const pose = document.createElement("p");
+    pose.dataset.etat = etat;
+    pose.append(bloc("strong", nom), bloc("span", machine === "" ? "" : ` — ${machine}`), bloc("span", ` · ${ligne}`));
+    return pose;
+  });
+  listeDesStations.replaceChildren(
+    ...(lignes.length === 0 ? [bloc("p", "no station yet: install one, then type here the code it shows")] : lignes),
+    ...(stationsVues.sans === undefined ? [] : [propos(stationsVues.sans)]),
+  );
+}
+
+// Le code tapé part au process principal, qui cherche sur GitHub la station qui le montre : elle
+// est appairée, et la liste la montre — ou le refus se lit sous le champ, en une ligne.
+formulaireDAppairage.addEventListener("submit", (evenement) => {
+  evenement.preventDefault();
+  void appairer();
+});
+async function appairer() {
+  appairage.disabled = true;
+  appairageDit.textContent = "looking for the station that shows this code, on GitHub…";
+  try {
+    const rendu = await brigade.appairer(codeTape.value);
+    if ("refus" in rendu) appairageDit.textContent = rendu.refus;
+    else {
+      appairageDit.textContent = `station ${rendu.appairee} is paired with this app`;
+      codeTape.value = "";
+    }
+  } catch (erreur) {
+    appairageDit.textContent = `nothing was paired: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+  }
+  appairage.disabled = false;
+}
+
 // La mise à jour d'un clone n'est pas lancée : sa commande s'écrit dans un shell, dans
 // l'espace d'un projet, que l'on montre — c'est sa note qui dit ce qui a été écrit, et que
 // rien n'est parti. Sans projet qui s'ouvre, la raison se lit sous les clones.
@@ -3619,8 +3685,10 @@ function ouvrirTous() {
   marquer();
   blocs.clear();
   poserCode();
+  poserStations();
   tous.replaceChildren(
     code,
+    stations,
     ...configuration.projets.map((projet) => {
       const tete = bloc("p", "");
       const corps = document.createElement("div");
@@ -4019,6 +4087,11 @@ brigade.surCode((vu) => {
   codeVu = vu;
   poserCode();
 });
+// Les stations relues : leur liste remplace celle d'avant, sur « Tous les projets ».
+brigade.surStations((vu) => {
+  stationsVues = vu;
+  poserStations();
+});
 // La colonne des terminaux change de taille avec la fenêtre : le terminal montré suit.
 new ResizeObserver(() => {
   if (!fil.hidden) montreADroite()?.ajuste.fit();
@@ -4203,6 +4276,7 @@ BANNIERE = demarrage.banniere;
 for (const champ of CALIBRAGE) proposer(calibre(champ), champ.endsWith("modele") ? demarrage.calibrage.modeles : demarrage.calibrage.efforts, champ.endsWith("modele") ? "— model —" : "— effort —");
 // Une lecture arrivée pendant le démarrage est plus récente que celle qu'il rend.
 codeVu ??= demarrage.code;
+stationsVues ??= demarrage.stations;
 let configuration = demarrage.configuration;
 // Le terminal mesure ses cases à l'ouverture : sa police, embarquée, est chargée avant qu'aucun
 // ne s'ouvre. Si elle ne se charge pas, l'app s'ouvre quand même, sur la police de repli.

@@ -581,6 +581,32 @@ main > header,
 #code > pre {
   margin-left: 16px;
 }
+/* Les stations du chef, sous le code : une ligne chacune ; hors ligne, en alerte — elle reste
+   dans la liste. Le champ du code d'appairage dessous, et ce que l'appairage a rendu. */
+#stations {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+}
+#stations h3 {
+  margin: 0;
+}
+#stations p {
+  margin: 0;
+}
+#stations form {
+  display: flex;
+  gap: 8px;
+}
+#stations input {
+  flex: 0 1 22em;
+}
+[data-etat="hors-ligne"],
+[data-etat="illisible"] {
+  color: var(--jaune);
+}
 [data-etat="a-jour"] {
   color: var(--discret);
 }

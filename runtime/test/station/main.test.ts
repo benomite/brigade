@@ -14,6 +14,7 @@ import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE
 const rienNeReste = temporaireDuFichier();
 
 const STATION = join(import.meta.dirname, "../../src/station/main.ts");
+const FAUX_GH_GISTS = join(import.meta.dirname, "../appairage/faux-gh-gists.ts");
 const REFUS = 2;
 
 // Les décisions sans lesquelles un projet ne sert pas : le chef les a posées
@@ -32,10 +33,16 @@ function uneStation(t: TestContext) {
   const machine = repertoireTemporaire(t);
   const racine = join(machine, "station");
   const compte = join(machine, "compte");
+  // GitHub, hors de la machine.
+  const gists = repertoireTemporaire(t);
   mkdirSync(racine);
   mkdirSync(compte);
   const env = {
     ...ENV_GIT,
+    // Ce que la station publie d'elle sur GitHub (appairage/presence.ts) va à
+    // une doublure : aucun test ne joint GitHub.
+    BRIGADE_GH_BIN: FAUX_GH_GISTS,
+    FAUX_GISTS: gists,
     HOME: compte,
     BRIGADE_STATION_DIR: racine,
     BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
@@ -167,6 +174,8 @@ test("un projet ajouté à la configuration est servi, sans redémarrer ; retir�
   const pid = station.process.pid;
   assert.match(station.sortie(), /1 projet servi : brigade/);
   assert.deepEqual(faits("espace", "runtime.started"), []);
+  // Sa présence sur GitHub publiée, la station n'écrit plus rien d'elle-même.
+  await station.attendre("station à appairer");
 
   // Tout ce que la machine porte, sauf l'état des projets et la configuration elle-même.
   const sauf = [join(racine, "etat"), join(racine, "projets")];

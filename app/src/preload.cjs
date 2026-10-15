@@ -1,4 +1,4 @@
-// Le pont entre la vue et le process principal : rien que ces soixante et un gestes. La
+// Le pont entre la vue et le process principal : rien que ces soixante-treize gestes. La
 // vue n'a ni Node ni accès aux fichiers.
 const { contextBridge, ipcRenderer } = require("electron");
 
@@ -54,6 +54,7 @@ const pont = {
   attente: (projet, id, ticket, saisie) => ipcRenderer.invoke("attente", projet, id, ticket, saisie),
   ecrireMiseAJour: (clone) => ipcRenderer.invoke("mettreAJour", clone),
   passer: () => ipcRenderer.invoke("passer"),
+  appairer: (code) => ipcRenderer.invoke("appairer", code),
   compter: (projet) => ipcRenderer.invoke("compter", projet),
   regarder: (projet, demande) => ipcRenderer.send("regarder", projet, demande),
   tous: (demande) => ipcRenderer.send("tous", demande),
@@ -74,6 +75,7 @@ const pont = {
   surUrgence: (recevoir) => void ipcRenderer.on("urgence", (_, projet) => recevoir(projet)),
   surAmont: (recevoir) => void ipcRenderer.on("amont", (_, vu) => recevoir(vu)),
   surCode: (recevoir) => void ipcRenderer.on("code", (_, vu) => recevoir(vu)),
+  surStations: (recevoir) => void ipcRenderer.on("stations", (_, vu) => recevoir(vu)),
   surConfiguration: (recevoir) => void ipcRenderer.on("configuration", (_, configuration, fermes) => recevoir(configuration, fermes)),
 };
 contextBridge.exposeInMainWorld("brigade", pont);

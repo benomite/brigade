@@ -4,6 +4,8 @@
 // station la relit seule, sans redémarrer.
 import { mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { canalGitHub } from "../appairage/canal.ts";
+import { identiteDeLaStation, tenirPresence } from "../appairage/presence.ts";
 import { configReseau, passerParLaPorte } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { CONFIGURATION } from "./configuration.ts";
@@ -43,11 +45,22 @@ for (const sortie of ["log", "error"] as const) {
 }
 const dire = (ligne: string) => console.log(ligne);
 const station = ouvrirStation({ racine, env: process.env, dire });
+// Sa présence sur GitHub, seul canal entre la station et l'app du chef : son
+// état, chaque minute, et le code qui l'appaire (appairage/presence.ts).
+const presence = tenirPresence({
+  racine,
+  canal: canalGitHub({ gh: process.env.BRIGADE_GH_BIN || "gh" }),
+  identite: identiteDeLaStation(process.env),
+  projets: () => station.projets(),
+  dire,
+});
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
     station.arreter(signal);
     console.log(`brigade : station arrêtée (${signal})`);
+    // L'heure de l'arrêt, écrite sur GitHub : l'app la dit hors ligne sans attendre.
+    void presence.arreter();
   });
 }
 // Relire tout de suite, sans attendre la relecture suivante.

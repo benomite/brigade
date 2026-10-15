@@ -23,10 +23,11 @@ import type { PropositionCalibrage, Racine } from "../proposition.ts";
 import type { Vu as VuDuCode } from "../retard.ts";
 import type { Avis, Retrait } from "../retrait.ts";
 import type { Guide } from "../service.ts";
+import type { Appairage, VuDesStations } from "../stations/stations.ts";
 import type { Terminal } from "../terminaux.ts";
 
 export type Pont = {
-  demarrage(): Promise<{ configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined }>;
+  demarrage(): Promise<{ configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
   // Le dépôt GitHub du dossier choisi, lu dans son origine — ou pourquoi il reste à écrire.
@@ -168,6 +169,9 @@ export type Pont = {
   // Le code de l'app, en retard ou à relancer : elle se met à jour et se relance sur la nouvelle
   // version — rien n'est rendu, elle se ferme —, ou dit pourquoi elle reste sur son code.
   passer(): Promise<{ refus: string } | undefined>;
+  // Le code qu'une station affiche, tapé par le chef : rend le nom de la station appairée, ou le
+  // refus en une ligne — code mal formé, inconnu, expiré, ou GitHub muet. Rien n'est écrit alors.
+  appairer(code: string): Promise<Appairage>;
   // Ce qu'engage l'allumage du manager, chiffré (allumage.ts) : les issues ouvertes du projet, et
   // celles qui portent `blocked-on-human` — `manager backlog`, lancée une fois sur sa box. Demandé
   // quand la confirmation d'« allumer » s'ouvre : son « oui » n'attend pas cette lecture. Rien, pour un projet sans box.
@@ -222,6 +226,9 @@ export type Pont = {
   // relus : au démarrage, au retour à la fenêtre, quand le fichier des projets change. La
   // dernière lecture d'avant le démarrage de la vue est dans `demarrage`.
   surCode(recevoir: (vu: VuDuCode) => void): void;
+  // Les stations appairées, relues sur GitHub toutes les trente secondes, chacune en une ligne. La
+  // dernière lecture d'avant le démarrage de la vue est dans `demarrage`.
+  surStations(recevoir: (vu: VuDesStations) => void): void;
   // Le fichier des projets a changé — ou l'app vient de désinstaller un projet de sa box.
   // `fermes` : les terminaux des projets qui ont quitté la liste.
   surConfiguration(recevoir: (configuration: Affichee, fermes: number[]) => void): void;

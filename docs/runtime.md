@@ -963,6 +963,38 @@ session, reste la mesure de vérité du compte ; le runtime ne la remplace pas.
 | `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86`, `disconnected`, `refused` ; `reason` (`no-commit`, `no-diff`, `no-deliverable`, `guard:idle`, `guard:lease`, `harvested:…`, ``secret-committed: `NOM` ``, `credentials-committed: name` ou `shape` — rien n'est poussé…) ; `summary` : son dernier message, secrets et identifiants masqués ; `deliverable` : ce qu'il a délimité, ou `null` ; `pr` ; `reconciled` |
 | `cook.out-of-zone` | La livraison confrontée à la zone de la prise : `zone`, `files` (`path`, `owners`), `cardChanged`. Un signal ; jamais écrit pour un ticket pris sans zone |
 
+## Une station par machine : sa présence sur GitHub, et son appairage par un code
+
+*Spec : [la station refaite de zéro](superpowers/specs/2026-10-15-station-refonte-design.md) (#794).*
+
+La station d'une machine (`runtime/src/station/main.ts`, un seul process pour tous ses projets)
+n'a **aucune liaison directe** avec l'app du chef : elle n'ouvre aucun port, et l'app ne la joint
+jamais. Tout passe par **GitHub**, où elle écrit son état — dans un **gist secret** du compte du
+`gh` de la machine, qui doit être celui du chef (`runtime/src/appairage/`).
+
+- **Au premier démarrage**, elle crée son gist, y publie l'**empreinte** d'un code neuf — jamais le
+  code lui-même —, et affiche le code dans son journal de service :
+  `brigade : station à appairer — tape ce code dans l'app : 7KQ2-M9XD (valable jusqu'à 14:32)`.
+  Huit signes de l'alphabet de Crockford (ni I, ni L, ni O, ni U), valables un quart d'heure ; échu,
+  elle en tire un autre et le dit, et l'empreinte de l'ancien reste publiée comme échue — l'app dit
+  alors « expiré », pas « inconnu ».
+- **Le chef tape le code dans l'app** (« Tous les projets », [docs/app.md](app.md)) : l'app trouve le
+  gist qui publie cette empreinte et y écrit `brigade-appairage.json`. La station l'y lit à son
+  signe de vie suivant, et n'affiche plus de code (`brigade : station appairée à l'app`).
+- **Chaque minute**, elle réécrit `brigade-station.json` : son nom, sa machine, sa version, les
+  projets qu'elle sert, son dernier signe de vie. **Arrêtée** (SIGTERM), elle y écrit l'heure de
+  son arrêt. L'app la dit hors ligne dès qu'elle s'est arrêtée, ou dès qu'elle a manqué deux signes
+  de vie.
+- Ce qu'elle garde d'une fois sur l'autre — son gist, son code, son appairage — est dans
+  `<BRIGADE_STATION_DIR>/appairage.json`. **Un gist supprimé** sur GitHub la remet à zéro : un
+  gist neuf, un code neuf, un appairage à refaire. **GitHub muet** : la panne est dite une fois,
+  son retour aussi, et elle réessaie à chaque minute.
+
+Trois réglages, tous facultatifs : `BRIGADE_GH_BIN` (le `gh` de la machine, `gh` à défaut),
+`BRIGADE_STATION_NOM` (son nom sur la home — à défaut, celui de la machine), et
+`BRIGADE_STATION_VERSION` (la version qu'elle annonce — posée par son paquet ; à défaut,
+l'empreinte de son code, `code 1a2b3c4d5e6f`).
+
 ## Regarder une livraison d'interface dans mon navigateur
 
 Une livraison qui touche l'interface d'un projet peut être regardée dans le navigateur du poste
