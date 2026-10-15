@@ -36,6 +36,7 @@ import { configReviewer } from "./reviewer.ts";
 import { ConfigInvalide, NOM_DE_PROJET } from "./runtime.ts";
 import { configSecrets, lireSecrets } from "./secrets.ts";
 import { configStation } from "./station.ts";
+import { sonderRenouvellement, systemdReel, type EtatDuRenouvellement, type Systemd } from "./sonde-renouvellement.ts";
 import { GESTE_DE_STATION, VARIABLE_DES_STATIONS } from "./stations-declarees.ts";
 import { direConnexionTombee, etatStation, GESTE_DE_CONNEXION_TOMBEE, stationsDeconnectees } from "./projections/stations.ts";
 import { prendreVerrou, VerrouTenu } from "./verrou.ts";
@@ -536,10 +537,28 @@ function connexionTombee(env: NodeJS.ProcessEnv): string | null {
   return null;
 }
 
+// La ligne du renouvellement de la session Max : une seule, qui dit s'il
+// tourne et réussit, ou ce qui l'en empêche. Une note, jamais un manque : le
+// renouvellement ne conditionne pas le départ d'un cook, il en garde la durée.
+export function jugerRenouvellement(etat: EtatDuRenouvellement): Pick<Constat, "etat" | "texte" | "geste"> {
+  const ancien = etat.etat === "ok" || etat.dernierReussi === null ? "" : ` (dernier passage réussi à ${etat.dernierReussi})`;
+  const suite = etat.etat === "ok" || etat.echecsConsecutifs <= 1 ? "" : `, ${etat.echecsConsecutifs} échecs de suite`;
+  switch (etat.etat) {
+    case "ok":
+      return { etat: "ok", texte: `renouvellement : dernier passage réussi à ${etat.dernierReussi}` };
+    case "minuteur-inactif":
+      return { etat: "note", texte: `renouvellement : minuteur inactif${ancien}`, geste: "`sudo systemctl enable --now brigade-renouvellement.timer`" };
+    case "claude-introuvable":
+      return { etat: "note", texte: `renouvellement : \`claude\` introuvable${suite}${ancien} — ${etat.raison}`, geste: "rendre `claude` joignable dans le PATH de l'unité brigade-renouvellement.service" };
+    case "echec":
+      return { etat: "note", texte: `renouvellement : échec${suite}${ancien} — ${etat.raison}`, geste: "`journalctl -u brigade-renouvellement.service` en dit davantage" };
+  }
+}
+
 // Vérifie qu'un projet est prêt à être servi, et rend tout ce qu'il a
 // constaté — ce qui manque, en entier, pas le premier manque. `env` :
 // l'environnement dans lequel le runtime du projet démarrerait.
-export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
+export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = systemdReel): Promise<Constat[]> {
   const constats: Constat[] = [];
   // L'étape d'un manque, quand l'appel n'en nomme pas : le dépôt se règle en
   // l'amorçant ; le reste — la box, GitHub — à l'étape qui vérifie, qui en dit
@@ -632,6 +651,10 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
       noter("machine", "manque", `le répertoire d'état ${etat} n'est pas inscriptible par ce compte`, "lancer cette commande sous le compte du service, ou lui rendre le répertoire (`chown`)");
     }
   }
+
+  // Le renouvellement de la session Max, en une ligne.
+  const renouvellement = jugerRenouvellement(await sonderRenouvellement(systemd));
+  noter("machine", renouvellement.etat, renouvellement.texte, renouvellement.geste);
 
   // --- La machine : le clone réservé, et la base telle que son origine la porte.
   const clone = env.BRIGADE_REPO_DIR;
