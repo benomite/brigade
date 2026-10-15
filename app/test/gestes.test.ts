@@ -338,8 +338,7 @@ describe("les gestes du chef", () => {
 
 // La vue, jouée : l'espace de « parade » ouvert, le geste du projet en tête, à côté de son nom.
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "Second", note: "fil repris", arrete: false };
-const OCCUPE = "le second est occupé : il est en plein tour — la commande n'est pas partie, et rien n'est écrit : `!ssh box brigade parade installation`";
-async function ouvrir(geste: NonNullable<Reponses["geste"]>) {
+async function ouvrir(geste: NonNullable<Reponses["geste"]>, autres: Reponses = {}) {
   const vue = await jouerLaVue({
     demarrage: () => ({
       configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE], hotes: ["box"] }),
@@ -354,6 +353,7 @@ async function ouvrir(geste: NonNullable<Reponses["geste"]>) {
     }),
     espace: () => [SECOND],
     geste,
+    ...autres,
   });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
@@ -377,22 +377,12 @@ describe("dans la vue, un geste direct part au clic", () => {
     assert.deepEqual(vue.element("etat").dessous("button").map(({ textContent }) => textContent).filter((texte) => /cuisine|installation|garde-fous/.test(texte)), []);
   });
 
-  test("le clic nomme le geste au process principal, jamais une commande, sans « oui » — et le second, où sa sortie se lit, dit sous son titre ce qui est parti", async () => {
-    const parti = { ...SECOND, note: "parti dans le second : `!ssh box brigade parade installation`" };
-    const vue = await ouvrir(() => parti);
+  test("le clic lance la vérification structurée, jamais une commande : rien n'est écrit dans le second, son verdict se lit dans Paramètres", async () => {
+    const vue = await ouvrir(() => assert.fail("rien ne s'écrit dans le second"), { verifier: () => undefined });
 
     await cliquer(vue.element("gestes-projet"), "check the installation");
 
-    assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste").map(({ args }) => args), [["parade", "installation", undefined, undefined]]);
-    assert.deepEqual(vue.appels.filter(({ geste }) => geste === "confirmer"), []);
-    assert.equal(vue.element("note-second").textContent, parti.note);
-  });
-
-  test("le second est occupé : la vue dit en clair, sous son titre, qu'il l'est et que la commande n'est pas partie", async () => {
-    const vue = await ouvrir(() => ({ refus: OCCUPE }));
-
-    await cliquer(vue.element("gestes-projet"), "check the installation");
-
-    assert.equal(vue.element("note-second").textContent, OCCUPE);
+    assert.deepEqual(vue.appels.filter(({ geste }) => geste === "verifier").map(({ args }) => args), [["parade"]]);
+    assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste" || geste === "confirmer"), []);
   });
 });

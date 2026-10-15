@@ -24,7 +24,8 @@ import { ECHECS_POUR_ALERTER, signalDe, tenirBandes, type Alerte, type Bande } f
 import { mettreAPart } from "../src/attend.ts";
 import type { Lecture, Rendu } from "../src/box.ts";
 import type { Projet } from "../src/config.ts";
-import { COMMANDES, tenirServices, VERIFICATION, type Guide } from "../src/service.ts";
+import { verdictDesConstats, verdictDeLaPanne } from "../../runtime/src/verdict.ts";
+import { COMMANDES, JUGEMENT, tenirServices, type Guide } from "../src/service.ts";
 import { ouvrirTerminaux } from "../src/terminaux.ts";
 
 const PARADE: Projet = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
@@ -68,7 +69,7 @@ function boxInstallee(t: TestContext, { terminee = true } = {}) {
   if (terminee) assert.equal(terminer(journal, { projet: "parade", aReprendre: [], auteur: "chef" }).terminee, true);
   journal.fermer();
 
-  const reglage = { claude: true, constats: [VARIABLES] as Constat[] };
+  const reglage = { claude: true, constats: [VARIABLES] as Constat[], panne: undefined as string | undefined };
   const appels: string[] = [];
   async function lancer(_servi: unknown, commande: string): Promise<Rendu> {
     appels.push(commande);
@@ -79,10 +80,17 @@ function boxInstallee(t: TestContext, { terminee = true } = {}) {
       const avec = { env: { ...env, BRIGADE_CLAUDE_BIN: reglage.claude ? FAUX_CLAUDE : join(repertoire, "plus-de-claude") }, dire, redire: () => {} };
       if (commande === COMMANDES.etapes) etapes({ ...avec, args: ["--json"] });
       else if (commande === COMMANDES.stations) stations({ ...avec, args: ["--json"] });
-      else if (commande === VERIFICATION) {
-        const verifiee = verification(reglage.constats);
-        dire(verifiee.sortie);
-        code = verifiee.code;
+      else if (commande === JUGEMENT) {
+        // `installation --json` : le verdict structuré, sur une ligne — ou la panne, plantée.
+        if (reglage.panne !== undefined) {
+          dire(JSON.stringify(verdictDeLaPanne(new Error(reglage.panne))));
+          code = 1;
+        } else {
+          const verifiee = verification(reglage.constats);
+          const verdict = verdictDesConstats(reglage.constats.map((constat) => ({ ou: "machine" as const, ...constat })), verifiee.sortie);
+          dire(JSON.stringify(verdict));
+          code = verifiee.code;
+        }
       } else throw new Sortie(2);
     } catch (erreur) {
       if (!(erreur instanceof Sortie)) throw erreur;
@@ -152,7 +160,7 @@ describe("un projet installé perd une station : une alerte en bande et sur sa c
     assert.match(bande.signal?.dit ?? "", /station “box\/claude” missing/);
     // Installé : jamais l'écran d'installation.
     assert.equal(guide.termine, true);
-    assert.deepEqual(box.appels, [COMMANDES.etapes, COMMANDES.stations, VERIFICATION]);
+    assert.deepEqual(box.appels, [COMMANDES.etapes, COMMANDES.stations, JUGEMENT]);
   });
 
   test("la vérification dit le moteur introuvable par le service : la station est perdue, et le geste est celui que la box donne, mot pour mot", async (t) => {
@@ -166,6 +174,39 @@ describe("un projet installé perd une station : une alerte en bande et sur sa c
     assert.match(ligne.dit, /station “box\/claude” missing/);
     assert.equal(ligne.releve, SANS_CLAUDE.texte);
     assert.equal(ligne.geste, SANS_CLAUDE.geste);
+  });
+
+  test("la vérification plantée (EACCES sur /etc/sudoers.d) : une ligne « problème de brigade, pas de ton projet » avec #654, aucune action pour le chef, jamais « NOT READY »", async (t) => {
+    const box = boxInstallee(t);
+    const { controler } = app(box);
+    box.reglage.panne = "EACCES: permission denied, open '/etc/sudoers.d/brigade'";
+
+    const { bande } = await controler();
+
+    const [ligne, ...autres] = bande.alertes.filter(({ sujet }) => sujet === "verification");
+    assert.deepEqual(autres, []);
+    assert.match(ligne?.dit ?? "", /problème de brigade, pas de ton projet/);
+    assert.match(ligne?.dit ?? "", /#654/);
+    assert.match(ligne?.geste ?? "", /^nothing to do/);
+    assert.equal(ligne?.appel, undefined);
+    assert.equal(ligne?.verification?.etat, "plantee");
+    assert.deepEqual(ligne?.verification?.etat === "plantee" ? ligne.verification.manques : null, []);
+    assert.doesNotMatch(JSON.stringify(bande), /NOT READY/);
+    // Elle s'en va au premier contrôle qui va au bout.
+    box.reglage.panne = undefined;
+    assert.deepEqual((await controler()).bande.alertes.filter(({ sujet }) => sujet === "verification"), []);
+  });
+
+  test("une alerte issue d'une vérification porte le verdict de l'écran Verify : la même phrase, les mêmes lignes de manque", async (t) => {
+    const box = boxInstallee(t);
+    const { controler } = app(box);
+    box.reglage.constats = [VARIABLES, SANS_CLAUDE];
+
+    const ligne = seule((await controler()).bande, "station");
+
+    assert.equal(ligne.verification?.etat, "pas-pret");
+    assert.equal(ligne.verification?.titre, "pas prêt : 1 chose à faire");
+    assert.equal(ligne.verification?.etat === "pas-pret" ? ligne.verification.manques[0]?.acteur : null, "chef");
   });
 
   test("la station revient : l'alerte s'en va de la bande et de la case", async (t) => {

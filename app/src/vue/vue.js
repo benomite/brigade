@@ -164,6 +164,7 @@ const journal = element("journal");
 const service = /** @type {HTMLDetailsElement} */ (element("service"));
 const serviceTitre = element("service-titre");
 const serviceTete = element("service-tete");
+const verificationEtat = element("verification-etat");
 const serviceEtapes = element("service-etapes");
 const retrait = /** @type {HTMLDetailsElement} */ (element("retrait"));
 const retraitTitre = element("retrait-titre");
@@ -1206,9 +1207,10 @@ function rendre(recue, tete, corps) {
 /**
  * @param {Projet} projet @param {Guide["verification"]} verification
  * @param {(texte: string, geste: () => Promise<unknown>) => HTMLButtonElement} action
+ * @param {boolean} [avecTitre] faux : la phrase est déjà dite au-dessus (une alerte plantée la porte en titre)
  * @returns {HTMLElement[]}
  */
-function poserVerdict(projet, verification, action) {
+function poserVerdict(projet, verification, action, avecTitre = true) {
   if (verification === undefined) return [];
   const tete = bloc("p", verification.titre);
   tete.className = "verdict";
@@ -1220,7 +1222,7 @@ function poserVerdict(projet, verification, action) {
   }
   const posee = document.createElement("div");
   posee.className = "verification";
-  posee.append(tete);
+  if (avecTitre) posee.append(tete);
   const detail = document.createElement("details");
   detail.className = "detail";
   const cle = `${projet.nom} ${verification.a}`;
@@ -1304,6 +1306,10 @@ function poserService(projet, guide) {
   // Le chef a pu changer d'espace pendant que la box répondait.
   if (courant?.nom !== projet.nom) return;
   service.hidden = guide === undefined || guide.termine;
+  // Installé, ce que sa dernière vérification a donné se pose en tête de Paramètres : la même règle que l'écran Verify.
+  const verifiee = guide !== undefined && guide.termine && guide.verification !== undefined;
+  verificationEtat.hidden = !verifiee;
+  verificationEtat.replaceChildren(...(verifiee ? poserVerdict(projet, guide.verification, (texte, geste) => bouton(texte, () => void geste())) : []));
   if (guide === undefined || guide.termine) return serviceEtapes.replaceChildren(), serviceTete.replaceChildren();
   // En cours, ou entamée par le chef, elle s'ouvre d'elle-même ; ensuite, c'est lui qui la replie.
   if (misEnService !== projet.nom || (guide.deplie && !serviceDeplie)) {
@@ -3389,14 +3395,17 @@ async function ouvrirPr(projet, ticket) {
 }
 
 // Le geste du projet lui-même, en tête de son espace, à côté de son nom : vérifier son
-// installation — direct, il ne fait que lire, et sa sortie se lit dans le second. Un projet sans
+// installation — il ne fait que lire, et son verdict se lit dans Paramètres. Un projet sans
 // box n'a pas de commande à envoyer.
 function poserProjet() {
   const projet = courant;
-  const verifier = GESTES_DE_LA_CUISINE.find(({ id }) => id === "installation");
-  gestesProjet.hidden = projet?.box === undefined || verifier === undefined;
-  if (projet?.box === undefined || verifier === undefined) return gestesProjet.replaceChildren();
-  gestesProjet.replaceChildren(...poserGeste(projet, { ...verifier, ou: "projet" }));
+  const geste = GESTES_DE_LA_CUISINE.find(({ id }) => id === "installation");
+  gestesProjet.hidden = projet?.box === undefined || geste === undefined;
+  if (projet?.box === undefined || geste === undefined) return gestesProjet.replaceChildren();
+  const verifier = bouton(geste.libelle, () => void brigade.verifier(projet.nom));
+  verifier.dataset.geste = "direct";
+  verifier.title = "runs the verification on the box — its verdict is read in Settings, in one sentence";
+  gestesProjet.replaceChildren(verifier);
 }
 
 // Le code de l'app, et les clones de brigade parmi les projets : l'état de chacun en une
@@ -3752,7 +3761,7 @@ function poserAlertes(projet) {
   };
   bande.replaceChildren(
     ...alertes.map((alerte) => {
-      const { sujet, verifie, ton, dit, pourquoi, releve, geste: leve, appel, prix, aussi } = alerte;
+      const { sujet, verifie, ton, dit, pourquoi, releve, geste: leve, appel, prix, aussi, verification } = alerte;
       const ligne = document.createElement("div");
       ligne.className = "alerte";
       ligne.dataset.sujet = sujet;
@@ -3763,7 +3772,7 @@ function poserAlertes(projet) {
       const marque = sujet === "urgence" ? bloc("span", "URGENT") : undefined;
       if (marque !== undefined) marque.className = "urgent";
       tete.append(pastille(dit, ton), ...(marque === undefined ? [] : [marque]), bloc("strong", dit));
-      ligne.append(tete, ...(pourquoi === undefined ? [] : [bloc("p", pourquoi)]), ...(releve === undefined ? [] : [bloc("pre", releve)]), leGeste(leve, appel, prix, alerte), ...(aussi === undefined ? [] : [leGeste(aussi.geste, aussi.appel, aussi.prix, alerte)]));
+      ligne.append(tete, ...(pourquoi === undefined ? [] : [bloc("p", pourquoi)]), ...(verification === undefined ? [] : poserVerdict(projet, verification, (texte, geste) => bouton(texte, () => void geste()), verification.titre !== dit)), ...(releve === undefined ? [] : [bloc("pre", releve)]), leGeste(leve, appel, prix, alerte), ...(aussi === undefined ? [] : [leGeste(aussi.geste, aussi.appel, aussi.prix, alerte)]));
       return ligne;
     }),
   );

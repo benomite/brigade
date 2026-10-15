@@ -37,11 +37,11 @@ import type { Echec, Lecture } from "./box.ts";
 import { COMMANDE as FAITS, comprendre, duree, tick, titreDEchec, type DecisionUrgente, type Faits } from "./faits.ts";
 import { GRANTS } from "./gestes.ts";
 import { COMMANDE as MANAGER, managerDe, type Interrupteur } from "./manager.ts";
-import type { Controle } from "./service.ts";
+import type { Controle, Montree as Verification } from "./service.ts";
 
 // `station` et `box` : ce qu'un projet installé a perdu — une station, un geste de box. `urgence` :
 // toute la cuisine attend le chef.
-export type Sujet = "urgence" | "manager" | "cuisine" | "grant" | "station" | "box" | "renouvellement";
+export type Sujet = "urgence" | "manager" | "cuisine" | "grant" | "station" | "box" | "renouvellement" | "verification";
 // Ce que le bouton d'une ligne appelle : un geste du socle (gestes.ts), et le grant qu'il
 // nomme ; une demande au second, faite de ce que la ligne dit (demande.ts) ; un onglet de
 // contenu (onglets.ts).
@@ -51,8 +51,9 @@ export type Appel = { geste: string; grant?: string } | { demande: true } | { on
 // dans ses mots aussi. `releve` : ce que la box en a écrit, mot pour mot — absent quand elle
 // n'en a rien écrit. `geste` : ce qui le lève ; `appel` : ce que son bouton appelle — absent,
 // le geste ne se joue pas depuis l'app. `prix` : ce que le geste coûte. `aussi` : un second
-// geste sur le même état, avec ce qu'il coûte.
-export type Alerte = { sujet: Sujet; verifie: boolean; ton: string; dit: string; pourquoi?: string; releve?: string; geste: string; appel?: Appel; prix: string; aussi?: { geste: string; appel: Appel; prix: string } };
+// geste sur le même état, avec ce qu'il coûte. `verification` : pour une ligne qui vient d'une vérification,
+// le verdict que l'écran Verify pose — la même phrase, les mêmes lignes de manque.
+export type Alerte = { sujet: Sujet; verifie: boolean; ton: string; dit: string; pourquoi?: string; releve?: string; geste: string; appel?: Appel; prix: string; aussi?: { geste: string; appel: Appel; prix: string }; verification?: Verification };
 // La bande d'un projet : vide, les quatre états ont été lus, et vont bien.
 // Ce que la bande d'un projet dit de lui sur sa case de la barre : toute la cuisine qui l'attend, une
 // chose à faire, ou rien de vérifié. Une bande vide n'a pas de signal — c'est que les quatre états
@@ -424,6 +425,30 @@ export const ECHECS_POUR_ALERTER = 2;
 // Le renouvellement en échec répété : la ligne reste tant que la vérification le dit, et sort au
 // premier passage réussi. L'échéance de la session n'est pas relue ici : une session tombée, la
 // file le dit d'elle-même (une station déconnectée).
+// Le verdict d'une vérification lue, joint à la ligne qui en vient — pas une panne : celle-là a sa ligne.
+const verdictDe = (controle: Controle): { verification?: Verification } => {
+  const { verification } = controle;
+  return verification !== undefined && (verification.etat === "pret" || verification.etat === "pas-pret") ? { verification } : {};
+};
+
+// Une vérification plantée : un problème de brigade, pas du projet — le chef n'a rien à faire, et la
+// ligne ne lui demande rien. Elle sort au premier contrôle qui va au bout.
+function dUnePanne(controle: Controle | undefined): Alerte[] {
+  const verification = controle?.verification;
+  if (verification === undefined || verification.etat !== "plantee") return [];
+  return [
+    {
+      sujet: "verification",
+      verifie: true,
+      ton: "jaune",
+      dit: verification.titre,
+      geste: "nothing to do: this is on brigade, which fixes it — the check is replayed by itself",
+      prix: AUCUN,
+      verification,
+    },
+  ];
+}
+
 function duRenouvellement(controle: Controle | undefined): Alerte[] {
   const echec = controle?.renouvellement;
   if (echec === undefined || echec.echecs < ECHECS_POUR_ALERTER) return [];
@@ -437,6 +462,7 @@ function duRenouvellement(controle: Controle | undefined): Alerte[] {
       geste: "`journalctl -u brigade-renouvellement.service` on the box says more; fix what it names",
       appel: DEMANDE,
       prix: `none for the kitchen: it is done on ${SUR_LA_BOX}; ${RECONTROLE}`,
+      ...(controle === undefined ? {} : verdictDe(controle)),
     },
   ];
 }
@@ -463,6 +489,7 @@ function desPertes(controle: Controle | undefined, status: string | Sans): Alert
         geste: introuvable?.geste ?? `put \`${moteur}\` back on the box, where the service finds it — \`installation\` on the box gives the exact command`,
         appel: DEMANDE,
         prix: `none for the kitchen: it is done on ${SUR_LA_BOX}; ${RECONTROLE}`,
+        ...verdictDe(controle),
       });
     }
   }
@@ -479,6 +506,7 @@ function desPertes(controle: Controle | undefined, status: string | Sans): Alert
       geste: sansStation.geste ?? "declare a station again: `installation stations` on the box lists those it provides",
       appel: DEMANDE,
       prix: `none: the declaration is read at the runtime's next wake-up, without a restart; ${RECONTROLE}`,
+      ...verdictDe(controle),
     });
   }
   for (const { section, nom, empeche } of GESTES_DE_BOX) {
@@ -493,6 +521,7 @@ function desPertes(controle: Controle | undefined, status: string | Sans): Alert
       geste: manque.geste ?? `set it up again on the box — docs/installer.md, ${section}`,
       appel: DEMANDE,
       prix: `none: no cook is interrupted — it is done on ${SUR_LA_BOX}; ${RECONTROLE}`,
+      ...verdictDe(controle),
     });
   }
   return pertes;
@@ -501,7 +530,7 @@ function desPertes(controle: Controle | undefined, status: string | Sans): Alert
 // La bande d'un projet, d'après ce qui en a été lu : l'urgence, le manager, la cuisine — et
 // son setup —, le grant, et ce que le projet installé a perdu.
 export function alertes({ projet, faits, status, attend, manager, controle }: Lu): Alerte[] {
-  return parGravite([...deLUrgence(faits), ...duManager(manager), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle)]);
+  return parGravite([...deLUrgence(faits), ...duManager(manager), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle), ...dUnePanne(controle)]);
 }
 
 // La plus grave d'abord : l'urgence au-dessus de tout, puis une alerte lue avant un état non vérifié,
@@ -555,6 +584,7 @@ const LECTURES_DE: Record<Sujet, readonly Source[]> = {
   station: ["controle", "status"],
   box: ["controle", "status"],
   renouvellement: ["controle"],
+  verification: ["controle"],
 };
 const cle = ({ sujet, dit }: Alerte) => `${sujet}\u0000${dit}`;
 
