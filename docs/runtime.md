@@ -14,7 +14,7 @@ sont dans les specs, [`superpowers/specs/`](superpowers/specs/) — ici, seuleme
 |---|---|
 | Démarrer | Prend le verrou du projet, recalcule ses projections depuis le journal, écrit `runtime.started`, puis ce qui a changé de ses plafonds (`guard.configured`) et de sa cloison (`isolation.configured`), annonce les stations que le projet déclare (`station.announced` ; `stations.undeclared` s'il n'en déclare aucune), demande à `claude` si la machine a une session, et sonde GitHub |
 | Tourner | Surveille le journal chaque seconde et se réveille au tick, toutes les 60 s. À chaque réveil : les garde-fous guettent le « stop », la station prend ce que ses bornes permettent, la pass juge ce qui est livré, le manager — s'il est allumé — juge, découpe et réagit. À chaque tick : `runtime.ticked`, sondage de GitHub, baux échus rendus, progrès des worktrees regardé, worktrees rangés, relevé de chaque cook (`cook.progressed`) |
-| S'arrêter (`SIGTERM`, `SIGINT`) | Tue les cooks en cours et les gates en train de se jouer, écrit `runtime.stopped`, rend le verrou, sort avec le code 0 |
+| S'arrêter (`SIGTERM`, `SIGINT`) | Lâche les cooks en cours — un relais les porte, le runtime suivant les reprend ; **l'unité ne les signale pas** (`KillMode=process`) — et tue les gates en train de se jouer, écrit `runtime.stopped`, rend le verrou, sort avec le code 0 |
 | Mourir sans préavis | Rien n'est perdu : le noyau libère le verrou, et le démarrage suivant écrit `runtime.interrupted` avant de repartir |
 | Être lancé une seconde fois sur le même projet | Refuse, code de sortie 2, en nommant le runtime qui tourne (pid, machine, heure de démarrage) |
 
@@ -1995,7 +1995,7 @@ sur une box** — elles se règlent dans `runtime/deploy`, pas dans le runtime :
    rendu 1 … sans rien redémarrer — « sudo: a password is required »`). Rien n'est cassé, rien n'est
    mis en service.
 2. **Le geste doit survivre à l'arrêt de l'unité qui l'a lancé.** Lancé par le runtime, il est dans
-   le cgroup de `brigade@<projet>.service`, que `systemctl stop` vide (`KillMode=control-group`) :
+   le cgroup de `brigade@<projet>.service`, que `systemctl stop` ne signale pas (`KillMode=process`) mais que le démarrage d'une unité plus ancienne vide (`KillMode=control-group`) :
    la bascule serait tuée par son propre arrêt du runtime, **et rien ne le relancerait**. **N'ouvre
    donc pas la règle `sudoers` au compte du service tant que le geste ne se détache pas de l'unité**
    (une unité transitoire à lui, par exemple).

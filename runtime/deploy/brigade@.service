@@ -77,9 +77,14 @@ Restart=on-failure
 RestartSec=5
 RestartPreventExitStatus=2
 
-# `systemctl stop` envoie SIGTERM : le runtime journalise son arrêt et sort.
-# Tout le cgroup est arrêté avec lui — c'est le « stop » de dernier recours.
-KillMode=control-group
+# `systemctl stop` envoie SIGTERM au seul process du runtime : il journalise
+# son arrêt et sort. Les cooks, que chacun un relais détaché porte, ne reçoivent
+# rien — c'est ce qui les laisse finir pendant une mise à jour, et le runtime
+# suivant les reprend (`relais.ts`). `control-group` enverrait SIGTERM à tout le
+# cgroup, relais et cooks compris : trois cooks sortis en code 143 (#704). Le
+# « stop » du chef arrête les cooks par le runtime (`guardrails -- stop`),
+# jamais par l'unité.
+KillMode=process
 TimeoutStopSec=30
 
 [Install]
