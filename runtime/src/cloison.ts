@@ -59,6 +59,14 @@ export const sous = (racine: string, chemin: string) => {
 // compte lui est rendu en lecture seule.
 const PRIVES_PAR_DEFAUT = [".cache", ".npm", ".claude.json"];
 
+// Ce que les outils écrivent sous `~` hors de `~/.cache` : leurs données et
+// leur état (`~/.local/share/pnpm`, le store de pnpm). Ces répertoires sont au
+// projet, comme le compte, et chaque entrée du vrai y est rendue en lecture
+// seule : un outil y crée la sienne, le binaire `claude` posé sous
+// `~/.local/bin` reste celui du compte. Un répertoire n'y est mêlé que sous
+// un parent qui l'est.
+const MELES = [".local", ".local/share", ".local/state"];
+
 const estUn = (chemin: string, quoi: "isFile" | "isDirectory"): boolean => {
   try {
     return lstatSync(chemin)[quoi]();
@@ -143,20 +151,36 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
   // chaîne d'outils, le binaire `claude` lui-même).
   const leCompte = (): string[] => {
     mkdirSync(compte, { recursive: true });
-    let entrees: string[] = [];
-    try {
-      entrees = readdirSync(home);
-    } catch {
-      // Un compte sans répertoire : rien à rendre.
-    }
     for (const nom of prives) {
       if (estUn(join(home, nom), "isFile")) amorcer(join(home, nom), join(compte, nom));
       else if (!existsSync(join(compte, nom)) && estUn(join(home, nom), "isDirectory")) mkdirSync(join(compte, nom), { recursive: true });
     }
-    const rendues = entrees.filter((nom) => !prives.includes(nom) && join(home, nom) !== claude);
-    // `-try` : un lien qui ne mène nulle part, ou une entrée partie depuis la
-    // lecture du répertoire, n'est pas rendu — et ne fait pas mourir `bwrap`.
-    return ["--bind", compte, home, ...rendues.flatMap((nom) => lie("--ro-bind-try", join(home, nom)))];
+    const rendre = (dossier: string): string[] => {
+      let entrees: string[] = [];
+      try {
+        entrees = readdirSync(join(home, dossier));
+      } catch {
+        // Un compte sans répertoire : rien à rendre.
+      }
+      return entrees.flatMap((nom) => {
+        const chemin = join(dossier, nom);
+        if ((dossier === "" && prives.includes(nom)) || join(home, chemin) === claude) return [];
+        if (MELES.includes(chemin) && estUn(join(home, chemin), "isDirectory")) {
+          // Un vrai répertoire, celui du projet : ce qu'un cook y aurait
+          // laissé à la place, un lien, ne fait pas écrire le runtime ni
+          // monter `bwrap` ailleurs.
+          if (!estUn(join(compte, chemin), "isDirectory")) {
+            rmSync(join(compte, chemin), { recursive: true, force: true });
+            mkdirSync(join(compte, chemin));
+          }
+          return rendre(chemin);
+        }
+        // `-try` : un lien qui ne mène nulle part, ou une entrée partie depuis
+        // la lecture du répertoire, n'est pas rendu — et ne fait pas mourir `bwrap`.
+        return lie("--ro-bind-try", join(home, chemin));
+      });
+    };
+    return ["--bind", compte, home, ...rendre("")];
   };
 
   // Le `.git` du clone, vu d'un lancement : ses objets et ses références sont

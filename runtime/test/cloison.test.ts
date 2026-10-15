@@ -130,7 +130,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     // Sans exiger qu'elle existe encore : un lien pendant, une entrée partie depuis ne font pas mourir `bwrap`.
     assert.equal(paires(recu, "--ro-bind").some((paire) => paire.startsWith(`${home}/`)), false);
     const rendues = paires(recu, "--ro-bind-try").filter((paire) => !paire.includes(".credentials.json"));
-    assert.deepEqual(rendues.sort(), [".gitconfig", ".local", "lien-pendant"].map((nom) => `${join(home, nom)} → ${join(home, nom)}`));
+    assert.deepEqual(rendues.sort(), [".gitconfig", ".local/bin", "lien-pendant"].map((nom) => `${join(home, nom)} → ${join(home, nom)}`));
     assert.ok(recu.indexOf(compte) < recu.indexOf(join(home, ".gitconfig")));
     // Ses caches et l'état de `claude` sont ceux du projet : ni rendus, ni partagés.
     assert.equal(readFileSync(join(compte, ".claude.json"), "utf8"), '{"numStartups":3}');
@@ -141,6 +141,52 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.equal(readFileSync(join(home, ".gitconfig"), "utf8"), "[user]\n\tname = brigade\n");
 
     assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_PRIVATE: ".config/gh" }, lieux)), /BRIGADE_SANDBOX_PRIVATE invalide/);
+  });
+
+  test("un outil écrit ses données et son état sous ~/.local, au projet : retrouvés d'un lancement à l'autre, et ce qu'y garde le compte reste en lecture seule", (t) => {
+    const { lieux, env, racine } = machine(t);
+    const home = join(racine, "compte");
+    for (const dossier of [".local/bin", ".local/share/claude", ".local/state/claude", ".local/lib/python3", ".config/gh"]) mkdirSync(join(home, dossier), { recursive: true });
+    writeFileSync(join(home, ".local/bin/claude"), "");
+    const cloison = configCloison(env, lieux);
+    const compte = join(lieux.repertoireEtat, "compte");
+
+    // La doublure laisse les points de montage là où `bwrap` les laisse.
+    const temoin = repertoireTemporaire(t);
+    const lancer = () => {
+      const { commande, args } = envelopper(cloison, { commande: "true", args: [] }, { cwd: "/tmp", depot: null });
+      execFileSync(commande, args, { env: { ...ENV_ENFANT, FAUX_BWRAP_TEMOIN: temoin, FAUX_BWRAP_MONTE: "1" } });
+    };
+    lancer();
+    const recu = lancementsDuFauxBwrap(temoin)[0] ?? [];
+
+    // Rien du compte n'est rendu en écriture : chaque entrée de ~/.local l'est en lecture seule,
+    // et ~/.local, ~/.local/share, ~/.local/state sont ceux du projet, sous son état.
+    assert.deepEqual(paires(recu, "--bind").filter((paire) => paire.endsWith(` → ${home}`) || paire.includes(`${home}/`)), [`${compte} → ${home}`, `${join(lieux.repertoireEtat, "claude")} → ${join(home, ".claude")}`]);
+    const rendues = paires(recu, "--ro-bind-try").filter((paire) => !paire.includes(".credentials.json"));
+    assert.deepEqual(rendues.sort(), [".config", ".local/bin", ".local/lib", ".local/share/claude", ".local/state/claude"].map((nom) => `${join(home, nom)} → ${join(home, nom)}`));
+    for (const dossier of [".local", ".local/share", ".local/state"]) assert.ok(lstatSync(join(compte, dossier)).isDirectory(), dossier);
+
+    // Ce que pnpm y range est au projet, et le reste : le setup suivant le retrouve.
+    mkdirSync(join(compte, ".local/share/pnpm/store"), { recursive: true });
+    writeFileSync(join(compte, ".local/share/pnpm/store/paquet"), "déjà téléchargé");
+    lancer();
+    assert.equal(readFileSync(join(compte, ".local/share/pnpm/store/paquet"), "utf8"), "déjà téléchargé");
+    assert.equal(existsSync(join(home, ".local/share/pnpm")), false);
+
+    // Un lien laissé par un cook à la place de ~/.local ou de ~/.local/share ne fait monter ni écrire ailleurs.
+    const ailleurs = join(racine, "secrets-d-un-autre");
+    mkdirSync(ailleurs);
+    rmSync(join(compte, ".local/state"), { recursive: true });
+    symlinkSync(ailleurs, join(compte, ".local/state"));
+    lancer();
+    assert.ok(lstatSync(join(compte, ".local/state")).isDirectory());
+    assert.deepEqual(readdirSync(ailleurs), []);
+    rmSync(join(compte, ".local"), { recursive: true });
+    symlinkSync(ailleurs, join(compte, ".local"));
+    lancer();
+    assert.ok(lstatSync(join(compte, ".local")).isDirectory());
+    assert.deepEqual(readdirSync(ailleurs), []);
   });
 
   test("un lien laissé par un cook à la place d'un fichier du projet ne fait pas écrire le runtime ailleurs", (t) => {
