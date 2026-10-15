@@ -5,6 +5,7 @@
 // tapé le bon code. Aucune liaison directe entre l'app et la station : c'est
 // tout ce qu'elles se disent.
 import { createHash } from "node:crypto";
+import { lireEtatsPublies, type EtatsPublies } from "../pannes/etats.ts";
 
 export const FICHIER_STATION = "brigade-station.json";
 export const FICHIER_APPAIRAGE = "brigade-appairage.json";
@@ -23,7 +24,8 @@ export type DocumentStation = {
   appairage: { empreinte: string; expireLe: string } | null;
   // Les empreintes de ses derniers codes échus.
   echus: string[];
-};
+  // Sa mise à jour revenue en arrière et sa connexion Max : ses pannes (pannes/).
+} & EtatsPublies;
 
 // Les huit signes d'un code, dans l'alphabet de Crockford.
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -69,5 +71,6 @@ export function lireDocument(brut: string): DocumentStation | { illisible: strin
     arreteeLe: date(arreteeLe) ? arreteeLe : null,
     appairage: code !== null && typeof code === "object" && texte(code.empreinte) && date(code.expireLe) ? { empreinte: code.empreinte, expireLe: code.expireLe } : null,
     echus: Array.isArray(echus) ? echus.filter(texte) : [],
+    ...lireEtatsPublies(lu),
   };
 }

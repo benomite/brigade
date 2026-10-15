@@ -8,12 +8,14 @@
 // parmi les gists de station du compte, celui qui publie l'empreinte de ce
 // code, et y écrit l'appairage — la station le lit à son signe de vie suivant.
 // Un code mal formé, inconnu ou échu est refusé en une ligne, et rien n'est écrit.
+import { pannesDe, type Panne } from "../pannes/pannes.ts";
 import { empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, lireDocument, normaliser, type DocumentStation } from "./document.ts";
 import type { GistDeStation, GitHubDesStations } from "./github.ts";
 
 export type EtatDeStation = "en-ligne" | "hors-ligne" | "illisible";
-// Une station telle que la home la montre. `id` : son gist.
-export type StationVue = { id: string; nom: string; machine: string; etat: EtatDeStation; ligne: string };
+// Une station telle que la home la montre. `id` : son gist. `pannes` : chacune en une ligne, avec
+// son bouton (pannes/pannes.ts) — sans celles que le chef a écartées.
+export type StationVue = { id: string; nom: string; machine: string; etat: EtatDeStation; ligne: string; pannes: Panne[] };
 // `sans` : pourquoi la dernière lecture n'a pas abouti — la liste est alors celle d'avant.
 export type VuDesStations = { a: string; stations: StationVue[]; sans?: string };
 export type Appairage = { appairee: string } | { refus: string };
@@ -60,6 +62,8 @@ export type Stations = {
   vu(): VuDesStations | undefined;
   relire(): Promise<VuDesStations>;
   appairer(tape: unknown): Promise<Appairage>;
+  // Écarte une panne de la ligne d'une station : elle n'y revient pas, tant que l'app est ouverte.
+  ecarter(id: string, cle: string): VuDesStations | undefined;
   fermer(): void;
 };
 
@@ -70,11 +74,15 @@ export function tenirStations(options: OptionsStations): Stations {
   const lus = new Map<string, { misAJour: string; document: DocumentStation | { illisible: string } }>();
   let vu: VuDesStations | undefined;
   let enCours: Promise<VuDesStations> | undefined;
+  // Les pannes écartées : `<gist> <clé>`.
+  const ecartees = new Set<string>();
 
   const montrer = (sans?: string): VuDesStations => {
     const instant = maintenant();
     const stations = [...lus].map(([id, { document }]): StationVue =>
-      "illisible" in document ? { id, nom: id, machine: "", etat: "illisible", ligne: `unreadable: ${document.illisible}` } : { id, nom: document.nom, machine: document.machine, ...ligneDe(document, instant) },
+      "illisible" in document
+        ? { id, nom: id, machine: "", etat: "illisible", ligne: `unreadable: ${document.illisible}`, pannes: [] }
+        : { id, nom: document.nom, machine: document.machine, ...ligneDe(document, instant), pannes: pannesDe(document, instant).filter(({ cle }) => !ecartees.has(`${id} ${cle}`)) },
     );
     stations.sort((a, b) => a.nom.localeCompare(b.nom) || a.id.localeCompare(b.id));
     vu = { a: new Date(instant).toISOString(), stations, ...(sans === undefined ? {} : { sans }) };
@@ -146,6 +154,10 @@ export function tenirStations(options: OptionsStations): Stations {
     vu: () => vu,
     relire,
     appairer,
+    ecarter(id, cle) {
+      ecartees.add(`${id} ${cle}`);
+      return vu === undefined ? undefined : montrer(vu.sans);
+    },
     fermer: () => clearInterval(veille),
   };
 }

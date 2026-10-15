@@ -3544,11 +3544,11 @@ function poserStations() {
     tete.dataset.etat = "en-cours";
     return listeDesStations.replaceChildren(tete);
   }
-  const lignes = stationsVues.stations.map(({ nom, machine, etat, ligne }) => {
+  const lignes = stationsVues.stations.flatMap(({ id, nom, machine, etat, ligne, pannes }) => {
     const pose = document.createElement("p");
     pose.dataset.etat = etat;
     pose.append(bloc("strong", nom), bloc("span", machine === "" ? "" : ` — ${machine}`), bloc("span", ` · ${ligne}`));
-    return pose;
+    return [pose, ...pannes.map((panne) => poserPanne(id, panne))];
   });
   listeDesStations.replaceChildren(
     ...(lignes.length === 0 ? [bloc("p", "no station yet: install one, then type here the code it shows")] : lignes),
@@ -3719,6 +3719,40 @@ async function ajouterProjet() {
     ajoutRefuse.replaceChildren(bloc("p", `nothing was added: ${erreur instanceof Error ? erreur.message : String(erreur)}`));
   }
   validerAjout.disabled = false;
+}
+
+// Ce que le bouton d'une panne a rendu, par `<gist> <clé>` : redit à chaque relecture, tant que la
+// panne est sur la ligne de sa station.
+/** @type {Map<string, string>} */
+const pannesDites = new Map();
+
+// Une panne, sous la ligne de sa station : ce qui ne va pas, en une ligne, et son bouton — relire,
+// écarter, se connecter (pannes/pannes.ts). Jamais une commande à taper.
+/** @param {string} id @param {import("../pannes/pannes.ts").Panne} panne */
+function poserPanne(id, panne) {
+  const pose = document.createElement("p");
+  pose.className = "panne";
+  pose.dataset.sujet = panne.sujet;
+  const bouton = document.createElement("button");
+  bouton.type = "button";
+  bouton.textContent = panne.bouton.libelle;
+  bouton.addEventListener("click", () => void jouerPanne(id, panne.cle, bouton));
+  const dit = pannesDites.get(`${id} ${panne.cle}`);
+  pose.append(bloc("span", panne.ligne), bouton, ...(dit === undefined ? [] : [bloc("span", dit)]));
+  return pose;
+}
+/** @param {string} id @param {string} cle @param {HTMLButtonElement} bouton */
+async function jouerPanne(id, cle, bouton) {
+  bouton.disabled = true;
+  let dit;
+  try {
+    const rendu = await brigade.panne(id, cle);
+    dit = "refus" in rendu ? rendu.refus : rendu.fait;
+  } catch (erreur) {
+    dit = `nothing was done: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+  }
+  pannesDites.set(`${id} ${cle}`, dit);
+  poserStations();
 }
 
 // Le code tapé part au process principal, qui cherche sur GitHub la station qui le montre : elle

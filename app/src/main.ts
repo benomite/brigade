@@ -26,6 +26,8 @@ import { COMMANDE as COMMANDE_MANAGER, GESTES_DU_MANAGER, voir as voirManager } 
 import { machineChoisie, machinesDe } from "./machines.ts";
 import { commandeDe, ONGLETS, RUBRIQUES } from "./onglets.ts";
 import { ouvrirTransfert, tenirPages } from "./page.ts";
+import { jouerPanne } from "./pannes/gestes.ts";
+import { gistLocal, tenirLogin } from "./pannes/login.ts";
 import { lireRacine, proposerCalibrage } from "./proposition.ts";
 import { depotsDuChef } from "./projets/github.ts";
 import { tenirProjets } from "./projets/projets.ts";
@@ -382,18 +384,23 @@ const stations = tenirStations({
 // que celle d'un serveur —, sous `station/` à côté du fichier des projets, et l'appaire seule,
 // par le geste du champ de la home (poste/station.ts). Ce que la station dit s'écrit dans le
 // terminal qui a lancé l'app.
+const racineDeLaStation = process.env.BRIGADE_STATION_DIR || join(dirname(cheminConfiguration()), "station");
 const stationLocale =
   role.role === "station"
     ? tenirStationLocale({
         // Le `node` de `npm start` : Electron n'en est pas un.
         node: process.env.BRIGADE_NODE_BIN || process.env.npm_node_execpath || "node",
         principal: role.principal,
-        racine: process.env.BRIGADE_STATION_DIR || join(dirname(cheminConfiguration()), "station"),
+        racine: racineDeLaStation,
         env: process.env,
         dire: (ligne) => console.error(ligne),
         appairer: (code) => stations.appairer(code),
       })
     : undefined;
+// Les pannes d'une station, sur sa ligne de la home : chacune a son bouton (pannes/gestes.ts). Le
+// login ne part que pour la station de cet ordinateur, par le `claude` officiel (pannes/login.ts).
+const loginIci = tenirLogin({ claude: process.env.BRIGADE_CLAUDE_BIN || "claude", env: process.env, dire: (ligne) => console.error(ligne), apres: () => void stations.relire() });
+const gestesDesPannes = { stations, stationLocale: () => (stationLocale === undefined ? null : gistLocal(racineDeLaStation)), login: loginIci };
 if (role.role === "poste") console.error(`brigade: this app is a workstation, not a station — ${role.pourquoi}: it pilots, nothing cooks here`);
 // Son propre code, l'app le met à jour au clic sur la ligne qui dit son retard : son clone
 // avance, puis elle se relance — par `npm start` quand c'est par là qu'elle est partie, pour
@@ -740,6 +747,8 @@ ipcMain.handle("autoriserSurGitHub", (_, url: unknown) => {
     () => false,
   );
 });
+// Le bouton d'une panne, sur la ligne d'une station : rend ce qu'il a fait, ou pourquoi rien.
+ipcMain.handle("panne", (_, id: unknown, cle: unknown) => jouerPanne(gestesDesPannes, id, cle));
 // Le code de l'app, en retard ou à relancer : le clic la met à jour et la relance — rien n'est
 // rendu, elle se ferme — ou dit pourquoi elle reste sur son code (rattrapage.ts).
 ipcMain.handle("passer", () => {

@@ -10,7 +10,13 @@
 //         "version": "…", "projets": ["brigade"], "signeDeVie": "<ISO>",
 //         "cadenceMs": 60000, "arreteeLe": null | "<ISO>",
 //         "appairage": null | { "empreinte": "<sha256>", "expireLe": "<ISO>" },
-//         "echus": ["<sha256>", …] }
+//         "echus": ["<sha256>", …],
+//         "miseAJour": null | { "visee": "…", "restauree": "…", "le": "<ISO>", "retourRate": false },
+//         "connexionMax": null | { "etat": "connectee" | "perdue" | "inconnue", "depuis": null | "<ISO>" } }
+//     `miseAJour` et `connexionMax` sont ce que l'app dit en panne sur la home
+//     (app/src/pannes/) : la dernière mise à jour quand elle a raté et que la
+//     station est revenue en arrière, et la connexion Max de la machine. Des
+//     versions et des dates, jamais le motif d'un échec ni une commande.
 //   - `brigade-appairage.json`, écrit par l'app seule, quand le chef a tapé le
 //     bon code : { "appaireeLe": "<ISO>", "empreinte": "<sha256>" }.
 //
@@ -35,6 +41,12 @@ export const DUREE_DU_CODE_MS = 15 * 60_000;
 export const ECHUS_GARDES = 5;
 
 export type Appairage = { empreinte: string; expireLe: string };
+// La dernière mise à jour, quand elle n'a pas démarré : `visee` ratée, la
+// station revenue à `restauree` — ou pas, `retourRate`.
+export type MiseAJourRevenue = { visee: string; restauree: string; le: string; retourRate: boolean };
+export type ConnexionPubliee = { etat: "connectee" | "perdue" | "inconnue"; depuis: string | null };
+// Ce que la station publie de ses pannes : nul, elle n'en sait rien.
+export type EtatsPublies = { miseAJour: MiseAJourRevenue | null; connexionMax: ConnexionPubliee | null };
 
 export type DocumentStation = {
   brigade: "station";
@@ -48,7 +60,7 @@ export type DocumentStation = {
   arreteeLe: string | null;
   appairage: Appairage | null;
   echus: string[];
-};
+} & EtatsPublies;
 
 // Un code neuf, tel que la station l'affiche : `ABCD-EFGH`.
 export function tirerCode(tirer: (borne: number) => number = randomInt): string {

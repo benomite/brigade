@@ -609,6 +609,31 @@ box — Linux 6.1.0 · offline for 4 min · version 1.4.0 · 1 project: brigade
   qui publie ce code, y écrit l'appairage, et la station apparaît. Un code mal formé, inconnu ou
   expiré est refusé en une ligne sous le champ, et rien n'est écrit.
 
+**Quand ça casse**, la panne est dite sous la ligne de la station concernée, en une ligne, avec un
+bouton — jamais une commande à taper (`app/src/pannes/`, #798) :
+
+```
+box — Linux 6.1.0 · offline for 12 min · version 1.4.0 · 1 project: brigade
+  box has given no sign of life for 12 min                                  [check again]
+box — Linux 6.1.0 · online · version 1.4.0 · 1 project: brigade
+  update to version 1.5.0 failed — stayed on version 1.4.0                  [dismiss]
+  Max connection lost 12 min ago — nothing cooks on box until you log in   [log in]
+```
+
+- **Station injoignable** : plus aucun signe de vie depuis dix minutes (un redémarrage, une mise à
+  jour, tient en dessous). « check again » relit GitHub tout de suite : l'app ne joint pas la
+  station, elle regarde si elle a reparlé.
+- **Mise à jour ratée et revenue en arrière** : la version visée n'a pas démarré, la station est
+  restée sur la sienne ; la suivante sera essayée seule. « dismiss » écarte la ligne, tant que
+  l'app est ouverte. Le motif de l'échec n'est pas dit ici : il est dans la file des projets.
+- **Connexion Max perdue** : plus rien ne cuit sur la station. « log in » lance `claude auth login`,
+  qui ouvre la page de connexion dans ton navigateur ; la station voit la connexion rétablie dans
+  la minute, et la cuisine reprend seule. **Seule la station de cet ordinateur** se reconnecte
+  ainsi : le login d'une station serveur ne part pas encore de l'app, et le bouton le dit.
+- Ce que l'app en sait, la station le publie dans son gist ([docs/runtime.md](runtime.md), « Une
+  station par machine ») : des versions et des dates, ni motif ni commande. Une station hors ligne
+  ne dit plus sa connexion — ce qu'elle en a publié avant de se taire n'est plus sûr.
+
 ### Cet ordinateur est une station ; un téléphone est un poste
 
 *Spec : [la station refaite de zéro](superpowers/specs/2026-10-15-station-refonte-design.md) (#797).*
