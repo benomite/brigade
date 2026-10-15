@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { DECLARATION_ECRANS, deduireEcran, ecranARegarder, ecranDeLaLivraison, ecransDuWorktree, lireDeclaration, lireEcrans } from "../src/ecran.ts";
+import { DECLARATION_ECRANS, deduireEcran, ecranARegarder, ecranDeLaLivraison, ecransDuWorktree, lireDeclaration, lireEcrans, pageDeLEcran, routeDeLEcran, type EcranARegarder } from "../src/ecran.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
 // Le corps d'une PR de livraison : l'en-tête de la station, puis le livrable du cook.
@@ -161,5 +161,44 @@ describe("la déclaration des écrans du dépôt", () => {
     const illisible = ecransDuWorktree(worktree);
     assert.deepEqual(illisible.correspondances, []);
     assert.match(illisible.problemes[0] ?? "", /`\.claude\/brigade\/ecrans` est illisible — EACCES/);
+  });
+});
+
+describe("la page de l'écran, pour un projet web", () => {
+  const declare = (ecran: string): EcranARegarder => ({ ecran, phrase: null, source: "declare" });
+
+  test("un écran de route /exemple s'ouvre sur le port du worktree suivi de /exemple", () => {
+    assert.equal(pageDeLEcran(20630, declare("/exemple")), "http://127.0.0.1:20630/exemple");
+    assert.equal(pageDeLEcran(20630, { ecran: "/rail", phrase: null, source: "deduit" }), "http://127.0.0.1:20630/rail");
+    // Ce que la route porte au-delà de son chemin lui reste.
+    assert.equal(pageDeLEcran(20630, declare("/projets/12?onglet=notes")), "http://127.0.0.1:20630/projets/12?onglet=notes");
+    assert.equal(pageDeLEcran(20630, declare("/#/rail")), "http://127.0.0.1:20630/#/rail");
+  });
+
+  test("une route d'écran connue n'ouvre jamais la racine « / »", () => {
+    for (const route of ["/exemple", " /exemple ", "/exemple/", "/a/b"]) {
+      const page = pageDeLEcran(20630, declare(route));
+      assert.notEqual(page, null, route);
+      assert.notEqual(new URL(page as string).pathname, "/", route);
+    }
+    // Une route qui revient à la racine n'est pas un écran : pas de page plutôt que la racine.
+    for (const racine of ["/", " / ", "/?", "/#", "/exemple/..", "/./"]) assert.equal(pageDeLEcran(20630, declare(racine)), null, racine);
+  });
+
+  test("une livraison sans écran ne produit aucune page", () => {
+    assert.equal(pageDeLEcran(20630, null), null);
+    assert.equal(pageDeLEcran(20630, ecranARegarder({ corps: corps("Le journal se compacte."), changes: ["runtime/src/journal.ts"], correspondances: ECRANS })), null);
+  });
+
+  test("un écran qui n'est pas une route n'a pas de page : rien n'est deviné, et rien ne change d'hôte", () => {
+    for (const ecran of ["la carte", "rail", "", "http://127.0.0.1:20630/exemple", "https://ailleurs.example/exemple", "//ailleurs.example/exemple", "/\\ailleurs.example", "/deux mots", "/ligne\u0007"]) {
+      assert.equal(routeDeLEcran(ecran), null, JSON.stringify(ecran));
+      assert.equal(pageDeLEcran(20630, declare(ecran)), null, JSON.stringify(ecran));
+    }
+  });
+
+  test("la route déclarée dans un corps de PR devient la page à ouvrir, telle que la PR la nomme", () => {
+    assert.equal(pageDeLEcran(20591, ecranARegarder({ corps: DECLAREE, changes: [], correspondances: [] })), "http://127.0.0.1:20591/rail");
+    assert.equal(pageDeLEcran(20591, ecranARegarder({ corps: corps("Écran : `/rail`"), changes: [], correspondances: [] })), "http://127.0.0.1:20591/rail");
   });
 });

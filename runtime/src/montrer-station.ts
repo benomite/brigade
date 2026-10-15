@@ -30,7 +30,7 @@ import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direConsommation, NOTE_CONSOMMATION } from "./etat.ts";
 import { direSaturation } from "./machine.ts";
 import { consommation } from "./projections/garde-fous.ts";
-import { direEtatDeServeur, direServiceIndisponible, serveursEnCours, servicesIndisponibles } from "./projections/service.ts";
+import { direEtatDeServeur, direPage, direServiceIndisponible, serveursEnCours, servicesIndisponibles } from "./projections/service.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { FORME, GESTE_DE_STATION_A_CHAUD } from "./stations-declarees.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
@@ -250,7 +250,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     const serveurs = serveursEnCours(base, station);
     ligne("serveurs", serveurs.length === 0 ? "aucun" : `${serveurs.length} — chacun sert une livraison d'interface depuis son worktree, sur le port de ce worktree`);
     for (const serveur of serveurs) {
-      dire(`  #${serveur.ticket}  ${serveur.worktree}  port ${serveur.port}  ${direEtatDeServeur(serveur.state)} depuis le ${serveur.since}  ${serveur.branch}  http://127.0.0.1:${serveur.port}/`);
+      dire(`  #${serveur.ticket}  ${serveur.worktree}  port ${serveur.port}  ${direEtatDeServeur(serveur.state)} depuis le ${serveur.since}  ${serveur.branch}  ${direPage(serveur)}`);
     }
     // Rien à dire d'un projet qui se sert.
     for (const indisponible of servicesIndisponibles(base, station)) ligne("service", `${direServiceIndisponible(indisponible)} — depuis le ${indisponible.since}`);

@@ -450,6 +450,19 @@ J'ai ajouté `travail.txt` et vérifié qu'il se lit.
 </livrable>
 FIN
       ;;
+    # Commite son travail, et déclare dans son livrable l'écran à regarder.
+    livre-un-ecran)
+      commiter
+      assistant
+      resultat <<'FIN'
+<livrable>
+J'ai ajouté `travail.txt`, que la page d'exemple montre.
+
+Écran : /exemple
+À regarder : la page d'exemple montre `travail.txt`
+</livrable>
+FIN
+      ;;
     # Écrit un fichier, oublie de le commiter, et dit avoir fini.
     ecrit-sans-commiter)
       printf 'le travail du cook, jamais commité\n' >brouillon.txt

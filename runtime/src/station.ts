@@ -1157,12 +1157,14 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Sert ce qu'un cook vient de livrer, si c'est une livraison poussée et
   // qu'elle touche l'interface du projet. Rend vrai si un serveur tient
   // maintenant son worktree. Ne lève pas : une livraison qu'on ne sait pas
-  // servir reste une livraison.
-  const servirLaLivraison = (station: string, livraison: Omit<Livraison, "changes">, fin: FinGardee, conclusion: Conclusion | null): boolean => {
+  // servir reste une livraison. L'écran à regarder se lit dans ce que le cook
+  // a livré, tel que le corps de sa PR le porte.
+  const servirLaLivraison = (station: string, livraison: Omit<Livraison, "changes" | "corps">, fin: FinGardee, conclusion: Conclusion | null): boolean => {
     if (fin.outcome !== "ok" || conclusion === null || conclusion.sansCommit) return false;
     try {
       if (!attendue(livraison.ticket)) return false;
-      return serveurs.servir(station, { ...livraison, changes: depot.changes(livraison.branche) });
+      const { deliverable, summary } = rendre(conclusion.lecture.message);
+      return serveurs.servir(station, { ...livraison, changes: depot.changes(livraison.branche), corps: deliverable ?? summary });
     } catch (erreur) {
       avertir(`brigade : livraison du ticket #${livraison.ticket} non servie — ${message(erreur)}`);
       return false;
