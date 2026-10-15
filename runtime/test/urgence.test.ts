@@ -253,3 +253,34 @@ test("le « stop » du chef retient la cuisine lui-même : pas d'urgence tant qu
   noter({ type: "kitchen.stopped", payload: {} }, null, "chef");
   assert.equal(lire("10:00:00").faits.urgence, null);
 });
+
+test("le disjoncteur ouvert entre dans la file avec ses échecs et son geste, vaut urgence tant que des tickets attendent, et disparaît au « resume »", (t) => {
+  const { noter, a, arriver, lire } = cuisine(t);
+  arriver(601, ["runtime/src"]);
+  arriver(602, ["app/src"]);
+  for (const [i, ticket] of [701, 702, 703].entries()) {
+    a(`08:0${i}:00`);
+    noter({ type: "cook.launched", payload: { run: `${ticket}-aa`, limits: LIMITES, stream: `runs/${ticket}-aa.jsonl` } }, ticket);
+    noter({ type: "cook.exited", payload: { run: `${ticket}-aa`, outcome: "failed", code: 1 + i, signal: null, turns: 4 + i, tokens: 1000 * (i + 1), durationMs: 1000 } }, ticket);
+  }
+  a("08:10:00");
+  noter({ type: "breaker.opened", payload: { failures: 3, threshold: 3 } });
+
+  const ouvert = lire("09:00:00");
+  const entree = ouvert.etat.attend.find(({ quoi }) => quoi === "disjoncteur");
+  assert.ok(entree);
+  assert.match(ouvert.texte.join("\n"), /disjoncteur ouvert : 3 échecs d'affilée/);
+  assert.match(ouvert.texte.join("\n"), /#701 : sortie 1, 4 tours, 1000 tokens/);
+  assert.match(ouvert.texte.join("\n"), /#702 : sortie 2, 5 tours, 2000 tokens/);
+  assert.match(ouvert.texte.join("\n"), /#703 : sortie 3, 6 tours, 3000 tokens/);
+  assert.match(ouvert.texte.join("\n"), /guardrails resume/);
+  assert.equal(ouvert.faits.urgence?.decision, "disjoncteur");
+  assert.equal(ouvert.faits.urgence?.cause, "disjoncteur");
+  assert.deepEqual(ouvert.faits.urgence?.retenus, [601, 602]);
+
+  a("09:30:00");
+  noter({ type: "kitchen.resumed", payload: {} });
+  const ferme = lire("10:00:00");
+  assert.equal(ferme.etat.attend.some(({ quoi }) => quoi === "disjoncteur"), false);
+  assert.equal(ferme.faits.urgence, null);
+});

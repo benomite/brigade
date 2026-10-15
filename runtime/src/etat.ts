@@ -756,6 +756,7 @@ export const CAUSES_D_URGENCE = {
   base: "base rouge",
   setup: "setup",
   aside: "mis de côté",
+  disjoncteur: "disjoncteur",
 } as const satisfies Record<Attente["quoi"], string>;
 export type CauseDUrgence = (typeof CAUSES_D_URGENCE)[keyof typeof CAUSES_D_URGENCE];
 

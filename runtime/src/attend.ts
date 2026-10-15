@@ -50,6 +50,7 @@ import type { TicketRail } from "./projections/rail.ts";
 import { alerteDeSession, type AlerteDeSession } from "./projections/renouvellement.ts";
 import { direDeconnexion, etatStation, GESTE_DE_CONNEXION, miseDeCoteBloquee, setupBloque, stationsDeconnectees, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
 import { versionComparee } from "./projections/version.ts";
+import { echecsDuDisjoncteur, etatDesGardeFous, type EchecDuDisjoncteur } from "./projections/garde-fous.ts";
 import { nomAbandon, retenue } from "./rail.ts";
 import { echecsDesGates } from "./reparation.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
@@ -143,10 +144,14 @@ type AttenteHorsTicket = { ticket: null; title: null; since: string } & (
   // qu'une autre cause se présente ou que la branche d'intégration bouge.
   // `since` : le blocage.
   | { quoi: "aside"; aside: Omit<MiseDeCoteBloquee, "since"> }
+  // Le disjoncteur ouvert : plus aucun cook ne part. `since` : son ouverture ;
+  // `echecs` : les échecs d'affilée qui l'ont ouvert.
+  | { quoi: "disjoncteur"; echecs: EchecDuDisjoncteur[]; seuil: number | null }
 );
 
 export type Attente = AttenteDeTicket | AttenteHorsTicket;
 
+export const REFERMER_LE_DISJONCTEUR = geste("guardrails resume");
 export const ACCORDER_LE_GRANT = geste("grant enable merge");
 
 // Les 86 que la station pose sans heure de retour, et ce qu'elle attend du chef
@@ -290,9 +295,14 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
   const ecartee = miseDeCoteBloquee(base);
   const aside: Attente[] = ecartee === null ? [] : [{ ticket: null, title: null, since: ecartee.since, quoi: "aside", aside: { reason: ecartee.reason, base: ecartee.base, ticket: ecartee.ticket, station: ecartee.station } }];
 
+  // Ouvert, le disjoncteur retient toute la cuisine ; il en sort au « resume ».
+  const garde = etatDesGardeFous(base);
+  const disjoncteur: Attente[] =
+    garde.breakerOpenedAt === null ? [] : [{ ticket: null, title: null, since: garde.breakerOpenedAt, quoi: "disjoncteur", echecs: echecsDuDisjoncteur(base), seuil: garde.breakerThreshold }];
+
   // Ce qui attend un tiers n'attend pas le chef, quoi qu'il attendait avant.
   const enWaiting = (attente: Attente) => attente.ticket !== null && tickets.get(attente.ticket)?.waitingFor != null;
-  return [...baseRouge, ...setup, ...aside, ...versions, ...connexions, ...session, ...fermeture, ...livraisons, ...bloques, ...repris, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets)]
+  return [...disjoncteur, ...baseRouge, ...setup, ...aside, ...versions, ...connexions, ...session, ...fermeture, ...livraisons, ...bloques, ...repris, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets)]
     .filter((attente) => !enWaiting(attente))
     .sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
 }
@@ -350,6 +360,14 @@ function direMiseDeCoteBloquee({ aside }: Extract<Attente, { quoi: "aside" }>): 
   const cause = CAUSES_DU_PROJET[aside.reason];
   const vu = aside.ticket === null ? "" : ` — vue sur #${aside.ticket}`;
   return `tickets mis de côté : ${cause?.texte ?? aside.reason} (${aside.reason}, deux fois à l'identique${vu}) — un seul est repris à la fois, pour sonder — à faire : ${cause?.geste ?? "corriger la cause"} ; le projet reprend seul dès qu'un cook part, qu'une autre cause se présente ou que la branche d'intégration bouge`;
+}
+
+// Le disjoncteur ouvert : ce qui l'a ouvert, une ligne par échec — ticket,
+// code de sortie, tours, tokens —, puis le geste qui le referme.
+function direDisjoncteur({ echecs, seuil }: Extract<Attente, { quoi: "disjoncteur" }>): string {
+  const lignes = echecs.map(({ ticket, code, turns, tokens }) => `${ticket === null ? "sans ticket" : `#${ticket}`} : sortie ${code ?? "sans code"}, ${turns ?? "?"} tours, ${tokens ?? "?"} tokens`);
+  const cause = lignes.length === 0 ? "échecs d'affilée" : `${lignes.length} échec${lignes.length > 1 ? "s" : ""} d'affilée${seuil === null ? "" : ` (seuil ${seuil})`} — ${lignes.join(" ; ")}`;
+  return `disjoncteur ouvert : ${cause} — plus aucun cook ne part — à faire : \`${REFERMER_LE_DISJONCTEUR}\` après avoir regardé ce qui échoue`;
 }
 
 // Le setup du projet bloqué : la cause, en clair, puis le geste. Un hôte que la
@@ -462,6 +480,8 @@ export function direAttente(attente: Attente): string {
       return direSetupBloque(attente);
     case "aside":
       return direMiseDeCoteBloquee(attente);
+    case "disjoncteur":
+      return direDisjoncteur(attente);
   }
 }
 
@@ -508,7 +528,7 @@ export const nommerAttente = (attente: Attente): string =>
     ? `#${attente.ticket}`
     : attente.quoi === "connexion"
       ? attente.station
-      : attente.quoi === "session" || attente.quoi === "fermeture" || attente.quoi === "base" || attente.quoi === "setup" || attente.quoi === "aside"
+      : attente.quoi === "session" || attente.quoi === "fermeture" || attente.quoi === "base" || attente.quoi === "setup" || attente.quoi === "aside" || attente.quoi === "disjoncteur"
         ? attente.quoi
         : "version";
 

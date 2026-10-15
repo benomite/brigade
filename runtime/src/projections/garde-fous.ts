@@ -210,6 +210,26 @@ export function etatDesGardeFous(base: Base): EtatGardeFous {
   return { ...ligne, limits: ligne.limits === null ? null : JSON.parse(ligne.limits) };
 }
 
+// Un échec qui compte pour le disjoncteur : le cook, son ticket, comment il
+// a fini. `code` : celui de sa sortie, nul s'il est mort d'un signal ou d'un
+// garde-fou.
+export type EchecDuDisjoncteur = { run: string; ticket: number | null; at: string; code: number | null; turns: number | null; tokens: number | null };
+
+// Les échecs d'affilée que le disjoncteur compte, dans l'ordre des lancements :
+// la même règle que `juger`.
+export function echecsDuDisjoncteur(base: Base): EchecDuDisjoncteur[] {
+  return base.lire<EchecDuDisjoncteur>(
+    `SELECT r.run AS run, r.ticket AS ticket, coalesce(r.ended_at, r.launched_at) AS at, r.turns AS turns, r.tokens AS tokens,
+            (SELECT json_extract(e.payload, '$.code') FROM events e
+              WHERE e.type = 'cook.exited' AND json_extract(e.payload, '$.run') = r.run ORDER BY e.seq DESC LIMIT 1) AS code
+     FROM cook_runs r
+     WHERE r.judgment = 'bad'
+       AND r.judged_seq > coalesce((SELECT resumed_seq FROM guard_state WHERE id = 1), 0)
+       AND r.launched_seq > coalesce((SELECT max(launched_seq) FROM cook_runs WHERE judgment = 'good'), 0)
+     ORDER BY r.launched_seq`,
+  );
+}
+
 // Les lancements sans fin au journal : les cooks qui tournent — ceux de ce
 // runtime, ou ceux d'une vie précédente que le démarrage n'a pas encore
 // repris —, ou ceux qui sont morts avec le runtime.
