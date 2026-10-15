@@ -60,7 +60,9 @@ import {
   A_RELIRE,
   BASE_ROUGE,
   causeDeDeclarations,
+  DIRE_GATES_COUPEES,
   ENCORE_ROUGE,
+  GATES_COUPEES,
   HORS_RAIL,
   JUGES_MODIFIES,
   MACHINE_SATUREE,
@@ -272,6 +274,11 @@ function findingDesGates(gates: Gates, delaiMs: number, sur = ""): string {
     titre,
     ...(gates.credentialsMasked ? [direMasquage(gates.credentialsMasked, "la sortie des gates")] : []),
     ...gates.failures,
+    ...(gates.clockGuardCut === undefined
+      ? []
+      : [
+          "Aucun test n'a échoué avant que leur garde d'horloge ne les coupe, mais ce rouge n'est pas mis sur le compte de la charge : la machine n'était pas saturée, ou ces gates avaient déjà été coupées une fois sur une machine saturée, puis rejouées. Un test bloqué, ou une suite devenue trop lente : c'est un rouge.",
+        ]),
     ...(gates.overCeiling
       ? [`Leur plafond de durée est franchi aussi (${direDepassement(gates.overCeiling)}), et ce n'est pas la cause de ce rouge : ${PLAFOND_NON_JUGE}. Il n'y a rien à corriger pour lui.`]
       : []),
@@ -774,6 +781,11 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     }
   };
 
+  // Les gates de ce commit ont déjà été coupées une fois sur une machine
+  // saturée : leur rejeu est parti sur une machine calme.
+  const dejaCoupees = (ticket: number, sha: string) =>
+    journal.duTicket(ticket).some((evenement) => evenement.type === "pass.waiting" && evenement.payload.reason === GATES_COUPEES && evenement.payload.sha === sha);
+
   // Ce que la branche d'une livraison porte, sans worktree.
   const porteDesWorkflows = (branche: string) => depot.liste(branche, WORKFLOWS).some((fichier) => /\.ya?ml$/.test(fichier));
   // Le clone ne connaît plus la branche : une restauration repart d'un clone
@@ -782,9 +794,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     remonter(connu, "worktree-lost", `Le clone de la station ne connaît plus la branche de cette livraison (\`${branche}\`) : ${pourquoi}`);
 
   // La livraison attend, et le dit une fois.
-  const attendre = async (connu: PassDeTicket, motif: MotifDAttente, pourquoi: string): Promise<void> => {
+  const attendre = async (connu: PassDeTicket, motif: MotifDAttente, pourquoi: string, sha?: string): Promise<void> => {
     if (connu.phase === "waiting" && connu.reason === motif) return;
-    noter(connu.ticket, { type: "pass.waiting", payload: { reason: motif } });
+    noter(connu.ticket, { type: "pass.waiting", payload: { reason: motif, ...(sha === undefined ? {} : { sha }) } });
     await commenter(connu.ticket, [`**Pass — en attente (\`${motif}\`).** \`${court(connu.sha)}\`${connu.pr ? ` · ${connu.pr}` : ""}`, "", pourquoi].join("\n"));
   };
   // Une livraison se juge fusionnée avec la base : rouge, la base rougirait
@@ -1188,9 +1200,35 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
             ].join("\n"),
           );
         }
+        const chargeAuDepart = sature();
         gates = await jouerGates({ worktree, ticket, ...secrets, interdites, delaiMs: options.delaiGatesMs, cloison: options.cloison, signal: abandon.signal });
         // Parti pendant ses gates, le ticket n'a plus de verdict à recevoir.
         if (arrete || !enPass(ticket)) return;
+        // Coupées par leur garde d'horloge sans aucun test en échec, sur une
+        // machine saturée au départ ou à l'arrivée : un rouge de charge, pas
+        // de code. Ni verdict, ni renvoi, ni base jugée : elles sont rejouées
+        // seules quand la machine ne l'est plus. Une fois par commit — coupées
+        // à nouveau, elles l'ont été sur une machine calme, et c'est un rouge.
+        const saturee = gates.clockGuardCut === undefined || dejaCoupees(ticket, sha) ? null : (chargeAuDepart ?? sature());
+        if (saturee) {
+          avertir(`brigade : ${DIRE_GATES_COUPEES} — ticket #${ticket}, ${direSaturation(saturee)}`);
+          return attendre(
+            ici,
+            GATES_COUPEES,
+            [
+              `En attente — ${DIRE_GATES_COUPEES}.`,
+              "",
+              `Les gates de cette livraison, fusionnée avec \`${options.base}\` (\`${court(tete)}\`), ont été coupées par leur garde d'horloge alors que la machine était saturée — ${direSaturation(saturee)} — et aucun test n'avait échoué avant la coupure :`,
+              "",
+              "```",
+              gates.clockGuardCut,
+              "```",
+              "",
+              `Ce n'est pas un rouge : rien n'est renvoyé au cook, \`${options.base}\` n'est pas jugée, et rien ne compte au disjoncteur. La pass les rejoue seule dès que la machine n'est plus saturée. Coupées à nouveau, elles le seront sur une machine calme : ce sera un rouge — un test bloqué, ou une suite devenue trop lente.`,
+            ].join("\n"),
+            sha,
+          );
+        }
         arbre = fusion.arbre;
         gatesJouees.set(ticket, { sha, base: tete, gates, arbre });
       }
@@ -1439,6 +1477,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // passager, il tombe sans que personne n'ait rien vu d'autre. S'il tient,
   // `reparer` ouvre son ticket.
   let machineDite = false;
+  // La tête de la base dont les gates ont été coupées sur une machine saturée,
+  // sans aucun test en échec : leur rejeu est parti sur une machine calme.
+  let baseCoupee: string | null = null;
   const controlerBase = async (tick: boolean, exige = false) => {
     if (!arrete && rougeCompte(base)?.replayed === false) noter(null, { type: "base.recheck-requested", payload: {} });
     const avant = etatDeLaBase(base);
@@ -1528,6 +1569,18 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       retirer();
     }
     if (arrete) return;
+    // Coupées par leur garde d'horloge sans aucun test en échec, sur une
+    // machine saturée à l'arrivée — elle ne l'était pas au départ : un rouge
+    // de charge, pas de code. Rien n'est écrit, la base n'est pas vue rouge :
+    // ce qui demandait ce contrôle le redemande, et il se rejoue une fois la
+    // machine calme. Une fois par tête — coupées à nouveau, c'est un rouge.
+    const saturee = gates.clockGuardCut === undefined || baseCoupee === tete ? null : sature();
+    if (saturee) {
+      baseCoupee = tete;
+      machineDite = true;
+      avertir(`brigade : gates de ${options.base} (${court(tete)}) — ${DIRE_GATES_COUPEES} (${direSaturation(saturee)}). Ce n'est pas un rouge : la pass les rejoue seule une fois la machine calme`);
+      return;
+    }
     const outcome = gates.outcome === "skipped" ? "skipped" : gates.outcome === "green" ? "green" : "red";
     // Un contrôle non joué ne lève pas un rouge constaté : la projection le
     // garde, et le fait dit lequel.

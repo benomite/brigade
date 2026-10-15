@@ -25,6 +25,11 @@ export type Gates = {
   // Leur plafond de durée franchi, qu'il soit leur seul rouge ou non. Absent :
   // il ne l'est pas, ou elles n'en déclarent pas.
   overCeiling?: Depassement;
+  // Rouges parce que leur garde d'horloge a coupé leurs tests, sans qu'aucun
+  // n'ait échoué avant la coupure — et pour rien d'autre : la ligne où elles
+  // le disent. Sur une machine saturée, ce rouge est celui de la charge, pas
+  // du code (voir `GATES_COUPEES`). Absent : elles ne le disent pas.
+  clockGuardCut?: string;
   // Ce qu'elles ont déclaré d'elles-mêmes et du projet, par leurs lignes
   // `MESURE  <nom>=<nombre>`. Absent : elles n'ont rien déclaré.
   measures?: Record<string, number>;
@@ -77,7 +82,13 @@ export const declarationsDeLaCause = (cause: string | null) => (cause?.startsWit
 // d'aucun cook —, ou la machine n'a pas de quoi rejuger. Elle repart seule.
 export const BASE_ROUGE = "base-red";
 export const MACHINE_SATUREE = "machine-saturated";
-export type MotifDAttente = typeof BASE_ROUGE | typeof MACHINE_SATUREE;
+// Ses gates ont été coupées par leur garde d'horloge sur une machine saturée,
+// sans aucun test en échec : ni verdict ni renvoi, elles sont rejouées dès que
+// la machine ne l'est plus. Coupées à nouveau, c'est un rouge.
+export const GATES_COUPEES = "gates-cut-saturated";
+// Ce que la file et la carte en disent, en une ligne.
+export const DIRE_GATES_COUPEES = "gates rejouées plus tard : machine saturée, aucun test en échec";
+export type MotifDAttente = typeof BASE_ROUGE | typeof MACHINE_SATUREE | typeof GATES_COUPEES;
 
 // Pourquoi la pass remonte au chef sans renvoyer au cook : un motif par geste.
 // `still-red` : la livraison est rouge et personne ne la corrigera plus — les
@@ -238,7 +249,8 @@ export type FaitPass =
   // rouge, `findings` repart au cook.
   | { type: "pass.outdated"; payload: { sha: string; findings: string[] } }
   // Ni jugée ni mergée pour l'instant : elle repartira seule.
-  | { type: "pass.waiting"; payload: { reason: MotifDAttente } }
+  // `sha` : sur `gates-cut-saturated`, le commit dont les gates ont été coupées.
+  | { type: "pass.waiting"; payload: { reason: MotifDAttente; sha?: string } }
   // Les gates jouées sur la base elle-même, hors ticket : après des merges
   // faits hors du runtime, ou parce qu'une livraison fusionnée avec elle est
   // rouge — à qui est ce rouge ? `tickets` : ceux dont le merge était à
