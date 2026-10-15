@@ -12,6 +12,8 @@ import { brancherAlerteUrgence } from "../alerte-urgence.ts";
 import { avecRail, configRail } from "../alimenter.ts";
 import { configArbitrage, joindreArbitre } from "../arbitrage.ts";
 import { sessionClaude } from "../claude.ts";
+import { brancherConnexionMax } from "../connexion-max/cuisine.ts";
+import type { VeilleConnexionMax } from "../connexion-max/veille.ts";
 import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison } from "../cloison.ts";
 import { noterCodeEnService } from "../code.ts";
 import { decisionsAuDemarrage, decisionsDansLEnvironnement, direDecisionIgnoree, environnementDecide, suivreDecisions, supportDesDecisions } from "../decisions.ts";
@@ -42,6 +44,9 @@ export type Cuisine = {
 export type OptionsCuisine = {
   // Une ligne du journal de service de la station.
   dire: (ligne: string) => void;
+  // La connexion Max de la machine, que la station veille pour tous ses
+  // projets : perdue, la cuisine suspend ; rétablie, elle reprend.
+  connexion?: VeilleConnexionMax;
 };
 
 // Ouvre la cuisine d'un projet. Toute sa configuration est lue avant de rien
@@ -139,7 +144,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     });
     brancherDerive(socle, decisions.seuils, dire);
     const dirige = brancherManager(servie, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
-    ouverte = brancherAlerteUrgence(brancherSession(dirige, session));
+    const suivie = brancherAlerteUrgence(brancherSession(dirige, session));
+    ouverte = options.connexion ? brancherConnexionMax(suivie, options.connexion) : suivie;
   } catch (erreur) {
     identites?.fermer();
     try {

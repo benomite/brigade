@@ -6,6 +6,7 @@ import { mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { canalGitHub } from "../appairage/canal.ts";
 import { identiteDeLaStation, tenirPresence } from "../appairage/presence.ts";
+import { configVeille, veillerConnexionMax, type VeilleConnexionMax } from "../connexion-max/veille.ts";
 import { configReseau, passerParLaPorte } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { CONFIGURATION } from "./configuration.ts";
@@ -22,7 +23,9 @@ function refuser(motif: string): never {
 const brut = process.env.BRIGADE_STATION_DIR || refuser("BRIGADE_STATION_DIR n'est pas défini");
 const racine = resolve(brut);
 
+let fichiersDeLaConnexion: ReturnType<typeof configVeille>;
 try {
+  fichiersDeLaConnexion = configVeille(process.env, racine);
   // La porte de la station : ce que son process joint lui-même — GitHub,
   // Anthropic — passe par elle. Chaque projet peut avoir la sienne pour ce
   // qu'il lance (`BRIGADE_PROXY_PORT` sur sa ligne).
@@ -44,7 +47,9 @@ for (const sortie of ["log", "error"] as const) {
   };
 }
 const dire = (ligne: string) => console.log(ligne);
-const station = ouvrirStation({ racine, env: process.env, dire });
+// La connexion Max de la machine : une seule veille, pour tous les projets.
+const connexion: VeilleConnexionMax = veillerConnexionMax({ ...fichiersDeLaConnexion, dire });
+const station = ouvrirStation({ racine, env: process.env, dire, connexion });
 // Sa présence sur GitHub, seul canal entre la station et l'app du chef : son
 // état, chaque minute, et le code qui l'appaire (appairage/presence.ts).
 const presence = tenirPresence({
@@ -58,6 +63,7 @@ const presence = tenirPresence({
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
     station.arreter(signal);
+    connexion.arreter();
     console.log(`brigade : station arrêtée (${signal})`);
     // L'heure de l'arrêt, écrite sur GitHub : l'app la dit hors ligne sans attendre.
     void presence.arreter();

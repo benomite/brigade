@@ -34,10 +34,15 @@ Le paquet pèse une trentaine de mégaoctets : le binaire `node` en fait l'essen
 | `/usr/lib/brigade-station/node/bin/node` | le `node` de la station : celui de la machine n'y est pour rien |
 | `/usr/lib/brigade-station/renouvellement` | le renouvellement de la session Max (`runtime/deploy/brigade-renouvellement`, repris tel quel) |
 | `/usr/lib/systemd/system/brigade-station.service` | la station : un seul process, tous les projets de `/var/lib/brigade/projets` |
-| `/usr/lib/systemd/system/brigade-station-renouvellement.{service,timer}` | le renouvellement, chaque minute |
+| `/usr/lib/systemd/system/brigade-station-renouvellement.{service,timer}` | le renouvellement, toutes les trente secondes |
 
 Rien sous `/etc` : ni drop-in, ni règle sudoers, ni fichier de configuration. Les dépendances
 (`git`, `gh`, `bubblewrap`, `libatomic1`, `adduser`, `systemd`…) viennent d'apt.
+
+La commande du guide finit par la connexion Max du compte `brigade`, quand un terminal est là :
+`runtime/src/connexion-max/connecter-cli.ts`, que le paquet porte avec le reste du runtime, pose
+`claude` s'il manque, lance `claude auth login`, fait passer le renouvellement et attend que la
+station l'ait reconnue (`/var/lib/brigade/connexion-max.json`).
 
 À l'installation, `postinst` crée le compte système `brigade` (home `/home/brigade`, celui qui fera
 la connexion Max) s'il n'existe pas, puis active et démarre la station et son minuteur. À chaque

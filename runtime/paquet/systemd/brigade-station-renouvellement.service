@@ -1,5 +1,5 @@
 # Le renouvellement de la session Max : brigade-station-renouvellement.service,
-# joué chaque minute par brigade-station-renouvellement.timer. Un seul par
+# joué toutes les trente secondes par brigade-station-renouvellement.timer. Un seul par
 # machine : la connexion Max est celle du compte, pas d'un projet.
 #
 # Il lance `claude`, hors de toute cloison, pour qu'il rafraîchisse son jeton
