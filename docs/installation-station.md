@@ -21,7 +21,9 @@ commande à taper.
 | **Le réseau** | le serveur joint GitHub et les dépôts de paquets de sa distribution. |
 | **Un disque local** | `/var/lib` n'est ni sur `nfs` ni sur `cifs` (`df -T /var/lib`) : le verrou de chaque projet en dépend. |
 
-Ton abonnement Claude Max et ton compte GitHub serviront aux étapes suivantes, pas à celle-ci.
+| **Ton abonnement Claude Max** | pour la connexion Max, à la fin de la commande : un lien à ouvrir dans ton navigateur, un code à recopier. |
+
+Ton compte GitHub servira aux étapes suivantes, pas à celle-ci.
 
 ## 1. La commande
 
@@ -35,12 +37,13 @@ C'est tout. Sans `sudo` sur le serveur, la même dans une session root, sans `su
 `curl`, la même avec `wget -qO-` à la place de `curl -fsSL`.
 
 La commande télécharge le paquet `brigade-station` de la dernière version publiée, le remet à
-`apt` — qui pose ce dont il dépend (`git`, `gh`, `bubblewrap`…) — puis attend que la station
-démarre. Compte une à deux minutes.
+`apt` — qui pose ce dont il dépend (`git`, `gh`, `bubblewrap`…) —, attend que la station
+démarre, puis fait la **connexion Max** (étape 2). Compte une à deux minutes, plus le temps de te
+connecter.
 
 ## 2. Ce que tu dois voir
 
-La commande finit sur l'état du service, puis sur trois lignes :
+La commande montre l'état du service, puis deux lignes :
 
 ```
 ● brigade-station.service - brigade — la station de cette machine (tous ses projets)
@@ -51,11 +54,39 @@ La commande finit sur l'état du service, puis sur trois lignes :
 
 brigade : station installée et active — <version>
 brigade : tout ce qu'elle demande au système vient avec son paquet : sa vie courante ne demande aucune commande root
-brigade : la suite : la connexion Max du compte brigade, puis l'appairage avec l'app (le guide : docs/installation-station.md, dépôt benomite/brigade)
 ```
 
 **`active (running)` et `aucun projet servi` : la station est installée.** Elle tourne, elle
 redémarrera avec la machine, et elle attend ses projets.
+
+### La connexion Max
+
+La commande enchaîne sur la connexion de la station à ton abonnement Claude Max — le seul moment
+où elle te demande quelque chose :
+
+```
+brigade : la connexion Max du compte brigade — le seul moment où elle te demande quelque chose
+connexion Max — `claude` va te donner un lien : ouvre-le, connecte-toi avec ton compte Claude Max, puis recopie ici le code qu'il affiche
+…
+connexion Max ouverte
+la station la reconnaît : connexion Max valide — vérifiée par le renouvellement à … UTC
+connexion Max faite : la station la renouvelle seule ; si elle se perd, le seul geste est un login, et la cuisine reprend seule dans la minute
+brigade : la suite : l'appairage avec l'app (…)
+```
+
+1. `claude` affiche un lien : ouvre-le dans ton navigateur, sur n'importe quelle machine.
+2. Connecte-toi avec le compte de ton abonnement Max, et autorise Claude Code.
+3. La page te donne un code : colle-le dans le terminal du serveur.
+
+La connexion passe par **le binaire `claude` officiel**, sous le compte `brigade` : s'il n'est pas
+sur le serveur, la commande le pose d'abord, par l'installeur d'Anthropic. Ton quota Max ne sera
+jamais consommé autrement que par lui. La commande n'a fini que lorsque la station a reconnu la
+connexion.
+
+**Si la connexion échoue** (`brigade : connexion Max non faite — …`), la ligne dit pourquoi :
+relance la même commande. Elle ne réinstalle rien, et ne refait pas une connexion déjà ouverte.
+**Si la commande n'avait pas de terminal** (lancée depuis un script), elle le dit, et s'arrête
+avant la connexion : relance-la depuis un terminal du serveur.
 
 Si la commande s'arrête sur `brigade : installation refusée — …`, la ligne dit pourquoi : la
 machine n'est pas un Debian, son architecture n'a pas de paquet, le téléchargement a échoué, ou
@@ -68,9 +99,9 @@ reprendre : corrige ce qu'elle dit, et relance la même commande.
   projets. Ajouter ou retirer un projet ne touchera à aucun fichier du système.
 - **Le compte `brigade`**, sous lequel tournent la station et ses cooks. C'est lui qui fera la
   connexion Max.
-- **Le renouvellement de la session Max**, chaque minute. Tant que la connexion Max n'est pas
-  faite, chacun de ses passages échoue, et c'est normal : c'est ainsi que la station sait qu'elle
-  attend un login.
+- **Le renouvellement de la session Max**, toutes les trente secondes : c'est lui qui garde la
+  connexion vivante, sans toi. Tant que la connexion Max n'est pas faite, chacun de ses passages
+  échoue, et c'est normal : c'est ainsi que la station sait qu'elle attend un login.
 - **`/var/lib/brigade`**, où la station gardera la configuration, le journal et le clone de
   chacun de ses projets.
 
@@ -90,16 +121,36 @@ systemctl status brigade-station
 `active (running)`, c'est qu'elle tourne. Les dernières lignes de son journal n'y apparaissent que
 si ton compte lit le journal du système ; sinon, c'est l'app qui te les montrera.
 
-## 5. La suite — pas encore dans ce guide
+## 5. Si la connexion Max se perd
 
-Trois étapes amènent ensuite la station jusqu'à toi, et une quatrième la tient à jour. Elles ne
+La station renouvelle sa connexion seule. Si Anthropic la refuse un jour (un mot de passe changé,
+des sessions révoquées), elle le voit — au passage suivant de son renouvellement, ou dans le
+premier cook qui la trouve fermée — et :
+
+- **suspend la cuisine de tous ses projets**, d'un coup : plus aucun ticket n'est pris, ni relu,
+  ni jugé. Rien n'échoue pour autant : aucun cook n'est lancé pour rien, aucun ticket n'est
+  commenté, le disjoncteur ne compte rien ;
+- **le dit** : son journal de service porte `connexion Max perdue depuis … — le seul geste : un
+  login`, et elle l'expose dans `/var/lib/brigade/connexion-max.json` (`"etat": "perdue"`), que
+  l'app lira pour te le montrer.
+
+**Le seul geste est un login** : relance, sur le serveur, la commande de l'étape 1. Elle ne
+réinstalle rien : elle refait seulement la connexion Max — le lien, le code —, puis attend que la
+station l'ait reconnue. Dans la minute qui suit, la cuisine reprend seule, sans redémarrage ni
+autre commande : la station lève la suspension (`connexion Max rétablie, la cuisine reprend`).
+
+Un login fait autrement, sous le compte `brigade` (`claude auth login`), suffit aussi : le
+renouvellement le consigne à son passage suivant, dans la demi-minute, et la station reprend de
+même.
+
+## 6. La suite — pas encore dans ce guide
+
+Deux étapes amènent ensuite la station jusqu'à toi, et une troisième la tient à jour. Elles ne
 sont pas encore écrites ici : ce guide les gagnera à mesure qu'elles arrivent.
 
-1. **La connexion Max** — une fois, sur le serveur, pendant l'installation guidée ; la station la
-   renouvellera ensuite seule.
-2. **L'appairage avec l'app** — le serveur affiche un code, tu le tapes dans l'app, et la station
+1. **L'appairage avec l'app** — le serveur affiche un code, tu le tapes dans l'app, et la station
    apparaît sur sa home : « en ligne · version X · aucun projet ».
-3. **Ajouter un projet** — depuis l'app : le dépôt GitHub, ses stations, sa principale. Sans
+2. **Ajouter un projet** — depuis l'app : le dépôt GitHub, ses stations, sa principale. Sans
    terminal.
-4. **La mise à jour automatique** — quand une version sort, la station y passe seule, comme un
+3. **La mise à jour automatique** — quand une version sort, la station y passe seule, comme un
    navigateur ; les cooks en cours finissent. Tu pourras geler sa version depuis l'app.

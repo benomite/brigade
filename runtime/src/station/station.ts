@@ -4,6 +4,7 @@
 // sans redémarrer la station ni toucher aux autres projets.
 import { AsyncLocalStorage } from "node:async_hooks";
 import { join } from "node:path";
+import type { VeilleConnexionMax } from "../connexion-max/veille.ts";
 import { DejaEnCours } from "../runtime.ts";
 import { CONFIGURATION, environnementDuProjet, lireFichierDeConfiguration, type ProjetConfigure } from "./configuration.ts";
 import { ouvrirCuisine, type Cuisine, type OptionsCuisine } from "./cuisine.ts";
@@ -20,6 +21,8 @@ export type OptionsStation = {
   ouvrir?: (env: Record<string, string | undefined>, options: OptionsCuisine) => Cuisine;
   // Entre deux relectures de la configuration.
   relectureMs?: number;
+  // La connexion Max de la machine, remise à chaque cuisine.
+  connexion?: VeilleConnexionMax;
 };
 
 export type Station = {
@@ -71,7 +74,7 @@ export function ouvrirStation(options: OptionsStation): Station {
   const tenter = (projet: ProjetConfigure) => {
     const dit = auNomDe(dire, projet.nom);
     try {
-      const cuisine = enCours.run(projet.nom, () => ouvrir(environnementDuProjet(racine, projet, env), { dire: dit }));
+      const cuisine = enCours.run(projet.nom, () => ouvrir(environnementDuProjet(racine, projet, env), { dire: dit, connexion: options.connexion }));
       ouvertes.set(projet.nom, { ligne: projet.ligne, cuisine });
       refuses.delete(projet.nom);
       dit(`servi par la station — ${projet.depot}, branche ${projet.base}, état dans ${cuisine.repertoireEtat}`);

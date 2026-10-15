@@ -12,16 +12,23 @@
 #
 # Ce que la commande fait, et rien d'autre : elle télécharge le paquet, le
 # remet à apt — qui pose ses dépendances, crée le compte brigade et démarre
-# brigade-station.service — puis attend que la station soit active et le dit.
-# C'est le seul geste root de la station : sa vie courante n'en demande aucun.
+# brigade-station.service —, attend que la station soit active et le dit,
+# puis fait la connexion Max du compte brigade, si quelqu'un est devant le
+# terminal : `claude auth login`, par le binaire officiel, que l'étape pose
+# s'il manque (runtime/src/connexion-max/connecter-cli.ts). C'est le seul
+# geste root de la station : sa vie courante n'en demande aucun. La relancer
+# ne réinstalle rien de neuf, et ne refait pas une connexion ouverte.
 #
 # Codes de sortie :
-#   0  station installée et active
-#   1  installation refusée ou échouée, dite en une ligne
+#   0  station installée et active — connectée à Max, ou sans terminal pour l'être
+#   1  installation refusée ou échouée, ou connexion Max non faite, dite en une ligne
 set -eu
 
 DEPOT=benomite/brigade
 SERVICE=brigade-station.service
+# Ce que le paquet pose : son node, et l'étape de connexion Max.
+NODE=/usr/lib/brigade-station/node/bin/node
+CONNEXION=/usr/lib/brigade-station/runtime/src/connexion-max/connecter-cli.ts
 # Le temps laissé à la station pour se dire active. Une garde, pas une mesure.
 GARDE=60
 
@@ -86,4 +93,17 @@ systemctl --no-pager status "$SERVICE" || true
 echo
 dire "station installée et active — $(dpkg-query -W -f='${Version}' brigade-station)"
 dire "tout ce qu'elle demande au système vient avec son paquet : sa vie courante ne demande aucune commande root"
-dire "la suite : la connexion Max du compte brigade, puis l'appairage avec l'app (le guide : docs/installation-station.md, dépôt $DEPOT)"
+
+# La connexion Max demande quelqu'un : la commande arrive par un tuyau
+# (curl | sudo sh), l'étape parle donc au terminal lui-même.
+if [ -x "$NODE" ] && (: </dev/tty) 2>/dev/null; then
+  echo
+  dire "la connexion Max du compte brigade — le seul moment où elle te demande quelque chose"
+  "$NODE" "$CONNEXION" </dev/tty || {
+    printf '%s\n' "brigade : la station est installée, mais sa connexion Max n'est pas faite (la ligne au-dessus dit pourquoi) — relance la même commande pour la reprendre" >&2
+    exit 1
+  }
+  dire "la suite : l'appairage avec l'app (le guide : docs/installation-station.md, dépôt $DEPOT)"
+else
+  dire "la suite : la connexion Max du compte brigade, puis l'appairage avec l'app — pas de terminal ici pour la connexion : relance la même commande depuis un terminal du serveur (le guide : docs/installation-station.md, dépôt $DEPOT)"
+fi
