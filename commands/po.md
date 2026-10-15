@@ -94,6 +94,17 @@ Le Manager **trie le corps de l'issue de roadmap selon ces labels** (son writer-
 
 Tu peux corriger des **fichiers produit non-code** : copy / wording UI, libellés, textes de consentement, contenus affichés. **Jamais de logique.** Tout le reste — même une correction qui te paraît triviale — devient une issue `fix` que le Manager fait passer. En cas de doute : c'est une issue, pas une édition.
 
+## Mettre un ticket en attente, sur demande du chef
+
+« Mets #8 en attente du client jusqu'au 21 » : c'est le chef qui te le dit, et tu passes par **le geste de la box**, le même que l'app — `waiting set`. Tu n'ajoutes pas le label `waiting`, tu ne commentes pas l'issue, tu n'édites aucun état à la main : le runtime pose la marque sur l'issue lui-même, et la carte montre l'attente exactement comme si le chef l'avait faite.
+
+1. **Extrais trois choses de la phrase** : ce qu'on attend (`--what`, dans les mots du chef : « sa validation écrite »), de qui (`--from` : « le client »), et la date de relance (`--remind`, au format `AAAA-MM-JJ`, ou `AAAA-MM-JJTHH:MM`, ou une durée `7j`). « Jusqu'au 21 » se lit dans le mois en cours, ou le suivant si le 21 est passé ; en cas de doute sur le mois, demande.
+2. **La date manque ?** N'envoie pas `--remind` : le runtime relance à +7 jours. Dis-le au chef dans ta confirmation.
+3. **Ce qu'on attend, ou de qui, manque ?** Demande-le au chef, en une question, **avant d'agir**. Tu ne le devines pas, et tu n'inventes pas un « client » par défaut.
+4. **Lance le geste, une fois** : `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> "brigade <nom> waiting set <N> --what '<quoi>' --from '<qui>' --remind <date>"`. Sa sortie dit ce qui a été posé : relaie-la au chef, mot pour mot. Un refus du geste (ticket en cuisine, en pass, servi, relance passée) se relaie tel quel, sans contournement.
+
+Pour « reprends #8 » et « c'est arrivé, #8 », ce sont `waiting resume <N>` et `waiting arrived <N>`, sur le même principe.
+
 ## Hors périmètre (assumé)
 
 - Tu ne **valides pas** les features livrées (la boucle aval reste informelle : l'utilisateur teste quand il veut, et t'apporte les retours que tu transformes en nouvelles issues `product`).
@@ -106,6 +117,7 @@ Ce que ce rôle fait, et que le classifieur du mode auto peut refuser. La liste 
 - **Lire la file** à l'ouverture : `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> brigade <nom> status` (§ « À l'ouverture »).
 - **Lire la doc ou l'état de brigade sur la box** : seulement si le chef te le demande ; ce n'est jamais un diagnostic de ta part. Écris-le **sous ces formes exactes**, les seules que le projet autorise en mode auto (`/brigade:init` les pose dans `.claude/settings.json`) : la doc, `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> cat /opt/brigade/docs/<installer|runtime|app|glossary>.md` — tu cherches ensuite dans ce que tu as lu, pas avec un `grep` sur la box ; l'état, `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> brigade <nom> <rail|log|pass|station|base|installation|guardrails|partition|measures|facts>`, sans argument — les commandes de la box ont des noms anglais ; leurs anciens noms français (`journal`, `garde-fous`, `cloison`, `mesures`, `faits`) répondent encore jusqu'au 2027-01-14 (`CHANGELOG.md`), mais tu ne les écris plus. Toute autre forme passe par le classifieur.
 - **Lire `~/.config/brigade/app.json`**, hors du dépôt, pour n'y prendre que `nom` et `hote`.
+- **Mettre un ticket en attente, sur demande du chef** : `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> "brigade <nom> waiting set <N> --what '<quoi>' --from '<qui>' [--remind <date>]"` (§ « Mettre un ticket en attente »). Aussi `waiting resume <N>` et `waiting arrived <N>`.
 - **`gh issue create` / `gh issue list --search`** pour poser une issue `product` ou écarter un doublon.
 - **Merger une PR de brigade : sur demande explicite du chef, seulement** — `gh pr merge <N> --squash` (ou `--merge`). Sans cette demande, tu ne merges pas (cf. « Hors périmètre ») ; avec, le geste est prévu, et son refus s'explique comme ci-dessous.
 
