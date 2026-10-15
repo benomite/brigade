@@ -42,11 +42,12 @@ import type { Controle } from "./service.ts";
 
 // `station` et `box` : ce qu'un projet installé a perdu — une station, un geste de box. `urgence` :
 // toute la cuisine attend le chef.
-export type Sujet = "urgence" | "manager" | "version" | "cuisine" | "grant" | "station" | "box";
+export type Sujet = "urgence" | "manager" | "version" | "cuisine" | "grant" | "station" | "box" | "injoignable";
 // Ce que le bouton d'une ligne appelle : un geste du socle (gestes.ts), et le grant qu'il
 // nomme ; une demande au second, faite de ce que la ligne dit (demande.ts) ; un onglet de
 // contenu (onglets.ts).
-export type Appel = { geste: string; grant?: string } | { demande: true } | { onglet: string };
+// `relire` : relire la box tout de suite, au lieu d'attendre le tour de la veille (#728).
+export type Appel = { geste: string; grant?: string } | { demande: true } | { onglet: string } | { relire: true };
 // Une ligne de la bande. `verifie` faux : la box ne dit pas cet état, et la ligne le dit.
 // `dit` : ce qui ne va pas, dans les mots de l'app ; `pourquoi` : ce qu'elle en sait de plus,
 // dans ses mots aussi. `releve` : ce que la box en a écrit, mot pour mot — absent quand elle
@@ -58,7 +59,7 @@ export type Alerte = { sujet: Sujet; verifie: boolean; ton: string; dit: string;
 // Ce que la bande d'un projet dit de lui sur sa case de la barre : toute la cuisine qui l'attend, une
 // chose à faire, ou rien de vérifié. Une bande vide n'a pas de signal — c'est que les quatre états
 // ont été lus, et vont bien.
-export type Signal = { etat: "urgence" | "alerte" | "non-verifie"; dit: string };
+export type Signal = { etat: "urgence" | "alerte" | "non-verifie" | "injoignable"; dit: string };
 export type Bande = { projet: string; alertes: Alerte[]; signal?: Signal };
 
 // Un état que l'app n'a pas : pourquoi, dans ses mots.
@@ -579,12 +580,46 @@ const parGravite = (bande: Alerte[]): Alerte[] => bande.map((alerte, rang) => ({
 // telle — pas comme une alerte ordinaire ; puis une alerte vérifiée ; sinon un état non vérifié,
 // nommé comme tel — jamais lu comme sain. Même logique que la bande : rien n'y est recalculé.
 export function signalDe(bande: readonly Alerte[]): Signal | undefined {
+  // La box ne répond pas : un mot, et ce qu'on en sait — le reste de la bande n'a pas pu être lu.
+  const muette = bande.find(({ sujet }) => sujet === "injoignable");
+  if (muette !== undefined) return { etat: "injoignable", dit: muette.dit };
   const vues = bande.filter(({ verifie }) => verifie);
   const urgentes = vues.filter(({ sujet }) => sujet === "urgence");
   if (urgentes.length > 0) return { etat: "urgence", dit: [...urgentes, ...vues.filter(({ sujet }) => sujet !== "urgence")].map(({ dit }) => dit).join(" ; ") };
   if (vues.length > 0) return { etat: "alerte", dit: vues.map(({ dit }) => dit).join(" ; ") };
   if (bande.length > 0) return { etat: "non-verifie", dit: bande.map(({ dit }) => dit).join(" ; ") };
   return undefined;
+}
+
+// --- La box ne répond pas ----------------------------------------------------------
+//
+// Une box qui ne répond pas fait rater, d'un coup, tout ce que l'app lit d'elle : le manager, la
+// version, la cuisine, le grant. Quatre « non vérifié » pour une seule cause, chacun avec un geste
+// qui n'y change rien (#728). Passé ce nombre de lectures de `faits` ratées de suite — la box pas
+// jointe, pas la commande qui échoue —, la bande ne dit plus qu'une ligne : la box, depuis quand,
+// pourquoi, et ce que le chef peut y faire. Elle sort dès que la box répond.
+export const LECTURES_POUR_INJOIGNABLE = 2;
+
+// La cause d'un `ssh` pas arrivé, en mots simples — d'après ce qu'il a écrit, jamais redit tel quel.
+export function causeDuSilence(erreur: string): string {
+  if (/could not resolve hostname|name or service not known|no address associated|nodename nor servname/i.test(erreur)) return "address not found — the name your `ssh` uses for this box resolves to nothing";
+  if (/connection refused/i.test(erreur)) return "connection refused — the machine answers, but nothing accepts `ssh` there";
+  return "no answer — the machine does not reply to `ssh`";
+}
+
+type SansReponse = { depuis: string; a: string; lectures: number; cause: string };
+
+function deLaBoxMuette({ depuis, a, lectures, cause }: SansReponse): Alerte {
+  return {
+    sujet: "injoignable",
+    verifie: true,
+    ton: "rouge",
+    dit: `box unreachable for ${duree(Date.parse(a) - Date.parse(depuis))}: the app knows nothing of the kitchen right now`,
+    pourquoi: `${cause} — ${lectures} readings in a row failed`,
+    geste: "try again now — and if it lasts, look at the machine at its host",
+    appel: { relire: true },
+    prix: LIRE,
+  };
 }
 
 // --- Ce qui est tenu, projet par projet -----------------------------------------
@@ -636,6 +671,8 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
   type Suivi = { origine?: Source; rates: number; dite?: { alerte: Alerte; depuis: number } };
   const suivis = new Map<string, Map<string, Suivi>>();
   const rendues = new Map<string, Bande>();
+  // La box d'un projet qui ne répond pas : depuis quand, et combien de lectures de `faits` de suite.
+  const silences = new Map<string, SansReponse>();
   const brute = (projet: string): Alerte[] => {
     const attend = attends.get(projet);
     const controle = controles.get(projet);
@@ -665,6 +702,16 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
     return trouvee ?? LECTURES_DE[alerte.sujet][0] ?? "faits";
   };
   const bande = (projet: string, source?: Source): Bande => {
+    const silence = silences.get(projet);
+    if (silence !== undefined && silence.lectures >= LECTURES_POUR_INJOIGNABLE) {
+      const dites = [deLaBoxMuette(silence)];
+      const triees = dites;
+      const avant = rendues.get(projet);
+      if (avant !== undefined && JSON.stringify(avant.alertes) === JSON.stringify(triees)) return avant;
+      const rendue: Bande = { projet, alertes: triees, signal: signalDe(triees) };
+      rendues.set(projet, rendue);
+      return rendue;
+    }
     const instant = maintenant();
     const suivi = suivis.get(projet) ?? new Map<string, Suivi>();
     suivis.set(projet, suivi);
@@ -703,16 +750,29 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
     rendues.set(projet, rendue);
     return rendue;
   };
+  // Ce qu'une lecture prouve de la box : pas jointe, elle compte — mais seule celle de `faits`, qui
+  // est lue pour chaque projet, à chaque tour ; jointe, tout est remis à zéro.
+  const noter = (lecture: Lecture, compte: boolean): void => {
+    if (!("erreur" in lecture) || lecture.atteinte) return void silences.delete(lecture.projet);
+    const avant = silences.get(lecture.projet);
+    silences.set(lecture.projet, {
+      depuis: avant?.depuis ?? lecture.a,
+      a: lecture.a,
+      lectures: (avant?.lectures ?? 0) + (compte ? 1 : 0),
+      cause: causeDuSilence(lecture.erreur),
+    });
+  };
   return {
     // La barre est posée : `faits` va être lu pour chacun de ces projets. Ce qui en était
     // lu est oublié ; un projet qui n'en est plus n'a plus rien de tenu.
     ouvrir(projets: readonly string[]): Bande[] {
       faits.clear();
-      for (const tenus of [statuts, attends, managers, controles, suivis, rendues]) for (const projet of tenus.keys()) if (!projets.includes(projet)) tenus.delete(projet);
+      for (const tenus of [statuts, attends, managers, controles, silences, suivis, rendues]) for (const projet of tenus.keys()) if (!projets.includes(projet)) tenus.delete(projet);
       return projets.map((projet) => bande(projet));
     },
     // Une lecture de `faits`.
     faits(lecture: Lecture): Bande {
+      noter(lecture, true);
       if ("erreur" in lecture) faits.set(lecture.projet, { sans: rate(FAITS, lecture) });
       else {
         const lu = comprendre(lecture.sorties.find(({ commande }) => commande === FAITS)?.texte ?? "");
@@ -722,6 +782,7 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
     },
     // Une lecture de `status`, son bloc `attend` mis à part : les lignes de tête restent.
     status(montree: Montree): Bande {
+      noter(montree, false);
       const texte = "erreur" in montree ? undefined : montree.sorties.find(({ commande }) => commande === "status")?.texte;
       statuts.set(montree.projet, "erreur" in montree ? { sans: rate("status", montree) } : (texte ?? { sans: "the reading did not return `status`" }));
       if ("erreur" in montree || montree.attend === undefined) attends.delete(montree.projet);
@@ -741,6 +802,7 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
     },
     // Une lecture de `manager` — celle de la veille du manager, ou celle de l'onglet : l'état du manager, ou pourquoi il n'est pas lu.
     manager(lecture: Lecture): Bande {
+      noter(lecture, false);
       const sortie = "erreur" in lecture ? undefined : lecture.sorties.find(({ commande }) => commande === MANAGER)?.texte;
       const lu = sortie === undefined ? undefined : managerDe(sortie);
       managers.set(

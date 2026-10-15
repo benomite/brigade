@@ -1463,6 +1463,29 @@ reçoit donc au plus une connexion par projet qu'elle sert, pas deux.
 Un champ qui manque refuse la forme **entière** : l'app ne complète rien. Un champ de plus est
 laissé de côté.
 
+### Une box qui ne répond pas du tout (#728)
+
+Une box muette fait rater d'un coup tout ce que l'app en lit : le manager, la version, la cuisine,
+le grant. L'app n'en fait pas quatre alertes « non vérifié », chacune avec un geste qui n'y change
+rien : **passé deux lectures de `faits` ratées de suite** (`LECTURES_POUR_INJOIGNABLE`) — la box
+pas jointe, pas la commande qui échoue —, **la bande ne dit plus qu'une ligne** :
+
+> box unreachable for 3 min: the app knows nothing of the kitchen right now
+
+avec la cause en mots simples (pas de réponse, connexion refusée, adresse introuvable — dite d'après
+ce que `ssh` a écrit), et un geste, « try again now — and if it lasts, look at the machine at its
+host » : son bouton relit la box tout de suite. La ligne sort dès qu'une lecture aboutit. Une
+seule lecture ratée ne la pose pas.
+
+- **La pastille du projet** dit la même chose en un mot, `unreachable`, et la case de la barre porte un `×`.
+- **Le rail garde sa dernière lecture**, marquée « read at <heure>, box unreachable since <heure> »,
+  au lieu de laisser place à « non joint ». Une box jointe qui ne rend pas la forme de `faits` n'est
+  pas ce cas : le rail ne se dessine pas, comme ci-dessus.
+- **Les tickets `fire` se lisent sur GitHub** (`feu.ts`) : titre, numéro, priorité, avec la mention
+  « kitchen state unknown: box unreachable ». C'est le `gh` du poste, lancé dans le dossier du projet —
+  jamais la box. Jamais un rail vide quand GitHub répond ; quand il ne répond pas non plus, la ligne
+  de `gh` est dite.
+
 ### Ce qui n'est pas dessiné, et ne le sera pas ici
 
 - **Le journal, les grants, la sortie de `station`** restent du texte : ce sont des flux, pas des
