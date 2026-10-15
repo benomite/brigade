@@ -70,4 +70,20 @@ describe("sonde du renouvellement", () => {
     assert.equal(passages[0]?.reussi, false);
     assert.equal(passages[1]?.reussi, true);
   });
+
+  test("un échec réel (deux lignes de systemd) ne fait qu'un passage, de bout en bout", async () => {
+    const ligne = (message: string, us: number) => JSON.stringify({ MESSAGE: message, __REALTIME_TIMESTAMP: String(us) });
+    const sortie = [
+      ligne("brigade-renouvellement : échec (claude-introuvable) : « claude » absent", 1_000_000),
+      ligne("brigade-renouvellement.service: Main process exited, code=exited, status=127/n/a", 2_000_000),
+      ligne("brigade-renouvellement.service: Failed with result 'exit-code'.", 3_000_000),
+      ligne("Failed to start brigade-renouvellement.service - Renouvellement de la session Max.", 4_000_000),
+    ].join("\n");
+    const passages = passagesDuJournal(sortie);
+    assert.equal(passages.length, 1);
+    const etat = await sonderRenouvellement(faux(true, passages));
+    assert.equal(etat.etat, "claude-introuvable");
+    assert.equal(etat.echecsConsecutifs, 1);
+    assert.equal(etat.etat === "claude-introuvable" && etat.raison, "échec (claude-introuvable) : « claude » absent");
+  });
 });

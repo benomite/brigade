@@ -81,11 +81,13 @@ export async function sonderRenouvellement(systemd: Systemd): Promise<EtatDuReno
 type EntreeJournal = { MESSAGE?: unknown; __REALTIME_TIMESTAMP?: string };
 
 // Les passages, tirés des messages du journal : systemd dit « Finished … »
-// d'un passage réussi, « Failed with result … » d'un échec ; les lignes que le
+// d'un passage réussi, « Failed with result … » puis « Failed to start … » d'un échec ; les lignes que le
 // script a écrites avant lui en donnent la raison.
 export function passagesDuJournal(sortie: string): Passage[] {
   const passages: Passage[] = [];
   let lignes: string[] = [];
+  // Le message précédent a clos un échec par « Failed with result ».
+  let apresEchec = false;
   for (const brut of sortie.split("\n")) {
     if (brut.trim() === "") continue;
     let entree: EntreeJournal;
@@ -96,10 +98,18 @@ export function passagesDuJournal(sortie: string): Passage[] {
     }
     const message = typeof entree.MESSAGE === "string" ? entree.MESSAGE : "";
     const at = new Date(Number(entree.__REALTIME_TIMESTAMP ?? "0") / 1000);
+    const suiteDeLEchec = apresEchec;
+    apresEchec = false;
     if (/^Finished /.test(message)) {
       passages.push({ at, reussi: true, lignes });
       lignes = [];
-    } else if (/Failed with result|Failed to start/.test(message)) {
+    } else if (/Failed with result/.test(message)) {
+      passages.push({ at, reussi: false, lignes: [...lignes, message] });
+      lignes = [];
+      apresEchec = true;
+    } else if (/Failed to start/.test(message) && suiteDeLEchec) {
+      // Systemd dit les deux à la suite d'un même échec : un seul passage.
+    } else if (/Failed to start/.test(message)) {
       passages.push({ at, reussi: false, lignes: [...lignes, message] });
       lignes = [];
     } else {
