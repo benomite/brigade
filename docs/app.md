@@ -686,8 +686,32 @@ il redevient **Second** si tu le relances d'une touche, ce qui invoque `/brigade
 - **`close shell 1`**, au bout de la rangée, ferme le shell montré **pour de bon** : son onglet s'en
   va, sa session est détruite sur sa machine, et il ne revient plus. Si la machine ne répond pas,
   le shell est fermé quand même, et la ligne sous les onglets dit que sa session y reste. Un shell
-  dont tu sors (`exit`) ferme lui aussi son onglet, et le second reprend sa place ; un shell dont
-  le `ssh` a lâché quitte l'espace, mais l'app s'en souvient : il revient à la réouverture.
+  dont tu sors (`exit`) ferme lui aussi son onglet, et le second reprend sa place.
+- **Une machine qui n'est plus joignable ne fait pas disparaître son shell.** Réseau perdu,
+  machine éteinte, poste endormi : quand la connexion lâche — `ssh` laisse une machine qui ne
+  répond pas à l'ouverture au bout de dix secondes, et une connexion établie qui ne répond plus au
+  bout de trente —, le shell reste à sa place, et son terminal le dit, en jaune :
+  ``[brigade] box parade-box is not reachable — session `brigade-parade-1` stays there, and this
+  shell reattaches to it by itself as soon as the machine answers (a keypress tries now)``. Son
+  bandeau le dit aussi (`box parade-box · debian — not reachable`). **Sa session tient, là-bas** :
+  l'app ne la détruit pas, et s'en souvient.
+  - **Il se reconnecte seul.** L'app demande à la machine si elle répond — `ssh -o BatchMode=yes
+    -o ConnectTimeout=10 -- <hote> true`, qui ne lance rien et ne demande rien —, au bout de 2 s,
+    puis 5, 10, 20, et toutes les 30 s tant qu'elle ne répond pas ; la ligne sous les onglets dit
+    où elle en est, avec ce que `ssh` a répondu (`attempt 3: ssh: connect to host parade-box port
+    22: Network is unreachable`). Dès qu'elle répond, le shell se rattache à sa session (`answers
+    again — reattaching…`) : la commande que tu y avais lancée tourne toujours, et ce qu'elle
+    affichait est là.
+  - **Une touche essaie tout de suite**, sans attendre la prochaine sonde : c'est le rattachement
+    lui-même, dans le terminal — un `ssh` qui veut un mot de passe te le demande là. La touche
+    elle-même ne part pas. Toujours injoignable, le terminal le redit, et l'app reprend ses sondes.
+  - **Au réveil du poste**, chaque shell distant se rattache aussitôt à sa session (`this Mac woke
+    up — reattaching…`), sans attendre que `ssh` découvre que la connexion d'avant le sommeil est
+    morte. Si le réseau n'est pas encore revenu, le terminal dit la machine injoignable, et la
+    reconnexion se fait seule quand il revient.
+  - Une machine qui a redémarré n'a plus la session : le rattachement en ouvre une neuve, vide.
+    Les shells de ce poste et le second n'ont pas de connexion à perdre : rien de tout cela ne les
+    touche.
 - Le shell qu'un geste ouvre pour y écrire sa commande (un `sudo systemctl …`, un `git pull`) est,
   lui, un shell de connexion de ce poste, dans le dossier du projet : il finit avec l'app.
 - **Changer de projet n'interrompt rien.** Chaque espace garde ses terminaux, leur contenu, la

@@ -100,9 +100,34 @@ function sur(cible: Cible, script: string, ssh: string, options: string[]): Comm
   return { commande: ssh, args: [...options, "--", cible.hote, `sh -c '${script}'`] };
 }
 
+// Ce qui fait lâcher une connexion morte au lieu d'attendre : une machine qui ne répond pas à
+// l'ouverture est laissée au bout de dix secondes, et une connexion établie qui ne répond plus
+// (réseau perdu, poste endormi) l'est au bout de trente — `ssh` sort alors en 255, et le terminal
+// le dit (terminaux.ts). La session, elle, tient sur sa machine.
+export const VIGILANCE_SSH = ["-o", "ConnectTimeout=10", "-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=3"] as const;
+
 // La commande que le pty d'un shell persistant lance. `-t` : la session distante a un
 // terminal, celui de la vue — c'est là que se tape un mot de passe, s'il en faut un.
-export const rattachement = ({ nom, cible }: Session, ssh = "ssh"): Commande => sur(cible, scriptDeRattachement(nom), ssh, ["-t"]);
+export const rattachement = ({ nom, cible }: Session, ssh = "ssh"): Commande => sur(cible, scriptDeRattachement(nom), ssh, ["-t", ...VIGILANCE_SSH]);
+
+// Ce qui demande à une machine si elle répond, sans terminal et sans rien y lancer : la même
+// connexion que celle de la veille, qui ne demande rien — ni mot de passe, ni hôte à confirmer.
+export const sonde = (cible: Cible, ssh = "ssh", connexionS = 10): Commande =>
+  cible.lieu === "poste" ? { commande: "/bin/sh", args: ["-c", "true"] } : { commande: ssh, args: ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${connexionS}`, "--", cible.hote, "true"] };
+
+// La machine répond-elle ? Jamais d'exception : quand elle ne répond pas, ce que `ssh` en a dit,
+// sa dernière ligne — « connect to host … : Network is unreachable ».
+export function joindre(cible: Cible, reglages: { ssh?: string; delaiMs?: number; connexionS?: number; env?: NodeJS.ProcessEnv } = {}): Promise<{ joint: true } | { erreur: string }> {
+  const { commande, args } = sonde(cible, reglages.ssh, reglages.connexionS);
+  return new Promise((rendre) => {
+    execFile(commande, args, { timeout: reglages.delaiMs ?? 30_000, env: reglages.env ?? process.env }, (erreur: ExecFileException | null, _, erreurs) => {
+      if (erreur === null) return rendre({ joint: true });
+      const dit = String(erreurs).trim().split("\n").at(-1)?.trim();
+      const suite = erreur.killed === true ? "no answer in time" : typeof erreur.code === "number" ? `exit code ${erreur.code}` : erreur.message;
+      rendre({ erreur: dit === undefined || dit === "" ? suite : `${dit} (${suite})` });
+    });
+  });
+}
 
 // La commande qui détruit la session. Sans terminal, `ssh` ne peut rien demander : il
 // échoue plutôt que d'attendre un mot de passe.

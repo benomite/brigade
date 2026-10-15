@@ -1,7 +1,7 @@
 // L'app : une fenêtre, et le process qui tient les terminaux, la veille des
 // box et le suivi du fichier des projets.
 import { dirname, join } from "node:path";
-import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Notification, powerMonitor, shell } from "electron";
 import { tenirBandes } from "./alertes.ts";
 import { ALLUMAGE, compter } from "./allumage.ts";
 import { COMMANDE as COMMANDE_AMONT, tenirAmont } from "./amont.ts";
@@ -719,5 +719,8 @@ void app.whenReady().then(() => {
   colorer();
   // L'app est lancée : ses stations se manifestent.
   runner.servir(projets());
+  // Le poste se réveille : chaque shell distant se rattache à sa session, sans attendre que `ssh`
+  // découvre que sa connexion d'avant le sommeil est morte.
+  powerMonitor.on("resume", () => terminaux.reveiller());
   return fenetre.loadFile(join(import.meta.dirname, "vue/index.html"));
 });
