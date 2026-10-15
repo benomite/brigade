@@ -1044,12 +1044,8 @@ function poserService(projet, guide) {
   if (guide === undefined || guide.termine) return serviceEtapes.replaceChildren(), serviceTete.replaceChildren();
   // En cours, ou entamée par le chef, elle s'ouvre d'elle-même ; ensuite, c'est lui qui la replie.
   if (misEnService !== projet.nom || (guide.deplie && !serviceDeplie)) {
+    // Elle se déplie, mais n'envoie jamais le chef dans Paramètres : le rail reste l'écran d'un projet.
     service.open = guide.deplie;
-    // En cours, elle est ce que le chef a à faire : Paramètres s'ouvre par-dessus le rail, sur elle.
-    if (guide.deplie && guide.courante !== null && actif() === undefined) {
-      laisse.set(projet.nom, PARAMETRES);
-      montrer();
-    }
   }
   misEnService = projet.nom;
   serviceDeplie = guide.deplie;
