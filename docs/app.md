@@ -586,6 +586,29 @@ LE CODE DE CETTE APP EST EN RETARD DE 39 COMMITS SUR origin/v2 — lu à 14:32:0
 - **Ce que le nombre ne dit pas** : ce que ces commits changent. Trente-neuf commits de doc et un
   commit qui ajoute un onglet se lisent pareil — c'est `git log` qui le dit.
 
+### Tes stations : appairées par un code, lues sur GitHub
+
+**Sous la ligne du code de l'app**, la carte « Stations » liste les stations que tu as appairées,
+une ligne chacune — son nom, sa machine, et ce que GitHub dit d'elle :
+
+```
+box — Linux 6.1.0 · online · version 1.4.0 · no project
+box — Linux 6.1.0 · offline for 4 min · version 1.4.0 · 1 project: brigade
+```
+
+- **L'app ne joint aucune station.** Chaque station écrit son état dans un gist secret de ton
+  compte GitHub ([docs/runtime.md](runtime.md), « Une station par machine »), et l'app le lit
+  là, par ton propre `gh`, toutes les trente secondes (`app/src/stations/`). Le suivi se relève
+  donc à la minute près, pas à la seconde.
+- **Une station éteinte reste dans la liste**, hors ligne, avec depuis combien de temps : tout de
+  suite quand elle s'est arrêtée proprement, après deux signes de vie manqués (un peu plus de
+  deux minutes) quand elle s'est éteinte d'un coup. Une lecture de GitHub ratée garde la liste
+  d'avant et le dit dessous.
+- **Appairer une station neuve** : tape dans le champ le code qu'elle affiche (huit signes, comme
+  `7KQ2-M9XD` — minuscules, blancs et tirets n'y font rien), puis « pair ». L'app cherche le gist
+  qui publie ce code, y écrit l'appairage, et la station apparaît. Un code mal formé, inconnu ou
+  expiré est refusé en une ligne sous le champ, et rien n'est écrit.
+
 ## La barre d'icônes
 
 À gauche, une colonne de cases, façon Slack ou Discord :

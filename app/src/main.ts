@@ -38,6 +38,8 @@ import { DELAIS, lancerRetrait, tenirRetraits } from "./retrait.ts";
 import { ouvrirRunner } from "./runner.ts";
 import { tenirServices } from "./service.ts";
 import { souvenirsDansFichier } from "./souvenirs.ts";
+import { githubDesStations } from "./stations/github.ts";
+import { tenirStations } from "./stations/stations.ts";
 import { suivreConfiguration } from "./suivi.ts";
 import { ouvrirTerminaux } from "./terminaux.ts";
 
@@ -350,6 +352,13 @@ const retards = tenirRetards({
   projets,
   surLecture: (vu) => dire("code", vu),
 });
+// Les stations du chef, sur « Tous les projets » : celles qu'il a appairées, lues sur GitHub par
+// le `gh` du poste toutes les trente secondes (stations/stations.ts). L'app ne joint aucune
+// station : c'est GitHub qui porte ce que chacune dit d'elle.
+const stations = tenirStations({
+  github: githubDesStations({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }),
+  surLecture: (vu) => dire("stations", vu),
+});
 // Son propre code, l'app le met à jour au clic sur la ligne qui dit son retard : son clone
 // avance, puis elle se relance — par `npm start` quand c'est par là qu'elle est partie, pour
 // que son lancement pose ce que la nouvelle version demande (rattrapage.ts). Se fermer arrête
@@ -370,7 +379,7 @@ function projet(nom: unknown): Projet {
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu() }));
+ipcMain.handle("demarrage", () => ({ configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu(), stations: stations.vu() }));
 // Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
 // décide hors de la vue — elle reçoit ce qu'il en est advenu, et pourquoi.
 ipcMain.handle("choisirDossier", async () => {
@@ -677,6 +686,9 @@ ipcMain.handle("confirmer", (_, nom: unknown, id: unknown, grant: unknown) => {
   if (vise === undefined) return parti(nom);
   return confirmationDe(id, vise, faits.dernier(vise.nom) ?? { sans: "`facts` has not been read yet for this project, or its last read did not return the expected shape" }, grant);
 });
+// Le code qu'une station affiche, tapé par le chef : la station qui le publie sur GitHub est
+// appairée — ou le refus dit en une ligne pourquoi rien ne l'est (stations/stations.ts).
+ipcMain.handle("appairer", (_, code: unknown) => stations.appairer(code));
 // Le code de l'app, en retard ou à relancer : le clic la met à jour et la relance — rien n'est
 // rendu, elle se ferme — ou dit pourquoi elle reste sur son code (rattrapage.ts).
 ipcMain.handle("passer", () => {
@@ -773,6 +785,7 @@ app.on("will-quit", () => {
   veilleDeLAmont.fermer();
   pages.fermer();
   retards.fermer();
+  stations.fermer();
   clearInterval(controles);
   // Les cooks du poste ne survivent pas à l'app : fermée, sa station est absente.
   void runner.fermer();
