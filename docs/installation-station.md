@@ -76,6 +76,11 @@ brigade : la suite : l'appairage avec l'app (…)
 2. Connecte-toi avec le compte de ton abonnement Max, et autorise Claude Code.
 3. La page te donne un code : colle-le dans le terminal du serveur.
 
+L'étape montre l'interface de `claude setup-token` à mesure, mais **jamais le jeton** : il est
+masqué à l'écran (`sk-ant-…`) et n'est écrit dans aucun journal. Si `setup-token` ne montre
+rien pendant trois minutes, l'étape l'arrête et le dit en une ligne (`connexion Max non faite —
+… relance l'étape pour réessayer`) : relance-la seule, elle refait le même parcours.
+
 La connexion passe par **le binaire `claude` officiel**, sous le compte `brigade` : s'il n'est pas
 sur le serveur, la commande le pose d'abord, par l'installeur d'Anthropic. `claude setup-token`
 crée un **jeton longue durée** ; la commande le range sans jamais l'afficher, puis relance la
