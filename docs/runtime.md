@@ -2328,6 +2328,11 @@ temps**, ce que le journal sait de la lourdeur du projet : c'est la pente qui r�
 
 `npm --prefix runtime run measures` les montre par tranches de 10 merges ; `-- --by 25`, de 25.
 
+Quand un ticket des dix derniers merges dépasse le seuil de coût de la dérive (`BRIGADE_DRIFT_TICKET_TOKENS`,
+déclaré une seule fois), `measures` ajoute sous la ligne `FRANCHI` une ligne `motif de dérive` par ticket :
+le nombre de passages, la part de tokens perdue au renvoi, et les renvois repartis de zéro faute de reprise
+(ou « renvois repris »). Un ticket passé une fois dit sa taille d'une traite. Sous le seuil, aucun motif.
+
 | Colonne | Ce qu'elle dit | D'où elle vient |
 |---|---|---|
 | `merges`, `jusqu'au` | La tranche : le rang de ses merges, le jour du dernier. L'axe est le **merge**, pas l'horloge | `merge.done` |
