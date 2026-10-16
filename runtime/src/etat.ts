@@ -8,6 +8,7 @@ import { DIRE_GATES_COUPEES } from "./evenements/pass.ts";
 import { attentesDuChef, decisionDe, decrireAttentes, direAttente, nommerAttente, passageEnService, type Attente, type Decision, type Passage } from "./attend.ts";
 import { geste } from "./geste.ts";
 import { fournitTout } from "./capacites.ts";
+import { capturesVues, lireCaptures, type Captures, type CapturesVues } from "./captures.ts";
 import type { Evenement } from "./evenements.ts";
 import { RELEVE } from "./evenements/garde-fous.ts";
 import { PART_SANS_PROGRES } from "./evenements/station.ts";
@@ -83,6 +84,10 @@ export type EtatCuisine = {
   // Ce que la cuisine fait en ce moment de chaque ticket pris ou en pass — nul
   // quand le runtime ne le sait pas. Les autres tickets n'y sont pas.
   activites: Map<number, ActiviteDeTicket | null>;
+  // Les captures de la dernière livraison de chaque ticket d'interface en
+  // pass ou servi dans les 24 h (captures.ts). Un ticket qui n'y est pas n'en
+  // a pas : il n'est pas d'interface, ou il n'a rien livré.
+  captures?: Map<number, Captures>;
   // Ce qui attend une décision du chef, le plus ancien d'abord.
   attend: Attente[];
   // Non nulle : plus rien ne cuit, et c'est le chef que toute la cuisine
@@ -160,6 +165,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
   const stations = annoncees.flatMap((station) => etatStation(base, station) ?? []);
   const gardeFous = etatDesGardeFous(base);
   const attend = attentesDuChef(base, rail, maintenant);
+  const livres = livresDepuis(base, new Date(maintenant.getTime() - 24 * HEURE_MS).toISOString());
   return {
     dernierSeq,
     projet: base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ?? null,
@@ -173,6 +179,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     grants: ACTIONS.flatMap((action) => etatDuGrant(base, action, maintenant) ?? []),
     rail,
     activites: activitesDuRail(base, rail),
+    captures: capturesDesLivraisons(journal, [...rail.filter(({ state }) => state === "pass" || state === "served").map(({ ticket }) => ticket), ...livres.map(({ ticket }) => ticket)]),
     attend,
     urgence: gardeFous.stoppedAt === null ? urgenceDuChef(base, rail, attend, stations) : null,
     alerteUrgence: gardeFous.stoppedAt === null ? alerteEnCours(base) : null,
@@ -194,9 +201,24 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
       fenetres: FENETRES_H.map((heures) => ({ heures, ...consommation(base, new Date(maintenant.getTime() - heures * HEURE_MS).toISOString()) })),
     },
     derive: franchis(livraisonsMergees(base), seuilsEnVigueur(base) ?? SANS_SEUIL),
-    livres: livresDepuis(base, new Date(maintenant.getTime() - 24 * HEURE_MS).toISOString()),
+    livres,
     evenements: journal.derniers(EVENEMENTS_MONTRES, RESUMES),
   };
+}
+
+// Les captures de la dernière livraison de chacun de ces tickets, s'il est
+// d'interface : ce que son dernier `cook.reported` livré en porte.
+function capturesDesLivraisons({ base }: Journal, tickets: number[]): Map<number, Captures> {
+  const lues = new Map<number, Captures>();
+  for (const ticket of new Set(tickets)) {
+    const [derniere] = base.lire<{ captures: string | null }>(
+      "SELECT json_extract(payload, '$.captures') AS captures FROM events WHERE ticket = ? AND type = 'cook.reported' AND json_extract(payload, '$.ending') = 'done' ORDER BY seq DESC LIMIT 1",
+      ticket,
+    );
+    const captures = derniere?.captures == null ? null : lireCaptures(JSON.parse(derniere.captures));
+    if (captures !== null) lues.set(ticket, captures);
+  }
+  return lues;
 }
 
 const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
@@ -650,7 +672,9 @@ export type Faits = {
   // tout autre ticket ; `revenu` — pour un ticket revenu de WAITING dans TODO,
   // pourquoi, dans les mots du runtime (« relance du 21/10 : pas de réponse »,
   // « nouveau sur l'issue — de <qui> ») ; `null` pour tout autre, et pour celui que
-  // le chef a repris lui-même.
+  // le chef a repris lui-même. `captures` : pour un ticket d'interface en pass
+  // ou servi, l'écran avant et après de sa dernière livraison, et si elle les
+  // porte tous (captures.ts, `CapturesVues`) — absent pour tout autre ticket.
   rail: Array<{
     ticket: number;
     etat: string;
@@ -660,6 +684,7 @@ export type Faits = {
     attente: { raison: string; colonne: string; retour: string | null } | null;
     tiers: { quoi: string; qui: string; depuis: string; relance: string; aLArrivee: string } | null;
     revenu: string | null;
+    captures?: CapturesVues;
   }>;
   // Les cooks en cours, comme `station` les montre. Le titre est celui du rail :
   // vide si le ticket l'a quitté pendant la cuisson.
@@ -681,7 +706,8 @@ export type Faits = {
   // `relecture` : ce que le reviewer a dit de ce qui a été servi, mot pour mot —
   // son `resume`, ses `constats` dans son ordre ; nulle quand aucune relecture
   // lisible ne porte sur la livraison servie (mergée à la main, d'avant elle).
-  livres: Array<{ ticket: number; titre: string; url: string | null; livre: string; station: string | null; pr: string | null; relecture: RelectureLivree | null }>;
+  // `captures` : comme sur le rail, pour un ticket d'interface.
+  livres: Array<{ ticket: number; titre: string; url: string | null; livre: string; station: string | null; pr: string | null; relecture: RelectureLivree | null; captures?: CapturesVues }>;
   // L'urgence : plus rien ne cuit, et c'est le chef que toute la cuisine
   // attend — nulle sinon. `depuis` : le début de l'arrêt total, stable tant
   // que ses causes ne changent pas. `retenus` : les tickets à l'arrêt, dans
@@ -762,6 +788,12 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string): Fait
     etat.rail.find((surLeRail) => surLeRail.ticket === ticket)?.url ?? (depot !== undefined && DEPOT_GITHUB.test(depot) ? `https://github.com/${depot}/issues/${ticket}` : null);
   const attendus = new Set<number>();
   const dernier = etat.evenements.at(-1);
+  // Les captures d'un ticket d'interface, par leur adresse : sans dépôt connu,
+  // aucune ne se montre.
+  const captures = (ticket: number) => {
+    const siennes = depot !== undefined && DEPOT_GITHUB.test(depot) ? etat.captures?.get(ticket) : undefined;
+    return siennes === undefined ? {} : { captures: capturesVues(depot as string, siennes) };
+  };
   return {
     etat: etatDuProjet(etat),
     lu: maintenant.toISOString(),
@@ -783,6 +815,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string): Fait
       attente: ticket.state === "86" ? { raison: direMiseDeCote(ticket.reason), colonne: etatLu(ticket), retour: ticket.until } : null,
       tiers: ticket.waitingFor === null ? null : { quoi: ticket.waitingFor.what, qui: ticket.waitingFor.who, depuis: ticket.waitingFor.since, relance: ticket.waitingFor.followUp, aLArrivee: ticket.waitingFor.onArrival },
       revenu: ticket.resumedBecause === null || ticket.resumedBecause === PAR_LE_CHEF ? null : ticket.resumedBecause,
+      ...(ticket.state === "pass" || ticket.state === "served" ? captures(ticket.ticket) : {}),
     })),
     // Une station ne lance un cook que pour un ticket.
     cooks: etat.auxFourneaux.flatMap(({ station, ticket }) =>
@@ -794,7 +827,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string): Fait
       attendus.add(ticket);
       return [{ ticket, titre: title ?? "", url: adresse(ticket), decision: decisionDe(attente) }];
     }),
-    livres: etat.livres.map(({ ticket, title, url, servedAt, station, pr, review }) => ({ ticket, titre: title, url: url ?? adresse(ticket), livre: servedAt, station, pr, relecture: relectureLivree(review) })),
+    livres: etat.livres.map(({ ticket, title, url, servedAt, station, pr, review }) => ({ ticket, titre: title, url: url ?? adresse(ticket), livre: servedAt, station, pr, relecture: relectureLivree(review), ...captures(ticket) })),
     urgence: faitsDUrgence(etat.urgence, etat.alerteUrgence, adresse),
   };
 }

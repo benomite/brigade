@@ -48,6 +48,7 @@ import type { RuntimeAvecRail } from "./alimenter.ts";
 import type { Mot } from "./arbitre.ts";
 import { ArbitreInjoignable, type Arbitrage, type Reponse } from "./arbitrage.ts";
 import { complet, manquant, type Calibrage } from "./calibrage.ts";
+import { capturesLivrees, direCaptures, estDInterface, type Captures } from "./captures.ts";
 import { absentesDuMotif, CLE_DES_CAPACITES, direManque, direStationAbsente, fournitTout, gesteDeCapacite, manque, manqueDuMotif, motifSansStation, motifStationAbsente } from "./capacites.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsClaude, consigne, direRefus, environnementCook, lireFlux, REFUS_MAX, ticketRemis, verdict, VARIABLES_DE_CLE, VARIABLES_DE_JETON, type Lecture, type Session } from "./claude.ts";
@@ -331,9 +332,10 @@ function rendre(message: string | null): Rendu {
 }
 
 // Le corps de la PR d'une livraison. Le calibrage manque si le ticket l'a
-// perdu depuis son cook.
-const corpsDePR = (station: string, numero: number, calibrage: Calibrage | null, compteRendu: string | null) =>
-  [`Ticket #${numero}, cuisiné par \`${station}\`${calibrage ? ` (\`${calibrage.model}\` / \`${calibrage.effort}\`)` : ""}.`, "", compteRendu ?? ""].join("\n");
+// perdu depuis son cook. `captures` : ce qu'en dit une livraison d'interface,
+// sous la première ligne — rien pour un autre ticket.
+const corpsDePR = (station: string, numero: number, calibrage: Calibrage | null, compteRendu: string | null, captures: string[] = []) =>
+  [`Ticket #${numero}, cuisiné par \`${station}\`${calibrage ? ` (\`${calibrage.model}\` / \`${calibrage.effort}\`)` : ""}.`, ...captures, "", compteRendu ?? ""].join("\n");
 
 // Ce que la station dit d'un cook qui finit alors que son ticket a quitté le
 // rail : sa livraison ne part pas en pass, et aucune PR n'est ouverte pour lui.
@@ -1148,6 +1150,31 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     ];
   };
 
+  // Les captures d'une livraison poussée, si son ticket est d'interface
+  // (captures.ts) : sa zone à la prise touche la vue de l'app, ou son issue
+  // porte `cook:design` — relue ici, le rail ne garde pas les labels. Nulles
+  // pour un autre ticket, et pour une livraison qu'on ne sait pas lire : rien
+  // n'en est dit plutôt qu'un manque inventé. Ne lève pas.
+  const capturesDe = async (numero: number, branche: string): Promise<Captures | null> => {
+    const zone = zoneALaPrise(numero);
+    let labels: string[] | null = null;
+    if (!estDInterface({ zone, labels })) {
+      try {
+        labels = (await github.issue(numero))?.labels ?? null;
+      } catch (erreur) {
+        avertir(`brigade : labels du ticket #${numero} illisibles, ses captures ne sont pas cherchées — ${message(erreur)}`);
+      }
+    }
+    if (!estDInterface({ zone, labels })) return null;
+    try {
+      return { sha: depot.tete(branche), screens: capturesLivrees(numero, depot.changes(branche)) };
+    } catch (erreur) {
+      avertir(`brigade : livraison du ticket #${numero} illisible, ses captures ne sont pas cherchées — ${message(erreur)}`);
+      return null;
+    }
+  };
+  const montrerCaptures = (numero: number, captures: Captures | null): string[] => (captures === null ? [] : ["", ...direCaptures(options.depotGitHub, numero, captures)]);
+
   // Une livraison n'est regardée que tant que son ticket l'attend : servi, ou
   // sorti du rail, plus personne ne l'ouvrira.
   const attendue = (numero: number): boolean => {
@@ -1201,8 +1228,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const distante = estDistante(station);
     const rendu = rendre(conclusion?.lecture.message ?? null);
     const compteRendu = rendu.summary;
-    const rapporter = (ending: FinDeCook, reason: string | null, pr: string | null) =>
-      noter(station, numero, { type: "cook.reported", payload: { run, ending, reason, summary: compteRendu, deliverable: rendu.deliverable, branch: branche, pr } });
+    const rapporter = (ending: FinDeCook, reason: string | null, pr: string | null, captures: Captures | null = null) =>
+      noter(station, numero, { type: "cook.reported", payload: { run, ending, reason, summary: compteRendu, deliverable: rendu.deliverable, branch: branche, pr, ...(captures === null ? {} : { captures }) } });
     // Le ticket a quitté le rail pendant la cuisson : plus rien ne suivra ce
     // que ce cook laisse, et c'est ici que le chef l'apprend.
     const parti = () => ticketDuRail(base, numero) === null;
@@ -1233,13 +1260,16 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         // Un renvoi livre sur la PR de la livraison qu'il corrige.
         let pr: string | null = reprise?.pr ?? null;
         let sansPR = "";
+        // Une livraison d'interface montre ses captures, sur la PR et sur le ticket.
+        const captures = sansCommit || sansDiff || parti() ? null : await capturesDe(numero, branche);
+        const montrees = montrerCaptures(numero, captures);
         try {
           if (!sansCommit && !parti()) {
             pr ??= await github.ouvrirPR({
               branche,
               base: options.base,
               titre: `#${numero} — ${ticket.title}`,
-              corps: corpsDePR(station, numero, calibrage, rendu.deliverable ?? compteRendu),
+              corps: corpsDePR(station, numero, calibrage, rendu.deliverable ?? compteRendu, montrees),
             });
           }
         } catch (erreur) {
@@ -1256,7 +1286,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         // reprise après un redémarrage ne la signale pas deux fois.
         const horsDeSaZone = base.transaction(() => {
           const lignes = sansCommit || sorti ? [] : signalerHorsZone(station, numero, run, branche);
-          rapporter("done", conclusion?.raison ?? null, pr);
+          rapporter("done", conclusion?.raison ?? null, pr, captures);
           return lignes;
         });
         if (sorti) {
@@ -1287,6 +1317,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
               ? [`Le cook avait laissé du travail non commité dans son worktree : la station l'a commité à sa place (\`${conclusion.recolte.slice(0, 7)}\`), et il fait partie de la livraison — la pass le juge avec le reste.`]
               : []),
             ...horsDeSaZone,
+            ...montrees,
             "",
             ...rendu.publie,
           ].join("\n"),
@@ -1869,13 +1900,15 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     } catch {
       // Une branche illisible : la livraison se raconte comme un diff.
     }
+    const captures = sansDiff ? null : await capturesDe(numero, branche);
+    const montrees = montrerCaptures(numero, captures);
     try {
       pr ??= (await github.prDeBranche(branche))?.url ?? null;
       if (!sansDiff) pr ??= await github.ouvrirPR({
         branche,
         base: options.base,
         titre: `#${numero} — ${ticket.title}`,
-        corps: corpsDePR(station, numero, complet(ticket) ? ticket : null, rendu.deliverable ?? compteRendu),
+        corps: corpsDePR(station, numero, complet(ticket) ? ticket : null, rendu.deliverable ?? compteRendu, montrees),
       });
     } catch (erreur) {
       sansPR = message(erreur);
@@ -1887,7 +1920,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       // Le ticket a pu quitter le rail, ou le chef le rendre, pendant l'appel.
       if (!sansCompteRendu(numero) || passDuTicket(base, numero)?.run !== run) return false;
       if (!sansDiff) horsDeSaZone = signalerHorsZone(station, numero, run, branche);
-      noter(station, numero, { type: "cook.reported", payload: { run, ending: "done", reason: sansDiff ? SANS_DIFF : null, summary: compteRendu, deliverable: rendu.deliverable, branch: branche, pr, reconciled: true } });
+      noter(station, numero, { type: "cook.reported", payload: { run, ending: "done", reason: sansDiff ? SANS_DIFF : null, summary: compteRendu, deliverable: rendu.deliverable, branch: branche, pr, reconciled: true, ...(captures === null ? {} : { captures }) } });
       return true;
     });
     if (!raconte) return;
@@ -1903,6 +1936,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             : "Aucun commit : le livrable de ce ticket est ce que le cook a délimité, ci-dessous, que le reviewer relit en pass.",
         ...masquageDuCook(masques),
         ...horsDeSaZone,
+        ...montrees,
         "",
         ...rendu.publie,
       ].join("\n"),

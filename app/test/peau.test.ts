@@ -170,7 +170,8 @@ describe("les polices : Archivo pour l'interface, JetBrains Mono pour ce qui se 
     // Ce que la page charge est à côté d'elle, ou dans les dépendances de l'app.
     for (const [, cible = ""] of html.matchAll(/(?:href|src)="([^"]+)"/g)) assert.ok(existsSync(join(VUE, cible)), `index.html charge « ${cible} », qui n'est pas dans l'app`);
     const [, politique = ""] = /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(html) ?? [];
-    assert.deepEqual(politique.split("; "), ["default-src 'none'", "script-src 'self' 'unsafe-inline'", "style-src 'self' 'unsafe-inline'", "font-src 'self'"]);
+    // Une image ne vient que du process principal, en `data:` : les captures d'une livraison (captures.ts).
+    assert.deepEqual(politique.split("; "), ["default-src 'none'", "script-src 'self' 'unsafe-inline'", "style-src 'self' 'unsafe-inline'", "font-src 'self'", "img-src data:"]);
     // Et le module de la vue ne va rien chercher lui-même.
     assert.doesNotMatch(lire("vue.js"), /\bfetch\(|XMLHttpRequest|WebSocket|EventSource|new FontFace|import\(\s*["'`]https?:/);
   });

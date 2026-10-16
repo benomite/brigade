@@ -38,6 +38,7 @@ import { cuisinesIci, roleDe } from "./poste/role.ts";
 import { tenirStationLocale } from "./poste/station.ts";
 import { ouvrirPty } from "./pty.ts";
 import { LABEL_RETENUE, lever, lireQuestion, repondre as repondreQuestion, titreDe } from "./question.ts";
+import { lireCapture } from "./captures.ts";
 import { relanceDe, tenirPassage } from "./rattrapage.ts";
 import { APP, tenirRetards } from "./retard.ts";
 import { ouvrirTours } from "./saisie.ts";
@@ -683,6 +684,15 @@ ipcMain.handle("ouvrirLien", (_, nom: unknown, ticket: unknown, url: unknown) =>
     () => true,
     () => false,
   );
+});
+// Une capture d'un ticket d'interface, sur sa carte (captures.ts) : lue par le `gh` du poste à
+// l'adresse que la box a rendue dans `facts`, et rendue à la vue en `data:`. La vue nomme le
+// projet, le ticket, l'écran et le moment ; l'adresse ne quitte pas le process principal.
+ipcMain.handle("lireCapture", (_, nom: unknown, ticket: unknown, ecran: unknown, moment: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return undefined;
+  const adresse = faits.capture(vise.nom, ticket, ecran, moment);
+  return adresse === undefined ? { sans: "the box gave no address for this screenshot: the app has nothing to read" } : lireCapture(reglagesGh(), adresse);
 });
 // Le titre d'une issue que la box ne donne pas (hors rail) : lu par le `gh` du poste, à l'adresse que
 // la box a rendue pour ce ticket — jamais une adresse venue de la vue.

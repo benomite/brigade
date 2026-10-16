@@ -15,6 +15,7 @@ import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
 import { lignesDuRail, porter, type Porte } from "./bon.ts";
 import type { Echec, Lecture } from "./box.ts";
+import { capturesDeCarte, type CapturesDeCarte, type CapturesLues, type Moment } from "./captures.ts";
 import { attenduDe, decisionLue, type Decision } from "./decision.ts";
 import { entete, type Entete } from "./fiche.ts";
 
@@ -38,7 +39,9 @@ export type Attendu = { ticket: number; titre: string; url: string | null; decis
 // la connaît pas ; `relecture`, ce que le reviewer a dit de ce qui a été servi —
 // nulle quand aucune relecture lisible ne porte dessus, absente d'un runtime
 // d'avant ce champ.
-export type Livre = { ticket: number; titre: string; url: string | null; livre: string; station: string | null; pr: string | null; relecture?: Relecture | null };
+// `captures` : pour un ticket d'interface, l'écran avant et après de sa livraison (captures.ts) —
+// absentes pour tout autre ticket, et d'un runtime d'avant ce champ.
+export type Livre = { ticket: number; titre: string; url: string | null; livre: string; station: string | null; pr: string | null; relecture?: Relecture | null; captures?: CapturesLues };
 // Le résumé du reviewer et ses constats, dans ses mots (runtime/src/reviewer.ts).
 export type Constat = { gravite: string; fichier: string | null; constat: string };
 export type Relecture = { resume: string; constats: Constat[] };
@@ -93,7 +96,9 @@ export type Faits = {
   // `revenu` : pourquoi un ticket est revenu de WAITING (« relance du 21/10 : pas de
   // réponse », « nouveau sur l'issue — de … »), dans les mots du runtime — nul pour un
   // autre, et pour un ticket que le chef a repris lui-même ; absent d'un runtime d'avant.
-  rail: { ticket: number; etat: string; titre: string; url: string; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null }[];
+  // `captures` : pour un ticket d'interface en pass ou servi, l'écran avant et après de sa
+  // dernière livraison (captures.ts) — absentes pour tout autre ticket.
+  rail: { ticket: number; etat: string; titre: string; url: string; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; captures?: CapturesLues }[];
   cooks?: Cook[];
   attend?: Attendu[];
   livres?: Livre[];
@@ -117,7 +122,9 @@ export type Faits = {
 // cette phrase et les gestes de la fiche ; absente d'un runtime d'avant ce champ. `gestes` : ceux de WAITING que la carte
 // porte (attente.ts) — « waiting for… » sur une carte de TODO que le runtime laisse attendre,
 // « resume » et « it arrived » sur une carte de WAITING ; absent, elle n'en porte aucun.
-export type Carte = { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; fiche: Entete; gestes?: GesteDAttente[] } & Porte;
+// `captures` : celles d'un ticket d'interface livré, avant et après (captures.ts) — absentes,
+// le ticket n'est pas d'interface ou n'a rien livré, et la carte n'en dit rien.
+export type Carte = { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[] } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -224,6 +231,21 @@ function comprendreAlerteUrgence(valeur: unknown, champ: string): AlerteUrgence 
   };
 }
 
+// Les captures d'une livraison d'interface : si elle les porte toutes, et chaque écran avec
+// l'adresse de sa capture avant et de sa capture après, nulle quand elle manque.
+function comprendreCaptures(brut: unknown, lequel: string): CapturesLues {
+  const lu = objet(brut, lequel);
+  if (typeof lu.complet !== "boolean") refuser(`${lequel}.complet`, "a boolean");
+  return {
+    complet: lu.complet as boolean,
+    ecrans: (Array.isArray(lu.ecrans) ? lu.ecrans : refuser(`${lequel}.ecrans`, "a list")).map((ecran: unknown, rang) => {
+      const sien = `${lequel}.ecrans[${rang}]`;
+      const lue = objet(ecran, sien);
+      return { ecran: texte(lue.ecran, `${sien}.ecran`), avant: ouRien(lue.avant, `${sien}.avant`, texte), apres: ouRien(lue.apres, `${sien}.apres`, texte) };
+    }),
+  };
+}
+
 function comprendreAttente(brut: unknown, lequel: string): Attente {
   const lu = objet(brut, lequel);
   return { raison: texte(lu.raison, `${lequel}.raison`), colonne: texte(lu.colonne, `${lequel}.colonne`), retour: ouRien(lu.retour, `${lequel}.retour`, texte) };
@@ -290,6 +312,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
           ...(lu.attente === undefined ? {} : { attente: ouRien(lu.attente, `${lequel}.attente`, comprendreAttente) }),
           ...(lu.tiers === undefined ? {} : { tiers: ouRien(lu.tiers, `${lequel}.tiers`, comprendreTiers) }),
           ...(lu.revenu === undefined ? {} : { revenu: ouRien(lu.revenu, `${lequel}.revenu`, texte) }),
+          ...(lu.captures === undefined ? {} : { captures: comprendreCaptures(lu.captures, `${lequel}.captures`) }),
         };
       }),
       ...(racine.cooks === undefined
@@ -325,6 +348,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
                 station: ouRien(lu.station, `${lequel}.station`, texte),
                 pr: ouRien(lu.pr, `${lequel}.pr`, texte),
                 ...(lu.relecture === undefined ? {} : { relecture: ouRien(lu.relecture, `${lequel}.relecture`, comprendreRelecture) }),
+                ...(lu.captures === undefined ? {} : { captures: comprendreCaptures(lu.captures, `${lequel}.captures`) }),
               };
             }),
           }),
@@ -549,6 +573,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
       ...(dit === undefined || donne?.decision === undefined ? {} : { decision: donne.decision }),
       // Livré, d'une box d'avant `livres` : la relecture n'en vient pas, la carte le dit.
       ...(connu?.etat === "servi" && faits.livres === undefined ? { livraison: livraison(undefined) } : {}),
+      ...(connu?.captures === undefined ? {} : { captures: capturesDeCarte(connu.captures) }),
       ...porte,
       // La PR n'est donnée que d'un ticket livré : ici, la box ne la donne pas.
       fiche: {
@@ -594,7 +619,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
   // rail s'il n'en a pas ; quand il a été livré, à l'horloge de la box ; qui l'a
   // cuisiné ; sa PR mergée ; ce qui a été livré, dans les mots de la relecture.
   // Ce que la file n'en dit pas est écrit.
-  const livre = ({ ticket, titre, url, livre: quand, station, pr, relecture }: Livre): Carte => {
+  const livre = ({ ticket, titre, url, livre: quand, station, pr, relecture, captures }: Livre): Carte => {
     const connu = connus.get(ticket);
     const adresse = url ?? connu?.url;
     const nomme = titre === "" ? connu?.titre : titre;
@@ -607,6 +632,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
       attend: [],
       ...(pr === null ? {} : { pr: ouvrable(pr) }),
       livraison: livraison(relecture),
+      ...(captures === undefined ? {} : { captures: capturesDeCarte(captures) }),
       dit: [
         { libelle: "served", valeur: avant(quand, faits.lu) },
         ...(station === null ? [] : [{ libelle: "cooked by", valeur: station, exact: true as const }]),
@@ -739,6 +765,14 @@ export function tenirFaits() {
         donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.url ??
         donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.url;
       return url != null && ouvrable(url) ? url : undefined;
+    },
+    // L'adresse d'une capture d'un ticket d'interface, telle que la box l'a donnée à la dernière
+    // lecture — sa livraison servie d'abord, puis le rail. Rien pour une capture qu'elle n'a pas.
+    capture(projet: unknown, ticket: unknown, ecran: unknown, moment: unknown): string | undefined {
+      const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;
+      if (moment !== "avant" && moment !== "apres") return undefined;
+      const captures = donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.captures ?? donnes?.rail.find((candidat) => candidat.ticket === ticket)?.captures;
+      return captures?.ecrans.find((candidat) => candidat.ecran === ecran)?.[moment as Moment] ?? undefined;
     },
     // La PR mergée d'un ticket livré, telle que la box l'a donnée à la dernière lecture.
     pr(projet: unknown, ticket: unknown): string | undefined {

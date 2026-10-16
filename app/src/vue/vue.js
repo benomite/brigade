@@ -459,6 +459,11 @@ const questions = new Map();
 // par `<projet>#<ticket>` : `{ titre }`, ou `{ sans }` quand l'issue n'a pas pu être lue.
 /** @type {Map<string, { titre: string } | { sans: string } | undefined>} */
 const titres = new Map();
+// Les captures des tickets d'interface, lues par le process principal (captures.ts, `lireCapture`), par
+// `<projet>#<ticket>:<écran>:<moment>@<commit>` : `{ image }`, en `data:`, ou `{ sans }` quand elle n'a
+// pas pu être lue. Présente sans valeur, la lecture est en route.
+/** @type {Map<string, import("../captures.ts").Image | undefined>} */
+const capturesLues = new Map();
 // L'histoire et le coût de chaque ticket dont la fiche a été ouverte (histoire.ts), par
 // `<projet>#<ticket>` : relus à chaque ouverture. Absente de la table, la lecture est en route.
 /** @type {Map<string, import("../histoire.ts").Histoire>} */
@@ -2043,6 +2048,7 @@ function poserBon(projet, carte, tonAttend) {
     bon.append(resume, bloc("small", `asked by ${poseeLa.auteur}, ${dateHeure(poseeLa.a)}`));
   }
   if (livraison !== undefined) bon.append(...poserLivraison(projet, ticket, livraison));
+  if (carte.captures !== undefined) bon.append(...poserCaptures(projet, ticket, carte.captures));
   if (dit.length > 0) {
     const porte = document.createElement("ul");
     porte.className = "porte";
@@ -2222,6 +2228,63 @@ function poserLivraison(projet, ticket, livraison) {
   );
   remarques.append(bloc("summary", livraison.remarques), liste);
   return [resume, remarques];
+}
+
+// Les captures d'un ticket d'interface, sur sa carte (captures.ts) : chaque écran avant et après, côte à
+// côte, chacun sous sa légende — lues dès que la carte se pose, sans un clic. Une capture que la
+// livraison ne porte pas le dit à sa place ; une livraison qui ne les porte pas toutes le dit en tête, en
+// une ligne, où les poser au survol. Un clic sur une image ouvre la fiche, comme le reste de la carte.
+/** @param {Projet} projet @param {number} ticket @param {import("../captures.ts").CapturesDeCarte} captures */
+function poserCaptures(projet, ticket, { ecrans, incomplete }) {
+  const poses = [];
+  if (incomplete !== undefined) {
+    const ligne = bloc("p", incomplete.ligne);
+    ligne.className = "captures-manquantes";
+    ligne.title = incomplete.detail;
+    poses.push(ligne);
+  }
+  for (const { ecran, avant, apres } of ecrans) {
+    const paire = document.createElement("div");
+    paire.className = "captures";
+    paire.append(...[avant, apres].map((capture) => poserCapture(projet, ticket, ecran, capture)));
+    poses.push(paire);
+  }
+  return poses;
+}
+
+/** @param {Projet} projet @param {number} ticket @param {string} ecran @param {import("../captures.ts").Capture} capture */
+function poserCapture(projet, ticket, ecran, { moment, legende, livree, version }) {
+  const figure = document.createElement("figure");
+  figure.dataset.moment = moment;
+  const cle = `${projet.nom}#${ticket}:${ecran}:${moment}@${version}`;
+  if (livree && !capturesLues.has(cle)) void lireCapture(projet, ticket, ecran, moment, cle);
+  const lue = livree ? capturesLues.get(cle) : undefined;
+  if (lue !== undefined && "image" in lue) {
+    const image = /** @type {HTMLImageElement} */ (document.createElement("img"));
+    image.src = lue.image;
+    image.alt = legende;
+    figure.append(image);
+  } else {
+    const place = bloc("span", !livree ? "missing" : lue === undefined ? "loading…" : "not available");
+    place.className = "place";
+    if (lue !== undefined && "sans" in lue) place.title = lue.sans;
+    figure.append(place);
+  }
+  const titre = document.createElement("figcaption");
+  titre.textContent = legende;
+  figure.append(titre);
+  return figure;
+}
+
+/** @param {Projet} projet @param {number} ticket @param {string} ecran @param {"avant" | "apres"} moment @param {string} cle */
+async function lireCapture(projet, ticket, ecran, moment, cle) {
+  capturesLues.set(cle, undefined);
+  try {
+    capturesLues.set(cle, (await brigade.lireCapture(projet.nom, ticket, ecran, moment)) ?? { sans: "the app has nothing to read" });
+  } catch (erreur) {
+    capturesLues.set(cle, { sans: erreur instanceof Error ? erreur.message : String(erreur) });
+  }
+  if (courant?.nom === projet.nom && !rail.hidden && tenus.has(projet.nom)) poserRail(courant);
 }
 
 // La fiche d'un ticket, par-dessus le rail : pour l'instant son en-tête — son numéro, son titre
