@@ -37,11 +37,12 @@ import type { Echec, Lecture } from "./box.ts";
 import { COMMANDE as FAITS, comprendre, duree, tick, titreDEchec, type DecisionUrgente, type Faits } from "./faits.ts";
 import { GRANTS } from "./gestes.ts";
 import { COMMANDE as MANAGER, managerDe, type Interrupteur } from "./manager.ts";
+import { heureHM } from "./format.ts";
 import type { Controle, Montree as Verification } from "./service.ts";
 
 // `station` et `box` : ce qu'un projet installé a perdu — une station, un geste de box. `urgence` :
 // toute la cuisine attend le chef.
-export type Sujet = "urgence" | "manager" | "cuisine" | "grant" | "station" | "box" | "renouvellement" | "verification";
+export type Sujet = "urgence" | "github" | "manager" | "cuisine" | "grant" | "station" | "box" | "renouvellement" | "verification";
 // Ce que le bouton d'une ligne appelle : un geste du socle (gestes.ts), et le grant qu'il
 // nomme ; une demande au second, faite de ce que la ligne dit (demande.ts) ; un onglet de
 // contenu (onglets.ts).
@@ -70,7 +71,10 @@ export type Sans = { sans: string };
 // `attend` : ce bloc, quand il a été mis à part (attend.ts, `mettreAPart`).
 // `controle` : ce que la box a dit d'un projet installé, ses stations et ses manques (service.ts) —
 // absent, rien n'en a été lu : un projet pas encore installé, ou pas encore contrôlé.
-export type Lu = { projet: string; faits: Faits | Sans; status: string | Sans; attend?: string; manager: Interrupteur | Sans; controle?: Controle };
+export type Lu = { projet: string; faits: Faits | Sans; status: string | Sans; attend?: string; manager: Interrupteur | Sans; controle?: Controle; limite?: LimiteDeLApp };
+
+// Ce que l'app a lu de sa propre limite : GitHub refuse ses appels, et `reprise` est l'instant où il les rend, nul s'il ne le dit pas.
+export type LimiteDeLApp = { reprise: string | null };
 
 const s = (combien: number) => (combien > 1 ? "s" : "");
 const court = (commit: string) => commit.slice(0, 12);
@@ -93,6 +97,28 @@ const nonVerifie = (sujet: Sujet, dit: string, { pourquoi, releve, geste, prix, 
   ...(appel === undefined ? {} : { appel }),
   prix,
 });
+
+// --- La limite d'appels de GitHub --------------------------------------------------
+//
+// La box et l'app parlent à GitHub avec le même compte : la limite est la même pour les deux. La box
+// la dit dans `faits` (`limiteGithub`, lu sur le compteur de la station) ; l'app, elle, la lit de sa
+// propre erreur de limite (stations/stations.ts) — c'est elle qui reste quand la box ne passe plus
+// par GitHub. Une seule ligne, l'heure de reprise à l'heure locale du chef, jamais le texte de `gh`.
+// Elle n'attend rien du chef : elle tombe d'elle-même quand les appels reprennent.
+function deLaLimite(faits: Faits | Sans, limite: LimiteDeLApp | undefined): Alerte[] {
+  const reprise = limite !== undefined ? limite.reprise : "sans" in faits ? null : (faits.limiteGithub ?? null);
+  if (limite === undefined && ("sans" in faits || faits.limiteGithub === undefined)) return [];
+  return [
+    {
+      sujet: "github",
+      verifie: true,
+      ton: "jaune",
+      dit: `GitHub limite les appels, reprise vers ${reprise === null ? "une heure que GitHub ne donne pas" : heureHM(reprise)}`,
+      geste: "nothing to do: the calls resume by themselves when GitHub lifts the limit",
+      prix: AUCUN,
+    },
+  ];
+}
 
 // --- L'urgence ----------------------------------------------------------------
 //
@@ -548,8 +574,8 @@ const avecBouton = (alerte: Alerte): Alerte => {
 
 // La bande d'un projet, d'après ce qui en a été lu : l'urgence, le manager, la cuisine — et
 // son setup —, le grant, et ce que le projet installé a perdu.
-export function alertes({ projet, faits, status, attend, manager, controle }: Lu): Alerte[] {
-  return parGravite([...deLUrgence(faits), ...duManager(manager), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle), ...dUnePanne(controle)].map(avecBouton));
+export function alertes({ projet, faits, status, attend, manager, controle, limite }: Lu): Alerte[] {
+  return parGravite([...deLUrgence(faits), ...deLaLimite(faits, limite), ...duManager(manager), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle), ...dUnePanne(controle)].map(avecBouton));
 }
 
 // La plus grave d'abord : l'urgence au-dessus de tout, puis une alerte lue avant un état non vérifié,
@@ -597,6 +623,7 @@ type Source = "faits" | "status" | "manager" | "controle";
 // Quelles lectures disent chaque sujet : une réception ne compte que pour les alertes qu'elle a relues.
 const LECTURES_DE: Record<Sujet, readonly Source[]> = {
   urgence: ["faits"],
+  github: ["faits"],
   manager: ["manager"],
   cuisine: ["faits", "status"],
   grant: ["status"],
@@ -615,6 +642,8 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
   const managers = new Map<string, Interrupteur | Sans>();
   // Le dernier contrôle d'un projet installé (service.ts) : il vaut jusqu'au suivant.
   const controles = new Map<string, Controle>();
+  // La limite que l'app a lue elle-même sur GitHub : elle vaut jusqu'à la lecture suivante des stations.
+  let limiteDeLApp: LimiteDeLApp | undefined;
   // Ce que la bande de chaque projet dit maintenant : le suivi de chaque ligne, et la bande rendue.
   // `origine` : la lecture dont l'alerte vient ; `rates` : ses échecs de suite, et eux seuls.
   type Suivi = { origine?: Source; rates: number; dite?: { alerte: Alerte; depuis: number } };
@@ -630,6 +659,7 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
       ...(attend === undefined ? {} : { attend }),
       manager: managers.get(projet) ?? { sans: MANAGER_PAS_DIT },
       ...(controle === undefined ? {} : { controle }),
+      ...(limiteDeLApp === undefined ? {} : { limite: limiteDeLApp }),
     });
   };
   // La bande à dire après une réception de `source` : l'état lu, passé par ce que le chef a le temps de lire.
@@ -703,6 +733,11 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
         faits.set(lecture.projet, "informe" in lu ? { sans: `the box did not return the shape of \`${FAITS}\`: ${lu.informe}` } : lu);
       }
       return bande(lecture.projet, "faits");
+    },
+    // La lecture des stations sur GitHub : si GitHub limite les appels du compte, chaque projet le dit.
+    limite(vue: LimiteDeLApp | undefined): Bande[] {
+      limiteDeLApp = vue;
+      return [...suivis.keys()].map((projet) => bande(projet));
     },
     // Une lecture de `status`, son bloc `attend` mis à part : les lignes de tête restent.
     status(montree: Montree): Bande {

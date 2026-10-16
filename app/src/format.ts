@@ -10,5 +10,11 @@ export const dateHeure = (instant: number | string | Date): string => new Date(i
 
 export const majuscules = (texte: string): string => texte.toLocaleUpperCase(LOCALE);
 
+// L'heure locale en 24 h, « 14:32 » : celle des lignes qui annoncent une reprise.
+export const heureHM = (instant: number | string | Date): string => {
+  const d = new Date(instant);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+
 // L'heure sans ses secondes (« 3:16 PM ») : celle qu'on annonce, pas celle qu'on a lue.
 export const heureCourte = (instant: number | string | Date): string => new Date(instant).toLocaleTimeString(LOCALE, { hour: "numeric", minute: "2-digit" });
