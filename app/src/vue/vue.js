@@ -1893,7 +1893,7 @@ function poserCarte(ou, projet) {
     titre.className = "sans-faits";
     if ("informe" in tenu) return ou.replaceChildren(titre, lectureIndisponible(document, "the box answered with something the app does not draw", `${tenu.rendu}\n\nThis is not the shape the app draws: ${tenu.informe}.\n${sansForme(projet)}`));
     // Le même cas que sous `status`, avec son renvoi : un refus du geste n'est pas un runtime à mettre à jour.
-    return ou.replaceChildren(titre, ...obtenu(projet, tenu, `${SANS_REPONSE}\n\n${sansDessin(projet)}`));
+    return ou.replaceChildren(titre, ...obtenuEnUneLigne(projet, tenu, `${SANS_REPONSE}\n\n${sansDessin(projet)}`));
   }
   const { tableau } = tenu;
   const tete = document.createElement("p");

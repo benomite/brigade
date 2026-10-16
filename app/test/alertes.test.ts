@@ -592,4 +592,14 @@ describe("l'accueil : ce qu'on peut ou doit faire en premier, la lecture en éch
     const visible = (article?.textContent ?? "").replace(/\s+/g, " ");
     assert.doesNotMatch(visible, /ssh|usage|code de sortie|exit code/i);
   });
+
+  test("une carte dont `faits` échoue se dit en une ligne : ni `ssh`, ni usage, ni code de sortie à plat", async () => {
+    const vue = await ouvrir();
+    const { projet, a, erreur, atteinte, cas } = PAS_JOINT;
+    vue.dire("surFaits", { projet, a, erreur, atteinte, cas, titre: "facts: the box did not answer", demande: vue.dernier("faits")[0] as number });
+    const [article] = vue.element("tous").dessous("article");
+    const visible = (article?.textContent ?? "").replace(/\s+/g, " ");
+    assert.match(visible, /the box could not be reached/);
+    assert.doesNotMatch(visible, /ssh|usage|code de sortie|exit code/i);
+  });
 });
