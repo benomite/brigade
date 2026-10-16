@@ -1,17 +1,16 @@
 ## Équipe multi-agents (plugin brigade)
 
-- **Rôles actifs** : PO, Manager, Dev, Designer
-- **Roadmap** : issue #1 (writer unique = Manager)
+- **Acteurs** : le chef, le second (en local) et la cuisine (runtime, manager, cooks, pass)
+- **Interface** : tout travail d'interface est porté par le cook design de la cuisine (#837)
 - **Branche d'intégration** : `v2`
 - **Worktrees** : `<parent du dépôt>/brigade-wt/<n>-<slug>` — frère du dépôt, le parent se calcule (`dirname "$(git rev-parse --show-toplevel)"`)
 - **Setup worktree** : `.claude/brigade/worktree-setup.sh <n> <WT>`
 - **Gates** : `.claude/brigade/gates.sh <WT>`, puis `/code-review`
 - **Zones de fichiers** : trois zones de produit, qui n'ont pas les mêmes règles.
   - **Runtime** — `runtime/` : le runtime de la V2, TypeScript exécuté par Node 26, avec son `package.json`. Une issue runtime écrit ici, et nulle part dans la zone plugin.
-  - **App** — `app/` : l'app desktop de la V2 (Electron, xterm.js, node-pty), TypeScript sans build, avec son `package.json`. Une issue app écrit ici, et n'ajoute **rien** au runtime : l'app lance les commandes qui existent, elle n'en double aucune. `app/src/vue/` (la peau) a un owner à part, le Designer : un dev n'y écrit pas pendant qu'une PR `design` y est ouverte. La maquette est dans `docs/maquettes/app/` ; un ticket d'app cite l'écran qu'il sert.
+  - **App** — `app/` : l'app desktop de la V2 (Electron, xterm.js, node-pty), TypeScript sans build, avec son `package.json`. Une issue app écrit ici, et n'ajoute **rien** au runtime : l'app lance les commandes qui existent, elle n'en double aucune. `app/src/vue/` (la peau) est portée par le cook design (#837). La maquette est dans `docs/maquettes/app/` ; un ticket d'app cite l'écran qu'il sert.
   - **Plugin V1** — `commands/` (définition des rôles), `agents/` (le dev-teammate spawné), `codex/skills/` (miroir Codex, source que `/brigade:sync` copie chez le projet consommateur), `.claude-plugin/` (manifests). `evals/` porte les cas d'évaluation de ces rôles.
   - **Communs** — `scripts/` (outillage de release), `docs/`, `.claude/brigade/` (gates et setup de worktree).
-  - Le Designer a sa peau ici : `app/src/vue/` (l'app). Son terrain est aussi le rendu textuel des rôles (formulations, tableaux, lisibilité en terminal).
 - **Dev local** :
   - **Runtime** — Node 26, sans build. Tests : `npm --prefix runtime test` (ils passent sur un clone nu, sans rien installer). Contrôle de types : `npm --prefix runtime run typecheck` (réclame les dépendances de dev, posées par le setup de worktree). Lancer : `npm --prefix runtime start`, après le setup — l'état vit dans `$BRIGADE_STATE_DIR`. **Neuf variables sont obligatoires** (`BRIGADE_STATE_DIR`, `BRIGADE_PROJECT`, `BRIGADE_GITHUB_REPO`, `BRIGADE_REPO_DIR`, `BRIGADE_BASE_BRANCH`, et le calibrage du manager et du reviewer : `BRIGADE_MANAGER_MODEL`, `BRIGADE_MANAGER_EFFORT`, `BRIGADE_REVIEWER_MODEL`, `BRIGADE_REVIEWER_EFFORT`) : le setup n'en pose qu'une, les huit autres sont à toi, et le runtime refuse de démarrer en nommant celle qui manque. Le détail est dans `docs/runtime.md` (« Neuf variables, aucun défaut » et « Sur le poste de dev »). **Lancé ainsi, c'est une vraie cuisine : `start` lance de vrais cooks sur le quota Max, sans demande de permission.** Les commandes du chef se lancent par `npm --prefix runtime run <commande>` : `journal` (relire le journal), `rail` (le rail des tickets), `garde-fous` (voir et régler les plafonds), `base` (voir la base d'intégration, faire rejouer ses gates quand elle est rouge), `installation` (vérifier qu'un projet est prêt à être servi — le parcours est dans `docs/installer.md`), plus `status`, `station`, `pass` et `grant` — la liste fait foi dans `runtime/package.json`. Aucun démon ne tourne sur le poste de dev ; les tests pilotent un faux `claude` (`BRIGADE_CLAUDE_BIN`) et ne consomment aucun quota.
   - **App** — Tests : `npm --prefix app test` ; contrôle de types : `npm --prefix app run typecheck` — les deux réclament les dépendances, posées par le setup de worktree **sans le binaire d'Electron** (311 Mo), qu'aucun test ne lance. Lancer : `npm --prefix app start`, qui pose ce binaire au premier lancement. **Lancée ainsi, c'est une vraie app : chaque espace ouvert lance un vrai `claude` dans le dossier du projet** — pour l'essayer sans quota, `BRIGADE_CLAUDE_BIN=app/test/aides/faux-claude.sh` et `BRIGADE_APP_CONFIG=<un fichier d'essai>`. **Et un projet qui déclare `hote` (le nom par lequel ton `ssh` joint sa box) est lu par un vrai `ssh` toutes les trente secondes** — `BRIGADE_SSH_BIN=<un faux ssh>` pour l'essayer sans box. Les projets se déclarent dans `~/.config/brigade/app.json`, hors du dépôt. Le détail est dans `docs/app.md`.
@@ -20,7 +19,6 @@
 - **Doc vivante** : `docs/` — toute livraison qui change le comportement d'un rôle met à jour la doc concernée sous `docs/`.
 - **Specs / plans** : `docs/superpowers/specs/<AAAA-MM-JJ>-<slug>.md`
 - **Doc produit** : `README.md` — c'est lui qui décrit le protocole tel que l'utilisateur le vit (rôles, handoffs, règles non négociables).
-- **Skills en boucle** : PO → `superpowers:brainstorming` puis `superpowers:writing-plans` quand une idée part en spec ; Dev → selon la zone : `superpowers:test-driven-development` sur le runtime et sur l'app, `superpowers:writing-skills` sur le plugin V1 (le produit livré y *est* du markdown de skill, ses règles s'appliquent) ; Manager → aucune ; Designer → aucune.
 
 ### Conventions propres à ce dépôt
 
