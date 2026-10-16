@@ -10,8 +10,9 @@
 // pannes, code — a changé depuis sa dernière écriture, sans appeler GitHub ; elle
 // n'écrit que sur changement, ou en battement de vie toutes les cinq minutes.
 // Deux écritures, forcées (`publier()`) ou non, sont toujours distantes d'au
-// moins une minute. Arrêtée proprement, elle écrit l'heure de son arrêt : l'app
-// la dit hors ligne dès sa lecture suivante. Éteinte d'un coup, c'est son signe
+// moins une minute — sauf l'arrêt : arrêtée proprement, elle écrit tout de suite
+// l'heure de son arrêt, l'état final ne se perd pas et l'app la dit hors ligne dès
+// sa lecture suivante. Éteinte d'un coup, c'est son signe
 // de vie qui vieillit, et l'app le voit.
 //
 // Ce qu'elle garde d'une fois sur l'autre — son gist, son code, son appairage —
@@ -66,7 +67,8 @@ export type Presence = {
   // Le code à taper dans l'app ; null une fois la station appairée, ou tant
   // que son gist n'est pas créé.
   code(): string | null;
-  // Plus de signe de vie : la station écrit l'heure de son arrêt.
+  // Plus de signe de vie : la station écrit l'heure de son arrêt, tout de suite
+  // (la seule écriture que l'écart minimal ne retient pas).
   arreter(): Promise<void>;
 };
 
@@ -200,7 +202,7 @@ export function tenirPresence(options: OptionsPresence): Presence {
   };
 
   const cycle = async (arret: boolean) => {
-    let instant = maintenant();
+    const instant = maintenant();
     let appele = false;
     if (etat.gist !== null && !etat.appairee && !arret) {
       await lireAppairage(etat.gist);
@@ -209,14 +211,6 @@ export function tenirPresence(options: OptionsPresence): Presence {
     if (!arret) renouvelerCode(instant);
     // Une station qui s'arrête avant d'avoir publié quoi que ce soit n'a rien à dire.
     if (arret && etat.gist === null) return;
-    if (arret) {
-      // L'arrêt aussi respecte l'écart : il attend le reste. Il ne retient pas le
-      // process : une station qu'on arrête n'attend pas une minute pour le dire,
-      // et l'app la dit hors ligne à son signe de vie manqué.
-      const reste = dernierEcrit + ECART_MINIMAL_MS - instant;
-      if (reste > 0) await new Promise<void>((fin) => apres(fin, reste, false));
-      instant = maintenant();
-    }
     let ecriture = preparer(instant, arret);
     const ecart = instant - dernierEcrit;
     const aEcrire = arret || demandee || etat.gist === null || ecriture.cle !== publie || ecart >= BATTEMENT_MS;

@@ -53,7 +53,7 @@ test("un gist supprimé se dit absent ; une panne de GitHub lève, et nomme ce q
   await assert.rejects(canal.creer("x", {}), /error connecting to api\.github\.com/);
 });
 
-test("la station réelle affiche son code, publie « aucun projet » sur GitHub, et ne réécrit pas pour son arrêt dans la minute de son écriture", async (t) => {
+test("la station réelle affiche son code, publie « aucun projet » sur GitHub, et y écrit l'heure de son arrêt", async (t) => {
   const github = unGitHub(t);
   const racine = join(repertoireTemporaire(t), "station");
   mkdirSync(racine);
@@ -72,9 +72,7 @@ test("la station réelle affiche son code, publie « aucun projet » sur GitHub,
 
   station.process.kill("SIGTERM");
   assert.equal(await station.fin, 0);
-  // Arrêtée moins d'une minute après son écriture, elle ne la double pas : l'écart
-  // minimal l'emporte, et l'heure de l'arrêt s'écrit passé cet écart (presence.test.ts).
-  assert.equal(document().arreteeLe, null);
+  assert.ok(document().arreteeLe);
   // Tout est passé par `gh api`, sur les gists du compte, et rien d'autre.
   assert.ok(github.appels().split("\n").filter(Boolean).every((appel) => /^api (-X (POST|PATCH) )?\/gists(\/[a-z0-9]+)?( --input -)?$/.test(appel)), github.appels());
 });

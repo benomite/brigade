@@ -98,12 +98,7 @@ function unePresence(t: TestContext, options: { racine?: string; projets?: strin
     apres: horloge.apres,
     maintenant: horloge.maintenant,
   });
-  // L'arrêt attend l'écart minimal : l'horloge simulée le lui donne.
-  aArreter(t, async () => {
-    const arret = presence.arreter();
-    await horloge.avancer(ECART_MINIMAL_MS);
-    await arret;
-  });
+  aArreter(t, () => presence.arreter());
   return { racine, github, lignes, presence, avancer: horloge.avancer, ecoule: () => horloge.maintenant() - depart };
 }
 
@@ -381,17 +376,13 @@ test("deux demandes d'écriture, y compris par publier(), ne font pas deux écri
   assert.equal(github.document(id).signeDeVie, "2026-10-15T12:01:00.000Z");
 });
 
-test("l'arrêt propre respecte l'écart minimal, sans perdre l'état final", async (t) => {
+test("l'arrêt propre s'écrit tout de suite, même dans la minute d'une écriture : l'état final ne se perd pas", async (t) => {
   const { github, presence, avancer } = unePresence(t);
   await presence.publier();
   const id = [...github.gists.keys()][0] ?? "";
   await avancer(10_000);
-  const arret = presence.arreter();
-  await avancer(ECART_MINIMAL_MS - 10_000 - 1);
-  assert.equal(github.document(id).arreteeLe, null);
-  await avancer(1);
-  await arret;
-  assert.equal(github.document(id).arreteeLe, "2026-10-15T12:01:00.000Z");
+  await presence.arreter();
+  assert.equal(github.document(id).arreteeLe, "2026-10-15T12:00:10.000Z");
 });
 
 test("le cadenceMs publié tient la détection d'un arrêt brutal en dix minutes : 2 × cadence + 30 s ≤ 600 s", () => {

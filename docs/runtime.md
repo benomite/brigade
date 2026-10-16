@@ -1015,7 +1015,7 @@ jamais. Tout passe par **GitHub**, où elle écrit son état — dans un **gist 
   signe de vie — que sur changement, ou en battement toutes les 5 minutes. Deux écritures, y
   compris celle que la station demande après l'écriture d'un projet, sont distantes d'au moins
   60 s : une demande trop proche est retenue, puis écrite à l'échéance. **Arrêtée** (SIGTERM), elle
-  y écrit l'heure de son arrêt, sauf si l'arrêt tombe dans la minute d'une écriture : elle ne retient pas le process pour l'attendre, et l'app la dit hors ligne à son signe de vie manqué. Elle publie `cadenceMs` = 285 s :
+  y écrit tout de suite l'heure de son arrêt — la seule écriture que l'écart de 60 s ne retient pas : l'état final ne se perd pas. Elle publie `cadenceMs` = 285 s :
   l'app la dit hors ligne après 2 × `cadenceMs` + 30 s, soit 10 min au plus.
 - **Ses pannes y vont aussi** (`appairage/etats.ts`, #798) : `miseAJour`, sa dernière mise à jour
   quand elle a raté et qu'elle est revenue en arrière (version visée, version restaurée, l'heure,
