@@ -3,6 +3,7 @@
 // s'authentifie seul. La station n'ouvre aucun port et ne joint aucune autre
 // machine : ce qu'elle a à dire, elle l'écrit là.
 import { execFile } from "node:child_process";
+import { limiteDuProcess, type Limite } from "../limite-github.ts";
 
 export type Fichiers = Record<string, string>;
 
@@ -16,7 +17,9 @@ export type Canal = {
   lire(id: string): Promise<Fichiers | null>;
 };
 
-export type OptionsCanal = { gh: string; delaiMs?: number };
+// `limite` : le budget d'appels que prend chaque `gh api` — par défaut, celui
+// du process (`limite-github.ts`).
+export type OptionsCanal = { gh: string; delaiMs?: number; limite?: Limite };
 
 // `gh` sort en erreur sur toute réponse qui n'est pas un succès, et le dit sur
 // sa sortie d'erreur : « gh: Not Found (HTTP 404) ».
@@ -27,6 +30,12 @@ class Absent extends Error {}
 export function canalGitHub(options: OptionsCanal): Canal {
   const appeler = (args: string[], entree?: unknown): Promise<string> =>
     new Promise((resoudre, rejeter) => {
+      // Au-delà du budget, l'appel ne part pas.
+      try {
+        (options.limite ?? limiteDuProcess()).prendre();
+      } catch (erreur) {
+        return rejeter(erreur);
+      }
       const enfant = execFile(
         options.gh,
         ["api", ...args],

@@ -9,6 +9,7 @@ import { etatsPublies } from "../appairage/etats.ts";
 import { identiteDeLaStation, tenirPresence } from "../appairage/presence.ts";
 import { configVeille, veillerConnexionMax, type VeilleConnexionMax } from "../connexion-max/veille.ts";
 import { masquerLaConsole } from "../jeton-claude.ts";
+import { installerLimite, journaliserLesAppels, limiteDeLaStation } from "../limite-github.ts";
 import { annoncerEnService } from "../mise-a-jour/en-service.ts";
 import { lireEtatMiseAJour } from "../mise-a-jour/etat.ts";
 import { tenirProjetsDeLApp } from "../projets/tenir.ts";
@@ -68,6 +69,12 @@ if (portes !== null) {
     passerParLaPorte(station);
   }, 2000).unref();
 }
+
+// Le budget d'appels à GitHub, partagé par la station et tous ses projets :
+// un compteur dans son répertoire (limite-github.ts), posé avant qu'aucun
+// projet ne s'ouvre. Une fois par heure, son compte va au journal de service.
+const limite = installerLimite(limiteDeLaStation(racine));
+journaliserLesAppels(limite, { dire });
 
 // Un seul journal de service pour tous les projets : ce que le code d'un
 // projet y écrit de lui-même porte son nom, comme ce que la station dit pour lui.
