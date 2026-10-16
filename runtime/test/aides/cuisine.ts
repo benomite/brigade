@@ -352,6 +352,7 @@ export function fauxDepot(racine: string, gates: boolean, setup = false, declara
     revenir: () => {},
     recoltes: (nom) => branche(nom).recoltes,
     liste: (_nom, repertoire) => (repertoire === ".claude/brigade" ? [...(gates ? ["gates.sh"] : []), ...(setup ? ["worktree-setup.sh"] : [])] : []),
+    lire: () => null,
     // Tout fichier posé à la racine du worktree, avec son poids et sa date.
     fichiers: () => ["README.md", "runtime/src/rail.ts", "runtime/src/pass.ts", "runtime/test/rail.test.ts", "docs/runtime.md"],
     // Une base qui ne bouge pas, tant que le test n'en décide pas autrement.
