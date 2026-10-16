@@ -45,6 +45,9 @@ export type TicketPrevu = {
   model: string;
   effort: string;
   calibration: string;
+  // Un ticket d'interface est cuisiné par le cook design. Absent : le cook
+  // ordinaire.
+  cook?: "design";
 };
 
 // Ce que le manager fait d'un ticket que la pass lui a passé. `retry` : le

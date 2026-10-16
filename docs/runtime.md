@@ -1387,6 +1387,16 @@ les critères et **pourquoi ce calibrage** ; `model:`, `effort:`, et le `prio:` 
 **fiche** (`attend`, `zone`, et `requiert` s'il demande une capacité) en commentaire ; et `fire`, posé **en dernier**. Il ne repasse pas par
 le jugement, et attend ceux dont il dépend (voir « La fiche d'un ticket »).
 
+**Un ticket d'interface est désigné pour le cook design** (`agents/cook-design.md`). Le manager le
+reconnaît au découpage : sa zone touche la vue de l'app (`app/src/vue/`, un fichier dessous, ou un
+dossier qui la contient comme `app/src`) — le code le désigne alors de toute façon —, ou le
+découpage le dit (`"cook": "design"`), ce qu'il ne propose que dans un dépôt qui définit le cook
+design. Un ticket du runtime, de la doc ou des scripts ne l'est pas. Le ticket désigné porte le
+label `cook:design` à côté de `model:` et `effort:`, un paragraphe « Cook design » en tête de son
+corps — c'est là que le cook apprend qu'il l'est, et où lire son profil —, et `· cook design` dans
+la colonne « Calibrage » du commentaire de découpage. Le calibrage ne change pas : modèle et effort
+se posent comme pour tout ticket, jamais `xhigh` ni `max`.
+
 **L'épique liste ses tickets, avec leur état**, dans un bloc que le manager écrit à la fin de son
 corps, entre deux marqueurs :
 

@@ -225,3 +225,59 @@ test("des capacités qui ne sont pas des noms rendent le découpage illisible, e
   assert.match(illisible(reponse([ticket({ capacites: ["chrome connecté"] })])), /ticket 1 : capacites \["chrome connecté"\]/);
   assert.match(illisible(reponse([ticket(), ticket({ capacites: [12] })])), /ticket 2 : capacites \[12\]/);
 });
+
+test("la consigne propose le cook design dans un dépôt qui le définit, et nulle part ailleurs", () => {
+  const mission = { depot: "benomite/brigade", issue: EPIQUE, commentaires: [] };
+  const avec = consigneDeDecoupage({ ...mission, fichiers: ["agents/cook-design.md", "app/src/vue/carte.js", "runtime/src/rail.ts"] });
+
+  assert.match(avec, /- `cook` : `design` pour un \*\*ticket d'interface\*\*/);
+  assert.match(avec, /cuisiné par le cook design \(`agents\/cook-design\.md`\)/);
+  assert.match(avec, /runtime, doc, scripts, logique sans effet à l'écran — est `general`/);
+  assert.match(avec, /"capacites": \[\], "cook": "general", "modele"/);
+  // Le calibrage reste celui de la table : ni `xhigh` ni `max`.
+  assert.match(avec, /Tu ne poses jamais `xhigh` ni `max`\./);
+  const sans = consigneDeDecoupage({ ...mission, fichiers: ["app/src/vue/carte.js", "runtime/src/rail.ts"] });
+  assert.doesNotMatch(sans, /cook design|"cook"/);
+});
+
+test("un ticket dont la zone touche la vue de l'app est au cook design ; un ticket runtime, doc ou scripts ne l'est pas", () => {
+  const cooks = (...tickets: Record<string, unknown>[]) => {
+    const lu = lireDecoupage(reponse(tickets.map((autres) => ticket(autres))));
+    assert.ok("valeur" in lu && lu.valeur.quoi === "tickets", JSON.stringify(lu));
+    return lu.valeur.tickets.map((prevu) => prevu.cook ?? null);
+  };
+
+  // Par sa zone, quoi qu'en dise le jugement : la vue, un fichier dessous, un
+  // dossier qui la contient.
+  assert.deepEqual(cooks({ zone: ["app/src/vue"] }, { zone: ["app/src/vue/carte.js"] }, { zone: ["runtime/src", "app/src"] }, { zone: ["app/src/vue/"], cook: "general" }), ["design", "design", "design", "design"]);
+  // Ni le runtime, ni la doc, ni les scripts, ni la logique de l'app hors de
+  // la vue — `app/src/vue2` n'est pas sous `app/src/vue`.
+  assert.deepEqual(cooks({ zone: ["runtime/src", "runtime/test"] }, { zone: ["docs/runtime.md"] }, { zone: ["scripts/capture-ecran"], cook: "general" }, { zone: ["app/src/service.ts", "app/src/vue2"] }), [null, null, null, null]);
+  // Le jugement peut désigner un ticket d'interface que sa zone ne trahit pas.
+  assert.deepEqual(cooks({ zone: ["app/src/libelles.ts"], cook: "design" }), ["design"]);
+  // Un ticket ordinaire est celui d'avant : aucun champ de plus.
+  const lu = lireDecoupage(reponse([ticket()]));
+  assert.ok("valeur" in lu && lu.valeur.quoi === "tickets");
+  assert.equal(Object.hasOwn(lu.valeur.tickets[0] ?? {}, "cook"), false);
+  assert.match(illisible(reponse([ticket({ cook: "designer" })])), /ticket 1 : cook inconnu : "designer" — attendu general, design/);
+});
+
+test("le cook design ne change rien au calibrage : modèle et effort se lisent comme avant, sans `xhigh` ni `max`", () => {
+  const lu = lireDecoupage(reponse([ticket({ zone: ["app/src/vue/carte.js"], modele: "opus", effort: "high" })]));
+  assert.ok("valeur" in lu && lu.valeur.quoi === "tickets");
+  assert.deepEqual([lu.valeur.tickets[0]?.model, lu.valeur.tickets[0]?.effort, lu.valeur.tickets[0]?.cook], ["opus", "high", "design"]);
+  for (const effort of ["xhigh", "max"]) {
+    assert.match(illisible(reponse([ticket({ zone: ["app/src/vue/carte.js"], cook: "design", effort })])), /effort hors de ce que le manager pose/);
+  }
+});
+
+test("le corps d'un ticket d'interface dit au cook qu'il est le cook design, et où lire son profil ; celui d'un autre ticket n'en dit rien", () => {
+  const lu = lireDecoupage(reponse([ticket({ zone: ["app/src/vue/carte.js"] }), ticket()]));
+  assert.ok("valeur" in lu && lu.valeur.quoi === "tickets");
+  const [design, ordinaire] = lu.valeur.tickets.map((prevu) => corpsDuTicket(30, 1, prevu));
+
+  assert.match(design ?? "", /<!-- brigade:decoupage #30\.1 -->\n\n## Cook design\n\nTicket d'interface : il touche la vue de l'app\. .*lis `agents\/cook-design\.md` et suis-le/);
+  assert.match(design ?? "", /Calibré `sonnet` \/ `low`, pour le cook design \(`cook:design`\) — Un module\./);
+  assert.doesNotMatch(ordinaire ?? "", /cook design|cook:design/i);
+  assert.match(ordinaire ?? "", /Calibré `sonnet` \/ `low` — Un module\./);
+});
