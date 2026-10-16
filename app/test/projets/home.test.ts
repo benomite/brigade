@@ -1,6 +1,7 @@
 // « Add a project » sur la page d'une station, ouverte d'un clic sur sa ligne de l'accueil, la vue
-// jouée : les projets que l'app lui a ajoutés, et le parcours — le dépôt, les stations, la principale
-// proposée d'office, l'avertissement d'un ordinateur, valider, retirer. Rien ne s'y tape dans un terminal.
+// jouée : un projet que l'app lui a ajouté (tous ses projets : stations/ses-projets.test.ts), et le
+// parcours — le dépôt, les stations, la principale proposée d'office, l'avertissement d'un
+// ordinateur, valider, retirer. Rien ne s'y tape dans un terminal.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Accueil } from "../../src/accueil.ts";
@@ -79,7 +80,7 @@ async function laHome(projets: VuDesProjets | undefined, ajouter: () => Ajout = 
   (jouee.element("projets").children.at(0) ?? assert.fail("pas d'entrée « Tous les projets »")).click();
   await repos();
   // Le parcours n'est pas sur l'accueil : il est sur la page de la station.
-  assert.equal(jouee.element("tous").dessous("button").some(({ textContent }) => textContent === "add a project to your stations"), false);
+  assert.equal(jouee.element("tous").dessous("button").some(({ textContent }) => textContent === "+ add a project"), false);
   (jouee.element("accueil-stations").dessous("button").find(({ textContent }) => textContent.startsWith("box")) ?? assert.fail("pas de ligne « box »")).click();
   await repos();
   const section = () => jouee.element("station");
@@ -90,13 +91,14 @@ async function laHome(projets: VuDesProjets | undefined, ajouter: () => Ajout = 
 
 const choix = (formulaire: Faux, type: string) => formulaire.dessous("input").filter((champ) => champ.type === type) as Array<Faux & { checked?: boolean }>;
 
-test("sur la page d'une station, les projets que l'app lui a ajoutés : ce que chacune de leurs stations en dit, le bouton qui autorise brigade sur GitHub, et celui qui retire", async () => {
+test("sur la page d'une station, un projet que l'app lui a ajouté : sa ligne dit qu'elle en est la principale et ce qu'elle en dit, puis le bouton qui autorise brigade sur GitHub, et celui qui retire", async () => {
   const { jouee, section, bouton } = await laHome(PARADE);
-  assert.equal(section().children[3]?.textContent, "Projects added from this app");
-  const texte = section().children[4]?.textContent ?? "";
-  assert.match(texte, /parade — benomite\/parade · main/);
-  assert.match(texte, /box \(main\): waiting for your authorization on GitHub — authorize brigade on benomite\/parade/);
-  assert.match(texte, /macbook: secondary — not its main station/);
+  assert.equal(section().children[3]?.textContent, "Projects");
+  const ligne = section().children[4]?.dessous("button").find(({ dataset }) => dataset.projet === "parade") ?? assert.fail("pas de ligne « parade »");
+  assert.equal(ligne.ariaLabel, "parade — main — waiting for your authorization on GitHub");
+  // Son dépôt et ce que la station en dit sont au survol.
+  assert.match(ligne.title, /benomite\/parade · main/);
+  assert.match(ligne.title, /authorize brigade on benomite\/parade/);
 
   bouton("authorize on GitHub: brigade-cook").click();
   await repos();
@@ -116,7 +118,7 @@ test("sur la page d'une station, les projets que l'app lui a ajoutés : ce que c
 test("le parcours propose d'office la station serveur pour principale ; choisir un ordinateur affiche l'avertissement", async () => {
   const { jouee, bouton, formulaire } = await laHome(SANS_PROJET);
   assert.equal(formulaire().hidden, true);
-  bouton("add a project to your stations").click();
+  bouton("+ add a project").click();
   await repos();
   await repos();
   assert.equal(formulaire().hidden, false);
@@ -145,7 +147,7 @@ test("le parcours propose d'office la station serveur pour principale ; choisir 
 test("valider envoie le dépôt, sa branche, les stations, la principale, les décisions et l'heure d'ouverture ; ce qui manque se lit dessous", async () => {
   let rendu: Ajout = { signales: { cooks: "How many cooks may the main station run at once for this project?" } };
   const { jouee, section, bouton, formulaire } = await laHome(SANS_PROJET, () => rendu);
-  bouton("add a project to your stations").click();
+  bouton("+ add a project").click();
   await repos();
   await repos();
   const [depot] = formulaire().dessous("select");

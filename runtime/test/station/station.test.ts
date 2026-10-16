@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { DEBUT, FIN } from "../../src/projets/bloc.ts";
 import { ConfigInvalide, DejaEnCours } from "../../src/runtime.ts";
 import type { Cuisine, OptionsCuisine } from "../../src/station/cuisine.ts";
 import { ecrirePortes } from "../../src/station/portes.ts";
@@ -134,6 +135,14 @@ test("arrêtée, la station arrête chacun de ses projets par le signal reçu, e
   servie.relire();
   assert.equal(ouvertures.length, 2);
   assert.deepEqual(servie.projets(), []);
+});
+
+// Ce que la station publie de ses projets (appairage/presence.ts, `projets: () => station.projets()`
+// dans station/main.ts) : l'app en tire la liste de sa page (#878). Une ligne écrite à la main n'y est
+// pas moins qu'une ligne que l'app a fait écrire.
+test("les projets servis sont tous ceux de la configuration : ceux que l'app a ajoutés, et ceux écrits à la main hors de son bloc", (t) => {
+  const { servie } = station(t, ["cantine benomite/cantine main", DEBUT, "parade benomite/parade main", FIN, "brigade benomite/brigade v2", ""].join("\n"));
+  assert.deepEqual([...servie.projets()].sort(), ["brigade", "cantine", "parade"]);
 });
 
 test("station.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

@@ -711,13 +711,20 @@ poste, et le dit au lancement, quand le runtime n'est pas à côté d'elle, ou a
 
 ### Ajouter un projet à tes stations, sans terminal
 
-**Sur la page d'une station**, « Projects added from this app » liste les projets que tu lui as
-ajoutés depuis l'app, et ce
-que chacune en dit — `served`, `waiting for your authorization on GitHub`, `being prepared`,
-`refused` (et pourquoi), `secondary` — puis, une fois servi, en combien de temps depuis que tu as
-ouvert le parcours (`served by box 1 min 12 s after “add a project” was opened`).
+**Sur la page d'une station**, « Projects » liste **tous** les projets qu'elle porte, une ligne
+chacun : ceux que sa configuration sert — ajoutés depuis l'app ou écrits à la main dans `projets`,
+elle les publie tous dans son gist —, puis ceux que l'app lui demande et qu'elle ne sert pas encore.
+Chaque ligne porte sa marque : **`main`** quand la station fait tourner son manager et sa pass (elle
+sert le projet), **`secondary`** sinon — et elle dit alors sur quelle station ils tournent. Puis ce
+que la station en dit : `served`, `waiting for your authorization on GitHub`, `being prepared`,
+`refused`. Au survol : son dépôt et sa branche, le motif d'un refus et, une fois servi, en combien
+de temps depuis que tu as ouvert le parcours (`served by box 1 min 12 s after “add a project” was
+opened`) — ou, pour un projet écrit à la main, `installed on this station outside the app`. **Un clic
+ouvre le projet** : son espace s'il est dans ton fichier des projets, sinon « Add a project », où
+tu le déclares. « no project on this station yet » ne se lit que sur une station qui n'en porte
+vraiment aucun.
 
-- **« add a project to your stations »**, sur cette même page, ouvre le parcours : le **dépôt**, choisi parmi ceux que ton
+- **« + add a project »**, sur cette même page, ouvre le parcours : le **dépôt**, choisi parmi ceux que ton
   `gh` lit (les plus récents d'abord ; sa branche par défaut est proposée comme branche
   d'intégration) ; les **stations** qui le servent, et sa **principale** — celle de son manager et
   de sa pass. L'app propose d'office une **station serveur**, toujours allumée ; choisir l'app d'un
@@ -730,7 +737,7 @@ ouvert le parcours (`served by box 1 min 12 s after “add a project” was open
   ([docs/runtime.md](runtime.md), « Ajouter un projet à une station depuis l'app »). Si ses Apps
   GitHub doivent être autorisées sur le dépôt, un bouton **« authorize on GitHub »** par App ouvre
   la page de GitHub : un clic, et la station poursuit seule.
-- **« remove »**, puis un second clic pour confirmer, retire le projet de la demande de chacune de
+- **« remove »**, sous un projet ajouté depuis l'app, puis un second clic pour confirmer, retire le projet de la demande de chacune de
   ses stations : elles le retirent de leur configuration. Son état et son clone restent sur la machine.
 
 ## Une lecture de box : sept états
