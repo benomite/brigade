@@ -72,13 +72,24 @@ function tokensDuTicket({ ticket, cooks }: Livraison): { ticket: number | null; 
 // de ses lancements qui ont livré — le prix de la livraison. `perdus` : ceux
 // des autres, qui n'ont rien produit. `inconnus` : ceux de ses lancements dont
 // le journal ne sait pas les tokens — ils ne comptent dans aucune des deux
-// sommes ; `tokens` est nul quand c'est le cas de tous.
-export type Paiement = { ticket: number | null; lancements: number; inconnus: number; tokens: { utiles: number; perdus: number } | null };
+// sommes ; `tokens` est nul quand c'est le cas de tous. `repris` : ceux de ses
+// renvois qui ont repris la session du cook précédent au lieu de repartir de
+// zéro — absent s'il n'y en a aucun. La reprise ne change rien aux deux
+// sommes : un lancement repris qui livre est utile, perdu sinon, comme un autre.
+export type Paiement = { ticket: number | null; lancements: number; inconnus: number; repris?: number; tokens: { utiles: number; perdus: number } | null };
 
 function paiementDuTicket({ ticket, cooks }: Livraison): Paiement {
   const somme = (livre: boolean) => cooks.reduce((total, cook) => total + (cook.delivered === livre ? (cook.tokens ?? 0) : 0), 0);
   const inconnus = cooks.filter((cook) => cook.tokens === null).length;
-  return { ticket, lancements: cooks.length, inconnus, tokens: inconnus === cooks.length ? null : { utiles: somme(true), perdus: somme(false) } };
+  const repris = cooks.filter((cook) => cook.resumed === true).length;
+  return { ticket, lancements: cooks.length, inconnus, ...(repris === 0 ? {} : { repris }), tokens: inconnus === cooks.length ? null : { utiles: somme(true), perdus: somme(false) } };
+}
+
+// Les lancements d'un ticket, et parmi eux ceux qui ont repris une session et
+// ceux dont les tokens ne sont pas connus.
+function direLancements(lancements: number, repris: number | undefined, inconnus: number): string {
+  const dont = [...(repris === undefined ? [] : [`${repris} repris`]), ...(inconnus === 0 ? [] : [`${inconnus} sans tokens connus`])];
+  return `${lancements}${dont.length === 0 ? "" : `, dont ${dont.join(", ")}`}`;
 }
 
 // Un ticket lancé une fois, et qui a livré, a coûté son prix : il n'y a rien à
@@ -312,16 +323,18 @@ export function decrireReleve({ projet, livraisons, seuils }: Releve, par = PAR_
       "lancements",
       payes.length === 0
         ? "aucun ticket lancé plus d'une fois, ni lancement sans livraison, derrière ces merges"
-        : "des tickets lancés plus d'une fois, ou dont un lancement n'a rien livré — utiles : les tokens des lancements qui ont livré ; perdus : ceux des autres",
+        : `des tickets lancés plus d'une fois, ou dont un lancement n'a rien livré — utiles : les tokens des lancements qui ont livré ; perdus : ceux des autres${
+            payes.some(({ repris }) => repris !== undefined) ? " ; repris : les renvois repartis de la session du cook précédent, et non de zéro" : ""
+          }`,
     ),
     ...(payes.length === 0
       ? []
       : tableau([
           ["merges", "ticket", "lancements", "tokens", "utiles", "perdus"],
-          ...payes.map(({ tranche, ticket, lancements, inconnus, tokens }) => [
+          ...payes.map(({ tranche, ticket, lancements, inconnus, repris, tokens }) => [
             rang(tranche),
             ticket === null ? "hors ticket" : `#${ticket}`,
-            `${lancements}${inconnus === 0 ? "" : `, dont ${inconnus} sans tokens connus`}`,
+            direLancements(lancements, repris, inconnus),
             ou(tokens, ({ utiles, perdus }) => dire(utiles + perdus, 0)),
             ou(tokens, ({ utiles }) => dire(utiles, 0)),
             ou(tokens, ({ utiles, perdus }) => (perdus === 0 ? "0" : `${dire(perdus, 0)} (${pourcent((perdus * 100) / (utiles + perdus))})`)),

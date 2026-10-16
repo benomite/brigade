@@ -70,15 +70,16 @@ import type { GitHub } from "./github.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import { configTranscripts, ouvrirNettoyage } from "./nettoyage.ts";
 import { configMachine, direSaturation, JEUNE_MS, lireMachine, reserver, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
-import { consigneDeRenvoi, RENVOIS_MAX } from "./pass.ts";
+import { consigneDeRenvoi, consigneDeReprise, RENVOIS_MAX } from "./pass.ts";
 import { lire } from "./plafonds.ts";
-import { etatDesGardeFous } from "./projections/garde-fous.ts";
+import { etatDesGardeFous, fluxDuCook } from "./projections/garde-fous.ts";
 import { etatDeLaBase, passDuTicket, renvoiEnAttente, reparationEnCours } from "./projections/pass.ts";
 import { communsDuRail, lireRail, prisPar, ticketDuRail, type TicketRail } from "./projections/rail.ts";
 import { consommationDesCooks, derniereMiseDeCote, dernierEchecDeSetup, etatStation, miseDeCoteBloquee, memeCause, plafondDeCooks, refusDAffilee, SANS_CONNEXION, sansStationDepuis, setupBloque, stationsAnnoncees } from "./projections/stations.ts";
 import { GesteRefuse, type Preneuse } from "./rail.ts";
 import { AUTRES_HOTES } from "./porte.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
+import { preparerReprise, type Reprise as SessionReprise } from "./reprise-de-session.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
 import { DECLARATION, lireSecrets } from "./secrets.ts";
@@ -1499,6 +1500,24 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   };
   const oublierLeSetup = (run: string) => rmSync(fichierDuSetup(run), { force: true });
 
+  // La session que le cook d'un renvoi reprend : celle du dernier cook lancé
+  // sur le ticket, s'il a livré — c'est sa livraison que la pass a refusée.
+  // Pas de reprise s'il n'a rien livré : un cook de renvoi qui a échoué peut
+  // avoir buté sur la reprise elle-même, le suivant part d'un cook neuf. Ni
+  // pour une relance du manager, décidée quand les renvois sont épuisés : elle
+  // repart d'un regard neuf. La session introuvable — flux parti, transcript
+  // rangé —, le renvoi part d'un cook neuf, comme avant la reprise.
+  const reprendreLaSession = (renvoi: { run: string; returns: number }, worktree: string, env: NodeJS.ProcessEnv): SessionReprise | null => {
+    if (renvoi.returns > RENVOIS_MAX) return null;
+    const flux = fluxDuCook(base, renvoi.run);
+    if (flux === null || !flux.livre) return null;
+    // Le répertoire de configuration de `claude`, tel que le runtime le voit :
+    // celui du projet sous cloison, monté à la place de celui du compte.
+    const claude = options.cloison?.claude ?? (env.CLAUDE_CONFIG_DIR || (env.HOME ? join(env.HOME, ".claude") : null));
+    const prete = preparerReprise({ claude, run: renvoi.run, flux: resolve(options.repertoireEtat, flux.stream), worktree });
+    return "reprise" in prete ? prete.reprise : null;
+  };
+
   // Cuisine un ticket que la station vient de prendre. Résolue quand le cook
   // est fini et sa fin racontée. `parti` : appelé une fois le cook lancé —
   // l'entrée du ticket est finie.
@@ -1620,6 +1639,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     }
 
     const mission = { ticket: numero, titre: ticket.title, depot: options.depotGitHub, base: options.base, ...(remis === undefined ? {} : { remis }) };
+    // Un renvoi de la pass reprend la session du cook dont elle a refusé la
+    // livraison : il a déjà lu le ticket, le `CLAUDE.md` et le code, et ne
+    // reçoit que ce qu'elle a trouvé. Les gates et la relecture qui jugeront
+    // sa livraison sont celles de toutes les autres.
+    const reprise = repris === null ? null : reprendreLaSession(repris, worktree, envDuCook);
     // Le lancement. Refusé — « stop » ou disjoncteur arrivés entre le prêt et
     // le lancement —, le ticket est rendu et le worktree neuf retiré.
     const lancer = (juger: (fin: Fin) => Verdict): CookLance | null => {
@@ -1636,6 +1660,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             // Passé les renvois de la pass, c'est une relance du manager : sa
             // livraison ne vaudra réussite que jugée verte.
             ...(renvoi !== null && renvoi.returns > RENVOIS_MAX ? { relaunch: true } : {}),
+            // Un renvoi qui reprend la session du cook précédent : le relevé
+            // des mesures le distingue d'un renvoi reparti de zéro.
+            ...(reprise === null ? {} : { resumes: reprise }),
             // L'arbitre entre projets ne répondait pas : ce lancement n'est pas arbitré.
             ...(sansArbitre ? { unarbitrated: true } : {}),
             // La tête de la branche à l'entrée : un runtime qui reprend ce cook
@@ -1649,10 +1676,13 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             {
               commande: options.bin,
               args: argumentsClaude(
-                repris
-                  ? consigneDeRenvoi({ ...mission, branche, n: repris.returns, findings: repris.findings })
-                  : consigne(mission),
+                reprise !== null && repris !== null
+                  ? consigneDeReprise({ base: options.base, branche, worktree, n: repris.returns, findings: repris.findings })
+                  : repris
+                    ? consigneDeRenvoi({ ...mission, branche, n: repris.returns, findings: repris.findings })
+                    : consigne(mission),
                 calibrage,
+                reprise?.session,
               ),
             },
             { cwd: worktree, depot: "ecriture", lit: remis === undefined ? [] : [remis] },

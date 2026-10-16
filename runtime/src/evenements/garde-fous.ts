@@ -34,7 +34,22 @@ export const RELEVE = "cook.progressed";
 // ce cook lit contre elle ce qu'il a livré.
 // `sandbox` : le cook d'une station distante, lancé sur son poste dans le bac
 // à sable de Claude Code — un ticket ordinaire (`bac-a-sable/ordinaires.ts`).
-export type ContexteCook = { station: string; model: string; effort: string; branch: string; worktree: string; relaunch: boolean; unarbitrated: boolean; remote: boolean; head: string; sandbox?: boolean };
+// `resumes` : le cook d'un renvoi qui reprend la session du cook dont la pass
+// a refusé la livraison (`reprise-de-session.ts`) — son run, et la session
+// reprise. Absent : il est parti de zéro, comme un premier cook.
+export type ContexteCook = {
+  station: string;
+  model: string;
+  effort: string;
+  branch: string;
+  worktree: string;
+  relaunch: boolean;
+  unarbitrated: boolean;
+  remote: boolean;
+  head: string;
+  sandbox?: boolean;
+  resumes?: { run: string; session: string };
+};
 
 export type FaitGardeFous =
   // Les réglages en vigueur, écrits quand ils changent : c'est ici que le chef

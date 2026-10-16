@@ -326,6 +326,30 @@ export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot
   ].join("\n");
 }
 
+// La consigne d'un renvoi qui reprend la session du cook précédent
+// (`reprise-de-session.ts`) : il a déjà lu le ticket, le `CLAUDE.md` et le
+// code, et ses règles sont dans sa conversation. Il ne reçoit que ce qui a
+// changé — le refus, ce que la pass a trouvé, le worktree où il est désormais.
+// Rien de ce qu'elle exige ne change : mêmes gates, même relecture.
+export function consigneDeReprise(mission: { base: string; branche: string; worktree: string; n: number; findings: string[] }): string {
+  const { base, branche, worktree, n, findings } = mission;
+  return [
+    `La pass — les gates du dépôt, sa CI et la relecture du reviewer — a refusé ta livraison : c'est ${nomDuRenvoi(n)}. Ce qu'elle juge n'est pas la branche seule, mais sa fusion avec \`origin/${base}\` telle qu'elle est au moment du jugement : c'est ce résultat qui doit être vert.`,
+    "",
+    `Tu reprends ici ta propre session : ce que tu as lu — le ticket, le \`CLAUDE.md\`, le code — et ce que tu as fait restent acquis, inutile de les relire. Une chose a changé : ton worktree d'avant n'existe plus. Tu es dans un worktree neuf, \`${worktree}\`, sur ta branche \`${branche}\`, avec tes commits — et, si tu avais laissé du travail non commité, un commit de plus qui le porte, au nom de \`brigade\`. Tout chemin absolu que tu as noté se relit sous ce nouveau répertoire, et c'est là que tu travailles.`,
+    "",
+    "Ce que la pass a trouvé :",
+    "",
+    ...findings.flatMap((finding) => [finding, ""]),
+    "1. Corrige ce que la pass a trouvé, et rien d'autre. Un finding que tu tiens pour faux : ne le contourne pas, dis-le dans ton compte-rendu.",
+    `2. Rejoue toi-même ce qui a échoué (les gates du dépôt), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite sur cette branche ce que tu as changé.`,
+    "3. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
+    `4. Termine par ton compte-rendu, en clair : ce que tu as corrigé, ce que tu as vérifié et comment, ce qui reste. ${CONSIGNE_DU_LIVRABLE}`,
+    "",
+    CONSIGNE_DE_FIN_DE_TOUR,
+  ].join("\n");
+}
+
 // Ce que le chef peut faire d'un ticket remonté : merger sa PR — s'il en a une.
 const suiteDuChef = (pr: string | null) =>
   pr

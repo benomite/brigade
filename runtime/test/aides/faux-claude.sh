@@ -126,6 +126,21 @@ rejouer() {
   code=$2
 }
 
+# Une session, comme le vrai l'ouvre : son identifiant en tête du flux, et son
+# transcript rangé sous CLAUDE_CONFIG_DIR, s'il est défini, au nom du
+# répertoire du lancement. Neuve à chaque lancement — y compris celui qui en
+# reprend une autre (`--resume <session> --fork-session`) : il en écrit une
+# bifurquée, sous un identifiant à lui.
+session() {
+  local id dossier
+  id=$(printf '%08x-0000-4000-8000-%012d' "$$" "$RANDOM")
+  printf '{"type":"system","subtype":"init","session_id":"%s"}\n' "$id"
+  [ -n "${CLAUDE_CONFIG_DIR:-}" ] || return 0
+  dossier="$CLAUDE_CONFIG_DIR/projects/$(pwd -P | tr -c 'a-zA-Z0-9\n' '-')"
+  mkdir -p "$dossier" || exit 1
+  printf '{"type":"user","sessionId":"%s"}\n' "$id" >"$dossier/$id.jsonl"
+}
+
 # Ne rien dire, et rester : le test, ou un garde-fou, y mettra fin. Trente
 # secondes, pas davantage — une suite tuée en plein vol ne laisse pas de faux
 # cook derrière elle.
@@ -139,6 +154,15 @@ jouer() {
   case "$1" in
     # Commite son travail, puis rend son compte-rendu.
     livre)
+      commiter
+      assistant
+      resultat <<'FIN'
+J'ai ajouté `travail.txt` et vérifié qu'il se lit.
+FIN
+      ;;
+    # Ouvre une session, commite son travail, puis rend son compte-rendu.
+    livre-en-session)
+      session
       commiter
       assistant
       resultat <<'FIN'

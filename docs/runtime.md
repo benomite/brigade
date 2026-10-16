@@ -1754,6 +1754,41 @@ Seul un verdict rouge consomme un renvoi. Un cook de renvoi qui échoue sans rie
 consomme pas : c'est le disjoncteur qui borne. Chaque décision est commentée sur l'issue, et dit
 sur quoi portait le verdict — `` `8c1d2e0` fusionné avec `v2` (`4be1f07`) ``.
 
+#### Le cook d'un renvoi reprend la session du précédent
+
+Un renvoi ne repart pas de zéro : le cook du renvoi **reprend la conversation du cook dont la pass
+a refusé la livraison** — ce qu'il a lu du ticket, du `CLAUDE.md` et du code, ce qu'il a fait — et
+ne reçoit en plus que **le refus et ce que la pass a trouvé**. Sans reprise, un cook neuf relisait
+tout pour une correction de quelques lignes.
+
+| Étape | Ce que fait la station |
+|---|---|
+| la session | elle la lit dans le flux brut du cook précédent (`runs/<run>.jsonl`, le `session_id` de `stream-json`) |
+| le transcript | elle le cherche sous `projects/` du répertoire de configuration de `claude` — `<état>/claude` sous cloison, `CLAUDE_CONFIG_DIR` ou `~/.claude` du compte sinon —, et le copie dans le répertoire du projet du **worktree neuf** du renvoi : c'est là que `claude --resume` le cherche |
+| le lancement | `claude --resume <session> --fork-session` : la session est bifurquée, le cook du renvoi écrit la sienne sous un identifiant neuf, et celle du précédent reste telle quelle |
+| la consigne | le refus (`renvoi n sur 2`), les findings, et le worktree neuf — l'ancien n'existe plus, ses chemins se relisent sous le nouveau. Ni le ticket ni le `CLAUDE.md` à relire : ils sont dans la conversation |
+| au journal | `cook.launched` porte `resumes` : le run repris et sa session |
+
+**La pass ne change rien pour lui.** Sa livraison passe par les mêmes gates, sur la même fusion
+avec la base, la même CI, la même relecture, le même grant qu'un premier passage — rien n'est
+sauté, rien n'est assoupli. La reprise n'économise que la lecture.
+
+**Le repli : un cook neuf, comme avant.** Le renvoi part de zéro, avec la consigne complète
+(relire le ticket, le `CLAUDE.md`, ce qui est commité), et sans rien écrire d'autre, quand :
+
+- le dernier cook lancé sur le ticket **n'a pas livré** — un cook de renvoi repris qui échoue a pu
+  buter sur la reprise elle-même : le suivant repart de zéro ;
+- son flux brut est parti, ou ne dit **aucune session** ;
+- son **transcript n'est plus là** — rangé passé la durée de garde (« Les transcripts du projet
+  sont rangés »), ou jamais écrit ;
+- le répertoire de configuration de `claude` n'est pas connu (ni cloison, ni `CLAUDE_CONFIG_DIR`,
+  ni `HOME`), ou le chemin du worktree est trop long pour que `claude` y retrouve la session ;
+- c'est une **relance du manager**, décidée quand les renvois sont épuisés : elle repart d'un
+  regard neuf ;
+- c'est une **station distante** : le transcript est sur son poste, pas sur la box.
+
+Le relevé des mesures dit quels lancements ont été repris (« Le relevé des mesures »).
+
 #### Les motifs, et le geste de chacun
 
 Un motif par geste du chef — pas plus de noms que de gestes. Ce qui précise un motif sans changer
@@ -2306,7 +2341,7 @@ temps**, ce que le journal sait de la lourdeur du projet : c'est la pente qui r�
 | `pente` | De combien la mesure a été multipliée, de la première tranche montrée à la dernière | — |
 | `tours` (second tableau) | Les tours d'un ticket, tous ses cooks comptés, par calibrage : médiane, et sur combien de tickets | `cook.launched`, `cook.exited` |
 | `tokens` (troisième tableau) | Les tokens d'un ticket, la somme de tous ses lancements, par calibrage : médiane, sur combien de tickets, et le plus cher de la tranche avec son numéro. Aucun seuil | `cook.launched`, `cook.exited` |
-| `lancements` (quatrième tableau) | Un ticket par ligne, pour ceux qui ont été lancés plus d'une fois ou dont un lancement n'a rien livré : combien de lancements, leurs tokens, et ce qu'ils ont produit — `utiles`, `perdus` avec leur part. Aucun seuil | `outcome` et `tokens` de `cook.exited` |
+| `lancements` (quatrième tableau) | Un ticket par ligne, pour ceux qui ont été lancés plus d'une fois ou dont un lancement n'a rien livré : combien de lancements — dont combien de renvois **repris** de la session du cook précédent —, leurs tokens, et ce qu'ils ont produit — `utiles`, `perdus` avec leur part. Aucun seuil | `outcome` et `tokens` de `cook.exited`, `resumes` de `cook.launched` |
 
 - **`—` veut dire « le journal ne le sait pas »**, jamais zéro. Au-delà de douze tranches, seules
   les dernières sont montrées ; `--by` élargit la fenêtre.
@@ -2318,6 +2353,11 @@ temps**, ce que le journal sait de la lourdeur du projet : c'est la pente qui r�
   est un défaut. Un lancement dont le journal ne sait pas les tokens est compté et signalé (`2, dont
   1 sans tokens connus`), dans aucune des deux sommes. Un ticket jamais mergé n'est pas au relevé,
   quoi que ses lancements aient coûté.
+- **Repris ou reparti de zéro : la colonne `lancements` le dit.** Un ticket dont un renvoi a repris
+  la session du cook précédent porte `3, dont 1 repris` (et la légende du tableau dit alors ce
+  qu'est `repris`) ; un ticket dont les renvois sont repartis de zéro n'y porte que son nombre. La
+  reprise ne change rien au calcul : un lancement repris qui livre est `utile`, perdu sinon, comme
+  un autre.
 - **Seules comptent les livraisons que la pass a jugées, puis mergées** ; la consommation est celle
   des cooks, pas du compte Max. Une livraison jugée puis mergée à la main derrière une autre ne dit
   pas l'état du projet, et aucun seuil n'est levé sur sa foi.
@@ -3027,8 +3067,11 @@ encore en cours, et ce qui n'est pas un transcript (la mémoire du projet, ses r
 n'est jamais suivi. Chaque passage est au journal — `transcripts.tidied` (`removed`, `freedBytes`,
 `kept`, `keptBytes`, `keepMs`) —, et `status` montre le dernier ; un projet qui redémarre sans
 cloison écrit `transcripts.released`, une fois. **Sans cloison, rien n'est rangé** : les transcripts
-vont sous le `~/.claude` du compte, auquel le runtime ne touche jamais. Un transcript retiré n'est
-pas perdu pour le diagnostic : le flux brut reste sous `runs/`, et lui est sauvegardé.
+vont sous le `~/.claude` du compte, où le runtime ne retire jamais rien — il n'y écrit que la copie
+du transcript qu'un renvoi reprend, dans le répertoire du projet de son worktree. Un transcript retiré n'est
+pas perdu pour le diagnostic : le flux brut reste sous `runs/`, et lui est sauvegardé. Il l'est
+pour la reprise d'un renvoi : passé la durée de garde, le cook du renvoi repart de zéro (« Le cook
+d'un renvoi reprend la session du précédent »).
 
 ### Ce qui n'est pas garanti
 

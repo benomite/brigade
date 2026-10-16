@@ -436,6 +436,11 @@ export type Options = {
   secrets?: { declares: string; valeurs: string | null };
   // Chaque lancement part dans une cloison — la doublure de `bwrap`.
   cloison?: boolean;
+  // `claude` range ses sessions dans un répertoire de configuration à lui
+  // (`CLAUDE_CONFIG_DIR`) : celui du projet sous cloison, un répertoire du
+  // test sinon. Sans, les lancements n'ont ni ce répertoire ni `HOME` : aucun
+  // renvoi ne retrouve la session du cook précédent.
+  configClaude?: boolean;
   // Le jeton longue durée de la connexion Max, posé dans le fichier que nomme
   // `BRIGADE_CLAUDE_TOKEN_FILE`. Aucun, par défaut : `claude` porte la
   // connexion du compte.
@@ -504,8 +509,12 @@ export function cuisine(t: TestContext, options: Options = {}) {
   // Le fichier du jeton vit hors de l'état, comme sur la box.
   const fichierJeton = join(repertoireTemporaire(t), "jeton-claude");
   if (options.jeton !== undefined) writeFileSync(fichierJeton, `${options.jeton}\n`, { mode: 0o600 });
+  // La doublure de `bwrap` ne monte rien : le répertoire du projet lui est
+  // nommé, comme le vrai le monterait à la place de celui du compte.
+  const configClaude = options.configClaude ? (cloison?.claude ?? join(repertoire, "config-claude")) : null;
   const env = {
     ...ENV_GIT,
+    ...(configClaude === null ? {} : { CLAUDE_CONFIG_DIR: configClaude }),
     ...(options.jeton === undefined ? {} : { BRIGADE_CLAUDE_TOKEN_FILE: fichierJeton }),
     FAUX_BWRAP_TEMOIN: temoinDeCloison,
     BRIGADE_STATE_DIR: repertoire,
@@ -643,7 +652,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
   const secrets = { fichier: fichierSecrets, poser: poserSecrets };
   // Ce que chaque lancement cloisonné a demandé à `bwrap`.
   const cloisonnes = () => lancementsDuFauxBwrap(temoinDeCloison);
-  return { cloisonnes, compte, runtime, journal, lieux, repertoire, origine, clone, gh, heure, types, dernier, etat, lancements, relectures, cooks, avertissements, gates, setup, conclure, secrets };
+  return { configClaude, cloisonnes, compte, runtime, journal, lieux, repertoire, origine, clone, gh, heure, types, dernier, etat, lancements, relectures, cooks, avertissements, gates, setup, conclure, secrets };
 }
 
 // Ce que ferait la CLI depuis son propre process : une autre connexion.
