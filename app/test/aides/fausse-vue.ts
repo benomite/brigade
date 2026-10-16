@@ -33,6 +33,8 @@ export class Faux {
   ariaPressed = "";
   // L'entrée de la barre qui est affichée, et celle qui se glisse.
   ariaCurrent = "";
+  // Le nom accessible d'un élément : le texte d'un survol (briques.js) y est lu.
+  ariaLabel = "";
   draggable = false;
   // Couvert par une page, le rail ne se clique pas au travers.
   inert = false;

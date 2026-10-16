@@ -53,7 +53,10 @@ export type Appel = { geste: string; grant?: string } | { demande: true } | { on
 // le geste ne se joue pas depuis l'app. `prix` : ce que le geste coûte. `aussi` : un second
 // geste sur le même état, avec ce qu'il coûte. `verification` : pour une ligne qui vient d'une vérification,
 // le verdict que l'écran Verify pose — la même phrase, les mêmes lignes de manque.
-export type Alerte = { sujet: Sujet; verifie: boolean; ton: string; dit: string; pourquoi?: string; releve?: string; geste: string; appel?: Appel; prix: string; aussi?: { geste: string; appel: Appel; prix: string }; verification?: Verification };
+// `bouton` : ce que dit le bouton du geste, en quelques mots — jamais une commande ni une phrase de
+// mode d'emploi : celles-là (`geste`, `pourquoi`, `releve`, `prix`) se lisent au survol. Absent, la
+// ligne n'a pas de geste à faire depuis l'app.
+export type Alerte = { sujet: Sujet; verifie: boolean; ton: string; dit: string; pourquoi?: string; releve?: string; geste: string; bouton?: string; appel?: Appel; prix: string; aussi?: { geste: string; appel: Appel; prix: string }; verification?: Verification };
 // La bande d'un projet : vide, les quatre états ont été lus, et vont bien.
 // Ce que la bande d'un projet dit de lui sur sa case de la barre : toute la cuisine qui l'attend, une
 // chose à faire, ou rien de vérifié. Une bande vide n'a pas de signal — c'est que les quatre états
@@ -527,10 +530,26 @@ function desPertes(controle: Controle | undefined, status: string | Sans): Alert
   return pertes;
 }
 
+// Le mot du bouton d'un geste, d'après ce que l'alerte appelle : le geste du socle par son nom, une
+// demande au second, un onglet. Un geste que l'app ne sait pas nommer garde le début de sa phrase,
+// avant tout ce qui ressemble à une commande ou à une explication.
+const BOUTONS_DE_GESTE: Readonly<Record<string, string>> = { "manager-allumer": "turn the manager on", reprendre: "resume the kitchen" };
+export function boutonDe({ geste, appel }: Pick<Alerte, "geste" | "appel">): string | undefined {
+  if (appel === undefined) return undefined;
+  if ("demande" in appel) return "ask the second";
+  if ("onglet" in appel) return `open the ${appel.onglet} tab`;
+  if (appel.geste === "grant-activer" && appel.grant !== undefined) return `enable ${appel.grant} again`;
+  return BOUTONS_DE_GESTE[appel.geste] ?? (geste.split(/[:,—`]/)[0] ?? geste).trim();
+}
+const avecBouton = (alerte: Alerte): Alerte => {
+  const bouton = boutonDe(alerte);
+  return bouton === undefined ? alerte : { ...alerte, bouton };
+};
+
 // La bande d'un projet, d'après ce qui en a été lu : l'urgence, le manager, la cuisine — et
 // son setup —, le grant, et ce que le projet installé a perdu.
 export function alertes({ projet, faits, status, attend, manager, controle }: Lu): Alerte[] {
-  return parGravite([...deLUrgence(faits), ...duManager(manager), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle), ...dUnePanne(controle)]);
+  return parGravite([...deLUrgence(faits), ...duManager(manager), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle), ...dUnePanne(controle)].map(avecBouton));
 }
 
 // La plus grave d'abord : l'urgence au-dessus de tout, puis une alerte lue avant un état non vérifié,

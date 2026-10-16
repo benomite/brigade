@@ -15,7 +15,7 @@ import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import { principal as manager } from "../../runtime/src/manager-cli.ts";
 import { GESTE_DE_STATION_A_CHAUD } from "../../runtime/src/stations-declarees.ts";
-import { AFFICHAGE_MINIMUM, alertes, MANAGER_PAS_DIT, signalDe, tenirBandes, type Alerte, type Sujet } from "../src/alertes.ts";
+import { AFFICHAGE_MINIMUM, alertes, boutonDe, MANAGER_PAS_DIT, signalDe, tenirBandes, type Alerte, type Sujet } from "../src/alertes.ts";
 import { mettreAPart } from "../src/attend.ts";
 import type { Lecture } from "../src/box.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
@@ -330,10 +330,13 @@ describe("la bande, à l'écran", () => {
     assert.equal(bande.hidden, false);
     const [ligne] = bande.children;
     assert.equal(ligne?.dataset.sujet, "cuisine");
-    assert.match(ligne?.textContent ?? "", /kitchen stopped by your “stop”.*resume the kitchen…— cost: queued tickets start again at once/);
+    assert.match(ligne?.textContent ?? "", /kitchen stopped by your “stop”.*resume the kitchen…/);
+    // Le prix n'est pas écrit sous le bouton : il est au survol, à côté.
+    assert.doesNotMatch(ligne?.textContent ?? "", /cost:/);
+    assert.ok((ligne?.dessous("button") ?? []).some((pose) => /queued tickets start again at once/.test(pose.ariaLabel)), "le prix n'est pas au survol");
 
     // Le clic ouvre la confirmation, sous la ligne : elle dit ce qu'il relance, et rien ne part.
-    (ligne?.dessous("button")[0] ?? assert.fail("pas de bouton")).click();
+    (ligne?.dessous("button").find((pose) => pose.dataset.geste === "confirme") ?? assert.fail("pas de bouton")).click();
     await repos();
     assert.deepEqual(vue.dernier("confirmer"), ["parade", "reprendre", undefined]);
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste"), []);
@@ -364,7 +367,10 @@ describe("la bande, à l'écran", () => {
 
     const ligne = vue.element("alertes").children.find((pose) => pose.dataset.sujet === "cuisine") ?? assert.fail("pas de ligne");
     const demande = ligne.dessous("button").find((pose) => pose.dataset.geste === "demande") ?? assert.fail("pas de demande");
-    assert.equal(demande.textContent, `${GESTE_DE_STATION_A_CHAUD} — ask the second`);
+    assert.equal(demande.textContent, "ask the second");
+    // La commande que la box nomme n'est pas écrite à plat : elle se lit au survol de la ligne.
+    assert.doesNotMatch(ligne.textContent, /brigade <projet>/);
+    assert.ok(ligne.dessous("button").some((pose) => pose.ariaLabel.includes(GESTE_DE_STATION_A_CHAUD)), "le geste n'est pas au survol");
     demande.click();
     await repos();
 
@@ -532,5 +538,58 @@ describe("la bande ne clignote pas (#721)", () => {
     bandes.faits(PAS_JOINT);
     bandes.status(mettreAPart(lecture("status", rendre("10:00:00").status)));
     assert.equal(cuisine(bandes.faits(PAS_JOINT)).length, 1);
+  });
+});
+
+describe("le mot du bouton d'une alerte", () => {
+  test("un geste du socle, une demande au second, un onglet : un mot court, jamais une commande", () => {
+    assert.equal(boutonDe({ geste: "turn the manager on", appel: { geste: "manager-allumer" } }), "turn the manager on");
+    assert.equal(boutonDe({ geste: "resume the kitchen, once you have read why they fail", appel: { geste: "reprendre" } }), "resume the kitchen");
+    assert.equal(boutonDe({ geste: "enable `merge` again", appel: { geste: "grant-activer", grant: "merge" } }), "enable merge again");
+    assert.equal(boutonDe({ geste: "start it on the box: `systemctl start brigade@parade`", appel: { demande: true } }), "ask the second");
+    assert.equal(boutonDe({ geste: "read it: the Grants tab reads `grant` on the box", appel: { onglet: "grants" } }), "open the grants tab");
+    assert.equal(boutonDe({ geste: "nothing to do: this is on brigade" }), undefined);
+  });
+
+  test("toute alerte de la bande qui appelle un geste porte le mot de son bouton, sans commande", () => {
+    const bande = alertes({ projet: "parade", faits: { sans: "first reading in progress" }, status: { sans: "x" }, manager: { sans: "y" } });
+    assert.ok(bande.length > 0);
+    for (const alerte of bande) if (alerte.appel !== undefined) assert.ok(alerte.bouton !== undefined && !alerte.bouton.includes("`"), alerte.dit);
+  });
+});
+
+describe("l'accueil : ce qu'on peut ou doit faire en premier, la lecture en échec en une ligne", () => {
+  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
+  const ouvrir = () =>
+    jouerLaVue({
+      demarrage: () => ({
+        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE], hotes: ["box"] }),
+        palette: PALETTE,
+        exemple: EXEMPLE,
+        onglets: ONGLETS, rubriques: RUBRIQUES,
+        boutons: BOUTONS,
+        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        banniere: BANNIERE,
+        calibrage: { modeles: MODELES, efforts: EFFORTS },
+        code: undefined,
+      }),
+      espace: () => [],
+    });
+
+  test("un projet porte, en tête, ses alertes et le bouton qui ouvre son espace ; une box qui ne répond pas se dit en une ligne, sans `ssh` ni code de sortie", async () => {
+    const vue = await ouvrir();
+    const demande = vue.dernier("tous")[0] as number;
+    vue.dire("surLecture", { ...PAS_JOINT, demande }, { projet: "parade", pages: [], aLancer: [], illisibles: [], empeche: [], vide: "" });
+    const bandes = tenirBandes({ etablir: 1, minimum: 0 });
+    bandes.ouvrir(["parade"]);
+    vue.dire("surAlertes", bandes.faits(PAS_JOINT));
+
+    const [article] = vue.element("tous").dessous("article");
+    const afaire = article?.dessous("div").find((pose) => pose.className === "a-faire") ?? assert.fail("pas de ligne « à faire »");
+    assert.match(afaire.textContent, /kitchen state not verified/);
+    assert.ok(afaire.dessous("button").some((pose) => pose.textContent === "open parade"), "pas de bouton qui ouvre le projet");
+
+    const visible = (article?.textContent ?? "").replace(/\s+/g, " ");
+    assert.doesNotMatch(visible, /ssh|usage|code de sortie|exit code/i);
   });
 });
