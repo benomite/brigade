@@ -1552,7 +1552,7 @@ Quand un cook a livré, **la pass juge sa livraison sans personne**. Trois juges
 | un job en échec, la branche **sans la tête de la base** | cette CI n'a pas jugé ce qui sera mergé : **son rouge n'est pas un verdict**. Le cook est renvoyé avec « mets-toi à jour de la base », les jobs nommés — pas avec « CI rouge ». Ça consomme un renvoi, comme un conflit. Au journal, CI « non lue » (`skipped`), ses checks gardés |
 | des jobs en cours | pas de verdict : relue à chaque tick. Trente minutes sans conclusion : remontée au chef (`unjudged`, cause `ci-silent`). Sauf constat bloquant du reviewer : rouge tout de suite, CI « non lue » |
 | tout est vert | vert — que la branche ait ou non la tête de la base : la fusion, ce sont les gates qui la jugent |
-| **aucun check** | ni vert ni rouge : le verdict repose sur les gates et le reviewer (`ci: none`). Sauf si la branche porte des workflows (`.github/workflows`) : leurs checks sont attendus |
+| **aucun check** | ni vert ni rouge : le verdict repose sur les gates et le reviewer (`ci: none`). Sauf si la branche porte un workflow (`.github/workflows`) qui se déclenche sur les PR vers la base (`pull_request` ou `pull_request_target`, filtres de branches et de chemins compris) : ses checks sont attendus. Un workflow qui ne se lance qu'au push ne retient rien : la PR est jugée sans CI |
 
 Le verdict est au journal (`pass.judged`) **avec ce qui l'a produit** et **ce sur quoi il porte** :
 la tête de la branche (`sha`), celle de la base fusionnée (`base`), l'arbre obtenu (`merged`).
