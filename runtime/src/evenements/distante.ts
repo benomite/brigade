@@ -37,7 +37,9 @@ export type Mission = {
   title: string;
   run: string;
   // La branche du cook : neuve, à partir de `base`, ou celle de la livraison
-  // que la pass a renvoyée (`resumes`).
+  // que la pass a renvoyée (`resumes`), ou celle du travail conservé d'un cook
+  // perdu en route (`resumes`, sans renvoi : `returns` à 0). Dans les deux
+  // derniers cas, la station la reprend telle que l'origine la porte.
   branch: string;
   base: string;
   repository: string;

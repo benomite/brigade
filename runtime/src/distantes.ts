@@ -22,7 +22,13 @@
 // - le bail ne se renouvelle que sur un progrès : l'empreinte de son worktree
 //   a changé depuis la dernière. Sans cela il tombe, et le cook est arrêté ;
 // - sa livraison est une branche sur l'origine, que le clone rapatrie de
-//   là : elle part en pass comme une autre — mêmes gates, même reviewer.
+//   là : elle part en pass comme une autre — mêmes gates, même reviewer ;
+// - disparue en pleine cuisson — son poste fermé, en veille —, son bail tombe
+//   et son ticket revient au rail. Ce que sa branche portait déjà sur
+//   l'origine est conservé (`travail-conserve.ts`) : le cook suivant en
+//   repart, sur la box ou ici, au lieu de recommencer de zéro. Réveillée, elle
+//   apprend à sa demande suivante que son cook est arrêté : rien de lui n'est
+//   plus reçu, et le ticket n'a qu'un cook à la fois.
 //
 // Elle ne reçoit rien de plus qu'un cook de la box : ni secret, ni jeton, ni
 // grant. « Arrêter » son cook, ici, c'est ne plus rien accepter de lui : la
@@ -39,7 +45,7 @@ import type { RuntimeAvecRail } from "./alimenter.ts";
 import { configurerLeCook, constater, dansLeBacASable, type Poste } from "./bac-a-sable/ordinaires.ts";
 import type { ConfigDeBacASable } from "./bac-a-sable/configuration.ts";
 import { complet, type Calibrage } from "./calibrage.ts";
-import { argumentsClaude, consigne, type Lecture } from "./claude.ts";
+import { argumentsClaude, consigne, consigneDeSuite, type Lecture } from "./claude.ts";
 import type { Depot } from "./depot.ts";
 import type { Demande, Mission, Refus, Reponse } from "./evenements/distante.ts";
 import type { Evenement } from "./evenements.ts";
@@ -48,6 +54,7 @@ import { illisible, requises } from "./fiche.ts";
 import { LancementRefuse, nomDeRun, type CookDistant, type FinDeCook as FinGardee, type GardeFous, type Verdict } from "./garde-fous.ts";
 import { identifiantsLivres } from "./identifiants.ts";
 import { lireLivrable } from "./livrable.ts";
+import { commitsConserves, travailLaisse, type TravailLaisse } from "./travail-conserve.ts";
 import { consigneDeRenvoi, RENVOIS_MAX } from "./pass.ts";
 import { lire } from "./plafonds.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
@@ -77,8 +84,10 @@ export function configPresence(env: Record<string, string | undefined>): number 
 }
 
 // Ce que la station retient d'un cook entre le moment où elle juge sa fin et
-// celui où elle la raconte (voir `station.ts`).
-export type Conclusion = { fin: FinDeCook; raison: string | null; lecture: Lecture; sansCommit: boolean; recolte: string | null };
+// celui où elle la raconte (voir `station.ts`). `conserve` : il n'a rien livré,
+// et sa branche porte sur l'origine ce nombre de commits — le travail conservé,
+// d'où le cook suivant repart.
+export type Conclusion = { fin: FinDeCook; raison: string | null; lecture: Lecture; sansCommit: boolean; recolte: string | null; conserve?: number };
 
 // Ce que les stations d'ici partagent avec celles qui tirent : les mêmes
 // cuisines en cours, les mêmes bornes, les mêmes refus, la même fin racontée.
@@ -244,7 +253,26 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
     return lu === "done" ? "ok" : lu === "failed" ? "failed" : "neutral";
   };
 
-  // Raconte la fin d'un cook, puis défait sa cuisine.
+  // Ce que la branche d'un cook qui n'a rien livré porte sur l'origine : sa
+  // station a pu la pousser avant de disparaître. Rapatrié dans le clone, c'est
+  // le travail conservé — d'où le cook suivant repart. Rien : la branche que
+  // le rapatriement a posée sur la base ne reste pas.
+  const conserver = async (cook: EnCours): Promise<number | undefined> => {
+    const { branche, station } = cook;
+    try {
+      await depot.recevoir(branche);
+      const commits = commitsConserves(depot, branche);
+      if (commits > 0) return commits;
+      await depot.elaguer(branche);
+    } catch (erreur) {
+      avertir(`brigade : la branche \`${branche}\` du ticket #${cook.ticket.ticket}, laissée par ${station}, n'a pas pu être relue sur l'origine — rien n'en est conservé : ${message(erreur)}`);
+    }
+    return undefined;
+  };
+
+  // Raconte la fin d'un cook, puis défait sa cuisine. Tant qu'elle n'est pas
+  // défaite, le ticket reste en cuisine : personne ne le prend avant que ce
+  // qui est conservé de son cook ne soit au journal.
   const finir = async (run: string, cook: EnCours) => {
     const numero = cook.ticket.ticket;
     let fin: FinGardee;
@@ -256,6 +284,14 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
     try {
       // Arrêté, le runtime ne raconte rien : le démarrage suivant s'en charge.
       if (cuisine.arrete()) return;
+      // Arrêté sans rien livrer — sa station s'est tue, le plus souvent. Un
+      // renvoi n'a rien à conserver : sa branche est celle de la pass.
+      const { conclusion } = cook.rendu;
+      if (!cook.livre && cook.reprise === null && conclusion !== null && conclusion.fin !== "done") {
+        const conserve = await conserver(cook);
+        if (cuisine.arrete()) return;
+        if (conserve !== undefined) conclusion.conserve = conserve;
+      }
       await cuisine.conclure(cook.station, cook.ticket, cook.calibrage, run, cook.branche, fin, cook.rendu.conclusion, cook.reprise);
       cuisine.apresCook?.();
     } catch (erreur) {
@@ -345,7 +381,17 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
       } catch (erreur) {
         avertir(`brigade : branche du renvoi du ticket #${numero} illisible, le cook de ${nom} repart de la base — ${message(erreur)}`);
       }
-      const branche = repris ? repris.branch : `cook/${run}`;
+      // Sinon, le travail qu'un cook perdu en route a laissé sur l'origine :
+      // celui que le clone en a rapatrié quand il a été arrêté. La station le
+      // reprend de l'origine.
+      let suite: TravailLaisse | null = null;
+      const laisse = renvoi === null ? travailLaisse(base, numero) : null;
+      try {
+        suite = laisse !== null && commitsConserves(depot, laisse.branch) > 0 ? laisse : null;
+      } catch (erreur) {
+        avertir(`brigade : branche du travail conservé du ticket #${numero} illisible, le cook de ${nom} repart de la base — ${message(erreur)}`);
+      }
+      const branche = repris ? repris.branch : suite ? suite.branch : `cook/${run}`;
       const rendu: EnCours["rendu"] = { conclusion: null };
       enCuisine.set(numero, ticket.card?.zone ?? []);
       cuisinePar.set(numero, nom);
@@ -363,6 +409,7 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
             // Passé les renvois de la pass, c'est une relance du manager : sa
             // livraison ne vaudra réussite que jugée verte.
             ...(renvoi !== null && renvoi.returns > RENVOIS_MAX ? { relaunch: true } : {}),
+            ...(suite !== null ? { continues: suite.run } : {}),
           },
           juger: jugerPour(rendu),
         });
@@ -379,7 +426,11 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
       void cuisine.liberer(numero);
       void finir(run, cook);
       const mission = { ticket: numero, titre: ticket.title, depot: cuisine.depotGitHub, base: cuisine.base };
-      const prompt = repris ? consigneDeRenvoi({ ...mission, branche, n: repris.returns, findings: repris.findings }) : consigne(mission);
+      const prompt = repris
+        ? consigneDeRenvoi({ ...mission, branche, n: repris.returns, findings: repris.findings })
+        : suite
+          ? consigneDeSuite({ ...mission, branche })
+          : consigne(mission);
       const limits = etatDesGardeFous(base).limits;
       if (limits === null) throw new Error("garde-fous sans plafonds au journal : aucun cook distant ne part sans eux");
       const remise: Mission = {
@@ -396,7 +447,8 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
         limits,
         leaseMs: cuisine.dureeBailMs,
         leaseUntil: ticket.leaseUntil ?? new Date(maintenant().getTime() + cuisine.dureeBailMs).toISOString(),
-        resumes: repris && { returns: repris.returns, pr: repris.pr },
+        // Le travail conservé se reprend comme un renvoi, sans en être un.
+        resumes: repris ? { returns: repris.returns, pr: repris.pr } : suite ? { returns: 0, pr: null } : null,
       };
       // Elle vient de prendre : plus rien ne la retenait.
       cuisine.direCeQuiRetient(nom, null);

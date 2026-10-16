@@ -115,6 +115,28 @@ export function consigne(mission: { ticket: number; titre: string; depot: string
   ].join("\n");
 }
 
+// La consigne d'un cook qui reprend le travail conservé d'un autre : celui
+// d'une station distante disparue en pleine cuisson — poste fermé, en veille —
+// dont la branche était poussée (`travail-conserve.ts`). Il ne repart pas de
+// zéro : il finit ce qui est commencé, sous les mêmes règles qu'un premier cook.
+export function consigneDeSuite(mission: { ticket: number; titre: string; depot: string; base: string; branche: string; remis?: string }): string {
+  const { ticket, titre, depot, base, branche } = mission;
+  return [
+    `Tu es un cook de la brigade : tu reprends un seul ticket, le ticket #${ticket} du dépôt ${depot} — « ${titre} ».`,
+    "",
+    `Un cook a commencé ce ticket sur la branche \`${branche}\`, partie de \`${base}\`, et sa station a disparu avant qu'il ne livre — son poste fermé, ou en veille. Ce qu'il avait poussé est conservé : tu es dans un worktree qui t'est propre, sur cette branche, avec ses commits. Ne repars pas de zéro : finis son travail.`,
+    "",
+    `1. Lis le ticket en entier : ${lectureDuTicket(mission)} ; puis ce qui est déjà fait : \`git log origin/${base}..HEAD\` et \`git diff origin/${base}...HEAD\`. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le.`,
+    "2. Juge ce qui est fait et ce qui reste, puis finis le ticket sur cette branche. Ce qui est commité est un point de départ, pas une preuve : ce qui ne tient pas, corrige-le. Travaille ici et nulle part ailleurs.",
+    `3. Vérifie ton travail comme le dépôt le demande (tests, gates), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite-le sur cette branche.`,
+    "4. Si le ticket porte une fiche (un commentaire « Fiche du ticket »), sa ligne `zone` nomme les fichiers et dossiers qu'il possède. N'écris ailleurs que si le ticket l'exige, et dis-le dans ton compte-rendu : tout fichier livré hors de la zone est signalé au chef. Tu ne modifies pas la fiche.",
+    "5. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
+    `6. Termine par ton compte-rendu, en clair : ce que tu as repris, ce que tu as fait, ce que tu as vérifié et comment, ce qui reste à faire ou ce qui t'a bloqué. ${CONSIGNE_DU_LIVRABLE}`,
+    "",
+    CONSIGNE_DE_FIN_DE_TOUR,
+  ].join("\n");
+}
+
 export type Lecture = {
   // L'événement `result` final : absent si le cook est mort avant de conclure.
   resultat: { erreur: boolean } | null;
