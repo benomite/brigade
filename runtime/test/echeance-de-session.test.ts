@@ -19,6 +19,7 @@ import { principal as gardeFous } from "../src/garde-fous-cli.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { alerteDeSession } from "../src/projections/renouvellement.ts";
 import { stationsDeconnectees } from "../src/projections/stations.ts";
+import { brancherJeton } from "../src/jeton-claude.ts";
 import { brancherSession, configSession, lireSession } from "../src/renouvellement.ts";
 import { ConfigInvalide, demarrer, type CauseReveil } from "../src/runtime.ts";
 import { appeler, FAUX_BWRAP, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
@@ -409,4 +410,24 @@ test("une échéance de session déjà annoncée sort de la file dès qu'un jeto
   assert.notDeepEqual(bloc("12:00:00"), RIEN);
   noter({ type: "token.observed", payload: { token: "/secret/jeton", file: "/secret/jeton.cree", state: "read", created: a("07:00:00"), lifetimeDays: 365, warningDays: 30 } });
   assert.ok(!bloc("12:00:00").some((l) => l.includes("session")), bloc("12:00:00").join("\n"));
+});
+
+test("un jeton longue durée configuré puis retiré : l'échéance de session s'annonce de nouveau, la trace du jeton ne la tait pas", (t) => {
+  const etat = join(repertoireTemporaire(t), "brigade");
+  const jeton = join(repertoireTemporaire(t), "claude-token");
+  writeFileSync(jeton, "x".repeat(60), { mode: 0o600 });
+  let runtime = demarrer({ repertoireEtat: etat, projet: "brigade", intervalleVeilleMs: 5, intervalleTickMs: 3_600_000 });
+  t.after(() => runtime.arreter("test"));
+  const sansEcoute = () => ({ ...runtime, surReveil: () => () => {} });
+  const maintenant = new Date(a("12:00:00"));
+  runtime.journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "session.observed", payload: observation({ renewed: a("07:00:00"), lifetimeS: 8 * 3600, warningS: 3 * 3600 }) });
+
+  brancherJeton(sansEcoute(), jeton);
+  assert.equal(alerteDeSession(runtime.journal.base, maintenant), null);
+
+  // Le jeton est retiré de la configuration : le redémarrage lève la trace.
+  runtime.arreter("test");
+  runtime = demarrer({ repertoireEtat: etat, projet: "brigade", intervalleVeilleMs: 5, intervalleTickMs: 3_600_000 });
+  brancherJeton(sansEcoute(), null);
+  assert.notEqual(alerteDeSession(runtime.journal.base, maintenant), null);
 });
