@@ -21,7 +21,7 @@ commande à taper.
 | **Le réseau** | le serveur joint GitHub et les dépôts de paquets de sa distribution. |
 | **Un disque local** | `/var/lib` n'est ni sur `nfs` ni sur `cifs` (`df -T /var/lib`) : le verrou de chaque projet en dépend. |
 
-| **Ton abonnement Claude Max** | pour la connexion Max, à la fin de la commande : un lien à ouvrir dans ton navigateur, un code à recopier. |
+| **Ton abonnement Claude Max** | pour la connexion Max, à la fin de la commande, une seule fois : un lien à ouvrir dans ton navigateur, un code à recopier. |
 
 Ton compte GitHub servira aux étapes suivantes, pas à celle-ci.
 
@@ -61,16 +61,14 @@ redémarrera avec la machine, et elle attend ses projets.
 
 ### La connexion Max
 
-La commande enchaîne sur la connexion de la station à ton abonnement Claude Max — le seul moment
-où elle te demande quelque chose :
+La commande enchaîne sur la connexion de la station à ton abonnement Claude Max — le seul
+moment où elle te demande quelque chose, et il ne revient pas :
 
 ```
 brigade : la connexion Max du compte brigade — le seul moment où elle te demande quelque chose
-connexion Max — `claude` va te donner un lien : ouvre-le, connecte-toi avec ton compte Claude Max, puis recopie ici le code qu'il affiche
+connexion Max — `claude setup-token` va te donner un lien : ouvre-le, connecte-toi avec ton compte Claude Max, puis recopie ici le code qu'il affiche. Il ne se fait qu'une fois
 …
-connexion Max ouverte
-la station la reconnaît : connexion Max valide — vérifiée par le renouvellement à … UTC
-connexion Max faite : la station la renouvelle seule ; si elle se perd, le seul geste est un login, et la cuisine reprend seule dans la minute
+connexion Max faite : le jeton est rangé, lisible du seul compte de la station, avec sa date de création à côté — la station n'a plus à se reconnecter
 brigade : la suite : l'appairage avec l'app (…)
 ```
 
@@ -79,12 +77,24 @@ brigade : la suite : l'appairage avec l'app (…)
 3. La page te donne un code : colle-le dans le terminal du serveur.
 
 La connexion passe par **le binaire `claude` officiel**, sous le compte `brigade` : s'il n'est pas
-sur le serveur, la commande le pose d'abord, par l'installeur d'Anthropic. Ton quota Max ne sera
-jamais consommé autrement que par lui. La commande n'a fini que lorsque la station a reconnu la
-connexion.
+sur le serveur, la commande le pose d'abord, par l'installeur d'Anthropic. `claude setup-token`
+crée un **jeton longue durée** ; la commande le range sans jamais l'afficher, puis relance la
+station pour qu'elle le lise. Ton quota Max ne sera jamais consommé autrement que par `claude`.
+
+**Où est le jeton, et comment vérifier ses droits :**
+
+| | |
+|---|---|
+| `/etc/brigade/claude-token` | le jeton, seul dans le fichier — `600`, au compte `brigade` |
+| `/etc/brigade/claude-token.cree` | la date de sa création (sans le jeton), qui servira à t'avertir de son échéance |
+| `/etc/brigade/jeton.env` | une ligne, qui dit à l'unité de la station où lire le jeton |
+
+```sh
+stat -c '%a %U' /etc/brigade/claude-token     # attendu : 600 brigade
+```
 
 **Si la connexion échoue** (`brigade : connexion Max non faite — …`), la ligne dit pourquoi :
-relance la même commande. Elle ne réinstalle rien, et ne refait pas une connexion déjà ouverte.
+relance la même commande. Elle ne réinstalle rien, et ne refait pas un jeton déjà rangé.
 **Si la commande n'avait pas de terminal** (lancée depuis un script), elle le dit, et s'arrête
 avant la connexion : relance-la depuis un terminal du serveur.
 
@@ -97,11 +107,9 @@ reprendre : corrige ce qu'elle dit, et relance la même commande.
 
 - **Le service `brigade-station`** : un seul pour toute la machine, quel que soit le nombre de
   projets. Ajouter ou retirer un projet ne touchera à aucun fichier du système.
-- **Le compte `brigade`**, sous lequel tournent la station et ses cooks. C'est lui qui fera la
-  connexion Max.
-- **Le renouvellement de la session Max**, toutes les trente secondes : c'est lui qui garde la
-  connexion vivante, sans toi. Tant que la connexion Max n'est pas faite, chacun de ses passages
-  échoue, et c'est normal : c'est ainsi que la station sait qu'elle attend un login.
+- **Le compte `brigade`**, sous lequel tournent la station et ses cooks. C'est lui qui a fait la
+  connexion Max, et lui seul lit le jeton.
+- **Le jeton de la connexion Max** et sa date de création, dans `/etc/brigade` (étape 2).
 - **`/var/lib/brigade`**, où la station gardera la configuration, le journal et le clone de
   chacun de ses projets.
 - **Sa mise à jour**, deux minutes après chaque démarrage de la station puis toutes les dix
@@ -112,7 +120,7 @@ reprendre : corrige ce qu'elle dit, et relance la même commande.
   `.claude/brigade/reseau`. Ce qu'un projet ouvre ne l'est pas pour un autre. Chaque porte prend
   son port seule : il n'y a rien à régler.
 
-Et rien d'autre : aucune règle `sudo`, aucun fichier dans `/etc`. Tout vient du paquet, et le
+Et rien d'autre : aucune règle `sudo`, et dans `/etc` que les trois fichiers du jeton. Tout vient du paquet, et le
 suit : quand la station passe à une nouvelle version, ses unités, ses droits et son minuteur y
 passent avec elle. Rien de ce que la station demande au système n'attend donc un geste root de
 ta part.
@@ -128,27 +136,17 @@ systemctl status brigade-station
 `active (running)`, c'est qu'elle tourne. Les dernières lignes de son journal n'y apparaissent que
 si ton compte lit le journal du système ; sinon, c'est l'app qui te les montrera.
 
-## 5. Si la connexion Max se perd
+## 5. Le jeton de la connexion Max
 
-La station renouvelle sa connexion seule. Si Anthropic la refuse un jour (un mot de passe changé,
-des sessions révoquées), elle le voit — au passage suivant de son renouvellement, ou dans le
-premier cook qui la trouve fermée — et :
+Le jeton est créé une fois, à l'installation, et la station ne te demande plus rien ensuite :
+rien à refaire à intervalle, rien à rafraîchir.
 
-- **suspend la cuisine de tous ses projets**, d'un coup : plus aucun ticket n'est pris, ni relu,
-  ni jugé. Rien n'échoue pour autant : aucun cook n'est lancé pour rien, aucun ticket n'est
-  commenté, le disjoncteur ne compte rien ;
-- **le dit** : son journal de service porte `connexion Max perdue depuis … — le seul geste : un
-  login`, et elle l'expose dans `/var/lib/brigade/connexion-max.json` (`"etat": "perdue"`), que
-  l'app lira pour te le montrer.
+**Si la box est compromise, révoque le jeton depuis ton compte Claude (claude.ai, dans les
+paramètres, parmi les sessions et applications connectées de Claude Code), puis supprime
+`/etc/brigade/claude-token` : un jeton qu'on t'a pris ne sert plus à rien.**
 
-**Le seul geste est un login** : relance, sur le serveur, la commande de l'étape 1. Elle ne
-réinstalle rien : elle refait seulement la connexion Max — le lien, le code —, puis attend que la
-station l'ait reconnue. Dans la minute qui suit, la cuisine reprend seule, sans redémarrage ni
-autre commande : la station lève la suspension (`connexion Max rétablie, la cuisine reprend`).
-
-Un login fait autrement, sous le compte `brigade` (`claude auth login`), suffit aussi : le
-renouvellement le consigne à son passage suivant, dans la demi-minute, et la station reprend de
-même.
+Pour en créer un neuf (après une révocation, ou pour le remplacer), supprime ce fichier et relance
+la commande de l'étape 1 : elle refait seulement la connexion Max — le lien, le code.
 
 ## 6. La mise à jour, seule
 

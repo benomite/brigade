@@ -1,38 +1,46 @@
 // L'étape de connexion Max d'une station serveur, telle que la commande
 // d'installation du guide la joue (`paquet/installer-station.sh`), et telle
-// qu'elle se rejoue si la connexion se perd :
+// qu'elle se rejoue pour refaire le jeton (docs/installation-station.md) :
 //
 //   sudo /usr/lib/brigade-station/node/bin/node /usr/lib/brigade-station/runtime/src/connexion-max/connecter-cli.ts
 //
-// En root, elle lance tout sous le compte de la station (`runuser`), et pose
-// `claude` dans le PATH du service s'il n'y est pas — le binaire officiel,
-// par l'installeur d'Anthropic. Sous le compte de la station, elle fait la
-// même chose, sauf poser `claude`.
+// En root, elle lance `claude` sous le compte de la station (`runuser`), et le
+// pose dans le PATH du service s'il n'y est pas — le binaire officiel, par
+// l'installeur d'Anthropic. Elle y fait `claude setup-token`, une fois, et
+// range le jeton dans /etc/brigade/claude-token (600, au compte de la
+// station), la date de sa création à côté (claude-token.cree, sans le
+// jeton), et de quoi dire à l'unité où il est : la station redémarre, et le
+// lit. Le jeton ne s'affiche jamais. Sous le compte de la station, elle fait
+// la même chose, sauf poser `claude` et l'unité — ce qui demande root.
 //
 // Codes de sortie :
-//   0  connexion ouverte, et reconnue par la station
+//   0  jeton rangé (ou déjà rangé)
 //   1  connexion non faite, dite en une ligne
 //   2  refus : ni root ni le compte de la station, ou un argument
 import { spawn } from "node:child_process";
-import { accessSync, constants, existsSync, lstatSync, symlinkSync, unlinkSync } from "node:fs";
+import { accessSync, chmodSync, constants, existsSync, lstatSync, mkdirSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { userInfo } from "node:os";
-import { delimiter, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { enProcess, Sortie, type Appel } from "../appel.ts";
 import { PATH_DE_SYSTEMD } from "../installateur.ts";
 import { COMPTE } from "./connexion.ts";
-import { connecterMax, ConnexionNonFaite, type Lancement } from "./connecter.ts";
-import { configVeille } from "./veille.ts";
+import { connecterMax, ConnexionNonFaite, type Lancement, type ModeDeLancement } from "./connecter.ts";
+import { FICHIER_DU_JETON } from "../jeton-claude.ts";
 
 const REUSSI = 0;
 const ECHEC = 1;
 const REFUS = 2;
 
 export type Machine = {
-  // Le répertoire de la station (`BRIGADE_STATION_DIR` de son unité).
-  station: string;
   compte: string;
-  // Le renouvellement que le paquet porte.
-  renouvellement: string;
+  // Le fichier du jeton : hors de l'état et du clone, que la cloison masque.
+  jeton: string;
+  // La date de création du jeton, à côté — jamais le jeton.
+  creation: string;
+  // Ce que l'unité de la station lit (`EnvironmentFile`) pour savoir où est le jeton.
+  environnement: string;
+  // Relance la station, pour qu'elle lise le jeton ; null sans systemd.
+  redemarrer: () => Promise<Lancement>;
   // Le PATH des unités de la station : celui où elles trouvent `claude`.
   path: string;
   // Là où l'étape relie `claude` quand il n'est pas dans ce PATH.
@@ -45,14 +53,12 @@ export type Machine = {
   utilisateur: () => string;
 };
 
-// Le renouvellement : celui du paquet, sinon celui du dépôt — l'étape jouée
-// depuis un clone.
-const RENOUVELLEMENT = [join(import.meta.dirname, "../../../renouvellement"), join(import.meta.dirname, "../../deploy/brigade-renouvellement")].find((chemin) => existsSync(chemin)) ?? "/usr/lib/brigade-station/renouvellement";
-
 export const SERVEUR: Machine = {
-  station: "/var/lib/brigade",
   compte: COMPTE,
-  renouvellement: RENOUVELLEMENT,
+  jeton: "/etc/brigade/claude-token",
+  creation: "/etc/brigade/claude-token.cree",
+  environnement: "/etc/brigade/jeton.env",
+  redemarrer: () => executer("systemctl", ["restart", "brigade-station.service"], { PATH: PATH_DE_SYSTEMD }, false),
   path: PATH_DE_SYSTEMD,
   lien: "/usr/local/bin/claude",
   installeur: "curl -fsSL https://claude.ai/install.sh | bash",
@@ -65,9 +71,12 @@ export const SERVEUR: Machine = {
 };
 
 // Lance une commande ; ENOENT se rend comme le ferait un shell : 127.
-function executer(commande: string, args: string[], env: Record<string, string>, interactif: boolean): Promise<Lancement> {
+function executer(commande: string, args: string[], env: Record<string, string>, mode: ModeDeLancement | boolean): Promise<Lancement> {
   return new Promise((resoudre) => {
-    const enfant = spawn(commande, args, { env, stdio: interactif ? "inherit" : ["ignore", "pipe", "pipe"] });
+    const heritee = mode === true || mode === "herite";
+    // `capture` : l'entrée et la sortie d'erreur parlent au chef, la sortie
+    // standard — où `claude setup-token` imprime le jeton — est lue.
+    const enfant = spawn(commande, args, { env, stdio: heritee ? "inherit" : mode === "capture" ? ["inherit", "pipe", "inherit"] : ["ignore", "pipe", "pipe"] });
     let sortie = "";
     enfant.stdout?.on("data", (bloc: Buffer) => void (sortie += bloc.toString()));
     enfant.stderr?.on("data", (bloc: Buffer) => void (sortie += bloc.toString()));
@@ -98,13 +107,38 @@ export async function principal({ args, dire, redire }: Appel, machine: Machine 
   if (!root && machine.utilisateur() !== machine.compte) refuser(`elle se fait en root (sudo), ou sous le compte ${machine.compte} : c'est lui qui porte la connexion Max de la station`);
   const home = (await machine.home(machine.compte)) ?? refuser(`le compte ${machine.compte} n'existe pas — la station est-elle installée ?`);
 
-  const { renouvellement, exposition } = configVeille({}, machine.station);
-  const env = { HOME: home, PATH: machine.path, BRIGADE_SESSION_STATE: renouvellement, LANG: "C.UTF-8" };
+  // Ni jeton ni clé dans cet environnement : `claude setup-token` crée le jeton.
+  const env = { HOME: home, PATH: machine.path, LANG: "C.UTF-8" };
   // Sous le compte de la station, quel que soit qui lance l'étape.
-  const lancer = (commande: string, arguments_: string[], interactif: boolean) =>
+  const lancer = (commande: string, arguments_: string[], mode: ModeDeLancement) =>
     root
-      ? executer("runuser", ["-u", machine.compte, "--", "env", "-i", ...Object.entries(env).map(([nom, valeur]) => `${nom}=${valeur}`), commande, ...arguments_], { PATH: PATH_DE_SYSTEMD }, interactif)
-      : executer(commande, arguments_, env, interactif);
+      ? executer("runuser", ["-u", machine.compte, "--", "env", "-i", ...Object.entries(env).map(([nom, valeur]) => `${nom}=${valeur}`), commande, ...arguments_], { PATH: PATH_DE_SYSTEMD }, mode)
+      : executer(commande, arguments_, env, mode);
+
+  // Le jeton et sa date, 600 et 644, au compte de la station ; puis l'unité
+  // sait où il est, et la station le lit.
+  const ranger = async (jeton: string, creation: string) => {
+    try {
+      mkdirSync(dirname(machine.jeton), { recursive: true, mode: 0o750 });
+      const poser = (fichier: string, contenu: string, mode: number) => {
+        writeFileSync(fichier, contenu, { mode });
+        chmodSync(fichier, mode);
+      };
+      poser(machine.jeton, `${jeton}\n`, 0o600);
+      poser(machine.creation, `${creation}\n`, 0o644);
+      poser(machine.environnement, `${FICHIER_DU_JETON}=${machine.jeton}\n`, 0o644);
+      if (root) {
+        const chown = await executer("chown", [`${machine.compte}:`, dirname(machine.jeton), machine.jeton, machine.creation], { PATH: PATH_DE_SYSTEMD }, false);
+        if (chown.code !== 0) throw new Error(`chown a rendu ${chown.code ?? "un signal"} — ${derniereLigne(chown.sortie)}`);
+        const relance = await machine.redemarrer();
+        if (relance.code !== 0) throw new Error(`la station ne redémarre pas (code ${relance.code ?? "signal"}) — ${derniereLigne(relance.sortie)}`);
+      }
+    } catch (erreur) {
+      // Le message ne cite jamais le jeton : il vient du système de fichiers.
+      throw new ConnexionNonFaite(`le jeton ne se range pas dans ${machine.jeton} — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    }
+  };
+  const jetonRange = () => statSync(machine.jeton, { throwIfNoEntry: false })?.size;
 
   try {
     // `claude`, là où les unités de la station le trouvent.
@@ -113,7 +147,7 @@ export async function principal({ args, dire, redire }: Appel, machine: Machine 
       if (!root) throw new ConnexionNonFaite(`\`claude\` n'est pas dans le PATH des unités de la station (${machine.path}) : en root, l'étape l'y pose`);
       if (!existsSync(local)) {
         dire(`installation de \`claude\` sous le compte ${machine.compte}, par l'installeur officiel`);
-        const installe = await lancer("bash", ["-c", machine.installeur], true);
+        const installe = await lancer("bash", ["-c", machine.installeur], "herite");
         if (installe.code !== 0 || !existsSync(local)) throw new ConnexionNonFaite(`l'installeur de \`claude\` a échoué (code ${installe.code ?? "signal"}) — sa sortie est au-dessus`);
       }
       try {
@@ -125,11 +159,8 @@ export async function principal({ args, dire, redire }: Appel, machine: Machine 
       }
       dire(`\`claude\` relié dans le PATH des unités : ${machine.lien} → ${local}`);
     }
-    const etat = await lancer("mkdir", ["-p", join(machine.station, ".session")], false);
-    if (etat.code !== 0) throw new ConnexionNonFaite(`le répertoire du renouvellement ne se crée pas sous ${machine.station} — ${etat.sortie.trim()}`);
 
-    await connecterMax({ lancer, claude: "claude", renouvellement: machine.renouvellement, exposition, dire });
-    dire("connexion Max faite : la station la renouvelle seule ; si elle se perd, le seul geste est un login, et la cuisine reprend seule dans la minute");
+    await connecterMax({ lancer, claude: "claude", jetonRange: () => Boolean(jetonRange()), ranger, dire });
     throw new Sortie(REUSSI);
   } catch (erreur) {
     if (!(erreur instanceof ConnexionNonFaite)) throw erreur;
@@ -137,5 +168,7 @@ export async function principal({ args, dire, redire }: Appel, machine: Machine 
     throw new Sortie(ECHEC);
   }
 }
+
+const derniereLigne = (sortie: string) => sortie.trim().split("\n").findLast((ligne) => ligne.trim() !== "")?.trim() ?? "";
 
 if (import.meta.main) await enProcess((appel) => principal(appel));
