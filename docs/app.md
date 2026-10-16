@@ -1439,6 +1439,15 @@ livré, `livré`, `cuisiné par`, et sa PR mergée.
   manager juge l'issue à son prochain tour — ou **fermer l'issue** (un second clic confirme), par le `gh`
   du poste, à ton nom (`question.ts`, `lever`). Rien ne part pour un ticket que le bloc `attend` ne
   dit pas retenu.
+- **Une livraison qui t'attend pour merger s'explique en deux lignes, en tête de sa fiche**
+  (`decision.ts`, `teteDe`) : ce qu'elle fait — la première phrase du résumé de sa relecture, ligne
+  absente quand la relecture n'en donne pas — et pourquoi elle t'attend : `Green, but it touches the
+  judges: review it.`, `Red after 2 returns: ` suivi du premier constat bloquant (ou `Red, the manager
+  gave up: …`), `Green, the CI did not conclude.` Quand elle touche aux juges (`.claude/brigade/`,
+  `.github/workflows/`), leurs fichiers suivent, un par ligne, avec les lignes ajoutées et retirées —
+  rien de rédigé. Tout vient de `attend[].livraison` dans `faits`, ce que la pass a consigné
+  (`runtime/src/attend.ts`, `Livraison` ; `judges` du `pass.judged`) ; sans rien de consigné, la
+  phrase d'avant reste seule. Les boutons « merger » et « retirer du rail » sont dessous.
 - **Chaque valeur est un morceau de ce que la box a écrit, ou un nombre qu'elle a donné.** L'app ne
   compte aucune durée (hors l'âge de `en ce moment`, ci-dessus) et n'additionne rien : deux cooks en vol sur le même ticket se lisent chacun
   sous son run.

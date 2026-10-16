@@ -91,3 +91,57 @@ export function decisionLue(brute: unknown): Decision | undefined {
   const { quoi, motif, cause, pr } = brute as Record<string, unknown>;
   return texte(quoi) && texteOuRien(motif) && texteOuRien(cause) && texteOuRien(pr) ? { quoi, motif, cause, pr } : undefined;
 }
+
+// Ce que la pass a consigné de la livraison qui attend (runtime/src/attend.ts, `Livraison`) : le
+// résumé de sa relecture, son premier constat bloquant, les fichiers de ses juges qu'elle change.
+export type Juge = { fichier: string; ajoutees: number; retirees: number };
+export type Livraison = { resume?: string; constat?: string; juges?: Juge[] };
+
+// La tête de la fiche d'une livraison qui attend un merge, en deux lignes : `fait`, ce qu'elle
+// fait — la première phrase du résumé de sa relecture, absente quand la relecture n'en donne pas —,
+// et `pourquoi`, pourquoi elle t'attend. `juges` : les fichiers de ses juges qu'elle change, un par
+// ligne, avec les lignes ajoutées et retirées — rien de rédigé.
+export type Tete = { fait?: string; pourquoi: string; juges: Juge[] };
+
+// La première phrase d'un texte : jusqu'au premier point suivi d'un blanc, sinon tout, sur une ligne.
+export function premierePhrase(texte: string): string {
+  const une = texte.trim().replace(/\s+/g, " ");
+  const fin = une.search(/[.!?](\s|$)/);
+  return fin === -1 ? une : une.slice(0, fin + 1);
+}
+
+const encore = (suite: string | undefined) => (suite === undefined ? "" : `: ${premierePhrase(suite)}`);
+
+// Rien pour une décision qui n'est pas une livraison, pour une livraison dont la pass n'a rien
+// consigné, ni pour une livraison dont le motif n'est pas l'un des trois : la phrase d'`attenduDe` suffit.
+export function teteDe(decision: Decision | undefined, livraison: Livraison | undefined): Tete | undefined {
+  if (decision === undefined || livraison === undefined || Object.keys(livraison).length === 0) return undefined;
+  const { quoi, motif, cause } = decision;
+  const juges = livraison.juges ?? [];
+  const pourquoi =
+    quoi === "merge" && motif === "review-required" && juges.length > 0
+      ? "Green, but it touches the judges: review it."
+      : quoi === "remontee" && motif === "still-red"
+        ? cause === "manager-escalated"
+          ? `Red, the manager gave up${encore(livraison.constat)}`
+          : `Red after 2 returns${encore(livraison.constat)}`
+        : quoi === "remontee" && motif === "unjudged" && cause === "ci-silent"
+          ? "Green, the CI did not conclude."
+          : undefined;
+  if (pourquoi === undefined) return undefined;
+  const fait = livraison.resume === undefined || livraison.resume.trim() === "" ? undefined : premierePhrase(livraison.resume);
+  return { ...(fait === undefined ? {} : { fait }), pourquoi, juges };
+}
+
+const nombre = (valeur: unknown): valeur is number => typeof valeur === "number" && Number.isFinite(valeur);
+
+// La même, venue de la box : ce qui n'a pas sa forme n'est pas lu.
+export function livraisonLue(brute: unknown): Livraison | undefined {
+  if (typeof brute !== "object" || brute === null) return undefined;
+  const { resume, constat, juges } = brute as Record<string, unknown>;
+  const lus = (Array.isArray(juges) ? juges : []).flatMap((juge: unknown): Juge[] => {
+    const { fichier, ajoutees, retirees } = (typeof juge === "object" && juge !== null ? juge : {}) as Record<string, unknown>;
+    return texte(fichier) && nombre(ajoutees) && nombre(retirees) ? [{ fichier, ajoutees, retirees }] : [];
+  });
+  return { ...(texte(resume) ? { resume } : {}), ...(texte(constat) ? { constat } : {}), ...(lus.length > 0 ? { juges: lus } : {}) };
+}

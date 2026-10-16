@@ -280,6 +280,21 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.deepEqual(depot.changes(branche), [".claude/brigade/gates.sh", ".github/workflows/ci.yml", "ci-off.yml"]);
   });
 
+  test("une livraison dit, par fichier, les lignes qu'elle ajoute et celles qu'elle retire — zéro et zéro pour un binaire", async (t) => {
+    const { depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    writeFileSync(join(worktree, "trois.txt"), "a\nb\nc\n");
+    writeFileSync(join(worktree, "binaire.bin"), Buffer.from([0, 1, 2, 0, 255]));
+    git(worktree, "add", "-A");
+    git(worktree, "commit", "-q", "-m", "deux fichiers");
+
+    const comptes = depot.comptes(branche);
+    assert.deepEqual(comptes.filter(({ fichier }) => fichier !== "travail.txt").sort((a, b) => a.fichier.localeCompare(b.fichier)), [
+      { fichier: "binaire.bin", ajoutees: 0, retirees: 0 },
+      { fichier: "trois.txt", ajoutees: 3, retirees: 0 },
+    ]);
+  });
+
   test("un fichier au nom non ASCII, ou avec une espace, se lit tel qu'il s'écrit dans ce qu'une livraison change", async (t) => {
     const { depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");

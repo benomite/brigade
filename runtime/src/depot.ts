@@ -66,6 +66,8 @@ export type Depot = {
   intact(worktree: string): boolean;
   // Les fichiers que la branche change par rapport à la base.
   changes(branche: string): string[];
+  // Les mêmes, avec les lignes que la branche y ajoute et y retire (un fichier binaire : zéro et zéro).
+  comptes(branche: string): Array<{ fichier: string; ajoutees: number; retirees: number }>;
   // Le diff de ce que la branche a commité par rapport à la base : ce que le
   // reviewer relit.
   diff(branche: string): string;
@@ -561,6 +563,14 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     // `-z` : un chemin non ASCII tel qu'il s'écrit, pas entre guillemets et
     // en octal — il se compare à une zone.
     changes: (branche) => git("diff", "--name-only", "--no-renames", "-z", `origin/${base}...${branche}`).split("\0").filter(Boolean),
+    comptes: (branche) =>
+      git("diff", "--numstat", "--no-renames", "-z", `origin/${base}...${branche}`)
+        .split("\0")
+        .filter(Boolean)
+        .flatMap((ligne) => {
+          const [ajoutees = "", retirees = "", ...chemin] = ligne.split("\t");
+          return [{ fichier: chemin.join("\t"), ajoutees: Number(ajoutees) || 0, retirees: Number(retirees) || 0 }];
+        }),
     // Sans plafond de sortie : c'est le reviewer qui borne ce qu'il en lit.
     diff: (branche) =>
       execFileSync("git", ["diff", "--no-renames", "--no-color", "--no-ext-diff", `origin/${base}...${branche}`], {

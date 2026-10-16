@@ -347,6 +347,7 @@ export function fauxDepot(racine: string, gates: boolean, setup = false, declara
     },
     intact: (worktree) => readdirSync(worktree).every((nom) => nom === ".claude"),
     changes: () => ["travail.txt"],
+    comptes: () => [{ fichier: "travail.txt", ajoutees: 1, retirees: 0 }],
     diff: () => "+le travail du cook",
     ajouts: () => "le travail du cook\n+le travail du cook",
     revenir: () => {},

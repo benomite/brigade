@@ -220,6 +220,9 @@ export type FaitPass =
         review: Review;
         findings: string[];
         judgeModified: boolean;
+        // Les fichiers de ces juges que la livraison change, avec leurs lignes
+        // ajoutées et retirées — absent d'un verdict écrit avant.
+        judges?: Array<{ file: string; added: number; removed: number }>;
         declarations?: string[];
         noDiff: boolean;
       };

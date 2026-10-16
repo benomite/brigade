@@ -4,13 +4,16 @@
 // pourquoi elle ne l'a pas donné — jamais une valeur mise à la place, jamais une ligne vide.
 // Son numéro, la carte le porte : la box le donne toujours.
 import { priorite } from "./bon.ts";
+import type { Tete } from "./decision.ts";
 
 // Ce que la box en dit — `exact` : ce qui se recopie tel quel —, ou pourquoi elle n'en dit rien.
 export type Ligne = { valeur: string; exact?: true } | { sans: string };
 // `issue`, `pr` : `true`, la box en a donné une adresse qui s'ouvre d'un clic — c'est le process
 // principal qui la tient, la vue nomme le ticket. `attendu` : pour un ticket qui attend le chef,
-// ce qu'on attend de lui, en une phrase (decision.ts) — posée en tête de la fiche.
-export type Entete = { titre: Ligne; priorite: Ligne; issue: true | Ligne; pr?: true | Ligne; attendu?: string };
+// ce qu'on attend de lui, en une phrase (decision.ts) — posée en tête de la fiche. `tete` : d'une
+// livraison qui attend son merge, deux lignes à la place de cette phrase — ce qu'elle fait, pourquoi
+// elle attend —, et les fichiers de ses juges qu'elle change.
+export type Entete = { titre: Ligne; priorite: Ligne; issue: true | Ligne; pr?: true | Ligne; attendu?: string; tete?: Tete };
 
 // D'où se compose l'en-tête d'un ticket. `titre` : celui que la box donne — absent ou vide, elle
 // n'en donne pas. `url` : l'adresse de son issue — nulle ou absente, elle n'en a rendu aucune.

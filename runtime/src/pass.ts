@@ -1335,13 +1335,16 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     // Comptées à part des juges, dont elles partagent le répertoire : le motif
     // de l'arrêt dit laquelle des deux règles joue.
     const judgeModified = changes.some((fichier) => !declarations.includes(fichier) && JUGES.some((juge) => fichier.startsWith(juge)));
+    // Ce que le chef relit de ces juges : chaque fichier, avec les lignes ajoutées et retirées.
+    const comptes = new Map(depot.comptes(ref).map(({ fichier, ajoutees, retirees }) => [fichier, { added: ajoutees, removed: retirees }]));
+    const judges = changes.filter((fichier) => !declarations.includes(fichier) && JUGES.some((juge) => fichier.startsWith(juge))).map((file) => ({ file, added: comptes.get(file)?.added ?? 0, removed: comptes.get(file)?.removed ?? 0 }));
     gatesJouees.delete(ticket);
     // Le ticket a pu quitter le rail pendant une attente de GitHub : gates et
     // relecture en cache n'y changent rien, il n'a plus de verdict à recevoir.
     if (!enPass(ticket)) return;
     const verdict = findings.length === 0 ? "green" : "red";
     const franchi = plafondADire(journal.duTicket(ticket), { sha, verdict, gates });
-    prononcer(connu, { run, pr: pr.url, number: pr.number, sha, base: tete, merged: arbre, verdict, gates, ci, review, findings, judgeModified, declarations, noDiff: false });
+    prononcer(connu, { run, pr: pr.url, number: pr.number, sha, base: tete, merged: arbre, verdict, gates, ci, review, findings, judgeModified, ...(judges.length > 0 ? { judges } : {}), declarations, noDiff: false });
     if (verdict === "red") avertir(`brigade : pass rouge sur le ticket #${ticket} (${resume(gates, ci, review)})`);
     // Seul rouge des gates, le plafond de durée ne retient rien : il se lit.
     if (franchi) {

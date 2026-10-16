@@ -3,7 +3,7 @@
 // qui la tranchent, le recommandé en premier.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { attenduDe, decisionLue, SANS_DECISION, type Decision } from "../src/decision.ts";
+import { attenduDe, decisionLue, livraisonLue, premierePhrase, SANS_DECISION, teteDe, type Decision } from "../src/decision.ts";
 
 const PR = "https://github.com/benomite/brigade/pull/840";
 const decision = (quoi: string, plus: Partial<Decision> = {}): Decision => ({ quoi, motif: null, cause: null, pr: null, ...plus });
@@ -71,5 +71,44 @@ describe("l'attendu d'une décision", () => {
     for (const brute of [undefined, null, "merge", { quoi: 1, motif: null, cause: null, pr: null }, { quoi: "merge", motif: null, cause: null, pr: 8 }, { quoi: "merge" }]) {
       assert.equal(decisionLue(brute), undefined, JSON.stringify(brute));
     }
+  });
+});
+
+describe("la tête d'une livraison qui attend son merge (#731) : deux lignes, et les juges", () => {
+  const RESUME = "Adds the merge button to the sheet. It also moves the confirmation.";
+  const JUGES = [{ fichier: ".github/workflows/ci.yml", ajoutees: 4, retirees: 1 }, { fichier: ".claude/brigade/gates.sh", ajoutees: 0, retirees: 12 }];
+
+  test("verte mais elle touche aux juges : ce qu'elle fait (première phrase du résumé), pourquoi elle attend, et les fichiers un par ligne", () => {
+    assert.deepEqual(teteDe(decision("merge", { motif: "review-required", pr: PR }), { resume: RESUME, juges: JUGES }), {
+      fait: "Adds the merge button to the sheet.",
+      pourquoi: "Green, but it touches the judges: review it.",
+      juges: JUGES,
+    });
+  });
+
+  test("rouge après deux renvois : le premier constat bloquant, en une ligne ; le manager qui renonce se dit autrement", () => {
+    const constat = "The button merges without asking. A second line follows.";
+    assert.equal(teteDe(decision("remontee", { motif: "still-red", cause: "returns-exhausted", pr: PR }), { resume: RESUME, constat })?.pourquoi, "Red after 2 returns: The button merges without asking.");
+    assert.equal(teteDe(decision("remontee", { motif: "still-red", cause: "manager-escalated", pr: PR }), { constat })?.pourquoi, "Red, the manager gave up: The button merges without asking.");
+    assert.equal(teteDe(decision("remontee", { motif: "still-red", cause: "returns-exhausted" }), { resume: RESUME })?.pourquoi, "Red after 2 returns");
+  });
+
+  test("verte, la CI n'a pas conclu", () => {
+    assert.equal(teteDe(decision("remontee", { motif: "unjudged", cause: "ci-silent" }), { resume: RESUME })?.pourquoi, "Green, the CI did not conclude.");
+    assert.equal(teteDe(decision("remontee", { motif: "unjudged", cause: "ci-silent" }), undefined), undefined, "la pass n'a rien consigné : la phrase d'`attenduDe` reste seule");
+  });
+
+  test("sans résumé, la ligne « ce qu'elle fait » n'existe pas — rien n'est inventé ; ailleurs, la phrase d'`attenduDe` reste seule", () => {
+    assert.equal(teteDe(decision("remontee", { motif: "unjudged", cause: "ci-silent" }), { constat: "x" })?.fait, undefined);
+    assert.equal(teteDe(decision("merge", { motif: "no-grant", pr: PR }), { resume: RESUME }), undefined);
+    assert.equal(teteDe(decision("merge", { motif: "review-required", pr: PR }), { resume: RESUME }), undefined, "review-required sans juges : une déclaration du projet, pas un juge");
+    assert.equal(teteDe(undefined, { resume: RESUME }), undefined);
+  });
+
+  test("la première phrase, et la livraison venue de la box", () => {
+    assert.equal(premierePhrase("  One sentence\nover two lines.  Next. "), "One sentence over two lines.");
+    assert.equal(premierePhrase("No full stop"), "No full stop");
+    assert.deepEqual(livraisonLue({ resume: RESUME, juges: [...JUGES, { fichier: 1 }] }), { resume: RESUME, juges: JUGES });
+    assert.equal(livraisonLue("x"), undefined);
   });
 });

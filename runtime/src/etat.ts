@@ -5,7 +5,7 @@
 import { direActivite, type Activite } from "./activite.ts";
 import { activitesDuRail, type ActiviteDeTicket } from "./activites.ts";
 import { DIRE_GATES_COUPEES } from "./evenements/pass.ts";
-import { attentesDuChef, decisionDe, decrireAttentes, direAttente, nommerAttente, passageEnService, type Attente, type Decision, type Passage } from "./attend.ts";
+import { attentesDuChef, decisionDe, type Livraison, decrireAttentes, direAttente, nommerAttente, passageEnService, type Attente, type Decision, type Passage } from "./attend.ts";
 import { geste } from "./geste.ts";
 import { fournitTout } from "./capacites.ts";
 import { capturesVues, lireCaptures, type Captures, type CapturesVues } from "./captures.ts";
@@ -703,7 +703,10 @@ export type Faits = {
   // du rail, vide pour une issue qui n'y est pas — le journal ne le connaît pas.
   // `decision` : ce que la ligne du bloc attend du chef, en champs (attend.ts,
   // `Decision`) — celle de la première ligne du ticket, s'il en a plusieurs.
-  attend: Array<{ ticket: number; titre: string; url: string | null; decision: Decision }>;
+  // `livraison` : pour une livraison qui attend, ce que la pass en a consigné — le
+  // résumé de sa relecture, son premier constat bloquant, les fichiers de ses juges
+  // qu'elle change ; absente quand la pass n'a rien consigné.
+  attend: Array<{ ticket: number; titre: string; url: string | null; decision: Decision; livraison?: Livraison }>;
   // Les tickets servis dans les 24 h avant `lu`, le plus récent d'abord — ceux
   // que `compteurs.livres24h` compte, un pour un, encore sur le rail ou non.
   // `livre` : l'heure de son service. `station` : celle qui l'a cuisiné, nulle
@@ -851,7 +854,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
       if (attente.ticket === null || attendus.has(attente.ticket)) return [];
       const { ticket, title } = attente;
       attendus.add(ticket);
-      return [{ ticket, titre: title ?? "", url: adresse(ticket), decision: decisionDe(attente) }];
+      return [{ ticket, titre: title ?? "", url: adresse(ticket), decision: decisionDe(attente), ...("livraison" in attente && attente.livraison !== undefined ? { livraison: attente.livraison } : {}) }];
     }),
     livres: etat.livres.map(({ ticket, title, url, servedAt, station, pr, review }) => ({ ticket, titre: title, url: url ?? adresse(ticket), livre: servedAt, station, pr, relecture: relectureLivree(review), ...captures(ticket) })),
     urgence: faitsDUrgence(etat.urgence, etat.alerteUrgence, adresse),

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { attentesDuChef } from "../src/attend.ts";
 import { Base } from "../src/base.ts";
 import { consigne } from "../src/claude.ts";
 import type { Depot } from "../src/depot.ts";
@@ -13,6 +14,7 @@ import { configPass, consigneDeRenvoi, plafondADire } from "../src/pass.ts";
 import { bilanSansGrant, etatDuGrant, passDuTicket, usagesDuGrant } from "../src/projections/pass.ts";
 import { CONSIGNE_MAX } from "../src/reviewer.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
+import { lireRail } from "../src/projections/rail.ts";
 import { sortDuTicket } from "../src/projections/rail.ts";
 import { CALIBRE, chef, cuisine, fauxGitHub, issue, montre, STATION, type Options } from "./aides/cuisine.ts";
 import { BASE, commiter, DEPOT, depotGit, git, jusqua, repertoireTemporaire } from "./outils.ts";
@@ -781,13 +783,21 @@ describe("la pass", { concurrency: 8 }, () => {
   });
 
   test("une livraison qui touche à ses propres juges n'est jamais mergée par la pass, même sous grant", async (t) => {
-    const { gh, dernier, pass, jusquAu } = service(t, {
+    const { gh, dernier, pass, jusquAu, journal } = service(t, {
       grant: true,
-      depot: (depot) => ({ ...depot, changes: () => [".claude/brigade/gates.sh", "travail.txt"] }),
+      depot: (depot) => ({
+        ...depot,
+        changes: () => [".claude/brigade/gates.sh", "travail.txt"],
+        comptes: () => [{ fichier: ".claude/brigade/gates.sh", ajoutees: 5, retirees: 2 }, { fichier: "travail.txt", ajoutees: 9, retirees: 0 }],
+      }),
     });
     await jusquAu("pass.held");
 
     assert.equal(dernier("pass.judged", 17)?.judgeModified, true);
+    assert.deepEqual(dernier("pass.judged", 17)?.judges, [{ file: ".claude/brigade/gates.sh", added: 5, removed: 2 }]);
+    // Ce que le chef lit sur la carte : le résumé de la relecture, les juges avec leurs lignes — pas travail.txt.
+    const attente = attentesDuChef(journal.base, lireRail(journal.base)).find((a) => a.ticket === 17);
+    assert.deepEqual(attente?.quoi === "merge" ? attente.livraison : undefined, { resume: "Le diff fait ce que le ticket demande.", juges: [{ fichier: ".claude/brigade/gates.sh", ajoutees: 5, retirees: 2 }] });
     assert.equal(dernier("pass.judged", 17)?.verdict, "green");
     assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause], ["held", "review-required", "judge-modified"]);
     assert.deepEqual(gh.merges, []);
