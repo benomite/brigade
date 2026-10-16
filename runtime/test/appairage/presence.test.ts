@@ -11,7 +11,8 @@ import { etatsPublies } from "../../src/appairage/etats.ts";
 import { codeAffiche, FICHIER_LOCAL, tenirPresence } from "../../src/appairage/presence.ts";
 import type { ConnexionMax } from "../../src/connexion-max/connexion.ts";
 import type { EtatMiseAJour } from "../../src/mise-a-jour/etat.ts";
-import { aArreter, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { LimiteAtteinte } from "../../src/limite-github.ts";
+import { aArreter, jusqua, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -19,8 +20,9 @@ const rienNeReste = temporaireDuFichier();
 function fauxGists() {
   const gists = new Map<string, { description: string; fichiers: Fichiers }>();
   let rang = 0;
-  const etat = { panne: null as string | null };
+  const etat = { panne: null as string | null, limite: null as string | null };
   const tomber = () => {
+    if (etat.limite !== null) throw new LimiteAtteinte(etat.limite);
     if (etat.panne !== null) throw new Error(etat.panne);
   };
   const canal: Canal = {
@@ -53,7 +55,7 @@ function fauxGists() {
   return { canal, gists, etat, document, appairer };
 }
 
-function unePresence(t: TestContext, options: { racine?: string; projets?: string[]; dureeDuCodeMs?: number; etats?: () => EtatsPublies } = {}) {
+function unePresence(t: TestContext, options: { regardMs?: number; cadenceMs?: number; racine?: string; projets?: string[]; dureeDuCodeMs?: number; etats?: () => EtatsPublies } = {}) {
   const racine = options.racine ?? repertoireTemporaire(t);
   const github = fauxGists();
   const lignes: string[] = [];
@@ -66,7 +68,8 @@ function unePresence(t: TestContext, options: { racine?: string; projets?: strin
     ...(options.etats === undefined ? {} : { etats: options.etats }),
     dire: (ligne) => lignes.push(ligne),
     // Le minuteur ne bat pas pendant un test : c'est lui qui bat la mesure.
-    cadenceMs: 3_600_000,
+    cadenceMs: options.cadenceMs ?? 3_600_000,
+    ...(options.regardMs === undefined ? {} : { regardMs: options.regardMs }),
     dureeDuCodeMs: options.dureeDuCodeMs ?? 15 * 60_000,
     maintenant: () => instant,
   });
@@ -272,6 +275,47 @@ test("GitHub injoignable : la panne est dite une fois, le retour aussi, et rien 
   assert.equal(github.gists.size, 1);
   assert.ok(lignes.some((ligne) => ligne.includes("GitHub répond de nouveau")));
   assert.ok(lignes.some((ligne) => ligne.includes("à appairer")));
+});
+
+test("la station ne republie son état que s'il change, et au moins une fois par battement", async (t) => {
+  const projets = ["brigade"];
+  const { github, presence, avancer } = unePresence(t, { projets, regardMs: 20, cadenceMs: 300_000 });
+  await presence.publier();
+  // Appairée : plus rien d'autre que les projets ne bouge.
+  const id = [...github.gists.keys()][0] ?? "";
+  github.appairer(id, presence.code() ?? "");
+  const ecritures = { n: 0 };
+  const ecrire = github.canal.ecrire.bind(github.canal);
+  github.canal.ecrire = async (...args) => (ecritures.n++, ecrire(...args));
+  await jusqua(() => presence.code() === null);
+  await presence.publier();
+  const base = ecritures.n;
+  // Plusieurs regards, rien n'a changé : aucune écriture.
+  await new Promise((resoudre) => setTimeout(resoudre, 150));
+  assert.equal(ecritures.n, base);
+  // Un projet de plus : écrit au regard suivant, sans attendre le battement.
+  projets.push("espace");
+  await jusqua(() => github.document(id).projets.length === 2);
+  assert.equal(ecritures.n, base + 1);
+  // Le battement passé : le signe de vie est rafraîchi, rien n'ayant changé.
+  const avant = github.document(id).signeDeVie;
+  avancer(300_000);
+  await jusqua(() => github.document(id).signeDeVie !== avant);
+  assert.equal(ecritures.n, base + 2);
+});
+
+test("GitHub limite les appels : la station le dit une fois, avec l'heure de reprise, puis reprend", async (t) => {
+  const { github, lignes, presence } = unePresence(t);
+  await presence.publier();
+  const id = [...github.gists.keys()][0] ?? "";
+  github.etat.limite = "GitHub limite les appels, reprise vers 13:00";
+  await presence.publier();
+  await presence.publier();
+  assert.equal(lignes.filter((ligne) => ligne.includes("reprise vers 13:00")).length, 1, lignes.join("\n"));
+  github.etat.limite = null;
+  await presence.publier();
+  assert.ok(lignes.some((ligne) => ligne.includes("GitHub répond de nouveau")));
+  assert.ok(github.document(id));
 });
 
 test("presence.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

@@ -3,6 +3,7 @@
 // s'authentifie seul. La station n'ouvre aucun port et ne joint aucune autre
 // machine : ce qu'elle a à dire, elle l'écrit là.
 import { execFile } from "node:child_process";
+import { estLimite, type Limite, LimiteAtteinte, limiteDuCompte } from "../limite-github.ts";
 
 export type Fichiers = Record<string, string>;
 
@@ -16,24 +17,46 @@ export type Canal = {
   lire(id: string): Promise<Fichiers | null>;
 };
 
-export type OptionsCanal = { gh: string; delaiMs?: number };
+export type OptionsCanal = { gh: string; delaiMs?: number; limite?: Limite };
 
 // `gh` sort en erreur sur toute réponse qui n'est pas un succès, et le dit sur
 // sa sortie d'erreur : « gh: Not Found (HTTP 404) ».
 const ABSENT = /\(HTTP 404\)/;
+const STATUT = /\(HTTP (\d{3})\)/;
 
 class Absent extends Error {}
 
 export function canalGitHub(options: OptionsCanal): Canal {
-  const appeler = (args: string[], entree?: unknown): Promise<string> =>
-    new Promise((resoudre, rejeter) => {
+  const limite = options.limite ?? limiteDuCompte;
+  const env = { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" };
+  // La fin de la fenêtre, telle que GitHub la dit. Cet appel-là ne compte pas
+  // dans la limite. Null si GitHub ne la dit pas.
+  const finDeFenetre = (): Promise<number | null> =>
+    new Promise((resoudre) => {
+      execFile(options.gh, ["api", "rate_limit", "--jq", ".resources.core.reset"], { timeout: options.delaiMs ?? 30_000, env }, (erreur, sortie) => {
+        const reset = Number(sortie.trim());
+        resoudre(erreur === null && sortie.trim() !== "" && Number.isFinite(reset) ? reset : null);
+      });
+    });
+  const appeler = (args: string[], entree?: unknown): Promise<string> => {
+    // Limite atteinte : on attend la fin de la fenêtre, sans rien demander à GitHub.
+    const attente = limite.dire();
+    if (attente !== null) return Promise.reject(new LimiteAtteinte(attente));
+    limite.compter();
+    return new Promise((resoudre, rejeter) => {
       const enfant = execFile(
         options.gh,
         ["api", ...args],
-        { timeout: options.delaiMs ?? 30_000, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } },
+        { timeout: options.delaiMs ?? 30_000, maxBuffer: 16 * 1024 * 1024, env },
         (erreur, sortie, erreurs) => {
           if (erreur === null) return resoudre(sortie);
           if (ABSENT.test(erreurs)) return rejeter(new Absent());
+          if (estLimite(Number(STATUT.exec(erreurs)?.[1] ?? 0), erreurs)) {
+            return void finDeFenetre().then((reset) => {
+              limite.atteinte(reset);
+              rejeter(new LimiteAtteinte(limite.dire() ?? "GitHub limite les appels"));
+            });
+          }
           const dit = erreurs.trim().split("\n").at(-1) ?? "";
           rejeter(new Error(`gh api ${args.filter((arg) => arg.startsWith("/")).join(" ")} : ${dit || erreur.message}`));
         },
@@ -42,6 +65,7 @@ export function canalGitHub(options: OptionsCanal): Canal {
       enfant.stdin?.on("error", () => {});
       enfant.stdin?.end(entree === undefined ? "" : JSON.stringify(entree));
     });
+  };
   const contenus = (fichiers: Fichiers) => Object.fromEntries(Object.entries(fichiers).map(([nom, content]) => [nom, { content }]));
 
   return {

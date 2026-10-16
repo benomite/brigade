@@ -7,6 +7,7 @@
 import { execFile } from "node:child_process";
 import type { Check } from "./evenements/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
+import { estLimite, type Limite, LimiteAtteinte, limiteDuCompte } from "./limite-github.ts";
 
 // Le label par lequel une issue entre sur le rail.
 export const LABEL = "fire";
@@ -117,6 +118,8 @@ export type OptionsGitHub = {
   jeton?: () => Promise<string>;
   // Le compte que ce jeton fait agir.
   identite?: () => Promise<string>;
+  // La limite d'appels du compte. Absente, celle que partage tout le process.
+  limite?: Limite;
 };
 
 type Reponse = { statut: number; entetes: Map<string, string>; corps: string };
@@ -186,6 +189,7 @@ function decouper(sortie: string): Reponse | null {
 export function ouvrirGitHub(options: OptionsGitHub): GitHub {
   const { depot } = options;
   const bin = options.bin ?? "gh";
+  const limite = options.limite ?? limiteDuCompte;
   const abandon = new AbortController();
   // Cache, pas état : le perdre coûte une requête pleine, rien de plus. Un
   // ETag par liste sondée.
@@ -197,6 +201,9 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
   // ni la forme des identifiants de Claude, ni la valeur d'un jeton retenu
   // (`identifiants.ts`).
   const appeler = async (brut: string[]): Promise<Reponse> => {
+    // Limite atteinte : plus aucun appel avant la fin de la fenêtre.
+    const attente = limite.dire();
+    if (attente !== null) throw new LimiteAtteinte(attente);
     const args = brut.map((arg) => masquerIdentifiants(arg).texte);
     // `GH_TOKEN` l'emporte sur la connexion du compte, et ne se lit pas dans
     // la liste des process.
@@ -208,8 +215,16 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
         { maxBuffer: 64 * 1024 * 1024, timeout: options.delaiMs ?? 30_000, signal: abandon.signal, env },
         (erreur, stdout, stderr) => {
           const reponse = decouper(stdout);
-          if (reponse) resoudre(reponse);
-          else rejeter(new Error(`gh api ${args.at(-1)} : ${stderr.trim() || erreur?.message || "réponse illisible"}`));
+          if (reponse) {
+            limite.compter();
+            const reset = reponse.entetes.get("x-ratelimit-reset");
+            if (estLimite(reponse.statut, reponse.corps) || (reponse.entetes.get("x-ratelimit-remaining") === "0" && reponse.statut >= 400)) {
+              limite.atteinte(reset === undefined ? null : Number(reset));
+              // Ce refus n'est pas une réponse sur la chose demandée : rien n'en est dit.
+              return rejeter(new LimiteAtteinte(limite.dire() ?? "GitHub limite les appels"));
+            }
+            resoudre(reponse);
+          } else rejeter(new Error(`gh api ${args.at(-1)} : ${stderr.trim() || erreur?.message || "réponse illisible"}`));
         },
       );
     });

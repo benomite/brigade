@@ -6,8 +6,12 @@
 // station l'y lit à son signe de vie suivant, et n'affiche plus de code. Un
 // code échu en tire un autre, tant qu'elle n'est pas appairée.
 //
-// Ensuite, chaque minute, elle réécrit son état — version, projets servis,
-// signe de vie. Arrêtée proprement, elle écrit l'heure de son arrêt : l'app la
+// Ensuite, elle réécrit son état — version, projets servis, signe de vie —
+// seulement quand il change, et au moins toutes les cinq minutes : c'est ce
+// battement qui dit à l'app qu'elle vit, et chaque écriture coûte un appel à la
+// limite du compte. Elle regarde à chaque minute si quelque chose a changé ;
+// cela ne coûte rien. Si GitHub dit sa limite atteinte, elle se tait jusqu'à
+// la fin de la fenêtre. Arrêtée proprement, elle écrit l'heure de son arrêt : l'app la
 // dit hors ligne dès sa lecture suivante. Éteinte d'un coup, c'est son signe
 // de vie qui vieillit, et l'app le voit.
 //
@@ -18,12 +22,16 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { hostname, release, type } from "node:os";
 import { join } from "node:path";
 import { empreinteDuCode } from "../code.ts";
+import { LimiteAtteinte } from "../limite-github.ts";
 import type { Canal } from "./canal.ts";
 import { description, DUREE_DU_CODE_MS, ECHUS_GARDES, empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, FORMAT, tirerCode, type DocumentStation, type EtatsPublies } from "./document.ts";
 
 export const FICHIER_LOCAL = "appairage.json";
-// Entre deux signes de vie : l'app dit la station hors ligne à la minute près.
-export const CADENCE_MS = 60_000;
+// Au plus entre deux signes de vie : l'app dit la station hors ligne passé
+// deux battements et demi, soit un peu plus de dix minutes.
+export const CADENCE_MS = 300_000;
+// Entre deux regards sur ce qui a changé.
+export const REGARD_MS = 60_000;
 
 export type Identite = { nom: string; machine: string; version: string };
 
@@ -39,7 +47,9 @@ export type OptionsPresence = {
   etats?: () => EtatsPublies;
   // Une ligne du journal de service.
   dire: (ligne: string) => void;
+  // Le battement maximal entre deux publications.
   cadenceMs?: number;
+  regardMs?: number;
   dureeDuCodeMs?: number;
   maintenant?: () => number;
   tirer?: (borne: number) => number;
@@ -140,6 +150,9 @@ export function tenirPresence(options: OptionsPresence): Presence {
     ...etatsPublies(),
   });
   const fichiers = (instant: number, arret: boolean) => ({ [FICHIER_STATION]: `${JSON.stringify(document(instant, arret), null, 2)}\n` });
+  // Ce qui est publié, hors signe de vie : si cela n'a pas bougé, écrire n'apprend rien à l'app.
+  const contenu = (arret: boolean) => JSON.stringify({ ...document(0, arret), signeDeVie: null, arreteeLe: null, arret });
+  let publie: { contenu: string; instant: number } | null = null;
 
   const repartirDeZero = (pourquoi: string) => {
     etat = { ...VIERGE };
@@ -168,7 +181,8 @@ export function tenirPresence(options: OptionsPresence): Presence {
     dire(`brigade : station appairée à l'app${le} — elle n'affiche plus de code`);
   };
 
-  const cycle = async (arret: boolean) => {
+  // `force` : un geste demande la publication, changement ou non.
+  const cycle = async (arret: boolean, force: boolean) => {
     const instant = maintenant();
     if (etat.gist !== null && !etat.appairee && !arret) await lireAppairage(etat.gist);
     if (!arret) renouvelerCode(instant);
@@ -177,12 +191,17 @@ export function tenirPresence(options: OptionsPresence): Presence {
       if (arret) return;
       etat = { ...etat, gist: await canal.creer(description(identite.nom), fichiers(instant, false)) };
       sauver();
-    } else if ((await canal.ecrire(etat.gist, fichiers(instant, arret))) === "absent") {
-      repartirDeZero("son gist a disparu de GitHub");
-      if (arret) return;
-      renouvelerCode(instant);
-      etat = { ...etat, gist: await canal.creer(description(identite.nom), fichiers(instant, false)) };
-      sauver();
+      publie = { contenu: contenu(false), instant };
+    } else if (arret || force || publie === null || contenu(false) !== publie.contenu || instant - publie.instant >= cadenceMs) {
+      const dit = contenu(arret);
+      if ((await canal.ecrire(etat.gist, fichiers(instant, arret))) === "absent") {
+        repartirDeZero("son gist a disparu de GitHub");
+        if (arret) return;
+        renouvelerCode(instant);
+        etat = { ...etat, gist: await canal.creer(description(identite.nom), fichiers(instant, false)) };
+        sauver();
+        publie = { contenu: contenu(false), instant };
+      } else publie = { contenu: dit, instant };
     }
     if (panne !== null) dire("brigade : station — GitHub répond de nouveau : son état y est publié");
     panne = null;
@@ -193,11 +212,13 @@ export function tenirPresence(options: OptionsPresence): Presence {
   };
 
   let fil: Promise<void> = Promise.resolve();
-  const enchainer = (arret: boolean) => {
+  const enchainer = (arret: boolean, force = false) => {
     fil = fil.then(() =>
-      cycle(arret).catch((erreur: unknown) => {
-        const dit = message(erreur);
-        if (dit !== panne) dire(`brigade : station — son état n'est pas publié sur GitHub, elle réessaie à chaque minute : ${dit}`);
+      cycle(arret, force).catch((erreur: unknown) => {
+        const limite = erreur instanceof LimiteAtteinte;
+        // Une limite dite par GitHub ne se redit pas à chaque minute : sa reprise est dans le message.
+        const dit = limite ? "limite" : message(erreur);
+        if (dit !== panne) dire(limite ? `brigade : station — ${message(erreur)} : son état n'est pas publié d'ici là` : `brigade : station — son état n'est pas publié sur GitHub, elle réessaie à chaque minute : ${dit}`);
         panne = dit;
       }),
     );
@@ -205,10 +226,10 @@ export function tenirPresence(options: OptionsPresence): Presence {
   };
 
   void enchainer(false);
-  const veille = setInterval(() => void enchainer(false), cadenceMs);
+  const veille = setInterval(() => void enchainer(false), options.regardMs ?? REGARD_MS);
 
   return {
-    publier: () => (arretee ? fil : enchainer(false)),
+    publier: () => (arretee ? fil : enchainer(false, true)),
     code: () => (etat.appairee || etat.gist === null ? null : etat.code),
     arreter() {
       if (arretee) return fil;

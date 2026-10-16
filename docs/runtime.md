@@ -1010,7 +1010,7 @@ jamais. Tout passe par **GitHub**, où elle écrit son état — dans un **gist 
 - **Le chef tape le code dans l'app** (« Tous les projets », [docs/app.md](app.md)) : l'app trouve le
   gist qui publie cette empreinte et y écrit `brigade-appairage.json`. La station l'y lit à son
   signe de vie suivant, et n'affiche plus de code (`brigade : station appairée à l'app`).
-- **Chaque minute**, elle réécrit `brigade-station.json` : son nom, sa machine, sa version, les
+- **Quand il change, et au moins toutes les cinq minutes** (elle regarde chaque minute, sans appel), elle réécrit `brigade-station.json` : son nom, sa machine, sa version, les
   projets qu'elle sert, son dernier signe de vie. **Arrêtée** (SIGTERM), elle y écrit l'heure de
   son arrêt. L'app la dit hors ligne dès qu'elle s'est arrêtée, ou dès qu'elle a manqué deux signes
   de vie.
@@ -1023,7 +1023,13 @@ jamais. Tout passe par **GitHub**, où elle écrit son état — dans un **gist 
 - Ce qu'elle garde d'une fois sur l'autre — son gist, son code, son appairage — est dans
   `<BRIGADE_STATION_DIR>/appairage.json`. **Un gist supprimé** sur GitHub la remet à zéro : un
   gist neuf, un code neuf, un appairage à refaire. **GitHub muet** : la panne est dite une fois,
-  son retour aussi, et elle réessaie à chaque minute.
+  son retour aussi, et elle réessaie à chaque minute. **GitHub qui limite les appels** (429, ou 403
+  « rate limit ») : la station le dit une fois, avec l'heure de reprise (« GitHub limite les appels,
+  reprise vers HH:MM »), et n'appelle plus rien jusqu'à la fin de la fenêtre. Même règle pour le
+  sondage des issues du runtime (`limite-github.ts`) : un budget de 2 500 appels par heure et par
+  process, compté sur l'heure glissante — la station et chaque projet sont des process distincts, donc
+  des budgets distincts. L'app dit la station hors ligne passé 2,5 battements (un peu plus de dix
+  minutes).
 
 Trois réglages, tous facultatifs : `BRIGADE_GH_BIN` (le `gh` de la machine, `gh` à défaut),
 `BRIGADE_STATION_NOM` (son nom sur la home — à défaut, celui de la machine), et
