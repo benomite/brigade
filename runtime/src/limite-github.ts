@@ -3,10 +3,13 @@
 // GitHub dit que la limite est atteinte. Un seul compte par machine : un seul
 // limiteur par process, que le sondage des issues et le canal de la station
 // partagent. Chaque process (la station, chaque projet) a le sien : le budget
-// est celui d'un process, à régler en conséquence.
+// est celui d'un process, et leur somme doit tenir dans les 2 500 du compte.
 
-// Le budget visé, par heure, pour un process.
-export const BUDGET_PAR_HEURE = 2_500;
+// Ce que le compte accorde par heure, pour la station et ses projets.
+export const BUDGET_DU_COMPTE = 2_500;
+// Le budget d'un process : la station et trois projets font 4 × 600 = 2 400.
+// `BRIGADE_GITHUB_BUDGET` le règle (plus de trois projets : le baisser).
+export const BUDGET_PAR_HEURE = Number(process.env.BRIGADE_GITHUB_BUDGET) > 0 ? Number(process.env.BRIGADE_GITHUB_BUDGET) : 600;
 const HEURE_MS = 3_600_000;
 // À défaut de savoir quand la fenêtre se referme (limite secondaire, sans
 // en-tête qui le dise).

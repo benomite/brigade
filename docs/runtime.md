@@ -1010,7 +1010,8 @@ jamais. Tout passe par **GitHub**, où elle écrit son état — dans un **gist 
 - **Le chef tape le code dans l'app** (« Tous les projets », [docs/app.md](app.md)) : l'app trouve le
   gist qui publie cette empreinte et y écrit `brigade-appairage.json`. La station l'y lit à son
   signe de vie suivant, et n'affiche plus de code (`brigade : station appairée à l'app`).
-- **Quand il change, et au moins toutes les cinq minutes** (elle regarde chaque minute, sans appel), elle réécrit `brigade-station.json` : son nom, sa machine, sa version, les
+- **Quand il change, et au moins toutes les 4 minutes** (elle regarde chaque minute, sans appel),
+  elle réécrit `brigade-station.json` : son nom, sa machine, sa version, les
   projets qu'elle sert, son dernier signe de vie. **Arrêtée** (SIGTERM), elle y écrit l'heure de
   son arrêt. L'app la dit hors ligne dès qu'elle s'est arrêtée, ou dès qu'elle a manqué deux signes
   de vie.
@@ -1027,9 +1028,12 @@ jamais. Tout passe par **GitHub**, où elle écrit son état — dans un **gist 
   « rate limit ») : la station le dit une fois, avec l'heure de reprise (« GitHub limite les appels,
   reprise vers HH:MM »), et n'appelle plus rien jusqu'à la fin de la fenêtre. Même règle pour le
   sondage des issues du runtime (`limite-github.ts`) : un budget de 2 500 appels par heure et par
-  process, compté sur l'heure glissante — la station et chaque projet sont des process distincts, donc
-  des budgets distincts. L'app dit la station hors ligne passé 2,5 battements (un peu plus de dix
-  minutes).
+  process, compté sur l'heure glissante. La station et chaque projet sont des process distincts : le
+  budget d'un process est de 600 appels (`BRIGADE_GITHUB_BUDGET` pour le régler), si bien que la station
+  et trois projets font 2 400 appels au plus, sous les 2 500 du compte. Au-delà de trois projets,
+  baisser ce réglage. Le nombre d'appels de l'heure écoulée est dit au journal de la station, une fois
+  par heure. Elle publie une cadence de 270 s : l'app la dit hors ligne passé 2 × 270 s + 30 s, soit
+  9,5 minutes.
 
 Trois réglages, tous facultatifs : `BRIGADE_GH_BIN` (le `gh` de la machine, `gh` à défaut),
 `BRIGADE_STATION_NOM` (son nom sur la home — à défaut, celui de la machine), et

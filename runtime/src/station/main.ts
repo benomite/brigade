@@ -6,6 +6,7 @@ import { mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { canalGitHub } from "../appairage/canal.ts";
 import { etatsPublies } from "../appairage/etats.ts";
+import { limiteDuCompte } from "../limite-github.ts";
 import { identiteDeLaStation, tenirPresence } from "../appairage/presence.ts";
 import { configVeille, veillerConnexionMax, type VeilleConnexionMax } from "../connexion-max/veille.ts";
 import { masquerLaConsole } from "../jeton-claude.ts";
@@ -88,6 +89,8 @@ const station = ouvrirStation({ racine, env: process.env, dire, connexion, porte
 const canal = canalGitHub({ gh: process.env.BRIGADE_GH_BIN || "gh" });
 const identite = identiteDeLaStation(process.env);
 const dossierMiseAJour = process.env.BRIGADE_MISE_A_JOUR_DIR || null;
+// La mesure du budget GitHub : les appels de l'heure écoulée, dits au journal chaque heure.
+setInterval(() => dire(`brigade : station — ${limiteDuCompte.appels()} appels GitHub sur l'heure écoulée`), 3_600_000).unref();
 const presence = tenirPresence({
   racine,
   canal,

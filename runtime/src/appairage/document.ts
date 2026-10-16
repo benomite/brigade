@@ -8,7 +8,7 @@
 //   - `brigade-station.json`, écrit par la station seule, à chaque signe de vie :
 //       { "brigade": "station", "format": 1, "nom": "box", "machine": "Linux 6.1.0",
 //         "version": "…", "projets": ["brigade"], "signeDeVie": "<ISO>",
-//         "cadenceMs": 60000, "arreteeLe": null | "<ISO>",
+//         "cadenceMs": 270000, "arreteeLe": null | "<ISO>",
 //         "appairage": null | { "empreinte": "<sha256>", "expireLe": "<ISO>" },
 //         "echus": ["<sha256>", …],
 //         "miseAJour": null | { "visee": "…", "restauree": "…", "le": "<ISO>", "retourRate": false },

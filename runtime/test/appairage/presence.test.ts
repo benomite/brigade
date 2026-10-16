@@ -297,9 +297,9 @@ test("la station ne republie son état que s'il change, et au moins une fois par
   projets.push("espace");
   await jusqua(() => github.document(id).projets.length === 2);
   assert.equal(ecritures.n, base + 1);
-  // Le battement passé : le signe de vie est rafraîchi, rien n'ayant changé.
+  // Au dernier regard avant la cadence : le signe de vie est rafraîchi, rien n'ayant changé.
   const avant = github.document(id).signeDeVie;
-  avancer(300_000);
+  avancer(299_990);
   await jusqua(() => github.document(id).signeDeVie !== avant);
   assert.equal(ecritures.n, base + 2);
 });

@@ -7,7 +7,7 @@
 // code échu en tire un autre, tant qu'elle n'est pas appairée.
 //
 // Ensuite, elle réécrit son état — version, projets servis, signe de vie —
-// seulement quand il change, et au moins toutes les cinq minutes : c'est ce
+// seulement quand il change, et assez souvent pour tenir sa cadence (moins de cinq minutes) : c'est ce
 // battement qui dit à l'app qu'elle vit, et chaque écriture coûte un appel à la
 // limite du compte. Elle regarde à chaque minute si quelque chose a changé ;
 // cela ne coûte rien. Si GitHub dit sa limite atteinte, elle se tait jusqu'à
@@ -27,9 +27,10 @@ import type { Canal } from "./canal.ts";
 import { description, DUREE_DU_CODE_MS, ECHUS_GARDES, empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, FORMAT, tirerCode, type DocumentStation, type EtatsPublies } from "./document.ts";
 
 export const FICHIER_LOCAL = "appairage.json";
-// Au plus entre deux signes de vie : l'app dit la station hors ligne passé
-// deux battements et demi, soit un peu plus de dix minutes.
-export const CADENCE_MS = 300_000;
+// La cadence que la station publie : l'app la dit hors ligne passé
+// 2 × cadence + 30 s, soit 570 s (moins de dix minutes) à 270 s. Le battement
+// réel (écrire avant que le regard suivant dépasse la cadence) reste dessous.
+export const CADENCE_MS = 270_000;
 // Entre deux regards sur ce qui a changé.
 export const REGARD_MS = 60_000;
 
@@ -109,6 +110,7 @@ export function codeAffiche(racine: string): string | null {
 export function tenirPresence(options: OptionsPresence): Presence {
   const { canal, identite, dire } = options;
   const cadenceMs = options.cadenceMs ?? CADENCE_MS;
+  const regardMs = options.regardMs ?? REGARD_MS;
   const dureeDuCodeMs = options.dureeDuCodeMs ?? DUREE_DU_CODE_MS;
   const maintenant = options.maintenant ?? Date.now;
   const fichier = join(options.racine, FICHIER_LOCAL);
@@ -192,7 +194,7 @@ export function tenirPresence(options: OptionsPresence): Presence {
       etat = { ...etat, gist: await canal.creer(description(identite.nom), fichiers(instant, false)) };
       sauver();
       publie = { contenu: contenu(false), instant };
-    } else if (arret || force || publie === null || contenu(false) !== publie.contenu || instant - publie.instant >= cadenceMs) {
+    } else if (arret || force || publie === null || contenu(false) !== publie.contenu || instant - publie.instant + regardMs > cadenceMs) {
       const dit = contenu(arret);
       if ((await canal.ecrire(etat.gist, fichiers(instant, arret))) === "absent") {
         repartirDeZero("son gist a disparu de GitHub");
@@ -226,7 +228,7 @@ export function tenirPresence(options: OptionsPresence): Presence {
   };
 
   void enchainer(false);
-  const veille = setInterval(() => void enchainer(false), options.regardMs ?? REGARD_MS);
+  const veille = setInterval(() => void enchainer(false), regardMs);
 
   return {
     publier: () => (arretee ? fil : enchainer(false, true)),
