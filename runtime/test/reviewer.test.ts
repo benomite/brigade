@@ -183,3 +183,66 @@ test("ce que la brigade écrit elle-même sur une issue n'est pas relu : ni un c
   }
   for (const corps of ["Le chef précise : sans toucher aux workflows.", "<!-- brigade:fiche -->\nattend: #12", "Je cite : **Pass — rouge**"]) assert.doesNotMatch(corps, DE_LA_BRIGADE);
 });
+
+const CAPTURES = {
+  dossier: "docs/captures/17",
+  screens: [{ screen: "fiche", before: "docs/captures/17/fiche-avant.png", after: "docs/captures/17/fiche-apres.png" }],
+};
+const SANS_CAPTURE = { dossier: "docs/captures/17", screens: [] };
+const violation = (regle: string, fichier: string | null = "docs/captures/17/fiche-apres.png") => ({ gravite: "bloquant", fichier, regle, constat: "la capture montre une commande ssh à recopier" });
+
+test("la relecture d'une PR d'interface liste les trois violations de #830, demande de les chercher sur les captures, et donne les captures livrées", () => {
+  const consigne = consigneDeRelecture({ ...MISSION, captures: CAPTURES });
+
+  assert.match(consigne, /## Les captures/);
+  for (const regle of ["geste-non-bouton", "mode-d-emploi", "erreur-brute"]) assert.match(consigne, new RegExp(`\`${regle}\` — `), regle);
+  assert.match(consigne, /#830/);
+  assert.match(consigne, /Chaque violation que tu vois est un constat `bloquant`/);
+  assert.match(consigne, /- docs\/captures\/17\/fiche-avant\.png\n- docs\/captures\/17\/fiche-apres\.png/);
+  assert.match(consigne, /"regle": "erreur-brute"/);
+  // Un ticket qui n'est pas d'interface n'en entend pas parler.
+  for (const captures of [undefined, null]) assert.doesNotMatch(consigneDeRelecture({ ...MISSION, captures }), /#830|## Les captures/);
+  // Ni un livrable sans diff, ni une passe de fermeture.
+  assert.doesNotMatch(consigneDeRelecture({ ...MISSION, diff: null, captures: CAPTURES }), /## Les captures/);
+});
+
+test("une PR d'interface sans aucune capture est un constat bloquant, que le reviewer l'ait dit ou non", () => {
+  const consigne = consigneDeRelecture({ ...MISSION, captures: SANS_CAPTURE });
+  assert.match(consigne, /aucune capture dans `docs\/captures\/17\/` : c'est un constat `bloquant`/);
+
+  // Le reviewer l'a laissé passer : la station le dit à sa place.
+  const lue = lireRelecture(reponse({ verdict: "vert", resume: "RAS", constats: [] }), SANS_CAPTURE);
+  assert.ok("relecture" in lue);
+  assert.equal(lue.relecture.verdict, "red");
+  assert.deepEqual(lue.relecture.findings.map(({ severity, file }) => [severity, file]), [["blocking", "docs/captures/17"]]);
+  assert.match(lue.relecture.findings[0]!.text, /sans capture/);
+
+  // Il l'a dit : pas de doublon.
+  const dit = lireRelecture(reponse({ verdict: "rouge", resume: "x", constats: [{ gravite: "bloquant", fichier: "docs/captures/17", constat: "pas de capture" }] }), SANS_CAPTURE);
+  assert.ok("relecture" in dit);
+  assert.equal(dit.relecture.findings.length, 1);
+
+  // Un ticket qui n'est pas d'interface n'en réclame pas.
+  assert.deepEqual(lireRelecture(reponse({ verdict: "vert", resume: "RAS", constats: [] })), { relecture: { verdict: "green", summary: "RAS", findings: [] } });
+});
+
+test("une violation de #830 sur une capture est bloquante et cite la capture ; une capture qui respecte les règles ne produit aucun constat de ce type", () => {
+  for (const regle of ["geste-non-bouton", "mode-d-emploi", "erreur-brute"]) {
+    const lue = lireRelecture(reponse({ verdict: "rouge", resume: "x", constats: [violation(regle)] }), CAPTURES);
+    assert.ok("relecture" in lue, regle);
+    assert.equal(lue.relecture.verdict, "red");
+    assert.deepEqual(lue.relecture.findings.map(({ severity, file }) => [severity, file]), [["blocking", "docs/captures/17/fiche-apres.png"]]);
+    assert.match(lue.relecture.findings[0]!.text, /^Règle #830 — .* : la capture montre une commande ssh/);
+  }
+  const propre = lireRelecture(reponse({ verdict: "vert", resume: "Les captures respectent les règles.", constats: [] }), CAPTURES);
+  assert.deepEqual(propre, { relecture: { verdict: "green", summary: "Les captures respectent les règles.", findings: [] } });
+});
+
+test("une violation de #830 mal formée rend la relecture illisible : règle inconnue, gravité qui n'est pas bloquante, capture non citée ou qui n'est pas livrée", () => {
+  const illisible = (constat: unknown) => lireRelecture(reponse({ verdict: "rouge", resume: "x", constats: [constat] }), CAPTURES);
+  assert.match((illisible(violation("couleur")) as { illisible: string }).illisible, /règle inconnue "couleur"/);
+  assert.match((illisible({ ...violation("erreur-brute"), gravite: "remarque" }) as { illisible: string }).illisible, /bloquante/);
+  assert.match((illisible(violation("erreur-brute", null)) as { illisible: string }).illisible, /cite la capture/);
+  assert.match((illisible(violation("erreur-brute", "docs/captures/17/fiche-avant.png")) as { illisible: string }).illisible, /cite la capture/);
+  assert.match((illisible(violation("erreur-brute", "app/src/vue/vue.js")) as { illisible: string }).illisible, /cite la capture/);
+});

@@ -1417,12 +1417,24 @@ chaque écran en tableau `Avant | Après`, les deux images côte à côte et lé
 chargées au commit poussé (`https://github.com/<dépôt>/blob/<sha>/<chemin>?raw=true`, que GitHub
 montre aussi dans un dépôt privé). **Une livraison d'interface sans ses captures** — aucune, ou un
 écran qui n'en a qu'une — y est dite **incomplète** : `Livraison incomplète : captures manquantes —
-<ce qui manque>`, et où les poser. Rien n'est arrêté : la pass la juge comme une autre. Les captures
+<ce qui manque>`, et où les poser. Rien n'est arrêté à la livraison : c'est la relecture qui juge (plus bas). Les captures
 vont au journal avec le compte-rendu (`cook.reported`, `captures` : le commit et chaque écran), d'où
 `facts` les donne à la carte du ticket. **Un ticket qui n'est pas d'interface n'en dit rien** — ni
 section sur la PR, ni champ au journal, ni dans `facts`. Un renvoi livre sur la PR déjà ouverte : son
 corps garde les captures de la première livraison, le commentaire du renvoi et `facts` montrent les
 nouvelles.
+
+**La relecture juge aussi les captures** (`runtime/src/reviewer.ts`, #843). Pour un ticket d'interface,
+la consigne du reviewer ajoute une section « Les captures » : les captures livrées (qu'il ouvre avec
+`Read`) et les trois violations des règles de #830, cherchées sur chaque capture « après » — `geste-non-bouton`
+(un geste attendu qui n'est qu'une commande à recopier), `mode-d-emploi` (un paragraphe d'explication
+en clair), `erreur-brute` (une erreur technique affichée telle quelle). Chaque violation est un constat
+**bloquant**, qui porte `regle` et cite en `fichier` la capture « après » concernée ; un constat de ce type
+qui n'est pas bloquant ou ne cite pas une capture livrée rend la relecture illisible (elle est redemandée). Une
+capture qui respecte les règles ne produit aucun constat de ce type. **Une livraison d'interface sans aucune
+capture est bloquante** : la station ajoute elle-même le constat (`fichier` : `docs/captures/<ticket>/`)
+si le reviewer ne l'a pas dit. Un écran qui n'a qu'une de ses deux captures reste une remarque. Un ticket
+qui n'est pas d'interface ne change pas. Le cas attendu est dans `evals/relecture-captures-830/`.
 
 **L'épique liste ses tickets, avec leur état**, dans un bloc que le manager écrit à la fin de son
 corps, entre deux marqueurs :
