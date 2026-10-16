@@ -1,5 +1,6 @@
 // Les faits d'une station : ce qu'elle annonce d'elle-même, ce qui l'empêche de
 // servir, et ce qu'elle rapporte de chaque cook.
+import type { Captures } from "../captures.ts";
 
 // Comment un cook a fini, du point de vue de celle qui l'a lancé. `86` : le
 // quota est épuisé — un état normal, pas un échec. `disconnected` : la
@@ -60,9 +61,11 @@ export type FaitStation =
   // Le compte-rendu d'un cook : sa fin, pourquoi, ce qu'il dit avoir fait, et
   // où est son travail. `reconciled` : écrit au démarrage, pour une livraison
   // que la vie précédente du runtime a envoyée en pass sans la raconter.
+  // `captures` : pour la livraison poussée d'un ticket d'interface, ses
+  // captures avant et après (captures.ts) — absent pour tout autre ticket.
   | {
       type: "cook.reported";
-      payload: { run: string; ending: FinDeCook; reason: string | null; summary: string | null; deliverable?: string | null; branch: string; pr: string | null; reconciled?: true };
+      payload: { run: string; ending: FinDeCook; reason: string | null; summary: string | null; deliverable?: string | null; branch: string; pr: string | null; reconciled?: true; captures?: Captures };
     }
   // La livraison d'un cook, confrontée à la zone que son ticket portait quand
   // il a été pris. `files` : ce qu'elle écrit hors de cette zone, et les

@@ -140,6 +140,9 @@ export type Pont = {
   ouvrirLien(projet: string, ticket: number, url: string): Promise<boolean>;
   // Le titre d'une issue que la box ne donne pas, lu par le `gh` du poste à l'adresse que la box a rendue.
   lireTitre(projet: string, ticket: number): Promise<import("../question.ts").Titre | undefined>;
+  // Une capture d'un ticket d'interface, par son écran et son moment : l'image, lue par le `gh` du
+  // poste à l'adresse que la box a rendue, en `data:` — ou pourquoi elle ne l'est pas.
+  lireCapture(projet: string, ticket: number, ecran: string, moment: "avant" | "apres"): Promise<import("../captures.ts").Image | undefined>;
   // Lever la retenue `blocked-on-human` d'un ticket qui t'attend : retirer le label (`label`) ou
   // fermer l'issue (`fermer`), par le `gh` du poste. Rien ne part pour un ticket que le bloc ne dit pas retenu.
   leverRetenue(projet: string, ticket: number, geste: "label" | "fermer"): Promise<import("../question.ts").Leve>;

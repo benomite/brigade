@@ -207,6 +207,58 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(porteFiche(corps), false);
   });
 
+  // La livraison d'un ticket d'interface porte, en plus du travail du cook, les captures que voici.
+  const avecCaptures =
+    (...captures: string[]) =>
+    (depot: Depot): Depot => ({ ...depot, changes: (branche) => [...depot.changes(branche), ...captures] });
+
+  test("un ticket d'interface livré avec ses captures les montre sur sa PR et sur le ticket, avant et après côte à côte, et le journal les garde pour la carte", async (t) => {
+    const { gh, dernier, journal } = cuisine(t, { scenario: "bavard", suite: ["livre"], depot: avecCaptures("docs/captures/15/fiche-avant.png", "docs/captures/15/fiche-apres.png") });
+    gh.ficher(15, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : app/src/vue`);
+    gh.poser(issue(15));
+    await jusqua(() => gh.commentaires.length === 1);
+
+    const captures = dernier("cook.reported", 15)?.captures as { sha: string; screens: unknown[] } | undefined;
+    assert.deepEqual(captures?.screens, [{ screen: "fiche", before: "docs/captures/15/fiche-avant.png", after: "docs/captures/15/fiche-apres.png" }]);
+    const image = (moment: string) => `https://github.com/${DEPOT}/blob/${captures?.sha}/docs/captures/15/fiche-${moment}.png?raw=true`;
+    const ligne = `| ![fiche — avant](${image("avant")})<br>fiche — avant | ![fiche — après](${image("apres")})<br>fiche — après |`;
+    const pr = gh.prs[0]?.corps ?? "";
+    assert.match(pr, /### Captures\n\n\*\*Écran `fiche`\*\*\n\n\| Avant \| Après \|/);
+    assert.equal(pr.includes(ligne), true, pr);
+    assert.doesNotMatch(pr, /incomplète/);
+    // La section suit la ligne de tête de la PR, avant le compte-rendu du cook.
+    assert.ok(pr.indexOf("### Captures") < pr.indexOf("J'ai ajouté"), pr);
+    assert.equal(gh.commentaires[0]?.[1].includes(ligne), true);
+    // Ce que l'app lit : la carte du ticket en pass porte ses deux captures.
+    const enPass = faits(lireEtat(journal), new Date(), DEPOT).rail.find(({ ticket }) => ticket === 15);
+    assert.deepEqual(enPass?.captures, { complet: true, ecrans: [{ ecran: "fiche", avant: image("avant"), apres: image("apres") }] });
+  });
+
+  test("un ticket d'interface livré sans ses captures est dit incomplet, sur sa PR, sur le ticket et pour la carte", async (t) => {
+    // Désigné par le manager pour le cook design, sans zone : son label le dit d'interface.
+    const { gh, dernier, journal } = cuisine(t, { issues: [issue(15, [...CALIBRE, "cook:design"])] });
+    await jusqua(() => gh.commentaires.length === 1);
+
+    assert.deepEqual((dernier("cook.reported", 15)?.captures as { screens: unknown[] } | undefined)?.screens, []);
+    for (const corps of [gh.prs[0]?.corps ?? "", gh.commentaires[0]?.[1] ?? ""]) {
+      assert.match(corps, /### Captures\n\n> \*\*Livraison incomplète : captures manquantes\*\* — aucune capture\./);
+      assert.match(corps, /`docs\/captures\/15\/<écran>-avant\.png`/);
+    }
+    assert.deepEqual(faits(lireEtat(journal), new Date(), DEPOT).rail.find(({ ticket }) => ticket === 15)?.captures, { complet: false, ecrans: [] });
+  });
+
+  test("un ticket qui n'est pas d'interface ne dit rien de captures : ni sur sa PR, ni sur le ticket, ni au journal, ni pour la carte", async (t) => {
+    const { gh, dernier, journal } = cuisine(t, { scenario: "bavard", suite: ["livre"], depot: avecCaptures("docs/captures/15/fiche-avant.png") });
+    gh.ficher(15, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : runtime/src, travail.txt, docs`);
+    gh.poser(issue(15));
+    await jusqua(() => gh.commentaires.length === 1);
+
+    assert.equal("captures" in (dernier("cook.reported", 15) ?? {}), false);
+    assert.doesNotMatch(gh.prs[0]?.corps ?? "", /Captures|capture/);
+    assert.doesNotMatch(gh.commentaires[0]?.[1] ?? "", /Captures|capture/);
+    assert.equal("captures" in (faits(lireEtat(journal), new Date(), DEPOT).rail.find(({ ticket }) => ticket === 15) ?? {}), false);
+  });
+
   test("dans sa zone, dans un chemin commun, ou sans zone : rien n'est signalé", async (t) => {
     const cas: [fiche: string | null, communs: string[]][] = [
       [`${MARQUEUR}\n- zone : travail.txt`, []],

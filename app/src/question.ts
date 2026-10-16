@@ -141,7 +141,7 @@ export const corpsDuChoix = ({ lettre, texte }: Choix) => `${lettre}) ${texte}`;
 // Ce que `gh` a rendu, brut.
 type Rendu = { erreur: ExecFileException | null; sortie: string; erreurs: string };
 // `gh` lancé une fois. Sans terminal, il ne demande rien : `GH_PROMPT_DISABLED`.
-function lancer(reglages: Reglages, args: string[], entree?: string): Promise<Rendu> {
+export function lancer(reglages: Reglages, args: string[], entree?: string): Promise<Rendu> {
   return new Promise((resoudre) => {
     const enfant = execFile(reglages.gh, args, { timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (erreur, sortie, erreurs) =>
       resoudre({ erreur, sortie, erreurs }),
@@ -153,7 +153,7 @@ function lancer(reglages: Reglages, args: string[], entree?: string): Promise<Re
 }
 
 // Ce qu'un `gh` en échec a dit, et la ligne lancée.
-function echec(reglages: Reglages, args: string[], { erreur, sortie, erreurs }: Rendu & { erreur: ExecFileException }): string {
+export function echec(reglages: Reglages, args: string[], { erreur, sortie, erreurs }: Rendu & { erreur: ExecFileException }): string {
   const lance = `$ ${reglages.gh} ${args.join(" ")}`;
   if (erreur.code === "ENOENT") return `${lance} — \`${reglages.gh}\` is not on this machine: the app reads and answers the issue with your own \`gh\``;
   const suite = erreur.killed === true ? `no answer within ${nombre(reglages.delaiMs / 1000)} s: gh stopped` : typeof erreur.code === "number" ? `exit code ${erreur.code}` : erreur.message;

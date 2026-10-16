@@ -1682,6 +1682,51 @@ main > header,
   border-top: 0;
   overflow-wrap: break-word;
 }
+/* Les captures d'un ticket d'interface : l'écran avant et après, côte à côte, chacun sous sa légende.
+   Une capture que la livraison ne porte pas garde sa place, et le dit ; une livraison qui ne les porte
+   pas toutes le dit en tête, en jaune, sur une ligne. */
+#rail .bon div.captures {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  align-items: start;
+}
+#rail .captures figure {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+}
+#rail .captures img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--bon-trait);
+  border-radius: 2px;
+}
+#rail .captures .place {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 10;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--bon-discret);
+  border: 1px dashed var(--bon-trait);
+  border-radius: 2px;
+}
+#rail .captures figcaption {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--bon-discret);
+}
+#rail .bon p.captures-manquantes {
+  font-family: var(--police-interface);
+  font-weight: 600;
+  color: var(--bon-encre);
+  border-top: 2px solid var(--jaune);
+}
 /* Ses remarques, sous leur nombre : un clic les déplie sur la carte, un autre les replie. */
 #rail .remarques {
   font-size: 11px;

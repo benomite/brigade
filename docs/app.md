@@ -1377,6 +1377,17 @@ livré, `livré`, `cuisiné par`, et sa PR mergée.
 - **Ce que la file ne dit pas n'est pas affiché** (#747) — la carte n'écrit jamais « non communiqué
   par la file : … » à la place d'une information : une chose absente n'a pas de ligne. Ni « personne »,
   ni « 0 », ni un tiret non plus. (Le modèle garde `sans`, que la vue ne pose plus sur les cartes.)
+- **Un ticket d'interface livré montre ses captures, sans un clic** (#842) : pour chaque écran
+  changé, la capture avant et la capture après côte à côte, chacune sous sa légende (`fiche — before`,
+  `fiche — after`), sur sa carte en Pass comme en Livré. Elles viennent de `captures`, dans `faits`,
+  chacune par son adresse sur GitHub au commit livré : l'adresse reste au process principal, qui lit
+  l'image par le `gh` du poste — un dépôt privé compris — et la rend à la vue en `data:` (la page ne
+  demande rien au réseau : `img-src data:`). Une capture illisible dit `not available` à sa place, son
+  pourquoi au survol. **Une livraison d'interface qui ne les porte pas toutes est dite incomplète**, en
+  une ligne en tête de ses captures (`incomplete delivery: screenshots missing — the after screenshot
+  of fiche`), où les poser au survol ; une capture absente garde sa place, et dit `missing`. **Un
+  ticket qui n'est pas d'interface n'a pas de `captures`** : sa carte n'en dit rien, pas même une zone
+  vide (`captures.ts`).
 - **Toute carte porte son titre.** Celui que la box donne ; à défaut — un ticket hors rail, que le
   journal ne connaît pas —, celui de son issue, lu une fois par le `gh` du poste à l'adresse que la box
   a rendue (`question.ts`, `titreDe`). Illisible, la carte n'a pas de titre : rien n'est écrit à sa place.

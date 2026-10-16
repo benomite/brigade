@@ -2,6 +2,7 @@
 // `npm run faits`. La forme est un contrat — ces tests la figent.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
+import type { Captures } from "../src/captures.ts";
 import { decrireEtat, ETATS_DE_PROJET, faits, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import { principal as commande } from "../src/faits.ts";
@@ -85,6 +86,37 @@ test("une issue qui attend sans être sur le rail a son adresse : celle que le d
   assert.deepEqual(lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.attend, [{ ticket: 378, titre: "", url: null, decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null } }]);
   // Un nom de dépôt qui n'en est pas un ne donne rien : rien n'est composé de travers.
   assert.deepEqual(faits(lireEtat(journal, a), a, "pas un dépôt").attend, [{ ticket: 378, titre: "", url: null, decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null } }]);
+});
+
+test("un ticket d'interface en pass, puis livré, porte les captures de sa dernière livraison par leur adresse — un autre n'en porte aucune, et sans dépôt aucune ne se montre", (t) => {
+  const { noter, arriver, journal } = cuisine(t);
+  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:00:30.000Z`) });
+  arriver(14, 1);
+  arriver(15, 1);
+  const livrer = (ticket: number, captures?: Captures) => {
+    noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: `${JOUR_HORLOGE}T10:10:30.000Z` } }, ticket, "station:box/claude");
+    noter({ type: "ticket.passing", payload: { station: "box/claude" } }, ticket, "station:box/claude");
+    noter({ type: "cook.reported", payload: { run: `${ticket}-a`, ending: "done", reason: null, summary: null, branch: `cook/${ticket}-a`, pr: null, ...(captures === undefined ? {} : { captures }) } }, ticket, "station:box/claude");
+  };
+  // Une première livraison incomplète, puis une seconde qui porte tout : c'est la dernière qui compte.
+  livrer(15, { sha: "aaa", screens: [] });
+  noter({ type: "cook.reported", payload: { run: "15-b", ending: "done", reason: null, summary: null, branch: "cook/15-a", pr: null, captures: { sha: "bbb", screens: [{ screen: "fiche", before: "docs/captures/15/fiche-avant.png", after: "docs/captures/15/fiche-apres.png" }] } } }, 15, "station:box/claude");
+  livrer(14);
+  const a = new Date(`${JOUR_HORLOGE}T10:04:11.000Z`);
+  const adresse = (moment: string) => `https://github.com/benomite/brigade/blob/bbb/docs/captures/15/fiche-${moment}.png?raw=true`;
+  const attendues = { complet: true, ecrans: [{ ecran: "fiche", avant: adresse("avant"), apres: adresse("apres") }] };
+
+  const enPass = faits(lireEtat(journal, a), a, "benomite/brigade");
+  assert.deepEqual(enPass.rail.find(({ ticket }) => ticket === 15)?.captures, attendues);
+  assert.equal("captures" in (enPass.rail.find(({ ticket }) => ticket === 14) ?? {}), false);
+  // Sans dépôt connu, aucune adresse ne se compose : rien n'est montré.
+  assert.equal("captures" in (faits(lireEtat(journal, a), a).rail.find(({ ticket }) => ticket === 15) ?? {}), false);
+
+  rail.servir(15);
+  rail.servir(14);
+  const servis = faits(lireEtat(journal, a), a, "benomite/brigade").livres;
+  assert.deepEqual(servis.find(({ ticket }) => ticket === 15)?.captures, attendues);
+  assert.equal("captures" in (servis.find(({ ticket }) => ticket === 14) ?? {}), false);
 });
 
 test("un ticket du rail qui attend garde l'adresse et le titre du rail, quel que soit le dépôt", (t) => {

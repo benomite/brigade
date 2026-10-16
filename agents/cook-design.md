@@ -35,7 +35,7 @@ Chaque règle se vérifie en regardant l'écran. Aucune n'est optionnelle (règl
 3. **Capture après.** Capture le même écran, dans le même état, avec le même outil.
 4. **Correction.** **Regarde les deux captures** (ouvre les images) et passe la liste de contrôle ci-dessus : corrige ce que tu vois — texte coupé, bouton absent, survol manquant, incohérence avec un autre écran — puis recapture. Répète jusqu'à ce que la liste soit verte sur la capture, pas seulement dans le code.
 
-**À joindre à la livraison** : la capture **avant** et la capture **après** (la dernière, après correction), chacune nommée par l'écran et l'état qu'elle montre, et citées dans ton compte-rendu. Dis aussi quelles cases de la liste ton changement concerne et lesquelles tu as vérifiées sur la capture.
+**À joindre à la livraison** : la capture **avant** et la capture **après** (la dernière, après correction), chacune nommée par l'écran et l'état qu'elle montre, **commitées sur ta branche** à `docs/captures/<ticket>/<écran>-avant.png` et `docs/captures/<ticket>/<écran>-apres.png` — une paire par écran changé —, et citées dans ton compte-rendu. La station les montre sur la PR et sur la carte du ticket ; une livraison qui ne les porte pas est signalée incomplète. Dis aussi quelles cases de la liste ton changement concerne et lesquelles tu as vérifiées sur la capture.
 
 ## Interdit
 
