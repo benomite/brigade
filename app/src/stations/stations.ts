@@ -11,6 +11,7 @@
 import type { ConnexionPubliee } from "../pannes/etats.ts";
 import { pannesDe, type Panne } from "../pannes/pannes.ts";
 import { empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, lireDocument, normaliser, type DocumentStation } from "./document.ts";
+import { suivreLesVersions, type VersionsVues } from "./versions.ts";
 import type { GistDeStation, GitHubDesStations } from "./github.ts";
 
 export type EtatDeStation = "en-ligne" | "hors-ligne" | "illisible";
@@ -18,13 +19,15 @@ export type EtatDeStation = "en-ligne" | "hors-ligne" | "illisible";
 // son bouton (pannes/pannes.ts) — sans celles que le chef a écartées. Et, pour la liste de
 // l'accueil (accueil.ts), ce que la ligne dit déjà, en morceaux : `dit`, son état en quelques mots
 // (« online », « offline for 12 min ») ; sa `version` ; les `projets` qu'elle porte ; sa connexion Max
-// telle qu'elle la publie — nulle quand elle n'en dit rien, ou qu'elle se tait.
-export type StationVue = { id: string; nom: string; machine: string; etat: EtatDeStation; ligne: string; pannes: Panne[]; dit: string; version: string; projets: string[]; max: ConnexionPubliee["etat"] | null };
+// telle qu'elle la publie — nulle quand elle n'en dit rien, ou qu'elle se tait ; `versionDit`, sa ligne de
+// mise à jour (`ligneDeVersion`), vide quand il n'y a rien à en dire.
+export type StationVue = { id: string; nom: string; machine: string; etat: EtatDeStation; ligne: string; pannes: Panne[]; dit: string; version: string; projets: string[]; max: ConnexionPubliee["etat"] | null; versionDit?: string };
 // `sans` : pourquoi la dernière lecture n'a pas abouti — la liste est alors celle d'avant.
 // `limite` : c'est GitHub qui limite les appels du compte, et `reprise`, l'heure où il les rend —
 // nulle quand il ne l'a pas dite.
 export type VuDesStations = { a: string; stations: StationVue[]; sans?: string; limite?: { reprise: string | null } };
 // `detail` : ce que GitHub a répondu, quand c'est lui qui a manqué — il se lit au survol, jamais à plat.
+export type RetraitDeStation = { retiree: string } | { refus: string; detail?: string };
 export type Appairage = { appairee: string } | { refus: string; detail?: string };
 
 // Entre deux lectures de GitHub.
@@ -55,6 +58,17 @@ export function etatDe(document: DocumentStation, maintenant: number): { etat: E
   return depuis === null ? { etat: "en-ligne", dit: "online" } : { etat: "hors-ligne", dit: `offline for ${duree(maintenant - depuis)}` };
 }
 
+// La ligne de mise à jour de la page d'une station : « up to date · on this version for 3 days ».
+// Une station hors ligne n'est dite à jour de rien ; une mise à jour ratée est déjà dite par sa
+// panne (pannes.ts) : la ligne ne la répète pas, et ne dit pas « up to date » par-dessus.
+// `depuisLe` : l'instant où l'app a vu la station passer à cette version (`versions.ts`) — la
+// station ne publie pas cette date ; sans elle, la ligne ne dit pas depuis quand.
+export function ligneDeVersion(document: DocumentStation, maintenant: number, depuisLe: string | null = null): string {
+  if (etatDe(document, maintenant).etat !== "en-ligne") return "";
+  const depuis = depuisLe === null ? "" : `on this version for ${duree(maintenant - Date.parse(depuisLe))}`;
+  return document.miseAJour === null ? ["up to date", depuis].filter((morceau) => morceau !== "").join(" · ") : depuis;
+}
+
 // La ligne d'une station, à cet instant.
 export function ligneDe(document: DocumentStation, maintenant: number): { etat: EtatDeStation; ligne: string } {
   const { etat, dit } = etatDe(document, maintenant);
@@ -71,6 +85,8 @@ export type OptionsStations = {
   surLecture: (vu: VuDesStations) => void;
   cadenceMs?: number;
   maintenant?: () => number;
+  // Ce que l'app a vu des versions de chaque station, d'un lancement à l'autre (versions.ts).
+  versions?: VersionsVues;
 };
 
 export type Stations = {
@@ -79,6 +95,9 @@ export type Stations = {
   appairer(tape: unknown): Promise<Appairage>;
   // Écarte une panne de la ligne d'une station : elle n'y revient pas, tant que l'app est ouverte.
   ecarter(id: string, cle: string): VuDesStations | undefined;
+  // Retire la station de l'app : son appairage est ôté de son gist, elle n'est plus lue ni listée.
+  // La station elle-même n'est pas touchée : un code neuf l'appaire de nouveau.
+  retirer(id: unknown): Promise<RetraitDeStation>;
   fermer(): void;
 };
 
@@ -91,12 +110,13 @@ export function tenirStations(options: OptionsStations): Stations {
   let enCours: Promise<VuDesStations> | undefined;
   // Les pannes écartées : `<gist> <clé>`.
   const ecartees = new Set<string>();
+  const versions = suivreLesVersions(options.versions);
 
   const montrer = (sans?: string, limite?: VuDesStations["limite"]): VuDesStations => {
     const instant = maintenant();
     const stations = [...lus].map(([id, { document }]): StationVue =>
       "illisible" in document
-        ? { id, nom: id, machine: "", etat: "illisible", ligne: `unreadable: ${document.illisible}`, pannes: [], dit: "unreadable", version: "", projets: [], max: null }
+        ? { id, nom: id, machine: "", etat: "illisible", ligne: `unreadable: ${document.illisible}`, pannes: [], dit: "unreadable", version: "", projets: [], max: null, versionDit: "" }
         : {
             id,
             nom: document.nom,
@@ -108,6 +128,7 @@ export function tenirStations(options: OptionsStations): Stations {
             projets: document.projets,
             // Une station qui se tait ne dit plus sa connexion : ce qu'elle en a publié avant n'est plus sûr.
             max: etatDe(document, instant).etat === "en-ligne" ? (document.connexionMax?.etat ?? null) : null,
+            versionDit: ligneDeVersion(document, instant, versions.vue(id, document.version, instant)),
           },
     );
     stations.sort((a, b) => a.nom.localeCompare(b.nom) || a.id.localeCompare(b.id));
@@ -176,6 +197,22 @@ export function tenirStations(options: OptionsStations): Stations {
     return { appairee: nom };
   };
 
+  const retirer = async (id: unknown): Promise<RetraitDeStation> => {
+    const station = vu?.stations.find((candidate) => candidate.id === id);
+    if (station === undefined) return { refus: "this station is no longer paired with this app" };
+    try {
+      await github.supprimer(station.id, FICHIER_APPAIRAGE);
+    } catch (erreur) {
+      return { refus: `${station.nom} was not removed: GitHub could not be written`, detail: message(erreur) };
+    }
+    // L'accueil ne la montre plus tout de suite : une lecture partie avant la suppression la verrait encore.
+    await enCours;
+    lus.delete(station.id);
+    montrer(vu?.sans, vu?.limite);
+    await relire();
+    return { retiree: station.nom };
+  };
+
   void relire();
   const veille = setInterval(() => void relire(), options.cadenceMs ?? CADENCE_MS);
 
@@ -187,6 +224,7 @@ export function tenirStations(options: OptionsStations): Stations {
       ecartees.add(`${id} ${cle}`);
       return vu === undefined ? undefined : montrer(vu.sans, vu.limite);
     },
+    retirer,
     fermer: () => clearInterval(veille),
   };
 }

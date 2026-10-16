@@ -676,6 +676,23 @@ de signe de vie) ne se dit qu'une fois : l'en-tête de la page ne redit pas l'é
   station par machine ») : des versions et des dates, ni motif ni commande. Une station hors ligne
   ne dit plus sa connexion — ce qu'elle en a publié avant de se taire n'est plus sûr.
 
+**Sa ligne de mise à jour et son retrait** (#880). Sous l'en-tête de la page, une ligne unique dit
+où en est la station : `up to date · on this version for 3 days`. Une station hors ligne n'est dite
+à jour de rien : pas de ligne. Une mise à jour ratée est déjà dite par sa panne : la ligne ne la
+répète pas et ne dit pas « up to date » par-dessus, elle ne garde que `on this version for 3 days`.
+Le « depuis quand » n'est pas publié par la station : l'app le déduit du moment où elle l'a vue
+passer à sa version, et le garde dans `versions-vues.json`, à côté de `app.json`. Elle ne sait pas
+depuis quand une station est sur sa version à la première fois qu'elle la lit : la ligne dit alors
+`up to date` et rien de plus, jusqu'à ce qu'elle voie la version changer. Une station mise à jour
+pendant que l'app était fermée est datée de la première lecture qui suit.
+
+En bas de la page, **« remove the station »** ouvre une confirmation dans l'app, en une ligne de prix :
+la station quitte l'accueil et n'est plus lue, elle continue de tourner, et un code neuf l'appaire de
+nouveau. « cancel » la referme et laisse la station en place ; « remove » ôte son appairage de son
+gist (`brigade-appairage.json`, le seul fichier que l'app y écrit), ramène à l'accueil, et la station
+n'est plus dans sa liste. Si GitHub ne peut pas être écrit, la station reste, et la page le dit en
+une ligne.
+
 ### Cet ordinateur est une station ; un téléphone est un poste
 
 *Spec : [la station refaite de zéro](superpowers/specs/2026-10-15-station-refonte-design.md) (#797).*

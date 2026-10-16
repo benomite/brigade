@@ -49,6 +49,7 @@ import { tenirServices } from "./service.ts";
 import { souvenirsDansFichier } from "./souvenirs.ts";
 import { githubDesStations } from "./stations/github.ts";
 import { tenirStations } from "./stations/stations.ts";
+import { versionsDansFichier } from "./stations/versions.ts";
 import { suivreConfiguration } from "./suivi.ts";
 import { ouvrirTerminaux } from "./terminaux.ts";
 
@@ -392,6 +393,7 @@ const projetsDesStations = tenirProjets({
 // le `gh` du poste toutes les trente secondes (stations/stations.ts). L'app ne joint aucune
 // station : c'est GitHub qui porte ce que chacune dit d'elle.
 const stations = tenirStations({
+  versions: versionsDansFichier(join(dirname(cheminConfiguration()), "versions-vues.json")),
   github: githubDesStations({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }),
   surLecture: (vu) => {
     dire("stations", vu);
@@ -788,6 +790,8 @@ ipcMain.handle("autoriserSurGitHub", (_, url: unknown) => {
     () => false,
   );
 });
+// « Retirer la station » : son appairage quitte son gist, elle disparaît de l'accueil.
+ipcMain.handle("retirerLaStation", (_, id: unknown) => stations.retirer(id));
 // Le bouton d'une panne, sur la ligne d'une station : rend ce qu'il a fait, ou pourquoi rien.
 ipcMain.handle("panne", (_, id: unknown, cle: unknown) => jouerPanne(gestesDesPannes, id, cle));
 // Le code de l'app, en retard ou à relancer : le clic la met à jour et la relance — rien n'est

@@ -19,6 +19,8 @@ export type GitHubDesStations = {
   lire(id: string): Promise<Fichiers | null>;
   // Réécrit ces fichiers du gist, sans toucher aux autres.
   ecrire(id: string, fichiers: Fichiers): Promise<void>;
+  // Retire ce fichier du gist, sans toucher aux autres.
+  supprimer(id: string, fichier: string): Promise<void>;
   // Quand GitHub rend les appels du compte, une fois sa limite atteinte — lu sans en dépenser un —, ou null s'il ne le dit pas.
   reprise?(): Promise<string | null>;
 };
@@ -49,6 +51,15 @@ export function githubDesStations(reglages: Reglages): GitHubDesStations {
       enfant.stdin?.on("error", () => {});
       enfant.stdin?.end(entree === undefined ? "" : JSON.stringify(entree));
     });
+
+  const patcher = async (id: string, files: Record<string, { content: string } | null>) => {
+    try {
+      await appeler(["-X", "PATCH", `/gists/${encodeURIComponent(id)}`, "--input", "-"], { files });
+    } catch (erreur) {
+      if (erreur instanceof Absent) throw new Error("this station's gist is no longer on GitHub");
+      throw erreur;
+    }
+  };
 
   return {
     async lister() {
@@ -81,12 +92,10 @@ export function githubDesStations(reglages: Reglages): GitHubDesStations {
       return typeof reset === "number" && Number.isFinite(reset) ? new Date(reset * 1000).toISOString() : null;
     },
     async ecrire(id, fichiers) {
-      try {
-        await appeler(["-X", "PATCH", `/gists/${encodeURIComponent(id)}`, "--input", "-"], { files: Object.fromEntries(Object.entries(fichiers).map(([nom, content]) => [nom, { content }])) });
-      } catch (erreur) {
-        if (erreur instanceof Absent) throw new Error("this station's gist is no longer on GitHub");
-        throw erreur;
-      }
+      await patcher(id, Object.fromEntries(Object.entries(fichiers).map(([nom, content]) => [nom, { content }])));
+    },
+    async supprimer(id, fichier) {
+      await patcher(id, { [fichier]: null });
     },
   };
 }

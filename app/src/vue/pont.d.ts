@@ -28,7 +28,7 @@ import type { Avis, Retrait } from "../retrait.ts";
 import type { Guide } from "../service.ts";
 import type { DepotDuChef } from "../projets/github.ts";
 import type { Ajout, Retrait as RetraitDUneStation, VuDesProjets } from "../projets/projets.ts";
-import type { Appairage, VuDesStations } from "../stations/stations.ts";
+import type { Appairage, RetraitDeStation, VuDesStations } from "../stations/stations.ts";
 import type { Terminal } from "../terminaux.ts";
 
 export type Pont = {
@@ -197,6 +197,8 @@ export type Pont = {
   // Le bouton d'une panne, sur la ligne d'une station (pannes/gestes.ts) : relire GitHub, écarter la
   // ligne, lancer le login. Rend ce qu'il a fait, ou pourquoi rien, en une ligne.
   panne(id: string, cle: string): Promise<RenduDePanne>;
+  // « Retirer la station », confirmé : son appairage est ôté de son gist (stations/stations.ts) ; la station n'est plus lue.
+  retirerLaStation(id: string): Promise<RetraitDeStation>;
   // Ce qu'engage l'allumage du manager, chiffré (allumage.ts) : les issues ouvertes du projet, et
   // celles qui portent `blocked-on-human` — `manager backlog`, lancée une fois sur sa box. Demandé
   // quand la confirmation d'« allumer » s'ouvre : son « oui » n'attend pas cette lecture. Rien, pour un projet sans box.

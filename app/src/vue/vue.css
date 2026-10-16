@@ -636,6 +636,20 @@ main > header,
   gap: 8px;
   color: var(--jaune);
 }
+/* La ligne de mise à jour de la page d'une station, discrète, sous son en-tête ; « remove the station »
+   tout en bas, à l'écart, et sa confirmation sous lui. */
+#station .version-de-station {
+  margin: 4px 0;
+  color: var(--discret);
+}
+#station .version-de-station:empty {
+  display: none;
+}
+#station .retrait-de-station {
+  margin-top: 16px;
+  padding-top: 8px;
+  border-top: 1px solid var(--trait);
+}
 /* Les états ne se ressemblent pas : le mot, la couleur, et un trait plein pour
    celui qu'on n'a pas joint ou que la box refuse — projet inconnu, droit ou
    commande qui manque —, pointillé pour celui qui ne répond plus. */

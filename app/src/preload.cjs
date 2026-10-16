@@ -63,6 +63,7 @@ const pont = {
   retirerDUneStation: (nom) => ipcRenderer.invoke("retirerDUneStation", nom),
   autoriserSurGitHub: (url) => ipcRenderer.invoke("autoriserSurGitHub", url),
   panne: (id, cle) => ipcRenderer.invoke("panne", id, cle),
+  retirerLaStation: (id) => ipcRenderer.invoke("retirerLaStation", id),
   compter: (projet) => ipcRenderer.invoke("compter", projet),
   regarder: (projet, demande) => ipcRenderer.send("regarder", projet, demande),
   tous: (demande) => ipcRenderer.send("tous", demande),

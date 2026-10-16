@@ -9,7 +9,8 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, type DocumentStation } from "../../src/stations/document.ts";
 import { githubDesStations } from "../../src/stations/github.ts";
-import { duree, ligneDe, tenirStations, type VuDesStations } from "../../src/stations/stations.ts";
+import { versionsDansFichier } from "../../src/stations/versions.ts";
+import { duree, ligneDe, ligneDeVersion, tenirStations, type VuDesStations } from "../../src/stations/stations.ts";
 
 const FAUX_GH = join(import.meta.dirname, "faux-gh-gists.ts");
 const SOURCES = join(import.meta.dirname, "../../src/stations");
@@ -104,7 +105,7 @@ test("le code tapé appaire la station : elle apparaît sur la home, « online �
   const ecrit = JSON.parse(github.gist("box1").files[FICHIER_APPAIRAGE]?.content ?? "null") as { appaireeLe: string; empreinte: string };
   assert.equal(ecrit.empreinte, empreinte(CODE));
   assert.equal(ecrit.appaireeLe, new Date(MAINTENANT).toISOString());
-  assert.deepEqual(stations.vu()?.stations, [{ id: "box1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null }]);
+  assert.deepEqual(stations.vu()?.stations, [{ id: "box1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null, versionDit: "up to date" }]);
   assert.deepEqual(lectures.at(-1), stations.vu());
 });
 
@@ -188,4 +189,78 @@ test("l'app ne joint jamais une station : tout passe par `gh api` sur les gists 
     const source = readFileSync(join(SOURCES, nom), "utf8");
     for (const interdit of [/node:(net|http|https|dgram|tls)\b/, /\bfetch\(/, /\bWebSocket\b/, /\bssh\b/]) assert.doesNotMatch(source, interdit, `${nom} : ${interdit}`);
   }
+});
+
+test("la ligne de mise à jour : « up to date · on this version for 3 days » ; une mise à jour ratée n'y est pas répétée, une station hors ligne n'est dite à jour de rien", () => {
+  const depuis = new Date(MAINTENANT - 3 * 24 * 3_600_000).toISOString();
+  const document = { ...publie(), appairage: null, miseAJour: null, connexionMax: null } as DocumentStation;
+  assert.equal(ligneDeVersion(document, MAINTENANT, depuis), "up to date · on this version for 3 days");
+  assert.equal(ligneDeVersion(document, MAINTENANT), "up to date", "sans date publiée, elle ne dit pas depuis quand");
+  const ratee = { ...document, miseAJour: { visee: "1.5.0", restauree: "1.4.0", le: new Date(MAINTENANT).toISOString(), retourRate: false } };
+  const dite = ligneDeVersion(ratee, MAINTENANT, depuis);
+  assert.equal(dite, "on this version for 3 days");
+  assert.doesNotMatch(dite, /1\.5\.0|failed|up to date/, "la panne est déjà dite par son propre ticket");
+  assert.equal(ligneDeVersion(ratee, MAINTENANT), "");
+  assert.equal(ligneDeVersion(document, MAINTENANT + 3_600_000, depuis), "", "hors ligne");
+});
+
+test("retirer la station : son appairage quitte son gist, elle n'est plus listée ni lue — et se laisse appairer de nouveau", async (t) => {
+  const github = unGitHub(t);
+  github.station("box1", publie());
+  github.station("box2", publie({ nom: "mac", appairage: { empreinte: empreinte("ABCD-EFGH"), expireLe: new Date(MAINTENANT + 10 * 60_000).toISOString() } }));
+  const { stations } = desStations(t);
+  assert.ok("appairee" in (await stations.appairer(CODE)));
+  assert.ok("appairee" in (await stations.appairer("ABCD-EFGH")));
+  assert.deepEqual((await stations.relire()).stations.map(({ nom }) => nom), ["box", "mac"]);
+
+  assert.deepEqual(await stations.retirer("inconnue"), { refus: "this station is no longer paired with this app" });
+  assert.deepEqual(await stations.retirer("box1"), { retiree: "box" });
+  assert.deepEqual(stations.vu()?.stations.map(({ nom }) => nom), ["mac"]);
+  assert.deepEqual(Object.keys(github.gist("box1").files), [FICHIER_STATION], "seul l'appairage est ôté, l'état de la station reste");
+  assert.deepEqual(Object.keys(github.gist("box2").files).sort(), [FICHIER_APPAIRAGE, FICHIER_STATION]);
+  assert.deepEqual((await stations.relire()).stations.map(({ nom }) => nom), ["mac"], "relue, elle n'est toujours pas là");
+});
+
+test("retirer la station, GitHub injoignable : rien n'est retiré, le refus tient en une ligne et son détail à part", async (t) => {
+  const github = unGitHub(t);
+  github.station("box1", publie());
+  const { stations } = desStations(t);
+  assert.ok("appairee" in (await stations.appairer(CODE)));
+  github.panne(true);
+  const rendu = await stations.retirer("box1");
+  assert.ok("refus" in rendu);
+  assert.equal(rendu.refus, "box was not removed: GitHub could not be written");
+  assert.match(rendu.detail ?? "", /api\.github\.com/);
+  github.panne(false);
+  assert.deepEqual((await stations.relire()).stations.map(({ nom }) => nom), ["box"]);
+});
+
+test("depuis quand la station est sur sa version : l'app le déduit du changement qu'elle voit, et le garde d'un lancement à l'autre", async (t) => {
+  const github = unGitHub(t);
+  github.station("box1", publie());
+  const dossier = mkdtempSync(join(tmpdir(), "brigade-app-versions-"));
+  t.after(() => rmSync(dossier, { recursive: true, force: true }));
+  const chemin = join(dossier, "versions-vues.json");
+  let instant = MAINTENANT;
+  const ouvrir = () => {
+    const stations = tenirStations({ github: githubDesStations({ gh: FAUX_GH, delaiMs: 30_000 }), surLecture: () => {}, cadenceMs: 3_600_000, maintenant: () => instant, versions: versionsDansFichier(chemin) });
+    t.after(() => stations.fermer());
+    return stations;
+  };
+  const en = (document: object) => github.station("box1", { ...(document as object), appairage: null, signeDeVie: new Date(instant - 5_000).toISOString() });
+
+  const premiere = ouvrir();
+  assert.ok("appairee" in (await premiere.appairer(CODE)));
+  en(publie());
+  assert.equal((await premiere.relire()).stations[0]?.versionDit, "up to date", "à sa première lecture, l'app ne sait pas depuis quand : rien d'inventé");
+
+  instant += 2 * 24 * 3_600_000;
+  en(publie({ version: "1.5.0" }));
+  assert.equal((await premiere.relire()).stations[0]?.versionDit, "up to date · on this version for less than a minute", "elle a vu la version changer");
+
+  instant += 3 * 24 * 3_600_000;
+  en(publie({ version: "1.5.0" }));
+  const relancee = ouvrir();
+  assert.equal((await relancee.relire()).stations[0]?.versionDit, "up to date · on this version for 3 days", "relancée, elle se souvient");
+  assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")).box1, { version: "1.5.0", depuisLe: new Date(MAINTENANT + 2 * 24 * 3_600_000).toISOString() });
 });

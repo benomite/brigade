@@ -295,7 +295,12 @@ formulaireDAjout.append(
 const retourALAccueil = /** @type {HTMLButtonElement} */ (bloc("button", "‹ All projects"));
 retourALAccueil.type = "button";
 retourALAccueil.className = "retour";
-pageDeStation.append(retourALAccueil, enTeteDeStation, pannesDeStation, bloc("h3", "Projects"), listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit);
+// La ligne de mise à jour, sous l'en-tête ; et, au bas de la page, « remove the station » et sa confirmation.
+const versionDeStation = document.createElement("p");
+versionDeStation.className = "version-de-station";
+const retraitDeStation = document.createElement("div");
+retraitDeStation.className = "retrait-de-station";
+pageDeStation.append(retourALAccueil, enTeteDeStation, versionDeStation, pannesDeStation, bloc("h3", "Projects"), listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit, retraitDeStation);
 
 /** @type {Map<number, { terminal: Terminal, xterm: Xterm, ajuste: FitAddon, cadre: HTMLDivElement }>} */
 const vues = new Map();
@@ -3738,6 +3743,8 @@ function poserPageDeStation() {
   if (station === undefined) {
     enTeteDeStation.replaceChildren(bloc("p", stationsVues === undefined ? "reading your stations on GitHub…" : "this station is no longer paired with this app"));
     pannesDeStation.replaceChildren();
+    versionDeStation.replaceChildren();
+    retraitDeStation.replaceChildren();
   } else {
     const titre = bloc("h2", station.nom);
     titre.className = "mono";
@@ -3749,9 +3756,64 @@ function poserPageDeStation() {
     // Hors ligne, la panne dessous le dit déjà, avec son bouton : l'en-tête ne le redit pas.
     const dejaDit = station.pannes.some(({ sujet }) => sujet === "injoignable");
     enTeteDeStation.replaceChildren(titre, pastille(phrase, ligne?.ton), ...(dejaDit ? [] : [etatDit]), ...(details === "" ? [] : [survol(document, details)]));
+    versionDeStation.replaceChildren(...(station.versionDit ? [bloc("span", station.versionDit)] : []));
     pannesDeStation.replaceChildren(...station.pannes.map((panne) => poserPanne(station.id, panne)));
+    poserRetireLaStation(station);
   }
   poserProjets();
+}
+
+// La station dont « remove the station » demande confirmation, par son gist.
+/** @type {string | undefined} */
+let retraitDeStationDemande;
+// Ce que le retrait a refusé, en une ligne ; son détail est au survol.
+let retraitDeStationRefuse = "";
+
+// « Remove the station », en bas de sa page : un clic ouvre la confirmation, qui dit ce que ça change
+// en une ligne ; « cancel » la referme et laisse la station en place, « remove » la retire de l'app
+// et ramène à l'accueil. Rien de la station n'est touché : un code neuf l'appaire de nouveau.
+/** @param {import("../stations/stations.ts").StationVue} station */
+function poserRetireLaStation(station) {
+  if (retraitDeStationDemande !== station.id) {
+    const bouton = /** @type {HTMLButtonElement} */ (bloc("button", "remove the station"));
+    bouton.type = "button";
+    bouton.addEventListener("click", () => {
+      retraitDeStationDemande = station.id;
+      retraitDeStationRefuse = "";
+      poserRetireLaStation(station);
+    });
+    return retraitDeStation.replaceChildren(bouton, ...(retraitDeStationRefuse === "" ? [] : [bloc("p", retraitDeStationRefuse)]));
+  }
+  retraitDeStation.replaceChildren(
+    confirmationDeGeste(
+      document,
+      { titre: `Remove ${station.nom} from this app?`, prix: `${station.nom} leaves the home and is no longer read; it keeps running, and pairs again with a new code`, oui: "remove", non: "cancel" },
+      {
+        non: () => {
+          retraitDeStationDemande = undefined;
+          poserRetireLaStation(station);
+        },
+        oui: () => void retirerLaStation(station),
+      },
+    ),
+  );
+}
+
+/** @param {import("../stations/stations.ts").StationVue} station */
+async function retirerLaStation(station) {
+  retraitDeStationDemande = undefined;
+  let rendu;
+  try {
+    rendu = await brigade.retirerLaStation(station.id);
+  } catch (erreur) {
+    rendu = { refus: `${station.nom} was not removed: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
+  }
+  if ("refus" in rendu) {
+    retraitDeStationRefuse = rendu.refus;
+    return poserPageDeStation();
+  }
+  retraitDeStationRefuse = "";
+  ouvrirTous();
 }
 
 // Sur la page d'une station, tous les projets qu'elle porte, une ligne chacun : ceux que sa
@@ -4232,6 +4294,8 @@ function ouvrirStation(id) {
   courant = undefined;
   ajoute = false;
   stationOuverte = id;
+  retraitDeStationDemande = undefined;
+  retraitDeStationRefuse = "";
   marquer();
   if (parcours !== undefined) fermerParcours();
   ajoutDit.textContent = "";

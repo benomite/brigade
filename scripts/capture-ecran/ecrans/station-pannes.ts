@@ -4,8 +4,8 @@
 import { type Accueil, ligneDeStation } from "../../../app/src/accueil.ts";
 import { pannesDe } from "../../../app/src/pannes/pannes.ts";
 import type { DocumentStation } from "../../../app/src/stations/document.ts";
-import { etatDe, ligneDe, type StationVue } from "../../../app/src/stations/stations.ts";
-import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
+import { etatDe, ligneDe, ligneDeVersion, type StationVue } from "../../../app/src/stations/stations.ts";
+import { configuration, cuisine, demarrage, type Ecran, type Etape, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const instant = Date.parse(MAINTENANT);
@@ -25,14 +25,15 @@ const EN_LIGNE: DocumentStation = {
   connexionMax: { etat: "connectee", depuis: il_y_a(180) },
 };
 
-// Les trois pannes, chacune sur sa station.
+// Une station en ligne, puis les trois pannes, chacune sur sa station.
 export const DOCUMENTS = {
+  "en-ligne": EN_LIGNE,
   "hors-ligne": { ...EN_LIGNE, signeDeVie: il_y_a(12), connexionMax: null },
   "mise-a-jour": { ...EN_LIGNE, miseAJour: { visee: "1.5.0", restauree: "1.4.0", le: il_y_a(4), retourRate: false } },
   "connexion-max": { ...EN_LIGNE, connexionMax: { etat: "perdue", depuis: il_y_a(12) } },
 } satisfies Record<string, DocumentStation>;
 
-export function pageDeStation(panne: keyof typeof DOCUMENTS, dit: string): Ecran {
+export function pageDeStation(panne: keyof typeof DOCUMENTS, dit: string, etapes: Etape[] = []): Ecran {
   const document = DOCUMENTS[panne];
   const station: StationVue = {
     id: "box",
@@ -44,6 +45,7 @@ export function pageDeStation(panne: keyof typeof DOCUMENTS, dit: string): Ecran
     version: document.version,
     projets: document.projets,
     max: etatDe(document, instant).etat === "en-ligne" ? (document.connexionMax?.etat ?? null) : null,
+    versionDit: ligneDeVersion(document, instant, il_y_a(3 * 24 * 60)),
   };
   const accueil: Accueil = {
     projets: [],
@@ -54,7 +56,7 @@ export function pageDeStation(panne: keyof typeof DOCUMENTS, dit: string): Ecran
     dit,
     largeur: 1440,
     hauteur: 900,
-    etapes: [{ cliquer: "#accueil-stations button.ligne" }],
+    etapes: [{ cliquer: "#accueil-stations button.ligne" }, ...etapes],
     donnees: () => ({
       maintenant: MAINTENANT,
       reponses: { demarrage: { ...demarrage(configuration(PROJETS)), stations: { a: MAINTENANT, stations: [station] }, accueil } },
