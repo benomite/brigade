@@ -85,6 +85,26 @@ function paiementDuTicket({ ticket, cooks }: Livraison): Paiement {
   return { ticket, lancements: cooks.length, inconnus, ...(repris === 0 ? {} : { repris }), tokens: inconnus === cooks.length ? null : { utiles: somme(true), perdus: somme(false) } };
 }
 
+// Pourquoi un ticket a coûté ce qu'il a coûté, en une ligne, de ce que le
+// journal sait de ses lancements : le nombre de passages, la part perdue,
+// les renvois repartis de zéro faute de reprise. Un ticket passé une fois
+// n'a rien d'autre à dire que sa taille d'une traite.
+export function motifDeDerive(livraison: Livraison): string {
+  const { cooks } = livraison;
+  const { tokens } = paiementDuTicket(livraison);
+  const total = cooks.reduce((somme, cook) => somme + (cook.tokens ?? 0), 0);
+  const prefixe = livraison.ticket === null ? "hors ticket" : `#${livraison.ticket}`;
+  if (cooks.length <= 1) return `${prefixe} : 1 passage, ${dire(total, 0)} tokens d'une traite, sans renvoi — lecture initiale ou travail trop lourd`;
+  const renvois = cooks.slice(1);
+  const repartis = renvois.filter((cook) => cook.resumed !== true).length;
+  const raisons = [
+    `${cooks.length} passages`,
+    ...(tokens === null || tokens.utiles + tokens.perdus === 0 ? [] : [`${pourcent((tokens.perdus * 100) / (tokens.utiles + tokens.perdus))} perdus au renvoi`]),
+    ...(repartis === 0 ? ["renvois repris"] : [`${repartis} renvoi${repartis > 1 ? "s" : ""} reparti${repartis > 1 ? "s" : ""} de zéro`]),
+  ];
+  return `${prefixe} : ${raisons.join(", ")}`;
+}
+
 // Les lancements d'un ticket, et parmi eux ceux qui ont repris une session et
 // ceux dont les tokens ne sont pas connus.
 function direLancements(lancements: number, repris: number | undefined, inconnus: number): string {
@@ -146,7 +166,9 @@ export function trancher(livraisons: Livraison[], par = PAR_DEFAUT): Tranche[] {
 // Une mesure face à son seuil. `observed` : dans l'unité du seuil, telle
 // quelle — elle ne s'arrondit qu'à l'affichage —, ou null tant que le journal
 // ne permet pas de la dire.
-export type Jauge = { measure: string; observed: number | null; limit: number; franchi: boolean };
+// `motifs` : pour le coût d'un ticket, une ligne par ticket des derniers
+// merges au-delà du seuil — pourquoi il a coûté autant.
+export type Jauge = { measure: string; observed: number | null; limit: number; franchi: boolean; motifs?: string[] };
 export type Franchi = { measure: string; observed: number; limit: number };
 
 const PENTE = "growth:";
@@ -158,8 +180,8 @@ const TOKENS_PERDUS = "tokens_perdus";
 // quand il est dépassé ; le compteur de merges, quand il est atteint.
 export function jauger(livraisons: Livraison[], seuils: Seuils): Jauge[] {
   const jauges: Jauge[] = [];
-  const plafond = (measure: string, observed: number | null, limit: number | null) => {
-    if (limit !== null) jauges.push({ measure, observed, limit, franchi: observed !== null && observed > limit });
+  const plafond = (measure: string, observed: number | null, limit: number | null, motifs?: string[]) => {
+    if (limit !== null) jauges.push({ measure, observed, limit, franchi: observed !== null && observed > limit, ...(motifs === undefined || motifs.length === 0 ? {} : { motifs }) });
   };
   for (const { nom, seuil, unite } of ETATS) {
     const valeur = derniere(livraisons, nom);
@@ -170,7 +192,9 @@ export function jauger(livraisons: Livraison[], seuils: Seuils): Jauge[] {
   // Le coût des derniers merges : le ticket le plus cher, et ce qui a été perdu.
   const recentes = livraisons.slice(-FENETRE_DE_PENTE);
   const couts = recentes.flatMap((livraison) => tokensDuTicket(livraison)?.tokens ?? []);
-  plafond(TICKET_TOKENS, couts.length === 0 ? null : Math.max(...couts), seuils.ticketTokens ?? null);
+  const limiteTicket = seuils.ticketTokens ?? null;
+  const motifs = limiteTicket === null ? [] : recentes.filter((livraison) => (tokensDuTicket(livraison)?.tokens ?? 0) > limiteTicket).map(motifDeDerive);
+  plafond(TICKET_TOKENS, couts.length === 0 ? null : Math.max(...couts), limiteTicket, motifs);
   const perdus = recentes.flatMap((livraison) => paiementDuTicket(livraison).tokens?.perdus ?? []);
   plafond(TOKENS_PERDUS, perdus.length === 0 ? null : perdus.reduce((somme, tokens) => somme + tokens, 0), seuils.lostTokens ?? null);
   // La pente : ce que la mesure vaut aujourd'hui, rapporté à ce qu'elle valait
@@ -343,7 +367,10 @@ export function decrireReleve({ projet, livraisons, seuils }: Releve, par = PAR_
     "",
     ...(jauges.length === 0
       ? [ligne("seuils", "aucun déclaré — rien n'est signalé")]
-      : jauges.map((jauge, i) => ligne(i === 0 ? "seuils" : "", `${direJauge(jauge)}${jauge.franchi ? " — FRANCHI" : ""}`))),
+      : jauges.flatMap((jauge, i) => [
+          ligne(i === 0 ? "seuils" : "", `${direJauge(jauge)}${jauge.franchi ? " — FRANCHI" : ""}`),
+          ...(jauge.franchi ? (jauge.motifs ?? []) : []).map((motif) => ligne("", `  motif de dérive — ${motif}`)),
+        ])),
     ...direProposition(jauges),
     ...direPlafond(livraisons),
   ];
