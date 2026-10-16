@@ -48,6 +48,12 @@ export type EtatStation = {
   // le délai de présence (voir `station.absent`).
   seenAt: string | null;
   presentSince: string | null;
+  // Vrai : distante, le chef lui fait prendre aussi les tickets ordinaires,
+  // dans le bac à sable de son poste.
+  ordinary: boolean;
+  // Ce qu'elle a dit de ce bac à sable, la dernière fois que ça a changé, et
+  // quand. Nul : elle n'en a jamais rien dit.
+  sandbox: { available: boolean; reason: string | null; version: string | null; at: string } | null;
 };
 
 export type CookDeStation = {
@@ -149,7 +155,12 @@ export const stations = definirProjection<Ecoutes>({
       unarbitrated_reason TEXT,
       remote              INTEGER NOT NULL DEFAULT 0,
       seen_at             TEXT,
-      present_since       TEXT
+      present_since       TEXT,
+      ordinary            INTEGER NOT NULL DEFAULT 0,
+      sandbox_available   INTEGER,
+      sandbox_reason      TEXT,
+      sandbox_version     TEXT,
+      sandbox_at          TEXT
     ) STRICT;
     CREATE TABLE IF NOT EXISTS stations_undeclared (
       id    INTEGER PRIMARY KEY CHECK (id = 1),
@@ -199,12 +210,13 @@ export const stations = definirProjection<Ecoutes>({
         base,
         payload.station,
         at,
-        "engine = ?, provides = ?, max_cooks = ?, announced_at = ?, remote = ?",
+        "engine = ?, provides = ?, max_cooks = ?, announced_at = ?, remote = ?, ordinary = ?",
         String(payload.engine),
         JSON.stringify(Array.isArray(payload.provides) ? payload.provides : []),
         Number.isSafeInteger(payload.maxCooks) ? payload.maxCooks : 0,
         at,
         payload.remote === true ? 1 : 0,
+        payload.ordinary === true ? 1 : 0,
       );
       if (texte(payload.station)) base.executer("DELETE FROM stations_undeclared");
     },
@@ -219,6 +231,19 @@ export const stations = definirProjection<Ecoutes>({
     },
     "station.present": (base, { at, payload }) => {
       if (texte(payload.station)) base.executer("UPDATE stations SET present_since = ?, seen_at = coalesce(seen_at, ?) WHERE station = ?", at, at, payload.station);
+    },
+    "station.sandbox": (base, { at, payload }) => {
+      if (typeof payload.available !== "boolean") return;
+      modifier(
+        base,
+        payload.station,
+        at,
+        "sandbox_available = ?, sandbox_reason = ?, sandbox_version = ?, sandbox_at = ?",
+        payload.available ? 1 : 0,
+        texteOuRien(payload.reason),
+        texteOuRien(payload.version),
+        at,
+      );
     },
     "station.absent": (base, { payload }) => {
       if (texte(payload.station)) base.executer("UPDATE stations SET present_since = NULL WHERE station = ?", payload.station);
@@ -400,8 +425,18 @@ export function setupBloque(base: Base): SetupBloque | null {
   return ligne?.since ? { ...ligne, since: ligne.since, hosts: JSON.parse(ligne.hosts) } : null;
 }
 
+type LigneDeStation = Omit<EtatStation, "provides" | "remote" | "ordinary" | "sandbox"> & {
+  provides: string;
+  remote: number;
+  ordinary: number;
+  sandboxAvailable: number | null;
+  sandboxReason: string | null;
+  sandboxVersion: string | null;
+  sandboxAt: string | null;
+};
+
 export function etatStation(base: Base, station: string): EtatStation | null {
-  const ligne = base.lire<Omit<EtatStation, "provides" | "remote"> & { provides: string; remote: number }>(
+  const ligne = base.lire<LigneDeStation>(
     `SELECT station, engine, provides, max_cooks AS maxCooks, cap, announced_at AS announcedAt,
             quota_until AS quotaUntil, quota_reason AS quotaReason,
             disconnected_at AS disconnectedAt, disconnected_reason AS disconnectedReason,
@@ -409,11 +444,20 @@ export function etatStation(base: Base, station: string): EtatStation | null {
             saturated_observed AS saturatedObserved, saturated_limit AS saturatedLimit,
             held_at AS heldAt, held_reason AS heldReason,
             unarbitrated_at AS unarbitratedAt, unarbitrated_reason AS unarbitratedReason,
-            remote, seen_at AS seenAt, present_since AS presentSince
+            remote, seen_at AS seenAt, present_since AS presentSince, ordinary,
+            sandbox_available AS sandboxAvailable, sandbox_reason AS sandboxReason, sandbox_version AS sandboxVersion, sandbox_at AS sandboxAt
      FROM stations WHERE station = ?`,
     station,
   )[0];
-  return ligne ? { ...ligne, provides: JSON.parse(ligne.provides), remote: ligne.remote === 1 } : null;
+  if (!ligne) return null;
+  const { sandboxAvailable, sandboxReason, sandboxVersion, sandboxAt, ...reste } = ligne;
+  return {
+    ...reste,
+    provides: JSON.parse(ligne.provides),
+    remote: ligne.remote === 1,
+    ordinary: ligne.ordinary === 1,
+    sandbox: sandboxAvailable === null || sandboxAt === null ? null : { available: sandboxAvailable === 1, reason: sandboxReason, version: sandboxVersion, at: sandboxAt },
+  };
 }
 
 // Combien de cooks la station fait tourner à la fois, au plus : ce que le chef

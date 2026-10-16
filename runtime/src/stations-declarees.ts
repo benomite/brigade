@@ -8,6 +8,12 @@
 // `distante` : celle-là vit ailleurs — le poste du chef —, et la box n'a aucun
 // chemin vers elle. C'est elle qui vient tirer son travail (`tirer.ts`).
 //
+// Une station distante tourne sans cloison, sur le poste du chef : elle ne
+// prend que les tickets qui demandent une de ses capacités. Déclarée aussi
+// `ordinaires`, elle prend en plus les tickets qui ne demandent rien — et leurs
+// cooks y tournent dans le bac à sable de Claude Code (`bac-a-sable/`), quand
+// son poste l'a ; sans lui, elle n'en prend aucun.
+//
 // Ce qu'une station fournit est une capacité : ce que la machine peut faire.
 // Ce n'est pas une permission — ce qui est permis reste l'affaire des grants
 // —, et ce module n'en reconnaît aucune : il lit des noms.
@@ -32,6 +38,10 @@ export type StationDeclaree = {
   // Vrai : elle ne tourne pas sur cette machine. Le runtime n'y lance rien et
   // ne la joint jamais : elle s'annonce, réclame, renouvelle et rend.
   distante?: true;
+  // Vrai : distante, elle prend aussi les tickets ordinaires — ceux qui ne
+  // demandent rien —, dans le bac à sable de son poste. Son plafond de cooks
+  // est la limite qui vaut pour elle, tickets ordinaires compris.
+  ordinaires?: true;
 };
 
 // Un nom de station : une machine et un moteur, chacun en minuscules, chiffres
@@ -40,15 +50,18 @@ export type StationDeclaree = {
 export const NOM_DE_STATION = /^[\p{Ll}\p{N}][\p{Ll}\p{N}-]*\/[\p{Ll}\p{N}][\p{Ll}\p{N}-]*$/u;
 const PLAFOND = /^[1-9][0-9]*$/;
 
-// Le quatrième champ, facultatif, d'une station qui tire son travail.
+// Le quatrième champ, facultatif, d'une station qui tire son travail — suivi,
+// au besoin, de ce qu'elle prend en plus de ce qui exige ses capacités.
 export const DISTANTE = "distante";
+export const ORDINAIRES = "ordinaires";
 
-export const FORME = `<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>[:${DISTANTE}]`;
+export const FORME = `<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>[:${DISTANTE}[+${ORDINAIRES}]]`;
 export const EXEMPLE = "box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless";
 
 // Lit `BRIGADE_STATIONS` : une station par entrée, séparées par des virgules,
 // chacune `<machine>/<moteur>:<plafond>:<capacité>+<capacité>`, suivie de
-// `:distante` quand elle ne tourne pas sur cette machine. Absente ou
+// `:distante` quand elle ne tourne pas sur cette machine, et de
+// `:distante+ordinaires` quand elle prend aussi les tickets ordinaires. Absente ou
 // vide : le projet ne déclare aucune station, et c'est accepté. Mal écrite,
 // c'est un refus de démarrer qui nomme la station et le champ en cause — un
 // plafond ne se devine pas, et une station ne disparaît pas sur une faute de
@@ -73,8 +86,13 @@ export function lireStations(env: Record<string, string | undefined>): StationDe
     const cooks = Number(plafond);
     if (!PLAFOND.test(plafond ?? "") || !Number.isSafeInteger(cooks)) refuser(`plafond : « ${plafond} » n'est pas un entier supérieur à zéro`);
     if (capacites === undefined || capacites === "") refuser("fournit : il manque — au moins une capacité, ce que cette station fournit");
-    if (champs.length > 4 || (lieu !== undefined && lieu !== DISTANTE)) {
-      refuser(`« ${champs.slice(lieu === DISTANTE ? 4 : 3).join(":")} » est en trop : une station a trois champs — un quatrième, facultatif, ne dit que \`${DISTANTE}\` : elle ne tourne pas sur cette machine, elle vient tirer son travail`);
+    const marques = lieu === undefined ? [] : lieu.split("+").map((marque) => marque.trim());
+    const lisible = marques.length === 0 || (marques[0] === DISTANTE && (marques.length === 1 || (marques.length === 2 && marques[1] === ORDINAIRES)));
+    if (champs.length > 4 || !lisible) {
+      if (champs.length <= 4 && marques.includes(ORDINAIRES) && !marques.includes(DISTANTE)) {
+        refuser(`\`${ORDINAIRES}\` ne se dit que d'une station \`${DISTANTE}\` (\`${DISTANTE}+${ORDINAIRES}\`) : une station de la box prend déjà les tickets ordinaires`);
+      }
+      refuser(`« ${champs.slice(lisible ? 4 : 3).join(":")} » est en trop : une station a trois champs — un quatrième, facultatif, ne dit que \`${DISTANTE}\` : elle ne tourne pas sur cette machine, elle vient tirer son travail ; ou \`${DISTANTE}+${ORDINAIRES}\` : elle prend aussi les tickets ordinaires, dans le bac à sable de son poste`);
     }
     // Le nom tel que la fiche d'un ticket le demandera.
     const fournit = (capacites ?? "").split("+").map((capacite) => nomDeCapacite(capacite.trim()));
@@ -82,9 +100,23 @@ export function lireStations(env: Record<string, string | undefined>): StationDe
       if (!CAPACITE.test(capacite)) refuser(`fournit : « ${capacite} » n'est pas un nom de capacité — ${FORME_DE_CAPACITE}`);
       if (fournit.indexOf(capacite) !== place) refuser(`fournit : \`${capacite}\` est écrite deux fois`);
     }
-    stations.push({ nom, moteur: nom.slice(nom.indexOf("/") + 1), fournit, cooks, ...(lieu === DISTANTE ? { distante: true as const } : {}) });
+    stations.push({
+      nom,
+      moteur: nom.slice(nom.indexOf("/") + 1),
+      fournit,
+      cooks,
+      ...(marques.includes(DISTANTE) ? { distante: true as const } : {}),
+      ...(marques.includes(ORDINAIRES) ? { ordinaires: true as const } : {}),
+    });
   });
   return stations;
+}
+
+// Une station telle que `BRIGADE_STATIONS` l'écrit : ce que `lireStations`
+// relit à l'identique.
+export function ecrireStation(station: StationDeclaree): string {
+  const marques = [...(station.distante ? [DISTANTE] : []), ...(station.ordinaires ? [ORDINAIRES] : [])];
+  return [station.nom, station.cooks, station.fournit.join("+"), ...(marques.length > 0 ? [marques.join("+")] : [])].join(":");
 }
 
 // Le geste qui donne une station à un projet qui n'en déclare aucune : dit
@@ -102,6 +134,6 @@ export function direStations(stations: StationDeclaree[]): string {
     return `aucune (${VARIABLE_DES_STATIONS} n'est posée ni au journal) : aucun cook ne partira, les tickets restent en attente sur le rail — ${GESTE_DE_STATION}`;
   }
   return stations
-    .map((station) => `${station.nom} (${station.cooks} cook${station.cooks > 1 ? "s" : ""} au plus ; fournit : ${station.fournit.join(", ")}${station.distante ? " ; distante : elle tire son travail, la box ne la joint jamais" : ""})`)
+    .map((station) => `${station.nom} (${station.cooks} cook${station.cooks > 1 ? "s" : ""} au plus ; fournit : ${station.fournit.join(", ")}${station.distante ? " ; distante : elle tire son travail, la box ne la joint jamais" : ""}${station.ordinaires ? " ; prend aussi les tickets ordinaires, dans le bac à sable de son poste" : ""})`)
     .join(" ; ");
 }

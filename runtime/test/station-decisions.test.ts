@@ -95,7 +95,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
 
   test("une valeur invalide est refusée avec ce qui était attendu : rien n'est écrit ni journalisé", async (t) => {
     const { journal, station } = journalDuProjet(t);
-    const STATIONS_ATTENDUES = /usage : `station -- stations <déclaration>` — `<machine>\/<moteur>:<plafond de cooks>:<capacité>\+<capacité>\[:distante\]`, séparées par des virgules/;
+    const STATIONS_ATTENDUES = /usage : `station -- stations <déclaration>` — `<machine>\/<moteur>:<plafond de cooks>:<capacité>\+<capacité>\[:distante\[\+ordinaires\]\]`, séparées par des virgules/;
     const SEUIL = /attendu un entier supérieur à zéro/;
     const MODELE = /attendu opus, sonnet ou haiku/;
     const EFFORT = /attendu low, medium, high, xhigh ou max/;
@@ -158,7 +158,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
 
     assert.equal(code, 0);
     for (const [geste, attendu] of [
-      ["stations <déclaration>", "les stations du projet — `<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>[:distante]`, séparées par des virgules"],
+      ["stations <déclaration>", "les stations du projet — `<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>[:distante[+ordinaires]]`, séparées par des virgules"],
       ["seuil-ticket <tokens>", "seuil de coût de la dérive : tokens du ticket le plus cher — un entier supérieur à zéro"],
       ["seuil-perdus <tokens>", "seuil de coût de la dérive : tokens perdus, lancements qui n'ont rien livré — un entier supérieur à zéro"],
       ["manager-modele <modèle>", "le modèle des jugements du manager — opus, sonnet ou haiku"],

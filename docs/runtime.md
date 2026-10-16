@@ -303,7 +303,7 @@ traîne est **ignorée** (le runtime le dit à son démarrage, avec le geste). U
 séparées par des virgules ; trois champs par station, séparés par `:` :
 
 ```
-<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>[:distante],…
+<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>[:distante[+ordinaires]],…
 ```
 
 ```bash
@@ -316,6 +316,7 @@ brigade <projet> station stations box/claude:30:code+raisonnement,box/playwright
 | **plafond** | combien de cooks elle fait tourner à la fois | un entier supérieur à zéro |
 | **fournit** | ses **capacités** : ce que cette machine sait faire (`code`, `navigateur-headless`, `chrome-connecté`…) | au moins une ; des lettres, des chiffres et des tirets, séparées par `+` |
 | **distante** | facultatif : la station **ne tourne pas sur la machine du runtime** — le poste du chef. Le runtime n'y lance rien et ne la joint jamais : c'est elle qui vient tirer son travail (voir « Une station distante tire son travail ») | le mot `distante`, et rien d'autre : **ni hôte, ni port, ni adresse** — la box ne sait pas où elle est |
+| **ordinaires** | facultatif, après `distante` (`distante+ordinaires`) : la station distante prend **aussi les tickets ordinaires** — ceux qui ne demandent aucune capacité —, chacun dans le bac à sable de Claude Code de son poste (voir « Les tickets ordinaires sur le poste du chef ») | le mot `ordinaires`, et seulement d'une station `distante` : une station de la box les prend déjà |
 
 - **Plusieurs stations de la même machine** se déclarent côte à côte (`box/claude`, `box/playwright`) :
   chacune a son plafond et ses cooks, et un ticket part dans la première, dans l'ordre de la
@@ -567,8 +568,8 @@ ligne**, et son code de sortie dit le reste :
 
 | Demande | Ce qu'elle fait | Réponse |
 |---|---|---|
-| `pull <station> announce` | la station se dit là | ce qu'elle fournit, son plafond de cooks, le délai de présence, la durée du bail, les plafonds des garde-fous |
-| `pull <station> claim` | prend un ticket, s'il y en a un pour elle | `mission` — le ticket, le run, la branche à créer (`cook/<run>`, depuis `base`) ou à reprendre (`resumes`, un renvoi de la pass), le calibrage, la consigne du cook et les arguments de `claude`, les plafonds, l'échéance du bail — ou `mission: null`, et `held` : ce qui la retient |
+| `pull <station> announce [--sandbox <json>]` | la station se dit là — et, avec `--sandbox`, ce qu'elle sait du bac à sable de son poste | ce qu'elle fournit, son plafond de cooks, le délai de présence, la durée du bail, les plafonds des garde-fous |
+| `pull <station> claim [--sandbox <json>]` | prend un ticket, s'il y en a un pour elle — `--sandbox`, comme pour `announce` | `mission` — le ticket, le run, la branche à créer (`cook/<run>`, depuis `base`) ou à reprendre (`resumes`, un renvoi de la pass), le calibrage, la consigne du cook et les arguments de `claude`, les plafonds, l'échéance du bail — ou `mission: null`, et `held` : ce qui la retient |
 | `pull <station> renew <run> --proof <empreinte> --turns <n> --tokens <n>` | montre que le cook a travaillé, et ce qu'il a consommé | la nouvelle échéance du bail |
 | `pull <station> return <run> --end livre\|echec [--reason <motif>] --turns <n> --tokens <n>` | rend le ticket ; le dernier message du cook sur l'entrée standard | ce que la box a retenu : `done`, ou `failed` et pourquoi |
 
@@ -584,7 +585,9 @@ n'est pas un cook privilégié :
 
 - **Elle ne reçoit que le ticket qu'elle peut cuisiner** : le premier, dans l'ordre de service, dont
   elle fournit **tout** ce que la fiche demande (« Les capacités qu'un ticket demande ») — jamais un
-  autre, même s'il attend devant. Seule une station **déclarée `distante`** tire : un nom inconnu
+  autre, même s'il attend devant. Et, sans cloison sur son poste, **un ticket qui demande une de ses
+  capacités** : un ticket ordinaire ne lui revient que déclarée `distante+ordinaires`, son poste
+  ayant le bac à sable (voir plus bas). Seule une station **déclarée `distante`** tire : un nom inconnu
   (`unknown-station`) ou celui d'une station de la box (`not-remote`) est refusé, et ne vaut pas
   présence.
 - **Les bornes d'une prise sont les mêmes** : le « stop » du chef, le disjoncteur, la base rouge (seul son ticket de réparation en part, et d'une station d'ici), son
@@ -642,6 +645,44 @@ pas une panne** — son poste est éteint, ou ailleurs :
   #16  depuis 3 min  station absente — `mac/claude` ne s'est pas manifestée récemment — ce n'est pas une panne, et rien n'est à faire sur la box : le ticket repart seul dès que la station se manifeste (son poste allumé, son runner lancé)
   ```
 
+#### Les tickets ordinaires sur le poste du chef
+
+Une station distante tourne **sans cloison**, sur le poste du chef : un cook y lirait ce que lit
+son compte — la clé `ssh` vers la box, ses accès de prod. Par défaut, elle ne prend donc **que les
+tickets qui demandent une de ses capacités**, comme avant. Le chef peut lui faire prendre aussi les
+**tickets ordinaires** — ceux dont la fiche ne demande rien — en la déclarant `distante+ordinaires` ;
+son **plafond de cooks** est alors la limite du Mac, tickets ordinaires compris
+(`run station -- cooks <N>` le règle aussi) :
+
+```bash
+brigade <projet> station stations box/claude:30:code,mac/claude:2:chrome-connecté:distante+ordinaires
+```
+
+**Un ticket ordinaire n'y part que dans le bac à sable de Claude Code** (`runtime/src/bac-a-sable/`).
+La station le dit à chaque `announce` et `claim`, par `--sandbox <json>` : l'objet que rend la
+sonde, jouée sur son poste par son app —
+`node runtime/src/bac-a-sable/sonder.ts <worktrees> [<cache>…]`, où `<worktrees>` est le
+répertoire où le poste pose les worktrees des cooks du projet. Disponible, il porte la version de
+son `claude`, le répertoire du compte, ce répertoire et les caches du projet ; indisponible — pas
+macOS, pas de Seatbelt (`/usr/bin/sandbox-exec`), un `claude` trop ancien ou muet —, la raison.
+
+- **Réglage et bac à sable** : la box lui prête un ticket ordinaire, et en écrit la configuration
+  pour ce cook — il n'écrit que dans `<worktrees>/<run>` et les caches du projet, ne lit ni `~/.ssh`
+  ni les identifiants du chef, ne joint que les hôtes de la liste réseau du projet (celle que sa
+  branche d'intégration déclare). La mission porte `sandbox: true`, et ses arguments de `claude`
+  sont ceux d'un cook de la box dont le `--permission-mode bypassPermissions` cède la place à
+  `--permission-mode dontAsk --settings <la configuration>` : la station les lance tels quels.
+  `cook.launched` porte aussi `sandbox: true`.
+- **Réglage sans bac à sable** — ou une station qui n'en dit rien, ou un poste dont la configuration
+  ne tient pas (des worktrees là où un cook ne doit rien lire) : **elle ne prend aucun ticket
+  ordinaire**. La box l'écrit (`station.sandbox`, avec la raison), le dit dans la sortie du
+  runtime quand ça change, et `station` le montre sur sa ligne `tickets ordinaires` (`AUCUN PRIS — bac à sable
+  indisponible depuis le … : <raison>`). Les tickets ordinaires partent sur les stations de la box.
+- **Dans tous les cas**, les tickets qui demandent ses capacités restent pris comme avant, à nu.
+
+L'état se lit aussi dans `facts`, champ `stations` (voir « Les faits, pour un programme ») : c'est
+lui que l'app affiche.
+
 **La seule direction est station → box, et c'est gardé.** Une déclaration ne porte aucune adresse ;
 dans `runtime/src`, sept modules seulement touchent au réseau, aucun vers une station (l'arbitre et
 le serveur d'une livraison sur `127.0.0.1`, la porte et sa sonde, l'API de GitHub) ; aucun programme
@@ -663,6 +704,7 @@ l'issue dit de la supprimer.
 | `remote.asked` | La demande d'une station distante, écrite par son geste : `station`, `verb` (`announce`, `claim`, `renew`, `deliver`), et ce qu'elle porte |
 | `remote.answered` | La réponse du runtime, sur le ticket quand elle en concerne un : `ok`, ou `refusal` (`unknown-station`, `not-remote`, `late`, `unknown-run`, `stopped`, `no-progress`, `invalid`), `said`, `stop` |
 | `station.present`, `station.absent` | Une station distante s'est manifestée après une absence ; elle ne s'est plus manifestée depuis `presenceMs` (`lastSeen`). Hors ticket |
+| `station.sandbox` | Ce qu'une station distante dit du bac à sable de son poste, quand ça change : `available`, `reason` (pourquoi il ne l'est pas, `null` s'il l'est), `version` (son `claude`, `null` s'il ne l'est pas). Hors ticket |
 | `ticket.86` | Motif `station-absent: <station>` : seule une station distante absente peut cuisiner ce ticket. Sans heure de retour ; `ticket.released`, motif `station-present`, quand elle revient |
 
 ### Les zones de fichiers
@@ -964,7 +1006,7 @@ npm --prefix runtime run station                 # la voir
 npm --prefix runtime run station -- cooks 12     # régler son plafond de cooks (0 : aucune limite)
 ```
 
-Elle montre le plafond, la machine — ou, pour une station distante, sa **présence** —, la connexion Max, le quota, la `retenue`, les cooks en cours
+Elle montre le plafond, la machine — ou, pour une station distante, sa **présence** et ce qu'elle fait des **tickets ordinaires** —, la connexion Max, le quota, la `retenue`, les cooks en cours
 avec leur calibrage, les dix derniers finis, et **`consommé`** — tout ce que le projet a lancé,
 cooks, relectures et jugements : ce qui tourne, les **5 dernières heures** (la fenêtre du quota
 Max, à comparer à `/usage` en ordre de grandeur) et les **24 dernières heures**.
@@ -974,7 +1016,7 @@ session, reste la mesure de vérité du compte ; le runtime ne la remplace pas.
 
 | Événement | Sens |
 |---|---|
-| `station.announced` | Une station que le projet déclare se présente : moteur, ce qu'elle fournit, plafond de cooks déclaré, et `remote: true` si elle est distante (hors ticket) |
+| `station.announced` | Une station que le projet déclare se présente : moteur, ce qu'elle fournit, plafond de cooks déclaré, `remote: true` si elle est distante, et `ordinary: true` si elle prend aussi les tickets ordinaires (hors ticket) |
 | `station.withdrawn` | Le projet ne déclare plus cette station : elle sort de `status` et de `station` (hors ticket) |
 | `stations.undeclared` | Le projet ne déclare aucune station : aucun cook ne part. Écrit une fois, par le runtime ; la première annonce l'efface (hors ticket) |
 | `station.capped` | Le chef a réglé le plafond de cooks : `maxCooks`, `0` pour aucune limite (hors ticket) |
@@ -2203,6 +2245,7 @@ est du texte, et peut être reformulé.
 | `cooks` | Les cooks en cours, ceux que `station` montre sous « cooks en cours », dans son ordre — station par station, le plus ancien d'abord : `ticket`, `titre` (celui du ticket), `station`. Une liste vide quand aucun ne tourne. Le titre est celui du rail : vide (`""`) si le ticket l'a quitté pendant la cuisson |
 | `attend` | Les tickets que le bloc `attend` de `status` nomme, un par entrée, dans l'ordre du bloc : `ticket`, `titre`, `url`. **C'est l'adresse qui ouvre l'issue** : celle du rail pour un ticket qui y est, sinon celle que **le dépôt de la box** donne (`BRIGADE_GITHUB_REPO`) — l'app n'en compose aucune. Le titre est celui du rail, **vide (`""`) pour une issue qui n'y est pas** : le journal ne le connaît pas, et rien ne va le chercher. `url` est `null` quand la box ne connaît pas son dépôt. La connexion Max, la version, la passe de fermeture demandée, la base rouge et le setup bloqué, qui ne sont à aucun ticket, n'y sont pas — `compteurs.attend` les compte. Une liste vide quand rien n'attend |
 | `livres` | Les tickets servis dans les 24 h avant `lu` — **ceux que `compteurs.livres24h` compte, un pour un** —, le plus récent d'abord : `ticket`, `titre`, `url` (son issue), `livre` (l'heure de son service), `station` (celle qui l'a cuisiné, `null` quand aucune ne l'a envoyé en pass — mergé à la main sans cook, livraison hors du rail), `pr` (la PR mergée, `null` pour un ticket servi sans merge), `relecture` (ce que le reviewer a dit de **ce qui a été servi**, mot pour mot : `resume`, son résumé ; `constats`, dans son ordre, chacun avec `gravite` — `remarque` ou `bloquant` —, `fichier` — `null` quand il n'en nomme pas — et `constat`, son texte ; une suppression qu'il demande est une `remarque` dont le texte commence par « À supprimer : »). `relecture` est `null` quand aucune relecture lisible ne porte sur la livraison servie : mergée à la main sans passer à la pass, servie sans relecture, relue sur un commit d'avant celui que la pass jugeait en dernier, ou dont la dernière relecture ne se lit pas — **rien n'est mis à sa place**, pas même une relecture d'une livraison d'avant. Une relecture rouge mergée à la main par le chef est la sienne : ses constats bloquants y sont. **Un ticket y reste après la fermeture de son issue** : il a quitté le rail, pas la liste — elle se relit au journal, titre et adresse compris. Le titre est celui du jour, vide (`""`) pour une livraison que le rail n'a jamais portée ; `url` est alors celle que le dépôt de la box donne, ou `null`. **Une issue fermée sans avoir été servie** — abandonnée, écartée — **n'y est pas**. `captures` : comme sur le rail, pour un ticket d'interface — absent pour tout autre. Une liste vide quand rien n'a été servi en 24 h |
+| `stations` | Les stations que le projet déclare, dans l'ordre de leur nom, et ce qu'elles font des **tickets ordinaires** (voir « Les tickets ordinaires sur le poste du chef ») : `station`, `distante`, `plafond` (ses cooks à la fois, au plus — `null` : sans limite), `ordinaires` (le réglage du chef, `false` pour une station de la box), `bacASable` (ce que la station a dit du bac à sable de son poste : `disponible`, `raison` — `null` s'il l'est —, `version` de son `claude` — `null` s'il ne l'est pas —, `depuis` ; `null` tant qu'elle n'en a rien dit), `prendOrdinaires` (elle en prend à cet instant : toujours vrai d'une station de la box ; d'une distante, réglage et bac à sable disponible). Une liste vide quand aucune n'est déclarée |
 
 Les heures sont en ISO 8601, UTC.
 

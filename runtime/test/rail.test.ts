@@ -965,6 +965,23 @@ test("devant plusieurs stations, le premier ticket dans l'ordre de service va à
   assert.equal(rail.prendre([CLAUDE, PLAYWRIGHT]), null);
 });
 
+test("une station qui ne prend pas les tickets ordinaires ne se voit prêter que ceux qui demandent une de ses capacités : l'ordinaire va à une autre, ou attend", (t) => {
+  const { journal, rail } = cuisine(t);
+  const MAC = { station: "mac/claude", fournit: ["chrome-connecté"], ordinaires: false };
+  poserAvec(journal, 1, [], 1);
+  poserAvec(journal, 2, ["chrome-connecté"]);
+  poserAvec(journal, 3, []);
+
+  assert.equal(rail.servables(undefined, [MAC]), 1);
+  // #1, le premier à servir, ne demande rien : il passe la station qui ne prend pas les ordinaires.
+  assert.deepEqual([rail.prendre([MAC, CLAUDE])?.ticket, ticketDuRail(journal.base, 1)?.station], [1, "box/claude"]);
+  assert.deepEqual([rail.prendre([MAC, CLAUDE])?.ticket, ticketDuRail(journal.base, 2)?.station], [2, "mac/claude"]);
+  assert.equal(rail.prendre([MAC]), null);
+  assert.equal(etats(rail).find(([ticket]) => ticket === 3)?.[1], "waiting");
+  // La même, qui les prend : l'ordinaire lui revient.
+  assert.deepEqual([rail.prendre([{ ...MAC, ordinaires: true }])?.ticket, ticketDuRail(journal.base, 3)?.station], [3, "mac/claude"]);
+});
+
 test("une station ne se voit pas prêter le ticket qui demande ce qu'elle ne fournit pas : il attend, et ne compte pas parmi ce qu'elle pourrait prendre", (t) => {
   const { journal, rail } = cuisine(t);
   poserAvec(journal, 1, ["navigateur-headless"], 1);

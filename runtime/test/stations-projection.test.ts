@@ -55,7 +55,24 @@ test("une station annoncée se lit avec son moteur, ce qu'elle fournit et son pl
     remote: false,
     seenAt: null,
     presentSince: null,
+    ordinary: false,
+    sandbox: null,
   });
+});
+
+test("une station distante réglée pour les tickets ordinaires se lit avec ce qu'elle a dit de son bac à sable, et depuis quand", (t) => {
+  const { base, noter } = cuisine(t);
+  noter({ type: "station.announced", payload: { station: "mac/claude", engine: "claude", provides: ["chrome-connecté"], maxCooks: 1, remote: true, ordinary: true } });
+  assert.deepEqual([etatStation(base, "mac/claude")?.ordinary, etatStation(base, "mac/claude")?.sandbox], [true, null]);
+
+  noter({ type: "station.sandbox", payload: { station: "mac/claude", available: false, reason: "Seatbelt est introuvable", version: null } });
+  const indisponible = etatStation(base, "mac/claude")?.sandbox;
+  assert.deepEqual(indisponible, { available: false, reason: "Seatbelt est introuvable", version: null, at: indisponible?.at });
+  noter({ type: "station.sandbox", payload: { station: "mac/claude", available: true, reason: null, version: "2.1.250" } });
+  assert.deepEqual({ ...etatStation(base, "mac/claude")?.sandbox, at: null }, { available: true, reason: null, version: "2.1.250", at: null });
+  // Réannoncée sans le réglage, elle ne les prend plus — ce qu'elle a dit de son poste reste.
+  noter({ type: "station.announced", payload: { station: "mac/claude", engine: "claude", provides: ["chrome-connecté"], maxCooks: 1, remote: true } });
+  assert.deepEqual([etatStation(base, "mac/claude")?.ordinary, etatStation(base, "mac/claude")?.sandbox?.available], [false, true]);
 });
 
 test("un arbitre injoignable se lit sur la station, avec ce que l'échange a donné, jusqu'à son retour", (t) => {

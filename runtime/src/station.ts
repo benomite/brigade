@@ -55,6 +55,7 @@ import { argumentsClaude, consigne, direRefus, environnementCook, lireFlux, REFU
 import type { Decisions } from "./decisions.ts";
 import { ouvrirDepot, type Depot, type OptionsDepot } from "./depot.ts";
 import { configPresence, ouvrirDistantes, PRESENCE_PAR_DEFAUT_MIN, type Conclusion } from "./distantes.ts";
+import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
 import { STATION_ABSENTE } from "./evenements/rail.ts";
 import type { ContexteCook } from "./evenements/garde-fous.ts";
 import { IDENTIFIANTS_LIVRES, PART_SANS_PROGRES, SANS_DIFF, SANS_LIVRABLE, type FaitStation, type FinDeCook, type Retenue } from "./evenements/station.ts";
@@ -365,8 +366,12 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   const estDistante = (station: string) => toutes.some((declaree) => declaree.nom === station && declaree.distante);
   // Les stations telles que le rail les lit pour leur prêter un ticket : dans
   // l'ordre de la déclaration, chacune avec ce qu'elle fournit.
+  // Une distante ne prend les tickets ordinaires que si le chef le lui fait
+  // faire et que son poste a le bac à sable (`bac-a-sable/ordinaires.ts`).
   const preneuses = (celles: readonly string[]): Preneuse[] =>
-    toutes.filter((declaree) => celles.includes(declaree.nom)).map((declaree) => ({ station: declaree.nom, fournit: declaree.fournit }));
+    toutes
+      .filter((declaree) => celles.includes(declaree.nom))
+      .map((declaree) => ({ station: declaree.nom, fournit: declaree.fournit, ordinaires: prendLesOrdinaires(declaree, etatStation(base, declaree.nom)?.sandbox ?? null) }));
   // Ce qu'un ticket peut demander : ce que fournit une station déclarée,
   // qu'elle tourne ici ou ailleurs.
   let offres = toutes.map((declaree) => declaree.fournit);
@@ -428,9 +433,23 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       if (!nomsDeToutes.includes(station)) noter(station, null, { type: "station.withdrawn", payload: { station } });
     }
     for (const declaree of toutes) {
-      const annonce = { station: declaree.nom, engine: declaree.moteur, provides: declaree.fournit, maxCooks: declaree.cooks, ...(declaree.distante ? { remote: true as const } : {}) };
+      const annonce = {
+        station: declaree.nom,
+        engine: declaree.moteur,
+        provides: declaree.fournit,
+        maxCooks: declaree.cooks,
+        ...(declaree.distante ? { remote: true as const } : {}),
+        ...(declaree.ordinaires ? { ordinary: true as const } : {}),
+      };
       const connue = etatStation(base, declaree.nom);
-      const annoncee = connue && { station: connue.station, engine: connue.engine, provides: connue.provides, maxCooks: connue.maxCooks, ...(connue.remote ? { remote: true as const } : {}) };
+      const annoncee = connue && {
+        station: connue.station,
+        engine: connue.engine,
+        provides: connue.provides,
+        maxCooks: connue.maxCooks,
+        ...(connue.remote ? { remote: true as const } : {}),
+        ...(connue.ordinary ? { ordinary: true as const } : {}),
+      };
       if (JSON.stringify(annoncee) !== JSON.stringify(annonce)) noter(declaree.nom, null, { type: "station.announced", payload: annonce });
     }
     // Sans station, aucun cook ne part : c'est écrit, une fois, et `status`
@@ -831,8 +850,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // toutes celles qui fournissent ce qu'il demande sont distantes, et aucune ne
   // s'est manifestée récemment. Une seule station d'ici qui peut le cuisiner,
   // ou une distante présente, et il n'attend personne.
+  // Un ticket ordinaire n'attend pas une distante qui ne prend pas les tickets
+  // ordinaires.
   const sansStationPresente = (ticket: TicketRail): string[] | null => {
-    const capables = toutes.filter((declaree) => fournitTout(declaree.fournit, requises(ticket.card)));
+    const demande = requises(ticket.card);
+    const capables = toutes.filter((declaree) => fournitTout(declaree.fournit, demande) && (demande.length > 0 || !declaree.distante || declaree.ordinaires === true));
     if (capables.length === 0) return null;
     const absentes = distantes.absentes();
     return capables.every((declaree) => absentes.includes(declaree.nom)) ? capables.map((declaree) => declaree.nom) : null;

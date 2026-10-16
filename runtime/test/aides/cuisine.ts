@@ -21,7 +21,7 @@ import { brancherPass, type ConfigPass } from "../../src/pass.ts";
 import type { Plafond } from "../../src/reagir.ts";
 import { demarrer } from "../../src/runtime.ts";
 import { brancherStation } from "../../src/station.ts";
-import type { StationDeclaree } from "../../src/stations-declarees.ts";
+import { ecrireStation, type StationDeclaree } from "../../src/stations-declarees.ts";
 import { aArreter as finDuTest, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, lancementsDuFauxBwrap, lancementsDuFauxClaude, repertoireTemporaire, tuerLesRelais } from "../outils.ts";
 
 const FAUSSES_GATES = join(import.meta.dirname, "fausses-gates.sh");
@@ -523,7 +523,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
   const decisions = options.decisions
     ? (() => {
         const posees: Record<string, string> = {
-          BRIGADE_STATIONS: stations.map((station) => [station.nom, station.cooks, station.fournit.join("+"), ...(station.distante ? ["distante"] : [])].join(":")).join(","),
+          BRIGADE_STATIONS: stations.map(ecrireStation).join(","),
           BRIGADE_MANAGER_MODEL: CALIBRAGE_DU_MANAGER.model,
           BRIGADE_MANAGER_EFFORT: CALIBRAGE_DU_MANAGER.effort,
           BRIGADE_REVIEWER_MODEL: CALIBRAGE_DU_REVIEWER.model,
