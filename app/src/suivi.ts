@@ -4,7 +4,7 @@
 import { realpathSync, watch, type FSWatcher } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname } from "node:path";
-import { ajouterHote, ajouterProjet, changerCouleur, colorerProjets, creerConfiguration, lireConfiguration, rangerProjet, refusDAjout, retirerProjet, type Configuration, type Declare } from "./config.ts";
+import { ajouterHote, ajouterProjet, changerCouleur, changerOrdinaires, colorerProjets, creerConfiguration, lireConfiguration, rangerProjet, refusDAjout, retirerProjet, type Configuration, type Declare } from "./config.ts";
 import type { Role } from "./couleurs.ts";
 
 export function suivreConfiguration(options: {
@@ -86,6 +86,8 @@ export function suivreConfiguration(options: {
     colorer: (hasard?: () => number) => ecrire(() => colorerProjets(chemin, maison, hasard)),
     // Change la couleur d'onglet ou d'accent d'un projet. Rend la raison, si elle ne l'a pas été.
     changerCouleur: (nom: string, role: Role, couleur: string) => ecrire(() => changerCouleur(chemin, nom, role, couleur, maison)),
+    // Règle les tickets ordinaires du Mac pour un projet. Rend la raison, si rien n'a été écrit.
+    changerOrdinaires: (nom: string, actif: unknown, limite: unknown) => ecrire(() => changerOrdinaires(chemin, nom, actif, limite, maison)),
     // Retire un projet du fichier, et rien d'autre : `surChangement` le dit parti. Rend la raison, s'il ne l'a pas été.
     retirer: (nom: string) => ecrire(() => retirerProjet(chemin, nom, maison)),
     // Range un projet à la place `rang` de la liste : `surChangement` dit le nouvel ordre, et

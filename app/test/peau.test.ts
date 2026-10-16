@@ -635,7 +635,7 @@ describe("le cadre est fait de cartes, sur fond sombre", () => {
   test("une seule règle fait la carte, et tout ce qui se lit d'un bloc la porte : les cinq onglets, « Tous les projets », l'ajout", () => {
     const feuille = regles(lire("vue.css"));
     const carte = feuille.find(({ declarations }) => declarations.get("background") === "var(--carte)" && declarations.get("border-radius") === "var(--rayon-carte)" && declarations.get("position") === undefined);
-    assert.deepEqual(carte?.selecteurs, [".carte", "#service", "#retrait", "#provenance", "#arreter-cuisine", "#couleurs", "#pages", "#manager", "#grants", "#code", "#tous .liste", "#formulaire"]);
+    assert.deepEqual(carte?.selecteurs, [".carte", "#service", "#retrait", "#provenance", "#arreter-cuisine", "#couleurs", "#ordinaires", "#pages", "#manager", "#grants", "#code", "#tous .liste", "#formulaire"]);
     assert.equal(carte?.declarations.get("border"), "1px solid var(--trait)");
     assert.equal(feuille.find(({ selecteurs }) => selecteurs.join() === "body")?.declarations.get("background"), "var(--fond)");
     // Les colonnes du rail, les bons, le bloc de ce qui attend, la sortie relayée : chacun son cadre.
