@@ -237,8 +237,8 @@ stationsDeLAccueil.append(listeDesStations, ouvrirLAppairage, formulaireDAppaira
 const santeDeLAccueil = document.createElement("p");
 santeDeLAccueil.id = "sante";
 santeDeLAccueil.ariaLive = "polite";
-// La page d'une station, ouverte d'un clic sur sa ligne : son état, ses pannes et leur bouton, les
-// projets que l'app lui a ajoutés, et le parcours « Add a project » — le dépôt, ses stations, sa
+// La page d'une station, ouverte d'un clic sur sa ligne : son état, ses pannes et leur bouton, tous
+// les projets qu'elle porte, et le parcours « add a project » — le dépôt, ses stations, sa
 // principale — le serveur proposé d'office —, ses décisions, et valider. Rien ne s'y tape au terminal.
 const pageDeStation = document.createElement("section");
 pageDeStation.id = "station";
@@ -248,7 +248,8 @@ const pannesDeStation = document.createElement("div");
 pannesDeStation.ariaLive = "polite";
 const listeDesProjets = document.createElement("div");
 listeDesProjets.ariaLive = "polite";
-const ouvrirLeParcours = /** @type {HTMLButtonElement} */ (bloc("button", "add a project to your stations"));
+const ouvrirLeParcours = /** @type {HTMLButtonElement} */ (bloc("button", "+ add a project"));
+ouvrirLeParcours.className = "ajout-de-projet";
 const formulaireDAjout = document.createElement("form");
 formulaireDAjout.hidden = true;
 const depotChoisi = /** @type {HTMLSelectElement} */ (document.createElement("select"));
@@ -294,7 +295,7 @@ formulaireDAjout.append(
 const retourALAccueil = /** @type {HTMLButtonElement} */ (bloc("button", "‹ All projects"));
 retourALAccueil.type = "button";
 retourALAccueil.className = "retour";
-pageDeStation.append(retourALAccueil, enTeteDeStation, pannesDeStation, bloc("h3", "Projects added from this app"), listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit);
+pageDeStation.append(retourALAccueil, enTeteDeStation, pannesDeStation, bloc("h3", "Projects"), listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit);
 
 /** @type {Map<number, { terminal: Terminal, xterm: Xterm, ajuste: FitAddon, cadre: HTMLDivElement }>} */
 const vues = new Map();
@@ -3730,7 +3731,7 @@ function poserAccueil() {
 // La page d'une station : en tête, son nom, sa pastille et son état en une phrase — « online · 2 cooks
 // running », « offline for 12 min », « saturated » (accueil.ts) ; sa machine et sa version ne se lisent
 // qu'au survol de l'icône d'aide, jamais dans la page. Dessous, ses pannes, chacune avec son bouton ;
-// puis les projets que l'app lui a ajoutés.
+// puis tous les projets qu'elle porte.
 function poserPageDeStation() {
   const station = stationsVues?.stations.find(({ id }) => id === stationOuverte);
   const ligne = accueilVu?.stations?.find(({ id }) => id === stationOuverte);
@@ -3751,39 +3752,97 @@ function poserPageDeStation() {
   poserProjets();
 }
 
-// Sur la page d'une station, les projets que l'app lui a ajoutés, un bloc chacun : son dépôt et sa
-// branche, puis chacune de ses stations — la principale d'abord — et ce qu'elle en dit : servi, à
-// autoriser sur GitHub (un bouton par page), en préparation, refusé et pourquoi. Puis le geste qui le
-// retire, en deux clics.
+// Sur la page d'une station, tous les projets qu'elle porte, une ligne chacun : ceux que sa
+// configuration sert — qu'ils viennent de l'app ou d'une ligne écrite à la main, la station les publie
+// tous (stations/document.ts) —, puis ceux que l'app lui demande et qu'elle ne sert pas encore. Une
+// station qui sert un projet fait tourner son manager et sa pass : elle en est la principale ;
+// celle que l'app a déclarée secondaire ne le sert pas, et le dit. Toute la ligne s'ouvre d'un clic.
+// Sous un projet ajouté depuis l'app, ce qu'il attend du chef — autoriser sur GitHub — et le geste
+// qui le retire, en deux clics. Le vide ne se dit que s'il n'y a vraiment rien.
 function poserProjets() {
-  if (projetsVus === undefined) return listeDesProjets.replaceChildren(bloc("p", stationsVues === undefined ? "" : "reading GitHub…"));
-  const blocs = projetsVus.projets.filter(({ stations }) => stations.some(({ id }) => id === stationOuverte)).map((projet) => {
+  const station = stationsVues?.stations.find(({ id }) => id === stationOuverte);
+  if (station === undefined) return listeDesProjets.replaceChildren();
+  const demandes = (projetsVus?.projets ?? []).flatMap((projet) => {
+    const ici = projet.stations.find(({ id }) => id === stationOuverte);
+    return ici === undefined ? [] : [{ projet, ici }];
+  });
+  const noms = [...new Set([...station.projets, ...demandes.map(({ projet }) => projet.nom)])].sort((a, b) => a.localeCompare(b));
+  const lignes = noms.map((nom) => {
+    const demande = demandes.find(({ projet }) => projet.nom === nom);
+    const servi = station.projets.includes(nom);
+    const ligne = ligneDeProjetDeStation(nom, servi, demande);
+    if (demande === undefined) return ligne;
     const pose = document.createElement("div");
     pose.className = "projet-de-station";
-    const tete = document.createElement("p");
-    tete.append(bloc("strong", projet.nom), bloc("span", ` — ${projet.depot} · ${projet.base}`));
-    pose.append(tete);
-    for (const station of projet.stations) {
-      const ligne = document.createElement("p");
-      ligne.dataset.etat = station.etat;
-      ligne.append(bloc("span", `${station.nom}${station.principale ? " (main)" : ""}: ${station.etat === "servi" ? "served" : station.etat === "a-autoriser" ? "waiting for your authorization on GitHub" : station.etat === "en-preparation" ? "being prepared" : station.etat === "refuse" ? "refused" : station.etat === "secondaire" ? "secondary" : "not read yet"} — ${station.dit}`));
-      for (const url of station.autoriser) {
-        const autoriser = bloc("button", `authorize on GitHub: ${url.replace(/^https:\/\/github\.com\/apps\/([^/]+).*$/, "$1")}`);
-        autoriser.addEventListener("click", () => void brigade.autoriserSurGitHub(url));
-        ligne.append(autoriser);
-      }
-      pose.append(ligne);
+    const gestes = document.createElement("p");
+    for (const url of demande.ici.autoriser) {
+      const autoriser = bloc("button", `authorize on GitHub: ${url.replace(/^https:\/\/github\.com\/apps\/([^/]+).*$/, "$1")}`);
+      autoriser.addEventListener("click", () => void brigade.autoriserSurGitHub(url));
+      gestes.append(autoriser);
     }
-    if (projet.servi !== null) pose.append(bloc("p", projet.servi));
-    const retirer = bloc("button", retraitDemande === projet.nom ? `remove ${projet.nom} from its stations? click again` : "remove");
-    retirer.addEventListener("click", () => void retirerProjet(projet.nom));
-    pose.append(retirer);
+    const retirer = bloc("button", retraitDemande === nom ? `remove ${nom} from its stations? click again` : "remove");
+    retirer.addEventListener("click", () => void retirerProjet(nom));
+    gestes.append(retirer);
+    pose.append(ligne, gestes);
     return pose;
   });
+  // Tant que ce que l'app lui demande n'est pas lu, le vide n'est pas sûr : il ne se dit pas.
+  const vide = station.etat === "illisible" ? "its projects cannot be read: neither can the station" : projetsVus === undefined ? "reading GitHub…" : "no project on this station yet";
   listeDesProjets.replaceChildren(
-    ...(blocs.length === 0 ? [bloc("p", "none yet")] : blocs),
-    ...(projetsVus.sans === undefined ? [] : [lectureIndisponible(document, "GitHub could not be read: this list is the one from before", projetsVus.sans)]),
+    ...(lignes.length === 0 ? [bloc("p", vide)] : lignes),
+    ...(projetsVus?.sans === undefined ? [] : [lectureIndisponible(document, "GitHub could not be read: the projects added from this app are the ones from before", projetsVus.sans)]),
   );
+}
+
+// Un projet sur la page d'une station : sa pastille, son nom, sa marque — « main » si la station
+// fait tourner son manager et sa pass, « secondary » sinon —, et ce qu'elle en dit. Un clic l'ouvre :
+// son espace s'il est dans le fichier des projets de l'app ; sinon « Add a project », où il s'y
+// déclare. Le détail — son dépôt, ce que la station en a dit, où est sa principale — est au survol.
+/** @param {string} nom @param {boolean} servi @param {{ projet: import("../projets/projets.ts").ProjetVu, ici: import("../projets/projets.ts").StationDuProjet } | undefined} demande */
+function ligneDeProjetDeStation(nom, servi, demande) {
+  const principale = servi || demande?.ici.principale === true;
+  const etat = servi ? "servi" : (demande?.ici.etat ?? "attendu");
+  const ailleurs = demande?.projet.stations.find((station) => station.principale && station.id !== stationOuverte)?.nom;
+  const ton = etat === "servi" ? "vert" : etat === "a-autoriser" ? "jaune" : etat === "refuse" ? "rouge" : "gris";
+  const dit =
+    etat === "servi"
+      ? "served"
+      : etat === "a-autoriser"
+        ? "waiting for your authorization on GitHub"
+        : etat === "en-preparation"
+          ? "being prepared"
+          : etat === "refuse"
+            ? "refused"
+            : etat === "secondaire"
+              ? ailleurs === undefined
+                ? "its manager and its pass run elsewhere"
+                : `its manager and its pass run on ${ailleurs}`
+              : "not read yet";
+  const declare = projetDe(nom);
+  const survolDit = [
+    demande === undefined ? "installed on this station outside the app" : `${demande.projet.depot} · ${demande.projet.base}`,
+    ...(demande === undefined || demande.ici.dit === "" ? [] : [demande.ici.dit]),
+    ...(demande === undefined || demande.projet.servi === null ? [] : [demande.projet.servi]),
+    declare === undefined ? "not in this app's projects yet: a click opens “Add a project”" : "",
+  ].filter((ligne) => ligne !== "");
+  const cree = document.createElement("button");
+  cree.type = "button";
+  cree.className = "ligne";
+  cree.dataset.projet = nom;
+  cree.title = survolDit.join("\n");
+  cree.ariaLabel = `${nom} — ${principale ? "main" : "secondary"} — ${dit}`;
+  const appele = bloc("strong", nom);
+  appele.className = "mono";
+  const marque = bloc("span", principale ? "main" : "secondary");
+  marque.className = "pilule";
+  marque.classList.toggle("principale", principale);
+  marque.title = principale ? "this station is its main station: it runs its manager and its pass" : "not its main station: this station runs neither its manager nor its pass";
+  const suite = bloc("span", "›");
+  suite.className = "ouvrir";
+  suite.ariaHidden = "true";
+  cree.append(pastille(dit, ton), appele, marque, bloc("span", dit), suite);
+  cree.addEventListener("click", () => (declare === undefined ? ouvrirAjout() : void ouvrir(declare)));
+  return cree;
 }
 
 // Retirer, en deux clics : le premier demande, le second retire le projet de la demande de chacune

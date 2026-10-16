@@ -556,8 +556,8 @@ main > header,
 #sante[data-ok="true"] {
   color: var(--discret);
 }
-/* La page d'une station : le retour à l'accueil, son en-tête, ses pannes, les projets que l'app lui a
-   ajoutés et le parcours « add a project ». */
+/* La page d'une station : le retour à l'accueil, son en-tête, ses pannes, tous les projets qu'elle
+   porte et le parcours « add a project ». */
 #station {
   flex: none;
   display: flex;
@@ -593,12 +593,41 @@ main > header,
   flex-wrap: wrap;
   gap: 8px;
 }
-/* Les projets que l'app a ajoutés à la station : un bloc chacun, une ligne par station. Ce qu'une
-   station refuse, ou attend du chef, en alerte. */
+/* Les projets que la station porte : une ligne chacun, comme sur l'accueil, et sa marque — « main »
+   en accent, « secondary » discret. Sous un projet ajouté depuis l'app, ses gestes, alignés sur son nom. */
+#station .ligne span.pilule {
+  flex: none;
+  padding: 1px 8px;
+  font-size: 12px;
+  color: var(--discret);
+}
+#station .ligne span.pilule.principale {
+  color: var(--accent);
+  border-color: var(--accent);
+}
 #station .projet-de-station {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+}
+#station .projet-de-station > p {
+  display: flex;
+  gap: 8px;
+  padding: 0 12px 4px 32px;
+}
+#station .projet-de-station > p > button {
+  padding: 2px 10px;
+  color: var(--discret);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+/* « + add a project », sous la liste : comme « + station » sur l'accueil ; le parcours s'ouvre à sa place. */
+#station .ajout-de-projet {
+  align-self: flex-start;
+  margin: 4px 0;
+  padding: 3px 10px;
+  color: var(--discret);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
 }
 /* Une panne, sur la page de sa station : en alerte, son bouton à la suite, et ce qu'il a rendu. */
 #station .panne {
