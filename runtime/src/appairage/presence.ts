@@ -33,6 +33,7 @@ export const FICHIER_LOCAL = "appairage.json";
 export const CADENCE_MS = 270_000;
 // Entre deux regards sur ce qui a changé.
 export const REGARD_MS = 60_000;
+const ESPACEMENT_MIN_MS = 60_000;
 
 export type Identite = { nom: string; machine: string; version: string };
 
@@ -155,6 +156,8 @@ export function tenirPresence(options: OptionsPresence): Presence {
   // Ce qui est publié, hors signe de vie : si cela n'a pas bougé, écrire n'apprend rien à l'app.
   const contenu = (arret: boolean) => JSON.stringify({ ...document(0, arret), signeDeVie: null, arreteeLe: null, arret });
   let publie: { contenu: string; instant: number } | null = null;
+  // Un geste demandé trop tôt après la dernière écriture : le regard suivant l'écrit.
+  let demandee = false;
 
   const repartirDeZero = (pourquoi: string) => {
     etat = { ...VIERGE };
@@ -183,6 +186,9 @@ export function tenirPresence(options: OptionsPresence): Presence {
     dire(`brigade : station appairée à l'app${le} — elle n'affiche plus de code`);
   };
 
+  // Jamais deux écritures à moins d'une minute l'une de l'autre, geste compris : l'arrêt seul passe.
+  const tropTot = (instant: number) => publie !== null && instant - publie.instant < ESPACEMENT_MIN_MS;
+
   // `force` : un geste demande la publication, changement ou non.
   const cycle = async (arret: boolean, force: boolean) => {
     const instant = maintenant();
@@ -194,7 +200,8 @@ export function tenirPresence(options: OptionsPresence): Presence {
       etat = { ...etat, gist: await canal.creer(description(identite.nom), fichiers(instant, false)) };
       sauver();
       publie = { contenu: contenu(false), instant };
-    } else if (arret || force || publie === null || contenu(false) !== publie.contenu || instant - publie.instant + regardMs > cadenceMs) {
+    } else if (arret || (!tropTot(instant) && (force || demandee || publie === null || contenu(false) !== publie.contenu || instant - publie.instant + regardMs > cadenceMs))) {
+      demandee = false;
       const dit = contenu(arret);
       if ((await canal.ecrire(etat.gist, fichiers(instant, arret))) === "absent") {
         repartirDeZero("son gist a disparu de GitHub");
@@ -205,6 +212,7 @@ export function tenirPresence(options: OptionsPresence): Presence {
         publie = { contenu: contenu(false), instant };
       } else publie = { contenu: dit, instant };
     }
+    if (force && tropTot(instant)) demandee = true;
     if (panne !== null) dire("brigade : station — GitHub répond de nouveau : son état y est publié");
     panne = null;
     if (!etat.appairee && etat.code !== null && etat.code !== annonce && etat.expireLe !== null) {

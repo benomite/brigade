@@ -304,6 +304,34 @@ test("la station ne republie son état que s'il change, et au moins une fois par
   assert.equal(ecritures.n, base + 2);
 });
 
+test("un geste ne fait jamais écrire deux fois dans la même minute : il est reporté au regard suivant", async (t) => {
+  const projets = ["brigade"];
+  const { github, presence, avancer } = unePresence(t, { projets, regardMs: 20, cadenceMs: 3_600_000 });
+  await presence.publier();
+  const id = [...github.gists.keys()][0] ?? "";
+  github.appairer(id, presence.code() ?? "");
+  await jusqua(() => presence.code() === null);
+  const ecritures = { n: 0 };
+  const ecrire = github.canal.ecrire.bind(github.canal);
+  github.canal.ecrire = async (...args) => (ecritures.n++, ecrire(...args));
+  avancer(60_000);
+  await presence.publier();
+  assert.equal(ecritures.n, 1);
+  // Deux gestes de suite, puis un troisième 30 s plus tard : aucune écriture de plus.
+  await presence.publier();
+  avancer(30_000);
+  projets.push("espace");
+  await presence.publier();
+  await new Promise((resoudre) => setTimeout(resoudre, 100));
+  assert.equal(ecritures.n, 1);
+  // La minute écoulée, le regard suivant écrit ce qui était demandé, une seule fois.
+  avancer(30_000);
+  await jusqua(() => ecritures.n === 2);
+  assert.deepEqual(github.document(id).projets, ["brigade", "espace"]);
+  await new Promise((resoudre) => setTimeout(resoudre, 100));
+  assert.equal(ecritures.n, 2);
+});
+
 test("GitHub limite les appels : la station le dit une fois, avec l'heure de reprise, puis reprend", async (t) => {
   const { github, lignes, presence } = unePresence(t);
   await presence.publier();
