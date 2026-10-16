@@ -8,6 +8,7 @@ import { join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ROLES } from "../../src/identites.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
+import { REPERTOIRE_COMPTEUR } from "../../src/limite-github.ts";
 import { lirePortes } from "../../src/station/portes.ts";
 import { fauxGitHubApps } from "../aides/faux-github-apps.ts";
 import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, mort, repertoireTemporaire, temporaireDuFichier, tuerLesRelais, vivant } from "../outils.ts";
@@ -180,9 +181,10 @@ test("un projet ajouté à la configuration est servi, sans redémarrer ; retir�
   await station.attendre("station à appairer");
 
   // Tout ce que la machine porte, sauf l'état des projets, la configuration
-  // elle-même et ce que la station dit de ce qu'elle sert (`en-service`, que
-  // sa mise à jour attend).
-  const sauf = [join(racine, "etat"), join(racine, "projets"), join(racine, "en-service")];
+  // elle-même, ce que la station dit de ce qu'elle sert (`en-service`, que
+  // sa mise à jour attend) et le compteur de ses appels à GitHub, que chaque
+  // sondage écrit.
+  const sauf = [join(racine, "etat"), join(racine, "projets"), join(racine, "en-service"), join(racine, REPERTOIRE_COMPTEUR)];
   const avant = photographier(machine, sauf);
 
   // Ajouter : une ligne de plus, rien d'autre.
