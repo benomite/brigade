@@ -1470,9 +1470,13 @@ nouvelles.
 la consigne du reviewer ajoute une section « Les captures » : les captures livrées (qu'il ouvre avec
 `Read`) et les trois violations des règles de #830, cherchées sur chaque capture « après » — `geste-non-bouton`
 (un geste attendu qui n'est qu'une commande à recopier), `mode-d-emploi` (un paragraphe d'explication
-en clair), `erreur-brute` (une erreur technique affichée telle quelle). Chaque violation est un constat
-**bloquant**, qui porte `regle` et cite en `fichier` la capture « après » concernée ; un constat de ce type
-qui n'est pas bloquant ou ne cite pas une capture livrée rend la relecture illisible (elle est redemandée). Une
+en clair), `erreur-brute` (une erreur technique affichée telle quelle). **Elle ne juge que la partie de l'écran
+que le ticket ajoute ou change** (#895) : ce qui se retrouve à l'identique sur la capture « avant » existait
+déjà et ne bloque jamais. Une violation dans la zone du ticket est un constat **bloquant**, qui porte `regle`
+et cite en `fichier` la capture « après » concernée ; une violation préexistante, hors de cette zone, est une
+**remarque** (même `regle`, même `fichier`), qui propose un ticket à part si aucun ticket ouvert ne la couvre.
+Un constat de ce type qui ne cite pas une capture livrée, ou qui est `a_supprimer`, rend la relecture
+illisible (elle est redemandée). Une
 capture qui respecte les règles ne produit aucun constat de ce type. **Une livraison d'interface sans aucune
 capture est bloquante** : la station ajoute elle-même le constat (`fichier` : `docs/captures/<ticket>/`)
 si le reviewer ne l'a pas dit. Un écran qui n'a qu'une de ses deux captures reste une remarque. Un ticket
