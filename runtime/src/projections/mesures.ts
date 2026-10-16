@@ -20,7 +20,9 @@ type Ecoutes = Extract<
 // de même. `delivered` : il a livré — son `cook.exited` dit `ok`, la fin que
 // sa station donne au cook dont elle envoie le travail en pass. Faux pour
 // toute autre fin, tant qu'il tourne, ou s'il est mort avec le runtime.
-export type CookMesure = { calibration: string | null; turns: number | null; durationMs: number | null; tokens: number | null; delivered: boolean };
+// `resumed` : le cook d'un renvoi qui a repris la session du cook précédent
+// au lieu de repartir de zéro (`resumes` à son lancement) — absent sinon.
+export type CookMesure = { calibration: string | null; turns: number | null; durationMs: number | null; tokens: number | null; delivered: boolean; resumed?: true };
 
 // Une livraison mergée. `measures` : ce que ses dernières gates ont déclaré.
 // `state` : celles de ces mesures qui disent l'état du projet après son merge —
@@ -72,7 +74,8 @@ export const mesures = definirProjection<Ecoutes>({
       turns        INTEGER,
       duration_ms  INTEGER,
       tokens       INTEGER,
-      delivered    INTEGER NOT NULL DEFAULT 0
+      delivered    INTEGER NOT NULL DEFAULT 0,
+      resumed      INTEGER NOT NULL DEFAULT 0
     ) STRICT;
     CREATE TABLE IF NOT EXISTS measured_merges (
       seq    INTEGER PRIMARY KEY,
@@ -94,14 +97,15 @@ export const mesures = definirProjection<Ecoutes>({
       base.executer("INSERT INTO measured_merges (seq, ticket, at) VALUES (?, ?, ?)", evenement.seq, evenement.ticket, evenement.at);
     },
     "cook.launched": (base, evenement) => {
-      const { run, station, model, effort } = evenement.payload;
+      const { run, station, model, effort, resumes } = evenement.payload;
       if (evenement.ticket === null || (station !== undefined && HORS_TICKET.includes(station))) return;
       base.executer(
-        "INSERT INTO measured_cooks (run, ticket, launched_seq, calibration) VALUES (?, ?, ?, ?)",
+        "INSERT INTO measured_cooks (run, ticket, launched_seq, calibration, resumed) VALUES (?, ?, ?, ?, ?)",
         run,
         evenement.ticket,
         evenement.seq,
         model === undefined || effort === undefined ? null : `${model}/${effort}`,
+        typeof resumes === "object" && resumes !== null ? 1 : 0,
       );
     },
     "cook.exited": (base, evenement) => {
@@ -135,8 +139,8 @@ export function livraisonsMergees(base: Base): Livraison[] {
   const gates = base.lire<{ seq: number; ticket: number; measures: string | null; franchi: string | null }>(
     "SELECT seq, ticket, measures, over_ceiling AS franchi FROM measured_gates ORDER BY seq",
   );
-  const cooks = base.lire<{ ticket: number; seq: number; calibration: string | null; turns: number | null; durationMs: number | null; tokens: number | null; delivered: number }>(
-    "SELECT ticket, launched_seq AS seq, calibration, turns, duration_ms AS durationMs, tokens, delivered FROM measured_cooks ORDER BY launched_seq",
+  const cooks = base.lire<{ ticket: number; seq: number; calibration: string | null; turns: number | null; durationMs: number | null; tokens: number | null; delivered: number; resumed: number }>(
+    "SELECT ticket, launched_seq AS seq, calibration, turns, duration_ms AS durationMs, tokens, delivered, resumed FROM measured_cooks ORDER BY launched_seq",
   );
   const precedents = new Map<number, number>();
   // Par mesure, le passage de gates le plus récent qui l'a déclarée parmi les
@@ -162,7 +166,14 @@ export function livraisonsMergees(base: Base): Livraison[] {
       measures,
       state,
       gatesS: durees.length === 0 ? null : durees.reduce((somme, duree) => somme + duree, 0),
-      cooks: siennes(cooks).map(({ calibration, turns, durationMs, tokens, delivered }) => ({ calibration, turns, durationMs, tokens, delivered: delivered === 1 })),
+      cooks: siennes(cooks).map(({ calibration, turns, durationMs, tokens, delivered, resumed }) => ({
+        calibration,
+        turns,
+        durationMs,
+        tokens,
+        delivered: delivered === 1,
+        ...(resumed === 1 ? { resumed: true as const } : {}),
+      })),
       ...(franchi === null ? {} : { overCeiling: JSON.parse(franchi) as Depassement }),
     };
   });

@@ -35,7 +35,11 @@ export const SOURCES_DE_REGLAGES: string[] = [];
 
 // Il n'y a pas de calibrage par défaut : qui lance fournit modèle et effort.
 // `--disallowedTools` vient en dernier, il avale tout ce qui le suit.
-export function argumentsClaude(texte: string, calibrage: Calibrage): string[] {
+// `session` : celle que ce lancement reprend — le cook d'un renvoi repart de
+// la conversation du cook précédent (`reprise-de-session.ts`). Elle est
+// bifurquée : le lancement écrit la sienne, sous un identifiant neuf, et celle
+// du cook précédent reste telle qu'il l'a laissée.
+export function argumentsClaude(texte: string, calibrage: Calibrage, session?: string): string[] {
   return [
     "-p",
     texte,
@@ -57,6 +61,7 @@ export function argumentsClaude(texte: string, calibrage: Calibrage): string[] {
     // compte claude.ai compris, qui suivent la connexion Max.
     "--disable-slash-commands",
     "--strict-mcp-config",
+    ...(session === undefined ? [] : ["--resume", session, "--fork-session"]),
     "--disallowedTools",
     ...INTERDITS,
   ];

@@ -323,3 +323,11 @@ export function consommation(base: Base, depuis: string | null = null): Consomma
   )[0];
   return ligne ?? { runs: 0, reviews: 0, judgments: 0, turns: 0, tokens: 0 };
 }
+
+// Le flux brut d'un cook, relatif au répertoire d'état, et s'il a livré — la
+// fin `ok`, que sa station donne au cook dont elle envoie le travail en pass.
+// Null si le journal ne connaît pas ce cook.
+export function fluxDuCook(base: Base, run: string): { stream: string; livre: boolean } | null {
+  const ligne = base.lire<{ stream: string; ending: string | null }>("SELECT stream, ending FROM cook_runs WHERE run = ?", run)[0];
+  return ligne ? { stream: ligne.stream, livre: ligne.ending === "ok" } : null;
+}
