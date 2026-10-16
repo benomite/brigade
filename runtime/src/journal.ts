@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { Base } from "./base.ts";
 import type { Ajout, Evenement } from "./evenements.ts";
+import { masquerIdentifiants } from "./identifiants.ts";
 import type { Projection } from "./projection.ts";
 import { PROJECTIONS } from "./projections.ts";
 
@@ -73,6 +74,9 @@ export class Journal {
   // Écrit l'événement et l'applique aux projections, dans une seule
   // transaction : jamais d'événement sans son effet, ni l'inverse. Rend
   // l'événement écrit, ou null si sa clé d'unicité était déjà au journal.
+  // Son contenu s'écrit masqué : ni la forme des identifiants de Claude, ni
+  // la valeur d'un jeton retenu (`identifiants.ts`) n'entrent au journal —
+  // le remplaçant ne porte ni guillemet ni antislash, le JSON reste du JSON.
   ajouter(ajout: Ajout): Evenement | null {
     return this.base.transaction(() => {
       const { changements, dernierId } = this.base.executer(
@@ -83,7 +87,7 @@ export class Journal {
         ajout.ticket,
         ajout.type,
         ajout.author,
-        JSON.stringify(ajout.payload),
+        masquerIdentifiants(JSON.stringify(ajout.payload)).texte,
         ajout.dedupKey ?? null,
       );
       if (changements === 0) return null;

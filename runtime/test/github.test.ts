@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { ouvrirGitHub } from "../src/github.ts";
+import { JETON_MASQUE, retenirJeton } from "../src/identifiants.ts";
 import { CHEMIN_TICKETS, DEPOT, fauxGh, issueGitHub } from "./outils.ts";
 
 function sonde(t: TestContext) {
@@ -144,6 +145,26 @@ test("commenter une issue poste le texte tel quel", async (t) => {
   await github.commenter(15, "**fini**\n@fichier, `code` et « guillemets »");
 
   assert.deepEqual(gh.appels(), [["api", "-i", "-X", "POST", "-f", "body=**fini**\n@fichier, `code` et « guillemets »", chemin]]);
+});
+
+test("ce qui part vers GitHub — commentaire, corps d'issue, PR — ne porte ni la valeur du jeton longue durée, ni la forme des identifiants de Claude", async (t) => {
+  const { gh, github } = sonde(t);
+  // Ce que le runtime a lu dans le fichier du jeton (`jeton-claude.ts`).
+  const jeton = "jeton-longue-duree-retenu-par-github";
+  retenirJeton(jeton);
+  const forme = `sk-ant-oat01-${"g".repeat(48)}`;
+  gh.repondre(`repos/${DEPOT}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
+  gh.repondre(`repos/${DEPOT}/issues/15`, { statut: 200, corps: {} });
+  gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: { html_url: `https://github.com/${DEPOT}/pull/40` } });
+
+  await github.commenter(15, `**fini** — le jeton est ${jeton}, ou ${forme}`);
+  await github.ecrireCorps(15, `corps : ${jeton}`);
+  await github.ouvrirPR({ branche: "cook/15-abc", base: "v2", titre: `#15 ${jeton}`, corps: `compte-rendu : ${jeton}` });
+
+  const envoye = JSON.stringify(gh.appels());
+  assert.equal(envoye.includes(jeton), false);
+  assert.equal(envoye.includes(forme), false);
+  assert.deepEqual(gh.appels()[0], ["api", "-i", "-X", "POST", "-f", `body=**fini** — le jeton est ${JETON_MASQUE}, ou ${JETON_MASQUE}`, `repos/${DEPOT}/issues/15/comments`]);
 });
 
 test("un commentaire refusé par GitHub lève", async (t) => {

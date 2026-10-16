@@ -8,6 +8,7 @@ import { canalGitHub } from "../appairage/canal.ts";
 import { etatsPublies } from "../appairage/etats.ts";
 import { identiteDeLaStation, tenirPresence } from "../appairage/presence.ts";
 import { configVeille, veillerConnexionMax, type VeilleConnexionMax } from "../connexion-max/veille.ts";
+import { masquerLaConsole } from "../jeton-claude.ts";
 import { annoncerEnService } from "../mise-a-jour/en-service.ts";
 import { lireEtatMiseAJour } from "../mise-a-jour/etat.ts";
 import { tenirProjetsDeLApp } from "../projets/tenir.ts";
@@ -16,6 +17,9 @@ import { ConfigInvalide } from "../runtime.ts";
 import { CONFIGURATION } from "./configuration.ts";
 import { attendrePorteDeLaStation, configPortes, lirePortes, VARIABLE_PORTES } from "./portes.ts";
 import { nommer, ouvrirStation, projetEnCours } from "./station.ts";
+
+// Ce que la station dit à journald est masqué, avant même son premier mot.
+masquerLaConsole();
 
 // Code de sortie d'un refus de démarrer : réessayer ne changerait rien.
 const REFUS = 2;

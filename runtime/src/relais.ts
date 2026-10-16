@@ -19,7 +19,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createWriteStream, renameSync, writeFileSync, type WriteStream } from "node:fs";
 import type { Readable } from "node:stream";
-import { masquerIdentifiants } from "./identifiants.ts";
+import { masquerIdentifiants, retenirJeton } from "./identifiants.ts";
 import { lignesMasquees } from "./lignes-masquees.ts";
 import { masqueDesSecrets } from "./secrets.ts";
 
@@ -52,6 +52,9 @@ export function ecrireAtomique(fichier: string, contenu: string): void {
 }
 
 function relayer(consigne: ConsigneDuRelais): void {
+  // Le jeton que le runtime a remis à ce `claude` : masqué par sa valeur,
+  // comme le runtime le masque chez lui.
+  retenirJeton(consigne.env.CLAUDE_CODE_OAUTH_TOKEN);
   const masqueSecrets = Object.keys(consigne.secrets).length === 0 ? null : masqueDesSecrets(consigne.secrets);
   let masques = 0;
   const masquer = (texte: string) => {
