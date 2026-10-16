@@ -27,7 +27,7 @@ const DIX_MINUTES = 10 * 60_000;
 // Le chef met ce temps à remplir le parcours : il compte dans la mesure.
 const PARCOURS_MS = 60_000;
 
-test("ajouté depuis l'app, le projet est dans la liste de la station en moins de dix minutes, parcours compris ; retiré, il quitte sa configuration", async (t) => {
+test("ajouté depuis l'app, le projet est dans la liste de la station en moins de dix minutes, parcours compris ; retiré, il quitte sa configuration", { timeout: 300_000 }, async (t) => {
   const machine = repertoireTemporaire(t);
   const racine = join(machine, "station");
   const compte = join(machine, "compte");
