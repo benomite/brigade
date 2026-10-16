@@ -27,7 +27,7 @@ import { ouvrirTerminaux, type Terminal } from "../src/terminaux.ts";
 import { type Faux, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
-const SOURCE = "docs/runtime.md";
+const SOURCE = "docs/runtime/";
 const doc = lireDocRuntime(RACINE);
 const PILOTER = doc.slice(doc.indexOf("### Piloter"), doc.indexOf("### Recette du chef"));
 const PARADE = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };

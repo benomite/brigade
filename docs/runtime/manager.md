@@ -1,6 +1,6 @@
 # Le manager
 
-Page du [runtime de la V2](../runtime.md) ; l'index dit où trouver le reste.
+Page du [runtime de la V2](README.md) ; l'index dit où trouver le reste.
 
 ## Le manager
 
