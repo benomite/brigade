@@ -1432,6 +1432,18 @@ describe("la station", { concurrency: 8 }, () => {
     assert.deepEqual(Object.keys(env).filter((nom) => VARIABLES_DE_JETON.includes(nom)), []);
   });
 
+  test("avec un jeton à son emplacement, le cook le reçoit dans CLAUDE_CODE_OAUTH_TOKEN — pas celui qu'un setup exporte", async (t) => {
+    const { lancements } = cuisine(t, { scenario: "bavard", setup: "jeton", jeton: "sk-ant-oat01-jeton-de-la-machine", issues: [issue(15)] });
+    await jusqua(() => lancements().length === 1);
+
+    const env = lancements()[0]?.env ?? {};
+    assert.equal(env.BASE_DE_TEST, "base du ticket 15");
+    assert.equal(env.CLAUDE_CODE_OAUTH_TOKEN, "sk-ant-oat01-jeton-de-la-machine");
+    assert.equal(env.ANTHROPIC_API_KEY, undefined);
+    // Le chemin du fichier non plus : il est au runtime.
+    assert.equal(env.BRIGADE_CLAUDE_TOKEN_FILE, undefined);
+  });
+
   test("un ticket qui quitte la station pendant son setup ne laisse pas de worktree : il est repris dans un neuf", async (t) => {
     const { repertoire, runtime, setup, dernier, lancements, types } = cuisine(t, { scenario: "bavard", setup: "attend", issues: [issue(15)] });
     await jusqua(() => setup.appels().length === 1);

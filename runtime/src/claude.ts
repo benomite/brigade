@@ -1,7 +1,8 @@
 // L'adaptateur moteur de la station : ce qu'il faut pour lancer le binaire
 // `claude` officiel sur un ticket, et pour lire dans son flux comment le cook a
 // fini. Rien d'autre que le binaire : ni SDK, ni API, ni lecture des
-// identifiants — c'est `claude` qui porte la connexion Max de la machine.
+// identifiants — c'est `claude` qui porte la connexion Max de la machine, ou le
+// jeton longue durée que `claude setup-token` a créé pour elle (`jeton-claude.ts`).
 import { execFile } from "node:child_process";
 import type { Calibrage } from "./calibrage.ts";
 import type { FinDeCook } from "./evenements/station.ts";
@@ -13,10 +14,14 @@ import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE } from "./livrable.ts";
 // ne laisse merger que l'identité de la pass (voir `identites.ts`).
 const INTERDITS = ["Bash(gh pr merge:*)", "Bash(git push:*)", "Bash(git merge:*)"];
 
-// Les variables par lesquelles `claude` s'authentifierait autrement que par la
-// connexion Max de la machine. Aucune ne doit exister, ni pour le runtime ni
-// pour un cook.
-export const VARIABLES_DE_JETON = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"];
+// Les variables par lesquelles `claude` facturerait la cuisine au jeton, hors
+// du forfait Max : le runtime refuse de démarrer si l'une existe.
+export const VARIABLES_DE_CLE = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"];
+
+// Celles qu'aucun lancement n'hérite — ni du runtime, ni d'un setup : les clés,
+// et le jeton de la connexion Max, que seul `jeton-claude.ts` remet, et aux
+// seuls `claude`.
+export const VARIABLES_DE_JETON = [...VARIABLES_DE_CLE, "CLAUDE_CODE_OAUTH_TOKEN"];
 
 // Les sources de réglages qu'un cook charge, parmi `user`, `project` et
 // `local` : aucune au jalon 1. Sans cette liste, `claude` les charge toutes, et

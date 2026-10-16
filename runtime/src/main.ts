@@ -4,6 +4,7 @@ import { brancherAlerteUrgence } from "./alerte-urgence.ts";
 import { avecRail, configRail } from "./alimenter.ts";
 import { configArbitrage, joindreArbitre } from "./arbitrage.ts";
 import { sessionClaude } from "./claude.ts";
+import { configJeton, direJeton, environnementClaude } from "./jeton-claude.ts";
 import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison } from "./cloison.ts";
 import { noterCodeEnService } from "./code.ts";
 import { decisionsAuDemarrage, decisionsDansLEnvironnement, direDecisionIgnoree, environnementDecide, suivreDecisions, supportDesDecisions } from "./decisions.ts";
@@ -48,6 +49,8 @@ let runtime;
 let identites: Identites | null = null;
 // Non nul : le fichier de la machine qui porte les secrets du projet.
 let secrets: string | null = null;
+// Non nul : le fichier qui porte le jeton longue durée de la connexion Max.
+let jeton: string | null = null;
 // Non nulle : chaque lancement part dans sa cloison.
 let cloison: Cloison | null = null;
 // Non nul : le port de la porte, seule sortie du projet vers l'extérieur.
@@ -88,6 +91,7 @@ try {
   configFermeture(decide);
   arbitre = configArbitrage(process.env);
   secrets = configSecrets(process.env, { repertoireEtat, clone: station.clone });
+  jeton = configJeton(process.env, { repertoireEtat, clone: station.clone });
   cloison = configCloison(process.env, { repertoireEtat, clone: station.clone });
   session = configSession(process.env, repertoireEtat);
   const apps = configIdentites(process.env);
@@ -137,7 +141,7 @@ try {
     secrets,
     cloison,
     sansIdentite: identites !== null,
-    session: () => sessionClaude(station.bin, process.env),
+    session: () => sessionClaude(station.bin, environnementClaude(process.env, process.env)),
     dureeBailMs: rail.dureeBailMs,
     presenceMs: station.presenceMs,
     entreesMax: station.entreesMax,
@@ -184,6 +188,7 @@ console.log(
     ? `brigade : secrets du projet — ${secrets}, relu à chaque lancement ; ne parviennent au setup, aux cooks et aux gates que ceux que le dépôt déclare (\`${DECLARATION}\`)`
     : `brigade : secrets du projet — aucun (BRIGADE_SECRETS_FILE n'est pas défini) : un dépôt qui en déclare (\`${DECLARATION}\`) ne verra partir aucun cook`,
 );
+console.log(`brigade : ${direJeton(jeton, process.env)}`);
 console.log(
   arbitre === null
     ? "brigade : arbitre — aucun (BRIGADE_ARBITER_PORT n'est pas défini) : ce projet se tient pour seul sur la machine et sur le compte"

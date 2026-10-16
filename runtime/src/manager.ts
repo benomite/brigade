@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { DE_CONFIANCE, priorite, type RuntimeAvecRail } from "./alimenter.ts";
 import { calibrage as calibragePose, complet, EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
+import { environnementClaude } from "./jeton-claude.ts";
 import { direRefus, environnementCook, lireFlux, REFUS_MAX, verdict, type Lecture } from "./claude.ts";
 import type { Decisions } from "./decisions.ts";
 import { ouvrirDecoupage, type Reponse } from "./decoupage.ts";
@@ -423,7 +424,7 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
         // Hors de tout dépôt : un jugement ne lit que sa consigne.
         ...envelopper(options.cloison, { commande: options.bin, args: argumentsJuge(consigne, calibrage) }, { cwd: tmpdir(), depot: null }),
         cwd: tmpdir(),
-        env: envJuge,
+        env: environnementClaude(envJuge, options.env ?? process.env),
         juger: conclure,
       });
     } catch (erreur) {

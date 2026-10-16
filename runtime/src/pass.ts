@@ -53,6 +53,7 @@ import { geste } from "./geste.ts";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DE_CONFIANCE, type RuntimeAvecRail } from "./alimenter.ts";
+import { environnementClaude } from "./jeton-claude.ts";
 import { direRefus, environnementCook, lectureDuTicket, lireFlux, REFUS_MAX, verdict as finDuFlux, type Lecture } from "./claude.ts";
 import type { Decisions } from "./decisions.ts";
 import type { Depot } from "./depot.ts";
@@ -653,7 +654,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         // Il relit : le worktree et le dépôt lui sont rendus en lecture seule.
         ...envelopper(options.cloison, { commande: options.bin, args: argumentsReviewer(consigne, calibrage) }, { cwd: worktree, depot: "lecture" }),
         cwd: worktree,
-        env: envGates,
+        env: environnementClaude(envGates, options.env ?? process.env),
         // Il ne reçoit aucun secret, mais il lit un worktree où les gates
         // viennent de tourner avec eux : ce qu'il en citerait est masqué.
         masquer: masqueDe(worktree),

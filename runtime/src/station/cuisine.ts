@@ -12,6 +12,7 @@ import { brancherAlerteUrgence } from "../alerte-urgence.ts";
 import { avecRail, configRail } from "../alimenter.ts";
 import { configArbitrage, joindreArbitre } from "../arbitrage.ts";
 import { sessionClaude } from "../claude.ts";
+import { configJeton, direJeton, environnementClaude } from "../jeton-claude.ts";
 import { brancherConnexionMax } from "../connexion-max/cuisine.ts";
 import type { VeilleConnexionMax } from "../connexion-max/veille.ts";
 import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison } from "../cloison.ts";
@@ -84,6 +85,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   configFermeture(decide);
   const arbitre = configArbitrage(envProjet);
   const secrets = configSecrets(envProjet, { repertoireEtat, clone: station.clone });
+  const jeton = configJeton(envProjet, { repertoireEtat, clone: station.clone });
   const cloison: Cloison | null = configCloison(envProjet, { repertoireEtat, clone: station.clone });
   const session = configSession(envProjet, repertoireEtat);
   const apps = configIdentites(envProjet);
@@ -138,7 +140,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       secrets,
       cloison,
       sansIdentite: identites !== null,
-      session: () => sessionClaude(station.bin, envProjet),
+      session: () => sessionClaude(station.bin, environnementClaude(envProjet, envProjet)),
       dureeBailMs: rail.dureeBailMs,
       presenceMs: station.presenceMs,
       entreesMax: station.entreesMax,
@@ -174,6 +176,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       ? `secrets du projet — ${secrets}, relu à chaque lancement ; ne parviennent au setup, aux cooks et aux gates que ceux que le dépôt déclare (\`${DECLARATION}\`)`
       : `secrets du projet — aucun (BRIGADE_SECRETS_FILE n'est pas défini) : un dépôt qui en déclare (\`${DECLARATION}\`) ne verra partir aucun cook`,
   );
+  dire(direJeton(jeton, envProjet));
   dire(
     arbitre === null
       ? "arbitre — aucun (BRIGADE_ARBITER_PORT n'est pas défini) : ce projet se tient pour seul sur la machine et sur le compte"

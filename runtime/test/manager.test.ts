@@ -110,6 +110,13 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.equal(jugement?.env.BRIGADE_STATE_DIR, undefined);
   });
 
+  test("avec un jeton à son emplacement, un jugement le reçoit dans CLAUDE_CODE_OAUTH_TOKEN", async (t) => {
+    const { jugements } = brigade(t, { jeton: "sk-ant-oat01-jeton-de-la-machine", issues: [issue(30, [])] });
+    await jusqua(() => jugements().length === 1);
+
+    assert.equal(jugements()[0]?.env.CLAUDE_CODE_OAUTH_TOKEN, "sk-ant-oat01-jeton-de-la-machine");
+  });
+
   test("une issue qui n'est pas une unité de travail n'entre pas sur le rail : le manager dit pourquoi, sans rien poser", async (t) => {
     const { gh, labels, dits, faits, etat } = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
     await jusqua(() => dits(30).length === 1);

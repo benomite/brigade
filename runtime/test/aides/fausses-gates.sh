@@ -13,6 +13,8 @@ echo "$1" >> "$FAUSSES_GATES.appels"
 echo "${GH_TOKEN-}" >> "$FAUSSES_GATES.jetons"
 # De même pour un secret du projet.
 echo "${CLE_API-}" >> "$FAUSSES_GATES.secrets"
+# Et pour le jeton de la connexion Max, qui ne leur parvient jamais.
+echo "${CLAUDE_CODE_OAUTH_TOKEN-}" >> "$FAUSSES_GATES.claude"
 # Lu sans lancer de process : la suite joue ces gates des centaines de fois.
 lire() {
   [ -f "$1" ] || return 1

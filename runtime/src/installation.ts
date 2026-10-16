@@ -18,6 +18,7 @@ import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "no
 import { configRail } from "./alimenter.ts";
 import { EFFORTS, MODELES } from "./calibrage.ts";
 import { environnementCook, sessionClaude } from "./claude.ts";
+import { configJeton, environnementClaude } from "./jeton-claude.ts";
 import { configCloison } from "./cloison.ts";
 import { SOURCES } from "./code.ts";
 import { ouvrirDepot } from "./depot.ts";
@@ -464,14 +465,16 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
       refus.push(erreur.message);
     }
   }
-  // Le fichier de secrets se lit contre l'état et le clone : sans eux, c'est
-  // leur absence qui est dite.
+  // Le fichier de secrets et celui du jeton se lisent contre l'état et le
+  // clone : sans eux, c'est leur absence qui est dite.
   if (env.BRIGADE_STATE_DIR && env.BRIGADE_REPO_DIR) {
-    try {
-      configSecrets(env, { repertoireEtat: env.BRIGADE_STATE_DIR, clone: env.BRIGADE_REPO_DIR });
-    } catch (erreur) {
-      if (!(erreur instanceof ConfigInvalide)) throw erreur;
-      refus.push(erreur.message);
+    for (const lecteur of [configSecrets, configJeton]) {
+      try {
+        lecteur(env, { repertoireEtat: env.BRIGADE_STATE_DIR, clone: env.BRIGADE_REPO_DIR });
+      } catch (erreur) {
+        if (!(erreur instanceof ConfigInvalide)) throw erreur;
+        refus.push(erreur.message);
+      }
     }
     // La cloison aussi : elle doit couvrir l'un et l'autre.
     try {
@@ -635,7 +638,7 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
 
   // --- La machine : la session Max, et l'unité de service.
   const claude = env.BRIGADE_CLAUDE_BIN || "claude";
-  const session = await sessionClaude(claude, env);
+  const session = await sessionClaude(claude, environnementClaude(env, env));
   // Ce que `claude auth status` dit d'un identifiant stocké ne dit pas qu'une
   // session est valide : le dernier lancement réel, lui, est au journal — et la
   // station le tient pour ce qu'il est.

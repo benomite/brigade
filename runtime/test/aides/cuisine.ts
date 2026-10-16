@@ -435,6 +435,10 @@ export type Options = {
   secrets?: { declares: string; valeurs: string | null };
   // Chaque lancement part dans une cloison — la doublure de `bwrap`.
   cloison?: boolean;
+  // Le jeton longue durée de la connexion Max, posé dans le fichier que nomme
+  // `BRIGADE_CLAUDE_TOKEN_FILE`. Aucun, par défaut : `claude` porte la
+  // connexion du compte.
+  jeton?: string;
   // La machine que la station et la pass lisent. Par défaut, une machine qui
   // respire : aucun test ne dépend de la charge du poste.
   machine?: () => Machine;
@@ -496,8 +500,12 @@ export function cuisine(t: TestContext, options: Options = {}) {
   const cloison = options.cloison
     ? configCloison({ BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: [repertoire, clone].filter(Boolean).join(":"), HOME: compte }, { repertoireEtat: repertoire, clone: clone || join(repertoire, "depot") })
     : null;
+  // Le fichier du jeton vit hors de l'état, comme sur la box.
+  const fichierJeton = join(repertoireTemporaire(t), "jeton-claude");
+  if (options.jeton !== undefined) writeFileSync(fichierJeton, `${options.jeton}\n`, { mode: 0o600 });
   const env = {
     ...ENV_GIT,
+    ...(options.jeton === undefined ? {} : { BRIGADE_CLAUDE_TOKEN_FILE: fichierJeton }),
     FAUX_BWRAP_TEMOIN: temoinDeCloison,
     BRIGADE_STATE_DIR: repertoire,
     FAUX_CLAUDE: options.scenario ?? "livre",
@@ -616,6 +624,8 @@ export function cuisine(t: TestContext, options: Options = {}) {
     jetons: () => (existsSync(`${fichierGates}.jetons`) ? readFileSync(`${fichierGates}.jetons`, "utf8").slice(0, -1).split("\n") : []),
     // Le secret du projet (`CLE_API`) que chaque passage a vu — vide s'il n'en avait pas.
     secrets: () => (existsSync(`${fichierGates}.secrets`) ? readFileSync(`${fichierGates}.secrets`, "utf8").slice(0, -1).split("\n") : []),
+    // Le jeton de la connexion Max (`CLAUDE_CODE_OAUTH_TOKEN`) que chaque passage a vu — vide s'il n'en avait pas.
+    claude: () => (existsSync(`${fichierGates}.claude`) ? readFileSync(`${fichierGates}.claude`, "utf8").slice(0, -1).split("\n") : []),
   };
   const setup = {
     regler: (scenario: ScenarioSetup) => writeFileSync(fichierSetup, scenario),

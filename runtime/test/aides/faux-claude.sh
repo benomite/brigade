@@ -25,8 +25,13 @@
 set -u
 ICI="${BASH_SOURCE[0]%/*}"
 
-# `claude auth status` : la session de la machine, sans appel au modèle.
+# `claude auth status` : la session de la machine, sans appel au modèle. Un
+# jeton longue durée dans CLAUDE_CODE_OAUTH_TOKEN connecte, session ou non.
 if [ "${1:-}" = auth ] && [ "${2:-}" = status ]; then
+  if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+    echo '{"loggedIn":true,"authMethod":"oauth_token"}'
+    exit 0
+  fi
   if [ "${FAUX_CLAUDE_SESSION:-}" = absente ]; then
     echo '{"loggedIn":false,"authMethod":"none"}'
     exit 1
