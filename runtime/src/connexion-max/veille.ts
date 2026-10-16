@@ -35,6 +35,9 @@ const MINUTERIE: Minuterie = {
 export type OptionsVeille = {
   // Le fichier d'état du renouvellement.
   renouvellement: string;
+  // Un jeton longue durée est configuré : il n'y a plus de renouvellement, son
+  // fichier d'état n'est pas lu et ne fait tomber aucune connexion.
+  jeton?: boolean;
   // Le fichier où la veille expose la connexion.
   exposition: string;
   dire: (ligne: string) => void;
@@ -110,12 +113,13 @@ export function veillerConnexionMax(options: OptionsVeille): VeilleConnexionMax 
     }
   };
 
+  const lu = () => (options.jeton ? null : lireFichierDuRenouvellement(options.renouvellement));
   const relire = () => {
     if (arretee) return;
-    changer(evaluer(lireFichierDuRenouvellement(options.renouvellement), connexion, maintenant()));
+    changer(evaluer(lu(), connexion, maintenant()));
   };
 
-  changer(evaluer(lireFichierDuRenouvellement(options.renouvellement), connexion, maintenant()), true);
+  changer(evaluer(lu(), connexion, maintenant()), true);
   const poignee = minuterie.repeter(relire, options.relectureMs ?? RELECTURE_MS);
 
   return {

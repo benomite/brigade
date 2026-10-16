@@ -79,7 +79,7 @@ for (const sortie of ["log", "error"] as const) {
   };
 }
 // La connexion Max de la machine : une seule veille, pour tous les projets.
-const connexion: VeilleConnexionMax = veillerConnexionMax({ ...fichiersDeLaConnexion, dire });
+const connexion: VeilleConnexionMax = veillerConnexionMax({ ...fichiersDeLaConnexion, jeton: Boolean(process.env.BRIGADE_CLAUDE_TOKEN_FILE), dire });
 const station = ouvrirStation({ racine, env: process.env, dire, connexion, portes });
 // Sa présence sur GitHub, seul canal entre la station et l'app du chef : son
 // état, chaque minute, et le code qui l'appaire (appairage/presence.ts). Ses

@@ -99,8 +99,11 @@ export function lireSession(config: ConfigSession, maintenant: Date, precedente:
 
 // Lit le fichier d'état d'emblée, puis à chaque tick, et écrit au journal ce
 // qui change par rapport à ce que le journal en porte : un redémarrage qui ne
-// voit rien de neuf n'écrit rien.
-export function brancherSession<R extends Runtime>(runtime: R, config: ConfigSession, maintenant: () => Date = () => new Date()): R {
+// voit rien de neuf n'écrit rien. Avec un jeton longue durée (`jeton` non nul),
+// la connexion ne se renouvelle plus : rien n'est lu, rien n'est écrit, et
+// aucune perte ne vient de ce chemin.
+export function brancherSession<R extends Runtime>(runtime: R, config: ConfigSession, maintenant: () => Date = () => new Date(), jeton: string | null = null): R {
+  if (jeton !== null) return runtime;
   let ecrite = sessionObservee(runtime.journal.base);
   const lire = () => {
     try {
