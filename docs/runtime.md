@@ -1057,8 +1057,9 @@ jamais. Tout passe par **GitHub**, où elle écrit son état — dans un **gist 
   signe de vie — que sur changement, ou en battement toutes les 5 minutes. Deux écritures, y
   compris celle que la station demande après l'écriture d'un projet, sont distantes d'au moins
   60 s : une demande trop proche est retenue, puis écrite à l'échéance. **Arrêtée** (SIGTERM), elle
-  y écrit tout de suite l'heure de son arrêt — la seule écriture que l'écart de 60 s ne retient pas : l'état final ne se perd pas. Elle publie `cadenceMs` = 285 s :
-  l'app la dit hors ligne après 2 × `cadenceMs` + 30 s, soit 10 min au plus.
+  y écrit tout de suite l'heure de son arrêt — la seule écriture que l'écart de 60 s ne retient
+  pas : l'état final ne se perd pas. Elle publie `cadenceMs` = 285 s ; l'app la dit hors ligne
+  après 2 × `cadenceMs` + 30 s, soit 10 min au plus (`app/src/stations/stations.ts`).
 - **Ses pannes y vont aussi** (`appairage/etats.ts`, #798) : `miseAJour`, sa dernière mise à jour
   quand elle a raté et qu'elle est revenue en arrière (version visée, version restaurée, l'heure,
   et si le retour a raté lui aussi — lue dans `BRIGADE_MISE_A_JOUR_DIR`), et `connexionMax`,
@@ -1074,6 +1075,49 @@ Trois réglages, tous facultatifs : `BRIGADE_GH_BIN` (le `gh` de la machine, `gh
 `BRIGADE_STATION_NOM` (son nom sur la home — à défaut, celui de la machine), et
 `BRIGADE_STATION_VERSION` (la version qu'elle annonce — posée par son paquet ; à défaut,
 l'empreinte de son code, `code 1a2b3c4d5e6f`).
+
+**Le délai de détection** d'un arrêt brutal (la station tuée sans préavis) se lit donc entre 5 et
+10 min : son dernier signe de vie date de 5 min au plus, au battement, et l'app la dit hors ligne
+2 × 285 s + 30 s après ce signe.
+
+## Le budget d'appels à GitHub, et l'attente de limite
+
+*Code : `runtime/src/limite-github.ts` (#873, #874).*
+
+Chaque appel de la station et de ses projets à GitHub — le sondage des issues (`github.ts`), le
+canal du gist (`appairage/canal.ts`) — prend un jeton du budget avant que `gh` ne parte.
+
+- **Le budget** : **2 500 appels par heure glissante**, soit la moitié de la limite du compte
+  (5 000 par heure). Un appel refusé ne part pas et n'est pas compté ; l'appelant échoue comme sur
+  une panne de GitHub, et son tour suivant le rattrape. Le message dit quand le prochain appel se
+  libère : `budget GitHub épuisé : 2500 appels sur l'heure glissante, appel refusé — le prochain se
+  libère dans N s`.
+- **Partagé, pas découpé.** Le compteur est une base SQLite dans le répertoire de la station,
+  `<BRIGADE_STATION_DIR>/appels-github/compteur.db`. La station et chacun de ses projets la tiennent
+  ensemble, comme un runtime ou une commande lancés avec son environnement : une transaction tranche
+  entre deux process qui prennent le dernier appel au même instant. Un process hors de toute station
+  (le poste de dev, un test) compte seul, en mémoire, sous le même budget.
+- **Plus de trois projets** : rien à régler. Le budget n'est pas réparti entre les projets : un
+  projet qui sonde beaucoup prend ce qu'un autre ne dépense pas, et le plafond tient quel que soit
+  leur nombre. Ce qui grossit avec les projets, c'est la consommation : chacun ajoute ses sondages
+  au même compte.
+- **Le régler** : il n'y a **pas de variable d'environnement**. Le plafond est la constante
+  `BUDGET_PAR_HEURE` de `runtime/src/limite-github.ts` (la fenêtre, `FENETRE_MS`, est d'une heure) ;
+  il se change dans le code, et se vérifie avec les tests de `runtime/test/limite-github.test.ts`.
+- **La ligne horaire** : une fois par heure, depuis le démarrage de la station, son journal de
+  service écrit `brigade : N appels GitHub sur l'heure écoulée`, N étant le compte de la dernière
+  heure, tous process confondus. Si la lecture du compteur échoue, la ligne le dit à la place :
+  `brigade : appels GitHub de l'heure écoulée non comptés — <erreur>`.
+- **La limite de GitHub atteinte** (son 429, ou son 403 « rate limit ») n'est pas un refus comme
+  un autre : un 403 d'un merge interdit, lui, reste un refus. La station cesse alors tout appel
+  et pose une pause sur le compteur, partagée par tous ses process, jusqu'à la fin de la fenêtre.
+  Elle la lit dans `retry-after`, sinon `x-ratelimit-reset`, sinon `gh api rate_limit`, sinon 60 s.
+  Pendant la pause, aucun appel ne part et rien n'est compté. Le journal de service le dit une
+  fois : `brigade : station — GitHub a atteint sa limite d'appels : plus aucun appel ne part avant
+  la fin de la fenêtre, puis ils reprennent seuls`.
+- **La reprise** est automatique : à la fin de la pause, les appels reprennent sans geste. Pendant
+  l'attente, la station n'écrit pas son état sur GitHub, et l'app la dit hors ligne au bout de
+  2 × `cadenceMs` + 30 s, le temps que la fenêtre se ferme.
 
 ## Ajouter un projet à une station depuis l'app, sans terminal
 
