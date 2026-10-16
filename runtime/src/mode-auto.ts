@@ -27,11 +27,11 @@
 // Code ne découpe pas : un `*` y laisserait passer `; rm -rf ~`.
 import { NOM_DE_PROJET } from "./runtime.ts";
 
-export const ROLES = ["second", "manager", "dev", "designer"] as const;
+export const ROLES = ["second"] as const;
 export type Role = (typeof ROLES)[number];
 
 // Le fichier de rôle de chacun : le second est le PO.
-export const COMMANDE_DU_ROLE: Record<Role, string> = { second: "po", manager: "manager", dev: "dev", designer: "designer" };
+export const COMMANDE_DU_ROLE: Record<Role, string> = { second: "po" };
 
 // Le fichier que l'installation écrit, relatif à la racine du projet.
 export const REGLAGES_DU_PROJET = ".claude/settings.json";
@@ -113,36 +113,6 @@ export const GESTES: Geste[] = [
     classifieur: "le dépôt de la session est de confiance : le mode auto les laisse passer ; une règle à `*` les autoriserait vers n'importe quel dépôt, avec n'importe quel corps",
   },
   { role: "second", libelle: "Merger une PR de brigade : sur demande explicite du chef, seulement", impossible: mergeImpossible("la demande du chef qui nomme la PR (« merge la #372 ») est ce qui le fait passer") },
-
-  { role: "manager", libelle: "Lire l'état", classifieur: "des lectures du dépôt de la session : le mode auto les laisse passer" },
-  {
-    role: "manager",
-    libelle: "Spawner un dev ou un designer",
-    impossible: "Claude Code écarte toute règle `Agent` en entrant en mode auto : le classifieur juge chaque lancement. `git worktree add` et le setup, eux, restent dans le dépôt de la session",
-  },
-  { role: "manager", libelle: "Jouer les Gates", classifieur: "les scripts du dépôt, sur ses worktrees : le mode auto les laisse passer ; une règle à `*` laisserait passer n'importe quel argument" },
-  { role: "manager", libelle: "Merger une PR verte", impossible: mergeImpossible("la review et les gates vertes, dans la trace avant le merge, sont ce qui le fait passer") },
-  { role: "manager", libelle: "Synchroniser et nettoyer", classifieur: "le dépôt de la session et ses worktrees : le mode auto les laisse passer" },
-  { role: "manager", libelle: "Commenter l'issue de roadmap", classifieur: "une issue du dépôt de la session : le mode auto le laisse passer" },
-  { role: "manager", libelle: "Notifier l'humain", classifieur: "une notification à l'humain qui a lancé la session : le mode auto la laisse passer" },
-
-  { role: "dev", libelle: "Créer son worktree", classifieur: "le dépôt de la session : le mode auto le laisse passer" },
-  { role: "dev", libelle: "Lire et écrire dans son worktree", classifieur: "le dépôt de la session : le mode auto le laisse passer" },
-  { role: "dev", libelle: "Jouer les Gates", classifieur: "les scripts du dépôt, sur son worktree : le mode auto les laisse passer ; une règle à `*` laisserait passer n'importe quel argument" },
-  { role: "dev", libelle: "Pousser sa branche", classifieur: "le mode auto laisse pousser vers toute branche du dépôt de la session" },
-  { role: "dev", libelle: "Ouvrir sa PR", classifieur: "le mode auto laisse ouvrir une PR sur le dépôt de la session" },
-  { role: "dev", libelle: "Signaler", classifieur: "la coordination entre agents d'une même session : le mode auto la laisse passer" },
-
-  { role: "designer", libelle: "Créer son worktree", classifieur: "le dépôt de la session : le mode auto le laisse passer" },
-  {
-    role: "designer",
-    libelle: "Pousser des previews",
-    impossible: "une règle `DesignSync` autoriserait tout envoi vers Claude Design, quel qu'en soit le contenu : c'est le classifieur qui juge ce qui part",
-  },
-  { role: "designer", libelle: "Lancer l'app", classifieur: "l'app du dépôt, sur les ports de son worktree : le mode auto la laisse passer" },
-  { role: "designer", libelle: "Jouer les Gates", classifieur: "les scripts du dépôt, sur son worktree : le mode auto les laisse passer ; une règle à `*` laisserait passer n'importe quel argument" },
-  { role: "designer", libelle: "Pousser sa branche", classifieur: "le mode auto laisse pousser vers toute branche du dépôt de la session, et y ouvrir une PR" },
-  { role: "designer", libelle: "Signaler", classifieur: "la coordination entre agents d'une même session : le mode auto la laisse passer" },
 ];
 
 // Les règles d'un geste pour cette cible : celles qu'il porte, ou aucune s'il
