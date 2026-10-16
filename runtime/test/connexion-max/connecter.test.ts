@@ -7,7 +7,7 @@ import { userInfo } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { principal, type Machine } from "../../src/connexion-max/connecter-cli.ts";
-import { connecterMax, ConnexionNonFaite, extraireLeJeton, type Lancement } from "../../src/connexion-max/connecter.ts";
+import { connecterMax, ConnexionNonFaite, extraireLeJeton, MasqueDuJeton, type Lancement } from "../../src/connexion-max/connecter.ts";
 import { configJeton } from "../../src/jeton-claude.ts";
 import { appeler, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
@@ -19,7 +19,8 @@ const JETON = ["sk-ant", "oat01", "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-secret"
 // Une machine d'essai : le compte qui porte la connexion — le nôtre —, son
 // `claude` factice (`setup-token` imprime le jeton sur la sortie standard, et
 // ses invites sur la sortie d'erreur), et l'emplacement du jeton.
-function installation(t: TestContext, { setupEchoue = false, sansJeton = false } = {}) {
+function installation(t: TestContext, { setupEchoue = false, sansJeton = false, muet = false } = {}) {
+  let montre = "";
   const racine = repertoireTemporaire(t);
   const [home, bin, etc] = ["home", "bin", "etc"].map((nom) => join(racine, nom)) as [string, string, string];
   for (const repertoire of [home, bin]) mkdirSync(repertoire, { recursive: true });
@@ -32,7 +33,9 @@ function installation(t: TestContext, { setupEchoue = false, sansJeton = false }
       `echo "$*" >> "${appels}"`,
       `env | cut -d= -f1 | sort | tr '\\n' ' ' >> "${environnements}"; echo >> "${environnements}"`,
       'case "$1" in',
-      setupEchoue
+      muet
+        ? '  "setup-token") exec sleep 30 ;;'
+        : setupEchoue
         ? '  "setup-token") echo "Open this link" >&2; exit 3 ;;'
         : sansJeton
           ? '  "setup-token") echo "Done." ;;'
@@ -57,9 +60,11 @@ function installation(t: TestContext, { setupEchoue = false, sansJeton = false }
     home: async () => home,
     root: () => false,
     utilisateur: () => compte,
+    afficher: (texte) => void (montre += texte),
+    delaiMuet: muet ? 300 : 60_000,
   };
   const lire = (fichier: string) => (existsSync(fichier) ? readFileSync(fichier, "utf8").trim().split("\n") : []);
-  return { racine, etc, machine, appels: () => lire(appels), environnements: () => lire(environnements) };
+  return { racine, etc, machine, montre: () => montre, appels: () => lire(appels), environnements: () => lire(environnements) };
 }
 
 test("l'installation fait la connexion Max par `claude setup-token`, une fois, et range le jeton en 600 avec sa date à côté", async (t) => {
@@ -103,6 +108,38 @@ test("le jeton n'est affiché dans aucune sortie de l'étape, réussie ou non", 
   assert.equal(await echec.fin, 1);
   assert.match(echec.sortie(), /le jeton ne se range pas dans/);
   assert.doesNotMatch(echec.sortie(), /sk-ant|secret/);
+});
+
+test("le chef voit l'interface de `setup-token` — le lien —, jamais le jeton", async (t) => {
+  const { machine, montre } = installation(t);
+  const etape = appeler((appel) => principal(appel, machine));
+  assert.equal(await etape.fin, 0, etape.sortie());
+  assert.match(montre(), /Open this link, paste the code/);
+  assert.match(montre(), /Long-lived token/);
+  assert.doesNotMatch(montre(), /oat01|secret/);
+  assert.doesNotMatch(etape.sortie(), /oat01|secret/);
+});
+
+test("un `setup-token` muet est arrêté, et l'étape le dit en une ligne avec le geste pour réessayer", async (t) => {
+  const { machine, etc } = installation(t, { muet: true });
+  const etape = appeler((appel) => principal(appel, machine));
+  assert.equal(await etape.fin, 1);
+  assert.match(etape.sortie(), /connexion Max non faite — `claude setup-token` n'a rien affiché.*relance l'étape pour réessayer/);
+  assert.equal(existsSync(etc), false);
+});
+
+test("le masque coupe le jeton même découpé en morceaux, et ne retient rien d'autre", () => {
+  const entree = `lien https://x\nesc sk-ant-oat01-${"A".repeat(30)}\nfin`;
+  for (let pas = 1; pas <= 12; pas++) {
+    const masque = new MasqueDuJeton();
+    let vu = "";
+    for (let i = 0; i < entree.length; i += pas) vu += masque.passer(entree.slice(i, i + pas));
+    vu += masque.fin();
+    assert.equal(vu, "lien https://x\nesc sk-ant-…\nfin", `pas ${pas}`);
+  }
+  const fin = new MasqueDuJeton();
+  assert.equal(fin.passer("sk"), "");
+  assert.equal(fin.fin(), "sk");
 });
 
 test("un jeton déjà rangé ne se refait pas", async (t) => {

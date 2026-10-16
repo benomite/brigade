@@ -10,7 +10,8 @@
 // range le jeton dans /etc/brigade/claude-token (600, au compte de la
 // station), la date de sa création à côté (claude-token.cree, sans le
 // jeton), et de quoi dire à l'unité où il est : la station redémarre, et le
-// lit. Le jeton ne s'affiche jamais. Sous le compte de la station, elle fait
+// lit. L'interface de `claude setup-token` (le lien, le champ du code)
+// s'affiche, le jeton lui-même jamais. Sous le compte de la station, elle fait
 // la même chose, sauf poser `claude` et l'unité — ce qui demande root.
 //
 // Codes de sortie :
@@ -24,7 +25,7 @@ import { delimiter, dirname, join } from "node:path";
 import { enProcess, Sortie, type Appel } from "../appel.ts";
 import { PATH_DE_SYSTEMD } from "../installateur.ts";
 import { COMPTE } from "./connexion.ts";
-import { connecterMax, ConnexionNonFaite, type Lancement, type ModeDeLancement } from "./connecter.ts";
+import { connecterMax, ConnexionNonFaite, MasqueDuJeton, type Lancement, type ModeDeLancement } from "./connecter.ts";
 import { FICHIER_DU_JETON, fichierDeCreation } from "../jeton-claude.ts";
 
 const REUSSI = 0;
@@ -51,6 +52,10 @@ export type Machine = {
   home: (compte: string) => Promise<string | null>;
   root: () => boolean;
   utilisateur: () => string;
+  // Montre au chef l'interface de `claude setup-token` (jeton déjà masqué).
+  afficher: (texte: string) => void;
+  // Au bout de combien de ms sans un mot de `setup-token` l'étape renonce.
+  delaiMuet: number;
 };
 
 export const SERVEUR: Machine = {
@@ -68,20 +73,42 @@ export const SERVEUR: Machine = {
   },
   root: () => process.getuid?.() === 0,
   utilisateur: () => userInfo().username,
+  afficher: (texte) => void process.stdout.write(texte),
+  delaiMuet: 3 * 60_000,
 };
 
+type Montrer = { afficher: (texte: string) => void; delaiMuet: number };
+
 // Lance une commande ; ENOENT se rend comme le ferait un shell : 127.
-function executer(commande: string, args: string[], env: Record<string, string>, mode: ModeDeLancement | boolean): Promise<Lancement> {
+function executer(commande: string, args: string[], env: Record<string, string>, mode: ModeDeLancement | boolean, montrer?: Montrer): Promise<Lancement> {
   return new Promise((resoudre) => {
     const heritee = mode === true || mode === "herite";
-    // `capture` : l'entrée et la sortie d'erreur parlent au chef, la sortie
-    // standard — où `claude setup-token` imprime le jeton — est lue.
-    const enfant = spawn(commande, args, { env, stdio: heritee ? "inherit" : mode === "capture" ? ["inherit", "pipe", "inherit"] : ["ignore", "pipe", "pipe"] });
+    // `affiche` : l'entrée est au chef ; les sorties — où `claude setup-token`
+    // dessine son interface et imprime le jeton — sont lues, et remontrées.
+    const enfant = spawn(commande, args, { env, stdio: heritee ? "inherit" : mode === "affiche" ? ["inherit", "pipe", "pipe"] : ["ignore", "pipe", "pipe"] });
     let sortie = "";
-    enfant.stdout?.on("data", (bloc: Buffer) => void (sortie += bloc.toString()));
-    enfant.stderr?.on("data", (bloc: Buffer) => void (sortie += bloc.toString()));
-    enfant.on("error", (erreur: NodeJS.ErrnoException) => resoudre({ code: erreur.code === "ENOENT" ? 127 : 126, sortie: `${sortie}${erreur.message}` }));
-    enfant.on("close", (code) => resoudre({ code, sortie }));
+    let muet = false;
+    const masque = mode === "affiche" && montrer ? new MasqueDuJeton() : null;
+    const minuteur = masque && montrer ? setTimeout(() => ((muet = true), enfant.kill("SIGTERM")), montrer.delaiMuet) : null;
+    const lire = (bloc: Buffer) => {
+      if (minuteur) clearTimeout(minuteur);
+      const texte = bloc.toString();
+      sortie += texte;
+      const visible = masque?.passer(texte);
+      if (visible) montrer?.afficher(visible);
+    };
+    enfant.stdout?.on("data", lire);
+    enfant.stderr?.on("data", lire);
+    enfant.on("error", (erreur: NodeJS.ErrnoException) => {
+      if (minuteur) clearTimeout(minuteur);
+      resoudre({ code: erreur.code === "ENOENT" ? 127 : 126, sortie: `${sortie}${erreur.message}` });
+    });
+    enfant.on("close", (code) => {
+      if (minuteur) clearTimeout(minuteur);
+      const reste = masque?.fin();
+      if (reste) montrer?.afficher(reste);
+      resoudre(muet ? { code, sortie, muet } : { code, sortie });
+    });
   });
 }
 
@@ -112,8 +139,8 @@ export async function principal({ args, dire, redire }: Appel, machine: Machine 
   // Sous le compte de la station, quel que soit qui lance l'étape.
   const lancer = (commande: string, arguments_: string[], mode: ModeDeLancement) =>
     root
-      ? executer("runuser", ["-u", machine.compte, "--", "env", "-i", ...Object.entries(env).map(([nom, valeur]) => `${nom}=${valeur}`), commande, ...arguments_], { PATH: PATH_DE_SYSTEMD }, mode)
-      : executer(commande, arguments_, env, mode);
+      ? executer("runuser", ["-u", machine.compte, "--", "env", "-i", ...Object.entries(env).map(([nom, valeur]) => `${nom}=${valeur}`), commande, ...arguments_], { PATH: PATH_DE_SYSTEMD }, mode, machine)
+      : executer(commande, arguments_, env, mode, machine);
 
   // Le jeton et sa date, 600 et 644, au compte de la station ; puis l'unité
   // sait où il est, et la station le lit.
