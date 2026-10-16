@@ -51,7 +51,7 @@ const DEPENDANCES = ["adduser", "ca-certificates", "git", "gh", "bubblewrap", "l
 // L'architecture Debian de chaque architecture de `node`.
 const ARCHITECTURES: Record<string, string> = { x64: "amd64", arm64: "arm64" };
 
-const UNITES = ["brigade-station.service", "brigade-station-renouvellement.service", "brigade-station-renouvellement.timer", "brigade-station-mise-a-jour.service", "brigade-station-mise-a-jour.timer"];
+const UNITES = ["brigade-station.service", "brigade-station-porte.service", "brigade-station-renouvellement.service", "brigade-station-renouvellement.timer", "brigade-station-mise-a-jour.service", "brigade-station-mise-a-jour.timer"];
 
 function refuser(motif: string): never {
   console.error(`brigade : paquet non construit — ${motif}`);

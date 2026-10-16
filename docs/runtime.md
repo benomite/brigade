@@ -2774,6 +2774,19 @@ pose **projet par projet**, en deux moitiés indépendantes :
 - **Le réseau**, au projet : l'unité `brigade@<projet>` ne joint que la boucle locale ; sa seule
   sortie est **la porte**, `brigade-porte@<projet>`.
 
+**Sur une station installée par le paquet, la cloison est posée pour tous les projets, sans
+réglage** : l'unité `brigade-station` ne joint que la boucle locale, et `brigade-station-porte`
+tient une porte par projet de sa configuration — chacune avec la liste blanche de son projet, lue
+au journal de ce projet, qui y reçoit aussi ses refus — et celle de la station elle-même
+(Anthropic et GitHub seulement). Personne ne choisit leurs ports : chaque porte reprend le sien ou
+en prend un libre, et les écrit dans `/var/lib/brigade/portes.json`, d'où la station donne à chaque
+projet le sien ; une ligne de la configuration qui nomme sa porte (`BRIGADE_PROXY_PORT`) est
+refusée. Un projet dont la porte n'a pas encore dit son port attend, et la station le dit ; la
+station elle-même attend la sienne avant de rien joindre. La bascule arrête les
+`brigade-porte@<projet>` de l'ancienne installation et remet leurs ports aux portes de la station :
+même port, même liste — un cook en vol retrouve la sienne. Les refus se lisent par
+`journalctl -u brigade-station-porte`.
+
 La frontière des fichiers passe **entre le runtime et ce qu'il lance** : ce qu'il fait lui-même —
 `git`, `gh`, `claude auth status` — n'est pas cloisonné.
 

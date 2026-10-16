@@ -3,7 +3,8 @@
 // démarre (`debian/postinst`) ; rejoué, il ne trouve plus rien à faire.
 //
 // Dans l'ordre : les anciennes unités s'arrêtent — leurs cooks en vol, que
-// chacun un relais porte, continuent (`KillMode=process`) —, puis chaque
+// chacun un relais porte, continuent (`KillMode=process`) —, puis leurs
+// portes, dont le port est remis à celles de la station ; puis chaque
 // projet reçoit sa ligne dans la configuration de la station, son état laissé
 // où il est : journal, décisions, verrou, runs et worktrees ne bougent pas
 // d'un octet, la station y accède par `etat/<projet>`. Enfin, ce que
@@ -15,6 +16,7 @@ import { chownSync, existsSync, lchownSync, mkdirSync, readFileSync, renameSync,
 import { dirname, join } from "node:path";
 import { lireEnService } from "../mise-a-jour/en-service.ts";
 import { CONFIGURATION, ETATS } from "../station/configuration.ts";
+import { ecrirePortes, FICHIER_PORTES, lirePortes } from "../station/portes.ts";
 import type { Lieux, Plan } from "./ancienne.ts";
 
 export type Systemctl = (args: string[]) => { code: number; sortie: string };
@@ -68,6 +70,15 @@ export function basculer(plan: Plan, ici: Lieux, options: { systemctl?: Systemct
   for (const unite of plan.instances) {
     if (lancer(["is-active", "--quiet", unite]).code === 0) throw new BasculeEnEchec(`${unite} tourne encore après son arrêt : la station ne peut pas le reprendre`);
   }
+  // Puis leurs portes : celles de la station prendront leurs ports. Leurs
+  // cooks en vol restent sans réseau jusque-là.
+  if (plan.portes.length > 0) {
+    dire(`bascule : arrêt des anciennes portes — ${plan.portes.join(", ")} ; celles de la station reprennent leurs ports`);
+    exiger(["disable", "--now", ...plan.portes]);
+  }
+  for (const unite of plan.portes) {
+    if (lancer(["is-active", "--quiet", unite]).code === 0) throw new BasculeEnEchec(`${unite} tourne encore après son arrêt : la porte de la station ne peut pas reprendre son port`);
+  }
   if (plan.renouvellement.length > 0) {
     const timer = plan.renouvellement.filter((u) => u.endsWith(".timer"));
     if (timer.length > 0) exiger(["disable", "--now", ...timer]);
@@ -88,6 +99,17 @@ export function basculer(plan: Plan, ici: Lieux, options: { systemctl?: Systemct
     symlinkSync(projet.etat, lien);
     if (sien) lchownSync(lien, sien.uid, sien.gid);
   }
+  // Le port de chaque porte reprise, là où les portes de la station le
+  // chercheront : chacune reprend le sien. Ce qu'elles tiennent déjà n'est
+  // pas touché.
+  const portes = join(ici.station, FICHIER_PORTES);
+  const tenues = lirePortes(portes);
+  const reprises = plan.projets.filter((projet) => projet.porte !== null && tenues.projets[projet.nom] === undefined);
+  if (reprises.length > 0) {
+    const projets = { ...tenues.projets };
+    for (const projet of reprises) projets[projet.nom] = projet.porte ?? 0;
+    ecrirePortes(portes, { station: tenues.station, projets }, sien ?? undefined);
+  }
   const fichier = join(ici.station, CONFIGURATION);
   const avant = existsSync(fichier) ? readFileSync(fichier, "utf8") : "";
   const nouvelles = plan.projets.filter((projet) => !projet.dejaConfigure).map((projet) => projet.ligne);
@@ -101,6 +123,11 @@ export function basculer(plan: Plan, ici: Lieux, options: { systemctl?: Systemct
   ecrireAtomique(ici.note, `${JSON.stringify(note)}\n`);
   for (const projet of plan.projets) {
     dire(`bascule : ${projet.nom} — repris par la station (${projet.depot}, branche ${projet.base}), son état laissé dans ${projet.etat}`);
+    dire(
+      projet.porte === null
+        ? `bascule : ${projet.nom} — il n'avait pas de porte : la station lui en ouvre une, qui ne laisse passer que sa liste blanche`
+        : `bascule : ${projet.nom} — sa porte reprise par la station : même port (127.0.0.1:${projet.porte}), même liste blanche, lue à son journal`,
+    );
     if (projet.decisionsEcartees.length > 0) dire(`bascule : ${projet.nom} — ${projet.decisionsEcartees.join(", ")} dans son unité, non repris : une décision vit au journal du projet, que l'ancienne unité lisait déjà`);
     if (projet.reglagesDeLUnite.length > 0) dire(`bascule : ${projet.nom} — réglages de son unité non repris (${projet.reglagesDeLUnite.join(", ")}) : ceux de la station s'appliquent`);
   }

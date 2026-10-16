@@ -1,9 +1,10 @@
 // Une machine d'essai servie à l'ancienne, posée sous une racine à part :
 // une unité par projet (`brigade@<projet>.service`), ses réglages dans des
-// drop-ins, ses gestes liés depuis /usr/local/bin vers le clone de brigade,
-// leurs règles sudoers, l'ancien renouvellement — et ce qui n'est pas à elle
-// et doit rester : la porte et l'arbitre des projets, une règle sans rapport,
-// les liens vers node et claude. L'état de chaque projet a son journal, ses
+// drop-ins, la porte de chaque projet (`brigade-porte@<projet>.service`), ses
+// gestes liés depuis /usr/local/bin vers le clone de brigade, leurs règles
+// sudoers, l'ancien renouvellement — et ce qui n'est pas à elle et doit
+// rester : l'arbitre des projets, une règle sans rapport, les liens vers node
+// et claude. L'état de chaque projet a son journal, ses
 // décisions, et son clone.
 import { createHash } from "node:crypto";
 import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, symlinkSync, writeFileSync } from "node:fs";
@@ -59,7 +60,8 @@ export type AncienneMachine = {
 };
 
 // `arbitre` : le port de l'arbitre que chaque projet consulte — `null`, aucun.
-export function ancienneMachine(racine: string, projets: AncienProjet[] = TROIS, options: { renouvellement?: boolean; paquet?: boolean; arbitre?: string | null } = {}): AncienneMachine {
+// `sansPorte` : les projets servis sans cloison, ni porte ni filtre.
+export function ancienneMachine(racine: string, projets: AncienProjet[] = TROIS, options: { renouvellement?: boolean; paquet?: boolean; arbitre?: string | null; sansPorte?: string[] } = {}): AncienneMachine {
   const arbitre = options.arbitre === undefined ? "8470" : options.arbitre;
   const sous = (...chemin: string[]) => join(racine, ...chemin);
   const unites = sous("etc/systemd/system");
@@ -99,7 +101,8 @@ export function ancienneMachine(racine: string, projets: AncienProjet[] = TROIS,
     ].join("\n"),
   );
   ecrire(join(unites, "brigade@.service.d/chemin.conf"), "[Service]\nEnvironment=PATH=/usr/local/bin:/usr/bin:/bin\n");
-  // La porte et l'arbitre des projets : pas à l'ancienne unité, ils restent.
+  // La porte de chaque projet, que les portes de la station remplacent ; et
+  // l'arbitre des projets, qui n'est pas à l'ancienne unité : il reste.
   ecrire(join(unites, "brigade-porte@.service"), `[Unit]\nDescription=brigade — porte du projet %i\nBefore=brigade@%i.service\n\n[Service]\nWorkingDirectory=${clone}/runtime\nExecStart=/usr/bin/env node src/tenir-porte.ts\n`);
   ecrire(join(unites, "brigade-arbitre.service"), `[Service]\nWorkingDirectory=${clone}/runtime\nExecStart=/usr/bin/env node src/tenir-arbitre.ts\n`);
   ecrire(join(unites, "brigade-arbitre.service.d/reglages.conf"), `[Service]\nEnvironment=BRIGADE_ARBITER_PORT=${arbitre ?? "8470"}\n`);
@@ -110,10 +113,13 @@ export function ancienneMachine(racine: string, projets: AncienProjet[] = TROIS,
     ecrire(join(instance, "projet.conf"), `[Service]\nEnvironment=BRIGADE_GITHUB_REPO=${projet.depot}\nEnvironment=BRIGADE_BASE_BRANCH=${projet.base}\n`);
     ecrire(join(instance, "code.conf"), `[Service]\nWorkingDirectory=${sous("opt/brigade-versions", projet.nom, "en-service/runtime")}\n`);
     if (arbitre !== null) ecrire(join(instance, "arbitre.conf"), `[Service]\nEnvironment=BRIGADE_ARBITER_PORT=${arbitre}\n`);
-    ecrire(
-      join(instance, "cloison.conf"),
-      "[Unit]\nRequires=brigade-porte@%i.service\nAfter=brigade-porte@%i.service\n\n[Service]\nEnvironment=BRIGADE_SANDBOX_BIN=/usr/bin/bwrap\nEnvironment=BRIGADE_SANDBOX_HIDDEN=/var/lib/brigade:/etc/brigade\nPrivateTmp=yes\nIPAddressDeny=any\nIPAddressAllow=localhost\n",
-    );
+    const sansPorte = options.sansPorte?.includes(projet.nom) ?? false;
+    if (!sansPorte) {
+      ecrire(
+        join(instance, "cloison.conf"),
+        "[Unit]\nRequires=brigade-porte@%i.service\nAfter=brigade-porte@%i.service\n\n[Service]\nEnvironment=BRIGADE_SANDBOX_BIN=/usr/bin/bwrap\nEnvironment=BRIGADE_SANDBOX_HIDDEN=/var/lib/brigade:/etc/brigade\nPrivateTmp=yes\nIPAddressDeny=any\nIPAddressAllow=localhost\n",
+      );
+    }
     // Un réglage du chef resté là, vidé quand les décisions sont passées au journal.
     ecrire(join(instance, "chef.conf"), "[Service]\n# Les décisions vivent au journal.\n");
     if (projet.environnement) {
@@ -121,8 +127,10 @@ export function ancienneMachine(racine: string, projets: AncienProjet[] = TROIS,
       ecrire(join(instance, "reglages.conf"), `[Service]\n${lignes.join("\n")}\n`);
     }
     lier(join(unites, "brigade@.service"), join(unites, `multi-user.target.wants/brigade@${projet.nom}.service`));
-    ecrire(join(unites, `brigade-porte@${projet.nom}.service.d/port.conf`), `[Service]\nEnvironment=BRIGADE_PROXY_PORT=${projet.environnement?.BRIGADE_PROXY_PORT ?? "8480"}\n`);
-    lier(join(unites, "brigade-porte@.service"), join(unites, `multi-user.target.wants/brigade-porte@${projet.nom}.service`));
+    if (!sansPorte) {
+      ecrire(join(unites, `brigade-porte@${projet.nom}.service.d/port.conf`), `[Service]\nEnvironment=BRIGADE_PROXY_PORT=${projet.environnement?.BRIGADE_PROXY_PORT ?? "8480"}\n`);
+      lier(join(unites, "brigade-porte@.service"), join(unites, `multi-user.target.wants/brigade-porte@${projet.nom}.service`));
+    }
 
     if (projet.sansJournal) continue;
     mkdirSync(join(etat(projet.nom), "runs"), { recursive: true });

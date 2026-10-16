@@ -14,6 +14,7 @@ import { tenirProjetsDeLApp } from "../projets/tenir.ts";
 import { configReseau, passerParLaPorte } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { CONFIGURATION } from "./configuration.ts";
+import { attendrePorteDeLaStation, configPortes, lirePortes, VARIABLE_PORTES } from "./portes.ts";
 import { nommer, ouvrirStation, projetEnCours } from "./station.ts";
 
 // Code de sortie d'un refus de démarrer : réessayer ne changerait rien.
@@ -28,18 +29,41 @@ const brut = process.env.BRIGADE_STATION_DIR || refuser("BRIGADE_STATION_DIR n'e
 const racine = resolve(brut);
 
 let fichiersDeLaConnexion: ReturnType<typeof configVeille>;
+// Les portes que tient `brigade-station-porte` : celle de la station, et
+// celle de chaque projet.
+let portes: string | null;
 try {
   fichiersDeLaConnexion = configVeille(process.env, racine);
-  // La porte de la station : ce que son process joint lui-même — GitHub,
-  // Anthropic — passe par elle. Chaque projet peut avoir la sienne pour ce
-  // qu'il lance (`BRIGADE_PROXY_PORT` sur sa ligne).
+  portes = configPortes(process.env);
+  // Sans elles, la porte de la station, si son environnement en nomme une : ce
+  // que son process joint lui-même — GitHub, Anthropic — passe par elle.
+  // Chaque projet peut avoir la sienne pour ce qu'il lance
+  // (`BRIGADE_PROXY_PORT` sur sa ligne).
   const porte = configReseau(process.env);
+  if (porte !== null && portes !== null) refuser(`BRIGADE_PROXY_PORT et ${VARIABLE_PORTES} sont définis ensemble : sous les portes de la station, la sienne est celle qu'elles ouvrent`);
   if (porte !== null) passerParLaPorte(porte);
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide) refuser(erreur.message);
   throw erreur;
 }
 mkdirSync(racine, { recursive: true });
+
+const dire = (ligne: string) => console.log(ligne);
+// Sous les portes de la station, son unité ne joint que la boucle locale :
+// rien ne part avant que sa porte ne soit ouverte. Un port qui change — la
+// porte relancée n'a pas retrouvé le sien — est repris.
+if (portes !== null) {
+  const fichierDesPortes = portes;
+  let porteDeLaStation = await attendrePorteDeLaStation(fichierDesPortes, { dire });
+  passerParLaPorte(porteDeLaStation);
+  setInterval(() => {
+    const { station } = lirePortes(fichierDesPortes);
+    if (station === null || station === porteDeLaStation) return;
+    dire(`brigade : la porte de la station a changé de port (${porteDeLaStation} → ${station}) : la station sort par la nouvelle`);
+    porteDeLaStation = station;
+    passerParLaPorte(station);
+  }, 2000).unref();
+}
 
 // Un seul journal de service pour tous les projets : ce que le code d'un
 // projet y écrit de lui-même porte son nom, comme ce que la station dit pour lui.
@@ -50,10 +74,9 @@ for (const sortie of ["log", "error"] as const) {
     ecrire(projet !== null && typeof premier === "string" && !premier.startsWith("brigade [") ? nommer(projet, premier) : premier, ...suite);
   };
 }
-const dire = (ligne: string) => console.log(ligne);
 // La connexion Max de la machine : une seule veille, pour tous les projets.
 const connexion: VeilleConnexionMax = veillerConnexionMax({ ...fichiersDeLaConnexion, dire });
-const station = ouvrirStation({ racine, env: process.env, dire, connexion });
+const station = ouvrirStation({ racine, env: process.env, dire, connexion, portes });
 // Sa présence sur GitHub, seul canal entre la station et l'app du chef : son
 // état, chaque minute, et le code qui l'appaire (appairage/presence.ts). Ses
 // pannes y vont aussi : sa mise à jour, que son unité lui fait lire

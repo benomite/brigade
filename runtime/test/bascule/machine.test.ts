@@ -1,6 +1,6 @@
 // La recette de la bascule, sur une installation de test — jamais sur la box :
 // une machine qui sert trois projets à l'ancienne, chacun par son unité, ses
-// drop-ins, ses gestes et leurs règles sudoers, et trois vrais runtimes qui
+// drop-ins, leurs portes, ses gestes et leurs règles sudoers, et trois vrais runtimes qui
 // tournent — l'un avec un cook en vol. On y installe le paquet de la station,
 // construit depuis ce dépôt, comme le guide l'installe : son vrai postinst
 // joue la bascule, puis démarre la station (`../mise-a-jour/aides/machine.ts`).
@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, test } from "node:test";
 import { lireConfiguration } from "../../src/station/configuration.ts";
+import { lirePortes } from "../../src/station/portes.ts";
 import { lireEnService } from "../../src/mise-a-jour/en-service.ts";
 import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancer, mort, repertoireTemporaire, tuerLesRelais, vivant } from "../outils.ts";
 import { construirePaquet, sansDpkgDeb, uneMachine } from "../mise-a-jour/aides/machine.ts";
@@ -144,6 +145,14 @@ describe("la bascule d'une machine servie à l'ancienne, sur une installation de
       lireConfiguration(readFileSync(join(station, "projets"), "utf8")).projets.map((p) => [p.nom, p.depot, p.base]),
       projets.map((p) => [p.nom, p.depot, p.base]),
     );
+    // Chacun sort par sa porte, que tiennent les portes de la station : une
+    // chacun, et la sienne seulement.
+    const portes = lirePortes(join(station, "portes.json"));
+    assert.deepEqual(Object.keys(portes.projets), ["brigade", "calculus-workspace", "espace"]);
+    assert.equal(new Set([portes.station, ...Object.values(portes.projets)]).size, 4);
+    for (const { nom } of projets) {
+      await jusqua(() => faits(nom, "isolation.configured").some((e) => (e.payload as { proxy: { port: number } | null }).proxy?.port === portes.projets[nom]));
+    }
 
     // L'arrêt de la cuisine, mesuré par l'installation elle-même : de l'arrêt
     // des anciennes unités à la station qui sert les trois projets.
@@ -171,14 +180,14 @@ describe("la bascule d'une machine servie à l'ancienne, sur une installation de
     // Ce que l'ancien chemin avait posé n'existe plus : ni ses unités, ni leurs
     // drop-ins, ni ses gestes, ni leurs règles.
     const apres = ancienne.photo();
-    const restes = Object.keys(apres).filter((chemin) => /^etc\/systemd\/system\/(brigade@|[^/]+\.wants\/brigade@|brigade-renouvellement|timers\.target\.wants\/brigade-renouvellement)/.test(chemin));
+    const restes = Object.keys(apres).filter((chemin) => /^etc\/systemd\/system\/(brigade@|brigade-porte@|[^/]+\.wants\/brigade(-porte)?@|brigade-renouvellement|timers\.target\.wants\/brigade-renouvellement)/.test(chemin));
     assert.deepEqual(restes, []);
     for (const geste of GESTES_ANCIENS) {
       assert.equal(`usr/local/bin/${geste}` in apres, false, geste);
       assert.equal(`etc/sudoers.d/${geste}` in apres, false, geste);
     }
     assert.equal(apres["usr/local/bin/brigade"], `-> ${join(machine.racine, "usr/lib/brigade-station/brigade")}`);
-    // Et rien de ce qui n'était pas à lui n'a bougé : la porte, l'arbitre, une règle sans rapport.
-    for (const reste of ["etc/systemd/system/brigade-porte@.service", "etc/systemd/system/brigade-arbitre.service", "etc/sudoers.d/brigade", "etc/sudoers.d/sauvegardes"]) assert.equal(apres[reste], machineAvant[reste], reste);
+    // Et rien de ce qui n'était pas à lui n'a bougé : l'arbitre, une règle sans rapport.
+    for (const reste of ["etc/systemd/system/brigade-arbitre.service", "etc/sudoers.d/brigade", "etc/sudoers.d/sauvegardes"]) assert.equal(apres[reste], machineAvant[reste], reste);
   });
 });
