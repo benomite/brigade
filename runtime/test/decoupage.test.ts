@@ -92,6 +92,29 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     await jusqua(() => /86 \(no-station: chrome-connecté\)/.test(c.liste(30)));
   });
 
+  test("un ticket d'interface sort du découpage désigné pour le cook design — label, corps, commentaire — et les autres non, au même calibrage", async (t) => {
+    const c = brigade(t, { scenario: "muet", decoupage: "decoupe-interface", issues: [issue(30, ["epic", "prio:1"])] });
+    epique(c);
+    await c.decoupee(30);
+
+    // La vue : désignée par sa zone, sans que le jugement l'ait dit. Le
+    // libellé : désigné par le jugement. Le runtime et la doc : non.
+    assert.deepEqual(c.labels(501), ["model:sonnet", "effort:medium", "prio:1", "fire"]);
+    assert.deepEqual(c.labels(502), ["model:opus", "effort:high", "cook:design", "prio:1", "fire"]);
+    assert.deepEqual(c.labels(503), ["model:sonnet", "effort:low", "cook:design", "prio:1", "fire"]);
+    assert.deepEqual(c.labels(504), ["model:haiku", "effort:low", "prio:1", "fire"]);
+    assert.match(c.gh.corpsDe(502), /## Cook design\n\nTicket d'interface .* lis `agents\/cook-design\.md` et suis-le/);
+    assert.match(c.gh.corpsDe(502), /Calibré `opus` \/ `high`, pour le cook design \(`cook:design`\) — Un écran\./);
+    for (const numero of [501, 504]) assert.doesNotMatch(c.gh.corpsDe(numero), /cook design/i);
+    const dit = c.dits(30).find((texte) => /épique découpée/.test(texte)) ?? "";
+    assert.match(dit, /\| #501 \| Le rail expose le compte \| .* \| `sonnet` \/ `medium` \|$/m);
+    assert.match(dit, /\| #502 \| La carte montre le compte \| .* \| `opus` \/ `high` · cook design \|$/m);
+    assert.match(dit, /\| #504 \| La doc dit le compte \| .* \| `haiku` \/ `low` \|$/m);
+    // L'intention au journal porte la désignation.
+    const prevus = charge(c.tous("manager.split")[0])?.tickets as { cook?: string }[];
+    assert.deepEqual(prevus.map((prevu) => prevu.cook ?? null), [null, "design", "design", null]);
+  });
+
   test("deux tickets concurrents du découpage sur le même fichier : le code pose la dépendance, la fiche la porte, l'épique le dit", async (t) => {
     const c = brigade(t, { scenario: "muet", decoupage: "decoupe-recouvre", issues: [issue(30, ["epic"])], communs: ["docs/runtime.md"] });
     epique(c);

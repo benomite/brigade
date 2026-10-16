@@ -3,7 +3,7 @@
 // dépôt —, ce qu'il lit de sa réponse, et ce qu'il écrit des tickets qui en
 // naissent : leur corps, leur fiche. Sans E/S : un découpage dont un seul
 // ticket ne se lit pas n'est pas un découpage, c'est un motif dit.
-import { MODELES } from "./calibrage.ts";
+import { COOKS, LABEL_COOK_DESIGN, MODELES, PROFIL_COOK_DESIGN, toucheLaVue, VUE_DE_L_APP } from "./calibrage.ts";
 import { capacite, CAPACITE, CLE_DES_CAPACITES, FORME_DE_CAPACITE } from "./capacites.ts";
 import { lignesHorsCode, reference, sansListe } from "./epique.ts";
 import type { TicketPrevu } from "./evenements/manager.ts";
@@ -73,6 +73,8 @@ export function plan(fichiers: string[]): string[] {
 // `capacites` : ce que fournissent les stations que le projet déclare.
 export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger; commentaires: string[]; fichiers: string[]; communs?: string[]; capacites?: string[] }): string {
   const { depot, issue, commentaires, fichiers, communs = [], capacites = [] } = mission;
+  // Le cook design ne se désigne que dans un dépôt qui le définit.
+  const design = fichiers.includes(PROFIL_COOK_DESIGN);
   return [
     `Tu es le manager de la brigade sur le dépôt ${depot}. Le chef a posé une épique, en langage produit. Tu la découpes en tickets, chacun confié tel quel à un cook — un agent qui exécute un ticket seul, sans personne pour lui répondre, et livre une PR.`,
     "",
@@ -90,6 +92,11 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     `- \`capacites\` : ce que la machine doit savoir faire pour que le ticket soit **possible** — un navigateur, un Chrome connecté. Vide le plus souvent : un ticket n'en demande une que s'il est infaisable sans elle. ${
       capacites.length === 0 ? "Ce projet ne déclare aucune station, donc aucune capacité." : `Les stations de ce projet fournissent : ${capacites.map((nom) => `\`${nom}\``).join(", ")} — reprends le nom tel quel.`
     } Une capacité qu'aucune station ne fournit se nomme quand même, si le ticket est infaisable sans elle : il ne partira pas, et le chef saura quoi déclarer. Ce n'est ni un domaine ni une spécialité (sécu, rédaction, BDD) — ceux-là ne se demandent pas —, ni une permission : demander une capacité n'autorise rien.`,
+    ...(design
+      ? [
+          `- \`cook\` : \`design\` pour un **ticket d'interface** — il change ce que l'utilisateur voit dans l'app : un écran, un libellé, un bouton, un état affiché ; la vue de l'app est sous \`${VUE_DE_L_APP}/\`. Il sera cuisiné par le cook design (\`${PROFIL_COOK_DESIGN}\`), qui voit les écrans qu'il change. Tout autre ticket — runtime, doc, scripts, logique sans effet à l'écran — est \`general\`. Une zone qui touche \`${VUE_DE_L_APP}/\` est au cook design de toute façon. Le cook ne change rien au calibrage : modèle et effort se choisissent comme pour tout ticket.`,
+        ]
+      : []),
     "",
     "## Le calibrage de chaque ticket",
     "",
@@ -115,7 +122,7 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     "Un seul objet JSON, et rien après lui. Un découpage :",
     "",
     "```json",
-    '{"reponse": "tickets", "motif": "pourquoi ces tickets-là", "ordre": "pourquoi cet ordre", "tickets": [{"titre": "ce que le ticket livre", "contexte": "ce que le cook doit savoir, en quelques phrases", "criteres": ["un critère observable", "un autre"], "attend": [], "zone": ["chemin/du/depot"], "capacites": [], "modele": "sonnet", "effort": "medium", "calibrage": "pourquoi ce modèle et cet effort"}]}',
+    `{"reponse": "tickets", "motif": "pourquoi ces tickets-là", "ordre": "pourquoi cet ordre", "tickets": [{"titre": "ce que le ticket livre", "contexte": "ce que le cook doit savoir, en quelques phrases", "criteres": ["un critère observable", "un autre"], "attend": [], "zone": ["chemin/du/depot"], "capacites": [], ${design ? '"cook": "general", ' : ""}"modele": "sonnet", "effort": "medium", "calibrage": "pourquoi ce modèle et cet effort"}]}`,
     "```",
     "",
     "une question :",
@@ -198,7 +205,12 @@ function lireTicket(brut: unknown, rang: number): TicketPrevu | string {
   if (!effort) return `${ou} : effort hors de ce que le manager pose : ${JSON.stringify(lu.effort)} — attendu ${EFFORTS_DU_MANAGER.join(", ")}`;
   const calibration = phrase(lu.calibrage);
   if (!calibration) return `${ou} : calibrage non justifié`;
-  return { title, context: phrase(lu.contexte) ?? "", criteria: criteres as string[], ...prevu, model, effort, calibration };
+  const cook = parmi(lu.cook ?? "general", COOKS);
+  if (!cook) return `${ou} : cook inconnu : ${JSON.stringify(lu.cook)} — attendu ${COOKS.join(", ")}`;
+  // Une zone qui touche la vue de l'app est au cook design, quoi qu'en dise
+  // le jugement.
+  const design = cook === "design" || toucheLaVue(prevu.zone);
+  return { title, context: phrase(lu.contexte) ?? "", criteria: criteres as string[], ...prevu, model, effort, calibration, ...(design ? { cook: "design" as const } : {}) };
 }
 
 // Lit le découpage dans le dernier message du jugement.
@@ -261,6 +273,16 @@ export function corpsDuTicket(epic: number, index: number, prevu: TicketPrevu): 
     reference(epic),
     marque(epic, index),
     "",
+    // Le cook lit son ticket en entier : c'est ici qu'il apprend qu'il est le
+    // cook design.
+    ...(prevu.cook === "design"
+      ? [
+          "## Cook design",
+          "",
+          `Ticket d'interface : il touche la vue de l'app. Il est cuisiné par le **cook design** — avant d'écrire quoi que ce soit, lis \`${PROFIL_COOK_DESIGN}\` et suis-le : la langue visuelle de l'app, et les captures avant et après.`,
+          "",
+        ]
+      : []),
     "## Contexte",
     "",
     prevu.context || `Ticket né du découpage de l'épique #${epic}.`,
@@ -271,7 +293,7 @@ export function corpsDuTicket(epic: number, index: number, prevu: TicketPrevu): 
     "",
     "---",
     "",
-    `_Né du découpage de l'épique #${epic} par le manager. Calibré \`${prevu.model}\` / \`${prevu.effort}\` — ${prevu.calibration} Ce ticket est à toi : change un critère, remplace un label de calibrage, retire \`fire\` ou ferme-le, le manager n'y reviendra pas._`,
+    `_Né du découpage de l'épique #${epic} par le manager. Calibré \`${prevu.model}\` / \`${prevu.effort}\`${prevu.cook === "design" ? `, pour le cook design (\`${LABEL_COOK_DESIGN}\`)` : ""} — ${prevu.calibration} Ce ticket est à toi : change un critère, remplace un label de calibrage, retire \`fire\` ou ferme-le, le manager n'y reviendra pas._`,
   ].join("\n");
 }
 

@@ -386,6 +386,14 @@ FIN
 {"reponse":"tickets","motif":"Un livrable par parcours.","ordre":"Indifférent.","tickets":[{"titre":"Le parcours se joue dans un navigateur","criteres":["Le parcours passe"],"attend":[],"zone":["e2e/parcours.ts"],"capacites":["navigateur-headless"],"modele":"sonnet","effort":"low","calibrage":"Un parcours."},{"titre":"Le compte connecté se vérifie","criteres":["Le compte se lit"],"attend":[],"zone":["e2e/compte.ts"],"capacites":["chrome-connecté"],"modele":"sonnet","effort":"low","calibrage":"Un parcours."},{"titre":"La doc suit","criteres":["La doc le dit"],"attend":[],"zone":["docs/e2e.md"],"capacites":[],"modele":"haiku","effort":"low","calibrage":"De la doc."}]}
 FIN
       ;;
+    # Un ticket d'interface, que le jugement ne désigne pas, un autre qu'il
+    # désigne, et deux qui ne touchent pas la vue.
+    decoupe-interface)
+      assistant
+      resultat <<'FIN'
+{"reponse":"tickets","motif":"La carte, son libellé, ce que le rail expose, et la doc.","ordre":"Le rail d'abord.","tickets":[{"titre":"Le rail expose le compte","criteres":["`run rail` affiche le compte"],"attend":[],"zone":["runtime/src/rail.ts"],"cook":"general","modele":"sonnet","effort":"medium","calibrage":"Un module."},{"titre":"La carte montre le compte","criteres":["La carte affiche le compte"],"attend":[1],"zone":["app/src/vue/carte.js"],"modele":"opus","effort":"high","calibrage":"Un écran."},{"titre":"Le libellé du compte","criteres":["Le libellé se lit"],"attend":[2],"zone":["app/src/libelles.ts"],"cook":"design","modele":"sonnet","effort":"low","calibrage":"Un libellé."},{"titre":"La doc dit le compte","criteres":["La doc le dit"],"attend":[],"zone":["docs/runtime.md"],"modele":"haiku","effort":"low","calibrage":"De la doc."}]}
+FIN
+      ;;
     decoupe-question)
       assistant
       resultat <<'FIN'

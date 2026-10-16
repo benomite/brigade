@@ -9,6 +9,7 @@
 // fait ensuite de ses tickets est à lui.
 import { createHash } from "node:crypto";
 import { DE_CONFIANCE } from "./alimenter.ts";
+import { LABEL_COOK_DESIGN } from "./calibrage.ts";
 import { consigneDeDecoupage, corpsDuTicket, empreinteDEpique, ficheDuTicket, lireDecoupage, marqueDe, MARQUEUR_QUESTION, neDUnDecoupage, separer, type Decoupe } from "./decouper.ts";
 import { avecListe, epiqueDe, reference, rendreListe, type LigneDeListe } from "./epique.ts";
 import type { FaitManager } from "./evenements/manager.ts";
@@ -103,7 +104,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
           "|---|---|---|---|---|",
           ...connu.tickets.map(
             (prevu, i) =>
-              `| ${numero(i + 1)} | ${prevu.title.replace(/\|/g, "\\|")} | ${prevu.waitsFor.map(numero).join(", ") || "rien"} | ${prevu.zone.map((chemin) => `\`${chemin}\``).join(", ")} | \`${prevu.model}\` / \`${prevu.effort}\` |`,
+              `| ${numero(i + 1)} | ${prevu.title.replace(/\|/g, "\\|")} | ${prevu.waitsFor.map(numero).join(", ") || "rien"} | ${prevu.zone.map((chemin) => `\`${chemin}\``).join(", ")} | \`${prevu.model}\` / \`${prevu.effort}\`${prevu.cook === "design" ? " · cook design" : ""} |`,
           ),
           ...(raccords.length === 0
             ? []
@@ -196,7 +197,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
         } else noter(epic.number, { type: "manager.split-creating", payload: { index: rang } });
         const retrouve = numero !== undefined;
         if (numero === undefined) {
-          const labels = [`model:${prevu.model}`, `effort:${prevu.effort}`, ...priorites(epic.labels)];
+          const labels = [`model:${prevu.model}`, `effort:${prevu.effort}`, ...(prevu.cook === "design" ? [LABEL_COOK_DESIGN] : []), ...priorites(epic.labels)];
           numero = await github.creerIssue({ titre: prevu.title, corps: corpsDuTicket(epic.number, rang, prevu), labels });
           neuf = true;
           if (arrete()) return false;
