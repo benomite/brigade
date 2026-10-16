@@ -13,13 +13,14 @@ import { EXEMPLE, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { entete } from "../src/fiche.ts";
-import { BANNIERE, type Dessinable } from "../src/faits.ts";
+import { BANNIERE, type Dessinable, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { gestesDeCarte } from "../src/gestes-fiche.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
+import { ligneDeProjet, tenirAccueil, type Accueil, type ProjetDeLAccueil } from "../src/accueil.ts";
 import { tenirBandes, type Alerte } from "../src/alertes.ts";
 import type { Guide } from "../src/service.ts";
 import type { Terminal } from "../src/terminaux.ts";
@@ -102,14 +103,18 @@ type Ecran = {
   lectures: number;
 };
 
-// L'accueil : « Tous les projets », devant une box qui ne répond pas.
+// L'accueil : « Tous les projets », devant une box qui ne répond pas. Depuis #870, il ne pose plus de
+// lecture en échec à part : la box injoignable se dit sur la ligne du projet, que le process principal
+// calcule (accueil.ts) et redit par `surAccueil`.
+const PARADE_A_L_ACCUEIL: ProjetDeLAccueil = { nom: "parade", box: true, desinstalle: false };
 async function accueil(): Promise<Joue> {
   const vue = await ouvrir({}, false);
-  vue.dire("surLecture", { ...PAS_JOINT, demande: vue.dernier("tous")[0] as number }, { projet: "parade", pages: [], aLancer: [], illisibles: [], empeche: [], vide: "" });
   vue.dire("surFaits", { ...PAS_JOINT, titre: "facts: the box did not answer", demande: vue.dernier("faits")[0] as number });
   const bandes = tenirBandes({ etablir: 1, minimum: 0 });
   bandes.ouvrir(["parade"]);
   vue.dire("surAlertes", bandes.faits(PAS_JOINT));
+  vue.dire("surAccueil", tenirAccueil({ projets: () => [PARADE_A_L_ACCUEIL] }).faits(PAS_JOINT) ?? assert.fail("l'accueil ne change pas"));
+  await repos();
   return { vue, racine: vue.element("tous") };
 }
 
@@ -206,7 +211,8 @@ async function second(): Promise<Joue> {
 }
 
 const ECRANS: Ecran[] = [
-  { nom: "accueil", echec: accueil, lectures: 2 },
+  // L'accueil n'a plus de ligne de lecture en échec à part : celle du projet le dit (plus bas).
+  { nom: "accueil", echec: accueil, lectures: 0 },
   { nom: "bande d'alertes", echec: alertes, lectures: 0 },
   { nom: "fiche d'une carte", echec: ficheEnEchec, lectures: 3 },
   { nom: "Cost", echec: cost, lectures: 1 },
@@ -244,6 +250,22 @@ describe("une lecture en échec tient en une ligne, son détail n'est qu'au surv
       assert.deepEqual(racine.dessous("pre").filter((pre) => pre.textContent.includes(DETAIL)), [], `${nom} montre le détail dans un bloc de code`);
     });
   }
+
+  // L'accueil (#870) n'écrit aucun texte brut d'erreur, même au survol : la box qui ne répond pas est la
+  // ligne du projet, courte, rouge, et son survol le redit dans les mots de l'app.
+  test("accueil : la box qui ne répond pas tient sur la ligne du projet, son survol dans les mots de l'app", async () => {
+    const { vue, racine } = await accueil();
+    const [ligne, ...autres] = vue.element("accueil-projets").dessous("button");
+    assert.ok(ligne !== undefined && autres.length === 0, "une ligne par projet, et rien d'autre ne se clique");
+    const dit = visible(ligne);
+    assert.ok(dit !== "" && dit.length <= 80, `la ligne n'est pas courte — « ${dit} »`);
+    assert.equal(ligne.children[0]?.dataset.ton, "rouge");
+    assert.notEqual(ligne.title, "", "rien au survol de la ligne");
+    for (const texte of [visible(racine), ...racine.dessous("button").map(({ title, ariaLabel }) => `${title} ${ariaLabel}`)]) {
+      assert.ok(!texte.includes(DETAIL), `l'accueil écrit le détail brut : ${texte}`);
+      assert.doesNotMatch(texte, TRAVERS, `l'accueil écrit un travers : ${texte}`);
+    }
+  });
 });
 
 // ─── L'état « en attente de décision » ───────────────────────────────────────
@@ -258,9 +280,16 @@ async function bandeEnAttente(): Promise<Joue> {
   vue.dire("surAlertes", { projet: "parade", alertes: EN_ATTENTE, signal: { etat: "urgence", dit: "x" } });
   return { vue, racine: vue.element("alertes") };
 }
+// L'accueil devant un projet où une décision attend : sa ligne, telle que accueil.ts la dit.
+const UNE_DECISION = "attend     1 décision attend le chef depuis 5 h 28\n  #535  depuis 5 h 28  merge à faire  Titre\nfin attend\n";
+const FAITS_EN_ATTENTE: Faits = { etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 1, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [], livres: [], urgence: null };
 async function accueilEnAttente(): Promise<Joue> {
   const vue = await ouvrir({}, false);
   vue.dire("surAlertes", { projet: "parade", alertes: EN_ATTENTE, signal: { etat: "urgence", dit: "x" } });
+  const ligne = ligneDeProjet(PARADE_A_L_ACCUEIL, { a: A, faits: FAITS_EN_ATTENTE }, { texte: "cuisine    ouverte", attend: UNE_DECISION });
+  const vu: Accueil = { ...tenirAccueil({ projets: () => [PARADE_A_L_ACCUEIL] }).vu(), projets: [ligne] };
+  vue.dire("surAccueil", vu);
+  await repos();
   return { vue, racine: vue.element("tous") };
 }
 const ficheEnAttente = () => ficheOuverte({ lireQuestion: () => ({ a: A, aucune: true }), lireDiscussion: () => undefined });
@@ -288,11 +317,18 @@ describe("en attente de décision, chaque geste attendu est un bouton, pas du te
     }
   });
 
-  test("accueil : ce qu'on peut faire en premier est un bouton, sur la ligne « à faire »", async () => {
-    const { racine } = await accueilEnAttente();
-    const afaire = racine.dessous("div").find(({ className }) => className === "a-faire") ?? assert.fail("pas de ligne « à faire »");
-    assert.ok(boutons(afaire).some(({ textContent }) => textContent === "open parade"), "pas de bouton qui ouvre le projet");
-    assert.ok(boutons(afaire).length > 0);
+  // L'accueil (#870) : on n'y agit pas. Ce qu'on peut faire en premier, c'est ouvrir le projet qui
+  // attend — toute sa ligne est ce bouton, et elle ne porte aucun autre geste.
+  test("accueil : la ligne du projet qui attend est le bouton qui l'ouvre, sans autre geste", async () => {
+    const { vue } = await accueilEnAttente();
+    const [ligne, ...autres] = boutons(vue.element("accueil-projets"));
+    assert.ok(ligne !== undefined && autres.length === 0, "la ligne du projet n'est pas un bouton, ou elle porte un geste");
+    assert.equal(ligne.children[0]?.dataset.ton, "jaune");
+    assert.match(visible(ligne), /1 decision awaits you/);
+    assert.ok(!visible(vue.element("tous")).includes(COMMANDE_DE_LA_BOX), "le geste de la box est écrit sur l'accueil");
+    ligne.click();
+    await repos();
+    assert.equal(vue.element("espace").textContent, "parade", "le clic n'ouvre pas le projet");
   });
 
   test("fiche : chaque geste que la table du chef propose pour la carte est un bouton, le recommandé en tête", async () => {
