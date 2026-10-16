@@ -24,7 +24,8 @@ export type SujetDePanne = "injoignable" | "mise-a-jour" | "connexion-max";
 export type GesteDePanne = "relire" | "ecarter" | "login";
 // `cle` : ce qui la distingue parmi les pannes de sa station — une mise à jour écartée ne
 // revient pas, la suivante qui rate si.
-export type Panne = { cle: string; sujet: SujetDePanne; ligne: string; bouton: { libelle: string; geste: GesteDePanne } };
+// `survol` : l'explication, qui ne se lit qu'au survol de la ligne — jamais dans la page.
+export type Panne = { cle: string; sujet: SujetDePanne; ligne: string; survol: string; bouton: { libelle: string; geste: GesteDePanne } };
 
 // Le silence au-delà duquel une station est en panne.
 export const INJOIGNABLE_APRES_MS = 10 * 60_000;
@@ -42,19 +43,20 @@ export function pannesDe(document: DocumentStation, maintenant: number): Panne[]
   const horsLigne = ligneDe(document, maintenant).etat === "hors-ligne";
   const tue = silence(document, maintenant);
   if (horsLigne && tue >= INJOIGNABLE_APRES_MS)
-    pannes.push({ cle: "injoignable", sujet: "injoignable", ligne: `${document.nom} has given no sign of life for ${duree(tue)}`, bouton: { libelle: "check again", geste: "relire" } });
+    pannes.push({ cle: "injoignable", sujet: "injoignable", ligne: `offline for ${duree(tue)}`, survol: `${document.nom} has given no sign of life for ${duree(tue)}: the app can only look on GitHub whether it has spoken again`, bouton: { libelle: "check again", geste: "relire" } });
   const mise = document.miseAJour;
   if (mise !== null)
     pannes.push({
       cle: `mise-a-jour:${mise.le}`,
       sujet: "mise-a-jour",
-      ligne: mise.retourRate ? `update to version ${mise.visee} failed, and going back to version ${mise.restauree} failed too` : `update to version ${mise.visee} failed — stayed on version ${mise.restauree}`,
+      ligne: `update to version ${mise.visee} failed`,
+      survol: mise.retourRate ? `the station is on neither version: check ${document.nom}` : `${document.nom} stayed on version ${mise.restauree}; the next version will be tried on its own`,
       bouton: { libelle: "dismiss", geste: "ecarter" },
     });
   const connexion = document.connexionMax;
   if (!horsLigne && connexion?.etat === "perdue") {
     const depuis = connexion.depuis === null ? "" : ` ${duree(maintenant - Date.parse(connexion.depuis))} ago`;
-    pannes.push({ cle: `connexion-max:${connexion.depuis ?? ""}`, sujet: "connexion-max", ligne: `Max connection lost${depuis} — nothing cooks on ${document.nom} until you log in`, bouton: { libelle: "log in", geste: "login" } });
+    pannes.push({ cle: `connexion-max:${connexion.depuis ?? ""}`, sujet: "connexion-max", ligne: `Max connection lost${depuis}`, survol: `nothing cooks on ${document.nom} until you log in`, bouton: { libelle: "log in", geste: "login" } });
   }
   return pannes;
 }

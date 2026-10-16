@@ -648,13 +648,19 @@ et la panne est dite sur la page de la station, en une ligne, avec un bouton —
 taper (`app/src/pannes/`, #798) :
 
 ```
-box   offline for 12 min · brigade
-  box has given no sign of life for 12 min                                  [check again]
+box   ·  (en-tête : nom, pastille — l'état n'y est pas redit)
+  offline for 12 min  [check again] ?
 
-box   online · update failed · Max connection lost · brigade
-  update to version 1.5.0 failed — stayed on version 1.4.0                  [dismiss]
-  Max connection lost 12 min ago — nothing cooks on box until you log in   [log in]
+box   online · no cook running
+  update to version 1.5.0 failed  [dismiss] ?
+  Max connection lost 12 min ago  [log in] ?
 ```
+
+Chaque panne est **une seule ligne** et **un seul bouton** ; l'explication (« box has given no sign
+of life… », « nothing cooks on box until you log in »), puis ce que le bouton a rendu une fois
+cliqué, ne se lisent qu'au survol du « ? ». Une panne que deux causes décrivent (hors ligne et plus
+de signe de vie) ne se dit qu'une fois : l'en-tête de la page ne redit pas l'état quand la ligne
+« offline for … » est dessous.
 
 - **Station injoignable** : plus aucun signe de vie depuis dix minutes (un redémarrage, une mise à
   jour, tient en dessous). « check again » relit GitHub tout de suite : l'app ne joint pas la

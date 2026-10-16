@@ -6,9 +6,9 @@ import { jouerPanne, type OptionsGestes } from "../../src/pannes/gestes.ts";
 import type { Panne } from "../../src/pannes/pannes.ts";
 import type { StationVue, VuDesStations } from "../../src/stations/stations.ts";
 
-const INJOIGNABLE: Panne = { cle: "injoignable", sujet: "injoignable", ligne: "box has given no sign of life for 10 min", bouton: { libelle: "check again", geste: "relire" } };
-const MISE_A_JOUR: Panne = { cle: "mise-a-jour:2026-10-15T11:56:00.000Z", sujet: "mise-a-jour", ligne: "update to version 1.5.0 failed — stayed on version 1.4.0", bouton: { libelle: "dismiss", geste: "ecarter" } };
-const CONNEXION: Panne = { cle: "connexion-max:2026-10-15T11:48:00.000Z", sujet: "connexion-max", ligne: "Max connection lost 12 min ago — nothing cooks on box until you log in", bouton: { libelle: "log in", geste: "login" } };
+const INJOIGNABLE: Panne = { cle: "injoignable", sujet: "injoignable", ligne: "offline for 10 min", survol: "", bouton: { libelle: "check again", geste: "relire" } };
+const MISE_A_JOUR: Panne = { cle: "mise-a-jour:2026-10-15T11:56:00.000Z", sujet: "mise-a-jour", ligne: "update to version 1.5.0 failed", survol: "", bouton: { libelle: "dismiss", geste: "ecarter" } };
+const CONNEXION: Panne = { cle: "connexion-max:2026-10-15T11:48:00.000Z", sujet: "connexion-max", ligne: "Max connection lost 12 min ago", survol: "", bouton: { libelle: "log in", geste: "login" } };
 
 const station = (pannes: Panne[]): StationVue => ({ id: "g1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes, dit: "online", version: "1.4.0", projets: [], max: null });
 
