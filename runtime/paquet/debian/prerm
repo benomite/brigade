@@ -6,10 +6,11 @@ set -e
 
 case "$1" in
   remove)
-    # La station s'arrête ; ses cooks en cours finissent (KillMode=process).
-    # Rien de son état n'est touché : /var/lib/brigade reste.
+    # La station s'arrête, puis ses portes ; ses cooks en cours finissent
+    # (KillMode=process), sans réseau. Rien de son état n'est touché :
+    # /var/lib/brigade reste.
     if [ -d /run/systemd/system ]; then
-      systemctl stop brigade-station.service brigade-station-renouvellement.timer || true
+      systemctl stop brigade-station.service brigade-station-renouvellement.timer brigade-station-porte.service || true
     fi
     ;;
 esac

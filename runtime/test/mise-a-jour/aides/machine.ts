@@ -104,17 +104,19 @@ export function uneMachine(t: TestContext, env: Record<string, string> = {}): Ma
     FAUX_SYSTEMD_ENV: JSON.stringify({ BRIGADE_MISE_A_JOUR_SOURCE: publiees, ...JSON.parse(env.FAUX_SYSTEMD_ENV ?? "{}") }),
   };
   const systemctl = (...args: string[]) => spawnSync(join(bin, "systemctl"), args, { env: complet, encoding: "utf8" });
-  const pid = () => Number(lire(join(etat, "brigade-station.service.pid")) || 0);
-  // La fin du test arrête la station, quelle que soit sa version.
+  const pidDe = (unite: string) => Number(lire(join(etat, `${unite}.pid`)) || 0);
+  // La fin du test arrête la station et ses portes, quelle que soit leur version.
   aArreter(t, () => {
-    systemctl("stop", "brigade-station.service");
-    // Sans pid — une station jamais démarrée —, rien à tuer : `kill(0)` tuerait
-    // le groupe du test.
-    if (pid() <= 0) return;
-    try {
-      process.kill(pid(), "SIGKILL");
-    } catch {
-      // Déjà arrêtée.
+    for (const unite of ["brigade-station.service", "brigade-station-porte.service"]) {
+      systemctl("stop", unite);
+      // Sans pid — une unité jamais démarrée —, rien à tuer : `kill(0)` tuerait
+      // le groupe du test.
+      if (pidDe(unite) <= 0) continue;
+      try {
+        process.kill(pidDe(unite), "SIGKILL");
+      } catch {
+        // Déjà arrêtée.
+      }
     }
   });
   return {

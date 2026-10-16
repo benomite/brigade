@@ -8,12 +8,14 @@ import { join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ROLES } from "../../src/identites.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
+import { lirePortes } from "../../src/station/portes.ts";
 import { fauxGitHubApps } from "../aides/faux-github-apps.ts";
 import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, mort, repertoireTemporaire, temporaireDuFichier, tuerLesRelais, vivant } from "../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
 const STATION = join(import.meta.dirname, "../../src/station/main.ts");
+const PORTES = join(import.meta.dirname, "../../src/station/tenir-portes.ts");
 const FAUX_GH_GISTS = join(import.meta.dirname, "../appairage/faux-gh-gists.ts");
 const REFUS = 2;
 
@@ -234,6 +236,44 @@ test("une ligne refusée n'arrête pas la station : elle le dit au nom du projet
   assert.deepEqual(faits("espace", "runtime.started"), []);
   station.process.kill("SIGTERM");
   assert.equal(await station.fin, 0);
+});
+
+test("sous les portes de la station : elle attend la sienne avant de rien joindre, puis chaque projet sort par la sienne — jamais par celle d'un autre", async (t) => {
+  const { racine, env, preparer, configurer, faits } = uneStation(t);
+  const brigade = fauxGh(t);
+  brigade.issues([]);
+  const espace = fauxGh(t);
+  issuesDe(espace, "benomite/espace", []);
+  preparer("brigade");
+  preparer("espace");
+  configurer(`brigade benomite/brigade ${BASE} BRIGADE_GH_BIN=${brigade.bin}\nespace benomite/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
+  const fichier = join(racine, "portes.json");
+
+  const station = lancer(t, STATION, [], { ...env, BRIGADE_STATION_PORTES: fichier });
+  await station.attendre(`la station attend sa porte — brigade-station-porte.service n'a pas encore écrit son port dans ${fichier}`);
+  assert.deepEqual(faits("brigade", "runtime.started"), []);
+
+  const portes = lancer(t, PORTES, [], { BRIGADE_STATION_DIR: racine, BRIGADE_STATION_PORTES: fichier });
+  await station.attendre("station démarrée");
+  assert.match(station.sortie(), /2 projets servis : brigade, espace/);
+  const ports = lirePortes(fichier);
+  assert.equal(new Set([ports.station, ports.projets.brigade, ports.projets.espace]).size, 3);
+  for (const projet of ["brigade", "espace"]) {
+    await jusqua(() => faits(projet, "isolation.configured").length > 0);
+    assert.equal((faits(projet, "isolation.configured")[0]?.payload.proxy as { port: number }).port, ports.projets[projet], projet);
+  }
+
+  station.process.kill("SIGTERM");
+  assert.equal(await station.fin, 0);
+  portes.process.kill("SIGTERM");
+  assert.equal(await portes.fin, 0);
+});
+
+test("BRIGADE_PROXY_PORT et BRIGADE_STATION_PORTES ensemble : la station refuse de démarrer — sous ses portes, la sienne est celle qu'elles ouvrent", async (t) => {
+  const { racine, env } = uneStation(t);
+  const refusee = lancer(t, STATION, [], { ...env, BRIGADE_STATION_PORTES: join(racine, "portes.json"), BRIGADE_PROXY_PORT: "3128" });
+  assert.equal(await refusee.fin, REFUS);
+  assert.match(refusee.sortie(), /BRIGADE_PROXY_PORT et BRIGADE_STATION_PORTES sont définis ensemble/);
 });
 
 test("sans BRIGADE_STATION_DIR, la station refuse de démarrer et nomme la variable ; sans configuration, elle démarre et ne sert aucun projet", async (t) => {

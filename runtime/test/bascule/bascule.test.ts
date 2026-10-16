@@ -11,6 +11,7 @@ import { test, type TestContext } from "node:test";
 import { lieux, lireAncienneInstallation } from "../../src/bascule/ancienne.ts";
 import { attendreLaReprise, basculer, BasculeEnEchec, lireNote, type Systemctl } from "../../src/bascule/basculer.ts";
 import { lireConfiguration } from "../../src/station/configuration.ts";
+import { lirePortes } from "../../src/station/portes.ts";
 import { repertoireTemporaire } from "../outils.ts";
 import { ancienneMachine, GESTES_ANCIENS, TROIS } from "./aides.ts";
 
@@ -44,7 +45,7 @@ function basculerTout(m: ReturnType<typeof machine>, systemd = unSystemd()) {
   return { ici, note, dit, appels: systemd.appels };
 }
 
-test("les trois projets passent à la station : une ligne chacun — dépôt, branche, clone et réglages de leur unité —, leur état laissé où il est", (t) => {
+test("les trois projets passent à la station : une ligne chacun — dépôt, branche, clone et réglages de leur unité —, leur état laissé où il est, et le port de leur porte repris", (t) => {
   const m = machine(t);
   const { ici, note, dit } = basculerTout(m);
 
@@ -53,9 +54,9 @@ test("les trois projets passent à la station : une ligne chacun — dépôt, br
   assert.deepEqual(
     configuration.projets.map(({ nom, depot, base, reglages }) => ({ nom, depot, base, reglages })),
     [
-      { nom: "brigade", depot: "benomite/brigade", base: "v2", reglages: { BRIGADE_REPO_DIR: m.sous("var/lib/brigade/brigade/depot"), BRIGADE_ARBITER_PORT: "8470", BRIGADE_ROADMAP_ISSUE: "1", BRIGADE_PROXY_PORT: "8481" } },
-      { nom: "calculus-workspace", depot: "benomite/calculus-workspace", base: "main", reglages: { BRIGADE_REPO_DIR: m.sous("var/lib/brigade/calculus-workspace/depot"), BRIGADE_ARBITER_PORT: "8470", BRIGADE_PROXY_PORT: "8482" } },
-      { nom: "espace", depot: "benomite/espace", base: "main", reglages: { BRIGADE_REPO_DIR: m.sous("var/lib/brigade/espace/depot"), BRIGADE_ARBITER_PORT: "8470", BRIGADE_PROXY_PORT: "8483", BRIGADE_SECRETS_FILE: "/srv/secrets/espace.env" } },
+      { nom: "brigade", depot: "benomite/brigade", base: "v2", reglages: { BRIGADE_REPO_DIR: m.sous("var/lib/brigade/brigade/depot"), BRIGADE_ARBITER_PORT: "8470", BRIGADE_ROADMAP_ISSUE: "1" } },
+      { nom: "calculus-workspace", depot: "benomite/calculus-workspace", base: "main", reglages: { BRIGADE_REPO_DIR: m.sous("var/lib/brigade/calculus-workspace/depot"), BRIGADE_ARBITER_PORT: "8470" } },
+      { nom: "espace", depot: "benomite/espace", base: "main", reglages: { BRIGADE_REPO_DIR: m.sous("var/lib/brigade/espace/depot"), BRIGADE_ARBITER_PORT: "8470", BRIGADE_SECRETS_FILE: "/srv/secrets/espace.env" } },
     ],
   );
   // La station range l'état de chaque projet sous `etat/` : il y est, sans avoir bougé.
@@ -66,12 +67,32 @@ test("les trois projets passent à la station : une ligne chacun — dépôt, br
   assert.deepEqual(note, { arretee: "2026-10-16T08:00:00.000Z", projets: ["brigade", "calculus-workspace", "espace"], reprise: null });
   assert.deepEqual(lireNote(ici.note), note);
   assert.match(dit.join("\n"), /brigade — réglages de son unité non repris \(After, IPAddressAllow, IPAddressDeny, PrivateTmp, Requires, WorkingDirectory\) : ceux de la station s'appliquent/);
+  // Le port de chaque porte ne s'écrit pas sur la ligne : il attend les portes
+  // de la station, là où elles le chercheront — un cook en vol retrouve la sienne.
+  assert.deepEqual(lirePortes(join(ici.station, "portes.json")), { station: null, projets: { brigade: 8481, "calculus-workspace": 8482, espace: 8483 } });
+  assert.match(dit.join("\n"), /espace — sa porte reprise par la station : même port \(127\.0\.0\.1:8483\), même liste blanche, lue à son journal/);
+});
+
+test("un projet sans porte dans l'ancienne installation : aucun port repris — la station lui en ouvre une, et le dit", (t) => {
+  const m = machine(t, [{ nom: "espace", depot: "benomite/espace", base: "main" }, TROIS[0] ?? assert.fail()], { sansPorte: ["espace"] });
+  const { ici, dit } = basculerTout(m);
+  assert.deepEqual(lirePortes(join(ici.station, "portes.json")), { station: null, projets: { brigade: 8481 } });
+  assert.match(dit.join("\n"), /espace — il n'avait pas de porte : la station lui en ouvre une, qui ne laisse passer que sa liste blanche/);
+});
+
+test("un port que les portes de la station tiennent déjà n'est pas réécrit : la bascule n'ajoute que ceux qui leur manquent", (t) => {
+  const m = machine(t);
+  const ici = lieux(m.racine);
+  mkdirSync(ici.station, { recursive: true });
+  writeFileSync(join(ici.station, "portes.json"), JSON.stringify({ station: 40001, projets: { brigade: 40002 } }));
+  basculerTout(m);
+  assert.deepEqual(lirePortes(join(ici.station, "portes.json")), { station: 40001, projets: { brigade: 40002, "calculus-workspace": 8482, espace: 8483 } });
 });
 
 test("journal, décisions et clone de chaque projet sont intacts : la bascule n'y écrit rien", (t) => {
   const m = machine(t);
   const avant = Object.fromEntries(TROIS.map(({ nom }) => [nom, m.faits(nom)]));
-  const etats = () => Object.fromEntries(Object.entries(m.photo()).filter(([chemin]) => chemin.startsWith("var/lib/brigade/") && !/^var\/lib\/brigade\/(projets|etat\/)/.test(chemin)));
+  const etats = () => Object.fromEntries(Object.entries(m.photo()).filter(([chemin]) => chemin.startsWith("var/lib/brigade/") && !/^var\/lib\/brigade\/(projets|portes\.json|etat\/)/.test(chemin)));
   const photoAvant = etats();
   basculerTout(m);
   for (const { nom } of TROIS) assert.deepEqual(m.faits(nom), avant[nom]);
@@ -82,7 +103,7 @@ test("journal, décisions et clone de chaque projet sont intacts : la bascule n'
   );
 });
 
-test("les anciennes unités s'arrêtent avant que la station ne reçoive rien, et l'ancien renouvellement avec elles", (t) => {
+test("les anciennes unités s'arrêtent avant que la station ne reçoive rien, puis leurs portes, et l'ancien renouvellement avec elles", (t) => {
   const m = machine(t);
   const { appels } = basculerTout(m);
   assert.deepEqual(appels, [
@@ -90,13 +111,17 @@ test("les anciennes unités s'arrêtent avant que la station ne reçoive rien, e
     "is-active --quiet brigade@brigade.service",
     "is-active --quiet brigade@calculus-workspace.service",
     "is-active --quiet brigade@espace.service",
+    "disable --now brigade-porte@brigade.service brigade-porte@calculus-workspace.service brigade-porte@espace.service",
+    "is-active --quiet brigade-porte@brigade.service",
+    "is-active --quiet brigade-porte@calculus-workspace.service",
+    "is-active --quiet brigade-porte@espace.service",
     "disable --now brigade-renouvellement.timer",
     "stop brigade-renouvellement.timer brigade-renouvellement.service",
     "daemon-reload",
   ]);
 });
 
-test("ce que l'ancienne installation avait posé part — unités, drop-ins, liens d'activation, gestes et leurs règles sudoers —, et rien d'autre", (t) => {
+test("ce que l'ancienne installation avait posé part — unités, portes, drop-ins, liens d'activation, gestes et leurs règles sudoers —, et rien d'autre", (t) => {
   const m = machine(t);
   const avant = m.photo();
   basculerTout(m);
@@ -106,6 +131,9 @@ test("ce que l'ancienne installation avait posé part — unités, drop-ins, lie
     "etc/sudoers.d/brigade-ancien-geste",
     "etc/sudoers.d/brigade-installer",
     ...TROIS.flatMap(({ nom }) => ["arbitre.conf", "chef.conf", "cloison.conf", "code.conf", "projet.conf", "reglages.conf"].map((f) => `etc/systemd/system/brigade@${nom}.service.d/${f}`)),
+    "etc/systemd/system/brigade-porte@.service",
+    ...TROIS.map(({ nom }) => `etc/systemd/system/brigade-porte@${nom}.service.d/port.conf`),
+    ...TROIS.map(({ nom }) => `etc/systemd/system/multi-user.target.wants/brigade-porte@${nom}.service`),
     "etc/systemd/system/brigade-renouvellement.service",
     "etc/systemd/system/brigade-renouvellement.timer",
     "etc/systemd/system/brigade@.service",
@@ -114,10 +142,10 @@ test("ce que l'ancienne installation avait posé part — unités, drop-ins, lie
     "etc/systemd/system/timers.target.wants/brigade-renouvellement.timer",
     ...GESTES_ANCIENS.map((geste) => `usr/local/bin/${geste}`),
   ].sort());
-  for (const nom of ["brigade@.service.d", ...TROIS.map((p) => `brigade@${p.nom}.service.d`)]) assert.equal(existsSync(m.sous("etc/systemd/system", nom)), false, nom);
-  // La porte et l'arbitre de chaque projet, la règle du geste `brigade` et
-  // celle sans rapport, node et claude : là, tels quels.
-  for (const reste of ["etc/systemd/system/brigade-porte@.service", "etc/systemd/system/brigade-porte@espace.service.d/port.conf", "etc/systemd/system/multi-user.target.wants/brigade-porte@espace.service", "etc/systemd/system/brigade-arbitre.service", "etc/sudoers.d/brigade", "etc/sudoers.d/sauvegardes", "usr/local/bin/node", "usr/local/bin/claude"]) {
+  for (const nom of ["brigade@.service.d", ...TROIS.flatMap((p) => [`brigade@${p.nom}.service.d`, `brigade-porte@${p.nom}.service.d`])]) assert.equal(existsSync(m.sous("etc/systemd/system", nom)), false, nom);
+  // L'arbitre des projets, la règle du geste `brigade` et celle sans rapport,
+  // node et claude : là, tels quels.
+  for (const reste of ["etc/systemd/system/brigade-arbitre.service", "etc/sudoers.d/brigade", "etc/sudoers.d/sauvegardes", "usr/local/bin/node", "usr/local/bin/claude"]) {
     assert.equal(apres[reste], avant[reste], reste);
   }
   // Le geste `brigade` pointe sur celui du paquet : l'app lit ses projets comme avant.

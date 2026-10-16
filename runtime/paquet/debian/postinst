@@ -7,6 +7,9 @@ set -e
 
 COMPTE=brigade
 UNITES="brigade-station.service brigade-station-renouvellement.timer"
+# Les portes de la station : pas activées pour elles-mêmes, la station les
+# réclame.
+PORTES=brigade-station-porte.service
 # La bascule d'une machine qui servait ses projets avant le paquet, une unité
 # par projet (runtime/src/bascule/) : le node et le code que le paquet pose.
 RACINE=/
@@ -45,7 +48,12 @@ case "$1" in
       else
         # Une mise à jour : ce qui est activé repart sur le nouveau code — les
         # cooks en cours, eux, finissent (KillMode=process). Ce que
-        # l'administrateur a désactivé le reste.
+        # l'administrateur a désactivé le reste. Les portes d'abord, si elles
+        # tournent : chacune reprend son port, et la station la retrouve ; une
+        # station qui ne les connaissait pas les démarre en repartant (Wants=).
+        if systemctl --quiet is-active "$PORTES"; then
+          systemctl restart "$PORTES"
+        fi
         for unite in $UNITES; do
           if systemctl --quiet is-enabled "$unite"; then
             systemctl restart "$unite"

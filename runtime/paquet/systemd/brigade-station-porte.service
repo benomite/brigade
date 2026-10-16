@@ -1,0 +1,40 @@
+# Les portes de la station : brigade-station-porte.service — le relais par
+# lequel la station, et chaque projet qu'elle sert, sortent vers l'extérieur.
+# Une porte par projet de sa configuration (/var/lib/brigade/projets), qui ne
+# laisse passer que la liste blanche de ce projet (Anthropic, GitHub, ce que
+# son dépôt déclare dans .claude/brigade/reseau) et écrit ses refus au journal
+# du projet ; et celle de la station elle-même, Anthropic et GitHub seulement.
+#
+# Livrée par le paquet brigade-station, et remplacée à chacune de ses mises à
+# jour : ne pas l'éditer. Elle n'est pas activée pour elle-même : la station la
+# réclame (Wants=). Guide : docs/installation-station.md.
+
+[Unit]
+Description=brigade — les portes de la station (réseau en liste blanche, une par projet)
+After=network-online.target
+Wants=network-online.target
+# Les portes d'abord : la station ne sort que par elles.
+Before=brigade-station.service
+
+[Service]
+Type=simple
+# Le compte de la station : chaque porte lit sa liste dans le journal de son
+# projet, et y écrit ses refus.
+User=brigade
+WorkingDirectory=/usr/lib/brigade-station/runtime
+ExecStart=/usr/lib/brigade-station/node/bin/node src/station/tenir-portes.ts
+
+StateDirectory=brigade
+StateDirectoryMode=0750
+Environment=BRIGADE_STATION_DIR=/var/lib/brigade
+# Le port de chaque porte, sur la boucle locale : personne ne le choisit. Une
+# porte reprend celui qu'elle avait, ou en prend un libre, et l'écrit ici —
+# la station y lit celui de chaque projet.
+Environment=BRIGADE_STATION_PORTES=/var/lib/brigade/portes.json
+
+# Aucun filtre réseau ici, et il n'en faut pas : c'est cette unité-là qui
+# sort. Elle ne lance rien — ni `claude`, ni `git`, ni le code d'un projet.
+
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=2

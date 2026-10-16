@@ -106,6 +106,11 @@ reprendre : corrige ce qu'elle dit, et relance la même commande.
   chacun de ses projets.
 - **Sa mise à jour**, deux minutes après chaque démarrage de la station puis toutes les dix
   minutes : voir « 6. La mise à jour, seule ».
+- **Ses portes** (`brigade-station-porte`), la seule sortie réseau de la station et de ses cooks.
+  La station ne joint que la machine elle-même ; ce qu'un projet lance sort par la porte de ce
+  projet, qui ne laisse passer qu'Anthropic, GitHub et ce que le dépôt du projet déclare dans
+  `.claude/brigade/reseau`. Ce qu'un projet ouvre ne l'est pas pour un autre. Chaque porte prend
+  son port seule : il n'y a rien à régler.
 
 Et rien d'autre : aucune règle `sudo`, aucun fichier dans `/etc`. Tout vient du paquet, et le
 suit : quand la station passe à une nouvelle version, ses unités, ses droits et son minuteur y

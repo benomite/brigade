@@ -13,6 +13,10 @@ Wants=network-online.target
 # Sa mise à jour, qui tourne tant qu'elle tourne : une version publiée est
 # installée seule (brigade-station-mise-a-jour.service).
 Wants=brigade-station-mise-a-jour.timer
+# Ses portes, sa seule sortie : la station la réclame, et ne démarre son
+# travail que quand la sienne est ouverte (brigade-station-porte.service).
+Wants=brigade-station-porte.service
+After=brigade-station-porte.service
 
 [Service]
 Type=simple
@@ -36,6 +40,18 @@ Environment=BRIGADE_STATION_DIR=/var/lib/brigade
 # n'est pas dessous : la cloison le rend en lecture seule.
 Environment=BRIGADE_SANDBOX_BIN=/usr/bin/bwrap
 Environment=BRIGADE_SANDBOX_HIDDEN=/var/lib/brigade:/etc/brigade
+
+# Le réseau, pour tous les projets : l'unité ne joint que la boucle locale. Sa
+# seule sortie est la porte de chaque projet, que tient
+# brigade-station-porte.service, et qui ne laisse passer que la liste blanche
+# de ce projet (Anthropic, GitHub, ce que son dépôt déclare dans
+# .claude/brigade/reseau) ; la station elle-même sort par la sienne. Les
+# ports de ces portes sont écrits dans ce fichier, que la station relit. La
+# boucle locale reste entière : les ports que le setup exporte se joignent
+# comme avant.
+IPAddressDeny=any
+IPAddressAllow=localhost
+Environment=BRIGADE_STATION_PORTES=/var/lib/brigade/portes.json
 
 # Ce que la mise à jour de la station a donné — à root, lisible de tous — :
 # la station le recopie au journal de chaque projet, la file le dit.

@@ -8,6 +8,7 @@ import type { VeilleConnexionMax } from "../connexion-max/veille.ts";
 import { DejaEnCours } from "../runtime.ts";
 import { CONFIGURATION, environnementDuProjet, lireFichierDeConfiguration, type ProjetConfigure } from "./configuration.ts";
 import { ouvrirCuisine, type Cuisine, type OptionsCuisine } from "./cuisine.ts";
+import { lirePortes, UNITE_DES_PORTES, type Portes } from "./portes.ts";
 
 export type OptionsStation = {
   // Le répertoire de la station (`BRIGADE_STATION_DIR`) : sa configuration,
@@ -23,6 +24,10 @@ export type OptionsStation = {
   relectureMs?: number;
   // La connexion Max de la machine, remise à chaque cuisine.
   connexion?: VeilleConnexionMax;
+  // Le fichier des ports des portes que tient `brigade-station-porte`
+  // (`BRIGADE_STATION_PORTES`), ou null : chaque projet sort alors par la
+  // porte que sa ligne nomme, ou sans porte.
+  portes?: string | null;
 };
 
 export type Station = {
@@ -58,10 +63,12 @@ export function ouvrirStation(options: OptionsStation): Station {
   const { racine, env, dire } = options;
   const ouvrir = options.ouvrir ?? ouvrirCuisine;
   const fichier = join(racine, CONFIGURATION);
-  const ouvertes = new Map<string, { ligne: string; cuisine: Cuisine }>();
-  // Un projet refusé ne se réessaie que si sa ligne change — sauf celui qu'un
-  // autre runtime tient encore : il est repris dès qu'il est libre.
-  const refuses = new Map<string, { ligne: string; motif: string; reessayer: boolean }>();
+  const portes = options.portes ?? null;
+  // Ce qui, changé, rouvre un projet : sa ligne, et le port de sa porte.
+  const ouvertes = new Map<string, { cle: string; cuisine: Cuisine }>();
+  // Un projet refusé ne se réessaie que si sa ligne ou sa porte change — sauf
+  // celui qu'un autre runtime tient encore : il est repris dès qu'il est libre.
+  const refuses = new Map<string, { cle: string; motif: string; reessayer: boolean }>();
   let ditsProblemes = "";
   let arretee = false;
 
@@ -76,18 +83,33 @@ export function ouvrirStation(options: OptionsStation): Station {
     }
   };
 
-  const tenter = (projet: ProjetConfigure) => {
+  const portDe = (projet: ProjetConfigure, lus: Portes | null): number | null => lus?.projets[projet.nom] ?? null;
+  const cleDe = (projet: ProjetConfigure, lus: Portes | null) => (lus === null ? projet.ligne : `${projet.ligne} porte=${portDe(projet, lus) ?? "-"}`);
+
+  // L'environnement d'un projet : sous les portes de la station, le port de
+  // la sienne — jamais celle d'un autre projet, ni celle de la station.
+  const environnement = (projet: ProjetConfigure, lus: Portes | null) => {
+    const sien = environnementDuProjet(racine, projet, env);
+    if (lus === null) return sien;
+    if ("BRIGADE_PROXY_PORT" in projet.reglages) throw new Error(`BRIGADE_PROXY_PORT ne se règle pas sur sa ligne : la station donne à chaque projet sa porte (${UNITE_DES_PORTES})`);
+    const port = portDe(projet, lus);
+    if (port === null) throw new Error(`sa porte n'est pas ouverte — ${UNITE_DES_PORTES} n'a pas écrit son port dans ${portes} (journalctl -u ${UNITE_DES_PORTES}) ; la station l'ouvre dès qu'elle l'est`);
+    return { ...sien, BRIGADE_PROXY_PORT: String(port) };
+  };
+
+  const tenter = (projet: ProjetConfigure, lus: Portes | null) => {
     const dit = auNomDe(dire, projet.nom);
+    const cle = cleDe(projet, lus);
     try {
-      const cuisine = enCours.run(projet.nom, () => ouvrir(environnementDuProjet(racine, projet, env), { dire: dit, connexion: options.connexion }));
-      ouvertes.set(projet.nom, { ligne: projet.ligne, cuisine });
+      const cuisine = enCours.run(projet.nom, () => ouvrir(environnement(projet, lus), { dire: dit, connexion: options.connexion }));
+      ouvertes.set(projet.nom, { cle, cuisine });
       refuses.delete(projet.nom);
       dit(`servi par la station — ${projet.depot}, branche ${projet.base}, état dans ${cuisine.repertoireEtat}`);
     } catch (erreur) {
       const motif = message(erreur);
       const avant = refuses.get(projet.nom);
-      refuses.set(projet.nom, { ligne: projet.ligne, motif, reessayer: erreur instanceof DejaEnCours });
-      if (avant?.motif !== motif || avant.ligne !== projet.ligne) dit(`refusé par la station, les autres projets restent servis — ${motif}`);
+      refuses.set(projet.nom, { cle, motif, reessayer: erreur instanceof DejaEnCours });
+      if (avant?.motif !== motif || avant.cle !== cle) dit(`refusé par la station, les autres projets restent servis — ${motif}`);
     }
   };
 
@@ -98,19 +120,22 @@ export function ouvrirStation(options: OptionsStation): Station {
     if (dits !== ditsProblemes) for (const probleme of problemes) dire(`brigade : station — ${probleme}`);
     ditsProblemes = dits;
 
+    const lus = portes === null ? null : lirePortes(portes);
+
     const voulus = new Map(projets.map((projet) => [projet.nom, projet]));
     for (const [nom, ouverte] of [...ouvertes]) {
       const voulu = voulus.get(nom);
-      if (voulu?.ligne === ouverte.ligne) continue;
-      auNomDe(dire, nom)(voulu ? "sa ligne a changé : la station le rouvre" : "retiré de la configuration : la station ne le sert plus");
+      if (voulu && cleDe(voulu, lus) === ouverte.cle) continue;
+      const seulementLaPorte = voulu !== undefined && ouverte.cle.startsWith(`${voulu.ligne} porte=`);
+      auNomDe(dire, nom)(!voulu ? "retiré de la configuration : la station ne le sert plus" : seulementLaPorte ? "sa porte a changé de port : la station le rouvre" : "sa ligne a changé : la station le rouvre");
       fermer(nom, voulu ? "reconfigured" : "removed");
     }
     for (const nom of [...refuses.keys()]) if (!voulus.has(nom)) refuses.delete(nom);
     for (const projet of projets) {
       if (ouvertes.has(projet.nom)) continue;
       const refus = refuses.get(projet.nom);
-      if (refus && refus.ligne === projet.ligne && !refus.reessayer) continue;
-      tenter(projet);
+      if (refus && refus.cle === cleDe(projet, lus) && !refus.reessayer) continue;
+      tenter(projet, lus);
     }
   };
 

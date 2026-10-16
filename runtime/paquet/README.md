@@ -6,7 +6,8 @@ root. Le parcours du chef est dans [`docs/installation-station.md`](../../docs/i
 ici, ce que le paquet porte et comment il se construit.
 
 L'ancien chemin — une installation par projet, `runtime/deploy/`, ses drop-ins et ses règles
-sudoers — n'est pas touché par ce paquet, et n'en a pas besoin.
+sudoers — n'est pas touché par ce paquet, et n'en a pas besoin ; la bascule le retire d'une machine
+qui le servait, portes comprises (« La porte réseau »).
 
 ## Construire
 
@@ -34,6 +35,7 @@ Le paquet pèse une trentaine de mégaoctets : le binaire `node` en fait l'essen
 | `/usr/lib/brigade-station/node/bin/node` | le `node` de la station : celui de la machine n'y est pour rien |
 | `/usr/lib/brigade-station/renouvellement` | le renouvellement de la session Max (`runtime/deploy/brigade-renouvellement`, repris tel quel) |
 | `/usr/lib/systemd/system/brigade-station.service` | la station : un seul process, tous les projets de `/var/lib/brigade/projets` |
+| `/usr/lib/systemd/system/brigade-station-porte.service` | ses portes : la sortie réseau de la station et de chaque projet, un process pour toutes |
 | `/usr/lib/systemd/system/brigade-station-renouvellement.{service,timer}` | le renouvellement, toutes les trente secondes |
 | `/usr/lib/systemd/system/brigade-station-mise-a-jour.{service,timer}` | la mise à jour de la station, toutes les dix minutes — la seule part de la station qui tourne sous root |
 
@@ -52,11 +54,38 @@ réactive pas ce que l'administrateur a désactivé. Le retrait arrête la stati
 `/var/lib/brigade` ni au compte ; la purge retire en plus ses liens d'activation.
 
 La station tourne sous `brigade`, avec `BRIGADE_STATION_DIR=/var/lib/brigade` et la cloison des
-cooks posée pour tous les projets (`bwrap`, `/var/lib/brigade` et `/etc/brigade` masqués). La porte
-réseau d'un projet n'est pas encore tenue par le paquet.
+cooks posée pour tous les projets (`bwrap`, `/var/lib/brigade` et `/etc/brigade` masqués), et sa
+porte réseau (ci-dessous).
 
 Le `package.json` du runtime livré porte la version du paquet : c'est celle que la station dit
 d'elle-même en démarrant (`/var/lib/brigade/en-service`).
+
+## La porte réseau
+
+L'unité de la station ne joint que la boucle locale (`IPAddressDeny=any`, `IPAddressAllow=localhost`).
+Sa seule sortie est `brigade-station-porte.service` (`runtime/src/station/tenir-portes.ts`), une
+unité à côté, sans filtre, qui ne lance rien : elle tient la porte de la station — Anthropic et
+GitHub seulement — et une porte par projet de `/var/lib/brigade/projets`, ouverte quand le projet
+y entre, fermée quand il en sort. La porte d'un projet ne laisse passer que sa liste blanche :
+Anthropic, GitHub et ce que son dépôt déclare dans `.claude/brigade/reseau`, lu au journal du
+projet (`network.declared`), où vont aussi ses refus (`network.refused`). Ce qu'un projet ouvre
+ne l'est pas pour un autre.
+
+Personne ne choisit les ports : chaque porte reprend celui qu'elle avait, ou en prend un libre, et
+les écrit dans `/var/lib/brigade/portes.json` (`BRIGADE_STATION_PORTES`, dans les deux unités). La
+station y lit le sien — elle attend qu'il y soit avant de rien joindre — et celui de chaque projet,
+qu'elle lui donne ; un projet sans port attend sa porte, un port qui change rouvre son projet, et
+une ligne qui nomme sa propre porte (`BRIGADE_PROXY_PORT`) est refusée.
+
+La station réclame ses portes (`Wants=`, `After=`) : elles ne sont pas activées pour elles-mêmes, et
+une station installée par un paquet qui ne les connaissait pas les démarre à sa première relance.
+À chaque mise à jour, `postinst` les relance avant la station, si elles tournent : chacune reprend
+son port, et les tunnels ouverts sont coupés le temps de la relance.
+
+La bascule d'une machine servie à l'ancienne arrête et retire les `brigade-porte@<projet>`, et
+écrit leurs ports dans `portes.json` avant que la station ne démarre : chaque porte de la station
+reprend le port de l'ancienne, et la même liste, lue au même journal. Un cook en vol à la bascule
+la retrouve où il la connaît, après la coupure de la bascule.
 
 ## La mise à jour
 
@@ -113,11 +142,18 @@ sudo sh installer-station.sh ./brigade-station_<version>_amd64.deb
 ```
 
 C'est la commande du guide, le paquet donné au lieu d'être téléchargé. Elle se termine sur
-`systemctl status brigade-station` actif et `station installée et active — <version>`. Pour la
+`systemctl status brigade-station` actif et `station installée et active — <version>`. La porte
+se voit ensuite, un projet servi : `cat /var/lib/brigade/portes.json` donne le port de la sienne, et
+`curl -sI -x http://127.0.0.1:<port> https://example.org` y reçoit un `403` qui nomme l'hôte et la
+ligne qui l'ouvrirait ; `journalctl -u brigade-station-porte` dit le refus, et le journal du projet
+le porte (`network.refused`). Que l'unité de la station ne sorte pas sans elle se lit à son
+démarrage, pour chaque projet : `réseau — liste blanche, par la porte 127.0.0.1:<port> — un envoi
+direct est refusé par le noyau : l'unité filtre` (`journalctl -u brigade-station`) ; un `MAIS` y dit
+un filtre qui ne tient pas. Pour la
 défaire : `sudo apt purge brigade-station`, puis, si la machine resservira, `sudo rm -r
 /var/lib/brigade` et `sudo deluser --remove-home brigade`.
 
-Les tests (`runtime/test/paquet/`) construisent un paquet, l'ouvrent, y lancent la station telle que
+Les tests (`runtime/test/paquet/`) construisent un paquet, l'ouvrent, y lancent la station et ses portes telles que
 son unité la lance, et jouent `postinst`, `prerm` et `installer-station.sh` sur des doublures des
 commandes du système. Ils ne remplacent pas cet essai : aucun n'installe le paquet pour de vrai.
 
