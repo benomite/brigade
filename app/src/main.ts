@@ -595,14 +595,15 @@ ipcMain.handle("demander", (_, nom: unknown, ticket: unknown) => {
   return "refus" in ecrit ? ecrit : terminaux.inscrire(vise, ecrit.demande, noteDeLaDemande);
 });
 // Les gestes de la fiche d'un ticket, à cet instant (gestes-fiche.ts) : d'après la carte cliquée,
-// ceux que la table du chef permet pour son état et dont l'action est branchée, chacun avec son prix.
+// ceux qui tranchent ce qu'on attend du chef, puis ceux que la table du chef permet pour son état,
+// dont l'action est branchée, chacun avec son prix.
 ipcMain.handle("gestesDeFiche", (_, carte: unknown) => gestesDeCarte(carte));
-// Un geste de la fiche que la vue ne joue pas elle-même : la commande que la file nomme pour ce
-// ticket, écrite dans le second sans Entrée — relue dans le dernier bloc `attend`, jamais venue
-// de la vue —, ou une action de box, qui part dans le second comme un geste du socle.
+// Un geste de la fiche que la vue ne joue pas elle-même : une action de box, qui part dans le
+// second comme un geste du socle. La vue nomme le geste, le ticket et la valeur ; la commande se
+// compose ici, jamais dans la vue.
 ipcMain.handle("gesteDeFiche", (_, nom: unknown, id: unknown, ticket: unknown, valeur: unknown) => {
   const vise = connu(nom);
-  return vise === undefined ? parti(nom) : jouerGesteDeFiche(terminaux, vise, id, ticket, valeur, faits.attendu(vise.nom, ticket)?.lignes);
+  return vise === undefined ? parti(nom) : jouerGesteDeFiche(terminaux, vise, id, ticket, valeur);
 });
 // La question qu'une carte de T'attend pose, telle qu'elle est écrite sur son issue (question.ts) :
 // l'issue est lue par le `gh` du poste — celui du chef —, à l'ouverture de sa fiche. La vue nomme le

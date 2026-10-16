@@ -5,7 +5,7 @@
 import { direActivite, type Activite } from "./activite.ts";
 import { activitesDuRail, type ActiviteDeTicket } from "./activites.ts";
 import { DIRE_GATES_COUPEES } from "./evenements/pass.ts";
-import { attentesDuChef, decrireAttentes, direAttente, nommerAttente, passageEnService, type Attente, type Passage } from "./attend.ts";
+import { attentesDuChef, decisionDe, decrireAttentes, direAttente, nommerAttente, passageEnService, type Attente, type Decision, type Passage } from "./attend.ts";
 import { geste } from "./geste.ts";
 import { fournitTout } from "./capacites.ts";
 import type { Evenement } from "./evenements.ts";
@@ -669,7 +669,9 @@ export type Faits = {
   // `url` : l'adresse de l'issue, celle du rail ou, hors rail, celle que le dépôt
   // de la box donne ; nulle quand la box ne connaît pas son dépôt. `titre` : celui
   // du rail, vide pour une issue qui n'y est pas — le journal ne le connaît pas.
-  attend: Array<{ ticket: number; titre: string; url: string | null }>;
+  // `decision` : ce que la ligne du bloc attend du chef, en champs (attend.ts,
+  // `Decision`) — celle de la première ligne du ticket, s'il en a plusieurs.
+  attend: Array<{ ticket: number; titre: string; url: string | null; decision: Decision }>;
   // Les tickets servis dans les 24 h avant `lu`, le plus récent d'abord — ceux
   // que `compteurs.livres24h` compte, un pour un, encore sur le rail ou non.
   // `livre` : l'heure de son service. `station` : celle qui l'a cuisiné, nulle
@@ -786,10 +788,11 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string): Fait
     cooks: etat.auxFourneaux.flatMap(({ station, ticket }) =>
       ticket === null ? [] : [{ ticket, titre: etat.rail.find((surLeRail) => surLeRail.ticket === ticket)?.title ?? "", station }],
     ),
-    attend: etat.attend.flatMap(({ ticket, title }) => {
-      if (ticket === null || attendus.has(ticket)) return [];
+    attend: etat.attend.flatMap((attente) => {
+      if (attente.ticket === null || attendus.has(attente.ticket)) return [];
+      const { ticket, title } = attente;
       attendus.add(ticket);
-      return [{ ticket, titre: title ?? "", url: adresse(ticket) }];
+      return [{ ticket, titre: title ?? "", url: adresse(ticket), decision: decisionDe(attente) }];
     }),
     livres: etat.livres.map(({ ticket, title, url, servedAt, station, pr, review }) => ({ ticket, titre: title, url: url ?? adresse(ticket), livre: servedAt, station, pr, relecture: relectureLivree(review) })),
     urgence: faitsDUrgence(etat.urgence, etat.alerteUrgence, adresse),

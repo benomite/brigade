@@ -1,13 +1,15 @@
 // Les gestes de la fiche d'un ticket (#639) : ceux qu'il est possible de faire sur lui à cet instant,
-// et seulement ceux-là, chacun avec son prix. Pour chaque état de la table du chef, l'ensemble exact
-// des gestes proposés — avec les actions telles qu'elles sont branchées (`ACTIONS`), et une fois
-// branchées celles qui ne le sont pas encore : WAITING (#588) et le navigateur (#620).
+// et seulement ceux-là, chacun avec son prix — nul quand il ne coûte rien. Pour chaque état de la
+// table du chef, l'ensemble exact des gestes proposés — avec les actions telles qu'elles sont
+// branchées (`ACTIONS`), et une fois branchées celles qui ne le sont pas encore : WAITING (#588) et
+// le navigateur (#620). Et, sur un ticket qui t'attend, ceux qui tranchent la décision (#832).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { Projet } from "../src/config.ts";
 import { demandeSurLeTicket, REFUS_CONTROLE_TICKET } from "../src/demande.ts";
 import { tenirFaits, type Faits } from "../src/faits.ts";
-import { ACTIONS, type Actions, type CarteDeFiche, commandesDeLaFile, gestesDeCarte, gestesDeLaFiche, jouerGesteDeFiche, PRIORITES, PRIX } from "../src/gestes-fiche.ts";
+import type { Decision } from "../src/decision.ts";
+import { ACTIONS, type Actions, type CarteDeFiche, gestesDeCarte, gestesDeLaFiche, jouerGesteDeFiche, PRIORITES, PRIX } from "../src/gestes-fiche.ts";
 import type { Terminal } from "../src/terminaux.ts";
 
 const PARADE: Projet = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
@@ -16,7 +18,7 @@ const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "sec
 // Les actions qui attendent leur épique, branchées pour l'essai.
 const TOUT: Actions = { ...ACTIONS, waiting: { app: true }, navigateur: { app: true, si: (carte) => carte.ticket !== 99 } };
 
-const carte = (etat: string | undefined, plus: Partial<CarteDeFiche> = {}): CarteDeFiche => ({ ticket: 21, ...(etat === undefined ? {} : { etat }), ouvrable: true, attendu: false, attend: [], ...plus });
+const carte = (etat: string | undefined, plus: Partial<CarteDeFiche> = {}): CarteDeFiche => ({ ticket: 21, ...(etat === undefined ? {} : { etat }), ouvrable: true, attendu: false, ...plus });
 const ids = (carteDuTicket: CarteDeFiche, actions?: Actions) => gestesDeLaFiche(carteDuTicket, actions).map(({ id }) => id);
 
 describe("la table du chef : pour chaque état, l'ensemble exact des gestes proposés", () => {
@@ -51,27 +53,33 @@ describe("la table du chef : pour chaque état, l'ensemble exact des gestes prop
     assert.ok(!ids(carte("en attente", { ouvrable: false }), TOUT).includes("issue"));
   });
 
-  test("qui t'attend : en plus, le geste que la file nomme — et la demande au second reste, en un clic", () => {
-    const ligne = "depuis 3 h  revenu de WAITING, repris par le chef — à trancher : `brigade parade waiting arrived 21` le renvoie en cuisine ; `brigade parade waiting set 21 --what <ce qu'il attend> --from <qui>` le remet en attente ; ou retirer `fire`";
-    const attendu = carte("en attente", { attendu: true, attend: [ligne] });
-    const proposes = gestesDeLaFiche(attendu);
+  test("qui t'attend : d'abord les gestes qui tranchent la décision, le premier recommandé — puis ceux de tous, chacun une fois", () => {
+    const renonce: Decision = { quoi: "remontee", motif: "still-red", cause: "manager-escalated", pr: "https://github.com/o/r/pull/8" };
+    const proposes = gestesDeLaFiche(carte("86", { attendu: true, decision: renonce }));
     assert.deepEqual(
-      proposes.map(({ id, libelle }) => [id, libelle]),
+      proposes.map(({ id, libelle, recommande }) => [id, libelle, recommande === true]),
       [
-        ["issue", "open the issue"],
-        ["second", "ask the second"],
-        // La commande qui attend des mots du chef n'est pas reprise : elle se lit dans la ligne.
-        ["file", "waiting arrived 21"],
-        ["priorite", "change the priority"],
-        ["retirer", "remove from the rail"],
+        ["merger", "merge the PR", true],
+        ["retirer", "remove from the rail", false],
+        ["issue", "open the issue", false],
+        ["second", "ask the second", false],
+        ["priorite", "change the priority", false],
       ],
     );
-    assert.deepEqual(proposes.find(({ id }) => id === "file"), { id: "file", libelle: "waiting arrived 21", prix: PRIX.file, suite: "waiting arrived 21", rang: 0 });
-    assert.deepEqual(ids(attendu, TOUT), ["issue", "second", "file", "priorite", "retirer", "waiting"]);
+    // En attente, le retrait que la table donne déjà n'est posé qu'une fois, à la place de la décision.
+    assert.deepEqual(ids(carte("en attente", { attendu: true, decision: { ...renonce, pr: null } })), ["retirer", "issue", "second", "priorite"]);
+    // Revenu de WAITING : le renvoyer en cuisine, recommandé.
+    const repris = gestesDeLaFiche(carte("86", { attendu: true, decision: { quoi: "repris", motif: null, cause: null, pr: null } }));
+    assert.deepEqual(repris.map(({ id }) => id), ["cuisine", "retirer", "issue", "second", "priorite"]);
+    assert.equal(repris[0]?.recommande, true);
+    // L'issue recommandée ne se propose que si elle s'ouvre.
+    assert.deepEqual(ids(carte("86", { attendu: true, ouvrable: false, decision: { quoi: "86", motif: "no-calibration", cause: null, pr: null } })), ["second", "priorite"]);
     // Un ticket qui t'attend sans être sur le rail : ni priorité, ni retrait — il n'y a pas de mot d'état.
-    assert.deepEqual(ids(carte(undefined, { attendu: true, attend: [ligne] })), ["issue", "second", "file"]);
-    // La file ne nomme aucune commande : la demande au second, sans geste de la file.
-    assert.deepEqual(ids(carte("en pass", { attendu: true, attend: ["depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main"] })), ["issue", "second", "priorite"]);
+    assert.deepEqual(ids(carte(undefined, { attendu: true, decision: { quoi: "ecartee", motif: "question", cause: null, pr: null } })), ["issue", "second"]);
+    // Sans décision — une box d'avant ce champ —, rien de plus que les gestes de tous.
+    assert.deepEqual(ids(carte("en pass", { attendu: true })), ["issue", "second", "priorite"]);
+    // Une décision sur une carte qui ne t'attend pas n'ajoute rien.
+    assert.deepEqual(ids(carte("en pass", { decision: renonce })), ["issue", "second", "priorite"]);
   });
 
   test("un mot que la table ne nomme pas — 86, WAITING, un mot inconnu — n'ajoute rien aux gestes de tous", () => {
@@ -81,70 +89,69 @@ describe("la table du chef : pour chaque état, l'ensemble exact des gestes prop
     }
   });
 
-  test("chaque geste dit son prix, en clair — et la priorité se choisit parmi celles que le runtime prend", () => {
-    const tous = gestesDeLaFiche(carte("servi", { pr: true, attendu: true, attend: ["`brigade parade pass 21`"] }), TOUT).concat(gestesDeLaFiche(carte("en attente"), TOUT));
-    for (const { id, prix } of tous) assert.match(prix, /^(none|the )/, id);
-    assert.equal(tous.find(({ id }) => id === "retirer")?.prix, "the ticket leaves the rail and is not cooked; its issue stays open and loses its `fire` label — put it back to bring the ticket back on the rail. Nothing is lost, nothing is spent");
+  test("un geste qui ne coûte rien n'a pas de prix ; un geste qui coûte le dit en clair — et la priorité se choisit parmi celles que le runtime prend", () => {
+    const renonce: Decision = { quoi: "remontee", motif: "still-red", cause: null, pr: "https://github.com/o/r/pull/8" };
+    const tous = [
+      ...gestesDeLaFiche(carte("servi", { pr: true }), TOUT),
+      ...gestesDeLaFiche(carte("en attente"), TOUT),
+      ...gestesDeLaFiche(carte("86", { attendu: true, decision: renonce })),
+      ...gestesDeLaFiche(carte("86", { attendu: true, decision: { quoi: "repris", motif: null, cause: null, pr: null } })),
+    ];
+    const prix = Object.fromEntries(tous.map(({ id, prix: cout }) => [id, cout]));
+    assert.deepEqual(prix, { issue: null, pr: null, second: null, priorite: null, navigateur: null, waiting: null, merger: PRIX.merger, retirer: PRIX.retirer, cuisine: PRIX.cuisine });
+    assert.equal(PRIX.retirer, "the ticket leaves the rail and is not cooked; its issue stays open and loses its `fire` label — put it back to bring the ticket back on the rail. Nothing is lost, nothing is spent");
+    assert.match(PRIX.merger, /merged into the integration branch/);
     assert.deepEqual(tous.find(({ id }) => id === "priorite")?.valeurs, PRIORITES);
     assert.deepEqual(PRIORITES, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "none"]);
   });
 
   test("d'une carte venue de la vue : ce qui n'a pas la forme d'une carte n'a pas de geste", () => {
-    for (const brut of [undefined, null, "carte", { ticket: "21" }, { ticket: 21 }]) assert.deepEqual(gestesDeCarte(brut), [], JSON.stringify(brut));
+    for (const brut of [undefined, null, "carte", { ticket: "21" }, { ticket: 2.5 }]) assert.deepEqual(gestesDeCarte(brut), [], JSON.stringify(brut));
+    // Un numéro seul : ni issue qui s'ouvre, ni mot d'état — la demande au second, seule.
+    assert.deepEqual(gestesDeCarte({ ticket: 21 }).map(({ id }) => id), ["second"]);
     assert.deepEqual(gestesDeCarte({ ticket: 21, etat: "en attente", ouvrable: true, attendu: false, attend: [] }).map(({ id }) => id), ["issue", "second", "priorite", "retirer"]);
-  });
-});
-
-describe("le geste que la file nomme", () => {
-  test("les commandes entre backticks, sous leur forme de box, dans l'ordre, une fois chacune — rien de ce qui attend des mots du chef", () => {
-    assert.deepEqual(commandesDeLaFile(["a `brigade parade pass 8` puis `brigade parade grant enable merge`", "encore `brigade parade pass 8`"]), ["pass 8", "grant enable merge"]);
-    assert.deepEqual(commandesDeLaFile(["`brigade parade waiting set 8 --what <quoi> --from <qui>`", "retirer `fire`", "`gh pr merge 31`", "`brigade parade pass 8; rm -rf /`"]), []);
+    // Une décision qui n'en a pas la forme est ignorée : la carte garde les gestes de tous.
+    const decision = { quoi: "remontee", motif: "still-red", cause: null, pr: "https://github.com/o/r/pull/8" };
+    assert.deepEqual(gestesDeCarte({ ticket: 21, etat: "86", ouvrable: true, attendu: true, decision }).map(({ id }) => id), ["merger", "retirer", "issue", "second", "priorite"]);
+    assert.deepEqual(gestesDeCarte({ ticket: 21, etat: "86", ouvrable: true, attendu: true, decision: { ...decision, pr: 8 } }).map(({ id }) => id), ["issue", "second", "priorite"]);
   });
 });
 
 describe("jouer un geste de la fiche", () => {
   const registre = () => {
     const envoyes: string[] = [];
-    const inscrits: string[] = [];
-    return {
-      envoyes,
-      inscrits,
-      terminaux: { envoyer: async (_: Projet, commande: string) => (envoyes.push(commande), SECOND), inscrire: (_: Projet, commande: string) => (inscrits.push(commande), SECOND) },
-    };
+    return { envoyes, terminaux: { envoyer: async (_: Projet, commande: string) => (envoyes.push(commande), SECOND) } };
   };
-  const ATTEND = ["depuis 3 h  à trancher : `brigade parade waiting arrived 21` le renvoie en cuisine"];
 
-  test("la commande de la file s'écrit dans le second, sans Entrée, dans sa forme de poste — relue dans le bloc, jamais venue de la vue", async () => {
-    const { terminaux, inscrits, envoyes } = registre();
-    assert.equal(jouerGesteDeFiche(terminaux, PARADE, "file", 21, 0, ATTEND), SECOND);
-    assert.deepEqual(inscrits, ["!ssh box brigade parade waiting arrived 21"]);
-    assert.deepEqual(envoyes, []);
-    assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, "file", 21, 1, ATTEND), { refus: "nothing is written: the `attend` block no longer names this command for #21" });
-    assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, "file", 21, "waiting arrived 21", ATTEND), { refus: "nothing is written: the `attend` block no longer names this command for #21" });
-    assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, "file", 21, 0, undefined), { refus: "nothing is written: the `attend` block no longer names #21" });
-  });
-
-  test("changer la priorité et retirer du rail partent dans le second, sous la commande `rail` de la box (#637) ; une priorité hors de la liste ne part pas", async () => {
+  test("changer la priorité, retirer du rail, merger, renvoyer en cuisine partent dans le second, sous les commandes de la box (#637) ; une priorité hors de la liste ne part pas", async () => {
     const { terminaux, envoyes } = registre();
-    assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "priorite", 21, "2", undefined), SECOND);
-    assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "priorite", 21, "none", undefined), SECOND);
-    assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "retirer", 21, undefined, undefined), SECOND);
-    assert.deepEqual(envoyes, ["!ssh box brigade parade rail priority 21 2", "!ssh box brigade parade rail priority 21 none", "!ssh box brigade parade rail remove 21"]);
+    assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "priorite", 21, "2"), SECOND);
+    assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "priorite", 21, "none"), SECOND);
+    assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "retirer", 21, undefined), SECOND);
+    assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "merger", 21, undefined), SECOND);
+    assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "cuisine", 21, undefined), SECOND);
+    assert.deepEqual(envoyes, [
+      "!ssh box brigade parade rail priority 21 2",
+      "!ssh box brigade parade rail priority 21 none",
+      "!ssh box brigade parade rail remove 21",
+      "!ssh box brigade parade rail merge 21",
+      "!ssh box brigade parade waiting arrived 21",
+    ]);
     for (const mauvaise of ["0", "10", "1.5", "", 3, undefined]) {
-      assert.match((jouerGesteDeFiche(terminaux, PARADE, "priorite", 21, mauvaise, undefined) as { refus: string }).refus, /^nothing is sent: the priority .* is not one of 1, 2, 3, 4, 5, 6, 7, 8, 9, none$/, String(mauvaise));
+      assert.match((jouerGesteDeFiche(terminaux, PARADE, "priorite", 21, mauvaise) as { refus: string }).refus, /^nothing is sent: the priority .* is not one of 1, 2, 3, 4, 5, 6, 7, 8, 9, none$/, String(mauvaise));
     }
-    assert.equal(envoyes.length, 3);
+    assert.equal(envoyes.length, 5);
   });
 
-  test("une action qui n'est pas branchée ne part pas — ni un projet sans box, ni un ticket qui n'en est pas un", () => {
-    const { terminaux, envoyes, inscrits } = registre();
-    for (const id of ["waiting", "navigateur", "issue", "inconnu"]) {
-      assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, id, 21, "2", ATTEND), { refus: `nothing is sent: “${id}” is not an action of the box that this app can run` }, id);
+  test("une action qui n'est pas branchée ne part pas — ni la commande d'une file, ni un projet sans box, ni un ticket qui n'en est pas un", () => {
+    const { terminaux, envoyes } = registre();
+    for (const id of ["waiting", "navigateur", "issue", "file", "inconnu", "toString"]) {
+      assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, id, 21, "2"), { refus: `nothing is sent: “${id}” is not an action of the box that this app can run` }, id);
     }
-    assert.deepEqual(jouerGesteDeFiche(terminaux, { nom: "parade", dossier: "/p" }, "file", 21, 0, ATTEND), { refus: "nothing is sent: “parade” has no box — there is no command to run" });
-    assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, "file", "21", 0, ATTEND), { refus: "nothing is sent: the action names no ticket" });
-    assert.deepEqual(jouerGesteDeFiche(terminaux, { ...PARADE, refus: "illisible" }, "file", 21, 0, ATTEND), { refus: "nothing is sent: “parade” does not open — illisible" });
-    assert.deepEqual([envoyes, inscrits], [[], []]);
+    assert.deepEqual(jouerGesteDeFiche(terminaux, { nom: "parade", dossier: "/p" }, "retirer", 21, undefined), { refus: "nothing is sent: “parade” has no box — there is no command to run" });
+    assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, "retirer", "21", undefined), { refus: "nothing is sent: the action names no ticket" });
+    assert.deepEqual(jouerGesteDeFiche(terminaux, { ...PARADE, refus: "illisible" }, "retirer", 21, undefined), { refus: "nothing is sent: “parade” does not open — illisible" });
+    assert.deepEqual(envoyes, []);
   });
 });
 

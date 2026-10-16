@@ -80,7 +80,9 @@ export function histoireDe(sortie: string): Histoire {
 
 // Ce que la fiche d'un ticket vivant dit en plus : ce que son cook fait en ce moment (ticket pris
 // ou en pass), ou ce qui le bloque (ticket en attente). Lu des faits que sa carte porte — mots du
-// runtime, mot pour mot ; ce qui manque est écrit.
+// runtime, mot pour mot ; ce qui manque est écrit. Jamais la ligne de la file : ce qu'on attend
+// du chef se dit en tête de la fiche, dans les mots de l'app (decision.ts) — et rien ici ne le
+// répète quand la carte ne dit rien d'autre.
 export type Situation = { libelle: string; lignes: string[] } | undefined;
 type Carte = { etat?: string; attendu?: boolean; attend: readonly string[]; dit: readonly { libelle: string; valeur: string }[] };
 
@@ -96,8 +98,8 @@ export function situation(carte: Carte): Situation {
   }
   if ((etat !== undefined && EN_ATTENTE.includes(etat)) || carte.attend.length > 0) {
     const dits = carte.dit.filter(({ libelle }) => CE_QUI_BLOQUE.includes(libelle)).map(({ libelle, valeur }) => `${libelle}: ${valeur}`);
-    const lignes = [...dits, ...carte.attend];
-    return { libelle: "blocked", lignes: lignes.length === 0 ? ["what blocks it: not communicated"] : lignes };
+    if (dits.length > 0) return { libelle: "blocked", lignes: dits };
+    return carte.attend.length > 0 ? undefined : { libelle: "blocked", lignes: ["what blocks it: not communicated"] };
   }
   return undefined;
 }

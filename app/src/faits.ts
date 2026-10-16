@@ -15,6 +15,7 @@ import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
 import { lignesDuRail, porter, type Porte } from "./bon.ts";
 import type { Echec, Lecture } from "./box.ts";
+import { attenduDe, decisionLue, type Decision } from "./decision.ts";
 import { entete, type Entete } from "./fiche.ts";
 
 export const COMMANDE = "facts";
@@ -26,7 +27,9 @@ export type Cook = { ticket: number; titre: string; station: string };
 // Un ticket que le bloc `attend` nomme, et ce que `faits` en donne : son titre —
 // vide s'il n'est pas sur le rail, le journal ne le connaît pas — et l'adresse de
 // son issue, que la box donne : nulle quand elle n'en a pas. L'app n'en compose aucune.
-export type Attendu = { ticket: number; titre: string; url: string | null };
+// `decision` : ce que le chef a à trancher, en champs (decision.ts) — absente d'un
+// runtime d'avant ce champ.
+export type Attendu = { ticket: number; titre: string; url: string | null; decision?: Decision };
 
 // Un ticket servi dans les 24 h avant la lecture, que la box garde après la
 // fermeture de son issue : `livre`, l'heure de son service ; `station`, celle qui
@@ -109,10 +112,12 @@ export type Faits = {
 // telle quelle quand l'app n'a pas su la découper. Dans Livré, `pr` : la PR mergée
 // du ticket s'ouvre — faux, son adresse n'est pas en https ; absent, il n'en a pas.
 // Et `livraison` : ce qui a été livré. `fiche` : l'en-tête de sa fiche, qu'un clic sur
-// la carte ouvre par-dessus le rail (fiche.ts). `gestes` : ceux de WAITING que la carte
+// la carte ouvre par-dessus le rail (fiche.ts) — pour une carte qui t'attend, ce qu'on attend
+// de toi, en une phrase (decision.ts). `decision` : ce que `faits` en donne, d'où se lisent
+// cette phrase et les gestes de la fiche ; absente d'un runtime d'avant ce champ. `gestes` : ceux de WAITING que la carte
 // porte (attente.ts) — « waiting for… » sur une carte de TODO que le runtime laisse attendre,
 // « resume » et « it arrived » sur une carte de WAITING ; absent, elle n'en porte aucun.
-export type Carte = { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; pr?: boolean; livraison?: Livraison; fiche: Entete; gestes?: GesteDAttente[] } & Porte;
+export type Carte = { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; fiche: Entete; gestes?: GesteDAttente[] } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -302,7 +307,8 @@ export function comprendre(sortie: string): Faits | { informe: string } {
             attend: (Array.isArray(racine.attend) ? racine.attend : refuser("attend", "a list")).map((attendu: unknown, rang) => {
               const lequel = `attend[${rang}]`;
               const lu = objet(attendu, lequel);
-              return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), url: ouRien(lu.url, `${lequel}.url`, texte) };
+              const decision = lu.decision === undefined ? undefined : (decisionLue(lu.decision) ?? refuser(`${lequel}.decision`, "a decision"));
+              return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), url: ouRien(lu.url, `${lequel}.url`, texte), ...(decision === undefined ? {} : { decision }) };
             }),
           }),
       ...(racine.livres === undefined
@@ -540,11 +546,15 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
       ouvrable: url != null && ouvrable(url),
       attendu: dit !== undefined,
       attend: dit ?? [],
+      ...(dit === undefined || donne?.decision === undefined ? {} : { decision: donne.decision }),
       // Livré, d'une box d'avant `livres` : la relecture n'en vient pas, la carte le dit.
       ...(connu?.etat === "servi" && faits.livres === undefined ? { livraison: livraison(undefined) } : {}),
       ...porte,
       // La PR n'est donnée que d'un ticket livré : ici, la box ne la donne pas.
-      fiche: entete({ ...(titre === undefined ? {} : { titre }), url, ...sur(connu), ...(siennes === undefined ? {} : { lignes: siennes }) }),
+      fiche: {
+        ...entete({ ...(titre === undefined ? {} : { titre }), url, ...sur(connu), ...(siennes === undefined ? {} : { lignes: siennes }) }),
+        ...(dit === undefined ? {} : { attendu: attenduDe(donne?.decision).phrase }),
+      },
       // Dans TODO, un ticket du rail que la cuisine ne tient pas peut attendre un tiers.
       ...(dit !== undefined && connu !== undefined && POSABLES.includes(connu.etat) ? { gestes: ["attente-poser" as const] } : {}),
     };

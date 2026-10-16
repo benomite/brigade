@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 import type { Lecture } from "../src/box.ts";
 import { mettreAPart } from "../src/attend.ts";
+import { SANS_DECISION } from "../src/decision.ts";
 import { ACTIVITE_NON_COMMUNIQUEE, BANNIERE, COMMANDE, comprendre, dessiner, direEnCeMoment, duree, evenement, rail, tableau, tenirFaits, tick, titreDEchec, type Faits } from "../src/faits.ts";
 import type { Entete } from "../src/fiche.ts";
 import { commandeDuGeste, CONFIRMES } from "../src/gestes.ts";
@@ -72,6 +73,10 @@ const fiche = (titre: string | undefined, autre: Partial<Entete> = {}): { fiche:
     ...autre,
   },
 });
+
+// Une carte qui t'attend porte, en tête de sa fiche, ce qu'on attend de toi (decision.ts) : sans
+// décision donnée par `faits` — une box d'avant ce champ, comme ici —, la phrase qui ne devine rien.
+const ATTENDU = { attendu: SANS_DECISION } as const;
 
 const lue = (texte: string): Lecture => ({ projet: "brigade", demande: 4, a: "2026-10-12T10:04:12.000Z", sorties: [{ commande: "facts", texte }] });
 
@@ -245,7 +250,7 @@ describe("les faits que l'app dessine", () => {
               ton: "rouge",
               compte: "1",
               // `attend`, dans la forme, le nomme : il est ici avant même que `status` ait été lu.
-              cartes: [{ ticket: 21, etat: "BLOQUÉ", ton: "rouge", titre: "L'export du journal", ouvrable: true, attendu: true, attend: [], dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns · what blocks it`, ...fiche("L'export du journal"), gestes: ["attente-poser"] }],
+              cartes: [{ ticket: 21, etat: "BLOQUÉ", ton: "rouge", titre: "L'export du journal", ouvrable: true, attendu: true, attend: [], dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns · what blocks it`, ...fiche("L'export du journal", ATTENDU), gestes: ["attente-poser"] }],
               vide: "no ticket in `attend`, according to `facts`",
             },
             { nom: "WAITING", ton: "gris", compte: "0", cartes: [], vide: "no ticket waits for a third party" },
@@ -499,7 +504,7 @@ describe("le rail en six colonnes", () => {
       ["Served", "1", [9]],
     ]);
     // Ce qu'on attend de lui, en mots, n'a pas été lu : la carte l'écrit, et n'offre aucun geste d'après des mots qu'elle n'a pas.
-    assert.deepEqual(dessine.colonnes[3]?.cartes[0], { ticket: 21, etat: "BLOQUÉ", ton: "rouge", titre: "Ticket 21", ouvrable: true, attendu: true, attend: [], ...NUE, ...fiche("Ticket 21"), gestes: ["attente-poser"] });
+    assert.deepEqual(dessine.colonnes[3]?.cartes[0], { ticket: 21, etat: "BLOQUÉ", ton: "rouge", titre: "Ticket 21", ouvrable: true, attendu: true, attend: [], ...NUE, ...fiche("Ticket 21", ATTENDU), gestes: ["attente-poser"] });
     // Aucun ticket n'attend : la colonne le dit de `faits`, et jamais « rien ne t'attend » — une connexion, la base n'y ont pas de carte.
     assert.deepEqual(rail({ ...SANS_LIVRES, rail: RAIL, attend: [] }).colonnes[3], { nom: "TODO", ton: "rouge", compte: "0", cartes: [], vide: "no ticket in `attend`, according to `facts`" });
   });
@@ -528,7 +533,7 @@ describe("le rail en six colonnes", () => {
         ...ATTENDUE,
         // En pass, ce que la pass en fait : un runtime d'avant ce champ ne le dit pas, et la carte l'écrit.
         dit: [{ libelle: "right now", valeur: "activity not given — this box's runtime does not give it in `facts`" }],
-        ...fiche("Ticket 12"),
+        ...fiche("Ticket 12", ATTENDU),
       });
     }
   });
@@ -547,7 +552,7 @@ describe("le rail en six colonnes", () => {
       attendu: true,
       attend: ["depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue"],
       ...ATTENDUE,
-      ...fiche(undefined, { issue: { sans: "not given — the box returns no address for this issue" } }),
+      ...fiche(undefined, { issue: { sans: "not given — the box returns no address for this issue" }, ...ATTENDU }),
     });
   });
 
@@ -564,7 +569,7 @@ describe("le rail en six colonnes", () => {
       attendu: true,
       attend: ["depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue"],
       ...ATTENDUE,
-      ...fiche(undefined),
+      ...fiche(undefined, ATTENDU),
     });
     const titre = rail({ ...SANS_LIVRES, rail: [], attend: [{ ticket: 30, titre: "Un titre", url: "https://github.com/benomite/brigade/issues/30" }] }, BLOC).colonnes[3]?.cartes.find(({ ticket }) => ticket === 30);
     assert.deepEqual([titre?.titre, titre?.ouvrable], ["Un titre", true]);

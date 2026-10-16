@@ -74,7 +74,12 @@ describe("ce que la fiche dit d'un ticket vivant", () => {
       situation({ etat: "en attente", attend: [], dit: [{ libelle: "blocked by", valeur: "#12 not served yet" }, { libelle: "right now", valeur: "x" }] }),
       { libelle: "blocked", lignes: ["blocked by: #12 not served yet"] },
     );
-    assert.deepEqual(situation({ etat: "BLOQUÉ", attend: ["#7 : waits for your decision"], dit: [] }), { libelle: "blocked", lignes: ["#7 : waits for your decision"] });
+  });
+
+  test("qui t'attend : jamais la ligne de la file — l'attendu est en tête de la fiche ; seul ce que la carte dit de plus se lit ici", () => {
+    const ligne = "depuis 40 min  remontée par le manager, rouge — à trancher : merger https://github.com/o/r/pull/8 à la main, ou retirer `fire` — `brigade brigade pass 824`";
+    assert.equal(situation({ etat: "86", attend: [ligne], dit: [] }), undefined);
+    assert.deepEqual(situation({ etat: "BLOQUÉ", attend: [ligne], dit: [{ libelle: "blocked by", valeur: "#12 not served yet" }] }), { libelle: "blocked", lignes: ["blocked by: #12 not served yet"] });
   });
 
   test("bloqué sans que la box dise pourquoi : écrit comme tel", () => {
