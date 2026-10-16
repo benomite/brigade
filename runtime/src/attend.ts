@@ -40,7 +40,7 @@ import type { Ecart } from "./evenements/manager.ts";
 import { epiquesEnAttente } from "./projections/decoupages.ts";
 import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
 import { miseAJourDuJour } from "./mise-a-jour/relais.ts";
-import { etatDeLaBase, gatesDuRouge, lirePass, reparationDeLaBase, type EchecDeReparation, type SansGrant } from "./projections/pass.ts";
+import { etatDeLaBase, gatesDuRouge, lirePass, reparationDeLaBase, type EchecDeReparation, type PassDeTicket, type SansGrant } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
 import { alerteDeSession, type AlerteDeSession } from "./projections/renouvellement.ts";
 import { alerteDuJeton, type AlerteDuJeton } from "./projections/jeton.ts";
@@ -53,18 +53,39 @@ import { SCRIPT_SETUP } from "./gates.ts";
 import { CAUSES_DU_PROJET } from "./mise-de-cote.ts";
 import { REVENU_D_ATTENTE } from "./evenements/rail.ts";
 
+// Ce que le chef lit de la livraison qui l'attend, tel que la pass l'a consigné :
+// `resume`, celui de la relecture ; `constat`, le premier constat bloquant (celui
+// du reviewer, sinon le premier de ce qui a rougi le verdict) ; `juges`, les
+// fichiers de ses juges qu'elle change, avec leurs lignes ajoutées et retirées.
+// Une clé n'y est que si la pass l'a consignée.
+export type Livraison = { resume?: string; constat?: string; juges?: Array<{ fichier: string; ajoutees: number; retirees: number }> };
+
+function livraisonDe(base: Base, pass: PassDeTicket): Livraison | undefined {
+  const resume = pass.review?.summary ?? undefined;
+  const constat = pass.review?.findings.find(({ severity }) => severity === "blocking")?.text ?? pass.findings[0];
+  const verdict = pass.verdictSeq === null ? undefined : base.lire<{ payload: string }>("SELECT payload FROM events WHERE seq = ?", pass.verdictSeq)[0];
+  const consignes: unknown = verdict === undefined ? undefined : (JSON.parse(verdict.payload) as { judges?: unknown }).judges;
+  const juges = Array.isArray(consignes)
+    ? consignes.flatMap((j: { file?: unknown; added?: unknown; removed?: unknown }) =>
+        typeof j?.file === "string" ? [{ fichier: j.file, ajoutees: Number(j.added) || 0, retirees: Number(j.removed) || 0 }] : [],
+      )
+    : [];
+  const livraison: Livraison = { ...(resume ? { resume } : {}), ...(constat ? { constat } : {}), ...(juges.length > 0 ? { juges } : {}) };
+  return Object.keys(livraison).length === 0 ? undefined : livraison;
+}
+
 // `title` : nul pour une issue qui n'est pas sur le rail — le journal ne
 // connaît pas son titre.
 type AttenteDeTicket = { ticket: number; title: string | null; since: string } & (
   // Une livraison verte que la pass ne merge pas elle-même. `reason` : le
   // motif, `cause` : ce qui le précise. `expired` : faute d'un grant qui
   // s'était éteint seul à cet instant.
-  | { quoi: "merge"; reason: string; cause: string | null; pr: string | null; expired: string | null }
+  | { quoi: "merge"; reason: string; cause: string | null; pr: string | null; expired: string | null; livraison?: Livraison }
   // Un ticket que la pass ou le manager a remonté : il est 86, sans retour.
-  | { quoi: "remontee"; reason: string; cause: string | null; pr: string | null }
+  | { quoi: "remontee"; reason: string; cause: string | null; pr: string | null; livraison?: Livraison }
   // Une livraison dont la PR a été fermée sans merge : son ticket tient encore
   // sa place sur le rail. `reason` : ce qu'elle était — arrêtée, remontée.
-  | { quoi: "fermee"; reason: string; cause: string | null; pr: string | null }
+  | { quoi: "fermee"; reason: string; cause: string | null; pr: string | null; livraison?: Livraison }
   // Un ticket que sa station a déclaré 86 sans heure de retour.
   | { quoi: "86"; reason: MotifDeStation }
   // Un ticket 86 parce qu'il demande une capacité qu'aucune station déclarée
@@ -181,7 +202,8 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
   const livraisons = lirePass(base).flatMap((pass): AttenteDeTicket[] => {
     const ticket = tickets.get(pass.ticket);
     if (!ticket) return [];
-    const commun = { ticket: pass.ticket, title: ticket.title, since: pass.since, reason: pass.reason ?? "", cause: pass.cause, pr: pass.pr };
+    const livraison = livraisonDe(base, pass);
+    const commun = { ticket: pass.ticket, title: ticket.title, since: pass.since, reason: pass.reason ?? "", cause: pass.cause, pr: pass.pr, ...(livraison === undefined ? {} : { livraison }) };
     // Revenu de WAITING après avoir été rendu au rail, sa pass d'avant ne dit
     // plus rien de lui : son entrée est celle du retour.
     if (ticket.reason === REVENU_D_ATTENTE && pass.phase !== "held") return [];

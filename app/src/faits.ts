@@ -17,7 +17,7 @@ import { lieuDe, lignesDuRail, porter, type Porte } from "./bon.ts";
 import type { StationDesFaits } from "./ordinaires.ts";
 import type { Echec, Lecture } from "./box.ts";
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues, type Moment } from "./captures.ts";
-import { attenduDe, decisionLue, type Decision } from "./decision.ts";
+import { attenduDe, decisionLue, livraisonLue, teteDe, type Decision, type Livraison as LivraisonAttendue } from "./decision.ts";
 import { entete, type Entete } from "./fiche.ts";
 
 export const COMMANDE = "facts";
@@ -31,7 +31,9 @@ export type Cook = { ticket: number; titre: string; station: string };
 // son issue, que la box donne : nulle quand elle n'en a pas. L'app n'en compose aucune.
 // `decision` : ce que le chef a à trancher, en champs (decision.ts) — absente d'un
 // runtime d'avant ce champ.
-export type Attendu = { ticket: number; titre: string; url: string | null; decision?: Decision };
+// `livraison` : pour une livraison qui attend, ce que la pass en a consigné (decision.ts) — absente
+// quand elle n'a rien consigné, et d'un runtime d'avant ce champ.
+export type Attendu = { ticket: number; titre: string; url: string | null; decision?: Decision; livraison?: LivraisonAttendue };
 
 // Un ticket servi dans les 24 h avant la lecture, que la box garde après la
 // fermeture de son issue : `livre`, l'heure de son service ; `station`, celle qui
@@ -359,7 +361,8 @@ export function comprendre(sortie: string): Faits | { informe: string } {
               const lequel = `attend[${rang}]`;
               const lu = objet(attendu, lequel);
               const decision = lu.decision === undefined ? undefined : (decisionLue(lu.decision) ?? refuser(`${lequel}.decision`, "a decision"));
-              return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), url: ouRien(lu.url, `${lequel}.url`, texte), ...(decision === undefined ? {} : { decision }) };
+              const livraison = lu.livraison === undefined ? undefined : livraisonLue(lu.livraison);
+              return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), url: ouRien(lu.url, `${lequel}.url`, texte), ...(decision === undefined ? {} : { decision }), ...(livraison === undefined ? {} : { livraison }) };
             }),
           }),
       ...(racine.livres === undefined
@@ -539,6 +542,7 @@ export function remarques(constats: readonly Constat[]): string {
 }
 
 // Ce qu'une carte de Livré dit de ce qui a été livré, d'après ce que la box en a donné.
+const tete = (valeur: ReturnType<typeof teteDe>) => (valeur === undefined ? {} : { tete: valeur });
 const livraison = (relecture: Relecture | null | undefined): Livraison =>
   relecture === undefined ? { sans: RELECTURE_PAS_DONNEE } : relecture === null ? { sans: SANS_RELECTURE } : { resume: relecture.resume, remarques: remarques(relecture.constats), constats: relecture.constats };
 // La colonne ne dit jamais « rien ne t'attend » : une entrée sans numéro — une
@@ -613,6 +617,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
       fiche: {
         ...entete({ ...(titre === undefined ? {} : { titre }), url, ...sur(connu), ...(siennes === undefined ? {} : { lignes: siennes }) }),
         ...(dit === undefined ? {} : { attendu: attenduDe(donne?.decision).phrase }),
+        ...(dit === undefined ? {} : tete(teteDe(donne?.decision, donne?.livraison))),
       },
       // Dans TODO, un ticket du rail que la cuisine ne tient pas peut attendre un tiers.
       ...(dit !== undefined && connu !== undefined && POSABLES.includes(connu.etat) ? { gestes: ["attente-poser" as const] } : {}),

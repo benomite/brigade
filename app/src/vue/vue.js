@@ -2414,7 +2414,7 @@ function poserFiche() {
   if (ouverte === undefined) return fiche.replaceChildren();
   const { projet, carte } = ouverte;
   const { ticket, attend } = carte;
-  const { titre, priorite, issue, pr, attendu } = carte.fiche;
+  const { titre, priorite, issue, pr, attendu, tete: teteDeLivraison } = carte.fiche;
   const fermer = bouton("close", fermerFiche);
   fermer.className = "fermer";
   fermer.title = "close the sheet (Esc): the rail is back as you left it";
@@ -2452,7 +2452,25 @@ function poserFiche() {
   const panneau = document.createElement("div");
   panneau.className = "panneau";
   // Ce qu'on attend de toi, en tête, en une phrase : jamais la ligne de la file.
-  const attente = attendu === undefined ? [] : [Object.assign(bloc("p", attendu), { className: "attendu" })];
+  // Une livraison qui attend son merge : deux lignes — ce qu'elle fait, pourquoi elle attend —, puis
+  // ses juges, un fichier par ligne avec ses lignes ajoutées et retirées.
+  const juges = document.createElement("ul");
+  juges.className = "juges";
+  for (const { fichier, ajoutees, retirees } of teteDeLivraison?.juges ?? []) {
+    const ligne = document.createElement("li");
+    ligne.append(exact("code", fichier), ` +${ajoutees} −${retirees}`);
+    juges.append(ligne);
+  }
+  const attente =
+    teteDeLivraison !== undefined
+      ? [
+          ...(teteDeLivraison.fait === undefined ? [] : [Object.assign(bloc("p", teteDeLivraison.fait), { className: "fait" })]),
+          Object.assign(bloc("p", teteDeLivraison.pourquoi), { className: "attendu" }),
+          ...((teteDeLivraison.juges.length > 0) ? [juges] : []),
+        ]
+      : attendu === undefined
+        ? []
+        : [Object.assign(bloc("p", attendu), { className: "attendu" })];
   panneau.append(tete, ...attente, ...(nomme === undefined ? [] : [nomme]), lignes, ...poserHistoire(projet, ticket, carte));
   fiche.replaceChildren(panneau);
   // Un ticket qui t'attend : la question que son issue pose, s'il en pose une — lue à l'ouverture.
