@@ -1010,10 +1010,13 @@ jamais. Tout passe par **GitHub**, où elle écrit son état — dans un **gist 
 - **Le chef tape le code dans l'app** (« Tous les projets », [docs/app.md](app.md)) : l'app trouve le
   gist qui publie cette empreinte et y écrit `brigade-appairage.json`. La station l'y lit à son
   signe de vie suivant, et n'affiche plus de code (`brigade : station appairée à l'app`).
-- **Chaque minute**, elle réécrit `brigade-station.json` : son nom, sa machine, sa version, les
-  projets qu'elle sert, son dernier signe de vie. **Arrêtée** (SIGTERM), elle y écrit l'heure de
-  son arrêt. L'app la dit hors ligne dès qu'elle s'est arrêtée, ou dès qu'elle a manqué deux signes
-  de vie.
+- **Chaque minute**, elle regarde si son état a changé (sans appel GitHub), et ne réécrit
+  `brigade-station.json` — son nom, sa machine, sa version, les projets qu'elle sert, son dernier
+  signe de vie — que sur changement, ou en battement toutes les 5 minutes. Deux écritures, y
+  compris celle que la station demande après l'écriture d'un projet, sont distantes d'au moins
+  60 s : une demande trop proche est retenue, puis écrite à l'échéance. **Arrêtée** (SIGTERM), elle
+  y écrit l'heure de son arrêt, sauf si l'arrêt tombe dans la minute d'une écriture : elle ne retient pas le process pour l'attendre, et l'app la dit hors ligne à son signe de vie manqué. Elle publie `cadenceMs` = 285 s :
+  l'app la dit hors ligne après 2 × `cadenceMs` + 30 s, soit 10 min au plus.
 - **Ses pannes y vont aussi** (`appairage/etats.ts`, #798) : `miseAJour`, sa dernière mise à jour
   quand elle a raté et qu'elle est revenue en arrière (version visée, version restaurée, l'heure,
   et si le retour a raté lui aussi — lue dans `BRIGADE_MISE_A_JOUR_DIR`), et `connexionMax`,

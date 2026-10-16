@@ -6,9 +6,12 @@
 // station l'y lit à son signe de vie suivant, et n'affiche plus de code. Un
 // code échu en tire un autre, tant qu'elle n'est pas appairée.
 //
-// Ensuite, chaque minute, elle réécrit son état — version, projets servis,
-// signe de vie. Arrêtée proprement, elle écrit l'heure de son arrêt : l'app la
-// dit hors ligne dès sa lecture suivante. Éteinte d'un coup, c'est son signe
+// Ensuite, chaque minute, elle regarde si son état — version, projets servis,
+// pannes, code — a changé depuis sa dernière écriture, sans appeler GitHub ; elle
+// n'écrit que sur changement, ou en battement de vie toutes les cinq minutes.
+// Deux écritures, forcées (`publier()`) ou non, sont toujours distantes d'au
+// moins une minute. Arrêtée proprement, elle écrit l'heure de son arrêt : l'app
+// la dit hors ligne dès sa lecture suivante. Éteinte d'un coup, c'est son signe
 // de vie qui vieillit, et l'app le voit.
 //
 // Ce qu'elle garde d'une fois sur l'autre — son gist, son code, son appairage —
@@ -22,8 +25,16 @@ import type { Canal } from "./canal.ts";
 import { description, DUREE_DU_CODE_MS, ECHUS_GARDES, empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, FORMAT, tirerCode, type DocumentStation, type EtatsPublies } from "./document.ts";
 
 export const FICHIER_LOCAL = "appairage.json";
-// Entre deux signes de vie : l'app dit la station hors ligne à la minute près.
-export const CADENCE_MS = 60_000;
+// Entre deux regards sur son état : aucun appel GitHub, une comparaison.
+export const REGARD_MS = 60_000;
+// Sans changement, elle écrit quand même à cette fréquence : son signe de vie.
+export const BATTEMENT_MS = 300_000;
+// Deux écritures dans le gist, quelle qu'en soit la cause, ne se rapprochent pas plus.
+export const ECART_MINIMAL_MS = 60_000;
+// Ce que l'app lit : elle dit la station hors ligne après 2 × cadenceMs + 30 s,
+// et la détection d'un arrêt brutal doit tenir en 10 min au plus. Un battement
+// de 5 min tient dans cette fenêtre : 2 × 285 s + 30 s = 600 s.
+export const CADENCE_MS = 285_000;
 
 export type Identite = { nom: string; machine: string; version: string };
 
@@ -39,14 +50,18 @@ export type OptionsPresence = {
   etats?: () => EtatsPublies;
   // Une ligne du journal de service.
   dire: (ligne: string) => void;
-  cadenceMs?: number;
+  // Un minuteur : appelle `tache` dans `ms`, rend de quoi l'annuler. Sans
+  // `retient`, il ne garde pas le process en vie. Les tests y mettent une
+  // horloge simulée.
+  apres?: (tache: () => void, ms: number, retient?: boolean) => () => void;
   dureeDuCodeMs?: number;
   maintenant?: () => number;
   tirer?: (borne: number) => number;
 };
 
 export type Presence = {
-  // Un signe de vie, tout de suite — après celui qui est en cours.
+  // Un signe de vie, dès que l'écart minimal avec la dernière écriture le
+  // permet — il est alors écrit sans que cet appel l'attende.
   publier(): Promise<void>;
   // Le code à taper dans l'app ; null une fois la station appairée, ou tant
   // que son gist n'est pas créé.
@@ -98,7 +113,11 @@ export function codeAffiche(racine: string): string | null {
 
 export function tenirPresence(options: OptionsPresence): Presence {
   const { canal, identite, dire } = options;
-  const cadenceMs = options.cadenceMs ?? CADENCE_MS;
+  const apres = options.apres ?? ((tache: () => void, ms: number, retient = true) => {
+    const minuteur = setTimeout(tache, ms);
+    if (!retient) minuteur.unref();
+    return () => clearTimeout(minuteur);
+  });
   const dureeDuCodeMs = options.dureeDuCodeMs ?? DUREE_DU_CODE_MS;
   const maintenant = options.maintenant ?? Date.now;
   const fichier = join(options.racine, FICHIER_LOCAL);
@@ -108,6 +127,13 @@ export function tenirPresence(options: OptionsPresence): Presence {
   // La dernière panne dite : la même ne se répète pas à chaque minute.
   let panne: string | null = null;
   let arretee = false;
+  // Le contenu de la dernière écriture réussie (sans ses heures), l'instant de
+  // la dernière tentative, et un signe de vie demandé que l'écart a retenu.
+  let publie: string | null = null;
+  let dernierEcrit = Number.NEGATIVE_INFINITY;
+  let demandee = false;
+  let reportee: (() => void) | null = null;
+  let regard: (() => void) | null = null;
 
   // Une lecture qui lève ne prive pas la station de son signe de vie.
   const etatsPublies = (): EtatsPublies => {
@@ -133,13 +159,18 @@ export function tenirPresence(options: OptionsPresence): Presence {
     ...identite,
     projets: options.projets(),
     signeDeVie: new Date(instant).toISOString(),
-    cadenceMs,
+    cadenceMs: CADENCE_MS,
     arreteeLe: arret ? new Date(instant).toISOString() : null,
     appairage: etat.appairee || etat.code === null || etat.expireLe === null ? null : { empreinte: empreinte(etat.code), expireLe: etat.expireLe },
     echus: etat.appairee ? [] : etat.echus,
     ...etatsPublies(),
   });
-  const fichiers = (instant: number, arret: boolean) => ({ [FICHIER_STATION]: `${JSON.stringify(document(instant, arret), null, 2)}\n` });
+  // Ce qui s'écrit, et ce par quoi on reconnaît qu'il a changé : le document
+  // sans ses heures, qui bougent à chaque écriture.
+  const preparer = (instant: number, arret: boolean) => {
+    const doc = document(instant, arret);
+    return { cle: JSON.stringify({ ...doc, signeDeVie: null, arreteeLe: arret }), fichiers: { [FICHIER_STATION]: `${JSON.stringify(doc, null, 2)}\n` } };
+  };
 
   const repartirDeZero = (pourquoi: string) => {
     etat = { ...VIERGE };
@@ -169,24 +200,54 @@ export function tenirPresence(options: OptionsPresence): Presence {
   };
 
   const cycle = async (arret: boolean) => {
-    const instant = maintenant();
-    if (etat.gist !== null && !etat.appairee && !arret) await lireAppairage(etat.gist);
-    if (!arret) renouvelerCode(instant);
-    if (etat.gist === null) {
-      // Une station qui s'arrête avant d'avoir publié quoi que ce soit n'a rien à dire.
-      if (arret) return;
-      etat = { ...etat, gist: await canal.creer(description(identite.nom), fichiers(instant, false)) };
-      sauver();
-    } else if ((await canal.ecrire(etat.gist, fichiers(instant, arret))) === "absent") {
-      repartirDeZero("son gist a disparu de GitHub");
-      if (arret) return;
-      renouvelerCode(instant);
-      etat = { ...etat, gist: await canal.creer(description(identite.nom), fichiers(instant, false)) };
-      sauver();
+    let instant = maintenant();
+    let appele = false;
+    if (etat.gist !== null && !etat.appairee && !arret) {
+      await lireAppairage(etat.gist);
+      appele = true;
     }
-    if (panne !== null) dire("brigade : station — GitHub répond de nouveau : son état y est publié");
-    panne = null;
-    if (!etat.appairee && etat.code !== null && etat.code !== annonce && etat.expireLe !== null) {
+    if (!arret) renouvelerCode(instant);
+    // Une station qui s'arrête avant d'avoir publié quoi que ce soit n'a rien à dire.
+    if (arret && etat.gist === null) return;
+    if (arret) {
+      // L'arrêt aussi respecte l'écart : il attend le reste. Il ne retient pas le
+      // process : une station qu'on arrête n'attend pas une minute pour le dire,
+      // et l'app la dit hors ligne à son signe de vie manqué.
+      const reste = dernierEcrit + ECART_MINIMAL_MS - instant;
+      if (reste > 0) await new Promise<void>((fin) => apres(fin, reste, false));
+      instant = maintenant();
+    }
+    let ecriture = preparer(instant, arret);
+    const ecart = instant - dernierEcrit;
+    const aEcrire = arret || demandee || etat.gist === null || ecriture.cle !== publie || ecart >= BATTEMENT_MS;
+    if (aEcrire && !arret && ecart < ECART_MINIMAL_MS) {
+      // Trop tôt : le regard suivant, ou ce minuteur, l'écrira.
+      reportee ??= apres(() => {
+        reportee = null;
+        void enchainer(false);
+      }, ECART_MINIMAL_MS - ecart);
+      return;
+    }
+    if (aEcrire) {
+      demandee = false;
+      dernierEcrit = instant;
+      appele = true;
+      if (etat.gist === null) {
+        etat = { ...etat, gist: await canal.creer(description(identite.nom), ecriture.fichiers) };
+        sauver();
+      } else if ((await canal.ecrire(etat.gist, ecriture.fichiers)) === "absent") {
+        repartirDeZero("son gist a disparu de GitHub");
+        if (arret) return;
+        renouvelerCode(instant);
+        ecriture = preparer(instant, false);
+        etat = { ...etat, gist: await canal.creer(description(identite.nom), ecriture.fichiers) };
+        sauver();
+      }
+      publie = ecriture.cle;
+    }
+    if (appele && panne !== null) dire("brigade : station — GitHub répond de nouveau : son état y est publié");
+    if (appele) panne = null;
+    if (aEcrire && !etat.appairee && etat.code !== null && etat.code !== annonce && etat.expireLe !== null) {
       annonce = etat.code;
       dire(`brigade : station à appairer — tape ce code dans l'app : ${etat.code} (valable jusqu'à ${heure(Date.parse(etat.expireLe))})`);
     }
@@ -204,16 +265,28 @@ export function tenirPresence(options: OptionsPresence): Presence {
     return fil;
   };
 
+  const armer = () => {
+    regard = apres(() => {
+      void enchainer(false);
+      armer();
+    }, REGARD_MS);
+  };
   void enchainer(false);
-  const veille = setInterval(() => void enchainer(false), cadenceMs);
+  armer();
 
   return {
-    publier: () => (arretee ? fil : enchainer(false)),
+    publier() {
+      if (arretee) return fil;
+      demandee = true;
+      return enchainer(false);
+    },
     code: () => (etat.appairee || etat.gist === null ? null : etat.code),
     arreter() {
       if (arretee) return fil;
       arretee = true;
-      clearInterval(veille);
+      regard?.();
+      reportee?.();
+      reportee = null;
       return enchainer(true);
     },
   };
