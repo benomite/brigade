@@ -327,8 +327,8 @@ describe("une station distante tire son travail", { concurrency: 8 }, () => {
 
   test("sans commit sur l'origine, ce qu'elle a délimité est son livrable — et sans rien de délimité, elle n'a rien livré", async (t) => {
     const { gh, etat, tirer, reclamer, jusquAu, dernier, compter } = service(t, { stations: lireStations({ BRIGADE_STATIONS: `${MAC}:2:chrome-connecté:distante` }) });
-    poser(gh, 16);
-    poser(gh, 17);
+    poser(gh, 16, "- requiert : chrome-connecté");
+    poser(gh, 17, "- requiert : chrome-connecté");
     await jusqua(() => etat(16) === "86" && etat(17) === "86");
     await tirer({ verb: "announce" });
     const [delimite, bavard] = [await reclamer(), await reclamer()];

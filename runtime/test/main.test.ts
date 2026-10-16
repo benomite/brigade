@@ -272,6 +272,8 @@ test("un projet qui déclare deux stations démarre avec les deux : chacune s'an
 test("sur le vrai process : une station déclarée distante s'annonce et réclame par le geste `tirer`, lancé dans son propre process — le runtime lui prête le ticket qu'elle seule peut cuisiner, sans rien lancer ici", async (t) => {
   const repertoire = repertoireTemporaire(t);
   const gh = fauxGh(t);
+  // Sans cloison sur son poste, elle ne prend que ce qui demande ses capacités.
+  gh.commentaires(16, "<!-- brigade:fiche -->\n**Fiche du ticket**\n- requiert : chrome-connecté");
   gh.issues([issueGitHub(16, { labels: ["fire", "model:sonnet", "effort:low"] })]);
   const temoin = join(repertoireTemporaire(t), "temoin");
   mkdirSync(temoin);

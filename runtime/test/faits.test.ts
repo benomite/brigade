@@ -72,8 +72,26 @@ test("la forme d'une cuisine connue est figée, au caractère près : un champ r
       `"cooks":[],` +
       `"attend":[{"ticket":18,"titre":"Ticket 18","url":"https://exemple.test/18","decision":{"quoi":"bloque","motif":null,"cause":null,"pr":null}}],` +
       `"livres":[{"ticket":19,"titre":"Ticket 19","url":"https://exemple.test/19","livre":"${JOUR_HORLOGE}T10:00:14.000Z","station":"box/claude-opus","pr":null,"relecture":null}],` +
-      `"urgence":null}`,
+      `"urgence":null,"stations":[]}`,
   );
+});
+
+test("les stations : une d'ici prend les tickets ordinaires ; une distante, selon le réglage du chef et le bac à sable de son poste — la forme est figée", (t) => {
+  const { noter, lire } = cuisine(t);
+  demarrer(noter);
+  noter({ type: "station.announced", payload: { station: "box/claude", engine: "claude", provides: ["code"], maxCooks: 2 } });
+  noter({ type: "station.announced", payload: { station: "mac/claude", engine: "claude", provides: ["chrome-connecté"], maxCooks: 1, remote: true, ordinary: true } });
+  noter({ type: "station.announced", payload: { station: "win/claude", engine: "claude", provides: ["obs"], maxCooks: 1, remote: true } });
+  noter({ type: "station.sandbox", payload: { station: "mac/claude", available: false, reason: "Seatbelt est introuvable", version: null } }); // 10:00:04
+
+  assert.equal(
+    JSON.stringify(lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.stations),
+    `[{"station":"box/claude","distante":false,"plafond":2,"ordinaires":false,"bacASable":null,"prendOrdinaires":true},` +
+      `{"station":"mac/claude","distante":true,"plafond":1,"ordinaires":true,"bacASable":{"disponible":false,"raison":"Seatbelt est introuvable","version":null,"depuis":"${JOUR_HORLOGE}T10:00:04.000Z"},"prendOrdinaires":false},` +
+      `{"station":"win/claude","distante":true,"plafond":1,"ordinaires":false,"bacASable":null,"prendOrdinaires":false}]`,
+  );
+  noter({ type: "station.sandbox", payload: { station: "mac/claude", available: true, reason: null, version: "2.1.250" } });
+  assert.deepEqual(lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.stations[1]?.prendOrdinaires, true);
 });
 
 test("une issue qui attend sans être sur le rail a son adresse : celle que le dépôt de la box donne, et aucun titre — sans dépôt, aucune adresse", (t) => {
@@ -461,6 +479,7 @@ test("un journal vide a une forme : éteinte, des zéros, aucun événement, un 
     attend: [],
     livres: [],
     urgence: null,
+    stations: [],
   });
 });
 
@@ -475,7 +494,7 @@ test("la commande rend la forme sur une seule ligne de JSON, sans rien écrire a
   assert.equal(lignes.length, 2);
   assert.equal(lignes[1], "");
   const forme = JSON.parse(lignes[0] ?? "");
-  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "livres", "urgence"]);
+  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "livres", "urgence", "stations"]);
   // La commande lit à l'heure de la machine : le service de cette cuisine,
   // daté du jour de l'horloge des tests, a plus de 24 h.
   assert.deepEqual(forme.compteurs, { rail: 2, auTravail: 1, aLaPass: 1, attend: 1, livres24h: 0 });

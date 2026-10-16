@@ -68,6 +68,24 @@ describe("le geste d'une station distante", { concurrency: 8 }, () => {
     assert.deepEqual([dernier("cook.reported", 16)?.deliverable, dernier("cook.exited", 16)?.turns], ["C'est livré.", 3]);
   });
 
+  test("annoncer et réclamer portent, avec `--sandbox`, ce que la sonde du poste dit de son bac à sable : la demande le passe tel quel à la box", async (t) => {
+    const { etat, lancer, journal } = service(t);
+    await jusqua(() => etat(16) === "86");
+    const dit = { available: false, reason: "Seatbelt est introuvable" };
+    const annonce = await lancer([MAC, "announce", "--sandbox", JSON.stringify(dit)]);
+    assert.deepEqual([annonce.code, annonce.reponse?.ok], [SERVIE, true]);
+    const prise = await lancer([MAC, "claim", "--sandbox", JSON.stringify(dit)]);
+    assert.equal(prise.code, SERVIE);
+    const demandes = journal.tout().flatMap((e) => (e.type === "remote.asked" ? [e.payload] : []));
+    assert.deepEqual(
+      demandes.map((demande) => [demande.verb, "sandbox" in demande ? demande.sandbox : undefined]),
+      [
+        ["announce", dit],
+        ["claim", dit],
+      ],
+    );
+  });
+
   test("un échec se rend avec son motif, et le ticket revient", async (t) => {
     const { etat, lancer, dernier, journal } = service(t);
     await jusqua(() => etat(16) === "86");
@@ -98,6 +116,13 @@ describe("le geste d'une station distante", { concurrency: 8 }, () => {
       [MAC, "return", "16-abc", "--turns", "1", "--tokens", "1"],
       [MAC, "return", "16-abc", "--end", "bien", "--turns", "1", "--tokens", "1"],
       [MAC, "return", "16-abc", "--end", "livre", "--end", "echec", "--turns", "1", "--tokens", "1"],
+      [MAC, "claim", "--sandbox"],
+      [MAC, "claim", "--sandbox", "pas du json"],
+      [MAC, "claim", "--sandbox", "[1]"],
+      [MAC, "claim", "--sandbox", "null"],
+      [MAC, "announce", "--sandbox", "{}", "de-trop"],
+      [MAC, "claim", "--proof", "e1"],
+      [MAC, "renew", "16-abc", "--proof", "e1", "--turns", "1", "--tokens", "1", "--sandbox", "{}"],
     ]) {
       const rendu = await lancer(args);
       assert.deepEqual([rendu.code, rendu.reponse], [MAL_ECRIT, null], args.join(" "));

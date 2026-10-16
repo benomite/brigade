@@ -9,9 +9,19 @@ import type { Plafonds } from "./garde-fous.ts";
 // renouveler le bail de celui qu'elle cuisine, le rendre — livré, ou non.
 export type Geste = "announce" | "claim" | "renew" | "deliver";
 
+// Ce que la station dit du bac à sable de son poste, quand elle s'annonce ou
+// réclame (`bac-a-sable/ordinaires.ts`) : c'est d'après lui que la box lui
+// prête, ou non, un ticket ordinaire. Disponible : la version de son `claude`,
+// le répertoire du compte, celui où elle pose les worktrees des cooks de ce
+// projet — le worktree d'un cook est `<worktrees>/<run>` — et les caches du
+// projet où un cook écrit aussi. Tous absolus, comme le poste les voit.
+export type BacASableDeLaStation =
+  | { available: true; version: string; home: string; worktrees: string; caches: string[] }
+  | { available: false; reason: string };
+
 export type Demande =
-  | { verb: "announce" }
-  | { verb: "claim" }
+  | { verb: "announce"; sandbox?: BacASableDeLaStation }
+  | { verb: "claim"; sandbox?: BacASableDeLaStation }
   // `proof` : l'empreinte du worktree du cook, telle que la station la lit à
   // cet instant — c'est d'elle que dépend le bail. `turns`, `tokens` : ce que
   // le cook a consommé jusqu'ici — c'est d'eux que dépendent les plafonds.
@@ -33,9 +43,13 @@ export type Mission = {
   repository: string;
   model: string;
   effort: string;
-  // La consigne du cook, et les arguments de `claude` — ceux d'un cook de la box.
+  // La consigne du cook, et les arguments de `claude` — ceux d'un cook de la
+  // box. Pour un ticket ordinaire, ils portent la configuration du bac à
+  // sable (`--settings`) et `sandbox` est vrai : la station lance `claude`
+  // avec ces arguments tels quels, rien de plus.
   prompt: string;
   args: string[];
+  sandbox?: true;
   limits: Plafonds;
   leaseMs: number;
   leaseUntil: string;

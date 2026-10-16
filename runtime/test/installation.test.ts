@@ -418,7 +418,7 @@ describe("la vérification", () => {
     const constats = await verifier(env);
 
     assert.deepEqual(manques(constats), [
-      "décision du chef illisible au journal — BRIGADE_STATIONS invalide : station n° 1 (« box/claude:beaucoup:code ») — plafond : « beaucoup » n'est pas un entier supérieur à zéro. Attendu `<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>[:distante]`, une station par entrée, séparées par des virgules (box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless)",
+      "décision du chef illisible au journal — BRIGADE_STATIONS invalide : station n° 1 (« box/claude:beaucoup:code ») — plafond : « beaucoup » n'est pas un entier supérieur à zéro. Attendu `<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>[:distante[+ordinaires]]`, une station par entrée, séparées par des virgules (box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless)",
     ]);
   });
 

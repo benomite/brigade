@@ -44,6 +44,7 @@ import { PAR_LE_CHEF } from "./evenements/rail.ts";
 import { direAttenteDeTiers } from "./attente.ts";
 import { direMiseDeCote } from "./mise-de-cote.ts";
 import { GESTE_DE_STATION_A_CHAUD } from "./stations-declarees.ts";
+import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
 import { alerteEnCours, type AlerteEnCours } from "./projections/urgence.ts";
 import { cleDUrgence, urgenceDuChef, type Urgence } from "./urgence.ts";
 
@@ -718,6 +719,23 @@ export type Faits = {
   // `url`, l'adresse de son issue, comme dans `attend`. `autres` : les autres
   // décisions qui retiennent aussi des tickets, sous la même forme.
   urgence: (DecisionUrgente & { depuis: string; retenus: number[]; autres: DecisionUrgente[]; alerte: AlerteExposee | null }) | null;
+  // Les stations que le projet déclare, dans l'ordre de leur nom, et ce
+  // qu'elles font des tickets ordinaires — ceux qui ne demandent rien.
+  // `distante` : elle tire son travail depuis le poste du chef. `plafond` : ses
+  // cooks à la fois, au plus — nul, sans limite. `ordinaires` : le réglage du
+  // chef, qui ne se dit que d'une distante. `bacASable` : ce que la station a
+  // dit du bac à sable de son poste — `disponible`, `raison` (nulle s'il l'est),
+  // `version` de son `claude` (nulle s'il ne l'est pas), `depuis` ; nul tant
+  // qu'elle n'en a rien dit. `prendOrdinaires` : elle en prend, à cet instant —
+  // toujours vrai d'une station d'ici ; d'une distante, réglage et bac à sable.
+  stations: Array<{
+    station: string;
+    distante: boolean;
+    plafond: number | null;
+    ordinaires: boolean;
+    bacASable: { disponible: boolean; raison: string | null; version: string | null; depuis: string } | null;
+    prendOrdinaires: boolean;
+  }>;
 };
 
 // L'alerte émise pour l'urgence : sa ligne, sa première émission, la dernière
@@ -829,6 +847,14 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string): Fait
     }),
     livres: etat.livres.map(({ ticket, title, url, servedAt, station, pr, review }) => ({ ticket, titre: title, url: url ?? adresse(ticket), livre: servedAt, station, pr, relecture: relectureLivree(review), ...captures(ticket) })),
     urgence: faitsDUrgence(etat.urgence, etat.alerteUrgence, adresse),
+    stations: etat.stations.map((station) => ({
+      station: station.station,
+      distante: station.remote,
+      plafond: plafondDeCooks(station),
+      ordinaires: station.remote && station.ordinary,
+      bacASable: station.sandbox && { disponible: station.sandbox.available, raison: station.sandbox.reason, version: station.sandbox.version, depuis: station.sandbox.at },
+      prendOrdinaires: prendLesOrdinaires({ distante: station.remote, ordinaires: station.ordinary }, station.sandbox),
+    })),
   };
 }
 

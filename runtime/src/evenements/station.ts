@@ -40,11 +40,18 @@ export type FaitStation =
   // annonce change : c'est ici que le chef lit ce que la station fournit et
   // combien de cooks elle fait tourner à la fois tant qu'il n'a rien réglé.
   // `remote` : elle ne tourne pas sur cette machine, elle tire son travail.
-  | { type: "station.announced"; payload: { station: string; engine: string; provides: string[]; maxCooks: number; remote?: true } }
+  // `ordinary` : distante, elle prend aussi les tickets ordinaires, dans le bac
+  // à sable de son poste.
+  | { type: "station.announced"; payload: { station: string; engine: string; provides: string[]; maxCooks: number; remote?: true; ordinary?: true } }
   // Une station distante s'est manifestée — elle s'annonce, réclame, renouvelle
   // ou rend — alors qu'elle était absente : elle sert de nouveau. Écrit quand
   // ça change, pas à chaque manifestation.
   | { type: "station.present"; payload: { station: string } }
+  // Ce qu'une station distante qui prend les tickets ordinaires dit du bac à
+  // sable de son poste — ou n'en dit pas : il est alors indisponible. Sans lui,
+  // elle ne prend aucun ticket ordinaire, et `reason` dit pourquoi. `version` :
+  // celle de son `claude`, quand il est là. Écrit quand ça change.
+  | { type: "station.sandbox"; payload: { station: string; available: boolean; reason: string | null; version: string | null } }
   // Une station distante ne s'est pas manifestée depuis `presenceMs` : elle est
   // absente. Ce n'est pas une panne — son poste est éteint, ou ailleurs : les
   // tickets qu'elle seule peut cuisiner sont 86 tant que ça dure, les autres

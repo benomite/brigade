@@ -32,7 +32,9 @@ export const RELEVE = "cook.progressed";
 // machine, il n'y a ni worktree ni flux brut : sa station rapporte sa mesure.
 // `head` : la tête de sa branche quand il y est entré — un runtime qui reprend
 // ce cook lit contre elle ce qu'il a livré.
-export type ContexteCook = { station: string; model: string; effort: string; branch: string; worktree: string; relaunch: boolean; unarbitrated: boolean; remote: boolean; head: string };
+// `sandbox` : le cook d'une station distante, lancé sur son poste dans le bac
+// à sable de Claude Code — un ticket ordinaire (`bac-a-sable/ordinaires.ts`).
+export type ContexteCook = { station: string; model: string; effort: string; branch: string; worktree: string; relaunch: boolean; unarbitrated: boolean; remote: boolean; head: string; sandbox?: boolean };
 
 export type FaitGardeFous =
   // Les réglages en vigueur, écrits quand ils changent : c'est ici que le chef

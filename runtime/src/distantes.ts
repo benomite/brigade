@@ -9,7 +9,11 @@
 // rendre. Les règles sont celles d'un cook de la box, pas des règles à part :
 //
 // - le ticket qu'elle reçoit est le premier, dans l'ordre de service, dont
-//   elle fournit tout ce que la fiche demande — jamais un autre ;
+//   elle fournit tout ce que la fiche demande — jamais un autre ; et, sans
+//   cloison sur son poste, un ticket qui demande une de ses capacités : un
+//   ticket ordinaire ne lui revient que si le chef la déclare `ordinaires` et
+//   que son poste a le bac à sable de Claude Code, où son cook est lancé
+//   (`bac-a-sable/ordinaires.ts`) ;
 // - les bornes d'une prise sont les mêmes : le « stop », le disjoncteur, la
 //   base rouge, le quota, son plafond de cooks, les zones tenues ;
 // - son cook se lance par les garde-fous (`lancerDistant`) : mêmes refus, mêmes
@@ -31,13 +35,15 @@
 // box : un runtime qui redémarre les tient pour interrompus, et leur station
 // l'apprend.
 import type { RuntimeAvecRail } from "./alimenter.ts";
+import { configurerLeCook, constater, dansLeBacASable, type Poste } from "./bac-a-sable/ordinaires.ts";
+import type { ConfigDeBacASable } from "./bac-a-sable/configuration.ts";
 import { complet, type Calibrage } from "./calibrage.ts";
 import { argumentsClaude, consigne, type Lecture } from "./claude.ts";
 import type { Depot } from "./depot.ts";
 import type { Demande, Mission, Refus, Reponse } from "./evenements/distante.ts";
 import type { Evenement } from "./evenements.ts";
 import { IDENTIFIANTS_LIVRES, PART_SANS_PROGRES, SANS_DIFF, SANS_LIVRABLE, type FaitStation, type FinDeCook, type Retenue } from "./evenements/station.ts";
-import { illisible } from "./fiche.ts";
+import { illisible, requises } from "./fiche.ts";
 import { LancementRefuse, nomDeRun, type CookDistant, type FinDeCook as FinGardee, type GardeFous, type Verdict } from "./garde-fous.ts";
 import { identifiantsLivres } from "./identifiants.ts";
 import { lireLivrable } from "./livrable.ts";
@@ -48,6 +54,7 @@ import { renvoiEnAttente } from "./projections/pass.ts";
 import { ticketDuRail, type TicketRail } from "./projections/rail.ts";
 import { etatStation } from "./projections/stations.ts";
 import { GesteRefuse } from "./rail.ts";
+import { DECLARATION_RESEAU, lireDeclaration, reglesDuProjet, type Regle } from "./reseau.ts";
 import type { StationDeclaree } from "./stations-declarees.ts";
 
 // Passé ce délai sans s'être manifestée, une station distante est absente.
@@ -152,6 +159,9 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
   const cooks = new Map<string, EnCours>();
   // Les livraisons en cours de réception.
   const receptions = new Set<Promise<void>>();
+  // Le poste de chaque station dont le bac à sable est là, tel qu'elle l'a
+  // dit à sa dernière demande : de quoi configurer celui de ses cooks.
+  const postes = new Map<string, Poste>();
 
   const noter = (station: string, ticket: number | null, fait: FaitStation) => journal.ajouter({ project: projet, ticket, author: `station:${station}`, ...fait });
 
@@ -253,9 +263,44 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
     }
   };
 
-  // --- Réclamer. Tout se lit à la demande : rien n'est réservé d'avance.
-  const reclamer = (declaree: StationDeclaree): Extract<Reponse, { verb: "claim" }> => {
+  // --- Le bac à sable. La liste réseau du projet est celle que sa branche
+  // d'intégration déclare, lue à chaque demande ; illisible, le socle seul.
+  const hotesDuProjet = (): Regle[] => {
+    let declaration: string | null = null;
+    try {
+      declaration = depot.lire(`origin/${cuisine.base}`, DECLARATION_RESEAU);
+    } catch {
+      declaration = null;
+    }
+    return reglesDuProjet(lireDeclaration(declaration ?? "").hotes);
+  };
+  // Ce que la station dit de son bac à sable, quand elle s'annonce ou réclame.
+  // Une station qui ne prend pas les tickets ordinaires et n'en dit rien n'a
+  // rien à en écrire ; celle qui les prend et n'en dit rien ne l'a pas. Écrit
+  // au journal quand ça change, et dit au chef quand il devient indisponible.
+  const entendreLeBacASable = (declaree: StationDeclaree, dit: unknown, hotes: Regle[]) => {
     const { nom } = declaree;
+    if (dit === undefined && !declaree.ordinaires) {
+      postes.delete(nom);
+      return;
+    }
+    const constat = constater(dit, hotes);
+    if (constat.disponible) postes.set(nom, constat.poste);
+    else postes.delete(nom);
+    const fait = { station: nom, available: constat.disponible, reason: constat.disponible ? null : constat.raison, version: constat.disponible ? constat.poste.version : null };
+    const connu = etatStation(base, nom)?.sandbox ?? null;
+    if (connu !== null && connu.available === fait.available && connu.reason === fait.reason && connu.version === fait.version) return;
+    noter(nom, null, { type: "station.sandbox", payload: fait });
+    if (!constat.disponible && declaree.ordinaires) avertir(`brigade : la station ${nom} ne prend aucun ticket ordinaire — bac à sable indisponible : ${constat.raison}`);
+  };
+
+  // --- Réclamer. Tout se lit à la demande : rien n'est réservé d'avance.
+
+  const reclamer = (declaree: StationDeclaree, hotes: Regle[]): Extract<Reponse, { verb: "claim" }> => {
+    const { nom } = declaree;
+    // Un ticket ordinaire ne lui revient que si le chef le lui fait prendre et
+    // que son poste a le bac à sable — ce qu'elle vient d'en dire.
+    const poste = declaree.ordinaires ? (postes.get(nom) ?? null) : null;
     const rien = (retenue: Retenue | null): Extract<Reponse, { verb: "claim" }> => {
       cuisine.direCeQuiRetient(nom, retenue);
       return { ok: true, verb: "claim", mission: null, held: retenue };
@@ -264,7 +309,7 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
     for (let essais = 0; essais < 50; essais++) {
       const retenue = cuisine.retenue(declaree);
       if (retenue !== null) return rien(retenue);
-      const ticket = rail.prendre([{ station: nom, fournit: declaree.fournit }], enCuisine);
+      const ticket = rail.prendre([{ station: nom, fournit: declaree.fournit, ordinaires: poste !== null }], enCuisine);
       if (!ticket) return rien(null);
       const numero = ticket.ticket;
       // Les deux refus d'une station d'ici : le ticket est 86, son issue le dit.
@@ -278,6 +323,12 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
       }
       const calibrage: Calibrage = { model: ticket.model, effort: ticket.effort };
       const run = nomDeRun(numero);
+      // Un ticket ordinaire cuit dans le bac à sable de son poste, jamais à nu.
+      let bacASable: ConfigDeBacASable | null = null;
+      if (requises(ticket.card).length === 0) {
+        if (poste === null) throw new Error(`ticket ordinaire #${numero} prêté à ${nom} sans bac à sable : aucun cook n'est lancé`);
+        bacASable = configurerLeCook(poste, run, hotes);
+      }
       // Un ticket que la pass a renvoyé se reprend sur la branche de sa
       // livraison : elle est sur l'origine, c'est de là que la station la tire.
       const renvoi = renvoiEnAttente(base, numero);
@@ -301,6 +352,7 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
             ...calibrage,
             branch: branche,
             remote: true,
+            ...(bacASable !== null ? { sandbox: true } : {}),
             // Passé les renvois de la pass, c'est une relance du manager : sa
             // livraison ne vaudra réussite que jugée verte.
             ...(renvoi !== null && renvoi.returns > RENVOIS_MAX ? { relaunch: true } : {}),
@@ -332,7 +384,8 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
         repository: cuisine.depotGitHub,
         ...calibrage,
         prompt,
-        args: argumentsClaude(prompt, calibrage),
+        args: bacASable === null ? argumentsClaude(prompt, calibrage) : dansLeBacASable(argumentsClaude(prompt, calibrage), bacASable),
+        ...(bacASable !== null ? { sandbox: true as const } : {}),
         limits,
         leaseMs: cuisine.dureeBailMs,
         leaseUntil: ticket.leaseUntil ?? new Date(maintenant().getTime() + cuisine.dureeBailMs).toISOString(),
@@ -459,13 +512,16 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
     switch (verb) {
       case "announce": {
         if (!declaree) return inconnue();
+        entendreLeBacASable(declaree, demande.sandbox, hotesDuProjet());
         const limits = etatDesGardeFous(base).limits;
         if (limits === null) return ecrire(refuser("invalid", "garde-fous sans plafonds au journal"));
         return ecrire({ ok: true, verb, provides: declaree.fournit, maxCooks: declaree.cooks, presenceMs: cuisine.presenceMs, leaseMs: cuisine.dureeBailMs, limits });
       }
       case "claim": {
         if (!declaree) return inconnue();
-        const reponse = reclamer(declaree);
+        const hotes = hotesDuProjet();
+        entendreLeBacASable(declaree, demande.sandbox, hotes);
+        const reponse = reclamer(declaree, hotes);
         return ecrire(reponse, reponse.mission?.ticket ?? null);
       }
       case "renew": {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ConfigInvalide } from "../src/runtime.ts";
-import { direStations, lireStations, NOM_DE_STATION } from "../src/stations-declarees.ts";
+import { direStations, ecrireStation, lireStations, NOM_DE_STATION } from "../src/stations-declarees.ts";
 
 test("un projet déclare deux stations de la même machine : chacune a son nom, ce qu'elle fournit et son plafond", () => {
   assert.deepEqual(lireStations({ BRIGADE_STATIONS: "box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless" }), [
@@ -59,6 +59,10 @@ for (const [cas, valeur, attendu] of [
   ["un champ de trop", "box/claude:2:code:opus", /« opus » est en trop : une station a trois champs/],
   ["un cinquième champ", "mac/claude:1:chrome-connecté:distante:vite", /« vite » est en trop : une station a trois champs — un quatrième, facultatif, ne dit que `distante`/],
   ["un quatrième champ qui ne dit pas `distante`", "mac/claude:1:chrome-connecté:locale", /« locale » est en trop : une station a trois champs — un quatrième, facultatif, ne dit que `distante`/],
+  ["`ordinaires` sans `distante`", "box/claude:2:code:ordinaires", /`ordinaires` ne se dit que d'une station `distante` \(`distante\+ordinaires`\) : une station de la box prend déjà les tickets ordinaires/],
+  ["`ordinaires` devant `distante`", "mac/claude:1:chrome-connecté:ordinaires+distante", /« ordinaires\+distante » est en trop/],
+  ["une marque inconnue après `distante`", "mac/claude:1:chrome-connecté:distante+vite", /« distante\+vite » est en trop : .* ou `distante\+ordinaires` : elle prend aussi les tickets ordinaires/],
+  ["`ordinaires` deux fois", "mac/claude:1:chrome-connecté:distante+ordinaires+ordinaires", /« distante\+ordinaires\+ordinaires » est en trop/],
   ["une virgule de trop", "box/claude:2:code,", /station n° 2 \(«  »\) — elle est vide : une virgule de trop/],
 ] as const) {
   test(`refus qui nomme la station et le champ fautif : ${cas} — BRIGADE_STATIONS=${valeur}`, () => {
@@ -91,4 +95,17 @@ test("une capacité accentuée se lit sous un seul nom, quelle que soit la faço
   assert.deepEqual(station?.fournit, ["chrome-connecté", "code"]);
   // Deux écritures du même nom sont un doublon.
   assert.throws(() => lireStations({ BRIGADE_STATIONS: "mac/claude-chrome:1:chrome-connecté+chrome-connecté" }), /fournit : `chrome-connecté` est écrite deux fois/);
+});
+
+test("une station distante prend aussi les tickets ordinaires quand le chef la déclare `distante+ordinaires` : le démarrage le dit, et la déclaration se réécrit à l'identique", () => {
+  const ecrite = "box/claude:30:code,mac/claude:2:chrome-connecté:distante+ordinaires,win/claude:1:obs:distante";
+  const stations = lireStations({ BRIGADE_STATIONS: ecrite.replace("distante+ordinaires", " distante + ordinaires ") });
+  assert.deepEqual(stations, [
+    { nom: "box/claude", moteur: "claude", fournit: ["code"], cooks: 30 },
+    { nom: "mac/claude", moteur: "claude", fournit: ["chrome-connecté"], cooks: 2, distante: true, ordinaires: true },
+    { nom: "win/claude", moteur: "claude", fournit: ["obs"], cooks: 1, distante: true },
+  ]);
+  assert.equal(stations.map(ecrireStation).join(","), ecrite);
+  assert.match(direStations(stations), /mac\/claude \(2 cooks au plus ; fournit : chrome-connecté ; distante : elle tire son travail, la box ne la joint jamais ; prend aussi les tickets ordinaires, dans le bac à sable de son poste\)/);
+  assert.doesNotMatch(direStations(stations).split(" ; win/")[1] ?? "", /ordinaires/);
 });

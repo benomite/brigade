@@ -1,6 +1,6 @@
 // Le geste d'une station distante, lancé sur la box par la station elle-même :
-//   ssh <hote> brigade <projet> pull <station> announce
-//   ssh <hote> brigade <projet> pull <station> claim
+//   ssh <hote> brigade <projet> pull <station> announce [--sandbox <json>]
+//   ssh <hote> brigade <projet> pull <station> claim [--sandbox <json>]
 //   ssh <hote> brigade <projet> pull <station> renew <run> --proof <empreinte> --turns <n> --tokens <n>
 //   ssh <hote> brigade <projet> pull <station> return <run> --end livre|echec [--reason <motif>] --turns <n> --tokens <n>
 // Les anciens mots (`tirer`, `annoncer`, `reclamer`, `renouveler`, `rendre`,
@@ -11,18 +11,22 @@
 // geste n'ouvre aucune connexion — il écrit la demande au journal du projet et
 // y lit la réponse du runtime (`tirer.ts`).
 //
+// `--sandbox` : ce que la station dit du bac à sable de son poste, l'objet JSON
+// que rend sa sonde (`bac-a-sable/sonder.ts`) — c'est d'après lui que la box
+// lui prête un ticket ordinaire, ou non.
+//
 // Fait pour un programme (le runner de la station) : la réponse est un objet
 // JSON, sur une ligne de la sortie standard. Codes de sortie : 0, la demande
 // est servie ; 1, elle est refusée — la réponse dit pourquoi, et `stop` si le
 // cook est à arrêter ; 2, le geste est mal écrit ; 3, la box n'a pas répondu.
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
-import type { Demande } from "./evenements/distante.ts";
+import type { BacASableDeLaStation, Demande } from "./evenements/distante.ts";
 import { demander, SansReponse, type OptionsDeDemande } from "./tirer.ts";
 
 const USAGE = [
-  "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run pull -- <station> announce",
-  "        … pull -- <station> claim",
+  "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run pull -- <station> announce [--sandbox <json>]",
+  "        … pull -- <station> claim [--sandbox <json>]",
   "        … pull -- <station> renew <run> --proof <empreinte du worktree> --turns <n> --tokens <n>",
   "        … pull -- <station> return <run> --end livre|echec [--reason <motif>] --turns <n> --tokens <n>   (le dernier message du cook sur l'entrée standard)",
 ].join("\n");
@@ -33,7 +37,7 @@ export const MAL_ECRIT = 2;
 export const SANS_REPONSE = 3;
 
 const FINS: Record<string, "delivered" | "failed"> = { livre: "delivered", echec: "failed" };
-const OPTIONS = ["--proof", "--turns", "--tokens", "--end", "--reason"];
+const OPTIONS = ["--proof", "--turns", "--tokens", "--end", "--reason", "--sandbox"];
 
 // `entree` : ce que le geste reçoit sur son entrée standard. `options` : ce
 // qu'un test règle de l'attente.
@@ -73,10 +77,25 @@ export async function principal({ args: tapes, env, dire, redire }: Appel, entre
   let demande: Demande;
   switch (geste) {
     case "announce":
-    case "claim":
-      if (suite.length > 0) echouer(MAL_ECRIT, USAGE);
-      demande = { verb: geste };
+    case "claim": {
+      seules("--sandbox");
+      if (nus.length > 0) echouer(MAL_ECRIT, USAGE);
+      const dit = lues.get("--sandbox");
+      if (dit === undefined) {
+        demande = { verb: geste };
+        break;
+      }
+      // La box juge ce qu'il dit ; ici, seulement qu'il se lit.
+      let sandbox: unknown;
+      try {
+        sandbox = JSON.parse(dit);
+      } catch {
+        echouer(MAL_ECRIT, `--sandbox : un objet JSON, ce que rend la sonde du bac à sable du poste\n${USAGE}`);
+      }
+      if (sandbox === null || typeof sandbox !== "object" || Array.isArray(sandbox)) echouer(MAL_ECRIT, `--sandbox : un objet JSON, ce que rend la sonde du bac à sable du poste\n${USAGE}`);
+      demande = { verb: geste, sandbox: sandbox as BacASableDeLaStation };
       break;
+    }
     case "renew":
       seules("--proof", "--turns", "--tokens");
       // Sans preuve, la demande part quand même : c'est le runtime qui refuse,

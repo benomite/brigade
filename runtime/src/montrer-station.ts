@@ -33,6 +33,7 @@ import { consommation } from "./projections/garde-fous.ts";
 import { direCommentLeVoir, direEtatDeServeur, direPage, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus } from "./projections/service.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { FORME, GESTE_DE_STATION_A_CHAUD } from "./stations-declarees.ts";
+import { direOrdinaires } from "./bac-a-sable/ordinaires.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import {
   cooksDeStation,
@@ -210,6 +211,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
           ? `ABSENTE — distante, elle tire son travail, et ${etat.seenAt === null ? "ne s'est jamais manifestée" : `ne s'est plus manifestée depuis le ${etat.seenAt}`} ; ce n'est pas une panne : les tickets qu'elle seule peut cuisiner attendent son retour, les autres partent`
           : `présente depuis le ${etat.presentSince} — distante, elle tire son travail ; dernière demande le ${etat.seenAt ?? etat.presentSince}`,
       );
+      ligne("tickets ordinaires", direOrdinaires(etat));
     } else {
       ligne(
         "machine",

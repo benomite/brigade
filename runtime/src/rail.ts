@@ -27,9 +27,11 @@ export type OptionsRail = {
   maintenant?: () => Date;
 };
 
-// Une station telle qu'elle se présente au rail : son nom, et les capacités
-// qu'elle fournit.
-export type Preneuse = { station: string; fournit: readonly string[] };
+// Une station telle qu'elle se présente au rail : son nom, les capacités
+// qu'elle fournit et, si elle ne prend pas les tickets ordinaires — ceux qui
+// ne demandent rien —, `ordinaires: false` : elle ne prend alors que ceux qui
+// demandent une de ses capacités.
+export type Preneuse = { station: string; fournit: readonly string[]; ordinaires?: boolean };
 
 export type Rail = {
   // Le rail, dans l'ordre de service.
@@ -40,8 +42,9 @@ export type Rail = {
   // l'une d'elles peut cuisiner — elle fournit tout ce que sa fiche demande —,
   // prêté à la première d'entre elles qui le peut. Seul ce qu'un ticket
   // demande écarte une station : un ticket qui ne demande rien va à la
-  // première. Un simple nom de station ne dit pas ce qu'elle fournit : les
-  // capacités ne sont alors pas regardées.
+  // première, sauf celles qui ne prennent pas les tickets ordinaires. Un
+  // simple nom de station ne dit pas ce qu'elle fournit : les capacités ne
+  // sont alors pas regardées.
   // `enCuisine` : les tickets dont elle n'a pas fini la
   // cuisine, chacun avec la zone qu'il portait à sa prise. Elle ne les reprend
   // pas, et leur zone reste tenue même s'ils ont quitté ses mains : un ticket
@@ -142,7 +145,11 @@ const servable = (ticket: TicketRail) =>
   ticket.state === "waiting" && ((ticket.awaits.length === 0 && ticket.held.length === 0) || illisible(ticket.card) !== null);
 
 // Celles de ces stations qui peuvent cuisiner ce ticket, dans l'ordre donné.
-const preneusesDe = (ticket: TicketRail, preneuses: readonly Preneuse[]) => preneuses.filter(({ fournit }) => fournitTout(fournit, requises(ticket.card)));
+const preneusesDe = (ticket: TicketRail, preneuses: readonly Preneuse[]) =>
+  preneuses.filter(({ fournit, ordinaires }) => {
+    const demande = requises(ticket.card);
+    return fournitTout(fournit, demande) && (ordinaires !== false || demande.length > 0);
+  });
 
 export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
   const { projet, dureeBailMs } = options;
