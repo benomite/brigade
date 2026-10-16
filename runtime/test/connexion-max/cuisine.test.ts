@@ -152,3 +152,15 @@ test("le « reprendre » du chef après la perte reste le sien : la veille ne re
 });
 
 test("rien ne reste", () => rienNeReste());
+
+test("avec un jeton longue durée, un échec `session-refusee` du renouvellement ne fait pas tomber la connexion ; sans jeton, il la fait tomber", (t) => {
+  const { fichiers, horloge, lignes, date, consigner } = machine(t);
+  consigner(`verifie=${date(-60)}\nechec=${date()}\nechec_nature=session-refusee\n`);
+  const avecJeton = veillerConnexionMax({ ...fichiers, jeton: true, dire: () => {}, maintenant: horloge.maintenant, minuterie: horloge.minuterie });
+  aArreter(t, () => avecJeton.arreter());
+  horloge.avancer(RELECTURE_MS);
+  assert.equal(avecJeton.connexion().etat, "inconnue");
+  const sansJeton = veillerConnexionMax({ ...fichiers, dire: (ligne) => void lignes.push(ligne), maintenant: horloge.maintenant, minuterie: horloge.minuterie });
+  aArreter(t, () => sansJeton.arreter());
+  assert.equal(sansJeton.connexion().etat, "perdue");
+});

@@ -2,6 +2,10 @@
 
 Changes to the public interface of brigade — the commands of the box (`brigade <project> <command>`), their options, and what the roles cite. Newest first.
 
+## 2026-10-16 — session renewal is off on a station with a long-lived token (#818)
+
+When `BRIGADE_CLAUDE_TOKEN_FILE` is set, the runtime no longer follows the Max session renewal (#508): it does not read the renewal state file, writes no `session.observed` / `session.restored`, the station's connection watch draws no loss (`session-refusee`…) from it, and the « session Max près de son échéance » line stays out of the queue. Without a token, nothing changes.
+
 ## 2026-10-15 — `manager upstream` (#697)
 
 New subcommand: `brigade <project> manager upstream` lists, as one line of JSON, every open issue of the repository that is not on the rail, and what happens to each — one word of a closed list (`attend`, `en-route`, `sortie`, `servie`, `decoupee`, `epique`, `ecartee`, `non-lue`), with its priority and one line the box says about it. It only reads: GitHub, then the log, read-only. The app counts it next to the rail. The contract is in `docs/runtime.md`, « En amont du rail ». No old name.

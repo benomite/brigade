@@ -839,6 +839,11 @@ morceaux, qui ne se parlent que par un fichier d'état :
 - **Le suivi** — le runtime relit ce fichier au démarrage, puis à chaque tick, et n'écrit au journal
   que ce qui change (`session.observed`). Un redémarrage qui ne voit rien de neuf n'écrit rien.
 
+**Avec un jeton longue durée** (`BRIGADE_CLAUDE_TOKEN_FILE`), il n'y a plus de renouvellement à
+suivre : le runtime ne relit pas le fichier d'état, n'écrit pas `session.observed` ni
+`session.restored`, la veille de la station n'en tire aucune perte (`session-refusee`…), et l'alerte
+ci-dessous ne sort pas — c'est l'échéance du jeton qui s'annonce. Sans jeton, rien ne change.
+
 **L'alerte.** Quand l'échéance estimée entre dans le préavis, la file du chef la porte, dans
 `attend`, avec le geste :
 

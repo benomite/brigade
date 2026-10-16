@@ -8,6 +8,7 @@ import type { FaitGardeFous } from "../evenements/garde-fous.ts";
 import { PREAVIS_PAR_DEFAUT_S, VIE_PAR_DEFAUT_S, type EchecDeRenouvellement, type FaitRenouvellement, type ObservationDeSession } from "../evenements/renouvellement.ts";
 import type { FaitStation } from "../evenements/station.ts";
 import { definirProjection } from "../projection.ts";
+import { jetonObserve } from "./jeton.ts";
 import { stationsDeconnectees } from "./stations.ts";
 
 const ligne = (base: Base) => base.executer("INSERT OR IGNORE INTO session_max (id) VALUES (1)");
@@ -74,7 +75,10 @@ export const derniereReconnexion = (base: Base): string | null => lire(base).rec
 // Que le renouvellement tourne ou non, l'échéance entrée dans le préavis
 // s'annonce — il peut échouer — ; la ligne sort d'elle-même quand un
 // renouvellement réussi fait repartir l'échéance.
+// Rien non plus quand un jeton longue durée est configuré : il n'y a plus de
+// renouvellement, et c'est l'échéance du jeton qui s'annonce (`projections/jeton.ts`).
 export function alerteDeSession(base: Base, maintenant: Date): AlerteDeSession | null {
+  if (jetonObserve(base)?.token) return null;
   if (stationsDeconnectees(base).length > 0) return null;
   const { observation, reconnectee } = lire(base);
   const lifetimeS = observation?.lifetimeS ?? VIE_PAR_DEFAUT_S;
