@@ -50,6 +50,7 @@
 // résultat après, et une intention sans résultat se réconcilie sur GitHub.
 import { randomUUID } from "node:crypto";
 import { geste } from "./geste.ts";
+import { declencheSurPr } from "./declencheurs.ts";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DE_CONFIANCE, type RuntimeAvecRail } from "./alimenter.ts";
@@ -788,7 +789,15 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     journal.duTicket(ticket).some((evenement) => evenement.type === "pass.waiting" && evenement.payload.reason === GATES_COUPEES && evenement.payload.sha === sha);
 
   // Ce que la branche d'une livraison porte, sans worktree.
-  const porteDesWorkflows = (branche: string) => depot.liste(branche, WORKFLOWS).some((fichier) => /\.ya?ml$/.test(fichier));
+  // Un workflow qui ne se lance pas sur une PR vers la base n'enverra jamais
+  // de check : l'attendre ferait perdre le délai entier.
+  const porteDesWorkflows = (branche: string) => {
+    const modifies = depot.changes(branche);
+    return depot
+      .liste(branche, WORKFLOWS)
+      .filter((fichier) => /\.ya?ml$/.test(fichier))
+      .some((fichier) => declencheSurPr(depot.lire(branche, `${WORKFLOWS}/${fichier}`) ?? "", options.base, modifies));
+  };
   // Le clone ne connaît plus la branche : une restauration repart d'un clone
   // neuf. La pass n'a plus rien à juger, et ne la recrée pas.
   const sansBranche = (connu: PassDeTicket, branche: string, pourquoi: string) =>
@@ -1257,7 +1266,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         return remonter(
           connu,
           "ci-silent",
-          `La CI du commit \`${court(sha)}\` n'a pas conclu en ${minutes(options.attenteCiMs)}${attendue ? " (aucun check, alors que la branche porte des workflows)" : ""}. Les gates, elles, sont vertes.`,
+          `La CI du commit \`${court(sha)}\` n'a pas conclu en ${minutes(options.attenteCiMs)}${attendue ? " (aucun check, alors que la branche porte des workflows qui se lancent sur les PR)" : ""}. Les gates, elles, sont vertes.`,
         );
       }
       if (!enCours) {

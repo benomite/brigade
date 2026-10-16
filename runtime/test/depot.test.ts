@@ -450,6 +450,8 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.deepEqual(depot.liste(branche, ".claude/brigade"), ["gates.sh"]);
     // Un répertoire que la branche ne porte pas, une branche que le clone ne connaît pas.
     assert.deepEqual(depot.liste(branche, ".github/workflows"), []);
+    assert.equal(typeof depot.lire(branche, ".claude/brigade/gates.sh"), "string");
+    assert.equal(depot.lire(branche, ".github/workflows/ci.yml"), null);
     assert.equal(depot.connait("cook/16-def"), false);
   });
 

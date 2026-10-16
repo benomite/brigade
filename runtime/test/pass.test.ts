@@ -648,6 +648,40 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual(dernier("pass.judged", 17)?.ci, { outcome: "green", checks: gh.ci.checks });
   });
 
+  test("une branche dont les workflows ne se lancent pas sur les PR est jugée sans attendre de CI", async (t) => {
+    const { gh, compter, dernier, jusquAu } = service(t, {
+      grant: true,
+      depot: (depot) => ({
+        ...depot,
+        liste: (branche, repertoire) => (repertoire === ".github/workflows" ? ["publier.yml"] : depot.liste(branche, repertoire)),
+        lire: () => "on:\n  push:\n    branches: [v2]\n",
+      }),
+    });
+    gh.ci.checks = [];
+    await jusquAu("merge.done");
+
+    assert.equal(dernier("pass.judged", 17)?.verdict, "green");
+    assert.equal(compter("pass.escalated"), 0);
+  });
+
+  test("une branche dont un workflow se lance sur les PR attend sa CI, et remonte en ci-silent passé le délai", async (t) => {
+    const { gh, heure, dernier, jusquAu } = service(t, {
+      grant: true,
+      pass: { attenteCiMs: 60_000 },
+      depot: (depot) => ({
+        ...depot,
+        liste: (branche, repertoire) => (repertoire === ".github/workflows" ? ["ci.yml"] : depot.liste(branche, repertoire)),
+        lire: () => "on:\n  pull_request:\n",
+      }),
+    });
+    gh.ci.checks = [];
+    await jusquAu("pass.started");
+    heure.avancer(61_000);
+    await jusquAu("pass.escalated");
+
+    assert.deepEqual(dernier("pass.escalated", 17), { reason: "unjudged", cause: "ci-silent" });
+  });
+
   test("une CI qui ne conclut jamais remonte au chef passé le délai, sans renvoi", async (t) => {
     const { gh, heure, compter, dernier, etat, jusquAu } = service(t, { grant: true, pass: { attenteCiMs: 60_000 } });
     gh.ci.checks = [{ name: "tests", outcome: "pending", conclusion: "queued", url: null }];

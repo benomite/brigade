@@ -88,6 +88,8 @@ export type Depot = {
   // Les fichiers d'un répertoire, tel que la branche le porte. Vide s'il n'y
   // est pas.
   liste(branche: string, repertoire: string): string[];
+  // Un fichier, tel que la branche le porte. null s'il n'y est pas.
+  lire(branche: string, chemin: string): string | null;
   // Ce que le worktree porte à cet instant, réduit à une chaîne : elle ne
   // change que s'il a progressé — un commit, un fichier touché. Ce que le
   // projet ignore (dépendances, logs, builds) n'y entre pas.
@@ -582,6 +584,13 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         return git("ls-tree", "-z", "--name-only", `${branche}:${repertoire}`).split("\0").filter(Boolean);
       } catch {
         return [];
+      }
+    },
+    lire(branche, chemin) {
+      try {
+        return git("show", `${branche}:${chemin}`);
+      } catch {
+        return null;
       }
     },
     // Sans plafond de sortie, et `-z` : un grand dépôt se lit en entier, et un
