@@ -4,7 +4,7 @@ import { brancherAlerteUrgence } from "./alerte-urgence.ts";
 import { avecRail, configRail } from "./alimenter.ts";
 import { configArbitrage, joindreArbitre } from "./arbitrage.ts";
 import { sessionClaude } from "./claude.ts";
-import { configJeton, direJeton, environnementClaude, masquerLaConsole } from "./jeton-claude.ts";
+import { brancherJeton, configJeton, direJeton, environnementClaude, masquerLaConsole } from "./jeton-claude.ts";
 import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison } from "./cloison.ts";
 import { noterCodeEnService } from "./code.ts";
 import { decisionsAuDemarrage, decisionsDansLEnvironnement, direDecisionIgnoree, environnementDecide, suivreDecisions, supportDesDecisions } from "./decisions.ts";
@@ -161,9 +161,12 @@ try {
   // La session Max ne lance rien et ne retient rien : son échéance se lit du
   // fichier d'état du renouvellement, jamais des identifiants, et la file la dit.
   const suivie = brancherSession(dirige, session);
+  // De même pour le jeton longue durée : son échéance se lit de la date de sa
+  // création, rangée à côté de lui, jamais du jeton.
+  const datee = brancherJeton(suivie, jeton);
   // L'alerte d'urgence ne lance rien : elle écrit ce que le runtime a dit au
   // chef, une fois, puis un rappel espacé.
-  runtime = brancherAlerteUrgence(suivie);
+  runtime = brancherAlerteUrgence(datee);
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;

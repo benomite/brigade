@@ -139,7 +139,10 @@ si ton compte lit le journal du système ; sinon, c'est l'app qui te les montrer
 ## 5. Le jeton de la connexion Max
 
 Le jeton est créé une fois, à l'installation, et la station ne te demande plus rien ensuite :
-rien à refaire à intervalle, rien à rafraîchir.
+rien à rafraîchir. **Il vit un an** : trente jours avant son échéance, la file de la station
+l'annonce (`jeton de la connexion Max près de son échéance`), avec le seul geste à faire —
+le refaire, comme ci-dessous. Elle le dit aussi si la date de sa création
+(`/etc/brigade/claude-token.cree`) manque ou ne se lit pas.
 
 **Si la box est compromise, révoque le jeton depuis ton compte Claude (claude.ai, dans les
 paramètres, parmi les sessions et applications connectées de Claude Code), puis supprime

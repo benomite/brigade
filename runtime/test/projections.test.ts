@@ -35,7 +35,15 @@ function raconter(journal: Journal): void {
   raconterLaDerive(journal);
   raconterLeService(journal);
   raconterLUrgence(journal);
+  raconterLeJeton(journal);
   raconterLAncienneMiseEnService(journal);
+}
+
+// La date du jeton longue durée : illisible, puis lue — la dernière l'emporte.
+function raconterLeJeton(journal: Journal): void {
+  const commun = { token: "/etc/brigade/claude-token", file: "/etc/brigade/claude-token.cree", lifetimeDays: 365, warningDays: 30 };
+  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "token.observed", payload: { ...commun, state: "absent", created: null } });
+  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "token.observed", payload: { ...commun, state: "read", created: `${JOUR_HORLOGE}T08:00:00.000Z` } });
 }
 
 // Ce que les journaux d'avant la station portent de la mise en service par

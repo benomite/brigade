@@ -14,6 +14,10 @@
 // La session Max y est annoncée avant de tomber : quand son échéance estimée
 // approche, ou dès que son renouvellement échoue — elle en sort au
 // renouvellement réussi suivant, ou à la reconnexion du chef.
+// Le jeton longue durée de la connexion Max y est annoncé des semaines avant
+// son échéance — ou dès que sa date de création ne se lit pas —, une seule
+// fois, avec le seul geste à faire : refaire le jeton. Il en sort quand le
+// jeton refait porte une date neuve.
 // La base rouge y entre quand sa réparation a échoué, et alors seulement :
 // pendant que le ticket de réparation travaille, rien n'attend le chef. Elle
 // dit depuis quand la base est rouge, ce qui y échoue, et le geste ; elle en
@@ -39,6 +43,7 @@ import { miseAJourDuJour } from "./mise-a-jour/relais.ts";
 import { etatDeLaBase, gatesDuRouge, lirePass, reparationDeLaBase, type EchecDeReparation, type SansGrant } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
 import { alerteDeSession, type AlerteDeSession } from "./projections/renouvellement.ts";
+import { alerteDuJeton, type AlerteDuJeton } from "./projections/jeton.ts";
 import { direDeconnexion, etatStation, GESTE_DE_CONNEXION, GESTE_DE_CONNEXION_TOMBEE, miseDeCoteBloquee, setupBloque, stationsDeconnectees, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
 import { echecsDuDisjoncteur, etatDesGardeFous, type EchecDuDisjoncteur } from "./projections/garde-fous.ts";
 import { nomAbandon, retenue } from "./rail.ts";
@@ -97,6 +102,9 @@ type AttenteHorsTicket = { ticket: null; title: null; since: string } & (
   // La session Max n'est pas encore tombée, mais elle va le faire : son
   // échéance estimée approche, ou son renouvellement a échoué.
   | ({ quoi: "session" } & Omit<AlerteDeSession, "since">)
+  // Le jeton longue durée de la connexion Max approche de son échéance, est
+  // échu, ou sa date de création ne se lit pas.
+  | ({ quoi: "jeton" } & Omit<AlerteDuJeton, "since">)
   // La passe de fermeture demandée, qui n'est pas partie. `retenue` : ce qui
   // la retient à la lecture, ou null — elle part au prochain réveil.
   | { quoi: "fermeture"; demande: DemandeDeFermeture; retenue: Refus | null }
@@ -230,6 +238,9 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
   const alerte = alerteDeSession(base, maintenant);
   const session: Attente[] = alerte === null ? [] : [{ ticket: null, title: null, quoi: "session", ...alerte }];
 
+  const echeance = alerteDuJeton(base, maintenant);
+  const jeton: Attente[] = echeance === null ? [] : [{ ticket: null, title: null, quoi: "jeton", ...echeance }];
+
   const demande = demandeEnAttente(base);
   const fermeture: Attente[] = demande === null ? [] : [{ ticket: null, title: null, since: demande.depuis, quoi: "fermeture", demande, retenue: refus(base, reglagesEnVigueur(base), false) }];
 
@@ -258,7 +269,7 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
 
   // Ce qui attend un tiers n'attend pas le chef, quoi qu'il attendait avant.
   const enWaiting = (attente: Attente) => attente.ticket !== null && tickets.get(attente.ticket)?.waitingFor != null;
-  return [...disjoncteur, ...baseRouge, ...setup, ...aside, ...connexions, ...session, ...fermeture, ...livraisons, ...bloques, ...repris, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets)]
+  return [...disjoncteur, ...baseRouge, ...setup, ...aside, ...connexions, ...session, ...jeton, ...fermeture, ...livraisons, ...bloques, ...repris, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets)]
     .filter((attente) => !enWaiting(attente))
     .sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
 }
@@ -402,6 +413,8 @@ export function direAttente(attente: Attente): string {
       return `connexion Max ${direDeconnexion(attente.reason)}${attente.reason === null ? "" : ` (${attente.reason})`} — à rétablir : ${GESTE_DE_CONNEXION_TOMBEE}`;
     case "session":
       return direSession(attente);
+    case "jeton":
+      return direEcheanceDuJeton(attente);
     case "base":
       return direBaseRouge(attente);
     case "setup":
@@ -423,6 +436,22 @@ function direSession({ expires, origin, lifetimeS, failure }: Extract<Attente, {
   return failure === null
     ? `session Max près de son échéance — ${echeance} — à faire avant : ${GESTE_DE_CONNEXION}`
     : `renouvellement de la session Max en échec (${failure.nature}${failure.detail === null ? "" : ` : ${failure.detail}`}) — ${echeance} — à rétablir : ${GESTE_DE_CONNEXION}`;
+}
+
+// Le seul geste qui fait un jeton neuf : `claude setup-token` sous le compte
+// du service, par l'étape de connexion Max — qui ne refait pas un jeton
+// rangé, d'où le fichier à retirer d'abord. Le chemin, jamais la valeur.
+const gesteDuJeton = (fichier: string) =>
+  `refaire le jeton — \`claude setup-token\` sous le compte du service : supprimer ${fichier}, puis relancer l'étape de connexion Max (docs/installation-station.md, « 5. Le jeton de la connexion Max ») ; la station relit le jeton neuf et sa date`;
+
+// Le jeton longue durée qui va échoir, est échu, ou dont la date ne se lit
+// pas : quand, ou pourquoi on ne le sait pas, puis le geste.
+function direEcheanceDuJeton({ state, token, file, created, expires, lifetimeDays, reason }: Extract<Attente, { quoi: "jeton" }>): string {
+  const vie = `${lifetimeDays} jours après sa création (${created})`;
+  if (state === "soon") return `jeton de la connexion Max près de son échéance — il échoit le ${expires}, ${vie} — à faire avant : ${gesteDuJeton(token)}`;
+  if (state === "expired") return `jeton de la connexion Max ÉCHU depuis le ${expires}, ${vie} — les \`claude\` lancés ne se connectent plus avec lui — à faire : ${gesteDuJeton(token)}`;
+  const pourquoi = { absent: "absente", unreadable: "illisible", invalid: "qui ne se lit pas comme une date" }[reason ?? "invalid"];
+  return `date de création du jeton de la connexion Max ${pourquoi} (${file}) — son échéance est inconnue : il vit ${lifetimeDays} jours — à faire : ${gesteDuJeton(token)}`;
 }
 
 // Ce que le chef a fait des livraisons arrêtées faute de grant : de quoi
@@ -447,7 +476,7 @@ export function direSansGrant({ arretees, mergees, parLaPass, refusees, ouvertes
 const FIN_ATTEND = "fin attend";
 
 // Ce qui nomme une entrée, en tête de sa ligne : son ticket, sa station,
-// `session`, `fermeture`, `base`, `setup`, `aside` ou `disjoncteur`.
+// `session`, `jeton`, `fermeture`, `base`, `setup`, `aside` ou `disjoncteur`.
 export const nommerAttente = (attente: Attente): string => (attente.ticket !== null ? `#${attente.ticket}` : attente.quoi === "connexion" ? attente.station : attente.quoi);
 
 // Le bloc `attend` de l'état : le décompte, puis une ligne par décision, puis le bilan des arrêts
