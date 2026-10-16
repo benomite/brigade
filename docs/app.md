@@ -1921,6 +1921,12 @@ dit indisponible, le bloc l'écrit à côté de l'option, avec la raison que la 
 que le Mac ne prend aucun ticket ordinaire. Tant qu'elle n'en a rien dit, l'app ne devine rien. Le bloc
 règle ce que l'app garde ; la déclaration `distante+ordinaires` de la box reste celle du chef.
 
+**Où cuit chaque ticket (#853).** La box n'envoie un ticket ordinaire au Mac que quand elle sature
+(docs/runtime.md, même section). Sur le rail, la carte d'un ticket en cours dit donc, sous « taken by »,
+**« cooks on : box »** ou **« cooks on : Mac »** — Mac pour une station distante, d'après le champ
+`stations` de `facts`. Une station que `facts` ne donne pas — un runtime d'avant ce champ — ne fait rien
+dire : l'app ne devine pas d'après son nom.
+
 **Un cook sur ton poste n'est pas un cook privilégié.** Ce que la box tient pour les siens, elle le
 tient pour lui, et l'app ne contourne rien :
 

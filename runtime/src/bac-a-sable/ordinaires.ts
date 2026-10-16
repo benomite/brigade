@@ -73,7 +73,9 @@ export function dansLeBacASable(args: readonly string[], config: ConfigDeBacASab
 }
 
 // La station prend-elle les tickets ordinaires, d'après sa déclaration et ce
-// que la box sait de son bac à sable ? Une station d'ici, toujours.
+// que la box sait de son bac à sable ? Une station d'ici, toujours. Une
+// distante qui les prend n'en reçoit que quand la box sature (`station.ts`,
+// `boxSaturee`).
 export function prendLesOrdinaires(station: { distante?: boolean; ordinaires?: boolean }, bacASable: { available: boolean } | null): boolean {
   return station.distante !== true || (station.ordinaires === true && bacASable?.available === true);
 }
@@ -90,5 +92,5 @@ export function direOrdinaires(etat: { ordinary: boolean; sandbox: { available: 
   if (!etat.ordinary) return "non pris — elle ne prend que les tickets qui demandent une de ses capacités";
   if (etat.sandbox === null) return "pris dès que la station dit que son poste a le bac à sable de Claude Code — elle n'en a encore rien dit";
   if (!etat.sandbox.available) return `AUCUN PRIS — bac à sable indisponible depuis le ${etat.sandbox.at} : ${etat.sandbox.reason ?? "sans raison dite"}`;
-  return `pris, chaque cook dans le bac à sable de Claude Code (claude ${etat.sandbox.version ?? "?"}) — il n'écrit que dans son worktree et les caches du projet, ne joint que les hôtes du projet`;
+  return `pris quand la box sature, chaque cook dans le bac à sable de Claude Code (claude ${etat.sandbox.version ?? "?"}) — il n'écrit que dans son worktree et les caches du projet, ne joint que les hôtes du projet`;
 }

@@ -727,7 +727,8 @@ export type Faits = {
   // dit du bac à sable de son poste — `disponible`, `raison` (nulle s'il l'est),
   // `version` de son `claude` (nulle s'il ne l'est pas), `depuis` ; nul tant
   // qu'elle n'en a rien dit. `prendOrdinaires` : elle en prend, à cet instant —
-  // toujours vrai d'une station d'ici ; d'une distante, réglage et bac à sable.
+  // toujours vrai d'une station d'ici ; d'une distante, réglage et bac à sable,
+  // et elle n'en reçoit que quand la box sature.
   stations: Array<{
     station: string;
     distante: boolean;

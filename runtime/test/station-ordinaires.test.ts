@@ -16,14 +16,15 @@ import { faits, lireEtat } from "../src/etat.ts";
 import { MARQUEUR } from "../src/fiche.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
 import { etatStation } from "../src/projections/stations.ts";
+import type { Machine } from "../src/machine.ts";
 import { DECLARATION_RESEAU } from "../src/reseau.ts";
 import { lireStations } from "../src/stations-declarees.ts";
 import { demander } from "../src/tirer.ts";
-import { cuisine, issue, type Lieux, type Options } from "./aides/cuisine.ts";
+import { cuisine, issue, MACHINE_CALME, type Lieux, type Options } from "./aides/cuisine.ts";
 import { appeler, jusqua } from "./outils.ts";
 
 const [BOX, MAC] = ["box/claude", "mac/claude"];
-const declarer = (mac: string) => lireStations({ BRIGADE_STATIONS: `${BOX}:1:code,${mac}` });
+const declarer = (mac: string, box: string) => lireStations({ BRIGADE_STATIONS: `${box},${mac}` });
 
 // Le poste du chef, tel que sa sonde le dit quand le bac à sable est là.
 const HOME = "/Users/chef";
@@ -41,12 +42,13 @@ const poser = (gh: Lieux["gh"], numero: number, ...lignes: string[]) => {
 // Le temps qu'une prise qui ne doit pas avoir lieu aurait largement eu pour se faire.
 const laisserServir = () => new Promise((resoudre) => setTimeout(resoudre, 80));
 
-// Une cuisine dont la station d'ici est pleine — #14 y cuit — et dont la
-// branche d'intégration déclare un hôte à joindre. Le Mac est déclaré comme
-// le test le veut.
-async function service(t: TestContext, mac: string, options: Options = {}) {
+// Une cuisine dont la station d'ici est pleine — #14 y cuit, à son plafond
+// d'un cook : la box sature — et dont la branche d'intégration déclare un hôte
+// à joindre. Le Mac est déclaré comme le test le veut. `box` : la station d'ici
+// telle que le test la déclare ; `occuper` : faux, #14 n'est pas posé.
+async function service(t: TestContext, mac: string, options: Options = {}, { box = `${BOX}:1:code`, occuper = true } = {}) {
   const lieu = cuisine(t, {
-    stations: declarer(mac),
+    stations: declarer(mac, box),
     scenario: "muet",
     presenceMs: 120_000,
     depot: (depot) => ({ ...depot, lire: (branche, chemin) => (branche === "origin/v2" && chemin === DECLARATION_RESEAU ? "registry.npmjs.org\n" : null) }),
@@ -78,8 +80,10 @@ async function service(t: TestContext, mac: string, options: Options = {}) {
     await jusqua(() => lieu.etat(16) === "waiting");
   };
   const ordinaires = () => faits(lireEtat(journal, heure.maintenant()), heure.maintenant()).stations.find((s) => s.station === MAC);
-  poser(lieu.gh, 14, "- requiert : code");
-  await jusqua(() => lieu.lancements().length === 1 && lieu.etat(14) === "taken");
+  if (occuper) {
+    poser(lieu.gh, 14, "- requiert : code");
+    await jusqua(() => lieu.lancements().length === 1 && lieu.etat(14) === "taken");
+  }
   return { ...lieu, tirer, reclamer, mission, lance, station, ordinaires, annoncer };
 }
 
@@ -159,7 +163,7 @@ describe("une station distante et les tickets ordinaires", { concurrency: 4 }, (
     // L'état exposé : réglage, bac à sable, prise.
     assert.deepEqual(etatStation(journal.base, MAC)?.sandbox, { available: true, reason: null, version: "2.1.250", at: etatStation(journal.base, MAC)?.sandbox?.at });
     assert.deepEqual([ordinaires()?.ordinaires, ordinaires()?.bacASable?.disponible, ordinaires()?.prendOrdinaires], [true, true, true]);
-    assert.match(await station(), /tickets ordinaires +pris, chaque cook dans le bac à sable de Claude Code \(claude 2\.1\.250\)/);
+    assert.match(await station(), /tickets ordinaires +pris quand la box sature, chaque cook dans le bac à sable de Claude Code \(claude 2\.1\.250\)/);
   });
 
   test("réglage activé et bac à sable indisponible : elle ne prend aucun ticket ordinaire, et expose l'état et sa raison", async (t) => {
@@ -218,5 +222,61 @@ describe("une station distante et les tickets ordinaires", { concurrency: 4 }, (
     const prisParLeMac = journal.tout().filter((e) => e.type === "ticket.taken" && e.author === `station:${MAC}`).length;
     assert.equal(prisParLeMac, 1);
     assert.equal(etatStation(journal.base, MAC)?.heldReason, "cap");
+  });
+});
+
+// Le Mac ne prend un ticket ordinaire que quand la box sature : ses stations
+// sont à leur plafond, ou sa machine n'en peut plus. Tant qu'elle a de la
+// place, elle garde ses tickets. Inéligible — sans le réglage, sans bac à
+// sable, à sa propre limite —, le Mac n'en reçoit aucun, même box saturée :
+// c'est ce que montrent les tests ci-dessus, où la box est à son plafond.
+describe("les tickets ordinaires partent sur le Mac quand la box sature, et alors seulement", { concurrency: 4 }, () => {
+  const MAC_ORDINAIRES = `${MAC}:2:chrome-connecté:distante+ordinaires`;
+  const prisPar = (journal: { duTicket(ticket: number): Array<{ type: string; author: string }> }, ticket: number) =>
+    journal.duTicket(ticket).findLast((e) => e.type === "ticket.taken")?.author;
+
+  test("box saturée — à son plafond —, Mac éligible avec de la place : un ticket ordinaire en attente part sur le Mac", async (t) => {
+    const { gh, etat, journal, tirer, mission } = await service(t, MAC_ORDINAIRES);
+    poser(gh, 17);
+    assert.ok((await tirer({ verb: "announce", sandbox: DISPONIBLE })).ok);
+    await jusqua(() => etat(17) === "waiting");
+
+    const recue = await mission(DISPONIBLE);
+    assert.equal(recue.ticket, 17);
+    assert.equal(recue.sandbox, true);
+    assert.equal(etat(17), "taken");
+    assert.equal(prisPar(journal, 17), `station:${MAC}`);
+  });
+
+  test("box non saturée — elle a de la place, et monte par paliers — : un ticket ordinaire en attente reste sur la box, même quand le Mac le réclame", async (t) => {
+    // Trois cooks au plus sur la box, un seul en cours (#14), parti à l'instant :
+    // la charge ne le reflète pas encore, et compté d'avance il la mènerait au
+    // seuil (12 pour 8 cœurs). La box se retient le temps qu'il pèse — l'horloge
+    // du test ne bouge pas —, elle ne sature pas.
+    const { gh, etat, journal, heure, tirer, reclamer } = await service(t, MAC_ORDINAIRES, { machine: () => ({ ...MACHINE_CALME, charge: 11.5 }) }, { box: `${BOX}:3:code` });
+    assert.ok((await tirer({ verb: "announce", sandbox: DISPONIBLE })).ok);
+    poser(gh, 17);
+    await jusqua(() => etat(17) === "waiting");
+
+    for (let essai = 0; essai < 3; essai++) assert.deepEqual(await reclamer(DISPONIBLE), { ok: true, verb: "claim", mission: null, held: null });
+    assert.equal(etat(17), "waiting");
+    assert.equal(journal.tout().filter((e) => e.type === "ticket.taken" && e.author === `station:${MAC}`).length, 0);
+
+    // Le cook de #14 a pesé : la box prend le ticket elle-même.
+    heure.avancer(61_000);
+    await jusqua(() => etat(17) === "taken");
+    assert.equal(prisPar(journal, 17), `station:${BOX}`);
+  });
+
+  test("box saturée par sa machine, sous son plafond : le Mac prend le ticket ordinaire", async (t) => {
+    const PLEINE: Machine = { ...MACHINE_CALME, charge: 64 };
+    // Trois cooks au plus sur la box, aucun en cours : seule la machine la retient.
+    const { gh, etat, journal, tirer, mission } = await service(t, MAC_ORDINAIRES, { machine: () => PLEINE }, { box: `${BOX}:3:code`, occuper: false });
+    assert.ok((await tirer({ verb: "announce", sandbox: DISPONIBLE })).ok);
+    poser(gh, 17);
+    await jusqua(() => etatStation(journal.base, BOX)?.saturatedResource === "cpu" && etat(17) === "waiting");
+
+    assert.equal((await mission(DISPONIBLE)).ticket, 17);
+    assert.equal(prisPar(journal, 17), `station:${MAC}`);
   });
 });

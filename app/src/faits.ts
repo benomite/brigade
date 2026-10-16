@@ -9,11 +9,11 @@
 // la forme donne, et les numéros en tête des lignes du bloc `attend` de `status`
 // (attend.ts), qui dit le geste en mots ; WAITING — ce qui attend un tiers —
 // d'après ce que la forme dit de chaque ticket (`tiers`). Chaque carte porte ce que la file dit du ticket : sa station
-// d'après la forme, le reste d'après sa ligne sous `rail`, dans `status` (bon.ts).
+// et où elle cuit — box ou Mac — d'après la forme, le reste d'après sa ligne sous `rail`, dans `status` (bon.ts).
 // Ce sont les deux seules choses lues hors de la forme.
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
-import { lignesDuRail, porter, type Porte } from "./bon.ts";
+import { lieuDe, lignesDuRail, porter, type Porte } from "./bon.ts";
 import type { StationDesFaits } from "./ordinaires.ts";
 import type { Echec, Lecture } from "./box.ts";
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues, type Moment } from "./captures.ts";
@@ -178,6 +178,28 @@ const texte = (valeur: unknown, champ: string): string => (typeof valeur === "st
 const entier = (valeur: unknown, champ: string): number => (typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 0 ? valeur : refuser(champ, "a non-negative integer"));
 const heure = (valeur: unknown, champ: string): string => (typeof valeur === "string" && !Number.isNaN(Date.parse(valeur)) ? valeur : refuser(champ, "a time"));
 const ouRien = <T>(valeur: unknown, champ: string, lire: (valeur: unknown, champ: string) => T): T | null => (valeur === null ? null : lire(valeur, champ));
+const booleen = (valeur: unknown, champ: string): boolean => (typeof valeur === "boolean" ? valeur : refuser(champ, "true or false"));
+
+// Une station que le projet déclare, et ce qu'elle fait des tickets ordinaires (ordinaires.ts).
+function comprendreStation(valeur: unknown, champ: string): StationDesFaits {
+  const lu = objet(valeur, champ);
+  return {
+    station: texte(lu.station, `${champ}.station`),
+    distante: booleen(lu.distante, `${champ}.distante`),
+    plafond: ouRien(lu.plafond, `${champ}.plafond`, entier),
+    ordinaires: booleen(lu.ordinaires, `${champ}.ordinaires`),
+    bacASable: ouRien(lu.bacASable, `${champ}.bacASable`, (bac, lequel) => {
+      const dit = objet(bac, lequel);
+      return {
+        disponible: booleen(dit.disponible, `${lequel}.disponible`),
+        raison: ouRien(dit.raison, `${lequel}.raison`, texte),
+        version: ouRien(dit.version, `${lequel}.version`, texte),
+        depuis: heure(dit.depuis, `${lequel}.depuis`),
+      };
+    }),
+    prendOrdinaires: booleen(lu.prendOrdinaires, `${champ}.prendOrdinaires`),
+  };
+}
 
 // Ce que la cuisine fait d'un ticket : un geste, ce qu'il vise ou rien, une heure.
 function comprendreActivite(valeur: unknown, champ: string): Activite {
@@ -356,6 +378,9 @@ export function comprendre(sortie: string): Faits | { informe: string } {
             }),
           }),
       ...(racine.urgence === undefined ? {} : { urgence: ouRien(racine.urgence, "urgence", comprendreUrgence) }),
+      ...(racine.stations === undefined
+        ? {}
+        : { stations: (Array.isArray(racine.stations) ? racine.stations : refuser("stations", "a list")).map((station: unknown, rang) => comprendreStation(station, `stations[${rang}]`)) }),
     };
   } catch (erreur) {
     if (erreur instanceof Informe) return { informe: erreur.message };
@@ -539,6 +564,8 @@ const RIEN_DE_LU = "not read: this box's runtime does not give `attend` in `fact
 export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
   const lignes = status === undefined ? undefined : lignesDuRail(status.texte);
   const connus = new Map(faits.rail.map((connu) => [connu.ticket, connu]));
+  // Où cuit chaque station : la box, ou le Mac (bon.ts) — rien, d'un runtime qui ne donne pas les stations.
+  const lieux = faits.stations === undefined ? undefined : new Map(faits.stations.map((station) => [station.station, lieuDe(station)]));
   // Son état et son titre sur le rail, qui bornent sa ligne de `status` — rien, s'il n'y est pas.
   const sur = (connu: Faits["rail"][number] | undefined) => (connu === undefined ? {} : { rail: { etat: connu.etat, titre: connu.titre } });
   // Ce qui attend un tiers, d'après la forme : sa colonne est WAITING, quoi que la file en dise.
@@ -565,6 +592,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
       ...(connu === undefined ? {} : { enCeMoment: direEnCeMoment(connu, faits.lu) }),
       ...(connu?.attente == null ? {} : { attente: connu.attente.raison }),
       ...(connu?.revenu == null ? {} : { revenu: connu.revenu }),
+      ...(lieux === undefined ? {} : { lieux }),
     });
     return {
       ticket,

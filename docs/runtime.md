@@ -680,6 +680,15 @@ macOS, pas de Seatbelt (`/usr/bin/sandbox-exec`), un `claude` trop ancien ou mue
   indisponible depuis le … : <raison>`). Les tickets ordinaires partent sur les stations de la box.
 - **Dans tous les cas**, les tickets qui demandent ses capacités restent pris comme avant, à nu.
 
+**Un ticket ordinaire ne part sur le Mac que quand la box sature** (#853) : toutes les stations de
+la box sont à leur plafond de cooks, ou sa machine n'en peut plus (`station.saturated`) — lu à
+l'instant où le Mac réclame. Tant que la box a de la place, elle garde ses tickets ordinaires, même
+quand elle monte par paliers après un départ (`ramp`) ou prépare des worktrees. Retenue pour une
+autre raison — le « stop », le disjoncteur, une base rouge, sa connexion Max, son quota, un setup
+bloqué —, elle ne sature pas, et ses tickets ordinaires l'attendent. Sans station sur la box, le Mac
+les prend dès qu'il en a le réglage et le bac à sable. La ligne `tickets ordinaires` de `station` le
+dit : `pris quand la box sature, chaque cook dans le bac à sable…`.
+
 L'état se lit aussi dans `facts`, champ `stations` (voir « Les faits, pour un programme ») : c'est
 lui que l'app affiche.
 

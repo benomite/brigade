@@ -368,11 +368,16 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Les stations telles que le rail les lit pour leur prêter un ticket : dans
   // l'ordre de la déclaration, chacune avec ce qu'elle fournit.
   // Une distante ne prend les tickets ordinaires que si le chef le lui fait
-  // faire et que son poste a le bac à sable (`bac-a-sable/ordinaires.ts`).
+  // faire, que son poste a le bac à sable (`bac-a-sable/ordinaires.ts`), et
+  // que la box sature (`boxSaturee`).
   const preneuses = (celles: readonly string[]): Preneuse[] =>
     toutes
       .filter((declaree) => celles.includes(declaree.nom))
-      .map((declaree) => ({ station: declaree.nom, fournit: declaree.fournit, ordinaires: prendLesOrdinaires(declaree, etatStation(base, declaree.nom)?.sandbox ?? null) }));
+      .map((declaree) => ({
+        station: declaree.nom,
+        fournit: declaree.fournit,
+        ordinaires: prendLesOrdinaires(declaree, etatStation(base, declaree.nom)?.sandbox ?? null) && (declaree.distante !== true || boxSaturee()),
+      }));
   // Ce qu'un ticket peut demander : ce que fournit une station déclarée,
   // qu'elle tourne ici ou ailleurs.
   let offres = toutes.map((declaree) => declaree.fournit);
@@ -685,6 +690,23 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // son worktree et son cook pèsent sur son poste, pas sur la box.
   const ceQuiRetientLaDistante = (declaree: StationDeclaree): Retenue | null =>
     borneDe(declaree, etatStation(base, declaree.nom), etatDesGardeFous(base), etatDeLaBase(base)?.outcome === "red", maintenant().toISOString());
+
+  // La box sature : aucune de ses stations n'a de place pour un cook de plus —
+  // chacune est à son plafond, ou la machine n'en peut plus, lue à l'instant.
+  // C'est alors, et alors seulement, qu'un ticket ordinaire part sur une
+  // distante qui les prend (le Mac du chef) : tant qu'elle a de la place, la
+  // box garde les siens. Retenue pour une autre raison — le « stop », le
+  // quota, sa connexion, un setup —, elle ne sature pas : ce qui la retient
+  // retient aussi la distante, ou se lève sans qu'un ticket change de
+  // machine. Sans station d'ici, personne d'autre ne cuirait un ticket
+  // ordinaire.
+  const boxSaturee = (): boolean => {
+    const retenues = ceQuiRetient();
+    return declarees.every((declaree) => {
+      const retenue = retenues.get(declaree.nom);
+      return retenue === "cap" || retenue === "machine" || etatStation(base, declaree.nom)?.saturatedResource != null;
+    });
+  };
 
   // Un ticket qui ne part pas n'est jamais un mystère : quand la station se
   // retient alors qu'un ticket pourrait partir, elle écrit pourquoi — quand la
@@ -1467,6 +1489,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     enCuisine,
     cuisinePar,
     retenue: ceQuiRetientLaDistante,
+    boxSaturee,
     direCeQuiRetient: (station, retenue) => direCeQuiRetient(station, retenue),
     refuser,
     refuserLaFiche,

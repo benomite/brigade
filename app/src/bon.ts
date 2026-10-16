@@ -2,7 +2,7 @@
 // file dit déjà du ticket — ce que la cuisine en fait en ce moment, qui le tient,
 // depuis quand, son bail, ce qu'il brûle, ce qui le bloque. Rien n'y est compté ni déduit : chaque valeur est un morceau
 // de ce que la box a écrit. Deux lectures y entrent :
-//   - `faits`, la forme : la station du cook en cours (`cooks`) ;
+//   - `faits`, la forme : la station du cook en cours (`cooks`), et où elle cuit (`stations`) ;
 //   - `status`, du texte : la ligne du ticket sous la ligne `rail`, que le runtime
 //     écrit ainsi (runtime/src/etat.ts, `decrireEtat` et `detail`) —
 //       `  #<ticket>  <état>  <priorité>  <détail>  <titre>`
@@ -31,7 +31,16 @@ export type Porte = { dit: Fait[]; sans?: string; relais?: string };
 // `attente` : pour un ticket mis de côté, la raison en clair que le runtime donne
 // dans `faits` — elle remplace sa ligne brute de `status`, qui n'est plus relayée.
 // `revenu` : pour un ticket revenu de WAITING, le motif que le runtime en donne dans `faits`.
-export type Sources = { lignes?: readonly string[]; stations?: readonly string[]; bloque: boolean; enCeMoment?: string; attente?: string; revenu?: string };
+// `lieux` : où cuit chaque station que `faits` donne (`lieuDe`) — absents, le runtime ne
+// donne pas les stations.
+export type Sources = { lignes?: readonly string[]; stations?: readonly string[]; bloque: boolean; enCeMoment?: string; attente?: string; revenu?: string; lieux?: ReadonlyMap<string, string> };
+
+// Où cuit un ticket en cours : sur la box, ou sur le Mac du chef — une station distante, qui
+// tire son travail depuis son poste. C'est ce que `faits` dit de la station qui le tient
+// (`stations[].distante`), rien d'autre : une station qu'il ne donne pas n'est nulle part.
+export const SUR_LA_BOX = "box";
+export const SUR_LE_MAC = "Mac";
+export const lieuDe = ({ distante }: { distante: boolean }): string => (distante ? SUR_LE_MAC : SUR_LA_BOX);
 
 const TETE_DE_TICKET = /^ {2}#(\d+) {2}(.*)$/;
 
@@ -116,7 +125,7 @@ const CHOSES = [
 // Le bon d'un ticket : ce que la file en dit, ce qu'elle n'en dit pas, et sa
 // ligne de `status` telle quelle quand elle n'a pas pu être découpée. `etat` et
 // `titre` : ceux que `faits` donne — absents, le ticket n'est pas sur le rail.
-export function porter({ etat, titre }: { etat?: string; titre?: string }, { lignes, stations, bloque, enCeMoment, attente, revenu }: Sources): Porte {
+export function porter({ etat, titre }: { etat?: string; titre?: string }, { lignes, stations, bloque, enCeMoment, attente, revenu, lieux }: Sources): Porte {
   // Un ticket n'a qu'une ligne sur le rail : deux ne disent pas laquelle croire.
   const [ligne] = lignes ?? [];
   const lu = ligne === undefined || lignes?.length !== 1 || etat === undefined || titre === undefined ? undefined : decouper(ligne, etat, titre);
@@ -130,6 +139,10 @@ export function porter({ etat, titre }: { etat?: string; titre?: string }, { lig
     brule: undefined,
     bloque: lu?.bloque === undefined ? undefined : { valeur: lu.bloque },
   };
+  // Où il cuit, d'après la station qui le tient : dit seulement quand `faits` les situe toutes.
+  const tenants = stations !== undefined && stations.length > 0 ? stations : lu?.tient === undefined ? [] : [lu.tient];
+  const ou = tenants.map((station) => lieux?.get(station));
+  const cuit = ou.length > 0 && ou.every((lieu) => lieu !== undefined) ? [...new Set(ou)].join(", ") : undefined;
   // Ce que le bloc `attend` dit de lui est posé sur le bon, à part : c'est ce qui le bloque.
   const tues = CHOSES.filter(({ cle }) => dites[cle] === undefined && !(cle === "bloque" && bloque)).map(({ tu }) => tu);
   const pourquoi = illisible
@@ -145,7 +158,11 @@ export function porter({ etat, titre }: { etat?: string; titre?: string }, { lig
       ...(attente === undefined ? [] : [{ libelle: "set aside", valeur: attente }]),
       // Revenu de WAITING : le motif, mot pour mot — jamais déduit par l'app.
       ...(revenu === undefined ? [] : [{ libelle: "came back", valeur: revenu }]),
-      ...CHOSES.flatMap(({ cle, libelle }) => (dites[cle] === undefined ? [] : [{ libelle, ...dites[cle] }])),
+      ...CHOSES.flatMap(({ cle, libelle }) => [
+        ...(dites[cle] === undefined ? [] : [{ libelle, ...dites[cle] }]),
+        // Où il cuit se lit sous qui le tient.
+        ...(cle === "tient" && cuit !== undefined ? [{ libelle: "cooks on", valeur: cuit }] : []),
+      ]),
       // Qui l'a cuisiné n'est pas qui le tient : dit sous son nom, en plus des cinq.
       ...(lu?.cuisine === undefined ? [] : [{ libelle: "cooked by", valeur: lu.cuisine, exact: true as const }]),
     ],
