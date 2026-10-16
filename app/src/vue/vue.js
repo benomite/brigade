@@ -637,9 +637,15 @@ function montrer() {
       : [bloc("span", "open a shell on"), ...choix.machines.map(({ id, titre }) => bouton(titre, () => void ouvrirSur(choix.projet, id))), bouton("cancel", () => void ((choixDeMachine = undefined), montrer()))]),
   );
 
-  note.textContent =
-    nonEcrit !== "" ? nonEcrit : relaye === undefined ? "" : courant?.desinstalle !== undefined ? "nothing is read for this tab: this project is uninstalled from its box" : `${relaye.id === "manager" ? "the manager state, then " : relaye.id === "grants" ? "the grants state, then " : ""}the output of \`${courant === undefined ? "" : geste(courant, relaye.commande)}\`, as the box returns it${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — re-read on its own every thirty seconds, while this tab is shown`;
-  note.hidden = note.textContent === "";
+  // L'explication d'un onglet relayé n'est pas écrite à plat : une icône d'aide la porte.
+  const explication =
+    relaye === undefined || courant === undefined || courant.desinstalle !== undefined
+      ? ""
+      : `${relaye.id === "manager" ? "the manager state, then " : relaye.id === "grants" ? "the grants state, then " : ""}the output of \`${geste(courant, relaye.commande)}\`, as the box returns it${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — re-read on its own every thirty seconds, while this tab is shown`;
+  note.replaceChildren(
+    ...(nonEcrit !== "" ? [nonEcrit] : relaye !== undefined && courant?.desinstalle !== undefined ? ["nothing is read for this tab: this project is uninstalled from its box"] : explication === "" ? [] : [survol(document, explication)]),
+  );
+  note.hidden = note.childElementCount === 0 && note.textContent === "";
   const parametres = rubriqueDe(visible)?.id === PARAMETRES;
   // Une page se pose par-dessus le rail : il reste dessous, tel quel, et rien de lui ne se clique au travers.
   contenu.hidden = relaye === undefined && visible !== PARAMETRES;
@@ -716,6 +722,14 @@ function garder(projet, terminal) {
   if (projet === courant?.nom) aFocaliser = terminal.id;
 }
 
+// Une ligne courte, et son explication au survol : ce qui s'écrivait en mode d'emploi.
+/** @param {string} balise @param {string} ligne @param {string} aide */
+function ditEtAide(balise, ligne, aide) {
+  const cree = bloc(balise, ligne);
+  cree.append(survol(document, aide));
+  return cree;
+}
+
 /** @param {string} texte @param {() => void} geste */
 function bouton(texte, geste) {
   const cree = document.createElement("button");
@@ -742,16 +756,20 @@ function icone(signe, nom, geste) {
   return cree;
 }
 
-// Les boutons de l'onglet de contenu affiché : une commande à compléter, écrite dans le second. Un
-// projet sans box n'en a pas : il n'y a pas de commande à écrire.
+// Les boutons de l'onglet de contenu affiché : un geste qui attend sa suite, écrit dans le second.
+// Un projet sans box n'en a pas : il n'y a pas de commande à écrire. Le bouton dit le geste en
+// mots ; ce qui s'écrit, et que rien ne part, se lit au survol.
 /** @param {HTMLElement} ou @param {string | undefined} endroit */
 function poserGestes(ou, endroit) {
   const poses = courant?.box === undefined ? [] : BOUTONS.filter((pose) => pose.ou === endroit);
   ou.hidden = poses.length === 0;
   ou.replaceChildren(
-    ...(poses.length === 0 ? [] : [bloc("span", "write into the second, without sending — to complete:")]),
-    // Une commande qui attend sa suite le montre : le chef la tape avant Entrée.
-    ...poses.map(({ id, commande }) => boutonDeCommande(commande.endsWith(" ") ? `${commande}…` : commande, () => void inscrire(id))),
+    ...poses.map(({ id, libelle }) => {
+      const groupe = document.createElement("span");
+      groupe.className = "action";
+      groupe.append(bouton(`${libelle}…`, () => void inscrire(id)), survol(document, "writes the start of the command into the second, without sending it: you complete it there"));
+      return groupe;
+    }),
   );
 }
 
@@ -895,17 +913,23 @@ function poserConfirmation(projet, { rendu, compte }, grant) {
     return confirmation;
   }
   confirmation.ariaLabel = rendu.titre;
-  confirmation.append(bloc("strong", `⚠️ ${rendu.titre}`), ...rendu.prix.map((ligne) => bloc("p", ligne)));
+  // Le prix se dit en une ligne ; le reste de ce que le geste engage, et d'où c'est tiré, est au survol.
+  const [prix = "", ...suite] = rendu.prix;
+  const source = rendu.lu === undefined ? [] : [`according to \`${geste(projet, "facts")}\`, read at ${heureDe(rendu.lu)}`];
+  const ligne = bloc("p", prix);
+  ligne.className = "prix";
+  const detail = [...suite, ...source].join("\n");
+  if (detail !== "") ligne.append(survol(document, detail));
+  confirmation.append(bloc("strong", `⚠️ ${rendu.titre}`), ligne);
   if (rendu.chiffrer === true && ALLUMAGE !== undefined) {
-    const nombres = bloc("p", compte === undefined ? ALLUMAGE.enCours : compte === null ? ALLUMAGE.parti : "sans" in compte ? compte.sans : compte.dit);
+    const nombres = bloc("p", compte === undefined ? ALLUMAGE.enCours : compte === null ? ALLUMAGE.parti : "sans" in compte ? "the count could not be read" : compte.dit);
     nombres.className = "nombres";
-    confirmation.append(
-      nombres,
-      ...(compte === undefined || compte === null ? [] : [bloc("small", `according to \`${geste(projet, ALLUMAGE.commande)}\`, run for you on opening — read at ${heureDe(compte.a)}`)]),
-      ...(compte === undefined || compte === null || !("sans" in compte) || compte.obtenu === "" ? [] : [bloc("pre", compte.obtenu)]),
-    );
+    const lu = compte === undefined || compte === null ? "" : `according to \`${geste(projet, ALLUMAGE.commande)}\`, run for you on opening — read at ${heureDe(compte.a)}`;
+    const raison = compte === undefined || compte === null || !("sans" in compte) ? "" : [compte.sans, compte.obtenu].filter((texte) => texte !== "").join("\n");
+    const aide = [lu, raison].filter((texte) => texte !== "").join("\n");
+    if (aide !== "") nombres.append(survol(document, aide));
+    confirmation.append(nombres);
   }
-  if (rendu.lu !== undefined) confirmation.append(bloc("small", `according to \`${geste(projet, "facts")}\`, read at ${heureDe(rendu.lu)}`));
   confirmation.append(
     ...rendu.choix.map(({ id, libelle, dit }) => {
       const choix = document.createElement("p");
@@ -1262,10 +1286,9 @@ function rendre(recue, tete, corps, accueil = false) {
  * @param {Projet} projet @param {Guide["verification"]} verification
  * @param {(texte: string, geste: () => Promise<unknown>) => HTMLButtonElement} action
  * @param {boolean} [avecTitre] faux : la phrase est déjà dite au-dessus (une alerte plantée la porte en titre)
- * @param {boolean} [enBande] vrai : dans la bande d'alertes, aucune commande n'est à recopier — elle se lit au survol
  * @returns {HTMLElement[]}
  */
-function poserVerdict(projet, verification, action, avecTitre = true, enBande = false) {
+function poserVerdict(projet, verification, action, avecTitre = true) {
   if (verification === undefined) return [];
   const tete = bloc("p", verification.titre);
   tete.className = "verdict";
@@ -1273,7 +1296,7 @@ function poserVerdict(projet, verification, action, avecTitre = true, enBande = 
   if (verification.etat === "en-cours") return [tete];
   if (verification.etat === "sans-verdict") {
     tete.textContent = `${verification.titre} — verified at ${heureDe(verification.a)}`;
-    return [tete, ...(enBande ? obtenuEnUneLigne : obtenu)(projet, { ...verification.echec, projet: projet.nom }, GESTE)];
+    return [tete, ...obtenuEnUneLigne(projet, { ...verification.echec, projet: projet.nom }, GESTE)];
   }
   const posee = document.createElement("div");
   posee.className = "verification";
@@ -1291,7 +1314,7 @@ function poserVerdict(projet, verification, action, avecTitre = true, enBande = 
   if (verification.manques.length > 0) {
     const manques = document.createElement("ul");
     manques.className = "manques";
-    manques.append(...verification.manques.map((manque) => poserManque(projet, manque, action, enBande)));
+    manques.append(...verification.manques.map((manque) => poserManque(projet, manque, action)));
     posee.append(manques);
   }
   if (verification.panne !== null) posee.append(bloc("p", verification.panne));
@@ -1299,7 +1322,7 @@ function poserVerdict(projet, verification, action, avecTitre = true, enBande = 
     const aSavoir = document.createElement("div");
     aSavoir.className = "a-savoir";
     aSavoir.append(bloc("strong", "Good to know — nothing waits on these"));
-    for (const ligne of verification.aSavoir) aSavoir.append(bloc("p", ligne.geste === null ? ligne.texte : `${ligne.texte} → ${ligne.geste}`));
+    for (const ligne of verification.aSavoir) aSavoir.append(ligne.geste === null ? bloc("p", ligne.texte) : ditEtAide("p", ligne.texte, ligne.geste));
     posee.append(aSavoir);
   }
   posee.append(detail);
@@ -1307,14 +1330,13 @@ function poserVerdict(projet, verification, action, avecTitre = true, enBande = 
 }
 
 // Un manque : qui agit, ce qui manque en mots simples, et ce que le chef a pour le lever — un
-// bouton quand l'app fait le geste, sinon la commande exacte et de quoi la copier. Ce que brigade
+// bouton quand l'app fait le geste, sinon la commande exacte, au survol. Ce que brigade
 // lève seule n'a rien de tout cela.
 /**
  * @param {Projet} projet @param {import("../service.ts").LigneDeManque} manque
  * @param {(texte: string, geste: () => Promise<unknown>) => HTMLButtonElement} action
- * @param {boolean} [enBande] vrai : la commande ne s'écrit pas à plat, elle se lit au survol
  */
-function poserManque(projet, manque, action, enBande = false) {
+function poserManque(projet, manque, action) {
   const ligne = document.createElement("li");
   ligne.dataset.acteur = manque.acteur;
   ligne.append(bloc("strong", `${manque.qui}:`), " ", manque.texte);
@@ -1328,17 +1350,8 @@ function poserManque(projet, manque, action, enBande = false) {
     else ligne.append(action(geste.libelle, async () => [...serviceEtapes.children].find((etape) => /** @type {HTMLElement} */ (etape).dataset.id === id)?.scrollIntoView?.({ block: "center" })));
     return ligne;
   }
-  if (enBande) {
-    ligne.append(survol(document, "commande" in geste ? geste.commande : geste.dit));
-    return ligne;
-  }
-  if ("commande" in geste) {
-    const copier = bouton("Copy", () => void navigator.clipboard?.writeText(geste.commande).then(() => void (copier.textContent = "Copied")));
-    copier.type = "button";
-    ligne.append(exact("pre", geste.commande), copier);
-    return ligne;
-  }
-  ligne.append(exact("pre", geste.dit));
+  // Ni commande ni phrase de mode d'emploi à plat : elles se lisent au survol.
+  ligne.append(survol(document, "commande" in geste ? geste.commande : geste.dit));
   return ligne;
 }
 
@@ -1349,8 +1362,10 @@ function poserRate(projet, rate) {
   tete.className = "verdict";
   tete.dataset.verdict = rate.etat === "en-cours" ? "en-cours" : "sans-verdict";
   if (rate.etat === "en-cours") return [tete];
-  if (rate.etat === "echec") return [tete, ...obtenu(projet, { ...rate.echec, projet: projet.nom }, GESTE)];
-  return [tete, bloc("pre", rate.obtenu), ...rate.lignes.map((ligne) => bloc("p", ligne))];
+  if (rate.etat === "echec") return [tete, ...obtenuEnUneLigne(projet, { ...rate.echec, projet: projet.nom }, GESTE)];
+  const brut = document.createElement("details");
+  brut.append(bloc("summary", "what the box said"), bloc("pre", rate.obtenu));
+  return [tete, brut, ...rate.lignes.map((ligne) => bloc("p", ligne))];
 }
 
 // Les mots d'un état d'étape, tels que l'écran les montre.
@@ -1394,31 +1409,25 @@ function poserService(projet, guide) {
     cree.className = "refus";
     return cree;
   };
-  /** @param {string} titre @param {string} texte */
-  const dit = (titre, texte) => {
-    const cree = document.createElement("p");
-    cree.append(bloc("strong", `${titre} `), texte);
-    return cree;
-  };
 
   // En tête : ce que l'app ne fera pas à la place du chef, dit avant qu'il le rencontre ; puis
   // ce que la box a rendu de la dernière action, et de la dernière vérification.
   const tete = [];
   if (guide.lecture.etat !== "lue") tete.push(...poserRate(projet, guide.lecture));
   if (guide.courante === null && guide.lecture.etat === "lue") {
-    tete.push(bloc("p", "The installation is finished: the box verified everything, the kitchen is ready to serve, and no installation step is left."));
+    tete.push(ditEtAide("p", "The installation is finished", "the box verified everything, the kitchen is ready to serve, and no installation step is left."));
     if ("commande" in guide.demarrage) tete.push(action("Write the start of the service in a shell", () => demarrerService(projet)));
   }
   if (guide.courante !== null && guide.lecture.etat === "lue") {
     const annonces = document.createElement("div");
     annonces.className = "annonces";
-    annonces.append(bloc("strong", "What the app cannot do for you — said before you meet it"));
-    if (guide.annonces.etat === "en-cours") annonces.append(bloc("p", "The box is being verified: what it lacks, that only someone with `sudo` there can set up, is announced here as soon as it answers."));
-    if (guide.annonces.etat === "pas-lues") annonces.append(refus("The verification did not return its verdict: what the box may lack is not known — what the app got is below."));
+    annonces.append(ditEtAide("strong", "What the app cannot do for you", "said before you meet it"));
+    if (guide.annonces.etat === "en-cours") annonces.append(ditEtAide("p", "The box is being verified…", "what it lacks, that only someone with `sudo` there can set up, is announced here as soon as it answers."));
+    if (guide.annonces.etat === "pas-lues") annonces.append(refus("The verification did not return its verdict: what the box may lack is not known."));
     for (const annonce of guide.annonces.liste) {
       const ligne = document.createElement("div");
       ligne.className = "annonce";
-      ligne.append(bloc("strong", annonce.titre), bloc("p", annonce.texte), ...(annonce.geste === null ? [] : [exact("pre", annonce.geste)]));
+      ligne.append(bloc("strong", annonce.titre), annonce.geste === null ? bloc("p", annonce.texte) : ditEtAide("p", annonce.texte, annonce.geste));
       annonces.append(ligne);
     }
     tete.push(annonces);
@@ -1428,7 +1437,9 @@ function poserService(projet, guide) {
     const fait = bloc("p", `${guide.fait.titre} — at ${heureDe(guide.fait.a)}`);
     fait.className = "verdict";
     fait.dataset.verdict = guide.fait.ok ? "pret" : "incomplete";
-    tete.push(fait, bloc("pre", guide.fait.obtenu));
+    const brut = document.createElement("details");
+    brut.append(bloc("summary", "what the box said"), bloc("pre", guide.fait.obtenu));
+    tete.push(fait, brut);
   }
   if (guide.lecture.etat === "lue") tete.push(action("Verify", () => brigade.verifier(projet.nom)), ...poserVerdict(projet, guide.verification, action));
   serviceTete.replaceChildren(...tete);
@@ -1443,9 +1454,10 @@ function poserService(projet, guide) {
       const etat = bloc("span", ETATS_D_ETAPE[etape.etat]);
       etat.className = "etat";
       titre.append(bloc("strong", `${etape.rang}. ${etape.titre}`), " ", etat, ...(etape.courante ? [" ", bloc("em", "← now")] : []));
-      li.append(titre, dit("What it is for:", etape.sert), dit("If you skip it:", etape.sauter));
-      if (etape.geste !== null) li.append(dit("Yours to do:", etape.geste));
-      for (const manque of etape.manques) li.append(refus(`“Verify” says: ${manque.texte}`), ...(manque.geste === null ? [] : [exact("pre", manque.geste)]));
+      // À quoi sert l'étape, ce qui arrive si on la saute, ce qui reste au chef : au survol de son titre.
+      titre.append(survol(document, [`What it is for: ${etape.sert}`, `If you skip it: ${etape.sauter}`, ...(etape.geste === null ? [] : [`Yours to do: ${etape.geste}`])].join("\n")));
+      li.append(titre);
+      for (const manque of etape.manques) li.append(manque.geste === null ? refus(`“Verify” says: ${manque.texte}`) : ditEtAide("p", `“Verify” says: ${manque.texte}`, manque.geste));
       // Une étape faite n'a plus de geste — sauf les décisions qui restent, présentées jusqu'à la fin.
       if (!etape.courante && etape.detail === undefined) return li;
       li.append(...etape.lignes.map((ligne) => bloc("p", ligne)), ...gesteDEtape(projet, guide, etape, action, refus));
@@ -1464,9 +1476,9 @@ function gesteDEtape(projet, guide, etape, action, refus) {
   const { detail } = etape;
   if (!etape.courante && etape.id !== "decisions") return [];
   if (etape.id === "init") {
-    return [action("Run /brigade:init in the second", () => amorcerService(projet)), action("The result of /brigade:init is merged onto the integration branch", () => brigade.direMerge(projet.nom, true))];
+    return [action("Initialize the project in the second", () => amorcerService(projet)), action("The initialization is merged onto the integration branch", () => brigade.direMerge(projet.nom, true))];
   }
-  if (etape.id === "verification") return [refus("“Verify” is at the top of this screen: once what it says is missing on the box is set up, verify again.")];
+  if (etape.id === "verification") return [ditEtAide("p", "Verify again once the box is set up", "“Verify” is at the top of this screen: once what it says is missing on the box is set up, verify again.")];
   if (etape.id === "demarrage") return "refus" in guide.demarrage ? [refus(guide.demarrage.refus)] : [action("Start", () => demarrerService(projet))];
   if (detail === undefined) return [];
   if (detail.etat !== "lu") return poserRate(projet, detail);
@@ -1488,7 +1500,7 @@ function gesteDEtape(projet, guide, etape, action, refus) {
       cooks.placeholder = "cooks at once";
       cooks.value = String(declarees.find(({ nom }) => nom === proposee.nom)?.cooks ?? "");
       const ligne = document.createElement("label");
-      ligne.append(coche, exact("span", proposee.nom), ` provides ${proposee.fournit.join(", ")} — `, cooks, " cooks at once (no default: it is your quota)");
+      ligne.append(coche, exact("span", proposee.nom), ` provides ${proposee.fournit.join(", ")} — `, cooks, " cooks at once", survol(document, "no default: it is your quota"));
       poses.push(ligne);
       choix.push({ nom: proposee.nom, coche, cooks });
     }
@@ -1521,7 +1533,7 @@ function gesteDEtape(projet, guide, etape, action, refus) {
   if (courante === null) return [bloc("p", "No decision waiting."), ...(detail.passable ? [action("Mark the decisions done", () => brigade.passerDecisions(projet.nom))] : [])];
   const poses = [bloc("p", `${enAttente} decision${enAttente > 1 ? "s" : ""} waiting, this one included${courante.reclamee ? " — the start requires it" : " — the start does not require it"}.`), exact("strong", courante.nom), bloc("p", courante.question)];
   if (courante.recommandee !== null) poses.push(bloc("p", `Recommended: ${courante.recommandee.valeur} — ${courante.recommandee.pourquoi}`));
-  poses.push(bloc("p", `If you skip it: ${courante.sauter}`));
+  poses.push(ditEtAide("p", "If you skip it", courante.sauter));
   /** @param {import("../service.ts").Option[]} options */
   const choisir = (options) => {
     if (options.some(({ valeur }) => valeur.startsWith("<"))) {
@@ -1711,7 +1723,7 @@ function poserCouleurs(projet) {
     bloc("h3", "Colors"),
     rangee("onglet", "Tab, in the bar"),
     rangee("accent", "Accent, in the space"),
-    ...(projet.couleurs === undefined ? [bloc("p", "No colors yet: the app picks them and writes them to the projects file.")] : []),
+    ...(projet.couleurs === undefined ? [ditEtAide("p", "No colors yet", "the app picks them and writes them to the projects file.")] : []),
     ...(couleurRefusee.refus === "" ? [] : [refus]),
   );
 }
@@ -3005,7 +3017,7 @@ function poserArreter(projet, arretee) {
   if (arreterCuisine.hidden || arreter === undefined) return arreterCuisine.replaceChildren();
   const poses = poserGeste(projet, { ...arreter, ou: "parametres" });
   if (poses[0] !== undefined) poses[0].dataset.arret = "";
-  arreterCuisine.replaceChildren(bloc("h3", "stopping the kitchen"), bloc("p", "stops the running cooks and holds the rail. It says what it costs before anything goes."), ...poses);
+  arreterCuisine.replaceChildren(ditEtAide("h3", "stopping the kitchen", "stops the running cooks and holds the rail. It says what it costs before anything goes."), ...poses);
 }
 
 // En tête du rail, ce qui n'est pas encore dessus (amont.ts) : un nombre — « 23 upcoming » — qui
@@ -3261,12 +3273,12 @@ function poserPages(projet, servies) {
   };
   const n = servies.pages.length;
   pages.replaceChildren(
-    bloc("h3", `look at a delivery in your browser — the servers \`${geste(projet, "status")}\` shows`),
+    ditEtAide("h3", "look at a delivery in your browser", `the servers \`${geste(projet, "status")}\` shows`),
     ...(servies.refus === undefined ? [] : [alerte(servies.refus)]),
-    ...(n === 0 ? [] : [bloc("p", `${n} page${n > 1 ? "s" : ""} served: each opens from its ticket's card, on the rail (${servies.pages.map(({ ticket }) => `#${ticket}`).join(", ")})`)]),
+    ...(n === 0 ? [] : [ditEtAide("p", `${n} page${n > 1 ? "s" : ""} served (${servies.pages.map(({ ticket }) => `#${ticket}`).join(", ")})`, "each opens from its ticket's card, on the rail")]),
     ...(servies.aLancer.length === 0
       ? []
-      : [bloc("p", `${servies.aLancer.length} deliver${servies.aLancer.length > 1 ? "ies" : "y"} of an app that does not open in a browser: its ticket's card says how to see it (${servies.aLancer.map(({ ticket }) => `#${ticket}`).join(", ")})`)]),
+      : [ditEtAide("p", `${servies.aLancer.length} deliver${servies.aLancer.length > 1 ? "ies" : "y"} of an app that does not open in a browser (${servies.aLancer.map(({ ticket }) => `#${ticket}`).join(", ")})`, "its ticket's card says how to see it")]),
     ...(servies.vide === undefined ? [] : [bloc("p", surMesure(projet, servies.vide))]),
     ...(n > 0 && servies.illisibles.length > 0 ? [bloc("p", "under `serveurs`, what the app could not read — no action:")] : []),
     ...servies.illisibles.map((ligne) => bloc("pre", ligne)),
@@ -3328,20 +3340,15 @@ function poserManager() {
   if (projet === undefined || manager.hidden) return manager.replaceChildren();
   const vu = managerVu?.projet === projet.nom ? managerVu : undefined;
 
-  /** @param {string} texte */
-  const alerte = (texte) => {
-    const dite = bloc("p", texte);
-    dite.className = "refus";
-    return dite;
-  };
   const gestes = document.createElement("div");
   gestes.className = "gestes";
   gestes.append(...GESTES_DU_MANAGER.flatMap(({ id, libelle }) => poserGeste(projet, { id, libelle, ou: "manager" })));
 
   // L'heure n'est dite que d'un état lu : celle d'un essai raté se lit dessous, avec ce qu'il a rendu.
-  const titre = bloc("h3", `the manager, from \`${geste(projet, "manager")}\`${vu === undefined || "sans" in vu ? "" : ` — read at ${heureDe(vu.a)}`}`);
+  const titre = bloc("h3", `the manager${vu === undefined || "sans" in vu ? "" : ` — read at ${heureDe(vu.a)}`}`);
+  titre.append(survol(document, `from \`${geste(projet, "manager")}\``));
   if (vu === undefined) return manager.replaceChildren(titre, bloc("p", "first read in progress…"), gestes);
-  if ("sans" in vu) return manager.replaceChildren(titre, alerte(vu.sans), gestes);
+  if ("sans" in vu) return manager.replaceChildren(titre, lectureIndisponible(document, "the manager state could not be read", vu.sans), gestes);
 
   const { mot, ton, depuis, par, dit } = vu.interrupteur;
   const interrupteur = document.createElement("p");
@@ -3371,12 +3378,6 @@ function poserGrants() {
   if (projet === undefined || grants.hidden) return grants.replaceChildren();
   const vu = grantsVus?.projet === projet.nom ? grantsVus : undefined;
 
-  /** @param {string} texte */
-  const alerte = (texte) => {
-    const dite = bloc("p", texte);
-    dite.className = "refus";
-    return dite;
-  };
   // Les deux gestes d'un grant : chacun le nomme, sur son bouton comme dans ce qu'il écrit.
   /** @param {string} action */
   const gestes = (action) => {
@@ -3387,9 +3388,10 @@ function poserGrants() {
   };
 
   // L'heure n'est dite que d'un état lu : celle d'un essai raté se lit dessous, avec ce qu'il a rendu.
-  const titre = bloc("h3", `the grants, from \`${geste(projet, "grant")}\`${vu === undefined || "sans" in vu ? "" : ` — read at ${heureDe(vu.a)}`}`);
+  const titre = bloc("h3", `the grants${vu === undefined || "sans" in vu ? "" : ` — read at ${heureDe(vu.a)}`}`);
+  titre.append(survol(document, `from \`${geste(projet, "grant")}\``));
   if (vu === undefined) return grants.replaceChildren(titre, bloc("p", "first read in progress…"), ...GRANTS_NOMMES.map(gestes));
-  if ("sans" in vu) return grants.replaceChildren(titre, alerte(vu.sans), ...GRANTS_NOMMES.map(gestes));
+  if ("sans" in vu) return grants.replaceChildren(titre, lectureIndisponible(document, "the grants state could not be read", vu.sans), ...GRANTS_NOMMES.map(gestes));
 
   /** @param {import("../grants.ts").GrantVu} grant */
   const poser = (grant) => {
@@ -3398,7 +3400,7 @@ function poserGrants() {
     nomme.className = "interrupteur";
     if ("sans" in grant) {
       nomme.append(pastille("", undefined), bloc("strong", `grant ${grant.action}`));
-      pose.append(nomme, alerte(grant.sans));
+      pose.append(nomme, lectureIndisponible(document, "this grant could not be read", grant.sans));
     } else {
       const { mot, ton, depuis, par, bientot, echeance, limites, dit } = grant;
       nomme.append(
@@ -3415,7 +3417,7 @@ function poserGrants() {
       pose.append(nomme, ...(reste.childElementCount === 0 ? [] : [reste]), ...(dit === "" ? [] : [bloc("p", dit)]));
     }
     pose.append(
-      grant.commandable ? gestes(grant.action) : bloc("small", "no action here for this grant: the app only writes the commands the docs cite"),
+      grant.commandable ? gestes(grant.action) : bloc("small", "no action here for this grant"),
       ...listeLue(`latest uses of the ${grant.action} grant — most recent first`, grant.usages, (usage) => [teteDIssue(usage), bloc("p", `${usage.suite} — on ${usage.base}`), tracesDUsage(usage)]),
     );
     return pose;
@@ -3848,7 +3850,7 @@ function poserAlertes(projet) {
       // Ce que la ligne sait de plus — pourquoi, ce que la box en écrit, le geste en toutes lettres — se lit au survol.
       const explication = [pourquoi, releve?.split("\n").join(" — "), leve].filter((texte) => texte !== undefined && texte.trim() !== "").join("\n");
       if (explication !== "") tete.append(survol(document, explication));
-      ligne.append(tete, ...(verification === undefined ? [] : poserVerdict(projet, verification, (texte, geste) => bouton(texte, () => void geste()), verification.titre !== dit, true)), leGeste(leve, libelle, appel, prix, alerte), ...(aussi === undefined ? [] : [leGeste(aussi.geste, undefined, aussi.appel, aussi.prix, alerte)]));
+      ligne.append(tete, ...(verification === undefined ? [] : poserVerdict(projet, verification, (texte, geste) => bouton(texte, () => void geste()), verification.titre !== dit)), leGeste(leve, libelle, appel, prix, alerte), ...(aussi === undefined ? [] : [leGeste(aussi.geste, undefined, aussi.appel, aussi.prix, alerte)]));
       return ligne;
     }),
   );
@@ -4300,7 +4302,7 @@ brigade.surLecture((recue, servies) => {
     const tenu = blocs.get(recue.projet);
     if (tenu !== undefined) rendre(recue, tenu.tete, tenu.corps, true);
   } else if (recue.projet === courant.nom) {
-    rendre(recue, lu, lecture);
+    rendre(recue, lu, lecture, true);
     servir(courant, servies);
   }
 });
@@ -4359,7 +4361,7 @@ brigade.surFaits((recue) => {
 // l'onglet Grants, de même, avec l'état des grants.
 brigade.surContenu((recue, vu, desGrants) => {
   if (recue.demande !== demandeOnglet || recue.projet !== courant?.nom) return;
-  rendre(recue, luOnglet, lectureOnglet);
+  rendre(recue, luOnglet, lectureOnglet, true);
   managerVu = vu;
   poserManager();
   grantsVus = desGrants;

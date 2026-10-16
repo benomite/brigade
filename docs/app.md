@@ -18,6 +18,12 @@ survol de l'icône « ? » de la ligne ; le prix d'un geste qui coûte, au survo
 « cost: … » sous lui, et rien du tout quand il est nul. **« Tous les projets » commence, pour chaque
 projet, par ce qu'il y a à faire** (ses alertes en une ligne, et le bouton qui ouvre son espace) ; ce que
 la box a dit de son état est replié, et une lecture qui échoue se dit en une ligne, le détail au survol.
+**Cost, la vérification d'un projet et Settings suivent les mêmes règles** : aucun mode d'emploi à plat
+(l'explication d'un onglet, à quoi sert une étape de l'installation et ce qui arrive si on la saute vivent
+au survol d'une icône « ? »), chaque geste est un bouton qui dit son mot — un geste qui écrit le début d'une
+commande dans le second se nomme (« Set the cooks of a station… »), la commande n'est écrite nulle part —,
+une lecture en échec tient en une ligne (le texte de `ssh`, le renvoi et le code de sortie au survol), et une
+confirmation de geste coûteux dit son prix en une ligne, le reste et sa source au survol.
 **Le journal n'est plus à l'écran** : c'est de l'outillage de panne, il s'ouvre par le geste
 « journal », en tête de l'espace. Et en tête de la barre, l'écran **Tous les projets** : la même lecture pour tous tes projets
 d'un coup, avec, pour chacun, si tu peux encore le piloter d'ici.

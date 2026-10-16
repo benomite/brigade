@@ -335,7 +335,7 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
     await cliquer(vue, vue.element("terminaux"), "+ shell");
     assert.deepEqual(montre(vue), ["shell 1"]);
 
-    await cliquer(vue, vue.element("gestes-onglet"), "station cooks …");
+    await cliquer(vue, vue.element("gestes-onglet"), "Set the cooks of a station…");
 
     assert.deepEqual(montre(vue), ["second · claude"]);
     assert.equal(vue.element("note-second").textContent, ecrit.note);
@@ -357,7 +357,7 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
     const vue = await ouvrir({ inscrire: () => ecrit });
     await ouvrirLecture(vue, "Cooks");
 
-    await cliquer(vue, vue.element("gestes-onglet"), "station cooks …");
+    await cliquer(vue, vue.element("gestes-onglet"), "Set the cooks of a station…");
 
     assert.deepEqual(vue.dernier("inscrire"), ["parade", "cooks"]);
     assert.deepEqual(selectionne(vue), ["Cost"]);
@@ -365,7 +365,9 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
     assert.equal(vue.element("rail").hidden, false);
     assert.equal(vue.element("note-second").textContent, ecrit.note);
     // La note du centre reste celle de l'onglet ouvert.
-    assert.match(vue.element("note").textContent, /^the output of `ssh box brigade parade station`/);
+    // Son explication n'est pas écrite à plat : elle est au survol.
+    assert.equal(vue.element("note").textContent, "?");
+    assert.match(vue.element("note").dessous("button")[0]?.ariaLabel ?? "", /^the output of `ssh box brigade parade station`/);
   });
 
   test("un geste confirmé ouvre sa confirmation sur place, et ne part qu'à son « oui » — dans le second, sans que le centre change", async () => {
