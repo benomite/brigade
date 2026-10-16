@@ -222,7 +222,8 @@ for (const [cas, variables, motif] of [
   ["avec un seuil de mémoire illisible", { BRIGADE_MIN_FREE_MEMORY_MB: "un peu" }, /BRIGADE_MIN_FREE_MEMORY_MB invalide/],
   ["avec un plafond de calibrage inconnu", { BRIGADE_CEILING_EFFORT: "extrême" }, /BRIGADE_CEILING_EFFORT invalide/],
   ["avec une clé d'API dans l'environnement", { ANTHROPIC_API_KEY: "sk-ant-jamais" }, /ANTHROPIC_API_KEY est défini.*connexion Max/],
-  ["avec un jeton extrait dans l'environnement", { CLAUDE_CODE_OAUTH_TOKEN: "jamais" }, /CLAUDE_CODE_OAUTH_TOKEN est défini/],
+  ["avec un jeton d'API dans l'environnement", { ANTHROPIC_AUTH_TOKEN: "jamais" }, /ANTHROPIC_AUTH_TOKEN est défini.*connexion Max/],
+  ["avec un fichier de jeton absent", { BRIGADE_CLAUDE_TOKEN_FILE: "/chemin/jamais/cree" }, /BRIGADE_CLAUDE_TOKEN_FILE invalide : « \/chemin\/jamais\/cree » est illisible ou absent/],
   ["avec une cloison qui ne masque rien", { BRIGADE_SANDBOX_BIN: FAUX_BWRAP, HOME: "/home/jamais" }, /BRIGADE_SANDBOX_BIN est défini sans BRIGADE_SANDBOX_HIDDEN/],
   ["avec une cloison qui laisse l'état dehors", { BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: "/var/lib/jamais", HOME: "/home/jamais" }, /BRIGADE_STATE_DIR \(.*\) n'est sous aucun répertoire de BRIGADE_SANDBOX_HIDDEN/],
   ["avec une station dont le nom n'est pas <machine>/<moteur>", { BRIGADE_STATIONS: "box:2:code" }, /BRIGADE_STATIONS invalide : station n° 1 \(« box:2:code »\) — nom : « box » n'est pas de la forme/],
@@ -408,6 +409,40 @@ describe("de bout en bout", { concurrency: 2 }, () => {
     assert.equal(await runtime.fin, 0);
   });
 
+  test("avec le jeton à son emplacement, sur une machine sans session : la station se sait connectée, et le cook reçoit le jeton dans CLAUDE_CODE_OAUTH_TOKEN", async (t) => {
+    const repertoire = repertoireTemporaire(t);
+    const { clone } = depotGit(t);
+    const gh = fauxGh(t);
+    gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
+    gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: { html_url: `https://github.com/${DEPOT}/pull/40` } });
+    gh.repondre(`repos/${DEPOT}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
+    const temoin = join(repertoireTemporaire(t), "temoin");
+    mkdirSync(temoin);
+    const fichier = join(repertoireTemporaire(t), "jeton-claude");
+    writeFileSync(fichier, "sk-ant-oat01-jeton-de-la-machine\n", { mode: 0o600 });
+    const runtime = lancer(t, MAIN, [], {
+      ...environnement(t, repertoire, gh),
+      BRIGADE_REPO_DIR: clone,
+      BRIGADE_CLAUDE_TOKEN_FILE: fichier,
+      FAUX_CLAUDE: "livre",
+      FAUX_CLAUDE_TEMOIN: temoin,
+      // Sans le jeton, `claude auth status` dirait la machine déconnectée, et
+      // aucun cook ne partirait.
+      FAUX_CLAUDE_SESSION: "absente",
+    });
+
+    await jusqua(() => lancementsDuFauxClaude(temoin).length === 1);
+
+    assert.ok(runtime.sortie().includes(`connexion de \`claude\` — jeton longue durée lu dans ${fichier}, relu à chaque lancement`), runtime.sortie());
+    assert.equal(runtime.sortie().includes("sk-ant-oat01-jeton-de-la-machine"), false);
+    const [cook] = lancementsDuFauxClaude(temoin);
+    assert.equal(cook?.env.CLAUDE_CODE_OAUTH_TOKEN, "sk-ant-oat01-jeton-de-la-machine");
+    assert.equal(cook?.env.BRIGADE_CLAUDE_TOKEN_FILE, undefined);
+    assert.equal(relire(repertoire).some((e) => e.type === "station.disconnected"), false);
+    runtime.process.kill("SIGTERM");
+    assert.equal(await runtime.fin, 0);
+  });
+
   test("sous grant, la livraison d'un cook est jugée par les gates du projet, mergée sur le commit jugé, et son issue fermée", async (t) => {
     const repertoire = repertoireTemporaire(t);
     const { origine, clone } = depotGit(t);
@@ -554,6 +589,36 @@ test("le runtime dit au démarrage où vivent les secrets du projet, ou qu'il n'
   await avec.attendre("démarré");
   assert.ok(avec.sortie().includes(`secrets du projet — ${fichier}, relu à chaque lancement`), avec.sortie());
   assert.equal(avec.sortie().includes("une-valeur-de-dev"), false);
+});
+
+test("avec CLAUDE_CODE_OAUTH_TOKEN seul dans l'environnement, le runtime démarre, et dit qu'il ne le transmet à aucun `claude`", async (t) => {
+  const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoireTemporaire(t)), CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-pose-dans-l-environnement" });
+  await runtime.attendre("démarré");
+
+  assert.match(runtime.sortie(), /connexion de `claude` — celle du compte \(BRIGADE_CLAUDE_TOKEN_FILE n'est pas défini\) ; CLAUDE_CODE_OAUTH_TOKEN est dans l'environnement du runtime : il n'est transmis à aucun `claude`/);
+  assert.equal(runtime.sortie().includes("sk-ant-oat01-pose-dans-l-environnement"), false);
+  runtime.process.kill("SIGTERM");
+  assert.equal(await runtime.fin, 0);
+});
+
+test("sans jeton, le runtime démarre sur la connexion du compte et le dit", async (t) => {
+  const runtime = lancer(t, MAIN, [], environnement(t, repertoireTemporaire(t)));
+  await runtime.attendre("démarré");
+
+  assert.match(runtime.sortie(), /connexion de `claude` — celle du compte \(BRIGADE_CLAUDE_TOKEN_FILE n'est pas défini\)$/m);
+  runtime.process.kill("SIGTERM");
+  assert.equal(await runtime.fin, 0);
+});
+
+test("un fichier de jeton rangé dans l'état du runtime fait refuser de démarrer, sans laisser de journal", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  writeFileSync(join(repertoire, "jeton-claude"), "sk-ant-oat01-range-dans-l-etat\n", { mode: 0o600 });
+  const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_CLAUDE_TOKEN_FILE: join(repertoire, "jeton-claude") });
+
+  assert.equal(await runtime.fin, REFUS);
+  assert.match(runtime.sortie(), /refus de démarrer — BRIGADE_CLAUDE_TOKEN_FILE invalide.*hors de BRIGADE_STATE_DIR et de BRIGADE_REPO_DIR/);
+  assert.equal(runtime.sortie().includes("sk-ant-oat01-range-dans-l-etat"), false);
+  assert.equal(rienEcritParLeRuntime(repertoire), true);
 });
 
 test("un fichier de secrets rangé dans l'état du runtime fait refuser de démarrer, sans laisser de journal", async (t) => {

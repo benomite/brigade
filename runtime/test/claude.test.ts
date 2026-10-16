@@ -219,6 +219,8 @@ test("la session de la machine se demande au binaire, sans lancer de cook", asyn
 
   assert.equal(await sessionClaude(FAUX_CLAUDE, env), "connectee");
   assert.equal(await sessionClaude(FAUX_CLAUDE, { ...env, FAUX_CLAUDE_SESSION: "absente" }), "absente");
+  // Le jeton longue durée connecte la machine sans session du compte.
+  assert.equal(await sessionClaude(FAUX_CLAUDE, { ...env, FAUX_CLAUDE_SESSION: "absente", CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-x" }), "connectee");
 });
 
 test("un binaire introuvable se dit tel quel ; une réponse illisible ne tranche rien", async () => {

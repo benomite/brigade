@@ -49,7 +49,8 @@ import type { Mot } from "./arbitre.ts";
 import { ArbitreInjoignable, type Arbitrage, type Reponse } from "./arbitrage.ts";
 import { complet, manquant, type Calibrage } from "./calibrage.ts";
 import { absentesDuMotif, CLE_DES_CAPACITES, direManque, direStationAbsente, fournitTout, gesteDeCapacite, manque, manqueDuMotif, motifSansStation, motifStationAbsente } from "./capacites.ts";
-import { argumentsClaude, consigne, direRefus, environnementCook, lireFlux, REFUS_MAX, ticketRemis, verdict, VARIABLES_DE_JETON, type Lecture, type Session } from "./claude.ts";
+import { environnementClaude } from "./jeton-claude.ts";
+import { argumentsClaude, consigne, direRefus, environnementCook, lireFlux, REFUS_MAX, ticketRemis, verdict, VARIABLES_DE_CLE, VARIABLES_DE_JETON, type Lecture, type Session } from "./claude.ts";
 import type { Decisions } from "./decisions.ts";
 import { ouvrirDepot, type Depot, type OptionsDepot } from "./depot.ts";
 import { configPresence, ouvrirDistantes, PRESENCE_PAR_DEFAUT_MIN, type Conclusion } from "./distantes.ts";
@@ -184,12 +185,12 @@ export type ConfigStation = {
 
 // Lit la configuration des stations dans l'environnement. Ni le clone ni la
 // branche n'ont de défaut, et aucune station n'est supposée ; et rien ne doit
-// détourner `claude` de la connexion Max de la machine.
+// faire payer `claude` hors de la connexion Max de la machine.
 export function configStation(env: Record<string, string | undefined>): ConfigStation {
-  for (const variable of VARIABLES_DE_JETON) {
+  for (const variable of VARIABLES_DE_CLE) {
     if (env[variable]) {
       throw new ConfigInvalide(
-        `${variable} est défini : la station ne pilote \`claude\` que par la connexion Max de la machine, jamais par une clé ou un jeton — retirer la variable`,
+        `${variable} est défini : la station ne pilote \`claude\` que par la connexion Max de la machine, jamais par une clé ou un jeton d'API — retirer la variable`,
       );
     }
   }
@@ -1615,7 +1616,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             { cwd: worktree, depot: "ecriture", lit: remis === undefined ? [] : [remis] },
           ),
           cwd: worktree,
-          env: envDuCook,
+          // Le jeton de la connexion Max, relu à ce lancement : au cook, pas
+          // à ce que la station garde de son setup.
+          env: environnementClaude(envDuCook, options.env ?? process.env),
           masquer,
           juger,
           // Le cook survit au runtime : un relais le porte, et le runtime qui

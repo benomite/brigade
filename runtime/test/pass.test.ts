@@ -86,6 +86,15 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual([cooks().length, relectures().length], [1, 1]);
   });
 
+  test("avec un jeton à son emplacement, le cook et le reviewer le reçoivent ; les gates, qui jouent le code du projet, jamais", async (t) => {
+    const { jusquAu, cooks, relectures, gates } = service(t, { jeton: "sk-ant-oat01-jeton-de-la-machine" });
+    await jusquAu("pass.held");
+
+    assert.deepEqual([...cooks(), ...relectures()].map((lance) => lance.env.CLAUDE_CODE_OAUTH_TOKEN), ["sk-ant-oat01-jeton-de-la-machine", "sk-ant-oat01-jeton-de-la-machine"]);
+    assert.ok(gates.claude().length > 0);
+    assert.deepEqual([...new Set(gates.claude())], [""]);
+  });
+
   test("verte sans grant : la PR reste ouverte, la pass s'arrête là et le dit", async (t) => {
     const { gh, etat, histoire, pass, dernier, jusquAu, laisserTourner, journal } = service(t);
     await jusquAu("pass.held");

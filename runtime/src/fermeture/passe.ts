@@ -29,6 +29,7 @@ import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { RuntimeAvecRail } from "../alimenter.ts";
 import { argumentsClaude, environnementCook, lireFlux, verdict } from "../claude.ts";
+import { environnementClaude } from "../jeton-claude.ts";
 import { envelopper, type Cloison } from "../cloison.ts";
 import type { Depot as DepotDeStation } from "../depot.ts";
 import { SANS_ISSUE_MS, type FaitFermeture, type FinDePasse, type Laisse, type Pente, type ReglagesDeFermeture, type Retrait } from "../evenements/fermeture.ts";
@@ -297,7 +298,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
           { cwd: worktree, depot: "ecriture" },
         ),
         cwd: worktree,
-        env: environnementCook(env),
+        env: environnementClaude(environnementCook(env), env),
         juger,
       });
     } catch (erreur) {
