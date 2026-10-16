@@ -3746,7 +3746,9 @@ function poserPageDeStation() {
     etatDit.className = "phrase";
     // Illisible, ce qui se lit au survol est pourquoi.
     const details = station.etat === "illisible" ? station.ligne : (ligne?.survol ?? station.machine);
-    enTeteDeStation.replaceChildren(titre, pastille(phrase, ligne?.ton), etatDit, ...(details === "" ? [] : [survol(document, details)]));
+    // Hors ligne, la panne dessous le dit déjà, avec son bouton : l'en-tête ne le redit pas.
+    const dejaDit = station.pannes.some(({ sujet }) => sujet === "injoignable");
+    enTeteDeStation.replaceChildren(titre, pastille(phrase, ligne?.ton), ...(dejaDit ? [] : [etatDit]), ...(details === "" ? [] : [survol(document, details)]));
     pannesDeStation.replaceChildren(...station.pannes.map((panne) => poserPanne(station.id, panne)));
   }
   poserProjets();
@@ -3992,8 +3994,9 @@ function poserPanne(id, panne) {
   bouton.type = "button";
   bouton.textContent = panne.bouton.libelle;
   bouton.addEventListener("click", () => void jouerPanne(id, panne.cle, bouton));
+  // L'explication, et ce que le bouton a rendu, ne se lisent qu'au survol.
   const dit = pannesDites.get(`${id} ${panne.cle}`);
-  pose.append(bloc("span", panne.ligne), bouton, ...(dit === undefined ? [] : [bloc("span", dit)]));
+  pose.append(bloc("span", panne.ligne), bouton, survol(document, dit === undefined ? panne.survol : `${panne.survol}. ${dit}`));
   return pose;
 }
 /** @param {string} id @param {string} cle @param {HTMLButtonElement} bouton */

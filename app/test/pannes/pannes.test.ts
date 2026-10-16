@@ -50,13 +50,13 @@ const COMMANDES = [
 const sansCommande = (texte: string) => {
   for (const motif of COMMANDES) assert.doesNotMatch(texte, motif, `« ${texte} » montre une commande`);
 };
-const textesDe = (pannes: Panne[]) => pannes.flatMap(({ ligne, bouton }) => [ligne, bouton.libelle]);
+const textesDe = (pannes: Panne[]) => pannes.flatMap(({ ligne, survol, bouton }) => [ligne, survol, bouton.libelle]);
 
 test("une station éteinte depuis 10 minutes : « box has given no sign of life for 10 min », avec un bouton qui relit GitHub", () => {
-  assert.deepEqual(pannesDe(ETEINTE, MAINTENANT), [{ cle: "injoignable", sujet: "injoignable", ligne: "box has given no sign of life for 10 min", bouton: { libelle: "check again", geste: "relire" } }]);
+  assert.deepEqual(pannesDe(ETEINTE, MAINTENANT), [{ cle: "injoignable", sujet: "injoignable", ligne: "offline for 10 min", survol: "box has given no sign of life for 10 min: the app can only look on GitHub whether it has spoken again", bouton: { libelle: "check again", geste: "relire" } }]);
   // Arrêtée proprement il y a dix minutes : la même panne, comptée depuis son arrêt.
-  assert.equal(pannesDe(document({ signeDeVie: il_y_a(11 * MIN), arreteeLe: il_y_a(10 * MIN) }), MAINTENANT)[0]?.ligne, "box has given no sign of life for 10 min");
-  assert.equal(pannesDe(document({ signeDeVie: il_y_a(3 * 3_600_000 + 5 * MIN) }), MAINTENANT)[0]?.ligne, "box has given no sign of life for 3 h 05");
+  assert.equal(pannesDe(document({ signeDeVie: il_y_a(11 * MIN), arreteeLe: il_y_a(10 * MIN) }), MAINTENANT)[0]?.ligne, "offline for 10 min");
+  assert.equal(pannesDe(document({ signeDeVie: il_y_a(3 * 3_600_000 + 5 * MIN) }), MAINTENANT)[0]?.ligne, "offline for 3 h 05");
 });
 
 test("hors ligne depuis moins de dix minutes — un redémarrage, une mise à jour —, ce n'est pas une panne", () => {
@@ -68,14 +68,14 @@ test("hors ligne depuis moins de dix minutes — un redémarrage, une mise à jo
 });
 
 test("une mise à jour ratée et revenue en arrière : « update to version X failed — stayed on version Y », que le bouton écarte", () => {
-  assert.deepEqual(pannesDe(REVENUE, MAINTENANT), [{ cle: `mise-a-jour:${il_y_a(4 * MIN)}`, sujet: "mise-a-jour", ligne: "update to version 1.5.0 failed — stayed on version 1.4.0", bouton: { libelle: "dismiss", geste: "ecarter" } }]);
+  assert.deepEqual(pannesDe(REVENUE, MAINTENANT), [{ cle: `mise-a-jour:${il_y_a(4 * MIN)}`, sujet: "mise-a-jour", ligne: "update to version 1.5.0 failed", survol: "box stayed on version 1.4.0; the next version will be tried on its own", bouton: { libelle: "dismiss", geste: "ecarter" } }]);
   const rate = document({ miseAJour: { visee: "1.5.0", restauree: "1.4.0", le: il_y_a(4 * MIN), retourRate: true } });
-  assert.equal(pannesDe(rate, MAINTENANT)[0]?.ligne, "update to version 1.5.0 failed, and going back to version 1.4.0 failed too");
+  assert.equal(pannesDe(rate, MAINTENANT)[0]?.survol, "the station is on neither version: check box");
 });
 
 test("la connexion Max perdue : une ligne, et un bouton qui lance le login ; hors ligne, la station ne dit plus sa connexion", () => {
-  assert.deepEqual(pannesDe(PERDUE, MAINTENANT), [{ cle: `connexion-max:${il_y_a(12 * MIN)}`, sujet: "connexion-max", ligne: "Max connection lost 12 min ago — nothing cooks on box until you log in", bouton: { libelle: "log in", geste: "login" } }]);
-  assert.equal(pannesDe(document({ connexionMax: { etat: "perdue", depuis: null } }), MAINTENANT)[0]?.ligne, "Max connection lost — nothing cooks on box until you log in");
+  assert.deepEqual(pannesDe(PERDUE, MAINTENANT), [{ cle: `connexion-max:${il_y_a(12 * MIN)}`, sujet: "connexion-max", ligne: "Max connection lost 12 min ago", survol: "nothing cooks on box until you log in", bouton: { libelle: "log in", geste: "login" } }]);
+  assert.equal(pannesDe(document({ connexionMax: { etat: "perdue", depuis: null } }), MAINTENANT)[0]?.ligne, "Max connection lost");
   assert.deepEqual(pannesDe(document({ connexionMax: { etat: "inconnue", depuis: null } }), MAINTENANT), []);
   assert.deepEqual(
     pannesDe({ ...PERDUE, signeDeVie: il_y_a(INJOIGNABLE_APRES_MS) }, MAINTENANT).map(({ sujet }) => sujet),

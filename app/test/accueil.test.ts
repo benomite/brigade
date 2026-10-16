@@ -105,8 +105,8 @@ const station = (champs: Partial<StationVue> = {}): StationVue => ({
   max: "connectee",
   ...champs,
 });
-const MISE_A_JOUR: Panne = { cle: "mise-a-jour:x", sujet: "mise-a-jour", ligne: "update to version 1.5.0 failed — stayed on version 1.4.0", bouton: { libelle: "dismiss", geste: "ecarter" } };
-const MAX_PERDUE: Panne = { cle: "connexion-max:x", sujet: "connexion-max", ligne: "Max connection lost", bouton: { libelle: "log in", geste: "login" } };
+const MISE_A_JOUR: Panne = { cle: "mise-a-jour:x", sujet: "mise-a-jour", ligne: "update to version 1.5.0 failed — stayed on version 1.4.0", survol: "", bouton: { libelle: "dismiss", geste: "ecarter" } };
+const MAX_PERDUE: Panne = { cle: "connexion-max:x", sujet: "connexion-max", ligne: "Max connection lost", survol: "", bouton: { libelle: "log in", geste: "login" } };
 
 describe("la ligne d'une station : son état, ce qu'elle fait, ses projets — sa machine et sa version au survol seulement", () => {
   test("en ligne, ses cooks et ses projets", () => {
