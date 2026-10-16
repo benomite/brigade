@@ -10,7 +10,7 @@ const INJOIGNABLE: Panne = { cle: "injoignable", sujet: "injoignable", ligne: "b
 const MISE_A_JOUR: Panne = { cle: "mise-a-jour:2026-10-15T11:56:00.000Z", sujet: "mise-a-jour", ligne: "update to version 1.5.0 failed — stayed on version 1.4.0", bouton: { libelle: "dismiss", geste: "ecarter" } };
 const CONNEXION: Panne = { cle: "connexion-max:2026-10-15T11:48:00.000Z", sujet: "connexion-max", ligne: "Max connection lost 12 min ago — nothing cooks on box until you log in", bouton: { libelle: "log in", geste: "login" } };
 
-const station = (pannes: Panne[]): StationVue => ({ id: "g1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes });
+const station = (pannes: Panne[]): StationVue => ({ id: "g1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes, dit: "online", version: "1.4.0", projets: [], max: null });
 
 function desGestes(pannes: Panne[], relue: VuDesStations = { a: "", stations: [station([])] }, locale: string | null = null) {
   const fait = { relectures: 0, ecartees: [] as string[], logins: 0 };

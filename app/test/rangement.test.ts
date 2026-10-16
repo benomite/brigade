@@ -132,7 +132,7 @@ describe("ranger les projets en les glissant dans la barre", () => {
 
   test("le nouvel ordre est celui du fichier : la barre et « Tous les projets » le prennent dès qu'il revient", async () => {
     const vue = await jouer([A, B, C]);
-    const titres = () => vue.element("tous").dessous("h2").map(({ textContent }) => textContent);
+    const titres = () => vue.element("accueil-projets").dessous("strong").map(({ textContent }) => textContent);
     assert.deepEqual(titres(), ["alpha", "bravo", "charlie"]);
 
     vue.dire("surConfiguration", affichee([C, A, B]), []);

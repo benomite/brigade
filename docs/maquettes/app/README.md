@@ -15,6 +15,12 @@ disent encore « Kitchen » : ils ne se modifient pas. Le mot ne désigne plus u
 **cuisine** est l'état d'un projet sur sa box, celui qu'un « stop » arrête (`docs/app.md`, « L'app
 n'est pas la cuisine »).
 
+**Son contenu a changé depuis** (#870) : ce n'est plus une carte par projet, mais la vue d'ensemble
+de brigade — une ligne par projet, une par station, chacune avec sa pastille et ce qui s'y passe,
+qu'un clic ouvre, et la ligne de santé de Max et de GitHub. La maquette convenue est dans le ticket,
+et l'écran tel qu'il est livré dans `docs/app.md`, « Tous les projets, d'un coup ». Les cinq
+compteurs, les cooks en cours et le dernier événement vivent dans l'espace du projet.
+
 ## Les quatre écrans
 
 | Fichier | Écran | Ce qu'il fixe |

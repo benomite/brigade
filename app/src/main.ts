@@ -2,6 +2,7 @@
 // box et le suivi du fichier des projets.
 import { dirname, join } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, Notification, powerMonitor, shell } from "electron";
+import { tenirAccueil, type Accueil } from "./accueil.ts";
 import { tenirBandes } from "./alertes.ts";
 import { ALLUMAGE, compter } from "./allumage.ts";
 import { COMMANDE as COMMANDE_AMONT, tenirAmont } from "./amont.ts";
@@ -96,6 +97,8 @@ const veille = ouvrirVeille({
     if (redessine !== undefined) dire("faits", redessine);
     // Et la bande d'alertes : la cause d'une cuisine retenue, et le grant, se lisent dans ses lignes de tête.
     direLaBande(bandes.status(montree));
+    // Et l'accueil : ce qui bloque un projet, et depuis quand ses décisions attendent.
+    direLAccueil(accueil.status(montree));
   },
 });
 // L'onglet de contenu affiché — Rail, Cooks, Manager, Grants ou Log — a sa propre veille,
@@ -123,6 +126,12 @@ const veilleDOnglet = ouvrirVeille({
 // l'écran : la barre est toujours affichée. Une box qui ne rend pas `faits` (un runtime
 // plus ancien) le dit là où ils se dessinent, et `status` reste lisible à côté.
 const faits = tenirFaits();
+// L'accueil (accueil.ts) : une ligne par projet, une par station, et la ligne de santé — redessiné à
+// chaque lecture qui le change, de `faits`, de `status` ou des stations sur GitHub.
+const accueil = tenirAccueil({ projets: () => projets().map(({ nom, box, desinstalle }) => ({ nom, box: box !== undefined, desinstalle: desinstalle !== undefined })) });
+function direLAccueil(vu: Accueil | undefined): void {
+  if (vu !== undefined) dire("accueil", vu);
+}
 // La bande d'alertes de chaque projet (alertes.ts) : le manager, la cuisine, le grant —
 // redessinée à chaque lecture qui la change, de `faits`, de `status` ou de `manager`.
 const bandes = tenirBandes();
@@ -167,6 +176,7 @@ const veilleDesFaits = ouvrirVeille({
   surLecture: (lecture) => {
     dire("faits", faits.recevoir(lecture));
     direLaBande(bandes.faits(lecture));
+    direLAccueil(accueil.faits(lecture));
     // Une annonce d'urgence que le runtime vient de faire se dit au système.
     const lus = faits.dernier(lecture.projet);
     if (lus !== undefined) urgences.recevoir(lecture.projet, lus.faits);
@@ -226,6 +236,7 @@ function regarder(vus: Parameters<typeof veille.regarder>[0], commandes: readonl
   amonts.veiller(amont.map(({ nom }) => nom));
   for (const redessine of faits.veiller(vus.map(({ nom }) => nom))) dire("faits", redessine);
   for (const bande of bandes.veiller(vus.filter(({ box }) => box !== undefined).map(({ nom }) => nom))) { dernieresBandes.set(bande.projet, bande); dire("alertes", bande); }
+  direLAccueil(accueil.veiller(vus.map(({ nom }) => nom)));
 }
 
 // L'installation guidée d'un projet (service.ts) : ses étapes, lues et faites par les
@@ -329,6 +340,8 @@ const suivi = suivreConfiguration({
     runner.servir(cuisinesIci(role, projets()));
     // Un clone de brigade a pu entrer dans la liste, ou en sortir.
     void retards.relire(true);
+    // L'accueil a une ligne par projet du fichier, tel qu'il est maintenant.
+    direLAccueil(accueil.relire());
     // Un projet qui vient d'y entrer — ajouté depuis l'app, ou écrit à la main — reçoit ses
     // couleurs : écrites, elles reviennent ici par une relecture, qui n'a plus rien à tirer. Un
     // fichier qui n'a pas pu être relu attend de l'être : l'app n'y écrit rien.
@@ -368,7 +381,10 @@ const projetsDesStations = tenirProjets({
   github: githubDesStations({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }),
   stations: () => stations.vu()?.stations,
   depots: depotsDuChef({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }),
-  surLecture: (vu) => dire("projetsDesStations", vu),
+  surLecture: (vu) => {
+    dire("projetsDesStations", vu);
+    direLAccueil(accueil.projetsDesStations(vu));
+  },
 });
 // Les stations du chef, sur « Tous les projets » : celles qu'il a appairées, lues sur GitHub par
 // le `gh` du poste toutes les trente secondes (stations/stations.ts). L'app ne joint aucune
@@ -377,6 +393,7 @@ const stations = tenirStations({
   github: githubDesStations({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }),
   surLecture: (vu) => {
     dire("stations", vu);
+    direLAccueil(accueil.stations(vu));
     void projetsDesStations.relire();
   },
 });
@@ -422,7 +439,7 @@ function projet(nom: unknown): Projet {
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu(), stations: stations.vu(), projetsDesStations: projetsDesStations.vu() }));
+ipcMain.handle("demarrage", () => ({ configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu(), stations: stations.vu(), projetsDesStations: projetsDesStations.vu(), accueil: accueil.vu() }));
 // Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
 // décide hors de la vue — elle reçoit ce qu'il en est advenu, et pourquoi.
 ipcMain.handle("choisirDossier", async () => {
@@ -793,11 +810,13 @@ ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
   ongletLu = { id, demande };
   veilleDOnglet.regarder(commande === undefined ? [] : projets().filter((candidat) => candidat.nom === nom), commande === undefined ? [] : [commande], demande);
 });
-// « Tous les projets » : le `status` de chacun, et ce que `station` dit de la machine et du quota.
-ipcMain.on("tous", (_, demande: number) => (voir = () => regarder(projets(), ["status", "station"], demande))());
+// « Tous les projets » : le `status` de chacun — ce qui bloque un projet, depuis quand ses décisions
+// attendent, une station saturée : ce que l'accueil dit en une ligne et que `faits` ne porte pas.
+ipcMain.on("tous", (_, demande: number) => (voir = () => regarder(projets(), ["status"], demande))());
 // La vue a posé sa barre — au démarrage, puis à chaque changement du fichier des projets.
 ipcMain.on("faits", (_, demande: number) => {
   faits.oublier();
+  direLAccueil(accueil.oublier());
   // Chaque projet qui a une box a sa bande dès maintenant : rien n'y est encore vérifié.
   for (const bande of bandes.ouvrir(projets().filter(({ box }) => box !== undefined).map(({ nom }) => nom))) { dernieresBandes.set(bande.projet, bande); dire("alertes", bande); }
   veilleDesFaits.regarder(projets(), [COMMANDE], demande);

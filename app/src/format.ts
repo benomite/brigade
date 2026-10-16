@@ -9,3 +9,6 @@ export const heure = (instant: number | string | Date): string => new Date(insta
 export const dateHeure = (instant: number | string | Date): string => new Date(instant).toLocaleString(LOCALE);
 
 export const majuscules = (texte: string): string => texte.toLocaleUpperCase(LOCALE);
+
+// L'heure sans ses secondes (« 3:16 PM ») : celle qu'on annonce, pas celle qu'on a lue.
+export const heureCourte = (instant: number | string | Date): string => new Date(instant).toLocaleTimeString(LOCALE, { hour: "numeric", minute: "2-digit" });

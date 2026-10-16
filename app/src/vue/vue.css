@@ -99,7 +99,7 @@ pre.propos {
 #manager,
 #grants,
 #code,
-#tous article,
+#tous .liste,
 #formulaire {
   background: var(--carte);
   border: 1px solid var(--trait);
@@ -464,37 +464,146 @@ main > header,
   overflow-y: auto;
   user-select: text;
 }
-/* Un projet, une carte : son nom, ce qui en est dessiné, l'état de sa lecture, ce qu'elle a rendu. */
-#tous article {
+/* L'accueil : deux listes, les projets puis les stations, une ligne chacun — et la santé en bas.
+   Le titre d'une liste est discret : ce qui compte, ce sont les lignes. */
+#tous > h2 {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--discret);
+}
+#tous .liste {
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px 18px;
+  padding: 4px;
 }
-#tous h2 {
-  font-family: var(--police-mono);
+#tous .liste > p,
+#accueil-stations > div > p {
+  margin: 0;
+  padding: 8px 12px;
+  color: var(--discret);
+}
+/* Une ligne : toute la ligne s'ouvre d'un clic — pastille, nom, ce qui s'y passe, et la flèche. */
+#tous .ligne {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+  border-radius: var(--rayon-bouton);
+}
+#tous .ligne:hover {
+  background: var(--case);
+}
+#tous .ligne .pastille {
+  align-self: center;
+}
+#tous .ligne strong {
+  flex: none;
+  min-width: 9em;
+  font-weight: 700;
+}
+#tous .ligne span:not(.pastille) {
+  flex: 1;
+  min-width: 0;
+  color: var(--texte-doux);
+  overflow-wrap: anywhere;
+}
+#tous .ligne .ouvrir {
+  flex: none;
+  color: var(--discret);
+}
+/* « + station », sous la liste : discret, à droite ; le champ du code s'ouvre à sa place. */
+#accueil-stations .ajout-de-station {
+  align-self: flex-end;
+  margin: 4px 8px;
+  padding: 3px 10px;
+  color: var(--discret);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+#accueil-stations form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 12px;
+}
+#accueil-stations input {
+  flex: 0 1 22em;
+}
+#accueil-stations form p {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--jaune);
+}
+#accueil-stations form p:empty {
+  display: none;
+}
+/* La ligne de santé : verte et discrète quand tout va ; quand l'un des deux cloche, elle se lit. */
+#sante {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0 4px;
+  font-size: 12px;
+  color: var(--texte);
+}
+#sante[data-ok="true"] {
+  color: var(--discret);
+}
+/* La page d'une station : le retour à l'accueil, son en-tête, ses pannes, les projets que l'app lui a
+   ajoutés et le parcours « add a project ». */
+#station {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+}
+#station .retour {
+  align-self: flex-start;
+  color: var(--discret);
+}
+#station header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#station h2 {
   font-size: 16px;
   font-weight: 700;
 }
-#tous article > .carte {
-  padding: 0;
-  background: none;
-  border: 0;
-  border-radius: 0;
+#station h3 {
+  margin: 6px 0 0;
 }
-#tous article > p {
+#station p {
   margin: 0;
-  padding: 4px 12px;
-  font-weight: 600;
 }
-#tous article > div {
+#station form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* Les projets que l'app a ajoutés à la station : un bloc chacun, une ligne par station. Ce qu'une
+   station refuse, ou attend du chef, en alerte. */
+#station .projet-de-station {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
-#tous article > div:empty {
-  display: none;
+/* Une panne, sur la page de sa station : en alerte, son bouton à la suite, et ce qu'il a rendu. */
+#station .panne {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--jaune);
+}
+#station .panne > span:last-child:not(:first-child) {
+  color: var(--discret);
 }
 /* Les états ne se ressemblent pas : le mot, la couleur, et un trait plein pour
    celui qu'on n'a pas joint ou que la box refuse — projet inconnu, droit ou
@@ -560,7 +669,7 @@ main > header,
   color: var(--bleu);
   border-left: 4px dotted var(--bleu);
 }
-/* En tête de « Tous les projets » : le code de l'app, et les clones de brigade parmi les
+/* En tête de Paramètres : le code de l'app, et les clones de brigade parmi les
    projets. À jour, une ligne discrète ; en retard sur son origine — ou à relancer —, en
    alerte, trait plein ; pas lu, en alerte, trait pointillé : ce n'est pas « à jour ». */
 #code {
@@ -580,49 +689,6 @@ main > header,
 }
 #code > pre {
   margin-left: 16px;
-}
-/* Les stations du chef, sous le code : une ligne chacune ; hors ligne, en alerte — elle reste
-   dans la liste. Le champ du code d'appairage dessous, et ce que l'appairage a rendu. */
-#stations {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 14px;
-}
-#stations h3 {
-  margin: 0;
-}
-#stations p {
-  margin: 0;
-}
-#stations form {
-  display: flex;
-  gap: 8px;
-}
-#stations input {
-  flex: 0 1 22em;
-}
-/* Les projets des stations, sous elles : un bloc chacun, une ligne par station. Le parcours
-   « add a project » passe à la ligne ; ce qu'une station refuse, ou attend du chef, en alerte. */
-#stations .projet-de-station {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-#stations form {
-  flex-wrap: wrap;
-}
-/* Une panne, sous la ligne de sa station : en alerte, son bouton à la suite, et ce qu'il a rendu. */
-#stations .panne {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding-left: 16px;
-  color: var(--jaune);
-}
-#stations .panne > span:last-child:not(:first-child) {
-  color: var(--discret);
 }
 [data-etat="hors-ligne"],
 [data-etat="illisible"],
@@ -653,8 +719,7 @@ main > header,
   border: 1px solid var(--attend-trait);
   border-radius: var(--rayon-carte);
 }
-#lecture .attend h3,
-#tous .attend h3 {
+#lecture .attend h3 {
   margin: 0;
   font-weight: 600;
   color: var(--texte);

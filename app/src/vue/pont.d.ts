@@ -1,4 +1,5 @@
 // Ce que le process principal offre à la vue (preload.cjs).
+import type { Accueil } from "../accueil.ts";
 import type { Bande } from "../alertes.ts";
 import type { ALLUMAGE, Compte } from "../allumage.ts";
 import type { Vu as VuAmont } from "../amont.ts";
@@ -30,7 +31,7 @@ import type { Appairage, VuDesStations } from "../stations/stations.ts";
 import type { Terminal } from "../terminaux.ts";
 
 export type Pont = {
-  demarrage(): Promise<{ configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations; projetsDesStations?: VuDesProjets }>;
+  demarrage(): Promise<{ configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations; projetsDesStations?: VuDesProjets; accueil?: Accueil }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
   // Le dépôt GitHub du dossier choisi, lu dans son origine — ou pourquoi il reste à écrire.
@@ -247,6 +248,9 @@ export type Pont = {
   surStations(recevoir: (vu: VuDesStations) => void): void;
   // Les projets des stations, relus à chaque lecture des stations : où en est chacun, sur chacune.
   surProjetsDesStations(recevoir: (vu: VuDesProjets) => void): void;
+  // L'accueil (accueil.ts), redessiné à chaque lecture qui le change : une ligne par projet, une par
+  // station, et la ligne de santé. Le dernier d'avant le démarrage de la vue est dans `demarrage`.
+  surAccueil(recevoir: (vu: Accueil) => void): void;
   // Le fichier des projets a changé — ou l'app vient de désinstaller un projet de sa box.
   // `fermes` : les terminaux des projets qui ont quitté la liste.
   surConfiguration(recevoir: (configuration: Affichee, fermes: number[]) => void): void;
