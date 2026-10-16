@@ -5,6 +5,7 @@
 // liste, range chaque issue sous le mot qu'elle porte, et n'y déduit rien. À côté, la vue jouée
 // telle qu'elle est (aides/fausse-vue.ts) : le nombre en tête du rail, la liste qu'il déplie, la
 // fiche qu'une issue ouvre, et ce que dit un rail vide.
+import { lireDocRuntime } from "./aides/doc-runtime.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -182,7 +183,7 @@ describe("ce qui n'est pas encore sur le rail, lu dans la sortie de `manager ups
   });
 
   test("la commande lue est celle que docs/runtime.md documente, dans le dépôt et sur la box", () => {
-    const doc = readFileSync(join(import.meta.dirname, "../../docs/runtime.md"), "utf8");
+    const doc = lireDocRuntime(join(import.meta.dirname, "../.."));
 
     assert.equal(COMMANDE, "manager upstream");
     assert.ok(doc.includes("npm --prefix runtime run manager -- upstream"), "docs/runtime.md, « Le manager », ne cite pas `manager -- upstream`");

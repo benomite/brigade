@@ -6,6 +6,7 @@
 // lit est tenue contre celle que le runtime écrit. À côté, les deux gestes de
 // chaque grant — accorder, révoquer — sont confirmés : la commande de la doc
 // part dans le second, seulement avec le « oui » du chef.
+import { lireDocRuntime } from "./aides/doc-runtime.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -432,7 +433,7 @@ describe("l'onglet Grants et les deux gestes de chaque grant", () => {
   });
 
   test("tous deux sont confirmés : sans « oui », rien ne part ; avec, la commande de docs/runtime.md, « Le grant `merge` », `merge` compris, part dans le second — aucun shell ne s'ouvre", async () => {
-    const doc = readFileSync(join(RACINE, "docs/runtime.md"), "utf8");
+    const doc = lireDocRuntime(RACINE);
     const ecrits: string[][] = [];
     const terminaux = ouvrirTerminaux({
       claude: "claude",

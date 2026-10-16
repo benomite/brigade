@@ -6,6 +6,7 @@
 // deux gestes, qui envoient la commande de la doc dans le second, s'il est dit
 // libre (terminaux.test.ts) : éteindre, direct ; allumer, confirmé — rien ne part
 // sans son « oui » (confirmation.test.ts).
+import { lireDocRuntime } from "./aides/doc-runtime.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -272,7 +273,7 @@ describe("l'onglet Manager et ses deux gestes", () => {
   });
 
   test("« éteindre », direct, et « allumer », confirmé, envoient la commande de docs/runtime.md, « Le manager », dans le second — sans « oui », allumer ne part pas ; d'un second qui démarre, rien ne part, et aucun shell ne s'ouvre", async () => {
-    const doc = readFileSync(join(RACINE, "docs/runtime.md"), "utf8");
+    const doc = lireDocRuntime(RACINE);
     const ecrits: string[][] = [];
     const terminaux = ouvrirTerminaux({
       claude: "claude",

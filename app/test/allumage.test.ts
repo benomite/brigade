@@ -7,6 +7,7 @@
 // écrit par chaque test. Et le geste est confirmé : sa confirmation dit
 // l'avertissement et ces nombres (confirmation.ts), et rien ne part avant son
 // « oui » — qui n'attend rien de cette lecture.
+import { lireDocRuntime } from "./aides/doc-runtime.ts";
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,7 +21,7 @@ import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ouvrirTerminaux } from "../src/terminaux.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
-const doc = readFileSync(join(RACINE, "docs/runtime.md"), "utf8");
+const doc = lireDocRuntime(RACINE);
 const PARADE = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
 const SERVI = { nom: "parade", box: { hote: "box" } };
 const DEPOT = "benomite/parade";

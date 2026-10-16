@@ -3,6 +3,7 @@
 // second, s'il est dit libre (terminaux.test.ts) — sinon rien n'est écrit, nulle part.
 // Vérifier l'installation part au clic ; reprendre et arrêter sont confirmés : sans le
 // « oui » du chef, rien ne part, et la confirmation dit leur prix (confirmation.test.ts).
+import { lireDocRuntime } from "./aides/doc-runtime.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -29,7 +30,7 @@ describe("les gestes de la cuisine et de l'installation", () => {
   });
 
   test("reprendre et arrêter sont confirmés, vérifier l'installation est direct ; chacun envoie la commande de la doc mot pour mot dans le second, aucun n'ouvre de shell — et d'un second qui démarre, rien ne part", async () => {
-    const doc = readFileSync(join(RACINE, "docs/runtime.md"), "utf8");
+    const doc = lireDocRuntime(RACINE);
     assert.ok(doc.includes("`brigade <projet> guardrails [stop \\| resume]`"), "docs/runtime.md, « Piloter », ne cite plus guardrails stop | resume");
     assert.ok(doc.includes("npm --prefix runtime run guardrails -- stop"));
     assert.ok(doc.includes("npm --prefix runtime run guardrails -- resume"));

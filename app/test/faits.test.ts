@@ -7,6 +7,7 @@
 // d'après les `tiers` de chaque ticket (attente.test.ts). Chaque
 // carte porte ce que la file dit du ticket, et écrit ce qu'elle n'en dit pas :
 // ce qui s'y lit est dans bon.test.ts.
+import { lireDocRuntime } from "./aides/doc-runtime.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -18,7 +19,7 @@ import type { Entete } from "../src/fiche.ts";
 import { commandeDuGeste, CONFIRMES } from "../src/gestes.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
-const doc = readFileSync(join(RACINE, "docs/runtime.md"), "utf8");
+const doc = lireDocRuntime(RACINE);
 const SECTION = doc.slice(doc.indexOf("### Les faits, pour un programme"));
 // L'exemple de la doc : la seule ligne de son bloc `json`.
 const EXEMPLE = SECTION.slice(SECTION.indexOf("```json\n") + 8, SECTION.indexOf("\n```", SECTION.indexOf("```json\n")));

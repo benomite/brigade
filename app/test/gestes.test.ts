@@ -5,6 +5,7 @@
 // « oui » se prouve sur `envoyer`, puis sur le registre et de faux pty ; et
 // qu'aucun geste n'expose de shell, de `sudo` ni de commande libre, sur le socle
 // lui-même.
+import { lireDocRuntime } from "./aides/doc-runtime.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -27,7 +28,7 @@ import { type Faux, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.
 
 const RACINE = join(import.meta.dirname, "../..");
 const SOURCE = "docs/runtime.md";
-const doc = readFileSync(join(RACINE, SOURCE), "utf8");
+const doc = lireDocRuntime(RACINE);
 const PILOTER = doc.slice(doc.indexOf("### Piloter"), doc.indexOf("### Recette du chef"));
 const PARADE = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
 

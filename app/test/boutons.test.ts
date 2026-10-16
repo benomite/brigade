@@ -2,6 +2,7 @@
 // mot pour mot, à compléter, et n'envoie rien. Ce qui s'écrit se compare ici à
 // docs/runtime.md, « Piloter » ; que rien ne parte se prouve sur le registre
 // (terminaux.test.ts) et sur un vrai pty (pty.test.ts).
+import { lireDocRuntime } from "./aides/doc-runtime.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -11,7 +12,7 @@ import type { Projet } from "../src/config.ts";
 import { ONGLETS } from "../src/onglets.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
-const doc = readFileSync(join(RACINE, "docs/runtime.md"), "utf8");
+const doc = lireDocRuntime(RACINE);
 const PILOTER = doc.slice(doc.indexOf("### Piloter"), doc.indexOf("### Recette du chef"));
 const PARADE = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
 
