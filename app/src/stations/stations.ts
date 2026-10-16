@@ -11,6 +11,7 @@
 import type { ConnexionPubliee } from "../pannes/etats.ts";
 import { pannesDe, type Panne } from "../pannes/pannes.ts";
 import { empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, lireDocument, normaliser, type DocumentStation } from "./document.ts";
+import { suivreLesVersions, type VersionsVues } from "./versions.ts";
 import type { GistDeStation, GitHubDesStations } from "./github.ts";
 
 export type EtatDeStation = "en-ligne" | "hors-ligne" | "illisible";
@@ -59,11 +60,12 @@ export function etatDe(document: DocumentStation, maintenant: number): { etat: E
 
 // La ligne de mise à jour de la page d'une station : « up to date · on this version for 3 days ».
 // Une station hors ligne n'est dite à jour de rien ; une mise à jour ratée est déjà dite par sa
-// panne (pannes.ts) : la ligne ne la répète pas, et ne dit pas « up to date » par-dessus. Sans
-// date publiée, elle ne dit pas depuis quand.
-export function ligneDeVersion(document: DocumentStation, maintenant: number): string {
+// panne (pannes.ts) : la ligne ne la répète pas, et ne dit pas « up to date » par-dessus.
+// `depuisLe` : l'instant où l'app a vu la station passer à cette version (`versions.ts`) — la
+// station ne publie pas cette date ; sans elle, la ligne ne dit pas depuis quand.
+export function ligneDeVersion(document: DocumentStation, maintenant: number, depuisLe: string | null = null): string {
   if (etatDe(document, maintenant).etat !== "en-ligne") return "";
-  const depuis = document.versionDepuis == null ? "" : `on this version for ${duree(maintenant - Date.parse(document.versionDepuis))}`;
+  const depuis = depuisLe === null ? "" : `on this version for ${duree(maintenant - Date.parse(depuisLe))}`;
   return document.miseAJour === null ? ["up to date", depuis].filter((morceau) => morceau !== "").join(" · ") : depuis;
 }
 
@@ -83,6 +85,8 @@ export type OptionsStations = {
   surLecture: (vu: VuDesStations) => void;
   cadenceMs?: number;
   maintenant?: () => number;
+  // Ce que l'app a vu des versions de chaque station, d'un lancement à l'autre (versions.ts).
+  versions?: VersionsVues;
 };
 
 export type Stations = {
@@ -106,6 +110,7 @@ export function tenirStations(options: OptionsStations): Stations {
   let enCours: Promise<VuDesStations> | undefined;
   // Les pannes écartées : `<gist> <clé>`.
   const ecartees = new Set<string>();
+  const versions = suivreLesVersions(options.versions);
 
   const montrer = (sans?: string, limite?: VuDesStations["limite"]): VuDesStations => {
     const instant = maintenant();
@@ -123,7 +128,7 @@ export function tenirStations(options: OptionsStations): Stations {
             projets: document.projets,
             // Une station qui se tait ne dit plus sa connexion : ce qu'elle en a publié avant n'est plus sûr.
             max: etatDe(document, instant).etat === "en-ligne" ? (document.connexionMax?.etat ?? null) : null,
-            versionDit: ligneDeVersion(document, instant),
+            versionDit: ligneDeVersion(document, instant, versions.vue(id, document.version, instant)),
           },
     );
     stations.sort((a, b) => a.nom.localeCompare(b.nom) || a.id.localeCompare(b.id));

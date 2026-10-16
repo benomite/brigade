@@ -20,8 +20,6 @@ export type DocumentStation = {
   cadenceMs: number;
   // L'heure de son arrêt, quand elle s'est arrêtée proprement — nulle sinon.
   arreteeLe: string | null;
-  // Depuis quand elle tourne sur cette version, quand elle le publie — nulle sinon.
-  versionDepuis?: string | null;
   // L'empreinte du code qu'elle affiche, tant qu'elle n'est pas appairée.
   appairage: { empreinte: string; expireLe: string } | null;
   // Les empreintes de ses derniers codes échus.
@@ -59,7 +57,7 @@ export function lireDocument(brut: string): DocumentStation | { illisible: strin
     return { illisible: "its state on GitHub is not JSON" };
   }
   if (lu === null || typeof lu !== "object" || lu.brigade !== "station") return { illisible: "its state on GitHub is not a brigade station's" };
-  const { nom, machine, version, projets, signeDeVie, cadenceMs, arreteeLe, versionDepuis, appairage, echus } = lu;
+  const { nom, machine, version, projets, signeDeVie, cadenceMs, arreteeLe, appairage, echus } = lu;
   if (!texte(nom) || !texte(machine) || !texte(version) || !date(signeDeVie)) return { illisible: "its state on GitHub lacks its name, version or last sign of life" };
   if (!Array.isArray(projets) || !projets.every(texte)) return { illisible: "its state on GitHub does not list its projects" };
   const code = appairage as { empreinte?: unknown; expireLe?: unknown } | null | undefined;
@@ -71,7 +69,6 @@ export function lireDocument(brut: string): DocumentStation | { illisible: strin
     signeDeVie,
     cadenceMs: typeof cadenceMs === "number" && cadenceMs > 0 ? cadenceMs : 60_000,
     arreteeLe: date(arreteeLe) ? arreteeLe : null,
-    versionDepuis: date(versionDepuis) ? versionDepuis : null,
     appairage: code !== null && typeof code === "object" && texte(code.empreinte) && date(code.expireLe) ? { empreinte: code.empreinte, expireLe: code.expireLe } : null,
     echus: Array.isArray(echus) ? echus.filter(texte) : [],
     ...lireEtatsPublies(lu),

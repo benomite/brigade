@@ -19,7 +19,6 @@ const EN_LIGNE: DocumentStation = {
   signeDeVie: il_y_a(0),
   cadenceMs: 60_000,
   arreteeLe: null,
-  versionDepuis: il_y_a(3 * 24 * 60),
   appairage: null,
   echus: [],
   miseAJour: null,
@@ -46,7 +45,7 @@ export function pageDeStation(panne: keyof typeof DOCUMENTS, dit: string, etapes
     version: document.version,
     projets: document.projets,
     max: etatDe(document, instant).etat === "en-ligne" ? (document.connexionMax?.etat ?? null) : null,
-    versionDit: ligneDeVersion(document, instant),
+    versionDit: ligneDeVersion(document, instant, il_y_a(3 * 24 * 60)),
   };
   const accueil: Accueil = {
     projets: [],

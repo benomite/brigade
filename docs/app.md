@@ -680,8 +680,11 @@ de signe de vie) ne se dit qu'une fois : l'en-tête de la page ne redit pas l'é
 où en est la station : `up to date · on this version for 3 days`. Une station hors ligne n'est dite
 à jour de rien : pas de ligne. Une mise à jour ratée est déjà dite par sa panne : la ligne ne la
 répète pas et ne dit pas « up to date » par-dessus, elle ne garde que `on this version for 3 days`.
-Le « depuis quand » est ce que la station publie dans son gist (`versionDepuis`, une date) ; sans
-cette date, la ligne dit `up to date` et rien de plus.
+Le « depuis quand » n'est pas publié par la station : l'app le déduit du moment où elle l'a vue
+passer à sa version, et le garde dans `versions-vues.json`, à côté de `app.json`. Elle ne sait pas
+depuis quand une station est sur sa version à la première fois qu'elle la lit : la ligne dit alors
+`up to date` et rien de plus, jusqu'à ce qu'elle voie la version changer. Une station mise à jour
+pendant que l'app était fermée est datée de la première lecture qui suit.
 
 En bas de la page, **« remove the station »** ouvre une confirmation dans l'app, en une ligne de prix :
 la station quitte l'accueil et n'est plus lue, elle continue de tourner, et un code neuf l'appaire de

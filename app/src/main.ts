@@ -49,6 +49,7 @@ import { tenirServices } from "./service.ts";
 import { souvenirsDansFichier } from "./souvenirs.ts";
 import { githubDesStations } from "./stations/github.ts";
 import { tenirStations } from "./stations/stations.ts";
+import { versionsDansFichier } from "./stations/versions.ts";
 import { suivreConfiguration } from "./suivi.ts";
 import { ouvrirTerminaux } from "./terminaux.ts";
 
@@ -392,6 +393,7 @@ const projetsDesStations = tenirProjets({
 // le `gh` du poste toutes les trente secondes (stations/stations.ts). L'app ne joint aucune
 // station : c'est GitHub qui porte ce que chacune dit d'elle.
 const stations = tenirStations({
+  versions: versionsDansFichier(join(dirname(cheminConfiguration()), "versions-vues.json")),
   github: githubDesStations({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }),
   surLecture: (vu) => {
     dire("stations", vu);
