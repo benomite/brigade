@@ -558,3 +558,36 @@ describe("le mot du bouton d'une alerte", () => {
   });
 });
 
+
+describe("la limite d'appels de GitHub", () => {
+  const REPRISE = new Date(`${JOUR}T10:20:00.000Z`);
+  const hhmm = `${String(REPRISE.getHours()).padStart(2, "0")}:${String(REPRISE.getMinutes()).padStart(2, "0")}`;
+  const DIT = `GitHub limite les appels, reprise vers ${hhmm}`;
+
+  test("dite par la box, la ligne est seule, à l'heure locale, et tombe quand `faits` ne la porte plus", (t) => {
+    const { rendre } = saine(t);
+    const bandes = tenirBandes({ etablir: 1, minimum: 0 });
+    bandes.ouvrir(["parade"]);
+    const rendu = rendre("10:00:00");
+
+    const limitee = bandes.faits(lecture("facts", `${JSON.stringify({ ...JSON.parse(rendu.faits), limiteGithub: REPRISE.toISOString() })}\n`)).alertes;
+    assert.deepEqual(du(limitee, "github").map(({ dit }) => dit), [DIT]);
+    assert.doesNotMatch(JSON.stringify(du(limitee, "github")), /request id|terms|HTTP 4|rate limit/i);
+
+    const reprise = bandes.faits(lecture("facts", rendu.faits)).alertes;
+    assert.deepEqual(du(reprise, "github"), []);
+  });
+
+  test("dite par l'app elle-même (la box ne passe plus par GitHub), la ligne vient de sa propre erreur et tombe à la reprise", (t) => {
+    const { rendre } = saine(t);
+    const bandes = tenirBandes({ etablir: 1, minimum: 0 });
+    bandes.ouvrir(["parade"]);
+    bandes.faits(lecture("facts", rendre("10:00:00").faits));
+
+    const [limitee] = bandes.limite({ reprise: REPRISE.toISOString() });
+    assert.deepEqual(du(limitee?.alertes ?? [], "github").map(({ dit }) => dit), [DIT]);
+
+    const [levee] = bandes.limite(undefined);
+    assert.deepEqual(du(levee?.alertes ?? [], "github"), []);
+  });
+});

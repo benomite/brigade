@@ -86,6 +86,8 @@ export type Faits = {
   etat: string;
   lu: string;
   dernierTick: string | null;
+  // Quand GitHub limite les appels du compte : l'instant où il les rend (runtime, `limiteGithub`) ; absent sinon, et d'un runtime d'avant ce champ.
+  limiteGithub?: string;
   compteurs: { rail: number; auTravail: number; aLaPass: number; attend: number; livres24h: number };
   dernierEvenement: { seq: number; at: string; type: string; ticket: number | null } | null;
   // `activite` : nulle, la box ne sait pas ce qu'on en fait ; absente, c'est un
@@ -309,6 +311,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       etat: texte(racine.etat, "etat"),
       lu: heure(racine.lu, "lu"),
       dernierTick: ouRien(racine.dernierTick, "dernierTick", heure),
+      ...(racine.limiteGithub === undefined ? {} : { limiteGithub: heure(racine.limiteGithub, "limiteGithub") }),
       compteurs: {
         rail: entier(compteurs.rail, "compteurs.rail"),
         auTravail: entier(compteurs.auTravail, "compteurs.auTravail"),

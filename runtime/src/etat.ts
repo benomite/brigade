@@ -19,6 +19,7 @@ import { ACTIONS, bientotEteint, direExtinction, direReste } from "./grant.ts";
 import type { Journal } from "./journal.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
 import { direSaturation } from "./machine.ts";
+import { direLaLimite } from "./limite-github.ts";
 import { direJauge, franchis, SANS_SEUIL, type Franchi } from "./mesures.ts";
 import {
   activitesDesCooksEnCours,
@@ -564,7 +565,7 @@ function decrireConsommation({ consommation }: EtatCuisine): string[] {
 const lus = (rail: TicketRail[], nom: string) => rail.filter((ticket) => etatLu(ticket) === nom).length;
 
 // L'état, ligne par ligne. Les durées sont comptées jusqu'à `maintenant`.
-export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs = AGE_MAX_SAUVEGARDE_MS): string[] {
+export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs = AGE_MAX_SAUVEGARDE_MS, limiteGithub: number | null = null): string[] {
   const depuis = (instant: string) => duree(maintenant.getTime() - Date.parse(instant));
   const decompte = ORDRE.map((nom) => [nom, lus(etat.rail, nom)] as const)
     .filter(([, combien]) => combien > 0)
@@ -584,6 +585,8 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ...decrireUrgence(etat, depuis),
     ...decrireRienNeCuit(etat, depuis),
     ligne("projet", etat.projet ?? "inconnu — journal vide"),
+    // Quand GitHub limite les appels du compte : une ligne, et l'heure de reprise.
+    ...(limiteGithub === null ? [] : [ligne("github", direLaLimite(limiteGithub))]),
     ...decrireRuntime(etat, depuis),
     decrireCuisine(etat, depuis),
     ...decrireConnexion(etat, depuis),
@@ -659,6 +662,9 @@ export type Faits = {
   // quoi afficher son âge sans l'horloge de la box.
   lu: string;
   dernierTick: string | null;
+  // Quand GitHub limite les appels du compte : l'instant où il les rend. Absent
+  // sinon, et d'un runtime d'avant ce champ.
+  limiteGithub?: string;
   compteurs: { rail: number; auTravail: number; aLaPass: number; attend: number; livres24h: number };
   dernierEvenement: { seq: number; at: string; type: string; ticket: number | null } | null;
   // `activite` : ce que la cuisine fait du ticket en ce moment — son cook, s'il
@@ -802,7 +808,7 @@ const DEPOT_GITHUB = /^[\w.-]+\/[\w.-]+$/;
 // `maintenant` : l'heure à laquelle `etat` a été lu. `depot` : `<owner>/<repo>`,
 // le dépôt GitHub que la box sert — de quoi donner l'adresse d'une issue qui
 // n'est pas sur le rail.
-export function faits(etat: EtatCuisine, maintenant: Date, depot?: string): Faits {
+export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limiteGithub: number | null = null): Faits {
   const adresse = (ticket: number) =>
     etat.rail.find((surLeRail) => surLeRail.ticket === ticket)?.url ?? (depot !== undefined && DEPOT_GITHUB.test(depot) ? `https://github.com/${depot}/issues/${ticket}` : null);
   const attendus = new Set<number>();
@@ -817,6 +823,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string): Fait
     etat: etatDuProjet(etat),
     lu: maintenant.toISOString(),
     dernierTick: etat.tick?.at ?? null,
+    ...(limiteGithub === null ? {} : { limiteGithub: new Date(limiteGithub).toISOString() }),
     compteurs: {
       rail: lus(etat.rail, nomEtat("waiting")) + lus(etat.rail, BLOQUE),
       auTravail: lus(etat.rail, nomEtat("taken")),

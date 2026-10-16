@@ -4,6 +4,7 @@
 // docs/runtime.md, « Les faits, pour un programme ».
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { faits, lireEtat } from "./etat.ts";
+import { pauseDeLaStation } from "./limite-github.ts";
 import { ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 
@@ -27,7 +28,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
   }
   try {
     const maintenant = new Date();
-    dire(JSON.stringify(faits(lireEtat(journal, maintenant), maintenant, env.BRIGADE_GITHUB_REPO)));
+    dire(JSON.stringify(faits(lireEtat(journal, maintenant), maintenant, env.BRIGADE_GITHUB_REPO, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()))));
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.

@@ -19,7 +19,7 @@
 // Hors de toute station (le poste de dev, un test), le process compte seul,
 // en mémoire, sous le même budget.
 import { execFile } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Base } from "./base.ts";
 
@@ -220,4 +220,30 @@ export async function constaterLimite(limite: Limite, reponse: ReponseHttp, opti
   jusqua ??= instant + ATTENTE_PAR_DEFAUT_MS;
   limite.suspendre(jusqua);
   return new LimiteGitHubAtteinte(jusqua, Math.max(0, jusqua - instant));
+}
+
+// La pause que GitHub a posée sur le compteur de la station dont `racine` est le
+// répertoire, lue sans rien écrire ni rien créer : l'instant de reprise (en
+// millisecondes), ou null s'il n'y en a pas — ou si le compteur ne se lit pas,
+// ce que `status` ne doit jamais payer.
+export function pauseDeLaStation(racine: string | undefined, maintenant: number): number | null {
+  if (!racine) return null;
+  const fichier = join(racine, REPERTOIRE_COMPTEUR, FICHIER_COMPTEUR);
+  if (!existsSync(fichier)) return null;
+  let base: Base | undefined;
+  try {
+    base = new Base(fichier, { lectureSeule: true, attenteMs: 2000 });
+    const [pause] = base.lire<{ jusqua: number | null }>("SELECT max(jusqua) AS jusqua FROM pause");
+    return pause?.jusqua != null && pause.jusqua > maintenant ? pause.jusqua : null;
+  } catch {
+    return null;
+  } finally {
+    base?.fermer();
+  }
+}
+
+// La ligne qui le dit, en une phrase, l'heure étant celle de ce process.
+export function direLaLimite(jusqua: number): string {
+  const d = new Date(jusqua);
+  return `GitHub limite les appels, reprise vers ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }

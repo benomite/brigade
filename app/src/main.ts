@@ -395,6 +395,7 @@ const stations = tenirStations({
   github: githubDesStations({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }),
   surLecture: (vu) => {
     dire("stations", vu);
+    for (const bande of bandes.limite(vu.limite)) direLaBande(bande);
     direLAccueil(accueil.stations(vu));
     void projetsDesStations.relire();
   },
