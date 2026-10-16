@@ -541,9 +541,10 @@ describe("le monospace est une information, pas un style", () => {
     }
     // Sur plusieurs lignes, les mots de l'app sont à part de ceux de la box : jamais dans un `pre` nu.
     const vue = await jouerLaVue({ ...REPONSES, demarrage: () => ({ ...demarrage(), configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }) }) });
-    const [sansBox] = vue.element("tous").dessous("pre");
-    assert.match(sansBox?.textContent ?? "", /^“parade” does not say where its box is/);
-    assert.equal(sansBox?.className, "propos");
+    // Une lecture qui manque se dit en une ligne ; ce qu'elle suppose du fichier est au survol.
+    const sansBox = vue.element("tous").dessous("p").find((pose) => pose.className === "indisponible");
+    assert.match(sansBox?.textContent ?? "", /^“parade” does not say where its box is: nothing is read\??$/);
+    assert.equal(vue.element("tous").dessous("pre").length, 0);
   });
 });
 

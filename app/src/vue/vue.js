@@ -85,7 +85,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as Xterm } from "@xterm/xterm";
 // Les briques communes (briques.js) : une même chose se dit partout de la même façon — le prix
 // d'un geste dans son survol, une lecture qui manque en une ligne, une confirmation qui dit son prix.
-import { boutonAction, confirmationDeGeste, lectureIndisponible } from "./briques.js";
+import { boutonAction, confirmationDeGeste, lectureIndisponible, survol } from "./briques.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -368,7 +368,7 @@ let BANNIERE;
 /** @type {{ modeles: readonly string[], efforts: readonly string[] }} */
 let CALIBRAGE_DU_PROJET = { modeles: [], efforts: [] };
 // Dans « Tous les projets », la carte, l'en-tête et le corps de chaque projet.
-/** @type {Map<string, { carte: HTMLElement, tete: HTMLElement, corps: HTMLElement }>} */
+/** @type {Map<string, { afaire: HTMLElement, carte: HTMLElement, tete: HTMLElement, corps: HTMLElement }>} */
 const blocs = new Map();
 // Ce que `faits` a rendu en dernier pour chaque projet, et la demande à laquelle il répond :
 // une par barre posée. Sans entrée, le projet n'a pas encore été lu.
@@ -685,6 +685,25 @@ function poserSecond(ouvrable, montre) {
         ? nonEcritSecond
         : (montre?.note ?? (ouvrable ? "the second is opening…" : ""));
   fil.hidden = !ouvrable;
+}
+
+// Une phrase longue tient en une ligne : son début, avant toute commande ou
+// explication ; le reste — la commande écrite, ce que `ssh` a répondu, le mode d'emploi — se lit au survol.
+const LIGNE_MAX = 90;
+/** @param {HTMLElement} ou @param {string} texte */
+function poserEnUneLigne(ou, texte) {
+  const court = texte.length <= LIGNE_MAX && !texte.includes("`") && !texte.includes("\n");
+  if (court) return void (ou.textContent = texte);
+  const tete = (texte.split(/ — |: |\n|`/)[0] ?? texte).trim();
+  const ligne = (tete.length > LIGNE_MAX ? `${tete.slice(0, LIGNE_MAX - 1)}…` : tete) || texte.slice(0, LIGNE_MAX);
+  ou.replaceChildren(ligne, survol(document, texte));
+}
+
+/** @param {string} texte */
+function ligneCourte(texte) {
+  const cree = document.createElement("p");
+  poserEnUneLigne(cree, texte);
+  return cree;
 }
 
 // Un terminal qu'un geste a rendu se montre à droite, et prend le clavier : un shell, à côté du
@@ -1130,12 +1149,13 @@ const sansBord = (projet) => [
 
 // Ce qui attend le chef, en tête et à part : le bloc de `status`, tel qu'il l'a
 // écrit — c'est lui qui dit quand rien n'attend. Sans bloc, l'app dit qu'elle n'a rien pris.
-/** @param {Projet} projet @param {string | undefined} attend */
-function aPart(projet, attend) {
+/** @param {Projet} projet @param {string | undefined} attend @param {boolean} [accueil] */
+function aPart(projet, attend, accueil = false) {
   const cree = document.createElement("section");
   cree.className = "attend";
   cree.dataset.pris = String(attend !== undefined);
-  cree.append(bloc("h3", `what awaits you — the \`attend\` block of \`${geste(projet, "status")}\``), attend === undefined ? propos(sansBord(projet)) : bloc("pre", attend));
+  if (accueil) cree.append(bloc("h3", "what awaits you"), attend === undefined ? lectureIndisponible(document, "what awaits you could not be set apart", sansBord(projet)) : bloc("pre", attend));
+  else cree.append(bloc("h3", `what awaits you — the \`attend\` block of \`${geste(projet, "status")}\``), attend === undefined ? propos(sansBord(projet)) : bloc("pre", attend));
   return cree;
 }
 
@@ -1161,11 +1181,33 @@ function obtenu(projet, recue, plusPilotable) {
   return [bloc("pre", recue.erreur), ...(suite === undefined ? [] : [propos(suite)])];
 }
 
+// Une lecture en échec se dit en une ligne, dans les mots de l'app ; ce que la box ou `ssh` a
+// répondu, et ce que l'app en dit de plus (le code de sortie choisit le renvoi, le texte n'est jamais
+// traduit), se lisent au survol. Rien de technique n'est écrit à plat.
+/** @param {Projet} projet @param {import("../box.ts").Echec & { projet: string }} recue @param {string} plusPilotable ce qui se dit d'une box jointe dont le code ne dit aucun cas */
+function obtenuEnUneLigne(projet, recue, plusPilotable) {
+  const [ligne, suite] =
+    recue.cas === "projet-inconnu"
+      ? ["the box does not know this project", inconnu(recue.projet)]
+      : recue.cas === "sans-droit"
+        ? ["your account lacks the right to this action on the box", SANS_DROIT]
+        : recue.cas === "commande-manque"
+          ? ["a command is missing on the box", commandeManque(projet)]
+          : recue.cas === "node-inapte"
+            ? ["the box's node does not suit the runtime", NODE_INAPTE]
+            : recue.atteinte
+              ? ["the box answered, but not as the app expects", plusPilotable]
+              : recue.cas === "ssh-en-echec"
+                ? ["the box could not be reached", SSH_EN_ECHEC]
+                : ["the box did not answer", undefined];
+  return [lectureIndisponible(document, ligne, suite === undefined ? recue.erreur : `${recue.erreur}\n\n${suite}`)];
+}
+
 // Ce qu'une lecture donne à voir, dans « Tous les projets », à côté du terminal et dans
 // un onglet de contenu : un des sept états, dit en toutes lettres, et dessous ce
 // que l'app a obtenu. Celle d'un onglet n'a rien de mis à part : ce n'est pas `status`.
-/** @param {Montree | Lecture} recue @param {HTMLElement} tete @param {HTMLElement} corps */
-function rendre(recue, tete, corps) {
+/** @param {Montree | Lecture} recue @param {HTMLElement} tete @param {HTMLElement} corps @param {boolean} [accueil] vrai dans « Tous les projets » : le détail est replié ou au survol, aucune commande n'est écrite */
+function rendre(recue, tete, corps, accueil = false) {
   // Le projet a pu quitter le fichier depuis la demande : il n'y a plus rien à lui écrire.
   const projet = projetDe(recue.projet);
   if (projet === undefined) return;
@@ -1175,7 +1217,12 @@ function rendre(recue, tete, corps) {
     tete.dataset.etat = "pilotable";
     tete.textContent = `${mise ? "controllable — " : ""}read at ${heure}`;
     const sans = !mise || recue.attend === undefined ? "" : " — without its `attend` block, set apart above";
-    corps.replaceChildren(...(mise ? [aPart(projet, recue.attend)] : []), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", `${geste(projet, commande)}${commande === "status" ? sans : ""}`), bloc("pre", texte)]));
+    if (accueil) {
+      // Ce que la box a dit se lit, replié : le détail n'est pas la première chose que l'écran montre.
+      const lue = document.createElement("details");
+      lue.append(bloc("summary", "what the box said"), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", commande), bloc("pre", texte)]));
+      corps.replaceChildren(...(mise ? [aPart(projet, recue.attend, true)] : []), lue);
+    } else corps.replaceChildren(...(mise ? [aPart(projet, recue.attend)] : []), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", `${geste(projet, commande)}${commande === "status" ? sans : ""}`), bloc("pre", texte)]));
   } else if (recue.cas === "projet-inconnu") {
     tete.dataset.etat = "inconnu";
     tete.textContent = `REACHED, BUT UNKNOWN TO THE BOX — tried at ${heure}, the next follows on its own`;
@@ -1204,7 +1251,7 @@ function rendre(recue, tete, corps) {
     const forme = formeDe(ton);
     if (forme !== undefined) tete.dataset.forme = forme;
   }
-  if ("erreur" in recue) corps.replaceChildren(...obtenu(projet, recue, GESTE));
+  if ("erreur" in recue) corps.replaceChildren(...(accueil ? obtenuEnUneLigne : obtenu)(projet, recue, GESTE));
 }
 
 // Ce qu'une vérification a donné. En tête, son verdict en une phrase ; dessous, une ligne par
@@ -1215,9 +1262,10 @@ function rendre(recue, tete, corps) {
  * @param {Projet} projet @param {Guide["verification"]} verification
  * @param {(texte: string, geste: () => Promise<unknown>) => HTMLButtonElement} action
  * @param {boolean} [avecTitre] faux : la phrase est déjà dite au-dessus (une alerte plantée la porte en titre)
+ * @param {boolean} [enBande] vrai : dans la bande d'alertes, aucune commande n'est à recopier — elle se lit au survol
  * @returns {HTMLElement[]}
  */
-function poserVerdict(projet, verification, action, avecTitre = true) {
+function poserVerdict(projet, verification, action, avecTitre = true, enBande = false) {
   if (verification === undefined) return [];
   const tete = bloc("p", verification.titre);
   tete.className = "verdict";
@@ -1225,7 +1273,7 @@ function poserVerdict(projet, verification, action, avecTitre = true) {
   if (verification.etat === "en-cours") return [tete];
   if (verification.etat === "sans-verdict") {
     tete.textContent = `${verification.titre} — verified at ${heureDe(verification.a)}`;
-    return [tete, ...obtenu(projet, { ...verification.echec, projet: projet.nom }, GESTE)];
+    return [tete, ...(enBande ? obtenuEnUneLigne : obtenu)(projet, { ...verification.echec, projet: projet.nom }, GESTE)];
   }
   const posee = document.createElement("div");
   posee.className = "verification";
@@ -1243,7 +1291,7 @@ function poserVerdict(projet, verification, action, avecTitre = true) {
   if (verification.manques.length > 0) {
     const manques = document.createElement("ul");
     manques.className = "manques";
-    manques.append(...verification.manques.map((manque) => poserManque(projet, manque, action)));
+    manques.append(...verification.manques.map((manque) => poserManque(projet, manque, action, enBande)));
     posee.append(manques);
   }
   if (verification.panne !== null) posee.append(bloc("p", verification.panne));
@@ -1264,8 +1312,9 @@ function poserVerdict(projet, verification, action, avecTitre = true) {
 /**
  * @param {Projet} projet @param {import("../service.ts").LigneDeManque} manque
  * @param {(texte: string, geste: () => Promise<unknown>) => HTMLButtonElement} action
+ * @param {boolean} [enBande] vrai : la commande ne s'écrit pas à plat, elle se lit au survol
  */
-function poserManque(projet, manque, action) {
+function poserManque(projet, manque, action, enBande = false) {
   const ligne = document.createElement("li");
   ligne.dataset.acteur = manque.acteur;
   ligne.append(bloc("strong", `${manque.qui}:`), " ", manque.texte);
@@ -1277,6 +1326,10 @@ function poserManque(projet, manque, action) {
     else if (id === "protection") ligne.append(action(geste.libelle, () => brigade.proteger(projet.nom)));
     // Les stations et les décisions se choisissent : le bouton mène à leur étape.
     else ligne.append(action(geste.libelle, async () => [...serviceEtapes.children].find((etape) => /** @type {HTMLElement} */ (etape).dataset.id === id)?.scrollIntoView?.({ block: "center" })));
+    return ligne;
+  }
+  if (enBande) {
+    ligne.append(survol(document, "commande" in geste ? geste.commande : geste.dit));
     return ligne;
   }
   if ("commande" in geste) {
@@ -1838,9 +1891,9 @@ function poserCarte(ou, projet) {
   if (!("tableau" in tenu)) {
     const titre = bloc("p", `${tenu.titre} — tried at ${heure}, the next follows on its own`);
     titre.className = "sans-faits";
-    if ("informe" in tenu) return ou.replaceChildren(titre, bloc("pre", tenu.rendu), propos(`This is not the shape the app draws: ${tenu.informe}.\n${sansForme(projet)}`));
+    if ("informe" in tenu) return ou.replaceChildren(titre, lectureIndisponible(document, "the box answered with something the app does not draw", `${tenu.rendu}\n\nThis is not the shape the app draws: ${tenu.informe}.\n${sansForme(projet)}`));
     // Le même cas que sous `status`, avec son renvoi : un refus du geste n'est pas un runtime à mettre à jour.
-    return ou.replaceChildren(titre, ...obtenu(projet, tenu, SANS_REPONSE), propos(sansDessin(projet)));
+    return ou.replaceChildren(titre, ...obtenuEnUneLigne(projet, tenu, `${SANS_REPONSE}\n\n${sansDessin(projet)}`));
   }
   const { tableau } = tenu;
   const tete = document.createElement("p");
@@ -1871,7 +1924,7 @@ function poserCarte(ou, projet) {
   // La ligne que `status` écrit en tête quand la base rouge est en réparation, telle quelle.
   const rienNeCuit = tableau.rienNeCuit === undefined ? [] : [bloc("p", tableau.rienNeCuit)];
   for (const ligne of rienNeCuit) ligne.className = "rien-ne-cuit";
-  ou.replaceChildren(tete, ...rienNeCuit, compteurs, tableau.cooks.enCours.length === 0 ? bloc("p", surMesure(projet, tableau.cooks.vide)) : cooks, bloc("p", `latest event — ${tableau.evenement}`));
+  ou.replaceChildren(tete, ...rienNeCuit, compteurs, tableau.cooks.enCours.length === 0 ? ligneCourte(surMesure(projet, tableau.cooks.vide)) : cooks, bloc("p", `latest event — ${tableau.evenement}`));
 }
 
 // Une carte du rail : son numéro, son état, son titre, puis ce que la file dit du ticket —
@@ -3749,33 +3802,39 @@ function poserAlertes(projet) {
   const alertes = projet.box === undefined ? [] : (bandes.get(projet.nom) ?? []);
   gesteDeLUrgence = undefined;
   bande.hidden = alertes.length === 0;
-  /** @param {string} leve @param {Alerte["appel"]} appel @param {string} prix @param {Alerte} alerte */
-  const leGeste = (leve, appel, prix, alerte) => {
+  // Un prix « none… » est un prix nul : ni survol ni mot.
+  /** @param {string} prix */
+  const prixDe = (prix) => (/^none\b/i.test(prix.trim()) ? "" : prix);
+  /** @param {string} leve @param {string | undefined} libelle @param {Alerte["appel"]} appel @param {string} prix @param {Alerte} alerte */
+  const leGeste = (leve, libelle, appel, prix, alerte) => {
     const gestes = document.createElement("div");
     gestes.className = "gestes";
+    if (appel === undefined) return gestes;
+    const mot = libelle ?? leve;
     /** @type {Node[]} */
-    let pose = [bloc("span", leve)];
+    let pose;
     // L'endroit est la ligne par son sujet, pas par ce qu'elle dit : « depuis 5 h 00 » change à chaque
     // lecture, et la confirmation ouverte ne doit pas se refermer sous les yeux du chef.
-    if (appel !== undefined && "geste" in appel) pose = poserGeste(projet, { id: appel.geste, libelle: leve, ou: `alerte:${alerte.sujet}`, ...(appel.grant === undefined ? {} : { grant: appel.grant }) });
-    else if (appel !== undefined && "demande" in appel) {
-      const demande = bouton(`${leve} — ask the second`, () => void demanderAlerte(alerte));
+    if ("geste" in appel) pose = poserGeste(projet, { id: appel.geste, libelle: mot, ou: `alerte:${alerte.sujet}`, ...(appel.grant === undefined ? {} : { grant: appel.grant }) });
+    else if ("demande" in appel) {
+      const demande = bouton(mot, () => void demanderAlerte(alerte));
       demande.dataset.geste = "demande";
       demande.title = "write into the second a request about this line — nothing is sent: you press Enter";
       pose = [demande];
-    } else if (appel !== undefined) {
+    } else {
       const { onglet } = appel;
-      pose = [bouton(leve, () => (laisse.get(projet.nom) === onglet ? undefined : activer(onglet)))];
+      pose = [bouton(mot, () => (laisse.get(projet.nom) === onglet ? undefined : activer(onglet)))];
     }
-    // Le prix suit le bouton ; une confirmation ouverte passe dessous, sur toute la largeur.
+    // Le prix, quand il y en a un, est au survol du bouton ; une confirmation ouverte passe dessous, sur toute la largeur.
     const [premier, ...ouverte] = pose;
     if (alerte.sujet === "urgence" && premier !== undefined) gesteDeLUrgence = /** @type {HTMLElement} */ (premier);
-    gestes.append(...(premier === undefined ? [] : [premier]), bloc("span", `— cost: ${prix}`), ...ouverte);
+    const cout = prixDe(prix);
+    gestes.append(...(premier === undefined ? [] : [premier]), ...(cout === "" ? [] : [survol(document, cout)]), ...ouverte);
     return gestes;
   };
   bande.replaceChildren(
     ...alertes.map((alerte) => {
-      const { sujet, verifie, ton, dit, pourquoi, releve, geste: leve, appel, prix, aussi, verification } = alerte;
+      const { sujet, verifie, ton, dit, pourquoi, releve, geste: leve, bouton: libelle, appel, prix, aussi, verification } = alerte;
       const ligne = document.createElement("div");
       ligne.className = "alerte";
       ligne.dataset.sujet = sujet;
@@ -3786,7 +3845,10 @@ function poserAlertes(projet) {
       const marque = sujet === "urgence" ? bloc("span", "URGENT") : undefined;
       if (marque !== undefined) marque.className = "urgent";
       tete.append(pastille(dit, ton), ...(marque === undefined ? [] : [marque]), bloc("strong", dit));
-      ligne.append(tete, ...(pourquoi === undefined ? [] : [bloc("p", pourquoi)]), ...(verification === undefined ? [] : poserVerdict(projet, verification, (texte, geste) => bouton(texte, () => void geste()), verification.titre !== dit)), ...(releve === undefined ? [] : [bloc("pre", releve)]), leGeste(leve, appel, prix, alerte), ...(aussi === undefined ? [] : [leGeste(aussi.geste, aussi.appel, aussi.prix, alerte)]));
+      // Ce que la ligne sait de plus — pourquoi, ce que la box en écrit, le geste en toutes lettres — se lit au survol.
+      const explication = [pourquoi, releve?.split("\n").join(" — "), leve].filter((texte) => texte !== undefined && texte.trim() !== "").join("\n");
+      if (explication !== "") tete.append(survol(document, explication));
+      ligne.append(tete, ...(verification === undefined ? [] : poserVerdict(projet, verification, (texte, geste) => bouton(texte, () => void geste()), verification.titre !== dit, true)), leGeste(leve, libelle, appel, prix, alerte), ...(aussi === undefined ? [] : [leGeste(aussi.geste, undefined, aussi.appel, aussi.prix, alerte)]));
       return ligne;
     }),
   );
@@ -3837,15 +3899,10 @@ function attendre(projet, tete, corps) {
     tete.dataset.etat = "sans-box";
     tete.textContent = "no read";
     corps.replaceChildren(
-      propos(
-        [
-          `“${projet.nom}” does not say where its box is: the app reads nothing of this project.`,
-          "",
-          `It lacks “hote”, in ${configuration.chemin}: the name your \`ssh\` reaches your box by.`,
-          `The app will run the box's step there under the project's name (\`ssh <hote> brigade ${mot(cite(projet.nom))} status\`, with the “hote” to fill in).`,
-          "",
-          "The app re-reads this file as soon as it changes.",
-        ].join("\n"),
+      lectureIndisponible(
+        document,
+        `“${projet.nom}” does not say where its box is: nothing is read`,
+        `It lacks “hote”, in ${configuration.chemin}: the name your \`ssh\` reaches your box by. The app re-reads this file as soon as it changes.`,
       ),
     );
   } else {
@@ -3874,6 +3931,28 @@ function marquer() {
   lireOnglet();
 }
 
+// En tête de chaque projet de « Tous les projets » : ce qu'il y a à faire — la bande d'alertes dite en
+// une ligne par alerte —, et le geste qui ouvre son espace, où chaque geste est un bouton. Sans alerte,
+// la ligne le dit, et le bouton ouvre quand même : c'est de là que se traite le projet.
+/** @param {Projet} projet */
+function poserAFaire(projet) {
+  const tenu = blocs.get(projet.nom);
+  if (tenu === undefined) return;
+  const alertes = projet.box === undefined ? [] : (bandes.get(projet.nom) ?? []);
+  const gestes = document.createElement("div");
+  gestes.className = "gestes";
+  gestes.append(bouton(`open ${projet.nom}`, () => void ouvrir(projet)));
+  tenu.afaire.replaceChildren(
+    ...alertes.map(({ dit, ton }) => {
+      const ligne = document.createElement("p");
+      ligne.dataset.ton = ton;
+      ligne.append(pastille(dit, ton), bloc("strong", dit));
+      return ligne;
+    }),
+    gestes,
+  );
+}
+
 // Tous les projets, dans l'ordre du fichier. L'écran se regarde : ce qui
 // s'y voit se traite dans l'espace du projet, par la barre.
 function ouvrirTous() {
@@ -3895,9 +3974,12 @@ function ouvrirTous() {
       faits.className = "carte";
       attendre(projet, tete, corps);
       poserCarte(faits, projet);
-      blocs.set(projet.nom, { carte: faits, tete, corps });
+      const afaire = document.createElement("div");
+      afaire.className = "a-faire";
+      blocs.set(projet.nom, { afaire, carte: faits, tete, corps });
+      poserAFaire(projet);
       const article = document.createElement("article");
-      article.append(bloc("h2", projet.nom), faits, tete, corps);
+      article.append(bloc("h2", projet.nom), afaire, faits, tete, corps);
       return article;
     }),
   );
@@ -4216,7 +4298,7 @@ brigade.surLecture((recue, servies) => {
   if (recue.demande !== demande) return;
   if (courant === undefined) {
     const tenu = blocs.get(recue.projet);
-    if (tenu !== undefined) rendre(recue, tenu.tete, tenu.corps);
+    if (tenu !== undefined) rendre(recue, tenu.tete, tenu.corps, true);
   } else if (recue.projet === courant.nom) {
     rendre(recue, lu, lecture);
     servir(courant, servies);
@@ -4229,6 +4311,8 @@ brigade.surAlertes(({ projet, alertes, signal }) => {
   bandes.set(projet, alertes);
   signaux.set(projet, signal);
   marquerSignal(projet);
+  const dessinee = configuration.projets.find((candidat) => candidat.nom === projet);
+  if (courant === undefined && dessinee !== undefined) poserAFaire(dessinee);
   if (courant?.nom === projet) poserAlertes(courant);
 });
 // Le chef a cliqué la notification de l'urgence d'un projet : la fenêtre est déjà devant. Le projet

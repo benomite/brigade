@@ -11,6 +11,13 @@ n'y a rien en bas de la fenêtre. Le reste est derrière deux onglets, en haut, 
 projet : **Coût** (le consommé) et **Paramètres** (l'état du projet, la sauvegarde et son
 ancienneté, les réglages, le manager, les grants) — lus pour toi, sans rien taper. Leur page
 s'ouvre **par-dessus le rail**, et le rail revient tel que tu l'avais laissé quand tu la fermes.
+**Dans la bande d'alertes, chaque geste est un bouton** : la ligne dit ce qui ne va pas en une phrase,
+le bouton fait le geste (ou écrit la demande dans le second — « ask the second »), et rien d'autre n'est
+écrit à plat. Ce que la box en dit mot pour mot, la raison et le geste en toutes lettres se lisent au
+survol de l'icône « ? » de la ligne ; le prix d'un geste qui coûte, au survol de son bouton — jamais un
+« cost: … » sous lui, et rien du tout quand il est nul. **« Tous les projets » commence, pour chaque
+projet, par ce qu'il y a à faire** (ses alertes en une ligne, et le bouton qui ouvre son espace) ; ce que
+la box a dit de son état est replié, et une lecture qui échoue se dit en une ligne, le détail au survol.
 **Le journal n'est plus à l'écran** : c'est de l'outillage de panne, il s'ouvre par le geste
 « journal », en tête de l'espace. Et en tête de la barre, l'écran **Tous les projets** : la même lecture pour tous tes projets
 d'un coup, avec, pour chacun, si tu peux encore le piloter d'ici.

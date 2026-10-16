@@ -309,7 +309,7 @@ describe("le clic, dans la vue", () => {
       }),
       espace: () => [],
     });
-  const URGENTE: Alerte = { sujet: "urgence", verifie: true, ton: "rouge", dit: "the whole kitchen is waiting for your merge of #535 — at a standstill for 5 h 28", releve: "#535  livraison verte — à merger à la main", geste: "do what #535 waits for, as the box writes it", appel: { demande: true }, prix: "none" };
+  const URGENTE: Alerte = { sujet: "urgence", verifie: true, ton: "rouge", dit: "the whole kitchen is waiting for your merge of #535 — at a standstill for 5 h 28", releve: "#535  livraison verte — à merger à la main", geste: "do what #535 waits for, as the box writes it", bouton: "ask the second", appel: { demande: true }, prix: "none" };
   const ORDINAIRE: Alerte = { sujet: "manager", verifie: true, ton: "rouge", dit: "manager off: no issue is judged, nothing new enters the rail", geste: "turn the manager on", appel: { geste: "manager-allumer" }, prix: "—" };
 
   test("depuis un autre projet : celui de l'urgence s'ouvre, sa ligne d'urgence en tête, choisie, et son geste prend le clavier et se lance", async () => {
@@ -328,8 +328,8 @@ describe("le clic, dans la vue", () => {
     assert.equal(premiere?.dataset.sujet, "urgence");
     assert.equal(premiere.dataset.choisie, "oui");
     assert.equal(seconde?.dataset.choisie, undefined);
-    const geste = premiere.dessous("button")[0] ?? assert.fail("pas de geste sur la ligne d'urgence");
-    assert.equal(geste.textContent, "do what #535 waits for, as the box writes it — ask the second");
+    const geste = premiere.dessous("button").find((pose) => pose.dataset.geste !== undefined) ?? assert.fail("pas de geste sur la ligne d'urgence");
+    assert.equal(geste.textContent, "ask the second");
     assert.equal(geste.disabled, false);
     assert.ok(geste.focalise > 0, "le geste de l'urgence n'a pas pris le clavier");
 

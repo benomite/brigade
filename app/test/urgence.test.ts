@@ -307,7 +307,9 @@ describe("l'urgence à l'écran", () => {
     const marque = premiere.dessous("span").find((pose) => pose.className === "urgent") ?? assert.fail("pas de marque d'urgence");
     assert.equal(marque.textContent, "URGENT");
     assert.match(premiere.textContent, /URGENTthe whole kitchen is waiting for your merge of #535 — at a standstill for 5 h 28/);
-    assert.match(premiere.textContent, /#535 {2}livraison verte — à merger à la main/);
+    // Ce que la box écrit de la décision n'est pas écrit à plat : il se lit, mot pour mot, au survol.
+    assert.doesNotMatch(premiere.textContent, /livraison verte/);
+    assert.ok(premiere.dessous("button").some((pose) => /#535 {2}livraison verte — à merger à la main/.test(pose.ariaLabel)), "la ligne de la box n'est pas au survol");
     // Une ligne ordinaire n'a pas la marque.
     assert.equal(seconde?.dataset.sujet, "manager");
     assert.equal(seconde.dessous("span").find((pose) => pose.className === "urgent"), undefined);
