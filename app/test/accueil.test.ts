@@ -111,7 +111,7 @@ const MAX_PERDUE: Panne = { cle: "connexion-max:x", sujet: "connexion-max", lign
 describe("la ligne d'une station : son état, ce qu'elle fait, ses projets — sa machine et sa version au survol seulement", () => {
   test("en ligne, ses cooks et ses projets", () => {
     const ligne = ligneDeStation(station(), 2, false);
-    assert.deepEqual(ligne, { id: "g1", nom: "parade-box", ton: "vert", dit: "online · 2 cooks · brigade, espace, calculus", survol: "Linux 6.1.0-47-amd64 · version code 0123456789ab" });
+    assert.deepEqual(ligne, { id: "g1", nom: "parade-box", ton: "vert", dit: "online · 2 cooks · brigade, espace, calculus", phrase: "online · 2 cooks running", survol: "Linux 6.1.0-47-amd64 · version code 0123456789ab" });
     assert.doesNotMatch(ligne.dit, /Linux|6\.1\.0|code /);
     assert.equal(ligneDeStation(station({ projets: [] }), 0, false).dit, "online · idle · no project");
   });
@@ -124,6 +124,21 @@ describe("la ligne d'une station : son état, ce qu'elle fait, ses projets — s
     assert.deepEqual([ligneDeStation(station(), 1, true)].map(({ ton, dit }) => [ton, dit]), [["jaune", "online · saturated · 1 cook · brigade, espace, calculus"]]);
     assert.deepEqual([ligneDeStation(station({ pannes: [MISE_A_JOUR] }), 0, false)].map(({ ton, dit }) => [ton, dit]), [["jaune", "online · update failed · brigade, espace, calculus"]]);
     assert.deepEqual([ligneDeStation(station({ pannes: [MAX_PERDUE], max: "perdue" }), 0, false)].map(({ ton, dit }) => [ton, dit]), [["rouge", "online · Max connection lost · brigade, espace, calculus"]]);
+  });
+
+  test("l'état en une phrase, en tête de sa page : en ligne et ses cooks, hors ligne depuis quand, saturée — ni machine, ni version, ni projets", () => {
+    assert.deepEqual(
+      [
+        ligneDeStation(station(), 2, false),
+        ligneDeStation(station(), 1, false),
+        ligneDeStation(station(), 0, false),
+        ligneDeStation(station({ etat: "hors-ligne", dit: "offline for 12 min", max: null }), 0, false),
+        ligneDeStation(station(), 3, true),
+        ligneDeStation(station({ etat: "illisible", dit: "unreadable", machine: "", version: "", projets: [] }), 0, false),
+      ].map(({ phrase }) => phrase),
+      ["online · 2 cooks running", "online · 1 cook running", "online · no cook running", "offline for 12 min", "saturated", "unreadable"],
+    );
+    for (const cooks of [0, 2]) assert.doesNotMatch(ligneDeStation(station(), cooks, false).phrase, /Linux|version|brigade|espace/);
   });
 
   test("une station saturée se lit dans le `status` d'un projet qu'elle sert", () => {

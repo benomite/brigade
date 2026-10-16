@@ -611,9 +611,20 @@ son nom, son état, ce qu'elle fait et les projets qu'elle porte ; sa machine et
 ○ box  offline for 4 min · brigade                        ›
 ```
 
-**Un clic sur sa ligne ouvre la page de la station** : son nom et son état en tête, ses pannes avec
-leur bouton, les projets que l'app lui a ajoutés et le parcours « add a project » (voir « Ajouter un
-projet à tes stations, sans terminal »). « ‹ All projects » ramène à l'accueil, comme la case **T**.
+**Un clic sur sa ligne ouvre la page de la station** : en tête, son nom, sa pastille et son état en
+une phrase (#877) ; dessous, ses pannes avec leur bouton, les projets que l'app lui a ajoutés et le
+parcours « add a project » (voir « Ajouter un projet à tes stations, sans terminal »).
+« ‹ All projects » ramène à l'accueil, comme la case **T**.
+
+```
+box      ●  online · 2 cooks running   ?
+atelier  ◆  saturated                  ?
+mac      ○  offline for 12 min         ?
+```
+
+La phrase ne dit ni ses projets ni ce qui casse — ses pannes sont dessous —, et le système, le noyau
+et la version de sa machine ne sont pas écrits dans la page : ils se lisent au survol du « ? ». Une
+station saturée ne prend plus de ticket tant que ça dure : sa phrase ne dit que ça.
 
 - **L'app ne joint aucune station.** Chaque station écrit son état dans un gist secret de ton
   compte GitHub ([docs/runtime.md](runtime.md), « Une station par machine »), et l'app le lit

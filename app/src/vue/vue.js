@@ -3667,8 +3667,10 @@ function poserAccueil() {
   santeDeLAccueil.replaceChildren(pastille(sante.dit, sante.ton), bloc("span", sante.dit));
 }
 
-// La page d'une station : en tête, sa ligne de l'accueil — son nom, sa pastille, son état, et sa machine
-// au survol ; dessous, ses pannes, chacune avec son bouton ; puis les projets que l'app lui a ajoutés.
+// La page d'une station : en tête, son nom, sa pastille et son état en une phrase — « online · 2 cooks
+// running », « offline for 12 min », « saturated » (accueil.ts) ; sa machine et sa version ne se lisent
+// qu'au survol de l'icône d'aide, jamais dans la page. Dessous, ses pannes, chacune avec son bouton ;
+// puis les projets que l'app lui a ajoutés.
 function poserPageDeStation() {
   const station = stationsVues?.stations.find(({ id }) => id === stationOuverte);
   const ligne = accueilVu?.stations?.find(({ id }) => id === stationOuverte);
@@ -3678,10 +3680,12 @@ function poserPageDeStation() {
   } else {
     const titre = bloc("h2", station.nom);
     titre.className = "mono";
-    const dit = ligne?.dit ?? station.dit;
-    const etatDit = bloc("span", dit);
-    enTeteDeStation.title = ligne?.survol ?? station.machine;
-    enTeteDeStation.replaceChildren(titre, pastille(dit, ligne?.ton), etatDit);
+    const phrase = ligne?.phrase ?? station.dit;
+    const etatDit = bloc("span", phrase);
+    etatDit.className = "phrase";
+    // Illisible, ce qui se lit au survol est pourquoi.
+    const details = station.etat === "illisible" ? station.ligne : (ligne?.survol ?? station.machine);
+    enTeteDeStation.replaceChildren(titre, pastille(phrase, ligne?.ton), etatDit, ...(details === "" ? [] : [survol(document, details)]));
     pannesDeStation.replaceChildren(...station.pannes.map((panne) => poserPanne(station.id, panne)));
   }
   poserProjets();
