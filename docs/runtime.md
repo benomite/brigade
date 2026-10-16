@@ -626,6 +626,21 @@ n'est pas un cook privilégié :
   dernier message est son livrable (`no-diff`) ; sans rien de délimité, il n'a rien livré
   (`no-deliverable`). Un renvoi revient à la première station qui peut cuisiner le ticket, d'ici ou
   d'ailleurs : sa branche est sur l'origine.
+- **Son poste fermé ou en veille en pleine cuisson, rien de ce qu'elle a poussé n'est perdu.** Sa
+  station se tait, son bail tombe (ou son plafond d'inactivité), et le ticket revient **en attente**.
+  Avant de le rendre au service, la box relit la branche du cook sur l'origine : si elle y porte des
+  commits en plus de la base, c'est le **travail conservé** — le compte-rendu le dit (`cook.reported`,
+  `kept` : ses commits) et l'issue aussi. Le cook suivant **en repart**, au lieu de recommencer de
+  zéro : sur la box, dans un worktree accroché à cette branche telle que l'origine la porte ; sur une
+  station distante, avec la branche dans sa mission (`resumes`, `returns: 0` — ce n'est pas un
+  renvoi). Sa consigne lui dit de finir ce qui est commencé, et son lancement nomme le cook qu'il
+  reprend (`cook.launched`, `continues`). Rien sur l'origine : il repart de la base, comme un premier
+  — une station d'ici relit l'origine juste avant de partir, au cas où la station l'aurait poussée
+  depuis. Une branche qui porte la forme des identifiants de Claude n'est jamais reprise. Un renvoi
+  de la pass passe avant : sa branche est celle de la livraison. Réveillée, la station apprend à sa
+  demande suivante que son cook est arrêté (`stopped`, `lease`) ; ce qu'il livrerait n'est plus reçu,
+  et le ticket, que la box a pu reprendre, n'a jamais qu'un cook à la fois. Le runner ne pousse
+  qu'à la livraison : un cook perdu avant d'avoir livré n'a, aujourd'hui, rien laissé sur l'origine.
 
 **Présence : une station distante qui ne s'est pas manifestée récemment est absente.** Toute demande
 la manifeste. Passé le délai de présence (`BRIGADE_PRESENCE_MINUTES`, deux minutes par défaut) sans

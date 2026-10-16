@@ -37,6 +37,9 @@ export const RELEVE = "cook.progressed";
 // `resumes` : le cook d'un renvoi qui reprend la session du cook dont la pass
 // a refusé la livraison (`reprise-de-session.ts`) — son run, et la session
 // reprise. Absent : il est parti de zéro, comme un premier cook.
+// `continues` : le cook qui reprend le travail conservé d'un autre — celui
+// d'une station distante disparue en pleine cuisson (`travail-conserve.ts`) :
+// le run de ce cook-là. Sa branche est la sienne.
 export type ContexteCook = {
   station: string;
   model: string;
@@ -49,6 +52,7 @@ export type ContexteCook = {
   head: string;
   sandbox?: boolean;
   resumes?: { run: string; session: string };
+  continues?: string;
 };
 
 export type FaitGardeFous =
