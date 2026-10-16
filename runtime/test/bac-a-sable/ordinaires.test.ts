@@ -75,7 +75,7 @@ test("ce que le chef lit des tickets ordinaires d'une station distante : non ré
   assert.match(direOrdinaires({ ordinary: false, sandbox: null }), /^non pris/);
   assert.match(direOrdinaires({ ordinary: true, sandbox: null }), /n'en a encore rien dit/);
   assert.equal(direOrdinaires({ ordinary: true, sandbox: { available: false, reason: "Seatbelt est introuvable", version: null, at: "2026-10-16T10:00:00.000Z" } }), "AUCUN PRIS — bac à sable indisponible depuis le 2026-10-16T10:00:00.000Z : Seatbelt est introuvable");
-  assert.match(direOrdinaires({ ordinary: true, sandbox: { available: true, reason: null, version: "2.1.250", at: "2026-10-16T10:00:00.000Z" } }), /^pris, chaque cook dans le bac à sable de Claude Code \(claude 2\.1\.250\)/);
+  assert.match(direOrdinaires({ ordinary: true, sandbox: { available: true, reason: null, version: "2.1.250", at: "2026-10-16T10:00:00.000Z" } }), /^pris quand la box sature, chaque cook dans le bac à sable de Claude Code \(claude 2\.1\.250\)/);
 });
 
 const MAC: Sondes = { plateforme: "darwin", existe: (chemin) => chemin === SEATBELT, versionDeClaude: () => "2.1.300 (Claude Code)\n" };

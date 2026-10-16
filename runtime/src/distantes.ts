@@ -11,9 +11,10 @@
 // - le ticket qu'elle reçoit est le premier, dans l'ordre de service, dont
 //   elle fournit tout ce que la fiche demande — jamais un autre ; et, sans
 //   cloison sur son poste, un ticket qui demande une de ses capacités : un
-//   ticket ordinaire ne lui revient que si le chef la déclare `ordinaires` et
+//   ticket ordinaire ne lui revient que si le chef la déclare `ordinaires`,
 //   que son poste a le bac à sable de Claude Code, où son cook est lancé
-//   (`bac-a-sable/ordinaires.ts`) ;
+//   (`bac-a-sable/ordinaires.ts`), et que la box sature — tant qu'elle a de
+//   la place, elle garde ses tickets ordinaires ;
 // - les bornes d'une prise sont les mêmes : le « stop », le disjoncteur, la
 //   base rouge, le quota, son plafond de cooks, les zones tenues ;
 // - son cook se lance par les garde-fous (`lancerDistant`) : mêmes refus, mêmes
@@ -101,6 +102,9 @@ export type Cuisine = {
   cuisinePar: Map<number, string>;
   // Ce qui retient cette station de prendre un ticket, lu à l'instant.
   retenue: (station: StationDeclaree) => Retenue | null;
+  // Les stations d'ici n'ont plus de place, lu à l'instant : un ticket
+  // ordinaire peut partir sur une distante qui les prend.
+  boxSaturee: () => boolean;
   direCeQuiRetient: (station: string, retenue: Retenue | null) => void;
   // Un ticket non calibré, ou dont la fiche ne se lit pas, ne lance aucun cook.
   refuser: (station: string, ticket: TicketRail) => Promise<void>;
@@ -301,6 +305,9 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
     // Un ticket ordinaire ne lui revient que si le chef le lui fait prendre et
     // que son poste a le bac à sable — ce qu'elle vient d'en dire.
     const poste = declaree.ordinaires ? (postes.get(nom) ?? null) : null;
+    // Et seulement quand la box sature : tant qu'elle a de la place, elle
+    // garde ses tickets ordinaires.
+    const ordinaires = poste !== null && cuisine.boxSaturee();
     const rien = (retenue: Retenue | null): Extract<Reponse, { verb: "claim" }> => {
       cuisine.direCeQuiRetient(nom, retenue);
       return { ok: true, verb: "claim", mission: null, held: retenue };
@@ -309,7 +316,7 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
     for (let essais = 0; essais < 50; essais++) {
       const retenue = cuisine.retenue(declaree);
       if (retenue !== null) return rien(retenue);
-      const ticket = rail.prendre([{ station: nom, fournit: declaree.fournit, ordinaires: poste !== null }], enCuisine);
+      const ticket = rail.prendre([{ station: nom, fournit: declaree.fournit, ordinaires }], enCuisine);
       if (!ticket) return rien(null);
       const numero = ticket.ticket;
       // Les deux refus d'une station d'ici : le ticket est 86, son issue le dit.

@@ -118,7 +118,7 @@ describe("la ligne de commande", () => {
     const sortie = join(dossier, "x.png");
     await assert.rejects(lancer(process.execPath, [COMMANDE, "cuisine", sortie]), (erreur: { code: number; stderr: string }) => {
       assert.equal(erreur.code, 2);
-      assert.match(erreur.stderr, /écran inconnu : cuisine — les écrans : ajout, espace-projet, fiche, reglages-ordinaires-sans-bac, reglages-ordinaires, tous-les-projets/);
+      assert.match(erreur.stderr, /écran inconnu : cuisine — les écrans : ajout, espace-projet, fiche, file-ou-cuit, reglages-ordinaires-sans-bac, reglages-ordinaires, tous-les-projets/);
       return true;
     });
     assert.equal(existsSync(sortie), false);

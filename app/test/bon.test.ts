@@ -11,6 +11,7 @@ import { describe, test } from "node:test";
 import { decrireEtat, faits as faitsDuRuntime, lireEtat, type EtatCuisine } from "../../runtime/src/etat.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import type { TicketRail } from "../../runtime/src/projections/rail.ts";
+import type { EtatStation } from "../../runtime/src/projections/stations.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { lignesDuRail, porter } from "../src/bon.ts";
 import { comprendre, rail, type Carte, type Faits } from "../src/faits.ts";
@@ -191,6 +192,82 @@ describe("ce qu'un bon porte, tenu contre ce que le runtime écrit", () => {
     const sansStation = dessine({ ...ETAT, sansStation: ilYA(30) });
 
     assert.deepEqual(dits(carteDe(sansStation.rail, 20)), { since: "3 min", "blocked by": "aucune station déclarée" });
+  });
+});
+
+// Une station telle que le runtime la tient : d'ici, ou distante — le Mac du chef.
+const station = (nom: string, remote: boolean): EtatStation => ({
+  station: nom,
+  engine: "claude",
+  provides: ["code"],
+  maxCooks: 2,
+  cap: null,
+  announcedAt: ilYA(600),
+  quotaUntil: null,
+  quotaReason: null,
+  disconnectedAt: null,
+  disconnectedReason: null,
+  saturatedAt: null,
+  saturatedResource: null,
+  saturatedObserved: null,
+  saturatedLimit: null,
+  heldAt: null,
+  heldReason: null,
+  unarbitratedAt: null,
+  unarbitratedReason: null,
+  remote,
+  seenAt: remote ? ilYA(1) : null,
+  presentSince: remote ? ilYA(60) : null,
+  ordinary: remote,
+  sandbox: remote ? { available: true, reason: null, version: "2.1.250", at: ilYA(60) } : null,
+});
+
+describe("où cuit chaque ticket en cours : box ou Mac", () => {
+  const STATIONS = [station("box/claude", false), station("mac/claude", true)];
+  const { rail: lu } = dessine({ ...ETAT, stations: STATIONS });
+
+  test("la carte d'un ticket pris dit « box » ou « Mac », sous la station qui le tient, d'après ce que `faits` dit de cette station", () => {
+    assert.deepEqual(carteDe(lu, 14).dit, [
+      { libelle: "right now", valeur: "lit runtime/src/etat.ts, for 2 min" },
+      { libelle: "taken by", valeur: "box/claude", exact: true },
+      { libelle: "cooks on", valeur: "box" },
+      { libelle: "since", valeur: "12 min" },
+      { libelle: "lease", valeur: "sans progrès depuis 3 min, bail encore 27 min" },
+    ]);
+    assert.equal(dits(carteDe(lu, 15))["cooks on"], "Mac");
+    assert.equal(dits(carteDe(lu, 16))["cooks on"], "box");
+  });
+
+  test("seul un ticket en cours le dit : ni celui qui attend, ni celui en pass ou servi, ni celui mis de côté", () => {
+    for (const numero of [20, 21, 22, 23, 30, 31, 40]) assert.equal(dits(carteDe(lu, numero))["cooks on"], undefined, `#${numero}`);
+  });
+
+  test("une station que `faits` ne situe pas — un runtime d'avant ce champ, une station qu'il ne donne plus — ne fait rien dire : l'app ne devine pas", () => {
+    // Un runtime d'avant `stations` : la forme sans ce champ.
+    const { status, faits } = lectures(ETAT);
+    const sansStations: Faits = { ...faits };
+    delete sansStations.stations;
+    const ancien = rail(sansStations, undefined, { texte: status, a: MAINTENANT.toISOString() });
+    assert.equal(dits(carteDe(ancien, 14))["cooks on"], undefined);
+    assert.equal(dits(carteDe(ancien, 14))["taken by"], "box/claude");
+    // Le Mac n'est plus déclaré : son ticket ne se dit nulle part, celui de la box si.
+    const { rail: sansMac } = dessine({ ...ETAT, stations: [station("box/claude", false)] });
+    assert.equal(dits(carteDe(sansMac, 15))["cooks on"], undefined);
+    assert.equal(dits(carteDe(sansMac, 14))["cooks on"], "box");
+  });
+
+  test("`comprendre` lit les stations que la box rend, et refuse une forme qui n'est pas la leur", () => {
+    const { faits } = lectures({ ...ETAT, stations: STATIONS });
+    assert.deepEqual(
+      faits.stations?.map(({ station, distante }) => [station, distante]),
+      [
+        ["box/claude", false],
+        ["mac/claude", true],
+      ],
+    );
+    const brut = JSON.parse(JSON.stringify(faitsDuRuntime({ ...ETAT, stations: STATIONS }, MAINTENANT, "benomite/brigade")));
+    brut.stations[1].distante = "oui";
+    assert.deepEqual(comprendre(JSON.stringify(brut)), { informe: "“stations[1].distante” is not true or false" });
   });
 });
 
