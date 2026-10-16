@@ -2199,3 +2199,37 @@ main > header,
 #arret > p:not(.gestes) {
   color: var(--texte);
 }
+
+/* Les briques communes (briques.js) : le survol, la lecture indisponible, le bouton recommandé. */
+.survol {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.survol .bulle {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10;
+  max-width: 28em;
+  width: max-content;
+  padding: 6px 10px;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+  background: var(--carte);
+  color: var(--texte-doux);
+  box-shadow: 0 2px 8px var(--ombre);
+}
+.indisponible {
+  color: var(--discret);
+}
+.action {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+button.recommande {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--fond);
+}
