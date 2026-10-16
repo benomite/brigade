@@ -126,8 +126,13 @@ cp runtime/paquet/construit/brigade-station_<version>_amd64.deb /tmp/brigade-sta
 gh release create station-<version> runtime/paquet/installer-station.sh /tmp/brigade-station_amd64.deb
 ```
 
-Aucune release n'en porte encore : tant qu'il n'y en a pas, la commande du guide échoue au
-téléchargement, et dit lequel.
+Ce geste n'est pas à faire à la main : `.github/workflows/publier-station.yml` le fait à chaque
+merge sur `v2` qui touche `runtime/src/`, `runtime/package.json` ou `runtime/paquet/`. Il construit le
+paquet sans `--version` (donc `0.<AAAAMMJJ>.<HHMMSS>+g<commit>`), et publie la release
+`station-<version>` — ni brouillon ni pré-version, marquée la dernière du dépôt, pour que
+`releases/latest/download/installer-station.sh` la trouve. Un merge qui ne touche que l'app, la doc ou
+le plugin V1 ne publie rien. Le workflow se lance aussi à la main (`workflow_dispatch`) ; une version
+déjà publiée n'est pas republiée.
 
 Publier une release `station-<version>`, c'est aussi la livrer à toutes les stations installées :
 chacune y passe seule dans les dix minutes, sauf celles dont la version est gelée. Une release ne se
