@@ -11,11 +11,12 @@ import type { Projet } from "./config.ts";
 
 // `ou` : là où le fait que la commande change se lit — l'onglet de contenu de ce
 // nom. Une commande qui finit par un espace attend sa suite : le chef la tape avant Entrée.
-export type Bouton = { id: string; ou: string; commande: string };
+// `libelle` : le geste en mots, ce que le bouton montre — la commande, elle, ne s'affiche pas.
+export type Bouton = { id: string; ou: string; commande: string; libelle: string };
 
 export const BOUTONS: readonly Bouton[] = [
-  { id: "grant-prolonger", ou: "grants", commande: "grant extend merge " },
-  { id: "cooks", ou: "cooks", commande: "station cooks " },
+  { id: "grant-prolonger", ou: "grants", commande: "grant extend merge ", libelle: "Extend a grant" },
+  { id: "cooks", ou: "cooks", commande: "station cooks ", libelle: "Set the cooks of a station" },
 ];
 
 // Un mot tel que le shell du Mac le rendra à `ssh` : entier, sans rien en exécuter.

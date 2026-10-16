@@ -954,7 +954,8 @@ describe("l'écran, tel que la vue le pose", () => {
     await repos();
     return vue;
   }
-  const lignes = (element: Faux) => element.children.map((enfant) => enfant.textContent);
+  // Ce que l'écran dit au survol : le nom accessible de chaque icône d'aide posée dessous.
+  const survols = (element: Faux) => element.dessous("button").filter(({ className }) => className === "aide").map(({ ariaLabel }) => ariaLabel);
 
   test("toutes les étapes, chacune avec son état, à quoi elle sert et ce qui se passe si on la saute ; la courante mise en avant ; ce qui sera au chef, en tête", async (t) => {
     const box = boxSimulee(t, { verification: () => SANS_GESTES });
@@ -976,19 +977,21 @@ describe("l'écran, tel que la vue le pose", () => {
       const posee = etapes[rang];
       assert.ok(posee !== undefined);
       assert.ok(posee.textContent.includes(`${rang + 1}. ${etape.titre}`));
-      assert.ok(lignes(posee).includes(`What it is for: ${etape.sert}`), etape.id);
-      assert.ok(lignes(posee).includes(`If you skip it: ${etape.sauter}`), etape.id);
+      // Le mode d'emploi d'une étape n'est pas écrit à plat : il est au survol de son titre.
+      assert.ok(survols(posee).some((dit) => dit.includes(`What it is for: ${etape.sert}`) && dit.includes(`If you skip it: ${etape.sauter}`)), etape.id);
+      assert.doesNotMatch(posee.dessous("p").map(({ textContent }) => textContent).join("\n"), /What it is for:|If you skip it:/, etape.id);
     }
     assert.deepEqual(etapes.map(({ className }) => className), ["", "courante", "", "", "", "", ""]);
     assert.deepEqual(etapes.map(({ dataset }) => dataset.etat), ["done", "todo", "waiting", "todo", "todo", "todo", "todo"]);
     // La commande unique et sa raison, en tête, avant tout bouton.
     const tete = vue.element("service-tete");
     assert.ok(tete.textContent.includes(GESTE_TROP_VIEUX));
-    assert.ok(tete.dessous("pre").some((pre) => pre.textContent === GESTE_A_NIVEAU));
-    assert.ok(tete.dessous("pre").some((pre) => pre.textContent === "ssh -t box sudo systemctl enable --now brigade@calculus.service"));
+    // La commande exacte n'est pas écrite à plat : elle est au survol de sa ligne.
+    assert.ok(survols(tete).includes(GESTE_A_NIVEAU));
+    assert.ok(survols(tete).includes("ssh -t box sudo systemctl enable --now brigade@calculus.service"));
     // L'étape courante a ses boutons ; les autres n'en ont pas.
-    assert.deepEqual(etapes[1]?.dessous("button").map(({ textContent }) => textContent), ["Run /brigade:init in the second", "The result of /brigade:init is merged onto the integration branch"]);
-    assert.ok(etapes.filter((_, rang) => rang !== 1).every((etape) => etape.dessous("button").length === 0));
+    assert.deepEqual(etapes[1]?.dessous("button").filter(({ className }) => className !== "aide").map(({ textContent }) => textContent), ["Initialize the project in the second", "The initialization is merged onto the integration branch"]);
+    assert.ok(etapes.filter((_, rang) => rang !== 1).every((etape) => etape.dessous("button").every(({ className }) => className === "aide")));
   });
 
   test("les stations se déclarent par une case et un nombre : la vue porte le choix, sans rien écrire elle-même", async (t) => {
@@ -1033,7 +1036,10 @@ describe("l'écran, tel que la vue le pose", () => {
     assert.equal(premiere?.dataset.verdict, "pret");
     assert.equal(verification.dessous("li").length, 0);
     assert.doesNotMatch(vue.element("service-tete").textContent, MODE_D_EMPLOI);
-    assert.deepEqual(partie(verification, "a-savoir")?.dessous("p").map(({ textContent }) => textContent), [`${PRETS[2]?.texte} → ${PRETS[2]?.geste}`]);
+    // Le geste de la ligne `à savoir` est au survol, pas écrit après une flèche.
+    const aSavoir = partie(verification, "a-savoir");
+    assert.deepEqual(aSavoir?.dessous("p").map(({ textContent }) => textContent), [`${PRETS[2]?.texte}?`]);
+    assert.deepEqual(survols(aSavoir ?? verification), [PRETS[2]?.geste]);
     // Repliée au chargement ; dépliée, la sortie brute telle que la vérification l'a écrite.
     const detail = partie(verification, "detail") as (Faux & { open?: unknown }) | undefined;
     assert.equal(detail?.open, false);
@@ -1058,9 +1064,9 @@ describe("l'écran, tel que la vue le pose", () => {
     assert.deepEqual(lignes.map(({ dataset }) => dataset.acteur), ["chef", "chef", "chef", "brigade"]);
     assert.deepEqual(lignes.map((ligne) => ligne.dessous("strong")[0]?.textContent), ["you:", "you:", "you:", "brigade, on its own — nothing for you to do:"]);
     assert.ok(lignes[0]?.textContent.includes(SANS_GESTES[0]?.simple ?? "∅"));
-    // Un geste que l'app ne fait pas : la commande exacte, et de quoi la copier.
-    assert.deepEqual(textes(lignes[0]?.dessous("pre") ?? []), ["sudo git -C /opt/brigade pull --ff-only"]);
-    assert.deepEqual(textes(lignes[0]?.dessous("button") ?? []), ["Copy"]);
+    // Un geste que l'app ne fait pas : la commande exacte, au survol — jamais écrite à plat.
+    assert.equal(lignes[0]?.dessous("pre").length, 0);
+    assert.deepEqual(survols(lignes[0] ?? verification), ["sudo git -C /opt/brigade pull --ff-only"]);
     // Un geste que l'app fait : son bouton — ou, pour un choix, celui qui mène à son étape.
     assert.deepEqual(textes(lignes[1]?.dessous("button") ?? []), [`Go to step ${RANG_DES_STATIONS}. ${ETAPES[RANG_DES_STATIONS - 1]?.titre}`]);
     assert.deepEqual(textes(lignes[2]?.dessous("button") ?? []), ["Protect the integration branch"]);

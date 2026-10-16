@@ -32,6 +32,13 @@ describe("les boutons d'action", () => {
     assert.equal(new Set(BOUTONS.map(({ id }) => id)).size, BOUTONS.length);
   });
 
+  test("chaque bouton dit son geste en mots : son libellé ne porte ni la commande, ni `ssh`", () => {
+    for (const { libelle, commande } of BOUTONS) {
+      assert.ok(libelle.length > 0);
+      assert.ok(!libelle.includes(commande.trim()) && !/ssh|brigade/.test(libelle), libelle);
+    }
+  });
+
   test("ce qui s'écrit est la forme de « Piloter », mot pour mot, préfixée du `!` qui la lance depuis le second", () => {
     const DU_POSTE = "ssh <box> brigade <projet> status";
     assert.ok(PILOTER.includes(`\`${DU_POSTE}\``), "« Piloter » ne donne plus cette forme depuis le poste");

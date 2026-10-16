@@ -301,9 +301,11 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
     // Ce que `ssh` a rendu, puis le code : des blancs en tête et en fin, là aussi.
     const erreur = `${RELAYE}→ code de sortie 255\n  `;
     vue.dire("surLecture", { projet: PARADE, demande, a: A, erreur, atteinte: false, cas: "ssh-en-echec" }, pages);
-    assert.deepEqual(textes(relayes(vue.element("lecture"))), [erreur]);
-    // Ce que l'app en dit est dessous, à part : ses mots ne sont pas dans le cadre de ceux de la box.
-    assert.deepEqual(vue.element("lecture").dessous("pre").map((pre) => pre.className), ["", "propos"]);
+    // Rien de technique n'est écrit à plat : une ligne, et ce que `ssh` a rendu — mot pour mot — au survol,
+    // suivi de ce que l'app en dit.
+    assert.equal(vue.element("lecture").dessous("pre").length, 0);
+    assert.equal(vue.element("lecture").dessous("p").find((pose) => pose.className === "indisponible")?.textContent, "the box could not be reached?");
+    assert.ok(vue.element("lecture").dessous("button").some((pose) => pose.ariaLabel.startsWith(erreur)));
   });
 
   test("dans l'écran d'ajout : ce que la box a rendu à l'installation, mot pour mot", async () => {
@@ -524,11 +526,12 @@ describe("le monospace est une information, pas un style", () => {
     // Les boutons qui écrivent une commande à compléter sont dans l'onglet de ce qu'ils changent, à côté
     // des gestes collés à l'état — accorder, révoquer.
     const poses = await toutPose("Grants", undefined, GRANTS_VUS);
-    const commandes = BOUTONS.map(({ commande }) => (commande.endsWith(" ") ? `${commande}…` : commande));
     const boutons = poses.filter((pose) => pose.balise === "button" && pose.parentElement?.className === "gestes");
-    assert.ok(boutons.some(mono) && boutons.some((pose) => !mono(pose)), "les boutons de geste sont tous d'une seule police");
-    // Un bouton est en monospace si, et seulement si, ce qu'il affiche est la commande qu'il écrit.
-    for (const pose of boutons) assert.equal(mono(pose), commandes.includes(pose.textContent), pose.textContent);
+    assert.ok(boutons.length > 0 && boutons.every((pose) => !mono(pose)), "un bouton de geste est en monospace");
+    // Un bouton qui écrit une commande à compléter dit son geste en mots : la commande n'est affichée nulle part.
+    const complets = poses.filter((pose) => pose.balise === "button" && pose.parentElement?.className === "action");
+    assert.deepEqual(complets.map(({ textContent }) => textContent), BOUTONS.filter(({ ou }) => ou === "grants").map(({ libelle }) => `${libelle}…`));
+    for (const { commande } of BOUTONS) assert.ok(!poses.some((pose) => pose.textContent.includes(commande.trim())), commande);
   });
 
   test("ce qui se lit ne l'est pas : un titre, un mot d'état, un libellé, ce que l'app dit elle-même", async () => {
