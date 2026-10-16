@@ -18,8 +18,17 @@
 // `CLAUDE_CODE_OAUTH_TOKEN` posé dans l'environnement du runtime n'est pas cet
 // emplacement : il ne refuse pas le démarrage, mais n'est transmis à aucun
 // `claude`.
+//
+// Chaque valeur lue ici — dans le fichier, ou dans un `CLAUDE_CODE_OAUTH_TOKEN`
+// d'où qu'il vienne — est retenue par `identifiants.ts` : elle est masquée,
+// comme la forme des identifiants, dans tout ce que le runtime garde ou publie
+// (journal, flux des cooks, comptes-rendus, sortie des gates, GitHub, sa
+// propre sortie). Le fichier, lui, la cloison le cache aux lancements
+// (`cloison.ts`).
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
+import { format } from "node:util";
+import { masquerIdentifiants, retenirJeton } from "./identifiants.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
 // La variable du service qui nomme le fichier.
@@ -35,11 +44,14 @@ const dans = (repertoire: string, fichier: string) => {
 
 // Le jeton du fichier, ou null s'il n'y en a pas de lisible.
 function lire(fichier: string): string | null {
+  let jeton: string | null;
   try {
-    return readFileSync(fichier, "utf8").trim() || null;
+    jeton = readFileSync(fichier, "utf8").trim() || null;
   } catch {
     return null;
   }
+  if (jeton !== null) retenirJeton(jeton);
+  return jeton;
 }
 
 // Lit `BRIGADE_CLAUDE_TOKEN_FILE` au démarrage. Sans la variable, null : les
@@ -47,6 +59,8 @@ function lire(fichier: string): string | null {
 // pas lire, ou que d'autres que le compte du service liraient, est un refus de
 // démarrer. Seul le chemin est retenu.
 export function configJeton(env: Record<string, string | undefined>, lieux: { repertoireEtat: string; clone: string }): string | null {
+  // Transmis à personne, mais masqué partout.
+  retenirJeton(env[VARIABLE_DU_JETON]);
   const fichier = env[FICHIER_DU_JETON];
   if (!fichier) return null;
   const refuser = (pourquoi: string): never => {
@@ -73,7 +87,9 @@ export function configJeton(env: Record<string, string | undefined>, lieux: { re
 // lu à cet instant dans le fichier que nomme `env`. Sans jeton, `base` sans
 // `CLAUDE_CODE_OAUTH_TOKEN` : rien d'autre que l'emplacement ne le fournit.
 export function environnementClaude(base: NodeJS.ProcessEnv, env: Record<string, string | undefined>): NodeJS.ProcessEnv {
-  const { [VARIABLE_DU_JETON]: _, ...sans } = base;
+  const { [VARIABLE_DU_JETON]: ecarte, ...sans } = base;
+  retenirJeton(ecarte);
+  retenirJeton(env[VARIABLE_DU_JETON]);
   const fichier = env[FICHIER_DU_JETON];
   const jeton = fichier ? lire(fichier) : null;
   return jeton === null ? sans : { ...sans, [VARIABLE_DU_JETON]: jeton };
@@ -85,4 +101,15 @@ export function direJeton(fichier: string | null, env: Record<string, string | u
   return fichier
     ? `connexion de \`claude\` — jeton longue durée lu dans ${fichier}, relu à chaque lancement ; ne parvient qu'aux \`claude\` lancés, ni au setup ni aux gates${ignore}`
     : `connexion de \`claude\` — celle du compte (${FICHIER_DU_JETON} n'est pas défini)${ignore}`;
+}
+
+// La sortie du runtime — ce que journald garde — passe par le même masque :
+// une erreur qui citerait le jeton ne l'y écrit pas. Le message est mis en
+// forme comme `console` l'aurait fait, pile et propriétés d'une erreur
+// comprises, puis masqué.
+export function masquerLaConsole(sortie: Pick<Console, "log" | "info" | "warn" | "error"> = console): void {
+  for (const methode of ["log", "info", "warn", "error"] as const) {
+    const ecrire = sortie[methode].bind(sortie);
+    sortie[methode] = (...valeurs: unknown[]) => ecrire("%s", masquerIdentifiants(format(...valeurs)).texte);
+  }
 }

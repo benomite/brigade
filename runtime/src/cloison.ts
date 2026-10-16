@@ -10,6 +10,7 @@ import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync,
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { Fait } from "./evenements.ts";
 import type { EtatDeCloison } from "./evenements/cloison.ts";
+import { FICHIER_DU_JETON } from "./jeton-claude.ts";
 import type { Runtime } from "./runtime.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
@@ -28,6 +29,9 @@ export type Cloison = {
   masques: string[];
   // Les identifiants du compte Max, montés en lecture seule.
   identifiants: string;
+  // Le fichier du jeton longue durée, recouvert d'un fichier vide en lecture
+  // seule — null sans jeton.
+  jeton: string | null;
   // Le `~/.claude` du projet, monté à la place de celui du compte.
   claude: string;
   envelopper(lancement: Lancement, acces: Acces): Lancement;
@@ -119,6 +123,7 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
     ["BRIGADE_REPO_DIR", lieux.clone],
     ["BRIGADE_SECRETS_FILE", env.BRIGADE_SECRETS_FILE],
     ["BRIGADE_GITHUB_APPS_DIR", env.BRIGADE_GITHUB_APPS_DIR],
+    [FICHIER_DU_JETON, env[FICHIER_DU_JETON]],
   ];
   for (const [variable, chemin] of aCouvrir) {
     if (chemin && !masques.some((masque) => sous(masque, chemin))) {
@@ -140,6 +145,12 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
   // transcripts ni la mémoire d'un autre ; son répertoire de compte, où
   // s'écrit ce qui ne peut pas s'écrire dans le vrai ; et sa vue du `.git`.
   const prive = join(lieux.repertoireEtat, "claude");
+  // Le jeton longue durée de la connexion Max : `claude` le reçoit par son
+  // environnement, pas par son fichier. Masqué avec son répertoire, le fichier
+  // est en plus recouvert d'un fichier vide, en lecture seule : lu, il ne dit
+  // rien ; écrit, il refuse — comme les identifiants du compte.
+  const jeton = env[FICHIER_DU_JETON] || null;
+  const vide = join(lieux.repertoireEtat, "jeton-vide");
   const compte = join(lieux.repertoireEtat, "compte");
   const vues = join(lieux.repertoireEtat, "vues-git");
   const lie = (option: string, chemin: string) => [option, chemin, chemin];
@@ -259,9 +270,15 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
     bin,
     masques,
     identifiants,
+    jeton,
     claude: prive,
     envelopper({ commande, args }, acces) {
       mkdirSync(prive, { recursive: true });
+      // Vide et à lui : ce qui serait là d'autre — un contenu, un lien — part.
+      if (jeton !== null && !(estUn(vide, "isFile") && statSync(vide).size === 0)) {
+        rmSync(vide, { recursive: true, force: true });
+        writeFileSync(vide, "", { flag: "wx", mode: 0o400 });
+      }
       return {
         commande: "/bin/sh",
         args: [
@@ -282,6 +299,7 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
           ...masques.filter((masque) => existsSync(masque)).flatMap((masque) => ["--tmpfs", masque]),
           ...["--bind", prive, claude],
           ...lie("--ro-bind-try", identifiants),
+          ...(jeton === null ? [] : ["--ro-bind", vide, jeton]),
           ...(acces.lit ?? []).flatMap((fichier) => lie("--ro-bind", fichier)),
           ...(acces.depot === null ? [] : leDepot(acces.cwd, acces.depot === "ecriture")),
           ...["--chdir", acces.cwd, "--"],

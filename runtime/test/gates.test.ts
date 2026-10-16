@@ -7,6 +7,8 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Cloison } from "../src/cloison.ts";
 import { aDesGates, jouerGates, jouerSetup } from "../src/gates.ts";
+import { JETON_MASQUE } from "../src/identifiants.ts";
+import { environnementClaude, FICHIER_DU_JETON } from "../src/jeton-claude.ts";
 import { ENV_ENFANT, mort, repertoireTemporaire } from "./outils.ts";
 
 // Les scripts d'essai lancent un `sleep 30` : s'il tenait ce qu'on attend, rien
@@ -50,6 +52,21 @@ describe("les gates", { concurrency: 8 }, () => {
     const gates = await jouerGates(demande);
     assert.deepEqual(gates.failures, ["FAIL  connexion refusée à [secret:DATABASE_URL]/ticket_17"]);
     assert.equal(gates.tail.includes("secret-de-dev"), false);
+  });
+
+  test("des gates qui citent le jeton longue durée — laissé dans le worktree par un cook — ne le gardent nulle part : leur sortie est masquée, et le compte le dit", async (t) => {
+    // Le jeton que le runtime remet aux `claude` qu'il lance, sans la forme `sk-ant-…`.
+    const jeton = "jeton-longue-duree-que-citent-les-gates";
+    const fichier = join(repertoireTemporaire(t), "jeton-claude");
+    writeFileSync(fichier, `${jeton}\n`, { mode: 0o600 });
+    assert.equal(environnementClaude({}, { [FICHIER_DU_JETON]: fichier }).CLAUDE_CODE_OAUTH_TOKEN, jeton);
+    const racine = worktree(t, { gates: 'echo "FAIL  connexion refusée avec $(cat fuite.txt)"; echo "gates : ROUGE"; exit 1' });
+    writeFileSync(join(racine, "fuite.txt"), jeton);
+
+    const gates = await jouer(racine);
+    assert.deepEqual(gates.failures, [`FAIL  connexion refusée avec ${JETON_MASQUE}`]);
+    assert.equal(gates.tail.includes(jeton), false);
+    assert.equal(gates.credentialsMasked, 1);
   });
 
   test("des gates qui sortent en 0 sont vertes", async (t) => {
@@ -249,7 +266,7 @@ describe("les gates", { concurrency: 8 }, () => {
     // ses minuteurs — le plafond tombe — avant de lire la fin du script.
     await new Promise((resoudre) => setImmediate(resoudre));
     let lancees = false;
-    const temoin: Cloison = { bin: "", masques: [], identifiants: "", claude: "", envelopper: (lancement) => ((lancees = true), lancement) };
+    const temoin: Cloison = { bin: "", masques: [], identifiants: "", jeton: null, claude: "", envelopper: (lancement) => ((lancees = true), lancement) };
     const enCours = jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: plafondMs, cloison: temoin });
     while (!lancees) await Promise.resolve();
     const debut = Date.now();

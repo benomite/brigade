@@ -208,6 +208,18 @@ FIN
 J'ai ajouté \`travail.txt\`. Pour mémoire, la connexion du compte est $jeton — à garder.
 FIN
       ;;
+    # Livre, et dit tout haut le jeton longue durée qu'il a reçu dans
+    # CLAUDE_CODE_OAUTH_TOKEN : dans le résultat d'un outil, sur sa sortie
+    # d'erreur et dans son compte-rendu.
+    livre-et-dit-son-jeton)
+      commiter
+      assistant
+      printf '{"type":"user","message":{"content":[{"type":"tool_result","content":%s}]}}\n' "$(json "CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN-}")"
+      echo "avertissement : ${CLAUDE_CODE_OAUTH_TOKEN-}" >&2
+      resultat <<FIN
+J'ai ajouté \`travail.txt\`. Pour mémoire, mon jeton est ${CLAUDE_CODE_OAUTH_TOKEN-} — à garder.
+FIN
+      ;;
     # Livre, en laissant derrière lui un fichier qu'il n'a pas commité.
     livre-et-laisse)
       commiter

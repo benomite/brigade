@@ -50,6 +50,11 @@ export function eprouver(cloison: Cloison, options: { claude: string; env: NodeJ
     sondes.push({ quoi: "les identifiants Max sont en lecture seule", tient: null, detail: `${cloison.identifiants} n'existe pas : ce compte n'a pas de connexion Max, ou la garde ailleurs` });
   }
 
+  if (cloison.jeton !== null) {
+    const lu = sh('! [ -s "$1" ] && ! [ -w "$1" ]', cloison.jeton);
+    sondes.push({ quoi: "le fichier du jeton se lit vide et refuse l'écriture", tient: lu.code === 0, detail: lu.code === 0 ? cloison.jeton : `${cloison.jeton} est lisible ou inscriptible dans la cloison` });
+  }
+
   // Là où pnpm, npm et les autres écrivent leur cache sans qu'on le leur dise.
   const caches = sh('for d in "$HOME/.cache" "$HOME/.npm" "$HOME/.local/share" "$HOME/.local/state"; do mkdir -p "$d" 2>/dev/null && t=$(mktemp -d "$d/.brigade-sonde.XXXXXX" 2>/dev/null) && rmdir "$t" || echo "$d"; done');
   const fermes = caches.sortie.split("\n").filter(Boolean);

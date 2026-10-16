@@ -70,9 +70,58 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.match(refus(() => configCloison(env, { ...lieux, clone: ailleurs })), /^BRIGADE_REPO_DIR/);
     assert.match(refus(() => configCloison({ ...env, BRIGADE_SECRETS_FILE: join(ailleurs, "secrets.env") }, lieux)), /^BRIGADE_SECRETS_FILE .* un cook le lirait malgré la cloison/);
     assert.match(refus(() => configCloison({ ...env, BRIGADE_GITHUB_APPS_DIR: ailleurs }, lieux)), /^BRIGADE_GITHUB_APPS_DIR/);
+    assert.match(refus(() => configCloison({ ...env, BRIGADE_CLAUDE_TOKEN_FILE: join(ailleurs, "jeton-claude") }, lieux)), /^BRIGADE_CLAUDE_TOKEN_FILE .* un cook le lirait malgré la cloison/);
     const cloison = configCloison({ ...env, BRIGADE_SECRETS_FILE: join(racine, "secrets/brigade/secrets.env"), BRIGADE_GITHUB_APPS_DIR: join(racine, "secrets/brigade/apps") }, lieux);
     assert.deepEqual(cloison?.masques, masques);
     assert.equal(cloison?.identifiants, join(racine, "compte/.claude/.credentials.json"));
+  });
+
+  test("le fichier du jeton, masqué avec son répertoire, est recouvert d'un fichier vide en lecture seule : un lancement ne le lit pas et ne l'écrit pas, comme les identifiants", (t) => {
+    const { lieux, env, racine, masques } = machine(t);
+    const jeton = join(racine, "secrets/brigade/jeton-claude");
+    mkdirSync(join(racine, "secrets/brigade"), { recursive: true });
+    writeFileSync(jeton, "le-jeton-de-la-machine\n", { mode: 0o600 });
+    const cloison = configCloison({ ...env, BRIGADE_CLAUDE_TOKEN_FILE: jeton }, lieux);
+    assert.equal(cloison?.jeton, jeton);
+    const worktree = join(lieux.repertoireEtat, "worktrees/17-abc");
+    mkdirSync(worktree, { recursive: true });
+
+    // Le setup, le cook, les gates, le reviewer, un juge : chaque lancement.
+    for (const acces of [{ cwd: worktree, depot: "ecriture" }, { cwd: worktree, depot: "lecture" }, { cwd: "/tmp", depot: null }] as const) {
+      const recu = demande(envelopper(cloison, { commande: "claude", args: [] }, acces).args);
+      const vide = join(lieux.repertoireEtat, "jeton-vide");
+      assert.ok(paires(recu, "--ro-bind").includes(`${vide} → ${jeton}`), acces.depot ?? "hors dépôt");
+      // Après le masque de son répertoire, qu'il recouvre ; jamais rendu tel quel.
+      assert.ok(recu.indexOf(jeton) > recu.lastIndexOf(masques[1] ?? ""));
+      assert.equal([...paires(recu, "--bind"), ...paires(recu, "--ro-bind-try")].some((paire) => paire.startsWith(jeton)), false);
+      assert.equal(readFileSync(vide, "utf8"), "");
+    }
+    // Les identifiants du compte, eux aussi, ne sont rendus qu'en lecture seule.
+    const recu = demande(envelopper(cloison, { commande: "claude", args: [] }, { cwd: worktree, depot: "ecriture" }).args);
+    assert.ok(paires(recu, "--ro-bind-try").includes(`${cloison?.identifiants} → ${cloison?.identifiants}`));
+    // Le vrai fichier n'a pas bougé.
+    assert.equal(readFileSync(jeton, "utf8"), "le-jeton-de-la-machine\n");
+  });
+
+  test("le fichier vide qui recouvre le jeton est remis à vide et à lui avant chaque lancement", (t) => {
+    const { lieux, env, racine } = machine(t);
+    const jeton = join(racine, "secrets/jeton-claude");
+    const cloison = configCloison({ ...env, BRIGADE_CLAUDE_TOKEN_FILE: jeton }, lieux);
+    const vide = join(lieux.repertoireEtat, "jeton-vide");
+    envelopper(cloison, { commande: "true", args: [] }, { cwd: "/tmp", depot: null });
+    rmSync(vide);
+    writeFileSync(vide, "un contenu");
+    envelopper(cloison, { commande: "true", args: [] }, { cwd: "/tmp", depot: null });
+    assert.equal(readFileSync(vide, "utf8"), "");
+    rmSync(vide);
+    symlinkSync(join(racine, "ailleurs"), vide);
+    envelopper(cloison, { commande: "true", args: [] }, { cwd: "/tmp", depot: null });
+    assert.equal(lstatSync(vide).isFile(), true);
+    assert.equal(existsSync(join(racine, "ailleurs")), false);
+    // Sans jeton, rien n'est posé ni recouvert.
+    const sans = configCloison(env, lieux);
+    assert.equal(sans?.jeton, null);
+    assert.equal(demande(envelopper(sans, { commande: "true", args: [] }, { cwd: "/tmp", depot: null }).args).some((arg) => arg.includes("jeton")), false);
   });
 
   test("un masque qui est un fichier est refusé au démarrage, pas à chaque lancement", (t) => {

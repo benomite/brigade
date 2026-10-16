@@ -318,6 +318,27 @@ describe("les identifiants de Claude dans une livraison", { concurrency: 8 }, ()
     assert.equal(tout.includes("un-autre-jeton-fabrique"), false);
   });
 
+  // Le jeton longue durée que le runtime remet au cook : il n'a pas la forme
+  // `sk-ant-…` — seule sa valeur, que le runtime a lue, le fait reconnaître.
+  test("un cook qui dit tout haut le jeton longue durée qu'il a reçu ne le publie nulle part : flux brut, sortie d'erreur, journal, compte-rendu, issue et PR sont masqués", async (t) => {
+    const jeton = "jeton-longue-duree-de-la-machine-pour-le-test";
+    const lieu = cuisine(t, { scenario: "livre-et-dit-son-jeton", jeton, issues: [issue(15)] });
+    const { repertoire, dernier, gh, etat, cooks } = lieu;
+    await jusqua(() => etat(15) === "pass" && gh.commentaires.length === 1);
+
+    // Il l'a bien reçu : c'est ce qu'il dit qui ne sort pas.
+    assert.equal(cooks()[0]?.env.CLAUDE_CODE_OAUTH_TOKEN, jeton);
+    const run = String(dernier("cook.launched", 15)?.run);
+    assert.ok(readFileSync(join(repertoire, "runs", `${run}.jsonl`), "utf8").includes(`CLAUDE_CODE_OAUTH_TOKEN=${JETON_MASQUE}`));
+    assert.equal(readFileSync(join(repertoire, "runs", `${run}.jsonl.stderr`), "utf8"), `avertissement : ${JETON_MASQUE}\n`);
+    const dit = `J'ai ajouté \`travail.txt\`. Pour mémoire, mon jeton est ${JETON_MASQUE} — à garder.`;
+    assert.equal(dernier("cook.reported", 15)?.summary, dit);
+    assert.ok(gh.prs[0]?.corps.includes(dit));
+    assert.ok(gh.commentaires[0]?.[1].includes(dit));
+    assert.equal(dernier("cook.exited", 15)?.credentialsMasked, 3);
+    assert.equal(traces(lieu).includes(jeton), false);
+  });
+
   test("une livraison reprise après un redémarrage se raconte masquée, et le dit encore : la fin du cook est au journal", async (t) => {
     const premiere = cuisine(t, { scenario: "livre-et-dit-un-jeton" });
     const { github } = premiere.gh;

@@ -1,9 +1,11 @@
 // Les identifiants de Claude dans ce qu'un cook livre et dans ce qu'il dit :
 // la station les reconnaît à leur nom ou à leur forme avant de pousser, et
 // leur forme est masquée dans tout texte que le runtime garde ou publie. Ce
-// module ne lit rien — ni fichier, ni environnement : il ne compare à aucune
-// valeur, et la règle de `claude.ts` (le runtime n'ouvre jamais les
-// identifiants du compte) reste entière. Une copie transformée — encodée,
+// module ne lit rien — ni fichier, ni environnement —, et la règle de
+// `claude.ts` (le runtime n'ouvre jamais les identifiants du compte) reste
+// entière. Il ne compare qu'aux valeurs qu'on lui a remises : celles du jeton
+// longue durée que le runtime donne lui-même à `claude` (`jeton-claude.ts`),
+// masquées quelle que soit leur forme. Une copie transformée — encodée,
 // chiffrée, découpée — passe.
 //
 // Seul compte ce que la branche ajoute : ce qu'elle retire ou laisse en place
@@ -109,9 +111,34 @@ const JETONS = new RegExp(JETON.source, "g");
 const STRUCTURES = /claudeAiOauth\\*"?\s*:\s*\{[^{}]*/g;
 const VALEURS = /((?:access|refresh)Token\\*"\s*:\s*\\*")[^"\\\s]{20,}/g;
 
-// Le texte, où ce qui a la forme d'un jeton de Claude a laissé sa place à
-// `JETON_MASQUE` — et combien de fois. Seul le jeton part : ce qui l'entoure
-// se lit comme avant, et un faux positif ne coûte qu'un mot au compte-rendu.
+// Les valeurs du jeton longue durée que ce process a eues en main : celle
+// qu'il remet aux `claude` qu'il lance, celles qu'elle a remplacées, et un
+// `CLAUDE_CODE_OAUTH_TOKEN` venu d'ailleurs. Masquées par leur valeur, même
+// sans la forme `sk-ant-…`. La plus longue d'abord : une valeur qui en
+// contient une autre est masquée entière.
+const JETONS_CONNUS: string[] = [];
+
+// En dessous, une valeur n'est pas un jeton : la masquer rongerait les
+// comptes-rendus.
+export const LONGUEUR_MIN_D_UNE_VALEUR = 8;
+
+// Retient une valeur du jeton : dès lors, elle est masquée dans tout texte
+// que le runtime garde ou publie. Sans effet sur une valeur absente ou trop
+// courte.
+export function retenirJeton(valeur: string | undefined): void {
+  const jeton = valeur?.trim();
+  if (!jeton || jeton.length < LONGUEUR_MIN_D_UNE_VALEUR) return;
+  // Telle quelle, et telle qu'un flux JSON la cite.
+  for (const forme of new Set([jeton, JSON.stringify(jeton).slice(1, -1)])) {
+    if (!JETONS_CONNUS.includes(forme)) JETONS_CONNUS.push(forme);
+  }
+  JETONS_CONNUS.sort((a, b) => b.length - a.length);
+}
+
+// Le texte, où ce qui a la forme d'un jeton de Claude, ou la valeur d'un
+// jeton retenu, a laissé sa place à `JETON_MASQUE` — et combien de fois. Seul
+// le jeton part : ce qui l'entoure se lit comme avant, et un faux positif ne
+// coûte qu'un mot au compte-rendu.
 // Le remplaçant ne porte ni guillemet ni antislash : une ligne de flux JSON
 // reste une ligne de flux JSON. La structure se reconnaît sur une ligne
 // quand le texte arrive ligne à ligne : étalée sur plusieurs, seuls ses
@@ -122,9 +149,10 @@ export function masquerIdentifiants(texte: string): { texte: string; masques: nu
     masques += 1;
     return JETON_MASQUE;
   };
-  // Les jetons d'abord : masqués, ils n'ont plus la forme d'une valeur de la
-  // structure, et ne se comptent pas deux fois.
-  const masquee = texte.replace(JETONS, masque).replace(STRUCTURES, (objet) => objet.replace(VALEURS, (_, cle: string) => `${cle}${masque()}`));
+  // Les valeurs retenues d'abord, puis les formes : masqués, ils n'ont plus la
+  // forme d'une valeur de la structure, et ne se comptent pas deux fois.
+  const sansValeur = JETONS_CONNUS.reduce((reste, valeur) => (reste.includes(valeur) ? reste.replaceAll(valeur, masque) : reste), texte);
+  const masquee = sansValeur.replace(JETONS, masque).replace(STRUCTURES, (objet) => objet.replace(VALEURS, (_, cle: string) => `${cle}${masque()}`));
   return { texte: masquee, masques };
 }
 

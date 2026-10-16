@@ -4,7 +4,7 @@ import { brancherAlerteUrgence } from "./alerte-urgence.ts";
 import { avecRail, configRail } from "./alimenter.ts";
 import { configArbitrage, joindreArbitre } from "./arbitrage.ts";
 import { sessionClaude } from "./claude.ts";
-import { configJeton, direJeton, environnementClaude } from "./jeton-claude.ts";
+import { configJeton, direJeton, environnementClaude, masquerLaConsole } from "./jeton-claude.ts";
 import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison } from "./cloison.ts";
 import { noterCodeEnService } from "./code.ts";
 import { decisionsAuDemarrage, decisionsDansLEnvironnement, direDecisionIgnoree, environnementDecide, suivreDecisions, supportDesDecisions } from "./decisions.ts";
@@ -25,6 +25,9 @@ import { join } from "node:path";
 import { ConfigInvalide, DejaEnCours, demarrer } from "./runtime.ts";
 import { brancherStation, configStation, depotDeStation } from "./station.ts";
 import { direStations, type StationDeclaree } from "./stations-declarees.ts";
+
+// Ce que le runtime dit à journald est masqué, avant même son premier mot.
+masquerLaConsole();
 
 // Code de sortie d'un refus de démarrer. L'unité systemd ne relance pas sur ce
 // code : réessayer ne changerait rien.

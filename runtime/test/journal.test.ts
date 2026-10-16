@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
+import { JETON_MASQUE, retenirJeton } from "../src/identifiants.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { faitInconnu, horloge, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
@@ -28,6 +29,27 @@ test("un événement ajouté porte séquence, horodatage, projet, ticket, type e
     payload: { depuis: "rail" },
   });
   assert.deepEqual(journal.tout(), [evenement]);
+});
+
+test("un événement qui porte le jeton longue durée, ou la forme des identifiants de Claude, s'écrit masqué : ni sa valeur ni sa forme n'entrent au journal", (t) => {
+  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
+  t.after(() => journal.fermer());
+  // Ce que le runtime a lu dans le fichier du jeton (`jeton-claude.ts`).
+  const jeton = "jeton-longue-duree-retenu-par-le-journal";
+  retenirJeton(jeton);
+  const forme = `sk-ant-oat01-${"f".repeat(48)}`;
+
+  const evenement = journal.ajouter({
+    project: "brigade",
+    ticket: 13,
+    author: "runtime",
+    ...faitInconnu("cook.reported", { summary: `CLAUDE_CODE_OAUTH_TOKEN=${jeton} — et « ${forme} »`, liste: [jeton] }),
+  });
+
+  const attendu = { summary: `CLAUDE_CODE_OAUTH_TOKEN=${JETON_MASQUE} — et « ${JETON_MASQUE} »`, liste: [JETON_MASQUE] };
+  assert.deepEqual(evenement?.payload, attendu);
+  assert.deepEqual(journal.tout()[0]?.payload, attendu);
+  assert.equal(JSON.stringify(journal.base.lire("SELECT payload FROM events")).includes(jeton), false);
 });
 
 test("le journal vit dans log.db, dans le répertoire d'état", (t) => {

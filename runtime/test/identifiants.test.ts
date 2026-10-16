@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { identifiantsLivres, JETON_MASQUE, masquerIdentifiants } from "../src/identifiants.ts";
+import { identifiantsLivres, JETON_MASQUE, masquerIdentifiants, retenirJeton } from "../src/identifiants.ts";
 
 // Un jeu d'essai fabriqué, et assemblé ici : la forme n'est écrite en clair
 // nulle part dans ce dépôt, qui passe lui aussi par ce contrôle.
@@ -169,5 +169,37 @@ describe("la forme des identifiants de Claude dans un texte gardé ou publié", 
   test("un texte déjà masqué ne l'est pas une seconde fois", () => {
     const { texte } = masquerIdentifiants(`${ACCES} et ${structure("un-jeton-d-une-forme-inconnue")}`);
     assert.deepEqual(masquerIdentifiants(texte), { texte, masques: 0 });
+  });
+});
+
+// Ce module ne garde que ce qu'on lui remet : chaque test retient sa propre valeur.
+describe("la valeur d'un jeton retenu dans un texte gardé ou publié", () => {
+  test("une valeur retenue est masquée quelle que soit sa forme, et comptée", () => {
+    const valeur = "jeton/longue+duree=sans-la-forme-sk-ant";
+    assert.deepEqual(masquerIdentifiants(`avant ${valeur} après`), { texte: `avant ${valeur} après`, masques: 0 });
+    retenirJeton(` ${valeur}\n`);
+    assert.deepEqual(masquerIdentifiants(`avant ${valeur} après, et ${valeur}`), { texte: `avant ${JETON_MASQUE} après, et ${JETON_MASQUE}`, masques: 2 });
+  });
+
+  test("une valeur retenue est masquée aussi telle qu'un flux JSON la cite, et le flux reste du JSON", () => {
+    const valeur = 'un"jeton\\echappe-pour-le-test';
+    retenirJeton(valeur);
+    const ligne = JSON.stringify({ type: "user", content: `CLAUDE_CODE_OAUTH_TOKEN=${valeur}` });
+    const masquee = masquerIdentifiants(ligne);
+    assert.equal(masquee.masques, 1);
+    assert.equal(JSON.parse(masquee.texte).content, `CLAUDE_CODE_OAUTH_TOKEN=${JETON_MASQUE}`);
+  });
+
+  test("une valeur retenue de la forme `sk-ant-…` ne se compte qu'une fois", () => {
+    const valeur = `sk-ant-oat01-${"r".repeat(60)}`;
+    retenirJeton(valeur);
+    assert.deepEqual(masquerIdentifiants(`le jeton : ${valeur}.`), { texte: `le jeton : ${JETON_MASQUE}.`, masques: 1 });
+  });
+
+  test("une valeur absente ou trop courte n'est pas retenue : elle rongerait les comptes-rendus", () => {
+    retenirJeton(undefined);
+    retenirJeton("");
+    retenirJeton("court");
+    assert.deepEqual(masquerIdentifiants("un texte court, sans rien"), { texte: "un texte court, sans rien", masques: 0 });
   });
 });

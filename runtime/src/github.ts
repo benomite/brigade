@@ -6,6 +6,7 @@
 // le jeton lui est remis à chaque appel (voir `identites.ts`).
 import { execFile } from "node:child_process";
 import type { Check } from "./evenements/pass.ts";
+import { masquerIdentifiants } from "./identifiants.ts";
 
 // Le label par lequel une issue entre sur le rail.
 export const LABEL = "fire";
@@ -192,7 +193,11 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
 
   // Une réponse HTTP, quel que soit son statut. `gh` sort en erreur sur un 304
   // ou un 404 : c'est la réponse qui fait foi, pas le code de sortie.
-  const appeler = async (args: string[]): Promise<Reponse> => {
+  // Ce qui part vers GitHub — corps, titres, commentaires — s'écrit masqué :
+  // ni la forme des identifiants de Claude, ni la valeur d'un jeton retenu
+  // (`identifiants.ts`).
+  const appeler = async (brut: string[]): Promise<Reponse> => {
+    const args = brut.map((arg) => masquerIdentifiants(arg).texte);
     // `GH_TOKEN` l'emporte sur la connexion du compte, et ne se lit pas dans
     // la liste des process.
     const env = options.jeton ? { ...process.env, GH_TOKEN: await options.jeton() } : undefined;
