@@ -27,7 +27,9 @@ import { LIMITE, type StationVue, type VuDesStations } from "./stations/stations
 export type Ton = "vert" | "jaune" | "rouge" | "gris";
 // Une ligne de l'accueil : ce qu'elle dit, sa pastille, et ce qui se lit au survol.
 export type LigneDeProjet = { nom: string; ton: Ton; dit: string; survol: string };
-export type LigneDeStation = { id: string; nom: string; ton: Ton; dit: string; survol: string };
+// Une station a aussi `phrase` : son état en une phrase, en tête de sa page (#877) — « online · 2 cooks
+// running », « offline for 12 min », « saturated ». Ni sa machine, ni sa version, ni ses projets.
+export type LigneDeStation = { id: string; nom: string; ton: Ton; dit: string; phrase: string; survol: string };
 export type Sante = { ton: Ton; dit: string; survol: string };
 // `stations` : absentes, la première lecture sur GitHub est en route.
 export type Accueil = { projets: LigneDeProjet[]; stations?: LigneDeStation[]; sante: Sante };
@@ -136,7 +138,7 @@ export function ligneDeStation(station: StationVue, cooks: number, saturee: bool
   const { id, nom } = station;
   const survol = [station.machine, station.version === "" ? "" : `version ${station.version}`].filter((partie) => partie !== "").join(" · ");
   const projets = station.projets.length === 0 ? "no project" : station.projets.join(", ");
-  if (station.etat !== "en-ligne") return { id, nom, ton: "gris", dit: [station.dit, ...(station.etat === "illisible" ? [] : [projets])].join(" · "), survol: survol === "" ? "its state on GitHub cannot be read — open it to see why" : survol };
+  if (station.etat !== "en-ligne") return { id, nom, ton: "gris", dit: [station.dit, ...(station.etat === "illisible" ? [] : [projets])].join(" · "), phrase: station.dit, survol: survol === "" ? "its state on GitHub cannot be read — open it to see why" : survol };
   const max = station.pannes.some(({ sujet }) => sujet === "connexion-max");
   const miseAJour = station.pannes.some(({ sujet }) => sujet === "mise-a-jour");
   const fait = [...(max ? ["Max connection lost"] : []), ...(miseAJour ? ["update failed"] : []), ...(saturee ? ["saturated"] : []), ...(cooks > 0 ? [`${cooks} cook${s(cooks)}`] : [])];
@@ -145,6 +147,8 @@ export function ligneDeStation(station: StationVue, cooks: number, saturee: bool
     nom,
     ton: max ? "rouge" : miseAJour || saturee ? "jaune" : "vert",
     dit: [station.dit, ...(fait.length === 0 ? ["idle"] : fait), projets].join(" · "),
+    // Saturée, elle ne prend plus de ticket : c'est ce qui compte d'elle, ses cooks attendent.
+    phrase: saturee ? "saturated" : `${station.dit} · ${cooks === 0 ? "no cook running" : `${cooks} cook${s(cooks)} running`}`,
     survol,
   };
 }

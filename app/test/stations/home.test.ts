@@ -25,8 +25,8 @@ const SANTE = { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } as con
 const ACCUEIL: Accueil = {
   projets: [{ nom: "parade", ton: "vert", dit: "#12 cooking", survol: "read at 12:00:00 PM — open it to act" }],
   stations: [
-    { id: "g1", nom: "box", ton: "vert", dit: "online · 2 cooks · parade", survol: "Linux 6.1.0 · version 1.4.0" },
-    { id: "g2", nom: "Mac", ton: "gris", dit: "offline for 12 min · no project", survol: "macOS 25.0.0 · version 1.4.0" },
+    { id: "g1", nom: "box", ton: "vert", dit: "online · 2 cooks · parade", phrase: "online · 2 cooks running", survol: "Linux 6.1.0 · version 1.4.0" },
+    { id: "g2", nom: "Mac", ton: "gris", dit: "offline for 12 min · no project", phrase: "offline for 12 min", survol: "macOS 25.0.0 · version 1.4.0" },
   ],
   sante: SANTE,
 };
@@ -71,7 +71,7 @@ test("l'accueil liste ses stations sous ses projets, une ligne chacune : sa past
   // Ni la machine ni la version ne s'écrivent à plat.
   assert.doesNotMatch(section().textContent, /Linux|macOS|version/);
   // Relu, l'accueil remplace ses lignes.
-  jouee.dire("surAccueil", { ...ACCUEIL, stations: [{ id: "g1", nom: "box", ton: "jaune", dit: "online · saturated · 2 cooks · parade", survol: "Linux 6.1.0 · version 1.4.0" }] });
+  jouee.dire("surAccueil", { ...ACCUEIL, stations: [{ id: "g1", nom: "box", ton: "jaune", dit: "online · saturated · 2 cooks · parade", phrase: "saturated", survol: "Linux 6.1.0 · version 1.4.0" }] });
   await repos();
   assert.deepEqual(lignes(section()).map(({ texte }) => texte), ["boxonline · saturated · 2 cooks · parade›"]);
 });
@@ -88,7 +88,7 @@ test("un clic sur une station ouvre sa page ; un geste visible ramène à l'accu
   const page = jouee.element("station");
   assert.equal(jouee.element("tous").children[0], page);
   assert.equal(page.dessous("h2")[0]?.textContent, "box");
-  assert.match(page.textContent, /online · 2 cooks · parade/);
+  assert.match(page.textContent, /online · 2 cooks running/);
   // « T » reste l'entrée affichée de la barre.
   assert.equal(jouee.element("projets").children[0]?.ariaCurrent, "true");
   bouton("‹ All projects").click();

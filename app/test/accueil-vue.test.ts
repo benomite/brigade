@@ -34,7 +34,7 @@ const ACCUEIL: Accueil = {
     { nom: "espace", ton: "jaune", dit: "5 decisions await you, for 2 d", survol: "read at 12:00:00 PM — open it to act" },
     { nom: "calculus", ton: "rouge", dit: "base red · #655 being repaired", survol: "read at 12:00:00 PM — open it to act" },
   ],
-  stations: [{ id: "g1", nom: "parade-box", ton: "vert", dit: "online · 2 cooks · brigade, espace, calculus", survol: "Linux 6.1.0 · version 1.4.0" }],
+  stations: [{ id: "g1", nom: "parade-box", ton: "vert", dit: "online · 2 cooks · brigade, espace, calculus", phrase: "online · 2 cooks running", survol: "Linux 6.1.0 · version 1.4.0" }],
   sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "Max: …\nGitHub: …" },
 };
 // Le code de l'app en retard : ce qui, avant, s'écrivait en tête de l'accueil, avec sa commande.
