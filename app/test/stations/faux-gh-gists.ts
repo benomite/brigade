@@ -36,7 +36,7 @@ const option = (nom: string) => {
 };
 const methode = option("-X") ?? "GET";
 const chemin = args.slice(1).find((arg) => arg.startsWith("/")) ?? "";
-const entree = () => JSON.parse(option("--input") === "-" ? readFileSync(0, "utf8") : "{}") as { description?: string; public?: boolean; files?: Record<string, { content: string }> };
+const entree = () => JSON.parse(option("--input") === "-" ? readFileSync(0, "utf8") : "{}") as { description?: string; public?: boolean; files?: Record<string, { content: string } | null> };
 const fichier = (id: string) => join(repertoire, `${id}.gist.json`);
 const lire = (id: string): Gist | null => (/^[a-z0-9]+$/.test(id) && existsSync(fichier(id)) ? (JSON.parse(readFileSync(fichier(id), "utf8")) as Gist) : null);
 // Écrit à côté, puis renommé : un test qui relit le gist pendant qu'une station
@@ -47,7 +47,7 @@ const ecrire = (gist: Gist) => {
   renameSync(brouillon, fichier(gist.id));
 };
 const rendre = (objet: unknown) => process.stdout.write(`${JSON.stringify(objet)}\n`);
-const fichiers = (files: Record<string, { content: string }> = {}) => Object.fromEntries(Object.entries(files).map(([nom, { content }]) => [nom, { filename: nom, content }]));
+const fichiers = (files: Record<string, { content: string } | null> = {}) => Object.fromEntries(Object.entries(files).flatMap(([nom, fichier]) => (fichier === null ? [] : [[nom, { filename: nom, content: fichier.content }]])));
 
 const [, , id] = /^\/gists(\/([^/?]+))?(\?.*)?$/.exec(chemin) ?? [];
 if (!chemin.startsWith("/gists")) sortir(1, `gh: Not Found (HTTP 404)`);
@@ -60,7 +60,10 @@ if (methode === "POST" && id === undefined) {
   rendre(gist);
 } else if (methode === "PATCH" && id !== undefined) {
   const gist = lire(id) ?? sortir(1, "gh: Not Found (HTTP 404)");
-  Object.assign(gist.files, fichiers(entree().files));
+  // Un fichier à `null` est retiré du gist, comme GitHub le fait.
+  const demandes = entree().files ?? {};
+  for (const [nom, contenu] of Object.entries(demandes)) if (contenu === null) delete gist.files[nom];
+  Object.assign(gist.files, fichiers(demandes));
   ecrire({ ...gist, updated_at: new Date().toISOString() });
   rendre(gist);
 } else if (methode === "GET" && id !== undefined) {

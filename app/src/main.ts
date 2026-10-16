@@ -788,6 +788,8 @@ ipcMain.handle("autoriserSurGitHub", (_, url: unknown) => {
     () => false,
   );
 });
+// « Retirer la station » : son appairage quitte son gist, elle disparaît de l'accueil.
+ipcMain.handle("retirerLaStation", (_, id: unknown) => stations.retirer(id));
 // Le bouton d'une panne, sur la ligne d'une station : rend ce qu'il a fait, ou pourquoi rien.
 ipcMain.handle("panne", (_, id: unknown, cle: unknown) => jouerPanne(gestesDesPannes, id, cle));
 // Le code de l'app, en retard ou à relancer : le clic la met à jour et la relance — rien n'est

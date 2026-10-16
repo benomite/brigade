@@ -110,3 +110,85 @@ test("relue, la page suit : une station qui passe hors ligne le dit dans sa phra
   await repos();
   assert.deepEqual(enTete(page), { nom: "box", ton: "gris", phrase: "offline for 3 min" });
 });
+
+// Les boutons de la page, par leur libellé.
+const bouton = (page: Faux, libelle: string) => page.dessous("button").find(({ textContent }) => textContent === libelle);
+// Ceux de la confirmation du retrait, qui ne se confondent pas avec le « cancel » de l'ajout d'un projet.
+const dansLaConfirmation = (page: Faux, libelle: string) => page.dessous("section").find(({ className }) => className === "confirmation")?.dessous("button").find(({ textContent }) => textContent === libelle);
+
+test("la ligne de mise à jour, sous l'en-tête : « up to date · on this version for 3 days » ; vide, elle ne se pose pas", async () => {
+  const dite = { ...EN_LIGNE, versionDit: "up to date · on this version for 3 days" };
+  const jouee = await jouerLaVue({ demarrage: () => ({ ...demarrage(), stations: { a: A, stations: [dite, HORS_LIGNE] } }), espace: () => [] });
+  (jouee.element("projets").children.at(0) ?? assert.fail("pas d'entrée « Tous les projets »")).click();
+  await repos();
+  const ouvrir = async (nom: string) => {
+    jouee.element("accueil-stations").dessous("button").find(({ className, textContent }) => className === "ligne" && textContent.startsWith(nom))?.click();
+    await repos();
+    return jouee.element("station");
+  };
+  const page = await ouvrir("box");
+  const ligne = page.dessous("p").find(({ className }) => className === "version-de-station") ?? assert.fail("pas de ligne de mise à jour");
+  assert.equal(ligne.textContent, "up to date · on this version for 3 days");
+  page.dessous("button").find(({ className }) => className === "retour")?.click();
+  await repos();
+  assert.equal((await ouvrir("mac")).dessous("p").find(({ className }) => className === "version-de-station")?.textContent, "", "une station sans rien à dire n'a pas de ligne");
+});
+
+test("« remove the station » : un clic ouvre la confirmation ; « cancel » la referme et la station reste en place", async () => {
+  const { jouee, page } = await laPage("box");
+  assert.ok(bouton(page, "remove the station"), "le bouton est sur la page");
+  assert.doesNotMatch(page.textContent, /Remove box from this app/);
+  bouton(page, "remove the station")?.click();
+  await repos();
+  assert.match(page.textContent, /Remove box from this app\?/);
+  assert.match(page.textContent, /it keeps running, and pairs again with a new code/, "la confirmation dit ce que ça change, en une ligne");
+  assert.equal(jouee.appels.filter(({ geste }) => geste === "retirerLaStation").length, 0, "rien ne part avant le « remove »");
+  dansLaConfirmation(page, "cancel")?.click();
+  await repos();
+  assert.doesNotMatch(page.textContent, /Remove box from this app/);
+  assert.ok(bouton(page, "remove the station"), "le bouton revient");
+  assert.equal(jouee.appels.filter(({ geste }) => geste === "retirerLaStation").length, 0, "annuler ne retire rien");
+  assert.equal(jouee.element("tous").children[0], page, "la page reste ouverte");
+});
+
+test("confirmer retire la station et ramène à l'accueil", async () => {
+  const retirees: string[] = [];
+  const jouee = await jouerLaVue({
+    demarrage,
+    espace: () => [],
+    retirerLaStation: (id) => (retirees.push(id), { retiree: "box" }),
+  });
+  (jouee.element("projets").children.at(0) ?? assert.fail("pas d'entrée « Tous les projets »")).click();
+  await repos();
+  jouee.element("accueil-stations").dessous("button").find(({ className, textContent }) => className === "ligne" && textContent.startsWith("box"))?.click();
+  await repos();
+  const page = jouee.element("station");
+  bouton(page, "remove the station")?.click();
+  await repos();
+  dansLaConfirmation(page, "remove")?.click();
+  await repos();
+  assert.deepEqual(retirees, ["g1"]);
+  assert.ok(jouee.element("tous").children.some(({ id }) => id === "accueil-stations"), "l'accueil est là");
+  assert.ok(!jouee.element("tous").children.includes(page));
+  // La lecture suivante ne la contient plus : elle n'est plus dans la liste de l'accueil.
+  jouee.dire("surStations", { a: A, stations: [HORS_LIGNE, SATUREE] });
+  jouee.dire("surAccueil", { ...ACCUEIL, stations: ACCUEIL.stations?.filter(({ id }) => id !== "g1") });
+  await repos();
+  const lignes = jouee.element("accueil-stations").dessous("button").filter(({ className }) => className === "ligne");
+  assert.deepEqual(lignes.map(({ textContent }) => textContent.startsWith("mac") ? "mac" : "atelier"), ["mac", "atelier"]);
+});
+
+test("le retrait refusé : la station reste, la page le dit en une ligne et reste ouverte", async () => {
+  const jouee = await jouerLaVue({ demarrage, espace: () => [], retirerLaStation: () => ({ refus: "box was not removed: GitHub could not be written" }) });
+  (jouee.element("projets").children.at(0) ?? assert.fail("pas d'entrée « Tous les projets »")).click();
+  await repos();
+  jouee.element("accueil-stations").dessous("button").find(({ className, textContent }) => className === "ligne" && textContent.startsWith("box"))?.click();
+  await repos();
+  const page = jouee.element("station");
+  bouton(page, "remove the station")?.click();
+  await repos();
+  dansLaConfirmation(page, "remove")?.click();
+  await repos();
+  assert.match(page.textContent, /box was not removed: GitHub could not be written/);
+  assert.equal(jouee.element("tous").children[0], page, "pas ramené à l'accueil");
+});
