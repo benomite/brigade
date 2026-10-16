@@ -9,6 +9,7 @@
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
+import { ordinairesLus } from "./ordinaires.ts";
 import { couleursLues, entieres, estCouleur, ROLES, tirer, type Couleurs, type Role } from "./couleurs.ts";
 
 // Le modèle et l'effort du manager et du reviewer d'un projet.
@@ -30,7 +31,7 @@ export type Desinstalle = { hote: string; a: string; titre: string; lignes: stri
 // `distante`, et qui viennent y tirer leur travail (runner.ts). Absente, il n'en joue aucune.
 // `couleurs` : celles de son onglet et de son accent, telles que le fichier les écrit — une qui
 // manque y est tirée, puis écrite (`colorerProjets`).
-export type Projet = { nom: string; dossier: string; refus?: string; box?: Box; desinstalle?: Desinstalle; calibrage?: CalibrageDuProjet; stations?: string[]; couleurs?: Couleurs };
+export type Projet = { nom: string; dossier: string; refus?: string; box?: Box; desinstalle?: Desinstalle; calibrage?: CalibrageDuProjet; stations?: string[]; couleurs?: Couleurs; ordinaires?: boolean; limiteCooks?: number };
 // `refus` : le fichier entier n'a pas pu être lu — aucun projet, et la raison.
 // `nonRelu` : il a changé depuis, et sa relecture a été refusée — les projets
 // sont ceux d'avant, et la raison est celle du fichier tel qu'il est.
@@ -106,7 +107,9 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
     if (typeof stations === "string") return refuse(`${lequel}: ${stations}`);
     const couleurs = couleursLues((declare as { couleurs?: unknown }).couleurs);
     if (typeof couleurs === "string") return refuse(`${lequel}: ${couleurs}`);
-    projets.push({ nom, dossier: absolu, ...(calibrage === undefined ? {} : { calibrage }), ...(refus === undefined ? {} : { refus }), ...(hote === undefined ? {} : { box: { hote } }), ...(stations === undefined ? {} : { stations }), ...(couleurs === undefined ? {} : { couleurs }) });
+    const ordinaires = ordinairesLus(declare as { ordinaires?: unknown; limiteCooks?: unknown });
+    if (typeof ordinaires === "string") return refuse(`${lequel}: ${ordinaires}`);
+    projets.push({ nom, dossier: absolu, ...ordinaires, ...(calibrage === undefined ? {} : { calibrage }), ...(refus === undefined ? {} : { refus }), ...(hote === undefined ? {} : { box: { hote } }), ...(stations === undefined ? {} : { stations }), ...(couleurs === undefined ? {} : { couleurs }) });
   }
   return { chemin, projets, ...(declares === undefined ? {} : { hotes }) };
 }
@@ -286,6 +289,22 @@ export function changerCouleur(chemin: string, nom: string, role: Role, couleur:
   const declare = ouvert.contenu.projets.find((candidat) => (candidat as { nom?: unknown } | null)?.nom === nom) as { couleurs?: Couleurs } | undefined;
   if (declare === undefined) return `“${nom}” is not in this file: nothing was changed there`;
   declare.couleurs = { ...declare.couleurs, [role]: couleur.toLowerCase() };
+  return reecrire(chemin, ecrit(ouvert.contenu));
+}
+
+// Règle, pour un projet, si le Mac prend aussi les tickets ordinaires et combien de cooks il
+// fait tourner (`null` : aucune limite écrite) — rien d'autre du fichier. Rend la raison, si
+// rien n'a été écrit.
+export function changerOrdinaires(chemin: string, nom: string, actif: unknown, limite: unknown, maison = homedir()): string | undefined {
+  if (typeof actif !== "boolean") return "nothing was written: whether the Mac takes the ordinary tickets is true or false";
+  if (limite !== null && (!Number.isInteger(limite) || (limite as number) < 1)) return "nothing was written: the Mac's cook limit is a whole number, one or more — or empty, for none";
+  const ouvert = relu(chemin, maison);
+  if ("refus" in ouvert) return ouvert.refus;
+  const declare = ouvert.contenu.projets.find((candidat) => (candidat as { nom?: unknown } | null)?.nom === nom) as { ordinaires?: boolean; limiteCooks?: number } | undefined;
+  if (declare === undefined) return `“${nom}” is not in this file: nothing was changed there`;
+  declare.ordinaires = actif;
+  if (limite === null) delete declare.limiteCooks;
+  else declare.limiteCooks = limite as number;
   return reecrire(chemin, ecrit(ouvert.contenu));
 }
 

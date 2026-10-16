@@ -39,6 +39,8 @@ export class Faux {
   // Couvert par une page, le rail ne se clique pas au travers.
   inert = false;
   value = "";
+  // Une case à cocher dit si elle l'est.
+  checked = false;
   // Un champ dit sa sorte — `date` —, un bouton s'il soumet son formulaire.
   type = "";
   dataset: Record<string, string> = {};

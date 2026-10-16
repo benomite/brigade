@@ -174,6 +174,7 @@ const retrait = /** @type {HTMLDetailsElement} */ (element("retrait"));
 const retraitTitre = element("retrait-titre");
 const retraitGestes = element("retrait-gestes");
 const couleurs = element("couleurs");
+const ordinaires = element("ordinaires");
 const avis = element("avis");
 const carte = element("carte");
 const lu = element("lu");
@@ -1773,6 +1774,65 @@ async function colorer(projet, role, nom) {
   const refus = await brigade.colorer(projet.nom, role, nom);
   couleurRefusee = { projet: projet.nom, refus: refus ?? "" };
   if (courant?.nom === projet.nom) poserCouleurs(courant);
+}
+
+// Les tickets ordinaires du Mac, sous Paramètres : l'option, la limite de cooks, une ligne qui dit
+// ce que ça implique — et, quand la station dit son bac à sable indisponible, pourquoi le Mac ne
+// prend aucun ticket ordinaire. Le process principal décide si le bloc existe (ordinaires.ts) :
+// sur un autre poste qu'un Mac, rien ne se pose.
+let ordinairesRefuses = { projet: "", refus: "" };
+// Ce qui est posé : une lecture qui n'a rien changé ne le repose pas — le chef peut être en train d'écrire la limite.
+let ordinairesPose = "";
+/** @param {Projet} projet */
+async function poserOrdinaires(projet) {
+  const recu = await brigade.ordinaires(projet.nom);
+  // Le chef a pu ouvrir un autre projet pendant la lecture.
+  if (courant?.nom !== projet.nom) return;
+  if (recu === undefined) {
+    ordinaires.hidden = true;
+    return;
+  }
+  if (ordinairesRefuses.projet !== projet.nom) ordinairesRefuses = { projet: "", refus: "" };
+  const pose = JSON.stringify([projet.nom, recu, ordinairesRefuses.refus]);
+  if (pose === ordinairesPose) return;
+  ordinairesPose = pose;
+  const option = document.createElement("input");
+  option.type = "checkbox";
+  option.checked = recu.actif;
+  const limite = document.createElement("input");
+  limite.type = "number";
+  limite.min = "1";
+  limite.step = "1";
+  limite.value = recu.limite === null ? "" : String(recu.limite);
+  limite.ariaLabel = "Cooks the Mac runs at once";
+  /** @param {string} libelle @param {HTMLElement} champ */
+  const etiquette = (libelle, champ) => {
+    const cree = document.createElement("label");
+    cree.append(champ, libelle);
+    return cree;
+  };
+  const regler = async () => {
+    const voulue = limite.value.trim() === "" ? null : Number(limite.value);
+    const refus = await brigade.reglerOrdinaires(projet.nom, option.checked, voulue);
+    ordinairesRefuses = { projet: projet.nom, refus: refus ?? "" };
+    ordinairesPose = "";
+    if (courant?.nom === projet.nom) void poserOrdinaires(projet);
+  };
+  option.addEventListener("change", () => void regler());
+  limite.addEventListener("change", () => void regler());
+  const refus = bloc("p", ordinairesRefuses.refus);
+  refus.className = "refus";
+  const indisponible = recu.indisponible === undefined ? [] : [bloc("p", recu.indisponible)];
+  for (const dit of indisponible) dit.className = "indisponible";
+  ordinaires.hidden = false;
+  ordinaires.replaceChildren(
+    bloc("h3", "Ordinary tickets on this Mac"),
+    etiquette("Take the ordinary tickets too", option),
+    etiquette("Cooks at once", limite),
+    bloc("p", recu.explication),
+    ...indisponible,
+    ...(ordinairesRefuses.refus === "" ? [] : [refus]),
+  );
 }
 
 /** @param {Projet} projet */
@@ -4390,6 +4450,7 @@ async function ouvrir(projet) {
   if (retraitPose !== projet.nom) retrait.hidden = true;
   void lireRetrait(projet);
   poserCouleurs(projet);
+  void poserOrdinaires(projet);
   brigade.regarder(projet.nom, ++demande);
   // Un projet qui ne s'ouvre pas n'a pas de second : sa colonne dit pourquoi.
   if (projet.refus !== undefined) return montrer();
@@ -4478,7 +4539,10 @@ brigade.surFaits((recue) => {
   if (recue.demande !== demandeFaits) return;
   tenus.set(recue.projet, recue);
   marquerPastille(recue.projet);
-  if (courant?.nom === recue.projet) dessiner();
+  if (courant?.nom === recue.projet) {
+    dessiner();
+    void poserOrdinaires(courant);
+  }
 });
 // Ce que l'onglet de contenu affiché a rendu : une lecture ratée s'y lit comme
 // dans le panneau, et n'en retire rien. Celle de l'onglet Manager vient avec l'état du

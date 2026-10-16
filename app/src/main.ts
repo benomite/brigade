@@ -15,6 +15,7 @@ import { commenter, demanderAuSecond, lireDiscussion } from "./discussion.ts";
 import { boxes, cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { confirmationDe } from "./confirmation.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
+import { blocDesOrdinaires } from "./ordinaires.ts";
 import { ecrireAttente, GESTES_D_ATTENTE } from "./attente.ts";
 import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
 import { BANNIERE, COMMANDE, tenirFaits } from "./faits.ts";
@@ -485,6 +486,17 @@ ipcMain.handle("colorer", (_, nom: unknown, role: unknown, couleur: unknown) => 
   if (vise === undefined) return parti(nom).refus;
   const voulue = choix(role, couleur);
   return "refus" in voulue ? voulue.refus : suivi.changerCouleur(vise.nom, voulue.role, voulue.valeur);
+});
+// Les tickets ordinaires du Mac (ordinaires.ts) : le bloc que la vue pose pour un projet — rien,
+// quand l'option n'existe pas ici —, et le réglage, que la vue nomme et que le fichier écrit.
+// Écrit, il arrive par `surConfiguration`. Le réglage rend la raison, s'il ne l'a pas été.
+ipcMain.handle("ordinaires", (_, nom: unknown) => {
+  const vise = declare(nom);
+  return vise === undefined ? undefined : blocDesOrdinaires(vise, process.platform, faits.stations(vise.nom));
+});
+ipcMain.handle("reglerOrdinaires", (_, nom: unknown, actif: unknown, limite: unknown) => {
+  const vise = declare(nom);
+  return vise === undefined ? parti(nom).refus : suivi.changerOrdinaires(vise.nom, actif, limite);
 });
 // L'ordre des projets : la vue nomme le projet glissé dans la barre et la place où il a été lâché.
 // C'est l'ordre du fichier qui change (config.ts) : rangé, il arrive par `surConfiguration` — la

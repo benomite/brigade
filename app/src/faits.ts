@@ -14,6 +14,7 @@
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
 import { lignesDuRail, porter, type Porte } from "./bon.ts";
+import type { StationDesFaits } from "./ordinaires.ts";
 import type { Echec, Lecture } from "./box.ts";
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues, type Moment } from "./captures.ts";
 import { attenduDe, decisionLue, type Decision } from "./decision.ts";
@@ -103,6 +104,8 @@ export type Faits = {
   attend?: Attendu[];
   livres?: Livre[];
   urgence?: Urgence | null;
+  // Les stations que le projet déclare et ce qu'elles font des tickets ordinaires (ordinaires.ts) ; absent d'un runtime d'avant ce champ.
+  stations?: StationDesFaits[];
 };
 
 // Ce que la vue dessine d'un projet, prêt à poser : elle n'y calcule rien.
@@ -785,6 +788,10 @@ export function tenirFaits() {
     dernier(projet: unknown): { faits: Faits; a: string } | undefined {
       const tenu = typeof projet === "string" ? tenus.get(projet) : undefined;
       return tenu === undefined ? undefined : { faits: tenu.faits, a: tenu.lecture.a };
+    },
+    // Ce que `facts` dit des stations d'un projet, à la dernière lecture — rien, s'il n'est pas lu.
+    stations(projet: unknown): StationDesFaits[] | undefined {
+      return typeof projet === "string" ? tenus.get(projet)?.faits.stations : undefined;
     },
     // Ce que le dernier bloc `attend` dit de ce ticket, ligne pour ligne — celles qui le précisent
     // comprises —, et son titre si `faits` le donne. Rien quand le bloc ne le nomme pas : la vue ne

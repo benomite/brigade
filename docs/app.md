@@ -1908,6 +1908,19 @@ absente », et `status` le dit ; les autres partent sur la box comme avant. Rouv
 repartent seuls, à sa première demande. Il n'y a rien à faire sur la box, et l'app ne fait rien de
 spécial en fermant.
 
+**Les tickets ordinaires, depuis les réglages du projet (#852).** Sur un Mac, dans Settings › General
+d'un projet dont ce poste joue une station (`stations`), le bloc « Ordinary tickets on this Mac » porte
+l'option « Take the ordinary tickets too » et le champ « Cooks at once », la limite de cooks du Mac. Une
+seule ligne, à côté, dit ce que ça implique : les cooks du Mac tournent dans le bac à sable de Claude
+Code, avec écriture limitée à leur worktree et réseau limité à la liste du projet. Les deux valeurs
+s'écrivent dans le fichier des projets (`"ordinaires": true`, `"limiteCooks": 2`) et se relisent à
+chaque ouverture ; une valeur mal écrite à la main refuse le fichier. **Hors d'un Mac, ou sans station
+jouée, le bloc n'existe pas.** L'état du bac à sable est lu dans `facts` (champ `stations`,
+[docs/runtime.md](runtime.md), « Les tickets ordinaires sur le poste du chef ») : quand la station le
+dit indisponible, le bloc l'écrit à côté de l'option, avec la raison que la station donne, et précise
+que le Mac ne prend aucun ticket ordinaire. Tant qu'elle n'en a rien dit, l'app ne devine rien. Le bloc
+règle ce que l'app garde ; la déclaration `distante+ordinaires` de la box reste celle du chef.
+
 **Un cook sur ton poste n'est pas un cook privilégié.** Ce que la box tient pour les siens, elle le
 tient pour lui, et l'app ne contourne rien :
 
