@@ -36,7 +36,6 @@ Le runtime est documenté en pages thématiques, dans ce dossier. **Une section 
 |---|---|---|
 | [`journal-et-rail.md`](journal-et-rail.md) | Le journal et le rail | « Le journal », « Le rail » |
 | [`garde-fous.md`](garde-fous.md) | Les garde-fous | « Les garde-fous » |
-X
 | [`station.md`](station.md) | La station : déclarer, plusieurs cooks, setup, fiche, capacités, station distante, zones, ce qu'un cook charge | « La station » (début) |
 | [`station-livraison.md`](station-livraison.md) | La station : la récolte du livrable, le refus du modèle, le quota, la connexion Max, voir la station | « La station » (fin : « Le cook ne livre pas, la station récolte » → « Voir la station ») |
 | [`station-machine.md`](station-machine.md) | Une station par machine, et l'ajout d'un projet depuis l'app | « Une station par machine : sa présence sur GitHub, et son appairage par un code », « Ajouter un projet à une station depuis l'app, sans terminal » |

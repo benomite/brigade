@@ -711,7 +711,7 @@ markdown d'un rôle exigera un redémarrage de session ; placé côté runtime, 
 2. ~~Format exact du ticket (dans le corps de l'issue GitHub ? frontmatter ? labels de capacités ?)~~
    — **résolue le 2026-10-08** (#68) : une **fiche en commentaire** de l'issue, ni dans le corps ni
    en labels. Voir [`2026-10-08-fiche-du-ticket.md`](2026-10-08-fiche-du-ticket.md), et
-   « La fiche d'un ticket » dans [`docs/runtime.md`](../../runtime.md#la-fiche-dun-ticket).
+   « La fiche d'un ticket » dans [`docs/runtime/station.md`](../../runtime/station.md#la-fiche-dun-ticket).
    **Reste au jalon 4** : les capacités requises, le domaine et le budget, qui s'y ajoutent comme
    des lignes de plus.
 3. ~~Comment le runner Mac matérialise la validation du chef pour `accès-prod`~~ — **sans objet
