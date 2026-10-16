@@ -7,7 +7,7 @@
 import { execFile } from "node:child_process";
 import type { Check } from "./evenements/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
-import { limiteDuProcess, type Limite } from "./limite-github.ts";
+import { constaterLimite, limiteDuProcess, refusPourLimite, type Limite } from "./limite-github.ts";
 
 // Le label par lequel une issue entre sur le rail.
 export const LABEL = "fire";
@@ -121,6 +121,8 @@ export type OptionsGitHub = {
   // Le budget d'appels que prend chaque `gh api`. Par défaut, celui du
   // process (`limite-github.ts`).
   limite?: Limite;
+  // En millisecondes ; par défaut, l'horloge du système. Les tests y mettent la leur.
+  maintenant?: () => number;
 };
 
 type Reponse = { statut: number; entetes: Map<string, string>; corps: string };
@@ -174,7 +176,7 @@ function lire(brute: IssueBrute): Issue {
 
 // `gh api -i` imprime la ligne de statut, les en-têtes, une ligne vide, puis
 // le corps. Rend null si la sortie ne commence pas par une réponse HTTP.
-function decouper(sortie: string): Reponse | null {
+export function decouper(sortie: string): Reponse | null {
   const [tete = "", ...reste] = sortie.split(/\r?\n\r?\n/);
   const [statut = "", ...lignes] = tete.split(/\r?\n/);
   const code = /^HTTP\/\S+ (\d{3})/.exec(statut)?.[1];
@@ -215,7 +217,10 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
         { maxBuffer: 64 * 1024 * 1024, timeout: options.delaiMs ?? 30_000, signal: abandon.signal, env },
         (erreur, stdout, stderr) => {
           const reponse = decouper(stdout);
-          if (reponse) resoudre(reponse);
+          // La limite de GitHub atteinte n'est pas une réponse comme les autres :
+          // elle suspend les appels, et ne passe jamais pour un refus (de merge).
+          if (reponse && refusPourLimite(reponse)) constaterLimite(options.limite ?? limiteDuProcess(), reponse, { gh: bin, env, maintenant: options.maintenant }).then(rejeter, rejeter);
+          else if (reponse) resoudre(reponse);
           else rejeter(new Error(`gh api ${args.at(-1)} : ${stderr.trim() || erreur?.message || "réponse illisible"}`));
         },
       );

@@ -7,6 +7,7 @@ import { calibrage } from "./calibrage.ts";
 import { cycles, direCycle, signalerBlocages } from "./dependances.ts";
 import { fiche, porteFiche, type Fiche } from "./fiche.ts";
 import { HORS_CUISINE, LABEL, ouvrirGitHub, type GitHub, type Issue } from "./github.ts";
+import { LimiteGitHubAtteinte } from "./limite-github.ts";
 import type { FaitRail } from "./evenements/rail.ts";
 import type { Journal } from "./journal.ts";
 import { communsDuRail, lireRail, sortDuTicket, ticketDuRail } from "./projections/rail.ts";
@@ -278,6 +279,17 @@ export function avecRail(runtime: Runtime, options: OptionsRail): RuntimeAvecRai
 
   let arrete = false;
   let enCours = false;
+  // La limite de GitHub atteinte se dit une fois, pas à chaque tick d'attente.
+  let limiteDite = false;
+  const echec = (quoi: string, erreur: unknown) => {
+    if (arrete) return;
+    if (erreur instanceof LimiteGitHubAtteinte) {
+      if (!limiteDite) console.error(`brigade : ${quoi} — ${erreur.message}`);
+      limiteDite = true;
+      return;
+    }
+    console.error(`brigade : ${quoi} — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+  };
   const fiches: FichesLues = new Map();
   const ecouteurs = new Set<() => void>();
   const sonder = async () => {
@@ -289,11 +301,12 @@ export function avecRail(runtime: Runtime, options: OptionsRail): RuntimeAvecRai
       if (ecrits > 0 && !arrete) for (const ecouter of [...ecouteurs]) ecouter();
       // Un abandon n'arrive que par un sondage : c'est le moment d'en avertir.
       if (!arrete) await signalerBlocages(journal, github, projet);
+      limiteDite = false;
     } catch (erreur) {
       // `gh` en panne (réseau, connexion expirée) : le rail reste tel quel, et
       // le tick suivant réessaie. L'échec va à journald, pas au journal — une
       // ligne par minute de panne n'y raconterait rien.
-      if (!arrete) console.error(`brigade : sondage GitHub en échec — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+      echec("sondage GitHub en échec", erreur);
     } finally {
       enCours = false;
     }
@@ -310,7 +323,7 @@ export function avecRail(runtime: Runtime, options: OptionsRail): RuntimeAvecRai
       await marquerAttentes(journal, github, projet);
       await ramenerSurNouveau(journal, github, projet);
     } catch (erreur) {
-      if (!arrete) console.error(`brigade : attentes non marquées sur GitHub — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+      echec("attentes non marquées sur GitHub", erreur);
     } finally {
       marquage = false;
     }

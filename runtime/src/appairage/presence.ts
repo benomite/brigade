@@ -22,6 +22,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { hostname, release, type } from "node:os";
 import { join } from "node:path";
 import { empreinteDuCode } from "../code.ts";
+import { LimiteGitHubAtteinte } from "../limite-github.ts";
 import type { Canal } from "./canal.ts";
 import { description, DUREE_DU_CODE_MS, ECHUS_GARDES, empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, FORMAT, tirerCode, type DocumentStation, type EtatsPublies } from "./document.ts";
 
@@ -135,6 +136,9 @@ export function tenirPresence(options: OptionsPresence): Presence {
   let dernierEcrit = Number.NEGATIVE_INFINITY;
   let demandee = false;
   let reportee: (() => void) | null = null;
+  // GitHub a dit sa limite atteinte : jusqu'à cet instant, la station n'appelle
+  // plus, et ne le dit qu'une fois.
+  let attenteJusqua = Number.NEGATIVE_INFINITY;
   let regard: (() => void) | null = null;
 
   // Une lecture qui lève ne prive pas la station de son signe de vie.
@@ -203,6 +207,8 @@ export function tenirPresence(options: OptionsPresence): Presence {
 
   const cycle = async (arret: boolean) => {
     const instant = maintenant();
+    // Pendant l'attente, aucun regard n'appelle GitHub : il reprend seul, la fenêtre passée.
+    if (!arret && instant < attenteJusqua) return;
     let appele = false;
     if (etat.gist !== null && !etat.appairee && !arret) {
       await lireAppairage(etat.gist);
@@ -251,6 +257,12 @@ export function tenirPresence(options: OptionsPresence): Presence {
   const enchainer = (arret: boolean) => {
     fil = fil.then(() =>
       cycle(arret).catch((erreur: unknown) => {
+        if (erreur instanceof LimiteGitHubAtteinte) {
+          attenteJusqua = erreur.jusqua;
+          if (erreur.message !== panne) dire(`brigade : station — ${erreur.message}`);
+          panne = erreur.message;
+          return;
+        }
         const dit = message(erreur);
         if (dit !== panne) dire(`brigade : station — son état n'est pas publié sur GitHub, elle réessaie à chaque minute : ${dit}`);
         panne = dit;
