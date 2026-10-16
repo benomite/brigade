@@ -641,7 +641,7 @@ describe("le cadre est fait de cartes, sur fond sombre", () => {
 
   test("chaque sélecteur de la peau vise un élément que la page ou la vue pose", () => {
     const html = lire("index.html");
-    const source = lire("vue.js");
+    const source = lire("vue.js") + lire("briques.js");
     const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g), ...source.matchAll(/\.id = "([^"]+)"/g)].map(([, id = ""]) => id));
     const classes = new Set([...html.matchAll(/\bclass="([^"]+)"/g), ...source.matchAll(/className = "([^"]+)"/g), ...source.matchAll(/classList\.toggle\("([^"]+)"/g)].flatMap(([, noms = ""]) => noms.split(" ")));
     for (const { selecteurs } of regles(lire("vue.css"))) {
