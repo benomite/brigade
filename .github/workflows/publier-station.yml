@@ -12,6 +12,7 @@ on:
     paths:
       - "runtime/src/**"
       - "runtime/package.json"
+      - "runtime/deploy/**"
       - "runtime/paquet/**"
       - ".github/workflows/publier-station.yml"
   workflow_dispatch:

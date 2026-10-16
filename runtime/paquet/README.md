@@ -127,7 +127,7 @@ gh release create station-<version> runtime/paquet/installer-station.sh /tmp/bri
 ```
 
 Ce geste n'est pas à faire à la main : `.github/workflows/publier-station.yml` le fait à chaque
-merge sur `v2` qui touche `runtime/src/`, `runtime/package.json` ou `runtime/paquet/`. Il construit le
+merge sur `v2` qui touche `runtime/src/`, `runtime/deploy/`, `runtime/package.json` ou `runtime/paquet/`. Il construit le
 paquet sans `--version` (donc `0.<AAAAMMJJ>.<HHMMSS>+g<commit>`), et publie la release
 `station-<version>` — ni brouillon ni pré-version, marquée la dernière du dépôt, pour que
 `releases/latest/download/installer-station.sh` la trouve. Un merge qui ne touche que l'app, la doc ou
