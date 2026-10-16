@@ -39,13 +39,16 @@ Le paquet pèse une trentaine de mégaoctets : le binaire `node` en fait l'essen
 | `/usr/lib/systemd/system/brigade-station-renouvellement.{service,timer}` | le renouvellement, toutes les trente secondes |
 | `/usr/lib/systemd/system/brigade-station-mise-a-jour.{service,timer}` | la mise à jour de la station, toutes les dix minutes — la seule part de la station qui tourne sous root |
 
-Rien sous `/etc` : ni drop-in, ni règle sudoers, ni fichier de configuration. Les dépendances
+Rien sous `/etc` que l'installation ne pose : ni drop-in, ni règle sudoers, ni fichier de
+configuration — hormis, après la connexion Max, le jeton et ses deux fichiers (voir plus bas). Les dépendances
 (`git`, `gh`, `bubblewrap`, `libatomic1`, `adduser`, `systemd`…) viennent d'apt.
 
 La commande du guide finit par la connexion Max du compte `brigade`, quand un terminal est là :
 `runtime/src/connexion-max/connecter-cli.ts`, que le paquet porte avec le reste du runtime, pose
-`claude` s'il manque, lance `claude auth login`, fait passer le renouvellement et attend que la
-station l'ait reconnue (`/var/lib/brigade/connexion-max.json`).
+`claude` s'il manque, lance `claude setup-token` sous le compte, et range le jeton sans l'afficher :
+`/etc/brigade/claude-token` (600, au compte `brigade`), la date de sa création dans
+`/etc/brigade/claude-token.cree` (sans le jeton), et `/etc/brigade/jeton.env`, que l'unité lit pour
+savoir où il est (`BRIGADE_CLAUDE_TOKEN_FILE`). Puis elle relance la station.
 
 À l'installation, `postinst` crée le compte système `brigade` (home `/home/brigade`, celui qui fera
 la connexion Max) s'il n'existe pas, puis active et démarre la station et son minuteur. À chaque

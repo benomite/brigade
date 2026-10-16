@@ -61,6 +61,11 @@ Environment=BRIGADE_MISE_A_JOUR_DIR=/var/lib/brigade-station
 # brigade-station-renouvellement.service, et que chaque projet relit.
 Environment=BRIGADE_SESSION_STATE=/var/lib/brigade/.session/renouvellement
 
+# Où est le jeton longue durée de la connexion Max : l'étape de connexion de
+# l'installation guidée (`claude setup-token`) le range dans /etc/brigade, et
+# pose ce fichier à côté. Absent tant que la connexion n'est pas faite.
+EnvironmentFile=-/etc/brigade/jeton.env
+
 # Un /tmp à l'unité, vidé à son arrêt. `claude` range ses fichiers temporaires
 # dans /tmp/claude-<uid du compte> et refuse ce répertoire s'il n'est pas au
 # compte : dans le /tmp de la machine, n'importe qui peut l'y avoir posé.

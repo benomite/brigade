@@ -14,10 +14,10 @@
 # remet à apt — qui pose ses dépendances, crée le compte brigade et démarre
 # brigade-station.service —, attend que la station soit active et le dit,
 # puis fait la connexion Max du compte brigade, si quelqu'un est devant le
-# terminal : `claude auth login`, par le binaire officiel, que l'étape pose
-# s'il manque (runtime/src/connexion-max/connecter-cli.ts). C'est le seul
-# geste root de la station : sa vie courante n'en demande aucun. La relancer
-# ne réinstalle rien de neuf, et ne refait pas une connexion ouverte.
+# terminal : `claude setup-token`, une fois, par le binaire officiel, que
+# l'étape pose s'il manque, et dont elle range le jeton sans le montrer
+# (runtime/src/connexion-max/connecter-cli.ts). C'est le seul geste root de la station : sa vie courante n'en demande aucun. La relancer
+# ne réinstalle rien de neuf, et ne refait pas un jeton déjà rangé.
 #
 # Codes de sortie :
 #   0  station installée et active — connectée à Max, ou sans terminal pour l'être

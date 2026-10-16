@@ -31,9 +31,9 @@ test("la veille de la connexion Max et son branchement sur les cuisines ne lance
     const texte = lues.find((lue) => lue.nom === nom)?.texte ?? "";
     assert.doesNotMatch(texte, /from\s+["']node:(child_process|http|https|net|tls|dgram)["']|\bfetch\s*\(/, nom);
   }
-  // L'étape lance par `lancer` : `claude`, le renouvellement, et — en root,
-  // si `claude` manque — son installeur officiel.
+  // L'étape lance par `lancer` : `claude` (`setup-token`), et — en root, si
+  // `claude` manque — son installeur officiel.
   const cli = lues.find((lue) => lue.nom === "connexion-max/connecter-cli.ts")?.texte ?? "";
-  assert.deepEqual([...cli.matchAll(/lancer\("([^"]+)"/g)].map((appel) => appel[1]).sort(), ["bash", "mkdir"]);
-  assert.match(cli, /connecterMax\(\{ lancer, claude: "claude",/);
+  assert.deepEqual([...cli.matchAll(/lancer\("([^"]+)"/g)].map((appel) => appel[1]).sort(), ["bash"]);
+  assert.match(cli, /connecterMax\(\{ lancer, claude: "claude", jetonRange/);
 });
