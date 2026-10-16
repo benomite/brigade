@@ -909,6 +909,31 @@ npm --prefix runtime run log                        # session.observed, quand ce
 Un renouvellement qui échoue en boucle se reconnaît à `echec` plus récent que `verifie` dans le
 fichier : la nature et le détail y sont, sans rien de la valeur.
 
+### L'échéance du jeton longue durée
+
+Le jeton que `claude setup-token` a créé à l'installation (`BRIGADE_CLAUDE_TOKEN_FILE`) **vit un
+an** (365 jours, `VIE_DU_JETON_JOURS` dans `runtime/src/evenements/jeton.ts`, le seul endroit qui
+le sait). L'étape de connexion Max range la date de sa création à côté de lui
+(`<fichier>.cree`, par exemple `/etc/brigade/claude-token.cree`) — une date ISO 8601, sans le
+jeton. Le runtime la relit au démarrage puis à chaque tick, et n'écrit au journal que ce qui
+change (`token.observed`) : ni un passage ni un redémarrage qui ne voient rien de neuf n'écrivent
+rien.
+
+**L'alerte.** Trente jours avant l'échéance (`PREAVIS_DU_JETON_JOURS`), la file du chef porte
+une ligne, une seule, qui se compte depuis l'ouverture du préavis :
+
+```
+  jeton  depuis 5 j  jeton de la connexion Max près de son échéance — il échoit le <date>, 365 jours après sa création (<date>) — à faire avant : refaire le jeton — `claude setup-token` sous le compte du service : supprimer <fichier>, puis relancer l'étape de connexion Max (docs/installation-station.md, « 5. Le jeton de la connexion Max ») ; la station relit le jeton neuf et sa date
+```
+
+Passé l'échéance, elle dit `jeton de la connexion Max ÉCHU depuis le <date>`, et se compte depuis
+l'échéance. Si la date ne se lit pas — absente (un jeton rangé à la main), illisible, ou qui n'est
+pas une date —, elle le dit (`date de création du jeton … absente`, `illisible`, `qui ne se lit
+pas comme une date`) : l'échéance est alors inconnue, le geste est le même. Rien de ce que le
+fichier porte d'autre qu'une date n'est gardé, et ni la ligne ni le journal ne citent le jeton :
+ils nomment son fichier. Elle sort quand le jeton refait porte une date neuve. Sans
+`BRIGADE_CLAUDE_TOKEN_FILE`, rien ne s'annonce. L'annonce n'arrête rien.
+
 ### Révoquer la connexion Max
 
 **Quand** : dès que tu crois que les identifiants du compte ont quitté la machine — un
@@ -2048,6 +2073,7 @@ Fermer une PR sans la merger n'est qu'une demi-décision : l'entrée ne sort pas
 | `jugement du manager illisible` · `découpage du manager illisible` · `question du manager avant de découper l'épique` | modifier l'issue pour qu'elle soit reprise, ou répondre à la question sur l'issue ; pour un ticket, poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue | l'issue modifiée, ta réponse, l'issue fermée ou lancée à la main ; toute décision suivante du manager qui n'y voit plus une épique à découper |
 | `connexion Max absente` · `expirée` | la ligne porte la station, pas un ticket : `claude /login` sous le compte du service — la cuisine reprend seule | le passage réussi du renouvellement (`session.restored`) ; le « reprendre » (`kitchen.resumed`) |
 | `session Max près de son échéance` · `renouvellement de la session Max en échec (<nature>)` | la ligne porte la session, pas un ticket : `claude /login` sous le compte du service, puis `run guardrails -- resume`. Voir « La session Max : renouvellement et alerte » | le renouvellement réussi suivant ; le « reprendre » (`session.reconnected`) |
+| `jeton de la connexion Max près de son échéance` · `… ÉCHU` · `date de création du jeton … absente` / `illisible` | la ligne porte `jeton`, pas un ticket — une seule, annoncée trente jours avant l'échéance du jeton longue durée : refaire le jeton (`claude setup-token` sous le compte du service, par l'étape de connexion Max). Voir « L'échéance du jeton longue durée » | le jeton refait, qui porte une date de création neuve (`token.observed`) |
 | ``BASE ROUGE sur <commit>, en échec : <ce qui échoue> — sa réparation #N <ce qu'elle est devenue>`` | la ligne porte `base`, pas un ticket, et se compte **depuis le passage au rouge**. **Elle n'apparaît que si la réparation a échoué** — partie du rail sans service, remontée, ou mergée sans remettre la base au vert — : un rejeu, une réparation qui s'ouvre ou qui travaille ne sont pas à ta charge. Ce qui échoue est ce que les gates nomment (`FAIL …`) au dernier contrôle rouge. Le geste : corriger la base à la main — la pass la rejoue dès qu'elle bouge ; ou relancer la réparation non servie (lui reposer `fire`, ou le retirer et le reposer) ; un rouge qui ne tient pas au code se rejoue : `run base -- replay` | la base revenue au vert (`base.checked`, `green`) : la cuisine repart seule, sans commande ; la réparation relancée, qui travaille de nouveau |
 | ``setup impossible : la porte refuse `<hôte>` (…)`` · ``setup impossible : `.claude/brigade/worktree-setup.sh` échoue deux fois à l'identique (<motif>)`` | la ligne porte `setup`, pas un ticket — **une seule pour le projet**, quel que soit le nombre de tickets retenus —, et se compte depuis le blocage (`setup.blocked`). Un hôte refusé se déclare dans `.claude/brigade/reseau` du projet, une ligne par hôte, mergée sur la branche d'intégration ; sans hôte refusé, le setup est à corriger, puis merger — l'entrée nomme l'issue où lire ce qu'il a dit | la branche d'intégration qui bouge (`setup.unblocked`) : les setups reprennent seuls, sans commande. Le même échec sur la nouvelle base la fait revenir |
 | ``tickets mis de côté : <cause> (<motif>, deux fois à l'identique) — un seul est repris à la fois…`` | la ligne porte `aside`, pas un ticket — **une seule pour le projet**. Elle dit la cause, le ticket qui l'a vue et le geste ; elle tombe seule quand un cook part, qu'une autre cause se présente ou que la branche d'intégration bouge |

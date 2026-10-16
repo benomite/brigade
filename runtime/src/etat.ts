@@ -719,6 +719,7 @@ export const CAUSES_D_URGENCE = {
   repris: "repris",
   connexion: "connexion",
   session: "session",
+  jeton: "jeton",
   fermeture: "fermeture",
   base: "base rouge",
   setup: "setup",

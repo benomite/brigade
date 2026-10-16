@@ -25,16 +25,27 @@
 // (journal, flux des cooks, comptes-rendus, sortie des gates, GitHub, sa
 // propre sortie). Le fichier, lui, la cloison le cache aux lancements
 // (`cloison.ts`).
+//
+// Le jeton vit un an (`VIE_DU_JETON_JOURS`). L'étape de connexion Max range la
+// date de sa création à côté de lui (`<fichier>.cree`, sans le jeton) : le
+// runtime la relit au démarrage puis à chaque tick, écrit au journal ce qui
+// change (`token.observed`), et la file du chef en tire l'annonce de
+// l'échéance (`projections/jeton.ts`).
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import { format } from "node:util";
+import { PREAVIS_DU_JETON_JOURS, VIE_DU_JETON_JOURS, type ObservationDuJeton } from "./evenements/jeton.ts";
 import { masquerIdentifiants, retenirJeton } from "./identifiants.ts";
-import { ConfigInvalide } from "./runtime.ts";
+import { jetonObserve } from "./projections/jeton.ts";
+import { ConfigInvalide, type Runtime } from "./runtime.ts";
 
 // La variable du service qui nomme le fichier.
 export const FICHIER_DU_JETON = "BRIGADE_CLAUDE_TOKEN_FILE";
 // Celle par laquelle `claude` reçoit le jeton.
 export const VARIABLE_DU_JETON = "CLAUDE_CODE_OAUTH_TOKEN";
+// Le fichier de la date de création, à côté du jeton : une date ISO 8601, sur
+// une ligne, et rien d'autre.
+export const fichierDeCreation = (jeton: string) => `${jeton}.cree`;
 
 const reel = (chemin: string) => (existsSync(chemin) ? realpathSync(chemin) : resolve(chemin));
 const dans = (repertoire: string, fichier: string) => {
@@ -112,4 +123,45 @@ export function masquerLaConsole(sortie: Pick<Console, "log" | "info" | "warn" |
     const ecrire = sortie[methode].bind(sortie);
     sortie[methode] = (...valeurs: unknown[]) => ecrire("%s", masquerIdentifiants(format(...valeurs)).texte);
   }
+}
+
+// Ce que la date de création du jeton dit, lue à côté de `fichier` ; sans
+// jeton configuré, rien. Rien de ce qui est lu n'est gardé que la date : un
+// fichier qui porterait autre chose — le jeton, par erreur — n'en laisse rien.
+export function lireCreation(fichier: string | null): ObservationDuJeton {
+  const commun = { lifetimeDays: VIE_DU_JETON_JOURS, warningDays: PREAVIS_DU_JETON_JOURS };
+  if (fichier === null) return { ...commun, token: null, file: null, state: "none", created: null };
+  const file = fichierDeCreation(fichier);
+  let texte: string;
+  try {
+    texte = readFileSync(file, "utf8").trim();
+  } catch (erreur) {
+    return { ...commun, token: fichier, file, state: (erreur as NodeJS.ErrnoException).code === "ENOENT" ? "absent" : "unreadable", created: null };
+  }
+  // Une date, et pas n'importe quoi que `Date.parse` accepterait.
+  const instant = /^\d{4}-\d{2}-\d{2}(?:T[\d:.]+(?:Z|[+-]\d{2}:\d{2})?)?$/.test(texte) ? Date.parse(texte) : Number.NaN;
+  return Number.isFinite(instant) ? { ...commun, token: fichier, file, state: "read", created: new Date(instant).toISOString() } : { ...commun, token: fichier, file, state: "invalid", created: null };
+}
+
+// Lit la date du jeton d'emblée, puis à chaque tick, et écrit au journal ce
+// qui change par rapport à ce que le journal en porte : un passage ou un
+// redémarrage qui ne voit rien de neuf n'écrit rien, et l'annonce ne se répète
+// pas. Sans jeton configuré, rien ne s'écrit — sauf pour effacer une
+// observation d'avant, qui annoncerait un jeton qui n'est plus.
+export function brancherJeton<R extends Runtime>(runtime: R, fichier: string | null): R {
+  let ecrite = jetonObserve(runtime.journal.base);
+  const lire = () => {
+    try {
+      const observation = lireCreation(fichier);
+      if (JSON.stringify(observation) === JSON.stringify(ecrite) || (ecrite === null && observation.file === null)) return;
+      runtime.journal.ajouter({ project: runtime.projet, ticket: null, author: "runtime", type: "token.observed", payload: observation });
+      ecrite = observation;
+    } catch (erreur) {
+      // Une lecture qui ne s'écrit pas n'arrête pas la cuisine : la suivante la reprend.
+      console.error(`brigade : date du jeton de la connexion Max non relue — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    }
+  };
+  lire();
+  runtime.surReveil((cause) => void (cause === "tick" && lire()));
+  return runtime;
 }

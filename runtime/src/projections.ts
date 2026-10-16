@@ -3,6 +3,7 @@
 import type { Projection } from "./projection.ts";
 import { decoupages } from "./projections/decoupages.ts";
 import { gardeFous } from "./projections/garde-fous.ts";
+import { jeton } from "./projections/jeton.ts";
 import { manager } from "./projections/manager.ts";
 import { mesures } from "./projections/mesures.ts";
 import { nettoyage } from "./projections/nettoyage.ts";
@@ -16,4 +17,4 @@ import { sessions } from "./projections/sessions.ts";
 import { stations } from "./projections/stations.ts";
 import { alerteUrgence } from "./projections/urgence.ts";
 
-export const PROJECTIONS: Projection[] = [sessions, rail, gardeFous, stations, pass, manager, decoupages, reactions, sauvegardes, nettoyage, mesures, service, renouvellement, alerteUrgence];
+export const PROJECTIONS: Projection[] = [sessions, rail, gardeFous, stations, pass, manager, decoupages, reactions, sauvegardes, nettoyage, mesures, service, renouvellement, jeton, alerteUrgence];

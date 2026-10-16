@@ -25,7 +25,7 @@ import { enProcess, Sortie, type Appel } from "../appel.ts";
 import { PATH_DE_SYSTEMD } from "../installateur.ts";
 import { COMPTE } from "./connexion.ts";
 import { connecterMax, ConnexionNonFaite, type Lancement, type ModeDeLancement } from "./connecter.ts";
-import { FICHIER_DU_JETON } from "../jeton-claude.ts";
+import { FICHIER_DU_JETON, fichierDeCreation } from "../jeton-claude.ts";
 
 const REUSSI = 0;
 const ECHEC = 1;
@@ -56,7 +56,7 @@ export type Machine = {
 export const SERVEUR: Machine = {
   compte: COMPTE,
   jeton: "/etc/brigade/claude-token",
-  creation: "/etc/brigade/claude-token.cree",
+  creation: fichierDeCreation("/etc/brigade/claude-token"),
   environnement: "/etc/brigade/jeton.env",
   redemarrer: () => executer("systemctl", ["restart", "brigade-station.service"], { PATH: PATH_DE_SYSTEMD }, false),
   path: PATH_DE_SYSTEMD,
