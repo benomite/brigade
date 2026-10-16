@@ -1,0 +1,342 @@
+// Garde-fou (#835) : « l'app parle moins » doit tenir dans le temps. Chaque écran — l'accueil, la bande
+// d'alertes, la fiche d'une carte, Cost, Verify, Settings, le bandeau du second — est joué tel que la vue
+// le pose, dans deux états : une lecture en échec, et une décision qui attend le chef. Le texte *visible
+// par défaut* (celui des éléments, sans le survol, sans un `details` replié) ne porte jamais une commande à
+// recopier, un mode d'emploi, un code de sortie, ni une phrase de prix sous un bouton ; une lecture qui
+// manque tient en une ligne, son détail au survol ; chaque geste attendu est un bouton.
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
+import { ALLUMAGE } from "../src/allumage.ts";
+import { pourLaBarre } from "../src/barre.ts";
+import { BOUTONS } from "../src/boutons.ts";
+import { EXEMPLE, type Projet } from "../src/config.ts";
+import { PALETTE } from "../src/couleurs.ts";
+import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
+import { entete } from "../src/fiche.ts";
+import { BANNIERE, type Dessinable } from "../src/faits.ts";
+import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
+import { gestesDeCarte } from "../src/gestes-fiche.ts";
+import { GESTES_DES_GRANTS } from "../src/grants.ts";
+import { EFFORTS, MODELES } from "../src/installation.ts";
+import { GESTES_DU_MANAGER } from "../src/manager.ts";
+import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
+import { tenirBandes, type Alerte } from "../src/alertes.ts";
+import type { Guide } from "../src/service.ts";
+import type { Terminal } from "../src/terminaux.ts";
+import { Faux, type Jouee, jouerLaVue, type Reponses, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
+
+const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
+const A = "2026-10-16T10:00:00.000Z";
+const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "", arrete: false };
+const SHELL: Terminal = { id: 2, projet: "parade", genre: "shell", titre: "shell 1", note: "", arrete: false, bandeau: "box parade-box · debian — not reachable" };
+
+// Ce qu'une panne laisse derrière elle, et qui n'a sa place qu'au survol.
+const DETAIL = "ssh: connect to host box port 22: Connection refused";
+const BRUT = `usage: brigade <projet> station\n${DETAIL}\n→ code de sortie 255`;
+const PAS_JOINT = { projet: "parade", demande: 1, a: A, erreur: `$ ssh box brigade parade facts\n${BRUT}`, atteinte: false, cas: "ssh-en-echec" } as const;
+
+// Les travers : une commande qui se recopie, un mode d'emploi, un code de sortie.
+const TRAVERS = /ssh\b|brigade\s*<|brigade\s+[a-z0-9-]+\s+(?:station|manager|status|facts|pass|grant|rail|log|installation)\b|usage\s*:|exit code|code de sortie/i;
+// Une phrase de prix écrite à plat. Les éléments se concatènent sans blanc : aucune de ces deux règles n'ancre son début sur une limite de mot.
+const PRIX = /costs?\s*:|prix\s*:|price\s*:/i;
+
+const demarrage = () => ({
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE], hotes: ["box"] }),
+  palette: PALETTE,
+  exemple: EXEMPLE,
+  onglets: ONGLETS,
+  rubriques: RUBRIQUES,
+  boutons: BOUTONS,
+  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  banniere: BANNIERE,
+  calibrage: { modeles: MODELES, efforts: EFFORTS },
+  code: undefined,
+});
+
+async function ouvrir(reponses: Reponses = {}, entrer = true): Promise<Jouee> {
+  const vue = await jouerLaVue({
+    demarrage,
+    espace: () => [SECOND, SHELL],
+    machines: () => [{ id: "poste", titre: "this Mac" }],
+    gestesDeFiche: (carte) => gestesDeCarte(carte),
+    ...reponses,
+  });
+  if (entrer) {
+    (vue.element("projets").children[1] ?? assert.fail("pas de case")).click();
+    await repos();
+  }
+  return vue;
+}
+
+// Le texte posé à plat : celui des éléments, moins ce qu'un `details` replié ou un élément caché ne montre
+// pas. Un survol n'y est pas — son texte n'est dans l'élément qu'au passage du pointeur.
+function visible(racine: Faux): string {
+  let texte = racine.textContent;
+  for (const element of racine.descendants()) {
+    const replie = element.balise === "details" && !(element as Faux & { open?: boolean }).open;
+    const cache = element.hidden;
+    if (!replie && !cache) continue;
+    for (const enfant of element.children) if (cache || enfant.balise !== "summary") texte = texte.replace(enfant.textContent, "");
+    if (cache) texte = texte.replace(element.textContent, "");
+  }
+  return texte.replace(/\s+/g, " ").trim();
+}
+// La fausse page ne rejoue pas la place des éléments : l'écran est ce que la vue pose dans ces éléments-là, ceux qui ne sont pas cachés.
+function ecran(vue: Jouee, ...ids: string[]): Faux {
+  const racine = new Faux("div");
+  racine.append(...ids.map((id) => vue.element(id)).filter(({ hidden }) => !hidden));
+  return racine;
+}
+const survols = (ou: Faux) => ou.dessous("button").filter(({ className }) => className === "aide").map(({ ariaLabel }) => ariaLabel);
+const lignesEnEchec = (ou: Faux) => [ou, ...ou.descendants()].filter(({ className, balise }) => balise === "p" && className === "indisponible");
+const boutons = (ou: Faux) => ou.dessous("button").filter(({ className }) => className !== "aide");
+
+// ─── Les écrans ──────────────────────────────────────────────────────────────
+
+type Joue = { vue: Jouee; racine: Faux };
+type Ecran = {
+  nom: string;
+  // L'écran, une lecture en échec.
+  echec: () => Promise<Joue>;
+  // Combien de lectures en échec il dit, chacune en une ligne.
+  lectures: number;
+};
+
+// L'accueil : « Tous les projets », devant une box qui ne répond pas.
+async function accueil(): Promise<Joue> {
+  const vue = await ouvrir({}, false);
+  vue.dire("surLecture", { ...PAS_JOINT, demande: vue.dernier("tous")[0] as number }, { projet: "parade", pages: [], aLancer: [], illisibles: [], empeche: [], vide: "" });
+  vue.dire("surFaits", { ...PAS_JOINT, titre: "facts: the box did not answer", demande: vue.dernier("faits")[0] as number });
+  const bandes = tenirBandes({ etablir: 1, minimum: 0 });
+  bandes.ouvrir(["parade"]);
+  vue.dire("surAlertes", bandes.faits(PAS_JOINT));
+  return { vue, racine: vue.element("tous") };
+}
+
+async function alertes(): Promise<Joue> {
+  const vue = await ouvrir();
+  const bandes = tenirBandes({ etablir: 1, minimum: 0 });
+  bandes.ouvrir(["parade"]);
+  vue.dire("surAlertes", bandes.faits(PAS_JOINT));
+  return { vue, racine: vue.element("alertes") };
+}
+
+// Une carte qui t'attend, sur le rail.
+const decisionMerge = { quoi: "merge", motif: "no-grant", cause: null, pr: "https://github.com/benomite/brigade/pull/31" };
+const carte = { ticket: 12, etat: "servi", ton: "vert", titre: "Validation SIRET", fiche: entete({ titre: "Validation SIRET" }), ouvrable: true, attendu: true, decision: decisionMerge, pr: true, attend: ["livraison verte, non mergée"], dit: [] };
+const faitsAvecCarte = (demande: number): Dessinable =>
+  ({
+    projet: "parade",
+    demande,
+    a: A,
+    tableau: {
+      etat: "ouverte",
+      ton: "vert",
+      arretee: false,
+      tick: "dernier tick il y a 12 s",
+      compteurs: [{ libelle: "rail", nombre: 1 }],
+      cooks: { enCours: [], vide: "aucun cook en cours" },
+      evenement: "rien",
+      rail: { colonnes: [{ nom: "T'attend", ton: "rouge", compte: "1", cartes: [carte], vide: "aucun ticket" }], hors: [], attendLu: A },
+    },
+  }) as unknown as Dessinable;
+
+async function ficheOuverte(reponses: Reponses): Promise<Joue> {
+  const vue = await ouvrir(reponses);
+  vue.dire("surFaits", faitsAvecCarte(vue.dernier("faits")[0] as number));
+  const bon = vue.element("rail").dessous("li").find(({ className }) => className === "bon") ?? assert.fail("pas de carte sur le rail");
+  bon.click();
+  await repos();
+  return { vue, racine: vue.element("fiche") };
+}
+const ficheEnEchec = () =>
+  ficheOuverte({
+    lireQuestion: () => ({ a: A, sans: `not read: ${BRUT}` }),
+    lireDiscussion: () => ({ sans: `not read: ${BRUT}` }),
+    lireHistoire: () => ({ sans: `not read: ${BRUT}` }) as never,
+  });
+
+async function cost(): Promise<Joue> {
+  const vue = await ouvrir();
+  await ouvrirLecture(vue, "Cooks");
+  const numero = (vue.dernier("onglet") as [string, string, number])[2];
+  vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: BRUT, atteinte: false, cas: "ssh-en-echec" }, undefined, undefined);
+  await repos();
+  return { vue, racine: ecran(vue, ...LECTURE) };
+}
+
+async function settings(titre: "Manager" | "Grants" | "Rail"): Promise<Joue> {
+  const vue = await ouvrir();
+  await ouvrirLecture(vue, titre);
+  const numero = (vue.dernier("onglet") as [string, string, number])[2];
+  const sans = { projet: "parade", demande: numero, a: A, sans: BRUT };
+  vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: BRUT, atteinte: false, cas: "ssh-en-echec" }, titre === "Manager" ? sans : undefined, titre === "Grants" ? sans : undefined);
+  await repos();
+  return { vue, racine: ecran(vue, ...LECTURE) };
+}
+
+// Ce que Cost et Settings posent : la lecture ouverte, l'état du projet, le manager, les grants.
+const LECTURE = ["lu-onglet", "gestes-onglet", "lecture-onglet", "lu", "lecture", "etat", "manager", "grants"];
+
+// Verify : la vérification d'un projet dont la box ne répond pas.
+async function verify(): Promise<Joue> {
+  const echec = { a: A, code: null, obtenu: BRUT, erreur: BRUT, atteinte: false, cas: "ssh-en-echec" };
+  const guide = {
+    projet: "parade",
+    deplie: true,
+    titre: "Installing parade",
+    lecture: { etat: "lue", a: A },
+    etapes: [],
+    courante: null,
+    annonces: { etat: "lues", liste: [] },
+    verification: { etat: "sans-verdict", a: A, titre: "The verification returned no verdict", echec },
+    demarrage: { refus: "no" },
+    termine: false,
+  } as unknown as Guide;
+  const vue = await ouvrir({ service: () => guide });
+  return { vue, racine: ecran(vue, "service", "service-tete", "service-etapes", "verification-etat") };
+}
+
+// Le bandeau du second : le shell dit où il est, son bandeau ne porte ni commande ni code.
+async function second(): Promise<Joue> {
+  const vue = await ouvrir();
+  (vue.element("terminaux").children.find(({ textContent }) => textContent === "shell 1") ?? assert.fail("pas d'onglet de shell")).click();
+  await repos();
+  return { vue, racine: vue.element("second") };
+}
+
+const ECRANS: Ecran[] = [
+  { nom: "accueil", echec: accueil, lectures: 2 },
+  { nom: "bande d'alertes", echec: alertes, lectures: 0 },
+  { nom: "fiche d'une carte", echec: ficheEnEchec, lectures: 3 },
+  { nom: "Cost", echec: cost, lectures: 1 },
+  { nom: "Verify", echec: verify, lectures: 1 },
+  { nom: "Settings · Rail", echec: () => settings("Rail"), lectures: 1 },
+  { nom: "Settings · Manager", echec: () => settings("Manager"), lectures: 2 },
+  { nom: "Settings · Grants", echec: () => settings("Grants"), lectures: 2 },
+  { nom: "bandeau du second", echec: second, lectures: 0 },
+];
+
+describe("aucun écran n'écrit à plat une commande, un mode d'emploi, un code de sortie ou un prix", () => {
+  for (const { nom, echec } of ECRANS) {
+    test(`${nom} : une lecture en échec`, async () => {
+      const { racine } = await echec();
+      const dit = visible(racine);
+      assert.doesNotMatch(dit, TRAVERS, `${nom} écrit un travers à plat : ${dit}`);
+      assert.doesNotMatch(dit, PRIX, `${nom} écrit un prix à plat : ${dit}`);
+    });
+  }
+});
+
+describe("une lecture en échec tient en une ligne, son détail n'est qu'au survol", () => {
+  for (const { nom, echec, lectures } of ECRANS) {
+    test(nom, async () => {
+      const { racine } = await echec();
+      const lignes = lignesEnEchec(racine);
+      assert.equal(lignes.length, lectures, `${nom} : ${lignes.length} ligne(s) de lecture en échec, ${lectures} attendue(s)`);
+      for (const ligne of lignes) {
+        const dit = visible(ligne);
+        assert.ok(dit !== "" && dit.length <= 80 && !dit.includes("\n"), `${nom} : la ligne n'est pas courte — « ${dit} »`);
+        assert.ok(survols(ligne).some((detail) => detail.includes(DETAIL)), `${nom} : le détail n'est pas au survol de la ligne`);
+      }
+      // Le détail n'est nulle part à plat sur l'écran, ni dans un `pre`.
+      assert.ok(!visible(racine).includes(DETAIL), `${nom} écrit le détail à plat`);
+      assert.deepEqual(racine.dessous("pre").filter((pre) => pre.textContent.includes(DETAIL)), [], `${nom} montre le détail dans un bloc de code`);
+    });
+  }
+});
+
+// ─── L'état « en attente de décision » ───────────────────────────────────────
+
+const COMMANDE_DE_LA_BOX = "do what #535 waits for, as the box writes it";
+const URGENTE: Alerte = { sujet: "urgence", verifie: true, ton: "rouge", dit: "the whole kitchen is waiting for your merge of #535 — at a standstill for 5 h 28", releve: "#535  livraison verte — à merger à la main", geste: COMMANDE_DE_LA_BOX, bouton: "ask the second", appel: { demande: true }, prix: "none" };
+const ALLUMER: Alerte = { sujet: "manager", verifie: true, ton: "rouge", dit: "manager off: no issue is judged, nothing new enters the rail", geste: "turn the manager on: `brigade parade manager on`", bouton: "turn the manager on", appel: { geste: "manager-allumer" }, prix: "cost: the manager reads every issue on your quota" };
+const EN_ATTENTE = [URGENTE, ALLUMER];
+
+async function bandeEnAttente(): Promise<Joue> {
+  const vue = await ouvrir();
+  vue.dire("surAlertes", { projet: "parade", alertes: EN_ATTENTE, signal: { etat: "urgence", dit: "x" } });
+  return { vue, racine: vue.element("alertes") };
+}
+async function accueilEnAttente(): Promise<Joue> {
+  const vue = await ouvrir({}, false);
+  vue.dire("surAlertes", { projet: "parade", alertes: EN_ATTENTE, signal: { etat: "urgence", dit: "x" } });
+  return { vue, racine: vue.element("tous") };
+}
+const ficheEnAttente = () => ficheOuverte({ lireQuestion: () => ({ a: A, aucune: true }), lireDiscussion: () => undefined });
+
+describe("en attente de décision, aucun écran n'écrit à plat une commande ni un prix", () => {
+  for (const [nom, jouer] of [["accueil", accueilEnAttente], ["bande d'alertes", bandeEnAttente], ["fiche d'une carte", ficheEnAttente]] as const) {
+    test(nom, async () => {
+      const { racine } = await jouer();
+      const dit = visible(racine);
+      assert.ok(dit !== "", `${nom} est vide`);
+      assert.doesNotMatch(dit, TRAVERS, `${nom} écrit un travers à plat : ${dit}`);
+      assert.doesNotMatch(dit, PRIX, `${nom} écrit un prix à plat : ${dit}`);
+    });
+  }
+});
+
+describe("en attente de décision, chaque geste attendu est un bouton, pas du texte", () => {
+  test("bande d'alertes : une ligne, un bouton — la commande et le prix au survol", async () => {
+    const { racine } = await bandeEnAttente();
+    for (const alerte of EN_ATTENTE) {
+      const ligne = racine.children.find((pose) => pose.dataset.sujet === alerte.sujet) ?? assert.fail(`pas de ligne « ${alerte.sujet} »`);
+      assert.ok(boutons(ligne).some(({ textContent }) => textContent.startsWith(alerte.bouton ?? "")), `« ${alerte.bouton} » n'est pas un bouton`);
+      assert.ok(!visible(ligne).includes(alerte.geste), `${alerte.sujet} : le geste est écrit à plat`);
+      assert.ok(survols(ligne).some((dit) => dit.includes(alerte.geste) || dit.includes(alerte.prix)), `${alerte.sujet} : ni le geste ni le prix ne sont au survol`);
+    }
+  });
+
+  test("accueil : ce qu'on peut faire en premier est un bouton, sur la ligne « à faire »", async () => {
+    const { racine } = await accueilEnAttente();
+    const afaire = racine.dessous("div").find(({ className }) => className === "a-faire") ?? assert.fail("pas de ligne « à faire »");
+    assert.ok(boutons(afaire).some(({ textContent }) => textContent === "open parade"), "pas de bouton qui ouvre le projet");
+    assert.ok(boutons(afaire).length > 0);
+  });
+
+  test("fiche : chaque geste que la table du chef propose pour la carte est un bouton, le recommandé en tête", async () => {
+    const { racine } = await ficheEnAttente();
+    const proposes = gestesDeCarte(carte);
+    assert.ok(proposes.some(({ id }) => id === "merger"), "la décision attendue est de merger : le geste manque à la table");
+    const boutonsDeLaFiche = boutons(racine).map(({ textContent }) => textContent);
+    for (const { libelle } of proposes) assert.ok(boutonsDeLaFiche.includes(libelle), `« ${libelle} » n'est pas un bouton de la fiche`);
+    const [premier] = proposes;
+    assert.equal(premier?.recommande, true);
+    const gestes = racine.dessous("section").find(({ className }) => className === "gestes-fiche") ?? assert.fail("pas de gestes sur la fiche");
+    assert.equal(boutons(gestes)[0]?.textContent, premier?.libelle);
+    // Aucun geste n'est une ligne de texte : chaque ligne de geste porte son bouton.
+    for (const ligne of gestes.dessous("li")) assert.ok(boutons(ligne).length > 0, `le geste « ${ligne.dataset.geste} » n'est pas un bouton`);
+  });
+
+  test("Verify : un manque que le chef lève est un bouton, et sa commande, au survol", async () => {
+    const guide = {
+      projet: "parade",
+      deplie: true,
+      titre: "Installing parade",
+      lecture: { etat: "lue", a: A },
+      etapes: [],
+      courante: null,
+      annonces: { etat: "lues", liste: [] },
+      verification: {
+        etat: "pas-pret",
+        a: A,
+        titre: "NOT READY — 2 things lack",
+        manques: [
+          { texte: "the box has no stations", acteur: "chef", qui: "you", geste: { action: "stations", libelle: "Declare the stations" } },
+          { texte: "the box lacks a command", acteur: "chef", qui: "you", geste: { commande: "sudo apt install gh" } },
+        ],
+        panne: null,
+        aSavoir: [],
+        detail: "MANQUE    brut",
+      },
+      demarrage: { refus: "no" },
+      termine: false,
+    } as unknown as Guide;
+    const vue = await ouvrir({ service: () => guide });
+    const racine = ecran(vue, "service", "service-tete", "service-etapes", "verification-etat");
+    assert.ok(boutons(racine).some(({ textContent }) => textContent === "Declare the stations"), "le geste n'est pas un bouton");
+    assert.ok(!visible(racine).includes("sudo apt install gh"), "la commande est écrite à plat");
+    assert.ok(survols(racine).includes("sudo apt install gh"), "la commande n'est pas au survol");
+  });
+});
