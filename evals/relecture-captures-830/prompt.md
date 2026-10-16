@@ -14,13 +14,15 @@ directement, par l'objet JSON demandé.
 
 ## Les captures
 
-Ce ticket est un ticket d'interface : le cook doit livrer l'écran qu'il change, avant et après. Tu relis aussi ces captures, avec `Read` qui ouvre les images, et tu les confrontes aux règles de #830 (l'app montre d'abord ce que l'utilisateur peut faire). Trois violations, que tu cherches sur chaque capture « après » — la « avant » montre l'écran tel qu'il était, une violation y est normale et ne compte pas :
+Ce ticket est un ticket d'interface : le cook doit livrer l'écran qu'il change, avant et après. Tu relis aussi ces captures, avec `Read` qui ouvre les images, et tu les confrontes aux règles de #830 (l'app montre d'abord ce que l'utilisateur peut faire). Trois violations, que tu cherches sur chaque capture « après » :
 
 - `geste-non-bouton` — un geste attendu de l'utilisateur (merger, retirer du rail, répondre à une question…) qui n'est pas un bouton sur l'écran : une commande à envoyer ou à recopier (`ssh …`, `brigade …`), ou une phrase qui dit de le faire ailleurs.
 - `mode-d-emploi` — un paragraphe de mode d'emploi en clair : une explication, ou le prix d'un geste écrit sous chaque bouton, qui devrait être un survol ou une aide repliée.
 - `erreur-brute` — une erreur technique brute (une commande `ssh`, un usage, un code de sortie, une trace) affichée à la place d'une ligne qui dit que la lecture a échoué.
 
-Chaque violation que tu vois est un constat `bloquant`. Il porte `fichier` : le chemin de la capture « après » où tu la vois, tel qu'il est listé plus bas, et `regle` : le nom de la règle violée. Dis dans `constat` ce que la capture montre. Une capture qui respecte les règles ne donne aucun constat de ce type : n'en invente pas.
+Tu ne juges que la partie de l'écran que ce ticket ajoute ou change. Compare la capture « après » à la « avant » : ce qui est déjà là sur la « avant », à l'identique, existait avant ce ticket et le cook ne le touche pas — ce n'est jamais un constat `bloquant`, même s'il viole une règle (la « avant » montre l'écran tel qu'il était, une violation y est normale).
+
+Une violation que tu vois dans la partie que le ticket ajoute ou change est un constat `bloquant`. Il porte `fichier` : le chemin de la capture « après » où tu la vois, tel qu'il est listé plus bas, et `regle` : le nom de la règle violée. Dis dans `constat` ce que la capture montre. Une violation qui existait déjà, hors de la zone du ticket, est un constat `remarque` — avec le même `fichier` et la même `regle` — et non un renvoi : dis dans `constat` qu'elle préexiste, et si aucun ticket ouvert ne semble la couvrir, propose d'en ouvrir un à part (son titre et ce qu'il corrige). Une capture qui respecte les règles ne donne aucun constat de ce type : n'en invente pas.
 
 Captures livrées :
 

@@ -207,11 +207,13 @@ const lesCaptures = ({ dossier, screens }: CapturesARelire): string[] => {
   return [
     "## Les captures",
     "",
-    "Ce ticket est un ticket d'interface : le cook doit livrer l'écran qu'il change, avant et après. Tu relis aussi ces captures, avec `Read` qui ouvre les images, et tu les confrontes aux règles de #830 (l'app montre d'abord ce que l'utilisateur peut faire). Trois violations, que tu cherches sur chaque capture « après » — la « avant » montre l'écran tel qu'il était, une violation y est normale et ne compte pas :",
+    "Ce ticket est un ticket d'interface : le cook doit livrer l'écran qu'il change, avant et après. Tu relis aussi ces captures, avec `Read` qui ouvre les images, et tu les confrontes aux règles de #830 (l'app montre d'abord ce que l'utilisateur peut faire). Trois violations, que tu cherches sur chaque capture « après » :",
     "",
     ...Object.entries(REGLES_830).map(([regle, dit]) => `- \`${regle}\` — ${dit}.`),
     "",
-    "Chaque violation que tu vois est un constat `bloquant`. Il porte `fichier` : le chemin de la capture « après » où tu la vois, tel qu'il est listé plus bas, et `regle` : le nom de la règle violée. Dis dans `constat` ce que la capture montre. Une capture qui respecte les règles ne donne aucun constat de ce type : n'en invente pas.",
+    "Tu ne juges que la partie de l'écran que ce ticket ajoute ou change. Compare la capture « après » à la « avant » : ce qui est déjà là sur la « avant », à l'identique, existait avant ce ticket et le cook ne le touche pas — ce n'est jamais un constat `bloquant`, même s'il viole une règle (la « avant » montre l'écran tel qu'il était, une violation y est normale).",
+    "",
+    "Une violation que tu vois dans la partie que le ticket ajoute ou change est un constat `bloquant`. Il porte `fichier` : le chemin de la capture « après » où tu la vois, tel qu'il est listé plus bas, et `regle` : le nom de la règle violée. Dis dans `constat` ce que la capture montre. Une violation qui existait déjà, hors de la zone du ticket, est un constat `remarque` — avec le même `fichier` et la même `regle` — et non un renvoi : dis dans `constat` qu'elle préexiste, et si aucun ticket ouvert ne semble la couvrir, propose d'en ouvrir un à part (son titre et ce qu'il corrige). Une capture qui respecte les règles ne donne aucun constat de ce type : n'en invente pas.",
     "",
     ...(screens.length === 0
       ? [`Le cook n'a livré aucune capture dans \`${dossier}/\` : c'est un constat \`bloquant\` (\`fichier\` : \`${dossier}\`), quoi que le diff change par ailleurs.`]
@@ -354,12 +356,13 @@ export function lireRelecture(message: string | null, captures: CapturesARelire 
     if (!severity) return { illisible: `constat ${rang + 1} : gravité inconnue ${JSON.stringify(gravite)} — attendu bloquant, remarque ou a_supprimer` };
     const text = phrase(constat);
     if (!text) return { illisible: `constat ${rang + 1} : constat absent` };
-    // Un constat de #830 est bloquant et cite une capture livrée : sans quoi le
-    // cook, renvoyé, ne saurait pas laquelle corriger.
+    // Un constat de #830 est bloquant (la zone du ticket) ou une remarque (un
+    // défaut préexistant), et cite une capture livrée : sans quoi le cook,
+    // renvoyé, ne saurait pas laquelle corriger.
     if (captures !== null && regle !== undefined && regle !== null) {
       const livrees = captures.screens.map(({ after }) => after);
       if (typeof regle !== "string" || !(regle in REGLES_830)) return { illisible: `constat ${rang + 1} : règle inconnue ${JSON.stringify(regle)} — attendu ${Object.keys(REGLES_830).join(", ")}` };
-      if (severity !== "blocking") return { illisible: `constat ${rang + 1} : une violation de #830 est bloquante` };
+      if (gravite === A_SUPPRIMER) return { illisible: `constat ${rang + 1} : une violation de #830 est bloquante, ou une remarque si elle préexiste au ticket` };
       if (!livrees.includes(phrase(fichier))) return { illisible: `constat ${rang + 1} : une violation de #830 cite la capture « après » concernée, une de celles qui sont livrées` };
       findings.push({ severity, file: phrase(fichier), text: `Règle #830 — ${LIBELLES_830[regle as Regle]} : ${text}` });
       continue;
