@@ -12,7 +12,7 @@ import { brancherAlerteUrgence } from "../alerte-urgence.ts";
 import { avecRail, configRail } from "../alimenter.ts";
 import { configArbitrage, joindreArbitre } from "../arbitrage.ts";
 import { sessionClaude } from "../claude.ts";
-import { configJeton, direJeton, environnementClaude } from "../jeton-claude.ts";
+import { brancherJeton, configJeton, direJeton, environnementClaude } from "../jeton-claude.ts";
 import { brancherConnexionMax } from "../connexion-max/cuisine.ts";
 import type { VeilleConnexionMax } from "../connexion-max/veille.ts";
 import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison } from "../cloison.ts";
@@ -153,7 +153,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     const dirige = brancherManager(servie, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
     // Ce que la mise à jour de la station a donné, recopié au journal du
     // projet : la file le dit.
-    const suivie = brancherMiseAJour(brancherAlerteUrgence(brancherSession(dirige, session)), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire);
+    const suivie = brancherMiseAJour(brancherAlerteUrgence(brancherJeton(brancherSession(dirige, session, undefined, jeton), jeton)), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire);
     ouverte = options.connexion ? brancherConnexionMax(suivie, options.connexion) : suivie;
   } catch (erreur) {
     identites?.fermer();
