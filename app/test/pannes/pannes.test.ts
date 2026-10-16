@@ -133,7 +133,7 @@ test("aucun message de panne n'affiche une commande de terminal : les trois cas,
   for (const doc of cas) {
     for (const locale of [true, false]) {
       for (const relu of [doc, document()]) {
-        const vue = { id: "g1", nom: doc.nom, machine: doc.machine, etat: "en-ligne" as const, ligne: "", pannes: pannesDe(doc, MAINTENANT) };
+        const vue = { id: "g1", nom: doc.nom, machine: doc.machine, etat: "en-ligne" as const, ligne: "", pannes: pannesDe(doc, MAINTENANT), dit: "online", version: doc.version, projets: doc.projets, max: null };
         const options = {
           stations: {
             vu: () => ({ a: "", stations: [vue] }),

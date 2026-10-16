@@ -37,8 +37,9 @@
 // restante en tête, l'heure ensuite —, ses derniers usages, et ce qu'aucun grant n'autorise,
 // déjà lus par le process principal (grants.ts). À côté de chaque grant, ses deux gestes,
 // accorder et révoquer, confirmés : chacun dit ce que le grant change avant de partir.
-// La barre est faite d'icônes : « Tous les projets » en tête — la même lecture pour tous
-// les projets d'un coup, et rien qui s'y clique —, un monogramme par projet, et
+// La barre est faite d'icônes : « Tous les projets » en tête — l'accueil, la vue d'ensemble de
+// brigade : une ligne par projet, une par station, et la ligne de santé, dites par le process
+// principal (accueil.ts) ; on n'y agit pas, un clic sur une ligne ouvre sa page —, un monogramme par projet, et
 // en pied le « + » : l'écran d'ajout, où un projet s'installe sur sa box et se déclare
 // dans l'app d'un seul geste. Ce qui manque à un champ, ce qui part vers la box et ce
 // qu'elle en a rendu se décident dans le process principal (installation.ts) : la vue
@@ -67,7 +68,7 @@
 // qui lit l'état.
 // Arrêter la cuisine est sur le rail, qu'il arrête ; vérifier l'installation, en tête de l'espace,
 // à côté du nom du projet.
-// En tête de « Tous les projets », le code de l'app lui-même : à jour, ou en retard sur
+// En tête de Paramètres, et au survol de « T », le code de l'app lui-même : à jour, ou en retard sur
 // l'origine de son clone — et de combien de commits —, avec l'heure de sa lecture ; de même
 // pour le clone d'un projet qui est celui de brigade. En retard, un bouton écrit `git pull`
 // dans un shell, et n'envoie rien : l'app ne met rien à jour. Ce qui se lit, ce qui s'en dit
@@ -193,18 +194,31 @@ const CALIBRAGE = /** @type {const} */ (["manager-modele", "manager-effort", "re
 /** @param {typeof CALIBRAGE[number]} champ */
 const calibre = (champ) => /** @type {HTMLSelectElement} */ (element(champ));
 const relecture = element("relecture");
-// En tête de « Tous les projets » : le retard du code de l'app, et des clones de brigade.
+// Dans Paramètres, le retard du code de l'app, et des clones de brigade — la case « T » le dit aussi, au survol.
 const code = document.createElement("section");
 code.id = "code";
 code.ariaLive = "polite";
-// Sous lui, les stations du chef : une ligne chacune, et le champ où il tape le code qu'une
-// station neuve affiche. Le champ est posé une fois : une relecture ne vide pas ce qu'il tape.
-const stations = document.createElement("section");
-stations.id = "stations";
-stations.className = "carte";
+etat.prepend(code);
+// L'accueil, « Tous les projets » : la vue d'ensemble de brigade (accueil.ts). Une liste des projets,
+// une des stations — une ligne chacun, un clic ouvre sa page —, et en bas la ligne de santé. On n'y
+// agit pas : seul « + station » y ouvre le champ où le chef tape le code qu'une station neuve affiche.
+const projetsDeLAccueil = document.createElement("section");
+projetsDeLAccueil.id = "accueil-projets";
+projetsDeLAccueil.className = "liste";
+projetsDeLAccueil.ariaLabel = "Projects";
+const stationsDeLAccueil = document.createElement("section");
+stationsDeLAccueil.id = "accueil-stations";
+stationsDeLAccueil.className = "liste";
+stationsDeLAccueil.ariaLabel = "Stations";
 const listeDesStations = document.createElement("div");
 listeDesStations.ariaLive = "polite";
+// « + station », sous la liste : le champ du code s'ouvre dessous, et nulle part ailleurs. Il est posé
+// une fois : une relecture ne vide pas ce que le chef tape.
+const ouvrirLAppairage = /** @type {HTMLButtonElement} */ (bloc("button", "+ station"));
+ouvrirLAppairage.type = "button";
+ouvrirLAppairage.className = "ajout-de-station";
 const formulaireDAppairage = document.createElement("form");
+formulaireDAppairage.hidden = true;
 const codeTape = document.createElement("input");
 codeTape.placeholder = "the code a new station shows, like 7KQ2-M9XD";
 codeTape.ariaLabel = "pairing code";
@@ -213,11 +227,24 @@ codeTape.spellcheck = false;
 const appairage = document.createElement("button");
 appairage.type = "submit";
 appairage.textContent = "pair";
+const renoncerAppairage = /** @type {HTMLButtonElement} */ (bloc("button", "cancel"));
+renoncerAppairage.type = "button";
 const appairageDit = document.createElement("p");
 appairageDit.ariaLive = "polite";
-formulaireDAppairage.append(codeTape, appairage);
-// Les projets de ses stations, dessous, et le parcours « Add a project » : le dépôt, ses stations, sa
+formulaireDAppairage.append(codeTape, appairage, renoncerAppairage, appairageDit);
+stationsDeLAccueil.append(listeDesStations, ouvrirLAppairage, formulaireDAppairage);
+const santeDeLAccueil = document.createElement("p");
+santeDeLAccueil.id = "sante";
+santeDeLAccueil.ariaLive = "polite";
+// La page d'une station, ouverte d'un clic sur sa ligne : son état, ses pannes et leur bouton, les
+// projets que l'app lui a ajoutés, et le parcours « Add a project » — le dépôt, ses stations, sa
 // principale — le serveur proposé d'office —, ses décisions, et valider. Rien ne s'y tape au terminal.
+const pageDeStation = document.createElement("section");
+pageDeStation.id = "station";
+pageDeStation.className = "carte";
+const enTeteDeStation = document.createElement("header");
+const pannesDeStation = document.createElement("div");
+pannesDeStation.ariaLive = "polite";
 const listeDesProjets = document.createElement("div");
 listeDesProjets.ariaLive = "polite";
 const ouvrirLeParcours = /** @type {HTMLButtonElement} */ (bloc("button", "add a project to your stations"));
@@ -263,7 +290,10 @@ formulaireDAjout.append(
   annulerAjout,
   ajoutRefuse,
 );
-stations.append(bloc("h3", "Stations"), listeDesStations, formulaireDAppairage, appairageDit, bloc("h3", "Projects on your stations"), listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit);
+const retourALAccueil = /** @type {HTMLButtonElement} */ (bloc("button", "‹ All projects"));
+retourALAccueil.type = "button";
+retourALAccueil.className = "retour";
+pageDeStation.append(retourALAccueil, enTeteDeStation, pannesDeStation, bloc("h3", "Projects added from this app"), listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit);
 
 /** @type {Map<number, { terminal: Terminal, xterm: Xterm, ajuste: FitAddon, cadre: HTMLDivElement }>} */
 const vues = new Map();
@@ -367,9 +397,12 @@ let BANNIERE;
 // Le calibrage que la station accepte, pour le parcours « Add a project » : donné au démarrage.
 /** @type {{ modeles: readonly string[], efforts: readonly string[] }} */
 let CALIBRAGE_DU_PROJET = { modeles: [], efforts: [] };
-// Dans « Tous les projets », la carte, l'en-tête et le corps de chaque projet.
-/** @type {Map<string, { afaire: HTMLElement, carte: HTMLElement, tete: HTMLElement, corps: HTMLElement }>} */
-const blocs = new Map();
+// Ce que l'accueil dit en dernier (accueil.ts) : une ligne par projet, une par station, la santé. Indéfini : pas encore reçu.
+/** @type {import("../accueil.ts").Accueil | undefined} */
+let accueilVu;
+// La station dont la page est ouverte, par son gist. Aucune : c'est l'accueil — ou un projet.
+/** @type {string | undefined} */
+let stationOuverte;
 // Ce que `faits` a rendu en dernier pour chaque projet, et la demande à laquelle il répond :
 // une par barre posée. Sans entrée, le projet n'a pas encore été lu.
 /** @type {Map<string, Dessinable>} */
@@ -1227,10 +1260,10 @@ function obtenuEnUneLigne(projet, recue, plusPilotable) {
   return [lectureIndisponible(document, ligne, suite === undefined ? recue.erreur : `${recue.erreur}\n\n${suite}`)];
 }
 
-// Ce qu'une lecture donne à voir, dans « Tous les projets », à côté du terminal et dans
+// Ce qu'une lecture donne à voir, dans le panneau de l'espace, à côté du terminal et dans
 // un onglet de contenu : un des sept états, dit en toutes lettres, et dessous ce
 // que l'app a obtenu. Celle d'un onglet n'a rien de mis à part : ce n'est pas `status`.
-/** @param {Montree | Lecture} recue @param {HTMLElement} tete @param {HTMLElement} corps @param {boolean} [accueil] vrai dans « Tous les projets » : le détail est replié ou au survol, aucune commande n'est écrite */
+/** @param {Montree | Lecture} recue @param {HTMLElement} tete @param {HTMLElement} corps @param {boolean} [accueil] vrai : le détail est replié ou au survol, aucune commande n'est écrite */
 function rendre(recue, tete, corps, accueil = false) {
   // Le projet a pu quitter le fichier depuis la demande : il n'y a plus rien à lui écrire.
   const projet = projetDe(recue.projet);
@@ -3529,33 +3562,75 @@ async function passer() {
   poserCode();
 }
 
-// Les stations appairées, une ligne chacune : son nom, sa machine, et ce que GitHub dit d'elle —
-// « online · version X · no project », ou depuis quand elle est hors ligne. Une lecture ratée
-// laisse la liste d'avant, et le dit dessous.
-function poserStations() {
-  if (stationsVues === undefined) {
-    const tete = bloc("p", "your stations: first read on GitHub in progress…");
-    tete.dataset.etat = "en-cours";
-    return listeDesStations.replaceChildren(tete);
-  }
-  const lignes = stationsVues.stations.flatMap(({ id, nom, machine, etat, ligne, pannes }) => {
-    const pose = document.createElement("p");
-    pose.dataset.etat = etat;
-    pose.append(bloc("strong", nom), bloc("span", machine === "" ? "" : ` — ${machine}`), bloc("span", ` · ${ligne}`));
-    return [pose, ...pannes.map((panne) => poserPanne(id, panne))];
-  });
-  listeDesStations.replaceChildren(
-    ...(lignes.length === 0 ? [bloc("p", "no station yet: install one, then type here the code it shows")] : lignes),
-    ...(stationsVues.sans === undefined ? [] : [propos(stationsVues.sans)]),
-  );
+// Une ligne de l'accueil : sa pastille, son nom, ce qui s'y passe — et, au survol, ce qu'elle tait.
+// Toute la ligne est un bouton : un clic n'importe où l'ouvre. Elle ne porte aucun autre geste.
+/** @param {string} nom @param {{ ton: string, dit: string, survol: string }} ligne @param {() => void} ouvrirLa */
+function ligneDAccueil(nom, { ton, dit, survol }, ouvrirLa) {
+  const cree = document.createElement("button");
+  cree.type = "button";
+  cree.className = "ligne";
+  cree.title = survol;
+  cree.ariaLabel = `${nom} — ${dit}`;
+  const appele = bloc("strong", nom);
+  appele.className = "mono";
+  const suite = bloc("span", "›");
+  suite.className = "ouvrir";
+  suite.ariaHidden = "true";
+  cree.append(pastille(dit, ton), appele, bloc("span", dit), suite);
+  cree.addEventListener("click", ouvrirLa);
+  return cree;
 }
 
-// Les projets des stations, un bloc chacun : son dépôt et sa branche, puis chacune de ses stations —
-// la principale d'abord — et ce qu'elle en dit : servi, à autoriser sur GitHub (un bouton par page),
-// en préparation, refusé et pourquoi. Puis le geste qui le retire, en deux clics.
+// L'accueil : les projets dans l'ordre du fichier, puis les stations, puis la santé — tels que le
+// process principal les a dits (accueil.ts). Un projet qu'il ne dit pas encore attend sa première lecture.
+function poserAccueil() {
+  const lignes = new Map((accueilVu?.projets ?? []).map((ligne) => [ligne.nom, ligne]));
+  projetsDeLAccueil.replaceChildren(
+    ...(configuration.projets.length === 0
+      ? [bloc("p", "no project yet: “+” in the bar adds one")]
+      : configuration.projets.map((projet) => ligneDAccueil(projet.nom, lignes.get(projet.nom) ?? { ton: "gris", dit: "first read in progress…", survol: "" }, () => void ouvrir(projet)))),
+  );
+  const stations = accueilVu?.stations;
+  listeDesStations.replaceChildren(
+    ...(stations === undefined
+      ? [bloc("p", "your stations: first read on GitHub in progress…")]
+      : stations.length === 0
+        ? [bloc("p", "no station yet: install one, then pair it here with “+ station”")]
+        : stations.map((station) => ligneDAccueil(station.nom, station, () => ouvrirStation(station.id)))),
+  );
+  const sante = accueilVu?.sante ?? { ton: "gris", dit: "Max ?  ·  GitHub ?", survol: "first readings in progress" };
+  santeDeLAccueil.dataset.ok = String(sante.ton === "vert");
+  santeDeLAccueil.title = sante.survol;
+  santeDeLAccueil.replaceChildren(pastille(sante.dit, sante.ton), bloc("span", sante.dit));
+}
+
+// La page d'une station : en tête, sa ligne de l'accueil — son nom, sa pastille, son état, et sa machine
+// au survol ; dessous, ses pannes, chacune avec son bouton ; puis les projets que l'app lui a ajoutés.
+function poserPageDeStation() {
+  const station = stationsVues?.stations.find(({ id }) => id === stationOuverte);
+  const ligne = accueilVu?.stations?.find(({ id }) => id === stationOuverte);
+  if (station === undefined) {
+    enTeteDeStation.replaceChildren(bloc("p", stationsVues === undefined ? "reading your stations on GitHub…" : "this station is no longer paired with this app"));
+    pannesDeStation.replaceChildren();
+  } else {
+    const titre = bloc("h2", station.nom);
+    titre.className = "mono";
+    const dit = ligne?.dit ?? station.dit;
+    const etatDit = bloc("span", dit);
+    enTeteDeStation.title = ligne?.survol ?? station.machine;
+    enTeteDeStation.replaceChildren(titre, pastille(dit, ligne?.ton), etatDit);
+    pannesDeStation.replaceChildren(...station.pannes.map((panne) => poserPanne(station.id, panne)));
+  }
+  poserProjets();
+}
+
+// Sur la page d'une station, les projets que l'app lui a ajoutés, un bloc chacun : son dépôt et sa
+// branche, puis chacune de ses stations — la principale d'abord — et ce qu'elle en dit : servi, à
+// autoriser sur GitHub (un bouton par page), en préparation, refusé et pourquoi. Puis le geste qui le
+// retire, en deux clics.
 function poserProjets() {
-  if (projetsVus === undefined) return listeDesProjets.replaceChildren(bloc("p", stationsVues === undefined ? "" : "projects on your stations: reading GitHub…"));
-  const blocs = projetsVus.projets.map((projet) => {
+  if (projetsVus === undefined) return listeDesProjets.replaceChildren(bloc("p", stationsVues === undefined ? "" : "reading GitHub…"));
+  const blocs = projetsVus.projets.filter(({ stations }) => stations.some(({ id }) => id === stationOuverte)).map((projet) => {
     const pose = document.createElement("div");
     pose.className = "projet-de-station";
     const tete = document.createElement("p");
@@ -3579,8 +3654,8 @@ function poserProjets() {
     return pose;
   });
   listeDesProjets.replaceChildren(
-    ...(blocs.length === 0 ? [bloc("p", "no project on your stations yet")] : blocs),
-    ...(projetsVus.sans === undefined ? [] : [propos(projetsVus.sans)]),
+    ...(blocs.length === 0 ? [bloc("p", "none yet")] : blocs),
+    ...(projetsVus.sans === undefined ? [] : [lectureIndisponible(document, "GitHub could not be read: this list is the one from before", projetsVus.sans)]),
   );
 }
 
@@ -3611,7 +3686,7 @@ function poserChoixDesStations() {
   const vise = parcours;
   choixDesStations.replaceChildren(
     ...(appairees.length === 0
-      ? [bloc("p", "no station to serve it: pair one above first")]
+      ? [bloc("p", "no station to serve it: pair one first, with “+ station” on the home")]
       : appairees.map((station) => {
           const ligne = document.createElement("p");
           ligne.dataset.etat = station.etat;
@@ -3746,11 +3821,26 @@ async function jouerPanne(id, cle, bouton) {
     dit = `nothing was done: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
   }
   pannesDites.set(`${id} ${cle}`, dit);
-  poserStations();
+  poserPageDeStation();
 }
 
+// « + station » ouvre le champ du code, sous la liste des stations ; « cancel » le referme, vide.
+ouvrirLAppairage.addEventListener("click", () => {
+  formulaireDAppairage.hidden = false;
+  ouvrirLAppairage.hidden = true;
+  codeTape.focus();
+});
+renoncerAppairage.addEventListener("click", () => fermerLAppairage());
+function fermerLAppairage() {
+  formulaireDAppairage.hidden = true;
+  ouvrirLAppairage.hidden = false;
+  codeTape.value = "";
+  appairageDit.textContent = "";
+  appairageDit.title = "";
+}
 // Le code tapé part au process principal, qui cherche sur GitHub la station qui le montre : elle
-// est appairée, et la liste la montre — ou le refus se lit sous le champ, en une ligne.
+// est appairée, le champ se referme, et la liste la montre — rien d'autre ne le dit. Ou le refus se lit
+// sous le champ, en une ligne ; ce que GitHub en a dit, au survol.
 formulaireDAppairage.addEventListener("submit", (evenement) => {
   evenement.preventDefault();
   void appairer();
@@ -3758,15 +3848,16 @@ formulaireDAppairage.addEventListener("submit", (evenement) => {
 async function appairer() {
   appairage.disabled = true;
   appairageDit.textContent = "looking for the station that shows this code, on GitHub…";
+  appairageDit.title = "";
   try {
     const rendu = await brigade.appairer(codeTape.value);
-    if ("refus" in rendu) appairageDit.textContent = rendu.refus;
-    else {
-      appairageDit.textContent = `station ${rendu.appairee} is paired with this app`;
-      codeTape.value = "";
-    }
+    if ("refus" in rendu) {
+      appairageDit.textContent = rendu.refus;
+      appairageDit.title = rendu.detail ?? "";
+    } else fermerLAppairage();
   } catch (erreur) {
-    appairageDit.textContent = `nothing was paired: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+    appairageDit.textContent = "nothing was paired: the app could not ask GitHub";
+    appairageDit.title = erreur instanceof Error ? erreur.message : String(erreur);
   }
   appairage.disabled = false;
 }
@@ -3933,60 +4024,34 @@ function marquer() {
   lireOnglet();
 }
 
-// En tête de chaque projet de « Tous les projets » : ce qu'il y a à faire — la bande d'alertes dite en
-// une ligne par alerte —, et le geste qui ouvre son espace, où chaque geste est un bouton. Sans alerte,
-// la ligne le dit, et le bouton ouvre quand même : c'est de là que se traite le projet.
-/** @param {Projet} projet */
-function poserAFaire(projet) {
-  const tenu = blocs.get(projet.nom);
-  if (tenu === undefined) return;
-  const alertes = projet.box === undefined ? [] : (bandes.get(projet.nom) ?? []);
-  const gestes = document.createElement("div");
-  gestes.className = "gestes";
-  gestes.append(bouton(`open ${projet.nom}`, () => void ouvrir(projet)));
-  tenu.afaire.replaceChildren(
-    ...alertes.map(({ dit, ton }) => {
-      const ligne = document.createElement("p");
-      ligne.dataset.ton = ton;
-      ligne.append(pastille(dit, ton), bloc("strong", dit));
-      return ligne;
-    }),
-    gestes,
-  );
-}
-
-// Tous les projets, dans l'ordre du fichier. L'écran se regarde : ce qui
-// s'y voit se traite dans l'espace du projet, par la barre.
+// Tous les projets, dans l'ordre du fichier, puis les stations : l'écran se regarde, et un clic
+// ouvre ce qu'il montre. Ce qui s'y voit se traite dans l'espace du projet, ou sur la page de la station.
 function ouvrirTous() {
   courant = undefined;
   ajoute = false;
+  stationOuverte = undefined;
   marquer();
-  blocs.clear();
   poserCode();
-  poserStations();
-  poserProjets();
-  poserChoixDesStations();
-  tous.replaceChildren(
-    code,
-    stations,
-    ...configuration.projets.map((projet) => {
-      const tete = bloc("p", "");
-      const corps = document.createElement("div");
-      const faits = document.createElement("section");
-      faits.className = "carte";
-      attendre(projet, tete, corps);
-      poserCarte(faits, projet);
-      const afaire = document.createElement("div");
-      afaire.className = "a-faire";
-      blocs.set(projet.nom, { afaire, carte: faits, tete, corps });
-      poserAFaire(projet);
-      const article = document.createElement("article");
-      article.append(bloc("h2", projet.nom), afaire, faits, tete, corps);
-      return article;
-    }),
-  );
+  poserAccueil();
+  tous.replaceChildren(bloc("h2", "Projects"), projetsDeLAccueil, bloc("h2", "Stations"), stationsDeLAccueil, santeDeLAccueil);
   brigade.tous(++demande);
 }
+
+// La page d'une station, à la place de l'accueil : « T » reste l'entrée affichée, et un geste y ramène.
+/** @param {string} id */
+function ouvrirStation(id) {
+  courant = undefined;
+  ajoute = false;
+  stationOuverte = id;
+  marquer();
+  if (parcours !== undefined) fermerParcours();
+  ajoutDit.textContent = "";
+  poserPageDeStation();
+  poserChoixDesStations();
+  tous.replaceChildren(pageDeStation);
+  retourALAccueil.focus();
+}
+retourALAccueil.addEventListener("click", () => ouvrirTous());
 
 // Les choix d'une liste, précédés de celui qui n'en est pas un : rien n'est choisi d'avance.
 /** @param {HTMLSelectElement} liste @param {readonly string[]} choix @param {string} aucun */
@@ -4096,6 +4161,7 @@ hote.addEventListener("change", () => void proposerRacine());
 function ouvrirAjout() {
   courant = undefined;
   ajoute = true;
+  stationOuverte = undefined;
   marquer();
   ou.textContent = `${configuration.projets.length === 0 ? "No project yet. " : ""}It is installed on its box, then written to ${configuration.chemin} — which you can also edit by hand: the app re-reads it as soon as it changes.`;
   choisi.textContent = dossier === "" ? "no folder chosen" : dossier;
@@ -4235,6 +4301,7 @@ function vider() {
 /** @param {Projet} projet */
 async function ouvrir(projet) {
   courant = projet;
+  stationOuverte = undefined;
   if (urgenceChoisie !== projet.nom) urgenceChoisie = "";
   nonEcrit = nonEcritSecond = "";
   // Une confirmation ouverte sur un autre projet ne reste pas ouverte : rien n'en part.
@@ -4298,23 +4365,18 @@ brigade.surEtat((terminal) => {
 brigade.surLecture((recue, servies) => {
   // Demandée par un écran quitté depuis, elle était déjà en route : elle n'est pas pour celui-ci.
   if (recue.demande !== demande) return;
-  if (courant === undefined) {
-    const tenu = blocs.get(recue.projet);
-    if (tenu !== undefined) rendre(recue, tenu.tete, tenu.corps, true);
-  } else if (recue.projet === courant.nom) {
+  if (recue.projet === courant?.nom) {
     rendre(recue, lu, lecture, true);
     servir(courant, servies);
   }
 });
 // Les faits d'un projet : ils remplacent ceux d'avant, partout où ils se dessinent —
-// sa pastille dans la barre, sa carte dans « Tous les projets », et son espace s'il est affiché.
+// sa pastille dans la barre, et son espace s'il est affiché — sa ligne de l'accueil vient par `surAccueil`.
 // La bande d'alertes d'un projet : posée tout de suite si c'est celui qui est affiché.
 brigade.surAlertes(({ projet, alertes, signal }) => {
   bandes.set(projet, alertes);
   signaux.set(projet, signal);
   marquerSignal(projet);
-  const dessinee = configuration.projets.find((candidat) => candidat.nom === projet);
-  if (courant === undefined && dessinee !== undefined) poserAFaire(dessinee);
   if (courant?.nom === projet) poserAlertes(courant);
 });
 // Le chef a cliqué la notification de l'urgence d'un projet : la fenêtre est déjà devant. Le projet
@@ -4349,11 +4411,7 @@ brigade.surFaits((recue) => {
   if (recue.demande !== demandeFaits) return;
   tenus.set(recue.projet, recue);
   marquerPastille(recue.projet);
-  const projet = configuration.projets.find(({ nom }) => nom === recue.projet);
-  const tenu = blocs.get(recue.projet);
-  if (projet === undefined) return;
-  if (courant === undefined && tenu !== undefined) poserCarte(tenu.carte, projet);
-  else if (courant?.nom === recue.projet) dessiner();
+  if (courant?.nom === recue.projet) dessiner();
 });
 // Ce que l'onglet de contenu affiché a rendu : une lecture ratée s'y lit comme
 // dans le panneau, et n'en retire rien. Celle de l'onglet Manager vient avec l'état du
@@ -4367,16 +4425,23 @@ brigade.surContenu((recue, vu, desGrants) => {
   grantsVus = desGrants;
   poserGrants();
 });
-// Les clones relus : leur état remplace celui d'avant, en tête de « Tous les projets » et sur sa case.
+// Les clones relus : leur état remplace celui d'avant, dans Paramètres et sur la case « T ».
 brigade.surCode((vu) => {
   codeVu = vu;
   poserCode();
 });
-// Les stations relues : leur liste remplace celle d'avant, sur « Tous les projets ».
+// Les stations relues : ce que la page d'une station en montre suit — leurs lignes de l'accueil viennent par `surAccueil`.
 brigade.surStations((vu) => {
   stationsVues = vu;
-  poserStations();
+  if (stationOuverte !== undefined) poserPageDeStation();
   poserChoixDesStations();
+});
+// L'accueil redit : ses lignes remplacent celles d'avant, s'il est affiché — et l'en-tête de la page d'une station.
+brigade.surAccueil((vu) => {
+  accueilVu = vu;
+  if (courant !== undefined || ajoute) return;
+  if (stationOuverte === undefined) poserAccueil();
+  else poserPageDeStation();
 });
 // Les projets des stations relus : leurs blocs remplacent ceux d'avant ; le parcours ouvert garde ses choix.
 brigade.surProjetsDesStations((vu) => {
@@ -4544,6 +4609,7 @@ function afficher() {
 
   const meme = configuration.projets.find((projet) => projet.nom === courant?.nom);
   if (meme !== undefined) void ouvrir(meme);
+  else if (stationOuverte !== undefined && !ajoute) ouvrirStation(stationOuverte);
   else if (ajoute || configuration.projets.length === 0) ouvrirAjout();
   // L'app s'ouvre sur « Tous les projets », en tête de la barre.
   else ouvrirTous();
@@ -4570,6 +4636,7 @@ for (const champ of CALIBRAGE) proposer(calibre(champ), champ.endsWith("modele")
 codeVu ??= demarrage.code;
 stationsVues ??= demarrage.stations;
 projetsVus ??= demarrage.projetsDesStations;
+accueilVu ??= demarrage.accueil;
 CALIBRAGE_DU_PROJET = demarrage.calibrage;
 let configuration = demarrage.configuration;
 // Le terminal mesure ses cases à l'ouverture : sa police, embarquée, est chargée avant qu'aucun

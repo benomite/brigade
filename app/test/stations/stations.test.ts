@@ -104,7 +104,7 @@ test("le code tapé appaire la station : elle apparaît sur la home, « online �
   const ecrit = JSON.parse(github.gist("box1").files[FICHIER_APPAIRAGE]?.content ?? "null") as { appaireeLe: string; empreinte: string };
   assert.equal(ecrit.empreinte, empreinte(CODE));
   assert.equal(ecrit.appaireeLe, new Date(MAINTENANT).toISOString());
-  assert.deepEqual(stations.vu()?.stations, [{ id: "box1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [] }]);
+  assert.deepEqual(stations.vu()?.stations, [{ id: "box1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null }]);
   assert.deepEqual(lectures.at(-1), stations.vu());
 });
 
@@ -151,6 +151,29 @@ test("la station éteinte passe hors ligne sans quitter la liste ; GitHub muet, 
   assert.deepEqual(relue.stations.map(({ nom, etat, ligne }) => ({ nom, etat, ligne })), [{ nom: "box", etat: "hors-ligne", ligne: "offline for 10 min · version 1.4.0 · 1 project: brigade" }]);
   github.panne(false);
   assert.equal((await stations.relire()).sans, undefined);
+});
+
+test("GitHub qui limite les appels du compte : la lecture le dit, avec l'heure où il les rend, lue sans en dépenser un", async (t) => {
+  const github = unGitHub(t);
+  github.station("box1", publie({ connexionMax: { etat: "connectee", depuis: null } }));
+  const { stations } = desStations(t);
+  assert.ok("appairee" in (await stations.appairer(CODE)));
+  assert.deepEqual(
+    (await stations.relire()).stations.map(({ dit, version, projets, max }) => ({ dit, version, projets, max })),
+    [{ dit: "online", version: "1.4.0", projets: [], max: "connectee" }],
+  );
+
+  const reprise = Date.parse("2026-10-15T15:16:00Z");
+  writeFileSync(join(github.repertoire, "limite"), String(reprise / 1000));
+  const limitee = await stations.relire();
+  assert.match(limitee.sans ?? "", /rate limit exceeded/);
+  assert.deepEqual(limitee.limite, { reprise: new Date(reprise).toISOString() });
+  assert.equal(limitee.stations.length, 1, "la liste d'avant reste");
+
+  rmSync(join(github.repertoire, "limite"));
+  const rendue = await stations.relire();
+  assert.equal(rendue.sans, undefined);
+  assert.equal(rendue.limite, undefined);
 });
 
 test("l'app ne joint jamais une station : tout passe par `gh api` sur les gists du compte", async (t) => {

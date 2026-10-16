@@ -192,7 +192,7 @@ describe("les polices : Archivo pour l'interface, JetBrains Mono pour ce qui se 
     const mono = regles(lire("vue.css")).filter(({ declarations }) => declarations.get("font-family") === "var(--police-mono)");
     assert.deepEqual(
       mono.map(({ selecteurs }) => selecteurs),
-      [[".mono", "pre", "code", "#projets button", "#formulaire input", "#formulaire select", "#choisi", '#retrait input:not([type="checkbox"])', ".carte dd", "#rail h4 span:last-child", "#rail .bon p"], ["#tous h2"]],
+      [[".mono", "pre", "code", "#projets button", "#formulaire input", "#formulaire select", "#choisi", '#retrait input:not([type="checkbox"])', ".carte dd", "#rail h4 span:last-child", "#rail .bon p"]],
     );
     // Ce que l'app dit elle-même sur plusieurs lignes revient à la police de l'interface.
     const propos = regles(lire("vue.css")).find(({ selecteurs }) => selecteurs.includes("pre.propos"));
@@ -255,12 +255,12 @@ async function ouvrirUnEspace(reponses: Reponses = {}) {
 }
 
 describe("le texte relayé de la box s'affiche à l'identique, sans troncature ni reformatage", () => {
-  test("dans « Tous les projets » : le bloc `attend` et la sortie de `status`, mot pour mot", async () => {
+  test("« Tous les projets » ne relaie rien : ce que la box rend se lit dans l'espace du projet (ci-dessous), mot pour mot", async () => {
     const vue = await jouerLaVue(REPONSES);
     const lecture: Montree = { projet: PARADE, demande: vue.dernier("tous")[0] as number, a: A, attend: BLOC, sorties: [{ commande: "status", texte: RELAYE }] };
     vue.dire("surLecture", lecture, { projet: PARADE, pages: [], aLancer: [], illisibles: [], empeche: [] });
-
-    assert.deepEqual(textes(relayes(vue.element("tous"))), [BLOC, RELAYE]);
+    assert.deepEqual(vue.element("tous").dessous("pre"), []);
+    assert.doesNotMatch(vue.element("tous").textContent, /rail {2}3 tickets|attend {5}1 décision/);
   });
 
   test("dans le second, à droite : ce que le terminal reçoit est ce que le pty a écrit, tel quel", async () => {
@@ -544,9 +544,11 @@ describe("le monospace est une information, pas un style", () => {
     }
     // Sur plusieurs lignes, les mots de l'app sont à part de ceux de la box : jamais dans un `pre` nu.
     const vue = await jouerLaVue({ ...REPONSES, demarrage: () => ({ ...demarrage(), configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }) }) });
-    // Une lecture qui manque se dit en une ligne ; ce qu'elle suppose du fichier est au survol.
-    const sansBox = vue.element("tous").dessous("p").find((pose) => pose.className === "indisponible");
-    assert.match(sansBox?.textContent ?? "", /^“parade” does not say where its box is: nothing is read\??$/);
+    // Sur l'accueil, un projet sans box se dit en une ligne ; ce qu'elle suppose du fichier est au survol.
+    vue.dire("surAccueil", { projets: [{ nom: PARADE, ton: "gris", dit: "no box: nothing is read", survol: "its entry in the projects file does not say where its box is" }], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } });
+    const sansBox = vue.element("tous").dessous("button").find((pose) => pose.className === "ligne");
+    assert.equal(sansBox?.textContent, `${PARADE}no box: nothing is read›`);
+    assert.equal(sansBox?.title, "its entry in the projects file does not say where its box is");
     assert.equal(vue.element("tous").dessous("pre").length, 0);
   });
 });
@@ -632,7 +634,7 @@ describe("le cadre est fait de cartes, sur fond sombre", () => {
   test("une seule règle fait la carte, et tout ce qui se lit d'un bloc la porte : les cinq onglets, « Tous les projets », l'ajout", () => {
     const feuille = regles(lire("vue.css"));
     const carte = feuille.find(({ declarations }) => declarations.get("background") === "var(--carte)" && declarations.get("border-radius") === "var(--rayon-carte)" && declarations.get("position") === undefined);
-    assert.deepEqual(carte?.selecteurs, [".carte", "#service", "#retrait", "#provenance", "#arreter-cuisine", "#couleurs", "#pages", "#manager", "#grants", "#code", "#tous article", "#formulaire"]);
+    assert.deepEqual(carte?.selecteurs, [".carte", "#service", "#retrait", "#provenance", "#arreter-cuisine", "#couleurs", "#pages", "#manager", "#grants", "#code", "#tous .liste", "#formulaire"]);
     assert.equal(carte?.declarations.get("border"), "1px solid var(--trait)");
     assert.equal(feuille.find(({ selecteurs }) => selecteurs.join() === "body")?.declarations.get("background"), "var(--fond)");
     // Les colonnes du rail, les bons, le bloc de ce qui attend, la sortie relayée : chacun son cadre.

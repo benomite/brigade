@@ -15,9 +15,9 @@ s'ouvre **par-dessus le rail**, et le rail revient tel que tu l'avais laissé qu
 le bouton fait le geste (ou écrit la demande dans le second — « ask the second »), et rien d'autre n'est
 écrit à plat. Ce que la box en dit mot pour mot, la raison et le geste en toutes lettres se lisent au
 survol de l'icône « ? » de la ligne ; le prix d'un geste qui coûte, au survol de son bouton — jamais un
-« cost: … » sous lui, et rien du tout quand il est nul. **« Tous les projets » commence, pour chaque
-projet, par ce qu'il y a à faire** (ses alertes en une ligne, et le bouton qui ouvre son espace) ; ce que
-la box a dit de son état est replié, et une lecture qui échoue se dit en une ligne, le détail au survol.
+« cost: … » sous lui, et rien du tout quand il est nul. **« Tous les projets » est la vue d'ensemble de
+brigade** : une ligne par projet, une par station, chacune avec sa pastille et ce qui s'y passe en
+quelques mots, et un clic l'ouvre — on n'y agit pas, on y regarde, puis on va où ça se décide.
 **Cost, la vérification d'un projet et Settings suivent les mêmes règles** : aucun mode d'emploi à plat
 (l'explication d'un onglet, à quoi sert une étape de l'installation et ce qui arrive si on la saute vivent
 au survol d'une icône « ? »), chaque geste est un bouton qui dit son mot — un geste qui écrit le début d'une
@@ -25,12 +25,13 @@ commande dans le second se nomme (« Set the cooks of a station… »), la comma
 une lecture en échec tient en une ligne (le texte de `ssh`, le renvoi et le code de sortie au survol), et une
 confirmation de geste coûteux dit son prix en une ligne, le reste et sa source au survol.
 **Le journal n'est plus à l'écran** : c'est de l'outillage de panne, il s'ouvre par le geste
-« journal », en tête de l'espace. Et en tête de la barre, l'écran **Tous les projets** : la même lecture pour tous tes projets
-d'un coup, avec, pour chacun, si tu peux encore le piloter d'ici.
+« journal », en tête de l'espace. Et en tête de la barre, l'écran **Tous les projets** : tes projets et tes
+stations d'un coup d'œil, et la santé de Max et de GitHub en une ligne.
 
 **L'app dit aussi quand son propre code est en retard.** Elle tourne sur le code d'un clone, et un
-clone que personne ne met à jour, c'est une app qui montre moins que ce qui est livré : en tête de
-« Tous les projets », elle dit de combien de commits son clone est en retard sur son origine (voir
+clone que personne ne met à jour, c'est une app qui montre moins que ce qui est livré : la case **T**
+passe en jaune, son survol et les réglages de chaque projet disent de combien de commits son clone est
+en retard sur son origine (voir
 « Le code de l'app : à jour, ou en retard »). Et elle passe à la nouvelle version d'elle-même : à
 sa prochaine ouverture, ou tout de suite d'un clic — sans terminal, sans commande à recopier.
 
@@ -73,7 +74,7 @@ Trois mots se ressemblent, et ne disent pas la même chose :
 
 | Le mot | Ce qu'il désigne | Où il se lit |
 |---|---|---|
-| **Tous les projets** | **un écran de l'app** : la vue d'ensemble, en tête de la barre. Il ne lance et n'arrête rien | la case ronde **T** |
+| **Tous les projets** | **un écran de l'app**, l'accueil : la vue d'ensemble de brigade — tes projets, tes stations, la santé de Max et de GitHub —, en tête de la barre. Il ne lance et n'arrête rien | la case ronde **T** |
 | **la cuisine** d'un projet | **un état du runtime, sur la box** : `ouverte`, `retenue`, `arrêtée`, `éteinte`. C'est elle que ton « stop » arrête, et elle seule | la pastille, la carte, la ligne `cuisine` de `status`, la bannière `CUISINE À L'ARRÊT` |
 | **`en cuisine`** | **l'étape d'un ticket** : un cook le tient, entre `en attente` et `en pass` — ce que le rail appelle `pris`. Elle parle d'un ticket, pas du projet | la liste des tickets d'une épique, et `pass` |
 
@@ -357,8 +358,8 @@ geste le laisse valoir.
 | `LA BOX « box » N'A PAS FINI DE RÉPONDRE` | `ssh` a été arrêté au délai (trois minutes pour le plan, un quart d'heure pour le reste) | redemander le plan : l'app ne dit pas désinstallé un projet dont la box n'a pas répondu |
 
 **Désinstallé, le projet n'est plus pilotable depuis l'app, et elle le dit.** Il reste dans la
-barre, sans pastille et en pointillé ; son panneau, son bloc dans « Tous les projets » et ses
-onglets affichent `DÉSINSTALLÉ DE LA BOX « box » — plus pilotable depuis l'app`, à la place de ce
+barre, sans pastille et en pointillé ; sa ligne de « Tous les projets » le dit grisée
+(`uninstalled from its box: nothing is read`), et son panneau et ses onglets affichent `DÉSINSTALLÉ DE LA BOX « box » — plus pilotable depuis l'app`, à la place de ce
 que la box disait de lui. **L'app ne lit plus sa box** — ni `status`, ni `faits`, ni onglet —, ses
 boutons et sa mise en service ne sont plus proposés : ce n'est pas `JOINT, MAIS PLUS PILOTABLE`,
 qui dirait un runtime à remettre à niveau. Son second et ses shells, eux, restent : ils tournent sur
@@ -469,65 +470,71 @@ projets ne sont pas touchés.
 
 ## Tous les projets, d'un coup
 
-L'app s'ouvre dessus, et la case ronde **T**, en tête de la barre, y ramène. Un bloc par projet,
-dans l'ordre du fichier : son nom, **sa carte** — l'état de sa cuisine en un mot, cinq compteurs,
-ses cooks en cours, le dernier événement (voir « Ce qui est dessiné ») —, puis **l'état de sa lecture en toutes lettres
-avec son heure**, puis **ce qui t'attend, mis à part**, puis le reste de la sortie de `ssh <hote> brigade <nom> status`
-et celle de `ssh <hote> brigade <nom> station`, mot pour mot.
+*Ticket : #870.* L'app s'ouvre dessus, et la case ronde **T**, en tête de la barre, y ramène. C'est
+**la vue d'ensemble de brigade** : ce qui est transverse, et rien d'autre. Ce qui tient à un projet —
+une information, un réglage, un geste — est dans son espace ; ce qui tient à une station, sur sa page.
 
-- **Ce qui t'attend, projet par projet** : le bloc `attend` de chaque `status`, en tête de son
-  projet, sur son propre fond — et `rien n'attend le chef` quand c'est ce que le runtime dit (voir
-  « Ce qui t'attend, mis à part »).
-- **Ce qui avance, ce qui coince** : c'est `status` qui le dit, là où il le dit — le tableau de
-  « Ce que la box dit du projet » vaut ici tel quel.
-- **Le quota et la machine** : les lignes `quota` (`disponible`, ou `86 — épuisé, retour à …`) et
-  `machine` (`tient`, ou `SATURÉE depuis … — charge de 14,2 pour 12 au plus`) de `station`. Le
-  runtime ne dit la mesure de la machine que lorsqu'elle sature : l'app n'en invente pas une.
-- **Rien ne s'y clique**, sauf la mise à jour d'un clone en retard, en tête (voir « Le code de
-  l'app : à jour, ou en retard »). Ce que tu y vois se traite dans l'espace du projet, par la
-  barre — la bannière d'arrêt et son bouton y sont aussi.
+```
+PROJECTS
+● brigade     1 decision awaits you · #867 cooking                 ›
+● espace      5 decisions await you, for 2 d                       ›
+● calculus    base red · #655 being repaired                       ›
 
-Sous sa carte, la lecture de chaque projet est dans **un de sept états**, qui ne se ressemblent pas :
+STATIONS
+● parade-box  online · 2 cooks · brigade, espace, calculus         ›
+○ Mac         offline for 12 min · no project                      ›
+                                                          + station
 
-| À l'écran | Ce que l'app a obtenu | Ce qu'elle montre dessous |
-|---|---|---|
-| `pilotable — lu à 14:32:07` | les commandes ont abouti | leurs sorties. **Un projet où rien ne se passe est ici** : un `status` calme, pas une erreur |
-| `JOINT, MAIS PLUS PILOTABLE — essai de …`, en jaune, trait pointillé | `ssh` a joint la box, et une commande y a échoué (un code autre que 255) ou n'a rien rendu en trente secondes (`ssh`, connecté, arrêté au délai) | la commande lancée, ce qu'elle a écrit, son code — puis **le geste** : mettre le runtime à jour sur sa box (`docs/runtime.md`, « Piloter ») |
-| `JOINT, MAIS INCONNU DE LA BOX — essai de …`, en jaune, trait plein | `ssh` a joint la box, et son geste a refusé le projet (code 65) : elle ne sert aucun projet sous ce nom | **ce que le geste en a dit**, tel quel — puis le nom que l'app lui a donné, et d'où il vient (`nom`, dans `app.json`) |
-| `JOINT, MAIS SANS LE DROIT DU GESTE — essai de …`, en jaune, trait plein | `ssh` a joint la box, et son geste a refusé ton compte (code 68) : il n'est pas de ceux qui peuvent le lancer | **ce que le geste en a dit**, tel quel — puis où est écrit le geste qui donne ce droit, sur la box (`docs/installer.md`, « Ajouter un humain ») |
-| `JOINT, MAIS UNE COMMANDE MANQUE SUR LA BOX — essai de …`, en jaune, trait plein | `ssh` a joint la box, et une commande n'y a pas été trouvée : le shell de la box le dit (code 127), ou le geste, pour `sudo` (code 69) | **ce que la box en a dit**, tel quel — puis où ces commandes se posent (`docs/installer.md`, « Préparer la box ») |
-| `JOINT, MAIS LE NODE DE LA BOX NE CONVIENT PAS AU RUNTIME — essai de …`, en jaune, trait plein | `ssh` a joint la box, et son geste a refusé de lancer le runtime (code 70) : `node` n'y démarre pas dans l'environnement de l'unité, ou n'est pas la version réclamée | **ce que le geste en a dit**, tel quel — puis où se pose `node` (`docs/installer.md`, « Préparer la box »). Pas de mise à jour du runtime : ce n'est pas lui qui est vieux |
-| `PAS JOINT — essai de …`, en rouge, trait plein | rien qui prouve que la box a été jointe : `ssh` lui-même a échoué (code 255), n'a pas pu être lancé, ou a été arrêté au délai sans avoir dit jusqu'où il était allé | **le message de `ssh`**, tel quel, et son code — puis où ses phrases sont expliquées (`docs/installer.md`, « Joindre la box »), et où se donne l'accès quand c'est ta clé qu'il refuse (« Ajouter un humain »). Ou le délai, dit par l'app, sans renvoi |
+● Max ✓  ·  GitHub ✓
+```
 
-- **L'app rapporte, elle ne devine pas.** « Plus pilotable » ne dit pas *pourquoi* la commande a
-  échoué : un runtime trop vieux pour ce qu'elle lui demande est le cas attendu, et le conseil de
-  mise à jour n'est donné que là. Ce qu'elle a obtenu est sous tes yeux. **Le code de sortie ne
-  choisit que l'en-tête et le renvoi** : 65, le projet est inconnu de la box ; 68, le droit du
-  geste te manque ; 69 ou 127, une commande manque à la box ; 70, le `node` de la box ne convient pas au runtime ; tout autre code qui en vient, plus
-  pilotable. Le texte dessous n'est jamais traduit.
-- **Un lecteur sans accès le lit comme tel**, sous deux formes que l'app ne confond pas avec une
-  panne. *Joint, sans le droit du geste* : un état à lui (68). *Clé refusée* : `ssh` sort en 255,
-  comme pour une box introuvable, et **seul son message les sépare** — l'app ne le lit pas. Elle
-  reste donc à `PAS JOINT`, montre ce que `ssh` a écrit, et nomme où le lire. Dans les deux cas
-  elle dit où est écrit le geste qui donne l'accès, et ne le rejoue pas : il se joue sur la box.
-- **« Une commande manque » ne dit pas laquelle.** 127 est le code du shell de la box pour toute
-  commande introuvable : le geste pas posé (`brigade: command not found`) est le cas attendu, et
-  c'est la box qui le nomme, au-dessus.
-- **Le code 255 est celui de `ssh`.** Une commande distante qui sortirait elle-même en 255 se
-  lirait « pas joint ».
-- **Un projet muet ne retient pas les autres** : chaque projet est lu pour lui-même, toutes les
-  trente secondes, et porte sa propre heure.
-- Un projet sans `hote` y figure aussi : `aucune lecture`, et ce qui lui manque — `hote`, le nom
-  par lequel ton `ssh` joint ta box. Aucun bloc à coller.
-- Les commandes d'un projet partent **l'une après l'autre**, et la première qui échoue est
-  l'erreur affichée. Un projet peut donc être pilotable dans son espace (`status`) et ne plus
-  l'être dans « Tous les projets » (`status`, `station`) : chaque écran dit ce que *ses* commandes ont
-  rendu.
+- **Une ligne par projet**, dans l'ordre du fichier : son nom, sa pastille, et une phrase courte qui
+  dit ce qui s'y passe — **ce qui bloque d'abord**, puis **ce qui t'attend** (combien de décisions,
+  depuis quand), puis **ce qui cuit** (les tickets de ses cooks, ou ce qui est à la pass). Rien ne
+  se passe : `nothing cooking, nothing waits for you`.
+- **La pastille d'un projet** est **rouge** quand il est bloqué — base rouge, cuisine arrêtée ou
+  retenue, runtime éteint, box injoignable —, **jaune** quand une décision t'attend, **verte**
+  sinon. **Grise** tant que rien n'en est lu, ou quand rien ne peut l'être : un projet sans box, ou
+  désinstallé de la sienne. Pas lu n'est jamais vert.
+- **Une ligne par station appairée** : son nom, sa pastille, son état (`online`, ou
+  `offline for 12 min`), ce qu'elle fait — ses cooks en cours, `saturated`, `update failed`,
+  `Max connection lost`, ou `idle` — et les projets qu'elle porte. Sa machine (système, noyau) et sa
+  version ne se lisent qu'**au survol**. Pastille **rouge** quand sa connexion Max est perdue,
+  **jaune** quand elle est saturée ou qu'une mise à jour a raté, **verte** en ligne, **grise** hors
+  ligne ou illisible.
+- **Un clic n'importe où sur une ligne l'ouvre** : l'espace du projet, ou la page de la station
+  (voir « Tes stations : appairées par un code, lues sur GitHub »). **Aucune ligne ne porte de
+  geste** — ni merger, ni trier, ni retirer `fire` : les décisions se prennent dans le projet.
+- **« + station »**, sous la liste des stations, ouvre le champ du code d'appairage — nulle part
+  ailleurs sur l'accueil. Appairée, la station apparaît dans la liste et le champ se referme, sans
+  message qui reste affiché ; « cancel » le referme, vide.
+- **La ligne de santé**, en bas, résume la connexion Max et l'accès à GitHub. Tout va bien : verte
+  et discrète, `Max ✓ · GitHub ✓`. Quand l'un des deux cloche, elle dit en une phrase ce qui ne va
+  pas : `Max: token to redo within 20 d`, `Max: connection lost on Mac`,
+  `GitHub limits calls, back around 3:16 PM`, `GitHub: this computer is not signed in`. Pas encore
+  lu : `Max ?`, `GitHub ?`, et le survol dit pourquoi. Elle ne montre **aucune jauge de
+  consommation** du compte (voir la maquette, `docs/maquettes/app/README.md`).
+- **Aucune commande** (`brigade …`, `gh …`) **ni aucun texte brut d'erreur** ne s'y affiche : ce
+  qu'une ligne tait — l'heure de la lecture, pourquoi une box n'a pas répondu —, son survol le dit
+  dans les mots de l'app, et l'espace du projet le montre en entier.
+
+**D'où ça vient** (`app/src/accueil.ts`). L'accueil ne demande rien de neuf à personne : il se dessine
+de ce que l'app lit déjà. `faits` de chaque projet, toutes les trente secondes et quel que soit
+l'écran, donne l'état de sa cuisine, ses décisions en attente et ses cooks ; `status`, lu pour chaque
+projet tant que l'accueil est affiché, ajoute ce que `faits` ne porte pas — une base rouge et le
+ticket qui la répare, la cause d'une cuisine retenue, depuis quand la plus ancienne décision attend, une
+station saturée, l'échéance du jeton Max. Les stations et leur connexion Max viennent de leurs gists,
+sur GitHub. Un `status` que l'accueil ne lit plus est lâché : la ligne redit ce que `faits` seul en dit.
+
+**Ce qui a quitté l'accueil** : les blocs par projet (leur carte, le dernier événement, la sortie de
+`status` et de `station`), le retard du code de l'app — dans les réglages de chaque projet, et au
+survol de la case **T** (voir « Le code de l'app : à jour, ou en retard ») —, la liste « Projects on
+your stations » et le parcours « add a project », sur la page d'une station.
 
 ### Le code de l'app : à jour, ou en retard
 
-**En tête de l'écran, avant le premier projet**, une ligne dit où en est le code sur lequel l'app
-tourne — celui du clone d'où tu l'as lancée —, avec l'heure de sa lecture :
+**En tête des réglages de chaque projet** (Paramètres, dans son espace) — et en une ligne, **au
+survol de la case T** —, une ligne dit où en est le code sur lequel l'app tourne — celui du clone d'où tu l'as lancée —, avec l'heure de sa lecture :
 
 ```
 le code de cette app est à jour avec origin/v2 — lu à 14:32:07, relu quand tu reviens à la fenêtre
@@ -595,13 +602,18 @@ LE CODE DE CETTE APP EST EN RETARD DE 39 COMMITS SUR origin/v2 — lu à 14:32:0
 
 ### Tes stations : appairées par un code, lues sur GitHub
 
-**Sous la ligne du code de l'app**, la carte « Stations » liste les stations que tu as appairées,
-une ligne chacune — son nom, sa machine, et ce que GitHub dit d'elle :
+**Sur l'accueil**, la liste « Stations » montre celles que tu as appairées, une ligne chacune —
+son nom, son état, ce qu'elle fait et les projets qu'elle porte ; sa machine et sa version au survol
+(voir « Tous les projets, d'un coup ») :
 
 ```
-box — Linux 6.1.0 · online · version 1.4.0 · no project
-box — Linux 6.1.0 · offline for 4 min · version 1.4.0 · 1 project: brigade
+● box  online · idle · no project                         ›
+○ box  offline for 4 min · brigade                        ›
 ```
+
+**Un clic sur sa ligne ouvre la page de la station** : son nom et son état en tête, ses pannes avec
+leur bouton, les projets que l'app lui a ajoutés et le parcours « add a project » (voir « Ajouter un
+projet à tes stations, sans terminal »). « ‹ All projects » ramène à l'accueil, comme la case **T**.
 
 - **L'app ne joint aucune station.** Chaque station écrit son état dans un gist secret de ton
   compte GitHub ([docs/runtime.md](runtime.md), « Une station par machine »), et l'app le lit
@@ -610,19 +622,25 @@ box — Linux 6.1.0 · offline for 4 min · version 1.4.0 · 1 project: brigade
 - **Une station éteinte reste dans la liste**, hors ligne, avec depuis combien de temps : tout de
   suite quand elle s'est arrêtée proprement, après deux signes de vie manqués (un peu plus de
   deux minutes) quand elle s'est éteinte d'un coup. Une lecture de GitHub ratée garde la liste
-  d'avant et le dit dessous.
-- **Appairer une station neuve** : tape dans le champ le code qu'elle affiche (huit signes, comme
-  `7KQ2-M9XD` — minuscules, blancs et tirets n'y font rien), puis « pair ». L'app cherche le gist
-  qui publie ce code, y écrit l'appairage, et la station apparaît. Un code mal formé, inconnu ou
-  expiré est refusé en une ligne sous le champ, et rien n'est écrit.
+  d'avant, et la ligne de santé le dit en une phrase (`GitHub could not be read`,
+  `GitHub limits calls, back around 3:16 PM` — l'heure où GitHub rend les appels du compte se lit
+  sans en dépenser un).
+- **Appairer une station neuve** : « + station », sous la liste, ouvre le champ ; tapes-y le code
+  qu'elle affiche (huit signes, comme `7KQ2-M9XD` — minuscules, blancs et tirets n'y font rien),
+  puis « pair ». L'app cherche le gist qui publie ce code, y écrit l'appairage, le champ se referme
+  et la station apparaît dans la liste. Un code mal formé, inconnu ou expiré est refusé en une ligne
+  sous le champ, et rien n'est écrit ; quand c'est GitHub qui a manqué, ce qu'il a répondu se lit au
+  survol de cette ligne.
 
-**Quand ça casse**, la panne est dite sous la ligne de la station concernée, en une ligne, avec un
-bouton — jamais une commande à taper (`app/src/pannes/`, #798) :
+**Quand ça casse**, sa ligne de l'accueil le dit en un mot (`update failed`, `Max connection lost`),
+et la panne est dite sur la page de la station, en une ligne, avec un bouton — jamais une commande à
+taper (`app/src/pannes/`, #798) :
 
 ```
-box — Linux 6.1.0 · offline for 12 min · version 1.4.0 · 1 project: brigade
+box   offline for 12 min · brigade
   box has given no sign of life for 12 min                                  [check again]
-box — Linux 6.1.0 · online · version 1.4.0 · 1 project: brigade
+
+box   online · update failed · Max connection lost · brigade
   update to version 1.5.0 failed — stayed on version 1.4.0                  [dismiss]
   Max connection lost 12 min ago — nothing cooks on box until you log in   [log in]
 ```
@@ -655,15 +673,15 @@ GitHub. Seule l'installation diffère : un paquet sur un serveur, l'app ici (`ap
   ou `BRIGADE_STATION_DIR`, s'il est posé. Elle tourne sous ton compte, avec ton `gh` et ton
   `claude`.
 - **Elle s'appaire seule.** Comme sur un serveur, elle affiche son code dans son journal ; l'app le
-  lit et le tape à ta place, par le même geste que le champ de la home. La machine apparaît dans
-  « Stations », comme les autres : `macbook — macOS 25.0.0 · online · version code 1a2b3c4d5e6f ·
-  no project`. GitHub qui ne montre pas encore son gist : le code est retapé toutes les trente
+  lit et le tape à ta place, par le même geste que « + station » sur l'accueil. La machine apparaît
+  dans « Stations », comme les autres : `macbook  online · idle · no project`, sa machine et sa
+  version (`code 1a2b3c4d5e6f`) au survol. GitHub qui ne montre pas encore son gist : le code est retapé toutes les trente
   secondes, et le refus dit une fois.
 - **Un projet dont elle est la principale y cuit**, exactement comme sur un serveur : sa ligne
   dans `projets`, son état sous `etat/`, ses cooks lancés par la station.
 - **Elle vit avec l'app.** Fermée — ou tuée net —, l'app ferme l'entrée de sa station, qui
   s'arrête comme sur un SIGTERM : ses projets s'arrêtent, et GitHub porte l'heure de son arrêt —
-  la home la dit hors ligne. **La cuisine des projets dont elle est la principale s'arrête donc
+  l'accueil la dit hors ligne. **La cuisine des projets dont elle est la principale s'arrête donc
   avec l'app.** Morte d'elle-même, elle est relancée cinq secondes plus tard ; refusant de démarrer
   (code 2), elle ne l'est pas, et l'app dit pourquoi.
 - **Une seule par machine et par compte.** Une deuxième app ouverte ne lance pas une deuxième
@@ -682,12 +700,13 @@ poste, et le dit au lancement, quand le runtime n'est pas à côté d'elle, ou a
 
 ### Ajouter un projet à tes stations, sans terminal
 
-**Sous tes stations**, « Projects on your stations » liste les projets que tu leur as ajoutés, et ce
+**Sur la page d'une station**, « Projects added from this app » liste les projets que tu lui as
+ajoutés depuis l'app, et ce
 que chacune en dit — `served`, `waiting for your authorization on GitHub`, `being prepared`,
 `refused` (et pourquoi), `secondary` — puis, une fois servi, en combien de temps depuis que tu as
 ouvert le parcours (`served by box 1 min 12 s after “add a project” was opened`).
 
-- **« add a project to your stations »** ouvre le parcours : le **dépôt**, choisi parmi ceux que ton
+- **« add a project to your stations »**, sur cette même page, ouvre le parcours : le **dépôt**, choisi parmi ceux que ton
   `gh` lit (les plus récents d'abord ; sa branche par défaut est proposée comme branche
   d'intégration) ; les **stations** qui le servent, et sa **principale** — celle de son manager et
   de sa pass. L'app propose d'office une **station serveur**, toujours allumée ; choisir l'app d'un
@@ -702,6 +721,43 @@ ouvert le parcours (`served by box 1 min 12 s after “add a project” was open
   la page de GitHub : un clic, et la station poursuit seule.
 - **« remove »**, puis un second clic pour confirmer, retire le projet de la demande de chacune de
   ses stations : elles le retirent de leur configuration. Son état et son clone restent sur la machine.
+
+## Une lecture de box : sept états
+
+En tête du panneau de l'espace d'un projet, la lecture de sa box est dans **un de sept états**, qui ne se ressemblent pas :
+
+| À l'écran | Ce que l'app a obtenu | Ce qu'elle montre dessous |
+|---|---|---|
+| `pilotable — lu à 14:32:07` | les commandes ont abouti | leurs sorties. **Un projet où rien ne se passe est ici** : un `status` calme, pas une erreur |
+| `JOINT, MAIS PLUS PILOTABLE — essai de …`, en jaune, trait pointillé | `ssh` a joint la box, et une commande y a échoué (un code autre que 255) ou n'a rien rendu en trente secondes (`ssh`, connecté, arrêté au délai) | la commande lancée, ce qu'elle a écrit, son code — puis **le geste** : mettre le runtime à jour sur sa box (`docs/runtime.md`, « Piloter ») |
+| `JOINT, MAIS INCONNU DE LA BOX — essai de …`, en jaune, trait plein | `ssh` a joint la box, et son geste a refusé le projet (code 65) : elle ne sert aucun projet sous ce nom | **ce que le geste en a dit**, tel quel — puis le nom que l'app lui a donné, et d'où il vient (`nom`, dans `app.json`) |
+| `JOINT, MAIS SANS LE DROIT DU GESTE — essai de …`, en jaune, trait plein | `ssh` a joint la box, et son geste a refusé ton compte (code 68) : il n'est pas de ceux qui peuvent le lancer | **ce que le geste en a dit**, tel quel — puis où est écrit le geste qui donne ce droit, sur la box (`docs/installer.md`, « Ajouter un humain ») |
+| `JOINT, MAIS UNE COMMANDE MANQUE SUR LA BOX — essai de …`, en jaune, trait plein | `ssh` a joint la box, et une commande n'y a pas été trouvée : le shell de la box le dit (code 127), ou le geste, pour `sudo` (code 69) | **ce que la box en a dit**, tel quel — puis où ces commandes se posent (`docs/installer.md`, « Préparer la box ») |
+| `JOINT, MAIS LE NODE DE LA BOX NE CONVIENT PAS AU RUNTIME — essai de …`, en jaune, trait plein | `ssh` a joint la box, et son geste a refusé de lancer le runtime (code 70) : `node` n'y démarre pas dans l'environnement de l'unité, ou n'est pas la version réclamée | **ce que le geste en a dit**, tel quel — puis où se pose `node` (`docs/installer.md`, « Préparer la box »). Pas de mise à jour du runtime : ce n'est pas lui qui est vieux |
+| `PAS JOINT — essai de …`, en rouge, trait plein | rien qui prouve que la box a été jointe : `ssh` lui-même a échoué (code 255), n'a pas pu être lancé, ou a été arrêté au délai sans avoir dit jusqu'où il était allé | **le message de `ssh`**, tel quel, et son code — puis où ses phrases sont expliquées (`docs/installer.md`, « Joindre la box »), et où se donne l'accès quand c'est ta clé qu'il refuse (« Ajouter un humain »). Ou le délai, dit par l'app, sans renvoi |
+
+- **L'app rapporte, elle ne devine pas.** « Plus pilotable » ne dit pas *pourquoi* la commande a
+  échoué : un runtime trop vieux pour ce qu'elle lui demande est le cas attendu, et le conseil de
+  mise à jour n'est donné que là. Ce qu'elle a obtenu est sous tes yeux. **Le code de sortie ne
+  choisit que l'en-tête et le renvoi** : 65, le projet est inconnu de la box ; 68, le droit du
+  geste te manque ; 69 ou 127, une commande manque à la box ; 70, le `node` de la box ne convient pas au runtime ; tout autre code qui en vient, plus
+  pilotable. Le texte dessous n'est jamais traduit.
+- **Un lecteur sans accès le lit comme tel**, sous deux formes que l'app ne confond pas avec une
+  panne. *Joint, sans le droit du geste* : un état à lui (68). *Clé refusée* : `ssh` sort en 255,
+  comme pour une box introuvable, et **seul son message les sépare** — l'app ne le lit pas. Elle
+  reste donc à `PAS JOINT`, montre ce que `ssh` a écrit, et nomme où le lire. Dans les deux cas
+  elle dit où est écrit le geste qui donne l'accès, et ne le rejoue pas : il se joue sur la box.
+- **« Une commande manque » ne dit pas laquelle.** 127 est le code du shell de la box pour toute
+  commande introuvable : le geste pas posé (`brigade: command not found`) est le cas attendu, et
+  c'est la box qui le nomme, au-dessus.
+- **Le code 255 est celui de `ssh`.** Une commande distante qui sortirait elle-même en 255 se
+  lirait « pas joint ».
+- **Un projet muet ne retient pas les autres** : chaque projet est lu pour lui-même, toutes les
+  trente secondes, et porte sa propre heure.
+- Un projet sans `hote` a son panneau aussi : `aucune lecture`, et ce qui lui manque — `hote`, le nom
+  par lequel ton `ssh` joint ta box. Aucun bloc à coller.
+- Les commandes d'une lecture partent **l'une après l'autre**, et la première qui échoue est
+  l'erreur affichée : chaque écran dit ce que *ses* commandes ont rendu.
 
 ## La barre d'icônes
 
@@ -1226,7 +1282,7 @@ l'écran.
 
 ### La carte de projet
 
-En tête de chaque projet dans « Tous les projets », et en tête du panneau dans son espace :
+En tête du panneau, dans l'espace du projet :
 
 ```
 ● ouverte   lu à 14:32:07 · dernier tick 9 s avant la lecture
@@ -1250,8 +1306,7 @@ Les âges se comptent entre deux heures **de la box** : l'horloge de ton poste n
 **Une box dont le runtime ne donne pas encore ses cooks** — un runtime d'avant ce champ de
 `faits` — n'est pas une box qui ne rend pas ses faits : la carte se dessine, et dit à leur place
 `cooks en cours : pas lus — le runtime de cette box ne les donne pas encore dans faits`. **Ce n'est
-pas « aucun cook »** : `station` les montre, dessous dans « Tous les projets », dans l'onglet
-**Cooks** de l'espace. Le runtime mis à jour, la ligne s'en va seule.
+pas « aucun cook »** : `station` les montre, dans l'onglet **Cooks** de l'espace. Le runtime mis à jour, la ligne s'en va seule.
 
 **Un cook n'a ni jauge ni couleur** : ses tours, sa durée, ses tokens, son inactivité sont dans
 `status`, et `faits` ne les porte pas. Son numéro ne s'ouvre pas non plus — le ticket s'ouvre
@@ -1570,7 +1625,7 @@ reçoit donc au plus une connexion par projet qu'elle sert, pas deux.
 | À l'écran | Ce que l'app a obtenu | Ce qu'elle montre dessous |
 |---|---|---|
 | ``JOINT, MAIS `faits` N'A PAS RÉPONDU — essai de …`` | `ssh` a joint la box, et la commande y a échoué sans que son code dise un cas. **Un runtime d'avant `faits` est le cas attendu** | la commande lancée, ce qu'elle a écrit, son code — puis le geste : mettre le runtime à jour sur sa box (`docs/runtime.md`, « Piloter ») |
-| `JOINT, MAIS INCONNU DE LA BOX`, `… SANS LE DROIT DU GESTE`, `… UNE COMMANDE MANQUE SUR LA BOX`, `… LE NODE DE LA BOX NE CONVIENT PAS AU RUNTIME` | le geste de la box a refusé (codes 65, 68, 69 ou 127, 70) : **le même cas que sous `status`**, avec les mêmes mots | ce que la box en a dit, tel quel — puis **le renvoi de ce cas**, celui du tableau de « Tous les projets ». Pas de mise à jour du runtime : ce n'est pas lui qui est vieux |
+| `JOINT, MAIS INCONNU DE LA BOX`, `… SANS LE DROIT DU GESTE`, `… UNE COMMANDE MANQUE SUR LA BOX`, `… LE NODE DE LA BOX NE CONVIENT PAS AU RUNTIME` | le geste de la box a refusé (codes 65, 68, 69 ou 127, 70) : **le même cas que sous `status`**, avec les mêmes mots | ce que la box en a dit, tel quel — puis **le renvoi de ce cas**, celui du tableau de « Une lecture de box : sept états ». Pas de mise à jour du runtime : ce n'est pas lui qui est vieux |
 | ``LA BOX N'A PAS RENDU LA FORME DE `faits` — essai de …`` | la commande a abouti, et sa sortie n'est pas la forme : pas du JSON, un champ qui manque, un compteur qui n'est pas un nombre entier | **la sortie, mot pour mot**, puis ce qui n'est pas la forme (`« compteurs.rail » n'est pas un nombre entier positif`) |
 | `PAS JOINT — essai de …` | rien qui prouve que la box a été jointe | le message de `ssh`, tel quel — le même que sous `status`, où ses renvois sont donnés |
 
@@ -1584,7 +1639,7 @@ laissé de côté.
   est lu dans ce texte, et posé au-dessus de lui (« L'onglet Grants »).
 - **Aucune jauge chiffrée**, ni du quota ni de la machine : le runtime ne connaît pas la
   consommation du compte (`/usage` la donne) et ne chiffre la machine que lorsqu'elle sature. Les
-  lignes `quota` et `machine` de `station` se lisent telles quelles, dans « Tous les projets » et dans Cooks.
+  lignes `quota` et `machine` de `station` se lisent telles quelles, dans Cooks.
 - **Pourquoi** une cuisine est retenue, ce qu'un ticket attend, qui le tient : c'est `status` et
   `rail`, en texte, juste dessous.
 
@@ -1597,7 +1652,7 @@ n'en découpe qu'une chose, par son bord : le bloc `attend`.
 
 ### Ce qui t'attend, mis à part
 
-En tête du panneau, et en tête de chaque projet dans « Tous les projets », sur son propre fond : **le bloc
+En tête du panneau, sur son propre fond : **le bloc
 `attend` de `status`**, tel que le runtime l'a écrit, de sa ligne `attend` à sa ligne `fin attend`.
 Tu n'as plus à le chercher dans la sortie.
 
@@ -1706,7 +1761,7 @@ comptait à cette heure-là.
 **Quand la box n'est pas lue, c'est une erreur, et elle prend toute la place.** L'en-tête passe à
 `PAS JOINT — essai de 14:32:37, le prochain suit seul`, à `JOINT, MAIS PLUS PILOTABLE — …` ou à
 `JOINT, MAIS INCONNU DE LA BOX — …`, `JOINT, MAIS SANS LE DROIT DU GESTE — …` ou `JOINT, MAIS UNE
-COMMANDE MANQUE SUR LA BOX — …` (les états de « Tous les projets », dits pareil ici), et dessous il n'y a
+COMMANDE MANQUE SUR LA BOX — …` (les états de « Une lecture de box : sept états », dits pareil ici), et dessous il n'y a
 plus que ce que l'app a obtenu — la commande lancée, ce qu'elle ou `ssh` a écrit, et le code de
 sortie — puis, quand le code le permet, où est écrit le geste qui y répond.
 
@@ -1747,8 +1802,7 @@ Il se donne sur la box, par quelqu'un qui y a `sudo` — l'app ne le fait pas à
   68, il te refuse ; 69 ou 127, une commande manque à la box ; 70, son `node` ne convient pas au runtime ; un autre, joint, mais plus
   pilotable.
 - Le panneau et l'onglet de contenu affiché sont lus chacun pour soi : l'erreur de l'un s'affiche
-  chez lui, sans rien retirer à l'autre. Dans « Tous les projets », où un projet a deux commandes, une seule
-  en échec et c'est l'erreur qui s'affiche, sans la sortie de l'autre.
+  chez lui, sans rien retirer à l'autre.
 - Un `ssh` qui n'a rien rendu en trente secondes est arrêté, et l'app dit ce qu'elle en sait :
   - `→ aucune réponse en 30 s : ssh arrêté` — `ssh` était connecté (il sort alors de lui-même,
     en 255) et c'est la commande qui n'a rien rendu : « joint, mais plus pilotable ».
@@ -1768,7 +1822,7 @@ Le journal se lit dans `derniers événements`, rafraîchi avec le reste, et, po
 L'app a une langue visuelle, et une seule : celle de la maquette (`docs/maquettes/app/`). Elle
 habille **le cadre**, jamais le contenu.
 
-- **Un fond sombre, des cartes dessus.** Tout ce qui se lit d'un bloc a sa carte : chaque projet de
+- **Un fond sombre, des cartes dessus.** Tout ce qui se lit d'un bloc a sa carte : les listes de
   « Tous les projets », la carte de projet, la mise en service d'un projet ajouté, le retrait, les pages servies,
   l'état du manager, celui des grants, le formulaire d'ajout. Une colonne du rail est une carte,
   un ticket y est un **bon** — du papier clair sur le sombre —, et ce qui t'attend a la sienne, la
@@ -1880,7 +1934,7 @@ supprimer. Il faut donc que le dossier soit un clone du dépôt, dont `origin` e
 box sert, et que ton poste puisse y pousser.
 
 **Où ça se lit.** Sur la box : `station` montre la présence de `mac/claude` sur sa ligne
-`présence`, et `status` les tickets qui l'attendent — tous deux dans « Tous les projets ». Sur ton
+`présence` (onglet Cooks), et `status` les tickets qui l'attendent (le panneau du projet). Sur ton
 poste : l'app écrit dans le terminal qui l'a lancée ce que chaque station fait, une ligne par
 changement.
 
@@ -1975,8 +2029,8 @@ brigade : je pose Electron — téléchargé la première fois sur ce poste, 311
   pas, la raison est dite, et l'app s'ouvre sur le code qu'elle a — jamais une mise à jour ratée ne
   l'empêche de s'ouvrir.
 - **L'app tourne sur le code de ce clone, tel qu'il était à son lancement.** Quand une nouvelle
-  version arrive pendant qu'elle tourne, elle le dit en tête de « Tous les projets », et un clic l'y
-  fait passer (voir « Le code de l'app : à jour, ou en retard »).
+  version arrive pendant qu'elle tourne, la case **T** passe en jaune, les réglages de chaque projet
+  le disent, et un clic l'y fait passer (voir « Le code de l'app : à jour, ou en retard »).
 
 Lancée depuis un terminal, l'app hérite de son environnement : le `PATH` qui trouve `claude`, tes
 accès.
@@ -2104,7 +2158,7 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   se prouve sans la lancer** (`peau.test.ts`) : `vue.js` y est joué tel qu'il est devant un faux
   document (`app/test/aides/fausse-vue.ts` — juste ce que la vue en touche, et un faux pont), et
   `vue.css` y est lu règle par règle. Ce qui s'y tient : qu'un texte relayé de la box est posé mot
-  pour mot sur les six onglets, « Tous les projets » et l'écran d'ajout, et qu'aucune règle ne le
+  pour mot sur les six onglets et l'écran d'ajout — « Tous les projets » n'en relaie rien —, et qu'aucune règle ne le
   coupe ; qu'aucune couleur ne s'écrit hors de `jetons.css`, et que chacune est une couleur de la
   maquette — hors celles d'un projet, que la vue reçoit du fichier (`couleurs.test.ts`) ; qu'une case
   de la barre se range en la glissant — le trait qui dit où elle atterrira, la place qu'elle prend,

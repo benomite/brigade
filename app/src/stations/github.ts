@@ -19,6 +19,8 @@ export type GitHubDesStations = {
   lire(id: string): Promise<Fichiers | null>;
   // Réécrit ces fichiers du gist, sans toucher aux autres.
   ecrire(id: string, fichiers: Fichiers): Promise<void>;
+  // Quand GitHub rend les appels du compte, une fois sa limite atteinte — lu sans en dépenser un —, ou null s'il ne le dit pas.
+  reprise?(): Promise<string | null>;
 };
 
 // Une page de la liste des gists, au plus : au-delà, GitHub coupe.
@@ -72,6 +74,11 @@ export function githubDesStations(reglages: Reglages): GitHubDesStations {
       }
       const files = (JSON.parse(sortie) as { files?: Record<string, { content?: unknown } | null> }).files ?? {};
       return Object.fromEntries(Object.entries(files).flatMap(([nom, fichier]) => (typeof fichier?.content === "string" ? [[nom, fichier.content]] : [])));
+    },
+    async reprise() {
+      const lu = JSON.parse(await appeler(["/rate_limit"])) as { resources?: { core?: { reset?: unknown; remaining?: unknown } } };
+      const reset = lu.resources?.core?.reset;
+      return typeof reset === "number" && Number.isFinite(reset) ? new Date(reset * 1000).toISOString() : null;
     },
     async ecrire(id, fichiers) {
       try {

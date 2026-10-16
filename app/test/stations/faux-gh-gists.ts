@@ -20,6 +20,14 @@ const sortir = (code: number, erreur: string): never => {
   process.exit(code);
 };
 if (existsSync(join(repertoire, "panne"))) sortir(1, "error connecting to api.github.com");
+// Un fichier `limite` la fait répondre comme un GitHub qui limite les appels du compte : il porte
+// l'heure où il les rend, en secondes — que `/rate_limit` dit, sans compter pour la limite.
+const limite = join(repertoire, "limite");
+if (existsSync(limite) && args.includes("/rate_limit")) {
+  process.stdout.write(`${JSON.stringify({ resources: { core: { limit: 5000, remaining: 0, reset: Number(readFileSync(limite, "utf8")) } } })}\n`);
+  process.exit(0);
+}
+if (existsSync(limite)) sortir(1, "gh: API rate limit exceeded for user ID 1. (HTTP 403)");
 if (args[0] !== "api") sortir(1, `faux gh : seul \`gh api\` est doublé (${args.join(" ")})`);
 
 const option = (nom: string) => {
