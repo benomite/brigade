@@ -363,8 +363,9 @@ test("aucun code du runtime n'ouvre le fichier d'identifiants : son nom n'y sert
   const lues = sources(SRC).map((fichier) => ({ nom: relative(SRC, fichier), texte: readFileSync(fichier, "utf8") }));
   const qui = (motif: RegExp) => lues.filter(({ texte }) => motif.test(texte)).map(({ nom }) => nom).sort();
 
-  // Son nom en clair : la cloison, qui le monte, et le module qui le reconnaît dans une livraison.
-  assert.deepEqual(qui(/\.credentials\.json/), ["cloison.ts", "identifiants.ts"]);
+  // Son nom en clair : la cloison, qui le monte, le module qui le reconnaît dans une livraison, et le bac à
+  // sable des cooks du Mac, qui en interdit la lecture.
+  assert.deepEqual(qui(/\.credentials\.json/), ["bac-a-sable/configuration.ts", "cloison.ts", "identifiants.ts"]);
   // Son nom par la constante : les messages d'un refus de push, et le refus d'un fichier d'état qui le désignerait.
   assert.deepEqual(qui(/\bFICHIER_DES_IDENTIFIANTS\b/), ["identifiants.ts", "renouvellement.ts", "station.ts"]);
   // Son chemin, tel que la cloison le donne : l'annonce au journal — par le runtime d'un projet, et par la cuisine
