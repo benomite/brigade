@@ -69,7 +69,7 @@ test("la forme d'une cuisine connue est figée, au caractère près : un champ r
       `{"ticket":19,"etat":"servi","titre":"Ticket 19","url":"https://exemple.test/19","activite":null,"attente":null,"tiers":null,"revenu":null},` +
       `{"ticket":18,"etat":"BLOQUÉ","titre":"Ticket 18","url":"https://exemple.test/18","activite":null,"attente":null,"tiers":null,"revenu":null}],` +
       `"cooks":[],` +
-      `"attend":[{"ticket":18,"titre":"Ticket 18","url":"https://exemple.test/18"}],` +
+      `"attend":[{"ticket":18,"titre":"Ticket 18","url":"https://exemple.test/18","decision":{"quoi":"bloque","motif":null,"cause":null,"pr":null}}],` +
       `"livres":[{"ticket":19,"titre":"Ticket 19","url":"https://exemple.test/19","livre":"${JOUR_HORLOGE}T10:00:14.000Z","station":"box/claude-opus","pr":null,"relecture":null}],` +
       `"urgence":null}`,
   );
@@ -81,10 +81,10 @@ test("une issue qui attend sans être sur le rail a son adresse : celle que le d
   noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 378, "manager");
   const a = new Date(`${JOUR_HORLOGE}T10:04:11.000Z`);
 
-  assert.deepEqual(faits(lireEtat(journal, a), a, "benomite/brigade").attend, [{ ticket: 378, titre: "", url: "https://github.com/benomite/brigade/issues/378" }]);
-  assert.deepEqual(lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.attend, [{ ticket: 378, titre: "", url: null }]);
+  assert.deepEqual(faits(lireEtat(journal, a), a, "benomite/brigade").attend, [{ ticket: 378, titre: "", url: "https://github.com/benomite/brigade/issues/378", decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null } }]);
+  assert.deepEqual(lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.attend, [{ ticket: 378, titre: "", url: null, decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null } }]);
   // Un nom de dépôt qui n'en est pas un ne donne rien : rien n'est composé de travers.
-  assert.deepEqual(faits(lireEtat(journal, a), a, "pas un dépôt").attend, [{ ticket: 378, titre: "", url: null }]);
+  assert.deepEqual(faits(lireEtat(journal, a), a, "pas un dépôt").attend, [{ ticket: 378, titre: "", url: null, decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null } }]);
 });
 
 test("un ticket du rail qui attend garde l'adresse et le titre du rail, quel que soit le dépôt", (t) => {
@@ -94,7 +94,7 @@ test("un ticket du rail qui attend garde l'adresse et le titre du rail, quel que
 
   assert.deepEqual(faits(lireEtat(journal, a), a, "benomite/brigade").attend.map(({ ticket }) => ticket), []);
   noter({ type: "ticket.left", payload: { reason: "unfired" } }, 12, "github");
-  assert.deepEqual(faits(lireEtat(journal, a), a, "benomite/brigade").attend, [{ ticket: 18, titre: "Ticket 18", url: "https://exemple.test/18" }]);
+  assert.deepEqual(faits(lireEtat(journal, a), a, "benomite/brigade").attend, [{ ticket: 18, titre: "Ticket 18", url: "https://exemple.test/18", decision: { quoi: "bloque", motif: null, cause: null, pr: null } }]);
 });
 
 test("la forme et le texte de `status` disent la même chose : le rail ticket par ticket, son décompte, ce qui attend, le dernier événement", (t) => {

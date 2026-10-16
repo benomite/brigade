@@ -269,14 +269,17 @@ describe("la fiche de toute carte montre l'issue et sa discussion (#684)", () =>
     assert.deepEqual(vue.dernier("ouvrirLien"), [PARADE, 21, "https://github.com/benomite/brigade/pull/31"]);
   });
 
-  test("tant que l'issue n'est pas lue, la fiche le dit ; une issue qui ne se lit pas dit pourquoi, et n'offre pas de champ", async () => {
+  test("tant que l'issue n'est pas lue, la fiche le dit ; une issue qui ne se lit pas le dit en une ligne, pourquoi au survol, et n'offre pas de champ", async () => {
     let rendre: (discussion: Discussion) => void = () => {};
     const vue = await ouvrir({ lireDiscussion: () => new Promise((resoudre) => (rendre = resoudre)) as never });
     await ouvrirFiche(vue, 21);
     assert.equal(discussion(vue).dessous("p")[0]?.textContent, "reading issue #21…");
     rendre({ sans: "no issue to read: #21 is a pull request, not an issue" });
     await repos();
-    assert.equal(discussion(vue).dessous("p")[0]?.textContent, "no issue to read: #21 is a pull request, not an issue");
+    // Une ligne courte ; pourquoi, au survol de son aide (briques.js).
+    const ligne = discussion(vue).dessous("p")[0] ?? assert.fail("pas de ligne");
+    assert.deepEqual([ligne.className, ligne.children[0]?.textContent], ["indisponible", "discussion unavailable"]);
+    assert.equal((ligne.dessous("button")[0] as { ariaLabel?: string } | undefined)?.ariaLabel, "no issue to read: #21 is a pull request, not an issue");
     assert.deepEqual(discussion(vue).dessous("textarea"), []);
   });
 

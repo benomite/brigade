@@ -426,6 +426,30 @@ export function direAttente(attente: Attente): string {
   }
 }
 
+// Ce que le chef a à trancher pour un ticket, pour un programme (`faits`) : `quoi`, la sorte de
+// l'attente — son mot ici, `merge`, `remontee`, `86`… ; `motif`, le sien quand la sorte en a un
+// (`no-grant`, `still-red`, `refused`, `question`…) ; `cause`, ce qui le précise sans changer le
+// geste ; `pr`, la PR de la livraison, nulle sans elle. Ce que la ligne du bloc dit en mots, ceci
+// le dit en champs : le lecteur choisit ses mots, et les gestes qu'il pose.
+export type Decision = { quoi: AttenteDeTicket["quoi"]; motif: string | null; cause: string | null; pr: string | null };
+
+export function decisionDe(attente: AttenteDeTicket): Decision {
+  const { quoi } = attente;
+  switch (attente.quoi) {
+    case "merge":
+    case "remontee":
+    case "fermee":
+      return { quoi, motif: attente.reason, cause: attente.cause, pr: attente.pr };
+    case "86":
+    case "ecartee":
+      return { quoi, motif: attente.reason, cause: null, pr: null };
+    case "illisible":
+      return { quoi, motif: attente.epique ? "epic" : "issue", cause: null, pr: null };
+    default:
+      return { quoi, motif: null, cause: null, pr: null };
+  }
+}
+
 const ORIGINES = { renewed: "le dernier renouvellement réussi", written: "la dernière écriture des identifiants", reconnected: "la dernière reconnexion" } as const;
 const heures = (secondes: number) => `${Math.round((secondes / 3600) * 10) / 10} h`.replace(".", ",");
 

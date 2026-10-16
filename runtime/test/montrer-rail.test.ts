@@ -220,9 +220,10 @@ test("la fiche d'un ticket qui demande une capacité la montre, et son 86 dit la
   ]);
 });
 
-// Les deux gestes du chef sur un ticket du rail (geste-ticket.ts), tels que la fiche de l'app
-// les lance : `brigade <projet> rail remove <ticket>`, `… rail priority <ticket> <1-9 | none>`.
-describe("remove et priority", () => {
+// Les gestes du chef sur un ticket du rail (geste-ticket.ts), tels que la fiche de l'app les
+// lance : `brigade <projet> rail remove <ticket>`, `… rail priority <ticket> <1-9 | none>`,
+// `… rail merge <ticket>`.
+describe("remove, priority et merge", () => {
   const ISSUE = (numero: number) => `repos/${DEPOT}/issues/${numero}`;
   const LABELS = (numero: number) => `${ISSUE(numero)}/labels`;
 
@@ -266,6 +267,16 @@ describe("remove et priority", () => {
     assert.equal(ticketDuRail(journal.base, 14)?.state, "taken");
   });
 
+  test("merge refuse un ticket dont aucune livraison n'attend d'être mergée par le chef, sans rien demander à GitHub : la raison et le prix, en code 1", async (t) => {
+    const { gh, jouer } = cuisine(t);
+
+    const commande = jouer(["merge", "18"]);
+
+    assert.equal(await commande.fin, 1);
+    assert.match(commande.sortie(), /#18 n'est pas touché : #18 has no delivery waiting for you to merge it — cost: none: nothing was changed/);
+    assert.deepEqual(gh.appels(), []);
+  });
+
   test("priority change la priorité d'un ticket, même pris : le nouveau label est posé, l'ancien retiré, le rail la lit aussitôt", async (t) => {
     const { journal, gh, jouer } = cuisine(t);
     gh.repondre(ISSUE(14), { corps: issueGitHub(14, { labels: ["fire", "prio:1"] }) });
@@ -299,7 +310,7 @@ describe("remove et priority", () => {
 
   test("une demande mal formée, ou sans dépôt déclaré, est refusée en 2 avant que rien ne parte", async (t) => {
     const { gh, jouer } = cuisine(t);
-    for (const args of [["remove"], ["remove", "x"], ["remove", "18", "3"], ["priority", "18"], ["priority", "18", "3", "4"], ["supprimer", "18"]]) {
+    for (const args of [["remove"], ["remove", "x"], ["remove", "18", "3"], ["priority", "18"], ["priority", "18", "3", "4"], ["merge"], ["merge", "18", "now"], ["supprimer", "18"]]) {
       const commande = jouer(args);
       assert.equal(await commande.fin, 2, args.join(" "));
       assert.match(commande.sortie(), /usage/, args.join(" "));

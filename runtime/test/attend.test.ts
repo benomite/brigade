@@ -197,6 +197,31 @@ test("une remontée du manager se distingue de celle de la pass ; sans PR, il n'
   ]);
 });
 
+// Ce que `faits` dit, pour un programme, de chaque décision qui attend le chef : sa sorte, son
+// motif et ce qui le précise, la PR de la livraison — de quoi dire l'attendu dans ses mots, et
+// poser ses gestes, sans relire la ligne du bloc.
+test("`faits` donne la décision attendue de chaque ticket : sa sorte, son motif, ce qui le précise, sa PR", (t) => {
+  const { livrer, retenir, remonter, noter, arriver, journal } = cuisine(t);
+  livrer(17);
+  retenir(17, "no-grant");
+  livrer(18);
+  remonter(18, "manager-escalated", "manager:escalated");
+  arriver(19);
+  noter({ type: "ticket.86", payload: { reason: "refused", until: null } }, 19);
+  arriver(21);
+  arriver(20, [21]);
+  noter({ type: "ticket.left", payload: { reason: "closed" } }, 21, "github");
+
+  const maintenant = new Date(`${JOUR_HORLOGE}T10:00:00.000Z`);
+  const decisions = Object.fromEntries(faits(lireEtat(journal, maintenant), maintenant).attend.map(({ ticket, decision }) => [ticket, decision]));
+  assert.deepEqual(decisions, {
+    17: { quoi: "merge", motif: "no-grant", cause: null, pr: pr(17) },
+    18: { quoi: "remontee", motif: "still-red", cause: "manager-escalated", pr: pr(18) },
+    19: { quoi: "86", motif: "refused", cause: null, pr: null },
+    20: { quoi: "bloque", motif: null, cause: null, pr: null },
+  });
+});
+
 test("une livraison verte quitte la file dès que la décision est prise : mergée à la main sur GitHub, ticket sorti du rail, ou cook reparti", (t) => {
   const { livrer, retenir, noter, bloc } = cuisine(t);
   const attendus = () => bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).slice(1).map((ligne) => ligne.trim().split("  ")[0]).filter((tete) => tete?.startsWith("#"));
