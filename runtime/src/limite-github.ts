@@ -18,6 +18,7 @@
 //
 // Hors de toute station (le poste de dev, un test), le process compte seul,
 // en mémoire, sous le même budget.
+import { execFile } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Base } from "./base.ts";
@@ -41,10 +42,28 @@ export class BudgetGitHubEpuise extends Error {
   }
 }
 
+// GitHub a dit que sa limite est atteinte (429, ou 403 « rate limit », primaire
+// ou secondaire) : plus aucun appel ne part avant `jusqua`, la fin de la
+// fenêtre. Une erreur propre, jamais prise pour un autre refus (celui d'un merge).
+export class LimiteGitHubAtteinte extends Error {
+  readonly jusqua: number;
+  readonly libreDansMs: number;
+  constructor(jusqua: number, libreDansMs: number) {
+    super("GitHub a atteint sa limite d'appels : plus aucun appel ne part avant la fin de la fenêtre, puis ils reprennent seuls");
+    this.name = "LimiteGitHubAtteinte";
+    this.jusqua = jusqua;
+    this.libreDansMs = libreDansMs;
+  }
+}
+
 export type Limite = {
   readonly budget: number;
-  // Compte un appel, ou lève `BudgetGitHubEpuise` sans le compter.
+  // Compte un appel, ou lève `BudgetGitHubEpuise` sans le compter — et
+  // `LimiteGitHubAtteinte` tant que GitHub a dit sa limite atteinte.
   prendre(): void;
+  // GitHub a dit sa limite atteinte : plus d'appel avant cet instant (en
+  // millisecondes), pour tous ceux qui tiennent ce compteur.
+  suspendre(jusqua: number): void;
   // Les appels comptés sur l'heure écoulée, par tous ceux qui tiennent ce compteur.
   appels(): number;
   fermer(): void;
@@ -69,21 +88,34 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
   // Un compte perdu dans une coupure de courant ne coûte qu'un peu de marge :
   // aucune écriture n'attend le disque.
   if (options.fichier !== undefined) base.script("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
-  base.script("CREATE TABLE IF NOT EXISTS appels (instant INTEGER NOT NULL); CREATE INDEX IF NOT EXISTS appels_par_instant ON appels (instant);");
+  base.script("CREATE TABLE IF NOT EXISTS appels (instant INTEGER NOT NULL); CREATE INDEX IF NOT EXISTS appels_par_instant ON appels (instant); CREATE TABLE IF NOT EXISTS pause (jusqua INTEGER NOT NULL);");
 
   return {
     budget,
     prendre() {
-      const libreDansMs = base.transaction(() => {
+      const refus = base.transaction((): { jusqua: number } | { budget: number } | null => {
         const instant = maintenant();
+        // La limite de GitHub atteinte : rien ne part, et rien n'est compté.
+        const [pause] = base.lire<{ jusqua: number | null }>("SELECT max(jusqua) AS jusqua FROM pause");
+        if (pause?.jusqua != null && pause.jusqua > instant) return { jusqua: pause.jusqua };
         // Ce qui est sorti de la fenêtre ne compte plus : rien ne le relira.
         base.executer("DELETE FROM appels WHERE instant <= ?", instant - FENETRE_MS);
         const [compte] = base.lire<{ n: number; premier: number | null }>("SELECT count(*) AS n, min(instant) AS premier FROM appels");
-        if ((compte?.n ?? 0) >= budget) return Math.max(0, (compte?.premier ?? instant) + FENETRE_MS - instant);
+        if ((compte?.n ?? 0) >= budget) return { budget: Math.max(0, (compte?.premier ?? instant) + FENETRE_MS - instant) };
         base.executer("INSERT INTO appels (instant) VALUES (?)", instant);
         return null;
       });
-      if (libreDansMs !== null) throw new BudgetGitHubEpuise(budget, libreDansMs);
+      if (refus === null) return;
+      if ("jusqua" in refus) throw new LimiteGitHubAtteinte(refus.jusqua, Math.max(0, refus.jusqua - maintenant()));
+      throw new BudgetGitHubEpuise(budget, refus.budget);
+    },
+    suspendre(jusqua) {
+      base.transaction(() => {
+        const instant = maintenant();
+        // Une pause plus longue déjà posée par un autre process reste.
+        base.executer("DELETE FROM pause WHERE jusqua <= ? OR jusqua <= ?", instant, jusqua);
+        base.executer("INSERT INTO pause (jusqua) SELECT ? WHERE NOT EXISTS (SELECT 1 FROM pause)", jusqua);
+      });
     },
     appels() {
       const [compte] = base.lire<{ n: number }>("SELECT count(*) AS n FROM appels WHERE instant > ?", maintenant() - FENETRE_MS);
@@ -132,4 +164,60 @@ export function journaliserLesAppels(limite: Limite, options: { dire: (ligne: st
   }, options.intervalleMs ?? FENETRE_MS);
   minuterie.unref();
   return () => clearInterval(minuterie);
+}
+
+// Une réponse de GitHub, telle que `gh api -i` la rend.
+export type ReponseHttp = { statut: number; entetes: Map<string, string>; corps: string };
+
+// Vrai si GitHub refuse pour sa limite d'appels : un 429, ou un 403 qui le dit
+// (en-tête `retry-after`, quota à zéro, ou « rate limit » dans le message).
+// Tout autre refus — le 403 d'un merge interdit, par exemple — n'en est pas un.
+export function refusPourLimite(reponse: ReponseHttp): boolean {
+  if (reponse.statut === 429) return true;
+  if (reponse.statut !== 403) return false;
+  if (reponse.entetes.has("retry-after") || reponse.entetes.get("x-ratelimit-remaining") === "0") return true;
+  let message = reponse.corps;
+  try {
+    const dit = (JSON.parse(reponse.corps) as { message?: unknown }).message;
+    if (typeof dit === "string") message = dit;
+  } catch {}
+  return /rate limit/i.test(message);
+}
+
+// À défaut d'attente donnée par GitHub.
+export const ATTENTE_PAR_DEFAUT_MS = 60_000;
+const DELAI_RATE_LIMIT_MS = 10_000;
+
+// Ce que `gh api rate_limit` dit de la fin de fenêtre : cet appel ne compte pas
+// dans la limite de GitHub. Null s'il ne répond pas, ou ne dit rien d'exploitable.
+function finDeFenetreDite(options: { gh: string; env?: NodeJS.ProcessEnv; maintenant: number }): Promise<number | null> {
+  return new Promise((resoudre) => {
+    execFile(options.gh, ["api", "rate_limit"], { timeout: DELAI_RATE_LIMIT_MS, maxBuffer: 1024 * 1024, env: options.env }, (erreur, sortie) => {
+      if (erreur) return resoudre(null);
+      try {
+        const ressources = Object.values((JSON.parse(sortie) as { resources?: Record<string, { remaining?: unknown; reset?: unknown }> }).resources ?? {});
+        const fins = ressources.flatMap((r) => (r.remaining === 0 && typeof r.reset === "number" && r.reset * 1000 > options.maintenant ? [r.reset * 1000] : []));
+        resoudre(fins.length > 0 ? Math.max(...fins) : null);
+      } catch {
+        resoudre(null);
+      }
+    });
+  });
+}
+
+// GitHub a refusé pour sa limite : pose la pause sur le compteur, jusqu'à la
+// fin de la fenêtre — `retry-after`, sinon `x-ratelimit-reset`, sinon ce que
+// dit `gh api rate_limit`, sinon 60 s — et rend l'erreur à lever.
+export async function constaterLimite(limite: Limite, reponse: ReponseHttp, options: { gh: string; env?: NodeJS.ProcessEnv; maintenant?: () => number }): Promise<LimiteGitHubAtteinte> {
+  const maintenant = options.maintenant ?? (() => Date.now());
+  const instant = maintenant();
+  const retry = Number(reponse.entetes.get("retry-after"));
+  const reset = Number(reponse.entetes.get("x-ratelimit-reset"));
+  let jusqua: number | null = null;
+  if (reponse.entetes.has("retry-after") && Number.isFinite(retry) && retry >= 0) jusqua = instant + retry * 1000;
+  else if (reponse.entetes.has("x-ratelimit-reset") && Number.isFinite(reset) && reset * 1000 > instant) jusqua = reset * 1000;
+  jusqua ??= await finDeFenetreDite({ gh: options.gh, env: options.env, maintenant: instant });
+  jusqua ??= instant + ATTENTE_PAR_DEFAUT_MS;
+  limite.suspendre(jusqua);
+  return new LimiteGitHubAtteinte(jusqua, Math.max(0, jusqua - instant));
 }

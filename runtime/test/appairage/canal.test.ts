@@ -74,7 +74,7 @@ test("la station réelle affiche son code, publie « aucun projet » sur GitHub,
   assert.equal(await station.fin, 0);
   assert.ok(document().arreteeLe);
   // Tout est passé par `gh api`, sur les gists du compte, et rien d'autre.
-  assert.ok(github.appels().split("\n").filter(Boolean).every((appel) => /^api (-X (POST|PATCH) )?\/gists(\/[a-z0-9]+)?( --input -)?$/.test(appel)), github.appels());
+  assert.ok(github.appels().split("\n").filter(Boolean).every((appel) => /^api -i (-X (POST|PATCH) )?\/gists(\/[a-z0-9]+)?( --input -)?$/.test(appel)), github.appels());
 });
 
 test("la station ne joint aucune autre machine : son appairage et sa présence ne passent que par `gh`", () => {
