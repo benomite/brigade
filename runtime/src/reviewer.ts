@@ -6,6 +6,7 @@
 //
 // Ce n'est jamais le cook qui se relit : un process neuf, sa propre consigne,
 // aucune session reprise, et aucun outil qui écrive.
+import { capturesManquantes, type CapturesDEcran } from "./captures.ts";
 import { EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { SOURCES_DE_REGLAGES } from "./claude.ts";
 import { FERMETURE, OUVERTURE } from "./livrable.ts";
@@ -94,6 +95,20 @@ const liste = (fichiers: string[]) => fichiers.map((fichier) => `- ${fichier}`).
 // liste de ses fichiers, ne tenait pas dans la consigne.
 export const diffCoupe = (diff: { fichiers: string[]; texte: string }) => octets(diff.texte) > DIFF_MAX || octets(liste(diff.fichiers)) > FICHIERS_MAX;
 
+// Les règles de #830 qu'une capture d'interface peut violer : leur nom dans la
+// réponse du reviewer, et ce qu'il cherche. Chaque violation est bloquante.
+export const REGLES_830 = {
+  "geste-non-bouton": "un geste attendu de l'utilisateur (merger, retirer du rail, répondre à une question…) qui n'est pas un bouton sur l'écran : une commande à envoyer ou à recopier (`ssh …`, `brigade …`), ou une phrase qui dit de le faire ailleurs",
+  "mode-d-emploi": "un paragraphe de mode d'emploi en clair : une explication, ou le prix d'un geste écrit sous chaque bouton, qui devrait être un survol ou une aide repliée",
+  "erreur-brute": "une erreur technique brute (une commande `ssh`, un usage, un code de sortie, une trace) affichée à la place d'une ligne qui dit que la lecture a échoué",
+} as const;
+type Regle = keyof typeof REGLES_830;
+const LIBELLES_830: Record<Regle, string> = { "geste-non-bouton": "geste attendu qui n'est pas un bouton", "mode-d-emploi": "paragraphe de mode d'emploi", "erreur-brute": "erreur technique brute" };
+
+// Les captures d'une livraison d'interface, que la relecture juge : le dossier
+// où le cook les pose, et chaque écran livré. `screens` vide : aucune capture.
+export type CapturesARelire = { dossier: string; screens: CapturesDEcran[] };
+
 export type Relecture = {
   depot: string;
   base: string;
@@ -111,6 +126,9 @@ export type Relecture = {
   // `recoltes` : les commits du diff que le cook n'a pas écrits — ce qu'il
   // avait laissé non commité, commité à sa place par la station.
   diff: { fichiers: string[]; texte: string; recoltes?: string[] } | null;
+  // Nul, ou absent : le ticket n'est pas d'interface, ses captures ne sont pas
+  // jugées.
+  captures?: CapturesARelire | null;
 };
 
 export function consigneDeRelecture(mission: Relecture): string {
@@ -153,7 +171,8 @@ export function consigneDeRelecture(mission: Relecture): string {
     "",
     "Hors de ces critères, dans le doute, c'est une remarque : un renvoi coûte un cook entier. Un goût, un style, un nommage ne sont jamais bloquants.",
     "",
-    ...laReponse(diff !== null),
+    ...(diff && mission.captures ? lesCaptures(mission.captures) : []),
+    ...laReponse(diff !== null, Boolean(diff && mission.captures)),
     "",
     "## Le ticket",
     "",
@@ -180,15 +199,42 @@ export function consigneDeRelecture(mission: Relecture): string {
   ].join("\n");
 }
 
+// Ce que le reviewer fait des captures d'une livraison d'interface : il les
+// ouvre (`Read` lit les images) et y cherche les trois violations de #830.
+const lesCaptures = ({ dossier, screens }: CapturesARelire): string[] => {
+  const livrees = screens.flatMap(({ before, after }) => [before, after].filter((chemin) => chemin !== null));
+  const manque = capturesManquantes(screens);
+  return [
+    "## Les captures",
+    "",
+    "Ce ticket est un ticket d'interface : le cook doit livrer l'écran qu'il change, avant et après. Tu relis aussi ces captures, avec `Read` qui ouvre les images, et tu les confrontes aux règles de #830 (l'app montre d'abord ce que l'utilisateur peut faire). Trois violations, que tu cherches sur chaque capture « après » — la « avant » montre l'écran tel qu'il était, une violation y est normale et ne compte pas :",
+    "",
+    ...Object.entries(REGLES_830).map(([regle, dit]) => `- \`${regle}\` — ${dit}.`),
+    "",
+    "Chaque violation que tu vois est un constat `bloquant`. Il porte `fichier` : le chemin de la capture « après » où tu la vois, tel qu'il est listé plus bas, et `regle` : le nom de la règle violée. Dis dans `constat` ce que la capture montre. Une capture qui respecte les règles ne donne aucun constat de ce type : n'en invente pas.",
+    "",
+    ...(screens.length === 0
+      ? [`Le cook n'a livré aucune capture dans \`${dossier}/\` : c'est un constat \`bloquant\` (\`fichier\` : \`${dossier}\`), quoi que le diff change par ailleurs.`]
+      : [
+          "Captures livrées :",
+          "",
+          ...livrees.map((chemin) => `- ${chemin}`),
+          ...(manque === null ? [] : ["", `Il en manque : ${manque}. C'est une remarque, pas un renvoi.`]),
+        ]),
+    "",
+  ];
+};
+
 // La forme de la réponse. `suppressions` : la relecture d'un diff, qui dit
-// aussi ce qu'il aurait dû supprimer.
-const laReponse = (suppressions: boolean) => [
+// aussi ce qu'il aurait dû supprimer. `regles` : la relecture de captures, dont
+// un constat nomme la règle de #830 violée.
+const laReponse = (suppressions: boolean, regles = false) => [
   "## Ta réponse",
   "",
   "Un seul objet JSON, et rien après lui :",
   "",
   "```json",
-  `{"verdict": "rouge", "resume": "ce que tu as relu et ce que tu en retiens, en deux ou trois phrases", "constats": [{"gravite": "bloquant", "fichier": "chemin/du/fichier.ts", "constat": "ce qui ne va pas, et pourquoi"}, {"gravite": "remarque", "fichier": null, "constat": "…"}${suppressions ? ', {"gravite": "a_supprimer", "fichier": "chemin/du/fichier.md", "constat": "ce qui devrait partir, et pourquoi"}' : ""}]}`,
+  `{"verdict": "rouge", "resume": "ce que tu as relu et ce que tu en retiens, en deux ou trois phrases", "constats": [{"gravite": "bloquant", "fichier": "chemin/du/fichier.ts", "constat": "ce qui ne va pas, et pourquoi"}, {"gravite": "remarque", "fichier": null, "constat": "…"}${suppressions ? ', {"gravite": "a_supprimer", "fichier": "chemin/du/fichier.md", "constat": "ce qui devrait partir, et pourquoi"}' : ""}${regles ? ', {"gravite": "bloquant", "fichier": "docs/captures/<ticket>/<écran>-apres.png", "regle": "erreur-brute", "constat": "ce que la capture montre"}' : ""}]}`,
   "```",
   "",
   "`verdict` vaut `rouge` s'il y a au moins un constat bloquant, `vert` sinon — `constats` peut être vide. `resume` et `constat` sont lus par le chef, sur l'issue : en français, précis.",
@@ -292,23 +338,39 @@ const VERDICTS: Record<string, Lue["verdict"]> = { vert: "green", rouge: "red" }
 // une gravité inconnue, un constat vide, un verdict que ses constats
 // contredisent — la réponse entière est illisible, ni verte ni rouge. Sauf un
 // rouge qui ne tient qu'à une suppression : il est vert.
-export function lireRelecture(message: string | null): { relecture: Lue } | { illisible: string } {
+export function lireRelecture(message: string | null, captures: CapturesARelire | null = null): { relecture: Lue } | { illisible: string } {
   if (message === null || message.trim() === "") return { illisible: "aucune réponse" };
   const lu = objet(message);
   if (!lu) return { illisible: "aucun objet JSON dans la réponse" };
-  const verdict = typeof lu.verdict === "string" ? VERDICTS[lu.verdict] : undefined;
+  let verdict = typeof lu.verdict === "string" ? VERDICTS[lu.verdict] : undefined;
   if (!verdict) return { illisible: `verdict inconnu : ${JSON.stringify(lu.verdict)} — attendu vert ou rouge` };
   const summary = phrase(lu.resume);
   if (!summary) return { illisible: "resume absent" };
   if (!Array.isArray(lu.constats)) return { illisible: "constats absents — attendu une liste, même vide" };
   const findings: Finding[] = [];
   for (const [rang, brut] of lu.constats.entries()) {
-    const { gravite, fichier, constat } = (brut !== null && typeof brut === "object" ? brut : {}) as Record<string, unknown>;
+    const { gravite, fichier, constat, regle } = (brut !== null && typeof brut === "object" ? brut : {}) as Record<string, unknown>;
     const severity = typeof gravite === "string" ? GRAVITES[gravite] : undefined;
     if (!severity) return { illisible: `constat ${rang + 1} : gravité inconnue ${JSON.stringify(gravite)} — attendu bloquant, remarque ou a_supprimer` };
     const text = phrase(constat);
     if (!text) return { illisible: `constat ${rang + 1} : constat absent` };
+    // Un constat de #830 est bloquant et cite une capture livrée : sans quoi le
+    // cook, renvoyé, ne saurait pas laquelle corriger.
+    if (captures !== null && regle !== undefined && regle !== null) {
+      const livrees = captures.screens.map(({ after }) => after);
+      if (typeof regle !== "string" || !(regle in REGLES_830)) return { illisible: `constat ${rang + 1} : règle inconnue ${JSON.stringify(regle)} — attendu ${Object.keys(REGLES_830).join(", ")}` };
+      if (severity !== "blocking") return { illisible: `constat ${rang + 1} : une violation de #830 est bloquante` };
+      if (!livrees.includes(phrase(fichier))) return { illisible: `constat ${rang + 1} : une violation de #830 cite la capture « après » concernée, une de celles qui sont livrées` };
+      findings.push({ severity, file: phrase(fichier), text: `Règle #830 — ${LIBELLES_830[regle as Regle]} : ${text}` });
+      continue;
+    }
     findings.push({ severity, file: phrase(fichier), text: gravite === A_SUPPRIMER ? `À supprimer : ${text}` : text });
+  }
+  // Une livraison d'interface sans aucune capture est bloquante, que le
+  // reviewer l'ait dit ou non : elle ne se juge pas sur ce qu'on ne voit pas.
+  if (captures !== null && captures.screens.length === 0 && !findings.some((finding) => finding.severity === "blocking" && finding.file === captures.dossier)) {
+    findings.push({ severity: "blocking", file: captures.dossier, text: `Livraison d'interface sans capture : aucun écran avant/après dans \`${captures.dossier}/\`. Le cook doit prendre les captures de chaque écran qu'il change avec \`scripts/capture-ecran/\` et les commiter.` });
+    verdict = "red";
   }
   const bloquants = findings.filter((finding) => finding.severity === "blocking").length;
   const suppressions = lu.constats.some((brut) => (brut as Record<string, unknown>).gravite === A_SUPPRIMER);

@@ -53,6 +53,7 @@ import { geste } from "./geste.ts";
 import { declencheSurPr } from "./declencheurs.ts";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { capturesLivrees, dossierDesCaptures, estDInterface, zoneALaPrise } from "./captures.ts";
 import { DE_CONFIANCE, type RuntimeAvecRail } from "./alimenter.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { direRefus, environnementCook, lectureDuTicket, lireFlux, REFUS_MAX, verdict as finDuFlux, type Lecture } from "./claude.ts";
@@ -596,6 +597,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     // Sans diff, le reviewer juge le livrable, et lui seul. Sur un diff, ce
     // que le cook a délimité — ou son message, s'il n'a rien délimité.
     const rapport = rapportDuCook(ticket, run);
+    // Un ticket d'interface montre ses captures au reviewer, qui les juge.
+    // Un ticket hors du rail n'a pas de zone à la prise : il n'en a pas.
+    const captures = diff !== null && !connu.horsRail && estDInterface({ zone: zoneALaPrise(journal.duTicket(ticket)), labels: issue.labels }) ? { dossier: dossierDesCaptures(ticket), screens: capturesLivrees(ticket, diff.fichiers) } : null;
     const mission = {
       depot: options.depotGitHub,
       base: options.base,
@@ -606,6 +610,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       commentaires,
       compteRendu: sansDiff ? rapport.livrable : (rapport.livrable ?? rapport.message),
       diff,
+      captures,
     };
     const consigne = consigneDeRelecture(mission);
     // Une consigne que le système refuserait de passer à `claude` ne se lance
@@ -631,7 +636,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       if (comment === "86" || comment === "disconnected") return "neutral";
       if (comment === "refused") return "refused";
       if (comment !== "done") return "failed";
-      lue = lireRelecture(lecture.message);
+      lue = lireRelecture(lecture.message, captures);
       // Une relecture réussie ne remet pas à zéro les échecs d'affilée des
       // cooks : elle ne compte ni pour ni contre. Illisible, elle n'est un
       // échec que si elle laisse la livraison non jugée : redemandée, elle ne

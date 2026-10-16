@@ -48,7 +48,7 @@ import type { RuntimeAvecRail } from "./alimenter.ts";
 import type { Mot } from "./arbitre.ts";
 import { ArbitreInjoignable, type Arbitrage, type Reponse } from "./arbitrage.ts";
 import { complet, manquant, type Calibrage } from "./calibrage.ts";
-import { capturesLivrees, direCaptures, estDInterface, type Captures } from "./captures.ts";
+import { capturesLivrees, direCaptures, estDInterface, zoneALaPrise as zonePrise, type Captures } from "./captures.ts";
 import { absentesDuMotif, CLE_DES_CAPACITES, direManque, direStationAbsente, fournitTout, gesteDeCapacite, manque, manqueDuMotif, motifSansStation, motifStationAbsente } from "./capacites.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsClaude, consigne, direRefus, environnementCook, lireFlux, REFUS_MAX, ticketRemis, verdict, VARIABLES_DE_CLE, VARIABLES_DE_JETON, type Lecture, type Session } from "./claude.ts";
@@ -1093,18 +1093,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     }
   };
 
-  // La zone que le ticket portait la dernière fois qu'il a été pris. C'est
-  // elle qui juge la livraison, pas celle du jour : le cook tourne sous le
-  // compte du service, et peut éditer la fiche de son propre ticket.
-  const zoneALaPrise = (numero: number): string[] => {
-    let zone: string[] = [];
-    let prise: string[] = [];
-    for (const evenement of journal.duTicket(numero)) {
-      if (evenement.type === "ticket.arrived" || evenement.type === "ticket.changed") zone = evenement.payload.card?.zone ?? [];
-      else if (evenement.type === "ticket.taken") prise = zone;
-    }
-    return prise;
-  };
+  const zoneALaPrise = (numero: number): string[] => zonePrise(journal.duTicket(numero));
 
   // Confronte une livraison à la zone de son ticket : ce qu'elle écrit
   // ailleurs, et une fiche qui a changé pendant la cuisson, vont au journal.
