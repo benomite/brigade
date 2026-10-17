@@ -17,8 +17,9 @@ qui ne va pas en une phrase, et son seul bouton fait le geste (ou écrit la dema
 un geste qui coûte ouvre sous la ligne sa confirmation, qui dit son prix en une ligne — une demande au
 second aussi (`ask the second…` : « ask the second to lift it », ce que coûtera le lever, et `yes, write
 the request`, qui l'écrit sans l'envoyer) ; un geste sans prix part au clic. **Ce que la box en dit mot
-pour mot**, la raison et le geste en toutes lettres **sont derrière « detail »**, au bout de la ligne :
-un clic les déplie dessous, un second les replie, et une relecture de la bande ne les replie pas.
+pour mot** et la raison **sont derrière « detail »**, au bout de la ligne : un clic les déplie dessous,
+un second les replie, et une relecture de la bande ne les replie pas. Le geste, lui, n'y est jamais
+écrit — ni commande à recopier ni mode d'emploi : le seul geste montré est le bouton de la ligne.
 **Le grant `merge` est un interrupteur** (#907), à côté de celui du manager et du même rendu — `merge
 on` ou `merge off` —, lu dans les lignes de tête de `status` : un clic ouvre la confirmation d'accorder,
 ou de révoquer, qui dit ce que ça change. Éteint de lui-même (son échéance passée), il est cerné de

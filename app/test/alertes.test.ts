@@ -369,10 +369,10 @@ describe("la bande, à l'écran", () => {
     const demande = () => ligne().dessous("button").find((pose) => pose.dataset.geste === "demande") ?? assert.fail("pas de demande");
     // Son geste coûte un redémarrage : le bouton ouvre d'abord ce qu'il coûte.
     assert.equal(demande().textContent, "ask the second…");
-    // La commande que la box nomme n'est pas écrite à plat : elle est derrière « detail ».
+    // La commande que la box nomme n'est écrite nulle part, pas même derrière « detail » : le bouton est le seul geste.
     assert.doesNotMatch(ligne().textContent, /brigade <projet>/);
     (ligne().dessous("button").find((pose) => pose.className === "detail") ?? assert.fail("pas de « detail »")).click();
-    assert.ok(ligne().textContent.includes(GESTE_DE_STATION_A_CHAUD), "le geste n'est pas derrière « detail »");
+    assert.ok(!ligne().textContent.includes(GESTE_DE_STATION_A_CHAUD), "le geste est écrit derrière « detail »");
     demande().click();
     await repos();
     // La confirmation dit le prix du geste, en une ligne ; rien n'est encore écrit.

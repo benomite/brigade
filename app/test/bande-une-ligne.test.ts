@@ -118,7 +118,7 @@ describe("une alerte : une ligne, un contrôle", () => {
     assert.doesNotMatch(ecrit, /start again|interrupted|replayed|merged without you/, "un prix est posé dans la bande");
   });
 
-  test("« detail » déplie, dessous, ce que la ligne sait de plus — la box mot pour mot, le geste en toutes lettres ; une relecture ne le replie pas, un second clic si", async () => {
+  test("« detail » déplie, dessous, ce que la ligne sait de plus — la box mot pour mot, jamais le geste à recopier ; une relecture ne le replie pas, un second clic si", async () => {
     const vue = await ouvrir();
     const lue = bandeLue(statusAvec(CONNEXION, BASE_ROUGE));
     vue.dire("surAlertes", lue);
@@ -132,7 +132,8 @@ describe("une alerte : une ligne, un contrôle", () => {
     assert.equal(detailDe(base).ariaExpanded, "true");
     const detail = base.children.find(({ className }) => className === "detail") ?? assert.fail("rien de déplié");
     assert.deepEqual(detail.dessous("pre").map(({ textContent }) => textContent), [valeur(BASE_ROUGE)]);
-    assert.match(detail.textContent, /to lift it: clear what makes it red, then replay its gates/);
+    // Le geste n'y est pas : le seul geste montré est le bouton de la ligne (règle #830).
+    assert.doesNotMatch(detail.textContent, /to lift it|clear what makes it red|replay its gates/);
     // Le prix n'est pas dans le détail non plus : c'est la confirmation qui le dit.
     assert.doesNotMatch(detail.textContent, /replayed/);
     // L'autre ligne reste repliée.
@@ -145,6 +146,12 @@ describe("une alerte : une ligne, un contrôle", () => {
 
     detailDe(ligneDe(vue, "base red")).click();
     assert.equal(ligneDe(vue, "base red").children.length, 1);
+
+    // La connexion Max : son détail dit ce que la box en écrit, sans la commande qui la rétablit (règle #830).
+    detailDe(ligneDe(vue, "Max connection")).click();
+    const connexion = ligneDe(vue, "Max connection").children.find(({ className }) => className === "detail") ?? assert.fail("rien de déplié");
+    assert.deepEqual(connexion.dessous("pre").map(({ textContent }) => textContent), ["Max DÉCONNECTÉE depuis 18 min sur box/claude — plus aucun ticket n'est pris"]);
+    assert.doesNotMatch(connexion.textContent, /claude \/login|to lift it/);
   });
 });
 

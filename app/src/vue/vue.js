@@ -4330,11 +4330,11 @@ const endroitDeLAlerte = ({ sujet, dit }) => (sujet === "urgence" ? "alerte:urge
 
 // Une ligne de la bande (ticket 907) : une seule ligne — ce qui ne va pas — et un seul contrôle, le
 // geste qui le lève. Son prix n'est pas posé à côté : le clic ouvre la confirmation, qui le dit. Ce
-// que la ligne sait de plus — pourquoi, ce que la box en écrit mot pour mot, le geste en toutes
-// lettres, le verdict d'une vérification — est replié derrière « detail », dessous.
+// que la ligne sait de plus — pourquoi, ce que la box en écrit mot pour mot, le verdict d'une
+// vérification — est replié derrière « detail », dessous.
 /** @param {Projet} projet @param {Alerte} alerte */
 function poserAlerte(projet, alerte) {
-  const { sujet, verifie, ton, dit, pourquoi, releve, geste: leve, verification } = alerte;
+  const { sujet, verifie, ton, dit, pourquoi, releve, verification } = alerte;
   const ligne = document.createElement("div");
   ligne.className = "alerte";
   ligne.dataset.sujet = sujet;
@@ -4348,14 +4348,15 @@ function poserAlerte(projet, alerte) {
   if (marque !== undefined) marque.className = "urgent";
   tete.append(pastille(dit, ton), ...(marque === undefined ? [] : [marque]), bloc("strong", dit));
 
-  // Le détail : ce que la ligne sait de plus, à plat une fois déplié — le brut de la box y reste entier.
+  // Le détail : ce que la ligne sait de plus, à plat une fois déplié — le pourquoi, et le brut de la box,
+  // entier. Pas le geste : le seul geste montré est le contrôle de la ligne, un bouton — jamais une
+  // commande à recopier (règles de la langue visuelle, ticket 830).
   const cle = `${projet.nom}\u0000${endroit}`;
   const deplie = detailsDeplies.has(cle);
   /** @type {HTMLElement[]} */
   const detail = [
     ...(pourquoi === undefined || pourquoi.trim() === "" ? [] : [bloc("p", pourquoi)]),
     ...(releve === undefined || releve.trim() === "" ? [] : [exact("pre", releve)]),
-    ...(leve.trim() === "" ? [] : [bloc("p", `to lift it: ${leve}`)]),
     ...(verification === undefined ? [] : poserVerdict(projet, verification, (texte, geste) => bouton(texte, () => void geste()), verification.titre !== dit)),
   ];
   if (detail.length > 0) {
