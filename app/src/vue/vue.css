@@ -108,7 +108,7 @@ pre.propos {
 }
 /* Un bouton de geste : il écrit, ou il demande — le même partout. Inactif, il est en pointillé,
    et sa raison se lit dessous. `:where` : la règle ne pèse rien, chaque bloc la précise. */
-:where(.gestes, #service, #retrait, #pages, #formulaire, #avis) button,
+:where(.gestes, .alerte > .ligne, #service, #retrait, #pages, #formulaire, #avis) button,
 #fiche button,
 #rail .pr,
 #rail .servie button {
@@ -120,13 +120,13 @@ pre.propos {
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
 }
-:where(.gestes, #service, #retrait, #pages, #formulaire, #avis) button:hover:not(:disabled),
+:where(.gestes, .alerte > .ligne, #service, #retrait, #pages, #formulaire, #avis) button:hover:not(:disabled),
 #fiche button:hover,
 #rail .pr:hover,
 #rail .servie button:hover:not(:disabled) {
   border-color: var(--trait-fort);
 }
-:where(.gestes, #service, #retrait, #pages, #formulaire, #avis) button:disabled,
+:where(.gestes, .alerte > .ligne, #service, #retrait, #pages, #formulaire, #avis) button:disabled,
 #rail .servie button:disabled {
   color: var(--discret);
   background: none;
@@ -271,15 +271,19 @@ main > header,
 #gestes-projet {
   margin-left: auto;
 }
-/* L'interrupteur du manager (#906), à droite des onglets : une glissière et son mot, « manager on » ou
-   « manager off » — lisible sans rien lire d'autre. Allumé, la glissière est à droite, verte ; éteint, à
-   gauche, grise ; pas lu, en pointillés, et il ne bascule rien. Sa confirmation s'ouvre dessous, par-dessus le rail. */
-#interrupteur-manager {
+/* Les interrupteurs de l'espace (#906, #907), à droite des onglets — le manager, le grant `merge` : une
+   glissière et son mot, « manager on » ou « merge off » — lisible sans rien lire d'autre. Allumé, la
+   glissière est à droite, verte ; éteint, à gauche, grise ; pas lu, en pointillés, et il ne bascule rien ;
+   éteint de lui-même (le grant échu), cerné de jaune. Sa confirmation s'ouvre dessous, par-dessus le rail. */
+.interrupteur-de-tete {
   position: relative;
   flex: none;
   margin-left: 16px;
 }
-#interrupteur-manager .bascule {
+.interrupteur-de-tete + .interrupteur-de-tete {
+  margin-left: 8px;
+}
+.interrupteur-de-tete .bascule {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -289,17 +293,17 @@ main > header,
   border: 1px solid var(--trait);
   border-radius: 999px;
 }
-#interrupteur-manager .bascule:hover:not(:disabled) {
+.interrupteur-de-tete .bascule:hover:not(:disabled) {
   border-color: var(--trait-fort);
 }
-#interrupteur-manager .glissiere {
+.interrupteur-de-tete .glissiere {
   position: relative;
   width: 30px;
   height: 16px;
   background: var(--trait-fort);
   border-radius: 999px;
 }
-#interrupteur-manager .glissiere::after {
+.interrupteur-de-tete .glissiere::after {
   content: "";
   position: absolute;
   top: 2px;
@@ -309,27 +313,30 @@ main > header,
   background: var(--discret);
   border-radius: 50%;
 }
-#interrupteur-manager .bascule[data-etat="allume"] .glissiere {
+.interrupteur-de-tete .bascule[data-etat="allume"] .glissiere {
   background: var(--vert);
 }
-#interrupteur-manager .bascule[data-etat="allume"] .glissiere::after {
+.interrupteur-de-tete .bascule[data-etat="allume"] .glissiere::after {
   left: 16px;
   background: var(--texte);
 }
-#interrupteur-manager .bascule[data-etat="eteint"] {
+.interrupteur-de-tete .bascule[data-etat="eteint"] {
   color: var(--texte-doux);
 }
-#interrupteur-manager .bascule[data-etat="inconnu"] {
+.interrupteur-de-tete .bascule[data-etat="inconnu"] {
   color: var(--discret);
   border-style: dashed;
   cursor: default;
 }
-#interrupteur-manager .bascule[data-etat="inconnu"] .glissiere::after {
+.interrupteur-de-tete .bascule[data-etat="inconnu"] .glissiere::after {
   left: 9px;
   background: transparent;
   border: 1px dashed var(--discret);
 }
-#interrupteur-manager > .confirmation {
+.interrupteur-de-tete .bascule[data-marque="seul"] {
+  border-color: var(--jaune);
+}
+.interrupteur-de-tete > .confirmation {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
@@ -2448,8 +2455,10 @@ main > header,
   border-color: var(--jaune);
 }
 /* La bande d'alertes : en tête de l'espace, une ligne par chose à faire, bordée du ton de sa
-   panne — une ligne « non vérifié » est grise, en pointillé. Vide, elle est cachée. Ce que la box
-   a écrit y reste un `pre`, entier : il défile plutôt que d'être coupé. */
+   panne — une ligne « non vérifié » est grise, en pointillé. Vide, elle est cachée. Chaque alerte tient
+   en une ligne (#907) : sa pastille, ce qui ne va pas — jamais coupé —, « detail », et son
+   contrôle, à droite. Déplié, le détail passe dessous ; ce que la box a écrit y reste un `pre`, entier :
+   il défile plutôt que d'être coupé. */
 #alertes {
   flex: none;
   max-height: 40%;
@@ -2459,7 +2468,6 @@ main > header,
   user-select: text;
 }
 #alertes .alerte {
-  padding: 8px 0 0;
   border-left: 3px solid var(--ton);
 }
 #alertes .alerte + .alerte {
@@ -2490,19 +2498,47 @@ main > header,
 #alertes .alerte[data-verifie="non"] {
   border-left-style: dotted;
 }
-#alertes .alerte > p:not(.gestes) {
+#alertes .alerte > .ligne {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 36px;
   margin: 0;
-  padding: 0 16px 4px;
+  padding: 4px 16px;
 }
-#alertes .alerte > pre {
-  margin: 0 16px 4px;
+#alertes .ligne > strong {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+#alertes .ligne > button {
+  flex: none;
+}
+/* « detail » : un mot discret, pas un geste — le contrôle de la ligne reste le seul bouton marqué. */
+#alertes .ligne > button.detail {
+  padding: 2px 6px;
+  font-size: 12px;
+  color: var(--texte-doux);
+  background: none;
+  border-color: transparent;
+}
+#alertes .ligne > button.detail:hover,
+#alertes .ligne > button.detail[aria-expanded="true"] {
+  color: var(--texte);
+  border-color: var(--trait);
+}
+#alertes .alerte > .detail {
+  padding: 0 16px 8px 34px;
+  color: var(--texte-doux);
+}
+#alertes .alerte > .detail > p {
+  margin: 0 0 4px;
+}
+#alertes .alerte > .detail pre {
+  margin: 0 0 4px;
   overflow-x: auto;
 }
-#alertes .gestes {
-  padding-top: 4px;
+#alertes .alerte > .confirmation {
+  margin: 0 16px 8px;
 }
 /* La bannière d'arrêt : au-dessus de tout l'espace, tant que la box dit la cuisine arrêtée. */
 #arret {

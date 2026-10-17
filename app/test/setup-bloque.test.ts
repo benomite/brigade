@@ -228,9 +228,11 @@ describe("le setup du projet bloqué, à l'écran", () => {
     const [urgence, ligne] = alertesDeLaVue.children;
     assert.equal(urgence?.dataset.sujet, "urgence");
     assert.equal(ligne?.dataset.sujet, "cuisine");
-    // Le texte du runtime n'est pas écrit à plat : il se lit, mot pour mot, au survol de la ligne.
+    // Le texte du runtime n'est pas écrit à plat : il se lit, mot pour mot, derrière « detail » (#907).
     assert.deepEqual(ligne?.dessous("pre"), []);
-    assert.ok((ligne?.dessous("button") ?? []).some((pose) => pose.ariaLabel.includes(HOTE_REFUSE.split("\n").join(" — "))), "le texte du runtime n'est pas au survol");
+    (ligne?.dessous("button").find((pose) => pose.className === "detail") ?? assert.fail("pas de « detail »")).click();
+    const depliee = alertesDeLaVue.children[1] ?? assert.fail("plus de ligne");
+    assert.deepEqual(depliee.dessous("pre").map(({ textContent }) => textContent), [HOTE_REFUSE]);
 
     // Débloqué : la bande se vide et se cache ; revenu sur « Tous les projets », la case n'a pas de pastille.
     debloquer();

@@ -307,13 +307,19 @@ describe("en attente de décision, aucun écran n'écrit à plat une commande ni
 });
 
 describe("en attente de décision, chaque geste attendu est un bouton, pas du texte", () => {
-  test("bande d'alertes : une ligne, un bouton — la commande et le prix au survol", async () => {
+  test("bande d'alertes : une ligne, un contrôle — la commande écrite nulle part, pas même derrière « detail », le prix dans la confirmation", async () => {
     const { racine } = await bandeEnAttente();
     for (const alerte of EN_ATTENTE) {
-      const ligne = racine.children.find((pose) => pose.dataset.sujet === alerte.sujet) ?? assert.fail(`pas de ligne « ${alerte.sujet} »`);
-      assert.ok(boutons(ligne).some(({ textContent }) => textContent.startsWith(alerte.bouton ?? "")), `« ${alerte.bouton} » n'est pas un bouton`);
-      assert.ok(!visible(ligne).includes(alerte.geste), `${alerte.sujet} : le geste est écrit à plat`);
-      assert.ok(survols(ligne).some((dit) => dit.includes(alerte.geste) || dit.includes(alerte.prix)), `${alerte.sujet} : ni le geste ni le prix ne sont au survol`);
+      const ligne = () => racine.children.find((pose) => pose.dataset.sujet === alerte.sujet) ?? assert.fail(`pas de ligne « ${alerte.sujet} »`);
+      const [controle, ...autres] = boutons(ligne()).filter(({ className }) => className !== "detail");
+      assert.ok(controle?.textContent.startsWith(alerte.bouton ?? "") === true && autres.length === 0, `« ${alerte.bouton} » n'est pas le seul contrôle de sa ligne`);
+      assert.ok(!visible(ligne()).includes(alerte.geste), `${alerte.sujet} : le geste est écrit à plat`);
+      assert.ok(!survols(ligne()).some((dit) => dit.includes(alerte.prix)), `${alerte.sujet} : le prix est posé à côté du bouton`);
+      // Déplié, le détail montre le brut de la box, jamais le geste à recopier.
+      const deplier = boutons(ligne()).find(({ className }) => className === "detail");
+      if (deplier === undefined) continue;
+      deplier.click();
+      assert.ok(!visible(ligne()).includes(alerte.geste), `${alerte.sujet} : le geste est écrit derrière « detail »`);
     }
   });
 

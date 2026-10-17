@@ -11,11 +11,20 @@ n'y a rien en bas de la fenêtre. Le reste est derrière deux onglets, en haut, 
 projet : **Coût** (le consommé) et **Paramètres** (l'état du projet, la sauvegarde et son
 ancienneté, les réglages, le manager, les grants) — lus pour toi, sans rien taper. Leur page
 s'ouvre **par-dessus le rail**, et le rail revient tel que tu l'avais laissé quand tu la fermes.
-**Dans la bande d'alertes, chaque geste est un bouton** : la ligne dit ce qui ne va pas en une phrase,
-le bouton fait le geste (ou écrit la demande dans le second — « ask the second »), et rien d'autre n'est
-écrit à plat. Ce que la box en dit mot pour mot, la raison et le geste en toutes lettres se lisent au
-survol de l'icône « ? » de la ligne ; le prix d'un geste qui coûte, au survol de son bouton — jamais un
-« cost: … » sous lui, et rien du tout quand il est nul. **Le manager n'est pas une ligne de la bande :
+**Dans la bande d'alertes, chaque alerte tient en une ligne et un contrôle** (#907) : la ligne dit ce
+qui ne va pas en une phrase, et son seul bouton fait le geste (ou écrit la demande dans le second —
+« ask the second »). Rien d'autre n'est écrit à plat. **Le prix est dans la confirmation, au clic** :
+un geste qui coûte ouvre sous la ligne sa confirmation, qui dit son prix en une ligne — une demande au
+second aussi (`ask the second…` : « ask the second to lift it », ce que coûtera le lever, et `yes, write
+the request`, qui l'écrit sans l'envoyer) ; un geste sans prix part au clic. **Ce que la box en dit mot
+pour mot** et la raison **sont derrière « detail »**, au bout de la ligne : un clic les déplie dessous,
+un second les replie, et une relecture de la bande ne les replie pas. Le geste, lui, n'y est jamais
+écrit — ni commande à recopier ni mode d'emploi : le seul geste montré est le bouton de la ligne.
+**Le grant `merge` est un interrupteur** (#907), à côté de celui du manager et du même rendu — `merge
+on` ou `merge off` —, lu dans les lignes de tête de `status` : un clic ouvre la confirmation d'accorder,
+ou de révoquer, qui dit ce que ça change. Éteint de lui-même (son échéance passée), il est cerné de
+jaune, sa ligne de `status` au survol, et la bande n'en fait plus de ligne ; « bientôt éteint » reste
+une ligne, à prolonger. **Le manager n'est pas une ligne de la bande :
 c'est un interrupteur** (#906), en tête de l'espace, à droite des onglets — `manager on`, glissière verte
 à droite, ou `manager off`, grise à gauche —, toujours en vue, et un clic le bascule : éteindre part
 dans le second ; allumer ouvre sa confirmation dessous, qui dit son prix en une phrase avec le nombre
