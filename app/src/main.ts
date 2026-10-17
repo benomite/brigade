@@ -832,10 +832,14 @@ ipcMain.handle("compter", (_, nom: unknown) => {
 ipcMain.on("regarder", (_, nom: unknown, demande: number) => (voir = () => regarder(projets().filter((candidat) => candidat.nom === nom), ["status"], demande, true))());
 // L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.
 // Aucun — un terminal, « Tous les projets » — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
+// Cost, lui, lit `station` sur la box de chaque projet qu'elle sert encore : ses chiffres de tête
+// sont tous projets confondus (vue/cost/tete.js).
 ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
   const commande = commandeDe(id);
   ongletLu = { id, demande };
-  veilleDOnglet.regarder(commande === undefined ? [] : projets().filter((candidat) => candidat.nom === nom), commande === undefined ? [] : [commande], demande);
+  const cout = RUBRIQUES.find((rubrique) => rubrique.id === "cout")?.defaut === id;
+  const lus = projets().filter((candidat) => candidat.nom === nom || (cout && candidat.desinstalle === undefined));
+  veilleDOnglet.regarder(commande === undefined ? [] : lus, commande === undefined ? [] : [commande], demande);
 });
 // « Tous les projets » : le `status` de chacun — ce qui bloque un projet, depuis quand ses décisions
 // attendent, une station saturée : ce que l'accueil dit en une ligne et que `faits` ne porte pas.
