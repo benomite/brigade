@@ -499,7 +499,7 @@ function decrireArbitrage({ stations }: EtatCuisine, depuis: (instant: string) =
 // comment la voir. Sous chacun, plus en retrait, l'écran à regarder de sa
 // livraison et sa phrase (`direEcran`). Rien à dire quand il n'y a rien de tout cela.
 const sousLaLigne = (lignes: string[]) => lignes.map((dite) => `    ${dite}`);
-function decrireServeurs({ serveurs, aLancer, sansService, session }: EtatCuisine, depuis: (instant: string) => string): string[] {
+function decrireServeurs({ serveurs, aLancer, sansService, session }: EtatCuisine, depuis: (instant: string) => string, depuisEn: Depuis): string[] {
   if (serveurs.length === 0 && aLancer.length === 0 && sansService.length === 0) return [];
   const mort = session?.endedAt !== null;
   const compte = `${serveurs.length} serveur${serveurs.length > 1 ? "s" : ""}`;
@@ -519,7 +519,7 @@ function decrireServeurs({ serveurs, aLancer, sansService, session }: EtatCuisin
           ligne("à lancer", `${aLancer.length} — le worktree d'une livraison d'une app qui ne s'ouvre pas dans un navigateur, tenu pour qu'on l'y lance : aucune page`),
           ...aLancer.flatMap((tenu) => [`  #${tenu.ticket}  ${tenu.worktree}  tenu depuis ${depuis(tenu.since)}  ${tenu.branch}  ${direCommentLeVoir(tenu)}`, ...sousLaLigne(direEcran(tenu.ecran))]),
         ]),
-    ...sansService.map((indisponible) => ligne("service", `${direServiceIndisponible(indisponible)} — depuis ${depuis(indisponible.since)} sur ${indisponible.station}`)),
+    ...sansService.map((indisponible) => ligne("service", `${direServiceIndisponible(indisponible)} — since ${depuisEn(indisponible.since)} ago on ${indisponible.station}`)),
     "",
   ];
 }
@@ -632,7 +632,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ...decrireArbitrage(etat, depuis),
     ...cooks.map(({ cook, ticket }) => decrireCook(cook, ticket, maintenant, depuis)),
     "",
-    ...decrireServeurs(etat, depuis),
+    ...decrireServeurs(etat, depuis, depuisEn),
     ...decrireWorktrees(etat, depuis),
     ...decrireConsommation(etat),
     // Absent quand rien n'est franchi : le bloc n'apparaît que pour être lu.

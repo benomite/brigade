@@ -50,19 +50,19 @@ describe("le service du projet", { concurrency: 8 }, () => {
     assert.equal(commande, "npm run dev");
     assert.deepEqual(chemins, []);
     assert.deepEqual(problemes, [
-      "ligne 2 de `.claude/brigade/service` (« commande : npm start ») : la commande est déjà déclarée ligne 1 — une seule sert le projet",
-      "ligne 3 de `.claude/brigade/service` (« port : 3000 ») : `port` n'est pas une clé — attendu « commande : … », « lancement : … » ou « interface : … »",
-      "ligne 4 de `.claude/brigade/service` (« npm run preview ») : ce n'est pas une ligne « clé : valeur » — attendu « commande : … », « lancement : … » ou « interface : … »",
-      "ligne 5 de `.claude/brigade/service` (« interface : /srv/site ») : « /srv/site » n'est pas un chemin du dépôt",
-      "ligne 6 de `.claude/brigade/service` (« interface : app/**/*.css ») : « app/**/*.css » est un motif, pas un chemin — un dossier possède déjà tout ce qu'il contient",
-      "ligne 7 de `.claude/brigade/service` (« interface : ../ailleurs ») : « ../ailleurs » n'est pas un chemin du dépôt",
-      "ligne 8 de `.claude/brigade/service` (« interface : . ») : « . » ne nomme aucun chemin — tout le dépôt n'est pas une interface",
-      "ligne 9 de `.claude/brigade/service` (« interface : ») : il manque le chemin",
-      "ligne 10 de `.claude/brigade/service` (« commande : ») : il manque la commande",
-      "aucun chemin d'interface dans `.claude/brigade/service` : aucune livraison ne serait reconnue comme touchant l'interface — une ligne « interface : <chemin> » par chemin",
+      'line 2 of `.claude/brigade/service` ("commande : npm start"): the command is already declared on line 1 — only one serves the project',
+      'line 3 of `.claude/brigade/service` ("port : 3000"): `port` is not a key — expected "commande: …", "lancement: …" or "interface: …"',
+      'line 4 of `.claude/brigade/service` ("npm run preview"): not a "key: value" line — expected "commande: …", "lancement: …" or "interface: …"',
+      'line 5 of `.claude/brigade/service` ("interface : /srv/site"): "/srv/site" is not a path of the repository',
+      'line 6 of `.claude/brigade/service` ("interface : app/**/*.css"): "app/**/*.css" is a pattern, not a path — a directory already owns everything it contains',
+      'line 7 of `.claude/brigade/service` ("interface : ../ailleurs"): "../ailleurs" is not a path of the repository',
+      'line 8 of `.claude/brigade/service` ("interface : ."): "." names no path — the whole repository is not an interface',
+      'line 9 of `.claude/brigade/service` ("interface :"): the path is missing',
+      'line 10 of `.claude/brigade/service` ("commande :"): the command is missing',
+      'no interface path in `.claude/brigade/service`: no delivery would be recognised as touching the interface — one "interface: <path>" line per path',
     ]);
 
-    assert.deepEqual(lireDeclaration("# rien encore\ninterface : site\n").problemes, ["aucune commande dans `.claude/brigade/service` : rien ne dit comment servir ce projet — une ligne « commande : … », ou « lancement : … » pour une app qui ne s'ouvre pas dans un navigateur"]);
+    assert.deepEqual(lireDeclaration("# rien encore\ninterface : site\n").problemes, ['no command in `.claude/brigade/service`: nothing says how to serve this project — a "commande: …" line, or "lancement: …" for an app that does not open in a browser']);
   });
 
   test("une app qui ne s'ouvre pas dans un navigateur déclare son lancement à la place d'une commande : servable sans port, sans serveur", async (t) => {
@@ -84,15 +84,15 @@ describe("le service du projet", { concurrency: 8 }, () => {
 
   test("un projet se sert ou se lance, pas les deux ; un lancement se déclare une fois, et pas vide", () => {
     assert.deepEqual(lireDeclaration("commande : npm run dev\nlancement : npm start\ninterface : app\n").problemes, [
-      "ligne 2 de `.claude/brigade/service` (« lancement : npm start ») : un lancement alors que la commande est déclarée ligne 1 — un projet se sert dans un navigateur (« commande ») ou se lance (« lancement »), pas les deux",
+      'line 2 of `.claude/brigade/service` ("lancement : npm start"): a launch while the command is declared on line 1 — a project is served in a browser ("commande") or launched ("lancement"), not both',
     ]);
     assert.deepEqual(lireDeclaration("lancement : npm start\ncommande : npm run dev\nlancement : electron .\nlancement :\ninterface : app\n").problemes, [
-      "ligne 2 de `.claude/brigade/service` (« commande : npm run dev ») : une commande alors que le lancement est déclaré ligne 1 — un projet se sert dans un navigateur (« commande ») ou se lance (« lancement »), pas les deux",
-      "ligne 3 de `.claude/brigade/service` (« lancement : electron . ») : le lancement est déjà déclaré ligne 1 — un seul lance l'app",
-      "ligne 4 de `.claude/brigade/service` (« lancement : ») : il manque le lancement",
+      'line 2 of `.claude/brigade/service` ("commande : npm run dev"): a command while the launch is declared on line 1 — a project is served in a browser ("commande") or launched ("lancement"), not both',
+      'line 3 of `.claude/brigade/service` ("lancement : electron ."): the launch is already declared on line 1 — only one launches the app',
+      'line 4 of `.claude/brigade/service` ("lancement :"): the launch is missing',
     ]);
     // Un lancement sans chemin d'interface ne reconnaîtrait aucune livraison.
-    assert.match(lireDeclaration("lancement : npm start\n").problemes.join("\n"), /^aucun chemin d'interface/);
+    assert.match(lireDeclaration("lancement : npm start\n").problemes.join("\n"), /^no interface path/);
   });
 
   test("une livraison dont le diff touche un chemin d'interface déclaré touche l'interface, une livraison qui n'en touche aucun ne la touche pas", async (t) => {
@@ -129,7 +129,7 @@ describe("le service du projet", { concurrency: 8 }, () => {
     assert.deepEqual(serviceDuWorktree(worktree, { [VARIABLE_DU_PORT]: "20017" }), {
       servable: false,
       declare: false,
-      pourquoi: "ce projet ne déclare pas comment il est servi : son dépôt ne porte pas de `.claude/brigade/service` — une ligne « commande : … » (ou « lancement : … » pour une app qui ne s'ouvre pas dans un navigateur), et une ligne « interface : <chemin> » par chemin dont la modification touche l'interface",
+      pourquoi: 'this project does not declare how it is served: its repository has no `.claude/brigade/service` — a "commande: …" line (or "lancement: …" for an app that does not open in a browser), and one "interface: <path>" line per path whose change touches the interface',
     });
   });
 
@@ -140,7 +140,7 @@ describe("le service du projet", { concurrency: 8 }, () => {
     const service = serviceDuWorktree(worktree, { [VARIABLE_DU_PORT]: "20017" });
     assert.equal(service.servable, false);
     assert.equal(!service.servable && service.declare, true);
-    assert.match(!service.servable ? service.pourquoi : "", /^ce projet déclare mal comment il est servi — ligne 2 de `\.claude\/brigade\/service` \(« interface : app\/\* »\) : « app\/\* » est un motif/);
+    assert.match(!service.servable ? service.pourquoi : "", /^this project declares badly how it is served — line 2 of `\.claude\/brigade\/service` \("interface : app\/\*"\): "app\/\*" is a pattern/);
   });
 
   test("une déclaration illisible n'est pas une déclaration absente", (t) => {
@@ -150,7 +150,7 @@ describe("le service du projet", { concurrency: 8 }, () => {
 
     const service = serviceDuWorktree(worktree, { [VARIABLE_DU_PORT]: "20017" });
     assert.equal(!service.servable && service.declare, true);
-    assert.match(!service.servable ? service.pourquoi : "", /^`\.claude\/brigade\/service` est illisible — EISDIR/);
+    assert.match(!service.servable ? service.pourquoi : "", /^`\.claude\/brigade\/service` is unreadable — EISDIR/);
   });
 
   test("le port d'un worktree est celui que son setup lui attribue : la déclaration de ce dépôt, sous son vrai setup, sert le ticket 405 sur 20405", async (t) => {
@@ -182,12 +182,12 @@ describe("le service du projet", { concurrency: 8 }, () => {
     assert.deepEqual(serviceDuWorktree(worktree, {}), {
       servable: false,
       declare: true,
-      pourquoi: "aucun port n'est attribué à ce worktree : son setup (`.claude/brigade/worktree-setup.sh`) n'exporte pas `BRIGADE_PORT`, et aucun port n'est choisi à sa place",
+      pourquoi: "no port is assigned to this worktree: its setup (`.claude/brigade/worktree-setup.sh`) does not export `BRIGADE_PORT`, and no port is chosen in its place",
     });
     for (const brut of ["0", "70000", "20017.5", "vingt-mille", ""]) {
       const service = serviceDuWorktree(worktree, { [VARIABLE_DU_PORT]: brut });
       assert.equal(service.servable, false, brut);
     }
-    assert.match(String(Object.values(serviceDuWorktree(worktree, { [VARIABLE_DU_PORT]: "70000" })).at(-1)), /^`BRIGADE_PORT` vaut « 70000 » : ce n'est pas un port/);
+    assert.match(String(Object.values(serviceDuWorktree(worktree, { [VARIABLE_DU_PORT]: "70000" })).at(-1)), /^`BRIGADE_PORT` is "70000": not a port/);
   });
 });

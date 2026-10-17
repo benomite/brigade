@@ -15,7 +15,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { SCRIPT_SETUP } from "./gates.ts";
-import { possede, refus } from "./zones.ts";
+import { possede, refusEn } from "./zones.ts";
 
 // Ce que le dépôt du projet déclare : des lignes « clé : valeur ».
 export const DECLARATION_SERVICE = ".claude/brigade/service";
@@ -45,20 +45,20 @@ export type Service =
   | { servable: true; regard: "lancement"; lancement: string; interface: string[] }
   | { servable: false; declare: boolean; pourquoi: string };
 
-const ATTENDU = "attendu « commande : … », « lancement : … » ou « interface : … »";
+const ATTENDU = "expected \"commande: …\", \"lancement: …\" or \"interface: …\"";
 // « clé : valeur ». Ce qui suit les premiers deux-points est la valeur, telle
 // quelle : une commande en porte d'autres.
 const CHAMP = /^([\p{L}][\p{L}\p{N}_-]*)\s*:(.*)$/u;
 
-const NON_DECLARE = `ce projet ne déclare pas comment il est servi : son dépôt ne porte pas de \`${DECLARATION_SERVICE}\` — une ligne « commande : … » (ou « lancement : … » pour une app qui ne s'ouvre pas dans un navigateur), et une ligne « interface : <chemin> » par chemin dont la modification touche l'interface`;
+const NON_DECLARE = `this project does not declare how it is served: its repository has no \`${DECLARATION_SERVICE}\` — a \"commande: …\" line (or \"lancement: …\" for an app that does not open in a browser), and one \"interface: <path>\" line per path whose change touches the interface`;
 
 // Pourquoi une valeur n'est pas un chemin d'interface, ou null.
 function refusDeChemin(chemin: string): string | null {
-  if (chemin === "") return "il manque le chemin";
-  const defaut = refus(chemin);
-  if (defaut !== null) return `« ${chemin} » ${defaut}`;
+  if (chemin === "") return "the path is missing";
+  const defaut = refusEn(chemin);
+  if (defaut !== null) return `"${chemin}" ${defaut}`;
   // `.` posséderait tout : une livraison de documentation serait servie.
-  return chemin.split("/").some((segment) => segment !== "" && segment !== ".") ? null : `« ${chemin} » ne nomme aucun chemin — tout le dépôt n'est pas une interface`;
+  return chemin.split("/").some((segment) => segment !== "" && segment !== ".") ? null : `"${chemin}" names no path — the whole repository is not an interface`;
 }
 
 // Lit la déclaration du dépôt, sans E/S. Tout ce qu'elle ne dit pas, ou dit
@@ -71,18 +71,18 @@ export function lireDeclaration(texte: string): Declaration {
   texte.split(/\r?\n/).forEach((brute, rang) => {
     const ligne = brute.trim();
     if (ligne === "" || ligne.startsWith("#")) return;
-    const probleme = (pourquoi: string) => void declaration.problemes.push(`ligne ${rang + 1} de \`${DECLARATION_SERVICE}\` (« ${ligne.slice(0, 80)} ») : ${pourquoi}`);
+    const probleme = (pourquoi: string) => void declaration.problemes.push(`line ${rang + 1} of \`${DECLARATION_SERVICE}\` ("${ligne.slice(0, 80)}"): ${pourquoi}`);
     const [, cle, suite] = CHAMP.exec(ligne) ?? [];
     const valeur = (suite ?? "").trim();
-    if (cle === undefined) probleme(`ce n'est pas une ligne « clé : valeur » — ${ATTENDU}`);
+    if (cle === undefined) probleme(`not a "key: value" line — ${ATTENDU}`);
     else if (cle === "commande" || cle === "lancement") {
       commandeEcrite = true;
       const autre = cle === "commande" ? "lancement" : "commande";
-      if (valeur === "") probleme(cle === "commande" ? "il manque la commande" : "il manque le lancement");
-      else if (declaration[cle] !== null) probleme(cle === "commande" ? `la commande est déjà déclarée ligne ${lignes.commande} — une seule sert le projet` : `le lancement est déjà déclaré ligne ${lignes.lancement} — un seul lance l'app`);
+      if (valeur === "") probleme(cle === "commande" ? "the command is missing" : "the launch is missing");
+      else if (declaration[cle] !== null) probleme(cle === "commande" ? `the command is already declared on line ${lignes.commande} — only one serves the project` : `the launch is already declared on line ${lignes.lancement} — only one launches the app`);
       // Un projet se regarde d'une seule façon : servi dans un navigateur, ou lancé.
       else if (declaration[autre] !== null)
-        probleme(`${cle === "commande" ? "une commande" : "un lancement"} alors que ${autre === "commande" ? "la commande est déclarée" : "le lancement est déclaré"} ligne ${lignes[autre]} — un projet se sert dans un navigateur (« commande ») ou se lance (« lancement »), pas les deux`);
+        probleme(`${cle === "commande" ? "a command" : "a launch"} while ${autre === "commande" ? "the command is declared" : "the launch is declared"} on line ${lignes[autre]} — a project is served in a browser (\"commande\") or launched (\"lancement\"), not both`);
       else {
         declaration[cle] = valeur;
         lignes[cle] = rang + 1;
@@ -92,13 +92,13 @@ export function lireDeclaration(texte: string): Declaration {
       const chemin = valeur.replace(/\/+$/, "");
       if (defaut !== null) probleme(defaut);
       else if (!declaration.interface.includes(chemin)) declaration.interface.push(chemin);
-    } else probleme(`\`${cle}\` n'est pas une clé — ${ATTENDU}`);
+    } else probleme(`\`${cle}\` is not a key — ${ATTENDU}`);
   });
   if (!commandeEcrite) {
-    declaration.problemes.push(`aucune commande dans \`${DECLARATION_SERVICE}\` : rien ne dit comment servir ce projet — une ligne « commande : … », ou « lancement : … » pour une app qui ne s'ouvre pas dans un navigateur`);
+    declaration.problemes.push(`no command in \`${DECLARATION_SERVICE}\`: nothing says how to serve this project — a \"commande: …\" line, or \"lancement: …\" for an app that does not open in a browser`);
   }
   if (declaration.interface.length === 0) {
-    declaration.problemes.push(`aucun chemin d'interface dans \`${DECLARATION_SERVICE}\` : aucune livraison ne serait reconnue comme touchant l'interface — une ligne « interface : <chemin> » par chemin`);
+    declaration.problemes.push(`no interface path in \`${DECLARATION_SERVICE}\`: no delivery would be recognised as touching the interface — one \"interface: <path>\" line per path`);
   }
   return declaration;
 }
@@ -106,9 +106,9 @@ export function lireDeclaration(texte: string): Declaration {
 // Le port que le setup a attribué au worktree, ou pourquoi il n'y en a pas.
 function portAttribue(env: NodeJS.ProcessEnv): number | string {
   const brut = env[VARIABLE_DU_PORT];
-  if (brut === undefined) return `aucun port n'est attribué à ce worktree : son setup (\`${SCRIPT_SETUP}\`) n'exporte pas \`${VARIABLE_DU_PORT}\`, et aucun port n'est choisi à sa place`;
+  if (brut === undefined) return `no port is assigned to this worktree: its setup (\`${SCRIPT_SETUP}\`) does not export \`${VARIABLE_DU_PORT}\`, and no port is chosen in its place`;
   const port = /^[1-9][0-9]{0,4}$/.test(brut) ? Number(brut) : 0;
-  return port >= 1 && port <= 65535 ? port : `\`${VARIABLE_DU_PORT}\` vaut « ${brut.slice(0, 80)} » : ce n'est pas un port — le setup du worktree (\`${SCRIPT_SETUP}\`) l'attribue, de 1 à 65535`;
+  return port >= 1 && port <= 65535 ? port : `\`${VARIABLE_DU_PORT}\` is "${brut.slice(0, 80)}": not a port — the worktree's setup (\`${SCRIPT_SETUP}\`) assigns it, from 1 to 65535`;
 }
 
 // Ce worktree est-il servable ? Il l'est si son dépôt déclare comment le
@@ -124,12 +124,12 @@ export function serviceDuWorktree(worktree: string, env: NodeJS.ProcessEnv): Ser
     const { code, message } = erreur as NodeJS.ErrnoException;
     // Illisible n'est pas absent : seul un fichier qui n'est pas là ne déclare rien.
     if (code === "ENOENT" || code === "ENOTDIR") return { servable: false, declare: false, pourquoi: NON_DECLARE };
-    return { servable: false, declare: true, pourquoi: `\`${DECLARATION_SERVICE}\` est illisible — ${code ?? message}` };
+    return { servable: false, declare: true, pourquoi: `\`${DECLARATION_SERVICE}\` is unreadable — ${code ?? message}` };
   }
   const { commande, lancement, interface: chemins, problemes } = lireDeclaration(texte);
-  if (problemes.length > 0) return { servable: false, declare: true, pourquoi: `ce projet déclare mal comment il est servi — ${problemes.join(" ; ")}` };
+  if (problemes.length > 0) return { servable: false, declare: true, pourquoi: `this project declares badly how it is served — ${problemes.join("; ")}` };
   if (lancement !== null) return { servable: true, regard: "lancement", lancement, interface: chemins };
-  if (commande === null) return { servable: false, declare: true, pourquoi: "ce projet déclare mal comment il est servi — il manque la commande" };
+  if (commande === null) return { servable: false, declare: true, pourquoi: "this project declares badly how it is served — the command is missing" };
   const port = portAttribue(env);
   if (typeof port === "string") return { servable: false, declare: true, pourquoi: port };
   return { servable: true, regard: "navigateur", commande, port, interface: chemins };
