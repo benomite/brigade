@@ -6,6 +6,7 @@
 // deux gestes, qui envoient la commande de la doc dans le second, s'il est dit
 // libre (terminaux.test.ts) : éteindre, direct ; allumer, confirmé — rien ne part
 // sans son « oui » (confirmation.test.ts).
+import { docRuntime } from "./aides/doc-runtime.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -271,8 +272,8 @@ describe("l'onglet Manager et ses deux gestes", () => {
     for (const { id } of GESTES_DU_MANAGER) assert.ok(GESTES.some((geste) => geste.id === id), `« ${id} » n'est pas un geste du socle`);
   });
 
-  test("« éteindre », direct, et « allumer », confirmé, envoient la commande de docs/runtime.md, « Le manager », dans le second — sans « oui », allumer ne part pas ; d'un second qui démarre, rien ne part, et aucun shell ne s'ouvre", async () => {
-    const doc = readFileSync(join(RACINE, "docs/runtime.md"), "utf8");
+  test("« éteindre », direct, et « allumer », confirmé, envoient la commande de docs/runtime/, « Le manager », dans le second — sans « oui », allumer ne part pas ; d'un second qui démarre, rien ne part, et aucun shell ne s'ouvre", async () => {
+    const doc = docRuntime(RACINE);
     const ecrits: string[][] = [];
     const terminaux = ouvrirTerminaux({
       claude: "claude",
@@ -297,8 +298,8 @@ describe("l'onglet Manager et ses deux gestes", () => {
     assert.deepEqual(eteindre, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!ssh box brigade parade manager off\`` });
     assert.deepEqual(ecrits, [[]]);
     // La doc cite la commande deux fois : dans le dépôt (« Le manager »), et sur la box (« Piloter ») — celle-ci, dans sa forme de poste, est ce qui part.
-    assert.ok(doc.includes("`brigade <projet> manager [on \\| off \\| return <n°> \\| backlog \\| upstream]`"), "docs/runtime.md, « Piloter », ne cite plus la commande du manager");
-    for (const mot of ["on", "off"]) assert.ok(doc.includes(`npm --prefix runtime run manager -- ${mot}`), `docs/runtime.md, « Le manager », ne cite plus \`manager -- ${mot}\``);
+    assert.ok(doc.includes("`brigade <projet> manager [on \\| off \\| return <n°> \\| backlog \\| upstream]`"), "docs/runtime/, « Piloter », ne cite plus la commande du manager");
+    for (const mot of ["on", "off"]) assert.ok(doc.includes(`npm --prefix runtime run manager -- ${mot}`), `docs/runtime/, « Le manager », ne cite plus \`manager -- ${mot}\``);
   });
 
   test("le module ne lance rien : il lit une sortie que la veille a déjà rendue", () => {
