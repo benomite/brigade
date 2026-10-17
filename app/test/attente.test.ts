@@ -281,7 +281,11 @@ describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
     const bon = bonDe(vue, 8);
     assert.ok(colonne(vue, "WAITING").contains(bon));
     assert.ok(!colonne(vue, "TODO").contains(bon));
-    const lu = bon.dessous("li").map((fait) => fait.children.map((pose) => pose.textContent));
+    // La carte dit l'essentiel en une ligne ; le détail est dans sa fiche.
+    assert.equal(bon.dessous("p").find((pose) => pose.className === "ligne-carte")?.textContent, "waiting for sa validation écrite du devis · from le client");
+    assert.equal(bon.dessous("li").length, 0);
+    bon.click();
+    const lu = fiche(vue).dessous("li").map((fait) => fait.children.map((pose) => pose.textContent));
     assert.deepEqual(lu, [
       ["waiting for", "sa validation écrite du devis"],
       ["from", "le client"],
@@ -289,7 +293,6 @@ describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
       ["follow-up", "2026-10-21 00:00 UTC — in 5 d from the reading"],
       ["on arrival", TIERS.aLArrivee],
     ]);
-    assert.equal(fiche(vue).hidden, true);
   });
 
   test("« resume » et « it arrived, back to the kitchen » partent au clic, pour ce ticket", async () => {

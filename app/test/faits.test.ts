@@ -14,6 +14,7 @@ import { describe, test } from "node:test";
 import type { Lecture } from "../src/box.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { SANS_DECISION } from "../src/decision.ts";
+import { heureHM } from "../src/format.ts";
 import { ACTIVITE_NON_COMMUNIQUEE, BANNIERE, COMMANDE, comprendre, dessiner, direEnCeMoment, duree, evenement, rail, tableau, tenirFaits, tick, titreDEchec, type Faits } from "../src/faits.ts";
 import type { Entete } from "../src/fiche.ts";
 import { commandeDuGeste, CONFIRMES } from "../src/gestes.ts";
@@ -234,6 +235,7 @@ describe("les faits que l'app dessine", () => {
                   attendu: false,
                   attend: [],
                   // Ce que la forme dit de lui : ce que son cook fait, sa station. Le reste est écrit comme manquant.
+                  ligne: "lit runtime/src/etat.ts · 3 min",
                   dit: [
                     { libelle: "right now", valeur: "lit runtime/src/etat.ts, for 3 min" },
                     { libelle: "taken by", valeur: "box/claude", exact: true },
@@ -250,7 +252,7 @@ describe("les faits que l'app dessine", () => {
               ton: "rouge",
               compte: "1",
               // `attend`, dans la forme, le nomme : il est ici avant même que `status` ait été lu.
-              cartes: [{ ticket: 21, etat: "BLOQUÉ", ton: "rouge", titre: "L'export du journal", ouvrable: true, attendu: true, attend: [], dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns · what blocks it`, ...fiche("L'export du journal", ATTENDU), gestes: ["attente-poser"] }],
+              cartes: [{ ticket: 21, etat: "BLOQUÉ", ton: "rouge", titre: "L'export du journal", ouvrable: true, attendu: true, attend: [], ligne: SANS_DECISION, dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns · what blocks it`, ...fiche("L'export du journal", ATTENDU), gestes: ["attente-poser"] }],
               vide: "no ticket in `attend`, according to `facts`",
             },
             { nom: "WAITING", ton: "gris", compte: "0", cartes: [], vide: "no ticket waits for a third party" },
@@ -260,8 +262,8 @@ describe("les faits que l'app dessine", () => {
               // Autant de cartes que `livrés 24 h` : celles de `livres`, le plus récent en haut, partis du rail ou non.
               compte: "3",
               cartes: [
-                { ticket: 216, etat: "servi", ton: "vert", titre: "Le relevé des mesures", ouvrable: true, attendu: false, attend: [], pr: true, livraison: { resume: RELU_216.resume, remarques: "2 remarks", constats: RELU_216.constats }, dit: [{ libelle: "served", valeur: "13 s before the reading" }, { libelle: "cooked by", valeur: "box/claude", exact: true }], ...fiche("Le relevé des mesures", { pr: true }) },
-                { ticket: 201, etat: "servi", ton: "vert", titre: "Les grants sous plafond", ouvrable: true, attendu: false, attend: [], pr: true, livraison: { resume: RELU_201.resume, remarques: "no remarks", constats: [] }, dit: [{ libelle: "served", valeur: "2 h 51 before the reading" }, { libelle: "cooked by", valeur: "box/claude", exact: true }], ...fiche("Les grants sous plafond", { pr: true }) },
+                { ticket: 216, etat: "servi", ton: "vert", titre: "Le relevé des mesures", ouvrable: true, attendu: false, attend: [], ligne: `served at ${heureHM("2026-10-12T10:03:58.000Z")} · ${RELU_216.resume.split(". ")[0]}.`, pr: true, livraison: { resume: RELU_216.resume, remarques: "2 remarks", constats: RELU_216.constats }, dit: [{ libelle: "served", valeur: "13 s before the reading" }, { libelle: "cooked by", valeur: "box/claude", exact: true }], ...fiche("Le relevé des mesures", { pr: true }) },
+                { ticket: 201, etat: "servi", ton: "vert", titre: "Les grants sous plafond", ouvrable: true, attendu: false, attend: [], ligne: `served at ${heureHM("2026-10-12T07:12:40.000Z")} · ${RELU_201.resume}`, pr: true, livraison: { resume: RELU_201.resume, remarques: "no remarks", constats: [] }, dit: [{ libelle: "served", valeur: "2 h 51 before the reading" }, { libelle: "cooked by", valeur: "box/claude", exact: true }], ...fiche("Les grants sous plafond", { pr: true }) },
                 {
                   ticket: 188,
                   etat: "servi",
@@ -270,6 +272,8 @@ describe("les faits que l'app dessine", () => {
                   ouvrable: true,
                   attendu: false,
                   attend: [],
+                  ligne: `served at ${heureHM("2026-10-11T16:30:05.000Z")}`,
+                  repere: true,
                   livraison: { sans: SANS_RELECTURE },
                   dit: [{ libelle: "served", valeur: "17 h 34 before the reading" }, { libelle: "cooked by", valeur: "box/claude", exact: true }, { libelle: "PR", valeur: "none — served without a merge" }],
                   ...fiche("Une fiche sans zone", { pr: { valeur: "none — served without a merge" } }),
@@ -471,9 +475,9 @@ const BLOC = {
 const rangs = (dessine: ReturnType<typeof rail>) => dessine.colonnes.map(({ nom, compte, cartes }) => [nom, compte, cartes.map(({ ticket }) => ticket)]);
 
 // Ce qu'une carte porte de plus que son rang, quand `status` n'a pas été lu et que rien d'autre ne le dit.
-const NUE = { dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns · what blocks it` };
+const NUE = { ligne: "ready, waits for a place in the kitchen", dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns · what blocks it` };
 // Dans T'attend, sous ce que le bloc dit du ticket : ce qui le bloque est dit, le reste manque.
-const ATTENDUE = { dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns` };
+const ATTENDUE = { ligne: SANS_DECISION, dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns` };
 
 describe("le rail en six colonnes", () => {
   test("quatre colonnes viennent du mot d'état de `faits`, dans l'ordre de service — et T'attend n'est pas lue tant que rien ne dit qui attend", () => {
@@ -504,7 +508,7 @@ describe("le rail en six colonnes", () => {
       ["Served", "1", [9]],
     ]);
     // Ce qu'on attend de lui, en mots, n'a pas été lu : la carte l'écrit, et n'offre aucun geste d'après des mots qu'elle n'a pas.
-    assert.deepEqual(dessine.colonnes[3]?.cartes[0], { ticket: 21, etat: "BLOQUÉ", ton: "rouge", titre: "Ticket 21", ouvrable: true, attendu: true, attend: [], ...NUE, ...fiche("Ticket 21", ATTENDU), gestes: ["attente-poser"] });
+    assert.deepEqual(dessine.colonnes[3]?.cartes[0], { ticket: 21, etat: "BLOQUÉ", ton: "rouge", titre: "Ticket 21", ouvrable: true, attendu: true, attend: [], ...NUE, ligne: SANS_DECISION, ...fiche("Ticket 21", ATTENDU), gestes: ["attente-poser"] });
     // Aucun ticket n'attend : la colonne le dit de `faits`, et jamais « rien ne t'attend » — une connexion, la base n'y ont pas de carte.
     assert.deepEqual(rail({ ...SANS_LIVRES, rail: RAIL, attend: [] }).colonnes[3], { nom: "TODO", ton: "rouge", compte: "0", cartes: [], vide: "no ticket in `attend`, according to `facts`" });
   });
@@ -689,6 +693,7 @@ describe("Livré, d'après `livres`", () => {
       ouvrable: true,
       attendu: false,
       attend: [],
+      ligne: `served at ${heureHM("2026-10-12T10:00:00.000Z")} · Ce qui a été livré pour #30.`,
       pr: true,
       livraison: { resume: "Ce qui a été livré pour #30.", remarques: "no remarks", constats: [] },
       dit: [
@@ -723,6 +728,8 @@ describe("Livré, d'après `livres`", () => {
       ouvrable: false,
       attendu: false,
       attend: [],
+      ligne: `served at ${heureHM("2026-10-12T10:00:00.000Z")}`,
+      repere: true,
       livraison: { sans: SANS_RELECTURE },
       dit: [
         { libelle: "served", valeur: "4 min before the reading" },

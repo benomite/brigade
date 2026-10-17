@@ -14,6 +14,7 @@
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
 import { lieuDe, lignesDuRail, porter, type Porte } from "./bon.ts";
+import { ligneAuTravail, ligneEnAttente, ligneEnWaiting, ligneLivree, ligneMiseDeCote, ligneQuiMAttend, type LigneDeCarte } from "./ligne-carte.ts";
 import type { StationDesFaits } from "./ordinaires.ts";
 import type { Echec, Lecture } from "./box.ts";
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues, type Moment } from "./captures.ts";
@@ -131,7 +132,9 @@ export type Faits = {
 // « resume » et « it arrived » sur une carte de WAITING ; absent, elle n'en porte aucun.
 // `captures` : celles d'un ticket d'interface livré, avant et après (captures.ts) — absentes,
 // le ticket n'est pas d'interface ou n'a rien livré, et la carte n'en dit rien.
-export type Carte = { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[] } & Porte;
+// Et ce qu'elle dit, elle, en deux lignes (ligne-carte.ts) : `ligne`, ce qui se passe ; `signal`, ce qui demande
+// l'attention ; `repere`, la file ne dit pas tout — le détail est dans la fiche, avec `dit` et `sans`.
+export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[] } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -601,8 +604,20 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
       ...(connu?.revenu == null ? {} : { revenu: connu.revenu }),
       ...(lieux === undefined ? {} : { lieux }),
     });
+    const retient = porte.dit.find(({ libelle }) => libelle === "blocked by")?.valeur;
+    const ligne: LigneDeCarte =
+      dit !== undefined
+        ? ligneQuiMAttend(attenduDe(donne?.decision).phrase)
+        : connu?.attente != null
+          ? ligneMiseDeCote(connu.attente.raison)
+          : connu !== undefined && A_L_OUVRAGE.includes(connu.etat)
+            ? ligneAuTravail(connu.etat as "pris" | "en pass", connu.activite, connu.activite == null ? "" : duree(Date.parse(faits.lu) - Date.parse(connu.activite.depuis)))
+            : connu?.etat === "servi"
+              ? { ligne: "served", repere: true }
+              : ligneEnAttente(connu?.etat ?? "", retient);
     return {
       ticket,
+      ...ligne,
       ...(connu === undefined ? {} : colore(TONS_DE_TICKET, connu.etat)),
       ...(titre === undefined ? {} : { titre }),
       ouvrable: url != null && ouvrable(url),
@@ -633,6 +648,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
     const relance = tiers == null ? 0 : Date.parse(tiers.relance) - Date.parse(faits.lu);
     return {
       ticket,
+      ...ligneEnWaiting(tiers, relance < 0),
       ...colore(TONS_DE_TICKET, connu.etat),
       ...(titre === "" ? {} : { titre }),
       ouvrable: ouvrable(url),
@@ -664,6 +680,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
     const nomme = titre === "" ? connu?.titre : titre;
     return {
       ticket,
+      ...ligneLivree(quand, relecture?.resume),
       ...colore(TONS_DE_TICKET, "servi"),
       ...(nomme === undefined || nomme === "" ? {} : { titre: nomme }),
       ouvrable: adresse != null && ouvrable(adresse),
