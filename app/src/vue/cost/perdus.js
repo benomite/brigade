@@ -11,6 +11,7 @@
 // la liste n'est pas proposée, et rien n'est inventé.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
+import { GESTE_PERDUS, poserAlerte, seuilsDesProjets } from "./seuils.js";
 import { LECTURE, NON_COMMUNIQUE, tokensLus } from "./tete.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
@@ -113,7 +114,17 @@ export function poserPerdus(doc, projets, lectures, titres, ouvert, bascule) {
   const chiffre = lignes.length > 0 ? cree(doc, "button", dit) : cree(doc, "p", dit);
   chiffre.className = "perdus-total";
   if (typeof total !== "number") chiffre.className = "perdus-total sans";
+  // Au-dessus du seuil de son projet (seuils.js), le chiffre est mis en évidence et une ligne dit le geste.
+  const seuils = seuilsDesProjets(projets, lectures);
+  const sommes = new Map(projets.map(({ nom }) => [nom, 0]));
+  for (const { projet, tokens } of lignes) sommes.set(projet.nom, (sommes.get(projet.nom) ?? 0) + (tokens ?? 0));
+  const connus = projets.filter(({ nom }) => seuils.get(nom)?.perdus != null);
+  const depassant = connus.find(({ nom }) => (sommes.get(nom) ?? 0) > /** @type {number} */ (seuils.get(nom)?.perdus));
+  const depasse = depassant === undefined ? undefined : { projet: depassant.nom, seuil: /** @type {number} */ (seuils.get(depassant.nom)?.perdus) };
+  if (depasse !== undefined) chiffre.className = "perdus-total depasse";
   bloc.append(cree(doc, "h2", TITRE), chiffre);
+  const alerte = typeof total === "number" ? poserAlerte(doc, depasse, connus.length > 0, GESTE_PERDUS) : null;
+  if (alerte !== null) bloc.append(alerte);
   if (lignes.length === 0) return bloc;
   chiffre.ariaExpanded = String(ouvert);
   chiffre.addEventListener("click", bascule);

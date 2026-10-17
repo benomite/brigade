@@ -9,6 +9,7 @@
 // quand le rail du projet est lu ; sinon « not communicated » aussi.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
+import { GESTE_TICKET, poserAlerte, seuilsDesProjets } from "./seuils.js";
 import { LECTURE, NON_COMMUNIQUE, tokensLus } from "./tete.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
@@ -98,6 +99,10 @@ export function poserChers(doc, projets, lectures, titres, ouvrir) {
     bloc.append(cree(doc, "h2", TITRE), vide);
     return bloc;
   }
+  // Le ticket le plus cher, mis en évidence au-dessus du seuil de son projet (seuils.js).
+  const [premier] = chers;
+  const seuil = seuilsDesProjets(projets, lectures).get(premier?.projet.nom ?? "")?.ticket ?? null;
+  const depasse = premier !== undefined && premier.tokens !== null && seuil !== null && premier.tokens > seuil ? { projet: premier.projet.nom, seuil } : undefined;
   for (const { projet, ticket, tokens, minimum, essais } of chers) {
     const teinte = cree(doc, "span");
     teinte.className = "teinte";
@@ -113,6 +118,7 @@ export function poserChers(doc, projets, lectures, titres, ouvrir) {
     essai.className = "essais";
     const ligne = cree(doc, "button");
     ligne.className = "ticket-cher";
+    if (depasse !== undefined && ticket === premier?.ticket && projet === premier.projet) ligne.className = "ticket-cher depasse";
     ligne.title = `open the sheet of #${ticket} · ${projet.nom}`;
     ligne.append(teinte, numero, dit, cout, essai);
     ligne.addEventListener("click", () => ouvrir(projet.nom, ticket, ligne));
@@ -121,5 +127,7 @@ export function poserChers(doc, projets, lectures, titres, ouvrir) {
     liste.append(item);
   }
   bloc.append(cree(doc, "h2", TITRE), liste);
+  const alerte = poserAlerte(doc, depasse, seuil !== null, GESTE_TICKET);
+  if (alerte !== null) bloc.append(alerte);
   return bloc;
 }

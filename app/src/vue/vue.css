@@ -2901,3 +2901,29 @@ button.recommande {
 .perdus-cout .perdus-fermer {
   margin: 8px 0 0;
 }
+/* Un dépassement de seuil sur Cost (#912) : le ticket le plus cher ou le chiffre perdu passe en rouge, avec sa ligne de geste dessous. */
+.chers-cout .ticket-cher.depasse {
+  color: var(--rouge-clair);
+  border-color: var(--rouge);
+}
+.chers-cout .ticket-cher.depasse :is(.numero, .tokens) {
+  color: var(--rouge-clair);
+  font-weight: 600;
+}
+.perdus-cout .perdus-total.depasse {
+  color: var(--rouge-clair);
+}
+.perdus-cout button.perdus-total.depasse {
+  border-bottom-color: var(--rouge);
+}
+.alerte-cout {
+  margin: 8px 0 0;
+  padding: 0 0 0 10px;
+  font-size: 12px;
+  color: var(--rouge-clair);
+  border-left: 3px solid var(--rouge);
+}
+.alerte-cout.sans {
+  color: var(--discret);
+  border-left-color: var(--trait-fort);
+}
