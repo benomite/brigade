@@ -194,7 +194,7 @@ describe("la courbe, dans l'onglet Cost", () => {
   test("sous les chiffres de tête, la courbe lit `station` de chaque box ; sans jours, sa zone dit « not communicated »", async () => {
     const vue = await ouvrirCost();
     const cout = vue.element("cout");
-    assert.deepEqual(cout.children.map(({ className }) => className), ["tete-cout", "chers-cout", "courbe-cout"]);
+    assert.deepEqual(cout.children.map(({ className }) => className), ["tete-cout", "perdus-cout", "chers-cout", "courbe-cout"]);
     assert.equal(courbe(vue).dessous("p")[0]?.textContent, LECTURE);
     const demande = vue.dernier("onglet")[2] as number;
 

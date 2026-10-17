@@ -118,7 +118,7 @@ describe("la ligne de commande", () => {
     const sortie = join(dossier, "x.png");
     await assert.rejects(lancer(process.execPath, [COMMANDE, "cuisine", sortie]), (erreur: { code: number; stderr: string }) => {
       assert.equal(erreur.code, 2);
-      assert.match(erreur.stderr, /écran inconnu : cuisine — les écrans : ajout, bande-alertes-ouverte, bande-alertes, cout-par-jour, cout, espace-projet, fiche, file-ou-cuit, manager-allume, manager-allumer, manager-eteint, merge-accorder, reglages-ordinaires-sans-bac, reglages-ordinaires, station-connexion-max, station-en-ligne, station-hors-ligne, station-mise-a-jour, station-retrait, tous-les-projets/);
+      assert.match(erreur.stderr, /écran inconnu : cuisine — les écrans : ajout, bande-alertes-ouverte, bande-alertes, cout-par-jour, cout-perdus, cout, espace-projet, fiche, file-ou-cuit, manager-allume, manager-allumer, manager-eteint, merge-accorder, reglages-ordinaires-sans-bac, reglages-ordinaires, station-connexion-max, station-en-ligne, station-hors-ligne, station-mise-a-jour, station-retrait, tous-les-projets/);
       return true;
     });
     assert.equal(existsSync(sortie), false);

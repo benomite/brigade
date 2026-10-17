@@ -93,6 +93,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 import { boutonAction, confirmationDeGeste, lectureIndisponible, prixDit, survol } from "./briques.js";
 import { poserChers } from "./cost/chers.js";
 import { poserCourbe } from "./cost/courbe.js";
+import { poserPerdus } from "./cost/perdus.js";
 import { poserTete } from "./cost/tete.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
@@ -3603,13 +3604,19 @@ function tracesDUsage({ pr, commit, verdict }) {
 // La tête de l'onglet Cost (cost/tete.js) : les tokens lancés sur 5 h, 24 h et 7 jours, tous
 // projets confondus, et la part de chacun — chaque projet qui a une box, et qu'elle sert encore.
 // Dessous, la courbe des derniers jours, une série par projet (cost/courbe.js).
+// La liste des tokens perdus (cost/perdus.js) : repliée à l'ouverture, un clic sur le chiffre la déploie.
+let perdusOuverts = false;
+function basculerPerdus() {
+  perdusOuverts = !perdusOuverts;
+  poserCout();
+}
 function poserCout() {
   cout.hidden = courant === undefined || actif() !== COUT;
   if (cout.hidden) return cout.replaceChildren();
   const projets = configuration.projets
     .filter(({ box, desinstalle }) => box !== undefined && desinstalle === undefined)
     .map(({ nom, couleurs }) => ({ nom, teinte: couleurs?.onglet ?? couleurs?.accent }));
-  cout.replaceChildren(poserTete(document, projets, coutsLus), poserChers(document, projets, coutsLus, titreSurLeRail, ouvrirFicheDeCout), poserCourbe(document, projets, coutsLus));
+  cout.replaceChildren(poserTete(document, projets, coutsLus), poserPerdus(document, projets, coutsLus, titreSurLeRail, perdusOuverts, basculerPerdus), poserChers(document, projets, coutsLus, titreSurLeRail, ouvrirFicheDeCout), poserCourbe(document, projets, coutsLus));
 }
 
 // La carte d'un ticket sur le rail d'un projet, si son rail est lu et qu'il y est.

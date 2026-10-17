@@ -15,6 +15,9 @@ const consomme = (enCours: string, cinq: string, vingtQuatre: string) => [
 // Un cook fini de « derniers cooks », mot pour mot (runtime/src/montrer-station.ts) ; sans tokens, un cook qui n'a rien déclaré.
 const fini = (quand: string, ticket: number, run: string, tours: number, tokens: string | null, pr: number) =>
   `  2026-10-${quand}Z  #${ticket}  r-${run}  sonnet / medium  fini  ${tokens === null ? "" : `${tours} tours · ${n(tokens)} tokens · 9,2 min  `}https://github.com/chef/parade/pull/${pr}`;
+// Un cook qui n'a pas fini proprement : `fin` est ce que `station` écrit (« échoué », « interrompu (runtime arrêté) »…).
+const perdu = (quand: string, ticket: number, run: string, fin: string, tours: number, tokens: string | null) =>
+  fini(quand, ticket, run, tours, tokens, 0).replace("  fini  ", `  ${fin}  `).replace(/  https:.*$/, "");
 export const STATIONS: Record<string, string> = {
   parade: [
     "station               box/claude — moteur claude, fournit : claude",
@@ -28,7 +31,9 @@ export const STATIONS: Record<string, string> = {
     "serveurs              aucun",
     "derniers cooks        ",
     fini("13T09:48:02.000", 30, "91c0", 31, "412 806", 31),
+    perdu("13T08:50:12.000", 7, "0b7d", "échoué", 38, "641 207"),
     fini("13T08:12:40.000", 7, "5a3e", 44, "1 204 311", 8),
+    perdu("12T20:15:48.000", 14, "3c9e", "interrompu (runtime arrêté)", 11, "88 530"),
     fini("12T17:30:05.000", 12, "c7d2", 22, "268 090", 29),
     fini("12T15:02:11.000", 12, "b1f4", 36, "533 974", 29),
     fini("12T11:44:50.000", 9, "e08a", 18, "96 420", 26),
@@ -49,6 +54,7 @@ export const STATIONS: Record<string, string> = {
     "serveurs              aucun",
     "derniers cooks        ",
     fini("13T08:20:00.000", 3, "a4c1", 29, "318 772", 4).replaceAll("chef/parade", "chef/cantine"),
+    perdu("13T07:02:30.000", 3, "91ab", "échoué", 15, "142 096"),
     fini("12T18:41:27.000", 5, "d93e", 12, "74 208", 6).replaceAll("chef/parade", "chef/cantine"),
     ...consomme("rien", `2 lancements · 61 tours · ${n("318 772")} tokens`, `7 lancements, dont 2 relectures · 240 tours · ${n("1 506 118")} tokens`),
     "décisions du chef     `station -- <geste> <valeur>` pour en poser une, `station -- help` pour les gestes",
