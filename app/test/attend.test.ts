@@ -68,6 +68,17 @@ describe("ce qui attend le chef, mis à part", () => {
     }
   });
 
+  test("le bord `awaiting` … `end awaiting` est lu comme `attend` … `fin attend`, bornes comprises", () => {
+    const bloc = "awaiting     rien n'attend le chef\nend awaiting\n";
+    assert.deepEqual(mettreAPart(lue(`rail       vide\n${bloc}station    ok\n`)), { ...lue("rail       vide\nstation    ok\n"), attend: bloc });
+  });
+
+  test("un début d'un bord et la fin de l'autre ne font pas un bloc", () => {
+    for (const status of ["attend     rien\nend awaiting\n", "awaiting     rien\nfin attend\n", "rail  vide\nawaiting\nfin attend\nstation  ok\n"]) {
+      assert.deepEqual(mettreAPart(lue(status)), { ...lue(status), attend: undefined }, status);
+    }
+  });
+
   test("seul `status` porte le bloc : la sortie d'une autre commande n'est pas découpée, même si elle lui ressemble", () => {
     const station = { commande: "station", texte: VIDE };
 

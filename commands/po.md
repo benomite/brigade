@@ -38,7 +38,7 @@ Ce que tu obtiens décide de ce que tu dis, en tête de ta première réponse :
 | Rien au bout du délai | Une ligne : `file non lue : aucune réponse en 30 s` |
 | Code de 64 à 68 — les refus du geste : 65, la box ne connaît pas ce projet ; 68, ton compte n'y a pas le droit du geste | Une ligne : `file non lue : box jointe, mais son geste a refusé (code <N>)`, suivie de ce que le geste a écrit — c'est sa phrase qui dit pourquoi |
 | Un autre code que 0 | Une ligne : `file non lue : box jointe, mais la commande a échoué (code <N>)`, suivie de ce que la commande a écrit |
-| Code 0, et la sortie porte **le bord** : une seule ligne qui commence par `attend`, une seule qui vaut exactement `fin attend` | De la première à la seconde, bornes comprises, **mot pour mot**, dans un bloc de code — et rien d'autre sur la file. Ses lignes nomment déjà le geste ; quand rien n'attend, c'est lui qui le dit |
+| Code 0, et la sortie porte **le bord** : une seule ligne qui commence par `attend`, une seule qui vaut exactement `fin attend` — ou, du même bord, une seule qui commence par `awaiting` et une seule qui vaut exactement `end awaiting`. Un début d'un bord et la fin de l'autre ne font pas un bloc | De la première à la seconde, bornes comprises, **mot pour mot**, dans un bloc de code — et rien d'autre sur la file. Ses lignes nomment déjà le geste ; quand rien n'attend, c'est lui qui le dit |
 | Code 0, sans ce bord | Une ligne : `file lue, mais sans bord : ce qui t'attend n'a pas pu être mis à part`, suivie de la sortie entière, mot pour mot, dans un bloc de code |
 
 - **Tu relaies, tu ne résumes pas** : ni reformulation, ni tri, ni ligne ajoutée. Ce que `status` n'imprime pas, tu ne le déduis pas d'une liste d'issues.
