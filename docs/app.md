@@ -1018,6 +1018,11 @@ Grants. Une ligne de la bande d'alertes dont la cause se règle là y mène en u
 (Log) n'a pas d'onglet** : le bouton « journal », à côté des onglets, ouvre la fin du journal
 par-dessus le rail ; le recliquer le ferme. Les cinq lectures ci-dessous sont celles de ces deux onglets et
 de ce geste.
+**Un dépassement de seuil se voit d'un coup d'œil** (#912, `cost/seuils.js`) : les seuils sont ceux que `station` écrit sous
+« décisions du chef » (`seuil-ticket`, `seuil-perdus`), projet par projet. Quand le ticket le plus cher dépasse le seuil de son
+projet, ou que les tokens perdus d'un projet dépassent le leur, le bloc passe en rouge et **une ligne unique porte le geste, en bouton** (« open the sheet of #7 », « open the list ») ;
+sous le seuil, rien de plus ne s'affiche. Un seuil « non posée » n'est pas inventé : le bloc dit « ceiling: not communicated »
+à la place de l'alerte.
 
 **Le rail dessiné n'est plus dans un onglet : il est au centre de l'espace, quel que soit celui que
 tu regardes** (voir « Le rail »). **L'espace s'ouvre sans page** : le rail a tout le centre, sur

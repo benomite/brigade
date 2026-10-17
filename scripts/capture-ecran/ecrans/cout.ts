@@ -18,6 +18,12 @@ const fini = (quand: string, ticket: number, run: string, tours: number, tokens:
 // Un cook qui n'a pas fini proprement : `fin` est ce que `station` écrit (« échoué », « interrompu (runtime arrêté) »…).
 const perdu = (quand: string, ticket: number, run: string, fin: string, tours: number, tokens: string | null) =>
   fini(quand, ticket, run, tours, tokens, 0).replace("  fini  ", `  ${fin}  `).replace(/  https:.*$/, "");
+// Les décisions du chef, mot pour mot : un seuil posé s'écrit sous son geste, un seuil non posé « non posée — … ».
+const decisions = (ticket: string | null, perdus: string | null) => [
+  "décisions du chef     `station -- <geste> <valeur>` pour en poser une, `station -- help` pour les gestes",
+  `  seuil-ticket        ${ticket ?? "non posée — BRIGADE_DRIFT_TICKET_TOKENS ne se lit que du journal"}`,
+  `  seuil-perdus        ${perdus ?? "non posée — BRIGADE_DRIFT_LOST_TOKENS ne se lit que du journal"}`,
+];
 export const STATIONS: Record<string, string> = {
   parade: [
     "station               box/claude — moteur claude, fournit : claude",
@@ -40,7 +46,7 @@ export const STATIONS: Record<string, string> = {
     fini("11T16:20:09.000", 21, "2d6b", 27, "782 115", 22),
     fini("11T10:05:33.000", 22, "7f19", 0, null, 21),
     ...consomme(`1 lancement · 18 tours · ${n("96 420")} tokens`, `6 lancements, dont 2 relectures · 214 tours · ${n("1 284 530")} tokens`, `19 lancements, dont 5 relectures et 3 jugements · 802 tours · ${n("4 912 044")} tokens`),
-    "décisions du chef     `station -- <geste> <valeur>` pour en poser une, `station -- help` pour les gestes",
+    ...decisions("1500000", "500000"),
     "",
   ].join("\n"),
   cantine: [
@@ -57,7 +63,7 @@ export const STATIONS: Record<string, string> = {
     perdu("13T07:02:30.000", 3, "91ab", "échoué", 15, "142 096"),
     fini("12T18:41:27.000", 5, "d93e", 12, "74 208", 6).replaceAll("chef/parade", "chef/cantine"),
     ...consomme("rien", `2 lancements · 61 tours · ${n("318 772")} tokens`, `7 lancements, dont 2 relectures · 240 tours · ${n("1 506 118")} tokens`),
-    "décisions du chef     `station -- <geste> <valeur>` pour en poser une, `station -- help` pour les gestes",
+    ...decisions(null, null),
     "",
   ].join("\n"),
 };
