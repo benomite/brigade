@@ -159,4 +159,4 @@ export function masquerIdentifiants(texte: string): { texte: string; masques: nu
 // Ce que l'issue dit d'un masquage : qu'il a eu lieu, où, combien de fois —
 // jamais ce qui a été masqué.
 export const direMasquage = (masques: number, ou: string) =>
-  `**Masqué ${masques} fois : ce qui a la forme d'identifiants de Claude** dans ${ou} — \`${JETON_MASQUE}\` en tient la place, partout où le runtime garde ou publie ce texte. Le runtime reconnaît une forme, sans lire les identifiants du compte ni rien leur comparer : il ne dit pas que ce sont les vôtres. Si c'en sont, ils ont été lus et recopiés — voir « Révoquer la connexion Max » dans \`docs/runtime.md\`.`;
+  `**Masqué ${masques} fois : ce qui a la forme d'identifiants de Claude** dans ${ou} — \`${JETON_MASQUE}\` en tient la place, partout où le runtime garde ou publie ce texte. Le runtime reconnaît une forme, sans lire les identifiants du compte ni rien leur comparer : il ne dit pas que ce sont les vôtres. Si c'en sont, ils ont été lus et recopiés — voir « Révoquer la connexion Max » dans \`docs/runtime/station-cook.md\`.`;
