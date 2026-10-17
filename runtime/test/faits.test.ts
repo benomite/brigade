@@ -160,7 +160,7 @@ test("la forme et le texte de `status` disent la même chose : le rail ticket pa
   assert.ok(texte.includes("rail       1 pris · 1 en pass · 1 en attente · 1 BLOQUÉ · 1 86 · 1 servi"));
   const { rail, auTravail, aLaPass, attend } = forme.compteurs;
   assert.deepEqual([auTravail, aLaPass, rail], [1, 1, 1 + 1]);
-  assert.ok(texte.some((ligne) => ligne.startsWith(`attend     ${attend} décision attend le chef`)));
+  assert.ok(texte.some((ligne) => ligne.startsWith(`awaiting   ${attend} ${attend === 1 ? "decision awaits" : "decisions await"} the chef`)));
   const dernier = forme.dernierEvenement;
   assert.ok(dernier && texte.at(-1)?.startsWith(`  ${dernier.seq}  ${dernier.at}  brigade  #${dernier.ticket}  ${dernier.type}  `));
 });

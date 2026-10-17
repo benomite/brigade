@@ -59,6 +59,10 @@ describe("la ligne d'un projet : sa pastille, et ce qui bloque, ce qui attend le
     assert.equal(une.dit, "1 decision awaits you, for 2 d · #870 cooking");
     const cinq = ligneDeProjet(PROJET, lus(desFaits({}, { attend: 5 })), { texte: "", attend: CINQ });
     assert.equal(cinq.dit, "5 decisions await you, for 2 d");
+    // Le bloc en anglais (#927) se lit de même.
+    const enAnglais = (bloc: string) => ligneDeProjet(PROJET, lus(desFaits({}, { attend: 5 })), { texte: "", attend: bloc }).dit;
+    assert.equal(enAnglais("awaiting   5 decisions await the chef — the oldest for 2 d\n  #1  for 2 d  merge\nend awaiting\n"), "5 decisions await you, for 2 d");
+    assert.equal(enAnglais("awaiting   1 decision awaits the chef — for 3 h 00\n  #1  for 3 h 00  merge\nend awaiting\n"), "5 decisions await you, for 3 h 00");
     // Sans `status` lu, le nombre se dit, pas depuis quand.
     assert.equal(ligneDeProjet(PROJET, lus(desFaits({}, { attend: 5 })), undefined).dit, "5 decisions await you");
   });
@@ -170,6 +174,13 @@ describe("la ligne de santé : Max et GitHub, verte et discrète quand tout va, 
     const bloc = "attend     1 décision attend le chef depuis 2 h 00\n  jeton  depuis 2 h 00  jeton de la connexion Max près de son échéance — il échoit le 2026-11-05, 365 jours après sa création (2025-11-05) — à faire avant : refaire le jeton — `claude setup-token` …\nfin attend\n";
     const jeton = sante(LUES, undefined, [bloc], MAINTENANT);
     assert.deepEqual([jeton.ton, jeton.dit], ["rouge", "Max: token to redo within 20 d  ·  GitHub ✓"]);
+    // Le même bloc, en anglais (#927) : `token`, `for`, `it expires on`, `EXPIRED`.
+    const token = "awaiting   1 decision awaits the chef — for 2 h 00\n  token  for 2 h 00  Max connection token close to its expiry — it expires on 2026-11-05, 365 days after its creation (2025-11-05) — to do before then: remake the token …\nend awaiting\n";
+    assert.equal(sante(LUES, undefined, [token], MAINTENANT).dit, "Max: token to redo within 20 d  ·  GitHub ✓");
+    const echu = "  token  for 2 h 00  Max connection token EXPIRED since 2026-10-01, 365 days after its creation (2025-10-01) — to do: remake the token …";
+    assert.equal(sante(LUES, undefined, [echu], MAINTENANT).dit, "Max: token expired, to redo  ·  GitHub ✓");
+    const session = "  session  for 2 h 00  Max session renewal failing (http: 401) — expiry unknown — to restore: …";
+    assert.equal(sante(LUES, undefined, [session], MAINTENANT).dit, "Max: session renewal failed  ·  GitHub ✓");
     sansRienDeBrut(jeton.dit);
   });
 

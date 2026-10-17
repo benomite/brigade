@@ -148,11 +148,11 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
     assert.deepEqual(gh.creations, [501]);
   });
 
-  test("une réparation mergée qui laisse la base rouge met une ligne dans le bloc `attend` ; la base revenue au vert, la ligne en sort et la cuisine relance seule les tickets retenus", async (t) => {
+  test("une réparation mergée qui laisse la base rouge met une ligne dans le bloc `awaiting` ; la base revenue au vert, la ligne en sort et la cuisine relance seule les tickets retenus", async (t) => {
     const { journal, gh, base, essais, dernier, jusquAu, laisserTourner, lance, rougir } = service(t, { essais: { base: "rouge" } });
     const ligneDeLaBase = () => {
       const lignes = decrireEtat(lireEtat(journal, new Date()), new Date());
-      return lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("attend")), lignes.indexOf("fin attend")).filter((ligne) => ligne.startsWith("  base  "));
+      return lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("awaiting")), lignes.indexOf("end awaiting")).filter((ligne) => ligne.startsWith("  base  "));
     };
     rougir();
     gh.poser(issue(18));
@@ -167,7 +167,7 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
     base.tete = "base-2";
     await jusqua(() => reparationDeLaBase(journal.base)?.etat === "echouee");
     const [ligne] = ligneDeLaBase();
-    assert.match(ligne ?? "", /^ {2}base {2}depuis .+? {2}BASE ROUGE sur base-2, en échec : tests du projet en échec — sa réparation #501 mergée, ne l'a pas remise au vert — à réparer : corriger la base à la main ; .*`brigade <projet> base replay`$/);
+    assert.match(ligne ?? "", /^ {2}base {2}for .+? {2}BASE RED on base-2, failing: tests du projet en échec — its repair #501 merged, did not bring it back to green — to repair: fix the base by hand; .*`brigade <projet> base replay`$/);
     await laisserTourner();
     assert.deepEqual([lance(18), gh.creations], [false, [501]]);
 

@@ -12,16 +12,16 @@ const STATION = "box/claude";
 const pr = (ticket: number) => `https://exemple.test/pull/${ticket}`;
 
 // Ce que dit le bloc quand la file est vide : il reste là, et le dit.
-const RIEN = ["attend     rien n'attend le chef"];
+const RIEN = ["awaiting   nothing awaits the chef"];
 
-// Le bloc `attend` d'une sortie, sans sa ligne de fin. Son bord tient toujours :
-// une seule ligne commence par `attend`, une seule vaut `fin attend`, et une
+// Le bloc `awaiting` d'une sortie, sans sa ligne de fin. Son bord tient toujours :
+// une seule ligne commence par `awaiting`, une seule vaut `end awaiting`, et une
 // ligne vide le sépare du rail.
 function blocAttend(lignes: string[]): string[] {
-  const debut = lignes.findIndex((ligne) => ligne.startsWith("attend"));
-  const fin = lignes.indexOf("fin attend");
-  assert.equal(lignes.filter((ligne) => ligne.startsWith("attend")).length, 1);
-  assert.equal(lignes.filter((ligne) => ligne === "fin attend").length, 1);
+  const debut = lignes.findIndex((ligne) => ligne.startsWith("awaiting"));
+  const fin = lignes.indexOf("end awaiting");
+  assert.equal(lignes.filter((ligne) => ligne.startsWith("awaiting")).length, 1);
+  assert.equal(lignes.filter((ligne) => ligne === "end awaiting").length, 1);
   assert.ok(debut < fin);
   assert.deepEqual(lignes.slice(fin + 1, fin + 2), [""]);
   assert.match(lignes[fin + 2] ?? "", /^rail /);
@@ -70,8 +70,8 @@ function cuisine(t: TestContext) {
     a: (heure: string) => {
       instant = heure;
     },
-    // Le bloc `attend` de l'état lu à cette heure : sa ligne de tête, puis ses entrées.
-    // Il est pris par son bord seul — de la ligne `attend` à la ligne `fin attend`,
+    // Le bloc `awaiting` de l'état lu à cette heure : sa ligne de tête, puis ses entrées.
+    // Il est pris par son bord seul — de la ligne `awaiting` à la ligne `end awaiting`,
     // qui n'est pas rendue —, sans rien lire de ce qu'il porte.
     bloc: (maintenant: string) => blocAttend(decrireEtat(lireEtat(journal, new Date(maintenant)), new Date(maintenant))),
   };
@@ -84,9 +84,9 @@ test("une livraison arrêtée parce que le grant s'était éteint le dit, avec l
   noter({ type: "pass.held", payload: { reason: "no-grant", expired: `${JOUR_HORLOGE}T08:30:00.000Z` } }, 17, "pass");
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
-    "attend     1 décision attend le chef depuis 1 h 00",
-    `  #17  depuis 1 h 00  livraison verte, non mergée : le grant \`merge\` s'est éteint seul le ${JOUR_HORLOGE}T08:30:00.000Z — à merger à la main : ${pr(17)} — ou accorder le grant, pour les suivantes : \`brigade <projet> grant enable merge\`  Ticket 17`,
-    "  sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte",
+    "awaiting   1 decision awaits the chef — for 1 h 00",
+    `  #17  for 1 h 00  green delivery, not merged: the \`merge\` grant lapsed on its own on ${JOUR_HORLOGE}T08:30:00.000Z — merge by hand: ${pr(17)} — or enable the grant, for the next ones: \`brigade <projet> grant enable merge\`  Ticket 17`,
+    "  without a grant, 1 green delivery stopped: 0 merged by hand, 0 closed without merge — no disagreement —, 1 still open",
   ]);
 });
 
@@ -149,14 +149,14 @@ test("le chef lit en une commande ce qui l'attend, depuis quand, et le geste att
   retenir(22, "declaration-modified: .claude/brigade/reseau");
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
-    "attend     5 décisions attendent le chef — la plus ancienne depuis 3 j",
-    `  #17  depuis 3 j  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${pr(17)} — ou accorder le grant, pour les suivantes : \`brigade <projet> grant enable merge\`  Ticket 17`,
-    `  #18  depuis 2 h 00  remontée par la pass, rouge (still-red : returns-exhausted) — à trancher : merger ${pr(18)} à la main, ou retirer \`fire\` — \`brigade <projet> pass 18\`  Ticket 18`,
-    "  #19  depuis 10 min  BLOQUÉ : #21 abandonné (issue fermée sans avoir été servie) — à débloquer : remettre #21 sur le rail, ou le retirer de la ligne `attend` de la fiche  Ticket 19",
-    `  #20  depuis 2 min  livraison verte qui touche à ses juges — à relire et merger à la main : ${pr(20)}  Ticket 20`,
-    `  #22  depuis 2 min  livraison verte qui touche à ce que le projet s'ouvre (.claude/brigade/reseau) — à relire et merger à la main : ${pr(22)}  Ticket 22`,
+    "awaiting   5 decisions await the chef — the oldest for 3 d",
+    `  #17  for 3 d  green delivery, not merged for lack of a \`merge\` grant — merge by hand: ${pr(17)} — or enable the grant, for the next ones: \`brigade <projet> grant enable merge\`  Ticket 17`,
+    `  #18  for 2 h 00  escalated by the pass, red (still-red: returns-exhausted) — to decide: merge ${pr(18)} by hand, or remove \`fire\` — \`brigade <projet> pass 18\`  Ticket 18`,
+    "  #19  for 10 min  BLOCKED: #21 dropped (issue closed without being served) — to unblock: put #21 back on the rail, or remove it from the `attend` line of the card  Ticket 19",
+    `  #20  for 2 min  green delivery that touches its judges — review and merge by hand: ${pr(20)}  Ticket 20`,
+    `  #22  for 2 min  green delivery that touches what the project opens up (.claude/brigade/reseau) — review and merge by hand: ${pr(22)}  Ticket 22`,
     // Le chiffre sur lequel accorder le grant : seule #17 est arrêtée faute de grant.
-    "  sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte",
+    "  without a grant, 1 green delivery stopped: 0 merged by hand, 0 closed without merge — no disagreement —, 1 still open",
   ]);
 });
 
@@ -167,11 +167,11 @@ test("une seule décision se dit au singulier, et le bloc se lit en tête, avant
 
   const maintenant = new Date(`${JOUR_HORLOGE}T10:04:00.000Z`);
   const lignes = decrireEtat(lireEtat(journal, maintenant), maintenant);
-  const debut = lignes.findIndex((ligne) => ligne.startsWith("attend"));
+  const debut = lignes.findIndex((ligne) => ligne.startsWith("awaiting"));
   assert.deepEqual(lignes.slice(debut, debut + 4), [
-    "attend     1 décision attend le chef depuis 4 min",
-    `  #17  depuis 4 min  livraison verte, merge refusé par GitHub (Required status check is expected) — à merger à la main, une fois levé ce qu'il refuse : ${pr(17)}  Ticket 17`,
-    "fin attend",
+    "awaiting   1 decision awaits the chef — for 4 min",
+    `  #17  for 4 min  green delivery, merge refused by GitHub (Required status check is expected) — merge by hand, once what it refuses is lifted: ${pr(17)}  Ticket 17`,
+    "end awaiting",
     "",
   ]);
   assert.ok(debut < lignes.findIndex((ligne) => ligne.startsWith("rail")));
@@ -191,9 +191,9 @@ test("une remontée du manager se distingue de celle de la pass ; sans PR, il n'
   remonter(19, "manager-split", "manager:split");
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
-    "attend     2 décisions attendent le chef — la plus ancienne depuis 0 s",
-    `  #17  depuis 0 s  remontée par le manager, rouge — à trancher : merger ${pr(17)} à la main, ou retirer \`fire\` — \`brigade <projet> pass 17\`  Ticket 17`,
-    "  #18  depuis 0 s  remontée par la pass, rouge (still-red : returns-exhausted) — à trancher : retirer `fire`, ou fermer l'issue — `brigade <projet> pass 18`  Ticket 18",
+    "awaiting   2 decisions await the chef — the oldest for 0 s",
+    `  #17  for 0 s  escalated by the manager, red — to decide: merge ${pr(17)} by hand, or remove \`fire\` — \`brigade <projet> pass 17\`  Ticket 17`,
+    "  #18  for 0 s  escalated by the pass, red (still-red: returns-exhausted) — to decide: remove `fire`, or close the issue — `brigade <projet> pass 18`  Ticket 18",
   ]);
 });
 
@@ -235,7 +235,7 @@ test("une livraison verte quitte la file dès que la décision est prise : merg�
   noter({ type: "merge.done", payload: { pr: pr(17), sha: "sha-17", by: "outside", reconciled: false, unverified: true } }, 17, "pass");
   assert.deepEqual(attendus(), ["#18", "#19"]);
   // Et le bilan des arrêts faute de grant le compte : il a mergé ce que la pass aurait mergé.
-  assert.equal(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).at(-1), "  sans grant, 3 livraisons vertes arrêtées : 1 mergée à la main, 0 fermée sans merge — aucun désaccord —, 2 encore ouvertes");
+  assert.equal(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).at(-1), "  without a grant, 3 green deliveries stopped: 1 merged by hand, 0 closed without merge — no disagreement —, 2 still open");
 
   // Le chef ferme l'issue.
   noter({ type: "ticket.left", payload: { reason: "closed" } }, 18, "github");
@@ -261,12 +261,12 @@ test("une PR fermée sans merge ne reste pas « à merger » : la ligne dit ce q
 
   // Constatée, la fermeture date la ligne : c'est d'elle que l'attente se compte.
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), [
-    "attend     3 décisions attendent le chef — la plus ancienne depuis 5 min",
-    `  #20  depuis 5 min  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${pr(20)} — ou accorder le grant, pour les suivantes : \`brigade <projet> grant enable merge\`  Ticket 20`,
-    `  #17  depuis 2 min  PR fermée sans merge : ${pr(17)} — à trancher : retirer \`fire\`, ou fermer l'issue — \`brigade <projet> pass 17\`  Ticket 17`,
-    `  #18  depuis 2 min  PR fermée sans merge : ${pr(18)} — à trancher : retirer \`fire\`, ou fermer l'issue — \`brigade <projet> pass 18\`  Ticket 18`,
+    "awaiting   3 decisions await the chef — the oldest for 5 min",
+    `  #20  for 5 min  green delivery, not merged for lack of a \`merge\` grant — merge by hand: ${pr(20)} — or enable the grant, for the next ones: \`brigade <projet> grant enable merge\`  Ticket 20`,
+    `  #17  for 2 min  PR closed without merge: ${pr(17)} — to decide: remove \`fire\`, or close the issue — \`brigade <projet> pass 17\`  Ticket 17`,
+    `  #18  for 2 min  PR closed without merge: ${pr(18)} — to decide: remove \`fire\`, or close the issue — \`brigade <projet> pass 18\`  Ticket 18`,
     // #17 était arrêtée faute de grant, et sa PR est fermée : le désaccord se compte.
-    "  sans grant, 2 livraisons vertes arrêtées : 0 mergée à la main, 1 fermée sans merge — 1 désaccord —, 1 encore ouverte",
+    "  without a grant, 2 green deliveries stopped: 0 merged by hand, 1 closed without merge — 1 disagreement —, 1 still open",
   ]);
 
   const attendus = () => bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).slice(1).map((ligne) => ligne.trim().split("  ")[0]).filter((tete) => tete?.startsWith("#"));
@@ -285,8 +285,8 @@ test("un ticket remonté dont la pass a ouvert la PR elle-même : le geste nomme
   remonter(17, "no-gates");
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
-    "attend     1 décision attend le chef depuis 0 s",
-    `  #17  depuis 0 s  remontée par la pass, qui n'a pas pu la juger (unjudged : no-gates) — à lever : ce que dit son issue, puis retirer et reposer \`fire\` ; ou merger ${pr(17)} à la main, ou retirer \`fire\` — \`brigade <projet> pass 17\`  Ticket 17`,
+    "awaiting   1 decision awaits the chef — for 0 s",
+    `  #17  for 0 s  escalated by the pass, which could not judge it (unjudged: no-gates) — to lift: what its issue says, then remove and set \`fire\` again; or merge ${pr(17)} by hand, or remove \`fire\` — \`brigade <projet> pass 17\`  Ticket 17`,
   ]);
 });
 
@@ -321,9 +321,9 @@ test("un ticket bloqué quitte la file quand sa dépendance revient sur le rail 
   noter({ type: "ticket.left", payload: { reason: "unfired" } }, 15, "github");
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`), [
-    "attend     2 décisions attendent le chef — la plus ancienne depuis 30 min",
-    "  #16  depuis 30 min  BLOQUÉ : #14 abandonné (label `fire` retiré) — à débloquer : remettre #14 sur le rail, ou le retirer de la ligne `attend` de la fiche  Ticket 16",
-    "  #17  depuis 30 min  BLOQUÉ : #15 abandonné (label `fire` retiré) — à débloquer : remettre #15 sur le rail, ou le retirer de la ligne `attend` de la fiche  Ticket 17",
+    "awaiting   2 decisions await the chef — the oldest for 30 min",
+    "  #16  for 30 min  BLOCKED: #14 dropped (label `fire` removed) — to unblock: put #14 back on the rail, or remove it from the `attend` line of the card  Ticket 16",
+    "  #17  for 30 min  BLOCKED: #15 dropped (label `fire` removed) — to unblock: put #15 back on the rail, or remove it from the `attend` line of the card  Ticket 17",
   ]);
 
   // Le chef relance #14, et retire #15 de la fiche de #17.
@@ -350,7 +350,7 @@ test("la file ne garde rien : relue d'un journal rouvert en lecture seule, elle 
   const maintenant = new Date(`${JOUR_HORLOGE}T10:07:00.000Z`);
   const lignes = decrireEtat(lireEtat(relu, maintenant), maintenant);
 
-  assert.ok(lignes.includes("attend     1 décision attend le chef depuis 7 min"));
+  assert.ok(lignes.includes("awaiting   1 decision awaits the chef — for 7 min"));
   assert.equal(relu.dernierSeq(), avant);
 });
 
@@ -366,10 +366,10 @@ test("un ticket que sa station a déclaré 86 sans heure de retour attend le che
   quatreVingtSix(16, "refused");
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`), [
-    "attend     3 décisions attendent le chef — la plus ancienne depuis 50 min",
-    "  #14  depuis 50 min  sans calibrage — à calibrer : poser `model:` et `effort:` sur l'issue, il repart seul  Ticket 14",
-    "  #15  depuis 40 min  fiche illisible — à corriger : la fiche de l'issue, il repart seul  Ticket 15",
-    "  #16  depuis 30 min  refusé trois fois par le modèle — à trancher : reformuler ou recalibrer, puis retirer et reposer `fire` ; ou retirer `fire`  Ticket 16",
+    "awaiting   3 decisions await the chef — the oldest for 50 min",
+    "  #14  for 50 min  no calibration — to calibrate: set `model:` and `effort:` on the issue, it starts again on its own  Ticket 14",
+    "  #15  for 40 min  unreadable card — to fix: the issue's card, it starts again on its own  Ticket 15",
+    "  #16  for 30 min  refused three times by the model — to decide: rephrase or recalibrate, then remove and set `fire` again; or remove `fire`  Ticket 16",
   ]);
 
   // Calibré et fiche corrigée sur GitHub : la station les rend au rail. Le refusé perd son `fire`.
@@ -400,15 +400,15 @@ test("ce que le manager attend du chef est dans la file, avec le geste attendu, 
   noter({ type: "manager.split-failed", payload: { run: "decoupe-35", fingerprint: "e35", reason: "aucun objet JSON" } }, 35, "manager");
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
-    "attend     7 décisions attendent le chef — la plus ancienne depuis 1 h 00",
-    "  #30  depuis 1 h 00  écartée par le manager, elle porte `question` — à trancher : y répondre puis retirer le label, il la juge ; ou fermer l'issue",
-    "  #31  depuis 50 min  jugement du manager illisible — à reprendre : modifier l'issue, il la rejuge ; ou poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue",
-    `  #17  depuis 40 min  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${pr(17)} — ou accorder le grant, pour les suivantes : \`brigade <projet> grant enable merge\`  Ticket 17`,
-    "  #32  depuis 30 min  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue",
-    "  #33  depuis 20 min  écartée par le manager, elle porte `decision` — à trancher : décider puis retirer le label, il la juge ; ou fermer l'issue",
-    "  #34  depuis 20 min  retenue, elle porte `blocked-on-human` — à lever : retirer le label, le manager la juge ; ou fermer l'issue",
-    "  #35  depuis 20 min  découpage du manager illisible — à reprendre : modifier l'épique, il la redécoupe ; ou fermer l'issue",
-    "  sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte",
+    "awaiting   7 decisions await the chef — the oldest for 1 h 00",
+    "  #30  for 1 h 00  set aside by the manager, it carries `question` — to decide: answer it then remove the label, the manager judges it; or close the issue",
+    "  #31  for 50 min  manager's judgment unreadable — to redo: edit the issue, the manager judges it again; or set `fire`, `model:` and `effort:` by hand; or close the issue",
+    `  #17  for 40 min  green delivery, not merged for lack of a \`merge\` grant — merge by hand: ${pr(17)} — or enable the grant, for the next ones: \`brigade <projet> grant enable merge\`  Ticket 17`,
+    "  #32  for 30 min  manager's question before splitting the epic — to answer: on the issue, the manager reads it again and splits it; or close the issue",
+    "  #33  for 20 min  set aside by the manager, it carries `decision` — to decide: decide then remove the label, the manager judges it; or close the issue",
+    "  #34  for 20 min  held back, it carries `blocked-on-human` — to lift: remove the label, the manager judges it; or close the issue",
+    "  #35  for 20 min  manager's split unreadable — to redo: edit the epic, the manager splits it again; or close the issue",
+    "  without a grant, 1 green delivery stopped: 0 merged by hand, 0 closed without merge — no disagreement —, 1 still open",
   ]);
 });
 
@@ -446,8 +446,8 @@ test("fermée, l'issue que le manager attendait sort de la file ; rouverte, elle
 
   noter({ type: "manager.reopened", payload: {} }, 31, "manager");
   assert.deepEqual(file(), [
-    "attend     1 décision attend le chef depuis 1 h 00",
-    "  #31  depuis 1 h 00  jugement du manager illisible — à reprendre : modifier l'issue, il la rejuge ; ou poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue",
+    "awaiting   1 decision awaits the chef — for 1 h 00",
+    "  #31  for 1 h 00  manager's judgment unreadable — to redo: edit the issue, the manager judges it again; or set `fire`, `model:` and `effort:` by hand; or close the issue",
   ]);
 });
 
@@ -460,8 +460,8 @@ test("une issue écartée que le chef a lancée lui-même est sur le rail : c'es
   noter({ type: "ticket.86", payload: { reason: "no-calibration", until: null } }, 14, `station:${STATION}`);
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), [
-    "attend     1 décision attend le chef depuis 5 min",
-    "  #14  depuis 5 min  sans calibrage — à calibrer : poser `model:` et `effort:` sur l'issue, il repart seul  Ticket 14",
+    "awaiting   1 decision awaits the chef — for 5 min",
+    "  #14  for 5 min  no calibration — to calibrate: set `model:` and `effort:` on the issue, it starts again on its own  Ticket 14",
   ]);
 });
 
@@ -471,8 +471,8 @@ test("une épique retenue par le chef après la question du manager n'attend qu'
   noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 32, "manager");
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), [
-    "attend     1 décision attend le chef depuis 5 min",
-    "  #32  depuis 5 min  retenue, elle porte `blocked-on-human` — à lever : retirer le label, le manager la juge ; ou fermer l'issue",
+    "awaiting   1 decision awaits the chef — for 5 min",
+    "  #32  for 5 min  held back, it carries `blocked-on-human` — to lift: remove the label, the manager judges it; or close the issue",
   ]);
 });
 
@@ -497,10 +497,10 @@ test("une épique à question qui cesse d'être une épique à découper sort de
 
   // Rejugée, et le jugement ne se lit pas : c'est lui qui attend désormais.
   noter({ type: "manager.failed", payload: { run: "juge-36", fingerprint: "e3", reason: "réponse sans verdict" } }, 36, "manager");
-  assert.match(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).at(-1) ?? "", /#36 .* jugement du manager illisible/);
+  assert.match(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).at(-1) ?? "", /#36 .* manager's judgment unreadable/);
 });
 
-test("la connexion Max absente attend le chef : l'en-tête de l'état et le bloc `attend` la disent, depuis quand, avec le geste — et elle en sort seule à la reprise", (t) => {
+test("la connexion Max absente attend le chef : l'en-tête de l'état et le bloc `awaiting` la disent, depuis quand, avec le geste — et elle en sort seule à la reprise", (t) => {
   const { a, noter, arriver, journal, bloc } = cuisine(t);
   const entete = (maintenant: string) => decrireEtat(lireEtat(journal, new Date(maintenant)), new Date(maintenant)).filter((ligne) => ligne.startsWith("connexion"));
   noter({ type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["opus"], maxCooks: 2 } });
@@ -511,12 +511,14 @@ test("la connexion Max absente attend le chef : l'en-tête de l'état et le bloc
   noter({ type: "station.disconnected", payload: { station: STATION, reason: "not-logged-in", run: null } }, null, `station:${STATION}`);
 
   const geste = "`claude /login` sous le compte du service — la cuisine reprend seule dans la minute, sans « resume »";
+  // Le même geste, tel que le bloc `awaiting` l'écrit : en anglais.
+  const gesteEn = "`claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”";
   assert.deepEqual(entete(`${JOUR_HORLOGE}T10:25:00.000Z`), [
     `connexion  Max ABSENTE depuis 20 min sur ${STATION} (not-logged-in) — plus aucun ticket n'est pris : ${geste}`,
   ]);
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:25:00.000Z`), [
-    "attend     1 décision attend le chef depuis 20 min",
-    `  ${STATION}  depuis 20 min  connexion Max absente (not-logged-in) — à rétablir : ${geste}`,
+    "awaiting   1 decision awaits the chef — for 20 min",
+    `  ${STATION}  for 20 min  Max connection missing (not-logged-in) — to restore: ${gesteEn}`,
   ]);
 
   a(`${JOUR_HORLOGE}T10:30:00.000Z`);
@@ -534,9 +536,9 @@ test("une connexion Max expirée en cours de route se dit expirée, et se range 
   noter({ type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run: "17-aa" } }, 17, `station:${STATION}`);
 
   const lignes = bloc(`${JOUR_HORLOGE}T10:00:00.000Z`);
-  assert.equal(lignes[0], "attend     2 décisions attendent le chef — la plus ancienne depuis 2 h 00");
-  assert.match(lignes[1] ?? "", /^  #17  depuis 2 h 00  /);
-  assert.match(lignes[2] ?? "", new RegExp(`^  ${STATION}  depuis 1 h 00  connexion Max expirée \\(authentication_failed\\) — à rétablir`));
+  assert.equal(lignes[0], "awaiting   2 decisions await the chef — the oldest for 2 h 00");
+  assert.match(lignes[1] ?? "", /^  #17  for 2 h 00  /);
+  assert.match(lignes[2] ?? "", new RegExp(`^  ${STATION}  for 1 h 00  Max connection expired \\(authentication_failed\\) — to restore`));
 });
 
 test("quand rien n'attend, le bloc reste là et le dit : deux lignes, sans le bilan des arrêts faute de grant", (t) => {
@@ -544,8 +546,8 @@ test("quand rien n'attend, le bloc reste là et le dit : deux lignes, sans le bi
   const lire = (heure: string) => decrireEtat(lireEtat(journal, new Date(heure)), new Date(heure));
   // Un journal où rien n'a jamais attendu.
   const calme = lire(`${JOUR_HORLOGE}T10:00:00.000Z`);
-  const debut = calme.indexOf("attend     rien n'attend le chef");
-  assert.deepEqual(calme.slice(debut - 1, debut + 4), ["", "attend     rien n'attend le chef", "fin attend", "", "rail       vide"]);
+  const debut = calme.indexOf("awaiting   nothing awaits the chef");
+  assert.deepEqual(calme.slice(debut - 1, debut + 4), ["", "awaiting   nothing awaits the chef", "end awaiting", "", "rail       vide"]);
 
   // Une livraison arrêtée faute de grant, puis mergée à la main : la file se vide, le bilan reste à `run pass`.
   a(`${JOUR_HORLOGE}T09:00:00.000Z`);
@@ -569,7 +571,7 @@ function baseRouge(noter: ReturnType<typeof cuisine>["noter"]) {
   return { controler, ouvrirLaReparation };
 }
 
-const REPARER = "à réparer : corriger la base à la main, ou relancer #501 : lui reposer `fire`, son issue rouverte s'il le faut ; la pass la rejoue dès qu'elle bouge, et la cuisine repart seule au vert ; un rouge qui ne tient pas au code se rejoue : `brigade <projet> base replay`";
+const REPARER = "to repair: fix the base by hand, or restart #501: set `fire` on it again, its issue reopened if needed; the pass replays it as soon as it moves, and the kitchen starts again on its own once green; a red that is not down to the code is replayed: `brigade <projet> base replay`";
 
 test("une base rouge n'attend pas le chef tant qu'elle se répare seule : ni pendant le rejeu, ni pendant que son ticket de réparation travaille", (t) => {
   const { a, noter, bloc } = cuisine(t);
@@ -603,8 +605,8 @@ test("une base rouge dont la réparation a échoué attend le chef : depuis son 
   // Le chef retire `fire` : la réparation quitte le rail sans être servie.
   a(`${JOUR_HORLOGE}T11:00:00.000Z`);
   noter({ type: "ticket.left", payload: { reason: "unfired" } }, 501, "github");
-  const ligne = `  base  depuis 3 h 00  BASE ROUGE sur base-1, en échec : tests du projet en échec — sa réparation #501 a quitté le rail sans être servie — ${REPARER}`;
-  assert.deepEqual(bloc(`${JOUR_HORLOGE}T13:00:00.000Z`), ["attend     1 décision attend le chef depuis 3 h 00", ligne]);
+  const ligne = `  base  for 3 h 00  BASE RED on base-1, failing: tests du projet en échec — its repair #501 left the rail without being served — ${REPARER}`;
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T13:00:00.000Z`), ["awaiting   1 decision awaits the chef — for 3 h 00", ligne]);
   // Elle compte pour une décision, sans être à aucun ticket.
   const etat = lireEtat(journal, new Date(`${JOUR_HORLOGE}T13:00:00.000Z`));
   assert.deepEqual(etat.attend.map(({ ticket, quoi }) => [ticket, quoi]), [[null, "base"]]);
@@ -613,8 +615,8 @@ test("une base rouge dont la réparation a échoué attend le chef : depuis son 
   a(`${JOUR_HORLOGE}T12:00:00.000Z`);
   controler("base-2", "tests de l'app en échec", "contrôle de types de l'app en échec");
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T13:00:00.000Z`), [
-    "attend     1 décision attend le chef depuis 3 h 00",
-    `  base  depuis 3 h 00  BASE ROUGE sur base-2, en échec : tests de l'app en échec ; contrôle de types de l'app en échec — sa réparation #501 a quitté le rail sans être servie — ${REPARER}`,
+    "awaiting   1 decision awaits the chef — for 3 h 00",
+    `  base  for 3 h 00  BASE RED on base-2, failing: tests de l'app en échec; contrôle de types de l'app en échec — its repair #501 left the rail without being served — ${REPARER}`,
   ]);
 
   // Verte : la ligne a quitté la file, sans geste du chef.
@@ -637,7 +639,7 @@ test("une réparation remontée au chef se relance ; mergée sans remettre la ba
   const base = bloc(`${JOUR_HORLOGE}T12:00:00.000Z`).find((ligne) => ligne.startsWith("  base  "));
   assert.equal(
     base,
-    "  base  depuis 2 h 00  BASE ROUGE sur base-1, en échec : tests du projet en échec — sa réparation #501 est remontée sans être servie — à réparer : corriger la base à la main, ou relancer #501 : retirer et reposer `fire` ; la pass la rejoue dès qu'elle bouge, et la cuisine repart seule au vert ; un rouge qui ne tient pas au code se rejoue : `brigade <projet> base replay`",
+    "  base  for 2 h 00  BASE RED on base-1, failing: tests du projet en échec — its repair #501 was escalated without being served — to repair: fix the base by hand, or restart #501: remove and set `fire` again; the pass replays it as soon as it moves, and the kitchen starts again on its own once green; a red that is not down to the code is replayed: `brigade <projet> base replay`",
   );
 
   // Relancée par le chef — `fire` retiré puis reposé : elle travaille de nouveau, la base n'attend plus.
@@ -648,7 +650,7 @@ test("une réparation remontée au chef se relance ; mergée sans remettre la ba
   // Mergée, puis la base recontrôlée reste rouge : elle n'a pas réparé.
   noter({ type: "merge.done", payload: { pr: pr(501), sha: "abc", by: "pass", reconciled: false } }, 501, "pass");
   controler("base-2", "tests du projet en échec");
-  assert.match(bloc(`${JOUR_HORLOGE}T12:00:00.000Z`).find((ligne) => ligne.startsWith("  base  ")) ?? "", /— sa réparation #501 mergée, ne l'a pas remise au vert — à réparer : corriger la base à la main ; la pass/);
+  assert.match(bloc(`${JOUR_HORLOGE}T12:00:00.000Z`).find((ligne) => ligne.startsWith("  base  ")) ?? "", /— its repair #501 merged, did not bring it back to green — to repair: fix the base by hand; the pass/);
 
   // Verte, puis rouge de nouveau : un rouge neuf, que la pass rejoue et répare seule — rien n'attend.
   controler("base-3");
@@ -677,15 +679,15 @@ test("un projet bloqué sur son setup attend le chef, une seule fois quel que so
   const maintenant = `${JOUR_HORLOGE}T10:20:00.000Z`;
 
   assert.deepEqual(bloc(maintenant), [
-    "attend     1 décision attend le chef depuis 20 min",
-    "  setup  depuis 20 min  setup impossible : la porte refuse `cdn.sheetjs.com`, `registry.npmjs.org` (`.claude/brigade/worktree-setup.sh`, code de sortie 1, deux fois à l'identique) — à déclarer dans `.claude/brigade/reseau` du projet, une ligne par hôte, puis merger sur la branche d'intégration ; les setups reprennent seuls dès que la branche d'intégration bouge ; d'ici là, aucun n'est lancé, pour aucun ticket",
+    "awaiting   1 decision awaits the chef — for 20 min",
+    "  setup  for 20 min  setup impossible: the door refuses `cdn.sheetjs.com`, `registry.npmjs.org` (`.claude/brigade/worktree-setup.sh`, code de sortie 1, twice identically) — to declare in the project's `.claude/brigade/reseau`, one line per host, then merge into the integration branch; setups start again on their own as soon as the integration branch moves; until then, none is launched, for any ticket",
   ]);
   const etat = lireEtat(journal, new Date(maintenant));
   assert.deepEqual(etat.attend.map(({ ticket, quoi }) => [ticket, quoi]), [[null, "setup"]]);
 
   // En tête de `status`, ce qui ne part plus ; dans ce que l'app lit, une cuisine retenue et une décision qui attend.
   const tete = decrireEtat(etat, new Date(maintenant)).filter((ligne) => ligne.startsWith("setup"));
-  assert.deepEqual(tete, ["setup      BLOQUÉ depuis 20 min sur ba5e000 — aucun setup n'est lancé d'ici, pour aucun ticket, tant que la branche d'intégration ne bouge pas : la cause et le geste sont dans le bloc `attend`"]);
+  assert.deepEqual(tete, ["setup      BLOQUÉ depuis 20 min sur ba5e000 — aucun setup n'est lancé d'ici, pour aucun ticket, tant que la branche d'intégration ne bouge pas : la cause et le geste sont dans le bloc `awaiting`"]);
   const forme = faits(etat, new Date(maintenant));
   assert.equal(forme.etat, "retenue");
   assert.equal(forme.compteurs.attend, 1);
@@ -697,8 +699,8 @@ test("sans hôte refusé, c'est le setup lui-même qui est à corriger : la lign
   const { noter, bloc } = cuisine(t);
   setupBloque(noter, { hosts: [], tickets: [14, 15] });
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`), [
-    "attend     1 décision attend le chef depuis 1 h 00",
-    "  setup  depuis 1 h 00  setup impossible : `.claude/brigade/worktree-setup.sh` échoue deux fois à l'identique (code de sortie 1) — ce qu'il a dit est sur #15 — à corriger : le setup du projet, puis merger sur la branche d'intégration ; les setups reprennent seuls dès que la branche d'intégration bouge ; d'ici là, aucun n'est lancé, pour aucun ticket",
+    "awaiting   1 decision awaits the chef — for 1 h 00",
+    "  setup  for 1 h 00  setup impossible: `.claude/brigade/worktree-setup.sh` fails twice identically (code de sortie 1) — what it said is on #15 — to fix: the project's setup, then merge into the integration branch; setups start again on their own as soon as the integration branch moves; until then, none is launched, for any ticket",
   ]);
 });
 
@@ -720,7 +722,7 @@ test("débloqué — la branche d'intégration a bougé —, le setup quitte la 
   // Le même échec sur la nouvelle base rebloque : l'alerte revient, comptée du nouveau blocage.
   a(`${JOUR_HORLOGE}T10:50:00.000Z`);
   noter({ type: "setup.blocked", payload: { station: STATION, why: "code de sortie 1", hosts: ["cdn.sheetjs.com:443"], base: "ba5e0002ffff" } }, 14, `station:${STATION}`);
-  assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`).slice(0, 1), ["attend     1 décision attend le chef depuis 10 min"]);
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`).slice(0, 1), ["awaiting   1 decision awaits the chef — for 10 min"]);
 });
 
 test("une station distante prépare son setup sur son poste : le projet bloqué attend le chef, mais sa cuisine n'est pas retenue", (t) => {

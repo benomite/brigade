@@ -20,6 +20,20 @@ export function direIssue(issue: Issue): string {
   return `${tete} — le retour en version ${issue.restauree} a échoué aussi : ${issue.retour}`;
 }
 
+// La même ligne, en anglais : c'est elle que dit le bloc `awaiting` de
+// `status`. L'heure à la minute, à l'heure de la machine : « 14:02 ».
+export const heureEnClairEn = (instant: string): string => {
+  const lu = new Date(instant);
+  return `${deux(lu.getHours())}:${deux(lu.getMinutes())}`;
+};
+
+export function direIssueEn(issue: Issue): string {
+  if (issue.quoi === "passee") return `switched to version ${issue.version} at ${heureEnClairEn(issue.le)}`;
+  const tete = `update to version ${issue.visee} failed at ${heureEnClairEn(issue.le)}: ${issue.motif}`;
+  if (issue.retour === null) return `${tete} — back on version ${issue.restauree}; ${issue.visee} is not retried, the next one will be`;
+  return `${tete} — going back to version ${issue.restauree} failed too: ${issue.retour}`;
+}
+
 // L'état exposé, pour la commande `etat`.
 export function decrireEtatMiseAJour(etat: EtatMiseAJour | null): string[] {
   if (etat === null) return ["mise à jour : aucun passage encore"];

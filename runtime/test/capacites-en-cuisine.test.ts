@@ -146,11 +146,11 @@ describe("les capacités qu'un ticket demande", { concurrency: 8 }, () => {
     await jusqua(() => etat(14) === "86");
 
     const lignes = decrireEtat(lireEtat(journal), heure.maintenant());
-    const debut = lignes.findIndex((ligne) => ligne.startsWith("attend"));
-    assert.deepEqual(lignes.slice(debut, lignes.indexOf("fin attend") + 1), [
-      "attend     1 décision attend le chef depuis 0 s",
-      "  #14  depuis 0 s  aucune station ne fournit `chrome-connecté` — à fournir : déclarer une station qui la fournit par `brigade <projet> station stations <machine>/<moteur>:<plafond de cooks>:chrome-connecté`, ou retirer `chrome-connecté` de la ligne `requiert` de sa fiche — il repart seul  Ticket 14",
-      "fin attend",
+    const debut = lignes.findIndex((ligne) => ligne.startsWith("awaiting"));
+    assert.deepEqual(lignes.slice(debut, lignes.indexOf("end awaiting") + 1), [
+      "awaiting   1 decision awaits the chef — for 0 s",
+      "  #14  for 0 s  no station provides `chrome-connecté` — to provide: declare a station that provides it with `brigade <project> station stations <machine>/<engine>:<cook cap>:chrome-connecté`, or remove `chrome-connecté` from the `requiert` line of its card — it starts again on its own  Ticket 14",
+      "end awaiting",
     ]);
     // Et sur sa ligne du rail, sous le décompte.
     const rail = lignes.findIndex((ligne) => ligne.startsWith("rail"));
@@ -188,7 +188,7 @@ describe("les capacités qu'un ticket demande", { concurrency: 8 }, () => {
     assert.deepEqual(lancements(), []);
     assert.match(
       decrireEtat(lireEtat(journal), heure.maintenant()).join("\n"),
-      /^ {2}#14 {2}depuis 0 s {2}aucune station ne fournit à la fois `code` et `navigateur-headless` — à fournir : déclarer une station qui les fournit ensemble par `brigade <projet> station stations <machine>\/<moteur>:<plafond de cooks>:code\+navigateur-headless`/m,
+      /^ {2}#14 {2}for 0 s {2}no station provides `code` and `navigateur-headless` together — to provide: declare a station that provides them together with `brigade <project> station stations <machine>\/<engine>:<cook cap>:code\+navigateur-headless`/m,
     );
   });
 

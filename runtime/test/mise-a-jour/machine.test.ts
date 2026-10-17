@@ -20,10 +20,10 @@ import { construirePaquet, deriverPaquet, sansDpkgDeb, uneMachine, type Machine 
 const UNITE = "usr/lib/systemd/system/brigade-station.service";
 const MAIN = "usr/lib/brigade-station/runtime/src/station/main.ts";
 
-// L'heure d'un instant, à la minute, à l'heure de la machine : « 14 h 02 ».
+// L'heure d'un instant, à la minute, à l'heure de la machine : « 14:02 ».
 const heure = (instant: string) => {
   const lu = new Date(instant);
-  return `${String(lu.getHours()).padStart(2, "0")} h ${String(lu.getMinutes()).padStart(2, "0")}`;
+  return `${String(lu.getHours()).padStart(2, "0")}:${String(lu.getMinutes()).padStart(2, "0")}`;
 };
 
 // Les décisions sans lesquelles un projet ne sert pas.
@@ -62,13 +62,13 @@ function machineAvecUnProjet(t: TestContext): Machine & { etatDuProjet: string }
   return { ...machine, etatDuProjet };
 }
 
-// Le bloc `attend` de l'état du projet : la file.
+// Le bloc `awaiting` de l'état du projet : la file.
 function file(etatDuProjet: string): string[] {
   const journal = ouvrirJournal(etatDuProjet, { lectureSeule: true });
   try {
     const lignes = decrireEtat(lireEtat(journal), new Date());
-    const debut = lignes.findIndex((ligne) => ligne.startsWith("attend"));
-    return lignes.slice(debut, lignes.indexOf("fin attend", debut) + 1);
+    const debut = lignes.findIndex((ligne) => ligne.startsWith("awaiting"));
+    return lignes.slice(debut, lignes.indexOf("end awaiting", debut) + 1);
   } finally {
     journal.fermer();
   }
@@ -124,7 +124,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     await jusqua(() => faits(machine.etatDuProjet, "update.installed").length === 1);
     const [passage] = faits(machine.etatDuProjet, "update.installed");
     assert.deepEqual([passage?.version, passage?.previous], ["1.1.0", "1.0.0"]);
-    assert.deepEqual(file(machine.etatDuProjet), ["attend     rien n'attend le chef", `  passée en version 1.1.0 à ${heure(String(passage?.at))}`, "fin attend"]);
+    assert.deepEqual(file(machine.etatDuProjet), ["awaiting   nothing awaits the chef", `  switched to version 1.1.0 at ${heure(String(passage?.at))}`, "end awaiting"]);
 
     // 1.2.0 change l'unité de la station : elle tourne sous la nouvelle.
     assert.equal(machine.envDeLaStation().BRIGADE_ESSAI_UNITE, undefined);
@@ -158,7 +158,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
       ["1.1.0", "1.2.0", "1.3.0"],
     );
     const dernier = faits(machine.etatDuProjet, "update.installed").at(-1);
-    assert.deepEqual(file(machine.etatDuProjet).slice(1, 2), [`  passée en version 1.3.0 à ${heure(String(dernier?.at))}`]);
+    assert.deepEqual(file(machine.etatDuProjet).slice(1, 2), [`  switched to version 1.3.0 at ${heure(String(dernier?.at))}`]);
     // Le projet n'a jamais cessé d'être servi, et seule la station a été relancée.
     assert.deepEqual(lireEnService(machine.station)?.servis, ["brigade"]);
     assert.deepEqual(
@@ -195,7 +195,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     const [, ligne] = file(machine.etatDuProjet);
     assert.equal(
       ligne,
-      `  mise à jour vers la version 1.1.0 ratée à ${heure(String(retour?.at))} : la station s'est arrêtée en échec en 1.1.0 (systemd : failed) — revenue en version 1.0.0 ; 1.1.0 n'est pas réessayée, la suivante le sera`,
+      `  update to version 1.1.0 failed at ${heure(String(retour?.at))}: la station s'est arrêtée en échec en 1.1.0 (systemd : failed) — back on version 1.0.0; 1.1.0 is not retried, the next one will be`,
     );
 
     // Elle n'est pas réessayée : rien n'est réinstallé.

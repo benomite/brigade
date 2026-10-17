@@ -105,10 +105,10 @@ pas une panne** — son poste est éteint, ou ailleurs :
 - dès qu'elle se manifeste, ils reviennent en attente seuls (`ticket.released`, motif
   `station-present`), et elle peut les réclamer ;
 - l'issue ne l'apprend **qu'une fois** : une station qui va et vient n'y écrit pas à chaque absence.
-  `status` le dit dans le bloc `attend`, et `station` sur sa ligne `présence` :
+  `status` le dit dans le bloc `awaiting`, et `station` sur sa ligne `présence` :
 
   ```
-  #16  depuis 3 min  station absente — `mac/claude` ne s'est pas manifestée récemment — ce n'est pas une panne, et rien n'est à faire sur la box : le ticket repart seul dès que la station se manifeste (son poste allumé, son runner lancé)
+  #16  for 3 min  station absent — `mac/claude` has not shown up lately — this is not a failure, and there is nothing to do on the box: the ticket starts again on its own as soon as the station shows up (its workstation on, its runner started)
   ```
 
 #### Les tickets ordinaires sur le poste du chef

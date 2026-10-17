@@ -302,8 +302,8 @@ const bloqueLeSetup = (status: string) => tetesDe(status).some(({ titre, valeur 
 // L'entrée `setup` du bloc `attend` (runtime/src/attend.ts, `decrireAttentes`) : deux espaces,
 // `setup`, deux espaces, depuis quand, deux espaces, puis la cause et le geste — c'est ce qui en
 // est repris, mot pour mot, avec les lignes qui la précisent, sans leur retrait. Rien quand le
-// texte n'en a pas.
-const TETE_DE_SETUP = /^ {2}setup {2}(?:depuis \S.*? {2})?(\S.*)$/;
+// texte n'en a pas. Depuis quand se dit `depuis …` ou `for …` (#927).
+const TETE_DE_SETUP = /^ {2}setup {2}(?:(?:depuis|for) \S.*? {2})?(\S.*)$/;
 const SUITE_D_ENTREE = /^ {6}(\S.*)$/;
 export function entreeDeSetup(texte: string): string | undefined {
   const lignes = texte.split("\n");

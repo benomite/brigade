@@ -35,9 +35,9 @@ const lecture = (commande: string, texte: string): Lecture => ({ projet: "parade
 
 // Ce que le runtime écrit de l'entrée, après sa tête et son « depuis » (runtime/test/attend.test.ts).
 const HOTE_REFUSE =
-  "setup impossible : la porte refuse `cdn.sheetjs.com` (`.claude/brigade/worktree-setup.sh`, code de sortie 1, deux fois à l'identique) — à déclarer dans `.claude/brigade/reseau` du projet, une ligne par hôte, puis merger sur la branche d'intégration ; les setups reprennent seuls dès que la branche d'intégration bouge ; d'ici là, aucun n'est lancé, pour aucun ticket";
+  "setup impossible: the door refuses `cdn.sheetjs.com` (`.claude/brigade/worktree-setup.sh`, code de sortie 1, twice identically) — to declare in the project's `.claude/brigade/reseau`, one line per host, then merge into the integration branch; setups start again on their own as soon as the integration branch moves; until then, none is launched, for any ticket";
 const SETUP_A_CORRIGER =
-  "setup impossible : `.claude/brigade/worktree-setup.sh` échoue deux fois à l'identique (code de sortie 1) — ce qu'il a dit est sur #15 — à corriger : le setup du projet, puis merger sur la branche d'intégration ; les setups reprennent seuls dès que la branche d'intégration bouge ; d'ici là, aucun n'est lancé, pour aucun ticket";
+  "setup impossible: `.claude/brigade/worktree-setup.sh` fails twice identically (code de sortie 1) — what it said is on #15 — to fix: the project's setup, then merge into the integration branch; setups start again on their own as soon as the integration branch moves; until then, none is launched, for any ticket";
 
 // Une cuisine saine — runtime en marche, une station, version à jour, manager allumé — dont le
 // test tient l'horloge. `bande` : ce que l'app en dessine, lu comme le process principal le lit.
@@ -184,6 +184,9 @@ describe("le setup du projet bloqué, dans la bande d'alertes", () => {
     ].join("\n");
     assert.equal(entreeDeSetup(bloc), "setup impossible : la vraie\nce qui la précise");
     assert.equal(entreeDeSetup("attend     rien n'attend le chef\nfin attend\n"), undefined);
+    // Le même bloc, en anglais (#927).
+    const anglais = ["awaiting   2 decisions await the chef — the oldest for 1 h 00", "  #12  for 1 h 00  setup impossible: not the project's entry", "  setup  for 20 min  setup impossible: the real one", "      what details it", "end awaiting"].join("\n");
+    assert.equal(entreeDeSetup(anglais), "setup impossible: the real one\nwhat details it");
   });
 });
 

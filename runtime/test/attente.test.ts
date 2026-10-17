@@ -139,7 +139,7 @@ test("un ticket en WAITING n'est pas dans TODO, et ne tient pas sa zone", (t) =>
   assert.deepEqual(todo(journal).map((a) => [a.ticket, a.quoi]), [[8, "86"]]);
   attendre(journal, 8);
   assert.deepEqual(todo(journal), []);
-  assert.deepEqual(decrireAttentes(todo(journal), () => "1 min")[0], `${"attend".padEnd(11)}rien n'attend le chef`);
+  assert.deepEqual(decrireAttentes(todo(journal), () => "1 min")[0], `${"awaiting".padEnd(11)}nothing awaits the chef`);
   // Sa zone ne retient pas celui qui la recouvre.
   assert.deepEqual(ticketDuRail(journal.base, 9)?.held, []);
   assert.equal(rail.prendre("box/claude")?.ticket, 9);
@@ -171,7 +171,7 @@ test("« reprendre » : un ticket qui n'était pas mis de côté revient dans TO
   const [entree, ...autres] = todo(journal);
   assert.deepEqual([entree?.ticket, entree?.quoi, autres], [8, "repris", []]);
   const bloc = decrireAttentes(todo(journal), () => "1 min").join("\n");
-  assert.match(bloc, /#8  depuis 1 min  revenu de WAITING, repris par le chef \(il attendait le client : « sa validation écrite du devis »\) — à trancher : `brigade .* waiting arrived 8` le renvoie en cuisine/);
+  assert.match(bloc, /#8  for 1 min  back from WAITING, picked up again by the chef \(it was waiting for le client: “sa validation écrite du devis”\) — to decide: `brigade .* waiting arrived 8` sends it back to the kitchen/);
 
   // De TODO, « c'est arrivé » l'envoie en cuisine.
   assert.equal(cestArrive(journal, PROJET, 8).state, "waiting");
