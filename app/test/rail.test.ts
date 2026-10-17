@@ -19,6 +19,7 @@ import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../src/faits.
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { gestesDeCarte, PRIX } from "../src/gestes-fiche.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
+import { heureHM } from "../src/format.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
@@ -113,6 +114,14 @@ const bonDe = (vue: Jouee, numero: number): Faux => bons(vue.element("rail")).fi
 const portes = (bon: Faux) => bon.dessous("ul").flatMap((liste) => liste.children.map((fait) => fait.children.map((pose) => pose.textContent)));
 // Ce que la file ne dit pas — pas ce qu'une carte de Livré dit de sa relecture, qui a ses classes.
 const sans = (bon: Faux) => bon.dessous("small").filter((pose) => pose.className === "").map((pose) => pose.textContent);
+// Les deux lignes d'une carte (#622) : ce qui se passe, puis ce qui demande l'attention.
+const ligneDe = (bon: Faux) => bon.dessous("p").find((p) => p.className === "ligne-carte")?.textContent;
+const signalDe = (bon: Faux) => bon.dessous("p").find((p) => p.className === "signal")?.textContent;
+// Le détail que la carte ne porte plus, sur la fiche qu'un clic ouvre.
+const detailsDe = (vue: Jouee, numero: number): Faux | undefined => {
+  bonDe(vue, numero).click();
+  return fiche(vue).dessous("section").find((pose) => pose.className === "details");
+};
 const relayes = (bon: Faux) => bon.dessous("p").filter((p) => p.className === "").map((p) => p.textContent);
 // La fiche ouverte par-dessus le rail : ses lignes, libellé puis valeur ; ses gestes.
 const fiche = (vue: Jouee) => vue.element("fiche");
@@ -220,18 +229,27 @@ describe("une carte porte ce que la file dit", () => {
     const vue = await ouvrir();
     recevoir(vue);
 
-    assert.deepEqual(portes(bonDe(vue, 14)), [
+    // Sur la carte : une ligne, rien de ce qui ne change pas ce que le chef fait.
+    assert.equal(ligneDe(bonDe(vue, 14)), "écrit app/src/bon.ts · 2 min");
+    assert.equal(ligneDe(bonDe(vue, 30)), "gates en cours · 30 s");
+    assert.ok((ligneDe(bonDe(vue, 12)) ?? "") !== "");
+    for (const bon of bons(vue.element("rail"))) {
+      assert.deepEqual(portes(bon), [], bon.textContent);
+      assert.doesNotMatch(bon.textContent, /lease|bail|\b86\b|not given|taken by/);
+    }
+    // Le détail est dans la fiche.
+    assert.deepEqual(portes(detailsDe(vue, 14) ?? assert.fail("pas de détail")), [
       ["right now", "écrit app/src/bon.ts, for 2 min"],
       ["taken by", "box/claude"],
       ["since", "12 min"],
       ["lease", "sans progrès depuis 3 min, bail encore 27 min"],
     ]);
-    assert.deepEqual(portes(bonDe(vue, 21)), [["since", "2 h 05"], ["blocked by", "zone tenue par #14 (app/src)"]]);
-    // En pass, ce que la pass en fait ; la box qui ne le sait pas, la carte l'écrit.
-    assert.deepEqual(portes(bonDe(vue, 30))[0], ["right now", "gates en cours, for 30 s"]);
-    assert.deepEqual(portes(bonDe(vue, 12))[0], ["right now", "activity not given"]);
+    assert.deepEqual(portes(detailsDe(vue, 21) ?? assert.fail("pas de détail")), [["since", "2 h 05"], ["blocked by", "zone tenue par #14 (app/src)"]]);
+    assert.deepEqual(portes(detailsDe(vue, 30) ?? assert.fail("pas de détail"))[0], ["right now", "gates en cours, for 30 s"]);
+    assert.deepEqual(portes(detailsDe(vue, 12) ?? assert.fail("pas de détail"))[0], ["right now", "activity not given"]);
     // Ce qui se recopie — une station — est en monospace ; une durée se lit.
-    const [, tient, depuis] = bonDe(vue, 14).dessous("ul")[0]?.children ?? [];
+    bonDe(vue, 14).click();
+    const [, tient, depuis] = (detailsDe(vue, 14) ?? assert.fail("pas de détail")).dessous("ul")[0]?.children ?? [];
     assert.deepEqual([tient?.children[1]?.className, depuis?.children[1]?.className], ["mono", ""]);
   });
 
@@ -251,7 +269,7 @@ describe("une carte porte ce que la file dit", () => {
     const vue = await ouvrir();
     recevoir(vue, dessinable(FAITS, PAS_LU));
 
-    assert.deepEqual(portes(bonDe(vue, 14)).map(([libelle]) => libelle), ["right now", "taken by"]);
+    assert.deepEqual(portes(detailsDe(vue, 14) ?? assert.fail("pas de détail")).map(([libelle]) => libelle), ["right now", "taken by"]);
     assert.deepEqual(sans(bonDe(vue, 14)), []);
     // Le haut du rail ne dit rien d'une lecture récente : la provenance est dans Paramètres.
     const provenance = () => vue.element("provenance-lignes").textContent;
@@ -265,14 +283,16 @@ describe("une carte porte ce que la file dit", () => {
     assert.match(provenance(), /: its `attend` block says what awaits you, its `rail` line was not read — each card carries only what `facts` says/);
   });
 
-  test("une ligne de `status` que l'app n'a pas su découper est relayée sur la carte, entière et mot pour mot — et la carte le dit", async () => {
+  test("une ligne de `status` que l'app n'a pas su découper n'est ni sur la carte ni sur la fiche : elle se lit entière dans Paramètres", async () => {
     const vue = await ouvrir();
     recevoir(vue);
     const bon = bonDe(vue, 31);
 
     assert.deepEqual(portes(bon), []);
-    assert.deepEqual(bon.dessous("p").filter((p) => p.className === "ligne").map((p) => p.textContent), ["servi  -  une phrase que l'app ne connaît pas,   avec ses blancs  Servi hier"]);
-    assert.deepEqual(sans(bon), []);
+    assert.doesNotMatch(bon.textContent, /une phrase que l'app ne connaît pas/);
+    bon.click();
+    assert.doesNotMatch(fiche(vue).textContent, /une phrase que l'app ne connaît pas/);
+    assert.ok(STATUS.includes("une phrase que l'app ne connaît pas,   avec ses blancs"));
   });
 });
 
@@ -317,23 +337,19 @@ describe("T'attend est le seul endroit où un ticket attend une décision", () =
     }
   });
 
-  test("ce que le bloc `attend` dit de lui est restitué mot pour mot sur sa carte : une entrée longue et les lignes qui la précisent, ni tronquées ni remises en forme", async () => {
+  test("la carte de T'attend dit en une phrase ce qu'on attend de toi : l'entrée longue du bloc `attend` n'est pas sur la carte (#622), ni sur la fiche (#832)", async () => {
     const vue = await ouvrir();
     recevoir(vue);
-    const [relaye, ...autres] = relayes(bonDe(vue, 12));
+    const bon = bonDe(vue, 12);
 
-    assert.deepEqual(autres, []);
-    assert.equal(relaye, [LONGUE, ...SUITE].join("\n"));
-    assert.ok((relaye ?? "").length > 3000 && (relaye ?? "").split("\n").length === 5);
-    // Chaque ligne de l'entrée, telle que `status` l'a écrite, est sur la carte.
-    for (const ligne of [`  #12  ${LONGUE}`, ...SUITE]) assert.ok(`  #12  ${relaye}`.split("\n").includes(ligne) && STATUS.split("\n").includes(ligne));
-    // Et la peau ne la coupe pas : ses blancs et ses lignes sont gardés, une ligne trop longue passe à la suivante.
-    const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
-    const duBon = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, tete = ""]) => tete.split(",").some((selecteur) => /#rail( \.bon)?( p)?$/.test(selecteur.trim()) || selecteur.trim() === "#rail .bon p"));
-    const declare = (propriete: string) => duBon.flatMap(([, , corps = ""]) => corps.split(";").map((d) => d.trim()).filter((d) => d.startsWith(`${propriete}:`)).map((d) => d.slice(d.indexOf(":") + 1).trim()));
-    assert.deepEqual(declare("white-space"), ["pre-wrap"]);
-    assert.deepEqual(declare("overflow-wrap"), ["anywhere"]);
-    for (const interdite of ["text-overflow", "-webkit-line-clamp", "max-height", "height", "text-transform"]) assert.deepEqual(declare(interdite), [], interdite);
+    assert.deepEqual(relayes(bon), []);
+    assert.ok(ligneDe(bon) !== undefined && ligneDe(bon) !== "");
+    assert.ok(bon.textContent.length < 400, bon.textContent);
+    assert.doesNotMatch(bon.textContent, /fin de l'entrée|la dernière/);
+    bon.click();
+    assert.doesNotMatch(fiche(vue).textContent, /fin de l'entrée|la dernière/);
+    // Le bloc reste lisible en entier dans Paramètres : `status`, mot pour mot.
+    assert.ok(STATUS.includes("la dernière"));
   });
 });
 
@@ -369,7 +385,7 @@ describe("le clic d'une carte de T'attend (#452)", () => {
     // Le centre n'a pas changé : l'onglet Cooks est toujours celui qui est ouvert.
     assert.equal(onglet(vue, "Cost").ariaSelected, "true");
     assert.equal(vue.element("contenu").hidden, false);
-    assert.equal(relayes(bonDe(vue, 12))[0], [LONGUE, ...SUITE].join("\n"));
+    assert.deepEqual(relayes(bonDe(vue, 12)), []);
   });
 
   test("sans ce que le bloc dit de lui — `status` pas encore lu —, la carte est dans T'attend, écrit ce qui manque, et n'offre pas un geste composé de mots qu'elle n'a pas", async () => {
@@ -565,8 +581,12 @@ describe("Livré garde ce que la cuisine a servi", () => {
 
     assert.deepEqual(livre(vue).children[0]?.children.map((pose) => pose.textContent), ["Served", "2"]);
     assert.deepEqual(bons(livre(vue)).map((bon) => bon.children[0]?.children[0]?.textContent), ["#216", "#188"]);
-    assert.deepEqual(portes(bonDe(vue, 216)), [["served", "13 s before the reading"], ["cooked by", "box/claude"]]);
-    assert.deepEqual(portes(bonDe(vue, 188)), [["served", "17 h 34 before the reading"], ["cooked by", "box/claude"], ["PR", "none — served without a merge"]]);
+    assert.equal(ligneDe(bonDe(vue, 216)), `served at ${heureHM("2026-10-13T10:03:58.000Z")}`);
+    assert.equal(ligneDe(bonDe(vue, 188)), `served at ${heureHM("2026-10-12T16:30:05.000Z")}`);
+    assert.deepEqual(portes(bonDe(vue, 216)), []);
+    assert.deepEqual(portes(detailsDe(vue, 216) ?? assert.fail("pas de détail")), [["served", "13 s before the reading"], ["cooked by", "box/claude"]]);
+    assert.deepEqual(portes(detailsDe(vue, 188) ?? assert.fail("pas de détail")), [["served", "17 h 34 before the reading"], ["cooked by", "box/claude"], ["PR", "none — served without a merge"]]);
+    fermer(vue);
     // #31, servi encore sur le rail mais pas dans les livrés : il n'est pas dans Livré.
     assert.ok(!bons(livre(vue)).some((bon) => bon.children[0]?.children[0]?.textContent === "#31"));
 
@@ -591,26 +611,32 @@ describe("Livré garde ce que la cuisine a servi", () => {
     const vue = await ouvrir();
     recevoir(vue, dessinable({ ...FAITS, compteurs: { ...FAITS.compteurs, livres24h: 3 }, livres: relus }, PAS_LU));
 
-    // Le résumé suit le titre, en entier : c'est le texte de la relecture, pas celui de l'issue.
+    // La carte dit l'heure et le résumé en une phrase ; le résumé entier, mot pour mot, est dans la fiche.
     const bon = bonDe(vue, 216);
-    assert.deepEqual(bon.children.slice(1, 3).map((pose) => [pose.balise, pose.textContent]), [["strong", "Le relevé des mesures"], ["p", RESUME]]);
-    const [remarques] = bon.dessous("details");
+    assert.deepEqual(bon.children.slice(1, 3).map((pose) => [pose.balise, pose.textContent]), [["strong", "Le relevé des mesures"], ["p", `served at ${heureHM("2026-10-13T10:03:58.000Z")} · Les cinq réglages du closer (calibrage, cooks, tokens, retraits) entrent dans les décisions du chef.`]]);
+    assert.deepEqual(bon.dessous("details"), []);
+    const details = detailsDe(vue, 216) ?? assert.fail("pas de détail");
+    assert.deepEqual(details.dessous("p").filter((pose) => pose.className === "livraison").map((pose) => pose.textContent), [RESUME]);
+    const [remarques] = details.dessous("details");
     assert.equal(remarques?.dessous("summary")[0]?.textContent, "2 remarks, 1 blocking");
     assert.deepEqual(
       remarques?.dessous("li").map((constat) => constat.children.map((pose) => pose.textContent)),
       [["runtime/src/etat.ts", "Un commentaire répète le code."], ["bloquant", "La forme change sans que la doc suive."]],
     );
     // Sans relecture, la carte n'écrit aucun texte de remplissage ; sans remarque, elle le dit, sans rien à déplier.
-    assert.deepEqual(bonDe(vue, 188).dessous("small").map((pose) => pose.textContent), []);
+    // Seul un repère discret dit que la relecture manque : la fiche détaille.
+    assert.deepEqual(bonDe(vue, 188).dessous("small").map((pose) => [pose.className, pose.textContent]), [["repere", "…"]]);
     assert.doesNotMatch(bonDe(vue, 188).textContent, /not given/);
     assert.deepEqual(bonDe(vue, 188).dessous("details"), []);
     assert.deepEqual(bonDe(vue, 201).dessous("details"), []);
-    assert.deepEqual(bonDe(vue, 201).dessous("small").filter((pose) => pose.className === "remarques").map((pose) => pose.textContent), ["no remarks"]);
+    assert.deepEqual(detailsDe(vue, 201)?.dessous("small").filter((pose) => pose.className === "remarques").map((pose) => pose.textContent), ["no remarks"]);
+    fermer(vue);
 
-    // Dépliées par le chef, elles le restent quand le rail se redessine à la lecture suivante.
-    Object.assign(remarques ?? assert.fail("pas de remarques"), { open: true }).declencher("toggle");
+    // Dépliées par le chef sur la fiche, elles le restent quand le rail se redessine à la lecture suivante.
+    const ouvertes = detailsDe(vue, 216)?.dessous("details")[0] ?? assert.fail("pas de remarques");
+    Object.assign(ouvertes, { open: true }).declencher("toggle");
     recevoir(vue, dessinable({ ...FAITS, compteurs: { ...FAITS.compteurs, livres24h: 3 }, livres: relus }, PAS_LU));
-    assert.equal((bonDe(vue, 216).dessous("details")[0] as unknown as { open: boolean }).open, true);
+    assert.equal((fiche(vue).dessous("details")[0] as unknown as { open: boolean }).open, true);
   });
 
   test("le résumé n'est ni coupé ni caché par la feuille de style : aucune ligne bornée, aucun point de suspension", () => {

@@ -348,16 +348,15 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
     assert.deepEqual(coupe.map(({ selecteurs }) => selecteurs), []);
   });
 
-  test("sur un bon de T'attend, ce que le bloc dit du ticket garde ses blancs", async () => {
+  test("sur un bon, deux lignes au plus ; ce que la fiche détaille garde ses blancs", async () => {
     const vue = await ouvrirUnEspace();
     vue.dire("surFaits", { ...FAITS, demande: vue.dernier("faits")[0] as number });
 
-    // Sur un bon, un `p` est ce que la box a écrit : ce que le bloc dit du ticket — et, sous sa classe, sa ligne de `status`.
-    const lignes = vue.element("rail").dessous("p").filter((p) => p.parentElement?.className === "bon" && p.className === "");
-    assert.deepEqual(textes(lignes), ["depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main :   gh pr merge 31"]);
-    const relayee = vue.element("rail").dessous("p").filter((p) => p.className === "ligne");
-    assert.deepEqual(textes(relayee), ["un mot inconnu  -  depuis 5 min  (ce que la box en dit)  Hors colonnes"]);
-    const regle = regles(lire("vue.css")).find(({ selecteurs }) => selecteurs.includes("#rail .bon p") && selecteurs.length === 1);
+    // Sur la carte, deux lignes au plus ; ce que la box a écrit en entier ne s'y relaie plus, et la fiche ne le relaie pas non plus.
+    const bons = vue.element("rail").dessous("li").filter((li) => li.className === "bon");
+    for (const bon of bons) assert.ok(bon.dessous("p").length <= 2, `#${bon.children[0]?.children[0]?.textContent}`);
+    assert.deepEqual(textes(vue.element("rail").dessous("p").filter((p) => p.className === "ligne")), []);
+    const regle = regles(lire("vue.css")).find(({ selecteurs }) => selecteurs.includes("#fiche .details p") && selecteurs.length === 1);
     assert.equal(regle?.declarations.get("white-space"), "pre-wrap");
   });
 });

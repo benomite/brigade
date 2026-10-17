@@ -1696,6 +1696,22 @@ main > header,
   border-top: 1px dashed var(--bon-trait);
   white-space: pre-wrap;
 }
+/* Les deux lignes d'une carte : ce qui se passe, puis — rarement — ce qui demande l'attention. */
+#rail .bon p.ligne-carte,
+#rail .bon p.signal {
+  padding-top: 0;
+  border-top: 0;
+}
+#rail .bon p.ligne-carte {
+  color: var(--bon-encre);
+}
+#rail .bon p.signal {
+  font-weight: 600;
+  color: var(--bon-encre);
+}
+#rail .bon small.repere {
+  font-style: normal;
+}
 /* La page d'un ticket servi, sur sa carte : son worktree, son port, l'état de son serveur, et son
    seul geste — l'ouvrir dans le navigateur du poste. Ce que le dernier a donné se lit dessous. */
 #rail .servie {
@@ -1753,6 +1769,12 @@ main > header,
   border-top: 0;
   overflow-wrap: break-word;
 }
+/* Sur la fiche, le même résumé : en prose, tout le texte, rien de coupé. */
+#fiche .details p.livraison {
+  font-family: var(--police-interface);
+  font-size: 12px;
+  overflow-wrap: break-word;
+}
 /* Les captures d'un ticket d'interface : l'écran avant et après, côte à côte, chacun sous sa légende.
    Une capture que la livraison ne porte pas garde sa place, et le dit ; une livraison qui ne les porte
    pas toutes le dit en tête, en jaune, sur une ligne. */
@@ -1798,17 +1820,20 @@ main > header,
   color: var(--bon-encre);
   border-top: 2px solid var(--jaune);
 }
-/* Ses remarques, sous leur nombre : un clic les déplie sur la carte, un autre les replie. */
-#rail .remarques {
+/* Ses remarques, sous leur nombre : un clic les déplie sur la fiche, un autre les replie. */
+#rail .remarques,
+#fiche .remarques {
   font-size: 11px;
   line-height: 1.45;
 }
-#rail .remarques summary {
+#rail .remarques summary,
+#fiche .remarques summary {
   color: var(--bon-discret);
   cursor: pointer;
   user-select: none;
 }
-#rail .remarques ol {
+#rail .remarques ol,
+#fiche .remarques ol {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1816,11 +1841,13 @@ main > header,
   padding-left: 18px;
   list-style: decimal;
 }
-#rail .remarques li strong {
+#rail .remarques li strong,
+#fiche .remarques li strong {
   margin-right: 6px;
   font-weight: 700;
 }
-#rail .remarques code {
+#rail .remarques code,
+#fiche .remarques code {
   margin-right: 6px;
   color: var(--bon-discret);
 }
@@ -1960,6 +1987,33 @@ main > header,
 }
 #fiche dd {
   margin: 0;
+}
+/* Ce que la file dit du ticket, que sa carte ne porte plus : un fait par ligne, puis ce qu'elle n'en dit pas. */
+#fiche .details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#fiche .details p {
+  margin: 0;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+#fiche .porte {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#fiche .porte li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+}
+#fiche .porte span {
+  color: var(--discret);
 }
 #fiche .sans {
   margin: 0;

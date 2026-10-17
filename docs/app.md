@@ -1363,61 +1363,54 @@ dois faire (T'attend), ce qui est fini (Livré). La spec est
 de `docs/maquettes/app/Brigade.dc.html`.
 
 ```
-● Sur le rail  2       ● Au travail  1          ● Pass  1          ● T'attend  1            ● Livré  1
-  #22 en attente         #14 pris                 #15 en pass        #21 BLOQUÉ  t'attend     #9 servi
-  Connexion par…         Formulaire…              Export PDF…        L'export du journal      Validation SIRET
-  depuis 2 h 05          tient  box/claude        depuis 4 min       depuis 3 h 02            depuis 1 h 00
-  bloque zone tenue      depuis 12 min            cuisiné par        bloque #17 abandonné     cuisiné par
-         par #14         bail   sans progrès             box/claude         (label `fire`…)          mac/claude
-         (app/src)              depuis 3 min,     non communiqué     non communiqué par la    non communiqué par la
-  non communiqué par            bail encore       par la file : qui  file : qui le tient ·    file : qui le tient ·
-  la file : qui le              27 min            le tient · son     son bail · ce qu'il      son bail · ce qu'il
-  tient · son bail ·     brûle  230 000 tokens    bail · ce qu'il    brûle                    brûle · ce qui le
-  ce qu'il brûle                au dernier relevé brûle · ce qui     depuis 3 h 02  BLOQUÉ :  bloque
-                         non communiqué par la    le bloque          #17 abandonné (…) — à
-                         file : ce qui le bloque                     débloquer : …
-                                                                     [demander au second]
+● Sur le rail  2       ● Au travail  1        ● Pass  1            ● T'attend  1          ● Livré  1
+  #22 en attente         #14 pris               #15 en pass          #21 BLOQUÉ             #9 servi
+  Connexion par…         Formulaire…            Export PDF…          L'export du journal    Validation SIRET
+  after #14              écrit les tests        relecture en cours   Merge it yourself.     servi à 14:02 ·
+                         · 12 min               · 1 min                                     Le champ SIRET…
 ```
 
-**Une carte de Au travail ou de Pass s'ouvre sur ce que la cuisine fait du ticket en ce moment** —
-`en ce moment`, la ligne qui bouge le plus souvent, lue d'abord :
+**Une carte tient en deux lignes** (#622) : son numéro, son état et son titre, puis **une phrase en mots
+simples** qui dit ce qui se passe, et au plus **une ligne de signal** quand quelque chose demande ton
+attention. Chaque phrase est écrite d'après les faits que la file donne déjà de la carte
+(`app/src/ligne-carte.ts`), un test par état :
 
-```
-  #14 pris                                   #15 en pass
-  Formulaire…                                Export PDF…
-  en ce moment  tests rouges, corrige        en ce moment  relecture en cours,
-                app/src/bon.ts, depuis 3 min                depuis 1 min
-```
+| État de la carte | Sa phrase | Son signal |
+|---|---|---|
+| au travail (`pris`) | ce que le cook fait, et depuis combien de temps : `écrit les tests · 12 min` (`rail[].activite`) ; sans activité, `in the kitchen` et un repère `…` | — |
+| en pass | de même : `relecture en cours · 1 min` ; sans activité, `review in progress` et le repère | — |
+| en attente | `after #14, #15` quand `status` dit les tickets qui la retiennent ; sinon ce qui la retient, tel quel ; sinon `ready, waits for a place in the kitchen` | — |
+| `BLOQUÉ` | de même, ou `blocked` et le repère | `blocked` |
+| mise de côté (`86`) | sa raison en clair, celle que le runtime donne (`attente.raison`) ; le mot `86` s'affiche `set aside` | `set aside` |
+| chez un tiers (WAITING) | `waiting for <quoi> · from <qui>` | `follow-up date passed` quand la relance est passée |
+| t'attend | ce qu'on attend de toi, en une phrase (`decision.ts`) ; pour un ticket retenu par `blocked-on-human`, la question qu'on te pose | — |
+| livrée | `served at 14:02 · <première phrase du résumé de la relecture>` ; sans résumé, l'heure et le repère | — |
 
-- **Ce qu'elle dit vient de `faits`** (`rail[].activite`, voir « Ce que fait un cook en ce moment »
-  dans `docs/runtime.md`), relu toutes les trente secondes : au travail, le dernier geste du cook et
-  ce qu'il vise — `lit runtime/src/etat.ts`, `lance les tests`, `ouvre la PR` ; en pass, la phase —
-  `gates en cours`, `relecture en cours`, `jugement en cours`. Jamais le code, ni ce que le modèle
-  dit, ni un secret : le runtime n'en laisse rien sortir.
-- **Depuis combien de temps** : l'écart entre deux heures de la box — `depuis` et `lu` —, comme le
-  dernier tick. Un ticket qui `COINCE` montre ainsi où son cook s'est arrêté.
-- **Ce que la box ne sait pas est écrit** : `activité non communiquée` (un cook de station
-  distante), et ``activité non communiquée — le runtime de cette box ne la donne pas dans `faits` ``
-  pour un runtime d'avant ce champ. La ligne n'est jamais vide. Les autres colonnes ne la portent
-  pas.
+**Ni « bail », ni « 86 », ni « non communiqué » sur une carte.** Quand une information manque, un
+petit repère `…` le signale, discret ; la carte ne dresse jamais la liste de ce qu'elle ne sait pas.
+Ce qui ne change pas ce que tu fais — qui tient le ticket, depuis quand, son bail, ce qu'il brûle, ce
+qui le bloque, `en ce moment` — est dans **la fiche**, qu'un clic sur la carte ouvre (`app/src/bon.ts`,
+`dit`), avec ce qui a été livré et ses remarques dépliables pour un ticket livré. La ligne brute que
+`status` écrit du ticket n'est nulle part sur la carte ni sur la fiche : elle se lit entière dans
+Paramètres. Les captures d'un ticket d'interface livré restent sur la carte.
 
-**Une carte porte ensuite ce que la file dit déjà du ticket** (`app/src/bon.ts`) — cinq choses, dans cet ordre :
+**La fiche porte, elle, ce que la file dit du ticket** (`app/src/bon.ts`) — cinq choses, dans cet ordre,
+et `en ce moment` (ce que la cuisine en fait, `rail[].activite`, voir « Ce que fait un cook en ce moment »
+dans `docs/runtime.md`) en tête :
 
-| Sur la carte | Ce que c'est | D'où ça vient |
+| Sur la fiche | Ce que c'est | D'où ça vient |
 |---|---|---|
 | `tient` | la station qui tient le ticket | `cooks`, dans `faits` ; à défaut, sa ligne de `status` (`par <station> …`) |
 | `depuis` | depuis quand il est dans cet état — pris, en attente, en pass, servi | sa ligne sous `rail`, dans `status` |
 | `bail` | son bail, avec les mots du runtime : `sans progrès depuis 3 min, bail encore 27 min`, `COINCE : …`, `bail échu depuis 5 min` | de même |
-| `brûle` | ce que son cook a dépensé — toujours écrit manquant : ni `faits` ni `status` ne le donnent | — |
+| `brûle` | ce que son cook a dépensé — jamais écrit tant que ni `faits` ni `status` ne le donnent | — |
 | `bloque` | en clair, ce qui le retient : `zone tenue par #14 (app/src)`, `attend #12, #13`, `#17 abandonné (…)`, `aucune station déclarée` | sa ligne sous `rail`, dans `status` |
 
 S'y ajoute, pour un ticket en pass ou servi, `cuisiné par` : qui l'a cuisiné n'est pas qui le tient.
-Une carte de Livré, elle, porte ce que `livres` en dit (voir le tableau des colonnes) : ce qui a été
-livré, `livré`, `cuisiné par`, et sa PR mergée.
 
-- **Ce que la file ne dit pas n'est pas affiché** (#747) — la carte n'écrit jamais « non communiqué
+- **Ce que la file ne dit pas n'est pas affiché** (#747) — ni la carte ni la fiche n'écrivent « non communiqué
   par la file : … » à la place d'une information : une chose absente n'a pas de ligne. Ni « personne »,
-  ni « 0 », ni un tiret non plus. (Le modèle garde `sans`, que la vue ne pose plus sur les cartes.)
+  ni « 0 », ni un tiret non plus. (Le modèle garde `sans`, que la vue ne pose plus.)
 - **Un ticket d'interface livré montre ses captures, sans un clic** (#842) : pour chaque écran
   changé, la capture avant et la capture après côte à côte, chacune sous sa légende (`fiche — before`,
   `fiche — after`), sur sa carte en Pass comme en Livré. Elles viennent de `captures`, dans `faits`,

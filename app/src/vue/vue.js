@@ -3,8 +3,8 @@
 // principal ; ici, un xterm par terminal, gardé tant que l'app est ouverte —
 // changer d'espace ou d'onglet ne fait que cacher l'un et montrer l'autre.
 // Au centre de l'espace, le rail : c'est la vue principale, en six colonnes. Chaque carte y
-// porte ce que la file dit du ticket — qui le tient, depuis quand, son bail, ce qu'il brûle, ce
-// qui le bloque — et écrit ce qu'elle ne dit pas. En haut, les onglets de pages — Rail, Cooks,
+// tient en deux lignes — une phrase qui dit ce qui se passe, un signal s'il faut l'attention — ;
+// ce que la file dit du ticket en plus (qui le tient, depuis quand, son bail) est dans sa fiche. En haut, les onglets de pages — Rail, Cooks,
 // Manager, Grants, Log : chacune la sortie d'une commande, lue tant qu'elle est affichée — ; une
 // page s'ouvre par-dessus le rail, et fermée, le rend tel qu'il était. À droite, en permanence,
 // les terminaux : le second, et à côté de lui les shells. Un shell montré ne remplace pas le
@@ -2043,18 +2043,17 @@ function poserCarte(ou, projet) {
   ou.replaceChildren(tete, ...rienNeCuit, compteurs, tableau.cooks.enCours.length === 0 ? ligneCourte(surMesure(projet, tableau.cooks.vide)) : cooks, bloc("p", `latest event — ${tableau.evenement}`));
 }
 
-// Une carte du rail : son numéro, son état, son titre, puis ce que la file dit du ticket —
-// qui le tient, depuis quand, son bail, ce qu'il brûle, ce qui le bloque — et, nommément, ce
-// qu'elle n'en dit pas : rien n'est omis, rien n'est mis à la place. Dans T'attend, ce que le
-// bloc `attend` dit du ticket, mot pour mot, lignes comprises, et son geste — une demande au
-// second. Dans Livré, sous son titre, ce qui a été livré — le résumé de la relecture, mot pour
-// mot, et ses remarques sous leur nombre, dépliées d'un clic — ; puis sa PR mergée, qui s'ouvre
-// comme son issue. Et la page du ticket, quand `status` en montre une servie, avec son geste direct.
+// Une carte du rail : son numéro, son état, son titre, puis une phrase en mots simples qui dit ce
+// qui se passe et, au plus, une ligne de signal (ligne-carte.ts) ; un petit repère quand la file ne
+// dit pas tout. Ce que la file dit du ticket en plus est dans sa fiche (`poserDetailsDeFiche`). Dans
+// T'attend, la phrase est ce qu'on attend du chef, et son geste — une demande au second — est sur la
+// fiche. Dans Livré, la phrase porte l'heure et le résumé ; ses captures restent sur la carte. Et la
+// page du ticket, quand `status` en montre une servie, avec son geste direct.
 // Tout est déjà rangé par le process principal (faits.ts, bon.ts, page.ts) : la vue pose. Le
 // numéro s'ouvre sur l'issue : l'adresse reste au process principal, la vue nomme le ticket.
 /** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {string | undefined} [tonAttend] le ton de T'attend, quand le bon y est posé */
 function poserBon(projet, carte, tonAttend) {
-  const { ticket, etat, ton, titre, ouvrable, attendu, attend, pr, livraison, dit, relais } = carte;
+  const { ticket, etat, ton, titre, ouvrable, attendu, attend, pr } = carte;
   const bon = document.createElement("li");
   bon.className = "bon";
   // Un clic sur la carte, quelle que soit sa colonne, ouvre sa fiche par-dessus le rail. Ce qui s'y
@@ -2081,7 +2080,8 @@ function poserBon(projet, carte, tonAttend) {
   const tete = document.createElement("div");
   tete.append(numero);
   if (etat !== undefined) {
-    const mot = bloc("span", etat);
+    // Un mot du runtime que le chef ne lit pas se dit en mots simples : « 86 » est un ticket mis de côté.
+    const mot = bloc("span", etat === "86" ? "set aside" : etat);
     mot.className = "etat-ticket";
     if (ton !== undefined) mot.dataset.ton = ton;
     const forme = formeDe(ton);
@@ -2113,21 +2113,26 @@ function poserBon(projet, carte, tonAttend) {
     resume.className = "question-courte";
     bon.append(resume, bloc("small", `asked by ${poseeLa.auteur}, ${dateHeure(poseeLa.a)}`));
   }
-  if (livraison !== undefined) bon.append(...poserLivraison(projet, ticket, livraison));
+  // Deux lignes au plus : ce qui se passe, et ce qui demande l'attention. Le reste est dans la fiche.
+  // Les captures d'un ticket d'interface livré restent sur sa carte : elles se lisent sans un clic.
   if (carte.captures !== undefined) bon.append(...poserCaptures(projet, ticket, carte.captures));
-  if (dit.length > 0) {
-    const porte = document.createElement("ul");
-    porte.className = "porte";
-    porte.append(
-      ...dit.map(({ libelle, valeur, exact: recopie }) => {
-        const fait = document.createElement("li");
-        fait.append(bloc("span", libelle), recopie ? exact("strong", valeur) : bloc("strong", valeur));
-        return fait;
-      }),
-    );
-    bon.append(porte);
+  if (carte.ligne !== undefined) {
+    const phrase = bloc("p", carte.ligne);
+    phrase.className = "ligne-carte";
+    bon.append(phrase);
   }
-  // Ce que la file ne dit pas n'est pas affiché : une information absente n'a pas de ligne sur la carte.
+  if (carte.signal !== undefined) {
+    const signal = bloc("p", carte.signal);
+    signal.className = "signal";
+    bon.append(signal);
+  }
+  // La file ne dit pas tout : un repère discret, le détail est dans la fiche.
+  if (carte.repere === true) {
+    const repere = bloc("small", "…");
+    repere.className = "repere";
+    repere.title = "some details are not given: the sheet says which";
+    bon.append(repere);
+  }
   // Livré : la PR mergée s'ouvre d'un clic. Son adresse reste au process principal, comme celle de l'issue.
   if (pr === true) {
     const ouvre = bouton("open the merged PR", () => void ouvrirPr(projet, ticket));
@@ -2136,15 +2141,6 @@ function poserBon(projet, carte, tonAttend) {
     bon.append(ouvre);
   }
   if (pr === false) bon.append(bloc("small", "merged PR: the address the box returned is not https, the app does not open it"));
-  // Sa ligne de `status`, quand l'app n'a pas su la découper : telle quelle, comme le reste de ce que la box rend.
-  if (relais !== undefined) {
-    const ligne = bloc("p", relais);
-    ligne.className = "ligne";
-    ligne.title = `what \`${geste(projet, "status")}\` writes about #${ticket} under its \`rail\` line, word for word`;
-    bon.append(ligne);
-  }
-  // La ligne brute de la file cède la place à la question quand elle est lue : le geste est sur la fiche.
-  if (poseeLa === undefined) bon.append(...attend.map((entree) => bloc("p", entree)));
   bon.append(...poserGestesDAttente(projet, carte));
   bon.append(...(pagesServies.get(projet.nom)?.pages ?? []).filter((page) => page.ticket === ticket).map((page) => poserServie(projet, page)));
   bon.append(...(pagesServies.get(projet.nom)?.aLancer ?? []).filter((tenue) => tenue.ticket === ticket).map((tenue) => poserALancer(projet, tenue)));
@@ -2408,6 +2404,35 @@ function suivreFiche(cartes, posees) {
   if (dit(fraiche) !== dit(avant)) poserFiche();
 }
 
+// Ce que la file dit du ticket, et que la carte ne porte plus : qui le tient, depuis quand, son bail,
+// ce qu'il brûle, ce qui le bloque. Ce qu'elle ne dit pas n'est pas écrit, et la ligne brute de
+// `status` n'est nulle part sur la fiche : elle se lit tout entière dans Paramètres. Pour un
+// ticket livré, ce qui a été livré.
+/** @param {Projet} projet @param {import("../faits.ts").Carte} carte */
+function poserDetailsDeFiche(projet, carte) {
+  const { ticket, livraison, dit } = carte;
+  const pose = [];
+  if (dit.length > 0) {
+    const porte = document.createElement("ul");
+    porte.className = "porte";
+    porte.append(
+      ...dit.map(({ libelle, valeur, exact: recopie }) => {
+        const fait = document.createElement("li");
+        fait.append(bloc("span", libelle), recopie ? exact("strong", valeur) : bloc("strong", valeur));
+        return fait;
+      }),
+    );
+    pose.push(porte);
+  }
+  if (livraison !== undefined) pose.push(...poserLivraison(projet, ticket, livraison));
+  if (pose.length === 0) return [];
+  const details = document.createElement("section");
+  details.className = "details";
+  details.ariaLabel = `what the queue says about #${ticket}`;
+  details.append(...pose);
+  return [details];
+}
+
 function poserFiche() {
   fiche.hidden = ouverte === undefined;
   rail.inert = !contenu.hidden || !fiche.hidden;
@@ -2471,7 +2496,7 @@ function poserFiche() {
       : attendu === undefined
         ? []
         : [Object.assign(bloc("p", attendu), { className: "attendu" })];
-  panneau.append(tete, ...attente, ...(nomme === undefined ? [] : [nomme]), lignes, ...poserHistoire(projet, ticket, carte));
+  panneau.append(tete, ...attente, ...(nomme === undefined ? [] : [nomme]), lignes, ...poserDetailsDeFiche(projet, carte), ...poserHistoire(projet, ticket, carte));
   fiche.replaceChildren(panneau);
   // Un ticket qui t'attend : la question que son issue pose, s'il en pose une — lue à l'ouverture.
   // Retenu par `blocked-on-human` : lever la retenue d'un clic, sans commande à recopier. Puis,
