@@ -996,7 +996,15 @@ ce que chacun a lancé un jour au survol de sa colonne. Chaque série vient du m
 une ligne par jour, `AAAA-MM-JJ : … tokens` (ou `: rien`, un zéro) ; un jour qu'une série ne dit pas est un trou
 dans sa ligne, jamais un zéro. **Le runtime n'écrit pas encore ces lignes** : tant qu'aucune box ne donne sa
 série, la zone de la courbe dit **« not communicated »**, jamais un graphique vide ; un projet dont la série manque
-alors que d'autres la donnent le dit sous son nom, dans la légende. **Paramètres** ouvre l'état du projet —
+alors que d'autres la donnent le dit sous son nom, dans la légende. **Entre les trois chiffres et la courbe, les cinq
+tickets les plus chers** (#910, `cost/chers.js`) : une ligne par ticket — son numéro, son titre, ses tokens, ses
+essais —, **du plus cher au moins cher, cinq au plus**, tous projets confondus. Le coût d'un ticket est la somme des
+cooks que la box liste sous « derniers cooks » de `station` (dix par projet au plus : c'est ce qu'elle en dit, la
+somme est donc un minimum), et ses essais sont ces cooks ; un cook qui ne déclare pas ses tokens rend la somme « ≥ »,
+un ticket dont aucun n'en déclare passe après les autres et s'affiche « not communicated ». Le titre est celui du
+rail du projet quand il est lu, « not communicated » sinon. **Un clic sur une ligne ouvre la fiche du ticket**, par-dessus
+l'onglet — celle du rail (#621) ; si le rail ne porte pas le ticket, la fiche s'ouvre avec ce que l'on en sait, son
+numéro. **Paramètres** ouvre l'état du projet —
 l'installation, **la sauvegarde et son ancienneté**, les pages servies, le retrait, les couleurs du projet, et
 `status` tel que la box le rend —, avec dessous une rangée de lectures : Réglages, Rail, Manager,
 Grants. Une ligne de la bande d'alertes dont la cause se règle là y mène en un clic. **Le journal

@@ -12,6 +12,9 @@ const consomme = (enCours: string, cinq: string, vingtQuatre: string) => [
   `                      24 h : ${vingtQuatre}`,
   "                      ce que ce projet a lancé, pas la consommation du compte : /usage la donne",
 ];
+// Un cook fini de « derniers cooks », mot pour mot (runtime/src/montrer-station.ts) ; sans tokens, un cook qui n'a rien déclaré.
+const fini = (quand: string, ticket: number, run: string, tours: number, tokens: string | null, pr: number) =>
+  `  2026-10-${quand}Z  #${ticket}  r-${run}  sonnet / medium  fini  ${tokens === null ? "" : `${tours} tours · ${n(tokens)} tokens · 9,2 min  `}https://github.com/chef/parade/pull/${pr}`;
 export const STATIONS: Record<string, string> = {
   parade: [
     "station               box/claude — moteur claude, fournit : claude",
@@ -24,7 +27,13 @@ export const STATIONS: Record<string, string> = {
     "  #14  r-4f2a  opus / high  lancé le 2026-10-13T09:52:11.000Z  cook/14-4f2a",
     "serveurs              aucun",
     "derniers cooks        ",
-    `  2026-10-13T09:48:02.000Z  #30  r-91c0  sonnet / medium  fini  31 tours · ${n("412 806")} tokens · 9,2 min  https://github.com/chef/parade/pull/31`,
+    fini("13T09:48:02.000", 30, "91c0", 31, "412 806", 31),
+    fini("13T08:12:40.000", 7, "5a3e", 44, "1 204 311", 8),
+    fini("12T17:30:05.000", 12, "c7d2", 22, "268 090", 29),
+    fini("12T15:02:11.000", 12, "b1f4", 36, "533 974", 29),
+    fini("12T11:44:50.000", 9, "e08a", 18, "96 420", 26),
+    fini("11T16:20:09.000", 21, "2d6b", 27, "782 115", 22),
+    fini("11T10:05:33.000", 22, "7f19", 0, null, 21),
     ...consomme(`1 lancement · 18 tours · ${n("96 420")} tokens`, `6 lancements, dont 2 relectures · 214 tours · ${n("1 284 530")} tokens`, `19 lancements, dont 5 relectures et 3 jugements · 802 tours · ${n("4 912 044")} tokens`),
     "décisions du chef     `station -- <geste> <valeur>` pour en poser une, `station -- help` pour les gestes",
     "",
@@ -38,7 +47,9 @@ export const STATIONS: Record<string, string> = {
     "retenue               aucune — tout ticket servable part",
     "cooks en cours        aucun",
     "serveurs              aucun",
-    "derniers cooks        aucun",
+    "derniers cooks        ",
+    fini("13T08:20:00.000", 3, "a4c1", 29, "318 772", 4).replaceAll("chef/parade", "chef/cantine"),
+    fini("12T18:41:27.000", 5, "d93e", 12, "74 208", 6).replaceAll("chef/parade", "chef/cantine"),
     ...consomme("rien", `2 lancements · 61 tours · ${n("318 772")} tokens`, `7 lancements, dont 2 relectures · 240 tours · ${n("1 506 118")} tokens`),
     "décisions du chef     `station -- <geste> <valeur>` pour en poser une, `station -- help` pour les gestes",
     "",
