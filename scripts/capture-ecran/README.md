@@ -72,6 +72,9 @@ compare que deux captures du même navigateur.
 | `reglages-ordinaires-sans-bac` | Les mêmes, quand la station dit son bac à sable indisponible : le message et sa raison |
 | `manager-eteint`, `manager-allume` | L'espace de `parade`, son manager éteint puis allumé (#906) : l'interrupteur en tête de l'espace, et la tête du rail marquée à l'arrêt quand il est éteint |
 | `manager-allumer` | Le même, éteint, l'interrupteur cliqué : la confirmation, et sa phrase — ce qu'il va juger, d'après `manager backlog` (23 issues ouvertes, dont 2 `blocked-on-human`) |
+| `bande-alertes` | L'espace de `parade`, sa bande d'alertes pleine (#907) : la connexion Max tombée, la base rouge, chacune en une ligne et un contrôle ; le grant `merge` éteint seul, en interrupteur à côté de celui du manager |
+| `bande-alertes-ouverte` | La même, le « detail » de la connexion Max déplié et « ask the second… » de la base rouge cliqué : sa confirmation, qui dit ce que coûtera le lever |
+| `merge-accorder` | La même, l'interrupteur `merge` cliqué : la confirmation d'accorder, et son prix |
 | `file-ou-cuit` | La file de `parade` quand la box sature : dans Taken, #14 cuit sur la box et #15 sur le Mac — « cooks on » sous « taken by » |
 
 Tous en 1440 × 900. `--liste` donne la liste à jour.

@@ -31,6 +31,8 @@ export class Faux {
   // Un onglet dit s'il est celui qui est affiché.
   ariaSelected = "";
   ariaPressed = "";
+  // Un bouton qui déplie — un détail, une confirmation — dit s'il l'a fait ; nul, il ne déplie rien.
+  ariaExpanded: string | null = "";
   // Un interrupteur dit son rôle, et s'il est allumé — « mixed » : on ne sait pas.
   role = "";
   ariaChecked = "";

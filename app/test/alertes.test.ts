@@ -331,9 +331,9 @@ describe("la bande, à l'écran", () => {
     const [ligne] = bande.children;
     assert.equal(ligne?.dataset.sujet, "cuisine");
     assert.match(ligne?.textContent ?? "", /kitchen stopped by your “stop”.*resume the kitchen…/);
-    // Le prix n'est pas écrit sous le bouton : il est au survol, à côté.
-    assert.doesNotMatch(ligne?.textContent ?? "", /cost:/);
-    assert.ok((ligne?.dessous("button") ?? []).some((pose) => /queued tickets start again at once/.test(pose.ariaLabel)), "le prix n'est pas au survol");
+    // Le prix n'est ni écrit à côté du bouton ni à son survol (#907) : c'est la confirmation, au clic, qui le dit.
+    assert.doesNotMatch(ligne?.textContent ?? "", /cost:|start again/);
+    assert.ok(!(ligne?.dessous("button") ?? []).some((pose) => /start again/.test(pose.ariaLabel)), "le prix est encore à côté du bouton");
 
     // Le clic ouvre la confirmation, sous la ligne : elle dit ce qu'il relance, et rien ne part.
     (ligne?.dessous("button").find((pose) => pose.dataset.geste === "confirme") ?? assert.fail("pas de bouton")).click();
@@ -365,13 +365,21 @@ describe("la bande, à l'écran", () => {
     const vue = await ouvrir({ demanderAlerte: () => ecrite });
     vue.dire("surAlertes", lue);
 
-    const ligne = vue.element("alertes").children.find((pose) => pose.dataset.sujet === "cuisine") ?? assert.fail("pas de ligne");
-    const demande = ligne.dessous("button").find((pose) => pose.dataset.geste === "demande") ?? assert.fail("pas de demande");
-    assert.equal(demande.textContent, "ask the second");
-    // La commande que la box nomme n'est pas écrite à plat : elle se lit au survol de la ligne.
-    assert.doesNotMatch(ligne.textContent, /brigade <projet>/);
-    assert.ok(ligne.dessous("button").some((pose) => pose.ariaLabel.includes(GESTE_DE_STATION_A_CHAUD)), "le geste n'est pas au survol");
-    demande.click();
+    const ligne = () => vue.element("alertes").children.find((pose) => pose.dataset.sujet === "cuisine") ?? assert.fail("pas de ligne");
+    const demande = () => ligne().dessous("button").find((pose) => pose.dataset.geste === "demande") ?? assert.fail("pas de demande");
+    // Son geste coûte un redémarrage : le bouton ouvre d'abord ce qu'il coûte.
+    assert.equal(demande().textContent, "ask the second…");
+    // La commande que la box nomme n'est pas écrite à plat : elle est derrière « detail ».
+    assert.doesNotMatch(ligne().textContent, /brigade <projet>/);
+    (ligne().dessous("button").find((pose) => pose.className === "detail") ?? assert.fail("pas de « detail »")).click();
+    assert.ok(ligne().textContent.includes(GESTE_DE_STATION_A_CHAUD), "le geste n'est pas derrière « detail »");
+    demande().click();
+    await repos();
+    // La confirmation dit le prix du geste, en une ligne ; rien n'est encore écrit.
+    const ouverte = ligne().dessous("div").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
+    assert.equal(ouverte.dessous("p").find(({ className }) => className === "prix")?.textContent, "a runtime restart: what is in flight is interrupted — the box does not say what is?");
+    assert.deepEqual(vue.appels.filter(({ geste }) => geste === "demanderAlerte"), []);
+    (ouverte.dessous("button").find(({ dataset }) => dataset.oui !== undefined) ?? assert.fail("pas de « oui »")).click();
     await repos();
 
     // La vue nomme la ligne ; la phrase se compose dans le process principal, d'après la bande.

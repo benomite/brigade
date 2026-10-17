@@ -242,8 +242,9 @@ describe("sans urgence, rien ne change", () => {
 
   test("une cuisine qui va bien : la bande reste vide, la case sans signal", (t) => {
     const { bande } = cuisine(t);
-    const { manager, ...lue } = bande("10:00:00");
+    const { manager, merge, ...lue } = bande("10:00:00");
     assert.deepEqual(lue, { projet: "parade", alertes: [], signal: undefined });
+    assert.deepEqual(merge, { actif: false });
     assert.equal(manager !== undefined && "allume" in manager && manager.allume, true);
   });
 
@@ -309,9 +310,10 @@ describe("l'urgence à l'écran", () => {
     const marque = premiere.dessous("span").find((pose) => pose.className === "urgent") ?? assert.fail("pas de marque d'urgence");
     assert.equal(marque.textContent, "URGENT");
     assert.match(premiere.textContent, /URGENTthe whole kitchen is waiting for your merge of #535 — at a standstill for 5 h 28/);
-    // Ce que la box écrit de la décision n'est pas écrit à plat : il se lit, mot pour mot, au survol.
+    // Ce que la box écrit de la décision n'est pas écrit à plat : il se lit, mot pour mot, derrière « detail » (#907).
     assert.doesNotMatch(premiere.textContent, /livraison verte/);
-    assert.ok(premiere.dessous("button").some((pose) => /#535 {2}livraison verte — à merger à la main/.test(pose.ariaLabel)), "la ligne de la box n'est pas au survol");
+    (premiere.dessous("button").find((pose) => pose.className === "detail") ?? assert.fail("pas de « detail »")).click();
+    assert.deepEqual(vue.element("alertes").children[0]?.dessous("pre").map(({ textContent }) => textContent), ["#535  livraison verte — à merger à la main"]);
     // Une ligne ordinaire n'a pas la marque.
     assert.equal(seconde?.dataset.sujet, "cuisine");
     assert.equal(seconde.dessous("span").find((pose) => pose.className === "urgent"), undefined);

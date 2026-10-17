@@ -60,14 +60,16 @@
 // empêche les pages d'être servies. La vue ne montre aucune page et ne recueille aucun avis ;
 // quel port, quelle adresse, et pourquoi pas, se décident dans page.ts.
 // En tête de l'espace, la bande d'alertes : est-ce que ça peut tourner ? La cuisine, le grant —
-// une ligne par chose à faire, avec son geste et son prix, et
+// une alerte par chose à faire, et
 // une ligne « non vérifié » pour chaque état que la box ne dit pas. Vide, elle ne prend aucune
-// place. Ce qui s'y dit et ce que son bouton appelle se décident dans alertes.ts : la vue pose. Le
-// geste d'une ligne y est collé : confirmé — reprendre, réaccorder —, ou une demande au
-// second quand il faut lire, juger ou agir sur la box ; une ligne « non vérifié » mène à l'onglet
-// qui lit l'état. Le manager n'y fait pas de ligne : c'est un interrupteur, en tête de l'espace, à
-// droite des onglets — allumé ou éteint, un clic le bascule —, et, éteint, la tête du rail est
-// marquée à l'arrêt (ticket 906).
+// place. Ce qui s'y dit et ce que son bouton appelle se décident dans alertes.ts : la vue pose.
+// Chaque alerte tient en une ligne — ce qui ne va pas — et un contrôle — son geste (ticket 907) :
+// confirmé — reprendre —, ou une demande au second quand il faut lire, juger ou agir sur la box ;
+// une ligne « non vérifié » mène à l'onglet qui lit l'état. Le prix n'est jamais posé à côté : le
+// clic ouvre la confirmation, qui le dit. Ce que la box en écrit est derrière « detail ». Le manager
+// et le grant `merge` n'y font pas de ligne : ce sont des interrupteurs, en tête de l'espace, à
+// droite des onglets — allumé ou éteint, un clic le bascule —, et, le manager éteint, la tête du
+// rail est marquée à l'arrêt (tickets 906, 907).
 // Arrêter la cuisine est sur le rail, qu'il arrête ; vérifier l'installation, en tête de l'espace,
 // à côté du nom du projet.
 // En tête de Paramètres, et au survol de « T », le code de l'app lui-même : à jour, ou en retard sur
@@ -88,7 +90,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as Xterm } from "@xterm/xterm";
 // Les briques communes (briques.js) : une même chose se dit partout de la même façon — le prix
 // d'un geste dans son survol, une lecture qui manque en une ligne, une confirmation qui dit son prix.
-import { boutonAction, confirmationDeGeste, lectureIndisponible, survol } from "./briques.js";
+import { boutonAction, confirmationDeGeste, lectureIndisponible, prixDit, survol } from "./briques.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -152,6 +154,7 @@ const lectureOnglet = element("lecture-onglet");
 const gestesOnglet = element("gestes-onglet");
 const gestesProjet = element("gestes-projet");
 const interrupteurManager = element("interrupteur-manager");
+const interrupteurMerge = element("interrupteur-merge");
 const provenance = /** @type {HTMLDetailsElement} */ (element("provenance"));
 const provenanceLignes = element("provenance-lignes");
 const arreterCuisine = element("arreter-cuisine");
@@ -429,6 +432,14 @@ const signaux = new Map();
 // son interrupteur, en tête de l'espace, et la tête du rail le disent. Sans entrée, il n'est pas encore lu.
 /** @type {Map<string, import("../alertes.ts").EtatDuManager | undefined>} */
 const etatsDuManager = new Map();
+// L'état du grant `merge` de chaque projet, tel que sa dernière bande l'a dit (alertes.ts, `EtatDuGrant`) :
+// son interrupteur le dit, à côté de celui du manager (ticket 907). Sans entrée, il n'est pas encore lu.
+/** @type {Map<string, import("../alertes.ts").EtatDuGrant | undefined>} */
+const etatsDuMerge = new Map();
+// Les lignes de la bande dont le « detail » est déplié, par projet et par endroit (`endroitDeLAlerte`) :
+// une relecture de la bande ne le replie pas sous les yeux du chef.
+/** @type {Set<string>} */
+const detailsDeplies = new Set();
 /** @type {Map<string, HTMLElement>} */
 const signalees = new Map();
 // Le projet dont le chef a cliqué la notification d'urgence (notification.ts) : sa ligne d'urgence
@@ -944,9 +955,11 @@ async function ouvrirConfirmation(projet, cle, id, grant) {
 // Ce que coûte un geste confirmé, sous son bouton : ce qu'il fait, son prix en clair, les cooks
 // en vol et ce qu'ils ont dépensé, d'où c'est tiré — puis un bouton par « oui », chacun avec ce
 // qu'il engage, et le « non ». Un « oui » fait partir son geste, dans le second ; « non » referme.
-// Rien n'y est calculé : tout est dit par le process principal (confirmation.ts, allumage.ts).
-/** @param {Projet} projet @param {NonNullable<typeof aConfirmer>} ouverte @param {string} [grant] */
-function poserConfirmation(projet, { rendu, compte }, grant) {
+// Rien n'y est calculé : tout est dit par le process principal (confirmation.ts, allumage.ts) — ou,
+// pour une demande au second, par la ligne de la bande qui la porte. `partir` : ce que fait un « oui »,
+// quand ce n'est pas un geste du socle.
+/** @param {Projet} projet @param {NonNullable<typeof aConfirmer>} ouverte @param {string} [grant] @param {(id: string) => void} [partir] */
+function poserConfirmation(projet, { rendu, compte }, grant, partir) {
   const confirmation = document.createElement("div");
   confirmation.className = "confirmation";
   confirmation.role = "group";
@@ -1000,7 +1013,8 @@ function poserConfirmation(projet, { rendu, compte }, grant) {
       choix.className = "gestes";
       const oui = bouton(libelle, () => {
         aConfirmer = undefined;
-        void ecrireGeste(id, grant, true);
+        if (partir === undefined) void ecrireGeste(id, grant, true);
+        else partir(id);
       });
       oui.dataset.oui = "";
       choix.append(...engage(oui, dit));
@@ -3716,38 +3730,83 @@ function poserProjet() {
   gestesProjet.replaceChildren(verifier);
 }
 
-// L'interrupteur du manager, en tête de l'espace, à droite des onglets (ticket 906) : allumé ou éteint,
-// lisible sans rien lire d'autre, et un clic le bascule. Éteindre part au clic, dans le second ;
-// allumer ouvre sa confirmation, dessous, qui dit en une phrase ce qu'il va juger. La ligne
-// `manager` du runtime, mot pour mot, est au survol ; le détail, dans l'onglet Manager. Pas encore
-// lu, ou pas lu : l'interrupteur ne dit ni l'un ni l'autre, et ne bascule rien — ce n'est pas « éteint ».
-function poserInterrupteur() {
-  const projet = courant;
-  interrupteurManager.hidden = projet === undefined || projet.box === undefined || projet.desinstalle !== undefined;
-  if (projet === undefined || interrupteurManager.hidden) return interrupteurManager.replaceChildren();
-  const lu = etatsDuManager.get(projet.nom);
-  const connu = lu !== undefined && !("sans" in lu) ? lu : undefined;
-  const allume = connu?.allume === true;
-  const cle = JSON.stringify(["manager-allumer", "", "interrupteur"]);
-  const ouverte = aConfirmer?.projet === projet.nom && aConfirmer.cle === cle ? aConfirmer : undefined;
-  const bascule = bouton("", () => {
-    if (connu === undefined) return;
-    if (allume) void ecrireGeste("manager-eteindre");
-    else void ouvrirConfirmation(projet, cle, "manager-allumer");
-  });
+// Un interrupteur de l'espace, en tête, à droite des onglets (tickets 906, 907) : une glissière et son
+// mot — « manager on », « merge off » —, lisible sans rien lire d'autre, et un clic le bascule. Ce qui
+// en a été lu, mot pour mot, est au survol, avec ce que le clic fait. Pas encore lu, ou pas lu : il ne
+// dit ni l'un ni l'autre, et ne bascule rien — ce n'est pas « éteint ». `marque` : éteint de lui-même,
+// pas par le chef. Sa confirmation, quand le clic en ouvre une, se pose dessous.
+/**
+ * @param {string} nom @param {boolean | undefined} allume indéfini : pas lu
+ * @param {{ pourquoi: string, eteindre: string, allumer: string, marque?: boolean, clic: () => void, confirmation?: HTMLElement }} pose
+ * @returns {HTMLElement[]}
+ */
+function interrupteur(nom, allume, { pourquoi, eteindre, allumer, marque = false, clic, confirmation }) {
+  const bascule = bouton("", () => (allume === undefined ? undefined : clic()));
   bascule.role = "switch";
   bascule.className = "bascule";
-  bascule.dataset.etat = connu === undefined ? "inconnu" : allume ? "allume" : "eteint";
-  bascule.ariaChecked = connu === undefined ? "mixed" : String(allume);
-  bascule.disabled = connu === undefined;
+  bascule.dataset.etat = allume === undefined ? "inconnu" : allume ? "allume" : "eteint";
+  if (marque) bascule.dataset.marque = "seul";
+  bascule.ariaChecked = allume === undefined ? "mixed" : String(allume);
+  bascule.disabled = allume === undefined;
   const glissiere = bloc("span", "");
   glissiere.className = "glissiere";
-  bascule.append(glissiere, bloc("span", `manager ${connu === undefined ? "…" : allume ? "on" : "off"}`));
-  const pourquoi = lu === undefined ? "the manager state: first read in progress" : "sans" in lu ? `the manager state is not read: ${lu.sans}` : lu.releve;
-  const clic = connu === undefined ? "" : allume ? "\nclick to turn it off: it goes straight into the second" : "\nclick to turn it on: says first what it will judge — nothing goes before your “yes”";
-  bascule.title = `${pourquoi}${clic}`;
-  bascule.ariaLabel = `the manager: ${connu === undefined ? "not read" : allume ? "on" : "off"}`;
-  interrupteurManager.replaceChildren(bascule, ...(ouverte === undefined ? [] : [poserConfirmation(projet, ouverte)]));
+  bascule.append(glissiere, bloc("span", `${nom} ${allume === undefined ? "…" : allume ? "on" : "off"}`));
+  bascule.title = `${pourquoi}${allume === undefined ? "" : `\n${allume ? eteindre : allumer}`}`;
+  bascule.ariaLabel = `${nom === "manager" ? "the manager" : `the ${nom} grant`}: ${allume === undefined ? "not read" : allume ? "on" : "off"}`;
+  return [bascule, ...(confirmation === undefined ? [] : [confirmation])];
+}
+
+// Les interrupteurs de l'espace du projet : le manager (ticket 906) et le grant `merge` (ticket 907).
+// Le manager : éteindre part au clic, dans le second ; allumer ouvre sa confirmation, qui dit en une
+// phrase ce qu'il va juger ; sa ligne `manager`, mot pour mot, est au survol, le détail dans l'onglet
+// Manager. Le grant `merge` : accorder comme révoquer ouvrent leur confirmation, qui dit ce qu'il
+// change ; sa ligne de `status`, mot pour mot, est au survol, le détail dans l'onglet Grants. Éteint
+// de lui-même — son échéance passée —, il le marque.
+function poserInterrupteur() {
+  const projet = courant;
+  const cache = projet === undefined || projet.box === undefined || projet.desinstalle !== undefined;
+  interrupteurManager.hidden = interrupteurMerge.hidden = cache;
+  if (projet === undefined || cache) {
+    interrupteurManager.replaceChildren();
+    interrupteurMerge.replaceChildren();
+    return;
+  }
+  /** @param {string} id @param {string} [grant] */
+  const cleDe = (id, grant) => JSON.stringify([id, grant ?? "", "interrupteur"]);
+  /** @param {string} id @param {string} [grant] */
+  const ouverteSous = (id, grant) => {
+    const ouverte = aConfirmer?.projet === projet.nom && aConfirmer.cle === cleDe(id, grant) ? aConfirmer : undefined;
+    return ouverte === undefined ? undefined : poserConfirmation(projet, ouverte, grant);
+  };
+
+  const manager = etatsDuManager.get(projet.nom);
+  const lu = manager !== undefined && !("sans" in manager) ? manager : undefined;
+  const confirmationDuManager = ouverteSous("manager-allumer");
+  interrupteurManager.replaceChildren(
+    ...interrupteur("manager", lu?.allume, {
+      pourquoi: manager === undefined ? "the manager state: first read in progress" : "sans" in manager ? `the manager state is not read: ${manager.sans}` : manager.releve,
+      eteindre: "click to turn it off: it goes straight into the second",
+      allumer: "click to turn it on: says first what it will judge — nothing goes before your “yes”",
+      clic: () => (lu?.allume ? void ecrireGeste("manager-eteindre") : void ouvrirConfirmation(projet, cleDe("manager-allumer"), "manager-allumer")),
+      ...(confirmationDuManager === undefined ? {} : { confirmation: confirmationDuManager }),
+    }),
+  );
+
+  const merge = etatsDuMerge.get(projet.nom);
+  const grant = merge !== undefined && !("sans" in merge) ? merge : undefined;
+  const id = grant?.actif ? "grant-revoquer" : "grant-activer";
+  const confirmationDuMerge = ouverteSous(id, "merge");
+  const ligne = grant === undefined ? "" : (grant.releve ?? "no `merge` line in `status`: the grant is not active — never given, or revoked");
+  interrupteurMerge.replaceChildren(
+    ...interrupteur("merge", grant?.actif, {
+      pourquoi: merge === undefined ? "the merge grant state: first read in progress" : "sans" in merge ? `the merge grant state is not read: ${merge.sans}` : `${ligne}\nin full: the Grants tab`,
+      eteindre: "click to revoke it: says first what it changes — nothing goes before your “yes”",
+      allumer: "click to enable it: says first what it changes — nothing goes before your “yes”",
+      marque: grant?.seul === true,
+      clic: () => void ouvrirConfirmation(projet, cleDe(id, "merge"), id, "merge"),
+      ...(confirmationDuMerge === undefined ? {} : { confirmation: confirmationDuMerge }),
+    }),
+  );
 }
 
 // Le code de l'app, et les clones de brigade parmi les projets : l'état de chacun en une
@@ -4254,62 +4313,123 @@ async function mettreAJour(clone) {
 // lu, et l'espace le dit.
 /** @param {Projet} projet */
 function poserAlertes(projet) {
-  // Le manager éteint ne fait pas de ligne : son interrupteur et la tête du rail le disent (ticket 906).
-  // Non vérifié, il en fait une : l'interrupteur ne sait pas, la ligne dit pourquoi.
-  const alertes = projet.box === undefined ? [] : (bandes.get(projet.nom) ?? []).filter(({ sujet, verifie }) => !(sujet === "manager" && verifie));
+  // Une ligne dont le geste est celui d'un interrupteur de l'espace n'est pas posée : l'interrupteur la
+  // dit, et c'est lui qui la lève — le manager éteint (ticket 906), le grant `merge` éteint seul (ticket
+  // 907). Non vérifiée, elle se pose : l'interrupteur ne sait pas, la ligne dit pourquoi.
+  const alertes = projet.box === undefined ? [] : (bandes.get(projet.nom) ?? []).filter(({ appel }) => !(appel !== undefined && "geste" in appel && (appel.geste === "manager-allumer" || (appel.geste === "grant-activer" && appel.grant === "merge"))));
   gesteDeLUrgence = undefined;
   bande.hidden = alertes.length === 0;
-  // Un prix « none… » est un prix nul : ni survol ni mot.
-  /** @param {string} prix */
-  const prixDe = (prix) => (/^none\b/i.test(prix.trim()) ? "" : prix);
-  /** @param {string} leve @param {string | undefined} libelle @param {Alerte["appel"]} appel @param {string} prix @param {Alerte} alerte */
-  const leGeste = (leve, libelle, appel, prix, alerte) => {
-    const gestes = document.createElement("div");
-    gestes.className = "gestes";
-    if (appel === undefined) return gestes;
-    const mot = libelle ?? leve;
-    /** @type {Node[]} */
-    let pose;
-    // L'endroit est la ligne par son sujet, pas par ce qu'elle dit : « depuis 5 h 00 » change à chaque
-    // lecture, et la confirmation ouverte ne doit pas se refermer sous les yeux du chef.
-    if ("geste" in appel) pose = poserGeste(projet, { id: appel.geste, libelle: mot, ou: `alerte:${alerte.sujet}`, ...(appel.grant === undefined ? {} : { grant: appel.grant }) });
-    else if ("demande" in appel) {
-      const demande = bouton(mot, () => void demanderAlerte(alerte));
-      demande.dataset.geste = "demande";
-      demande.title = "write into the second a request about this line — nothing is sent: you press Enter";
-      pose = [demande];
-    } else {
-      const { onglet } = appel;
-      pose = [bouton(mot, () => (laisse.get(projet.nom) === onglet ? undefined : activer(onglet)))];
-    }
-    // Le prix, quand il y en a un, est au survol du bouton ; une confirmation ouverte passe dessous, sur toute la largeur.
-    const [premier, ...ouverte] = pose;
-    if (alerte.sujet === "urgence" && premier !== undefined) gesteDeLUrgence = /** @type {HTMLElement} */ (premier);
-    const cout = prixDe(prix);
-    gestes.append(...(premier === undefined ? [] : [premier]), ...(cout === "" ? [] : [survol(document, cout)]), ...ouverte);
-    return gestes;
-  };
-  bande.replaceChildren(
-    ...alertes.map((alerte) => {
-      const { sujet, verifie, ton, dit, pourquoi, releve, geste: leve, bouton: libelle, appel, prix, aussi, verification } = alerte;
-      const ligne = document.createElement("div");
-      ligne.className = "alerte";
-      ligne.dataset.sujet = sujet;
-      ligne.dataset.ton = ton;
-      if (!verifie) ligne.dataset.verifie = "non";
-      if (sujet === "urgence" && urgenceChoisie === projet.nom) ligne.dataset.choisie = "oui";
-      const tete = document.createElement("p");
-      const marque = sujet === "urgence" ? bloc("span", "URGENT") : undefined;
-      if (marque !== undefined) marque.className = "urgent";
-      tete.append(pastille(dit, ton), ...(marque === undefined ? [] : [marque]), bloc("strong", dit));
-      // Ce que la ligne sait de plus — pourquoi, ce que la box en écrit, le geste en toutes lettres — se lit au survol.
-      const explication = [pourquoi, releve?.split("\n").join(" — "), leve].filter((texte) => texte !== undefined && texte.trim() !== "").join("\n");
-      if (explication !== "") tete.append(survol(document, explication));
-      ligne.append(tete, ...(verification === undefined ? [] : poserVerdict(projet, verification, (texte, geste) => bouton(texte, () => void geste()), verification.titre !== dit)), leGeste(leve, libelle, appel, prix, alerte), ...(aussi === undefined ? [] : [leGeste(aussi.geste, undefined, aussi.appel, aussi.prix, alerte)]));
-      return ligne;
-    }),
-  );
+  bande.replaceChildren(...alertes.map((alerte) => poserAlerte(projet, alerte)));
 }
+
+// L'endroit d'une ligne de la bande : son sujet, et ce qu'elle dit — l'urgence par son seul sujet,
+// sa phrase change à chaque lecture (« at a standstill for 5 h 00 »). Ce qui y est ouvert — sa
+// confirmation, son détail — ne se referme pas sous les yeux du chef.
+/** @param {Alerte} alerte */
+const endroitDeLAlerte = ({ sujet, dit }) => (sujet === "urgence" ? "alerte:urgence" : `alerte:${sujet}:${dit}`);
+
+// Une ligne de la bande (ticket 907) : une seule ligne — ce qui ne va pas — et un seul contrôle, le
+// geste qui le lève. Son prix n'est pas posé à côté : le clic ouvre la confirmation, qui le dit. Ce
+// que la ligne sait de plus — pourquoi, ce que la box en écrit mot pour mot, le geste en toutes
+// lettres, le verdict d'une vérification — est replié derrière « detail », dessous.
+/** @param {Projet} projet @param {Alerte} alerte */
+function poserAlerte(projet, alerte) {
+  const { sujet, verifie, ton, dit, pourquoi, releve, geste: leve, verification } = alerte;
+  const ligne = document.createElement("div");
+  ligne.className = "alerte";
+  ligne.dataset.sujet = sujet;
+  ligne.dataset.ton = ton;
+  if (!verifie) ligne.dataset.verifie = "non";
+  if (sujet === "urgence" && urgenceChoisie === projet.nom) ligne.dataset.choisie = "oui";
+  const endroit = endroitDeLAlerte(alerte);
+  const tete = document.createElement("p");
+  tete.className = "ligne";
+  const marque = sujet === "urgence" ? bloc("span", "URGENT") : undefined;
+  if (marque !== undefined) marque.className = "urgent";
+  tete.append(pastille(dit, ton), ...(marque === undefined ? [] : [marque]), bloc("strong", dit));
+
+  // Le détail : ce que la ligne sait de plus, à plat une fois déplié — le brut de la box y reste entier.
+  const cle = `${projet.nom}\u0000${endroit}`;
+  const deplie = detailsDeplies.has(cle);
+  /** @type {HTMLElement[]} */
+  const detail = [
+    ...(pourquoi === undefined || pourquoi.trim() === "" ? [] : [bloc("p", pourquoi)]),
+    ...(releve === undefined || releve.trim() === "" ? [] : [exact("pre", releve)]),
+    ...(leve.trim() === "" ? [] : [bloc("p", `to lift it: ${leve}`)]),
+    ...(verification === undefined ? [] : poserVerdict(projet, verification, (texte, geste) => bouton(texte, () => void geste()), verification.titre !== dit)),
+  ];
+  if (detail.length > 0) {
+    const deplier = bouton("detail", () => {
+      if (detailsDeplies.has(cle)) detailsDeplies.delete(cle);
+      else detailsDeplies.add(cle);
+      poserAlertes(projet);
+    });
+    deplier.className = "detail";
+    deplier.ariaExpanded = String(deplie);
+    deplier.title = deplie ? "fold the detail" : "what the box says, as is — and why";
+    tete.append(deplier);
+  }
+  const [controle, ...ouverte] = poserControle(projet, alerte, endroit);
+  if (controle !== undefined) tete.append(controle);
+  ligne.append(tete);
+  if (deplie && detail.length > 0) {
+    const deplies = document.createElement("div");
+    deplies.className = "detail";
+    deplies.append(...detail);
+    ligne.append(deplies);
+  }
+  // Une confirmation ouverte passe dessous, sur toute la largeur.
+  ligne.append(...ouverte);
+  return ligne;
+}
+
+// Le contrôle d'une ligne de la bande, et sa confirmation quand elle est ouverte. Un geste du socle :
+// direct, il part au clic ; confirmé, le clic ouvre sa confirmation, qui dit son prix (confirmation.ts).
+// Une demande au second dont le geste coûte : le clic ouvre une confirmation qui dit ce que coûtera le
+// lever — un « oui » écrit la demande dans le second, sans l'envoyer. Sans prix, elle s'écrit au clic.
+// Un onglet : il s'ouvre. Sans appel, la ligne n'a pas de contrôle : rien à faire depuis l'app.
+/** @param {Projet} projet @param {Alerte} alerte @param {string} endroit @returns {HTMLElement[]} */
+function poserControle(projet, alerte, endroit) {
+  const { sujet, geste: leve, bouton: libelle, appel, prix } = alerte;
+  if (appel === undefined) return [];
+  const mot = libelle ?? leve;
+  /** @type {HTMLElement[]} */
+  let pose;
+  // L'endroit d'un geste du socle est la ligne par son sujet : la confirmation d'un même geste s'ouvre sous la ligne cliquée.
+  if ("geste" in appel) pose = poserGeste(projet, { id: appel.geste, libelle: mot, ou: `alerte:${sujet}`, ...(appel.grant === undefined ? {} : { grant: appel.grant }) });
+  else if ("demande" in appel) {
+    // Un prix « none… » est un prix nul : pas de confirmation, la demande s'écrit au clic.
+    const cout = /^none\b/i.test(prix.trim()) ? "" : prixDit(prix);
+    const cle = JSON.stringify(["demande", "", endroit]);
+    const ouverte = aConfirmer?.projet === projet.nom && aConfirmer.cle === cle ? aConfirmer : undefined;
+    const demande = bouton(cout === "" ? mot : `${mot}…`, () => {
+      if (cout === "") return void demanderAlerte(alerte);
+      nonEcrit = nonEcritSecond = "";
+      aConfirmer = ouverte === undefined ? { projet: projet.nom, cle, rendu: confirmationDeDemande(cout) } : undefined;
+      montrer();
+    });
+    demande.dataset.geste = "demande";
+    demande.ariaExpanded = cout === "" ? null : String(ouverte !== undefined);
+    demande.title = cout === "" ? "writes into the second a request about this line — nothing is sent: you press Enter" : "says first what lifting it costs — then writes the request into the second, without sending it";
+    pose = ouverte === undefined ? [demande] : [demande, poserConfirmation(projet, ouverte, undefined, () => void demanderAlerte(alerte))];
+  } else {
+    const { onglet } = appel;
+    pose = [bouton(mot, () => (laisse.get(projet.nom) === onglet ? undefined : activer(onglet)))];
+  }
+  const [premier] = pose;
+  if (sujet === "urgence" && premier !== undefined) gesteDeLUrgence = premier;
+  return pose;
+}
+
+// La confirmation d'une demande au second : ce que coûtera le lever, en une ligne — le prix que la
+// ligne de la bande en dit —, et ce que fait le « oui » : il écrit la demande, rien ne part.
+/** @param {string} prix @returns {Confirmation} */
+const confirmationDeDemande = (prix) => ({
+  titre: "ask the second to lift it",
+  prix: [prix, "the second reads, explains, and acts only with you"],
+  choix: [{ id: "demande", libelle: "yes, write the request", dit: "written into the second, not sent: your Enter sends it" }],
+  renoncer: "no, write nothing",
+});
 
 // La bannière d'arrêt : la cuisine est à l'arrêt quand la box le dit, d'un mot.
 // Son geste la reprend : confirmé, il dit d'abord ce qu'il relance.
@@ -4741,18 +4861,19 @@ brigade.surLecture((recue, servies) => {
 // Les faits d'un projet : ils remplacent ceux d'avant, partout où ils se dessinent —
 // sa pastille dans la barre, et son espace s'il est affiché — sa ligne de l'accueil vient par `surAccueil`.
 // La bande d'alertes d'un projet : posée tout de suite si c'est celui qui est affiché.
-brigade.surAlertes(({ projet, alertes, signal, manager: etatDuManager }) => {
+brigade.surAlertes(({ projet, alertes, signal, manager: etatDuManager, merge: etatDuMerge }) => {
   bandes.set(projet, alertes);
   signaux.set(projet, signal);
   marquerSignal(projet);
   const bascule = JSON.stringify(etatsDuManager.get(projet)) !== JSON.stringify(etatDuManager);
+  const basculeMerge = JSON.stringify(etatsDuMerge.get(projet)) !== JSON.stringify(etatDuMerge);
   etatsDuManager.set(projet, etatDuManager);
+  etatsDuMerge.set(projet, etatDuMerge);
   if (courant?.nom !== projet) return;
   poserAlertes(courant);
-  // Le manager a basculé : son interrupteur et la tête du rail le disent aussitôt.
-  if (!bascule) return;
-  poserInterrupteur();
-  poserRail(courant);
+  // Un interrupteur a basculé : il le dit aussitôt — et, le manager, la tête du rail aussi.
+  if (bascule || basculeMerge) poserInterrupteur();
+  if (bascule) poserRail(courant);
 });
 // Le chef a cliqué la notification de l'urgence d'un projet : la fenêtre est déjà devant. Le projet
 // s'ouvre — s'il ne l'est pas déjà —, la fiche d'un ticket ouverte par-dessus se referme, et la ligne
