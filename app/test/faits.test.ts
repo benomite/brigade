@@ -1,5 +1,5 @@
 // Ce que l'app dessine : les faits que la box rend dans la forme de
-// docs/runtime.md, « Les faits, pour un programme ». L'exemple de la doc est
+// docs/runtime/, « Les faits, pour un programme ». L'exemple de la doc est
 // lu ici tel qu'il y est écrit ; une sortie qui n'est pas cette forme n'est
 // jamais dessinée — ni tableau vide, ni zéros. Une couleur ne se pose que sur
 // un mot des listes fermées. Le rail se range en six colonnes, TODO
@@ -7,6 +7,7 @@
 // d'après les `tiers` de chaque ticket (attente.test.ts). Chaque
 // carte porte ce que la file dit du ticket, et écrit ce qu'elle n'en dit pas :
 // ce qui s'y lit est dans bon.test.ts.
+import { docRuntime } from "./aides/doc-runtime.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -20,7 +21,7 @@ import type { Entete } from "../src/fiche.ts";
 import { commandeDuGeste, CONFIRMES } from "../src/gestes.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
-const doc = readFileSync(join(RACINE, "docs/runtime.md"), "utf8");
+const doc = docRuntime(RACINE);
 const SECTION = doc.slice(doc.indexOf("### Les faits, pour un programme"));
 // L'exemple de la doc : la seule ligne de son bloc `json`.
 const EXEMPLE = SECTION.slice(SECTION.indexOf("```json\n") + 8, SECTION.indexOf("\n```", SECTION.indexOf("```json\n")));
@@ -96,7 +97,7 @@ describe("les faits que l'app dessine", () => {
     assert.ok(COMMANDE in scripts);
   });
 
-  test("l'exemple de docs/runtime.md est compris tel qu'il est écrit — champ pour champ", () => {
+  test("l'exemple de docs/runtime/ est compris tel qu'il est écrit — champ pour champ", () => {
     assert.deepEqual(comprendre(`${EXEMPLE}\n`), FAITS);
   });
 
@@ -334,7 +335,7 @@ const cartes = (dessine: ReturnType<typeof rail>) => [...dessine.colonnes.flatMa
 const tonDeTicket = (etat: string) => cartes(rail({ ...FAITS, rail: [{ ticket: 1, etat, titre: "", url: "" }] })).find(({ ticket }) => ticket === 1)?.ton;
 
 describe("une couleur sur un mot de la liste fermée", () => {
-  test("les quatre états d'un projet ont la leur — ceux de docs/runtime.md, pas un de plus", () => {
+  test("les quatre états d'un projet ont la leur — ceux de docs/runtime/, pas un de plus", () => {
     assert.deepEqual(["ouverte", "retenue", "arrêtée", "éteinte"].map(tonDeProjet), ["vert", "jaune", "rouge", "rouge"]);
     const table = SECTION.slice(SECTION.indexOf("| Mot | Quand |"), SECTION.indexOf("**L'état d'un ticket**"));
     assert.deepEqual([...table.matchAll(/^\| `([^`]+)` \|/gm)].map(([, mot]) => mot).sort(), ["arrêtée", "ouverte", "retenue", "éteinte"].sort());
@@ -344,7 +345,7 @@ describe("une couleur sur un mot de la liste fermée", () => {
     const MOTS = ["en attente", "BLOQUÉ", "pris", "en pass", "servi", "86"];
 
     assert.deepEqual(MOTS.map(tonDeTicket), ["gris", "rouge", "bleu", "jaune", "vert", "rouge"]);
-    assert.ok(SECTION.includes(`${MOTS.slice(0, 3).map((mot) => `\`${mot}\``).join(", ")},\n${MOTS.slice(3).map((mot) => `\`${mot}\``).join(", ")}.`), "la liste des états d'un ticket a changé dans docs/runtime.md");
+    assert.ok(SECTION.includes(`${MOTS.slice(0, 3).map((mot) => `\`${mot}\``).join(", ")},\n${MOTS.slice(3).map((mot) => `\`${mot}\``).join(", ")}.`), "la liste des états d'un ticket a changé dans docs/runtime/");
   });
 
   test("un mot inconnu s'affiche tel quel, sans couleur, et ne se range dans aucune — ni par sa casse, ni par un nom d'objet", () => {
@@ -914,7 +915,7 @@ describe("la bannière d'arrêt", () => {
     assert.deepEqual(ecrit, { commande: "ssh box brigade parade guardrails resume" });
   });
 
-  test("ce qu'elle dit de l'arrêt est ce que docs/runtime.md en dit", () => {
+  test("ce qu'elle dit de l'arrêt est ce que docs/runtime/ en dit", () => {
     assert.ok(doc.includes("| « stop » | Tous les cooks en cours sont arrêtés dans la seconde, et plus aucun n'est lancé |"));
     assert.ok(doc.includes("**Le\ndisjoncteur ouvert et le « stop » tiennent**, redémarrage compris, jusqu'à « reprendre »."));
     assert.deepEqual(BANNIERE.texte, [

@@ -627,7 +627,7 @@ et la version de sa machine ne sont pas écrits dans la page : ils se lisent au 
 station saturée ne prend plus de ticket tant que ça dure : sa phrase ne dit que ça.
 
 - **L'app ne joint aucune station.** Chaque station écrit son état dans un gist secret de ton
-  compte GitHub ([docs/runtime.md](runtime.md), « Une station par machine »), et l'app le lit
+  compte GitHub ([docs/runtime/](runtime/station-machine.md), « Une station par machine »), et l'app le lit
   là, par ton propre `gh`, toutes les trente secondes (`app/src/stations/`). Le suivi se relève
   donc à la minute près, pas à la seconde.
 - **Une station éteinte reste dans la liste**, hors ligne, avec depuis combien de temps : tout de
@@ -672,7 +672,7 @@ de signe de vie) ne se dit qu'une fois : l'en-tête de la page ne redit pas l'é
   qui ouvre la page de connexion dans ton navigateur ; la station voit la connexion rétablie dans
   la minute, et la cuisine reprend seule. **Seule la station de cet ordinateur** se reconnecte
   ainsi : le login d'une station serveur ne part pas encore de l'app, et le bouton le dit.
-- Ce que l'app en sait, la station le publie dans son gist ([docs/runtime.md](runtime.md), « Une
+- Ce que l'app en sait, la station le publie dans son gist ([docs/runtime/](runtime/station-machine.md), « Une
   station par machine ») : des versions et des dates, ni motif ni commande. Une station hors ligne
   ne dit plus sa connexion — ce qu'elle en a publié avant de se taire n'est plus sûr.
 
@@ -757,7 +757,7 @@ vraiment aucun.
   n'est écrit.
 - **Validé**, l'app écrit la demande dans le gist de chaque station choisie (`app/src/projets/`) ; la
   principale la lit dans la demi-minute, le prépare et l'ajoute à sa configuration
-  ([docs/runtime.md](runtime.md), « Ajouter un projet à une station depuis l'app »). Si ses Apps
+  ([docs/runtime/](runtime/station-machine.md), « Ajouter un projet à une station depuis l'app »). Si ses Apps
   GitHub doivent être autorisées sur le dépôt, un bouton **« authorize on GitHub »** par App ouvre
   la page de GitHub : un clic, et la station poursuit seule.
 - **« remove »**, sous un projet ajouté depuis l'app, puis un second clic pour confirmer, retire le projet de la demande de chacune de
@@ -1948,7 +1948,7 @@ Code, avec écriture limitée à leur worktree et réseau limité à la liste du
 s'écrivent dans le fichier des projets (`"ordinaires": true`, `"limiteCooks": 2`) et se relisent à
 chaque ouverture ; une valeur mal écrite à la main refuse le fichier. **Hors d'un Mac, ou sans station
 jouée, le bloc n'existe pas.** L'état du bac à sable est lu dans `facts` (champ `stations`,
-[docs/runtime.md](runtime.md), « Les tickets ordinaires sur le poste du chef ») : quand la station le
+[docs/runtime/](runtime/station-distante.md), « Les tickets ordinaires sur le poste du chef ») : quand la station le
 dit indisponible, le bloc l'écrit à côté de l'option, avec la raison que la station donne, et précise
 que le Mac ne prend aucun ticket ordinaire. Tant qu'elle n'en a rien dit, l'app ne devine rien. Le bloc
 règle ce que l'app garde ; la déclaration `distante+ordinaires` de la box reste celle du chef.

@@ -6,6 +6,7 @@
 // lit est tenue contre celle que le runtime écrit. À côté, les deux gestes de
 // chaque grant — accorder, révoquer — sont confirmés : la commande de la doc
 // part dans le second, seulement avec le « oui » du chef.
+import { docRuntime } from "./aides/doc-runtime.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -431,8 +432,8 @@ describe("l'onglet Grants et les deux gestes de chaque grant", () => {
     for (const { id } of GESTES_DES_GRANTS) assert.equal(GESTES.find((geste) => geste.id === id)?.parGrant, true, `« ${id} » n'est pas un geste du socle qui porte sur un grant`);
   });
 
-  test("tous deux sont confirmés : sans « oui », rien ne part ; avec, la commande de docs/runtime.md, « Le grant `merge` », `merge` compris, part dans le second — aucun shell ne s'ouvre", async () => {
-    const doc = readFileSync(join(RACINE, "docs/runtime.md"), "utf8");
+  test("tous deux sont confirmés : sans « oui », rien ne part ; avec, la commande de docs/runtime/, « Le grant `merge` », `merge` compris, part dans le second — aucun shell ne s'ouvre", async () => {
+    const doc = docRuntime(RACINE);
     const ecrits: string[][] = [];
     const terminaux = ouvrirTerminaux({
       claude: "claude",
@@ -457,9 +458,9 @@ describe("l'onglet Grants et les deux gestes de chaque grant", () => {
     // Le second vient d'être lancé, il n'est pas dit libre : rien n'est écrit, et le refus dit ce qui serait parti.
     assert.deepEqual(ecrits, [[]]);
     // La doc cite la commande deux fois : dans le dépôt (« Le grant `merge` »), et sur la box (« Piloter ») — celle-ci, dans sa forme de poste, est ce qui part.
-    assert.ok(doc.includes("`brigade <projet> grant [enable merge ["), "docs/runtime.md, « Piloter », ne cite plus la commande du grant");
+    assert.ok(doc.includes("`brigade <projet> grant [enable merge ["), "docs/runtime/, « Piloter », ne cite plus la commande du grant");
     for (const [rang, mot] of ["enable", "revoke"].entries()) {
-      assert.ok(doc.includes(`npm --prefix runtime run grant -- ${mot} merge`), `docs/runtime.md, « Le grant \`merge\` », ne cite plus \`grant -- ${mot} merge\``);
+      assert.ok(doc.includes(`npm --prefix runtime run grant -- ${mot} merge`), `docs/runtime/, « Le grant \`merge\` », ne cite plus \`grant -- ${mot} merge\``);
       assert.deepEqual(rendus[rang], { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!ssh box brigade parade grant ${mot} merge\`` });
     }
   });

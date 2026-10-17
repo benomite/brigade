@@ -2,7 +2,7 @@
 
 **Ce document suffit pour installer brigade sur un serveur neuf et y servir un premier projet** —
 par quelqu'un qui n'a jamais installé brigade, sans rien reconstituer depuis un autre document.
-Ce que fait le runtime une fois lancé est dans [`runtime.md`](runtime.md) : on y va pour
+Ce que fait le runtime une fois lancé est dans [`runtime/`](runtime/README.md) : on y va pour
 comprendre, jamais pour installer.
 
 **On installe brigade dans un projet ; on n'ajoute pas un projet à brigade.** Le runtime est par
@@ -222,7 +222,7 @@ un nom de ton `~/.ssh/config`. C'est la seule chose qui désigne la box — la m
 champ `hote` du projet dans l'app ([`app.md`](app.md)).
 
 **Geste de box, geste de poste** (la convention est dite une fois, dans
-[`runtime.md`](runtime.md), « Piloter »). Dans ce document, un `brigade <projet> …` sans `ssh` se
+[`runtime/`](runtime/exploitation.md), « Piloter »). Dans ce document, un `brigade <projet> …` sans `ssh` se
 tape **sur la box** ; depuis ta machine, le même geste est `ssh <box> brigade <projet> …`. Nu sur
 ta machine, `brigade` rend `command not found` — rien n'est cassé, il n'y a rien à y installer.
 
@@ -714,7 +714,7 @@ commandes du geste, et la mise à jour de brigade, sont dans `runtime.md`, « Pi
 
 **N'active le grant qu'après avoir relu au moins une livraison de ce projet** — une commande, sans
 redémarrage (`brigade <projet> grant enable merge`), de préférence avec une échéance (`--for 4h`,
-`--uses 10`) : il s'éteint alors seul, voir « Le grant `merge` » dans [`runtime.md`](runtime.md).
+`--uses 10`) : il s'éteint alors seul, voir « Le grant `merge` » dans [`runtime/`](runtime/pass-merge.md).
 
 **Avant d'accorder, lis le bilan des arrêts faute de grant.** Chaque livraison verte arrêtée dit
 sur son issue ce que la pass aurait mergé ; `pass` et `grant` comptent ce que tu en as
