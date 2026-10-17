@@ -989,7 +989,14 @@ donne pas de pourcentage. Seuls les projets qui ont une box, et qu'elle sert enc
 compte Max n'y est pas** : brigade ne le connaît pas, et une seule ligne renvoie à `/usage`. Aucune phrase
 d'explication : des libellés courts et des chiffres. Dessous, la sortie de `station` du projet affiché, repliée
 sous « what the box said ». Le code de cette tête vit dans `app/src/vue/cost/`, où les blocs suivants de l'onglet
-s'ajoutent. **Paramètres** ouvre l'état du projet —
+s'ajoutent. **Sous les trois chiffres, la courbe des derniers jours** (#909, `cost/courbe.js`) : les tokens lancés
+chaque jour, **une ligne par projet**, à la teinte de sa pastille, sur les 14 derniers jours au plus ; un titre
+court (« tokens per day »), le plus haut du tracé, les jours dessous, **une légende qui nomme chaque projet**, et
+ce que chacun a lancé un jour au survol de sa colonne. Chaque série vient du même bloc `consommé` de `station` :
+une ligne par jour, `AAAA-MM-JJ : … tokens` (ou `: rien`, un zéro) ; un jour qu'une série ne dit pas est un trou
+dans sa ligne, jamais un zéro. **Le runtime n'écrit pas encore ces lignes** : tant qu'aucune box ne donne sa
+série, la zone de la courbe dit **« not communicated »**, jamais un graphique vide ; un projet dont la série manque
+alors que d'autres la donnent le dit sous son nom, dans la légende. **Paramètres** ouvre l'état du projet —
 l'installation, **la sauvegarde et son ancienneté**, les pages servies, le retrait, les couleurs du projet, et
 `status` tel que la box le rend —, avec dessous une rangée de lectures : Réglages, Rail, Manager,
 Grants. Une ligne de la bande d'alertes dont la cause se règle là y mène en un clic. **Le journal

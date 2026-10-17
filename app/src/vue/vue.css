@@ -596,6 +596,108 @@ main > header,
   font-size: 12px;
   color: var(--discret);
 }
+/* La courbe de Cost, sous la tête : les tokens de chaque jour, une ligne par projet, à la teinte de
+   sa pastille. Le tracé s'étire à la largeur de l'onglet ; ses jours et son plus haut sont du texte
+   posé autour, qui ne s'étire pas. */
+.courbe-cout {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  background: var(--carte);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+.courbe-cout h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+.courbe-cout .trace {
+  position: relative;
+  margin: 0 8px;
+  padding: 16px 0 0;
+}
+.courbe-cout .haut {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--discret);
+}
+.courbe-cout svg {
+  display: block;
+  width: 100%;
+  height: 120px;
+  overflow: visible;
+}
+.courbe-cout line {
+  stroke: var(--trait);
+  stroke-width: 1px;
+  stroke-dasharray: 3 3;
+}
+.courbe-cout path {
+  fill: none;
+  stroke: var(--teinte);
+  stroke-width: 2px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.courbe-cout path[data-points] {
+  stroke-width: 6px;
+}
+.courbe-cout rect {
+  fill: transparent;
+}
+.courbe-cout rect:hover {
+  fill: var(--case);
+  fill-opacity: 0.5;
+}
+.courbe-cout .jours {
+  position: relative;
+  height: 16px;
+  margin: 6px 8px 0;
+}
+.courbe-cout .jours span {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--discret);
+}
+.courbe-cout .legende {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px dashed var(--trait);
+}
+.courbe-cout .legende li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.courbe-cout .teinte {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--teinte);
+}
+.courbe-cout .projet {
+  color: var(--texte-doux);
+}
+.courbe-cout .sans {
+  margin: 0;
+  font-size: 12px;
+  color: var(--discret);
+}
+.courbe-cout p.sans {
+  font-size: 16px;
+  font-weight: 600;
+}
 /* Ce qui se lit : une commande, puis ce qu'elle a rendu — l'une sous l'autre. */
 #lecture,
 #lecture-onglet {

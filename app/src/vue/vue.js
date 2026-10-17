@@ -91,6 +91,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 // Les briques communes (briques.js) : une même chose se dit partout de la même façon — le prix
 // d'un geste dans son survol, une lecture qui manque en une ligne, une confirmation qui dit son prix.
 import { boutonAction, confirmationDeGeste, lectureIndisponible, prixDit, survol } from "./briques.js";
+import { poserCourbe } from "./cost/courbe.js";
 import { poserTete } from "./cost/tete.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
@@ -3600,13 +3601,14 @@ function tracesDUsage({ pr, commit, verdict }) {
 // au clic ; allumer ouvre sa confirmation, qui dit ce qu'il engage.
 // La tête de l'onglet Cost (cost/tete.js) : les tokens lancés sur 5 h, 24 h et 7 jours, tous
 // projets confondus, et la part de chacun — chaque projet qui a une box, et qu'elle sert encore.
+// Dessous, la courbe des derniers jours, une série par projet (cost/courbe.js).
 function poserCout() {
   cout.hidden = courant === undefined || actif() !== COUT;
   if (cout.hidden) return cout.replaceChildren();
   const projets = configuration.projets
     .filter(({ box, desinstalle }) => box !== undefined && desinstalle === undefined)
     .map(({ nom, couleurs }) => ({ nom, teinte: couleurs?.onglet ?? couleurs?.accent }));
-  cout.replaceChildren(poserTete(document, projets, coutsLus));
+  cout.replaceChildren(poserTete(document, projets, coutsLus), poserCourbe(document, projets, coutsLus));
 }
 
 function poserManager() {

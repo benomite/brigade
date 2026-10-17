@@ -6,7 +6,7 @@
 // la box de chaque projet (runtime/src/montrer-station.ts) ; une fenêtre que la box ne donne pas
 // — aujourd'hui, 7 jours — s'affiche « not communicated » à la place du chiffre, comme partout dans l'app.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend
-// des éléments. Les autres blocs de l'onglet viendront à côté de lui, dans ce dossier.
+// des éléments. Les autres blocs de l'onglet viennent à côté de lui, dans ce dossier (courbe.js).
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {{ sorties: { commande: string, texte: string }[] } | { erreur: string }} Lecture */
@@ -34,28 +34,43 @@ export const FENETRES = [
 const FENETRE = /^(\d+) (h|j) : (.*)$/;
 const TOKENS = /(\d[\d\s  .,]*?)\s*tokens?\s*$/;
 
-// Les tokens de chaque fenêtre que `station` communique, par nombre d'heures. Le bloc `consommé`
-// commence à la ligne qui porte ce titre, et se poursuit sur les lignes en retrait.
+// Les lignes du bloc `consommé` de `station`, sans leur titre ni leur retrait. Le bloc commence à
+// la ligne qui porte ce titre, et se poursuit sur les lignes en retrait. La courbe (courbe.js) y
+// lit ses jours.
+/** @param {string} texte @returns {string[]} */
+export function lignesDuConsomme(texte) {
+  const lignes = texte.split("\n");
+  const debut = lignes.findIndex((ligne) => ligne.startsWith("consommé"));
+  if (debut === -1) return [];
+  /** @type {string[]} */
+  const lues = [];
+  for (let i = debut; i < lignes.length; i++) {
+    const ligne = /** @type {string} */ (lignes[i]);
+    if (i > debut && !/^\s/.test(ligne)) break;
+    lues.push((i === debut ? ligne.slice("consommé".length) : ligne).trim());
+  }
+  return lues;
+}
+
+// Les tokens d'une consommation telle que la box l'écrit : « rien » vaut zéro ; sans « tokens », rien n'est lu.
+/** @param {string} dit @returns {number | undefined} */
+export function tokensLus(dit) {
+  if (dit === "rien") return 0;
+  const tokens = TOKENS.exec(dit);
+  return tokens === null ? undefined : Number(/** @type {string} */ (tokens[1]).replace(/\D/g, ""));
+}
+
+// Les tokens de chaque fenêtre que `station` communique, par nombre d'heures.
 /** @param {string} texte @returns {Map<number, number>} */
 export function fenetresDe(texte) {
   /** @type {Map<number, number>} */
   const lues = new Map();
-  const lignes = texte.split("\n");
-  const debut = lignes.findIndex((ligne) => ligne.startsWith("consommé"));
-  if (debut === -1) return lues;
-  for (let i = debut; i < lignes.length; i++) {
-    const ligne = /** @type {string} */ (lignes[i]);
-    if (i > debut && !/^\s/.test(ligne)) break;
-    const valeur = (i === debut ? ligne.slice("consommé".length) : ligne).trim();
+  for (const valeur of lignesDuConsomme(texte)) {
     const fenetre = FENETRE.exec(valeur);
     if (fenetre === null) continue;
     const heures = Number(fenetre[1]) * (fenetre[2] === "j" ? 24 : 1);
-    const dit = /** @type {string} */ (fenetre[3]).trim();
-    if (dit === "rien") lues.set(heures, 0);
-    else {
-      const tokens = TOKENS.exec(dit);
-      if (tokens !== null) lues.set(heures, Number(/** @type {string} */ (tokens[1]).replace(/\D/g, "")));
-    }
+    const tokens = tokensLus(/** @type {string} */ (fenetre[3]).trim());
+    if (tokens !== undefined) lues.set(heures, tokens);
   }
   return lues;
 }
