@@ -2195,6 +2195,7 @@ main > header,
 #fiche {
   position: absolute;
   inset: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2774,4 +2775,59 @@ button.recommande {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--fond);
+}
+/* Les cinq tickets les plus chers de Cost, sous la tête : une ligne par ticket, qui ouvre sa fiche. */
+.chers-cout {
+  margin: 14px 0 0;
+}
+.chers-cout h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+.chers-cout .chers {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.chers-cout .ticket-cher {
+  display: grid;
+  grid-template-columns: 8px 4.5em minmax(0, 1fr) auto 6em;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 14px;
+  font-size: 12px;
+  text-align: left;
+  color: var(--texte-doux);
+  background: var(--carte);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+  cursor: pointer;
+}
+.chers-cout .ticket-cher:hover {
+  border-color: var(--trait-fort);
+}
+.chers-cout .teinte {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--teinte);
+}
+.chers-cout .numero {
+  color: var(--texte);
+}
+.chers-cout .titre {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.chers-cout :is(.tokens, .essais) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.chers-cout :is(.sans, .essais) {
+  color: var(--discret);
 }

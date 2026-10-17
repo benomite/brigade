@@ -91,6 +91,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 // Les briques communes (briques.js) : une même chose se dit partout de la même façon — le prix
 // d'un geste dans son survol, une lecture qui manque en une ligne, une confirmation qui dit son prix.
 import { boutonAction, confirmationDeGeste, lectureIndisponible, prixDit, survol } from "./briques.js";
+import { poserChers } from "./cost/chers.js";
 import { poserCourbe } from "./cost/courbe.js";
 import { poserTete } from "./cost/tete.js";
 
@@ -3608,7 +3609,29 @@ function poserCout() {
   const projets = configuration.projets
     .filter(({ box, desinstalle }) => box !== undefined && desinstalle === undefined)
     .map(({ nom, couleurs }) => ({ nom, teinte: couleurs?.onglet ?? couleurs?.accent }));
-  cout.replaceChildren(poserTete(document, projets, coutsLus), poserCourbe(document, projets, coutsLus));
+  cout.replaceChildren(poserTete(document, projets, coutsLus), poserChers(document, projets, coutsLus, titreSurLeRail, ouvrirFicheDeCout), poserCourbe(document, projets, coutsLus));
+}
+
+// La carte d'un ticket sur le rail d'un projet, si son rail est lu et qu'il y est.
+/** @param {string} nom @param {number} ticket */
+function carteSurLeRail(nom, ticket) {
+  const tenu = tenus.get(nom);
+  if (tenu === undefined || !("tableau" in tenu)) return undefined;
+  const { colonnes, hors } = tenu.tableau.rail;
+  return [...colonnes.flatMap(({ cartes }) => cartes), ...hors].find((carte) => carte.ticket === ticket);
+}
+/** @param {string} nom @param {number} ticket */
+const titreSurLeRail = (nom, ticket) => carteSurLeRail(nom, ticket)?.titre;
+
+// Un clic sur un des tickets les plus chers de Cost ouvre sa fiche, par-dessus l'onglet. Un ticket
+// que le rail ne porte pas (ou pas encore lu) s'ouvre avec ce que l'on en sait : son numéro.
+/** @param {string} nom @param {number} ticket @param {HTMLElement} retour */
+function ouvrirFicheDeCout(nom, ticket, retour) {
+  const projet = configuration.projets.find((candidat) => candidat.nom === nom);
+  if (projet === undefined) return;
+  const sans = { sans: "not communicated — the rail of this project is not read" };
+  const carte = carteSurLeRail(nom, ticket) ?? { ticket, ouvrable: false, attendu: false, attend: [], dit: [], fiche: { titre: sans, priorite: sans, issue: sans } };
+  ouvrirFiche(projet, carte, retour);
 }
 
 function poserManager() {
