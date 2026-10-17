@@ -329,11 +329,11 @@ export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "d
 
   // Le module de la vue, tel qu'il est — moins ses deux imports de xterm, que le navigateur
   // résout par l'import map de index.html : ici, les faux prennent leur place. Ses modules à elle
-  // (`./briques.js`), le navigateur les résout à côté d'elle : ici, par leur adresse sur le disque,
-  // une vue jouée depuis une adresse `data:` n'ayant pas d'« à côté ».
+  // (`./briques.js`, `./cost/tete.js`), le navigateur les résout à côté d'elle : ici, par leur adresse
+  // sur le disque, une vue jouée depuis une adresse `data:` n'ayant pas d'« à côté ».
   const source = readFileSync(join(VUE, "vue.js"), "utf8");
   const imports = /^import \{ FitAddon \} from "@xterm\/addon-fit";\nimport \{ Terminal as Xterm \} from "@xterm\/xterm";$/m;
-  const siens = /^(import \{[^}]*\} from )"\.\/([a-z-]+\.js)";$/gm;
+  const siens = /^(import \{[^}]*\} from )"\.\/((?:[a-z-]+\/)*[a-z-]+\.js)";$/gm;
   if (!imports.test(source) || /^import /m.test(source.replace(imports, "").replace(siens, ""))) throw new Error("vue.js n'importe plus ce que la fausse vue remplace : ses deux imports de xterm, et ses propres modules");
   const jouable = `${source.replace(imports, "const { FitAddon, Xterm } = globalThis.fauxXterm;").replace(siens, (_, debut: string, module: string) => `${debut}${JSON.stringify(pathToFileURL(join(VUE, module)).href)};`)}\n// vue jouée n° ${++jouees}`;
   await import(`data:text/javascript;base64,${Buffer.from(jouable).toString("base64")}`);

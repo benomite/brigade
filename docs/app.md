@@ -979,7 +979,17 @@ espace (« Tous les projets », l'ajout), l'accent est celui de la peau.
 ### Les onglets : Coût et Paramètres, et le journal par son geste
 
 **Deux onglets seulement sont posés en haut, à côté du nom du projet : Coût et Paramètres.** **Coût** ouvre la lecture
-Cooks (`station` : le plafond, les cooks, **le consommé**). **Paramètres** ouvre l'état du projet —
+Cooks (`station` : le plafond, les cooks, **le consommé**), **lue sur la box de chaque projet** (#908). **En tête,
+trois chiffres** : les tokens que brigade a lancés sur **5 h, 24 h et 7 jours, tous projets confondus**, et sous
+chacun **la part de chaque projet** — sa pastille, son nom, ses tokens, son pourcentage. Chaque chiffre est la
+somme des fenêtres que le bloc `consommé` de `station` communique, projet par projet ; **une valeur que la box ne
+communique pas s'affiche « not communicated » à la place du chiffre** — aujourd'hui 7 jours, que le runtime ne
+compte pas, et tout projet dont la box n'a pas répondu. Une somme à laquelle un projet manque se dit « ≥ » et ne
+donne pas de pourcentage. Seuls les projets qui ont une box, et qu'elle sert encore, y entrent. **Le quota du
+compte Max n'y est pas** : brigade ne le connaît pas, et une seule ligne renvoie à `/usage`. Aucune phrase
+d'explication : des libellés courts et des chiffres. Dessous, la sortie de `station` du projet affiché, repliée
+sous « what the box said ». Le code de cette tête vit dans `app/src/vue/cost/`, où les blocs suivants de l'onglet
+s'ajoutent. **Paramètres** ouvre l'état du projet —
 l'installation, **la sauvegarde et son ancienneté**, les pages servies, le retrait, les couleurs du projet, et
 `status` tel que la box le rend —, avec dessous une rangée de lectures : Réglages, Rail, Manager,
 Grants. Une ligne de la bande d'alertes dont la cause se règle là y mène en un clic. **Le journal

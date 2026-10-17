@@ -91,6 +91,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 // Les briques communes (briques.js) : une même chose se dit partout de la même façon — le prix
 // d'un geste dans son survol, une lecture qui manque en une ligne, une confirmation qui dit son prix.
 import { boutonAction, confirmationDeGeste, lectureIndisponible, prixDit, survol } from "./briques.js";
+import { poserTete } from "./cost/tete.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -110,6 +111,8 @@ const dateHeure = (/** @type {number | string | Date} */ instant) => new Date(in
 // Ce que `onglets.ts` nomme : le journal, et l'onglet Paramètres, qui n'a pas de commande à lui.
 const JOURNAL = "log";
 const PARAMETRES = "parametres";
+// Et la lecture que l'onglet Cost ouvre : `station`, sur la box de chaque projet.
+const COUT = "cooks";
 /** @typedef {import("../allumage.ts").Compte} Compte */
 /** @typedef {import("../confirmation.ts").Confirmation} Confirmation */
 /** @typedef {import("../service.ts").Guide} Guide */
@@ -149,6 +152,7 @@ const rail = element("rail");
 const fiche = element("fiche");
 const manager = element("manager");
 const grants = element("grants");
+const cout = element("cout");
 const luOnglet = element("lu-onglet");
 const lectureOnglet = element("lecture-onglet");
 const gestesOnglet = element("gestes-onglet");
@@ -335,6 +339,12 @@ let demande = 0;
 /** @type {string | undefined} */
 let suivi = "";
 let demandeOnglet = 0;
+// L'onglet que cette demande lit. Celle de Cost lit la box de chaque projet.
+/** @type {string | undefined} */
+let ongletDemande;
+// Le dernier `station` lu de chaque projet pour l'onglet Cost — ou ce qui a été obtenu à sa place.
+/** @type {Map<string, Lecture>} */
+const coutsLus = new Map();
 // Les onglets de contenu, dits par le process principal au démarrage (onglets.ts).
 /** @type {readonly import("../onglets.ts").Onglet[]} */
 let ONGLETS = [];
@@ -732,6 +742,7 @@ function montrer() {
   // Au centre, seul un fichier des projets illisible a sa raison à la place de l'espace.
   message.hidden = courant !== undefined;
   poserSecond(ouvrable, droite?.terminal);
+  poserCout();
   poserGestes(gestesOnglet, relaye?.id);
   dessiner();
   lireOnglet();
@@ -1100,6 +1111,7 @@ function lireOnglet() {
   grantsVus = undefined;
   poserGrants();
   if (courant !== undefined && relaye !== undefined) attendre(courant, luOnglet, lectureOnglet);
+  ongletDemande = relaye?.id;
   brigade.onglet(courant?.nom, relaye?.id, ++demandeOnglet);
 }
 
@@ -3586,6 +3598,17 @@ function tracesDUsage({ pr, commit, verdict }) {
 // (manager.ts), dans la sortie qui se lit dessous : la vue pose. Sans état lu, elle dit pourquoi
 // — jamais « éteint » — et les gestes restent : ils n'attendent rien de la lecture. Éteindre part
 // au clic ; allumer ouvre sa confirmation, qui dit ce qu'il engage.
+// La tête de l'onglet Cost (cost/tete.js) : les tokens lancés sur 5 h, 24 h et 7 jours, tous
+// projets confondus, et la part de chacun — chaque projet qui a une box, et qu'elle sert encore.
+function poserCout() {
+  cout.hidden = courant === undefined || actif() !== COUT;
+  if (cout.hidden) return cout.replaceChildren();
+  const projets = configuration.projets
+    .filter(({ box, desinstalle }) => box !== undefined && desinstalle === undefined)
+    .map(({ nom, couleurs }) => ({ nom, teinte: couleurs?.onglet ?? couleurs?.accent }));
+  cout.replaceChildren(poserTete(document, projets, coutsLus));
+}
+
 function poserManager() {
   const projet = courant;
   // Sans box, rien n'est lu et rien ne s'écrit : l'onglet le dit déjà.
@@ -4918,7 +4941,13 @@ brigade.surFaits((recue) => {
 // manager, lu dans sa sortie : il remplace celui d'avant, au-dessus du texte. Celle de
 // l'onglet Grants, de même, avec l'état des grants.
 brigade.surContenu((recue, vu, desGrants) => {
-  if (recue.demande !== demandeOnglet || recue.projet !== courant?.nom) return;
+  if (recue.demande !== demandeOnglet) return;
+  // Cost lit `station` sur la box de chaque projet : chacune entre dans ses chiffres de tête.
+  if (ongletDemande === COUT) {
+    coutsLus.set(recue.projet, recue);
+    poserCout();
+  }
+  if (recue.projet !== courant?.nom) return;
   rendre(recue, luOnglet, lectureOnglet, true);
   managerVu = vu;
   poserManager();
