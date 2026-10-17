@@ -61,6 +61,47 @@ export function direDemande({ depuis, sansIssue }: Demande, retenue: Refus | nul
   return `PASSE DE FERMETURE SANS ISSUE : demandée le ${depuis}, elle attend depuis plus de ${SANS_ISSUE_MS / 3_600_000} h — ${direRefus(retenue)} ; le rail ne se vide pas seul — à trancher : relever le seuil (\`${geste("station closer-cooks <N>")}\`), éteindre le manager le temps que le rail se vide (\`${geste(`manager off`)}\`), ou ${renoncer}`;
 }
 
+// Le refus et la demande, en anglais : ce que dit le bloc `awaiting` de
+// `status`. La commande de la passe et l'observation gardent les mots français
+// ci-dessus.
+const pluralEn = (combien: number, mot: string) => `${combien.toLocaleString("en-US")} ${mot}${combien > 1 ? "s" : ""}`;
+
+export function direRefusEn({ reason, observed, limit, detail }: Refus): string {
+  switch (reason) {
+    case "unconfigured":
+      return `the closer is not set on this project — \`${geste("station closer-modele <model>")}\` and \`${geste("station closer-effort <effort>")}\` set it, without a restart`;
+    case "busy":
+      return "a closing pass is already tidying up, or is already requested — only one at a time";
+    case "stopped":
+      return `the kitchen has been stopped by the chef since ${detail} — “resume” first`;
+    case "breaker":
+      return `the breaker has been open since ${detail} — “resume” first`;
+    case "deploying":
+      return "a deployment is requested: no cook leaves, nor does the pass, until it is launched or withdrawn — and the restart it causes withdraws the request";
+    case "cooks": {
+      const rail = Number(detail);
+      return `start condition not met: ${pluralEn(observed ?? 0, "cook")} in flight for a threshold of ${limit} — the pass leaves when there are fewer than the threshold, or when the rail is empty (it carries ${pluralEn(rail, "unserved ticket")})`;
+    }
+    case "zoneless":
+      return `start condition not met: the cook in flight on ${detail} declares no zone — the pass cannot know what it holds, it waits for it to finish`;
+    case "depot":
+      return `the integration branch cannot be read — ${detail}`;
+    case "nothing":
+      return `nothing to tidy up — ${detail}`;
+    case "restarted":
+      return "the runtime restarted before taking it — to request again";
+  }
+}
+
+export function direDemandeEn({ depuis, sansIssue }: Demande, retenue: Refus | null): string {
+  const demandee = `closing pass requested on ${depuis}`;
+  if (retenue === null) return `${demandee}: its start condition is met, the runtime starts it at its next wake-up, within the second`;
+  if (!faitAttendre(retenue)) return `${demandee}: ${direRefusEn(retenue)} — the runtime refuses it at its next wake-up, nothing leaves`;
+  const renoncer = `withdraw it: \`${ANNULER}\``;
+  if (sansIssue === null) return `${demandee}, it waits — ${direRefusEn(retenue)}; it leaves on its own, once, as soon as nothing holds it back, without anyone restarting it — to ${renoncer}`;
+  return `CLOSING PASS WITH NO WAY OUT: requested on ${depuis}, it has waited for more than ${SANS_ISSUE_MS / 3_600_000} h — ${direRefusEn(retenue)}; the rail does not empty on its own — to decide: raise the threshold (\`${geste("station closer-cooks <N>")}\`), turn the manager off while the rail empties (\`${geste(`manager off`)}\`), or ${renoncer}`;
+}
+
 // Les plafonds d'une passe, tels que sa commande les annonce.
 export function direReglages({ calibration, cooksBelow, tokens, removedLines }: ReglagesDeFermeture): string {
   return [

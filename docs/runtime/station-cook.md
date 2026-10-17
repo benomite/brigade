@@ -178,18 +178,18 @@ suivre : le runtime ne relit pas le fichier d'état, n'écrit pas `session.obser
 ci-dessous ne sort pas — c'est l'échéance du jeton qui s'annonce. Sans jeton, rien ne change.
 
 **L'alerte.** Quand l'échéance estimée entre dans le préavis, la file du chef la porte, dans
-`attend`, avec le geste :
+`awaiting`, avec le geste :
 
 ```
-attend     …
-  session  session Max près de son échéance — <heure> — à faire avant : claude /login sous le compte du service, puis run guardrails -- resume
-fin attend
+awaiting   …
+  session  for <durée>  Max session close to its expiry — <heure> — to do before then: claude /login under the service account, then run guardrails -- resume
+end awaiting
 ```
 
 ou, si le renouvellement a échoué et que rien ne l'a rattrapé :
 
 ```
-  session  renouvellement de la session Max en échec (<nature> : <détail>) — <heure> — à rétablir : claude /login …, puis run guardrails -- resume
+  session  for <durée>  Max session renewal failing (<nature>: <détail>) — <heure> — to restore: claude /login …, then run guardrails -- resume
 ```
 
 - **L'échéance est estimée**, jamais lue : la vie d'un jeton (`BRIGADE_SESSION_LIFETIME`, défaut
@@ -261,13 +261,13 @@ rien.
 une ligne, une seule, qui se compte depuis l'ouverture du préavis :
 
 ```
-  jeton  depuis 5 j  jeton de la connexion Max près de son échéance — il échoit le <date>, 365 jours après sa création (<date>) — à faire avant : refaire le jeton — `claude setup-token` sous le compte du service : supprimer <fichier>, puis relancer l'étape de connexion Max (docs/installation-station.md, « 5. Le jeton de la connexion Max ») ; la station relit le jeton neuf et sa date
+  token  for 5 d  Max connection token close to its expiry — it expires on <date>, 365 days after its creation (<date>) — to do before then: remake the token — `claude setup-token` under the service account: delete <fichier>, then run the Max connection step again (docs/installation-station.md, step 5); the station reads the new token and its date
 ```
 
-Passé l'échéance, elle dit `jeton de la connexion Max ÉCHU depuis le <date>`, et se compte depuis
+Passé l'échéance, elle dit `Max connection token EXPIRED since <date>`, et se compte depuis
 l'échéance. Si la date ne se lit pas — absente (un jeton rangé à la main), illisible, ou qui n'est
-pas une date —, elle le dit (`date de création du jeton … absente`, `illisible`, `qui ne se lit
-pas comme une date`) : l'échéance est alors inconnue, le geste est le même. Rien de ce que le
+pas une date —, elle le dit (`Max connection token creation date missing`, `unreadable`, `not readable
+as a date`) : l'échéance est alors inconnue, le geste est le même. Rien de ce que le
 fichier porte d'autre qu'une date n'est gardé, et ni la ligne ni le journal ne citent le jeton :
 ils nomment son fichier. Elle sort quand le jeton refait porte une date neuve. Sans
 `BRIGADE_CLAUDE_TOKEN_FILE`, rien ne s'annonce. L'annonce n'arrête rien.

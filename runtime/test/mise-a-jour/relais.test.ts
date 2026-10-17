@@ -1,12 +1,12 @@
 // Ce que la mise à jour a donné, relayé au journal de chaque projet de la
-// station, et dit par la file : « passée en version X à 14 h 02 », ou le
+// station, et dit par la file : « switched to version X at 14:02 », ou le
 // retour en arrière d'une version qui n'a pas démarré.
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test } from "node:test";
 import { decrireAttentes, passageEnService } from "../../src/attend.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { heureEnClair } from "../../src/mise-a-jour/dire.ts";
+import { heureEnClairEn } from "../../src/mise-a-jour/dire.ts";
 import { noterIssue } from "../../src/mise-a-jour/etat.ts";
 import { brancherMiseAJour, miseAJourDuJour, relayer } from "../../src/mise-a-jour/relais.ts";
 import { demarrer } from "../../src/runtime.ts";
@@ -46,18 +46,18 @@ test("la file dit la dernière mise à jour, le jour même : le passage, puis le
   noterIssue(dossier, PASSEE);
   relayer(runtime, dossier, MAINTENANT);
   const passage = passageEnService(journal.base, MAINTENANT);
-  assert.deepEqual(passage, { le: PASSEE.le, ligne: `passée en version 1.1.0 à ${heureEnClair(PASSEE.le)}` });
-  assert.deepEqual(decrireAttentes([], () => "1 min", null, passage), ["attend     rien n'attend le chef", `  passée en version 1.1.0 à ${heureEnClair(PASSEE.le)}`, "fin attend", ""]);
+  assert.deepEqual(passage, { le: PASSEE.le, ligne: `switched to version 1.1.0 at ${heureEnClairEn(PASSEE.le)}` });
+  assert.deepEqual(decrireAttentes([], () => "1 min", null, passage), ["awaiting   nothing awaits the chef", `  switched to version 1.1.0 at ${heureEnClairEn(PASSEE.le)}`, "end awaiting", ""]);
 
   noterIssue(dossier, REVENUE);
   relayer(runtime, dossier, MAINTENANT);
   assert.equal(
     passageEnService(journal.base, MAINTENANT)?.ligne,
-    `mise à jour vers la version 1.2.0 ratée à ${heureEnClair(REVENUE.le)} : la station s'est arrêtée en échec en 1.2.0 (systemd : failed) — revenue en version 1.1.0 ; 1.2.0 n'est pas réessayée, la suivante le sera`,
+    `update to version 1.2.0 failed at ${heureEnClairEn(REVENUE.le)}: la station s'est arrêtée en échec en 1.2.0 (systemd : failed) — back on version 1.1.0; 1.2.0 is not retried, the next one will be`,
   );
   noterIssue(dossier, { ...REVENUE, le: "2026-10-15T14:25:00.000Z", retour: "son installation a échoué : apt-get a rendu 100" });
   relayer(runtime, dossier, MAINTENANT);
-  assert.match(miseAJourDuJour(journal.base, MAINTENANT)?.ligne ?? "", /— le retour en version 1\.1\.0 a échoué aussi : son installation a échoué : apt-get a rendu 100$/);
+  assert.match(miseAJourDuJour(journal.base, MAINTENANT)?.ligne ?? "", /— going back to version 1\.1\.0 failed too: son installation a échoué : apt-get a rendu 100$/);
 
   // Le lendemain, la file ne le dit plus.
   assert.equal(miseAJourDuJour(journal.base, new Date("2026-10-16T14:26:00.000Z")), null);

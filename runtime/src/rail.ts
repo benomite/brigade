@@ -120,6 +120,18 @@ export function nomAbandon(motif: string): string {
   return ABANDONS[motif] ?? motif;
 }
 
+// Les mêmes, en anglais : ce que dit le bloc `awaiting` de `status`.
+const ABANDONS_EN: Record<string, string> = {
+  closed: "issue closed without being served",
+  unfired: "label `fire` removed",
+  gone: "issue gone",
+  "hors-cuisine": "label `hors-cuisine` set: this ticket is not served on this box",
+};
+
+export function nomAbandonEn(motif: string): string {
+  return ABANDONS_EN[motif] ?? motif;
+}
+
 const numeros = (tickets: { ticket: number }[]) => tickets.map(({ ticket }) => `#${ticket}`).join(", ");
 
 // Pourquoi un ticket en attente ne part pas, ou null si rien ne le retient.

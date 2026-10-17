@@ -120,14 +120,14 @@ describe("les tickets que le bloc nomme, pour le rail", () => {
 
     assert.deepEqual(lus.map(({ ticket }) => ticket), DE_TICKET.map(({ ticket }) => ticket));
     for (const { ticket, ligne } of lus) assert.ok(bloc.split("\n").includes(`  #${ticket}  ${ligne}`), `#${ticket}`);
-    assert.equal(lus[0]?.ligne, `depuis 2 j  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${PR} — ou accorder le grant, pour les suivantes : \`brigade <projet> grant enable merge\`  Le journal en ajout seul`);
+    assert.equal(lus[0]?.ligne, `for 2 j  green delivery, not merged for lack of a \`merge\` grant — merge by hand: ${PR} — or enable the grant, for the next ones: \`brigade <projet> grant enable merge\`  Le journal en ajout seul`);
   });
 
   test("une ligne sans numéro en tête n'est à aucun ticket : la station sans connexion Max, le bilan faute de grant, la tête du bloc", () => {
     const bloc = ecrit([DE_STATION], SANS_GRANT);
 
-    assert.match(bloc, /^ {2}claude {2}depuis 2 j {2}connexion Max /m);
-    assert.match(bloc, /^ {2}sans grant, 3 livraisons vertes arrêtées/m);
+    assert.match(bloc, /^ {2}claude {2}for 2 j {2}Max connection /m);
+    assert.match(bloc, /^ {2}without a grant, 3 green deliveries stopped/m);
     assert.deepEqual(ticketsDe(bloc), []);
     assert.deepEqual(ticketsDe(ecrit([])), []);
     assert.deepEqual(ticketsDe(VIDE), []);

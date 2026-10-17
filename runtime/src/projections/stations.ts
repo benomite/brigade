@@ -116,6 +116,10 @@ export const GESTE_DE_CONNEXION = `\`claude /login\` sous le compte du service, 
 // reprend seule au premier passage réussi du renouvellement (`session.restored`),
 // dans la minute. « resume » reste pour les autres arrêts.
 export const GESTE_DE_CONNEXION_TOMBEE = "`claude /login` sous le compte du service — la cuisine reprend seule dans la minute, sans « resume »";
+// Les mêmes, en anglais : ce que dit le bloc `awaiting` de `status`.
+export const direDeconnexionEn = (raison: string | null) => (direDeconnexion(raison) === "absente" ? "missing" : "expired");
+export const GESTE_DE_CONNEXION_EN = `\`claude /login\` under the service account, then \`${geste("guardrails resume")}\``;
+export const GESTE_DE_CONNEXION_TOMBEE_EN = "`claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”";
 // La connexion Max tombée, dite d'un seul endroit : `run station` et
 // `run installation` la citent telle quelle — deux rendus d'un même fait, ce
 // serait deux endroits où il peut devenir faux.

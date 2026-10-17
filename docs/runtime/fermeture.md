@@ -115,7 +115,7 @@ brigade : passe de fermeture demandée — elle attend : condition d'exécution 
   la transaction qui écrit `closing.started`. Rien ne lui est réservé : entre deux cooks, une
   station peut prendre le ticket suivant avant elle, et elle attend le creux d'après. Le seuil reste
   ton réglage (`station -- closer-cooks <N>`).
-- **Elle se lit dans la file** — le bloc `attend` de `status`, sous le nom `fermeture` : depuis
+- **Elle se lit dans la file** — le bloc `awaiting` de `status`, sous le nom `closing` : depuis
   quand, et ce qui la retient à la lecture (combien de cooks en vol, pour quel seuil). Et sur la
   ligne `passe` de `brigade <projet> closing`. Elle en sort en partant, refusée ou retirée.
 - **Une seule à la fois** : redemandée pendant qu'elle attend, rien n'est réécrit — la commande dit

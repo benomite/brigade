@@ -5,12 +5,16 @@
 // constaté, un ticket sorti du rail ou rendu, une dépendance revenue, une issue
 // rejugée ou fermée. Une PR fermée sans merge est une décision à moitié prise :
 // son entrée change, et dit le geste qui reste.
+// Le bloc est en anglais (docs/glossary.md, §2 et §4) : `awaiting` … `end
+// awaiting`, et chacune de ses lignes. Une phrase empruntée à un autre module y
+// est prise sous sa forme anglaise (`…En`), celui-ci gardant la française pour
+// les sorties que rien n'a encore traduites.
 // La station mise à jour seule n'attend rien du chef, mais le bloc le dit le
-// jour même, sur une ligne à lui : « passée en version X à 14 h 02 », et de
+// jour même, sur une ligne à lui : « switched to version X at 14:02 », et de
 // même son retour en arrière quand la version n'a pas démarré.
 // La passe de fermeture que le chef a demandée y est tant qu'elle attend sa
 // condition d'exécution : depuis quand, ce qui la retient — et, passé deux
-// heures, qu'elle est sans issue. Elle en sort partie, refusée ou retirée.
+// heuresEn, qu'elle est sans issue. Elle en sort partie, refusée ou retirée.
 // La session Max y est annoncée avant de tomber : quand son échéance estimée
 // approche, ou dès que son renouvellement échoue — elle en sort au
 // renouvellement réussi suivant, ou à la reconnexion du chef.
@@ -31,11 +35,11 @@
 // s'il n'en avait pas, une à lui : ce qu'il attendait, et les gestes.
 import type { Base } from "./base.ts";
 import { geste } from "./geste.ts";
-import { absentesDuMotif, direManque, direStationAbsente, GESTE_DE_PRESENCE, gesteDeCapacite, manqueDuMotif, type Manque } from "./capacites.ts";
+import { absentesDuMotif, direManque, direManqueEn, direStationAbsente, direStationAbsenteEn, GESTE_DE_PRESENCE, GESTE_DE_PRESENCE_EN, gesteDeCapacite, gesteDeCapaciteEn, manqueDuMotif, type Manque } from "./capacites.ts";
 import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT } from "./evenements/pass.ts";
 import { REJOUER_LA_BASE } from "./dire-base.ts";
 import { demandeEnAttente, refus, reglagesEnVigueur, type Demande as DemandeDeFermeture, type Refus } from "./fermeture/condition.ts";
-import { direDemande as direDemandeDeFermeture } from "./fermeture/dire.ts";
+import { direDemande as direDemandeDeFermeture, direDemandeEn as direDemandeDeFermetureEn } from "./fermeture/dire.ts";
 import type { Ecart } from "./evenements/manager.ts";
 import { epiquesEnAttente } from "./projections/decoupages.ts";
 import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
@@ -44,9 +48,9 @@ import { etatDeLaBase, gatesDuRouge, lirePass, reparationDeLaBase, type EchecDeR
 import type { TicketRail } from "./projections/rail.ts";
 import { alerteDeSession, type AlerteDeSession } from "./projections/renouvellement.ts";
 import { alerteDuJeton, type AlerteDuJeton } from "./projections/jeton.ts";
-import { direDeconnexion, etatStation, GESTE_DE_CONNEXION, GESTE_DE_CONNEXION_TOMBEE, miseDeCoteBloquee, setupBloque, stationsDeconnectees, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
+import { direDeconnexion, direDeconnexionEn, etatStation, GESTE_DE_CONNEXION, GESTE_DE_CONNEXION_EN, GESTE_DE_CONNEXION_TOMBEE, GESTE_DE_CONNEXION_TOMBEE_EN, miseDeCoteBloquee, setupBloque, stationsDeconnectees, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
 import { echecsDuDisjoncteur, etatDesGardeFous, type EchecDuDisjoncteur } from "./projections/garde-fous.ts";
-import { nomAbandon, retenue } from "./rail.ts";
+import { nomAbandon, nomAbandonEn, retenue } from "./rail.ts";
 import { echecsDesGates } from "./reparation.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
 import { SCRIPT_SETUP } from "./gates.ts";
@@ -109,7 +113,7 @@ type AttenteDeTicket = { ticket: number; title: string | null; since: string } &
 );
 
 // La dernière version passée en service par la mise à jour de la station, et
-// quand, dite en une ligne (« passée en version X à 14 h 02 », ou son retour en
+// quand, dite en une ligne (« switched to version X at 14:02 », ou son retour en
 // arrière) — tant qu'elle date de moins d'un jour à `maintenant`. Nulle sinon.
 export type Passage = { le: string; ligne: string };
 export function passageEnService(base: Base, maintenant = new Date()): Passage | null {
@@ -155,23 +159,23 @@ export const ACCORDER_LE_GRANT = geste("grant enable merge");
 
 // Les 86 que la station pose sans heure de retour, et ce qu'elle attend du chef
 // pour chacun. Les deux premiers reviennent en attente seuls, une fois corrigés.
-const GESTES_DE_STATION = {
-  "no-calibration": "sans calibrage — à calibrer : poser `model:` et `effort:` sur l'issue, il repart seul",
-  "unreadable-card": "fiche illisible — à corriger : la fiche de l'issue, il repart seul",
-  refused: "refusé trois fois par le modèle — à trancher : reformuler ou recalibrer, puis retirer et reposer `fire` ; ou retirer `fire`",
+const GESTES_DE_STATION_EN = {
+  "no-calibration": "no calibration — to calibrate: set `model:` and `effort:` on the issue, it starts again on its own",
+  "unreadable-card": "unreadable card — to fix: the issue's card, it starts again on its own",
+  refused: "refused three times by the model — to decide: rephrase or recalibrate, then remove and set `fire` again; or remove `fire`",
 } as const;
-type MotifDeStation = keyof typeof GESTES_DE_STATION;
-const deStation = (motif: string | null): motif is MotifDeStation => motif !== null && Object.hasOwn(GESTES_DE_STATION, motif);
+type MotifDeStation = keyof typeof GESTES_DE_STATION_EN;
+const deStation = (motif: string | null): motif is MotifDeStation => motif !== null && Object.hasOwn(GESTES_DE_STATION_EN, motif);
 
 // Les écarts qui attendent le chef, et ce qu'il a à faire de chacun. Les autres
 // — la roadmap, l'issue d'un inconnu — n'attendent personne.
-const GESTES_D_ECART = {
-  question: "écartée par le manager, elle porte `question` — à trancher : y répondre puis retirer le label, il la juge ; ou fermer l'issue",
-  decision: "écartée par le manager, elle porte `decision` — à trancher : décider puis retirer le label, il la juge ; ou fermer l'issue",
-  "blocked-on-human": "retenue, elle porte `blocked-on-human` — à lever : retirer le label, le manager la juge ; ou fermer l'issue",
+const GESTES_D_ECART_EN = {
+  question: "set aside by the manager, it carries `question` — to decide: answer it then remove the label, the manager judges it; or close the issue",
+  decision: "set aside by the manager, it carries `decision` — to decide: decide then remove the label, the manager judges it; or close the issue",
+  "blocked-on-human": "held back, it carries `blocked-on-human` — to lift: remove the label, the manager judges it; or close the issue",
 } as const satisfies Partial<Record<Ecart, string>>;
-type EcartQuiAttend = keyof typeof GESTES_D_ECART;
-const ecartQuiAttend = (motif: string): motif is EcartQuiAttend => Object.hasOwn(GESTES_D_ECART, motif);
+type EcartQuiAttend = keyof typeof GESTES_D_ECART_EN;
+const ecartQuiAttend = (motif: string): motif is EcartQuiAttend => Object.hasOwn(GESTES_D_ECART_EN, motif);
 
 // Ce que le manager attend du chef : les issues qu'il a écartées parce
 // qu'elles sont à lui, ses jugements et ses découpages illisibles, les
@@ -313,6 +317,286 @@ function echecsDuRouge(base: Base, aLOuverture: string[]): string[] {
 }
 
 // Ce qu'est devenue la réparation, sur la ligne de la base rouge.
+const ECHECS_DE_REPARATION_EN: Record<EchecDeReparation, string> = {
+  partie: "left the rail without being served",
+  remontee: "was escalated without being served",
+  "rouge-apres-merge": "merged, did not bring it back to green",
+};
+
+// Comment relancer une réparation qui n'a pas été servie : rendue au rail, elle
+// travaille de nouveau, et la base n'attend plus. Mergée, elle ne se relance pas.
+const RELANCES_EN: Record<EchecDeReparation, string | null> = {
+  partie: "set `fire` on it again, its issue reopened if needed",
+  remontee: "remove and set `fire` again",
+  "rouge-apres-merge": null,
+};
+
+// La base rouge dont la réparation a échoué : ce qui échoue, ce qu'il est
+// advenu de sa réparation, puis le geste. Dans tous les cas, la corriger à la
+// main fait repartir la cuisine.
+function direBaseRougeEn(attente: Extract<Attente, { quoi: "base" }>): string {
+  const relance = RELANCES_EN[attente.echec];
+  const relancer = relance === null ? "" : `, or restart #${attente.reparation}: ${relance}`;
+  return `BASE RED on ${attente.sha.slice(0, 7)}, failing: ${attente.echecs.join("; ")} — its repair #${attente.reparation} ${ECHECS_DE_REPARATION_EN[attente.echec]} — to repair: fix the base by hand${relancer}; the pass replays it as soon as it moves, and the kitchen starts again on its own once green; a red that is not down to the code is replayed: \`${REJOUER_LA_BASE}\``;
+}
+
+// Un hôte refusé, tel qu'il se déclare : la porte le note avec son port, que
+// la déclaration ne porte que hors de 443 et 80.
+const aDeclarer = (hote: string) => hote.replace(/:(?:443|80)$/, "");
+
+// Une cause de mise de côté répétée sur le projet : la cause en clair, puis le
+// geste. La reprise est seule : la branche d'intégration qui bouge, ou une
+// autre cause qui prend la place.
+function direMiseDeCoteBloqueeEn({ aside }: Extract<Attente, { quoi: "aside" }>): string {
+  const cause = CAUSES_DU_PROJET[aside.reason];
+  const vu = aside.ticket === null ? "" : ` — seen on #${aside.ticket}`;
+  return `tickets put aside: ${cause?.text ?? aside.reason} (${aside.reason}, twice identically${vu}) — only one is taken again at a time, to probe — to do: ${cause?.action ?? "fix the cause"}; the project starts again on its own as soon as a cook leaves, another cause shows up or the integration branch moves`;
+}
+
+// Le disjoncteur ouvert : ce qui l'a ouvert, une ligne par échec — ticket,
+// code de sortie, tours, tokens —, puis le geste qui le referme.
+function direDisjoncteurEn({ echecs, seuil }: Extract<Attente, { quoi: "disjoncteur" }>): string {
+  const lignes = echecs.map(({ ticket, code, turns, tokens }) => `${ticket === null ? "no ticket" : `#${ticket}`}: exit ${code ?? "no code"}, ${turns ?? "?"} turns, ${tokens ?? "?"} tokens`);
+  const cause = lignes.length === 0 ? "failures in a row" : `${lignes.length} failure${lignes.length > 1 ? "s" : ""} in a row${seuil === null ? "" : ` (threshold ${seuil})`} — ${lignes.join("; ")}`;
+  return `breaker open: ${cause} — no cook leaves any more — to do: \`${REFERMER_LE_DISJONCTEUR}\` after looking at what fails`;
+}
+
+// Le setup du projet bloqué : la cause, en clair, puis le geste. Un hôte que la
+// porte a refusé pendant le setup se déclare ; sans hôte refusé, c'est le
+// setup lui-même qui est à corriger — ce qu'il a dit est sur l'issue du ticket
+// qui l'a vu échouer. Dans les deux cas, c'est un merge qui débloque.
+function direSetupBloqueEn({ setup }: Extract<Attente, { quoi: "setup" }>): string {
+  const vu = setup.ticket === null ? "" : ` — what it said is on #${setup.ticket}`;
+  const reprise = `setups start again on their own as soon as the integration branch moves; until then, none is launched, for any ticket`;
+  if (setup.hosts.length > 0) {
+    const hotes = [...new Set(setup.hosts.map(aDeclarer))].map((hote) => `\`${hote}\``).join(", ");
+    return `setup impossible: the door refuses ${hotes} (\`${SCRIPT_SETUP}\`, ${setup.why}, twice identically) — to declare in the project's \`${DECLARATION_RESEAU}\`, one line per host, then merge into the integration branch; ${reprise}`;
+  }
+  return `setup impossible: \`${SCRIPT_SETUP}\` fails twice identically (${setup.why})${vu} — to fix: the project's setup, then merge into the integration branch; ${reprise}`;
+}
+
+// Ce qui attend, puis le geste du chef qui le débloque — ou qu'il n'y en a pas
+// de connu. En anglais : c'est la ligne du bloc `awaiting`.
+export function direAttenteEn(attente: Attente): string {
+  switch (attente.quoi) {
+    case "merge": {
+      const ou = attente.pr === null ? "" : `: ${attente.pr}`;
+      const accorder = ` — or enable the grant, for the next ones: \`${ACCORDER_LE_GRANT}\``;
+      switch (attente.reason) {
+        case SANS_GRANT:
+          return `green delivery, not merged${attente.expired === null ? " for lack of a `merge` grant" : `: the \`merge\` grant lapsed on its own on ${attente.expired}`} — merge by hand${ou}${accorder}`;
+        case A_RELIRE: {
+          const declarations = declarationsDeLaCause(attente.cause);
+          return `green delivery that touches ${declarations === null ? "its judges" : `what the project opens up (${declarations})`} — review and merge by hand${ou}`;
+        }
+        case MERGE_REFUSE:
+          return `green delivery, merge refused by GitHub (${attente.cause ?? "?"}) — merge by hand, once what it refuses is lifted${ou}`;
+        default:
+          return `green delivery, not merged (${attente.reason}) — no known action for this reason${ou} — \`${geste(`pass ${attente.ticket}`)}\``;
+      }
+    }
+    case "remontee": {
+      const voir = `\`${geste(`pass ${attente.ticket}`)}\``;
+      const sortir = attente.pr === null ? "remove `fire`, or close the issue" : `merge ${attente.pr} by hand, or remove \`fire\``;
+      const precise = attente.cause === null ? "" : `: ${attente.cause}`;
+      switch (attente.reason) {
+        case ENCORE_ROUGE:
+          return `${attente.cause === DU_MANAGER ? "escalated by the manager, red" : `escalated by the pass, red (${ENCORE_ROUGE}${precise})`} — to decide: ${sortir} — ${voir}`;
+        case NON_JUGEE:
+          return `escalated by the pass, which could not judge it (${NON_JUGEE}${precise}) — to lift: what its issue says, then remove and set \`fire\` again; or ${sortir} — ${voir}`;
+        default:
+          return `escalated (${attente.reason}) — no known action for this reason — ${voir}`;
+      }
+    }
+    case "fermee":
+      return `PR closed without merge${attente.pr === null ? "" : `: ${attente.pr}`} — to decide: remove \`fire\`, or close the issue — \`${geste(`pass ${attente.ticket}`)}\``;
+    case "86":
+      return GESTES_DE_STATION_EN[attente.reason];
+    case "capacite":
+      return `${direManqueEn(attente.manque)} — to provide: ${gesteDeCapaciteEn(attente.manque)}`;
+    case "absente":
+      return `${direStationAbsenteEn(attente.stations)} — ${GESTE_DE_PRESENCE_EN}`;
+    case "bloque": {
+      const numeros = attente.abandonnes.map(({ ticket }) => `#${ticket}`).join(", ");
+      const abandons = attente.abandonnes.map(({ ticket, reason }) => `#${ticket} dropped (${nomAbandonEn(reason)})`).join(", ");
+      return `BLOCKED: ${abandons} — to unblock: put ${numeros} back on the rail, or remove ${attente.abandonnes.length > 1 ? "them" : "it"} from the \`attend\` line of the card`;
+    }
+    case "ecartee":
+      return GESTES_D_ECART_EN[attente.reason];
+    case "illisible":
+      return attente.epique
+        ? "manager's split unreadable — to redo: edit the epic, the manager splits it again; or close the issue"
+        : "manager's judgment unreadable — to redo: edit the issue, the manager judges it again; or set `fire`, `model:` and `effort:` by hand; or close the issue";
+    case "question":
+      return "manager's question before splitting the epic — to answer: on the issue, the manager reads it again and splits it; or close the issue";
+    case "repris": {
+      const attendait = attente.attendait === null ? "" : ` (it was waiting for ${attente.attendait.who}: “${attente.attendait.what}”)`;
+      return `back from WAITING, picked up again by the chef${attendait} — to decide: \`${geste(`waiting arrived ${attente.ticket}`)}\` sends it back to the kitchen; \`${geste(`waiting set ${attente.ticket} --what <what it waits for> --from <who>`)}\` puts it back in WAITING; or remove \`fire\``;
+    }
+    case "fermeture":
+      return direDemandeDeFermetureEn(attente.demande, attente.retenue);
+    case "connexion":
+      return `Max connection ${direDeconnexionEn(attente.reason)}${attente.reason === null ? "" : ` (${attente.reason})`} — to restore: ${GESTE_DE_CONNEXION_TOMBEE_EN}`;
+    case "session":
+      return direSessionEn(attente);
+    case "jeton":
+      return direEcheanceDuJetonEn(attente);
+    case "base":
+      return direBaseRougeEn(attente);
+    case "setup":
+      return direSetupBloqueEn(attente);
+    case "aside":
+      return direMiseDeCoteBloqueeEn(attente);
+    case "disjoncteur":
+      return direDisjoncteurEn(attente);
+  }
+}
+
+// Ce que le chef a à trancher pour un ticket, pour un programme (`faits`) : `quoi`, la sorte de
+// l'attente — son mot ici, `merge`, `remontee`, `86`… ; `motif`, le sien quand la sorte en a un
+// (`no-grant`, `still-red`, `refused`, `question`…) ; `cause`, ce qui le précise sans changer le
+// geste ; `pr`, la PR de la livraison, nulle sans elle. Ce que la ligne du bloc dit en mots, ceci
+// le dit en champs : le lecteur choisit ses mots, et les gestes qu'il pose.
+export type Decision = { quoi: AttenteDeTicket["quoi"]; motif: string | null; cause: string | null; pr: string | null };
+
+export function decisionDe(attente: AttenteDeTicket): Decision {
+  const { quoi } = attente;
+  switch (attente.quoi) {
+    case "merge":
+    case "remontee":
+    case "fermee":
+      return { quoi, motif: attente.reason, cause: attente.cause, pr: attente.pr };
+    case "86":
+    case "ecartee":
+      return { quoi, motif: attente.reason, cause: null, pr: null };
+    case "illisible":
+      return { quoi, motif: attente.epique ? "epic" : "issue", cause: null, pr: null };
+    default:
+      return { quoi, motif: null, cause: null, pr: null };
+  }
+}
+
+const ORIGINES_EN = { renewed: "the last successful renewal", written: "the last write of the credentials", reconnected: "the last reconnection" } as const;
+const heuresEn = (secondes: number) => `${Math.round((secondes / 3600) * 10) / 10} h`;
+
+// La session Max qui va tomber : pourquoi on le sait, quand, et le geste. Le
+// renouvellement en échec dit sa nature et ce qu'il en a dit.
+function direSessionEn({ expires, origin, lifetimeS, failure }: Extract<Attente, { quoi: "session" }>): string {
+  const echeance = expires === null || origin === null ? "expiry unknown" : `estimated expiry on ${expires}, ${heuresEn(lifetimeS)} after ${ORIGINES_EN[origin.what]} (${origin.at})`;
+  return failure === null
+    ? `Max session close to its expiry — ${echeance} — to do before then: ${GESTE_DE_CONNEXION_EN}`
+    : `Max session renewal failing (${failure.nature}${failure.detail === null ? "" : `: ${failure.detail}`}) — ${echeance} — to restore: ${GESTE_DE_CONNEXION_EN}`;
+}
+
+// Le seul geste qui fait un jeton neuf : `claude setup-token` sous le compte
+// du service, par l'étape de connexion Max — qui ne refait pas un jeton
+// rangé, d'où le fichier à retirer d'abord. Le chemin, jamais la valeur.
+const gesteDuJetonEn = (fichier: string) =>
+  `remake the token — \`claude setup-token\` under the service account: delete ${fichier}, then run the Max connection step again (docs/installation-station.md, step 5); the station reads the new token and its date`;
+
+// Le jeton longue durée qui va échoir, est échu, ou dont la date ne se lit
+// pas : quand, ou pourquoi on ne le sait pas, puis le geste.
+function direEcheanceDuJetonEn({ state, token, file, created, expires, lifetimeDays, reason }: Extract<Attente, { quoi: "jeton" }>): string {
+  const vie = `${lifetimeDays} days after its creation (${created})`;
+  if (state === "soon") return `Max connection token close to its expiry — it expires on ${expires}, ${vie} — to do before then: ${gesteDuJetonEn(token)}`;
+  if (state === "expired") return `Max connection token EXPIRED since ${expires}, ${vie} — the \`claude\` processes launched no longer log in with it — to do: ${gesteDuJetonEn(token)}`;
+  const pourquoi = { absent: "missing", unreadable: "unreadable", invalid: "not readable as a date" }[reason ?? "invalid"];
+  return `Max connection token creation date ${pourquoi} (${file}) — its expiry is unknown: it lives ${lifetimeDays} days — to do: ${gesteDuJetonEn(token)}`;
+}
+
+// Ce que le chef a fait des livraisons arrêtées faute de grant : de quoi
+// décider de l'accorder. Rien tant qu'aucune ne l'a été. En français : c'est
+// ce que disent `grant` et `pass` — le bloc `awaiting` dit `direSansGrantEn`.
+export function direSansGrant({ arretees, mergees, parLaPass, refusees, ouvertes }: SansGrant): string | null {
+  if (arretees === 0) return null;
+  const s = (n: number) => (n > 1 ? "s" : "");
+  const lachees = arretees - mergees - parLaPass - refusees - ouvertes;
+  const suites = [
+    `${mergees} mergée${s(mergees)} à la main`,
+    `${refusees} fermée${s(refusees)} sans merge — ${refusees === 0 ? "aucun désaccord" : `${refusees} désaccord${s(refusees)}`} —`,
+    `${ouvertes} encore ouverte${s(ouvertes)}`,
+    ...(parLaPass === 0 ? [] : [`${parLaPass} mergée${s(parLaPass)} par la pass, le grant accordé depuis`]),
+    ...(lachees === 0 ? [] : [`${lachees} plus suivie${s(lachees)}`]),
+  ];
+  return `sans grant, ${arretees} livraison${s(arretees)} verte${s(arretees)} arrêtée${s(arretees)} : ${suites.join(", ")}`;
+}
+
+// Le même bilan, en anglais : la ligne `without a grant, …` du bloc `awaiting`.
+export function direSansGrantEn({ arretees, mergees, parLaPass, refusees, ouvertes }: SansGrant): string | null {
+  if (arretees === 0) return null;
+  const s = (n: number) => (n > 1 ? "s" : "");
+  const lachees = arretees - mergees - parLaPass - refusees - ouvertes;
+  const suites = [
+    `${mergees} merged by hand`,
+    `${refusees} closed without merge — ${refusees === 0 ? "no disagreement" : `${refusees} disagreement${s(refusees)}`} —`,
+    `${ouvertes} still open`,
+    ...(parLaPass === 0 ? [] : [`${parLaPass} merged by the pass, the grant enabled since`]),
+    ...(lachees === 0 ? [] : [`${lachees} no longer followed`]),
+  ];
+  return `without a grant, ${arretees} green deliver${arretees > 1 ? "ies" : "y"} stopped: ${suites.join(", ")}`;
+}
+
+// Les deux bords du bloc, seuls sur leur ligne : la ligne de tête, la seule de
+// la sortie à commencer par `awaiting`, et celle qui le ferme. Un lecteur le
+// présente à part sans rien lire de ce qu'il porte : tout ce qui est dedans est
+// en retrait.
+export const TETE_AWAITING = "awaiting";
+export const FIN_AWAITING = "end awaiting";
+
+// Ce qui nomme une entrée, en tête de sa ligne : son ticket, sa station,
+// `session`, `jeton`, `fermeture`, `base`, `setup`, `aside` ou `disjoncteur`.
+// C'est aussi le nom que les faits donnent à la décision.
+export const nommerAttente = (attente: Attente): string => (attente.ticket !== null ? `#${attente.ticket}` : attente.quoi === "connexion" ? attente.station : attente.quoi);
+
+// Le même nom, tel que le bloc l'écrit : en anglais (docs/glossary.md, §2).
+const NOMS_EN: Partial<Record<Attente["quoi"], string>> = { jeton: "token", fermeture: "closing", disjoncteur: "breaker" };
+const nommerEn = (attente: Attente): string => (attente.ticket === null ? (NOMS_EN[attente.quoi] ?? nommerAttente(attente)) : nommerAttente(attente));
+
+// Le bloc `awaiting` de l'état : le décompte, puis une ligne par décision, puis le bilan des arrêts
+// faute de grant, puis la version passée en service ce jour. Il est toujours
+// là, entre les mêmes bords : la file vide, il le dit — un silence ne se
+// distinguerait pas d'une lecture ratée —, et ne porte rien d'autre que la
+// version passée en service. Ni l'un ni l'autre ne compte pour une décision.
+// `depuis` : la durée écoulée depuis un instant, en anglais (`3 d`, `2 h 04`).
+export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string, sansGrant: SansGrant | null = null, passage: Passage | null = null): string[] {
+  const [premiere] = attentes;
+  const passee = passage === null ? [] : [`  ${passage.ligne}`];
+  if (premiere === undefined) return [`${TETE_AWAITING.padEnd(11)}nothing awaits the chef`, ...passee, FIN_AWAITING, ""];
+  const tete = attentes.length === 1 ? `1 decision awaits the chef — for ${depuis(premiere.since)}` : `${attentes.length} decisions await the chef — the oldest for ${depuis(premiere.since)}`;
+  return [
+    `${TETE_AWAITING.padEnd(11)}${tete}`,
+    ...attentes.map((attente) => `  ${nommerEn(attente)}  for ${depuis(attente.since)}  ${direAttenteEn(attente)}${attente.title === null ? "" : `  ${attente.title}`}`),
+    ...[sansGrant === null ? null : direSansGrantEn(sansGrant)].flatMap((bilan) => (bilan === null ? [] : [`  ${bilan}`])),
+    ...passee,
+    FIN_AWAITING,
+    "",
+  ];
+}
+
+// ——— Les mêmes phrases, en français ———
+//
+// Pour les sorties que rien n'a encore traduites : la ligne d'urgence de
+// `status`, l'alerte d'urgence, `amont` et le geste des faits. Elles tombent
+// avec le ticket qui traduit la dernière d'entre elles ; le bloc `awaiting` dit
+// `direAttenteEn`.
+
+// Les 86 que la station pose sans heure de retour, et ce qu'elle attend du chef
+// pour chacun. Les deux premiers reviennent en attente seuls, une fois corrigés.
+const GESTES_DE_STATION = {
+  "no-calibration": "sans calibrage — à calibrer : poser `model:` et `effort:` sur l'issue, il repart seul",
+  "unreadable-card": "fiche illisible — à corriger : la fiche de l'issue, il repart seul",
+  refused: "refusé trois fois par le modèle — à trancher : reformuler ou recalibrer, puis retirer et reposer `fire` ; ou retirer `fire`",
+} as const;
+
+// Les écarts qui attendent le chef, et ce qu'il a à faire de chacun. Les autres
+// — la roadmap, l'issue d'un inconnu — n'attendent personne.
+const GESTES_D_ECART = {
+  question: "écartée par le manager, elle porte `question` — à trancher : y répondre puis retirer le label, il la juge ; ou fermer l'issue",
+  decision: "écartée par le manager, elle porte `decision` — à trancher : décider puis retirer le label, il la juge ; ou fermer l'issue",
+  "blocked-on-human": "retenue, elle porte `blocked-on-human` — à lever : retirer le label, le manager la juge ; ou fermer l'issue",
+} as const satisfies Partial<Record<Ecart, string>>;
+
+// Ce qu'est devenue la réparation, sur la ligne de la base rouge.
 const ECHECS_DE_REPARATION: Record<EchecDeReparation, string> = {
   partie: "a quitté le rail sans être servie",
   remontee: "est remontée sans être servie",
@@ -336,9 +620,6 @@ function direBaseRouge(attente: Extract<Attente, { quoi: "base" }>): string {
   return `BASE ROUGE sur ${attente.sha.slice(0, 7)}, en échec : ${attente.echecs.join(" ; ")} — sa réparation #${attente.reparation} ${ECHECS_DE_REPARATION[attente.echec]} — à réparer : corriger la base à la main${relancer} ; la pass la rejoue dès qu'elle bouge, et la cuisine repart seule au vert ; un rouge qui ne tient pas au code se rejoue : \`${REJOUER_LA_BASE}\``;
 }
 
-// Un hôte refusé, tel qu'il se déclare : la porte le note avec son port, que
-// la déclaration ne porte que hors de 443 et 80.
-const aDeclarer = (hote: string) => hote.replace(/:(?:443|80)$/, "");
 
 // Une cause de mise de côté répétée sur le projet : la cause en clair, puis le
 // geste. La reprise est seule : la branche d'intégration qui bouge, ou une
@@ -448,30 +729,6 @@ export function direAttente(attente: Attente): string {
   }
 }
 
-// Ce que le chef a à trancher pour un ticket, pour un programme (`faits`) : `quoi`, la sorte de
-// l'attente — son mot ici, `merge`, `remontee`, `86`… ; `motif`, le sien quand la sorte en a un
-// (`no-grant`, `still-red`, `refused`, `question`…) ; `cause`, ce qui le précise sans changer le
-// geste ; `pr`, la PR de la livraison, nulle sans elle. Ce que la ligne du bloc dit en mots, ceci
-// le dit en champs : le lecteur choisit ses mots, et les gestes qu'il pose.
-export type Decision = { quoi: AttenteDeTicket["quoi"]; motif: string | null; cause: string | null; pr: string | null };
-
-export function decisionDe(attente: AttenteDeTicket): Decision {
-  const { quoi } = attente;
-  switch (attente.quoi) {
-    case "merge":
-    case "remontee":
-    case "fermee":
-      return { quoi, motif: attente.reason, cause: attente.cause, pr: attente.pr };
-    case "86":
-    case "ecartee":
-      return { quoi, motif: attente.reason, cause: null, pr: null };
-    case "illisible":
-      return { quoi, motif: attente.epique ? "epic" : "issue", cause: null, pr: null };
-    default:
-      return { quoi, motif: null, cause: null, pr: null };
-  }
-}
-
 const ORIGINES = { renewed: "le dernier renouvellement réussi", written: "la dernière écriture des identifiants", reconnected: "la dernière reconnexion" } as const;
 const heures = (secondes: number) => `${Math.round((secondes / 3600) * 10) / 10} h`.replace(".", ",");
 
@@ -498,49 +755,4 @@ function direEcheanceDuJeton({ state, token, file, created, expires, lifetimeDay
   if (state === "expired") return `jeton de la connexion Max ÉCHU depuis le ${expires}, ${vie} — les \`claude\` lancés ne se connectent plus avec lui — à faire : ${gesteDuJeton(token)}`;
   const pourquoi = { absent: "absente", unreadable: "illisible", invalid: "qui ne se lit pas comme une date" }[reason ?? "invalid"];
   return `date de création du jeton de la connexion Max ${pourquoi} (${file}) — son échéance est inconnue : il vit ${lifetimeDays} jours — à faire : ${gesteDuJeton(token)}`;
-}
-
-// Ce que le chef a fait des livraisons arrêtées faute de grant : de quoi
-// décider de l'accorder. Rien tant qu'aucune ne l'a été.
-export function direSansGrant({ arretees, mergees, parLaPass, refusees, ouvertes }: SansGrant): string | null {
-  if (arretees === 0) return null;
-  const s = (n: number) => (n > 1 ? "s" : "");
-  const lachees = arretees - mergees - parLaPass - refusees - ouvertes;
-  const suites = [
-    `${mergees} mergée${s(mergees)} à la main`,
-    `${refusees} fermée${s(refusees)} sans merge — ${refusees === 0 ? "aucun désaccord" : `${refusees} désaccord${s(refusees)}`} —`,
-    `${ouvertes} encore ouverte${s(ouvertes)}`,
-    ...(parLaPass === 0 ? [] : [`${parLaPass} mergée${s(parLaPass)} par la pass, le grant accordé depuis`]),
-    ...(lachees === 0 ? [] : [`${lachees} plus suivie${s(lachees)}`]),
-  ];
-  return `sans grant, ${arretees} livraison${s(arretees)} verte${s(arretees)} arrêtée${s(arretees)} : ${suites.join(", ")}`;
-}
-
-// La ligne qui ferme le bloc `attend`, seule sur sa ligne : avec la ligne de
-// tête, la seule à commencer par `attend`, elle en fait le bord. Un lecteur le
-// présente à part sans rien lire de ce qu'il porte : tout ce qui est dedans est en retrait.
-const FIN_ATTEND = "fin attend";
-
-// Ce qui nomme une entrée, en tête de sa ligne : son ticket, sa station,
-// `session`, `jeton`, `fermeture`, `base`, `setup`, `aside` ou `disjoncteur`.
-export const nommerAttente = (attente: Attente): string => (attente.ticket !== null ? `#${attente.ticket}` : attente.quoi === "connexion" ? attente.station : attente.quoi);
-
-// Le bloc `attend` de l'état : le décompte, puis une ligne par décision, puis le bilan des arrêts
-// faute de grant, puis la version passée en service ce jour. Il est toujours
-// là, entre les mêmes bords : la file vide, il le dit — un silence ne se
-// distinguerait pas d'une lecture ratée —, et ne porte rien d'autre que la
-// version passée en service. Ni l'un ni l'autre ne compte pour une décision.
-export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string, sansGrant: SansGrant | null = null, passage: Passage | null = null): string[] {
-  const [premiere] = attentes;
-  const passee = passage === null ? [] : [`  ${passage.ligne}`];
-  if (premiere === undefined) return [`${"attend".padEnd(11)}rien n'attend le chef`, ...passee, FIN_ATTEND, ""];
-  const tete = attentes.length === 1 ? `1 décision attend le chef depuis ${depuis(premiere.since)}` : `${attentes.length} décisions attendent le chef — la plus ancienne depuis ${depuis(premiere.since)}`;
-  return [
-    `${"attend".padEnd(11)}${tete}`,
-    ...attentes.map((attente) => `  ${nommerAttente(attente)}  depuis ${depuis(attente.since)}  ${direAttente(attente)}${attente.title === null ? "" : `  ${attente.title}`}`),
-    ...[sansGrant === null ? null : direSansGrant(sansGrant)].flatMap((bilan) => (bilan === null ? [] : [`  ${bilan}`])),
-    ...passee,
-    FIN_ATTEND,
-    "",
-  ];
 }

@@ -9,7 +9,7 @@ import type { Base } from "../base.ts";
 import type { Fait } from "../evenements.ts";
 import type { FaitMiseAJour } from "../evenements/mise-a-jour.ts";
 import type { Runtime } from "../runtime.ts";
-import { direIssue } from "./dire.ts";
+import { direIssueEn } from "./dire.ts";
 import { ISSUES, lireIssues, type Issue } from "./etat.ts";
 
 const AUTEUR = "runtime";
@@ -88,12 +88,12 @@ export function brancherMiseAJour<R extends Runtime>(runtime: R, dossier: string
   };
 }
 
-// La dernière mise à jour de la station, telle que la file la dit — tant
+// La dernière mise à jour de la station, telle que la file la dit, en anglais — tant
 // qu'elle date de moins d'un jour à `maintenant`. Nulle sinon.
 export function miseAJourDuJour(base: Base, maintenant = new Date()): { le: string; ligne: string } | null {
   const [derniere] = base.lire<{ type: FaitMiseAJour["type"]; payload: string }>(`SELECT type, payload FROM events WHERE type IN (${TYPES.map(() => "?").join(", ")}) ORDER BY seq DESC LIMIT 1`, ...TYPES);
   if (derniere === undefined) return null;
   const issue = enIssue({ type: derniere.type, payload: JSON.parse(derniere.payload) } as FaitMiseAJour);
   const age = maintenant.getTime() - Date.parse(issue.le);
-  return age >= 0 && age < DITE_MS ? { le: issue.le, ligne: direIssue(issue) } : null;
+  return age >= 0 && age < DITE_MS ? { le: issue.le, ligne: direIssueEn(issue) } : null;
 }

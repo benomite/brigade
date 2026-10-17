@@ -71,6 +71,16 @@ export function direStationAbsente(stations: readonly string[]): string {
 
 export const GESTE_DE_PRESENCE = "ce n'est pas une panne, et rien n'est à faire sur la box : le ticket repart seul dès que la station se manifeste (son poste allumé, son runner lancé)";
 
+// La même absence et le même geste, en anglais : ce que dit le bloc
+// `awaiting` de `status` (docs/glossary.md). Les sorties pas encore traduites
+// gardent les mots français ci-dessus.
+export function direStationAbsenteEn(stations: readonly string[]): string {
+  const noms = nommer([...stations], "and");
+  return stations.length > 1 ? `stations absent — ${noms} have not shown up lately` : `station absent — ${noms} has not shown up lately`;
+}
+
+export const GESTE_DE_PRESENCE_EN = "this is not a failure, and there is nothing to do on the box: the ticket starts again on its own as soon as the station shows up (its workstation on, its runner started)";
+
 const nommer = (capacites: string[], liaison: string) => {
   const noms = capacites.map((nom) => `\`${nom}\``);
   return noms.length <= 1 ? noms.join("") : `${noms.slice(0, -1).join(", ")} ${liaison} ${noms.at(-1)}`;
@@ -79,6 +89,11 @@ const nommer = (capacites: string[], liaison: string) => {
 // Ce qui manque, tel que le chef le lit.
 export function direManque({ capacites, ensemble }: Manque): string {
   return ensemble ? `aucune station ne fournit à la fois ${nommer(capacites, "et")}` : `aucune station ne fournit ${nommer(capacites, "ni")}`;
+}
+
+// Ce qui manque, en anglais, pour le bloc `awaiting`.
+export function direManqueEn({ capacites, ensemble }: Manque): string {
+  return ensemble ? `no station provides ${nommer(capacites, "and")} together` : `no station provides ${nommer(capacites, "or")}`;
 }
 
 // La clé de la fiche qui porte ce qu'un ticket demande.
@@ -90,4 +105,10 @@ export const CLE_DES_CAPACITES = "requiert";
 export function gesteDeCapacite({ capacites, ensemble }: Manque): string {
   const [la, elle] = capacites.length > 1 ? ["les", `${nommer(capacites, "et")}`] : ["la", nommer(capacites, "et")];
   return `déclarer une station qui ${la} fournit${ensemble ? " ensemble" : ""} par \`brigade <projet> station stations <machine>/<moteur>:<plafond de cooks>:${capacites.join("+")}\`, ou retirer ${elle} de la ligne \`${CLE_DES_CAPACITES}\` de sa fiche — il repart seul`;
+}
+
+// Le même geste, en anglais, pour le bloc `awaiting`.
+export function gesteDeCapaciteEn({ capacites, ensemble }: Manque): string {
+  const [la, elle] = capacites.length > 1 ? ["them", nommer(capacites, "and")] : ["it", nommer(capacites, "and")];
+  return `declare a station that provides ${la}${ensemble ? " together" : ""} with \`brigade <project> station stations <machine>/<engine>:<cook cap>:${capacites.join("+")}\`, or remove ${elle} from the \`${CLE_DES_CAPACITES}\` line of its card — it starts again on its own`;
 }

@@ -15,7 +15,7 @@ import { demarrer, type CauseReveil } from "../src/runtime.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
 const JOUR_MS = 24 * 3600 * 1000;
-const RIEN = ["attend     rien n'attend le chef"];
+const RIEN = ["awaiting   nothing awaits the chef"];
 // Assemblé à l'exécution : un jeton en clair dans un fichier du dépôt serait refusé.
 const VALEUR = ["sk-ant-oat01", "x".repeat(60)].join("-");
 
@@ -41,14 +41,14 @@ function cuisine(t: TestContext) {
   };
   const bloc = (maintenant = new Date()) => {
     const lignes = decrireEtat(lireEtat(runtime.journal, maintenant), maintenant);
-    return lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("attend")), lignes.indexOf("fin attend"));
+    return lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("awaiting")), lignes.indexOf("end awaiting"));
   };
   const observees = () => runtime.journal.tout().filter((e) => e.type === "token.observed");
   return { jeton, brancher, tick: () => tick("tick"), creeIlYA, bloc, observees, redemarrer, journal: () => runtime.journal };
 }
 
 const GESTE = (jeton: string) =>
-  `refaire le jeton — \`claude setup-token\` sous le compte du service : supprimer ${jeton}, puis relancer l'étape de connexion Max (docs/installation-station.md, « 5. Le jeton de la connexion Max ») ; la station relit le jeton neuf et sa date`;
+  `remake the token — \`claude setup-token\` under the service account: delete ${jeton}, then run the Max connection step again (docs/installation-station.md, step 5); the station reads the new token and its date`;
 
 test("la vie d'un jeton est d'un an, et l'échéance s'annonce des semaines avant", () => {
   assert.equal(VIE_DU_JETON_JOURS, 365);
@@ -65,10 +65,10 @@ test("créé il y a 340 jours, sur 365 : la file porte l'échéance du jeton, sa
   const lignes = bloc(maintenant);
   assert.equal(lignes.length, 2, lignes.join("\n"));
   // Annoncée depuis l'ouverture du préavis : 30 jours avant l'échéance, il y a 5 jours.
-  assert.equal(lignes[0], "attend     1 décision attend le chef depuis 5 j");
+  assert.equal(lignes[0], "awaiting   1 decision awaits the chef — for 5 d");
   const ligne = lignes[1] ?? "";
-  assert.match(ligne, /^ {2}jeton {2}depuis 5 j {2}/);
-  assert.ok(ligne.endsWith(`jeton de la connexion Max près de son échéance — il échoit le ${echeance}, 365 jours après sa création (${cree}) — à faire avant : ${GESTE(jeton)}`), ligne);
+  assert.match(ligne, /^ {2}token {2}for 5 d {2}/);
+  assert.ok(ligne.endsWith(`Max connection token close to its expiry — it expires on ${echeance}, 365 days after its creation (${cree}) — to do before then: ${GESTE(jeton)}`), ligne);
   // Le geste nomme le fichier, jamais ce qu'il porte : ni la file ni le journal.
   assert.ok(!ligne.includes(VALEUR));
   assert.ok(!JSON.stringify(journal().tout()).includes(VALEUR));
@@ -102,8 +102,8 @@ test("l'alerte n'est pas dupliquée : des passages successifs et un redémarrage
   // Plus tard, toujours une seule ligne, qui date de l'ouverture du préavis.
   const plusTard = new Date(maintenant.getTime() + 3 * JOUR_MS);
   const ensuite = bloc(plusTard);
-  assert.equal(ensuite.filter((ligne) => ligne.startsWith("  jeton")).length, 1);
-  assert.equal(ensuite[1]?.replace(/depuis [^ ]+( [^ ]+)?  /, ""), premiere[1]?.replace(/depuis [^ ]+( [^ ]+)?  /, ""));
+  assert.equal(ensuite.filter((ligne) => ligne.startsWith("  token")).length, 1);
+  assert.equal(ensuite[1]?.replace(/for [^ ]+( [^ ]+)?  /, ""), premiere[1]?.replace(/for [^ ]+( [^ ]+)?  /, ""));
 
   redemarrer();
   brancher();
@@ -125,39 +125,39 @@ test("échu : la file le dit, avec la date et le geste ; le runtime tourne", (t)
   const echeance = new Date(Date.parse(cree) + 365 * JOUR_MS).toISOString();
   const ligne = bloc(maintenant)[1] ?? "";
   assert.ok(
-    ligne.endsWith(`jeton de la connexion Max ÉCHU depuis le ${echeance}, 365 jours après sa création (${cree}) — les \`claude\` lancés ne se connectent plus avec lui — à faire : ${GESTE(jeton)}`),
+    ligne.endsWith(`Max connection token EXPIRED since ${echeance}, 365 days after its creation (${cree}) — the \`claude\` processes launched no longer log in with it — to do: ${GESTE(jeton)}`),
     ligne,
   );
   // Échu depuis l'échéance : c'est d'elle que la ligne se compte (35 jours).
-  assert.match(ligne, /depuis 35 j/);
+  assert.match(ligne, /for 35 d/);
 });
 
 test("date absente, illisible ou qui n'en est pas une : la file le dit clairement, sans planter le runtime, et ne garde rien de ce que le fichier porte", (t) => {
   const { jeton, brancher, tick, bloc, observees, journal } = cuisine(t);
   const cree = fichierDeCreation(jeton);
-  const dit = (pourquoi: string) => `date de création du jeton de la connexion Max ${pourquoi} (${cree}) — son échéance est inconnue : il vit 365 jours — à faire : ${GESTE(jeton)}`;
+  const dit = (pourquoi: string) => `Max connection token creation date ${pourquoi} (${cree}) — its expiry is unknown: it lives 365 days — to do: ${GESTE(jeton)}`;
   const ligne = () => bloc()[1] ?? "";
 
   // Rangé sans sa date.
   assert.doesNotThrow(() => brancher());
-  assert.ok(ligne().endsWith(dit("absente")), ligne());
+  assert.ok(ligne().endsWith(dit("missing")), ligne());
 
   // Une date qui n'en est pas une — ou le jeton lui-même, recopié par erreur.
   writeFileSync(cree, "l'an prochain\n");
   tick();
-  assert.ok(ligne().endsWith(dit("qui ne se lit pas comme une date")), ligne());
+  assert.ok(ligne().endsWith(dit("not readable as a date")), ligne());
   writeFileSync(cree, `${VALEUR}\n`);
   assert.doesNotThrow(() => tick());
-  assert.ok(ligne().endsWith(dit("qui ne se lit pas comme une date")), ligne());
+  assert.ok(ligne().endsWith(dit("not readable as a date")), ligne());
 
   // Un fichier qui ne s'ouvre pas.
   rmSync(cree);
   mkdirSync(cree);
   assert.doesNotThrow(() => tick());
-  assert.ok(ligne().endsWith(dit("illisible")), ligne());
+  assert.ok(ligne().endsWith(dit("unreadable")), ligne());
 
   assert.deepEqual(observees().map((e) => e.payload.state), ["absent", "invalid", "unreadable"]);
-  assert.equal(bloc().filter((l) => l.startsWith("  jeton")).length, 1);
+  assert.equal(bloc().filter((l) => l.startsWith("  token")).length, 1);
   assert.ok(!JSON.stringify(journal().tout()).includes(VALEUR));
   assert.ok(!bloc().join("\n").includes(VALEUR));
 });

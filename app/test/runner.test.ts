@@ -271,7 +271,7 @@ describe("le runner du poste, contre une box de test", { concurrency: 4 }, () =>
     assert.equal(raison(16), `station-absent: ${MAC}`);
     assert.equal(journal.duTicket(16).filter((e) => e.type === "ticket.taken" || e.type === "cook.launched").length, 0);
     const dit = status();
-    assert.ok(dit.some((ligne) => ligne.includes("#16") && ligne.includes("station absente — `mac/claude` ne s'est pas manifestée récemment")), dit.join("\n"));
+    assert.ok(dit.some((ligne) => ligne.includes("#16") && ligne.includes("station absent — `mac/claude` has not shown up lately")), dit.join("\n"));
     assert.ok(dit.some((ligne) => ligne.startsWith("  #16  86") && ligne.includes(`(station-absent: ${MAC})`)), dit.join("\n"));
     assert.deepEqual(lieu.appels(), []);
 
@@ -288,7 +288,7 @@ describe("le runner du poste, contre une box de test", { concurrency: 4 }, () =>
     poser(gh, 19, "- requiert : code");
     await jusqua(() => !lieu.presente() && servi(19) && etat(18) === "86");
     assert.equal(raison(18), `station-absent: ${MAC}`);
-    assert.ok(status().some((ligne) => ligne.includes("#18") && ligne.includes("station absente")), status().join("\n"));
+    assert.ok(status().some((ligne) => ligne.includes("#18") && ligne.includes("station absent")), status().join("\n"));
     assert.equal(lieu.appels().length, partis);
     assert.deepEqual(cooks().map((lance) => /ticket #(\d+)/.exec(lance.args[1] ?? "")?.[1]), ["14", "19"]);
 

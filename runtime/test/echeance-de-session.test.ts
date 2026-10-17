@@ -26,9 +26,10 @@ import { appeler, FAUX_BWRAP, JOUR_HORLOGE, repertoireTemporaire } from "./outil
 
 const STATION = "box/claude";
 const GESTE_TOMBEE = "`claude /login` sous le compte du service — la cuisine reprend seule dans la minute, sans « resume »";
+const GESTE_TOMBEE_EN = "`claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”";
 const ETAT = "/var/lib/brigade/.session/renouvellement";
-const GESTE = "`claude /login` sous le compte du service, puis `brigade <projet> guardrails resume`";
-const RIEN = ["attend     rien n'attend le chef"];
+const GESTE = "`claude /login` under the service account, then `brigade <projet> guardrails resume`";
+const RIEN = ["awaiting   nothing awaits the chef"];
 const a = (heure: string) => `${JOUR_HORLOGE}T${heure}.000Z`;
 
 // Ce que le runtime écrit du fichier d'état : par défaut, un renouvellement
@@ -59,7 +60,7 @@ function cuisine(t: TestContext) {
   };
   const bloc = (heure: string) => {
     const lignes = decrireEtat(lireEtat(journal, new Date(a(heure))), new Date(a(heure)));
-    return lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("attend")), lignes.indexOf("fin attend"));
+    return lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("awaiting")), lignes.indexOf("end awaiting"));
   };
   return { journal, noter, aLHeure, observer, bloc };
 }
@@ -70,9 +71,9 @@ test("sans renouvellement qui tourne : rien sous le seuil, l'échéance annoncé
 
   // Échéance estimée : 16 h ; le préavis de trois heures s'ouvre à 13 h.
   assert.deepEqual(bloc("12:59:59"), RIEN);
-  const annonce = `session Max près de son échéance — échéance estimée le ${a("16:00:00")}, 8 h après le dernier renouvellement réussi (${a("08:00:00")}) — à faire avant : ${GESTE}`;
-  assert.deepEqual(bloc("13:00:00"), ["attend     1 décision attend le chef depuis 0 s", `  session  depuis 0 s  ${annonce}`]);
-  assert.deepEqual(bloc("15:30:00"), ["attend     1 décision attend le chef depuis 2 h 30", `  session  depuis 2 h 30  ${annonce}`]);
+  const annonce = `Max session close to its expiry — estimated expiry on ${a("16:00:00")}, 8 h after the last successful renewal (${a("08:00:00")}) — to do before then: ${GESTE}`;
+  assert.deepEqual(bloc("13:00:00"), ["awaiting   1 decision awaits the chef — for 0 s", `  session  for 0 s  ${annonce}`]);
+  assert.deepEqual(bloc("15:30:00"), ["awaiting   1 decision awaits the chef — for 2 h 30", `  session  for 2 h 30  ${annonce}`]);
 
   // Le renouvellement a réussi : l'échéance repart de lui, la ligne sort.
   observer("15:55:00", { renewed: a("15:55:00"), written: a("15:55:00") });
@@ -88,13 +89,13 @@ test("un renouvellement en échec s'annonce aussitôt, avant le seuil, avec sa n
   const detail = "`claude` a réécrit ses identifiants et dit la session fermée : Anthropic a refusé le renouvellement — `claude /login` sous le compte du service";
   observer("10:05:00", { renewed: a("09:00:00"), written: a("09:00:00"), live: true, failure: { at: a("10:05:00"), nature: "session-refusee", detail } });
   assert.deepEqual(bloc("10:06:00"), [
-    "attend     1 décision attend le chef depuis 1 min",
-    `  session  depuis 1 min  renouvellement de la session Max en échec (session-refusee : ${detail}) — échéance estimée le ${a("17:00:00")}, 8 h après le dernier renouvellement réussi (${a("09:00:00")}) — à rétablir : ${GESTE}`,
+    "awaiting   1 decision awaits the chef — for 1 min",
+    `  session  for 1 min  Max session renewal failing (session-refusee: ${detail}) — estimated expiry on ${a("17:00:00")}, 8 h after the last successful renewal (${a("09:00:00")}) — to restore: ${GESTE}`,
   ]);
 
   // Un échec sans détail ni connexion connue se dit quand même.
   observer("10:07:00", { live: true, failure: { at: a("10:07:00"), nature: "identifiants-absents", detail: null } });
-  assert.match(bloc("10:08:00")[1] ?? "", /^ {2}session {2}depuis 1 min {2}renouvellement de la session Max en échec \(identifiants-absents\) — échéance inconnue — à rétablir : /);
+  assert.match(bloc("10:08:00")[1] ?? "", /^ {2}session {2}for 1 min {2}Max session renewal failing \(identifiants-absents\) — expiry unknown — to restore: /);
 
   // Le chef s'est reconnecté, le passage suivant a réussi : l'échec est derrière.
   observer("10:09:00", { renewed: a("09:00:00"), written: a("10:09:00"), live: true });
@@ -112,8 +113,8 @@ test("un renouvellement qui tourne et réussit n'éteint pas l'annonce : elle vi
   // Il tourne, le runtime qui l'a lu bat : passé le seuil, l'échéance s'annonce quand même — il peut échouer.
   aLHeure("14:00:00");
   noter({ type: "runtime.ticked", payload: { intervalMs: 60_000 } });
-  const annonce = `session Max près de son échéance — échéance estimée le ${a("16:00:00")}, 8 h après le dernier renouvellement réussi (${a("08:00:00")}) — à faire avant : ${GESTE}`;
-  assert.deepEqual(bloc("14:01:00"), ["attend     1 décision attend le chef depuis 1 h 01", `  session  depuis 1 h 01  ${annonce}`]);
+  const annonce = `Max session close to its expiry — estimated expiry on ${a("16:00:00")}, 8 h after the last successful renewal (${a("08:00:00")}) — to do before then: ${GESTE}`;
+  assert.deepEqual(bloc("14:01:00"), ["awaiting   1 decision awaits the chef — for 1 h 01", `  session  for 1 h 01  ${annonce}`]);
 
   // Il a renouvelé : l'échéance repart de lui, la ligne sort d'elle-même.
   observer("15:56:00", { renewed: a("15:56:00"), written: a("15:56:00"), live: true });
@@ -128,7 +129,7 @@ test("une session déjà tombée se dit comme avant — depuis quand, et le gest
   aLHeure("08:05:00");
   noter({ type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run: null } }, `station:${STATION}`);
 
-  assert.deepEqual(bloc("08:25:00"), ["attend     1 décision attend le chef depuis 20 min", `  ${STATION}  depuis 20 min  connexion Max expirée (authentication_failed) — à rétablir : ${GESTE_TOMBEE}`]);
+  assert.deepEqual(bloc("08:25:00"), ["awaiting   1 decision awaits the chef — for 20 min", `  ${STATION}  for 20 min  Max connection expired (authentication_failed) — to restore: ${GESTE_TOMBEE_EN}`]);
   const station = decrireEtat(lireEtat(journal, new Date(a("08:25:00"))), new Date(a("08:25:00"))).filter((ligne) => ligne.startsWith("connexion"));
   assert.deepEqual(station, [`connexion  Max EXPIRÉE depuis 20 min sur ${STATION} (authentication_failed) — plus aucun ticket n'est pris : ${GESTE_TOMBEE}`]);
 
@@ -136,8 +137,8 @@ test("une session déjà tombée se dit comme avant — depuis quand, et le gest
   noter({ type: "kitchen.resumed", payload: {} }, "chef");
   assert.deepEqual(bloc("13:29:59"), RIEN);
   assert.deepEqual(bloc("13:30:00"), [
-    "attend     1 décision attend le chef depuis 0 s",
-    `  session  depuis 0 s  session Max près de son échéance — échéance estimée le ${a("16:30:00")}, 8 h après la dernière reconnexion (${a("08:30:00")}) — à faire avant : ${GESTE}`,
+    "awaiting   1 decision awaits the chef — for 0 s",
+    `  session  for 0 s  Max session close to its expiry — estimated expiry on ${a("16:30:00")}, 8 h after the last reconnection (${a("08:30:00")}) — to do before then: ${GESTE}`,
   ]);
 });
 

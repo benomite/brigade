@@ -83,9 +83,10 @@ function bloque(faits: Faits, status: string | undefined): string[] {
   }
 }
 
-// Depuis quand la plus ancienne décision attend le chef : la tête du bloc `attend` (runtime/src/attend.ts, `decrireAttentes`).
+// Depuis quand la plus ancienne décision attend le chef : la tête du bloc `attend` (runtime/src/attend.ts, `decrireAttentes`),
+// en français ou en anglais (`awaiting   2 decisions await the chef — the oldest for 3 d`, #927).
 const depuis = (attend: string | undefined): string | undefined => {
-  const [, duree] = /^attend +\d+ décisions? attend(?:ent)? le chef(?: — la plus ancienne)? depuis (.+)$/m.exec(attend ?? "") ?? [];
+  const [, duree] = /^(?:attend +\d+ décisions? attend(?:ent)? le chef(?: — la plus ancienne)? depuis|awaiting +\d+ decisions? awaits? the chef — (?:the oldest )?for) (.+)$/m.exec(attend ?? "") ?? [];
   return duree === undefined ? undefined : enAnglais(duree.trim());
 };
 
@@ -159,14 +160,15 @@ export function ligneDeStation(station: StationVue, cooks: number, saturee: bool
 type Etat = { bon: true } | { panne: string[] } | { pas: string };
 
 // Ce que les blocs `attend` des projets disent du jeton et de la session Max (runtime/src/attend.ts) : une entrée qui ne porte pas de ticket.
+// Le bloc se lit en français ou en anglais (`token  for …`, #927).
 function maxDesBlocs(blocs: readonly string[], maintenant: number): string[] {
   return blocs.flatMap((bloc) =>
     bloc.split("\n").flatMap((ligne) => {
-      const [, quoi, dit = ""] = /^ {2}(jeton|session) {2}depuis \S.*? {2}(.*)$/.exec(ligne) ?? [];
-      if (quoi === "session") return [dit.startsWith("renouvellement") ? "Max: session renewal failed" : "Max: session about to expire"];
-      if (quoi !== "jeton") return [];
-      if (dit.includes("ÉCHU")) return ["Max: token expired, to redo"];
-      const [, echeance] = /il échoit le (\S+?),? /.exec(dit) ?? [];
+      const [, quoi, dit = ""] = /^ {2}(jeton|token|session) {2}(?:depuis|for) \S.*? {2}(.*)$/.exec(ligne) ?? [];
+      if (quoi === "session") return [/^(?:renouvellement|Max session renewal)/.test(dit) ? "Max: session renewal failed" : "Max: session about to expire"];
+      if (quoi !== "jeton" && quoi !== "token") return [];
+      if (/ÉCHU|EXPIRED/.test(dit)) return ["Max: token expired, to redo"];
+      const [, echeance] = /(?:il échoit le|it expires on) (\S+?),? /.exec(dit) ?? [];
       const jours = echeance === undefined ? Number.NaN : Math.ceil((Date.parse(echeance) - maintenant) / 86_400_000);
       return [Number.isFinite(jours) ? `Max: token to redo within ${Math.max(jours, 0)} d` : "Max: token's expiry unknown"];
     }),

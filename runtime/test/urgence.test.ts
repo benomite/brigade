@@ -81,8 +81,8 @@ test("une livraison à merger à la main qui tient toutes les zones : l'urgence 
     texte[0],
     `urgence    TOUTE LA CUISINE ATTEND LE CHEF depuis 1 h 30 — 2 tickets à l'arrêt, retenus par #535 : livraison verte qui touche à ses juges — à relire et merger à la main : ${pr(535)}`,
   );
-  // La décision reste aussi une ligne du bloc `attend`.
-  assert.ok(texte.some((ligne) => ligne.startsWith("  #535  depuis 1 h 30  livraison verte qui touche à ses juges")));
+  // La décision reste aussi une ligne du bloc `awaiting`, en anglais.
+  assert.ok(texte.some((ligne) => ligne.startsWith("  #535  for 1 h 30  green delivery that touches its judges")));
 
   // D'un calcul à l'autre, tant que rien ne change, le début ne bouge pas.
   assert.equal(lire("13:45:00").faits.urgence?.depuis, heure("08:30:00"));

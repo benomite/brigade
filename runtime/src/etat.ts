@@ -238,6 +238,9 @@ export function duree(ms: number): string {
   return `${Math.floor(heures / 24)} j`;
 }
 
+// La même, en anglais, pour le bloc `awaiting` : « 3 d » pour les jours.
+export const dureeEn = (ms: number): string => duree(ms).replace(/ j$/, " d");
+
 function decrireRuntime(etat: EtatCuisine, depuis: (instant: string) => string): string[] {
   const { session, tick } = etat;
   if (!session) return [ligne("runtime", "jamais démarré")];
@@ -285,14 +288,14 @@ function decrireSansStation({ sansStation }: EtatCuisine, depuis: (instant: stri
 // renvoie au bloc `attend`, qui porte la cause et le geste. Rien à dire sinon.
 function decrireSetup({ setup }: EtatCuisine, depuis: (instant: string) => string): string[] {
   if (setup === null) return [];
-  return [ligne("setup", `BLOQUÉ depuis ${depuis(setup.since)} sur ${setup.base.slice(0, 7)} — aucun setup n'est lancé d'ici, pour aucun ticket, tant que la branche d'intégration ne bouge pas : la cause et le geste sont dans le bloc \`attend\``)];
+  return [ligne("setup", `BLOQUÉ depuis ${depuis(setup.since)} sur ${setup.base.slice(0, 7)} — aucun setup n'est lancé d'ici, pour aucun ticket, tant que la branche d'intégration ne bouge pas : la cause et le geste sont dans le bloc \`awaiting\``)];
 }
 
 // Une cause de mise de côté répétée ralentit la prise d'ici : la ligne le dit, et
 // renvoie au bloc `attend`. Rien à dire sinon.
 function decrireMiseDeCote({ miseDeCote }: EtatCuisine, depuis: (instant: string) => string): string[] {
   if (miseDeCote === null) return [];
-  return [ligne("mis de côté", `BLOQUÉ depuis ${depuis(miseDeCote.since)} (${miseDeCote.reason}) — un seul ticket est repris à la fois, pour voir si la cause a changé : la cause et le geste sont dans le bloc \`attend\``)];
+  return [ligne("mis de côté", `BLOQUÉ depuis ${depuis(miseDeCote.since)} (${miseDeCote.reason}) — un seul ticket est repris à la fois, pour voir si la cause a changé : la cause et le geste sont dans le bloc \`awaiting\``)];
 }
 
 // Une base rouge arrête la prise de tickets, les jugements et les merges : le pire
@@ -598,7 +601,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs),
     "",
     // Avant le rail : « est-ce qu'on m'attend ? » se lit sans le parcourir.
-    ...decrireAttentes(etat.attend, depuis, etat.sansGrant, etat.passage),
+    ...decrireAttentes(etat.attend, (instant) => dureeEn(maintenant.getTime() - Date.parse(instant)), etat.sansGrant, etat.passage),
     ligne("rail", decompte.length === 0 ? "vide" : decompte.join(" · ")),
     ...etat.rail.map((ticket) =>
       [

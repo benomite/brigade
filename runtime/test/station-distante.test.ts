@@ -364,7 +364,7 @@ describe("une station distante tire son travail", { concurrency: 8 }, () => {
     assert.match(commentaire, /Ce n'est pas une panne/);
     // `status` le dit, dans ce qui attend le chef comme sur la ligne du ticket.
     const lignes = decrireEtat(lireEtat(journal), heure.maintenant());
-    assert.ok(lignes.some((ligne) => ligne.includes("#16") && ligne.includes("station absente — `mac/claude` ne s'est pas manifestée récemment")), lignes.join("\n"));
+    assert.ok(lignes.some((ligne) => ligne.includes("#16") && ligne.includes("station absent — `mac/claude` has not shown up lately")), lignes.join("\n"));
     assert.ok(lignes.some((ligne) => ligne.startsWith("  #16  86") && ligne.includes(`(station-absent: ${MAC})`)), lignes.join("\n"));
 
     // Elle se manifeste : le ticket repart seul.

@@ -65,7 +65,7 @@ function cuisine(t: TestContext) {
 
 const lue = (texte: string): Lecture => ({ projet: PARADE, demande: 1, a: "2026-10-14T10:00:00.000Z", sorties: [{ commande: "status", texte }] });
 // La ligne de la base dans un texte : à deux espaces, nommée `base`, puis ce qu'elle dit.
-const LIGNE = /^ {2}base {2}depuis 3 h 00 {2}BASE ROUGE sur ba5e000, en échec : tests du runtime en échec — sa réparation #501 a quitté le rail sans être servie — à réparer : .*`brigade \S+ base replay`$/m;
+const LIGNE = /^ {2}base {2}for 3 h 00 {2}BASE RED on ba5e000, failing: tests du runtime en échec — its repair #501 left the rail without being served — to repair: .*`brigade \S+ base replay`$/m;
 const lignesDeBase = (texte: string) => texte.split("\n").filter((ligne) => ligne.startsWith("  base  "));
 
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
@@ -92,10 +92,10 @@ describe("une base rouge dont la réparation a échoué : la même ligne dans le
     const texte = status();
 
     // Ce que le second relaie : la sortie entière, la ligne entre les bords du bloc.
-    const debut = texte.indexOf("\nattend ");
-    const fin = texte.indexOf("\nfin attend\n");
+    const debut = texte.indexOf("\nawaiting ");
+    const fin = texte.indexOf("\nend awaiting\n");
     assert.match(texte.slice(debut, fin), LIGNE);
-    assert.match(texte.slice(debut, fin), /^attend {5}1 décision attend le chef depuis 3 h 00$/m);
+    assert.match(texte.slice(debut, fin), /^awaiting {3}1 decision awaits the chef — for 3 h 00$/m);
     const [ligne] = lignesDeBase(texte);
 
     // Ce que l'app en met à part : le même bloc, la même ligne — et rien d'elle dans le reste.
@@ -125,6 +125,6 @@ describe("une base rouge dont la réparation a échoué : la même ligne dans le
     assert.deepEqual(lignesDeBase(texte), []);
     const montree = mettreAPart(lue(texte));
     assert.ok("attend" in montree);
-    assert.equal(montree.attend, "attend     rien n'attend le chef\nfin attend\n");
+    assert.equal(montree.attend, "awaiting   nothing awaits the chef\nend awaiting\n");
   });
 });
