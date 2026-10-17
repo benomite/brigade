@@ -15,7 +15,18 @@ s'ouvre **par-dessus le rail**, et le rail revient tel que tu l'avais laissé qu
 le bouton fait le geste (ou écrit la demande dans le second — « ask the second »), et rien d'autre n'est
 écrit à plat. Ce que la box en dit mot pour mot, la raison et le geste en toutes lettres se lisent au
 survol de l'icône « ? » de la ligne ; le prix d'un geste qui coûte, au survol de son bouton — jamais un
-« cost: … » sous lui, et rien du tout quand il est nul. **« Tous les projets » est la vue d'ensemble de
+« cost: … » sous lui, et rien du tout quand il est nul. **Le manager n'est pas une ligne de la bande :
+c'est un interrupteur** (#906), en tête de l'espace, à droite des onglets — `manager on`, glissière verte
+à droite, ou `manager off`, grise à gauche —, toujours en vue, et un clic le bascule : éteindre part
+dans le second ; allumer ouvre sa confirmation dessous, qui dit son prix en une phrase avec le nombre
+réel d'issues (`it will judge the 23 open issues`, ou `it will judge 21 of the 23 open issues — 2 carry
+blocked-on-human`), ce qu'il engage au survol. Éteint, **la tête du rail est marquée à l'arrêt** — une
+barre hachurée, `manager off — nothing new comes in` — : ce qui est déjà sur le rail continue, rien de
+neuf n'y entre. La ligne `manager` de la box (`ÉTEINT since … (by chef) — …`) n'est plus qu'au survol
+de l'interrupteur, et en entier dans l'onglet Manager. Pas encore lu, ou pas lu, l'interrupteur ne dit
+ni l'un ni l'autre (`manager …`) et ne bascule rien ; une lecture qui échoue fait sa ligne « non
+vérifié » dans la bande. Sur la barre, la case d'un projet au manager éteint garde son signal.
+**« Tous les projets » est la vue d'ensemble de
 brigade** : une ligne par projet, une par station, chacune avec sa pastille et ce qui s'y passe en
 quelques mots, et un clic l'ouvre — on n'y agit pas, on y regarde, puis on va où ça se décide.
 **Cost, la vérification d'un projet et Settings suivent les mêmes règles** : aucun mode d'emploi à plat
@@ -1055,7 +1066,8 @@ d'autre :
   shell** où la commande attend, se posent l'avertissement de `docs/runtime.md`, mot pour mot
   (« Allumé, il juge tout le backlog ouvert, et ce qu'il juge exécutable part aussitôt en cuisine.
   Avant d'allumer, pose `blocked-on-human` sur ce qui ne doit pas partir… »), puis **deux
-  nombres** : `12 issues ouvertes sur ce projet, dont 3 portent blocked-on-human`.
+  nombres**, dits en une phrase — ce qu'il va juger : `it will judge 9 of the 12 open issues — 3 carry
+  blocked-on-human` (#906).
 
   | Ce qui se lit | D'où ça vient |
   |---|---|

@@ -59,13 +59,15 @@
 // carte dit comment voir l'écran. Sous l'état, ce qui
 // empêche les pages d'être servies. La vue ne montre aucune page et ne recueille aucun avis ;
 // quel port, quelle adresse, et pourquoi pas, se décident dans page.ts.
-// En tête de l'espace, la bande d'alertes : est-ce que ça peut tourner ? Le manager, la
-// cuisine, le grant — une ligne par chose à faire, avec son geste et son prix, et
+// En tête de l'espace, la bande d'alertes : est-ce que ça peut tourner ? La cuisine, le grant —
+// une ligne par chose à faire, avec son geste et son prix, et
 // une ligne « non vérifié » pour chaque état que la box ne dit pas. Vide, elle ne prend aucune
 // place. Ce qui s'y dit et ce que son bouton appelle se décident dans alertes.ts : la vue pose. Le
-// geste d'une ligne y est collé : confirmé — reprendre, réaccorder, allumer —, ou une demande au
+// geste d'une ligne y est collé : confirmé — reprendre, réaccorder —, ou une demande au
 // second quand il faut lire, juger ou agir sur la box ; une ligne « non vérifié » mène à l'onglet
-// qui lit l'état.
+// qui lit l'état. Le manager n'y fait pas de ligne : c'est un interrupteur, en tête de l'espace, à
+// droite des onglets — allumé ou éteint, un clic le bascule —, et, éteint, la tête du rail est
+// marquée à l'arrêt (ticket 906).
 // Arrêter la cuisine est sur le rail, qu'il arrête ; vérifier l'installation, en tête de l'espace,
 // à côté du nom du projet.
 // En tête de Paramètres, et au survol de « T », le code de l'app lui-même : à jour, ou en retard sur
@@ -149,6 +151,7 @@ const luOnglet = element("lu-onglet");
 const lectureOnglet = element("lecture-onglet");
 const gestesOnglet = element("gestes-onglet");
 const gestesProjet = element("gestes-projet");
+const interrupteurManager = element("interrupteur-manager");
 const provenance = /** @type {HTMLDetailsElement} */ (element("provenance"));
 const provenanceLignes = element("provenance-lignes");
 const arreterCuisine = element("arreter-cuisine");
@@ -422,6 +425,10 @@ const bandes = new Map();
 // signaux posés : un seul par case.
 /** @type {Map<string, {etat: string, dit: string} | undefined>} */
 const signaux = new Map();
+// L'état du manager de chaque projet, tel que sa dernière bande l'a dit (alertes.ts, `EtatDuManager`) :
+// son interrupteur, en tête de l'espace, et la tête du rail le disent. Sans entrée, il n'est pas encore lu.
+/** @type {Map<string, import("../alertes.ts").EtatDuManager | undefined>} */
+const etatsDuManager = new Map();
 /** @type {Map<string, HTMLElement>} */
 const signalees = new Map();
 // Le projet dont le chef a cliqué la notification d'urgence (notification.ts) : sa ligne d'urgence
@@ -958,22 +965,25 @@ function poserConfirmation(projet, { rendu, compte }, grant) {
     return confirmation;
   }
   confirmation.ariaLabel = rendu.titre;
-  // Le prix se dit en une ligne ; le reste de ce que le geste engage, et d'où c'est tiré, est au survol.
-  const [prix = "", ...suite] = rendu.prix;
-  const source = rendu.lu === undefined ? [] : [`according to \`${geste(projet, "facts")}\`, read at ${heureDe(rendu.lu)}`];
-  const ligne = bloc("p", prix);
-  ligne.className = "prix";
-  const detail = [...suite, ...source].join("\n");
-  if (detail !== "") ligne.append(survol(document, detail));
-  confirmation.append(bloc("strong", `⚠️ ${rendu.titre}`), ligne);
+  confirmation.append(bloc("strong", `⚠️ ${rendu.titre}`));
+  // Chiffré (« allumer »), le prix est la phrase des nombres — ce qu'il va juger — et ce que le geste
+  // engage passe au survol (ticket 906). Sinon, il se dit en une ligne ; le reste, et d'où c'est tiré, au survol.
   if (rendu.chiffrer === true && ALLUMAGE !== undefined) {
     const nombres = bloc("p", compte === undefined ? ALLUMAGE.enCours : compte === null ? ALLUMAGE.parti : "sans" in compte ? "the count could not be read" : compte.dit);
     nombres.className = "nombres";
     const lu = compte === undefined || compte === null ? "" : `according to \`${geste(projet, ALLUMAGE.commande)}\`, run for you on opening — read at ${heureDe(compte.a)}`;
     const raison = compte === undefined || compte === null || !("sans" in compte) ? "" : [compte.sans, compte.obtenu].filter((texte) => texte !== "").join("\n");
-    const aide = [lu, raison].filter((texte) => texte !== "").join("\n");
+    const aide = [...rendu.prix, lu, raison].filter((texte) => texte !== "").join("\n");
     if (aide !== "") nombres.append(survol(document, aide));
     confirmation.append(nombres);
+  } else {
+    const [prix = "", ...suite] = rendu.prix;
+    const source = rendu.lu === undefined ? [] : [`according to \`${geste(projet, "facts")}\`, read at ${heureDe(rendu.lu)}`];
+    const ligne = bloc("p", prix);
+    ligne.className = "prix";
+    const detail = [...suite, ...source].join("\n");
+    if (detail !== "") ligne.append(survol(document, detail));
+    confirmation.append(ligne);
   }
   confirmation.append(
     ...rendu.choix.map(({ id, libelle, dit }) => {
@@ -3237,6 +3247,20 @@ function poserAmont(projet, { aucunTicket }, cartes) {
   return [tete, listeAmont(projet, vu, cartes)];
 }
 
+// La tête du rail, le manager éteint (ticket 906) : marquée à l'arrêt, d'une ligne courte — rien de neuf
+// n'entre sur le rail. Ce qui y est déjà continue : seule l'entrée est à l'arrêt. Allumé, pas encore
+// lu ou pas lu, rien : l'interrupteur, en tête de l'espace, dit ce qu'il en est.
+/** @param {Projet} projet @returns {HTMLElement[]} */
+function teteDuRail(projet) {
+  const lu = etatsDuManager.get(projet.nom);
+  if (lu === undefined || "sans" in lu || lu.allume) return [];
+  const tete = document.createElement("p");
+  tete.className = "arret-manager";
+  tete.append(pastille("off", "gris"), bloc("strong", lu.dit ?? "manager off"));
+  tete.title = `${lu.releve}\nturn it on with its switch, at the top of the space`;
+  return [tete];
+}
+
 // La liste dépliée : chaque issue sous ce qui lui arrive, son numéro, son titre, ce que la box en dit.
 // Un clic ouvre sa fiche par-dessus le rail — celle de sa carte, si elle en a une dans TODO.
 /** @param {Projet} projet @param {import("../amont.ts").Vu} vu @param {import("../faits.ts").Carte[]} cartes */
@@ -3361,6 +3385,7 @@ function poserRail(projet) {
   const reprise = tape?.dataset?.cle === undefined ? undefined : { cle: tape.dataset.cle, champ: tape.dataset.champ };
   rail.replaceChildren(
     ...fraicheur(tenu.a),
+    ...teteDuRail(projet),
     ...poserAmont(projet, tenu.tableau.rail, [...colonnes.flatMap(({ cartes: siennes }) => siennes), ...hors]),
     grille,
     ...(hors.length === 0 ? [] : [bloc("h3", `outside the six columns — their state is none of them, and nothing says they await you: the Rail read, in Settings, relays what \`${geste(projet, "rail")}\` says`), bons(hors)]),
@@ -3655,6 +3680,40 @@ function poserProjet() {
   verifier.dataset.geste = "direct";
   verifier.title = "runs the verification on the box — its verdict is read in Settings, in one sentence";
   gestesProjet.replaceChildren(verifier);
+}
+
+// L'interrupteur du manager, en tête de l'espace, à droite des onglets (ticket 906) : allumé ou éteint,
+// lisible sans rien lire d'autre, et un clic le bascule. Éteindre part au clic, dans le second ;
+// allumer ouvre sa confirmation, dessous, qui dit en une phrase ce qu'il va juger. La ligne
+// `manager` du runtime, mot pour mot, est au survol ; le détail, dans l'onglet Manager. Pas encore
+// lu, ou pas lu : l'interrupteur ne dit ni l'un ni l'autre, et ne bascule rien — ce n'est pas « éteint ».
+function poserInterrupteur() {
+  const projet = courant;
+  interrupteurManager.hidden = projet === undefined || projet.box === undefined || projet.desinstalle !== undefined;
+  if (projet === undefined || interrupteurManager.hidden) return interrupteurManager.replaceChildren();
+  const lu = etatsDuManager.get(projet.nom);
+  const connu = lu !== undefined && !("sans" in lu) ? lu : undefined;
+  const allume = connu?.allume === true;
+  const cle = JSON.stringify(["manager-allumer", "", "interrupteur"]);
+  const ouverte = aConfirmer?.projet === projet.nom && aConfirmer.cle === cle ? aConfirmer : undefined;
+  const bascule = bouton("", () => {
+    if (connu === undefined) return;
+    if (allume) void ecrireGeste("manager-eteindre");
+    else void ouvrirConfirmation(projet, cle, "manager-allumer");
+  });
+  bascule.role = "switch";
+  bascule.className = "bascule";
+  bascule.dataset.etat = connu === undefined ? "inconnu" : allume ? "allume" : "eteint";
+  bascule.ariaChecked = connu === undefined ? "mixed" : String(allume);
+  bascule.disabled = connu === undefined;
+  const glissiere = bloc("span", "");
+  glissiere.className = "glissiere";
+  bascule.append(glissiere, bloc("span", `manager ${connu === undefined ? "…" : allume ? "on" : "off"}`));
+  const pourquoi = lu === undefined ? "the manager state: first read in progress" : "sans" in lu ? `the manager state is not read: ${lu.sans}` : lu.releve;
+  const clic = connu === undefined ? "" : allume ? "\nclick to turn it off: it goes straight into the second" : "\nclick to turn it on: says first what it will judge — nothing goes before your “yes”";
+  bascule.title = `${pourquoi}${clic}`;
+  bascule.ariaLabel = `the manager: ${connu === undefined ? "not read" : allume ? "on" : "off"}`;
+  interrupteurManager.replaceChildren(bascule, ...(ouverte === undefined ? [] : [poserConfirmation(projet, ouverte)]));
 }
 
 // Le code de l'app, et les clones de brigade parmi les projets : l'état de chacun en une
@@ -4161,7 +4220,9 @@ async function mettreAJour(clone) {
 // lu, et l'espace le dit.
 /** @param {Projet} projet */
 function poserAlertes(projet) {
-  const alertes = projet.box === undefined ? [] : (bandes.get(projet.nom) ?? []);
+  // Le manager éteint ne fait pas de ligne : son interrupteur et la tête du rail le disent (ticket 906).
+  // Non vérifié, il en fait une : l'interrupteur ne sait pas, la ligne dit pourquoi.
+  const alertes = projet.box === undefined ? [] : (bandes.get(projet.nom) ?? []).filter(({ sujet, verifie }) => !(sujet === "manager" && verifie));
   gesteDeLUrgence = undefined;
   bande.hidden = alertes.length === 0;
   // Un prix « none… » est un prix nul : ni survol ni mot.
@@ -4241,6 +4302,7 @@ function dessiner() {
   poserManager();
   poserGrants();
   poserProjet();
+  poserInterrupteur();
   if (courant === undefined) return;
   poserAlertes(courant);
   poserCarte(carte, courant);
@@ -4645,11 +4707,18 @@ brigade.surLecture((recue, servies) => {
 // Les faits d'un projet : ils remplacent ceux d'avant, partout où ils se dessinent —
 // sa pastille dans la barre, et son espace s'il est affiché — sa ligne de l'accueil vient par `surAccueil`.
 // La bande d'alertes d'un projet : posée tout de suite si c'est celui qui est affiché.
-brigade.surAlertes(({ projet, alertes, signal }) => {
+brigade.surAlertes(({ projet, alertes, signal, manager: etatDuManager }) => {
   bandes.set(projet, alertes);
   signaux.set(projet, signal);
   marquerSignal(projet);
-  if (courant?.nom === projet) poserAlertes(courant);
+  const bascule = JSON.stringify(etatsDuManager.get(projet)) !== JSON.stringify(etatDuManager);
+  etatsDuManager.set(projet, etatDuManager);
+  if (courant?.nom !== projet) return;
+  poserAlertes(courant);
+  // Le manager a basculé : son interrupteur et la tête du rail le disent aussitôt.
+  if (!bascule) return;
+  poserInterrupteur();
+  poserRail(courant);
 });
 // Le chef a cliqué la notification de l'urgence d'un projet : la fenêtre est déjà devant. Le projet
 // s'ouvre — s'il ne l'est pas déjà —, la fiche d'un ticket ouverte par-dessus se referme, et la ligne

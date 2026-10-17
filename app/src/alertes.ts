@@ -63,7 +63,13 @@ export type Alerte = { sujet: Sujet; verifie: boolean; ton: string; dit: string;
 // chose à faire, ou rien de vérifié. Une bande vide n'a pas de signal — c'est que les quatre états
 // ont été lus, et vont bien.
 export type Signal = { etat: "urgence" | "alerte" | "non-verifie"; dit: string };
-export type Bande = { projet: string; alertes: Alerte[]; signal?: Signal };
+// L'état du manager, pour son interrupteur dans l'espace du projet (#906) : allumé ou éteint, tel
+// qu'il vient d'être lu — sans le délai d'affichage d'une ligne de la bande. `dit` : ce que la tête
+// du rail en dit, éteint — la même phrase que la ligne de la bande. `releve` : la ligne `manager` du
+// runtime, mot pour mot, que l'interrupteur montre au survol. `sans` : pourquoi il n'est pas lu — ce
+// n'est jamais « éteint ».
+export type EtatDuManager = { allume: boolean; dit?: string; releve: string } | Sans;
+export type Bande = { projet: string; alertes: Alerte[]; signal?: Signal; manager?: EtatDuManager };
 
 // Un état que l'app n'a pas : pourquoi, dans ses mots.
 export type Sans = { sans: string };
@@ -173,24 +179,31 @@ export const MANAGER_PAS_DIT = "first reading of `manager` in progress: the queu
 // docs/runtime.md, « Le manager » : ce qu'allumer engage (allumage.ts, `AVERTISSEMENT`).
 const PRIX_ALLUMER = "it judges the whole open backlog, and what it judges executable is taken at once — what that commits is counted when you act";
 
+// Éteint, ce que la tête du rail en dit, et la ligne de la bande : une seule phrase, la même partout.
+export const MANAGER_ETEINT = "manager off — nothing new comes in";
+// La ligne `manager` telle que le runtime l'écrit.
+const releveDe = ({ mot, depuis, par, dit }: Interrupteur) => `${mot}${depuis === undefined ? "" : ` since ${depuis} (by ${par})`} — ${dit}`;
+
+// Éteint, le manager reste une ligne de la bande : c'est elle qui fait le signal de la case du projet,
+// dans la barre. Dans l'espace du projet, la vue ne la pose pas : son interrupteur et la tête du rail
+// le disent (#906) — `manager`, sur la bande.
 function duManager(manager: Interrupteur | Sans): Alerte[] {
   if ("sans" in manager) return [nonVerifie("manager", "manager state not verified", { pourquoi: manager.sans, geste: "wait for it to be read: `manager` is re-read every 30 s — or open it in the Manager tab", prix: LIRE, appel: { onglet: "manager" } })];
   if (manager.allume) return [];
-  const { mot, depuis, par, dit } = manager;
   return [
     {
       sujet: "manager",
       verifie: true,
       ton: "rouge",
-      dit: "manager off: no issue is judged, nothing new enters the rail",
-      // La ligne `manager` telle que le runtime l'écrit.
-      releve: `${mot}${depuis === undefined ? "" : ` since ${depuis} (by ${par})`} — ${dit}`,
+      dit: MANAGER_ETEINT,
+      releve: releveDe(manager),
       geste: "turn the manager on",
       appel: { geste: "manager-allumer" },
       prix: PRIX_ALLUMER,
     },
   ];
 }
+const etatDuManager = (manager: Interrupteur | Sans): EtatDuManager => ("sans" in manager ? manager : { allume: manager.allume, ...(manager.allume ? {} : { dit: MANAGER_ETEINT }), releve: releveDe(manager) });
 
 // --- La cuisine -------------------------------------------------------------
 
@@ -711,9 +724,10 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
       else suivi.delete(k);
     }
     const triees = parGravite(dites);
+    const manager = etatDuManager(managers.get(projet) ?? { sans: MANAGER_PAS_DIT });
     const avant = rendues.get(projet);
-    if (avant !== undefined && JSON.stringify(avant.alertes) === JSON.stringify(triees)) return avant;
-    const rendue: Bande = { projet, alertes: triees, signal: signalDe(triees) };
+    if (avant !== undefined && JSON.stringify(avant.alertes) === JSON.stringify(triees) && JSON.stringify(avant.manager) === JSON.stringify(manager)) return avant;
+    const rendue: Bande = { projet, alertes: triees, signal: signalDe(triees), manager };
     rendues.set(projet, rendue);
     return rendue;
   };

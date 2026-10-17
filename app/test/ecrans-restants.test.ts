@@ -3,7 +3,7 @@
 // une ligne — l'explication, la commande et le détail au survol. La vue est jouée telle qu'elle est.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { ALLUMAGE } from "../src/allumage.ts";
+import { ALLUMAGE, AVERTISSEMENT } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
@@ -85,15 +85,16 @@ describe("Cost : une lecture, des gestes en boutons, rien d'expliqué à plat", 
 });
 
 describe("Settings : la confirmation d'un geste coûteux dit son prix en une ligne", () => {
-  test("allumer le manager : le prix est une ligne, le reste et la source sont au survol", async () => {
+  test("allumer le manager : le prix est une phrase — ce qu'il va juger —, ce qu'il engage et la source sont au survol", async () => {
     const vue = await ouvrir({ confirmer: (_: string, id: string, grant: unknown) => confirmationDe(id, PARADE, { sans: "pas lus" }, grant) });
     await ouvrirLecture(vue, "Manager");
     (vue.element("manager").dessous("button").find(({ textContent }) => textContent === "on…") ?? assert.fail("pas de « on… »")).click();
     await repos();
 
     const ouverte = vue.element("manager").dessous("div").find(({ className }) => className === "confirmation") ?? assert.fail("pas de confirmation");
-    assert.equal(ouverte.dessous("p").filter(({ className }) => className === "prix").length, 1);
-    assert.doesNotMatch(aPlat(ouverte), /ssh|according to/);
+    assert.deepEqual(ouverte.dessous("p").filter(({ className }) => className === "prix" || className === "nombres").map(({ className }) => className), ["nombres"]);
+    assert.doesNotMatch(aPlat(ouverte), /ssh|according to|whole open backlog/);
+    assert.ok(survols(ouverte).some((dit) => dit.includes(AVERTISSEMENT)), "ce qu'allumer engage n'est pas au survol");
   });
 
   test("le titre du manager ne porte pas sa commande, et un état illisible tient en une ligne", async () => {

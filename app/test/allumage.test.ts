@@ -115,18 +115,20 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     const compte = await compter(reglages, SERVI);
 
     assert.deepEqual(backlogDe(sortie), { ouvertes: 7, retenues: 3 });
-    assert.deepEqual({ ...compte, a: "" }, { projet: "parade", a: "", ouvertes: 7, retenues: 3, dit: "7 open issues on this project, of which 3 carry `blocked-on-human`" });
+    assert.deepEqual({ ...compte, a: "" }, { projet: "parade", a: "", ouvertes: 7, retenues: 3, dit: "it will judge 4 of the 7 open issues — 3 carry `blocked-on-human`" });
     assert.ok(!Number.isNaN(Date.parse(compte.a)));
   });
 
-  test("une seule issue, aucune : les nombres sont lus quand même, et dits au singulier", async (t) => {
+  test("une seule issue, aucune : les nombres sont lus quand même, et la phrase dit qu'il ne jugera rien", async (t) => {
     const une = await runtime(t, [issue(11, ["blocked-on-human"])]);
     const aucune = await runtime(t, []);
 
     assert.deepEqual(backlogDe(une), { ouvertes: 1, retenues: 1 });
     assert.deepEqual(backlogDe(aucune), { ouvertes: 0, retenues: 0 });
     const compte = await compter(box(t, dit(une)).reglages, SERVI);
-    assert.equal("dit" in compte && compte.dit, "1 open issue on this project, of which 1 carries `blocked-on-human`");
+    assert.equal("dit" in compte && compte.dit, "it will judge no issue: the only open issue carries `blocked-on-human`");
+    const vide = await compter(box(t, dit(aucune)).reglages, SERVI);
+    assert.equal("dit" in vide && vide.dit, "it will judge no issue: none is open");
   });
 
   test("ce qui part est le geste de la box, comme la veille le lance — une commande que « Piloter » cite, et rien de plus", async (t) => {

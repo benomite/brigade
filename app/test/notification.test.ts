@@ -310,7 +310,7 @@ describe("le clic, dans la vue", () => {
       espace: () => [],
     });
   const URGENTE: Alerte = { sujet: "urgence", verifie: true, ton: "rouge", dit: "the whole kitchen is waiting for your merge of #535 — at a standstill for 5 h 28", releve: "#535  livraison verte — à merger à la main", geste: "do what #535 waits for, as the box writes it", bouton: "ask the second", appel: { demande: true }, prix: "none" };
-  const ORDINAIRE: Alerte = { sujet: "manager", verifie: true, ton: "rouge", dit: "manager off: no issue is judged, nothing new enters the rail", geste: "turn the manager on", appel: { geste: "manager-allumer" }, prix: "—" };
+  const ORDINAIRE: Alerte = { sujet: "cuisine", verifie: true, ton: "rouge", dit: "kitchen stopped by your “stop”: no cook goes, until “resume”", geste: "resume the kitchen", appel: { geste: "reprendre" }, prix: "—" };
 
   test("depuis un autre projet : celui de l'urgence s'ouvre, sa ligne d'urgence en tête, choisie, et son geste prend le clavier et se lance", async () => {
     const vue = await ouvrir();

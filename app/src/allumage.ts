@@ -52,12 +52,20 @@ export function backlogDe(sortie: string): Backlog | { informe: string } {
 }
 
 // Ce que la vue pose une fois la box revenue : elle n'y calcule rien. `a` : l'instant de la lecture.
-// `dit` : les deux nombres, en une phrase. `sans` : pourquoi ils ne sont pas posés — ce n'est jamais
-// « aucune issue » ; `obtenu` : ce que l'app a eu à leur place, tel quel.
+// `dit` : le prix d'« allumer », en une phrase, d'après les deux nombres — ce que le manager va juger :
+// les issues ouvertes, moins celles que `blocked-on-human` retient, qu'il ne juge jamais (#906).
+// `sans` : pourquoi ils ne sont pas posés — ce n'est jamais « aucune issue » ; `obtenu` : ce que
+// l'app a eu à leur place, tel quel.
 export type Compte = { projet: string; a: string } & ((Backlog & { dit: string }) | { sans: string; obtenu: string });
 
-const dire = ({ ouvertes, retenues }: Backlog) =>
-  `${ouvertes} open issue${ouvertes > 1 ? "s" : ""} on this project, of which ${retenues} ${retenues > 1 ? "carry" : "carries"} \`blocked-on-human\``;
+const issues = (combien: number) => `${combien} open issue${combien > 1 ? "s" : ""}`;
+// La phrase des deux nombres : exportée pour l'outil de capture, qui la pose comme la box la ferait dire.
+export function dire({ ouvertes, retenues }: Backlog): string {
+  if (ouvertes === 0) return "it will judge no issue: none is open";
+  if (retenues === 0) return `it will judge the ${issues(ouvertes)}`;
+  if (retenues === ouvertes) return `it will judge no issue: ${ouvertes > 1 ? `all ${issues(ouvertes)} carry` : "the only open issue carries"} \`blocked-on-human\``;
+  return `it will judge ${ouvertes - retenues} of the ${issues(ouvertes)} — ${retenues} ${retenues > 1 ? "carry" : "carries"} \`blocked-on-human\``;
+}
 
 const PAS_LUS = "the two numbers were not read";
 const PAS_AUCUNE = "This is not “no issue”: look at the backlog yourself before saying yes";

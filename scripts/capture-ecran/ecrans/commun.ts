@@ -79,12 +79,13 @@ export function demarrage(projets: Configuration) {
   };
 }
 
-// Ce qu'une box rend d'un projet : `facts`, `status` et `station`, mot pour mot.
-export type Rendu = { facts: Faits; status: string; station: string };
+// Ce qu'une box rend d'un projet : `facts`, `status` et `station`, mot pour mot — et `manager`,
+// que l'app lit elle-même pour chaque projet (main.ts, la veille du manager) : absent, il n'est pas lu.
+export type Rendu = { facts: Faits; status: string; station: string; manager?: string };
 
 // Les envois d'une cuisine figée, dans l'ordre où main.ts les fait : la barre posée, `facts` de
-// chaque projet ; « Tous les projets », `status` et `station` de chacun ; un espace ouvert, le
-// `status` de son projet. Chaque lecture passe par les modules de l'app, comme dans main.ts.
+// chaque projet, puis `manager` de ceux qui le rendent ; « Tous les projets », `status` et `station` de
+// chacun ; un espace ouvert, le `status` de son projet. Chaque lecture passe par les modules de l'app, comme dans main.ts.
 export function cuisine(rendus: Record<string, Rendu>): Required<Pick<Donnees["envois"], "faits" | "tous" | "regarder">> {
   const faits = tenirFaits();
   const bandes = tenirBandes({ maintenant: () => Date.parse(MAINTENANT) });
@@ -103,6 +104,10 @@ export function cuisine(rendus: Record<string, Rendu>): Required<Pick<Donnees["e
     ...projets.flatMap((projet) => {
       const lue = lecture(projet, { facts: JSON.stringify(rendus[projet]?.facts) });
       return [dessine(faits.recevoir(lue)), alertes(bandes.faits(lue))];
+    }),
+    ...projets.flatMap((projet) => {
+      const manager = rendus[projet]?.manager;
+      return manager === undefined ? [] : [alertes(bandes.manager(lecture(projet, { manager })))];
     }),
   ];
   const tous = projets.flatMap((projet) => statusLu(projet, { status: rendus[projet]?.status ?? "", station: rendus[projet]?.station ?? "" }));
