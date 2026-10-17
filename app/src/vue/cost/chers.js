@@ -9,7 +9,7 @@
 // quand le rail du projet est lu ; sinon « not communicated » aussi.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
-import { GESTE_TICKET, poserAlerte, seuilsDesProjets } from "./seuils.js";
+import { poserAlerte, seuilsDesProjets } from "./seuils.js";
 import { LECTURE, NON_COMMUNIQUE, tokensLus } from "./tete.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
@@ -127,7 +127,9 @@ export function poserChers(doc, projets, lectures, titres, ouvrir) {
     liste.append(item);
   }
   bloc.append(cree(doc, "h2", TITRE), liste);
-  const alerte = poserAlerte(doc, depasse, seuil !== null, GESTE_TICKET);
+  const alerte = depasse === undefined || premier === undefined
+    ? poserAlerte(doc, depasse, seuil !== null, "", () => {})
+    : poserAlerte(doc, depasse, true, `open the sheet of #${premier.ticket}`, (bouton) => ouvrir(premier.projet.nom, premier.ticket, bouton));
   if (alerte !== null) bloc.append(alerte);
   return bloc;
 }

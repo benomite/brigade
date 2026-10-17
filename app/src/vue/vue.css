@@ -2927,3 +2927,13 @@ button.recommande {
   color: var(--discret);
   border-left-color: var(--trait-fort);
 }
+.alerte-cout .alerte-geste {
+  margin: 0 0 0 10px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--texte);
+  background: var(--bouton);
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+  cursor: pointer;
+}

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { poserChers } from "../../src/vue/cost/chers.js";
 import { poserPerdus } from "../../src/vue/cost/perdus.js";
-import { GESTE_PERDUS, GESTE_TICKET, seuilsDe } from "../../src/vue/cost/seuils.js";
+import { OUVRIR_LA_LISTE, seuilsDe } from "../../src/vue/cost/seuils.js";
 import { NON_COMMUNIQUE } from "../../src/vue/cost/tete.js";
 import { Faux } from "../aides/fausse-vue.ts";
 
@@ -28,8 +28,10 @@ const station = (ticket: string | null, perdus: string | null) =>
   ].join("\n");
 const PROJETS = [{ nom: "parade" }];
 const lectures = (texte: string) => new Map([["parade", { projet: "parade", demande: 0, a: A, sorties: [{ commande: "station", texte }] }]]);
-const chers = (texte: string) => poserChers(doc, PROJETS, lectures(texte), () => "un titre", () => {});
-const perdus = (texte: string) => poserPerdus(doc, PROJETS, lectures(texte), () => "un titre", false, () => {});
+const ouvertes: unknown[][] = [];
+const chers = (texte: string) => poserChers(doc, PROJETS, lectures(texte), () => "un titre", (...args: unknown[]) => void ouvertes.push(args.slice(0, 2)));
+let bascules = 0;
+const perdus = (texte: string) => poserPerdus(doc, PROJETS, lectures(texte), () => "un titre", false, () => void bascules++);
 const alertes = (bloc: Faux) => bloc.dessous("p").filter((p) => p.className.startsWith("alerte-cout"));
 
 describe("les seuils que `station` écrit", () => {
@@ -43,11 +45,16 @@ describe("les seuils que `station` écrit", () => {
 describe("le ticket le plus cher", () => {
   test("au-dessus du seuil : son bloc est mis en évidence, une ligne dit le geste", () => {
     const bloc = chers(station("800000", null));
-    assert.deepEqual(bloc.dessous("button").map((b: Faux) => b.className), ["ticket-cher depasse", "ticket-cher"]);
+    assert.deepEqual(bloc.dessous("button").map((b: Faux) => b.className), ["ticket-cher depasse", "ticket-cher", "alerte-geste"]);
     const [alerte, ...autres] = alertes(bloc);
     assert.equal(autres.length, 0);
     assert.equal(alerte?.className, "alerte-cout");
-    assert.match(alerte?.textContent ?? "", new RegExp(`over its ceiling of 800,000 — ${GESTE_TICKET}$`));
+    assert.equal(alerte?.textContent, `parade · over its ceiling of 800,000${alerte?.dessous("button")[0]?.textContent}`);
+    // Le geste est un bouton, sur la ligne même : il ouvre la fiche du ticket le plus cher.
+    const [geste] = alerte?.dessous("button") ?? [];
+    assert.equal(geste?.textContent, "open the sheet of #7");
+    geste?.click();
+    assert.deepEqual(ouvertes.at(-1), ["parade", 7]);
   });
 
   test("sous le seuil : ni mise en évidence, ni ligne", () => {
@@ -70,7 +77,12 @@ describe("les tokens perdus", () => {
     const [alerte, ...autres] = alertes(bloc);
     assert.equal(autres.length, 0);
     assert.equal(alerte?.className, "alerte-cout");
-    assert.match(alerte?.textContent ?? "", new RegExp(`over its ceiling of 100,000 — ${GESTE_PERDUS}$`));
+    assert.equal(alerte?.textContent, `parade · over its ceiling of 100,000${alerte?.dessous("button")[0]?.textContent}`);
+    // Le geste est un bouton, sur la ligne même : il déploie la liste.
+    const [geste] = alerte?.dessous("button") ?? [];
+    assert.equal(geste?.textContent, OUVRIR_LA_LISTE);
+    geste?.click();
+    assert.equal(bascules, 1);
   });
 
   test("sous le seuil : ni mise en évidence, ni ligne", () => {

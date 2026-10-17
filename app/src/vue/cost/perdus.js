@@ -11,7 +11,7 @@
 // la liste n'est pas proposée, et rien n'est inventé.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
-import { GESTE_PERDUS, poserAlerte, seuilsDesProjets } from "./seuils.js";
+import { FERMER_LA_LISTE, OUVRIR_LA_LISTE, poserAlerte, seuilsDesProjets } from "./seuils.js";
 import { LECTURE, NON_COMMUNIQUE, tokensLus } from "./tete.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
@@ -123,7 +123,7 @@ export function poserPerdus(doc, projets, lectures, titres, ouvert, bascule) {
   const depasse = depassant === undefined ? undefined : { projet: depassant.nom, seuil: /** @type {number} */ (seuils.get(depassant.nom)?.perdus) };
   if (depasse !== undefined) chiffre.className = "perdus-total depasse";
   bloc.append(cree(doc, "h2", TITRE), chiffre);
-  const alerte = typeof total === "number" ? poserAlerte(doc, depasse, connus.length > 0, GESTE_PERDUS) : null;
+  const alerte = typeof total === "number" ? poserAlerte(doc, depasse, connus.length > 0, ouvert ? FERMER_LA_LISTE : OUVRIR_LA_LISTE, bascule) : null;
   if (alerte !== null) bloc.append(alerte);
   if (lignes.length === 0) return bloc;
   chiffre.ariaExpanded = String(ouvert);

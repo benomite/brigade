@@ -11,8 +11,8 @@ import { NON_COMMUNIQUE } from "./tete.js";
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {{ ticket: number | null, perdus: number | null }} Seuils */
 
-export const GESTE_TICKET = "open its sheet, then split it or stop it";
-export const GESTE_PERDUS = "open the list, and fix what keeps failing before relaunching";
+export const OUVRIR_LA_LISTE = "open the list";
+export const FERMER_LA_LISTE = "close the list";
 
 const GESTE = /^\s+(seuil-ticket|seuil-perdus)\s+(\d[\d\s  .,]*)$/;
 
@@ -52,9 +52,11 @@ export function seuilsDesProjets(projets, lectures) {
 const nombre = (valeur) => valeur.toLocaleString("en-US");
 
 // La ligne d'alerte, ou rien : `null` quand le bloc est sous son seuil. `depasse` : un projet au-dessus de
-// son seuil (son nom, son seuil) ; `connus` : combien de seuils sont communiqués.
-/** @param {Fabrique} doc @param {{ projet: string, seuil: number } | undefined} depasse @param {boolean} connu @param {string} geste */
-export function poserAlerte(doc, depasse, connu, geste) {
+// son seuil (son nom, son seuil) ; `connu` : au moins un seuil est communiqué. Le geste est un bouton sur la
+// ligne même : son libellé, et ce qu'il fait (`ouvrir` reçoit le bouton, que la fiche reprend au retour).
+/** @param {Fabrique} doc @param {{ projet: string, seuil: number } | undefined} depasse @param {boolean} connu
+ *  @param {string} libelle @param {(bouton: any) => void} ouvrir */
+export function poserAlerte(doc, depasse, connu, libelle, ouvrir) {
   if (depasse === undefined && connu) return null;
   const ligne = doc.createElement("p");
   if (depasse === undefined) {
@@ -64,6 +66,11 @@ export function poserAlerte(doc, depasse, connu, geste) {
   }
   ligne.className = "alerte-cout";
   ligne.role = "alert";
-  ligne.textContent = `${depasse.projet} · over its ceiling of ${nombre(depasse.seuil)} — ${geste}`;
+  ligne.textContent = `${depasse.projet} · over its ceiling of ${nombre(depasse.seuil)}`;
+  const geste = doc.createElement("button");
+  geste.className = "alerte-geste";
+  geste.textContent = libelle;
+  geste.addEventListener("click", () => ouvrir(geste));
+  ligne.append(geste);
   return ligne;
 }
