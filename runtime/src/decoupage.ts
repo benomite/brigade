@@ -17,8 +17,9 @@ import { porteFiche } from "./fiche.ts";
 import { LABEL, type GitHub, type IssueOuverte } from "./github.ts";
 import type { Journal } from "./journal.ts";
 import { MARQUEUR_MANAGER } from "./juger.ts";
-import { creationsAnnoncees, decoupageDe, epiquesDecoupees, ticketDEpique, ticketsDEpique, type Decoupage, type TicketDEpique } from "./projections/decoupages.ts";
-import { communsDuRail, sortDuTicket, ticketDuRail } from "./projections/rail.ts";
+import { bilanDEpique } from "./bilan-epique.ts";
+import { creationsAnnoncees, decoupageDe, epiqueServie, epiquesDecoupees, ticketDEpique, ticketsDEpique, type Decoupage, type TicketDEpique } from "./projections/decoupages.ts";
+import { communsDuRail, livresDepuis, sortDuTicket, ticketDuRail } from "./projections/rail.ts";
 import { capacitesFournies } from "./projections/stations.ts";
 import { direRetenue, nomAbandon, nomEtat, retenue } from "./rail.ts";
 
@@ -48,6 +49,10 @@ export type Atelier = {
 
 // L'horloge de GitHub n'est pas celle du runtime : un ticket se cherche à
 // partir d'un peu avant l'heure du découpage.
+// Le commentaire de fermeture d'une épique servie porte cette marque : s'il y
+// est déjà, il n'est pas reposé.
+const MARQUEUR_SERVIE = "<!-- brigade:epique-servie -->";
+
 const MARGE_MS = 600_000;
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -315,26 +320,63 @@ export function ouvrirDecoupage(atelier: Atelier) {
     },
 
     // Tient à jour, dans le corps de chaque épique découpée, la liste de ses
-    // tickets et de leur état. Ne lit que le journal tant que rien n'a changé.
+    // tickets et de leur état — et ferme celle dont tous les tickets sont
+    // servis. Ne lit que le journal tant que rien n'a changé.
     async suivre(): Promise<void> {
       for (const connu of epiquesDecoupees(base)) {
         if (arrete()) return;
         if (!connu.done) continue;
         const bloc = rendreListe(connu.epic, ticketsDEpique(base, connu.epic).map((ticket) => ligne(journal, ticket)));
         const digest = createHash("sha256").update(bloc).digest("hex").slice(0, 16);
-        if (digest === connu.listed) continue;
-        try {
-          // Relu juste avant d'écrire : le chef a pu l'éditer. Une épique
-          // disparue n'a plus de corps où écrire.
-          const corps = (await github.issue(connu.epic))?.body;
-          if (corps !== undefined && avecListe(corps, bloc) !== corps) await github.ecrireCorps(connu.epic, avecListe(corps, bloc));
-        } catch (erreur) {
-          if (!arrete()) avertir(`brigade : liste des tickets non écrite dans l'épique #${connu.epic} — ${message(erreur)}`);
-          continue;
+        if (digest !== connu.listed) {
+          try {
+            // Relu juste avant d'écrire : le chef a pu l'éditer. Une épique
+            // disparue n'a plus de corps où écrire.
+            const corps = (await github.issue(connu.epic))?.body;
+            if (corps !== undefined && avecListe(corps, bloc) !== corps) await github.ecrireCorps(connu.epic, avecListe(corps, bloc));
+          } catch (erreur) {
+            if (!arrete()) avertir(`brigade : liste des tickets non écrite dans l'épique #${connu.epic} — ${message(erreur)}`);
+            continue;
+          }
+          if (arrete()) return;
+          noter(connu.epic, { type: "manager.split-listed", payload: { digest } });
         }
-        if (arrete()) return;
-        noter(connu.epic, { type: "manager.split-listed", payload: { digest } });
+        if (!epiqueServie(base, connu.epic) && bilanDEpique(base, connu.epic).toutServi) await fermerServie(connu.epic);
       }
     },
   };
+
+  // Tous les tickets de l'épique sont servis : elle se ferme, avec la liste de
+  // ses tickets et de leurs PR. Une épique que le chef a déjà fermée n'est pas
+  // commentée. Le commentaire ne se pose pas deux fois si la fermeture échoue.
+  async function fermerServie(epic: number): Promise<void> {
+    try {
+      const issue = await github.issue(epic);
+      if (arrete()) return;
+      if (issue?.state === "open") {
+        const commentaires = await github.commentaires(epic);
+        if (!commentaires.some((commentaire) => commentaire.body.includes(MARQUEUR_SERVIE))) await github.commenter(epic, direServie(epic));
+        if (arrete()) return;
+        await github.fermerIssue(epic);
+      }
+    } catch (erreur) {
+      if (!arrete()) avertir(`brigade : épique #${epic} non fermée, elle reprendra au prochain tour — ${message(erreur)}`);
+      return;
+    }
+    if (!arrete()) noter(epic, { type: "manager.split-served", payload: {} });
+  }
+
+  function direServie(epic: number): string {
+    const livres = new Map(livresDepuis(base, "").map((livre) => [livre.ticket, livre]));
+    return [
+      MARQUEUR_MANAGER,
+      MARQUEUR_SERVIE,
+      `**Manager — épique servie, je la ferme.** Ses ${ticketsDEpique(base, epic).length} tickets sont servis :`,
+      "",
+      ...ticketsDEpique(base, epic).map((ticket) => {
+        const livre = livres.get(ticket.ticket);
+        return `- #${ticket.ticket} ${ticket.title}${livre?.pr ? ` — ${livre.pr}` : " — servi sans PR"}`;
+      }),
+    ].join("\n");
+  }
 }

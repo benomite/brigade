@@ -2,6 +2,7 @@
 // rend le découpage, le GitHub de test reçoit les tickets, et le rail les sert.
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
+import { enAmont } from "../src/amont.ts";
 import { marque, MARQUEUR_QUESTION } from "../src/decouper.ts";
 import { DEBUT, FIN } from "../src/epique.ts";
 import type { Evenement } from "../src/evenements.ts";
@@ -254,6 +255,35 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     const ecrites = c.gh.ecritures.length;
     await c.laisserTourner();
     assert.equal(c.gh.ecritures.length, ecrites);
+  });
+
+  test("une épique dont tous les tickets sont servis se ferme d'elle-même, avec ses tickets et leurs PR, une seule fois", async (t) => {
+    const c = brigade(t, { pass: true, issues: [issue(30, ["epic"])] });
+    chef(c.repertoire, "grant.activated");
+    epique(c);
+
+    await jusqua(() => c.gh.lire(30)?.state === "closed" && c.faits(30).some((e) => e.type === "manager.split-served"));
+
+    const dit = c.gh.commentaires.filter(([n, corps]) => n === 30 && /épique servie/.test(corps));
+    assert.equal(dit.length, 1);
+    for (const numero of [501, 502, 503]) assert.match(dit[0]?.[1] ?? "", new RegExp(`^- #${numero} .+ — \\S+$`, "m"));
+    await c.laisserTourner();
+    assert.equal(c.gh.commentaires.filter(([n, corps]) => n === 30 && /épique servie/.test(corps)).length, 1);
+  });
+
+  test("un ticket fermé sans livraison : l'épique reste ouverte, et « upcoming » dit lequel manque", async (t) => {
+    const c = brigade(t, { scenario: "muet", issues: [issue(30, ["epic"])] });
+    epique(c);
+    await c.decoupee(30);
+    fermer(c, 502);
+    await jusqua(() => /\| #502 \| [^|]+ \| abandonné/.test(c.liste(30)));
+    await c.laisserTourner();
+
+    assert.equal(c.gh.lire(30)?.state, "open");
+    assert.ok(!c.faits(30).some((e) => e.type === "manager.split-served"));
+    const amont = enAmont(c.journal.base, [issue(30, ["epic"])]);
+    assert.equal(amont[0]?.etat, "decoupee");
+    assert.match(amont[0]?.dit ?? "", /#502 fermé sans livraison/);
   });
 
   test("devant une épique ambiguë, le manager pose une question au lieu d'inventer — et rien d'autre n'attend la réponse", async (t) => {

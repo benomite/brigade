@@ -7,6 +7,7 @@
 // lecture n'écrit rien. Le contrat : docs/runtime.md, « En amont du rail ».
 import { attentesDuChef, direAttente } from "./attend.ts";
 import { priorite } from "./alimenter.ts";
+import { bilanDEpique } from "./bilan-epique.ts";
 import { decrire, decrireEcart } from "./dire-manager.ts";
 import type { Nature } from "./evenements/manager.ts";
 import { HORS_CUISINE, LABEL, type Issue } from "./github.ts";
@@ -66,8 +67,9 @@ function etatDe(base: Base, issue: Issue, attentes: Map<number, string>): { etat
       const lances = tickets.filter((ne) => ne.index !== null && ne.fired).length;
       return { etat: "epique", dit: `découpage en cours, ${lances}/${decoupage.tickets.length} tickets créés et lancés` };
     }
-    const servis = tickets.filter((ne) => sortDuTicket(base, ne.ticket)?.outcome === "served").length;
-    return { etat: "decoupee", dit: `découpée, ${servis}/${pluriel(tickets.length, "ticket")} servi${servis > 1 ? "s" : ""}${tickets.length === 0 ? "" : ` (${tickets.map((ne) => `#${ne.ticket}`).join(", ")})`}` };
+    const { servis, manquants } = bilanDEpique(base, ticket);
+    const manque = manquants.length === 0 ? "" : `, ${manquants.map(({ dit }) => dit).join(", ")}`;
+    return { etat: "decoupee", dit: `découpée, ${servis.length}/${pluriel(tickets.length, "ticket")} servi${servis.length > 1 ? "s" : ""}${tickets.length === 0 ? "" : ` (${tickets.map((ne) => `#${ne.ticket}`).join(", ")})`}${manque}` };
   }
 
   const epique = decision?.decision === "refused" && decision.kind === ("epic" satisfies Nature);
@@ -82,6 +84,13 @@ function etatDe(base: Base, issue: Issue, attentes: Map<number, string>): { etat
   return { etat: "non-lue", dit: "le manager ne l'a pas encore jugée" };
 }
 
+// Une épique découpée dont tous les tickets sont servis n'attend plus rien : le
+// manager la ferme, et d'ici là elle n'a pas sa place parmi ce qui vient.
+function epiqueToutServie(base: Base, numero: number): boolean {
+  const decoupage = decoupageDe(base, numero);
+  return decoupage?.state === "split" && decoupage.done && bilanDEpique(base, numero).toutServi;
+}
+
 // Les issues ouvertes que le rail ne porte pas, dans l'ordre où le manager les
 // lit : `prio:1` d'abord, sans priorité en dernier ; à priorité égale, la plus ancienne.
 export function enAmont(base: Base, ouvertes: readonly Issue[]): IssueAmont[] {
@@ -90,7 +99,7 @@ export function enAmont(base: Base, ouvertes: readonly Issue[]): IssueAmont[] {
   // Ce qui attend le chef et n'est pas sur le rail : ce sont les attentes du manager.
   const attentes = new Map(attentesDuChef(base, rail).flatMap((attente) => (attente.ticket === null || surLeRail.has(attente.ticket) ? [] : [[attente.ticket, direAttente(attente)] as const])));
   return ouvertes
-    .filter((issue) => issue.pr !== true && !surLeRail.has(issue.number))
+    .filter((issue) => issue.pr !== true && !surLeRail.has(issue.number) && !epiqueToutServie(base, issue.number))
     .sort((a, b) => (priorite(a.labels) ?? 10) - (priorite(b.labels) ?? 10) || a.createdAt.localeCompare(b.createdAt) || a.number - b.number)
     .map((issue) => ({ ticket: issue.number, titre: issue.title, url: issue.url, priorite: priorite(issue.labels), ...etatDe(base, issue, attentes) }));
 }

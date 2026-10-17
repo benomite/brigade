@@ -1403,7 +1403,7 @@ lit : `prio:1` d'abord, sans `prio:` en dernier, la plus ancienne d'abord à pri
 | `en-route` | va entrer sur le rail : elle porte `fire`, le manager l'y a mise sans que `fire` y soit encore, ou elle est née d'un découpage | ses labels, le journal |
 | `sortie` | a quitté le rail sans être servie (`fire` retiré, `hors-cuisine` posé), et rien ne s'est décidé d'elle depuis | le journal |
 | `servie` | a été servie, et son issue est encore ouverte | le journal |
-| `decoupee` | est une épique découpée : ses tickets portent le travail — `dit` dit combien sont servis | les découpages |
+| `decoupee` | est une épique découpée : ses tickets portent le travail — `dit` dit combien sont servis, et nomme ceux qui ne le seront pas sans le chef (« #876 fermé sans livraison », « #877 sorti du rail »). Une épique dont **tous** les tickets sont servis n'est plus listée : le manager la ferme lui-même, avec un commentaire qui liste ses tickets et leurs PR (une fois ; une épique que le chef a déjà fermée n'est pas commentée). Une épique avec un ticket manquant reste ouverte | les découpages |
 | `epique` | est une épique pas encore découpée — jugée telle, ou qui porte `epic` —, ou dont le découpage est en cours | le journal, ses labels |
 | `ecartee` | a été écartée par le manager — refusée, ou retenue par un label —, avec sa raison en une ligne | les décisions du manager |
 | `non-lue` | n'a pas encore été jugée, ou lui a été rendue et n'a pas été rejugée | le journal |
