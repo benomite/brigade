@@ -272,8 +272,8 @@ describe("une lecture en échec tient en une ligne, son détail n'est qu'au surv
 
 const COMMANDE_DE_LA_BOX = "do what #535 waits for, as the box writes it";
 const URGENTE: Alerte = { sujet: "urgence", verifie: true, ton: "rouge", dit: "the whole kitchen is waiting for your merge of #535 — at a standstill for 5 h 28", releve: "#535  livraison verte — à merger à la main", geste: COMMANDE_DE_LA_BOX, bouton: "ask the second", appel: { demande: true }, prix: "none" };
-const ALLUMER: Alerte = { sujet: "manager", verifie: true, ton: "rouge", dit: "manager off: no issue is judged, nothing new enters the rail", geste: "turn the manager on: `brigade parade manager on`", bouton: "turn the manager on", appel: { geste: "manager-allumer" }, prix: "cost: the manager reads every issue on your quota" };
-const EN_ATTENTE = [URGENTE, ALLUMER];
+const REPRENDRE: Alerte = { sujet: "cuisine", verifie: true, ton: "rouge", dit: "kitchen stopped by your “stop”: no cook goes, until “resume”", geste: "resume the kitchen: `brigade parade garde-fous -- resume`", bouton: "resume the kitchen", appel: { geste: "reprendre" }, prix: "cost: queued tickets start again at once, on your quota" };
+const EN_ATTENTE = [URGENTE, REPRENDRE];
 
 async function bandeEnAttente(): Promise<Joue> {
   const vue = await ouvrir();

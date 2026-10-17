@@ -31,6 +31,9 @@ export class Faux {
   // Un onglet dit s'il est celui qui est affiché.
   ariaSelected = "";
   ariaPressed = "";
+  // Un interrupteur dit son rôle, et s'il est allumé — « mixed » : on ne sait pas.
+  role = "";
+  ariaChecked = "";
   // L'entrée de la barre qui est affichée, et celle qui se glisse.
   ariaCurrent = "";
   // Le nom accessible d'un élément : le texte d'un survol (briques.js) y est lu.

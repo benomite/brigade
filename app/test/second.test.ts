@@ -380,7 +380,8 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
     assert.deepEqual(vue.dernier("confirmer"), ["parade", "manager-allumer", undefined]);
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste"), []);
     const ouverte = vue.element("manager").dessous("div").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
-    assert.match(ouverte.textContent, /it judges the whole open backlog/);
+    // Ce qu'allumer engage est au survol de sa phrase : à plat, une seule phrase dit le prix.
+    assert.ok(ouverte.dessous("button").some((pose) => /it judges the whole open backlog/.test(pose.ariaLabel)), "ce qu'allumer engage n'est pas au survol");
     assert.equal(vue.element("note-second").textContent, "fil repris");
 
     // « non » la referme : rien ne part.

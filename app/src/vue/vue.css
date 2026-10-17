@@ -271,6 +271,73 @@ main > header,
 #gestes-projet {
   margin-left: auto;
 }
+/* L'interrupteur du manager (#906), à droite des onglets : une glissière et son mot, « manager on » ou
+   « manager off » — lisible sans rien lire d'autre. Allumé, la glissière est à droite, verte ; éteint, à
+   gauche, grise ; pas lu, en pointillés, et il ne bascule rien. Sa confirmation s'ouvre dessous, par-dessus le rail. */
+#interrupteur-manager {
+  position: relative;
+  flex: none;
+  margin-left: 16px;
+}
+#interrupteur-manager .bascule {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 6px;
+  font-weight: 600;
+  background: var(--bouton);
+  border: 1px solid var(--trait);
+  border-radius: 999px;
+}
+#interrupteur-manager .bascule:hover:not(:disabled) {
+  border-color: var(--trait-fort);
+}
+#interrupteur-manager .glissiere {
+  position: relative;
+  width: 30px;
+  height: 16px;
+  background: var(--trait-fort);
+  border-radius: 999px;
+}
+#interrupteur-manager .glissiere::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  background: var(--discret);
+  border-radius: 50%;
+}
+#interrupteur-manager .bascule[data-etat="allume"] .glissiere {
+  background: var(--vert);
+}
+#interrupteur-manager .bascule[data-etat="allume"] .glissiere::after {
+  left: 16px;
+  background: var(--texte);
+}
+#interrupteur-manager .bascule[data-etat="eteint"] {
+  color: var(--texte-doux);
+}
+#interrupteur-manager .bascule[data-etat="inconnu"] {
+  color: var(--discret);
+  border-style: dashed;
+  cursor: default;
+}
+#interrupteur-manager .bascule[data-etat="inconnu"] .glissiere::after {
+  left: 9px;
+  background: transparent;
+  border: 1px dashed var(--discret);
+}
+#interrupteur-manager > .confirmation {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 10;
+  width: 440px;
+  margin: 0;
+  box-shadow: 0 6px 18px var(--ombre);
+}
 /* Les onglets de pages : en haut, dans le bandeau, à droite du nom du projet. Trop nombreux pour
    la largeur, ils défilent. */
 #onglets {
@@ -1520,6 +1587,20 @@ main > header,
   font-size: 13px;
   color: var(--texte);
   overflow-wrap: anywhere;
+}
+/* La tête du rail, le manager éteint (#906) : une barre hachurée, à l'arrêt, sur toute la largeur — rien
+   de neuf n'entre —, sa pastille grise et sa ligne courte. Elle se voit sans se lire. */
+#rail .arret-manager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 16px 0;
+  padding: 6px 12px;
+  color: var(--texte-doux);
+  background-color: var(--bandeau);
+  background-image: repeating-linear-gradient(135deg, transparent 0 8px, var(--case) 8px 16px);
+  border: 1px dashed var(--trait-fort);
+  border-radius: var(--rayon-bouton);
 }
 /* La liste dépliée : un cadre par ce qui arrive aux issues, côte à côte tant qu'ils tiennent, puis
    à la ligne. Chaque issue est un bon : son numéro, son titre, ce que la box en dit, entier. */

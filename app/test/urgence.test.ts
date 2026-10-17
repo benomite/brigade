@@ -242,7 +242,9 @@ describe("sans urgence, rien ne change", () => {
 
   test("une cuisine qui va bien : la bande reste vide, la case sans signal", (t) => {
     const { bande } = cuisine(t);
-    assert.deepEqual(bande("10:00:00"), { projet: "parade", alertes: [], signal: undefined });
+    const { manager, ...lue } = bande("10:00:00");
+    assert.deepEqual(lue, { projet: "parade", alertes: [], signal: undefined });
+    assert.equal(manager !== undefined && "allume" in manager && manager.allume, true);
   });
 
   test("un runtime d'avant le champ `urgence` : rien n'en est dit, et la forme reste lue", (t) => {
@@ -293,7 +295,7 @@ describe("l'urgence à l'écran", () => {
       espace: () => [],
     });
   const URGENTE: Alerte = { sujet: "urgence", verifie: true, ton: "rouge", dit: "the whole kitchen is waiting for your merge of #535 — at a standstill for 5 h 28", releve: "#535  livraison verte — à merger à la main", geste: "do what #535 waits for, as the box writes it", appel: { demande: true }, prix: "none" };
-  const ORDINAIRE: Alerte = { sujet: "manager", verifie: true, ton: "rouge", dit: "manager off: no issue is judged, nothing new enters the rail", geste: "turn the manager on", appel: { geste: "manager-allumer" }, prix: "—" };
+  const ORDINAIRE: Alerte = { sujet: "cuisine", verifie: true, ton: "rouge", dit: "kitchen stopped by your “stop”: no cook goes, until “resume”", geste: "resume the kitchen", appel: { geste: "reprendre" }, prix: "—" };
 
   test("la ligne d'urgence est posée la première, marquée « URGENT », et dit ce que la box écrit", async () => {
     const vue = await ouvrir();
@@ -311,7 +313,7 @@ describe("l'urgence à l'écran", () => {
     assert.doesNotMatch(premiere.textContent, /livraison verte/);
     assert.ok(premiere.dessous("button").some((pose) => /#535 {2}livraison verte — à merger à la main/.test(pose.ariaLabel)), "la ligne de la box n'est pas au survol");
     // Une ligne ordinaire n'a pas la marque.
-    assert.equal(seconde?.dataset.sujet, "manager");
+    assert.equal(seconde?.dataset.sujet, "cuisine");
     assert.equal(seconde.dessous("span").find((pose) => pose.className === "urgent"), undefined);
   });
 
@@ -324,7 +326,7 @@ describe("l'urgence à l'écran", () => {
     const urgente = signalDeLaCase(1) ?? assert.fail("pas de signal sur parade");
     assert.equal(urgente.dataset.etat, "urgence");
     assert.equal(urgente.textContent, "!!");
-    assert.match(urgente.title, /^parade: the whole kitchen is waiting for your merge of #535 — at a standstill for 5 h 28 ; manager off.* — urgent: the whole kitchen is waiting for you/);
+    assert.match(urgente.title, /^parade: the whole kitchen is waiting for your merge of #535 — at a standstill for 5 h 28 ; kitchen stopped.* — urgent: the whole kitchen is waiting for you/);
     const ordinaire = signalDeLaCase(2) ?? assert.fail("pas de signal sur baloo");
     assert.equal(ordinaire.dataset.etat, "alerte");
     assert.equal(ordinaire.textContent, "!");
