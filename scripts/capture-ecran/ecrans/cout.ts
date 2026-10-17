@@ -12,7 +12,7 @@ const consomme = (enCours: string, cinq: string, vingtQuatre: string) => [
   `                      24 h : ${vingtQuatre}`,
   "                      ce que ce projet a lancé, pas la consommation du compte : /usage la donne",
 ];
-const STATIONS: Record<string, string> = {
+export const STATIONS: Record<string, string> = {
   parade: [
     "station               box/claude — moteur claude, fournit : claude",
     "cooks simultanés      2 au plus (réglé par le chef) — `station -- cooks <N>` pour le changer, 0 pour aucune limite",
@@ -46,8 +46,8 @@ const STATIONS: Record<string, string> = {
 };
 
 // Ce que la lecture de l'onglet envoie à la vue : `station` de chaque projet, une lecture chacun.
-const lu = (projet: string): Envoi => {
-  const lecture: Lecture = { projet, demande: 0, a: MAINTENANT, sorties: [{ commande: "station", texte: STATIONS[projet] ?? "" }] };
+export const lu = (projet: string, stations = STATIONS): Envoi => {
+  const lecture: Lecture = { projet, demande: 0, a: MAINTENANT, sorties: [{ commande: "station", texte: stations[projet] ?? "" }] };
   return { sur: "surContenu", args: [lecture, undefined, undefined], demande: "onglet" };
 };
 

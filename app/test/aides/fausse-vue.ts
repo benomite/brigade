@@ -128,6 +128,14 @@ export class Faux {
   click(): void {
     if (!this.disabled) this.declencher("click");
   }
+  // Un attribut posé par son nom — ce que la vue écrit d'un élément SVG, qui n'a pas de propriétés pour cela.
+  #valeurs = new Map<string, string>();
+  setAttribute(nom: string, valeur: string): void {
+    this.#valeurs.set(nom, valeur);
+  }
+  getAttribute(nom: string): string | null {
+    return this.#valeurs.get(nom) ?? null;
+  }
   toggleAttribute(nom: string, voulu = !this.#attributs.has(nom)): void {
     if (voulu) this.#attributs.add(nom);
     else this.#attributs.delete(nom);
@@ -303,6 +311,8 @@ export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "d
       getElementById: trouver,
       querySelector: (selecteur: string) => (selecteur === "main" ? principal : null),
       createElement: (balise: string) => new Faux(balise),
+      // Le tracé de Cost (cost/courbe.js) : un élément SVG s'y pose comme un autre.
+      createElementNS: (_espace: string, balise: string) => new Faux(balise),
     },
     getComputedStyle: () => ({ getPropertyValue: (nom: string) => jetons.get(nom) ?? "" }),
     ResizeObserver: class {
