@@ -8,6 +8,6 @@ export const SOURCE_DOC = "docs/runtime/";
 export function docRuntime(racine: string): string {
   const dossier = join(racine, "docs/runtime");
   const index = readFileSync(join(dossier, "README.md"), "utf8");
-  const pages = [...index.matchAll(/\]\(([a-z-]+\.md)\)/g)].map((m) => m[1]);
+  const pages = [...index.matchAll(/\]\(([a-z-]+\.md)\)/g)].map((m) => m[1] as string);
   return pages.map((page) => readFileSync(join(dossier, page), "utf8")).join("\n");
 }
