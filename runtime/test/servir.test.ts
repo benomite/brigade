@@ -164,7 +164,7 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     assert.deepEqual(direEcran(rail?.ecran ?? null), ["écran : /rail (écran déduit des fichiers touchés, pas déclaré par le cook)"]);
     assert.deepEqual(direEcran(carte?.ecran ?? null), ["écran : la carte (déclaré par le cook)"]);
     assert.equal(avertissements.length, 1);
-    assert.match(avertissements[0] ?? "", /^brigade : écran de la livraison du ticket #7 lu sans les lignes mal écrites — ligne 3 de `\.claude\/brigade\/ecrans` /);
+    assert.match(avertissements[0] ?? "", /^brigade: screen of the delivery of ticket #7 read without the badly written lines — line 3 of `\.claude\/brigade\/ecrans` /);
   });
 
   test("un projet sans déclaration ne lance rien et le dit une fois, quelle que soit la livraison ; déclaré, ce n'est plus dit", (t) => {
@@ -176,7 +176,7 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     const dits = faits("service.unavailable");
     assert.equal(dits.length, 1);
     assert.deepEqual([dits[0]?.ticket, dits[0]?.payload.station, dits[0]?.payload.declared, dits[0]?.payload.delivery], [null, STATION, false, 7]);
-    assert.match(String(dits[0]?.payload.why), /^ce projet ne déclare pas comment il est servi : son dépôt ne porte pas de `\.claude\/brigade\/service`/);
+    assert.match(String(dits[0]?.payload.why), /^this project does not declare how it is served: its repository has no `\.claude\/brigade\/service`/);
     assert.deepEqual(servicesIndisponibles(journal.base).map(({ declared, ticket }) => ({ declared, ticket })), [{ declared: false, ticket: 7 }]);
     // Ne rien déclarer n'est pas une panne : rien pour journald, rien de lancé.
     assert.deepEqual([avertissements, serveurs.tenus(), faits("service.started")], [[], [], []]);
@@ -195,11 +195,11 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     const pourquoi = faits("service.unavailable").map((dit) => [dit.payload.declared, String(dit.payload.why)]);
     assert.equal(pourquoi.length, 2);
     assert.deepEqual([pourquoi[0]?.[0], pourquoi[1]?.[0]], [true, true]);
-    assert.match(String(pourquoi[0]?.[1]), /^ce projet déclare mal comment il est servi — aucun chemin d'interface/);
-    assert.match(String(pourquoi[1]?.[1]), /^aucun port n'est attribué à ce worktree : son setup \(`\.claude\/brigade\/worktree-setup\.sh`\) n'exporte pas `BRIGADE_PORT`, et aucun port n'est choisi à sa place$/);
+    assert.match(String(pourquoi[0]?.[1]), /^this project declares badly how it is served — no interface path/);
+    assert.match(String(pourquoi[1]?.[1]), /^no port is assigned to this worktree: its setup \(`\.claude\/brigade\/worktree-setup\.sh`\) does not export `BRIGADE_PORT`, and no port is chosen in its place$/);
     assert.equal(servicesIndisponibles(journal.base)[0]?.ticket, 8);
     assert.equal(avertissements.length, 2);
-    assert.match(avertissements[1] ?? "", /^brigade : livraison du ticket #8 non servie, aucun serveur n'est lancé — aucun port n'est attribué/);
+    assert.match(avertissements[1] ?? "", /^brigade: delivery of ticket #8 not served, no server is launched — no port is assigned/);
     assert.deepEqual([serveurs.tenus(), faits("service.started")], [[], []]);
   });
 
@@ -210,7 +210,7 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     assert.equal(serveurs.servir(livraison(8, declarer(TOURNE, "app"), ["app/x"], 20007)), false);
 
     assert.deepEqual([serveurs.tenus(), faits("service.started").length], [[7], 1]);
-    assert.equal(faits("service.unavailable")[0]?.payload.why, "le port 20007 est déjà celui du serveur du ticket #7 (worktrees/7-a) : le setup du projet doit attribuer un port par worktree");
+    assert.equal(faits("service.unavailable")[0]?.payload.why, "port 20007 is already that of the server of ticket #7 (worktrees/7-a): the project's setup must assign one port per worktree");
   });
 
   test("une commande qui sort d'elle-même n'est plus un serveur : sa fin est au journal avec ce qu'elle a dit, et son worktree est rendu au rangement", async (t) => {
@@ -223,7 +223,7 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
       [7, { worktree: "worktrees/7-a", port: 20007, reason: "exited", code: 127, signal: null, tail: "vite: command not found" }],
     ]);
     assert.deepEqual([serveurs.tenus(), serveursEnCours(journal.base), ranges], [[], [], [7]]);
-    assert.deepEqual(avertissements, ["brigade : le serveur du ticket #7 (worktrees/7-a, port 20007) s'est arrêté seul — code de sortie 127\nvite: command not found"]);
+    assert.deepEqual(avertissements, ["brigade: the server of ticket #7 (worktrees/7-a, port 20007) stopped by itself — exit code 127\nvite: command not found"]);
   });
 
   test("un serveur arrêté meurt avec tout ce qu'il a lancé ; sourd à SIGTERM, il est tué passé la grâce — et son worktree n'est rendu qu'ensuite", async (t) => {
@@ -621,13 +621,13 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
     const dits = journal.tout().filter((evenement) => evenement.type.startsWith("service."));
     assert.deepEqual(dits.map((dit) => [dit.type, dit.ticket, dit.author]), [["service.unavailable", null, `station:${STATION}`]]);
     assert.deepEqual([types(15).some((type) => type.startsWith("service.")), avertissements], [false, []]);
-    const message = /NON DÉCLARÉ — ce projet ne déclare pas comment il est servi : son dépôt ne porte pas de `\.claude\/brigade\/service` — une ligne « commande : … » \(ou « lancement : … » pour une app qui ne s'ouvre pas dans un navigateur\), et une ligne « interface : <chemin> » par chemin dont la modification touche l'interface \(livraison du ticket #15\) ; aucun serveur n'est lancé — depuis /;
+    const message = /NOT DECLARED — this project does not declare how it is served: its repository has no `\.claude\/brigade\/service` — a "commande: …" line \(or "lancement: …" for an app that does not open in a browser\), and one "interface: <path>" line per path whose change touches the interface \(delivery of ticket #15\); no server is launched — since /;
     const station = await montrer(montrerStation, repertoire);
     assert.match(station, /^serveurs\s+aucun$/m);
-    assert.match(station, new RegExp(`^service\\s+${message.source}le \\S+$`, "m"));
+    assert.match(station, new RegExp(`^service\\s+${message.source}\\S+$`, "m"));
     const photo = await montrer(status, repertoire);
     assert.doesNotMatch(photo, /^serveurs /m);
-    assert.match(photo, new RegExp(`^service    ${message.source}.+ sur box/claude$`, "m"));
+    assert.match(photo, new RegExp(`^service    ${message.source}.+ ago on box/claude$`, "m"));
   });
 
   test("un projet qui déclare son service, mais dont le setup n'attribue pas de port au worktree : rien n'est servi, le motif se lit et part à journald", async (t) => {
@@ -637,8 +637,8 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
 
       assert.deepEqual(journal.tout().flatMap((dit): unknown[] => (dit.type === "service.unavailable" ? [dit.payload.declared] : dit.type.startsWith("service.") ? [dit.type] : [])), [true]);
       assert.equal(avertissements.length, 1);
-      assert.match(avertissements[0] ?? "", /^brigade : livraison du ticket #15 non servie, aucun serveur n'est lancé — aucun port n'est attribué à ce worktree/);
-      assert.match(await montrer(montrerStation, repertoire), /^service\s+NON SERVABLE — aucun port n'est attribué à ce worktree : .* \(livraison du ticket #15\) ; aucun serveur n'est lancé — depuis le \S+$/m);
+      assert.match(avertissements[0] ?? "", /^brigade: delivery of ticket #15 not served, no server is launched — no port is assigned to this worktree/);
+      assert.match(await montrer(montrerStation, repertoire), /^service\s+NOT SERVABLE — no port is assigned to this worktree: .* \(delivery of ticket #15\); no server is launched — since \S+$/m);
     });
   });
 

@@ -144,7 +144,7 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
       noter(null, { type: "service.unavailable", payload: { station, declared, why, delivery: ticket } });
       return true;
     });
-    if (neuf && declared) avertir(`brigade : livraison du ticket #${ticket} non servie, aucun serveur n'est lancé — ${why}`);
+    if (neuf && declared) avertir(`brigade: delivery of ticket #${ticket} not served, no server is launched — ${why}`);
   };
   const disponible = () => {
     base.transaction(() => {
@@ -178,7 +178,7 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
   // ne l'empêche pas d'être servi, mais se dit.
   const ecranLu = (livraison: Livraison) => {
     const { ecran, problemes } = ecranDeLaLivraison({ worktree: livraison.worktree, corps: livraison.corps, changes: livraison.changes });
-    if (problemes.length > 0) avertir(`brigade : écran de la livraison du ticket #${livraison.ticket} lu sans les lignes mal écrites — ${problemes.join(" ; ")}`);
+    if (problemes.length > 0) avertir(`brigade: screen of the delivery of ticket #${livraison.ticket} read without the badly written lines — ${problemes.join("; ")}`);
     return ecran;
   };
 
@@ -200,7 +200,7 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
         // `removed` : le rangement qui le relâche est en cours, il n'y revient pas.
         if (motif !== "removed") await options.ranger({ ticket, relatif, branche: livraison.branche });
       } catch (erreur) {
-        if (!ferme) avertir(`brigade : la fin du worktree tenu du ticket #${ticket} (${relatif}) n'a pas pu être racontée — ${message(erreur)}`);
+        if (!ferme) avertir(`brigade: the end of the held worktree of ticket #${ticket} (${relatif}) could not be told — ${message(erreur)}`);
       } finally {
         rendre();
       }
@@ -244,7 +244,7 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
       // et la page montrerait la livraison d'un autre.
       const voisin = [...tenus.values()].find((tenu) => tenu.port === service.port);
       if (voisin) {
-        indisponible(ticket, true, `le port ${service.port} est déjà celui du serveur du ticket #${voisin.ticket} (${voisin.relatif}) : le setup du projet doit attribuer un port par worktree`);
+        indisponible(ticket, true, `port ${service.port} is already that of the server of ticket #${voisin.ticket} (${voisin.relatif}): the project's setup must assign one port per worktree`);
         return false;
       }
       disponible();
@@ -265,7 +265,7 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
       if (enfant.pid === undefined) {
         // Une commande impossible à lancer n'a pas de process : elle le dit.
         enfant.once("error", (erreur) => {
-          if (!ferme) avertir(`brigade : serveur du ticket #${ticket} impossible à lancer (${relatif}) — ${erreur.message}`);
+          if (!ferme) avertir(`brigade: server of ticket #${ticket} cannot be launched (${relatif}) — ${erreur.message}`);
         });
         return false;
       }
@@ -294,13 +294,13 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
           noter(ticket, { type: "service.stopped", payload: { worktree: relatif, port: service.port, reason, code, signal, ...(tail === "" ? {} : { tail }) } });
           if (reason === "exited") {
             avertir(
-              [`brigade : le serveur du ticket #${ticket} (${relatif}, port ${service.port}) s'est arrêté seul — ${code === null ? `signal ${signal}` : `code de sortie ${code}`}`, tail].filter(Boolean).join("\n"),
+              [`brigade: the server of ticket #${ticket} (${relatif}, port ${service.port}) stopped by itself — ${code === null ? `signal ${signal}` : `exit code ${code}`}`, tail].filter(Boolean).join("\n"),
             );
           }
           // `removed` : le rangement qui l'a arrêté est en cours, il n'y revient pas.
           if (reason !== "removed") await options.ranger({ ticket, relatif, branche: livraison.branche });
         } catch (erreur) {
-          if (!ferme) avertir(`brigade : la fin du serveur du ticket #${ticket} (${relatif}) n'a pas pu être racontée — ${message(erreur)}`);
+          if (!ferme) avertir(`brigade: the end of the server of ticket #${ticket} (${relatif}) could not be told — ${message(erreur)}`);
         } finally {
           rendre();
         }
@@ -342,7 +342,7 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
           if (tenu.port === null) noter(tenu.ticket, { type: "service.released", payload: { worktree: tenu.relatif, reason: "shutdown" } });
           else noter(tenu.ticket, { type: "service.stopped", payload: { worktree: tenu.relatif, port: tenu.port, reason: "shutdown", code: null, signal: "SIGKILL" } });
         } catch (erreur) {
-          avertir(`brigade : arrêt du serveur du ticket #${tenu.ticket} non écrit au journal — ${message(erreur)}`);
+          avertir(`brigade: stop of the server of ticket #${tenu.ticket} not written to the journal — ${message(erreur)}`);
         }
         if (tenu.relacher) relaches.push(tenu);
       }

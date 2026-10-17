@@ -260,7 +260,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     if (aLancer.length > 0) ligne("à lancer", `${aLancer.length} — chacun tient le worktree d'une livraison d'une app qui ne s'ouvre pas dans un navigateur : aucune page, l'app se lance dessus`);
     for (const tenu of aLancer) dire(`  #${tenu.ticket}  ${tenu.worktree}  tenu depuis le ${tenu.since}  ${tenu.branch}  ${direCommentLeVoir(tenu)}`);
     // Rien à dire d'un projet qui se sert.
-    for (const indisponible of servicesIndisponibles(base, station)) ligne("service", `${direServiceIndisponible(indisponible)} — depuis le ${indisponible.since}`);
+    for (const indisponible of servicesIndisponibles(base, station)) ligne("service", `${direServiceIndisponible(indisponible)} — since ${indisponible.since}`);
     const finis = cooksDeStation(base, station, COOKS_MONTRES + enCours.length)
       .filter((cook) => cook.endedAt !== null)
       .slice(0, COOKS_MONTRES);

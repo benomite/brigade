@@ -88,7 +88,7 @@ export function direEcran(ecran: EcranARegarder | null): string[] {
 // Ce que `station` et `status` disent d'un projet qui ne peut pas être servi :
 // le motif, tel que `service.ts` l'a écrit.
 export const direServiceIndisponible = ({ declared, why, ticket }: ServiceIndisponible) =>
-  `${declared ? "NON SERVABLE" : "NON DÉCLARÉ"} — ${why}${ticket === null ? "" : ` (livraison du ticket #${ticket})`} ; aucun serveur n'est lancé`;
+  `${declared ? "NOT SERVABLE" : "NOT DECLARED"} — ${why}${ticket === null ? "" : ` (delivery of ticket #${ticket})`}; no server is launched`;
 
 type Ecoutes = FaitService | Extract<FaitRuntime, { type: "runtime.started" }> | Extract<FaitStation, { type: "station.withdrawn" }>;
 

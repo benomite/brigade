@@ -64,7 +64,7 @@
 // liste de fichiers et la déclaration du dépôt.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { possede, refus } from "./zones.ts";
+import { possede, refusEn } from "./zones.ts";
 
 // Ce que le dépôt du projet déclare : quels fichiers sont quel écran.
 export const DECLARATION_ECRANS = ".claude/brigade/ecrans";
@@ -137,19 +137,19 @@ export function lireEcrans(texte: string): Ecrans {
   texte.split(/\r?\n/).forEach((brute, rang) => {
     const ligne = brute.trim();
     if (ligne === "" || ligne.startsWith("#")) return;
-    const probleme = (pourquoi: string) => void ecrans.problemes.push(`ligne ${rang + 1} de \`${DECLARATION_ECRANS}\` (« ${ligne.slice(0, 80)} ») : ${pourquoi}`);
+    const probleme = (pourquoi: string) => void ecrans.problemes.push(`line ${rang + 1} of \`${DECLARATION_ECRANS}\` ("${ligne.slice(0, 80)}"): ${pourquoi}`);
     const deuxPoints = ligne.indexOf(":");
-    if (deuxPoints < 0) return probleme("ce n'est pas une ligne « <chemin> : <écran ou route> »");
+    if (deuxPoints < 0) return probleme("not a \"<path>: <screen or route>\" line");
     const chemin = ligne.slice(0, deuxPoints).trim().replace(/\/+$/, "");
     const ecran = ligne.slice(deuxPoints + 1).trim();
-    if (chemin === "") return probleme("il manque le chemin");
-    const defaut = refus(chemin);
-    if (defaut !== null) return probleme(`« ${chemin} » ${defaut}`);
+    if (chemin === "") return probleme("the path is missing");
+    const defaut = refusEn(chemin);
+    if (defaut !== null) return probleme(`"${chemin}" ${defaut}`);
     // `.` posséderait tout : une livraison de documentation aurait un écran.
-    if (profondeur(chemin) === 0) return probleme(`« ${chemin} » ne nomme aucun chemin — tout le dépôt n'est pas un écran`);
-    if (ecran === "") return probleme(`il manque l'écran de « ${chemin} »`);
+    if (profondeur(chemin) === 0) return probleme(`"${chemin}" names no path — the whole repository is not a screen`);
+    if (ecran === "") return probleme(`the screen of "${chemin}" is missing`);
     const deja = ecrans.correspondances.find((lue) => lue.chemin === chemin);
-    if (deja) return probleme(`« ${chemin} » est déjà l'écran « ${deja.ecran} » — un chemin n'est qu'un écran`);
+    if (deja) return probleme(`"${chemin}" is already the screen "${deja.ecran}" — a path is only one screen`);
     ecrans.correspondances.push({ chemin, ecran });
   });
   return ecrans;
@@ -163,7 +163,7 @@ export function ecransDuWorktree(worktree: string): Ecrans {
   } catch (erreur) {
     const { code, message } = erreur as NodeJS.ErrnoException;
     if (code === "ENOENT" || code === "ENOTDIR") return { correspondances: [], problemes: [] };
-    return { correspondances: [], problemes: [`\`${DECLARATION_ECRANS}\` est illisible — ${code ?? message}`] };
+    return { correspondances: [], problemes: [`\`${DECLARATION_ECRANS}\` is unreadable — ${code ?? message}`] };
   }
 }
 

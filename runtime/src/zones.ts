@@ -11,9 +11,21 @@ const MOTIF = /[*?]/;
 
 // Pourquoi une chaîne n'est pas un chemin du dépôt, ou null si c'en est un.
 export function refus(chemin: string): string | null {
-  if (/^[/~]/.test(chemin) || chemin.includes("\\") || chemin.split("/").includes("..")) return "n'est pas un chemin du dépôt";
-  if (MOTIF.test(chemin)) return "est un motif, pas un chemin — un dossier possède déjà tout ce qu'il contient";
-  return null;
+  const nature = natureDuRefus(chemin);
+  if (nature === "hors-depot") return "n'est pas un chemin du dépôt";
+  return nature === "motif" ? "est un motif, pas un chemin — un dossier possède déjà tout ce qu'il contient" : null;
+}
+
+// La même chose, dite en anglais, pour les messages de la box qui le sont.
+export function refusEn(chemin: string): string | null {
+  const nature = natureDuRefus(chemin);
+  if (nature === "hors-depot") return "is not a path of the repository";
+  return nature === "motif" ? "is a pattern, not a path — a directory already owns everything it contains" : null;
+}
+
+function natureDuRefus(chemin: string): "hors-depot" | "motif" | null {
+  if (/^[/~]/.test(chemin) || chemin.includes("\\") || chemin.split("/").includes("..")) return "hors-depot";
+  return MOTIF.test(chemin) ? "motif" : null;
 }
 
 const segments = (chemin: string) => chemin.split("/").filter((segment) => segment !== "" && segment !== ".");

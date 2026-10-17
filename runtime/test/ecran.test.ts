@@ -128,14 +128,14 @@ describe("la déclaration des écrans du dépôt", () => {
     const { correspondances, problemes } = lireEcrans(["app/src/vue/rail.ts", ": /rien", "/etc : /etc", "app/*.ts : /tout", "app/src/vue/carte.ts :", "app/src/vue : /accueil", "app/src/vue/ : /autre", ". : /tout", "./ : /tout"].join("\n"));
     assert.deepEqual(correspondances, [{ chemin: "app/src/vue", ecran: "/accueil" }]);
     assert.equal(problemes.length, 8);
-    assert.match(problemes[0] ?? "", /^ligne 1 de `\.claude\/brigade\/ecrans` .*« <chemin> : <écran ou route> »/);
-    assert.match(problemes[1] ?? "", /il manque le chemin/);
-    assert.match(problemes[2] ?? "", /n'est pas un chemin du dépôt/);
-    assert.match(problemes[3] ?? "", /est un motif/);
-    assert.match(problemes[4] ?? "", /il manque l'écran/);
-    assert.match(problemes[5] ?? "", /^ligne 7 .*déjà l'écran « \/accueil »/);
-    assert.match(problemes[6] ?? "", /ne nomme aucun chemin/);
-    assert.match(problemes[7] ?? "", /ne nomme aucun chemin/);
+    assert.match(problemes[0] ?? "", /^line 1 of `\.claude\/brigade\/ecrans` .*"<path>: <screen or route>"/);
+    assert.match(problemes[1] ?? "", /the path is missing/);
+    assert.match(problemes[2] ?? "", /is not a path of the repository/);
+    assert.match(problemes[3] ?? "", /is a pattern/);
+    assert.match(problemes[4] ?? "", /the screen of/);
+    assert.match(problemes[5] ?? "", /^line 7 .*already the screen "\/accueil"/);
+    assert.match(problemes[6] ?? "", /names no path/);
+    assert.match(problemes[7] ?? "", /names no path/);
   });
 
   test("lue dans le worktree d'une livraison : absente, rien ne se déduit ; illisible, c'est dit", (t) => {
@@ -149,7 +149,7 @@ describe("la déclaration des écrans du dépôt", () => {
     assert.deepEqual(deduit.ecran, { ecran: "/rail", phrase: null, source: "deduit" });
     // La ligne mal écrite est dite, pas perdue.
     assert.equal(deduit.problemes.length, 1);
-    assert.match(deduit.problemes[0] ?? "", /^ligne 2 de `\.claude\/brigade\/ecrans`/);
+    assert.match(deduit.problemes[0] ?? "", /^line 2 of `\.claude\/brigade\/ecrans`/);
     assert.deepEqual(ecranDeLaLivraison({ worktree, corps: DECLAREE, changes: ["docs/app.md"] }).ecran, {
       ecran: "/rail",
       phrase: "#591 : le rail a maintenant deux colonnes, TODO et WAITING",
@@ -160,7 +160,7 @@ describe("la déclaration des écrans du dépôt", () => {
     chmodSync(join(worktree, DECLARATION_ECRANS), 0o000);
     const illisible = ecransDuWorktree(worktree);
     assert.deepEqual(illisible.correspondances, []);
-    assert.match(illisible.problemes[0] ?? "", /`\.claude\/brigade\/ecrans` est illisible — EACCES/);
+    assert.match(illisible.problemes[0] ?? "", /`\.claude\/brigade\/ecrans` is unreadable — EACCES/);
   });
 });
 

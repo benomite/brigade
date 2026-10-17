@@ -51,7 +51,7 @@ const A_LANCER = "à lancer   1 — le worktree d'une livraison d'une app qui ne
 const COMMENT = "pas de page dans un navigateur : lancer l'app sur le worktree de la livraison, `cd '/etat/worktrees/631-ab12cd34' && npm --prefix app start`, puis y ouvrir l'écran « la carte » — à regarder : la carte dit comment voir l'écran";
 const tenu = (ticket: number, comment = COMMENT) => `  #${ticket}  worktrees/${ticket}-ab12cd34  tenu depuis 3 min  cook/${ticket}-ab12cd34  ${comment}`;
 const NON_DECLARE =
-  "service    NON DÉCLARÉ — le projet ne déclare pas comment il est servi : `.claude/brigade/service` manque (livraison du ticket #412) ; aucun serveur n'est lancé — depuis 3 min sur box";
+  "service    NOT DECLARED — this project does not declare how it is served: its repository has no `.claude/brigade/service` (delivery of ticket #412); no server is launched — since 3 min ago on box";
 
 // Ce que la veille rend d'une lecture de `status`, son bloc `attend` mis à part.
 const lue = (texte: string, projet = "calculus"): Montree => ({ projet, demande: 1, a: A, attend: undefined, sorties: [{ commande: "status", texte }] });
@@ -254,7 +254,7 @@ describe("le geste posé", () => {
     assert.deepEqual(rendues.pages, []);
     assert.match(rendues.vide ?? "", /what keeps this project from being served/);
     assert.equal(rendues.empeche.length, 1);
-    assert.match(rendues.empeche[0] ?? "", /^NON DÉCLARÉ — le projet ne déclare pas comment il est servi/);
+    assert.match(rendues.empeche[0] ?? "", /^NOT DECLARED — this project does not declare how it is served/);
   });
 
   test("une lecture ratée ne dit pas « aucun serveur » : elle dit que `status` n'a pas été lu", (t) => {
