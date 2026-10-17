@@ -168,4 +168,7 @@ export type FaitManager =
   | { type: "manager.split-seen"; payload: { epic: number; open: boolean } }
   // La liste des tickets est écrite dans le corps de l'épique. `digest` :
   // l'empreinte de ce qui y est écrit — la même ne se réécrit pas.
-  | { type: "manager.split-listed"; payload: { digest: string } };
+  | { type: "manager.split-listed"; payload: { digest: string } }
+  // Tous les tickets de l'épique sont servis : elle est fermée, avec la liste
+  // de ses tickets et de leurs PR. Écrit une fois GitHub servi.
+  | { type: "manager.split-served"; payload: Record<string, never> };

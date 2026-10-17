@@ -151,6 +151,8 @@ export const decoupages = definirProjection<FaitDecoupage>({
     "manager.split-listed": (base, { ticket, payload }) => {
       base.executer("UPDATE manager_splits SET listed = ? WHERE epic IS ?", texte(payload.digest), ticket);
     },
+    // Lu au journal par `epiqueServie` : rien à matérialiser.
+    "manager.split-served": () => {},
     "manager.closed": fermer(1),
     "manager.reopened": fermer(0),
   },
@@ -211,4 +213,9 @@ export function ticketDEpique(base: Base, ticket: number): TicketDEpique | null 
 // Les rangs dont la création a été annoncée.
 export function creationsAnnoncees(base: Base, epic: number): number[] {
   return base.lire<{ idx: number }>("SELECT idx FROM manager_split_intents WHERE epic = ?", epic).map(({ idx }) => idx);
+}
+
+// Le manager a fermé cette épique parce que tous ses tickets étaient servis.
+export function epiqueServie(base: Base, epic: number): boolean {
+  return base.lire("SELECT 1 FROM events WHERE ticket = ? AND type = 'manager.split-served' LIMIT 1", epic).length > 0;
 }
