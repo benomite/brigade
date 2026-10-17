@@ -1,5 +1,5 @@
 // Les gestes du chef : ceux qu'il répète. Chacun est une commande de
-// docs/runtime.md — « Piloter » —, reprise mot pour mot dans sa forme de poste
+// docs/runtime/exploitation.md — « Piloter » —, reprise mot pour mot dans sa forme de poste
 // (`ssh <hote> brigade <nom> <commande>`). Chacun part dans le second : préfixée du `!`
 // qui la lance sur le Mac depuis la session `claude`, la commande y est écrite puis
 // envoyée par `envoyer` (terminaux.ts), et sa sortie se lit dans son fil. Elle ne part

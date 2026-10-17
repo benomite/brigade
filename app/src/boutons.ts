@@ -3,7 +3,7 @@
 // qui attendent une suite que seul le chef peut taper : la durée d'un grant
 // prolongé, le nombre de cooks d'une station. Un geste qui n'attend rien de plus
 // est un geste du socle (gestes.ts), direct ou confirmé : il n'est pas ici.
-// Ce qui s'écrit est la forme de docs/runtime.md, « Piloter », depuis le poste
+// Ce qui s'écrit est la forme de docs/runtime/exploitation.md, « Piloter », depuis le poste
 // (`ssh <box> brigade <projet> <commande>`), préfixée du `!` qui la lance sur le
 // Mac depuis une session `claude`.
 import { cite } from "./box.ts";

@@ -1,5 +1,5 @@
 // Ce qui n'est pas encore sur le rail : un rail vide ne veut pas dire un projet fini. L'app le lit
-// là où le runtime le donne — `manager upstream` (runtime/src/amont.ts, docs/runtime.md, « En amont
+// là où le runtime le donne — `manager upstream` (runtime/src/amont.ts, docs/runtime/manager.md, « En amont
 // du rail ») : les issues ouvertes du dépôt que le rail ne porte pas, lues sur GitHub par la box, et
 // ce qui arrive à chacune, dans un mot d'une liste fermée, d'après son journal et ses labels. L'app
 // n'y déduit rien : elle compte ce que la box liste, range chaque issue sous le mot qu'elle porte,

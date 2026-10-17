@@ -2,7 +2,7 @@
 // qui tourne ici — `mac/claude`, avec ce que seul ce poste fournit — est déclarée
 // `distante` sur la box, et la box n'a aucun chemin vers elle : c'est le runner
 // qui vient, par le geste de la box (`ssh <hote> brigade <nom> pull <station> …`,
-// docs/runtime.md, « Une station distante tire son travail »), s'annoncer,
+// docs/runtime/station-distante.md, « Une station distante tire son travail »), s'annoncer,
 // réclamer un ticket, renouveler son bail et rendre sa livraison.
 //
 // Tout part d'ici, rien n'y arrive : ce module n'écoute aucun port, n'ouvre aucun

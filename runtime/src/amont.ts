@@ -4,7 +4,7 @@
 // La liste vient de GitHub, telle que le manager la sonde (PR écartées) ; ce qui
 // arrive à chaque issue vient du journal — le rail, le manager, ses découpages —
 // et de ce que l'issue porte, ses labels. Rien d'autre n'y est déduit, et cette
-// lecture n'écrit rien. Le contrat : docs/runtime.md, « En amont du rail ».
+// lecture n'écrit rien. Le contrat : docs/runtime/manager.md, « En amont du rail ».
 import { attentesDuChef, direAttente } from "./attend.ts";
 import { priorite } from "./alimenter.ts";
 import { bilanDEpique } from "./bilan-epique.ts";

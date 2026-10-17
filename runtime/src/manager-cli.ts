@@ -194,7 +194,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
 
   // Ce qui n'est pas encore sur le rail (amont.ts) : les issues ouvertes que le
   // rail ne porte pas, et ce qui arrive à chacune d'après le journal. Un objet
-  // JSON sur une ligne, pour un programme — l'app : docs/runtime.md, « En amont du rail ».
+  // JSON sur une ligne, pour un programme — l'app : docs/runtime/manager.md, « En amont du rail ».
   // GitHub d'abord : le journal n'est ouvert, en lecture seule, que le temps de ranger.
   async function enAmontDuRail(repertoireEtat: string): Promise<void> {
     const { depot, issues } = await lireOuvertes((depot) => `ce qui est en amont du rail de ${depot}`);

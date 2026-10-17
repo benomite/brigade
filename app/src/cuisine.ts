@@ -3,7 +3,7 @@
 // qu'elle est à l'arrêt — la bannière, la ligne de la bande d'alertes ; vérifier
 // l'installation, sur le projet, en tête de son espace. Ce sont trois gestes du socle
 // (gestes.ts) — la vue les nomme, ce qui part se décide là : la commande de
-// docs/runtime.md, « Piloter », dans sa forme de poste, envoyée dans le second.
+// docs/runtime/exploitation.md, « Piloter », dans sa forme de poste, envoyée dans le second.
 // **Arrêter et reprendre sont confirmés** : arrêter tue les cooks en vol, reprendre
 // relance les tickets sur le quota du chef — la confirmation dit les cooks en vol et
 // leurs tokens (confirmation.ts), et rien ne part avant son « oui ». Vérifier

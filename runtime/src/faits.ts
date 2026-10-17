@@ -1,7 +1,7 @@
 // Les faits que l'app dessine, en lecture seule, dans une forme destinée à un
 // programme : `npm --prefix runtime run facts` rend un objet JSON, sur une
 // ligne. C'est la lecture de `status`, autrement dite — et un contrat :
-// docs/runtime.md, « Les faits, pour un programme ».
+// docs/runtime/etat-et-mesures.md, « Les faits, pour un programme ».
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { faits, lireEtat } from "./etat.ts";
 import { pauseDeLaStation } from "./limite-github.ts";

@@ -41,7 +41,7 @@ export type Rendu = { lance: string; erreur: ExecFileException | null; sortie: s
 export type Veille = ReturnType<typeof ouvrirVeille>;
 
 // Les codes qui disent un cas. 255 est à `ssh` ; 65, 68, 69 et 70 sont des refus du
-// geste (docs/runtime.md, « Piloter ») ; 127 est celui du shell de la box, qui
+// geste (docs/runtime/exploitation.md, « Piloter ») ; 127 est celui du shell de la box, qui
 // n'a pas trouvé la commande.
 const CAS: Readonly<Record<number, Cas>> = { 255: "ssh-en-echec", 65: "projet-inconnu", 68: "sans-droit", 69: "commande-manque", 70: "node-inapte", 127: "commande-manque" };
 

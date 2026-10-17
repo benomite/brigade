@@ -181,7 +181,7 @@ function deLUrgence(faits: Faits | Sans): Alerte[] {
 
 // Tant que la file ne porte pas son état (#438), l'app le lit elle-même : avant sa première lecture, il n'est pas dit.
 export const MANAGER_PAS_DIT = "first reading of `manager` in progress: the queue does not say the manager's state (#438). This is not “on”";
-// docs/runtime.md, « Le manager » : ce qu'allumer engage (allumage.ts, `AVERTISSEMENT`).
+// docs/runtime/manager.md, « Le manager » : ce qu'allumer engage (allumage.ts, `AVERTISSEMENT`).
 const PRIX_ALLUMER = "it judges the whole open backlog, and what it judges executable is taken at once — what that commits is counted when you act";
 
 // Éteint, ce que la tête du rail en dit, et la ligne de la bande : une seule phrase, la même partout.
@@ -444,7 +444,7 @@ function duGrant(status: string | Sans): Alerte[] {
           ton: "jaune",
           dit: `grant \`${action}\` expiring soon: then, the pass will stop at the open PR`,
           releve: valeur,
-          geste: `extend it without revoking it: \`grant extend ${action}\` (docs/runtime.md, “Le prolonger”)`,
+          geste: `extend it without revoking it: \`grant extend ${action}\` (docs/runtime/pass-merge.md, “Le prolonger”)`,
           appel: DEMANDE,
           prix: MERGE_SANS_TOI,
         },
