@@ -1,7 +1,10 @@
 // Ce qui attend le chef, mis à part : le bloc `attend` de `status`, pris par son
 // bord et par lui seul — de la seule ligne de la sortie qui commence par
 // `attend` à la seule qui vaut `fin attend`, bornes comprises (docs/runtime/etat-et-mesures.md,
-// « Ce qui attend le chef »). Rien de ce qu'il porte n'est compté ni redit :
+// « Ce qui attend le chef »). Le bord a deux écritures, `attend` … `fin attend`
+// et `awaiting` … `end awaiting` (#536) : la box, l'app et le second ne se
+// mettent pas à jour ensemble, les deux sont donc lues. Un début de l'une et la
+// fin de l'autre ne font pas un bloc. Rien de ce qu'il porte n'est compté ni redit :
 // quand rien n'attend, c'est lui qui le dit. Le reste de la sortie reste mot
 // pour mot, à sa place. Une seule chose y est lue ici, pour le rail : le numéro
 // en tête d'une ligne (`ticketsDe`) — ce que la ligne dit ensuite, et ce qui la
@@ -18,16 +21,24 @@ export type Montree = { projet: string; demande: number; a: string } & ({ attend
 function bord(texte: string): { debut: number; fin: number } | undefined {
   const debuts: number[] = [];
   const fins: number[] = [];
+  // Le bord que chaque borne retenue porte : 0 pour `attend`, 1 pour `awaiting`.
+  const formatsDebuts: number[] = [];
+  const formatsFins: number[] = [];
   for (let depart = 0; depart < texte.length; ) {
     const saut = texte.indexOf("\n", depart);
     const suivante = saut === -1 ? texte.length : saut + 1;
     const ligne = texte.slice(depart, saut === -1 ? texte.length : saut);
-    if (ligne === "fin attend") fins.push(suivante);
-    else if (ligne.startsWith("attend")) debuts.push(depart);
+    if (ligne === "fin attend" || ligne === "end awaiting") {
+      fins.push(suivante);
+      formatsFins.push(ligne === "fin attend" ? 0 : 1);
+    } else if (ligne.startsWith("attend") || ligne.startsWith("awaiting")) {
+      debuts.push(depart);
+      formatsDebuts.push(ligne.startsWith("attend") ? 0 : 1);
+    }
     depart = suivante;
   }
   const [debut, fin] = [debuts[0], fins[0]];
-  if (debuts.length !== 1 || fins.length !== 1 || debut === undefined || fin === undefined || fin <= debut) return undefined;
+  if (debuts.length !== 1 || fins.length !== 1 || debut === undefined || fin === undefined || fin <= debut || formatsDebuts[0] !== formatsFins[0]) return undefined;
   return { debut, fin };
 }
 
