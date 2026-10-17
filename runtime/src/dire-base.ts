@@ -18,6 +18,12 @@ export const direPanne = (motif: string | null | undefined) => (motif ? `, l'ess
 export const direControleRetenu = (retenu: ControleRetenu, depuis: (instant: string) => string) =>
   `contrôle retenu depuis ${depuis(retenu.at)} : la base ne se rapatrie pas (${retenu.reason}) — la pass y revient seule, à chaque tick`;
 
+// Les mêmes, en anglais : ce que dit la ligne `base` de `status`.
+export const direPanneEn = (motif: string | null | undefined) => (motif ? `, the attempt did not run (${motif})` : "");
+
+export const direControleRetenuEn = (retenu: ControleRetenu, depuis: (instant: string) => string) =>
+  `check held for ${depuis(retenu.at)}: the base cannot be fetched (${retenu.reason}) — the pass comes back to it on its own, at every tick`;
+
 // Où en est le rejeu que le chef a demandé. Une base qui ne se rapatrie pas
 // le retient avant la machine : c'est elle qui se dit.
 export function direRejeu(rejeu: NonNullable<EtatDeLaBase["recheck"]>, depuis: (instant: string) => string, retenu: ControleRetenu | null): string {
@@ -35,6 +41,20 @@ export function suiteDeBaseRouge({ unplayed, reason, recheck }: EtatDeLaBase, de
     ...(recheck === null
       ? [...(retenu === null ? [] : [direControleRetenu(retenu, depuis)]), `rejouer ses gates sans attendre un commit : ${REJOUER_LA_BASE}`]
       : [`${recheck.by === "chef" ? "rejeu demandé par le chef" : "rejeu automatique, avant d'ouvrir un ticket de réparation si le rouge tient,"} depuis ${depuis(recheck.at)} : ${direRejeu(recheck, depuis, retenu)}`]),
+  ];
+}
+
+export function direRejeuEn(rejeu: NonNullable<EtatDeLaBase["recheck"]>, depuis: (instant: string) => string, retenu: ControleRetenu | null): string {
+  if (retenu !== null) return `the base cannot be fetched for ${depuis(retenu.at)} (${retenu.reason}), the pass comes back to it on its own`;
+  return rejeu.heldAt === null ? "the pass plays it on its next round" : `the saturated machine has held it for ${depuis(rejeu.heldAt)}, the pass comes back to it on its own`;
+}
+
+export function suiteDeBaseRougeEn({ unplayed, reason, recheck }: EtatDeLaBase, depuis: (instant: string) => string, retenu: ControleRetenu | null): string[] {
+  return [
+    ...(unplayed === null ? [] : [`gates not played on ${court(unplayed.sha)} for ${depuis(unplayed.at)}${direPanneEn(reason)}: a check that was not played does not lift a red that was found`]),
+    ...(recheck === null
+      ? [...(retenu === null ? [] : [direControleRetenuEn(retenu, depuis)]), `replay its gates without waiting for a commit: ${REJOUER_LA_BASE}`]
+      : [`${recheck.by === "chef" ? "replay asked by the chef" : "automatic replay, before opening a repair ticket if the red holds,"} for ${depuis(recheck.at)}: ${direRejeuEn(recheck, depuis, retenu)}`]),
   ];
 }
 

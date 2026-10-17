@@ -289,7 +289,7 @@ fait hors du runtime** (`merge.done`, `unverified`) ; devant **une livraison rou
 fusionnée**, si la base n'a pas été jugée sur cette tête ; et **tant qu'elle est rouge**, dès
 qu'elle bouge — ou à ta demande. Un merge fait par la pass n'en déclenche aucun.
 
-**Rouge**, c'est dit dans journald, dans `run status` sans qu'on le demande (`base  ROUGE depuis …`,
+**Rouge**, c'est dit dans journald, dans `run status` sans qu'on le demande (`base  RED since …`,
 avec le geste qui fait rejouer), en tête de `run pass`, et sur chaque ticket dont le merge était à
 vérifier. **Plus rien n'est jugé ni mergé** — chaque livraison **attend** (`base-red`), sans
 verdict ni renvoi — et **la station cesse de prendre des tickets** (`station.held`, motif `base`),

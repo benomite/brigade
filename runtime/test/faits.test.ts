@@ -235,25 +235,25 @@ test("l'état du projet est un mot d'une liste fermée, et chacun se lit aussi e
   assert.deepEqual(ETATS_DE_PROJET, ["éteinte", "arrêtée", "retenue", "ouverte"]);
 
   assert.equal(lire(a).forme.etat, "éteinte");
-  assert.match(tete(), /^runtime    jamais démarré$/m);
+  assert.match(tete(), /^runtime    never started$/m);
 
   demarrer(noter);
   noter({ type: "guard.configured", payload: { limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, breakerThreshold: 1 } });
   assert.equal(lire(a).forme.etat, "ouverte");
-  assert.match(tete(), /^runtime    en marche d'après le journal/m);
-  assert.match(tete(), /^cuisine    ouverte · disjoncteur fermé/m);
+  assert.match(tete(), /^runtime    running according to the log/m);
+  assert.match(tete(), /^kitchen    open · breaker closed/m);
 
   noter({ type: "breaker.opened", payload: { failures: 1, threshold: 1 } });
   assert.equal(lire(a).forme.etat, "retenue");
-  assert.match(tete(), /disjoncteur OUVERT/);
+  assert.match(tete(), /breaker OPEN/);
 
   noter({ type: "kitchen.stopped", payload: {} }, null, "chef");
   assert.equal(lire(a).forme.etat, "arrêtée");
-  assert.match(tete(), /^cuisine    ARRÊTÉE par le chef/m);
+  assert.match(tete(), /^kitchen    STOPPED by the chef/m);
 
   noter({ type: "runtime.stopped", payload: { signal: "SIGTERM" } });
   assert.equal(lire(a).forme.etat, "éteinte");
-  assert.match(tete(), /^runtime    arrêté il y a/m);
+  assert.match(tete(), /^runtime    stopped \d+ min ago/m);
 });
 
 test("une connexion Max qui manque, une base rouge : la cuisine est retenue, comme `status` le dit en tête", (t) => {
@@ -264,14 +264,14 @@ test("une connexion Max qui manque, une base rouge : la cuisine est retenue, com
   deconnectee.noter({ type: "station.disconnected", payload: { station: "box/claude", reason: "not-logged-in", run: null } }, null, "station:box/claude");
 
   assert.equal(deconnectee.lire(a).forme.etat, "retenue");
-  assert.ok(deconnectee.lire(a).texte.some((ligne) => ligne.startsWith("connexion  Max ")));
+  assert.ok(deconnectee.lire(a).texte.some((ligne) => ligne.startsWith("connection Max ")));
 
   const rouge = cuisine(t);
   demarrer(rouge.noter);
   rouge.noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: { outcome: "red", code: 1, failures: [], tail: "" }, tickets: [] } });
 
   assert.equal(rouge.lire(a).forme.etat, "retenue");
-  assert.ok(rouge.lire(a).texte.some((ligne) => ligne.startsWith("base       ROUGE ")));
+  assert.ok(rouge.lire(a).texte.some((ligne) => ligne.startsWith("base       RED ")));
 });
 
 test("la forme porte l'heure de la box et celle du dernier tick, sans rien en conclure : un runtime figé reste « ouverte »", (t) => {

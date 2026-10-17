@@ -6,6 +6,7 @@ import { test, type TestContext } from "node:test";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
+import { sansMotFrancais } from "./aides/glossaire.ts";
 import { JOUR_HORLOGE, jourDecale, repertoireTemporaire } from "./outils.ts";
 
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -79,8 +80,10 @@ test("une livraison à merger à la main qui tient toutes les zones : l'urgence 
   });
   assert.equal(
     texte[0],
-    `urgence    TOUTE LA CUISINE ATTEND LE CHEF depuis 1 h 30 — 2 tickets à l'arrêt, retenus par #535 : livraison verte qui touche à ses juges — à relire et merger à la main : ${pr(535)}`,
+    `emergency  THE WHOLE KITCHEN AWAITS THE CHEF for 1 h 30 — 2 tickets stopped, held by #535: green delivery that touches its judges — review and merge by hand: ${pr(535)}`,
   );
+  // La ligne d'urgence ne porte aucun mot français du glossaire.
+  sansMotFrancais([texte[0] ?? ""]);
   // La décision reste aussi une ligne du bloc `awaiting`, en anglais.
   assert.ok(texte.some((ligne) => ligne.startsWith("  #535  for 1 h 30  green delivery that touches its judges")));
 
@@ -137,13 +140,13 @@ test("une session Max expirée sur la seule station : toute la cuisine attend la
     autres: [],
     alerte: null,
   });
-  assert.match(lire("10:00:00").texte[0] ?? "", /^urgence {4}TOUTE LA CUISINE ATTEND LE CHEF depuis 1 h 00 — 2 tickets à l'arrêt, retenus par box\/claude : connexion Max expirée/);
+  assert.match(lire("10:00:00").texte[0] ?? "", /^emergency {2}THE WHOLE KITCHEN AWAITS THE CHEF for 1 h 00 — 2 tickets stopped, held by box\/claude: Max connection expired/);
 
   // Le chef se reconnecte et fait reprendre : l'urgence est levée.
   a("10:30:00");
   noter({ type: "kitchen.resumed", payload: {} }, null, "chef");
   assert.equal(lire("10:31:00").faits.urgence, null);
-  assert.ok(!lire("10:31:00").texte.some((ligne) => ligne.startsWith("urgence")));
+  assert.ok(!lire("10:31:00").texte.some((ligne) => ligne.startsWith("emergency")));
 
   // Elle revient : son début est celui de la nouvelle expiration.
   a("12:00:00");
@@ -162,7 +165,7 @@ test("une décision qui ne retient qu'une partie du rail n'est pas une urgence :
 
   const { faits: lus, texte } = lire("10:00:00");
   assert.equal(lus.urgence, null);
-  assert.ok(!texte.some((ligne) => ligne.startsWith("urgence")));
+  assert.ok(!texte.some((ligne) => ligne.startsWith("emergency")));
   assert.deepEqual(lus.attend.map(({ ticket }) => ticket), [535]);
   assert.equal(lus.compteurs.attend, 1);
 });
@@ -213,7 +216,7 @@ test("deux décisions qui, à elles deux, retiennent tout : l'urgence nomme cell
     lus.urgence?.autres.map(({ decision, ticket, cause }) => ({ decision, ticket, cause })),
     [{ decision: "#535", ticket: 535, cause: "merge" }],
   );
-  assert.match(texte[0] ?? "", /retenus par #540 : .* — aussi : #535$/);
+  assert.match(texte[0] ?? "", /held by #540: .* — also: #535$/);
 });
 
 test("le chef merge à la main : l'urgence est levée, la cuisine repart — et celle qui revient part de la nouvelle décision, pas de l'ancienne", (t) => {
@@ -269,10 +272,10 @@ test("le disjoncteur ouvert entre dans la file avec ses échecs et son geste, va
   const ouvert = lire("09:00:00");
   const entree = ouvert.etat.attend.find(({ quoi }) => quoi === "disjoncteur");
   assert.ok(entree);
-  assert.match(ouvert.texte.join("\n"), /disjoncteur ouvert : 3 échecs d'affilée/);
-  assert.match(ouvert.texte.join("\n"), /#701 : sortie 1, 4 tours, 1000 tokens/);
-  assert.match(ouvert.texte.join("\n"), /#702 : sortie 2, 5 tours, 2000 tokens/);
-  assert.match(ouvert.texte.join("\n"), /#703 : sortie 3, 6 tours, 3000 tokens/);
+  assert.match(ouvert.texte.join("\n"), /breaker open: 3 failures in a row/);
+  assert.match(ouvert.texte.join("\n"), /#701: exit 1, 4 turns, 1000 tokens/);
+  assert.match(ouvert.texte.join("\n"), /#702: exit 2, 5 turns, 2000 tokens/);
+  assert.match(ouvert.texte.join("\n"), /#703: exit 3, 6 turns, 3000 tokens/);
   assert.match(ouvert.texte.join("\n"), /guardrails resume/);
   assert.equal(ouvert.faits.urgence?.decision, "disjoncteur");
   assert.equal(ouvert.faits.urgence?.cause, "disjoncteur");

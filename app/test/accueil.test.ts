@@ -32,6 +32,14 @@ const cook = (ticket: number, station = "parade-box") => ({ ticket, titre: `tick
 const UNE = "attend     1 décision attend le chef depuis 2 j\n  #867  depuis 2 j  merge à faire  Titre\nfin attend\n";
 const CINQ = "attend     5 décisions attendent le chef — la plus ancienne depuis 2 j\n  #1  depuis 2 j  merge\nfin attend\n";
 const BASE_ROUGE = [
+  "nothing cooks: base red since 3 h 05 ago, repair #655 in progress",
+  "kitchen    held",
+  "base       RED since 3 h 05 ago on abc1234 — the station takes no more tickets, the pass neither judges nor merges",
+  "",
+  "rail       …",
+].join("\n");
+// La même, comme la box l'écrivait avant #928 : l'app la lit toujours.
+const BASE_ROUGE_EN_FRANCAIS = [
   "rien ne cuit : base rouge depuis 3 h 05, réparation #655 en cours",
   "cuisine    retenue",
   "base       ROUGE depuis 3 h 05 sur abc1234 — la station ne prend plus de ticket, la pass ne juge ni ne merge",
@@ -70,6 +78,7 @@ describe("la ligne d'un projet : sa pastille, et ce qui bloque, ce qui attend le
   test("bloqué : rouge — base rouge et sa réparation, cuisine arrêtée ou retenue, runtime éteint, box injoignable", () => {
     const rouge = ligneDeProjet(PROJET, lus(desFaits({ etat: "retenue", cooks: [cook(655)] }, { auTravail: 1 })), { texte: BASE_ROUGE });
     assert.deepEqual([rouge.ton, rouge.dit], ["rouge", "base red · #655 being repaired"]);
+    assert.deepEqual(ligneDeProjet(PROJET, lus(desFaits({ etat: "retenue", cooks: [cook(655)] }, { auTravail: 1 })), { texte: BASE_ROUGE_EN_FRANCAIS }), rouge);
     for (const [etat, dit] of [["arrêtée", "kitchen stopped"], ["éteinte", "runtime stopped"], ["retenue", "kitchen held"]] as const) {
       const ligne = ligneDeProjet(PROJET, lus(desFaits({ etat })), undefined);
       assert.deepEqual([ligne.ton, ligne.dit], ["rouge", dit], etat);
@@ -78,6 +87,7 @@ describe("la ligne d'un projet : sa pastille, et ce qui bloque, ce qui attend le
     assert.deepEqual([injoignable.ton, injoignable.dit], ["rouge", "box unreachable"]);
     // Les causes que `status` dit d'une cuisine retenue.
     assert.equal(ligneDeProjet(PROJET, lus(desFaits({ etat: "retenue" })), { texte: "cuisine    retenue — disjoncteur OUVERT après 3 échecs\nconnexion  perdue sur box : se reconnecter" }).dit, "breaker open · Max connection down");
+    assert.equal(ligneDeProjet(PROJET, lus(desFaits({ etat: "retenue" })), { texte: "kitchen    held · breaker OPEN for 1 h 00 (3 failures in a row)\nconnection Max EXPIRED for 1 h 00 on box/claude — no ticket is taken any more: `claude /login`" }).dit, "breaker open · Max connection down");
   });
 
   test("dans l'ordre : ce qui bloque, ce qui attend le chef, puis ce qui cuit", () => {

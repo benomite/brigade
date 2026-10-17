@@ -95,7 +95,7 @@ Trois mots se ressemblent, et ne disent pas la même chose :
 | Le mot | Ce qu'il désigne | Où il se lit |
 |---|---|---|
 | **Tous les projets** | **un écran de l'app**, l'accueil : la vue d'ensemble de brigade — tes projets, tes stations, la santé de Max et de GitHub —, en tête de la barre. Il ne lance et n'arrête rien | la case ronde **T** |
-| **la cuisine** d'un projet | **un état du runtime, sur la box** : `ouverte`, `retenue`, `arrêtée`, `éteinte`. C'est elle que ton « stop » arrête, et elle seule | la pastille, la carte, la ligne `cuisine` de `status`, la bannière `CUISINE À L'ARRÊT` |
+| **la cuisine** d'un projet | **un état du runtime, sur la box** : `ouverte`, `retenue`, `arrêtée`, `éteinte`. C'est elle que ton « stop » arrête, et elle seule | la pastille, la carte, la ligne `kitchen` de `status`, la bannière `CUISINE À L'ARRÊT` |
 | **`en cuisine`** | **l'étape d'un ticket** : un cook le tient, entre `en attente` et `en pass` — ce que le rail appelle `pris`. Elle parle d'un ticket, pas du projet | la liste des tickets d'une épique, et `pass` |
 
 Le journal dit `kitchen.stopped` et `kitchen.resumed` pour ton « stop » et ton « reprendre » :
@@ -1817,11 +1817,13 @@ Ce qui demande ton attention sans t'attendre est là où `status` le met, et dit
 | Ce que tu cherches | Où `status` le dit |
 |---|---|
 | Un ticket qui ne progresse plus | `COINCE`, sur sa ligne du `rail` et sur la ligne `cooks` ; chaque ticket pris porte `sans progrès depuis <durée>` — une durée, pas une date à comparer |
-| Un grant qui va s'éteindre | `BIENTÔT ÉTEINT`, sur la ligne `grant` de l'en-tête |
-| Un cook arrêté | aucune ligne à lui : `derniers événements` (`guard.tripped`, `cook.exited`), et le disjoncteur sur la ligne `cuisine` |
+| Un grant qui va s'éteindre | `EXPIRING SOON`, sur la ligne `grant` de l'en-tête |
+| Un cook arrêté | aucune ligne à lui : `derniers événements` (`guard.tripped`, `cook.exited`), et le disjoncteur sur la ligne `kitchen` |
 
 L'app **ne prononce jamais elle-même** « rien ne t'attend » : un écran calme est un bloc `attend`
-qui dit `rien n'attend le chef`, et un `status` sans `COINCE` ni `BIENTÔT ÉTEINT`.
+qui dit `rien n'attend le chef`, et un `status` sans `COINCE` ni `EXPIRING SOON`.
+
+Les lignes de tête de `status` que l'app lit (`kitchen`, `connection`, `setup`, `base`, `grant`, et `nothing cooks:`) sont en anglais depuis #928 ; elle les lit aussi sous leur forme française (`cuisine`, `connexion`, `ROUGE`, `ACTIF`, `rien ne cuit :`…), pour une box dont le runtime n'est pas à jour.
 
 **Dire où est la box.** Un seul champ sur le projet, dans `app.json` :
 

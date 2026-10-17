@@ -14,7 +14,7 @@ import { decrireEtat, faits as faitsDuRuntime, lireEtat } from "../../runtime/sr
 import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import { principal as manager } from "../../runtime/src/manager-cli.ts";
-import { GESTE_DE_STATION_A_CHAUD } from "../../runtime/src/stations-declarees.ts";
+import { GESTE_DE_STATION_A_CHAUD_EN } from "../../runtime/src/stations-declarees.ts";
 import { AFFICHAGE_MINIMUM, alertes, boutonDe, MANAGER_PAS_DIT, signalDe, tenirBandes, type Alerte, type Sujet } from "../src/alertes.ts";
 import { mettreAPart } from "../src/attend.ts";
 import type { Lecture } from "../src/box.ts";
@@ -110,18 +110,18 @@ describe("la bande d'alertes : vide quand tout va bien", () => {
     const { noter, rendre, bande } = saine(t);
     noter({ type: "grant.activated", payload: { action: "merge", until: `${JOUR}T18:00:00.000Z` } }, "chef");
 
-    assert.match(rendre("10:00:00").status, /^grant {6}merge ACTIF encore 8 h 00/m);
+    assert.match(rendre("10:00:00").status, /^grant {6}merge ACTIVE 8 h 00 left/m);
     assert.deepEqual(bande(), []);
   });
 
   test("ce qui ne change rien aux cinq minutes à venir n'y entre jamais : la sauvegarde trop vieille, ou jamais faite", (t) => {
     const { noter, a, rendre, bande } = saine(t);
-    assert.match(rendre("10:00:00").status, /^sauvegarde JAMAIS FAITE/m);
+    assert.match(rendre("10:00:00").status, /^backup {5}NEVER DONE/m);
     assert.deepEqual(bande(), []);
 
     a("2026-10-10T09:30:00.000Z");
     noter({ type: "backup.completed", payload: { name: "parade-1", lastSeq: 3, events: 3, streams: 0 } }, "sauvegarde");
-    assert.match(rendre("10:00:00").status, /^sauvegarde TROP VIEILLE/m);
+    assert.match(rendre("10:00:00").status, /^backup {5}TOO OLD/m);
     // Ni l'âge de la sauvegarde, ni rien de ce qui se dit d'elle.
     assert.deepEqual(bande("10:00:00"), []);
   });
@@ -184,8 +184,8 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
 
     const ligne = enPanne(bande(), "cuisine");
     assert.equal(ligne.dit, "no station declared: no cook goes, the kitchen is frozen");
-    assert.equal(ligne.releve, "AUCUNE DÉCLARÉE depuis 1 h 00 — aucun cook ne part, les tickets restent en attente");
-    assert.equal(ligne.geste, GESTE_DE_STATION_A_CHAUD);
+    assert.equal(ligne.releve, "NONE DECLARED for 1 h 00 — no cook leaves, the tickets stay waiting");
+    assert.equal(ligne.geste, GESTE_DE_STATION_A_CHAUD_EN);
     // Déclarer une station se joue sur la box, hors de l'app : le geste est une demande au second.
     assert.deepEqual(ligne.appel, { demande: true });
     assert.equal(ligne.prix, "a runtime restart: what is in flight is interrupted — the box does not say what is");
@@ -205,7 +205,7 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
     noter({ type: "breaker.opened", payload: { failures: 3, threshold: 3 } });
 
     const ligne = enPanne(bande(), "cuisine");
-    assert.equal(ligne.releve, "disjoncteur OUVERT depuis 1 h 00 (0 échec d'affilée)");
+    assert.equal(ligne.releve, "breaker OPEN for 1 h 00 (0 failures in a row)");
     assert.deepEqual(ligne.appel, { geste: "reprendre" });
   });
 
@@ -255,7 +255,7 @@ describe("le grant : sans rien à dire, éteint seul, non dit", () => {
     noter({ type: "grant.expired", payload: { action: "merge", cause: "until", since: `${JOUR}T09:30:00.000Z` } }, "pass");
 
     const ligne = enPanne(bande(), "grant");
-    assert.equal(ligne.releve, "merge ÉTEINT SEUL il y a 30 min — son échéance est passée : la pass s'arrête à la PR ouverte, plus rien n'est mergé sans toi");
+    assert.equal(ligne.releve, "merge LAPSED 30 min ago — its deadline has passed: the pass stops at the open PR, nothing is merged without you any more");
     assert.deepEqual(ligne.appel, { geste: "grant-activer", grant: "merge" });
     assert.ok(GESTES.some(({ id }) => id === "grant-activer"));
     assert.equal(ligne.prix, "a green pass will be merged without you");
@@ -267,7 +267,7 @@ describe("le grant : sans rien à dire, éteint seul, non dit", () => {
 
     const ligne = enPanne(bande(), "grant");
     assert.equal(ligne.ton, "jaune");
-    assert.match(ligne.releve ?? "", /^merge ACTIF, BIENTÔT ÉTEINT : encore 30 min/);
+    assert.match(ligne.releve ?? "", /^merge ACTIVE, EXPIRING SOON: 30 min left/);
     assert.match(ligne.geste, /grant extend merge/);
   });
 
@@ -278,7 +278,7 @@ describe("le grant : sans rien à dire, éteint seul, non dit", () => {
     assert.deepEqual(ouverte?.alertes, []);
     assert.deepEqual(bandes.veiller(["parade"])[0]?.alertes, []);
     assert.equal(nonVerifie(bandes.status({ ...PAS_JOINT, erreur: PAS_JOINT.erreur.replace("faits", "status") }).alertes, "grant", "grant state").pourquoi, "`status` was not read: not reached");
-    assert.match(nonVerifie(bandes.status(mettreAPart(lecture("status", "rien de connu\n"))).alertes, "grant", "grant state").pourquoi ?? "", /has no `cuisine` line/);
+    assert.match(nonVerifie(bandes.status(mettreAPart(lecture("status", "rien de connu\n"))).alertes, "grant", "grant state").pourquoi ?? "", /has no `kitchen` line/);
 
     // Lu, puis plus lu : ce qu'il disait est lâché.
     assert.deepEqual(du(bandes.status(mettreAPart(lecture("status", rendre("10:00:00").status))).alertes, "grant"), []);
@@ -372,7 +372,7 @@ describe("la bande, à l'écran", () => {
     // La commande que la box nomme n'est écrite nulle part, pas même derrière « detail » : le bouton est le seul geste.
     assert.doesNotMatch(ligne().textContent, /brigade <projet>/);
     (ligne().dessous("button").find((pose) => pose.className === "detail") ?? assert.fail("pas de « detail »")).click();
-    assert.ok(!ligne().textContent.includes(GESTE_DE_STATION_A_CHAUD), "le geste est écrit derrière « detail »");
+    assert.ok(!ligne().textContent.includes(GESTE_DE_STATION_A_CHAUD_EN), "le geste est écrit derrière « detail »");
     demande().click();
     await repos();
     // La confirmation dit le prix du geste, en une ligne ; rien n'est encore écrit.

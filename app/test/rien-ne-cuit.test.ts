@@ -29,7 +29,7 @@ import { jouerLaVue, repos } from "./aides/fausse-vue.ts";
 
 const PARADE = "parade";
 const HEURE_MS = 3_600_000;
-const LIGNE = "rien ne cuit : base rouge depuis 3 h 00, réparation #501 en cours";
+const LIGNE = "nothing cooks: base red since 3 h 00 ago, repair #501 in progress";
 
 // Une base rouge depuis trois heures, dont le ticket de réparation #501 est ouvert.
 // `echouee` : il a quitté le rail sans être servi. `verte` : la base a été revue au vert.
@@ -96,8 +96,8 @@ describe("rien ne cuit : base rouge, réparation en cours", () => {
     const texte = cuisine(t);
     const montree = mettreAPart(lue(texte));
     assert.ok("attend" in montree && montree.attend !== undefined);
-    assert.ok(!montree.attend.includes("rien ne cuit"));
-    assert.deepEqual(montree.sorties.flatMap(({ texte }) => texte.split("\n").filter((ligne) => ligne.startsWith("rien ne cuit"))), [LIGNE]);
+    assert.ok(!montree.attend.includes("nothing cooks"));
+    assert.deepEqual(montree.sorties.flatMap(({ texte }) => texte.split("\n").filter((ligne) => ligne.startsWith("nothing cooks"))), [LIGNE]);
 
     const dessinable = dessinee(texte);
     assert.equal(tableauDe(dessinable).rienNeCuit, LIGNE);
@@ -113,14 +113,14 @@ describe("rien ne cuit : base rouge, réparation en cours", () => {
 
   test("la base verte, ni `status` ni la carte ne la portent", (t) => {
     const texte = cuisine(t, { verte: true });
-    assert.ok(!texte.includes("rien ne cuit"));
+    assert.ok(!texte.includes("nothing cooks"));
     assert.equal(tableauDe(dessinee(texte)).rienNeCuit, undefined);
   });
 
   test("la réparation échouée, la ligne ne dit plus « réparation en cours » : la ligne `base` du bloc `attend` prend le relais", (t) => {
     const texte = cuisine(t, { echouee: true });
-    assert.ok(!texte.includes("rien ne cuit"));
-    assert.ok(!/réparation #501 en cours/.test(texte));
+    assert.ok(!texte.includes("nothing cooks"));
+    assert.ok(!/repair #501 in progress/.test(texte));
     assert.match(texte, /^ {2}base {2}/m);
     assert.equal(tableauDe(dessinee(texte)).rienNeCuit, undefined);
   });

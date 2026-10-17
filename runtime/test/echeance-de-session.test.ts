@@ -25,7 +25,7 @@ import { ConfigInvalide, demarrer, type CauseReveil } from "../src/runtime.ts";
 import { appeler, FAUX_BWRAP, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const STATION = "box/claude";
-const GESTE_TOMBEE = "`claude /login` sous le compte du service — la cuisine reprend seule dans la minute, sans « resume »";
+const GESTE_TOMBEE = "`claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”";
 const GESTE_TOMBEE_EN = "`claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”";
 const ETAT = "/var/lib/brigade/.session/renouvellement";
 const GESTE = "`claude /login` under the service account, then `brigade <projet> guardrails resume`";
@@ -130,8 +130,8 @@ test("une session déjà tombée se dit comme avant — depuis quand, et le gest
   noter({ type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run: null } }, `station:${STATION}`);
 
   assert.deepEqual(bloc("08:25:00"), ["awaiting   1 decision awaits the chef — for 20 min", `  ${STATION}  for 20 min  Max connection expired (authentication_failed) — to restore: ${GESTE_TOMBEE_EN}`]);
-  const station = decrireEtat(lireEtat(journal, new Date(a("08:25:00"))), new Date(a("08:25:00"))).filter((ligne) => ligne.startsWith("connexion"));
-  assert.deepEqual(station, [`connexion  Max EXPIRÉE depuis 20 min sur ${STATION} (authentication_failed) — plus aucun ticket n'est pris : ${GESTE_TOMBEE}`]);
+  const station = decrireEtat(lireEtat(journal, new Date(a("08:25:00"))), new Date(a("08:25:00"))).filter((ligne) => ligne.startsWith("connection"));
+  assert.deepEqual(station, [`connection Max EXPIRED for 20 min on ${STATION} (authentication_failed) — no ticket is taken any more: ${GESTE_TOMBEE}`]);
 
   aLHeure("08:30:00");
   noter({ type: "kitchen.resumed", payload: {} }, "chef");

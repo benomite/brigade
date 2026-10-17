@@ -15,7 +15,7 @@
 // Ce module ne lance rien et ne demande rien de neuf à personne : il dit, d'après ce que les veilles
 // ont déjà lu — `faits` de chaque projet, son `status` quand il est lu, les stations et leurs
 // projets sur GitHub. Un état qui n'a pas été lu n'est jamais dit sain.
-import { tetesDe } from "./alertes.ts";
+import { CONNEXION, CUISINE, tetesDe } from "./alertes.ts";
 import type { Montree } from "./attend.ts";
 import type { Lecture } from "./box.ts";
 import { COMMANDE as FAITS, comprendre, type Faits } from "./faits.ts";
@@ -51,17 +51,19 @@ const enAnglais = (duree: string) => duree.replace(/ j$/, " d");
 // Ce qui retient la cuisine, d'après les lignes de tête de `status` (alertes.ts lit les mêmes).
 function causes(status: string): string[] {
   return tetesDe(status).flatMap(({ titre, valeur }) => {
-    if (titre === "cuisine" && valeur.includes("disjoncteur OUVERT")) return ["breaker open"];
+    if (CUISINE.includes(titre) && /disjoncteur OUVERT|breaker OPEN/.test(valeur)) return ["breaker open"];
     if (titre === "stations") return ["no station declared"];
-    if (titre === "connexion") return ["Max connection down"];
-    if (titre === "setup" && valeur.startsWith("BLOQUÉ")) return ["project setup blocked"];
+    if (CONNEXION.includes(titre)) return ["Max connection down"];
+    if (titre === "setup" && /^(?:BLOQUÉ|BLOCKED)(?![\p{L}\p{N}_])/u.test(valeur)) return ["project setup blocked"];
     return [];
   });
 }
-const baseRouge = (status: string | undefined) => status !== undefined && tetesDe(status).some(({ titre, valeur }) => titre === "base" && valeur.startsWith("ROUGE"));
-// Le ticket qui répare la base rouge, quand `status` le dit en tête (runtime/src/etat.ts, `RIEN_NE_CUIT`).
+const baseRouge = (status: string | undefined) => status !== undefined && tetesDe(status).some(({ titre, valeur }) => titre === "base" && /^(?:ROUGE|RED)(?![\p{L}\p{N}_])/u.test(valeur));
+// Le ticket qui répare la base rouge, quand `status` le dit en tête (runtime/src/etat.ts, `RIEN_NE_CUIT`),
+// en anglais ou en français (#928).
 const reparation = (status: string | undefined): number | undefined => {
-  const [, ticket] = /^rien ne cuit : base rouge depuis .*, réparation #(\d+) en cours$/m.exec(status ?? "") ?? [];
+  const [, anglais, francais] = /^(?:nothing cooks: base red since .*, repair #(\d+) in progress|rien ne cuit : base rouge depuis .*, réparation #(\d+) en cours)$/m.exec(status ?? "") ?? [];
+  const ticket = anglais ?? francais;
   return ticket === undefined ? undefined : Number(ticket);
 };
 

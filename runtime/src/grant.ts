@@ -132,6 +132,15 @@ export function direInstant(iso: string): string {
   return `${d.getUTCDate()} ${MOIS[d.getUTCMonth()]} ${deux(d.getUTCHours())}:${deux(d.getUTCMinutes())} UTC`;
 }
 
+const MOIS_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Le même instant, en anglais : « 12 Oct 19:20 UTC ».
+export function direInstantEn(iso: string): string {
+  const d = new Date(iso);
+  const deux = (n: number) => String(n).padStart(2, "0");
+  return `${d.getUTCDate()} ${MOIS_EN[d.getUTCMonth()]} ${deux(d.getUTCHours())}:${deux(d.getUTCMinutes())} UTC`;
+}
+
 // Une échéance : la durée restante d'abord — la seule mention qui ne trompe
 // dans aucun fuseau —, puis l'instant, fuseau en lettres.
 export const direEcheance = (until: string, maintenant: Date, duree: (ms: number) => string) =>
@@ -143,6 +152,8 @@ export const direCompris = (until: string, maintenant: Date, duree: (ms: number)
   `compris : jusqu'au ${direInstant(until)} — dans ${duree(Date.parse(until) - maintenant.getTime())}`;
 
 const compte = (combien: number, mot: string) => `${combien.toLocaleString("fr-FR")} ${mot}${combien > 1 ? "s" : ""}`;
+
+export const direExtinctionEn = (cause: CauseDExtinction | null) => (cause === "uses" ? "its last use is consumed" : "its deadline has passed");
 
 export const direExtinction = (cause: CauseDExtinction | null) => (cause === "uses" ? "son dernier usage est consommé" : "son échéance est passée");
 
@@ -156,6 +167,16 @@ export function direReste(grant: Grant, maintenant: Date, duree: (ms: number) =>
       : [`encore ${compte(grant.usesLeft, "usage")}${grant.reserved === 0 ? "" : `, dont ${grant.reserved} ${grant.reserved > 1 ? "retenus par des merges" : "retenu par un merge"} en cours`}`]),
   ];
   return restes.length === 0 ? "sans échéance" : restes.join(" · ");
+}
+
+// Le même, en anglais, pour la ligne `grant` de `status`.
+export function direResteEn(grant: Grant, maintenant: Date, duree: (ms: number) => string): string {
+  const usages = (combien: number) => `${combien.toLocaleString("en-US")} ${combien > 1 ? "uses" : "use"}`;
+  const restes = [
+    ...(grant.until === null ? [] : [`${duree(Date.parse(grant.until) - maintenant.getTime())} left (until ${direInstantEn(grant.until)})`]),
+    ...(grant.usesLeft === null ? [] : [`${usages(grant.usesLeft)} left${grant.reserved === 0 ? "" : `, of which ${grant.reserved} held by ${grant.reserved > 1 ? "merges" : "a merge"} under way`}`]),
+  ];
+  return restes.length === 0 ? "no deadline" : restes.join(" · ");
 }
 
 // Un grant actif qui va s'éteindre sans prévenir : moins d'une heure devant

@@ -140,7 +140,7 @@ la donne pas —, puis la station ressert.
 
 La station le voit au démarrage (`claude auth status`) et dans le flux d'un cook. Elle l'écrit
 (`station.disconnected`), commente le ticket qui l'a subie, et **ne prend plus aucun ticket** ;
-`run status` le dit en tête (ligne `connexion` : `ABSENTE` au démarrage, `EXPIRÉE` en route).
+`run status` le dit en tête (ligne `connection` : `MISSING` au démarrage, `EXPIRED` en route).
 **Pour repartir** : `claude /login` sous le compte du service — rien d'autre. Le runtime relit le
 fichier d'état du renouvellement à chaque tick : dès qu'un passage **réussi**, sans échec derrière lui,
 relève des identifiants **réécrits** après la chute (`renouvele` ou `ecrits` plus récent que
