@@ -550,7 +550,7 @@ export const nommerAttente = (attente: Attente): string => (attente.ticket !== n
 
 // Le même nom, tel que le bloc l'écrit : en anglais (docs/glossary.md, §2).
 const NOMS_EN: Partial<Record<Attente["quoi"], string>> = { jeton: "token", fermeture: "closing", disjoncteur: "breaker" };
-const nommerEn = (attente: Attente): string => (attente.ticket === null ? (NOMS_EN[attente.quoi] ?? nommerAttente(attente)) : nommerAttente(attente));
+export const nommerEn = (attente: Attente): string => (attente.ticket === null ? (NOMS_EN[attente.quoi] ?? nommerAttente(attente)) : nommerAttente(attente));
 
 // Le bloc `awaiting` de l'état : le décompte, puis une ligne par décision, puis le bilan des arrêts
 // faute de grant, puis la version passée en service ce jour. Il est toujours

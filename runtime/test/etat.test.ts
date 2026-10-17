@@ -50,10 +50,10 @@ test("le chef voit le runtime et son dernier tick, les tickets par état, les co
 
   assert.deepEqual(decrire(journal, `${JOUR_HORLOGE}T10:04:11.000Z`), [
     "projet     brigade",
-    "runtime    en marche d'après le journal — pid 4211 sur box, démarré il y a 4 min",
-    "           dernier tick il y a 3 min (cadence : 1 min)",
-    "cuisine    ouverte · disjoncteur fermé (0 échec d'affilée, ouverture à 3)",
-    "sauvegarde JAMAIS FAITE — le timer brigade-sauvegarde@brigade tourne-t-il ?",
+    "runtime    running according to the log — pid 4211 on box, started 4 min ago",
+    "           last tick 3 min ago (cadence: 1 min)",
+    "kitchen    open · breaker closed (0 failures in a row, opens at 3)",
+    "backup     NEVER DONE — is the timer `brigade-sauvegarde@brigade` running?",
     "",
     "awaiting   nothing awaits the chef",
     "end awaiting",
@@ -110,14 +110,14 @@ test("un runtime figé se voit à l'âge de son dernier tick ; un tick d'une vie
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
   noter({ type: "runtime.ticked", payload: { intervalMs: 60_000 } });
 
-  assert.equal(decrire(journal, `${JOUR_HORLOGE}T10:25:01.000Z`)[2], "           dernier tick il y a 25 min (cadence : 1 min)");
+  assert.equal(decrire(journal, `${JOUR_HORLOGE}T10:25:01.000Z`)[2], "           last tick 25 min ago (cadence: 1 min)");
 
   noter({ type: "runtime.interrupted", payload: { startedSeq: 1 } });
   noter({ type: "runtime.started", payload: { pid: 2, host: "box", node: "v26" } });
 
   assert.deepEqual(decrire(journal, `${JOUR_HORLOGE}T10:25:01.000Z`).slice(1, 3), [
-    "runtime    en marche d'après le journal — pid 2 sur box, démarré il y a 24 min",
-    "           aucun tick depuis le démarrage",
+    "runtime    running according to the log — pid 2 on box, started 24 min ago",
+    "           no tick since startup",
   ]);
 });
 
@@ -125,9 +125,9 @@ test("un runtime arrêté, une cuisine arrêtée et un disjoncteur ouvert se lis
   const { journal, noter } = cuisine(t);
   assert.deepEqual(decrire(journal, `${JOUR_HORLOGE}T10:00:00.000Z`), [
     "projet     inconnu — journal vide",
-    "runtime    jamais démarré",
-    "cuisine    ouverte · disjoncteur fermé (0 échec d'affilée, ouverture à ?)",
-    "sauvegarde JAMAIS FAITE — le timer brigade-sauvegarde@<projet> tourne-t-il ?",
+    "runtime    never started",
+    "kitchen    open · breaker closed (0 failures in a row, opens at ?)",
+    "backup     NEVER DONE — is the timer `brigade-sauvegarde@<projet>` running?",
     "",
     "awaiting   nothing awaits the chef",
     "end awaiting",
@@ -156,8 +156,8 @@ test("un runtime arrêté, une cuisine arrêtée et un disjoncteur ouvert se lis
 
   assert.deepEqual(decrire(journal, `${JOUR_HORLOGE}T10:02:07.000Z`).slice(0, 3), [
     "projet     brigade",
-    "runtime    arrêté il y a 2 min",
-    "cuisine    ARRÊTÉE par le chef il y a 2 min · disjoncteur OUVERT depuis 2 min (1 échec d'affilée)",
+    "runtime    stopped 2 min ago",
+    "kitchen    STOPPED by the chef 2 min ago · breaker OPEN for 2 min (1 failure in a row)",
   ]);
   assert.equal(
     decrire(journal, `${JOUR_HORLOGE}T10:02:07.000Z`).find((ligne) => ligne.startsWith("cooks")),
@@ -167,24 +167,24 @@ test("un runtime arrêté, une cuisine arrêtée et un disjoncteur ouvert se lis
 
 test("la dernière sauvegarde se lit en tête, avec son âge ; trop vieille ou jamais faite, elle est marquée", (t) => {
   const { journal, noter } = cuisine(t);
-  const sauvegarde = (maintenant: string, ageMaxMs?: number) => decrireEtat(lireEtat(journal), new Date(maintenant), ageMaxMs).find((ligne) => ligne.startsWith("sauvegarde"));
+  const sauvegarde = (maintenant: string, ageMaxMs?: number) => decrireEtat(lireEtat(journal), new Date(maintenant), ageMaxMs).find((ligne) => ligne.startsWith("backup"));
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } }); // 10:00:00
 
-  assert.equal(sauvegarde(`${JOUR_HORLOGE}T10:00:00.000Z`), "sauvegarde JAMAIS FAITE — le timer brigade-sauvegarde@brigade tourne-t-il ?");
+  assert.equal(sauvegarde(`${JOUR_HORLOGE}T10:00:00.000Z`), "backup     NEVER DONE — is the timer `brigade-sauvegarde@brigade` running?");
 
   noter({ type: "backup.completed", payload: { name: `${JOUR_HORLOGE}T10-00-00Z`, lastSeq: 1, events: 1, streams: 0 } }, null, "sauvegarde"); // 10:00:01
   noter({ type: "backup.completed", payload: { name: `${JOUR_HORLOGE}T10-00-02Z`, lastSeq: 2, events: 2, streams: 0 } }, null, "sauvegarde"); // 10:00:02
 
-  assert.equal(sauvegarde(`${JOUR_HORLOGE}T17:12:02.000Z`), `sauvegarde il y a 7 h 12 (${JOUR_HORLOGE}T10-00-02Z, jusqu'à l'événement 2)`);
+  assert.equal(sauvegarde(`${JOUR_HORLOGE}T17:12:02.000Z`), `backup     7 h 12 ago (${JOUR_HORLOGE}T10-00-02Z, up to event 2)`);
   // Le plafond par défaut : deux jours. Atteint, il ne marque pas encore.
-  assert.equal(sauvegarde(`${jourDecale(2)}T10:00:02.000Z`), `sauvegarde il y a 2 j (${JOUR_HORLOGE}T10-00-02Z, jusqu'à l'événement 2)`);
+  assert.equal(sauvegarde(`${jourDecale(2)}T10:00:02.000Z`), `backup     2 d ago (${JOUR_HORLOGE}T10-00-02Z, up to event 2)`);
   assert.equal(
     sauvegarde(`${jourDecale(3)}T10:00:03.000Z`),
-    `sauvegarde TROP VIEILLE : il y a 3 j (${JOUR_HORLOGE}T10-00-02Z, jusqu'à l'événement 2) — plus de 2 j : systemctl status brigade-sauvegarde@brigade`,
+    `backup     TOO OLD: 3 d ago (${JOUR_HORLOGE}T10-00-02Z, up to event 2) — more than 2 d: \`systemctl status brigade-sauvegarde@brigade\``,
   );
   assert.equal(
     sauvegarde(`${JOUR_HORLOGE}T17:12:02.000Z`, 3_600_000),
-    `sauvegarde TROP VIEILLE : il y a 7 h 12 (${JOUR_HORLOGE}T10-00-02Z, jusqu'à l'événement 2) — plus de 1 h 00 : systemctl status brigade-sauvegarde@brigade`,
+    `backup     TOO OLD: 7 h 12 ago (${JOUR_HORLOGE}T10-00-02Z, up to event 2) — more than 1 h 00: \`systemctl status brigade-sauvegarde@brigade\``,
   );
 });
 

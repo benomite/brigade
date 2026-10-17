@@ -128,6 +128,9 @@ export const GESTE_DE_STATION = `déclarer une station par \`brigade <projet> st
 // la coupe au dernier « : » (app/src/alertes.ts, `coupee`).
 export const GESTE_DE_STATION_A_CHAUD = `les poser par \`${geste(`station stations ${EXEMPLE.split(",")[0]}`)}\`, lues au réveil suivant, sans redémarrage`;
 
+// Le même geste, en anglais : la ligne `stations` de `status`. Sans « : » non plus.
+export const GESTE_DE_STATION_A_CHAUD_EN = `set them with \`${geste(`station stations ${EXEMPLE.split(",")[0]}`)}\`, read at the next wake-up, no restart`;
+
 // Ce que le runtime dit de ses stations au démarrage.
 export function direStations(stations: StationDeclaree[]): string {
   if (stations.length === 0) {

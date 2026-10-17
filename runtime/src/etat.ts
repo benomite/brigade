@@ -5,7 +5,7 @@
 import { direActivite, type Activite } from "./activite.ts";
 import { activitesDuRail, type ActiviteDeTicket } from "./activites.ts";
 import { DIRE_GATES_COUPEES } from "./evenements/pass.ts";
-import { attentesDuChef, decisionDe, type Livraison, decrireAttentes, direAttente, nommerAttente, passageEnService, type Attente, type Decision, type Passage } from "./attend.ts";
+import { attentesDuChef, decisionDe, type Livraison, decrireAttentes, direAttente, direAttenteEn, nommerAttente, nommerEn, passageEnService, type Attente, type Decision, type Passage } from "./attend.ts";
 import { geste } from "./geste.ts";
 import { fournitTout } from "./capacites.ts";
 import { capturesVues, lireCaptures, type Captures, type CapturesVues } from "./captures.ts";
@@ -13,9 +13,9 @@ import type { Evenement } from "./evenements.ts";
 import { RELEVE } from "./evenements/garde-fous.ts";
 import { PART_SANS_PROGRES } from "./evenements/station.ts";
 import { BATTEMENT } from "./evenements/runtime.ts";
-import { direControleRetenu, suiteDeBaseRouge } from "./dire-base.ts";
+import { direControleRetenuEn, suiteDeBaseRougeEn } from "./dire-base.ts";
 import { requises } from "./fiche.ts";
-import { ACTIONS, bientotEteint, direExtinction, direReste } from "./grant.ts";
+import { ACTIONS, bientotEteint, direExtinctionEn, direResteEn } from "./grant.ts";
 import type { Journal } from "./journal.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
 import { direSaturation } from "./machine.ts";
@@ -39,12 +39,12 @@ import { lireRail, livresDepuis, type Etat as EtatTicket, type Livre, type Ticke
 import { direCommentLeVoir, direEcran, direEtatDeServeur, direPage, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus, type Serveur, type ServiceIndisponible, type WorktreeTenu } from "./projections/service.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
-import { cookDeRun, cooksEnCoursDeStation, direDeconnexion, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION_TOMBEE, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
+import { cookDeRun, cooksEnCoursDeStation, direDeconnexionEn, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION_TOMBEE_EN, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
 import { BLOQUE, direRetenue, EN_WAITING, etatLu, nomEtat } from "./rail.ts";
 import { PAR_LE_CHEF } from "./evenements/rail.ts";
 import { direAttenteDeTiers } from "./attente.ts";
 import { direMiseDeCote } from "./mise-de-cote.ts";
-import { GESTE_DE_STATION_A_CHAUD } from "./stations-declarees.ts";
+import { GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
 import { alerteEnCours, type AlerteEnCours } from "./projections/urgence.ts";
 import { cleDUrgence, urgenceDuChef, type Urgence } from "./urgence.ts";
@@ -241,38 +241,44 @@ export function duree(ms: number): string {
 // La même, en anglais, pour le bloc `awaiting` : « 3 d » pour les jours.
 export const dureeEn = (ms: number): string => duree(ms).replace(/ j$/, " d");
 
-function decrireRuntime(etat: EtatCuisine, depuis: (instant: string) => string): string[] {
+// Les lignes d'état qui disent si la box peut tourner sont en anglais (#928) : leurs
+// libellés (docs/glossary.md, §4), leurs états, leurs phrases. `depuisEn` : la durée
+// écoulée depuis un instant, en anglais (`3 d`, `2 h 04`).
+type Depuis = (instant: string) => string;
+const compteEn = (combien: number, mot: string) => `${combien.toLocaleString("en-US")} ${mot}${combien === 1 ? "" : "s"}`;
+
+function decrireRuntime(etat: EtatCuisine, depuis: Depuis): string[] {
   const { session, tick } = etat;
-  if (!session) return [ligne("runtime", "jamais démarré")];
-  if (session.endedAt !== null) return [ligne("runtime", `arrêté il y a ${depuis(session.endedAt)}`)];
+  if (!session) return [ligne("runtime", "never started")];
+  if (session.endedAt !== null) return [ligne("runtime", `stopped ${depuis(session.endedAt)} ago`)];
   return [
     // Une session sans fin au journal est aussi celle d'un runtime mort sans
     // préavis : seul l'âge du tick les distingue, d'où sa ligne à lui.
-    ligne("runtime", `en marche d'après le journal — pid ${session.pid} sur ${session.host}, démarré il y a ${depuis(session.startedAt)}`),
-    ligne("", tick ? `dernier tick il y a ${depuis(tick.at)} (cadence : ${duree(tick.intervalMs)})` : "aucun tick depuis le démarrage"),
+    ligne("runtime", `running according to the log — pid ${session.pid} on ${session.host}, started ${depuis(session.startedAt)} ago`),
+    ligne("", tick ? `last tick ${depuis(tick.at)} ago (cadence: ${dureeEn(tick.intervalMs)})` : "no tick since startup"),
   ];
 }
 
-function decrireCuisine({ gardeFous }: EtatCuisine, depuis: (instant: string) => string): string {
-  const cuisine = gardeFous.stoppedAt === null ? "ouverte" : `ARRÊTÉE par le chef il y a ${depuis(gardeFous.stoppedAt)}`;
-  const echecs = `${compte(gardeFous.failures, "échec")} d'affilée`;
+function decrireCuisine({ gardeFous }: EtatCuisine, depuis: Depuis): string {
+  const cuisine = gardeFous.stoppedAt === null ? "open" : `STOPPED by the chef ${depuis(gardeFous.stoppedAt)} ago`;
+  const echecs = `${compteEn(gardeFous.failures, "failure")} in a row`;
   const disjoncteur =
     gardeFous.breakerOpenedAt === null
-      ? `disjoncteur fermé (${echecs}, ouverture à ${gardeFous.breakerThreshold ?? "?"})`
-      : `disjoncteur OUVERT depuis ${depuis(gardeFous.breakerOpenedAt)} (${echecs})`;
-  return ligne("cuisine", `${cuisine} · ${disjoncteur}`);
+      ? `breaker closed (${echecs}, opens at ${gardeFous.breakerThreshold ?? "?"})`
+      : `breaker OPEN for ${depuis(gardeFous.breakerOpenedAt)} (${echecs})`;
+  return ligne("kitchen", `${cuisine} · ${disjoncteur}`);
 }
 
 // Sans connexion Max, aucun cook ne part : c'est toute la cuisine qui attend
 // le chef, et rien d'autre ne le dit dans l'en-tête. Rien à dire sinon.
-function decrireConnexion({ stations }: EtatCuisine, depuis: (instant: string) => string): string[] {
+function decrireConnexion({ stations }: EtatCuisine, depuis: Depuis): string[] {
   return stations.flatMap(({ station, disconnectedAt, disconnectedReason: raison }) =>
     disconnectedAt === null
       ? []
       : [
           ligne(
-            "connexion",
-            `Max ${direDeconnexion(raison).toUpperCase()} depuis ${depuis(disconnectedAt)} sur ${station}${raison === null ? "" : ` (${raison})`} — plus aucun ticket n'est pris : ${GESTE_DE_CONNEXION_TOMBEE}`,
+            "connection",
+            `Max ${direDeconnexionEn(raison).toUpperCase()} for ${depuis(disconnectedAt)} on ${station}${raison === null ? "" : ` (${raison})`} — no ticket is taken any more: ${GESTE_DE_CONNEXION_TOMBEE_EN}`,
           ),
         ],
   );
@@ -280,33 +286,33 @@ function decrireConnexion({ stations }: EtatCuisine, depuis: (instant: string) =
 
 // Sans station, aucun cook ne part non plus : le projet n'en déclare aucune,
 // et c'est au chef d'en déclarer une. Rien à dire sinon.
-function decrireSansStation({ sansStation }: EtatCuisine, depuis: (instant: string) => string): string[] {
-  return sansStation === null ? [] : [ligne("stations", `AUCUNE DÉCLARÉE depuis ${depuis(sansStation)} — aucun cook ne part, les tickets restent en attente : ${GESTE_DE_STATION_A_CHAUD}`)];
+function decrireSansStation({ sansStation }: EtatCuisine, depuis: Depuis): string[] {
+  return sansStation === null ? [] : [ligne("stations", `NONE DECLARED for ${depuis(sansStation)} — no cook leaves, the tickets stay waiting: ${GESTE_DE_STATION_A_CHAUD_EN}`)];
 }
 
 // Un setup bloqué ne lance plus aucun worktree d'ici : la ligne le dit, et
-// renvoie au bloc `attend`, qui porte la cause et le geste. Rien à dire sinon.
-function decrireSetup({ setup }: EtatCuisine, depuis: (instant: string) => string): string[] {
+// renvoie au bloc `awaiting`, qui porte la cause et le geste. Rien à dire sinon.
+function decrireSetup({ setup }: EtatCuisine, depuis: Depuis): string[] {
   if (setup === null) return [];
-  return [ligne("setup", `BLOQUÉ depuis ${depuis(setup.since)} sur ${setup.base.slice(0, 7)} — aucun setup n'est lancé d'ici, pour aucun ticket, tant que la branche d'intégration ne bouge pas : la cause et le geste sont dans le bloc \`awaiting\``)];
+  return [ligne("setup", `BLOCKED for ${depuis(setup.since)} on ${setup.base.slice(0, 7)} — no setup is launched from here, for any ticket, as long as the integration branch does not move: the cause and the action are in the \`awaiting\` block`)];
 }
 
 // Une cause de mise de côté répétée ralentit la prise d'ici : la ligne le dit, et
-// renvoie au bloc `attend`. Rien à dire sinon.
-function decrireMiseDeCote({ miseDeCote }: EtatCuisine, depuis: (instant: string) => string): string[] {
+// renvoie au bloc `awaiting`. Rien à dire sinon.
+function decrireMiseDeCote({ miseDeCote }: EtatCuisine, depuis: Depuis): string[] {
   if (miseDeCote === null) return [];
-  return [ligne("mis de côté", `BLOQUÉ depuis ${depuis(miseDeCote.since)} (${miseDeCote.reason}) — un seul ticket est repris à la fois, pour voir si la cause a changé : la cause et le geste sont dans le bloc \`awaiting\``)];
+  return [ligne("aside", `BLOCKED for ${depuis(miseDeCote.since)} (${miseDeCote.reason}) — only one ticket is taken again at a time, to see whether the cause has changed: the cause and the action are in the \`awaiting\` block`)];
 }
 
 // Une base rouge arrête la prise de tickets, les jugements et les merges : le pire
 // n'est pas l'arrêt, c'est de ne pas en lire la cause. Et un contrôle qui ne
 // part pas — la base ne se rapatrie pas — se lit même sur une base qui n'est
 // pas rouge : des merges y attendent d'être vérifiés. Rien à dire sinon.
-function decrireBase({ base, baseRetenue }: EtatCuisine, depuis: (instant: string) => string): string[] {
-  if (base?.outcome !== "red") return baseRetenue === null ? [] : [ligne("base", direControleRetenu(baseRetenue, depuis))];
+function decrireBase({ base, baseRetenue }: EtatCuisine, depuis: Depuis): string[] {
+  if (base?.outcome !== "red") return baseRetenue === null ? [] : [ligne("base", direControleRetenuEn(baseRetenue, depuis))];
   return [
-    ligne("base", `ROUGE depuis ${depuis(base.redSince ?? base.at)} sur ${base.sha.slice(0, 7)} — la station ne prend plus de ticket, la pass ne juge ni ne merge`),
-    ...suiteDeBaseRouge(base, depuis, baseRetenue).map((suite) => ligne("", suite)),
+    ligne("base", `RED since ${depuis(base.redSince ?? base.at)} ago on ${base.sha.slice(0, 7)} — the station takes no more tickets, the pass neither judges nor merges`),
+    ...suiteDeBaseRougeEn(base, depuis, baseRetenue).map((suite) => ligne("", suite)),
   ];
 }
 
@@ -314,37 +320,37 @@ function decrireBase({ base, baseRetenue }: EtatCuisine, depuis: (instant: strin
 // c'est le chef que toute la cuisine attend — depuis quand, combien de tickets
 // sont à l'arrêt, la décision qui les retient et son geste, puis, s'il y en a,
 // les autres décisions qui en retiennent aussi. Toutes sont dans le bloc
-// `attend`, à leur rang. Rien à dire sinon.
-export const URGENCE = "urgence    TOUTE LA CUISINE ATTEND LE CHEF";
-function decrireUrgence({ urgence }: EtatCuisine, depuis: (instant: string) => string): string[] {
+// `awaiting`, à leur rang. Rien à dire sinon.
+export const URGENCE = "emergency  THE WHOLE KITCHEN AWAITS THE CHEF";
+function decrireUrgence({ urgence }: EtatCuisine, depuis: Depuis): string[] {
   if (urgence === null) return [];
   const [premiere, ...autres] = urgence.causes;
-  const aussi = autres.length === 0 ? "" : ` — aussi : ${autres.map(({ attente }) => nommerAttente(attente)).join(", ")}`;
-  return [`${URGENCE} depuis ${depuis(urgence.depuis)} — ${compte(urgence.retenus.length, "ticket")} à l'arrêt, retenus par ${nommerAttente(premiere.attente)} : ${direAttente(premiere.attente)}${aussi}`];
+  const aussi = autres.length === 0 ? "" : ` — also: ${autres.map(({ attente }) => nommerEn(attente)).join(", ")}`;
+  return [`${URGENCE} for ${depuis(urgence.depuis)} — ${compteEn(urgence.retenus.length, "ticket")} stopped, held by ${nommerEn(premiere.attente)}: ${direAttenteEn(premiere.attente)}${aussi}`];
 }
 
 // La première ligne de `status` sans urgence : rien ne cuit, et pourquoi, tant que la base est
-// rouge et que le ticket de ce rouge-là la répare. Hors du bloc `attend` : rien
+// rouge et que le ticket de ce rouge-là la répare. Hors du bloc `awaiting` : rien
 // n'attend le chef. Une réparation échouée n'y est plus « en cours » — c'est la
-// ligne `base` du bloc `attend` qui prend le relais. Rien à dire sinon.
-export const RIEN_NE_CUIT = "rien ne cuit : ";
-function decrireRienNeCuit({ base, reparation }: EtatCuisine, depuis: (instant: string) => string): string[] {
+// ligne `base` du bloc `awaiting` qui prend le relais. Rien à dire sinon.
+export const RIEN_NE_CUIT = "nothing cooks: ";
+function decrireRienNeCuit({ base, reparation }: EtatCuisine, depuis: Depuis): string[] {
   if (base?.outcome !== "red" || reparation === null || reparation.etat === "echouee" || reparation.redSince !== base.redSince) return [];
-  return [`${RIEN_NE_CUIT}base rouge depuis ${depuis(base.redSince ?? base.at)}, réparation #${reparation.ticket} en cours`];
+  return [`${RIEN_NE_CUIT}base red since ${depuis(base.redSince ?? base.at)} ago, repair #${reparation.ticket} in progress`];
 }
 
 // Sous grant, du code est mergé sans le chef : il le lit sans le demander, avec
 // ce qu'il en reste. Éteint seul, le grant se lit encore — c'est ce que le chef
 // n'a pas fait lui-même. Absent ou révoqué par lui, il n'y a rien à dire.
-function decrireGrants({ grants }: EtatCuisine, maintenant: Date, depuis: (instant: string) => string): string[] {
+function decrireGrants({ grants }: EtatCuisine, maintenant: Date, depuis: Depuis): string[] {
   return grants.flatMap((grant) => {
     if (grant.active) {
-      const reste = direReste(grant, maintenant, duree);
-      const dit = bientotEteint(grant, maintenant) ? `, BIENTÔT ÉTEINT : ${reste}` : grant.until === null && grant.usesLeft === null ? `, ${reste}, depuis ${depuis(grant.since)}` : ` ${reste}`;
-      return [ligne("grant", `${grant.action} ACTIF${dit} — une pass verte est mergée sans toi`)];
+      const reste = direResteEn(grant, maintenant, dureeEn);
+      const dit = bientotEteint(grant, maintenant) ? `, EXPIRING SOON: ${reste}` : grant.until === null && grant.usesLeft === null ? `, ${reste}, since ${depuis(grant.since)} ago` : ` ${reste}`;
+      return [ligne("grant", `${grant.action} ACTIVE${dit} — a green pass is merged without you`)];
     }
     if (grant.ended !== "expired") return [];
-    return [ligne("grant", `${grant.action} ÉTEINT SEUL il y a ${depuis(grant.since)} — ${direExtinction(grant.cause)} : la pass s'arrête à la PR ouverte, plus rien n'est mergé sans toi`)];
+    return [ligne("grant", `${grant.action} LAPSED ${depuis(grant.since)} ago — ${direExtinctionEn(grant.cause)}: the pass stops at the open PR, nothing is merged without you any more`)];
   });
 }
 
@@ -352,10 +358,10 @@ function decrireGrants({ grants }: EtatCuisine, maintenant: Date, depuis: (insta
 // réussie qui le trahit, comme l'âge du tick trahit un runtime figé.
 function decrireSauvegarde({ projet, sauvegarde }: EtatCuisine, maintenant: Date, ageMaxMs: number): string {
   const unite = `brigade-sauvegarde@${projet ?? "<projet>"}`;
-  if (!sauvegarde) return ligne("sauvegarde", `JAMAIS FAITE — le timer ${unite} tourne-t-il ?`);
+  if (!sauvegarde) return ligne("backup", `NEVER DONE — is the timer \`${unite}\` running?`);
   const age = maintenant.getTime() - Date.parse(sauvegarde.at);
-  const derniere = `il y a ${duree(age)} (${sauvegarde.name}, jusqu'à l'événement ${sauvegarde.lastSeq})`;
-  return ligne("sauvegarde", age > ageMaxMs ? `TROP VIEILLE : ${derniere} — plus de ${duree(ageMaxMs)} : systemctl status ${unite}` : derniere);
+  const derniere = `${dureeEn(age)} ago (${sauvegarde.name}, up to event ${sauvegarde.lastSeq})`;
+  return ligne("backup", age > ageMaxMs ? `TOO OLD: ${derniere} — more than ${dureeEn(ageMaxMs)}: \`systemctl status ${unite}\`` : derniere);
 }
 
 // Un ticket pris coince dès que la moitié de son bail est passée sans que son
@@ -570,6 +576,7 @@ const lus = (rail: TicketRail[], nom: string) => rail.filter((ticket) => etatLu(
 // L'état, ligne par ligne. Les durées sont comptées jusqu'à `maintenant`.
 export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs = AGE_MAX_SAUVEGARDE_MS, limiteGithub: number | null = null): string[] {
   const depuis = (instant: string) => duree(maintenant.getTime() - Date.parse(instant));
+  const depuisEn = (instant: string) => dureeEn(maintenant.getTime() - Date.parse(instant));
   const decompte = ORDRE.map((nom) => [nom, lus(etat.rail, nom)] as const)
     .filter(([, combien]) => combien > 0)
     .map(([nom, combien]) => `${combien} ${nom}`);
@@ -585,23 +592,23 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ),
   ];
   return [
-    ...decrireUrgence(etat, depuis),
-    ...decrireRienNeCuit(etat, depuis),
+    ...decrireUrgence(etat, depuisEn),
+    ...decrireRienNeCuit(etat, depuisEn),
     ligne("projet", etat.projet ?? "inconnu — journal vide"),
     // Quand GitHub limite les appels du compte : une ligne, et l'heure de reprise.
     ...(limiteGithub === null ? [] : [ligne("github", direLaLimite(limiteGithub))]),
-    ...decrireRuntime(etat, depuis),
-    decrireCuisine(etat, depuis),
-    ...decrireConnexion(etat, depuis),
-    ...decrireSansStation(etat, depuis),
-    ...decrireBase(etat, depuis),
-    ...decrireSetup(etat, depuis),
-    ...decrireMiseDeCote(etat, depuis),
-    ...decrireGrants(etat, maintenant, depuis),
+    ...decrireRuntime(etat, depuisEn),
+    decrireCuisine(etat, depuisEn),
+    ...decrireConnexion(etat, depuisEn),
+    ...decrireSansStation(etat, depuisEn),
+    ...decrireBase(etat, depuisEn),
+    ...decrireSetup(etat, depuisEn),
+    ...decrireMiseDeCote(etat, depuisEn),
+    ...decrireGrants(etat, maintenant, depuisEn),
     decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs),
     "",
     // Avant le rail : « est-ce qu'on m'attend ? » se lit sans le parcourir.
-    ...decrireAttentes(etat.attend, (instant) => dureeEn(maintenant.getTime() - Date.parse(instant)), etat.sansGrant, etat.passage),
+    ...decrireAttentes(etat.attend, depuisEn, etat.sansGrant, etat.passage),
     ligne("rail", decompte.length === 0 ? "vide" : decompte.join(" · ")),
     ...etat.rail.map((ticket) =>
       [

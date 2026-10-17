@@ -1,0 +1,189 @@
+{
+  "etat": "retenue",
+  "lu": "2026-10-12T10:04:00.000Z",
+  "dernierTick": "2026-10-12T09:59:00.000Z",
+  "compteurs": {
+    "rail": 4,
+    "auTravail": 1,
+    "aLaPass": 2,
+    "attend": 8,
+    "livres24h": 0
+  },
+  "dernierEvenement": {
+    "seq": 53,
+    "at": "2026-10-12T10:02:00.000Z",
+    "type": "backup.completed",
+    "ticket": null
+  },
+  "rail": [
+    {
+      "ticket": 30,
+      "etat": "en attente",
+      "titre": "Réparer la base",
+      "url": "https://exemple.test/30",
+      "activite": null,
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 17,
+      "etat": "en pass",
+      "titre": "Ticket 17",
+      "url": "https://exemple.test/17",
+      "activite": {
+        "fait": "arrêtée par la pass",
+        "cible": null,
+        "depuis": "2026-10-09T10:00:00.000Z"
+      },
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 19,
+      "etat": "BLOQUÉ",
+      "titre": "Ticket 19",
+      "url": "https://exemple.test/19",
+      "activite": null,
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 23,
+      "etat": "pris",
+      "titre": "Ticket 23",
+      "url": "https://exemple.test/23",
+      "activite": {
+        "fait": "la station prépare le poste du cook",
+        "cible": null,
+        "depuis": "2026-10-12T09:59:00.000Z"
+      },
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 25,
+      "etat": "86",
+      "titre": "Ticket 25",
+      "url": "https://exemple.test/25",
+      "activite": null,
+      "attente": {
+        "raison": "attend : quota du compte épuisé",
+        "colonne": "86",
+        "retour": "2026-10-12T15:00:00.000Z"
+      },
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 18,
+      "etat": "86",
+      "titre": "Ticket 18",
+      "url": "https://exemple.test/18",
+      "activite": null,
+      "attente": {
+        "raison": "attend : mis de côté (pass:returns-exhausted)",
+        "colonne": "86",
+        "retour": null
+      },
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 20,
+      "etat": "en pass",
+      "titre": "Ticket 20",
+      "url": "https://exemple.test/20",
+      "activite": {
+        "fait": "arrêtée par la pass",
+        "cible": null,
+        "depuis": "2026-10-12T09:58:00.000Z"
+      },
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 24,
+      "etat": "en attente",
+      "titre": "Ticket 24",
+      "url": "https://exemple.test/24",
+      "activite": null,
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 26,
+      "etat": "en attente",
+      "titre": "Ticket 26",
+      "url": "https://exemple.test/26",
+      "activite": null,
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    }
+  ],
+  "cooks": [],
+  "attend": [
+    {
+      "ticket": 17,
+      "titre": "Ticket 17",
+      "url": "https://exemple.test/17",
+      "decision": {
+        "quoi": "merge",
+        "motif": "no-grant",
+        "cause": null,
+        "pr": "https://exemple.test/pull/17"
+      }
+    },
+    {
+      "ticket": 18,
+      "titre": "Ticket 18",
+      "url": "https://exemple.test/18",
+      "decision": {
+        "quoi": "remontee",
+        "motif": "still-red",
+        "cause": "returns-exhausted",
+        "pr": "https://exemple.test/pull/18"
+      }
+    },
+    {
+      "ticket": 19,
+      "titre": "Ticket 19",
+      "url": "https://exemple.test/19",
+      "decision": {
+        "quoi": "bloque",
+        "motif": null,
+        "cause": null,
+        "pr": null
+      }
+    },
+    {
+      "ticket": 20,
+      "titre": "Ticket 20",
+      "url": "https://exemple.test/20",
+      "decision": {
+        "quoi": "merge",
+        "motif": "review-required",
+        "cause": "judge-modified",
+        "pr": "https://exemple.test/pull/20"
+      }
+    }
+  ],
+  "livres": [],
+  "urgence": null,
+  "stations": [
+    {
+      "station": "box/claude",
+      "distante": false,
+      "plafond": 2,
+      "ordinaires": false,
+      "bacASable": null,
+      "prendOrdinaires": true
+    }
+  ]
+}

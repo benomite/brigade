@@ -1,0 +1,58 @@
+rien ne cuit : base rouge depuis 4 min, réparation #30 en cours
+projet     brigade
+runtime    en marche d'après le journal — pid 4211 sur box, démarré il y a 3 j
+           dernier tick il y a 5 min (cadence : 1 min)
+cuisine    ouverte · disjoncteur OUVERT depuis 4 min (0 échec d'affilée)
+connexion  Max EXPIRÉE depuis 4 min sur box/claude (authentication_failed) — plus aucun ticket n'est pris : `claude /login` sous le compte du service — la cuisine reprend seule dans la minute, sans « resume »
+base       ROUGE depuis 4 min sur abc1234 — la station ne prend plus de ticket, la pass ne juge ni ne merge
+           rejouer ses gates sans attendre un commit : brigade <projet> base replay
+setup      BLOQUÉ depuis 4 min sur ba5e000 — aucun setup n'est lancé d'ici, pour aucun ticket, tant que la branche d'intégration ne bouge pas : la cause et le geste sont dans le bloc `awaiting`
+mis de côtéBLOQUÉ depuis 4 min (secrets-unavailable) — un seul ticket est repris à la fois, pour voir si la cause a changé : la cause et le geste sont dans le bloc `awaiting`
+grant      merge ACTIF, BIENTÔT ÉTEINT : encore 26 min (jusqu'au 12 oct. 10:30 UTC) — une pass verte est mergée sans toi
+sauvegarde il y a 2 min (2026-10-09T10-00-00Z, jusqu'à l'événement 7)
+
+awaiting   8 decisions await the chef — the oldest for 3 d
+  #17  for 3 d  green delivery, not merged for lack of a `merge` grant — merge by hand: https://exemple.test/pull/17 — or enable the grant, for the next ones: `brigade <projet> grant enable merge`  Ticket 17
+  #18  for 2 h 04  escalated by the pass, red (still-red: returns-exhausted) — to decide: merge https://exemple.test/pull/18 by hand, or remove `fire` — `brigade <projet> pass 18`  Ticket 18
+  #19  for 14 min  BLOCKED: #21 dropped (issue closed without being served) — to unblock: put #21 back on the rail, or remove it from the `attend` line of the card  Ticket 19
+  #20  for 6 min  green delivery that touches its judges — review and merge by hand: https://exemple.test/pull/20  Ticket 20
+  breaker  for 4 min  breaker open: failures in a row — no cook leaves any more — to do: `brigade <projet> guardrails resume` after looking at what fails
+  setup  for 4 min  setup impossible: `.claude/brigade/worktree-setup.sh` fails twice identically (code de sortie 1) — what it said is on #24 — to fix: the project's setup, then merge into the integration branch; setups start again on their own as soon as the integration branch moves; until then, none is launched, for any ticket
+  aside  for 4 min  tickets put aside: the secrets the repository declares cannot be given to the cook (secrets-unavailable, twice identically — seen on #24) — only one is taken again at a time, to probe — to do: set the missing values (the details are on the ticket's issue); the project starts again on its own as soon as a cook leaves, another cause shows up or the integration branch moves
+  box/claude  for 4 min  Max connection expired (authentication_failed) — to restore: `claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”
+  without a grant, 1 green delivery stopped: 0 merged by hand, 0 closed without merge — no disagreement —, 1 still open
+end awaiting
+
+rail       1 pris · 2 en pass · 3 en attente · 1 BLOQUÉ · 2 86
+  #30  en attente  prio:0  depuis 4 min  Réparer la base
+  #17  en pass  prio:1  depuis 3 j, cuisiné par box/claude  Ticket 17
+  #19  BLOQUÉ  prio:1  #21 abandonné (issue fermée sans avoir été servie) — depuis 2 h 04  Ticket 19
+  #23  pris  prio:1  par box/claude depuis 5 min, COINCE : sans progrès depuis 5 min, bail encore 5 min  Ticket 23
+  #25  86  prio:1  depuis 5 min (quota), retour dans 4 h 56  Ticket 25
+  #18  86  -  depuis 2 h 04 (pass:returns-exhausted), sans heure de retour  Ticket 18
+  #20  en pass  -  depuis 6 min, cuisiné par box/claude  Ticket 20
+  #24  en attente  -  depuis 6 min  Ticket 24
+  #26  en attente  -  depuis 6 min  Ticket 26
+
+cooks      aucun en cours — box/claude : 2 au plus
+
+consommé   en cours : rien
+           5 h : 2 lancements · 6 tours · 2 000 tokens
+           24 h : 2 lancements · 6 tours · 2 000 tokens
+           ce que ce projet a lancé, pas la consommation du compte : /usage la donne
+
+derniers événements
+  38  2026-10-12T09:58:00.000Z  brigade  #25  ticket.arrived  github  {"title":"Ticket 25","priority":1,"createdAt":"2026-10-01T00:00:25Z","url":"https://exemple.test/25","card":{"waitsFor":[],"zone":[],"problems":[]}}
+  39  2026-10-12T09:58:00.000Z  brigade  #26  ticket.arrived  github  {"title":"Ticket 26","priority":null,"createdAt":"2026-10-01T00:00:26Z","url":"https://exemple.test/26","card":{"waitsFor":[],"zone":[],"problems":[]}}
+  40  2026-10-12T09:59:00.000Z  brigade  #23  ticket.taken  station:box/claude  {"station":"box/claude","leaseUntil":"2026-10-12T10:09:00.000Z"}
+  41  2026-10-12T09:59:00.000Z  brigade  #25  ticket.86  runtime  {"reason":"quota","until":"2026-10-12T15:00:00.000Z"}
+  43  2026-10-12T10:00:00.000Z  brigade  -  station.announced  runtime  {"station":"box/claude","engine":"claude","provides":["opus"],"maxCooks":2}
+  44  2026-10-12T10:00:00.000Z  brigade  -  breaker.opened  runtime  {"failures":3,"threshold":3}
+  45  2026-10-12T10:00:00.000Z  brigade  -  station.disconnected  station:box/claude  {"station":"box/claude","reason":"authentication_failed","run":null}
+  46  2026-10-12T10:00:00.000Z  brigade  #24  setup.blocked  station:box/claude  {"station":"box/claude","why":"code de sortie 1","hosts":[],"base":"ba5e0001ffff"}
+  47  2026-10-12T10:00:00.000Z  brigade  #24  aside.blocked  runtime  {"station":"box/claude","reason":"secrets-unavailable","base":"base-1"}
+  48  2026-10-12T10:00:00.000Z  brigade  -  base.checked  pass  {"sha":"abc1234def","outcome":"red","gates":{"outcome":"red","code":1,"failures":["FAIL  tests"],"tail":""},"tickets":[]}
+  49  2026-10-12T10:00:00.000Z  brigade  -  base.repair-opening  pass  {"sha":"abc1234def"}
+  50  2026-10-12T10:00:00.000Z  brigade  #30  base.repair-opened  pass  {"sha":"abc1234def","failures":["FAIL  tests"],"reconciled":false}
+  51  2026-10-12T10:00:00.000Z  brigade  #30  ticket.arrived  github  {"title":"Réparer la base","priority":0,"createdAt":"2026-10-01T00:00:00Z","url":"https://exemple.test/30"}
+  52  2026-10-12T10:01:00.000Z  brigade  -  grant.activated  chef  {"action":"merge","until":"2026-10-12T10:30:00.000Z"}

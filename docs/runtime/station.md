@@ -39,7 +39,7 @@ brigade <projet> station stations box/claude:30:code+raisonnement,box/playwright
 - **Aucune station** (rien de posé, ou une déclaration vide) : c'est accepté, le runtime démarre —
   et **aucun cook ne part**. Les tickets restent en attente ; le manager juge et la pass relit
   toujours. Le runtime le dit au démarrage (`brigade : stations — aucune…`), l'écrit
-  (`stations.undeclared`), et `status` le montre tant que ça dure (`stations  AUCUNE DÉCLARÉE…`,
+  (`stations.undeclared`), et `status` le montre tant que ça dure (`stations  NONE DECLARED…`,
   et `aucune station déclarée` sur chaque ticket qui attend) ; `installation` le compte comme un
   **manque**. Le geste : `station stations <déclaration>` — lu au réveil suivant, sans redémarrer.
 - **Mal écrite, la déclaration fait refuser le démarrage**, et le refus nomme la station et le champ

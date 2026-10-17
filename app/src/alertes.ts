@@ -231,30 +231,39 @@ export function tetesDe(status: string): Tete[] {
   return tetes;
 }
 
-// Ce que la valeur d'une ligne dit de la panne, et le geste qu'elle nomme après ` : ` —
-// la forme des lignes `stations` et `connexion`. Sans geste nommé, la ligne entière.
+// Ce que la valeur d'une ligne dit de la panne, et le geste qu'elle nomme après ` : ` (ou, en
+// anglais, `: `) — la forme des lignes `stations` et `connection` (`connexion`, #928). Sans geste
+// nommé, la ligne entière.
 function coupee(valeur: string): { releve: string; geste?: string } {
-  const coupe = valeur.lastIndexOf(" : ");
-  return coupe === -1 ? { releve: valeur } : { releve: valeur.slice(0, coupe), geste: valeur.slice(coupe + 3) };
+  const francais = valeur.lastIndexOf(" : ");
+  if (francais !== -1) return { releve: valeur.slice(0, francais), geste: valeur.slice(francais + 3) };
+  const anglais = valeur.lastIndexOf(": ");
+  return anglais === -1 ? { releve: valeur } : { releve: valeur.slice(0, anglais), geste: valeur.slice(anglais + 2) };
 }
 
 const REPRENDRE = "queued tickets start again at once, on your quota";
 // Ce que coûte le redémarrage du runtime : la box ne dit pas ce qui est en vol.
 const REDEMARRAGE = "a runtime restart: what is in flight is interrupted — the box does not say what is";
-const DISJONCTEUR = "disjoncteur OUVERT";
+// Le disjoncteur ouvert, tel que la ligne `cuisine` / `kitchen` de `status` le dit : en français
+// ou en anglais (#928).
+const ROUGE = /^(?:ROUGE|RED)(?![\p{L}\p{N}_])/u;
+const DISJONCTEUR = /disjoncteur OUVERT|breaker OPEN/;
+// Les titres des lignes de tête que #928 a traduits : l'app lit les deux.
+export const CUISINE = ["cuisine", "kitchen"];
+export const CONNEXION = ["connexion", "connection"];
 
 // Ce qui retient la cuisine, d'après les lignes de tête de `status` : une ligne par cause
 // que l'app sait lire.
 function causesDeRetenue(status: string): Alerte[] {
   return tetesDe(status).flatMap(({ titre, valeur, suite }): Alerte[] => {
-    if (titre === "cuisine" && valeur.includes(DISJONCTEUR))
+    if (CUISINE.includes(titre) && DISJONCTEUR.test(valeur))
       return [
         {
           sujet: "cuisine",
           verifie: true,
           ton: "rouge",
           dit: "breaker open: the latest launches failed in a row, no cook goes any more",
-          releve: valeur.slice(valeur.indexOf(DISJONCTEUR)),
+          releve: valeur.slice(valeur.search(DISJONCTEUR)),
           geste: "resume the kitchen, once you have read why they fail",
           appel: { geste: "reprendre" },
           prix: `the breaker closes: ${REPRENDRE}`,
@@ -264,11 +273,11 @@ function causesDeRetenue(status: string): Alerte[] {
       const { releve, geste } = coupee(valeur);
       return [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "no station declared: no cook goes, the kitchen is frozen", releve, geste: geste ?? "declare a station, then restart the runtime", appel: DEMANDE, prix: REDEMARRAGE }];
     }
-    if (titre === "connexion") {
+    if (CONNEXION.includes(titre)) {
       const { releve, geste } = coupee(valeur);
       return [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "Max connection down: no ticket is taken any more", releve, geste: geste ?? "reconnect, then resume the kitchen", appel: DEMANDE, prix: REPRENDRE }];
     }
-    if (titre === "base" && valeur.startsWith("ROUGE"))
+    if (titre === "base" && ROUGE.test(valeur))
       return [
         {
           sujet: "cuisine",
@@ -286,18 +295,18 @@ function causesDeRetenue(status: string): Alerte[] {
 }
 
 // Le statut lu d'un projet, ou pourquoi il ne l'est pas.
-const PAS_DE_CUISINE = "the output of `status` has no `cuisine` line: this is not a shape the app can read";
+const PAS_DE_CUISINE = "the output of `status` has no `kitchen` line: this is not a shape the app can read";
 function statusLu(status: string | Sans): string | Sans {
   if (typeof status !== "string") return status;
-  return tetesDe(status).some(({ titre }) => titre === "cuisine") ? status : { sans: PAS_DE_CUISINE };
+  return tetesDe(status).some(({ titre }) => CUISINE.includes(titre)) ? status : { sans: PAS_DE_CUISINE };
 }
 
 // --- Le setup du projet -------------------------------------------------------
 
-// La ligne de tête `setup` de `status` (runtime/src/etat.ts, `decrireSetup`) : `BLOQUÉ depuis …
-// sur <commit> — …`. Absente, le setup du projet n'est pas bloqué : rien à dire.
-const SETUP_BLOQUE = "BLOQUÉ";
-const bloqueLeSetup = (status: string) => tetesDe(status).some(({ titre, valeur }) => titre === "setup" && valeur.startsWith(SETUP_BLOQUE));
+// La ligne de tête `setup` de `status` (runtime/src/etat.ts, `decrireSetup`) : `BLOCKED for …
+// on <commit> — …` (`BLOQUÉ depuis …` avant #928). Absente, le setup du projet n'est pas bloqué : rien à dire.
+const SETUP_BLOQUE = /^(?:BLOQUÉ|BLOCKED)(?![\p{L}\p{N}_])/u;
+const bloqueLeSetup = (status: string) => tetesDe(status).some(({ titre, valeur }) => titre === "setup" && SETUP_BLOQUE.test(valeur));
 
 // L'entrée `setup` du bloc `attend` (runtime/src/attend.ts, `decrireAttentes`) : deux espaces,
 // `setup`, deux espaces, depuis quand, deux espaces, puis la cause et le geste — c'est ce qui en
@@ -394,10 +403,13 @@ function deLaCuisine(projet: string, faits: Faits | Sans, status: string | Sans)
 
 // --- Le grant ---------------------------------------------------------------
 
-// Une ligne `grant` de `status` (runtime/src/etat.ts, `decrireGrants`) : `<action> ACTIF…`,
-// `<action> ACTIF, BIENTÔT ÉTEINT : …`, `<action> ÉTEINT SEUL il y a …`. Absente, aucun grant
-// ne vaut ni ne s'est éteint seul — ou le chef l'a révoqué : rien à dire.
-const GRANT = /^(\S+) (ACTIF|ÉTEINT SEUL)\b/;
+// Une ligne `grant` de `status` (runtime/src/etat.ts, `decrireGrants`) : `<action> ACTIVE…`,
+// `<action> ACTIVE, EXPIRING SOON: …`, `<action> LAPSED … ago` — ou, avant #928, `ACTIF`,
+// `BIENTÔT ÉTEINT`, `ÉTEINT SEUL il y a …`. Absente, aucun grant ne vaut ni ne s'est éteint
+// seul — ou le chef l'a révoqué : rien à dire.
+const GRANT = /^(\S+) (ACTIF|ACTIVE|ÉTEINT SEUL|LAPSED)(?![\p{L}\p{N}_])/u;
+const ACTIF_OU_ETEINT = { ACTIF: true, ACTIVE: true, "ÉTEINT SEUL": false, LAPSED: false } as const;
+const BIENTOT_ETEINT = /BIENTÔT ÉTEINT|EXPIRING SOON/u;
 const MERGE_SANS_TOI = "a green pass will be merged without you";
 // Le grant que l'espace du projet pose en interrupteur (#907) : les autres restent des lignes de la bande.
 export const MERGE = "merge";
@@ -410,7 +422,7 @@ export function etatDuMerge(status: string | Sans): EtatDuGrant {
   if (ligne === undefined) return { actif: false };
   const [, , mot] = GRANT.exec(ligne.valeur) ?? [];
   if (mot === undefined) return { sans: `the app cannot read this \`grant\` line of \`status\`: “${ligne.valeur}”` };
-  return mot === "ACTIF" ? { actif: true, releve: ligne.valeur } : { actif: false, seul: true, releve: ligne.valeur };
+  return ACTIF_OU_ETEINT[mot as keyof typeof ACTIF_OU_ETEINT] ? { actif: true, releve: ligne.valeur } : { actif: false, seul: true, releve: ligne.valeur };
 }
 
 function duGrant(status: string | Sans): Alerte[] {
@@ -422,7 +434,7 @@ function duGrant(status: string | Sans): Alerte[] {
     .flatMap(({ valeur }): Alerte[] => {
       const [, action, mot] = GRANT.exec(valeur) ?? [];
       if (action === undefined) return [nonVerifie("grant", "grant state not verified", { pourquoi: "the app cannot read this `grant` line of `status`", releve: valeur, ...lireGrants })];
-      if (mot === "ÉTEINT SEUL")
+      if (!ACTIF_OU_ETEINT[mot as keyof typeof ACTIF_OU_ETEINT])
         return [
           {
             sujet: "grant",
@@ -436,7 +448,7 @@ function duGrant(status: string | Sans): Alerte[] {
           },
         ];
       // Actif : c'est le chef qui l'a accordé. Il ne se dit que lorsqu'il va s'éteindre.
-      if (!valeur.includes("BIENTÔT ÉTEINT")) return [];
+      if (!BIENTOT_ETEINT.test(valeur)) return [];
       return [
         {
           sujet: "grant",

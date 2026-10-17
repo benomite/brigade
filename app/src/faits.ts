@@ -163,7 +163,7 @@ export type Tableau = {
   compteurs: { libelle: string; nombre: number }[];
   cooks: { enCours: Cook[]; vide: string };
   evenement: string;
-  // La ligne « rien ne cuit : base rouge depuis …, réparation #N en cours » que `status` écrit
+  // La ligne « nothing cooks: base red since …, repair #N in progress » (« rien ne cuit : base rouge depuis …, réparation #N en cours » avant #928) que `status` écrit
   // en tête, mot pour mot — absente quand `status` n'est pas lu ou ne la porte pas.
   rienNeCuit?: string;
   rail: Rail;
@@ -728,9 +728,10 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
 }
 
 // La ligne de `status` qui dit que rien ne cuit (runtime/src/etat.ts, `RIEN_NE_CUIT`) : lue
-// telle quelle, une seule ligne, hors du bloc `attend` qu'elle ne rejoint jamais.
+// telle quelle, en anglais ou en français (#928), une seule ligne, hors du bloc `attend` qu'elle
+// ne rejoint jamais.
 function rienNeCuit(status?: StatusLu): { rienNeCuit?: string } {
-  const ligne = status?.texte.split("\n").find((candidate) => candidate.startsWith("rien ne cuit : "));
+  const ligne = status?.texte.split("\n").find((candidate) => candidate.startsWith("nothing cooks: ") || candidate.startsWith("rien ne cuit : "));
   return ligne === undefined ? {} : { rienNeCuit: ligne };
 }
 

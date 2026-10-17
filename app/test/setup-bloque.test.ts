@@ -169,7 +169,7 @@ describe("le setup du projet bloqué, dans la bande d'alertes", () => {
     assert.ok("attend" in montree);
     const sansBloc = montree.sorties[0]?.texte ?? assert.fail();
     const ligne = laLigne(alertes({ projet: "parade", faits, status: sansBloc, manager }));
-    assert.match(ligne.releve ?? "", /^BLOQUÉ depuis 30 min sur ba5e000 — /);
+    assert.match(ligne.releve ?? "", /^BLOCKED for 30 min on ba5e000 — /);
     assert.match(ligne.pourquoi ?? "", /`attend` block/);
   });
 

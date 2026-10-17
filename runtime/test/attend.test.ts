@@ -102,21 +102,21 @@ test("`status` dit sans qu'on le demande qu'un grant est actif et jusqu'à quand
   assert.deepEqual(grant("10:00:00"), []);
 
   chef({ type: "grant.activated", payload: { action: "merge" } });
-  assert.deepEqual(grant("12:00:00"), ["grant      merge ACTIF, sans échéance, depuis 2 h 00 — une pass verte est mergée sans toi"]);
+  assert.deepEqual(grant("12:00:00"), ["grant      merge ACTIVE, no deadline, since 2 h 00 ago — a green pass is merged without you"]);
   chef({ type: "grant.revoked", payload: { action: "merge" } });
   assert.deepEqual(grant("12:00:00"), []);
 
   chef({ type: "grant.activated", payload: { action: "merge", until: `${JOUR_HORLOGE}T14:00:00.000Z`, uses: 5 } });
-  assert.deepEqual(grant("11:00:00"), [`grant      merge ACTIF encore 3 h 00 (jusqu'au 8 oct. 14:00 UTC) · encore 5 usages — une pass verte est mergée sans toi`]);
-  assert.deepEqual(grant("13:20:00"), [`grant      merge ACTIF, BIENTÔT ÉTEINT : encore 40 min (jusqu'au 8 oct. 14:00 UTC) · encore 5 usages — une pass verte est mergée sans toi`]);
+  assert.deepEqual(grant("11:00:00"), [`grant      merge ACTIVE 3 h 00 left (until 8 Oct 14:00 UTC) · 5 uses left — a green pass is merged without you`]);
+  assert.deepEqual(grant("13:20:00"), [`grant      merge ACTIVE, EXPIRING SOON: 40 min left (until 8 Oct 14:00 UTC) · 5 uses left — a green pass is merged without you`]);
   // L'heure passée, il est éteint pour qui lit — que le runtime l'ait écrit ou non.
-  const eteint = ["grant      merge ÉTEINT SEUL il y a 30 min — son échéance est passée : la pass s'arrête à la PR ouverte, plus rien n'est mergé sans toi"];
+  const eteint = ["grant      merge LAPSED 30 min ago — its deadline has passed: the pass stops at the open PR, nothing is merged without you any more"];
   assert.deepEqual(grant("14:30:00"), eteint);
   noter({ type: "grant.expired", payload: { action: "merge", cause: "until", since: `${JOUR_HORLOGE}T14:00:00.000Z` } }, null, "pass");
   assert.deepEqual(grant("14:30:00"), eteint);
 
   chef({ type: "grant.activated", payload: { action: "merge", uses: 1 } });
-  assert.deepEqual(grant("15:00:00"), ["grant      merge ACTIF, BIENTÔT ÉTEINT : encore 1 usage — une pass verte est mergée sans toi"]);
+  assert.deepEqual(grant("15:00:00"), ["grant      merge ACTIVE, EXPIRING SOON: 1 use left — a green pass is merged without you"]);
 });
 
 test("rien n'attend le chef : le bloc le dit, même avec un rail qui travaille", (t) => {
@@ -502,7 +502,7 @@ test("une épique à question qui cesse d'être une épique à découper sort de
 
 test("la connexion Max absente attend le chef : l'en-tête de l'état et le bloc `awaiting` la disent, depuis quand, avec le geste — et elle en sort seule à la reprise", (t) => {
   const { a, noter, arriver, journal, bloc } = cuisine(t);
-  const entete = (maintenant: string) => decrireEtat(lireEtat(journal, new Date(maintenant)), new Date(maintenant)).filter((ligne) => ligne.startsWith("connexion"));
+  const entete = (maintenant: string) => decrireEtat(lireEtat(journal, new Date(maintenant)), new Date(maintenant)).filter((ligne) => ligne.startsWith("connection"));
   noter({ type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["opus"], maxCooks: 2 } });
   arriver(14);
   assert.deepEqual(entete(`${JOUR_HORLOGE}T10:01:00.000Z`), []);
@@ -510,11 +510,10 @@ test("la connexion Max absente attend le chef : l'en-tête de l'état et le bloc
   a(`${JOUR_HORLOGE}T10:05:00.000Z`);
   noter({ type: "station.disconnected", payload: { station: STATION, reason: "not-logged-in", run: null } }, null, `station:${STATION}`);
 
-  const geste = "`claude /login` sous le compte du service — la cuisine reprend seule dans la minute, sans « resume »";
-  // Le même geste, tel que le bloc `awaiting` l'écrit : en anglais.
+  // Le geste, en anglais : l'en-tête et le bloc `awaiting` l'écrivent de même.
   const gesteEn = "`claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”";
   assert.deepEqual(entete(`${JOUR_HORLOGE}T10:25:00.000Z`), [
-    `connexion  Max ABSENTE depuis 20 min sur ${STATION} (not-logged-in) — plus aucun ticket n'est pris : ${geste}`,
+    `connection Max MISSING for 20 min on ${STATION} (not-logged-in) — no ticket is taken any more: ${gesteEn}`,
   ]);
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:25:00.000Z`), [
     "awaiting   1 decision awaits the chef — for 20 min",
@@ -687,7 +686,7 @@ test("un projet bloqué sur son setup attend le chef, une seule fois quel que so
 
   // En tête de `status`, ce qui ne part plus ; dans ce que l'app lit, une cuisine retenue et une décision qui attend.
   const tete = decrireEtat(etat, new Date(maintenant)).filter((ligne) => ligne.startsWith("setup"));
-  assert.deepEqual(tete, ["setup      BLOQUÉ depuis 20 min sur ba5e000 — aucun setup n'est lancé d'ici, pour aucun ticket, tant que la branche d'intégration ne bouge pas : la cause et le geste sont dans le bloc `awaiting`"]);
+  assert.deepEqual(tete, ["setup      BLOCKED for 20 min on ba5e000 — no setup is launched from here, for any ticket, as long as the integration branch does not move: the cause and the action are in the `awaiting` block"]);
   const forme = faits(etat, new Date(maintenant));
   assert.equal(forme.etat, "retenue");
   assert.equal(forme.compteurs.attend, 1);
