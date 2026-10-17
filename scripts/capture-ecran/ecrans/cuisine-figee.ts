@@ -44,7 +44,7 @@ const FAITS_PARADE: Faits = {
 
 const STATUS_PARADE = [
   "projet     parade",
-  "cuisine    ouverte",
+  "kitchen    open",
   "",
   "attend     1 décision attend le chef depuis 2 j",
   "  #12  depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main : gh pr merge 31",
@@ -74,7 +74,7 @@ const FAITS_CANTINE: Faits = {
   urgence: null,
 };
 
-const STATUS_CANTINE = ["projet     cantine", "cuisine    ouverte", "", "rail       1 en attente", "  #5  en attente  -  depuis 23 min  La carte du midi", "", "cooks      aucun", ""].join("\n");
+const STATUS_CANTINE = ["projet     cantine", "kitchen    open", "", "rail       1 en attente", "  #5  en attente  -  depuis 23 min  La carte du midi", "", "cooks      aucun", ""].join("\n");
 
 const STATION = ["station    box — Debian 12, 8 cœurs", "machine    disponible · charge 1.2", "quota      tient", ""].join("\n");
 

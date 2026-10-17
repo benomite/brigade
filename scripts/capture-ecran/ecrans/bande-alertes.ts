@@ -6,14 +6,15 @@ import { MANAGER_ALLUME, PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const PARADE = RENDUS.parade as Rendu;
 
-// Les lignes de tête de `status` que la bande lit (runtime/src/etat.ts, `decrireEtat`), en tête de celui de la cuisine figée.
+// Les lignes de tête de `status` que la bande lit (runtime/src/etat.ts, `decrireEtat`), en tête de celui de la cuisine figée —
+// telles que le runtime les écrit depuis #928 : en anglais.
 export const STATUS_EN_PANNE = [
   "projet     parade",
-  "cuisine    retenue",
-  "connexion  Max DÉCONNECTÉE depuis 18 min sur box/claude (session expirée) — plus aucun ticket n'est pris : `claude /login` sous le compte du service — la cuisine reprend seule dans la minute, sans « resume »",
-  "base       ROUGE depuis 1 h 10 sur abc1234 — la station ne prend plus de ticket, la pass ne juge ni ne merge",
-  "           rejouer ses gates sans attendre un commit : brigade parade base replay",
-  "grant      merge ÉTEINT SEUL il y a 40 min — son échéance est passée : la pass s'arrête à la PR ouverte, plus rien n'est mergé sans toi",
+  "kitchen    held",
+  "connection Max EXPIRED for 18 min on box/claude (session expired) — no ticket is taken any more: `claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”",
+  "base       RED since 1 h 10 ago on abc1234 — the station takes no more tickets, the pass neither judges nor merges",
+  "           replay its gates without waiting for a commit: brigade parade base replay",
+  "grant      merge LAPSED 40 min ago — its deadline has passed: the pass stops at the open PR, nothing is merged without you any more",
   ...PARADE.status.split("\n").slice(2),
 ].join("\n");
 
