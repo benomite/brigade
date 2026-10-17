@@ -209,6 +209,13 @@ describe("l'interrupteur, en tête de l'espace", () => {
     assert.equal(prix[0]?.textContent, "it will judge the 23 open issues?");
     assert.doesNotMatch(ouverte.textContent, /whole open backlog/);
     assert.ok(ouverte.dessous("button").some(({ ariaLabel }) => ariaLabel.includes(AVERTISSEMENT)), "ce qu'allumer engage n'est pas au survol");
+    // À côté des réponses, rien d'écrit : ce que chacune engage est au survol de son bouton.
+    assert.doesNotMatch(ouverte.textContent, /taken up right away|nothing goes/);
+    const reponses = ouverte.dessous("button").filter(({ className }) => className !== "aide");
+    assert.deepEqual(reponses.map(({ textContent, title }) => [textContent, title]), [
+      ["yes, turn the manager on", "what it judges executable is taken up right away"],
+      ["no, leave it off", "nothing goes"],
+    ]);
 
     // « oui » le fait partir, dans le second, et referme la confirmation.
     (ouverte.dessous("button").find(({ dataset }) => dataset.oui !== undefined) ?? assert.fail("pas de « oui »")).click();

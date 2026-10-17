@@ -985,6 +985,15 @@ function poserConfirmation(projet, { rendu, compte }, grant) {
     if (detail !== "") ligne.append(survol(document, detail));
     confirmation.append(ligne);
   }
+  // Chiffrée, la confirmation n'écrit que sa phrase de prix : ce que chaque réponse engage passe au
+  // survol de son bouton, pas à côté de lui (ticket 906).
+  const aCote = rendu.chiffrer !== true;
+  /** @param {HTMLElement} reponse @param {string} dit */
+  const engage = (reponse, dit) => {
+    if (aCote) return [reponse, bloc("span", dit)];
+    reponse.title = dit;
+    return [reponse];
+  };
   confirmation.append(
     ...rendu.choix.map(({ id, libelle, dit }) => {
       const choix = document.createElement("p");
@@ -994,13 +1003,13 @@ function poserConfirmation(projet, { rendu, compte }, grant) {
         void ecrireGeste(id, grant, true);
       });
       oui.dataset.oui = "";
-      choix.append(oui, bloc("span", dit));
+      choix.append(...engage(oui, dit));
       return choix;
     }),
   );
   const non = document.createElement("p");
   non.className = "gestes";
-  non.append(bouton(rendu.renoncer, fermer), bloc("span", "nothing goes"));
+  non.append(...engage(bouton(rendu.renoncer, fermer), "nothing goes"));
   confirmation.append(non);
   return confirmation;
 }
