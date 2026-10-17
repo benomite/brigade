@@ -150,7 +150,7 @@ Un fichier écrit avant cette liste n'a rien à y récrire : la box que tes proj
 peux le vider : `Installer sur la box, et ajouter` avec un calibrage ou une destination vide ne
 joint personne, le champ est signalé, avec sa raison (`Le modèle du manager n'a pas de défaut :
 c'est ton quota, choisis-le.`), et l'écran dit `Rien n'est parti vers la box`. **Le runtime, lui,
-refuse toujours de démarrer sans ses cinq variables** (`docs/runtime.md`) : la valeur proposée est
+refuse toujours de démarrer sans ses cinq variables** (`docs/runtime/exploitation.md`, « Cinq variables, aucun défaut ») : la valeur proposée est
 écrite dans le drop-in comme une valeur choisie.
 
 **Le nom est celui de l'instance** (`brigade@<nom>.service`), et l'écran le refuse **comme la box
@@ -790,7 +790,7 @@ En tête du panneau de l'espace d'un projet, la lecture de sa box est dans **un 
 | À l'écran | Ce que l'app a obtenu | Ce qu'elle montre dessous |
 |---|---|---|
 | `pilotable — lu à 14:32:07` | les commandes ont abouti | leurs sorties. **Un projet où rien ne se passe est ici** : un `status` calme, pas une erreur |
-| `JOINT, MAIS PLUS PILOTABLE — essai de …`, en jaune, trait pointillé | `ssh` a joint la box, et une commande y a échoué (un code autre que 255) ou n'a rien rendu en trente secondes (`ssh`, connecté, arrêté au délai) | la commande lancée, ce qu'elle a écrit, son code — puis **le geste** : mettre le runtime à jour sur sa box (`docs/runtime.md`, « Piloter ») |
+| `JOINT, MAIS PLUS PILOTABLE — essai de …`, en jaune, trait pointillé | `ssh` a joint la box, et une commande y a échoué (un code autre que 255) ou n'a rien rendu en trente secondes (`ssh`, connecté, arrêté au délai) | la commande lancée, ce qu'elle a écrit, son code — puis **le geste** : mettre le runtime à jour sur sa box (`docs/runtime/exploitation.md`, « Piloter ») |
 | `JOINT, MAIS INCONNU DE LA BOX — essai de …`, en jaune, trait plein | `ssh` a joint la box, et son geste a refusé le projet (code 65) : elle ne sert aucun projet sous ce nom | **ce que le geste en a dit**, tel quel — puis le nom que l'app lui a donné, et d'où il vient (`nom`, dans `app.json`) |
 | `JOINT, MAIS SANS LE DROIT DU GESTE — essai de …`, en jaune, trait plein | `ssh` a joint la box, et son geste a refusé ton compte (code 68) : il n'est pas de ceux qui peuvent le lancer | **ce que le geste en a dit**, tel quel — puis où est écrit le geste qui donne ce droit, sur la box (`docs/installer.md`, « Ajouter un humain ») |
 | `JOINT, MAIS UNE COMMANDE MANQUE SUR LA BOX — essai de …`, en jaune, trait plein | `ssh` a joint la box, et une commande n'y a pas été trouvée : le shell de la box le dit (code 127), ou le geste, pour `sudo` (code 69) | **ce que la box en a dit**, tel quel — puis où ces commandes se posent (`docs/installer.md`, « Préparer la box ») |
@@ -1032,7 +1032,7 @@ la page, et **le rail revient tel que tu l'avais laissé**, défilé où il l'é
 au-dessus, reste visible : aucune page ne la couvre, ni les terminaux, à droite.
 
 Dans ces pages, cinq **lectures de contenu**. Une lecture relaie **en texte, mot pour mot,** la sortie d'une commande du runtime
-(`docs/runtime.md`, « Piloter »). **Manager** montre d'abord l'état du manager, **Grants** celui
+(`docs/runtime/exploitation.md`, « Piloter »). **Manager** montre d'abord l'état du manager, **Grants** celui
 des grants :
 
 | Onglet | La commande que l'app lance sur la box | Ce que tu y lis |
@@ -1088,7 +1088,7 @@ d'autre :
 - **Ce que la sortie dit d'autre se lit dessous** : les épiques, les réactions aux échecs. L'app ne
   les pose pas à part. Une commande que le runtime cite dans un motif (`npm --prefix runtime run
   manager -- rendre 77`) est celle de la box : depuis ton poste, c'est `ssh <hote> brigade <nom>
-  manager rendre 77` (`docs/runtime.md`, « Piloter »).
+  manager rendre 77` (`docs/runtime/exploitation.md`, « Piloter »).
 - **Lu tant que l'onglet est affiché**, comme les autres : à l'ouverture, puis toutes les trente
   secondes. Revenir sur l'onglet le relit aussitôt — rien n'y reste de la lecture d'avant.
 - **Deux gestes, à côté de l'état : `allumer`, `éteindre`** — chacun sous ce que son clic fait.
@@ -1102,14 +1102,14 @@ d'autre :
   | `allumer` | écrit : `ssh <hote> brigade <nom> manager on` |
   | `éteindre` | envoie : `!ssh <hote> brigade <nom> manager off` |
 
-  C'est la commande de `docs/runtime.md`, « Piloter », dans sa forme de poste, mot pour mot : elle
+  C'est la commande de `docs/runtime/exploitation.md`, « Piloter », dans sa forme de poste, mot pour mot : elle
   reste dans l'historique du shell et se rejoue à la main à l'identique. La ligne sous les onglets
   de droite dit ce qui a été écrit (``écrit dans ce shell, sans Entrée : `ssh box brigade parade manager on` — c'est la tienne qui l'envoie…``).
   **Allumer engage** : allumé, le manager juge tout le backlog ouvert, et ce qu'il juge exécutable
-  part aussitôt en cuisine (`docs/runtime.md`, « Le manager ») — c'est pour cela que la commande
+  part aussitôt en cuisine (`docs/runtime/manager.md`, « Le manager ») — c'est pour cela que la commande
   s'écrit et se lit avant de partir. Envoyée, reviens sur **Manager** : l'état est relu.
 - **Avec « allumer », l'app dit ce qu'il engage — et le chiffre.** Dès le clic, **au-dessus du
-  shell** où la commande attend, se posent l'avertissement de `docs/runtime.md`, mot pour mot
+  shell** où la commande attend, se posent l'avertissement de `docs/runtime/manager.md`, mot pour mot
   (« Allumé, il juge tout le backlog ouvert, et ce qu'il juge exécutable part aussitôt en cuisine.
   Avant d'allumer, pose `blocked-on-human` sur ce qui ne doit pas partir… »), puis **deux
   nombres**, dits en une phrase — ce qu'il va juger : `it will judge 9 of the 12 open issues — 3 carry
@@ -1117,7 +1117,7 @@ d'autre :
 
   | Ce qui se lit | D'où ça vient |
   |---|---|
-  | l'avertissement | le texte de `docs/runtime.md`, « Le manager » — il est là dès le clic, avant toute lecture |
+  | l'avertissement | le texte de `docs/runtime/manager.md`, « Le manager » — il est là dès le clic, avant toute lecture |
   | les deux nombres | la ligne `backlog` de `ssh <hote> brigade <nom> manager backlog`, que l'app lance **à ta place, une fois, après** avoir écrit le geste : la box compte sur GitHub les issues ouvertes du dépôt (PR écartées) et celles qui portent `blocked-on-human`, à l'instant. L'heure de la lecture et la commande sont dites dessous |
   | pourquoi ils manquent | la box pas jointe, GitHub pas lu par elle, un runtime d'avant cette lecture (« mets brigade à jour sur la box »), ou une sortie sans sa ligne `backlog` : l'app le dit, montre ce qu'elle a obtenu à la place, et **n'écrit jamais « 0 »** — ce n'est pas « aucune issue » |
 
@@ -1138,7 +1138,7 @@ d'autre :
 
 **Un grant est-il actif, et jusqu'à quand ?** C'est l'autorisation la plus lourde du système —
 sous grant `merge`, du code écrit par un cook atterrit sur la branche d'intégration sans toi
-(`docs/runtime.md`, « Le grant `merge` ») —, et c'est là qu'elle se lit, par projet. En tête de
+(`docs/runtime/pass-merge.md`, « Le grant `merge` ») —, et c'est là qu'elle se lit, par projet. En tête de
 l'onglet, au-dessus du texte de `ssh <hote> brigade <nom> grant`, l'app pose ce qu'elle a lu **dans
 cette sortie**, et rien d'autre — un bloc par grant :
 
@@ -1176,7 +1176,7 @@ cette sortie**, et rien d'autre — un bloc par grant :
   | `accorder merge` | `ssh <hote> brigade <nom> grant enable merge` |
   | `révoquer merge` | `ssh <hote> brigade <nom> grant revoke merge` |
 
-  C'est la commande de `docs/runtime.md`, « Piloter », dans sa forme de poste, mot pour mot : elle
+  C'est la commande de `docs/runtime/exploitation.md`, « Piloter », dans sa forme de poste, mot pour mot : elle
   reste dans l'historique du shell et se rejoue à la main à l'identique. **`merge` est le grant le
   plus lourd, et il s'écrit comme les autres** : aucune boîte de confirmation ne s'ouvre. Ce qui te
   protège, c'est que la commande **se lit et se corrige avant de partir** — tu peux lui ajouter une
@@ -1213,7 +1213,7 @@ a aucun.
 | | `grant revoquer merge` | `!ssh <hote> brigade <nom> grant revoke merge` |
 | l'onglet **Cooks** | `station cooks …` | `!ssh <hote> brigade <nom> station cooks ` — le nombre reste à taper |
 
-- **C'est la commande de la doc, mot pour mot** : la forme de `docs/runtime.md`, « Piloter »,
+- **C'est la commande de la doc, mot pour mot** : la forme de `docs/runtime/exploitation.md`, « Piloter »,
   depuis ton poste (`ssh <box> brigade <projet> <commande>`), avec ton `hote` et ton `nom`. Le `!`
   devant est celui qui lance une commande sur le Mac depuis une session `claude`. Elle reste dans
   l'historique du second, et se rejoue à la main à l'identique.
@@ -1375,7 +1375,7 @@ pourquoi — toujours suivie de ``— la commande n'est pas partie, et rien n'es
 Quatre choses, et elles seules, parce qu'elles sont un **tableau à états** : la pastille de la
 barre, la carte de projet, le rail, la bannière d'arrêt. L'app ne les tire d'aucune phrase : elle
 lance `ssh <hote> brigade <nom> facts`, la commande par laquelle le runtime donne ses faits comme des faits
-(`docs/runtime.md`, « Les faits, pour un programme ») — un état est **un mot lu**, un compteur **un
+(`docs/runtime/etat-et-mesures.md`, « Les faits, pour un programme ») — un état est **un mot lu**, un compteur **un
 nombre lu**. Pour tous les projets qui ont un `hote`, toutes les trente secondes, quel que soit
 l'écran.
 
@@ -1393,7 +1393,7 @@ dernier événement — merge.done · #216 · 13 s avant la lecture
 
 | Ce que tu lis | D'où ça vient |
 |---|---|
-| la pastille et le mot | `etat` : `ouverte` (verte), `retenue` (jaune), `arrêtée` ou `éteinte` (rouges) — ce que chacun veut dire est dans `docs/runtime.md`. *Pourquoi* la cuisine est retenue se lit dans `status`, dessous |
+| la pastille et le mot | `etat` : `ouverte` (verte), `retenue` (jaune), `arrêtée` ou `éteinte` (rouges) — ce que chacun veut dire est dans `docs/runtime/etat-et-mesures.md`. *Pourquoi* la cuisine est retenue se lit dans `status`, dessous |
 | `lu à …` | l'heure de ton poste à la lecture |
 | `dernier tick … avant la lecture` | l'écart entre le dernier tick du runtime et l'heure de la box à la lecture. **L'app l'affiche et n'en conclut rien** : `ouverte` avec un tick vieux de dix minutes est un runtime à aller voir (`systemctl status brigade@<projet>`), et c'est toi qui le dis. `aucun tick` : runtime arrêté, ou pas encore de tick depuis son démarrage |
 | les cinq nombres | `rail` (en attente, `BLOQUÉ` compris), `au travail` (`pris`), `à la pass`, `t'attend` (les décisions du bloc `attend`), `livrés 24 h` |
@@ -1454,7 +1454,7 @@ Paramètres. Les captures d'un ticket d'interface livré restent sur la carte.
 
 **La fiche porte, elle, ce que la file dit du ticket** (`app/src/bon.ts`) — cinq choses, dans cet ordre,
 et `en ce moment` (ce que la cuisine en fait, `rail[].activite`, voir « Ce que fait un cook en ce moment »
-dans `docs/runtime.md`) en tête :
+dans `docs/runtime/garde-fous.md`) en tête :
 
 | Sur la fiche | Ce que c'est | D'où ça vient |
 |---|---|---|
@@ -1548,7 +1548,7 @@ S'y ajoute, pour un ticket en pass ou servi, `cuisiné par` : qui l'a cuisiné n
   `aucune remarque`, `4 remarques`, ou `2 remarques, dont 1 bloquante` pour une livraison mergée à la
   main malgré une relecture rouge. **Un clic sur ce nombre les déplie** sur la carte, chacun dans son
   ordre, avec le fichier qu'il nomme et son texte tel que le reviewer l'a écrit ; un second clic les
-  replie. Ils viennent de `relecture`, dans `livres` (`docs/runtime.md`, « Les faits, pour un
+  replie. Ils viennent de `relecture`, dans `livres` (`docs/runtime/etat-et-mesures.md`, « Les faits, pour un
   programme »).
 - **Sans relecture, la carte le dit, et n'invente rien** : `ce qui a été livré : non communiqué —
   aucune relecture lisible ne porte sur cette livraison (mergée à la main, servie sans passer à la
@@ -1670,7 +1670,7 @@ S'y ajoute, pour un ticket en pass ou servi, `cuisiné par` : qui l'a cuisiné n
 - **Ce qui n'est pas encore sur le rail** (`app/src/amont.ts`, #697). Un rail vide ne veut pas
   dire un projet fini : en tête du rail, un nombre — `23 upcoming` — compte les issues ouvertes du
   dépôt que le rail ne porte pas. Il vient de `ssh <hote> brigade <nom> manager upstream`
-  (`docs/runtime.md`, « En amont du rail »), lu **pour le projet affiché seulement**, une fois par
+  (`docs/runtime/manager.md`, « En amont du rail »), lu **pour le projet affiché seulement**, une fois par
   minute : la box lit GitHub à chaque fois. Un clic déplie la liste, **regroupée par ce qui leur
   arrive**, dans les mots de la box :
   - `not yet read by the manager` ; `epic, not yet split` ; `awaiting your answer — it is also in
@@ -1736,7 +1736,7 @@ reçoit donc au plus une connexion par projet qu'elle sert, pas deux.
 
 | À l'écran | Ce que l'app a obtenu | Ce qu'elle montre dessous |
 |---|---|---|
-| ``JOINT, MAIS `faits` N'A PAS RÉPONDU — essai de …`` | `ssh` a joint la box, et la commande y a échoué sans que son code dise un cas. **Un runtime d'avant `faits` est le cas attendu** | la commande lancée, ce qu'elle a écrit, son code — puis le geste : mettre le runtime à jour sur sa box (`docs/runtime.md`, « Piloter ») |
+| ``JOINT, MAIS `faits` N'A PAS RÉPONDU — essai de …`` | `ssh` a joint la box, et la commande y a échoué sans que son code dise un cas. **Un runtime d'avant `faits` est le cas attendu** | la commande lancée, ce qu'elle a écrit, son code — puis le geste : mettre le runtime à jour sur sa box (`docs/runtime/exploitation.md`, « Piloter ») |
 | `JOINT, MAIS INCONNU DE LA BOX`, `… SANS LE DROIT DU GESTE`, `… UNE COMMANDE MANQUE SUR LA BOX`, `… LE NODE DE LA BOX NE CONVIENT PAS AU RUNTIME` | le geste de la box a refusé (codes 65, 68, 69 ou 127, 70) : **le même cas que sous `status`**, avec les mêmes mots | ce que la box en a dit, tel quel — puis **le renvoi de ce cas**, celui du tableau de « Une lecture de box : sept états ». Pas de mise à jour du runtime : ce n'est pas lui qui est vieux |
 | ``LA BOX N'A PAS RENDU LA FORME DE `faits` — essai de …`` | la commande a abouti, et sa sortie n'est pas la forme : pas du JSON, un champ qui manque, un compteur qui n'est pas un nombre entier | **la sortie, mot pour mot**, puis ce qui n'est pas la forme (`« compteurs.rail » n'est pas un nombre entier positif`) |
 | `PAS JOINT — essai de …` | rien qui prouve que la box a été jointe | le message de `ssh`, tel quel — le même que sous `status`, où ses renvois sont donnés |
@@ -1780,7 +1780,7 @@ fin attend
   lignes, `rien n'attend le chef` sur la première, `fin attend` sur la seconde. L'app n'écrit pas
   cette phrase et n'en écrit pas d'autre : si le runtime la change, elle change ici.
 - **Pour le mettre à part, l'app ne lit que le bord** : la seule ligne de la sortie qui commence
-  par `attend`, la seule qui vaut `fin attend` (`docs/runtime.md`, « Ce qui attend le chef »). Rien
+  par `attend`, la seule qui vaut `fin attend` (`docs/runtime/etat-et-mesures.md`, « Ce qui attend le chef »). Rien
   de ce que le bloc porte n'est compté ni reformulé. Elle ne sait donc pas *si* quelque chose
   t'attend : le bloc plein et le bloc vide ont le même fond, pas de couleur d'alerte, aucun compteur
   dans la barre.
@@ -1805,14 +1805,14 @@ fin attend
   ```
 
   Le cas attendu est un runtime d'avant ce bord — le geste est alors de le mettre à jour sur sa box
-  (`docs/runtime.md`, « Piloter ») — mais l'app ne le devine pas : elle dit ce qu'elle n'a pas
+  (`docs/runtime/exploitation.md`, « Piloter ») — mais l'app ne le devine pas : elle dit ce qu'elle n'a pas
   trouvé. Le projet reste `pilotable` : `status` a répondu.
 - Une lecture ratée n'a rien à mettre à part : l'erreur prend toute la place, comme avant.
 
 ### Ce que `status` dit du reste
 
 Ce qui demande ton attention sans t'attendre est là où `status` le met, et dit comme il le dit
-(voir « L'état de la cuisine » dans `docs/runtime.md`) :
+(voir « L'état de la cuisine » dans `docs/runtime/etat-et-mesures.md`) :
 
 | Ce que tu cherches | Où `status` le dit |
 |---|---|
@@ -1832,13 +1832,13 @@ qui dit `rien n'attend le chef`, et un `status` sans `COINCE` ni `BIENTÔT ÉTEI
 titre d'échec, un panneau, ce que les boutons écrivent — est le *geste de poste*,
 `ssh <hote> brigade <nom> <commande>`, avec ton `hote` et le `nom` du projet : c'est ce que tu tapes
 sur ton Mac. `brigade <nom> <commande>` seul est le *geste de box*, celui de la box elle-même
-(`docs/runtime.md`, « Piloter ») : tapé sur le Mac, il rend `command not found`, et l'app ne pose
+(`docs/runtime/exploitation.md`, « Piloter ») : tapé sur le Mac, il rend `command not found`, et l'app ne pose
 rien sur ton poste pour l'éviter. Sous le nom du projet, `<hote>` et `<nom>` sont à remplacer par
 les deux champs de ton fichier.
 
 Tu ne dictes plus aucune commande. L'app lance **le geste de la box**, joint par `ssh` : `ssh <hote> brigade <nom> status` —
 et, pour l'onglet de contenu affiché, `ssh <hote> brigade <nom> rail`, `station`, `grant` ou `journal`
-(`docs/runtime.md`, « Piloter ») : le compte, l'installation et
+(`docs/runtime/exploitation.md`, « Piloter ») : le compte, l'installation et
 l'environnement se lisent sur la box, dans l'unité du projet. Le geste doit donc y être posé, et
 permis à ton compte sans mot de passe (`docs/installer.md`, « Préparer la box »).
 
@@ -1965,7 +1965,7 @@ habille **le cadre**, jamais le contenu.
 
 Un ticket peut demander une capacité que la box n'a pas — `chrome-connecté`, ton navigateur, avec
 tes sessions. Le projet déclare alors sur sa box une station qui la fournit et qui **ne tourne pas
-sur la box** : `mac/claude:1:chrome-connecté:distante` (`docs/runtime.md`, « Une station distante
+sur la box** : `mac/claude:1:chrome-connecté:distante` (`docs/runtime/station-distante.md`, « Une station distante
 tire son travail »). **C'est l'app qui la joue**, pour les projets qui le lui demandent :
 
 ```json
@@ -2012,7 +2012,7 @@ que le Mac ne prend aucun ticket ordinaire. Tant qu'elle n'en a rien dit, l'app 
 règle ce que l'app garde ; la déclaration `distante+ordinaires` de la box reste celle du chef.
 
 **Où cuit chaque ticket (#853).** La box n'envoie un ticket ordinaire au Mac que quand elle sature
-(docs/runtime.md, même section). Sur le rail, la carte d'un ticket en cours dit donc, sous « taken by »,
+(`docs/runtime/station-distante.md`, même section). Sur le rail, la carte d'un ticket en cours dit donc, sous « taken by »,
 **« cooks on : box »** ou **« cooks on : Mac »** — Mac pour une station distante, d'après le champ
 `stations` de `facts`. Une station que `facts` ne donne pas — un runtime d'avant ce champ — ne fait rien
 dire : l'app ne devine pas d'après son nom.
@@ -2173,7 +2173,7 @@ accès.
 | Tests | `npm --prefix app test` |
 | Contrôle de types | `npm --prefix app run typecheck` |
 | Lancer sans consommer de quota | `BRIGADE_CLAUDE_BIN="$PWD/app/test/aides/faux-claude.sh" BRIGADE_APP_CONFIG=<fichier d'essai> npm --prefix app start` |
-| … et sans box | ajouter `BRIGADE_SSH_BIN=<un script qui imprime une sortie de status>` — et, pour voir ce qui se dessine, l'exemple de `docs/runtime.md` quand ses arguments finissent par `faits` |
+| … et sans box | ajouter `BRIGADE_SSH_BIN=<un script qui imprime une sortie de status>` — et, pour voir ce qui se dessine, l'exemple de `docs/runtime/etat-et-mesures.md` quand ses arguments finissent par `faits` |
 | … et sans que ta machine devienne une station | ajouter `BRIGADE_APP_STATION=0` |
 
 **L'app ouverte est une station** (voir « Cet ordinateur est une station ») : elle crée son gist
@@ -2243,7 +2243,7 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   dans le fichier — et seulement celles qui manquent —, changées une à une ; dans la vue jouée, la
   case teinte, l'accent de l'espace, le choix sous Réglages ; aucune n'est une couleur d'état), `onglets.ts` (les cinq onglets de contenu :
   chacun relaie un script qui existe dans `runtime/package.json`, et seul l'affiché est lu),
-  `boutons.ts` (ce que chaque bouton écrit, comparé à « Piloter » de `docs/runtime.md` — et, dans
+  `boutons.ts` (ce que chaque bouton écrit, comparé à « Piloter » de `docs/runtime/exploitation.md` — et, dans
   le registre et sur le vrai pty, que rien n'est envoyé), `gestes.ts` (les gestes qui s'écrivent
   dans un shell de l'espace, et les deux qui partent dans le second : chaque commande comparée,
   caractère pour caractère, à « Piloter », que rien n'envoie un geste écrit, et qu'aucun geste
@@ -2251,7 +2251,7 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   éteint, jamais allumé, sans décision, avec ses décisions et ses écarts — sur des sorties que le
   test fait écrire par `runtime/src/manager-cli.ts` lui-même, sur un vrai journal ; ce qui n'a pas
   la forme n'est jamais lu comme « éteint »), `allumage.ts` (ce qu'engage l'allumage : son
-  avertissement comparé à celui de `docs/runtime.md`, et les deux nombres lus sur un backlog
+  avertissement comparé à celui de `docs/runtime/manager.md`, et les deux nombres lus sur un backlog
   connu — la ligne est écrite par `manager backlog` de `runtime/src/manager-cli.ts` lui-même,
   devant un faux `gh`, puis rendue par un faux `ssh` ; une box pas jointe, un runtime d'avant la
   commande ou une sortie sans la ligne ne donnent jamais « 0 »), `amont.ts` (ce qui n'est pas encore sur le
@@ -2260,7 +2260,7 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   n'a pas la forme, une box pas jointe ou un runtime d'avant la commande ne donnent jamais de
   nombre ; et, vue jouée, le nombre en tête du rail, la liste qu'il déplie, la fiche qu'une issue
   ouvre, et ce que dit un rail vide), `faits.ts` (ce qui se dessine : la
-  forme lue champ pour champ sur l'exemple de `docs/runtime.md`, ce qui n'est pas elle refusé sans
+  forme lue champ pour champ sur l'exemple de `docs/runtime/etat-et-mesures.md`, ce qui n'est pas elle refusé sans
   un zéro, une couleur sur les seuls mots des listes fermées, l'adresse d'une issue, la bannière —
   le rail rangé en cinq colonnes, T'attend d'après `attend` de la forme et le bloc `attend` tenu à côté des faits —
   la vue en reçoit un tableau prêt à poser, et n'y calcule rien), `bon.ts` (ce qu'une carte du rail porte : la ligne de
@@ -2363,7 +2363,7 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
 - Montrer l'état du manager hors de son onglet — dans la barre, la carte ou « Tous les projets » :
   il se lit dans l'onglet **Manager**, tant qu'il est affiché.
 - Dire, au moment d'allumer le manager, combien d'issues ouvertes il va juger : le geste écrit la
-  commande, et `docs/runtime.md`, « Le manager », dit ce qu'elle engage.
+  commande, et `docs/runtime/manager.md`, « Le manager », dit ce qu'elle engage.
 - Suivre le journal en direct hors d'un terminal : l'onglet **Log** relit sa fin, toutes les
   trente secondes.
 - Lire ce que le second affiche : l'app ne lit pas le terminal. Un bouton écrit à la suite de ta
