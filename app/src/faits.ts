@@ -1,5 +1,5 @@
 // Ce que l'app dessine : les faits que la box rend dans une forme faite pour un
-// programme (`brigade <projet> faits` — docs/runtime.md, « Les faits, pour un
+// programme (`brigade <projet> faits` — docs/runtime/etat-et-mesures.md, « Les faits, pour un
 // programme »). L'app n'y déduit rien : un état est un mot lu, un compteur un
 // nombre lu. Une sortie qui n'est pas cette forme n'est pas dessinée du tout —
 // ce que la box a rendu se lit à sa place. Et une couleur ne se pose que sur un
@@ -761,7 +761,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu): Table
 }
 
 // La bannière d'arrêt : posée sur le « stop » du chef, avec ce qu'il implique
-// (docs/runtime.md, « Les garde-fous ») et le geste du socle qui la relance (gestes.ts).
+// (docs/runtime/garde-fous.md, « Les garde-fous ») et le geste du socle qui la relance (gestes.ts).
 export const BANNIERE = {
   etat: "arrêtée",
   bouton: "reprendre",

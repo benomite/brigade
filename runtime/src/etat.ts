@@ -653,7 +653,7 @@ function etatDuProjet({ session, gardeFous, stations, sansStation, base, setup }
   return retenue ? "retenue" : "ouverte";
 }
 
-// Les faits qu'un programme dessine. Cette forme est un contrat (docs/runtime.md,
+// Les faits qu'un programme dessine. Cette forme est un contrat (docs/runtime/etat-et-mesures.md,
 // « Les faits, pour un programme ») : ses champs, leur ordre et ses mots ne
 // changent pas sans que son lecteur change.
 export type Faits = {

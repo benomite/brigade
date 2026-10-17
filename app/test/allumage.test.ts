@@ -1,5 +1,5 @@
 // Ce qu'engage l'allumage du manager, dit au geste « allumer » : l'avertissement
-// de docs/runtime.md, et deux nombres — les issues ouvertes, et celles qui
+// de docs/runtime/, et deux nombres — les issues ouvertes, et celles qui
 // portent `blocked-on-human`. Les nombres lus ici sont écrits par la commande du
 // runtime elle-même (runtime/src/manager-cli.ts, `backlog`), jouée dans ce
 // process sur un backlog connu, dicté par un faux `gh` : la forme que l'app lit
@@ -7,6 +7,7 @@
 // écrit par chaque test. Et le geste est confirmé : sa confirmation dit
 // l'avertissement et ces nombres (confirmation.ts), et rien ne part avant son
 // « oui » — qui n'attend rien de cette lecture.
+import { docRuntime } from "./aides/doc-runtime.ts";
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,7 +21,7 @@ import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ouvrirTerminaux } from "../src/terminaux.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
-const doc = readFileSync(join(RACINE, "docs/runtime.md"), "utf8");
+const doc = docRuntime(RACINE);
 const PARADE = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
 const SERVI = { nom: "parade", box: { hote: "box" } };
 const DEPOT = "benomite/parade";
@@ -83,8 +84,8 @@ function box(t: TestContext, corps: string) {
 const dit = (texte: string) => `cat <<'FIN'\n${texte}FIN`;
 
 describe("l'avertissement de l'allumage", () => {
-  test("il est dit en anglais, et reprend celui de docs/runtime.md, « Le manager » : ce que l'allumage engage et `blocked-on-human`", () => {
-    assert.ok(doc.includes("\n## Le manager\n"), "docs/runtime.md n'a plus « Le manager »");
+  test("il est dit en anglais, et reprend celui de docs/runtime/, « Le manager » : ce que l'allumage engage et `blocked-on-human`", () => {
+    assert.ok(doc.includes("\n## Le manager\n"), "docs/runtime/ n'a plus « Le manager »");
     assert.equal(
       AVERTISSEMENT,
       "Once on, it judges the whole open backlog, and whatever it judges executable goes to the kitchen right away. Before turning it on, put `blocked-on-human` on whatever must not go: an issue carrying it is never judged, an epic carrying it is never split.",
@@ -139,8 +140,8 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
 
     assert.equal(COMMANDE, "manager backlog");
     assert.equal(appels(), `${OPTIONS} -- chef@box brigade parade manager backlog\n`);
-    assert.ok(piloter.includes("`brigade <projet> manager [on \\| off \\| return <n°> \\| backlog \\| upstream]`"), "docs/runtime.md, « Piloter », ne cite pas `manager backlog`");
-    assert.ok(doc.includes("npm --prefix runtime run manager -- backlog"), "docs/runtime.md, « Le manager », ne cite pas `manager -- backlog`");
+    assert.ok(piloter.includes("`brigade <projet> manager [on \\| off \\| return <n°> \\| backlog \\| upstream]`"), "docs/runtime/, « Piloter », ne cite pas `manager backlog`");
+    assert.ok(doc.includes("npm --prefix runtime run manager -- backlog"), "docs/runtime/, « Le manager », ne cite pas `manager -- backlog`");
   });
 
   test("une sortie qui n'a pas la forme ne donne aucun nombre : ce n'est pas « aucune issue »", () => {

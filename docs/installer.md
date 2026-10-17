@@ -2,7 +2,7 @@
 
 **Ce document suffit pour installer brigade sur un serveur neuf et y servir un premier projet** —
 par quelqu'un qui n'a jamais installé brigade, sans rien reconstituer depuis un autre document.
-Ce que fait le runtime une fois lancé est dans [`runtime.md`](runtime.md) : on y va pour
+Ce que fait le runtime une fois lancé est dans [`runtime/`](runtime/README.md) : on y va pour
 comprendre, jamais pour installer.
 
 **On installe brigade dans un projet ; on n'ajoute pas un projet à brigade.** Le runtime est par
@@ -222,7 +222,7 @@ un nom de ton `~/.ssh/config`. C'est la seule chose qui désigne la box — la m
 champ `hote` du projet dans l'app ([`app.md`](app.md)).
 
 **Geste de box, geste de poste** (la convention est dite une fois, dans
-[`runtime.md`](runtime.md), « Piloter »). Dans ce document, un `brigade <projet> …` sans `ssh` se
+[`runtime/`](runtime/exploitation.md), « Piloter »). Dans ce document, un `brigade <projet> …` sans `ssh` se
 tape **sur la box** ; depuis ta machine, le même geste est `ssh <box> brigade <projet> …`. Nu sur
 ta machine, `brigade` rend `command not found` — rien n'est cassé, il n'y a rien à y installer.
 
@@ -472,10 +472,10 @@ Les **cinq variables** sans lesquelles le runtime refuse de démarrer, et d'où 
 — sur un autre disque si la machine en a un. Elle n'a pas de défaut : la sauvegarde ne choisit pas
 seule un disque. Manquée (machine éteinte à 03:30), elle est jouée au démarrage suivant ; pour une
 autre cadence, un drop-in du timer avec `OnCalendar=` vide puis la tienne. Restaurer est dans
-`runtime.md`, « Sauvegarder et restaurer ».
+`docs/runtime/exploitation.md`, « Sauvegarder et restaurer ».
 
 Rien d'autre n'est nécessaire pour servir un projet. Ce qui est **facultatif** se pose plus tard
-dans le même drop-in, et se lit dans `runtime.md` quand tu en as l'usage : les réglages
+dans le même drop-in, et se lit dans `docs/runtime/` (`exploitation.md`, `identites-et-secrets.md`) quand tu en as l'usage : les réglages
 (« Cinq variables, aucun défaut »), les secrets de dev du projet (« Les secrets du projet »), une
 identité GitHub par rôle pour un dépôt partagé (« Ce que tu crées chez GitHub »).
 
@@ -514,7 +514,7 @@ Enterprise, d'une organisation) — sans elle il n'y a qu'une barrière, celle d
 voit que ce qui passe par elle. **Même active**, elle ne reconnaît que les formes de sa liste (des
 clés d'API Anthropic, **pas le jeton de connexion d'un abonnement Max**), ne voit pas une copie
 transformée, et quiconque écrit sur le dépôt peut la contourner depuis le site — un cook ne le peut
-pas, il n'a ni compte ni navigateur. Le jour où tu crois que la connexion Max a fui : `runtime.md`,
+pas, il n'a ni compte ni navigateur. Le jour où tu crois que la connexion Max a fui : `docs/runtime/station-cook.md`,
 « Révoquer la connexion Max ».
 
 ## 5. Vérifier que le projet est prêt
@@ -710,22 +710,22 @@ toi-même.
 
 Ce que le process imprime se lit par `journalctl -u brigade@<projet> -f` ; un refus de démarrer
 (code 2) ne se réessaie pas, et `systemctl status brigade@<projet>` en dit le motif. Toutes les
-commandes du geste, et la mise à jour de brigade, sont dans `runtime.md`, « Piloter ».
+commandes du geste, et la mise à jour de brigade, sont dans `docs/runtime/exploitation.md`, « Piloter ».
 
 **N'active le grant qu'après avoir relu au moins une livraison de ce projet** — une commande, sans
 redémarrage (`brigade <projet> grant enable merge`), de préférence avec une échéance (`--for 4h`,
-`--uses 10`) : il s'éteint alors seul, voir « Le grant `merge` » dans [`runtime.md`](runtime.md).
+`--uses 10`) : il s'éteint alors seul, voir « Le grant `merge` » dans [`runtime/`](runtime/pass-merge.md).
 
 **Avant d'accorder, lis le bilan des arrêts faute de grant.** Chaque livraison verte arrêtée dit
 sur son issue ce que la pass aurait mergé ; `pass` et `grant` comptent ce que tu en as
 fait — mergées, fermées sans merge (les désaccords), encore ouvertes. C'est le chiffre sur
-lequel accorder (`runtime.md`, « Les motifs, et le geste de chacun »).
+lequel accorder (`docs/runtime/pass.md`, « Les motifs, et le geste de chacun »).
 
 ## Un second projet sur la box
 
 Un second projet rejoue les gestes 1 et 6 à 10 — rien de « Préparer la box ». **Deux choses de
 plus se posent alors, pour tous les projets de la box** ; leurs unités sont déjà copiées. Ce
-qu'elles font est dans `runtime.md`, « La cloison » et « L'arbitre entre projets ».
+qu'elles font est dans `docs/runtime/cloison-et-arbitre.md`, « La cloison » et « L'arbitre entre projets ».
 
 ### La cloison
 
@@ -834,7 +834,7 @@ avec le geste lui-même (geste 5). Ajouter un humain ne réécrit aucune règle 
 ne touche à aucun projet.
 
 **Ce que tu lui donnes, en toutes lettres.** Le droit du groupe est le geste `brigade`, entier :
-**toutes ses commandes (`runtime.md`, « Piloter »), pour tous les projets de la box** — lire le `status`, mais
+**toutes ses commandes (`docs/runtime/exploitation.md`, « Piloter »), pour tous les projets de la box** — lire le `status`, mais
 aussi accorder le grant `merge`, dire « stop », désinstaller un projet. **Lire et agir ne sont pas
 séparés** : doser les droits par humain n'existe pas encore (V2.5). C'est du même ordre que lui
 donner un shell sur la box, et il en a un, sous son compte. Ce qu'il n'a pas : un shell sous le

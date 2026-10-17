@@ -1201,7 +1201,7 @@ const GESTE = [
   "The step that brings a runtime up to date, on its box:",
   "  sudo git -C <brigade clone> pull",
   "  sudo systemctl restart brigade@<project>",
-  "(docs/runtime.md, “Piloter”, line “Mettre à jour”)",
+  "(docs/runtime/exploitation.md, “Piloter”, line “Mettre à jour”)",
 ].join("\n");
 
 // Ce que l'app dit quand le geste de la box a refusé le projet : le nom qu'elle
@@ -1947,7 +1947,7 @@ const sansForme = (projet) => [
 // un runtime d'avant cette commande est le cas attendu.
 const SANS_REPONSE = [
   "The box was reached, and `facts` did not answer there: what it returned is above, as is.",
-  "A runtime older than `facts` is the expected case — it is updated on its box (docs/runtime.md, “Piloter”, line “Mettre à jour”).",
+  "A runtime older than `facts` is the expected case — it is updated on its box (docs/runtime/exploitation.md, “Piloter”, line “Mettre à jour”).",
 ].join("\n");
 // Sous toute lecture de `faits` en échec.
 /** @param {Projet} projet */

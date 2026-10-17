@@ -1,5 +1,5 @@
 # Runtime de brigade, une instance par projet : brigade@<projet>.service
-# Installation : docs/installer.md ; ce qu'il fait une fois lancé : docs/runtime.md
+# Installation : docs/installer.md ; ce qu'il fait une fois lancé : docs/runtime/README.md
 #
 # Ce fichier se copie tel quel. Ce qui dépend de la machine (compte, chemin de
 # node, emplacement du clone, ports) se règle dans un drop-in, jamais ici. Ce
@@ -57,7 +57,7 @@ Environment=BRIGADE_REPO_DIR=/var/lib/brigade/%i/depot
 #
 # Rien ici ne cloisonne ce que le runtime lance, ni ne filtre son réseau : la
 # cloison se pose projet par projet, par un drop-in (`cloison.conf`) et la
-# porte du projet (`brigade-porte@.service`) — docs/runtime.md, « La cloison ».
+# porte du projet (`brigade-porte@.service`) — docs/runtime/cloison-et-arbitre.md, « La cloison ».
 # Sans elle, les projets servis sous ce compte se voient, et le runtime le dit
 # à chaque démarrage.
 #

@@ -21,7 +21,7 @@ l'ancienne installation avait posé dans le système part. C'est un geste du che
    redemande pas de login.
 2. **Le code** : la station démarrée l'affiche dans son journal de service
    (`journalctl -u brigade-station`) — `brigade : station à appairer — tape ce code dans l'app :
-   7KQ2-M9XD …` —, et tu le tapes dans l'app, sur « Tous les projets » ([`runtime.md`](runtime.md),
+   7KQ2-M9XD …` —, et tu le tapes dans l'app, sur « Tous les projets » ([`runtime/`](runtime/station-machine.md),
    « Une station par machine »).
 
 Ce que la commande dit pendant la bascule :
@@ -61,7 +61,7 @@ la même commande la reprend où elle s'est arrêtée.
   geste du chef : la file de chaque projet le dit, une ligne par version — `passée en version … à …`
   ([`installation-station.md`](installation-station.md), « 6. La mise à jour, seule »).
 - **Un quatrième projet s'ajoute en moins de 10 minutes**, depuis l'app, sans terminal
-  ([`runtime.md`](runtime.md), « Ajouter un projet à une station depuis l'app, sans terminal »).
+  ([`runtime/`](runtime/station-machine.md), « Ajouter un projet à une station depuis l'app, sans terminal »).
 
 La reprise s'éprouve, avant le merge, sur une installation de test — jamais sur la box : trois
 projets servis à l'ancienne, un cook en vol, le vrai paquet installé, journal, décisions et tickets

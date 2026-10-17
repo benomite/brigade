@@ -1,8 +1,9 @@
 // Les trois gestes de la cuisine et de l'installation : reprendre, arrêter, vérifier
-// l'installation. Chacun envoie la commande de docs/runtime.md, « Piloter », dans le
+// l'installation. Chacun envoie la commande de docs/runtime/, « Piloter », dans le
 // second, s'il est dit libre (terminaux.test.ts) — sinon rien n'est écrit, nulle part.
 // Vérifier l'installation part au clic ; reprendre et arrêter sont confirmés : sans le
 // « oui » du chef, rien ne part, et la confirmation dit leur prix (confirmation.test.ts).
+import { docRuntime } from "./aides/doc-runtime.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -29,11 +30,11 @@ describe("les gestes de la cuisine et de l'installation", () => {
   });
 
   test("reprendre et arrêter sont confirmés, vérifier l'installation est direct ; chacun envoie la commande de la doc mot pour mot dans le second, aucun n'ouvre de shell — et d'un second qui démarre, rien ne part", async () => {
-    const doc = readFileSync(join(RACINE, "docs/runtime.md"), "utf8");
-    assert.ok(doc.includes("`brigade <projet> guardrails [stop \\| resume]`"), "docs/runtime.md, « Piloter », ne cite plus guardrails stop | resume");
+    const doc = docRuntime(RACINE);
+    assert.ok(doc.includes("`brigade <projet> guardrails [stop \\| resume]`"), "docs/runtime/, « Piloter », ne cite plus guardrails stop | resume");
     assert.ok(doc.includes("npm --prefix runtime run guardrails -- stop"));
     assert.ok(doc.includes("npm --prefix runtime run guardrails -- resume"));
-    assert.ok(/^\| .*`brigade <projet> installation`/m.test(doc) || doc.includes("brigade <projet> installation"), "docs/runtime.md ne cite plus `brigade <projet> installation`");
+    assert.ok(/^\| .*`brigade <projet> installation`/m.test(doc) || doc.includes("brigade <projet> installation"), "docs/runtime/ ne cite plus `brigade <projet> installation`");
     assert.deepEqual(GESTES_DE_LA_CUISINE.map(({ id }) => (CONFIRMES.includes(id) ? "confirmé" : DIRECTS.includes(id) ? "direct" : "?")), ["confirmé", "confirmé", "direct"]);
 
     for (const { id } of GESTES_DE_LA_CUISINE) {

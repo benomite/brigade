@@ -1,6 +1,6 @@
 // Ce qui attend le chef, mis à part : le bloc `attend` de `status`, pris par son
 // bord et par lui seul — de la seule ligne de la sortie qui commence par
-// `attend` à la seule qui vaut `fin attend`, bornes comprises (docs/runtime.md,
+// `attend` à la seule qui vaut `fin attend`, bornes comprises (docs/runtime/etat-et-mesures.md,
 // « Ce qui attend le chef »). Rien de ce qu'il porte n'est compté ni redit :
 // quand rien n'attend, c'est lui qui le dit. Le reste de la sortie reste mot
 // pour mot, à sa place. Une seule chose y est lue ici, pour le rail : le numéro

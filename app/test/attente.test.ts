@@ -37,7 +37,7 @@ const AUJOURDHUI = new Date(2026, 9, 15, 14, 30);
 // Ce que le shell lit d'une ligne : ses mots, un par un — joué par un vrai `sh`, qui n'exécute rien d'autre que `printf`.
 const mots = (ligne: string): string[] => execFileSync("sh", ["-c", `printf '%s\\0' ${ligne}`], { encoding: "utf8" }).split("\0").slice(0, -1);
 // Ce que la box reçoit d'une commande de poste : le shell du Mac la découpe pour `ssh`, qui joint ce
-// qui suit l'hôte par des espaces ; le shell de la box le découpe à son tour (docs/runtime.md, « Piloter »).
+// qui suit l'hôte par des espaces ; le shell de la box le découpe à son tour (docs/runtime/, « Piloter »).
 function recuParLaBox(commande: string): string[] {
   const [ssh, hote, ...suite] = mots(commande);
   assert.deepEqual([ssh, hote], ["ssh", "box"]);

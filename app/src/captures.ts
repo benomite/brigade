@@ -1,6 +1,6 @@
 // Les captures d'une livraison d'interface, sur la carte de son ticket : l'écran avant et
 // après le changement, côte à côte, sans rien demander au chef. La box les donne dans
-// `facts` (docs/runtime.md, « Les faits, pour un programme » : `captures`) — chaque
+// `facts` (docs/runtime/etat-et-mesures.md, « Les faits, pour un programme » : `captures`) — chaque
 // capture par son adresse sur GitHub, au commit livré, et si la livraison les porte
 // toutes. Une livraison d'interface qui n'en porte pas, ou dont un écran n'a que l'une
 // des deux, est dite incomplète sur la carte. Un ticket qui n'est pas d'interface n'a

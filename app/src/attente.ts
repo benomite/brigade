@@ -1,5 +1,5 @@
 // WAITING, côté app : les trois gestes qui mettent un ticket en attente d'un tiers et l'en
-// sortent (docs/runtime.md, « Un ticket attend un tiers : WAITING »). Chacun est la commande
+// sortent (docs/runtime/journal-et-rail.md, « Un ticket attend un tiers : WAITING »). Chacun est la commande
 // `waiting` du runtime, dans sa forme de poste (`ssh <hote> brigade <nom> waiting …`),
 // envoyée dans le second comme un geste du socle (gestes.ts) — l'app n'en double aucune :
 //   - « waiting for… », sur une carte de TODO : `waiting set <ticket> --what … --from … --remind <date>`,

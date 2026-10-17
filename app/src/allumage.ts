@@ -1,5 +1,5 @@
 // Ce qu'engage l'allumage du manager, dit au moment du geste « allumer » :
-// l'avertissement de docs/runtime.md, « Le manager », mot pour mot, et deux
+// l'avertissement de docs/runtime/manager.md, « Le manager », mot pour mot, et deux
 // nombres — les issues ouvertes du projet, et celles qui portent
 // `blocked-on-human`. Les nombres viennent de la box, par le geste qui existe
 // (`ssh <hote> brigade <nom> manager backlog`, box.ts) : une commande du runtime
@@ -19,7 +19,7 @@ import { titreDEchec } from "./faits.ts";
 export const GESTE = "manager-allumer";
 export const COMMANDE = "manager backlog";
 
-// docs/runtime.md, « Le manager » : son avertissement, sans sa mise en gras, dit en anglais
+// docs/runtime/manager.md, « Le manager » : son avertissement, sans sa mise en gras, dit en anglais
 // côté app (la doc, elle, est en français).
 export const AVERTISSEMENT =
   "Once on, it judges the whole open backlog, and whatever it judges executable goes to the kitchen right away. Before turning it on, put `blocked-on-human` on whatever must not go: an issue carrying it is never judged, an epic carrying it is never split.";

@@ -28,7 +28,7 @@ export type Lus = { faits: Faits; a: string } | { sans: string };
 
 const s = (combien: number) => (combien > 1 ? "s" : "");
 
-// Ce que le runtime fait d'un « stop » (docs/runtime.md, « Les garde-fous », et « Ce qu'un arrêt récolte »).
+// Ce que le runtime fait d'un « stop » (docs/runtime/garde-fous.md, « Les garde-fous », et « Ce qu'un arrêt récolte »).
 const STOP = [
   "All running cooks are stopped within the second, and nothing is harvested: their tickets go back to queued and will start again from zero — what they already spent delivers nothing.",
   "No more cooks are launched — runtime restarts included — until “resume”.",

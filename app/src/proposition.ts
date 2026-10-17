@@ -6,7 +6,7 @@
 import { execFile } from "node:child_process";
 import type { CalibrageDuProjet, Projet } from "./config.ts";
 
-// Ce sur quoi la box de brigade tourne (docs/runtime.md) : à défaut de tout autre projet.
+// Ce sur quoi la box de brigade tourne (docs/runtime/README.md) : à défaut de tout autre projet.
 export const MESURE: CalibrageDuProjet = { manager: { modele: "sonnet", effort: "medium" }, reviewer: { modele: "sonnet", effort: "medium" } };
 
 export type PropositionCalibrage = { calibrage: CalibrageDuProjet; origine: string };

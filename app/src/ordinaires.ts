@@ -1,5 +1,5 @@
 // Le réglage « prendre aussi les tickets ordinaires » de la station Mac d'un projet
-// (docs/runtime.md, « Les tickets ordinaires sur le poste du chef »). Le chef le pose dans les
+// (docs/runtime/station-distante.md, « Les tickets ordinaires sur le poste du chef »). Le chef le pose dans les
 // réglages du projet ; il s'écrit dans le fichier des projets (`ordinaires`, `limiteCooks`) et
 // revient à chaque lecture. L'état du bac à sable, lui, vient de la station : la box le rend dans
 // `facts`, champ `stations`, et l'app le dit tel quel, sans le deviner.

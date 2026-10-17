@@ -5,6 +5,7 @@
 // liste, range chaque issue sous le mot qu'elle porte, et n'y déduit rien. À côté, la vue jouée
 // telle qu'elle est (aides/fausse-vue.ts) : le nombre en tête du rail, la liste qu'il déplie, la
 // fiche qu'une issue ouvre, et ce que dit un rail vide.
+import { docRuntime } from "./aides/doc-runtime.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -181,13 +182,13 @@ describe("ce qui n'est pas encore sur le rail, lu dans la sortie de `manager ups
     assert.match(sans(voir(lecture(JSON.stringify({ lu: A, depot: DEPOT, issues: [{ ticket: 3, titre: "t", url: "u", priorite: null, etat: "non-lue" }] })))), /“issues\[0\]\.dit” is not a string/);
   });
 
-  test("la commande lue est celle que docs/runtime.md documente, dans le dépôt et sur la box", () => {
-    const doc = readFileSync(join(import.meta.dirname, "../../docs/runtime.md"), "utf8");
+  test("la commande lue est celle que docs/runtime/ documente, dans le dépôt et sur la box", () => {
+    const doc = docRuntime(join(import.meta.dirname, "../.."));
 
     assert.equal(COMMANDE, "manager upstream");
-    assert.ok(doc.includes("npm --prefix runtime run manager -- upstream"), "docs/runtime.md, « Le manager », ne cite pas `manager -- upstream`");
-    assert.ok(doc.includes("### En amont du rail"), "docs/runtime.md n'a pas la section « En amont du rail »");
-    assert.ok(doc.includes("`brigade <projet> manager [on \\| off \\| return <n°> \\| backlog \\| upstream]`"), "docs/runtime.md, « Piloter », ne cite pas `manager upstream`");
+    assert.ok(doc.includes("npm --prefix runtime run manager -- upstream"), "docs/runtime/, « Le manager », ne cite pas `manager -- upstream`");
+    assert.ok(doc.includes("### En amont du rail"), "docs/runtime/ n'a pas la section « En amont du rail »");
+    assert.ok(doc.includes("`brigade <projet> manager [on \\| off \\| return <n°> \\| backlog \\| upstream]`"), "docs/runtime/, « Piloter », ne cite pas `manager upstream`");
   });
 
   test("un champ de plus est laissé de côté, un champ qui manque refuse la forme entière", () => {

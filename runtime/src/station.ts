@@ -1396,13 +1396,13 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             ...(raison.startsWith(IDENTIFIANTS_LIVRES) && distante
               ? [
                   `Ce que le cook a livré porte ${direSignes(raison.slice(IDENTIFIANTS_LIVRES.length + 2))} : la box n'envoie pas en pass une branche qui porterait la connexion d'un compte Max. Elle reconnaît un nom et une forme, sans rien lire ni comparer — elle ne dit donc pas que ce sont de vrais identifiants.`,
-                  `**La branche \`${branche}\` est déjà sur l'origine** : c'est \`${station}\` qui l'y a poussée, la box n'y peut rien. Si ce sont de vrais identifiants : supprime-la (\`git push origin --delete ${branche}\`) et révoque la connexion — voir « Révoquer la connexion Max » dans \`docs/runtime.md\`.`,
+                  `**La branche \`${branche}\` est déjà sur l'origine** : c'est \`${station}\` qui l'y a poussée, la box n'y peut rien. Si ce sont de vrais identifiants : supprime-la (\`git push origin --delete ${branche}\`) et révoque la connexion — voir « Révoquer la connexion Max » dans \`docs/runtime/station-cook.md\`.`,
                 ]
               : []),
             ...(raison.startsWith(IDENTIFIANTS_LIVRES) && !distante
               ? [
                   `Ce que le cook a commité porte ${direSignes(raison.slice(IDENTIFIANTS_LIVRES.length + 2))} : la station ne pousse pas une branche qui publierait la connexion du compte Max. Elle reconnaît un nom et une forme, sans lire les identifiants du compte ni rien leur comparer — elle ne dit donc pas que ce sont les vôtres. ${suiteDeLaRetenue}`,
-                  `Refusé à tort ? Un fichier du projet ne peut pas s'appeler \`${FICHIER_DES_IDENTIFIANTS}\` ; un exemple de jeton s'écrit tronqué (moins de ${LONGUEUR_MIN_DU_JETON} caractères après \`sk-ant-<type>-\`), un jeu d'essai s'assemble à l'exécution au lieu de s'écrire en clair. Si ce sont de vrais identifiants : rien n'est sorti de la machine, mais un cook les a copiés — voir « Révoquer la connexion Max » dans \`docs/runtime.md\`.`,
+                  `Refusé à tort ? Un fichier du projet ne peut pas s'appeler \`${FICHIER_DES_IDENTIFIANTS}\` ; un exemple de jeton s'écrit tronqué (moins de ${LONGUEUR_MIN_DU_JETON} caractères après \`sk-ant-<type>-\`), un jeu d'essai s'assemble à l'exécution au lieu de s'écrire en clair. Si ce sont de vrais identifiants : rien n'est sorti de la machine, mais un cook les a copiés — voir « Révoquer la connexion Max » dans \`docs/runtime/station-cook.md\`.`,
                 ]
               : []),
             distante && conserve !== undefined

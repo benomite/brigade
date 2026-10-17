@@ -3,11 +3,11 @@
 // gestes que les rôles prévoient, étroites, sans doublon ni rien retirer au
 // chef, et dit ce qu'aucune règle ne peut autoriser.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { principal } from "../src/mode-auto-cli.ts";
-import { COMMANDE_DU_ROLE, DOCS_DE_LA_BOX, GESTES, LECTURE_DE_LA_FILE, LECTURES_DE_L_ETAT, ROLES } from "../src/mode-auto.ts";
+import { COMMANDE_DU_ROLE, DOCS_DE_LA_BOX, PAGES_DU_RUNTIME, GESTES, LECTURE_DE_LA_FILE, LECTURES_DE_L_ETAT, ROLES } from "../src/mode-auto.ts";
 import { appeler, lancer, repertoireTemporaire } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/mode-auto-cli.ts");
@@ -59,7 +59,7 @@ test("après l'installation, le fichier du projet autorise la lecture de la file
   assert.ok(existsSync(reglages));
   const allow = lus().permissions.allow;
   assert.ok(allow.includes(`Bash(${SSH} mabox brigade espace status)`), allow.join("\n"));
-  for (const doc of ["installer.md", "runtime.md", "app.md", "glossary.md"]) assert.ok(allow.includes(`Bash(${SSH} mabox cat /opt/brigade/docs/${doc})`), doc);
+  for (const doc of ["installer.md", "runtime/README.md", "runtime/station.md", "runtime/exploitation.md", "app.md", "glossary.md"]) assert.ok(allow.includes(`Bash(${SSH} mabox cat /opt/brigade/docs/${doc})`), doc);
   for (const lecture of ["rail", "log", "pass", "base", "installation"]) assert.ok(allow.includes(`Bash(${SSH} mabox brigade espace ${lecture})`), lecture);
   assert.ok(allow.includes("Read(~/.config/brigade/app.json)"));
   assert.match(sortie, /mabox`, projet « espace »/);
@@ -161,8 +161,8 @@ test("relancer l'installation ne duplique rien et ne retire aucun réglage du ch
   assert.equal(premiere.code, 0, premiere.sortie);
   assert.equal(seconde.code, 0, seconde.sortie);
   assert.equal(readFileSync(reglages, "utf8"), apres, "la seconde passe a réécrit le fichier");
-  assert.match(seconde.sortie, /16 règle\(s\), toutes déjà là : rien n'est écrit/);
-  assert.match(premiere.sortie, /15 règle\(s\) ajoutée\(s\), 1 déjà là/);
+  assert.match(seconde.sortie, /31 règle\(s\), toutes déjà là : rien n'est écrit/);
+  assert.match(premiere.sortie, /30 règle\(s\) ajoutée\(s\), 1 déjà là/);
   // L'indentation du chef est gardée : le diff ne montre que les règles.
   assert.match(apres, /^ {4}"env"/m);
 
@@ -237,6 +237,8 @@ test("les lectures autorisées existent : des commandes du runtime, et des docs 
   const scripts = Object.keys((JSON.parse(readFileSync(join(DEPOT, "runtime/package.json"), "utf8")) as { scripts: Record<string, string> }).scripts);
   for (const commande of [LECTURE_DE_LA_FILE, ...LECTURES_DE_L_ETAT]) assert.ok(scripts.includes(commande), commande);
   for (const doc of DOCS_DE_LA_BOX) assert.ok(existsSync(join(DEPOT, "docs", doc)), doc);
+  const pages = readdirSync(join(DEPOT, "docs/runtime")).filter((page) => page.endsWith(".md")).map((page) => `runtime/${page}`).sort();
+  assert.deepEqual([...PAGES_DU_RUNTIME].sort(), pages, "chaque page de docs/runtime/ est lisible par le second");
 });
 
 test("lancée par son fichier, la commande écrit les règles et rend 0", async (t) => {

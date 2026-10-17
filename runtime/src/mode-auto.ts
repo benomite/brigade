@@ -54,7 +54,13 @@ export const LECTURES_DE_L_ETAT = ["rail", "log", "pass", "station", "base", "in
 // « Préparer la box »), lue fichier par fichier. Un `grep` ne s'y autorise pas :
 // son motif change à chaque fois, et une règle à `*` serait un `ssh` ouvert.
 export const RACINE_DE_BRIGADE = "/opt/brigade";
-export const DOCS_DE_LA_BOX = ["installer.md", "runtime.md", "app.md", "glossary.md"] as const;
+// La doc du runtime est découpée en pages sous `docs/runtime/` : l'index d'abord,
+// puis chaque page.
+export const PAGES_DU_RUNTIME = [
+  "README.md", "journal-et-rail.md", "garde-fous.md", "station.md", "station-machine.md", "station-cook.md", "station-distante.md", "station-navigateur.md",
+  "manager.md", "pass.md", "pass-merge.md", "etat-et-mesures.md", "fermeture.md", "identites-et-secrets.md", "cloison-et-arbitre.md", "exploitation.md",
+].map((page) => `runtime/${page}`);
+export const DOCS_DE_LA_BOX = ["installer.md", ...PAGES_DU_RUNTIME, "app.md", "glossary.md"] as const;
 
 // Le fichier de l'app, hors du dépôt, d'où le second ne prend que `nom` et
 // `hote`. Sa première lecture hors du dossier de travail demanderait au chef.
