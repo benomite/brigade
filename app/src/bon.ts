@@ -63,16 +63,27 @@ export function lignesDuRail(status: string): Map<number, string[]> | undefined 
   return lues;
 }
 
-// Une durée, telle que `status` l'écrit (runtime/src/etat.ts, `duree`).
-const DUREE = String.raw`\d+ (?:s|min|j|h \d\d)`;
+// Une durée, telle que `status` l'écrit (runtime/src/etat.ts, `duree`) : `j` pour les jours en
+// français, `d` en anglais.
+const duree = (jours: string) => String.raw`\d+ (?:s|min|${jours}|h \d\d)`;
+const DUREE = duree("j");
+const DUREE_EN = duree("d");
 type Lu = { tient?: string; depuis: string; bail?: string; bloque?: string; cuisine?: string };
 // Le détail d'une ligne, par état : la forme que le runtime écrit pour lui, et ce
 // qu'elle donne. Un état qui n'est pas ici — `86`, un mot inconnu — n'en a pas.
+// Chaque forme existe dans les deux langues, état compris : une ligne qui mêle les deux
+// (un état français, un détail anglais) n'est la forme d'aucune des deux.
 const FORMES: { etats: readonly string[]; forme: RegExp; lire(trouve: RegExpExecArray): Lu }[] = [
   {
     // `par <station> depuis <durée>, [COINCE : ][sans progrès depuis <durée>, ]bail encore <durée>` — ou `bail échu depuis`.
     etats: ["pris"],
-    forme: new RegExp(`^par (\\S.*?) depuis (${DUREE}), ((?:COINCE : )?(?:sans progrès depuis ${DUREE}, )?bail (?:encore|échu depuis) ${DUREE})$`),
+    forme: new RegExp(`^par (\\S.*?) depuis (${DUREE}), ((?:COINC[EÉ] : )?(?:sans progrès depuis ${DUREE}, )?bail (?:encore|échu depuis) ${DUREE})$`),
+    lire: ([, tient = "", depuis = "", bail = ""]) => ({ tient, depuis, bail }),
+  },
+  {
+    // `by <station> since <duration>, [STUCK: ][no progress since <duration>, ]lease <duration> left` — or `lease expired since`.
+    etats: ["taken"],
+    forme: new RegExp(`^by (\\S.*?) since (${DUREE_EN}), ((?:STUCK: )?(?:no progress since ${DUREE_EN}, )?lease (?:${DUREE_EN} left|expired since ${DUREE_EN}))$`),
     lire: ([, tient = "", depuis = "", bail = ""]) => ({ tient, depuis, bail }),
   },
   {
@@ -82,9 +93,21 @@ const FORMES: { etats: readonly string[]; forme: RegExp; lire(trouve: RegExpExec
     lire: ([, bloque, depuis = ""]) => ({ depuis, ...(bloque === undefined ? {} : { bloque }) }),
   },
   {
+    // `[<what holds it> — ]since <duration>`.
+    etats: ["queued", "BLOCKED"],
+    forme: new RegExp(`^(?:(\\S.*) — )?since (${DUREE_EN})$`),
+    lire: ([, bloque, depuis = ""]) => ({ depuis, ...(bloque === undefined ? {} : { bloque }) }),
+  },
+  {
     // `depuis <durée>, cuisiné par <station>`.
     etats: ["en pass", "servi"],
     forme: new RegExp(`^depuis (${DUREE}), cuisiné par (\\S.*)$`),
+    lire: ([, depuis = "", cuisine = ""]) => ({ depuis, cuisine }),
+  },
+  {
+    // `since <duration>, cooked by <station>`.
+    etats: ["in pass", "served"],
+    forme: new RegExp(`^since (${DUREE_EN}), cooked by (\\S.*)$`),
     lire: ([, depuis = "", cuisine = ""]) => ({ depuis, cuisine }),
   },
 ];

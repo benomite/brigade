@@ -570,7 +570,7 @@ describe("le mot du bouton d'une alerte", () => {
 describe("la limite d'appels de GitHub", () => {
   const REPRISE = new Date(`${JOUR}T10:20:00.000Z`);
   const hhmm = `${String(REPRISE.getHours()).padStart(2, "0")}:${String(REPRISE.getMinutes()).padStart(2, "0")}`;
-  const DIT = `GitHub limite les appels, reprise vers ${hhmm}`;
+  const DIT = `GitHub is rate-limiting calls, back around ${hhmm}`;
 
   test("dite par la box, la ligne est seule, à l'heure locale, et tombe quand `faits` ne la porte plus", (t) => {
     const { rendre } = saine(t);

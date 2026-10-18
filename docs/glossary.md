@@ -142,6 +142,23 @@ Each line of `status` begins with its label; the French label is on the left.
 | `ALLUMÉ` / `ÉTEINT` | `ON` / `OFF` | Manager switch |
 | `ACTIF` / `BIENTÔT ÉTEINT` / `ÉTEINT SEUL` | `ACTIVE` / `EXPIRING SOON` / `LAPSED` | Grant states |
 | `ROUGE depuis …` | `RED since …` | The base is red |
+| the first line, projet until the runtime writes it in English | `project` | The project the block is about. The French word is left out of backticks on purpose: the runtime's glossary test would otherwise forbid it in a `status` that still writes it |
+| `github` (`GitHub limite les appels, reprise vers HH:MM`) | `github` (`GitHub is rate-limiting calls, back around HH:MM`) | GitHub rate limit, and when it lifts |
+| `pris` / `en attente` / `en pass` / `servi` / `BLOQUÉ` | `taken` / `queued` / `in pass` / `served` / `BLOCKED` | States on a ticket line of `rail` |
+| `par … depuis …` | `by … since …` | Who holds a taken ticket, and since when |
+| `COINCE : ` / `sans progrès depuis …` | `STUCK: ` / `no progress since …` | A taken ticket whose cook is stuck |
+| `bail encore …` / `bail échu depuis …` | `lease … left` / `lease expired since …` | Time left on the lease, or how long it has run out |
+| `… — depuis …` | `… — since …` | A queued or blocked ticket: what holds it, then since when |
+| `depuis …, cuisiné par …` | `since …, cooked by …` | A ticket in pass or served, and who cooked it |
+| `j` (durations) | `d` | Days in a duration: `2 j` → `2 d` |
+| `serveurs` / `à lancer` | `servers` / `to launch` | The two blocks of deliveries |
+| `démarre` / `écoute` … `depuis` | `starting` / `listening` … `since` | A server's state on its line |
+| `tenu depuis` | `held since` | A delivery under `to launch` |
+| `écran : …` / `à regarder : …` | `screen: …` / `to look at: …` | Under a delivery: the screen, and what to look at there |
+| `déclaré par le cook` / `écran déduit des fichiers touchés, pas déclaré par le cook` | `declared by the cook` / `screen deduced from the touched files, not declared by the cook` | Where the screen comes from |
+| `sans fin au journal` | `with no end in the log` | Servers (or cooks) whose runtime stopped without ending them |
+
+The app reads each of these forms in both languages, whole: a line that mixes the two inside one form is read as neither.
 
 ## 5. App labels
 

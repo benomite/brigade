@@ -131,8 +131,8 @@ describe("ce que `status` montre des serveurs", () => {
     assert.deepEqual(lus, {
       entete: "2 serveurs — une livraison d'interface, servie depuis son worktree sur le port de ce worktree",
       serveurs: [
-        { ticket: 412, worktree: "worktrees/412-ab12cd34", port: 20412, etat: "écoute", route: "/rail", ecran: null },
-        { ticket: 415, worktree: "worktrees/415-ab12cd34", port: 20415, etat: "démarre", route: "/rail", ecran: null },
+        { ticket: 412, worktree: "worktrees/412-ab12cd34", port: 20412, etat: "listening", route: "/rail", ecran: null },
+        { ticket: 415, worktree: "worktrees/415-ab12cd34", port: 20415, etat: "starting", route: "/rail", ecran: null },
       ],
       aLancer: [],
       illisibles: [],
@@ -155,7 +155,7 @@ describe("ce que `status` montre des serveurs", () => {
     const sansPort = "  #416  worktrees/416-ab12cd34  écoute depuis 3 min";
     const lus = serveursDe(status(SERVEURS(4), serveur(412, 20412), serveur(413, 70000), sansPort, serveur(412, 20499), ""));
 
-    assert.deepEqual(lus.serveurs, [{ ticket: 412, worktree: "worktrees/412-ab12cd34", port: 20412, etat: "écoute", route: "/rail", ecran: null }]);
+    assert.deepEqual(lus.serveurs, [{ ticket: 412, worktree: "worktrees/412-ab12cd34", port: 20412, etat: "listening", route: "/rail", ecran: null }]);
     // Un port qui n'en est pas un, une ligne sans port, un worktree déjà lu.
     assert.deepEqual(lus.illisibles, [serveur(413, 70000), sansPort, serveur(412, 20499)]);
   });
@@ -167,7 +167,7 @@ describe("ce que `status` montre des serveurs", () => {
       lus.serveurs.map(({ ticket, route, ecran }) => ({ ticket, route, ecran })),
       [
         { ticket: 412, route: "/rail", ecran: { nom: "/rail", phrase: "#591 : le rail a maintenant deux colonnes, TODO et WAITING", deduit: null } },
-        { ticket: 415, route: "/rail", ecran: { nom: "/rail", phrase: null, deduit: "écran déduit des fichiers touchés, pas déclaré par le cook" } },
+        { ticket: 415, route: "/rail", ecran: { nom: "/rail", phrase: null, deduit: "screen deduced from the touched files, not declared by the cook" } },
       ],
     );
     assert.deepEqual(lus.illisibles, []);
@@ -216,12 +216,12 @@ describe("le geste posé", () => {
     const rendues = pages.recevoir(lue(status(SERVEURS(2), serveur(412, 20412), serveur(415, 20415, "démarre"), "")));
 
     assert.equal(rendues.projet, "calculus");
-    assert.deepEqual(rendues.pages[0], { ticket: 412, worktree: "worktrees/412-ab12cd34", port: 20412, etat: "écoute", route: "/rail", ecran: null, enCours: false });
+    assert.deepEqual(rendues.pages[0], { ticket: 412, worktree: "worktrees/412-ab12cd34", port: 20412, etat: "listening", route: "/rail", ecran: null, enCours: false });
     assert.deepEqual(
       { ...rendues.pages[1], raison: undefined },
-      { ticket: 415, worktree: "worktrees/415-ab12cd34", port: 20415, etat: "démarre", route: "/rail", ecran: null, enCours: false, raison: undefined },
+      { ticket: 415, worktree: "worktrees/415-ab12cd34", port: 20415, etat: "starting", route: "/rail", ecran: null, enCours: false, raison: undefined },
     );
-    assert.match(rendues.pages[1]?.raison ?? "", /says “démarre”, not “écoute”/);
+    assert.match(rendues.pages[1]?.raison ?? "", /says “starting”, not “listening”/);
     assert.equal(rendues.vide, undefined);
     // Le verdict ne se dit pas dans l'app : elle le rappelle, et rien de plus.
     assert.match(rendues.rappel ?? "", /Your yes or no is given on the ticket's issue/);
@@ -232,7 +232,7 @@ describe("le geste posé", () => {
 
     const rendues = pages.recevoir(lue(status("serveurs   1 serveur sans fin au journal — leur runtime s'est arrêté sans les éteindre", serveur(412, 20412), "")));
 
-    assert.match(seule(rendues).raison ?? "", /sans fin au journal/);
+    assert.match(seule(rendues).raison ?? "", /with no end in the log/);
   });
 
   test("sans serveur, aucun geste — et la raison : `status` n'en montre aucun", (t) => {
