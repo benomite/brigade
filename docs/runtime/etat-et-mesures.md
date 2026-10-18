@@ -159,9 +159,9 @@ Les heures sont en ISO 8601, UTC.
 | `retenue` | elle tourne, mais plus rien ne part : disjoncteur ouvert, connexion Max absente ou expirée, aucune station déclarée, base rouge, setup du projet bloqué sans station distante | `breaker OPEN`, la ligne `connection`, `stations   NONE DECLARED`, `base       RED since …`, `setup      BLOCKED` |
 | `ouverte` | rien de cela | |
 
-**L'état d'un ticket** : le mot que `rail` écrit — `en attente`, `BLOQUÉ`, `pris`,
-`en pass`, `servi`, `86`, `WAITING`. `status` écrit le même en anglais depuis #940 (`queued`, `BLOCKED`,
-`taken`, `in pass`, `served`) ; la forme garde le mot français.
+**L'état d'un ticket** : le mot que `rail` et la forme écrivent — `en attente`, `BLOQUÉ`, `pris`,
+`en pass`, `servi`, `86`.
+`status` écrit le même en anglais depuis #940 : `queued`, `BLOCKED`, `taken`, `in pass`, `served`, `86`.
 
 Ces deux listes sont **fermées** : c'est sur elles qu'un lecteur pose une couleur. Elles peuvent
 gagner un mot ; un lecteur montre donc un mot qu'il ne connaît pas tel quel, sans couleur. Le `type`

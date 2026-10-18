@@ -241,9 +241,10 @@ export function duree(ms: number): string {
 // La même, en anglais, pour le bloc `awaiting` : « 3 d » pour les jours.
 export const dureeEn = (ms: number): string => duree(ms).replace(/ j$/, " d");
 
-// Les lignes d'état qui disent si la box peut tourner sont en anglais (#928) : leurs
-// libellés (docs/glossary.md, §4), leurs états, leurs phrases. `depuisEn` : la durée
-// écoulée depuis un instant, en anglais (`3 d`, `2 h 04`).
+// Toute la sortie de `status` est en anglais : les lignes qui disent si la box peut
+// tourner (#928), puis le bas, de `project` à `latest events` (#940) — leurs libellés
+// (docs/glossary.md, §4), leurs états, leurs phrases. `facts` garde ses mots. `depuisEn` :
+// la durée écoulée depuis un instant, en anglais (`3 d`, `2 h 04`).
 type Depuis = (instant: string) => string;
 const nombreEn = (valeur: number) => valeur.toLocaleString("en-US");
 const compteEn = (combien: number, mot: string) => `${combien.toLocaleString("en-US")} ${mot}${combien === 1 ? "" : "s"}`;
