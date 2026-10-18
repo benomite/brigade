@@ -43,13 +43,13 @@ test("pendant qu'un cook tourne, la commande répond et montre le runtime, le ra
 
   assert.equal(await commande.fin, 0);
   const sortie = commande.sortie();
-  assert.match(sortie, /^projet     brigade$/m);
+  assert.match(sortie, /^project    brigade$/m);
   assert.match(sortie, new RegExp(`^runtime    running according to the log — pid ${process.pid} on `, "m"));
   assert.match(sortie, /^           last tick \d+ s ago \(cadence: 0 s\)$/m);
-  assert.match(sortie, /^rail       1 en attente$/m);
-  assert.match(sortie, /^  #7  en attente  prio:1  depuis \d+ s  Le ticket sept$/m);
-  assert.match(sortie, /^cooks      1 en cours$/m);
-  assert.match(sortie, new RegExp(`^  #7  ${cook.run}  \\d+ s sur 1 h 00 · 1 tour sur 100 · 10 tokens sur 2\\s000\\s000 \\(relevé il y a \\d+ s\\)$`, "m"));
+  assert.match(sortie, /^rail       1 queued$/m);
+  assert.match(sortie, /^  #7  queued  prio:1  since \d+ s  Le ticket sept$/m);
+  assert.match(sortie, /^cooks      1 running$/m);
+  assert.match(sortie, new RegExp(`^  #7  ${cook.run}  \\d+ s of 1 h 00 · 1 turn of 100 · 10 tokens of 2,000,000 \\(reading \\d+ s ago\\)$`, "m"));
   assert.match(sortie, /^  \d+  \S+  brigade  #7  cook\.launched  runtime  /m);
   assert.doesNotMatch(sortie, /runtime\.ticked|cook\.progressed/);
 });

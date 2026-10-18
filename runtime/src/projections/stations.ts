@@ -105,6 +105,26 @@ const RETENUES: Record<Retenue, string> = {
 
 export const direRetenueDeStation = (raison: Retenue) => RETENUES[raison];
 
+// Les mêmes, en anglais : ce que dit `status`.
+const RETENUES_EN: Record<Retenue, string> = {
+  stopped: "kitchen stopped by the chef",
+  breaker: "breaker open",
+  deploy: "deploy requested, the kitchen empties before the restart",
+  base: "integration base red",
+  disconnected: "Max connection expired",
+  quota: "quota exhausted (86)",
+  cap: "cooks cap reached",
+  setups: "setups cap reached",
+  aside: "one same cause sets the project's tickets aside: only one is taken again at a time, to see whether it has changed",
+  setup: "project setup failing identically, no setup is launched as long as the integration branch does not move",
+  machine: "machine saturated",
+  ramp: "gradual ramp-up, cooks that have just left weigh in advance",
+  arbiter: "the arbiter between projects keeps the room for another project",
+  unarbitrated: "arbiter unreachable, one cook at a time",
+};
+
+export const direRetenueDeStationEn = (raison: Retenue) => RETENUES_EN[raison];
+
 // La raison d'une déconnexion constatée au démarrage : le compte du service
 // n'a jamais été connecté.
 export const SANS_CONNEXION = "not-logged-in";

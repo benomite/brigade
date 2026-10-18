@@ -39,6 +39,13 @@ export function direALArrivee(delivery: string | null): string {
     : "il repart en cuisine, sans repasser par TODO : il est remis sur le rail, et un cook le prend à son tour";
 }
 
+// La même, en anglais : ce que dit `status`.
+export function direALArriveeEn(delivery: string | null): string {
+  return delivery === "open"
+    ? "it goes back to the kitchen, without going through TODO: a cook takes up its open delivery (its branch and its PR)"
+    : "it goes back to the kitchen, without going through TODO: it is put back on the rail, and a cook takes it in its turn";
+}
+
 // Un ticket parti en cuisine et pas encore servi, dont la zone recouvre celle
 // de celui-ci. `path` : le chemin par lequel elles se recouvrent.
 export type Tenu = { ticket: number; path: string };

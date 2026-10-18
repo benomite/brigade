@@ -2,9 +2,9 @@
 // la dernière sauvegarde, ce qui l'attend, le rail, les cooks en cours et ce
 // qu'ils ont consommé, les serveurs allumés, les derniers événements. Tout vient du journal et de
 // ses projections — rien n'est calculé ni gardé ailleurs, et rien n'est écrit.
-import { direActivite, type Activite } from "./activite.ts";
+import { direActiviteEn, type Activite } from "./activite.ts";
 import { activitesDuRail, type ActiviteDeTicket } from "./activites.ts";
-import { DIRE_GATES_COUPEES } from "./evenements/pass.ts";
+import { DIRE_GATES_COUPEES, DIRE_GATES_COUPEES_EN } from "./evenements/pass.ts";
 import { attentesDuChef, decisionDe, type Livraison, decrireAttentes, direAttente, direAttenteEn, nommerAttente, nommerEn, passageEnService, type Attente, type Decision, type Passage } from "./attend.ts";
 import { geste } from "./geste.ts";
 import { fournitTout } from "./capacites.ts";
@@ -18,9 +18,9 @@ import { requises } from "./fiche.ts";
 import { ACTIONS, bientotEteint, direExtinctionEn, direResteEn } from "./grant.ts";
 import type { Journal } from "./journal.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
-import { direSaturation } from "./machine.ts";
+import { direSaturationEn } from "./machine.ts";
 import { direLaLimite } from "./limite-github.ts";
-import { direJauge, franchis, SANS_SEUIL, type Franchi } from "./mesures.ts";
+import { direJaugeEn, franchis, SANS_SEUIL, type Franchi } from "./mesures.ts";
 import {
   activitesDesCooksEnCours,
   consommation,
@@ -34,15 +34,15 @@ import {
 } from "./projections/garde-fous.ts";
 import { livraisonsMergees, seuilsEnVigueur } from "./projections/mesures.ts";
 import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, reparationDeLaBase, type ControleRetenu, type EtatDeLaBase, type Grant, type ReparationDeLaBase, type SansGrant } from "./projections/pass.ts";
-import { direMotifDeGarde, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/nettoyage.ts";
+import { direMotifDeGardeEn, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/nettoyage.ts";
 import { lireRail, livresDepuis, type Etat as EtatTicket, type Livre, type TicketRail } from "./projections/rail.ts";
-import { direCommentLeVoir, direEcran, direEtatDeServeur, direPage, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus, type Serveur, type ServiceIndisponible, type WorktreeTenu } from "./projections/service.ts";
+import { direCommentLeVoirEn, direEcranEn, direEtatDeServeurEn, direPageEn, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus, type Serveur, type ServiceIndisponible, type WorktreeTenu } from "./projections/service.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
-import { cookDeRun, cooksEnCoursDeStation, direDeconnexionEn, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION_TOMBEE_EN, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
-import { BLOQUE, direRetenue, EN_WAITING, etatLu, nomEtat } from "./rail.ts";
+import { cookDeRun, cooksEnCoursDeStation, direDeconnexionEn, direRetenueDeStationEn, etatStation, GESTE_DE_CONNEXION_TOMBEE_EN, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
+import { BLOQUE, BLOQUE_EN, direRetenueEn, EN_WAITING, etatLu, etatLuEn, nomEtat, nomEtatEn } from "./rail.ts";
 import { PAR_LE_CHEF } from "./evenements/rail.ts";
-import { direAttenteDeTiers } from "./attente.ts";
+import { direAttenteDeTiersEn } from "./attente.ts";
 import { direMiseDeCote } from "./mise-de-cote.ts";
 import { GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
@@ -69,7 +69,7 @@ const FENETRES_H = [5, 24];
 // tickets bloqués se comptent à part de ceux qui attendent : eux ne partiront
 // pas seuls. Ceux qui attendent un tiers, à part des autres 86.
 const ETATS: EtatTicket[] = ["taken", "pass", "waiting", "86", "served"];
-const ORDRE = ETATS.flatMap((etat) => (etat === "waiting" ? [nomEtat(etat), BLOQUE] : etat === "86" ? [nomEtat(etat), EN_WAITING] : [nomEtat(etat)]));
+const ORDRE = ETATS.flatMap((etat) => (etat === "waiting" ? [nomEtatEn(etat), BLOQUE_EN] : etat === "86" ? [nomEtatEn(etat), EN_WAITING] : [nomEtatEn(etat)]));
 
 export type EtatCuisine = {
   // Le numéro du dernier événement au moment de la lecture : le suivi en
@@ -245,6 +245,7 @@ export const dureeEn = (ms: number): string => duree(ms).replace(/ j$/, " d");
 // libellés (docs/glossary.md, §4), leurs états, leurs phrases. `depuisEn` : la durée
 // écoulée depuis un instant, en anglais (`3 d`, `2 h 04`).
 type Depuis = (instant: string) => string;
+const nombreEn = (valeur: number) => valeur.toLocaleString("en-US");
 const compteEn = (combien: number, mot: string) => `${combien.toLocaleString("en-US")} ${mot}${combien === 1 ? "" : "s"}`;
 
 function decrireRuntime(etat: EtatCuisine, depuis: Depuis): string[] {
@@ -377,64 +378,65 @@ export function coince(ticket: TicketRail, maintenant: Date): boolean {
 
 // Ce que l'état a à dire de plus que son nom : qui, depuis quand, jusqu'à quand.
 // `retenues` : ce qui retient chaque station de prendre un ticket qui pourrait partir.
-function detail(ticket: TicketRail, maintenant: Date, depuis: (instant: string) => string, retenues: string[]): string {
+function detail(ticket: TicketRail, maintenant: Date, depuis: Depuis, retenues: string[]): string {
   const reste = (instant: string) => Date.parse(instant) - maintenant.getTime();
   switch (ticket.state) {
     case "waiting":
       // Rien ne le retient sur le rail : s'il ne part pas, c'est sa station.
-      return [...[direRetenue(ticket) ?? retenues].flat(), `depuis ${depuis(ticket.since)}`].join(" — ");
+      return [...[direRetenueEn(ticket) ?? retenues].flat(), `since ${depuis(ticket.since)}`].join(" — ");
     case "taken": {
       const bail = ticket.leaseUntil === null ? 0 : reste(ticket.leaseUntil);
       // Des deux durées d'un ticket pris, seule la seconde révèle un blocage.
       // Elle se lit dans le rail : personne ne regarde un worktree pour l'avoir.
-      const progres = ticket.progressedAt === null ? [] : [`sans progrès depuis ${depuis(ticket.progressedAt)}`];
-      const marque = coince(ticket, maintenant) ? "COINCE : " : "";
-      return `par ${ticket.station} depuis ${depuis(ticket.since)}, ${marque}${[...progres, bail >= 0 ? `bail encore ${duree(bail)}` : `bail échu depuis ${duree(-bail)}`].join(", ")}`;
+      const progres = ticket.progressedAt === null ? [] : [`no progress since ${depuis(ticket.progressedAt)}`];
+      const marque = coince(ticket, maintenant) ? "STUCK: " : "";
+      return `by ${ticket.station} since ${depuis(ticket.since)}, ${marque}${[...progres, bail >= 0 ? `lease ${dureeEn(bail)} left` : `lease expired since ${dureeEn(-bail)}`].join(", ")}`;
     }
     case "pass":
     case "served":
-      return `depuis ${depuis(ticket.since)}, cuisiné par ${ticket.station}`;
+      return `since ${depuis(ticket.since)}, cooked by ${ticket.station}`;
     case "86": {
-      if (ticket.waitingFor !== null) return direAttenteDeTiers(ticket.waitingFor, depuis);
-      const retour = ticket.until === null ? "sans heure de retour" : reste(ticket.until) >= 0 ? `retour dans ${duree(reste(ticket.until))}` : "retour au prochain tick";
-      return `depuis ${depuis(ticket.since)} (${ticket.reason}), ${retour}`;
+      if (ticket.waitingFor !== null) return direAttenteDeTiersEn(ticket.waitingFor, depuis);
+      const retour = ticket.until === null ? "no return time" : reste(ticket.until) >= 0 ? `back in ${dureeEn(reste(ticket.until))}` : "back at the next tick";
+      return `since ${depuis(ticket.since)} (${ticket.reason}), ${retour}`;
     }
   }
 }
 
 // Des gates coupées sur une machine saturée : la file le dit, à la suite du
-// détail du ticket. Les autres activités de la pass ne s'y lisent pas.
-const direAttenteDeCharge = (activite: ActiviteDeTicket | null | undefined) => (activite?.fait === DIRE_GATES_COUPEES ? ` — ${activite.fait}` : "");
+// détail du ticket. Les autres activités de la pass ne s'y lisent pas. L'activité
+// garde sa phrase française (`facts`) : c'est elle qu'on reconnaît.
+const direAttenteDeCharge = (activite: ActiviteDeTicket | null | undefined) => (activite?.fait === DIRE_GATES_COUPEES ? ` — ${DIRE_GATES_COUPEES_EN}` : "");
 
 // Un cook sur une ligne : son ticket, son calibrage, où il travaille, son
 // budget consommé, s'il tient un ticket son temps sans progrès — celui du
 // rail, que seul un worktree qui bouge remet à zéro —, et ce qu'il fait.
-function decrireCook(cook: EtatCuisine["cooks"][number], ticket: TicketRail | undefined, maintenant: Date, depuis: (instant: string) => string): string {
+function decrireCook(cook: EtatCuisine["cooks"][number], ticket: TicketRail | undefined, maintenant: Date, depuis: Depuis): string {
   const { limits, mesure, station } = cook;
   const consomme = mesure
-    ? `${compte(mesure.turns, "tour")} sur ${nombre(limits.turns)} · ${compte(mesure.tokens, "token")} sur ${nombre(limits.tokens)} (relevé il y a ${depuis(mesure.at)})`
-    : "tours et tokens : pas encore de relevé";
+    ? `${compteEn(mesure.turns, "turn")} of ${nombreEn(limits.turns)} · ${compteEn(mesure.tokens, "token")} of ${nombreEn(limits.tokens)} (reading ${depuis(mesure.at)} ago)`
+    : "turns and tokens: no reading yet";
   const budget = [
-    `${depuis(cook.launchedAt)} sur ${duree(limits.durationMs)}`,
+    `${depuis(cook.launchedAt)} of ${dureeEn(limits.durationMs)}`,
     consomme,
-    ...(ticket?.progressedAt ? [`sans progrès depuis ${depuis(ticket.progressedAt)}`] : []),
+    ...(ticket?.progressedAt ? [`no progress since ${depuis(ticket.progressedAt)}`] : []),
     // Ce qu'il fait : là où il en est, et là où il s'est arrêté s'il ne progresse plus.
-    ...(cook.activite ? [`en ce moment : ${direActivite(cook.activite)}, depuis ${depuis(cook.activite.since)}`] : []),
+    ...(cook.activite ? [`right now: ${direActiviteEn(cook.activite)}, since ${depuis(cook.activite.since)}`] : []),
   ].join(" · ");
   return [
     // Sans ticket : un jugement du manager.
     `  ${cook.ticket === null ? "manager" : `#${cook.ticket}`}`,
-    ...(ticket && coince(ticket, maintenant) ? ["COINCE"] : []),
+    ...(ticket && coince(ticket, maintenant) ? ["STUCK"] : []),
     cook.run,
     ...(station?.model || station?.effort ? [`${station.model ?? "?"} / ${station.effort ?? "?"}`] : []),
-    ...(station?.branch ? [`${station.branch}${station.worktree ? ` dans ${station.worktree}` : ""}`] : []),
+    ...(station?.branch ? [`${station.branch}${station.worktree ? ` in ${station.worktree}` : ""}`] : []),
     budget,
   ].join("  ");
 }
 
 function decrirePlafond(station: EtatStation): string {
   const plafond = plafondDeCooks(station);
-  return `${station.station} : ${plafond === null ? "sans limite" : `${plafond} au plus`}`;
+  return `${station.station}: ${plafond === null ? "no limit" : `${plafond} at most`}`;
 }
 
 // Le ticket que tient chaque cook, et les cooks dans l'ordre où le chef doit
@@ -452,42 +454,42 @@ function trierCooks({ cooks, rail }: EtatCuisine, maintenant: Date) {
 
 function decrireCooks({ cooks, session, stations }: EtatCuisine, coinces: number[]): string {
   // Lequel coince se lit ici, sans parcourir les lignes.
-  const alerte = coinces.length === 0 ? "" : ` — ${coinces.length} COINCE${coinces.length > 1 ? "NT" : ""} : ${coinces.map((ticket) => `#${ticket}`).join(", ")}`;
+  const alerte = coinces.length === 0 ? "" : ` — ${coinces.length} STUCK: ${coinces.map((ticket) => `#${ticket}`).join(", ")}`;
   const plafonds = `${stations.length === 0 ? "" : ` — ${stations.map(decrirePlafond).join(", ")}`}${alerte}`;
-  if (cooks.length === 0) return `aucun en cours${plafonds}`;
+  if (cooks.length === 0) return `none running${plafonds}`;
   // Runtime arrêté, le journal ne dit rien de ses cooks avant le démarrage
   // suivant : celui d'une station lui survit, et sera repris ; les autres sont
   // morts avec lui, et seront notés interrompus.
-  if (session?.endedAt !== null) return `${cooks.length} sans fin au journal — runtime arrêté : son prochain démarrage reprend ceux qui tournent encore, et note les autres interrompus`;
-  return `${cooks.length} en cours${plafonds}`;
+  if (session?.endedAt !== null) return `${cooks.length} with no end in the log — runtime stopped: its next start picks up those still running, and notes the others interrupted`;
+  return `${cooks.length} running${plafonds}`;
 }
 
 // La station qui se retient parce que la machine n'en peut plus : c'est le
 // vrai plafond, et il ne se voit nulle part ailleurs.
-function decrireSaturations({ stations }: EtatCuisine, depuis: (instant: string) => string): string[] {
+function decrireSaturations({ stations }: EtatCuisine, depuis: Depuis): string[] {
   return stations.flatMap((station) => {
     const { saturatedAt, saturatedResource: resource, saturatedObserved: observed, saturatedLimit: limit } = station;
     if (saturatedAt === null || resource === null || observed === null || limit === null) return [];
-    return [ligne("", `MACHINE SATURÉE depuis ${depuis(saturatedAt)} — ${direSaturation({ resource, observed, limit })} : ${station.station} ne prend plus de ticket tant que ça dure`)];
+    return [ligne("", `MACHINE SATURATED for ${depuis(saturatedAt)} — ${direSaturationEn({ resource, observed, limit })}: ${station.station} takes no more tickets as long as it lasts`)];
   });
 }
 
 // La station qui se retient alors qu'un ticket pourrait partir, et pourquoi.
-function decrireRetenues({ stations }: EtatCuisine, depuis: (instant: string) => string): string[] {
+function decrireRetenues({ stations }: EtatCuisine, depuis: Depuis): string[] {
   return stations.flatMap((station) =>
     station.heldAt === null || station.heldReason === null
       ? []
-      : [ligne("", `${station.station} SE RETIENT depuis ${depuis(station.heldAt)} — ${direRetenueDeStation(station.heldReason)} : les tickets servables attendent`)],
+      : [ligne("", `${station.station} WITHHOLDING for ${depuis(station.heldAt)} — ${direRetenueDeStationEn(station.heldReason)}: the servable tickets wait`)],
   );
 }
 
 // La station dont l'arbitre entre projets ne répond plus : elle tourne en mode
 // dégradé, et rien d'autre ne le montre tant qu'aucun ticket n'attend.
-function decrireArbitrage({ stations }: EtatCuisine, depuis: (instant: string) => string): string[] {
+function decrireArbitrage({ stations }: EtatCuisine, depuis: Depuis): string[] {
   return stations.flatMap((station) =>
     station.unarbitratedAt === null
       ? []
-      : [ligne("", `ARBITRE INJOIGNABLE depuis ${depuis(station.unarbitratedAt)} — ${station.unarbitratedReason ?? "sans réponse"} : ${station.station} ne lance plus qu'un cook à la fois, sans arbitrage, jusqu'à son retour`)],
+      : [ligne("", `ARBITER UNREACHABLE for ${depuis(station.unarbitratedAt)} — ${station.unarbitratedReason ?? "no answer"}: ${station.station} launches only one cook at a time, with no arbitration, until it is back`)],
   );
 }
 
@@ -497,40 +499,40 @@ function decrireArbitrage({ stations }: EtatCuisine, depuis: (instant: string) =
 // qu'aucun serveur ne soit lancé. Une app qui ne s'ouvre pas dans un navigateur
 // n'a pas de serveur : le worktree de sa livraison est tenu, et sa ligne dit
 // comment la voir. Sous chacun, plus en retrait, l'écran à regarder de sa
-// livraison et sa phrase (`direEcran`). Rien à dire quand il n'y a rien de tout cela.
+// livraison et sa phrase (`direEcranEn`). Rien à dire quand il n'y a rien de tout cela.
 const sousLaLigne = (lignes: string[]) => lignes.map((dite) => `    ${dite}`);
-function decrireServeurs({ serveurs, aLancer, sansService, session }: EtatCuisine, depuis: (instant: string) => string, depuisEn: Depuis): string[] {
+function decrireServeurs({ serveurs, aLancer, sansService, session }: EtatCuisine, depuis: Depuis): string[] {
   if (serveurs.length === 0 && aLancer.length === 0 && sansService.length === 0) return [];
   const mort = session?.endedAt !== null;
-  const compte = `${serveurs.length} serveur${serveurs.length > 1 ? "s" : ""}`;
+  const compte = compteEn(serveurs.length, "server");
   return [
     ...(serveurs.length === 0
       ? []
       : [
-          ligne("serveurs", mort ? `${compte} sans fin au journal — leur runtime s'est arrêté sans les éteindre` : `${compte} — une livraison d'interface, servie depuis son worktree sur le port de ce worktree`),
+          ligne("servers", mort ? `${compte} with no end in the log — their runtime stopped without turning them off` : `${compte} — an interface delivery, served from its worktree on the port of that worktree`),
           ...serveurs.flatMap((serveur) => [
-            `  #${serveur.ticket}  ${serveur.worktree}  port ${serveur.port}  ${direEtatDeServeur(serveur.state)} depuis ${depuis(serveur.since)}  ${serveur.branch}  ${direPage(serveur)}`,
-            ...sousLaLigne(direEcran(serveur.ecran)),
+            `  #${serveur.ticket}  ${serveur.worktree}  port ${serveur.port}  ${direEtatDeServeurEn(serveur.state)} since ${depuis(serveur.since)}  ${serveur.branch}  ${direPageEn(serveur)}`,
+            ...sousLaLigne(direEcranEn(serveur.ecran)),
           ]),
         ]),
     ...(aLancer.length === 0
       ? []
       : [
-          ligne("à lancer", `${aLancer.length} — le worktree d'une livraison d'une app qui ne s'ouvre pas dans un navigateur, tenu pour qu'on l'y lance : aucune page`),
-          ...aLancer.flatMap((tenu) => [`  #${tenu.ticket}  ${tenu.worktree}  tenu depuis ${depuis(tenu.since)}  ${tenu.branch}  ${direCommentLeVoir(tenu)}`, ...sousLaLigne(direEcran(tenu.ecran))]),
+          ligne("to launch", `${aLancer.length} — the worktree of a delivery of an app that does not open in a browser, held so that it can be launched there: no page`),
+          ...aLancer.flatMap((tenu) => [`  #${tenu.ticket}  ${tenu.worktree}  held since ${depuis(tenu.since)}  ${tenu.branch}  ${direCommentLeVoirEn(tenu)}`, ...sousLaLigne(direEcranEn(tenu.ecran))]),
         ]),
-    ...sansService.map((indisponible) => ligne("service", `${direServiceIndisponible(indisponible)} — since ${depuisEn(indisponible.since)} ago on ${indisponible.station}`)),
+    ...sansService.map((indisponible) => ligne("service", `${direServiceIndisponible(indisponible)} — since ${depuis(indisponible.since)} ago on ${indisponible.station}`)),
     "",
   ];
 }
 
 // Les worktrees que le runtime n'a pas pu ranger à la fin de leur cook, et
 // pourquoi : c'est ici que ça se retrouve. Rien à dire quand il n'y en a pas.
-function decrireWorktrees({ worktrees }: EtatCuisine, depuis: (instant: string) => string): string[] {
+function decrireWorktrees({ worktrees }: EtatCuisine, depuis: Depuis): string[] {
   if (worktrees.length === 0) return [];
   return [
-    ligne("worktrees", `${worktrees.length} non rangé${worktrees.length > 1 ? "s" : ""} après leur cook — rien n'y est touché, le runtime y revient à chaque tick`),
-    ...worktrees.map(({ ticket, worktree, branch, reason, detail, since }) => `  #${ticket}  ${worktree}  ${branch}  ${direMotifDeGarde(reason)} depuis ${depuis(since)} — ${detail}`),
+    ligne("worktrees", `${worktrees.length} not cleaned up after their cook — nothing in them is touched, the runtime comes back to them at every tick`),
+    ...worktrees.map(({ ticket, worktree, branch, reason, detail, since }) => `  #${ticket}  ${worktree}  ${branch}  ${direMotifDeGardeEn(reason)} since ${depuis(since)} — ${detail}`),
     "",
   ];
 }
@@ -538,15 +540,15 @@ function decrireWorktrees({ worktrees }: EtatCuisine, depuis: (instant: string) 
 // Le `~/.claude` d'un projet cloisonné : ce que le dernier rangement y a
 // gardé de transcripts, ce qu'il en a retiré, et la règle. Rien à dire sans
 // cloison : aucun rangement n'a lieu.
-function decrireTranscripts({ transcripts }: EtatCuisine, depuis: (instant: string) => string): string[] {
+function decrireTranscripts({ transcripts }: EtatCuisine, depuis: Depuis): string[] {
   if (transcripts === null) return [];
-  const mo = (octets: number) => `${(octets / 1024 / 1024).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} Mo`;
-  const dire = (combien: number, octets: number, quoi: string) => (combien === 0 ? `aucun ${quoi}` : `${nombre(combien)} ${quoi}${combien > 1 ? "s" : ""} (${mo(octets)})`);
+  const mo = (octets: number) => `${(octets / 1024 / 1024).toLocaleString("en-US", { maximumFractionDigits: 1 })} MB`;
+  const dire = (combien: number, octets: number, quoi: string) => (combien === 0 ? `no ${quoi}` : `${nombreEn(combien)} ${quoi} (${mo(octets)})`);
   const { kept, keptBytes, removed, freedBytes, keepMs, at } = transcripts;
   return [
     ligne(
       "claude",
-      `transcripts du projet : ${dire(kept, keptBytes, "gardé")}, ${dire(removed, freedBytes, "retiré")} au rangement d'il y a ${depuis(at)} — un transcript part ${duree(keepMs)} après sa dernière écriture`,
+      `project transcripts: ${dire(kept, keptBytes, "kept")}, ${dire(removed, freedBytes, "removed")} at the cleanup ${depuis(at)} ago — a transcript goes ${dureeEn(keepMs)} after its last write`,
     ),
   ];
 }
@@ -554,6 +556,7 @@ function decrireTranscripts({ transcripts }: EtatCuisine, depuis: (instant: stri
 // Ce que la consommation affichée n'est pas : celle du compte. Le runtime ne
 // voit que ce que son projet a lancé, jamais les sessions du chef.
 export const NOTE_CONSOMMATION = "ce que ce projet a lancé, pas la consommation du compte : /usage la donne";
+export const NOTE_CONSOMMATION_EN = "what this project has launched, not the account's consumption: /usage gives it";
 
 // Ce qu'un ensemble de lancements a consommé, tel que le chef le lit.
 export function direConsommation({ runs, reviews, judgments, turns, tokens }: Consommation): string {
@@ -562,22 +565,29 @@ export function direConsommation({ runs, reviews, judgments, turns, tokens }: Co
   return [`${compte(runs, "lancement")}${dont.length === 0 ? "" : `, dont ${dont.join(" et ")}`}`, compte(turns, "tour"), compte(tokens, "token")].join(" · ");
 }
 
+// La même, en anglais : ce que dit `status`.
+export function direConsommationEn({ runs, reviews, judgments, turns, tokens }: Consommation): string {
+  if (runs === 0) return "nothing";
+  const dont = [...(reviews === 0 ? [] : [compteEn(reviews, "review")]), ...(judgments === 0 ? [] : [compteEn(judgments, "judgment")])];
+  return [`${nombreEn(runs)} ${runs === 1 ? "launch" : "launches"}${dont.length === 0 ? "" : `, of which ${dont.join(" and ")}`}`, compteEn(turns, "turn"), compteEn(tokens, "token")].join(" · ");
+}
+
 function decrireConsommation({ consommation }: EtatCuisine): string[] {
   return [
-    ligne("consommé", `en cours : ${direConsommation(consommation.enCours)}`),
-    ...consommation.fenetres.map((fenetre) => ligne("", `${fenetre.heures} h : ${direConsommation(fenetre)}`)),
-    ligne("", NOTE_CONSOMMATION),
+    ligne("consumed", `in flight: ${direConsommationEn(consommation.enCours)}`),
+    ...consommation.fenetres.map((fenetre) => ligne("", `${fenetre.heures} h: ${direConsommationEn(fenetre)}`)),
+    ligne("", NOTE_CONSOMMATION_EN),
   ];
 }
 
 // Combien de tickets du rail se lisent dans cet état.
 const lus = (rail: TicketRail[], nom: string) => rail.filter((ticket) => etatLu(ticket) === nom).length;
+const lusEn = (rail: TicketRail[], nom: string) => rail.filter((ticket) => etatLuEn(ticket) === nom).length;
 
 // L'état, ligne par ligne. Les durées sont comptées jusqu'à `maintenant`.
 export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs = AGE_MAX_SAUVEGARDE_MS, limiteGithub: number | null = null): string[] {
-  const depuis = (instant: string) => duree(maintenant.getTime() - Date.parse(instant));
   const depuisEn = (instant: string) => dureeEn(maintenant.getTime() - Date.parse(instant));
-  const decompte = ORDRE.map((nom) => [nom, lus(etat.rail, nom)] as const)
+  const decompte = ORDRE.map((nom) => [nom, lusEn(etat.rail, nom)] as const)
     .filter(([, combien]) => combien > 0)
     .map(([nom, combien]) => `${combien} ${nom}`);
   const cooks = trierCooks(etat, maintenant);
@@ -586,15 +596,15 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
   // qui se retiennent. Une station qui ne le prendrait de toute façon pas n'y
   // est pour rien.
   const retenuesDe = (ticket: TicketRail) => [
-    ...(etat.sansStation === null ? [] : ["aucune station déclarée"]),
+    ...(etat.sansStation === null ? [] : ["no station declared"]),
     ...etat.stations.flatMap((station) =>
-      station.heldReason === null || !fournitTout(station.provides, requises(ticket.card)) ? [] : [`retenu par ${station.station} (${direRetenueDeStation(station.heldReason)})`],
+      station.heldReason === null || !fournitTout(station.provides, requises(ticket.card)) ? [] : [`withheld by ${station.station} (${direRetenueDeStationEn(station.heldReason)})`],
     ),
   ];
   return [
     ...decrireUrgence(etat, depuisEn),
     ...decrireRienNeCuit(etat, depuisEn),
-    ligne("projet", etat.projet ?? "inconnu — journal vide"),
+    ligne("project", etat.projet ?? "unknown — empty log"),
     // Quand GitHub limite les appels du compte : une ligne, et l'heure de reprise.
     ...(limiteGithub === null ? [] : [ligne("github", direLaLimite(limiteGithub))]),
     ...decrireRuntime(etat, depuisEn),
@@ -609,13 +619,13 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     "",
     // Avant le rail : « est-ce qu'on m'attend ? » se lit sans le parcourir.
     ...decrireAttentes(etat.attend, depuisEn, etat.sansGrant, etat.passage),
-    ligne("rail", decompte.length === 0 ? "vide" : decompte.join(" · ")),
+    ligne("rail", decompte.length === 0 ? "empty" : decompte.join(" · ")),
     ...etat.rail.map((ticket) =>
       [
         `  #${ticket.ticket}`,
-        etatLu(ticket),
+        etatLuEn(ticket),
         ticket.priority === null ? "-" : `prio:${ticket.priority}`,
-        detail(ticket, maintenant, depuis, retenuesDe(ticket)) + direAttenteDeCharge(etat.activites.get(ticket.ticket)),
+        detail(ticket, maintenant, depuisEn, retenuesDe(ticket)) + direAttenteDeCharge(etat.activites.get(ticket.ticket)),
         ticket.title,
       ].join("  "),
     ),
@@ -627,20 +637,20 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
         cooks.flatMap(({ ticket }) => (ticket && coince(ticket, maintenant) ? [ticket.ticket] : [])),
       ),
     ),
-    ...decrireSaturations(etat, depuis),
-    ...decrireRetenues(etat, depuis),
-    ...decrireArbitrage(etat, depuis),
-    ...cooks.map(({ cook, ticket }) => decrireCook(cook, ticket, maintenant, depuis)),
+    ...decrireSaturations(etat, depuisEn),
+    ...decrireRetenues(etat, depuisEn),
+    ...decrireArbitrage(etat, depuisEn),
+    ...cooks.map(({ cook, ticket }) => decrireCook(cook, ticket, maintenant, depuisEn)),
     "",
-    ...decrireServeurs(etat, depuis, depuisEn),
-    ...decrireWorktrees(etat, depuis),
+    ...decrireServeurs(etat, depuisEn),
+    ...decrireWorktrees(etat, depuisEn),
     ...decrireConsommation(etat),
     // Absent quand rien n'est franchi : le bloc n'apparaît que pour être lu.
-    ...(etat.derive.length === 0 ? [] : [ligne("dérive", `${etat.derive.map(direJauge).join(" · ")} — \`${geste(`measures`)}\``)]),
-    ...decrireTranscripts(etat, depuis),
+    ...(etat.derive.length === 0 ? [] : [ligne("drift", `${etat.derive.map(direJaugeEn).join(" · ")} — \`${geste(`measures`)}\``)]),
+    ...decrireTranscripts(etat, depuisEn),
     "",
-    "derniers événements",
-    ...(etat.evenements.length === 0 ? ["  aucun"] : etat.evenements.map((evenement) => `  ${formaterEvenement(evenement)}`)),
+    "latest events",
+    ...(etat.evenements.length === 0 ? ["  none"] : etat.evenements.map((evenement) => `  ${formaterEvenement(evenement)}`)),
   ];
 }
 

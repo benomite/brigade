@@ -237,6 +237,39 @@ export function direJauge({ measure, observed, limit }: Omit<Jauge, "franchi">):
   return `${TITRES[measure] ?? measure} ${observed === null ? "—" : unite(observed)} pour un seuil de ${unite(limit)}`;
 }
 
+// La même, en anglais : la ligne `drift` de `status`.
+const direEn = (valeur: number, decimales = 1) => valeur.toLocaleString("en-US", { maximumFractionDigits: decimales });
+const secondesEn = (valeur: number) => `${direEn(valeur)} s`;
+const pourcentEn = (valeur: number) => `${direEn(valeur, 0)}%`;
+const UNITES_EN: Record<string, (valeur: number) => string> = {
+  tests: (valeur) => direEn(valeur, 0),
+  tests_s: secondesEn,
+  [GATES]: secondesEn,
+  depot_octets: (valeur) => `${direEn(valeur)} MB`,
+  contexte_octets: (valeur) => `${direEn(valeur)} KB`,
+};
+const TITRES_EN: Record<string, string> = {
+  tests: "tests",
+  tests_s: "test suite",
+  depot_octets: "repo",
+  contexte_octets: "context",
+  doc_octets: "docs",
+  [GATES]: "gates",
+  [TICKET_TOKENS]: `tokens of the costliest ticket of the last ${FENETRE_DE_PENTE} merges`,
+  [TOKENS_PERDUS]: `tokens lost over the last ${FENETRE_DE_PENTE} merges`,
+};
+
+export function direJaugeEn({ measure, observed, limit }: Omit<Jauge, "franchi">): string {
+  if (measure === "merges") return `${observed ?? "—"} merges since the last closing for a threshold of ${limit}`;
+  if (measure.startsWith(PENTE)) {
+    const titre = TITRES_EN[measure.slice(PENTE.length)] ?? measure.slice(PENTE.length);
+    const pente = observed === null ? "—" : `${observed > 0 ? "+" : ""}${pourcentEn(observed)}`;
+    return `${titre} ${pente} over ${FENETRE_DE_PENTE} merges for a threshold of ${pourcentEn(limit)}`;
+  }
+  const unite = UNITES_EN[measure] ?? ((valeur: number) => direEn(valeur));
+  return `${TITRES_EN[measure] ?? measure} ${observed === null ? "—" : unite(observed)} for a threshold of ${unite(limit)}`;
+}
+
 const ABSENT = "—";
 const TITRE = 11;
 const ligne = (titre: string, valeur: string) => `${titre.padEnd(TITRE)}${valeur}`.trimEnd();

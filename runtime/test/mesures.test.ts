@@ -433,7 +433,7 @@ test("un seuil de coût franchi est dans le bloc dérive de status, et ne change
     const commande = appeler(status, [], { BRIGADE_STATE_DIR: repertoire });
     return { code: await commande.fin, lignes: commande.sortie().split("\n") };
   };
-  const estDerive = (ligne: string) => ligne.startsWith("dérive");
+  const estDerive = (ligne: string) => ligne.startsWith("drift");
 
   // Aucun seuil déclaré : rien n'est signalé.
   const sans = await lire();
@@ -448,14 +448,14 @@ test("un seuil de coût franchi est dans le bloc dérive de status, et ne change
   noter({ type: "drift.configured", payload: { limits: { ...SANS_SEUIL, ticketTokens: 1500, lostTokens: 500 } } });
   const franchi = await lire();
   assert.deepEqual(franchi.lignes.filter(estDerive), [
-    "dérive     tokens du ticket le plus cher des 10 derniers merges 2\u202f000 pour un seuil de 1\u202f500 · tokens perdus sur les 10 derniers merges 1\u202f000 pour un seuil de 500 — `brigade <projet> measures`",
+    "drift      tokens of the costliest ticket of the last 10 merges 2,000 for a threshold of 1,500 · tokens lost over the last 10 merges 1,000 for a threshold of 500 — `brigade <projet> measures`",
   ]);
   // Seule la ligne de dérive en diffère, hors les derniers événements, où le
   // seuil déclaré s'écrit : le code de sortie, la cuisine, le rail restent.
   assert.deepEqual([sans.code, loin.code, franchi.code], [0, 0, 0]);
   const photo = ({ lignes }: { lignes: string[] }) => {
     const sansDerive = lignes.filter((ligne) => !estDerive(ligne));
-    return sansDerive.slice(0, sansDerive.indexOf("derniers événements"));
+    return sansDerive.slice(0, sansDerive.indexOf("latest events"));
   };
   assert.deepEqual(photo(franchi), photo(sans));
   // Le cook en cours figure dans status avant comme après, et rien n'a écrit son arrêt.

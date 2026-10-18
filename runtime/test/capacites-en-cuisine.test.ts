@@ -89,7 +89,7 @@ describe("les capacités qu'un ticket demande", { concurrency: 8 }, () => {
       [{ station: PLAYWRIGHT, reason: "cap" }],
     );
     const lignes = decrireEtat(lireEtat(journal), heure.maintenant());
-    assert.equal(lignes.find((ligne) => ligne.startsWith("  #15")), "  #15  en attente  -  retenu par box/playwright (plafond de cooks atteint) — depuis 0 s  Ticket 15");
+    assert.equal(lignes.find((ligne) => ligne.startsWith("  #15")), "  #15  queued  -  withheld by box/playwright (cooks cap reached) — since 0 s  Ticket 15");
   });
 
   test("devant l'arbitre entre projets, un ticket que seule une station pleine peut cuisiner ne réserve aucune place : la station libre ne demande rien pour lui", async (t) => {
@@ -154,7 +154,7 @@ describe("les capacités qu'un ticket demande", { concurrency: 8 }, () => {
     ]);
     // Et sur sa ligne du rail, sous le décompte.
     const rail = lignes.findIndex((ligne) => ligne.startsWith("rail"));
-    assert.deepEqual(lignes.slice(rail, rail + 2), ["rail       1 86", "  #14  86  -  depuis 0 s (no-station: chrome-connecté), sans heure de retour  Ticket 14"]);
+    assert.deepEqual(lignes.slice(rail, rail + 2), ["rail       1 86", "  #14  86  -  since 0 s (no-station: chrome-connecté), no return time  Ticket 14"]);
   });
 
   test("les tickets du même lot qui ne demandent rien partent normalement pendant qu'un autre est 86 — même sur sa zone", async (t) => {

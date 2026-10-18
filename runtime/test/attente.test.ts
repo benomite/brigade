@@ -68,7 +68,7 @@ test("mettre en WAITING : ce qu'il attend, de qui, la relance à +7 jours par d�
   assert.deepEqual([fait?.type, fait?.author], ["ticket.waiting", "chef"]);
 
   // L'état du chef le dit, sur la ligne du ticket, et les faits le donnent à l'app.
-  assert.match(ligne(journal, 8), /WAITING.*attend le client : « sa validation écrite du devis » — depuis .*, relance le 21 oct\. 12:00 UTC — à l'arrivée, il repart en cuisine/);
+  assert.match(ligne(journal, 8), /WAITING.*awaiting le client: “sa validation écrite du devis” — since .*, follow-up on 21 Oct 12:00 UTC — on arrival, it goes back to the kitchen/);
   const surLeRail = faits(lireEtat(journal, MAINTENANT), MAINTENANT).rail.find((r) => r.ticket === 8);
   assert.equal(surLeRail?.etat, "WAITING");
   assert.equal(surLeRail?.revenu, null);
