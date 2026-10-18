@@ -1,0 +1,94 @@
+nothing cooks: base red since 4 min ago, repair #30 in progress
+projet     brigade
+runtime    running according to the log — pid 4211 on box, started 3 d ago
+           last tick 5 min ago (cadence: 1 min)
+kitchen    open · breaker OPEN for 4 min (0 failures in a row)
+connection Max EXPIRED for 4 min on box/claude (authentication_failed) — no ticket is taken any more: `claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”
+base       RED since 4 min ago on abc1234 — the station takes no more tickets, the pass neither judges nor merges
+           replay its gates without waiting for a commit: brigade <projet> base replay
+setup      BLOCKED for 4 min on ba5e000 — no setup is launched from here, for any ticket, as long as the integration branch does not move: the cause and the action are in the `awaiting` block
+grant      merge ACTIVE, EXPIRING SOON: 26 min left (until 12 Oct 10:30 UTC) — a green pass is merged without you
+backup     2 min ago (2026-10-09T10-00-00Z, up to event 7)
+
+awaiting   5 decisions await the chef — the oldest for 2 h 04
+  #18  for 2 h 04  escalated by the pass, red (still-red: returns-exhausted) — to decide: merge https://exemple.test/pull/18 by hand, or remove `fire` — `brigade <projet> pass 18`  Ticket 18
+  #19  for 14 min  BLOCKED: #21 dropped (issue closed without being served) — to unblock: put #21 back on the rail, or remove it from the `attend` line of the card  Ticket 19
+  breaker  for 4 min  breaker open: failures in a row — no cook leaves any more — to do: `brigade <projet> guardrails resume` after looking at what fails
+  setup  for 4 min  setup impossible: `.claude/brigade/worktree-setup.sh` fails twice identically (code de sortie 1) — what it said is on #24 — to fix: the project's setup, then merge into the integration branch; setups start again on their own as soon as the integration branch moves; until then, none is launched, for any ticket
+  box/claude  for 4 min  Max connection expired (authentication_failed) — to restore: `claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”
+  without a grant, 1 green delivery stopped: 0 merged by hand, 0 closed without merge — no disagreement —, 0 still open, 1 no longer followed
+end awaiting
+
+rail       3 pris · 2 en pass · 6 en attente · 2 BLOQUÉ · 4 86 · 1 WAITING · 1 servi
+  #30  en attente  prio:0  retenu par box/claude (montée progressive, les cooks tout juste partis pèsent d'avance) — depuis 4 min  Réparer la base
+  #17  en pass  prio:1  depuis 3 j, cuisiné par box/claude  Ticket 17
+  #19  BLOQUÉ  prio:1  #21 abandonné (issue fermée sans avoir été servie) — depuis 2 h 04  Ticket 19
+  #23  pris  prio:1  par box/claude depuis 5 min, COINCE : sans progrès depuis 5 min, bail encore 5 min  Ticket 23
+  #25  86  prio:1  depuis 5 min (quota), retour dans 4 h 56  Ticket 25
+  #18  86  -  depuis 2 h 04 (pass:returns-exhausted), sans heure de retour  Ticket 18
+  #20  en pass  -  depuis 6 min, cuisiné par box/claude  Ticket 20
+  #24  en attente  -  retenu par box/claude (montée progressive, les cooks tout juste partis pèsent d'avance) — depuis 6 min  Ticket 24
+  #26  en attente  -  retenu par box/claude (montée progressive, les cooks tout juste partis pèsent d'avance) — depuis 6 min  Ticket 26
+  #31  pris  -  par box/claude depuis 2 min, sans progrès depuis 2 min, bail encore 26 min  Holds the zone
+  #32  en attente  -  zone tenue par #31 (runtime/src/etat.ts) — depuis 2 min  Same zone
+  #33  en attente  -  attend #18 — depuis 2 min  Awaits a 86
+  #34  en attente  -  attend #24 — depuis 2 min  Awaits another
+  #35  WAITING  -  attend the customer : « the customer's answer » — depuis 2 min, relance le 14 oct. 18:00 UTC — à l'arrivée, il repart en cuisine, sans repasser par TODO : il est remis sur le rail, et un cook le prend à son tour  At the customer
+  #36  86  -  depuis 2 min (pass:unjudged), sans heure de retour  Frozen
+  #37  BLOQUÉ  -  bloqué par #36 (86 sans heure de retour, non jugé par la pass) — depuis 2 min  Awaits the frozen
+  #38  86  -  depuis 2 min (quota), retour au prochain tick  Return passed
+  #39  pris  -  par box/claude depuis 2 min, COINCE : sans progrès depuis 2 min, bail échu depuis 4 min  Expired lease
+  #41  servi  -  depuis 2 min, cuisiné par box/claude  Served
+
+cooks      3 en cours — box/claude : 2 au plus — 1 COINCE : #23
+           MACHINE SATURÉE depuis 2 min — charge de 16,2 pour 15 au plus : box/claude ne prend plus de ticket tant que ça dure
+           box/claude SE RETIENT depuis 2 min — montée progressive, les cooks tout juste partis pèsent d'avance : les tickets servables attendent
+           ARBITRE INJOIGNABLE depuis 2 min — connection refused : box/claude ne lance plus qu'un cook à la fois, sans arbitrage, jusqu'à son retour
+  #23  COINCE  23-bb  sonnet / medium  2 min sur 1 h 00 · tours et tokens : pas encore de relevé · sans progrès depuis 5 min
+  #31  31-aa  opus / high  cook/31-aa dans worktrees/31-aa  2 min sur 1 h 00 · 12 tours sur 100 · 184 000 tokens sur 2 000 000 (relevé il y a 2 min) · sans progrès depuis 2 min · en ce moment : lit runtime/src/etat.ts, depuis 2 min
+  manager  juge-9-cc  haiku / low  2 min sur 1 h 00 · tours et tokens : pas encore de relevé
+
+serveurs   4 serveurs — une livraison d'interface, servie depuis son worktree sur le port de ce worktree
+  #17  worktrees/17-s  port 20017  démarre depuis 2 min  cook/17-s  http://127.0.0.1:20017/rail
+    écran : /rail (écran déduit des fichiers touchés, pas déclaré par le cook)
+  #18  worktrees/18-s  port 20018  démarre depuis 2 min  cook/18-s  aucune page à ouvrir : l'écran « dashboard » n'est pas une route
+    écran : dashboard (déclaré par le cook)
+  #19  worktrees/19-s  port 20019  démarre depuis 2 min  cook/19-s  aucune page à ouvrir : la livraison ne dit aucun écran, et n'en touche aucun que le projet déclare
+  #20  worktrees/20-s  port 20020  écoute depuis 2 min  cook/20-s  http://127.0.0.1:20020/map
+    écran : /map (déclaré par le cook)
+    à regarder : the button is blue
+à lancer   2 — le worktree d'une livraison d'une app qui ne s'ouvre pas dans un navigateur, tenu pour qu'on l'y lance : aucune page
+  #24  worktrees/24-h  tenu depuis 2 min  cook/24-h  pas de page dans un navigateur : lancer l'app sur le worktree de la livraison, `cd '/var/lib/brigade/etat/worktrees/24-h' && npm --prefix app start`, puis y ouvrir l'écran « the map » — à regarder : the menu opens
+    écran : the map (déclaré par le cook)
+    à regarder : the menu opens
+  #26  worktrees/26-h  tenu depuis 2 min  cook/26-h  rien à regarder : la livraison ne dit aucun écran, et n'en touche aucun que le projet déclare
+service    NOT DECLARED — the project does not say how it is served (delivery of ticket #50); no server is launched — since 2 min ago on box/claude
+
+worktrees  3 non rangés après leur cook — rien n'y est touché, le runtime y revient à chaque tick
+  #21  worktrees/21-n  cook/21-n  rangement en échec depuis 2 min — git worktree: fatal: lock held
+  #22  worktrees/22-n  cook/22-n  PR encore ouverte depuis 2 min — cook/22-n
+  #22  worktrees/22-o  cook/22-o  travail non poussé depuis 2 min — 2 commits
+
+consommé   en cours : 3 lancements, dont 1 jugement · 12 tours · 184 000 tokens
+           5 h : 8 lancements, dont 1 relecture et 2 jugements · 64 tours · 825 000 tokens
+           24 h : 8 lancements, dont 1 relecture et 2 jugements · 64 tours · 825 000 tokens
+           ce que ce projet a lancé, pas la consommation du compte : /usage la donne
+dérive     tests 622 pour un seuil de 500 — `brigade <projet> measures`
+claude     transcripts du projet : 1 027 gardés (112 Mo), 12 retirés (48 Mo) au rangement d'il y a 2 min — un transcript part 7 j après sa dernière écriture
+
+derniers événements
+  93  2026-10-12T10:02:00.000Z  brigade  #21  worktree.kept  nettoyage  {"worktree":"worktrees/21-n","branch":"cook/21-n","reason":"failed","detail":"git worktree: fatal: lock held"}
+  94  2026-10-12T10:02:00.000Z  brigade  #22  worktree.kept  nettoyage  {"worktree":"worktrees/22-n","branch":"cook/22-n","reason":"pr-open","detail":"cook/22-n"}
+  95  2026-10-12T10:02:00.000Z  brigade  #22  worktree.kept  nettoyage  {"worktree":"worktrees/22-o","branch":"cook/22-o","reason":"unpushed","detail":"2 commits"}
+  96  2026-10-12T10:02:00.000Z  brigade  -  transcripts.tidied  nettoyage  {"removed":12,"freedBytes":50331648,"kept":1027,"keptBytes":117440512,"keepMs":604800000}
+  97  2026-10-12T10:02:00.000Z  brigade  -  drift.configured  runtime  {"limits":{"tests":500,"testsSeconds":null,"gatesSeconds":null,"contextKb":null,"repoMb":null,"merges":null,"growthPercent":null}}
+  98  2026-10-12T10:02:00.000Z  brigade  #40  pass.replayed  pass  {"sha":"sha-m","base":"base-2","gates":{"outcome":"green","code":0,"failures":[],"tail":"","measures":{"tests":622,"gates_s":21}},"findings":[]}
+  99  2026-10-12T10:02:00.000Z  brigade  #40  merge.done  pass  {"pr":"https://github.com/o/r/pull/40","sha":"sha-m","by":"pass","reconciled":false}
+  100  2026-10-12T10:02:00.000Z  brigade  -  guard.configured  runtime  {"limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"breakerThreshold":3}
+  101  2026-10-12T10:02:00.000Z  brigade  -  guard.configured  runtime  {"limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"breakerThreshold":3}
+  102  2026-10-12T10:02:00.000Z  brigade  -  guard.configured  runtime  {"limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"breakerThreshold":3}
+  103  2026-10-12T10:02:00.000Z  brigade  -  guard.configured  runtime  {"limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"breakerThreshold":3}
+  104  2026-10-12T10:02:00.000Z  brigade  -  guard.configured  runtime  {"limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"breakerThreshold":3}
+  105  2026-10-12T10:02:00.000Z  brigade  -  guard.configured  runtime  {"limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"breakerThreshold":3}
+  106  2026-10-12T10:02:00.000Z  brigade  -  guard.configured  runtime  {"limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"breakerThreshold":3}
+  107  2026-10-12T10:02:00.000Z  brigade  -  guard.configured  runtime  {"limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"breakerThreshold":3}

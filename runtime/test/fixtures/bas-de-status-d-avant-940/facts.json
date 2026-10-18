@@ -1,0 +1,315 @@
+{
+  "etat": "retenue",
+  "lu": "2026-10-12T10:04:00.000Z",
+  "dernierTick": "2026-10-12T09:59:00.000Z",
+  "compteurs": {
+    "rail": 8,
+    "auTravail": 3,
+    "aLaPass": 2,
+    "attend": 5,
+    "livres24h": 2
+  },
+  "dernierEvenement": {
+    "seq": 107,
+    "at": "2026-10-12T10:02:00.000Z",
+    "type": "guard.configured",
+    "ticket": null
+  },
+  "rail": [
+    {
+      "ticket": 30,
+      "etat": "en attente",
+      "titre": "Réparer la base",
+      "url": "https://exemple.test/30",
+      "activite": null,
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 17,
+      "etat": "en pass",
+      "titre": "Ticket 17",
+      "url": "https://exemple.test/17",
+      "activite": null,
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 19,
+      "etat": "BLOQUÉ",
+      "titre": "Ticket 19",
+      "url": "https://exemple.test/19",
+      "activite": null,
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 23,
+      "etat": "pris",
+      "titre": "Ticket 23",
+      "url": "https://exemple.test/23",
+      "activite": {
+        "fait": "démarre",
+        "cible": null,
+        "depuis": "2026-10-12T10:02:00.000Z"
+      },
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 25,
+      "etat": "86",
+      "titre": "Ticket 25",
+      "url": "https://exemple.test/25",
+      "activite": null,
+      "attente": {
+        "raison": "attend : quota du compte épuisé",
+        "colonne": "86",
+        "retour": "2026-10-12T15:00:00.000Z"
+      },
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 18,
+      "etat": "86",
+      "titre": "Ticket 18",
+      "url": "https://exemple.test/18",
+      "activite": null,
+      "attente": {
+        "raison": "attend : mis de côté (pass:returns-exhausted)",
+        "colonne": "86",
+        "retour": null
+      },
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 20,
+      "etat": "en pass",
+      "titre": "Ticket 20",
+      "url": "https://exemple.test/20",
+      "activite": null,
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 24,
+      "etat": "en attente",
+      "titre": "Ticket 24",
+      "url": "https://exemple.test/24",
+      "activite": null,
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 26,
+      "etat": "en attente",
+      "titre": "Ticket 26",
+      "url": "https://exemple.test/26",
+      "activite": null,
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 31,
+      "etat": "pris",
+      "titre": "Holds the zone",
+      "url": "https://exemple.test/31",
+      "activite": {
+        "fait": "lit",
+        "cible": "runtime/src/etat.ts",
+        "depuis": "2026-10-12T10:02:00.000Z"
+      },
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 32,
+      "etat": "en attente",
+      "titre": "Same zone",
+      "url": "https://exemple.test/32",
+      "activite": null,
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 33,
+      "etat": "en attente",
+      "titre": "Awaits a 86",
+      "url": "https://exemple.test/33",
+      "activite": null,
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 34,
+      "etat": "en attente",
+      "titre": "Awaits another",
+      "url": "https://exemple.test/34",
+      "activite": null,
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 35,
+      "etat": "WAITING",
+      "titre": "At the customer",
+      "url": "https://exemple.test/35",
+      "activite": null,
+      "attente": {
+        "raison": "attend : un tiers (WAITING)",
+        "colonne": "WAITING",
+        "retour": null
+      },
+      "tiers": {
+        "quoi": "the customer's answer",
+        "qui": "the customer",
+        "depuis": "2026-10-12T10:02:00.000Z",
+        "relance": "2026-10-14T18:00:00.000Z",
+        "aLArrivee": "il repart en cuisine, sans repasser par TODO : il est remis sur le rail, et un cook le prend à son tour"
+      },
+      "revenu": null
+    },
+    {
+      "ticket": 36,
+      "etat": "86",
+      "titre": "Frozen",
+      "url": "https://exemple.test/36",
+      "activite": null,
+      "attente": {
+        "raison": "attend : la pass n'a pas pu le juger",
+        "colonne": "86",
+        "retour": null
+      },
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 37,
+      "etat": "BLOQUÉ",
+      "titre": "Awaits the frozen",
+      "url": "https://exemple.test/37",
+      "activite": null,
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 38,
+      "etat": "86",
+      "titre": "Return passed",
+      "url": "https://exemple.test/38",
+      "activite": null,
+      "attente": {
+        "raison": "attend : quota du compte épuisé",
+        "colonne": "86",
+        "retour": "2026-10-12T09:00:00.000Z"
+      },
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 39,
+      "etat": "pris",
+      "titre": "Expired lease",
+      "url": "https://exemple.test/39",
+      "activite": {
+        "fait": "la station prépare le poste du cook",
+        "cible": null,
+        "depuis": "2026-10-12T10:02:00.000Z"
+      },
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    },
+    {
+      "ticket": 41,
+      "etat": "servi",
+      "titre": "Served",
+      "url": "https://exemple.test/41",
+      "activite": null,
+      "attente": null,
+      "tiers": null,
+      "revenu": null
+    }
+  ],
+  "cooks": [
+    {
+      "ticket": 31,
+      "titre": "Holds the zone",
+      "station": "box/claude"
+    },
+    {
+      "ticket": 23,
+      "titre": "Ticket 23",
+      "station": "box/claude"
+    }
+  ],
+  "attend": [
+    {
+      "ticket": 18,
+      "titre": "Ticket 18",
+      "url": "https://exemple.test/18",
+      "decision": {
+        "quoi": "remontee",
+        "motif": "still-red",
+        "cause": "returns-exhausted",
+        "pr": "https://exemple.test/pull/18"
+      }
+    },
+    {
+      "ticket": 19,
+      "titre": "Ticket 19",
+      "url": "https://exemple.test/19",
+      "decision": {
+        "quoi": "bloque",
+        "motif": null,
+        "cause": null,
+        "pr": null
+      }
+    }
+  ],
+  "livres": [
+    {
+      "ticket": 40,
+      "titre": "",
+      "url": null,
+      "livre": "2026-10-12T10:02:00.000Z",
+      "station": null,
+      "pr": "https://github.com/o/r/pull/40",
+      "relecture": null
+    },
+    {
+      "ticket": 41,
+      "titre": "Served",
+      "url": "https://exemple.test/41",
+      "livre": "2026-10-12T10:02:00.000Z",
+      "station": "box/claude",
+      "pr": null,
+      "relecture": null
+    }
+  ],
+  "urgence": null,
+  "stations": [
+    {
+      "station": "box/claude",
+      "distante": false,
+      "plafond": 2,
+      "ordinaires": false,
+      "bacASable": null,
+      "prendOrdinaires": true
+    }
+  ]
+}
