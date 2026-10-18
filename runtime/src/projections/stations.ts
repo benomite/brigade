@@ -146,6 +146,10 @@ export const GESTE_DE_CONNEXION_TOMBEE_EN = "`claude /login` under the service a
 export const direConnexionTombee = (etat: Pick<EtatStation, "disconnectedAt" | "disconnectedReason">) =>
   `EXPIRÉE depuis le ${etat.disconnectedAt} (${etat.disconnectedReason}) — plus aucun ticket n'est pris ; \`claude /login\` sous le compte du service — la cuisine reprend seule dans la minute`;
 
+// La même, en anglais : ce que dit `station`.
+export const direConnexionTombeeEn = (etat: Pick<EtatStation, "disconnectedAt" | "disconnectedReason">) =>
+  `EXPIRED since ${etat.disconnectedAt} (${etat.disconnectedReason}) — no more tickets are taken; \`claude /login\` under the service account — the kitchen starts again on its own within the minute`;
+
 // Une station entre dans la table au premier fait qui la nomme : un quota
 // épuisé ou une déconnexion valent même si l'annonce s'est perdue.
 const modifier = (base: Base, station: unknown, at: string, affectation: string, ...parametres: Array<string | number | null>) => {

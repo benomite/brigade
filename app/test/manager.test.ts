@@ -53,7 +53,7 @@ function lu(sortie: string): Manager {
 
 const allumer = { type: "manager.enabled", payload: {} } as const;
 const eteindre = { type: "manager.disabled", payload: {} } as const;
-const AUCUNE = { dit: "aucune", lignes: [], illisibles: [] };
+const AUCUNE = { dit: "none", lignes: [], illisibles: [] };
 
 const lecture = (texte: string): Lecture => ({ projet: "parade", demande: 4, a: "2026-10-13T10:00:00.000Z", sorties: [{ commande: COMMANDE, texte }] });
 
@@ -62,7 +62,7 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
     const { noter, sortie } = cuisine(t);
     noter(allumer, null, "chef");
 
-    assert.deepEqual(lu(sortie()).interrupteur, { allume: true, mot: "ALLUMÉ", depuis: "2026-10-13T09:01:00.000Z", par: "chef", dit: "il juge les issues ouvertes, pose `fire` et le calibrage" });
+    assert.deepEqual(lu(sortie()).interrupteur, { allume: true, mot: "ON", depuis: "2026-10-13T09:01:00.000Z", par: "chef", dit: "it judges the open issues, sets `fire` and the calibration" });
   });
 
   test("un manager éteint : il l'est, depuis quand, par qui — ce qu'il a posé reste posé, et c'est le runtime qui le dit", (t) => {
@@ -70,16 +70,16 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
     noter(allumer, null, "chef");
     noter(eteindre, null, "benoit");
 
-    assert.deepEqual(lu(sortie()).interrupteur, { allume: false, mot: "ÉTEINT", depuis: "2026-10-13T09:02:00.000Z", par: "benoit", dit: "aucune issue n'est jugée, ce qu'il a posé reste posé" });
+    assert.deepEqual(lu(sortie()).interrupteur, { allume: false, mot: "OFF", depuis: "2026-10-13T09:02:00.000Z", par: "benoit", dit: "no issue is judged, what it set stays set" });
   });
 
   test("un manager jamais allumé est éteint, sans date ni auteur : l'app n'en invente pas", (t) => {
     const { sortie } = cuisine(t);
 
-    assert.deepEqual(lu(sortie()).interrupteur, { allume: false, mot: "ÉTEINT", dit: "jamais allumé : aucune issue n'est jugée, `fire` et le calibrage se posent à la main" });
+    assert.deepEqual(lu(sortie()).interrupteur, { allume: false, mot: "OFF", dit: "never turned on: no issue is judged, `fire` and the calibration are set by hand" });
   });
 
-  test("une sortie sans décision : ni décision ni issue écartée, et c'est le mot du runtime qui le dit — « aucune »", (t) => {
+  test("une sortie sans décision : ni décision ni issue écartée, et c'est le mot du runtime qui le dit — « none »", (t) => {
     const { noter, sortie } = cuisine(t);
     noter(allumer, null, "chef");
 
@@ -101,9 +101,9 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
     assert.deepEqual(lu(sortie()).decisions, {
       dit: "",
       lignes: [
-        { a: "2026-10-13T09:05:00.000Z", ticket: 32, dit: "jugement illisible — aucun objet JSON dans la réponse" },
-        { a: "2026-10-13T09:04:00.000Z", ticket: 31, dit: "refusée (une épique) — Trois livrables." },
-        { a: "2026-10-13T09:02:00.000Z", ticket: 30, dit: "sur le rail, haiku / low (posé : fire, effort:low) — Un livrable, un test." },
+        { a: "2026-10-13T09:05:00.000Z", ticket: 32, dit: "unreadable judgment — aucun objet JSON dans la réponse" },
+        { a: "2026-10-13T09:04:00.000Z", ticket: 31, dit: "refused (an epic) — Trois livrables." },
+        { a: "2026-10-13T09:02:00.000Z", ticket: 30, dit: "on the rail, haiku / low (set: fire, effort:low) — Un livrable, un test." },
       ],
       illisibles: [],
     });
@@ -122,20 +122,20 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
     assert.deepEqual(ecartees, {
       dit: "",
       lignes: [
-        { a: "2026-10-13T09:05:00.000Z", ticket: 30, motif: "tu y as retiré `fire` ou un calibrage que le manager avait posé", rend: "pour la lui rendre : `brigade <projet> manager return 30` : il la rejuge à neuf" },
+        { a: "2026-10-13T09:05:00.000Z", ticket: 30, motif: "you removed `fire` or a calibration the manager had set", rend: "to hand it back to it: `brigade <projet> manager return 30`: it judges it anew" },
         // Servi ailleurs : le runtime n'en dit que le motif, il n'y a rien à rendre.
-        { a: "2026-10-13T09:04:00.000Z", ticket: 32, motif: "hors-cuisine — ce ticket ne se sert pas sur cette box ; le pourquoi est sur l'issue" },
-        { a: "2026-10-13T09:03:00.000Z", ticket: 31, motif: "elle porte `blocked-on-human`", rend: "pour la lui rendre : retire `blocked-on-human` : elle est jugée au réveil suivant" },
-        { a: "2026-10-13T09:02:00.000Z", ticket: 1, motif: "c'est la roadmap du projet", rend: "rien ne la rend au manager" },
+        { a: "2026-10-13T09:04:00.000Z", ticket: 32, motif: "it carries `hors-cuisine` — this ticket is not served on this box; the why is on the issue" },
+        { a: "2026-10-13T09:03:00.000Z", ticket: 31, motif: "it carries `blocked-on-human`", rend: "to hand it back to it: remove `blocked-on-human`: it is judged at the next wake-up" },
+        { a: "2026-10-13T09:02:00.000Z", ticket: 1, motif: "it is the project's roadmap", rend: "nothing hands it back to the manager" },
       ],
       illisibles: [],
     });
     // Un écart est aussi une décision : il se lit dans les deux sections, comme le runtime l'écrit.
     assert.deepEqual(decisions?.lignes.map(({ ticket, dit }) => [ticket, dit]), [
-      [30, "écartée (chef-changed)"],
-      [32, "écartée (hors-cuisine), `fire` posé par le chef : laissé, non calibrée"],
-      [31, "écartée (blocked-on-human)"],
-      [1, "écartée (roadmap)"],
+      [30, "set aside (chef-changed)"],
+      [32, "set aside (hors-cuisine), `fire` set by the chef: left alone, not calibrated"],
+      [31, "set aside (blocked-on-human)"],
+      [1, "set aside (roadmap)"],
     ]);
   });
 
@@ -146,7 +146,7 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
 
     const ecartees = lu(sortie()).ecartees;
 
-    assert.deepEqual(ecartees?.lignes[0], { a: "2026-10-13T09:02:00.000Z", ticket: 30, motif: "rendue au manager, pas encore rejugée — il la rejuge à son prochain réveil, s'il est allumé" });
+    assert.deepEqual(ecartees?.lignes[0], { a: "2026-10-13T09:02:00.000Z", ticket: 30, motif: "handed back to the manager, not judged again yet — it judges it again at its next wake-up, if it is on" });
     assert.deepEqual(ecartees?.illisibles, []);
   });
 
@@ -181,13 +181,31 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
     });
   });
 
+  test("la sortie d'une box d'avant #932 se lit encore : mêmes champs, mots français tels que le runtime les écrivait", () => {
+    const sortie = [
+      "manager               ALLUMÉ depuis le 2026-10-13T09:01:00.000Z (par chef) — il juge les issues ouvertes, pose `fire` et le calibrage",
+      "dernières décisions   ",
+      "  2026-10-13T09:04:00.000Z  #31  écartée (roadmap)",
+      "écartées              ",
+      "  2026-10-13T09:04:00.000Z  #31  c'est la roadmap du projet — rien ne la rend au manager",
+      "",
+    ].join("\n");
+
+    assert.deepEqual(lu(sortie), {
+      interrupteur: { allume: true, mot: "ALLUMÉ", depuis: "2026-10-13T09:01:00.000Z", par: "chef", dit: "il juge les issues ouvertes, pose `fire` et le calibrage" },
+      decisions: { dit: "", lignes: [{ a: "2026-10-13T09:04:00.000Z", ticket: 31, dit: "écartée (roadmap)" }], illisibles: [] },
+      ecartees: { dit: "", lignes: [{ a: "2026-10-13T09:04:00.000Z", ticket: 31, motif: "c'est la roadmap du projet", rend: "rien ne la rend au manager" }], illisibles: [] },
+    });
+    assert.equal(lu("manager               ÉTEINT — jamais allumé : aucune issue n'est jugée\n").interrupteur.allume, false);
+  });
+
   test("une sortie qui n'a pas la ligne `manager` n'est pas lue du tout : ce n'est pas « éteint », et l'app dit en quoi", () => {
     assert.deepEqual(managerDe(""), { informe: "it has no `manager` line" });
     assert.deepEqual(managerDe("brigade : ce journal n'a pas encore l'état du manager : redémarrer le runtime, qui le recalcule\n"), { informe: "it has no `manager` line" });
     // Le mot `manager` ailleurs qu'en tête de ligne n'est pas sa ligne.
     assert.deepEqual(managerDe("cuisine    ouverte\n  manager  juge-30-a  depuis 12 s\n"), { informe: "it has no `manager` line" });
     assert.deepEqual(managerDe("manager               EN PANNE depuis le 2026-10-13T09:01:00.000Z\ndernières décisions   aucune\n"), {
-      informe: "its `manager` line says neither ALLUMÉ nor ÉTEINT in the expected form: “manager               EN PANNE depuis le 2026-10-13T09:01:00.000Z”",
+      informe: "its `manager` line says neither ON nor OFF (nor ALLUMÉ, ÉTEINT) in the expected form: “manager               EN PANNE depuis le 2026-10-13T09:01:00.000Z”",
     });
   });
 
@@ -210,9 +228,9 @@ describe("ce que l'onglet Manager pose au-dessus du texte", () => {
       projet: "parade",
       demande: 4,
       a: "2026-10-13T10:00:00.000Z",
-      interrupteur: { allume: true, mot: "ALLUMÉ", ton: "vert", depuis: "2026-10-13T09:01:00.000Z", par: "chef", dit: "il juge les issues ouvertes, pose `fire` et le calibrage" },
-      decisions: { lignes: [{ a: "2026-10-13T09:02:00.000Z", ticket: 1, dit: "écartée (roadmap)" }], illisibles: [] },
-      ecartees: { lignes: [{ a: "2026-10-13T09:02:00.000Z", ticket: 1, motif: "c'est la roadmap du projet", rend: "rien ne la rend au manager" }], illisibles: [] },
+      interrupteur: { allume: true, mot: "ON", ton: "vert", depuis: "2026-10-13T09:01:00.000Z", par: "chef", dit: "it judges the open issues, sets `fire` and the calibration" },
+      decisions: { lignes: [{ a: "2026-10-13T09:02:00.000Z", ticket: 1, dit: "set aside (roadmap)" }], illisibles: [] },
+      ecartees: { lignes: [{ a: "2026-10-13T09:02:00.000Z", ticket: 1, motif: "it is the project's roadmap", rend: "nothing hands it back to the manager" }], illisibles: [] },
     });
   });
 
@@ -224,16 +242,16 @@ describe("ce que l'onglet Manager pose au-dessus du texte", () => {
     assert.ok("interrupteur" in vu);
     // Éteint n'est pas une alerte : c'est l'état d'un manager que personne n'a allumé.
     assert.equal(vu.interrupteur.ton, "gris");
-    assert.deepEqual(vu.decisions, { lignes: [], illisibles: [], vide: "aucune" });
-    assert.deepEqual(vu.ecartees, { lignes: [], illisibles: [], vide: "aucune" });
+    assert.deepEqual(vu.decisions, { lignes: [], illisibles: [], vide: "none" });
+    assert.deepEqual(vu.ecartees, { lignes: [], illisibles: [], vide: "none" });
   });
 
   test("une section que la sortie n'a pas se dit « pas lue », jamais « aucune »", () => {
     const vu = voir(lecture("manager               ÉTEINT — jamais allumé : aucune issue n'est jugée, `fire` et le calibrage se posent à la main\n"));
 
     assert.ok("interrupteur" in vu);
-    assert.deepEqual(vu.decisions, { lignes: [], illisibles: [], vide: "not read: the output has no `dernières décisions` line. This is not “none” — it is shown below, in full" });
-    assert.deepEqual(vu.ecartees, { lignes: [], illisibles: [], vide: "not read: the output has no `écartées` line. This is not “none” — it is shown below, in full" });
+    assert.deepEqual(vu.decisions, { lignes: [], illisibles: [], vide: "not read: the output has no `latest decisions` line. This is not “none” — it is shown below, in full" });
+    assert.deepEqual(vu.ecartees, { lignes: [], illisibles: [], vide: "not read: the output has no `set aside` line. This is not “none” — it is shown below, in full" });
   });
 
   test("une lecture ratée ne dit rien du manager : ni allumé, ni éteint — ce que l'app a obtenu se lit dessous", () => {

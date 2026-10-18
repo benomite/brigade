@@ -2,7 +2,7 @@
 // ne le seront pas sans que le chef s'en mêle — fermés sans livraison, ou sortis
 // du rail. Lecture du journal seule.
 import type { Base } from "./base.ts";
-import { nomAbandon } from "./rail.ts";
+import { nomAbandonEn } from "./rail.ts";
 import { decoupageDe, ticketsDEpique } from "./projections/decoupages.ts";
 import { sortDuTicket } from "./projections/rail.ts";
 
@@ -29,10 +29,10 @@ export function bilanDEpique(base: Base, epic: number, vues: ReadonlySet<number>
       const sous = bilanDEpique(base, ticket.ticket, descendance);
       if (sous.toutServi) servis.push(ticket.ticket);
       else if (sous.manquants.length > 0) manquants.push(...sous.manquants);
-      else if (!ticket.open) manquants.push({ ticket: ticket.ticket, dit: `#${ticket.ticket} fermé sans livraison` });
+      else if (!ticket.open) manquants.push({ ticket: ticket.ticket, dit: `#${ticket.ticket} closed without a delivery` });
     }
-    else if (!ticket.open) manquants.push({ ticket: ticket.ticket, dit: `#${ticket.ticket} fermé sans livraison` });
-    else if (sort?.outcome === "left") manquants.push({ ticket: ticket.ticket, dit: `#${ticket.ticket} sorti du rail (${nomAbandon(sort.reason ?? "")})` });
+    else if (!ticket.open) manquants.push({ ticket: ticket.ticket, dit: `#${ticket.ticket} closed without a delivery` });
+    else if (sort?.outcome === "left") manquants.push({ ticket: ticket.ticket, dit: `#${ticket.ticket} left the rail (${nomAbandonEn(sort.reason ?? "")})` });
   }
   return { total: tickets.length, servis, manquants, toutServi: tickets.length > 0 && servis.length === tickets.length };
 }

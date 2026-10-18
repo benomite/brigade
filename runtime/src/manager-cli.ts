@@ -28,7 +28,7 @@ import { reactionsDuManager, type ReactionDeTicket } from "./projections/reactio
 import { sessionEnCours } from "./projections/sessions.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run manager -- [on | off | return <n° d'issue> | backlog | upstream]";
+const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run manager -- [on | off | return <issue number> | backlog | upstream]";
 const AUTEUR = "chef";
 const DECISIONS_MONTREES = 15;
 const ECARTEES_MONTREES = 10;
@@ -51,33 +51,33 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
       case "split": {
         const tickets = ticketsDEpique(journal.base, epique.epic);
         const nes = tickets.filter((ticket) => ticket.index !== null && ticket.fired).length;
-        if (!epique.done) return `découpage en cours, ${nes}/${epique.tickets.length} tickets créés et lancés — ${epique.reason}`;
+        if (!epique.done) return `split under way, ${nes}/${epique.tickets.length} tickets created and fired — ${epique.reason}`;
         const servis = tickets.filter((ticket) => sortDuTicket(journal.base, ticket.ticket)?.outcome === "served").length;
-        return `découpée, ${servis}/${tickets.length} servi${servis > 1 ? "s" : ""} (${tickets.map((ticket) => `#${ticket.ticket}`).join(", ")}) — ${epique.reason}`;
+        return `split, ${servis}/${tickets.length} served (${tickets.map((ticket) => `#${ticket.ticket}`).join(", ")}) — ${epique.reason}`;
       }
       case "asked":
-        return `QUESTION POSÉE, attend ta réponse sur l'épique — ${epique.reason}`;
+        return `QUESTION ASKED, awaits your answer on the epic — ${epique.reason}`;
       case "skipped":
-        return `déjà découpée, aucun ticket créé — ${epique.reason}`;
+        return `already split, no ticket created — ${epique.reason}`;
       case "failed":
-        return `découpage illisible — ${epique.reason}`;
+        return `unreadable split — ${epique.reason}`;
     }
   }
 
   // Ce que le manager a fait d'un ticket que la pass a jugé rouge, et pourquoi.
   function decrireReaction(reaction: ReactionDeTicket): string {
     const dit = (calibrage: { model: string; effort: string }) => `${calibrage.model} / ${calibrage.effort}`;
-    const apres = `après ${reaction.returns} renvoi${reaction.returns > 1 ? "s" : ""}`;
+    const apres = `after ${reaction.returns} return${reaction.returns > 1 ? "s" : ""}`;
     switch (reaction.choice) {
       case "retry":
-        return `second renvoi au même calibrage (${dit(reaction.from)}) — ${reaction.reason}`;
+        return `second return at the same calibration (${dit(reaction.from)}) — ${reaction.reason}`;
       case "raise":
-        if (reaction.raised && !reaction.applied) return `${apres}, montée de ${dit(reaction.from)} à ${dit(reaction.to ?? reaction.from)} abandonnée : recalibré par le chef entre-temps — ${reaction.reason}`;
-        return `${apres}, calibrage monté de ${dit(reaction.from)} à ${dit(reaction.to ?? reaction.from)} — ${reaction.reason}`;
+        if (reaction.raised && !reaction.applied) return `${apres}, raise from ${dit(reaction.from)} to ${dit(reaction.to ?? reaction.from)} dropped: recalibrated by the chef in the meantime — ${reaction.reason}`;
+        return `${apres}, calibration raised from ${dit(reaction.from)} to ${dit(reaction.to ?? reaction.from)} — ${reaction.reason}`;
       case "split":
-        return `${apres}, redécoupé — ${reaction.reason}`;
+        return `${apres}, split again — ${reaction.reason}`;
       case "escalate":
-        return `${apres}, remonté au chef — ${reaction.reason}${reaction.proposal === null ? "" : ` Proposé : ${reaction.proposal}`}`;
+        return `${apres}, escalated to the chef — ${reaction.reason}${reaction.proposal === null ? "" : ` Proposed: ${reaction.proposal}`}`;
     }
   }
 
@@ -87,24 +87,24 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
     ligne(
       "manager",
       etat === null
-        ? "ÉTEINT — jamais allumé : aucune issue n'est jugée, `fire` et le calibrage se posent à la main"
+        ? "OFF — never turned on: no issue is judged, `fire` and the calibration are set by hand"
         : etat.active
-          ? `ALLUMÉ depuis le ${etat.since} (par ${etat.by}) — il juge les issues ouvertes, pose \`fire\` et le calibrage`
-          : `ÉTEINT depuis le ${etat.since} (par ${etat.by}) — aucune issue n'est jugée, ce qu'il a posé reste posé`,
+          ? `ON since ${etat.since} (by ${etat.by}) — it judges the open issues, sets \`fire\` and the calibration`
+          : `OFF since ${etat.since} (by ${etat.by}) — no issue is judged, what it set stays set`,
     );
     const decisions = decisionsDuManager(base, DECISIONS_MONTREES);
-    ligne("dernières décisions", decisions.length === 0 ? "aucune" : "");
+    ligne("latest decisions", decisions.length === 0 ? "none" : "");
     for (const issue of decisions) dire(`  ${issue.at}  #${issue.ticket}  ${decrire(issue)}`);
     const ecartees = ecarteesDuManager(base, ECARTEES_MONTREES);
     const remises = remisesEnAttente(base);
-    ligne("écartées", ecartees.length + remises.length === 0 ? "aucune" : "");
-    for (const remise of remises) dire(`  ${remise.at}  #${remise.ticket}  rendue au manager, pas encore rejugée — il la rejuge à son prochain réveil, s'il est allumé`);
+    ligne("set aside", ecartees.length + remises.length === 0 ? "none" : "");
+    for (const remise of remises) dire(`  ${remise.at}  #${remise.ticket}  handed back to the manager, not judged again yet — it judges it again at its next wake-up, if it is on`);
     for (const issue of ecartees) dire(`  ${issue.at}  #${issue.ticket}  ${decrireEcart(issue)}`);
     const epiques = decoupagesDuManager(base, EPIQUES_MONTREES);
-    ligne("épiques", epiques.length === 0 ? "aucune" : "");
+    ligne("epics", epiques.length === 0 ? "none" : "");
     for (const epique of epiques) dire(`  ${epique.at}  #${epique.epic}  ${decrireEpique(journal, epique)}`);
     const reactions = reactionsDuManager(base, REACTIONS_MONTREES);
-    ligne("réactions", reactions.length === 0 ? "aucune" : "");
+    ligne("reactions", reactions.length === 0 ? "none" : "");
     for (const reaction of reactions) dire(`  ${reaction.at}  #${reaction.ticket}  ${decrireReaction(reaction)}`);
   }
 
@@ -114,18 +114,18 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
     const { base } = journal;
     return base.transaction(() => {
       const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
-      if (!projet) echouer(1, "journal vide : le runtime n'a jamais démarré sur ce répertoire d'état");
+      if (!projet) echouer(1, "empty log: the runtime has never started on this state directory");
       const etat = etatDuManager(base);
-      const absent = sessionEnCours(base) ? "" : " (aucun runtime ne tourne : la commande vaudra à son prochain démarrage)";
+      const absent = sessionEnCours(base) ? "" : " (no runtime is running: the command will take effect at its next start)";
 
       if (commande === "on") {
-        if (etat?.active) return `manager déjà allumé depuis le ${etat.since}`;
+        if (etat?.active) return `manager already on since ${etat.since}`;
         journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "manager.enabled", payload: {} });
-        return `manager allumé : il juge les issues ouvertes, pose \`fire\` et le calibrage sur celles qui sont exécutables, découpe les épiques en tickets, et dit pourquoi sur les autres — une issue \`blocked-on-human\` ou \`hors-cuisine\` n'est jamais jugée${absent}`;
+        return `manager on: it judges the open issues, sets \`fire\` and the calibration on those that are executable, splits epics into tickets, and says why on the others — an issue carrying \`blocked-on-human\` or \`hors-cuisine\` is never judged${absent}`;
       }
-      if (!etat?.active) return "rien à éteindre : le manager n'est pas allumé";
+      if (!etat?.active) return "nothing to turn off: the manager is not on";
       journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "manager.disabled", payload: {} });
-      return `manager éteint : plus aucune issue n'est jugée — ce qu'il a posé reste posé ; un jugement en cours va à son terme, mais sa décision ne sera posée que rallumé${absent}`;
+      return `manager off: no issue is judged any more — what it set stays set; a judgment under way runs to its end, but its decision is only set once it is back on${absent}`;
     });
   }
 
@@ -135,24 +135,24 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
     const { base } = journal;
     return base.transaction(() => {
       const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
-      if (!projet) echouer(1, "journal vide : le runtime n'a jamais démarré sur ce répertoire d'état");
+      if (!projet) echouer(1, "empty log: the runtime has never started on this state directory");
       const suite = !etatDuManager(base)?.active
-        ? " (le manager est éteint : elle sera rejugée quand tu l'allumeras)"
+        ? " (the manager is off: it will be judged again when you turn it on)"
         : sessionEnCours(base)
           ? ""
-          : " (aucun runtime ne tourne : elle sera rejugée à son prochain démarrage)";
-      if (remiseDe(base, numero)) return { fait: true, message: `#${numero} est déjà rendue au manager : il la rejuge à son prochain réveil${suite}` };
+          : " (no runtime is running: it will be judged again at its next start)";
+      if (remiseDe(base, numero)) return { fait: true, message: `#${numero} is already handed back to the manager: it judges it again at its next wake-up${suite}` };
       const issue = issueDuManager(base, numero);
-      if (!issue) return { fait: false, message: `rien à rendre : le manager n'a rien décidé sur #${numero} — une issue ouverte qu'il n'a jamais vue est jugée d'elle-même` };
-      if (issue.decision !== "aside") return { fait: false, message: `rien à rendre : #${numero} n'est pas écartée — ${decrire(issue)}` };
+      if (!issue) return { fait: false, message: `nothing to hand back: the manager has decided nothing on #${numero} — an open issue it has never seen is judged on its own` };
+      if (issue.decision !== "aside") return { fait: false, message: `nothing to hand back: #${numero} is not set aside — ${decrire(issue)}` };
       if (issue.reason !== ("chef-changed" satisfies Ecart)) {
         const { motif, geste } = ecart(issue);
-        return { fait: false, message: `#${numero} n'est pas rendue : ${motif}. ${geste === null ? "Rien ne la rend au manager." : `Ce qui lève cet écart : ${geste}.`}` };
+        return { fait: false, message: `#${numero} is not handed back: ${motif}. ${geste === null ? "Nothing hands it back to the manager." : `What lifts this: ${geste}.`}` };
       }
       journal.ajouter({ project: projet, ticket: numero, author: AUTEUR, type: "manager.handed-back", payload: {} });
       return {
         fait: true,
-        message: `#${numero} rendue au manager : il la rejuge à neuf — il retire le calibrage qu'il y avait posé, puis pose \`fire\` et celui du nouveau jugement, ou dit pourquoi ce n'est pas un ticket exécutable. Une remise vaut pour un jugement${suite}`,
+        message: `#${numero} handed back to the manager: it judges it anew — it removes the calibration it had set, then sets \`fire\` and that of the new judgment, or says why it is not an executable ticket. A handing back is good for one judgment${suite}`,
       };
     });
   }
@@ -174,10 +174,10 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
     try {
       const sondage = await github.ouvertes();
       // Un GitHub ouvert à l'instant n'a pas d'ETag : la liste est toujours rendue — sans elle, rien n'est compté.
-      if (sondage.inchange) throw new Error("GitHub n'a pas rendu la liste des issues ouvertes");
+      if (sondage.inchange) throw new Error("GitHub did not return the list of open issues");
       return { depot, issues: sondage.issues };
     } catch (erreur) {
-      echouer(1, `${quoi(depot)} n'a pas été lu : ${erreur instanceof Error ? erreur.message : String(erreur)} — ce n'est pas « aucune issue »`);
+      echouer(1, `${quoi(depot)} was not read: ${erreur instanceof Error ? erreur.message : String(erreur)} — this is not “no issue”`);
     } finally {
       github.fermer();
     }
@@ -187,9 +187,9 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
   // et celles qui portent `blocked-on-human`, jamais jugées. Les nombres
   // s'écrivent en chiffres nus, en tête de leur mot : un programme les lit.
   async function compter(): Promise<void> {
-    const { depot, issues } = await lireOuvertes((depot) => `le backlog de ${depot}`);
+    const { depot, issues } = await lireOuvertes((depot) => `the backlog of ${depot}`);
     const retenues = issues.filter((issue) => issue.labels.includes("blocked-on-human" satisfies Ecart)).length;
-    ligne("backlog", `${issues.length} issue${issues.length > 1 ? "s" : ""} ouverte${issues.length > 1 ? "s" : ""}, dont ${retenues} porte${retenues > 1 ? "nt" : ""} \`blocked-on-human\` — lu à l'instant sur GitHub (${depot})`);
+    ligne("backlog", `${issues.length} open issue${issues.length > 1 ? "s" : ""}, of which ${retenues} carr${retenues > 1 ? "y" : "ies"} \`blocked-on-human\` — read just now on GitHub (${depot})`);
   }
 
   // Ce qui n'est pas encore sur le rail (amont.ts) : les issues ouvertes que le
@@ -197,13 +197,13 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
   // JSON sur une ligne, pour un programme — l'app : docs/runtime/manager.md, « En amont du rail ».
   // GitHub d'abord : le journal n'est ouvert, en lecture seule, que le temps de ranger.
   async function enAmontDuRail(repertoireEtat: string): Promise<void> {
-    const { depot, issues } = await lireOuvertes((depot) => `ce qui est en amont du rail de ${depot}`);
+    const { depot, issues } = await lireOuvertes((depot) => `what is upstream of the rail of ${depot}`);
     const lu = new Date().toISOString();
     const journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
     try {
       dire(JSON.stringify({ lu, depot, issues: enAmont(journal.base, issues) }));
     } catch (erreur) {
-      if (journalPasRejoue(erreur)) echouer(1, "ce journal n'a pas encore l'état du manager : redémarrer le runtime, qui le recalcule");
+      if (journalPasRejoue(erreur)) echouer(1, "this log does not hold the manager's state yet: restart the runtime, which recomputes it");
       throw erreur;
     } finally {
       journal.fermer();
@@ -214,14 +214,14 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
   // Elle ne lit pas le journal : elle n'en réclame pas le répertoire.
   if (commande === "backlog" && args.length === 1) return compter();
   const repertoireEtat = env.BRIGADE_STATE_DIR;
-  if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
+  if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR is not set\n${USAGE}`);
   const montre = args.length === 0;
   const numero = commande === "return" && args.length === 2 && /^[1-9][0-9]*$/.test(args[1] ?? "") ? Number(args[1]) : null;
   const amont = commande === "upstream" && args.length === 1;
   if (!montre && !amont && numero === null && (args.length !== 1 || (commande !== "on" && commande !== "off"))) echouer(2, USAGE);
   // Une commande ouvre le journal en écriture : sans ce contrôle, elle en
   // créerait un là où il n'y en a pas.
-  if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `aucun journal dans ${repertoireEtat}`);
+  if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `no log in ${repertoireEtat}`);
   if (amont) return enAmontDuRail(repertoireEtat);
 
   const journal = ouvrirJournal(repertoireEtat, { lectureSeule: montre });
@@ -236,7 +236,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant le manager.
     if (journalPasRejoue(erreur)) {
-      echouer(1, "ce journal n'a pas encore l'état du manager : redémarrer le runtime, qui le recalcule");
+      echouer(1, "this log does not hold the manager's state yet: restart the runtime, which recomputes it");
     }
     throw erreur;
   } finally {

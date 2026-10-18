@@ -63,10 +63,10 @@ function lu(sortie: string): Grants {
 const accorder = (payload: { until?: string; uses?: number } = {}) => ({ type: "grant.activated", payload: { action: "merge", ...payload } }) as const;
 const revoquer = { type: "grant.revoked", payload: { action: "merge" } } as const;
 const user = (numero: number, sha: string, verdict: number) => ({ type: "grant.used", payload: { action: "merge", pr: `https://github.com/benomite/brigade/pull/${numero}`, number: numero, sha, base: "v2", verdict } }) as const;
-const AUCUN = { dit: "aucun", lignes: [], illisibles: [] };
+const AUCUN = { dit: "none", lignes: [], illisibles: [] };
 const INTERDITS = [
-  { action: "identifiants-max", dit: "lire les identifiants du compte Max" },
-  { action: "acces-prod", dit: "toute action sur la production d'un projet" },
+  { action: "identifiants-max", dit: "read the Max account credentials" },
+  { action: "acces-prod", dit: "any action on a project's production" },
 ];
 
 const lecture = (texte: string): Lecture => ({ projet: "parade", demande: 4, a: "2026-10-13T16:30:02.000Z", sorties: [{ commande: COMMANDE, texte }] });
@@ -80,12 +80,12 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
       {
         action: "merge",
         actif: true,
-        mot: "ACTIF",
+        mot: "ACTIVE",
         depuis: "2026-10-13T09:01:00.000Z",
         par: "chef",
-        echeance: { reste: "encore 2 h 10", jusqua: "jusqu'au 13 oct. 18:40 UTC" },
+        echeance: { reste: "2 h 10 left", jusqua: "until 13 Oct 18:40 UTC" },
         limites: [],
-        dit: "une pass verte est mergée sans toi",
+        dit: "a green pass is merged without you",
       },
     ]);
   });
@@ -100,15 +100,15 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
       return grant.echeance;
     };
 
-    assert.deepEqual(dans(A_16H30), { reste: "encore 6 j", jusqua: "jusqu'au 20 oct. 12:00 UTC" });
-    assert.deepEqual(dans("2026-10-19T09:15:00.000Z"), { reste: "encore 26 h 45", jusqua: "jusqu'au 20 oct. 12:00 UTC" });
+    assert.deepEqual(dans(A_16H30), { reste: "6 d left", jusqua: "until 20 Oct 12:00 UTC" });
+    assert.deepEqual(dans("2026-10-19T09:15:00.000Z"), { reste: "26 h 45 left", jusqua: "until 20 Oct 12:00 UTC" });
   });
 
   test("un grant actif sans échéance : c'est le runtime qui le dit, et l'app ne lui en prête aucune", (t) => {
     const { noter, sortie } = cuisine(t);
     noter(accorder());
 
-    assert.deepEqual(lu(sortie()).grants, [{ action: "merge", actif: true, mot: "ACTIF", depuis: "2026-10-13T09:01:00.000Z", par: "chef", limites: ["sans échéance"], dit: "une pass verte est mergée sans toi" }]);
+    assert.deepEqual(lu(sortie()).grants, [{ action: "merge", actif: true, mot: "ACTIVE", depuis: "2026-10-13T09:01:00.000Z", par: "chef", limites: ["no deadline"], dit: "a green pass is merged without you" }]);
   });
 
   test("un grant compté en usages : ce qu'il en reste se lit mot pour mot, à côté de l'échéance", (t) => {
@@ -119,11 +119,11 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
     const [grant] = lu(sortie()).grants;
 
     assert.ok(grant !== undefined && "mot" in grant);
-    assert.deepEqual(grant.echeance, { reste: "encore 2 h 10", jusqua: "jusqu'au 13 oct. 18:40 UTC" });
-    assert.deepEqual(grant.limites, ["encore 10 usages, dont 1 retenu par un merge en cours"]);
+    assert.deepEqual(grant.echeance, { reste: "2 h 10 left", jusqua: "until 13 Oct 18:40 UTC" });
+    assert.deepEqual(grant.limites, ["10 uses left, of which 1 held by a merge under way"]);
   });
 
-  test("un grant qui va s'éteindre : le runtime le dit `BIENTÔT ÉTEINT`, et l'app le pose avec son mot", (t) => {
+  test("un grant qui va s'éteindre : le runtime le dit `EXPIRING SOON`, et l'app le pose avec son mot", (t) => {
     const { noter, sortie } = cuisine(t);
     noter(accorder({ until: "2026-10-13T17:00:00.000Z" }));
 
@@ -131,8 +131,8 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
 
     assert.ok(grant !== undefined && "mot" in grant);
     assert.equal(grant.actif, true);
-    assert.equal(grant.bientot, "BIENTÔT ÉTEINT");
-    assert.deepEqual(grant.echeance, { reste: "encore 30 min", jusqua: "jusqu'au 13 oct. 17:00 UTC" });
+    assert.equal(grant.bientot, "EXPIRING SOON");
+    assert.deepEqual(grant.echeance, { reste: "30 min left", jusqua: "until 13 Oct 17:00 UTC" });
   });
 
   test("sans grant actif — jamais donné : il est absent, sans date ni auteur, et rien ne lui reste", (t) => {
@@ -140,7 +140,7 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
     // Un journal qui n'a jamais vu de grant : il a d'autres faits, pas celui-là.
     noter({ type: "manager.enabled", payload: {} });
 
-    assert.deepEqual(lu(sortie()).grants, [{ action: "merge", actif: false, mot: "ABSENT", limites: [], dit: "jamais donné : la pass s'arrête à la PR ouverte, rien n'est mergé" }]);
+    assert.deepEqual(lu(sortie()).grants, [{ action: "merge", actif: false, mot: "ABSENT", limites: [], dit: "never given: the pass stops at the open PR, nothing is merged" }]);
   });
 
   test("sans grant actif — révoqué : il ne l'est plus, depuis quand et par qui", (t) => {
@@ -148,7 +148,7 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
     noter(accorder());
     noter(revoquer, null, "benoit");
 
-    assert.deepEqual(lu(sortie()).grants, [{ action: "merge", actif: false, mot: "RÉVOQUÉ", depuis: "2026-10-13T09:02:00.000Z", par: "benoit", limites: [], dit: "la pass s'arrête à la PR ouverte" }]);
+    assert.deepEqual(lu(sortie()).grants, [{ action: "merge", actif: false, mot: "REVOKED", depuis: "2026-10-13T09:02:00.000Z", par: "benoit", limites: [], dit: "the pass stops at the open PR" }]);
   });
 
   test("une échéance dépassée : le grant n'est plus actif, il s'est éteint seul à son échéance — et aucune durée ne lui reste", (t) => {
@@ -161,20 +161,20 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
 
     assert.ok(avant !== undefined && "mot" in avant);
     assert.equal(avant.actif, true);
-    assert.deepEqual(avant.echeance, { reste: "encore 30 min", jusqua: "jusqu'au 13 oct. 12:00 UTC" });
+    assert.deepEqual(avant.echeance, { reste: "30 min left", jusqua: "until 13 Oct 12:00 UTC" });
     assert.deepEqual(apres, {
       action: "merge",
       actif: false,
-      mot: "ÉTEINT SEUL",
+      mot: "LAPSED",
       depuis: "2026-10-13T12:00:00.000Z",
       limites: [],
-      dit: "son échéance est passée (accordé par chef) : la pass s'arrête à la PR ouverte (le runtime l'écrira au journal à son prochain passage)",
+      dit: "its deadline has passed (enabled by chef): the pass stops at the open PR (the runtime will write it to the log at its next round)",
     });
 
     // Constatée et écrite au journal, l'extinction se lit de même.
     noter({ type: "grant.expired", payload: { action: "merge", cause: "until", since: "2026-10-13T12:00:00.000Z" } }, null, "runtime");
     const [ecrite] = lu(sortie()).grants;
-    assert.deepEqual(ecrite, { action: "merge", actif: false, mot: "ÉTEINT SEUL", depuis: "2026-10-13T12:00:00.000Z", limites: [], dit: "son échéance est passée (accordé par chef) : la pass s'arrête à la PR ouverte" });
+    assert.deepEqual(ecrite, { action: "merge", actif: false, mot: "LAPSED", depuis: "2026-10-13T12:00:00.000Z", limites: [], dit: "its deadline has passed (enabled by chef): the pass stops at the open PR" });
   });
 
   test("ses derniers usages, le plus récent d'abord : l'issue, la PR, le commit, le verdict, et ce que le merge est devenu", (t) => {
@@ -187,14 +187,14 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
     assert.deepEqual(lu(sortie()).usages, {
       dit: "",
       lignes: [
-        { a: "2026-10-13T09:04:00.000Z", ticket: 19, action: "merge", base: "v2", pr: "https://github.com/benomite/brigade/pull/54", commit: "9c2d4e1", verdict: "verdict n° 14", suite: "merge en cours" },
-        { a: "2026-10-13T09:02:00.000Z", ticket: 18, action: "merge", base: "v2", pr: "https://github.com/benomite/brigade/pull/53", commit: "4be1f07", verdict: "verdict n° 12", suite: "mergée" },
+        { a: "2026-10-13T09:04:00.000Z", ticket: 19, action: "merge", base: "v2", pr: "https://github.com/benomite/brigade/pull/54", commit: "9c2d4e1", verdict: "verdict no. 14", suite: "merge under way" },
+        { a: "2026-10-13T09:02:00.000Z", ticket: 18, action: "merge", base: "v2", pr: "https://github.com/benomite/brigade/pull/53", commit: "4be1f07", verdict: "verdict no. 12", suite: "merged" },
       ],
       illisibles: [],
     });
   });
 
-  test("un grant qui n'a jamais servi : aucun usage, et c'est le mot du runtime qui le dit — « aucun »", (t) => {
+  test("un grant qui n'a jamais servi : aucun usage, et c'est le mot du runtime qui le dit — « none »", (t) => {
     const { noter, sortie } = cuisine(t);
     noter(accorder());
 
@@ -205,7 +205,7 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
     const { noter, sortie } = cuisine(t);
     noter(accorder());
     // Une demande refusée s'écrit dans les derniers gestes : elle n'ajoute rien à la liste, et n'en retire rien.
-    noter({ type: "grant.refused", payload: { action: "acces-prod", line: "toute action sur la production d'un projet" } });
+    noter({ type: "grant.refused", payload: { action: "acces-prod", line: "any action on a project's production" } });
 
     const { interdits } = lu(sortie());
 
@@ -221,8 +221,38 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
 
     const grants = lu(sortie());
 
-    assert.equal(grants.bilan, "sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte");
+    assert.equal(grants.bilan, "without a grant, 1 green delivery stopped: 0 merged by hand, 0 closed without merge — no disagreement —, 1 still open");
     assert.deepEqual(grants.usages, AUCUN);
+  });
+
+  test("la sortie d'une box d'avant #932 se lit encore : mêmes champs, mots français tels que le runtime les écrivait", () => {
+    const sortie = [
+      "grant merge           ACTIF depuis le 2026-10-13T09:01:00.000Z (par chef) — BIENTÔT ÉTEINT — encore 30 min (jusqu'au 13 oct. 17:00 UTC) · encore 3 usages : une pass verte est mergée sans toi",
+      "jamais accordé        identifiants-max — lire les identifiants du compte Max",
+      "derniers usages       ",
+      "  2026-10-13T09:04:00.000Z  #19  merge sur v2  https://github.com/benomite/brigade/pull/54  9c2d4e1  verdict n° 14  mergée",
+      "sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte",
+      "",
+    ].join("\n");
+
+    const lus = lu(sortie);
+
+    assert.deepEqual(lus.grants, [
+      {
+        action: "merge",
+        actif: true,
+        mot: "ACTIF",
+        depuis: "2026-10-13T09:01:00.000Z",
+        par: "chef",
+        bientot: "BIENTÔT ÉTEINT",
+        echeance: { reste: "encore 30 min", jusqua: "jusqu'au 13 oct. 17:00 UTC" },
+        limites: ["encore 3 usages"],
+        dit: "une pass verte est mergée sans toi",
+      },
+    ]);
+    assert.deepEqual(lus.usages?.lignes.map(({ ticket, verdict, suite }) => [ticket, verdict, suite]), [[19, "verdict n° 14", "mergée"]]);
+    assert.equal(lus.bilan?.startsWith("sans grant, 1 livraison"), true);
+    assert.equal(lu("grant merge           ÉTEINT SEUL depuis le 2026-10-13T12:00:00.000Z — son échéance est passée\n").grants[0]?.actif, false);
   });
 
   test("une ligne qui n'a pas la forme reste telle quelle, à part — elle ne fait perdre aucun des usages qui suivent", () => {
@@ -244,7 +274,7 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
 
     const { interdits, usages } = lu(sortie);
 
-    assert.deepEqual(interdits, { dit: "", lignes: INTERDITS, illisibles: ["                      une ligne sans son tiret"] });
+    assert.deepEqual(interdits, { dit: "", lignes: [{ action: "identifiants-max", dit: "lire les identifiants du compte Max" }, { action: "acces-prod", dit: "toute action sur la production d'un projet" }], illisibles: ["                      une ligne sans son tiret"] });
     assert.deepEqual(usages?.lignes.map(({ ticket, suite }) => [ticket, suite]), [
       [19, "mergée"],
       [18, "non mergée"],
@@ -292,13 +322,13 @@ describe("ce que l'onglet Grants pose au-dessus du texte", () => {
     assert.deepEqual([vu.projet, vu.demande, vu.a], ["parade", 4, "2026-10-13T16:30:02.000Z"]);
     const [grant] = vu.grants;
     assert.ok(grant !== undefined && "mot" in grant);
-    assert.deepEqual([grant.action, grant.mot, grant.ton, grant.commandable], ["merge", "ACTIF", "vert", true]);
+    assert.deepEqual([grant.action, grant.mot, grant.ton, grant.commandable], ["merge", "ACTIVE", "vert", true]);
     // L'échéance, dans l'ordre où elle se pose : ce qu'il reste, puis jusqu'à quand.
     assert.deepEqual(Object.entries(grant.echeance ?? {}), [
-      ["reste", "encore 2 h 10"],
-      ["jusqua", "jusqu'au 13 oct. 18:40 UTC"],
+      ["reste", "2 h 10 left"],
+      ["jusqua", "until 13 Oct 18:40 UTC"],
     ]);
-    assert.deepEqual(grant.usages, { lignes: [{ a: "2026-10-13T09:02:00.000Z", ticket: 18, action: "merge", base: "v2", pr: "https://github.com/benomite/brigade/pull/53", commit: "4be1f07", verdict: "verdict n° 12", suite: "merge en cours" }], illisibles: [] });
+    assert.deepEqual(grant.usages, { lignes: [{ a: "2026-10-13T09:02:00.000Z", ticket: 18, action: "merge", base: "v2", pr: "https://github.com/benomite/brigade/pull/53", commit: "4be1f07", verdict: "verdict no. 12", suite: "merge under way" }], illisibles: [] });
     assert.deepEqual(vu.interdits, { lignes: INTERDITS, illisibles: [] });
     assert.equal(vu.bilan, undefined);
   });
@@ -314,16 +344,16 @@ describe("ce que l'onglet Grants pose au-dessus du texte", () => {
       return [grant.mot, grant.ton];
     };
 
-    assert.deepEqual(ton((noter) => noter(accorder())), ["ACTIF", "vert"]);
-    assert.deepEqual(ton((noter) => noter(accorder({ until: "2026-10-13T17:00:00.000Z" }))), ["ACTIF", "jaune"]);
-    assert.deepEqual(ton((noter) => noter(accorder({ until: "2026-10-13T12:00:00.000Z" }))), ["ÉTEINT SEUL", "jaune"]);
+    assert.deepEqual(ton((noter) => noter(accorder())), ["ACTIVE", "vert"]);
+    assert.deepEqual(ton((noter) => noter(accorder({ until: "2026-10-13T17:00:00.000Z" }))), ["ACTIVE", "jaune"]);
+    assert.deepEqual(ton((noter) => noter(accorder({ until: "2026-10-13T12:00:00.000Z" }))), ["LAPSED", "jaune"]);
     assert.deepEqual(ton((noter) => noter({ type: "manager.enabled", payload: {} })), ["ABSENT", "gris"]);
     assert.deepEqual(
       ton((noter) => {
         noter(accorder());
         noter(revoquer);
       }),
-      ["RÉVOQUÉ", "gris"],
+      ["REVOKED", "gris"],
     );
   });
 
@@ -334,15 +364,15 @@ describe("ce que l'onglet Grants pose au-dessus du texte", () => {
     const vu = voir(lecture(sortie()));
 
     assert.ok("grants" in vu);
-    assert.deepEqual(vu.grants.map((grant) => grant.usages), [{ lignes: [], illisibles: [], vide: "aucun" }]);
+    assert.deepEqual(vu.grants.map((grant) => grant.usages), [{ lignes: [], illisibles: [], vide: "none" }]);
   });
 
   test("une section que la sortie n'a pas se dit « pas lue », jamais « aucun »", () => {
     const vu = voir(lecture("grant merge           RÉVOQUÉ depuis le 2026-10-13T09:02:00.000Z (par benoit) — la pass s'arrête à la PR ouverte\n"));
 
     assert.ok("grants" in vu);
-    assert.match(vu.grants[0]?.usages.vide ?? "", /^not read: the output has no `derniers usages` line\. This is not “none”/);
-    assert.match(vu.interdits.vide ?? "", /^not read: the output has no `jamais accordé` line\. This is not “nothing”/);
+    assert.match(vu.grants[0]?.usages.vide ?? "", /^not read: the output has no `latest uses` line\. This is not “none”/);
+    assert.match(vu.interdits.vide ?? "", /^not read: the output has no `never granted` line\. This is not “nothing”/);
   });
 
   test("des usages que l'app n'a pas su lire ne font pas dire « aucun » au grant : ils restent à part, tels quels", () => {
@@ -352,7 +382,7 @@ describe("ce que l'onglet Grants pose au-dessus du texte", () => {
     const vu = voir(lecture(`${tete}\nderniers usages       \n${forme}\n`));
 
     assert.ok("grants" in vu);
-    assert.deepEqual(vu.grants[0]?.usages, { lignes: [], illisibles: [], vide: "not read: none of the lines under `derniers usages` has the expected form. This is not “none” — they are shown further down, as they are" });
+    assert.deepEqual(vu.grants[0]?.usages, { lignes: [], illisibles: [], vide: "not read: none of the lines under `latest uses` has the expected form. This is not “none” — they are shown further down, as they are" });
     assert.deepEqual(vu.illisibles, [forme]);
   });
 

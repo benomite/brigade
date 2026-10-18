@@ -112,6 +112,17 @@ export function direReglages({ calibration, cooksBelow, tokens, removedLines }: 
   ].join(" · ");
 }
 
+// Les mêmes, en anglais : ce que dit `station`.
+export function direReglagesEn({ calibration, cooksBelow, tokens, removedLines }: ReglagesDeFermeture): string {
+  const compte = (combien: number, mot: string) => `${combien.toLocaleString("en-US")} ${mot}${combien > 1 ? "s" : ""}`;
+  return [
+    calibration === null ? "closer not set" : `closer on \`${calibration.model}\` / \`${calibration.effort}\``,
+    `leaves below ${compte(cooksBelow, "cook")} in flight`,
+    `${tokens.toLocaleString("en-US")} tokens at most`,
+    `${compte(removedLines, "line")} removed at most`,
+  ].join(" · ");
+}
+
 // La fin d'une passe, telle que le chef la lit.
 export function direFin({ outcome, observed, limit, pr, removedLines, files, kept, detail }: Extract<FaitFermeture, { type: "closing.ended" }>["payload"]): string {
   const mesure = (unite: (valeur: number) => string) => `${observed == null ? "?" : unite(observed)} pour un plafond de ${limit == null ? "?" : unite(limit)}`;

@@ -17,7 +17,7 @@ import { alerteDeSession } from "./projections/renouvellement.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import { stationsDeconnectees } from "./projections/stations.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run guardrails -- [stop | resume]";
+const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run guardrails -- [stop | resume]";
 const AUTEUR = "chef";
 const ARRETS_MONTRES = 10;
 
@@ -28,60 +28,60 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     throw new Sortie(code);
   }
 
-  const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
-  const arrondi = (valeur: number) => valeur.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
+  const nombre = (valeur: number) => valeur.toLocaleString("en-US");
+  const arrondi = (valeur: number) => valeur.toLocaleString("en-US", { maximumFractionDigits: 1 });
   const duree = (ms: number) => (ms >= 60_000 ? `${arrondi(ms / 60_000)} min` : `${arrondi(ms / 1000)} s`);
   const pluriel = (combien: number, mot: string) => `${combien} ${mot}${combien > 1 ? "s" : ""}`;
   const ligne = (titre: string, valeur: string) => dire(`${titre.padEnd(22)}${valeur}`);
 
   function decrirePlafonds(plafonds: Plafonds): string {
     return [
-      `${nombre(plafonds.turns)} tours`,
+      `${nombre(plafonds.turns)} turns`,
       duree(plafonds.durationMs),
       `${nombre(plafonds.tokens)} tokens`,
-      `inactivité ${duree(plafonds.idleMs)}`,
+      `idle ${duree(plafonds.idleMs)}`,
     ].join(" · ");
   }
 
   function decrireArret(arret: Arret): string {
     const { limit, observed } = arret;
     const mesure = (unite: (valeur: number) => string) =>
-      `${observed === null ? "?" : unite(observed)} pour ${limit === null ? "?" : unite(limit)}`;
+      `${observed === null ? "?" : unite(observed)} for ${limit === null ? "?" : unite(limit)}`;
     switch (arret.reason) {
       case "turns":
-        return `plafond de tours dépassé : ${mesure(nombre)}`;
+        return `turns cap exceeded: ${mesure(nombre)}`;
       case "tokens":
-        return `plafond de tokens dépassé : ${mesure(nombre)}`;
+        return `tokens cap exceeded: ${mesure(nombre)}`;
       case "duration":
-        return `plafond de durée dépassé : ${mesure(duree)}`;
+        return `duration cap exceeded: ${mesure(duree)}`;
       case "idle":
-        return `inactif : rien produit depuis ${observed === null ? "?" : duree(observed)} (seuil ${limit === null ? "?" : duree(limit)})`;
+        return `idle: nothing produced for ${observed === null ? "?" : duree(observed)} (threshold ${limit === null ? "?" : duree(limit)})`;
       case "lease":
-        return `bail échu : aucun progrès dans le worktree depuis ${observed === null ? "?" : duree(observed)} (bail ${limit === null ? "?" : duree(limit)})`;
+        return `lease expired: no progress in the worktree for ${observed === null ? "?" : duree(observed)} (lease ${limit === null ? "?" : duree(limit)})`;
       case "removals":
-        return `plafond de retraits dépassé : ${mesure((lignes) => `${nombre(lignes)} lignes`)}`;
+        return `removals cap exceeded: ${mesure((lignes) => `${nombre(lignes)} lines`)}`;
       case "stop":
-        return "« stop » du chef";
+        return "the chef's “stop”";
     }
   }
 
   function montrer(journal: Journal): void {
     const { base } = journal;
     const etat = etatDesGardeFous(base);
-    ligne("plafonds par ticket", etat.limits ? decrirePlafonds(etat.limits) : "inconnus — le runtime n'a pas encore démarré avec ses garde-fous");
-    ligne("cuisine", etat.stoppedAt === null ? "ouverte" : `ARRÊTÉE par le chef le ${etat.stoppedAt} — « resume » pour relancer`);
+    ligne("caps per ticket", etat.limits ? decrirePlafonds(etat.limits) : "unknown — the runtime has not started with its guardrails yet");
+    ligne("kitchen", etat.stoppedAt === null ? "open" : `STOPPED by the chef on ${etat.stoppedAt} — “resume” to restart`);
     ligne(
-      "disjoncteur",
+      "breaker",
       etat.breakerOpenedAt === null
-        ? `fermé — ${pluriel(etat.failures, "échec")} d'affilée, ouverture à ${etat.breakerThreshold ?? "?"}`
-        : `OUVERT depuis le ${etat.breakerOpenedAt} après ${pluriel(etat.failures, "échec")} d'affilée — plus aucun cook n'est lancé ; « resume » pour le refermer`,
+        ? `closed — ${pluriel(etat.failures, "failure")} in a row, opens at ${etat.breakerThreshold ?? "?"}`
+        : `OPEN since ${etat.breakerOpenedAt} after ${pluriel(etat.failures, "failure")} in a row — no cook is launched any more; “resume” to close it`,
     );
     const cooks = cooksEnCours(base);
-    ligne("cooks en cours", cooks.length === 0 ? "aucun" : String(cooks.length));
+    ligne("cooks running", cooks.length === 0 ? "none" : String(cooks.length));
     // Sans ticket : un jugement du manager.
-    for (const cook of cooks) dire(`  ${cook.ticket === null ? "manager" : `#${cook.ticket}`}  ${cook.run}  lancé le ${cook.launchedAt}`);
+    for (const cook of cooks) dire(`  ${cook.ticket === null ? "manager" : `#${cook.ticket}`}  ${cook.run}  launched ${cook.launchedAt}`);
     const arrets = arretsRecents(base, ARRETS_MONTRES);
-    ligne("derniers arrêts par garde-fou", arrets.length === 0 ? "  aucun" : "");
+    ligne("latest guardrail stops", arrets.length === 0 ? "  none" : "");
     for (const arret of arrets) dire(`  ${arret.at}  ${arret.ticket === null ? "manager" : `#${arret.ticket}`}  ${arret.run}  ${decrireArret(arret)}`);
   }
 
@@ -91,16 +91,16 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     const { base } = journal;
     return base.transaction(() => {
       const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
-      if (!projet) echouer(1, "journal vide : le runtime n'a jamais démarré sur ce répertoire d'état");
+      if (!projet) echouer(1, "empty log: the runtime has never started on this state directory");
       const etat = etatDesGardeFous(base);
       const noter = (type: "kitchen.stopped" | "kitchen.resumed" | "session.reconnected") =>
         journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type, payload: {} });
-      const absent = sessionEnCours(base) ? "" : " (aucun runtime ne tourne : la commande vaudra à son prochain démarrage)";
+      const absent = sessionEnCours(base) ? "" : " (no runtime is running: the command will take effect at its next start)";
 
       if (commande === "stop") {
-        if (etat.stoppedAt !== null) return `cuisine déjà arrêtée depuis le ${etat.stoppedAt}`;
+        if (etat.stoppedAt !== null) return `kitchen already stopped since ${etat.stoppedAt}`;
         noter("kitchen.stopped");
-        return `cuisine arrêtée : les cooks en cours sont arrêtés dans la seconde, plus aucun n'est lancé avant « resume »${absent}`;
+        return `kitchen stopped: the running cooks are stopped within the second, none is launched before “resume”${absent}`;
       }
       // « resume » vaut aussi pour une station dont la connexion Max avait
       // expiré : le chef dit qu'il l'a refaite.
@@ -110,26 +110,26 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
       const annoncee = alerteDeSession(base, new Date()) !== null;
       if (annoncee) noter("session.reconnected");
       if (etat.stoppedAt === null && etat.breakerOpenedAt === null && deconnectees.length === 0) {
-        return annoncee ? "session Max tenue pour renouvelée : son échéance se compte de maintenant" : "rien à reprendre : la cuisine est ouverte et le disjoncteur fermé";
+        return annoncee ? "Max session taken as renewed: its deadline counts from now" : "nothing to resume: the kitchen is open and the breaker closed";
       }
       noter("kitchen.resumed");
       const effets = [
-        annoncee ? "session Max tenue pour renouvelée" : null,
-        etat.stoppedAt === null ? null : "cuisine rouverte",
-        etat.breakerOpenedAt === null ? null : "disjoncteur refermé",
-        deconnectees.length === 0 ? null : `connexion Max tenue pour rétablie (${deconnectees.join(", ")})`,
+        annoncee ? "Max session taken as renewed" : null,
+        etat.stoppedAt === null ? null : "kitchen reopened",
+        etat.breakerOpenedAt === null ? null : "breaker closed again",
+        deconnectees.length === 0 ? null : `Max connection taken as restored (${deconnectees.join(", ")})`,
       ];
-      return `${effets.filter(Boolean).join(", ")} : les cooks peuvent être lancés à nouveau${absent}`;
+      return `${effets.filter(Boolean).join(", ")}: cooks can be launched again${absent}`;
     });
   }
 
   const repertoireEtat = env.BRIGADE_STATE_DIR;
-  if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
+  if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR is not set\n${USAGE}`);
   const [commande] = args;
   if (args.length > 1 || (commande !== undefined && commande !== "stop" && commande !== "resume")) echouer(2, USAGE);
   // Une commande ouvre le journal en écriture : sans ce contrôle, elle en
   // créerait un là où il n'y en a pas.
-  if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `aucun journal dans ${repertoireEtat}`);
+  if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `no log in ${repertoireEtat}`);
 
   const journal = ouvrirJournal(repertoireEtat, { lectureSeule: commande === undefined });
   try {
@@ -139,7 +139,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant les garde-fous.
     if (journalPasRejoue(erreur)) {
-      echouer(1, "ce journal n'a pas encore l'état des garde-fous : redémarrer le runtime, qui le recalcule");
+      echouer(1, "this log does not hold the guardrails' state yet: restart the runtime, which recomputes it");
     }
     throw erreur;
   } finally {

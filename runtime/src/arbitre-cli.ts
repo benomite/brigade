@@ -13,61 +13,61 @@ import { enAnglais } from "./commandes.ts";
 import { ConfigInvalide, NOM_DE_PROJET } from "./runtime.ts";
 
 const USAGE =
-  "usage : BRIGADE_ARBITER_PORT=<port> BRIGADE_ARBITER_STATE_DIR=<répertoire de l'arbitre> npm --prefix runtime run arbiter -- [weight <projet> <entier ≥ 1> | remove <projet>]";
+  "usage: BRIGADE_ARBITER_PORT=<port> BRIGADE_ARBITER_STATE_DIR=<arbiter directory> npm --prefix runtime run arbiter -- [weight <project> <integer ≥ 1> | remove <project>]";
 
 function echouer(code: number, message: string): never {
   console.error(`brigade : ${message}`);
   process.exit(code);
 }
 
-const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
+const nombre = (valeur: number) => valeur.toLocaleString("en-US");
 const pluriel = (combien: number, mot: string) => `${nombre(combien)} ${mot}${combien > 1 ? "s" : ""}`;
 const ligne = (titre: string, valeur: string) => console.log(`${titre.padEnd(24)}${valeur}`);
 
 function decrireProjet(projet: ProjetArbitre): string {
-  const poids = `poids ${projet.poids}`;
-  if (projet.presence === "absent") return [poids, `absent depuis le ${projet.depuis} — ne tient aucune part`].join(" · ");
+  const poids = `weight ${projet.poids}`;
+  if (projet.presence === "absent") return [poids, `absent since ${projet.depuis} — holds no share`].join(" · ");
   if (projet.presence === "muet") {
-    return [poids, `N'A PAS REPARLÉ depuis le ${projet.depuis} — part réservée : ${projet.part ?? 0}, que personne n'emprunte ; \`retirer\` la libère`].join(" · ");
+    return [poids, `HAS NOT SPOKEN AGAIN since ${projet.depuis} — share held: ${projet.part ?? 0}, which nobody borrows; \`remove\` frees it`].join(" · ");
   }
-  const sansArbitre = projet.nonArbitres ? ` (dont ${projet.nonArbitres} ${projet.nonArbitres > 1 ? "partis" : "parti"} sans arbitre)` : "";
+  const sansArbitre = projet.nonArbitres ? ` (of which ${projet.nonArbitres} launched without the arbiter)` : "";
   return [
     poids,
-    `${projet.cooks ?? 0} en cours${sansArbitre}`,
-    `part ${projet.part ?? 0}`,
-    `encore ${projet.encore ?? 0}`,
-    projet.demande ? "des tickets attendent" : "rien n'attend",
-    `consommation des cooks : ${nombre(projet.consommation?.jour ?? 0)} tokens sur 24 h, ${nombre(projet.consommation?.semaine ?? 0)} sur 7 jours`,
+    `${projet.cooks ?? 0} running${sansArbitre}`,
+    `share ${projet.part ?? 0}`,
+    `${projet.encore ?? 0} left`,
+    projet.demande ? "tickets are waiting" : "nothing is waiting",
+    `cooks' consumption: ${nombre(projet.consommation?.jour ?? 0)} tokens over 24 h, ${nombre(projet.consommation?.semaine ?? 0)} over 7 days`,
   ].join(" · ");
 }
 
 function montrer(etat: EtatArbitre, port: number): void {
-  ligne("arbitre", `127.0.0.1:${port} — démarré le ${etat.demarreLe}`);
-  ligne("plafond du compte", `${pluriel(etat.plafond, "cook")} — ${etat.cooks} en cours, tous projets entendus`);
+  ligne("arbiter", `127.0.0.1:${port} — started ${etat.demarreLe}`);
+  ligne("account cap", `${pluriel(etat.plafond, "cook")} — ${etat.cooks} running, all projects heard`);
   ligne(
     "machine",
     etat.saturePar.length === 0
-      ? "aucun projet ne s'en dit retenu"
-      : `SATURÉE d'après ${etat.saturePar.join(", ")} — le plafond effectif est ce qui tourne (${etat.cooks}) : seul un projet sous sa part relance`,
+      ? "no project says it is held back by it"
+      : `SATURATED according to ${etat.saturePar.join(", ")} — the effective cap is what runs (${etat.cooks}): only a project under its share launches again`,
   );
-  ligne("projets", etat.projets.length === 0 ? "aucun — aucun runtime n'a encore parlé" : String(etat.projets.length));
+  ligne("projects", etat.projets.length === 0 ? "none — no runtime has spoken yet" : String(etat.projets.length));
   const large = Math.max(0, ...etat.projets.map((projet) => projet.projet.length));
   for (const projet of etat.projets) console.log(`  ${projet.projet.padEnd(large)}  ${decrireProjet(projet)}`);
   const total = (fenetre: "jour" | "semaine") => etat.projets.reduce((somme, projet) => somme + (projet.consommation?.[fenetre] ?? 0), 0);
-  ligne("consommation des cooks", `${nombre(total("jour"))} tokens sur 24 h, ${nombre(total("semaine"))} sur 7 jours — celle des cooks de tickets que les runtimes redisent, pas celle du compte`);
+  ligne("cooks' consumption", `${nombre(total("jour"))} tokens over 24 h, ${nombre(total("semaine"))} over 7 days — that of the ticket cooks the runtimes report, not the account's`);
 }
 
 function montrerLesReglages(projets: Connu[]): void {
-  ligne("projets connus", projets.length === 0 ? "aucun" : String(projets.length));
+  ligne("known projects", projets.length === 0 ? "none" : String(projets.length));
   const large = Math.max(0, ...projets.map((projet) => projet.projet.length));
-  for (const projet of projets) console.log(`  ${projet.projet.padEnd(large)}  poids ${projet.poids}${projet.partiLe === null ? "" : ` · absent depuis le ${projet.partiLe}`}`);
+  for (const projet of projets) console.log(`  ${projet.projet.padEnd(large)}  weight ${projet.poids}${projet.partiLe === null ? "" : ` · absent since ${projet.partiLe}`}`);
 }
 
 // Les réglages de l'arbitre, là où il les a posés : la commande n'en crée pas.
 function reglages() {
   const repertoire = process.env.BRIGADE_ARBITER_STATE_DIR;
-  if (!repertoire) echouer(2, `BRIGADE_ARBITER_STATE_DIR n'est pas défini\n${USAGE}`);
-  if (!existsSync(cheminReglages(repertoire))) echouer(1, `aucun arbitre n'a tourné dans ${repertoire} : pas de réglages à lire`);
+  if (!repertoire) echouer(2, `BRIGADE_ARBITER_STATE_DIR is not set\n${USAGE}`);
+  if (!existsSync(cheminReglages(repertoire))) echouer(1, `no arbiter has run in ${repertoire}: no settings to read`);
   return ouvrirReglages(repertoire);
 }
 
@@ -82,13 +82,13 @@ if (commande === undefined) {
     if (erreur instanceof ConfigInvalide) echouer(2, erreur.message);
     throw erreur;
   }
-  if (port === null) echouer(2, `BRIGADE_ARBITER_PORT n'est pas défini\n${USAGE}`);
+  if (port === null) echouer(2, `BRIGADE_ARBITER_PORT is not set\n${USAGE}`);
   try {
     montrer(await joindreArbitre(port).etat(), port);
   } catch (erreur) {
     if (!(erreur instanceof ArbitreInjoignable)) throw erreur;
-    ligne("arbitre", `INJOIGNABLE — ${erreur.motif} sur 127.0.0.1:${port}`);
-    ligne("", "chaque projet lance au plus un cook à la fois, sans arbitrage (mode dégradé), jusqu'à son retour");
+    ligne("arbiter", `UNREACHABLE — ${erreur.motif} on 127.0.0.1:${port}`);
+    ligne("", "each project launches at most one cook at a time, with no arbitration (degraded mode), until it is back");
     // Ce qui reste lisible sans lui : ses réglages, s'ils sont à portée.
     const repertoire = process.env.BRIGADE_ARBITER_STATE_DIR;
     if (repertoire && existsSync(cheminReglages(repertoire))) {
@@ -102,16 +102,16 @@ if (commande === undefined) {
     process.exit(1);
   }
 } else if (commande === "weight" && args.length === 3 && projet !== undefined && valeur !== undefined) {
-  if (!NOM_DE_PROJET.test(projet)) echouer(2, `nom de projet invalide : « ${projet} »\n${USAGE}`);
-  if (!/^[1-9][0-9]{0,5}$/.test(valeur)) echouer(2, `poids invalide : « ${valeur} » — attendu un entier, 1 au moins\n${USAGE}`);
+  if (!NOM_DE_PROJET.test(projet)) echouer(2, `invalid project name: “${projet}”\n${USAGE}`);
+  if (!/^[1-9][0-9]{0,5}$/.test(valeur)) echouer(2, `invalid weight: “${valeur}” — expected an integer, 1 at least\n${USAGE}`);
   const durables = reglages();
   try {
     const avant = durables.projets().find((connu) => connu.projet === projet);
     durables.peser(projet, Number(valeur), new Date().toISOString());
     console.log(
       avant
-        ? `${projet} : poids ${valeur}${avant.poids === Number(valeur) ? " — inchangé" : ` (était ${avant.poids})`} ; l'arbitre le lit à sa prochaine décision`
-        : `${projet} : poids ${valeur} — projet encore inconnu de l'arbitre : il n'aura de part qu'une fois son runtime entendu`,
+        ? `${projet}: weight ${valeur}${avant.poids === Number(valeur) ? " — unchanged" : ` (was ${avant.poids})`}; the arbiter reads it at its next decision`
+        : `${projet}: weight ${valeur} — project not yet known to the arbiter: it will only have a share once its runtime is heard`,
     );
   } finally {
     durables.fermer();
@@ -119,8 +119,8 @@ if (commande === undefined) {
 } else if (commande === "remove" && args.length === 2 && projet !== undefined) {
   const durables = reglages();
   try {
-    if (!durables.retirer(projet)) echouer(1, `${projet} : projet inconnu de l'arbitre`);
-    console.log(`${projet} : retiré — sa part n'est plus réservée ; si son runtime tourne, il se réinscrit au poids 1 dès qu'il reparle`);
+    if (!durables.retirer(projet)) echouer(1, `${projet}: project unknown to the arbiter`);
+    console.log(`${projet}: removed — its share is no longer held; if its runtime is running, it registers again at weight 1 as soon as it speaks`);
   } finally {
     durables.fermer();
   }

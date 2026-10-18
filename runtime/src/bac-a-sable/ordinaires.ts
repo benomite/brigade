@@ -94,3 +94,11 @@ export function direOrdinaires(etat: { ordinary: boolean; sandbox: { available: 
   if (!etat.sandbox.available) return `AUCUN PRIS — bac à sable indisponible depuis le ${etat.sandbox.at} : ${etat.sandbox.reason ?? "sans raison dite"}`;
   return `pris quand la box sature, chaque cook dans le bac à sable de Claude Code (claude ${etat.sandbox.version ?? "?"}) — il n'écrit que dans son worktree et les caches du projet, ne joint que les hôtes du projet`;
 }
+
+// La même, en anglais : ce que dit `station`.
+export function direOrdinairesEn(etat: { ordinary: boolean; sandbox: { available: boolean; reason: string | null; version: string | null; at: string } | null }): string {
+  if (!etat.ordinary) return "not taken — it only takes the tickets that ask for one of its capabilities";
+  if (etat.sandbox === null) return "taken as soon as the station says its workstation has Claude Code's sandbox — it has said nothing of it yet";
+  if (!etat.sandbox.available) return `NONE TAKEN — sandbox unavailable since ${etat.sandbox.at}: ${etat.sandbox.reason ?? "no reason given"}`;
+  return `taken when the box saturates, each cook in Claude Code's sandbox (claude ${etat.sandbox.version ?? "?"}) — it only writes to its worktree and the project's caches, and only reaches the project's hosts`;
+}

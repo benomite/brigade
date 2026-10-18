@@ -54,9 +54,9 @@ export type Posees = Partial<Record<Decision, string>>;
 const POSEE = "decision.set";
 const RETIREE = "decision.withdrawn";
 
-const ou = (valeurs: readonly string[]) => `${valeurs.slice(0, -1).join(", ")} ou ${valeurs.at(-1)}`;
+const ou = (valeurs: readonly string[]) => `${valeurs.slice(0, -1).join(", ")} or ${valeurs.at(-1)}`;
 const parmi = (admis: readonly string[]) => (nom: Decision, valeur: string) => {
-  if (!admis.includes(valeur)) throw new ConfigInvalide(`${nom} invalide : « ${valeur} » — attendu ${ou(admis)}`);
+  if (!admis.includes(valeur)) throw new ConfigInvalide(`${nom} invalid: “${valeur}” — expected ${ou(admis)}`);
 };
 
 // Ce qu'une valeur doit être, lue seule : le lecteur même du runtime, pour
@@ -79,7 +79,7 @@ const VERIFIER: Record<Decision, (nom: Decision, valeur: string) => void> = {
 export const estUneDecision = (nom: string): nom is Decision => (DECISIONS as readonly string[]).includes(nom);
 
 function exigerDecision(nom: string): Decision {
-  if (!estUneDecision(nom)) throw new ConfigInvalide(`« ${nom} » n'est pas une décision du chef — attendu ${ou(DECISIONS)}`);
+  if (!estUneDecision(nom)) throw new ConfigInvalide(`“${nom}” is not a chef decision — expected ${ou(DECISIONS)}`);
   return nom;
 }
 
@@ -87,7 +87,7 @@ function exigerDecision(nom: string): Decision {
 // valeur : une décision se retire, elle ne se pose pas à rien.
 export function verifierDecision(nom: string, valeur: string): void {
   const decision = exigerDecision(nom);
-  if (valeur.trim() === "") throw new ConfigInvalide(`${decision} : une valeur vide n'est pas une décision — la retirer pour revenir à l'environnement`);
+  if (valeur.trim() === "") throw new ConfigInvalide(`${decision}: an empty value is not a decision — remove it to go back to the environment`);
   VERIFIER[decision](decision, valeur.trim());
 }
 
@@ -143,7 +143,7 @@ const GESTES_DES_DECISIONS: Record<Decision, string> = {
 // Ce que le runtime dit d'une variable de décision laissée dans son
 // environnement : nommée, ignorée, et le geste qui la remplace.
 export function direDecisionIgnoree(nom: Decision, projet: string): string {
-  return `${nom} est ignorée dans l'environnement de l'unité : une décision du chef ne s'y lit plus — la poser par \`brigade ${projet} station ${gesteDe(nom)} <valeur>\`, puis retirer \`Environment=${nom}\` du drop-in`;
+  return `${nom} is ignored in the unit's environment: a chef decision is no longer read there — set it with \`brigade ${projet} station ${gesteDe(nom)} <value>\`, then remove \`Environment=${nom}\` from the drop-in`;
 }
 
 // Le support des décisions : le journal du répertoire d'état. Sous le clone,
@@ -152,7 +152,7 @@ export function supportDesDecisions(lieux: { repertoireEtat: string; clone: stri
   const support = cheminJournal(lieux.repertoireEtat);
   if (sous(lieux.clone, support)) {
     throw new ConfigInvalide(
-      `BRIGADE_STATE_DIR (${lieux.repertoireEtat}) est sous BRIGADE_REPO_DIR (${lieux.clone}) : les décisions du chef y seraient à portée d'un cook — un plafond qu'un cook peut relever n'est pas un plafond. Poser le répertoire d'état hors du clone`,
+      `BRIGADE_STATE_DIR (${lieux.repertoireEtat}) is under BRIGADE_REPO_DIR (${lieux.clone}): the chef's decisions would be within a cook's reach — a cap a cook can raise is not a cap. Put the state directory outside the clone`,
     );
   }
   return support;

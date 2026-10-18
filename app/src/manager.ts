@@ -3,7 +3,7 @@
 // runtime le montre — la sortie de `manager` (runtime/src/manager-cli.ts,
 // `montrer`), relayée par l'onglet Manager comme celle des autres (onglets.ts) —
 // et n'y lit que trois choses : sa ligne `manager`, les lignes sous
-// `dernières décisions`, les lignes sous `écartées`. Rien n'y est deviné : une
+// `latest decisions`, les lignes sous `set aside`. Rien n'y est deviné : une
 // sortie sans cette ligne n'est pas « éteint », une section absente n'est pas
 // « aucune », et une ligne qui n'a pas la forme reste telle quelle, à part. Ce
 // que le runtime dit se pose mot pour mot ; la sortie entière se lit dessous.
@@ -23,7 +23,7 @@ export const GESTES_DU_MANAGER = [
   { id: "manager-eteindre", libelle: "off" },
 ] as const;
 
-// `mot` : ALLUMÉ ou ÉTEINT, tel que le runtime l'écrit. `depuis`, `par` : l'instant
+// `mot` : ON ou OFF (ALLUMÉ ou ÉTEINT avant #932), tel que le runtime l'écrit. `depuis`, `par` : l'instant
 // de la dernière bascule et son auteur — absents d'un manager jamais allumé.
 // `dit` : ce que la ligne dit ensuite, mot pour mot.
 export type Interrupteur = { allume: boolean; mot: string; depuis?: string; par?: string; dit: string };
@@ -39,20 +39,33 @@ export type Section<Ligne> = { dit: string; lignes: Ligne[]; illisibles: string[
 export type Manager = { interrupteur: Interrupteur; decisions?: Section<Decision>; ecartees?: Section<Ecart> };
 
 // Les titres que `manager` écrit en tête de ligne, dans son ordre : une section va
-// de son titre au suivant. Les épiques et les réactions ne sont pas lues.
-const DECISIONS = "dernières décisions";
-const ECARTEES = "écartées";
-const TITRES = [COMMANDE, DECISIONS, ECARTEES, "épiques", "réactions"];
-// Un titre, complété d'espaces jusqu'à sa valeur — ou seul sur sa ligne.
-const titreDe = (ligne: string) => TITRES.find((titre) => ligne === titre || ligne.startsWith(`${titre}  `));
+// de son titre au suivant. Les épiques et les réactions ne sont pas lues. Le runtime les écrit en
+// anglais depuis #932 ; une box pas encore à jour les écrit encore en français : les deux se lisent,
+// sous le nom anglais.
+const DECISIONS = "latest decisions";
+const ECARTEES = "set aside";
+const TITRES: Readonly<Record<string, string>> = {
+  [COMMANDE]: COMMANDE,
+  [DECISIONS]: DECISIONS,
+  "dernières décisions": DECISIONS,
+  [ECARTEES]: ECARTEES,
+  écartées: ECARTEES,
+  epics: "epics",
+  épiques: "epics",
+  reactions: "reactions",
+  réactions: "reactions",
+};
+// Un titre, complété d'espaces jusqu'à sa valeur — ou seul sur sa ligne. Rend le titre tel qu'écrit.
+const titreDe = (ligne: string) => Object.keys(TITRES).find((titre) => ligne === titre || ligne.startsWith(`${titre}  `));
 
-// La ligne `manager` : `ALLUMÉ depuis le <instant> (par <auteur>) — <suite>`, `ÉTEINT` de
-// même, ou `ÉTEINT — jamais allumé : <suite>`.
-const INTERRUPTEUR = /^(ALLUMÉ|ÉTEINT)(?: depuis le (\S+) \(par (.*?)\))? — (.*)$/;
+// La ligne `manager` : `ON since <instant> (by <auteur>) — <suite>`, `OFF` de même, ou
+// `OFF — never turned on: <suite>`. Avant #932, `ALLUMÉ depuis le <instant> (par <auteur>)` et `ÉTEINT`.
+const INTERRUPTEUR = /^(ON|OFF|ALLUMÉ|ÉTEINT)(?: (?:since|depuis le) (\S+) \((?:by|par) (.*?)\))? — (.*)$/;
+const ALLUME = ["ON", "ALLUMÉ"];
 // Une ligne de section : `  <instant>  #<issue>  <ce qui en est dit>`.
 const LIGNE = /^ {2}(\S+) {2}#(\d+) {2}(.*)$/;
 // Ce par quoi une ligne d'écart, après son motif et un tiret, dit le geste qui le lève — ou qu'il n'y en a pas.
-const SUITES = ["pour la lui rendre : ", "rien ne la rend au manager"];
+const SUITES = ["to hand it back to it: ", "nothing hands it back to the manager", "pour la lui rendre : ", "rien ne la rend au manager"];
 
 function ecartDe({ a, ticket, dit }: Decision): Ecart {
   const coupes = SUITES.map((suite) => dit.indexOf(` — ${suite}`)).filter((coupe) => coupe !== -1);
@@ -83,21 +96,22 @@ export function managerDe(sortie: string): Manager | { informe: string } {
   const sections = new Map<string, Ouverte>();
   let courante: Ouverte | undefined;
   for (const ligne of sortie.split("\n")) {
-    const titre = titreDe(ligne);
+    const ecrit = titreDe(ligne);
+    const titre = ecrit === undefined ? undefined : TITRES[ecrit];
     // Seule sa première ligne ouvre une section : la même, plus bas, est une ligne de celle où elle tombe.
-    if (titre !== undefined && !sections.has(titre)) sections.set(titre, (courante = { titre: ligne, dit: ligne.slice(titre.length).trim(), lignes: [] }));
+    if (ecrit !== undefined && titre !== undefined && !sections.has(titre)) sections.set(titre, (courante = { titre: ligne, dit: ligne.slice(ecrit.length).trim(), lignes: [] }));
     else if (ligne.trim() !== "") courante?.lignes.push(ligne);
   }
 
   const tete = sections.get(COMMANDE);
   if (tete === undefined) return { informe: "it has no `manager` line" };
   const [, mot, depuis, par, dit] = INTERRUPTEUR.exec(tete.dit) ?? [];
-  if (mot === undefined || dit === undefined) return { informe: `its \`manager\` line says neither ALLUMÉ nor ÉTEINT in the expected form: “${tete.titre}”` };
+  if (mot === undefined || dit === undefined) return { informe: `its \`manager\` line says neither ON nor OFF (nor ALLUMÉ, ÉTEINT) in the expected form: “${tete.titre}”` };
 
   const decisions = sectionDe(sections.get(DECISIONS), (decision) => decision);
   const ecartees = sectionDe(sections.get(ECARTEES), ecartDe);
   return {
-    interrupteur: { allume: mot === "ALLUMÉ", mot, ...(depuis === undefined || par === undefined ? {} : { depuis, par }), dit },
+    interrupteur: { allume: ALLUME.includes(mot), mot, ...(depuis === undefined || par === undefined ? {} : { depuis, par }), dit },
     ...(decisions === undefined ? {} : { decisions }),
     ...(ecartees === undefined ? {} : { ecartees }),
   };

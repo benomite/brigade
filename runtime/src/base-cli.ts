@@ -11,13 +11,13 @@ import { existsSync } from "node:fs";
 import { geste } from "./geste.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
-import { direBaseRouge, direControleRetenu, direPanne, direRejeu } from "./dire-base.ts";
+import { direBaseRougeEn, direControleRetenuEn, direPanneEn, direRejeuEn } from "./dire-base.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { controleRetenu, etatDeLaBase } from "./projections/pass.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run base -- [replay]";
+const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run base -- [replay]";
 const AUTEUR = "chef";
 
 export function principal({ args: tapes, env, dire, redire }: Appel): void {
@@ -31,14 +31,14 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     const controle = etatDeLaBase(journal.base);
     const retenu = controleRetenu(journal.base);
     if (controle?.outcome === "red") {
-      for (const ligne of direBaseRouge(controle, retenu)) dire(ligne);
+      for (const ligne of direBaseRougeEn(controle, retenu)) dire(ligne);
       return;
     }
-    if (controle === null) dire(retenu === null ? "base jamais contrôlée : aucun merge n'a encore eu à être vérifié sur elle" : "base jamais contrôlée");
-    else if (controle.outcome === "green") dire(`base verte au dernier contrôle, le ${controle.at} (${controle.sha.slice(0, 7)})`);
-    else dire(`base non contrôlée : ses gates n'ont pas pu être jouées le ${controle.at} (${controle.sha.slice(0, 7)})${direPanne(controle.reason)} — rien n'est retenu`);
+    if (controle === null) dire(retenu === null ? "base never checked: no merge has had to be verified on it yet" : "base never checked");
+    else if (controle.outcome === "green") dire(`base green at its last check, on ${controle.at} (${controle.sha.slice(0, 7)})`);
+    else dire(`base not checked: its gates could not be played on ${controle.at} (${controle.sha.slice(0, 7)})${direPanneEn(controle.reason)} — nothing is held`);
     // Des merges attendent leur contrôle, et il ne part pas.
-    if (retenu !== null) dire(`  ${direControleRetenu(retenu, (instant) => instant)}`);
+    if (retenu !== null) dire(`  ${direControleRetenuEn(retenu, (instant) => instant, "since")}`);
   }
 
   // Écrit la demande du chef si elle change quelque chose, et dit ce qu'il en
@@ -47,23 +47,23 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     const { base } = journal;
     return base.transaction(() => {
       const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
-      if (!projet) echouer(1, "journal vide : le runtime n'a jamais démarré sur ce répertoire d'état");
+      if (!projet) echouer(1, "empty log: the runtime has never started on this state directory");
       const controle = etatDeLaBase(base);
-      if (controle?.outcome !== "red") return "rien à rejouer : la base n'est pas rouge";
-      if (controle.recheck !== null) return `rejeu déjà demandé le ${controle.recheck.at} : ${direRejeu(controle.recheck, (instant) => instant, controleRetenu(base))}`;
-      const absent = sessionEnCours(base) ? "" : " (aucun runtime ne tourne : la commande vaudra à son prochain démarrage)";
+      if (controle?.outcome !== "red") return "nothing to replay: the base is not red";
+      if (controle.recheck !== null) return `replay already asked on ${controle.recheck.at}: ${direRejeuEn(controle.recheck, (instant) => instant, controleRetenu(base), "since")}`;
+      const absent = sessionEnCours(base) ? "" : " (no runtime is running: the command will take effect at its next start)";
       journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "base.recheck-requested", payload: {} });
-      return `rejeu demandé : la pass rejoue les gates de la base sur sa tête actuelle, sans attendre un commit — vertes, la retenue tombe ; rouges, elle reste. Si la machine sature ou si la base ne se rapatrie pas, il attend ; si l'essai ne se fait pas, le rouge reste et la demande est à refaire : \`${geste(`status`)}\` dit lequel, et pourquoi${absent}`;
+      return `replay asked: the pass replays the base's gates on its current head, without waiting for a commit — green, the hold lifts; red, it stays. If the machine saturates or the base cannot be fetched, it waits; if the attempt does not run, the red stays and the request is to be made again: \`${geste(`status`)}\` says which, and why${absent}`;
     });
   }
 
   const repertoireEtat = env.BRIGADE_STATE_DIR;
-  if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
+  if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR is not set\n${USAGE}`);
   const montre = args.length === 0;
   if (!montre && (args.length !== 1 || args[0] !== "replay")) echouer(2, USAGE);
   // Une commande ouvre le journal en écriture : sans ce contrôle, elle en
   // créerait un là où il n'y en a pas.
-  if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `aucun journal dans ${repertoireEtat}`);
+  if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `no log in ${repertoireEtat}`);
 
   const journal = ouvrirJournal(repertoireEtat, { lectureSeule: montre });
   try {
@@ -73,7 +73,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ce contrôle.
     if (journalPasRejoue(erreur)) {
-      echouer(1, "ce journal n'a pas encore l'état de la base : redémarrer le runtime, qui le recalcule");
+      echouer(1, "this log does not hold the base's state yet: restart the runtime, which recomputes it");
     }
     throw erreur;
   } finally {
