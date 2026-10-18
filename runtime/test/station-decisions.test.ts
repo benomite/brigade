@@ -113,9 +113,9 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
       [["seuil-ticket", "1.5"], [SEUIL]],
       // Liste de stations vide ou mal formée.
       [["stations", ""], [/stations refused, nothing is written — BRIGADE_STATIONS: an empty value is not a decision/, STATIONS_ATTENDUES]],
-      [["stations", " , "], [/station n° 1 \(«  »\) — elle est vide/, STATIONS_ATTENDUES]],
-      [["stations", "box:2:code"], [/station n° 1 \(« box:2:code »\) — nom/, STATIONS_ATTENDUES]],
-      [["stations", "box/claude:0:code"], [/plafond/, STATIONS_ATTENDUES]],
+      [["stations", " , "], [/station no\. 1 \(“”\) — it is empty/, STATIONS_ATTENDUES]],
+      [["stations", "box:2:code"], [/station no\. 1 \(“box:2:code”\) — name/, STATIONS_ATTENDUES]],
+      [["stations", "box/claude:0:code"], [/cap: “0”/, STATIONS_ATTENDUES]],
       // Sans valeur, ou avec plusieurs.
       [["stations"], [/stations needs a value, and only one — `station -- stations <declaration>`: `<machine>/]],
       [["manager-modele", "opus", "high"], [/manager-modele needs a value, and only one — `station -- manager-modele <model>`: opus, sonnet or haiku/]],
