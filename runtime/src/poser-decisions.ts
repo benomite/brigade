@@ -326,7 +326,7 @@ export function principal({ args: appelArgs, env, dire, redire }: Appel): void {
   try {
     reponses = lireReponses(args, poseesAuJournal(repertoireEtat));
   } catch (erreur) {
-    if (erreur instanceof ConfigInvalide) echouer(2, `${erreur.message} — rien n'est écrit`);
+    if (erreur instanceof ConfigInvalide) echouer(2, `${erreur.message} — nothing is written`);
     throw erreur;
   }
   // Sans journal, il en naît un au nom que l'unité donne au projet, comme

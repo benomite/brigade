@@ -52,7 +52,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
 
     const avant = (await station()).sortie;
     for (const [geste, decision] of GESTES) {
-      assert.match(avant, new RegExp(String.raw`^  ${geste} +non posée — ${decision} ne se lit que du journal$`, "m"));
+      assert.match(avant, new RegExp(String.raw`^  ${geste} +not set — ${decision} is only read from the log$`, "m"));
     }
 
     for (const [geste, decision, premiere, seconde] of GESTES) {
@@ -60,11 +60,11 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
       assert.equal(pose.code, 0, pose.sortie);
       assert.equal(
         pose.sortie,
-        `brigade : ${geste} : ${premiere} (c'était : non posée) — lu par le runtime à sa lecture suivante, sans redémarrage ; aucun cook en cours n'est arrêté (aucun runtime ne tourne : la décision vaudra à son prochain démarrage)\n`,
+        `brigade : ${geste}: ${premiere} (was: not set) — read by the runtime at its next read, without a restart; no running cook is stopped (no runtime is running: the decision will take effect at its next start)\n`,
       );
       const reprise = await station(geste, seconde);
       assert.equal(reprise.code, 0, reprise.sortie);
-      assert.match(reprise.sortie, new RegExp(String.raw`^brigade : ${geste} : ${seconde.replaceAll("+", "\\+")} \(c'était : ${premiere}\) — lu par le runtime à sa lecture suivante`));
+      assert.match(reprise.sortie, new RegExp(String.raw`^brigade : ${geste}: ${seconde.replaceAll("+", "\\+")} \(was: ${premiere}\) — read by the runtime at its next read`));
     }
 
     // Une ligne par pose, au nom du chef : la décision, l'ancienne valeur, la nouvelle.
@@ -76,7 +76,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
       ]),
     );
     const apres = (await station()).sortie;
-    assert.match(apres, /^décisions du chef +`station -- <geste> <valeur>` pour en poser une, `station -- help` pour les gestes$/m);
+    assert.match(apres, /^chef's decisions +`station -- <gesture> <value>` to set one, `station -- help` for the gestures$/m);
     for (const [geste, , , seconde] of GESTES) assert.match(apres, new RegExp(String.raw`^  ${geste} +${seconde.replaceAll("+", "\\+")}$`, "m"));
   });
 
@@ -86,7 +86,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
     const deja = await station("seuil-ticket", "400000");
 
     assert.equal(deja.code, 0);
-    assert.equal(deja.sortie, "brigade : seuil-ticket : déjà posée — 400000 ; rien n'est écrit\n");
+    assert.equal(deja.sortie, "brigade : seuil-ticket: already set — 400000; nothing is written\n");
     assert.deepEqual(
       journal.tout().filter((e) => e.type === "decision.set").map((e) => e.payload),
       [{ name: "BRIGADE_DRIFT_TICKET_TOKENS", value: "400000", previous: null }],
@@ -95,32 +95,32 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
 
   test("une valeur invalide est refusée avec ce qui était attendu : rien n'est écrit ni journalisé", async (t) => {
     const { journal, station } = journalDuProjet(t);
-    const STATIONS_ATTENDUES = /usage : `station -- stations <déclaration>` — `<machine>\/<moteur>:<plafond de cooks>:<capacité>\+<capacité>\[:distante\[\+ordinaires\]\]`, séparées par des virgules/;
-    const SEUIL = /attendu un entier supérieur à zéro/;
-    const MODELE = /attendu opus, sonnet ou haiku/;
-    const EFFORT = /attendu low, medium, high, xhigh ou max/;
+    const STATIONS_ATTENDUES = /usage: `station -- stations <declaration>` — `<machine>\/<moteur>:<plafond de cooks>:<capacité>\+<capacité>\[:distante\[\+ordinaires\]\]`, separated by commas/;
+    const SEUIL = /an integer greater than zero/;
+    const MODELE = /opus, sonnet or haiku/;
+    const EFFORT = /low, medium, high, xhigh or max/;
     const REFUS: Array<[string[], RegExp[]]> = [
       // Modèle inconnu.
-      [["manager-modele", "gpt"], [/manager-modele refusé, rien n'est écrit — BRIGADE_MANAGER_MODEL invalide : « gpt »/, MODELE]],
-      [["reviewer-modele", "Opus"], [/BRIGADE_REVIEWER_MODEL invalide : « Opus »/, MODELE]],
+      [["manager-modele", "gpt"], [/manager-modele refused, nothing is written — BRIGADE_MANAGER_MODEL invalid: “gpt”/, MODELE]],
+      [["reviewer-modele", "Opus"], [/BRIGADE_REVIEWER_MODEL invalid: “Opus”/, MODELE]],
       // Effort hors de l'échelle.
-      [["manager-effort", "fort"], [/BRIGADE_MANAGER_EFFORT invalide : « fort »/, EFFORT]],
-      [["reviewer-effort", "maximum"], [/BRIGADE_REVIEWER_EFFORT invalide : « maximum »/, EFFORT]],
+      [["manager-effort", "fort"], [/BRIGADE_MANAGER_EFFORT invalid: “fort”/, EFFORT]],
+      [["reviewer-effort", "maximum"], [/BRIGADE_REVIEWER_EFFORT invalid: “maximum”/, EFFORT]],
       // Seuil non numérique, négatif, nul.
       [["seuil-ticket", "beaucoup"], [/BRIGADE_DRIFT_TICKET_TOKENS invalide : « beaucoup »/, SEUIL]],
       [["seuil-perdus", "-1"], [/BRIGADE_DRIFT_LOST_TOKENS invalide : « -1 »/, SEUIL]],
       [["seuil-perdus", "0"], [/BRIGADE_DRIFT_LOST_TOKENS invalide : « 0 »/, SEUIL]],
       [["seuil-ticket", "1.5"], [SEUIL]],
       // Liste de stations vide ou mal formée.
-      [["stations", ""], [/stations refusé, rien n'est écrit — BRIGADE_STATIONS : une valeur vide n'est pas une décision/, STATIONS_ATTENDUES]],
-      [["stations", " , "], [/station n° 1 \(«  »\) — elle est vide/, STATIONS_ATTENDUES]],
-      [["stations", "box:2:code"], [/station n° 1 \(« box:2:code »\) — nom/, STATIONS_ATTENDUES]],
-      [["stations", "box/claude:0:code"], [/plafond/, STATIONS_ATTENDUES]],
+      [["stations", ""], [/stations refused, nothing is written — BRIGADE_STATIONS: an empty value is not a decision/, STATIONS_ATTENDUES]],
+      [["stations", " , "], [/station no\. 1 \(“”\) — it is empty/, STATIONS_ATTENDUES]],
+      [["stations", "box:2:code"], [/station no\. 1 \(“box:2:code”\) — name/, STATIONS_ATTENDUES]],
+      [["stations", "box/claude:0:code"], [/cap: “0”/, STATIONS_ATTENDUES]],
       // Sans valeur, ou avec plusieurs.
-      [["stations"], [/stations attend une valeur, et une seule — `station -- stations <déclaration>` : `<machine>/]],
-      [["manager-modele", "opus", "high"], [/manager-modele attend une valeur, et une seule — `station -- manager-modele <modèle>` : opus, sonnet ou haiku/]],
+      [["stations"], [/stations needs a value, and only one — `station -- stations <declaration>`: `<machine>/]],
+      [["manager-modele", "opus", "high"], [/manager-modele needs a value, and only one — `station -- manager-modele <model>`: opus, sonnet or haiku/]],
       // Un geste qui n'existe pas.
-      [["manager-temperature", "1"], [/^brigade : usage : /]],
+      [["manager-temperature", "1"], [/^brigade : usage: /]],
     ];
     const ecrits = journal.tout();
 
@@ -140,13 +140,13 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
     const retrait = await station("remove", "reviewer-modele");
 
     assert.equal(retrait.code, 0);
-    assert.match(retrait.sortie, /^brigade : reviewer-modele : retirée \(c'était : opus\) — elle n'est plus décidée : le runtime s'en tient à ce qu'il lisait.*BRIGADE_REVIEWER_MODEL ne se lit que du journal/);
+    assert.match(retrait.sortie, /^brigade : reviewer-modele: removed \(was: opus\) — it is no longer decided: the runtime keeps to what it read.*BRIGADE_REVIEWER_MODEL is only read from the log/);
     const fait = journal.tout().at(-1);
     assert.deepEqual([fait?.type, fait?.author, fait?.payload], ["decision.withdrawn", "chef", { name: "BRIGADE_REVIEWER_MODEL", previous: "opus" }]);
-    assert.match((await station()).sortie, /^  reviewer-modele +non posée/m);
+    assert.match((await station()).sortie, /^  reviewer-modele +not set/m);
     // Rien à retirer : rien n'est écrit.
     const ecrits = journal.tout().length;
-    assert.match((await station("remove", "reviewer-modele")).sortie, /reviewer-modele : non posée, rien n'est écrit/);
+    assert.match((await station("remove", "reviewer-modele")).sortie, /reviewer-modele: not set, nothing is written/);
     assert.equal((await station("remove", "BRIGADE_REVIEWER_MODEL")).code, 2);
     assert.equal(journal.tout().length, ecrits);
   });
@@ -158,18 +158,18 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
 
     assert.equal(code, 0);
     for (const [geste, attendu] of [
-      ["stations <déclaration>", "les stations du projet — `<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>[:distante[+ordinaires]]`, séparées par des virgules"],
-      ["seuil-ticket <tokens>", "seuil de coût de la dérive : tokens du ticket le plus cher — un entier supérieur à zéro"],
-      ["seuil-perdus <tokens>", "seuil de coût de la dérive : tokens perdus, lancements qui n'ont rien livré — un entier supérieur à zéro"],
-      ["manager-modele <modèle>", "le modèle des jugements du manager — opus, sonnet ou haiku"],
-      ["manager-effort <effort>", "l'effort des jugements du manager — low, medium, high, xhigh ou max"],
-      ["reviewer-modele <modèle>", "le modèle des relectures du reviewer — opus, sonnet ou haiku"],
-      ["reviewer-effort <effort>", "l'effort des relectures du reviewer — low, medium, high, xhigh ou max"],
-      ["closer-modele <modèle>", "le modèle de la passe de fermeture (avec closer-effort : sans eux, aucune passe n'écrit) — opus, sonnet ou haiku"],
-      ["closer-effort <effort>", "l'effort de la passe de fermeture — low, medium, high, xhigh ou max"],
-      ["closer-cooks <cooks>", "la passe part quand moins de cooks que cela sont en vol — un entier supérieur à zéro"],
-      ["closer-tokens <tokens>", "plafond de tokens d'une passe de fermeture — un entier supérieur à zéro"],
-      ["closer-retraits <lignes>", "plafond de lignes qu'une passe de fermeture peut retirer — un entier supérieur à zéro"],
+      ["stations <declaration>", "the project's stations — `<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>[:distante[+ordinaires]]`, separated by commas"],
+      ["seuil-ticket <tokens>", "drift cost threshold: tokens of the dearest ticket — an integer greater than zero"],
+      ["seuil-perdus <tokens>", "drift cost threshold: tokens lost, launches that delivered nothing — an integer greater than zero"],
+      ["manager-modele <model>", "the model of the manager's judgments — opus, sonnet or haiku"],
+      ["manager-effort <effort>", "the effort of the manager's judgments — low, medium, high, xhigh or max"],
+      ["reviewer-modele <model>", "the model of the reviewer's reviews — opus, sonnet or haiku"],
+      ["reviewer-effort <effort>", "the effort of the reviewer's reviews — low, medium, high, xhigh or max"],
+      ["closer-modele <model>", "the model of the closing pass (with closer-effort: without them, no pass writes) — opus, sonnet or haiku"],
+      ["closer-effort <effort>", "the effort of the closing pass — low, medium, high, xhigh or max"],
+      ["closer-cooks <cooks>", "the pass leaves when fewer cooks than this are in flight — an integer greater than zero"],
+      ["closer-tokens <tokens>", "cap on the tokens of a closing pass — an integer greater than zero"],
+      ["closer-retraits <lines>", "cap on the lines a closing pass may remove — an integer greater than zero"],
     ] as const) {
       assert.ok(sortie.split("\n").some((ligne) => ligne.trim().startsWith(geste) && ligne.endsWith(attendu)), `${geste} : ${sortie}`);
     }
@@ -181,7 +181,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
     const commande = appeler(montrerStation, ["seuil-ticket", "300000"], { BRIGADE_STATE_DIR: repertoire });
 
     assert.equal(await commande.fin, 1);
-    assert.match(commande.sortie(), /aucun journal dans/);
+    assert.match(commande.sortie(), /no log in/);
     assert.equal(existsSync(cheminJournal(repertoire)), false);
   });
 
@@ -211,7 +211,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
     for (const [geste, valeur] of Object.entries(valeurs)) {
       const pose = lancer(t, MONTRER, [geste, valeur], { BRIGADE_STATE_DIR: repertoire });
       assert.equal(await pose.fin, 0, pose.sortie());
-      assert.match(pose.sortie(), /aucun cook en cours n'est arrêté\n$/);
+      assert.match(pose.sortie(), /no running cook is stopped\n$/);
     }
     // Le runtime l'a lue sans redémarrer : sa station s'annonce de nouveau, à deux cooks.
     const annonces = () => journal.tout().flatMap((e) => (e.type === "station.announced" ? [e.payload.maxCooks] : []));

@@ -113,7 +113,7 @@ describe("une station distante et les tickets ordinaires", { concurrency: 4 }, (
       bacASable: { disponible: true, raison: null, version: "2.1.250", depuis: ordinaires()?.bacASable?.depuis },
       prendOrdinaires: false,
     });
-    assert.match(await station(), /tickets ordinaires +non pris — elle ne prend que les tickets qui demandent une de ses capacités/);
+    assert.match(await station(), /ordinary tickets +not taken — it only takes the tickets that ask for one of its capabilities/);
   });
 
   test("réglage activé et bac à sable disponible : elle prend un ticket ordinaire, et son cook est lancé avec la configuration du bac à sable", async (t) => {
@@ -163,7 +163,7 @@ describe("une station distante et les tickets ordinaires", { concurrency: 4 }, (
     // L'état exposé : réglage, bac à sable, prise.
     assert.deepEqual(etatStation(journal.base, MAC)?.sandbox, { available: true, reason: null, version: "2.1.250", at: etatStation(journal.base, MAC)?.sandbox?.at });
     assert.deepEqual([ordinaires()?.ordinaires, ordinaires()?.bacASable?.disponible, ordinaires()?.prendOrdinaires], [true, true, true]);
-    assert.match(await station(), /tickets ordinaires +pris quand la box sature, chaque cook dans le bac à sable de Claude Code \(claude 2\.1\.250\)/);
+    assert.match(await station(), /ordinary tickets +taken when the box saturates, each cook in Claude Code's sandbox \(claude 2\.1\.250\)/);
   });
 
   test("réglage activé et bac à sable indisponible : elle ne prend aucun ticket ordinaire, et expose l'état et sa raison", async (t) => {
@@ -190,7 +190,7 @@ describe("une station distante et les tickets ordinaires", { concurrency: 4 }, (
       prendOrdinaires: false,
     });
     assert.ok(avertissements.some((message) => message.includes(`la station ${MAC} ne prend aucun ticket ordinaire — bac à sable indisponible : ${RAISON}`)));
-    assert.match(await station(), new RegExp(`tickets ordinaires +AUCUN PRIS — bac à sable indisponible depuis le .+ : ${RAISON.replace(/[.*+?^${}()|[\]\\/`]/g, "\\$&")}`));
+    assert.match(await station(), new RegExp(`ordinary tickets +NONE TAKEN — sandbox unavailable since .+: ${RAISON.replace(/[.*+?^${}()|[\]\\/`]/g, "\\$&")}`));
     // Écrit quand ça change, pas à chaque demande.
     assert.equal(journal.tout().filter((e) => e.type === "station.sandbox").length, 1);
 

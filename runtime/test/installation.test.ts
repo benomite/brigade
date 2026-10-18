@@ -429,7 +429,7 @@ describe("la vérification", () => {
     const constats = await verifier({ ...env, BRIGADE_MAX_TURNS: "beaucoup", ANTHROPIC_API_KEY: "sk-x" });
 
     const dits = manques(constats).join("\n");
-    assert.match(dits, /BRIGADE_MANAGER_MODEL invalide/);
+    assert.match(dits, /BRIGADE_MANAGER_MODEL invalid/);
     assert.match(dits, /BRIGADE_MAX_TURNS invalide/);
     assert.match(dits, /ANTHROPIC_API_KEY est défini/);
   });
@@ -470,11 +470,11 @@ describe("la vérification", () => {
     assert.equal(dits.length, 1);
     assert.match(dits[0] ?? "", /EXPIRÉE depuis le \d{4}-\d{2}-\d{2}T.*\(authentication_failed\)/);
     assert.deepEqual(constates(constats).filter((texte) => /session Max/.test(texte)), []);
-    // La même phrase que `run station`, lue du même fait.
+    // Le même fait que `run station`, lu du même journal : sa date et sa raison, en anglais là-bas.
     const station = appeler(montrerStation, [], env);
     await station.fin;
-    const ligne = station.sortie().split("\n").find((dite) => dite.startsWith("connexion Max")) ?? "";
-    const phrase = ligne.slice("connexion Max".length).trim();
+    const ligne = station.sortie().split("\n").find((dite) => dite.startsWith("Max connection")) ?? "";
+    const phrase = ligne.match(/\d{4}-\d{2}-\d{2}T\S+ \(authentication_failed\)/)?.[0] ?? "";
     assert.ok(phrase.length > 0 && (dits[0] ?? "").includes(phrase));
   });
 

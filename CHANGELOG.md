@@ -2,6 +2,10 @@
 
 Changes to the public interface of brigade — the commands of the box (`brigade <project> <command>`), their options, and what the roles cite. Newest first.
 
+## 2026-10-18 — the output of `manager`, `grant`, `station`, `guardrails`, `base` and `arbiter` in English (#932)
+
+What these commands write — lines, refusals, errors — is English, in the words of `docs/glossary.md`. Durations read `d` (`2d`); `grant --for 2j` still reads. The keys of `manager upstream` do not change, only its text. Decisions and settings written in French before this change keep their effect. Startup and `installation` configuration messages, and a few lines shared with `status` and `pass` (`arbiter` unreachable reason, the stopped-kitchen and open-breaker refusals), keep their wording until their own tickets.
+
 ## 2026-10-18 — the output of `rail`, `pass`, `log` and `waiting` in English (#931)
 
 What `rail` (with `remove`, `priority`, `merge`), `pass` (with `issue`, `comment`, `ask`), `log` and `waiting` (`set`, `resume`, `arrived`) write — lines, refusals, errors and usage — is English, in the words of `docs/glossary.md`. The typed forms do not change (`--remind 7j` still reads), nor do the keys of `pass --json` and the event names of the log. Free text written to the log by others (a reviewer's finding, a gate's failure, an unreadable card's reason) is shown as it was written. Two shared messages follow: `no log in <dir>` (any command that opens the log) and the `BRIGADE_GITHUB_REPO` / `BRIGADE_LEASE_SECONDS` / `BRIGADE_COMMON_PATHS` configuration errors. `grant`, `base` and the other commands keep their wording until their own tickets.

@@ -1,44 +1,53 @@
 // Ce que le manager a décidé d'une issue, dans les mots du chef : sa décision,
 // et, pour une issue écartée, pourquoi et le geste qui lève l'écart. Lu par
 // `manager` (manager-cli.ts) et par ce qui se dit en amont du rail (amont.ts).
-import { commandeRendre, NOMS_DE_NATURE, type Ecart, type Nature } from "./evenements/manager.ts";
+import { commandeRendre, type Ecart, type Nature } from "./evenements/manager.ts";
 import type { IssueDuManager } from "./projections/manager.ts";
+
+// Chaque nature telle qu'elle se dit au chef.
+const NOMS_DE_NATURE: Record<Nature, string> = {
+  ticket: "a ticket",
+  epic: "an epic",
+  question: "a question",
+  decision: "a decision issue",
+  incomplete: "an incomplete ticket",
+};
 
 export function decrire(issue: IssueDuManager): string {
   switch (issue.decision) {
     case "fire": {
-      const pose = issue.labels === null ? "labels pas encore posés" : issue.labels.length === 0 ? "rien à poser" : `posé : ${issue.labels.join(", ")}`;
-      return `sur le rail, ${issue.model} / ${issue.effort} (${pose}) — ${issue.reason}`;
+      const pose = issue.labels === null ? "labels not set yet" : issue.labels.length === 0 ? "nothing to set" : `set: ${issue.labels.join(", ")}`;
+      return `on the rail, ${issue.model} / ${issue.effort} (${pose}) — ${issue.reason}`;
     }
     case "refused":
-      return `refusée (${NOMS_DE_NATURE[issue.kind as Nature] ?? issue.kind}) — ${issue.reason}`;
+      return `refused (${NOMS_DE_NATURE[issue.kind as Nature] ?? issue.kind}) — ${issue.reason}`;
     case "failed":
-      return `jugement illisible — ${issue.reason}`;
+      return `unreadable judgment — ${issue.reason}`;
     case "aside":
-      return `écartée (${issue.reason})${issue.fired ? ", `fire` posé par le chef : laissé, non calibrée" : ""}`;
+      return `set aside (${issue.reason === ("hors-cuisine" satisfies Ecart) ? `\`${issue.reason}\`` : issue.reason})${issue.fired ? ", `fire` set by the chef: left alone, not calibrated" : ""}`;
   }
 }
 
 // Pourquoi une issue est écartée, et le geste du chef qui lève l'écart — un
-// par motif : seul `chef-changed` se lève par la commande `rendre`.
+// par motif : seul `chef-changed` se lève par la commande `return`.
 export function ecart(issue: IssueDuManager): { motif: string; geste: string | null } {
-  const label = (nom: string) => ({ motif: `elle porte \`${nom}\``, geste: `retire \`${nom}\` : elle est jugée au réveil suivant` });
+  const label = (nom: string) => ({ motif: `it carries \`${nom}\``, geste: `remove \`${nom}\`: it is judged at the next wake-up` });
   switch (issue.reason as Ecart) {
     case "chef-changed":
-      return { motif: "tu y as retiré `fire` ou un calibrage que le manager avait posé", geste: `\`${commandeRendre(issue.ticket)}\` : il la rejuge à neuf` };
+      return { motif: "you removed `fire` or a calibration the manager had set", geste: `\`${commandeRendre(issue.ticket)}\`: it judges it anew` };
     case "blocked-on-human":
     case "question":
     case "decision":
     case "epic":
       return label(issue.reason);
     case "hors-cuisine":
-      return { motif: "hors-cuisine — ce ticket ne se sert pas sur cette box ; le pourquoi est sur l'issue", geste: "retire `hors-cuisine` si la box doit le prendre : il est jugé au réveil suivant" };
+      return { motif: "it carries `hors-cuisine` — this ticket is not served on this box; the why is on the issue", geste: "remove `hors-cuisine` if the box should take it: it is judged at the next wake-up" };
     case "already-split":
-      return { motif: "son corps liste déjà les tickets d'une épique, découpée à la main", geste: "retire cette liste de son corps : l'épique est découpée au réveil suivant" };
+      return { motif: "its body already lists an epic's tickets, split by hand", geste: "remove that list from its body: the epic is split at the next wake-up" };
     case "roadmap":
-      return { motif: "c'est la roadmap du projet", geste: null };
+      return { motif: "it is the project's roadmap", geste: null };
     case "untrusted-author":
-      return { motif: "son auteur n'a pas la main sur le dépôt", geste: null };
+      return { motif: "its author has no hand on the repository", geste: null };
     default:
       return { motif: issue.reason, geste: null };
   }
@@ -48,5 +57,5 @@ export const decrireEcart = (issue: IssueDuManager): string => {
   const { motif, geste } = ecart(issue);
   // Pas une attente du chef : rien à « rendre », le ticket est servi ailleurs.
   if (issue.reason === ("hors-cuisine" satisfies Ecart)) return motif;
-  return `${motif} — ${geste === null ? "rien ne la rend au manager" : `pour la lui rendre : ${geste}`}`;
+  return `${motif} — ${geste === null ? "nothing hands it back to the manager" : `to hand it back to it: ${geste}`}`;
 };

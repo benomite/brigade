@@ -53,42 +53,55 @@ export type Grants = { grants: Grant[]; interdits?: Section<Interdit>; usages?: 
 
 // Les titres que `grant` écrit en tête de ligne, dans son ordre : une section va de son
 // titre au suivant. Les derniers gestes ne sont pas lus.
-const INTERDITS = "jamais accordé";
-const USAGES = "derniers usages";
-const TITRES = [INTERDITS, "derniers gestes", USAGES];
-// Un titre, complété d'espaces jusqu'à sa valeur — ou seul sur sa ligne.
-const titreDe = (ligne: string) => TITRES.find((titre) => ligne.trimEnd() === titre || ligne.startsWith(`${titre}  `));
+// Le runtime les écrit en anglais depuis #932 ; une box pas encore à jour les écrit encore en français :
+// les deux se lisent, sous le nom anglais.
+const INTERDITS = "never granted";
+const USAGES = "latest uses";
+const TITRES: Readonly<Record<string, string>> = {
+  [INTERDITS]: INTERDITS,
+  "jamais accordé": INTERDITS,
+  "latest actions": "latest actions",
+  "derniers gestes": "latest actions",
+  [USAGES]: USAGES,
+  "derniers usages": USAGES,
+};
+// Un titre, complété d'espaces jusqu'à sa valeur — ou seul sur sa ligne. Rend le titre tel qu'écrit.
+const titreDe = (ligne: string) => Object.keys(TITRES).find((titre) => ligne.trimEnd() === titre || ligne.startsWith(`${titre}  `));
 // La ligne d'un grant : `grant <nom>`, complété d'espaces jusqu'à son état.
 const TETE = /^grant (\S+) {2,}(.*)$/;
 // Le bilan des arrêts faute de grant : seul sur sa ligne, en fin de sortie.
-const BILAN = "sans grant, ";
+const BILANS = ["without a grant, ", "sans grant, "];
 
-// L'état : `ABSENT — <suite>`, `ACTIF depuis le <instant> (par <auteur>) — <suite>`, `RÉVOQUÉ`
-// de même, ou `ÉTEINT SEUL depuis le <instant> — <suite>`.
-const ETAT = /^(ABSENT|ACTIF|ÉTEINT SEUL|RÉVOQUÉ)(?: depuis le (\S+))?(?: \(par (.*?)\))? — (.*)$/;
-const ACTIF = "ACTIF";
+// L'état : `ABSENT — <suite>`, `ACTIVE since <instant> (by <auteur>) — <suite>`, `REVOKED`
+// de même, ou `LAPSED since <instant> — <suite>`. Avant #932 : `ACTIF depuis le <instant> (par <auteur>)`,
+// `RÉVOQUÉ`, `ÉTEINT SEUL`.
+const ETAT = /^(ABSENT|ACTIVE|LAPSED|REVOKED|ACTIF|ÉTEINT SEUL|RÉVOQUÉ)(?: (?:since|depuis le) (\S+))?(?: \((?:by|par) (.*?)\))? — (.*)$/;
+const ACTIFS = ["ACTIVE", "ACTIF"];
+const ETEINTS_SEULS = ["LAPSED", "ÉTEINT SEUL"];
 // Ce par quoi la suite d'un grant actif commence quand il va s'éteindre.
-const BIENTOT = "BIENTÔT ÉTEINT";
-// Ce qu'il reste d'un grant actif, puis ce que cela vaut : `<reste> : <suite>`. Le reste est
-// fait de mentions séparées d'un point médian ; celle de l'échéance est `encore <durée> (jusqu'au <instant>)`.
-const RESTE = /^(.*) : (.*)$/;
-const ECHEANCE = /^(encore .+) \((jusqu'au .+)\)$/;
+const BIENTOT = ["EXPIRING SOON", "BIENTÔT ÉTEINT"];
+// Ce qu'il reste d'un grant actif, puis ce que cela vaut : `<reste>: <suite>` (`<reste> : <suite>` avant #932).
+// Le reste est fait de mentions séparées d'un point médian ; celle de l'échéance est
+// `<durée> left (until <instant>)` (`encore <durée> (jusqu'au <instant>)`).
+const RESTE = /^(.*) : (.*)$|^(.*?): (.*)$/;
+const ECHEANCE = /^(encore .+|.+ left) \((jusqu'au .+|until .+)\)$/;
 // Une ligne de `jamais accordé` : `<action> — <ce qui est interdit>`.
 const INTERDIT = /^(\S+) — (.+)$/;
-// Une ligne de `derniers usages` : `  <instant>  #<issue>  <grant> sur <branche>  <PR>  <commit>  verdict n° <n>  <suite>`.
-const USAGE = /^ {2}(\S+) {2}#(\d+) {2}(\S+) sur (\S+) {2}(\S+) {2}(\S+) {2}(verdict n° \d+) {2}(.+)$/;
+// Une ligne de `latest uses` : `  <instant>  #<issue>  <grant> on <branche>  <PR>  <commit>  verdict no. <n>  <suite>` (`sur`, `n°` avant #932).
+const USAGE = /^ {2}(\S+) {2}#(\d+) {2}(\S+) (?:on|sur) (\S+) {2}(\S+) {2}(\S+) {2}(verdict (?:no\.|n°) \d+) {2}(.+)$/;
 
 // Ce que la ligne d'un grant actif dit de ce qu'il en reste : son échéance, s'il en a une en
 // date, et le reste tel quel. Sans la forme, tout ce qu'elle dit reste dans `limites`, entier.
 function resteDe(suite: string): Pick<Etat, "bientot" | "echeance" | "limites" | "dit"> {
-  const bientot = suite.startsWith(`${BIENTOT} — `);
-  const [, reste, dit] = RESTE.exec(bientot ? suite.slice(`${BIENTOT} — `.length) : suite) ?? [];
+  const annonce = BIENTOT.find((mot) => suite.startsWith(`${mot} — `));
+  const [, resteFr, ditFr, resteEn, ditEn] = RESTE.exec(annonce === undefined ? suite : suite.slice(`${annonce} — `.length)) ?? [];
+  const [reste, dit] = resteFr === undefined ? [resteEn, ditEn] : [resteFr, ditFr];
   if (reste === undefined || dit === undefined) return { limites: [suite], dit: "" };
   const mentions = reste.split(" · ");
   const rang = mentions.findIndex((mention) => ECHEANCE.test(mention));
   const [, encore, jusqua] = ECHEANCE.exec(mentions[rang] ?? "") ?? [];
   return {
-    ...(bientot ? { bientot: BIENTOT } : {}),
+    ...(annonce === undefined ? {} : { bientot: annonce }),
     ...(encore === undefined || jusqua === undefined ? {} : { echeance: { reste: encore, jusqua } }),
     limites: mentions.filter((_, i) => i !== rang),
     dit,
@@ -100,7 +113,7 @@ function grantDe(action: string, etat: string, ligne: string): Grant {
   if (mot === undefined || suite === undefined) return { action, informe: ligne };
   const qui = { ...(depuis === undefined ? {} : { depuis }), ...(par === undefined ? {} : { par }) };
   // Seul un grant actif a un reste : éteint, révoqué ou absent, la suite ne dit que ce qu'il en est.
-  return mot === ACTIF ? { action, actif: true, mot, ...qui, ...resteDe(suite) } : { action, actif: false, mot, ...qui, limites: [], dit: suite };
+  return ACTIFS.includes(mot) ? { action, actif: true, mot, ...qui, ...resteDe(suite) } : { action, actif: false, mot, ...qui, limites: [], dit: suite };
 }
 
 // Une section telle qu'elle est écrite : ce que sa ligne de titre dit après lui, et les lignes qui la suivent.
@@ -114,13 +127,14 @@ export function grantsDe(sortie: string): Grants | { informe: string } {
   let bilan: string | undefined;
   for (const ligne of sortie.split("\n")) {
     const [, action, etat] = TETE.exec(ligne) ?? [];
-    const titre = titreDe(ligne);
+    const ecrit = titreDe(ligne);
+    const titre = ecrit === undefined ? undefined : TITRES[ecrit];
     // Seule sa première ligne dit un grant, ou ouvre une section : la même, plus bas, est une ligne de celle où elle tombe.
     if (action !== undefined && etat !== undefined && !grants.some((lu) => lu.action === action)) {
       grants.push(grantDe(action, etat, ligne));
       courante = undefined;
-    } else if (titre !== undefined && !sections.has(titre)) sections.set(titre, (courante = { dit: ligne.slice(titre.length).trim(), lignes: [] }));
-    else if (bilan === undefined && ligne.startsWith(BILAN)) {
+    } else if (ecrit !== undefined && titre !== undefined && !sections.has(titre)) sections.set(titre, (courante = { dit: ligne.slice(ecrit.length).trim(), lignes: [] }));
+    else if (bilan === undefined && BILANS.some((debut) => ligne.startsWith(debut))) {
       bilan = ligne;
       courante = undefined;
     } else if (ligne.trim() !== "") courante?.lignes.push(ligne);
@@ -180,7 +194,7 @@ const sansSection = (pasLu: string, titre: string, rien: string) => `${pasLu}: t
 
 // Un grant actif est vert ; ce qui demande un regard — il va s'éteindre, il s'est éteint seul —
 // est jaune ; ce que le chef a décidé, ou jamais donné, est gris.
-const ton = ({ actif, mot, bientot }: Etat) => (actif ? (bientot === undefined ? "vert" : "jaune") : mot === "ÉTEINT SEUL" ? "jaune" : "gris");
+const ton = ({ actif, mot, bientot }: Etat) => (actif ? (bientot === undefined ? "vert" : "jaune") : ETEINTS_SEULS.includes(mot) ? "jaune" : "gris");
 
 // Les usages d'un grant, parmi ceux que la sortie liste. Sans ligne du tout, c'est le mot du
 // runtime qui se lit ; sans ligne pour lui seul, l'app dit de combien d'usages elle parle — et
@@ -191,7 +205,7 @@ function usagesDuGrant(action: string, section: Section<Usage> | undefined): Lis
   if (lignes.length > 0) return { lignes, illisibles: [] };
   const autres = section.lignes.length;
   if (autres > 0) return { lignes, illisibles: [], vide: `none among the ${autres} latest uses the output lists` };
-  if (section.illisibles.length > 0) return { lignes, illisibles: [], vide: "not read: none of the lines under `derniers usages` has the expected form. This is not “none” — they are shown further down, as they are" };
+  if (section.illisibles.length > 0) return { lignes, illisibles: [], vide: "not read: none of the lines under `latest uses` has the expected form. This is not “none” — they are shown further down, as they are" };
   return { lignes, illisibles: [], ...(section.dit === "" ? {} : { vide: section.dit }) };
 }
 

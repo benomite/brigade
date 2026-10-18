@@ -289,8 +289,8 @@ describe("les capacités qu'un ticket demande", { concurrency: 8 }, () => {
       assert.equal(apres.code, 1, args.join(" "));
       assert.equal(apres.sortie, avant.sortie, args.join(" "));
     }
-    assert.match(avant.sortie, /grant acces-prod refusé : « toute action sur la production d'un projet »/);
-    assert.match(avant.sortie, /aucun grant ne l'autorise, pas même demandé par toi/);
+    assert.match(avant.sortie, /grant acces-prod refused: “any action on a project's production”/);
+    assert.match(avant.sortie, /no grant authorizes it, not even asked by you/);
     assert.deepEqual([...new Set(grants().map((e) => e.type))], ["grant.refused"]);
   });
 });

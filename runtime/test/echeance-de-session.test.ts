@@ -161,7 +161,7 @@ test("« resume » après l'annonce date la reconnexion : la ligne sort, et un �
     return { code: await cli.fin, sortie: cli.sortie() };
   };
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
-  assert.match((await reprendre()).sortie, /rien à reprendre/);
+  assert.match((await reprendre()).sortie, /nothing to resume/);
 
   const ilYA = (heures: number) => new Date(Date.now() - heures * 3_600_000).toISOString();
   noter({ type: "session.observed", payload: observation({ renewed: ilYA(6), written: ilYA(6) }) });
@@ -169,10 +169,10 @@ test("« resume » après l'annonce date la reconnexion : la ligne sort, et un �
 
   const { code, sortie } = await reprendre();
   assert.equal(code, 0);
-  assert.match(sortie, /session Max tenue pour renouvelée/);
+  assert.match(sortie, /Max session taken as renewed/);
   assert.deepEqual(journal.tout().filter((e) => e.type === "session.reconnected").length, 1);
   assert.equal(alerteDeSession(journal.base, new Date()), null);
-  assert.match((await reprendre()).sortie, /rien à reprendre/);
+  assert.match((await reprendre()).sortie, /nothing to resume/);
 });
 
 // --- Le fichier d'état, lu sans les identifiants -------------------------------

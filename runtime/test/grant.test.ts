@@ -4,8 +4,8 @@
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
-import { duree } from "../src/etat.ts";
-import { bientotEteint, commanderGrant, direCompris, direGrant, direInstant, gestesDuGrant, GrantRefuse, lireEcheance, type Commande } from "../src/grant.ts";
+import { dureeEn as duree } from "../src/etat.ts";
+import { bientotEteint, commanderGrant, direCompris, direGrant, direInstantEn, gestesDuGrant, GrantRefuse, lireEcheance, type Commande } from "../src/grant.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { etatDuGrant, pass, passDuTicket, usagesDuGrant } from "../src/projections/pass.ts";
 import { sessions } from "../src/projections/sessions.ts";
@@ -31,9 +31,9 @@ function histoire(t: TestContext) {
 
 describe("le grant au journal", () => {
   test("une échéance se lit en UTC écrit en lettres, la durée restante en tête ; `--until` dit ce qu'il a compris", () => {
-    assert.equal(direInstant("2026-10-12T19:20:36.681Z"), "12 oct. 19:20 UTC");
-    assert.equal(direInstant("2026-01-05T04:07:00.000Z"), "5 janv. 04:07 UTC");
-    assert.equal(direCompris("2026-10-12T19:20:36.681Z", new Date("2026-10-12T15:20:36.681Z"), duree), "compris : jusqu'au 12 oct. 19:20 UTC — dans 4 h 00");
+    assert.equal(direInstantEn("2026-10-12T19:20:36.681Z"), "12 Oct 19:20 UTC");
+    assert.equal(direInstantEn("2026-01-05T04:07:00.000Z"), "5 Jan 04:07 UTC");
+    assert.equal(direCompris("2026-10-12T19:20:36.681Z", new Date("2026-10-12T15:20:36.681Z"), duree), "understood: until 12 Oct 19:20 UTC — in 4 h 00");
   });
 
   test("accordé sans échéance, il se lit comme tel, et ne s'éteint pas", (t) => {
@@ -250,9 +250,9 @@ describe("l'échéance que le chef tape", () => {
   });
 
   test("une heure déjà passée aujourd'hui est refusée, pas reportée à demain ; une date passée aussi", () => {
-    assert.match(refus("--until", "9h") ?? "", /9h est déjà passé aujourd'hui — pour demain, dis la date/);
-    assert.match(refus("--until", "12:30") ?? "", /déjà passé aujourd'hui/);
-    assert.match(refus("--until", "2026-10-07") ?? "", /2026-10-07 est déjà passé$/);
+    assert.match(refus("--until", "9h") ?? "", /9h has already passed today — for tomorrow, give the date/);
+    assert.match(refus("--until", "12:30") ?? "", /has already passed today/);
+    assert.match(refus("--until", "2026-10-07") ?? "", /2026-10-07 has already passed$/);
   });
 
   test("pour une durée, comptée à partir de maintenant", () => {
@@ -270,21 +270,21 @@ describe("l'échéance que le chef tape", () => {
 
   test("ce qui ne se lit pas est refusé en disant ce qui est attendu, jamais deviné", () => {
     for (const [args, attendu] of [
-      [["--until", "vendredi"], /« vendredi » ne se lit pas — attendu une date/],
-      [["--until", "2026-02-31"], /ne se lit pas/],
-      [["--until", "25h"], /ne se lit pas/],
-      [["--for", "longtemps"], /« longtemps » ne se lit pas — attendu une durée/],
-      [["--for", "0h"], /ne se lit pas/],
-      [["--uses", "0"], /attendu un nombre de merges, 1 au moins/],
-      [["--uses", "2.5"], /ne se lit pas/],
-      [["--uses"], /--uses attend une valeur/],
-      [["--toujours"], /option inconnue : --toujours/],
-      [["--for", "2h", "--until", "18h"], /l'un ou l'autre/],
-      [["--for", "2h", "--for", "3h"], /--for est donné deux fois/],
-      [["--no-expiry", "--uses", "3"], /ne se combine avec aucune échéance/],
+      [["--until", "vendredi"], /“vendredi” cannot be read — expected a date/],
+      [["--until", "2026-02-31"], /cannot be read/],
+      [["--until", "25h"], /cannot be read/],
+      [["--for", "longtemps"], /“longtemps” cannot be read — expected a duration/],
+      [["--for", "0h"], /cannot be read/],
+      [["--uses", "0"], /expected a number of merges, 1 at least/],
+      [["--uses", "2.5"], /cannot be read/],
+      [["--uses"], /--uses needs a value/],
+      [["--toujours"], /unknown option: --toujours/],
+      [["--for", "2h", "--until", "18h"], /one or the other/],
+      [["--for", "2h", "--for", "3h"], /--for is given twice/],
+      [["--no-expiry", "--uses", "3"], /does not combine with any deadline/],
       // Une durée démesurée est un refus, pas une pile.
-      [["--for", "99999999999j"], /mène au-delà de ce qu'une date sait dire/],
-      [["--for", "99999999999999999999h"], /mène au-delà de ce qu'une date sait dire/],
+      [["--for", "99999999999d"], /goes beyond what a date can say/],
+      [["--for", "99999999999999999999h"], /goes beyond what a date can say/],
     ] as Array<[string[], RegExp]>) {
       assert.match(refus(...args) ?? "", attendu, args.join(" "));
     }
@@ -315,15 +315,15 @@ describe("les gestes du chef sur le grant", () => {
 
   test("accordé sans échéance, il se lit « sans échéance » ; accordé pour une durée et un nombre d'usages, il dit ce qu'il reste", (t) => {
     const { commander, faits, lu, noter } = chef(t);
-    assert.match(commander("enable", T0), /grant merge actif, sans échéance : toute pass verte à partir de maintenant est mergée[\s\S]*jusqu'à ce que tu le révoques/);
-    assert.match(lu(dans(30)), /^ACTIF depuis le \S+ \(par chef\) — sans échéance : une pass verte est mergée sans toi$/);
+    assert.match(commander("enable", T0), /grant merge active, no deadline: every green pass from now on is merged by the runtime[\s\S]*It holds until you revoke it/);
+    assert.match(lu(dans(30)), /^ACTIVE since \S+ \(by chef\) — no deadline: a green pass is merged without you$/);
     noter({ type: "grant.revoked", payload: { action: "merge" } });
 
     const dit = commander("enable", T0, "--for", "4h", "--uses", "10");
 
-    assert.match(dit, new RegExp(`grant merge actif encore 4 h 00 \\(jusqu'au ${direInstant(dans(4).toISOString())}\\) · pour 10 usages : [\\s\\S]*Il s'éteindra seul`));
+    assert.match(dit, new RegExp(`grant merge active 4 h 00 left \\(until ${direInstantEn(dans(4).toISOString())}\\) · for 10 uses: [\\s\\S]*It will lapse on its own`));
     assert.deepEqual(faits().at(-1), ["grant.activated", "chef", { action: "merge", until: dans(4).toISOString(), uses: 10 }]);
-    assert.match(lu(dans(1)), new RegExp(`ACTIF depuis le \\S+ \\(par chef\\) — encore 3 h 00 \\(jusqu'au ${direInstant(dans(4).toISOString())}\\) · encore 10 usages : une pass verte`));
+    assert.match(lu(dans(1)), new RegExp(`ACTIVE since \\S+ \\(by chef\\) — 3 h 00 left \\(until ${direInstantEn(dans(4).toISOString())}\\) · 10 uses left: a green pass`));
   });
 
   test("activer un grant déjà actif n'écrit rien, dit ce qu'il en reste et renvoie à `extend`", (t) => {
@@ -332,7 +332,7 @@ describe("les gestes du chef sur le grant", () => {
 
     const dit = commander("enable", dans(1), "--for", "8h");
 
-    assert.match(dit, /grant merge déjà actif depuis le \S+ — encore 3 h 00 \(jusqu'au 8 oct\. 14:00 UTC\)\. Rien n'est écrit : pour changer son échéance, `extend merge`/);
+    assert.match(dit, /grant merge already active since \S+ — 3 h 00 left \(until 8 Oct 14:00 UTC\)\. Nothing is written: to change its deadline, `extend merge`/);
     assert.equal(faits().length, 1);
   });
 
@@ -341,31 +341,31 @@ describe("les gestes du chef sur le grant", () => {
     commander("enable", T0, "--for", "4h", "--uses", "2");
 
     // Deux heures à partir de maintenant, pas ajoutées à l'ancienne échéance.
-    assert.match(commander("extend", dans(3), "--for", "2h"), new RegExp(`grant merge prolongé : encore 2 h 00 \\(jusqu'au ${direInstant(dans(5).toISOString())}\\) · encore 2 usages`));
-    assert.match(commander("extend", dans(3), "--uses", "5"), /prolongé : encore 2 h 00 \(jusqu'au \d+ \S+ \d\d:\d\d UTC\) · encore 7 usages/);
+    assert.match(commander("extend", dans(3), "--for", "2h"), new RegExp(`grant merge extended: 2 h 00 left \\(until ${direInstantEn(dans(5).toISOString())}\\) · 2 uses left`));
+    assert.match(commander("extend", dans(3), "--uses", "5"), /extended: 2 h 00 left \(until \d+ \S+ \d\d:\d\d UTC\) · 7 uses left/);
 
     assert.deepEqual(faits(), [
       ["grant.activated", "chef", { action: "merge", until: dans(4).toISOString(), uses: 2 }],
       ["grant.extended", "chef", { action: "merge", until: dans(5).toISOString() }],
       ["grant.extended", "chef", { action: "merge", uses: 5 }],
     ]);
-    assert.match(lu(dans(4.5)), /ACTIF depuis le \S+T10:00:\S+ \(par chef\) — BIENTÔT ÉTEINT — encore 30 min \(jusqu'au \d+ \S+ \d\d:\d\d UTC\) · encore 7 usages/);
+    assert.match(lu(dans(4.5)), /ACTIVE since \S+T10:00:\S+ \(by chef\) — EXPIRING SOON — 30 min left \(until \d+ \S+ \d\d:\d\d UTC\) · 7 uses left/);
     const gestes = gestesDuGrant(journal);
     assert.equal(gestes.length, 3);
-    assert.match(gestes[0] ?? "", /merge  prolongé : 5 usages de plus  \(chef\)$/);
-    assert.match(gestes[1] ?? "", new RegExp(`merge  prolongé : jusqu'au ${direInstant(dans(5).toISOString())}  \\(chef\\)$`));
-    assert.match(gestes[2] ?? "", new RegExp(`merge  accordé jusqu'au ${direInstant(dans(4).toISOString())} · pour 2 usages  \\(chef\\)$`));
+    assert.match(gestes[0] ?? "", /merge  extended: 5 uses more  \(chef\)$/);
+    assert.match(gestes[1] ?? "", new RegExp(`merge  extended: until ${direInstantEn(dans(5).toISOString())}  \\(chef\\)$`));
+    assert.match(gestes[2] ?? "", new RegExp(`merge  enabled until ${direInstantEn(dans(4).toISOString())} · for 2 uses  \\(chef\\)$`));
   });
 
   test("prolonger ne raccourcit pas : une date plus proche, ou une limite posée là où il n'y en avait pas, est refusée sans rien écrire", (t) => {
     const { commander, refus, faits, noter } = chef(t);
     commander("enable", T0, "--for", "4h");
-    assert.match(refus("extend", dans(1), "--for", "1h") ?? "", /vaut déjà jusqu'au \d+ \S+ \d\d:\d\d UTC : \d+ \S+ \d\d:\d\d UTC ne le prolonge pas — pour le raccourcir, révoque-le puis réaccorde-le/);
-    assert.match(refus("extend", dans(1), "--uses", "3") ?? "", /ne compte pas ses usages/);
-    assert.match(refus("extend", dans(1)) ?? "", /prolonger de combien \?/);
+    assert.match(refus("extend", dans(1), "--for", "1h") ?? "", /already holds until \d+ \S+ \d\d:\d\d UTC: \d+ \S+ \d\d:\d\d UTC does not extend it — to shorten it, revoke it then enable it again/);
+    assert.match(refus("extend", dans(1), "--uses", "3") ?? "", /does not count its uses/);
+    assert.match(refus("extend", dans(1)) ?? "", /extend by how much\?/);
     noter({ type: "grant.revoked", payload: { action: "merge" } });
     commander("enable", T0, "--uses", "3");
-    assert.match(refus("extend", dans(1), "--for", "1h") ?? "", /n'a pas d'échéance en date/);
+    assert.match(refus("extend", dans(1), "--for", "1h") ?? "", /has no dated deadline/);
 
     assert.deepEqual(faits().map(([type]) => type), ["grant.activated", "grant.revoked", "grant.activated"]);
   });
@@ -374,23 +374,23 @@ describe("les gestes du chef sur le grant", () => {
     const { journal, commander, faits, lu } = chef(t);
     commander("enable", T0, "--for", "4h", "--uses", "2");
 
-    assert.match(commander("extend", dans(1), "--no-expiry"), /prolongé : son échéance est levée/);
+    assert.match(commander("extend", dans(1), "--no-expiry"), /extended: its deadline is lifted, it holds until you revoke it/);
 
     assert.deepEqual(faits().at(-1), ["grant.extended", "chef", { action: "merge", until: null, uses: null }]);
-    assert.match(lu(dans(400)), /ACTIF depuis le \S+ \(par chef\) — sans échéance/);
-    assert.match(gestesDuGrant(journal)[0] ?? "", /prolongé : échéance levée/);
-    assert.match(commander("extend", dans(2), "--no-expiry"), /déjà sans échéance : rien n'est écrit/);
+    assert.match(lu(dans(400)), /ACTIVE since \S+ \(by chef\) — no deadline/);
+    assert.match(gestesDuGrant(journal)[0] ?? "", /extended: deadline lifted/);
+    assert.match(commander("extend", dans(2), "--no-expiry"), /already has no deadline: nothing is written/);
   });
 
   test("éteint seul, il se lit ainsi avant même que le runtime l'écrive — et ne se prolonge pas : il se réaccorde, l'extinction d'abord écrite", (t) => {
     const { journal, commander, refus, faits, lu } = chef(t);
     commander("enable", T0, "--for", "4h");
 
-    assert.match(lu(dans(6)), new RegExp(`^ÉTEINT SEUL depuis le ${dans(4).toISOString()} — son échéance est passée \\(accordé par chef\\) : la pass s'arrête à la PR ouverte \\(le runtime l'écrira au journal à son prochain passage\\)$`));
+    assert.match(lu(dans(6)), new RegExp(`^LAPSED since ${dans(4).toISOString()} — its deadline has passed \\(enabled by chef\\): the pass stops at the open PR \\(the runtime will write it to the log at its next round\\)$`));
     assert.equal(faits().length, 1);
 
-    assert.match(refus("extend", dans(6), "--for", "2h") ?? "", /rien à prolonger : le grant merge n'est pas actif — il s'est éteint seul le \S+ \(son échéance est passée\) — pour le réaccorder, `enable merge`/);
-    assert.match(commander("revoke", dans(6)), /rien à révoquer : le grant merge n'est pas actif — il s'est éteint seul le/);
+    assert.match(refus("extend", dans(6), "--for", "2h") ?? "", /nothing to extend: grant merge is not active — it lapsed on its own on \S+ \(its deadline has passed\) — to enable it again, `enable merge`/);
+    assert.match(commander("revoke", dans(6)), /nothing to revoke: grant merge is not active — it lapsed on its own on/);
     commander("enable", dans(6), "--for", "1h");
 
     // Le geste du chef ne recouvre pas l'extinction : elle est au journal, à sa date, et pas en son nom.
@@ -399,8 +399,8 @@ describe("les gestes du chef sur le grant", () => {
       ["grant.expired", "runtime", { action: "merge", cause: "until", since: dans(4).toISOString() }],
       ["grant.activated", "chef", { action: "merge", until: dans(7).toISOString() }],
     ]);
-    assert.match(gestesDuGrant(journal)[1] ?? "", new RegExp(`éteint seul : son échéance est passée \\(depuis le ${dans(4).toISOString()}\\)  \\(runtime\\)$`));
-    assert.doesNotMatch(lu(dans(6)), /le runtime l'écrira/);
+    assert.match(gestesDuGrant(journal)[1] ?? "", new RegExp(`lapsed: its deadline has passed \\(since ${dans(4).toISOString()}\\)  \\(runtime\\)$`));
+    assert.doesNotMatch(lu(dans(6)), /the runtime will write it/);
   });
 
   test("le dernier usage se lit comme bientôt éteint, un merge en vol comme un usage retenu", (t) => {
@@ -409,20 +409,20 @@ describe("les gestes du chef sur le grant", () => {
     assert.equal(bientotEteint(etatDuGrant(base, "merge", T0)!, T0), false);
 
     vouloir(17);
-    assert.match(lu(T0), /encore 2 usages, dont 1 retenu par un merge en cours/);
+    assert.match(lu(T0), /2 uses left, of which 1 held by a merge under way/);
     commander("revoke", T0);
     commander("enable", T0, "--uses", "1");
 
-    assert.match(lu(T0), /BIENTÔT ÉTEINT — encore 1 usage : /);
+    assert.match(lu(T0), /EXPIRING SOON — 1 use left: /);
   });
 
   test("ce que `extend` seul sait faire est refusé ailleurs, et un journal vide ne reçoit aucun grant", (t) => {
     const { commander, refus } = chef(t);
-    assert.match(refus("enable", T0, "--no-expiry") ?? "", /--no-expiry ne vaut que pour `extend`/);
+    assert.match(refus("enable", T0, "--no-expiry") ?? "", /--no-expiry only applies to `extend`/);
     commander("enable", T0);
-    assert.match(refus("revoke", T0, "--for", "2h") ?? "", /`revoke` ne prend pas d'échéance/);
+    assert.match(refus("revoke", T0, "--for", "2h") ?? "", /`revoke` takes no deadline/);
 
     const vide = histoire(t);
-    assert.throws(() => commanderGrant(vide.journal, "enable", "merge", { sansEcheance: false }, T0, duree), /journal vide/);
+    assert.throws(() => commanderGrant(vide.journal, "enable", "merge", { sansEcheance: false }, T0, duree), /empty log/);
   });
 });

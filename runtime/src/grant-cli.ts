@@ -6,7 +6,7 @@
 //   npm --prefix runtime run grant -- extend merge --for 2h    un grant en cours, sans le révoquer
 //   npm --prefix runtime run grant -- revoke merge             elle s'arrête à la PR ouverte
 // Une échéance : `--until` (2026-10-12, 2026-10-12T18:00, 18h30 — heure de la
-// box, UTC ; la commande dit ce qu'elle a compris avant d'écrire) ou `--for` (30min, 4h, 2j), et `--uses <n>` ; `extend` prend
+// box, UTC ; la commande dit ce qu'elle a compris avant d'écrire) ou `--for` (30min, 4h, 2d), et `--uses <n>` ; `extend` prend
 // aussi `--no-expiry`. Les anciens mots (`activer`, `prolonger`, `revoquer`,
 // `--jusqu-a`, `--pour`, `--usages`, `--sans-echeance`) répondent encore, en
 // disant le nouveau (`commandes.ts`).
@@ -16,17 +16,17 @@ import { existsSync } from "node:fs";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
 import type { ActionDeGrant } from "./evenements/pass.ts";
-import { direSansGrant } from "./attend.ts";
-import { duree } from "./etat.ts";
+import { direSansGrantEn } from "./attend.ts";
+import { dureeEn as duree } from "./etat.ts";
 import { ACTIONS, commanderGrant, COMMANDES, direCompris, direGrant, gestesDuGrant, GrantRefuse, JAMAIS_ACCORDEES, jamaisAccordee, lireEcheance, refuserJamaisAccordee, type Commande } from "./grant.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { bilanSansGrant, etatDuGrant, usagesDuGrant } from "./projections/pass.ts";
 
 const USAGE = [
-  "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run grant -- [<commande> merge [<échéance>]]",
-  "  enable merge [--until <date ou heure> | --for <durée>] [--uses <n>]",
-  "  extend merge (--until <date ou heure> | --for <durée> | --uses <n> | --no-expiry)",
+  "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run grant -- [<command> merge [<deadline>]]",
+  "  enable merge [--until <date or time> | --for <duration>] [--uses <n>]",
+  "  extend merge (--until <date or time> | --for <duration> | --uses <n> | --no-expiry)",
   "  revoke merge",
 ].join("\n");
 const USAGES_MONTRES = 10;
@@ -41,28 +41,28 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
   const ligne = (titre: string, valeur: string) => dire(`${titre.padEnd(22)}${valeur}`);
 
   // Ce qu'est devenu le merge que le grant a autorisé.
-  const SUITES: Record<string, string> = { done: "mergée", failed: "non mergée" };
+  const SUITES: Record<string, string> = { done: "merged", failed: "not merged" };
 
   function montrer(journal: Journal, maintenant: Date): void {
     const { base } = journal;
     for (const action of ACTIONS) ligne(`grant ${action}`, direGrant(etatDuGrant(base, action, maintenant), maintenant, duree));
-    JAMAIS_ACCORDEES.forEach(({ action, ligne: interdit }, i) => ligne(i === 0 ? "jamais accordé" : "", `${action} — ${interdit}`));
+    JAMAIS_ACCORDEES.forEach(({ action, ligne: interdit }, i) => ligne(i === 0 ? "never granted" : "", `${action} — ${interdit}`));
     const gestes = gestesDuGrant(journal);
-    ligne("derniers gestes", gestes.length === 0 ? "aucun" : "");
+    ligne("latest actions", gestes.length === 0 ? "none" : "");
     for (const geste of gestes) dire(`  ${geste}`);
     const usages = usagesDuGrant(base, USAGES_MONTRES);
-    ligne("derniers usages", usages.length === 0 ? "aucun" : "");
+    ligne("latest uses", usages.length === 0 ? "none" : "");
     for (const usage of usages) {
-      const suite = usage.outcome === null ? "merge en cours" : (SUITES[usage.outcome] ?? usage.outcome);
-      dire(`  ${usage.at}  #${usage.ticket}  ${usage.action} sur ${usage.base}  ${usage.pr}  ${usage.sha.slice(0, 7)}  verdict n° ${usage.verdict}  ${suite}`);
+      const suite = usage.outcome === null ? "merge under way" : (SUITES[usage.outcome] ?? usage.outcome);
+      dire(`  ${usage.at}  #${usage.ticket}  ${usage.action} on ${usage.base}  ${usage.pr}  ${usage.sha.slice(0, 7)}  verdict no. ${usage.verdict}  ${suite}`);
     }
     // Ce que le chef a fait de ce que la pass a arrêté faute de grant : de quoi décider de l'accorder.
-    const sansGrant = direSansGrant(bilanSansGrant(base));
+    const sansGrant = direSansGrantEn(bilanSansGrant(base));
     if (sansGrant !== null) dire(sansGrant);
   }
 
   const repertoireEtat = env.BRIGADE_STATE_DIR;
-  if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
+  if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR is not set\n${USAGE}`);
   const [commande, action, ...options] = args;
   // Voir le grant n'écrit rien.
   const montre = args.length === 0;
@@ -88,7 +88,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
   }
   // Une commande ouvre le journal en écriture : sans ce contrôle, elle en
   // créerait un là où il n'y en a pas.
-  if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `aucun journal dans ${repertoireEtat}`);
+  if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `no log in ${repertoireEtat}`);
 
   // L'heure donnée à `--until` est celle de la box, en UTC : la commande dit
   // ce qu'elle a compris avant toute autre ligne, et avant d'écrire.
@@ -105,7 +105,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     } else if (journalPasRejoue(erreur)) {
       // Rien ne donne leur forme du jour aux tables d'un journal écrit par un
       // runtime d'avant la pass, ou d'avant l'échéance des grants.
-      redire("brigade : ce journal n'a pas encore l'état des grants : redémarrer le runtime, qui le recalcule");
+      redire("brigade : this log does not hold the grants' state yet: restart the runtime, which recomputes it");
       throw new Sortie(1);
     } else throw erreur;
   } finally {

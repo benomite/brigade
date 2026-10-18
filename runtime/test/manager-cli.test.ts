@@ -37,8 +37,8 @@ describe("la commande manager", { concurrency: 8 }, () => {
     const { code, sortie } = await commande();
 
     assert.equal(code, 0);
-    assert.match(sortie, /manager\s+ÉTEINT — jamais allumé : aucune issue n'est jugée, `fire` et le calibrage se posent à la main/);
-    assert.match(sortie, /dernières décisions\s+aucune/);
+    assert.match(sortie, /manager\s+OFF — never turned on: no issue is judged, `fire` and the calibration are set by hand/);
+    assert.match(sortie, /latest decisions\s+none/);
     assert.deepEqual(journal.tout(), avant);
   });
 
@@ -49,24 +49,24 @@ describe("la commande manager", { concurrency: 8 }, () => {
     const seconde = await lancee("on");
 
     assert.equal(premiere.code, 0);
-    assert.match(premiere.sortie, /manager allumé : il juge les issues ouvertes/);
-    assert.match(seconde.sortie, /déjà allumé depuis le/);
+    assert.match(premiere.sortie, /manager on: it judges the open issues/);
+    assert.match(seconde.sortie, /already on since/);
     assert.deepEqual(commandes().map((e) => [e.type, e.author]), [["manager.enabled", "chef"]]);
     assert.equal(etatDuManager(journal.base)?.active, true);
-    assert.match((await lancee()).sortie, /manager\s+ALLUMÉ depuis le \d{4}-\d{2}-\d{2}T\S+ \(par chef\)/);
+    assert.match((await lancee()).sortie, /manager\s+ON since \d{4}-\d{2}-\d{2}T\S+ \(by chef\)/);
   });
 
   test("éteindre arrête les jugements à venir, et ne défait rien de ce qui est posé", async (t) => {
     const { commande, commandes } = cuisine(t);
-    assert.match((await commande("off")).sortie, /rien à éteindre/);
+    assert.match((await commande("off")).sortie, /nothing to turn off/);
     await commande("on");
 
     const { code, sortie } = await commande("off");
 
     assert.equal(code, 0);
-    assert.match(sortie, /manager éteint : plus aucune issue n'est jugée — ce qu'il a posé reste posé/);
+    assert.match(sortie, /manager off: no issue is judged any more — what it set stays set/);
     assert.deepEqual(commandes().map((e) => e.type), ["manager.enabled", "manager.disabled"]);
-    assert.match((await commande()).sortie, /manager\s+ÉTEINT depuis le/);
+    assert.match((await commande()).sortie, /manager\s+OFF since/);
   });
 
   test("le chef lit les dernières décisions, chacune avec son motif", async (t) => {
@@ -79,12 +79,12 @@ describe("la commande manager", { concurrency: 8 }, () => {
 
     const { sortie } = await commande();
 
-    const lignes = sortie.slice(0, sortie.indexOf("écartées")).split("\n").filter((ligne) => /^\s+\d{4}-/.test(ligne));
+    const lignes = sortie.slice(0, sortie.indexOf("\nset aside ")).split("\n").filter((ligne) => /^\s+\d{4}-/.test(ligne));
     assert.equal(lignes.length, 4);
-    assert.match(lignes[0] ?? "", /#1\s+écartée \(roadmap\)/);
-    assert.match(lignes[1] ?? "", /#32\s+jugement illisible — aucun objet JSON dans la réponse/);
-    assert.match(lignes[2] ?? "", /#31\s+refusée \(une épique\) — Trois livrables\./);
-    assert.match(lignes[3] ?? "", /#30\s+sur le rail, haiku \/ low \(posé : fire, effort:low\) — Un livrable, un test\./);
+    assert.match(lignes[0] ?? "", /#1\s+set aside \(roadmap\)/);
+    assert.match(lignes[1] ?? "", /#32\s+unreadable judgment — aucun objet JSON dans la réponse/);
+    assert.match(lignes[2] ?? "", /#31\s+refused \(an epic\) — Trois livrables\./);
+    assert.match(lignes[3] ?? "", /#30\s+on the rail, haiku \/ low \(set: fire, effort:low\) — Un livrable, un test\./);
   });
 
   test("le chef lit où en est chaque épique : découpée et servie, en cours, ou en attente de sa réponse", async (t) => {
@@ -96,8 +96,8 @@ describe("la commande manager", { concurrency: 8 }, () => {
     noter({ type: "manager.split-asked", payload: { run: "decoupe-31-a", fingerprint: "e2", question: "Quel écran ?" } }, 31);
 
     const encours = (await commande()).sortie;
-    assert.match(encours, /#31\s+QUESTION POSÉE, attend ta réponse sur l'épique — Quel écran \?/);
-    assert.match(encours, /#30\s+découpage en cours, 1\/2 tickets créés et lancés — Deux livrables\./);
+    assert.match(encours, /#31\s+QUESTION ASKED, awaits your answer on the epic — Quel écran \?/);
+    assert.match(encours, /#30\s+split under way, 1\/2 tickets created and fired — Deux livrables\./);
 
     noter({ type: "manager.split-created", payload: { epic: 30, index: 2, reconciled: false } }, 502);
     noter({ type: "manager.split-fired", payload: { epic: 30, index: 2 } }, 502);
@@ -105,12 +105,12 @@ describe("la commande manager", { concurrency: 8 }, () => {
     noter({ type: "ticket.arrived", payload: { title: "Le socle", priority: null, createdAt: "2026-10-08T10:00:00Z", url: "u" } }, 501, "github");
     noter({ type: "ticket.served", payload: {} }, 501, "runtime");
 
-    assert.match((await commande()).sortie, /#30\s+découpée, 1\/2 servi \(#501, #502\) — Deux livrables\./);
+    assert.match((await commande()).sortie, /#30\s+split, 1\/2 served \(#501, #502\) — Deux livrables\./);
   });
 
   test("le chef lit les réactions du manager aux tickets restés rouges : le choix, et son motif", async (t) => {
     const { commande, noter } = cuisine(t);
-    assert.match((await commande()).sortie, /réactions\s+aucune/);
+    assert.match((await commande()).sortie, /reactions\s+none/);
     const reaction = { verdict: 9, returns: 2, proposal: null, run: "reagit-30-a", from: { model: "haiku", effort: "low" } };
     noter({ type: "manager.reacted", payload: { ...reaction, choice: "raise", reason: "Le cook cale.", to: { model: "haiku", effort: "medium" } } }, 30);
     noter({ type: "manager.reacted", payload: { ...reaction, choice: "split", reason: "Deux livrables.", to: null } }, 31);
@@ -123,16 +123,16 @@ describe("la commande manager", { concurrency: 8 }, () => {
 
     const { sortie } = await commande();
 
-    assert.match(sortie, /#30\s+après 2 renvois, calibrage monté de haiku \/ low à haiku \/ medium — Le cook cale\./);
-    assert.match(sortie, /#34\s+après 2 renvois, montée de haiku \/ low à haiku \/ medium abandonnée : recalibré par le chef entre-temps/);
-    assert.match(sortie, /#31\s+après 2 renvois, redécoupé — Deux livrables\./);
-    assert.match(sortie, /#32\s+après 2 renvois, remonté au chef — Le critère 2 se contredit\. Proposé : Le trancher\./);
-    assert.match(sortie, /#33\s+second renvoi au même calibrage \(haiku \/ low\) — aucun plafond/);
+    assert.match(sortie, /#30\s+after 2 returns, calibration raised from haiku \/ low to haiku \/ medium — Le cook cale\./);
+    assert.match(sortie, /#34\s+after 2 returns, raise from haiku \/ low to haiku \/ medium dropped: recalibrated by the chef in the meantime/);
+    assert.match(sortie, /#31\s+after 2 returns, split again — Deux livrables\./);
+    assert.match(sortie, /#32\s+after 2 returns, escalated to the chef — Le critère 2 se contredit\. Proposed: Le trancher\./);
+    assert.match(sortie, /#33\s+second return at the same calibration \(haiku \/ low\) — aucun plafond/);
   });
 
   test("le chef lit ce que le manager a écarté, pourquoi, et le geste qui lève chaque écart", async (t) => {
     const { commande, noter } = cuisine(t);
-    assert.match((await commande()).sortie, /écartées\s+aucune/);
+    assert.match((await commande()).sortie, /set aside\s+none/);
     noter({ type: "manager.set-aside", payload: { reason: "roadmap", fired: false } }, 1);
     noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 31);
     noter({ type: "manager.set-aside", payload: { reason: "already-split", fired: false } }, 32);
@@ -140,11 +140,11 @@ describe("la commande manager", { concurrency: 8 }, () => {
 
     const { sortie } = await commande();
 
-    const ecartees = sortie.slice(sortie.indexOf("écartées"), sortie.indexOf("épiques"));
-    assert.match(ecartees, /#30\s+tu y as retiré `fire` ou un calibrage que le manager avait posé — pour la lui rendre : `brigade <projet> manager return 30` : il la rejuge à neuf/);
-    assert.match(ecartees, /#32\s+son corps liste déjà les tickets d'une épique, découpée à la main — pour la lui rendre : retire cette liste de son corps/);
-    assert.match(ecartees, /#31\s+elle porte `blocked-on-human` — pour la lui rendre : retire `blocked-on-human` : elle est jugée au réveil suivant/);
-    assert.match(ecartees, /#1\s+c'est la roadmap du projet — rien ne la rend au manager/);
+    const ecartees = sortie.slice(sortie.indexOf("set aside"), sortie.indexOf("épiques"));
+    assert.match(ecartees, /#30\s+you removed `fire` or a calibration the manager had set — to hand it back to it: `brigade <projet> manager return 30`: it judges it anew/);
+    assert.match(ecartees, /#32\s+its body already lists an epic's tickets, split by hand — to hand it back to it: remove that list from its body/);
+    assert.match(ecartees, /#31\s+it carries `blocked-on-human` — to hand it back to it: remove `blocked-on-human`: it is judged at the next wake-up/);
+    assert.match(ecartees, /#1\s+it is the project's roadmap — nothing hands it back to the manager/);
   });
 
   test("rendre s'écrit au journal au nom du chef, une fois, pour une issue écartée `chef-changed` — et le relevé la montre rendue", async (t) => {
@@ -155,11 +155,11 @@ describe("la commande manager", { concurrency: 8 }, () => {
     const seconde = await commande("return", "30");
 
     assert.equal(premiere.code, 0);
-    assert.match(premiere.sortie, /#30 rendue au manager : il la rejuge à neuf .* Une remise vaut pour un jugement \(le manager est éteint : elle sera rejugée quand tu l'allumeras\)/);
+    assert.match(premiere.sortie, /#30 handed back to the manager: it judges it anew .* A handing back is good for one judgment \(the manager is off: it will be judged again when you turn it on\)/);
     assert.equal(seconde.code, 0);
-    assert.match(seconde.sortie, /#30 est déjà rendue au manager/);
+    assert.match(seconde.sortie, /#30 is already handed back to the manager/);
     assert.deepEqual(journal.duTicket(30).map((e) => [e.type, e.author]), [["manager.set-aside", "manager"], ["manager.handed-back", "chef"]]);
-    assert.match((await commande()).sortie, /écartées\s*\n\s+\S+\s+#30\s+rendue au manager, pas encore rejugée/);
+    assert.match((await commande()).sortie, /set aside\s*\n\s+\S+\s+#30\s+handed back to the manager, not judged again yet/);
   });
 
   test("rendre ne force aucun autre écart : la commande dit le geste qui le lève, et n'écrit rien", async (t) => {
@@ -172,21 +172,21 @@ describe("la commande manager", { concurrency: 8 }, () => {
     const [retenue, inconnu, refusee, jamaisVue, illisible] = await Promise.all([commande("return", "31"), commande("return", "33"), commande("return", "34"), commande("return", "99"), commande("return", "trente")]);
 
     assert.equal(retenue.code, 1);
-    assert.match(retenue.sortie, /#31 n'est pas rendue : elle porte `blocked-on-human`\. Ce qui lève cet écart : retire `blocked-on-human`/);
+    assert.match(retenue.sortie, /#31 is not handed back: it carries `blocked-on-human`\. What lifts this: remove `blocked-on-human`/);
     assert.equal(inconnu.code, 1);
-    assert.match(inconnu.sortie, /#33 n'est pas rendue : son auteur n'a pas la main sur le dépôt\. Rien ne la rend au manager\./);
+    assert.match(inconnu.sortie, /#33 is not handed back: its author has no hand on the repository\. Nothing hands it back to the manager\./);
     assert.equal(refusee.code, 1);
-    assert.match(refusee.sortie, /rien à rendre : #34 n'est pas écartée — refusée \(un ticket incomplet\)/);
+    assert.match(refusee.sortie, /nothing to hand back: #34 is not set aside — refused \(an incomplete ticket\)/);
     assert.equal(jamaisVue.code, 1);
-    assert.match(jamaisVue.sortie, /rien à rendre : le manager n'a rien décidé sur #99/);
+    assert.match(jamaisVue.sortie, /nothing to hand back: the manager has decided nothing on #99/);
     assert.equal(illisible.code, 2);
-    assert.match(illisible.sortie, /usage : /);
+    assert.match(illisible.sortie, /usage: /);
     assert.equal(journal.tout().length, avant);
   });
 
   test("sans épique regardée, la commande le dit", async (t) => {
     const { commande } = cuisine(t);
-    assert.match((await commande()).sortie, /épiques\s+aucune/);
+    assert.match((await commande()).sortie, /epics\s+none/);
   });
 
   test("une commande inconnue est refusée avec l'usage, sans rien écrire", async (t) => {
@@ -195,7 +195,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
     const { code, sortie } = await commande("demarrer");
 
     assert.equal(code, 2);
-    assert.match(sortie, /usage : .*\[on \| off \| return <n° d'issue> \| backlog \| upstream\]/);
+    assert.match(sortie, /usage: .*\[on \| off \| return <issue number> \| backlog \| upstream\]/);
     assert.deepEqual(commandes(), []);
   });
 
@@ -206,7 +206,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
 
     assert.equal(await sansVariable.fin, 2);
     assert.equal(await sansJournal.fin, 1);
-    assert.match(sansJournal.sortie(), /aucun journal/);
+    assert.match(sansJournal.sortie(), /no log in/);
     assert.equal(existsSync(join(vide, "log.db")), false);
   });
 
@@ -234,7 +234,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
       const { code, sortie } = await lire(gh);
 
       assert.equal(code, 0);
-      assert.equal(sortie, `backlog               5 issues ouvertes, dont 2 portent \`blocked-on-human\` — lu à l'instant sur GitHub (${DEPOT})\n`);
+      assert.equal(sortie, `backlog               5 open issues, of which 2 carry \`blocked-on-human\` — read just now on GitHub (${DEPOT})\n`);
     });
 
     test("elle ne fait que lire : un GET sur la liste que le manager sonde, rien au journal, et pas besoin de lui", async (t) => {
@@ -260,7 +260,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
 
       const { sortie } = await lire(gh);
 
-      assert.match(sortie, /^backlog\s+102 issues ouvertes, dont 4 portent `blocked-on-human`/);
+      assert.match(sortie, /^backlog\s+102 open issues, of which 4 carry `blocked-on-human`/);
     });
 
     test("une seule issue, aucune : les nombres restent en chiffres, en tête de leur mot", async (t) => {
@@ -268,8 +268,8 @@ describe("la commande manager", { concurrency: 8 }, () => {
       une.repondre(OUVERTES, { corps: [issueGitHub(11, { labels: ["blocked-on-human"] })] });
       aucune.repondre(OUVERTES, { corps: [] });
 
-      assert.match((await lire(une)).sortie, /^backlog\s+1 issue ouverte, dont 1 porte `blocked-on-human`/);
-      assert.match((await lire(aucune)).sortie, /^backlog\s+0 issue ouverte, dont 0 porte `blocked-on-human`/);
+      assert.match((await lire(une)).sortie, /^backlog\s+1 open issue, of which 1 carries `blocked-on-human`/);
+      assert.match((await lire(aucune)).sortie, /^backlog\s+0 open issues, of which 0 carry `blocked-on-human`/);
     });
 
     test("GitHub pas joint : la commande échoue en le disant, sans aucun nombre — ce n'est pas « aucune issue »", async (t) => {
@@ -277,7 +277,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
       const { code, sortie } = await lire(fauxGh(t));
 
       assert.equal(code, 1);
-      assert.match(sortie, new RegExp(`^brigade : le backlog de ${DEPOT} n'a pas été lu : .*gh: connexion impossible.* — ce n'est pas « aucune issue »`));
+      assert.match(sortie, new RegExp(`^brigade : the backlog of ${DEPOT} was not read: .*gh: connexion impossible.* — this is not “no issue”`));
       assert.doesNotMatch(sortie, /^backlog/m);
     });
 
@@ -290,7 +290,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
       assert.equal(await sansDepot.fin, 2);
       assert.match(sansDepot.sortie(), /BRIGADE_GITHUB_REPO is not set/);
       assert.equal(await deTrop.fin, 2);
-      assert.match(deTrop.sortie(), /usage : /);
+      assert.match(deTrop.sortie(), /usage: /);
       assert.deepEqual(gh.appels(), []);
     });
 
@@ -301,7 +301,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
       const cli = lancer(t, CLI, ["backlog"], { BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin });
 
       assert.equal(await cli.fin, 0);
-      assert.match(cli.sortie(), /^backlog\s+5 issues ouvertes, dont 2 portent `blocked-on-human`/);
+      assert.match(cli.sortie(), /^backlog\s+5 open issues, of which 2 carry `blocked-on-human`/);
     });
   });
   // Ce qui n'est pas encore sur le rail : chaque issue ouverte qu'il ne porte pas, et ce qui lui arrive.
@@ -378,16 +378,16 @@ describe("la commande manager", { concurrency: 8 }, () => {
         [20, "non-lue", null],
       ]);
       const dit = (ticket: number) => lu.issues.find((issue: { ticket: number }) => issue.ticket === ticket);
-      assert.deepEqual(dit(11), { ticket: 11, titre: "Ticket 11", url: `https://github.com/${DEPOT}/issues/11`, priorite: 2, etat: "sortie", dit: "sortie du rail : label `fire` retiré" });
-      assert.match(dit(12).dit, /^écartée par le manager, elle porte `question` — à trancher/);
-      assert.equal(dit(13).dit, "c'est la roadmap du projet — rien ne la rend au manager");
+      assert.deepEqual(dit(11), { ticket: 11, titre: "Ticket 11", url: `https://github.com/${DEPOT}/issues/11`, priorite: 2, etat: "sortie", dit: "left the rail: label `fire` removed" });
+      assert.match(dit(12).dit, /^set aside by the manager, it carries `question` — to decide/);
+      assert.equal(dit(13).dit, "it is the project's roadmap — nothing hands it back to the manager");
       // En une ligne : la raison du manager garde ses mots, pas ses retours à la ligne.
-      assert.equal(dit(14).dit, "refusée (un ticket incomplet) — Aucun critère observable.");
-      assert.equal(dit(15).dit, "pas encore découpée — Trois livrables.");
-      assert.equal(dit(16).dit, "elle porte `epic` : pas encore découpée");
-      assert.equal(dit(17).dit, "découpée, 0/1 ticket servi (#501)");
-      assert.equal(dit(18).dit, "elle porte `fire` : le rail la prend à son prochain sondage");
-      assert.equal(dit(20).dit, "le manager ne l'a pas encore jugée");
+      assert.equal(dit(14).dit, "refused (an incomplete ticket) — Aucun critère observable.");
+      assert.equal(dit(15).dit, "not split yet — Trois livrables.");
+      assert.equal(dit(16).dit, "it carries `epic`: not split yet");
+      assert.equal(dit(17).dit, "split, 0/1 ticket served (#501)");
+      assert.equal(dit(18).dit, "it carries `fire`: the rail takes it at its next poll");
+      assert.equal(dit(20).dit, "the manager has not judged it yet");
       // Une lecture : rien au journal, un seul GET.
       assert.deepEqual(journal.tout(), avant);
       assert.deepEqual(gh.appels(), [["api", "-i", OUVERTES]]);
@@ -412,9 +412,9 @@ describe("la commande manager", { concurrency: 8 }, () => {
       assert.deepEqual(
         lu.issues.map(({ ticket, etat, dit }: { ticket: number; etat: string; dit: string }) => [ticket, etat, dit]),
         [
-          [30, "ecartee", "refusée (une question) — Rien à livrer."],
-          [31, "en-route", "mise sur le rail par le manager, haiku / low — `fire` n'y est pas encore posé"],
-          [32, "non-lue", "rendue au manager, pas encore rejugée"],
+          [30, "ecartee", "refused (a question) — Rien à livrer."],
+          [31, "en-route", "put on the rail by the manager, haiku / low — `fire` is not set on it yet"],
+          [32, "non-lue", "handed back to the manager, not judged again yet"],
         ],
       );
     });
@@ -425,7 +425,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
       const { code, sortie } = await lire(repertoire, fauxGh(t));
 
       assert.equal(code, 1);
-      assert.match(sortie, new RegExp(`^brigade : ce qui est en amont du rail de ${DEPOT} n'a pas été lu : .* — ce n'est pas « aucune issue »`));
+      assert.match(sortie, new RegExp(`^brigade : what is upstream of the rail of ${DEPOT} was not read: .* — this is not “no issue”`));
     });
 
     test("sans journal, ou avec un argument de trop, elle est refusée sans rien demander à GitHub", async (t) => {
@@ -435,9 +435,9 @@ describe("la commande manager", { concurrency: 8 }, () => {
       const deTrop = appeler(manager, ["upstream", "tout"], { BRIGADE_STATE_DIR: repertoireTemporaire(t), BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin });
 
       assert.equal(await sansJournal.fin, 1);
-      assert.match(sansJournal.sortie(), /aucun journal/);
+      assert.match(sansJournal.sortie(), /no log in/);
       assert.equal(await deTrop.fin, 2);
-      assert.match(deTrop.sortie(), /usage : .*\| upstream\]/);
+      assert.match(deTrop.sortie(), /usage: .*\| upstream\]/);
       assert.deepEqual(gh.appels(), []);
     });
   });
