@@ -80,7 +80,7 @@ canal du gist (`appairage/canal.ts`) — prend un jeton du budget avant que `gh`
   fois : `brigade : station — GitHub a atteint sa limite d'appels : plus aucun appel ne part avant
   la fin de la fenêtre, puis ils reprennent seuls`.
 - **Ce que le chef en voit.** Pendant la pause, `status` écrit une ligne de tête
-  `github     GitHub limite les appels, reprise vers HH:MM`, et `faits` porte `limiteGithub` (l'instant
+  `github     GitHub is rate-limiting calls, back around HH:MM` (en français avant #940), et `faits` porte `limiteGithub` (l'instant
   de reprise, en ISO ; absent hors limite). Les deux lisent la pause sur le compteur, en lecture
   seule, par `BRIGADE_STATION_DIR` : le ssh ne dépend pas de GitHub, la file reste lisible. Le texte
   de `gh` n'y paraît jamais, et la ligne tombe d'elle-même à la fin de la pause. L'app la montre en

@@ -13,7 +13,7 @@ les gates la voient sur la fusion (voir « Vert veut dire vert une fois fusionn�
 | Quand | Ce que le runtime fait | Où ça se lit |
 |---|---|---|
 | **Au découpage** | Deux tickets dont les zones se recouvrent et qui ne s'attendent pas : le code **pose la dépendance** | La fiche (`attend`), le commentaire de découpage, `manager.split` (`overlaps`) |
-| **Sur le rail** | Un ticket en attente dont la zone recouvre celle d'un ticket **parti et pas encore servi** est **retenu** | `run rail`, `status` : `zone tenue par #14 (chemin)` |
+| **Sur le rail** | Un ticket en attente dont la zone recouvre celle d'un ticket **parti et pas encore servi** est **retenu** | `run rail` : `zone tenue par #14 (chemin)` ; `status` : `zone held by #14 (chemin)` |
 | **À la récolte** | Un fichier livré hors de la zone du ticket est **signalé**, pas arrêté | `cook.out-of-zone`, et le commentaire de fin de cook |
 
 **La retenue sur le rail** se recalcule à chaque lecture et ne bloque jamais. **Tient sa zone** : un

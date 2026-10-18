@@ -43,21 +43,21 @@ const FAITS_PARADE: Faits = {
 };
 
 const STATUS_PARADE = [
-  "projet     parade",
+  "project    parade",
   "kitchen    open",
   "",
   "attend     1 décision attend le chef depuis 2 j",
   "  #12  depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main : gh pr merge 31",
   "fin attend",
   "",
-  "rail       2 en attente · 1 pris · 2 en pass",
-  "  #14  pris  prio:1  par box/claude depuis 12 min, sans progrès depuis 3 min, bail encore 27 min  Le journal en ajout seul",
-  "  #21  en attente  -  zone tenue par #14 (app/src) — depuis 2 h 05  L'export du journal",
-  "  #22  en attente  -  depuis 3 min  Un ticket libre",
-  "  #30  en pass  -  depuis 4 min, cuisiné par box/claude  La pass verte",
-  "  #12  en pass  -  depuis 2 j, cuisiné par box/claude  Validation SIRET",
+  "rail       1 taken · 2 in pass · 2 queued",
+  "  #14  taken  prio:1  by box/claude since 12 min, no progress since 3 min, lease 27 min left  Le journal en ajout seul",
+  "  #21  queued  -  zone held by #14 (app/src) — since 2 h 05  L'export du journal",
+  "  #22  queued  -  since 3 min  Un ticket libre",
+  "  #30  in pass  -  since 4 min, cooked by box/claude  La pass verte",
+  "  #12  in pass  -  since 2 d, cooked by box/claude  Validation SIRET",
   "",
-  "cooks      1 en cours",
+  "cooks      1 running",
   "",
 ].join("\n");
 
@@ -74,7 +74,7 @@ const FAITS_CANTINE: Faits = {
   urgence: null,
 };
 
-const STATUS_CANTINE = ["projet     cantine", "kitchen    open", "", "rail       1 en attente", "  #5  en attente  -  depuis 23 min  La carte du midi", "", "cooks      aucun", ""].join("\n");
+const STATUS_CANTINE = ["project    cantine", "kitchen    open", "", "rail       1 queued", "  #5  queued  -  since 23 min  La carte du midi", "", "cooks      none running", ""].join("\n");
 
 const STATION = ["station    box — Debian 12, 8 cœurs", "machine    disponible · charge 1.2", "quota      tient", ""].join("\n");
 

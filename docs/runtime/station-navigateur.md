@@ -41,15 +41,16 @@ groupe de process.
 - Sous chaque serveur, plus en retrait, `status` dit l'écran et qui l'a dit, puis la phrase du cook :
 
   ```
-    #591  worktrees/591-ab12cd34  port 20591  écoute depuis 3 min  cook/591-ab12cd34  http://127.0.0.1:20591/rail
-      écran : /rail (déclaré par le cook)
-      à regarder : #591 : le rail a maintenant deux colonnes, TODO et WAITING
+    #591  worktrees/591-ab12cd34  port 20591  listening since 3 min  cook/591-ab12cd34  http://127.0.0.1:20591/rail
+      screen: /rail (declared by the cook)
+      to look at: #591 : le rail a maintenant deux colonnes, TODO et WAITING
   ```
 
   Un écran que le cook n'a pas déclaré, déduit des fichiers touchés, le dit :
-  `écran : /rail (écran déduit des fichiers touchés, pas déclaré par le cook)`. Sans écran, rien
-  dessous. Les livraisons d'une app qui ne s'ouvre pas dans un navigateur, sous `à lancer`, portent
-  les mêmes lignes.
+  `screen: /rail (screen deduced from the touched files, not declared by the cook)`. Sans écran, rien
+  dessous. Les livraisons d'une app qui ne s'ouvre pas dans un navigateur, sous `to launch`, portent
+  les mêmes lignes. (`status` les écrit en anglais depuis #940 — `écran :`, `à regarder :`, `à lancer`
+  avant ; `station` les écrit encore en français.)
 - Une livraison sans interface ne lance rien. Ce qui empêche de servir — projet non déclaré,
   worktree sans port, déclaration illisible — est dit à la place, une fois, et se lit dans les
   mêmes deux commandes.
