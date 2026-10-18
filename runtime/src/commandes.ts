@@ -41,7 +41,7 @@ export const COMMANDES: readonly DeLaBox[] = [
   { nom: "guardrails", ancien: "garde-fous", description: "Show the caps and the breaker; stop or resume the kitchen", mots: { reprendre: "resume" } },
   { nom: "base", description: "Show the integration base; replay its gates when red", mots: { rejouer: "replay" } },
   { nom: "installation", description: "Check that a project is ready to be served (--json: the verdict for a program); labels, setup, uninstall [--confirm]", mots: { desinstaller: "uninstall", "--confirmer": "--confirm" } },
-  { nom: "measures", ancien: "mesures", description: "The measures behind drift: [--by <merges>]", mots: { "--par": "--by" } },
+  { nom: "measures", ancien: "mesures", description: "The measures behind drift, and the rework of the last tickets served: [--by <merges>] [--last <tickets>]", mots: { "--par": "--by" } },
   { nom: "closing", ancien: "fermeture", description: "The closing pass: observe; write requests it, cancel withdraws the request", mots: { ecrire: "write", annuler: "cancel" } },
   { nom: "backup", ancien: "sauvegarder", description: "Take a backup of the log" },
   { nom: "restore", ancien: "restaurer", description: "Restore a backup into a fresh state directory" },
