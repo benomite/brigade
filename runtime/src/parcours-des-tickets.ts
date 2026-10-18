@@ -7,6 +7,7 @@
 // de nouveau après son merge, il en ouvre un autre. Un merge d'un ticket
 // qu'aucune station n'a pris n'ouvre rien : aucun essai n'est à compter.
 import type { Base } from "./base.ts";
+import { SANS_SIGNAUX, type Jugement, type Signaux } from "./causes-des-ratages.ts";
 import type { Essai, Parcours } from "./renvois.ts";
 
 // Les stations que la pass et le manager lancent : ni une relecture ni un
@@ -15,10 +16,27 @@ const HORS_TICKET = ["reviewer", "manager"];
 
 type Ligne = { ticket: number; at: string; type: string; payload: string };
 
+const signauxDe = (essai: Essai): Signaux => (essai.signaux ??= { ...SANS_SIGNAUX, textes: [] });
+const textes = (...valeurs: unknown[]) => valeurs.filter((valeur): valeur is string => typeof valeur === "string");
+
+// Ce qu'un `pass.judged` dit de la livraison, pour la ranger si elle rate.
+function jugementDe(p: Record<string, unknown>): Jugement {
+  const gates = (p.gates ?? {}) as { outcome?: unknown; failures?: unknown };
+  const review = (p.review ?? {}) as { outcome?: unknown; findings?: unknown };
+  const findings = Array.isArray(review.findings) ? (review.findings as Array<{ severity?: unknown }>) : [];
+  return {
+    noDiff: p.noDiff === true,
+    // `merged` est nul quand la fusion avec la base ne s'est pas faite ; absent d'un verdict écrit avant ce champ.
+    conflit: p.merged === null,
+    gates: { outcome: typeof gates.outcome === "string" ? gates.outcome : "skipped", failures: Array.isArray(gates.failures) ? gates.failures.filter((l): l is string => typeof l === "string") : [] },
+    review: { outcome: typeof review.outcome === "string" ? review.outcome : "skipped", blocking: findings.filter((f) => f.severity === "blocking").length },
+  };
+}
+
 // Les parcours, dans l'ordre de leur prise.
 export function parcoursDesTickets(base: Base): Parcours[] {
   const lignes = base.lire<Ligne>(
-    "SELECT ticket, at, type, payload FROM events WHERE ticket IS NOT NULL AND type IN ('ticket.taken', 'cook.launched', 'cook.exited', 'pass.judged', 'merge.done', 'pass.served') ORDER BY seq",
+    "SELECT ticket, at, type, payload FROM events WHERE ticket IS NOT NULL AND type IN ('ticket.taken', 'cook.launched', 'cook.exited', 'pass.judged', 'merge.done', 'pass.served', 'guard.tripped', 'cook.reported', 'cook.interrupted', 'station.disconnected', 'manager.judged') ORDER BY seq",
   );
   const parcours: Parcours[] = [];
   const ouverts = new Map<number, Parcours>();
@@ -38,7 +56,7 @@ export function parcoursDesTickets(base: Base): Parcours[] {
         break;
       case "cook.launched": {
         if (ouvert === undefined || typeof p.run !== "string" || (typeof p.station === "string" && HORS_TICKET.includes(p.station))) break;
-        const essai: Essai = { run: p.run, at, outcome: null, verdict: null };
+        const essai: Essai = { run: p.run, at, outcome: null, verdict: null, signaux: { ...SANS_SIGNAUX, textes: [] } };
         ouvert.attempts.push(essai);
         essais.set(p.run, essai);
         break;
@@ -50,7 +68,35 @@ export function parcoursDesTickets(base: Base): Parcours[] {
       }
       case "pass.judged": {
         const essai = typeof p.run === "string" ? essais.get(p.run) : undefined;
-        if (essai !== undefined && (p.verdict === "green" || p.verdict === "red")) essai.verdict = p.verdict;
+        if (essai === undefined) break;
+        if (p.verdict === "green" || p.verdict === "red") essai.verdict = p.verdict;
+        const signaux = signauxDe(essai);
+        signaux.jugement = jugementDe(p);
+        break;
+      }
+      case "guard.tripped": {
+        const essai = typeof p.run === "string" ? essais.get(p.run) : undefined;
+        if (essai !== undefined) signauxDe(essai).arret = typeof p.reason === "string" ? p.reason : null;
+        break;
+      }
+      case "cook.reported": {
+        const essai = typeof p.run === "string" ? essais.get(p.run) : undefined;
+        if (essai === undefined) break;
+        const signaux = signauxDe(essai);
+        signaux.fin = typeof p.ending === "string" ? p.ending : null;
+        signaux.textes.push(...textes(p.reason, p.summary, p.deliverable));
+        break;
+      }
+      case "cook.interrupted":
+      case "station.disconnected": {
+        const essai = typeof p.run === "string" ? essais.get(p.run) : undefined;
+        if (essai !== undefined) signauxDe(essai).panne = true;
+        break;
+      }
+      case "manager.judged": {
+        // Le manager parle du ticket, pas d'un run : de son dernier essai.
+        const dernier = ouvert?.attempts.at(-1);
+        if (dernier !== undefined) signauxDe(dernier).textes.push(...textes(p.reason, p.missing));
         break;
       }
       case "merge.done":

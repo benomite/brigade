@@ -8,6 +8,7 @@ import { enAnglais } from "./commandes.ts";
 import { ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { decrireReleve, PAR_DEFAUT } from "./mesures.ts";
+import { decrireCauses, mesurerCauses } from "./causes-des-ratages.ts";
 import { parcoursDesTickets } from "./parcours-des-tickets.ts";
 import { livraisonsMergees, seuilsEnVigueur } from "./projections/mesures.ts";
 import { decrireRenvois, DERNIERS_PAR_DEFAUT, mesurerRenvois } from "./renvois.ts";
@@ -43,7 +44,10 @@ try {
   const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ?? null;
   for (const ligne of decrireReleve({ projet, livraisons: livraisonsMergees(base), seuils: seuilsEnVigueur(base) }, par)) console.log(ligne);
   console.log("");
-  for (const ligne of decrireRenvois(mesurerRenvois(parcoursDesTickets(base), derniers))) console.log(ligne);
+  const parcours = parcoursDesTickets(base);
+  for (const ligne of decrireRenvois(mesurerRenvois(parcours, derniers))) console.log(ligne);
+  console.log("");
+  for (const ligne of decrireCauses(mesurerCauses(parcours.slice(-derniers)))) console.log(ligne);
 } catch (erreur) {
   // En lecture seule, rien ne crée les tables d'un journal écrit par un
   // runtime d'avant ce relevé.

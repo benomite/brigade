@@ -116,7 +116,8 @@ test("le parcours d'un ticket va de sa première prise à son merge, rendu et re
 
   assert.equal(parcours.length, 2);
   const [servi, rouvert] = parcours;
-  assert.deepEqual(servi, {
+  // Les `signaux` de chaque essai sont ceux de `causes-des-ratages.test.ts`.
+  assert.deepEqual(servi && { ...servi, attempts: servi.attempts.map(({ signaux: _, ...essai }) => essai) }, {
     ticket: 7,
     takenAt: a("10:00"),
     end: { kind: "merged", at: `${JOUR_HORLOGE}T10:00:13.000Z` },
@@ -147,7 +148,7 @@ test("`measures --last` mesure les renvois des N derniers tickets servis, dit N 
   assert.match(commande.sortie(), /^relevé {5}brigade — 4 merges au journal, par tranches de 2\n/);
   assert.match(
     commande.sortie(),
-    /\n\nrenvois {4}les 4 derniers tickets servis \(N = 4\) : 4 au journal, 3 retenus, 1 écarté — non mergés[^\n]*\n {11}livrés du premier coup : 33 % \(1 sur 3\)\n {11}essais par ticket : 2,3 en moyenne\n {11}de la prise au merge : \d+ s en moyenne\n$/,
+    /\n\nrenvois {4}les 4 derniers tickets servis \(N = 4\) : 4 au journal, 3 retenus, 1 écarté — non mergés[^\n]*\n {11}livrés du premier coup : 33 % \(1 sur 3\)\n {11}essais par ticket : 2,3 en moyenne\n {11}de la prise au merge : \d+ s en moyenne\n\nratages/,
   );
   assert.equal(await nul.fin, 2);
   assert.match(nul.sortie(), /usage : .*--last <nombre de tickets>/);
@@ -161,5 +162,5 @@ test("`measures` sur un journal où aucun ticket n'a été servi le dit, sans pl
   const commande = lancer(t, MESURES, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
-  assert.match(commande.sortie(), /\n\nrenvois {4}aucun ticket servi au journal : rien à mesurer \(N = 20\)\n$/);
+  assert.match(commande.sortie(), /\n\nrenvois {4}aucun ticket servi au journal : rien à mesurer \(N = 20\)\n\nratages/);
 });

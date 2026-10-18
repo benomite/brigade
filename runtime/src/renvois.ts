@@ -1,6 +1,7 @@
 // Les renvois : combien d'essais un ticket a demandé, de sa prise à son merge.
 // Des fonctions sans effet, qui ne lisent rien : le parcours de chaque ticket
 // leur vient de `parcours-des-tickets.ts`, qui le reconstitue du journal.
+import type { Signaux } from "./causes-des-ratages.ts";
 import { duree } from "./etat.ts";
 
 // Le nombre de tickets servis mesurés, faute d'option.
@@ -11,7 +12,8 @@ export const DERNIERS_PAR_DEFAUT = 20;
 // que son `cook.exited` dit (`ok` quand il a livré), nulle tant qu'il tourne
 // ou s'il est mort avec le runtime. `verdict` : celui de la pass sur ce qu'il a
 // livré — le dernier, s'il a été rejugé —, nul si elle ne l'a pas jugé.
-export type Essai = { run: string; at: string; outcome: string | null; verdict: "green" | "red" | null };
+// `signaux` : de quoi ranger l'essai dans une cause s'il rate (`causes-des-ratages.ts`).
+export type Essai = { run: string; at: string; outcome: string | null; verdict: "green" | "red" | null; signaux?: Signaux };
 
 // Le parcours d'un ticket servi : de sa première prise par une station
 // (`takenAt`) à sa fin. `end` : `merged`, sa livraison est dans la base
