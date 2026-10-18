@@ -17,6 +17,11 @@ export type Seuils = {
   growthPercent: number | null;
   ticketTokens?: number | null;
   lostTokens?: number | null;
+  // La part de tickets livrés du premier coup (en %) sous laquelle la file le
+  // dit, et la fenêtre de tickets servis qu'elle regarde. Non déclarés : 50 et
+  // 10 (`renvois.ts`). Un journal écrit avant eux ne les porte pas.
+  firstTryPercent?: number | null;
+  firstTryWindow?: number | null;
 };
 
 export type FaitDerive =

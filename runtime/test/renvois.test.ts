@@ -7,7 +7,7 @@ import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { parcoursDesTickets } from "../src/parcours-des-tickets.ts";
-import { decrireRenvois, DERNIERS_PAR_DEFAUT, mesurerRenvois, type Parcours } from "../src/renvois.ts";
+import { decrireRenvois, derivePremierCoup, DERNIERS_PAR_DEFAUT, direDerivePremierCoupEn, mesurerRenvois, type Parcours } from "../src/renvois.ts";
 import { horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
 
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -163,4 +163,29 @@ test("`measures` sur un journal où aucun ticket n'a été servi le dit, sans pl
 
   assert.equal(await commande.fin, 0);
   assert.match(commande.sortie(), /\n\nrenvois {4}aucun ticket servi au journal : rien à mesurer \(N = 20\)\n\nratages/);
+});
+
+// La dérive sur le premier coup : `k` tickets livrés du premier coup sur `n`.
+const servis = (n: number, premiers: number) => Array.from({ length: n }, (_, i) => merge(i + 1, i < premiers ? 1 : 2, "10:00", "11:00"));
+
+test("la part livrée du premier coup sous le seuil est signalée, avec sa fenêtre et son seuil ; au seuil ou au-dessus, rien", () => {
+  assert.deepEqual(derivePremierCoup(servis(10, 4), {}), { premiers: 4, retenus: 10, fenetre: 10, seuil: 50 });
+  assert.equal(direDerivePremierCoupEn({ premiers: 4, retenus: 10, fenetre: 10, seuil: 50 }), "4/10 tickets delivered on the first try (threshold 50%)");
+  assert.equal(derivePremierCoup(servis(10, 5), {}), null);
+  assert.equal(derivePremierCoup(servis(10, 8), {}), null);
+});
+
+test("sans assez de tickets servis pour remplir la fenêtre, ou sans merge dans la fenêtre, la dérive ne dit rien et ne plante pas", () => {
+  assert.equal(derivePremierCoup([], {}), null);
+  assert.equal(derivePremierCoup(servis(9, 0), {}), null);
+  const abandonnes: Parcours[] = Array.from({ length: 10 }, (_, i) => ({ ticket: i + 1, takenAt: a("10:00"), end: null, attempts: essais(1) }));
+  assert.equal(derivePremierCoup(abandonnes, {}), null);
+});
+
+test("le seuil et la fenêtre se règlent : un autre seuil change le verdict, une autre fenêtre change les tickets regardés", () => {
+  assert.equal(derivePremierCoup(servis(10, 5), { firstTryPercent: 60 })?.seuil, 60);
+  assert.equal(derivePremierCoup(servis(10, 4), { firstTryPercent: 40 }), null);
+  // Fenêtre de 4 : les quatre derniers ont tous demandé deux essais.
+  assert.deepEqual(derivePremierCoup(servis(10, 6), { firstTryWindow: 4 }), { premiers: 0, retenus: 4, fenetre: 4, seuil: 50 });
+  assert.equal(derivePremierCoup(servis(4, 4), { firstTryWindow: 4 }), null);
 });

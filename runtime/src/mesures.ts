@@ -29,7 +29,7 @@ const ETATS = [
   { nom: "doc_octets", titre: "doc", lire: octets, seuil: null, unite: 1 },
 ] as const satisfies ReadonlyArray<{ nom: string; titre: string; lire: (valeur: number) => string; seuil: keyof Seuils | null; unite: number }>;
 
-export const SANS_SEUIL: Seuils = { tests: null, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null, ticketTokens: null, lostTokens: null };
+export const SANS_SEUIL: Seuils = { tests: null, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null, ticketTokens: null, lostTokens: null, firstTryPercent: null, firstTryWindow: null };
 
 function mediane(valeurs: number[]): number | null {
   const triees = [...valeurs].sort((a, b) => a - b);

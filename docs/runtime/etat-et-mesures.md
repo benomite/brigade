@@ -275,6 +275,13 @@ perdus — la somme des tokens des lancements qui n'ont rien livré. Franchis qu
 leur seuil. **Aucune valeur par défaut** : c'est le quota du chef. Un seuil de coût franchi se lit
 seulement — il ne rend rien rouge, n'arrête aucun cook et ne bloque aucune livraison.
 
+Un dernier signal porte sur **les renvois** : la part de tickets livrés du premier coup (la mesure de
+`measures`, voir « renvois ») sur les derniers tickets servis. Sous le seuil, le bloc `drift` de `status`
+ajoute une ligne — « 4/10 tickets delivered on the first try (threshold 50%) ». Au seuil ou au-dessus,
+ou tant que la fenêtre n'est pas pleine, rien. Il se règle comme les seuils de coût, par le geste :
+`station seuil-renvois <pourcentage>` (50 faute de réglage) et `station fenetre-renvois <tickets>`
+(10 faute de réglage). Il se lit seulement, et n'écrit ni `drift.crossed` ni ligne de journal.
+
 Les seuils entrent au journal quand ils changent (`drift.configured`). Quand un merge en fait
 franchir un, le runtime écrit `drift.crossed` et une ligne dans `journalctl -u brigade@<projet>`,
 **une fois** ; repassée sous son seuil, ou le seuil retiré, `drift.cleared`. Entre les deux, le bloc
