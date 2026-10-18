@@ -99,8 +99,8 @@ garde-fous ») écoute le flux : le cook est vivant ; le bail regarde le worktre
   ce qu'il a commité part en pass ; sans commit, le ticket revient en attente et l'arrêt compte au
   disjoncteur. Le rail ne rend de lui-même (`ticket.released`, `lease-expired`) qu'un ticket pris
   sans cook.
-- **Passé la moitié du bail sans progrès**, le cook est signalé : `COINCE` dans `status`, qui dit
-  « sans progrès depuis … », et `cook.stalled` au journal (une fois par épisode). Rien n'est arrêté.
+- **Passé la moitié du bail sans progrès**, le cook est signalé : `STUCK` dans `status` (`COINCE` avant #940), qui dit
+  « no progress since … », et `cook.stalled` au journal (une fois par épisode). Rien n'est arrêté.
 - **Un 86 revient seul** à son heure de retour ; sans elle, il reste 86 jusqu'à ce qu'on le rende.
 - **GitHub injoignable** : le rail reste tel quel (`sondage GitHub en échec`, dans journald), et le
   sondage se rejoue au tick suivant.

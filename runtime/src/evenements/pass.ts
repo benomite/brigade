@@ -88,6 +88,7 @@ export const MACHINE_SATUREE = "machine-saturated";
 export const GATES_COUPEES = "gates-cut-saturated";
 // Ce que la file et la carte en disent, en une ligne.
 export const DIRE_GATES_COUPEES = "gates rejouées plus tard : machine saturée, aucun test en échec";
+export const DIRE_GATES_COUPEES_EN = "gates replayed later: machine saturated, no test failing";
 export type MotifDAttente = typeof BASE_ROUGE | typeof MACHINE_SATUREE | typeof GATES_COUPEES;
 
 // Pourquoi la pass remonte au chef sans renvoyer au cook : un motif par geste.

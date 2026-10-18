@@ -14,6 +14,10 @@ const MOTIFS: Record<MotifDeGarde, string> = { "pr-open": "PR encore ouverte", u
 
 export const direMotifDeGarde = (motif: MotifDeGarde) => MOTIFS[motif];
 
+const MOTIFS_EN: Record<MotifDeGarde, string> = { "pr-open": "PR still open", unpushed: "work not pushed", failed: "cleanup failed" };
+
+export const direMotifDeGardeEn = (motif: MotifDeGarde) => MOTIFS_EN[motif];
+
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur !== "";
 
 // Un fait illisible est ignoré : lever ici empêcherait le runtime de redémarrer.

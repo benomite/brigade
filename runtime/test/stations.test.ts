@@ -41,7 +41,7 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
     );
     assert.equal(sansStationDepuis(journal.base), null);
     // `status` dit le plafond de chacune.
-    assert.match(decrireEtat(lireEtat(journal), new Date()).join("\n"), /box\/claude : 1 au plus, box\/playwright : 2 au plus/);
+    assert.match(decrireEtat(lireEtat(journal), new Date()).join("\n"), /box\/claude: 1 at most, box\/playwright: 2 at most/);
   });
 
   test("le plafond de chaque station est respecté : celle à un cook n'en reçoit pas un second, l'autre prend les siens, et le ticket de trop attend", async (t) => {
@@ -130,7 +130,7 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
       /^stations {3}NONE DECLARED for .* — no cook leaves, the tickets stay waiting: set them with `brigade <projet> station stations box\/claude:30:code\+raisonnement`, read at the next wake-up, no restart$/,
     );
     // Et sur la ligne du ticket qui attend.
-    assert.match(lignes.find((ligne) => ligne.startsWith("  #15")) ?? "", /en attente .*aucune station déclarée/);
+    assert.match(lignes.find((ligne) => ligne.startsWith("  #15")) ?? "", /queued .*no station declared/);
   });
 
   test("sans station, le chef peut toujours arrêter et reprendre la cuisine : rien ne plante, rien ne part", async (t) => {

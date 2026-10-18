@@ -80,14 +80,15 @@ attente, son bail ne court pas.
 | mémoire | il reste moins que ce nombre de Mo de mémoire **disponible** | `BRIGADE_MIN_FREE_MEMORY_MB` | `1024` |
 | disque | il reste moins que ce nombre de Mo libres sur le disque de `BRIGADE_STATE_DIR` | `BRIGADE_MIN_FREE_DISK_MB` | `5120` |
 
-Saturée, elle le dit : `station.saturated` puis `station.relieved`, `MACHINE SATURÉE` dans `run
-status` et `run station`. **Les cooks en cours continuent.** La saturation se lève avec dix pour
+Saturée, elle le dit : `station.saturated` puis `station.relieved`, `MACHINE SATURATED` dans `run
+status` (`MACHINE SATURÉE` avant #940) et `run station`. **Les cooks en cours continuent.** La saturation se lève avec dix pour
 cent de marge ; `0` pour la mémoire ou le disque : jamais retenu. **Un rail plein ne part pas d'un
 bloc** : pendant sa première minute, chaque cook lancé — et chaque ticket en entrée — pèse d'avance
 une unité de charge et 512 Mo. Les gates que la pass joue chargent la machine elles aussi.
 
 **Un ticket qui pourrait partir et ne part pas dit pourquoi** : `station.held` au journal, une ligne
-`SE RETIENT` (`retenue` dans `run station`), et la raison sur la ligne du ticket.
+`WITHHOLDING` dans `run status` (`SE RETIENT` avant #940 ; `retenue` dans `run station`), et la raison
+sur la ligne du ticket (`withheld by <station> (…)`).
 
 | `reason` | Ce qui retient la station |
 |---|---|

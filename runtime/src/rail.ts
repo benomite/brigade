@@ -81,6 +81,13 @@ export function nomEtat(etat: Etat): string {
   return NOMS[etat];
 }
 
+// Les mêmes, en anglais : ce que dit `status` (glossaire §2).
+const NOMS_EN: Record<Etat, string> = { waiting: "queued", taken: "taken", pass: "in pass", served: "served", "86": "86" };
+
+export function nomEtatEn(etat: Etat): string {
+  return NOMS_EN[etat];
+}
+
 // Ce qui retient un ticket en attente : des tickets de sa fiche pas encore
 // servis (`attend`) ou, plus grave, dont l'un a été abandonné (`bloque`) —
 // celui-là ne partira pas sans un geste du chef. Ou, quand rien de cela ne le
@@ -109,6 +116,14 @@ export function etatLu(ticket: TicketRail): string {
   return retenue(ticket) === "bloque" || ticket.frozenBy.length > 0 ? BLOQUE : nomEtat(ticket.state);
 }
 
+export const BLOQUE_EN = "BLOCKED";
+
+// L'état lu en anglais : le même que `etatLu`, mot pour mot traduit.
+export function etatLuEn(ticket: TicketRail): string {
+  if (ticket.waitingFor !== null) return EN_WAITING;
+  return retenue(ticket) === "bloque" || ticket.frozenBy.length > 0 ? BLOQUE_EN : nomEtatEn(ticket.state);
+}
+
 const ABANDONS: Record<string, string> = {
   closed: "issue fermée sans avoir été servie",
   unfired: "label `fire` retiré",
@@ -132,6 +147,9 @@ export function nomAbandonEn(motif: string): string {
   return ABANDONS_EN[motif] ?? motif;
 }
 
+const GELE_EN = "blocked";
+const DIT_GELE_EN = "86 with no return time, not judged by the pass";
+
 const numeros = (tickets: { ticket: number }[]) => tickets.map(({ ticket }) => `#${ticket}`).join(", ");
 
 // Pourquoi un ticket en attente ne part pas, ou null si rien ne le retient.
@@ -147,6 +165,22 @@ export function direRetenue(ticket: TicketRail): string | null {
     ...enCours.filter(gele).map((attendu) => `${GELE} par #${attendu.ticket} (${DIT_GELE})`),
     ...(attendus.length === 0 ? [] : [`attend ${abandonnes.length === 0 ? "" : "aussi "}${numeros(attendus)}`]),
     ...ticket.held.map((tenant) => (gele(tenant) ? `${GELE} par #${tenant.ticket} (${DIT_GELE} — zone tenue : ${tenant.path})` : `zone tenue par #${tenant.ticket} (${tenant.path})`)),
+  ].join(" · ");
+}
+
+// La même, en anglais : ce que dit la ligne du ticket dans `status`.
+export function direRetenueEn(ticket: TicketRail): string | null {
+  if (retenue(ticket) === null) return null;
+  const abandonnes = ticket.awaits.filter((attendu) => attendu.left !== null);
+  const enCours = ticket.awaits.filter((attendu) => attendu.left === null);
+  const gele = (attendu: { ticket: number }) => ticket.frozenBy.includes(attendu.ticket);
+  const bloque = abandonnes.map((attendu) => `#${attendu.ticket} dropped (${nomAbandonEn(attendu.left?.reason ?? "")})`).join(", ");
+  const attendus = enCours.filter((attendu) => !gele(attendu));
+  return [
+    ...(abandonnes.length === 0 ? [] : [bloque]),
+    ...enCours.filter(gele).map((attendu) => `${GELE_EN} by #${attendu.ticket} (${DIT_GELE_EN})`),
+    ...(attendus.length === 0 ? [] : [`${abandonnes.length === 0 ? "" : "also "}awaiting ${numeros(attendus)}`]),
+    ...ticket.held.map((tenant) => (gele(tenant) ? `${GELE_EN} by #${tenant.ticket} (${DIT_GELE_EN} — zone held: ${tenant.path})` : `zone held by #${tenant.ticket} (${tenant.path})`)),
   ].join(" · ");
 }
 

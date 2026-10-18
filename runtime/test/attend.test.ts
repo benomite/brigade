@@ -546,7 +546,7 @@ test("quand rien n'attend, le bloc reste là et le dit : deux lignes, sans le bi
   // Un journal où rien n'a jamais attendu.
   const calme = lire(`${JOUR_HORLOGE}T10:00:00.000Z`);
   const debut = calme.indexOf("awaiting   nothing awaits the chef");
-  assert.deepEqual(calme.slice(debut - 1, debut + 4), ["", "awaiting   nothing awaits the chef", "end awaiting", "", "rail       vide"]);
+  assert.deepEqual(calme.slice(debut - 1, debut + 4), ["", "awaiting   nothing awaits the chef", "end awaiting", "", "rail       empty"]);
 
   // Une livraison arrêtée faute de grant, puis mergée à la main : la file se vide, le bilan reste à `run pass`.
   a(`${JOUR_HORLOGE}T09:00:00.000Z`);

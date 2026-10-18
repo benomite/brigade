@@ -7,7 +7,7 @@
 // pour une app qui ne s'ouvre pas dans un navigateur : rien n'y tourne, mais
 // c'est le runtime qui les tient.
 import type { Base } from "../base.ts";
-import { pageDeLEcran, type EcranARegarder } from "../ecran.ts";
+import { commentLeVoirEn, pageDeLEcran, type EcranARegarder } from "../ecran.ts";
 import type { FaitRuntime } from "../evenements/runtime.ts";
 import type { EcranDuServeur, FaitService } from "../evenements/service.ts";
 import type { FaitStation } from "../evenements/station.ts";
@@ -60,6 +60,9 @@ const ETATS: Record<EtatDeServeur, string> = { starting: "démarre", listening: 
 
 export const direEtatDeServeur = (etat: EtatDeServeur) => ETATS[etat];
 
+// Les mêmes, en anglais : ce que dit `status`. Ils portent le nom du journal.
+export const direEtatDeServeurEn = (etat: EtatDeServeur) => etat;
+
 // Ce que `station` et `status` disent de la page d'un serveur : celle de
 // l'écran à regarder, ou pourquoi il n'y en a aucune — jamais la racine.
 export function direPage({ port, ecran }: Pick<Serveur, "port" | "ecran">): string {
@@ -68,10 +71,27 @@ export function direPage({ port, ecran }: Pick<Serveur, "port" | "ecran">): stri
   return ecran === null ? "aucune page à ouvrir : la livraison ne dit aucun écran, et n'en touche aucun que le projet déclare" : `aucune page à ouvrir : l'écran « ${ecran.ecran} » n'est pas une route`;
 }
 
+// La même, en anglais : ce que dit `status`.
+export function direPageEn({ port, ecran }: Pick<Serveur, "port" | "ecran">): string {
+  const page = pageDeLEcran(port, ecran);
+  if (page !== null) return page;
+  return ecran === null ? "no page to open: the delivery names no screen, and touches none that the project declares" : `no page to open: the screen “${ecran.ecran}” is not a route`;
+}
+
 // Ce que `station` et `status` disent d'un worktree tenu : comment voir son
 // écran — jamais une page.
 export const direCommentLeVoir = ({ commentLeVoir }: Pick<WorktreeTenu, "commentLeVoir">): string =>
   commentLeVoir ?? "rien à regarder : la livraison ne dit aucun écran, et n'en touche aucun que le projet déclare";
+
+// La même, en anglais : ce que dit `status`. La phrase stockée par le journal est en
+// français : elle est recalculée depuis la commande de lancement qu'elle porte et
+// l'écran de la livraison. Une phrase qui ne se lit pas reste telle qu'elle est.
+export function direCommentLeVoirEn({ commentLeVoir, ecran }: Pick<WorktreeTenu, "commentLeVoir" | "ecran">): string {
+  if (commentLeVoir === null) return "nothing to look at: the delivery names no screen, and touches none that the project declares";
+  const lancement = /la livraison, `(.*)`, puis y ouvrir l'écran/s.exec(commentLeVoir)?.[1];
+  if (lancement === undefined || ecran === null) return commentLeVoir;
+  return commentLeVoirEn(lancement, ecran);
+}
 
 // Ce que `status` dit de l'écran à regarder, sous la ligne d'un serveur ou d'un
 // worktree tenu : l'écran, qui l'a dit, puis la phrase — chacun sur sa ligne,
@@ -83,6 +103,12 @@ export const ECRAN_DEDUIT = "écran déduit des fichiers touchés, pas déclaré
 export function direEcran(ecran: EcranARegarder | null): string[] {
   if (ecran === null) return [];
   return [`écran : ${ecran.ecran} (${ecran.source === "declare" ? ECRAN_DECLARE : ECRAN_DEDUIT})`, ...(ecran.phrase === null ? [] : [`à regarder : ${ecran.phrase}`])];
+}
+
+// Les mêmes lignes, en anglais : ce que dit `status`.
+export function direEcranEn(ecran: EcranARegarder | null): string[] {
+  if (ecran === null) return [];
+  return [`screen: ${ecran.ecran} (${ecran.source === "declare" ? "declared by the cook" : "screen deduced from the touched files, not declared by the cook"})`, ...(ecran.phrase === null ? [] : [`to look at: ${ecran.phrase}`])];
 }
 
 // Ce que `station` et `status` disent d'un projet qui ne peut pas être servi :

@@ -56,8 +56,8 @@ test("un ticket qui attend un ticket gelé se lit bloqué par lui, dans l'état"
   geler(rail, 10);
 
   assert.equal(lu(journal, 11), "BLOQUÉ");
-  assert.match(ligne(journal, 11), /BLOQUÉ.*bloqué par #10 \(86 sans heure de retour, non jugé par la pass\)/);
-  assert.doesNotMatch(ligne(journal, 11), /attend #10/);
+  assert.match(ligne(journal, 11), /BLOCKED.*blocked by #10 \(86 with no return time, not judged by the pass\)/);
+  assert.doesNotMatch(ligne(journal, 11), /awaiting #10/);
   assert.deepEqual(ticketDuRail(journal.base, 11)?.frozenBy, [10]);
   // La décision d'ordonnancement est la même : il ne part pas.
   assert.equal(rail.prendre("box/claude"), null);
@@ -70,7 +70,7 @@ test("un ticket qui n'attend que la zone d'un ticket gelé se lit bloqué par lu
   geler(rail, 10);
 
   assert.equal(lu(journal, 12), "BLOQUÉ");
-  assert.match(ligne(journal, 12), /bloqué par #10 \(86 sans heure de retour, non jugé par la pass — zone tenue : runtime\/src/);
+  assert.match(ligne(journal, 12), /blocked by #10 \(86 with no return time, not judged by the pass — zone held: runtime\/src/);
   assert.equal(rail.prendre("box/claude"), null);
 });
 
@@ -91,14 +91,14 @@ test("un ticket qui attend un ticket en cours, ou gelé avec une heure de retour
     assert.equal(lu(journal, ticket), "en attente");
     assert.deepEqual(ticketDuRail(journal.base, ticket)?.frozenBy, []);
   }
-  assert.match(ligne(journal, 11), /attend #10/);
-  assert.match(ligne(journal, 21), /attend #20/);
-  assert.doesNotMatch(ligne(journal, 11) + ligne(journal, 21), /bloqué par/);
+  assert.match(ligne(journal, 11), /awaiting #10/);
+  assert.match(ligne(journal, 21), /awaiting #20/);
+  assert.doesNotMatch(ligne(journal, 11) + ligne(journal, 21), /blocked by/);
 
   assert.equal(rail.prendre("box/claude")?.ticket, 30);
   rail.quatreVingtSix(30, { motif: "pass:encore-rouge", station: "box/claude" });
   assert.equal(lu(journal, 31), "en attente");
-  assert.match(ligne(journal, 31), /zone tenue par #30/);
+  assert.match(ligne(journal, 31), /zone held by #30/);
 });
 
 test("le ticket gelé tranché, ceux qui l'attendaient reviennent à la lecture normale", (t) => {
@@ -115,7 +115,7 @@ test("le ticket gelé tranché, ceux qui l'attendaient reviennent à la lecture 
     if (sort === "merge") journal.ajouter({ project: "brigade", ticket: 10, author: "runtime", type: "merge.done", payload: { pr: "https://exemple.test/pr/1", sha: null, by: "outside", reconciled: false } });
 
     for (const ticket of [11, 12]) assert.deepEqual(ticketDuRail(journal.base, ticket)?.frozenBy, [], `${sort} : #${ticket}`);
-    assert.doesNotMatch(ligne(journal, 11) + ligne(journal, 12), /bloqué par/, sort);
+    assert.doesNotMatch(ligne(journal, 11) + ligne(journal, 12), /blocked by/, sort);
     // Rendu, 10 est de nouveau à prendre : ceux qui l'attendent attendent un ticket ordinaire.
     if (sort === "rendu") assert.equal(lu(journal, 11), "en attente");
   }
@@ -131,7 +131,7 @@ test("le cas de l'épique : un ticket gelé, quatre tickets qui l'attendent, un 
   geler(rail, 405);
 
   const lignes = [406, 407, 408, 400].map((ticket) => ligne(journal, ticket));
-  for (const texte of lignes) assert.match(texte, /BLOQUÉ.*bloqué par #405 /);
+  for (const texte of lignes) assert.match(texte, /BLOCKED.*blocked by #405 /);
   assert.deepEqual(
     [406, 407, 408, 400].map((ticket) => ticketDuRail(journal.base, ticket)?.frozenBy),
     [[405], [405], [405], [405]],

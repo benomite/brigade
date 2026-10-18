@@ -136,7 +136,7 @@ describe("ce qu'un bon porte, tenu contre ce que le runtime écrit", () => {
       { libelle: "right now", valeur: "lit runtime/src/etat.ts, for 2 min" },
       { libelle: "taken by", valeur: "box/claude", exact: true },
       { libelle: "since", valeur: "12 min" },
-      { libelle: "lease", valeur: "sans progrès depuis 3 min, bail encore 27 min" },
+      { libelle: "lease", valeur: "no progress since 3 min, lease 27 min left" },
     ]);
     // Ce qu'il brûle, et rien ne le bloque d'après la file : c'est écrit, pas mis à « rien ».
     assert.equal(carte.sans, `${NON_COMMUNIQUE} : what it burns · what blocks it`);
@@ -145,16 +145,16 @@ describe("ce qu'un bon porte, tenu contre ce que le runtime écrit", () => {
   });
 
   test("un ticket qui coince, un bail échu : le bail le dit avec les mots du runtime", () => {
-    assert.deepEqual(dits(carteDe(lu, 15)), { "right now": "lance les tests, for 20 min", "taken by": "mac/claude", since: "40 min", lease: "COINCE : sans progrès depuis 20 min, bail encore 10 min" });
-    assert.deepEqual(dits(carteDe(lu, 16)), { "right now": "activity not given", "taken by": "box/claude", since: "1 h 30", lease: "COINCE : sans progrès depuis 35 min, bail échu depuis 5 min" });
+    assert.deepEqual(dits(carteDe(lu, 15)), { "right now": "lance les tests, for 20 min", "taken by": "mac/claude", since: "40 min", lease: "STUCK: no progress since 20 min, lease 10 min left" });
+    assert.deepEqual(dits(carteDe(lu, 16)), { "right now": "activity not given", "taken by": "box/claude", since: "1 h 30", lease: "STUCK: no progress since 35 min, lease expired since 5 min" });
   });
 
   test("un ticket en attente : since when, et en clair ce qui le retient — une zone tenue, d'autres tickets, un abandon", () => {
-    assert.deepEqual(dits(carteDe(lu, 21)), { since: "2 h 05", "blocked by": "zone tenue par #14 (app/src)" });
+    assert.deepEqual(dits(carteDe(lu, 21)), { since: "2 h 05", "blocked by": "zone held by #14 (app/src)" });
     assert.equal(carteDe(lu, 21).sans, `${NON_COMMUNIQUE} : who holds it · its lease · what it burns`);
-    // Un chemin qui porte lui-même un tiret long : tout ce que la ligne dit avant « depuis » est gardé.
-    assert.deepEqual(dits(carteDe(lu, 22)), { since: "2 j", "blocked by": "attend #14, #15 · zone tenue par #16 (runtime/src — vue)" });
-    assert.deepEqual([carteDe(lu, 23).etat, dits(carteDe(lu, 23))], ["BLOQUÉ", { since: "3 h 02", "blocked by": "#17 abandonné (label `fire` retiré)" }]);
+    // Un chemin qui porte lui-même un tiret long : tout ce que la ligne dit avant « since » est gardé.
+    assert.deepEqual(dits(carteDe(lu, 22)), { since: "2 d", "blocked by": "awaiting #14, #15 · zone held by #16 (runtime/src — vue)" });
+    assert.deepEqual([carteDe(lu, 23).etat, dits(carteDe(lu, 23))], ["BLOQUÉ", { since: "3 h 02", "blocked by": "#17 dropped (label `fire` removed)" }]);
     // Rien ne le retient : la file ne dit pas what blocks it, et la carte l'écrit.
     assert.deepEqual(dits(carteDe(lu, 20)), { since: "3 min" });
     assert.equal(carteDe(lu, 20).sans, `${NON_COMMUNIQUE} : who holds it · its lease · what it burns · what blocks it`);
@@ -171,8 +171,8 @@ describe("ce qu'un bon porte, tenu contre ce que le runtime écrit", () => {
 
     assert.deepEqual(carte.dit, [{ libelle: "set aside", valeur: "attend : setup du projet impossible" }]);
     assert.equal(carte.relais, undefined);
-    assert.ok(status.split("\n").includes("  #40  86  -  depuis 5 min (setup-failed), retour dans 5 min  Ticket 40"));
-    assert.doesNotMatch(JSON.stringify(carte), /setup-failed|retour dans/);
+    assert.ok(status.split("\n").includes("  #40  86  -  since 5 min (setup-failed), back in 5 min  Ticket 40"));
+    assert.doesNotMatch(JSON.stringify(carte), /setup-failed|back in/);
     assert.ok(lu.colonnes.some(({ cartes }) => cartes.includes(carte)), "rangée dans une colonne");
     assert.ok(!lu.hors.some(({ ticket }) => ticket === 40));
   });
@@ -191,7 +191,7 @@ describe("ce qu'un bon porte, tenu contre ce que le runtime écrit", () => {
   test("la retenue d'une station, dite par `status` quand rien d'autre ne retient le ticket, est what blocks it", () => {
     const sansStation = dessine({ ...ETAT, sansStation: ilYA(30) });
 
-    assert.deepEqual(dits(carteDe(sansStation.rail, 20)), { since: "3 min", "blocked by": "aucune station déclarée" });
+    assert.deepEqual(dits(carteDe(sansStation.rail, 20)), { since: "3 min", "blocked by": "no station declared" });
   });
 });
 
@@ -232,7 +232,7 @@ describe("où cuit chaque ticket en cours : box ou Mac", () => {
       { libelle: "taken by", valeur: "box/claude", exact: true },
       { libelle: "cooks on", valeur: "box" },
       { libelle: "since", valeur: "12 min" },
-      { libelle: "lease", valeur: "sans progrès depuis 3 min, bail encore 27 min" },
+      { libelle: "lease", valeur: "no progress since 3 min, lease 27 min left" },
     ]);
     assert.equal(dits(carteDe(lu, 15))["cooks on"], "Mac");
     assert.equal(dits(carteDe(lu, 16))["cooks on"], "box");
@@ -279,7 +279,7 @@ describe("un ticket qui t'attend", () => {
     assert.deepEqual(lu.colonnes[3]?.cartes.map(({ ticket }) => ticket), [23]);
     assert.equal(carte.attendu, true);
     assert.match(carte.attend[0] ?? "", /^for 3 h 02 {2}BLOCKED: #17 dropped \(label `fire` removed\) — to unblock: /);
-    assert.deepEqual(dits(carte), { since: "3 h 02", "blocked by": "#17 abandonné (label `fire` retiré)" });
+    assert.deepEqual(dits(carte), { since: "3 h 02", "blocked by": "#17 dropped (label `fire` removed)" });
     assert.equal(carte.sans, `${NON_COMMUNIQUE} : who holds it · its lease · what it burns`);
     // Et il n'est dans aucune autre colonne.
     assert.deepEqual(lu.colonnes.filter(({ cartes }) => cartes.some(({ ticket }) => ticket === 23)).map(({ nom }) => nom), ["TODO"]);

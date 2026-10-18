@@ -31,7 +31,7 @@ test("sur l'état d'avant, `runtime`, `kitchen` et `backup` disent les mêmes é
     "",
   ]);
   assert.deepEqual(apres, [
-    "projet     brigade",
+    "project    brigade",
     "runtime    running according to the log — pid 4211 on box, started 3 d ago",
     "           last tick 5 min ago (cadence: 1 min)",
     "kitchen    open · breaker closed (0 failures in a row, opens at 3)",
@@ -59,7 +59,7 @@ test("l'état d'exemple fait paraître chaque ligne du haut de `status`, et aucu
   const tete = lireTete(exemple(t));
   assert.deepEqual(tete, [
     "nothing cooks: base red since 4 min ago, repair #30 in progress",
-    "projet     brigade",
+    "project    brigade",
     "runtime    running according to the log — pid 4211 on box, started 3 d ago",
     "           last tick 5 min ago (cadence: 1 min)",
     "kitchen    open · breaker OPEN for 4 min (0 failures in a row)",
@@ -109,8 +109,7 @@ test("un grant sans échéance, un runtime jamais démarré : `ACTIVE, no deadli
   t.after(() => vide.fermer());
   const tete = teteDe(decrireEtat(lireEtat(vide, LU_LE), LU_LE));
   assert.ok(tete.some((ligne) => ligne === "runtime    never started"), tete.join("\n"));
-  // `projet` et `github` ne sont pas du haut de `status` que ce ticket traduit.
-  sansMotFrancais(tete.filter((ligne) => !ligne.startsWith("projet")));
+  sansMotFrancais(tete);
 });
 
 // Ce qu'une ligne nomme et chiffre : tickets, commits, durées, pid, nombres. Les mots changent, pas ceux-là.
@@ -121,7 +120,7 @@ test("sur l'état d'exemple d'avant, chaque ligne du haut dit les mêmes tickets
   const avant = teteDe(readFileSync(join(FIXTURE_928, "status-d-avant.txt"), "utf8").split("\n"));
   const apres = lireTete(exemple(t));
   assert.equal(apres.length, avant.length);
-  const titres = { "rien ne cuit : ": "nothing cooks: ", projet: "projet", runtime: "runtime", cuisine: "kitchen", connexion: "connection", base: "base", setup: "setup", "mis de côté": "aside", grant: "grant", sauvegarde: "backup" } as const;
+  const titres = { "rien ne cuit : ": "nothing cooks: ", projet: "project", runtime: "runtime", cuisine: "kitchen", connexion: "connection", base: "base", setup: "setup", "mis de côté": "aside", grant: "grant", sauvegarde: "backup" } as const;
   avant.forEach((ligne, rang) => {
     const titre = Object.keys(titres).find((candidat) => ligne.startsWith(candidat));
     // Une ligne de suite (retrait de onze espaces) répond à une ligne de suite.

@@ -2,7 +2,13 @@
 // quelques mots de l'app, sa pastille posée d'après des règles fixes, et rien de brut : ni commande,
 // ni texte d'erreur. Ce qui se calcule ici ; ce que la vue en pose est dans accueil-vue.test.ts.
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, test } from "node:test";
+import { decrireEtat, lireEtat } from "../../runtime/src/etat.ts";
+import { ouvrirJournal } from "../../runtime/src/journal.ts";
+import type { EtatStation } from "../../runtime/src/projections/stations.ts";
 import { ligneDeProjet, ligneDeStation, sante, saturees, tenirAccueil, type FaitsLus, type ProjetDeLAccueil } from "../src/accueil.ts";
 import type { Faits } from "../src/faits.ts";
 import { heureCourte } from "../src/format.ts";
@@ -158,6 +164,28 @@ describe("la ligne d'une station : son état, ce qu'elle fait, ses projets — s
   test("une station saturée se lit dans le `status` d'un projet qu'elle sert", () => {
     assert.deepEqual(saturees("           MACHINE SATURÉE depuis 4 min — 812 Mo de mémoire disponible pour 1 024 au moins : parade-box ne prend plus de ticket tant que ça dure"), ["parade-box"]);
     assert.deepEqual(saturees("cuisine    ouverte"), []);
+  });
+
+  test("…telle que le runtime l'écrit, en anglais depuis #940 : `MACHINE SATURATED … : <station> takes no more tickets`", () => {
+    const repertoire = mkdtempSync(join(tmpdir(), "brigade-app-accueil-"));
+    const journal = ouvrirJournal(repertoire);
+    try {
+      const maintenant = new Date(A);
+      const etat = lireEtat(journal, maintenant);
+      const saturee = (nom: string, saturatedAt: string | null): EtatStation => ({
+        station: nom, engine: "claude", provides: ["code"], maxCooks: 2, cap: null, announcedAt: "2026-10-16T08:00:00.000Z",
+        quotaUntil: null, quotaReason: null, disconnectedAt: null, disconnectedReason: null,
+        saturatedAt, saturatedResource: saturatedAt === null ? null : "memory", saturatedObserved: saturatedAt === null ? null : 812, saturatedLimit: saturatedAt === null ? null : 1024,
+        heldAt: null, heldReason: null, unarbitratedAt: null, unarbitratedReason: null,
+        remote: false, seenAt: null, presentSince: null, ordinary: false, sandbox: null,
+      });
+      const status = decrireEtat({ ...etat, stations: [saturee("parade-box", "2026-10-16T11:56:00.000Z"), saturee("mac/claude", null)] }, maintenant).join("\n");
+      assert.match(status, /MACHINE SATURATED/, "le runtime ne dit plus la saturation dans ces mots");
+      assert.deepEqual(saturees(status), ["parade-box"]);
+    } finally {
+      journal.fermer();
+      rmSync(repertoire, { recursive: true, force: true });
+    }
   });
 });
 

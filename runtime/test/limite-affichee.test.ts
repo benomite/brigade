@@ -24,7 +24,7 @@ test("quand GitHub refuse pour sa limite, status et faits disent la reprise en u
   };
 
   // Aucun compteur, aucune ligne.
-  assert.doesNotMatch(await lire(status), /GitHub limite/);
+  assert.doesNotMatch(await lire(status), /rate-limiting/);
   assert.equal(JSON.parse(await lire(faits)).limiteGithub, undefined);
 
   // GitHub refuse : 429 et un `retry-after` de 20 minutes — le refus de `gh` n'entre pas dans ce qui s'affiche.
@@ -38,7 +38,7 @@ test("quand GitHub refuse pour sa limite, status et faits disent la reprise en u
   const sortie = await lire(status);
   const lignes = sortie.split("\n").filter((ligne) => /GitHub/.test(ligne));
   assert.equal(lignes.length, 1);
-  assert.match(lignes[0] ?? "", /^github {5}GitHub limite les appels, reprise vers (\d\d):(\d\d)$/);
+  assert.match(lignes[0] ?? "", /^github {5}GitHub is rate-limiting calls, back around (\d\d):(\d\d)$/);
   // Une minute près : l'appel a eu lieu un peu après `avant`.
   const [h, m] = (lignes[0] ?? "").slice(-5).split(":").map(Number);
   assert.ok(Math.abs((h ?? 0) * 60 + (m ?? 0) - (reprise.getHours() * 60 + reprise.getMinutes())) <= 1, `${lignes[0]} vs ${hhmm}`);
@@ -52,6 +52,6 @@ test("quand GitHub refuse pour sa limite, status et faits disent la reprise en u
   base.executer("DELETE FROM pause");
   base.fermer();
   assert.equal(pauseDeLaStation(station, Date.now()), null);
-  assert.doesNotMatch(await lire(status), /GitHub limite/);
+  assert.doesNotMatch(await lire(status), /rate-limiting/);
   assert.equal(JSON.parse(await lire(faits)).limiteGithub, undefined);
 });
