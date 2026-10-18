@@ -15,18 +15,18 @@
 // écrit ; un merge, la pass le constate à son tour suivant.
 import { configRail } from "./alimenter.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
-import { direAttenteDeTiers } from "./attente.ts";
+import { direAttenteDeTiersEn } from "./attente.ts";
 import { CLE_DES_CAPACITES } from "./capacites.ts";
 import { changerPriorite, mergerLaLivraison, retirerDuRail } from "./geste-ticket.ts";
 import { ouvrirGitHub } from "./github.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { communsDuRail, lireRail, type TicketRail } from "./projections/rail.ts";
-import { direRetenue, etatLu } from "./rail.ts";
+import { direRetenueEn, etatLuEn } from "./rail.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
 const USAGE = [
-  "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run rail [-- <geste> <ticket> …]",
+  "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run rail [-- <geste> <ticket> …]",
   "  remove <ticket>",
   "  priority <ticket> <1-9 | none>",
   "  merge <ticket>",
@@ -44,8 +44,8 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
   // s'ouvre, journal ou GitHub.
   async function jouer(repertoireEtat: string): Promise<void> {
     const [geste = "", numero, valeur, ...deTrop] = args;
-    if (!GESTES.includes(geste)) echouer(2, `geste inconnu : « ${geste} »\n${USAGE}`);
-    if (numero === undefined || !/^[1-9][0-9]*$/.test(numero)) echouer(2, `il faut le numéro du ticket\n${USAGE}`);
+    if (!GESTES.includes(geste)) echouer(2, `unknown gesture: “${geste}”\n${USAGE}`);
+    if (numero === undefined || !/^[1-9][0-9]*$/.test(numero)) echouer(2, `the ticket number is needed\n${USAGE}`);
     if (deTrop.length > 0 || (geste !== "priority") !== (valeur === undefined)) echouer(2, USAGE);
     const ticket = Number(numero);
     // `none` retire la priorité ; tout autre mot va tel quel au geste, qui dit pourquoi il le refuse.
@@ -67,7 +67,7 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
     const github = ouvrirGitHub({ depot: rail.depot, bin: rail.gh });
     try {
       const projet = journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
-      if (!projet) echouer(1, "journal vide : le runtime n'a jamais démarré sur ce répertoire d'état");
+      if (!projet) echouer(1, "empty log: the runtime has never started on this state directory");
       let resultat: Awaited<ReturnType<typeof retirerDuRail>>;
       try {
         resultat =
@@ -77,12 +77,12 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
               ? await mergerLaLivraison(journal, github, ticket)
               : await changerPriorite(journal, github, projet, ticket, priorite);
       } catch (erreur) {
-        if (journalPasRejoue(erreur)) echouer(1, "ce journal n'a pas encore l'état du rail : redémarrer le runtime, qui le recalcule");
-        echouer(1, `le geste sur #${ticket} n'a pas abouti sur GitHub : ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+        if (journalPasRejoue(erreur)) echouer(1, "this log does not have the rail state yet: restart the runtime, which recomputes it");
+        echouer(1, `the gesture on #${ticket} did not go through on GitHub: ${erreur instanceof Error ? erreur.message : String(erreur)}`);
       }
       const fait =
-        geste === "remove" ? `#${ticket} retiré du rail` : geste === "merge" ? `#${ticket} : livraison mergée` : `#${ticket} : priorité ${priorite === null ? "retirée" : `prio:${String(priorite)}`}`;
-      if (!resultat.done) echouer(1, `#${ticket} n'est pas touché : ${resultat.reason} — cost: ${resultat.price}`);
+        geste === "remove" ? `#${ticket} removed from the rail` : geste === "merge" ? `#${ticket}: delivery merged` : `#${ticket}: priority ${priorite === null ? "removed" : `prio:${String(priorite)}`}`;
+      if (!resultat.done) echouer(1, `#${ticket} is not touched: ${resultat.reason} — cost: ${resultat.price}`);
       dire(`${fait} — cost: ${resultat.price}`);
     } finally {
       github.fermer();
@@ -95,22 +95,22 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
   function detail(ticket: TicketRail): string {
     switch (ticket.state) {
       case "waiting":
-        return [...[direRetenue(ticket) ?? []].flat(), `depuis ${ticket.since}`].join(" — ");
+        return [...[direRetenueEn(ticket) ?? []].flat(), `since ${ticket.since}`].join(" — ");
       case "taken":
-        return `par ${ticket.station} depuis ${ticket.since}, dernier progrès ${ticket.progressedAt}, bail jusqu'à ${ticket.leaseUntil}`;
+        return `by ${ticket.station} since ${ticket.since}, last progress ${ticket.progressedAt}, lease until ${ticket.leaseUntil}`;
       case "pass":
       case "served":
-        return `depuis ${ticket.since}, cuisiné par ${ticket.station}`;
+        return `since ${ticket.since}, cooked by ${ticket.station}`;
       case "86":
-        if (ticket.waitingFor !== null) return direAttenteDeTiers(ticket.waitingFor, (instant) => instant);
-        return `depuis ${ticket.since} (${ticket.reason}), ${ticket.until ? `retour à ${ticket.until}` : "sans heure de retour"}`;
+        if (ticket.waitingFor !== null) return direAttenteDeTiersEn(ticket.waitingFor, (instant) => instant);
+        return `since ${ticket.since} (${ticket.reason}), ${ticket.until ? `back at ${ticket.until}` : "no return time"}`;
     }
   }
 
   function formater(ticket: TicketRail): string {
     return [
       `#${ticket.ticket}`,
-      etatLu(ticket),
+      etatLuEn(ticket),
       ticket.priority === null ? "-" : `prio:${ticket.priority}`,
       detail(ticket),
       ticket.title,
@@ -121,15 +121,15 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
 
   function fiche({ card }: TicketRail): string[] {
     if (card === null) return [];
-    const attend = card.waitsFor.length === 0 ? "rien" : card.waitsFor.map((numero) => `#${numero}`).join(", ");
+    const attend = card.waitsFor.length === 0 ? "nothing" : card.waitsFor.map((numero) => `#${numero}`).join(", ");
     return [
-      `${RETRAIT}fiche — attend : ${attend} · zone : ${card.zone.join(", ") || "aucune"}${card.requires?.length ? ` · ${CLE_DES_CAPACITES} : ${card.requires.join(", ")}` : ""}`,
-      ...card.problems.map((probleme) => `${RETRAIT}FICHE ILLISIBLE — ${probleme}`),
+      `${RETRAIT}card — awaiting: ${attend} · zone: ${card.zone.join(", ") || "none"}${card.requires?.length ? ` · \`${CLE_DES_CAPACITES}\`: ${card.requires.join(", ")}` : ""}`,
+      ...card.problems.map((probleme) => `${RETRAIT}UNREADABLE CARD — ${probleme}`),
     ];
   }
 
   const repertoireEtat = env.BRIGADE_STATE_DIR;
-  if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
+  if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR is not set\n${USAGE}`);
   if (args.length > 0) return jouer(repertoireEtat);
 
   let journal;
@@ -141,14 +141,14 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
   try {
     const tickets = lireRail(journal.base);
     const communs = communsDuRail(journal.base);
-    if (communs.length > 0) dire(`chemins communs, à personne : ${communs.join(", ")}`);
-    if (tickets.length === 0) dire("rail vide");
+    if (communs.length > 0) dire(`common paths, held by no one: ${communs.join(", ")}`);
+    if (tickets.length === 0) dire("empty rail");
     for (const ticket of tickets) dire([formater(ticket), ...fiche(ticket)].join("\n"));
   } catch (erreur) {
     // En lecture seule, rien ne crée le rail d'un journal écrit par un runtime
     // d'avant ses colonnes d'aujourd'hui.
     if (journalPasRejoue(erreur)) {
-      echouer(1, "ce journal n'a pas encore l'état du rail : redémarrer le runtime, qui le recalcule");
+      echouer(1, "this log does not have the rail state yet: restart the runtime, which recomputes it");
     }
     throw erreur;
   } finally {

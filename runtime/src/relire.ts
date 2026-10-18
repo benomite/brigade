@@ -11,7 +11,7 @@ import { BATTEMENT } from "./evenements/runtime.ts";
 import { ouvrirJournal } from "./journal.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run log -- [<numéro de ticket> | --ticks] [--last <N>]";
+const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run log -- [<ticket number> | --ticks] [--last <N>]";
 
 export function principal({ args: tapes, env, dire, redire }: Appel): void {
   const args = enAnglais("log", tapes, redire);
@@ -21,7 +21,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
   }
 
   const repertoireEtat = env.BRIGADE_STATE_DIR;
-  if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
+  if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR is not set\n${USAGE}`);
   const reste = [...args];
   let derniers: number | undefined;
   const position = reste.indexOf("--last");
@@ -50,7 +50,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
           : journal.derniers(derniers, sauf)
         : journal.duTicket(Number(argument)).slice(derniers === undefined ? 0 : -derniers);
     if (evenements.length === 0) {
-      dire(argument === undefined || avecTicks ? "journal vide" : `aucun événement pour le ticket ${argument}`);
+      dire(argument === undefined || avecTicks ? "empty log" : `no event for ticket ${argument}`);
     }
     for (const evenement of evenements) dire(formaterEvenement(evenement));
   } finally {

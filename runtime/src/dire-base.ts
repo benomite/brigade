@@ -66,3 +66,12 @@ export function direBaseRouge(controle: EtatDeLaBase, retenu: ControleRetenu | n
     ...["la station ne prend plus de ticket tant qu'elle l'est", ...suiteDeBaseRouge(controle, (instant) => instant, retenu)].map((ligne) => `  ${ligne}`),
   ];
 }
+
+// La même, en anglais : la base rouge que `pass` montre, horodatée.
+export function direBaseRougeEn(controle: EtatDeLaBase, retenu: ControleRetenu | null): string[] {
+  const merges = controle.tickets.length === 0 ? "" : ` — after the merge of ${controle.tickets.map((ticket) => `#${ticket}`).join(", ")}`;
+  return [
+    `BASE RED since ${controle.redSince ?? controle.at} (${court(controle.sha)})${merges}: nothing is judged or merged, deliveries wait`,
+    ...["the station takes no more tickets while it is", ...suiteDeBaseRougeEn(controle, (instant) => instant, retenu)].map((ligne) => `  ${ligne}`),
+  ];
+}

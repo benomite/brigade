@@ -21,7 +21,7 @@ import { dateLocale, direInstant, direInstantEn, dureeTapee } from "./grant.ts";
 import type { Journal } from "./journal.ts";
 import { DE_LA_BRIGADE } from "./reviewer.ts";
 import { commentairesEntendus, direALArrivee, direALArriveeEn, lireRail, marquesDAttente, texteDeMarque, ticketDuRail, type AttenteDeTiers, type TicketRail } from "./projections/rail.ts";
-import { GesteRefuse, nomEtat } from "./rail.ts";
+import { GesteRefuse, nomEtat, nomEtatEn } from "./rail.ts";
 
 // Le label qu'une issue porte tant que son ticket attend un tiers.
 export const LABEL_WAITING = "waiting";
@@ -39,9 +39,9 @@ export type MiseEnAttente = { quoi: string; qui: string; relance?: Date };
 // ticket que la cuisine ne tient pas le peut — en attente sur le rail, ou mis
 // de côté.
 const TENUS: Record<string, string> = {
-  taken: "en cuisine : un cook y travaille — l'attente se pose avant qu'il parte, ou après son retour",
-  pass: "en pass : sa livraison est jugée, puis mergée ou remontée — l'attente se pose après",
-  served: "servi : il n'a plus rien à attendre",
+  taken: "taken: a cook is working on it — set the wait before it leaves, or after it returns",
+  pass: "in pass: its delivery is being judged, then merged or escalated — set the wait after",
+  served: "served: it has nothing left to wait for",
 };
 
 // Lit `--remind` : une date (2026-10-21, ce jour-là à minuit, heure de la
@@ -57,9 +57,9 @@ export function lireRelance(valeur: string, maintenant: Date): Date {
         ? dateLocale(Number(complet[1]), Number(complet[2]), Number(complet[3]), Number(complet[4] ?? 0), Number(complet[5] ?? 0))
         : null;
   if (instant === null || Number.isNaN(instant.getTime())) {
-    throw new GesteRefuse(`--remind : « ${valeur} » ne se lit pas — attendu une date (2026-10-21), une date et une heure (2026-10-21T09:00) ou une durée (7j, 36h)`);
+    throw new GesteRefuse(`--remind: “${valeur}” cannot be read — expected a date (2026-10-21), a date and a time (2026-10-21T09:00) or a duration (7j, 36h)`);
   }
-  if (instant.getTime() <= maintenant.getTime()) throw new GesteRefuse(`--remind : ${valeur} est déjà passé — une relance est à venir`);
+  if (instant.getTime() <= maintenant.getTime()) throw new GesteRefuse(`--remind: ${valeur} has already passed — a follow-up is in the future`);
   return instant;
 }
 
@@ -68,15 +68,15 @@ export function lireRelance(valeur: string, maintenant: Date): Date {
 export function mettreEnAttente(journal: Journal, projet: string, ticket: number, { quoi, qui, relance }: MiseEnAttente, maintenant = new Date()): TicketRail {
   const what = quoi.trim();
   const who = qui.trim();
-  if (what === "") throw new GesteRefuse("un ticket n'attend pas sans dire quoi : ce qu'il attend, dans tes mots");
-  if (who === "") throw new GesteRefuse("un ticket n'attend pas sans dire de qui : le client, une équipe, une personne");
+  if (what === "") throw new GesteRefuse("a ticket does not wait without saying what: what it waits for, in your words");
+  if (who === "") throw new GesteRefuse("a ticket does not wait without saying who: the client, a team, a person");
   const followUp = relance ?? new Date(maintenant.getTime() + RELANCE_PAR_DEFAUT_MS);
-  if (Number.isNaN(followUp.getTime()) || followUp.getTime() <= maintenant.getTime()) throw new GesteRefuse("la relance est déjà passée — une relance est à venir");
+  if (Number.isNaN(followUp.getTime()) || followUp.getTime() <= maintenant.getTime()) throw new GesteRefuse("the follow-up has already passed — a follow-up is in the future");
   return journal.base.transaction(() => {
     const trouve = ticketDuRail(journal.base, ticket);
-    if (trouve === null) throw new GesteRefuse(`le ticket ${ticket} n'est pas sur le rail — seul un ticket du rail attend un tiers`);
+    if (trouve === null) throw new GesteRefuse(`ticket ${ticket} is not on the rail — only a ticket on the rail waits for a third party`);
     const tenu = TENUS[trouve.state];
-    if (tenu !== undefined) throw new GesteRefuse(`le ticket ${ticket} est ${tenu}`);
+    if (tenu !== undefined) throw new GesteRefuse(`ticket ${ticket} is ${tenu}`);
     journal.ajouter({ project: projet, ticket, author: AUTEUR, type: "ticket.waiting", payload: { what, who, followUp: followUp.toISOString() } });
     return ticketDuRail(journal.base, ticket) as TicketRail;
   });
@@ -106,8 +106,8 @@ export function cestArrive(journal: Journal, projet: string, ticket: number): Ti
 
 function exigerWaiting(journal: Journal, ticket: number): void {
   const trouve = ticketDuRail(journal.base, ticket);
-  if (trouve === null) throw new GesteRefuse(`le ticket ${ticket} n'est pas sur le rail`);
-  if (trouve.waitingFor === null) throw new GesteRefuse(`le ticket ${ticket} n'attend aucun tiers — il est ${trouve.state === "86" ? "mis de côté (86)" : nomEtat(trouve.state)}`);
+  if (trouve === null) throw new GesteRefuse(`ticket ${ticket} is not on the rail`);
+  if (trouve.waitingFor === null) throw new GesteRefuse(`ticket ${ticket} is not waiting for a third party — it is ${trouve.state === "86" ? "set aside (86)" : nomEtatEn(trouve.state)}`);
 }
 
 // Ce qu'un ticket en WAITING attend, sur une ligne : de qui, quoi, depuis
