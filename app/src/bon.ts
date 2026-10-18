@@ -112,14 +112,22 @@ const FORMES: { etats: readonly string[]; forme: RegExp; lire(trouve: RegExpExec
   },
 ];
 
+// L'état que `faits` donne est en français ; `status` l'écrit en anglais depuis #940
+// (docs/glossary.md, §4), en français avant : la ligne commence par l'un ou l'autre.
+const EN_ANGLAIS: Record<string, string> = { pris: "taken", "en attente": "queued", "en pass": "in pass", servi: "served", BLOQUÉ: "BLOCKED" };
+
 // Ce qui est entre l'état et le titre d'une ligne — l'un et l'autre viennent de
 // `faits`, et la bornent : la priorité, puis le détail. Rien, si elle n'est pas
-// celle que le runtime écrit pour cet état et ce titre.
-function milieu(ligne: string, etat: string, titre: string): { priorite: string; detail: string } | undefined {
-  const [tete, pied] = [`${etat}  `, `  ${titre}`];
-  if (ligne.length < tete.length + pied.length || !ligne.startsWith(tete) || !ligne.endsWith(pied)) return undefined;
-  const [, priorite, detail] = /^(-|prio:\S+) {2}(.*)$/.exec(ligne.slice(tete.length, ligne.length - pied.length)) ?? [];
-  return priorite === undefined || detail === undefined ? undefined : { priorite, detail };
+// celle que le runtime écrit pour cet état et ce titre. `etat` : le mot que la
+// ligne écrit, dans sa langue — c'est lui qui choisit la forme du détail.
+function milieu(ligne: string, etat: string, titre: string): { etat: string; priorite: string; detail: string } | undefined {
+  for (const ecrit of [etat, ...(EN_ANGLAIS[etat] === undefined ? [] : [EN_ANGLAIS[etat]])]) {
+    const [tete, pied] = [`${ecrit}  `, `  ${titre}`];
+    if (ligne.length < tete.length + pied.length || !ligne.startsWith(tete) || !ligne.endsWith(pied)) continue;
+    const [, priorite, detail] = /^(-|prio:\S+) {2}(.*)$/.exec(ligne.slice(tete.length, ligne.length - pied.length)) ?? [];
+    if (priorite !== undefined && detail !== undefined) return { etat: ecrit, priorite, detail };
+  }
+  return undefined;
 }
 
 // La priorité que la ligne d'un ticket écrit, telle quelle : `prio:<n>`, ou `-`
@@ -129,8 +137,9 @@ export const priorite = (ligne: string, etat: string, titre: string): string | u
 // Ce que la ligne d'un ticket dit de lui — ou rien, si elle n'est pas celle que
 // le runtime écrit pour cet état et ce titre.
 function decouper(ligne: string, etat: string, titre: string): Lu | undefined {
-  const detail = milieu(ligne, etat, titre)?.detail;
-  const lue = FORMES.find(({ etats }) => etats.includes(etat));
+  const lu = milieu(ligne, etat, titre);
+  const detail = lu?.detail;
+  const lue = FORMES.find(({ etats }) => etats.includes(lu?.etat ?? etat));
   const trouve = detail === undefined ? null : (lue?.forme.exec(detail) ?? null);
   return lue === undefined || trouve === null ? undefined : lue.lire(trouve);
 }
