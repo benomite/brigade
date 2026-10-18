@@ -104,9 +104,9 @@ const gestesPartis = (vue: Jouee) => vue.appels.filter(({ geste }) => geste === 
 
 describe("la bande porte l'état du manager, pour son interrupteur", () => {
   test("allumé, éteint, pas encore lu : l'état tel qu'il vient d'être lu, la ligne du runtime mot pour mot — jamais « éteint » faute de lecture", (t) => {
-    assert.deepEqual(bandeLue(sortieDeManager(t, true)).manager, { allume: true, releve: "ALLUMÉ since 2026-10-13T09:25:00.000Z (by chef) — il juge les issues ouvertes, pose `fire` et le calibrage" });
+    assert.deepEqual(bandeLue(sortieDeManager(t, true)).manager, { allume: true, releve: "ON since 2026-10-13T09:25:00.000Z (by chef) — it judges the open issues, sets `fire` and the calibration" });
     const eteinte = bandeLue(sortieDeManager(t, false));
-    assert.deepEqual(eteinte.manager, { allume: false, dit: MANAGER_ETEINT, releve: "ÉTEINT since 2026-10-13T09:25:00.000Z (by chef) — aucune issue n'est jugée, ce qu'il a posé reste posé" });
+    assert.deepEqual(eteinte.manager, { allume: false, dit: MANAGER_ETEINT, releve: "OFF since 2026-10-13T09:25:00.000Z (by chef) — no issue is judged, what it set stays set" });
     // La ligne de la bande dit la même phrase : c'est elle qui fait le signal de la case, dans la barre.
     assert.deepEqual(eteinte.alertes.map(({ sujet, dit }) => [sujet, dit]), [["manager", "manager off — nothing new comes in"]]);
     assert.equal(eteinte.signal?.dit, MANAGER_ETEINT);
@@ -128,9 +128,9 @@ describe("l'interrupteur, en tête de l'espace", () => {
     assert.equal(eteint.dataset.etat, "eteint");
     assert.equal(eteint.textContent, "manager off");
     // La ligne brute de la box n'est plus à plat : elle est au survol de l'interrupteur.
-    assert.match(eteint.title, /^ÉTEINT since 2026-10-13T09:25:00\.000Z \(by chef\) — aucune issue n'est jugée/);
+    assert.match(eteint.title, /^OFF since 2026-10-13T09:25:00\.000Z \(by chef\) — no issue is judged/);
     assert.equal(vue.element("alertes").hidden, true);
-    assert.doesNotMatch(vue.element("alertes").textContent, /ÉTEINT|manager/);
+    assert.doesNotMatch(vue.element("alertes").textContent, /OFF|manager/);
     // Le prix n'est pas posé à côté de l'interrupteur.
     assert.doesNotMatch(vue.element("interrupteur-manager").textContent, /judge|backlog|cost/);
 
@@ -153,7 +153,7 @@ describe("l'interrupteur, en tête de l'espace", () => {
     assert.equal(allume.ariaChecked, "true");
     assert.equal(allume.dataset.etat, "allume");
     assert.equal(allume.textContent, "manager on");
-    assert.match(allume.title, /^ALLUMÉ since/);
+    assert.match(allume.title, /^ON since/);
     assert.equal(teteDuRail(vue), undefined);
     assert.equal(vue.element("alertes").hidden, true);
   });

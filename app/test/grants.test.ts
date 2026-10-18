@@ -252,7 +252,7 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
     ]);
     assert.deepEqual(lus.usages?.lignes.map(({ ticket, verdict, suite }) => [ticket, verdict, suite]), [[19, "verdict n° 14", "mergée"]]);
     assert.equal(lus.bilan?.startsWith("sans grant, 1 livraison"), true);
-    assert.equal(lu("grant merge           ÉTEINT SEUL depuis le 2026-10-13T12:00:00.000Z — son échéance est passée\n").grants[0]?.actif, false);
+    assert.deepEqual(lu("grant merge           LAPSED since 2026-10-13T12:00:00.000Z — son échéance est passée\n").grants[0], { action: "merge", actif: false, mot: "LAPSED", depuis: "2026-10-13T12:00:00.000Z", limites: [], dit: "son échéance est passée" });
   });
 
   test("une ligne qui n'a pas la forme reste telle quelle, à part — elle ne fait perdre aucun des usages qui suivent", () => {

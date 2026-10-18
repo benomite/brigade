@@ -138,7 +138,7 @@ describe("le manager : sain, éteint, non dit", () => {
 
     const ligne = enPanne(bande(), "manager");
     assert.equal(ligne.ton, "rouge");
-    assert.equal(ligne.releve, `ÉTEINT since ${JOUR}T09:00:00.000Z (by chef) — aucune issue n'est jugée, ce qu'il a posé reste posé`);
+    assert.equal(ligne.releve, `OFF since ${JOUR}T09:00:00.000Z (by chef) — no issue is judged, what it set stays set`);
     assert.equal(ligne.geste, "turn the manager on");
     assert.deepEqual(ligne.appel, { geste: "manager-allumer" });
     assert.match(ligne.prix, /it judges the whole open backlog/);
@@ -147,7 +147,7 @@ describe("le manager : sain, éteint, non dit", () => {
   test("jamais allumé : éteint aussi", (t) => {
     const { noter, bande } = cuisine(t);
     noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
-    assert.match(enPanne(bande(), "manager").releve ?? "", /^ÉTEINT — jamais allumé/);
+    assert.match(enPanne(bande(), "manager").releve ?? "", /^OFF — never turned on/);
   });
 
   test("pas encore lu par l'app : la première lecture en cours n'affiche rien — ni « allumé », ni « non vérifié » (#721)", (t) => {
