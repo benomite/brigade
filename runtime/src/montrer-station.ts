@@ -162,7 +162,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     const projet = projetDuJournal(journal);
     let fait;
     try {
-      fait = poserDecision(journal, { projet, nom: decision, valeur, auteur: AUTEUR });
+      fait = poserDecision(journal, { projet, nom: decision, valeur, auteur: AUTEUR, anglais: true });
     } catch (erreur) {
       if (!(erreur instanceof ConfigInvalide)) throw erreur;
       echouer(2, `${nom} refused, nothing is written — ${erreur.message}\nusage: \`station -- ${geste(nom)}\` — ${attendu}`);

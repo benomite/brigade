@@ -61,8 +61,8 @@ const parmi = (admis: readonly string[]) => (nom: Decision, valeur: string) => {
 
 // Ce qu'une valeur doit être, lue seule : le lecteur même du runtime, pour
 // qu'une décision ne puisse pas valoir ce que la variable ne vaudrait pas.
-const VERIFIER: Record<Decision, (nom: Decision, valeur: string) => void> = {
-  BRIGADE_STATIONS: (nom, valeur) => void lireStations({ [nom]: valeur }),
+const VERIFIER: Record<Decision, (nom: Decision, valeur: string, anglais: boolean) => void> = {
+  BRIGADE_STATIONS: (nom, valeur, anglais) => void lireStations({ [nom]: valeur }, anglais),
   BRIGADE_DRIFT_TICKET_TOKENS: (nom, valeur) => void lireSeuils({ [nom]: valeur }),
   BRIGADE_DRIFT_LOST_TOKENS: (nom, valeur) => void lireSeuils({ [nom]: valeur }),
   BRIGADE_MANAGER_MODEL: parmi(MODELES),
@@ -85,10 +85,10 @@ function exigerDecision(nom: string): Decision {
 
 // Refuse une valeur que le runtime ne lirait pas. Vide, ce n'est pas une
 // valeur : une décision se retire, elle ne se pose pas à rien.
-export function verifierDecision(nom: string, valeur: string): void {
+export function verifierDecision(nom: string, valeur: string, anglais = false): void {
   const decision = exigerDecision(nom);
   if (valeur.trim() === "") throw new ConfigInvalide(`${decision}: an empty value is not a decision — remove it to go back to the environment`);
-  VERIFIER[decision](decision, valeur.trim());
+  VERIFIER[decision](decision, valeur.trim(), anglais);
 }
 
 // Les décisions que le journal porte, relues à chaque appel. Une décision que
@@ -195,8 +195,8 @@ export function decisionsAuDemarrage(repertoireEtat: string): Posees {
 // null si elle valait déjà cela. Une valeur que le runtime ne lirait pas est
 // refusée, et rien n'est écrit. N'écrit que le journal : ni le dépôt, ni le
 // drop-in, et rien n'est arrêté ni relancé.
-export function poserDecision(journal: Journal, pose: { projet: string; nom: string; valeur: string; auteur: string }): Evenement | null {
-  verifierDecision(pose.nom, pose.valeur);
+export function poserDecision(journal: Journal, pose: { projet: string; nom: string; valeur: string; auteur: string; anglais?: boolean }): Evenement | null {
+  verifierDecision(pose.nom, pose.valeur, pose.anglais);
   const nom = pose.nom as Decision;
   const value = pose.valeur.trim();
   return journal.base.transaction(() => {

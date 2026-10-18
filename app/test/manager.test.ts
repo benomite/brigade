@@ -133,7 +133,7 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
     // Un écart est aussi une décision : il se lit dans les deux sections, comme le runtime l'écrit.
     assert.deepEqual(decisions?.lignes.map(({ ticket, dit }) => [ticket, dit]), [
       [30, "set aside (chef-changed)"],
-      [32, "set aside (hors-cuisine), `fire` set by the chef: left alone, not calibrated"],
+      [32, "set aside (`hors-cuisine`), `fire` set by the chef: left alone, not calibrated"],
       [31, "set aside (blocked-on-human)"],
       [1, "set aside (roadmap)"],
     ]);

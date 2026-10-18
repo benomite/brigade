@@ -24,7 +24,7 @@ export function decrire(issue: IssueDuManager): string {
     case "failed":
       return `unreadable judgment — ${issue.reason}`;
     case "aside":
-      return `set aside (${issue.reason})${issue.fired ? ", `fire` set by the chef: left alone, not calibrated" : ""}`;
+      return `set aside (${issue.reason === ("hors-cuisine" satisfies Ecart) ? `\`${issue.reason}\`` : issue.reason})${issue.fired ? ", `fire` set by the chef: left alone, not calibrated" : ""}`;
   }
 }
 
