@@ -13,7 +13,7 @@ import { attentesDuChef } from "./attend.ts";
 import type { GitHub } from "./github.ts";
 import { LABEL } from "./github.ts";
 import type { Journal } from "./journal.ts";
-import { nomEtat } from "./rail.ts";
+import { nomEtatEn } from "./rail.ts";
 import { passDuTicket } from "./projections/pass.ts";
 import { lireRail, ticketDuRail } from "./projections/rail.ts";
 
@@ -47,7 +47,7 @@ export async function retirerDuRail(journal: Journal, github: GitHub, projet: st
   const courant = ticketDuRail(journal.base, ticket);
   if (!courant) return refuse(`#${ticket} is not on the rail`);
   const retirable = courant.state === "waiting" || courant.state === "86" || (courant.state === "pass" && attenteDuTicket(journal, ticket) !== undefined);
-  if (!retirable) return refuse(dansLEtat(ticket, nomEtat(courant.state), courant.state === "taken" || courant.state === "pass"));
+  if (!retirable) return refuse(dansLEtat(ticket, nomEtatEn(courant.state), courant.state === "taken" || courant.state === "pass"));
   await github.delabelliser(ticket, LABEL);
   // Pris entre-temps : le label est retiré, et le sondage en rendra compte.
   if (ticketDuRail(journal.base, ticket)?.state === courant.state) {

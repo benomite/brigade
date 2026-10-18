@@ -75,14 +75,14 @@ npm --prefix runtime run pass -- 17 --json  # la même histoire pour l'app, avec
 ```
 
 ```
-BASE ROUGE depuis 2026-10-09T09:20:52.000Z (5d2e7b1) — après le merge de #17 : rien n'est jugé ni mergé, les livraisons attendent
-#18  ARRÊTÉE — verte, non mergée (no-grant)  renvois 0/2  depuis 2026-10-08T14:20:03.000Z  https://github.com/benomite/brigade/pull/53
-#20  REMONTÉE AU CHEF (unjudged : ci-silent)  renvois 0/2  depuis 2026-10-08T14:40:11.000Z  https://github.com/benomite/brigade/pull/55
+BASE RED since 2026-10-09T09:20:52.000Z (5d2e7b1) — after the merge of #17: nothing is judged or merged, deliveries wait
+#18  STOPPED — green, not merged (no-grant)  returns 0/2  since 2026-10-08T14:20:03.000Z  https://github.com/benomite/brigade/pull/53
+#20  ESCALATED TO THE CHEF (unjudged : ci-silent)  returns 0/2  since 2026-10-08T14:40:11.000Z  https://github.com/benomite/brigade/pull/55
 ```
 
-`run pass -- <ticket>` déroule chaque fait : relecture, verdict (`verdict n° 412 : VERT — gates
-vertes (code 0) · CI aucun check · reviewer rien de bloquant`, puis `jugé : 77c01de fusionné avec
-la base 4be1f07`), renvoi, usage du grant, merge et l'identité GitHub qui l'a fait. Les deux
+`run pass -- <ticket>` déroule chaque fait : relecture, verdict (`verdict no. 412: GREEN — gates
+green (code 0) · CI no check · reviewer nothing blocking`, puis `judged: 77c01de merged with
+the base 4be1f07`), renvoi, usage du grant, merge et l'identité GitHub qui l'a fait. Les deux
 commandes n'écrivent jamais, et répondent pendant que le runtime tourne.
 
 | Événement | Sens |

@@ -2,6 +2,10 @@
 
 Changes to the public interface of brigade — the commands of the box (`brigade <project> <command>`), their options, and what the roles cite. Newest first.
 
+## 2026-10-18 — the output of `rail`, `pass`, `log` and `waiting` in English (#931)
+
+What `rail` (with `remove`, `priority`, `merge`), `pass` (with `issue`, `comment`, `ask`), `log` and `waiting` (`set`, `resume`, `arrived`) write — lines, refusals, errors and usage — is English, in the words of `docs/glossary.md`. The typed forms do not change (`--remind 7j` still reads), nor do the keys of `pass --json` and the event names of the log. Free text written to the log by others (a reviewer's finding, a gate's failure, an unreadable card's reason) is shown as it was written. Two shared messages follow: `no log in <dir>` (any command that opens the log) and the `BRIGADE_GITHUB_REPO` / `BRIGADE_LEASE_SECONDS` / `BRIGADE_COMMON_PATHS` configuration errors. `grant`, `base` and the other commands keep their wording until their own tickets.
+
 ## 2026-10-16 — session renewal is off on a station with a long-lived token (#818)
 
 When `BRIGADE_CLAUDE_TOKEN_FILE` is set, the runtime no longer follows the Max session renewal (#508): it does not read the renewal state file, writes no `session.observed` / `session.restored`, the station's connection watch draws no loss (`session-refusee`…) from it, and the « session Max près de son échéance » line stays out of the queue. Without a token, nothing changes.

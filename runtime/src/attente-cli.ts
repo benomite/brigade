@@ -12,16 +12,16 @@
 // sur l'issue (label `waiting`, commentaire) dès qu'il le lit.
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
-import { cestArrive, direAttenteDeTiers, lireRelance, mettreEnAttente, reprendre } from "./attente.ts";
-import { duree } from "./etat.ts";
+import { cestArrive, direAttenteDeTiersEn, lireRelance, mettreEnAttente, reprendre } from "./attente.ts";
+import { dureeEn } from "./etat.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { lireRail, type TicketRail } from "./projections/rail.ts";
 import { GesteRefuse } from "./rail.ts";
 
 const USAGE = [
-  "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run waiting -- [<geste> <ticket> …]",
-  "  set <ticket> --what <ce qu'il attend> --from <qui> [--remind <date, date et heure, ou durée>]",
+  "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run waiting -- [<geste> <ticket> …]",
+  "  set <ticket> --what <what it waits for> --from <who> [--remind <date, date and time, or duration>]",
   "  resume <ticket>",
   "  arrived <ticket>",
 ].join("\n");
@@ -37,7 +37,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel, maintenant 
   }
 
   const repertoireEtat = env.BRIGADE_STATE_DIR;
-  if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
+  if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR is not set\n${USAGE}`);
   const [geste, numero, ...suite] = args;
 
   const lues = new Map<string, string>();
@@ -46,8 +46,8 @@ export function principal({ args: tapes, env, dire, redire }: Appel, maintenant 
     if (!OPTIONS.includes(mot) || lues.has(mot) || i + 1 >= suite.length) echouer(2, USAGE);
     lues.set(mot, suite[++i] ?? "");
   }
-  if (geste !== undefined && !["set", "resume", "arrived"].includes(geste)) echouer(2, `geste inconnu : « ${geste} »\n${USAGE}`);
-  if (geste !== undefined && (numero === undefined || !/^[1-9][0-9]*$/.test(numero))) echouer(2, `il faut le numéro du ticket\n${USAGE}`);
+  if (geste !== undefined && !["set", "resume", "arrived"].includes(geste)) echouer(2, `unknown gesture: “${geste}”\n${USAGE}`);
+  if (geste !== undefined && (numero === undefined || !/^[1-9][0-9]*$/.test(numero))) echouer(2, `the ticket number is needed\n${USAGE}`);
   if (geste !== "set" && lues.size > 0) echouer(2, USAGE);
   const ticket = Number(numero);
 
@@ -59,38 +59,38 @@ export function principal({ args: tapes, env, dire, redire }: Appel, maintenant 
   }
   try {
     const instant = maintenant();
-    const depuis = (moment: string) => `${duree(instant.getTime() - Date.parse(moment))} (${moment})`;
-    const ligne = (lu: TicketRail) => `#${lu.ticket}  ${lu.waitingFor === null ? "" : direAttenteDeTiers(lu.waitingFor, depuis)}  ${lu.title}`;
+    const depuis = (moment: string) => `${dureeEn(instant.getTime() - Date.parse(moment))} (${moment})`;
+    const ligne = (lu: TicketRail) => `#${lu.ticket}  ${lu.waitingFor === null ? "" : direAttenteDeTiersEn(lu.waitingFor, depuis)}  ${lu.title}`;
     if (geste === undefined) {
       const enAttente = lireRail(journal.base).filter((lu) => lu.waitingFor !== null);
-      if (enAttente.length === 0) dire("aucun ticket n'attend un tiers");
+      if (enAttente.length === 0) dire("no ticket is waiting for a third party");
       for (const lu of enAttente) dire(ligne(lu));
       return;
     }
     const projet = journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
-    if (!projet) echouer(1, "journal vide : le runtime n'a jamais démarré sur ce répertoire d'état");
+    if (!projet) echouer(1, "empty log: the runtime has never started on this state directory");
     try {
       if (geste === "set") {
         const quoi = lues.get("--what");
         const qui = lues.get("--from");
-        if (quoi === undefined || qui === undefined) echouer(2, `set : --what et --from sont à dire\n${USAGE}`);
+        if (quoi === undefined || qui === undefined) echouer(2, `set: --what and --from are to be said\n${USAGE}`);
         const brute = lues.get("--remind");
         const relance = brute === undefined ? undefined : lireRelance(brute, instant);
         const lu = mettreEnAttente(journal, projet, ticket, { quoi, qui, ...(relance === undefined ? {} : { relance }) }, instant);
-        dire(`WAITING : ${ligne(lu)}`);
+        dire(`WAITING: ${ligne(lu)}`);
       } else if (geste === "resume") {
         reprendre(journal, projet, ticket);
-        dire(`#${ticket} repris : il revient dans TODO, devant le chef`);
+        dire(`#${ticket} resumed: it goes back to TODO, in front of the chef`);
       } else {
         cestArrive(journal, projet, ticket);
-        dire(`#${ticket} : c'est arrivé — il repart en cuisine`);
+        dire(`#${ticket}: it arrived — it goes back to the kitchen`);
       }
     } catch (erreur) {
       if (erreur instanceof GesteRefuse) echouer(1, erreur.message);
       throw erreur;
     }
   } catch (erreur) {
-    if (journalPasRejoue(erreur)) echouer(1, "ce journal n'a pas encore l'état du rail : redémarrer le runtime, qui le recalcule");
+    if (journalPasRejoue(erreur)) echouer(1, "this log does not have the rail state yet: restart the runtime, which recomputes it");
     throw erreur;
   } finally {
     journal.fermer();

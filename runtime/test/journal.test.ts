@@ -190,7 +190,7 @@ test("une lecture seule relit le journal sans rien pouvoir y écrire", (t) => {
 test("une lecture seule ne crée pas de journal là où il n'y en a pas", (t) => {
   const repertoire = repertoireTemporaire(t);
 
-  assert.throws(() => ouvrirJournal(repertoire, { lectureSeule: true }), /aucun journal/);
+  assert.throws(() => ouvrirJournal(repertoire, { lectureSeule: true }), /no log in/);
   assert.equal(existsSync(join(repertoire, "log.db")), false);
 });
 

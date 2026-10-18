@@ -13,7 +13,7 @@ import type { Journal } from "./journal.ts";
 import { communsDuRail, lireRail, sortDuTicket, ticketDuRail } from "./projections/rail.ts";
 import { ouvrirRail, type Rail } from "./rail.ts";
 import { ConfigInvalide, type Runtime } from "./runtime.ts";
-import { refus } from "./zones.ts";
+import { refusEn } from "./zones.ts";
 
 const AUTEUR = "github";
 
@@ -230,19 +230,19 @@ const BAIL_PAR_DEFAUT_S = 1800;
 // défaut : le nom de projet est un identifiant court, il ne le désigne pas.
 export function configRail(env: Record<string, string | undefined>): ConfigRail {
   const depot = env.BRIGADE_GITHUB_REPO;
-  if (!depot) throw new ConfigInvalide("BRIGADE_GITHUB_REPO n'est pas défini");
+  if (!depot) throw new ConfigInvalide("BRIGADE_GITHUB_REPO is not set");
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(depot)) {
-    throw new ConfigInvalide(`BRIGADE_GITHUB_REPO invalide : « ${depot} » — attendu <owner>/<repo>`);
+    throw new ConfigInvalide(`BRIGADE_GITHUB_REPO invalid: “${depot}” — expected <owner>/<repo>`);
   }
   const bail = env.BRIGADE_LEASE_SECONDS || String(BAIL_PAR_DEFAUT_S);
   if (!/^[1-9][0-9]*$/.test(bail)) {
-    throw new ConfigInvalide(`BRIGADE_LEASE_SECONDS invalide : « ${bail} » — attendu un nombre entier de secondes`);
+    throw new ConfigInvalide(`BRIGADE_LEASE_SECONDS invalid: “${bail}” — expected a whole number of seconds`);
   }
   const communs = [...new Set((env.BRIGADE_COMMON_PATHS ?? "").split(",").map((chemin) => chemin.trim()).filter(Boolean))];
   for (const chemin of communs) {
-    const pourquoi = refus(chemin);
+    const pourquoi = refusEn(chemin);
     if (pourquoi !== null) {
-      throw new ConfigInvalide(`BRIGADE_COMMON_PATHS invalide : « ${chemin} » ${pourquoi} — attendu des chemins relatifs à sa racine, séparés par des virgules`);
+      throw new ConfigInvalide(`BRIGADE_COMMON_PATHS invalid: “${chemin}” ${pourquoi} — expected paths relative to its root, separated by commas`);
     }
   }
   return { depot, dureeBailMs: Number(bail) * 1000, gh: env.BRIGADE_GH_BIN || "gh", communs };

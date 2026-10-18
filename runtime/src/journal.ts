@@ -187,7 +187,7 @@ export function ouvrirJournal(repertoireEtat: string, options: OptionsJournal = 
   const maintenant = options.maintenant ?? (() => new Date());
   const projections = options.projections ?? PROJECTIONS;
   if (options.lectureSeule) {
-    if (!existsSync(chemin)) throw new Error(`aucun journal dans ${repertoireEtat}`);
+    if (!existsSync(chemin)) throw new Error(`no log in ${repertoireEtat}`);
     return new Journal(new Base(chemin, { lectureSeule: true, attenteMs: ATTENTE_MS }), maintenant, projections);
   }
   const base = new Base(chemin, { attenteMs: ATTENTE_MS });

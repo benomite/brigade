@@ -226,7 +226,7 @@ test("`pass -- <ticket> issue` : une panne de GitHub sort en 1 en le disant, une
 
   const panne = appeler(pass, ["7", "issue"], env);
   assert.equal(await panne.fin, 1);
-  assert.match(panne.sortie(), /^brigade : l'issue de #7 n'a pas été lue : .*HTTP 502/);
+  assert.match(panne.sortie(), /^brigade : the issue of #7 was not read: .*HTTP 502/);
 
   const avant = gh.appels().length;
   for (const args of [["7", "comment"], ["7", "issue", "en trop"], ["7", "comment", "a", "b"], ["0", "issue"], ["x", "comment", "Du contexte"]]) {
@@ -236,7 +236,7 @@ test("`pass -- <ticket> issue` : une panne de GitHub sort en 1 en le disant, une
   }
   const sansDepot = appeler(pass, ["7", "issue"], { BRIGADE_GH_BIN: gh.bin });
   assert.equal(await sansDepot.fin, 2);
-  assert.match(sansDepot.sortie(), /BRIGADE_GITHUB_REPO n'est pas défini/);
+  assert.match(sansDepot.sortie(), /BRIGADE_GITHUB_REPO is not set/);
   assert.equal(gh.appels().length, avant);
 });
 

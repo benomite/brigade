@@ -98,19 +98,19 @@ test("une attente sans quoi, sans qui, à relance passée, ou d'un ticket que la
   const avant = journal.dernierSeq();
   assert.throws(() => mettreEnAttente(journal, PROJET, 8, { quoi: "  ", qui: "le client" }, MAINTENANT), GesteRefuse);
   assert.throws(() => mettreEnAttente(journal, PROJET, 8, { quoi: "un devis", qui: "" }, MAINTENANT), GesteRefuse);
-  assert.throws(() => attendre(journal, 8, new Date("2026-10-14T11:00:00.000Z")), /déjà passée/);
-  assert.throws(() => lireRelance("2026-10-01", MAINTENANT), /déjà passé/);
-  assert.throws(() => lireRelance("mardi", MAINTENANT), /ne se lit pas/);
-  assert.throws(() => attendre(journal, 404), /pas sur le rail/);
+  assert.throws(() => attendre(journal, 8, new Date("2026-10-14T11:00:00.000Z")), /has already passed/);
+  assert.throws(() => lireRelance("2026-10-01", MAINTENANT), /has already passed/);
+  assert.throws(() => lireRelance("mardi", MAINTENANT), /cannot be read/);
+  assert.throws(() => attendre(journal, 404), /not on the rail/);
 
   assert.equal(rail.prendre("box/claude")?.ticket, 8);
-  assert.throws(() => attendre(journal, 8), /en cuisine/);
+  assert.throws(() => attendre(journal, 8), /a cook is working on it/);
   assert.equal(rail.prendre("box/claude")?.ticket, 9);
   rail.envoyerEnPass(9, "box/claude");
-  assert.throws(() => attendre(journal, 9), /en pass/);
+  assert.throws(() => attendre(journal, 9), /its delivery is being judged/);
   assert.equal(journal.dernierSeq(), avant + 3);
-  assert.throws(() => reprendre(journal, PROJET, 10), /n'attend aucun tiers/);
-  assert.throws(() => cestArrive(journal, PROJET, 10), /n'attend aucun tiers/);
+  assert.throws(() => reprendre(journal, PROJET, 10), /not waiting for a third party/);
+  assert.throws(() => cestArrive(journal, PROJET, 10), /not waiting for a third party/);
 });
 
 test("la cuisine ne prend jamais un ticket en WAITING : la sélection passe à celui d'après, puis ne rend rien", (t) => {
@@ -327,20 +327,20 @@ test("la commande `waiting` : set, lister, resume, c'est arrivé — et ce qu'el
     return { code, sortie: sortie.join("\n"), erreur: erreur.join("\n") };
   };
 
-  assert.deepEqual(lancer(), { code: 0, sortie: "aucun ticket n'attend un tiers", erreur: "" });
+  assert.deepEqual(lancer(), { code: 0, sortie: "no ticket is waiting for a third party", erreur: "" });
   const pose = lancer("set", "8", "--what", "la réponse du client", "--from", "le client", "--remind", "3j");
   assert.equal(pose.code, 0, pose.erreur);
-  assert.match(pose.sortie, /^WAITING : #8  attend le client : « la réponse du client » — depuis .* relance le 17 oct\. 12:00 UTC/);
-  assert.match(lancer().sortie, /^#8  attend le client/);
+  assert.match(pose.sortie, /^WAITING: #8  awaiting le client: “la réponse du client” — since .* follow-up on 17 Oct 12:00 UTC/);
+  assert.match(lancer().sortie, /^#8  awaiting le client/);
   assert.equal(ticketDuRail(journal.base, 8)?.waitingFor?.who, "le client");
 
   assert.deepEqual([lancer("set", "8", "--what", "x").code, lancer("bouger", "8").code, lancer("resume").code, lancer("resume", "8", "--from", "x").code], [2, 2, 2, 2]);
-  assert.match(lancer("set", "8", "--what", "x", "--from", "y", "--remind", "hier").erreur, /--remind : « hier » ne se lit pas/);
+  assert.match(lancer("set", "8", "--what", "x", "--from", "y", "--remind", "hier").erreur, /--remind: “hier” cannot be read/);
 
   assert.equal(lancer("resume", "8").code, 0);
   assert.equal(ticketDuRail(journal.base, 8)?.reason, REVENU_D_ATTENTE);
   const refus = lancer("resume", "8");
-  assert.deepEqual([refus.code, /n'attend aucun tiers/.test(refus.erreur)], [1, true]);
+  assert.deepEqual([refus.code, /not waiting for a third party/.test(refus.erreur)], [1, true]);
   assert.equal(lancer("arrived", "8").code, 0);
   assert.equal(ticketDuRail(journal.base, 8)?.state, "waiting");
 });

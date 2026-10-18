@@ -95,8 +95,8 @@ export function ajouterLeBas(journal: ReturnType<typeof etatDAvant>["journal"]):
 }
 
 // L'état d'exemple du bas : l'état d'exemple du haut, et le bas par-dessus. Le journal est celui de `exemple(t)`.
-export function exempleDuBas(t: TestContext) {
-  const journal = exemple(t);
+export function exempleDuBas(t: TestContext, repertoire?: string) {
+  const journal = exemple(t, repertoire);
   ajouterLeBas(journal);
   return journal;
 }

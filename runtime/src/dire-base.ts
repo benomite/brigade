@@ -21,8 +21,9 @@ export const direControleRetenu = (retenu: ControleRetenu, depuis: (instant: str
 // Les mêmes, en anglais : ce que dit la ligne `base` de `status`.
 export const direPanneEn = (motif: string | null | undefined) => (motif ? `, the attempt did not run (${motif})` : "");
 
-export const direControleRetenuEn = (retenu: ControleRetenu, depuis: (instant: string) => string) =>
-  `check held for ${depuis(retenu.at)}: the base cannot be fetched (${retenu.reason}) — the pass comes back to it on its own, at every tick`;
+// `depuis` dit une durée (« 5 min ») dans `status`, un instant dans `pass` : `prep` donne la préposition qui va avec.
+export const direControleRetenuEn = (retenu: ControleRetenu, depuis: (instant: string) => string, prep: "for" | "since" = "for") =>
+  `check held ${prep} ${depuis(retenu.at)}: the base cannot be fetched (${retenu.reason}) — the pass comes back to it on its own, at every tick`;
 
 // Où en est le rejeu que le chef a demandé. Une base qui ne se rapatrie pas
 // le retient avant la machine : c'est elle qui se dit.
@@ -44,17 +45,17 @@ export function suiteDeBaseRouge({ unplayed, reason, recheck }: EtatDeLaBase, de
   ];
 }
 
-export function direRejeuEn(rejeu: NonNullable<EtatDeLaBase["recheck"]>, depuis: (instant: string) => string, retenu: ControleRetenu | null): string {
-  if (retenu !== null) return `the base cannot be fetched for ${depuis(retenu.at)} (${retenu.reason}), the pass comes back to it on its own`;
-  return rejeu.heldAt === null ? "the pass plays it on its next round" : `the saturated machine has held it for ${depuis(rejeu.heldAt)}, the pass comes back to it on its own`;
+export function direRejeuEn(rejeu: NonNullable<EtatDeLaBase["recheck"]>, depuis: (instant: string) => string, retenu: ControleRetenu | null, prep: "for" | "since" = "for"): string {
+  if (retenu !== null) return `the base cannot be fetched ${prep} ${depuis(retenu.at)} (${retenu.reason}), the pass comes back to it on its own`;
+  return rejeu.heldAt === null ? "the pass plays it on its next round" : `the saturated machine has held it ${prep} ${depuis(rejeu.heldAt)}, the pass comes back to it on its own`;
 }
 
-export function suiteDeBaseRougeEn({ unplayed, reason, recheck }: EtatDeLaBase, depuis: (instant: string) => string, retenu: ControleRetenu | null): string[] {
+export function suiteDeBaseRougeEn({ unplayed, reason, recheck }: EtatDeLaBase, depuis: (instant: string) => string, retenu: ControleRetenu | null, prep: "for" | "since" = "for"): string[] {
   return [
-    ...(unplayed === null ? [] : [`gates not played on ${court(unplayed.sha)} for ${depuis(unplayed.at)}${direPanneEn(reason)}: a check that was not played does not lift a red that was found`]),
+    ...(unplayed === null ? [] : [`gates not played on ${court(unplayed.sha)} ${prep} ${depuis(unplayed.at)}${direPanneEn(reason)}: a check that was not played does not lift a red that was found`]),
     ...(recheck === null
-      ? [...(retenu === null ? [] : [direControleRetenuEn(retenu, depuis)]), `replay its gates without waiting for a commit: ${REJOUER_LA_BASE}`]
-      : [`${recheck.by === "chef" ? "replay asked by the chef" : "automatic replay, before opening a repair ticket if the red holds,"} for ${depuis(recheck.at)}: ${direRejeuEn(recheck, depuis, retenu)}`]),
+      ? [...(retenu === null ? [] : [direControleRetenuEn(retenu, depuis, prep)]), `replay its gates without waiting for a commit: ${REJOUER_LA_BASE}`]
+      : [`${recheck.by === "chef" ? "replay asked by the chef" : "automatic replay, before opening a repair ticket if the red holds,"} ${prep} ${depuis(recheck.at)}: ${direRejeuEn(recheck, depuis, retenu, prep)}`]),
   ];
 }
 
@@ -64,5 +65,14 @@ export function direBaseRouge(controle: EtatDeLaBase, retenu: ControleRetenu | n
   return [
     `BASE ROUGE depuis ${controle.redSince ?? controle.at} (${court(controle.sha)})${merges} : rien n'est jugé ni mergé, les livraisons attendent`,
     ...["la station ne prend plus de ticket tant qu'elle l'est", ...suiteDeBaseRouge(controle, (instant) => instant, retenu)].map((ligne) => `  ${ligne}`),
+  ];
+}
+
+// La même, en anglais : la base rouge que `pass` montre, horodatée.
+export function direBaseRougeEn(controle: EtatDeLaBase, retenu: ControleRetenu | null): string[] {
+  const merges = controle.tickets.length === 0 ? "" : ` — after the merge of ${controle.tickets.map((ticket) => `#${ticket}`).join(", ")}`;
+  return [
+    `BASE RED since ${controle.redSince ?? controle.at} (${court(controle.sha)})${merges}: nothing is judged or merged, deliveries wait`,
+    ...["the station takes no more tickets while it is red", ...suiteDeBaseRougeEn(controle, (instant) => instant, retenu, "since")].map((ligne) => `  ${ligne}`),
   ];
 }

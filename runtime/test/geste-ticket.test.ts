@@ -110,7 +110,7 @@ test("retirer un ticket au travail ou en pass est refusé, lisiblement, sans rie
   prendre(7);
   const r = await retirerDuRail(journal, github, PROJET, 7);
   assert.equal(r.done, false);
-  assert.match(r.done ? "" : r.reason, /#7 is pris: a ticket in progress is not touched/);
+  assert.match(r.done ? "" : r.reason, /#7 is taken: a ticket in progress is not touched/);
   assert.match(r.price, /nothing was changed/);
 
   prendre(8);
