@@ -49,7 +49,7 @@ test("le chef voit le runtime et son dernier tick, les tickets par état, les co
   noter({ type: "cook.progressed", payload: { run: "14-3f9a01bc", turns: 12, tokens: 184_000 } }, 14); // 10:00:14
 
   assert.deepEqual(decrire(journal, `${JOUR_HORLOGE}T10:04:11.000Z`), [
-    "projet     brigade",
+    "project    brigade",
     "runtime    running according to the log — pid 4211 on box, started 4 min ago",
     "           last tick 3 min ago (cadence: 1 min)",
     "kitchen    open · breaker closed (0 failures in a row, opens at 3)",
@@ -58,23 +58,23 @@ test("le chef voit le runtime et son dernier tick, les tickets par état, les co
     "awaiting   nothing awaits the chef",
     "end awaiting",
     "",
-    "rail       1 pris · 1 en pass · 2 en attente · 1 86",
-    "  #14  pris  prio:1  par box/claude-opus depuis 4 min, sans progrès depuis 4 min, bail encore 6 min  Ticket 14",
-    "  #15  en pass  prio:1  depuis 4 min, cuisiné par box/claude-sonnet  Ticket 15",
-    "  #16  en attente  prio:2  depuis 4 min  Ticket 16",
-    "  #17  86  prio:2  depuis 4 min (quota), retour dans 4 h 55  Ticket 17",
-    "  #18  en attente  -  depuis 4 min  Ticket 18",
+    "rail       1 taken · 1 in pass · 2 queued · 1 86",
+    "  #14  taken  prio:1  by box/claude-opus since 4 min, no progress since 4 min, lease 6 min left  Ticket 14",
+    "  #15  in pass  prio:1  since 4 min, cooked by box/claude-sonnet  Ticket 15",
+    "  #16  queued  prio:2  since 4 min  Ticket 16",
+    "  #17  86  prio:2  since 4 min (quota), back in 4 h 55  Ticket 17",
+    "  #18  queued  -  since 4 min  Ticket 18",
     "",
-    "cooks      2 en cours",
-    "  #14  14-3f9a01bc  4 min sur 1 h 00 · 12 tours sur 100 · 184 000 tokens sur 2 000 000 (relevé il y a 3 min) · sans progrès depuis 4 min",
-    "  #16  16-aa  3 min sur 1 h 00 · tours et tokens : pas encore de relevé",
+    "cooks      2 running",
+    "  #14  14-3f9a01bc  4 min of 1 h 00 · 12 turns of 100 · 184,000 tokens of 2,000,000 (reading 3 min ago) · no progress since 4 min",
+    "  #16  16-aa  3 min of 1 h 00 · turns and tokens: no reading yet",
     "",
-    "consommé   en cours : 2 lancements · 12 tours · 184 000 tokens",
-    "           5 h : 2 lancements · 12 tours · 184 000 tokens",
-    "           24 h : 2 lancements · 12 tours · 184 000 tokens",
-    "           ce que ce projet a lancé, pas la consommation du compte : /usage la donne",
+    "consumed   in flight: 2 launches · 12 turns · 184,000 tokens",
+    "           5 h: 2 launches · 12 turns · 184,000 tokens",
+    "           24 h: 2 launches · 12 turns · 184,000 tokens",
+    "           what this project has launched, not the account's consumption: /usage gives it",
     "",
-    "derniers événements",
+    "latest events",
     `  1  ${JOUR_HORLOGE}T10:00:00.000Z  brigade  -  runtime.started  runtime  {"pid":4211,"host":"box","node":"v26"}`,
     `  2  ${JOUR_HORLOGE}T10:00:01.000Z  brigade  -  guard.configured  runtime  {"limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"breakerThreshold":3}`,
     `  3  ${JOUR_HORLOGE}T10:00:02.000Z  brigade  #14  ticket.arrived  github  {"title":"Ticket 14","priority":1,"createdAt":"2026-10-01T00:00:14Z","url":"https://exemple.test/14"}`,
@@ -124,7 +124,7 @@ test("un runtime figé se voit à l'âge de son dernier tick ; un tick d'une vie
 test("un runtime arrêté, une cuisine arrêtée et un disjoncteur ouvert se lisent en tête ; un cook sans fin n'y passe pas pour vivant", (t) => {
   const { journal, noter } = cuisine(t);
   assert.deepEqual(decrire(journal, `${JOUR_HORLOGE}T10:00:00.000Z`), [
-    "projet     inconnu — journal vide",
+    "project    unknown — empty log",
     "runtime    never started",
     "kitchen    open · breaker closed (0 failures in a row, opens at ?)",
     "backup     NEVER DONE — is the timer `brigade-sauvegarde@<projet>` running?",
@@ -132,17 +132,17 @@ test("un runtime arrêté, une cuisine arrêtée et un disjoncteur ouvert se lis
     "awaiting   nothing awaits the chef",
     "end awaiting",
     "",
-    "rail       vide",
+    "rail       empty",
     "",
-    "cooks      aucun en cours",
+    "cooks      none running",
     "",
-    "consommé   en cours : rien",
-    "           5 h : rien",
-    "           24 h : rien",
-    "           ce que ce projet a lancé, pas la consommation du compte : /usage la donne",
+    "consumed   in flight: nothing",
+    "           5 h: nothing",
+    "           24 h: nothing",
+    "           what this project has launched, not the account's consumption: /usage gives it",
     "",
-    "derniers événements",
-    "  aucun",
+    "latest events",
+    "  none",
   ]);
 
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } }); // 10:00:00
@@ -155,13 +155,13 @@ test("un runtime arrêté, une cuisine arrêtée et un disjoncteur ouvert se lis
   noter({ type: "runtime.stopped", payload: { signal: "SIGTERM" } }); // 10:00:07
 
   assert.deepEqual(decrire(journal, `${JOUR_HORLOGE}T10:02:07.000Z`).slice(0, 3), [
-    "projet     brigade",
+    "project    brigade",
     "runtime    stopped 2 min ago",
     "kitchen    STOPPED by the chef 2 min ago · breaker OPEN for 2 min (1 failure in a row)",
   ]);
   assert.equal(
     decrire(journal, `${JOUR_HORLOGE}T10:02:07.000Z`).find((ligne) => ligne.startsWith("cooks")),
-    "cooks      1 sans fin au journal — runtime arrêté : son prochain démarrage reprend ceux qui tournent encore, et note les autres interrompus",
+    "cooks      1 with no end in the log — runtime stopped: its next start picks up those still running, and notes the others interrupted",
   );
 });
 
@@ -196,9 +196,9 @@ test("un bail échu se dit coincé et un 86 dont l'heure est passée se dit tel 
   noter({ type: "ticket.86", payload: { reason: "quota", until: `${JOUR_HORLOGE}T10:05:00.000Z` } }, 15);
 
   assert.deepEqual(decrire(journal, `${JOUR_HORLOGE}T10:12:00.000Z`).slice(8, 11), [
-    "rail       1 pris · 1 86",
-    "  #14  pris  prio:1  par box/claude depuis 11 min, COINCE : sans progrès depuis 11 min, bail échu depuis 2 min  Ticket 14",
-    "  #15  86  prio:2  depuis 11 min (quota), retour au prochain tick  Ticket 15",
+    "rail       1 taken · 1 86",
+    "  #14  taken  prio:1  by box/claude since 11 min, STUCK: no progress since 11 min, lease expired since 2 min  Ticket 14",
+    "  #15  86  prio:2  since 11 min (quota), back at the next tick  Ticket 15",
   ]);
 });
 
@@ -224,10 +224,10 @@ test("un ticket qui en attend un autre le dit, et un ticket bloqué par un aband
   // Le ticket bloqué attend le chef : le bloc `attend` passe avant le rail.
   const debut = lignes.findIndex((ligne) => ligne.startsWith("rail"));
   assert.deepEqual(lignes.slice(debut, debut + 4), [
-    "rail       2 en attente · 1 BLOQUÉ",
-    "  #14  en attente  prio:1  depuis 4 min  Ticket 14",
-    "  #16  en attente  -  attend #14 — depuis 4 min  Ticket 16",
-    "  #17  BLOQUÉ  -  #15 abandonné (label `fire` retiré) · attend aussi #14 — depuis 4 min  Ticket 17",
+    "rail       2 queued · 1 BLOCKED",
+    "  #14  queued  prio:1  since 4 min  Ticket 14",
+    "  #16  queued  -  awaiting #14 — since 4 min  Ticket 16",
+    "  #17  BLOCKED  -  #15 dropped (label `fire` removed) · also awaiting #14 — since 4 min  Ticket 17",
   ]);
 });
 
@@ -241,7 +241,7 @@ test("un ticket pris dit depuis quand il n'a pas progressé, à côté du temps 
   noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: `${JOUR_HORLOGE}T10:30:00.000Z` } });
 
   heure = `${JOUR_HORLOGE}T10:12:00.000Z`;
-  assert.equal(ligne(), "  #14  pris  prio:1  par box/claude depuis 12 min, sans progrès depuis 12 min, bail encore 18 min  Ticket 14");
+  assert.equal(ligne(), "  #14  taken  prio:1  by box/claude since 12 min, no progress since 12 min, lease 18 min left  Ticket 14");
 
   // Le relevé du cook n'est pas un progrès ; le renouvellement du bail, si.
   heure = `${JOUR_HORLOGE}T10:30:00.000Z`;
@@ -249,7 +249,7 @@ test("un ticket pris dit depuis quand il n'a pas progressé, à côté du temps 
   heure = `${JOUR_HORLOGE}T10:42:00.000Z`;
   noter({ type: "cook.progressed", payload: { run: "14-aa", turns: 9, tokens: 4000 } }, "runtime");
 
-  assert.equal(ligne(), "  #14  pris  prio:1  par box/claude depuis 42 min, sans progrès depuis 12 min, bail encore 18 min  Ticket 14");
+  assert.equal(ligne(), "  #14  taken  prio:1  by box/claude since 42 min, no progress since 12 min, lease 18 min left  Ticket 14");
 });
 
 test("le suivi rend chaque événement écrit par un autre process, une fois, dans l'ordre, sans les battements", async (t) => {
@@ -314,11 +314,11 @@ test("à plusieurs cooks, le chef lit le plafond et, par cook, son ticket, son c
 
   const lignes = decrire(journal, `${JOUR_HORLOGE}T10:04:10.000Z`);
 
-  assert.deepEqual(lignes.slice(lignes.indexOf("cooks      3 en cours — box/claude : 30 au plus"), lignes.indexOf("consommé   en cours : 3 lancements, dont 1 jugement · 12 tours · 184 000 tokens") - 1), [
-    "cooks      3 en cours — box/claude : 30 au plus",
-    "  #14  14-aa  opus / high  cook/14-aa dans worktrees/14-aa  4 min sur 1 h 00 · 12 tours sur 100 · 184 000 tokens sur 2 000 000 (relevé il y a 4 min) · sans progrès depuis 4 min",
-    "  #15  15-bb  sonnet / high  cook/15-bb dans worktrees/15-bb  4 min sur 1 h 00 · tours et tokens : pas encore de relevé · sans progrès depuis 4 min",
-    "  manager  juge-9-cc  haiku / high  4 min sur 1 h 00 · tours et tokens : pas encore de relevé",
+  assert.deepEqual(lignes.slice(lignes.indexOf("cooks      3 running — box/claude: 30 at most"), lignes.indexOf("consumed   in flight: 3 launches, of which 1 judgment · 12 turns · 184,000 tokens") - 1), [
+    "cooks      3 running — box/claude: 30 at most",
+    "  #14  14-aa  opus / high  cook/14-aa in worktrees/14-aa  4 min of 1 h 00 · 12 turns of 100 · 184,000 tokens of 2,000,000 (reading 4 min ago) · no progress since 4 min",
+    "  #15  15-bb  sonnet / high  cook/15-bb in worktrees/15-bb  4 min of 1 h 00 · turns and tokens: no reading yet · no progress since 4 min",
+    "  manager  juge-9-cc  haiku / high  4 min of 1 h 00 · turns and tokens: no reading yet",
   ]);
 });
 
@@ -331,9 +331,9 @@ test("le chef lit le plafond qu'il a réglé, et une machine saturée avec ce qu
 
   const lignes = decrire(journal, `${JOUR_HORLOGE}T10:03:03.000Z`);
 
-  assert.deepEqual(lignes.slice(lignes.indexOf("cooks      aucun en cours — box/claude : sans limite")).slice(0, 2), [
-    "cooks      aucun en cours — box/claude : sans limite",
-    "           MACHINE SATURÉE depuis 3 min — charge de 16,2 pour 15 au plus : box/claude ne prend plus de ticket tant que ça dure",
+  assert.deepEqual(lignes.slice(lignes.indexOf("cooks      none running — box/claude: no limit")).slice(0, 2), [
+    "cooks      none running — box/claude: no limit",
+    "           MACHINE SATURATED for 3 min — load of 16.2 for at most 15: box/claude takes no more tickets as long as it lasts",
   ]);
 });
 
@@ -361,18 +361,18 @@ test("à trente cooks, celui qui coince se lit sans parcourir les lignes : nomm�
   const lire = (maintenant: string) => {
     const lignes = decrire(journal, maintenant);
     const debut = lignes.findIndex((ligne) => ligne.startsWith("cooks"));
-    return { rail: lignes.find((ligne) => ligne.startsWith("  #104  pris")), cooks: lignes.slice(debut, debut + 5).map((ligne) => (ligne.startsWith("cooks") ? ligne : ligne.split("  ").slice(0, ligne.includes("COINCE") ? 4 : 3).join("  "))) };
+    return { rail: lignes.find((ligne) => ligne.startsWith("  #104  taken")), cooks: lignes.slice(debut, debut + 5).map((ligne) => (ligne.startsWith("cooks") ? ligne : ligne.split("  ").slice(0, ligne.includes("STUCK") ? 4 : 3).join("  "))) };
   };
 
   // À 14 min 59 du dernier progrès, personne ne coince : l'ordre est celui du temps sans progrès.
-  assert.deepEqual(lire(`${JOUR_HORLOGE}T10:14:59.000Z`).cooks, ["cooks      31 en cours", "  #104  104-aa", "  #117  117-aa", "  #125  125-aa", "  #101  101-aa"]);
-  assert.match(lire(`${JOUR_HORLOGE}T10:14:59.000Z`).rail ?? "", /depuis 14 min, sans progrès depuis 14 min, bail encore 15 min/);
+  assert.deepEqual(lire(`${JOUR_HORLOGE}T10:14:59.000Z`).cooks, ["cooks      31 running", "  #104  104-aa", "  #117  117-aa", "  #125  125-aa", "  #101  101-aa"]);
+  assert.match(lire(`${JOUR_HORLOGE}T10:14:59.000Z`).rail ?? "", /since 14 min, no progress since 14 min, lease 15 min left/);
 
   const mi = lire(`${JOUR_HORLOGE}T10:15:00.000Z`);
-  assert.deepEqual(mi.cooks, ["cooks      31 en cours — 2 COINCENT : #104, #117", "  #104  COINCE  104-aa", "  #117  COINCE  117-aa", "  #125  125-aa", "  #101  101-aa"]);
-  assert.match(mi.rail ?? "", /COINCE : sans progrès depuis 15 min, bail encore 15 min/);
+  assert.deepEqual(mi.cooks, ["cooks      31 running — 2 STUCK: #104, #117", "  #104  STUCK  104-aa", "  #117  STUCK  117-aa", "  #125  125-aa", "  #101  101-aa"]);
+  assert.match(mi.rail ?? "", /STUCK: no progress since 15 min, lease 15 min left/);
   // Le jugement du manager, qui ne tient aucun ticket, ferme la marche.
-  assert.match(decrire(journal, `${JOUR_HORLOGE}T10:15:00.000Z`).at(decrire(journal, `${JOUR_HORLOGE}T10:15:00.000Z`).indexOf("consommé   en cours : 31 lancements, dont 1 jugement · 0 tour · 0 token") - 2) ?? "", /^  manager  juge-9-cc/);
+  assert.match(decrire(journal, `${JOUR_HORLOGE}T10:15:00.000Z`).at(decrire(journal, `${JOUR_HORLOGE}T10:15:00.000Z`).indexOf("consumed   in flight: 31 launches, of which 1 judgment · 0 turns · 0 tokens") - 2) ?? "", /^  manager  juge-9-cc/);
 });
 
 test("le chef lit ce que l'ensemble des cooks a consommé : ceux qui tournent, puis sur 5 h et sur 24 h, relectures et jugements compris", (t) => {
@@ -395,11 +395,11 @@ test("le chef lit ce que l'ensemble des cooks a consommé : ceux qui tournent, p
 
   const lignes = decrire(journal, `${JOUR_HORLOGE}T13:30:00.000Z`);
 
-  assert.deepEqual(lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("consommé")), lignes.indexOf("derniers événements") - 1), [
-    "consommé   en cours : 2 lancements · 15 tours · 200 000 tokens",
-    "           5 h : 4 lancements, dont 1 jugement · 37 tours · 509 000 tokens",
-    "           24 h : 6 lancements, dont 1 relecture et 1 jugement · 81 tours · 1 139 000 tokens",
-    "           ce que ce projet a lancé, pas la consommation du compte : /usage la donne",
+  assert.deepEqual(lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("consumed")), lignes.indexOf("latest events") - 1), [
+    "consumed   in flight: 2 launches · 15 turns · 200,000 tokens",
+    "           5 h: 4 launches, of which 1 judgment · 37 turns · 509,000 tokens",
+    "           24 h: 6 launches, of which 1 review and 1 judgment · 81 turns · 1,139,000 tokens",
+    "           what this project has launched, not the account's consumption: /usage gives it",
   ]);
 });
 
@@ -414,23 +414,23 @@ test("un ticket qui pourrait partir et que sa station ne prend pas dit pourquoi,
   );
   const lire = () => {
     const lignes = decrire(journal, `${JOUR_HORLOGE}T10:01:03.000Z`);
-    return [...lignes.filter((ligne) => /^  #1[46]/.test(ligne)), ...lignes.filter((ligne) => ligne.includes("SE RETIENT"))];
+    return [...lignes.filter((ligne) => /^  #1[46]/.test(ligne)), ...lignes.filter((ligne) => ligne.includes("WITHHOLDING"))];
   };
-  assert.deepEqual(lire(), ["  #14  en attente  prio:1  depuis 1 min  Ticket 14", "  #16  en attente  -  attend #14 — depuis 1 min  Ticket 16"]);
+  assert.deepEqual(lire(), ["  #14  queued  prio:1  since 1 min  Ticket 14", "  #16  queued  -  awaiting #14 — since 1 min  Ticket 16"]);
 
   noter({ type: "station.held", payload: { station: "box/claude", reason: "ramp" } }, null, "station:box/claude"); // 10:00:03
   assert.deepEqual(lire(), [
-    "  #14  en attente  prio:1  retenu par box/claude (montée progressive, les cooks tout juste partis pèsent d'avance) — depuis 1 min  Ticket 14",
-    "  #16  en attente  -  attend #14 — depuis 1 min  Ticket 16",
-    "           box/claude SE RETIENT depuis 1 min — montée progressive, les cooks tout juste partis pèsent d'avance : les tickets servables attendent",
+    "  #14  queued  prio:1  withheld by box/claude (gradual ramp-up, cooks that have just left weigh in advance) — since 1 min  Ticket 14",
+    "  #16  queued  -  awaiting #14 — since 1 min  Ticket 16",
+    "           box/claude WITHHOLDING for 1 min — gradual ramp-up, cooks that have just left weigh in advance: the servable tickets wait",
   ]);
 
   // La base d'intégration rouge se lit comme toute autre retenue.
   noter({ type: "station.held", payload: { station: "box/claude", reason: "base" } }, null, "station:box/claude"); // 10:00:04
   assert.deepEqual(lire(), [
-    "  #14  en attente  prio:1  retenu par box/claude (base d'intégration rouge) — depuis 1 min  Ticket 14",
-    "  #16  en attente  -  attend #14 — depuis 1 min  Ticket 16",
-    "           box/claude SE RETIENT depuis 59 s — base d'intégration rouge : les tickets servables attendent",
+    "  #14  queued  prio:1  withheld by box/claude (integration base red) — since 1 min  Ticket 14",
+    "  #16  queued  -  awaiting #14 — since 1 min  Ticket 16",
+    "           box/claude WITHHOLDING for 59 s — integration base red: the servable tickets wait",
   ]);
 
   noter({ type: "station.released", payload: { station: "box/claude" } }, null, "station:box/claude");
@@ -452,13 +452,13 @@ test("le chef retrouve les worktrees que le runtime n'a pas pu ranger : le ticke
   const lignes = decrire(journal, `${JOUR_HORLOGE}T10:04:01.000Z`);
   const debut = lignes.findIndex((ligne) => ligne.startsWith("worktrees"));
   assert.deepEqual(lignes.slice(debut, debut + 4), [
-    "worktrees  2 non rangés après leur cook — rien n'y est touché, le runtime y revient à chaque tick",
-    "  #17  worktrees/17-aaa  cook/17-aaa  rangement en échec depuis 4 min — « worktrees/17-aaa » n'est plus sur sa branche `cook/17-aaa`",
-    "  #19  worktrees/19-aaa  cook/19-aaa  rangement en échec depuis 3 min — git worktree : fatal: verrou tenu",
+    "worktrees  2 not cleaned up after their cook — nothing in them is touched, the runtime comes back to them at every tick",
+    "  #17  worktrees/17-aaa  cook/17-aaa  cleanup failed since 4 min — « worktrees/17-aaa » n'est plus sur sa branche `cook/17-aaa`",
+    "  #19  worktrees/19-aaa  cook/19-aaa  cleanup failed since 3 min — git worktree : fatal: verrou tenu",
     "",
   ]);
   // Entre les cooks et ce qu'ils ont consommé.
-  assert.ok(debut > lignes.findIndex((ligne) => ligne.startsWith("cooks")) && debut < lignes.findIndex((ligne) => ligne.startsWith("consommé")));
+  assert.ok(debut > lignes.findIndex((ligne) => ligne.startsWith("cooks")) && debut < lignes.findIndex((ligne) => ligne.startsWith("consumed")));
 });
 
 test("sous cloison, le chef lit ce que le dernier rangement des transcripts a gardé et retiré, et la règle — et rien sans cloison", (t) => {
@@ -470,18 +470,18 @@ test("sous cloison, le chef lit ce que le dernier rangement des transcripts a ga
   const semaine = 7 * 24 * 3_600_000;
   noter({ type: "transcripts.tidied", payload: { removed: 0, freedBytes: 0, kept: 1, keptBytes: 52_429, keepMs: semaine } }, null, "nettoyage"); // 10:00:01
   assert.deepEqual(claude(`${JOUR_HORLOGE}T10:04:01.000Z`), [
-    "claude     transcripts du projet : 1 gardé (0,1 Mo), aucun retiré au rangement d'il y a 4 min — un transcript part 7 j après sa dernière écriture",
+    "claude     project transcripts: 1 kept (0.1 MB), no removed at the cleanup 4 min ago — a transcript goes 7 d after its last write",
   ]);
 
   // Seul le dernier passage se lit.
   noter({ type: "transcripts.tidied", payload: { removed: 12, freedBytes: 48 * 1024 * 1024, kept: 1_027, keptBytes: 112 * 1024 * 1024, keepMs: semaine } }, null, "nettoyage"); // 10:00:02
   const lignes = decrire(journal, `${JOUR_HORLOGE}T13:00:02.000Z`);
   assert.deepEqual(lignes.filter((ligne) => ligne.startsWith("claude")), [
-    "claude     transcripts du projet : 1\u202f027 gardés (112 Mo), 12 retirés (48 Mo) au rangement d'il y a 3 h 00 — un transcript part 7 j après sa dernière écriture",
+    "claude     project transcripts: 1,027 kept (112 MB), 12 removed (48 MB) at the cleanup 3 h 00 ago — a transcript goes 7 d after its last write",
   ]);
   // Après ce que les cooks ont consommé, avant les derniers événements.
   const ou = lignes.findIndex((ligne) => ligne.startsWith("claude"));
-  assert.ok(ou > lignes.findIndex((ligne) => ligne.startsWith("consommé")) && ou < lignes.indexOf("derniers événements"));
+  assert.ok(ou > lignes.findIndex((ligne) => ligne.startsWith("consumed")) && ou < lignes.indexOf("latest events"));
 
   // Le projet redémarre sans cloison : la ligne s'en va avec le rangement.
   noter({ type: "transcripts.released", payload: {} }, null, "nettoyage");
@@ -490,7 +490,7 @@ test("sous cloison, le chef lit ce que le dernier rangement des transcripts a ga
 
 test("une mesure qui a franchi un seuil déclaré est signalée dans l'état, sans qu'on la demande ; sinon le bloc n'existe pas", (t) => {
   const { journal, noter } = cuisine(t);
-  const bloc = () => decrire(journal, `${JOUR_HORLOGE}T10:05:00.000Z`).filter((ligne) => ligne.startsWith("dérive"));
+  const bloc = () => decrire(journal, `${JOUR_HORLOGE}T10:05:00.000Z`).filter((ligne) => ligne.startsWith("drift"));
   const gates = { outcome: "green" as const, code: 0, failures: [], tail: "", measures: { tests: 622, tests_s: 6.2 } };
   noter({ type: "drift.configured", payload: { limits: { tests: 500, testsSeconds: 5, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null } } });
   noter({ type: "pass.replayed", payload: { sha: "sha-17", base: "base-1", gates, findings: [] } }, 17, "pass");
@@ -500,5 +500,5 @@ test("une mesure qui a franchi un seuil déclaré est signalée dans l'état, sa
 
   noter({ type: "merge.done", payload: { pr: "https://exemple.test/pull/17", sha: "sha-17", by: "pass", reconciled: false } }, 17, "pass");
 
-  assert.deepEqual(bloc(), ["dérive     tests 622 pour un seuil de 500 · suite 6,2 s pour un seuil de 5 s — `brigade <projet> measures`"]);
+  assert.deepEqual(bloc(), ["drift      tests 622 for a threshold of 500 · test suite 6.2 s for a threshold of 5 s — `brigade <projet> measures`"]);
 });

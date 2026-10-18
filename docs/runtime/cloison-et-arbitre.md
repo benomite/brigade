@@ -211,7 +211,7 @@ Quand l'arbitre désigné ne répond pas (connexion refusée, réponse illisible
 garde), le projet passe en **mode dégradé** : **au plus un cook de ticket à la fois**, les cooks
 déjà partis finissent. C'est écrit **une fois** à l'entrée (`station.unarbitrated`, et
 `journalctl`), une fois au retour (`station.arbitrated`) ; chaque cook parti ainsi porte
-`unarbitrated: true` ; `run status` (`ARBITRE INJOIGNABLE depuis …`) et `run station` le montrent.
+`unarbitrated: true` ; `run status` (`ARBITER UNREACHABLE for …`) et `run station` le montrent.
 Chaque tentative de lancement redemande d'abord : dès que l'arbitre répond, la marche reprend.
 
 ### Quand il redémarre

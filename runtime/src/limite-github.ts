@@ -245,5 +245,5 @@ export function pauseDeLaStation(racine: string | undefined, maintenant: number)
 // La ligne qui le dit, en une phrase, l'heure étant celle de ce process.
 export function direLaLimite(jusqua: number): string {
   const d = new Date(jusqua);
-  return `GitHub limite les appels, reprise vers ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return `GitHub is rate-limiting calls, back around ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }

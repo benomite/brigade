@@ -23,9 +23,9 @@ const FACTS: Faits = {
   ],
 };
 const STATUS = PARADE.status
-  .replace("rail       2 en attente · 1 pris · 2 en pass", "rail       2 en attente · 2 pris · 2 en pass")
-  .replace(/(  #14  pris .*\n)/, `$1  #15  pris  -  par mac/claude depuis 6 min, bail encore 24 min  ${TITRE}\n`)
-  .replace("cooks      1 en cours", "cooks      2 en cours");
+  .replace("rail       1 taken · 2 in pass · 2 queued", "rail       2 taken · 2 in pass · 2 queued")
+  .replace(/(  #14  taken .*\n)/, `$1  #15  taken  -  by mac/claude since 6 min, lease 24 min left  ${TITRE}\n`)
+  .replace("cooks      1 running", "cooks      2 running");
 
 export const ecran: Ecran = {
   dit: "La file de « parade », la box saturée : dans Taken, #14 cuit sur la box et #15 sur le Mac",

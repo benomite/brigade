@@ -456,7 +456,7 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
     // La file et la carte le disent en une ligne.
     const etat = lireEtat(journal);
     assert.equal(etat.activites.get(17)?.fait, "gates rejouées plus tard : machine saturée, aucun test en échec");
-    assert.match(decrireEtat(etat, new Date()).join("\n"), /#17 {2}en pass .* — gates rejouées plus tard : machine saturée, aucun test en échec/);
+    assert.match(decrireEtat(etat, new Date()).join("\n"), /#17 {2}in pass .* — gates replayed later: machine saturated, no test failing/);
 
     essais["jugement-17"] = "vert";
     machine = MACHINE_CALME;

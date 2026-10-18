@@ -9,7 +9,7 @@ const PARADE = RENDUS.parade as Rendu;
 // Les lignes de tête de `status` que la bande lit (runtime/src/etat.ts, `decrireEtat`), en tête de celui de la cuisine figée —
 // telles que le runtime les écrit depuis #928 : en anglais.
 export const STATUS_EN_PANNE = [
-  "projet     parade",
+  "project    parade",
   "kitchen    held",
   "connection Max EXPIRED for 18 min on box/claude (session expired) — no ticket is taken any more: `claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”",
   "base       RED since 1 h 10 ago on abc1234 — the station takes no more tickets, the pass neither judges nor merges",

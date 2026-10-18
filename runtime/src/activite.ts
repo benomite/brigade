@@ -65,6 +65,34 @@ const DIT: Record<Geste, string> = {
   finishing: "rend son travail",
 };
 
+// Les mêmes, en anglais : ce que dit `status`.
+const DIT_EN: Record<Geste, string> = {
+  starting: "starting",
+  reading: "reading",
+  searching: "searching the code",
+  writing: "writing",
+  testing: "running the tests",
+  "tests-red": "tests red",
+  "tests-green": "tests green",
+  "fixing-tests": "tests red, fixing",
+  gating: "running the gates",
+  "gates-red": "gates red",
+  "gates-green": "gates green",
+  "fixing-gates": "gates red, fixing",
+  "checking-types": "checking the types",
+  committing: "committing",
+  pushing: "pushing its branch",
+  "opening-pr": "opening the PR",
+  "reading-ticket": "reading the ticket",
+  running: "running",
+  browsing: "searching the web",
+  delegating: "handing a task to an agent",
+  planning: "planning",
+  tool: "using the tool",
+  thinking: "thinking",
+  finishing: "handing back its work",
+};
+
 export const estGeste = (valeur: unknown): valeur is Geste => typeof valeur === "string" && (GESTES as readonly string[]).includes(valeur);
 
 // Le geste en clair : « lit runtime/src/etat.ts », « lance les tests ».
@@ -77,6 +105,12 @@ export function nommer({ doing, target }: Pick<Activite, "doing" | "target">): {
 export function direActivite(activite: Pick<Activite, "doing" | "target">): string {
   const { fait, cible } = nommer(activite);
   return cible === null ? fait : `${fait} ${cible}`;
+}
+
+// Le geste en clair, en anglais : « reading runtime/src/etat.ts », « running the tests ».
+export function direActiviteEn({ doing, target }: Pick<Activite, "doing" | "target">): string {
+  const fait = target === null && doing === "running" ? "running a command" : DIT_EN[doing];
+  return target === null ? fait : `${fait} ${target}`;
 }
 
 // Ce qu'une cible peut faire de long : au-delà, seule sa fin est gardée — c'est
