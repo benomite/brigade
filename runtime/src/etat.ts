@@ -32,6 +32,8 @@ import {
   type EtatGardeFous,
   type Mesure,
 } from "./projections/garde-fous.ts";
+import { parcoursDesTickets } from "./parcours-des-tickets.ts";
+import { derivePremierCoup, direDerivePremierCoupEn, type DerivePremierCoup } from "./renvois.ts";
 import { livraisonsMergees, seuilsEnVigueur } from "./projections/mesures.ts";
 import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, reparationDeLaBase, type ControleRetenu, type EtatDeLaBase, type Grant, type ReparationDeLaBase, type SansGrant } from "./projections/pass.ts";
 import { direMotifDeGardeEn, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/nettoyage.ts";
@@ -147,6 +149,8 @@ export type EtatCuisine = {
   consommation: { enCours: Consommation; fenetres: Array<{ heures: number } & Consommation> };
   // Les mesures du projet qui ont franchi un seuil déclaré.
   derive: Franchi[];
+  // La part de tickets livrés du premier coup, quand elle est sous son seuil.
+  derivePremierCoup: DerivePremierCoup | null;
   // Les tickets servis dans les 24 h avant la lecture, le plus récent d'abord.
   livres: Livre[];
   evenements: Evenement[];
@@ -203,6 +207,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
       fenetres: FENETRES_H.map((heures) => ({ heures, ...consommation(base, new Date(maintenant.getTime() - heures * HEURE_MS).toISOString()) })),
     },
     derive: franchis(livraisonsMergees(base), seuilsEnVigueur(base) ?? SANS_SEUIL),
+    derivePremierCoup: derivePremierCoup(parcoursDesTickets(base), seuilsEnVigueur(base) ?? SANS_SEUIL),
     livres,
     evenements: journal.derniers(EVENEMENTS_MONTRES, RESUMES),
   };
@@ -648,6 +653,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ...decrireConsommation(etat),
     // Absent quand rien n'est franchi : le bloc n'apparaît que pour être lu.
     ...(etat.derive.length === 0 ? [] : [ligne("drift", `${etat.derive.map(direJaugeEn).join(" · ")} — \`${geste(`measures`)}\``)]),
+    ...(etat.derivePremierCoup === null ? [] : [ligne("drift", `${direDerivePremierCoupEn(etat.derivePremierCoup)} — \`${geste(`measures`)}\``)]),
     ...decrireTranscripts(etat, depuisEn),
     "",
     "latest events",

@@ -29,6 +29,8 @@ export function lireSeuils(env: NodeJS.ProcessEnv): Seuils {
     growthPercent: seuil("BRIGADE_DRIFT_GROWTH_PERCENT"),
     ticketTokens: seuil("BRIGADE_DRIFT_TICKET_TOKENS", true),
     lostTokens: seuil("BRIGADE_DRIFT_LOST_TOKENS", true),
+    firstTryPercent: seuil("BRIGADE_DRIFT_FIRST_TRY_PERCENT"),
+    firstTryWindow: seuil("BRIGADE_DRIFT_FIRST_TRY_WINDOW", true),
   };
 }
 

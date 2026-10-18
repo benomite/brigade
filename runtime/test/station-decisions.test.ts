@@ -20,6 +20,8 @@ const GESTES = [
   ["stations", "BRIGADE_STATIONS", "box/claude:3:code", "box/claude:2:code,box/playwright:1:navigateur-headless"],
   ["seuil-ticket", "BRIGADE_DRIFT_TICKET_TOKENS", "500000", "300000"],
   ["seuil-perdus", "BRIGADE_DRIFT_LOST_TOKENS", "200000", "100000"],
+  ["seuil-renvois", "BRIGADE_DRIFT_FIRST_TRY_PERCENT", "50", "40"],
+  ["fenetre-renvois", "BRIGADE_DRIFT_FIRST_TRY_WINDOW", "10", "12"],
   ["manager-modele", "BRIGADE_MANAGER_MODEL", "sonnet", "opus"],
   ["manager-effort", "BRIGADE_MANAGER_EFFORT", "medium", "high"],
   ["reviewer-modele", "BRIGADE_REVIEWER_MODEL", "haiku", "sonnet"],

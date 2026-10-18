@@ -502,3 +502,43 @@ test("une mesure qui a franchi un seuil déclaré est signalée dans l'état, sa
 
   assert.deepEqual(bloc(), ["drift      tests 622 for a threshold of 500 · test suite 6.2 s for a threshold of 5 s — `brigade <projet> measures`"]);
 });
+
+test("la part de tickets livrés du premier coup sous son seuil est une ligne de dérive dans l'état ; au seuil, avec moins de tickets que la fenêtre, rien ; le seuil et la fenêtre se règlent par les seuils de la dérive", (t) => {
+  const { journal, noter } = cuisine(t);
+  const bloc = () => decrire(journal, `${JOUR_HORLOGE}T10:05:00.000Z`).filter((ligne) => ligne.startsWith("drift"));
+  const LIGNE = (part: string, seuil: number) => `drift      ${part} tickets delivered on the first try (threshold ${seuil}%) — \`brigade <projet> measures\``;
+  const livrer = (ticket: number, essais: number) => {
+    noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: `${JOUR_HORLOGE}T23:00:00.000Z` } }, ticket);
+    for (let i = 0; i < essais; i++) {
+      const run = `run-${ticket}-${i}`;
+      noter({ type: "cook.launched", payload: { run, limits: LIMITES, stream: `runs/${run}.jsonl`, station: "box/claude" } }, ticket);
+      noter({ type: "cook.exited", payload: { run, outcome: "ok", code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1 } }, ticket);
+    }
+    noter({ type: "merge.done", payload: { pr: `https://exemple.test/pull/${ticket}`, sha: `sha-${ticket}`, by: "pass", reconciled: false } }, ticket, "pass");
+  };
+  const limites = (reglage: { firstTryPercent?: number | null; firstTryWindow?: number | null }) =>
+    noter({ type: "drift.configured", payload: { limits: { tests: null, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null, ...reglage } } });
+
+  // Neuf tickets servis, tous renvoyés : la fenêtre n'est pas pleine.
+  for (let ticket = 1; ticket <= 9; ticket++) livrer(ticket, 2);
+  assert.deepEqual(bloc(), []);
+
+  // Le dixième remplit la fenêtre : 0 du premier coup sur 10.
+  livrer(10, 2);
+  assert.deepEqual(bloc(), [LIGNE("0/10", 50)]);
+
+  // Un seuil réglé plus bas (et la fenêtre) change le verdict : 0 < 0 est faux.
+  limites({ firstTryPercent: 0.5, firstTryWindow: 10 });
+  assert.deepEqual(bloc(), [LIGNE("0/10", 0.5)]);
+  limites({ firstTryWindow: 11 });
+  assert.deepEqual(bloc(), []);
+
+  // Quatre des dix derniers du premier coup : sous le seuil.
+  limites({});
+  for (let ticket = 11; ticket <= 14; ticket++) livrer(ticket, 1);
+  assert.deepEqual(bloc(), [LIGNE("4/10", 50)]);
+
+  // Cinq sur dix : à égalité avec le seuil, rien.
+  livrer(15, 1);
+  assert.deepEqual(bloc(), []);
+});

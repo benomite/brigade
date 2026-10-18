@@ -55,6 +55,8 @@ export const GESTES: Record<string, { decision: Decision; quoi: string; valeur: 
   stations: { decision: "BRIGADE_STATIONS", quoi: "les stations du projet", valeur: "<déclaration>", attendu: `\`${FORME}\`, séparées par des virgules` },
   "seuil-ticket": { decision: "BRIGADE_DRIFT_TICKET_TOKENS", quoi: "seuil de coût de la dérive : tokens du ticket le plus cher", valeur: "<tokens>", attendu: "un entier supérieur à zéro" },
   "seuil-perdus": { decision: "BRIGADE_DRIFT_LOST_TOKENS", quoi: "seuil de coût de la dérive : tokens perdus, lancements qui n'ont rien livré", valeur: "<tokens>", attendu: "un entier supérieur à zéro" },
+  "seuil-renvois": { decision: "BRIGADE_DRIFT_FIRST_TRY_PERCENT", quoi: "seuil de la dérive : part de tickets livrés du premier coup, en % (50 faute de réglage)", valeur: "<pourcentage>", attendu: "un nombre supérieur à zéro" },
+  "fenetre-renvois": { decision: "BRIGADE_DRIFT_FIRST_TRY_WINDOW", quoi: "fenêtre de la dérive sur le premier coup : combien de tickets servis (10 faute de réglage)", valeur: "<tickets>", attendu: "un entier supérieur à zéro" },
   "manager-modele": { decision: "BRIGADE_MANAGER_MODEL", quoi: "le modèle des jugements du manager", valeur: "<modèle>", attendu: ou(MODELES) },
   "manager-effort": { decision: "BRIGADE_MANAGER_EFFORT", quoi: "l'effort des jugements du manager", valeur: "<effort>", attendu: ou(EFFORTS) },
   "reviewer-modele": { decision: "BRIGADE_REVIEWER_MODEL", quoi: "le modèle des relectures du reviewer", valeur: "<modèle>", attendu: ou(MODELES) },
