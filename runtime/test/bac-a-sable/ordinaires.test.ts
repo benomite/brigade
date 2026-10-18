@@ -4,7 +4,7 @@
 // simulée.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { NON_DIT, configurerLeCook, constater, dansLeBacASable, direOrdinaires, pourLaBox, prendLesOrdinaires } from "../../src/bac-a-sable/ordinaires.ts";
+import { NON_DIT, configurerLeCook, constater, dansLeBacASable, direOrdinaires, direOrdinairesEn, pourLaBox, prendLesOrdinaires } from "../../src/bac-a-sable/ordinaires.ts";
 import { argumentsDuBacASable } from "../../src/bac-a-sable/configuration.ts";
 import { SEATBELT, type Sondes } from "../../src/bac-a-sable/detection.ts";
 import { principal as sonder } from "../../src/bac-a-sable/sonder.ts";
@@ -24,7 +24,7 @@ test("disponible, le poste est retenu tel qu'il le dit — de quoi configurer le
 
 test("indisponible, ce que la station en dit est la raison — et une station qui n'en dit rien ne l'a pas", () => {
   assert.deepEqual(constater({ available: false, reason: "  Seatbelt est introuvable  " }, HOTES), { disponible: false, raison: "Seatbelt est introuvable" });
-  assert.deepEqual(constater({ available: false }, HOTES), { disponible: false, raison: "la station le dit indisponible, sans dire pourquoi" });
+  assert.deepEqual(constater({ available: false }, HOTES), { disponible: false, raison: "the station says it is unavailable, without saying why" });
   assert.deepEqual(constater(undefined, HOTES), { disponible: false, raison: NON_DIT });
   const longue = constater({ available: false, reason: "x".repeat(1000) }, HOTES);
   assert.equal(!longue.disponible && longue.raison.length, 300);
@@ -34,7 +34,7 @@ test("ce qui ne se lit pas n'est pas un bac à sable : version absente, chemin r
   for (const dit of [{ ...DIT, version: "" }, { ...DIT, home: "Users/chef" }, { ...DIT, worktrees: "~/cooks" }, { ...DIT, caches: "/Users/chef/cache" }, { ...DIT, caches: ["cache"] }, { ...DIT, available: "oui" }, "disponible"]) {
     const constat = constater(dit, HOTES);
     assert.equal(constat.disponible, false, JSON.stringify(dit));
-    assert.match(!constat.disponible ? constat.raison : "", /ne se lit pas/);
+    assert.match(!constat.disponible ? constat.raison : "", /cannot be read/);
   }
 });
 
@@ -46,7 +46,7 @@ test("un poste dont la configuration ne tient pas est indisponible, et la raison
   ] as const) {
     const constat = constater(dit, HOTES);
     assert.equal(constat.disponible, false);
-    assert.match(!constat.disponible ? constat.raison : "", /^la configuration du bac à sable ne tient pas sur ce poste — /);
+    assert.match(!constat.disponible ? constat.raison : "", /^the sandbox configuration does not hold on this workstation — /);
     assert.match(!constat.disponible ? constat.raison : "", motif);
   }
 });
@@ -76,6 +76,14 @@ test("ce que le chef lit des tickets ordinaires d'une station distante : non ré
   assert.match(direOrdinaires({ ordinary: true, sandbox: null }), /n'en a encore rien dit/);
   assert.equal(direOrdinaires({ ordinary: true, sandbox: { available: false, reason: "Seatbelt est introuvable", version: null, at: "2026-10-16T10:00:00.000Z" } }), "AUCUN PRIS — bac à sable indisponible depuis le 2026-10-16T10:00:00.000Z : Seatbelt est introuvable");
   assert.match(direOrdinaires({ ordinary: true, sandbox: { available: true, reason: null, version: "2.1.250", at: "2026-10-16T10:00:00.000Z" } }), /^pris quand la box sature, chaque cook dans le bac à sable de Claude Code \(claude 2\.1\.250\)/);
+});
+
+test("les mêmes, en anglais : ce que `station` dit des tickets ordinaires", () => {
+  assert.match(direOrdinairesEn({ ordinary: false, sandbox: null }), /^not taken/);
+  assert.match(direOrdinairesEn({ ordinary: true, sandbox: null }), /has not said anything yet/);
+  assert.equal(direOrdinairesEn({ ordinary: true, sandbox: { available: false, reason: "Seatbelt is missing", version: null, at: "2026-10-16T10:00:00.000Z" } }), "NONE TAKEN — sandbox unavailable since 2026-10-16T10:00:00.000Z: Seatbelt is missing");
+  assert.equal(direOrdinairesEn({ ordinary: true, sandbox: { available: false, reason: null, version: null, at: "2026-10-16T10:00:00.000Z" } }), "NONE TAKEN — sandbox unavailable since 2026-10-16T10:00:00.000Z: no reason given");
+  assert.match(direOrdinairesEn({ ordinary: true, sandbox: { available: true, reason: null, version: "2.1.250", at: "2026-10-16T10:00:00.000Z" } }), /^taken when the box is saturated, each cook inside the Claude Code sandbox \(claude 2\.1\.250\)/);
 });
 
 const MAC: Sondes = { plateforme: "darwin", existe: (chemin) => chemin === SEATBELT, versionDeClaude: () => "2.1.300 (Claude Code)\n" };

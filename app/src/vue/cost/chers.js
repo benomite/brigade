@@ -30,7 +30,7 @@ const NOMBRE = /^\d+$/;
 /** @param {string} texte @returns {{ ticket: number, tokens: number | null }[]} */
 export function cooksDe(texte) {
   const lignes = texte.split("\n");
-  const debut = lignes.findIndex((ligne) => ligne.startsWith("derniers cooks"));
+  const debut = lignes.findIndex((ligne) => /^(derniers|latest) cooks/.test(ligne));
   if (debut === -1) return [];
   /** @type {{ ticket: number, tokens: number | null }[]} */
   const lus = [];

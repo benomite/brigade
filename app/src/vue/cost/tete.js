@@ -31,7 +31,8 @@ export const FENETRES = [
 // Ce que la box écrit de chaque fenêtre, sous `consommé` : « 5 h : 6 lancements · … · 1 284 530 tokens »,
 // « 24 h : rien ». Une fenêtre en jours (« 7 j : … ») se compte en heures. Le reste du bloc — « en
 // cours », la note sur `/usage` — n'est pas une fenêtre.
-const FENETRE = /^(\d+) (h|j) : (.*)$/;
+// L'anglais l'écrit « 5 h: nothing », « 2 d: … » : `station` parle les deux langues, selon la version de la box.
+const FENETRE = /^(\d+) (h|j|d) ?: (.*)$/;
 const TOKENS = /(\d[\d\s  .,]*?)\s*tokens?\s*$/;
 
 // Les lignes du bloc `consommé` de `station`, sans leur titre ni leur retrait. Le bloc commence à
@@ -40,14 +41,14 @@ const TOKENS = /(\d[\d\s  .,]*?)\s*tokens?\s*$/;
 /** @param {string} texte @returns {string[]} */
 export function lignesDuConsomme(texte) {
   const lignes = texte.split("\n");
-  const debut = lignes.findIndex((ligne) => ligne.startsWith("consommé"));
+  const debut = lignes.findIndex((ligne) => /^(consommé|consumed)(\s|$)/.test(ligne));
   if (debut === -1) return [];
   /** @type {string[]} */
   const lues = [];
   for (let i = debut; i < lignes.length; i++) {
     const ligne = /** @type {string} */ (lignes[i]);
     if (i > debut && !/^\s/.test(ligne)) break;
-    lues.push((i === debut ? ligne.slice("consommé".length) : ligne).trim());
+    lues.push((i === debut ? ligne.replace(/^(consommé|consumed)/, "") : ligne).trim());
   }
   return lues;
 }
@@ -55,7 +56,7 @@ export function lignesDuConsomme(texte) {
 // Les tokens d'une consommation telle que la box l'écrit : « rien » vaut zéro ; sans « tokens », rien n'est lu.
 /** @param {string} dit @returns {number | undefined} */
 export function tokensLus(dit) {
-  if (dit === "rien") return 0;
+  if (dit === "rien" || dit === "nothing") return 0;
   const tokens = TOKENS.exec(dit);
   return tokens === null ? undefined : Number(/** @type {string} */ (tokens[1]).replace(/\D/g, ""));
 }
@@ -68,7 +69,7 @@ export function fenetresDe(texte) {
   for (const valeur of lignesDuConsomme(texte)) {
     const fenetre = FENETRE.exec(valeur);
     if (fenetre === null) continue;
-    const heures = Number(fenetre[1]) * (fenetre[2] === "j" ? 24 : 1);
+    const heures = Number(fenetre[1]) * (fenetre[2] === "h" ? 1 : 24);
     const tokens = tokensLus(/** @type {string} */ (fenetre[3]).trim());
     if (tokens !== undefined) lues.set(heures, tokens);
   }

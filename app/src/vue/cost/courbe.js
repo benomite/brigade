@@ -28,7 +28,7 @@ const SVG = "http://www.w3.org/2000/svg";
 const LARGEUR = 1000;
 const HAUTEUR = 100;
 
-const JOUR = /^(\d{4}-\d{2}-\d{2}) : (.*)$/;
+const JOUR = /^(\d{4}-\d{2}-\d{2}) ?: (.*)$/;
 
 // Les tokens de chaque jour que `station` communique, par date (AAAA-MM-JJ).
 /** @param {string} texte @returns {Map<string, number>} */

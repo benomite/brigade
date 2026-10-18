@@ -297,8 +297,11 @@ npm --prefix runtime run station                 # la voir
 npm --prefix runtime run station -- cooks 12     # régler son plafond de cooks (0 : aucune limite)
 ```
 
-Elle montre le plafond, la machine — ou, pour une station distante, sa **présence** et ce qu'elle fait des **tickets ordinaires** —, la connexion Max, le quota, la `retenue`, les cooks en cours
-avec leur calibrage, les dix derniers finis, et **`consommé`** — tout ce que le projet a lancé,
+Ses sorties, ses refus et ses erreurs sont **en anglais**, avec les mots de `docs/glossary.md`
+(`cooks`, `une décision`, `remove`, `help` compris ; les gestes de décision — `seuil-ticket`,
+`manager-modele`, `closer-retraits`… — gardent leur nom, et les anciens mots `retirer` et `aide`
+répondent encore en disant le nouveau). Elle montre le plafond (`simultaneous cooks`), la machine — ou, pour une station distante, sa **présence** (`presence`) et ce qu'elle fait des **tickets ordinaires** (`ordinary tickets`) —, la connexion Max (`Max connection`), le quota, la retenue (`withholding`), les cooks en cours
+(`cooks running`) avec leur calibrage, les dix derniers finis (`latest cooks`), et **`consumed`** — tout ce que le projet a lancé,
 cooks, relectures et jugements : ce qui tourne, les **5 dernières heures** (la fenêtre du quota
 Max, à comparer à `/usage` en ordre de grandeur) et les **24 dernières heures**.
 Cette consommation est celle de **ce que le projet a lancé**, pas celle du compte : le runtime ne

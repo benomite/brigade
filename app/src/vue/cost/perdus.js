@@ -28,7 +28,7 @@ export const INTERROMPU = "interrupted";
 export const FERMER = "close";
 
 // Les fins que `station` écrit pour un essai rouge ; toute autre fin que « fini » est une interruption.
-const FINS_ROUGES = ["échoué", "refusé par le modèle"];
+const FINS_ROUGES = ["échoué", "refusé par le modèle", "failed", "refused by the model"];
 const CHAMPS = / {2,}/;
 
 // Les cooks perdus que `station` liste sous « derniers cooks » : `null` quand le bloc n'y est pas
@@ -37,7 +37,7 @@ const CHAMPS = / {2,}/;
 /** @param {string} texte @returns {CookPerdu[] | null} */
 export function perdusDe(texte) {
   const lignes = texte.split("\n");
-  const debut = lignes.findIndex((ligne) => ligne.startsWith("derniers cooks"));
+  const debut = lignes.findIndex((ligne) => /^(derniers|latest) cooks/.test(ligne));
   if (debut === -1) return null;
   /** @type {CookPerdu[]} */
   const perdus = [];
@@ -46,8 +46,8 @@ export function perdusDe(texte) {
     // date, #ticket, run, calibrage, fin, puis (tours · tokens · durée) et la PR, quand le cook les a.
     const [, ticket, run, , fin, consomme] = ligne.trim().split(CHAMPS);
     const numero = /^#(\d+)$/.exec(ticket ?? "");
-    if (numero === null || fin === undefined || fin === "fini") continue;
-    const dit = consomme === undefined ? undefined : /^\d+ tours? · (.*) tokens? · /.exec(consomme)?.[1];
+    if (numero === null || fin === undefined || fin === "fini" || fin === "done") continue;
+    const dit = consomme === undefined ? undefined : /^\d+ (?:tours?|turns?) · (.*) tokens? · /.exec(consomme)?.[1];
     perdus.push({
       ticket: Number(numero[1]),
       run: run ?? "",

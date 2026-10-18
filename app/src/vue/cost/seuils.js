@@ -23,7 +23,7 @@ export function seuilsDe(texte) {
   /** @type {Seuils} */
   const seuils = { ticket: null, perdus: null };
   const lignes = texte.split("\n");
-  const debut = lignes.findIndex((ligne) => ligne.startsWith("décisions du chef"));
+  const debut = lignes.findIndex((ligne) => /^(décisions du chef|chef's decisions)/.test(ligne));
   if (debut === -1) return seuils;
   for (const ligne of lignes.slice(debut + 1)) {
     if (!/^\s/.test(ligne)) break;
