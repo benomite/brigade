@@ -124,7 +124,7 @@ function deLaLimite(faits: Faits | Sans, limite: LimiteDeLApp | undefined): Aler
       sujet: "github",
       verifie: true,
       ton: "jaune",
-      dit: `GitHub limite les appels, reprise vers ${reprise === null ? "une heure que GitHub ne donne pas" : heureHM(reprise)}`,
+      dit: `GitHub is rate-limiting calls, back around ${reprise === null ? "a time GitHub does not give" : heureHM(reprise)}`,
       geste: "nothing to do: the calls resume by themselves when GitHub lifts the limit",
       prix: AUCUN,
     },

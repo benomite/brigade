@@ -58,14 +58,25 @@ export type ALancer = { ticket: number; worktree: string; commentLeVoir: string;
 // `empeche` : ce que les lignes `service` disent, mot pour mot — ce qui empêche le projet d'être servi.
 export type Lus = { entete?: string; serveurs: Serveur[]; aLancer: ALancer[]; illisibles: string[]; empeche: string[] };
 
-const SERVEUR = /^ {2}#(\d+) {2}(\S.*?) {2}port (\d+) {2}(\S+) depuis /;
+// `status` s'écrit en français ou en anglais (#939) : chaque forme est lue sous les deux, en entier —
+// une ligne qui mêle les deux langues dans une même forme n'est la forme d'aucune. Elle donne le même résultat.
+const SERVEUR = /^ {2}#(\d+) {2}(\S.*?) {2}port (\d+) {2}(?!starting |listening )(\S+) depuis /;
+const SERVER = /^ {2}#(\d+) {2}(\S.*?) {2}port (\d+) {2}(?!démarre |écoute )(\S+) since /;
 // La fin de la ligne d'un serveur : la durée, la branche, puis la page — ou ce qui la remplace.
 const SUITE = /^ {2}#\d+ {2}\S.*? {2}port \d+ {2}\S+ depuis .+? {2}\S+(?: {2}(.*))?$/;
+const SUITE_EN = /^ {2}#\d+ {2}\S.*? {2}port \d+ {2}\S+ since .+? {2}\S+(?: {2}(.*))?$/;
 const TENU = /^ {2}#(\d+) {2}(\S.*?) {2}tenu depuis .+? {2}\S+ {2}(.+)$/;
+const TENU_EN = /^ {2}#(\d+) {2}(\S.*?) {2}held since .+? {2}\S+ {2}(.+)$/;
 // Sous une ligne, l'écran et sa phrase.
 const ECRAN = /^ {4}écran : (.+) \((déclaré par le cook|écran déduit des fichiers touchés, pas déclaré par le cook)\)$/;
+const SCREEN = /^ {4}screen: (.+) \((declared by the cook|screen deduced from the touched files, not declared by the cook)\)$/;
 const PHRASE = /^ {4}à regarder : (.+)$/;
-const DECLARE = "déclaré par le cook";
+const SENTENCE = /^ {4}to look at: (.+)$/;
+const DECLARE = new Set(["déclaré par le cook", "declared by the cook"]);
+// Ce que `status` dit d'un écran que le cook n'a pas déclaré, dans l'une ou l'autre langue : l'app le garde en anglais.
+const DEDUIT = "screen deduced from the touched files, not declared by the cook";
+// L'état d'un serveur, dans l'une ou l'autre langue : l'app le garde en anglais — un autre mot est gardé tel quel.
+const ETAT_DU_SERVEUR: Record<string, string> = { démarre: "starting", écoute: "listening" };
 
 // La route de la page qu'une ligne écrit, si c'est une page de ce worktree — son port, sur la
 // boucle locale — et pas sa racine. Rien n'est deviné : une adresse qui n'a pas cette forme n'en est pas une.
@@ -80,8 +91,8 @@ function routeDe(ecrite: string | undefined, port: number): string | null {
 export function serveursDe(status: string): Lus {
   const lignes = status.split("\n");
   const lus: Lus = { serveurs: [], aLancer: [], illisibles: [], empeche: [] };
-  const tete = lignes.findIndex((ligne) => /^serveurs\s/.test(ligne));
-  if (tete !== -1) lus.entete = (lignes[tete] as string).replace(/^serveurs\s+/, "");
+  const tete = lignes.findIndex((ligne) => /^(?:serveurs|servers)\s/.test(ligne));
+  if (tete !== -1) lus.entete = (lignes[tete] as string).replace(/^(?:serveurs|servers)\s+/, "");
   // Les lignes d'un bloc ; l'écran et la phrase, plus en retrait, vont à l'entrée qu'ils suivent —
   // sous une ligne illisible, ils le sont aussi.
   const bloc = (titre: RegExp, lire: (ligne: string) => { ecran: Ecran | null } | undefined) => {
@@ -90,9 +101,9 @@ export function serveursDe(status: string): Lus {
     for (let rang = debut + 1; debut !== -1 && lignes[rang]?.startsWith("  ") === true; rang++) {
       const ligne = lignes[rang] as string;
       if (ligne.startsWith("    ")) {
-        const [, nom, source] = ECRAN.exec(ligne) ?? [];
-        const [, phrase] = PHRASE.exec(ligne) ?? [];
-        if (derniere !== undefined && nom !== undefined && source !== undefined && derniere.ecran === null) derniere.ecran = { nom, phrase: null, deduit: source === DECLARE ? null : source };
+        const [, nom, source] = ECRAN.exec(ligne) ?? SCREEN.exec(ligne) ?? [];
+        const [, phrase] = PHRASE.exec(ligne) ?? SENTENCE.exec(ligne) ?? [];
+        if (derniere !== undefined && nom !== undefined && source !== undefined && derniere.ecran === null) derniere.ecran = { nom, phrase: null, deduit: DECLARE.has(source) ? null : DEDUIT };
         else if (derniere?.ecran != null && phrase !== undefined && derniere.ecran.phrase === null) derniere.ecran.phrase = phrase;
         else lus.illisibles.push(ligne);
         continue;
@@ -101,19 +112,20 @@ export function serveursDe(status: string): Lus {
       if (derniere === undefined) lus.illisibles.push(ligne);
     }
   };
-  bloc(/^serveurs\s/, (ligne) => {
-    const [, ticket, worktree, port, etat] = SERVEUR.exec(ligne) ?? [];
+  bloc(/^(?:serveurs|servers)\s/, (ligne) => {
+    const [, ticket, worktree, port, ecrit] = SERVEUR.exec(ligne) ?? SERVER.exec(ligne) ?? [];
+    const etat = ecrit === undefined ? undefined : (ETAT_DU_SERVEUR[ecrit] ?? ecrit);
     const lisible = ticket !== undefined && worktree !== undefined && port !== undefined && etat !== undefined && Number.isSafeInteger(Number(ticket)) && Number(port) >= 1 && Number(port) <= 65535;
     // Un worktree n'a qu'un serveur : une seconde ligne à son nom ne dit pas lequel ouvrir.
     if (!lisible || lus.serveurs.some((lu) => lu.worktree === worktree)) return undefined;
-    const ecrite = SUITE.exec(ligne)?.[1];
+    const ecrite = (SUITE.test(ligne) ? SUITE : SUITE_EN).exec(ligne)?.[1];
     const route = routeDe(ecrite, Number(port));
     const serveur: Serveur = { ticket: Number(ticket), worktree, port: Number(port), etat, route, ...(route === null && ecrite !== undefined && ecrite !== "" && !/^https?:/.test(ecrite) ? { sansPage: ecrite } : {}), ecran: null };
     lus.serveurs.push(serveur);
     return serveur;
   });
-  bloc(/^à lancer\s/, (ligne) => {
-    const [, ticket, worktree, commentLeVoir] = TENU.exec(ligne) ?? [];
+  bloc(/^(?:à lancer|to launch)\s/, (ligne) => {
+    const [, ticket, worktree, commentLeVoir] = TENU.exec(ligne) ?? TENU_EN.exec(ligne) ?? [];
     if (ticket === undefined || worktree === undefined || commentLeVoir === undefined || !Number.isSafeInteger(Number(ticket)) || lus.aLancer.some((lu) => lu.worktree === worktree)) return undefined;
     const tenu: ALancer = { ticket: Number(ticket), worktree, commentLeVoir, ecran: null };
     lus.aLancer.push(tenu);
@@ -139,8 +151,9 @@ export type Pages = { projet: string; pages: Page[]; aLancer: ALancer[]; illisib
 
 // Le mot par lequel `status` dit qu'un port répond, et celui par lequel il dit des
 // serveurs dont le runtime est mort (runtime/src/projections/service.ts, runtime/src/etat.ts).
-const ECOUTE = "écoute";
-const SANS_FIN = "sans fin au journal";
+const ECOUTE = "listening";
+const SANS_FIN = "with no end in the log";
+const SANS_FIN_FR = "sans fin au journal";
 // Le geste de poste, tel que faits.ts l'écrit sans le projet : la vue le pose sur le sien.
 const STATUS = "`ssh <hote> brigade <nom> status`";
 
@@ -156,7 +169,7 @@ const SANS_ROUTE = `no page to open: ${STATUS} writes no screen page for this se
 // répond pas encore n'ouvrirait qu'une erreur ; un serveur dont le runtime est
 // mort n'a plus personne pour dire s'il répond.
 function raisonDe({ entete }: Lus, { etat }: Serveur): string | undefined {
-  if (entete?.includes(SANS_FIN) === true) return `no action: ${STATUS} says these servers are “${SANS_FIN}” — their runtime stopped without shutting them down, and nothing says whether they answer`;
+  if ((entete?.includes(SANS_FIN) === true || entete?.includes(SANS_FIN_FR) === true)) return `no action: ${STATUS} says these servers are “${SANS_FIN}” — their runtime stopped without shutting them down, and nothing says whether they answer`;
   if (etat !== ECOUTE) return `no action: ${STATUS} says “${etat}”, not “${ECOUTE}” — nothing says its port answers on the box. The action comes with the read that says so`;
   return undefined;
 }
