@@ -143,7 +143,7 @@ const GESTES_DES_DECISIONS: Record<Decision, string> = {
 // Ce que le runtime dit d'une variable de décision laissée dans son
 // environnement : nommée, ignorée, et le geste qui la remplace.
 export function direDecisionIgnoree(nom: Decision, projet: string): string {
-  return `${nom} is ignored in the unit's environment: a chef decision is no longer read there — set it with \`brigade ${projet} station ${gesteDe(nom)} <value>\`, then remove \`Environment=${nom}\` from the drop-in`;
+  return `${nom} est ignorée dans l'environnement de l'unité : une décision du chef ne s'y lit plus — la poser par \`brigade ${projet} station ${gesteDe(nom)} <valeur>\`, puis retirer \`Environment=${nom}\` du drop-in`;
 }
 
 // Le support des décisions : le journal du répertoire d'état. Sous le clone,
@@ -152,7 +152,7 @@ export function supportDesDecisions(lieux: { repertoireEtat: string; clone: stri
   const support = cheminJournal(lieux.repertoireEtat);
   if (sous(lieux.clone, support)) {
     throw new ConfigInvalide(
-      `BRIGADE_STATE_DIR (${lieux.repertoireEtat}) is under BRIGADE_REPO_DIR (${lieux.clone}): the chef's decisions would be within a cook's reach — a cap a cook can raise is not a cap. Put the state directory outside the clone`,
+      `BRIGADE_STATE_DIR (${lieux.repertoireEtat}) est sous BRIGADE_REPO_DIR (${lieux.clone}) : les décisions du chef y seraient à portée d'un cook — un plafond qu'un cook peut relever n'est pas un plafond. Poser le répertoire d'état hors du clone`,
     );
   }
   return support;

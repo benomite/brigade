@@ -191,16 +191,16 @@ test("une réponse que le runtime ne lirait pas est refusée avant d'écrire : n
   const etat = repertoireTemporaire(t);
 
   for (const [args, motif] of [
-    [["manager-modele", "gpt"], /BRIGADE_MANAGER_MODEL invalide : « gpt » — attendu opus, sonnet ou haiku — rien n'est écrit/],
+    [["manager-modele", "gpt"], /BRIGADE_MANAGER_MODEL invalid: “gpt” — expected opus, sonnet or haiku — nothing is written/],
     // Une bonne réponse avec une mauvaise : rien de l'une ni de l'autre.
-    [["manager-effort", "medium", "seuil-ticket", "beaucoup"], /BRIGADE_DRIFT_TICKET_TOKENS invalide .* rien n'est écrit/],
+    [["manager-effort", "medium", "seuil-ticket", "beaucoup"], /BRIGADE_DRIFT_TICKET_TOKENS invalide .* nothing is written/],
     [["manager-modele"], /une réponse est une décision suivie de sa valeur/],
     [["manager-modele", "sonnet", "manager-modele", "opus"], /manager-modele est donnée deux fois/],
     [["plat-du-jour", "oui"], /« plat-du-jour » n'est pas une décision que l'installation pose — attendu manager-modele, /],
     [["stations", "box/claude:2:code"], /les stations ont leur étape : `installation stations`/],
-    [["manager-modele", "  "], /une valeur vide n'est pas une décision/],
+    [["manager-modele", "  "], /an empty value is not a decision/],
     // Le closer se règle par les deux, ou par aucun : le runtime refuserait l'un sans l'autre.
-    [["closer-modele", "sonnet"], /BRIGADE_CLOSING_EFFORT n'est pas défini — le closer se règle par les deux, ou par aucun.* — donner closer-modele et closer-effort dans la même réponse — rien n'est écrit/],
+    [["closer-modele", "sonnet"], /BRIGADE_CLOSING_EFFORT n'est pas défini — le closer se règle par les deux, ou par aucun.* — donner closer-modele et closer-effort dans la même réponse — nothing is written/],
   ] as const) {
     const { code, sortie } = await repondre(etat, args);
     assert.equal(code, 2, `${args.join(" ")} : ${sortie}`);

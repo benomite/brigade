@@ -189,7 +189,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
   async function compter(): Promise<void> {
     const { depot, issues } = await lireOuvertes((depot) => `the backlog of ${depot}`);
     const retenues = issues.filter((issue) => issue.labels.includes("blocked-on-human" satisfies Ecart)).length;
-    ligne("backlog", `${issues.length} open issue${issues.length > 1 ? "s" : ""}, of which ${retenues} carr${retenues > 1 ? "y" : "ies"} \`blocked-on-human\` — read just now on GitHub (${depot})`);
+    ligne("backlog", `${issues.length} open issue${issues.length !== 1 ? "s" : ""}, of which ${retenues} carr${retenues === 1 ? "ies" : "y"} \`blocked-on-human\` — read just now on GitHub (${depot})`);
   }
 
   // Ce qui n'est pas encore sur le rail (amont.ts) : les issues ouvertes que le

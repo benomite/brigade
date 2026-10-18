@@ -244,7 +244,7 @@ test("le bilan dit qui a mergé : une livraison que la pass merge elle-même, le
   merger(18, 41, "outside");
 
   assert.deepEqual(bilan(), { ...RIEN, arretees: 2, mergees: 1, parLaPass: 1 });
-  assert.equal(direSansGrantEn(bilan()), "sans grant, 2 livraisons vertes arrêtées : 1 mergée à la main, 0 fermée sans merge — aucun désaccord —, 0 encore ouverte, 1 mergée par la pass, le grant accordé depuis");
+  assert.equal(direSansGrantEn(bilan()), "without a grant, 2 green deliveries stopped: 1 merged by hand, 0 closed without merge — no disagreement —, 0 still open, 1 merged by the pass, the grant enabled since");
 });
 
 test("le bilan suit la livraison arrêtée, par sa PR : le merge d'une autre PR du même ticket ne dit rien d'elle, et une seconde livraison arrêtée du ticket compte", (t) => {
@@ -263,7 +263,7 @@ test("le bilan suit la livraison arrêtée, par sa PR : le merge d'une autre PR 
   assert.deepEqual(bilan(), { ...RIEN, arretees: 1 });
   arreter(17, 41, "b");
   assert.deepEqual(bilan(), { ...RIEN, arretees: 2, ouvertes: 1 });
-  assert.equal(direSansGrantEn(bilan()), "sans grant, 2 livraisons vertes arrêtées : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte, 1 plus suivie");
+  assert.equal(direSansGrantEn(bilan()), "without a grant, 2 green deliveries stopped: 0 merged by hand, 0 closed without merge — no disagreement —, 1 still open, 1 no longer followed");
 });
 
 test("un ticket qui quitte le rail dit ce que sa PR arrêtée était ce jour-là : mergée, fermée sans merge, ou laissée ouverte ; et un arrêt qu'aucun grant ne lève n'est pas compté", (t) => {

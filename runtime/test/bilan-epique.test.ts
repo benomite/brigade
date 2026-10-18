@@ -50,12 +50,12 @@ test("une sous-épique fermée dont un ticket n'est pas livré : c'est ce ticket
 
   const bilan = bilanDEpique(base, 10);
   assert.equal(bilan.toutServi, false);
-  assert.deepEqual(bilan.manquants, [{ ticket: 14, dit: "#14 fermé sans livraison" }]);
+  assert.deepEqual(bilan.manquants, [{ ticket: 14, dit: "#14 closed without a delivery" }]);
 });
 
 test("une sous-épique fermée dont rien n'est servi ni découpé reste fermée sans livraison", (t) => {
   const { base, noter, decouper } = histoire(t);
   decouper(10, [11]);
   noter({ type: "manager.split-seen", payload: { epic: 10, open: false } }, 11);
-  assert.deepEqual(bilanDEpique(base, 10).manquants, [{ ticket: 11, dit: "#11 fermé sans livraison" }]);
+  assert.deepEqual(bilanDEpique(base, 10).manquants, [{ ticket: 11, dit: "#11 closed without a delivery" }]);
 });

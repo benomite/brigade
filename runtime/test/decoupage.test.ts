@@ -283,7 +283,7 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.ok(!c.faits(30).some((e) => e.type === "manager.split-served"));
     const amont = enAmont(c.journal.base, [issue(30, ["epic"])]);
     assert.equal(amont[0]?.etat, "decoupee");
-    assert.match(amont[0]?.dit ?? "", /#502 fermé sans livraison/);
+    assert.match(amont[0]?.dit ?? "", /#502 closed without a delivery/);
   });
 
   test("devant une épique ambiguë, le manager pose une question au lieu d'inventer — et rien d'autre n'attend la réponse", async (t) => {
