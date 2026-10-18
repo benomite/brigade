@@ -13,8 +13,8 @@ export const COMMANDES: Commande[] = ["enable", "extend", "revoke"];
 // Ce qu'aucun grant n'autorise, pas même demandé par le chef. La liste est
 // ici, dans le code : elle ne se change que par une livraison.
 export const JAMAIS_ACCORDEES = [
-  { action: "identifiants-max", ligne: "lire les identifiants du compte Max" },
-  { action: "acces-prod", ligne: "toute action sur la production d'un projet" },
+  { action: "identifiants-max", ligne: "read the Max account credentials" },
+  { action: "acces-prod", ligne: "any action on a project's production" },
 ] as const;
 export type JamaisAccordee = (typeof JAMAIS_ACCORDEES)[number];
 const FICHIER_DE_LA_LISTE = "runtime/src/grant.ts";
@@ -39,7 +39,8 @@ export class GrantRefuse extends Error {}
 export type Echeance = { until?: string; uses?: number; sansEcheance: boolean };
 
 const DUREES: Array<[RegExp, (trouve: RegExpExecArray) => number]> = [
-  [/^([0-9]+)j$/, ([, jours]) => Number(jours) * 24 * HEURE_MS],
+  // `2d`, et `2j` — l'ancien mot, que le chef a encore dans les doigts.
+  [/^([0-9]+)[dj]$/, ([, jours]) => Number(jours) * 24 * HEURE_MS],
   [/^([0-9]+)h([0-5][0-9])?$/, ([, heures, minutes]) => Number(heures) * HEURE_MS + Number(minutes ?? 0) * 60_000],
   [/^([0-9]+)min$/, ([, minutes]) => Number(minutes) * 60_000],
 ];
@@ -63,19 +64,19 @@ function lireInstant(valeur: string, maintenant: Date): Date {
     instant = dateLocale(maintenant.getFullYear(), maintenant.getMonth() + 1, maintenant.getDate(), Number(heure[1]), Number(heure[2] ?? heure[3] ?? 0));
   }
   if (instant === null) {
-    throw new GrantRefuse(`--until : « ${valeur} » ne se lit pas — attendu une date (2026-10-12), une date et une heure (2026-10-12T18:00) ou une heure d'aujourd'hui (18h, 18h30)`);
+    throw new GrantRefuse(`--until: “${valeur}” cannot be read — expected a date (2026-10-12), a date and a time (2026-10-12T18:00) or a time today (18h, 18h30)`);
   }
   if (instant.getTime() <= maintenant.getTime()) {
     throw new GrantRefuse(
       heure
-        ? `--until : ${valeur} est déjà passé aujourd'hui — pour demain, dis la date (2026-10-12T18:00) ou une durée (--for 20h)`
-        : `--until : ${valeur} est déjà passé`,
+        ? `--until: ${valeur} has already passed today — for tomorrow, give the date (2026-10-12T18:00) or a duration (--for 20h)`
+        : `--until: ${valeur} has already passed`,
     );
   }
   return instant;
 }
 
-// Une durée tapée (30min, 4h, 1h30, 2j), en millisecondes — ou rien si elle
+// Une durée tapée (30min, 4h, 1h30, 2d, or 2j), en millisecondes — ou rien si elle
 // ne se lit pas, ou ne dure rien.
 export function dureeTapee(valeur: string): number | null {
   for (const [forme, enMs] of DUREES) {
@@ -88,7 +89,7 @@ export function dureeTapee(valeur: string): number | null {
 function lireDuree(valeur: string): number {
   const lue = dureeTapee(valeur);
   if (lue !== null) return lue;
-  throw new GrantRefuse(`--for : « ${valeur} » ne se lit pas — attendu une durée : 30min, 4h, 1h30, 2j`);
+  throw new GrantRefuse(`--for: “${valeur}” cannot be read — expected a duration: 30min, 4h, 1h30, 2d`);
 }
 
 // Lit l'échéance tapée : `--until <instant>` ou `--for <durée>`, `--uses
@@ -98,29 +99,31 @@ export function lireEcheance(args: string[], maintenant: Date): Echeance {
   const vues = new Set<string>();
   for (let i = 0; i < args.length; i++) {
     const option = String(args[i]);
-    if (vues.has(option)) throw new GrantRefuse(`${option} est donné deux fois`);
+    if (vues.has(option)) throw new GrantRefuse(`${option} is given twice`);
     vues.add(option);
     if (option === "--no-expiry") {
       echeance.sansEcheance = true;
       continue;
     }
     const valeur = args[++i];
-    if (!["--until", "--for", "--uses"].includes(option)) throw new GrantRefuse(`option inconnue : ${option}`);
-    if (valeur === undefined) throw new GrantRefuse(`${option} attend une valeur`);
+    if (!["--until", "--for", "--uses"].includes(option)) throw new GrantRefuse(`unknown option: ${option}`);
+    if (valeur === undefined) throw new GrantRefuse(`${option} needs a value`);
     if (option === "--uses") {
-      if (!/^[1-9][0-9]*$/.test(valeur) || !Number.isSafeInteger(Number(valeur))) throw new GrantRefuse(`--uses : « ${valeur} » ne se lit pas — attendu un nombre de merges, 1 au moins`);
+      if (!/^[1-9][0-9]*$/.test(valeur) || !Number.isSafeInteger(Number(valeur))) throw new GrantRefuse(`--uses: “${valeur}” cannot be read — expected a number of merges, 1 at least`);
       echeance.uses = Number(valeur);
     } else {
       const instant = option === "--for" ? new Date(maintenant.getTime() + lireDuree(valeur)) : lireInstant(valeur, maintenant);
-      if (Number.isNaN(instant.getTime())) throw new GrantRefuse(`${option} : « ${valeur} » mène au-delà de ce qu'une date sait dire — pour un grant sans fin, n'en donne pas`);
+      if (Number.isNaN(instant.getTime())) throw new GrantRefuse(`${option}: “${valeur}” goes beyond what a date can express — for a grant with no end, give none`);
       echeance.until = instant.toISOString();
     }
   }
-  if (vues.has("--until") && vues.has("--for")) throw new GrantRefuse("--until et --for disent la même chose : l'un ou l'autre");
-  if (echeance.sansEcheance && vues.size > 1) throw new GrantRefuse("--no-expiry ne se combine avec aucune échéance");
+  if (vues.has("--until") && vues.has("--for")) throw new GrantRefuse("--until and --for say the same thing: one or the other");
+  if (echeance.sansEcheance && vues.size > 1) throw new GrantRefuse("--no-expiry does not combine with any deadline");
   return echeance;
 }
 
+// `direInstant` et `direExtinction` restent en français : `attente.ts` et `pass.ts`
+// les appellent encore. `grant` dit `direInstantEn` et `direExtinctionEn`.
 const MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 
 // Un instant d'échéance, avec son fuseau en lettres : « 12 oct. 19:20 UTC ».
@@ -142,38 +145,28 @@ export function direInstantEn(iso: string): string {
 }
 
 // Une échéance : la durée restante d'abord — la seule mention qui ne trompe
-// dans aucun fuseau —, puis l'instant, fuseau en lettres.
+// dans aucun fuseau —, puis l'instant, fuseau en lettres. C'est la forme que
+// l'app relit (app/src/grants.ts, `ECHEANCE`).
 export const direEcheance = (until: string, maintenant: Date, duree: (ms: number) => string) =>
-  `encore ${duree(Date.parse(until) - maintenant.getTime())} (jusqu'au ${direInstant(until)})`;
+  `${duree(Date.parse(until) - maintenant.getTime())} left (until ${direInstantEn(until)})`;
 
 // Ce que `--until` a compris, à rendre avant d'écrire : l'instant en UTC et
 // la durée qui le sépare de maintenant, dans la même phrase.
 export const direCompris = (until: string, maintenant: Date, duree: (ms: number) => string) =>
-  `compris : jusqu'au ${direInstant(until)} — dans ${duree(Date.parse(until) - maintenant.getTime())}`;
+  `understood: until ${direInstantEn(until)} — in ${duree(Date.parse(until) - maintenant.getTime())}`;
 
-const compte = (combien: number, mot: string) => `${combien.toLocaleString("fr-FR")} ${mot}${combien > 1 ? "s" : ""}`;
+const usages = (combien: number) => `${combien.toLocaleString("en-US")} ${combien > 1 ? "uses" : "use"}`;
 
 export const direExtinctionEn = (cause: CauseDExtinction | null) => (cause === "uses" ? "its last use is consumed" : "its deadline has passed");
 
 export const direExtinction = (cause: CauseDExtinction | null) => (cause === "uses" ? "son dernier usage est consommé" : "son échéance est passée");
 
-// Ce qu'il reste d'un grant actif : le temps, les usages, ou « sans échéance ».
-// `duree` : la façon dont l'appelant écrit une durée.
-export function direReste(grant: Grant, maintenant: Date, duree: (ms: number) => string): string {
+// Ce qu'il reste d'un grant actif : le temps, les usages, ou « no deadline ».
+// `duree` : la façon dont l'appelant écrit une durée. La ligne `grant` de
+// `status` (etat.ts) dit la même chose.
+export function direResteEn(grant: Grant, maintenant: Date, duree: (ms: number) => string): string {
   const restes = [
     ...(grant.until === null ? [] : [direEcheance(grant.until, maintenant, duree)]),
-    ...(grant.usesLeft === null
-      ? []
-      : [`encore ${compte(grant.usesLeft, "usage")}${grant.reserved === 0 ? "" : `, dont ${grant.reserved} ${grant.reserved > 1 ? "retenus par des merges" : "retenu par un merge"} en cours`}`]),
-  ];
-  return restes.length === 0 ? "sans échéance" : restes.join(" · ");
-}
-
-// Le même, en anglais, pour la ligne `grant` de `status`.
-export function direResteEn(grant: Grant, maintenant: Date, duree: (ms: number) => string): string {
-  const usages = (combien: number) => `${combien.toLocaleString("en-US")} ${combien > 1 ? "uses" : "use"}`;
-  const restes = [
-    ...(grant.until === null ? [] : [`${duree(Date.parse(grant.until) - maintenant.getTime())} left (until ${direInstantEn(grant.until)})`]),
     ...(grant.usesLeft === null ? [] : [`${usages(grant.usesLeft)} left${grant.reserved === 0 ? "" : `, of which ${grant.reserved} held by ${grant.reserved > 1 ? "merges" : "a merge"} under way`}`]),
   ];
   return restes.length === 0 ? "no deadline" : restes.join(" · ");
@@ -186,18 +179,19 @@ export function bientotEteint(grant: Grant, maintenant: Date): boolean {
   return (grant.until !== null && Date.parse(grant.until) - maintenant.getTime() < HEURE_MS) || grant.usesLeft === 1;
 }
 
-// L'état du grant, sur une ligne, pour `grant`.
+// L'état du grant, sur une ligne, pour `grant`. L'app la relit (app/src/grants.ts,
+// `ETAT`) : tout changement de forme se répercute là-bas.
 export function direGrant(grant: Grant | null, maintenant: Date, duree: (ms: number) => string): string {
-  if (grant === null) return "ABSENT — jamais donné : la pass s'arrête à la PR ouverte, rien n'est mergé";
+  if (grant === null) return "ABSENT — never given: the pass stops at the open PR, nothing is merged";
   if (grant.active) {
-    const bientot = bientotEteint(grant, maintenant) ? "BIENTÔT ÉTEINT — " : "";
-    return `ACTIF depuis le ${grant.since} (par ${grant.by}) — ${bientot}${direReste(grant, maintenant, duree)} : une pass verte est mergée sans toi`;
+    const bientot = bientotEteint(grant, maintenant) ? "EXPIRING SOON — " : "";
+    return `ACTIVE since ${grant.since} (by ${grant.by}) — ${bientot}${direResteEn(grant, maintenant, duree)}: a green pass is merged without you`;
   }
   if (grant.ended === "expired") {
-    const ecrit = grant.unrecorded ? " (le runtime l'écrira au journal à son prochain passage)" : "";
-    return `ÉTEINT SEUL depuis le ${grant.since} — ${direExtinction(grant.cause)} (accordé par ${grant.by}) : la pass s'arrête à la PR ouverte${ecrit}`;
+    const ecrit = grant.unrecorded ? " (the runtime will write it to the log on its next pass)" : "";
+    return `LAPSED since ${grant.since} — ${direExtinctionEn(grant.cause)} (enabled by ${grant.by}): the pass stops at the open PR${ecrit}`;
   }
-  return `RÉVOQUÉ depuis le ${grant.since} (par ${grant.by}) — la pass s'arrête à la PR ouverte`;
+  return `REVOKED since ${grant.since} (by ${grant.by}) — the pass stops at the open PR`;
 }
 
 // Écrit l'extinction d'un grant échu que le journal ne dit pas encore, et rend
@@ -213,7 +207,7 @@ export function constaterExtinction(journal: Journal, projet: string, auteur: st
 }
 
 const direLimites = ({ until, uses }: Echeance, maintenant: Date, duree: (ms: number) => string) =>
-  [...(until === undefined ? [] : [direEcheance(until, maintenant, duree)]), ...(uses === undefined ? [] : [`pour ${compte(uses, "usage")}`])].join(" · ");
+  [...(until === undefined ? [] : [direEcheance(until, maintenant, duree)]), ...(uses === undefined ? [] : [`for ${usages(uses)}`])].join(" · ");
 
 // Écrit la commande du chef si elle change quelque chose, et dit ce qu'il en
 // est. Vérifier et écrire tiennent dans une seule transaction. Un grant échu
@@ -223,52 +217,52 @@ export function commanderGrant(journal: Journal, commande: Commande, action: Act
   const { base } = journal;
   return base.transaction(() => {
     const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
-    if (!projet) throw new GrantRefuse("journal vide : le runtime n'a jamais démarré sur ce répertoire d'état");
-    if (commande !== "extend" && echeance.sansEcheance) throw new GrantRefuse("--no-expiry ne vaut que pour `extend` : un grant accordé sans option est déjà sans échéance");
-    if (commande === "revoke" && (echeance.until !== undefined || echeance.uses !== undefined)) throw new GrantRefuse("`revoke` ne prend pas d'échéance");
+    if (!projet) throw new GrantRefuse("the log is empty: the runtime has never started on this state directory");
+    if (commande !== "extend" && echeance.sansEcheance) throw new GrantRefuse("--no-expiry only applies to `extend`: a grant enabled with no option already has no deadline");
+    if (commande === "revoke" && (echeance.until !== undefined || echeance.uses !== undefined)) throw new GrantRefuse("`revoke` takes no deadline");
     constaterExtinction(journal, projet, AUTEUR_DU_CONSTAT, action, maintenant);
     const grant = etatDuGrant(base, action, maintenant);
-    const absent = sessionEnCours(base) ? "" : " (aucun runtime ne tourne : la commande vaudra à son prochain démarrage)";
+    const absent = sessionEnCours(base) ? "" : " (no runtime is running: the command will take effect on its next start)";
     const ajouter = (fait: FaitPass) => journal.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
-    const eteint = grant?.ended === "expired" ? ` — il s'est éteint seul le ${grant.since} (${direExtinction(grant.cause)})` : "";
+    const eteint = grant?.ended === "expired" ? ` — it lapsed on ${grant.since} (${direExtinctionEn(grant.cause)})` : "";
 
     if (commande === "enable") {
       if (grant?.active) {
-        return `grant ${action} déjà actif depuis le ${grant.since} — ${direReste(grant, maintenant, duree)}. Rien n'est écrit : pour changer son échéance, \`extend ${action}\``;
+        return `grant ${action} already active since ${grant.since} — ${direResteEn(grant, maintenant, duree)}. Nothing is written: to change its deadline, \`extend ${action}\``;
       }
       const { until, uses } = echeance;
       ajouter({ type: "grant.activated", payload: { action, ...(until === undefined ? {} : { until }), ...(uses === undefined ? {} : { uses }) } });
       const limites = direLimites(echeance, maintenant, duree);
       return limites === ""
-        ? `grant ${action} actif, sans échéance : toute pass verte à partir de maintenant est mergée par le runtime — pas les livraisons déjà arrêtées. Il vaut jusqu'à ce que tu le révoques${absent}`
-        : `grant ${action} actif ${limites} : toute pass verte à partir de maintenant est mergée par le runtime — pas les livraisons déjà arrêtées. Il s'éteindra seul${absent}`;
+        ? `grant ${action} active, no deadline: every green pass from now on is merged by the runtime — not the deliveries already stopped. It holds until you revoke it${absent}`
+        : `grant ${action} active, ${limites}: every green pass from now on is merged by the runtime — not the deliveries already stopped. It will lapse on its own${absent}`;
     }
 
     if (commande === "revoke") {
-      if (!grant?.active) return `rien à révoquer : le grant ${action} n'est pas actif${eteint}`;
+      if (!grant?.active) return `nothing to revoke: the ${action} grant is not active${eteint}`;
       ajouter({ type: "grant.revoked", payload: { action } });
-      return `grant ${action} révoqué : la pass s'arrête désormais à la PR ouverte${absent}`;
+      return `grant ${action} revoked: the pass now stops at the open PR${absent}`;
     }
 
-    if (!grant?.active) throw new GrantRefuse(`rien à prolonger : le grant ${action} n'est pas actif${eteint} — pour le réaccorder, \`enable ${action}\``);
+    if (!grant?.active) throw new GrantRefuse(`nothing to extend: the ${action} grant is not active${eteint} — to enable it again, \`enable ${action}\``);
     const { until, uses, sansEcheance } = echeance;
     if (sansEcheance) {
-      if (grant.until === null && grant.usesLeft === null) return `grant ${action} déjà sans échéance : rien n'est écrit`;
+      if (grant.until === null && grant.usesLeft === null) return `grant ${action} already has no deadline: nothing is written`;
       ajouter({ type: "grant.extended", payload: { action, until: null, uses: null } });
-      return `grant ${action} prolongé : son échéance est levée, il vaut jusqu'à ce que tu le révoques${absent}`;
+      return `grant ${action} extended: its deadline is lifted, it holds until you revoke it${absent}`;
     }
-    if (until === undefined && uses === undefined) throw new GrantRefuse("prolonger de combien ? --until <date ou heure>, --for <durée>, --uses <n> ou --no-expiry");
+    if (until === undefined && uses === undefined) throw new GrantRefuse("extend by how much? --until <date or time>, --for <duration>, --uses <n> or --no-expiry");
     // Poser une limite là où il n'y en a pas, ou en rapprocher une, c'est
     // raccourcir : ce n'est pas le geste de `extend`.
-    const raccourcir = `pour le raccourcir, révoque-le puis réaccorde-le`;
-    if (until !== undefined && grant.until === null) throw new GrantRefuse(`le grant ${action} n'a pas d'échéance en date : lui en poser une ne le prolonge pas — ${raccourcir}`);
+    const raccourcir = `to shorten it, revoke it then enable it again`;
+    if (until !== undefined && grant.until === null) throw new GrantRefuse(`the ${action} grant has no dated deadline: setting one does not extend it — ${raccourcir}`);
     if (until !== undefined && grant.until !== null && until <= grant.until) {
-      throw new GrantRefuse(`le grant ${action} vaut déjà jusqu'au ${direInstant(grant.until)} : ${direInstant(until)} ne le prolonge pas — ${raccourcir}`);
+      throw new GrantRefuse(`the ${action} grant already holds until ${direInstantEn(grant.until)}: ${direInstantEn(until)} does not extend it — ${raccourcir}`);
     }
-    if (uses !== undefined && grant.usesLeft === null) throw new GrantRefuse(`le grant ${action} ne compte pas ses usages : lui en donner un nombre ne le prolonge pas — ${raccourcir}`);
+    if (uses !== undefined && grant.usesLeft === null) throw new GrantRefuse(`the ${action} grant does not count its uses: giving it a number does not extend it — ${raccourcir}`);
     ajouter({ type: "grant.extended", payload: { action, ...(until === undefined ? {} : { until }), ...(uses === undefined ? {} : { uses }) } });
     const apres = etatDuGrant(base, action, maintenant);
-    return `grant ${action} prolongé : ${apres ? direReste(apres, maintenant, duree) : ""}${absent}`;
+    return `grant ${action} extended: ${apres ? direResteEn(apres, maintenant, duree) : ""}${absent}`;
   });
 }
 
@@ -277,26 +271,26 @@ export function commanderGrant(journal: Journal, commande: Commande, action: Act
 export function refuserJamaisAccordee(journal: Journal | null, { action, ligne }: JamaisAccordee): string {
   const projet = journal?.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
   if (journal && projet) journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "grant.refused", payload: { action, line: ligne } });
-  return `grant ${action} refusé : « ${ligne} » — aucun grant ne l'autorise, pas même demandé par toi. Rien n'est accordé${projet ? ", ta demande est écrite au journal" : ""}. Cette liste ne se change par aucune commande : par une livraison, qui se lit dans un diff (${FICHIER_DE_LA_LISTE})`;
+  return `grant ${action} refused: “${ligne}” — no grant allows it, not even asked by you. Nothing is enabled${projet ? ", your request is written to the log" : ""}. This list is changed by no command: only by a delivery, which reads as a diff (${FICHIER_DE_LA_LISTE})`;
 }
 
 type Geste = { at: string; author: string; type: string; payload: Record<string, unknown> };
 
 function direGeste({ type, payload }: Geste): string {
   const { until, uses, cause, since } = payload;
-  const limites = (usages: (combien: number) => string) =>
-    [...(typeof until === "string" ? [`jusqu'au ${direInstant(until)}`] : []), ...(typeof uses === "number" ? [usages(uses)] : [])].join(" · ");
+  const limites = (nombre: (combien: number) => string) =>
+    [...(typeof until === "string" ? [`until ${direInstantEn(until)}`] : []), ...(typeof uses === "number" ? [nombre(uses)] : [])].join(" · ");
   switch (type) {
     case "grant.activated":
-      return `accordé ${limites((combien) => `pour ${compte(combien, "usage")}`) || "sans échéance"}`;
+      return `enabled ${limites((combien) => `for ${usages(combien)}`) || "with no deadline"}`;
     case "grant.extended":
-      return `prolongé : ${limites((combien) => `${compte(combien, "usage")} de plus`) || "échéance levée"}`;
+      return `extended: ${limites((combien) => `${usages(combien)} more`) || "deadline lifted"}`;
     case "grant.expired":
-      return `éteint seul : ${direExtinction(cause === "uses" ? "uses" : "until")}${typeof since === "string" ? ` (depuis le ${since})` : ""}`;
+      return `lapsed: ${direExtinctionEn(cause === "uses" ? "uses" : "until")}${typeof since === "string" ? ` (since ${since})` : ""}`;
     case "grant.refused":
-      return "refusé : aucun grant ne l'autorise";
+      return "refused: no grant allows it";
     default:
-      return "révoqué";
+      return "revoked";
   }
 }
 
