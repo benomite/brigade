@@ -31,7 +31,7 @@ dans le second ; allumer ouvre sa confirmation dessous, qui dit son prix en une 
 réel d'issues (`it will judge the 23 open issues`, ou `it will judge 21 of the 23 open issues — 2 carry
 blocked-on-human`), ce qu'il engage au survol. Éteint, **la tête du rail est marquée à l'arrêt** — une
 barre hachurée, `manager off — nothing new comes in` — : ce qui est déjà sur le rail continue, rien de
-neuf n'y entre. La ligne `manager` de la box (`ÉTEINT since … (by chef) — …`) n'est plus qu'au survol
+neuf n'y entre. La ligne `manager` de la box (`OFF since … (by chef) — …`) n'est plus qu'au survol
 de l'interrupteur, et en entier dans l'onglet Manager. Pas encore lu, ou pas lu, l'interrupteur ne dit
 ni l'un ni l'autre (`manager …`) et ne bascule rien ; une lecture qui échoue fait sa ligne « non
 vérifié » dans la bande. Sur la barre, la case d'un projet au manager éteint garde son signal.
@@ -1074,10 +1074,10 @@ d'autre :
 
 | Ce qui se lit | D'où ça vient |
 |---|---|
-| **`ALLUMÉ`** (pastille verte) ou **`ÉTEINT`** (grise), puis `depuis le <date> · par <qui>` | la ligne `manager` de la sortie. La date est celle de la dernière bascule, à l'heure de ton poste ; `par` est celui qui l'a faite. Un manager **jamais allumé** n'a ni l'une ni l'autre : la ligne dit `jamais allumé` |
-| ce que le runtime en dit ensuite | la fin de la même ligne, mot pour mot (``il juge les issues ouvertes, pose `fire` et le calibrage``) |
-| **dernières décisions**, la plus récente d'abord | les lignes sous `dernières décisions` — quinze au plus, c'est le runtime qui borne : l'issue, l'instant, et ce qu'il en a fait, mot pour mot (`sur le rail, haiku / low (posé : fire, effort:low) — …`, `refusée (une épique) — …`) |
-| **écartées**, chacune avec son motif | les lignes sous `écartées` — dix au plus : l'issue, l'instant, **le motif**, et dessous ce que le runtime dit de ce qui la rend au manager (``pour la lui rendre : retire `blocked-on-human` : …``, ou `rien ne la rend au manager`) |
+| **`ON`** (pastille verte) ou **`OFF`** (grise), puis `since <date> · by <qui>` | la ligne `manager` de la sortie. La date est celle de la dernière bascule, à l'heure de ton poste ; `par` est celui qui l'a faite. Un manager **jamais allumé** n'a ni l'une ni l'autre : la ligne dit `never turned on`. L'app lit aussi la ligne d'avant #951 (`ALLUMÉ` / `ÉTEINT`, `depuis le … (par …)`) : une box pas encore à jour se lit sans rien changer |
+| ce que le runtime en dit ensuite | la fin de la même ligne, mot pour mot (``it judges the open issues, sets `fire` and the calibration``) |
+| **dernières décisions**, la plus récente d'abord | les lignes sous `latest decisions` (ou `dernières décisions`, d'avant) — quinze au plus, c'est le runtime qui borne : l'issue, l'instant, et ce qu'il en a fait, mot pour mot (`on the rail, haiku / low (set: fire, effort:low) — …`, `refused (an epic) — …`) |
+| **écartées**, chacune avec son motif | les lignes sous `set aside` (ou `écartées`, d'avant) — dix au plus : l'issue, l'instant, **le motif**, et dessous ce que le runtime dit de ce qui la rend au manager (``to return it to the manager: remove `blocked-on-human`: …``, ou `nothing returns it to the manager`) |
 
 - **L'app n'y devine rien.** Une lecture ratée, ou une sortie sans ligne `manager` (un runtime
   d'avant le manager), ne dit **ni allumé ni éteint** : `l'état du manager n'a pas été lu : … Ce

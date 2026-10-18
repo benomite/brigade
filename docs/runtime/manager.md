@@ -10,6 +10,8 @@ chose plutôt que de te le remonter tel quel (voir « Il réagit à un échec »
 journal). Éteint pendant un jugement, il le laisse finir mais ne pose rien : la décision se pose
 sans rejuger quand tu le rallumes.
 
+Ce que `manager` écrit — sorties, refus, erreurs — est **en anglais** (mots de `docs/glossary.md` : `ON` / `OFF`, `latest decisions`, `set aside`, `epics`, `reactions`). Les clés du JSON d'`upstream` ne changent pas, seul le texte de `dit` passe en anglais.
+
 ```bash
 npm --prefix runtime run manager                # l'interrupteur, ses quinze dernières décisions, ce qu'il a écarté, les épiques, ses réactions aux échecs
 npm --prefix runtime run manager -- on
@@ -28,7 +30,7 @@ n'est jamais jugée, **une épique qui le porte n'est jamais découpée**. Entre
 **Avant d'allumer, compte.** `manager -- backlog` dit en une ligne ce que l'allumage engage :
 
 ```
-backlog               12 issues ouvertes, dont 3 portent `blocked-on-human` — lu à l'instant sur GitHub (benomite/brigade)
+backlog               12 open issues, of which 3 carry `blocked-on-human` — read just now on GitHub (benomite/brigade)
 ```
 
 C'est **une lecture, et rien d'autre** : un `GET` sur la liste des issues ouvertes du dépôt — celle
@@ -51,7 +53,7 @@ les liste toutes, pour un programme — l'app en tire le nombre « N upcoming »
 (`docs/app.md`, « Ce qui n'est pas encore sur le rail ») :
 
 ```json
-{"lu":"2026-10-15T09:12:03.000Z","depot":"benomite/brigade","issues":[{"ticket":16,"titre":"…","url":"https://github.com/benomite/brigade/issues/16","priorite":1,"etat":"epique","dit":"elle porte `epic` : pas encore découpée"}]}
+{"lu":"2026-10-15T09:12:03.000Z","depot":"benomite/brigade","issues":[{"ticket":16,"titre":"…","url":"https://github.com/benomite/brigade/issues/16","priorite":1,"etat":"epique","dit":"it carries `epic`: not split yet"}]}
 ```
 
 Un seul objet JSON, sur une ligne. `lu` : l'heure de la lecture, à l'horloge de la box. `issues` :
@@ -67,7 +69,7 @@ lit : `prio:1` d'abord, sans `prio:` en dernier, la plus ancienne d'abord à pri
 | `en-route` | va entrer sur le rail : elle porte `fire`, le manager l'y a mise sans que `fire` y soit encore, ou elle est née d'un découpage | ses labels, le journal |
 | `sortie` | a quitté le rail sans être servie (`fire` retiré, `hors-cuisine` posé), et rien ne s'est décidé d'elle depuis | le journal |
 | `servie` | a été servie, et son issue est encore ouverte | le journal |
-| `decoupee` | est une épique découpée : ses tickets portent le travail — `dit` dit combien sont servis, et nomme ceux qui ne le seront pas sans le chef (« #876 fermé sans livraison », « #877 sorti du rail »). Une épique dont **tous** les tickets sont servis n'est plus listée : le manager la ferme lui-même, avec un commentaire qui liste ses tickets et leurs PR (une fois ; une épique que le chef a déjà fermée n'est pas commentée). Une épique avec un ticket manquant reste ouverte | les découpages |
+| `decoupee` | est une épique découpée : ses tickets portent le travail — `dit` dit combien sont servis, et nomme ceux qui ne le seront pas sans le chef (« #876 closed without delivery », « #877 left the rail (…) »). Une épique dont **tous** les tickets sont servis n'est plus listée : le manager la ferme lui-même, avec un commentaire qui liste ses tickets et leurs PR (une fois ; une épique que le chef a déjà fermée n'est pas commentée). Une épique avec un ticket manquant reste ouverte | les découpages |
 | `epique` | est une épique pas encore découpée — jugée telle, ou qui porte `epic` —, ou dont le découpage est en cours | le journal, ses labels |
 | `ecartee` | a été écartée par le manager — refusée, ou retenue par un label —, avec sa raison en une ligne | les décisions du manager |
 | `non-lue` | n'a pas encore été jugée, ou lui a été rendue et n'a pas été rejugée | le journal |
@@ -121,7 +123,7 @@ forme (« cinq lignes », « sans préambule »), le ticket part au moins en `so
 
 ### Lui rendre la main
 
-**Chaque écart a son geste, et `run manager` le dit** (section « écartées », les dix plus récentes).
+**Chaque écart a son geste, et `run manager` le dit** (section `set aside`, les dix plus récentes).
 
 | Écartée parce que… | Ce qui la rend au manager |
 |---|---|
