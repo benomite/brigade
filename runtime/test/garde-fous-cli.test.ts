@@ -1,5 +1,5 @@
 // La commande par laquelle le chef voit et commande les garde-fous :
-// `npm run garde-fous -- [stop | reprendre]`. Elle se joue dans le process du
+// `npm run guardrails -- [stop | resume]`. Elle se joue dans le process du
 // test ; depuis le sien, là où c'est lui qu'on regarde — un `stop` qui arrête
 // les cooks d'un runtime qui tourne ailleurs, un refus rendu par son code.
 import assert from "node:assert/strict";
@@ -10,6 +10,7 @@ import { brancherGardeFous, type Reglages } from "../src/garde-fous.ts";
 import { principal as gardeFous } from "../src/garde-fous-cli.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { demarrer } from "../src/runtime.ts";
+import { sansMotFrancais } from "./aides/glossaire.ts";
 import { appeler, ENV_ENFANT, FAUX_CLAUDE, horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/garde-fous-cli.ts");
@@ -46,11 +47,11 @@ test("sans argument, le chef voit les plafonds, la cuisine ouverte, le disjoncte
   const { code, sortie } = await commande();
 
   assert.equal(code, 0);
-  assert.match(sortie, /plafonds par ticket\s+100\s000 tours · 60 min · 2\s000\s000 tokens · inactivité 10 min/);
-  assert.match(sortie, /cuisine\s+ouverte/);
-  assert.match(sortie, /disjoncteur\s+fermé — 0 échec d'affilée, ouverture à 3/);
-  assert.match(sortie, /cooks en cours\s+aucun/);
-  assert.match(sortie, /derniers arrêts par garde-fou\s+aucun/);
+  assert.match(sortie, /caps per ticket\s+100,000 turns · 60 min · 2,000,000 tokens · idle 10 min/);
+  assert.match(sortie, /kitchen\s+open/);
+  assert.match(sortie, /breaker\s+closed — 0 failure in a row, opens at 3/);
+  assert.match(sortie, /cooks running\s+none/);
+  assert.match(sortie, /latest guardrail stops\s+none/);
 });
 
 test("voir ne modifie pas le journal", async (t) => {
@@ -68,7 +69,7 @@ test("le chef voit les cooks en cours, avec leur ticket et leur run", async (t) 
 
   const { sortie } = await commande();
 
-  assert.match(sortie, new RegExp(`cooks en cours\\s+1\\n\\s+#7\\s+${lance.run}\\s+lancé le ${JOUR_HORLOGE}T`));
+  assert.match(sortie, new RegExp(`cooks running\\s+1\\n\\s+#7\\s+${lance.run}\\s+launched ${JOUR_HORLOGE}T`));
 });
 
 test("un jugement du manager en cours se lit comme tel : il ne tient aucun ticket", async (t) => {
@@ -77,7 +78,7 @@ test("un jugement du manager en cours se lit comme tel : il ne tient aucun ticke
 
   const { sortie } = await commande();
 
-  assert.match(sortie, new RegExp(`cooks en cours\\s+1\\n\\s+manager\\s+${lance.run}\\s+lancé le`));
+  assert.match(sortie, new RegExp(`cooks running\\s+1\\n\\s+manager\\s+${lance.run}\\s+launched `));
 });
 
 test("un jugement du manager arrêté par un garde-fou se lit comme tel dans les derniers arrêts", async (t) => {
@@ -87,7 +88,7 @@ test("un jugement du manager arrêté par un garde-fou se lit comme tel dans les
 
   const { sortie } = await commande();
 
-  assert.match(sortie, /derniers arrêts par garde-fou\s*\n\s+\S+\s+manager\s+juge-30-abcd/);
+  assert.match(sortie, /latest guardrail stops\s*\n\s+\S+\s+manager\s+juge-30-abcd/);
   assert.doesNotMatch(sortie, /#null/);
 });
 
@@ -99,16 +100,16 @@ test("« stop » arrête tous les cooks en cours, au nom du chef, et le chef le 
   assert.equal(stop.code, 0);
   const fins = await Promise.all([premier.fin, second.fin]);
 
-  assert.match(stop.sortie, /cuisine arrêtée/);
+  assert.match(stop.sortie, /kitchen stopped/);
   assert.deepEqual(fins.map((fin) => fin.outcome), ["stop", "stop"]);
   assert.deepEqual(commandes().map((e) => [e.type, e.author, e.project, e.ticket]), [["kitchen.stopped", "chef", "brigade", null]]);
   assert.throws(() => cook(9, "fini"), /cuisine arrêtée/);
 
   const { sortie } = await lancee();
-  assert.match(sortie, /cuisine\s+ARRÊTÉE par le chef le \d{4}-\d{2}-\d{2}T.* — « resume » pour relancer/);
-  assert.match(sortie, /cooks en cours\s+aucun/);
-  assert.match(sortie, new RegExp(`#7\\s+${premier.run}\\s+« stop » du chef`));
-  assert.match(sortie, new RegExp(`#8\\s+${second.run}\\s+« stop » du chef`));
+  assert.match(sortie, /kitchen\s+STOPPED by the chef on \d{4}-\d{2}-\d{2}T.* — `resume` to restart/);
+  assert.match(sortie, /cooks running\s+none/);
+  assert.match(sortie, new RegExp(`#7\\s+${premier.run}\\s+the chef's \`stop\``));
+  assert.match(sortie, new RegExp(`#8\\s+${second.run}\\s+the chef's \`stop\``));
   assert.equal(runtime.journal.duTicket(7).at(-1)?.type, "cook.exited");
 });
 
@@ -118,12 +119,12 @@ test("« stop » deux fois ne s'écrit qu'une fois ; « resume » rouvre la cuis
   const encore = await commande("stop");
 
   assert.equal(encore.code, 0);
-  assert.match(encore.sortie, /déjà arrêtée/);
+  assert.match(encore.sortie, /already stopped/);
 
   const reprise = await commande("resume");
 
   assert.equal(reprise.code, 0);
-  assert.match(reprise.sortie, /cuisine rouverte/);
+  assert.match(reprise.sortie, /kitchen reopened/);
   assert.deepEqual(commandes().map((e) => [e.type, e.author]), [["kitchen.stopped", "chef"], ["kitchen.resumed", "chef"]]);
   assert.equal((await cook(7, "fini").fin).outcome, "ok");
 });
@@ -141,7 +142,7 @@ test("« resume » rétablit une station dont la connexion Max avait expiré", a
   const { code, sortie } = await commande("resume");
 
   assert.equal(code, 0);
-  assert.match(sortie, /connexion Max tenue pour rétablie/);
+  assert.match(sortie, /Max connection taken as restored/);
   assert.deepEqual(commandes().map((e) => e.type), ["kitchen.resumed"]);
 });
 
@@ -151,7 +152,7 @@ test("« resume » quand rien n'est arrêté ne s'écrit pas", async (t) => {
   const { code, sortie } = await commande("resume");
 
   assert.equal(code, 0);
-  assert.match(sortie, /rien à reprendre/);
+  assert.match(sortie, /nothing to resume/);
   assert.deepEqual(commandes(), []);
 });
 
@@ -163,12 +164,12 @@ test("le chef voit le disjoncteur ouvert et pourquoi chaque ticket s'est arrêt�
 
   const { sortie } = await commande();
 
-  assert.match(sortie, new RegExp(`disjoncteur\\s+OUVERT depuis le ${JOUR_HORLOGE}T.* après 2 échecs d'affilée — plus aucun cook n'est lancé ; « resume » pour le refermer`));
-  assert.match(sortie, new RegExp(`#7\\s+${tours.run}\\s+plafond de tours dépassé : 4 pour 3`));
+  assert.match(sortie, new RegExp(`breaker\\s+OPEN since ${JOUR_HORLOGE}T.* after 2 failures in a row — no more cooks are launched; \`resume\` to close it`));
+  assert.match(sortie, new RegExp(`#7\\s+${tours.run}\\s+turns cap exceeded: 4 for 3`));
   assert.throws(() => cook(9, "fini"), /disjoncteur/);
 
-  assert.match((await commande("resume")).sortie, /disjoncteur refermé/);
-  assert.match((await commande()).sortie, /disjoncteur\s+fermé — 0 échec/);
+  assert.match((await commande("resume")).sortie, /breaker closed/);
+  assert.match((await commande()).sortie, /breaker\s+closed — 0 failure/);
 });
 
 test("un arrêt pour inactivité se lit avec sa durée", async (t) => {
@@ -177,9 +178,9 @@ test("un arrêt pour inactivité se lit avec sa durée", async (t) => {
 
   const { sortie } = await commande();
 
-  assert.match(sortie, /plafonds par ticket.*inactivité 0,1 s/);
+  assert.match(sortie, /caps per ticket.*idle 0\.1 s/);
   // La durée relevée est celle d'un vrai minuteur : sur une machine chargée, il sonne en retard.
-  assert.match(sortie, /#7\s+\S+\s+inactif : rien produit depuis \d+,\d s \(seuil 0,1 s\)/);
+  assert.match(sortie, /#7\s+\S+\s+idle: nothing produced for \d+\.\d s \(threshold 0\.1 s\)/);
 });
 
 test("« stop » sans runtime qui tourne tient quand même, et le dit", async (t) => {
@@ -189,7 +190,7 @@ test("« stop » sans runtime qui tourne tient quand même, et le dit", async (t
   const cli = appeler(gardeFous, ["stop"], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await cli.fin, 0);
-  assert.match(cli.sortie(), /aucun runtime ne tourne/);
+  assert.match(cli.sortie(), /no runtime is running/);
   const runtime = brancherGardeFous(REGLAGES, demarrer({ repertoireEtat: repertoire, projet: "brigade" }));
   t.after(() => runtime.arreter("test"));
   assert.throws(() => runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [] }), /cuisine arrêtée/);
@@ -201,7 +202,7 @@ test("sans journal dans le répertoire d'état, la commande échoue, le dit, et 
   for (const args of [[], ["stop"]]) {
     const cli = appeler(gardeFous, args, { BRIGADE_STATE_DIR: repertoire });
     assert.equal(await cli.fin, 1);
-    assert.match(cli.sortie(), /aucun journal/);
+    assert.match(cli.sortie(), /no log/);
   }
   assert.equal(existsSync(join(repertoire, "log.db")), false);
 });
@@ -213,7 +214,7 @@ test("devant un journal d'avant les garde-fous, la commande dit de redémarrer l
   const cli = appeler(gardeFous, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await cli.fin, 1);
-  assert.match(cli.sortie(), /redémarrer le runtime/);
+  assert.match(cli.sortie(), /restart the runtime/);
   assert.doesNotMatch(cli.sortie(), /at .*\.ts/);
 });
 
@@ -230,6 +231,58 @@ test("une commande inconnue est refusée avec l'usage, sans rien écrire", async
   const { code, sortie } = await commande("arrete");
 
   assert.equal(code, 2);
-  assert.match(sortie, /usage/);
+  assert.match(sortie, /usage:/);
   assert.deepEqual(commandes(), []);
+});
+
+test("`stop`, `resume`, l'état et chacun de leurs refus ne portent aucun mot français du glossaire", async (t) => {
+  const { cook, commande } = cuisine(t, { seuilDisjoncteur: 2, plafonds: { ...REGLAGES.plafonds, turns: 3 } });
+  const lignes = async (...args: string[]) => (await commande(...args)).sortie.trimEnd().split("\n");
+
+  sansMotFrancais(await lignes("resume"));
+  const tours = cook(7, "bavard");
+  await tours.fin;
+  await cook(8, "echec").fin;
+  // Le disjoncteur ouvert et les arrêts par plafond, puis `resume`, qui le referme.
+  sansMotFrancais(await lignes());
+  sansMotFrancais(await lignes("resume"));
+  const stop = await lignes("stop");
+  assert.match(stop.join("\n"), /kitchen stopped/);
+  sansMotFrancais(stop);
+  sansMotFrancais(await lignes());
+  sansMotFrancais(await lignes("stop"));
+  sansMotFrancais(await lignes("resume"));
+
+  for (const args of [["arrete"], ["stop", "resume"]]) {
+    const refus = await commande(...args);
+    assert.equal(refus.code, 2);
+    sansMotFrancais(refus.sortie.trimEnd().split("\n"));
+  }
+});
+
+test("les refus de la commande, sans état, sans journal ou devant un journal d'avant, ne portent aucun mot français", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const sansEtat = await appeler(gardeFous, ["stop"], {});
+  assert.equal(await sansEtat.fin, 2);
+  sansMotFrancais(sansEtat.sortie().trimEnd().split("\n"));
+  const sansJournal = appeler(gardeFous, [], { BRIGADE_STATE_DIR: repertoire });
+  assert.equal(await sansJournal.fin, 1);
+  sansMotFrancais(sansJournal.sortie().trimEnd().split("\n"));
+  ouvrirJournal(repertoire, { projections: [] }).fermer();
+  const ancien = appeler(gardeFous, [], { BRIGADE_STATE_DIR: repertoire });
+  assert.equal(await ancien.fin, 1);
+  sansMotFrancais(ancien.sortie().trimEnd().split("\n"));
+});
+
+test("un arrêt posé avant le ticket est toujours montré, et `resume` le lève, sans rien éditer à la main", async (t) => {
+  const { runtime, commande } = cuisine(t);
+  // L'événement tel qu'une version d'avant l'écrivait : rien n'y est de la langue de la commande.
+  runtime.journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: "kitchen.stopped", payload: {} });
+
+  const montre = await commande();
+  assert.match(montre.sortie, /^kitchen\s+STOPPED by the chef on /m);
+  assert.throws(() => runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [] }), /cuisine arrêtée/);
+
+  assert.match((await commande("resume")).sortie, /kitchen reopened/);
+  assert.match((await commande()).sortie, /^kitchen\s+open$/m);
 });

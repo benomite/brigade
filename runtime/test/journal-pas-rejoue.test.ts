@@ -16,7 +16,7 @@ for (const commande of ["status", "montrer-rail", "garde-fous-cli", "montrer-sta
     const enfant = lancer(t, join(SRC, `${commande}.ts`), [], { BRIGADE_STATE_DIR: repertoire });
 
     assert.equal(await enfant.fin, 1);
-    assert.match(enfant.sortie(), commande === "montrer-rail" || commande === "montrer-pass" ? /restart the runtime/ : /redémarrer le runtime/);
+    assert.match(enfant.sortie(), commande === "montrer-rail" || commande === "montrer-pass" || commande === "garde-fous-cli" ? /restart the runtime/ : /redémarrer le runtime/);
     assert.doesNotMatch(enfant.sortie(), /at .*\.ts/);
   });
 }

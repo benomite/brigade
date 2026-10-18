@@ -1,6 +1,6 @@
 // Les commandes par lesquelles le chef voit la pass, tient son grant et fait
 // rejouer la base : `npm run grant -- [activer merge | revoquer merge]`,
-// `npm run pass -- [<ticket>]` et `npm run base -- [rejouer]`. Elles se jouent
+// `npm run pass -- [<ticket>]` et `npm run base -- [replay]`. Elles se jouent
 // dans le process du test ; chacune depuis le sien, là où c'est lui qu'on
 // regarde — un grant ou un rejeu posés pendant que le runtime tourne, une
 // lecture de la pass, un refus rendu par son code.
@@ -550,26 +550,26 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
 
     const vue = await lancee(BASE);
     assert.equal(vue.code, 0);
-    assert.match(vue.sortie, new RegExp(`^BASE ROUGE depuis ${JOUR_HORLOGE}T\\S+ \\(ba5e000\\) — après le merge de #17 : rien n'est jugé ni mergé, les livraisons attendent$`, "m"));
-    assert.match(vue.sortie, /^ {2}la station ne prend plus de ticket tant qu'elle l'est$/m);
-    assert.match(vue.sortie, /^ {2}rejouer ses gates sans attendre un commit : brigade <projet> base replay$/m);
+    assert.match(vue.sortie, new RegExp(`^BASE RED since ${JOUR_HORLOGE}T\\S+ \\(ba5e000\\) — after the merge of #17: nothing is judged or merged, deliveries wait$`, "m"));
+    assert.match(vue.sortie, /^ {2}the station takes no more tickets while it is red$/m);
+    assert.match(vue.sortie, /^ {2}replay its gates without waiting for a commit: brigade <projet> base replay$/m);
     assert.deepEqual(demandes(), []);
 
-    const { code, sortie } = await lancee(BASE, "rejouer");
+    const { code, sortie } = await lancee(BASE, "replay");
     assert.equal(code, 0);
-    assert.match(sortie, /rejeu demandé : la pass rejoue les gates de la base sur sa tête actuelle, sans attendre un commit — vertes, la retenue tombe ; rouges, elle reste/);
-    assert.doesNotMatch(sortie, /aucun runtime ne tourne/);
+    assert.match(sortie, /replay asked: the pass replays the base's gates on its current head, without waiting for a commit — green, the hold lifts; red, it stays/);
+    assert.doesNotMatch(sortie, /no runtime is running/);
     assert.deepEqual(demandes().map((e) => [e.author, e.ticket, e.payload]), [["chef", null, {}]]);
 
-    assert.match((await lancee(BASE, "rejouer")).sortie, /rejeu déjà demandé le \S+ : la pass le joue à son prochain passage/);
+    assert.match((await lancee(BASE, "replay")).sortie, /replay already asked on \S+: the pass plays it on its next round/);
     assert.equal(demandes().length, 1);
-    assert.match((await lancee(BASE)).sortie, /^ {2}rejeu demandé par le chef depuis \S+ : la pass le joue à son prochain passage$/m);
+    assert.match((await lancee(BASE)).sortie, /^ {2}replay asked by the chef since \S+: the pass plays it on its next round$/m);
 
     // La machine le retient : c'est dit, à qui regarde comme à qui redemande.
     noter({ type: "base.recheck-held", payload: { resource: "cpu", observed: 64, limit: 12 } }, null);
-    const retenu = new RegExp(`la machine saturée le retient depuis ${JOUR_HORLOGE}T\\S+, la pass y revient seule`);
+    const retenu = new RegExp(`the saturated machine has held it since ${JOUR_HORLOGE}T\\S+, the pass comes back to it on its own`);
     assert.match((await lancee(BASE)).sortie, retenu);
-    assert.match((await lancee(BASE, "rejouer")).sortie, retenu);
+    assert.match((await lancee(BASE, "replay")).sortie, retenu);
     assert.match((await lancee(PASS)).sortie, new RegExp(`the saturated machine has held it since ${JOUR_HORLOGE}T\\S+, the pass comes back to it on its own`));
     assert.equal(demandes().length, 1);
   });
@@ -577,29 +577,29 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   test("un contrôle que le rapatriement retient se lit dans `run base` et `run pass` : retenu, pourquoi, depuis quand — sur des merges à vérifier comme sur un rejeu demandé", async (t) => {
     const { commande, noter } = cuisine(t);
     const retenir = () => noter({ type: "base.check-held", payload: { reason: "git fetch : fatal: origine injoignable" } }, null);
-    const RETENU = `contrôle retenu depuis ${JOUR_HORLOGE}T\\S+ : la base ne se rapatrie pas \\(git fetch : fatal: origine injoignable\\) — la pass y revient seule, à chaque tick`;
+    const RETENU = `check held since ${JOUR_HORLOGE}T\\S+: the base cannot be fetched \\(git fetch : fatal: origine injoignable\\) — the pass comes back to it on its own, at every tick`;
     const RETENU_EN = `check held since ${JOUR_HORLOGE}T\\S+: the base cannot be fetched \\(git fetch : fatal: origine injoignable\\) — the pass comes back to it on its own, at every tick`;
 
     // Jamais contrôlée, un merge à vérifier, et l'origine qui ne répond pas.
     noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0c", by: "outside", reconciled: false, unverified: true } }, 19);
     retenir();
-    assert.match((await commande(BASE)).sortie, new RegExp(`^base jamais contrôlée\\n {2}${RETENU}$`, "m"));
+    assert.match((await commande(BASE)).sortie, new RegExp(`^base never checked\\n {2}${RETENU}$`, "m"));
     assert.match((await commande(PASS)).sortie, new RegExp(`^base to check — after the merge of #19: its gates are to be played on itself\\n {2}${RETENU_EN}$`, "m"));
 
     // Rouge : la retenue se lit sous le rouge, avec le geste.
     noter({ type: "base.check-resumed", payload: {} }, null);
     noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: ROUGES, tickets: [19] } }, null);
     retenir();
-    assert.match((await commande(BASE)).sortie, new RegExp(`^ {2}${RETENU}\\n {2}rejouer ses gates sans attendre un commit : `, "m"));
+    assert.match((await commande(BASE)).sortie, new RegExp(`^ {2}${RETENU}\\n {2}replay its gates without waiting for a commit: `, "m"));
     assert.match((await commande(PASS)).sortie, new RegExp(`^ {2}${RETENU_EN}\\n {2}replay its gates without waiting for a commit: `, "m"));
 
     // Le rejeu demandé bute à son tour : il n'est pas annoncé comme imminent, ni à qui regarde ni à qui redemande.
-    assert.match((await commande(BASE, "rejouer")).sortie, /rejeu demandé : .*Si la machine sature ou si la base ne se rapatrie pas, il attend/);
+    assert.match((await commande(BASE, "replay")).sortie, /replay asked: .*If the machine saturates or the base cannot be fetched, it waits/);
     retenir();
-    const attend = new RegExp(`la base ne se rapatrie pas depuis ${JOUR_HORLOGE}T\\S+ \\(git fetch : fatal: origine injoignable\\), la pass y revient seule`);
-    for (const sortie of [(await commande(BASE)).sortie, (await commande(BASE, "rejouer")).sortie]) {
+    const attend = new RegExp(`the base cannot be fetched since ${JOUR_HORLOGE}T\\S+ \\(git fetch : fatal: origine injoignable\\), the pass comes back to it on its own`);
+    for (const sortie of [(await commande(BASE)).sortie, (await commande(BASE, "replay")).sortie]) {
       assert.match(sortie, attend);
-      assert.doesNotMatch(sortie, /prochain passage/);
+      assert.doesNotMatch(sortie, /next round/);
     }
     const attendEn = (new RegExp(`the base cannot be fetched since ${JOUR_HORLOGE}T\\S+ \\(git fetch : fatal: origine injoignable\\), the pass comes back to it on its own`));
     assert.match((await commande(PASS)).sortie, attendEn);
@@ -610,23 +610,23 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     const { commande, noter, journal } = cuisine(t);
     const ecrits = () => journal.tout().filter((e) => e.type === "base.recheck-requested").length;
 
-    assert.match((await commande(BASE)).sortie, /^base jamais contrôlée : aucun merge n'a encore eu à être vérifié sur elle$/m);
-    assert.match((await commande(BASE, "rejouer")).sortie, /rien à rejouer : la base n'est pas rouge/);
+    assert.match((await commande(BASE)).sortie, /^base never checked: no merge has had to be verified on it yet$/m);
+    assert.match((await commande(BASE, "replay")).sortie, /nothing to replay: the base is not red/);
 
     noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "green", gates: VERTES, tickets: [] } }, null);
-    assert.match((await commande(BASE)).sortie, new RegExp(`^base verte au dernier contrôle, le ${JOUR_HORLOGE}T\\S+ \\(ba5e000\\)$`, "m"));
-    assert.match((await commande(BASE, "rejouer")).sortie, /rien à rejouer : la base n'est pas rouge/);
+    assert.match((await commande(BASE)).sortie, new RegExp(`^base green at the last check, on ${JOUR_HORLOGE}T\\S+ \\(ba5e000\\)$`, "m"));
+    assert.match((await commande(BASE, "replay")).sortie, /nothing to replay: the base is not red/);
 
     noter({ type: "base.checked", payload: { sha: "ba5e0005ffff", outcome: "skipped", gates: NON_JOUEES, tickets: [] } }, null);
-    assert.match((await commande(BASE)).sortie, new RegExp(`^base non contrôlée : ses gates n'ont pas pu être jouées le ${JOUR_HORLOGE}T\\S+ \\(ba5e000\\) — rien n'est retenu$`, "m"));
+    assert.match((await commande(BASE)).sortie, new RegExp(`^base not checked: its gates could not be played on ${JOUR_HORLOGE}T\\S+ \\(ba5e000\\) — nothing is held$`, "m"));
     noter({ type: "base.checked", payload: { sha: "ba5e0006ffff", outcome: "skipped", gates: NON_JOUEES, tickets: [], reason: "git worktree : fatal: disque plein" } }, null);
-    assert.match((await commande(BASE)).sortie, /^base non contrôlée : ses gates n'ont pas pu être jouées le \S+ \(ba5e000\), l'essai ne s'est pas fait \(git worktree : fatal: disque plein\) — rien n'est retenu$/m);
+    assert.match((await commande(BASE)).sortie, /^base not checked: its gates could not be played on \S+ \(ba5e000\), the attempt did not run \(git worktree : fatal: disque plein\) — nothing is held$/m);
     assert.equal(ecrits(), 0);
 
-    for (const args of [["rejouer", "vite"], ["relancer"]]) {
+    for (const args of [["replay", "fast"], ["rerun"]]) {
       const { code, sortie } = await commande(BASE, ...args);
       assert.equal(code, 2);
-      assert.match(sortie, /usage : /);
+      assert.match(sortie, /usage: /);
     }
     assert.equal(ecrits(), 0);
   });
@@ -636,7 +636,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: ROUGES, tickets: [] } }, null);
     runtime.arreter("test");
 
-    assert.match((await commande(BASE, "rejouer")).sortie, /rejeu demandé[\s\S]*aucun runtime ne tourne : la commande vaudra à son prochain démarrage/);
+    assert.match((await commande(BASE, "replay")).sortie, /replay asked[\s\S]*no runtime is running: the command will apply at its next start/);
   });
 
   test("un contrôle non joué sur une base rouge se lit : la base reste rouge, et le chef voit sur quel commit rien n'a pu être vérifié", async (t) => {
@@ -648,7 +648,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     assert.match(liste, /^BASE RED since \S+ \(ba5e000\) — after the merge of #17: /m);
     assert.match(liste, new RegExp(`^ {2}gates not played on c0ffee0 since ${JOUR_HORLOGE}T\\S+: a check that was not played does not lift a red that was found$`, "m"));
     assert.match(liste, /^ {2}replay its gates without waiting for a commit: brigade <projet> base replay$/m);
-    assert.match((await commande(BASE)).sortie, /gates non jouées sur c0ffee0/);
+    assert.match((await commande(BASE)).sortie, /gates not played on c0ffee0/);
 
     const { sortie } = await commande(PASS, "17");
     assert.match(sortie, /gates played on the base alone \(c0ffee0\): not played — the base stays RED, a check that was not played does not lift the red found on ba5e000$/m);
@@ -661,9 +661,9 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "skipped", gates: NON_JOUEES, tickets: [17], red: "ba5e0004ffff", reason: "git worktree : fatal: disque plein" } }, null);
 
     const base = (await commande(BASE)).sortie;
-    assert.match(base, new RegExp(`^ {2}gates non jouées sur ba5e000 depuis ${JOUR_HORLOGE}T\\S+, l'essai ne s'est pas fait \\(git worktree : fatal: disque plein\\) : un contrôle non joué ne lève pas un rouge constaté$`, "m"));
-    assert.match(base, /^ {2}rejouer ses gates sans attendre un commit : brigade <projet> base replay$/m);
-    assert.doesNotMatch(base, /prochain passage/);
+    assert.match(base, new RegExp(`^ {2}gates not played on ba5e000 since ${JOUR_HORLOGE}T\\S+, the attempt did not run \\(git worktree : fatal: disque plein\\): a check that was not played does not lift a red that was found$`, "m"));
+    assert.match(base, /^ {2}replay its gates without waiting for a commit: brigade <projet> base replay$/m);
+    assert.doesNotMatch(base, /next round/);
     const pass = (await commande(PASS)).sortie;
     assert.match(pass, new RegExp(`^ {2}gates not played on ba5e000 since ${JOUR_HORLOGE}T\\S+, the attempt did not run \\(git worktree : fatal: disque plein\\): a check that was not played does not lift a red that was found$`, "m"));
     assert.match(pass, /^ {2}replay its gates without waiting for a commit: brigade <projet> base replay$/m);
