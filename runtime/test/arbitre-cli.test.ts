@@ -1,11 +1,12 @@
 // L'arbitre entre projets dans son propre process (`tenir-arbitre`), et la
-// commande par laquelle le chef le lit et le règle (`npm run arbitre`).
+// commande par laquelle le chef le lit et le règle (`npm run arbiter`).
 import assert from "node:assert/strict";
 import { createServer } from "node:net";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { ouvrirArbitre, ouvrirReglages, servirArbitre, type Mot } from "../src/arbitre.ts";
 import { joindreArbitre } from "../src/arbitrage.ts";
+import { sansMotFrancais } from "./aides/glossaire.ts";
 import { horloge, lancer, lancerSurPortPose, repertoireTemporaire, SANS_RESEAU } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/arbitre-cli.ts");
@@ -34,12 +35,12 @@ test("le chef voit, par projet, ce qui tourne, ce que l'arbitre autorise encore,
 
   const { code, sortie } = await commande();
   assert.equal(code, 0);
-  assert.match(sortie, new RegExp(String.raw`^arbitre\s+127\.0\.0\.1:${serveur.port} — démarré le 2026-10-09T08:00:00\.000Z$`, "m"));
-  assert.match(sortie, /^plafond du compte\s+10 cooks — 7 en cours, tous projets entendus$/m);
-  assert.match(sortie, /^machine\s+aucun projet ne s'en dit retenu$/m);
-  assert.match(sortie, /^  brigade {2,}poids 1 · 2 en cours · part 5 · encore 3 · rien n'attend · consommation des cooks : 300 tokens sur 24 h, 300 sur 7 jours$/m);
-  assert.match(sortie, /^  thermigo {2}poids 1 · 5 en cours \(dont 1 parti sans arbitre\) · part 5 · encore 3 · des tickets attendent · consommation des cooks : 1\s200 tokens sur 24 h, 9\s000 sur 7 jours$/m);
-  assert.match(sortie, /^consommation des cooks\s+1\s500 tokens sur 24 h, 9\s300 sur 7 jours — celle des cooks de tickets que les runtimes redisent, pas celle du compte$/m);
+  assert.match(sortie, new RegExp(String.raw`^arbiter\s+127\.0\.0\.1:${serveur.port} — started 2026-10-09T08:00:00\.000Z$`, "m"));
+  assert.match(sortie, /^account cap\s+10 cooks — 7 running, all projects heard$/m);
+  assert.match(sortie, /^machine\s+no project says it is held by it$/m);
+  assert.match(sortie, /^  brigade {2,}weight 1 · 2 running · share 5 · 3 left · nothing queued · cooks consumed: 300 tokens in 24 h, 300 in 7 days$/m);
+  assert.match(sortie, /^  thermigo {2}weight 1 · 5 running \(of which 1 left without the arbiter\) · share 5 · 3 left · tickets are queued · cooks consumed: 1,200 tokens in 24 h, 9,000 in 7 days$/m);
+  assert.match(sortie, /^cooks consumed\s+1,500 tokens in 24 h, 9,300 in 7 days — that of the ticket cooks the runtimes report, not the account's$/m);
 });
 
 test("une machine saturée, un projet qui n'a pas reparlé, un projet parti : chacun se lit", async (t) => {
@@ -62,10 +63,10 @@ test("une machine saturée, un projet qui n'a pas reparlé, un projet parti : ch
   const cli = lancer(t, CLI, [], { BRIGADE_ARBITER_PORT: String(reservi.port) });
   assert.equal(await cli.fin, 0);
   const sortie = cli.sortie();
-  assert.match(sortie, /^machine\s+SATURÉE d'après brigade — le plafond effectif est ce qui tourne \(9\) : seul un projet sous sa part relance$/m);
-  assert.match(sortie, /^  muet {2,}poids 1 · N'A PAS REPARLÉ depuis le 2026-10-09T09:00:00\.000Z — part réservée : 3, que personne n'emprunte ; `retirer` la libère$/m);
-  assert.match(sortie, /^  parti {2,}poids 1 · absent depuis le 2026-10-09T08:00:0\d\.000Z — ne tient aucune part$/m);
-  assert.match(sortie, /^  thermigo {2}poids 1 · 9 en cours · part 3 · encore 0 /m);
+  assert.match(sortie, /^machine\s+SATURATED according to brigade — the effective cap is what is running \(9\): only a project under its share launches again$/m);
+  assert.match(sortie, /^  muet {2,}weight 1 · HAS NOT SPOKEN SINCE 2026-10-09T09:00:00\.000Z — share reserved: 3, which nobody borrows; `remove` frees it$/m);
+  assert.match(sortie, /^  parti {2,}weight 1 · absent since 2026-10-09T08:00:0\d\.000Z — holds no share$/m);
+  assert.match(sortie, /^  thermigo {2}weight 1 · 9 running · share 3 · 0 left /m);
 });
 
 test("le chef règle un poids et retire un projet : l'arbitre qui tourne le lit à sa décision suivante", async (t) => {
@@ -74,20 +75,20 @@ test("le chef règle un poids et retire un projet : l'arbitre qui tourne le lit 
   ouvert.dire("brigade", mot(0));
   const part = (nom: string) => ouvert.etat().projets.find((projet) => projet.projet === nom)?.part;
 
-  assert.deepEqual(await commande("weight", "thermigo", "3"), { code: 0, sortie: "thermigo : poids 3 (était 1) ; l'arbitre le lit à sa prochaine décision\n" });
+  assert.deepEqual(await commande("weight", "thermigo", "3"), { code: 0, sortie: "thermigo: weight 3 (was 1); the arbiter reads it at its next decision\n" });
   assert.deepEqual([part("thermigo"), part("brigade")], [6, 2]);
   assert.deepEqual(await commande("weight", "espace", "2"), {
     code: 0,
-    sortie: "espace : poids 2 — projet encore inconnu de l'arbitre : il n'aura de part qu'une fois son runtime entendu\n",
+    sortie: "espace: weight 2 — project not yet known to the arbiter: it will have a share only once its runtime has been heard\n",
   });
   assert.equal(part("espace"), null);
 
   assert.deepEqual(await commande("remove", "brigade"), {
     code: 0,
-    sortie: "brigade : retiré — sa part n'est plus réservée ; si son runtime tourne, il se réinscrit au poids 1 dès qu'il reparle\n",
+    sortie: "brigade: removed — its share is no longer reserved; if its runtime is running, it registers again at weight 1 as soon as it speaks\n",
   });
   assert.deepEqual(ouvert.etat().projets.map((projet) => projet.projet), ["espace", "thermigo"]);
-  assert.deepEqual(await commande("remove", "brigade"), { code: 1, sortie: "brigade : brigade : projet inconnu de l'arbitre\n" });
+  assert.deepEqual(await commande("remove", "brigade"), { code: 1, sortie: "brigade : brigade: project unknown to the arbiter\n" });
 });
 
 test("arbitre injoignable : la commande le dit, rappelle le mode dégradé, et montre les réglages qui restent lisibles", async (t) => {
@@ -101,10 +102,10 @@ test("arbitre injoignable : la commande le dit, rappelle le mode dégradé, et m
   const cli = lancer(t, CLI, [], { BRIGADE_ARBITER_PORT: String(serveur.port), BRIGADE_ARBITER_STATE_DIR: repertoire, NODE_OPTIONS: `--import=${SANS_RESEAU}` });
   const [code, sortie] = [await cli.fin, cli.sortie()];
   assert.equal(code, 1);
-  assert.match(sortie, new RegExp(String.raw`^arbitre\s+INJOIGNABLE — connexion refusée sur 127\.0\.0\.1:${serveur.port}$`, "m"));
-  assert.match(sortie, /chaque projet lance au plus un cook à la fois, sans arbitrage \(mode dégradé\), jusqu'à son retour/);
-  assert.match(sortie, /^projets connus\s+1$/m);
-  assert.match(sortie, /^  thermigo {2}poids 1$/m);
+  assert.match(sortie, new RegExp(String.raw`^arbiter\s+UNREACHABLE — connection refused on 127\.0\.0\.1:${serveur.port}$`, "m"));
+  assert.match(sortie, /each project launches at most one cook at a time, without arbitration \(degraded mode\), until it is back/);
+  assert.match(sortie, /^known projects\s+1$/m);
+  assert.match(sortie, /^  thermigo {2}weight 1$/m);
 });
 
 test("ce que la commande ne comprend pas est refusé sans rien écrire", async (t) => {
@@ -112,7 +113,7 @@ test("ce que la commande ne comprend pas est refusé sans rien écrire", async (
   for (const args of [["weight", "thermigo", "0"], ["weight", "Pas Un Nom", "2"], ["peser", "thermigo", "2"]]) {
     const { code, sortie } = await commande(...args);
     assert.equal(code, 2, args.join(" "));
-    assert.match(sortie, /usage : BRIGADE_ARBITER_PORT=/);
+    assert.match(sortie, /usage: BRIGADE_ARBITER_PORT=/);
   }
   const reglages = ouvrirReglages(repertoire);
   t.after(() => reglages.fermer());
@@ -122,13 +123,69 @@ test("ce que la commande ne comprend pas est refusé sans rien écrire", async (
     const cli = lancer(t, CLI, args, env);
     return { code: await cli.fin, sortie: cli.sortie() };
   };
-  assert.match((await sans({})).sortie, /BRIGADE_ARBITER_PORT n'est pas défini/);
-  assert.match((await sans({}, "weight", "thermigo", "2")).sortie, /BRIGADE_ARBITER_STATE_DIR n'est pas défini/);
+  assert.match((await sans({})).sortie, /BRIGADE_ARBITER_PORT is not set/);
+  assert.match((await sans({}, "weight", "thermigo", "2")).sortie, /BRIGADE_ARBITER_STATE_DIR is not set/);
   const vide = repertoireTemporaire(t);
   assert.deepEqual(await sans({ BRIGADE_ARBITER_STATE_DIR: vide }, "weight", "thermigo", "2"), {
     code: 1,
-    sortie: `brigade : aucun arbitre n'a tourné dans ${vide} : pas de réglages à lire\n`,
+    sortie: `brigade : no arbiter has run in ${vide}: no settings to read\n`,
   });
+});
+
+test("ce que le process de la commande écrit ne porte aucun mot français du glossaire : l'état, les réglages, les refus", async (t) => {
+  const { ouvert, repertoire, serveur, commande } = await servi(t, 8);
+  ouvert.dire("thermigo", mot(4, { nonArbitres: 1, consommation: { jour: 10, semaine: 20 } }));
+  ouvert.dire("muet", mot(1, { machine: true }));
+  ouvert.dire("parti", mot(1));
+  ouvert.quitter("parti");
+  const lignes = (sortie: string) => sortie.trimEnd().split("\n");
+
+  const etat = await commande();
+  assert.equal(etat.code, 0);
+  assert.ok(lignes(etat.sortie).length > 5);
+  sansMotFrancais(lignes(etat.sortie));
+  for (const args of [["weight", "thermigo", "3"], ["weight", "thermigo", "3"], ["weight", "atelier", "2"], ["remove", "atelier"]]) {
+    const dit = await commande(...args);
+    assert.equal(dit.code, 0, args.join(" "));
+    sansMotFrancais(lignes(dit.sortie));
+  }
+  // Les refus : un projet inconnu, un poids ou un nom illisible, une commande inconnue.
+  for (const args of [["remove", "atelier"], ["weight", "thermigo", "0"], ["weight", "Pas Un Nom", "2"], ["peser", "thermigo", "2"], ["weight", "thermigo"]]) {
+    const refus = await commande(...args);
+    assert.notEqual(refus.code, 0, args.join(" "));
+    sansMotFrancais(lignes(refus.sortie));
+  }
+  // Sans port, avec un port illisible, sans répertoire, sans réglages, arbitre injoignable.
+  const sans = async (env: Record<string, string>, ...args: string[]) => {
+    const cli = lancer(t, CLI, args, env);
+    return { code: await cli.fin, lignes: lignes(cli.sortie()) };
+  };
+  for (const [env, args] of [
+    [{}, []],
+    [{ BRIGADE_ARBITER_PORT: "pas-un-port" }, []],
+    [{}, ["weight", "thermigo", "2"]],
+    [{ BRIGADE_ARBITER_STATE_DIR: repertoireTemporaire(t) }, ["weight", "thermigo", "2"]],
+    [{ BRIGADE_ARBITER_PORT: String(serveur.port), BRIGADE_ARBITER_STATE_DIR: repertoire, NODE_OPTIONS: `--import=${SANS_RESEAU}` }, []],
+  ] as const) {
+    const refus = await sans({ ...env }, ...args);
+    assert.notEqual(refus.code, 0, JSON.stringify(env));
+    sansMotFrancais(refus.lignes);
+  }
+  assert.match((await sans({ BRIGADE_ARBITER_PORT: "pas-un-port" })).lignes.join("\n"), /BRIGADE_ARBITER_PORT invalid: "pas-un-port"/);
+});
+
+test("un poids posé avant le ticket est toujours montré et appliqué, sans rien éditer à la main", async (t) => {
+  const { ouvert, repertoire, commande } = await servi(t, 8);
+  ouvert.dire("thermigo", mot(0));
+  ouvert.dire("brigade", mot(0));
+  // Le poids tel qu'une version d'avant l'a posé : directement dans les réglages de l'arbitre.
+  const reglages = ouvrirReglages(repertoire);
+  t.after(() => reglages.fermer());
+  reglages.peser("thermigo", 3, "2026-10-01T00:00:00.000Z");
+
+  assert.match((await commande()).sortie, /^  thermigo {2}weight 3 · /m);
+  assert.equal(ouvert.etat().projets.find((projet) => projet.projet === "thermigo")?.part, 6);
+  assert.deepEqual(await commande("weight", "thermigo", "3"), { code: 0, sortie: "thermigo: weight 3 — unchanged; the arbiter reads it at its next decision\n" });
 });
 
 test("l'arbitre tient dans son propre process : il répond sur son port, et s'arrête proprement sur SIGTERM", async (t) => {
