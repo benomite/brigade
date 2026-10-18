@@ -54,7 +54,7 @@ test("refusée par l'arbitre, la station se retient et le dit ; la place rendue 
   assert.deepEqual(dernier("station.held"), { station: STATION, reason: "arbiter" });
   assert.deepEqual([etat(14), etat(15), lancements().length], ["taken", "waiting", 1]);
   assert.deepEqual([projet("brigade")?.cooks, projet("brigade")?.encore], [1, 0]);
-  assert.match(decrireEtat(lireEtat(journal), new Date()).join("\n"), /SE RETIENT depuis .* — l'arbitre entre projets garde la place pour un autre projet/);
+  assert.match(decrireEtat(lireEtat(journal), new Date()).join("\n"), /WITHHOLDING for .* — the arbiter between projects keeps the room for another project/);
 
   conclure();
   await jusqua(() => lancements().length === 2);
@@ -77,7 +77,7 @@ test("arbitre injoignable : le projet lance quand même, un cook à la fois, le 
     `brigade : arbitre injoignable sur 127.0.0.1:${joint.port} — connexion refusée — mode dégradé : la station ${STATION} ne lance plus qu'un cook à la fois, sans arbitrage, jusqu'à son retour`,
   ]);
   const photo = decrireEtat(lireEtat(journal), new Date()).join("\n");
-  assert.match(photo, /ARBITRE INJOIGNABLE depuis .* — connexion refusée : box\/claude ne lance plus qu'un cook à la fois, sans arbitrage/);
+  assert.match(photo, /ARBITER UNREACHABLE for .* — connexion refusée: box\/claude launches only one cook at a time, with no arbitration/);
 
   rendre();
   await jusqua(() => lancements().length === 3);

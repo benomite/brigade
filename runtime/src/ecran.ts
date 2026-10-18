@@ -253,6 +253,13 @@ export function commentLeVoir(livraison: { worktree: string; lancement: string; 
   return `pas de page dans un navigateur : lancer l'app sur le worktree de la livraison, \`${commandeDeLancement(livraison.worktree, livraison.lancement)}\`, puis y ouvrir l'écran « ${ecran.ecran} »${regarder}`;
 }
 
+// La même phrase, en anglais, depuis la commande de lancement déjà composée
+// (`commandeDeLancement`) : ce que dit `status`.
+export function commentLeVoirEn(commande: string, ecran: EcranARegarder): string {
+  const regarder = ecran.phrase === null ? "" : ` — to look at: ${ecran.phrase}`;
+  return `no page in a browser: launch the app on the delivery's worktree, \`${commande}\`, then open the screen “${ecran.ecran}” there${regarder}`;
+}
+
 // Comment se regarde une livraison, selon son projet. `page` : l'URL à ouvrir
 // dans un navigateur, pour un projet web — nulle pour une app lancée, jamais
 // une URL. `commentLeVoir` : la phrase qui dit comment la voir, pour une app

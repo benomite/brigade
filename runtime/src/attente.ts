@@ -17,10 +17,10 @@
 import { NOUVEAU_SUR_L_ISSUE, PAR_LE_CHEF, REVENU_D_ATTENTE } from "./evenements/rail.ts";
 import { geste } from "./geste.ts";
 import type { GitHub } from "./github.ts";
-import { dateLocale, direInstant, dureeTapee } from "./grant.ts";
+import { dateLocale, direInstant, direInstantEn, dureeTapee } from "./grant.ts";
 import type { Journal } from "./journal.ts";
 import { DE_LA_BRIGADE } from "./reviewer.ts";
-import { commentairesEntendus, lireRail, marquesDAttente, texteDeMarque, ticketDuRail, type AttenteDeTiers, type TicketRail } from "./projections/rail.ts";
+import { commentairesEntendus, direALArrivee, direALArriveeEn, lireRail, marquesDAttente, texteDeMarque, ticketDuRail, type AttenteDeTiers, type TicketRail } from "./projections/rail.ts";
 import { GesteRefuse, nomEtat } from "./rail.ts";
 
 // Le label qu'une issue porte tant que son ticket attend un tiers.
@@ -114,6 +114,14 @@ function exigerWaiting(journal: Journal, ticket: number): void {
 // quand, la relance, et ce qui se passera à l'arrivée.
 export function direAttenteDeTiers(attente: AttenteDeTiers, depuis: (instant: string) => string): string {
   return `attend ${attente.who} : « ${attente.what} » — depuis ${depuis(attente.since)}, relance le ${direInstant(attente.followUp)} — à l'arrivée, ${attente.onArrival}`;
+}
+
+// La même, en anglais : la ligne du ticket dans `status`.
+export function direAttenteDeTiersEn(attente: AttenteDeTiers, depuis: (instant: string) => string): string {
+  // `onArrival` se lit en français sur le rail (et dans `facts`) : sa forme anglaise est recalculée.
+  const livraison = ["open", null].find((delivery) => direALArrivee(delivery) === attente.onArrival);
+  const alArrivee = livraison === undefined ? attente.onArrival : direALArriveeEn(livraison);
+  return `awaiting ${attente.who}: “${attente.what}” — since ${depuis(attente.since)}, follow-up on ${direInstantEn(attente.followUp)} — on arrival, ${alArrivee}`;
 }
 
 // Le commentaire posé sur l'issue quand le ticket entre en WAITING, ou que ce

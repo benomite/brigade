@@ -95,6 +95,20 @@ export function saturation(machine: Machine, seuils: Seuils, tenue: Ressource | 
 
 const nombre = (valeur: number) => valeur.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
 
+const nombreEn = (valeur: number) => valeur.toLocaleString("en-US", { maximumFractionDigits: 1 });
+
+// La même, en anglais : ce que dit `status`.
+export function direSaturationEn({ resource, observed, limit }: Saturation): string {
+  switch (resource) {
+    case "cpu":
+      return `load of ${nombreEn(observed)} for at most ${nombreEn(limit)}`;
+    case "memory":
+      return `${nombreEn(observed)} MB of memory available for at least ${nombreEn(limit)}`;
+    case "disk":
+      return `${nombreEn(observed)} MB of disk free for at least ${nombreEn(limit)}`;
+  }
+}
+
 // Une saturation telle que le chef la lit.
 export function direSaturation({ resource, observed, limit }: Saturation): string {
   switch (resource) {

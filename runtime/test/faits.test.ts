@@ -153,11 +153,13 @@ test("la forme et le texte de `status` disent la même chose : le rail ticket pa
   const { forme, texte } = lire(`${JOUR_HORLOGE}T10:04:11.000Z`);
 
   const lignes = texte.filter((ligne) => /^  #\d+  /.test(ligne)).slice(-forme.rail.length);
+  // `facts` garde les états français que l'app lit ; `status` les écrit en anglais.
+  const enAnglais: Record<string, string> = { pris: "taken", "en pass": "in pass", "en attente": "queued", servi: "served", "BLOQUÉ": "BLOCKED" };
   assert.deepEqual(
-    forme.rail.map(({ ticket, etat, titre }) => [`#${ticket}`, etat, titre]),
+    forme.rail.map(({ ticket, etat, titre }) => [`#${ticket}`, enAnglais[etat] ?? etat, titre]),
     lignes.map((ligne) => ligne.trim().split("  ")).map((champs) => [champs[0], champs[1], champs.at(-1)]),
   );
-  assert.ok(texte.includes("rail       1 pris · 1 en pass · 1 en attente · 1 BLOQUÉ · 1 86 · 1 servi"));
+  assert.ok(texte.includes("rail       1 taken · 1 in pass · 1 queued · 1 BLOCKED · 1 86 · 1 served"));
   const { rail, auTravail, aLaPass, attend } = forme.compteurs;
   assert.deepEqual([auTravail, aLaPass, rail], [1, 1, 1 + 1]);
   assert.ok(texte.some((ligne) => ligne.startsWith(`awaiting   ${attend} ${attend === 1 ? "decision awaits" : "decisions await"} the chef`)));
@@ -548,7 +550,7 @@ test("la carte d'un ticket pris dit ce que son cook fait en ce moment, et depuis
   noter({ type: "cook.progressed", payload: { run: "14-a", turns: 9, tokens: 900, activity: { doing: "fixing-tests", target: "app/src/bon.ts", since: `${JOUR_HORLOGE}T10:00:04.500Z` } } }, 14);
   assert.deepEqual(activite(), { fait: "tests rouges, corrige", cible: "app/src/bon.ts", depuis: `${JOUR_HORLOGE}T10:00:04.500Z` });
   // `status` le dit aussi, sur la ligne du cook : là où il en est, depuis quand.
-  assert.ok(lire(`${JOUR_HORLOGE}T10:10:00.000Z`).texte.some((ligne) => ligne.startsWith("  #14  14-a  ") && ligne.endsWith("en ce moment : tests rouges, corrige app/src/bon.ts, depuis 9 min")));
+  assert.ok(lire(`${JOUR_HORLOGE}T10:10:00.000Z`).texte.some((ligne) => ligne.startsWith("  #14  14-a  ") && ligne.endsWith("right now: tests red, fixing app/src/bon.ts, since 9 min")));
 
   noter({ type: "cook.exited", payload: { run: "14-a", outcome: "ok", code: 0, signal: null, turns: 10, tokens: 1000, durationMs: 1 } }, 14);
   assert.equal(ticket()?.state, "taken");

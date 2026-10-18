@@ -63,10 +63,8 @@ test("sur l'état d'avant, le bloc `awaiting` nomme les mêmes décisions que le
   assert.ok(!apres.some((ligne) => ligne.startsWith("attend") || ligne === "fin attend"));
   sansMotFrancais(bloc(apres, (ligne) => ligne.startsWith("awaiting"), "end awaiting"));
 
-  // Sous le bloc, rien n'a bougé : la traduction du bloc ne touche pas le rail ni les cooks. Le haut
-  // de `status`, au-dessus, est traduit par #928 (haut-de-status-en-anglais.test.ts).
-  const sous = (lignes: string[], fin: string) => lignes.slice(lignes.indexOf(fin) + 1);
-  assert.deepEqual(sous(apres, "end awaiting"), sous(avant, "fin attend"));
+  // Sous le bloc, le rail et les cooks sont traduits à leur tour par #929 : ce que la sortie dit des mêmes
+  // tickets est vérifié dans bas-de-status-en-anglais.test.ts.
 });
 
 const DEPUIS = "2026-10-12T08:00:00.000Z";
