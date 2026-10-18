@@ -131,9 +131,12 @@ export function ligneDeProjet(projet: ProjetDeLAccueil, lu: FaitsLus | undefined
 
 // --- Une station -----------------------------------------------------------------
 
-// Les stations que le `status` d'un projet dit saturées (runtime/src/etat.ts : `MACHINE SATURÉE … : <station> ne prend plus de ticket`).
+// Les stations que le `status` d'un projet dit saturées (runtime/src/etat.ts) : `MACHINE SATURATED … : <station> takes no
+// more tickets` depuis #940, `MACHINE SATURÉE … : <station> ne prend plus de ticket` sur une box pas encore à jour.
 export function saturees(status: string): string[] {
-  return [...status.matchAll(/MACHINE SATURÉE\b.* : (.+?) ne prend plus de ticket/g)].map(([, station = ""]) => station);
+  return [...status.matchAll(/MACHINE (?:SATURÉE\b.* : (.+?) ne prend plus de ticket|SATURATED\b.*: (.+?) takes no more tickets)/g)].map(
+    ([, francaise, anglaise]) => francaise ?? anglaise ?? "",
+  );
 }
 
 // `cooks` : ceux que les projets disent en cours sur elle ; `saturee` : un `status` lu la dit saturée.
