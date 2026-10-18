@@ -14,6 +14,8 @@ import { SANS_STATION, STATION_ABSENTE } from "./evenements/rail.ts";
 // Un nom de capacité : le runtime n'en reconnaît aucun, il les compare.
 export const CAPACITE = /^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u;
 export const FORME_DE_CAPACITE = "des lettres, des chiffres et des tirets (code, navigateur-headless)";
+// La même, en anglais : ce que dit `station`.
+export const FORME_DE_CAPACITE_EN = "letters, digits and hyphens (code, navigateur-headless)";
 
 // Le nom tel qu'il se compare : un accent s'écrit de deux façons (composé ou
 // non), et `chrome-connecté` tapé sur une machine doit être celui d'une autre.

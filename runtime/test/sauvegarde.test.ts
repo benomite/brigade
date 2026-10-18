@@ -390,7 +390,7 @@ describe("sauvegarder et restaurer, en commandes", { concurrency: 8 }, () => {
     const lire = async (cli: string, ...args: string[]) => (await commande(t, join(SRC, cli), { BRIGADE_STATE_DIR: neuf }, ...args)).sortie;
     assert.match(await lire("relire.ts", "17"), /#17 {2}ticket\.served/);
     assert.match(await lire("grant-cli.ts"), /#17 {2}merge on v2 .* merged/);
-    assert.match(await lire("montrer-station.ts"), new RegExp(`#17 {2}${run} {2}sonnet / low {2}fini {2}1 tour`));
+    assert.match(await lire("montrer-station.ts"), new RegExp(`#17 {2}${run} {2}sonnet / low {2}done {2}1 turn`));
     assert.match(await lire("montrer-pass.ts", "17"), /GREEN — gates green/);
     assert.equal(readFileSync(join(neuf, "runs", `${run}.jsonl`), "utf8"), readFileSync(join(ancienne.repertoire, "runs", `${run}.jsonl`), "utf8"));
 

@@ -418,7 +418,7 @@ describe("la vérification", () => {
     const constats = await verifier(env);
 
     assert.deepEqual(manques(constats), [
-      "décision du chef illisible au journal — BRIGADE_STATIONS invalide : station n° 1 (« box/claude:beaucoup:code ») — plafond : « beaucoup » n'est pas un entier supérieur à zéro. Attendu `<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>[:distante[+ordinaires]]`, une station par entrée, séparées par des virgules (box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless)",
+      "chef's decision unreadable in the log — BRIGADE_STATIONS invalid: station no. 1 (“box/claude:beaucoup:code”) — cap: “beaucoup” is not an integer greater than zero. Expected `<machine>/<engine>:<cooks cap>:<capability>+<capability>[:distante[+ordinaires]]`, one station per entry, separated by commas (box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless)",
     ]);
   });
 
@@ -429,7 +429,7 @@ describe("la vérification", () => {
     const constats = await verifier({ ...env, BRIGADE_MAX_TURNS: "beaucoup", ANTHROPIC_API_KEY: "sk-x" });
 
     const dits = manques(constats).join("\n");
-    assert.match(dits, /BRIGADE_MANAGER_MODEL invalide/);
+    assert.match(dits, /BRIGADE_MANAGER_MODEL invalid/);
     assert.match(dits, /BRIGADE_MAX_TURNS invalide/);
     assert.match(dits, /ANTHROPIC_API_KEY est défini/);
   });
@@ -470,12 +470,12 @@ describe("la vérification", () => {
     assert.equal(dits.length, 1);
     assert.match(dits[0] ?? "", /EXPIRÉE depuis le \d{4}-\d{2}-\d{2}T.*\(authentication_failed\)/);
     assert.deepEqual(constates(constats).filter((texte) => /session Max/.test(texte)), []);
-    // La même phrase que `run station`, lue du même fait.
+    // `run station` dit le même fait, en anglais : la même date.
     const station = appeler(montrerStation, [], env);
     await station.fin;
-    const ligne = station.sortie().split("\n").find((dite) => dite.startsWith("connexion Max")) ?? "";
-    const phrase = ligne.slice("connexion Max".length).trim();
-    assert.ok(phrase.length > 0 && (dits[0] ?? "").includes(phrase));
+    const ligne = station.sortie().split("\n").find((dite) => dite.startsWith("Max connection")) ?? "";
+    const date = /\d{4}-\d{2}-\d{2}T\S+/.exec(dits[0] ?? "")?.[0] ?? "";
+    assert.ok(date !== "" && ligne.includes(`EXPIRED since ${date} (authentication_failed)`), ligne);
   });
 
   test("une connexion reprise ou un journal qui n'en dit rien ne change pas le constat", async (t) => {

@@ -38,15 +38,15 @@ test("le chef voit la station : son nom, ce qu'elle fournit, son plafond, sa con
   const { code, sortie } = await lancee();
 
   assert.equal(code, 0);
-  assert.match(sortie, /station\s+box\/claude — moteur claude, fournit : code/);
-  assert.match(sortie, /cooks simultanés\s+1 au plus \(le défaut : le chef n'a rien réglé\) — `station -- cooks <N>` pour le changer, 0 pour aucune limite/);
-  assert.match(sortie, /machine\s+tient/);
-  assert.match(sortie, /connexion Max\s+tenue pour bonne/);
-  assert.match(sortie, /quota\s+disponible/);
-  assert.match(sortie, /retenue\s+aucune — tout ticket servable part/);
-  assert.match(sortie, /cooks en cours\s+aucun/);
-  assert.match(sortie, /derniers cooks\s+aucun/);
-  assert.match(sortie, /consommé\s+en cours : rien\n\s+5 h : rien\n\s+24 h : rien\n\s+ce que ce projet a lancé, pas la consommation du compte : \/usage la donne/);
+  assert.match(sortie, /station\s+box\/claude — engine claude, provides: code/);
+  assert.match(sortie, /simultaneous cooks\s+1 at most \(the default: the chef has set nothing\) — `station -- cooks <N>` to change it, 0 for no limit/);
+  assert.match(sortie, /machine\s+holds/);
+  assert.match(sortie, /Max connection\s+taken as good/);
+  assert.match(sortie, /quota\s+available/);
+  assert.match(sortie, /withholding\s+none — every servable ticket leaves/);
+  assert.match(sortie, /cooks running\s+none/);
+  assert.match(sortie, /latest cooks\s+none/);
+  assert.match(sortie, /consumed\s+in flight: nothing\n\s+5 h: nothing\n\s+24 h: nothing\n\s+what this project has launched, not the account's consumption: \/usage gives it/);
 });
 
 test("le chef voit ce qu'il paie : chaque cook avec son calibrage, sa fin et ce qu'il a consommé", async (t) => {
@@ -62,9 +62,9 @@ test("le chef voit ce qu'il paie : chaque cook avec son calibrage, sa fin et ce 
 
   // Les fenêtres de 5 h et de 24 h se comptent jusqu'à l'heure de la commande :
   // seul ce qui tourne se lit ici sans dépendre du jour où le test est joué.
-  assert.match(sortie, /consommé\s+en cours : 1 lancement · 3 tours · 1\s200 tokens\n\s+5 h : /);
-  assert.match(sortie, new RegExp(String.raw`cooks en cours\s+1\n  #8  8-b  sonnet \/ medium  lancé le ${JOUR_HORLOGE}T10:00:04.000Z  cook\/8-b`));
-  assert.match(sortie, new RegExp(String.raw`${JOUR_HORLOGE}T10:00:02.000Z  #7  7-a  opus \/ high  fini  12 tours · 34\s567 tokens · 4,2 min  https:\/\/github.com\/o\/r\/pull\/9`));
+  assert.match(sortie, /consumed\s+in flight: 1 launch · 3 turns · 1,200 tokens\n\s+5 h: /);
+  assert.match(sortie, new RegExp(String.raw`cooks running\s+1\n  #8  8-b  sonnet \/ medium  launched on ${JOUR_HORLOGE}T10:00:04.000Z  cook\/8-b`));
+  assert.match(sortie, new RegExp(String.raw`${JOUR_HORLOGE}T10:00:02.000Z  #7  7-a  opus \/ high  done  12 turns · 34,567 tokens · 4.2 min  https:\/\/github.com\/o\/r\/pull\/9`));
 });
 
 test("un quota épuisé se lit « 86 » avec l'heure de son retour ; passé cette heure, il est disponible", async (t) => {
@@ -73,9 +73,9 @@ test("un quota épuisé se lit « 86 » avec l'heure de son retour ; passé cett
   const epuiser = (until: string) => noter({ type: "station.86", payload: { station: STATION, reason: "quota", until, window: "five_hour" } });
 
   epuiser("2999-01-01T00:00:00.000Z");
-  assert.match((await montrer()).sortie, /quota\s+86 — épuisé, retour à 2999-01-01T00:00:00.000Z/);
+  assert.match((await montrer()).sortie, /quota\s+86 — exhausted, back at 2999-01-01T00:00:00.000Z/);
   epuiser("2000-01-01T00:00:00.000Z");
-  assert.match((await montrer()).sortie, /quota\s+disponible/);
+  assert.match((await montrer()).sortie, /quota\s+available/);
 });
 
 test("une connexion Max expirée se voit, avec ce qu'il faut faire", async (t) => {
@@ -85,7 +85,7 @@ test("une connexion Max expirée se voit, avec ce qu'il faut faire", async (t) =
 
   const { sortie } = await montrer();
 
-  assert.match(sortie, new RegExp(String.raw`connexion Max\s+EXPIRÉE depuis le ${JOUR_HORLOGE}T10:00:01.000Z \(authentication_failed\).*claude \/login.*reprend seule`));
+  assert.match(sortie, new RegExp(String.raw`Max connection\s+EXPIRED since ${JOUR_HORLOGE}T10:00:01.000Z \(authentication_failed\).*claude \/login.*starts again on its own`));
 });
 
 test("à trente cooks, la station les montre tous, et ses dix derniers cooks finis", async (t) => {
@@ -99,7 +99,7 @@ test("à trente cooks, la station les montre tous, et ses dix derniers cooks fin
 
   const { sortie } = await montrer();
 
-  assert.match(sortie, /cooks en cours\s+30\n/);
+  assert.match(sortie, /cooks running\s+30\n/);
   assert.equal(sortie.match(/-vif {2}sonnet/g)?.length, 30);
   assert.equal(sortie.match(/-fini {2}sonnet/g)?.length, 10);
 });
@@ -111,13 +111,13 @@ test("le chef règle le plafond de cooks : le journal le porte, la station le mo
   const reglage = await montrer("cooks", "12");
 
   assert.equal(reglage.code, 0);
-  assert.match(reglage.sortie, /box\/claude : cooks simultanés, 12 au plus \(c'était : 1 au plus\) — aucun cook en cours n'est arrêté/);
-  assert.match(reglage.sortie, /aucun runtime ne tourne/);
+  assert.match(reglage.sortie, /box\/claude: simultaneous cooks, 12 at most \(was: 1 at most\) — no running cook is stopped/);
+  assert.match(reglage.sortie, /no runtime is running/);
   const fait = journal.tout().at(-1);
   assert.deepEqual([fait?.type, fait?.author, fait?.payload], ["station.capped", "chef", { station: STATION, maxCooks: 12 }]);
-  assert.match((await montrer()).sortie, /cooks simultanés\s+12 au plus \(réglé par le chef\)/);
+  assert.match((await montrer()).sortie, /simultaneous cooks\s+12 at most \(set by the chef\)/);
 
-  assert.match((await montrer("cooks", "12")).sortie, /plafond déjà réglé — 12 au plus/);
+  assert.match((await montrer("cooks", "12")).sortie, /cap already set — 12 at most/);
   assert.equal(journal.tout().filter((evenement) => evenement.type === "station.capped").length, 1);
 });
 
@@ -125,8 +125,8 @@ test("zéro lève la limite", async (t) => {
   const { annoncer, montrer } = cuisine(t);
   annoncer();
 
-  assert.match((await montrer("cooks", "0")).sortie, /cooks simultanés, sans limite \(c'était : 1 au plus\)/);
-  assert.match((await montrer()).sortie, /cooks simultanés\s+sans limite \(réglé par le chef\)/);
+  assert.match((await montrer("cooks", "0")).sortie, /simultaneous cooks, no limit \(was: 1 at most\)/);
+  assert.match((await montrer()).sortie, /simultaneous cooks\s+no limit \(set by the chef\)/);
 });
 
 test("une base d'intégration rouge se lit sur la ligne de retenue", async (t) => {
@@ -134,19 +134,19 @@ test("une base d'intégration rouge se lit sur la ligne de retenue", async (t) =
   annoncer();
   noter({ type: "station.held", payload: { station: STATION, reason: "base" } });
 
-  assert.match((await montrer()).sortie, new RegExp(String.raw`retenue\s+depuis le ${JOUR_HORLOGE}T10:00:01.000Z — base d'intégration rouge : les tickets servables attendent`));
+  assert.match((await montrer()).sortie, new RegExp(String.raw`withholding\s+since ${JOUR_HORLOGE}T10:00:01.000Z — integration base red: the servable tickets wait`));
 });
 
 test("un arbitre injoignable se voit, avec le mode dégradé ; rien n'en est dit tant qu'il répond", async (t) => {
   const { annoncer, noter, montrer } = cuisine(t);
   annoncer();
-  assert.doesNotMatch((await montrer()).sortie, /^arbitre/m);
+  assert.doesNotMatch((await montrer()).sortie, /^arbiter/m);
   noter({ type: "station.unarbitrated", payload: { station: STATION, reason: "connexion refusée" } });
   noter({ type: "station.held", payload: { station: STATION, reason: "unarbitrated" } });
 
   const { sortie } = await montrer();
-  assert.match(sortie, new RegExp(String.raw`^arbitre\s+INJOIGNABLE depuis le ${JOUR_HORLOGE}T10:00:01.000Z \(connexion refusée\) — mode dégradé : un seul cook à la fois, sans arbitrage, jusqu'à son retour$`, "m"));
-  assert.match(sortie, /retenue\s+depuis le .* — arbitre injoignable, un seul cook à la fois : les tickets servables attendent/);
+  assert.match(sortie, new RegExp(String.raw`^arbiter\s+UNREACHABLE since ${JOUR_HORLOGE}T10:00:01.000Z \(connexion refusée\) — degraded mode: one cook at a time, no arbitration, until it returns$`, "m"));
+  assert.match(sortie, /withholding\s+since .* — arbiter unreachable, one cook at a time: the servable tickets wait/);
 });
 
 test("une machine saturée se voit, avec ce qui manque", async (t) => {
@@ -155,8 +155,8 @@ test("une machine saturée se voit, avec ce qui manque", async (t) => {
   noter({ type: "station.saturated", payload: { station: STATION, resource: "disk", observed: 2048, limit: 5120 } });
   noter({ type: "station.held", payload: { station: STATION, reason: "machine" } });
 
-  assert.match((await montrer()).sortie, new RegExp(String.raw`retenue\s+depuis le ${JOUR_HORLOGE}T10:00:02.000Z — machine saturée : les tickets servables attendent`));
-  assert.match((await montrer()).sortie, new RegExp(String.raw`machine\s+SATURÉE depuis le ${JOUR_HORLOGE}T10:00:01.000Z — 2\s048 Mo de disque libre pour 5\s120 au moins ; plus aucun ticket n'est pris`));
+  assert.match((await montrer()).sortie, new RegExp(String.raw`withholding\s+since ${JOUR_HORLOGE}T10:00:02.000Z — machine saturated: the servable tickets wait`));
+  assert.match((await montrer()).sortie, new RegExp(String.raw`machine\s+SATURATED since ${JOUR_HORLOGE}T10:00:01.000Z — 2,048 MB of disk free for at least 5,120; no ticket is taken`));
 });
 
 test("un plafond qui n'est pas un nombre, ou réglé avant toute station, est refusé sans rien écrire", async (t) => {
@@ -169,7 +169,7 @@ test("un plafond qui n'est pas un nombre, ou réglé avant toute station, est re
   }
   const sansStation = await montrer("cooks", "3");
   assert.equal(sansStation.code, 1);
-  assert.match(sansStation.sortie, /aucune station ne s'est annoncée/);
+  assert.match(sansStation.sortie, /no station has announced itself/);
   assert.equal(journal.tout().some((evenement) => evenement.type === "station.capped"), false);
 });
 
@@ -179,7 +179,7 @@ test("une station qui ne s'est jamais annoncée le dit", async (t) => {
   const { code, sortie } = await montrer();
 
   assert.equal(code, 0);
-  assert.match(sortie, /aucune station ne s'est annoncée/);
+  assert.match(sortie, /no station has announced itself/);
 });
 
 test("un projet qui ne déclare aucune station : la commande le dit, avec le geste, et ne règle aucun plafond", async (t) => {
@@ -189,11 +189,11 @@ test("un projet qui ne déclare aucune station : la commande le dit, avec le ges
 
   const vue = await montrer();
   assert.equal(vue.code, 0);
-  assert.match(vue.sortie, /aucune station déclarée depuis le .* — aucun cook ne part, les tickets restent en attente : les poser par `brigade <projet> station stations box\/claude:30:code\+raisonnement`, lues au réveil suivant, sans redémarrage/);
+  assert.match(vue.sortie, /no station declared since .* — no cook leaves, the tickets stay queued: set them with `brigade <projet> station stations box\/claude:30:code\+raisonnement`, read at the next wake-up, no restart/);
 
   const reglage = await montrer("cooks", "3");
   assert.equal(reglage.code, 1);
-  assert.match(reglage.sortie, /le projet ne déclare aucune station : il n'y a aucun plafond à régler — les poser par `brigade <projet> station stations /);
+  assert.match(reglage.sortie, /the project declares no station: there is no cap to set — set them with `brigade <projet> station stations /);
   assert.equal(journal.tout().some((evenement) => evenement.type === "station.capped"), false);
 });
 
@@ -204,14 +204,14 @@ test("deux stations déclarées : la commande montre chacune, avec ce qu'elle fo
   noter({ type: "station.announced", payload: { station: playwright, engine: "playwright", provides: ["navigateur-headless"], maxCooks: 2 } }, null, `station:${playwright}`);
 
   const deux = (await montrer()).sortie;
-  assert.match(deux, /box\/claude — moteur claude, fournit : code/);
-  assert.match(deux, /box\/playwright — moteur playwright, fournit : navigateur-headless/);
-  assert.match(deux, /2 au plus \(le défaut : le chef n'a rien réglé\)/);
+  assert.match(deux, /box\/claude — engine claude, provides: code/);
+  assert.match(deux, /box\/playwright — engine playwright, provides: navigateur-headless/);
+  assert.match(deux, /2 at most \(the default: the chef has set nothing\)/);
 
   noter({ type: "station.withdrawn", payload: { station: playwright } }, null, `station:${playwright}`);
 
   const une = (await montrer()).sortie;
-  assert.match(une, /box\/claude — moteur claude/);
+  assert.match(une, /box\/claude — engine claude/);
   assert.doesNotMatch(une, /box\/playwright/);
 });
 
@@ -221,9 +221,9 @@ test("sans répertoire d'état, sans journal, ou avec un argument, la commande �
   const avecArgument = appeler(montrerStation, ["14"], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
 
   assert.equal(await sansVariable.fin, 2);
-  assert.match(sansVariable.sortie(), /BRIGADE_STATE_DIR n'est pas défini/);
+  assert.match(sansVariable.sortie(), /BRIGADE_STATE_DIR is not set/);
   assert.equal(await sansJournal.fin, 1);
-  assert.match(sansJournal.sortie(), /aucun journal/);
+  assert.match(sansJournal.sortie(), /no log/);
   assert.equal(await avecArgument.fin, 2);
   assert.match(avecArgument.sortie(), /usage/);
 });
@@ -238,16 +238,16 @@ test("une station distante se lit par sa présence, pas par la machine de la box
   const jamais = (await montrer()).sortie;
   // La station d'ici garde sa ligne de machine ; la distante n'en a pas.
   assert.equal(jamais.match(/^machine\s/gm)?.length, 1);
-  assert.match(jamais, /station\s+mac\/claude — moteur claude, fournit : chrome-connecté/);
-  assert.match(jamais, /présence\s+ABSENTE — distante, elle tire son travail, et ne s'est jamais manifestée ; ce n'est pas une panne : les tickets qu'elle seule peut cuisiner attendent son retour, les autres partent/);
+  assert.match(jamais, /station\s+mac\/claude — engine claude, provides: chrome-connecté/);
+  assert.match(jamais, /presence\s+ABSENT — remote, it pulls its work, and has never shown itself; this is not a failure: the tickets only it can cook wait for its return, the others leave/);
 
   duMac({ type: "remote.asked", payload: { id: "a", station: MAC, verb: "announce" } });
   duMac({ type: "station.present", payload: { station: MAC } });
   duMac({ type: "remote.asked", payload: { id: "b", station: MAC, verb: "claim" } });
-  assert.match((await montrer()).sortie, new RegExp(`présence\\s+présente depuis le ${JOUR_HORLOGE}T\\S+ — distante, elle tire son travail ; dernière demande le ${JOUR_HORLOGE}T`));
+  assert.match((await montrer()).sortie, new RegExp(`presence\\s+present since ${JOUR_HORLOGE}T\\S+ — remote, it pulls its work; last request on ${JOUR_HORLOGE}T`));
 
   duMac({ type: "station.absent", payload: { station: MAC, lastSeen: `${JOUR_HORLOGE}T10:00:03.000Z`, presenceMs: 120_000 } });
-  assert.match((await montrer()).sortie, new RegExp(`présence\\s+ABSENTE — distante, elle tire son travail, et ne s'est plus manifestée depuis le ${JOUR_HORLOGE}T`));
+  assert.match((await montrer()).sortie, new RegExp(`presence\\s+ABSENT — remote, it pulls its work, and has not shown itself since ${JOUR_HORLOGE}T`));
   // Une demande faite sous un nom que le projet ne déclare pas ne crée personne.
   duMac({ type: "remote.asked", payload: { id: "c", station: "mac/chrome", verb: "claim" } }, "station:mac/chrome");
   assert.doesNotMatch((await montrer()).sortie, /mac\/chrome/);

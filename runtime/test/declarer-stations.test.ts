@@ -119,8 +119,8 @@ test("une déclaration que le runtime ne lirait pas est refusée avant d'écrire
   const etat = repertoireTemporaire(t);
 
   for (const [declaration, motif] of [
-    ["box/claude:beaucoup:code", /BRIGADE_STATIONS invalide : station n° 1 .* plafond : « beaucoup » n'est pas un entier supérieur à zéro.* — rien n'est écrit/],
-    ["box/claude:2", /fournit : il manque/],
+    ["box/claude:beaucoup:code", /BRIGADE_STATIONS invalid: station no\. 1 .* cap: “beaucoup” is not an integer greater than zero.* — rien n'est écrit/],
+    ["box/claude:2", /provides: it is missing/],
     ["", /une déclaration vide ne déclare aucune station : aucun cook ne partirait — rien n'est écrit/],
     ["  ", /une déclaration vide/],
   ] as const) {

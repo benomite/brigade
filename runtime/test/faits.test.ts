@@ -212,7 +212,7 @@ test("la forme et le texte de `station` disent les mêmes cooks en cours, dans l
   let enCours = false;
   for (const ligne of lancee.sortie().split("\n")) {
     if (ligne.startsWith("station ")) station = ligne.slice("station".length).trim().split(" — ")[0] ?? "";
-    if (!ligne.startsWith("  ")) enCours = ligne.startsWith("cooks en cours");
+    if (!ligne.startsWith("  ")) enCours = ligne.startsWith("cooks running");
     else if (enCours) dits.push([ligne.trim().split("  ")[0] ?? "", station]);
   }
   assert.equal(dits.length, 3);

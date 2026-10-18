@@ -177,13 +177,13 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     // Une valeur vide n'est pas une décision, ni une valeur que le runtime ne
     // lirait pas : refusées, rien n'est écrit.
     for (const [nom, valeur, motif] of [
-      ["BRIGADE_STATIONS", " ", /une valeur vide n'est pas une décision/],
-      ["BRIGADE_STATIONS", "box:2:code", /BRIGADE_STATIONS invalide/],
-      ["BRIGADE_DRIFT_TICKET_TOKENS", "-1", /BRIGADE_DRIFT_TICKET_TOKENS invalide/],
-      ["BRIGADE_DRIFT_LOST_TOKENS", "beaucoup", /BRIGADE_DRIFT_LOST_TOKENS invalide/],
-      ["BRIGADE_MANAGER_MODEL", "gpt", /BRIGADE_MANAGER_MODEL invalide : « gpt » — attendu opus, sonnet ou haiku/],
-      ["BRIGADE_REVIEWER_EFFORT", "fort", /BRIGADE_REVIEWER_EFFORT invalide/],
-      ["BRIGADE_PROXY_PORT", "8080", /n'est pas une décision du chef/],
+      ["BRIGADE_STATIONS", " ", /an empty value is not a decision/],
+      ["BRIGADE_STATIONS", "box:2:code", /BRIGADE_STATIONS invalid/],
+      ["BRIGADE_DRIFT_TICKET_TOKENS", "-1", /BRIGADE_DRIFT_TICKET_TOKENS invalid/],
+      ["BRIGADE_DRIFT_LOST_TOKENS", "beaucoup", /BRIGADE_DRIFT_LOST_TOKENS invalid/],
+      ["BRIGADE_MANAGER_MODEL", "gpt", /BRIGADE_MANAGER_MODEL invalid: “gpt” — expected opus, sonnet or haiku/],
+      ["BRIGADE_REVIEWER_EFFORT", "fort", /BRIGADE_REVIEWER_EFFORT invalid/],
+      ["BRIGADE_PROXY_PORT", "8080", /is not a chef's decision/],
     ] as const) {
       assert.throws(() => poserDecision(journal, { projet: "brigade", nom, valeur, auteur: "chef" }), motif, `${nom}=${valeur}`);
     }

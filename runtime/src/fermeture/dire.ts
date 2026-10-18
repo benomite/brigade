@@ -112,6 +112,17 @@ export function direReglages({ calibration, cooksBelow, tokens, removedLines }: 
   ].join(" · ");
 }
 
+// Les mêmes, en anglais : ce que dit `station`. La commande de la passe garde
+// les mots français ci-dessus.
+export function direReglagesEn({ calibration, cooksBelow, tokens, removedLines }: ReglagesDeFermeture): string {
+  return [
+    calibration === null ? "closer not set" : `closer on \`${calibration.model}\` / \`${calibration.effort}\``,
+    `starts under ${pluralEn(cooksBelow, "cook")} in flight`,
+    `${tokens.toLocaleString("en-US")} tokens at most`,
+    `${pluralEn(removedLines, "line")} removed at most`,
+  ].join(" · ");
+}
+
 // La fin d'une passe, telle que le chef la lit.
 export function direFin({ outcome, observed, limit, pr, removedLines, files, kept, detail }: Extract<FaitFermeture, { type: "closing.ended" }>["payload"]): string {
   const mesure = (unite: (valeur: number) => string) => `${observed == null ? "?" : unite(observed)} pour un plafond de ${limit == null ? "?" : unite(limit)}`;

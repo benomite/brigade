@@ -17,7 +17,7 @@
 // Ce qu'une station fournit est une capacité : ce que la machine peut faire.
 // Ce n'est pas une permission — ce qui est permis reste l'affaire des grants
 // —, et ce module n'en reconnaît aucune : il lit des noms.
-import { capacite as nomDeCapacite, CAPACITE, FORME_DE_CAPACITE } from "./capacites.ts";
+import { capacite as nomDeCapacite, CAPACITE, FORME_DE_CAPACITE_EN } from "./capacites.ts";
 import { geste } from "./geste.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
@@ -55,7 +55,7 @@ const PLAFOND = /^[1-9][0-9]*$/;
 export const DISTANTE = "distante";
 export const ORDINAIRES = "ordinaires";
 
-export const FORME = `<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>[:${DISTANTE}[+${ORDINAIRES}]]`;
+export const FORME = `<machine>/<engine>:<cooks cap>:<capability>+<capability>[:${DISTANTE}[+${ORDINAIRES}]]`;
 export const EXEMPLE = "box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless";
 
 // Lit `BRIGADE_STATIONS` : une station par entrée, séparées par des virgules,
@@ -73,32 +73,32 @@ export function lireStations(env: Record<string, string | undefined>): StationDe
   brut.split(",").forEach((ecrite, rang) => {
     const entree = ecrite.trim();
     const refuser = (pourquoi: string): never => {
-      throw new ConfigInvalide(`${VARIABLE_DES_STATIONS} invalide : station n° ${rang + 1} (« ${entree} ») — ${pourquoi}. Attendu \`${FORME}\`, une station par entrée, séparées par des virgules (${EXEMPLE})`);
+      throw new ConfigInvalide(`${VARIABLE_DES_STATIONS} invalid: station no. ${rang + 1} (“${entree}”) — ${pourquoi}. Expected \`${FORME}\`, one station per entry, separated by commas (${EXEMPLE})`);
     };
-    if (entree === "") refuser("elle est vide : une virgule de trop");
+    if (entree === "") refuser("it is empty: one comma too many");
     const champs = entree.split(":").map((champ) => champ.trim());
     const [nom = "", plafond, capacites, lieu] = champs;
     if (!NOM_DE_STATION.test(nom)) {
-      refuser(`nom : « ${nom} » n'est pas de la forme \`<machine>/<moteur>\`, en minuscules, chiffres et tirets (box/claude)`);
+      refuser(`name: “${nom}” is not of the form \`<machine>/<engine>\`, in lower case, digits and hyphens (box/claude)`);
     }
-    if (stations.some((station) => station.nom === nom)) refuser(`nom : \`${nom}\` est déjà déclarée — deux stations ne portent pas le même nom`);
-    if (plafond === undefined) refuser("plafond : il manque — combien de cooks cette station fait tourner à la fois");
+    if (stations.some((station) => station.nom === nom)) refuser(`name: \`${nom}\` is already declared — two stations do not share a name`);
+    if (plafond === undefined) refuser("cap: it is missing — how many cooks this station runs at once");
     const cooks = Number(plafond);
-    if (!PLAFOND.test(plafond ?? "") || !Number.isSafeInteger(cooks)) refuser(`plafond : « ${plafond} » n'est pas un entier supérieur à zéro`);
-    if (capacites === undefined || capacites === "") refuser("fournit : il manque — au moins une capacité, ce que cette station fournit");
+    if (!PLAFOND.test(plafond ?? "") || !Number.isSafeInteger(cooks)) refuser(`cap: “${plafond}” is not an integer greater than zero`);
+    if (capacites === undefined || capacites === "") refuser("provides: it is missing — at least one capability, what this station provides");
     const marques = lieu === undefined ? [] : lieu.split("+").map((marque) => marque.trim());
     const lisible = marques.length === 0 || (marques[0] === DISTANTE && (marques.length === 1 || (marques.length === 2 && marques[1] === ORDINAIRES)));
     if (champs.length > 4 || !lisible) {
       if (champs.length <= 4 && marques.includes(ORDINAIRES) && !marques.includes(DISTANTE)) {
-        refuser(`\`${ORDINAIRES}\` ne se dit que d'une station \`${DISTANTE}\` (\`${DISTANTE}+${ORDINAIRES}\`) : une station de la box prend déjà les tickets ordinaires`);
+        refuser(`\`${ORDINAIRES}\` only goes with a \`${DISTANTE}\` station (\`${DISTANTE}+${ORDINAIRES}\`): a station of the box already takes the ordinary tickets`);
       }
-      refuser(`« ${champs.slice(lisible ? 4 : 3).join(":")} » est en trop : une station a trois champs — un quatrième, facultatif, ne dit que \`${DISTANTE}\` : elle ne tourne pas sur cette machine, elle vient tirer son travail ; ou \`${DISTANTE}+${ORDINAIRES}\` : elle prend aussi les tickets ordinaires, dans le bac à sable de son poste`);
+      refuser(`“${champs.slice(lisible ? 4 : 3).join(":")}” is one too many: a station has three fields — an optional fourth says only \`${DISTANTE}\`: it does not run on this machine, it comes to pull its work; or \`${DISTANTE}+${ORDINAIRES}\`: it also takes the ordinary tickets, inside the sandbox of its workstation`);
     }
     // Le nom tel que la fiche d'un ticket le demandera.
     const fournit = (capacites ?? "").split("+").map((capacite) => nomDeCapacite(capacite.trim()));
     for (const [place, capacite] of fournit.entries()) {
-      if (!CAPACITE.test(capacite)) refuser(`fournit : « ${capacite} » n'est pas un nom de capacité — ${FORME_DE_CAPACITE}`);
-      if (fournit.indexOf(capacite) !== place) refuser(`fournit : \`${capacite}\` est écrite deux fois`);
+      if (!CAPACITE.test(capacite)) refuser(`provides: “${capacite}” is not a capability name — ${FORME_DE_CAPACITE_EN}`);
+      if (fournit.indexOf(capacite) !== place) refuser(`provides: \`${capacite}\` is written twice`);
     }
     stations.push({
       nom,

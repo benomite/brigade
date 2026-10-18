@@ -56,34 +56,46 @@ export type Posees = Partial<Record<Decision, string>>;
 const POSEE = "decision.set";
 const RETIREE = "decision.withdrawn";
 
-const ou = (valeurs: readonly string[]) => `${valeurs.slice(0, -1).join(", ")} ou ${valeurs.at(-1)}`;
+const or = (valeurs: readonly string[]) => `${valeurs.slice(0, -1).join(", ")} or ${valeurs.at(-1)}`;
 const parmi = (admis: readonly string[]) => (nom: Decision, valeur: string) => {
-  if (!admis.includes(valeur)) throw new ConfigInvalide(`${nom} invalide : « ${valeur} » — attendu ${ou(admis)}`);
+  if (!admis.includes(valeur)) throw new ConfigInvalide(`${nom} invalid: “${valeur}” — expected ${or(admis)}`);
 };
+// Un nombre que lit le lecteur du runtime (seuils, plafonds de la passe) : son
+// refus, dit en anglais par la décision qui le pose.
+const nombre = (lecteur: (env: Record<string, string>) => unknown, attendu: string) => (nom: Decision, valeur: string) => {
+  try {
+    lecteur({ [nom]: valeur });
+  } catch (erreur) {
+    if (!(erreur instanceof ConfigInvalide)) throw erreur;
+    throw new ConfigInvalide(`${nom} invalid: “${valeur}” — expected ${attendu}`);
+  }
+};
+const ENTIER = "an integer greater than zero";
+const NOMBRE = "a number greater than zero";
 
 // Ce qu'une valeur doit être, lue seule : le lecteur même du runtime, pour
 // qu'une décision ne puisse pas valoir ce que la variable ne vaudrait pas.
 const VERIFIER: Record<Decision, (nom: Decision, valeur: string) => void> = {
   BRIGADE_STATIONS: (nom, valeur) => void lireStations({ [nom]: valeur }),
-  BRIGADE_DRIFT_TICKET_TOKENS: (nom, valeur) => void lireSeuils({ [nom]: valeur }),
-  BRIGADE_DRIFT_LOST_TOKENS: (nom, valeur) => void lireSeuils({ [nom]: valeur }),
-  BRIGADE_DRIFT_FIRST_TRY_PERCENT: (nom, valeur) => void lireSeuils({ [nom]: valeur }),
-  BRIGADE_DRIFT_FIRST_TRY_WINDOW: (nom, valeur) => void lireSeuils({ [nom]: valeur }),
+  BRIGADE_DRIFT_TICKET_TOKENS: nombre(lireSeuils, ENTIER),
+  BRIGADE_DRIFT_LOST_TOKENS: nombre(lireSeuils, ENTIER),
+  BRIGADE_DRIFT_FIRST_TRY_PERCENT: nombre(lireSeuils, NOMBRE),
+  BRIGADE_DRIFT_FIRST_TRY_WINDOW: nombre(lireSeuils, ENTIER),
   BRIGADE_MANAGER_MODEL: parmi(MODELES),
   BRIGADE_MANAGER_EFFORT: parmi(EFFORTS),
   BRIGADE_REVIEWER_MODEL: parmi(MODELES),
   BRIGADE_REVIEWER_EFFORT: parmi(EFFORTS),
   BRIGADE_CLOSING_MODEL: parmi(MODELES),
   BRIGADE_CLOSING_EFFORT: parmi(EFFORTS),
-  BRIGADE_CLOSING_COOKS: (nom, valeur) => void configFermeture({ [nom]: valeur }),
-  BRIGADE_CLOSING_MAX_TOKENS: (nom, valeur) => void configFermeture({ [nom]: valeur }),
-  BRIGADE_CLOSING_MAX_REMOVED_LINES: (nom, valeur) => void configFermeture({ [nom]: valeur }),
+  BRIGADE_CLOSING_COOKS: nombre(configFermeture, ENTIER),
+  BRIGADE_CLOSING_MAX_TOKENS: nombre(configFermeture, ENTIER),
+  BRIGADE_CLOSING_MAX_REMOVED_LINES: nombre(configFermeture, ENTIER),
 };
 
 export const estUneDecision = (nom: string): nom is Decision => (DECISIONS as readonly string[]).includes(nom);
 
 function exigerDecision(nom: string): Decision {
-  if (!estUneDecision(nom)) throw new ConfigInvalide(`« ${nom} » n'est pas une décision du chef — attendu ${ou(DECISIONS)}`);
+  if (!estUneDecision(nom)) throw new ConfigInvalide(`“${nom}” is not a chef's decision — expected ${or(DECISIONS)}`);
   return nom;
 }
 
@@ -91,7 +103,7 @@ function exigerDecision(nom: string): Decision {
 // valeur : une décision se retire, elle ne se pose pas à rien.
 export function verifierDecision(nom: string, valeur: string): void {
   const decision = exigerDecision(nom);
-  if (valeur.trim() === "") throw new ConfigInvalide(`${decision} : une valeur vide n'est pas une décision — la retirer pour revenir à l'environnement`);
+  if (valeur.trim() === "") throw new ConfigInvalide(`${decision}: an empty value is not a decision — withdraw it to go back to the environment`);
   VERIFIER[decision](decision, valeur.trim());
 }
 
@@ -179,7 +191,7 @@ export function lireLesDecisions(repertoireEtat: string): { posees: Posees; illi
         verifierDecision(nom, valeur);
         posees[nom as Decision] = valeur;
       } catch (erreur) {
-        illisibles.push(`décision du chef illisible au journal — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+        illisibles.push(`chef's decision unreadable in the log — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
       }
     }
     return { posees, illisibles };

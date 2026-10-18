@@ -2,6 +2,10 @@
 
 Changes to the public interface of brigade — the commands of the box (`brigade <project> <command>`), their options, and what the roles cite. Newest first.
 
+## 2026-10-18 — the output of `station` in English (#953)
+
+What `station` writes — the view (stations, `simultaneous cooks`, `Max connection`, `withholding`, `cooks running`, `latest cooks`, `consumed`, `chef's decisions`), `cooks <N>`, a decision, `remove` and `help` — lines, refusals, errors and usage, is English, in the words of `docs/glossary.md`. That includes the refusals that come from the decisions (`BRIGADE_STATIONS invalid: station no. 1 …`, `… invalid: “x” — expected opus, sonnet or haiku`) and the form of a station declaration (`<machine>/<engine>:<cooks cap>:<capability>+<capability>[:distante[+ordinaires]]`; the words `distante` and `ordinaires` are still the ones you type). The names of the decisions (`seuil-ticket`, `manager-modele`, `closer-retraits`…) do not change, nor do the old words `retirer` and `aide`, which still answer and say the new one. Decisions written to the log before this change keep their effect and are shown as they were set. The app reads `station` in both languages, so a box that has not been updated yet is still read.
+
 ## 2026-10-18 — the output of `rail`, `pass`, `log` and `waiting` in English (#931)
 
 What `rail` (with `remove`, `priority`, `merge`), `pass` (with `issue`, `comment`, `ask`), `log` and `waiting` (`set`, `resume`, `arrived`) write — lines, refusals, errors and usage — is English, in the words of `docs/glossary.md`. The typed forms do not change (`--remind 7j` still reads), nor do the keys of `pass --json` and the event names of the log. Free text written to the log by others (a reviewer's finding, a gate's failure, an unreadable card's reason) is shown as it was written. Two shared messages follow: `no log in <dir>` (any command that opens the log) and the `BRIGADE_GITHUB_REPO` / `BRIGADE_LEASE_SECONDS` / `BRIGADE_COMMON_PATHS` configuration errors. `grant`, `base` and the other commands keep their wording until their own tickets.

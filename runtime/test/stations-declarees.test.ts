@@ -38,37 +38,37 @@ test("ce que le runtime dit de ses stations au démarrage : chacune, son plafond
 // Chaque déclaration invalide est refusée par un message qui nomme la station
 // et le champ fautif.
 for (const [cas, valeur, attendu] of [
-  ["un nom sans moteur", "box:2:code", /station n° 1 \(« box:2:code »\) — nom : « box » n'est pas de la forme `<machine>\/<moteur>`/],
-  ["un nom sans machine", "/claude:2:code", /nom : « \/claude » n'est pas de la forme/],
-  ["un nom à trois étages", "box/claude/opus:2:code", /nom : « box\/claude\/opus » n'est pas de la forme/],
-  ["un nom en majuscules", "Box/Claude:2:code", /nom : « Box\/Claude » n'est pas de la forme/],
-  ["un nom vide", ":2:code", /nom : «  » n'est pas de la forme/],
-  ["un plafond à zéro", "box/claude:0:code", /plafond : « 0 » n'est pas un entier supérieur à zéro/],
-  ["un plafond négatif", "box/claude:-1:code", /plafond : « -1 » n'est pas un entier supérieur à zéro/],
-  ["un plafond à virgule", "box/claude:1.5:code", /plafond : « 1.5 » n'est pas un entier supérieur à zéro/],
-  ["un plafond en lettres", "box/claude:deux:code", /plafond : « deux » n'est pas un entier supérieur à zéro/],
-  ["un plafond démesuré", "box/claude:99999999999999999999:code", /plafond : « 99999999999999999999 » n'est pas un entier supérieur à zéro/],
-  ["un plafond absent", "box/claude", /plafond : il manque/],
-  ["un plafond vide", "box/claude::code", /plafond : «  » n'est pas un entier supérieur à zéro/],
-  ["un nom en double", "box/claude:2:code,box/playwright:1:navigateur,box/claude:4:code", /station n° 3 \(« box\/claude:4:code »\) — nom : `box\/claude` est déjà déclarée/],
-  ["une station sans capacité", "box/claude:2", /fournit : il manque/],
-  ["une liste de capacités vide", "box/claude:2:", /fournit : il manque/],
-  ["une capacité vide", "box/claude:2:code+", /fournit : «  » n'est pas un nom de capacité/],
-  ["une capacité à espace", "box/claude:2:navigateur headless", /fournit : « navigateur headless » n'est pas un nom de capacité/],
-  ["une capacité en double", "box/claude:2:code+code", /fournit : `code` est écrite deux fois/],
-  ["un champ de trop", "box/claude:2:code:opus", /« opus » est en trop : une station a trois champs/],
-  ["un cinquième champ", "mac/claude:1:chrome-connecté:distante:vite", /« vite » est en trop : une station a trois champs — un quatrième, facultatif, ne dit que `distante`/],
-  ["un quatrième champ qui ne dit pas `distante`", "mac/claude:1:chrome-connecté:locale", /« locale » est en trop : une station a trois champs — un quatrième, facultatif, ne dit que `distante`/],
-  ["`ordinaires` sans `distante`", "box/claude:2:code:ordinaires", /`ordinaires` ne se dit que d'une station `distante` \(`distante\+ordinaires`\) : une station de la box prend déjà les tickets ordinaires/],
-  ["`ordinaires` devant `distante`", "mac/claude:1:chrome-connecté:ordinaires+distante", /« ordinaires\+distante » est en trop/],
-  ["une marque inconnue après `distante`", "mac/claude:1:chrome-connecté:distante+vite", /« distante\+vite » est en trop : .* ou `distante\+ordinaires` : elle prend aussi les tickets ordinaires/],
-  ["`ordinaires` deux fois", "mac/claude:1:chrome-connecté:distante+ordinaires+ordinaires", /« distante\+ordinaires\+ordinaires » est en trop/],
-  ["une virgule de trop", "box/claude:2:code,", /station n° 2 \(«  »\) — elle est vide : une virgule de trop/],
+  ["un nom sans moteur", "box:2:code", /station no\. 1 \(“box:2:code”\) — name: “box” is not of the form `<machine>\/<engine>`/],
+  ["un nom sans machine", "/claude:2:code", /name: “\/claude” is not of the form/],
+  ["un nom à trois étages", "box/claude/opus:2:code", /name: “box\/claude\/opus” is not of the form/],
+  ["un nom en majuscules", "Box/Claude:2:code", /name: “Box\/Claude” is not of the form/],
+  ["un nom vide", ":2:code", /name: “” is not of the form/],
+  ["un plafond à zéro", "box/claude:0:code", /cap: “0” is not an integer greater than zero/],
+  ["un plafond négatif", "box/claude:-1:code", /cap: “-1” is not an integer greater than zero/],
+  ["un plafond à virgule", "box/claude:1.5:code", /cap: “1.5” is not an integer greater than zero/],
+  ["un plafond en lettres", "box/claude:deux:code", /cap: “deux” is not an integer greater than zero/],
+  ["un plafond démesuré", "box/claude:99999999999999999999:code", /cap: “99999999999999999999” is not an integer greater than zero/],
+  ["un plafond absent", "box/claude", /cap: it is missing/],
+  ["un plafond vide", "box/claude::code", /cap: “” is not an integer greater than zero/],
+  ["un nom en double", "box/claude:2:code,box/playwright:1:navigateur,box/claude:4:code", /station no\. 3 \(“box\/claude:4:code”\) — name: `box\/claude` is already declared/],
+  ["une station sans capacité", "box/claude:2", /provides: it is missing/],
+  ["une liste de capacités vide", "box/claude:2:", /provides: it is missing/],
+  ["une capacité vide", "box/claude:2:code+", /provides: “” is not a capability name/],
+  ["une capacité à espace", "box/claude:2:navigateur headless", /provides: “navigateur headless” is not a capability name/],
+  ["une capacité en double", "box/claude:2:code+code", /provides: `code` is written twice/],
+  ["un champ de trop", "box/claude:2:code:opus", /“opus” is one too many: a station has three fields/],
+  ["un cinquième champ", "mac/claude:1:chrome-connecté:distante:vite", /“vite” is one too many: a station has three fields — an optional fourth says only `distante`/],
+  ["un quatrième champ qui ne dit pas `distante`", "mac/claude:1:chrome-connecté:locale", /“locale” is one too many: a station has three fields — an optional fourth says only `distante`/],
+  ["`ordinaires` sans `distante`", "box/claude:2:code:ordinaires", /`ordinaires` only goes with a `distante` station \(`distante\+ordinaires`\): a station of the box already takes the ordinary tickets/],
+  ["`ordinaires` devant `distante`", "mac/claude:1:chrome-connecté:ordinaires+distante", /“ordinaires\+distante” is one too many/],
+  ["une marque inconnue après `distante`", "mac/claude:1:chrome-connecté:distante+vite", /“distante\+vite” is one too many: .* or `distante\+ordinaires`: it also takes the ordinary tickets/],
+  ["`ordinaires` deux fois", "mac/claude:1:chrome-connecté:distante+ordinaires+ordinaires", /“distante\+ordinaires\+ordinaires” is one too many/],
+  ["une virgule de trop", "box/claude:2:code,", /station no\. 2 \(“”\) — it is empty: one comma too many/],
 ] as const) {
   test(`refus qui nomme la station et le champ fautif : ${cas} — BRIGADE_STATIONS=${valeur}`, () => {
     assert.throws(
       () => lireStations({ BRIGADE_STATIONS: valeur }),
-      (erreur: unknown) => erreur instanceof ConfigInvalide && erreur.message.startsWith("BRIGADE_STATIONS invalide : ") && attendu.test(erreur.message),
+      (erreur: unknown) => erreur instanceof ConfigInvalide && erreur.message.startsWith("BRIGADE_STATIONS invalid: ") && attendu.test(erreur.message),
     );
   });
 }
@@ -94,7 +94,7 @@ test("une capacité accentuée se lit sous un seul nom, quelle que soit la faço
   const [station] = lireStations({ BRIGADE_STATIONS: "mac/claude-chrome:1:chrome-connecté+code" });
   assert.deepEqual(station?.fournit, ["chrome-connecté", "code"]);
   // Deux écritures du même nom sont un doublon.
-  assert.throws(() => lireStations({ BRIGADE_STATIONS: "mac/claude-chrome:1:chrome-connecté+chrome-connecté" }), /fournit : `chrome-connecté` est écrite deux fois/);
+  assert.throws(() => lireStations({ BRIGADE_STATIONS: "mac/claude-chrome:1:chrome-connecté+chrome-connecté" }), /provides: `chrome-connecté` is written twice/);
 });
 
 test("une station distante prend aussi les tickets ordinaires quand le chef la déclare `distante+ordinaires` : le démarrage le dit, et la déclaration se réécrit à l'identique", () => {

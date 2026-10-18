@@ -489,11 +489,11 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
         assert.deepEqual([types(15).includes("worktree.removed"), existsSync(join(repertoire, String(lance.worktree)))], [false, true]);
         assert.deepEqual(avertissements, []);
 
-        const ligne = `  #15  ${echapper(lance.worktree)}  port ${port}  écoute depuis`;
+        const ligne = `  #15  ${echapper(lance.worktree)}  port ${port}  listening since`;
         const station = await montrer(montrerStation, repertoire);
         // Son cook n'a déclaré aucun écran, et le projet n'en déclare aucun : il n'y a pas de page à ouvrir, pas même la racine.
-        const sansPage = "aucune page à ouvrir : la livraison ne dit aucun écran, et n'en touche aucun que le projet déclare";
-        assert.match(station, new RegExp(`^serveurs\\s+1 — chacun sert une livraison d'interface depuis son worktree, sur le port de ce worktree\\n${ligne} le \\S+  ${echapper(lance.branch)}  ${sansPage}$`, "m"));
+        const sansPage = "no page to open: the delivery names no screen, and touches none that the project declares";
+        assert.match(station, new RegExp(`^servers\\s+1 — each serves an interface delivery from its worktree, on that worktree's port\\n${ligne} \\S+  ${echapper(lance.branch)}  ${sansPage}$`, "m"));
         assert.doesNotMatch(station, new RegExp(`http://127\\.0\\.0\\.1:${port}`));
         assert.doesNotMatch(station, /^service /m);
         const photo = await montrer(status, repertoire);
@@ -505,7 +505,7 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
         lieu.runtime.arreter("test");
         await mort(Number(lance.pid));
         assert.notEqual((await interroger(port))?.cwd, reponse.cwd);
-        assert.match(await montrer(montrerStation, repertoire), /^serveurs\s+aucun$/m);
+        assert.match(await montrer(montrerStation, repertoire), /^servers\s+none$/m);
         assert.doesNotMatch(await montrer(status, repertoire), /^servers /m);
       });
     });
@@ -520,11 +520,11 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
 
         assert.deepEqual(dernier("service.started", 15)?.screen, { name: "/exemple", sentence: "la page d'exemple montre `travail.txt`", source: "declare" });
         const page = `http://127.0.0.1:${port}/exemple`;
-        const ligne = `  #15  \\S+  port ${port}  écoute depuis .+  ${echapper(page)}$`;
+        const ligne = `  #15  \\S+  port ${port}  listening since .+  ${echapper(page)}$`;
         assert.match(await montrer(montrerStation, repertoire), new RegExp(ligne, "m"));
         // `status` dit dessous l'écran, qui l'a dit, et la phrase du cook — ce que l'app pose sur la carte.
         const regard = ["    screen: /exemple (declared by the cook)", "    to look at: la page d'exemple montre `travail.txt`"].map(echapper).join("\\n");
-        assert.match(await montrer(status, repertoire), new RegExp(`${ligne.replace("écoute depuis", "listening since")}\\n${regard}$`, "m"));
+        assert.match(await montrer(status, repertoire), new RegExp(`${ligne}\\n${regard}$`, "m"));
         // La page de l'écran est servie par le serveur de ce worktree.
         assert.equal(((await (await fetch(page)).json()) as Reponse).cwd, reponse.cwd);
       });
@@ -549,20 +549,20 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
       assert.deepEqual([types(15).filter((type) => type.startsWith("service.")), types(15).includes("worktree.removed"), existsSync(worktree)], [["service.held"], false, true]);
       assert.deepEqual(avertissements, []);
 
-      const ligne = `  #15  ${echapper(tenu.worktree)}  tenu depuis .+  ${echapper(tenu.branch)}  ${echapper(how)}$`;
+      const howEn = `no page in a browser: launch the app on the delivery's worktree, \`cd '${worktree}' && ${LANCEMENT}\`, then open the screen “/exemple” there — to look at: la page d'exemple montre \`travail.txt\``;
+      const ligne = `  #15  ${echapper(tenu.worktree)}  held since .+  ${echapper(tenu.branch)}  ${echapper(howEn)}$`;
       const station = await montrer(montrerStation, repertoire);
-      assert.match(station, /^serveurs\s+aucun$/m);
-      assert.match(station, new RegExp(`^à lancer\\s+1 — .*\\n${ligne}`, "m"));
+      assert.match(station, /^servers\s+none$/m);
+      assert.match(station, new RegExp(`^to launch\\s+1 — .*\\n${ligne}`, "m"));
       const photo = await montrer(status, repertoire);
       const regard = ["    screen: /exemple (declared by the cook)", "    to look at: la page d'exemple montre `travail.txt`"].map(echapper).join("\\n");
-      const howEn = `no page in a browser: launch the app on the delivery's worktree, \`cd '${worktree}' && ${LANCEMENT}\`, then open the screen “/exemple” there — to look at: la page d'exemple montre \`travail.txt\``;
       const ligneEn = `  #15  ${echapper(tenu.worktree)}  held since .+  ${echapper(tenu.branch)}  ${echapper(howEn)}$`;
       assert.match(photo, new RegExp(`^to launch\\s+1 — .*\\n${ligneEn}\\n${regard}$`, "m"));
       assert.doesNotMatch(`${station}\n${photo}`, /http:\/\/127\.0\.0\.1/);
 
       // Le runtime s'en va : plus rien n'est tenu, plus rien n'est listé.
       lieu.runtime.arreter("test");
-      assert.doesNotMatch(await montrer(montrerStation, repertoire), /^à lancer/m);
+      assert.doesNotMatch(await montrer(montrerStation, repertoire), /^to launch/m);
       assert.doesNotMatch(await montrer(status, repertoire), /^to launch/m);
     });
   });
@@ -580,7 +580,7 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
         // Les deux répondent encore, chacun de son worktree.
         assert.deepEqual([(await interroger(premier))?.cwd, (await interroger(second))?.cwd], [a.cwd, b.cwd]);
         const station = await montrer(montrerStation, repertoire);
-        assert.match(station, new RegExp(`^serveurs\\s+2 — .*\\n  #15  \\S+  port ${premier}  écoute .*\\n  #16  \\S+  port ${second}  écoute `, "m"));
+        assert.match(station, new RegExp(`^servers\\s+2 — .*\\n  #15  \\S+  port ${premier}  listening .*\\n  #16  \\S+  port ${second}  listening `, "m"));
         assert.match(await montrer(status, repertoire), new RegExp(`^servers    2 servers — .*\\n  #15  \\S+  port ${premier}  listening .*\\n  #16  \\S+  port ${second}  listening `, "m"));
 
         // La pass sert le ticket 15 : son serveur n'a plus rien à montrer.
@@ -593,7 +593,7 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
         assert.notEqual((await interroger(premier))?.cwd, a.cwd);
         assert.equal((await interroger(second))?.cwd, b.cwd);
         const apres = await montrer(montrerStation, repertoire);
-        assert.match(apres, new RegExp(`^serveurs\\s+1 — .*\\n  #16  \\S+  port ${second}  écoute `, "m"));
+        assert.match(apres, new RegExp(`^servers\\s+1 — .*\\n  #16  \\S+  port ${second}  listening `, "m"));
         assert.doesNotMatch(apres, /^ {2}#15 .* port /m);
       });
     });
@@ -609,7 +609,7 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
       assert.deepEqual(journal.tout().filter((evenement) => evenement.type.startsWith("service.")), []);
       assert.deepEqual(avertissements, []);
       const station = await montrer(montrerStation, repertoire);
-      assert.match(station, /^serveurs\s+aucun$/m);
+      assert.match(station, /^servers\s+none$/m);
       assert.doesNotMatch(station, /^service /m);
       assert.doesNotMatch(await montrer(status, repertoire), /^(serveurs|service) /m);
     });
@@ -626,7 +626,7 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
     assert.deepEqual([types(15).some((type) => type.startsWith("service.")), avertissements], [false, []]);
     const message = /NOT DECLARED — this project does not declare how it is served: its repository has no `\.claude\/brigade\/service` — a "commande: …" line \(or "lancement: …" for an app that does not open in a browser\), and one "interface: <path>" line per path whose change touches the interface \(delivery of ticket #15\); no server is launched — since /;
     const station = await montrer(montrerStation, repertoire);
-    assert.match(station, /^serveurs\s+aucun$/m);
+    assert.match(station, /^servers\s+none$/m);
     assert.match(station, new RegExp(`^service\\s+${message.source}\\S+$`, "m"));
     const photo = await montrer(status, repertoire);
     assert.doesNotMatch(photo, /^serveurs /m);
@@ -658,7 +658,7 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
         assert.equal(dernier("service.stopped", 15)?.reason, "orphaned");
         await mort(Number(lance.pid));
         assert.notEqual((await interroger(port))?.cwd, reponse.cwd);
-        assert.match(await montrer(montrerStation, repertoire), /^serveurs\s+aucun$/m);
+        assert.match(await montrer(montrerStation, repertoire), /^servers\s+none$/m);
         assert.doesNotMatch(await montrer(status, repertoire), /^servers /m);
       });
     });
@@ -689,7 +689,7 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
         await mort(Number(lance.pid));
         assert.notEqual((await interroger(port))?.cwd, reponse.cwd);
         assert.equal(existsSync(reponse.cwd), false);
-        assert.match(await montrer(montrerStation, repertoire), /^serveurs\s+aucun$/m);
+        assert.match(await montrer(montrerStation, repertoire), /^servers\s+none$/m);
         assert.doesNotMatch(await montrer(status, repertoire), /^servers /m);
       });
     });
@@ -726,7 +726,7 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
         assert.equal(seconde.fichiers.includes("brouillon.txt"), true);
         assert.equal((await interroger(port))?.cwd, seconde.cwd);
         const station = await montrer(montrerStation, repertoire);
-        assert.match(station, new RegExp(`^serveurs\\s+1 — .*\\n  #17  ${echapper(dernier("service.started", 17)?.worktree)}  port ${port}  écoute `, "m"));
+        assert.match(station, new RegExp(`^servers\\s+1 — .*\\n  #17  ${echapper(dernier("service.started", 17)?.worktree)}  port ${port}  listening `, "m"));
       });
     });
   });

@@ -26,7 +26,7 @@ export type Constat = { disponible: true; poste: Poste } | { disponible: false; 
 
 // La station prend les tickets ordinaires, et n'a rien dit de son bac à
 // sable : une app d'avant ce réglage, qui ne le sonde pas.
-export const NON_DIT = "la station n'a pas dit si son poste a le bac à sable de Claude Code — son app ne le sonde pas encore";
+export const NON_DIT = "the station did not say whether its workstation has the Claude Code sandbox — its app does not probe for it yet";
 
 const RAISON_MAX = 300;
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur.trim() !== "";
@@ -43,17 +43,17 @@ const ESSAI = "essai";
 export function constater(dit: unknown, hotes: Regle[]): Constat {
   if (dit === undefined || dit === null) return { disponible: false, raison: NON_DIT };
   const { available, reason, version, home, worktrees, caches } = dit as Record<string, unknown>;
-  if (available === false) return { disponible: false, raison: texte(reason) ? reason.trim().slice(0, RAISON_MAX) : "la station le dit indisponible, sans dire pourquoi" };
+  if (available === false) return { disponible: false, raison: texte(reason) ? reason.trim().slice(0, RAISON_MAX) : "the station says it is unavailable, without saying why" };
   const lisibles = Array.isArray(caches) && caches.every(absolu);
   if (available !== true || !texte(version) || !absolu(home) || !absolu(worktrees) || !lisibles) {
-    return { disponible: false, raison: "ce que la station dit de son bac à sable ne se lit pas : il faut sa version de `claude`, et des chemins absolus pour le compte, les worktrees et les caches" };
+    return { disponible: false, raison: "what the station says about its sandbox cannot be read: it needs its `claude` version, and absolute paths for the account, the worktrees and the caches" };
   }
   const poste: Poste = { version: version.trim().slice(0, 40), home, worktrees, caches: caches as string[] };
   try {
     configurerLeCook(poste, ESSAI, hotes);
   } catch (erreur) {
     if (!(erreur instanceof BacASableInvalide)) throw erreur;
-    return { disponible: false, raison: `la configuration du bac à sable ne tient pas sur ce poste — ${erreur.message}`.slice(0, RAISON_MAX) };
+    return { disponible: false, raison: `the sandbox configuration does not hold on this workstation — ${erreur.message}`.slice(0, RAISON_MAX) };
   }
   return { disponible: true, poste };
 }
@@ -85,6 +85,15 @@ export function prendLesOrdinaires(station: { distante?: boolean; ordinaires?: b
 // du projet, les caches du projet.
 export function pourLaBox(detection: Detection, lieux: { home: string; worktrees: string; caches: string[] }): BacASableDeLaStation {
   return detection.disponible ? { available: true, version: detection.version, ...lieux } : { available: false, reason: detection.raison };
+}
+
+// Ce que la station fait des tickets ordinaires, tel que le chef le lit — en
+// anglais : ce que dit `station`.
+export function direOrdinairesEn(etat: { ordinary: boolean; sandbox: { available: boolean; reason: string | null; version: string | null; at: string } | null }): string {
+  if (!etat.ordinary) return "not taken — it only takes the tickets that ask for one of its capabilities";
+  if (etat.sandbox === null) return "taken as soon as the station says its workstation has the Claude Code sandbox — it has not said anything yet";
+  if (!etat.sandbox.available) return `NONE TAKEN — sandbox unavailable since ${etat.sandbox.at}: ${etat.sandbox.reason ?? "no reason given"}`;
+  return `taken when the box is saturated, each cook inside the Claude Code sandbox (claude ${etat.sandbox.version ?? "?"}) — it writes only in its worktree and the project's caches, reaches only the project's hosts`;
 }
 
 // Ce que la station fait des tickets ordinaires, tel que le chef le lit.

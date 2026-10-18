@@ -140,11 +140,14 @@ export const GESTE_DE_CONNEXION_TOMBEE = "`claude /login` sous le compte du serv
 export const direDeconnexionEn = (raison: string | null) => (direDeconnexion(raison) === "absente" ? "missing" : "expired");
 export const GESTE_DE_CONNEXION_EN = `\`claude /login\` under the service account, then \`${geste("guardrails resume")}\``;
 export const GESTE_DE_CONNEXION_TOMBEE_EN = "`claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”";
-// La connexion Max tombée, dite d'un seul endroit : `run station` et
-// `run installation` la citent telle quelle — deux rendus d'un même fait, ce
-// serait deux endroits où il peut devenir faux.
+// La connexion Max tombée, dite d'un seul endroit : `run installation` la cite
+// telle quelle (`station` la dit en anglais, ci-dessous, du même fait).
 export const direConnexionTombee = (etat: Pick<EtatStation, "disconnectedAt" | "disconnectedReason">) =>
   `EXPIRÉE depuis le ${etat.disconnectedAt} (${etat.disconnectedReason}) — plus aucun ticket n'est pris ; \`claude /login\` sous le compte du service — la cuisine reprend seule dans la minute`;
+
+// La même, en anglais : ce que dit `station`.
+export const direConnexionTombeeEn = (etat: Pick<EtatStation, "disconnectedAt" | "disconnectedReason">) =>
+  `EXPIRED since ${etat.disconnectedAt} (${etat.disconnectedReason}) — no ticket is taken any more; ${GESTE_DE_CONNEXION_TOMBEE_EN}`;
 
 // Une station entre dans la table au premier fait qui la nomme : un quota
 // épuisé ou une déconnexion valent même si l'annonce s'est perdue.
