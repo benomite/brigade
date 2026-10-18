@@ -8,13 +8,22 @@ import { geste } from "../geste.ts";
 export const NATURES = ["ticket", "epic", "question", "decision", "incomplete"] as const;
 export type Nature = (typeof NATURES)[number];
 
-// Chaque nature telle qu'elle se dit au chef.
+// Chaque nature telle qu'elle se dit au chef, en français : les commentaires que le manager pose sur GitHub.
 export const NOMS_DE_NATURE: Record<Nature, string> = {
   ticket: "un ticket",
   epic: "une épique",
   question: "une question",
   decision: "une issue de décision",
   incomplete: "un ticket incomplet",
+};
+
+// Les mêmes, en anglais : ce que `manager` et `manager upstream` en disent.
+export const NOMS_DE_NATURE_EN: Record<Nature, string> = {
+  ticket: "a ticket",
+  epic: "an epic",
+  question: "a question",
+  decision: "a decision issue",
+  incomplete: "an incomplete ticket",
 };
 
 // Pourquoi le code écarte une issue sans la faire juger. `chef-changed` : le

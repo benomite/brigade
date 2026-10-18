@@ -35,8 +35,10 @@ export const ALLUMAGE = {
 
 export type Backlog = { ouvertes: number; retenues: number };
 
-// La ligne `backlog` : `<n> issue(s) ouverte(s), dont <m> porte(nt) `blocked-on-human` — <suite>`.
-const LIGNE = /^backlog {2,}(\d+) issues? ouvertes?, dont (\d+) porte(?:nt)? `blocked-on-human`/;
+// La ligne `backlog` : `<n> open issue(s), of which <m> carry/carries `blocked-on-human` — <suite>`.
+// D'avant #951 : `<n> issue(s) ouverte(s), dont <m> porte(nt) `blocked-on-human` — <suite>`.
+const LIGNE = /^backlog {2,}(\d+) open issues?, of which (\d+) carr(?:y|ies) `blocked-on-human`/;
+const LIGNE_D_AVANT = /^backlog {2,}(\d+) issues? ouvertes?, dont (\d+) porte(?:nt)? `blocked-on-human`/;
 
 // Ce que cette sortie de `manager backlog` compte — ou en quoi elle n'en a pas la forme.
 export function backlogDe(sortie: string): Backlog | { informe: string } {
@@ -44,7 +46,7 @@ export function backlogDe(sortie: string): Backlog | { informe: string } {
   const [ligne] = lignes;
   if (ligne === undefined) return { informe: "it has no `backlog` line" };
   if (lignes.length > 1) return { informe: "it has more than one `backlog` line" };
-  const [, lues, portees] = LIGNE.exec(ligne) ?? [];
+  const [, lues, portees] = LIGNE.exec(ligne) ?? LIGNE_D_AVANT.exec(ligne) ?? [];
   const [ouvertes, retenues] = [Number(lues), Number(portees)];
   if (lues === undefined || portees === undefined || !Number.isSafeInteger(ouvertes) || !Number.isSafeInteger(retenues)) return { informe: `its \`backlog\` line does not give the two numbers in the expected form: “${ligne}”` };
   if (retenues > ouvertes) return { informe: `its \`backlog\` line counts more \`blocked-on-human\` issues than open issues: “${ligne}”` };

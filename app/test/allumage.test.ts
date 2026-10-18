@@ -144,11 +144,19 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     assert.ok(doc.includes("npm --prefix runtime run manager -- backlog"), "docs/runtime/, « Le manager », ne cite pas `manager -- backlog`");
   });
 
+  test("la ligne `backlog` d'avant #951, en français, se lit encore : les mêmes nombres", () => {
+    assert.deepEqual(backlogDe("backlog               5 issues ouvertes, dont 2 portent `blocked-on-human` — lu à l'instant sur GitHub (parade/parade)\n"), { ouvertes: 5, retenues: 2 });
+    assert.deepEqual(backlogDe("backlog               1 issue ouverte, dont 1 porte `blocked-on-human` — lu à l'instant sur GitHub (parade/parade)\n"), { ouvertes: 1, retenues: 1 });
+    assert.deepEqual(backlogDe("backlog               1 open issue, of which 1 carries `blocked-on-human` — read just now on GitHub (parade/parade)\n"), { ouvertes: 1, retenues: 1 });
+    // Les deux formes ne se mêlent pas.
+    assert.ok("informe" in backlogDe("backlog               5 open issues, dont 2 portent `blocked-on-human`\n"));
+  });
+
   test("une sortie qui n'a pas la forme ne donne aucun nombre : ce n'est pas « aucune issue »", () => {
     assert.deepEqual(backlogDe(""), { informe: "it has no `backlog` line" });
     assert.deepEqual(backlogDe("manager               ÉTEINT — jamais allumé\n"), { informe: "it has no `backlog` line" });
     assert.deepEqual(backlogDe("backlog               beaucoup d'issues\n"), { informe: "its `backlog` line does not give the two numbers in the expected form: “backlog               beaucoup d'issues”" });
-    assert.ok("informe" in backlogDe("backlog               2 issues ouvertes, dont 3 portent `blocked-on-human`\n"));
+    assert.ok("informe" in backlogDe("backlog               2 open issues, of which 3 carry `blocked-on-human`\n"));
     assert.ok("informe" in backlogDe("backlog               2 issues ouvertes, dont 1 porte `blocked-on-human`\nbacklog               9 issues ouvertes, dont 1 porte `blocked-on-human`\n"));
     // Le mot au milieu d'une autre ligne n'est pas la ligne.
     assert.ok("informe" in backlogDe("  backlog               2 issues ouvertes, dont 1 porte `blocked-on-human`\n"));

@@ -116,9 +116,9 @@ describe("ce qui n'est pas encore sur le rail, lu dans la sortie de `manager ups
     );
     const issue = (ticket: number) => vu.groupes.flatMap(({ issues }) => issues).find((posee) => posee.ticket === ticket) ?? assert.fail(`pas de #${ticket}`);
     // Ce que la box en dit, mot pour mot — la raison du manager en une ligne.
-    assert.equal(issue(14).dit, "refusée (un ticket incomplet) — Aucun critère observable.");
-    assert.equal(issue(11).dit, "sortie du rail : label `fire` retiré");
-    assert.equal(issue(20).dit, "le manager ne l'a pas encore jugée");
+    assert.equal(issue(14).dit, "refused (an incomplete ticket) — Aucun critère observable.");
+    assert.equal(issue(11).dit, "left the rail: label `fire` removed");
+    assert.equal(issue(20).dit, "the manager has not judged it yet");
     // Sa fiche : son titre, la priorité que la box donne — ou qu'elle n'en a pas —, son issue qui s'ouvre.
     assert.deepEqual(issue(11).fiche, { titre: { valeur: "Le ticket sorti" }, priorite: { valeur: "prio:2", exact: true }, issue: true });
     assert.deepEqual(issue(20).fiche.priorite, { valeur: "none — its issue carries no `prio:` label" });
@@ -279,7 +279,7 @@ describe("dans l'espace du projet, ce qui est à venir se lit à côté du rail"
       ["not yet read by the manager1", "epic, not yet split1", "awaiting your answer — it is also in TODO1", "set aside by the manager1", "off the rail — still open1"],
     );
     const sortie11 = groupes[4]?.dessous("li")[0] ?? assert.fail("pas d'issue sortie du rail");
-    assert.deepEqual(sortie11.children.map((pose) => pose.textContent), ["#11Le ticket sorti", "sortie du rail : label `fire` retiré"]);
+    assert.deepEqual(sortie11.children.map((pose) => pose.textContent), ["#11Le ticket sorti", "left the rail: label `fire` removed"]);
     // Une lecture neuve ne la replie pas.
     vue.dire("surAmont", tenirAmont().recevoir(lecture(sortie)));
     assert.notEqual(liste(vue), undefined);
