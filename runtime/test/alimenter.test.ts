@@ -686,12 +686,12 @@ test("la configuration du rail vient de l'environnement ; le dépôt n'a pas de 
     configRail({ BRIGADE_GITHUB_REPO: "benomite/brigade.v2", BRIGADE_LEASE_SECONDS: "90", BRIGADE_GH_BIN: "/tmp/gh" }),
     { depot: "benomite/brigade.v2", dureeBailMs: 90_000, gh: "/tmp/gh", communs: [] },
   );
-  assert.throws(() => configRail({}), (e: unknown) => e instanceof ConfigInvalide && /BRIGADE_GITHUB_REPO n'est pas défini/.test(e.message));
+  assert.throws(() => configRail({}), (e: unknown) => e instanceof ConfigInvalide && /BRIGADE_GITHUB_REPO is not set/.test(e.message));
   for (const depot of ["brigade", "benomite/brigade/issues", "https://github.com/benomite/brigade", "benomite/ brigade"]) {
-    assert.throws(() => configRail({ BRIGADE_GITHUB_REPO: depot }), /BRIGADE_GITHUB_REPO invalide/);
+    assert.throws(() => configRail({ BRIGADE_GITHUB_REPO: depot }), /BRIGADE_GITHUB_REPO invalid/);
   }
   for (const bail of ["0", "-5", "dix", "1.5"]) {
-    assert.throws(() => configRail({ BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_LEASE_SECONDS: bail }), /BRIGADE_LEASE_SECONDS invalide/);
+    assert.throws(() => configRail({ BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_LEASE_SECONDS: bail }), /BRIGADE_LEASE_SECONDS invalid/);
   }
 });
 
@@ -700,7 +700,7 @@ test("les chemins communs du projet sont facultatifs, et ce sont des chemins du 
   assert.deepEqual(communs(""), []);
   assert.deepEqual(communs(" docs/runtime.md , CHANGELOG.md,, docs/runtime.md "), ["docs/runtime.md", "CHANGELOG.md"]);
   for (const valeur of ["/etc", "docs/../..", "docs/*.md", "~/notes"]) {
-    assert.throws(() => communs(valeur), (e: unknown) => e instanceof ConfigInvalide && /BRIGADE_COMMON_PATHS invalide/.test(e.message), valeur);
+    assert.throws(() => communs(valeur), (e: unknown) => e instanceof ConfigInvalide && /BRIGADE_COMMON_PATHS invalid/.test(e.message), valeur);
   }
 });
 

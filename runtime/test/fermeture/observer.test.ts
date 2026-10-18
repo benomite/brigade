@@ -194,7 +194,7 @@ test("le journal, s'il est là, dit les compteurs de la dérive : les merges dep
   const sans = await observer(clone);
   assert.match(sans.sortie, /\njournal    non lu : BRIGADE_STATE_DIR n'est pas défini — les compteurs de la dérive se lisent par `brigade <projet> measures`\n$/);
   const vide = await observer(clone, { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
-  assert.match(vide.sortie, /\njournal    non lu : aucun journal dans /);
+  assert.match(vide.sortie, /\njournal    non lu : no log in /);
 });
 
 test("la commande refuse ce qu'elle ne comprend pas, et dit ce qui lui manque du dépôt", async (t) => {

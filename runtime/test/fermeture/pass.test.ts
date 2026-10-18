@@ -118,7 +118,7 @@ test("sans grant, la PR d'une passe n'est pas mergée : la pass s'arrête verte,
   // `run pass` la montre pour ce qu'elle est : une PR, hors du rail.
   const lue = appeler(montrerPass, [], { BRIGADE_STATE_DIR: repertoire });
   assert.equal(await lue.fin, 0);
-  assert.match(lue.sortie(), /^PR #101 {2}hors du rail \(run fermeture-[0-9a-f]{8}\) {2}ARRÊTÉE — verte, non mergée \(no-grant\) {2}depuis /m);
+  assert.match(lue.sortie(), /^PR #101 {2}off the rail \(run fermeture-[0-9a-f]{8}\) {2}STOPPED — green, not merged \(no-grant\) {2}since /m);
 
   // Elle ne tient qu'au journal : le runtime redémarré la suit toujours, sans
   // la rejuger ni la faire relire.

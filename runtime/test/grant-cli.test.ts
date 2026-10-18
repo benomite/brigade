@@ -152,9 +152,8 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     noter({ type: "pass.held", payload: { reason: "review-required", cause: "judge-modified" } }, 20);
     const avant = journal.tout();
 
-    const BILAN = /^sans grant, 3 livraisons vertes arrêtées : 1 mergée à la main, 1 fermée sans merge — 1 désaccord —, 1 encore ouverte$/m;
-    assert.match((await commande(PASS)).sortie, BILAN);
-    assert.match((await commande(GRANT)).sortie, BILAN);
+    assert.match((await commande(PASS)).sortie, /^without a grant, 3 green deliveries stopped: 1 merged by hand, 1 closed without merge — 1 disagreement —, 1 still open$/m);
+    assert.match((await commande(GRANT)).sortie, /^sans grant, 3 livraisons vertes arrêtées : 1 mergée à la main, 1 fermée sans merge — 1 désaccord —, 1 encore ouverte$/m);
     // La commande `essai` n'existe plus : le chiffre se lit sans elle.
     assert.equal((await commande(GRANT, "essai")).code, 2);
     assert.deepEqual(journal.tout(), avant);
@@ -264,7 +263,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     for (const cli of [GRANT, PASS, BASE]) {
       const enfant = lancer(t, cli.fichier, [], { BRIGADE_STATE_DIR: vide });
       assert.equal(await enfant.fin, 1);
-      assert.match(enfant.sortie(), /aucun journal dans/);
+      assert.match(enfant.sortie(), /aucun journal dans|no log in/);
     }
     assert.equal(existsSync(join(vide, "log.db")), false);
 
@@ -273,7 +272,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     for (const cli of [GRANT, PASS, BASE]) {
       const enfant = appeler(cli.commande, [], { BRIGADE_STATE_DIR: ancien });
       assert.equal(await enfant.fin, 1);
-      assert.match(enfant.sortie(), /redémarrer le runtime, qui le recalcule/);
+      assert.match(enfant.sortie(), /redémarrer le runtime, qui le recalcule|restart the runtime, which recomputes it/);
     }
   });
 
@@ -283,7 +282,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     noter({ type: "pass.returned", payload: { n: 3, findings: ["Gates rouges."] } }, 17, "manager");
     noter({ type: "pass.deferred", payload: {} });
 
-    assert.match((await commande(PASS)).sortie, /^#17  rouge, au manager  renvois 2\/2, 1 relance du manager  depuis/m);
+    assert.match((await commande(PASS)).sortie, /^#17  red, with the manager  returns 2\/2, 1 restart by the manager  since/m);
     // L'histoire du ticket dit qui a décidé quoi, et pourquoi.
     noter(
       { type: "manager.reacted", payload: { verdict: 9, returns: 3, choice: "escalate", reason: "Le critère 2 se contredit.", proposal: "Le trancher.", run: "reagit-17-a", from: { model: "haiku", effort: "low" }, to: null } },
@@ -291,14 +290,14 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
       "manager",
     );
     const { sortie } = await commande(PASS, "17");
-    assert.match(sortie, /relance 1 décidée par le manager : les findings repartent à un cook/);
-    assert.match(sortie, /rouge : la pass passe la main au manager/);
-    assert.match(sortie, /le manager remonte au chef — Le critère 2 se contredit\./);
+    assert.match(sortie, /restart 1 decided by the manager: the findings go back to a cook/);
+    assert.match(sortie, /red: the pass hands over to the manager/);
+    assert.match(sortie, /the manager escalates to the chef — Le critère 2 se contredit\./);
   });
 
   test("le chef voit les livraisons en pass : leur phase, leurs renvois consommés, leur PR", async (t) => {
     const { lancee, noter, livrer, juger } = cuisine(t);
-    assert.match((await lancee(PASS)).sortie, /aucune livraison en pass/);
+    assert.match((await lancee(PASS)).sortie, /no delivery in pass/);
 
     livrer("a");
     juger("a", "red");
@@ -307,7 +306,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     const { code, sortie } = await lancee(PASS);
 
     assert.equal(code, 0);
-    assert.match(sortie, new RegExp(`#17  rouge, renvoyée au cook  renvois 1/2  depuis ${JOUR_HORLOGE}T\\S+  ${PR}`));
+    assert.match(sortie, new RegExp(`#17  red, returned to the cook  returns 1/2  since ${JOUR_HORLOGE}T\\S+  ${PR}`));
   });
 
   test("pour un ticket, le chef relit chaque verdict et ce qui l'a produit, jusqu'au merge", async (t) => {
@@ -322,12 +321,12 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
 
     const { sortie } = await commande(PASS, "17");
 
-    assert.match(sortie, /^#17  mergée  renvois 1\/2/m);
-    assert.match(sortie, new RegExp(`verdict n° ${rouge?.seq} : ROUGE — gates vertes \\(code 0\\) · CI rouge · reviewer rien de bloquant \\(run review-17-a\\)\\n\\s+CI « lint » : failure — https://ci/2\\n\\s+CI rouge — job « lint »`));
-    assert.match(sortie, /renvoi 1\/2 : les findings repartent à un cook/);
-    assert.match(sortie, new RegExp(`verdict n° ${vert?.seq} : VERT — gates vertes \\(code 0\\) · CI aucun check · reviewer rien de bloquant \\(run review-17-b\\)\\n\\s+jugé : abcdef0 fusionné avec la base ba5e000 — arbre a4b4e00\\n\\s+reviewer — remarque \\(a\\.ts\\) : Un nom plus clair aiderait\\.`));
-    assert.match(sortie, new RegExp(`grant merge utilisé : merge de ${PR} sur v2, autorisé par le verdict n° ${vert?.seq}`));
-    assert.match(sortie, /mergée par la pass$/m);
+    assert.match(sortie, /^#17  merged  returns 1\/2/m);
+    assert.match(sortie, new RegExp(`verdict no. ${rouge?.seq}: RED — gates green \\(code 0\\) · CI red · reviewer nothing blocking \\(run review-17-a\\)\\n\\s+CI “lint”: failure — https://ci/2\\n\\s+CI rouge — job « lint »`));
+    assert.match(sortie, /return 1\/2: the findings go back to a cook/);
+    assert.match(sortie, new RegExp(`verdict no. ${vert?.seq}: GREEN — gates green \\(code 0\\) · CI no check · reviewer nothing blocking \\(run review-17-b\\)\\n\\s+judged: abcdef0 merged with the base ba5e000 — tree a4b4e00\\n\\s+reviewer — remark \\(a\\.ts\\): Un nom plus clair aiderait\\.`));
+    assert.match(sortie, new RegExp(`grant merge used: merge of ${PR} into v2, authorized by verdict no. ${vert?.seq}`));
+    assert.match(sortie, /merged by the pass$/m);
   });
 
   test("le relevé dit sous quelle identité un merge a été fait, quand le journal la porte", async (t) => {
@@ -335,10 +334,10 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     livrer("a");
     juger("a", "green");
     noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0a", by: "pass", actor: "brigade-pass[bot]", reconciled: true } });
-    assert.match((await commande(PASS, "17")).sortie, /mergée par la pass, sous l'identité brigade-pass\[bot\] — constaté après coup, au redémarrage$/m);
+    assert.match((await commande(PASS, "17")).sortie, /merged by the pass, under the identity brigade-pass\[bot\] — noticed afterwards, at restart$/m);
 
     noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0a", by: "outside", actor: "benomite", reconciled: false } });
-    assert.match((await commande(PASS, "17")).sortie, /mergée hors du runtime \(à la main\), sous l'identité benomite$/m);
+    assert.match((await commande(PASS, "17")).sortie, /merged outside the runtime \(by hand\), under the identity benomite$/m);
   });
 
   test("le chef lit ce que le reviewer a dit — son résumé, chaque constat — et un ticket sans diff servi sans merge", async (t) => {
@@ -361,13 +360,13 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     const { sortie } = await commande(PASS, "17");
     const liste = await commande(PASS);
 
-    assert.match(sortie, /^#17  servie sans merge — ticket sans diff  renvois 0\/2/m);
-    assert.match(sortie, /jugement de la livraison sans diff sur abcdef0 \(run a\)/);
-    assert.match(sortie, /relecture du reviewer \(run review-17-x\) : BLOQUANT\n\s+L'audit ne répond pas à la question\.\n\s+reviewer — BLOQUANT : La conclusion ne découle pas des mesures\.\n\s+reviewer — remarque \(ci\.yml\) : Le cache est déjà en place\./);
-    assert.match(sortie, /relecture du reviewer \(run review-17-y\) : ILLISIBLE \(aucun objet JSON dans la réponse\) — diff coupé dans sa consigne/);
-    assert.match(sortie, new RegExp(`verdict n° ${vert?.seq} : VERT — ticket sans diff, ni gates ni CI · reviewer rien de bloquant \\(run review-17-z\\)`));
-    assert.match(sortie, new RegExp(`servie sans merge : rien à merger, autorisé par le verdict n° ${vert?.seq}`));
-    assert.match(liste.sortie, /^#17  servie sans merge — ticket sans diff  renvois 0\/2  depuis \S+  sans diff$/m);
+    assert.match(sortie, /^#17  served without a merge — ticket with no diff  returns 0\/2/m);
+    assert.match(sortie, /judging the delivery with no diff on abcdef0 \(run a\)/);
+    assert.match(sortie, /reviewer's read \(run review-17-x\): BLOCKING\n\s+L'audit ne répond pas à la question\.\n\s+reviewer — BLOCKING: La conclusion ne découle pas des mesures\.\n\s+reviewer — remark \(ci\.yml\): Le cache est déjà en place\./);
+    assert.match(sortie, /reviewer's read \(run review-17-y\): UNREADABLE \(aucun objet JSON dans la réponse\) — diff cut in its brief/);
+    assert.match(sortie, new RegExp(`verdict no. ${vert?.seq}: GREEN — ticket with no diff, neither gates nor CI · reviewer nothing blocking \\(run review-17-z\\)`));
+    assert.match(sortie, new RegExp(`served without a merge: nothing to merge, authorized by verdict no. ${vert?.seq}`));
+    assert.match(liste.sortie, /^#17  served without a merge — ticket with no diff  returns 0\/2  since \S+  no diff$/m);
   });
 
   test("le chef lit qu'une livraison arrêtée touche à ce que le projet s'ouvre, et à quel fichier", async (t) => {
@@ -381,17 +380,17 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
 
     const { sortie } = await commande(PASS, "17");
 
-    assert.match(sortie, /reviewer rien de bloquant \(run review-17-a\) · elle touche à ce que le projet s'ouvre \(\.claude\/brigade\/reseau\)$/m);
-    assert.match(sortie, /la pass s'arrête là, sans merger : review-required : declaration-modified: \.claude\/brigade\/reseau$/m);
+    assert.match(sortie, /reviewer nothing blocking \(run review-17-a\) · it touches what the project opens up \(\.claude\/brigade\/reseau\)$/m);
+    assert.match(sortie, /the pass stops there, without merging: review-required: declaration-modified: \.claude\/brigade\/reseau$/m);
   });
 
   test("un ticket jamais passé par la pass le dit ; un argument qui n'est pas un ticket est refusé", async (t) => {
     const { commande } = cuisine(t);
 
-    assert.match((await commande(PASS, "99")).sortie, /le ticket #99 n'est jamais passé par la pass/);
+    assert.match((await commande(PASS, "99")).sortie, /ticket #99 has never been through the pass/);
     const refus = await commande(PASS, "tous");
     assert.equal(refus.code, 2);
-    assert.match(refus.sortie, /usage : /);
+    assert.match(refus.sortie, /usage: /);
   });
 
   test("voir ne modifie pas le journal", async (t) => {
@@ -420,15 +419,15 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0c", by: "outside", reconciled: false, unverified: true } }, 19);
 
     const liste = (await commande(PASS)).sortie;
-    assert.match(liste, new RegExp(`^BASE ROUGE depuis ${JOUR_HORLOGE}T\\S+ \\(ba5e000\\) — après le merge de #17 : rien n'est jugé ni mergé, les livraisons attendent$`, "m"));
-    assert.match(liste, /^base à vérifier — après le merge de #19 : ses gates sont à jouer sur elle-même$/m);
-    assert.match(liste, /^#18  EN ATTENTE — ni jugée ni mergée pour l'instant \(base-red\)  renvois 0\/2/m);
+    assert.match(liste, new RegExp(`^BASE RED since ${JOUR_HORLOGE}T\\S+ \\(ba5e000\\) — after the merge of #17: nothing is judged or merged, deliveries wait$`, "m"));
+    assert.match(liste, /^base to check — after the merge of #19: its gates are to be played on itself$/m);
+    assert.match(liste, /^#18  QUEUED — neither judged nor merged for now \(base-red\)  returns 0\/2/m);
 
     const { sortie } = await commande(PASS, "17");
-    assert.match(sortie, /la base a avancé de 2 commits sous cette livraison \(ba5e000\), sur des fichiers qu'elle touche aussi : gates rejouées sur le résultat du merge\n\s+runtime\/src\/rail\.ts/);
-    assert.match(sortie, /gates rejouées sur le résultat du merge dans ba5e000 : vertes \(code 0\)$/m);
-    assert.match(sortie, /la base a avancé de 3 commits sous cette livraison \(ba5e000\), sans toucher à ses fichiers : mergée sans rejeu/);
-    assert.match(sortie, /gates jouées sur la base seule \(ba5e000\) : ROUGES \(code 1\) — jugements et merges suspendus\n\s+FAIL {2}tests du runtime/);
+    assert.match(sortie, /the base moved ahead by 2 commits under this delivery \(ba5e000\), on files it also touches: gates replayed on the result of the merge\n\s+runtime\/src\/rail\.ts/);
+    assert.match(sortie, /gates replayed on the result of the merge into ba5e000: green \(code 0\)$/m);
+    assert.match(sortie, /the base moved ahead by 3 commits under this delivery \(ba5e000\), without touching its files: merged without a replay/);
+    assert.match(sortie, /gates played on the base alone \(ba5e000\): RED \(code 1\) — judgments and merges suspended\n\s+FAIL {2}tests du runtime/);
   });
 
   test("le plafond de durée des gates, franchi, se lit dans `run pass` : non jugé quand il est leur seul rouge, à part de leurs échecs sinon", async (t) => {
@@ -458,9 +457,9 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
 
     const { sortie } = await commande(PASS, "17");
 
-    assert.match(sortie, /ROUGE — gates rouges \(code 1\) · CI [^\n]*\n\s+FAIL {2}tests du runtime\n\s+plafond de durée franchi, non jugé par la pass — durée des gates : 178,3 s de processeur pour un plafond de 165 s — 13,3 s de trop \(\+8 %\)$/m);
-    assert.match(sortie, /VERT — gates vertes, leur plafond de durée franchi mais non jugé \(code 1\) · CI [^\n]*\n\s+plafond de durée franchi, non jugé par la pass — durée des gates : 178,3 s/);
-    assert.match(sortie, /gates jouées sur la base seule \(ba5e000\) : vertes, leur plafond de durée franchi mais non jugé\n\s+plafond de durée franchi, non jugé par la pass — /);
+    assert.match(sortie, /RED — gates red \(code 1\) · CI [^\n]*\n\s+FAIL {2}tests du runtime\n\s+duration cap exceeded, not judged by the pass — durée des gates : 178,3 s de processeur pour un plafond de 165 s — 13,3 s de trop \(\+8 %\)$/m);
+    assert.match(sortie, /GREEN — gates green, their duration cap exceeded but not judged \(code 1\) · CI [^\n]*\n\s+duration cap exceeded, not judged by the pass — durée des gates : 178,3 s/);
+    assert.match(sortie, /gates played on the base alone \(ba5e000\): green, their duration cap exceeded but not judged\n\s+duration cap exceeded, not judged by the pass — /);
   });
 
   test("le chef fait rejouer les gates d'une base rouge, en son nom, sans redémarrer le runtime ; demandé deux fois, le rejeu ne s'écrit qu'une fois", async (t) => {
@@ -490,7 +489,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     const retenu = new RegExp(`la machine saturée le retient depuis ${JOUR_HORLOGE}T\\S+, la pass y revient seule`);
     assert.match((await lancee(BASE)).sortie, retenu);
     assert.match((await lancee(BASE, "rejouer")).sortie, retenu);
-    assert.match((await lancee(PASS)).sortie, retenu);
+    assert.match((await lancee(PASS)).sortie, new RegExp(`the saturated machine has held it since ${JOUR_HORLOGE}T\\S+, the pass comes back to it on its own`));
     assert.equal(demandes().length, 1);
   });
 
@@ -498,29 +497,32 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     const { commande, noter } = cuisine(t);
     const retenir = () => noter({ type: "base.check-held", payload: { reason: "git fetch : fatal: origine injoignable" } }, null);
     const RETENU = `contrôle retenu depuis ${JOUR_HORLOGE}T\\S+ : la base ne se rapatrie pas \\(git fetch : fatal: origine injoignable\\) — la pass y revient seule, à chaque tick`;
+    const RETENU_EN = `check held since ${JOUR_HORLOGE}T\\S+: the base cannot be fetched \\(git fetch : fatal: origine injoignable\\) — the pass comes back to it on its own, at every tick`;
 
     // Jamais contrôlée, un merge à vérifier, et l'origine qui ne répond pas.
     noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0c", by: "outside", reconciled: false, unverified: true } }, 19);
     retenir();
     assert.match((await commande(BASE)).sortie, new RegExp(`^base jamais contrôlée\\n {2}${RETENU}$`, "m"));
-    assert.match((await commande(PASS)).sortie, new RegExp(`^base à vérifier — après le merge de #19 : ses gates sont à jouer sur elle-même\\n {2}${RETENU}$`, "m"));
+    assert.match((await commande(PASS)).sortie, new RegExp(`^base to check — after the merge of #19: its gates are to be played on itself\\n {2}${RETENU_EN}$`, "m"));
 
     // Rouge : la retenue se lit sous le rouge, avec le geste.
     noter({ type: "base.check-resumed", payload: {} }, null);
     noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: ROUGES, tickets: [19] } }, null);
     retenir();
-    for (const sortie of [(await commande(BASE)).sortie, (await commande(PASS)).sortie]) {
-      assert.match(sortie, new RegExp(`^ {2}${RETENU}\\n {2}rejouer ses gates sans attendre un commit : `, "m"));
-    }
+    assert.match((await commande(BASE)).sortie, new RegExp(`^ {2}${RETENU}\\n {2}rejouer ses gates sans attendre un commit : `, "m"));
+    assert.match((await commande(PASS)).sortie, new RegExp(`^ {2}${RETENU_EN}\\n {2}replay its gates without waiting for a commit: `, "m"));
 
     // Le rejeu demandé bute à son tour : il n'est pas annoncé comme imminent, ni à qui regarde ni à qui redemande.
     assert.match((await commande(BASE, "rejouer")).sortie, /rejeu demandé : .*Si la machine sature ou si la base ne se rapatrie pas, il attend/);
     retenir();
     const attend = new RegExp(`la base ne se rapatrie pas depuis ${JOUR_HORLOGE}T\\S+ \\(git fetch : fatal: origine injoignable\\), la pass y revient seule`);
-    for (const sortie of [(await commande(BASE)).sortie, (await commande(PASS)).sortie, (await commande(BASE, "rejouer")).sortie]) {
+    for (const sortie of [(await commande(BASE)).sortie, (await commande(BASE, "rejouer")).sortie]) {
       assert.match(sortie, attend);
       assert.doesNotMatch(sortie, /prochain passage/);
     }
+    const attendEn = (new RegExp(`the base cannot be fetched since ${JOUR_HORLOGE}T\\S+ \\(git fetch : fatal: origine injoignable\\), the pass comes back to it on its own`));
+    assert.match((await commande(PASS)).sortie, attendEn);
+    assert.doesNotMatch((await commande(PASS)).sortie, /next round/);
   });
 
   test("sur une base qui n'est pas rouge, il n'y a rien à rejouer : la commande le dit et n'écrit rien", async (t) => {
@@ -562,13 +564,13 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     noter({ type: "base.checked", payload: { sha: "c0ffee05ffff", outcome: "skipped", gates: NON_JOUEES, tickets: [17], red: "ba5e0004ffff" } }, null);
 
     const liste = (await commande(PASS)).sortie;
-    assert.match(liste, /^BASE ROUGE depuis \S+ \(ba5e000\) — après le merge de #17 : /m);
-    assert.match(liste, new RegExp(`^ {2}gates non jouées sur c0ffee0 depuis ${JOUR_HORLOGE}T\\S+ : un contrôle non joué ne lève pas un rouge constaté$`, "m"));
-    assert.match(liste, /^ {2}rejouer ses gates sans attendre un commit : brigade <projet> base replay$/m);
+    assert.match(liste, /^BASE RED since \S+ \(ba5e000\) — after the merge of #17: /m);
+    assert.match(liste, new RegExp(`^ {2}gates not played on c0ffee0 since ${JOUR_HORLOGE}T\\S+: a check that was not played does not lift a red that was found$`, "m"));
+    assert.match(liste, /^ {2}replay its gates without waiting for a commit: brigade <projet> base replay$/m);
     assert.match((await commande(BASE)).sortie, /gates non jouées sur c0ffee0/);
 
     const { sortie } = await commande(PASS, "17");
-    assert.match(sortie, /gates jouées sur la base seule \(c0ffee0\) : non jouées — la base reste ROUGE, un contrôle non joué ne lève pas le rouge constaté sur ba5e000$/m);
+    assert.match(sortie, /gates played on the base alone \(c0ffee0\): not played — the base stays RED, a check that was not played does not lift the red found on ba5e000$/m);
   });
 
   test("un rejeu demandé dont l'essai ne se fait pas n'est pas annoncé comme imminent : le chef lit pourquoi, depuis quand, et le geste lui est rendu", async (t) => {
@@ -577,12 +579,15 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     noter({ type: "base.recheck-requested", payload: {} }, null, "chef");
     noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "skipped", gates: NON_JOUEES, tickets: [17], red: "ba5e0004ffff", reason: "git worktree : fatal: disque plein" } }, null);
 
-    for (const sortie of [(await commande(BASE)).sortie, (await commande(PASS)).sortie]) {
-      assert.match(sortie, new RegExp(`^ {2}gates non jouées sur ba5e000 depuis ${JOUR_HORLOGE}T\\S+, l'essai ne s'est pas fait \\(git worktree : fatal: disque plein\\) : un contrôle non joué ne lève pas un rouge constaté$`, "m"));
-      assert.match(sortie, /^ {2}rejouer ses gates sans attendre un commit : brigade <projet> base replay$/m);
-      assert.doesNotMatch(sortie, /prochain passage/);
-    }
+    const base = (await commande(BASE)).sortie;
+    assert.match(base, new RegExp(`^ {2}gates non jouées sur ba5e000 depuis ${JOUR_HORLOGE}T\\S+, l'essai ne s'est pas fait \\(git worktree : fatal: disque plein\\) : un contrôle non joué ne lève pas un rouge constaté$`, "m"));
+    assert.match(base, /^ {2}rejouer ses gates sans attendre un commit : brigade <projet> base replay$/m);
+    assert.doesNotMatch(base, /prochain passage/);
+    const pass = (await commande(PASS)).sortie;
+    assert.match(pass, new RegExp(`^ {2}gates not played on ba5e000 since ${JOUR_HORLOGE}T\\S+, the attempt did not run \\(git worktree : fatal: disque plein\\): a check that was not played does not lift a red that was found$`, "m"));
+    assert.match(pass, /^ {2}replay its gates without waiting for a commit: brigade <projet> base replay$/m);
+    assert.doesNotMatch(pass, /next round/);
     const { sortie } = await commande(PASS, "17");
-    assert.match(sortie, /gates jouées sur la base seule \(ba5e000\) : non jouées, l'essai ne s'est pas fait \(git worktree : fatal: disque plein\) — la base reste ROUGE/m);
+    assert.match(sortie, /gates played on the base alone \(ba5e000\): not played, the attempt did not run \(git worktree : fatal: disque plein\) — the base stays RED/m);
   });
 });

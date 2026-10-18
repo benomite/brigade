@@ -13,9 +13,9 @@ export const STATION = "box/claude";
 
 // Le journal de l'état d'avant, rejoué dans un répertoire neuf : chaque événement à son instant,
 // dans son ordre. `noter` en ajoute, à l'instant donné. Rien de l'état d'avant n'est édité.
-export function etatDAvant(t: TestContext) {
+export function etatDAvant(t: TestContext, repertoire = repertoireTemporaire(t)) {
   let instant = new Date(0);
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: () => instant });
+  const journal = ouvrirJournal(repertoire, { maintenant: () => instant });
   t.after(() => journal.fermer());
   for (const ligne of readFileSync(join(ETAT_D_AVANT, "evenements.ndjson"), "utf8").trim().split("\n")) {
     const { at, project, ticket, type, author, payload, dedupKey } = JSON.parse(ligne);
@@ -31,8 +31,8 @@ export function etatDAvant(t: TestContext) {
 
 // L'état d'exemple : tout ce qui arrête la cuisine, sur l'état d'avant. La station est annoncée, puis
 // sa connexion Max tombe, la base rouge a son ticket de réparation.
-export function exemple(t: TestContext) {
-  const { journal, noter } = etatDAvant(t);
+export function exemple(t: TestContext, repertoire?: string) {
+  const { journal, noter } = etatDAvant(t, repertoire);
   noter("10:00", { type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["opus"], maxCooks: 2 } });
   noter("10:00", { type: "breaker.opened", payload: { failures: 3, threshold: 3 } });
   noter("10:00", { type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run: null } }, null, `station:${STATION}`);

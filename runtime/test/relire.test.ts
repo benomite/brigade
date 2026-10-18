@@ -56,7 +56,7 @@ test("un ticket sans événement le dit, sans passer pour une erreur", async (t)
   const commande = appeler(relire, ["99"], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
-  assert.match(commande.sortie(), /aucun événement pour le ticket 99/);
+  assert.match(commande.sortie(), /no event for ticket 99/);
 });
 
 test("relire ne modifie pas le journal", async (t) => {
@@ -76,7 +76,7 @@ test("sans journal dans le répertoire d'état, la commande échoue et le dit", 
   const commande = appeler(relire, ["7"], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 1);
-  assert.match(commande.sortie(), /aucun journal/);
+  assert.match(commande.sortie(), /no log in/);
 });
 
 test("sans BRIGADE_STATE_DIR, la commande échoue et nomme la variable", async (t) => {

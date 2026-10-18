@@ -217,7 +217,7 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
       ...(rouge ? direBaseRougeEn(controle, retenu) : []),
       ...(aVerifier.length === 0 ? [] : [`base to check${citer(aVerifier)}: its gates are to be played on itself`]),
       // Rouge, la retenue du contrôle est déjà dite avec elle.
-      ...(rouge || retenu === null ? [] : [`${aVerifier.length === 0 ? "base: " : "  "}${direControleRetenuEn(retenu, (instant) => instant)}`]),
+      ...(rouge || retenu === null ? [] : [`${aVerifier.length === 0 ? "base: " : "  "}${direControleRetenuEn(retenu, (instant) => instant, "since")}`]),
     ];
   }
 

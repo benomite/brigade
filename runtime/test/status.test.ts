@@ -124,7 +124,7 @@ test("sans répertoire d'état, sans journal, ou avec un argument inconnu, la co
   assert.equal(await sansVariable.fin, 2);
   assert.match(sansVariable.sortie(), /BRIGADE_STATE_DIR n'est pas défini/);
   assert.equal(await sansJournal.fin, 1);
-  assert.match(sansJournal.sortie(), /aucun journal/);
+  assert.match(sansJournal.sortie(), /no log in/);
   for (const commande of arguments_) {
     assert.equal(await commande.fin, 2);
     assert.match(commande.sortie(), /usage/);

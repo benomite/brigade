@@ -36,11 +36,11 @@ test("le rail se lit ticket par ticket, dans l'ordre de service, chacun avec son
 
   assert.equal(await commande.fin, 0);
   assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
-    `#14  pris  prio:1  par box/claude-opus depuis ${JOUR_HORLOGE}T10:00:05.000Z, dernier progrès ${JOUR_HORLOGE}T10:00:05.000Z, bail jusqu'à ${JOUR_HORLOGE}T10:40:00.000Z  Ticket 14`,
-    `#15  en pass  prio:1  depuis ${JOUR_HORLOGE}T10:00:07.000Z, cuisiné par box/claude-sonnet  Ticket 15`,
-    `#16  servi  prio:2  depuis ${JOUR_HORLOGE}T10:00:10.000Z, cuisiné par mac/claude  Ticket 16`,
-    `#17  86  prio:2  depuis ${JOUR_HORLOGE}T10:00:11.000Z (quota), retour à ${JOUR_HORLOGE}T15:00:00.000Z  Ticket 17`,
-    `#18  en attente  -  depuis ${JOUR_HORLOGE}T10:00:04.000Z  Ticket 18`,
+    `#14  taken  prio:1  by box/claude-opus since ${JOUR_HORLOGE}T10:00:05.000Z, last progress ${JOUR_HORLOGE}T10:00:05.000Z, lease until ${JOUR_HORLOGE}T10:40:00.000Z  Ticket 14`,
+    `#15  in pass  prio:1  since ${JOUR_HORLOGE}T10:00:07.000Z, cooked by box/claude-sonnet  Ticket 15`,
+    `#16  served  prio:2  since ${JOUR_HORLOGE}T10:00:10.000Z, cooked by mac/claude  Ticket 16`,
+    `#17  86  prio:2  since ${JOUR_HORLOGE}T10:00:11.000Z (quota), back at ${JOUR_HORLOGE}T15:00:00.000Z  Ticket 17`,
+    `#18  queued  -  since ${JOUR_HORLOGE}T10:00:04.000Z  Ticket 18`,
   ]);
 });
 
@@ -51,7 +51,7 @@ test("sous chaque ticket qui en porte une, sa fiche : ce qu'il attend, sa zone, 
   const cards = {
     14: { waitsFor: [12, 13], zone: ["runtime/src/rail.ts", "docs/"], problems: [] },
     15: { waitsFor: [], zone: [], problems: [] },
-    16: { waitsFor: [14], zone: [], problems: ["clé inconnue « budget » — connues : attend, zone", "zone : « /etc » n'est pas un chemin du dépôt"] },
+    16: { waitsFor: [14], zone: [], problems: ["clé inconnue « budget » — connues : attend, zone", "zone: « /etc » n'est pas un chemin du dépôt"] },
     17: null,
   };
   for (const [ticket, card] of Object.entries(cards)) {
@@ -63,15 +63,15 @@ test("sous chaque ticket qui en porte une, sa fiche : ce qu'il attend, sa zone, 
 
   assert.equal(await commande.fin, 0);
   assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
-    `#14  en attente  -  attend #12, #13 — depuis ${JOUR_HORLOGE}T10:00:00.000Z  Ticket 14`,
-    "     fiche — attend : #12, #13 · zone : runtime/src/rail.ts, docs/",
-    `#15  en attente  -  depuis ${JOUR_HORLOGE}T10:00:01.000Z  Ticket 15`,
-    "     fiche — attend : rien · zone : aucune",
-    `#16  en attente  -  attend #14 — depuis ${JOUR_HORLOGE}T10:00:02.000Z  Ticket 16`,
-    "     fiche — attend : #14 · zone : aucune",
-    "     FICHE ILLISIBLE — clé inconnue « budget » — connues : attend, zone",
-    "     FICHE ILLISIBLE — zone : « /etc » n'est pas un chemin du dépôt",
-    `#17  en attente  -  depuis ${JOUR_HORLOGE}T10:00:03.000Z  Ticket 17`,
+    `#14  queued  -  awaiting #12, #13 — since ${JOUR_HORLOGE}T10:00:00.000Z  Ticket 14`,
+    "     card — awaiting: #12, #13 · zone: runtime/src/rail.ts, docs/",
+    `#15  queued  -  since ${JOUR_HORLOGE}T10:00:01.000Z  Ticket 15`,
+    "     card — awaiting: nothing · zone: none",
+    `#16  queued  -  awaiting #14 — since ${JOUR_HORLOGE}T10:00:02.000Z  Ticket 16`,
+    "     card — awaiting: #14 · zone: none",
+    "     UNREADABLE CARD — clé inconnue « budget » — connues : attend, zone",
+    "     UNREADABLE CARD — zone: « /etc » n'est pas un chemin du dépôt",
+    `#17  queued  -  since ${JOUR_HORLOGE}T10:00:03.000Z  Ticket 17`,
   ]);
 });
 
@@ -108,13 +108,13 @@ test("un ticket retenu dit pourquoi : ce qu'il attend encore, ou l'abandon qui l
 
   assert.equal(await commande.fin, 0);
   assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
-    `#12  en attente  -  depuis ${JOUR_HORLOGE}T10:00:01.000Z  Ticket 12`,
-    `#14  en attente  -  attend #12 — depuis ${JOUR_HORLOGE}T10:00:03.000Z  Ticket 14`,
-    "     fiche — attend : #11, #12 · zone : aucune",
-    `#15  BLOQUÉ  -  #13 abandonné (issue fermée sans avoir été servie) · attend aussi #12 — depuis ${JOUR_HORLOGE}T10:00:04.000Z  Ticket 15`,
-    "     fiche — attend : #11, #12, #13 · zone : aucune",
-    `#16  en attente  -  depuis ${JOUR_HORLOGE}T10:00:05.000Z  Ticket 16`,
-    "     fiche — attend : #11 · zone : aucune",
+    `#12  queued  -  since ${JOUR_HORLOGE}T10:00:01.000Z  Ticket 12`,
+    `#14  queued  -  awaiting #12 — since ${JOUR_HORLOGE}T10:00:03.000Z  Ticket 14`,
+    "     card — awaiting: #11, #12 · zone: none",
+    `#15  BLOCKED  -  #13 dropped (issue closed without being served) · also awaiting #12 — since ${JOUR_HORLOGE}T10:00:04.000Z  Ticket 15`,
+    "     card — awaiting: #11, #12, #13 · zone: none",
+    `#16  queued  -  since ${JOUR_HORLOGE}T10:00:05.000Z  Ticket 16`,
+    "     card — awaiting: #11 · zone: none",
   ]);
 });
 
@@ -135,13 +135,13 @@ test("le rail montre qui possède quoi : la zone de chaque ticket, qui tient cel
 
   assert.equal(await commande.fin, 0);
   assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
-    "chemins communs, à personne : CHANGELOG.md, docs/runtime.md",
-    `#14  pris  -  par box/claude depuis ${JOUR_HORLOGE}T10:00:04.000Z, dernier progrès ${JOUR_HORLOGE}T10:00:04.000Z, bail jusqu'à ${JOUR_HORLOGE}T10:40:00.000Z  Ticket 14`,
-    "     fiche — attend : rien · zone : runtime/src, docs/runtime.md",
-    `#15  en attente  -  zone tenue par #14 (runtime/src/rail.ts) — depuis ${JOUR_HORLOGE}T10:00:02.000Z  Ticket 15`,
-    "     fiche — attend : rien · zone : runtime/src/rail.ts, docs/runtime.md",
-    `#16  en attente  -  depuis ${JOUR_HORLOGE}T10:00:03.000Z  Ticket 16`,
-    "     fiche — attend : rien · zone : runtime/test",
+    "common paths, held by no one: CHANGELOG.md, docs/runtime.md",
+    `#14  taken  -  by box/claude since ${JOUR_HORLOGE}T10:00:04.000Z, last progress ${JOUR_HORLOGE}T10:00:04.000Z, lease until ${JOUR_HORLOGE}T10:40:00.000Z  Ticket 14`,
+    "     card — awaiting: nothing · zone: runtime/src, docs/runtime.md",
+    `#15  queued  -  zone held by #14 (runtime/src/rail.ts) — since ${JOUR_HORLOGE}T10:00:02.000Z  Ticket 15`,
+    "     card — awaiting: nothing · zone: runtime/src/rail.ts, docs/runtime.md",
+    `#16  queued  -  since ${JOUR_HORLOGE}T10:00:03.000Z  Ticket 16`,
+    "     card — awaiting: nothing · zone: runtime/test",
   ]);
 });
 
@@ -152,7 +152,7 @@ test("un rail sans ticket le dit", async (t) => {
   const commande = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
-  assert.equal(commande.sortie().trim(), "rail vide");
+  assert.equal(commande.sortie().trim(), "empty rail");
 });
 
 test("sans répertoire d'état, sans journal, ou avec un argument, la commande échoue en disant pourquoi", async (t) => {
@@ -161,9 +161,9 @@ test("sans répertoire d'état, sans journal, ou avec un argument, la commande �
   const avecArgument = appeler(montrerRail, ["14"], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
 
   assert.equal(await sansVariable.fin, 2);
-  assert.match(sansVariable.sortie(), /BRIGADE_STATE_DIR n'est pas défini/);
+  assert.match(sansVariable.sortie(), /BRIGADE_STATE_DIR is not set/);
   assert.equal(await sansJournal.fin, 1);
-  assert.match(sansJournal.sortie(), /aucun journal/);
+  assert.match(sansJournal.sortie(), /no log in/);
   assert.equal(await avecArgument.fin, 2);
   assert.match(avecArgument.sortie(), /usage/);
 });
@@ -177,7 +177,7 @@ test("un journal dont le rail date d'avant la date de progrès dit de redémarre
   const commande = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 1);
-  assert.match(commande.sortie(), /redémarrer le runtime/);
+  assert.match(commande.sortie(), /restart the runtime/);
   assert.doesNotMatch(commande.sortie(), /at .*\.ts/);
 });
 
@@ -188,7 +188,7 @@ test("un journal d'avant le rail dit aussi de redémarrer le runtime", async (t)
   const commande = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 1);
-  assert.match(commande.sortie(), /redémarrer le runtime/);
+  assert.match(commande.sortie(), /restart the runtime/);
   assert.doesNotMatch(commande.sortie(), /at .*\.ts/);
 });
 
@@ -213,10 +213,10 @@ test("la fiche d'un ticket qui demande une capacité la montre, et son 86 dit la
 
   assert.equal(await commande.fin, 0);
   assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
-    `#14  en attente  -  depuis ${JOUR_HORLOGE}T10:00:00.000Z  Ticket 14`,
-    "     fiche — attend : rien · zone : e2e/ · requiert : navigateur-headless, code",
-    `#15  86  -  depuis ${JOUR_HORLOGE}T10:00:02.000Z (no-station: chrome-connecté), sans heure de retour  Ticket 15`,
-    "     fiche — attend : rien · zone : e2e/ · requiert : chrome-connecté",
+    `#14  queued  -  since ${JOUR_HORLOGE}T10:00:00.000Z  Ticket 14`,
+    "     card — awaiting: nothing · zone: e2e/ · `requiert`: navigateur-headless, code",
+    `#15  86  -  since ${JOUR_HORLOGE}T10:00:02.000Z (no-station: chrome-connecté), no return time  Ticket 15`,
+    "     card — awaiting: nothing · zone: e2e/ · `requiert`: chrome-connecté",
   ]);
 });
 
@@ -227,7 +227,7 @@ describe("remove, priority et merge", () => {
   const ISSUE = (numero: number) => `repos/${DEPOT}/issues/${numero}`;
   const LABELS = (numero: number) => `${ISSUE(numero)}/labels`;
 
-  // Le ticket 18 en attente, le 14 pris.
+  // Le ticket 18 queued, le 14 pris.
   function cuisine(t: TestContext) {
     const repertoire = repertoireTemporaire(t);
     const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
@@ -244,14 +244,14 @@ describe("remove, priority et merge", () => {
     return { repertoire, journal, gh, jouer };
   }
 
-  test("remove retire du rail un ticket en attente : le label `fire` quitte l'issue, le rail ne le porte plus, et le prix est dit", async (t) => {
+  test("remove retire du rail un ticket queued : le label `fire` quitte l'issue, le rail ne le porte plus, et le prix est dit", async (t) => {
     const { journal, gh, jouer } = cuisine(t);
     gh.repondre(`${LABELS(18)}/fire`, { corps: [] });
 
     const commande = jouer(["remove", "18"]);
 
     assert.equal(await commande.fin, 0);
-    assert.match(commande.sortie(), /^#18 retiré du rail — cost: the ticket leaves the rail/);
+    assert.match(commande.sortie(), /^#18 removed from the rail — cost: the ticket leaves the rail/);
     assert.deepEqual(gh.appels(), [["api", "-i", "-X", "DELETE", `${LABELS(18)}/fire`]]);
     assert.deepEqual(lireRail(journal.base).map(({ ticket }) => ticket), [14]);
   });
@@ -262,7 +262,7 @@ describe("remove, priority et merge", () => {
     const commande = jouer(["remove", "14"]);
 
     assert.equal(await commande.fin, 1);
-    assert.match(commande.sortie(), /#14 n'est pas touché : #14 is pris: a ticket in progress is not touched .* — cost: none: nothing was changed/);
+    assert.match(commande.sortie(), /#14 is not touched: #14 is taken: a ticket in progress is not touched .* — cost: none: nothing was changed/);
     assert.deepEqual(gh.appels(), []);
     assert.equal(ticketDuRail(journal.base, 14)?.state, "taken");
   });
@@ -273,7 +273,7 @@ describe("remove, priority et merge", () => {
     const commande = jouer(["merge", "18"]);
 
     assert.equal(await commande.fin, 1);
-    assert.match(commande.sortie(), /#18 n'est pas touché : #18 has no delivery waiting for you to merge it — cost: none: nothing was changed/);
+    assert.match(commande.sortie(), /#18 is not touched: #18 has no delivery waiting for you to merge it — cost: none: nothing was changed/);
     assert.deepEqual(gh.appels(), []);
   });
 
@@ -286,7 +286,7 @@ describe("remove, priority et merge", () => {
     const commande = jouer(["priority", "14", "3"]);
 
     assert.equal(await commande.fin, 0);
-    assert.match(commande.sortie(), /^#14 : priorité prio:3 — cost: none: only the order of service changes/);
+    assert.match(commande.sortie(), /^#14: priority prio:3 — cost: none: only the order of service changes/);
     assert.deepEqual(gh.appels().map((appel) => appel.at(-1)), [ISSUE(14), LABELS(14), `${LABELS(14)}/prio%3A1`]);
     assert.equal(ticketDuRail(journal.base, 14)?.priority, 3);
     assert.equal(ticketDuRail(journal.base, 14)?.state, "taken");
@@ -304,7 +304,7 @@ describe("remove, priority et merge", () => {
 
     const aucune = jouer(["priority", "18", "none"]);
     assert.equal(await aucune.fin, 0);
-    assert.match(aucune.sortie(), /^#18 : priorité retirée — cost: /);
+    assert.match(aucune.sortie(), /^#18: priority removed — cost: /);
     assert.equal(ticketDuRail(journal.base, 18)?.priority, null);
   });
 
@@ -317,7 +317,7 @@ describe("remove, priority et merge", () => {
     }
     const sansDepot = jouer(["remove", "18"], { BRIGADE_GITHUB_REPO: "" });
     assert.equal(await sansDepot.fin, 2);
-    assert.match(sansDepot.sortie(), /BRIGADE_GITHUB_REPO n'est pas défini/);
+    assert.match(sansDepot.sortie(), /BRIGADE_GITHUB_REPO is not set/);
     assert.deepEqual(gh.appels(), []);
   });
 });

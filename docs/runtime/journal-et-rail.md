@@ -112,10 +112,10 @@ npm --prefix runtime run rail
 ```
 
 Une ligne par ticket, dans l'ordre de service. Un ticket en attente qui ne part pas dit pourquoi :
-`attend #12, #13`, `zone tenue par #14 (chemin)` (voir « Les zones de fichiers ») ou, `BLOQUÉ`, le
+`awaiting #12, #13`, `zone held by #14 (chemin)` (voir « Les zones de fichiers ») ou, `BLOCKED`, le
 ticket abandonné et son motif. La première ligne nomme les **chemins communs** du projet. Sous un
 ticket à fiche, une ligne en retrait dit ce qu'il attend, sa zone, et ce que le runtime n'y comprend
-pas (`FICHE ILLISIBLE — clé inconnue « budget »`).
+pas (`UNREADABLE CARD — clé inconnue « budget »` : le constat, écrit au journal en français, est relayé tel quel).
 
 ### Retirer un ticket du rail, changer sa priorité
 

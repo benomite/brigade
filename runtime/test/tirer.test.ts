@@ -152,7 +152,7 @@ describe("le geste d'une station distante", { concurrency: 8 }, () => {
     // Et sans journal du tout, il n'en crée pas.
     const vide = repertoireTemporaire(t);
     assert.equal((await geste(vide, heure.maintenant, [MAC, "claim"])).code, SANS_REPONSE);
-    assert.throws(() => ouvrirJournal(vide, { lectureSeule: true }), /aucun journal/);
+    assert.throws(() => ouvrirJournal(vide, { lectureSeule: true }), /no log in/);
   });
 
   test("un runtime qui ne répond pas à temps : le geste rend la main, sans rien supposer de ce que la box a fait", async (t) => {

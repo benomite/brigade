@@ -288,7 +288,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
       const deTrop = appeler(manager, ["backlog", "tout"], { BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin, BRIGADE_STATE_DIR: repertoireTemporaire(t) });
 
       assert.equal(await sansDepot.fin, 2);
-      assert.match(sansDepot.sortie(), /BRIGADE_GITHUB_REPO n'est pas défini/);
+      assert.match(sansDepot.sortie(), /BRIGADE_GITHUB_REPO is not set/);
       assert.equal(await deTrop.fin, 2);
       assert.match(deTrop.sortie(), /usage : /);
       assert.deepEqual(gh.appels(), []);
