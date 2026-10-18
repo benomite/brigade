@@ -23,6 +23,8 @@ end awaiting
 | Bloc | Ce qu'il dit |
 |---|---|
 | `nothing cooks` | **Toute première ligne, absente sinon.** La base est rouge et son ticket de réparation la travaille : `nothing cooks: base red since <durée> ago, repair #N in progress` (`rien ne cuit : base rouge depuis <durée>, réparation #N en cours` avant #928 — l'app lit les deux). Une seule ligne, **hors du bloc `awaiting`** — rien n'y attend le chef pendant la réparation —, et la liste des tickets retenus reste où elle est. Elle disparaît au retour au vert ; une réparation échouée ne la porte plus : c'est la ligne `base` du bloc `awaiting` qui la remplace. L'app la pose telle quelle sur la carte du projet |
+| `project` | (`projet` avant #940.) Le projet du journal, ou `unknown — empty log` sur un journal vide |
+| `github` | **Absent tant que GitHub ne limite pas les appels du compte.** Sinon : `GitHub is rate-limiting calls, back around HH:MM` (`GitHub limite les appels, reprise vers HH:MM` avant #940), à l'heure de la box. Voir « Le budget d'appels à GitHub, et l'attente de limite » (`station-machine.md`) |
 | `runtime` | `running according to the log`, `stopped <durée> ago`, ou `never started` — **d'après le journal**. Un runtime tué sans préavis y paraît encore en marche : c'est l'**âge du dernier tick** qui le trahit. Au-delà de quelques cadences : `systemctl status brigade@<projet>` |
 | `kitchen` | (`cuisine` avant #928.) Le « stop » du chef et le disjoncteur, comme `run guardrails` : `open` ou `STOPPED by the chef <durée> ago`, puis `breaker closed (… failures in a row, opens at N)` ou `breaker OPEN for <durée>` |
 | `connection` | (`connexion` avant #928.) **Absent tant que la connexion Max tient.** Sinon, par station : `Max MISSING` ou `EXPIRED`, depuis quand, la raison, et le geste — `claude /login` sous le compte du service ; la cuisine reprend seule dans la minute. Plus aucun ticket n'est pris d'ici là. Voir « Connexion Max expirée » |
@@ -30,12 +32,13 @@ end awaiting
 | `setup` | **Absent tant que le setup du projet n'est pas bloqué.** Bloqué : `BLOCKED for <durée> on <commit>` — aucun setup n'est lancé d'ici, pour aucun ticket, tant que la branche d'intégration ne bouge pas. La cause et le geste sont dans le bloc `awaiting` (entrée `setup`). Voir « Le setup du worktree passe avant le cook » |
 | `base` | **Absent tant que la base n'est pas rouge** — sauf si son contrôle est retenu parce qu'elle ne se rapatrie pas. Rouge, elle retient toute la cuisine : depuis quand, sur quel commit, le contrôle qui n'a pas pu se jouer, le rejeu demandé. Sans demande en cours, la dernière ligne est le geste : `npm --prefix runtime run base -- replay`. Voir « La base est jugée seule » |
 | `backup` | (`sauvegarde` avant #928.) La dernière sauvegarde réussie (`backup.completed`) : son âge, son nom, son dernier événement. `TOO OLD` : l'âge dépasse `BRIGADE_BACKUP_MAX_AGE_HOURS`. `NEVER DONE` : le journal n'en porte aucune. Dans les deux cas : `systemctl status brigade-sauvegarde@<projet>` |
-| `awaiting` | **Toujours là**, de sa ligne `awaiting` à sa ligne `end awaiting`, **en anglais** — son bord, son décompte et chacune de ses lignes (mots de `docs/glossary.md`) ; comme tout ce qui le précède (de `runtime` à `backup`, la ligne d'urgence `emergency`, `aside`, `nothing cooks`). Le rail, les cooks et le reste de `status` sont encore en français. Quand rien ne t'attend, il le dit : `nothing awaits the chef`. Voir « Ce qui attend le chef », ci-dessous |
-| `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** (depuis que sa station a vu son worktree bouger). `COINCE` : la moitié de son bail est passée sans progrès, ou son bail est échu et il est encore pris. Un ticket en attente qui ne part pas dit ce qu'il attend — un autre ticket, une zone tenue, ce qui retient sa station ; `BLOQUÉ` : ce qu'il attendait a été abandonné (voir « Le rail »). Un ticket en pass dont les gates ont été coupées sur une machine saturée finit par `— gates rejouées plus tard : machine saturée, aucun test en échec` |
-| `cooks` | Combien tournent, et le plafond de la station. **Si un cook coince, la ligne le nomme** (`— 2 COINCENT : #14, #22`). Dessous, `MACHINE SATURÉE` avec ce qui manque, et `SE RETIENT` avec la raison. Puis une ligne par cook, **le pire en tête** ; jugements et relectures à la fin, sans branche. Tours et tokens sont ceux du dernier relevé, dont l'âge est affiché ; la ligne finit par ce que le cook fait (`en ce moment : lit runtime/src/etat.ts, depuis 2 min`) quand son relevé le dit. Runtime arrêté, un cook encore listé est mort avec lui |
-| `consommé` | Ce que l'ensemble des lancements a consommé — cooks, relectures, jugements : en cours, 5 h (la fenêtre du quota Max), 24 h |
-| `worktrees`, `dérive`, `claude` | **Absents quand il n'y a rien à dire** : les worktrees que le runtime n'a pas pu ranger (« Ce qui reste après un cook ») ; les mesures qui ont franchi un seuil déclaré (« Le relevé des mesures ») ; sous cloison, le dernier rangement des transcripts (« Les transcripts du projet sont rangés ») |
-| `derniers événements` | Les quinze derniers, au format de `run log`, sans battements ni relevés |
+| `awaiting` | **Toujours là**, de sa ligne `awaiting` à sa ligne `end awaiting`, **en anglais** — son bord, son décompte et chacune de ses lignes (mots de `docs/glossary.md`) ; comme tout le reste de `status` depuis #940, de `project` à `latest events`. Quand rien ne t'attend, il le dit : `nothing awaits the chef`. Voir « Ce qui attend le chef », ci-dessous |
+| `rail` | Le décompte par état (`3 taken · 2 in pass · 6 queued · 2 BLOCKED · 4 86 · 1 WAITING · 1 served`, `empty` sans ticket), puis chaque ticket dans l'ordre de service. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** (`by box/claude since 5 min, no progress since 5 min, lease 5 min left` — depuis que sa station a vu son worktree bouger). `STUCK: ` : la moitié de son bail est passée sans progrès, ou son bail est échu (`lease expired since 4 min`) et il est encore pris. Un ticket `queued` qui ne part pas dit ce qu'il attend, puis depuis quand (`… — since 2 min`) — un autre ticket (`awaiting #18`), une zone tenue (`zone held by #31 (…)`), ce qui retient sa station (`withheld by box/claude (…)`) ; `BLOCKED` : ce qu'il attendait a été abandonné (`#21 dropped (…)`), ou gelé (`blocked by #36 (86 with no return time, not judged by the pass)`, voir « Le rail »). En pass ou servi : `since 3 d, cooked by box/claude`. Un 86 : `since 5 min (quota), back in 4 h 56` — ou `no return time`, `back at the next tick`. Un ticket en pass dont les gates ont été coupées sur une machine saturée finit par `— gates replayed later: machine saturated, no test failing` |
+| `cooks` | Combien tournent (`3 running`, `none running`), et le plafond de la station (`box/claude: 2 at most`, `no limit`). **Si un cook coince, la ligne le nomme** (`— 2 STUCK: #14, #22`). Dessous, `MACHINE SATURATED for …` avec ce qui manque, `<station> WITHHOLDING for …` avec la raison, et `ARBITER UNREACHABLE for …`. Puis une ligne par cook, **le pire en tête** (`STUCK` après son ticket) ; jugements et relectures à la fin, sans branche. Tours et tokens sont ceux du dernier relevé, dont l'âge est affiché (`12 turns of 100 · 184,000 tokens of 2,000,000 (reading 2 min ago)`, ou `turns and tokens: no reading yet`) ; la ligne finit par ce que le cook fait (`right now: reading runtime/src/etat.ts, since 2 min`) quand son relevé le dit. Runtime arrêté, la ligne dit `… with no end in the log — runtime stopped: …` : un cook encore listé est mort avec lui |
+| `consumed` | (`consommé` avant #940.) Ce que l'ensemble des lancements a consommé — cooks, relectures, jugements : `in flight`, `5 h` (la fenêtre du quota Max), `24 h` — `8 launches, of which 1 review and 2 judgments · 64 turns · 825,000 tokens`, ou `nothing` |
+| `servers`, `to launch`, `service` | (`serveurs`, `à lancer` avant #940.) **Absents quand rien n'est servi** : chaque serveur d'une livraison d'interface (`starting` / `listening since …`, sa page ou `no page to open: …`), chaque worktree tenu d'une app à lancer (`held since …`, `no page in a browser: launch the app …`), et dessous l'écran (`screen: … (declared by the cook)`) et sa phrase (`to look at: …`). Voir « La livraison d'un ticket d'interface » (`station-navigateur.md`) |
+| `worktrees`, `drift`, `claude` | (`dérive` avant #940.) **Absents quand il n'y a rien à dire** : les worktrees que le runtime n'a pas pu ranger (`PR still open`, `work not pushed`, `cleanup failed`, « Ce qui reste après un cook ») ; les mesures qui ont franchi un seuil déclaré (`tests 622 for a threshold of 500`, « Le relevé des mesures ») ; sous cloison, le dernier rangement des transcripts (`project transcripts: 1,027 kept (112 MB), 12 removed (48 MB) …`, « Les transcripts du projet sont rangés ») |
+| `latest events` | (`derniers événements` avant #940.) Les quinze derniers, au format de `run log`, sans battements ni relevés ; `none` sur un journal vide |
 
 ### Ce qui attend le chef
 
@@ -99,7 +102,7 @@ l'entrée `setup`.
 - **Activer le grant ne vide pas la file** : il vaut pour les livraisons suivantes, pas pour celles
   déjà arrêtées, qui restent à merger à la main.
 - **Ce que le bloc ne compte pas** : un ticket redécoupé par le manager (`manager-split`) ; un 86
-  qui a une heure de retour ; ce qui attend sans toi (`COINCE`, `SE RETIENT`, `MACHINE SATURÉE`, le
+  qui a une heure de retour ; ce qui attend sans toi (`STUCK`, `WITHHOLDING`, `MACHINE SATURATED`, le
   bloc `base`) ; les autres écarts du manager, qui se lisent dans `run manager`.
 - **Ce que le manager attend de toi : fermer l'issue suffit** (`manager.closed`, constaté au
   sondage suivant). Ces lignes n'ont pas de titre. Manager éteint, rien n'est sondé : la file garde
@@ -156,8 +159,9 @@ Les heures sont en ISO 8601, UTC.
 | `retenue` | elle tourne, mais plus rien ne part : disjoncteur ouvert, connexion Max absente ou expirée, aucune station déclarée, base rouge, setup du projet bloqué sans station distante | `breaker OPEN`, la ligne `connection`, `stations   NONE DECLARED`, `base       RED since …`, `setup      BLOCKED` |
 | `ouverte` | rien de cela | |
 
-**L'état d'un ticket** : le mot que `status` et `rail` écrivent — `en attente`, `BLOQUÉ`, `pris`,
-`en pass`, `servi`, `86`.
+**L'état d'un ticket** : le mot que `rail` écrit — `en attente`, `BLOQUÉ`, `pris`,
+`en pass`, `servi`, `86`, `WAITING`. `status` écrit le même en anglais depuis #940 (`queued`, `BLOCKED`,
+`taken`, `in pass`, `served`) ; la forme garde le mot français.
 
 Ces deux listes sont **fermées** : c'est sur elles qu'un lecteur pose une couleur. Elles peuvent
 gagner un mot ; un lecteur montre donc un mot qu'il ne connaît pas tel quel, sans couleur. Le `type`
@@ -267,12 +271,12 @@ l'atteint ; `BRIGADE_DRIFT_GROWTH_PERCENT` — **la pente** —, quand `tests`, 
 Deux seuils portent sur **le coût**, en tokens, sur les dix derniers merges, et se posent **par le
 geste**, pas par une variable (`station seuil-ticket <entier>` et `station seuil-perdus <entier>`) :
 le seuil du ticket — les tokens du ticket le plus cher, tous ses lancements comptés — et celui des
-perdus — la somme des tokens des lancements qui n'ont rien livré. Franchis quand ils sont dépassés, nommés dans le bloc `dérive` avec leur valeur et
+perdus — la somme des tokens des lancements qui n'ont rien livré. Franchis quand ils sont dépassés, nommés dans le bloc `drift` avec leur valeur et
 leur seuil. **Aucune valeur par défaut** : c'est le quota du chef. Un seuil de coût franchi se lit
 seulement — il ne rend rien rouge, n'arrête aucun cook et ne bloque aucune livraison.
 
 Les seuils entrent au journal quand ils changent (`drift.configured`). Quand un merge en fait
 franchir un, le runtime écrit `drift.crossed` et une ligne dans `journalctl -u brigade@<projet>`,
 **une fois** ; repassée sous son seuil, ou le seuil retiré, `drift.cleared`. Entre les deux, le bloc
-`dérive` de `status` le rappelle. Rien n'est arrêté, aucune issue n'est ouverte.
+`drift` de `status` le rappelle. Rien n'est arrêté, aucune issue n'est ouverte.
 
