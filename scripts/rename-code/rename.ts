@@ -388,7 +388,11 @@ function plan(): { plan: Plan; ls: ts.LanguageService; files: string[] } {
     }
     renames.push({ declared, to, at: locations.length });
     for (const location of locations) {
-      const text = (location.prefixText ?? "") + to + (location.suffixText ?? "");
+      // `export { a }` would become `export { b as a }`: the export is
+      // renamed too — whoever imports it under the old name fails the proof.
+      const node = findNode(program.getSourceFile(location.fileName)!, location.textSpan.start);
+      const reexport = (location.suffixText ?? "").startsWith(" as ") && node !== undefined && ts.isExportSpecifier(node.parent);
+      const text = (location.prefixText ?? "") + to + (reexport ? "" : (location.suffixText ?? ""));
       addEdit(edits, location.fileName, { start: location.textSpan.start, end: location.textSpan.start + location.textSpan.length, text, prefix: (location.prefixText ?? "").length, why: `${declared.name} → ${to}` });
     }
   }
