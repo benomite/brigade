@@ -1919,8 +1919,8 @@ this proposal cost 18,342 tokens · proposed 10/13/2026, 9:58:40 AM
   n'a pas répondu, les deux boutons attendent (`sending your “yes”…`).
 - **Rien n'est écrit** — la box pas jointe, le runtime qui refuse (code 1, sa dernière ligne dite),
   ou **un runtime qui ne connaît pas encore le geste** (66, ou 2 sur son usage) : la carte reste,
-  ses deux boutons aussi, et une ligne le dit (`nothing was sent: its runtime does not know this
-  gesture yet — update brigade on the station`), la commande et ce que la box a rendu au survol.
+  ses deux boutons aussi, et une ligne en fait le constat (`nothing was sent: this station cannot take your answer
+  yet`), sans rien te demander de faire ailleurs ; la commande et ce que la box a rendu sont au survol.
 
 **Le contrat que l'app attend du runtime** : `correction yes|no <proposition>`, où `<proposition>`
 est le `proposition` de `corrections` — le `seq` du fait `correction.proposed`. Elle sort en 0 quand

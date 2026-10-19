@@ -169,7 +169,9 @@ export type Rendu = { tranchee: Reponse; dit: string } | { refus: string; detail
 const PAS_DEMANDE = "nothing was sent: the station could not be asked";
 export const INCONNUE = "nothing was sent: this proposal is not in the latest facts read — it was answered elsewhere, or set aside";
 export const PAS_COMPRIS = "nothing was sent: the app only knows “yes” and “no”";
-export const SANS_GESTE = "nothing was sent: its runtime does not know this gesture yet — update brigade on the station";
+// Un constat, pas une consigne : rien à faire ailleurs n'est demandé au chef (règle #830) — la commande et
+// ce que la box a rendu sont au survol.
+export const SANS_GESTE = "nothing was sent: this station cannot take your answer yet";
 
 // La dernière ligne non vide d'une sortie : ce que le runtime dit en dernier.
 const derniere = (sortie: string) => sortie.split("\n").map((ligne) => ligne.trim()).filter(Boolean).at(-1) ?? "";
