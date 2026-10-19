@@ -1927,6 +1927,115 @@ main > header,
 /* Six colonnes, côte à côte, qui tiennent dans la fenêtre à sa taille d'ouverture ; plus
    étroite, la zone défile. La quatrième, TODO, est plus large : ses cartes portent une ligne du bloc ;
    la cinquième, WAITING, un peu aussi : ses cartes disent ce qu'elles attendent, sans clic. */
+/* Une correction proposée des consignes du projet (#999) : une carte de la file, au-dessus des colonnes,
+   sur la carte chaude de « ce qui t'attend ». Ce qu'on attend du chef en tête, la cause, les tickets
+   qu'elle a fait rater, la correction en diff — une ligne ajoutée en vert, une retirée en rouge, chacune
+   avec son signe —, ce qu'elle a coûté, puis « yes » et « no ». */
+#rail .correction {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 16px 0;
+  padding: 12px 14px;
+  background: var(--attend);
+  border: 1px solid var(--attend-trait);
+  border-radius: var(--rayon-carte);
+  overflow-wrap: anywhere;
+}
+#rail .correction .attendu {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--texte);
+}
+#rail .correction .tete-correction {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+#rail .correction .pilule {
+  padding: 1px 8px;
+  font-size: 11px;
+  color: var(--rouge-clair);
+  border: 1px solid var(--rouge);
+  border-radius: var(--rayon-bouton);
+}
+#rail .correction .tickets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  font-size: 12px;
+  color: var(--discret);
+}
+#rail .correction .tickets .ticket {
+  color: var(--texte);
+}
+#rail .correction .motif {
+  color: var(--texte-doux);
+}
+#rail .correction .nom-fichier {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  font-size: 12px;
+}
+#rail .correction .ajoutees,
+#rail .correction .diff .ajout {
+  color: var(--vert);
+}
+#rail .correction .retirees,
+#rail .correction .diff .retrait {
+  color: var(--rouge);
+}
+#rail .correction .diff .morceau {
+  color: var(--bleu);
+}
+#rail .correction .diff .note {
+  color: var(--discret);
+}
+/* Une longue correction défile dans sa hauteur : rien n'y est caché. */
+#rail .correction pre {
+  max-height: 360px;
+  margin: 4px 0 0;
+  overflow: auto;
+}
+#rail .correction .cout-correction {
+  font-size: 12px;
+  color: var(--discret);
+}
+#rail .correction .reponses {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+#rail .correction .action > button {
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+}
+#rail .correction .action > button:disabled {
+  color: var(--discret);
+  background: none;
+  border-color: var(--trait);
+  border-style: dashed;
+  cursor: default;
+}
+#rail .correction .en-route {
+  font-size: 12px;
+  color: var(--discret);
+}
+#rail .correction .refus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--jaune);
+}
 #rail .colonnes {
   display: grid;
   grid-template-columns: repeat(3, minmax(104px, 1fr)) minmax(160px, 1.6fr) minmax(136px, 1.3fr) minmax(104px, 1fr);
