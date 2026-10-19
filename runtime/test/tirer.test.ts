@@ -11,17 +11,18 @@ import { lireStations } from "../src/stations-declarees.ts";
 import { MAL_ECRIT, principal, REFUSEE, SANS_REPONSE, SERVIE } from "../src/tirer-cli.ts";
 import { demander, SansReponse } from "../src/tirer.ts";
 import { cuisine, issue, pousserSurLOrigine } from "./aides/cuisine.ts";
+import { sansMotFrancais } from "./aides/glossaire.ts";
 import { jusqua, repertoireTemporaire } from "./outils.ts";
 
 const MAC = "mac/claude";
 const DECLAREES = lireStations({ BRIGADE_STATIONS: `${MAC}:1:chrome-connecté:distante` });
 
 // Joue le geste dans ce process : ses arguments, son entrée, ce qu'il dit.
-async function geste(repertoire: string, maintenant: () => Date, args: string[], entree = "") {
+async function geste(repertoire: string, maintenant: () => Date, args: string[], entree = "", attenteMs?: number) {
   const [sortie, erreur]: [string[], string[]] = [[], []];
   let code = SERVIE;
   try {
-    await principal({ args, env: { BRIGADE_STATE_DIR: repertoire }, dire: (ligne) => void sortie.push(ligne), redire: (ligne) => void erreur.push(ligne) }, async () => entree, { maintenant, pasMs: 2 });
+    await principal({ args, env: { BRIGADE_STATE_DIR: repertoire }, dire: (ligne) => void sortie.push(ligne), redire: (ligne) => void erreur.push(ligne) }, async () => entree, { maintenant, pasMs: 2, ...(attenteMs === undefined ? {} : { attenteMs }) });
   } catch (levee) {
     code = (levee as { code: number }).code;
   }
@@ -164,5 +165,11 @@ describe("le geste d'une station distante", { concurrency: 8 }, () => {
     await assert.rejects(demander(repertoire, MAC, { verb: "claim" }, { attenteMs: 30, pasMs: 2 }), (erreur) => erreur instanceof SansReponse && /did not answer in time/.test(erreur.message));
     // La demande, elle, est au journal : c'est ce que le runtime trouvera — trop tard.
     assert.equal(journal.tout().filter((e) => e.type === "remote.asked").length, 1);
+    // Le geste le dit au runner en anglais, et rend 3 — la sortie que le parcours de exploitation-en-anglais.test.ts,
+    // joué dans son propre process, n'attend pas : trente secondes.
+    const rendu = await geste(repertoire, () => new Date(), [MAC, "announce"], "", 30);
+    assert.deepEqual([rendu.code, rendu.reponse], [SANS_REPONSE, null]);
+    assert.match(rendu.erreur, /^brigade : the runtime did not answer in time/);
+    sansMotFrancais(rendu.erreur.split("\n"));
   });
 });

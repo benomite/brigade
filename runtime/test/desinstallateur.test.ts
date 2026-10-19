@@ -60,7 +60,8 @@ const gestes = (b: Boite, rang = 0) => b.appels().slice(rang).filter((appel) => 
 // La photo d'une box, sans ce qui vit sous ces chemins.
 const sans = (photo: Record<string, string>, chemins: string[]) => Object.fromEntries(Object.entries(photo).filter(([chemin]) => !chemins.some((retire) => chemin === retire || chemin.startsWith(`${retire}/`))));
 
-describe("le plan d'une désinstallation", () => {
+// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
+describe("le plan d'une désinstallation", { concurrency: 8 }, () => {
   test("`--plan` liste ce qui serait retiré — unités, drop-ins, clone, worktrees, versions, port — et ne modifie rien sur la box", async (t) => {
     const b = await installee(t, "calculus", "boutique");
     servir(b);
@@ -174,7 +175,8 @@ describe("le plan d'une désinstallation", () => {
   });
 });
 
-describe("désinstaller un projet", () => {
+// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
+describe("désinstaller un projet", { concurrency: 8 }, () => {
   test("sans confirmation : rien n'est effacé, et le geste dit comment confirmer", async (t) => {
     const b = await installee(t);
     servir(b);
@@ -299,7 +301,8 @@ describe("désinstaller un projet", () => {
   });
 });
 
-describe("ce que la désinstallation refuse, sans rien modifier sur la box", () => {
+// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
+describe("ce que la désinstallation refuse, sans rien modifier sur la box", { concurrency: 8 }, () => {
   // Chaque refus : un code non nul, un message, et la box telle qu'elle était.
   async function refuse(b: Boite, args: string[], motif: string, message: RegExp, code: number = CODES.usage): Promise<void> {
     const [avant, rang] = [b.photo(), b.appels().length];
@@ -442,7 +445,8 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", () 
   });
 });
 
-describe("une désinstallation qui s'arrête en chemin", () => {
+// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
+describe("une désinstallation qui s'arrête en chemin", { concurrency: 8 }, () => {
   test("le runtime arrêté, son clone porte ce que l'origine n'a pas : elle s'arrête là, dit ce qui est fait et ce qui reste, et se rejoue", async (t) => {
     const b = await installee(t);
     servir(b);
@@ -486,7 +490,8 @@ describe("une désinstallation qui s'arrête en chemin", () => {
   });
 });
 
-describe("le journal du geste, pour une désinstallation", () => {
+// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
+describe("le journal du geste, pour une désinstallation", { concurrency: 8 }, () => {
   test("chaque appel — plan, refus, exécution — y ajoute qui, quand, quel projet et quoi", async (t) => {
     const b = await installee(t);
     servir(b);
@@ -526,7 +531,8 @@ describe("le journal du geste, pour une désinstallation", () => {
   });
 });
 
-describe("ce que la désinstallation lance", () => {
+// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
+describe("ce que la désinstallation lance", { concurrency: 8 }, () => {
   test("le pas joué sous le compte du service n'accepte que `--confirmer`", () => {
     const redit: string[] = [];
     const appel = (args: string[]) => () => sousLeCompte({ args, env: {}, dire: () => assert.fail("rien n'est rendu"), redire: (ligne) => redit.push(ligne) });

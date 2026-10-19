@@ -1,6 +1,6 @@
 // Les projets que le chef ajoute depuis l'app, tels que la station les tient :
 // contre un gist en mémoire, une autorisation et un clone doublés. La station
-// elle-même, son vrai `gh` et son vrai clone se prouvent dans `recette.test.ts`.
+// elle-même, son vrai `gh` et son vrai clone se prouvent dans `../0-en-premier/recette.test.ts`.
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
