@@ -97,6 +97,7 @@ import { poserCourbe } from "./cost/courbe.js";
 import { poserPerdus } from "./cost/perdus.js";
 import { poserTete } from "./cost/tete.js";
 import { poserFiabilite } from "./fiabilite.js";
+import { poserReculs } from "./recul.js";
 import { lireFermeture, poserCloser } from "./closer/section.js";
 import { poserBilan } from "./closer/bilan/bilan.js";
 import { apresRendu, lireLancement, poserLancement, REPOS } from "./closer/lancement/lancement.js";
@@ -3932,6 +3933,7 @@ function ouvrirFicheDeCout(nom, ticket, retour) {
 
 // La fiabilité des cooks du projet affiché, en tête de l'onglet Reliability (fiabilite.js) : trois chiffres
 // face à leurs seuils, puis les causes d'échec qui reviennent le plus. Un ticket d'une cause ouvre sa fiche.
+// Dessous, chaque cause qu'une correction acceptée des consignes visait, avant et après son merge (ticket 1001).
 // À côté, ce que ce projet a coûté, et lui seul (ticket 1022) : ses tokens perdus et ses tickets les plus chers,
 // lus dans le `station` de sa propre box — celui que cette lecture lance — et jugés face à ses propres
 // seuils (cost/seuils.js). Un ticket ouvre sa fiche.
@@ -3955,7 +3957,13 @@ function poserLaFiabilite() {
     poserPerdus(document, seul, lue, titreSurLeRail, perdusDuProjetOuverts, basculerPerdusDuProjet, ouvrirFicheDeCout),
     poserChers(document, seul, lue, titreSurLeRail, ouvrirFicheDeCout),
   );
-  fiabilite.replaceChildren(...poserFiabilite(document, vu, (ticket, retour) => ouvrirFicheDeCout(projet.nom, ticket, retour)), coute);
+  /** @param {number} ticket @param {HTMLElement} retour */
+  const ouvrir = (ticket, retour) => ouvrirFicheDeCout(projet.nom, ticket, retour);
+  // Les corrections acceptées de ses consignes, et ce qu'elles ont fait de leur cause (recul.js) : lues
+  // dans `facts`, pas dans cette lecture — une box pas jointe garde la dernière.
+  const tenu = tenus.get(projet.nom);
+  const reculs = tenu !== undefined && "tableau" in tenu ? tenu.tableau.reculs : undefined;
+  fiabilite.replaceChildren(...poserFiabilite(document, vu, ouvrir), ...poserReculs(document, reculs, ouvrir), coute);
 }
 
 // La partie « closer » du projet affiché, sous Settings → Closer (closer/section.js) : les quatre chiffres
@@ -5460,6 +5468,8 @@ brigade.surFaits((recue) => {
   if (courant?.nom === recue.projet) {
     dessiner();
     void poserOrdinaires(courant);
+    // Reliability pose aussi ce que `facts` dit des corrections acceptées.
+    poserLaFiabilite();
   }
 });
 // Ce que l'onglet de contenu affiché a rendu : une lecture ratée s'y lit comme

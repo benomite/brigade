@@ -3135,6 +3135,7 @@ button.recommande {
 }
 .tete-fiabilite h2,
 .causes-fiabilite h2,
+.reculs-fiabilite h2,
 .cout-du-projet > h2 {
   margin: 0 0 8px;
   font-size: 12px;
@@ -3228,7 +3229,8 @@ button.recommande {
   display: flex;
   gap: 6px;
 }
-.causes-fiabilite .tickets button {
+.causes-fiabilite .tickets button,
+.reculs-fiabilite .tickets button {
   padding: 2px 8px;
   font-size: 12px;
   color: var(--texte);
@@ -3236,6 +3238,104 @@ button.recommande {
   border: 1px solid var(--trait-fort);
   border-radius: var(--rayon-bouton);
   cursor: pointer;
+}
+/* Sous les causes, celles qu'une correction acceptée des consignes visait (ticket 1001) : une carte chacune, sa
+   cause et ce qu'en dit le runtime — elle recule en vert, ne recule pas en rouge —, puis avant et après le
+   merge côte à côte. Un côté sans rien à lire le dit en mots, discrets, à la place du chiffre. */
+.reculs-fiabilite {
+  margin: 14px 0 0;
+}
+.reculs-fiabilite .reculs {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.reculs-fiabilite .recul {
+  padding: 12px 14px;
+  background: var(--carte);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+.reculs-fiabilite .tete-recul {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+}
+.reculs-fiabilite .titre {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--texte);
+}
+.reculs-fiabilite .verdict {
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+}
+.reculs-fiabilite .verdict.recule {
+  color: var(--vert);
+  border-color: var(--vert);
+}
+.reculs-fiabilite .verdict.ne-recule-pas {
+  color: var(--rouge-clair);
+  border-color: var(--rouge);
+}
+.reculs-fiabilite .portee {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--discret);
+}
+.reculs-fiabilite .cotes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 10px 0 0;
+}
+.reculs-fiabilite .cote {
+  min-width: 0;
+  padding: 10px 14px;
+  background: var(--case);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+.reculs-fiabilite .cote h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+.reculs-fiabilite .total {
+  margin: 2px 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  color: var(--texte);
+}
+.reculs-fiabilite .cote.attente .total {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--discret);
+}
+.reculs-fiabilite .sur {
+  margin: 0;
+  font-size: 12px;
+  color: var(--discret);
+}
+.reculs-fiabilite .tickets {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0 0;
 }
 /* Closer (#990) : quatre chiffres de la dernière observation, ce qu'elle a repéré derrière un bouton —
    ou, sans closer réglé, le message, et le modèle et l'effort à choisir devant le bouton qui les écrit.

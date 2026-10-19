@@ -1113,6 +1113,19 @@ tickets servis**, et **ce que le projet a coûté** (#1022). Elle n'est pas un o
 - **Pas encore assez de tickets servis pour mesurer, la page le dit** —
   `not enough tickets served yet to measure: 6 of the 10 it takes`, ou `none of the last 10 tickets
   served is merged yet` —, **jamais des zéros**.
+- **Dessous, les causes qu'une correction des consignes visait** (#1001, épique #994), sous « corrected causes:
+  before and after the merge » — **une carte par correction acceptée** (voir « Une correction proposée des
+  consignes du projet »), la plus ancienne d'abord : la cause, **le mot du runtime en tête** — `recedes` en
+  vert, `does not recede` en rouge —, la PR de la correction et le jour de son merge, puis **côte à côte la part
+  des tickets que la cause a fait rater avant le merge, et après** (`30%`, `6 of 20 tickets failed because of
+  it`), chacune avec ses trois derniers tickets atteints, dont un clic ouvre la fiche. Ce que chaque côté
+  regarde est au survol de son nom. **Tant qu'il n'y a rien à comparer, la carte le dit en mots, jamais par un
+  chiffre** : pas encore mergée (`not merged yet`, sans avant ni après), mergée sans ticket fini depuis
+  (`nothing to compare yet` — l'avant, et `not yet` à la place de l'après), ou qui ne le sera pas (`not
+  merged`). **Sans correction acceptée, la section n'est pas posée**, et rien n'est dit à sa place. Elle vient
+  de `facts` (`reculs`, `docs/runtime/etat-et-mesures.md`, « Une correction mergée recule-t-elle sa cause ? »),
+  lu à côté (`app/src/recul.ts`) : l'app ne juge rien, « recule » est le verdict du runtime ; une box pas
+  jointe garde la dernière lecture.
 - **À côté, ce que le projet a coûté, et lui seul** (#1022), sous « cost of this project » : **ses tokens
   perdus** et **ses tickets les plus chers**, les mêmes blocs que sur la page des coûts de l'app (voir « Le
   coût de tous les projets ») — un clic sur le chiffre déploie la liste des cooks perdus, un clic sur un
