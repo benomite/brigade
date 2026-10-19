@@ -36,7 +36,7 @@ case "$1" in
       # posé dans le système part. Sans elle, rien à faire. Refusée, rien n'a
       # changé : l'installation s'arrête et dit pourquoi.
       bascule=""
-      if [ -x "$NODE" ]; then
+      if [ -x "$NODE" ] && [ -f "$BASCULE" ]; then
         "$NODE" "$BASCULE" --racine "$RACINE"
         bascule=oui
       fi
