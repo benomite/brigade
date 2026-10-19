@@ -109,7 +109,9 @@ installée quand ses sources sont `Resources/app/src` du paquet qui la joue.
 - **Ses fichiers** sont ceux de l'app du dépôt : `~/.config/brigade/` (projets, réglages,
   `station/`), lu tel quel — rien n'y est déplacé ni réécrit pour elle.
 - **Pas de clone** : elle ne dit rien du retard de son code, et ne se met pas à jour par `git`.
-  Une nouvelle version, c'est un nouveau `.dmg`.
+  Elle se tient à jour sur les releases `app-v*` : elle lit leur `latest-mac.yml`, télécharge le
+  `.dmg` et le vérifie, puis l'installe au geste du chef ou à son ouverture suivante
+  (`app/src/mise-a-jour/`, et [`docs/app.md`](../../docs/app.md), « Lancer l'app »).
 
 ## Éprouver sur un Mac
 

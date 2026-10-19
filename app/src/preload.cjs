@@ -54,6 +54,14 @@ const pont = {
   attente: (projet, id, ticket, saisie) => ipcRenderer.invoke("attente", projet, id, ticket, saisie),
   ecrireMiseAJour: (clone) => ipcRenderer.invoke("mettreAJour", clone),
   passer: () => ipcRenderer.invoke("passer"),
+  // La mise à jour de l'app installée (mise-a-jour/etat.ts) : `miseAJour` rend son état
+  // (`EtatDeMiseAJour` : inactive, verification, a-jour, disponible, telechargement, prete,
+  // installation, erreur), `verifierMiseAJour` relit le flux des versions publiées et rend l'état
+  // qui en sort, `installerMiseAJour` installe la nouvelle version et relance l'app — rien n'est
+  // rendu, elle se ferme — ou rend `{ refus }`. Chaque changement d'état arrive par `surMiseAJour`.
+  miseAJour: () => ipcRenderer.invoke("miseAJour"),
+  verifierMiseAJour: () => ipcRenderer.invoke("verifierMiseAJour"),
+  installerMiseAJour: () => ipcRenderer.invoke("installerMiseAJour"),
   appairer: (code) => ipcRenderer.invoke("appairer", code),
   depotsDuChef: () => ipcRenderer.invoke("depotsDuChef"),
   ajouterAUneStation: (saisie) => ipcRenderer.invoke("ajouterAUneStation", saisie),
@@ -84,6 +92,7 @@ const pont = {
   surUrgence: (recevoir) => void ipcRenderer.on("urgence", (_, projet) => recevoir(projet)),
   surAmont: (recevoir) => void ipcRenderer.on("amont", (_, vu) => recevoir(vu)),
   surCode: (recevoir) => void ipcRenderer.on("code", (_, vu) => recevoir(vu)),
+  surMiseAJour: (recevoir) => void ipcRenderer.on("miseAJour", (_, etat) => recevoir(etat)),
   surStations: (recevoir) => void ipcRenderer.on("stations", (_, vu) => recevoir(vu)),
   surProjetsDesStations: (recevoir) => void ipcRenderer.on("projetsDesStations", (_, vu) => recevoir(vu)),
   surAccueil: (recevoir) => void ipcRenderer.on("accueil", (_, vu) => recevoir(vu)),

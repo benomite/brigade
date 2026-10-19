@@ -635,7 +635,7 @@ LE CODE DE CETTE APP EST EN RETARD DE 39 COMMITS SUR origin/v2 — lu à 14:32:0
 | `LE CODE DE CETTE APP EST EN RETARD DE 39 COMMITS SUR origin/v2`, en jaune, trait plein | l'origine a 39 commits que son clone n'a pas — le même nombre que `git status` après un `git fetch` | **un bouton**, « mettre à jour et relancer l'app » — ou, si son clone a des commits à lui, la commande `git -C <son clone> pull` à écrire dans un shell |
 | `CETTE APP TOURNE SUR UN CODE PLUS ANCIEN QUE CELUI DE SON CLONE`, en jaune, trait plein | son clone n'est plus sur le commit de son lancement : il a été mis à jour pendant qu'elle tournait | **un bouton**, « relancer l'app » : elle ne change de code qu'à son lancement |
 | `le retard du code de cette app sur son origine n'a pas été lu`, en jaune, trait pointillé | l'origine n'a pas répondu, le clone n'est sur aucune branche, sa branche ne suit rien — ou l'app n'est pas lancée d'un clone | la raison, avec ce que `git` en a dit. **Pas lu n'est jamais « à jour »** |
-| rien | **l'app installée** (le `.dmg`) n'a pas de clone : rien ne se lit de son code, ni des clones de brigade parmi les projets — ils se reconnaissent à l'origine du sien | rien : une nouvelle version, c'est un nouveau `.dmg` |
+| rien | **l'app installée** (le `.dmg`) n'a pas de clone : rien ne se lit de son code, ni des clones de brigade parmi les projets — ils se reconnaissent à l'origine du sien | rien ici : elle se met à jour d'elle-même sur les versions publiées (« Lancer l'app », *Sa mise à jour*) |
 
 - **Au clic, elle se met à jour et repart.** Son clone avance jusqu'à la branche de l'origine qu'il
   suit, puis l'app se ferme et se relance d'elle-même sur la nouvelle version — par `npm start`
@@ -2343,10 +2343,24 @@ Deux façons : **installée**, depuis un `.dmg` pour Apple Silicon, ou **depuis 
 ouvre-la. Elle porte le runtime de sa station et le `node` qui le joue : ni clone, ni `node`, ni
 `npm` sur la machine. Elle lit `~/.config/brigade/` tel quel — tes projets et réglages sont ceux de
 l'app du dépôt —, prend le `PATH` de ton shell de connexion (pour trouver `claude` et `gh`), et ne
-se met pas à jour par `git` : une nouvelle version, c'est un nouveau `.dmg`. Le `.dmg` publié sur la release `app-v<version>` est signé Developer ID et notarisé par Apple : il
+se met pas à jour par `git` : elle se tient à jour sur les versions publiées (ci-dessous). Le `.dmg` publié sur la release `app-v<version>` est signé Developer ID et notarisé par Apple : il
 s'ouvre sans alerte. Celui qu'on construit soi-même n'est signé qu'ad hoc : copié d'un autre Mac,
 macOS demande « Ouvrir quand même ». Ce
 qu'elle porte, comment elle se construit et s'éprouve : [`app/packaging/README.md`](../app/packaging/README.md).
+
+**Sa mise à jour** (#1013). L'app installée regarde à son lancement, puis toutes les six heures, si
+une version plus haute que la sienne est publiée — une release `app-v<version>` qui porte son
+`latest-mac.yml`. S'il y en a une, elle l'annonce avec son numéro et la télécharge aussitôt, vérifiée
+contre la taille et le sha512 publiés, sous `~/.config/brigade/mise-a-jour/`. Prête, elle s'installe
+au geste « installer maintenant » — l'app se ferme, la nouvelle prend sa place et se rouvre —, ou,
+sans geste, à l'ouverture suivante, avant que rien n'y démarre. L'installeur vérifie la signature de
+la nouvelle version (le même développeur que celle qui tourne) ; s'il échoue, l'app en place n'est
+pas touchée, elle se rouvre et dit pourquoi. Un flux qui ne répond pas n'empêche jamais l'app de
+s'ouvrir : l'erreur est dite, la vérification suivante réessaie. Lancée depuis le dépôt, elle ne
+regarde rien — son clone la met à jour. L'état et les gestes passent par le pont de la vue
+(`miseAJour`, `verifierMiseAJour`, `installerMiseAJour`, `surMiseAJour`) ; le code est dans
+`app/src/mise-a-jour/`. Pour l'essayer sans GitHub, `BRIGADE_APP_MISE_A_JOUR_SOURCE=<adresse>` la fait
+lire un serveur qui répond comme lui.
 
 **Depuis le dépôt :**
 
