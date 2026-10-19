@@ -21,6 +21,9 @@ async function premiereVie(t: TestContext, options: Options = {}) {
   const pid = Number(readFileSync(fichierDuPid, "utf8"));
   const worktree = join(premiere.repertoire, String(lancement.worktree));
   await jusqua(() => existsSync(join(worktree, "travail.txt")));
+  // Le fichier est écrit avant d'être commité : dans un worktree git, le
+  // commit est le fait attendu, pas le fichier.
+  if (existsSync(join(worktree, ".git"))) await jusqua(() => git(worktree, "log", "-1", "--format=%s") === "le travail du cook");
   premiere.runtime.arreter("SIGTERM");
   return { premiere, run, pid, worktree, branche: String(lancement.branch) };
 }
