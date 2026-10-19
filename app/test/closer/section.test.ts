@@ -1,6 +1,6 @@
 // La partie « closer » de la page d'un projet (vue/closer/section.js, #990) : les quatre chiffres de la
 // dernière observation, la liste de ce qu'elle a repéré derrière un bouton, et — sans closer réglé — le
-// message et le geste qui en règle un, sans aucun chiffre. Le module est lu seul, sur un faux document,
+// message et le geste qui en règle un, un bouton, sans aucun chiffre. Le module est lu seul, sur un faux document,
 // puis la vue jouée telle qu'elle est (aides/fausse-vue.ts), sous Settings → Closer.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -20,6 +20,8 @@ import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import {
   AUCUNE,
   BRANCHE_ILLISIBLE,
+  CHOISIR_EFFORT,
+  CHOISIR_MODELE,
   COMMANDE,
   DOUBLONS,
   ILLISIBLE,
@@ -30,13 +32,14 @@ import {
   NON_COMMUNIQUE,
   poserCloser,
   RATIO,
+  REGLER,
   SANS_CLOSER,
 } from "../../src/vue/closer/section.js";
 import { Faux, jouerLaVue, ouvrirLecture, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const A = "2026-10-19T12:00:00.000Z";
-const geste = (suite: string) => `ssh box brigade parade ${suite}`;
+const CALIBRAGE = { modeles: MODELES, efforts: EFFORTS };
 
 // Ce que `closing --json` écrit, sur une ligne (runtime/src/fermeture-lecture/lecture.ts) : le closer réglé,
 // la branche lue, deux doublons et un export mort.
@@ -73,7 +76,7 @@ const lecture = (objet: unknown, demande = 0): Lecture => ({ projet: "parade", d
 const lu = (objet: unknown) => lireFermeture(lecture(objet));
 const poser = (objet: unknown, options: Partial<Parameters<typeof poserCloser>[2]> = {}) => {
   const racine = new Faux("section");
-  racine.append(...poserCloser(doc, lu(objet), { geste, ...options }));
+  racine.append(...poserCloser(doc, lu(objet), options));
   return racine;
 };
 const chiffres = (racine: Faux) =>
@@ -175,32 +178,73 @@ describe("la partie closer, observée", () => {
   });
 });
 
+// Ce que la partie sans closer pose pour le régler : les deux listes, et le bouton.
+const reglage = (racine: Faux) => {
+  const [modele, effort] = racine.dessous("select");
+  const bouton = racine.dessous("button").find(({ textContent }) => textContent === REGLER);
+  assert.ok(modele !== undefined && effort !== undefined && bouton !== undefined, "pas de réglage");
+  return { modele, effort, bouton };
+};
+const choisir = (liste: Faux, valeur: string) => {
+  liste.value = valeur;
+  liste.declencher("change");
+};
+
 describe("la partie closer, sans closer réglé", () => {
-  test("elle le dit, donne le geste exact pour ce projet, et ne montre aucun chiffre", () => {
-    const racine = poser(SANS, { valeurs: { modeles: MODELES, efforts: EFFORTS } });
+  test("elle le dit, propose le modèle et l'effort ensemble devant un bouton recommandé, et ne montre aucun chiffre", () => {
+    const racine = poser(SANS, { valeurs: CALIBRAGE });
     assert.ok(racine.dessous("p").some(({ textContent }) => textContent === SANS_CLOSER));
-    assert.deepEqual(
-      racine.dessous("code").map(({ textContent }) => textContent),
-      ["ssh box brigade parade station closer-modele <model>", "ssh box brigade parade station closer-effort <effort>"],
-    );
+    const { modele, effort, bouton } = reglage(racine);
+    assert.deepEqual(modele.children.map(({ textContent, value }) => [textContent, value]), [[CHOISIR_MODELE, ""], ...MODELES.map((valeur) => [valeur, valeur])]);
+    assert.deepEqual(effort.children.map(({ textContent, value }) => [textContent, value]), [[CHOISIR_EFFORT, ""], ...EFFORTS.map((valeur) => [valeur, valeur])]);
+    assert.equal(bouton.className, "recommande");
     assert.deepEqual(chiffres(racine), []);
     for (const absent of [MERGES, RATIO, DOUBLONS, MORTS]) assert.doesNotMatch(racine.textContent, new RegExp(absent));
+    // Aucune commande à recopier : ni `ssh`, ni `station`, ni bloc de code.
+    assert.deepEqual(racine.dessous("code"), []);
+    assert.doesNotMatch(racine.textContent, /ssh|brigade|station|closer-/);
     // Ni liste, ni places pour le lancement ou le bilan : il n'y a pas de closer à lancer.
     assert.deepEqual(racine.dessous("button").filter(({ className }) => className === "deplier"), []);
     assert.deepEqual(racine.dessous("div").filter(({ className }) => /^closer-(lancement|bilan)$/.test(className)), []);
-    // Les valeurs acceptées sont au survol, pas à plat.
+    // Ce que le bouton fait, et les valeurs acceptées, sont au survol, pas à plat.
     const aide = racine.dessous("button").find(({ className }) => className === "aide") ?? assert.fail("pas d'aide");
+    assert.match(aide.ariaLabel, /without sending them/);
     for (const valeur of [...MODELES, ...EFFORTS]) assert.match(aide.ariaLabel, new RegExp(valeur));
+  });
+
+  test("le bouton n'agit qu'avec le modèle et l'effort choisis, et les donne ensemble", () => {
+    const reglages: [string, string][] = [];
+    const choix: { modele: string; effort: string }[] = [];
+    const racine = poser(SANS, { valeurs: CALIBRAGE, regler: (modele, effort) => void reglages.push([modele, effort]), choisir: (pris) => void choix.push(pris) });
+    const { modele, effort, bouton } = reglage(racine);
+    assert.equal(bouton.disabled, true);
+    bouton.declencher("click");
+    choisir(modele, "sonnet");
+    assert.equal(bouton.disabled, true, "un modèle sans effort ne règle rien");
+    bouton.declencher("click");
+    assert.deepEqual(reglages, []);
+    choisir(effort, "medium");
+    assert.equal(bouton.disabled, false);
+    bouton.click();
+    assert.deepEqual(reglages, [["sonnet", "medium"]]);
+    assert.deepEqual(choix.at(-1), { modele: "sonnet", effort: "medium" });
+  });
+
+  test("ce que le chef a choisi est reposé tel quel ; une valeur que la station n'accepte pas ne l'est pas", () => {
+    const repris = reglage(poser(SANS, { valeurs: CALIBRAGE, choix: { modele: "opus", effort: "high" } }));
+    assert.deepEqual([repris.modele.value, repris.effort.value, repris.bouton.disabled], ["opus", "high", false]);
+    const inconnu = reglage(poser(SANS, { valeurs: CALIBRAGE, choix: { modele: "gpt", effort: "high" } }));
+    assert.deepEqual([inconnu.modele.value, inconnu.bouton.disabled], ["", true]);
   });
 });
 
 describe("la partie closer, pas encore lue ou ratée", () => {
   test("en route : une ligne ; ratée : une ligne, le détail au survol", () => {
     const enRoute = new Faux("section");
-    enRoute.append(...poserCloser(doc, undefined, { geste }));
+    enRoute.append(...poserCloser(doc, undefined));
     assert.match(enRoute.textContent, new RegExp(LECTURE));
     const ratee = new Faux("section");
-    ratee.append(...poserCloser(doc, { erreur: "brigade : no log in /srv/etat" }, { geste }));
+    ratee.append(...poserCloser(doc, { erreur: "brigade : no log in /srv/etat" }));
     assert.match(ratee.textContent, new RegExp(ILLISIBLE));
     assert.doesNotMatch(ratee.textContent, /no log/);
   });
@@ -264,14 +308,25 @@ describe("la partie closer, dans l'espace du projet", () => {
     assert.equal(page.dessous("li").length, 3);
   });
 
-  test("sans closer réglé : le message et le geste, sur la box du projet, et aucun chiffre", async () => {
+  test("sans closer réglé : le message et le bouton, qui écrit le réglage dans le second sans l'envoyer ; une relecture garde le choix", async () => {
     const { vue, demande } = await ouvrir();
     vue.dire("surContenu", lecture(SANS, demande), undefined, undefined);
     await repos();
     const page = vue.element("closer");
     assert.match(page.textContent, new RegExp(SANS_CLOSER.replace(".", "\\.")));
-    assert.deepEqual(page.dessous("code").map(({ textContent }) => textContent), ["ssh box brigade parade station closer-modele <model>", "ssh box brigade parade station closer-effort <effort>"]);
     assert.deepEqual(chiffres(page), []);
+    assert.doesNotMatch(page.textContent, /ssh|closer-modele/);
+
+    choisir(reglage(page).modele, "sonnet");
+    // Relue entre les deux choix : le modèle reste choisi.
+    vue.dire("surContenu", lecture(SANS, demande), undefined, undefined);
+    await repos();
+    const { modele, effort, bouton } = reglage(page);
+    assert.equal(modele.value, "sonnet");
+    choisir(effort, "medium");
+    bouton.click();
+    await repos();
+    assert.deepEqual(vue.dernier("inscrire"), ["parade", "regler-closer", ["sonnet", "medium"]]);
   });
 
   test("quitter la page la vide : la lecture d'après ne montre rien de celle d'avant", async () => {

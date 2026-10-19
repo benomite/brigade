@@ -3075,7 +3075,8 @@ button.recommande {
   cursor: pointer;
 }
 /* Closer (#990) : quatre chiffres de la dernière observation, ce qu'elle a repéré derrière un bouton —
-   ou, sans closer réglé, le message et le geste qui en règle un. Les mêmes chiffres que Reliability. */
+   ou, sans closer réglé, le message, et le modèle et l'effort à choisir devant le bouton qui les écrit.
+   Les mêmes chiffres que Reliability. */
 #closer {
   padding: 16px 16px 4px;
 }
@@ -3136,23 +3137,36 @@ button.recommande {
   font-weight: 600;
   color: var(--texte);
 }
-.tete-closer .comment {
-  margin: 8px 0 6px;
+.tete-closer .reglage-closer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 10px 0 0;
+}
+.tete-closer .reglage-closer button.recommande {
+  padding: 3px 10px;
   font-size: 12px;
-  color: var(--discret);
-}
-.tete-closer .gestes-closer {
-  display: grid;
-  gap: 4px;
-  justify-items: start;
-}
-.tete-closer .gestes-closer code {
-  padding: 4px 10px;
-  color: var(--texte);
-  background: var(--carte);
-  border: 1px solid var(--trait-doux);
+  font-weight: 600;
+  border: 1px solid var(--accent);
   border-radius: var(--rayon-bouton);
-  user-select: all;
+  cursor: pointer;
+}
+/* Tant que le modèle et l'effort ne sont pas choisis tous deux, le bouton n'agit pas, et le montre. */
+.tete-closer .reglage-closer button.recommande:disabled {
+  color: var(--discret);
+  background: none;
+  border-color: var(--trait);
+  border-style: dashed;
+  cursor: default;
+}
+.tete-closer .reglage-closer select {
+  padding: 3px 8px;
+  font-size: 12px;
+  color: var(--texte);
+  background: var(--bouton);
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
 }
 .closer-trouvailles {
   margin: 14px 0 0;

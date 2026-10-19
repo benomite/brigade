@@ -1126,9 +1126,15 @@ est une lecture de plus, à côté de Reliability : les deux onglets du haut res
   `D1  app/src/vue/vue.js:1405-1428  24 lines also at app/src/vue/fiabilite.js:40-63`, ou
   `M1  runtime/src/mesures.ts:212  export ancienneJauge named by tests only`. Rien de repéré : `nothing found`.
 - **Sans closer réglé, la partie le dit** — `No closer is set on this project.` — **et donne le geste
-  exact** qui en règle un, sur la box du projet : `ssh <hote> brigade <nom> station closer-modele <model>`
-  et `… station closer-effort <effort>`, chacun sur sa ligne, à copier ; les valeurs acceptées sont au
-  survol. **Aucun chiffre.**
+  qui en règle un, en bouton** : le modèle et l'effort se choisissent ensemble, dans deux listes fermées
+  (celles que la station accepte), et **« Set the closer… »**, le bouton recommandé, n'agit qu'une fois les
+  deux choisis — l'un sans l'autre fait refuser le démarrage (`docs/runtime/fermeture.md`). Comme les
+  boutons d'action (« Les boutons écrivent, ils n'envoient pas »), il **écrit dans le second, sans
+  l'envoyer**, les deux gestes de la doc sur une ligne — `!ssh <hote> brigade <nom> station closer-modele
+  <modèle> && ssh <hote> brigade <nom> station closer-effort <effort>` — : le chef fait Entrée. Ce qu'il
+  écrit, et les valeurs acceptées, sont au survol ; aucune commande n'est affichée. Le choix tient aux
+  relectures. Ce qui s'écrit se compose dans le process principal (`app/src/boutons.ts`, `ecritPourLeCloser`),
+  qui refuse une valeur hors des listes. **Aucun chiffre.**
 - **Une branche d'intégration illisible** : les merges restent (le journal les tient seul), les trois autres
   chiffres disent `not communicated`, et une ligne `the integration branch could not be read` porte la raison
   au survol. Une lecture ratée — une box sans journal, un runtime d'avant `closing --json` — tient en une ligne,

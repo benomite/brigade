@@ -123,6 +123,8 @@ const COUT = "cooks";
 const FIABILITE = "fiabilite";
 // Et celle de l'onglet Closer : `closing --json`, la partie « closer » du projet affiché (closer/section.js).
 const CLOSER = "closer";
+// Le geste qui règle le closer, son modèle et son effort ensemble (boutons.ts, `REGLER_LE_CLOSER`).
+const REGLER_LE_CLOSER = "regler-closer";
 /** @typedef {import("../allumage.ts").Compte} Compte */
 /** @typedef {import("../confirmation.ts").Confirmation} Confirmation */
 /** @typedef {import("../service.ts").Guide} Guide */
@@ -465,6 +467,10 @@ let closerLu;
 // Les projets dont le chef a déplié la liste de ce que le closer a repéré : une relecture ne la replie pas.
 /** @type {Set<string>} */
 const trouvaillesDepliees = new Set();
+// Le modèle et l'effort que le chef a choisis pour régler le closer d'un projet, pas encore écrits :
+// une relecture ne les lui retire pas.
+/** @type {Map<string, import("./closer/section.js").Choix>} */
+const reglagesDuCloser = new Map();
 // Pourquoi le dernier bouton cliqué n'a rien fait : dit sous les onglets de pages, jusqu'au prochain geste —
 // ou, quand c'est le second qui n'a rien reçu, à droite, sous les onglets des terminaux.
 let nonEcrit = "";
@@ -928,14 +934,14 @@ function poserGestes(ou, endroit) {
 // Un bouton n'agit pas : sa commande s'écrit dans le second, à droite, pour que le chef la
 // complète — c'est sa note qui dit ce qui a été écrit, et que rien n'est parti ; le centre ne change pas.
 // Un projet qui ne s'ouvre pas n'a pas de second : sa colonne dit déjà pourquoi.
-/** @param {string} id */
-async function inscrire(id) {
+/** @param {string} id @param {readonly string[]} [valeurs] ce que le geste attend de la page — le réglage du closer */
+async function inscrire(id, valeurs) {
   const projet = courant;
   if (projet === undefined) return;
   nonEcrit = nonEcritSecond = "";
   if (projet.refus !== undefined) return montrer();
   try {
-    const rendu = await brigade.inscrire(projet.nom, id);
+    const rendu = await (valeurs === undefined ? brigade.inscrire(projet.nom, id) : brigade.inscrire(projet.nom, id, valeurs));
     if (rendu === undefined) return;
     // Le chef a pu changer d'espace entre-temps : le second de ce projet le garde.
     if ("refus" in rendu) nonEcritSecond = rendu.refus;
@@ -3814,7 +3820,8 @@ function poserLaFiabilite() {
 
 // La partie « closer » du projet affiché, sous Settings → Closer (closer/section.js) : les quatre chiffres
 // de sa dernière observation, ce qu'elle a repéré derrière un bouton — ou, sans closer réglé, le geste
-// qui en règle un. Les places du lancement et du bilan y sont posées, vides.
+// qui en règle un, écrit dans le second comme un bouton d'action. Les places du lancement et du bilan y
+// sont posées, vides.
 function poserLeCloser() {
   const projet = courant;
   closer.hidden = projet === undefined || projet.box === undefined || actif() !== CLOSER;
@@ -3824,7 +3831,16 @@ function poserLeCloser() {
     if (!trouvaillesDepliees.delete(projet.nom)) trouvaillesDepliees.add(projet.nom);
     poserLeCloser();
   };
-  closer.replaceChildren(...poserCloser(document, lu, { geste: (suite) => geste(projet, suite), ouvert: trouvaillesDepliees.has(projet.nom), basculer, valeurs: CALIBRAGE_DU_PROJET }));
+  closer.replaceChildren(
+    ...poserCloser(document, lu, {
+      ouvert: trouvaillesDepliees.has(projet.nom),
+      basculer,
+      valeurs: CALIBRAGE_DU_PROJET,
+      regler: (modele, effort) => void inscrire(REGLER_LE_CLOSER, [modele, effort]),
+      choix: reglagesDuCloser.get(projet.nom),
+      choisir: (choix) => void reglagesDuCloser.set(projet.nom, choix),
+    }),
+  );
 }
 
 function poserManager() {

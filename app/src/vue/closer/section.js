@@ -4,7 +4,8 @@
 // lecture, pour l'app »). En tête, quatre chiffres — les merges depuis le dernier nettoyage, le
 // rapport des lignes ajoutées aux lignes retirées, les doublons, les exports morts —, puis la liste de
 // ce qui a été repéré, repliée derrière un bouton : chaque trouvaille avec son fichier et ses lignes.
-// Sans closer réglé, la partie le dit, et donne le geste qui en règle un — aucun chiffre.
+// Sans closer réglé, la partie le dit, et donne le geste qui en règle un : un bouton, qui écrit dans le
+// second les deux réglages choisis ensemble, le modèle et l'effort — aucun chiffre.
 //
 // Deux places, vides ici et séparées du reste, attendent ce que les tickets suivants y posent : le
 // lancement d'un nettoyage et l'état de sa demande (`closer-lancement`), puis le bilan d'une passe
@@ -29,6 +30,7 @@ import { lectureIndisponible, survol } from "../briques.js";
  * @typedef {{ configured: false, text: string }
  *   | { configured: true, closer: { model: string, effort: string }, observation: Observation, findings: Trouvaille[] }} Fermeture
  * @typedef {{ fermeture: Fermeture } | { erreur: string }} Lu
+ * @typedef {{ modele: string, effort: string }} Choix
  */
 
 export const COMMANDE = "closing --json";
@@ -42,10 +44,10 @@ export const NON_COMMUNIQUE = "not communicated";
 export const ILLISIBLE = "the closer could not be read";
 export const BRANCHE_ILLISIBLE = "the integration branch could not be read";
 export const SANS_CLOSER = "No closer is set on this project.";
-export const POUR_EN_REGLER = "Set one from a terminal, with these two commands:";
+export const REGLER = "Set the closer…";
+export const CHOISIR_MODELE = "model…";
+export const CHOISIR_EFFORT = "effort…";
 export const AUCUNE = "nothing found";
-// Les deux gestes de docs/runtime/fermeture.md, « Le closer se règle, ou il n'y en a pas » : ce qui suit `brigade <projet>`.
-export const GESTES_DE_REGLAGE = ["station closer-modele <model>", "station closer-effort <effort>"];
 
 const nombre = (/** @type {number} */ valeur) => valeur.toLocaleString("en-US");
 const s = (/** @type {number} */ combien) => (combien > 1 ? "s" : "");
@@ -188,22 +190,61 @@ function lesTrouvailles(doc, trouvailles, ouvert, basculer) {
 
 // --- Sans closer -------------------------------------------------------------------
 
-// Le message, puis le geste exact, pour ce projet : deux commandes, chacune sur sa ligne et
-// sélectionnable. Les valeurs acceptées sont au survol, quand l'app les connaît.
-/** @param {Fabrique} doc @param {(suite: string) => string} geste @param {{ modeles: readonly string[], efforts: readonly string[] } | undefined} valeurs */
-function sansCloser(doc, geste, valeurs) {
+// Une liste fermée, son invite en tête : rien n'est choisi tant que le chef ne l'a pas fait.
+/** @param {Fabrique} doc @param {string} invite @param {readonly string[]} valeurs @param {string} choisie */
+function liste(doc, invite, valeurs, choisie) {
+  const choix = cree(doc, "select");
+  choix.ariaLabel = invite;
+  for (const [texte, valeur] of [[invite, ""], ...valeurs.map((valeur) => [valeur, valeur])]) {
+    const option = cree(doc, "option", texte);
+    option.value = valeur;
+    choix.append(option);
+  }
+  choix.value = valeurs.includes(choisie) ? choisie : "";
+  return choix;
+}
+
+// Le message, puis le geste : le modèle et l'effort se choisissent ensemble — l'un sans l'autre fait
+// refuser le démarrage (docs/runtime/fermeture.md) —, et le bouton, recommandé, n'agit qu'une fois les
+// deux choisis. Il écrit les deux réglages dans le second, et rien ne part : ce qui s'écrit, et les
+// valeurs que la station accepte, sont au survol. `choix` : ce que le chef a déjà choisi, qu'une
+// relecture ne lui retire pas ; `choisir` le garde à chaque changement.
+/**
+ * @param {Fabrique} doc @param {{ modeles: readonly string[], efforts: readonly string[] }} valeurs
+ * @param {(modele: string, effort: string) => void} regler
+ * @param {Choix} choix @param {(choix: Choix) => void} choisir
+ */
+function sansCloser(doc, valeurs, regler, choix, choisir) {
   const bloc = cree(doc, "div");
   bloc.className = "closer-sans";
   const dit = cree(doc, "p", SANS_CLOSER);
   dit.className = "attendu";
-  const comment = cree(doc, "p", POUR_EN_REGLER);
-  comment.className = "comment";
-  const acceptees = valeurs === undefined || valeurs.modeles.length === 0 ? "" : `<model>: ${valeurs.modeles.join(", ")} · <effort>: ${valeurs.efforts.join(", ")} — both are needed, and take effect without a restart`;
-  if (acceptees !== "") comment.append(survol(doc, acceptees));
-  const gestes = cree(doc, "div");
-  gestes.className = "gestes-closer";
-  gestes.append(...GESTES_DE_REGLAGE.map((suite) => cree(doc, "code", geste(suite))));
-  bloc.append(dit, comment, gestes);
+  const modele = liste(doc, CHOISIR_MODELE, valeurs.modeles, choix.modele);
+  const effort = liste(doc, CHOISIR_EFFORT, valeurs.efforts, choix.effort);
+  const bouton = cree(doc, "button", REGLER);
+  bouton.type = "button";
+  bouton.className = "recommande";
+  const pret = () => void (bouton.disabled = modele.value === "" || effort.value === "");
+  pret();
+  for (const changee of [modele, effort]) {
+    changee.addEventListener("change", () => {
+      pret();
+      choisir({ modele: modele.value, effort: effort.value });
+    });
+  }
+  bouton.addEventListener("click", () => {
+    if (modele.value !== "" && effort.value !== "") regler(modele.value, effort.value);
+  });
+  const geste = cree(doc, "span");
+  geste.className = "action";
+  geste.append(
+    bouton,
+    survol(doc, `writes the closer's model and effort into the second, without sending them: you press Enter there — they take effect without a restart. Model: ${valeurs.modeles.join(", ")} · effort: ${valeurs.efforts.join(", ")}`),
+  );
+  const reglage = cree(doc, "div");
+  reglage.className = "reglage-closer";
+  reglage.append(modele, effort, geste);
+  bloc.append(dit, reglage);
   return bloc;
 }
 
@@ -211,17 +252,19 @@ function sansCloser(doc, geste, valeurs) {
 
 /**
  * @typedef {object} Options
- * @property {(suite: string) => string} geste  une commande du runtime dans sa forme de poste, pour ce projet
  * @property {boolean} [ouvert]  la liste des trouvailles est dépliée
  * @property {() => void} [basculer]  la déplie ou la replie
  * @property {{ modeles: readonly string[], efforts: readonly string[] }} [valeurs]  le calibrage que la station accepte
+ * @property {(modele: string, effort: string) => void} [regler]  écrit le réglage du closer dans le second
+ * @property {Choix} [choix]  le modèle et l'effort que le chef a déjà choisis, sans closer réglé
+ * @property {(choix: Choix) => void} [choisir]  garde ce choix
  * @property {any[]} [lancement]  ce qui se pose à la place du lancement et de l'état de la demande
  * @property {any[]} [bilan]  ce qui se pose à la place du bilan
  */
 
 // La partie entière. `lu` indéfini : la première lecture est en route.
 /** @param {Fabrique} doc @param {Lu | undefined} lu @param {Options} options */
-export function poserCloser(doc, lu, { geste, ouvert = false, basculer = () => {}, valeurs, lancement = [], bilan = [] }) {
+export function poserCloser(doc, lu, { ouvert = false, basculer = () => {}, valeurs = { modeles: [], efforts: [] }, regler = () => {}, choix = { modele: "", effort: "" }, choisir = () => {}, lancement = [], bilan = [] } = {}) {
   const tete = cree(doc, "div");
   tete.className = "tete-closer";
   const titre = cree(doc, "h2", TITRE);
@@ -238,7 +281,7 @@ export function poserCloser(doc, lu, { geste, ouvert = false, basculer = () => {
   }
   const { fermeture } = lu;
   if (!fermeture.configured) {
-    tete.append(sansCloser(doc, geste, valeurs));
+    tete.append(sansCloser(doc, valeurs, regler, choix, choisir));
     return [tete];
   }
   const calibrage = cree(doc, "span", `${fermeture.closer.model} / ${fermeture.closer.effort}`);

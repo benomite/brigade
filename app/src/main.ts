@@ -9,7 +9,7 @@ import { ALLUMAGE, compter } from "./allumage.ts";
 import { COMMANDE as COMMANDE_AMONT, tenirAmont } from "./amont.ts";
 import { mettreAPart } from "./attend.ts";
 import { pourLaBarre } from "./barre.ts";
-import { BOUTONS, ecritPar } from "./boutons.ts";
+import { BOUTONS, ecritPar, ecritPourLeCloser, REGLER_LE_CLOSER } from "./boutons.ts";
 import { lancerGeste, ouvrirVeille, type Servi } from "./box.ts";
 import { histoireDe, situationDe } from "./histoire.ts";
 import { commenter, demanderAuSecond, lireDiscussion } from "./discussion.ts";
@@ -585,10 +585,12 @@ ipcMain.handle("shell", (_, nom: unknown, machine: unknown) => {
 ipcMain.handle("fermerShell", (_, id: unknown) => (typeof id === "number" ? terminaux.fermerShell(id) : { refus: "nothing was closed: no shell is named" }));
 // Un bouton : sa commande est écrite dans le second du projet, et rien ne l'envoie — le chef la
 // complète. La vue nomme le bouton ; ce qui s'écrit se décide ici (boutons.ts) — ou pourquoi
-// rien ne l'est. Rien, pour un projet sans box.
-ipcMain.handle("inscrire", (_, nom: unknown, id: unknown) => {
+// rien ne l'est. Rien, pour un projet sans box. Régler le closer s'écrit avec ses deux valeurs, le
+// modèle et l'effort que le chef a choisis sur la partie closer de la page.
+ipcMain.handle("inscrire", (_, nom: unknown, id: unknown, valeurs: unknown) => {
   const vise = projet(nom);
-  const ecrit = ecritPar(id, vise);
+  const [modele, effort] = Array.isArray(valeurs) ? valeurs : [];
+  const ecrit = id === REGLER_LE_CLOSER ? ecritPourLeCloser(vise, modele, effort) : ecritPar(id, vise);
   return ecrit === undefined || "refus" in ecrit ? ecrit : terminaux.inscrire(vise, ecrit.commande);
 });
 // Une carte de T'attend : une demande en prose est écrite dans le second, qui est affiché, et rien

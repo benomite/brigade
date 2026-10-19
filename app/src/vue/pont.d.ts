@@ -99,8 +99,9 @@ export type Pont = {
   fermerShell(id: number): Promise<{ ferme: true } | { refus: string }>;
   // Un bouton d'action : sa commande est écrite dans le second du projet, sans être envoyée — le
   // chef la complète. Rend le second, dont la note dit ce qui a été écrit — ou pourquoi rien ne
-  // l'a été, sans toucher au second. Rien, pour un projet sans box.
-  inscrire(projet: string, bouton: string): Promise<Terminal | { refus: string } | undefined>;
+  // l'a été, sans toucher au second. Rien, pour un projet sans box. `valeurs` : celles que le geste
+  // attend de la page — le modèle et l'effort du closer, pour « regler-closer » (boutons.ts).
+  inscrire(projet: string, bouton: string, valeurs?: readonly string[]): Promise<Terminal | { refus: string } | undefined>;
   // Une carte de T'attend (demande.ts) : une demande en prose est écrite dans le second, sans Entrée,
   // et le second est affiché. La vue nomme le projet et le ticket ; la phrase vient de ce que le bloc
   // `attend` en dit. Rien pour un ticket que le bloc ne nomme pas.
