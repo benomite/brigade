@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test } from "node:test";
 import { principal as montrerPass } from "../../src/montrer-pass.ts";
-import { chef } from "../aides/cuisine.ts";
+import { chef } from "../helpers/kitchen.ts";
 import { appeler, BASE, git, jusqua } from "../outils.ts";
 import { cuisineFermee, RETIRER_M1 } from "./kitchen.ts";
 

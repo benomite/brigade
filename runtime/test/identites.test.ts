@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { configIdentites, DROITS, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Role } from "../src/identites.ts";
-import { fauxGitHubApps, type FauxGitHubApps } from "./aides/faux-github-apps.ts";
+import { fauxGitHubApps, type FauxGitHubApps } from "./helpers/fake-github-apps.ts";
 import { DEPOT, fauxGh, issueGitHub, repertoireTemporaire } from "./outils.ts";
 
 const DEPART = Date.parse("2026-10-09T10:00:00.000Z");

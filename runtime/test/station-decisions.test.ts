@@ -10,7 +10,7 @@ import { DECISIONS, decisionsPosees } from "../src/decisions.ts";
 import { cheminJournal, ouvrirJournal } from "../src/journal.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
 import { stationsAnnoncees } from "../src/projections/stations.ts";
-import { cuisine, issue, STATION } from "./aides/cuisine.ts";
+import { cuisine, issue, STATION } from "./helpers/kitchen.ts";
 import { appeler, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
 
 const MONTRER = join(import.meta.dirname, "../src/montrer-station.ts");

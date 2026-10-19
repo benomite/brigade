@@ -10,7 +10,7 @@ import { Base } from "../src/base.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { demarrer } from "../src/runtime.ts";
 import { prendreInstantane, restaurer, sauvegarder, SauvegardeRefusee } from "../src/sauvegarde.ts";
-import { CALIBRE, chef, cuisine, issue } from "./aides/cuisine.ts";
+import { CALIBRE, chef, cuisine, issue } from "./helpers/kitchen.ts";
 import { BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, faitInconnu, fauxGh, git, horloge, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
 
 const SRC = join(import.meta.dirname, "../src");

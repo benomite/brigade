@@ -43,7 +43,7 @@ import { direDemande as direDemandeDeFermeture, direDemandeEn as direDemandeDeFe
 import type { Ecart } from "./events/manager.ts";
 import { epiquesEnAttente } from "./projections/splits.ts";
 import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
-import { miseAJourDuJour } from "./mise-a-jour/relais.ts";
+import { miseAJourDuJour } from "./update/relay.ts";
 import { etatDeLaBase, gatesDuRouge, lirePass, reparationDeLaBase, type EchecDeReparation, type PassDeTicket, type SansGrant } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
 import { alerteDeSession, type AlerteDeSession } from "./projections/renewal.ts";

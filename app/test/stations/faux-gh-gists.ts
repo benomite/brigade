@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Doublure de `gh api` pour les gists du compte, sans réseau — la même que
-// celle du runtime (runtime/test/appairage/faux-gh-gists.ts) : chaque gist est
+// celle du runtime (runtime/test/pairing/fake-gh-gists.ts) : chaque gist est
 // un fichier JSON du répertoire `FAUX_GISTS`. Elle répond comme GitHub à ce
 // que la station et l'app demandent — créer, réécrire des fichiers, lire,
 // lister par page —, et chaque appel est noté dans `appels`, une ligne chacun.

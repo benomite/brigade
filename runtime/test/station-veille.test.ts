@@ -17,7 +17,7 @@ import { etatStation } from "../src/projections/stations.ts";
 import { lireStations } from "../src/stations-declarees.ts";
 import { demander } from "../src/tirer.ts";
 import { travailLaisse } from "../src/travail-conserve.ts";
-import { BAIL_MS, cuisine, issue, MACHINE_CALME, pousserSurLOrigine, type Options } from "./aides/cuisine.ts";
+import { BAIL_MS, cuisine, issue, MACHINE_CALME, pousserSurLOrigine, type Options } from "./helpers/kitchen.ts";
 import { BASE, commiter, git, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const [BOX, MAC] = ["box/claude", "mac/claude"];

@@ -17,7 +17,7 @@ l'ancienne installation avait posé dans le système part. C'est un geste du che
    ```
 
    Le paquet joue la bascule avant de démarrer la station (`runtime/paquet/debian/postinst`,
-   `runtime/src/bascule/`). Le compte `brigade` et sa connexion Max sont gardés : la commande ne
+   `runtime/src/switchover/`). Le compte `brigade` et sa connexion Max sont gardés : la commande ne
    redemande pas de login.
 2. **Le code** : la station démarrée l'affiche dans son journal de service
    (`journalctl -u brigade-station`) — `brigade : station à appairer — tape ce code dans l'app :
@@ -65,7 +65,7 @@ la même commande la reprend où elle s'est arrêtée.
 
 La reprise s'éprouve, avant le merge, sur une installation de test — jamais sur la box : trois
 projets servis à l'ancienne, un cook en vol, le vrai paquet installé, journal, décisions et tickets
-comparés avant et après (`runtime/test/bascule/machine.test.ts`).
+comparés avant et après (`runtime/test/switchover/machine.test.ts`).
 
 ## Le geste brigade
 

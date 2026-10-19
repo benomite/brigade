@@ -11,8 +11,8 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { direServiceIndisponible, servicesIndisponibles } from "../src/projections/service.ts";
 import { DECLARATION_SERVICE, lireDeclaration, serviceDuWorktree, VARIABLE_DU_PORT } from "../src/service.ts";
 import { ouvrirServeurs, type Livraison } from "../src/servir.ts";
-import { STATION } from "./aides/cuisine.ts";
-import { sansMotFrancais } from "./aides/glossaire.ts";
+import { STATION } from "./helpers/kitchen.ts";
+import { sansMotFrancais } from "./helpers/glossary.ts";
 import { aArreter, ENV_ENFANT, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const declarer = (commande: string, ...chemins: string[]) => [`commande : ${commande}`, ...chemins.map((chemin) => `interface : ${chemin}`), ""].join("\n");

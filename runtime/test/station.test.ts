@@ -17,7 +17,7 @@ import { worktreesGardes } from "../src/projections/cleanup.ts";
 import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { configStation } from "../src/station.ts";
-import { BAIL_MS, CALIBRE, chef, controlerBase, cuisine, issue, MACHINE_CALME, PLAFONDS, plafonner, STATION } from "./aides/cuisine.ts";
+import { BAIL_MS, CALIBRE, chef, controlerBase, cuisine, issue, MACHINE_CALME, PLAFONDS, plafonner, STATION } from "./helpers/kitchen.ts";
 import { BASE, commiter, DEPOT, git, jusqua, mort, tuerLesRelais } from "./outils.ts";
 
 // Une base que le test fait bouger — un correctif mergé —, et le compte des

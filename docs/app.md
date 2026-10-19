@@ -2218,7 +2218,7 @@ accès.
 |---|---|
 | Tests | `npm --prefix app test` |
 | Contrôle de types | `npm --prefix app run typecheck` |
-| Lancer sans consommer de quota | `BRIGADE_CLAUDE_BIN="$PWD/app/test/aides/faux-claude.sh" BRIGADE_APP_CONFIG=<fichier d'essai> npm --prefix app start` |
+| Lancer sans consommer de quota | `BRIGADE_CLAUDE_BIN="$PWD/app/test/helpers/fake-claude.sh" BRIGADE_APP_CONFIG=<fichier d'essai> npm --prefix app start` |
 | … et sans box | ajouter `BRIGADE_SSH_BIN=<un script qui imprime une sortie de status>` — et, pour voir ce qui se dessine, l'exemple de `docs/runtime/etat-et-mesures.md` quand ses arguments finissent par `faits` |
 | … et sans que ta machine devienne une station | ajouter `BRIGADE_APP_STATION=0` |
 

@@ -10,7 +10,7 @@ import type { Plafonds } from "./guardrails.ts";
 export type Geste = "announce" | "claim" | "renew" | "deliver";
 
 // Ce que la station dit du bac à sable de son poste, quand elle s'annonce ou
-// réclame (`bac-a-sable/ordinaires.ts`) : c'est d'après lui que la box lui
+// réclame (`sandbox/ordinary.ts`) : c'est d'après lui que la box lui
 // prête, ou non, un ticket ordinaire. Disponible : la version de son `claude`,
 // le répertoire du compte, celui où elle pose les worktrees des cooks de ce
 // projet — le worktree d'un cook est `<worktrees>/<run>` — et les caches du

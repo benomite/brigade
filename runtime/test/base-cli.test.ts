@@ -9,7 +9,7 @@ import type { Fait } from "../src/evenements.ts";
 import { principal as base } from "../src/base-cli.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { demarrer } from "../src/runtime.ts";
-import { sansMotFrancais } from "./aides/glossaire.ts";
+import { sansMotFrancais } from "./helpers/glossary.ts";
 import { appeler, horloge, lancer, repertoireTemporaire } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/base-cli.ts");

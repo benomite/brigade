@@ -4,11 +4,11 @@
 // sans redémarrer la station ni toucher aux autres projets.
 import { AsyncLocalStorage } from "node:async_hooks";
 import { join } from "node:path";
-import type { VeilleConnexionMax } from "../connexion-max/veille.ts";
+import type { VeilleConnexionMax } from "../max-connection/watch.ts";
 import { DejaEnCours } from "../runtime.ts";
 import { CONFIGURATION, environnementDuProjet, lireFichierDeConfiguration, type ProjetConfigure } from "./configuration.ts";
-import { ouvrirCuisine, type Cuisine, type OptionsCuisine } from "./cuisine.ts";
-import { lirePortes, UNITE_DES_PORTES, type Portes } from "./portes.ts";
+import { ouvrirCuisine, type Cuisine, type OptionsCuisine } from "./kitchen.ts";
+import { lirePortes, UNITE_DES_PORTES, type Portes } from "./doors.ts";
 
 export type OptionsStation = {
   // Le répertoire de la station (`BRIGADE_STATION_DIR`) : sa configuration,

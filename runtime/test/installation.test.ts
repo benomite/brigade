@@ -25,13 +25,13 @@ import { principal as poserDecisions } from "../src/poser-decisions.ts";
 import { principal as etapes } from "../src/etapes-cli.ts";
 import { ETAPES, installationDe } from "../src/etapes.ts";
 import { prendreVerrou } from "../src/verrou.ts";
-import { decider } from "./aides/cuisine.ts";
+import { decider } from "./helpers/kitchen.ts";
 import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, issueGitHub, jusqua, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, type FauxGh } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/installation-cli.ts");
 const MAIN = join(import.meta.dirname, "../src/main.ts");
-const FAUX_SYSTEMCTL = join(import.meta.dirname, "aides/faux-systemctl.sh");
-const FAUX_SETUP = join(import.meta.dirname, "aides/faux-setup.sh");
+const FAUX_SYSTEMCTL = join(import.meta.dirname, "helpers/fake-systemctl.sh");
+const FAUX_SETUP = join(import.meta.dirname, "helpers/fake-setup.sh");
 const DEPLOIEMENT = join(import.meta.dirname, "../deploy");
 const PROJET = "calculus";
 const GATES = ".claude/brigade/gates.sh";

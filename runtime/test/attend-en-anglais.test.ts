@@ -10,7 +10,7 @@ import { test } from "node:test";
 import { decrireAttentes, type Attente } from "../src/attend.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { motsFrancais, motsFrancaisDans, sansMotFrancais } from "./aides/glossaire.ts";
+import { motsFrancais, motsFrancaisDans, sansMotFrancais } from "./helpers/glossary.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
 const ETAT_D_AVANT = join(import.meta.dirname, "fixtures/etat-d-avant-927");

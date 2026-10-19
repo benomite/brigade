@@ -16,7 +16,7 @@ const MAINTENANT = Date.parse("2026-10-15T12:00:00Z");
 const il_y_a = (ms: number) => new Date(MAINTENANT - ms).toISOString();
 const MIN = 60_000;
 
-// Ce que la station publie (runtime/src/appairage/presence.ts), en ligne et sans panne.
+// Ce que la station publie (runtime/src/pairing/presence.ts), en ligne et sans panne.
 const document = (champs: Partial<DocumentStation> = {}): DocumentStation => ({
   nom: "box",
   machine: "Linux 6.1.0",

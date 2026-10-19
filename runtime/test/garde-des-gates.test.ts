@@ -10,8 +10,8 @@ import { describe, test, type TestContext } from "node:test";
 import { aArreter, ENV_ENFANT, mort, repertoireTemporaire } from "./outils.ts";
 
 const GATES = join(import.meta.dirname, "../../.claude/brigade/gates.sh");
-const TEST_FIGE = join(import.meta.dirname, "aides/test-fige.ts");
-const TEST_EN_ECHEC = join(import.meta.dirname, "aides/test-en-echec.ts");
+const TEST_FIGE = join(import.meta.dirname, "helpers/frozen-test.ts");
+const TEST_EN_ECHEC = join(import.meta.dirname, "helpers/failing-test.ts");
 
 function projet(t: TestContext, suite: string): string {
   const racine = repertoireTemporaire(t);

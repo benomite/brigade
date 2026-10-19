@@ -11,7 +11,7 @@ import { issueDuManager } from "../src/projections/manager.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { lireStations } from "../src/stations-declarees.ts";
-import { chef, cuisine, issue, STATION, type Options } from "./aides/cuisine.ts";
+import { chef, cuisine, issue, STATION, type Options } from "./helpers/kitchen.ts";
 import { jusqua } from "./outils.ts";
 
 // Une cuisine dont le manager est allumé, sauf mention contraire.

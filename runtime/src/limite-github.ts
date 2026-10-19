@@ -1,7 +1,7 @@
 // Le budget d'appels à GitHub : au plus 2 500 par heure glissante, la moitié
 // de la limite du compte (5 000/h), pour la station et tous ses projets
 // ensemble. Le sondage des issues (`github.ts`) et le canal du gist
-// (`appairage/canal.ts`) prennent un appel ici avant de lancer `gh` ; au-delà
+// (`pairing/channel.ts`) prennent un appel ici avant de lancer `gh` ; au-delà
 // du budget, l'appel est refusé — il ne part pas, et l'appelant échoue comme
 // sur une panne de GitHub, que son prochain tour rattrape.
 //

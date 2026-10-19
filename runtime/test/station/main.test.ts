@@ -9,15 +9,15 @@ import { describe, test, type TestContext } from "node:test";
 import { ROLES } from "../../src/identites.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { REPERTOIRE_COMPTEUR } from "../../src/limite-github.ts";
-import { lirePortes } from "../../src/station/portes.ts";
-import { fauxGitHubApps } from "../aides/faux-github-apps.ts";
+import { lirePortes } from "../../src/station/doors.ts";
+import { fauxGitHubApps } from "../helpers/fake-github-apps.ts";
 import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, mort, repertoireTemporaire, temporaireDuFichier, tuerLesRelais, vivant } from "../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
 const STATION = join(import.meta.dirname, "../../src/station/main.ts");
-const PORTES = join(import.meta.dirname, "../../src/station/tenir-portes.ts");
-const FAUX_GH_GISTS = join(import.meta.dirname, "../appairage/faux-gh-gists.ts");
+const PORTES = join(import.meta.dirname, "../../src/station/hold-doors.ts");
+const FAUX_GH_GISTS = join(import.meta.dirname, "../pairing/fake-gh-gists.ts");
 const REFUS = 2;
 
 // Les décisions sans lesquelles un projet ne sert pas : le chef les a posées
@@ -42,7 +42,7 @@ function uneStation(t: TestContext) {
   mkdirSync(compte);
   const env = {
     ...ENV_GIT,
-    // Ce que la station publie d'elle sur GitHub (appairage/presence.ts) va à
+    // Ce que la station publie d'elle sur GitHub (pairing/presence.ts) va à
     // une doublure : aucun test ne joint GitHub.
     BRIGADE_GH_BIN: FAUX_GH_GISTS,
     FAUX_GISTS: gists,

@@ -14,7 +14,7 @@ import { principal as grant } from "../src/grant-cli.ts";
 import { etatDuGrant } from "../src/projections/pass.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { lireStations } from "../src/stations-declarees.ts";
-import { cuisine, issue, type Lieux } from "./aides/cuisine.ts";
+import { cuisine, issue, type Lieux } from "./helpers/kitchen.ts";
 import { appeler, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const stations = (declaration: string) => lireStations({ BRIGADE_STATIONS: declaration });

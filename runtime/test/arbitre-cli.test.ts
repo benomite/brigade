@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { ouvrirArbitre, ouvrirReglages, servirArbitre, type Mot } from "../src/arbitre.ts";
 import { joindreArbitre } from "../src/arbitrage.ts";
-import { sansMotFrancais } from "./aides/glossaire.ts";
+import { sansMotFrancais } from "./helpers/glossary.ts";
 import { horloge, lancer, lancerSurPortPose, repertoireTemporaire, SANS_RESEAU } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/arbitre-cli.ts");

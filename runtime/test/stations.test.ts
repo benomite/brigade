@@ -8,7 +8,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { prisPar } from "../src/projections/rail.ts";
 import { etatStation, plafondDeCooks, sansStationDepuis, stationsAnnoncees } from "../src/projections/stations.ts";
 import { lireStations } from "../src/stations-declarees.ts";
-import { chef, cuisine, issue, plafonner } from "./aides/cuisine.ts";
+import { chef, cuisine, issue, plafonner } from "./helpers/kitchen.ts";
 import { jusqua } from "./outils.ts";
 
 const DEUX = lireStations({ BRIGADE_STATIONS: "box/claude:1:code+raisonnement,box/playwright:2:navigateur-headless" });

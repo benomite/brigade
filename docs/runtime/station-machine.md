@@ -5,7 +5,7 @@
 La station d'une machine (`runtime/src/station/main.ts`, un seul process pour tous ses projets)
 n'a **aucune liaison directe** avec l'app du chef : elle n'ouvre aucun port, et l'app ne la joint
 jamais. Tout passe par **GitHub**, où elle écrit son état — dans un **gist secret** du compte du
-`gh` de la machine, qui doit être celui du chef (`runtime/src/appairage/`).
+`gh` de la machine, qui doit être celui du chef (`runtime/src/pairing/`).
 
 - **Au premier démarrage**, elle crée son gist, y publie l'**empreinte** d'un code neuf — jamais le
   code lui-même —, et affiche le code dans son journal de service :
@@ -24,7 +24,7 @@ jamais. Tout passe par **GitHub**, où elle écrit son état — dans un **gist 
   y écrit tout de suite l'heure de son arrêt — la seule écriture que l'écart de 60 s ne retient
   pas : l'état final ne se perd pas. Elle publie `cadenceMs` = 285 s ; l'app la dit hors ligne
   après 2 × `cadenceMs` + 30 s, soit 10 min au plus (`app/src/stations/stations.ts`).
-- **Ses pannes y vont aussi** (`appairage/etats.ts`, #798) : `miseAJour`, sa dernière mise à jour
+- **Ses pannes y vont aussi** (`pairing/states.ts`, #798) : `miseAJour`, sa dernière mise à jour
   quand elle a raté et qu'elle est revenue en arrière (version visée, version restaurée, l'heure,
   et si le retour a raté lui aussi — lue dans `BRIGADE_MISE_A_JOUR_DIR`), et `connexionMax`,
   l'état de sa connexion Max et depuis quand. Ni le motif d'un échec, ni la raison d'une perte,
@@ -49,7 +49,7 @@ l'empreinte de son code, `code 1a2b3c4d5e6f`).
 *Code : `runtime/src/limite-github.ts` (#873, #874).*
 
 Chaque appel de la station et de ses projets à GitHub — le sondage des issues (`github.ts`), le
-canal du gist (`appairage/canal.ts`) — prend un jeton du budget avant que `gh` ne parte.
+canal du gist (`pairing/channel.ts`) — prend un jeton du budget avant que `gh` ne parte.
 
 - **Le budget** : **2 500 appels par heure glissante**, soit la moitié de la limite du compte
   (5 000 par heure). Un appel refusé ne part pas et n'est pas compté ; l'appelant échoue comme sur
@@ -97,7 +97,7 @@ canal du gist (`appairage/canal.ts`) — prend un jeton du budget avant que `gh`
 Un projet n'est qu'une ligne de la configuration de la station. Le chef l'ajoute depuis l'app
 ([docs/app.md](../app.md), « Ajouter un projet à tes stations ») ; l'app écrit sa demande dans le gist
 de chaque station qu'il a choisie, et la station l'y lit — toujours sans liaison directe
-(`runtime/src/projets/`).
+(`runtime/src/projects/`).
 
 - **Ce que l'app écrit** : `brigade-projets.json` — par projet, son nom (tiré du dépôt), son dépôt,
   sa branche d'intégration, si cette station en est la **principale** (celle qui fait tourner son
@@ -132,7 +132,7 @@ de chaque station qu'il a choisie, et la station l'y lit — toujours sans liais
 
 *Ticket #796.* Avant d'écrire la ligne d'un projet ajouté depuis l'app, la station ouvre sur son
 dépôt, par son `gh`, l'issue « Préparer le dépôt : gates, setup de worktree, sites autorisés »
-(`runtime/src/preparation-depot/`). Elle porte `fire`, `model:opus` et `effort:high` : elle entre
+(`runtime/src/repo-preparation/`). Elle porte `fire`, `model:opus` et `effort:high` : elle entre
 sur le rail comme n'importe quel ticket, et un cook la cuit. Son corps dit au cook :
 
 - **quoi livrer** : `.claude/brigade/gates.sh`, `.claude/brigade/worktree-setup.sh` et
@@ -159,7 +159,7 @@ disparu, il libère aussi le rail ; son label `fire` retiré, il le retient enco
 à la main dans la configuration, ou ajouté avant ce ticket, n'a pas de ticket de préparation : son
 rail est celui de toujours.
 
-La recette (`runtime/test/projets/recette.test.ts`) mesure, sur une vraie station de test, le temps
+La recette (`runtime/test/projects/acceptance.test.ts`) mesure, sur une vraie station de test, le temps
 entre l'ouverture du parcours et le projet publié dans la liste de la station : la spec le borne à
 dix minutes ; la station y met au plus sa cadence, trente secondes, plus le clone.
 

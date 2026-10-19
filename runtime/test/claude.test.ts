@@ -1,5 +1,5 @@
 // L'adaptateur `claude` : ce qu'il passe au binaire, et ce qu'il lit de la fin
-// d'un cook dans son flux brut. Les flux sont ceux de test/aides/flux.
+// d'un cook dans son flux brut. Les flux sont ceux de test/helpers/streams.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";

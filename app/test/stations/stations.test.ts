@@ -17,7 +17,7 @@ const SOURCES = join(import.meta.dirname, "../../src/stations");
 const MAINTENANT = Date.parse("2026-10-15T12:00:00Z");
 const CODE = "7KQ2-M9XD";
 
-// Ce qu'une station fraîchement installée publie (runtime/src/appairage/presence.ts).
+// Ce qu'une station fraîchement installée publie (runtime/src/pairing/presence.ts).
 const publie = (champs: Partial<DocumentStation> = {}) => ({
   brigade: "station",
   format: 1,

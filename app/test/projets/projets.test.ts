@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { FICHIER_PROJETS, FICHIER_SUIVI } from "../../src/projets/demande.ts";
+import { FICHIER_PROJETS, FICHIER_SUIVI } from "../../src/projects/request.ts";
 import { depotsDuChef } from "../../src/projets/github.ts";
 import { avertissement, estUnOrdinateur, lireSaisie, nomDuProjet, principaleRecommandee, refusDeSaisie, tenirProjets, type VuDesProjets } from "../../src/projets/projets.ts";
 import { githubDesStations } from "../../src/stations/github.ts";
@@ -48,7 +48,7 @@ function unGitHub(t: TestContext, stations: StationVue[] = [BOX, MAC]) {
   const gist = (id: string) => JSON.parse(readFileSync(fichier(id), "utf8")) as { files: Record<string, { filename: string; content: string }> };
   for (const { id } of stations) writeFileSync(fichier(id), JSON.stringify({ id, description: "brigade — station", public: false, updated_at: "2026-10-15T11:00:00Z", files: { "brigade-station.json": { filename: "brigade-station.json", content: "{}" }, "brigade-appairage.json": { filename: "brigade-appairage.json", content: "{}" } } }));
   const demande = (id: string) => (JSON.parse(gist(id).files[FICHIER_PROJETS]?.content ?? "null") as { projets: Array<Record<string, unknown>> } | null)?.projets;
-  // Ce que la station écrit de ses projets demandés (runtime/src/projets/tenir.ts).
+  // Ce que la station écrit de ses projets demandés (runtime/src/projects/hold.ts).
   const suivre = (id: string, projets: object[]) => {
     const lu = gist(id);
     lu.files[FICHIER_SUIVI] = { filename: FICHIER_SUIVI, content: JSON.stringify({ brigade: "projets-suivi", format: 1, a: "2026-10-15T12:02:00Z", projets }) };

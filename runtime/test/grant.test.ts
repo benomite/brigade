@@ -9,7 +9,7 @@ import { bientotEteint, commanderGrant, direCompris, direGrant, direInstant, dir
 import { ouvrirJournal } from "../src/journal.ts";
 import { etatDuGrant, pass, passDuTicket, usagesDuGrant } from "../src/projections/pass.ts";
 import { sessions } from "../src/projections/sessions.ts";
-import { sansMotFrancais } from "./aides/glossaire.ts";
+import { sansMotFrancais } from "./helpers/glossary.ts";
 import { horloge, photographier, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const PR = "https://github.com/o/r/pull/40";

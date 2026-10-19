@@ -13,7 +13,7 @@
 //   cloison sur son poste, un ticket qui demande une de ses capacités : un
 //   ticket ordinaire ne lui revient que si le chef la déclare `ordinaires`,
 //   que son poste a le bac à sable de Claude Code, où son cook est lancé
-//   (`bac-a-sable/ordinaires.ts`), et que la box sature — tant qu'elle a de
+//   (`sandbox/ordinary.ts`), et que la box sature — tant qu'elle a de
 //   la place, elle garde ses tickets ordinaires ;
 // - les bornes d'une prise sont les mêmes : le « stop », le disjoncteur, la
 //   base rouge, le quota, son plafond de cooks, les zones tenues ;
@@ -42,8 +42,8 @@
 // box : un runtime qui redémarre les tient pour interrompus, et leur station
 // l'apprend.
 import type { RuntimeAvecRail } from "./alimenter.ts";
-import { configurerLeCook, constater, dansLeBacASable, type Poste } from "./bac-a-sable/ordinaires.ts";
-import type { ConfigDeBacASable } from "./bac-a-sable/configuration.ts";
+import { configurerLeCook, constater, dansLeBacASable, type Poste } from "./sandbox/ordinary.ts";
+import type { ConfigDeBacASable } from "./sandbox/configuration.ts";
 import { complet, type Calibrage } from "./calibrage.ts";
 import { argumentsClaude, consigne, consigneDeSuite, type Lecture } from "./claude.ts";
 import type { Depot } from "./depot.ts";

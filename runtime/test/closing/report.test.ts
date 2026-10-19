@@ -10,7 +10,7 @@ import { direBilan, gardeFous } from "../../src/closing/report.ts";
 import { principal } from "../../src/closing/command.ts";
 import { SANS_MOTIF } from "../../src/closing/brief.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { chef } from "../aides/cuisine.ts";
+import { chef } from "../helpers/kitchen.ts";
 import { appeler, BASE, ENV_GIT, git, jusqua, repertoireTemporaire } from "../outils.ts";
 import { cuisineFermee, RETIRER_M1 } from "./kitchen.ts";
 import { lignes, type Etape } from "./history.ts";

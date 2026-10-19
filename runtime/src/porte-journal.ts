@@ -2,7 +2,7 @@
 // runtime y publie (`network.declared`), et ses refus, qu'elle y écrit. Le
 // journal n'est ouvert que le temps d'un geste : une restauration ne trouve
 // pas la porte assise dessus. La porte d'une installation par projet
-// (`tenir-porte.ts`) et celles de la station (`station/portes.ts`) le lisent
+// (`tenir-porte.ts`) et celles de la station (`station/doors.ts`) le lisent
 // de la même façon.
 import { existsSync } from "node:fs";
 import { cheminJournal, ouvrirJournal } from "./journal.ts";

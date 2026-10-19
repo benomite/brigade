@@ -33,7 +33,7 @@ export const RELEVE = "cook.progressed";
 // `head`: the tip of its branch when it entered it — a runtime that resumes
 // this cook reads against it what it delivered.
 // `sandbox`: the cook of a remote station, launched on its workstation in
-// Claude Code's sandbox — an ordinary ticket (`bac-a-sable/ordinaires.ts`).
+// Claude Code's sandbox — an ordinary ticket (`sandbox/ordinary.ts`).
 // `resumes`: the cook of a return that resumes the session of the cook whose
 // delivery the pass refused (`reprise-de-session.ts`) — its run, and the
 // session resumed. Absent: it started from scratch, like a first cook.

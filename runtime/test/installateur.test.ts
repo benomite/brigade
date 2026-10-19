@@ -1,7 +1,7 @@
 // Le geste d'installation de la box : `brigade-installer install <projet> …`
 // déclare un projet de bout en bout, en root, par sa propre règle sudoers — et
 // refuse tout le reste. Ni root, ni systemd, ni GitHub ici : la box d'essai
-// (`aides/box.ts`). `uninstall` a son fichier : `desinstallateur.test.ts`.
+// (`helpers/box.ts`). `uninstall` a son fichier : `desinstallateur.test.ts`.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -18,8 +18,8 @@ import { CODES, lireDemande, portLibre, Refus, VARIABLES_POSEES } from "../src/i
 import { BOX } from "../src/installateur-cli.ts";
 import { principal as relire } from "../src/relire.ts";
 import { prendreVerrou } from "../src/verrou.ts";
-import { decider } from "./aides/cuisine.ts";
-import { boite, CHEF, COMPTE, DEPLOIEMENT, PREMIER_PORT, type Boite, type Rendu } from "./aides/box.ts";
+import { decider } from "./helpers/kitchen.ts";
+import { boite, CHEF, COMPTE, DEPLOIEMENT, PREMIER_PORT, type Boite, type Rendu } from "./helpers/box.ts";
 import { BASE, ENV_GIT, FAUX_CLAUDE, fauxGh, git, repertoireTemporaire } from "./outils.ts";
 
 const GESTE = join(DEPLOIEMENT, "brigade-installer");

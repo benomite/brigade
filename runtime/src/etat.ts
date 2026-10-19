@@ -47,7 +47,7 @@ import { PAR_LE_CHEF } from "./events/rail.ts";
 import { direAttenteDeTiersEn } from "./attente.ts";
 import { direMiseDeCote } from "./mise-de-cote.ts";
 import { GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
-import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
+import { prendLesOrdinaires } from "./sandbox/ordinary.ts";
 import { alerteEnCours, type AlerteEnCours } from "./projections/emergency.ts";
 import { cleDUrgence, urgenceDuChef, type Urgence } from "./urgence.ts";
 

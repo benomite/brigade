@@ -16,7 +16,7 @@ import { CONSIGNE_MAX } from "../src/reviewer.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { sortDuTicket } from "../src/projections/rail.ts";
-import { CALIBRE, chef, cuisine, fauxGitHub, issue, montre, STATION, type Options } from "./aides/cuisine.ts";
+import { CALIBRE, chef, cuisine, fauxGitHub, issue, montre, STATION, type Options } from "./helpers/kitchen.ts";
 import { BASE, commiter, DEPOT, depotGit, git, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const PR = `https://github.com/${DEPOT}/pull/101`;
@@ -857,7 +857,7 @@ describe("la pass", { concurrency: 8 }, () => {
     const { origine, clone } = depotGit(t);
     // Le projet a des gates, sur sa base.
     mkdirSync(join(clone, ".claude/brigade"), { recursive: true });
-    symlinkSync(join(import.meta.dirname, "aides/fausses-gates.sh"), join(clone, ".claude/brigade/gates.sh"));
+    symlinkSync(join(import.meta.dirname, "helpers/fake-gates.sh"), join(clone, ".claude/brigade/gates.sh"));
     git(clone, "add", ".");
     git(clone, "commit", "-q", "-m", "les gates du projet");
     git(clone, "push", "-q", "origin", BASE);

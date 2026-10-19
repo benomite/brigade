@@ -8,7 +8,7 @@ import { describe, test, type TestContext } from "node:test";
 import { annoncerCloison, configCloison, envelopper } from "../src/cloison.ts";
 import { jouerSetup } from "../src/gates.ts";
 import { ConfigInvalide, demarrer } from "../src/runtime.ts";
-import { issue, cuisine } from "./aides/cuisine.ts";
+import { issue, cuisine } from "./helpers/kitchen.ts";
 import { depotGit, ENV_ENFANT, FAUX_BWRAP, git, horloge, jusqua, lancementsDuFauxBwrap, repertoireTemporaire } from "./outils.ts";
 
 // Une machine d'essai : l'état et le clone d'un projet sous une racine que la

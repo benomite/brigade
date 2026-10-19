@@ -55,7 +55,7 @@ import { argumentsClaude, consigne, consigneDeSuite, direRefus, environnementCoo
 import type { Decisions } from "./decisions.ts";
 import { ouvrirDepot, type Depot, type OptionsDepot } from "./depot.ts";
 import { configPresence, ouvrirDistantes, PRESENCE_PAR_DEFAUT_MIN, type Conclusion } from "./distantes.ts";
-import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
+import { prendLesOrdinaires } from "./sandbox/ordinary.ts";
 import { STATION_ABSENTE } from "./events/rail.ts";
 import type { ContexteCook } from "./events/guardrails.ts";
 import { IDENTIFIANTS_LIVRES, PART_SANS_PROGRES, SANS_DIFF, SANS_LIVRABLE, type FaitStation, type FinDeCook, type Retenue } from "./events/station.ts";
@@ -369,7 +369,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Les stations telles que le rail les lit pour leur prêter un ticket : dans
   // l'ordre de la déclaration, chacune avec ce qu'elle fournit.
   // Une distante ne prend les tickets ordinaires que si le chef le lui fait
-  // faire, que son poste a le bac à sable (`bac-a-sable/ordinaires.ts`), et
+  // faire, que son poste a le bac à sable (`sandbox/ordinary.ts`), et
   // que la box sature (`boxSaturee`).
   const preneuses = (celles: readonly string[]): Preneuse[] =>
     toutes

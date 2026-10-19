@@ -2,7 +2,7 @@
 // `brigade-installer uninstall <projet> --plan` dit ce qui serait retiré sans
 // rien modifier, `--confirmer <projet>` le retire — et le journal du projet
 // survit, sauf `--supprimer-le-journal`. Ni root, ni systemd, ni GitHub ici :
-// la box d'essai (`aides/box.ts`), où chaque projet est d'abord installé par
+// la box d'essai (`helpers/box.ts`), où chaque projet est d'abord installé par
 // le geste lui-même.
 import assert from "node:assert/strict";
 import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
@@ -14,10 +14,10 @@ import { principal as sousLeCompte } from "../src/desinstaller-sous-le-compte.ts
 import { CODES, Refus } from "../src/installateur.ts";
 import { BOX } from "../src/installateur-cli.ts";
 import { prendreVerrou } from "../src/verrou.ts";
-import { boite, COMPTE, DEPLOIEMENT, PREMIER_PORT, type Boite, type Rendu } from "./aides/box.ts";
+import { boite, COMPTE, DEPLOIEMENT, PREMIER_PORT, type Boite, type Rendu } from "./helpers/box.ts";
 import { BASE, git, lancer } from "./outils.ts";
 
-const TIENT_VERROU = join(import.meta.dirname, "aides/tient-verrou.ts");
+const TIENT_VERROU = join(import.meta.dirname, "helpers/holds-lock.ts");
 const HISTOIRE = "l'histoire de la cuisine\n";
 
 // Une box où ces projets viennent d'être installés par le geste.

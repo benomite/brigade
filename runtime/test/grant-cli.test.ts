@@ -16,7 +16,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { principal as pass } from "../src/montrer-pass.ts";
 import { sessions } from "../src/projections/sessions.ts";
 import { demarrer } from "../src/runtime.ts";
-import { sansMotFrancais } from "./aides/glossaire.ts";
+import { sansMotFrancais } from "./helpers/glossary.ts";
 import { appeler, horloge, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 // Chaque commande, et le fichier par lequel `npm run` la lance.

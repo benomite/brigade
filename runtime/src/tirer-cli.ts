@@ -12,7 +12,7 @@
 // y lit la réponse du runtime (`tirer.ts`).
 //
 // `--sandbox` : ce que la station dit du bac à sable de son poste, l'objet JSON
-// que rend sa sonde (`bac-a-sable/sonder.ts`) — c'est d'après lui que la box
+// que rend sa sonde (`sandbox/probe.ts`) — c'est d'après lui que la box
 // lui prête un ticket ordinaire, ou non.
 //
 // Fait pour un programme (le runner de la station) : la réponse est un objet

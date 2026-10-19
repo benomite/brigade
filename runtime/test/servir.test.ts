@@ -18,11 +18,11 @@ import { direCommentLeVoir, direEcran, direPage, serveursEnCours, servicesIndisp
 import { DECLARATION_SERVICE, VARIABLE_DU_PORT } from "../src/service.ts";
 import { ouvrirServeurs, type Livraison } from "../src/servir.ts";
 import { principal as status } from "../src/status.ts";
-import { cuisine, fauxGitHub, issue, montre, STATION, type Lieux, type Options } from "./aides/cuisine.ts";
+import { cuisine, fauxGitHub, issue, montre, STATION, type Lieux, type Options } from "./helpers/kitchen.ts";
 import { aArreter, appeler, BASE, depotGit, ENV_ENFANT, FAUX_BWRAP, git, jusqua, lancementsDuFauxBwrap, mort, portsFermesALInstant, repertoireTemporaire, vivant } from "./outils.ts";
 
-const FAUX_SERVICE = join(import.meta.dirname, "aides/faux-service.ts");
-const FAUSSES_GATES = join(import.meta.dirname, "aides/fausses-gates.sh");
+const FAUX_SERVICE = join(import.meta.dirname, "helpers/fake-service.ts");
+const FAUSSES_GATES = join(import.meta.dirname, "helpers/fake-gates.sh");
 // La commande de service d'un projet de test : la doublure, par le Node de la suite.
 const SERT = `exec "${process.execPath}" "${FAUX_SERVICE}"`;
 // Une commande qui tourne sans ouvrir de port : rien à tirer, rien à se disputer.

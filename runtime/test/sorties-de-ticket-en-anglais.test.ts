@@ -8,8 +8,8 @@ import { principal as attendre } from "../src/attente-cli.ts";
 import { principal as montrerPass } from "../src/montrer-pass.ts";
 import { principal as montrerRail } from "../src/montrer-rail.ts";
 import { principal as relire } from "../src/relire.ts";
-import { exempleDuBas } from "./aides/bas-de-status.ts";
-import { sansMotFrancais } from "./aides/glossaire.ts";
+import { exempleDuBas } from "./helpers/status-footer.ts";
+import { sansMotFrancais } from "./helpers/glossary.ts";
 import { appeler, DEPOT, repertoireTemporaire } from "./outils.ts";
 
 type Commande = Parameters<typeof appeler>[0];

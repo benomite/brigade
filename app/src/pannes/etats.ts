@@ -1,12 +1,12 @@
 // Ce qu'une station publie de ses pannes, tel que l'app le lit sur GitHub : sa dernière mise à
 // jour quand elle a raté et que la station est revenue en arrière, et sa connexion Max. Le format
-// est celui de la station (runtime/src/appairage/document.ts, `miseAJour` et `connexionMax`) ;
+// est celui de la station (runtime/src/pairing/document.ts, `miseAJour` et `connexionMax`) ;
 // pannes.ts en tire les lignes de la home.
 export type MiseAJourRevenue = { visee: string; restauree: string; le: string; retourRate: boolean };
 export type ConnexionPubliee = { etat: "connectee" | "perdue" | "inconnue"; depuis: string | null };
 export type EtatsPublies = { miseAJour: MiseAJourRevenue | null; connexionMax: ConnexionPubliee | null };
 
-// Une version telle que la mise à jour les nomme (runtime/src/mise-a-jour/versions.ts) : rien
+// Une version telle que la mise à jour les nomme (runtime/src/update/versions.ts) : rien
 // d'autre ne se pose dans une ligne.
 const VERSION = /^[0-9][A-Za-z0-9.+~]{0,39}$/;
 const ETATS = ["connectee", "perdue", "inconnue"] as const;

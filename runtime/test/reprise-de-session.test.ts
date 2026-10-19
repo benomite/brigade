@@ -11,7 +11,7 @@ import { argumentsClaude } from "../src/claude.ts";
 import { decrireReleve, trancher } from "../src/mesures.ts";
 import { mergedDeliveries } from "../src/projections/measures.ts";
 import { dossierDuProjet, preparerReprise, sessionDuFlux } from "../src/reprise-de-session.ts";
-import { chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
+import { chef, cuisine, issue, type Options } from "./helpers/kitchen.ts";
 import { jusqua, repertoireTemporaire } from "./outils.ts";
 
 // Une cuisine avec sa pass, un ticket sur le rail, et des gates rouges : sa

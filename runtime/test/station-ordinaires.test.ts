@@ -2,14 +2,14 @@
 // ne demandent rien. Sans réglage, elle ne prend que ceux qui demandent une de
 // ses capacités ; déclarée `distante+ordinaires`, elle prend aussi les autres,
 // à condition que son poste ait le bac à sable de Claude Code : son cook y est
-// lancé, avec la configuration de `bac-a-sable/`. Sans lui, elle n'en prend
+// lancé, avec la configuration de `sandbox/`. Sans lui, elle n'en prend
 // aucun, et le dit. Jamais plus de cooks que son plafond. Sur une cuisine
 // complète, la station jouée par le test depuis sa propre connexion au
 // journal, comme le ferait son geste (`run pull`).
 import assert from "node:assert/strict";
 import { posix } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { NON_DIT } from "../src/bac-a-sable/ordinaires.ts";
+import { NON_DIT } from "../src/sandbox/ordinary.ts";
 import { argumentsClaude } from "../src/claude.ts";
 import type { BacASableDeLaStation, Demande, Mission, Reponse } from "../src/events/remote.ts";
 import { faits, lireEtat } from "../src/etat.ts";
@@ -20,7 +20,7 @@ import type { Machine } from "../src/machine.ts";
 import { DECLARATION_RESEAU } from "../src/reseau.ts";
 import { lireStations } from "../src/stations-declarees.ts";
 import { demander } from "../src/tirer.ts";
-import { cuisine, issue, MACHINE_CALME, type Lieux, type Options } from "./aides/cuisine.ts";
+import { cuisine, issue, MACHINE_CALME, type Lieux, type Options } from "./helpers/kitchen.ts";
 import { appeler, jusqua } from "./outils.ts";
 
 const [BOX, MAC] = ["box/claude", "mac/claude"];

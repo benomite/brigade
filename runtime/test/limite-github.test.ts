@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { test } from "node:test";
-import { canalGitHub } from "../src/appairage/canal.ts";
+import { canalGitHub } from "../src/pairing/channel.ts";
 import { ouvrirGitHub } from "../src/github.ts";
 import { BUDGET_PAR_HEURE, BudgetGitHubEpuise, FENETRE_MS, journaliserLesAppels, REPERTOIRE_COMPTEUR, limiteDeLaStation, ouvrirLimite, type Limite } from "../src/limite-github.ts";
 import { DEPOT, fauxGh, issueGitHub, jusqua, lancer, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
@@ -15,7 +15,7 @@ import { DEPOT, fauxGh, issueGitHub, jusqua, lancer, repertoireTemporaire, tempo
 const rienNeReste = temporaireDuFichier();
 
 const MODULE = join(import.meta.dirname, "../src/limite-github.ts");
-const FAUX_GH_GISTS = join(import.meta.dirname, "appairage/faux-gh-gists.ts");
+const FAUX_GH_GISTS = join(import.meta.dirname, "pairing/fake-gh-gists.ts");
 const STATION = join(import.meta.dirname, "../src/station/main.ts");
 const MINUTE = 60_000;
 

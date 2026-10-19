@@ -4,19 +4,19 @@
 // station la relit seule, sans redémarrer.
 import { mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { canalGitHub } from "../appairage/canal.ts";
-import { etatsPublies } from "../appairage/etats.ts";
-import { identiteDeLaStation, tenirPresence } from "../appairage/presence.ts";
-import { configVeille, veillerConnexionMax, type VeilleConnexionMax } from "../connexion-max/veille.ts";
+import { canalGitHub } from "../pairing/channel.ts";
+import { etatsPublies } from "../pairing/states.ts";
+import { identiteDeLaStation, tenirPresence } from "../pairing/presence.ts";
+import { configVeille, veillerConnexionMax, type VeilleConnexionMax } from "../max-connection/watch.ts";
 import { masquerLaConsole } from "../jeton-claude.ts";
 import { installerLimite, journaliserLesAppels, limiteDeLaStation } from "../limite-github.ts";
-import { annoncerEnService } from "../mise-a-jour/en-service.ts";
-import { lireEtatMiseAJour } from "../mise-a-jour/etat.ts";
-import { tenirProjetsDeLApp } from "../projets/tenir.ts";
+import { annoncerEnService } from "../update/in-service.ts";
+import { lireEtatMiseAJour } from "../update/state.ts";
+import { tenirProjetsDeLApp } from "../projects/hold.ts";
 import { configReseau, passerParLaPorte } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { CONFIGURATION } from "./configuration.ts";
-import { attendrePorteDeLaStation, configPortes, lirePortes, VARIABLE_PORTES } from "./portes.ts";
+import { attendrePorteDeLaStation, configPortes, lirePortes, VARIABLE_PORTES } from "./doors.ts";
 import { nommer, ouvrirStation, projetEnCours } from "./station.ts";
 
 // Ce que la station dit à journald est masqué, avant même son premier mot.
@@ -89,9 +89,9 @@ for (const sortie of ["log", "error"] as const) {
 const connexion: VeilleConnexionMax = veillerConnexionMax({ ...fichiersDeLaConnexion, jeton: Boolean(process.env.BRIGADE_CLAUDE_TOKEN_FILE), dire });
 const station = ouvrirStation({ racine, env: process.env, dire, connexion, portes });
 // Sa présence sur GitHub, seul canal entre la station et l'app du chef : son
-// état, chaque minute, et le code qui l'appaire (appairage/presence.ts). Ses
+// état, chaque minute, et le code qui l'appaire (pairing/presence.ts). Ses
 // pannes y vont aussi : sa mise à jour, que son unité lui fait lire
-// (`BRIGADE_MISE_A_JOUR_DIR`), et sa connexion Max (appairage/etats.ts).
+// (`BRIGADE_MISE_A_JOUR_DIR`), et sa connexion Max (pairing/states.ts).
 const canal = canalGitHub({ gh: process.env.BRIGADE_GH_BIN || "gh" });
 const identite = identiteDeLaStation(process.env);
 const dossierMiseAJour = process.env.BRIGADE_MISE_A_JOUR_DIR || null;
@@ -104,7 +104,7 @@ const presence = tenirPresence({
   dire,
 });
 // Les projets que le chef lui ajoute depuis l'app, par le même gist : la
-// station les prépare et leur écrit leur ligne (projets/tenir.ts).
+// station les prépare et leur écrit leur ligne (projects/hold.ts).
 const projetsDeLApp = tenirProjetsDeLApp({
   racine,
   canal,

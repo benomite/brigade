@@ -13,7 +13,7 @@ import type { Issue } from "../src/github.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { etatDeLaBase, pass, reparationDeLaBase, reparationEnCours } from "../src/projections/pass.ts";
 import { lireRail, rail } from "../src/projections/rail.ts";
-import { chef, controlerBase, cuisine, issue } from "./aides/cuisine.ts";
+import { chef, controlerBase, cuisine, issue } from "./helpers/kitchen.ts";
 import { horloge, jusqua, repertoireTemporaire } from "./outils.ts";
 
 type Scenario = "vert" | "rouge";

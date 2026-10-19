@@ -191,7 +191,7 @@ récente publiée, le gel, ce qui retient la suivante et ce qu'a donné la derni
 même état, en clair, sans root :
 
 ```sh
-cd /usr/lib/brigade-station/runtime && BRIGADE_STATION_DIR=/var/lib/brigade BRIGADE_MISE_A_JOUR_DIR=/var/lib/brigade-station /usr/lib/brigade-station/node/bin/node src/mise-a-jour/main.ts etat
+cd /usr/lib/brigade-station/runtime && BRIGADE_STATION_DIR=/var/lib/brigade BRIGADE_MISE_A_JOUR_DIR=/var/lib/brigade-station /usr/lib/brigade-station/node/bin/node src/update/main.ts etat
 ```
 
 ## 7. La suite — pas encore dans ce guide

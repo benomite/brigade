@@ -11,7 +11,7 @@
 // Une station distante tourne sans cloison, sur le poste du chef : elle ne
 // prend que les tickets qui demandent une de ses capacités. Déclarée aussi
 // `ordinaires`, elle prend en plus les tickets qui ne demandent rien — et leurs
-// cooks y tournent dans le bac à sable de Claude Code (`bac-a-sable/`), quand
+// cooks y tournent dans le bac à sable de Claude Code (`sandbox/`), quand
 // son poste l'a ; sans lui, elle n'en prend aucun.
 //
 // Ce qu'une station fournit est une capacité : ce que la machine peut faire.

@@ -10,7 +10,7 @@ import { brancherGardeFous, type Reglages } from "../src/garde-fous.ts";
 import { principal as gardeFous } from "../src/garde-fous-cli.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { demarrer } from "../src/runtime.ts";
-import { sansMotFrancais } from "./aides/glossaire.ts";
+import { sansMotFrancais } from "./helpers/glossary.ts";
 import { appeler, ENV_ENFANT, FAUX_CLAUDE, horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/garde-fous-cli.ts");

@@ -10,7 +10,7 @@ import { fiche, MARQUEUR } from "../src/fiche.ts";
 import { MARQUEUR_MANAGER } from "../src/juger.ts";
 import { decoupageDe, ticketsDEpique } from "../src/projections/splits.ts";
 import { lireStations } from "../src/stations-declarees.ts";
-import { chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
+import { chef, cuisine, issue, type Options } from "./helpers/kitchen.ts";
 import { jusqua } from "./outils.ts";
 
 const EPIQUE = "Le chef veut voir, partout, combien de tickets attendent.";

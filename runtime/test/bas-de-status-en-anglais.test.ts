@@ -14,9 +14,9 @@ import { direJaugeEn } from "../src/mesures.ts";
 import { SANS_SEUIL } from "../src/mesures.ts";
 import { direSaturationEn } from "../src/machine.ts";
 import { etatLu, etatLuEn, nomEtat, nomEtatEn } from "../src/rail.ts";
-import { sansMotFrancais } from "./aides/glossaire.ts";
-import { exempleDuBas } from "./aides/bas-de-status.ts";
-import { ETAT_D_AVANT, etatDAvant, LU_LE } from "./aides/haut-de-status.ts";
+import { sansMotFrancais } from "./helpers/glossary.ts";
+import { exempleDuBas } from "./helpers/status-footer.ts";
+import { ETAT_D_AVANT, etatDAvant, LU_LE } from "./helpers/status-header.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { repertoireTemporaire } from "./outils.ts";
 

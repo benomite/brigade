@@ -11,7 +11,7 @@ import { ouvrirDepot, type Depot } from "../src/depot.ts";
 import type { Machine } from "../src/machine.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import { controleRetenu, etatDeLaBase, mergesAVerifier, passDuTicket } from "../src/projections/pass.ts";
-import { chef, cuisine, fauxGitHub, issue, MACHINE_CALME, montre, type Options } from "./aides/cuisine.ts";
+import { chef, cuisine, fauxGitHub, issue, MACHINE_CALME, montre, type Options } from "./helpers/kitchen.ts";
 import { BASE, commiter, depotGit, ENV_GIT, git, jusqua, repertoireTemporaire } from "./outils.ts";
 
 // `impossible` : le worktree jetable ne se fait pas — le dépôt lève, comme le
@@ -151,7 +151,7 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
     const { origine, clone } = depotGit(t);
     // Les gates du projet échouent sur cette machine : il leur manque un correctif.
     mkdirSync(join(clone, ".claude/brigade"), { recursive: true });
-    symlinkSync(join(import.meta.dirname, "aides/gates-a-correctif.sh"), join(clone, ".claude/brigade/gates.sh"));
+    symlinkSync(join(import.meta.dirname, "helpers/fixing-gates.sh"), join(clone, ".claude/brigade/gates.sh"));
     git(clone, "add", ".");
     git(clone, "commit", "-q", "-m", "les gates du projet");
     git(clone, "push", "-q", "origin", BASE);

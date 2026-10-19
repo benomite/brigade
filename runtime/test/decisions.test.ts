@@ -18,7 +18,7 @@ import { configReviewer } from "../src/reviewer.ts";
 import { ConfigInvalide, demarrer } from "../src/runtime.ts";
 import { lireStations } from "../src/stations-declarees.ts";
 import { demander } from "../src/tirer.ts";
-import { chef, cuisine, decider, issue, pousserSurLOrigine } from "./aides/cuisine.ts";
+import { chef, cuisine, decider, issue, pousserSurLOrigine } from "./helpers/kitchen.ts";
 import { BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, git, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
 
 const MAIN = join(import.meta.dirname, "../src/main.ts");

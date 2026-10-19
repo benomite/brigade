@@ -8,7 +8,7 @@ import { MARQUEUR_MANAGER } from "../src/juger.ts";
 import { etatDesGardeFous } from "../src/projections/guardrails.ts";
 import { passDuTicket } from "../src/projections/pass.ts";
 import { reactionDe } from "../src/projections/reactions.ts";
-import { chef, cuisine, issue, STATION, type Options } from "./aides/cuisine.ts";
+import { chef, cuisine, issue, STATION, type Options } from "./helpers/kitchen.ts";
 import { jusqua } from "./outils.ts";
 
 type Charge = Record<string, unknown>;

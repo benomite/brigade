@@ -18,12 +18,12 @@ import { brancherPass } from "../../src/pass.ts";
 import { lirePass } from "../../src/projections/pass.ts";
 import { demarrer } from "../../src/runtime.ts";
 import { brancherStation } from "../../src/station.ts";
-import { BAIL_MS, CALIBRAGE_DU_REVIEWER, fauxGitHub, issue, MACHINE_CALME, montre, PLAFONDS, REGLAGES, STATION } from "../aides/cuisine.ts";
+import { BAIL_MS, CALIBRAGE_DU_REVIEWER, fauxGitHub, issue, MACHINE_CALME, montre, PLAFONDS, REGLAGES, STATION } from "../helpers/kitchen.ts";
 import { appeler, BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, git, jusqua, lancementsDuFauxClaude, repertoireTemporaire } from "../outils.ts";
 import { ecrireHistoire, type Etape, type Fichiers } from "./history.ts";
 
 const FAUX_CLOSER = join(import.meta.dirname, "fake-closer.sh");
-const FAUSSES_GATES = join(import.meta.dirname, "../aides/fausses-gates.sh");
+const FAUSSES_GATES = join(import.meta.dirname, "../helpers/fake-gates.sh");
 // Les gates du projet des tests : les fausses gates, précédées des mesures que
 // le test leur fait déclarer.
 const GATES_A_MESURES = join(import.meta.dirname, "gates-to-measures.sh");

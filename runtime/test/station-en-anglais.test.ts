@@ -7,9 +7,9 @@ import { test, type TestContext } from "node:test";
 import { decisionsPosees, environnementDecide } from "../src/decisions.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
-import { exempleDuBas } from "./aides/bas-de-status.ts";
-import { sansMotFrancais } from "./aides/glossaire.ts";
-import { STATION } from "./aides/haut-de-status.ts";
+import { exempleDuBas } from "./helpers/status-footer.ts";
+import { sansMotFrancais } from "./helpers/glossary.ts";
+import { STATION } from "./helpers/status-header.ts";
 import { appeler, repertoireTemporaire } from "./outils.ts";
 
 function etat(t: TestContext) {

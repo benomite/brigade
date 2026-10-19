@@ -12,7 +12,7 @@ import { ATTEND_UN_TIERS, REVENU_D_ATTENTE } from "../src/events/rail.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
 import { etatLu, GesteRefuse, ouvrirRail } from "../src/rail.ts";
-import { fauxGitHub, issue } from "./aides/cuisine.ts";
+import { fauxGitHub, issue } from "./helpers/kitchen.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
 const MAINTENANT = new Date("2026-10-14T12:00:00.000Z");

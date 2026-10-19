@@ -1,5 +1,5 @@
 // Ce qu'une station écrit d'elle sur GitHub, tel que l'app le lit. Le format
-// est celui de la station (runtime/src/appairage/document.ts) : un gist secret
+// est celui de la station (runtime/src/pairing/document.ts) : un gist secret
 // du compte du chef, qui porte `brigade-station.json`, écrit par la station
 // seule, et `brigade-appairage.json`, écrit par l'app seule quand le chef a
 // tapé le bon code. Aucune liaison directe entre l'app et la station : c'est

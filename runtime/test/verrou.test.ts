@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { prendreVerrou, VerrouTenu } from "../src/verrou.ts";
 import { lancer, repertoireTemporaire } from "./outils.ts";
 
-const TIENT_VERROU = join(import.meta.dirname, "aides/tient-verrou.ts");
+const TIENT_VERROU = join(import.meta.dirname, "helpers/holds-lock.ts");
 
 test("un verrou tenu ne se prend pas une seconde fois", (t) => {
   const repertoire = repertoireTemporaire(t);

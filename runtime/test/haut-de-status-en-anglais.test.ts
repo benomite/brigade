@@ -9,8 +9,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { sansMotFrancais } from "./aides/glossaire.ts";
-import { ETAT_D_AVANT, etatDAvant, exemple, LU_LE, STATION } from "./aides/haut-de-status.ts";
+import { sansMotFrancais } from "./helpers/glossary.ts";
+import { ETAT_D_AVANT, etatDAvant, exemple, LU_LE, STATION } from "./helpers/status-header.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
 // Les lignes qui précèdent le bloc `attend` / `awaiting`, d'une sortie de `status`.

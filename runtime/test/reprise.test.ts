@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { cooksEnCours } from "../src/projections/guardrails.ts";
-import { chef, cuisine, issue, STATION, type Options } from "./aides/cuisine.ts";
+import { chef, cuisine, issue, STATION, type Options } from "./helpers/kitchen.ts";
 import { BASE, git, jusqua, mort, vivant } from "./outils.ts";
 
 // Une première vie : un cook part sur #15 et commite, puis attend qu'on le

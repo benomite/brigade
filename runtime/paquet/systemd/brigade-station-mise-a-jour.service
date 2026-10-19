@@ -27,7 +27,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=/usr/lib/brigade-station/runtime
-ExecStart=/usr/lib/brigade-station/node/bin/node src/mise-a-jour/main.ts
+ExecStart=/usr/lib/brigade-station/node/bin/node src/update/main.ts
 
 # Son répertoire, à root et lisible de tous : la station y relit ce que
 # chaque mise à jour a donné.

@@ -33,7 +33,7 @@ import { consommation } from "./projections/guardrails.ts";
 import { direCommentLeVoirEn, direEtatDeServeurEn, direPageEn, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus } from "./projections/service.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { FORME, GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
-import { direOrdinairesEn } from "./bac-a-sable/ordinaires.ts";
+import { direOrdinairesEn } from "./sandbox/ordinary.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import {
   cooksDeStation,

@@ -124,10 +124,10 @@ son **plafond de cooks** est alors la limite du Mac, tickets ordinaires compris
 brigade <projet> station stations box/claude:30:code,mac/claude:2:chrome-connecté:distante+ordinaires
 ```
 
-**Un ticket ordinaire n'y part que dans le bac à sable de Claude Code** (`runtime/src/bac-a-sable/`).
+**Un ticket ordinaire n'y part que dans le bac à sable de Claude Code** (`runtime/src/sandbox/`).
 La station le dit à chaque `announce` et `claim`, par `--sandbox <json>` : l'objet que rend la
 sonde, jouée sur son poste par son app —
-`node runtime/src/bac-a-sable/sonder.ts <worktrees> [<cache>…]`, où `<worktrees>` est le
+`node runtime/src/sandbox/probe.ts <worktrees> [<cache>…]`, où `<worktrees>` est le
 répertoire où le poste pose les worktrees des cooks du projet. Disponible, il porte la version de
 son `claude`, le répertoire du compte, ce répertoire et les caches du projet ; indisponible — pas
 macOS, pas de Seatbelt (`/usr/bin/sandbox-exec`), un `claude` trop ancien ou muet —, la raison.

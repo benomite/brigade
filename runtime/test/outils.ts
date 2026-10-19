@@ -15,14 +15,14 @@ import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import type { Projection } from "../src/projection.ts";
 
 // La doublure de `claude` : son scénario se choisit par la variable FAUX_CLAUDE.
-export const FAUX_CLAUDE = join(import.meta.dirname, "aides/faux-claude.sh");
+export const FAUX_CLAUDE = join(import.meta.dirname, "helpers/fake-claude.sh");
 
 // À donner en `NODE_OPTIONS: \`--import=${SANS_RESEAU}\`` à un process lancé par
 // un test : toute connexion HTTP qu'il ouvre y est refusée, sans toucher un port.
-export const SANS_RESEAU = pathToFileURL(join(import.meta.dirname, "aides/sans-reseau.ts")).href;
+export const SANS_RESEAU = pathToFileURL(join(import.meta.dirname, "helpers/no-network.ts")).href;
 
 // La doublure de `bwrap` : ne cloisonne rien, note ce qu'on lui a demandé.
-export const FAUX_BWRAP = join(import.meta.dirname, "aides/faux-bwrap.sh");
+export const FAUX_BWRAP = join(import.meta.dirname, "helpers/fake-bwrap.sh");
 
 // Les arguments de chaque lancement que la doublure de `bwrap` a noté dans le
 // répertoire FAUX_BWRAP_TEMOIN, sans ordre.
@@ -397,7 +397,7 @@ export type FauxGh = {
 };
 
 // La doublure de `gh`, appelée par un lien posé dans le répertoire du test.
-const FAUX_GH = join(import.meta.dirname, "aides/faux-gh.sh");
+const FAUX_GH = join(import.meta.dirname, "helpers/fake-gh.sh");
 
 // Un faux `gh` : il rejoue les réponses qu'on lui dicte, et note ses appels.
 // Tant qu'on ne lui a rien dicté, il échoue comme un `gh` sans réseau.

@@ -8,7 +8,7 @@ import { communsDuRail, ticketDuRail } from "../src/projections/rail.ts";
 import { direRetenue, etatLu, GesteRefuse, ouvrirRail, retenue } from "../src/rail.ts";
 import { lancer, repertoireTemporaire } from "./outils.ts";
 
-const PRENEUR = join(import.meta.dirname, "aides/prend-tickets.ts");
+const PRENEUR = join(import.meta.dirname, "helpers/takes-tickets.ts");
 const BAIL_MS = 600_000;
 
 // Une horloge que le test avance à la main : le rail ne lit l'heure que là.

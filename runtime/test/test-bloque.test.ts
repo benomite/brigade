@@ -15,7 +15,7 @@ test("un test qui expire en tenant une poignée est rouge, nommé, et son fichie
   const options = (scripts.test.match(/--test\S*/g) ?? []).map((option) => option.replace(/^--test-timeout=\d+$/, "--test-timeout=500"));
   assert.ok(options.includes("--test-timeout=500"), scripts.test);
 
-  const suite = spawn(process.execPath, [...options, join(import.meta.dirname, "aides/test-bloque.ts")], {
+  const suite = spawn(process.execPath, [...options, join(import.meta.dirname, "helpers/stuck-test.ts")], {
     env: ENV_ENFANT,
     stdio: ["ignore", "pipe", "pipe"],
     // Son propre groupe : le lanceur a un process par fichier, et tuer le

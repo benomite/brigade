@@ -9,7 +9,7 @@ import { attentesDuChef, decrireAttentes } from "../../src/attend.ts";
 import { SANS_ISSUE_MS } from "../../src/events/closing.ts";
 import { lireRail } from "../../src/projections/rail.ts";
 import { principal } from "../../src/closing/command.ts";
-import { chef, PLAFONDS, STATION } from "../aides/cuisine.ts";
+import { chef, PLAFONDS, STATION } from "../helpers/kitchen.ts";
 import { appeler, BASE, ENV_GIT, jusqua } from "../outils.ts";
 import { cuisineFermee, RETIRER_M1 } from "./kitchen.ts";
 

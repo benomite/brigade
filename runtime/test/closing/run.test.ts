@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { principal } from "../../src/closing/command.ts";
 import { SANS_MOTIF } from "../../src/closing/brief.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { chef, PLAFONDS, STATION } from "../aides/cuisine.ts";
+import { chef, PLAFONDS, STATION } from "../helpers/kitchen.ts";
 import { appeler, BASE, ENV_GIT, git, jusqua } from "../outils.ts";
 import type { ReglagesDeFermeture } from "../../src/events/closing.ts";
 import { cuisineFermee, REGLAGES_DE_FERMETURE, RETIRER_M1 } from "./kitchen.ts";

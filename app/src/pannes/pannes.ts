@@ -1,7 +1,7 @@
 // Les pannes d'une station, dites sur sa ligne de la home : chacune en une ligne, avec un
 // bouton — jamais une suite de commandes (docs/superpowers/specs/2026-10-15-station-refonte-design.md,
 // « Quand ça casse »). Trois pannes, lues dans ce que la station publie sur GitHub, son seul canal
-// avec l'app (runtime/src/appairage/etats.ts) :
+// avec l'app (runtime/src/pairing/states.ts) :
 //
 // - **injoignable** : plus aucun signe de vie depuis dix minutes — « box has given no sign of life
 //   for 10 min ». Le bouton relit GitHub tout de suite : l'app ne joint pas la station, elle ne

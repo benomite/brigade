@@ -17,9 +17,9 @@ import { principal as manager } from "../src/manager-cli.ts";
 import { principal as station } from "../src/montrer-station.ts";
 import { configSession, lireSession } from "../src/renouvellement.ts";
 import { lireStations } from "../src/stations-declarees.ts";
-import { exempleDuBas } from "./aides/bas-de-status.ts";
-import { sansMotFrancais } from "./aides/glossaire.ts";
-import { etatDAvant, STATION } from "./aides/haut-de-status.ts";
+import { exempleDuBas } from "./helpers/status-footer.ts";
+import { sansMotFrancais } from "./helpers/glossary.ts";
+import { etatDAvant, STATION } from "./helpers/status-header.ts";
 import { appeler, DEPOT, fauxGh, horloge, issueGitHub, lancer, repertoireTemporaire } from "./outils.ts";
 
 type Commande = Parameters<typeof appeler>[0];

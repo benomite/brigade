@@ -11,7 +11,7 @@ import type { Fait } from "../src/evenements.ts";
 import { principal as manager } from "../src/manager-cli.ts";
 import { etatDuManager } from "../src/projections/manager.ts";
 import { demarrer } from "../src/runtime.ts";
-import { sansMotFrancais } from "./aides/glossaire.ts";
+import { sansMotFrancais } from "./helpers/glossary.ts";
 import { appeler, DEPOT, fauxGh, horloge, issueGitHub, lancer, repertoireTemporaire } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/manager-cli.ts");

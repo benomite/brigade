@@ -6,7 +6,7 @@ import { JETON_MASQUE, retenirJeton } from "../src/identifiants.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { faitInconnu, horloge, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
-const TIENT_JOURNAL = join(import.meta.dirname, "aides/tient-journal.ts");
+const TIENT_JOURNAL = join(import.meta.dirname, "helpers/holds-log.ts");
 
 test("un événement ajouté porte séquence, horodatage, projet, ticket, type et auteur", (t) => {
   const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });

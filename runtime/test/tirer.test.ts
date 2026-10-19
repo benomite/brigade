@@ -10,7 +10,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { lireStations } from "../src/stations-declarees.ts";
 import { MAL_ECRIT, principal, REFUSEE, SANS_REPONSE, SERVIE } from "../src/tirer-cli.ts";
 import { demander, SansReponse } from "../src/tirer.ts";
-import { cuisine, issue, pousserSurLOrigine } from "./aides/cuisine.ts";
+import { cuisine, issue, pousserSurLOrigine } from "./helpers/kitchen.ts";
 import { jusqua, repertoireTemporaire } from "./outils.ts";
 
 const MAC = "mac/claude";

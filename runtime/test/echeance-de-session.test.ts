@@ -366,12 +366,12 @@ test("aucun code du runtime n'ouvre le fichier d'identifiants : son nom n'y sert
 
   // Son nom en clair : la cloison, qui le monte, le module qui le reconnaît dans une livraison, et le bac à
   // sable des cooks du Mac, qui en interdit la lecture.
-  assert.deepEqual(qui(/\.credentials\.json/), ["bac-a-sable/configuration.ts", "cloison.ts", "identifiants.ts"]);
+  assert.deepEqual(qui(/\.credentials\.json/), ["sandbox/configuration.ts", "cloison.ts", "identifiants.ts"]);
   // Son nom par la constante : les messages d'un refus de push, et le refus d'un fichier d'état qui le désignerait.
   assert.deepEqual(qui(/\bFICHIER_DES_IDENTIFIANTS\b/), ["identifiants.ts", "renouvellement.ts", "station.ts"]);
   // Son chemin, tel que la cloison le donne : l'annonce au journal — par le runtime d'un projet, et par la cuisine
   // que la station ouvre pour chacun des siens —, et la sonde qui le regarde de l'intérieur de la cloison.
-  assert.deepEqual(qui(/\.identifiants\b/), ["eprouver.ts", "main.ts", "station/cuisine.ts"]);
+  assert.deepEqual(qui(/\.identifiants\b/), ["eprouver.ts", "main.ts", "station/kitchen.ts"]);
   // Et aucune lecture, ouverture ou copie de quoi que ce soit qui le nomme.
   assert.deepEqual(qui(/\b(readFileSync|readFile|openSync|open|createReadStream|copyFileSync|copyFile|cpSync|readSync)\s*\([^)]*(identifiants|credentials)/i), []);
   // La sonde n'ouvre rien : `test -r` et `test -w` n'en demandent que les droits.

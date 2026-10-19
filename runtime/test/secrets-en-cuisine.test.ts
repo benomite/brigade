@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { JETON_MASQUE } from "../src/identifiants.ts";
 import { etatDesGardeFous } from "../src/projections/guardrails.ts";
-import { chef, controlerBase, cuisine, fauxGitHub, issue, montre } from "./aides/cuisine.ts";
+import { chef, controlerBase, cuisine, fauxGitHub, issue, montre } from "./helpers/kitchen.ts";
 import { BASE, depotGit, git, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const CLE = "sk_test_4eC39HqLyjWDarjtT1";
@@ -145,7 +145,7 @@ describe("les secrets du projet", { concurrency: 8 }, () => {
     git(join(semis, ".."), "clone", "-q", depot.origine, semis);
     mkdirSync(join(semis, ".claude/brigade"), { recursive: true });
     writeFileSync(join(semis, ".claude/brigade/secrets"), "CLE_API\n");
-    symlinkSync(join(import.meta.dirname, "aides/fausses-gates.sh"), join(semis, ".claude/brigade/gates.sh"));
+    symlinkSync(join(import.meta.dirname, "helpers/fake-gates.sh"), join(semis, ".claude/brigade/gates.sh"));
     git(semis, "add", ".");
     git(semis, "commit", "-q", "-m", "gates et secrets du projet");
     git(semis, "push", "-q", "origin", BASE);
@@ -263,7 +263,7 @@ describe("les identifiants de Claude dans une livraison", { concurrency: 8 }, ()
     const semis = join(repertoireTemporaire(t), "semis");
     git(join(semis, ".."), "clone", "-q", depot.origine, semis);
     mkdirSync(join(semis, ".claude/brigade"), { recursive: true });
-    symlinkSync(join(import.meta.dirname, "aides/fausses-gates.sh"), join(semis, ".claude/brigade/gates.sh"));
+    symlinkSync(join(import.meta.dirname, "helpers/fake-gates.sh"), join(semis, ".claude/brigade/gates.sh"));
     git(semis, "add", ".");
     git(semis, "commit", "-q", "-m", "gates du projet");
     git(semis, "push", "-q", "origin", BASE);

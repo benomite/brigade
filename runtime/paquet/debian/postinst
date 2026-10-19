@@ -11,10 +11,10 @@ UNITES="brigade-station.service brigade-station-renouvellement.timer"
 # réclame.
 PORTES=brigade-station-porte.service
 # La bascule d'une machine qui servait ses projets avant le paquet, une unité
-# par projet (runtime/src/bascule/) : le node et le code que le paquet pose.
+# par projet (runtime/src/switchover/) : le node et le code que le paquet pose.
 RACINE=/
 NODE=/usr/lib/brigade-station/node/bin/node
-BASCULE=/usr/lib/brigade-station/runtime/src/bascule/main.ts
+BASCULE=/usr/lib/brigade-station/runtime/src/switchover/main.ts
 
 case "$1" in
   configure)

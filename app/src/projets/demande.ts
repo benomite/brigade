@@ -1,5 +1,5 @@
 // Ce que l'app demande à une station, et ce que la station en dit — le format
-// est celui de la station (runtime/src/projets/demande.ts). Deux fichiers de
+// est celui de la station (runtime/src/projects/request.ts). Deux fichiers de
 // plus dans le gist de chaque station appairée (stations/document.ts) :
 //   - `brigade-projets.json`, écrit par l'app seule : les projets que le chef
 //     demande à cette station, et si elle en est la principale — celle qui fait

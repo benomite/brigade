@@ -5,7 +5,7 @@ import { describe, test, type TestContext } from "node:test";
 import { configArbitre, decider, encore, ouvrirArbitre, ouvrirReglages, servirArbitre, type Mot, type Vue } from "../src/arbitre.ts";
 import { ArbitreInjoignable, configArbitrage, joindreArbitre } from "../src/arbitrage.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
-import { connexionRefusee } from "./aides/connexion-refusee.ts";
+import { connexionRefusee } from "./helpers/connection-refused.ts";
 import { horloge, repertoireTemporaire } from "./outils.ts";
 
 const vue = (projet: string, cooks: number, autres: Partial<Vue> = {}): Vue => ({ projet, poids: 1, cooks, demande: true, machine: false, entendu: true, ...autres });

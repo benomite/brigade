@@ -44,7 +44,7 @@ configuration — hormis, après la connexion Max, le jeton et ses deux fichiers
 (`git`, `gh`, `bubblewrap`, `libatomic1`, `adduser`, `systemd`…) viennent d'apt.
 
 La commande du guide finit par la connexion Max du compte `brigade`, quand un terminal est là :
-`runtime/src/connexion-max/connecter-cli.ts`, que le paquet porte avec le reste du runtime, pose
+`runtime/src/max-connection/connect-cli.ts`, que le paquet porte avec le reste du runtime, pose
 `claude` s'il manque, lance `claude setup-token` sous le compte, et range le jeton sans l'afficher :
 `/etc/brigade/claude-token` (600, au compte `brigade`), la date de sa création dans
 `/etc/brigade/claude-token.cree` (sans le jeton), et `/etc/brigade/jeton.env`, que l'unité lit pour
@@ -66,7 +66,7 @@ d'elle-même en démarrant (`/var/lib/brigade/en-service`).
 ## La porte réseau
 
 L'unité de la station ne joint que la boucle locale (`IPAddressDeny=any`, `IPAddressAllow=localhost`).
-Sa seule sortie est `brigade-station-porte.service` (`runtime/src/station/tenir-portes.ts`), une
+Sa seule sortie est `brigade-station-porte.service` (`runtime/src/station/hold-doors.ts`), une
 unité à côté, sans filtre, qui ne lance rien : elle tient la porte de la station — Anthropic et
 GitHub seulement — et une porte par projet de `/var/lib/brigade/projets`, ouverte quand le projet
 y entre, fermée quand il en sort. La porte d'un projet ne laisse passer que sa liste blanche :
@@ -96,7 +96,7 @@ la retrouve où il la connaît, après la coupure de la bascule.
 (`Wants=`), il s'arrête avec elle (`PartOf=`). Une station installée par un paquet qui ne le
 connaissait pas le prend donc à sa première relance, sans que `postinst` ait à l'activer.
 
-Chaque passage (`runtime/src/mise-a-jour/`) lit les releases `station-<version>` du dépôt, prend la
+Chaque passage (`runtime/src/update/`) lit les releases `station-<version>` du dépôt, prend la
 plus récente — dans l'ordre de dpkg — et, si elle est plus récente que la version installée, la
 remet à `apt-get install --allow-downgrades`. C'est le `postinst` du paquet qui recharge systemd —
 une unité changée est prise — et relance la station, son seul process (`KillMode=process`) : les
@@ -167,7 +167,7 @@ commandes du système. Ils ne remplacent pas cet essai : aucun n'installe le paq
 
 ### La mise à jour, sur une machine de test
 
-`runtime/test/mise-a-jour/machine.test.ts` l'éprouve sans root, sur une installation de test posée
+`runtime/test/update/machine.test.ts` l'éprouve sans root, sur une installation de test posée
 dans un répertoire : de vrais paquets construits depuis le dépôt, leur vrai `postinst` et leurs
 unités joués par des doublures d'`apt-get` et de `systemctl` qui lancent pour de vrai la station
 installée. Trois versions publiées passent l'une après l'autre (dont une qui change l'unité de la

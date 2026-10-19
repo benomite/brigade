@@ -15,7 +15,7 @@
 # que nomme la règle sudoers du geste. Rien de la machine n'y est écrit : le
 # compte et l'environnement se lisent dans l'unité de la station, le projet
 # dans sa configuration — la commande tourne avec ce que la station donne au
-# projet, pas avec une variable recopiée (runtime/src/station/geste.ts).
+# projet, pas avec une variable recopiée (runtime/src/station/action.ts).
 #
 # Codes de sortie : celui de la commande, sauf
 #   64  il manque le projet ou la commande
@@ -29,7 +29,7 @@
 # Le geste refuse ici ce qui se juge sans lire la station (64, un nom qui n'est
 # pas un nom de projet en 65, 67 à 70) ; le projet que sa configuration ne
 # nomme pas (65) et la commande qui n'est pas du runtime (66) se jugent dans
-# `src/station/geste.ts`, sous le compte de la station, qui sort avec ces codes.
+# `src/station/action.ts`, sous le compte de la station, qui sort avec ces codes.
 set -u
 
 USAGE=64
@@ -157,4 +157,4 @@ cd "$ici/runtime" 2>/dev/null || {
   echo "brigade : le runtime de la station ($ici/runtime) n'est pas là — le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\` ($DOC)" >&2
   exit $NODE_INAPTE
 }
-exec env -i "${environnement[@]}" "$node" src/station/geste.ts "$projet" "$commande" "$@"
+exec env -i "${environnement[@]}" "$node" src/station/action.ts "$projet" "$commande" "$@"

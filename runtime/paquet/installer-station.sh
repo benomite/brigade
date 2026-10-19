@@ -16,7 +16,7 @@
 # puis fait la connexion Max du compte brigade, si quelqu'un est devant le
 # terminal : `claude setup-token`, une fois, par le binaire officiel, que
 # l'étape pose s'il manque, et dont elle range le jeton sans le montrer
-# (runtime/src/connexion-max/connecter-cli.ts). C'est le seul geste root de la station : sa vie courante n'en demande aucun. La relancer
+# (runtime/src/max-connection/connect-cli.ts). C'est le seul geste root de la station : sa vie courante n'en demande aucun. La relancer
 # ne réinstalle rien de neuf, et ne refait pas un jeton déjà rangé.
 #
 # Codes de sortie :
@@ -28,7 +28,7 @@ DEPOT=benomite/brigade
 SERVICE=brigade-station.service
 # Ce que le paquet pose : son node, et l'étape de connexion Max.
 NODE=/usr/lib/brigade-station/node/bin/node
-CONNEXION=/usr/lib/brigade-station/runtime/src/connexion-max/connecter-cli.ts
+CONNEXION=/usr/lib/brigade-station/runtime/src/max-connection/connect-cli.ts
 # Le temps laissé à la station pour se dire active. Une garde, pas une mesure.
 GARDE=60
 

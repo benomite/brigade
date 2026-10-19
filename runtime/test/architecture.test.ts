@@ -17,7 +17,7 @@ import { ACTIONS, jamaisAccordee } from "../src/grant.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { lireStations } from "../src/stations-declarees.ts";
 import { demander } from "../src/tirer.ts";
-import { chef, cuisine, issue, pousserSurLOrigine } from "./aides/cuisine.ts";
+import { chef, cuisine, issue, pousserSurLOrigine } from "./helpers/kitchen.ts";
 import { jusqua } from "./outils.ts";
 
 const SRC = join(import.meta.dirname, "../src");
@@ -36,7 +36,7 @@ const VERS = {
   "arbitre.ts": "n'ouvre rien : il écoute, sur 127.0.0.1",
   "identites.ts": "l'API de GitHub, pour les jetons des rôles",
   "installateur.ts": "n'ouvre rien : il cherche un port libre sur la machine",
-  "mise-a-jour/publications.ts": "les releases du dépôt de brigade sur GitHub, pour la mise à jour de la station",
+  "update/releases.ts": "les releases du dépôt de brigade sur GitHub, pour la mise à jour de la station",
   "porte.ts": "les hôtes de la liste blanche du projet, pour ses lancements — elle écoute sur 127.0.0.1",
   "reseau.ts": "la porte du projet, et la sonde du filtre de son unité",
   "servir.ts": "le serveur d'une livraison d'interface, sur 127.0.0.1",
@@ -77,7 +77,7 @@ test("`runtime/src` : aucun programme qui joint une autre machine n'est lancé p
   const lances = new Set(sources().flatMap((fichier) => [...lire(fichier).matchAll(/(?<![.\w])(?:spawn|spawnSync|execFile|execFileSync|exec|execSync)\(\s*"([^"]+)"/g)].map((trouve) => trouve[1])));
   // `systemctl` : pour la seule bascule, jouée sous root par le paquet de la
   // station, qui arrête les anciennes unités de la machine
-  // (`bascule/basculer.ts`) — il ne parle qu'au systemd local.
+  // (`switchover/switch.ts`) — il ne parle qu'au systemd local.
   assert.deepEqual([...lances].sort(), ["du", "git", "systemctl"]);
   // Ni nommé ailleurs dans le code — un commentaire peut le citer, pas une chaîne.
   for (const fichier of sources()) {

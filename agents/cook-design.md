@@ -39,7 +39,7 @@ Chaque règle se vérifie en regardant l'écran. Aucune n'est optionnelle (règl
 
 ## Interdit
 
-- **Ne lance jamais un vrai `claude`, ni une vraie box.** Pas de `npm --prefix app start` nu, pas de `ssh` vers une box : une capture se prend avec les faux de l'app (`BRIGADE_CLAUDE_BIN=app/test/aides/faux-claude.sh`, `BRIGADE_APP_CONFIG=<un fichier d'essai>`, `BRIGADE_SSH_BIN=<un faux ssh>`), ou sur les données d'essai de l'outil de capture. Un vrai `claude` consomme le quota du chef ; une vraie box est lue pour de bon.
+- **Ne lance jamais un vrai `claude`, ni une vraie box.** Pas de `npm --prefix app start` nu, pas de `ssh` vers une box : une capture se prend avec les faux de l'app (`BRIGADE_CLAUDE_BIN=app/test/helpers/fake-claude.sh`, `BRIGADE_APP_CONFIG=<un fichier d'essai>`, `BRIGADE_SSH_BIN=<un faux ssh>`), ou sur les données d'essai de l'outil de capture. Un vrai `claude` consomme le quota du chef ; une vraie box est lue pour de bon.
 - N'écris pas hors de la vue sans que le ticket l'exige : pas de commande ajoutée au runtime, pas de second chemin pour une chose que l'app fait déjà.
 
 ## Vérifier et livrer
