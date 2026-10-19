@@ -8,7 +8,7 @@ import { geste } from "../geste.ts";
 import { Sortie } from "../appel.ts";
 import { ouvrirJournal, type Journal } from "../journal.ts";
 import { journalPasRejoue } from "../journal-pas-rejoue.ts";
-import { direJauge, franchis, SANS_SEUIL } from "../mesures.ts";
+import { direJaugeEn, franchis, SANS_SEUIL } from "../mesures.ts";
 import { livraisonsMergees, seuilsEnVigueur } from "../projections/mesures.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { MODULE, repererCodeMort, type Mort } from "./code-mort.ts";
@@ -140,7 +140,7 @@ function direJournal(repertoireEtat: string | undefined, arbre: (commit: string)
     const seuils = seuilsEnVigueur(journal.base);
     const passes = franchis(livraisons, seuils ?? SANS_SEUIL);
     const constat = seuils === null ? "no threshold declared" : passes.length === 0 ? "no threshold crossed" : `${pluriel(passes.length, "threshold")} crossed, details with \`${geste(`measures`)}\``;
-    return [ligne("log", `${pluriel(livraisons.length, "merge")} since the last closing (none in the log) — ${constat}`), ...passes.map((franchi) => ligne("", direJauge(franchi))), ...direPasse(journal, arbre)];
+    return [ligne("log", `${pluriel(livraisons.length, "merge")} since the last closing (none in the log) — ${constat}`), ...passes.map((franchi) => ligne("", direJaugeEn(franchi))), ...direPasse(journal, arbre)];
   } catch (erreur) {
     if (journalPasRejoue(erreur)) return nonLu("it does not yet have the measures record, restart the runtime to recompute it");
     throw erreur;

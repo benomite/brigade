@@ -205,7 +205,7 @@ test("l'arbitre tient dans son propre process : il répond sur son port, et s'ar
   // Un second arbitre sur la même machine est refusé, et ne dérange pas le premier.
   const second = lancer(t, TENIR, [], env);
   assert.equal(await second.fin, 2);
-  assert.match(second.sortie(), /l'arbitre refuse de démarrer — un arbitre tient déjà/);
+  assert.match(second.sortie(), /the arbiter refuses to start — an arbiter already holds/);
   assert.equal((await client.etat()).plafond, 2);
 
   tenu.process.kill("SIGTERM");
@@ -218,20 +218,20 @@ test("l'arbitre tient dans son propre process : il répond sur son port, et s'ar
   await revenu.attendre("part réservée, tant qu'ils n'ont pas reparlé : brigade");
 });
 
-test("sans répertoire, sans port, sans plafond, ou sur un port pris, l'arbitre refuse de démarrer et dit pourquoi", async (t) => {
+test("sans répertoire, sans port, sans plafond, ou sur un port pris, the arbiter refuses to start et dit pourquoi", async (t) => {
   const repertoire = repertoireTemporaire(t);
   const sans = async (env: Record<string, string>) => {
     const tenu = lancer(t, TENIR, [], env);
     return { code: await tenu.fin, sortie: tenu.sortie() };
   };
-  assert.deepEqual(await sans({}), { code: 2, sortie: "brigade : l'arbitre refuse de démarrer — BRIGADE_ARBITER_STATE_DIR n'est pas défini\n" });
-  assert.match((await sans({ BRIGADE_ARBITER_STATE_DIR: repertoire, BRIGADE_ARBITER_PORT: "20900" })).sortie, /BRIGADE_ARBITER_MAX_COOKS n'est pas défini/);
+  assert.deepEqual(await sans({}), { code: 2, sortie: "brigade : the arbiter refuses to start — BRIGADE_ARBITER_STATE_DIR is not set\n" });
+  assert.match((await sans({ BRIGADE_ARBITER_STATE_DIR: repertoire, BRIGADE_ARBITER_PORT: "20900" })).sortie, /BRIGADE_ARBITER_MAX_COOKS is not set/);
 
   const pris = createServer();
   const port = await new Promise<number>((resoudre) => pris.listen(0, "127.0.0.1", () => resoudre((pris.address() as { port: number }).port)));
   t.after(() => pris.close());
   assert.deepEqual(await sans({ BRIGADE_ARBITER_STATE_DIR: repertoire, BRIGADE_ARBITER_PORT: String(port), BRIGADE_ARBITER_MAX_COOKS: "2" }), {
     code: 2,
-    sortie: `brigade : l'arbitre refuse de démarrer — le port ${port} est déjà pris (BRIGADE_ARBITER_PORT)\n`,
+    sortie: `brigade : the arbiter refuses to start — le port ${port} est déjà pris (BRIGADE_ARBITER_PORT)\n`,
   });
 });

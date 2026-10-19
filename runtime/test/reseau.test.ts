@@ -42,7 +42,7 @@ describe("le réseau du projet", { concurrency: 8 }, () => {
     const { hotes, problemes } = lireDeclaration("*\n*.com\n10.0.0.1\nhttps://exemple.test/chemin\nexemple.test:99999\nlocalhost\nbon.exemple.test\n");
     assert.deepEqual(hotes, ["bon.exemple.test"]);
     assert.equal(problemes.length, 6);
-    assert.match(problemes[0] ?? "", /^ligne 1 de `\.claude\/brigade\/reseau` \(« \* »\) : ce n'est pas un hôte/);
+    assert.match(problemes[0] ?? "", /^line 1 of `\.claude\/brigade\/reseau` \(“\*”\): not a host/);
     assert.match(problemes[4] ?? "", /ce port n'existe pas/);
   });
 
@@ -91,7 +91,7 @@ describe("le réseau du projet", { concurrency: 8 }, () => {
     const vues = lectures;
     await jusqua(() => lectures >= vues + 3);
     assert.deepEqual(declares(), [["registry.npmjs.org"]]);
-    assert.deepEqual(avertissements, ["brigade : déclaration du réseau illisible sur `v2`, la dernière liste blanche lue tient — git ls-tree : fatal: Unable to create index.lock"]);
+    assert.deepEqual(avertissements, ["brigade : network declaration unreadable on `v2`, the last allowlist read holds — git ls-tree : fatal: Unable to create index.lock"]);
   });
 
   test("sur la base, un fichier absent se distingue d'un clone qu'on ne sait pas lire", (t) => {

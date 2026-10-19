@@ -193,14 +193,15 @@ export function lireCourante(sortie: string): CouranteLue | undefined {
 
 // Un point que « Vérifier » dit manquer : son texte, la flèche qui dit le geste qui le
 // règle, et l'étape à reprendre qu'il nomme — lus dans la sortie d'`installation`, telle
-// que runtime/src/installation-cli.ts l'écrit. Rien n'y est reformulé.
+// que runtime/src/installation-cli.ts l'écrit. Rien n'y est reformulé. Une box d'avant #933 l'écrit
+// en français (`MANQUE`, `étape à reprendre`) : les deux se lisent.
 export type Manque = { texte: string; geste: string | null; etape: string | null };
 
 export function manquesDe(sortie: string): Manque[] {
   const manques: Manque[] = [];
   let dernier: Manque | undefined;
   for (const ligne of sortie.split("\n")) {
-    const manque = /^ {2}MANQUE {4}(.+)$/.exec(ligne);
+    const manque = /^ {2}(?:MISSING {3}|MANQUE {4})(.+)$/.exec(ligne);
     if (manque !== null) {
       dernier = { texte: manque[1] ?? "", geste: null, etape: null };
       manques.push(dernier);
@@ -208,7 +209,7 @@ export function manquesDe(sortie: string): Manque[] {
     }
     const fleche = /^ {12}→ (.+)$/.exec(ligne)?.[1];
     if (fleche !== undefined && dernier !== undefined) {
-      const etape = /^étape à reprendre : \d+\. .+ \(([a-z-]+)\)$/.exec(fleche)?.[1];
+      const etape = /^(?:step to resume:|étape à reprendre :) \d+\. .+ \(([a-z-]+)\)$/.exec(fleche)?.[1];
       if (etape !== undefined) dernier.etape = etape;
       else if (dernier.geste === null) dernier.geste = fleche;
       continue;
@@ -301,7 +302,10 @@ export type RenouvellementEnEchec = { echecs: number; raison: string };
 
 export function renouvellementDe(sortie: string): RenouvellementEnEchec | undefined {
   for (const ligne of sortie.split("\n")) {
-    const lu = /^ {2}à savoir {2}renouvellement : (?:échec|`claude` introuvable)(?:, (\d+) échecs de suite)?(?: \(dernier passage réussi à [^)]*\))? — (.+)$/.exec(ligne);
+    // Deux écritures : la ligne `note` d'aujourd'hui, la ligne `à savoir` d'une box d'avant #933.
+    const lu =
+      /^ {2}(?:note {6}|à savoir {2})renewal: (?:failed|`claude` not found)(?:, (\d+) failures in a row)?(?: \(last successful run at [^)]*\))? — (.+)$/.exec(ligne) ??
+      /^ {2}(?:note {6}|à savoir {2})renouvellement : (?:échec|`claude` introuvable)(?:, (\d+) échecs de suite)?(?: \(dernier passage réussi à [^)]*\))? — (.+)$/.exec(ligne);
     if (lu !== null) return { echecs: lu[1] === undefined ? 1 : Number(lu[1]), raison: lu[2] ?? "" };
   }
   return undefined;
@@ -322,8 +326,9 @@ const SUR_LA_BOX = ["ajout", "verification"];
 // ce qu'elle a écrit sur sa sortie standard, seul : c'est là que ses manques se lisent.
 export type Verifiee = { a: string } & ({ etat: "pret" | "incomplete" | "illisible"; obtenu: string; sortie: string } | ({ etat: "sans-verdict" } & Echec));
 
-// La ligne par laquelle `installation` dit un projet prêt (runtime/src/installation-cli.ts).
-const verdict = (nom: string) => `brigade : projet « ${nom} » : prêt`;
+// Les lignes par lesquelles `installation` dit un projet prêt (runtime/src/installation-cli.ts) :
+// la sienne, et celle d'une box d'avant #933.
+const verdicts = (nom: string) => [`brigade : project “${nom}” : ready`, `brigade : projet « ${nom} » : prêt`];
 
 // Ce que prouve ce que la box a rendu d'`installation`. Les codes sont ceux de
 // docs/installer.md, « Vérifier que le projet est prêt » : 0, 1 ou 2, la commande a été
@@ -334,7 +339,7 @@ export function verdictDe(rendu: RenduDeBox, nom: string, delaiMs: number): Veri
   const obtenu = (code: number) => `${rendu.lance}\n${rendu.erreurs}${rendu.sortie}\n→ exit code ${code}`;
   if (erreur === null) {
     // Un compte enfermé dans une commande forcée rend 0, lui aussi, et autre chose que le verdict.
-    const dit = rendu.sortie.split("\n").some((ligne) => ligne.startsWith(verdict(nom)));
+    const dit = rendu.sortie.split("\n").some((ligne) => verdicts(nom).some((prete) => ligne.startsWith(prete)));
     return { a, etat: dit ? "pret" : "illisible", obtenu: obtenu(0), sortie: rendu.sortie };
   }
   if (erreur.killed !== true && (erreur.code === 1 || erreur.code === 2)) return { a, etat: "incomplete", obtenu: obtenu(erreur.code), sortie: rendu.sortie };
@@ -699,7 +704,7 @@ export function tenirServices(options: {
         const lues = stations ?? avant?.stations;
         const dits = manques ?? avant?.manques;
         // Une vérification lue qui ne dit plus d'échec lève l'alerte ; une lecture ratée laisse l'ancienne.
-        const renouvellement = lu === undefined ? avant?.renouvellement : renouvellementDe(lu.aSavoir.map(({ texte }) => `  à savoir  ${texte}`).join("\n"));
+        const renouvellement = lu === undefined ? avant?.renouvellement : renouvellementDe(lu.aSavoir.map(({ texte }) => `  note      ${texte}`).join("\n"));
         // Ce que l'écran Verify poserait : la bande d'alertes dit le même verdict, les mêmes manques.
         const etapes = (tenu.etapes?.etapes ?? []).map((etape, rang) => ({ ...etape, rang: rang + 1 })) as EtapeVue[];
         const verification = jugee.etat === "sans-verdict" ? avant?.verification : montrer(jugee, etapes);

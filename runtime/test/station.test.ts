@@ -684,8 +684,8 @@ describe("la station", { concurrency: 8 }, () => {
     const { entreesMax, seuils } = configStation(env);
     assert.deepEqual([entreesMax, seuils], [4, { chargeParCoeur: 1.5, memoireMinMo: 1024, disqueMinMo: 5120 }]);
     assert.equal(configStation({ ...env, BRIGADE_MAX_SETUPS: "8" }).entreesMax, 8);
-    assert.throws(() => configStation({ ...env, BRIGADE_MAX_SETUPS: "0" }), /BRIGADE_MAX_SETUPS invalide/);
-    assert.throws(() => configStation({ ...env, BRIGADE_MAX_LOAD_PER_CORE: "zéro" }), /BRIGADE_MAX_LOAD_PER_CORE invalide/);
+    assert.throws(() => configStation({ ...env, BRIGADE_MAX_SETUPS: "0" }), /invalid BRIGADE_MAX_SETUPS/);
+    assert.throws(() => configStation({ ...env, BRIGADE_MAX_LOAD_PER_CORE: "zéro" }), /invalid BRIGADE_MAX_LOAD_PER_CORE/);
   });
 
   test("un cook fini, la station prend le ticket suivant", async (t) => {

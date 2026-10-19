@@ -220,19 +220,19 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
 describe("le relevé des lancements repris", () => {
   const cook = (tokens: number, delivered: boolean, resumed = false) => ({ calibration: "opus/high", turns: 5, durationMs: 1000, tokens, delivered, ...(resumed ? { resumed: true as const } : {}) });
   const livraison = (ticket: number, cooks: ReturnType<typeof cook>[]) => ({ ticket, at: "2026-10-08T10:00:00.000Z", measures: {}, state: {}, gatesS: null, cooks });
-  const lancements = (lignes: string[]) => lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("lancements")));
+  const lancements = (lignes: string[]) => lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("launches")));
 
   test("la colonne des lancements dit combien ont été repris ; la légende le dit seulement quand il y en a", () => {
     const lignes = lancements(
       decrireReleve({ projet: "brigade", livraisons: [livraison(1, [cook(9000, true), cook(400, false, true), cook(1500, true)]), livraison(2, [cook(9000, true), cook(1500, true)])], seuils: null }),
     );
-    assert.match(lignes[0] ?? "", /; repris : les renvois repartis de la session du cook précédent, et non de zéro$/);
-    assert.match(lignes[2] ?? "", /^1-2\s+#1\s+3, dont 1 repris\s+10 900\s+10 500\s+400 \(4 %\)$/);
+    assert.match(lignes[0] ?? "", /; resumed: the retries that continued the previous cook's session instead of starting from scratch$/);
+    assert.match(lignes[2] ?? "", /^1-2\s+#1\s+3, of which 1 resumed\s+10 900\s+10 500\s+400 \(4 %\)$/);
     // Reparti de zéro : rien de plus qu'avant.
     assert.match(lignes[3] ?? "", /^1-2\s+#2\s+2\s+10 500\s+10 500\s+0$/);
 
     const sansReprise = lancements(decrireReleve({ projet: "brigade", livraisons: [livraison(2, [cook(9000, true), cook(1500, true)])], seuils: null }));
-    assert.doesNotMatch(sansReprise[0] ?? "", /repris/);
+    assert.doesNotMatch(sansReprise[0] ?? "", /resumed/);
   });
 });
 

@@ -121,7 +121,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     // Le runtime en dit chacune, avec le geste qui la remplace.
     assert.deepEqual(decisionsDansLEnvironnement(dansLEnvironnement), DECISIONS.filter((nom) => nom in ENV));
     assert.deepEqual(decisionsDansLEnvironnement({ BRIGADE_STATIONS: "", BRIGADE_PROJECT: "x" }), []);
-    assert.match(direDecisionIgnoree("BRIGADE_REVIEWER_MODEL", "brigade"), /BRIGADE_REVIEWER_MODEL est ignorée.*`brigade brigade station reviewer-modele <valeur>`.*retirer `Environment=BRIGADE_REVIEWER_MODEL`/);
+    assert.match(direDecisionIgnoree("BRIGADE_REVIEWER_MODEL", "brigade"), /BRIGADE_REVIEWER_MODEL is ignored.*`brigade brigade station reviewer-modele <value>`.*remove `Environment=BRIGADE_REVIEWER_MODEL`/);
 
     // Retirée du support, la décision ne retombe pas sur la variable.
     const decisions = suivreDecisions(journal.base, dansLEnvironnement, () => {});
@@ -365,13 +365,13 @@ describe("le runtime et les décisions du chef", { concurrency: 4 }, () => {
     const annoncees = () => relire(repertoire).flatMap((e) => (e.type === "station.announced" ? [`${e.payload.station}:${e.payload.maxCooks}`] : []));
     const seuils = () => relire(repertoire).flatMap((e) => (e.type === "drift.configured" ? [e.payload.limits.ticketTokens] : []));
     // Le journal et la sortie sont deux écritures : on attend les deux faits.
-    await jusqua(() => annoncees().includes("box/playwright:1") && seuils().includes(300_000) && /stations relues — box\/claude \(3 cooks au plus.*box\/playwright/.test(runtime.sortie()));
+    await jusqua(() => annoncees().includes("box/playwright:1") && seuils().includes(300_000) && /stations relues — box\/claude \(3 cooks at most.*box\/playwright/.test(runtime.sortie()));
     assert.deepEqual(annoncees(), ["box/claude:1", "box/claude:3", "box/playwright:1"]);
     assert.deepEqual(seuils(), [500_000, 300_000]);
     const vie = relire(repertoire).filter((e) => e.type.startsWith("runtime.") && e.type !== "runtime.ticked");
     assert.deepEqual(vie.map((e) => e.type), ["runtime.started"]);
     assert.equal((vie[0]?.payload as { pid?: number }).pid, runtime.process.pid);
-    assert.match(runtime.sortie(), /stations relues — box\/claude \(3 cooks au plus.*box\/playwright/);
+    assert.match(runtime.sortie(), /stations relues — box\/claude \(3 cooks at most.*box\/playwright/);
   });
 
   test("une variable de décision laissée au drop-in est ignorée dès le démarrage, et dite avec le geste qui la remplace", async (t) => {
@@ -382,9 +382,9 @@ describe("le runtime et les décisions du chef", { concurrency: 4 }, () => {
     await runtime.attendre("démarré");
 
     // Le journal l'emporte : la station est celle du chef, pas celle du drop-in.
-    assert.match(runtime.sortie(), /stations — box\/claude \(1 cooks? au plus/);
-    assert.match(runtime.sortie(), /BRIGADE_STATIONS est ignorée dans l'environnement de l'unité.*`brigade brigade station stations <valeur>`.*retirer `Environment=BRIGADE_STATIONS` du drop-in/);
-    assert.match(runtime.sortie(), /BRIGADE_MANAGER_MODEL est ignorée.*station manager-modele <valeur>/);
+    assert.match(runtime.sortie(), /stations — box\/claude \(1 cooks? at most/);
+    assert.match(runtime.sortie(), /BRIGADE_STATIONS is ignored in the unit's environment.*`brigade brigade station stations <value>`.*remove `Environment=BRIGADE_STATIONS` from the drop-in/);
+    assert.match(runtime.sortie(), /BRIGADE_MANAGER_MODEL is ignored.*station manager-modele <value>/);
   });
 
   test("sans décision au journal, une variable de décision du drop-in ne suffit pas : le runtime refuse de démarrer, et nomme le geste", async (t) => {

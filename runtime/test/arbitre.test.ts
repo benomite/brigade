@@ -176,7 +176,7 @@ describe("l'arbitre", () => {
 
   test("un second arbitre sur le même répertoire est refusé", (t) => {
     const { repertoire } = arbitre(t);
-    assert.throws(() => ouvrirArbitre({ repertoire, plafond: 10 }), /un arbitre tient déjà/);
+    assert.throws(() => ouvrirArbitre({ repertoire, plafond: 10 }), /an arbiter already holds/);
   });
 });
 
@@ -234,7 +234,7 @@ test("l'arbitre lit son répertoire, son port et le plafond du compte dans l'env
   const env = { BRIGADE_ARBITER_STATE_DIR: "/var/lib/brigade/.arbitre", BRIGADE_ARBITER_PORT: "20900", BRIGADE_ARBITER_MAX_COOKS: "30" };
   assert.deepEqual(configArbitre(env), { repertoire: "/var/lib/brigade/.arbitre", port: 20900, plafond: 30 });
   for (const variable of Object.keys(env)) {
-    assert.throws(() => configArbitre({ ...env, [variable]: "" }), new RegExp(`${variable} n'est pas défini`));
+    assert.throws(() => configArbitre({ ...env, [variable]: "" }), new RegExp(`${variable} is not set`));
   }
   assert.throws(() => configArbitre({ ...env, BRIGADE_ARBITER_PORT: "porte" }), /BRIGADE_ARBITER_PORT invalide/);
   for (const illisible of ["0", "beaucoup", "2.5"]) {

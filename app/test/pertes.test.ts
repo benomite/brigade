@@ -35,16 +35,16 @@ const STATION = "box/claude";
 // Une sortie d'`installation`, telle que runtime/src/installation-cli.ts l'écrit : ses constats
 // sur la machine, chacun avec la flèche de son geste et l'étape qu'il nomme, puis le verdict.
 type Constat = { etat: "ok" | "manque" | "note"; texte: string; geste?: string; etape?: string };
-const MARQUES = { ok: "ok", manque: "MANQUE", note: "à savoir" } as const;
+const MARQUES = { ok: "ok", manque: "MISSING", note: "note" } as const;
 function verification(constats: Constat[]): { code: number; sortie: string } {
   const lignes = ["", "Sur la machine"];
   for (const { etat, texte, geste, etape } of constats) {
     lignes.push(`  ${MARQUES[etat].padEnd(10)}${texte}`);
     if (geste !== undefined) lignes.push(`            → ${geste}`);
-    if (etape !== undefined) lignes.push(`            → étape à reprendre : ${nommerEtape(etape)} (${etape})`);
+    if (etape !== undefined) lignes.push(`            → step to resume: ${nommerEtape(etape)} (${etape})`);
   }
   const manques = constats.filter(({ etat }) => etat === "manque").length;
-  lignes.push("", manques === 0 ? "brigade : projet « parade » : prêt — rien ne manque pour lancer un cook" : `brigade : projet « parade » : ${manques} manques : aucun cook ne doit être lancé tant qu'il en reste`);
+  lignes.push("", manques === 0 ? "brigade : project “parade” : ready — nothing is missing to launch a cook" : `brigade : project “parade” : ${manques} missing : no cook must be launched while any is left`);
   return { code: manques === 0 ? 0 : 1, sortie: lignes.join("\n") };
 }
 
