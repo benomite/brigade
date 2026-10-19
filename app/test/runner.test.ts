@@ -11,7 +11,7 @@ import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSy
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { environnementCook as environnementDUnCookDeLaBox, lireFlux, verdict } from "../../runtime/src/claude.ts";
-import type { Mission as MissionDeLaBox, Reponse as ReponseDeLaBox } from "../../runtime/src/evenements/distante.ts";
+import type { Mission as MissionDeLaBox, Reponse as ReponseDeLaBox } from "../../runtime/src/events/remote.ts";
 import { decrireEtat, lireEtat } from "../../runtime/src/etat.ts";
 import { MARQUEUR } from "../../runtime/src/fiche.ts";
 import { etatStation } from "../../runtime/src/projections/stations.ts";

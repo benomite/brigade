@@ -11,7 +11,7 @@ import { posix } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { NON_DIT } from "../src/bac-a-sable/ordinaires.ts";
 import { argumentsClaude } from "../src/claude.ts";
-import type { BacASableDeLaStation, Demande, Mission, Reponse } from "../src/evenements/distante.ts";
+import type { BacASableDeLaStation, Demande, Mission, Reponse } from "../src/events/remote.ts";
 import { faits, lireEtat } from "../src/etat.ts";
 import { MARQUEUR } from "../src/fiche.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";

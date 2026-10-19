@@ -4,7 +4,7 @@
 // rapporte et sur sa propre horloge. Les arrêter, ici, c'est ne plus rien
 // accepter de lui : la station l'apprend à sa demande suivante, et arrête le
 // sien. Mécanique pure : aucun journal ici.
-import type { Plafonds } from "./evenements/garde-fous.ts";
+import type { Plafonds } from "./events/guardrails.ts";
 import { depassement, type Arret, type Fin, type Supervise } from "./superviseur.ts";
 
 export type Mesure = { turns: number; tokens: number };

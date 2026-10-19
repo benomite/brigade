@@ -4,7 +4,7 @@
 // mémoire — et que le chef lit pourquoi.
 import type { Base } from "../base.ts";
 import type { Calibrage } from "../calibrage.ts";
-import type { ChoixDeReaction, FaitReaction } from "../evenements/manager.ts";
+import type { ChoixDeReaction, FaitReaction } from "../events/manager.ts";
 import { definirProjection } from "../projection.ts";
 
 export type ReactionDeTicket = {

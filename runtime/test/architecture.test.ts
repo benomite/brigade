@@ -42,7 +42,7 @@ const VERS = {
   "servir.ts": "le serveur d'une livraison d'interface, sur 127.0.0.1",
 };
 // Ce qui sert les stations distantes, côté box.
-const DISTANTES = ["distantes.ts", "tirer.ts", "tirer-cli.ts", "superviseur-distant.ts", "evenements/distante.ts"];
+const DISTANTES = ["distantes.ts", "tirer.ts", "tirer-cli.ts", "superviseur-distant.ts", "events/remote.ts"];
 
 test("la déclaration d'une station distante ne porte aucune adresse : la box ne sait pas où elle est, elle ne peut donc pas la joindre", () => {
   const [distante] = lireStations({ BRIGADE_STATIONS: "mac/claude:1:chrome-connecté:distante" });

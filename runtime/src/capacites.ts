@@ -9,7 +9,7 @@
 // rien ici ne lit ni n'écrit. Ce n'est pas non plus une spécialité : seul ce
 // qu'un ticket demande écarte une station, jamais ce qu'elle fournit en plus
 // ou à côté — un ticket qui ne demande rien part dans n'importe laquelle.
-import { SANS_STATION, STATION_ABSENTE } from "./evenements/rail.ts";
+import { SANS_STATION, STATION_ABSENTE } from "./events/rail.ts";
 
 // Un nom de capacité : le runtime n'en reconnaît aucun, il les compare.
 export const CAPACITE = /^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u;

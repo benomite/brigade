@@ -8,7 +8,7 @@ import { principal } from "../src/attente-cli.ts";
 import { cestArrive, LABEL_WAITING, lireRelance, marquerAttentes, mettreEnAttente, ramenerSurNouveau, RELANCE_PAR_DEFAUT_MS, reprendre } from "../src/attente.ts";
 import { attentesDuChef, decrireAttentes } from "../src/attend.ts";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
-import { ATTEND_UN_TIERS, REVENU_D_ATTENTE } from "../src/evenements/rail.ts";
+import { ATTEND_UN_TIERS, REVENU_D_ATTENTE } from "../src/events/rail.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
 import { etatLu, GesteRefuse, ouvrirRail } from "../src/rail.ts";

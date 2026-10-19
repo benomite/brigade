@@ -6,11 +6,11 @@ import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
-import type { Seuils } from "../src/evenements/derive.ts";
+import type { Seuils } from "../src/events/drift.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { principal as status } from "../src/status.ts";
 import { decrireReleve, direJauge, franchis, jauger, SANS_SEUIL, trancher } from "../src/mesures.ts";
-import { livraisonsMergees, seuilsEnVigueur, signalements, type Livraison } from "../src/projections/mesures.ts";
+import { livraisonsMergees, seuilsEnVigueur, signalements, type Livraison } from "../src/projections/measures.ts";
 import { appeler, horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
 
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };

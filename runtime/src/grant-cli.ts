@@ -17,7 +17,7 @@
 import { existsSync } from "node:fs";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
-import type { ActionDeGrant } from "./evenements/pass.ts";
+import type { ActionDeGrant } from "./events/pass.ts";
 import { direSansGrantEn } from "./attend.ts";
 import { dureeEn as duree } from "./etat.ts";
 import { ACTIONS, commanderGrant, COMMANDES, direCompris, direGrant, gestesDuGrant, GrantRefuse, JAMAIS_ACCORDEES, jamaisAccordee, lireEcheance, refuserJamaisAccordee, type Commande } from "./grant.ts";

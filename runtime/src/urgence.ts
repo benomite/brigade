@@ -28,7 +28,7 @@ import type { Base } from "./base.ts";
 import { nommerAttente, type Attente } from "./attend.ts";
 import { fournitTout } from "./capacites.ts";
 import { illisible, requises } from "./fiche.ts";
-import { cooksEnCours } from "./projections/garde-fous.ts";
+import { cooksEnCours } from "./projections/guardrails.ts";
 import type { TicketRail } from "./projections/rail.ts";
 import type { EtatStation } from "./projections/stations.ts";
 

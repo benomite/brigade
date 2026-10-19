@@ -8,9 +8,9 @@
 // c'est le runtime qui les tient.
 import type { Base } from "../base.ts";
 import { commentLeVoirEn, pageDeLEcran, type EcranARegarder } from "../ecran.ts";
-import type { FaitRuntime } from "../evenements/runtime.ts";
-import type { EcranDuServeur, FaitService } from "../evenements/service.ts";
-import type { FaitStation } from "../evenements/station.ts";
+import type { FaitRuntime } from "../events/runtime.ts";
+import type { EcranDuServeur, FaitService } from "../events/service.ts";
+import type { FaitStation } from "../events/station.ts";
 import { definirProjection } from "../projection.ts";
 
 // `starting` : la commande est lancée, son port ne répond pas encore.

@@ -9,7 +9,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
-import { PREAVIS_DU_JETON_JOURS, VIE_DU_JETON_JOURS } from "../src/evenements/jeton.ts";
+import { PREAVIS_DU_JETON_JOURS, VIE_DU_JETON_JOURS } from "../src/events/token.ts";
 import { brancherJeton, fichierDeCreation, lireCreation } from "../src/jeton-claude.ts";
 import { demarrer, type CauseReveil } from "../src/runtime.ts";
 import { repertoireTemporaire } from "./outils.ts";

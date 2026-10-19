@@ -19,8 +19,8 @@ import { direBaseRougeEn, direControleRetenuEn, direPanneEn } from "./dire-base.
 import { direSansGrantEn } from "./attend.ts";
 import type { Evenement } from "./evenements.ts";
 import type { Resultat } from "./geste-ticket.ts";
-import type { ChoixDeReaction } from "./evenements/manager.ts";
-import { DIRE_GATES_COUPEES_EN, GATES_COUPEES, motifDArret, motifDeRemontee, type CI, type Finding, type Gates, type Review } from "./evenements/pass.ts";
+import type { ChoixDeReaction } from "./events/manager.ts";
+import { DIRE_GATES_COUPEES_EN, GATES_COUPEES, motifDArret, motifDeRemontee, type CI, type Finding, type Gates, type Review } from "./events/pass.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";
 import { ouvrirGitHub } from "./github.ts";
 import { histoireDuTicket } from "./histoire-ticket.ts";

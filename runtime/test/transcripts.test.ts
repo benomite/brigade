@@ -8,7 +8,7 @@ import { dirname, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../src/journal.ts";
 import { configTranscripts, ouvrirNettoyage } from "../src/nettoyage.ts";
-import { rangementDesTranscripts } from "../src/projections/nettoyage.ts";
+import { rangementDesTranscripts } from "../src/projections/cleanup.ts";
 import { JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };

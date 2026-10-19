@@ -2,7 +2,7 @@
 // (docs/glossary.md) : sa décision, et, pour une issue écartée, pourquoi et le
 // geste qui lève l'écart. Lu par
 // `manager` (manager-cli.ts) et par ce qui se dit en amont du rail (amont.ts).
-import { commandeRendre, NOMS_DE_NATURE_EN, type Ecart, type Nature } from "./evenements/manager.ts";
+import { commandeRendre, NOMS_DE_NATURE_EN, type Ecart, type Nature } from "./events/manager.ts";
 import type { IssueDuManager } from "./projections/manager.ts";
 
 export function decrire(issue: IssueDuManager): string {

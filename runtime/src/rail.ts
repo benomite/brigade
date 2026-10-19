@@ -2,11 +2,11 @@
 // et le faire avancer jusqu'au service. Chaque geste vérifie puis écrit dans
 // une seule transaction d'écriture : deux gestes concurrents se suivent, ils ne
 // se croisent pas.
-import { BAIL_ECHU, FIN_DE_86, motifDeRelance, type FaitRail } from "./evenements/rail.ts";
+import { BAIL_ECHU, FIN_DE_86, motifDeRelance, type FaitRail } from "./events/rail.ts";
 import { fournitTout } from "./capacites.ts";
 import { illisible, requises } from "./fiche.ts";
 import type { Journal } from "./journal.ts";
-import { cooksEnCours } from "./projections/garde-fous.ts";
+import { cooksEnCours } from "./projections/guardrails.ts";
 import { communsDuRail, lireRail, ticketDuRail, type Etat, type TicketRail } from "./projections/rail.ts";
 import { recouvrement } from "./zones.ts";
 

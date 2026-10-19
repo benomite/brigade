@@ -1,0 +1,191 @@
+// Ce que le journal sait de la lourdeur du projet, livraison mergée par
+// livraison mergée : les mesures que ses gates ont déclarées, et ce que ses
+// cooks ont consommé. S'y ajoutent les seuils du chef et les franchissements
+// déjà signalés. Rien n'est relevé à part : tout vient des faits de la pass et
+// des garde-fous.
+import type { Base } from "../base.ts";
+import type { Fait } from "../evenements.ts";
+import type { Seuils } from "../events/drift.ts";
+import type { Depassement, Gates } from "../events/pass.ts";
+import { definirProjection } from "../projection.ts";
+
+type Ecoutes = Extract<
+  Fait,
+  { type: "pass.judged" | "pass.replayed" | "merge.done" | "cook.launched" | "cook.exited" | "drift.configured" | "drift.crossed" | "drift.cleared" }
+>;
+
+// Un cook de ticket. `calibration` : `<modèle>/<effort>`, ou null pour un cook
+// lancé sans calibrage connu. `turns`, `durationMs` : nuls tant qu'il tourne,
+// ou s'il est mort avec le runtime. `tokens` : ce que ce cook a consommé, nul
+// de même. `delivered` : il a livré — son `cook.exited` dit `ok`, la fin que
+// sa station donne au cook dont elle envoie le travail en pass. Faux pour
+// toute autre fin, tant qu'il tourne, ou s'il est mort avec le runtime.
+// `resumed` : le cook d'un renvoi qui a repris la session du cook précédent
+// au lieu de repartir de zéro (`resumes` à son lancement) — absent sinon.
+export type CookMesure = { calibration: string | null; turns: number | null; durationMs: number | null; tokens: number | null; delivered: boolean; resumed?: true };
+
+// Une livraison mergée. `measures` : ce que ses dernières gates ont déclaré.
+// `state` : celles de ces mesures qui disent l'état du projet après son merge —
+// toutes, sauf quand ses gates ont été jouées avant celles d'une livraison
+// mergée plus tôt : une livraison jugée, mise en attente, puis mergée à la
+// main derrière une autre ne sait rien de ce que l'autre a ajouté, et ne
+// conclut pas. `gatesS` : la durée de toutes ses gates, renvois et rejugements
+// compris, ou null si aucune ne l'a déclarée. `overCeiling` : le plafond de
+// durée que ses dernières gates ont franchi, sans que la pass le juge — absent
+// si elles ne l'ont pas franchi.
+export type Livraison = {
+  ticket: number | null;
+  at: string;
+  measures: Record<string, number>;
+  state: Record<string, number>;
+  gatesS: number | null;
+  cooks: CookMesure[];
+  overCeiling?: Depassement;
+};
+
+// Les stations sous lesquelles la pass et le manager lancent leurs cooks : ni
+// une relecture ni un jugement ne cuisine un ticket.
+const HORS_TICKET = ["reviewer", "manager"];
+
+// Chaque passage de gates d'un ticket, qu'il ait déclaré des mesures ou non :
+// le dernier dit si la livraison franchit son plafond de durée.
+const noterGates = (base: Base, seq: number, ticket: number | null, gates: Gates | undefined) => {
+  if (ticket === null) return;
+  const { measures, overCeiling } = gates ?? {};
+  const dire = (valeur: unknown) => (valeur === undefined ? null : JSON.stringify(valeur));
+  base.executer("INSERT INTO measured_gates (seq, ticket, measures, over_ceiling) VALUES (?, ?, ?, ?)", seq, ticket, dire(measures), dire(overCeiling));
+};
+
+export const mesures = definirProjection<Ecoutes>({
+  nom: "mesures",
+  tables: ["measured_gates", "measured_cooks", "measured_merges", "drift_limits", "drift_flags"],
+  schema: `
+    CREATE TABLE IF NOT EXISTS measured_gates (
+      seq      INTEGER PRIMARY KEY,
+      ticket   INTEGER NOT NULL,
+      measures TEXT,
+      over_ceiling TEXT
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS measured_cooks (
+      run          TEXT PRIMARY KEY,
+      ticket       INTEGER NOT NULL,
+      launched_seq INTEGER NOT NULL,
+      calibration  TEXT,
+      turns        INTEGER,
+      duration_ms  INTEGER,
+      tokens       INTEGER,
+      delivered    INTEGER NOT NULL DEFAULT 0,
+      resumed      INTEGER NOT NULL DEFAULT 0
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS measured_merges (
+      seq    INTEGER PRIMARY KEY,
+      ticket INTEGER,
+      at     TEXT NOT NULL
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS drift_limits (
+      id     INTEGER PRIMARY KEY CHECK (id = 1),
+      limits TEXT NOT NULL
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS drift_flags (
+      measure TEXT PRIMARY KEY
+    ) STRICT;
+  `,
+  sur: {
+    "pass.judged": (base, evenement) => noterGates(base, evenement.seq, evenement.ticket, evenement.payload.gates),
+    "pass.replayed": (base, evenement) => noterGates(base, evenement.seq, evenement.ticket, evenement.payload.gates),
+    "merge.done": (base, evenement) => {
+      base.executer("INSERT INTO measured_merges (seq, ticket, at) VALUES (?, ?, ?)", evenement.seq, evenement.ticket, evenement.at);
+    },
+    "cook.launched": (base, evenement) => {
+      const { run, station, model, effort, resumes } = evenement.payload;
+      if (evenement.ticket === null || (station !== undefined && HORS_TICKET.includes(station))) return;
+      base.executer(
+        "INSERT INTO measured_cooks (run, ticket, launched_seq, calibration, resumed) VALUES (?, ?, ?, ?, ?)",
+        run,
+        evenement.ticket,
+        evenement.seq,
+        model === undefined || effort === undefined ? null : `${model}/${effort}`,
+        typeof resumes === "object" && resumes !== null ? 1 : 0,
+      );
+    },
+    "cook.exited": (base, evenement) => {
+      const { run, outcome, turns, durationMs, tokens } = evenement.payload;
+      const entier = (valeur: unknown) => (Number.isSafeInteger(valeur) ? (valeur as number) : null);
+      base.executer(
+        "UPDATE measured_cooks SET turns = ?, duration_ms = ?, tokens = ?, delivered = ? WHERE run = ?",
+        entier(turns),
+        entier(durationMs),
+        entier(tokens),
+        outcome === "ok" ? 1 : 0,
+        run,
+      );
+    },
+    "drift.configured": (base, evenement) => {
+      base.executer("INSERT OR REPLACE INTO drift_limits (id, limits) VALUES (1, ?)", JSON.stringify(evenement.payload.limits));
+    },
+    "drift.crossed": (base, evenement) => {
+      base.executer("INSERT OR IGNORE INTO drift_flags (measure) VALUES (?)", evenement.payload.measure);
+    },
+    "drift.cleared": (base, evenement) => {
+      base.executer("DELETE FROM drift_flags WHERE measure = ?", evenement.payload.measure);
+    },
+  },
+});
+
+// Les livraisons mergées, dans l'ordre de leur merge. À chacune reviennent les
+// gates et les cooks de son ticket depuis le merge précédent de ce même
+// ticket : un ticket servi deux fois fait deux livraisons.
+export function livraisonsMergees(base: Base): Livraison[] {
+  const gates = base.lire<{ seq: number; ticket: number; measures: string | null; franchi: string | null }>(
+    "SELECT seq, ticket, measures, over_ceiling AS franchi FROM measured_gates ORDER BY seq",
+  );
+  const cooks = base.lire<{ ticket: number; seq: number; calibration: string | null; turns: number | null; durationMs: number | null; tokens: number | null; delivered: number; resumed: number }>(
+    "SELECT ticket, launched_seq AS seq, calibration, turns, duration_ms AS durationMs, tokens, delivered, resumed FROM measured_cooks ORDER BY launched_seq",
+  );
+  const precedents = new Map<number, number>();
+  // Par mesure, le passage de gates le plus récent qui l'a déclarée parmi les
+  // livraisons déjà mergées.
+  const connues = new Map<string, number>();
+  return base.lire<{ seq: number; ticket: number | null; at: string }>("SELECT seq, ticket, at FROM measured_merges ORDER BY seq").map((merge) => {
+    const depuis = merge.ticket === null ? 0 : (precedents.get(merge.ticket) ?? 0);
+    if (merge.ticket !== null) precedents.set(merge.ticket, merge.seq);
+    const siennes = <L extends { ticket: number; seq: number }>(lignes: L[]) =>
+      lignes.filter((ligne) => ligne.ticket === merge.ticket && ligne.seq > depuis && ligne.seq < merge.seq);
+    const jouees = siennes(gates);
+    const franchi = jouees.at(-1)?.franchi ?? null;
+    const passages = jouees.filter((ligne) => ligne.measures !== null);
+    const declarees = passages.map((ligne) => JSON.parse(ligne.measures ?? "{}") as Record<string, number>);
+    const durees = declarees.flatMap((declare) => (declare.gates_s === undefined ? [] : [declare.gates_s]));
+    const measures = declarees.at(-1) ?? {};
+    const dernieres = passages.at(-1)?.seq ?? 0;
+    const state = Object.fromEntries(Object.entries(measures).filter(([nom]) => dernieres > (connues.get(nom) ?? 0)));
+    for (const nom of Object.keys(state)) connues.set(nom, dernieres);
+    return {
+      ticket: merge.ticket,
+      at: merge.at,
+      measures,
+      state,
+      gatesS: durees.length === 0 ? null : durees.reduce((somme, duree) => somme + duree, 0),
+      cooks: siennes(cooks).map(({ calibration, turns, durationMs, tokens, delivered, resumed }) => ({
+        calibration,
+        turns,
+        durationMs,
+        tokens,
+        delivered: delivered === 1,
+        ...(resumed === 1 ? { resumed: true as const } : {}),
+      })),
+      ...(franchi === null ? {} : { overCeiling: JSON.parse(franchi) as Depassement }),
+    };
+  });
+}
+
+// Les seuils déclarés, ou null tant qu'aucun runtime n'a démarré avec eux.
+export function seuilsEnVigueur(base: Base): Seuils | null {
+  const ligne = base.lire<{ limits: string }>("SELECT limits FROM drift_limits WHERE id = 1")[0];
+  return ligne ? JSON.parse(ligne.limits) : null;
+}
+
+// Les mesures dont le franchissement a été signalé, et qui n'en sont pas revenues.
+export function signalements(base: Base): string[] {
+  return base.lire<{ measure: string }>("SELECT measure FROM drift_flags ORDER BY measure").map(({ measure }) => measure);
+}

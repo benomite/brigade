@@ -2,9 +2,9 @@
 // côte à côte par tranches, la pente de chaque mesure, et les seuils qu'elle
 // franchit. Des fonctions sans effet : tout leur vient des projections, rien
 // n'est mesuré ici ni gardé ailleurs.
-import type { Seuils } from "./evenements/derive.ts";
+import type { Seuils } from "./events/drift.ts";
 import { geste } from "./geste.ts";
-import type { CookMesure, Livraison } from "./projections/mesures.ts";
+import type { CookMesure, Livraison } from "./projections/measures.ts";
 
 // Le nombre de merges d'une tranche, faute d'option.
 export const PAR_DEFAUT = 10;

@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { SANS_SEUIL, decrireReleve, jauger } from "../src/mesures.ts";
-import type { CookMesure, Livraison } from "../src/projections/mesures.ts";
+import type { CookMesure, Livraison } from "../src/projections/measures.ts";
 import { JOUR_HORLOGE } from "./outils.ts";
 
 const cook = (tokens: number, delivered: boolean, resumed = false): CookMesure => ({ calibration: "sonnet/medium", turns: 5, durationMs: 1000, tokens, delivered, ...(resumed ? { resumed: true as const } : {}) });

@@ -3,7 +3,7 @@
 // la base concernée, passe devant tout le rail (`prio:0`), et part sans geste
 // du chef : il porte `fire` et son calibrage. Seul de tout le rail, il part
 // d'une base rouge, et la pass le juge et le merge malgré elle.
-import type { Gates } from "./evenements/pass.ts";
+import type { Gates } from "./events/pass.ts";
 import { LABEL } from "./github.ts";
 
 // La priorité qui passe devant toutes les autres : celle de la réparation.

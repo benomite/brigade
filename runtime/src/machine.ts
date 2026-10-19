@@ -4,7 +4,7 @@
 // très haut, ou absent.
 import { statfsSync } from "node:fs";
 import { availableParallelism, loadavg } from "node:os";
-import type { Ressource } from "./evenements/station.ts";
+import type { Ressource } from "./events/station.ts";
 import { lire } from "./plafonds.ts";
 
 const MO = 1024 * 1024;

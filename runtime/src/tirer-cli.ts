@@ -21,7 +21,7 @@
 // cook est à arrêter ; 2, le geste est mal écrit ; 3, la box n'a pas répondu.
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
-import type { BacASableDeLaStation, Demande } from "./evenements/distante.ts";
+import type { BacASableDeLaStation, Demande } from "./events/remote.ts";
 import { demander, SansReponse, type OptionsDeDemande } from "./tirer.ts";
 
 const USAGE = [

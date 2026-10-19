@@ -16,7 +16,7 @@
 import { existsSync } from "node:fs";
 import { Sortie, type Appel } from "./appel.ts";
 import { DERNIERE, ETAPES, estUneEtape, installationDe, noterEtape, terminer, type Installation } from "./etapes.ts";
-import type { EtatDEtape } from "./evenements/installation.ts";
+import type { EtatDEtape } from "./events/installation.ts";
 import { etapesAReprendre, verifier, type Constat } from "./installation.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 

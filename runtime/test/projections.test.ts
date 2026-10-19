@@ -3,12 +3,12 @@ import { test } from "node:test";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { definirProjection } from "../src/projection.ts";
 import { PROJECTIONS } from "../src/projections.ts";
-import { activitesDesCooksEnCours, cooksEnCours, derniersCooks, mesuresDesCooksEnCours } from "../src/projections/garde-fous.ts";
+import { activitesDesCooksEnCours, cooksEnCours, derniersCooks, mesuresDesCooksEnCours } from "../src/projections/guardrails.ts";
 import { dernierTick, derniereSession, sessionEnCours, sessions } from "../src/projections/sessions.ts";
 import { ouvrirRail } from "../src/rail.ts";
 import type { Fait } from "../src/evenements.ts";
-import type { FaitGardeFous } from "../src/evenements/garde-fous.ts";
-import type { FaitRuntime } from "../src/evenements/runtime.ts";
+import type { FaitGardeFous } from "../src/events/guardrails.ts";
+import type { FaitRuntime } from "../src/events/runtime.ts";
 import { faitInconnu, horloge, photographier, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const demarrage = (pid: number) =>

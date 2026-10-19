@@ -3,10 +3,10 @@
 // demande. Mécanique, pas jugement : rien n'est arrêté ni rangé.
 import type { Fait } from "./evenements.ts";
 import { geste } from "./geste.ts";
-import type { Seuils } from "./evenements/derive.ts";
+import type { Seuils } from "./events/drift.ts";
 import { direJauge, franchis, SANS_SEUIL } from "./mesures.ts";
 import { lire } from "./plafonds.ts";
-import { livraisonsMergees, seuilsEnVigueur, signalements } from "./projections/mesures.ts";
+import { livraisonsMergees, seuilsEnVigueur, signalements } from "./projections/measures.ts";
 import type { Runtime } from "./runtime.ts";
 
 const AUTEUR = "runtime";

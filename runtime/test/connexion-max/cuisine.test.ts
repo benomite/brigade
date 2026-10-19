@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { brancherConnexionMax } from "../../src/connexion-max/cuisine.ts";
 import { configVeille, RELECTURE_MS, veillerConnexionMax } from "../../src/connexion-max/veille.ts";
-import { etatDesGardeFous } from "../../src/projections/garde-fous.ts";
+import { etatDesGardeFous } from "../../src/projections/guardrails.ts";
 import { etatStation } from "../../src/projections/stations.ts";
 import { chef, cuisine, issue, STATION } from "../aides/cuisine.ts";
 import { aArreter, jusqua, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";

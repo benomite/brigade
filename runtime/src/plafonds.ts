@@ -1,7 +1,7 @@
 // Les réglages des garde-fous : des valeurs par défaut fixées par le chef, que
 // l'environnement du runtime (l'unité systemd) peut ajuster. Les mêmes pour
 // tous les tickets d'un projet.
-import type { Plafonds } from "./evenements/garde-fous.ts";
+import type { Plafonds } from "./events/guardrails.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
 export type Reglages = {

@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { argumentsClaude } from "../src/claude.ts";
 import { decrireReleve, trancher } from "../src/mesures.ts";
-import { livraisonsMergees } from "../src/projections/mesures.ts";
+import { livraisonsMergees } from "../src/projections/measures.ts";
 import { dossierDuProjet, preparerReprise, sessionDuFlux } from "../src/reprise-de-session.ts";
 import { chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
 import { jusqua, repertoireTemporaire } from "./outils.ts";

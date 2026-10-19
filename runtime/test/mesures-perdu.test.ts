@@ -4,10 +4,10 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
-import type { Issue } from "../src/evenements/garde-fous.ts";
+import type { Issue } from "../src/events/guardrails.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { decrireReleve, trancher } from "../src/mesures.ts";
-import { livraisonsMergees, type CookMesure, type Livraison } from "../src/projections/mesures.ts";
+import { livraisonsMergees, type CookMesure, type Livraison } from "../src/projections/measures.ts";
 import { horloge, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };

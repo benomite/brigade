@@ -6,10 +6,10 @@
 // table après 15 h, c'est le lecteur qui compare à l'heure qu'il est.
 import type { Base } from "../base.ts";
 import { geste } from "../geste.ts";
-import type { FaitDistante } from "../evenements/distante.ts";
-import type { FaitGardeFous } from "../evenements/garde-fous.ts";
-import type { FaitRenouvellement } from "../evenements/renouvellement.ts";
-import type { FaitStation, Ressource, Retenue } from "../evenements/station.ts";
+import type { FaitDistante } from "../events/remote.ts";
+import type { FaitGardeFous } from "../events/guardrails.ts";
+import type { FaitRenouvellement } from "../events/renewal.ts";
+import type { FaitStation, Ressource, Retenue } from "../events/station.ts";
 import { definirProjection } from "../projection.ts";
 
 export type EtatStation = {

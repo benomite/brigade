@@ -7,7 +7,7 @@
 // encore, en disant le nouveau (`commandes.ts`).
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
-import { BATTEMENT } from "./evenements/runtime.ts";
+import { BATTEMENT } from "./events/runtime.ts";
 import { ouvrirJournal } from "./journal.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
 

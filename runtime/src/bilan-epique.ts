@@ -3,7 +3,7 @@
 // du rail. Lecture du journal seule.
 import type { Base } from "./base.ts";
 import { nomAbandon, nomAbandonEn } from "./rail.ts";
-import { decoupageDe, ticketsDEpique } from "./projections/decoupages.ts";
+import { decoupageDe, ticketsDEpique } from "./projections/splits.ts";
 import { sortDuTicket } from "./projections/rail.ts";
 
 export type BilanDEpique = {

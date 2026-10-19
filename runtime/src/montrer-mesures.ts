@@ -10,7 +10,7 @@ import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { decrireReleve, PAR_DEFAUT } from "./mesures.ts";
 import { decrireCauses, mesurerCauses } from "./causes-des-ratages.ts";
 import { parcoursDesTickets } from "./parcours-des-tickets.ts";
-import { livraisonsMergees, seuilsEnVigueur } from "./projections/mesures.ts";
+import { livraisonsMergees, seuilsEnVigueur } from "./projections/measures.ts";
 import { decrireRenvois, DERNIERS_PAR_DEFAUT, mesurerRenvois } from "./renvois.ts";
 
 const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run measures -- [--by <number of merges>] [--last <number of tickets>]";

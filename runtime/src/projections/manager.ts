@@ -2,7 +2,7 @@
 // regardée. C'est ici qu'il lit, à chaque réveil, ce qu'il a déjà décidé — il
 // ne garde rien en mémoire — et que le chef lit pourquoi.
 import type { Base } from "../base.ts";
-import type { FaitManager, FaitReaction, Nature } from "../evenements/manager.ts";
+import type { FaitManager, FaitReaction, Nature } from "../events/manager.ts";
 import { definirProjection } from "../projection.ts";
 
 export type EtatManager = { active: boolean; since: string; by: string };

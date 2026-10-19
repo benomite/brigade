@@ -4,7 +4,7 @@
 // mal écrite, ou restée sans réponse.
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
-import type { Reponse } from "../src/evenements/distante.ts";
+import type { Reponse } from "../src/events/remote.ts";
 import { MARQUEUR } from "../src/fiche.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { lireStations } from "../src/stations-declarees.ts";

@@ -4,8 +4,8 @@
 // rien n'en sort que la nature du geste et ce qu'il vise.
 import { nommer } from "./activite.ts";
 import type { Base } from "./base.ts";
-import { DIRE_GATES_COUPEES, GATES_COUPEES } from "./evenements/pass.ts";
-import { dernierRunNomme, derniersCooks, type DernierCook } from "./projections/garde-fous.ts";
+import { DIRE_GATES_COUPEES, GATES_COUPEES } from "./events/pass.ts";
+import { dernierRunNomme, derniersCooks, type DernierCook } from "./projections/guardrails.ts";
 import type { PassDeTicket } from "./projections/pass.ts";
 import { lirePass } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";

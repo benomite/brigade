@@ -3,7 +3,7 @@
 // la dérive et les transcripts peuvent dire. Chaque ligne du bas de `status` y paraît au moins une fois.
 import type { TestContext } from "node:test";
 import type { Fait } from "../../src/evenements.ts";
-import type { EcranDuServeur } from "../../src/evenements/service.ts";
+import type { EcranDuServeur } from "../../src/events/service.ts";
 import { etatDAvant, exemple, STATION } from "./haut-de-status.ts";
 
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };

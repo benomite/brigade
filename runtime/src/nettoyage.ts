@@ -16,11 +16,11 @@
 // est touché.
 import { resolve } from "node:path";
 import type { Depot } from "./depot.ts";
-import type { FaitNettoyage } from "./evenements/nettoyage.ts";
+import type { FaitNettoyage } from "./events/cleanup.ts";
 import type { Journal } from "./journal.ts";
 import { lire } from "./plafonds.ts";
-import { cooksEnCours } from "./projections/garde-fous.ts";
-import { rangementDesTranscripts } from "./projections/nettoyage.ts";
+import { cooksEnCours } from "./projections/guardrails.ts";
+import { rangementDesTranscripts } from "./projections/cleanup.ts";
 import { derniereSession } from "./projections/sessions.ts";
 import { lireTranscripts, retirerDossierVide, retirerTranscript } from "./transcripts.ts";
 

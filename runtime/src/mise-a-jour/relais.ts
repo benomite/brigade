@@ -7,7 +7,7 @@ import { statSync } from "node:fs";
 import { join } from "node:path";
 import type { Base } from "../base.ts";
 import type { Fait } from "../evenements.ts";
-import type { FaitMiseAJour } from "../evenements/mise-a-jour.ts";
+import type { FaitMiseAJour } from "../events/update.ts";
 import type { Runtime } from "../runtime.ts";
 import { direIssueEn } from "./dire.ts";
 import { ISSUES, lireIssues, type Issue } from "./etat.ts";

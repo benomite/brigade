@@ -23,7 +23,7 @@ import { existsSync } from "node:fs";
 import { connect } from "node:net";
 import { envelopper, type Cloison } from "./cloison.ts";
 import { commentLeVoir, ecranDeLaLivraison } from "./ecran.ts";
-import type { FaitService, FinDeService } from "./evenements/service.ts";
+import type { FaitService, FinDeService } from "./events/service.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 import type { Journal } from "./journal.ts";
 import { servicesIndisponibles } from "./projections/service.ts";

@@ -2,10 +2,10 @@
 // des gates rouges, un GitHub de test, et un faux `claude` pour ses choix.
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
-import { REDECOUPE } from "../src/evenements/rail.ts";
+import { REDECOUPE } from "../src/events/rail.ts";
 import { MARQUEUR } from "../src/fiche.ts";
 import { MARQUEUR_MANAGER } from "../src/juger.ts";
-import { etatDesGardeFous } from "../src/projections/garde-fous.ts";
+import { etatDesGardeFous } from "../src/projections/guardrails.ts";
 import { passDuTicket } from "../src/projections/pass.ts";
 import { reactionDe } from "../src/projections/reactions.ts";
 import { chef, cuisine, issue, STATION, type Options } from "./aides/cuisine.ts";

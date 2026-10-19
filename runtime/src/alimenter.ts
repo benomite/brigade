@@ -8,7 +8,7 @@ import { cycles, direCycle, signalerBlocages } from "./dependances.ts";
 import { fiche, porteFiche, type Fiche } from "./fiche.ts";
 import { HORS_CUISINE, LABEL, ouvrirGitHub, type GitHub, type Issue } from "./github.ts";
 import { LimiteGitHubAtteinte } from "./limite-github.ts";
-import type { FaitRail } from "./evenements/rail.ts";
+import type { FaitRail } from "./events/rail.ts";
 import type { Journal } from "./journal.ts";
 import { communsDuRail, lireRail, sortDuTicket, ticketDuRail } from "./projections/rail.ts";
 import { ouvrirRail, type Rail } from "./rail.ts";

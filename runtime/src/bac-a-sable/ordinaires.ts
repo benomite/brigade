@@ -13,7 +13,7 @@
 //
 // Pur : rien n'est lu ni écrit ici.
 import { posix } from "node:path";
-import type { BacASableDeLaStation } from "../evenements/distante.ts";
+import type { BacASableDeLaStation } from "../events/remote.ts";
 import type { Regle } from "../reseau.ts";
 import { argumentsDuBacASable, BacASableInvalide, configurer, type ConfigDeBacASable } from "./configuration.ts";
 import type { Detection } from "./detection.ts";

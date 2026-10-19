@@ -250,7 +250,7 @@ fichier : la nature et le détail y sont, sans rien de la valeur.
 ### L'échéance du jeton longue durée
 
 Le jeton que `claude setup-token` a créé à l'installation (`BRIGADE_CLAUDE_TOKEN_FILE`) **vit un
-an** (365 jours, `VIE_DU_JETON_JOURS` dans `runtime/src/evenements/jeton.ts`, le seul endroit qui
+an** (365 jours, `VIE_DU_JETON_JOURS` dans `runtime/src/events/token.ts`, le seul endroit qui
 le sait). L'étape de connexion Max range la date de sa création à côté de lui
 (`<fichier>.cree`, par exemple `/etc/brigade/claude-token.cree`) — une date ISO 8601, sans le
 jeton. Le runtime la relit au démarrage puis à chaque tick, et n'écrit au journal que ce qui

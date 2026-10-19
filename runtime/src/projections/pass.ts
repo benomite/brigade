@@ -4,10 +4,10 @@
 // cours se retrouve après un redémarrage — et que le chef lit « pourquoi ce
 // code est-il sur la base ? ».
 import type { Base } from "../base.ts";
-import type { FaitGardeFous } from "../evenements/garde-fous.ts";
-import { motifDArret, motifDeRemontee, SANS_GRANT, type ActionDeGrant, type CauseDExtinction, type FaitPass, type Finding, type Gates, type Verdict } from "../evenements/pass.ts";
-import type { FaitRail } from "../evenements/rail.ts";
-import type { FaitStation } from "../evenements/station.ts";
+import type { FaitGardeFous } from "../events/guardrails.ts";
+import { motifDArret, motifDeRemontee, SANS_GRANT, type ActionDeGrant, type CauseDExtinction, type FaitPass, type Finding, type Gates, type Verdict } from "../events/pass.ts";
+import type { FaitRail } from "../events/rail.ts";
+import type { FaitStation } from "../events/station.ts";
 import { definirProjection } from "../projection.ts";
 
 // `cooking` : un cook travaille. `delivered` : il a livré, rien n'est jugé.

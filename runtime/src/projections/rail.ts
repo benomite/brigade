@@ -11,9 +11,9 @@
 // besoin d'être sur le rail pour qu'on sache s'il a été servi.
 import type { Base } from "../base.ts";
 import type { Evenement } from "../evenements.ts";
-import type { FaitGardeFous } from "../evenements/garde-fous.ts";
-import { NON_JUGEE, type FaitPass, type Finding } from "../evenements/pass.ts";
-import { ATTEND_UN_TIERS, REDECOUPE, REVENU_D_ATTENTE, SANS_STATION, type FaitRail } from "../evenements/rail.ts";
+import type { FaitGardeFous } from "../events/guardrails.ts";
+import { NON_JUGEE, type FaitPass, type Finding } from "../events/pass.ts";
+import { ATTEND_UN_TIERS, REDECOUPE, REVENU_D_ATTENTE, SANS_STATION, type FaitRail } from "../events/rail.ts";
 import type { Fiche } from "../fiche.ts";
 import { definirProjection } from "../projection.ts";
 import { recouvrement } from "../zones.ts";

@@ -10,9 +10,9 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import type { BacASableDeLaStation, Demande, Mission, Reponse } from "../src/evenements/distante.ts";
+import type { BacASableDeLaStation, Demande, Mission, Reponse } from "../src/events/remote.ts";
 import type { Machine } from "../src/machine.ts";
-import { cooksEnCours } from "../src/projections/garde-fous.ts";
+import { cooksEnCours } from "../src/projections/guardrails.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { lireStations } from "../src/stations-declarees.ts";
 import { demander } from "../src/tirer.ts";

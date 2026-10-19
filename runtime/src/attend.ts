@@ -36,26 +36,26 @@
 import type { Base } from "./base.ts";
 import { geste } from "./geste.ts";
 import { absentesDuMotif, direManque, direManqueEn, direStationAbsente, direStationAbsenteEn, GESTE_DE_PRESENCE, GESTE_DE_PRESENCE_EN, gesteDeCapacite, gesteDeCapaciteEn, manqueDuMotif, type Manque } from "./capacites.ts";
-import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT } from "./evenements/pass.ts";
+import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT } from "./events/pass.ts";
 import { REJOUER_LA_BASE } from "./dire-base.ts";
-import { demandeEnAttente, refus, reglagesEnVigueur, type Demande as DemandeDeFermeture, type Refus } from "./fermeture/condition.ts";
-import { direDemande as direDemandeDeFermeture, direDemandeEn as direDemandeDeFermetureEn } from "./fermeture/dire.ts";
-import type { Ecart } from "./evenements/manager.ts";
-import { epiquesEnAttente } from "./projections/decoupages.ts";
+import { demandeEnAttente, refus, reglagesEnVigueur, type Demande as DemandeDeFermeture, type Refus } from "./closing/condition.ts";
+import { direDemande as direDemandeDeFermeture, direDemandeEn as direDemandeDeFermetureEn } from "./closing/say.ts";
+import type { Ecart } from "./events/manager.ts";
+import { epiquesEnAttente } from "./projections/splits.ts";
 import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
 import { miseAJourDuJour } from "./mise-a-jour/relais.ts";
 import { etatDeLaBase, gatesDuRouge, lirePass, reparationDeLaBase, type EchecDeReparation, type PassDeTicket, type SansGrant } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
-import { alerteDeSession, type AlerteDeSession } from "./projections/renouvellement.ts";
-import { alerteDuJeton, type AlerteDuJeton } from "./projections/jeton.ts";
+import { alerteDeSession, type AlerteDeSession } from "./projections/renewal.ts";
+import { alerteDuJeton, type AlerteDuJeton } from "./projections/token.ts";
 import { direDeconnexion, direDeconnexionEn, etatStation, GESTE_DE_CONNEXION, GESTE_DE_CONNEXION_EN, GESTE_DE_CONNEXION_TOMBEE, GESTE_DE_CONNEXION_TOMBEE_EN, miseDeCoteBloquee, setupBloque, stationsDeconnectees, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
-import { echecsDuDisjoncteur, etatDesGardeFous, type EchecDuDisjoncteur } from "./projections/garde-fous.ts";
+import { echecsDuDisjoncteur, etatDesGardeFous, type EchecDuDisjoncteur } from "./projections/guardrails.ts";
 import { nomAbandon, nomAbandonEn, retenue } from "./rail.ts";
 import { echecsDesGates } from "./reparation.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
 import { SCRIPT_SETUP } from "./gates.ts";
 import { CAUSES_DU_PROJET } from "./mise-de-cote.ts";
-import { REVENU_D_ATTENTE } from "./evenements/rail.ts";
+import { REVENU_D_ATTENTE } from "./events/rail.ts";
 
 // Ce que le chef lit de la livraison qui l'attend, tel que la pass l'a consigné :
 // `resume`, celui de la relecture ; `constat`, le premier constat bloquant (celui

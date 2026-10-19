@@ -5,7 +5,7 @@ import { mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { JETON_MASQUE } from "../src/identifiants.ts";
-import { etatDesGardeFous } from "../src/projections/garde-fous.ts";
+import { etatDesGardeFous } from "../src/projections/guardrails.ts";
 import { chef, controlerBase, cuisine, fauxGitHub, issue, montre } from "./aides/cuisine.ts";
 import { BASE, depotGit, git, jusqua, repertoireTemporaire } from "./outils.ts";
 
