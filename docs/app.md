@@ -1441,7 +1441,8 @@ attention. Chaque phrase est écrite d'après les faits que la file donne déjà
 | `BLOQUÉ` | de même, ou `blocked` et le repère | `blocked` |
 | mise de côté (`86`) | sa raison en clair, celle que le runtime donne (`attente.raison`) ; le mot `86` s'affiche `set aside` | `set aside` |
 | chez un tiers (WAITING) | `waiting for <quoi> · from <qui>` | `follow-up date passed` quand la relance est passée |
-| t'attend | ce qu'on attend de toi, en une phrase (`decision.ts`) ; pour un ticket retenu par `blocked-on-human`, la question qu'on te pose | — |
+| question répondue (WAITING) | `answered by <qui> · the manager's turn` — `you` pour une réponse que l'app vient de poster | — |
+| t'attend | ce qu'on attend de toi, en une phrase (`decision.ts`) ; pour une question du manager — avant de découper une épique, ou qui retient le ticket par `blocked-on-human` —, la question qu'on te pose | — |
 | livrée | `served at 14:02 · <première phrase du résumé de la relecture>` ; sans résumé, l'heure et le repère | — |
 
 **Ni « bail », ni « 86 », ni « non communiqué » sur une carte.** Quand une information manque, un
@@ -1483,9 +1484,12 @@ S'y ajoute, pour un ticket en pass ou servi, `cuisiné par` : qui l'a cuisiné n
 - **Toute carte porte son titre.** Celui que la box donne ; à défaut — un ticket hors rail, que le
   journal ne connaît pas —, celui de son issue, lu une fois par le `gh` du poste à l'adresse que la box
   a rendue (`question.ts`, `titreDe`). Illisible, la carte n'a pas de titre : rien n'est écrit à sa place.
-- **Un ticket retenu par `blocked-on-human` dit la question qu'on me pose** : en une ou deux lignes,
-  tirée du commentaire du manager qui l'a posée (`question.ts`, `resumeDe`), avec qui l'a écrite et
-  quand. Elle remplace la ligne brute de la file ; tant qu'elle n'est pas lue, la ligne brute reste.
+- **Une carte qui t'attend pour une question du manager dit la question qu'on me pose** (#503) — une
+  épique qu'il ne découpe pas avant ta réponse, ou un ticket retenu par `blocked-on-human` : en une ou
+  deux lignes, tirée du commentaire du manager qui l'a posée (`question.ts`, `resumeDe`), avec qui l'a
+  écrite et quand. Son issue est lue par le `gh` du poste dès que la carte est posée — la file ne porte
+  pas le texte de la question, seulement son geste. Elle remplace la ligne brute de la file ; tant
+  qu'elle n'est pas lue, la ligne brute reste. Les autres cartes de TODO ne lisent rien.
   Sur sa fiche, deux boutons lèvent la retenue sans commande à recopier : **retirer le label** — le
   manager juge l'issue à son prochain tour — ou **fermer l'issue** (un second clic confirme), par le `gh`
   du poste, à ton nom (`question.ts`, `lever`). Rien ne part pour un ticket que le bloc `attend` ne
@@ -1649,15 +1653,32 @@ S'y ajoute, pour un ticket en pass ou servi, `cuisiné par` : qui l'a cuisiné n
     fiche se redessine.
   - **La réponse est postée sur l'issue par ton `gh`** — celui du poste, connecté à ton compte, le
     même que le second utilise : elle est signée de toi, et le manager la lit comme une réponse du
-    chef, à son prochain tick ; la carte quitte T'attend quand il l'a fait. La fiche dit
-    `answer posted on #<n>, in your name: “…”` et n'offre plus rien à poster. Aucun geste de la
-    box ne lit ni n'écrit les commentaires d'une issue : c'est pour cela que l'app joint GitHub
-    ici, et seulement ici — `gh issue view <issue> --json comments` à l'ouverture,
-    `gh issue comment <issue> --body-file -` au clic.
+    chef, à son prochain tick. La fiche dit `answer posted on #<n>, in your name: “…”` et n'offre
+    plus rien à poster. Aucun geste de la box ne lit ni n'écrit les commentaires d'une issue : c'est
+    pour cela que l'app joint GitHub ici, et seulement ici — `gh issue view <issue> --json comments`
+    pour lire, `gh issue comment <issue> --body-file -` au clic.
+  - **La carte quitte TODO dès que la réponse est partie** (`app/src/repondues.ts`, #503), sans
+    attendre le manager ni une nouvelle lecture de la box : elle passe dans **WAITING** — c'est lui,
+    le tiers qu'elle attend —, avec `answered by you · the manager's turn`, et sa fiche dit qui a
+    répondu, quand, et ce qui viendra. Il en va de même d'une question **répondue ailleurs** — sur
+    GitHub, par le second — : l'issue lue la dit répondue (un commentaire écrit sous la question par
+    quelqu'un qui a la main sur le dépôt, et qui n'est pas du manager — ce qu'il lira comme une
+    réponse), et la carte passe dans WAITING. Ce que le manager en fait se lit au tour suivant : il
+    découpe l'épique, et la file ne la nomme plus ; **ou il pose une autre question, et la carte
+    revient dans TODO** — l'issue d'une carte répondue est relue au plus toutes les deux minutes tant
+    que la file la nomme, c'est là que cela se voit. Ce que la file ne dit pas — qu'une question est
+    répondue — l'app le tient d'elle-même, et le perd au redémarrage : l'issue relue le redit. Le
+    compteur `awaiting you` reste celui de la box. Une question qui retient un ticket par
+    `blocked-on-human` ne quitte pas TODO quand elle est répondue : le label reste à lever.
   - **Rien ne part sans ton geste** : ni réponse d'office, ni choix par défaut. Et rien ne part sur
     une question qui n'est plus celle que tu as lue : l'issue est relue juste avant d'écrire. Si le
     manager en a posé une autre entre-temps, rien n'est posté, la fiche le dit et pose la nouvelle.
-    Un ticket que le bloc `attend` ne nomme plus ne se répond plus d'ici.
+    **Si quelque chose a été écrit sous la question depuis que tu l'as lue** — une réponse donnée
+    ailleurs, sur GitHub ou par le second, ou un autre commentaire —, rien n'est posté non plus : la
+    fiche dit `nothing was posted: <qui> answered the question on the issue since you read it…` et
+    montre ce qui a été écrit ; tu postes encore, si ta réponse ajoute quelque chose. Un refus de
+    GitHub, un réseau absent, un `gh` qui ne répond pas en trente secondes : rien n'est dit posté, la
+    fiche écrit ce que `gh` a rendu. Un ticket que le bloc `attend` ne nomme plus ne se répond plus d'ici.
   - **Une question n'est prise que de ceux qui ont la main sur le dépôt** (propriétaire, membre,
     collaborateur), comme le manager les lit : un marqueur recopié par un autre n'ouvre rien.
   - **Une issue sans question du manager n'ajoute rien à la fiche** : les autres entrées de T'attend

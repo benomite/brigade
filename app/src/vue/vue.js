@@ -490,9 +490,18 @@ let ouverte;
 // La question que pose chaque ticket de T'attend dont la fiche a été ouverte, telle que son issue
 // l'écrit (question.ts), par projet et ticket : relue à chaque ouverture. `lue` : absente, la lecture
 // est en route. `envoi` : une réponse part — rien d'autre ne part avant qu'elle soit revenue.
-// `rendue` : ce qu'il est advenu de la dernière.
-/** @type {Map<string, { lue?: import("../question.ts").Lue, envoi?: boolean, rendue?: import("../question.ts").Rendue }>} */
+// `rendue` : ce qu'il est advenu de la dernière. `quand` : l'heure, au poste, où elle a été posée.
+/** @type {Map<string, { lue?: import("../question.ts").Lue, envoi?: boolean, rendue?: import("../question.ts").Rendue, quand?: number }>} */
 const questions = new Map();
+// Une question que la vue sait répondue — postée d'ici, ou répondue sur l'issue — sur une carte que
+// le rail remet dans TODO : ce qu'elle en sait date. Relue, mais pas plus d'une fois par minute.
+const RELIRE_QUESTION_MS = 60_000;
+/** @param {{ lue?: import("../question.ts").Lue, envoi?: boolean, rendue?: import("../question.ts").Rendue, quand?: number } | undefined} etat */
+function perimee(etat) {
+  if (etat === undefined || etat.envoi === true || etat.quand === undefined) return false;
+  const repondue = etat.rendue?.poste === true || (etat.lue !== undefined && "question" in etat.lue && etat.lue.question.repondue !== undefined);
+  return repondue && Date.now() - etat.quand > RELIRE_QUESTION_MS;
+}
 // Le titre des tickets que la box ne nomme pas, lu par le process principal (question.ts, `titreDe`),
 // par `<projet>#<ticket>` : `{ titre }`, ou `{ sans }` quand l'issue n'a pas pu être lue.
 /** @type {Map<string, { titre: string } | { sans: string } | undefined>} */
@@ -2151,10 +2160,13 @@ function poserBon(projet, carte, tonAttend) {
   if (titre === undefined && ouvrable && !titres.has(cleDuBon)) void lireTitre(projet, ticket);
   const nomme = titre ?? /** @type {{ titre?: string } | undefined} */ (titres.get(cleDuBon))?.titre;
   if (nomme !== undefined) bon.append(bloc("strong", nomme));
-  // Un ticket retenu par `blocked-on-human` : la question qu'on me pose, en une ou deux lignes, et qui l'a posée.
-  const retenu = attendu && attend.some((entree) => entree.includes(LABEL_RETENUE));
-  if (retenu && ouvrable && !questions.has(cleDuBon)) void lireQuestion(projet, ticket);
-  const lueDuBon = retenu ? questions.get(cleDuBon)?.lue : undefined;
+  // Une question du manager — avant de découper une épique, ou qui retient le ticket par
+  // `blocked-on-human` (faits.ts, `question`) : la question qu'on me pose, en une ou deux lignes, et
+  // qui l'a posée. Répondue, la carte n'est plus ici mais dans WAITING : une lecture qui la disait
+  // répondue est relue, la carte revenue — le manager a posé une autre question.
+  const interroge = attendu && carte.question === true;
+  if (interroge && ouvrable && (!questions.has(cleDuBon) || perimee(questions.get(cleDuBon)))) void lireQuestion(projet, ticket);
+  const lueDuBon = interroge ? questions.get(cleDuBon)?.lue : undefined;
   const poseeLa = lueDuBon !== undefined && "question" in lueDuBon ? lueDuBon.question : undefined;
   if (poseeLa !== undefined) {
     const resume = bloc("p", poseeLa.resume);
@@ -2547,9 +2559,10 @@ function poserFiche() {
   panneau.append(tete, ...attente, ...(nomme === undefined ? [] : [nomme]), lignes, ...poserDetailsDeFiche(projet, carte), ...poserHistoire(projet, ticket, carte));
   fiche.replaceChildren(panneau);
   // Un ticket qui t'attend : la question que son issue pose, s'il en pose une — lue à l'ouverture.
+  // Répondue, sa carte attend le manager dans WAITING : la fiche la garde, et ce qui y a été répondu.
   // Retenu par `blocked-on-human` : lever la retenue d'un clic, sans commande à recopier. Puis,
   // pour tout ticket, ses gestes — la demande au second en est. Rien n'est envoyé sans un clic.
-  if (attend.length > 0) {
+  if (attend.length > 0 || carte.repondue !== undefined) {
     const cle = `${projet.nom}#${ticket}`;
     if (!questions.has(cle)) void lireQuestion(projet, ticket);
     const question = poserQuestion(projet, ticket, questions.get(cle) ?? {});
@@ -3092,7 +3105,7 @@ async function lireQuestion(projet, ticket) {
     lue = { a: new Date().toISOString(), sans: erreur instanceof Error ? erreur.message : String(erreur) };
   }
   if (questions.get(cle) !== enRoute) return;
-  questions.set(cle, { lue });
+  questions.set(cle, { lue, quand: Date.now() });
   if (ficheDe(projet, ticket)) poserFiche();
   // La carte du ticket dit la question en deux lignes : le rail est redessiné de ce qui vient d'être lu —
   // sauf sous une fiche ouverte, dont le rail reste tel qu'il était : la prochaine lecture le met à jour.
@@ -3115,7 +3128,7 @@ async function lireTitre(projet, ticket) {
 // La réponse du chef — un choix par sa lettre, ou sa phrase — part sur l'issue : c'est le process
 // principal qui la relit et l'écrit (question.ts). Une seule à la fois ; ce qu'il en advient se pose
 // sur la fiche, et une question qui a changé entre-temps revient à sa place.
-/** @param {Projet} projet @param {number} ticket @param {{ question: string, choix: string } | { question: string, texte: string }} reponse */
+/** @param {Projet} projet @param {number} ticket @param {{ question: string, vu: string, choix: string } | { question: string, vu: string, texte: string }} reponse */
 async function repondreQuestion(projet, ticket, reponse) {
   const cle = `${projet.nom}#${ticket}`;
   const avant = questions.get(cle);
@@ -3130,7 +3143,7 @@ async function repondreQuestion(projet, ticket, reponse) {
     rendue = { poste: false, refus: `nothing was posted: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
   }
   const lue = (!rendue.poste ? rendue.lue : undefined) ?? avant?.lue;
-  questions.set(cle, { ...(lue === undefined ? {} : { lue }), rendue });
+  questions.set(cle, { ...(lue === undefined ? {} : { lue }), rendue, quand: Date.now() });
   if (rendue.poste) brouillons.delete(cle);
   if (ficheDe(projet, ticket)) poserFiche();
 }
@@ -3140,7 +3153,7 @@ async function repondreQuestion(projet, ticket, reponse) {
 // réponse : un bouton par choix qu'elle propose, un champ pour une phrase. Un clic sur un choix,
 // et il part ; la phrase part par son bouton — Entrée ne l'envoie pas. Rien n'est choisi d'avance.
 // Aucune question sur l'issue : rien n'est posé, l'entrée garde son geste.
-/** @param {Projet} projet @param {number} ticket @param {{ lue?: import("../question.ts").Lue, envoi?: boolean, rendue?: import("../question.ts").Rendue }} etat */
+/** @param {Projet} projet @param {number} ticket @param {{ lue?: import("../question.ts").Lue, envoi?: boolean, rendue?: import("../question.ts").Rendue, quand?: number }} etat */
 function poserQuestion(projet, ticket, { lue, envoi, rendue }) {
   if (lue !== undefined && "aucune" in lue) return undefined;
   const section = document.createElement("section");
@@ -3171,16 +3184,24 @@ function poserQuestion(projet, ticket, { lue, envoi, rendue }) {
     section.append(bloc("small", `written on the issue since — the manager reads it at its next tick:`), depuis);
   }
   if (rendue?.poste === true) {
-    const postee = bloc("p", `answer posted on #${ticket}, in your name: “${rendue.corps}” — the manager reads it at its next tick; the card leaves your queue once it has.`);
+    const postee = bloc("p", `answer posted on #${ticket}, in your name: “${rendue.corps}” — the manager reads it at its next tick; until then the card waits for it in WAITING.`);
     postee.className = "postee";
     section.append(postee);
     return section;
   }
+  // Répondue sur l'issue — ailleurs, ou avant : la fiche le dit, et la carte n'est plus dans TODO.
+  if (question.repondue !== undefined) {
+    const repondue = bloc("p", `answered on the issue by ${question.repondue.auteur}, ${dateHeure(question.repondue.a)} — the manager reads it at its next tick; until then the card waits for it in WAITING.`);
+    repondue.className = "repondue";
+    section.append(repondue);
+  }
+  // Ce que le chef a vu sous la question : rien ne part si quelque chose y a été écrit depuis.
+  const vu = question.depuis.at(-1)?.url ?? "";
   const cle = `${projet.nom}#${ticket}`;
   const reponse = document.createElement("div");
   reponse.className = "reponse";
   for (const { lettre, texte: dit } of question.choix) {
-    const choix = bouton(`${lettre}) ${dit}`, () => void repondreQuestion(projet, ticket, { question: question.url, choix: lettre }));
+    const choix = bouton(`${lettre}) ${dit}`, () => void repondreQuestion(projet, ticket, { question: question.url, vu, choix: lettre }));
     choix.className = "choix";
     choix.dataset.geste = "reponse";
     choix.title = `post “${lettre}) ${dit}” on issue #${ticket} as your answer — one click, and it is posted`;
@@ -3192,7 +3213,7 @@ function poserQuestion(projet, ticket, { lue, envoi, rendue }) {
   saisie.rows = 2;
   saisie.placeholder = question.choix.length > 0 ? "or answer in a sentence" : "your answer, in a sentence";
   saisie.disabled = envoi === true;
-  const poster = bouton("post this answer", () => void repondreQuestion(projet, ticket, { question: question.url, texte: saisie.value }));
+  const poster = bouton("post this answer", () => void repondreQuestion(projet, ticket, { question: question.url, vu, texte: saisie.value }));
   poster.dataset.geste = "reponse";
   poster.title = `post what you wrote on issue #${ticket}, in your name`;
   poster.disabled = envoi === true || saisie.value.trim() === "";

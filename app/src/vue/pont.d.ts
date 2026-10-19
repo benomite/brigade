@@ -153,7 +153,9 @@ export type Pont = {
   leverRetenue(projet: string, ticket: number, geste: "label" | "fermer"): Promise<import("../question.ts").Leve>;
   // La réponse du chef à cette question — un choix par sa lettre, ou sa phrase —, postée sur
   // l'issue par le même `gh`. `question` : l'adresse de la question montrée — rien ne part sur une autre.
-  repondreQuestion(projet: string, ticket: number, reponse: { question: string; choix: string } | { question: string; texte: string }): Promise<ReponseRendue>;
+  // `vu` : l'adresse du dernier commentaire montré sous elle, vide s'il n'y en avait pas — rien ne part
+  // si quelque chose y a été écrit depuis.
+  repondreQuestion(projet: string, ticket: number, reponse: { question: string; vu: string; choix: string } | { question: string; vu: string; texte: string }): Promise<ReponseRendue>;
   // Une ligne de la bande d'alertes dont le geste demande du jugement (alertes.ts, `{ demande: true }`) :
   // une demande en prose est écrite dans le second, sans Entrée. La vue nomme le projet, le sujet
   // de la ligne et ce qu'elle dit ; la phrase vient de ce que la bande en dit. Rien pour une ligne

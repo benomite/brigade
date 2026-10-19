@@ -14,12 +14,14 @@
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
 import { lieuDe, lignesDuRail, porter, type Porte } from "./bon.ts";
-import { ligneAuTravail, ligneEnAttente, ligneEnWaiting, ligneLivree, ligneMiseDeCote, ligneQuiMAttend, type LigneDeCarte } from "./ligne-carte.ts";
+import { ligneAuTravail, ligneEnAttente, ligneEnWaiting, ligneLivree, ligneMiseDeCote, ligneQuiMAttend, ligneRepondue, type LigneDeCarte } from "./ligne-carte.ts";
 import type { StationDesFaits } from "./ordinaires.ts";
 import type { Echec, Lecture } from "./box.ts";
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues, type Moment } from "./captures.ts";
 import { attenduDe, decisionLue, livraisonLue, teteDe, type Decision, type Livraison as LivraisonAttendue } from "./decision.ts";
 import { entete, type Entete } from "./fiche.ts";
+import { LABEL_RETENUE } from "./question.ts";
+import type { Repondue } from "./repondues.ts";
 
 export const COMMANDE = "facts";
 
@@ -132,9 +134,13 @@ export type Faits = {
 // « resume » et « it arrived » sur une carte de WAITING ; absent, elle n'en porte aucun.
 // `captures` : celles d'un ticket d'interface livré, avant et après (captures.ts) — absentes,
 // le ticket n'est pas d'interface ou n'a rien livré, et la carte n'en dit rien.
+// `question` : sur une carte de TODO, son issue porte une question du manager — avant de découper
+// une épique, ou qui la retient (`blocked-on-human`) —, que la carte dit en deux lignes (question.ts).
+// `repondue` : sur une carte de WAITING, sa question est répondue, et elle attend que le manager lise
+// la réponse (repondues.ts) — qui y a répondu, et quand.
 // Et ce qu'elle dit, elle, en deux lignes (ligne-carte.ts) : `ligne`, ce qui se passe ; `signal`, ce qui demande
 // l'attention ; `repere`, la file ne dit pas tout — le détail est dans la fiche, avec `dit` et `sans`.
-export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[] } & Porte;
+export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; repondue?: { par: string; a: string } } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -415,13 +421,13 @@ export function titreDEchec({ cas, atteinte }: Echec, sansReponse = "REACHED, BU
 
 // Une lecture de la veille, et ce qui s'en dessine. Sans faits, rien n'est
 // dessiné : le titre dit quel cas, et ce qui a été obtenu suit.
-function lire(lecture: Lecture, attend?: BlocLu, status?: StatusLu): { faits?: Faits; recue: Dessinable } {
+function lire(lecture: Lecture, attend?: BlocLu, status?: StatusLu, repondues?: ReadonlyMap<number, Repondue>): { faits?: Faits; recue: Dessinable } {
   if ("erreur" in lecture) return { recue: { ...lecture, titre: titreDEchec(lecture) } };
   const { projet, demande, a } = lecture;
   const rendu = lecture.sorties.find(({ commande }) => commande === COMMANDE)?.texte ?? "";
   const faits = comprendre(rendu);
   if ("informe" in faits) return { recue: { projet, demande, a, titre: "THE BOX DID NOT RETURN THE SHAPE OF `facts`", informe: faits.informe, rendu } };
-  return { faits, recue: { projet, demande, a, tableau: tableau(faits, attend, status) } };
+  return { faits, recue: { projet, demande, a, tableau: tableau(faits, attend, status, repondues) } };
 }
 
 export const dessiner = (lecture: Lecture): Dessinable => lire(lecture).recue;
@@ -520,6 +526,10 @@ const PERSONNE_N_ATTEND = "no ticket waits for a third party";
 // Les mots d'état d'un ticket que le runtime laisse attendre un tiers : en attente sur le
 // rail, ou mis de côté — pas celui que la cuisine tient, en cuisine ou en pass, ni un servi.
 const POSABLES = ["en attente", "BLOQUÉ", "86"];
+// La ligne du bloc `attend` d'une question du manager avant découpage (runtime/src/attend.ts), dans ses deux langues.
+const QUESTION_D_EPIQUE = /manager's question before splitting the epic|question du manager avant de découper l'épique/;
+// Ce qui suit, sur une question répondue.
+const REPONDUE_ENSUITE = "the manager reads the answer at its next tick: it splits the epic, or asks again — the card then comes back to TODO";
 // Ce qu'une carte de WAITING dit quand la box ne donne pas ce qu'il attend.
 const TIERS_PAS_DONNE = "not given — this box's runtime does not give in `facts` what it waits for: what, from whom, since when, its follow-up, what happens on arrival";
 
@@ -564,6 +574,9 @@ const RIEN_DE_LU = "not read: this box's runtime does not give `attend` in `fact
 // relance et ce qui se passera à l'arrivée. Les autres sont dans la colonne de
 // leur mot d'état, dans l'ordre de service ; TODO garde l'ordre du bloc, le plus
 // ancien d'abord, puis celui de `faits`.
+// Une question du manager avant découpage que le chef a répondue (`repondues`, repondues.ts) quitte
+// TODO sans attendre le manager : elle l'attend dans WAITING — c'est lui, le tiers —, jusqu'à ce que
+// la file ne la nomme plus, ou que l'issue pose une autre question (#503).
 // Livré, quand la box donne `livres`, en vient seul : les tickets servis dans les
 // 24 h, le plus récent d'abord, un pour un avec `livrés 24 h` — partis du rail ou
 // non. Un ticket `servi` du rail qu'elle n'y met pas, servi avant, est rendu à
@@ -571,7 +584,7 @@ const RIEN_DE_LU = "not read: this box's runtime does not give `attend` in `fact
 // depuis, 86 — reste aussi là où ce mot le range. Sans `livres`, un runtime
 // d'avant ce champ : Livré prend les tickets `servi` du rail, comme les autres.
 // `status` : ce que la box en a rendu, d'où vient la ligne que chaque carte porte.
-export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
+export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues?: ReadonlyMap<number, Repondue>): Rail {
   const lignes = status === undefined ? undefined : lignesDuRail(status.texte);
   const connus = new Map(faits.rail.map((connu) => [connu.ticket, connu]));
   // Où cuit chaque station : la box, ou le Mac (bon.ts) — rien, d'un runtime qui ne donne pas les stations.
@@ -584,6 +597,20 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
   for (const entree of attend === undefined ? [] : ticketsDe(attend.bloc)) dits.set(entree.ticket, [...(dits.get(entree.ticket) ?? []), ditDe(entree)]);
   for (const { ticket } of faits.attend ?? []) if (!dits.has(ticket)) dits.set(ticket, []);
   for (const ticket of enWaiting) dits.delete(ticket);
+  // Une question du manager avant de découper une épique — d'un runtime d'avant `decision`, ce que sa
+  // ligne du bloc en dit —, et une issue que la question retient : la carte dit la question.
+  const avantDecoupage = (ticket: number) => {
+    const decision = faits.attend?.find((attendu) => attendu.ticket === ticket)?.decision;
+    return decision === undefined ? (dits.get(ticket) ?? []).some((dit) => QUESTION_D_EPIQUE.test(dit)) : decision.quoi === "question";
+  };
+  const interroge = (ticket: number) => avantDecoupage(ticket) || (dits.get(ticket) ?? []).some((dit) => dit.includes(`\`${LABEL_RETENUE}\``));
+  // Répondue, la question avant découpage n'attend plus le chef. Celle qui retient l'issue, si : le label reste à lever.
+  const repondus = new Map([...dits.keys()].flatMap((ticket) => {
+    const repondue = repondues?.get(ticket);
+    return repondue !== undefined && avantDecoupage(ticket) ? [[ticket, repondue] as const] : [];
+  }));
+  const interroges = new Set([...dits.keys()].filter(interroge));
+  for (const ticket of repondus.keys()) dits.delete(ticket);
 
   // La carte d'un ticket : ce que le rail en donne — ou, pour un ticket qui attend
   // sans y être, ce que `faits.attend` en donne : son titre s'il y en a un, son
@@ -636,6 +663,32 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
       },
       // Dans TODO, un ticket du rail que la cuisine ne tient pas peut attendre un tiers.
       ...(dit !== undefined && connu !== undefined && POSABLES.includes(connu.etat) ? { gestes: ["attente-poser" as const] } : {}),
+      ...(dit !== undefined && interroges.has(ticket) ? { question: true as const } : {}),
+    };
+  };
+
+  // La carte d'une question répondue, qui attend que le manager lise la réponse : qui y a répondu,
+  // quand, et ce qui viendra. Ni geste ni question à poser : c'est au manager.
+  const repondu = (ticket: number, { par, a }: Repondue): Carte => {
+    const connu = connus.get(ticket);
+    const donne = faits.attend?.find((attendu) => attendu.ticket === ticket);
+    const url = connu?.url ?? donne?.url;
+    const titre = [connu?.titre, donne?.titre].find((candidat) => candidat !== undefined && candidat !== "");
+    return {
+      ticket,
+      ...ligneRepondue(par),
+      ...(connu === undefined ? {} : colore(TONS_DE_TICKET, connu.etat)),
+      ...(titre === undefined ? {} : { titre }),
+      ouvrable: url != null && ouvrable(url),
+      attendu: false,
+      attend: [],
+      repondue: { par, a },
+      dit: [
+        { libelle: "answered by", valeur: par },
+        { libelle: "answered at", valeur: instant(a) },
+        { libelle: "next", valeur: REPONDUE_ENSUITE },
+      ],
+      fiche: entete({ ...(titre === undefined ? {} : { titre }), url, ...sur(connu), ...(lignes === undefined ? {} : { lignes: lignes.get(ticket) ?? [] }) }),
     };
   };
 
@@ -701,7 +754,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
   const livres = faits.livres?.map(livre);
   // Un ticket `servi` du rail que `livres` donne a sa carte dans Livré : il n'en a pas d'autre.
   const servis = new Set(livres?.map(({ ticket }) => ticket));
-  const ailleurs = faits.rail.filter(({ ticket, etat }) => !dits.has(ticket) && !enWaiting.has(ticket) && !(etat === "servi" && servis.has(ticket))).map(({ ticket }) => carte(ticket));
+  const ailleurs = faits.rail.filter(({ ticket, etat }) => !dits.has(ticket) && !enWaiting.has(ticket) && !repondus.has(ticket) && !(etat === "servi" && servis.has(ticket))).map(({ ticket }) => carte(ticket));
   const colonnes: Colonne[] = COLONNES_DE_FAITS.map(({ nom, ton, etats }) => {
     if (nom === LIVRE && livres !== undefined) return { nom, ton, compte: String(livres.length), cartes: livres, vide: RIEN_LIVRE, defile: true };
     const siennes = ailleurs.filter((posee) => colonneDeFaits(connus.get(posee.ticket), posee.etat) === nom);
@@ -715,7 +768,13 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
     cartes: [...dits.keys()].map(carte),
     vide: rienDeLu ? RIEN_DE_LU : attend === undefined ? AUCUN_ATTENDU : AUCUN_NUMERO,
   });
-  colonnes.splice(WAITING.rang, 0, { nom: WAITING.nom, ton: WAITING.ton, compte: String(enWaiting.size), cartes: [...enWaiting].map(enAttente), vide: PERSONNE_N_ATTEND });
+  colonnes.splice(WAITING.rang, 0, {
+    nom: WAITING.nom,
+    ton: WAITING.ton,
+    compte: String(enWaiting.size + repondus.size),
+    cartes: [...[...enWaiting].map(enAttente), ...[...repondus].map(([ticket, repondue]) => repondu(ticket, repondue))],
+    vide: PERSONNE_N_ATTEND,
+  });
   const rangees = new Set(colonnes.flatMap((colonne) => colonne.cartes));
   const hors = ailleurs.filter((posee) => !rangees.has(posee));
   return {
@@ -741,7 +800,7 @@ const COOKS_PAS_LUS = "cooks running: not read — this box's runtime does not g
 // Les faits, tels que la vue les pose : la pastille, les cinq compteurs dans
 // l'ordre de la carte, les cooks en cours dans celui de la box, le dernier
 // événement, et le rail en six colonnes.
-export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu): Tableau {
+export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues?: ReadonlyMap<number, Repondue>): Tableau {
   const { compteurs } = faits;
   return {
     ...colore(TONS_DE_PROJET, faits.etat),
@@ -757,7 +816,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu): Table
     cooks: { enCours: faits.cooks ?? [], vide: faits.cooks === undefined ? COOKS_PAS_LUS : AUCUN_COOK },
     evenement: evenement(faits),
     ...rienNeCuit(status),
-    rail: rail(faits, attend, status),
+    rail: rail(faits, attend, status, repondues),
   };
 }
 
@@ -773,15 +832,16 @@ export const BANNIERE = {
 // nomme un projet et un ticket, jamais une adresse. Celle qui s'ouvre est celle
 // que la box a donnée pour ce ticket, à la dernière lecture. Le dernier `status`
 // de chaque projet y est tenu aussi, son bloc `attend` mis à part : il vient d'une
-// autre lecture, et le rail se dessine des deux.
-export function tenirFaits() {
+// autre lecture, et le rail se dessine des deux. `repondues` : les questions répondues de chaque
+// projet (repondues.ts), que le rail range dans WAITING.
+export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Repondue> = () => new Map()) {
   const tenus = new Map<string, { faits: Faits; lecture: Lecture }>();
   const blocs = new Map<string, BlocLu>();
   const statuts = new Map<string, StatusLu>();
   const poser = <T>(ou: Map<string, T>, projet: string, valeur: T | undefined) => void (valeur === undefined ? ou.delete(projet) : ou.set(projet, valeur));
   return {
     recevoir(lecture: Lecture): Dessinable {
-      const { faits, recue } = lire(lecture, blocs.get(lecture.projet), statuts.get(lecture.projet));
+      const { faits, recue } = lire(lecture, blocs.get(lecture.projet), statuts.get(lecture.projet), repondues(lecture.projet));
       if (faits === undefined) tenus.delete(lecture.projet);
       else tenus.set(lecture.projet, { faits, lecture });
       return recue;
@@ -801,7 +861,7 @@ export function tenirFaits() {
       poser(statuts, montree.projet, status);
       const tenu = tenus.get(montree.projet);
       if (tenu === undefined || (!avant && bloc === undefined && status === undefined)) return undefined;
-      return lire(tenu.lecture, bloc, status).recue;
+      return lire(tenu.lecture, bloc, status, repondues(montree.projet)).recue;
     },
     // Les projets dont `status` est lu désormais — celui qui est affiché, ou tous.
     // Ce qu'il a rendu pour un projet qui n'en est plus est lâché : ses faits, eux,
@@ -812,8 +872,22 @@ export function tenirFaits() {
         blocs.delete(projet);
         statuts.delete(projet);
         const tenu = tenus.get(projet);
-        return tenu === undefined ? [] : [lire(tenu.lecture).recue];
+        return tenu === undefined ? [] : [lire(tenu.lecture, undefined, undefined, repondues(projet)).recue];
       });
+    },
+    // Le rail d'un projet redessiné des dernières lectures, sans en attendre une : une question vient
+    // d'y être répondue, ou de ne plus l'être. Rien, s'il n'a pas de faits lus.
+    redessiner(projet: string): Dessinable | undefined {
+      const tenu = tenus.get(projet);
+      return tenu === undefined ? undefined : lire(tenu.lecture, blocs.get(projet), statuts.get(projet), repondues(projet)).recue;
+    },
+    // Les tickets qui attendent le chef d'après les dernières lectures : ceux que le bloc `attend` nomme
+    // en tête d'une ligne, et ceux que `faits` donne dans `attend`. Indéfini : ni l'un ni l'autre n'est lu.
+    nommes(projet: string): Set<number> | undefined {
+      const bloc = blocs.get(projet);
+      const donnes = tenus.get(projet)?.faits.attend;
+      if (bloc === undefined && donnes === undefined) return undefined;
+      return new Set([...(bloc === undefined ? [] : ticketsDe(bloc.bloc).map(({ ticket }) => ticket)), ...(donnes ?? []).map(({ ticket }) => ticket)]);
     },
     adresse(projet: unknown, ticket: unknown): string | undefined {
       const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;

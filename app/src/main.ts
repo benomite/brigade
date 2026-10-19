@@ -38,9 +38,10 @@ import { memoireDansFichier, tenirNotifications } from "./notification.ts";
 import { cuisinesIci, roleDe } from "./poste/role.ts";
 import { tenirStationLocale } from "./poste/station.ts";
 import { ouvrirPty } from "./pty.ts";
-import { LABEL_RETENUE, lever, lireQuestion, repondre as repondreQuestion, titreDe } from "./question.ts";
+import { LABEL_RETENUE, lever, lireQuestion, repondre as repondreQuestion, titreDe, type Lue as QuestionLue } from "./question.ts";
 import { lireCapture } from "./captures.ts";
 import { relanceDe, tenirPassage } from "./rattrapage.ts";
+import { tenirRepondues } from "./repondues.ts";
 import { APP, tenirRetards } from "./retard.ts";
 import { ouvrirTours } from "./saisie.ts";
 import { DELAIS, lancerRetrait, tenirRetraits } from "./retrait.ts";
@@ -98,6 +99,8 @@ const veille = ouvrirVeille({
     // ligne `rail` ce que chaque carte porte du ticket.
     const redessine = faits.attendre(montree);
     if (redessine !== undefined) dire("faits", redessine);
+    // Une question répondue qui attend le manager : son issue est relue de loin en loin.
+    relireRepondues(montree.projet);
     // Et la bande d'alertes : la cause d'une cuisine retenue, et le grant, se lisent dans ses lignes de tête.
     direLaBande(bandes.status(montree));
     // Et l'accueil : ce qui bloque un projet, et depuis quand ses décisions attendent.
@@ -128,7 +131,10 @@ const veilleDOnglet = ouvrirVeille({
 // sa bannière d'arrêt — a la sienne aussi, et elle lit tous les projets, quel que soit
 // l'écran : la barre est toujours affichée. Une box qui ne rend pas `faits` (un runtime
 // plus ancien) le dit là où ils se dessinent, et `status` reste lisible à côté.
-const faits = tenirFaits();
+// Les questions du manager que le chef a répondues (repondues.ts) : leur carte quitte TODO pour
+// WAITING sans attendre le manager.
+const repondues = tenirRepondues();
+const faits = tenirFaits((projet) => repondues.de(projet));
 // L'accueil (accueil.ts) : une ligne par projet, une par station, et la ligne de santé — redessiné à
 // chaque lecture qui le change, de `faits`, de `status` ou des stations sur GitHub.
 const accueil = tenirAccueil({ projets: () => projets().map(({ nom, box, desinstalle }) => ({ nom, box: box !== undefined, desinstalle: desinstalle !== undefined })) });
@@ -643,12 +649,30 @@ ipcMain.handle("gesteDeFiche", (_, nom: unknown, id: unknown, ticket: unknown, v
 // projet et le ticket ; l'adresse est celle que la box a rendue (faits.ts). Rien pour un ticket que
 // le bloc `attend` ne nomme pas : seule une entrée qui t'attend se lit ainsi.
 const reglagesGh = () => ({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 });
+// Ce que chaque lecture de l'issue dit de sa question est retenu (repondues.ts) : répondue, sa carte
+// quitte TODO ; plus répondue — une autre question —, elle y revient. Le rail est redessiné aussitôt.
+function retenirLue(projet: string, ticket: unknown, lue: QuestionLue): QuestionLue {
+  if (repondues.lue(projet, ticket, lue)) redessinerRail(projet);
+  return lue;
+}
+function redessinerRail(projet: string): void {
+  const redessine = faits.redessiner(projet);
+  if (redessine !== undefined) dire("faits", redessine);
+}
+// Une carte répondue attend le manager tant que la file la nomme : son issue est relue au plus toutes
+// les deux minutes — c'est là que se voit une autre question. Ce que la file ne nomme plus est lâché.
+function relireRepondues(projet: string): void {
+  for (const ticket of repondues.garder(projet, faits.nommes(projet))) {
+    const adresse = faits.adresse(projet, ticket);
+    if (adresse !== undefined) void lireQuestion(reglagesGh(), adresse).then((lue) => retenirLue(projet, ticket, lue));
+  }
+}
 ipcMain.handle("lireQuestion", (_, nom: unknown, ticket: unknown) => {
   const vise = connu(nom);
   if (vise === undefined || faits.attendu(vise.nom, ticket) === undefined) return undefined;
   const adresse = faits.adresse(vise.nom, ticket);
   // Jamais posée hors des essais, comme BRIGADE_SSH_BIN.
-  return adresse === undefined ? { a: new Date().toISOString(), sans: "the box gave no https address for this issue: the app has nothing to read" } : lireQuestion(reglagesGh(), adresse);
+  return adresse === undefined ? { a: new Date().toISOString(), sans: "the box gave no https address for this issue: the app has nothing to read" } : lireQuestion(reglagesGh(), adresse).then((lue) => retenirLue(vise.nom, ticket, lue));
 });
 // L'histoire d'un ticket et ce qu'il a coûté : `pass <ticket> --json` sur la box du projet, lu en
 // lecture seule (histoire.ts). La vue nomme le projet et le ticket ; la commande se compose ici.
@@ -730,12 +754,19 @@ ipcMain.handle("leverRetenue", (_, nom: unknown, ticket: unknown, geste: unknown
 // La réponse du chef à cette question : un choix, par sa lettre, ou sa phrase. Elle part sur
 // l'issue, en commentaire, par le même `gh` — à son nom. L'issue est relue avant : rien ne part sur
 // une question qui n'est plus celle qu'il a lue, ni pour un ticket que la file ne nomme plus.
-ipcMain.handle("repondreQuestion", (_, nom: unknown, ticket: unknown, reponse: unknown) => {
+// Partie, la carte quitte TODO aussitôt (repondues.ts) : elle attend le manager dans WAITING.
+ipcMain.handle("repondreQuestion", async (_, nom: unknown, ticket: unknown, reponse: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return { poste: false, refus: parti(nom).refus };
   if (faits.attendu(vise.nom, ticket) === undefined) return { poste: false, refus: `nothing was posted: the \`attend\` block no longer names #${String(ticket)}` };
   const adresse = faits.adresse(vise.nom, ticket);
-  return adresse === undefined ? { poste: false, refus: "nothing was posted: the box gave no https address for this issue" } : repondreQuestion(reglagesGh(), adresse, reponse);
+  if (adresse === undefined) return { poste: false, refus: "nothing was posted: the box gave no https address for this issue" };
+  const rendue = await repondreQuestion(reglagesGh(), adresse, reponse);
+  const question = (reponse as { question?: unknown } | null)?.question;
+  if (rendue.poste && typeof question === "string") {
+    if (repondues.postee(vise.nom, ticket, question)) redessinerRail(vise.nom);
+  } else if (!rendue.poste && rendue.lue !== undefined) retenirLue(vise.nom, ticket, rendue.lue);
+  return rendue;
 });
 // Une ligne de la bande d'alertes dont le geste demande de lire, de juger ou d'agir hors de
 // l'app : une demande en prose est écrite dans le second, et rien ne l'envoie. La vue nomme la

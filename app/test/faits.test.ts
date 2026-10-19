@@ -556,6 +556,8 @@ describe("le rail en six colonnes", () => {
       ouvrable: false,
       attendu: true,
       attend: ["depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue"],
+      // Une question du manager : la carte la dit (#503).
+      question: true,
       ...ATTENDUE,
       ...fiche(undefined, { issue: { sans: "not given — the box returns no address for this issue" }, ...ATTENDU }),
     });
@@ -573,6 +575,8 @@ describe("le rail en six colonnes", () => {
       ouvrable: true,
       attendu: true,
       attend: ["depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue"],
+      // Une question du manager : la carte la dit (#503).
+      question: true,
       ...ATTENDUE,
       ...fiche(undefined, ATTENDU),
     });
