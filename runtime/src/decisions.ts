@@ -14,14 +14,14 @@
 // ni variable, rien n'est supposé.
 import { existsSync } from "node:fs";
 import { Base } from "./base.ts";
-import { EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
-import { sous } from "./cloison.ts";
-import { lireSeuils } from "./derive.ts";
+import { EFFORTS, MODELES, type Calibration } from "./calibration.ts";
+import { sous } from "./partition.ts";
+import { lireSeuils } from "./drift.ts";
 import type { Evenement } from "./evenements.ts";
 import type { Seuils } from "./events/drift.ts";
-import type { ReglagesDeFermeture } from "./events/closing.ts";
-import { configFermeture } from "./closing/settings.ts";
-import { cheminJournal, type Journal } from "./journal.ts";
+import type { ClosingSettings } from "./events/closing.ts";
+import { closingConfig } from "./closing/settings.ts";
+import { logPath, type Log } from "./log.ts";
 import { configManager } from "./manager.ts";
 import { configReviewer } from "./reviewer.ts";
 import { ConfigInvalide } from "./runtime.ts";
@@ -87,9 +87,9 @@ const VERIFIER: Record<Decision, (nom: Decision, valeur: string) => void> = {
   BRIGADE_REVIEWER_EFFORT: parmi(EFFORTS),
   BRIGADE_CLOSING_MODEL: parmi(MODELES),
   BRIGADE_CLOSING_EFFORT: parmi(EFFORTS),
-  BRIGADE_CLOSING_COOKS: nombre(configFermeture, ENTIER),
-  BRIGADE_CLOSING_MAX_TOKENS: nombre(configFermeture, ENTIER),
-  BRIGADE_CLOSING_MAX_REMOVED_LINES: nombre(configFermeture, ENTIER),
+  BRIGADE_CLOSING_COOKS: nombre(closingConfig, ENTIER),
+  BRIGADE_CLOSING_MAX_TOKENS: nombre(closingConfig, ENTIER),
+  BRIGADE_CLOSING_MAX_REMOVED_LINES: nombre(closingConfig, ENTIER),
 };
 
 export const estUneDecision = (nom: string): nom is Decision => (DECISIONS as readonly string[]).includes(nom);
@@ -167,7 +167,7 @@ export function direDecisionIgnoree(nom: Decision, projet: string): string {
 // Le support des décisions : le journal du répertoire d'état. Sous le clone,
 // un cook pourrait l'atteindre — c'est un refus de démarrer.
 export function supportDesDecisions(lieux: { repertoireEtat: string; clone: string }): string {
-  const support = cheminJournal(lieux.repertoireEtat);
+  const support = logPath(lieux.repertoireEtat);
   if (sous(lieux.clone, support)) {
     throw new ConfigInvalide(
       `BRIGADE_STATE_DIR (${lieux.repertoireEtat}) est sous BRIGADE_REPO_DIR (${lieux.clone}) : les décisions du chef y seraient à portée d'un cook — un plafond qu'un cook peut relever n'est pas un plafond. Poser le répertoire d'état hors du clone`,
@@ -180,7 +180,7 @@ export function supportDesDecisions(lieux: { repertoireEtat: string; clone: stri
 // décisions lisibles, et le motif de chacune qui ne l'est pas. Aucun journal,
 // aucune décision.
 export function lireLesDecisions(repertoireEtat: string): { posees: Posees; illisibles: string[] } {
-  const chemin = cheminJournal(repertoireEtat);
+  const chemin = logPath(repertoireEtat);
   if (!existsSync(chemin)) return { posees: {}, illisibles: [] };
   const base = new Base(chemin, { lectureSeule: true, attenteMs: 5000 });
   try {
@@ -213,25 +213,25 @@ export function decisionsAuDemarrage(repertoireEtat: string): Posees {
 // null si elle valait déjà cela. Une valeur que le runtime ne lirait pas est
 // refusée, et rien n'est écrit. N'écrit que le journal : ni le dépôt, ni le
 // drop-in, et rien n'est arrêté ni relancé.
-export function poserDecision(journal: Journal, pose: { projet: string; nom: string; valeur: string; auteur: string }): Evenement | null {
+export function poserDecision(log: Log, pose: { projet: string; nom: string; valeur: string; auteur: string }): Evenement | null {
   verifierDecision(pose.nom, pose.valeur);
   const nom = pose.nom as Decision;
   const value = pose.valeur.trim();
-  return journal.base.transaction(() => {
-    const previous = decisionsPosees(journal.base)[nom] ?? null;
+  return log.base.transaction(() => {
+    const previous = decisionsPosees(log.base)[nom] ?? null;
     if (previous === value) return null;
-    return journal.ajouter({ project: pose.projet, ticket: null, author: pose.auteur, type: POSEE, payload: { name: nom, value, previous } });
+    return log.ajouter({ project: pose.projet, ticket: null, author: pose.auteur, type: POSEE, payload: { name: nom, value, previous } });
   });
 }
 
 // Retire une décision : l'environnement est relu comme avant. Rend le fait
 // écrit, ou null si le journal n'en portait pas.
-export function retirerDecision(journal: Journal, retrait: { projet: string; nom: string; auteur: string }): Evenement | null {
+export function retirerDecision(log: Log, retrait: { projet: string; nom: string; auteur: string }): Evenement | null {
   const nom = exigerDecision(retrait.nom);
-  return journal.base.transaction(() => {
-    const previous = decisionsPosees(journal.base)[nom];
+  return log.base.transaction(() => {
+    const previous = decisionsPosees(log.base)[nom];
     if (previous === undefined) return null;
-    return journal.ajouter({ project: retrait.projet, ticket: null, author: retrait.auteur, type: RETIREE, payload: { name: nom, previous } });
+    return log.ajouter({ project: retrait.projet, ticket: null, author: retrait.auteur, type: RETIREE, payload: { name: nom, previous } });
   });
 }
 
@@ -239,9 +239,9 @@ export function retirerDecision(journal: Journal, retrait: { projet: string; nom
 export type Decisions = {
   stations(): StationDeclaree[];
   seuils(): Seuils;
-  manager(): Calibrage;
-  reviewer(): Calibrage;
-  fermeture(): ReglagesDeFermeture;
+  manager(): Calibration;
+  reviewer(): Calibration;
+  fermeture(): ClosingSettings;
 };
 
 // Suit les décisions du chef sur le journal de `base`, par-dessus `env`.
@@ -272,6 +272,6 @@ export function suivreDecisions(base: Base, env: Record<string, string | undefin
     seuils: suivre("les seuils de la dérive", lireSeuils),
     manager: suivre("le calibrage du manager", (lu) => configManager(lu).calibrage),
     reviewer: suivre("le calibrage du reviewer", (lu) => configReviewer(lu).calibrage),
-    fermeture: suivre("les réglages du closer", configFermeture),
+    fermeture: suivre("les réglages du closer", closingConfig),
   };
 }

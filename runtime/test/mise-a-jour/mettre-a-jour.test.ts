@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { annoncerEnService } from "../../src/mise-a-jour/en-service.ts";
+import { announceInService } from "../../src/mise-a-jour/en-service.ts";
 import { ecrireEtatMiseAJour, lireEtatMiseAJour, lireIssues } from "../../src/mise-a-jour/etat.ts";
 import { passer } from "../../src/mise-a-jour/mettre-a-jour.ts";
 import type { Publication, Publications } from "../../src/mise-a-jour/publications.ts";
@@ -32,7 +32,7 @@ function machine(t: TestContext, version: string, demarrage: (version: string) =
     if (quoi === "tombe") return void (actif = "failed");
     actif = "active";
     if (quoi === "muette") return;
-    const arreter = annoncerEnService(racine, () => ({ servis: quoi.servis, refuses: quoi.refuses ?? {} }), { version, pid });
+    const arreter = announceInService(racine, () => ({ servis: quoi.servis, refuses: quoi.refuses ?? {} }), { version, pid });
     arreter();
   };
   demarrer(version);

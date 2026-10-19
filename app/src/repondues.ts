@@ -1,7 +1,7 @@
 // Les questions du manager déjà répondues (#503) : une carte de TODO qui t'attend pour une question
 // avant découpage quitte TODO dès que la réponse est partie — postée depuis la fiche, ou lue sur
 // l'issue, écrite ailleurs —, sans attendre que le manager l'ait lue. Elle attend alors le manager,
-// dans WAITING (faits.ts, `rail`), jusqu'à ce que la file ne la nomme plus — il a découpé l'épique —
+// dans WAITING (facts.ts, `rail`), jusqu'à ce que la file ne la nomme plus — il a découpé l'épique —
 // ou que l'issue pose une autre question : elle revient alors dans TODO.
 // La file ne dit pas qu'une question est répondue : seule l'issue le dit. Ce qui en est su ici vient
 // des lectures que l'app fait déjà par le `gh` du poste (question.ts) — à l'ouverture d'une fiche, à

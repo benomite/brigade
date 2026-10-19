@@ -8,7 +8,7 @@ import type { StationVue, VuDesStations } from "../../src/stations/stations.ts";
 
 const INJOIGNABLE: Panne = { cle: "injoignable", sujet: "injoignable", ligne: "offline for 10 min", survol: "", bouton: { libelle: "check again", geste: "relire" } };
 const MISE_A_JOUR: Panne = { cle: "mise-a-jour:2026-10-15T11:56:00.000Z", sujet: "mise-a-jour", ligne: "update to version 1.5.0 failed", survol: "", bouton: { libelle: "dismiss", geste: "ecarter" } };
-const CONNEXION: Panne = { cle: "connexion-max:2026-10-15T11:48:00.000Z", sujet: "connexion-max", ligne: "Max connection lost 12 min ago", survol: "", bouton: { libelle: "log in", geste: "login" } };
+const CONNECTION: Panne = { cle: "connexion-max:2026-10-15T11:48:00.000Z", sujet: "connexion-max", ligne: "Max connection lost 12 min ago", survol: "", bouton: { libelle: "log in", geste: "login" } };
 
 const station = (pannes: Panne[]): StationVue => ({ id: "g1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes, dit: "online", version: "1.4.0", projets: [], max: null });
 
@@ -43,14 +43,14 @@ test("« dismiss » écarte la mise à jour revenue en arrière de la ligne de s
 });
 
 test("« log in » lance le login de la station de cet ordinateur ; celui d'une autre station ne part pas d'ici, et le refus le dit", async () => {
-  const ici = desGestes([CONNEXION], undefined, "g1");
-  assert.deepEqual(await jouerPanne(ici.options, "g1", CONNEXION.cle), { fait: "the login page opens in your browser" });
+  const ici = desGestes([CONNECTION], undefined, "g1");
+  assert.deepEqual(await jouerPanne(ici.options, "g1", CONNECTION.cle), { fait: "the login page opens in your browser" });
   assert.equal(ici.fait.logins, 1);
-  const ailleurs = desGestes([CONNEXION], undefined, "g7");
-  assert.deepEqual(await jouerPanne(ailleurs.options, "g1", CONNEXION.cle), { refus: "box is not this computer: its login is not launched from this app yet — it is done on box itself" });
+  const ailleurs = desGestes([CONNECTION], undefined, "g7");
+  assert.deepEqual(await jouerPanne(ailleurs.options, "g1", CONNECTION.cle), { refus: "box is not this computer: its login is not launched from this app yet — it is done on box itself" });
   assert.equal(ailleurs.fait.logins, 0);
-  const poste = desGestes([CONNEXION]);
-  assert.ok("refus" in (await jouerPanne(poste.options, "g1", CONNEXION.cle)));
+  const workstation = desGestes([CONNECTION]);
+  assert.ok("refus" in (await jouerPanne(workstation.options, "g1", CONNECTION.cle)));
 });
 
 test("une panne qui n'est plus sur la ligne — relue entre-temps, ou jamais montrée — ne joue rien", async () => {

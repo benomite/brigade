@@ -4,10 +4,10 @@ import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { ouvrirArbitre, servirArbitre } from "../src/arbitre.ts";
+import { openArbiter, serveArbiter } from "../src/arbiter.ts";
 import { empreinteDuCode, lireCodeEnService } from "../src/code.ts";
 import { ROLES } from "../src/identites.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { fauxGitHubApps } from "./aides/faux-github-apps.ts";
 import { aArreter, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, mort, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, SANS_RESEAU, temporaireDuFichier, tuerLesRelais, vivant } from "./outils.ts";
@@ -15,7 +15,7 @@ import { aArreter, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX
 const rienNeReste = temporaireDuFichier();
 
 const MAIN = join(import.meta.dirname, "../src/main.ts");
-const TIRER = join(import.meta.dirname, "../src/tirer-cli.ts");
+const PULL = join(import.meta.dirname, "../src/pull-cli.ts");
 const REFUS = 2;
 
 // L'environnement d'un runtime complet. Son `gh` est un faux, qui répond un
@@ -59,13 +59,13 @@ function cloneInerte(): string {
 }
 
 function relire(repertoire: string) {
-  const journal = ouvrirJournal(repertoire, { lectureSeule: true });
+  const log = openLog(repertoire, { lectureSeule: true });
   try {
     // Les décisions du chef sont posées avant le démarrage : elles ne sont pas
     // ce que le runtime écrit.
-    return journal.tout().filter((e) => e.type !== "decision.set");
+    return log.tout().filter((e) => e.type !== "decision.set");
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }
 
@@ -167,8 +167,8 @@ test("avec une cloison, le runtime dit ce qu'elle masque, et le journal le garde
   // Et le `~/.claude` du projet est rangé dès le démarrage : sept jours de garde.
   await jusqua(() => relire(repertoire).some((e) => e.type === "transcripts.tidied"));
   assert.deepEqual(readdirSync(join(repertoire, "claude/projects/-tmp")), ["jeune.jsonl"]);
-  const [rangement] = relire(repertoire).flatMap((e) => (e.type === "transcripts.tidied" ? [e.payload] : []));
-  assert.deepEqual([rangement?.removed, rangement?.kept, rangement?.keepMs], [1, 1, 7 * 24 * 3_600_000]);
+  const [cleanup] = relire(repertoire).flatMap((e) => (e.type === "transcripts.tidied" ? [e.payload] : []));
+  assert.deepEqual([cleanup?.removed, cleanup?.kept, cleanup?.keepMs], [1, 1, 7 * 24 * 3_600_000]);
 });
 
 test("le runtime démarre avec ses garde-fous : les plafonds réglés par l'environnement sont au journal", async (t) => {
@@ -244,11 +244,11 @@ for (const [cas, variables, motif] of [
 }
 
 function lireLeRail(repertoire: string) {
-  const journal = ouvrirJournal(repertoire, { lectureSeule: true });
+  const log = openLog(repertoire, { lectureSeule: true });
   try {
-    return lireRail(journal.base);
+    return lireRail(log.base);
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }
 
@@ -289,25 +289,25 @@ test("sur le vrai process : une station déclarée distante s'annonce et réclam
   assert.equal(lireLeRail(repertoire)[0]?.reason, "station-absent: mac/claude");
 
   // Le geste, tel que la box le lance pour la station : un process, sa sortie, son code.
-  const tirer = async (...args: string[]) => {
-    const geste = lancer(t, TIRER, ["mac/claude", ...args], { BRIGADE_STATE_DIR: repertoire });
+  const pull = async (...args: string[]) => {
+    const geste = lancer(t, PULL, ["mac/claude", ...args], { BRIGADE_STATE_DIR: repertoire });
     const code = await geste.fin;
     return { code, sortie: geste.sortie() };
   };
-  const annonce = await tirer("announce");
+  const annonce = await pull("announce");
   assert.equal(annonce.code, 0, annonce.sortie);
   assert.deepEqual([JSON.parse(annonce.sortie).ok, JSON.parse(annonce.sortie).provides], [true, ["chrome-connecté"]]);
   await jusqua(() => lireLeRail(repertoire).some((ticket) => ticket.ticket === 16 && ticket.state === "waiting"));
-  const prise = await tirer("claim");
+  const prise = await pull("claim");
   assert.equal(prise.code, 0, prise.sortie);
   const { mission } = JSON.parse(prise.sortie);
   assert.deepEqual([mission.ticket, mission.branch, mission.base, mission.model], [16, `cook/${mission.run}`, BASE, "sonnet"]);
   assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state, ticket.station]), [[16, "taken", "mac/claude"]]);
   // Sans preuve, le renouvellement est refusé : code 1, et le refus se lit.
-  const sansPreuve = await tirer("renew", mission.run, "--turns", "1", "--tokens", "10");
-  assert.equal(sansPreuve.code, 1, sansPreuve.sortie);
-  assert.equal(JSON.parse(sansPreuve.sortie.split("\n")[0] ?? "").refusal, "no-progress");
-  const renouvele = await tirer("renew", mission.run, "--proof", "empreinte-1", "--turns", "1", "--tokens", "10");
+  const withoutProof = await pull("renew", mission.run, "--turns", "1", "--tokens", "10");
+  assert.equal(withoutProof.code, 1, withoutProof.sortie);
+  assert.equal(JSON.parse(withoutProof.sortie.split("\n")[0] ?? "").refusal, "no-progress");
+  const renouvele = await pull("renew", mission.run, "--proof", "empreinte-1", "--turns", "1", "--tokens", "10");
   assert.equal(renouvele.code, 0, renouvele.sortie);
   // Rien n'a été lancé sur la box : ni `claude`, ni worktree.
   assert.deepEqual(lancementsDuFauxClaude(temoin), []);
@@ -399,8 +399,8 @@ describe("de bout en bout", { concurrency: 2 }, () => {
 
     await jusqua(() => gh.appels().some((appel) => appel.at(-1) === `repos/${DEPOT}/issues/15/comments`));
 
-    const journal = relire(repertoire);
-    const lancement = journal.find((e) => e.type === "cook.launched")?.payload as { run: string; model: string; effort: string };
+    const log = relire(repertoire);
+    const lancement = log.find((e) => e.type === "cook.launched")?.payload as { run: string; model: string; effort: string };
     assert.deepEqual([lancement.model, lancement.effort], ["sonnet", "low"]);
     assert.equal(git(origine, "show", `cook/${lancement.run}:travail.txt`), "le travail du cook");
     assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state]), [[15, "pass"]]);
@@ -466,7 +466,7 @@ describe("de bout en bout", { concurrency: 2 }, () => {
     gh.repondre(`repos/${DEPOT}/commits/*/status?per_page=100`, { corps: { statuses: [] } });
     gh.repondre(`repos/${DEPOT}/pulls/40/merge`, { corps: { merged: true } });
     // Le chef a donné le grant avant que le runtime ne démarre.
-    const avant = ouvrirJournal(repertoire);
+    const avant = openLog(repertoire);
     avant.ajouter({ project: "brigade", ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
     avant.fermer();
     // Le cook et le reviewer sont le même binaire : le premier lancé livre, le second relit.
@@ -476,10 +476,10 @@ describe("de bout en bout", { concurrency: 2 }, () => {
 
     await jusqua(() => gh.appels().some((appel) => appel.includes("PATCH")));
 
-    const journal = relire(repertoire);
-    const lancement = journal.find((e) => e.type === "cook.launched")?.payload as { run: string };
+    const log = relire(repertoire);
+    const lancement = log.find((e) => e.type === "cook.launched")?.payload as { run: string };
     const juge = git(origine, "rev-parse", `cook/${lancement.run}`);
-    const verdict = journal.find((e) => e.type === "pass.judged")?.payload as { verdict: string; sha: string; gates: { tail: string }; ci: { outcome: string } };
+    const verdict = log.find((e) => e.type === "pass.judged")?.payload as { verdict: string; sha: string; gates: { tail: string }; ci: { outcome: string } };
     assert.deepEqual([verdict.verdict, verdict.sha, verdict.gates.tail, verdict.ci.outcome], ["green", juge, "gates : VERT", "none"]);
     assert.deepEqual(
       gh.appels().find((appel) => appel.includes("PUT")),
@@ -487,11 +487,11 @@ describe("de bout en bout", { concurrency: 2 }, () => {
     );
     assert.deepEqual(gh.appels().find((appel) => appel.includes("PATCH"))?.at(-1), `repos/${DEPOT}/issues/15`);
     assert.deepEqual(
-      journal.map((e) => e.type).filter((type) => /^(pass|grant|merge)\.|^ticket\.served/.test(type)),
+      log.map((e) => e.type).filter((type) => /^(pass|grant|merge)\.|^ticket\.served/.test(type)),
       ["grant.activated", "pass.started", "pass.reviewed", "pass.judged", "grant.used", "merge.done", "ticket.served"],
     );
     // La relecture est au journal comme un cook : son calibrage, hors ticket.
-    const relecture = journal.filter((e) => e.type === "cook.launched").at(-1);
+    const relecture = log.filter((e) => e.type === "cook.launched").at(-1);
     assert.deepEqual([relecture?.ticket, relecture?.payload.station, relecture?.payload.model, relecture?.payload.effort], [null, "reviewer", "sonnet", "medium"]);
     assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state]), [[15, "served"]]);
     runtime.process.kill("SIGTERM");
@@ -519,7 +519,7 @@ test("un runtime remplacé pendant qu'un cook tourne : le cook lui survit, le ru
   gh.repondre(`repos/${DEPOT}/commits/*/check-runs?per_page=100`, { corps: { check_runs: [] } });
   gh.repondre(`repos/${DEPOT}/commits/*/status?per_page=100`, { corps: { statuses: [] } });
   gh.repondre(`repos/${DEPOT}/pulls/40/merge`, { corps: { merged: true } });
-  const avant = ouvrirJournal(repertoire);
+  const avant = openLog(repertoire);
   avant.ajouter({ project: "brigade", ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
   avant.fermer();
   // Le cook commite, puis attend qu'on le laisse conclure ; le reviewer relit vert.
@@ -527,11 +527,11 @@ test("un runtime remplacé pendant qu'un cook tourne : le cook lui survit, le ru
   ecrireSuite(suite, ["commite-puis-attend"]);
   const feu = join(repertoire, "feu");
   const env = { ...environnement(t, repertoire, gh), BRIGADE_REPO_DIR: clone, FAUX_CLAUDE: "relit-vert", FAUX_CLAUDE_SUITE: suite, FAUX_CLAUDE_FEU: feu };
-  const faits = (type: string) => relire(repertoire).flatMap((e) => (e.type === type ? [{ ticket: e.ticket, payload: e.payload as Record<string, unknown> }] : []));
+  const facts = (type: string) => relire(repertoire).flatMap((e) => (e.type === type ? [{ ticket: e.ticket, payload: e.payload as Record<string, unknown> }] : []));
 
   const premier = lancer(t, MAIN, [], env);
-  await jusqua(() => faits("cook.launched").length === 1);
-  const run = String(faits("cook.launched")[0]?.payload.run);
+  await jusqua(() => facts("cook.launched").length === 1);
+  const run = String(facts("cook.launched")[0]?.payload.run);
   const fichierDuPid = join(repertoire, "runs", `${run}.cook.pid`);
   await jusqua(() => existsSync(fichierDuPid));
   const pid = Number(readFileSync(fichierDuPid, "utf8"));
@@ -545,10 +545,10 @@ test("un runtime remplacé pendant qu'un cook tourne : le cook lui survit, le ru
   assert.equal(existsSync(worktree), true);
 
   const second = lancer(t, MAIN, [], env);
-  await jusqua(() => faits("cook.resumed").length === 1);
-  assert.deepEqual(faits("cook.resumed")[0]?.ticket, 15);
+  await jusqua(() => facts("cook.resumed").length === 1);
+  assert.deepEqual(facts("cook.resumed")[0]?.ticket, 15);
   assert.equal(vivant(pid), true);
-  assert.deepEqual(faits("cook.interrupted"), []);
+  assert.deepEqual(facts("cook.interrupted"), []);
 
   writeFileSync(feu, "");
   await jusqua(() => gh.appels().some((appel) => appel.includes("PATCH")));
@@ -557,11 +557,11 @@ test("un runtime remplacé pendant qu'un cook tourne : le cook lui survit, le ru
   const juge = git(origine, "rev-parse", `cook/${run}`);
   assert.equal(git(origine, "show", `cook/${run}:travail.txt`), "le travail du cook");
   // Un seul cook pour le ticket, lancé par le premier runtime ; sa fin écrite par le second.
-  assert.deepEqual(faits("cook.launched").filter((e) => e.ticket === 15).map((e) => e.payload.run), [run]);
-  assert.deepEqual(faits("cook.exited").filter((e) => e.ticket === 15).map((e) => [e.payload.run, e.payload.outcome]), [[run, "ok"]]);
-  assert.deepEqual([faits("pass.judged")[0]?.payload.verdict, faits("pass.judged")[0]?.payload.sha], ["green", juge]);
+  assert.deepEqual(facts("cook.launched").filter((e) => e.ticket === 15).map((e) => e.payload.run), [run]);
+  assert.deepEqual(facts("cook.exited").filter((e) => e.ticket === 15).map((e) => [e.payload.run, e.payload.outcome]), [[run, "ok"]]);
+  assert.deepEqual([facts("pass.judged")[0]?.payload.verdict, facts("pass.judged")[0]?.payload.sha], ["green", juge]);
   assert.deepEqual(gh.appels().find((appel) => appel.includes("PUT")), ["api", "-i", "-X", "PUT", "-f", `sha=${juge}`, "-f", "merge_method=merge", `repos/${DEPOT}/pulls/40/merge`]);
-  assert.equal(faits("merge.done").length, 1);
+  assert.equal(facts("merge.done").length, 1);
   assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state]), [[15, "served"]]);
   second.process.kill("SIGTERM");
   assert.equal(await second.fin, 0);
@@ -575,8 +575,8 @@ test("sans Apps, le runtime dit qu'il tourne sous l'identité unique de la machi
   await runtime.attendre("démarré");
 
   assert.match(runtime.sortie(), /GitHub — identité unique, celle du `gh` de la machine : rien ne réserve le merge à la pass/);
-  await jusqua(() => gh.jetons().length > 0);
-  assert.deepEqual([...new Set(gh.jetons())], [null]);
+  await jusqua(() => gh.tokens().length > 0);
+  assert.deepEqual([...new Set(gh.tokens())], [null]);
   assert.equal(existsSync(join(repertoire, "gh-sans-compte")), false);
 });
 
@@ -669,7 +669,7 @@ test("une identité par rôle, de bout en bout : le cook livre sans aucun jeton,
   gh.repondre(`repos/${DEPOT}/commits/*/status?per_page=100`, { corps: { statuses: [] } });
   gh.repondre(`repos/${DEPOT}/pulls/40/merge`, { corps: { merged: true } });
   const apps = await fauxGitHubApps(t);
-  const avant = ouvrirJournal(repertoire);
+  const avant = openLog(repertoire);
   avant.ajouter({ project: "brigade", ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
   avant.fermer();
   const suite = join(repertoire, "suite.txt");
@@ -694,7 +694,7 @@ test("une identité par rôle, de bout en bout : le cook livre sans aucun jeton,
 
   assert.match(runtime.sortie(), /GitHub — une identité par rôle \(cook, pass, manager\)/);
   // Chaque geste est parti sous l'identité de son rôle, jamais sous le compte de la machine.
-  const sous = (trouver: (appel: string[]) => boolean) => [...new Set(gh.appels().flatMap((appel, i) => (trouver(appel) ? [/^ghs_([a-z]+)_/.exec(gh.jetons()[i] ?? "")?.[1] ?? gh.jetons()[i]] : [])))];
+  const sous = (trouver: (appel: string[]) => boolean) => [...new Set(gh.appels().flatMap((appel, i) => (trouver(appel) ? [/^ghs_([a-z]+)_/.exec(gh.tokens()[i] ?? "")?.[1] ?? gh.tokens()[i]] : [])))];
   assert.deepEqual(sous((appel) => appel.at(-1) === `repos/${DEPOT}/issues?labels=fire&state=open&per_page=100`), ["manager"]);
   assert.deepEqual(sous((appel) => appel.at(-1) === `repos/${DEPOT}/pulls`), ["cook"]);
   assert.deepEqual(sous((appel) => appel.includes("PUT")), ["pass"]);
@@ -706,12 +706,12 @@ test("une identité par rôle, de bout en bout : le cook livre sans aucun jeton,
   assert.deepEqual(sous(commentaire("Cook")), ["manager"]);
   assert.deepEqual(sous(commentaire("Reviewer")), ["pass"]);
   assert.deepEqual(sous(commentaire("Pass")), ["pass"]);
-  assert.ok(!gh.jetons().includes(null) && !gh.jetons().includes("ghp_du_compte"));
+  assert.ok(!gh.tokens().includes(null) && !gh.tokens().includes("ghp_du_compte"));
   // La branche est partie avec le jeton de l'identité cook.
-  const journal = relire(repertoire);
-  const lancement = journal.find((e) => e.type === "cook.launched")?.payload as { run: string };
+  const log = relire(repertoire);
+  const lancement = log.find((e) => e.type === "cook.launched")?.payload as { run: string };
   assert.equal(git(origine, "show", `cook/${lancement.run}:travail.txt`), "le travail du cook");
-  const entete = `Authorization: Basic ${Buffer.from(`x-access-token:${apps.jetons("cook").at(-1)}`).toString("base64")}`;
+  const entete = `Authorization: Basic ${Buffer.from(`x-access-token:${apps.tokens("cook").at(-1)}`).toString("base64")}`;
   assert.ok(readFileSync(pousse, "utf8").includes(entete));
 
   // Le cook, les gates et le reviewer : aucun jeton, aucun compte, et le ticket en fichier.
@@ -727,14 +727,14 @@ test("une identité par rôle, de bout en bout : le cook livre sans aucun jeton,
   assert.match(readFileSync(fichier, "utf8"), /Le corps du ticket privé\./);
 
   // Le merge dit sous quelle identité il a été fait.
-  const merge = journal.find((e) => e.type === "merge.done")?.payload;
+  const merge = log.find((e) => e.type === "merge.done")?.payload;
   assert.deepEqual([merge?.by, merge?.actor], ["pass", "brigade-pass[bot]"]);
 
   runtime.process.kill("SIGTERM");
   assert.equal(await runtime.fin, 0);
   // Ni jeton ni JWT : pas au journal, pas dans un flux, pas dans la sortie du runtime, pas dans le clone.
-  const secrets = [...ROLES.flatMap((role) => apps.jetons(role)), ...apps.jwts(), "ghp_du_compte"];
-  assert.ok(apps.jetons("cook").length > 0 && apps.jetons("pass").length > 0 && apps.jetons("manager").length > 0);
+  const secrets = [...ROLES.flatMap((role) => apps.tokens(role)), ...apps.jwts(), "ghp_du_compte"];
+  assert.ok(apps.tokens("cook").length > 0 && apps.tokens("pass").length > 0 && apps.tokens("manager").length > 0);
   const ecrits = [
     JSON.stringify(relire(repertoire)),
     runtime.sortie(),
@@ -778,36 +778,36 @@ test("la cloison se pose par un drop-in et une porte : l'unité du runtime, elle
   // Sans le drop-in, le runtime tourne comme avant — et le dit.
   assert.doesNotMatch(lire("brigade@.service"), /^(Environment=BRIGADE_(SANDBOX|PROXY)|IPAddressDeny)/m);
 
-  const cloison = lire("cloison.conf");
-  assert.match(cloison, /^Environment=BRIGADE_SANDBOX_BIN=\/usr\/bin\/bwrap$/m);
+  const partition = lire("cloison.conf");
+  assert.match(partition, /^Environment=BRIGADE_SANDBOX_BIN=\/usr\/bin\/bwrap$/m);
   // Ce que l'unité range sous /var/lib/brigade et la doc sous /etc/brigade est masqué.
-  assert.match(cloison, /^Environment=BRIGADE_SANDBOX_HIDDEN=\/var\/lib\/brigade:\/etc\/brigade$/m);
-  assert.match(cloison, /^IPAddressDeny=any$/m);
-  assert.match(cloison, /^IPAddressAllow=localhost$/m);
-  assert.match(cloison, /^Requires=brigade-porte@%i\.service$/m);
+  assert.match(partition, /^Environment=BRIGADE_SANDBOX_HIDDEN=\/var\/lib\/brigade:\/etc\/brigade$/m);
+  assert.match(partition, /^IPAddressDeny=any$/m);
+  assert.match(partition, /^IPAddressAllow=localhost$/m);
+  assert.match(partition, /^Requires=brigade-porte@%i\.service$/m);
   // Le port n'a pas de défaut : il n'est pas posé d'office.
-  assert.doesNotMatch(cloison, /^Environment=BRIGADE_PROXY_PORT/m);
+  assert.doesNotMatch(partition, /^Environment=BRIGADE_PROXY_PORT/m);
 
-  const porte = lire("brigade-porte@.service");
-  assert.match(porte, /^ExecStart=.* node src\/tenir-porte\.ts$/m);
-  assert.match(porte, /^Environment=BRIGADE_STATE_DIR=\/var\/lib\/brigade\/%i$/m);
-  assert.match(porte, /^Environment=BRIGADE_PROJECT=%i$/m);
+  const door = lire("brigade-porte@.service");
+  assert.match(door, /^ExecStart=.* node src\/tenir-porte\.ts$/m);
+  assert.match(door, /^Environment=BRIGADE_STATE_DIR=\/var\/lib\/brigade\/%i$/m);
+  assert.match(door, /^Environment=BRIGADE_PROJECT=%i$/m);
   // C'est elle qui sort : aucun filtre, et aucun port d'office.
-  assert.doesNotMatch(porte, /^(IPAddressDeny|Environment=BRIGADE_PROXY_PORT)/m);
-  assert.match(porte, new RegExp(`^RestartPreventExitStatus=${REFUS}$`, "m"));
+  assert.doesNotMatch(door, /^(IPAddressDeny|Environment=BRIGADE_PROXY_PORT)/m);
+  assert.match(door, new RegExp(`^RestartPreventExitStatus=${REFUS}$`, "m"));
 });
 
 test("désigné par BRIGADE_ARBITER_PORT, l'arbitre entend le projet dès le démarrage ; s'il s'en va, le runtime continue et l'écrit ; sans lui, rien n'en est dit qu'une ligne", async (t) => {
-  const ouvert = ouvrirArbitre({ repertoire: repertoireTemporaire(t), plafond: 10 });
-  const serveur = await servirArbitre(ouvert, 0);
+  const ouvert = openArbiter({ repertoire: repertoireTemporaire(t), plafond: 10 });
+  const server = await serveArbiter(ouvert, 0);
   t.after(async () => {
-    await serveur.fermer();
+    await server.fermer();
     ouvert.fermer();
   });
   const repertoire = repertoireTemporaire(t);
-  const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_ARBITER_PORT: String(serveur.port) });
+  const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_ARBITER_PORT: String(server.port) });
   await runtime.attendre("démarré");
-  assert.match(runtime.sortie(), new RegExp(`brigade : arbitre — 127\\.0\\.0\\.1:${serveur.port}, consulté avant chaque lancement ; injoignable, le projet lance quand même, un cook à la fois`));
+  assert.match(runtime.sortie(), new RegExp(`brigade : arbitre — 127\\.0\\.0\\.1:${server.port}, consulté avant chaque lancement ; injoignable, le projet lance quand même, un cook à la fois`));
   await jusqua(() => ouvert.etat().projets.some((projet) => projet.projet === "brigade" && projet.presence === "entendu"));
 
   // Le runtime s'arrête proprement : le projet rend sa part.
@@ -820,7 +820,7 @@ test("désigné par BRIGADE_ARBITER_PORT, l'arbitre entend le projet dès le dé
   // Le refus est joué dans le process du runtime, où toute connexion est refusée :
   // le port d'un arbitre qu'on vient de fermer n'est pas muet pour autant, un
   // voisin peut l'avoir repris. Celui du test écoute encore — joint, il répondrait.
-  const sansLui = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_ARBITER_PORT: String(serveur.port), NODE_OPTIONS: `--import=${SANS_RESEAU}` });
+  const sansLui = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_ARBITER_PORT: String(server.port), NODE_OPTIONS: `--import=${SANS_RESEAU}` });
   await sansLui.attendre("mode dégradé");
   assert.deepEqual(relire(repertoire).findLast((e) => e.type === "station.unarbitrated")?.payload, { station: "box/claude", reason: "connexion refusée" });
   sansLui.process.kill("SIGTERM");
@@ -836,11 +836,11 @@ test("désigné par BRIGADE_ARBITER_PORT, l'arbitre entend le projet dès le dé
 
 test("l'arbitre a son unité, unique sur la machine : ni port ni plafond d'office, et ses réglages là où la cloison les masque", () => {
   const lire = (fichier: string) => readFileSync(join(import.meta.dirname, "../deploy", fichier), "utf8");
-  const arbitre = lire("brigade-arbitre.service");
-  assert.match(arbitre, /^ExecStart=.* node src\/tenir-arbitre\.ts$/m);
-  assert.match(arbitre, /^Environment=BRIGADE_ARBITER_STATE_DIR=\/var\/lib\/brigade\/\.arbitre$/m);
-  assert.doesNotMatch(arbitre, /^Environment=BRIGADE_ARBITER_(PORT|MAX_COOKS)/m);
-  assert.match(arbitre, new RegExp(`^RestartPreventExitStatus=${REFUS}$`, "m"));
+  const arbiter = lire("brigade-arbitre.service");
+  assert.match(arbiter, /^ExecStart=.* node src\/tenir-arbitre\.ts$/m);
+  assert.match(arbiter, /^Environment=BRIGADE_ARBITER_STATE_DIR=\/var\/lib\/brigade\/\.arbitre$/m);
+  assert.doesNotMatch(arbiter, /^Environment=BRIGADE_ARBITER_(PORT|MAX_COOKS)/m);
+  assert.match(arbiter, new RegExp(`^RestartPreventExitStatus=${REFUS}$`, "m"));
   // Sans arbitre désigné, un runtime tourne comme avant : l'unité du projet n'en pose aucun.
   assert.doesNotMatch(lire("brigade@.service"), /^Environment=BRIGADE_ARBITER/m);
 });

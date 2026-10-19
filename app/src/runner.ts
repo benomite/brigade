@@ -26,13 +26,13 @@ import { existsSync, lstatSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import { setTimeout as attendre } from "node:timers/promises";
-import { cite, echecDe, type Servi } from "./box.ts";
+import { cite, echecDe, type Served } from "./box.ts";
 import { MOTEUR, type Projet } from "./config.ts";
 
 // --- Ce que la box répond. La forme est la sienne (`runtime/src/events/remote.ts`) :
 // le runner n'en lit que ce qu'il lui faut.
 
-export type Plafonds = { turns: number; durationMs: number; tokens: number; idleMs: number };
+export type Caps = { turns: number; durationMs: number; tokens: number; idleMs: number };
 
 // Ce que la box remet avec un ticket : de quoi lancer le même cook qu'elle.
 export type Mission = {
@@ -49,14 +49,14 @@ export type Mission = {
   prompt: string;
   // Les arguments de `claude` — ceux d'un cook de la box.
   args: string[];
-  limits: Plafonds;
+  limits: Caps;
   leaseMs: number;
   leaseUntil: string;
   resumes: { returns: number; pr: string | null } | null;
 };
 
 export type Reponse =
-  | { ok: true; verb: "announce"; provides: string[]; maxCooks: number; presenceMs: number; leaseMs: number; limits: Plafonds }
+  | { ok: true; verb: "announce"; provides: string[]; maxCooks: number; presenceMs: number; leaseMs: number; limits: Caps }
   | { ok: true; verb: "claim"; mission: Mission | null; held: string | null }
   | { ok: true; verb: "renew"; leaseUntil: string }
   | { ok: true; verb: "deliver"; ending: string; reason: string | null }
@@ -162,7 +162,7 @@ const mot = (texte: string) => (/^[A-Za-z0-9@._:/=+-]+$/.test(texte) ? texte : `
 
 // La ligne que le runner lance sur la box pour une demande : `pull <station> …`,
 // et rien d'autre — aucune adresse, aucun port, rien qui dise où est ce poste.
-export const commandeTirer = (station: string, suite: readonly string[]) => ["pull", station, ...suite].map(mot).join(" ");
+export const pullCommand = (station: string, suite: readonly string[]) => ["pull", station, ...suite].map(mot).join(" ");
 
 const objet = (valeur: unknown): valeur is Record<string, unknown> => valeur !== null && typeof valeur === "object" && !Array.isArray(valeur);
 
@@ -171,8 +171,8 @@ const objet = (valeur: unknown): valeur is Record<string, unknown> => valeur !==
 // (code 1). Tout le reste — `ssh` en échec, box muette, runtime à l'arrêt, geste
 // d'avant `tirer` — ne dit rien de ce que la box en a fait. `entree` : ce que le
 // geste lit sur son entrée standard. Jamais d'exception.
-export function tirer(reglages: Reglages, { nom, box }: Servi, station: string, suite: readonly string[], entree: string | null = null, signal?: AbortSignal): Promise<Rendue> {
-  const args = ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${reglages.connexionS}`, "--", box.hote, `brigade ${cite(nom)} ${commandeTirer(station, suite)}`];
+export function pull(reglages: Reglages, { nom, box }: Served, station: string, suite: readonly string[], entree: string | null = null, signal?: AbortSignal): Promise<Rendue> {
+  const args = ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${reglages.connexionS}`, "--", box.hote, `brigade ${cite(nom)} ${pullCommand(station, suite)}`];
   const lance = `$ ${reglages.ssh} ${args.join(" ")}`;
   return new Promise((resoudre) => {
     if (signal?.aborted) return resoudre({ muette: "request abandoned before it left" });
@@ -300,9 +300,9 @@ export function ouvrirRunner(options: OptionsDuRunner) {
 
   // Chaque demande attend que la précédente du même projet ait fini, veilles comprises.
   const demander = (station: Station, suite: readonly string[], entree: string | null = null, signal: AbortSignal = station.arret.signal): Promise<Rendue> => {
-    const servi = { nom: station.projet.nom, box: station.projet.box };
-    const rendue = (passage.get(servi.nom) ?? Promise.resolve()).then(() => tirer(options, servi, station.nom, suite, entree, signal));
-    passage.set(servi.nom, rendue);
+    const served = { nom: station.projet.nom, box: station.projet.box };
+    const rendue = (passage.get(served.nom) ?? Promise.resolve()).then(() => pull(options, served, station.nom, suite, entree, signal));
+    passage.set(served.nom, rendue);
     return rendue;
   };
 
@@ -442,7 +442,7 @@ export function ouvrirRunner(options: OptionsDuRunner) {
   }
 
   // Un cook, de la mission à la livraison.
-  async function cuisiner(station: Station, mission: Mission): Promise<void> {
+  async function cook(station: Station, mission: Mission): Promise<void> {
     const { dossier } = station.projet;
     const worktree = join(options.worktrees, station.projet.nom, mission.run);
     const lecture = ouvrirLecture();
@@ -508,9 +508,9 @@ export function ouvrirRunner(options: OptionsDuRunner) {
           await pause(rythme, fini.signal);
           if (fini.signal.aborted) return;
           if (performance.now() >= echeance) return cook.arreter("lease");
-          const preuve = await empreinte(worktree).catch(() => null);
+          const proof = await empreinte(worktree).catch(() => null);
           const { turns, tokens } = lecture.mesure();
-          const rendue = await demander(station, ["renew", mission.run, ...(preuve === null || preuve === depart ? [] : ["--proof", preuve]), "--turns", String(turns), "--tokens", String(tokens)], null, fini.signal);
+          const rendue = await demander(station, ["renew", mission.run, ...(proof === null || proof === depart ? [] : ["--proof", proof]), "--turns", String(turns), "--tokens", String(tokens)], null, fini.signal);
           if (fini.signal.aborted) return;
           if ("muette" in rendue) continue;
           const { reponse } = rendue;
@@ -581,7 +581,7 @@ export function ouvrirRunner(options: OptionsDuRunner) {
       } else if (rendue.reponse.verb === "claim") {
         const mission = rendue.reponse.mission === null ? null : missionLue(rendue.reponse.mission);
         if (mission !== null) {
-          suivre(station, cuisiner(station, mission));
+          suivre(station, cook(station, mission));
           // Tant qu'il lui reste de la place, elle réclame sans attendre.
           continue;
         }

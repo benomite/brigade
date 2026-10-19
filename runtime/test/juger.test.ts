@@ -4,11 +4,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { argumentsJuge, consigneDeJugement, CRITERE_DE_FORME, empreinte, lireDecision, MARQUEUR_MANAGER } from "../src/juger.ts";
 
-const CALIBRAGE = { model: "sonnet", effort: "medium" };
+const CALIBRATION = { model: "sonnet", effort: "medium" };
 const ISSUE = { number: 30, title: "Le rail perd un ticket", body: "Quand le bail tombe, le ticket disparaît.", labels: ["fix", "prio:1"] };
 
 test("le jugement est lancé en flux JSON, avec le calibrage du manager, et sans aucun outil", () => {
-  const args = argumentsJuge("la consigne", CALIBRAGE);
+  const args = argumentsJuge("la consigne", CALIBRATION);
 
   assert.deepEqual(args.slice(0, 9), ["-p", "la consigne", "--output-format", "stream-json", "--verbose", "--model", "sonnet", "--effort", "medium"]);
   assert.equal(args[args.indexOf("--tools") + 1], "");

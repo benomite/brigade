@@ -85,7 +85,7 @@ Tous en 1440 × 900. `--liste` donne la liste à jour.
 
 - **Les données** : ce que la box rend (`facts`, `status`, `station`), mot pour mot, dans
   `ecrans/cuisine-figee.ts`. Ce que la vue en reçoit est **calculé par les modules de l'app**
-  (`faits.ts`, `attend.ts`, `alertes.ts`, `barre.ts`…) dans le même ordre que `main.ts`
+  (`facts.ts`, `awaiting.ts`, `alertes.ts`, `barre.ts`…) dans le même ordre que `main.ts`
   (`cuisine()`, dans `ecrans/commun.ts`) : un changement de ces modules se voit dans la capture.
 - **L'heure** : `2026-10-13T10:04:12Z` (`MAINTENANT`), pour la vue (`Date.now()`, `new Date()`) comme
   pour les modules ; le fuseau est UTC, la langue `en-US`.
@@ -140,7 +140,7 @@ export const ecran: Ecran = {
 };
 ```
 
-`fiche.ts` est l'exemple complet : deux clics (la case de `parade`, puis la carte
+`card.ts` est l'exemple complet : deux clics (la case de `parade`, puis la carte
 `#rail .colonne:nth-child(2) li.bon`), et chaque réponse dont la fiche a besoin — `situation`,
 `gestesDeFiche`, `lireHistoire`, `lireDiscussion` — calculée par le module de l'app qui la calcule
 dans `main.ts`, à partir de ce que la box rendrait (`pass 14 --json`, `pass 14 issue`). `carteDe`

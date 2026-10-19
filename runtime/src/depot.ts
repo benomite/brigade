@@ -445,17 +445,17 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         const avant = connu(branche);
         await gitAvec(env, "fetch", "--quiet", "origin", `+refs/heads/${branche}:${suivie(branche)}`);
         git("update-ref", connue(branche), suivie(branche));
-        const [locale, distante] = [git("rev-parse", `refs/heads/${branche}`), commitDe(suivie(branche))];
+        const [locale, remote] = [git("rev-parse", `refs/heads/${branche}`), commitDe(suivie(branche))];
         const compter = (plage: string) => Number(git("rev-list", "--count", plage));
         // L'origine porte-t-elle ce qu'un autre que la station y a mis ? Le
         // clone garde-t-il ce qu'il n'a jamais poussé — la récolte d'un cook
         // raté, un rebase dont le push a échoué ? Sans commit connu, seule
         // l'avance de l'une sur l'autre le dit.
-        const etrangere = avant === "" ? compter(`${locale}..${distante}`) > 0 : distante !== avant;
-        const garde = avant === "" ? compter(`${distante}..${locale}`) > 0 : locale !== avant;
+        const etrangere = avant === "" ? compter(`${locale}..${remote}`) > 0 : remote !== avant;
+        const garde = avant === "" ? compter(`${remote}..${locale}`) > 0 : locale !== avant;
         // Rien à garder : la branche devient ce que l'origine porte, qu'un
         // humain l'y ait avancée, réécrite ou ramenée en arrière.
-        if (etrangere && !garde) git("branch", "--quiet", "--force", branche, distante);
+        if (etrangere && !garde) git("branch", "--quiet", "--force", branche, remote);
         await gitAsync("worktree", "add", "--quiet", worktree, branche);
         // Rien d'étranger : la branche reste ce que le clone porte, et le push
         // sous garde passera.

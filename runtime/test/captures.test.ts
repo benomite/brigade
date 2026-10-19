@@ -13,7 +13,7 @@ test("un ticket est d'interface quand sa zone touche la vue de l'app, ou que le 
   // Un dossier qui contient la vue la touche.
   assert.equal(estDInterface({ zone: ["runtime/src", "app/src"], labels: [] }), true);
   assert.equal(estDInterface({ zone: [], labels: ["fire", "cook:design"] }), true);
-  for (const zone of [[], ["runtime/src"], ["docs"], ["scripts/capture-ecran"], ["app/src/faits.ts"]]) {
+  for (const zone of [[], ["runtime/src"], ["docs"], ["scripts/capture-ecran"], ["app/src/facts.ts"]]) {
     assert.equal(estDInterface({ zone, labels: ["fire", "model:opus", "effort:high"] }), false, String(zone));
   }
 });

@@ -48,9 +48,9 @@ const peser = (chemin: string, vu: Stats): { ecritMs: number; octets: number } =
     const enfant = join(chemin, nom);
     const stats = voir(enfant);
     if (!stats) continue;
-    const poids = peser(enfant, stats);
-    ecritMs = Math.max(ecritMs, poids.ecritMs);
-    octets += poids.octets;
+    const weight = peser(enfant, stats);
+    ecritMs = Math.max(ecritMs, weight.ecritMs);
+    octets += weight.octets;
   }
   return { ecritMs, octets };
 };
@@ -77,10 +77,10 @@ export function lireTranscripts(claude: string): { transcripts: Transcript[]; do
       const session = join(chemin, nom.slice(0, -SUFFIXE.length));
       const annexe = voir(session);
       if (annexe?.isDirectory()) {
-        const poids = peser(session, annexe);
+        const weight = peser(session, annexe);
         transcript.chemins.push(session);
-        transcript.ecritMs = Math.max(transcript.ecritMs, poids.ecritMs);
-        transcript.octets += poids.octets;
+        transcript.ecritMs = Math.max(transcript.ecritMs, weight.ecritMs);
+        transcript.octets += weight.octets;
       }
       transcripts.push(transcript);
     }

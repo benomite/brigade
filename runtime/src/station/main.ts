@@ -7,16 +7,16 @@ import { join, resolve } from "node:path";
 import { canalGitHub } from "../appairage/canal.ts";
 import { etatsPublies } from "../appairage/etats.ts";
 import { identiteDeLaStation, tenirPresence } from "../appairage/presence.ts";
-import { configVeille, veillerConnexionMax, type VeilleConnexionMax } from "../connexion-max/veille.ts";
+import { configVeille, watchMaxConnection, type MaxConnectionWatch } from "../connection-max/veille.ts";
 import { masquerLaConsole } from "../jeton-claude.ts";
 import { installerLimite, journaliserLesAppels, limiteDeLaStation } from "../limite-github.ts";
-import { annoncerEnService } from "../mise-a-jour/en-service.ts";
+import { announceInService } from "../mise-a-jour/en-service.ts";
 import { lireEtatMiseAJour } from "../mise-a-jour/etat.ts";
 import { tenirProjetsDeLApp } from "../projets/tenir.ts";
-import { configReseau, passerParLaPorte } from "../reseau.ts";
+import { configReseau, goThroughTheDoor } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { CONFIGURATION } from "./configuration.ts";
-import { attendrePorteDeLaStation, configPortes, lirePortes, VARIABLE_PORTES } from "./portes.ts";
+import { waitForStationDoor, doorsConfig, readDoors, DOORS_VARIABLE } from "./doors.ts";
 import { nommer, ouvrirStation, projetEnCours } from "./station.ts";
 
 // Ce que la station dit à journald est masqué, avant même son premier mot.
@@ -33,20 +33,20 @@ function refuser(motif: string): never {
 const brut = process.env.BRIGADE_STATION_DIR || refuser("BRIGADE_STATION_DIR n'est pas défini");
 const racine = resolve(brut);
 
-let fichiersDeLaConnexion: ReturnType<typeof configVeille>;
+let connectionFiles: ReturnType<typeof configVeille>;
 // Les portes que tient `brigade-station-porte` : celle de la station, et
 // celle de chaque projet.
-let portes: string | null;
+let doors: string | null;
 try {
-  fichiersDeLaConnexion = configVeille(process.env, racine);
-  portes = configPortes(process.env);
+  connectionFiles = configVeille(process.env, racine);
+  doors = doorsConfig(process.env);
   // Sans elles, la porte de la station, si son environnement en nomme une : ce
   // que son process joint lui-même — GitHub, Anthropic — passe par elle.
   // Chaque projet peut avoir la sienne pour ce qu'il lance
   // (`BRIGADE_PROXY_PORT` sur sa ligne).
-  const porte = configReseau(process.env);
-  if (porte !== null && portes !== null) refuser(`BRIGADE_PROXY_PORT et ${VARIABLE_PORTES} sont définis ensemble : sous les portes de la station, la sienne est celle qu'elles ouvrent`);
-  if (porte !== null) passerParLaPorte(porte);
+  const door = configReseau(process.env);
+  if (door !== null && doors !== null) refuser(`BRIGADE_PROXY_PORT et ${DOORS_VARIABLE} sont définis ensemble : sous les portes de la station, la sienne est celle qu'elles ouvrent`);
+  if (door !== null) goThroughTheDoor(door);
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide) refuser(erreur.message);
   throw erreur;
@@ -57,16 +57,16 @@ const dire = (ligne: string) => console.log(ligne);
 // Sous les portes de la station, son unité ne joint que la boucle locale :
 // rien ne part avant que sa porte ne soit ouverte. Un port qui change — la
 // porte relancée n'a pas retrouvé le sien — est repris.
-if (portes !== null) {
-  const fichierDesPortes = portes;
-  let porteDeLaStation = await attendrePorteDeLaStation(fichierDesPortes, { dire });
-  passerParLaPorte(porteDeLaStation);
+if (doors !== null) {
+  const doorsFile = doors;
+  let stationDoor = await waitForStationDoor(doorsFile, { dire });
+  goThroughTheDoor(stationDoor);
   setInterval(() => {
-    const { station } = lirePortes(fichierDesPortes);
-    if (station === null || station === porteDeLaStation) return;
-    dire(`brigade : la porte de la station a changé de port (${porteDeLaStation} → ${station}) : la station sort par la nouvelle`);
-    porteDeLaStation = station;
-    passerParLaPorte(station);
+    const { station } = readDoors(doorsFile);
+    if (station === null || station === stationDoor) return;
+    dire(`brigade : la porte de la station a changé de port (${stationDoor} → ${station}) : la station sort par la nouvelle`);
+    stationDoor = station;
+    goThroughTheDoor(station);
   }, 2000).unref();
 }
 
@@ -86,8 +86,8 @@ for (const sortie of ["log", "error"] as const) {
   };
 }
 // La connexion Max de la machine : une seule veille, pour tous les projets.
-const connexion: VeilleConnexionMax = veillerConnexionMax({ ...fichiersDeLaConnexion, jeton: Boolean(process.env.BRIGADE_CLAUDE_TOKEN_FILE), dire });
-const station = ouvrirStation({ racine, env: process.env, dire, connexion, portes });
+const connection: MaxConnectionWatch = watchMaxConnection({ ...connectionFiles, jeton: Boolean(process.env.BRIGADE_CLAUDE_TOKEN_FILE), dire });
+const station = ouvrirStation({ racine, env: process.env, dire, connexion: connection, doors });
 // Sa présence sur GitHub, seul canal entre la station et l'app du chef : son
 // état, chaque minute, et le code qui l'appaire (appairage/presence.ts). Ses
 // pannes y vont aussi : sa mise à jour, que son unité lui fait lire
@@ -100,7 +100,7 @@ const presence = tenirPresence({
   canal,
   identite,
   projets: () => station.projets(),
-  etats: () => etatsPublies(dossierMiseAJour === null ? null : lireEtatMiseAJour(dossierMiseAJour), connexion.connexion()),
+  etats: () => etatsPublies(dossierMiseAJour === null ? null : lireEtatMiseAJour(dossierMiseAJour), connection.connexion()),
   dire,
 });
 // Les projets que le chef lui ajoute depuis l'app, par le même gist : la
@@ -122,7 +122,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
     projetsDeLApp.arreter();
     station.arreter(signal);
-    connexion.arreter();
+    connection.arreter();
     console.log(`brigade : station arrêtée (${signal})`);
     // L'heure de l'arrêt, écrite sur GitHub : l'app la dit hors ligne sans attendre.
     void presence.arreter();
@@ -137,9 +137,9 @@ process.on("SIGHUP", () => {
 
 // Ce que la station dit d'elle-même — sa version, son pid, ce qu'elle sert :
 // c'est ce qu'une mise à jour attend pour garder sa version.
-annoncerEnService(racine, () => ({ servis: station.projets(), refuses: station.refuses() }), { dire });
+announceInService(racine, () => ({ servis: station.projets(), refuses: station.refuses() }), { dire });
 
-const servis = station.projets();
+const servedOnes = station.projets();
 console.log(
-  `brigade : station démarrée — pid ${process.pid}, configuration ${join(racine, CONFIGURATION)} ; ${servis.length === 0 ? "aucun projet servi" : `${servis.length} projet${servis.length > 1 ? "s" : ""} servi${servis.length > 1 ? "s" : ""} : ${servis.join(", ")}`}`,
+  `brigade : station démarrée — pid ${process.pid}, configuration ${join(racine, CONFIGURATION)} ; ${servedOnes.length === 0 ? "aucun projet servi" : `${servedOnes.length} projet${servedOnes.length > 1 ? "s" : ""} servi${servedOnes.length > 1 ? "s" : ""} : ${servedOnes.join(", ")}`}`,
 );

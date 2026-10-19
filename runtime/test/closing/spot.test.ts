@@ -77,11 +77,11 @@ test("un export dont son propre fichier se sert n'est pas mort, ni celui qu'un f
 
 test("l'aide d'un test, référencée par un autre test, n'est pas morte ; ni une déclaration d'ambiance, ni un export par défaut ne sont jugés", () => {
   const morts = repererCodeMort([
-    { chemin: "test/aides/cuisine.ts", texte: "export function cuisine() {}\nexport function inutile() {}\n" },
-    { chemin: "test/a.test.ts", texte: 'import { cuisine } from "./aides/cuisine.ts";\ncuisine();\n' },
+    { chemin: "test/aides/kitchen.ts", texte: "export function cuisine() {}\nexport function inutile() {}\n" },
+    { chemin: "test/a.test.ts", texte: 'import { cuisine } from "./aides/kitchen.ts";\ncuisine();\n' },
     { chemin: "src/global.d.ts", texte: "export type Ambiance = string;\n" },
     { chemin: "src/page.tsx", texte: "export default function Page() {}\n" },
   ]);
 
-  assert.deepEqual(morts, [{ chemin: "test/aides/cuisine.ts", ligne: 2, nom: "inutile", tests: [] }]);
+  assert.deepEqual(morts, [{ chemin: "test/aides/kitchen.ts", ligne: 2, nom: "inutile", tests: [] }]);
 });

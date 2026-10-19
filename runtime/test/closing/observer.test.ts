@@ -10,8 +10,8 @@ import type { Fait } from "../../src/evenements.ts";
 import { lireDepot } from "../../src/closing/reading.ts";
 import { principal } from "../../src/closing/observer.ts";
 import { mesurerRatio } from "../../src/closing/ratio.ts";
-import { ouvrirJournal } from "../../src/journal.ts";
-import { SANS_SEUIL } from "../../src/mesures.ts";
+import { openLog } from "../../src/log.ts";
+import { SANS_SEUIL } from "../../src/measures.ts";
 import { appeler, BASE, depotGit, ENV_GIT, git, horloge, lancer, repertoireTemporaire } from "../outils.ts";
 import { ecrireHistoire, lignes, type Etape } from "./history.ts";
 
@@ -182,11 +182,11 @@ test("l'observation n'écrit aucun fichier du dépôt cible, n'y crée aucune br
 test("le journal, s'il est là, dit les compteurs de la dérive : les merges depuis la dernière fermeture et les seuils franchis, lus par le relevé des mesures", async (t) => {
   const clone = depot(t, [{ merge: { "a.txt": lignes(5) } }]);
   const etat = repertoireTemporaire(t);
-  const journal = ouvrirJournal(etat, { maintenant: horloge() });
-  const noter = (fait: Fait, ticket: number | null = null) => journal.ajouter({ project: "brigade", ticket, author: "runtime", ...fait });
+  const log = openLog(etat, { maintenant: horloge() });
+  const noter = (fait: Fait, ticket: number | null = null) => log.ajouter({ project: "brigade", ticket, author: "runtime", ...fait });
   noter({ type: "drift.configured", payload: { limits: { ...SANS_SEUIL, merges: 2 } } });
   for (const ticket of [17, 18, 19]) noter({ type: "merge.done", payload: { pr: `https://exemple.test/pull/${ticket}`, sha: `sha-${ticket}`, by: "pass", reconciled: false } }, ticket);
-  journal.fermer();
+  log.fermer();
 
   const avec = await observer(clone, { BRIGADE_STATE_DIR: etat });
   assert.match(avec.sortie, /\nlog        3 merges since the last closing \(none in the log\) — 1 threshold crossed, details with `brigade <projet> measures`\n {11}3 merges since the last closing for a threshold of 2\n$/);
@@ -220,10 +220,10 @@ test("la commande refuse ce qu'elle ne comprend pas, et dit ce qui lui manque du
 
 test("`run closing` joue l'observation dans son propre process", async (t) => {
   const scripts: Record<string, string> = JSON.parse(readFileSync(join(import.meta.dirname, "../../package.json"), "utf8")).scripts;
-  assert.equal(scripts.closing, "node src/fermeture.ts");
+  assert.equal(scripts.closing, "node src/closing.ts");
   const clone = depot(t, [{ merge: { "a.txt": lignes(5) } }]);
 
-  const enfant = lancer(t, join(import.meta.dirname, "../../src/fermeture.ts"), [], env(clone));
+  const enfant = lancer(t, join(import.meta.dirname, "../../src/closing.ts"), [], env(clone));
 
   assert.equal(await enfant.fin, 0, enfant.sortie());
   assert.match(enfant.sortie(), /^closing    observation of origin\/v2 /);

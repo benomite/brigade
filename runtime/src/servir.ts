@@ -10,7 +10,7 @@
 // tient son worktree : il ne se range qu'une fois le serveur arrêté. Aucun ne
 // survit à son runtime. Seul module qui lance la commande de service.
 //
-// Un serveur lancé dit aussi l'écran à regarder de sa livraison (`ecran.ts`) :
+// Un serveur lancé dit aussi l'écran à regarder de sa livraison (`screen.ts`) :
 // c'est de lui que se calcule la page à ouvrir, jamais la racine du site.
 //
 // Un projet qui déclare son `lancement` — une app qui ne s'ouvre pas dans un
@@ -21,11 +21,11 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { connect } from "node:net";
-import { envelopper, type Cloison } from "./cloison.ts";
-import { commentLeVoir, ecranDeLaLivraison } from "./ecran.ts";
+import { envelopper, type Partition } from "./partition.ts";
+import { commentLeVoir, deliveryScreen } from "./screen.ts";
 import type { FaitService, FinDeService } from "./events/service.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
-import type { Journal } from "./journal.ts";
+import type { Log } from "./log.ts";
 import { servicesIndisponibles } from "./projections/service.ts";
 import { serviceDuWorktree, toucheInterface } from "./service.ts";
 
@@ -34,12 +34,12 @@ const GRACE_MS = 2000;
 // La cadence à laquelle le port d'un serveur qui démarre est sondé.
 const SONDE_MS = 250;
 // Ce qu'on laisse à la sortie d'une commande pour se fermer une fois qu'elle a fini.
-const DELAI_DE_FERMETURE_MS = 1000;
+const CLOSING_DELAY_MS = 1000;
 // Ce que le journal garde de ce qu'a dit une commande sortie d'elle-même.
 const FIN_MAX = 1000;
 const SORTIE_MAX = 16 * 1024;
 
-export type Livraison = {
+export type Delivery = {
   ticket: number;
   run: string;
   // Le worktree du cook qui l'a faite, et son chemin tel que le journal le
@@ -58,28 +58,28 @@ export type Livraison = {
   masquer?: (texte: string) => string;
 };
 
-export type OptionsServeurs = {
-  journal: Journal;
+export type ServersOptions = {
+  journal: Log;
   projet: string;
   station: string;
   auteur: string;
   // La cloison dans laquelle part la commande. Absente : elle tourne sous le
   // compte du runtime, sans rien autour.
-  cloison?: Cloison | null;
+  cloison?: Partition | null;
   avertir: (message: string) => void;
   // Appelé une fois un serveur arrêté, sauf quand le runtime s'en va : son
   // worktree n'a plus de raison de rester.
-  ranger: (serveur: { ticket: number; relatif: string; branche: string }) => Promise<void>;
+  ranger: (server: { ticket: number; relatif: string; branche: string }) => Promise<void>;
   graceMs?: number;
   sondeMs?: number;
 };
 
-export type Serveurs = {
+export type Servers = {
   // Sert la livraison si elle touche l'interface et que son worktree est
   // servable. Vrai : un serveur est lancé, ou le worktree d'une app à lancer
   // est tenu — il ne doit pas être rangé tant qu'il l'est. Faux : rien n'est lancé, et ce qui
   // l'empêche, si ce n'est pas la livraison elle-même, est dit.
-  servir(livraison: Livraison): boolean;
+  servir(delivery: Delivery): boolean;
   // Arrête le serveur du ticket, s'il en a un, ou relâche le worktree qu'il
   // tient. Résolue une fois le serveur mort et son worktree rangé.
   arreter(ticket: number, motif: Exclude<FinDeService, "exited" | "shutdown" | "removed">): Promise<void>;
@@ -115,12 +115,12 @@ type Tenu = {
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
-export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
-  const { journal, projet, station, avertir } = options;
-  const { base } = journal;
+export function openServers(options: ServersOptions): Servers {
+  const { journal: log, projet, station, avertir } = options;
+  const { base } = log;
   const graceMs = options.graceMs ?? GRACE_MS;
   const sondeMs = options.sondeMs ?? SONDE_MS;
-  const noter = (ticket: number | null, fait: FaitService) => journal.ajouter({ project: projet, ticket, author: options.auteur, ...fait });
+  const noter = (ticket: number | null, fait: FaitService) => log.ajouter({ project: projet, ticket, author: options.auteur, ...fait });
   const tenus = new Map<number, Tenu>();
   // Vrai dès que le runtime s'en va : plus rien ne s'écrit, plus rien ne part.
   let ferme = false;
@@ -176,21 +176,21 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
 
   // L'écran à regarder : ce que la déclaration d'écrans du dépôt dit mal
   // ne l'empêche pas d'être servi, mais se dit.
-  const ecranLu = (livraison: Livraison) => {
-    const { ecran, problemes } = ecranDeLaLivraison({ worktree: livraison.worktree, corps: livraison.corps, changes: livraison.changes });
-    if (problemes.length > 0) avertir(`brigade: screen of the delivery of ticket #${livraison.ticket} read without the badly written lines — ${problemes.join("; ")}`);
-    return ecran;
+  const readScreen = (delivery: Delivery) => {
+    const { ecran: screenToSee, problemes } = deliveryScreen({ worktree: delivery.worktree, corps: delivery.corps, changes: delivery.changes });
+    if (problemes.length > 0) avertir(`brigade: screen of the delivery of ticket #${delivery.ticket} read without the badly written lines — ${problemes.join("; ")}`);
+    return screenToSee;
   };
 
   // L'app ne s'ouvre pas dans un navigateur : rien n'est lancé, le worktree
   // est tenu, et le journal dit comment voir son écran. Relâché, il se range
   // aussitôt — rien à attendre, rien ne tourne.
-  const tenir = (livraison: Livraison, lancement: string): boolean => {
-    const { ticket, relatif } = livraison;
+  const tenir = (delivery: Delivery, lancement: string): boolean => {
+    const { ticket, relatif } = delivery;
     disponible();
-    const ecran = ecranLu(livraison);
+    const screenToSee = readScreen(delivery);
     let rendre = () => {};
-    const tenu: Tenu = { ticket, relatif, worktree: livraison.worktree, port: null, pid: null, motif: null, fini: new Promise<void>((resoudre) => void (rendre = resoudre)) };
+    const tenu: Tenu = { ticket, relatif, worktree: delivery.worktree, port: null, pid: null, motif: null, fini: new Promise<void>((resoudre) => void (rendre = resoudre)) };
     tenu.relacher = async (motif) => {
       if (tenus.get(ticket) === tenu) tenus.delete(ticket);
       try {
@@ -198,7 +198,7 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
         if (ferme) return;
         noter(ticket, { type: "service.released", payload: { worktree: relatif, reason: motif } });
         // `removed` : le rangement qui le relâche est en cours, il n'y revient pas.
-        if (motif !== "removed") await options.ranger({ ticket, relatif, branche: livraison.branche });
+        if (motif !== "removed") await options.ranger({ ticket, relatif, branche: delivery.branche });
       } catch (erreur) {
         if (!ferme) avertir(`brigade: the end of the held worktree of ticket #${ticket} (${relatif}) could not be told — ${message(erreur)}`);
       } finally {
@@ -206,9 +206,9 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
       }
     };
     tenus.set(ticket, tenu);
-    const how = commentLeVoir({ worktree: livraison.worktree, lancement, ecran });
-    const screen = ecran === null ? null : { name: ecran.ecran, sentence: ecran.phrase, source: ecran.source };
-    noter(ticket, { type: "service.held", payload: { station, run: livraison.run, worktree: relatif, branch: livraison.branche, launch: lancement, how, screen } });
+    const how = commentLeVoir({ worktree: delivery.worktree, lancement, ecran: screenToSee });
+    const screen = screenToSee === null ? null : { name: screenToSee.ecran, sentence: screenToSee.phrase, source: screenToSee.source };
+    noter(ticket, { type: "service.held", payload: { station, run: delivery.run, worktree: relatif, branch: delivery.branche, launch: lancement, how, screen } });
     return true;
   };
 
@@ -227,19 +227,19 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
   };
 
   return {
-    servir(livraison) {
+    servir(delivery) {
       if (ferme) return false;
-      const { ticket, relatif } = livraison;
-      const service = serviceDuWorktree(livraison.worktree, livraison.env);
+      const { ticket, relatif } = delivery;
+      const service = serviceDuWorktree(delivery.worktree, delivery.env);
       if (!service.servable) {
         indisponible(ticket, service.declare, service.pourquoi);
         return false;
       }
-      if (toucheInterface(service.interface, livraison.changes).length === 0) {
+      if (toucheInterface(service.interface, delivery.changes).length === 0) {
         disponible();
         return false;
       }
-      if (service.regard === "lancement") return tenir(livraison, service.lancement);
+      if (service.regard === "lancement") return tenir(delivery, service.lancement);
       // Un port n'a qu'un serveur : le second mourrait sur le port du premier,
       // et la page montrerait la livraison d'un autre.
       const voisin = [...tenus.values()].find((tenu) => tenu.port === service.port);
@@ -248,19 +248,19 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
         return false;
       }
       disponible();
-      const ecran = ecranLu(livraison);
+      const screenToSee = readScreen(delivery);
 
       // Son propre groupe de process : arrêté, le serveur meurt avec tout ce
       // qu'il a lancé.
-      const lancement = envelopper(options.cloison, { commande: "bash", args: ["-c", service.commande] }, { cwd: livraison.worktree, depot: "ecriture" });
-      const enfant = spawn(lancement.commande, lancement.args, { cwd: livraison.worktree, env: livraison.env, stdio: ["ignore", "pipe", "pipe"], detached: true });
+      const lancement = envelopper(options.cloison, { commande: "bash", args: ["-c", service.commande] }, { cwd: delivery.worktree, depot: "ecriture" });
+      const enfant = spawn(lancement.commande, lancement.args, { cwd: delivery.worktree, env: delivery.env, stdio: ["ignore", "pipe", "pipe"], detached: true });
       let sortie = "";
       const lire = (morceau: Buffer) => void (sortie = (sortie + morceau.toString()).slice(-SORTIE_MAX));
       enfant.stdout?.on("data", lire);
       enfant.stderr?.on("data", lire);
       const dite = () => {
         const fin = sortie.trim();
-        return masquerIdentifiants(livraison.masquer?.(fin) ?? fin).texte.slice(-FIN_MAX);
+        return masquerIdentifiants(delivery.masquer?.(fin) ?? fin).texte.slice(-FIN_MAX);
       };
       if (enfant.pid === undefined) {
         // Une commande impossible à lancer n'a pas de process : elle le dit.
@@ -271,10 +271,10 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
       }
 
       let rendre = () => {};
-      const tenu: Tenu = { ticket, relatif, worktree: livraison.worktree, port: service.port, pid: enfant.pid, motif: null, fini: new Promise<void>((resoudre) => void (rendre = resoudre)) };
+      const tenu: Tenu = { ticket, relatif, worktree: delivery.worktree, port: service.port, pid: enfant.pid, motif: null, fini: new Promise<void>((resoudre) => void (rendre = resoudre)) };
       tenus.set(ticket, tenu);
-      const screen = ecran === null ? null : { name: ecran.ecran, sentence: ecran.phrase, source: ecran.source };
-      noter(ticket, { type: "service.started", payload: { station, run: livraison.run, worktree: relatif, branch: livraison.branche, port: service.port, pid: enfant.pid, screen } });
+      const screen = screenToSee === null ? null : { name: screenToSee.ecran, sentence: screenToSee.phrase, source: screenToSee.source };
+      noter(ticket, { type: "service.started", payload: { station, run: delivery.run, worktree: relatif, branch: delivery.branche, port: service.port, pid: enfant.pid, screen } });
       sonder(tenu);
 
       let conclu = false;
@@ -298,7 +298,7 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
             );
           }
           // `removed` : le rangement qui l'a arrêté est en cours, il n'y revient pas.
-          if (reason !== "removed") await options.ranger({ ticket, relatif, branche: livraison.branche });
+          if (reason !== "removed") await options.ranger({ ticket, relatif, branche: delivery.branche });
         } catch (erreur) {
           if (!ferme) avertir(`brigade: the end of the server of ticket #${ticket} (${relatif}) could not be told — ${message(erreur)}`);
         } finally {
@@ -316,7 +316,7 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
         signaler(tenu, "SIGKILL");
         const fini = () => void conclure(code, signal);
         enfant.once("close", fini);
-        setTimeout(fini, DELAI_DE_FERMETURE_MS).unref();
+        setTimeout(fini, CLOSING_DELAY_MS).unref();
       });
       return true;
     },

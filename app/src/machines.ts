@@ -16,7 +16,7 @@ export type Declaree = { nom: string; distante: boolean };
 // `id` : ce que la vue rend pour choisir. `titre` : ce qu'elle montre.
 export type Machine = { id: string; titre: string; cible: Cible };
 
-export const POSTE = "poste";
+export const WORKSTATION = "poste";
 export const BOX = "box";
 const STATION = "station:";
 
@@ -27,16 +27,16 @@ const machineDe = (station: string) => station.slice(0, station.indexOf("/"));
 // et seuls ce poste et la box sont alors proposés.
 export function machinesDe(projet: Pick<Projet, "box" | "stations">, declarees: readonly Declaree[] = []): Machine[] {
   const jouees = new Set(projet.stations ?? []);
-  const surLaBox = projet.box === undefined ? [] : declarees.filter(({ distante }) => !distante).map(({ nom }) => nom);
+  const surLaBox = projet.box === undefined ? [] : declarees.filter(({ distante: remote }) => !remote).map(({ nom }) => nom);
   const ailleurs = new Map<string, string[]>();
-  for (const { nom, distante } of declarees) {
-    if (!distante || jouees.has(nom) || !nom.includes("/")) continue;
+  for (const { nom, distante: remote } of declarees) {
+    if (!remote || jouees.has(nom) || !nom.includes("/")) continue;
     const machine = machineDe(nom);
     ailleurs.set(machine, [...(ailleurs.get(machine) ?? []), nom]);
   }
   const et = (stations: readonly string[]) => (stations.length === 0 ? "" : ` — station ${stations.join(", ")}`);
   return [
-    { id: POSTE, titre: `this Mac${et([...jouees])}`, cible: { lieu: "poste" } },
+    { id: WORKSTATION, titre: `this Mac${et([...jouees])}`, cible: { lieu: "poste" } },
     ...(projet.box === undefined ? [] : [{ id: BOX, titre: `main station ${projet.box.hote}${et(surLaBox)}`, cible: { lieu: "box", nom: projet.box.hote, hote: projet.box.hote } as const }]),
     // Une station se joue auprès d'une box : sans elle, aucune n'est jointe.
     ...(projet.box === undefined ? [] : [...ailleurs].map(([machine, stations]) => ({ id: `${STATION}${machine}`, titre: `station ${stations.join(", ")}`, cible: { lieu: "station", nom: machine, hote: machine } as const }))),

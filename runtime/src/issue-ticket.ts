@@ -28,9 +28,9 @@ export type IssueDuTicket = {
 
 export type Lecture = { found: true; issue: IssueDuTicket } | { found: false; reason: string };
 
-const RIEN_POSTE = "none: nothing was posted";
+const NOTHING_POSTED = "none: nothing was posted";
 
-const refuse = (reason: string): Resultat => ({ done: false, reason, price: RIEN_POSTE });
+const refuse = (reason: string): Resultat => ({ done: false, reason, price: NOTHING_POSTED });
 
 const numeroValide = (ticket: number) => Number.isSafeInteger(ticket) && ticket > 0;
 

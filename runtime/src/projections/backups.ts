@@ -3,12 +3,12 @@
 // is read — a failure writes nothing to the log: it shows in the age of this
 // date.
 import type { Base } from "../base.ts";
-import type { FaitSauvegarde } from "../events/backup.ts";
+import type { BackupFact } from "../events/backup.ts";
 import { definirProjection } from "../projection.ts";
 
 export type Backup = { at: string; name: string; lastSeq: number };
 
-export const sauvegardes = definirProjection<FaitSauvegarde>({
+export const backups = definirProjection<BackupFact>({
   nom: "sauvegardes",
   tables: ["backup_last"],
   schema: `

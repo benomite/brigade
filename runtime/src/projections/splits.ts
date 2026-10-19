@@ -6,9 +6,9 @@ import type { Base } from "../base.ts";
 import type { FaitManager, TicketPrevu } from "../events/manager.ts";
 import { definirProjection } from "../projection.ts";
 
-type FaitDecoupage = Extract<FaitManager, { type: `manager.split${string}` | "manager.closed" | "manager.reopened" }>;
+type SplitFact = Extract<FaitManager, { type: `manager.split${string}` | "manager.closed" | "manager.reopened" }>;
 
-export type Decoupage = {
+export type Split = {
   epic: number;
   // `split` : découpée, pour toujours. Les trois autres se rejugent quand
   // l'épique change : `asked`, une question attend le chef ; `skipped`, elle
@@ -29,7 +29,7 @@ export type Decoupage = {
   at: string;
 };
 
-export type TicketDEpique = {
+export type EpicTicket = {
   ticket: number;
   epic: number;
   // Son rang dans le découpage, à partir de 1 ; nul pour un ticket du chef.
@@ -46,7 +46,7 @@ const entier = (valeur: unknown): valeur is number => Number.isSafeInteger(valeu
 
 // Une décision sur une épique remplace la précédente — sauf un découpage, qui
 // ne se défait ni ne se refait.
-const decider = (base: Base, epic: number | null, seq: number, at: string, decision: Pick<Decoupage, "state" | "fingerprint" | "run" | "reason"> & { order?: string; tickets?: unknown }) => {
+const decider = (base: Base, epic: number | null, seq: number, at: string, decision: Pick<Split, "state" | "fingerprint" | "run" | "reason"> & { order?: string; tickets?: unknown }) => {
   if (epic === null) return;
   base.executer(
     `INSERT INTO manager_splits (epic, state, fingerprint, run, reason, ordering, tickets, decided_seq, at)
@@ -74,7 +74,7 @@ const fermer = (closed: number) => (base: Base, { ticket }: { ticket: number | n
   base.executer("UPDATE manager_splits SET closed = ? WHERE epic IS ?", closed, ticket);
 };
 
-export const decoupages = definirProjection<FaitDecoupage>({
+export const splits = definirProjection<SplitFact>({
   nom: "decoupages",
   tables: ["manager_splits", "manager_split_tickets", "manager_split_intents"],
   schema: `
@@ -158,55 +158,55 @@ export const decoupages = definirProjection<FaitDecoupage>({
   },
 });
 
-type LigneDecoupage = Omit<Decoupage, "tickets" | "done" | "commented"> & { tickets: string; done: number; commented: number };
+type SplitRow = Omit<Split, "tickets" | "done" | "commented"> & { tickets: string; done: number; commented: number };
 const COLONNES = "epic, state, fingerprint, run, reason, ordering AS \"order\", tickets, done, commented, listed, at";
 
-const lire = (base: Base, suite: string, ...parametres: number[]): Decoupage[] =>
-  base.lire<LigneDecoupage>(`SELECT ${COLONNES} FROM manager_splits ${suite}`, ...parametres).map((ligne) => ({
+const lire = (base: Base, suite: string, ...parametres: number[]): Split[] =>
+  base.lire<SplitRow>(`SELECT ${COLONNES} FROM manager_splits ${suite}`, ...parametres).map((ligne) => ({
     ...ligne,
     tickets: JSON.parse(ligne.tickets) as TicketPrevu[],
     done: ligne.done === 1,
     commented: ligne.commented === 1,
   }));
 
-export function decoupageDe(base: Base, epic: number): Decoupage | null {
+export function splitOf(base: Base, epic: number): Split | null {
   return lire(base, "WHERE epic = ?", epic)[0] ?? null;
 }
 
 // Les épiques découpées, la plus ancienne d'abord.
-export function epiquesDecoupees(base: Base): Decoupage[] {
+export function splitEpics(base: Base): Split[] {
   return lire(base, "WHERE state = 'split' ORDER BY decided_seq");
 }
 
 // Les dernières décisions de découpage, la plus récente d'abord.
-export function decoupagesDuManager(base: Base, combien: number): Decoupage[] {
+export function managerSplits(base: Base, combien: number): Split[] {
   return lire(base, "ORDER BY decided_seq DESC LIMIT ?", combien);
 }
 
 // Une épique dont le manager attend le chef : il y a posé une question, ou son
 // découpage ne se lit pas. `closed` : elle a quitté la liste des issues
 // ouvertes depuis. `seq` : le fait qui porte la question ou l'échec.
-export type EpiqueEnAttente = { epic: number; state: "asked" | "failed"; at: string; seq: number; closed: boolean };
+export type QueuedEpic = { epic: number; state: "asked" | "failed"; at: string; seq: number; closed: boolean };
 
-export function epiquesEnAttente(base: Base): EpiqueEnAttente[] {
+export function queuedEpics(base: Base): QueuedEpic[] {
   return base
-    .lire<Omit<EpiqueEnAttente, "closed"> & { closed: number }>("SELECT epic, state, at, decided_seq AS seq, closed FROM manager_splits WHERE state IN ('asked', 'failed') ORDER BY epic")
+    .lire<Omit<QueuedEpic, "closed"> & { closed: number }>("SELECT epic, state, at, decided_seq AS seq, closed FROM manager_splits WHERE state IN ('asked', 'failed') ORDER BY epic")
     .map((ligne) => ({ ...ligne, closed: ligne.closed === 1 }));
 }
 
-type LigneTicket = Omit<TicketDEpique, "index" | "open" | "fired"> & { idx: number | null; open: number; fired: number };
-const tickets = (base: Base, suite: string, parametre: number): TicketDEpique[] =>
+type LigneTicket = Omit<EpicTicket, "index" | "open" | "fired"> & { idx: number | null; open: number; fired: number };
+const tickets = (base: Base, suite: string, parametre: number): EpicTicket[] =>
   base
     .lire<LigneTicket>(`SELECT ticket, epic, idx, title, open, fired FROM manager_split_tickets ${suite}`, parametre)
     .map(({ idx, open, fired, ...ligne }) => ({ ...ligne, index: idx, open: open === 1, fired: fired === 1 }));
 
 // Les tickets d'une épique : ceux du découpage dans leur ordre, puis ceux que
 // le chef y a rattachés.
-export function ticketsDEpique(base: Base, epic: number): TicketDEpique[] {
+export function epicTickets(base: Base, epic: number): EpicTicket[] {
   return tickets(base, "WHERE epic = ? ORDER BY idx IS NULL, idx, ticket", epic);
 }
 
-export function ticketDEpique(base: Base, ticket: number): TicketDEpique | null {
+export function epicTicket(base: Base, ticket: number): EpicTicket | null {
   return tickets(base, "WHERE ticket = ?", ticket)[0] ?? null;
 }
 
@@ -216,6 +216,6 @@ export function creationsAnnoncees(base: Base, epic: number): number[] {
 }
 
 // Le manager a fermé cette épique parce que tous ses tickets étaient servis.
-export function epiqueServie(base: Base, epic: number): boolean {
+export function servedEpic(base: Base, epic: number): boolean {
   return base.lire("SELECT 1 FROM events WHERE ticket = ? AND type = 'manager.split-served' LIMIT 1", epic).length > 0;
 }

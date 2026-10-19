@@ -17,10 +17,10 @@
 import { resolve } from "node:path";
 import type { Depot } from "./depot.ts";
 import type { FaitNettoyage } from "./events/cleanup.ts";
-import type { Journal } from "./journal.ts";
-import { lire } from "./plafonds.ts";
+import type { Log } from "./log.ts";
+import { lire } from "./caps.ts";
 import { cooksEnCours } from "./projections/guardrails.ts";
-import { rangementDesTranscripts } from "./projections/cleanup.ts";
+import { transcriptsCleanup } from "./projections/cleanup.ts";
 import { derniereSession } from "./projections/sessions.ts";
 import { lireTranscripts, retirerDossierVide, retirerTranscript } from "./transcripts.ts";
 
@@ -39,7 +39,7 @@ export function configTranscripts(env: NodeJS.ProcessEnv): { gardeMs: number } {
 }
 
 export type OptionsNettoyage = {
-  journal: Journal;
+  journal: Log;
   projet: string;
   // Les worktrees se lisent au journal relatifs à ce répertoire.
   repertoireEtat: string;
@@ -73,11 +73,11 @@ type Candidat = { worktree: string; ticket: number; branch: string; kept: number
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
 export function ouvrirNettoyage(options: OptionsNettoyage): Nettoyage {
-  const { journal, projet, depot, avertir } = options;
-  const { base } = journal;
+  const { journal: log, projet, depot, avertir } = options;
+  const { base } = log;
   const arrete = options.arrete ?? (() => false);
   const maintenant = options.maintenant ?? (() => new Date());
-  const noter = (ticket: number, fait: FaitNettoyage) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
+  const noter = (ticket: number, fait: FaitNettoyage) => log.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
   // Cache, pas état : les branches déjà regardées dans cette vie, et restées
   // — des commits absents de l'origine, ou un `git` qui a refusé. Sans lui,
   // chaque branche de cook raté coûterait deux `git` par tick, pour toujours.
@@ -174,13 +174,13 @@ export function ouvrirNettoyage(options: OptionsNettoyage): Nettoyage {
     }
     // Le répertoire d'un worktree parti, une fois vidé : rien n'y naîtra plus.
     for (const dossier of lus.dossiers) if (dossier.ecritMs < limite) retirerDossierVide(dossier);
-    journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "transcripts.tidied", payload: { ...bilan, keepMs: transcripts.gardeMs } });
+    log.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "transcripts.tidied", payload: { ...bilan, keepMs: transcripts.gardeMs } });
   };
 
   // Un projet qui a tourné cloisonné puis redémarre sans cloison ne range plus
   // rien : le dernier passage au journal ne se lirait plus que comme un mensonge.
-  if (!options.transcripts && rangementDesTranscripts(base)) {
-    journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "transcripts.released", payload: {} });
+  if (!options.transcripts && transcriptsCleanup(base)) {
+    log.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "transcripts.released", payload: {} });
   }
 
   return {

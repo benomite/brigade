@@ -23,7 +23,7 @@
 //   autre fichier y est ignoré.
 //
 // Sans E/S : la station donne les fichiers changés, le dépôt et le commit.
-import { LABEL_COOK_DESIGN, toucheLaVue } from "./calibrage.ts";
+import { LABEL_COOK_DESIGN, toucheLaVue } from "./calibration.ts";
 import type { Evenement } from "./evenements.ts";
 import { possede } from "./zones.ts";
 
@@ -34,11 +34,11 @@ export const dossierDesCaptures = (ticket: number) => `${DOSSIER_CAPTURES}/${tic
 
 // Les deux captures d'un écran, par leur chemin dans le dépôt. Nulle : le cook
 // ne l'a pas livrée.
-export type CapturesDEcran = { screen: string; before: string | null; after: string | null };
+export type ScreenCaptures = { screen: string; before: string | null; after: string | null };
 
 // Ce que le journal garde des captures d'une livraison d'interface : le commit
 // poussé qui les porte, et chaque écran. `screens` vide : aucune capture.
-export type Captures = { sha: string; screens: CapturesDEcran[] };
+export type Captures = { sha: string; screens: ScreenCaptures[] };
 
 // Un ticket d'interface touche la vue de l'app : sa zone, à la prise, la
 // touche, ou le manager l'a désigné pour le cook design (`cook:design`).
@@ -66,27 +66,27 @@ const MOMENT = /^(.*?)[-_. ]*(avant|apres)$/;
 // l'ordre de leur nom. Une capture livrée deux fois pour le même écran et le
 // même moment (`fiche-avant.png`, `Fiche-AVANT.png`) : la première dans
 // l'ordre du dépôt l'emporte.
-export function capturesLivrees(ticket: number, changes: readonly string[]): CapturesDEcran[] {
+export function capturesLivrees(ticket: number, changes: readonly string[]): ScreenCaptures[] {
   const dossier = dossierDesCaptures(ticket);
-  const ecrans = new Map<string, CapturesDEcran>();
+  const screens = new Map<string, ScreenCaptures>();
   for (const chemin of [...changes].sort()) {
     if (!possede(dossier, chemin)) continue;
     const nom = chemin.slice(dossier.length + 1);
     if (nom.includes("/") || !/\.png$/i.test(nom)) continue;
-    const [, ecran = "", moment] = MOMENT.exec(sansAccents(nom.slice(0, -".png".length))) ?? [];
+    const [, screen = "", moment] = MOMENT.exec(sansAccents(nom.slice(0, -".png".length))) ?? [];
     if (moment === undefined) continue;
-    const brut = nom.slice(0, ecran.length);
-    const sien = ecrans.get(ecran) ?? { screen: brut, before: null, after: null };
+    const brut = nom.slice(0, screen.length);
+    const sien = screens.get(screen) ?? { screen: brut, before: null, after: null };
     if (moment === "avant") sien.before ??= chemin;
     else sien.after ??= chemin;
-    ecrans.set(ecran, sien);
+    screens.set(screen, sien);
   }
-  return [...ecrans.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, sien]) => sien);
+  return [...screens.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, sien]) => sien);
 }
 
 // Ce qui manque à une livraison d'interface, en clair — ou null : chaque écran
 // a ses deux captures.
-export function capturesManquantes(screens: readonly CapturesDEcran[]): string | null {
+export function capturesManquantes(screens: readonly ScreenCaptures[]): string | null {
   if (screens.length === 0) return "aucune capture";
   const manquantes = screens.flatMap(({ screen, before, after }) => {
     const nom = screen === "" ? "de l'écran" : `de \`${screen}\``;
@@ -146,8 +146,8 @@ export function lireCaptures(brut: unknown): Captures | null {
   const lu = (brut ?? {}) as { sha?: unknown; screens?: unknown };
   if (typeof lu.sha !== "string" || lu.sha === "" || !Array.isArray(lu.screens)) return null;
   const chemin = (valeur: unknown) => (typeof valeur === "string" && valeur !== "" ? valeur : null);
-  const screens = lu.screens.flatMap((ecran: { screen?: unknown; before?: unknown; after?: unknown } | null) =>
-    typeof ecran?.screen === "string" ? [{ screen: ecran.screen, before: chemin(ecran.before), after: chemin(ecran.after) }] : [],
+  const screens = lu.screens.flatMap((screen: { screen?: unknown; before?: unknown; after?: unknown } | null) =>
+    typeof screen?.screen === "string" ? [{ screen: screen.screen, before: chemin(screen.before), after: chemin(screen.after) }] : [],
   );
   return screens.length === lu.screens.length ? { sha: lu.sha, screens } : null;
 }

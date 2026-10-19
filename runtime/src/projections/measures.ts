@@ -22,7 +22,7 @@ type Ecoutes = Extract<
 // for any other ending, while it runs, or if it died with the runtime.
 // `resumed`: the cook of a send-back that resumed the previous cook's session
 // instead of starting from scratch (`resumes` at its launch) — absent otherwise.
-export type CookMesure = { calibration: string | null; turns: number | null; durationMs: number | null; tokens: number | null; delivered: boolean; resumed?: true };
+export type CookMeasure = { calibration: string | null; turns: number | null; durationMs: number | null; tokens: number | null; delivered: boolean; resumed?: true };
 
 // A merged delivery. `measures`: what its latest gates declared.
 // `state`: those of these measures that tell the state of the project after
@@ -39,7 +39,7 @@ export type Delivery = {
   measures: Record<string, number>;
   state: Record<string, number>;
   gatesS: number | null;
-  cooks: CookMesure[];
+  cooks: CookMeasure[];
   overCeiling?: Depassement;
 };
 

@@ -3,13 +3,13 @@ import type { Accueil } from "../accueil.ts";
 import type { Bande } from "../alertes.ts";
 import type { ALLUMAGE, Compte } from "../allumage.ts";
 import type { Vu as VuAmont } from "../amont.ts";
-import type { Montree } from "../attend.ts";
+import type { Montree } from "../awaiting.ts";
 import type { Affichee } from "../barre.ts";
 import type { Bouton } from "../boutons.ts";
 import type { Lecture } from "../box.ts";
 import type { PALETTE, Role } from "../couleurs.ts";
-import type { GESTES_DE_LA_CUISINE } from "../cuisine.ts";
-import type { BANNIERE, Dessinable } from "../faits.ts";
+import type { KITCHEN_ACTIONS } from "../kitchen.ts";
+import type { BANNIERE, Dessinable } from "../facts.ts";
 import type { Vu as VuDeLaFiabilite } from "../fiabilite.ts";
 import type { Confirmation } from "../confirmation.ts";
 import type { CONFIRMES, DIRECTS, GRANTS } from "../gestes.ts";
@@ -31,7 +31,7 @@ import type { Appairage, RetraitDeStation, VuDesStations } from "../stations/sta
 import type { Terminal } from "../terminaux.ts";
 
 export type Pont = {
-  demarrage(): Promise<{ configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations; projetsDesStations?: VuDesProjets; accueil?: Accueil }>;
+  demarrage(): Promise<{ configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof KITCHEN_ACTIONS; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations; projetsDesStations?: VuDesProjets; accueil?: Accueil }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
   // Le dépôt GitHub et la branche d'intégration du dossier choisi, lus dans son clone — ou pourquoi ils restent à écrire.
@@ -112,10 +112,10 @@ export type Pont = {
   // Ce que la fiche dit d'un ticket vivant — ce que son cook fait, ou ce qui le bloque —, d'après
   // la carte cliquée (histoire.ts, `situation`). Rien pour un ticket que la cuisine ne tient pas.
   situation(carte: { etat?: string; attend: string[]; dit: { libelle: string; valeur: string }[] }): Promise<import("../histoire.ts").Situation>;
-  // Les gestes de la fiche de cette carte, à cet instant, chacun avec son prix (gestes-fiche.ts) :
+  // Les gestes de la fiche de cette carte, à cet instant, chacun avec son prix (card-actions.ts) :
   // ceux qui tranchent ce qu'on attend du chef, puis ceux que la table du chef permet pour son
   // état, et dont l'action est branchée.
-  gestesDeFiche(carte: { ticket: number; etat?: string; ouvrable: boolean; attendu: boolean; decision?: import("../decision.ts").Decision; pr?: boolean }): Promise<import("../gestes-fiche.ts").Propose[]>;
+  gestesDeFiche(carte: { ticket: number; etat?: string; ouvrable: boolean; attendu: boolean; decision?: import("../decision.ts").Decision; pr?: boolean }): Promise<import("../card-actions.ts").Propose[]>;
   // Un geste de la fiche que la vue ne joue pas : une action de box, qui part dans le second.
   gesteDeFiche(projet: string, id: string, ticket: number, valeur?: string): Promise<Terminal | { refus: string }>;
   // L'histoire d'un ticket et son coût, lus par `pass <ticket> --json` sur la box (histoire.ts).
@@ -135,7 +135,7 @@ export type Pont = {
   lireTitre(projet: string, ticket: number): Promise<import("../question.ts").Titre | undefined>;
   // Une capture d'un ticket d'interface, par son écran et son moment : l'image, lue par le `gh` du
   // poste à l'adresse que la box a rendue, en `data:` — ou pourquoi elle ne l'est pas.
-  lireCapture(projet: string, ticket: number, ecran: string, moment: "avant" | "apres"): Promise<import("../captures.ts").Image | undefined>;
+  lireCapture(projet: string, ticket: number, screen: string, moment: "avant" | "apres"): Promise<import("../captures.ts").Image | undefined>;
   // Lever la retenue `blocked-on-human` d'un ticket qui t'attend : retirer le label (`label`) ou
   // fermer l'issue (`fermer`), par le `gh` du poste. Rien ne part pour un ticket que le bloc ne dit pas retenu.
   leverRetenue(projet: string, ticket: number, geste: "label" | "fermer"): Promise<import("../question.ts").Leve>;
@@ -229,7 +229,7 @@ export type Pont = {
   surSortie(recevoir: (id: number, donnees: string) => void): void;
   surEtat(recevoir: (terminal: Terminal) => void): void;
   // `servies` : les serveurs que le `status` de cette lecture montre, et le geste de chacun (page.ts).
-  surLecture(recevoir: (lecture: Montree, servies: Pages) => void): void;
+  surLecture(recevoir: (lecture: Montree, servedOnes: Pages) => void): void;
   // Ce que la commande de l'onglet affiché a rendu, mot pour mot. `manager` : dans l'onglet
   // Manager, ce qui se pose au-dessus — l'état du manager, lu dans cette sortie (manager.ts).
   // `grants` : dans l'onglet Grants, de même — l'état des grants (grants.ts). `fiabilite` : dans

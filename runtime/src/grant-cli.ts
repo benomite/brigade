@@ -18,11 +18,11 @@ import { existsSync } from "node:fs";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
 import type { ActionDeGrant } from "./events/pass.ts";
-import { direSansGrantEn } from "./attend.ts";
+import { direSansGrantEn } from "./awaiting.ts";
 import { dureeEn as duree } from "./etat.ts";
 import { ACTIONS, commanderGrant, COMMANDES, direCompris, direGrant, gestesDuGrant, GrantRefuse, JAMAIS_ACCORDEES, jamaisAccordee, lireEcheance, refuserJamaisAccordee, type Commande } from "./grant.ts";
-import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
-import { journalPasRejoue } from "./journal-pas-rejoue.ts";
+import { logPath, openLog, type Log } from "./log.ts";
+import { logNotReplayed } from "./log-not-replayed.ts";
 import { bilanSansGrant, etatDuGrant, usagesDuGrant } from "./projections/pass.ts";
 
 const USAGE = [
@@ -45,11 +45,11 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
   // Ce qu'est devenu le merge que le grant a autorisé.
   const SUITES: Record<string, string> = { done: "merged", failed: "not merged" };
 
-  function montrer(journal: Journal, maintenant: Date): void {
-    const { base } = journal;
+  function montrer(log: Log, maintenant: Date): void {
+    const { base } = log;
     for (const action of ACTIONS) ligne(`grant ${action}`, direGrant(etatDuGrant(base, action, maintenant), maintenant, duree));
     JAMAIS_ACCORDEES.forEach(({ action, ligne: interdit }, i) => ligne(i === 0 ? "never granted" : "", `${action} — ${interdit}`));
-    const gestes = gestesDuGrant(journal);
+    const gestes = gestesDuGrant(log);
     ligne("latest actions", gestes.length === 0 ? "none" : "");
     for (const geste of gestes) dire(`  ${geste}`);
     const usages = usagesDuGrant(base, USAGES_MONTRES);
@@ -72,11 +72,11 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
   // soit la commande : le refus s'écrit au journal, s'il y en a un.
   const interdite = jamaisAccordee(action);
   if (interdite) {
-    const journal = existsSync(cheminJournal(repertoireEtat)) ? ouvrirJournal(repertoireEtat) : null;
+    const log = existsSync(logPath(repertoireEtat)) ? openLog(repertoireEtat) : null;
     try {
-      echouer(1, refuserJamaisAccordee(journal, interdite));
+      echouer(1, refuserJamaisAccordee(log, interdite));
     } finally {
-      journal?.fermer();
+      log?.fermer();
     }
   }
   if (!montre && (!COMMANDES.includes(commande as Commande) || !ACTIONS.includes(action as ActionDeGrant))) echouer(2, USAGE);
@@ -90,28 +90,28 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
   }
   // Une commande ouvre le journal en écriture : sans ce contrôle, elle en
   // créerait un là où il n'y en a pas.
-  if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `no log in ${repertoireEtat}`);
+  if (!existsSync(logPath(repertoireEtat))) echouer(1, `no log in ${repertoireEtat}`);
 
   // L'heure donnée à `--until` est celle de la box, en UTC : la commande dit
   // ce qu'elle a compris avant toute autre ligne, et avant d'écrire.
   if (!montre && echeance.until !== undefined && options.includes("--until")) dire(`brigade : ${direCompris(echeance.until, maintenant, duree)}`);
 
-  const journal = ouvrirJournal(repertoireEtat, { lectureSeule: montre });
+  const log = openLog(repertoireEtat, { lectureSeule: montre });
   try {
-    if (montre) montrer(journal, maintenant);
-    else dire(`brigade : ${commanderGrant(journal, commande as Commande, action as ActionDeGrant, echeance, maintenant, duree)}`);
+    if (montre) montrer(log, maintenant);
+    else dire(`brigade : ${commanderGrant(log, commande as Commande, action as ActionDeGrant, echeance, maintenant, duree)}`);
   } catch (erreur) {
     if (erreur instanceof GrantRefuse) {
       redire(`brigade : ${erreur.message}`);
       throw new Sortie(1);
-    } else if (journalPasRejoue(erreur)) {
+    } else if (logNotReplayed(erreur)) {
       // Rien ne donne leur forme du jour aux tables d'un journal écrit par un
       // runtime d'avant la pass, ou d'avant l'échéance des grants.
       redire("brigade : this log does not have the grants' state yet: restart the runtime, which recomputes it");
       throw new Sortie(1);
     } else throw erreur;
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }
 

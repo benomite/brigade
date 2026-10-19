@@ -3,7 +3,7 @@
 // rendu se dit en une ligne, sous celle de la panne, sans commande : il n'y a rien à taper.
 //
 // Le login ne se lance que pour la station de cet ordinateur — celle que l'app tient
-// (poste/station.ts) : c'est le `claude` d'ici qui se reconnecte. L'app ne joint aucune autre
+// (workstation/station.ts) : c'est le `claude` d'ici qui se reconnecte. L'app ne joint aucune autre
 // machine (stations/github.ts) : le login d'une station serveur ne part pas d'ici, et le refus le dit.
 import type { Stations } from "../stations/stations.ts";
 

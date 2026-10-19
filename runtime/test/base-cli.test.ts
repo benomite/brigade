@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { principal as base } from "../src/base-cli.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { demarrer } from "../src/runtime.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
 import { appeler, horloge, lancer, repertoireTemporaire } from "./outils.ts";
@@ -17,7 +17,7 @@ const ROUGES = { outcome: "red" as const, code: 1, failures: ["FAIL  tests du ru
 const VERTES = { outcome: "green" as const, code: 0, failures: [], tail: "" };
 const NON_JOUEES = { outcome: "skipped" as const, code: null, failures: [], tail: "" };
 
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
   const runtime = demarrer({ repertoireEtat: repertoire, projet: "brigade", intervalleVeilleMs: 5, maintenant: horloge() });
   t.after(() => runtime.arreter("test"));
@@ -31,7 +31,7 @@ function cuisine(t: TestContext) {
 }
 
 test("`base` et `base replay` sur un état d'exemple, du jamais contrôlé au rouge rejoué : aucune ligne ne porte de mot français du glossaire", async (t) => {
-  const { noter, commande, runtime } = cuisine(t);
+  const { noter, commande, runtime } = kitchen(t);
   const dit = async (code: number, ...args: string[]) => {
     const { code: obtenu, lignes } = await commande(...args);
     assert.equal(obtenu, code, args.join(" "));
@@ -69,7 +69,7 @@ test("`base` et `base replay` sur un état d'exemple, du jamais contrôlé au ro
 });
 
 test("un rejeu demandé sans runtime qui tourne le dit, en anglais", async (t) => {
-  const { runtime, noter, commande } = cuisine(t);
+  const { runtime, noter, commande } = kitchen(t);
   noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: ROUGES, tickets: [] } });
   runtime.arreter("test");
 
@@ -81,7 +81,7 @@ test("un rejeu demandé sans runtime qui tourne le dit, en anglais", async (t) =
 });
 
 test("les refus de la commande ne portent aucun mot français du glossaire", async (t) => {
-  const { commande, dans } = cuisine(t);
+  const { commande, dans } = kitchen(t);
   for (const args of [["replay", "fast"], ["rerun"]]) {
     const refus = await commande(...args);
     assert.equal(refus.code, 2, args.join(" "));
@@ -95,14 +95,14 @@ test("les refus de la commande ne portent aucun mot français du glossaire", asy
 
   const vide = repertoireTemporaire(t);
   for (const args of [[], ["replay"]]) {
-    const sansJournal = await dans({ BRIGADE_STATE_DIR: vide }, ...args);
-    assert.equal(sansJournal.code, 1);
-    assert.equal(sansJournal.lignes.join("\n"), `brigade : no log in ${vide}`);
-    sansMotFrancais(sansJournal.lignes);
+    const withoutLog = await dans({ BRIGADE_STATE_DIR: vide }, ...args);
+    assert.equal(withoutLog.code, 1);
+    assert.equal(withoutLog.lignes.join("\n"), `brigade : no log in ${vide}`);
+    sansMotFrancais(withoutLog.lignes);
   }
 
   const ancien = repertoireTemporaire(t);
-  ouvrirJournal(ancien, { projections: [] }).fermer();
+  openLog(ancien, { projections: [] }).fermer();
   const sortie = appeler(base, [], { BRIGADE_STATE_DIR: ancien });
   assert.equal(await sortie.fin, 1);
   assert.match(sortie.sortie(), /restart the runtime/);
@@ -110,7 +110,7 @@ test("les refus de la commande ne portent aucun mot français du glossaire", asy
 });
 
 test("un rejeu demandé avant le ticket est toujours montré et se lève sans rien éditer à la main", async (t) => {
-  const { noter, commande, runtime } = cuisine(t);
+  const { noter, commande, runtime } = kitchen(t);
   // La demande telle qu'une version d'avant l'écrivait : un événement du journal, sans autre texte.
   noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: ROUGES, tickets: [] } });
   noter({ type: "base.recheck-requested", payload: {} }, "chef");
@@ -121,7 +121,7 @@ test("un rejeu demandé avant le ticket est toujours montré et se lève sans ri
 });
 
 test("l'ancien mot `rejouer` fait toujours son effet, et le nouveau est dit", async (t) => {
-  const { noter, commande, runtime } = cuisine(t);
+  const { noter, commande, runtime } = kitchen(t);
   noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: ROUGES, tickets: [] } });
 
   const { code, lignes } = await commande("rejouer");

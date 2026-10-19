@@ -10,7 +10,7 @@ export const PLATEFORME = "darwin";
 
 // Ce que `facts` dit d'une station (runtime/src/etat.ts, `stations`) — ce que l'app en lit.
 // `bacASable` : nul, la station n'en a rien dit.
-export type StationDesFaits = {
+export type FactsStation = {
   station: string;
   distante: boolean;
   plafond: number | null;
@@ -27,7 +27,7 @@ export type Bloc = { actif: boolean; limite: number | null; explication: string;
 
 // Le bloc d'un projet, ou rien : l'option n'existe que pour un projet dont ce poste joue une
 // station, et sur un Mac.
-export function blocDesOrdinaires(projet: Pick<Projet, "stations" | "ordinaires" | "limiteCooks">, plateforme: string, stations: readonly StationDesFaits[] | undefined): Bloc | undefined {
+export function blocDesOrdinaires(projet: Pick<Projet, "stations" | "ordinaires" | "limiteCooks">, plateforme: string, stations: readonly FactsStation[] | undefined): Bloc | undefined {
   if (plateforme !== PLATEFORME || projet.stations === undefined || projet.stations.length === 0) return undefined;
   const sans = stations?.find(({ station, bacASable }) => projet.stations?.includes(station) === true && bacASable?.disponible === false);
   return {

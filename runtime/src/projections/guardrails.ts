@@ -3,12 +3,12 @@
 // start, and where the chief reads why a ticket stopped.
 import { estGeste, type Activite } from "../activite.ts";
 import type { Base } from "../base.ts";
-import type { FaitGardeFous, MotifArret, Plafonds } from "../events/guardrails.ts";
+import type { GuardrailsFact, MotifArret, Caps } from "../events/guardrails.ts";
 import { definirProjection } from "../projection.ts";
 
-export type EtatGardeFous = {
+export type GuardrailsState = {
   // Unknown as long as no runtime has started with its guardrails.
-  limits: Plafonds | null;
+  limits: Caps | null;
   breakerThreshold: number | null;
   // Consecutive failures, counted in launch order: those of the cooks
   // launched after the last cook that succeeded, since the last "resume".
@@ -18,10 +18,10 @@ export type EtatGardeFous = {
   stoppedAt: string | null;
 };
 
-export type CookEnCours = { run: string; ticket: number | null; launchedAt: string; limits: Plafonds; stream: string };
+export type CookEnCours = { run: string; ticket: number | null; launchedAt: string; limits: Caps; stream: string };
 
 // A cook's last reading: what it had used up at `at`.
-export type Mesure = { run: string; at: string; turns: number; tokens: number };
+export type Measure = { run: string; at: string; turns: number; tokens: number };
 
 // What a set of launches used up. `reviews`, `judgments`: among them, the
 // reviewer's reviews and the manager's judgments.
@@ -60,7 +60,7 @@ const juger = (base: Base, run: string, verdict: "good" | "bad", seq: number) =>
   );
 };
 
-export const gardeFous = definirProjection<FaitGardeFous>({
+export const guardrails = definirProjection<GuardrailsFact>({
   nom: "garde-fous",
   tables: ["guard_state", "cook_runs", "cook_progress", "cook_activity"],
   schema: `
@@ -194,7 +194,7 @@ export const gardeFous = definirProjection<FaitGardeFous>({
   },
 });
 
-export function etatDesGardeFous(base: Base): EtatGardeFous {
+export function guardrailsState(base: Base): GuardrailsState {
   const ligne = base.lire<{
     limits: string | null;
     breakerThreshold: number | null;
@@ -213,12 +213,12 @@ export function etatDesGardeFous(base: Base): EtatGardeFous {
 // A failure that counts for the breaker: the cook, its ticket, how it
 // ended. `code`: that of its exit, null if it died from a signal or a
 // guardrail.
-export type EchecDuDisjoncteur = { run: string; ticket: number | null; at: string; code: number | null; turns: number | null; tokens: number | null };
+export type BreakerFailure = { run: string; ticket: number | null; at: string; code: number | null; turns: number | null; tokens: number | null };
 
 // The consecutive failures the breaker counts, in launch order: the same rule
 // as `juger`.
-export function echecsDuDisjoncteur(base: Base): EchecDuDisjoncteur[] {
-  return base.lire<EchecDuDisjoncteur>(
+export function breakerFailures(base: Base): BreakerFailure[] {
+  return base.lire<BreakerFailure>(
     `SELECT r.run AS run, r.ticket AS ticket, coalesce(r.ended_at, r.launched_at) AS at, r.turns AS turns, r.tokens AS tokens,
             (SELECT json_extract(e.payload, '$.code') FROM events e
               WHERE e.type = 'cook.exited' AND json_extract(e.payload, '$.run') = r.run ORDER BY e.seq DESC LIMIT 1) AS code
@@ -243,8 +243,8 @@ export function cooksEnCours(base: Base): CookEnCours[] {
 }
 
 // Le dernier relevé de chaque cook en cours qui en a un.
-export function mesuresDesCooksEnCours(base: Base): Mesure[] {
-  return base.lire<Mesure>(
+export function runningCooksMeasures(base: Base): Measure[] {
+  return base.lire<Measure>(
     `SELECT p.run, p.at, p.turns, p.tokens
      FROM cook_progress p JOIN cook_runs r ON r.run = p.run WHERE r.ended_seq IS NULL`,
   );

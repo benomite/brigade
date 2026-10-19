@@ -4,8 +4,8 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test } from "node:test";
 import { Base } from "../src/base.ts";
-import { principal as faits } from "../src/faits.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { principal as facts } from "../src/facts.ts";
+import { openLog } from "../src/log.ts";
 import { constaterLimite, limiteDeLaStation, pauseDeLaStation, REPERTOIRE_COMPTEUR } from "../src/limite-github.ts";
 import { principal as status } from "../src/status.ts";
 import { appeler, repertoireTemporaire } from "./outils.ts";
@@ -15,7 +15,7 @@ const TEXTE_BRUT = /request id|terms|HTTP 4|rate limit exceeded/i;
 test("quand GitHub refuse pour sa limite, status et faits disent la reprise en une ligne, sans le texte de gh ; la ligne tombe avec la pause", async (t) => {
   const repertoire = repertoireTemporaire(t);
   const station = repertoireTemporaire(t);
-  ouvrirJournal(repertoire).fermer();
+  openLog(repertoire).fermer();
   const env = { BRIGADE_STATE_DIR: repertoire, BRIGADE_STATION_DIR: station };
   const lire = async (commande: typeof status) => {
     const rendu = appeler(commande, [], env);
@@ -25,7 +25,7 @@ test("quand GitHub refuse pour sa limite, status et faits disent la reprise en u
 
   // Aucun compteur, aucune ligne.
   assert.doesNotMatch(await lire(status), /rate-limiting/);
-  assert.equal(JSON.parse(await lire(faits)).limiteGithub, undefined);
+  assert.equal(JSON.parse(await lire(facts)).limiteGithub, undefined);
 
   // GitHub refuse : 429 et un `retry-after` de 20 minutes — le refus de `gh` n'entre pas dans ce qui s'affiche.
   const limite = limiteDeLaStation(station);
@@ -44,7 +44,7 @@ test("quand GitHub refuse pour sa limite, status et faits disent la reprise en u
   assert.ok(Math.abs((h ?? 0) * 60 + (m ?? 0) - (reprise.getHours() * 60 + reprise.getMinutes())) <= 1, `${lignes[0]} vs ${hhmm}`);
   assert.doesNotMatch(sortie, TEXTE_BRUT);
 
-  const lus = JSON.parse(await lire(faits));
+  const lus = JSON.parse(await lire(facts));
   assert.ok(Math.abs(Date.parse(lus.limiteGithub) - (avant + 1_200_000)) < 5_000);
 
   // Les appels reprennent : la pause tombe, la ligne aussi.
@@ -53,5 +53,5 @@ test("quand GitHub refuse pour sa limite, status et faits disent la reprise en u
   base.fermer();
   assert.equal(pauseDeLaStation(station, Date.now()), null);
   assert.doesNotMatch(await lire(status), /rate-limiting/);
-  assert.equal(JSON.parse(await lire(faits)).limiteGithub, undefined);
+  assert.equal(JSON.parse(await lire(facts)).limiteGithub, undefined);
 });

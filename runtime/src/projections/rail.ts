@@ -11,10 +11,10 @@
 // rail for it to be known whether it was served.
 import type { Base } from "../base.ts";
 import type { Evenement } from "../evenements.ts";
-import type { FaitGardeFous } from "../events/guardrails.ts";
+import type { GuardrailsFact } from "../events/guardrails.ts";
 import { NON_JUGEE, type FaitPass, type Finding } from "../events/pass.ts";
-import { ATTEND_UN_TIERS, REDECOUPE, REVENU_D_ATTENTE, SANS_STATION, type FaitRail } from "../events/rail.ts";
-import type { Fiche } from "../fiche.ts";
+import { AWAITS_A_THIRD_PARTY, REDECOUPE, REVENU_D_ATTENTE, SANS_STATION, type FaitRail } from "../events/rail.ts";
+import type { Card } from "../card.ts";
 import { definirProjection } from "../projection.ts";
 import { recouvrement } from "../zones.ts";
 import { constats } from "./pass.ts";
@@ -69,7 +69,7 @@ export type TicketRail = {
   model: string | null;
   effort: string | null;
   // The card set on the issue, or null if it carries none.
-  card: Fiche | null;
+  card: Card | null;
   // Those of the tickets of its card that are not served. Empty: nothing
   // holds it back.
   awaits: Attendu[];
@@ -100,7 +100,7 @@ const texteOuRien = (valeur: unknown) => valeur === null || texte(valeur);
 const texteRienOuAbsent = (valeur: unknown) => valeur === undefined || texteOuRien(valeur);
 const prioriteOuRien = (valeur: unknown) => valeur === null || Number.isInteger(valeur);
 const liste = (valeur: unknown, element: (valeur: unknown) => boolean) => Array.isArray(valeur) && valeur.every(element);
-const ficheRienOuAbsente = (valeur: unknown) => {
+const cardNothingOrAbsent = (valeur: unknown) => {
   if (valeur === undefined || valeur === null) return true;
   if (typeof valeur !== "object") return false;
   const { waitsFor, zone, problems, requires } = valeur as Record<string, unknown>;
@@ -117,8 +117,8 @@ const marque = (valeur: unknown) => {
 
 // What a rail fact must carry to be readable.
 const FORMES: { [T in FaitRail["type"]]: { [C in keyof Payload<T>]: (valeur: unknown) => boolean } } = {
-  "ticket.arrived": { title: texte, priority: prioriteOuRien, createdAt: texte, url: texte, model: texteRienOuAbsent, effort: texteRienOuAbsent, card: ficheRienOuAbsente },
-  "ticket.changed": { title: texte, priority: prioriteOuRien, model: texteRienOuAbsent, effort: texteRienOuAbsent, card: ficheRienOuAbsente },
+  "ticket.arrived": { title: texte, priority: prioriteOuRien, createdAt: texte, url: texte, model: texteRienOuAbsent, effort: texteRienOuAbsent, card: cardNothingOrAbsent },
+  "ticket.changed": { title: texte, priority: prioriteOuRien, model: texteRienOuAbsent, effort: texteRienOuAbsent, card: cardNothingOrAbsent },
   "ticket.left": { reason: texte },
   "ticket.taken": { station: texte, leaseUntil: texte },
   "ticket.renewed": { station: texte, leaseUntil: texte },
@@ -150,7 +150,7 @@ function lisible<T extends FaitRail["type"]>(type: T, effet: Effet<T>) {
 // The card as the table keeps it: its JSON, fields in a fixed order — two
 // equal cards are the same text there. Capabilities appear only when
 // requested: a card that requests none keeps its earlier text.
-const enTexte = (card: Fiche | null | undefined): string | null =>
+const enTexte = (card: Card | null | undefined): string | null =>
   card ? JSON.stringify({ waitsFor: card.waitsFor, zone: card.zone, problems: card.problems, ...(card.requires?.length ? { requires: card.requires } : {}) }) : null;
 
 type Changement = { state: Etat; station?: string | null; leaseUntil?: string | null; progressedAt?: string | null; reason?: string | null; until?: string | null };
@@ -193,7 +193,7 @@ function rendreApresCook(base: Base, ticket: number | null, at: string): void {
 const FINS_SANS_SUITE: unknown[] = ["failed", "guard", "stop"];
 
 // Served wins over gone, in both orders, and is not undone.
-function noterServi(base: Base, ticket: number, seq: number): void {
+function noteServed(base: Base, ticket: number, seq: number): void {
   base.executer(
     `INSERT INTO rail_outcomes (ticket, outcome, seq) VALUES (?, 'served', ?)
      ON CONFLICT (ticket) DO UPDATE SET outcome = 'served', reason = NULL, seq = excluded.seq`,
@@ -203,7 +203,7 @@ function noterServi(base: Base, ticket: number, seq: number): void {
 }
 
 export const rail = definirProjection<
-  FaitRail | Extract<FaitGardeFous, { type: "cook.exited" | "cook.interrupted" }> | Extract<FaitPass, { type: "merge.done" }>
+  FaitRail | Extract<GuardrailsFact, { type: "cook.exited" | "cook.interrupted" }> | Extract<FaitPass, { type: "merge.done" }>
 >({
   nom: "rail",
   tables: ["rail", "rail_outcomes", "rail_commons", "rail_waiting", "rail_waiting_marks", "rail_waiting_heard", "rail_resumed"],
@@ -332,7 +332,7 @@ export const rail = definirProjection<
     }),
     "ticket.served": lisible("ticket.served", (base, ticket, { at, seq }) => {
       base.executer("UPDATE rail SET state = 'served', since = ? WHERE ticket = ?", at, ticket);
-      noterServi(base, ticket, seq);
+      noteServed(base, ticket, seq);
     }),
     "ticket.86": lisible("ticket.86", (base, ticket, { at, payload }) => {
       passer(base, ticket, at, { state: "86", reason: payload.reason, until: payload.until });
@@ -348,7 +348,7 @@ export const rail = definirProjection<
         ticket,
       )[0];
       const prior = deja ?? { since: at, prior_state: avant.state, prior_reason: avant.reason, prior_until: avant.until };
-      if (deja === undefined) passer(base, ticket, at, { state: "86", reason: ATTEND_UN_TIERS });
+      if (deja === undefined) passer(base, ticket, at, { state: "86", reason: AWAITS_A_THIRD_PARTY });
       base.executer(
         `INSERT OR REPLACE INTO rail_waiting (ticket, what, who, since, follow_up, prior_state, prior_reason, prior_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         ticket,
@@ -403,7 +403,7 @@ export const rail = definirProjection<
     // written. The ticket's state, for its part, does not change here.
     "merge.done": (base, { ticket, seq }) => {
       if (ticket === null) return;
-      noterServi(base, ticket, seq);
+      noteServed(base, ticket, seq);
       base.executer("UPDATE rail SET delivery = 'merged' WHERE ticket = ?", ticket);
     },
   },
@@ -456,7 +456,7 @@ function dernierFait(base: Base, ticket: number, types: string[], apres: number,
 // delivery does not say what was delivered: nothing rather than a false
 // summary. Without a pass — merged by hand, served from before the review —,
 // there is none.
-function relectureServie(base: Base, ticket: number, prise: number, service: number): Relecture | null {
+function servedReview(base: Base, ticket: number, prise: number, service: number): Relecture | null {
   const relue = dernierFait(base, ticket, ["pass.reviewed"], prise, service);
   const jugee = dernierFait(base, ticket, ["pass.started"], prise, service);
   if (relue === null || jugee === null || relue.run !== jugee.run || relue.sha !== jugee.sha) return null;
@@ -494,12 +494,12 @@ export function livresDepuis(base: Base, instant: string): Livre[] {
         servedAt,
         station: texteDe(dernierFait(base, ticket, ["ticket.passing"], 0, seq)?.station),
         pr: texteDe(dernierFait(base, ticket, ["merge.done"], prise, seq)?.pr),
-        review: relectureServie(base, ticket, prise, seq),
+        review: servedReview(base, ticket, prise, seq),
       };
     });
 }
 
-function attendus(base: Base, card: Fiche | null): Attendu[] {
+function attendus(base: Base, card: Card | null): Attendu[] {
   return (card?.waitsFor ?? []).flatMap((ticket) => {
     const sort = sortDuTicket(base, ticket);
     if (sort?.outcome === "served") return [];
@@ -512,7 +512,7 @@ export function communsDuRail(base: Base): string[] {
   return base.lire<{ path: string }>("SELECT path FROM rail_commons ORDER BY path").map(({ path }) => path);
 }
 
-const lireFiche = (card: string | null) => (card === null ? null : (JSON.parse(card) as Fiche));
+const readCard = (card: string | null) => (card === null ? null : (JSON.parse(card) as Card));
 
 // Those who hold the zone of a queued ticket: the tickets gone to the
 // kitchen — taken, in pass, 86 — and those the pass gave back, queued with
@@ -528,7 +528,7 @@ const lireFiche = (card: string | null) => (card === null ? null : (JSON.parse(c
 // unreadable card holds nothing, its zone is not authoritative. And a ticket
 // that itself has an open delivery is not held back by another queued ticket:
 // two returns on the same zone would await each other forever.
-function tenants(base: Base): (ticket: number, card: Fiche | null, delivery: string | null) => Tenu[] {
+function tenants(base: Base): (ticket: number, card: Card | null, delivery: string | null) => Tenu[] {
   let tenant: { ticket: number; zone: string[]; parti: boolean }[] | undefined;
   let communs: string[] = [];
   return (ticket, card, delivery) => {
@@ -547,11 +547,11 @@ function tenants(base: Base): (ticket: number, card: Fiche | null, delivery: str
           REDECOUPE,
           SANS_STATION.length + 1,
           `${SANS_STATION}:`,
-          ATTEND_UN_TIERS,
+          AWAITS_A_THIRD_PARTY,
           REVENU_D_ATTENTE,
         )
         .flatMap((ligne) => {
-          const parsed = lireFiche(ligne.card);
+          const parsed = readCard(ligne.card);
           return parsed && parsed.problems.length === 0 && parsed.zone.length > 0 ? [{ ticket: ligne.ticket, zone: parsed.zone, parti: ligne.state !== "waiting" }] : [];
         });
     }
@@ -581,7 +581,7 @@ function attentesDeTiers(base: Base): Map<number, AttenteDeTiers> {
       .lire<Omit<AttenteDeTiers, "onArrival"> & { ticket: number; delivery: string | null }>(
         `SELECT w.ticket AS ticket, w.what AS what, w.who AS who, w.since AS since, w.follow_up AS followUp, r.delivery AS delivery
          FROM rail_waiting w JOIN rail r ON r.ticket = w.ticket WHERE r.state = '86' AND r.reason = ?`,
-        ATTEND_UN_TIERS,
+        AWAITS_A_THIRD_PARTY,
       )
       .map(({ ticket, delivery, ...attente }) => [ticket, { ...attente, onArrival: direALArrivee(delivery) }]),
   );
@@ -594,7 +594,7 @@ function lire(base: Base, suite: string, ...parametres: number[]): TicketRail[] 
   const tiers = attentesDeTiers(base);
   const revenus = new Map(base.lire<{ ticket: number; why: string }>("SELECT ticket, why FROM rail_resumed").map(({ ticket, why }) => [ticket, why]));
   return base.lire<Ligne>(`SELECT ${COLONNES}, delivery FROM rail ${suite}`, ...parametres).map(({ delivery, ...ligne }) => {
-    const card = lireFiche(ligne.card);
+    const card = readCard(ligne.card);
     const awaits = attendus(base, card);
     const held = ligne.state === "waiting" ? tenu(ligne.ticket, card, delivery) : [];
     const frozenBy = ligne.state === "waiting" ? [...new Set([...awaits.map((a) => a.ticket), ...held.map((t) => t.ticket)])].filter((numero) => geles.has(numero)) : [];
@@ -641,6 +641,6 @@ export function ticketDuRail(base: Base, ticket: number): TicketRail | null {
 
 // How many tickets the station holds: those it took and has not yet given
 // back, sent to pass or declared 86 — one per cook, from the take to its end.
-export function prisPar(base: Base, station: string): number {
+export function takenBy(base: Base, station: string): number {
   return base.lire<{ combien: number }>("SELECT count(*) AS combien FROM rail WHERE state = 'taken' AND station = ?", station)[0]?.combien ?? 0;
 }

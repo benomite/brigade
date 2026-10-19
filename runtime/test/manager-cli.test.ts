@@ -16,35 +16,35 @@ import { appeler, DEPOT, fauxGh, horloge, issueGitHub, lancer, repertoireTempora
 
 const CLI = join(import.meta.dirname, "../src/manager-cli.ts");
 
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
   const runtime = demarrer({ repertoireEtat: repertoire, projet: "brigade", intervalleVeilleMs: 5, maintenant: horloge() });
   t.after(() => runtime.arreter("test"));
-  const { journal } = runtime;
-  const noter = (fait: Fait, ticket: number | null, author = "manager") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const { journal: log } = runtime;
+  const noter = (fait: Fait, ticket: number | null, author = "manager") => log.ajouter({ project: "brigade", ticket, author, ...fait });
   const rendre = async (cli: { fin: Promise<number | null>; sortie: () => string }) => ({ code: await cli.fin, sortie: cli.sortie() });
   const commande = (...args: string[]) => rendre(appeler(manager, args, { BRIGADE_STATE_DIR: repertoire }));
   // Par son fichier, dans son propre process : comme `npm run` la lance.
   const lancee = (...args: string[]) => rendre(lancer(t, CLI, args, { BRIGADE_STATE_DIR: repertoire }));
-  const commandes = () => journal.tout().filter((e) => e.type === "manager.enabled" || e.type === "manager.disabled");
-  return { repertoire, journal, noter, commande, lancee, commandes };
+  const commandes = () => log.tout().filter((e) => e.type === "manager.enabled" || e.type === "manager.disabled");
+  return { repertoire, journal: log, noter, commande, lancee, commandes };
 }
 
 describe("la commande manager", { concurrency: 8 }, () => {
   test("sans argument et sans rien au journal, le manager est éteint et le chef lit ce que cela veut dire", async (t) => {
-    const { commande, journal } = cuisine(t);
-    const avant = journal.tout();
+    const { commande, journal: log } = kitchen(t);
+    const avant = log.tout();
 
     const { code, sortie } = await commande();
 
     assert.equal(code, 0);
     assert.match(sortie, /manager\s+OFF — never turned on: no issue is judged, `fire` and the calibration are set by hand/);
     assert.match(sortie, /latest decisions\s+none/);
-    assert.deepEqual(journal.tout(), avant);
+    assert.deepEqual(log.tout(), avant);
   });
 
   test("allumer s'écrit au journal, une seule fois, au nom du chef", async (t) => {
-    const { lancee, commandes, journal } = cuisine(t);
+    const { lancee, commandes, journal: log } = kitchen(t);
 
     const premiere = await lancee("on");
     const seconde = await lancee("on");
@@ -53,12 +53,12 @@ describe("la commande manager", { concurrency: 8 }, () => {
     assert.match(premiere.sortie, /manager on: it judges the open issues/);
     assert.match(seconde.sortie, /already on since/);
     assert.deepEqual(commandes().map((e) => [e.type, e.author]), [["manager.enabled", "chef"]]);
-    assert.equal(etatDuManager(journal.base)?.active, true);
+    assert.equal(etatDuManager(log.base)?.active, true);
     assert.match((await lancee()).sortie, /manager\s+ON since \d{4}-\d{2}-\d{2}T\S+ \(by chef\)/);
   });
 
   test("éteindre arrête les jugements à venir, et ne défait rien de ce qui est posé", async (t) => {
-    const { commande, commandes } = cuisine(t);
+    const { commande, commandes } = kitchen(t);
     assert.match((await commande("off")).sortie, /nothing to turn off/);
     await commande("on");
 
@@ -71,7 +71,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
   });
 
   test("le chef lit les dernières décisions, chacune avec son motif", async (t) => {
-    const { commande, noter } = cuisine(t);
+    const { commande, noter } = kitchen(t);
     noter({ type: "manager.judged", payload: { run: "juge-30-a", fingerprint: "e1", verdict: "fire", kind: "ticket", reason: "Un livrable, un test.", missing: null, model: "haiku", effort: "low", calibration: "Mécanique." } }, 30);
     noter({ type: "manager.labeled", payload: { labels: ["fire", "effort:low"] } }, 30);
     noter({ type: "manager.judged", payload: { run: "juge-31-a", fingerprint: "e2", verdict: "refused", kind: "epic", reason: "Trois livrables.", missing: "La découper.", model: null, effort: null, calibration: null } }, 31);
@@ -89,7 +89,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
   });
 
   test("le chef lit où en est chaque épique : découpée et servie, en cours, ou en attente de sa réponse", async (t) => {
-    const { commande, noter } = cuisine(t);
+    const { commande, noter } = kitchen(t);
     const prevu = (title: string) => ({ title, context: "", criteria: ["Un critère."], waitsFor: [], zone: ["docs/"], model: "haiku", effort: "low", calibration: "Doc." });
     noter({ type: "manager.split", payload: { run: "decoupe-30-a", fingerprint: "e1", reason: "Deux livrables.", order: "Le socle d'abord.", tickets: [prevu("Le socle"), prevu("La suite")] } }, 30);
     noter({ type: "manager.split-created", payload: { epic: 30, index: 1, reconciled: false } }, 501);
@@ -110,7 +110,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
   });
 
   test("le chef lit les réactions du manager aux tickets restés rouges : le choix, et son motif", async (t) => {
-    const { commande, noter } = cuisine(t);
+    const { commande, noter } = kitchen(t);
     assert.match((await commande()).sortie, /reactions\s+none/);
     const reaction = { verdict: 9, returns: 2, proposal: null, run: "reagit-30-a", from: { model: "haiku", effort: "low" } };
     noter({ type: "manager.reacted", payload: { ...reaction, choice: "raise", reason: "Le cook cale.", to: { model: "haiku", effort: "medium" } } }, 30);
@@ -132,7 +132,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
   });
 
   test("le chef lit ce que le manager a écarté, pourquoi, et le geste qui lève chaque écart", async (t) => {
-    const { commande, noter } = cuisine(t);
+    const { commande, noter } = kitchen(t);
     assert.match((await commande()).sortie, /set aside\s+none/);
     noter({ type: "manager.set-aside", payload: { reason: "roadmap", fired: false } }, 1);
     noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 31);
@@ -149,7 +149,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
   });
 
   test("rendre s'écrit au journal au nom du chef, une fois, pour une issue écartée `chef-changed` — et le relevé la montre rendue", async (t) => {
-    const { commande, noter, journal } = cuisine(t);
+    const { commande, noter, journal: log } = kitchen(t);
     noter({ type: "manager.set-aside", payload: { reason: "chef-changed", fired: false } }, 30);
 
     const premiere = await commande("return", "30");
@@ -159,16 +159,16 @@ describe("la commande manager", { concurrency: 8 }, () => {
     assert.match(premiere.sortie, /#30 returned to the manager: it rejudges it from scratch .* A return counts for one judgment \(the manager is off: it will be rejudged when you turn it on\)/);
     assert.equal(seconde.code, 0);
     assert.match(seconde.sortie, /#30 is already returned to the manager/);
-    assert.deepEqual(journal.duTicket(30).map((e) => [e.type, e.author]), [["manager.set-aside", "manager"], ["manager.handed-back", "chef"]]);
+    assert.deepEqual(log.duTicket(30).map((e) => [e.type, e.author]), [["manager.set-aside", "manager"], ["manager.handed-back", "chef"]]);
     assert.match((await commande()).sortie, /set aside\s*\n\s+\S+\s+#30\s+returned to the manager, not rejudged yet/);
   });
 
   test("rendre ne force aucun autre écart : la commande dit le geste qui le lève, et n'écrit rien", async (t) => {
-    const { commande, noter, journal } = cuisine(t);
+    const { commande, noter, journal: log } = kitchen(t);
     noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 31);
     noter({ type: "manager.set-aside", payload: { reason: "untrusted-author", fired: false } }, 33);
     noter({ type: "manager.judged", payload: { run: "juge-34-a", fingerprint: "e1", verdict: "refused", kind: "incomplete", reason: "Aucun critère.", missing: null, model: null, effort: null, calibration: null } }, 34);
-    const avant = journal.tout().length;
+    const avant = log.tout().length;
 
     const [retenue, inconnu, refusee, jamaisVue, illisible] = await Promise.all([commande("return", "31"), commande("return", "33"), commande("return", "34"), commande("return", "99"), commande("return", "trente")]);
 
@@ -182,13 +182,13 @@ describe("la commande manager", { concurrency: 8 }, () => {
     assert.match(jamaisVue.sortie, /nothing to return: the manager has decided nothing on #99/);
     assert.equal(illisible.code, 2);
     assert.match(illisible.sortie, /usage: /);
-    assert.equal(journal.tout().length, avant);
+    assert.equal(log.tout().length, avant);
   });
 
   // Tout ce que `manager` dit passe le test de glossaire (#951) : une sortie, un refus, une erreur — sans mot français
   // de docs/glossary.md. Les raisons que le manager écrit lui-même sont des données : elles sont posées ici en anglais.
   test("aucune ligne de `manager on|off|return|backlog|upstream`, refus et erreurs compris, ne porte un mot français du glossaire", async (t) => {
-    const { repertoire, commande, noter } = cuisine(t);
+    const { repertoire, commande, noter } = kitchen(t);
     const prevu = (title: string) => ({ title, context: "", criteria: ["A criterion."], waitsFor: [], zone: ["docs/"], model: "haiku", effort: "low", calibration: "Doc." });
     const reaction = { verdict: 9, returns: 2, proposal: null, run: "reagit-30-a", from: { model: "haiku", effort: "low" } };
     noter({ type: "manager.judged", payload: { run: "juge-30-a", fingerprint: "e1", verdict: "fire", kind: "ticket", reason: "One deliverable.", missing: null, model: "haiku", effort: "low", calibration: "Mechanical." } }, 30);
@@ -229,9 +229,9 @@ describe("la commande manager", { concurrency: 8 }, () => {
     const sansVariable = appeler(manager, [], {});
     assert.equal(await sansVariable.fin, 2);
     sansMotFrancais(sansVariable.sortie().trimEnd().split("\n"));
-    const sansJournal = appeler(manager, ["on"], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
-    assert.equal(await sansJournal.fin, 1);
-    sansMotFrancais(sansJournal.sortie().trimEnd().split("\n"));
+    const withoutLog = appeler(manager, ["on"], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
+    assert.equal(await withoutLog.fin, 1);
+    sansMotFrancais(withoutLog.sortie().trimEnd().split("\n"));
 
     // `backlog` et `upstream` : leurs lignes, et leurs erreurs de lecture de GitHub.
     const ouvertes = `repos/${DEPOT}/issues?state=open&per_page=100`;
@@ -262,12 +262,12 @@ describe("la commande manager", { concurrency: 8 }, () => {
   });
 
   test("sans épique regardée, la commande le dit", async (t) => {
-    const { commande } = cuisine(t);
+    const { commande } = kitchen(t);
     assert.match((await commande()).sortie, /epics\s+none/);
   });
 
   test("une commande inconnue est refusée avec l'usage, sans rien écrire", async (t) => {
-    const { commande, commandes } = cuisine(t);
+    const { commande, commandes } = kitchen(t);
 
     const { code, sortie } = await commande("start");
 
@@ -279,11 +279,11 @@ describe("la commande manager", { concurrency: 8 }, () => {
   test("sans répertoire d'état, ou sans journal, la commande échoue et ne crée rien", async (t) => {
     const vide = repertoireTemporaire(t);
     const sansVariable = lancer(t, CLI, []);
-    const sansJournal = appeler(manager, ["on"], { BRIGADE_STATE_DIR: vide });
+    const withoutLog = appeler(manager, ["on"], { BRIGADE_STATE_DIR: vide });
 
     assert.equal(await sansVariable.fin, 2);
-    assert.equal(await sansJournal.fin, 1);
-    assert.match(sansJournal.sortie(), /no log in/);
+    assert.equal(await withoutLog.fin, 1);
+    assert.match(withoutLog.sortie(), /no log in/);
     assert.equal(existsSync(join(vide, "log.db")), false);
   });
 
@@ -315,17 +315,17 @@ describe("la commande manager", { concurrency: 8 }, () => {
     });
 
     test("elle ne fait que lire : un GET sur la liste que le manager sonde, rien au journal, et pas besoin de lui", async (t) => {
-      const { repertoire, journal } = cuisine(t);
+      const { repertoire, journal: log } = kitchen(t);
       const gh = fauxGh(t);
       gh.repondre(OUVERTES, { corps: CONNU });
-      const avant = journal.tout();
+      const avant = log.tout();
 
-      const avecJournal = await lire(gh, { BRIGADE_STATE_DIR: repertoire });
-      const sansJournal = await lire(gh, { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
+      const withLog = await lire(gh, { BRIGADE_STATE_DIR: repertoire });
+      const withoutLog = await lire(gh, { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
 
-      assert.equal(avecJournal.code, 0);
-      assert.equal(sansJournal.sortie, avecJournal.sortie);
-      assert.deepEqual(journal.tout(), avant);
+      assert.equal(withLog.code, 0);
+      assert.equal(withoutLog.sortie, withLog.sortie);
+      assert.deepEqual(log.tout(), avant);
       assert.deepEqual(gh.appels(), [["api", "-i", OUVERTES], ["api", "-i", OUVERTES]]);
     });
 
@@ -391,7 +391,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
     const arrivee = (title: string) => ({ type: "ticket.arrived" as const, payload: { title, priority: null, createdAt: "2026-10-08T10:00:00Z", url: "u" } });
 
     test("chaque issue ouverte hors du rail porte ce qui lui arrive, dans l'ordre où le manager les lit — les PR et le rail n'y sont pas", async (t) => {
-      const { repertoire, journal, noter } = cuisine(t);
+      const { repertoire, journal: log, noter } = kitchen(t);
       const prevu = (title: string) => ({ title, context: "", criteria: ["Un critère."], waitsFor: [], zone: ["docs/"], model: "haiku", effort: "low", calibration: "Doc." });
       // Sur le rail : il n'est pas en amont.
       noter(arrivee("Sur le rail"), 10, "github");
@@ -432,7 +432,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
           issueGitHub(21, { labels: ["fire"], pull_request: {} }),
         ],
       });
-      const avant = journal.tout();
+      const avant = log.tout();
 
       const { code, sortie } = await lire(repertoire, gh);
 
@@ -466,12 +466,12 @@ describe("la commande manager", { concurrency: 8 }, () => {
       assert.equal(dit(18).dit, "it carries `fire`: the rail takes it on its next poll");
       assert.equal(dit(20).dit, "the manager has not judged it yet");
       // Une lecture : rien au journal, un seul GET.
-      assert.deepEqual(journal.tout(), avant);
+      assert.deepEqual(log.tout(), avant);
       assert.deepEqual(gh.appels(), [["api", "-i", OUVERTES]]);
     });
 
     test("ce que le rail en a fait ne vaut que s'il est plus récent que ce que le manager en a décidé", async (t) => {
-      const { repertoire, noter } = cuisine(t);
+      const { repertoire, noter } = kitchen(t);
       // Sortie du rail, puis rendue et rejugée : c'est le jugement qui se lit.
       noter(arrivee("Rejugée"), 30, "github");
       noter({ type: "ticket.left", payload: { reason: "unfired" } }, 30, "github");
@@ -497,7 +497,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
     });
 
     test("GitHub pas joint : elle échoue en le disant, sans rien lister — ce n'est pas « rien en amont »", async (t) => {
-      const { repertoire } = cuisine(t);
+      const { repertoire } = kitchen(t);
 
       const { code, sortie } = await lire(repertoire, fauxGh(t));
 
@@ -508,11 +508,11 @@ describe("la commande manager", { concurrency: 8 }, () => {
     test("sans journal, ou avec un argument de trop, elle est refusée sans rien demander à GitHub", async (t) => {
       const gh = fauxGh(t);
       gh.repondre(OUVERTES, { corps: [] });
-      const sansJournal = appeler(manager, ["upstream"], { BRIGADE_STATE_DIR: repertoireTemporaire(t), BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin });
+      const withoutLog = appeler(manager, ["upstream"], { BRIGADE_STATE_DIR: repertoireTemporaire(t), BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin });
       const deTrop = appeler(manager, ["upstream", "tout"], { BRIGADE_STATE_DIR: repertoireTemporaire(t), BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin });
 
-      assert.equal(await sansJournal.fin, 1);
-      assert.match(sansJournal.sortie(), /no log in/);
+      assert.equal(await withoutLog.fin, 1);
+      assert.match(withoutLog.sortie(), /no log in/);
       assert.equal(await deTrop.fin, 2);
       assert.match(deTrop.sortie(), /usage: .*\| upstream\]/);
       assert.deepEqual(gh.appels(), []);

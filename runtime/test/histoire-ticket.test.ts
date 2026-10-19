@@ -3,12 +3,12 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { histoireDuTicket } from "../src/histoire-ticket.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { principal as montrerPass } from "../src/montrer-pass.ts";
 import { appeler, horloge, repertoireTemporaire } from "./outils.ts";
 
-function journal(t: TestContext) {
-  const j = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge(), projections: [] });
+function log(t: TestContext) {
+  const j = openLog(repertoireTemporaire(t), { maintenant: horloge(), projections: [] });
   t.after(() => j.fermer());
   const noter = (fait: Fait, ticket: number | null = 7) => j.ajouter({ project: "brigade", ticket, author: "runtime", ...fait });
   return { base: j.base, noter };
@@ -20,7 +20,7 @@ const sortir = (run: string, outcome = "ok", tokens = 1000, durationMs = 60_000)
   ({ type: "cook.exited", payload: { run, outcome, code: 0, signal: null, turns: 5, tokens, durationMs } }) as Fait;
 
 test("un ticket complet, de l'arrivée au merge : les étapes dans l'ordre, et le coût de ses cooks", (t) => {
-  const { base, noter } = journal(t);
+  const { base, noter } = log(t);
   noter({ type: "ticket.arrived", payload: { title: "T", priority: 1, createdAt: "x", url: "u" } });
   noter({ type: "ticket.taken", payload: { station: "cuisine-1", leaseUntil: "x" } });
   noter(lancer("r1"));
@@ -47,7 +47,7 @@ test("un ticket complet, de l'arrivée au merge : les étapes dans l'ordre, et l
 });
 
 test("un ticket en cours : les étapes qui n'ont pas eu lieu sont absentes, et le coût se dit incomplet", (t) => {
-  const { base, noter } = journal(t);
+  const { base, noter } = log(t);
   noter({ type: "ticket.arrived", payload: { title: "T", priority: null, createdAt: "x", url: "u" } });
   noter({ type: "ticket.taken", payload: { station: "cuisine-1", leaseUntil: "x" } });
   noter(lancer("r1"));
@@ -60,7 +60,7 @@ test("un ticket en cours : les étapes qui n'ont pas eu lieu sont absentes, et l
 });
 
 test("un ticket sans coût connu : null, jamais 0 — et un ticket inconnu n'a ni étape ni essai", (t) => {
-  const { base, noter } = journal(t);
+  const { base, noter } = log(t);
   noter({ type: "ticket.arrived", payload: { title: "T", priority: null, createdAt: "x", url: "u" } });
   noter(lancer("r1"));
   noter({ type: "cook.interrupted", payload: { run: "r1" } });
@@ -71,7 +71,7 @@ test("un ticket sans coût connu : null, jamais 0 — et un ticket inconnu n'a n
 
 test("`pass -- <ticket> --json` rend l'histoire et le coût, en JSON, sans rien écrire au journal", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const j = ouvrirJournal(repertoire, { maintenant: horloge() });
+  const j = openLog(repertoire, { maintenant: horloge() });
   const noter = (fait: Fait) => j.ajouter({ project: "brigade", ticket: 7, author: "runtime", ...fait });
   noter({ type: "ticket.arrived", payload: { title: "T", priority: null, createdAt: "x", url: "u" } });
   noter(lancer("r1"));

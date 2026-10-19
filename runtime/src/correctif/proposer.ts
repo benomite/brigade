@@ -12,13 +12,13 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Calibrage } from "../calibrage.ts";
+import type { Calibration } from "../calibration.ts";
 import { essaisRates, type Signaux } from "../causes-des-ratages.ts";
 import { SCRIPT_GATES } from "../gates.ts";
 import { lireFlux, verdict, type Lecture } from "../claude.ts";
 import type { Evenement } from "../evenements.ts";
-import { LancementRefuse, type CookLance, type DemandeCook, type Verdict } from "../garde-fous.ts";
-import type { Journal } from "../journal.ts";
+import { LancementRefuse, type CookLance, type DemandeCook, type Verdict } from "../guardrails.ts";
+import type { Log } from "../log.ts";
 import { argumentsJuge, couper } from "../juger.ts";
 import { MANAGER } from "../manager.ts";
 import { parcoursDesTickets } from "../parcours-des-tickets.ts";
@@ -77,8 +77,8 @@ export function lireConsignes(lieu: LieuDuProjet): Consigne[] {
 // Les essais que la cause a fait rater sur un ticket. `essaisRates` rend les
 // essais ratés d'un parcours dans l'ordre de ses essais, le dernier seul
 // pouvant manquer : le rang de l'un est celui de l'autre.
-function essaisDeLaCause(journal: Journal, candidat: Candidat): Array<{ ticket: number; essais: Essai[] }> {
-  const parcours = parcoursDesTickets(journal.base);
+function essaisDeLaCause(log: Log, candidat: Candidat): Array<{ ticket: number; essais: Essai[] }> {
+  const parcours = parcoursDesTickets(log.base);
   return candidat.payload.tickets.map((ticket) => {
     const sien = parcours.findLast((un) => un.ticket === ticket);
     if (sien === undefined) return { ticket, essais: [] };
@@ -163,24 +163,24 @@ export function lireReponse(message: string | null): { motif: string | null; dif
 }
 
 export type OptionsDeProposition = {
-  journal: Journal;
+  journal: Log;
   projet: string;
   // Le dépôt GitHub du projet, tel que la consigne le nomme.
   depot: string;
   lieu: LieuDuProjet;
   // Là où les garde-fous écrivent le flux des lancements (`runs/`).
   repertoireEtat: string;
-  // Le lancement gardé de la cuisine (`garde-fous.ts`).
+  // Le lancement gardé de la cuisine (`guardrails.ts`).
   lancer: (demande: DemandeCook) => CookLance;
   bin: string;
-  calibrage: Calibrage;
+  calibrage: Calibration;
   // L'environnement de `claude`, déjà nettoyé par qui lance.
   env: NodeJS.ProcessEnv;
 };
 
 // Ce qui a déjà été conclu d'une candidate : proposé, ou écarté.
-export function issueDe(journal: Journal, candidat: number): Proposee | Ecartee | null {
-  const conclus = [...journal.duType("correction.proposed", Number.MAX_SAFE_INTEGER), ...journal.duType("correction.discarded", Number.MAX_SAFE_INTEGER)];
+export function issueDe(log: Log, candidat: number): Proposee | Ecartee | null {
+  const conclus = [...log.duType("correction.proposed", Number.MAX_SAFE_INTEGER), ...log.duType("correction.discarded", Number.MAX_SAFE_INTEGER)];
   return conclus.find(({ payload }) => payload.candidate === candidat) ?? null;
 }
 
@@ -191,11 +191,11 @@ export function issueDe(journal: Journal, candidat: number): Proposee | Ecartee 
 // il reste à faire. Ce qu'il a coûté est alors dans `cook.exited`, comme pour
 // tout lancement.
 export async function proposer(options: OptionsDeProposition, candidat: Candidat): Promise<Proposee | Ecartee | null> {
-  const { journal, projet, lieu, calibrage } = options;
-  const deja = issueDe(journal, candidat.seq);
+  const { journal: log, projet, lieu, calibrage: calibration } = options;
+  const deja = issueDe(log, candidat.seq);
   if (deja !== null) return deja;
 
-  const consigne = consigneDeProposition({ depot: options.depot, candidat, essais: essaisDeLaCause(journal, candidat), consignes: lireConsignes(lieu) });
+  const consigne = consigneDeProposition({ depot: options.depot, candidat, essais: essaisDeLaCause(log, candidat), consignes: lireConsignes(lieu) });
   const run = `correctif-${candidat.seq}-${randomUUID().slice(0, 8)}`;
   let lecture: Lecture | null = null;
   const juger = (fin: Fin): Verdict => {
@@ -219,9 +219,9 @@ export async function proposer(options: OptionsDeProposition, candidat: Candidat
     lance = options.lancer({
       ticket: null,
       run,
-      contexte: { station: MANAGER, ...calibrage },
+      contexte: { station: MANAGER, ...calibration },
       commande: options.bin,
-      args: argumentsJuge(consigne, calibrage),
+      args: argumentsJuge(consigne, calibration),
       // Hors de tout dépôt : la proposition ne lit que sa consigne.
       cwd: tmpdir(),
       env: options.env,
@@ -239,12 +239,12 @@ export async function proposer(options: OptionsDeProposition, candidat: Candidat
   const { cause, title, tickets } = candidat.payload;
   const commun = { candidate: candidat.seq, cause, tickets, run, tokens: fin.tokens };
   const noter = (fait: { type: "correction.proposed"; payload: Proposee["payload"] } | { type: "correction.discarded"; payload: Ecartee["payload"] }) =>
-    journal.ajouter({ project: projet, ticket: null, author: "runtime", ...fait, dedupKey: `correction.proposal:${candidat.seq}` }) as Proposee | Ecartee | null;
-  const ecarter = (reason: string, files: string[]) => noter({ type: "correction.discarded", payload: { ...commun, reason, files } }) ?? issueDe(journal, candidat.seq);
+    log.ajouter({ project: projet, ticket: null, author: "runtime", ...fait, dedupKey: `correction.proposal:${candidat.seq}` }) as Proposee | Ecartee | null;
+  const ecarter = (reason: string, files: string[]) => noter({ type: "correction.discarded", payload: { ...commun, reason, files } }) ?? issueDe(log, candidat.seq);
 
   const reponse = lireReponse(lue.message);
   if ("illisible" in reponse) return ecarter(reponse.illisible, []);
   const jugee = verifierDiff(reponse.diff, lieu);
   if ("refus" in jugee) return ecarter(jugee.refus, jugee.fichiers);
-  return noter({ type: "correction.proposed", payload: { ...commun, title, reason: reponse.motif, diff: reponse.diff, files: jugee.fichiers, base: jugee.base } }) ?? issueDe(journal, candidat.seq);
+  return noter({ type: "correction.proposed", payload: { ...commun, title, reason: reponse.motif, diff: reponse.diff, files: jugee.fichiers, base: jugee.base } }) ?? issueDe(log, candidat.seq);
 }

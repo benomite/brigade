@@ -53,10 +53,10 @@ export function pannesDe(document: DocumentStation, maintenant: number): Panne[]
       survol: mise.retourRate ? `the station is on neither version: check ${document.nom}` : `${document.nom} stayed on version ${mise.restauree}; the next version will be tried on its own`,
       bouton: { libelle: "dismiss", geste: "ecarter" },
     });
-  const connexion = document.connexionMax;
-  if (!horsLigne && connexion?.etat === "perdue") {
-    const depuis = connexion.depuis === null ? "" : ` ${duree(maintenant - Date.parse(connexion.depuis))} ago`;
-    pannes.push({ cle: `connexion-max:${connexion.depuis ?? ""}`, sujet: "connexion-max", ligne: `Max connection lost${depuis}`, survol: `nothing cooks on ${document.nom} until you log in`, bouton: { libelle: "log in", geste: "login" } });
+  const connection = document.connexionMax;
+  if (!horsLigne && connection?.etat === "perdue") {
+    const depuis = connection.depuis === null ? "" : ` ${duree(maintenant - Date.parse(connection.depuis))} ago`;
+    pannes.push({ cle: `connexion-max:${connection.depuis ?? ""}`, sujet: "connexion-max", ligne: `Max connection lost${depuis}`, survol: `nothing cooks on ${document.nom} until you log in`, bouton: { libelle: "log in", geste: "login" } });
   }
   return pannes;
 }

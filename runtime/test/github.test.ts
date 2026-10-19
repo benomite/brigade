@@ -431,14 +431,14 @@ test("les issues modifiées depuis un instant se lisent ouvertes ou fermées, av
 
 test("sous une identité, chaque appel part avec le jeton du moment — dans l'environnement de gh, jamais dans ses arguments", async (t) => {
   const gh = fauxGh(t);
-  const jetons = ["ghs_premier", "ghs_second"];
-  const github = ouvrirGitHub({ depot: DEPOT, bin: gh.bin, jeton: async () => jetons.shift() ?? "ghs_dernier" });
+  const tokens = ["ghs_premier", "ghs_second"];
+  const github = ouvrirGitHub({ depot: DEPOT, bin: gh.bin, jeton: async () => tokens.shift() ?? "ghs_dernier" });
   gh.issues([issueGitHub(14)]);
 
   await github.tickets();
   await github.issue(14);
 
-  assert.deepEqual(gh.jetons(), ["ghs_premier", "ghs_second"]);
+  assert.deepEqual(gh.tokens(), ["ghs_premier", "ghs_second"]);
   assert.ok(!JSON.stringify(gh.appels()).includes("ghs_"));
 });
 
@@ -448,7 +448,7 @@ test("sans identité, gh part avec l'environnement du runtime, sans jeton ajout�
 
   await github.tickets();
 
-  assert.deepEqual(gh.jetons(), [process.env.GH_TOKEN ?? null]);
+  assert.deepEqual(gh.tokens(), [process.env.GH_TOKEN ?? null]);
   assert.equal(await github.identite(), null);
 });
 
@@ -476,12 +476,12 @@ test("un GitHub ouvert sous une identité la nomme", async (t) => {
 test("une PR mergée dit par qui, telle que GitHub le nomme", async (t) => {
   const { gh, github } = sonde(t);
   const liste = `repos/${DEPOT}/pulls?head=benomite:cook/15-abc&state=all&per_page=1`;
-  const fiche = { number: 40, html_url: "https://github.com/benomite/brigade/pull/40", state: "closed", merged: true, mergeable: null, base: { ref: "v2" }, head: { sha: "abc123" } };
-  gh.repondre(liste, { corps: [fiche] });
-  gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: { ...fiche, merged_by: { login: "brigade-pass[bot]" } } });
+  const card = { number: 40, html_url: "https://github.com/benomite/brigade/pull/40", state: "closed", merged: true, mergeable: null, base: { ref: "v2" }, head: { sha: "abc123" } };
+  gh.repondre(liste, { corps: [card] });
+  gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: { ...card, merged_by: { login: "brigade-pass[bot]" } } });
 
   assert.equal((await github.prDeBranche("cook/15-abc"))?.mergeePar, "brigade-pass[bot]");
 
-  gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: fiche });
+  gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: card });
   assert.equal((await github.prDeBranche("cook/15-abc"))?.mergeePar, null);
 });

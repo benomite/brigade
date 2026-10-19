@@ -10,20 +10,20 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { decrireEtat, faits as faitsDuRuntime, lireEtat } from "../../runtime/src/etat.ts";
+import { decrireEtat, facts as runtimeFacts, lireEtat } from "../../runtime/src/etat.ts";
 import type { Fait } from "../../runtime/src/evenements.ts";
-import { ouvrirJournal } from "../../runtime/src/journal.ts";
+import { openLog } from "../../runtime/src/log.ts";
 import { principal as manager } from "../../runtime/src/manager-cli.ts";
 import { alertes, MANAGER_PAS_DIT, signalDe, tenirBandes, type Alerte, type Bande } from "../src/alertes.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
-import { mettreAPart } from "../src/attend.ts";
+import { mettreAPart } from "../src/awaiting.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import type { Lecture } from "../src/box.ts";
 import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE, comprendre, type Faits } from "../src/faits.ts";
+import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
+import { BANNIERE, comprendre, type Facts } from "../src/facts.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
@@ -41,15 +41,15 @@ const lecture = (commande: string, texte: string, a: string): Lecture => ({ proj
 // Une cuisine dont le test tient l'horloge, où tout va bien hors du rail — runtime en marche,
 // version à jour, manager allumé —, et ce que l'app en dessine : `faits`, `status` et `manager`
 // écrits par le runtime, lus comme le process principal les lit.
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-app-urgence-"));
   let instant = heure("08:00:00");
-  const journal = ouvrirJournal(repertoire, { maintenant: () => new Date(instant) });
+  const log = openLog(repertoire, { maintenant: () => new Date(instant) });
   t.after(() => {
-    journal.fermer();
+    log.fermer();
     rmSync(repertoire, { recursive: true, force: true });
   });
-  const noter = (fait: Fait, ticket: number | null = null, author = "runtime") => void journal.ajouter({ project: "parade", ticket, author, ...fait });
+  const noter = (fait: Fait, ticket: number | null = null, author = "runtime") => void log.ajouter({ project: "parade", ticket, author, ...fait });
   const a = (h: string) => void (instant = heure(h));
   const arriver = (ticket: number, zone: string[]) =>
     noter(
@@ -58,7 +58,7 @@ function cuisine(t: TestContext) {
       "github",
     );
   // Le ticket déjà sur le rail, pris, cuisiné, livré avec sa PR.
-  const cuisiner = (ticket: number) => {
+  const cook = (ticket: number) => {
     noter({ type: "ticket.taken", payload: { station: STATION, leaseUntil: "2026-11-30T00:00:00.000Z" } }, ticket, `station:${STATION}`);
     noter({ type: "cook.launched", payload: { run: `${ticket}-aa`, limits: LIMITES, stream: `runs/${ticket}-aa.jsonl`, branch: `cook/${ticket}-aa`, worktree: `worktrees/${ticket}-aa` } }, ticket);
     noter({ type: "cook.exited", payload: { run: `${ticket}-aa`, outcome: "ok", code: 0, signal: null, turns: 3, tokens: 1000, durationMs: 1000 } }, ticket);
@@ -69,13 +69,13 @@ function cuisine(t: TestContext) {
   const retenir = (ticket: number) => noter({ type: "pass.held", payload: { reason: "review-required" } } as never, ticket, "pass");
   const rendre = (h: string) => {
     const maintenant = new Date(heure(h));
-    const etat = lireEtat(journal, maintenant);
+    const etat = lireEtat(log, maintenant);
     const lignes: string[] = [];
     void manager({ args: [], env: { BRIGADE_STATE_DIR: repertoire }, dire: (ligne) => void lignes.push(ligne), redire: (ligne) => assert.fail(ligne) });
-    return { faits: faitsDuRuntime(etat, maintenant), status: `${decrireEtat(etat, maintenant).join("\n")}\n`, manager: `${lignes.join("\n")}\n` };
+    return { faits: runtimeFacts(etat, maintenant), status: `${decrireEtat(etat, maintenant).join("\n")}\n`, manager: `${lignes.join("\n")}\n` };
   };
   // La bande, d'après `faits` tel que la box l'a rendu — ou tel qu'un `retoucher` le donne.
-  const bande = (h: string, retoucher: (faits: Record<string, unknown>) => Record<string, unknown> = (faits) => faits): Bande => {
+  const bande = (h: string, retoucher: (facts: Record<string, unknown>) => Record<string, unknown> = (facts) => facts): Bande => {
     const rendu = rendre(h);
     const lu = heure(h);
     const bandes = tenirBandes({ etablir: 1, minimum: 0 });
@@ -88,7 +88,7 @@ function cuisine(t: TestContext) {
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } } as Fait);
   noter({ type: "manager.enabled", payload: {} }, null, "chef");
   noter({ type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["opus"], maxCooks: 2 } });
-  return { noter, a, arriver, cuisiner, retenir, rendre, bande };
+  return { noter, a, arriver, cuisiner: cook, retenir, rendre, bande };
 }
 
 // Ce que `faits` rendait avant l'urgence : la même forme, sans le champ.
@@ -96,15 +96,15 @@ const sansUrgence = ({ urgence: _, ...reste }: Record<string, unknown>) => reste
 
 // L'exemple du ticket : une livraison à merger à la main qui tient toutes les zones du rail.
 function toutRetenu(t: TestContext) {
-  const servie = cuisine(t);
-  const { a, arriver, cuisiner, retenir } = servie;
+  const served = kitchen(t);
+  const { a, arriver, cuisiner: cook, retenir } = served;
   arriver(535, ["runtime", "app"]);
   arriver(536, ["runtime/src"]);
   arriver(537, ["app/src"]);
-  cuisiner(535);
+  cook(535);
   a("08:30:00");
   retenir(535);
-  return servie;
+  return served;
 }
 
 describe("l'urgence dans la bande", () => {
@@ -154,8 +154,8 @@ describe("l'urgence dans la bande", () => {
       ],
     );
     // Ni `status` ni `manager` lus : les lignes « non vérifié » restent dessous.
-    const faits = comprendre(JSON.stringify(rendre("10:00:00").faits)) as Faits;
-    const seuls = alertes({ projet: "parade", faits, status: { sans: "pas lu" }, manager: { sans: MANAGER_PAS_DIT } });
+    const facts = comprendre(JSON.stringify(rendre("10:00:00").faits)) as Facts;
+    const seuls = alertes({ projet: "parade", faits: facts, status: { sans: "pas lu" }, manager: { sans: MANAGER_PAS_DIT } });
     assert.deepEqual(
       seuls.map(({ sujet, verifie }) => [sujet, verifie]),
       [
@@ -167,14 +167,14 @@ describe("l'urgence dans la bande", () => {
   });
 
   test("deux décisions qui retiennent tout : la ligne nomme celle qui retient le plus, puis l'autre, chacune avec sa ligne de la box", (t) => {
-    const { a, arriver, cuisiner, retenir, rendre, bande } = cuisine(t);
+    const { a, arriver, cuisiner: cook, retenir, rendre, bande } = kitchen(t);
     arriver(535, ["runtime"]);
     arriver(540, ["app"]);
     arriver(536, ["runtime/src"]);
     arriver(541, ["app/src"]);
     arriver(542, ["app/test"]);
-    cuisiner(535);
-    cuisiner(540);
+    cook(535);
+    cook(540);
     a("08:30:00");
     retenir(535);
     a("08:40:00");
@@ -190,7 +190,7 @@ describe("l'urgence dans la bande", () => {
   });
 
   test("une connexion Max expirée sur la seule station : la ligne dit d'attendre la reconnexion, et le geste de la box", (t) => {
-    const { a, arriver, noter, bande } = cuisine(t);
+    const { a, arriver, noter, bande } = kitchen(t);
     arriver(14, ["runtime"]);
     arriver(15, ["app"]);
     a("09:00:00");
@@ -203,7 +203,7 @@ describe("l'urgence dans la bande", () => {
   });
 
   test("une cause que l'app ne nomme pas se dit avec le mot de la box, sans rien inventer", () => {
-    const faits = comprendre(
+    const facts = comprendre(
       JSON.stringify({
         etat: "ouverte",
         lu: heure("10:00:00"),
@@ -214,8 +214,8 @@ describe("l'urgence dans la bande", () => {
         urgence: { decision: "#9", ticket: 9, cause: "question", geste: "une question t'attend sur l'issue", url: null, depuis: heure("09:59:00"), retenus: [10], autres: [] },
       }),
     );
-    if ("informe" in faits) assert.fail(faits.informe);
-    const [premiere] = alertes({ projet: "parade", faits, status: { sans: "pas lu" }, manager: { sans: MANAGER_PAS_DIT } });
+    if ("informe" in facts) assert.fail(facts.informe);
+    const [premiere] = alertes({ projet: "parade", faits: facts, status: { sans: "pas lu" }, manager: { sans: MANAGER_PAS_DIT } });
     assert.equal(premiere?.dit, "the whole kitchen is waiting for you on #9 (question) — at a standstill for 1 min");
     assert.equal(premiere.pourquoi, "1 ticket held, none can cook until you act: #10");
   });
@@ -223,11 +223,11 @@ describe("l'urgence dans la bande", () => {
 
 describe("sans urgence, rien ne change", () => {
   test("une décision qui ne retient qu'une partie du rail : pas de ligne d'urgence, la bande et la case sont celles d'avant l'urgence", (t) => {
-    const { a, arriver, cuisiner, retenir, rendre, bande } = cuisine(t);
+    const { a, arriver, cuisiner: cook, retenir, rendre, bande } = kitchen(t);
     arriver(535, ["runtime"]);
     arriver(536, ["runtime/src"]);
     arriver(540, ["app"]);
-    cuisiner(535);
+    cook(535);
     a("08:30:00");
     retenir(535);
 
@@ -241,7 +241,7 @@ describe("sans urgence, rien ne change", () => {
   });
 
   test("une cuisine qui va bien : la bande reste vide, la case sans signal", (t) => {
-    const { bande } = cuisine(t);
+    const { bande } = kitchen(t);
     const { manager, merge, ...lue } = bande("10:00:00");
     assert.deepEqual(lue, { projet: "parade", alertes: [], signal: undefined });
     assert.deepEqual(merge, { actif: false });
@@ -288,7 +288,7 @@ describe("l'urgence à l'écran", () => {
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
         boutons: BOUTONS,
-        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,
@@ -344,6 +344,6 @@ describe("l'urgence à l'écran", () => {
 test("`faits` lu par l'app porte l'urgence du runtime, champ pour champ", (t) => {
   const { rendre } = toutRetenu(t);
   const rendu = rendre("10:00:00").faits;
-  const lu = comprendre(JSON.stringify(rendu)) as Faits;
+  const lu = comprendre(JSON.stringify(rendu)) as Facts;
   assert.deepEqual(lu.urgence, rendu.urgence);
 });

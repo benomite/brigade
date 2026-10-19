@@ -15,7 +15,7 @@ import { rappelLu, souvenirsDansFichier, type Rappel, type Souvenirs } from "../
 import { ouvrirTerminaux, REPRISES_MS, type Lancement, type Pty, type Terminal } from "../src/terminaux.ts";
 
 const BRIGADE = { nom: "brigade", dossier: "/projets/brigade" };
-const POSTE: Cible = { lieu: "poste" };
+const WORKSTATION: Cible = { lieu: "poste" };
 const STATION: Cible = { lieu: "box", nom: "parade-box", hote: "parade-box" };
 const STUDIO: Cible = { lieu: "station", nom: "studio", hote: "studio" };
 
@@ -103,7 +103,7 @@ describe("un shell persistant, ouvert sur la machine choisie", () => {
     const { terminaux, shells } = lancement(souvenirs);
     terminaux.espace(BRIGADE);
 
-    const ici = terminaux.ouvrir(BRIGADE, POSTE);
+    const ici = terminaux.ouvrir(BRIGADE, WORKSTATION);
     const labas = terminaux.ouvrir(BRIGADE, STATION);
     const studio = terminaux.ouvrir(BRIGADE, STUDIO);
 
@@ -122,7 +122,7 @@ describe("un shell persistant, ouvert sur la machine choisie", () => {
       brigade: {
         dernier: 3,
         shells: [
-          { rang: 1, session: "brigade-brigade-1", cible: POSTE },
+          { rang: 1, session: "brigade-brigade-1", cible: WORKSTATION },
           { rang: 2, session: "brigade-brigade-2", cible: STATION },
           { rang: 3, session: "brigade-brigade-3", cible: STUDIO },
         ],
@@ -141,7 +141,7 @@ describe("un shell persistant, ouvert sur la machine choisie", () => {
     assert.equal(geste.titre, "shell 1");
     assert.deepEqual(souvenirs.tel(), {});
     // Le rang reste pris : le shell persistant suivant ne porte pas le même titre.
-    assert.equal(terminaux.ouvrir(BRIGADE, POSTE).titre, "shell 2");
+    assert.equal(terminaux.ouvrir(BRIGADE, WORKSTATION).titre, "shell 2");
   });
 });
 
@@ -150,7 +150,7 @@ describe("fermer l'app, puis la rouvrir : les shells persistants reviennent", ()
     const souvenirs = enMemoire();
     const avant = lancement(souvenirs);
     avant.terminaux.espace(BRIGADE);
-    avant.terminaux.ouvrir(BRIGADE, POSTE);
+    avant.terminaux.ouvrir(BRIGADE, WORKSTATION);
     avant.terminaux.ouvrir(BRIGADE, STATION);
     const commandes = avant.shells().map(({ commande, args }) => [commande, ...args]);
 
@@ -161,20 +161,20 @@ describe("fermer l'app, puis la rouvrir : les shells persistants reviennent", ()
 
     const apres = lancement(souvenirs);
     assert.deepEqual(apres.lances, [], "rien n'est lancé avant que l'espace du projet ne s'ouvre");
-    const espace = apres.terminaux.espace(BRIGADE);
+    const space = apres.terminaux.espace(BRIGADE);
 
-    assert.deepEqual(espace.map(({ genre, titre }) => [genre, titre]), [["second", "Second"], ["shell", "shell 1"], ["shell", "shell 2 · parade-box"]]);
+    assert.deepEqual(space.map(({ genre, titre }) => [genre, titre]), [["second", "Second"], ["shell", "shell 1"], ["shell", "shell 2 · parade-box"]]);
     assert.deepEqual(apres.shells().map(({ commande, args }) => [commande, ...args]), commandes);
-    assert.match(espace[1]?.note ?? "", /^persistent shell, reattached on this Mac, in \/projets\/brigade — session `brigade-brigade-1`/);
+    assert.match(space[1]?.note ?? "", /^persistent shell, reattached on this Mac, in \/projets\/brigade — session `brigade-brigade-1`/);
     assert.deepEqual(souvenirs.tel(), retenu);
     // Rouvrir l'espace ne les relance pas une seconde fois.
     apres.terminaux.espace(BRIGADE);
     assert.equal(apres.shells().length, 2);
-    assert.equal(apres.terminaux.ouvrir(BRIGADE, POSTE).titre, "shell 3");
+    assert.equal(apres.terminaux.ouvrir(BRIGADE, WORKSTATION).titre, "shell 3");
   });
 
   test("seul le projet ouvert ramène ses shells : ceux d'un autre attendent son espace", () => {
-    const souvenirs = enMemoire({ parade: { dernier: 1, shells: [{ rang: 1, session: "brigade-parade-1", cible: POSTE }] } });
+    const souvenirs = enMemoire({ parade: { dernier: 1, shells: [{ rang: 1, session: "brigade-parade-1", cible: WORKSTATION }] } });
     const { terminaux, shells } = lancement(souvenirs);
 
     assert.deepEqual(terminaux.espace(BRIGADE).map(({ genre }) => genre), ["second"]);
@@ -190,7 +190,7 @@ describe("fermer un shell pour de bon", () => {
     const detruites: Session[] = [];
     const { terminaux, shells, etats } = lancement(souvenirs, detruites);
     terminaux.espace(BRIGADE);
-    const garde = terminaux.ouvrir(BRIGADE, POSTE);
+    const garde = terminaux.ouvrir(BRIGADE, WORKSTATION);
     const ferme = terminaux.ouvrir(BRIGADE, STATION);
 
     assert.deepEqual(await terminaux.fermerShell(ferme.id), { ferme: true });
@@ -231,7 +231,7 @@ describe("fermer un shell pour de bon", () => {
     const souvenirs = enMemoire();
     const { terminaux, shells } = lancement(souvenirs, [], { detruite: true }, { reseau: reseau(), horloge: horloge() });
     terminaux.espace(BRIGADE);
-    terminaux.ouvrir(BRIGADE, POSTE);
+    terminaux.ouvrir(BRIGADE, WORKSTATION);
     terminaux.ouvrir(BRIGADE, STATION);
     terminaux.ouvrir(BRIGADE, STATION);
 
@@ -333,7 +333,7 @@ describe("une machine qui n'est pas joignable : le terminal le dit, et se reconn
     const temps = horloge();
     const { terminaux, shells, sortie } = lancement(souvenirs, [], { detruite: true }, { reseau: net, horloge: temps });
     terminaux.espace(BRIGADE);
-    const ici = terminaux.ouvrir(BRIGADE, POSTE);
+    const ici = terminaux.ouvrir(BRIGADE, WORKSTATION);
     const box = terminaux.ouvrir(BRIGADE, STATION);
     const studio = terminaux.ouvrir(BRIGADE, STUDIO);
     net.couper();
@@ -394,7 +394,7 @@ describe("une machine qui n'est pas joignable : le terminal le dit, et se reconn
     const souvenirs = enMemoire();
     const { terminaux, shells } = lancement(souvenirs, [], { detruite: true }, { reseau: reseau(), horloge: horloge() });
     terminaux.espace(BRIGADE);
-    terminaux.ouvrir(BRIGADE, POSTE);
+    terminaux.ouvrir(BRIGADE, WORKSTATION);
     shells()[0]?.surFin(255);
     assert.deepEqual(terminaux.espace(BRIGADE).map(({ genre }) => genre), ["second"]);
     assert.deepEqual(souvenirs.tel().brigade?.shells, []);
@@ -444,7 +444,7 @@ describe("le fichier des souvenirs", () => {
     });
     assert.deepEqual(lu, {
       // Le dernier rang n'est jamais en deçà d'un shell retenu.
-      brigade: { dernier: 6, shells: [{ rang: 1, session: "brigade-brigade-1", cible: POSTE }, { rang: 6, session: "brigade-brigade-6", cible: STUDIO }] },
+      brigade: { dernier: 6, shells: [{ rang: 1, session: "brigade-brigade-1", cible: WORKSTATION }, { rang: 6, session: "brigade-brigade-6", cible: STUDIO }] },
       vide: { dernier: 0, shells: [] },
     });
   });
@@ -533,8 +533,8 @@ describe(`fermer l'app, la rouvrir : sur ce poste${multiplexeur === undefined ? 
     // `cat` ne rend ce qu'il reçoit que s'il tourne encore.
     const premiere = app();
     premiere.terminaux.espace(projet);
-    const shell = premiere.terminaux.ouvrir(projet, POSTE);
-    const session: Session = { nom: `brigade-${projet.nom}-1`, cible: POSTE };
+    const shell = premiere.terminaux.ouvrir(projet, WORKSTATION);
+    const session: Session = { nom: `brigade-${projet.nom}-1`, cible: WORKSTATION };
     ouvertes.push(session);
     premiere.terminaux.ecrire(shell.id, "echo AVANT-$((6*7)); cat\r");
     await jusqua(() => premiere.sortie().includes("AVANT-42"), premiere.sortie);

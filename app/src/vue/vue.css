@@ -1,5 +1,5 @@
 /* La peau de l'app : un fond sombre, et dessus des cartes. Aucune couleur ne s'écrit ici, ni
-   aucune police : elles viennent de jetons.css, par leurs variables. La peau habille le cadre —
+   aucune police : elles viennent de tokens.css, par leurs variables. La peau habille le cadre —
    jamais ce que la box a rendu, qui reste mot pour mot, entier, dans ses blancs et ses lignes. */
 * {
   box-sizing: border-box;
@@ -1564,7 +1564,7 @@ main > header,
   margin-top: 8px;
 }
 /* Ce qui est dessiné : un tableau à états. Une couleur par mot des deux listes
-   fermées (faits.ts) ; un mot qui n'y est pas garde la pastille vide et le texte nu. */
+   fermées (facts.ts) ; un mot qui n'y est pas garde la pastille vide et le texte nu. */
 .pastille {
   display: inline-block;
   flex: none;

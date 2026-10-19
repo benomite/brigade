@@ -2,12 +2,12 @@
 // plafonds que celui de la box, sur ce que sa station rapporte et sur l'horloge.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { Plafonds } from "../src/events/guardrails.ts";
+import type { Caps } from "../src/events/guardrails.ts";
 import { depassement, type Arret } from "../src/superviseur.ts";
 import { superviserADistance } from "../src/superviseur-distant.ts";
 
 // Des plafonds qu'aucun test n'atteint par l'horloge, sauf celui qu'il règle.
-const LARGES: Plafonds = { turns: 10, tokens: 1000, durationMs: 600_000, idleMs: 600_000 };
+const LARGES: Caps = { turns: 10, tokens: 1000, durationMs: 600_000, idleMs: 600_000 };
 
 describe("superviser à distance", { concurrency: true }, () => {
   test("le jugement des tours et des jetons est celui du superviseur de la box : au plafond rien, au-delà l'arrêt — les tours d'abord", () => {
@@ -48,9 +48,9 @@ describe("superviser à distance", { concurrency: true }, () => {
     const stoppe = superviserADistance({ plafonds: LARGES });
     stoppe.arreter();
     assert.deepEqual((await stoppe.fin).arret, { reason: "stop", limit: null, observed: null });
-    const bail = superviserADistance({ plafonds: LARGES });
-    bail.arreter({ reason: "lease", limit: 5, observed: 6 });
-    assert.deepEqual((await bail.fin).arret, { reason: "lease", limit: 5, observed: 6 });
+    const lease = superviserADistance({ plafonds: LARGES });
+    lease.arreter({ reason: "lease", limit: 5, observed: 6 });
+    assert.deepEqual((await lease.fin).arret, { reason: "lease", limit: 5, observed: 6 });
   });
 
   test("une station qui ne rapporte plus rien perd son cook au plafond d'inactivité, et un cook trop long au plafond de durée", async () => {

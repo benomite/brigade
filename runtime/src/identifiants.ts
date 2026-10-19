@@ -106,7 +106,7 @@ export function identifiantsLivres(ajouts: string): SigneDIdentifiants[] {
 // publie : ni la valeur, ni rien d'elle — pas même sa longueur.
 export const JETON_MASQUE = "[jeton Claude masqué]";
 
-const JETONS = new RegExp(JETON.source, "g");
+const TOKENS = new RegExp(JETON.source, "g");
 // L'objet que la clé du compte ouvre, puis chaque jeton qui y a une valeur.
 const STRUCTURES = /claudeAiOauth\\*"?\s*:\s*\{[^{}]*/g;
 const VALEURS = /((?:access|refresh)Token\\*"\s*:\s*\\*")[^"\\\s]{20,}/g;
@@ -116,7 +116,7 @@ const VALEURS = /((?:access|refresh)Token\\*"\s*:\s*\\*")[^"\\\s]{20,}/g;
 // `CLAUDE_CODE_OAUTH_TOKEN` venu d'ailleurs. Masquées par leur valeur, même
 // sans la forme `sk-ant-…`. La plus longue d'abord : une valeur qui en
 // contient une autre est masquée entière.
-const JETONS_CONNUS: string[] = [];
+const KNOWN_TOKENS: string[] = [];
 
 // En dessous, une valeur n'est pas un jeton : la masquer rongerait les
 // comptes-rendus.
@@ -130,9 +130,9 @@ export function retenirJeton(valeur: string | undefined): void {
   if (!jeton || jeton.length < LONGUEUR_MIN_D_UNE_VALEUR) return;
   // Telle quelle, et telle qu'un flux JSON la cite.
   for (const forme of new Set([jeton, JSON.stringify(jeton).slice(1, -1)])) {
-    if (!JETONS_CONNUS.includes(forme)) JETONS_CONNUS.push(forme);
+    if (!KNOWN_TOKENS.includes(forme)) KNOWN_TOKENS.push(forme);
   }
-  JETONS_CONNUS.sort((a, b) => b.length - a.length);
+  KNOWN_TOKENS.sort((a, b) => b.length - a.length);
 }
 
 // Le texte, où ce qui a la forme d'un jeton de Claude, ou la valeur d'un
@@ -151,8 +151,8 @@ export function masquerIdentifiants(texte: string): { texte: string; masques: nu
   };
   // Les valeurs retenues d'abord, puis les formes : masqués, ils n'ont plus la
   // forme d'une valeur de la structure, et ne se comptent pas deux fois.
-  const sansValeur = JETONS_CONNUS.reduce((reste, valeur) => (reste.includes(valeur) ? reste.replaceAll(valeur, masque) : reste), texte);
-  const masquee = sansValeur.replace(JETONS, masque).replace(STRUCTURES, (objet) => objet.replace(VALEURS, (_, cle: string) => `${cle}${masque()}`));
+  const sansValeur = KNOWN_TOKENS.reduce((reste, valeur) => (reste.includes(valeur) ? reste.replaceAll(valeur, masque) : reste), texte);
+  const masquee = sansValeur.replace(TOKENS, masque).replace(STRUCTURES, (objet) => objet.replace(VALEURS, (_, cle: string) => `${cle}${masque()}`));
   return { texte: masquee, masques };
 }
 

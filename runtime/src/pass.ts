@@ -84,16 +84,16 @@ import {
 } from "./events/pass.ts";
 import type { FaitStation } from "./events/station.ts";
 import { direMasquage } from "./identifiants.ts";
-import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE, FERMETURE, OUVERTURE } from "./livrable.ts";
-import { LancementRefuse, type CookLance, type GardeFous, type Verdict as VerdictGarde } from "./garde-fous.ts";
-import { REJOUER_LA_BASE } from "./dire-base.ts";
-import { envelopper, type Cloison } from "./cloison.ts";
+import { CONSIGNE_DE_FIN_DE_TOUR, DELIVERABLE_INSTRUCTION, CLOSING, OUVERTURE } from "./deliverable.ts";
+import { LancementRefuse, type CookLance, type Guardrails, type Verdict as VerdictGarde } from "./guardrails.ts";
+import { REPLAY_THE_BASE } from "./dire-base.ts";
+import { envelopper, type Partition } from "./partition.ts";
 import { aDesGates, jouerGates, SCRIPT_GATES, type DemandeScript } from "./gates.ts";
 import { constaterExtinction, direExtinction } from "./grant.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import type { GitHub, PR } from "./github.ts";
 import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
-import { etatDesGardeFous } from "./projections/guardrails.ts";
+import { guardrailsState } from "./projections/guardrails.ts";
 import { managerAllume } from "./projections/manager.ts";
 import {
   controleRetenu,
@@ -188,7 +188,7 @@ export type OptionsPass = ConfigPass & {
   // reçoivent de jeton GitHub, pas même d'un setup de worktree.
   sansIdentite?: boolean;
   // La cloison dans laquelle partent les gates et le reviewer.
-  cloison?: Cloison | null;
+  cloison?: Partition | null;
   depot: Depot;
   github: GitHub;
   // La branche d'intégration : la seule base sur laquelle la pass merge.
@@ -219,14 +219,14 @@ export type OptionsPass = ConfigPass & {
 };
 
 // Une livraison hors du rail : le run qui l'a produite, sa branche poussée, sa PR.
-export type LivraisonHorsRail = { run: string; branche: string; pr: string; numero: number };
+export type OffRailDelivery = { run: string; branche: string; pr: string; numero: number };
 
 export type Pass = {
   // Fait repasser la pass sans attendre le tick : un cook vient de livrer.
   reveillerPass(): void;
   // Fait entrer en pass une livraison que le rail ne porte pas — la PR d'une
   // passe de fermeture. Elle est jugée et mergée comme celle d'un ticket.
-  prendreHorsRail(livraison: LivraisonHorsRail): void;
+  prendreHorsRail(delivery: OffRailDelivery): void;
 };
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -248,7 +248,7 @@ const findingDuReviewer = (finding: Finding) => `Relecture — constat bloquant$
 // Le plafond de durée que les gates se donnent n'est pas jugé par la pass : il
 // a été mesuré sur le poste de ceux qui écrivent la suite, et la machine du
 // runtime n'est pas ce poste. Franchi, il se dit — sans rien retenir.
-const PLAFOND_NON_JUGE = "la pass ne juge pas ce plafond, mesuré sur le poste de ceux qui écrivent la suite et non sur cette machine";
+const CAP_NOT_JUDGED = "la pass ne juge pas ce plafond, mesuré sur le poste de ceux qui écrivent la suite et non sur cette machine";
 const enSecondes = (valeur: number) => `${valeur.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} s`;
 const direDepassement = ({ cpuSeconds, limitSeconds }: Depassement) => `${enSecondes(cpuSeconds)} de processeur pour un plafond de ${enSecondes(limitSeconds)}`;
 
@@ -256,7 +256,7 @@ const direDepassement = ({ cpuSeconds, limitSeconds }: Depassement) => `${enSeco
 // dont le plafond est le seul rouge, sous un verdict vert — rouge, l'issue
 // reçoit son renvoi, et « la livraison suit son chemin » y serait faux —, et
 // une fois par commit livré : `deja` est ce que le journal porte du ticket.
-export function plafondADire(deja: Array<{ type: string; payload: unknown }>, jugement: { sha: string; verdict: Verdict; gates: Gates }): Depassement | null {
+export function capToSay(deja: Array<{ type: string; payload: unknown }>, jugement: { sha: string; verdict: Verdict; gates: Gates }): Depassement | null {
   const { sha, verdict, gates } = jugement;
   if (verdict !== "green" || gates.outcome !== "green" || !gates.overCeiling) return null;
   const dit = deja.some((evenement) => {
@@ -283,7 +283,7 @@ function findingDesGates(gates: Gates, delaiMs: number, sur = ""): string {
           "Aucun test n'a échoué avant que leur garde d'horloge ne les coupe, mais ce rouge n'est pas mis sur le compte de la charge : la machine n'était pas saturée, ou ces gates avaient déjà été coupées une fois sur une machine saturée, puis rejouées. Un test bloqué, ou une suite devenue trop lente : c'est un rouge.",
         ]),
     ...(gates.overCeiling
-      ? [`Leur plafond de durée est franchi aussi (${direDepassement(gates.overCeiling)}), et ce n'est pas la cause de ce rouge : ${PLAFOND_NON_JUGE}. Il n'y a rien à corriger pour lui.`]
+      ? [`Leur plafond de durée est franchi aussi (${direDepassement(gates.overCeiling)}), et ce n'est pas la cause de ce rouge : ${CAP_NOT_JUDGED}. Il n'y a rien à corriger pour lui.`]
       : []),
     ...(gates.tail === "" ? [] : ["Fin de sortie :", "```", gates.tail, "```"]),
   ].join("\n");
@@ -320,7 +320,7 @@ export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot
     "2. Corrige ce que la pass a trouvé, et rien d'autre. Un finding que tu tiens pour faux : ne le contourne pas, dis-le dans ton compte-rendu.",
     `3. Rejoue toi-même ce qui a échoué (les gates du dépôt), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite sur cette branche ce que tu as changé.`,
     "4. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
-    `5. Termine par ton compte-rendu, en clair : ce que tu as corrigé, ce que tu as vérifié et comment, ce qui reste. ${CONSIGNE_DU_LIVRABLE}`,
+    `5. Termine par ton compte-rendu, en clair : ce que tu as corrigé, ce que tu as vérifié et comment, ce qui reste. ${DELIVERABLE_INSTRUCTION}`,
     "",
     CONSIGNE_DE_FIN_DE_TOUR,
   ].join("\n");
@@ -344,7 +344,7 @@ export function consigneDeReprise(mission: { base: string; branche: string; work
     "1. Corrige ce que la pass a trouvé, et rien d'autre. Un finding que tu tiens pour faux : ne le contourne pas, dis-le dans ton compte-rendu.",
     `2. Rejoue toi-même ce qui a échoué (les gates du dépôt), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite sur cette branche ce que tu as changé.`,
     "3. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
-    `4. Termine par ton compte-rendu, en clair : ce que tu as corrigé, ce que tu as vérifié et comment, ce qui reste. ${CONSIGNE_DU_LIVRABLE}`,
+    `4. Termine par ton compte-rendu, en clair : ce que tu as corrigé, ce que tu as vérifié et comment, ce qui reste. ${DELIVERABLE_INSTRUCTION}`,
     "",
     CONSIGNE_DE_FIN_DE_TOUR,
   ].join("\n");
@@ -383,9 +383,9 @@ type Suite =
   | null;
 
 // Rend le runtime, augmenté de sa pass. Son `arreter` l'emporte avec lui.
-export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, options: OptionsPass): R & Pass {
-  const { journal, projet, rail } = runtime;
-  const { base } = journal;
+export function brancherPass<R extends RuntimeAvecRail & Guardrails>(runtime: R, options: OptionsPass): R & Pass {
+  const { journal: log, projet, rail } = runtime;
+  const { base } = log;
   const { depot, github } = options;
   const maintenant = options.maintenant ?? (() => new Date());
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
@@ -407,12 +407,12 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const secrets = lireSecrets(worktree, options.secrets ?? null);
     return secrets.pret && Object.keys(secrets.env).length > 0 ? secrets.masquer : undefined;
   };
-  const ajouter = (ticket: number | null, fait: FaitPass | FaitStation) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
+  const ajouter = (ticket: number | null, fait: FaitPass | FaitStation) => log.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
   // Le grant `merge` éteint seul — échéance passée, dernier usage consommé —
   // s'écrit une fois, et se dit : c'est ce que le chef n'a pas fait lui-même.
   // L'écrire ne garde rien : un grant échu ne vaut déjà plus pour qui le lit.
   const eteindre = <T>(ecrire: () => T): T => {
-    const [ecrit, eteint] = base.transaction(() => [ecrire(), constaterExtinction(journal, projet, AUTEUR, "merge", maintenant())] as const);
+    const [ecrit, eteint] = base.transaction(() => [ecrire(), constaterExtinction(log, projet, AUTEUR, "merge", maintenant())] as const);
     if (eteint) avertir(`brigade : grant \`merge\` éteint seul : ${direExtinction(eteint.cause)} (${eteint.since}) — la pass s'arrête désormais à la PR ouverte`);
     return ecrit;
   };
@@ -501,7 +501,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
 
   // La PR de la livraison est fermée sans être mergée : le chef a dit non.
   // Écrit une fois — la phase qui en sort ne le constate plus.
-  const constaterFermeture = async (connu: PassDeTicket, pr: PR) => {
+  const noteClosing = async (connu: PassDeTicket, pr: PR) => {
     const { ticket } = connu;
     // Le ticket a pu quitter le rail, ou repartir, pendant la lecture de GitHub.
     const actuel = passDuTicket(base, ticket);
@@ -550,7 +550,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // dit « stop », si le disjoncteur est ouvert, ou si une station dit le compte
   // épuisé ou déconnecté. La livraison attend, sans verdict.
   const peutRelire = (): boolean => {
-    const garde = etatDesGardeFous(base);
+    const garde = guardrailsState(base);
     if (garde.stoppedAt !== null || garde.breakerOpenedAt !== null) return false;
     return !compteRetenu(base, maintenant());
   };
@@ -566,9 +566,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // `livrable`, ce qu'il a délimité — nul s'il n'a rien délimité, ou si le
   // journal date d'avant la délimitation —, et `message`, son dernier message
   // entier.
-  const rapportDuCook = (ticket: number, run: string): { livrable: string | null; message: string | null } => {
-    const rapport = journal.duTicket(ticket).findLast((evenement) => evenement.type === "cook.reported" && evenement.payload.run === run);
-    return rapport?.type === "cook.reported" ? { livrable: rapport.payload.deliverable ?? null, message: rapport.payload.summary } : { livrable: null, message: null };
+  const rapportDuCook = (ticket: number, run: string): { deliverable: string | null; message: string | null } => {
+    const rapport = log.duTicket(ticket).findLast((evenement) => evenement.type === "cook.reported" && evenement.payload.run === run);
+    return rapport?.type === "cook.reported" ? { deliverable: rapport.payload.deliverable ?? null, message: rapport.payload.summary } : { deliverable: null, message: null };
   };
 
   // Ce que le chef lit du reviewer, sur l'issue : chaque constat, bloquant ou
@@ -576,8 +576,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   const direRelecture = (connu: PassDeTicket, sha: string, relue: Relue, sansDiff: boolean): string => {
     const combien = bloquants(relue.findings).length;
     const cook = cookDeRun(base, relue.run);
-    const calibrage = cook?.model && cook.effort ? ` en \`${cook.model}\` / \`${cook.effort}\`` : "";
-    const mesure = cook?.turns == null ? "" : ` · ${pluriel(cook.turns, "tour")} · ${nombre(cook.tokens ?? 0)} tokens · ${duree(cook.durationMs ?? 0)}`;
+    const calibration = cook?.model && cook.effort ? ` en \`${cook.model}\` / \`${cook.effort}\`` : "";
+    const measure = cook?.turns == null ? "" : ` · ${pluriel(cook.turns, "tour")} · ${nombre(cook.tokens ?? 0)} tokens · ${duree(cook.durationMs ?? 0)}`;
     return [
       `**Reviewer — ${combien === 0 ? "rien de bloquant" : constatsBloquants(combien)}.** \`${court(sha)}\`${connu.pr ? ` · ${connu.pr}` : ""}${sansDiff ? " · ticket sans diff : c'est le livrable délimité par le cook qui est relu" : ""}`,
       "",
@@ -585,7 +585,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       ...(relue.findings.length === 0 ? [] : [""]),
       ...relue.findings.map((finding) => `- **${finding.severity === "blocking" ? "Bloquant" : "Remarque"}**${lieu(finding)} — ${finding.text}`),
       "",
-      `_Relu par le reviewer${calibrage}${mesure} — un autre process que le cook, sans droit d'écriture._`,
+      `_Relu par le reviewer${calibration}${measure} — un autre process que le cook, sans droit d'écriture._`,
     ].join("\n");
   };
 
@@ -593,7 +593,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // dans l'ordre : le run de chacune. Lues au journal, elles tiennent après un
   // redémarrage.
   const illisibles = (ticket: number, run: string, sha: string): string[] =>
-    journal.duTicket(ticket).flatMap((evenement) => (evenement.type === "pass.reviewed" && evenement.payload.run === run && evenement.payload.sha === sha && evenement.payload.outcome === "unreadable" ? [evenement.payload.review] : []));
+    log.duTicket(ticket).flatMap((evenement) => (evenement.type === "pass.reviewed" && evenement.payload.run === run && evenement.payload.sha === sha && evenement.payload.outcome === "unreadable" ? [evenement.payload.review] : []));
 
   // Fait relire une livraison. Rend la relecture une fois qu'elle est au
   // journal — lisible, ou illisible et ses redemandes épuisées ; null si elle
@@ -623,7 +623,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const rapport = rapportDuCook(ticket, run);
     // Un ticket d'interface montre ses captures au reviewer, qui les juge.
     // Un ticket hors du rail n'a pas de zone à la prise : il n'en a pas.
-    const captures = diff !== null && !connu.horsRail && estDInterface({ zone: zoneALaPrise(journal.duTicket(ticket)), labels: issue.labels }) ? { dossier: dossierDesCaptures(ticket), screens: capturesLivrees(ticket, diff.fichiers) } : null;
+    const captures = diff !== null && !connu.horsRail && estDInterface({ zone: zoneALaPrise(log.duTicket(ticket)), labels: issue.labels }) ? { dossier: dossierDesCaptures(ticket), screens: capturesLivrees(ticket, diff.fichiers) } : null;
     const mission = {
       depot: options.depotGitHub,
       base: options.base,
@@ -632,16 +632,16 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       ticket: { number: ticket, title: issue.title, body: issue.body ?? "" },
       horsRail: connu.horsRail,
       commentaires,
-      compteRendu: sansDiff ? rapport.livrable : (rapport.livrable ?? rapport.message),
+      compteRendu: sansDiff ? rapport.deliverable : (rapport.deliverable ?? rapport.message),
       diff,
       captures,
     };
     const consigne = consigneDeRelecture(mission);
     // Une consigne que le système refuserait de passer à `claude` ne se lance
     // pas : elle échouerait à chaque réveil, sans verdict ni remontée.
-    const poids = Buffer.byteLength(consigne);
-    if (poids > CONSIGNE_MAX) {
-      return remonter(connu, "review-unsendable", `La consigne du reviewer pèse ${nombre(poids)} octets, plus que ce qu'une commande accepte (${nombre(CONSIGNE_MAX)}) : cette livraison ne peut pas être relue par le runtime.`).then(() => null);
+    const weight = Buffer.byteLength(consigne);
+    if (weight > CONSIGNE_MAX) {
+      return remonter(connu, "review-unsendable", `La consigne du reviewer pèse ${nombre(weight)} octets, plus que ce qu'une commande accepte (${nombre(CONSIGNE_MAX)}) : cette livraison ne peut pas être relue par le runtime.`).then(() => null);
     }
 
     const review = `${debutDeRelecture(ticket)}${randomUUID().slice(0, 8)}`;
@@ -672,7 +672,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     // Le ticket a pu quitter le rail pendant les gates : aucune relecture ne
     // part pour lui.
     if (arrete || !enPass(ticket)) return null;
-    const calibrage = options.decisions?.reviewer() ?? options.reviewer.calibrage;
+    const calibration = options.decisions?.reviewer() ?? options.reviewer.calibrage;
     let lance: CookLance;
     try {
       lance = runtime.lancer({
@@ -680,9 +680,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         // c'est `pass.reviewed` qui rattache cette relecture à sa livraison.
         ticket: null,
         run: review,
-        contexte: { station: REVIEWER, ...calibrage },
+        contexte: { station: REVIEWER, ...calibration },
         // Il relit : le worktree et le dépôt lui sont rendus en lecture seule.
-        ...envelopper(options.cloison, { commande: options.bin, args: argumentsReviewer(consigne, calibrage) }, { cwd: worktree, depot: "lecture" }),
+        ...envelopper(options.cloison, { commande: options.bin, args: argumentsReviewer(consigne, calibration) }, { cwd: worktree, depot: "lecture" }),
         cwd: worktree,
         env: environnementClaude(envGates, options.env ?? process.env),
         // Il ne reçoit aucun secret, mais il lit un worktree où les gates
@@ -793,9 +793,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // Un verdict vert qui ne tient plus face à la base : il devient rouge, par
   // ces faits. Sur la livraison d'une relance du manager, il compte au
   // disjoncteur comme un verdict rouge.
-  const rougir = (connu: PassDeTicket, faits: FaitPass[]) => {
+  const rougir = (connu: PassDeTicket, facts: FaitPass[]) => {
     base.transaction(() => {
-      for (const fait of faits) noter(connu.ticket, fait);
+      for (const fait of facts) noter(connu.ticket, fait);
       if (connu.returns > RENVOIS_MAX) runtime.jugerRelance(connu.ticket, connu.run, "red");
     });
   };
@@ -815,12 +815,12 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // Les gates de ce commit ont déjà été coupées une fois sur une machine
   // saturée : leur rejeu est parti sur une machine calme.
   const dejaCoupees = (ticket: number, sha: string) =>
-    journal.duTicket(ticket).some((evenement) => evenement.type === "pass.waiting" && evenement.payload.reason === GATES_COUPEES && evenement.payload.sha === sha);
+    log.duTicket(ticket).some((evenement) => evenement.type === "pass.waiting" && evenement.payload.reason === GATES_COUPEES && evenement.payload.sha === sha);
 
   // Ce que la branche d'une livraison porte, sans worktree.
   // Un workflow qui ne se lance pas sur une PR vers la base n'enverra jamais
   // de check : l'attendre ferait perdre le délai entier.
-  const porteDesWorkflows = (branche: string) => {
+  const workflowsDoor = (branche: string) => {
     const modifies = depot.changes(branche);
     return depot
       .liste(branche, WORKFLOWS)
@@ -844,7 +844,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     attendre(
       connu,
       BASE_ROUGE,
-      `\`${options.base}\` est rouge : ses gates, jouées sur elle-même, ont échoué sur \`${court(rouge)}\`. Une livraison se juge fusionnée avec \`${options.base}\` : tant qu'elle est rouge, la pass ne juge ni ne merge rien, et ne renvoie aucun cook — ce rouge-là n'est celui d'aucune livraison. Rien n'est à refaire sur celle-ci : elle sera jugée, et mergée sous grant, dès que \`${options.base}\` sera réparée — la pass rejoue ses gates seule une fois, puis dès qu'elle bouge, ou sans commit à la demande du chef (\`${REJOUER_LA_BASE}\`) ; si le rouge tient, elle ouvre un ticket de réparation, qui part avant tout autre. La merger à la main reste possible.`,
+      `\`${options.base}\` est rouge : ses gates, jouées sur elle-même, ont échoué sur \`${court(rouge)}\`. Une livraison se juge fusionnée avec \`${options.base}\` : tant qu'elle est rouge, la pass ne juge ni ne merge rien, et ne renvoie aucun cook — ce rouge-là n'est celui d'aucune livraison. Rien n'est à refaire sur celle-ci : elle sera jugée, et mergée sous grant, dès que \`${options.base}\` sera réparée — la pass rejoue ses gates seule une fois, puis dès qu'elle bouge, ou sans commit à la demande du chef (\`${REPLAY_THE_BASE}\`) ; si le rouge tient, elle ouvre un ticket de réparation, qui part avant tout autre. La merger à la main reste possible.`,
     );
 
   // Décide de ce que devient une livraison jugée. Le grant est lu dans la
@@ -861,7 +861,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       if (!verte && connu.phase !== "red" && connu.phase !== "deferred") return null;
       const { pr, number, sha } = connu;
       const fusion = connu.judgedBase === null ? "" : ` fusionné avec \`${options.base}\` (\`${court(connu.judgedBase)}\`)`;
-      const livraison = `\`${court(sha)}\`${fusion}${pr ? ` · ${pr}` : ""}${connu.noDiff ? " · ticket sans diff" : ""}`;
+      const delivery = `\`${court(sha)}\`${fusion}${pr ? ` · ${pr}` : ""}${connu.noDiff ? " · ticket sans diff" : ""}`;
 
       if (!verte) {
         const constat = ["", ...connu.findings.flatMap((finding) => [finding, ""])];
@@ -871,7 +871,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           noter(ticket, { type: "pass.escalated", payload: { reason: ENCORE_ROUGE, cause: HORS_RAIL } });
           return {
             commentaire: [
-              `**Pass — rouge : remontée au chef.** ${livraison}`,
+              `**Pass — rouge : remontée au chef.** ${delivery}`,
               ...constat,
               `Rien n'est mergé, et aucun cook n'est renvoyé sur une livraison hors du rail : cette PR reste ouverte. ${SUITE_HORS_RAIL}`,
             ].join("\n"),
@@ -884,7 +884,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           noter(ticket, { type: "pass.deferred", payload: {} });
           return {
             commentaire: [
-              `**Pass — rouge${connu.returns < RENVOIS_MAX ? "" : ` après ${connu.returns} renvois`} : au manager.** ${livraison}`,
+              `**Pass — rouge${connu.returns < RENVOIS_MAX ? "" : ` après ${connu.returns} renvois`} : au manager.** ${delivery}`,
               ...constat,
               connu.returns < RENVOIS_MAX
                 ? "Avant le second renvoi, le manager monte le calibrage d'un cran s'il le peut : le ticket reste en pass jusque-là."
@@ -898,7 +898,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           rail.rendre(ticket, PASS_ROUGE);
           return {
             commentaire: [
-              `**Pass — rouge, renvoi ${n}/${RENVOIS_MAX}.** ${livraison}`,
+              `**Pass — rouge, renvoi ${n}/${RENVOIS_MAX}.** ${delivery}`,
               ...constat,
               "Le ticket est revenu en attente : la station relance un cook dessus, sur la même branche.",
             ].join("\n"),
@@ -908,7 +908,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         rail.quatreVingtSix(ticket, { motif: `pass:${ENCORE_ROUGE}` });
         return {
           commentaire: [
-            `**Pass — rouge après ${RENVOIS_MAX} renvois : remontée au chef.** ${livraison}`,
+            `**Pass — rouge après ${RENVOIS_MAX} renvois : remontée au chef.** ${delivery}`,
             ...constat,
             `Rien n'est mergé, et aucun cook n'est relancé : le ticket est 86. ${suiteDuChef(pr)}`,
           ].join("\n"),
@@ -921,7 +921,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         noter(ticket, { type: "pass.served", payload: { verdict: connu.verdictSeq ?? 0 } });
         return {
           service: [
-            `**Pass — verte, servie sans merge.** ${livraison}`,
+            `**Pass — verte, servie sans merge.** ${delivery}`,
             "",
             "Ce ticket n'a produit aucun diff : il n'y a rien à merger, et ni les gates ni la CI n'avaient rien à en dire. Le reviewer était son seul juge ; il n'a rien trouvé de bloquant. Le livrable est ce que le cook a délimité, plus haut sur cette issue, que la pass ferme.",
           ].join("\n"),
@@ -933,7 +933,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         noter(ticket, { type: "pass.held", payload: { reason: A_RELIRE, cause: causeDeDeclarations(connu.declarations) } });
         return {
           commentaire: [
-            `**Pass — verte, non mergée (\`${A_RELIRE}\`).** ${livraison}`,
+            `**Pass — verte, non mergée (\`${A_RELIRE}\`).** ${delivery}`,
             "",
             "Cette livraison touche à ce que le projet déclare au runtime pour s'ouvrir : la pass ne la merge jamais elle-même, grant ou pas. À relire avant de merger à la main :",
             ...connu.declarations.map((fichier) => `- \`${fichier}\` — ${DECLARATIONS[fichier] ?? "ce que le projet s'ouvre"} ;`),
@@ -948,7 +948,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         noter(ticket, { type: "pass.held", payload: { reason: A_RELIRE, cause: JUGES_MODIFIES } });
         return {
           commentaire: [
-            `**Pass — verte, non mergée (\`${A_RELIRE}\`).** ${livraison}`,
+            `**Pass — verte, non mergée (\`${A_RELIRE}\`).** ${delivery}`,
             "",
             `Cette livraison touche à ce qui la juge (${JUGES.map((juge) => `\`${juge}\``).join(", ")}) : la pass ne la merge jamais elle-même, grant ou pas. À relire et merger à la main — ${vuDeLaPass(connu.horsRail)}.`,
           ].join("\n"),
@@ -963,7 +963,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         noter(ticket, { type: "pass.held", payload: { reason: SANS_GRANT, ...(eteint ? { expired: eteint.since } : {}) } });
         return {
           commentaire: [
-            `**Pass — verte, non mergée (\`${SANS_GRANT}\`).** ${livraison}`,
+            `**Pass — verte, non mergée (\`${SANS_GRANT}\`).** ${delivery}`,
             "",
             eteint
               ? `Le grant \`merge\` s'est éteint seul le ${eteint.since} — ${direExtinction(eteint.cause)} : la pass s'arrête là. À merger à la main — ${vuDeLaPass(connu.horsRail)}. Le réaccorder (\`${geste(`grant enable merge`)}\`, avec ou sans échéance) vaudra pour les livraisons suivantes, pas pour celle-ci.`
@@ -1080,7 +1080,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       return faire(nom);
     };
     try {
-      await jugerLivraison(connu, connu.branch, poser);
+      await judgeDelivery(connu, connu.branch, poser);
     } finally {
       // Arrêté, le runtime ne retire rien : ce qu'il laisse part au démarrage
       // suivant, et celui-ci a peut-être déjà posé le sien.
@@ -1115,7 +1115,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   };
 
   // `poser` : fait le worktree jetable du jugement.
-  const jugerLivraison = async (connu: PassDeTicket, branch: string, poser: <T>(faire: (nom: string) => Promise<T>) => Promise<T>) => {
+  const judgeDelivery = async (connu: PassDeTicket, branch: string, poser: <T>(faire: (nom: string) => Promise<T>) => Promise<T>) => {
     const { ticket, run } = connu;
 
     let pr = await github.prDeBranche(branch);
@@ -1124,7 +1124,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     // Sans branche, la pass ne juge rien — mais elle lit encore GitHub : une
     // PR déjà mergée ou fermée se traite comme d'habitude.
     if (pr?.merged) return constaterMerge(connu, pr, "outside", false);
-    if (pr?.state === "closed") return constaterFermeture(connu, pr);
+    if (pr?.state === "closed") return noteClosing(connu, pr);
     if (!depot.connait(branch)) {
       return sansBranche(connu, branch, "la pass n'a plus de quoi la fusionner avec la base, y jouer les gates ni faire relire le diff, et elle ne la recrée pas. Ce que le cook a poussé est sur l'origine, sous le même nom.");
     }
@@ -1142,7 +1142,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     }
     if (arrete || pr === null) return;
     if (pr.merged) return constaterMerge(connu, pr, "outside", false);
-    if (pr.state === "closed") return constaterFermeture(connu, pr);
+    if (pr.state === "closed") return noteClosing(connu, pr);
     // La livraison ne porte pas sa PR : la station n'avait pas pu l'ouvrir, la
     // pass vient de le faire — ou l'avait fait avant de mourir. C'est écrit
     // avant tout le reste : une remontée la nomme, et la file du chef aussi.
@@ -1240,7 +1240,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           );
         }
         const chargeAuDepart = sature();
-        gates = await jouerGates({ worktree, ticket, ...secrets, interdites, delaiMs: options.delaiGatesMs, cloison: options.cloison, signal: abandon.signal });
+        gates = await jouerGates({ worktree, ticket, ...secrets, interdites, delaiMs: options.delaiGatesMs, partition: options.cloison, signal: abandon.signal });
         // Parti pendant ses gates, le ticket n'a plus de verdict à recevoir.
         if (arrete || !enPass(ticket)) return;
         // Coupées par leur garde d'horloge sans aucun test en échec, sur une
@@ -1285,7 +1285,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       const checks = await github.ci(sha);
       if (arrete) return;
       // Des workflows sans aucun check : la CI n'a pas encore démarré.
-      const attendue = checks.length === 0 && porteDesWorkflows(ref);
+      const attendue = checks.length === 0 && workflowsDoor(ref);
       const enCours = attendue || checks.some((check) => check.outcome === "pending");
       // Un constat bloquant n'attend pas la CI : le verdict est déjà rouge,
       // et elle sera lue sur le commit qui le corrige.
@@ -1343,7 +1343,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     // relecture en cache n'y changent rien, il n'a plus de verdict à recevoir.
     if (!enPass(ticket)) return;
     const verdict = findings.length === 0 ? "green" : "red";
-    const franchi = plafondADire(journal.duTicket(ticket), { sha, verdict, gates });
+    const franchi = capToSay(log.duTicket(ticket), { sha, verdict, gates });
     prononcer(connu, { run, pr: pr.url, number: pr.number, sha, base: tete, merged: arbre, verdict, gates, ci, review, findings, judgeModified, ...(judges.length > 0 ? { judges } : {}), declarations, noDiff: false });
     if (verdict === "red") avertir(`brigade : pass rouge sur le ticket #${ticket} (${resume(gates, ci, review)})`);
     // Seul rouge des gates, le plafond de durée ne retient rien : il se lit.
@@ -1360,7 +1360,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           franchi.line,
           "```",
           "",
-          `Ce n'est pas un motif de renvoi : ${PLAFOND_NON_JUGE}. Tout le reste des gates est vert, et la livraison suit son chemin. Le plafond reste jugé là où il a été mesuré — les gates jouées sur le poste de dev, le hook d'arrêt ; ici, le dépassement se suit au relevé (\`${geste(`measures`)}\`).`,
+          `Ce n'est pas un motif de renvoi : ${CAP_NOT_JUDGED}. Tout le reste des gates est vert, et la livraison suit son chemin. Le plafond reste jugé là où il a été mesuré — les gates jouées sur le poste de dev, le hook d'arrêt ; ici, le dépassement se suit au relevé (\`${geste(`measures`)}\`).`,
         ].join("\n"),
       );
     }
@@ -1378,9 +1378,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
 
     const findings: string[] = [];
     let review = NON_RELU;
-    if (rapportDuCook(ticket, run).livrable === null) {
+    if (rapportDuCook(ticket, run).deliverable === null) {
       findings.push(
-        `Ni diff ni livrable : le cook n'a rien délimité qui puisse être relu. Le livrable d'un ticket sans diff est ce que tu délimites entre \`${OUVERTURE}\` et \`${FERMETURE}\` dans ton dernier message, et rien d'autre — écris-le, dans la forme que le ticket demande.`,
+        `Ni diff ni livrable : le cook n'a rien délimité qui puisse être relu. Le livrable d'un ticket sans diff est ce que tu délimites entre \`${OUVERTURE}\` et \`${CLOSING}\` dans ton dernier message, et rien d'autre — écris-le, dans la forme que le ticket demande.`,
       );
     } else {
       const relue = await relire(connu, branch, ou, sha, true);
@@ -1423,7 +1423,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       return true;
     }
     if (pr.state !== "closed") return false;
-    if (connu.phase !== "closed") await constaterFermeture(connu, pr);
+    if (connu.phase !== "closed") await noteClosing(connu, pr);
     return true;
   };
 
@@ -1601,7 +1601,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       panne = message(erreur).replace(/\s+/g, " ").trim().slice(0, PANNE_MAX);
     }
     try {
-      if (essai !== null && aDesGates(essai)) gates = await jouerGates({ worktree: essai, ticket: 0, ...pourLesGates(essai), interdites, delaiMs: options.delaiGatesMs, cloison: options.cloison, signal: abandon.signal });
+      if (essai !== null && aDesGates(essai)) gates = await jouerGates({ worktree: essai, ticket: 0, ...pourLesGates(essai), interdites, delaiMs: options.delaiGatesMs, partition: options.cloison, signal: abandon.signal });
     } catch (erreur) {
       // Sans leurs secrets, les gates de la base ne sont pas jouées : un
       // contrôle non joué, avec son motif.

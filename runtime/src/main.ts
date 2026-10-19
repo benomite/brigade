@@ -2,22 +2,22 @@
 // Tout vient de l'environnement — aucun chemin d'état, aucun projet par défaut.
 import { brancherAlerteUrgence } from "./alerte-urgence.ts";
 import { avecRail, configRail } from "./alimenter.ts";
-import { configArbitrage, joindreArbitre } from "./arbitrage.ts";
+import { arbitrationConfig, reachArbiter } from "./arbitration.ts";
 import { sessionClaude } from "./claude.ts";
 import { brancherJeton, configJeton, direJeton, environnementClaude, masquerLaConsole } from "./jeton-claude.ts";
-import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison } from "./cloison.ts";
+import { announcePartition, partitionConfig, direFichiers, direReseau, type Partition } from "./partition.ts";
 import { noterCodeEnService } from "./code.ts";
 import { decisionsAuDemarrage, decisionsDansLEnvironnement, direDecisionIgnoree, environnementDecide, suivreDecisions, supportDesDecisions } from "./decisions.ts";
 import { lireALaBase } from "./depot.ts";
-import { brancherDerive, lireSeuils } from "./derive.ts";
-import { brancherFermeture } from "./closing/run.ts";
-import { configFermeture } from "./closing/settings.ts";
-import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
+import { plugDrift, lireSeuils } from "./drift.ts";
+import { plugClosing } from "./closing/run.ts";
+import { closingConfig } from "./closing/settings.ts";
+import { plugGuardrails, lireReglages } from "./guardrails.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "./identites.ts";
 import { brancherManager, configManager } from "./manager.ts";
 import { brancherPass, configPass } from "./pass.ts";
 import { brancherSession, configSession, type ConfigSession } from "./renouvellement.ts";
-import { brancherReseau, configReseau, DECLARATION_RESEAU, passerParLaPorte, sonderLeFiltre } from "./reseau.ts";
+import { brancherReseau, configReseau, DECLARATION_RESEAU, goThroughTheDoor, sonderLeFiltre } from "./reseau.ts";
 import { configReviewer } from "./reviewer.ts";
 import { configSecrets, DECLARATION } from "./secrets.ts";
 import { mkdirSync } from "node:fs";
@@ -55,11 +55,11 @@ let secrets: string | null = null;
 // Non nul : le fichier qui porte le jeton longue durée de la connexion Max.
 let jeton: string | null = null;
 // Non nulle : chaque lancement part dans sa cloison.
-let cloison: Cloison | null = null;
+let partition: Partition | null = null;
 // Non nul : le port de la porte, seule sortie du projet vers l'extérieur.
-let porte: number | null = null;
+let door: number | null = null;
 // Non nul : le port de l'arbitre entre projets, consulté avant chaque lancement.
-let arbitre: number | null = null;
+let arbiter: number | null = null;
 // Les stations que le projet déclare. Aucune : aucun cook ne part.
 let stations: StationDeclaree[] = [];
 // Le fichier d'état du renouvellement de la session Max, relu à chaque tick.
@@ -70,8 +70,8 @@ try {
   // ne laisse ni journal ni verrou.
   // La porte d'abord : tout ce qui suit, et tout ce qui sera lancé, passe par
   // elle.
-  porte = configReseau(process.env);
-  if (porte !== null) passerParLaPorte(porte);
+  door = configReseau(process.env);
+  if (door !== null) goThroughTheDoor(door);
   const rail = configRail(process.env);
   const reglages = lireReglages(process.env);
   // Les décisions du chef — stations, seuils de coût, calibrage du manager, du
@@ -91,11 +91,11 @@ try {
   // Lus ici pour qu'un seuil mal écrit refuse le démarrage ; la dérive les
   // relit ensuite à chaque réveil.
   lireSeuils(decide);
-  configFermeture(decide);
-  arbitre = configArbitrage(process.env);
+  closingConfig(decide);
+  arbiter = arbitrationConfig(process.env);
   secrets = configSecrets(process.env, { repertoireEtat, clone: station.clone });
   jeton = configJeton(process.env, { repertoireEtat, clone: station.clone });
-  cloison = configCloison(process.env, { repertoireEtat, clone: station.clone });
+  partition = partitionConfig(process.env, { repertoireEtat, clone: station.clone });
   session = configSession(process.env, repertoireEtat);
   const apps = configIdentites(process.env);
   identites = apps && ouvrirIdentites({ ...apps, depot: rail.depot });
@@ -110,7 +110,7 @@ try {
   // Ce que le dépôt déclare sur sa base, relu à chaque rapatriement et à
   // chaque tick : un hôte mergé s'ouvre sans rien redémarrer, et avant le
   // setup du premier ticket pris après lui.
-  if (porte !== null) republierReseau = brancherReseau(socle, { base: station.base, declaration: () => lireALaBase(station, DECLARATION_RESEAU) });
+  if (door !== null) republierReseau = brancherReseau(socle, { base: station.base, declaration: () => lireALaBase(station, DECLARATION_RESEAU) });
   // Sous une identité par rôle, ni les cooks, ni les gates, ni les juges ne
   // partent avec de quoi parler à GitHub : leur `gh` ne trouve aucun compte.
   let env: NodeJS.ProcessEnv = process.env;
@@ -124,14 +124,14 @@ try {
     void entretenues.entretenir();
     socle.surReveil((cause) => void (cause === "tick" && entretenues.entretenir()));
   }
-  const garde = brancherGardeFous(reglages, avecRail(socle, { ...rail, github: githubs.rail }));
+  const garde = plugGuardrails(reglages, avecRail(socle, { ...rail, github: githubs.rail }));
   // La pass avant la station : c'est elle que la station réveille quand un
   // cook a livré.
-  const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison, sansIdentite: identites !== null, base: station.base, reviewer, decisions, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils });
+  const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison: partition, sansIdentite: identites !== null, base: station.base, reviewer, decisions, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils });
   // La fermeture avant la station : c'est par son rail que la station se voit
   // refuser ce qu'une passe tient. Elle ne lance rien sans la commande du chef.
-  const fermee = brancherFermeture(pass, { reglages: decisions.fermeture, repertoireEtat, depot, clone: station.clone, base: station.base, github: githubs.station, depotGitHub: rail.depot, bin: station.bin, env, cloison });
-  const servie = brancherStation(fermee, {
+  const fermee = plugClosing(pass, { reglages: decisions.fermeture, repertoireEtat, depot, clone: station.clone, base: station.base, github: githubs.station, depotGitHub: rail.depot, bin: station.bin, env, cloison: partition });
+  const served = brancherStation(fermee, {
     stations,
     decisions,
     repertoireEtat,
@@ -142,7 +142,7 @@ try {
     bin: station.bin,
     env,
     secrets,
-    cloison,
+    cloison: partition,
     sansIdentite: identites !== null,
     session: () => sessionClaude(station.bin, environnementClaude(process.env, process.env)),
     dureeBailMs: rail.dureeBailMs,
@@ -151,13 +151,13 @@ try {
     seuils: station.seuils,
     gardeTranscriptsMs: station.gardeTranscriptsMs,
     apresCook: pass.reveillerPass,
-    arbitre: arbitre === null ? null : joindreArbitre(arbitre),
+    arbitre: arbiter === null ? null : reachArbiter(arbiter),
   });
   // Le manager en dernier : il ne lance que des jugements et des découpages,
   // et rien ne dépend de lui pour servir ce qui est déjà sur le rail.
   // La dérive ne lance rien et ne retient rien : elle lit ce que les autres ont écrit.
-  brancherDerive(socle, decisions.seuils);
-  const dirige = brancherManager(servie, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
+  plugDrift(socle, decisions.seuils);
+  const dirige = brancherManager(served, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison: partition, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
   // La session Max ne lance rien et ne retient rien : son échéance se lit du
   // fichier d'état du renouvellement, jamais des identifiants, et la file la dit.
   // Avec un jeton longue durée, il n'y a plus de renouvellement à suivre.
@@ -197,9 +197,9 @@ console.log(
 );
 console.log(`brigade : ${direJeton(jeton, process.env)}`);
 console.log(
-  arbitre === null
+  arbiter === null
     ? "brigade : arbitre — aucun (BRIGADE_ARBITER_PORT n'est pas défini) : ce projet se tient pour seul sur la machine et sur le compte"
-    : `brigade : arbitre — 127.0.0.1:${arbitre}, consulté avant chaque lancement ; injoignable, le projet lance quand même, un cook à la fois`,
+    : `brigade : arbitre — 127.0.0.1:${arbiter}, consulté avant chaque lancement ; injoignable, le projet lance quand même, un cook à la fois`,
 );
 console.log(
   `brigade : session Max — échéance lue de ${session?.etat} (le fichier d'état du renouvellement, relu à chaque tick ; jamais les identifiants), annoncée ${Math.round(((session?.preavisS ?? 0) / 3600) * 10) / 10} h avant`,
@@ -207,13 +207,13 @@ console.log(
 // La cloison se dit, présente ou non : sans elle, les projets se voient, et
 // c'est un choix qui se lit — ici, et au journal pour `npm run partition`.
 const annoncee = socle;
-const direCloison = (enforced: boolean | null) => {
+const sayPartition = (enforced: boolean | null) => {
   const etat = {
-    sandbox: cloison && { bin: cloison.bin, hidden: cloison.masques, credentials: cloison.identifiants },
-    proxy: porte === null ? null : { port: porte, enforced },
+    sandbox: partition && { bin: partition.bin, hidden: partition.masques, credentials: partition.identifiants },
+    proxy: door === null ? null : { port: door, enforced },
   };
   try {
-    annoncerCloison(annoncee, etat);
+    announcePartition(annoncee, etat);
   } catch {
     // Le runtime s'est arrêté entre-temps : le prochain démarrage l'écrira.
   }
@@ -222,8 +222,8 @@ const direCloison = (enforced: boolean | null) => {
 };
 // Avec une porte, l'unité doit refuser ce qui la contourne : cela se sonde,
 // et se confirme sur la machine (recette).
-if (porte === null) direCloison(null);
-else void sonderLeFiltre().then(direCloison);
+if (door === null) sayPartition(null);
+else void sonderLeFiltre().then(sayPartition);
 // Le témoin du démarrage, une fois tout branché : l'empreinte du code sur
 // lequel ce process tourne.
 noterCodeEnService(repertoireEtat);

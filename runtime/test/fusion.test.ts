@@ -11,7 +11,7 @@ import { ouvrirDepot, type Depot } from "../src/depot.ts";
 import type { Machine } from "../src/machine.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import { controleRetenu, etatDeLaBase, mergesAVerifier, passDuTicket } from "../src/projections/pass.ts";
-import { chef, cuisine, fauxGitHub, issue, MACHINE_CALME, montre, type Options } from "./aides/cuisine.ts";
+import { chef, kitchen, fauxGitHub, issue, MACHINE_CALME, montre, type Options } from "./aides/kitchen.ts";
 import { BASE, commiter, depotGit, ENV_GIT, git, jusqua, repertoireTemporaire } from "./outils.ts";
 
 // `impossible` : le worktree jetable ne se fait pas — le dépôt lève, comme le
@@ -44,7 +44,7 @@ function service(
   const essais: Record<string, Scenario> = { ...options.essais };
   // Ce qui empêche une fusion : un conflit, ou une panne — ce que git en dit.
   const fusion: { conflit: boolean; panne: string | null; faites: Array<{ nom: string; base: string; sha: string }> } = { conflit: false, panne: null, faites: [] };
-  const lieu = cuisine(t, {
+  const lieu = kitchen(t, {
     pass: true,
     issues: [issue(17)],
     ...options,
@@ -75,12 +75,12 @@ function service(
       ...options.depot?.(depot),
     }),
   });
-  const { journal, repertoire } = lieu;
+  const { journal: log, repertoire } = lieu;
   // Une base dont le rouge tient ouvre un ticket de réparation : il a ses
   // propres tests (`reparation.test.ts`). Ici, GitHub refuse de l'ouvrir, et
   // aucun autre cook ne part.
   lieu.gh.pannes.creation = true;
-  const compter = (type: string) => journal.tout().filter((e) => e.type === type).length;
+  const compter = (type: string) => log.tout().filter((e) => e.type === type).length;
   const jusquAu = (type: string, combien = 1) => jusqua(() => compter(type) >= combien);
   if (options.aLaMain) {
     void jusquAu("pass.held").then(
@@ -93,18 +93,18 @@ function service(
   } else if (!options.lieux) chef(repertoire, "grant.activated");
   const laisserTourner = () => jusquAu("runtime.ticked", compter("runtime.ticked") + 3);
   const histoire = (ticket = 17) =>
-    journal
+    log
       .duTicket(ticket)
       .map((e) => e.type)
       .filter((type) => /^(pass\.(judged|outdated|waiting|returned|deferred|escalated)|grant|merge)\b/.test(type));
   const verdicts = (ticket = 17) =>
-    journal
+    log
       .duTicket(ticket)
       .flatMap((e) => (e.type === "pass.judged" ? [e] : []))
       .map((e) => ({ seq: e.seq, ...e.payload }));
   const essai = (nom: string) => join(repertoire, "worktrees", ".essais", nom);
   const commentaires = (ticket = 17) => lieu.gh.commentaires.filter(([numero]) => numero === ticket).map(([, corps]) => corps).join("\n---\n");
-  return { ...lieu, base, essais, fusion, compter, jusquAu, laisserTourner, histoire, verdicts, essai, commentaires, pass: (ticket = 17) => passDuTicket(journal.base, ticket) };
+  return { ...lieu, base, essais, fusion, compter, jusquAu, laisserTourner, histoire, verdicts, essai, commentaires, pass: (ticket = 17) => passDuTicket(log.base, ticket) };
 }
 
 // Une origine qui disparaît puis revient, sans réseau : le rapatriement est un
@@ -127,7 +127,7 @@ function origineFragile(t: TestContext) {
 // Chaque test a ses lieux : ils se jouent de front.
 describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, () => {
   test("ce qui est jugé est la fusion de la branche avec la base du moment : les gates s'y jouent, le verdict dit sur quoi il porte — tête de la branche, tête de la base, arbre obtenu —, et la livraison mergée n'a rien à faire vérifier", async (t) => {
-    const { journal, gh, gates, fusion, dernier, histoire, verdicts, compter, jusquAu, laisserTourner, essai, commentaires } = service(t);
+    const { journal: log, gh, gates, fusion, dernier, histoire, verdicts, compter, jusquAu, laisserTourner, essai, commentaires } = service(t);
     await jusquAu("merge.done");
     await laisserTourner();
 
@@ -142,7 +142,7 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
     assert.deepEqual(gates.appels(), [essai("jugement-17")]);
     assert.equal(existsSync(essai("jugement-17")), false);
     // Mergée par la pass, elle est déjà jugée sur la base : rien n'y est rejoué.
-    assert.deepEqual([gh.merges.length, compter("base.checked"), mergesAVerifier(journal.base), dernier("merge.done", 17)?.unverified], [1, 0, [], false]);
+    assert.deepEqual([gh.merges.length, compter("base.checked"), mergesAVerifier(log.base), dernier("merge.done", 17)?.unverified], [1, 0, [], false]);
     await jusqua(() => /mergée sur `v2`/.test(commentaires()));
     assert.match(commentaires(), /Jugée fusionnée avec `v2` telle qu'elle était au moment de merger \(`base-1`\)/);
   });
@@ -157,7 +157,7 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
     git(clone, "push", "-q", "origin", BASE);
     const lieux = { repertoire: repertoireTemporaire(t), origine, clone, gh: fauxGitHub(issue(17)), heure: montre() };
     // Une première vie sans pass : le cook livre sur une branche partie de la base cassée.
-    const premiere = cuisine(t, { lieux, git: true });
+    const premiere = kitchen(t, { lieux, git: true });
     await jusqua(() => premiere.types(17).includes("worktree.removed"));
     const branche = String(premiere.dernier("cook.launched", 17)?.branch);
     premiere.runtime.arreter("test");
@@ -171,11 +171,11 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
     const avant = git(origine, "for-each-ref");
     chef(lieux.repertoire, "grant.activated");
 
-    const { gh, journal, gates } = cuisine(t, { lieux, git: true, pass: true });
+    const { gh, journal: log, gates } = kitchen(t, { lieux, git: true, pass: true });
     await jusqua(() => gh.merges.length === 1);
 
-    const types = journal.duTicket(17).map((e) => e.type);
-    const verdict = journal.duTicket(17).flatMap((e) => (e.type === "pass.judged" ? [e.payload] : []));
+    const types = log.duTicket(17).map((e) => e.type);
+    const verdict = log.duTicket(17).flatMap((e) => (e.type === "pass.judged" ? [e.payload] : []));
     assert.deepEqual([verdict.length, verdict[0]?.verdict, verdict[0]?.sha, verdict[0]?.base], [1, "green", livre, corrigee]);
     assert.match(String(verdict[0]?.merged), /^[0-9a-f]{40}$/);
     assert.deepEqual([types.includes("pass.returned"), types.includes("pass.waiting"), gates.appels().length], [false, false, 1]);
@@ -439,7 +439,7 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
       // La machine sature pendant le jugement : le cook, lui, est parti.
       apresFusion: (combien) => void (combien === 1 && (machine = pleine)),
     });
-    const { journal, gates, cooks, histoire, pass, compter, jusquAu, laisserTourner, commentaires, avertissements, essais } = lieu;
+    const { journal: log, gates, cooks, histoire, pass, compter, jusquAu, laisserTourner, commentaires, avertissements, essais } = lieu;
     await jusquAu("pass.waiting");
     await laisserTourner();
 
@@ -454,7 +454,7 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
     assert.doesNotMatch(commentaires(), /Pass — rouge/);
     assert.match(avertissements.join("\n"), /gates rejouées plus tard : machine saturée, aucun test en échec — ticket #17, charge de 64 pour 12 au plus/);
     // La file et la carte le disent en une ligne.
-    const etat = lireEtat(journal);
+    const etat = lireEtat(log);
     assert.equal(etat.activites.get(17)?.fait, "gates rejouées plus tard : machine saturée, aucun test en échec");
     assert.match(decrireEtat(etat, new Date()).join("\n"), /#17 {2}in pass .* — gates replayed later: machine saturated, no test failing/);
 
@@ -498,7 +498,7 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
     const pleine: Machine = { ...MACHINE_CALME, charge: 64 };
     let machine = MACHINE_CALME;
     let essaisDeBase = 0;
-    const { journal, avertissements, compter, jusquAu, laisserTourner } = service(t, {
+    const { journal: log, avertissements, compter, jusquAu, laisserTourner } = service(t, {
       aLaMain: true,
       essais: { base: "coupe" },
       machine: () => machine,
@@ -507,13 +507,13 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
     });
     await jusqua(() => avertissements.some((ligne) => /gates de v2 \(base-1\) — gates rejouées plus tard : machine saturée, aucun test en échec/.test(ligne)));
     await laisserTourner();
-    assert.deepEqual([compter("base.checked"), etatDeLaBase(journal.base)?.outcome], [0, undefined]);
-    assert.deepEqual(mergesAVerifier(journal.base), [17]);
+    assert.deepEqual([compter("base.checked"), etatDeLaBase(log.base)?.outcome], [0, undefined]);
+    assert.deepEqual(mergesAVerifier(log.base), [17]);
 
     // Le premier contrôle écrit est celui du rejeu, sur une machine calme.
     machine = MACHINE_CALME;
     await jusquAu("base.checked");
-    const [rejeu] = journal.tout().flatMap((e) => (e.type === "base.checked" ? [e.payload] : []));
+    const [rejeu] = log.tout().flatMap((e) => (e.type === "base.checked" ? [e.payload] : []));
     assert.deepEqual([rejeu?.sha, rejeu?.outcome, rejeu?.tickets], ["base-1", "red", [17]]);
     assert.match(String(rejeu?.gates.failures), /aucun test en échec/);
   });
@@ -529,12 +529,12 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
     mkdirSync(premiere.essai("jugement-17"), { recursive: true });
     mkdirSync(premiere.essai("base"), { recursive: true });
 
-    const { gh, journal, compter, jusquAu, essai } = service(t, { lieux: premiere.lieux });
+    const { gh, journal: log, compter, jusquAu, essai } = service(t, { lieux: premiere.lieux });
     assert.deepEqual([existsSync(essai("jugement-17")), existsSync(essai("base"))], [false, false]);
     await jusquAu("merge.done");
 
     assert.deepEqual([gh.merges.length, compter("pass.judged")], [1, 1]);
-    assert.equal(journal.tout().filter((e) => e.type === "grant.used").length, 1);
+    assert.equal(log.tout().filter((e) => e.type === "grant.used").length, 1);
     assert.equal(existsSync(essai("jugement-17")), false);
   });
 
@@ -578,24 +578,24 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
 
 describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 8 }, () => {
   test("un merge fait à la main n'a été jugé sur aucune base : les gates sont jouées sur la base seule, hors ticket — vertes, rien n'est retenu", async (t) => {
-    const { journal, gh, gates, dernier, jusquAu, essai } = service(t, { aLaMain: true });
+    const { journal: log, gh, gates, dernier, jusquAu, essai } = service(t, { aLaMain: true });
     await jusquAu("base.checked");
 
     assert.deepEqual([dernier("merge.done", 17)?.by, dernier("merge.done", 17)?.unverified, gh.merges.length], ["outside", true, 0]);
     assert.deepEqual(gates.appels().slice(1), [essai("base")]);
-    const controle = journal.tout().find((e) => e.type === "base.checked");
+    const controle = log.tout().find((e) => e.type === "base.checked");
     assert.deepEqual([controle?.ticket, controle?.author], [null, "pass"]);
     assert.deepEqual(controle?.payload, { sha: "base-1", outcome: "green", gates: { outcome: "green", code: 0, failures: [], tail: "ok    tests du projet\ngates : VERT" }, tickets: [17] });
-    assert.deepEqual([etatDeLaBase(journal.base)?.outcome, mergesAVerifier(journal.base)], ["green", []]);
+    assert.deepEqual([etatDeLaBase(log.base)?.outcome, mergesAVerifier(log.base)], ["green", []]);
     assert.equal(existsSync(essai("base")), false);
   });
 
   test("le plafond de durée des gates, seul rouge sur la base, ne la rend pas rouge", async (t) => {
-    const { journal, dernier, avertissements, jusquAu, laisserTourner, commentaires } = service(t, { aLaMain: true, essais: { base: "plafond" } });
+    const { journal: log, dernier, avertissements, jusquAu, laisserTourner, commentaires } = service(t, { aLaMain: true, essais: { base: "plafond" } });
     await jusquAu("base.checked");
     const controle = dernier("base.checked");
     assert.deepEqual([controle?.outcome, (controle?.gates as { outcome: string }).outcome, (controle?.gates as { code: number }).code], ["green", "green", 1]);
-    assert.deepEqual([etatDeLaBase(journal.base)?.outcome, mergesAVerifier(journal.base)], ["green", []]);
+    assert.deepEqual([etatDeLaBase(log.base)?.outcome, mergesAVerifier(log.base)], ["green", []]);
     assert.equal(avertissements.filter((ligne) => /plafond des gates franchi sur v2 \(base-1\), non jugé — 178,3 s de processeur pour un plafond de 165 s : la base n'est pas vue rouge pour lui/.test(ligne)).length, 1);
     await laisserTourner();
     assert.equal(avertissements.some((ligne) => /ROUGE/.test(ligne)), false);
@@ -607,7 +607,7 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
     // verdict livrent dessus. Le contrôle de la base attend donc qu'ils aient livré.
     let controler = () => {};
     const livres = new Promise<void>((resoudre) => (controler = resoudre));
-    const { journal, gh, gates, base, essais, avertissements, dernier, histoire, verdicts, pass, compter, jusquAu, laisserTourner, essai, commentaires } = service(t, {
+    const { journal: log, gh, gates, base, essais, avertissements, dernier, histoire, verdicts, pass, compter, jusquAu, laisserTourner, essai, commentaires } = service(t, {
       aLaMain: true,
       cooks: 3,
       essais: { base: "rouge" },
@@ -621,7 +621,7 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
     controler();
     await jusquAu("base.checked");
 
-    const controle = journal.tout().find((e) => e.type === "base.checked")?.payload;
+    const controle = log.tout().find((e) => e.type === "base.checked")?.payload;
     assert.deepEqual([controle?.outcome, controle?.tickets, (controle?.gates as { failures: string[] }).failures], ["red", [17], ["FAIL  tests du projet en échec"]]);
     assert.match(avertissements.join("\n"), /v2 est ROUGE \(base-1 — merges à vérifier : #17\) — jugements et merges sont suspendus/);
     await jusqua(() => /est rouge après merge/.test(commentaires()));
@@ -652,13 +652,13 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
     assert.deepEqual(histoire(19), ["pass.waiting", "pass.judged", "grant.used", "merge.done"]);
     assert.deepEqual(verdicts(19).map(({ base, verdict }) => [base, verdict]), [["base-2", "green"]]);
     assert.match(avertissements.join("\n"), /v2 n'est plus rouge \(base-2\) — jugements et merges reprennent/);
-    await jusqua(() => etatDeLaBase(journal.base)?.outcome === "green" && mergesAVerifier(journal.base).length === 0);
+    await jusqua(() => etatDeLaBase(log.base)?.outcome === "green" && mergesAVerifier(log.base).length === 0);
   });
 
   test("un contrôle non joué ne lève pas un rouge constaté : la base bouge, ses gates ne peuvent pas se jouer, et rien ne repart — ni merge, ni ticket — jusqu'à un contrôle joué et vert", async (t) => {
     let controler = () => {};
     const livres = new Promise<void>((resoudre) => (controler = resoudre));
-    const { journal, gh, base, essais, avertissements, dernier, pass, compter, jusquAu, laisserTourner } = service(t, {
+    const { journal: log, gh, base, essais, avertissements, dernier, pass, compter, jusquAu, laisserTourner } = service(t, {
       aLaMain: true,
       cooks: 2,
       essais: { base: "rouge" },
@@ -678,7 +678,7 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
     base.tete = "base-2";
     await jusquAu("base.checked", 3);
     assert.deepEqual(dernier("base.checked"), { sha: "base-2", outcome: "skipped", gates: { outcome: "skipped", code: null, failures: [], tail: "" }, tickets: [], red: "base-1", reason: PANNE_DE_WORKTREE });
-    const controle = etatDeLaBase(journal.base);
+    const controle = etatDeLaBase(log.base);
     assert.deepEqual([controle?.outcome, controle?.sha, controle?.unplayed?.sha, controle?.reason], ["red", "base-1", "base-2", PANNE_DE_WORKTREE]);
     assert.match(avertissements.join("\n"), /v2 reste ROUGE : ses gates n'ont pas pu être jouées sur base-2 \(git worktree : fatal: could not create leading directories of '\.essais\/base'\), et un contrôle non joué ne lève pas le rouge constaté sur base-1/);
 
@@ -696,12 +696,12 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
   });
 
   test("une base jamais vue rouge dont les gates ne peuvent pas se jouer ne retient rien : la station prend le ticket suivant", async (t) => {
-    const { journal, gh, avertissements, dernier, compter, jusquAu, laisserTourner } = service(t, {
+    const { journal: log, gh, avertissements, dernier, compter, jusquAu, laisserTourner } = service(t, {
       aLaMain: true, essais: { base: "impossible" } });
     await jusquAu("base.checked");
-    assert.deepEqual([dernier("base.checked")?.outcome, dernier("base.checked")?.red, etatDeLaBase(journal.base)?.outcome], ["skipped", undefined, "skipped"]);
+    assert.deepEqual([dernier("base.checked")?.outcome, dernier("base.checked")?.red, etatDeLaBase(log.base)?.outcome], ["skipped", undefined, "skipped"]);
     // L'essai qui ne s'est pas fait dit pourquoi, une fois, et le merge n'est pas revérifié à chaque réveil.
-    assert.deepEqual([dernier("base.checked")?.reason, etatDeLaBase(journal.base)?.reason, mergesAVerifier(journal.base)], [PANNE_DE_WORKTREE, PANNE_DE_WORKTREE, []]);
+    assert.deepEqual([dernier("base.checked")?.reason, etatDeLaBase(log.base)?.reason, mergesAVerifier(log.base)], [PANNE_DE_WORKTREE, PANNE_DE_WORKTREE, []]);
 
     await laisserTourner();
     assert.equal(compter("base.checked"), 1);
@@ -716,7 +716,7 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
   });
 
   test("le rejeu que le chef demande et qui ne peut pas se faire est servi par un contrôle non joué : le rouge reste, le motif est au journal, et c'est dit une fois — pas à chaque réveil", async (t) => {
-    const { journal, repertoire, essais, avertissements, dernier, compter, jusquAu, laisserTourner } = service(t, {
+    const { journal: log, repertoire, essais, avertissements, dernier, compter, jusquAu, laisserTourner } = service(t, {
       aLaMain: true, essais: { base: "rouge" } });
     // Rouge, et rejouée seule une fois par la pass : rouge encore.
     await jusquAu("base.checked", 2);
@@ -727,7 +727,7 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
     await laisserTourner();
 
     assert.deepEqual(dernier("base.checked"), { sha: "base-1", outcome: "skipped", gates: { outcome: "skipped", code: null, failures: [], tail: "" }, tickets: [], red: "base-1", reason: PANNE_DE_WORKTREE });
-    const controle = etatDeLaBase(journal.base);
+    const controle = etatDeLaBase(log.base);
     // La demande n'attend plus : ce qui se lit est le contrôle qui n'a pas pu se jouer, et pourquoi.
     assert.deepEqual([controle?.outcome, controle?.recheck, controle?.unplayed?.sha, controle?.reason], ["red", null, "base-1", PANNE_DE_WORKTREE]);
     assert.equal(compter("base.checked"), 3);
@@ -738,11 +738,11 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
     essais.base = "vert";
     chef(repertoire, "base.recheck-requested");
     await jusquAu("base.checked", 4);
-    assert.deepEqual([etatDeLaBase(journal.base)?.outcome, etatDeLaBase(journal.base)?.reason], ["green", null]);
+    assert.deepEqual([etatDeLaBase(log.base)?.outcome, etatDeLaBase(log.base)?.reason], ["green", null]);
   });
 
   test("le chef fait rejouer les gates d'une base rouge sans commit : rouges, la retenue reste ; vertes, elle tombe et la prise de tickets reprend", async (t) => {
-    const { journal, repertoire, gh, essais, avertissements, dernier, compter, jusquAu, laisserTourner } = service(t, {
+    const { journal: log, repertoire, gh, essais, avertissements, dernier, compter, jusquAu, laisserTourner } = service(t, {
       aLaMain: true, essais: { base: "rouge" } });
     await jusquAu("base.checked");
     gh.poser(issue(18));
@@ -755,7 +755,7 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
 
     chef(repertoire, "base.recheck-requested");
     await jusquAu("base.checked", 3);
-    assert.deepEqual([dernier("base.checked")?.sha, dernier("base.checked")?.outcome, etatDeLaBase(journal.base)?.recheck], ["base-1", "red", null]);
+    assert.deepEqual([dernier("base.checked")?.sha, dernier("base.checked")?.outcome, etatDeLaBase(log.base)?.recheck], ["base-1", "red", null]);
     assert.match(avertissements.join("\n"), /v2 reste ROUGE \(base-1\) : rejouées à la demande du chef, ses gates ne passent toujours pas/);
     // La demande est servie : elle ne se rejoue pas d'elle-même.
     await laisserTourner();
@@ -765,7 +765,7 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
     essais.base = "vert";
     chef(repertoire, "base.recheck-requested");
     await jusquAu("base.checked", 4);
-    assert.deepEqual([dernier("base.checked")?.sha, dernier("base.checked")?.outcome, etatDeLaBase(journal.base)?.outcome], ["base-1", "green", "green"]);
+    assert.deepEqual([dernier("base.checked")?.sha, dernier("base.checked")?.outcome, etatDeLaBase(log.base)?.outcome], ["base-1", "green", "green"]);
     assert.match(avertissements.join("\n"), /v2 n'est plus rouge \(base-1\)/);
     await jusqua(() => dernier("cook.launched", 18) !== undefined);
   });
@@ -781,11 +781,11 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
   test("un verdict joué n'est pas perdu par un ménage raté : sur une base jamais vue rouge, des gates rouges dont le worktree jetable ne se retire pas font une base rouge, pas un contrôle non joué", async (t) => {
     const lieu = service(t, {
       aLaMain: true, essais: { base: "rouge" }, depot: (depot) => ({ jeter: menageEnPanne(depot, () => lieu.essai("base")) }) });
-    const { journal, avertissements, dernier, jusquAu } = lieu;
+    const { journal: log, avertissements, dernier, jusquAu } = lieu;
     await jusquAu("base.checked");
 
     assert.deepEqual([dernier("base.checked")?.outcome, dernier("base.checked")?.tickets, dernier("base.checked")?.reason], ["red", [17], undefined]);
-    assert.deepEqual([etatDeLaBase(journal.base)?.outcome, etatDeLaBase(journal.base)?.reason], ["red", null]);
+    assert.deepEqual([etatDeLaBase(log.base)?.outcome, etatDeLaBase(log.base)?.reason], ["red", null]);
     assert.match(avertissements.join("\n"), /v2 est ROUGE \(base-1 — merges à vérifier : #17\)/);
     assert.match(avertissements.join("\n"), /le worktree jetable du contrôle de v2 n'a pas pu être retiré — git worktree : fatal: prune impossible/);
   });
@@ -797,7 +797,7 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
       essais: { base: "rouge" },
       depot: (depot) => ({ jeter: (nom) => (panne ? menageEnPanne(depot, () => lieu.essai("base"))(nom) : depot.jeter(nom)) }),
     });
-    const { journal, repertoire, essais, avertissements, dernier, jusquAu } = lieu;
+    const { journal: log, repertoire, essais, avertissements, dernier, jusquAu } = lieu;
     // Rouge, et rejouée seule une fois par la pass : rouge encore.
     await jusquAu("base.checked", 2);
 
@@ -807,14 +807,14 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
     await jusquAu("base.checked", 3);
 
     assert.deepEqual([dernier("base.checked")?.outcome, dernier("base.checked")?.reason], ["green", undefined]);
-    assert.deepEqual([etatDeLaBase(journal.base)?.outcome, etatDeLaBase(journal.base)?.recheck], ["green", null]);
+    assert.deepEqual([etatDeLaBase(log.base)?.outcome, etatDeLaBase(log.base)?.recheck], ["green", null]);
     assert.match(avertissements.join("\n"), /v2 n'est plus rouge \(base-1\)/);
   });
 
   test("le rejeu demandé par le chef consomme la machine comme un autre : saturée, il attend en le disant une fois, et se joue seul quand elle se calme", async (t) => {
     const pleine: Machine = { ...MACHINE_CALME, charge: 64 };
     let machine = MACHINE_CALME;
-    const { journal, repertoire, avertissements, dernier, compter, jusquAu, laisserTourner } = service(t, {
+    const { journal: log, repertoire, avertissements, dernier, compter, jusquAu, laisserTourner } = service(t, {
       aLaMain: true, essais: { base: "rouge" }, machine: () => machine });
     // Rouge, et rejouée seule une fois par la pass : rouge encore.
     await jusquAu("base.checked", 2);
@@ -824,12 +824,12 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
     await jusquAu("base.recheck-held");
     await laisserTourner();
     assert.deepEqual([compter("base.recheck-held"), compter("base.checked"), dernier("base.recheck-held")?.resource], [1, 2, "cpu"]);
-    assert.notEqual(etatDeLaBase(journal.base)?.recheck?.heldAt, null);
+    assert.notEqual(etatDeLaBase(log.base)?.recheck?.heldAt, null);
     assert.equal(avertissements.filter((ligne) => /rejeu des gates de v2 demandé par le chef, mais la machine n'en peut plus — charge de 64 pour 12 au plus/.test(ligne)).length, 1);
 
     machine = MACHINE_CALME;
     await jusquAu("base.checked", 3);
-    assert.equal(etatDeLaBase(journal.base)?.recheck, null);
+    assert.equal(etatDeLaBase(log.base)?.recheck, null);
   });
 
   test("le rejeu que le chef demande sur une base qui ne se rapatrie pas est retenu : écrit et dit une fois, retenté au tick, le rouge reste — et il se joue seul quand l'origine revient", async (t) => {
@@ -839,7 +839,7 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
       essais: { base: "rouge" },
       depot: () => ({ rapatrier: async () => (await origine.rapatrier(), lieu.base.tete) }),
     });
-    const { journal, repertoire, essais, avertissements, dernier, compter, jusquAu, laisserTourner } = lieu;
+    const { journal: log, repertoire, essais, avertissements, dernier, compter, jusquAu, laisserTourner } = lieu;
     // Rouge, et rejouée seule une fois par la pass : rouge encore.
     await jusquAu("base.checked", 2);
 
@@ -854,19 +854,19 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
     assert.match(String(dernier("base.check-held")?.reason), /^git fetch\b.*origine\.git/);
     assert.doesNotMatch(String(dernier("base.check-held")?.reason), /\n/);
     // La demande reste due, et le rouge constaté n'est pas levé.
-    const controle = etatDeLaBase(journal.base);
-    assert.deepEqual([controle?.outcome, controle?.recheck?.heldAt, controleRetenu(journal.base)?.reason], ["red", null, dernier("base.check-held")?.reason]);
+    const controle = etatDeLaBase(log.base);
+    assert.deepEqual([controle?.outcome, controle?.recheck?.heldAt, controleRetenu(log.base)?.reason], ["red", null, dernier("base.check-held")?.reason]);
     assert.equal(avertissements.filter((ligne) => /rejeu des gates de v2 demandé par le chef, mais v2 ne se rapatrie pas — git fetch/.test(ligne)).length, 1);
     assert.doesNotMatch(avertissements.join("\n"), /a buté sur le contrôle|n'est plus rouge/);
 
     origine.presente = true;
     await jusquAu("base.checked", 3);
     assert.deepEqual(
-      journal.tout().map((e) => e.type).filter((type) => /^base\./.test(type)),
+      log.tout().map((e) => e.type).filter((type) => /^base\./.test(type)),
       // Le rouge a tenu : le ticket de réparation est annoncé — GitHub refuse de l'ouvrir, ici.
       ["base.checked", "base.recheck-requested", "base.checked", "base.repair-opening", "base.recheck-requested", "base.check-held", "base.check-resumed", "base.checked"],
     );
-    assert.deepEqual([etatDeLaBase(journal.base)?.outcome, etatDeLaBase(journal.base)?.recheck, controleRetenu(journal.base)], ["green", null, null]);
+    assert.deepEqual([etatDeLaBase(log.base)?.outcome, etatDeLaBase(log.base)?.recheck, controleRetenu(log.base)], ["green", null, null]);
     assert.match(avertissements.join("\n"), /v2 se rapatrie de nouveau — son contrôle reprend/);
   });
 
@@ -884,19 +884,19 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
         },
       }),
     });
-    const { journal, avertissements, dernier, compter, jusquAu, laisserTourner } = lieu;
+    const { journal: log, avertissements, dernier, compter, jusquAu, laisserTourner } = lieu;
     await jusquAu("base.check-held");
     await laisserTourner();
 
-    assert.deepEqual([compter("base.check-held"), compter("base.checked"), mergesAVerifier(journal.base), etatDeLaBase(journal.base)], [1, 0, [17], null]);
-    assert.notEqual(controleRetenu(journal.base), null);
+    assert.deepEqual([compter("base.check-held"), compter("base.checked"), mergesAVerifier(log.base), etatDeLaBase(log.base)], [1, 0, [17], null]);
+    assert.notEqual(controleRetenu(log.base), null);
     assert.equal(avertissements.filter((ligne) => /gates de v2 à jouer après le merge de #17, mais v2 ne se rapatrie pas — git fetch/.test(ligne)).length, 1);
     assert.doesNotMatch(avertissements.join("\n"), /a buté sur le contrôle/);
 
     reparee = true;
     await jusquAu("base.checked");
     assert.deepEqual([compter("base.check-resumed"), dernier("base.checked")?.outcome, dernier("base.checked")?.tickets], [1, "green", [17]]);
-    assert.deepEqual([mergesAVerifier(journal.base), controleRetenu(journal.base)], [[], null]);
+    assert.deepEqual([mergesAVerifier(log.base), controleRetenu(log.base)], [[], null]);
   });
 
   test("une base rouge qui ne se rapatrie plus : c'est dit une fois, pas à chaque tick ; l'origine revenue sur la même tête, rien n'est rejoué et le rouge reste", async (t) => {
@@ -906,7 +906,7 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
       essais: { base: "rouge" },
       depot: () => ({ rapatrier: async () => (await origine.rapatrier(), lieu.base.tete) }),
     });
-    const { journal, avertissements, compter, jusquAu, laisserTourner } = lieu;
+    const { journal: log, avertissements, compter, jusquAu, laisserTourner } = lieu;
     // Rouge, et rejouée seule une fois par la pass : rouge encore.
     await jusquAu("base.checked", 2);
 
@@ -919,7 +919,7 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
     origine.presente = true;
     await jusquAu("base.check-resumed");
     await laisserTourner();
-    assert.deepEqual([compter("base.check-resumed"), compter("base.checked"), etatDeLaBase(journal.base)?.outcome, controleRetenu(journal.base)], [1, 2, "red", null]);
+    assert.deepEqual([compter("base.check-resumed"), compter("base.checked"), etatDeLaBase(log.base)?.outcome, controleRetenu(log.base)], [1, 2, "red", null]);
     assert.doesNotMatch(avertissements.join("\n"), /a buté sur le contrôle|n'est plus rouge/);
   });
 
@@ -935,13 +935,13 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
         },
       }),
     });
-    const { journal, avertissements, dernier, compter, jusquAu, laisserTourner } = lieu;
+    const { journal: log, avertissements, dernier, compter, jusquAu, laisserTourner } = lieu;
     await jusquAu("base.checked");
 
     panne = "git fetch : fatal: Could not resolve host: github.com";
     await jusquAu("base.check-held");
     await laisserTourner();
-    const debut = controleRetenu(journal.base);
+    const debut = controleRetenu(log.base);
     assert.deepEqual([compter("base.check-held"), debut?.reason], [1, panne]);
 
     // Le réseau revient, mais le jeton est refusé : ce n'est plus la même panne.
@@ -949,12 +949,12 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
     await jusquAu("base.check-held", 2);
     await laisserTourner();
     assert.deepEqual([compter("base.check-held"), compter("base.check-resumed"), dernier("base.check-held")?.reason], [2, 0, panne]);
-    assert.deepEqual(controleRetenu(journal.base), { at: debut?.at, reason: panne });
+    assert.deepEqual(controleRetenu(log.base), { at: debut?.at, reason: panne });
     assert.equal(avertissements.filter((ligne) => /v2 ne se rapatrie pas — git fetch : fatal: Could not resolve host/.test(ligne)).length, 1);
     assert.equal(avertissements.filter((ligne) => /v2 ne se rapatrie toujours pas, mais la panne a changé — git fetch : fatal: Authentication failed/.test(ligne)).length, 1);
 
     panne = null;
     await jusquAu("base.check-resumed");
-    assert.equal(controleRetenu(journal.base), null);
+    assert.equal(controleRetenu(log.base), null);
   });
 });

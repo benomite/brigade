@@ -30,7 +30,7 @@ const GARDE_MS = 7 * 24 * 3600_000;
 export const DEPOT = "https://github.com/benomite/brigade.git";
 export const BRANCHE = "v2";
 // Où la commande installe brigade, sur le serveur.
-export const RACINE_SUR_LE_SERVEUR = "$HOME/.local/share/brigade";
+export const ROOT_ON_THE_SERVER = "$HOME/.local/share/brigade";
 // Le geste qui reçoit la présentation, dans ce clone : c'est la machine du
 // chef que le serveur joint, celle où ce module tourne.
 export const RECEPTEUR = resolve(import.meta.dirname, "../../deploy/brigade-enrolement");
@@ -108,7 +108,7 @@ export function lireCode(ecrit: string): string | null {
 
 const empreinte = (code: string) => createHash("sha256").update(code).digest("hex");
 
-const tirerCode = (): string => {
+const drawCode = (): string => {
   const signes = Array.from({ length: LONGUEUR }, () => ALPHABET[randomInt(ALPHABET.length)]).join("");
   return `${signes.slice(0, LONGUEUR / 2)}-${signes.slice(LONGUEUR / 2)}`;
 };
@@ -131,7 +131,7 @@ function verifier(valeur: string | undefined, motif: RegExp, quoi: string): stri
 function commande(code: string, d: { vers: string; nom?: string; depot: string; branche: string; recepteur: string; registre: string }): string {
   const nom = d.nom === undefined ? "" : ` --name '${d.nom}'`;
   return [
-    `d="${RACINE_SUR_LE_SERVEUR}";`,
+    `d="${ROOT_ON_THE_SERVER}";`,
     `{ [ -e "$d/.git" ] || git clone --quiet --depth 1 --branch '${d.branche}' '${d.depot}' "$d"; } &&`,
     `"$d/runtime/deploy/brigade-enrolement" present '${code}' --to '${d.vers}' --receiver '${d.recepteur}' --registry '${d.registre}'${nom}`,
   ].join(" ");
@@ -175,7 +175,7 @@ export function ouvrirEnrolements(repertoire: string, options: OptionsEnrolement
       const branche = verifier(demande.branche ?? BRANCHE, BRANCHE_ACCEPTEE, "branche");
       verifier(recepteur, CHEMIN, "geste de réception");
       verifier(absolu, CHEMIN, "registre");
-      const code = tirerCode();
+      const code = drawCode();
       const instant = maintenant();
       const expireLe = new Date(instant.getTime() + dureeMs).toISOString();
       base.transaction(() => {

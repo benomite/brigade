@@ -31,7 +31,7 @@ const USAGE = [
   "        brigade-enrolement receive [--registry <répertoire>]   (la présentation sur l'entrée standard)",
 ].join("\n");
 
-export const SERVI = 0;
+export const SERVED = 0;
 export const REFUSE = 1;
 export const MAL_ECRIT = 2;
 

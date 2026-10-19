@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { DECISIONS, OBLIGATOIRES, type Decision } from "../src/decisions.ts";
-import { lireSeuils } from "../src/derive.ts";
+import { lireSeuils } from "../src/drift.ts";
 import { configManager } from "../src/manager.ts";
 import { GESTES } from "../src/montrer-station.ts";
 import { configReviewer } from "../src/reviewer.ts";

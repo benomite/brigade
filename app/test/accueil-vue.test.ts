@@ -11,8 +11,8 @@ import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE } from "../src/faits.ts";
+import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
+import { BANNIERE } from "../src/facts.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
@@ -47,7 +47,7 @@ const demarrage = (accueil: Accueil | undefined = ACCUEIL, code: VuDuCode | unde
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
   boutons: BOUTONS,
-  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code,
@@ -76,12 +76,12 @@ test("l'accueil montre une ligne par projet, dans l'ordre du fichier : sa pastil
 
 test("un clic n'importe où sur la ligne ouvre le projet ; la ligne ne porte aucun bouton de geste", async () => {
   const { vue, projets } = await lAccueil();
-  const [, espace] = lesLignes(projets());
-  assert.ok(espace);
-  assert.equal(espace.balise, "button", "toute la ligne est ce qui se clique");
-  assert.deepEqual(espace.dessous("button"), [], "rien d'autre ne se clique dans la ligne");
+  const [, space] = lesLignes(projets());
+  assert.ok(space);
+  assert.equal(space.balise, "button", "toute la ligne est ce qui se clique");
+  assert.deepEqual(space.dessous("button"), [], "rien d'autre ne se clique dans la ligne");
   assert.deepEqual(projets().dessous("button"), lesLignes(projets()), "sous la liste des projets, rien ne se clique que ses lignes");
-  espace.click();
+  space.click();
   await repos();
   assert.equal(vue.element("espace").textContent, "espace");
   assert.equal(vue.element("tous").hidden, true);
@@ -93,10 +93,10 @@ test("une box injoignable se dit en une ligne, rouge : ni `ssh`, ni code de sort
   const vu = accueil.faits({ projet: "brigade", demande: 1, a: A, erreur: "$ ssh -o BatchMode=yes box brigade brigade facts\nssh: connect to host box port 22: Connection refused\n→ exit code 255", atteinte: false, cas: "ssh-en-echec" }) ?? assert.fail("rien à redessiner");
   vue.dire("surAccueil", vu);
   await repos();
-  const [brigade, espace] = lesLignes(projets());
+  const [brigade, space] = lesLignes(projets());
   assert.equal(brigade?.children[0]?.dataset.ton, "rouge");
   assert.equal(brigade?.children[2]?.textContent, "station unreachable");
-  assert.equal(espace?.children[2]?.textContent, "first read in progress…");
+  assert.equal(space?.children[2]?.textContent, "first read in progress…");
   for (const texte of [visible(vue.element("tous")), ...vue.element("tous").dessous("button").map(({ title }) => title)]) assert.doesNotMatch(texte, /ssh|exit code|Connection refused|port 22/);
 });
 

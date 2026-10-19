@@ -2,7 +2,7 @@
 // tape, ce qu'un geste écrit au journal, ce qu'il reste d'un grant en cours.
 // Tout y prend l'heure en argument : rien n'attend, rien ne lit l'horloge.
 import type { ActionDeGrant, CauseDExtinction, FaitPass } from "./events/pass.ts";
-import type { Journal } from "./journal.ts";
+import type { Log } from "./log.ts";
 import { etatDuGrant, type Grant } from "./projections/pass.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 
@@ -197,11 +197,11 @@ export function direGrant(grant: Grant | null, maintenant: Date, duree: (ms: num
 // Écrit l'extinction d'un grant échu que le journal ne dit pas encore, et rend
 // ce grant ; rien s'il n'y a rien à constater. Le fait rend le grant inactif :
 // il ne s'écrit qu'une fois, quel que soit le nombre de ceux qui constatent.
-export function constaterExtinction(journal: Journal, projet: string, auteur: string, action: ActionDeGrant, maintenant: Date): Grant | null {
-  return journal.base.transaction(() => {
-    const grant = etatDuGrant(journal.base, action, maintenant);
+export function constaterExtinction(log: Log, projet: string, auteur: string, action: ActionDeGrant, maintenant: Date): Grant | null {
+  return log.base.transaction(() => {
+    const grant = etatDuGrant(log.base, action, maintenant);
     if (!grant?.unrecorded || grant.cause === null) return null;
-    journal.ajouter({ project: projet, ticket: null, author: auteur, type: "grant.expired", payload: { action, cause: grant.cause, since: grant.since } });
+    log.ajouter({ project: projet, ticket: null, author: auteur, type: "grant.expired", payload: { action, cause: grant.cause, since: grant.since } });
     return grant;
   });
 }
@@ -213,17 +213,17 @@ const direLimites = ({ until, uses }: Echeance, maintenant: Date, duree: (ms: nu
 // est. Vérifier et écrire tiennent dans une seule transaction. Un grant échu
 // que le journal ne dit pas encore éteint y est d'abord écrit éteint : le
 // geste du chef ne recouvre pas une extinction.
-export function commanderGrant(journal: Journal, commande: Commande, action: ActionDeGrant, echeance: Echeance, maintenant: Date, duree: (ms: number) => string): string {
-  const { base } = journal;
+export function commanderGrant(log: Log, commande: Commande, action: ActionDeGrant, echeance: Echeance, maintenant: Date, duree: (ms: number) => string): string {
+  const { base } = log;
   return base.transaction(() => {
     const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
     if (!projet) throw new GrantRefuse("the log is empty: the runtime has never started on this state directory");
     if (commande !== "extend" && echeance.sansEcheance) throw new GrantRefuse("--no-expiry only applies to `extend`: a grant enabled with no option already has no deadline");
     if (commande === "revoke" && (echeance.until !== undefined || echeance.uses !== undefined)) throw new GrantRefuse("`revoke` takes no deadline");
-    constaterExtinction(journal, projet, AUTEUR_DU_CONSTAT, action, maintenant);
+    constaterExtinction(log, projet, AUTEUR_DU_CONSTAT, action, maintenant);
     const grant = etatDuGrant(base, action, maintenant);
     const absent = sessionEnCours(base) ? "" : " (no runtime is running: the command will take effect on its next start)";
-    const ajouter = (fait: FaitPass) => journal.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
+    const ajouter = (fait: FaitPass) => log.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
     const eteint = grant?.ended === "expired" ? ` — it lapsed on ${grant.since} (${direExtinctionEn(grant.cause)})` : "";
 
     if (commande === "enable") {
@@ -268,9 +268,9 @@ export function commanderGrant(journal: Journal, commande: Commande, action: Act
 
 // Écrit au journal que le chef a demandé ce qu'aucun grant n'autorise — s'il
 // y a un journal où l'écrire —, et rend le refus à lui dire.
-export function refuserJamaisAccordee(journal: Journal | null, { action, ligne }: JamaisAccordee): string {
-  const projet = journal?.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
-  if (journal && projet) journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "grant.refused", payload: { action, line: ligne } });
+export function refuserJamaisAccordee(log: Log | null, { action, ligne }: JamaisAccordee): string {
+  const projet = log?.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
+  if (log && projet) log.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "grant.refused", payload: { action, line: ligne } });
   return `grant ${action} refused: “${ligne}” — no grant allows it, not even asked by you. Nothing is enabled${projet ? ", your request is written to the log" : ""}. This list is changed by no command: only by a delivery, which reads as a diff (${FICHIER_DE_LA_LISTE})`;
 }
 
@@ -296,8 +296,8 @@ function direGeste({ type, payload }: Geste): string {
 
 // Les derniers gestes sur les grants, le plus récent d'abord : accordé,
 // prolongé, éteint seul, révoqué, refusé — l'histoire que l'état seul ne dit pas.
-export function gestesDuGrant(journal: Journal, combien = GESTES_MONTRES): string[] {
-  return journal.base
+export function gestesDuGrant(log: Log, combien = GESTES_MONTRES): string[] {
+  return log.base
     .lire<Omit<Geste, "payload"> & { payload: string }>(
       "SELECT at, author, type, payload FROM events WHERE type IN ('grant.activated', 'grant.extended', 'grant.expired', 'grant.revoked', 'grant.refused') ORDER BY seq DESC LIMIT ?",
       combien,

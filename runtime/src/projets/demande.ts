@@ -22,7 +22,7 @@
 //       { "brigade": "projets-suivi", "format": 1, "a": "<ISO>", "projets": [
 //         { "nom": "parade", "etat": "servi", "dit": "…", "autoriser": [],
 //           "serviLe": "<ISO>" | null } ] }
-import { EFFORTS, MODELES } from "../calibrage.ts";
+import { EFFORTS, MODELES } from "../calibration.ts";
 import { NOM_DE_PROJET } from "../runtime.ts";
 
 export const FICHIER_PROJETS = "brigade-projets.json";

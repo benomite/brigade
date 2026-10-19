@@ -8,11 +8,11 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { principal as base } from "../src/base-cli.ts";
-import { ouvrirArbitre, servirArbitre } from "../src/arbitre.ts";
-import { principal as gardeFous } from "../src/garde-fous-cli.ts";
+import { openArbiter, serveArbiter } from "../src/arbiter.ts";
+import { principal as guardrails } from "../src/guardrails-cli.ts";
 import { principal as grant } from "../src/grant-cli.ts";
 import { decisionsDansLEnvironnement, decisionsPosees, environnementDecide } from "../src/decisions.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { principal as manager } from "../src/manager-cli.ts";
 import { principal as station } from "../src/montrer-station.ts";
 import { configSession, lireSession } from "../src/renouvellement.ts";
@@ -24,14 +24,14 @@ import { appeler, DEPOT, fauxGh, horloge, issueGitHub, lancer, repertoireTempora
 
 type Commande = Parameters<typeof appeler>[0];
 
-const ARBITRE = join(import.meta.dirname, "../src/arbitre-cli.ts");
+const ARBITER = join(import.meta.dirname, "../src/arbiter-cli.ts");
 
 // L'état d'exemple du bas de `status`, et le répertoire où son journal vit.
 function etat(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
-  const journal = exempleDuBas(t, repertoire);
+  const log = exempleDuBas(t, repertoire);
   const noter = (type: string, payload: object, ticket: number | null = null, author = "manager") =>
-    journal.ajouter({ project: "brigade", ticket, author, type, payload } as Parameters<typeof journal.ajouter>[0]);
+    log.ajouter({ project: "brigade", ticket, author, type, payload } as Parameters<typeof log.ajouter>[0]);
   return { repertoire, noter, env: { BRIGADE_STATE_DIR: repertoire } as Record<string, string> };
 }
 
@@ -107,8 +107,8 @@ test("`station` : la vue, cooks, une décision, remove, help et leurs refus ne p
 
 test("`guardrails` : l'état, stop, resume et les refus ne portent aucun mot français du glossaire", async (t) => {
   const { env } = etat(t);
-  for (const args of [[], ["resume"], ["resume"], ["stop"], ["stop"], [], ["resume"]]) assert.equal((await jouer(gardeFous, env, ...args)).code, 0, args.join(" "));
-  for (const [args, environnement] of [[["pause"], env], [["stop", "now"], env], [[], {}], [["stop"], { BRIGADE_STATE_DIR: repertoireTemporaire(t) }]] as const) await refuse(gardeFous, { ...environnement }, ...args);
+  for (const args of [[], ["resume"], ["resume"], ["stop"], ["stop"], [], ["resume"]]) assert.equal((await jouer(guardrails, env, ...args)).code, 0, args.join(" "));
+  for (const [args, environnement] of [[["pause"], env], [["stop", "now"], env], [[], {}], [["stop"], { BRIGADE_STATE_DIR: repertoireTemporaire(t) }]] as const) await refuse(guardrails, { ...environnement }, ...args);
 });
 
 test("`base` : l'état, replay et les refus ne portent aucun mot français du glossaire", async (t) => {
@@ -120,21 +120,21 @@ test("`base` : l'état, replay et les refus ne portent aucun mot français du gl
 
 test("`arbiter` : l'état, weight, remove et les refus ne portent aucun mot français du glossaire", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const ouvert = ouvrirArbitre({ repertoire, plafond: 8, maintenant: horloge("2026-10-09T08:00:00.000Z") });
-  const serveur = await servirArbitre(ouvert, 0);
+  const ouvert = openArbiter({ repertoire, plafond: 8, maintenant: horloge("2026-10-09T08:00:00.000Z") });
+  const server = await serveArbiter(ouvert, 0);
   t.after(async () => {
-    await serveur.fermer();
+    await server.fermer();
     ouvert.fermer();
   });
   ouvert.dire("thermigo", { cooks: 3, demande: true, machine: false, nonArbitres: 1, consommation: { jour: 10, semaine: 20 } });
   const dans = async (env: Record<string, string>, ...args: string[]) => {
-    const cli = lancer(t, ARBITRE, args, env);
+    const cli = lancer(t, ARBITER, args, env);
     const code = await cli.fin;
     const lignes = cli.sortie().trimEnd().split("\n");
     sansMotFrancais(lignes);
     return { code, lignes };
   };
-  const env = { BRIGADE_ARBITER_PORT: String(serveur.port), BRIGADE_ARBITER_STATE_DIR: repertoire };
+  const env = { BRIGADE_ARBITER_PORT: String(server.port), BRIGADE_ARBITER_STATE_DIR: repertoire };
   for (const args of [[], ["weight", "thermigo", "3"], ["weight", "thermigo", "3"], ["weight", "atelier", "2"], [], ["remove", "atelier"]]) assert.equal((await dans(env, ...args)).code, 0, args.join(" "));
   for (const [args, environnement] of [
     [["remove", "atelier"], env], [["weight", "thermigo", "0"], env], [["weight", "Pas Un Nom", "2"], env], [["peser", "thermigo", "2"], env], [["weight", "thermigo"], env],
@@ -144,7 +144,7 @@ test("`arbiter` : l'état, weight, remove et les refus ne portent aucun mot fran
 
 test("une box d'avant l'épique — journal, drop-in et fichier d'état écrits en français — est montrée et appliquée sans édition", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const { journal, noter } = etatDAvant(t, repertoire);
+  const { journal: log, noter } = etatDAvant(t, repertoire);
   const env = { BRIGADE_STATE_DIR: repertoire };
 
   // Le journal : ce que le chef a posé avant, avec ses libellés français, et le jugement du manager en français.
@@ -162,7 +162,7 @@ test("une box d'avant l'épique — journal, drop-in et fichier d'état écrits 
   assert.match(grants.lignes.join("\n"), /acces-prod {2}refused: no grant allows it {2}\(chef\)/);
   sansMotFrancais(grants.lignes);
   assert.match((await jouer(station, env)).lignes.join("\n"), /^  reviewer-modele\s+opus$/m);
-  assert.match((await jouer(gardeFous, env)).lignes.join("\n"), /^kitchen\s+STOPPED by the chef/m);
+  assert.match((await jouer(guardrails, env)).lignes.join("\n"), /^kitchen\s+STOPPED by the chef/m);
   assert.match((await jouer(manager, env)).lignes.join("\n"), /#10\s+you removed `fire` or a calibration the manager had set/);
 
   // Appliqué : les anciens mots du chef répondent, disent le nouveau, et font leur effet.
@@ -173,14 +173,14 @@ test("une box d'avant l'épique — journal, drop-in et fichier d'état écrits 
     assert.equal(lu.code, 0, args.join(" ") + "\n" + lu.lignes.join("\n"));
     return lu;
   };
-  const types = () => journal.tout().map((fait) => fait.type);
+  const types = () => log.tout().map((fait) => fait.type);
   const prolonge = await ancien(grant, "prolonger", "merge", "--pour", "3j");
   assert.equal(prolonge.code, 0);
   assert.match(prolonge.lignes.join("\n"), /“prolonger” is now “extend”/);
   assert.equal(types().at(-1), "grant.extended");
   assert.equal((await ancien(grant, "revoquer", "merge")).code, 0);
   assert.equal(types().at(-1), "grant.revoked");
-  assert.equal((await ancien(gardeFous, "reprendre")).code, 0);
+  assert.equal((await ancien(guardrails, "reprendre")).code, 0);
   assert.equal(types().at(-1), "kitchen.resumed");
   assert.equal((await ancien(manager, "eteindre")).code, 0);
   assert.equal(types().at(-1), "manager.disabled");
@@ -189,7 +189,7 @@ test("une box d'avant l'épique — journal, drop-in et fichier d'état écrits 
   assert.equal((await ancien(manager, "allumer")).code, 0);
   assert.equal(types().at(-1), "manager.enabled", types().slice(-4).join());
   assert.equal((await ancien(station, "retirer", "reviewer-modele")).code, 0);
-  assert.equal(decisionsPosees(journal.base).BRIGADE_REVIEWER_MODEL, undefined);
+  assert.equal(decisionsPosees(log.base).BRIGADE_REVIEWER_MODEL, undefined);
 
   // Le drop-in : la déclaration de l'unité d'avant, avec ses mots `distante` et `ordinaires`, se lit toujours ; ses décisions
   // d'avant n'y sont plus le support (le journal l'est), et la commande dit le geste qui les pose.

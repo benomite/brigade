@@ -28,7 +28,7 @@ import { cloner, decisionsDe, poserLesDecisions, verifierAutorisation, type Auto
 export const CADENCE_MS = 30_000;
 
 // Ce que la station sert, tel que ce module le lit.
-export type ServiParLaStation = {
+export type ServedByTheStation = {
   projets(): string[];
   // Pourquoi la station refuse ce projet, ou null.
   refus(nom: string): string | null;
@@ -40,7 +40,7 @@ export type OptionsProjets = {
   // Le nom de la station : celui de ses stations déclarées.
   station: string;
   env: Record<string, string | undefined>;
-  servis: ServiParLaStation;
+  servis: ServedByTheStation;
   // La configuration vient d'être réécrite : la station la relit, et publie sa présence.
   apresEcriture: () => void;
   dire: (ligne: string) => void;
@@ -83,7 +83,7 @@ function lireTexte(fichier: string): string {
 }
 
 export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
-  const { racine, canal, station, env, servis, dire } = options;
+  const { racine, canal, station, env, servis: servedOnes, dire } = options;
   const maintenant = options.maintenant ?? Date.now;
   const fichier = join(racine, CONFIGURATION);
   const gh = env.BRIGADE_GH_BIN || "gh";
@@ -109,7 +109,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   // Un dépôt autorisé le reste : la station ne le redemande pas à GitHub.
   const autorises = new Set<string>();
   // Quand chaque projet a été servi pour la première fois.
-  const serviLe = new Map<string, string>();
+  const servedAt = new Map<string, string>();
   let dernierSuivi = "";
   let arrete = false;
 
@@ -199,20 +199,20 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     }
 
     const instant = maintenant();
-    const servisMaintenant = new Set(servis.projets());
+    const servedNow = new Set(servedOnes.projets());
     const suivi = demande.projets.map((projet): SuiviDuProjet => {
       const dit = suivis.get(projet.nom);
       if (dit !== undefined) return dit;
-      if (servisMaintenant.has(projet.nom)) {
-        if (!serviLe.has(projet.nom)) serviLe.set(projet.nom, new Date(instant).toISOString());
-        return { nom: projet.nom, etat: "servi", dit: `served by ${station}`, autoriser: [], serviLe: serviLe.get(projet.nom) ?? null };
+      if (servedNow.has(projet.nom)) {
+        if (!servedAt.has(projet.nom)) servedAt.set(projet.nom, new Date(instant).toISOString());
+        return { nom: projet.nom, etat: "servi", dit: `served by ${station}`, autoriser: [], serviLe: servedAt.get(projet.nom) ?? null };
       }
-      const refus = servis.refus(projet.nom);
+      const refus = servedOnes.refus(projet.nom);
       return refus === null
         ? { nom: projet.nom, etat: "en-preparation", dit: "its line is written: the station is opening it", autoriser: [], serviLe: null }
         : { nom: projet.nom, etat: "refuse", dit: `the station refuses to serve it — ${refus}`, autoriser: [], serviLe: null };
     });
-    for (const nom of [...serviLe.keys()]) if (!servisMaintenant.has(nom)) serviLe.delete(nom);
+    for (const nom of [...servedAt.keys()]) if (!servedNow.has(nom)) servedAt.delete(nom);
     // Le suivi ne se réécrit que s'il a changé : un gist n'est pas un journal.
     const compare = JSON.stringify(suivi);
     if (compare === dernierSuivi && lus[FICHIER_SUIVI] !== undefined) return;

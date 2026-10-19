@@ -7,17 +7,17 @@
 // pour une app qui ne s'ouvre pas dans un navigateur : rien n'y tourne, mais
 // c'est le runtime qui les tient.
 import type { Base } from "../base.ts";
-import { commentLeVoirEn, pageDeLEcran, type EcranARegarder } from "../ecran.ts";
+import { commentLeVoirEn, screenPage, type ScreenToLookAt } from "../screen.ts";
 import type { FaitRuntime } from "../events/runtime.ts";
-import type { EcranDuServeur, FaitService } from "../events/service.ts";
+import type { ServerScreen, FaitService } from "../events/service.ts";
 import type { FaitStation } from "../events/station.ts";
 import { definirProjection } from "../projection.ts";
 
 // `starting` : la commande est lancée, son port ne répond pas encore.
 // `listening` : il répond.
-export type EtatDeServeur = "starting" | "listening";
+export type ServerState = "starting" | "listening";
 
-export type Serveur = {
+export type Server = {
   ticket: number;
   station: string;
   run: string;
@@ -26,12 +26,12 @@ export type Serveur = {
   branch: string;
   port: number;
   pid: number;
-  state: EtatDeServeur;
+  state: ServerState;
   startedAt: string;
   // Depuis quand il est dans cet état.
   since: string;
   // L'écran à regarder de la livraison servie, ou null : elle n'en a pas.
-  ecran: EcranARegarder | null;
+  ecran: ScreenToLookAt | null;
 };
 
 // Le worktree d'une livraison d'une app qui ne s'ouvre pas dans un
@@ -48,7 +48,7 @@ export type WorktreeTenu = {
   // Comment voir l'écran, ou null : la livraison n'en a pas.
   commentLeVoir: string | null;
   since: string;
-  ecran: EcranARegarder | null;
+  ecran: ScreenToLookAt | null;
 };
 
 // Ce qui empêche le projet d'être servi, tel que la dernière livraison l'a
@@ -56,26 +56,26 @@ export type WorktreeTenu = {
 export type ServiceIndisponible = { station: string; ticket: number | null; declared: boolean; why: string; since: string };
 
 // Chaque état tel que le chef le lit.
-const ETATS: Record<EtatDeServeur, string> = { starting: "démarre", listening: "écoute" };
+const ETATS: Record<ServerState, string> = { starting: "démarre", listening: "écoute" };
 
-export const direEtatDeServeur = (etat: EtatDeServeur) => ETATS[etat];
+export const sayServerState = (etat: ServerState) => ETATS[etat];
 
 // Les mêmes, en anglais : ce que dit `status`. Ils portent le nom du journal.
-export const direEtatDeServeurEn = (etat: EtatDeServeur) => etat;
+export const sayServerStateEn = (etat: ServerState) => etat;
 
 // Ce que `station` et `status` disent de la page d'un serveur : celle de
 // l'écran à regarder, ou pourquoi il n'y en a aucune — jamais la racine.
-export function direPage({ port, ecran }: Pick<Serveur, "port" | "ecran">): string {
-  const page = pageDeLEcran(port, ecran);
+export function direPage({ port, ecran: screen }: Pick<Server, "port" | "ecran">): string {
+  const page = screenPage(port, screen);
   if (page !== null) return page;
-  return ecran === null ? "aucune page à ouvrir : la livraison ne dit aucun écran, et n'en touche aucun que le projet déclare" : `aucune page à ouvrir : l'écran « ${ecran.ecran} » n'est pas une route`;
+  return screen === null ? "aucune page à ouvrir : la livraison ne dit aucun écran, et n'en touche aucun que le projet déclare" : `aucune page à ouvrir : l'écran « ${screen.ecran} » n'est pas une route`;
 }
 
 // La même, en anglais : ce que dit `status`.
-export function direPageEn({ port, ecran }: Pick<Serveur, "port" | "ecran">): string {
-  const page = pageDeLEcran(port, ecran);
+export function direPageEn({ port, ecran: screen }: Pick<Server, "port" | "ecran">): string {
+  const page = screenPage(port, screen);
   if (page !== null) return page;
-  return ecran === null ? "no page to open: the delivery names no screen, and touches none that the project declares" : `no page to open: the screen “${ecran.ecran}” is not a route`;
+  return screen === null ? "no page to open: the delivery names no screen, and touches none that the project declares" : `no page to open: the screen “${screen.ecran}” is not a route`;
 }
 
 // Ce que `station` et `status` disent d'un worktree tenu : comment voir son
@@ -86,11 +86,11 @@ export const direCommentLeVoir = ({ commentLeVoir }: Pick<WorktreeTenu, "comment
 // La même, en anglais : ce que dit `status`. La phrase stockée par le journal est en
 // français : elle est recalculée depuis la commande de lancement qu'elle porte et
 // l'écran de la livraison. Une phrase qui ne se lit pas reste telle qu'elle est.
-export function direCommentLeVoirEn({ commentLeVoir, ecran }: Pick<WorktreeTenu, "commentLeVoir" | "ecran">): string {
+export function direCommentLeVoirEn({ commentLeVoir, ecran: screen }: Pick<WorktreeTenu, "commentLeVoir" | "ecran">): string {
   if (commentLeVoir === null) return "nothing to look at: the delivery names no screen, and touches none that the project declares";
   const lancement = /la livraison, `(.*)`, puis y ouvrir l'écran/s.exec(commentLeVoir)?.[1];
-  if (lancement === undefined || ecran === null) return commentLeVoir;
-  return commentLeVoirEn(lancement, ecran);
+  if (lancement === undefined || screen === null) return commentLeVoir;
+  return commentLeVoirEn(lancement, screen);
 }
 
 // Ce que `status` dit de l'écran à regarder, sous la ligne d'un serveur ou d'un
@@ -98,17 +98,17 @@ export function direCommentLeVoirEn({ commentLeVoir, ecran }: Pick<WorktreeTenu,
 // pour que l'app les pose sur la carte du ticket sans rien deviner. Un écran
 // déduit le dit en toutes lettres : ce n'est pas le cook qui l'a déclaré. Rien
 // sans écran.
-export const ECRAN_DECLARE = "déclaré par le cook";
-export const ECRAN_DEDUIT = "écran déduit des fichiers touchés, pas déclaré par le cook";
-export function direEcran(ecran: EcranARegarder | null): string[] {
-  if (ecran === null) return [];
-  return [`écran : ${ecran.ecran} (${ecran.source === "declare" ? ECRAN_DECLARE : ECRAN_DEDUIT})`, ...(ecran.phrase === null ? [] : [`à regarder : ${ecran.phrase}`])];
+export const SCREEN_DECLARED = "déclaré par le cook";
+export const SCREEN_DEDUCED = "écran déduit des fichiers touchés, pas déclaré par le cook";
+export function sayScreen(screen: ScreenToLookAt | null): string[] {
+  if (screen === null) return [];
+  return [`écran : ${screen.ecran} (${screen.source === "declare" ? SCREEN_DECLARED : SCREEN_DEDUCED})`, ...(screen.phrase === null ? [] : [`à regarder : ${screen.phrase}`])];
 }
 
 // Les mêmes lignes, en anglais : ce que dit `status`.
-export function direEcranEn(ecran: EcranARegarder | null): string[] {
-  if (ecran === null) return [];
-  return [`screen: ${ecran.ecran} (${ecran.source === "declare" ? "declared by the cook" : "screen deduced from the touched files, not declared by the cook"})`, ...(ecran.phrase === null ? [] : [`to look at: ${ecran.phrase}`])];
+export function sayScreenEn(screen: ScreenToLookAt | null): string[] {
+  if (screen === null) return [];
+  return [`screen: ${screen.ecran} (${screen.source === "declare" ? "declared by the cook" : "screen deduced from the touched files, not declared by the cook"})`, ...(screen.phrase === null ? [] : [`to look at: ${screen.phrase}`])];
 }
 
 // Ce que `station` et `status` disent d'un projet qui ne peut pas être servi :
@@ -121,8 +121,8 @@ type Ecoutes = FaitService | Extract<FaitRuntime, { type: "runtime.started" }> |
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur !== "";
 // Les colonnes `screen`, `sentence`, `source` d'un écran tel que le journal
 // le porte : un écran illisible n'en est pas un.
-const ecranLisible = (ecran: EcranDuServeur | null | undefined): [string | null, string | null, string | null] =>
-  texte(ecran?.name) && (ecran.source === "declare" || ecran.source === "deduit") ? [ecran.name, texte(ecran.sentence) ? ecran.sentence : null, ecran.source] : [null, null, null];
+const readableScreen = (screen: ServerScreen | null | undefined): [string | null, string | null, string | null] =>
+  texte(screen?.name) && (screen.source === "declare" || screen.source === "deduit") ? [screen.name, texte(screen.sentence) ? screen.sentence : null, screen.source] : [null, null, null];
 const port = (valeur: unknown): valeur is number => Number.isSafeInteger(valeur) && (valeur as number) >= 1 && (valeur as number) <= 65535;
 
 export const service = definirProjection<Ecoutes>({
@@ -175,7 +175,7 @@ export const service = definirProjection<Ecoutes>({
       const { station, run, worktree, branch, pid } = payload;
       if (ticket === null || !texte(station) || !texte(run) || !texte(worktree) || !texte(branch) || !port(payload.port) || !Number.isSafeInteger(pid)) return;
       // Un écran illisible n'en est pas un : le serveur reste, sans page.
-      const ecran = ecranLisible(payload.screen);
+      const screen = readableScreen(payload.screen);
       base.executer(
         `INSERT OR REPLACE INTO service_servers (worktree, ticket, station, run, branch, port, pid, state, started_at, since, screen, sentence, source)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?, ?, ?, ?)`,
@@ -188,7 +188,7 @@ export const service = definirProjection<Ecoutes>({
         pid,
         at,
         at,
-        ...ecran,
+        ...screen,
       );
     },
     "service.held": (base, { ticket, at, payload }) => {
@@ -205,7 +205,7 @@ export const service = definirProjection<Ecoutes>({
         launch,
         texte(payload.how) ? payload.how : null,
         at,
-        ...ecranLisible(payload.screen),
+        ...readableScreen(payload.screen),
       );
     },
     "service.released": (base, { payload }) => {
@@ -241,19 +241,19 @@ export const service = definirProjection<Ecoutes>({
 
 const COLONNES = "ticket, station, run, worktree, branch, port, pid, state, started_at AS startedAt, since, screen, sentence, source";
 
-type Ligne = Omit<Serveur, "ecran"> & { screen: string | null; sentence: string | null; source: EcranARegarder["source"] | null };
+type Ligne = Omit<Server, "ecran"> & { screen: string | null; sentence: string | null; source: ScreenToLookAt["source"] | null };
 
 // Les serveurs qui tournent, par ticket. `station` : ceux de cette station
 // seulement.
-export function serveursEnCours(base: Base, station?: string): Serveur[] {
+export function runningServers(base: Base, station?: string): Server[] {
   const lignes =
     station === undefined
       ? base.lire<Ligne>(`SELECT ${COLONNES} FROM service_servers ORDER BY ticket, worktree`)
       : base.lire<Ligne>(`SELECT ${COLONNES} FROM service_servers WHERE station = ? ORDER BY ticket, worktree`, station);
-  return lignes.map(({ screen, sentence, source, ...serveur }) => ({ ...serveur, ecran: ecranDeLaLigne({ screen, sentence, source }) }));
+  return lignes.map(({ screen, sentence, source, ...server }) => ({ ...server, ecran: lineScreen({ screen, sentence, source }) }));
 }
 
-const ecranDeLaLigne = ({ screen, sentence, source }: Pick<Ligne, "screen" | "sentence" | "source">): EcranARegarder | null =>
+const lineScreen = ({ screen, sentence, source }: Pick<Ligne, "screen" | "sentence" | "source">): ScreenToLookAt | null =>
   screen === null || source === null ? null : { ecran: screen, phrase: sentence, source };
 
 type LigneTenue = Omit<WorktreeTenu, "ecran"> & Pick<Ligne, "screen" | "sentence" | "source">;
@@ -266,7 +266,7 @@ export function worktreesTenus(base: Base, station?: string): WorktreeTenu[] {
     station === undefined
       ? base.lire<LigneTenue>(`SELECT ${colonnes} FROM service_held ORDER BY ticket, worktree`)
       : base.lire<LigneTenue>(`SELECT ${colonnes} FROM service_held WHERE station = ? ORDER BY ticket, worktree`, station);
-  return lignes.map(({ screen, sentence, source, ...tenu }) => ({ ...tenu, ecran: ecranDeLaLigne({ screen, sentence, source }) }));
+  return lignes.map(({ screen, sentence, source, ...tenu }) => ({ ...tenu, ecran: lineScreen({ screen, sentence, source }) }));
 }
 
 // Ce qui empêche le projet d'être servi, station par station — rien, le plus

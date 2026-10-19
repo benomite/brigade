@@ -369,7 +369,7 @@ const INSTALLATION = "!ssh box brigade brigade installation";
 const PAS_PARTIE = ` — the command did not go, and nothing is written: \`${INSTALLATION}\``;
 
 // Un registre dont chaque second dit ses tours à l'app. `tours` : ce que le second du rang donné a dit.
-function registreSuivi(delaiPreuveMs?: number) {
+function registreSuivi(proofDelayMs?: number) {
   const lances: FauxPty[] = [];
   const dits = new Map<number, string>();
   const terminaux = ouvrirTerminaux({
@@ -386,20 +386,20 @@ function registreSuivi(delaiPreuveMs?: number) {
     },
     surSortie: () => {},
     surEtat: () => {},
-    tours: (id) => ({ chemin: `/tmp/brigade-app-essai/second-${id}.tours`, lire: () => dits.get(id) ?? "", vider: () => void dits.set(id, "") }),
-    ...(delaiPreuveMs === undefined ? {} : { delaiPreuveMs }),
+    turns: (id) => ({ chemin: `/tmp/brigade-app-essai/second-${id}.tours`, lire: () => dits.get(id) ?? "", vider: () => void dits.set(id, "") }),
+    ...(proofDelayMs === undefined ? {} : { proofDelayMs }),
   });
   const lance = (rang: number): FauxPty => {
     const faux = lances.at(rang);
     assert.ok(faux, `aucun pty lancé au rang ${rang}`);
     return faux;
   };
-  return { terminaux, lance, dire: (id: number, tours: string) => void dits.set(id, (dits.get(id) ?? "") + tours), dits };
+  return { terminaux, lance, dire: (id: number, turns: string) => void dits.set(id, (dits.get(id) ?? "") + turns), dits };
 }
 
 // Un espace ouvert sur un second libre : son premier tour est fini, il est à son invite.
-function secondLibre(delaiPreuveMs?: number) {
-  const suivi = registreSuivi(delaiPreuveMs);
+function secondLibre(proofDelayMs?: number) {
+  const suivi = registreSuivi(proofDelayMs);
   const second = un(suivi.terminaux.espace(BRIGADE));
   suivi.lance(0).surSortie(TRAVAIL);
   suivi.dire(second.id, "tour\nfin\n");

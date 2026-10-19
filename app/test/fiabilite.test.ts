@@ -9,20 +9,20 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { decrireCauses, mesurerCauses, SANS_SIGNAUX, type Signaux } from "../../runtime/src/causes-des-ratages.ts";
-import { decrireReleve, direJaugeEn, SANS_SEUIL } from "../../runtime/src/mesures.ts";
-import type { CookMesure, Delivery } from "../../runtime/src/projections/measures.ts";
-import { decrireRenvois, direDerivePremierCoupEn, mesurerRenvois, type Essai, type Parcours } from "../../runtime/src/renvois.ts";
-import { ligneDeProjet, type FaitsLus } from "../src/accueil.ts";
+import { decrireReleve, direJaugeEn, SANS_SEUIL } from "../../runtime/src/measures.ts";
+import type { CookMeasure, Delivery } from "../../runtime/src/projections/measures.ts";
+import { decrireRenvois, sayFirstTryDriftEn, mesurerRenvois, type Essai, type Parcours } from "../../runtime/src/renvois.ts";
+import { ligneDeProjet, type ReadFacts } from "../src/accueil.ts";
 import { ouvrirVeille, type Lecture } from "../src/box.ts";
-import type { Faits } from "../src/faits.ts";
-import { causesDe, COMMANDES, deriveDe, perdusDe, reglagesDe, renvoisDe, voir, type Vu } from "../src/fiabilite.ts";
+import type { Facts } from "../src/facts.ts";
+import { causesDe, COMMANDES, driftOf, perdusDe, reglagesDe, renvoisDe, voir, type Vu } from "../src/fiabilite.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE } from "../src/faits.ts";
+import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
+import { BANNIERE } from "../src/facts.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
@@ -48,7 +48,7 @@ const station = (posees: Record<string, string> = {}) =>
   ].join("\n");
 
 // Un merge et ses lancements, comme le relevé les tient : `perdus` tokens d'un lancement qui n'a rien livré, puis la livraison.
-const cook = (tokens: number | null, delivered: boolean): CookMesure => ({ calibration: "opus/high", turns: 5, durationMs: 1000, tokens, delivered });
+const cook = (tokens: number | null, delivered: boolean): CookMeasure => ({ calibration: "opus/high", turns: 5, durationMs: 1000, tokens, delivered });
 const merge = (rang: number, perdus: number | null): Delivery => ({
   ticket: 900 + rang,
   at: `2026-10-${String(1 + rang).padStart(2, "0")}T10:00:00.000Z`,
@@ -60,7 +60,7 @@ const merge = (rang: number, perdus: number | null): Delivery => ({
 
 // Un parcours : `essais` lancements, le dernier livré, les autres ratés pour la cause que leurs signaux disent.
 const relecture: Signaux = { ...SANS_SIGNAUX, jugement: { noDiff: false, conflit: false, gates: { outcome: "green", failures: [] }, review: { outcome: "red", blocking: 1 } } };
-const plafond: Signaux = { ...SANS_SIGNAUX, arret: "turns" };
+const cap: Signaux = { ...SANS_SIGNAUX, arret: "turns" };
 const types: Signaux = { ...SANS_SIGNAUX, jugement: { noDiff: false, conflit: false, gates: { outcome: "red", failures: ["FAIL  contrôle de types de l'app en échec"] }, review: { outcome: "skipped", blocking: 0 } } };
 const essai = (outcome: string | null, signaux: Signaux = SANS_SIGNAUX): Essai => ({ run: "r", at: A, outcome, verdict: null, signaux });
 const parcours = (ticket: number, rates: Signaux[], merge = true): Parcours => ({
@@ -70,10 +70,10 @@ const parcours = (ticket: number, rates: Signaux[], merge = true): Parcours => (
   attempts: [...rates.map((signaux) => essai("failed", signaux)), essai(merge ? "ok" : null)],
 });
 
-// La sortie de `measures --last <n> --by 1`, telle que `montrer-mesures.ts` l'écrit.
-function mesures({ merges, tickets, n = 10, lostTokens = null }: { merges: Delivery[]; tickets: Parcours[]; n?: number; lostTokens?: number | null }): string {
+// La sortie de `measures --last <n> --by 1`, telle que `show-measures.ts` l'écrit.
+function measures({ merges, tickets, n = 10, lostTokens = null }: { merges: Delivery[]; tickets: Parcours[]; n?: number; lostTokens?: number | null }): string {
   return [
-    ...decrireReleve({ projet: "parade", livraisons: merges, seuils: { ...SANS_SEUIL, lostTokens } }, 1),
+    ...decrireReleve({ projet: "parade", deliveries: merges, seuils: { ...SANS_SEUIL, lostTokens } }, 1),
     "",
     ...decrireRenvois(mesurerRenvois(tickets, n)),
     "",
@@ -86,11 +86,11 @@ function mesures({ merges, tickets, n = 10, lostTokens = null }: { merges: Deliv
 const DIX = [
   parcours(950, []),
   parcours(951, [relecture]),
-  parcours(952, [plafond]),
+  parcours(952, [cap]),
   parcours(953, [relecture, relecture]),
   parcours(954, [types]),
   parcours(955, [relecture]),
-  parcours(956, [plafond]),
+  parcours(956, [cap]),
   parcours(957, [relecture]),
   parcours(958, [SANS_SIGNAUX, SANS_SIGNAUX]),
   parcours(959, [], false),
@@ -99,7 +99,7 @@ const DIX = [
 const TREIZE = Array.from({ length: 13 }, (_, i) => merge(i + 1, i < 3 ? 999_999 : i % 3 === 0 ? 300_000 : 0));
 
 const lue = (sorties: { commande: string; texte: string }[]): Lecture => ({ projet: "parade", demande: 7, a: A, sorties });
-const mesuree = (texteStation: string, texteMesures: string) => voir(lue([{ commande: "station", texte: texteStation }, { commande: "measures --last 10 --by 1", texte: texteMesures }]));
+const mesuree = (texteStation: string, measuresText: string) => voir(lue([{ commande: "station", texte: texteStation }, { commande: "measures --last 10 --by 1", texte: measuresText }]));
 
 describe("les réglages du chef, lus dans `station`", () => {
   test("faute de réglage, ceux du runtime : la fenêtre de 10 tickets, le seuil de 50 %, aucun plafond des perdus", () => {
@@ -121,7 +121,7 @@ describe("les réglages du chef, lus dans `station`", () => {
     // `measures` est un script du runtime, et ses deux options existent.
     const { scripts } = JSON.parse(readFileSync(join(import.meta.dirname, "../../runtime/package.json"), "utf8")) as { scripts: Record<string, string> };
     assert.ok("measures" in scripts && "station" in scripts);
-    assert.match(readFileSync(join(import.meta.dirname, "../../runtime/src/montrer-mesures.ts"), "utf8"), /\["--by", "--last"\]/);
+    assert.match(readFileSync(join(import.meta.dirname, "../../runtime/src/show-measures.ts"), "utf8"), /\["--by", "--last"\]/);
   });
 
   test("la veille compose la commande d'après la sortie lue juste avant, dans la même lecture", async (t) => {
@@ -144,12 +144,12 @@ describe("les réglages du chef, lus dans `station`", () => {
 });
 
 describe("ce que `measures` écrit, lu par l'app", () => {
-  const texte = mesures({ merges: TREIZE, tickets: DIX });
+  const texte = measures({ merges: TREIZE, tickets: DIX });
 
   test("les renvois : servis, gardés, écartés, livrés du premier coup, et les essais moyens", () => {
     assert.deepEqual(renvoisDe(texte), { servis: 10, retenus: 9, ecartes: 1, premiers: 1, essaisMoyens: 2.1 });
-    assert.deepEqual(renvoisDe(mesures({ merges: [], tickets: [] })), { servis: 0, retenus: 0 });
-    assert.deepEqual(renvoisDe(mesures({ merges: [], tickets: [parcours(1, [], false)] })), { servis: 1, retenus: 0 });
+    assert.deepEqual(renvoisDe(measures({ merges: [], tickets: [] })), { servis: 0, retenus: 0 });
+    assert.deepEqual(renvoisDe(measures({ merges: [], tickets: [parcours(1, [], false)] })), { servis: 1, retenus: 0 });
     assert.equal(renvoisDe("report     parade — no merge in the log: nothing to report"), undefined);
   });
 
@@ -165,25 +165,25 @@ describe("ce que `measures` écrit, lu par l'app", () => {
         { titre: "other", essais: 2, pourcent: 20, tickets: [958] },
       ],
     );
-    assert.deepEqual(causesDe(mesures({ merges: [], tickets: [parcours(1, [])] })), { rates: 0, causes: [] });
+    assert.deepEqual(causesDe(measures({ merges: [], tickets: [parcours(1, [])] })), { rates: 0, causes: [] });
   });
 
   test("les tokens perdus : la colonne `lost` des dix derniers merges seulement", () => {
     // Les rangs 4 à 13 ; parmi eux 4, 7, 10 et 13 ont perdu 300 000 chacun — les 999 999 des trois premiers ne comptent pas.
     assert.deepEqual(perdusDe(texte), { tokens: 1_200_000, minimum: false, merges: 10 });
     // C'est le chiffre que le runtime juge face à `seuil-perdus`.
-    assert.match(mesures({ merges: TREIZE, tickets: DIX, lostTokens: 500_000 }), /tokens lost over the last 10 merges 1,200,000 for a threshold of 500,000 — CROSSED/);
-    assert.deepEqual(perdusDe(mesures({ merges: [merge(1, 0), merge(2, 0)], tickets: DIX })), { tokens: 0, minimum: false, merges: 2 });
-    assert.deepEqual(perdusDe(mesures({ merges: [merge(1, null), merge(2, 5)], tickets: DIX })), { tokens: 5, minimum: true, merges: 2 });
-    assert.deepEqual(perdusDe(mesures({ merges: [], tickets: [] })), { tokens: 0, minimum: false, merges: 0 });
+    assert.match(measures({ merges: TREIZE, tickets: DIX, lostTokens: 500_000 }), /tokens lost over the last 10 merges 1,200,000 for a threshold of 500,000 — CROSSED/);
+    assert.deepEqual(perdusDe(measures({ merges: [merge(1, 0), merge(2, 0)], tickets: DIX })), { tokens: 0, minimum: false, merges: 2 });
+    assert.deepEqual(perdusDe(measures({ merges: [merge(1, null), merge(2, 5)], tickets: DIX })), { tokens: 5, minimum: true, merges: 2 });
+    assert.deepEqual(perdusDe(measures({ merges: [], tickets: [] })), { tokens: 0, minimum: false, merges: 0 });
     // En tranches de dix, les rangs ne se lisent pas : la somme n'est pas faite, rien n'est inventé.
-    assert.equal(perdusDe(decrireReleve({ projet: "parade", livraisons: TREIZE, seuils: null }).join("\n")), undefined);
+    assert.equal(perdusDe(decrireReleve({ projet: "parade", deliveries: TREIZE, seuils: null }).join("\n")), undefined);
   });
 });
 
 describe("la page : ce que l'app en pose", () => {
   test("mesurée : la part du premier coup sous son seuil, les essais, les perdus au-delà du leur, les trois causes les plus fréquentes", () => {
-    const vu = mesuree(station({ "seuil-perdus": "400000" }), mesures({ merges: TREIZE, tickets: DIX }));
+    const vu = mesuree(station({ "seuil-perdus": "400000" }), measures({ merges: TREIZE, tickets: DIX }));
     assert.ok("mesure" in vu);
     assert.deepEqual(vu.mesure, {
       fenetre: 10,
@@ -206,54 +206,54 @@ describe("la page : ce que l'app en pose", () => {
 
   test("au seuil, la part n'est pas sous lui ; sans plafond posé, les perdus ne sont pas jugés", () => {
     const moitie = [...Array.from({ length: 5 }, (_, i) => parcours(i, [])), ...Array.from({ length: 5 }, (_, i) => parcours(10 + i, [relecture]))];
-    const vu = mesuree(station(), mesures({ merges: TREIZE, tickets: moitie }));
+    const vu = mesuree(station(), measures({ merges: TREIZE, tickets: moitie }));
     assert.ok("mesure" in vu);
     assert.deepEqual(vu.mesure.premierCoup, { premiers: 5, retenus: 10, pourcent: 50, seuil: 50, seuilPose: false, sous: false });
     assert.deepEqual(vu.mesure.perdus, { tokens: 1_200_000, minimum: false, merges: 10, seuil: null, depasse: false });
     // Le seuil posé par le chef est le sien.
-    const posee = mesuree(station({ "seuil-renvois": "60" }), mesures({ merges: TREIZE, tickets: moitie }));
+    const posee = mesuree(station({ "seuil-renvois": "60" }), measures({ merges: TREIZE, tickets: moitie }));
     assert.ok("mesure" in posee);
     assert.equal(posee.mesure.premierCoup.sous, true);
     assert.equal(posee.mesure.premierCoup.seuilPose, true);
   });
 
   test("pas encore assez de tickets servis pour mesurer : la fenêtre n'est pas pleine, ou rien n'y est mergé — jamais des zéros", () => {
-    assert.deepEqual(mesuree(station(), mesures({ merges: [], tickets: DIX.slice(0, 6) })), { projet: "parade", demande: 7, a: A, pasAssez: { servis: 6, retenus: 6, fenetre: 10 } });
-    assert.deepEqual(mesuree(station(), mesures({ merges: [], tickets: [] })), { projet: "parade", demande: 7, a: A, pasAssez: { servis: 0, retenus: 0, fenetre: 10 } });
+    assert.deepEqual(mesuree(station(), measures({ merges: [], tickets: DIX.slice(0, 6) })), { projet: "parade", demande: 7, a: A, pasAssez: { servis: 6, retenus: 6, fenetre: 10 } });
+    assert.deepEqual(mesuree(station(), measures({ merges: [], tickets: [] })), { projet: "parade", demande: 7, a: A, pasAssez: { servis: 0, retenus: 0, fenetre: 10 } });
     const rienDeMerge = Array.from({ length: 10 }, (_, i) => parcours(i, [], false));
-    assert.deepEqual(mesuree(station(), mesures({ merges: [], tickets: rienDeMerge })), { projet: "parade", demande: 7, a: A, pasAssez: { servis: 10, retenus: 0, fenetre: 10 } });
+    assert.deepEqual(mesuree(station(), measures({ merges: [], tickets: rienDeMerge })), { projet: "parade", demande: 7, a: A, pasAssez: { servis: 10, retenus: 0, fenetre: 10 } });
     // La fenêtre est celle du chef : huit tickets suffisent à une fenêtre de huit.
-    assert.ok("mesure" in mesuree(station({ "fenetre-renvois": "8" }), mesures({ merges: TREIZE, tickets: DIX.slice(0, 8), n: 8 })));
+    assert.ok("mesure" in mesuree(station({ "fenetre-renvois": "8" }), measures({ merges: TREIZE, tickets: DIX.slice(0, 8), n: 8 })));
   });
 
   test("une lecture ratée, ou une box dont `measures` ne compte pas les renvois, le dit — rien n'est mesuré", () => {
     assert.ok("sans" in voir({ projet: "parade", demande: 7, a: A, erreur: "ssh: refused", atteinte: false, cas: "ssh-en-echec" }));
     assert.ok("sans" in voir(lue([{ commande: "station", texte: station() }])));
-    const ancien = mesuree(station(), decrireReleve({ projet: "parade", livraisons: TREIZE, seuils: null }, 1).join("\n"));
+    const ancien = mesuree(station(), decrireReleve({ projet: "parade", deliveries: TREIZE, seuils: null }, 1).join("\n"));
     assert.ok("sans" in ancien && /do not count retries/.test(ancien.sans));
   });
 });
 
 describe("la dérive, dans `status`, et l'accueil", () => {
   const drift = (ligne: string) => `${"drift".padEnd(11)}${ligne} — \`brigade parade measures\``;
-  const PREMIER_COUP_DERIVE = drift(direDerivePremierCoupEn({ premiers: 1, retenus: 7, fenetre: 10, seuil: 50 }));
-  const PERDUS_DERIVE = drift([{ measure: "tests", observed: 1200, limit: 1000 }, { measure: "tokens_perdus", observed: 842_809, limit: 400_000 }].map(direJaugeEn).join(" · "));
+  const FIRST_TRY_DRIFT = drift(sayFirstTryDriftEn({ premiers: 1, retenus: 7, fenetre: 10, seuil: 50 }));
+  const LOST_DRIFT = drift([{ measure: "tests", observed: 1200, limit: 1000 }, { measure: "tokens_perdus", observed: 842_809, limit: 400_000 }].map(direJaugeEn).join(" · "));
   const COUT_SEUL = drift(direJaugeEn({ measure: "tokens_ticket", observed: 1_038_705, limit: 400_000 }));
 
   test("la part du premier coup sous son seuil, et les tokens perdus au-delà du leur, sont la fiabilité ; les autres seuils non", () => {
-    assert.deepEqual(deriveDe(["project    parade", COUT_SEUL, PERDUS_DERIVE, PREMIER_COUP_DERIVE].join("\n")), [
+    assert.deepEqual(driftOf(["project    parade", COUT_SEUL, LOST_DRIFT, FIRST_TRY_DRIFT].join("\n")), [
       "tokens lost over the last 10 merges 842,809 for a threshold of 400,000",
       "1/7 merged tickets delivered on the first try, among the last 10 served (threshold 50%)",
     ]);
-    assert.deepEqual(deriveDe(["project    parade", COUT_SEUL].join("\n")), []);
+    assert.deepEqual(driftOf(["project    parade", COUT_SEUL].join("\n")), []);
   });
 
-  const FAITS: Faits = { etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [] };
-  const lus: FaitsLus = { a: A, faits: FAITS };
+  const FACTS: Facts = { etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [] };
+  const lus: ReadFacts = { a: A, faits: FACTS };
   const PROJET = { nom: "parade", box: true, desinstalle: false };
 
   test("la ligne d'un projet dont la fiabilité a dérivé le dit d'un mot, et le détail au survol ; sa pastille ne change pas", () => {
-    const ligne = ligneDeProjet(PROJET, lus, { texte: ["project    parade", PREMIER_COUP_DERIVE].join("\n") });
+    const ligne = ligneDeProjet(PROJET, lus, { texte: ["project    parade", FIRST_TRY_DRIFT].join("\n") });
     assert.equal(ligne.dit, "nothing cooking, nothing waits for you · drifting");
     assert.equal(ligne.ton, "vert");
     assert.match(ligne.survol, /reliability drifting: 1\/7 merged tickets delivered on the first try/);
@@ -268,7 +268,7 @@ describe("la dérive, dans `status`, et l'accueil", () => {
 
 describe("la page Reliability, posée par la vue", () => {
   const texteDe = (poses: Faux[]) => poses.map(({ textContent }) => textContent).join("\n");
-  const mesure = (vu: Vu) => ("mesure" in vu ? vu : assert.fail("pas mesurée"));
+  const measure = (vu: Vu) => ("mesure" in vu ? vu : assert.fail("pas mesurée"));
 
   test("elle est une lecture de Settings, à côté de Rail, Manager et Grants — les deux onglets du haut restent deux", () => {
     assert.deepEqual(RUBRIQUES.map(({ titre }) => titre), ["Cost", "Settings"]);
@@ -277,7 +277,7 @@ describe("la page Reliability, posée par la vue", () => {
   });
 
   test("trois chiffres face à leurs seuils, celui qui les franchit mis en évidence, puis les causes et leurs tickets", () => {
-    const vu = mesure(mesuree(station({ "seuil-perdus": "400000" }), mesures({ merges: TREIZE, tickets: DIX })));
+    const vu = measure(mesuree(station({ "seuil-perdus": "400000" }), measures({ merges: TREIZE, tickets: DIX })));
     const ouverts: number[] = [];
     const poses = poserFiabilite(doc, vu, (ticket) => ouverts.push(ticket)) as Faux[];
     const [tete, causes] = poses as [Faux, Faux];
@@ -306,20 +306,20 @@ describe("la page Reliability, posée par la vue", () => {
 
   test("sous leurs seuils, rien n'est mis en évidence ; sans plafond posé, les perdus le disent", () => {
     const moitie = [...Array.from({ length: 5 }, (_, i) => parcours(i, [])), ...Array.from({ length: 5 }, (_, i) => parcours(10 + i, [relecture]))];
-    const [tete] = poserFiabilite(doc, mesure(mesuree(station(), mesures({ merges: TREIZE, tickets: moitie }))), () => {}) as Faux[];
+    const [tete] = poserFiabilite(doc, measure(mesuree(station(), measures({ merges: TREIZE, tickets: moitie }))), () => {}) as Faux[];
     assert.deepEqual(tete?.dessous("div").filter(({ className }) => /depasse/.test(className)), []);
     assert.match(texteDe(tete === undefined ? [] : [tete]), /threshold of 50% \(default\)/);
     assert.match(texteDe(tete === undefined ? [] : [tete]), /no ceiling set/);
   });
 
   test("pas assez de tickets servis : une ligne qui le dit, et aucun chiffre", () => {
-    const poses = poserFiabilite(doc, mesuree(station(), mesures({ merges: [], tickets: DIX.slice(0, 6) })), () => {}) as Faux[];
+    const poses = poserFiabilite(doc, mesuree(station(), measures({ merges: [], tickets: DIX.slice(0, 6) })), () => {}) as Faux[];
     assert.equal(poses.length, 1);
     assert.equal(poses[0]?.dessous("p").find(({ className }) => className === "pas-assez")?.textContent, "not enough tickets served yet to measure: 6 of the 10 it takes");
     assert.deepEqual(poses[0]?.dessous("div").filter(({ className }) => className.startsWith("chiffre")), []);
     assert.doesNotMatch(texteDe(poses), /\b0%|\b0 of\b/);
     const rienDeMerge = Array.from({ length: 10 }, (_, i) => parcours(i, [], false));
-    assert.match(texteDe(poserFiabilite(doc, mesuree(station(), mesures({ merges: [], tickets: rienDeMerge })), () => {}) as Faux[]), /none of the last 10 tickets served is merged yet/);
+    assert.match(texteDe(poserFiabilite(doc, mesuree(station(), measures({ merges: [], tickets: rienDeMerge })), () => {}) as Faux[]), /none of the last 10 tickets served is merged yet/);
   });
 
   test("pas encore lue, ou ratée : une ligne, le détail au survol", () => {
@@ -341,7 +341,7 @@ describe("la page Reliability, dans l'espace du projet", () => {
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
         boutons: BOUTONS,
-        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,
@@ -362,7 +362,7 @@ describe("la page Reliability, dans l'espace du projet", () => {
     assert.equal(page.hidden, false);
     assert.match(page.textContent, /reading…/);
 
-    const lecture = { projet: "parade", demande, a: A, sorties: [{ commande: "station", texte: station() }, { commande: "measures --last 10 --by 1", texte: mesures({ merges: TREIZE, tickets: DIX }) }] };
+    const lecture = { projet: "parade", demande, a: A, sorties: [{ commande: "station", texte: station() }, { commande: "measures --last 10 --by 1", texte: measures({ merges: TREIZE, tickets: DIX }) }] };
     vue.dire("surContenu", lecture, undefined, undefined, { ...voir(lecture), demande });
     await repos();
     assert.match(page.textContent, /delivered on the first try/);

@@ -20,7 +20,7 @@ type Lancee = { statut: number; sortie: string; erreurs: string };
 
 // La machine de test : un compte neuf. `installee` : brigade y est déjà — ce
 // dépôt-ci, là où la commande l'installerait.
-function serveur(t: TestContext, { installee = true } = {}) {
+function server(t: TestContext, { installee = true } = {}) {
   const home = repertoireTemporaire(t);
   if (installee) {
     mkdirSync(join(home, ".local/share"), { recursive: true });
@@ -54,7 +54,7 @@ function chef(t: TestContext, maintenant?: () => Date) {
 
 test("la commande lancée sur une machine de test la présente au registre du chef « en attente », avec ses capacités — et rien ne la sélectionne avant l'acceptation", async (t) => {
   const { enrolements, registre } = chef(t);
-  const machine = serveur(t);
+  const machine = server(t);
   const { code, commande } = enrolements.preparer({ vers: "chef@box" });
 
   const lancee = await machine.lancer(commande);
@@ -85,7 +85,7 @@ test("la commande porte le nom choisi dans la home : la machine se présente sou
   const { enrolements, registre } = chef(t);
   const { commande } = enrolements.preparer({ vers: "chef@box", nom: "serveur-de-test" });
 
-  assert.equal((await serveur(t).lancer(commande)).statut, 0);
+  assert.equal((await server(t).lancer(commande)).statut, 0);
 
   assert.deepEqual(
     registre.liste().map((s) => `${s.nom} ${s.statut}`),
@@ -98,7 +98,7 @@ test("un code faux dans la commande est refusé : la machine n'apparaît pas au 
   const { code, commande } = enrolements.preparer({ vers: "chef@box", nom: "serveur-de-test" });
   const faux = code.startsWith("0") ? `1${code.slice(1)}` : `0${code.slice(1)}`;
 
-  const lancee = await serveur(t).lancer(commande.replace(code, faux));
+  const lancee = await server(t).lancer(commande.replace(code, faux));
 
   assert.equal(lancee.statut, 1);
   assert.deepEqual(JSON.parse(lancee.sortie).reason, "inconnu");
@@ -111,7 +111,7 @@ test("une commande expirée est refusée : la machine n'apparaît pas au registr
   const { enrolements, registre } = chef(t, () => new Date(Date.now() - DUREE_MS - 60_000));
   const { commande } = enrolements.preparer({ vers: "chef@box", nom: "serveur-de-test" });
 
-  const lancee = await serveur(t).lancer(commande);
+  const lancee = await server(t).lancer(commande);
 
   assert.equal(lancee.statut, 1);
   assert.match(lancee.erreurs, /code refusé : il a expiré/);
@@ -121,11 +121,11 @@ test("une commande expirée est refusée : la machine n'apparaît pas au registr
 test("une commande ne sert qu'une fois : relancée, ici ou sur une autre machine, elle est refusée et rien n'entre de plus au registre", async (t) => {
   const { enrolements, registre } = chef(t);
   const { commande } = enrolements.preparer({ vers: "chef@box", nom: "serveur-de-test" });
-  assert.equal((await serveur(t).lancer(commande)).statut, 0);
+  assert.equal((await server(t).lancer(commande)).statut, 0);
   const avant = registre.liste();
 
-  const autre = await serveur(t).lancer(commande.replace("--name 'serveur-de-test'", "--name 'intrus'"));
-  const relancee = await serveur(t).lancer(commande);
+  const autre = await server(t).lancer(commande.replace("--name 'serveur-de-test'", "--name 'intrus'"));
+  const relancee = await server(t).lancer(commande);
 
   for (const lancee of [autre, relancee]) {
     assert.equal(lancee.statut, 1);
@@ -146,7 +146,7 @@ test("sans brigade sur la machine, la commande le clone d'abord, puis lance le g
   git(depot, "commit", "-q", "-m", "le geste");
   const { enrolements, repertoire } = chef(t);
   const { code, commande } = enrolements.preparer({ vers: "chef@box", depot: `file://${depot}`, branche: BASE });
-  const machine = serveur(t, { installee: false });
+  const machine = server(t, { installee: false });
 
   const lancee = await machine.lancer(commande);
 

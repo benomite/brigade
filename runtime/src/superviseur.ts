@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { lecteurDActivite, type Activite } from "./activite.ts";
 import type { Readable } from "node:stream";
-import type { MotifArret, Plafonds } from "./events/guardrails.ts";
+import type { MotifArret, Caps } from "./events/guardrails.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 import { lignesMasquees } from "./lignes-masquees.ts";
 import { ecrireAtomique, type ConsigneDuRelais, type FinDuRelais } from "./relais.ts";
@@ -19,9 +19,9 @@ export type Arret = { reason: MotifArret; limit: number | null; observed: number
 // plafond qu'il dépasse, ou null. Le même jugement pour tous les cooks — celui
 // que le superviseur lit dans son flux, celui dont une station distante
 // rapporte la mesure.
-export function depassement(plafonds: Plafonds, mesure: { turns: number; tokens: number }): Arret | null {
-  if (mesure.turns > plafonds.turns) return { reason: "turns", limit: plafonds.turns, observed: mesure.turns };
-  if (mesure.tokens > plafonds.tokens) return { reason: "tokens", limit: plafonds.tokens, observed: mesure.tokens };
+export function depassement(caps: Caps, measure: { turns: number; tokens: number }): Arret | null {
+  if (measure.turns > caps.turns) return { reason: "turns", limit: caps.turns, observed: measure.turns };
+  if (measure.tokens > caps.tokens) return { reason: "tokens", limit: caps.tokens, observed: measure.tokens };
   return null;
 }
 
@@ -48,7 +48,7 @@ export type OptionsSupervision = {
   cwd?: string;
   // Par défaut, l'environnement du runtime.
   env?: NodeJS.ProcessEnv;
-  plafonds: Plafonds;
+  plafonds: Caps;
   // Délai laissé au cook entre SIGTERM et SIGKILL.
   graceMs: number;
   // Fichier où s'écrit le flux brut ; la sortie d'erreur va dans `<flux>.stderr`.
@@ -83,7 +83,7 @@ export type Supervise = {
 const nombre = (valeur: unknown) => (typeof valeur === "number" ? valeur : 0);
 
 export function superviser(options: OptionsSupervision): Supervise {
-  const { plafonds } = options;
+  const { plafonds: caps } = options;
   const debut = performance.now();
   const ecoule = () => Math.round(performance.now() - debut);
 
@@ -184,16 +184,16 @@ export function superviser(options: OptionsSupervision): Supervise {
   };
 
   const duree = setTimeout(
-    () => arreter({ reason: "duration", limit: plafonds.durationMs, observed: ecoule() }),
-    plafonds.durationMs,
+    () => arreter({ reason: "duration", limit: caps.durationMs, observed: ecoule() }),
+    caps.durationMs,
   );
   let inactivite: NodeJS.Timeout | undefined;
   const veiller = () => {
     clearTimeout(inactivite);
     const depuis = performance.now();
     inactivite = setTimeout(
-      () => arreter({ reason: "idle", limit: plafonds.idleMs, observed: Math.round(performance.now() - depuis) }),
-      plafonds.idleMs,
+      () => arreter({ reason: "idle", limit: caps.idleMs, observed: Math.round(performance.now() - depuis) }),
+      caps.idleMs,
     );
   };
   veiller();
@@ -213,7 +213,7 @@ export function superviser(options: OptionsSupervision): Supervise {
     veiller();
     compter(ligne);
     lecteur.lire(ligne);
-    const depasse = depassement(plafonds, { turns, tokens });
+    const depasse = depassement(caps, { turns, tokens });
     if (depasse) arreter(depasse);
   });
 
@@ -428,7 +428,7 @@ function suivre(
   fichiers: FichiersDuRelais,
   relais: { pid: number | null; debut: number; sorti: () => boolean },
 ): Supervise & { lacher(): void; regarder(): void } {
-  const { plafonds } = options;
+  const { plafonds: caps } = options;
   const ecoule = () => Math.max(0, Date.now() - relais.debut);
   let mort = false;
   let lache = false;
@@ -477,12 +477,12 @@ function suivre(
 
   // La durée court depuis le lancement, pas depuis la reprise : un cook repris
   // n'a pas un plafond neuf.
-  const duree = setTimeout(() => arreter({ reason: "duration", limit: plafonds.durationMs, observed: ecoule() }), Math.max(0, plafonds.durationMs - ecoule()));
+  const duree = setTimeout(() => arreter({ reason: "duration", limit: caps.durationMs, observed: ecoule() }), Math.max(0, caps.durationMs - ecoule()));
   let inactivite: NodeJS.Timeout | undefined;
   const veiller = () => {
     clearTimeout(inactivite);
     const depuis = performance.now();
-    inactivite = setTimeout(() => arreter({ reason: "idle", limit: plafonds.idleMs, observed: Math.round(performance.now() - depuis) }), plafonds.idleMs);
+    inactivite = setTimeout(() => arreter({ reason: "idle", limit: caps.idleMs, observed: Math.round(performance.now() - depuis) }), caps.idleMs);
   };
   veiller();
 
@@ -494,7 +494,7 @@ function suivre(
     veiller();
     compter(ligne);
     lecteur.lire(ligne);
-    const depasse = depassement(plafonds, { turns, tokens });
+    const depasse = depassement(caps, { turns, tokens });
     if (depasse) arreter(depasse);
   };
   const lire = (jusquAuBout: boolean) => {

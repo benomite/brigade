@@ -8,15 +8,15 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { etatDuMerge, tenirBandes, type Bande } from "../src/alertes.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
-import { mettreAPart } from "../src/attend.ts";
+import { mettreAPart } from "../src/awaiting.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
 import type { Lecture } from "../src/box.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
 import { confirmationDe } from "../src/confirmation.ts";
 import { PALETTE } from "../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE, type Faits } from "../src/faits.ts";
+import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
+import { BANNIERE, type Facts } from "../src/facts.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
@@ -29,7 +29,7 @@ const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "bo
 const lecture = (commande: string, texte: string): Lecture => ({ projet: "parade", demande: 1, a: A, sorties: [{ commande, texte }] });
 
 // Les lignes de tête de `status` (runtime/src/etat.ts, `decrireEtat`), mot pour mot.
-const CONNEXION = "connexion  Max DÉCONNECTÉE depuis 18 min sur box/claude — plus aucun ticket n'est pris : `claude /login` sous le compte du service";
+const CONNECTION = "connexion  Max DÉCONNECTÉE depuis 18 min sur box/claude — plus aucun ticket n'est pris : `claude /login` sous le compte du service";
 const BASE_ROUGE = "base       ROUGE depuis 1 h 10 sur abc1234 — la station ne prend plus de ticket, la pass ne juge ni ne merge";
 const MERGE_SEUL = "grant      merge ÉTEINT SEUL il y a 40 min — son échéance est passée : la pass s'arrête à la PR ouverte, plus rien n'est mergé sans toi";
 const MERGE_ACTIF = "grant      merge ACTIF, sans échéance, depuis 2 h — une pass verte est mergée sans toi";
@@ -40,7 +40,7 @@ const valeur = (ligne: string) => ligne.slice(11);
 // `manager`, tel que le runtime l'écrit, allumé par le chef (runtime/src/manager-cli.ts).
 const MANAGER_ALLUME = "manager               ALLUMÉ depuis le 2026-10-13T09:25:21.838Z (par chef) — il juge les issues ouvertes, pose `fire` et le calibrage\n";
 
-const FAITS: Faits = {
+const FACTS: Facts = {
   etat: "retenue",
   lu: A,
   dernierTick: A,
@@ -53,10 +53,10 @@ const FAITS: Faits = {
 
 // La bande que le process principal dirait : `facts`, `status` (sans lui, rien n'est lu) et `manager` lus.
 // `etat` : celui de la cuisine dans `facts` — retenue, ce qui la retient fait ses lignes.
-function bandeLue(status?: string, etat: Faits["etat"] = "retenue"): Bande {
+function bandeLue(status?: string, etat: Facts["etat"] = "retenue"): Bande {
   const bandes = tenirBandes({ etablir: 1, minimum: 0 });
   bandes.ouvrir(["parade"]);
-  bandes.faits(lecture("facts", JSON.stringify({ ...FAITS, etat })));
+  bandes.faits(lecture("facts", JSON.stringify({ ...FACTS, etat })));
   if (status !== undefined) bandes.status(mettreAPart(lecture("status", status)));
   return bandes.manager(lecture("manager", MANAGER_ALLUME));
 }
@@ -70,7 +70,7 @@ async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
       boutons: BOUTONS,
-      gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+      gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,
@@ -98,7 +98,7 @@ const appelsDe = (vue: Jouee, ...gestes: string[]) => vue.appels.filter(({ geste
 describe("une alerte : une ligne, un contrôle", () => {
   test("chaque ligne de la bande tient en une ligne — sa pastille, ce qui ne va pas, « detail », son contrôle — sans phrase de plus, ni sortie brute, ni prix", async () => {
     const vue = await ouvrir();
-    vue.dire("surAlertes", bandeLue(statusAvec(CONNEXION, BASE_ROUGE, MERGE_BIENTOT)));
+    vue.dire("surAlertes", bandeLue(statusAvec(CONNECTION, BASE_ROUGE, MERGE_BIENTOT)));
     await repos();
 
     assert.deepEqual(
@@ -120,7 +120,7 @@ describe("une alerte : une ligne, un contrôle", () => {
 
   test("« detail » déplie, dessous, ce que la ligne sait de plus — la box mot pour mot, jamais le geste à recopier ; une relecture ne le replie pas, un second clic si", async () => {
     const vue = await ouvrir();
-    const lue = bandeLue(statusAvec(CONNEXION, BASE_ROUGE));
+    const lue = bandeLue(statusAvec(CONNECTION, BASE_ROUGE));
     vue.dire("surAlertes", lue);
     await repos();
 
@@ -149,9 +149,9 @@ describe("une alerte : une ligne, un contrôle", () => {
 
     // La connexion Max : son détail dit ce que la box en écrit, sans la commande qui la rétablit (règle #830).
     detailDe(ligneDe(vue, "Max connection")).click();
-    const connexion = ligneDe(vue, "Max connection").children.find(({ className }) => className === "detail") ?? assert.fail("rien de déplié");
-    assert.deepEqual(connexion.dessous("pre").map(({ textContent }) => textContent), ["Max DÉCONNECTÉE depuis 18 min sur box/claude — plus aucun ticket n'est pris"]);
-    assert.doesNotMatch(connexion.textContent, /claude \/login|to lift it/);
+    const connection = ligneDe(vue, "Max connection").children.find(({ className }) => className === "detail") ?? assert.fail("rien de déplié");
+    assert.deepEqual(connection.dessous("pre").map(({ textContent }) => textContent), ["Max DÉCONNECTÉE depuis 18 min sur box/claude — plus aucun ticket n'est pris"]);
+    assert.doesNotMatch(connection.textContent, /claude \/login|to lift it/);
   });
 });
 
@@ -305,8 +305,8 @@ describe("le grant `merge` est un interrupteur", () => {
     bascule(vue, "interrupteur-merge").click();
     await repos();
     assert.deepEqual(vue.dernier("confirmer"), ["parade", "grant-revoquer", "merge"]);
-    const revoquer = vue.element("interrupteur-merge").dessous("div").find(({ className }) => className === "confirmation") ?? assert.fail("pas de confirmation");
-    assert.match(revoquer.textContent, /revoke the `merge` grant/);
+    const revoke = vue.element("interrupteur-merge").dessous("div").find(({ className }) => className === "confirmation") ?? assert.fail("pas de confirmation");
+    assert.match(revoke.textContent, /revoke the `merge` grant/);
     assert.equal(bascule(vue, "interrupteur-merge").ariaChecked, "true", "la confirmation ouverte ne bascule rien");
   });
 });

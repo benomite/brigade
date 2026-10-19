@@ -1,6 +1,6 @@
 // Ce qu'une carte du rail dit en deux lignes : une phrase en mots simples qui dit ce qui se passe,
 // et au plus un signal quand quelque chose demande l'attention du chef. Une phrase par état, écrite
-// d'après les seuls faits que la file donne déjà de la carte (faits.ts) ; tout le reste — qui le
+// d'après les seuls faits que la file donne déjà de la carte (facts.ts) ; tout le reste — qui le
 // tient, son bail, ce qu'il brûle, ce que la file ne dit pas — est dans la fiche. Rien n'est
 // inventé : quand le fait manque, la phrase de l'état le dit en deux mots et `repere` s'allume.
 //
@@ -21,8 +21,8 @@ export type LigneDeCarte = { ligne: string; signal?: string; repere?: true };
 export const TRAVAIL_SANS_DETAIL = "in the kitchen";
 export const PASS_SANS_DETAIL = "review in progress";
 export const PRET = "ready, waits for a place in the kitchen";
-export const ATTEND_TA_DECISION = "waits for your decision";
-export const BLOQUEE = "blocked";
+export const AWAITS_YOUR_DECISION = "waits for your decision";
+export const BLOCKED = "blocked";
 export const MISE_DE_COTE = "set aside";
 export const RELANCE_PASSEE = "follow-up date passed";
 
@@ -35,10 +35,10 @@ export function ligneAuTravail(etat: "pris" | "en pass", activite: { fait: strin
 
 // Sur le rail, rien ne le tient : ce qui le retient s'il y en a, sinon il attend sa place.
 // Un retenu par des tickets se dit « after #a, #b » ; un texte sans numéro est relayé tel quel.
-export function ligneEnAttente(etat: string, retient: string | undefined): LigneDeCarte {
+export function queuedLine(etat: string, retient: string | undefined): LigneDeCarte {
   const numeros = [...new Set(retient?.match(/#\d+/g) ?? [])];
   const phrase = numeros.length > 0 ? `after ${numeros.join(", ")}` : retient;
-  if (etat === "BLOQUÉ") return { ligne: phrase ?? BLOQUEE, signal: BLOQUEE, ...(phrase === undefined ? { repere: true as const } : {}) };
+  if (etat === "BLOQUÉ") return { ligne: phrase ?? BLOCKED, signal: BLOCKED, ...(phrase === undefined ? { repere: true as const } : {}) };
   return { ligne: phrase ?? PRET };
 }
 
@@ -46,7 +46,7 @@ export function ligneEnAttente(etat: string, retient: string | undefined): Ligne
 export const ligneMiseDeCote = (raison: string): LigneDeCarte => ({ ligne: raison, signal: MISE_DE_COTE });
 
 // Qui m'attend : ce qu'on attend du chef, en une phrase.
-export const ligneQuiMAttend = (phrase: string | undefined): LigneDeCarte => (phrase === undefined ? { ligne: ATTEND_TA_DECISION, repere: true } : { ligne: phrase });
+export const lineAwaitingMe = (phrase: string | undefined): LigneDeCarte => (phrase === undefined ? { ligne: AWAITS_YOUR_DECISION, repere: true } : { ligne: phrase });
 
 // En WAITING : ce qu'il attend et de qui ; la relance passée est le signal.
 export const ligneEnWaiting = (tiers: { quoi: string; qui: string } | null | undefined, relancePassee: boolean): LigneDeCarte =>

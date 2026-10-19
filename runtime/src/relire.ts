@@ -8,7 +8,7 @@
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
 import { BATTEMENT } from "./events/runtime.ts";
-import { ouvrirJournal } from "./journal.ts";
+import { openLog } from "./log.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
 
 const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run log -- [<ticket number> | --ticks] [--last <N>]";
@@ -35,9 +35,9 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
   const avecTicks = argument === "--ticks";
   if (reste.length > 1 || (argument !== undefined && !avecTicks && !/^[0-9]+$/.test(argument))) echouer(2, USAGE);
 
-  let journal;
+  let log;
   try {
-    journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
+    log = openLog(repertoireEtat, { lectureSeule: true });
   } catch (erreur) {
     echouer(1, erreur instanceof Error ? erreur.message : String(erreur));
   }
@@ -46,15 +46,15 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     const evenements =
       argument === undefined || avecTicks
         ? derniers === undefined
-          ? journal.tout().filter((evenement) => !sauf.includes(evenement.type))
-          : journal.derniers(derniers, sauf)
-        : journal.duTicket(Number(argument)).slice(derniers === undefined ? 0 : -derniers);
+          ? log.tout().filter((evenement) => !sauf.includes(evenement.type))
+          : log.derniers(derniers, sauf)
+        : log.duTicket(Number(argument)).slice(derniers === undefined ? 0 : -derniers);
     if (evenements.length === 0) {
       dire(argument === undefined || avecTicks ? "empty log" : `no event for ticket ${argument}`);
     }
     for (const evenement of evenements) dire(formaterEvenement(evenement));
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }
 

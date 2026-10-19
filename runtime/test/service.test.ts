@@ -78,8 +78,8 @@ describe("le service du projet", { concurrency: 8 }, () => {
 
     // Un projet web reste un projet web.
     const web = await projet(t).preparer("630-web");
-    const servi = serviceDuWorktree(web.worktree, { [VARIABLE_DU_PORT]: "20630" });
-    assert.deepEqual(servi.servable && servi.regard, "navigateur");
+    const served = serviceDuWorktree(web.worktree, { [VARIABLE_DU_PORT]: "20630" });
+    assert.deepEqual(served.servable && served.regard, "navigateur");
   });
 
   test("un projet se sert ou se lance, pas les deux ; un lancement se déclare une fois, et pas vide", () => {
@@ -116,10 +116,10 @@ describe("le service du projet", { concurrency: 8 }, () => {
     const base = await depot.preparer("19-base");
     livrer(base.worktree, "site/index.html");
     git(base.worktree, "push", "-q", "origin", `HEAD:${BASE}`);
-    const rangement = await depot.preparer("20-rangement");
-    git(rangement.worktree, "mv", "site/index.html", "archives.html");
-    git(rangement.worktree, "commit", "-q", "-m", "range la page");
-    assert.deepEqual(toucheInterface(interfaceDe(rangement.worktree), depot.changes(rangement.branche)), ["site/index.html"]);
+    const cleanup = await depot.preparer("20-rangement");
+    git(cleanup.worktree, "mv", "site/index.html", "archives.html");
+    git(cleanup.worktree, "commit", "-q", "-m", "range la page");
+    assert.deepEqual(toucheInterface(interfaceDe(cleanup.worktree), depot.changes(cleanup.branche)), ["site/index.html"]);
   });
 
   test("un projet sans déclaration le dit — « ce projet ne déclare pas comment il est servi » —, aussitôt et sans lever", async (t) => {

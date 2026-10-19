@@ -21,16 +21,16 @@
 import { existsSync } from "node:fs";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
-import { EFFORTS, MODELES } from "./calibrage.ts";
+import { EFFORTS, MODELES } from "./calibration.ts";
 import { decisionsPosees, poserDecision, retirerDecision, type Decision } from "./decisions.ts";
-import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
+import { logPath, openLog, type Log } from "./log.ts";
 import { reglagesEnVigueur } from "./closing/condition.ts";
 import { direReglagesEn } from "./closing/say.ts";
-import { journalPasRejoue } from "./journal-pas-rejoue.ts";
+import { logNotReplayed } from "./log-not-replayed.ts";
 import { direConsommationEn, NOTE_CONSOMMATION_EN } from "./etat.ts";
 import { direSaturationEn } from "./machine.ts";
 import { consommation } from "./projections/guardrails.ts";
-import { direCommentLeVoirEn, direEtatDeServeurEn, direPageEn, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus } from "./projections/service.ts";
+import { direCommentLeVoirEn, sayServerStateEn, direPageEn, direServiceIndisponible, runningServers, servicesIndisponibles, worktreesTenus } from "./projections/service.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { FORME, GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { direOrdinairesEn } from "./bac-a-sable/ordinaires.ts";
@@ -38,10 +38,10 @@ import { sessionEnCours } from "./projections/sessions.ts";
 import {
   cooksDeStation,
   cooksEnCoursDeStation,
-  direConnexionTombeeEn,
+  sayDroppedConnectionEn,
   direRetenueDeStationEn,
   etatStation,
-  plafondDeCooks,
+  cooksCap,
   sansStationDepuis,
   stationsAnnoncees,
   type CookDeStation,
@@ -109,27 +109,27 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     interrupted: "interrupted (runtime stopped)",
   };
 
-  const calibrage = (cook: CookDeStation) => `${cook.model ?? "?"} / ${cook.effort ?? "?"}`;
+  const calibration = (cook: CookDeStation) => `${cook.model ?? "?"} / ${cook.effort ?? "?"}`;
 
   function decrire(cook: CookDeStation): string {
-    const consomme =
+    const consumed =
       cook.turns === null ? null : [pluriel(cook.turns, "turn"), `${nombre(cook.tokens ?? 0)} tokens`, duree(cook.durationMs ?? 0)].join(" · ");
-    return [cook.endedAt, `#${cook.ticket}`, cook.run, calibrage(cook), FINS[cook.ending ?? ""] ?? cook.ending, consomme, cook.pr]
+    return [cook.endedAt, `#${cook.ticket}`, cook.run, calibration(cook), FINS[cook.ending ?? ""] ?? cook.ending, consumed, cook.pr]
       .filter((champ) => champ !== null)
       .join("  ");
   }
 
-  const direPlafond = (plafond: number | null) => (plafond === null ? "no limit" : `${plafond} at most`);
+  const sayCap = (cap: number | null) => (cap === null ? "no limit" : `${cap} at most`);
 
-  function decrirePlafond(etat: EtatStation): string {
+  function describeCap(etat: EtatStation): string {
     const regle = etat.cap === null ? "the default: the chef has set nothing" : "set by the chef";
-    return `${direPlafond(plafondDeCooks(etat))} (${regle}) — \`station -- cooks <N>\` to change it, 0 for no limit`;
+    return `${sayCap(cooksCap(etat))} (${regle}) — \`station -- cooks <N>\` to change it, 0 for no limit`;
   }
 
   // Écrit le plafond du chef s'il change quelque chose, et dit ce qu'il en est.
   // Vérifier et écrire tiennent dans une seule transaction.
-  function plafonner(journal: Journal, maxCooks: number): string {
-    const { base } = journal;
+  function plafonner(log: Log, maxCooks: number): string {
+    const { base } = log;
     return base.transaction(() => {
       const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
       if (!projet) echouer(1, "empty log: the runtime has never started on this state directory");
@@ -139,53 +139,53 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
       return stations
         .map((station) => {
           const etat = etatStation(base, station);
-          if (etat?.cap === maxCooks) return `${station}: cap already set — ${direPlafond(plafondDeCooks(etat))}`;
-          const avant = etat ? direPlafond(plafondDeCooks(etat)) : "unknown";
-          journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "station.capped", payload: { station, maxCooks } });
-          const apres = direPlafond(maxCooks === 0 ? null : maxCooks);
+          if (etat?.cap === maxCooks) return `${station}: cap already set — ${sayCap(cooksCap(etat))}`;
+          const avant = etat ? sayCap(cooksCap(etat)) : "unknown";
+          log.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "station.capped", payload: { station, maxCooks } });
+          const apres = sayCap(maxCooks === 0 ? null : maxCooks);
           return `${station}: simultaneous cooks, ${apres} (was: ${avant}) — no running cook is stopped, the station launches no more while it is above${absent}`;
         })
         .join("\n");
     });
   }
 
-  const projetDuJournal = (journal: Journal): string =>
-    journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ??
+  const logProject = (log: Log): string =>
+    log.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ??
     (env.BRIGADE_PROJECT || undefined) ??
     echouer(1, "empty log: the runtime has never started on this state directory");
-  const sansRuntime = (journal: Journal) => (sessionEnCours(journal.base) ? "" : " (no runtime is running: the decision will hold at its next start)");
+  const sansRuntime = (log: Log) => (sessionEnCours(log.base) ? "" : " (no runtime is running: the decision will hold at its next start)");
 
   // Pose la décision du chef si elle change quelque chose, et dit ce qu'il en
   // est. Une valeur que le runtime ne lirait pas est refusée avec ce qui était
   // attendu, et rien n'est écrit. Ce qu'elle remplace se lit dans le fait
   // écrit, pris dans la même transaction que l'écriture.
-  function decider(journal: Journal, nom: string, valeur: string): string {
+  function decider(log: Log, nom: string, valeur: string): string {
     const { decision, attendu } = GESTES[nom] as (typeof GESTES)[string];
-    const projet = projetDuJournal(journal);
+    const projet = logProject(log);
     let fait;
     try {
-      fait = poserDecision(journal, { projet, nom: decision, valeur, auteur: AUTEUR });
+      fait = poserDecision(log, { projet, nom: decision, valeur, auteur: AUTEUR });
     } catch (erreur) {
       if (!(erreur instanceof ConfigInvalide)) throw erreur;
       echouer(2, `${nom} refused, nothing is written — ${erreur.message}\nusage: \`station -- ${geste(nom)}\` — ${attendu}`);
     }
     if (fait?.type !== "decision.set") return `${nom}: already set — ${valeur.trim()}; nothing is written`;
     const { value, previous } = fait.payload;
-    return `${nom}: ${value} (was: ${previous ?? "not set"}) — ${LU}${sansRuntime(journal)}`;
+    return `${nom}: ${value} (was: ${previous ?? "not set"}) — ${LU}${sansRuntime(log)}`;
   }
 
   // Retire la décision du chef : le journal n'en porte plus rien, et aucune
   // variable d'environnement n'y supplée.
-  function retirer(journal: Journal, nom: string): string {
+  function retirer(log: Log, nom: string): string {
     const { decision } = GESTES[nom] as (typeof GESTES)[string];
-    const fait = retirerDecision(journal, { projet: projetDuJournal(journal), nom: decision, auteur: AUTEUR });
+    const fait = retirerDecision(log, { projet: logProject(log), nom: decision, auteur: AUTEUR });
     if (fait?.type !== "decision.withdrawn") return `${nom}: not set, nothing is written`;
-    return `${nom}: withdrawn (was: ${fait.payload.previous}) — it is no longer decided: the runtime keeps to what it read, no running cook is stopped; ${decision} is only read from the log${sansRuntime(journal)}`;
+    return `${nom}: withdrawn (was: ${fait.payload.previous}) — it is no longer decided: the runtime keeps to what it read, no running cook is stopped; ${decision} is only read from the log${sansRuntime(log)}`;
   }
 
   // Les décisions du chef, posées ou non : le journal en est le seul support.
-  function montrerDecisions(journal: Journal): void {
-    const posees = decisionsPosees(journal.base);
+  function montrerDecisions(log: Log): void {
+    const posees = decisionsPosees(log.base);
     ligne("chef's decisions", "`station -- <geste> <valeur>` to set one, `station -- help` for the settings");
     for (const [nom, { decision }] of Object.entries(GESTES)) {
       const posee = posees[decision];
@@ -193,16 +193,16 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     }
     // Ce que la passe de fermeture vaut en ce moment, plafonds compris : tel
     // que le runtime les a notés, défauts et environnement compris.
-    const closer = reglagesEnVigueur(journal);
+    const closer = reglagesEnVigueur(log);
     ligne("closer in force", closer === null ? "no runtime has noted it yet — not set, no pass writes" : direReglagesEn(closer));
   }
 
-  function montrer(journal: Journal, station: string): void {
-    const { base } = journal;
+  function montrer(log: Log, station: string): void {
+    const { base } = log;
     const etat = etatStation(base, station);
     if (!etat) return;
     ligne("station", `${etat.station} — engine ${etat.engine}, provides: ${etat.provides.join(", ")}`);
-    ligne("simultaneous cooks", decrirePlafond(etat));
+    ligne("simultaneous cooks", describeCap(etat));
     const { saturatedAt, saturatedResource: resource, saturatedObserved: observed, saturatedLimit: limit } = etat;
     // Une station distante ne tourne pas sur cette machine : ce qui se lit
     // d'elle, c'est si elle s'est manifestée.
@@ -226,7 +226,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
       "Max connection",
       etat.disconnectedAt === null
         ? "taken as good"
-        : direConnexionTombeeEn(etat),
+        : sayDroppedConnectionEn(etat),
     );
     ligne(
       "quota",
@@ -247,13 +247,13 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     // Tous ceux qui tournent, quel que soit leur nombre : c'est ce que le plafond borne.
     const enCours = cooksEnCoursDeStation(base, station);
     ligne("cooks running", enCours.length === 0 ? "none" : String(enCours.length));
-    for (const cook of enCours) dire(`  #${cook.ticket}  ${cook.run}  ${calibrage(cook)}  launched on ${cook.launchedAt}  ${cook.branch}`);
+    for (const cook of enCours) dire(`  #${cook.ticket}  ${cook.run}  ${calibration(cook)}  launched on ${cook.launchedAt}  ${cook.branch}`);
     // Ce qui est allumé : une livraison d'interface servie depuis son worktree,
     // sur le port de ce worktree. Sans serveur, il n'y a rien à lister.
-    const serveurs = serveursEnCours(base, station);
-    ligne("servers", serveurs.length === 0 ? "none" : `${serveurs.length} — each serves an interface delivery from its worktree, on that worktree's port`);
-    for (const serveur of serveurs) {
-      dire(`  #${serveur.ticket}  ${serveur.worktree}  port ${serveur.port}  ${direEtatDeServeurEn(serveur.state)} since ${serveur.since}  ${serveur.branch}  ${direPageEn(serveur)}`);
+    const servers = runningServers(base, station);
+    ligne("servers", servers.length === 0 ? "none" : `${servers.length} — each serves an interface delivery from its worktree, on that worktree's port`);
+    for (const server of servers) {
+      dire(`  #${server.ticket}  ${server.worktree}  port ${server.port}  ${sayServerStateEn(server.state)} since ${server.since}  ${server.branch}  ${direPageEn(server)}`);
     }
     // Une app qui ne s'ouvre pas dans un navigateur n'a pas de serveur : le
     // worktree de sa livraison est tenu, et la ligne dit comment la voir.
@@ -277,58 +277,58 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     dire(USAGE);
     return;
   }
-  const plafond = commande === "cooks";
+  const cap = commande === "cooks";
   const decision = commande !== undefined && Object.hasOwn(GESTES, commande);
   const retrait = commande === "remove";
   if (decision && args.length !== 2) echouer(2, `${commande} expects one value, and only one — \`station -- ${geste(commande)}\`: ${GESTES[commande]?.attendu}`);
   if (retrait && (args.length !== 2 || !Object.hasOwn(GESTES, valeur ?? ""))) echouer(2, `remove expects a decision setting — ${Object.keys(GESTES).join(", ")}`);
-  if (plafond ? args.length !== 2 || !/^(0|[1-9][0-9]{0,5})$/.test(valeur ?? "") : !decision && !retrait && args.length > 0) echouer(2, USAGE);
-  const regler = plafond || decision || retrait;
+  if (cap ? args.length !== 2 || !/^(0|[1-9][0-9]{0,5})$/.test(valeur ?? "") : !decision && !retrait && args.length > 0) echouer(2, USAGE);
+  const regler = cap || decision || retrait;
   // Un réglage ouvre le journal en écriture : sans ce contrôle, il en créerait
   // un là où il n'y en a pas. Une décision est la seule à le faire : un projet
   // neuf n'a pas démarré, et son runtime ne démarre qu'avec elles — le journal
   // naît alors du geste, au nom du projet que l'unité lui donne.
-  if (!existsSync(cheminJournal(repertoireEtat)) && !(decision && env.BRIGADE_PROJECT)) echouer(1, `no log in ${repertoireEtat}`);
+  if (!existsSync(logPath(repertoireEtat)) && !(decision && env.BRIGADE_PROJECT)) echouer(1, `no log in ${repertoireEtat}`);
 
-  let journal;
+  let log;
   try {
-    journal = ouvrirJournal(repertoireEtat, { lectureSeule: !regler });
+    log = openLog(repertoireEtat, { lectureSeule: !regler });
   } catch (erreur) {
     echouer(1, erreur instanceof Error ? erreur.message : String(erreur));
   }
   try {
-    if (plafond) {
-      dire(`brigade : ${plafonner(journal, Number(valeur))}`);
+    if (cap) {
+      dire(`brigade : ${plafonner(log, Number(valeur))}`);
     } else if (decision) {
-      dire(`brigade : ${decider(journal, commande, valeur ?? "")}`);
+      dire(`brigade : ${decider(log, commande, valeur ?? "")}`);
     } else if (retrait) {
-      dire(`brigade : ${retirer(journal, valeur ?? "")}`);
+      dire(`brigade : ${retirer(log, valeur ?? "")}`);
     } else {
-      const stations = stationsAnnoncees(journal.base);
+      const stations = stationsAnnoncees(log.base);
       if (stations.length === 0) {
-        const sans = sansStationDepuis(journal.base);
+        const sans = sansStationDepuis(log.base);
         dire(sans === null ? "no station has announced itself: the runtime has not started with its own yet" : `no station declared since ${sans} — no cook leaves, the tickets stay queued: ${GESTE_DE_STATION_A_CHAUD_EN}`);
       }
-      for (const station of stations) montrer(journal, station);
+      for (const station of stations) montrer(log, station);
       // Tous les lancements du projet, relectures et jugements compris : c'est
       // la fenêtre de 5 h que le chef compare à `/usage`.
       if (stations.length > 0) {
         const depuis = (heures: number) => new Date(Date.now() - heures * HEURE_MS).toISOString();
-        ligne("consumed", `in flight: ${direConsommationEn(consommation(journal.base))}`);
-        for (const heures of [5, 24]) ligne("", `${heures} h: ${direConsommationEn(consommation(journal.base, depuis(heures)))}`);
+        ligne("consumed", `in flight: ${direConsommationEn(consommation(log.base))}`);
+        for (const heures of [5, 24]) ligne("", `${heures} h: ${direConsommationEn(consommation(log.base, depuis(heures)))}`);
         ligne("", NOTE_CONSOMMATION_EN);
       }
-      montrerDecisions(journal);
+      montrerDecisions(log);
     }
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant la station, ni ne leur donne leur forme du jour.
-    if (journalPasRejoue(erreur)) {
+    if (logNotReplayed(erreur)) {
       echouer(1, "this log does not have the stations' state yet: restart the runtime, which recomputes it");
     }
     throw erreur;
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }
 

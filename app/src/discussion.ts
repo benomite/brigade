@@ -4,7 +4,7 @@
 // Et le commentaire que le chef y ajoute : `pass <ticket> comment <texte>`, sur la box du projet,
 // au clic et seulement au clic. Aucun LLM, aucune reformulation : le texte part tel qu'il est
 // écrit, sous le `gh` du compte du service de la box. La commande se compose ici, jamais dans la vue.
-import { echecDe, type Rendu, type Servi } from "./box.ts";
+import { echecDe, type Rendu, type Served } from "./box.ts";
 import type { Projet } from "./config.ts";
 import { instant } from "./histoire.ts";
 import { liensDe, rendre, type Bloc } from "./markdown.ts";
@@ -99,7 +99,7 @@ export function demandeRendue({ lance, erreur, sortie, erreurs }: Rendu, delaiMs
 }
 
 // Ce qui lance une commande sur la box du projet, et ce qu'elle a rendu (box.ts, `lancerGeste`).
-export type Lancer = (servi: Servi, commande: string) => Promise<Rendu>;
+export type Lancer = (served: Served, commande: string) => Promise<Rendu>;
 
 // La discussion de ce ticket, lue sur la box de ce projet.
 export async function lireDiscussion(lancer: Lancer, projet: Projet, ticket: unknown, delaiMs: number): Promise<Discussion> {

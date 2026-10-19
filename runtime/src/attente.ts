@@ -18,7 +18,7 @@ import { NOUVEAU_SUR_L_ISSUE, PAR_LE_CHEF, REVENU_D_ATTENTE } from "./events/rai
 import { geste } from "./geste.ts";
 import type { GitHub } from "./github.ts";
 import { dateLocale, direInstant, direInstantEn, dureeTapee } from "./grant.ts";
-import type { Journal } from "./journal.ts";
+import type { Log } from "./log.ts";
 import { DE_LA_BRIGADE } from "./reviewer.ts";
 import { commentairesEntendus, direALArrivee, direALArriveeEn, lireRail, marquesDAttente, texteDeMarque, ticketDuRail, type AttenteDeTiers, type TicketRail } from "./projections/rail.ts";
 import { GesteRefuse, nomEtat, nomEtatEn } from "./rail.ts";
@@ -33,7 +33,7 @@ const AUTEUR = "chef";
 
 // Ce que le chef dit en mettant un ticket en attente. `relance` : quand y
 // revenir — dans sept jours, sans elle.
-export type MiseEnAttente = { quoi: string; qui: string; relance?: Date };
+export type Queuing = { quoi: string; qui: string; relance?: Date };
 
 // Pourquoi un ticket ne peut pas attendre un tiers, d'après son état : seul un
 // ticket que la cuisine ne tient pas le peut — en attente sur le rail, ou mis
@@ -65,47 +65,47 @@ export function lireRelance(valeur: string, maintenant: Date): Date {
 
 // Met le ticket en WAITING — ou, s'il y est déjà, met à jour ce qu'il attend,
 // sans changer depuis quand. Rend le ticket tel que le rail le relit.
-export function mettreEnAttente(journal: Journal, projet: string, ticket: number, { quoi, qui, relance }: MiseEnAttente, maintenant = new Date()): TicketRail {
+export function putInQueue(log: Log, projet: string, ticket: number, { quoi, qui, relance }: Queuing, maintenant = new Date()): TicketRail {
   const what = quoi.trim();
   const who = qui.trim();
   if (what === "") throw new GesteRefuse("a ticket does not wait without saying what: what it waits for, in your words");
   if (who === "") throw new GesteRefuse("a ticket does not wait without saying who: the client, a team, a person");
   const followUp = relance ?? new Date(maintenant.getTime() + RELANCE_PAR_DEFAUT_MS);
   if (Number.isNaN(followUp.getTime()) || followUp.getTime() <= maintenant.getTime()) throw new GesteRefuse("the follow-up has already passed — a follow-up is in the future");
-  return journal.base.transaction(() => {
-    const trouve = ticketDuRail(journal.base, ticket);
+  return log.base.transaction(() => {
+    const trouve = ticketDuRail(log.base, ticket);
     if (trouve === null) throw new GesteRefuse(`ticket ${ticket} is not on the rail — only a ticket on the rail waits for a third party`);
     const tenu = TENUS[trouve.state];
     if (tenu !== undefined) throw new GesteRefuse(`ticket ${ticket} is ${tenu}`);
-    journal.ajouter({ project: projet, ticket, author: AUTEUR, type: "ticket.waiting", payload: { what, who, followUp: followUp.toISOString() } });
-    return ticketDuRail(journal.base, ticket) as TicketRail;
+    log.ajouter({ project: projet, ticket, author: AUTEUR, type: "ticket.waiting", payload: { what, who, followUp: followUp.toISOString() } });
+    return ticketDuRail(log.base, ticket) as TicketRail;
   });
 }
 
 // WAITING → TODO : le ticket revient devant le chef, tout de suite — dans
 // l'état où il était avant d'attendre s'il était mis de côté, sinon mis de
 // côté pour lui.
-export function reprendre(journal: Journal, projet: string, ticket: number): TicketRail {
-  return journal.base.transaction(() => {
-    exigerWaiting(journal, ticket);
-    journal.ajouter({ project: projet, ticket, author: AUTEUR, type: "ticket.resumed", payload: { to: "todo", why: PAR_LE_CHEF } });
-    return ticketDuRail(journal.base, ticket) as TicketRail;
+export function reprendre(log: Log, projet: string, ticket: number): TicketRail {
+  return log.base.transaction(() => {
+    exigerWaiting(log, ticket);
+    log.ajouter({ project: projet, ticket, author: AUTEUR, type: "ticket.resumed", payload: { to: "todo", why: PAR_LE_CHEF } });
+    return ticketDuRail(log.base, ticket) as TicketRail;
   });
 }
 
 // « C'est arrivé, on repart » : le ticket repart en cuisine sans repasser par
 // TODO — de WAITING, ou revenu de WAITING devant le chef.
-export function cestArrive(journal: Journal, projet: string, ticket: number): TicketRail {
-  return journal.base.transaction(() => {
-    const trouve = ticketDuRail(journal.base, ticket);
-    if (!(trouve?.state === "86" && trouve.reason === REVENU_D_ATTENTE)) exigerWaiting(journal, ticket);
-    journal.ajouter({ project: projet, ticket, author: AUTEUR, type: "ticket.resumed", payload: { to: "kitchen", why: PAR_LE_CHEF } });
-    return ticketDuRail(journal.base, ticket) as TicketRail;
+export function cestArrive(log: Log, projet: string, ticket: number): TicketRail {
+  return log.base.transaction(() => {
+    const trouve = ticketDuRail(log.base, ticket);
+    if (!(trouve?.state === "86" && trouve.reason === REVENU_D_ATTENTE)) exigerWaiting(log, ticket);
+    log.ajouter({ project: projet, ticket, author: AUTEUR, type: "ticket.resumed", payload: { to: "kitchen", why: PAR_LE_CHEF } });
+    return ticketDuRail(log.base, ticket) as TicketRail;
   });
 }
 
-function exigerWaiting(journal: Journal, ticket: number): void {
-  const trouve = ticketDuRail(journal.base, ticket);
+function exigerWaiting(log: Log, ticket: number): void {
+  const trouve = ticketDuRail(log.base, ticket);
   if (trouve === null) throw new GesteRefuse(`ticket ${ticket} is not on the rail`);
   if (trouve.waitingFor === null) throw new GesteRefuse(`ticket ${ticket} is not waiting for a third party — it is ${trouve.state === "86" ? "set aside (86)" : nomEtatEn(trouve.state)}`);
 }
@@ -119,8 +119,8 @@ export function direAttenteDeTiers(attente: AttenteDeTiers, depuis: (instant: st
 // La même, en anglais : la ligne du ticket dans `status`.
 export function direAttenteDeTiersEn(attente: AttenteDeTiers, depuis: (instant: string) => string): string {
   // `onArrival` se lit en français sur le rail (et dans `facts`) : sa forme anglaise est recalculée.
-  const livraison = ["open", null].find((delivery) => direALArrivee(delivery) === attente.onArrival);
-  const alArrivee = livraison === undefined ? attente.onArrival : direALArriveeEn(livraison);
+  const delivery = ["open", null].find((delivery) => direALArrivee(delivery) === attente.onArrival);
+  const alArrivee = delivery === undefined ? attente.onArrival : direALArriveeEn(delivery);
   return `awaiting ${attente.who}: “${attente.what}” — since ${depuis(attente.since)}, follow-up on ${direInstantEn(attente.followUp)} — on arrival, ${alArrivee}`;
 }
 
@@ -163,10 +163,10 @@ export const deLaBrigade = (corps: string): boolean => DE_LA_BRIGADE_SUR_L_ISSUE
 // dont l'issue en porte davantage revient devant le chef, motif « nouveau sur
 // l'issue ». Un échec de GitHub se rattrape au réveil suivant. Rend le nombre
 // de tickets ramenés.
-export async function ramenerSurNouveau(journal: Journal, github: GitHub, projet: string): Promise<number> {
-  const entendus = commentairesEntendus(journal.base);
+export async function ramenerSurNouveau(log: Log, github: GitHub, projet: string): Promise<number> {
+  const entendus = commentairesEntendus(log.base);
   let ramenes = 0;
-  for (const lu of lireRail(journal.base)) {
+  for (const lu of lireRail(log.base)) {
     const vus = entendus.get(lu.ticket);
     if (lu.waitingFor === null || vus === undefined) continue;
     try {
@@ -175,10 +175,10 @@ export async function ramenerSurNouveau(journal: Journal, github: GitHub, projet
       // De qui : les auteurs de ce qui est arrivé depuis la mise en attente.
       const auteurs = [...new Set(autres.slice(vus).map((commentaire) => commentaire.author).filter((auteur) => auteur !== ""))];
       const motif = auteurs.length === 0 ? NOUVEAU_SUR_L_ISSUE : `${NOUVEAU_SUR_L_ISSUE} — de ${auteurs.join(", ")}`;
-      journal.base.transaction(() => {
+      log.base.transaction(() => {
         // Relu : le chef a pu le reprendre pendant que GitHub répondait.
-        if (ticketDuRail(journal.base, lu.ticket)?.waitingFor == null) return;
-        journal.ajouter({ project: projet, ticket: lu.ticket, author: "runtime", type: "ticket.resumed", payload: { to: "todo", why: motif } });
+        if (ticketDuRail(log.base, lu.ticket)?.waitingFor == null) return;
+        log.ajouter({ project: projet, ticket: lu.ticket, author: "runtime", type: "ticket.resumed", payload: { to: "todo", why: motif } });
         ramenes++;
       });
     } catch (erreur) {
@@ -193,9 +193,9 @@ export async function ramenerSurNouveau(journal: Journal, github: GitHub, projet
 // le label retiré et un commentaire à la sortie. Ce qui est posé s'écrit au
 // journal (`waiting.marked`) : rien n'est redit. Un échec de GitHub se
 // rattrape au réveil suivant. Rend le nombre d'issues mises à jour.
-export async function marquerAttentes(journal: Journal, github: GitHub, projet: string): Promise<number> {
+export async function marquerAttentes(log: Log, github: GitHub, projet: string): Promise<number> {
   let faites = 0;
-  for (const { ticket, marked, waiting } of marquesDAttente(journal.base)) {
+  for (const { ticket, marked, waiting } of marquesDAttente(log.base)) {
     if (texteDeMarque(marked) === texteDeMarque(waiting)) continue;
     try {
       if (waiting !== null) {
@@ -203,7 +203,7 @@ export async function marquerAttentes(journal: Journal, github: GitHub, projet: 
         await github.commenter(ticket, direMarque(ticket, waiting, marked !== null));
       } else if (marked !== null) {
         await github.delabelliser(ticket, LABEL_WAITING);
-        const surLeRail = ticketDuRail(journal.base, ticket);
+        const surLeRail = ticketDuRail(log.base, ticket);
         // Parti du rail, l'issue est fermée, n'a plus `fire` ou n'existe plus :
         // le label suffit, rien ne se commente.
         if (surLeRail !== null) await github.commenter(ticket, direLevee(surLeRail, marked));
@@ -211,7 +211,7 @@ export async function marquerAttentes(journal: Journal, github: GitHub, projet: 
       // Ce que l'issue porte de hors brigade à cette pose — trace comprise,
       // qui n'en est pas — est ce que le ticket a déjà entendu.
       const heard = waiting !== null && marked === null ? (await github.commentaires(ticket)).filter((commentaire) => !deLaBrigade(commentaire.body)).length : undefined;
-      journal.ajouter({
+      log.ajouter({
         project: projet,
         ticket,
         author: "runtime",

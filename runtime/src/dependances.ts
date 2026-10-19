@@ -2,7 +2,7 @@
 // rail : nommer un cycle au moment où une fiche le crée, et avertir le chef
 // qu'un ticket est bloqué par l'abandon de celui qu'il attendait.
 import type { GitHub } from "./github.ts";
-import type { Journal } from "./journal.ts";
+import type { Log } from "./log.ts";
 import { orphelines } from "./projections/pass.ts";
 import { lireRail } from "./projections/rail.ts";
 import { nomAbandon, retenue } from "./rail.ts";
@@ -47,16 +47,16 @@ export function direCycle(cycle: number[]): string {
 // sur GitHub n'est pas encore dit abandonné : mergée à la main juste avant,
 // elle le sert. Le sondage suivant le dira s'il l'est.
 // Rend le nombre de tickets signalés.
-export async function signalerBlocages(journal: Journal, github: GitHub, projet: string): Promise<number> {
-  const nouveaux = journal.base.transaction(() => {
-    const aRelire = new Set(orphelines(journal.base).map((orpheline) => orpheline.ticket));
-    return lireRail(journal.base).flatMap((ticket) => {
+export async function signalerBlocages(log: Log, github: GitHub, projet: string): Promise<number> {
+  const nouveaux = log.base.transaction(() => {
+    const aRelire = new Set(orphelines(log.base).map((orpheline) => orpheline.ticket));
+    return lireRail(log.base).flatMap((ticket) => {
       if (retenue(ticket) !== "bloque") return [];
       const abandons = ticket.awaits.filter(
         ({ ticket: attendu, left }) =>
           left !== null &&
           !aRelire.has(attendu) &&
-          journal.ajouter({
+          log.ajouter({
             project: projet,
             ticket: ticket.ticket,
             author: "runtime",

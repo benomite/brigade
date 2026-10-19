@@ -2,13 +2,13 @@
 // tickets en cours dans Taken, #14 sur la box, #15 sur le Mac. Ce que la box rend de plus que la
 // cuisine figée : le cook de #15 sur `mac/claude`, sa ligne sous `rail`, et les stations du projet —
 // `facts` dit laquelle est distante, d'où la carte tire « cooks on ».
-import type { Faits } from "../../../app/src/faits.ts";
+import type { Facts } from "../../../app/src/facts.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const PARADE = RENDUS.parade as Rendu;
 const TITRE = "La carte des desserts";
-const FACTS: Faits = {
+const FACTS: Facts = {
   ...PARADE.facts,
   compteurs: { ...PARADE.facts.compteurs, auTravail: 2 },
   rail: [

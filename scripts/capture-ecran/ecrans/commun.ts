@@ -1,18 +1,18 @@
 // Ce que les écrans partagent : la forme d'un écran, le démarrage de la vue tel que main.ts le
 // rend, et une cuisine figée — ce que des box rendraient, passé par les modules du process
-// principal tels qu'ils sont (faits.ts, attend.ts, alertes.ts). Un écran n'écrit donc que ce
+// principal tels qu'ils sont (facts.ts, awaiting.ts, alertes.ts). Un écran n'écrit donc que ce
 // qu'une box dit, mot pour mot ; ce que la vue en reçoit est calculé par le code de l'app.
 import { tenirBandes } from "../../../app/src/alertes.ts";
 import { ALLUMAGE } from "../../../app/src/allumage.ts";
-import { mettreAPart } from "../../../app/src/attend.ts";
+import { mettreAPart } from "../../../app/src/awaiting.ts";
 import { pourLaBarre } from "../../../app/src/barre.ts";
 import { BOUTONS } from "../../../app/src/boutons.ts";
 import type { Lecture } from "../../../app/src/box.ts";
 import { type Configuration, EXEMPLE, type Projet } from "../../../app/src/config.ts";
 import { PALETTE } from "../../../app/src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../../../app/src/cuisine.ts";
+import { KITCHEN_ACTIONS } from "../../../app/src/kitchen.ts";
 import { GESTES_D_ATTENTE } from "../../../app/src/attente.ts";
-import { BANNIERE, type Carte, type Faits, tenirFaits } from "../../../app/src/faits.ts";
+import { BANNIERE, type Carte, type Facts, holdFacts } from "../../../app/src/facts.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../../../app/src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../../app/src/grants.ts";
 import { EFFORTS, MODELES } from "../../../app/src/installation.ts";
@@ -70,7 +70,7 @@ export function demarrage(projets: Configuration) {
     onglets: ONGLETS,
     rubriques: RUBRIQUES,
     boutons: BOUTONS,
-    gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE },
+    gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE },
     banniere: BANNIERE,
     calibrage: { modeles: MODELES, efforts: EFFORTS },
     code: CODE,
@@ -81,13 +81,13 @@ export function demarrage(projets: Configuration) {
 
 // Ce qu'une box rend d'un projet : `facts`, `status` et `station`, mot pour mot — et `manager`,
 // que l'app lit elle-même pour chaque projet (main.ts, la veille du manager) : absent, il n'est pas lu.
-export type Rendu = { facts: Faits; status: string; station: string; manager?: string };
+export type Rendu = { facts: Facts; status: string; station: string; manager?: string };
 
 // Les envois d'une cuisine figée, dans l'ordre où main.ts les fait : la barre posée, `facts` de
 // chaque projet, puis `manager` de ceux qui le rendent ; « Tous les projets », `status` et `station` de
 // chacun ; un espace ouvert, le `status` de son projet. Chaque lecture passe par les modules de l'app, comme dans main.ts.
 export function cuisine(rendus: Record<string, Rendu>): Required<Pick<Donnees["envois"], "faits" | "tous" | "regarder">> {
-  const faits = tenirFaits();
+  const faits = holdFacts();
   const bandes = tenirBandes({ maintenant: () => Date.parse(MAINTENANT) });
   const lecture = (projet: string, sorties: Record<string, string>): Lecture => ({ projet, demande: 0, a: MAINTENANT, sorties: Object.entries(sorties).map(([commande, texte]) => ({ commande, texte })) });
   const projets = Object.keys(rendus);
@@ -118,7 +118,7 @@ export function cuisine(rendus: Record<string, Rendu>): Required<Pick<Donnees["e
 // La carte d'un ticket telle que la vue la reçoit sur le rail du projet, `facts` puis `status` lus —
 // pour calculer, par les modules de l'app, ce que sa fiche demande au pont.
 export function carteDe(rendu: Rendu, projet: string, ticket: number): Carte {
-  const faits = tenirFaits();
+  const faits = holdFacts();
   const lecture = (sorties: Record<string, string>): Lecture => ({ projet, demande: 0, a: MAINTENANT, sorties: Object.entries(sorties).map(([commande, texte]) => ({ commande, texte })) });
   faits.recevoir(lecture({ facts: JSON.stringify(rendu.facts) }));
   const recue = faits.attendre(mettreAPart(lecture({ status: rendu.status })));

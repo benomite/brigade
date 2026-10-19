@@ -29,10 +29,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 // Ce que `claude` affiche sous sa saisie quand elle est en mode shell.
-export const PREUVE = "! for shell mode";
+export const PROOF = "! for shell mode";
 
 // Le fichier où le second écrit ses tours, une ligne par crochet.
-export type Tours = { chemin: string; lire(): string; vider(): void };
+export type Turns = { chemin: string; lire(): string; vider(): void };
 
 const TOUR = "tour";
 const FIN = "fin";
@@ -45,10 +45,10 @@ export function reglages(chemin: string): string {
 }
 
 // Les fichiers des tours, un par second, dans un dossier temporaire que l'app retire en fermant.
-export function ouvrirTours(racine: string = tmpdir()) {
+export function openTurns(racine: string = tmpdir()) {
   const dossier = mkdtempSync(join(racine, "brigade-app-"));
   return {
-    de(id: number): Tours {
+    de(id: number): Turns {
       const chemin = join(dossier, `second-${id}.tours`);
       return {
         chemin,
@@ -96,7 +96,7 @@ const auTravail = (titre: string | undefined) => titre !== undefined && TRAVAIL.
 const REPONSES = /^(?:\x1b\[[IO]|\x1b\[[?>]?[\d;]*(?:[Rcnt]|\$y)|\x1b\[\?[\d;]*u|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1bP[^\x1b]*\x1b\\)+$/;
 
 // `lireTours` : ce que le second a écrit de ses tours depuis son lancement.
-export function suivreSaisie(lireTours: () => string) {
+export function suivreSaisie(readTurns: () => string) {
   let titre: string | undefined;
   let reste = "";
   // Qui a laissé la saisie entamée : le chef, par une touche qui n'est pas Entrée ; l'app, par un texte écrit sans l'envoyer.
@@ -104,17 +104,17 @@ export function suivreSaisie(lireTours: () => string) {
   // L'app a fait Entrée, et `claude` ne s'est pas encore montré au travail : les tours qu'il avait dits jusque-là.
   let route: number | undefined;
   // L'app a écrit une commande, et attend la preuve du mode shell : ce qui est sorti depuis, et qui prévenir.
-  let attente: { vu: string; surIssue(preuve: boolean): void } | undefined;
+  let attente: { vu: string; surIssue(proof: boolean): void } | undefined;
 
-  const tours = () => lireTours().trimEnd().split("\n");
+  const turns = () => readTurns().trimEnd().split("\n");
 
-  function conclure(preuve: boolean): void {
+  function conclure(proof: boolean): void {
     const attendue = attente;
     if (attendue === undefined) return;
     attente = undefined;
     // Sans preuve, la commande est quelque part dans ce que le second montre : sa saisie n'est plus dite vide.
-    if (!preuve) entamee ??= "app";
-    attendue.surIssue(preuve);
+    if (!proof) entamee ??= "app";
+    attendue.surIssue(proof);
   }
 
   return {
@@ -129,7 +129,7 @@ export function suivreSaisie(lireTours: () => string) {
       reste = TITRE_OUVERT.exec(lu.slice(-512))?.[0] ?? "";
       if (attente === undefined) return;
       attente.vu = (attente.vu + donnees).slice(-4096);
-      if (attente.vu.includes(PREUVE)) conclure(true);
+      if (attente.vu.includes(PROOF)) conclure(true);
     },
 
     // Ce que la vue écrit dans le second : les touches du chef — et les réponses de son terminal, qui n'en sont pas.
@@ -147,7 +147,7 @@ export function suivreSaisie(lireTours: () => string) {
     },
 
     // L'app va écrire une commande `!…`, sans Entrée : `surIssue` dit si `claude` s'est montré en mode shell.
-    ecrit(surIssue: (preuve: boolean) => void): void {
+    ecrit(surIssue: (proof: boolean) => void): void {
       attente = { vu: "", surIssue };
     },
 
@@ -156,11 +156,11 @@ export function suivreSaisie(lireTours: () => string) {
 
     // L'app a fait Entrée sur sa commande.
     parti(): void {
-      route = tours().length;
+      route = turns().length;
     },
 
     etat(): Etat {
-      const dits = tours();
+      const dits = turns();
       const dernier = dits.at(-1);
       // Un tour s'est dit depuis l'Entrée de l'app : sa commande a tourné, même si le titre n'en a rien montré.
       if (route !== undefined && dits.length > route) route = undefined;

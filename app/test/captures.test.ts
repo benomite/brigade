@@ -13,8 +13,8 @@ import { BOUTONS } from "../src/boutons.ts";
 import { capturesDeCarte, lireAdresse, lireCapture } from "../src/captures.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE, comprendre, tenirFaits, type Carte, type Dessinable, type Faits } from "../src/faits.ts";
+import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
+import { BANNIERE, comprendre, holdFacts, type Carte, type Dessinable, type Facts } from "../src/facts.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
@@ -30,7 +30,7 @@ const COMPLETES = { complet: true, ecrans: [{ ecran: "fiche", avant: adresse("fi
 
 // Ce que la box rend : #30 d'interface en pass, ses deux captures livrées ; #31 d'interface en pass,
 // sans aucune ; #32 en pass, pas d'interface ; #40, d'interface, servi, sa capture après manquante.
-const FAITS: Faits = {
+const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-10-16T10:04:11.000Z",
   dernierTick: "2026-10-16T10:04:02.000Z",
@@ -57,9 +57,9 @@ const FAITS: Faits = {
   ],
 };
 
-const tenir = (faits: Faits = FAITS) => {
-  const tenus = tenirFaits();
-  const recue = tenus.recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
+const tenir = (facts: Facts = FACTS) => {
+  const tenus = holdFacts();
+  const recue = tenus.recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts) }] });
   return { tenus, recue };
 };
 const cartes = (recue: Dessinable): Carte[] => ("tableau" in recue ? recue.tableau.rail.colonnes.flatMap(({ cartes }) => cartes) : assert.fail("pas de tableau"));
@@ -67,12 +67,12 @@ const carteDe = (numero: number, recue = tenir().recue) => cartes(recue).find(({
 
 describe("les captures d'une livraison d'interface, telles que la carte les reçoit", () => {
   test("`facts` les donne par écran : la forme se lit, et un champ de travers la refuse entière", () => {
-    const lus = comprendre(JSON.stringify(FAITS));
+    const lus = comprendre(JSON.stringify(FACTS));
     assert.ok(!("informe" in lus));
     assert.deepEqual(lus.rail[0]?.captures, COMPLETES);
     assert.equal("captures" in (lus.rail[2] ?? {}), false);
     assert.deepEqual(lus.livres?.[0]?.captures?.ecrans[0]?.apres, null);
-    const deTravers = { ...FAITS, rail: [{ ...FAITS.rail[0], captures: { complet: "oui", ecrans: [] } }] };
+    const deTravers = { ...FACTS, rail: [{ ...FACTS.rail[0], captures: { complet: "oui", ecrans: [] } }] };
     assert.deepEqual(comprendre(JSON.stringify(deTravers)), { informe: "“rail[0].captures.complet” is not a boolean" });
   });
 
@@ -91,10 +91,10 @@ describe("les captures d'une livraison d'interface, telles que la carte les reç
   test("une livraison d'interface sans captures, ou à qui il en manque une, est dite incomplète — sur le rail comme dans Served", () => {
     assert.equal(carteDe(31).captures?.incomplete?.ligne, "incomplete delivery: screenshots missing — no screenshot");
     assert.deepEqual(carteDe(31).captures?.ecrans, []);
-    const servie = carteDe(40).captures;
-    assert.equal(servie?.incomplete?.ligne, "incomplete delivery: screenshots missing — the after screenshot of bandeau");
-    assert.match(servie?.incomplete?.detail ?? "", /docs\/captures\/<ticket>\/<screen>-avant\.png and <screen>-apres\.png/);
-    assert.deepEqual([servie?.ecrans[0]?.avant.livree, servie?.ecrans[0]?.apres.livree], [true, false]);
+    const served = carteDe(40).captures;
+    assert.equal(served?.incomplete?.ligne, "incomplete delivery: screenshots missing — the after screenshot of bandeau");
+    assert.match(served?.incomplete?.detail ?? "", /docs\/captures\/<ticket>\/<screen>-avant\.png and <screen>-apres\.png/);
+    assert.deepEqual([served?.ecrans[0]?.avant.livree, served?.ecrans[0]?.apres.livree], [true, false]);
   });
 
   test("un ticket qui n'est pas d'interface n'a pas de captures : aucune zone, pas même vide", () => {
@@ -105,8 +105,8 @@ describe("les captures d'une livraison d'interface, telles que la carte les reç
     const { tenus } = tenir();
     assert.equal(tenus.capture(PARADE, 30, "fiche", "avant"), adresse("fiche-avant.png"));
     assert.equal(tenus.capture(PARADE, 40, "bandeau", "avant"), adresse("bandeau-avant.png"));
-    for (const [ticket, ecran, moment] of [[40, "bandeau", "apres"], [30, "rail", "avant"], [32, "fiche", "avant"], [30, "fiche", "pendant"]] as const) {
-      assert.equal(tenus.capture(PARADE, ticket, ecran, moment), undefined, `${ticket} ${ecran} ${moment}`);
+    for (const [ticket, screen, moment] of [[40, "bandeau", "apres"], [30, "rail", "avant"], [32, "fiche", "avant"], [30, "fiche", "pendant"]] as const) {
+      assert.equal(tenus.capture(PARADE, ticket, screen, moment), undefined, `${ticket} ${screen} ${moment}`);
     }
     assert.equal(tenus.capture("ailleurs", 30, "fiche", "avant"), undefined);
   });
@@ -155,7 +155,7 @@ const demarrage = () => ({
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
   boutons: BOUTONS,
-  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -169,25 +169,25 @@ async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {
   await repos();
   return vue;
 }
-const bonDe = (vue: Jouee, numero: number): Faux =>
+const slipOf = (vue: Jouee, numero: number): Faux =>
   vue.element("rail").dessous("li").find((li) => li.className === "bon" && li.children[0]?.children[0]?.textContent === `#${numero}`) ?? assert.fail(`pas de bon #${numero}`);
 // Chaque paire d'un bon : ses deux figures, chacune son image (ou ce qui en tient la place) et sa légende.
-const paires = (bon: Faux) =>
-  bon.dessous("div").filter((pose) => pose.className === "captures").map((paire) =>
+const paires = (slip: Faux) =>
+  slip.dessous("div").filter((pose) => pose.className === "captures").map((paire) =>
     paire.children.map((figure) => {
       const [image, legende] = figure.children;
       return [figure.dataset.moment, image?.balise === "img" ? (image as unknown as { src: string }).src : image?.textContent, legende?.textContent];
     }),
   );
-const manquantes = (bon: Faux) => bon.dessous("p").filter((pose) => pose.className === "captures-manquantes");
+const manquantes = (slip: Faux) => slip.dessous("p").filter((pose) => pose.className === "captures-manquantes");
 
 describe("la carte d'un ticket d'interface, dans la vue", () => {
   test("ses deux captures se posent côte à côte, lues dès que la carte se pose, sans un clic", async () => {
     const images: Record<string, string> = { avant: "data:image/png;base64,QVZBTlQ=", apres: "data:image/png;base64,QVBSRVM=" };
     const vue = await ouvrir({ lireCapture: (_, __, ___, moment) => ({ image: images[moment] as string }) });
 
-    assert.deepEqual(paires(bonDe(vue, 30)), [[["avant", images.avant, "fiche — before"], ["apres", images.apres, "fiche — after"]]]);
-    assert.deepEqual(manquantes(bonDe(vue, 30)), []);
+    assert.deepEqual(paires(slipOf(vue, 30)), [[["avant", images.avant, "fiche — before"], ["apres", images.apres, "fiche — after"]]]);
+    assert.deepEqual(manquantes(slipOf(vue, 30)), []);
     assert.deepEqual(
       vue.appels.filter(({ geste }) => geste === "lireCapture").map(({ args }) => args),
       [[PARADE, 30, "fiche", "avant"], [PARADE, 30, "fiche", "apres"], [PARADE, 40, "bandeau", "avant"]],
@@ -197,24 +197,24 @@ describe("la carte d'un ticket d'interface, dans la vue", () => {
   test("une livraison incomplète le dit en tête de ses captures, où les poser au survol ; une capture absente garde sa place", async () => {
     const vue = await ouvrir({ lireCapture: () => ({ image: "data:image/png;base64,QVZBTlQ=" }) });
 
-    const [ligne] = manquantes(bonDe(vue, 31));
+    const [ligne] = manquantes(slipOf(vue, 31));
     assert.equal(ligne?.textContent, "incomplete delivery: screenshots missing — no screenshot");
     assert.match(ligne?.title ?? "", /docs\/captures\/<ticket>/);
-    assert.deepEqual(paires(bonDe(vue, 31)), []);
-    assert.equal(manquantes(bonDe(vue, 40))[0]?.textContent, "incomplete delivery: screenshots missing — the after screenshot of bandeau");
-    assert.deepEqual(paires(bonDe(vue, 40)), [[["avant", "data:image/png;base64,QVZBTlQ=", "bandeau — before"], ["apres", "missing", "bandeau — after"]]]);
+    assert.deepEqual(paires(slipOf(vue, 31)), []);
+    assert.equal(manquantes(slipOf(vue, 40))[0]?.textContent, "incomplete delivery: screenshots missing — the after screenshot of bandeau");
+    assert.deepEqual(paires(slipOf(vue, 40)), [[["avant", "data:image/png;base64,QVZBTlQ=", "bandeau — before"], ["apres", "missing", "bandeau — after"]]]);
   });
 
   test("une image qui ne se lit pas le dit à sa place, son pourquoi au survol", async () => {
     const vue = await ouvrir({ lireCapture: () => ({ sans: "gh: HTTP 404" }) });
-    const [figure] = bonDe(vue, 30).dessous("figure");
+    const [figure] = slipOf(vue, 30).dessous("figure");
     assert.equal(figure?.children[0]?.textContent, "not available");
     assert.equal(figure?.children[0]?.title, "gh: HTTP 404");
   });
 
   test("un ticket qui n'est pas d'interface n'a aucune zone de captures, pas même vide", async () => {
     const vue = await ouvrir();
-    const bon = bonDe(vue, 32);
-    assert.deepEqual([bon.dessous("figure"), manquantes(bon), paires(bon)], [[], [], []]);
+    const slip = slipOf(vue, 32);
+    assert.deepEqual([slip.dessous("figure"), manquantes(slip), paires(slip)], [[], [], []]);
   });
 });

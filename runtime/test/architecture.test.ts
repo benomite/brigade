@@ -12,12 +12,12 @@ import { readdirSync, readFileSync } from "node:fs";
 import net from "node:net";
 import { join, relative } from "node:path";
 import { test } from "node:test";
-import { MARQUEUR } from "../src/fiche.ts";
+import { MARQUEUR } from "../src/card.ts";
 import { ACTIONS, jamaisAccordee } from "../src/grant.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { lireStations } from "../src/stations-declarees.ts";
-import { demander } from "../src/tirer.ts";
-import { chef, cuisine, issue, pousserSurLOrigine } from "./aides/cuisine.ts";
+import { demander } from "../src/pull.ts";
+import { chef, kitchen, issue, pousserSurLOrigine } from "./aides/kitchen.ts";
 import { jusqua } from "./outils.ts";
 
 const SRC = join(import.meta.dirname, "../src");
@@ -32,21 +32,21 @@ const RESEAU = /from "node:(net|http|https|http2|tls|dgram|dns)"|\bfetch\(|\bWeb
 // une station. Un module de plus ici est une décision d'architecture — elle se
 // prend dans une livraison qui la dit, pas par un import.
 const VERS = {
-  "arbitrage.ts": "l'arbitre entre projets, sur 127.0.0.1",
-  "arbitre.ts": "n'ouvre rien : il écoute, sur 127.0.0.1",
+  "arbitration.ts": "l'arbitre entre projets, sur 127.0.0.1",
+  "arbiter.ts": "n'ouvre rien : il écoute, sur 127.0.0.1",
   "identites.ts": "l'API de GitHub, pour les jetons des rôles",
   "installateur.ts": "n'ouvre rien : il cherche un port libre sur la machine",
   "mise-a-jour/publications.ts": "les releases du dépôt de brigade sur GitHub, pour la mise à jour de la station",
-  "porte.ts": "les hôtes de la liste blanche du projet, pour ses lancements — elle écoute sur 127.0.0.1",
+  "door.ts": "les hôtes de la liste blanche du projet, pour ses lancements — elle écoute sur 127.0.0.1",
   "reseau.ts": "la porte du projet, et la sonde du filtre de son unité",
   "servir.ts": "le serveur d'une livraison d'interface, sur 127.0.0.1",
 };
 // Ce qui sert les stations distantes, côté box.
-const DISTANTES = ["distantes.ts", "tirer.ts", "tirer-cli.ts", "superviseur-distant.ts", "events/remote.ts"];
+const REMOTES = ["remote.ts", "pull.ts", "pull-cli.ts", "superviseur-distant.ts", "events/remote.ts"];
 
 test("la déclaration d'une station distante ne porte aucune adresse : la box ne sait pas où elle est, elle ne peut donc pas la joindre", () => {
-  const [distante] = lireStations({ BRIGADE_STATIONS: "mac/claude:1:chrome-connecté:distante" });
-  assert.deepEqual(Object.keys(distante ?? {}).sort(), ["cooks", "distante", "fournit", "moteur", "nom"]);
+  const [remote] = lireStations({ BRIGADE_STATIONS: "mac/claude:1:chrome-connecté:distante" });
+  assert.deepEqual(Object.keys(remote ?? {}).sort(), ["cooks", "distante", "fournit", "moteur", "nom"]);
   // Ni hôte, ni port, ni URL : rien de tel ne s'écrit dans une déclaration.
   for (const adresse of ["192.168.1.20", "mac.local", "mac.local:22", "ssh://chef@mac", "chef@mac"]) {
     assert.throws(() => lireStations({ BRIGADE_STATIONS: `mac/claude:1:chrome-connecté:${adresse}` }), ConfigInvalide, adresse);
@@ -60,16 +60,16 @@ test("`runtime/src` : seuls huit modules touchent au réseau, aucun vers une sta
   // Aucun de ces huit ne connaît les stations distantes : ni leurs modules, ni
   // leur déclaration, ni leurs demandes.
   for (const fichier of Object.keys(VERS)) {
-    assert.doesNotMatch(lire(join(SRC, fichier)), /distante|remote\.|tirer\.ts|stations-declarees/i, fichier);
+    assert.doesNotMatch(lire(join(SRC, fichier)), /distante|remote\.|pull\.ts|stations-declarees/i, fichier);
   }
   // Ce qui les sert n'ouvre aucune connexion et ne lance aucun process : il
   // lit et écrit le journal.
-  for (const fichier of DISTANTES) {
+  for (const fichier of REMOTES) {
     const texte = lire(join(SRC, fichier));
     assert.doesNotMatch(texte, RESEAU, fichier);
     assert.doesNotMatch(texte, /node:child_process|\bspawn\(|\bexecFile(Sync)?\(/, fichier);
   }
-  assert.deepEqual(DISTANTES.filter((fichier) => !fichiers.map(nom).includes(fichier)), []);
+  assert.deepEqual(REMOTES.filter((fichier) => !fichiers.map(nom).includes(fichier)), []);
 });
 
 test("`runtime/src` : aucun programme qui joint une autre machine n'est lancé par son nom — ni `ssh`, ni `scp`, ni `curl`", () => {
@@ -100,26 +100,26 @@ test("un tour complet d'une station distante — annoncer, réclamer, renouveler
   t.after(() => void (net.Socket.prototype.connect = connect));
 
   const MAC = "mac/claude";
-  const { gh, repertoire, heure, types, journal } = cuisine(t, { stations: lireStations({ BRIGADE_STATIONS: `${MAC}:1:chrome-connecté:distante` }), pass: true });
+  const { gh, repertoire, heure, types, journal: log } = kitchen(t, { stations: lireStations({ BRIGADE_STATIONS: `${MAC}:1:chrome-connecté:distante` }), pass: true });
   chef(repertoire, "grant.activated");
   gh.ficher(16, "2026-10-08T09:00:00Z", [MARQUEUR, "- requiert : chrome-connecté"].join("\n"));
   gh.poser(issue(16));
-  const tirer = (demande: Parameters<typeof demander>[2]) => demander(repertoire, MAC, demande, { maintenant: heure.maintenant, pasMs: 2 });
+  const pull = (demande: Parameters<typeof demander>[2]) => demander(repertoire, MAC, demande, { maintenant: heure.maintenant, pasMs: 2 });
   await jusqua(() => types(16).includes("ticket.86"));
-  await tirer({ verb: "announce" });
+  await pull({ verb: "announce" });
   await jusqua(() => types(16).includes("ticket.released"));
-  const prise = await tirer({ verb: "claim" });
+  const prise = await pull({ verb: "claim" });
   assert.ok(prise.ok && prise.verb === "claim" && prise.mission !== null);
   const { run, branch } = prise.mission;
-  assert.equal((await tirer({ verb: "renew", run, proof: "e1", turns: 1, tokens: 10 })).ok, true);
+  assert.equal((await pull({ verb: "renew", run, proof: "e1", turns: 1, tokens: 10 })).ok, true);
   pousserSurLOrigine(repertoire, branch);
-  assert.equal((await tirer({ verb: "deliver", run, ending: "delivered", reason: null, message: null, turns: 2, tokens: 20 })).ok, true);
+  assert.equal((await pull({ verb: "deliver", run, ending: "delivered", reason: null, message: null, turns: 2, tokens: 20 })).ok, true);
   await jusqua(() => types(16).includes("ticket.served"));
 
   assert.deepEqual(ouvertes, []);
   // Et aucun grant n'en est né : le seul accordé l'a été par le chef, et la
   // pass seule s'en est servie — la station distante n'en reçoit ni n'en écrit.
-  assert.deepEqual(journal.tout().flatMap((e) => (e.type.startsWith("grant.") ? [`${e.type} ${e.author}`] : [])), ["grant.activated chef", "grant.used pass"]);
+  assert.deepEqual(log.tout().flatMap((e) => (e.type.startsWith("grant.") ? [`${e.type} ${e.author}`] : [])), ["grant.activated chef", "grant.used pass"]);
   assert.deepEqual(ACTIONS, ["merge"]);
   assert.equal(jamaisAccordee("accès-prod")?.action, "acces-prod");
 });

@@ -21,7 +21,7 @@
 // Rien n'est gardé d'un lancement de l'app à l'autre : relancée, elle relit la box, qui
 // dit elle-même ne plus connaître le projet.
 import { execFile, type ExecFileException } from "node:child_process";
-import { cite, type Reglages, type Servi } from "./box.ts";
+import { cite, type Reglages, type Served } from "./box.ts";
 import type { Projet } from "./config.ts";
 import { nombre } from "./format.ts";
 
@@ -43,7 +43,7 @@ export function objetDuGeste(sortie: string): Record<string, unknown> | undefine
 
 // Les deux gestes, par le libellé qui les sépare — et celui du plan, qui ne retire rien.
 export const RETIRER = "Remove from the app";
-export const DESINSTALLER = "Uninstall from the station";
+export const UNINSTALL = "Uninstall from the station";
 export const PLANIFIER = "See what the station would remove";
 const DOC = "docs/installer.md";
 // Ce que `ssh` a pour répondre. Le plan inventorie le clone du projet ; l'exécution
@@ -66,7 +66,7 @@ export function argumentsDuRetrait(nom: string, demande: Demande): string[] {
 export const gesteDeRetrait = (nom: string, demande: Demande) => `sudo -n ${GESTE} ${argumentsDuRetrait(nom, demande).map(cite).join(" ")}`;
 
 // Où la box dit le journal du projet : là où elle le garde, ou là d'où elle le retire.
-export type Journal = { garde: string | null; retire: string | null };
+export type Log = { garde: string | null; retire: string | null };
 // `plan`, `desinstalle` : le geste a rendu `ok` pour ce qui lui était demandé. `refuse` :
 // il a répondu, et dit non — son code, et sa phrase dans `obtenu`. `injoignable` : `ssh`
 // a échoué de lui-même (255), ou n'a pas pu être lancé — session jamais ouverte, ou perdue
@@ -74,7 +74,7 @@ export type Journal = { garde: string | null; retire: string | null };
 // pas la réponse du geste à cette demande. `sans-reponse` : `ssh` a été arrêté au délai.
 // `obtenu` : ce que l'app a reçu, tel quel.
 export type Rendu =
-  | { etat: "plan" | "desinstalle"; journal: Journal; obtenu: string }
+  | { etat: "plan" | "desinstalle"; journal: Log; obtenu: string }
   | { etat: "refuse"; motif: string; code: number | null; obtenu: string }
   | { etat: "injoignable" | "geste-absent" | "sans-reponse"; obtenu: string };
 
@@ -83,7 +83,7 @@ const chemin = (lu: unknown) => (typeof lu === "string" && lu !== "" ? lu : null
 
 // Lance le geste de désinstallation sur la box du projet, et dit ce qu'il en est advenu.
 // Jamais d'exception : tout ce qui arrive est un rendu.
-export function lancerRetrait(reglages: Reglages, { nom, box }: Servi, demande: Demande): Promise<Rendu> {
+export function lancerRetrait(reglages: Reglages, { nom, box }: Served, demande: Demande): Promise<Rendu> {
   // Comme la veille : sans terminal, `ssh` ne peut rien demander.
   const args = ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${reglages.connexionS}`, "--", box.hote, gesteDeRetrait(nom, demande)];
   const attendu = demande.plan ? "plan" : "desinstalle";
@@ -165,16 +165,16 @@ type Tenu = {
   issue?: Lue | { pasParti: string };
   enCours?: Promise<void>;
   // `journal` : nul quand une désinstallation rejouée depuis n'a pas abouti — l'app ne sait plus où il en est.
-  desinstalle?: { a: string; journal: Journal | null };
+  desinstalle?: { a: string; journal: Log | null };
 };
 
 // Une désinstallation commencée, qui s'est arrêtée en chemin : son code — ou son motif, si le code s'est perdu.
 const inachevee = (rendu: Extract<Rendu, { etat: "refuse" }>) => rendu.code === INACHEVEE || rendu.motif === "echec";
 
 // Ce que la box dit du journal, redit en une phrase : avant, puis après.
-function duJournal(journal: Journal | null, fait: boolean): string {
-  if (journal === null) return "The app no longer knows where its log stands: an uninstall replayed since did not complete — the station's plan will say what is left of it.";
-  const { garde, retire } = journal;
+function ofTheLog(log: Log | null, fait: boolean): string {
+  if (log === null) return "The app no longer knows where its log stands: an uninstall replayed since did not complete — the station's plan will say what is left of it.";
+  const { garde, retire } = log;
   if (retire !== null) return fait ? `The project's log was deleted along with its state (${retire}): this cannot be undone.` : `The log is part of what the station would remove (${retire}): deleting it cannot be undone.`;
   if (garde !== null) return fait ? `The project's log still exists on the station: ${garde}. The uninstall did not delete it.` : `The log is not part of what the station would remove: it keeps it (${garde}).`;
   return `The station names no log for this project: neither kept, nor ${fait ? "removed" : "to be removed"}.`;
@@ -193,7 +193,7 @@ function suiteDuRefus(code: number | null): string[] {
 
 // Ce qu'une demande faite à la box donne à voir. `execution` : c'est la désinstallation, pas son plan.
 // `deja` : le projet était déjà dit désinstallé — une désinstallation rejouée qui n'aboutit pas ne l'en dédit pas.
-function montrer({ nom, box: { hote } }: Servi, { a, rendu }: Lue, execution: boolean, deja: boolean): Montre {
+function montrer({ nom, box: { hote } }: Served, { a, rendu }: Lue, execution: boolean, deja: boolean): Montre {
   const { obtenu } = rendu;
   const redemander = "Ask the station for its plan again: it will say what is left of the project on it.";
   const pasDit = deja ? "This project is still reported as uninstalled — it already was: what remained of it on the station is what is in doubt." : "The app does not report this project as uninstalled: what its station says about it can still be read alongside.";
@@ -207,7 +207,7 @@ function montrer({ nom, box: { hote } }: Servi, { a, rendu }: Lue, execution: bo
       a,
       titre: `WHAT STATION “${hote}” WOULD REMOVE — nothing is removed`,
       obtenu,
-      suite: ["This is the station's plan, as it returned it: the app adds nothing to it and decides nothing about it.", duJournal(rendu.journal, false), `To go ahead: type the project name below, then “${DESINSTALLER}”.`],
+      suite: ["This is the station's plan, as it returned it: the app adds nothing to it and decides nothing about it.", ofTheLog(rendu.journal, false), `To go ahead: type the project name below, then “${UNINSTALL}”.`],
     };
   }
   if (rendu.etat === "desinstalle") {
@@ -218,7 +218,7 @@ function montrer({ nom, box: { hote } }: Servi, { a, rendu }: Lue, execution: bo
       obtenu,
       suite: [
         "What the station removed, and what it keeps, is above, as it said it.",
-        duJournal(rendu.journal, true),
+        ofTheLog(rendu.journal, true),
         `“${nom}” can no longer be driven from the app: it no longer reads its station, and writes nothing to it.`,
         `It is still in the app: “${RETIRER}” removes it — that is the other action.`,
         ...(rendu.journal.garde === null ? [] : ["To delete its log too, replay the uninstall with the option ticked: the plan first, then the confirmation."]),
@@ -291,7 +291,7 @@ export function tenirRetraits(options: {
   // Retire le projet de ce fichier, et rien d'autre. Rend la raison, s'il ne l'a pas été.
   retirer(nom: string): string | undefined;
   // Lance le geste de désinstallation sur la box du projet : son plan, ou l'exécution.
-  lancer(servi: Servi, demande: Demande): Promise<Rendu>;
+  lancer(served: Served, demande: Demande): Promise<Rendu>;
   // La box vient de dire le projet désinstallé — ou ce que l'app en disait a changé : il se
   // montre sans elle, tel que `vu` le rend maintenant.
   surDesinstalle(nom: string): void;
@@ -324,28 +324,28 @@ export function tenirRetraits(options: {
       projet: nom,
       titre: "Remove this project from the app",
       retirer: { libelle: RETIRER, lignes: [enleve(nom), "It has no station: there is nothing else to remove.", RESTE] },
-      desinstaller: { libelle: DESINSTALLER, lignes: [`“${nom}” does not say where its station is: the app has nothing to uninstall there.`] },
+      desinstaller: { libelle: UNINSTALL, lignes: [`“${nom}” does not say where its station is: the app has nothing to uninstall there.`] },
     };
   }
 
   // Les deux gestes d'un projet servi par une box, d'après ce qui est tenu de lui. Rien n'y
   // est pris ni posé : une réponse arrivée après que le projet a changé de box, ou quitté la
   // liste, se pose d'après ce qui était tenu quand elle est partie.
-  function poser(servi: Servi, tenu: Tenu): Retrait {
-    const { nom, box } = servi;
+  function poser(served: Served, tenu: Tenu): Retrait {
+    const { nom, box } = served;
     const { hote } = box;
     const parti = tenu.desinstalle;
-    const { journal, plan, planEnCours, issue, enCours } = tenu;
+    const { journal: log, plan, planEnCours, issue, enCours } = tenu;
     const occupee = "The uninstall is under way: the station answers on its own.";
-    const sansPlan = `No uninstall: the station has not yet said what it would remove${journal ? ", log included" : ""} — “${PLANIFIER}” asks it for its plan, and removes nothing.`;
+    const sansPlan = `No uninstall: the station has not yet said what it would remove${log ? ", log included" : ""} — “${PLANIFIER}” asks it for its plan, and removes nothing.`;
     const planifierRefuse = enCours !== undefined ? occupee : planEnCours !== undefined ? "The plan has been requested: the station answers on its own." : undefined;
-    const desinstallerRefuse = enCours !== undefined ? occupee : planEnCours !== undefined || plan?.rendu.etat !== "plan" ? sansPlan : undefined;
+    const uninstallRefused = enCours !== undefined ? occupee : planEnCours !== undefined || plan?.rendu.etat !== "plan" ? sansPlan : undefined;
     const planMontre: Montre | undefined =
       planEnCours !== undefined
         ? { etat: "en-cours", titre: `plan requested from the station… it is taking inventory of what the project has there: a few seconds, ${minutes(DELAIS.planMs)} minutes at most` }
         : plan === undefined
           ? undefined
-          : montrer(servi, plan, false, parti !== undefined);
+          : montrer(served, plan, false, parti !== undefined);
     const issueMontree: Montre | undefined =
       enCours !== undefined
         ? { etat: "en-cours", titre: `uninstall under way on the station… it stops the project's runtime, then removes what its plan said: ${minutes(DELAIS.executionMs)} minutes at most` }
@@ -353,7 +353,7 @@ export function tenirRetraits(options: {
           ? undefined
           : "pasParti" in issue
             ? { etat: "pas-parti", titre: "NOTHING WAS SENT TO THE STATION — nothing is removed", suite: [issue.pasParti] }
-            : montrer(servi, issue, true, parti !== undefined);
+            : montrer(served, issue, true, parti !== undefined);
     return {
       projet: nom,
       titre: parti === undefined ? "Remove this project — from the app, or from its station: two actions" : "Remove this project — uninstalled from its station, still in the app",
@@ -368,10 +368,10 @@ export function tenirRetraits(options: {
         ],
       },
       desinstaller: {
-        libelle: DESINSTALLER,
+        libelle: UNINSTALL,
         lignes: [
           parti === undefined
-            ? `“${DESINSTALLER}” removes “${nom}” from station “${hote}”, through its uninstall action (\`sudo brigade-installer uninstall ${cite(nom)}\`), which the app runs for you. What is removed is decided and reported by the station: the app has no rule about it.`
+            ? `“${UNINSTALL}” removes “${nom}” from station “${hote}”, through its uninstall action (\`sudo brigade-installer uninstall ${cite(nom)}\`), which the app runs for you. What is removed is decided and reported by the station: the app has no rule about it.`
             : `It is uninstalled from station “${hote}”: it says below what it removed. The action can be replayed — to delete its log too, if it is kept — the same way.`,
           "In two steps: the station first states its plan, removing nothing; then nothing is removed until you confirm by typing the project name.",
           "It stays in the app: removing it from there is the other action.",
@@ -379,7 +379,7 @@ export function tenirRetraits(options: {
         geste: {
           hote,
           journal: {
-            coche: journal,
+            coche: log,
             libelle: "Also delete the project's log on the station",
             avertissement: [
               "Unticked — the default: the app does not ask for the log to be deleted, and the station's plan says where it stays.",
@@ -392,7 +392,7 @@ export function tenirRetraits(options: {
           ...(planifierRefuse === undefined ? {} : { planifierRefuse }),
           ...(planMontre === undefined ? {} : { plan: planMontre }),
           consigne: `To confirm, type the project name — ${nom}:`,
-          ...(desinstallerRefuse === undefined ? {} : { desinstallerRefuse }),
+          ...(uninstallRefused === undefined ? {} : { desinstallerRefuse: uninstallRefused }),
           ...(issueMontree === undefined ? {} : { issue: issueMontree }),
         },
       },
@@ -417,7 +417,7 @@ export function tenirRetraits(options: {
           titre: `UNINSTALLED FROM STATION “${box.hote}” — can no longer be driven from the app`,
           lignes: [
             `The app uninstalled “${projet.nom}” from station “${box.hote}”: it can no longer be driven from here. The app no longer reads its station, and writes nothing to it.`,
-            duJournal(parti.journal, true),
+            ofTheLog(parti.journal, true),
             "What the station removed, word for word, is in its space, under “Remove this project”.",
             `It is still in the app: “${RETIRER}”, in the same place, removes it — that is the other action.`,
             "To serve it again: remove it from the app, then add it — adding it installs it on its station.",
@@ -447,7 +447,7 @@ export function tenirRetraits(options: {
               ...(parti === undefined
                 ? [
                     `Nothing was sent to station “${box.hote}”: the project is still installed there, and its log was not touched.`,
-                    `Uninstalling it from the station is another action: declare it in the app again — the “+” — then “${DESINSTALLER}”. Or on the station, by hand (${DOC}, « Désinstaller »).`,
+                    `Uninstalling it from the station is another action: declare it in the app again — the “+” — then “${UNINSTALL}”. Or on the station, by hand (${DOC}, « Désinstaller »).`,
                   ]
                 : [`It had been uninstalled from station “${box.hote}”: only what it said it keeps remains there.`]),
             ];
@@ -456,7 +456,7 @@ export function tenirRetraits(options: {
 
     // Le chef coche l'option qui supprime le journal, ou la décoche : le plan rendu pour
     // l'autre réglage ne vaut plus, et celui qui est en route n'est plus à personne.
-    direJournal(projet: Projet, coche: boolean): Retrait {
+    sayLog(projet: Projet, coche: boolean): Retrait {
       if (projet.box === undefined) return etat(projet);
       const tenu = tenir(projet.nom, projet.box.hote);
       if (tenu.enCours === undefined && tenu.journal !== coche) {
@@ -491,7 +491,7 @@ export function tenirRetraits(options: {
     // Le second geste : la désinstallation, sur la box. Refusée — rien ne part — tant que
     // la box n'a pas rendu son plan pour ce réglage, et tant que `saisi` n'est pas le nom
     // du projet. Une désinstallation en route ne se double pas.
-    async desinstaller(projet: Projet, saisi: unknown): Promise<Retrait> {
+    async uninstall(projet: Projet, saisi: unknown): Promise<Retrait> {
       if (projet.box === undefined) return etat(projet);
       const { nom, box } = projet;
       const tenu = tenir(nom, box.hote);

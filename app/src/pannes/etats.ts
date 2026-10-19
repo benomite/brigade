@@ -3,8 +3,8 @@
 // est celui de la station (runtime/src/appairage/document.ts, `miseAJour` et `connexionMax`) ;
 // pannes.ts en tire les lignes de la home.
 export type MiseAJourRevenue = { visee: string; restauree: string; le: string; retourRate: boolean };
-export type ConnexionPubliee = { etat: "connectee" | "perdue" | "inconnue"; depuis: string | null };
-export type EtatsPublies = { miseAJour: MiseAJourRevenue | null; connexionMax: ConnexionPubliee | null };
+export type PublishedConnection = { etat: "connectee" | "perdue" | "inconnue"; depuis: string | null };
+export type EtatsPublies = { miseAJour: MiseAJourRevenue | null; connexionMax: PublishedConnection | null };
 
 // Une version telle que la mise à jour les nomme (runtime/src/mise-a-jour/versions.ts) : rien
 // d'autre ne se pose dans une ligne.
@@ -17,15 +17,15 @@ const version = (valeur: unknown): valeur is string => typeof valeur === "string
 // écrit mal, n'en dit rien.
 export function lireEtatsPublies(lu: Record<string, unknown>): EtatsPublies {
   const mise = lu.miseAJour as Partial<Record<keyof MiseAJourRevenue, unknown>> | null | undefined;
-  const connexion = lu.connexionMax as Partial<Record<keyof ConnexionPubliee, unknown>> | null | undefined;
+  const connection = lu.connexionMax as Partial<Record<keyof PublishedConnection, unknown>> | null | undefined;
   return {
     miseAJour:
       mise !== null && typeof mise === "object" && version(mise.visee) && version(mise.restauree) && date(mise.le)
         ? { visee: mise.visee, restauree: mise.restauree, le: mise.le, retourRate: mise.retourRate === true }
         : null,
     connexionMax:
-      connexion !== null && typeof connexion === "object" && ETATS.includes(connexion.etat as (typeof ETATS)[number])
-        ? { etat: connexion.etat as ConnexionPubliee["etat"], depuis: date(connexion.depuis) ? connexion.depuis : null }
+      connection !== null && typeof connection === "object" && ETATS.includes(connection.etat as (typeof ETATS)[number])
+        ? { etat: connection.etat as PublishedConnection["etat"], depuis: date(connection.depuis) ? connection.depuis : null }
         : null,
   };
 }

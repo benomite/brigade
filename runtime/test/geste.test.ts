@@ -345,7 +345,7 @@ test("dans le runtime de ce dépôt, seuls `test`, `typecheck` et `start` ne lan
 
   assert.deepEqual(refuses, ["test", "typecheck", "start"]);
   // La forme que l'app lit passe par le geste, comme les autres.
-  assert.equal(scripts.facts, "node src/faits.ts");
+  assert.equal(scripts.facts, "node src/facts.ts");
 });
 
 test("un `systemctl` qui échoue arrête le geste en le disant : ni compte ni environnement supposés", (t) => {

@@ -4,7 +4,7 @@ import type { ControleRetenu, EtatDeLaBase } from "./projections/pass.ts";
 import { geste } from "./geste.ts";
 
 // Le geste par lequel le chef fait rejouer les gates d'une base rouge.
-export const REJOUER_LA_BASE = geste("base replay");
+export const REPLAY_THE_BASE = geste("base replay");
 
 const court = (sha: string) => sha.slice(0, 7);
 
@@ -31,7 +31,7 @@ export function suiteDeBaseRougeEn({ unplayed, reason, recheck }: EtatDeLaBase, 
   return [
     ...(unplayed === null ? [] : [`gates not played on ${court(unplayed.sha)} ${prep} ${depuis(unplayed.at)}${direPanneEn(reason)}: a check that was not played does not lift a red that was found`]),
     ...(recheck === null
-      ? [...(retenu === null ? [] : [direControleRetenuEn(retenu, depuis, prep)]), `replay its gates without waiting for a commit: ${REJOUER_LA_BASE}`]
+      ? [...(retenu === null ? [] : [direControleRetenuEn(retenu, depuis, prep)]), `replay its gates without waiting for a commit: ${REPLAY_THE_BASE}`]
       : [`${recheck.by === "chef" ? "replay asked by the chef" : "automatic replay, before opening a repair ticket if the red holds,"} ${prep} ${depuis(recheck.at)}: ${direRejeuEn(recheck, depuis, retenu, prep)}`]),
   ];
 }

@@ -7,10 +7,10 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { DECISIONS, decisionsPosees } from "../src/decisions.ts";
-import { cheminJournal, ouvrirJournal } from "../src/journal.ts";
+import { logPath, openLog } from "../src/log.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
 import { stationsAnnoncees } from "../src/projections/stations.ts";
-import { cuisine, issue, STATION } from "./aides/cuisine.ts";
+import { kitchen, issue, STATION } from "./aides/kitchen.ts";
 import { appeler, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
 
 const MONTRER = join(import.meta.dirname, "../src/montrer-station.ts");
@@ -34,21 +34,21 @@ const GESTES = [
 ] as const;
 
 // Un journal où le runtime a déjà tourné : une station s'y est annoncée.
-function journalDuProjet(t: TestContext) {
+function projectLog(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoire);
-  t.after(() => journal.fermer());
-  journal.ajouter({ project: "brigade", ticket: null, author: `station:${STATION}`, type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["code"], maxCooks: 1 } });
+  const log = openLog(repertoire);
+  t.after(() => log.fermer());
+  log.ajouter({ project: "brigade", ticket: null, author: `station:${STATION}`, type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["code"], maxCooks: 1 } });
   const station = async (...args: string[]) => {
     const commande = appeler(montrerStation, args, { BRIGADE_STATE_DIR: repertoire });
     return { code: await commande.fin, sortie: commande.sortie() };
   };
-  return { repertoire, journal, station };
+  return { repertoire, journal: log, station };
 }
 
 describe("le chef pose ses décisions par la station", { concurrency: 8 }, () => {
   test("chaque décision a son geste : la station montre la valeur posée, et le journal porte, au nom du chef, la décision, l'ancienne et la nouvelle valeur", async (t) => {
-    const { journal, station } = journalDuProjet(t);
+    const { journal: log, station } = projectLog(t);
     // La famille entière, et rien d'autre.
     assert.deepEqual(GESTES.map(([, decision]) => decision).sort(), [...DECISIONS].sort());
 
@@ -71,7 +71,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
 
     // Une ligne par pose, au nom du chef : la décision, l'ancienne valeur, la nouvelle.
     assert.deepEqual(
-      journal.tout().filter((e) => e.type === "decision.set").map((e) => [e.author, e.ticket, e.payload]),
+      log.tout().filter((e) => e.type === "decision.set").map((e) => [e.author, e.ticket, e.payload]),
       GESTES.flatMap(([, name, premiere, seconde]) => [
         ["chef", null, { name, value: premiere, previous: null }],
         ["chef", null, { name, value: seconde, previous: premiere }],
@@ -83,20 +83,20 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
   });
 
   test("reposer la valeur déjà posée n'écrit rien ; une valeur entourée d'espaces est posée sans eux", async (t) => {
-    const { journal, station } = journalDuProjet(t);
+    const { journal: log, station } = projectLog(t);
     await station("seuil-ticket", " 400000 ");
     const deja = await station("seuil-ticket", "400000");
 
     assert.equal(deja.code, 0);
     assert.equal(deja.sortie, "brigade : seuil-ticket: already set — 400000; nothing is written\n");
     assert.deepEqual(
-      journal.tout().filter((e) => e.type === "decision.set").map((e) => e.payload),
+      log.tout().filter((e) => e.type === "decision.set").map((e) => e.payload),
       [{ name: "BRIGADE_DRIFT_TICKET_TOKENS", value: "400000", previous: null }],
     );
   });
 
   test("une valeur invalide est refusée avec ce qui était attendu : rien n'est écrit ni journalisé", async (t) => {
-    const { journal, station } = journalDuProjet(t);
+    const { journal: log, station } = projectLog(t);
     const STATIONS_ATTENDUES = /usage: `station -- stations <declaration>` — `<machine>\/<engine>:<cooks cap>:<capability>\+<capability>\[:distante\[\+ordinaires\]\]`, separated by commas/;
     const SEUIL = /expected an integer greater than zero/;
     const MODELE = /expected opus, sonnet or haiku/;
@@ -124,37 +124,37 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
       // Un geste qui n'existe pas.
       [["manager-temperature", "1"], [/^brigade : usage: /]],
     ];
-    const ecrits = journal.tout();
+    const ecrits = log.tout();
 
     for (const [args, motifs] of REFUS) {
       const { code, sortie } = await station(...args);
       assert.equal(code, 2, `${args.join(" ")} : ${sortie}`);
       for (const motif of motifs) assert.match(sortie, motif, args.join(" "));
     }
-    assert.deepEqual(journal.tout(), ecrits);
-    assert.deepEqual(decisionsPosees(journal.base), {});
+    assert.deepEqual(log.tout(), ecrits);
+    assert.deepEqual(decisionsPosees(log.base), {});
   });
 
   test("retirée, une décision n'est plus décidée, et aucune variable d'environnement n'y supplée : le journal le porte au nom du chef", async (t) => {
-    const { journal, station } = journalDuProjet(t);
+    const { journal: log, station } = projectLog(t);
     await station("reviewer-modele", "opus");
 
     const retrait = await station("remove", "reviewer-modele");
 
     assert.equal(retrait.code, 0);
     assert.match(retrait.sortie, /^brigade : reviewer-modele: withdrawn \(was: opus\) — it is no longer decided: the runtime keeps to what it read.*BRIGADE_REVIEWER_MODEL is only read from the log/);
-    const fait = journal.tout().at(-1);
+    const fait = log.tout().at(-1);
     assert.deepEqual([fait?.type, fait?.author, fait?.payload], ["decision.withdrawn", "chef", { name: "BRIGADE_REVIEWER_MODEL", previous: "opus" }]);
     assert.match((await station()).sortie, /^  reviewer-modele +not set/m);
     // Rien à retirer : rien n'est écrit.
-    const ecrits = journal.tout().length;
+    const ecrits = log.tout().length;
     assert.match((await station("remove", "reviewer-modele")).sortie, /reviewer-modele: not set, nothing is written/);
     assert.equal((await station("remove", "BRIGADE_REVIEWER_MODEL")).code, 2);
-    assert.equal(journal.tout().length, ecrits);
+    assert.equal(log.tout().length, ecrits);
   });
 
   test("l'aide montre chaque geste en une ligne, avec ce qu'il attend — ni sudo, ni drop-in, ni éditeur", async (t) => {
-    const { station } = journalDuProjet(t);
+    const { station } = projectLog(t);
 
     const { code, sortie } = await station("help");
 
@@ -184,7 +184,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
 
     assert.equal(await commande.fin, 1);
     assert.match(commande.sortie(), /no log in/);
-    assert.equal(existsSync(cheminJournal(repertoire)), false);
+    assert.equal(existsSync(logPath(repertoire)), false);
   });
 
   test("sans journal, une décision le crée au nom du projet que l'unité donne : le runtime d'un projet neuf n'a pas démarré, et ne démarre qu'avec elles", async (t) => {
@@ -192,19 +192,19 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
     const commande = appeler(montrerStation, ["manager-modele", "sonnet"], { BRIGADE_STATE_DIR: repertoire, BRIGADE_PROJECT: "calculus" });
 
     assert.equal(await commande.fin, 0, commande.sortie());
-    const journal = ouvrirJournal(repertoire, { lectureSeule: true });
-    t.after(() => journal.fermer());
-    assert.deepEqual(journal.tout().map((e) => [e.project, e.author, e.type]), [["calculus", "chef", "decision.set"]]);
-    assert.deepEqual(decisionsPosees(journal.base), { BRIGADE_MANAGER_MODEL: "sonnet" });
+    const log = openLog(repertoire, { lectureSeule: true });
+    t.after(() => log.fermer());
+    assert.deepEqual(log.tout().map((e) => [e.project, e.author, e.type]), [["calculus", "chef", "decision.set"]]);
+    assert.deepEqual(decisionsPosees(log.base), { BRIGADE_MANAGER_MODEL: "sonnet" });
     // Un retrait, lui, n'a rien à retirer d'un journal qui n'existe pas.
     const autre = repertoireTemporaire(t);
     const retrait = appeler(montrerStation, ["remove", "manager-modele"], { BRIGADE_STATE_DIR: autre, BRIGADE_PROJECT: "calculus" });
     assert.equal(await retrait.fin, 1);
-    assert.equal(existsSync(cheminJournal(autre)), false);
+    assert.equal(existsSync(logPath(autre)), false);
   });
 
   test("en cuisine : poser chaque décision, depuis le process du chef, n'interrompt pas le cook en vol — il continue et livre, et le runtime n'a pas redémarré", async (t) => {
-    const { repertoire, journal, types, etat, cooks, conclure } = cuisine(t, { decisions: true, scenario: "commite-puis-attend", issues: [issue(16)] });
+    const { repertoire, journal: log, types, etat, cooks, conclure } = kitchen(t, { decisions: true, scenario: "commite-puis-attend", issues: [issue(16)] });
     await jusqua(() => cooks().length === 1 && types(16).includes("cook.launched"));
 
     // Comme `npm run station` la lance : un autre process, une autre connexion au journal.
@@ -216,20 +216,20 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
       assert.match(pose.sortie(), /no running cook is stopped\n$/);
     }
     // Le runtime l'a lue sans redémarrer : sa station s'annonce de nouveau, à deux cooks.
-    const annonces = () => journal.tout().flatMap((e) => (e.type === "station.announced" ? [e.payload.maxCooks] : []));
+    const annonces = () => log.tout().flatMap((e) => (e.type === "station.announced" ? [e.payload.maxCooks] : []));
     await jusqua(() => annonces().includes(2));
-    assert.deepEqual(stationsAnnoncees(journal.base), [STATION]);
+    assert.deepEqual(stationsAnnoncees(log.base), [STATION]);
 
     const ARRETS = ["cook.exited", "cook.interrupted", "guard.tripped", "ticket.released"];
     assert.deepEqual(types(16).filter((type) => ARRETS.includes(type)), []);
     assert.equal(cooks().length, 1);
     assert.equal(etat(16), "taken");
-    assert.deepEqual(journal.tout().filter((e) => e.type.startsWith("runtime.") && e.type !== "runtime.ticked").map((e) => e.type), ["runtime.started"]);
+    assert.deepEqual(log.tout().filter((e) => e.type.startsWith("runtime.") && e.type !== "runtime.ticked").map((e) => e.type), ["runtime.started"]);
 
     // Il finit de lui-même, comme il aurait fini : sa livraison est reçue.
     conclure();
     await jusqua(() => etat(16) === "pass");
-    assert.equal((journal.duTicket(16).find((e) => e.type === "cook.exited")?.payload as { outcome?: string } | undefined)?.outcome, "ok");
+    assert.equal((log.duTicket(16).find((e) => e.type === "cook.exited")?.payload as { outcome?: string } | undefined)?.outcome, "ok");
     assert.equal(cooks().length, 1);
   });
 });

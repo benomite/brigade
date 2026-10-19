@@ -91,7 +91,7 @@ export async function passer(options: OptionsMiseAJour): Promise<Passage> {
   // systemd lui donne, démarrée après `debut`, en servant encore les projets
   // `servis` qui sont toujours configurés. Rend l'instant où elle a démarré,
   // ou pourquoi elle ne l'a pas fait.
-  const attendreEnService = async (version: string, debut: number, servis: string[]): Promise<{ le: string } | { motif: string }> => {
+  const attendreEnService = async (version: string, debut: number, servedOnes: string[]): Promise<{ le: string } | { motif: string }> => {
     const fin = Date.now() + gardeMs;
     const relances = systeme.service().redemarrages;
     let attente = `la station ne s'est pas dite en service en ${version}`;
@@ -102,7 +102,7 @@ export async function passer(options: OptionsMiseAJour): Promise<Passage> {
       const dite = lireEnService(racine);
       if (dite !== null && comparerVersions(dite.version, version) === 0 && dite.pid === service.pid && Date.parse(dite.depuis) >= debut - 1000) {
         const configures = new Set(lireFichierDeConfiguration(join(racine, CONFIGURATION)).projets.map((projet) => projet.nom));
-        const perdus = servis.filter((projet) => configures.has(projet) && !dite.servis.includes(projet));
+        const perdus = servedOnes.filter((projet) => configures.has(projet) && !dite.servis.includes(projet));
         if (perdus.length === 0) return { le: dite.depuis };
         attente = perdus.map((projet) => `le projet ${projet} n'est plus servi en ${version}${dite.refuses[projet] ? ` : ${dite.refuses[projet]}` : ""}`).join(" ; ");
       }
@@ -112,15 +112,15 @@ export async function passer(options: OptionsMiseAJour): Promise<Passage> {
   };
 
   // Installe un paquet, puis attend que la station s'y dise en service.
-  const installer = async (fichier: string, version: string, servis: string[]): Promise<{ le: string } | { motif: string }> => {
+  const installer = async (fichier: string, version: string, servedOnes: string[]): Promise<{ le: string } | { motif: string }> => {
     const debut = Date.now();
     const pose = systeme.installer(fichier);
     if (!pose.ok) return { motif: `son installation a échoué : ${pose.motif}` };
-    return attendreEnService(version, debut, servis);
+    return attendreEnService(version, debut, servedOnes);
   };
 
   // Conclut un essai : gardé, ou la version d'avant réinstallée.
-  const conclureEssai = async (visee: string, depuis: string, servis: string[], essai: { le: string } | { motif: string }): Promise<Issue> => {
+  const conclureEssai = async (visee: string, depuis: string, servedOnes: string[], essai: { le: string } | { motif: string }): Promise<Issue> => {
     let issue: Issue;
     if ("le" in essai) {
       issue = { quoi: "passee", version: visee, depuis, le: essai.le };
@@ -130,7 +130,7 @@ export async function passer(options: OptionsMiseAJour): Promise<Passage> {
     } else {
       ratees.add(visee);
       dire(`brigade : mise à jour — ${visee} n'a pas démarré (${essai.motif}) : retour à ${depuis}`);
-      const revenue = await installer(paquetDe(depuis), depuis, servis);
+      const revenue = await installer(paquetDe(depuis), depuis, servedOnes);
       issue = { quoi: "revenue", visee, restauree: depuis, motif: essai.motif, le: maintenant().toISOString(), retour: "le" in revenue ? null : revenue.motif };
       dire(`brigade : mise à jour — ${"le" in revenue ? `revenue en version ${depuis}` : `le retour à ${depuis} a échoué aussi : ${revenue.motif}`}`);
     }
@@ -147,7 +147,7 @@ export async function passer(options: OptionsMiseAJour): Promise<Passage> {
   // la mise à jour a été tuée — se conclut d'abord : la station tourne-t-elle
   // sur la version visée ?
   if (etat.essai) {
-    const { visee, depuis, servis } = etat.essai;
+    const { visee, depuis, servis: servedOnes } = etat.essai;
     dire(`brigade : mise à jour — l'essai de ${visee} n'a pas été conclu : la station est regardée`);
     const installee = etat.installee;
     if (installee !== null && comparerVersions(installee, depuis) === 0) {
@@ -156,9 +156,9 @@ export async function passer(options: OptionsMiseAJour): Promise<Passage> {
     } else {
       const constat =
         installee !== null && comparerVersions(installee, visee) === 0
-          ? await attendreEnService(visee, 0, servis)
+          ? await attendreEnService(visee, 0, servedOnes)
           : { motif: `l'installation de ${visee} a été interrompue (dpkg : ${installee ?? "le paquet n'est pas installé tout à fait"})` };
-      return conclure(await conclureEssai(visee, depuis, servis, constat));
+      return conclure(await conclureEssai(visee, depuis, servedOnes, constat));
     }
   }
 
@@ -225,11 +225,11 @@ export async function passer(options: OptionsMiseAJour): Promise<Passage> {
 
   // Ce que la version d'avant servait, et qu'il faut encore servir.
   const enServiceAvant = lireEnService(racine);
-  const servis = enServiceAvant !== null && comparerVersions(enServiceAvant.version, installee) === 0 ? enServiceAvant.servis : [];
+  const servedOnes = enServiceAvant !== null && comparerVersions(enServiceAvant.version, installee) === 0 ? enServiceAvant.servis : [];
 
   // L'essai est noté avant de partir : interrompu, le passage suivant le conclut.
-  etat.essai = { visee, depuis: installee, servis };
+  etat.essai = { visee, depuis: installee, servis: servedOnes };
   ecrire();
   dire(`brigade : mise à jour — ${installee} → ${visee}`);
-  return conclure(await conclureEssai(visee, installee, servis, await installer(nouveau, visee, servis)));
+  return conclure(await conclureEssai(visee, installee, servedOnes, await installer(nouveau, visee, servedOnes)));
 }

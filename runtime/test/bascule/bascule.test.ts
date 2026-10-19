@@ -11,7 +11,7 @@ import { test, type TestContext } from "node:test";
 import { lieux, lireAncienneInstallation } from "../../src/bascule/ancienne.ts";
 import { attendreLaReprise, basculer, BasculeEnEchec, lireNote, type Systemctl } from "../../src/bascule/basculer.ts";
 import { lireConfiguration } from "../../src/station/configuration.ts";
-import { lirePortes } from "../../src/station/portes.ts";
+import { readDoors } from "../../src/station/doors.ts";
 import { repertoireTemporaire } from "../outils.ts";
 import { ancienneMachine, GESTES_ANCIENS, TROIS } from "./aides.ts";
 
@@ -69,14 +69,14 @@ test("les trois projets passent à la station : une ligne chacun — dépôt, br
   assert.match(dit.join("\n"), /brigade — réglages de son unité non repris \(After, IPAddressAllow, IPAddressDeny, PrivateTmp, Requires, WorkingDirectory\) : ceux de la station s'appliquent/);
   // Le port de chaque porte ne s'écrit pas sur la ligne : il attend les portes
   // de la station, là où elles le chercheront — un cook en vol retrouve la sienne.
-  assert.deepEqual(lirePortes(join(ici.station, "portes.json")), { station: null, projets: { brigade: 8481, "calculus-workspace": 8482, espace: 8483 } });
+  assert.deepEqual(readDoors(join(ici.station, "portes.json")), { station: null, projets: { brigade: 8481, "calculus-workspace": 8482, espace: 8483 } });
   assert.match(dit.join("\n"), /espace — sa porte reprise par la station : même port \(127\.0\.0\.1:8483\), même liste blanche, lue à son journal/);
 });
 
 test("un projet sans porte dans l'ancienne installation : aucun port repris — la station lui en ouvre une, et le dit", (t) => {
-  const m = machine(t, [{ nom: "espace", depot: "benomite/espace", base: "main" }, TROIS[0] ?? assert.fail()], { sansPorte: ["espace"] });
+  const m = machine(t, [{ nom: "espace", depot: "benomite/espace", base: "main" }, TROIS[0] ?? assert.fail()], { withoutDoor: ["espace"] });
   const { ici, dit } = basculerTout(m);
-  assert.deepEqual(lirePortes(join(ici.station, "portes.json")), { station: null, projets: { brigade: 8481 } });
+  assert.deepEqual(readDoors(join(ici.station, "portes.json")), { station: null, projets: { brigade: 8481 } });
   assert.match(dit.join("\n"), /espace — il n'avait pas de porte : la station lui en ouvre une, qui ne laisse passer que sa liste blanche/);
 });
 
@@ -86,7 +86,7 @@ test("un port que les portes de la station tiennent déjà n'est pas réécrit :
   mkdirSync(ici.station, { recursive: true });
   writeFileSync(join(ici.station, "portes.json"), JSON.stringify({ station: 40001, projets: { brigade: 40002 } }));
   basculerTout(m);
-  assert.deepEqual(lirePortes(join(ici.station, "portes.json")), { station: 40001, projets: { brigade: 40002, "calculus-workspace": 8482, espace: 8483 } });
+  assert.deepEqual(readDoors(join(ici.station, "portes.json")), { station: 40001, projets: { brigade: 40002, "calculus-workspace": 8482, espace: 8483 } });
 });
 
 test("journal, décisions et clone de chaque projet sont intacts : la bascule n'y écrit rien", (t) => {
@@ -213,7 +213,7 @@ test("une décision restée dans une unité n'est pas recopiée sur la ligne : e
 });
 
 test("une unité déclarée qui n'a jamais servi — aucun journal : rien à reprendre, son unité part", (t) => {
-  const m = machine(t, [TROIS[0] ?? { nom: "brigade", depot: "benomite/brigade", base: "v2" }, { nom: "essai", depot: "benomite/essai", base: "main", sansJournal: true }]);
+  const m = machine(t, [TROIS[0] ?? { nom: "brigade", depot: "benomite/brigade", base: "v2" }, { nom: "essai", depot: "benomite/essai", base: "main", withoutLog: true }]);
   const { ici, note, dit, appels } = basculerTout(m);
   assert.deepEqual(note.projets, ["brigade"]);
   assert.deepEqual(lireConfiguration(readFileSync(join(ici.station, "projets"), "utf8")).projets.map((p) => p.nom), ["brigade"]);
@@ -249,9 +249,9 @@ test("une bascule interrompue après avoir écrit la configuration : rejouée, e
   const { plan } = lireAncienneInstallation(ici);
   assert.ok(plan);
   // Ce que la première a laissé : la ligne et le lien d'un projet.
-  const [espace] = plan.projets.filter((p) => p.nom === "espace");
-  assert.ok(espace);
-  writeFileSync(join(ici.station, "projets"), `${espace.ligne}\n`);
+  const [space] = plan.projets.filter((p) => p.nom === "espace");
+  assert.ok(space);
+  writeFileSync(join(ici.station, "projets"), `${space.ligne}\n`);
   mkdirSync(join(ici.station, "etat"));
   symlinkSync(m.etat("espace"), join(ici.station, "etat", "espace"));
   const reprise = lireAncienneInstallation(ici);
@@ -272,8 +272,8 @@ test("un `etat/<projet>` déjà là, qui n'est pas l'état de son unité : refus
 test("la reprise constatée : la station sert les projets remis, et l'arrêt de leur cuisine est mesuré, de la bascule à la station", async (t) => {
   const m = machine(t);
   const { ici } = basculerTout(m);
-  const enService = (servis: string[], refuses: Record<string, string> = {}) =>
-    writeFileSync(join(ici.station, "en-service"), JSON.stringify({ version: "1.0.0", pid: process.pid, depuis: "2026-10-16T08:00:30.000Z", servis, refuses }));
+  const enService = (servedOnes: string[], refuses: Record<string, string> = {}) =>
+    writeFileSync(join(ici.station, "en-service"), JSON.stringify({ version: "1.0.0", pid: process.pid, depuis: "2026-10-16T08:00:30.000Z", servis: servedOnes, refuses }));
 
   enService(["brigade"], { espace: "le clone du projet n'existe pas" });
   const dit: string[] = [];

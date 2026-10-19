@@ -6,10 +6,10 @@
 //
 // Ce n'est jamais le cook qui se relit : un process neuf, sa propre consigne,
 // aucune session reprise, et aucun outil qui écrive.
-import { capturesManquantes, type CapturesDEcran } from "./captures.ts";
-import { EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
+import { capturesManquantes, type ScreenCaptures } from "./captures.ts";
+import { EFFORTS, MODELES, type Calibration } from "./calibration.ts";
 import { SOURCES_DE_REGLAGES } from "./claude.ts";
-import { FERMETURE, OUVERTURE } from "./livrable.ts";
+import { CLOSING, OUVERTURE } from "./deliverable.ts";
 import type { Finding } from "./events/pass.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
@@ -33,7 +33,7 @@ const OUTILS = ["Read", "Grep", "Glob"];
 
 export type ConfigReviewer = {
   // Le modèle et l'effort de ses relectures.
-  calibrage: Calibrage;
+  calibrage: Calibration;
 };
 
 const ou = (valeurs: readonly string[]) => `${valeurs.slice(0, -1).join(", ")} ou ${valeurs.at(-1)}`;
@@ -54,7 +54,7 @@ export function configReviewer(env: Record<string, string | undefined>): ConfigR
 // permission : hors de ses trois outils de lecture, rien ne lui est ouvert, et
 // personne n'est là pour lui accorder autre chose. `--tools` vient avant les
 // options qui le suivent, il avale tout ce qui n'en est pas une.
-export function argumentsReviewer(texte: string, calibrage: Calibrage): string[] {
+export function argumentsReviewer(texte: string, calibration: Calibration): string[] {
   return [
     "-p",
     texte,
@@ -62,9 +62,9 @@ export function argumentsReviewer(texte: string, calibrage: Calibrage): string[]
     "stream-json",
     "--verbose",
     "--model",
-    calibrage.model,
+    calibration.model,
     "--effort",
-    calibrage.effort,
+    calibration.effort,
     "--tools",
     OUTILS.join(","),
     "--setting-sources",
@@ -107,7 +107,7 @@ const LIBELLES_830: Record<Regle, string> = { "geste-non-bouton": "geste attendu
 
 // Les captures d'une livraison d'interface, que la relecture juge : le dossier
 // où le cook les pose, et chaque écran livré. `screens` vide : aucune capture.
-export type CapturesARelire = { dossier: string; screens: CapturesDEcran[] };
+export type CapturesARelire = { dossier: string; screens: ScreenCaptures[] };
 
 export type Relecture = {
   depot: string;
@@ -133,7 +133,7 @@ export type Relecture = {
 
 export function consigneDeRelecture(mission: Relecture): string {
   const { depot, base, ticket, commentaires, compteRendu, diff } = mission;
-  if (mission.horsRail && diff) return consigneDeFermeture({ ...mission, diff });
+  if (mission.horsRail && diff) return closingInstruction({ ...mission, diff });
   const objet = diff
     ? `le diff qu'un cook — un agent qui exécute un ticket seul — a livré pour le ticket #${ticket.number}, avant qu'il ne soit mergé sur \`${base}\``
     : `le livrable qu'un cook — un agent qui exécute un ticket seul — a rendu pour le ticket #${ticket.number}. Ce ticket n'a produit aucun diff : le livrable est ce que le cook a délimité dans son dernier message, et tu en es le seul juge — ni gates ni CI ne l'ont regardé`;
@@ -194,7 +194,7 @@ export function consigneDeRelecture(mission: Relecture): string {
     "",
     diff ? "<compte-rendu>" : OUVERTURE,
     couper(compteRendu ?? "", COMPTE_RENDU_MAX),
-    diff ? "</compte-rendu>" : FERMETURE,
+    diff ? "</compte-rendu>" : CLOSING,
     ...(diff ? ["", ...leDiff(base, diff, "le cook", "la station")] : []),
   ].join("\n");
 }
@@ -268,7 +268,7 @@ const leDiff = (base: string, diff: NonNullable<Relecture["diff"]>, auteur: stri
 // regarde ce qui a disparu, que des gates vertes ne voient pas. Dans le doute
 // sur un retrait, c'est donc bloquant, à l'inverse d'un ticket : aucun cook
 // n'est renvoyé, la PR remonte au chef.
-function consigneDeFermeture(mission: Relecture & { diff: NonNullable<Relecture["diff"]> }): string {
+function closingInstruction(mission: Relecture & { diff: NonNullable<Relecture["diff"]> }): string {
   const { depot, base, ticket: pr, commentaires, diff } = mission;
   return [
     `Tu es le reviewer de la brigade sur le dépôt ${depot}. Tu relis le diff qu'un closer — l'agent qui range le dépôt hors de tout ticket : il retire doublons et code mort, et n'ajoute rien — a livré dans la PR #${pr.number}, avant qu'il ne soit mergé sur \`${base}\`. Tu n'es pas ce closer, et tu ne corriges rien : tu lis, et tu dis ce que tu trouves.`,

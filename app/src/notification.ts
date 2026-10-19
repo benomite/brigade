@@ -13,7 +13,7 @@
 // fait rien notifier : la bande dit l'urgence quand même. Ce module ne montre rien lui-même.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type { Faits } from "./faits.ts";
+import type { Facts } from "./facts.ts";
 
 // Une notification à montrer : `titre` et `corps`, ses deux lignes — le corps est le libellé que le
 // runtime a écrit, tel quel ; `emission`, l'annonce qu'elle porte.
@@ -38,8 +38,8 @@ export function tenirNotifications({ montrer, ouvrir, memoire }: Reglages) {
   const retenir = () => memoire.ecrire({ ...acquittees });
   return {
     // Les derniers faits lus d'un projet. Rend ce qui a été montré, s'il y en a.
-    recevoir(projet: string, faits: Faits): AMontrer | undefined {
-      const urgence = faits.urgence;
+    recevoir(projet: string, facts: Facts): AMontrer | undefined {
+      const urgence = facts.urgence;
       if (urgence === null) {
         notifiees.delete(projet);
         if (projet in acquittees) {

@@ -10,13 +10,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { decrireEtat, faits as faitsDuRuntime, lireEtat } from "../../runtime/src/etat.ts";
+import { decrireEtat, facts as runtimeFacts, lireEtat } from "../../runtime/src/etat.ts";
 import type { Fait } from "../../runtime/src/evenements.ts";
-import { ouvrirJournal } from "../../runtime/src/journal.ts";
+import { openLog } from "../../runtime/src/log.ts";
 import { principal as manager } from "../../runtime/src/manager-cli.ts";
 import { GESTE_DE_STATION_A_CHAUD_EN } from "../../runtime/src/stations-declarees.ts";
 import { AFFICHAGE_MINIMUM, alertes, boutonDe, MANAGER_PAS_DIT, signalDe, tenirBandes, type Alerte, type Sujet } from "../src/alertes.ts";
-import { mettreAPart } from "../src/attend.ts";
+import { mettreAPart } from "../src/awaiting.ts";
 import type { Lecture } from "../src/box.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
@@ -24,8 +24,8 @@ import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { confirmationDe, type Lus } from "../src/confirmation.ts";
-import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE, comprendre, type Faits } from "../src/faits.ts";
+import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
+import { BANNIERE, comprendre, type Facts } from "../src/facts.ts";
 import { CONFIRMES, DIRECTS, GESTES, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
@@ -42,24 +42,24 @@ const PAS_JOINT: Lecture = { projet: "parade", demande: 1, a: `${JOUR}T10:00:01.
 // Une cuisine dont le test tient l'horloge, et ce que la box en rend : `faits`, `status` et
 // `manager`, écrits par le runtime. `bande` : ce que l'app en dessine, lu comme le process
 // principal le lit — `faits`, puis `status` son bloc `attend` mis à part, puis l'onglet Manager.
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-app-alertes-"));
   let instant = `${JOUR}T09:00:00.000Z`;
-  const journal = ouvrirJournal(repertoire, { maintenant: () => new Date(instant) });
+  const log = openLog(repertoire, { maintenant: () => new Date(instant) });
   t.after(() => {
-    journal.fermer();
+    log.fermer();
     rmSync(repertoire, { recursive: true, force: true });
   });
-  const noter = (fait: Fait, author = "runtime") => void journal.ajouter({ project: "parade", ticket: null, author, ...fait });
+  const noter = (fait: Fait, author = "runtime") => void log.ajouter({ project: "parade", ticket: null, author, ...fait });
   // Une heure du jour du test, ou un instant entier.
   const quand = (heure: string) => (heure.includes("T") ? heure : `${JOUR}T${heure}.000Z`);
   const a = (heure: string) => void (instant = quand(heure));
   const rendre = (heure: string) => {
     const maintenant = new Date(quand(heure));
-    const etat = lireEtat(journal, maintenant);
+    const etat = lireEtat(log, maintenant);
     const lignes: string[] = [];
     void manager({ args: [], env: { BRIGADE_STATE_DIR: repertoire }, dire: (ligne) => void lignes.push(ligne), redire: (ligne) => assert.fail(ligne) });
-    return { faits: `${JSON.stringify(faitsDuRuntime(etat, maintenant))}\n`, status: `${decrireEtat(etat, maintenant).join("\n")}\n`, manager: `${lignes.join("\n")}\n` };
+    return { faits: `${JSON.stringify(runtimeFacts(etat, maintenant))}\n`, status: `${decrireEtat(etat, maintenant).join("\n")}\n`, manager: `${lignes.join("\n")}\n` };
   };
   const bande = (heure = "10:00:00", { avecManager = true } = {}): Alerte[] => {
     const rendu = rendre(heure);
@@ -75,10 +75,10 @@ function cuisine(t: TestContext) {
 
 // Une cuisine qui tourne, et où tout va bien : runtime en marche, manager allumé.
 function saine(t: TestContext) {
-  const servie = cuisine(t);
-  servie.noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
-  servie.noter({ type: "manager.enabled", payload: {} }, "chef");
-  return servie;
+  const served = kitchen(t);
+  served.noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
+  served.noter({ type: "manager.enabled", payload: {} }, "chef");
+  return served;
 }
 
 const du = (bande: Alerte[], sujet: Sujet) => bande.filter((alerte) => alerte.sujet === sujet);
@@ -147,7 +147,7 @@ describe("le manager : sain, éteint, non dit", () => {
   });
 
   test("jamais allumé : éteint aussi", (t) => {
-    const { noter, bande } = cuisine(t);
+    const { noter, bande } = kitchen(t);
     noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
     assert.match(enPanne(bande(), "manager").releve ?? "", /^OFF — never turned on/);
   });
@@ -298,7 +298,7 @@ describe("la bande, à l'écran", () => {
         exemple: EXEMPLE,
         onglets: ONGLETS, rubriques: RUBRIQUES,
         boutons: BOUTONS,
-        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,
@@ -313,8 +313,8 @@ describe("la bande, à l'écran", () => {
   test("vide, elle est cachée : elle ne prend aucune place ; une ligne la montre, et son geste, confirmé, ne part qu'à son « oui »", async (t) => {
     const { rendre, noter } = saine(t);
     const lus = (): Lus => {
-      const faits = comprendre(rendre("10:00:00").faits);
-      return "informe" in faits ? { sans: faits.informe } : { faits, a: `${JOUR}T10:00:01.000Z` };
+      const facts = comprendre(rendre("10:00:00").faits);
+      return "informe" in facts ? { sans: facts.informe } : { faits: facts, a: `${JOUR}T10:00:01.000Z` };
     };
     const vue = await ouvrir({ confirmer: (_, id, grant) => confirmationDe(id, PARADE, lus(), grant) });
     const bande = vue.element("alertes");
@@ -414,7 +414,7 @@ describe("le signal d'un projet sur sa case de la barre", () => {
         exemple: EXEMPLE,
         onglets: ONGLETS, rubriques: RUBRIQUES,
         boutons: BOUTONS,
-        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,
@@ -537,17 +537,17 @@ describe("la bande ne clignote pas (#721)", () => {
     bandes.ouvrir(["parade"]);
     bandes.veiller(["parade"]);
     const statusRate = { ...PAS_JOINT, erreur: PAS_JOINT.erreur.replace("facts", "status") };
-    const cuisine = (b: { alertes: Alerte[] }) => du(b.alertes, "cuisine").filter(({ pourquoi }) => pourquoi?.includes("`facts`"));
+    const kitchen = (b: { alertes: Alerte[] }) => du(b.alertes, "cuisine").filter(({ pourquoi }) => pourquoi?.includes("`facts`"));
     // `status` rate deux fois de suite : ce qu'il dit est établi, pas ce que `faits` n'a raté qu'une fois.
     bandes.status(mettreAPart({ ...statusRate, projet: "parade" }));
     bandes.faits(PAS_JOINT);
     const apres = bandes.status(mettreAPart({ ...statusRate, projet: "parade" }));
-    assert.deepEqual(cuisine(apres), []);
-    assert.deepEqual(cuisine(bandes.faits(OK(rendre))), []);
+    assert.deepEqual(kitchen(apres), []);
+    assert.deepEqual(kitchen(bandes.faits(OK(rendre))), []);
     // `faits` rate deux fois de suite, entrelacé de `status` réussi : établie.
     bandes.faits(PAS_JOINT);
     bandes.status(mettreAPart(lecture("status", rendre("10:00:00").status)));
-    assert.equal(cuisine(bandes.faits(PAS_JOINT)).length, 1);
+    assert.equal(kitchen(bandes.faits(PAS_JOINT)).length, 1);
   });
 });
 

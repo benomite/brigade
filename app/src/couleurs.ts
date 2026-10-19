@@ -4,7 +4,7 @@
 // Elles ne touchent jamais aux couleurs d'état de la peau (vert, jaune, rouge, bleu, gris) : une
 // alerte se lit pareil dans tous les projets. La palette les évite, et ne contient aucune d'elles.
 //
-// La palette vit ici, et non dans vue/jetons.css : une couleur de projet est une donnée du fichier
+// La palette vit ici, et non dans vue/tokens.css : une couleur de projet est une donnée du fichier
 // des projets, que le chef peut écrire à la main (`#rrggbb`) — la peau ne fait que la poser.
 
 export const ROLES = ["onglet", "accent"] as const;
@@ -33,7 +33,7 @@ export const estCouleur = (valeur: unknown): valeur is string => typeof valeur =
 
 // Une couleur de la palette, pour un rôle : de préférence une qu'aucun autre projet ne porte dans
 // ce rôle ; toutes prises, l'une des moins portées. `prises` : celles des autres projets.
-export function tirer(prises: readonly (string | undefined)[], hasard: () => number = Math.random): string {
+export function draw(prises: readonly (string | undefined)[], hasard: () => number = Math.random): string {
   const portees = (valeur: string) => prises.filter((prise) => prise?.toLowerCase() === valeur).length;
   const moins = Math.min(...PALETTE.map(({ valeur }) => portees(valeur)));
   const libres = PALETTE.filter(({ valeur }) => portees(valeur) === moins);

@@ -5,22 +5,22 @@ import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import type { Plafonds } from "../../src/events/guardrails.ts";
-import { principal as facts } from "../../src/faits.ts";
-import { brancherGardeFous, type Reglages } from "../../src/garde-fous.ts";
+import type { Caps } from "../../src/events/guardrails.ts";
+import { principal as facts } from "../../src/facts.ts";
+import { plugGuardrails, type Reglages } from "../../src/guardrails.ts";
 import { demarrer } from "../../src/runtime.ts";
 import { cartesDeCorrection } from "../../src/correctif/cartes.ts";
 import { detecter } from "../../src/correctif/detecter.ts";
 import { lireDiff, verifierDiff } from "../../src/correctif/portee.ts";
 import { lireReponse, proposer } from "../../src/correctif/proposer.ts";
 import { lireReglagesDuCorrectif } from "../../src/correctif/reglages.ts";
-import type { Journal } from "../../src/journal.ts";
+import type { Log } from "../../src/log.ts";
 import { appeler, BASE, depotGit, ENV_ENFANT, ENV_GIT, git, JOUR_HORLOGE, repertoireTemporaire } from "../outils.ts";
 
 const PROJET = "brigade";
 const DEPOT = "benomite/brigade";
-const PLAFONDS: Plafonds = { turns: 100, durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 };
-const REGLAGES: Reglages = { plafonds: PLAFONDS, seuilDisjoncteur: 3, graceMs: 2000 };
+const CAPS: Caps = { turns: 100, durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 };
+const REGLAGES: Reglages = { plafonds: CAPS, seuilDisjoncteur: 3, graceMs: 2000 };
 
 // Les fichiers du projet à sa base : ses consignes, et ce qui n'en est pas.
 const FICHIERS: Record<string, string> = {
@@ -90,11 +90,11 @@ const repondre = (motif: string, corps: string) => `${motif}\n\n\`\`\`diff\n${co
 
 let runs = 0;
 // Un essai raté de `ticket` pour un ticket incomplet, comme le journal le dit.
-function rater(journal: Journal, ticket: number): void {
-  const noter = (fait: object) => journal.ajouter({ project: PROJET, ticket, author: "runtime", ...fait } as never);
-  if (!journal.duTicket(ticket).some((e) => e.type === "ticket.taken")) noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: JOUR_HORLOGE } });
+function rater(log: Log, ticket: number): void {
+  const noter = (fait: object) => log.ajouter({ project: PROJET, ticket, author: "runtime", ...fait } as never);
+  if (!log.duTicket(ticket).some((e) => e.type === "ticket.taken")) noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: JOUR_HORLOGE } });
   const run = `run-${++runs}`;
-  noter({ type: "cook.launched", payload: { run, limits: PLAFONDS, stream: `runs/${run}.jsonl`, station: "box/claude" } });
+  noter({ type: "cook.launched", payload: { run, limits: CAPS, stream: `runs/${run}.jsonl`, station: "box/claude" } });
   noter({ type: "cook.reported", payload: { run, ending: "failed", reason: `ticket incomplet : le critère ${ticket} contredit le précédent`, summary: null, branch: "x", pr: null } });
   noter({ type: "cook.exited", payload: { run, outcome: "failed", code: 1, signal: null, turns: 1, tokens: 1, durationMs: 1 } });
 }
@@ -102,20 +102,20 @@ function rater(journal: Journal, ticket: number): void {
 // Une cuisine aux garde-fous branchés, un projet, une candidate sur #11, #12,
 // #13 ; et un faux `claude` qui rejoue le flux qu'on lui donne, et garde la
 // consigne qu'il a reçue.
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
-  const runtime = brancherGardeFous(REGLAGES, demarrer({ repertoireEtat: repertoire, projet: PROJET, intervalleVeilleMs: 5 }));
+  const runtime = plugGuardrails(REGLAGES, demarrer({ repertoireEtat: repertoire, projet: PROJET, intervalleVeilleMs: 5 }));
   t.after(() => runtime.arreter("test"));
-  const { journal } = runtime;
-  for (const ticket of [11, 12, 13]) rater(journal, ticket);
-  const [candidat] = detecter(journal, PROJET, lireReglagesDuCorrectif({}));
+  const { journal: log } = runtime;
+  for (const ticket of [11, 12, 13]) rater(log, ticket);
+  const [candidat] = detecter(log, PROJET, lireReglagesDuCorrectif({}));
   assert.ok(candidat);
 
   const aides = repertoireTemporaire(t);
   const [bin, flux, consigne] = [join(aides, "claude"), join(aides, "flux.jsonl"), join(aides, "consigne.txt")];
   writeFileSync(bin, `#!/bin/sh\nprintf '%s' "$2" >"${consigne}"\ncat "${flux}"\n`, { mode: 0o755 });
   const { clone, lieu, sha } = projet(t);
-  const options = { journal, projet: PROJET, depot: DEPOT, lieu, repertoireEtat: repertoire, lancer: runtime.lancer, bin, calibrage: { model: "sonnet", effort: "medium" }, env: ENV_ENFANT };
+  const options = { journal: log, projet: PROJET, depot: DEPOT, lieu, repertoireEtat: repertoire, lancer: runtime.lancer, bin, calibrage: { model: "sonnet", effort: "medium" }, env: ENV_ENFANT };
   const proposerAvec = (reponse: string) => {
     writeFileSync(flux, fluxDe(reponse));
     return proposer(options, candidat);
@@ -125,12 +125,12 @@ function cuisine(t: TestContext) {
     assert.equal(await appel.fin, 0, appel.sortie());
     return JSON.parse(appel.sortie()) as Record<string, unknown>;
   };
-  const sortie = (run: string) => journal.duType("cook.exited", Number.MAX_SAFE_INTEGER).find((e) => e.payload.run === run);
-  return { repertoire, journal, candidat, clone, sha, proposerAvec, consigne: () => readFileSync(consigne, "utf8"), lireFacts, sortie };
+  const sortie = (run: string) => log.duType("cook.exited", Number.MAX_SAFE_INTEGER).find((e) => e.payload.run === run);
+  return { repertoire, journal: log, candidat, clone, sha, proposerAvec, consigne: () => readFileSync(consigne, "utf8"), lireFacts, sortie };
 }
 
 test("une candidate donne une proposition : la cause, ses tickets, un diff des consignes et ce qu'il a coûté — et la carte la porte", async (t) => {
-  const { journal, candidat, sha, proposerAvec, consigne, lireFacts, sortie } = cuisine(t);
+  const { journal: log, candidat, sha, proposerAvec, consigne, lireFacts, sortie } = kitchen(t);
   const reponse = repondre("Les cooks devinaient un ticket incomplet au lieu de le dire.", diff("claude", "equipe"));
 
   const pose = await proposerAvec(reponse);
@@ -160,7 +160,7 @@ test("une candidate donne une proposition : la cause, ses tickets, un diff des c
   assert.match(consigne(), /<fichier chemin="docs\/equipe\.md">/);
   assert.doesNotMatch(consigne(), /runtime\/src\/rail\.ts|agents\/dev\.md/);
 
-  const [carte] = cartesDeCorrection(journal, DEPOT);
+  const [carte] = cartesDeCorrection(log, DEPOT);
   assert.deepEqual(carte, {
     proposition: pose?.seq,
     cause: "criteres",
@@ -178,7 +178,7 @@ test("une candidate donne une proposition : la cause, ses tickets, un diff des c
 });
 
 test("le diff proposé s'applique tel quel aux fichiers du projet : `git apply --check`, puis appliqué", async (t) => {
-  const { clone, proposerAvec } = cuisine(t);
+  const { clone, proposerAvec } = kitchen(t);
   const pose = await proposerAvec(repondre("", diff("claude", "neuve", "gates")));
   assert.equal(pose?.type, "correction.proposed");
   assert.equal(pose?.type === "correction.proposed" ? pose.payload.reason : "", null);
@@ -198,7 +198,7 @@ for (const [cas, noms] of [
   ["les consignes et, avec elles, le code", ["claude", "runtime"]],
 ] as const) {
   test(`une proposition qui touche ${cas} est écartée, sans diff gardé, et aucune carte ne la porte`, async (t) => {
-    const { journal, candidat, proposerAvec, lireFacts, sortie } = cuisine(t);
+    const { journal: log, candidat, proposerAvec, lireFacts, sortie } = kitchen(t);
 
     const pose = await proposerAvec(repondre("Corrigeons le code.", diff(...noms)));
     assert.equal(pose?.type, "correction.discarded");
@@ -206,29 +206,29 @@ for (const [cas, noms] of [
     assert.match(reason, /^hors des consignes du projet : (runtime\/src\/rail\.ts|agents\/dev\.md)$/);
     assert.deepEqual(payload, { candidate: candidat.seq, cause: "criteres", tickets: [11, 12, 13], tokens: TOKENS_DEPENSES, files: noms.map((nom) => TOUCHE[nom]) });
     assert.equal(sortie(run)?.payload.tokens, TOKENS_DEPENSES);
-    assert.doesNotMatch(JSON.stringify(journal.tout()), /export const rail = 2|Lis le CLAUDE\.md/);
-    assert.deepEqual(cartesDeCorrection(journal, DEPOT), []);
+    assert.doesNotMatch(JSON.stringify(log.tout()), /export const rail = 2|Lis le CLAUDE\.md/);
+    assert.deepEqual(cartesDeCorrection(log, DEPOT), []);
     assert.equal("corrections" in (await lireFacts()), false);
   });
 }
 
 test("une réponse sans bloc diff est écartée et dit pourquoi ; son coût est posé quand même", async (t) => {
-  const { proposerAvec, journal } = cuisine(t);
+  const { proposerAvec, journal: log } = kitchen(t);
   const pose = await proposerAvec("Je ne vois rien à corriger dans les consignes.");
   assert.equal(pose?.type, "correction.discarded");
   assert.deepEqual([pose?.payload.reason, pose?.payload.files, pose?.payload.tokens], ["aucun bloc ```diff dans la réponse", [], TOKENS_DEPENSES]);
-  assert.deepEqual(cartesDeCorrection(journal), []);
+  assert.deepEqual(cartesDeCorrection(log), []);
 });
 
 test("une candidate n'est proposée qu'une fois : la seconde demande rend la conclusion posée, sans relancer `claude`", async (t) => {
-  const { journal, proposerAvec } = cuisine(t);
+  const { journal: log, proposerAvec } = kitchen(t);
   const premiere = await proposerAvec(repondre("Une ligne.", diff("equipe")));
-  const lances = () => journal.tout().filter((e) => e.type === "cook.launched" && String(e.payload.run).startsWith("correctif-")).length;
+  const lances = () => log.tout().filter((e) => e.type === "cook.launched" && String(e.payload.run).startsWith("correctif-")).length;
   assert.equal(lances(), 1);
   const seconde = await proposerAvec(repondre("Une autre.", diff("claude")));
   assert.equal(seconde?.seq, premiere?.seq);
   assert.equal(lances(), 1);
-  assert.equal(journal.duType("correction.proposed", 10).length, 1);
+  assert.equal(log.duType("correction.proposed", 10).length, 1);
 });
 
 test("la garde lit le diff elle-même : CLAUDE.md, la doc d'équipe et les gates passent ; tout le reste, et ce qui ne se lit pas, est refusé", (t) => {

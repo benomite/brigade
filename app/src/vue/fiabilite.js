@@ -12,7 +12,7 @@ import { lectureIndisponible } from "./briques.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../fiabilite.ts").Vu} Vu */
-/** @typedef {import("../fiabilite.ts").Mesure} Mesure */
+/** @typedef {import("../fiabilite.ts").Measure} Measure */
 
 export const TITRE = "reliability of the cooks";
 export const CAUSES = "most frequent causes of failure";
@@ -49,7 +49,7 @@ function chiffre(doc, libelle, valeur, face, depasse) {
 }
 
 // Les trois chiffres, et la ligne qui dit sur quels tickets ils portent.
-/** @param {Fabrique} doc @param {Mesure} mesure */
+/** @param {Fabrique} doc @param {Measure} mesure */
 function chiffres(doc, { fenetre, retenus, ecartes, premierCoup, essaisMoyens, perdus }) {
   const ligne = cree(doc, "div");
   ligne.className = "chiffres";
@@ -73,7 +73,7 @@ function chiffres(doc, { fenetre, retenus, ecartes, premierCoup, essaisMoyens, p
 }
 
 // Les causes qui reviennent le plus : une ligne chacune, et ses derniers tickets en boutons.
-/** @param {Fabrique} doc @param {Mesure["causes"]} causes @param {(ticket: number, bouton: any) => void} ouvrir */
+/** @param {Fabrique} doc @param {Measure["causes"]} causes @param {(ticket: number, bouton: any) => void} ouvrir */
 function lesCauses(doc, causes, ouvrir) {
   const bloc = cree(doc, "div");
   bloc.className = "causes-fiabilite";
@@ -129,12 +129,12 @@ export function poserFiabilite(doc, vu, ouvrir) {
     return [tete];
   }
   if ("pasAssez" in vu) {
-    const { servis, fenetre } = vu.pasAssez;
+    const { servis: servedOnes, fenetre } = vu.pasAssez;
     const dit = cree(
       doc,
       "p",
-      servis < fenetre
-        ? `not enough tickets served yet to measure: ${servis} of the ${fenetre} it takes`
+      servedOnes < fenetre
+        ? `not enough tickets served yet to measure: ${servedOnes} of the ${fenetre} it takes`
         : `none of the last ${fenetre} tickets served is merged yet: nothing to measure`,
     );
     dit.className = "pas-assez";

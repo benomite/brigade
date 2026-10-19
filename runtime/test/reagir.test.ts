@@ -2,22 +2,22 @@
 // du calibrage et son plafond, la consigne de sa réaction, et ce qu'il en lit.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { configPlafond, consigneDeReaction, lireReaction, monter, obstacle } from "../src/reagir.ts";
+import { capConfig, consigneDeReaction, lireReaction, monter, obstacle } from "../src/reagir.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 
 const TOUT = { model: "opus", effort: "max" };
 const LIBRE = { model: true, effort: true };
 
 test("le plafond n'a pas de défaut : sans variable, aucune dimension ne monte", () => {
-  assert.deepEqual(configPlafond({}), { model: null, effort: null });
-  assert.equal(monter({ model: "haiku", effort: "low" }, configPlafond({}), LIBRE), null);
+  assert.deepEqual(capConfig({}), { model: null, effort: null });
+  assert.equal(monter({ model: "haiku", effort: "low" }, capConfig({}), LIBRE), null);
 });
 
 test("le plafond se lit dimension par dimension, et une valeur inconnue refuse de démarrer", () => {
-  assert.deepEqual(configPlafond({ BRIGADE_CEILING_MODEL: "sonnet", BRIGADE_CEILING_EFFORT: "xhigh" }), { model: "sonnet", effort: "xhigh" });
-  assert.deepEqual(configPlafond({ BRIGADE_CEILING_EFFORT: "high" }), { model: null, effort: "high" });
-  assert.throws(() => configPlafond({ BRIGADE_CEILING_MODEL: "gpt" }), ConfigInvalide);
-  assert.throws(() => configPlafond({ BRIGADE_CEILING_EFFORT: "extreme" }), /BRIGADE_CEILING_EFFORT invalide/);
+  assert.deepEqual(capConfig({ BRIGADE_CEILING_MODEL: "sonnet", BRIGADE_CEILING_EFFORT: "xhigh" }), { model: "sonnet", effort: "xhigh" });
+  assert.deepEqual(capConfig({ BRIGADE_CEILING_EFFORT: "high" }), { model: null, effort: "high" });
+  assert.throws(() => capConfig({ BRIGADE_CEILING_MODEL: "gpt" }), ConfigInvalide);
+  assert.throws(() => capConfig({ BRIGADE_CEILING_EFFORT: "extreme" }), /BRIGADE_CEILING_EFFORT invalide/);
 });
 
 test("monter d'un cran : l'effort d'abord", () => {
@@ -26,9 +26,9 @@ test("monter d'un cran : l'effort d'abord", () => {
 });
 
 test("l'effort au plafond, c'est le modèle qui monte, en gardant l'effort atteint", () => {
-  const plafond = { model: "opus", effort: "medium" };
-  assert.deepEqual(monter({ model: "haiku", effort: "medium" }, plafond, LIBRE), { model: "sonnet", effort: "medium" });
-  assert.deepEqual(monter({ model: "sonnet", effort: "medium" }, plafond, LIBRE), { model: "opus", effort: "medium" });
+  const cap = { model: "opus", effort: "medium" };
+  assert.deepEqual(monter({ model: "haiku", effort: "medium" }, cap, LIBRE), { model: "sonnet", effort: "medium" });
+  assert.deepEqual(monter({ model: "sonnet", effort: "medium" }, cap, LIBRE), { model: "opus", effort: "medium" });
 });
 
 test("au plafond des deux dimensions, rien ne monte ; un calibrage déjà au-dessus non plus", () => {

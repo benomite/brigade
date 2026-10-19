@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { principal as montrerRail } from "../src/montrer-rail.ts";
 import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
 import { ouvrirRail } from "../src/rail.ts";
@@ -12,11 +12,11 @@ const MONTRER = join(import.meta.dirname, "../src/montrer-rail.ts");
 
 test("le rail se lit ticket par ticket, dans l'ordre de service, chacun avec son état", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
-  t.after(() => journal.fermer());
-  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:30:00.000Z`) });
+  const log = openLog(repertoire, { maintenant: horloge() });
+  t.after(() => log.fermer());
+  const rail = ouvrirRail(log, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:30:00.000Z`) });
   for (const [ticket, priority] of [[14, 1], [15, 1], [16, 2], [17, 2], [18, null]] as const) {
-    journal.ajouter({
+    log.ajouter({
       project: "brigade",
       ticket,
       author: "github",
@@ -46,8 +46,8 @@ test("le rail se lit ticket par ticket, dans l'ordre de service, chacun avec son
 
 test("sous chaque ticket qui en porte une, sa fiche : ce qu'il attend, sa zone, et ce que le runtime n'y comprend pas", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
-  t.after(() => journal.fermer());
+  const log = openLog(repertoire, { maintenant: horloge() });
+  t.after(() => log.fermer());
   const cards = {
     14: { waitsFor: [12, 13], zone: ["runtime/src/rail.ts", "docs/"], problems: [] },
     15: { waitsFor: [], zone: [], problems: [] },
@@ -56,7 +56,7 @@ test("sous chaque ticket qui en porte une, sa fiche : ce qu'il attend, sa zone, 
   };
   for (const [ticket, card] of Object.entries(cards)) {
     const payload = { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://exemple.test/${ticket}`, card };
-    journal.ajouter({ project: "brigade", ticket: Number(ticket), author: "github", type: "ticket.arrived", payload });
+    log.ajouter({ project: "brigade", ticket: Number(ticket), author: "github", type: "ticket.arrived", payload });
   }
 
   const commande = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoire });
@@ -77,11 +77,11 @@ test("sous chaque ticket qui en porte une, sa fiche : ce qu'il attend, sa zone, 
 
 test("un ticket retenu dit pourquoi : ce qu'il attend encore, ou l'abandon qui le bloque — jamais un ticket déjà servi", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
-  t.after(() => journal.fermer());
-  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000 });
+  const log = openLog(repertoire, { maintenant: horloge() });
+  t.after(() => log.fermer());
+  const rail = ouvrirRail(log, { projet: "brigade", dureeBailMs: 600_000 });
   const arriver = (ticket: number, waitsFor: number[]) =>
-    journal.ajouter({
+    log.ajouter({
       project: "brigade",
       ticket,
       author: "github",
@@ -101,8 +101,8 @@ test("un ticket retenu dit pourquoi : ce qu'il attend encore, ou l'abandon qui l
   rail.prendre("box/claude");
   rail.envoyerEnPass(11, "box/claude");
   rail.servir(11);
-  journal.ajouter({ project: "brigade", ticket: 11, author: "github", type: "ticket.left", payload: { reason: "closed" } });
-  journal.ajouter({ project: "brigade", ticket: 13, author: "github", type: "ticket.left", payload: { reason: "closed" } });
+  log.ajouter({ project: "brigade", ticket: 11, author: "github", type: "ticket.left", payload: { reason: "closed" } });
+  log.ajouter({ project: "brigade", ticket: 13, author: "github", type: "ticket.left", payload: { reason: "closed" } });
 
   const commande = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoire });
 
@@ -120,14 +120,14 @@ test("un ticket retenu dit pourquoi : ce qu'il attend encore, ou l'abandon qui l
 
 test("le rail montre qui possède quoi : la zone de chaque ticket, qui tient celle d'un ticket retenu, et les chemins communs", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
-  t.after(() => journal.fermer());
-  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:30:00.000Z`) });
-  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "rail.commons", payload: { paths: ["docs/runtime.md", "CHANGELOG.md"] } });
+  const log = openLog(repertoire, { maintenant: horloge() });
+  t.after(() => log.fermer());
+  const rail = ouvrirRail(log, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:30:00.000Z`) });
+  log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "rail.commons", payload: { paths: ["docs/runtime.md", "CHANGELOG.md"] } });
   const zones = { 14: ["runtime/src", "docs/runtime.md"], 15: ["runtime/src/rail.ts", "docs/runtime.md"], 16: ["runtime/test"] };
   for (const [ticket, zone] of Object.entries(zones)) {
     const payload = { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://exemple.test/${ticket}`, card: { waitsFor: [], zone, problems: [] } };
-    journal.ajouter({ project: "brigade", ticket: Number(ticket), author: "github", type: "ticket.arrived", payload });
+    log.ajouter({ project: "brigade", ticket: Number(ticket), author: "github", type: "ticket.arrived", payload });
   }
   rail.prendre("box/claude");
 
@@ -147,7 +147,7 @@ test("le rail montre qui possède quoi : la zone de chaque ticket, qui tient cel
 
 test("un rail sans ticket le dit", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  ouvrirJournal(repertoire).fermer();
+  openLog(repertoire).fermer();
 
   const commande = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoire });
 
@@ -157,22 +157,22 @@ test("un rail sans ticket le dit", async (t) => {
 
 test("sans répertoire d'état, sans journal, ou avec un argument, la commande échoue en disant pourquoi", async (t) => {
   const sansVariable = lancer(t, MONTRER, []);
-  const sansJournal = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
+  const withoutLog = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
   const avecArgument = appeler(montrerRail, ["14"], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
 
   assert.equal(await sansVariable.fin, 2);
   assert.match(sansVariable.sortie(), /BRIGADE_STATE_DIR is not set/);
-  assert.equal(await sansJournal.fin, 1);
-  assert.match(sansJournal.sortie(), /no log in/);
+  assert.equal(await withoutLog.fin, 1);
+  assert.match(withoutLog.sortie(), /no log in/);
   assert.equal(await avecArgument.fin, 2);
   assert.match(avecArgument.sortie(), /usage/);
 });
 
 test("un journal dont le rail date d'avant la date de progrès dit de redémarrer le runtime, sans trace", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoire);
-  journal.base.script("DROP TABLE rail; CREATE TABLE rail (ticket INTEGER PRIMARY KEY, title TEXT) STRICT;");
-  journal.fermer();
+  const log = openLog(repertoire);
+  log.base.script("DROP TABLE rail; CREATE TABLE rail (ticket INTEGER PRIMARY KEY, title TEXT) STRICT;");
+  log.fermer();
 
   const commande = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoire });
 
@@ -183,7 +183,7 @@ test("un journal dont le rail date d'avant la date de progrès dit de redémarre
 
 test("un journal d'avant le rail dit aussi de redémarrer le runtime", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  ouvrirJournal(repertoire, { projections: [] }).fermer();
+  openLog(repertoire, { projections: [] }).fermer();
 
   const commande = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoire });
 
@@ -194,11 +194,11 @@ test("un journal d'avant le rail dit aussi de redémarrer le runtime", async (t)
 
 test("la fiche d'un ticket qui demande une capacité la montre, et son 86 dit laquelle manque", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
-  t.after(() => journal.fermer());
-  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000 });
+  const log = openLog(repertoire, { maintenant: horloge() });
+  t.after(() => log.fermer());
+  const rail = ouvrirRail(log, { projet: "brigade", dureeBailMs: 600_000 });
   const arriver = (ticket: number, requires: string[]) =>
-    journal.ajouter({
+    log.ajouter({
       project: "brigade",
       ticket,
       author: "github",
@@ -228,24 +228,24 @@ describe("remove, priority et merge", () => {
   const LABELS = (numero: number) => `${ISSUE(numero)}/labels`;
 
   // Le ticket 18 queued, le 14 pris.
-  function cuisine(t: TestContext) {
+  function kitchen(t: TestContext) {
     const repertoire = repertoireTemporaire(t);
-    const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
-    t.after(() => journal.fermer());
-    const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:30:00.000Z`) });
+    const log = openLog(repertoire, { maintenant: horloge() });
+    t.after(() => log.fermer());
+    const rail = ouvrirRail(log, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:30:00.000Z`) });
     for (const ticket of [14, 18]) {
       const payload = { title: `Ticket ${ticket}`, priority: ticket === 14 ? 1 : 5, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://exemple.test/${ticket}` };
-      journal.ajouter({ project: "brigade", ticket, author: "github", type: "ticket.arrived", payload });
+      log.ajouter({ project: "brigade", ticket, author: "github", type: "ticket.arrived", payload });
     }
     rail.prendre("box/claude");
     const gh = fauxGh(t);
     const jouer = (args: string[], env: Record<string, string> = {}) =>
       appeler(montrerRail, args, { BRIGADE_STATE_DIR: repertoire, BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin, ...env });
-    return { repertoire, journal, gh, jouer };
+    return { repertoire, journal: log, gh, jouer };
   }
 
   test("remove retire du rail un ticket queued : le label `fire` quitte l'issue, le rail ne le porte plus, et le prix est dit", async (t) => {
-    const { journal, gh, jouer } = cuisine(t);
+    const { journal: log, gh, jouer } = kitchen(t);
     gh.repondre(`${LABELS(18)}/fire`, { corps: [] });
 
     const commande = jouer(["remove", "18"]);
@@ -253,22 +253,22 @@ describe("remove, priority et merge", () => {
     assert.equal(await commande.fin, 0);
     assert.match(commande.sortie(), /^#18 removed from the rail — cost: the ticket leaves the rail/);
     assert.deepEqual(gh.appels(), [["api", "-i", "-X", "DELETE", `${LABELS(18)}/fire`]]);
-    assert.deepEqual(lireRail(journal.base).map(({ ticket }) => ticket), [14]);
+    assert.deepEqual(lireRail(log.base).map(({ ticket }) => ticket), [14]);
   });
 
   test("remove refuse un ticket pris, sans rien toucher : la raison et le prix, en code 1", async (t) => {
-    const { journal, gh, jouer } = cuisine(t);
+    const { journal: log, gh, jouer } = kitchen(t);
 
     const commande = jouer(["remove", "14"]);
 
     assert.equal(await commande.fin, 1);
     assert.match(commande.sortie(), /#14 is not touched: #14 is taken: a ticket in progress is not touched .* — cost: none: nothing was changed/);
     assert.deepEqual(gh.appels(), []);
-    assert.equal(ticketDuRail(journal.base, 14)?.state, "taken");
+    assert.equal(ticketDuRail(log.base, 14)?.state, "taken");
   });
 
   test("merge refuse un ticket dont aucune livraison n'attend d'être mergée par le chef, sans rien demander à GitHub : la raison et le prix, en code 1", async (t) => {
-    const { gh, jouer } = cuisine(t);
+    const { gh, jouer } = kitchen(t);
 
     const commande = jouer(["merge", "18"]);
 
@@ -278,7 +278,7 @@ describe("remove, priority et merge", () => {
   });
 
   test("priority change la priorité d'un ticket, même pris : le nouveau label est posé, l'ancien retiré, le rail la lit aussitôt", async (t) => {
-    const { journal, gh, jouer } = cuisine(t);
+    const { journal: log, gh, jouer } = kitchen(t);
     gh.repondre(ISSUE(14), { corps: issueGitHub(14, { labels: ["fire", "prio:1"] }) });
     gh.repondre(LABELS(14), { corps: [] });
     gh.repondre(`${LABELS(14)}/prio%3A1`, { corps: [] });
@@ -288,12 +288,12 @@ describe("remove, priority et merge", () => {
     assert.equal(await commande.fin, 0);
     assert.match(commande.sortie(), /^#14: priority prio:3 — cost: none: only the order of service changes/);
     assert.deepEqual(gh.appels().map((appel) => appel.at(-1)), [ISSUE(14), LABELS(14), `${LABELS(14)}/prio%3A1`]);
-    assert.equal(ticketDuRail(journal.base, 14)?.priority, 3);
-    assert.equal(ticketDuRail(journal.base, 14)?.state, "taken");
+    assert.equal(ticketDuRail(log.base, 14)?.priority, 3);
+    assert.equal(ticketDuRail(log.base, 14)?.state, "taken");
   });
 
   test("priority none retire la priorité ; une valeur hors de 1 à 9 est refusée sans rien demander à GitHub", async (t) => {
-    const { journal, gh, jouer } = cuisine(t);
+    const { journal: log, gh, jouer } = kitchen(t);
     gh.repondre(ISSUE(18), { corps: issueGitHub(18, { labels: ["fire", "prio:5"] }) });
     gh.repondre(`${LABELS(18)}/prio%3A5`, { corps: [] });
 
@@ -305,11 +305,11 @@ describe("remove, priority et merge", () => {
     const aucune = jouer(["priority", "18", "none"]);
     assert.equal(await aucune.fin, 0);
     assert.match(aucune.sortie(), /^#18: priority removed — cost: /);
-    assert.equal(ticketDuRail(journal.base, 18)?.priority, null);
+    assert.equal(ticketDuRail(log.base, 18)?.priority, null);
   });
 
   test("une demande mal formée, ou sans dépôt déclaré, est refusée en 2 avant que rien ne parte", async (t) => {
-    const { gh, jouer } = cuisine(t);
+    const { gh, jouer } = kitchen(t);
     for (const args of [["remove"], ["remove", "x"], ["remove", "18", "3"], ["priority", "18"], ["priority", "18", "3", "4"], ["merge"], ["merge", "18", "now"], ["supprimer", "18"]]) {
       const commande = jouer(args);
       assert.equal(await commande.fin, 2, args.join(" "));

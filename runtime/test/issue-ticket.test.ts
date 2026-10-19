@@ -26,23 +26,23 @@ const issue = (number: number, autres: Partial<Issue> = {}): Issue & { body: str
 function depot(...issues: Array<Issue & { body: string; author: string }>) {
   const etat = new Map(issues.map((i) => [i.number, i]));
   const discussions = new Map<number, Commentaire[]>();
-  const postes: Array<[number, string]> = [];
+  const workstations: Array<[number, string]> = [];
   let horloge = 0;
   const github = {
     issue: async (numero: number) => etat.get(numero) ?? null,
     commentaires: async (numero: number) => discussions.get(numero) ?? [],
     async commenter(numero: number, corps: string) {
-      postes.push([numero, corps]);
+      workstations.push([numero, corps]);
       const createdAt = `2026-10-15T10:00:${String(++horloge).padStart(2, "0")}Z`;
       discussions.set(numero, [...(discussions.get(numero) ?? []), { body: corps, author: "brigade", association: "OWNER", createdAt }]);
     },
   } as unknown as GitHub;
   const discuter = (numero: number, ...commentaires: Commentaire[]) => void discussions.set(numero, commentaires);
-  return { github, postes, discuter };
+  return { github, postes: workstations, discuter };
 }
 
 test("lire l'issue d'une carte rend son corps, puis ses commentaires du plus ancien au plus récent, chacun avec son auteur et sa date", async () => {
-  const { github, discuter, postes } = depot(issue(7));
+  const { github, discuter, postes: workstations } = depot(issue(7));
   discuter(
     7,
     { body: "<!-- brigade:fiche -->\n- attend : rien", author: "chef", association: "OWNER", createdAt: "2026-10-02T08:00:00Z" },
@@ -64,7 +64,7 @@ test("lire l'issue d'une carte rend son corps, puis ses commentaires du plus anc
     },
   });
   // Lire ne poste rien.
-  assert.deepEqual(postes, []);
+  assert.deepEqual(workstations, []);
 });
 
 test("une issue fermée se lit aussi : une carte servie garde son issue", async () => {
@@ -76,7 +76,7 @@ test("une issue fermée se lit aussi : une carte servie garde son issue", async 
 });
 
 test("commenter poste le texte sur l'issue, dit son prix, et le commentaire se relit à la suite de la discussion", async () => {
-  const { github, postes, discuter } = depot(issue(7));
+  const { github, postes: workstations, discuter } = depot(issue(7));
   discuter(7, { body: "Une question ?", author: "brigade-manager[bot]", association: "NONE", createdAt: "2026-10-02T08:00:00Z" });
 
   const r = await commenterIssue(github, 7, "  Le fournisseur répond **lundi**.\n");
@@ -85,7 +85,7 @@ test("commenter poste le texte sur l'issue, dit son prix, et le commentaire se r
   assert.match(r.price, /comment is posted on issue #7/);
   assert.match(r.price, /No model is called/);
   // Tel quel, sans les blancs qui l'entourent.
-  assert.deepEqual(postes, [[7, "Le fournisseur répond **lundi**."]]);
+  assert.deepEqual(workstations, [[7, "Le fournisseur répond **lundi**."]]);
   const lue = await lireIssue(github, 7);
   assert.deepEqual(lue.found && lue.issue.comments.map(({ author, body }) => [author, body]), [
     ["brigade-manager[bot]", "Une question ?"],
@@ -94,7 +94,7 @@ test("commenter poste le texte sur l'issue, dit son prix, et le commentaire se r
 });
 
 test("un texte vide, ou fait de blancs, est refusé en le disant, et rien n'est posté", async () => {
-  const { github, postes } = depot(issue(7));
+  const { github, postes: workstations } = depot(issue(7));
 
   for (const vide of ["", "   \n\t ", null, undefined, 42]) {
     const r = await commenterIssue(github, 7, vide);
@@ -102,11 +102,11 @@ test("un texte vide, ou fait de blancs, est refusé en le disant, et rien n'est 
     assert.match(r.done ? "" : r.reason, /the comment is empty/);
     assert.equal(r.price, "none: nothing was posted");
   }
-  assert.deepEqual(postes, []);
+  assert.deepEqual(workstations, []);
 });
 
 test("une carte sans issue — disparue de GitHub, une PR, un numéro qui n'en est pas un — est refusée en le disant, à la lecture comme à l'écriture, et rien n'est posté", async () => {
-  const { github, postes } = depot(issue(30, { pr: true }));
+  const { github, postes: workstations } = depot(issue(30, { pr: true }));
 
   const absente = await lireIssue(github, 9);
   assert.deepEqual(absente, { found: false, reason: "#9 has no GitHub issue: it does not exist, or is gone" });
@@ -120,7 +120,7 @@ test("une carte sans issue — disparue de GitHub, une PR, un numéro qui n'en e
     assert.equal(r.price, "none: nothing was posted");
   }
   assert.deepEqual(await commenterIssue(github, 30, "Du contexte"), { done: false, reason: "#30 is a pull request, not an issue", price: "none: nothing was posted" });
-  assert.deepEqual(postes, []);
+  assert.deepEqual(workstations, []);
 });
 
 test("un GitHub en panne lève : une issue illisible n'est pas une carte sans issue", async () => {
@@ -242,14 +242,14 @@ test("`pass -- <ticket> issue` : une panne de GitHub sort en 1 en le disant, une
 
 // La demande au second : composée d'après l'issue lue, jamais écrite nulle part par le runtime.
 test("la demande au second nomme l'issue — numéro et titre — et le contexte saisi, sur une seule ligne, sans rien poster", async () => {
-  const { github, postes } = depot(issue(7, { title: "Livrer la facture" }));
+  const { github, postes: workstations } = depot(issue(7, { title: "Livrer la facture" }));
   const r = await demanderAuSecond(github, 7, "  Le fournisseur répond lundi.\nIl veut un devis.\n");
   assert.ok(r.done);
   assert.match(r.request, /#7/);
   assert.match(r.request, /Livrer la facture/);
   assert.match(r.request, /Le fournisseur répond lundi\. Il veut un devis\./);
   assert.doesNotMatch(r.request, /[\n\r]/);
-  assert.deepEqual(postes, []);
+  assert.deepEqual(workstations, []);
 });
 
 test("sans contexte, la demande reste possible et nomme l'issue seule", async () => {

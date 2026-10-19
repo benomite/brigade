@@ -13,9 +13,9 @@ import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
 import { ajouterProjet, changerCouleur, colorerProjets, EXEMPLE, lireConfiguration, type Projet } from "../src/config.ts";
-import { choix, couleursLues, PALETTE, ROLES, tirer } from "../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE } from "../src/faits.ts";
+import { choix, couleursLues, PALETTE, ROLES, draw } from "../src/couleurs.ts";
+import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
+import { BANNIERE } from "../src/facts.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
@@ -23,7 +23,7 @@ import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { suivreConfiguration } from "../src/suivi.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { type Faux, type Jouee, jetonsDe, jouerLaVue, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
+import { type Faux, type Jouee, tokensOf, jouerLaVue, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
 
 const VUE = join(import.meta.dirname, "../src/vue");
 const VALEURS = PALETTE.map(({ valeur }) => valeur);
@@ -41,8 +41,8 @@ const lu = (chemin: string) => JSON.parse(readFileSync(chemin, "utf8")) as { pro
 
 describe("la palette", () => {
   test("aucune couleur de projet n'est une couleur d'état de la peau : une alerte se lit pareil partout", () => {
-    const jetons = jetonsDe(readFileSync(join(VUE, "jetons.css"), "utf8"));
-    const etats = ["--vert", "--jaune", "--rouge", "--rouge-clair", "--bleu", "--gris"].map((nom) => jetons.get(nom));
+    const tokens = tokensOf(readFileSync(join(VUE, "tokens.css"), "utf8"));
+    const etats = ["--vert", "--jaune", "--rouge", "--rouge-clair", "--bleu", "--gris"].map((nom) => tokens.get(nom));
     assert.ok(etats.every((valeur) => valeur?.startsWith("#")), etats.join());
     for (const valeur of VALEURS) assert.ok(!etats.includes(valeur), `${valeur} est une couleur d'état`);
     assert.equal(new Set(VALEURS).size, VALEURS.length, "une couleur est deux fois dans la palette");
@@ -52,14 +52,14 @@ describe("la palette", () => {
 
   test("un tirage écarte ce que les autres projets portent, tant que la palette n'est pas épuisée", () => {
     const prises: string[] = [];
-    for (let rang = 0; rang < PALETTE.length; rang++) prises.push(tirer(prises, toujours(0)));
+    for (let rang = 0; rang < PALETTE.length; rang++) prises.push(draw(prises, toujours(0)));
     assert.deepEqual([...prises].sort(), [...VALEURS].sort());
     // Épuisée : l'une des moins portées — ici, toutes le sont une fois, sauf la dernière tirée deux fois.
-    const encore = tirer([...prises, VALEURS[0]], toujours(0));
+    const encore = draw([...prises, VALEURS[0]], toujours(0));
     assert.notEqual(encore, VALEURS[0]);
     // Le hasard choisit parmi les libres, jusqu'au bout de la liste.
-    assert.equal(tirer([], toujours(0.999999)), VALEURS.at(-1));
-    assert.equal(tirer([VALEURS[0]?.toUpperCase()], toujours(0)), VALEURS[1], "une couleur écrite en capitales est la même");
+    assert.equal(draw([], toujours(0.999999)), VALEURS.at(-1));
+    assert.equal(draw([VALEURS[0]?.toUpperCase()], toujours(0)), VALEURS[1], "une couleur écrite en capitales est la même");
   });
 
   test("le fichier dit une couleur en `#rrggbb` ; ce qui n'en est pas une est refusé, et dit", () => {
@@ -185,7 +185,7 @@ describe("les couleurs dans la vue", () => {
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
         boutons: BOUTONS,
-        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,

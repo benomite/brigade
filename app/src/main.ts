@@ -7,10 +7,10 @@ import { tenirBandes } from "./alertes.ts";
 import { lireFeu } from "./feu.ts";
 import { ALLUMAGE, compter } from "./allumage.ts";
 import { COMMANDE as COMMANDE_AMONT, tenirAmont } from "./amont.ts";
-import { mettreAPart } from "./attend.ts";
+import { mettreAPart } from "./awaiting.ts";
 import { pourLaBarre } from "./barre.ts";
 import { BOUTONS, ecritPar } from "./boutons.ts";
-import { lancerGeste, ouvrirVeille, type Servi } from "./box.ts";
+import { lancerGeste, ouvrirVeille, type Served } from "./box.ts";
 import { histoireDe, situationDe } from "./histoire.ts";
 import { commenter, demanderAuSecond, lireDiscussion } from "./discussion.ts";
 import { cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
@@ -18,11 +18,11 @@ import { confirmationDe } from "./confirmation.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
 import { ecrireAttente, GESTES_D_ATTENTE } from "./attente.ts";
-import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
-import { BANNIERE, COMMANDE, tenirFaits } from "./faits.ts";
+import { KITCHEN_ACTIONS } from "./kitchen.ts";
+import { BANNIERE, COMMANDE, holdFacts } from "./facts.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
-import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
+import { gestesDeCarte, playCardAction } from "./card-actions.ts";
 import { COMMANDES as COMMANDES_DE_FIABILITE, ONGLET as FIABILITE, voir as voirFiabilite } from "./fiabilite.ts";
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterALApp, lireClone } from "./ajout.ts";
@@ -35,15 +35,15 @@ import { gistLocal, tenirLogin } from "./pannes/login.ts";
 import { depotsDuChef } from "./projets/github.ts";
 import { EFFORTS, MODELES, tenirProjets } from "./projets/projets.ts";
 import { memoireDansFichier, tenirNotifications } from "./notification.ts";
-import { cuisinesIci, roleDe } from "./poste/role.ts";
-import { tenirStationLocale } from "./poste/station.ts";
+import { kitchensHere, roleDe } from "./workstation/role.ts";
+import { tenirStationLocale } from "./workstation/station.ts";
 import { ouvrirPty } from "./pty.ts";
 import { LABEL_RETENUE, lever, lireQuestion, repondre as repondreQuestion, titreDe, type Lue as QuestionLue } from "./question.ts";
 import { lireCapture } from "./captures.ts";
 import { relanceDe, tenirPassage } from "./rattrapage.ts";
 import { tenirRepondues } from "./repondues.ts";
 import { APP, tenirRetards } from "./retard.ts";
-import { ouvrirTours } from "./saisie.ts";
+import { openTurns } from "./saisie.ts";
 import { DELAIS, lancerRetrait, tenirRetraits } from "./retrait.ts";
 import { ouvrirRunner } from "./runner.ts";
 import { tenirServices } from "./service.ts";
@@ -55,18 +55,18 @@ import { suivreConfiguration } from "./suivi.ts";
 import { ouvrirTerminaux } from "./terminaux.ts";
 
 let fenetre: BrowserWindow | undefined;
-const dire = (canal: string, ...faits: unknown[]) => {
-  if (fenetre !== undefined && !fenetre.isDestroyed()) fenetre.webContents.send(canal, ...faits);
+const dire = (canal: string, ...facts: unknown[]) => {
+  if (fenetre !== undefined && !fenetre.isDestroyed()) fenetre.webContents.send(canal, ...facts);
 };
 
 // Chaque second dit ses tours à l'app, par ses crochets, dans un fichier à lui (saisie.ts) :
 // c'est d'après eux qu'un geste direct part, ou dit qu'il ne peut pas.
 // Les shells persistants ouverts sont retenus à côté du fichier des projets (souvenirs.ts) :
 // rouverte, l'app les rattache à leur session.
-const tours = ouvrirTours();
+const turns = openTurns();
 const terminaux = ouvrirTerminaux({
   ouvrirPty,
-  tours: tours.de,
+  turns: turns.de,
   souvenirs: souvenirsDansFichier(join(dirname(cheminConfiguration()), "shells.json")),
   // Jamais posée hors des essais, comme pour la veille.
   ssh: process.env.BRIGADE_SSH_BIN || "ssh",
@@ -97,7 +97,7 @@ const veille = ouvrirVeille({
     dire("lecture", montree, pages.recevoir(montree));
     // Le rail se dessine aussi de ce `status` : son bloc dit en mots ce qui attend le chef, et sa
     // ligne `rail` ce que chaque carte porte du ticket.
-    const redessine = faits.attendre(montree);
+    const redessine = facts.attendre(montree);
     if (redessine !== undefined) dire("faits", redessine);
     // Une question répondue qui attend le manager : son issue est relue de loin en loin.
     relireRepondues(montree.projet);
@@ -135,7 +135,7 @@ const veilleDOnglet = ouvrirVeille({
 // Les questions du manager que le chef a répondues (repondues.ts) : leur carte quitte TODO pour
 // WAITING sans attendre le manager.
 const repondues = tenirRepondues();
-const faits = tenirFaits((projet) => repondues.de(projet));
+const facts = holdFacts((projet) => repondues.de(projet));
 // L'accueil (accueil.ts) : une ligne par projet, une par station, et la ligne de santé — redessiné à
 // chaque lecture qui le change, de `faits`, de `status` ou des stations sur GitHub.
 const accueil = tenirAccueil({ locale: () => (stationLocale === undefined ? null : gistLocal(racineDeLaStation)), projets: () => projets().map(({ nom, box, desinstalle }) => ({ nom, box: box !== undefined, desinstalle: desinstalle !== undefined })) });
@@ -177,18 +177,18 @@ const urgences = tenirNotifications({
     dire("urgence", projet);
   },
 });
-const veilleDesFaits = ouvrirVeille({
+const factsWatch = ouvrirVeille({
   ssh: process.env.BRIGADE_SSH_BIN || "ssh",
   intervalleMs: 30_000,
   delaiMs: 30_000,
   connexionS: 10,
   passage,
   surLecture: (lecture) => {
-    dire("faits", faits.recevoir(lecture));
+    dire("faits", facts.recevoir(lecture));
     direLaBande(bandes.faits(lecture));
     direLAccueil(accueil.faits(lecture));
     // Une annonce d'urgence que le runtime vient de faire se dit au système.
-    const lus = faits.dernier(lecture.projet);
+    const lus = facts.dernier(lecture.projet);
     if (lus !== undefined) urgences.recevoir(lecture.projet, lus.faits);
   },
 });
@@ -227,10 +227,10 @@ const veilleDeLAmont = ouvrirVeille({
 // montre est amené ici par un transfert de port de `ssh` — par le passage du projet, le temps
 // qu'il s'ouvre, et trente secondes au plus —, puis l'adresse locale est ouverte comme une issue.
 const pages = tenirPages({
-  transferer: (servi, port, signal) => {
+  transferer: (served, port, signal) => {
     // Jamais posée hors des essais, comme pour la veille.
-    const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => ouvrirTransfert({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, port, signal));
-    passage.set(servi.nom, rendu);
+    const rendu = (passage.get(served.nom) ?? Promise.resolve()).then(() => ouvrirTransfert({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, served, port, signal));
+    passage.set(served.nom, rendu);
     return rendu;
   },
   ouvrir: (url) => shell.openExternal(url),
@@ -239,12 +239,12 @@ const pages = tenirPages({
 // La veille de `status` change de projets : le bloc `attend` de ceux qu'elle ne lit plus est
 // lâché, et leur rail redessiné sans lui — il ne serait plus rafraîchi, quand leurs faits le sont.
 // `espace` : c'est l'espace d'un projet, et son rail — ce qui est en amont s'y lit aussi.
-function regarder(vus: Parameters<typeof veille.regarder>[0], commandes: readonly string[], demande: number, espace = false): void {
+function regarder(vus: Parameters<typeof veille.regarder>[0], commandes: readonly string[], demande: number, space = false): void {
   veille.regarder(vus, commandes, demande);
-  const amont = espace ? vus : [];
+  const amont = space ? vus : [];
   veilleDeLAmont.regarder(amont, [COMMANDE_AMONT], demande);
   amonts.veiller(amont.map(({ nom }) => nom));
-  for (const redessine of faits.veiller(vus.map(({ nom }) => nom))) dire("faits", redessine);
+  for (const redessine of facts.veiller(vus.map(({ nom }) => nom))) dire("faits", redessine);
   for (const bande of bandes.veiller(vus.filter(({ box }) => box !== undefined).map(({ nom }) => nom))) { dernieresBandes.set(bande.projet, bande); dire("alertes", bande); }
   direLAccueil(accueil.veiller(vus.map(({ nom }) => nom)));
 }
@@ -258,10 +258,10 @@ function regarder(vus: Parameters<typeof veille.regarder>[0], commandes: readonl
 // d'installation. Le contrôle d'un projet installé ne se refait pas plus d'une fois par minute.
 const services = tenirServices({
   delaiMs: 120_000,
-  lancer: (servi, commande) => {
+  lancer: (served, commande) => {
     // Jamais posée hors des essais, comme pour la veille.
-    const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => lancerGeste({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 120_000, connexionS: 10 }, servi, commande));
-    passage.set(servi.nom, rendu);
+    const rendu = (passage.get(served.nom) ?? Promise.resolve()).then(() => lancerGeste({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 120_000, connexionS: 10 }, served, commande));
+    passage.set(served.nom, rendu);
     return rendu;
   },
   session: terminaux.session,
@@ -281,7 +281,7 @@ const controlerTout = () => {
 };
 const controles = setInterval(controlerTout, CONTROLE_MS);
 
-// Ce qu'est l'app sur cette machine (poste/role.ts) : une station sur un ordinateur, le runtime
+// Ce qu'est l'app sur cette machine (workstation/role.ts) : une station sur un ordinateur, le runtime
 // à côté d'elle dans son clone ; un poste sur un téléphone — il pilote, rien n'y cuit, ni sa
 // station ni celles que ses projets lui confient.
 const role = roleDe({ plateforme: process.platform, runtime: join(import.meta.dirname, "..", "..", "runtime"), env: process.env });
@@ -314,10 +314,10 @@ const runner = ouvrirRunner({
 const retraits = tenirRetraits({
   chemin: cheminConfiguration(),
   retirer: (nom) => suivi.retirer(nom),
-  lancer: (servi, demande) => {
+  lancer: (served, demande) => {
     // Jamais posée hors des essais, comme pour la veille.
-    const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => lancerRetrait({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: demande.plan ? DELAIS.planMs : DELAIS.executionMs, connexionS: 10 }, servi, demande));
-    passage.set(servi.nom, rendu);
+    const rendu = (passage.get(served.nom) ?? Promise.resolve()).then(() => lancerRetrait({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: demande.plan ? DELAIS.planMs : DELAIS.executionMs, connexionS: 10 }, served, demande));
+    passage.set(served.nom, rendu);
     return rendu;
   },
   surDesinstalle: (nom) => {
@@ -326,7 +326,7 @@ const retraits = tenirRetraits({
     // La veille de `status` tient encore sa box, quel que soit l'écran : elle est reposée sans lui.
     voir();
     // Et le runner ne joue plus rien pour lui : ses cooks sont arrêtés.
-    runner.servir(cuisinesIci(role, projets()));
+    runner.servir(kitchensHere(role, projets()));
     dire("configuration", affichee(), []);
   },
 });
@@ -346,7 +346,7 @@ const suivi = suivreConfiguration({
     partis.filter((nom) => !configuration.projets.some((reste) => reste.nom === nom)).forEach(retraits.oublier);
     dire("configuration", affichee(), partis.flatMap((nom) => terminaux.quitter(nom)));
     // Les stations que le poste joue sont celles du fichier tel qu'il est maintenant.
-    runner.servir(cuisinesIci(role, projets()));
+    runner.servir(kitchensHere(role, projets()));
     // Un clone de brigade a pu entrer dans la liste, ou en sortir.
     void retards.relire(true);
     // L'accueil a une ligne par projet du fichier, tel qu'il est maintenant.
@@ -410,7 +410,7 @@ const stations = tenirStations({
 });
 // Sur un ordinateur, l'app est une station (`role`) : elle lance celle de la machine — la même
 // que celle d'un serveur —, sous `station/` à côté du fichier des projets, et l'appaire seule,
-// par le geste du champ de la home (poste/station.ts). Ce que la station dit s'écrit dans le
+// par le geste du champ de la home (workstation/station.ts). Ce que la station dit s'écrit dans le
 // terminal qui a lancé l'app.
 const racineDeLaStation = process.env.BRIGADE_STATION_DIR || join(dirname(cheminConfiguration()), "station");
 const stationLocale =
@@ -450,7 +450,7 @@ function projet(nom: unknown): Projet {
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu(), stations: stations.vu(), projetsDesStations: projetsDesStations.vu(), accueil: accueil.vu() }));
+ipcMain.handle("demarrage", () => ({ configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu(), stations: stations.vu(), projetsDesStations: projetsDesStations.vu(), accueil: accueil.vu() }));
 // Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
 // décide hors de la vue — elle reçoit ce qu'il en est advenu, et pourquoi.
 ipcMain.handle("choisirDossier", async () => {
@@ -478,7 +478,7 @@ ipcMain.handle("colorer", (_, nom: unknown, role: unknown, couleur: unknown) => 
 // Écrit, il arrive par `surConfiguration`. Le réglage rend la raison, s'il ne l'a pas été.
 ipcMain.handle("ordinaires", (_, nom: unknown) => {
   const vise = declare(nom);
-  return vise === undefined ? undefined : blocDesOrdinaires(vise, process.platform, faits.stations(vise.nom));
+  return vise === undefined ? undefined : blocDesOrdinaires(vise, process.platform, facts.stations(vise.nom));
 });
 ipcMain.handle("reglerOrdinaires", (_, nom: unknown, actif: unknown, limite: unknown) => {
   const vise = declare(nom);
@@ -552,7 +552,7 @@ ipcMain.handle("retirerDeLApp", (_, nom: unknown) => {
 });
 ipcMain.handle("direJournal", (_, nom: unknown, coche: unknown) => {
   const vise = declare(nom);
-  return vise === undefined ? undefined : retraits.direJournal(vise, coche === true);
+  return vise === undefined ? undefined : retraits.sayLog(vise, coche === true);
 });
 // La box met son temps à répondre, et le fichier a pu changer entre-temps : ce qui est
 // rendu à la vue est le retrait du projet tel qu'il est déclaré à la réponse — rien, s'il n'y est plus.
@@ -567,7 +567,7 @@ ipcMain.handle("planifier", (_, nom: unknown) => {
 });
 ipcMain.handle("desinstaller", (_, nom: unknown, confirmation: unknown) => {
   const vise = declare(nom);
-  return vise === undefined ? undefined : apres(nom, retraits.desinstaller(vise, confirmation));
+  return vise === undefined ? undefined : apres(nom, retraits.uninstall(vise, confirmation));
 });
 ipcMain.handle("espace", (_, nom: unknown) => terminaux.espace(projet(nom)));
 // « + shell » : les machines où ouvrir un shell persistant (machines.ts) — ce poste, la box, et les
@@ -600,13 +600,13 @@ ipcMain.handle("inscrire", (_, nom: unknown, id: unknown) => {
 ipcMain.handle("demander", (_, nom: unknown, ticket: unknown) => {
   const vise = projet(nom);
   if (typeof ticket !== "number") return undefined;
-  const dit = faits.attendu(vise.nom, ticket);
-  const donne = dit === undefined ? (faits.ticket(vise.nom, ticket) ?? (amonts.adresse(vise.nom, ticket) === undefined ? undefined : {})) : undefined;
+  const dit = facts.attendu(vise.nom, ticket);
+  const donne = dit === undefined ? (facts.ticket(vise.nom, ticket) ?? (amonts.adresse(vise.nom, ticket) === undefined ? undefined : {})) : undefined;
   if (dit === undefined && donne === undefined) return undefined;
   const ecrit = dit !== undefined ? demandeDe(vise.nom, ticket, dit.lignes, dit.titre) : demandeSurLeTicket(vise.nom, ticket, donne?.etat, donne?.titre);
   return "refus" in ecrit ? ecrit : terminaux.inscrire(vise, ecrit.demande, noteDeLaDemande);
 });
-// Les gestes de la fiche d'un ticket, à cet instant (gestes-fiche.ts) : d'après la carte cliquée,
+// Les gestes de la fiche d'un ticket, à cet instant (card-actions.ts) : d'après la carte cliquée,
 // ceux qui tranchent ce qu'on attend du chef, puis ceux que la table du chef permet pour son état,
 // dont l'action est branchée, chacun avec son prix.
 ipcMain.handle("gestesDeFiche", (_, carte: unknown) => gestesDeCarte(carte));
@@ -615,11 +615,11 @@ ipcMain.handle("gestesDeFiche", (_, carte: unknown) => gestesDeCarte(carte));
 // compose ici, jamais dans la vue.
 ipcMain.handle("gesteDeFiche", (_, nom: unknown, id: unknown, ticket: unknown, valeur: unknown) => {
   const vise = connu(nom);
-  return vise === undefined ? parti(nom) : jouerGesteDeFiche(terminaux, vise, id, ticket, valeur);
+  return vise === undefined ? parti(nom) : playCardAction(terminaux, vise, id, ticket, valeur);
 });
 // La question qu'une carte de T'attend pose, telle qu'elle est écrite sur son issue (question.ts) :
 // l'issue est lue par le `gh` du poste — celui du chef —, à l'ouverture de sa fiche. La vue nomme le
-// projet et le ticket ; l'adresse est celle que la box a rendue (faits.ts). Rien pour un ticket que
+// projet et le ticket ; l'adresse est celle que la box a rendue (facts.ts). Rien pour un ticket que
 // le bloc `attend` ne nomme pas : seule une entrée qui t'attend se lit ainsi.
 const reglagesGh = () => ({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 });
 // Ce que chaque lecture de l'issue dit de sa question est retenu (repondues.ts) : répondue, sa carte
@@ -629,21 +629,21 @@ function retenirLue(projet: string, ticket: unknown, lue: QuestionLue): Question
   return lue;
 }
 function redessinerRail(projet: string): void {
-  const redessine = faits.redessiner(projet);
+  const redessine = facts.redessiner(projet);
   if (redessine !== undefined) dire("faits", redessine);
 }
 // Une carte répondue attend le manager tant que la file la nomme : son issue est relue au plus toutes
 // les deux minutes — c'est là que se voit une autre question. Ce que la file ne nomme plus est lâché.
 function relireRepondues(projet: string): void {
-  for (const ticket of repondues.garder(projet, faits.nommes(projet))) {
-    const adresse = faits.adresse(projet, ticket);
+  for (const ticket of repondues.garder(projet, facts.nommes(projet))) {
+    const adresse = facts.adresse(projet, ticket);
     if (adresse !== undefined) void lireQuestion(reglagesGh(), adresse).then((lue) => retenirLue(projet, ticket, lue));
   }
 }
 ipcMain.handle("lireQuestion", (_, nom: unknown, ticket: unknown) => {
   const vise = connu(nom);
-  if (vise === undefined || faits.attendu(vise.nom, ticket) === undefined) return undefined;
-  const adresse = faits.adresse(vise.nom, ticket);
+  if (vise === undefined || facts.attendu(vise.nom, ticket) === undefined) return undefined;
+  const adresse = facts.adresse(vise.nom, ticket);
   // Jamais posée hors des essais, comme BRIGADE_SSH_BIN.
   return adresse === undefined ? { a: new Date().toISOString(), sans: "the station gave no https address for this issue: the app has nothing to read" } : lireQuestion(reglagesGh(), adresse).then((lue) => retenirLue(vise.nom, ticket, lue));
 });
@@ -654,8 +654,8 @@ ipcMain.handle("lireHistoire", async (_, nom: unknown, ticket: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return undefined;
   if (vise.box === undefined || typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1) return { sans: "no station for this project: the app has nothing to read" };
-  const servi = { nom: vise.nom, box: vise.box };
-  const rendu = await (passage.get(servi.nom) ?? Promise.resolve()).then(() => lancerGeste({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, `pass ${ticket} --json`));
+  const served = { nom: vise.nom, box: vise.box };
+  const rendu = await (passage.get(served.nom) ?? Promise.resolve()).then(() => lancerGeste({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, served, `pass ${ticket} --json`));
   if (rendu.erreur !== null) return { sans: `not read: ${rendu.lance}\n${rendu.erreurs}${rendu.sortie}`.trim() };
   return histoireDe(rendu.sortie);
 });
@@ -666,9 +666,9 @@ ipcMain.handle("lireHistoire", async (_, nom: unknown, ticket: unknown) => {
 // projet, le ticket et le texte ; la commande se compose ici.
 const liensLus = new Map<string, readonly string[]>();
 // Elles prennent leur tour dans le passage du projet : une connexion à la fois, comme les veilles.
-const lancerSurLaBox = (servi: Servi, commande: string) => {
-  const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => lancerGeste({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, commande));
-  passage.set(servi.nom, rendu);
+const lancerSurLaBox = (served: Served, commande: string) => {
+  const rendu = (passage.get(served.nom) ?? Promise.resolve()).then(() => lancerGeste({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, served, commande));
+  passage.set(served.nom, rendu);
   return rendu;
 };
 ipcMain.handle("lireDiscussion", async (_, nom: unknown, ticket: unknown) => {
@@ -700,10 +700,10 @@ ipcMain.handle("ouvrirLien", (_, nom: unknown, ticket: unknown, url: unknown) =>
 // Une capture d'un ticket d'interface, sur sa carte (captures.ts) : lue par le `gh` du poste à
 // l'adresse que la box a rendue dans `facts`, et rendue à la vue en `data:`. La vue nomme le
 // projet, le ticket, l'écran et le moment ; l'adresse ne quitte pas le process principal.
-ipcMain.handle("lireCapture", (_, nom: unknown, ticket: unknown, ecran: unknown, moment: unknown) => {
+ipcMain.handle("lireCapture", (_, nom: unknown, ticket: unknown, screen: unknown, moment: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return undefined;
-  const adresse = faits.capture(vise.nom, ticket, ecran, moment);
+  const adresse = facts.capture(vise.nom, ticket, screen, moment);
   return adresse === undefined ? { sans: "the station gave no address for this screenshot: the app has nothing to read" } : lireCapture(reglagesGh(), adresse);
 });
 // Le titre d'une issue que la box ne donne pas (hors rail) : lu par le `gh` du poste, à l'adresse que
@@ -711,7 +711,7 @@ ipcMain.handle("lireCapture", (_, nom: unknown, ticket: unknown, ecran: unknown,
 ipcMain.handle("lireTitre", (_, nom: unknown, ticket: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return undefined;
-  const adresse = faits.adresse(vise.nom, ticket);
+  const adresse = facts.adresse(vise.nom, ticket);
   return adresse === undefined ? { sans: "the station gave no https address for this issue: the app has nothing to read" } : titreDe(reglagesGh(), adresse);
 });
 // Lever la retenue d'un ticket qui t'attend pour `blocked-on-human` : retirer le label, ou fermer
@@ -719,9 +719,9 @@ ipcMain.handle("lireTitre", (_, nom: unknown, ticket: unknown) => {
 ipcMain.handle("leverRetenue", (_, nom: unknown, ticket: unknown, geste: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return { fait: false, refus: parti(nom).refus };
-  const dit = faits.attendu(vise.nom, ticket);
+  const dit = facts.attendu(vise.nom, ticket);
   if (dit === undefined || !dit.lignes.some((ligne) => ligne.includes(`\`${LABEL_RETENUE}\``))) return { fait: false, refus: `nothing was done: the \`attend\` block does not say #${String(ticket)} is held by \`${LABEL_RETENUE}\`` };
-  const adresse = faits.adresse(vise.nom, ticket);
+  const adresse = facts.adresse(vise.nom, ticket);
   return adresse === undefined ? { fait: false, refus: "nothing was done: the station gave no https address for this issue" } : lever(reglagesGh(), adresse, geste);
 });
 // La réponse du chef à cette question : un choix, par sa lettre, ou sa phrase. Elle part sur
@@ -731,8 +731,8 @@ ipcMain.handle("leverRetenue", (_, nom: unknown, ticket: unknown, geste: unknown
 ipcMain.handle("repondreQuestion", async (_, nom: unknown, ticket: unknown, reponse: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return { poste: false, refus: parti(nom).refus };
-  if (faits.attendu(vise.nom, ticket) === undefined) return { poste: false, refus: `nothing was posted: the \`attend\` block no longer names #${String(ticket)}` };
-  const adresse = faits.adresse(vise.nom, ticket);
+  if (facts.attendu(vise.nom, ticket) === undefined) return { poste: false, refus: `nothing was posted: the \`attend\` block no longer names #${String(ticket)}` };
+  const adresse = facts.adresse(vise.nom, ticket);
   if (adresse === undefined) return { poste: false, refus: "nothing was posted: the station gave no https address for this issue" };
   const rendue = await repondreQuestion(reglagesGh(), adresse, reponse);
   const question = (reponse as { question?: unknown } | null)?.question;
@@ -774,7 +774,7 @@ ipcMain.handle("attente", (_, nom: unknown, id: unknown, ticket: unknown, saisie
 ipcMain.handle("confirmer", (_, nom: unknown, id: unknown, grant: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
-  return confirmationDe(id, vise, faits.dernier(vise.nom) ?? { sans: "`facts` has not been read yet for this project, or its last read did not return the expected shape" }, grant);
+  return confirmationDe(id, vise, facts.dernier(vise.nom) ?? { sans: "`facts` has not been read yet for this project, or its last read did not return the expected shape" }, grant);
 });
 // Le code qu'une station affiche, tapé par le chef : la station qui le publie sur GitHub est
 // appairée — ou le refus dit en une ligne pourquoi rien ne l'est (stations/stations.ts).
@@ -829,10 +829,10 @@ ipcMain.handle("mettreAJour", (_, clone: unknown) =>
 ipcMain.handle("compter", (_, nom: unknown) => {
   const vise = connu(nom);
   if (vise?.box === undefined) return undefined;
-  const servi = { nom: vise.nom, box: vise.box };
+  const served = { nom: vise.nom, box: vise.box };
   // Jamais posée hors des essais, comme pour la veille.
-  const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => compter({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi));
-  passage.set(servi.nom, rendu);
+  const rendu = (passage.get(served.nom) ?? Promise.resolve()).then(() => compter({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, served));
+  passage.set(served.nom, rendu);
   return rendu;
 });
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
@@ -855,17 +855,17 @@ ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
 ipcMain.on("tous", (_, demande: number) => (voir = () => regarder(projets(), ["status"], demande))());
 // La vue a posé sa barre — au démarrage, puis à chaque changement du fichier des projets.
 ipcMain.on("faits", (_, demande: number) => {
-  faits.oublier();
+  facts.oublier();
   direLAccueil(accueil.oublier());
   // Chaque projet qui a une box a sa bande dès maintenant : rien n'y est encore vérifié.
   for (const bande of bandes.ouvrir(projets().filter(({ box }) => box !== undefined).map(({ nom }) => nom))) { dernieresBandes.set(bande.projet, bande); dire("alertes", bande); }
-  veilleDesFaits.regarder(projets(), [COMMANDE], demande);
+  factsWatch.regarder(projets(), [COMMANDE], demande);
   veilleDuManager.regarder(projets(), [COMMANDE_MANAGER], demande);
   controlerTout();
 });
 // « réessayer maintenant » (#728) : la box est relue tout de suite, sans effacer ce qui en était tenu.
 ipcMain.on("relireBox", (_, demande: number) => {
-  veilleDesFaits.regarder(projets(), [COMMANDE], demande);
+  factsWatch.regarder(projets(), [COMMANDE], demande);
   veilleDuManager.regarder(projets(), [COMMANDE_MANAGER], demande);
 });
 // Les tickets `fire` d'un projet, lus sur GitHub par le `gh` du poste (feu.ts) : ce que la box ne
@@ -876,19 +876,19 @@ ipcMain.handle("lireFeu", (_, nom: unknown) => {
   return vise === undefined ? undefined : lireFeu({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }, vise.dossier);
 });
 // Un ticket du rail s'ouvre sur son issue, dans le navigateur du poste : la vue nomme le
-// projet et le ticket, l'adresse est celle que la box a rendue (faits.ts) — ou, pour une issue
+// projet et le ticket, l'adresse est celle que la box a rendue (facts.ts) — ou, pour une issue
 // qui n'est pas encore sur le rail, celle que `manager upstream` a donnée (amont.ts). Rend si elle a été ouverte.
 ipcMain.handle("ouvrirIssue", (_, nom: unknown, ticket: unknown) => {
-  const adresse = faits.adresse(nom, ticket) ?? amonts.adresse(nom, ticket);
+  const adresse = facts.adresse(nom, ticket) ?? amonts.adresse(nom, ticket);
   return adresse === undefined ? false : shell.openExternal(adresse).then(
     () => true,
     () => false,
   );
 });
 // Un ticket de Livré s'ouvre aussi sur sa PR mergée : l'adresse est celle que la box a donnée
-// pour lui (faits.ts). Rend si elle a été ouverte.
+// pour lui (facts.ts). Rend si elle a été ouverte.
 ipcMain.handle("ouvrirPr", (_, nom: unknown, ticket: unknown) => {
-  const adresse = faits.pr(nom, ticket);
+  const adresse = facts.pr(nom, ticket);
   return adresse === undefined ? false : shell.openExternal(adresse).then(
     () => true,
     () => false,
@@ -909,10 +909,10 @@ app.on("window-all-closed", () => app.quit());
 app.on("will-quit", () => {
   suivi.fermer();
   terminaux.fermer();
-  tours.fermer();
+  turns.fermer();
   veille.fermer();
   veilleDOnglet.fermer();
-  veilleDesFaits.fermer();
+  factsWatch.fermer();
   veilleDuManager.fermer();
   veilleDeLAmont.fermer();
   pages.fermer();
@@ -942,7 +942,7 @@ void app.whenReady().then(() => {
     minWidth: 640,
     minHeight: 400,
     title: "brigade",
-    // Le fond de la fenêtre avant que la vue ne se peigne : celui de la peau (`--fond`, vue/jetons.css).
+    // Le fond de la fenêtre avant que la vue ne se peigne : celui de la peau (`--fond`, vue/tokens.css).
     backgroundColor: "#121418",
     webPreferences: { preload: join(import.meta.dirname, "preload.cjs") },
   });
@@ -951,7 +951,7 @@ void app.whenReady().then(() => {
   // Les projets déclarés avant que les couleurs existent reçoivent les leurs, une fois.
   colorer();
   // L'app est lancée : ses stations se manifestent.
-  runner.servir(cuisinesIci(role, projets()));
+  runner.servir(kitchensHere(role, projets()));
   // Le poste se réveille : chaque shell distant se rattache à sa session, sans attendre que `ssh`
   // découvre que sa connexion d'avant le sommeil est morte.
   powerMonitor.on("resume", () => terminaux.reveiller());

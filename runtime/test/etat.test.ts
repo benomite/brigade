@@ -3,28 +3,28 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { decrireEtat, duree, lireEtat, suivre } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { ouvrirRail } from "../src/rail.ts";
 import { faitInconnu, horloge, jourDecale, JOUR_HORLOGE, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
-  t.after(() => journal.fermer());
+  const log = openLog(repertoire, { maintenant: horloge() });
+  t.after(() => log.fermer());
   const noter = (fait: Fait, ticket: number | null = null, author = "runtime") =>
-    journal.ajouter({ project: "brigade", ticket, author, ...fait });
+    log.ajouter({ project: "brigade", ticket, author, ...fait });
   const arriver = (ticket: number, priority: number | null) =>
     noter(
       { type: "ticket.arrived", payload: { title: `Ticket ${ticket}`, priority, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://exemple.test/${ticket}` } },
       ticket,
       "github",
     );
-  return { repertoire, journal, noter, arriver };
+  return { repertoire, journal: log, noter, arriver };
 }
 
-const decrire = (journal: ReturnType<typeof ouvrirJournal>, maintenant: string) => decrireEtat(lireEtat(journal, new Date(maintenant)), new Date(maintenant));
+const decrire = (log: ReturnType<typeof openLog>, maintenant: string) => decrireEtat(lireEtat(log, new Date(maintenant)), new Date(maintenant));
 
 test("une durée se lit à la précision qui sert à piloter", () => {
   assert.deepEqual(
@@ -34,8 +34,8 @@ test("une durée se lit à la précision qui sert à piloter", () => {
 });
 
 test("le chef voit le runtime et son dernier tick, les tickets par état, les cooks avec leur budget consommé, et les derniers événements", (t) => {
-  const { journal, noter, arriver } = cuisine(t);
-  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:00:30.000Z`) });
+  const { journal: log, noter, arriver } = kitchen(t);
+  const rail = ouvrirRail(log, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:00:30.000Z`) });
   noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } }); // 10:00:00
   noter({ type: "guard.configured", payload: { limits: LIMITES, breakerThreshold: 3 } });
   for (const [ticket, priority] of [[14, 1], [15, 1], [16, 2], [17, 2], [18, null]] as const) arriver(ticket, priority);
@@ -48,7 +48,7 @@ test("le chef voit le runtime et son dernier tick, les tickets par état, les co
   noter({ type: "runtime.ticked", payload: { intervalMs: 60_000 } }); // 10:00:13
   noter({ type: "cook.progressed", payload: { run: "14-3f9a01bc", turns: 12, tokens: 184_000 } }, 14); // 10:00:14
 
-  assert.deepEqual(decrire(journal, `${JOUR_HORLOGE}T10:04:11.000Z`), [
+  assert.deepEqual(decrire(log, `${JOUR_HORLOGE}T10:04:11.000Z`), [
     "project    brigade",
     "runtime    running according to the log — pid 4211 on box, started 4 min ago",
     "           last tick 3 min ago (cadence: 1 min)",
@@ -92,7 +92,7 @@ test("le chef voit le runtime et son dernier tick, les tickets par état, les co
 });
 
 test("seuls les quinze derniers événements sont montrés, sans les battements ni les relevés", (t) => {
-  const { journal, noter } = cuisine(t);
+  const { journal: log, noter } = kitchen(t);
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
   for (let i = 0; i < 20; i += 1) {
     noter(faitInconnu("x.y", { i }), 7);
@@ -100,30 +100,30 @@ test("seuls les quinze derniers événements sont montrés, sans les battements 
     noter({ type: "cook.progressed", payload: { run: "a", turns: i, tokens: i } }, 7);
   }
 
-  const { evenements } = lireEtat(journal);
+  const { evenements } = lireEtat(log);
 
   assert.deepEqual(evenements.map((e) => [e.type, (e.payload as { i?: number }).i]), Array.from({ length: 15 }, (_, i) => ["x.y", i + 5]));
 });
 
 test("un runtime figé se voit à l'âge de son dernier tick ; un tick d'une vie précédente ne compte pas", (t) => {
-  const { journal, noter } = cuisine(t);
+  const { journal: log, noter } = kitchen(t);
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
   noter({ type: "runtime.ticked", payload: { intervalMs: 60_000 } });
 
-  assert.equal(decrire(journal, `${JOUR_HORLOGE}T10:25:01.000Z`)[2], "           last tick 25 min ago (cadence: 1 min)");
+  assert.equal(decrire(log, `${JOUR_HORLOGE}T10:25:01.000Z`)[2], "           last tick 25 min ago (cadence: 1 min)");
 
   noter({ type: "runtime.interrupted", payload: { startedSeq: 1 } });
   noter({ type: "runtime.started", payload: { pid: 2, host: "box", node: "v26" } });
 
-  assert.deepEqual(decrire(journal, `${JOUR_HORLOGE}T10:25:01.000Z`).slice(1, 3), [
+  assert.deepEqual(decrire(log, `${JOUR_HORLOGE}T10:25:01.000Z`).slice(1, 3), [
     "runtime    running according to the log — pid 2 on box, started 24 min ago",
     "           no tick since startup",
   ]);
 });
 
 test("un runtime arrêté, une cuisine arrêtée et un disjoncteur ouvert se lisent en tête ; un cook sans fin n'y passe pas pour vivant", (t) => {
-  const { journal, noter } = cuisine(t);
-  assert.deepEqual(decrire(journal, `${JOUR_HORLOGE}T10:00:00.000Z`), [
+  const { journal: log, noter } = kitchen(t);
+  assert.deepEqual(decrire(log, `${JOUR_HORLOGE}T10:00:00.000Z`), [
     "project    unknown — empty log",
     "runtime    never started",
     "kitchen    open · breaker closed (0 failures in a row, opens at ?)",
@@ -154,48 +154,48 @@ test("un runtime arrêté, une cuisine arrêtée et un disjoncteur ouvert se lis
   noter({ type: "cook.launched", payload: { run: "b", limits: LIMITES, stream: "runs/b.jsonl" } }, 8); // 10:00:06
   noter({ type: "runtime.stopped", payload: { signal: "SIGTERM" } }); // 10:00:07
 
-  assert.deepEqual(decrire(journal, `${JOUR_HORLOGE}T10:02:07.000Z`).slice(0, 3), [
+  assert.deepEqual(decrire(log, `${JOUR_HORLOGE}T10:02:07.000Z`).slice(0, 3), [
     "project    brigade",
     "runtime    stopped 2 min ago",
     "kitchen    STOPPED by the chef 2 min ago · breaker OPEN for 2 min (1 failure in a row)",
   ]);
   assert.equal(
-    decrire(journal, `${JOUR_HORLOGE}T10:02:07.000Z`).find((ligne) => ligne.startsWith("cooks")),
+    decrire(log, `${JOUR_HORLOGE}T10:02:07.000Z`).find((ligne) => ligne.startsWith("cooks")),
     "cooks      1 with no end in the log — runtime stopped: its next start picks up those still running, and notes the others interrupted",
   );
 });
 
 test("la dernière sauvegarde se lit en tête, avec son âge ; trop vieille ou jamais faite, elle est marquée", (t) => {
-  const { journal, noter } = cuisine(t);
-  const sauvegarde = (maintenant: string, ageMaxMs?: number) => decrireEtat(lireEtat(journal), new Date(maintenant), ageMaxMs).find((ligne) => ligne.startsWith("backup"));
+  const { journal: log, noter } = kitchen(t);
+  const backup = (maintenant: string, ageMaxMs?: number) => decrireEtat(lireEtat(log), new Date(maintenant), ageMaxMs).find((ligne) => ligne.startsWith("backup"));
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } }); // 10:00:00
 
-  assert.equal(sauvegarde(`${JOUR_HORLOGE}T10:00:00.000Z`), "backup     NEVER DONE — is the timer `brigade-sauvegarde@brigade` running?");
+  assert.equal(backup(`${JOUR_HORLOGE}T10:00:00.000Z`), "backup     NEVER DONE — is the timer `brigade-sauvegarde@brigade` running?");
 
   noter({ type: "backup.completed", payload: { name: `${JOUR_HORLOGE}T10-00-00Z`, lastSeq: 1, events: 1, streams: 0 } }, null, "sauvegarde"); // 10:00:01
   noter({ type: "backup.completed", payload: { name: `${JOUR_HORLOGE}T10-00-02Z`, lastSeq: 2, events: 2, streams: 0 } }, null, "sauvegarde"); // 10:00:02
 
-  assert.equal(sauvegarde(`${JOUR_HORLOGE}T17:12:02.000Z`), `backup     7 h 12 ago (${JOUR_HORLOGE}T10-00-02Z, up to event 2)`);
+  assert.equal(backup(`${JOUR_HORLOGE}T17:12:02.000Z`), `backup     7 h 12 ago (${JOUR_HORLOGE}T10-00-02Z, up to event 2)`);
   // Le plafond par défaut : deux jours. Atteint, il ne marque pas encore.
-  assert.equal(sauvegarde(`${jourDecale(2)}T10:00:02.000Z`), `backup     2 d ago (${JOUR_HORLOGE}T10-00-02Z, up to event 2)`);
+  assert.equal(backup(`${jourDecale(2)}T10:00:02.000Z`), `backup     2 d ago (${JOUR_HORLOGE}T10-00-02Z, up to event 2)`);
   assert.equal(
-    sauvegarde(`${jourDecale(3)}T10:00:03.000Z`),
+    backup(`${jourDecale(3)}T10:00:03.000Z`),
     `backup     TOO OLD: 3 d ago (${JOUR_HORLOGE}T10-00-02Z, up to event 2) — more than 2 d: \`systemctl status brigade-sauvegarde@brigade\``,
   );
   assert.equal(
-    sauvegarde(`${JOUR_HORLOGE}T17:12:02.000Z`, 3_600_000),
+    backup(`${JOUR_HORLOGE}T17:12:02.000Z`, 3_600_000),
     `backup     TOO OLD: 7 h 12 ago (${JOUR_HORLOGE}T10-00-02Z, up to event 2) — more than 1 h 00: \`systemctl status brigade-sauvegarde@brigade\``,
   );
 });
 
 test("un bail échu se dit coincé et un 86 dont l'heure est passée se dit tel quel, en attendant le tick qui les rendra", (t) => {
-  const { journal, noter, arriver } = cuisine(t);
+  const { journal: log, noter, arriver } = kitchen(t);
   arriver(14, 1);
   arriver(15, 2);
   noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: `${JOUR_HORLOGE}T10:10:00.000Z` } }, 14, "station:box/claude");
   noter({ type: "ticket.86", payload: { reason: "quota", until: `${JOUR_HORLOGE}T10:05:00.000Z` } }, 15);
 
-  assert.deepEqual(decrire(journal, `${JOUR_HORLOGE}T10:12:00.000Z`).slice(8, 11), [
+  assert.deepEqual(decrire(log, `${JOUR_HORLOGE}T10:12:00.000Z`).slice(8, 11), [
     "rail       1 taken · 1 86",
     "  #14  taken  prio:1  by box/claude since 11 min, STUCK: no progress since 11 min, lease expired since 2 min  Ticket 14",
     "  #15  86  prio:2  since 11 min (quota), back at the next tick  Ticket 15",
@@ -203,7 +203,7 @@ test("un bail échu se dit coincé et un 86 dont l'heure est passée se dit tel 
 });
 
 test("un ticket qui en attend un autre le dit, et un ticket bloqué par un abandon se compte et se lit à part", (t) => {
-  const { journal, noter, arriver } = cuisine(t);
+  const { journal: log, noter, arriver } = kitchen(t);
   const attendre = (ticket: number, waitsFor: number[]) =>
     noter(
       {
@@ -219,7 +219,7 @@ test("un ticket qui en attend un autre le dit, et un ticket bloqué par un aband
   attendre(17, [14, 15]);
   noter({ type: "ticket.left", payload: { reason: "unfired" } }, 15, "github");
 
-  const lignes = decrire(journal, `${JOUR_HORLOGE}T10:04:10.000Z`);
+  const lignes = decrire(log, `${JOUR_HORLOGE}T10:04:10.000Z`);
 
   // Le ticket bloqué attend le chef : le bloc `attend` passe avant le rail.
   const debut = lignes.findIndex((ligne) => ligne.startsWith("rail"));
@@ -233,10 +233,10 @@ test("un ticket qui en attend un autre le dit, et un ticket bloqué par un aband
 
 test("un ticket pris dit depuis quand il n'a pas progressé, à côté du temps depuis la prise", (t) => {
   let heure = `${JOUR_HORLOGE}T10:00:00.000Z`;
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: () => new Date(heure) });
-  t.after(() => journal.fermer());
-  const noter = (fait: Fait, author = "station:box/claude") => journal.ajouter({ project: "brigade", ticket: 14, author, ...fait });
-  const ligne = () => decrireEtat(lireEtat(journal), new Date(heure))[9];
+  const log = openLog(repertoireTemporaire(t), { maintenant: () => new Date(heure) });
+  t.after(() => log.fermer());
+  const noter = (fait: Fait, author = "station:box/claude") => log.ajouter({ project: "brigade", ticket: 14, author, ...fait });
+  const ligne = () => decrireEtat(lireEtat(log), new Date(heure))[9];
   noter({ type: "ticket.arrived", payload: { title: "Ticket 14", priority: 1, createdAt: "2026-10-01T00:00:14Z", url: "https://exemple.test/14" } }, "github");
   noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: `${JOUR_HORLOGE}T10:30:00.000Z` } });
 
@@ -253,9 +253,9 @@ test("un ticket pris dit depuis quand il n'a pas progressé, à côté du temps 
 });
 
 test("le suivi rend chaque événement écrit par un autre process, une fois, dans l'ordre, sans les battements", async (t) => {
-  const { repertoire, journal, noter } = cuisine(t);
+  const { repertoire, journal: log, noter } = kitchen(t);
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
-  const lecteur = ouvrirJournal(repertoire, { lectureSeule: true });
+  const lecteur = openLog(repertoire, { lectureSeule: true });
   t.after(() => lecteur.fermer());
   const { dernierSeq } = lireEtat(lecteur);
   // Écrit entre la photo et le début du suivi : repris d'entrée.
@@ -279,11 +279,11 @@ test("le suivi rend chaque événement écrit par un autre process, une fois, da
 });
 
 test("le suivi d'un ticket ne rend que ce qui lui arrive ; arrêté, il ne rend plus rien", async (t) => {
-  const { repertoire, journal, noter } = cuisine(t);
-  const lecteur = ouvrirJournal(repertoire, { lectureSeule: true });
+  const { repertoire, journal: log, noter } = kitchen(t);
+  const lecteur = openLog(repertoire, { lectureSeule: true });
   t.after(() => lecteur.fermer());
   const lignes: string[] = [];
-  const arreter = suivre(lecteur, { depuis: journal.dernierSeq(), ticket: 7, intervalleMs: 2, ecrire: (ligne) => lignes.push(ligne) });
+  const arreter = suivre(lecteur, { depuis: log.dernierSeq(), ticket: 7, intervalleMs: 2, ecrire: (ligne) => lignes.push(ligne) });
 
   noter(faitInconnu("ticket.arrived"), 8, "github");
   noter(faitInconnu("ticket.arrived"), 7, "github");
@@ -296,8 +296,8 @@ test("le suivi d'un ticket ne rend que ce qui lui arrive ; arrêté, il ne rend 
 });
 
 test("à plusieurs cooks, le chef lit le plafond et, par cook, son ticket, son calibrage, sa branche, son worktree, son budget et son temps sans progrès", (t) => {
-  const { journal, noter, arriver } = cuisine(t);
-  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:00:30.000Z`) });
+  const { journal: log, noter, arriver } = kitchen(t);
+  const rail = ouvrirRail(log, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:00:30.000Z`) });
   noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } }); // 10:00:00
   noter({ type: "station.announced", payload: { station: "box/claude", engine: "claude", provides: ["code"], maxCooks: 30 } });
   arriver(14, 1);
@@ -312,7 +312,7 @@ test("à plusieurs cooks, le chef lit le plafond et, par cook, son ticket, son c
   noter({ type: "cook.progressed", payload: { run: "14-aa", turns: 12, tokens: 184_000 } }, 14); // 10:00:09
   rail.renouveler(15, "box/claude"); // 10:00:10
 
-  const lignes = decrire(journal, `${JOUR_HORLOGE}T10:04:10.000Z`);
+  const lignes = decrire(log, `${JOUR_HORLOGE}T10:04:10.000Z`);
 
   assert.deepEqual(lignes.slice(lignes.indexOf("cooks      3 running — box/claude: 30 at most"), lignes.indexOf("consumed   in flight: 3 launches, of which 1 judgment · 12 turns · 184,000 tokens") - 1), [
     "cooks      3 running — box/claude: 30 at most",
@@ -323,13 +323,13 @@ test("à plusieurs cooks, le chef lit le plafond et, par cook, son ticket, son c
 });
 
 test("le chef lit le plafond qu'il a réglé, et une machine saturée avec ce qui lui manque", (t) => {
-  const { journal, noter } = cuisine(t);
+  const { journal: log, noter } = kitchen(t);
   noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } }); // 10:00:00
   noter({ type: "station.announced", payload: { station: "box/claude", engine: "claude", provides: ["code"], maxCooks: 30 } });
   noter({ type: "station.capped", payload: { station: "box/claude", maxCooks: 0 } }, null, "chef");
   noter({ type: "station.saturated", payload: { station: "box/claude", resource: "cpu", observed: 16.24, limit: 15 } }); // 10:00:03
 
-  const lignes = decrire(journal, `${JOUR_HORLOGE}T10:03:03.000Z`);
+  const lignes = decrire(log, `${JOUR_HORLOGE}T10:03:03.000Z`);
 
   assert.deepEqual(lignes.slice(lignes.indexOf("cooks      none running — box/claude: no limit")).slice(0, 2), [
     "cooks      none running — box/claude: no limit",
@@ -339,9 +339,9 @@ test("le chef lit le plafond qu'il a réglé, et une machine saturée avec ce qu
 
 test("à trente cooks, celui qui coince se lit sans parcourir les lignes : nommé en tête dès la moitié de son bail sans progrès, et ses lignes passent devant", (t) => {
   let heure = `${JOUR_HORLOGE}T10:00:00.000Z`;
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: () => new Date(heure) });
-  t.after(() => journal.fermer());
-  const noter = (fait: Fait, ticket: number | null, author = "station:box/claude") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const log = openLog(repertoireTemporaire(t), { maintenant: () => new Date(heure) });
+  t.after(() => log.fermer());
+  const noter = (fait: Fait, ticket: number | null, author = "station:box/claude") => log.ajouter({ project: "brigade", ticket, author, ...fait });
   const numeros = Array.from({ length: 30 }, (_, i) => 101 + i);
   noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } }, null, "runtime");
   for (const numero of numeros) {
@@ -359,7 +359,7 @@ test("à trente cooks, celui qui coince se lit sans parcourir les lignes : nomm�
   }
 
   const lire = (maintenant: string) => {
-    const lignes = decrire(journal, maintenant);
+    const lignes = decrire(log, maintenant);
     const debut = lignes.findIndex((ligne) => ligne.startsWith("cooks"));
     return { rail: lignes.find((ligne) => ligne.startsWith("  #104  taken")), cooks: lignes.slice(debut, debut + 5).map((ligne) => (ligne.startsWith("cooks") ? ligne : ligne.split("  ").slice(0, ligne.includes("STUCK") ? 4 : 3).join("  "))) };
   };
@@ -372,18 +372,18 @@ test("à trente cooks, celui qui coince se lit sans parcourir les lignes : nomm�
   assert.deepEqual(mi.cooks, ["cooks      31 running — 2 STUCK: #104, #117", "  #104  STUCK  104-aa", "  #117  STUCK  117-aa", "  #125  125-aa", "  #101  101-aa"]);
   assert.match(mi.rail ?? "", /STUCK: no progress since 15 min, lease 15 min left/);
   // Le jugement du manager, qui ne tient aucun ticket, ferme la marche.
-  assert.match(decrire(journal, `${JOUR_HORLOGE}T10:15:00.000Z`).at(decrire(journal, `${JOUR_HORLOGE}T10:15:00.000Z`).indexOf("consumed   in flight: 31 launches, of which 1 judgment · 0 turns · 0 tokens") - 2) ?? "", /^  manager  juge-9-cc/);
+  assert.match(decrire(log, `${JOUR_HORLOGE}T10:15:00.000Z`).at(decrire(log, `${JOUR_HORLOGE}T10:15:00.000Z`).indexOf("consumed   in flight: 31 launches, of which 1 judgment · 0 turns · 0 tokens") - 2) ?? "", /^  manager  juge-9-cc/);
 });
 
 test("le chef lit ce que l'ensemble des cooks a consommé : ceux qui tournent, puis sur 5 h et sur 24 h, relectures et jugements compris", (t) => {
   let heure = `${jourDecale(-1)}T12:00:00.000Z`;
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: () => new Date(heure) });
-  t.after(() => journal.fermer());
+  const log = openLog(repertoireTemporaire(t), { maintenant: () => new Date(heure) });
+  t.after(() => log.fermer());
   const cook = (run: string, ticket: number | null, station: string, fin: string | null, turns: number, tokens: number) => {
-    journal.ajouter({ project: "brigade", ticket, author: "runtime", type: "cook.launched", payload: { run, limits: LIMITES, stream: `runs/${run}.jsonl`, station } });
-    if (fin === null) return journal.ajouter({ project: "brigade", ticket, author: "runtime", type: "cook.progressed", payload: { run, turns, tokens } });
+    log.ajouter({ project: "brigade", ticket, author: "runtime", type: "cook.launched", payload: { run, limits: LIMITES, stream: `runs/${run}.jsonl`, station } });
+    if (fin === null) return log.ajouter({ project: "brigade", ticket, author: "runtime", type: "cook.progressed", payload: { run, turns, tokens } });
     heure = fin;
-    return journal.ajouter({ project: "brigade", ticket, author: "runtime", type: "cook.exited", payload: { run, outcome: "ok", code: 0, signal: null, turns, tokens, durationMs: 5 } });
+    return log.ajouter({ project: "brigade", ticket, author: "runtime", type: "cook.exited", payload: { run, outcome: "ok", code: 0, signal: null, turns, tokens, durationMs: 5 } });
   };
   cook("hier", 7, "box/claude", `${jourDecale(-1)}T12:30:00.000Z`, 50, 900_000); // hors des 24 h
   cook("matin", 8, "box/claude", `${JOUR_HORLOGE}T08:00:00.000Z`, 40, 600_000); // dans les 24 h
@@ -393,7 +393,7 @@ test("le chef lit ce que l'ensemble des cooks a consommé : ceux qui tournent, p
   cook("14-aa", 14, "box/claude", null, 12, 184_000);
   cook("15-bb", 15, "box/claude", null, 3, 16_000);
 
-  const lignes = decrire(journal, `${JOUR_HORLOGE}T13:30:00.000Z`);
+  const lignes = decrire(log, `${JOUR_HORLOGE}T13:30:00.000Z`);
 
   assert.deepEqual(lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("consumed")), lignes.indexOf("latest events") - 1), [
     "consumed   in flight: 2 launches · 15 turns · 200,000 tokens",
@@ -404,7 +404,7 @@ test("le chef lit ce que l'ensemble des cooks a consommé : ceux qui tournent, p
 });
 
 test("un ticket qui pourrait partir et que sa station ne prend pas dit pourquoi, sur sa ligne et sous les cooks ; ce que le rail retient garde sa raison", (t) => {
-  const { journal, noter, arriver } = cuisine(t);
+  const { journal: log, noter, arriver } = kitchen(t);
   noter({ type: "station.announced", payload: { station: "box/claude", engine: "claude", provides: ["code"], maxCooks: 30 } }); // 10:00:00
   arriver(14, 1);
   noter(
@@ -413,7 +413,7 @@ test("un ticket qui pourrait partir et que sa station ne prend pas dit pourquoi,
     "github",
   );
   const lire = () => {
-    const lignes = decrire(journal, `${JOUR_HORLOGE}T10:01:03.000Z`);
+    const lignes = decrire(log, `${JOUR_HORLOGE}T10:01:03.000Z`);
     return [...lignes.filter((ligne) => /^  #1[46]/.test(ligne)), ...lignes.filter((ligne) => ligne.includes("WITHHOLDING"))];
   };
   assert.deepEqual(lire(), ["  #14  queued  prio:1  since 1 min  Ticket 14", "  #16  queued  -  awaiting #14 — since 1 min  Ticket 16"]);
@@ -438,9 +438,9 @@ test("un ticket qui pourrait partir et que sa station ne prend pas dit pourquoi,
 });
 
 test("le chef retrouve les worktrees que le runtime n'a pas pu ranger : le ticket, où, pourquoi, depuis quand — et rien quand il n'y en a pas", (t) => {
-  const { journal, noter } = cuisine(t);
+  const { journal: log, noter } = kitchen(t);
   noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } }); // 10:00:00
-  const sans = decrire(journal, `${JOUR_HORLOGE}T10:04:00.000Z`);
+  const sans = decrire(log, `${JOUR_HORLOGE}T10:04:00.000Z`);
   assert.equal(sans.some((ligne) => ligne.startsWith("worktrees")), false);
 
   noter({ type: "worktree.kept", payload: { worktree: "worktrees/17-aaa", branch: "cook/17-aaa", reason: "failed", detail: "« worktrees/17-aaa » n'est plus sur sa branche `cook/17-aaa`" } }, 17, "nettoyage"); // 10:00:01
@@ -449,7 +449,7 @@ test("le chef retrouve les worktrees que le runtime n'a pas pu ranger : le ticke
   // Rangé depuis : il n'est plus à retrouver.
   noter({ type: "worktree.removed", payload: { worktree: "worktrees/18-aaa", branch: "cook/18-aaa", harvest: null } }, 18, "nettoyage");
 
-  const lignes = decrire(journal, `${JOUR_HORLOGE}T10:04:01.000Z`);
+  const lignes = decrire(log, `${JOUR_HORLOGE}T10:04:01.000Z`);
   const debut = lignes.findIndex((ligne) => ligne.startsWith("worktrees"));
   assert.deepEqual(lignes.slice(debut, debut + 4), [
     "worktrees  2 not cleaned up after their cook — nothing in them is touched, the runtime comes back to them at every tick",
@@ -462,9 +462,9 @@ test("le chef retrouve les worktrees que le runtime n'a pas pu ranger : le ticke
 });
 
 test("sous cloison, le chef lit ce que le dernier rangement des transcripts a gardé et retiré, et la règle — et rien sans cloison", (t) => {
-  const { journal, noter } = cuisine(t);
+  const { journal: log, noter } = kitchen(t);
   noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } }); // 10:00:00
-  const claude = (maintenant: string) => decrire(journal, maintenant).filter((ligne) => ligne.startsWith("claude"));
+  const claude = (maintenant: string) => decrire(log, maintenant).filter((ligne) => ligne.startsWith("claude"));
   assert.deepEqual(claude(`${JOUR_HORLOGE}T10:04:00.000Z`), []);
 
   const semaine = 7 * 24 * 3_600_000;
@@ -475,7 +475,7 @@ test("sous cloison, le chef lit ce que le dernier rangement des transcripts a ga
 
   // Seul le dernier passage se lit.
   noter({ type: "transcripts.tidied", payload: { removed: 12, freedBytes: 48 * 1024 * 1024, kept: 1_027, keptBytes: 112 * 1024 * 1024, keepMs: semaine } }, null, "nettoyage"); // 10:00:02
-  const lignes = decrire(journal, `${JOUR_HORLOGE}T13:00:02.000Z`);
+  const lignes = decrire(log, `${JOUR_HORLOGE}T13:00:02.000Z`);
   assert.deepEqual(lignes.filter((ligne) => ligne.startsWith("claude")), [
     "claude     project transcripts: 1,027 kept (112 MB), 12 removed (48 MB) at the cleanup 3 h 00 ago — a transcript goes 7 d after its last write",
   ]);
@@ -489,8 +489,8 @@ test("sous cloison, le chef lit ce que le dernier rangement des transcripts a ga
 });
 
 test("une mesure qui a franchi un seuil déclaré est signalée dans l'état, sans qu'on la demande ; sinon le bloc n'existe pas", (t) => {
-  const { journal, noter } = cuisine(t);
-  const bloc = () => decrire(journal, `${JOUR_HORLOGE}T10:05:00.000Z`).filter((ligne) => ligne.startsWith("drift"));
+  const { journal: log, noter } = kitchen(t);
+  const bloc = () => decrire(log, `${JOUR_HORLOGE}T10:05:00.000Z`).filter((ligne) => ligne.startsWith("drift"));
   const gates = { outcome: "green" as const, code: 0, failures: [], tail: "", measures: { tests: 622, tests_s: 6.2 } };
   noter({ type: "drift.configured", payload: { limits: { tests: 500, testsSeconds: 5, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null } } });
   noter({ type: "pass.replayed", payload: { sha: "sha-17", base: "base-1", gates, findings: [] } }, 17, "pass");
@@ -504,8 +504,8 @@ test("une mesure qui a franchi un seuil déclaré est signalée dans l'état, sa
 });
 
 test("la part de tickets livrés du premier coup sous son seuil est une ligne de dérive dans l'état ; au seuil, avec moins de tickets que la fenêtre, rien ; le seuil et la fenêtre se règlent par les seuils de la dérive", (t) => {
-  const { journal, noter } = cuisine(t);
-  const bloc = () => decrire(journal, `${JOUR_HORLOGE}T10:05:00.000Z`).filter((ligne) => ligne.startsWith("drift"));
+  const { journal: log, noter } = kitchen(t);
+  const bloc = () => decrire(log, `${JOUR_HORLOGE}T10:05:00.000Z`).filter((ligne) => ligne.startsWith("drift"));
   const LIGNE = (part: string, seuil: number) => `drift      ${part} tickets delivered on the first try (threshold ${seuil}%) — \`brigade <projet> measures\``;
   const livrer = (ticket: number, essais: number) => {
     noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: `${JOUR_HORLOGE}T23:00:00.000Z` } }, ticket);

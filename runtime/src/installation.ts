@@ -16,15 +16,15 @@ import { accessSync, constants, existsSync, lstatSync, readdirSync, readFileSync
 import { homedir, userInfo } from "node:os";
 import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { configRail } from "./alimenter.ts";
-import { EFFORTS, MODELES } from "./calibrage.ts";
+import { EFFORTS, MODELES } from "./calibration.ts";
 import { environnementCook, sessionClaude } from "./claude.ts";
 import { configJeton, environnementClaude } from "./jeton-claude.ts";
-import { configCloison } from "./cloison.ts";
+import { partitionConfig } from "./partition.ts";
 import { SOURCES } from "./code.ts";
 import { ouvrirDepot } from "./depot.ts";
-import { cheminJournal, ouvrirJournal } from "./journal.ts";
-import { lireSeuils } from "./derive.ts";
-import { lireReglages } from "./garde-fous.ts";
+import { logPath, openLog } from "./log.ts";
+import { lireSeuils } from "./drift.ts";
+import { lireReglages } from "./guardrails.ts";
 import { jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
 import { lireReglage, ouvertDe, Refus } from "./installateur.ts";
 import { LABEL } from "./github.ts";
@@ -40,7 +40,7 @@ import { configSecrets, lireSecrets } from "./secrets.ts";
 import { configStation } from "./station.ts";
 import { sonderRenouvellement, systemdReel, type EtatDuRenouvellement, type Systemd } from "./sonde-renouvellement.ts";
 import { GESTE_DE_STATION, VARIABLE_DES_STATIONS } from "./stations-declarees.ts";
-import { direConnexionTombeeEn, etatStation, GESTE_DE_CONNEXION_TOMBEE_EN, stationsDeconnectees } from "./projections/stations.ts";
+import { sayDroppedConnectionEn, etatStation, DROPPED_CONNECTION_ACTION_EN, stationsDeconnectees } from "./projections/stations.ts";
 import { prendreVerrou, VerrouTenu } from "./verrou.ts";
 
 // Les variables sans lesquelles le runtime refuse de démarrer.
@@ -100,10 +100,10 @@ const DOC_DE_LA_BOX = `${DOC}, “Préparer la box”`;
 const DOC_DU_PROJET = `${DOC}, “Déclarer le projet”`;
 const DOC_DE_LA_MISE_A_JOUR = `${DOC}, “Mettre brigade à jour”`;
 // Ce que la box tient en copie : les unités, et la cloison de chaque projet.
-const CLOISON = "cloison.conf";
+const PARTITION = "cloison.conf";
 // Les deux réglages que le chef écrit dans sa copie de la cloison : ce n'est
 // pas par eux qu'elle date.
-const REGLAGE_DE_CLOISON = /^#?Environment=BRIGADE_SANDBOX_(?:HIDDEN|PRIVATE)=.*$/gm;
+const PARTITION_SETTING = /^#?Environment=BRIGADE_SANDBOX_(?:HIDDEN|PRIVATE)=.*$/gm;
 const BLOC = /^## Équipe multi-agents/;
 // Les bindings que le runtime ne lit pas, mais que le cook et les gates lisent.
 const BINDINGS_ATTENDUS = ["Zones de fichiers", "Dev local", "Plafond des gates"];
@@ -198,14 +198,14 @@ function lireUnite(sortie: string): { chemin: string | null; tmpPrive: boolean; 
 type Copie = { nom: string; identique: boolean };
 
 // Là où la box pose la cloison d'un projet : dans le drop-in de son instance.
-const cloisonPosee = (posees: string, unite: string) => join(posees, `${unite}.d`, CLOISON);
+const setPartition = (posees: string, unite: string) => join(posees, `${unite}.d`, PARTITION);
 
 // Ce que la box a posé de `runtime/deploy/`, comparé à ce que le dépôt porte
 // maintenant. Ce qui n'est pas posé n'est pas comparé : une box à un seul
 // projet n'a ni arbitre ni cloison. Le geste `brigade` est un lien, pas une
 // copie.
 function lireCopies(posees: string, unite: string, depot: string): Copie[] {
-  const sansReglages = (contenu: string) => contenu.replace(REGLAGE_DE_CLOISON, "");
+  const sansReglages = (contenu: string) => contenu.replace(PARTITION_SETTING, "");
   let noms: string[];
   try {
     noms = readdirSync(depot);
@@ -213,21 +213,21 @@ function lireCopies(posees: string, unite: string, depot: string): Copie[] {
     return [];
   }
   return noms
-    .filter((nom) => nom === CLOISON || /\.(?:service|timer)$/.test(nom))
+    .filter((nom) => nom === PARTITION || /\.(?:service|timer)$/.test(nom))
     .sort()
     .flatMap((nom) => {
       let posee: string;
       try {
-        posee = readFileSync(nom === CLOISON ? cloisonPosee(posees, unite) : join(posees, nom), "utf8");
+        posee = readFileSync(nom === PARTITION ? setPartition(posees, unite) : join(posees, nom), "utf8");
       } catch {
         return [];
       }
       // Un lien vers le fichier du dépôt n'est pas une copie : il serait comparé à lui-même.
       const fichierDuDepot = join(depot, nom);
-      const lie = nom === CLOISON ? cloisonPosee(posees, unite) : join(posees, nom);
+      const lie = nom === PARTITION ? setPartition(posees, unite) : join(posees, nom);
       if (realpathOuTel(lie) === realpathOuTel(fichierDuDepot)) return [];
       const livree = readFileSync(fichierDuDepot, "utf8");
-      return [{ nom, identique: nom === CLOISON ? sansReglages(posee) === sansReglages(livree) : posee === livree }];
+      return [{ nom, identique: nom === PARTITION ? sansReglages(posee) === sansReglages(livree) : posee === livree }];
     });
 }
 
@@ -253,9 +253,9 @@ export function jugerUnites(lu: { posees: string; depot: string; unite: string; 
   const gestes = [
     // Les unités se recopient telles quelles, toutes ; la cloison porte les
     // réglages du chef.
-    ...(perimees.some((nom) => nom !== CLOISON) ? [`\`sudo cp ${depot}/*.service ${depot}/*.timer ${posees}/\``] : []),
-    ...(perimees.includes(CLOISON)
-      ? [`copy \`${join(depot, CLOISON)}\` over \`${cloisonPosee(posees, lu.unite)}\` carrying your settings over (\`BRIGADE_SANDBOX_HIDDEN\`, \`BRIGADE_SANDBOX_PRIVATE\`)`]
+    ...(perimees.some((nom) => nom !== PARTITION) ? [`\`sudo cp ${depot}/*.service ${depot}/*.timer ${posees}/\``] : []),
+    ...(perimees.includes(PARTITION)
+      ? [`copy \`${join(depot, PARTITION)}\` over \`${setPartition(posees, lu.unite)}\` carrying your settings over (\`BRIGADE_SANDBOX_HIDDEN\`, \`BRIGADE_SANDBOX_PRIVATE\`)`]
       : []),
   ];
   return {
@@ -379,24 +379,24 @@ export function jugerReglageDuGeste(box: { config: string; racine: number; sol: 
 // La connexion Max telle que le journal la tient — la phrase de `run station`,
 // ou null si rien n'y dit qu'elle est tombée (ou s'il n'y a pas de journal à
 // lire : un projet qui n'a jamais démarré n'a aucun lancement à relire).
-function connexionTombee(env: NodeJS.ProcessEnv): string | null {
+function droppedConnection(env: NodeJS.ProcessEnv): string | null {
   const etat = env.BRIGADE_STATE_DIR;
-  if (!etat || !existsSync(cheminJournal(etat))) return null;
-  let journal;
+  if (!etat || !existsSync(logPath(etat))) return null;
+  let log;
   try {
-    journal = ouvrirJournal(etat, { lectureSeule: true });
+    log = openLog(etat, { lectureSeule: true });
   } catch {
     return null;
   }
   try {
-    for (const station of stationsDeconnectees(journal.base)) {
-      const lue = etatStation(journal.base, station);
-      if (lue?.disconnectedAt) return `${station}: ${direConnexionTombeeEn(lue)}`;
+    for (const station of stationsDeconnectees(log.base)) {
+      const lue = etatStation(log.base, station);
+      if (lue?.disconnectedAt) return `${station}: ${sayDroppedConnectionEn(lue)}`;
     }
   } catch {
     // Un journal d'avant la station n'a pas ses tables : rien à en lire.
   } finally {
-    journal.fermer();
+    log.fermer();
   }
   return null;
 }
@@ -478,7 +478,7 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
     }
     // La cloison aussi : elle doit couvrir l'un et l'autre.
     try {
-      configCloison(env, { repertoireEtat: env.BRIGADE_STATE_DIR, clone: env.BRIGADE_REPO_DIR });
+      partitionConfig(env, { repertoireEtat: env.BRIGADE_STATE_DIR, clone: env.BRIGADE_REPO_DIR });
     } catch (erreur) {
       if (!(erreur instanceof ConfigInvalide)) throw erreur;
       refus.push(erreur.message);
@@ -589,16 +589,16 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
     // La base telle que l'origine la porte à cet instant. Aucune référence du
     // clone n'est déplacée — la station peut y rapatrier au même moment : seuls
     // les objets du commit sont rapportés s'ils manquent.
-    const distante = await git("ls-remote", "origin", `refs/heads/${base}`);
-    const [tete] = distante.stdout.split(/\s/);
+    const remote = await git("ls-remote", "origin", `refs/heads/${base}`);
+    const [tete] = remote.stdout.split(/\s/);
     const rapporte = async (commit: string) =>
       (await git("cat-file", "-e", `${commit}^{commit}`)).code === 0 || (await git("fetch", "--quiet", "--no-write-fetch-head", "--refmap=", "origin", `refs/heads/${base}`)).code === 0;
-    if (distante.code !== 0) {
+    if (remote.code !== 0) {
       illisible = "the clone's origin does not answer";
       noter(
         "machine",
         "manque",
-        `the origin of clone ${clone} does not answer under this account: ${distante.stderr.trim() || "git ls-remote failed"}`,
+        `the origin of clone ${clone} does not answer under this account: ${remote.stderr.trim() || "git ls-remote failed"}`,
         "this account must read the repository without being asked anything (`gh auth setup-git`, or an SSH key)",
         undefined,
         { simple: "the box cannot read the repository on GitHub", remede: parLeChef("gh auth setup-git") },
@@ -642,9 +642,9 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
   // Ce que `claude auth status` dit d'un identifiant stocké ne dit pas qu'une
   // session est valide : le dernier lancement réel, lui, est au journal — et la
   // station le tient pour ce qu'il est.
-  const tombee = connexionTombee(env);
+  const tombee = droppedConnection(env);
   if (tombee !== null) {
-    noter("machine", "manque", `Max session: the station says it is ${tombee}`, GESTE_DE_CONNEXION_TOMBEE_EN, undefined, {
+    noter("machine", "manque", `Max session: the station says it is ${tombee}`, DROPPED_CONNECTION_ACTION_EN, undefined, {
       simple: "the box's connection to Claude (Max) is down: no cook leaves any more",
       remede: parLeChef("claude /login"),
     });
@@ -744,7 +744,7 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
   if (illisible !== null) noter("depot", "note", `repository not checked: ${illisible}`);
   else {
     const ref = baseLue;
-    const porte = new Map(
+    const carried = new Map(
       (await git("ls-tree", ref, "--", SCRIPT_GATES, SCRIPT_SETUP)).stdout
         .split("\n")
         .filter(Boolean)
@@ -752,11 +752,11 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
     );
     // Le runtime exécute ces scripts tels quels : un fichier ordinaire doit
     // porter son droit d'exécution. Un lien mène où il mène.
-    const executable = (script: string) => porte.get(script) !== "100644";
+    const executable = (script: string) => carried.get(script) !== "100644";
     const rendre = (script: string) => `\`git update-index --chmod=+x ${script}\`, committed on \`${base}\``;
     const pasExecutable = (script: string, quoi: string) => ({ simple: `the repository's ${quoi} (\`${script}\`) ${quoi.endsWith("gates") ? "are" : "is"} not executable: brigade cannot run ${quoi.endsWith("gates") ? "them" : "it"}`, remede: parLeChef(`git update-index --chmod=+x ${script}`) });
 
-    if (!porte.has(SCRIPT_GATES)) {
+    if (!carried.has(SCRIPT_GATES)) {
       noter("depot", "manque", `\`${SCRIPT_GATES}\` is not on \`${base}\`: without gates, the pass judges no delivery`, `\`/brigade:init\` in the repository, then merge into \`${base}\``, undefined, {
         simple: "the repository has no gates: nothing would judge a delivery",
         remede: dansLApp("init"),
@@ -764,12 +764,12 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
     } else if (!executable(SCRIPT_GATES)) noter("depot", "manque", `\`${SCRIPT_GATES}\` is not executable: the pass runs it as is`, rendre(SCRIPT_GATES), undefined, pasExecutable(SCRIPT_GATES, "gates"));
     else noter("depot", "ok", `gates: \`${SCRIPT_GATES}\``);
 
-    if (!porte.has(SCRIPT_SETUP)) {
+    if (!carried.has(SCRIPT_SETUP)) {
       noter("depot", "note", `no \`${SCRIPT_SETUP}\` on \`${base}\`: the cook starts in a fresh worktree as is, with no dependencies installed`);
     } else if (!executable(SCRIPT_SETUP)) noter("depot", "manque", `\`${SCRIPT_SETUP}\` is not executable: the station runs it as is`, rendre(SCRIPT_SETUP), undefined, pasExecutable(SCRIPT_SETUP, "setup"));
     else noter("depot", "ok", `worktree setup: \`${SCRIPT_SETUP}\``);
 
-    if (porte.has(SCRIPT_SETUP)) {
+    if (carried.has(SCRIPT_SETUP)) {
       const setup = await git("show", `${ref}:${SCRIPT_SETUP}`);
       if (setup.code === 0) {
         const declaration = await git("show", `${ref}:${DECLARATION_RESEAU}`);
@@ -896,7 +896,7 @@ const TICKET_DE_SONDE = 0;
 // La part du bail que la station laisse au setup avant de l'arrêter.
 const PART_DU_SETUP = 0.5;
 
-export type MesureSetup = {
+export type MeasureSetup = {
   // Le commit de la base sur lequel le setup a été joué.
   sha: string;
   // `joue` : le projet a un setup. `pret` : il a réussi sous son plafond.
@@ -910,7 +910,7 @@ export type MesureSetup = {
   sortie: string;
 };
 
-const poids = (repertoire: string): number => Number(execFileSync("du", ["-sk", repertoire], { encoding: "utf8" }).split(/\s/)[0]) * 1024;
+const weight = (repertoire: string): number => Number(execFileSync("du", ["-sk", repertoire], { encoding: "utf8" }).split(/\s/)[0]) * 1024;
 
 // Joue le setup du projet une fois, à blanc, comme la station le jouerait
 // avant un cook : dans un worktree neuf de la base, avec l'environnement d'un
@@ -918,11 +918,11 @@ const poids = (repertoire: string): number => Number(execFileSync("du", ["-sk", 
 // lancé, et le worktree est retiré — pas ce que le setup aurait posé ailleurs
 // (une base de test). Sans les secrets que le dépôt déclare, il n'est pas joué :
 // la station ne lancerait rien non plus.
-export async function mesurerSetup(env: NodeJS.ProcessEnv): Promise<MesureSetup> {
+export async function mesurerSetup(env: NodeJS.ProcessEnv): Promise<MeasureSetup> {
   const etat = env.BRIGADE_STATE_DIR;
   if (!etat) throw new ConfigInvalide("BRIGADE_STATE_DIR n'est pas défini");
   const { clone, base } = configStation(env);
-  const { dureeBailMs } = configRail(env);
+  const { dureeBailMs: leaseDurationMs } = configRail(env);
   const depot = ouvrirDepot({ clone, base, worktrees: join(etat, "worktrees"), env });
   const sha = await depot.rapatrier();
   // Ce qu'une sonde tuée en plein setup aurait laissé.
@@ -930,16 +930,16 @@ export async function mesurerSetup(env: NodeJS.ProcessEnv): Promise<MesureSetup>
   const worktree = await depot.essayer(SONDE);
   if (worktree === null) throw new Error("probe worktree could not be set up");
   try {
-    const avantOctets = poids(worktree);
+    const avantOctets = weight(worktree);
     const secrets = lireSecrets(worktree, configSecrets(env, { repertoireEtat: etat, clone }));
     if (!secrets.pret) {
       const sortie = ["project secrets unavailable — the station would launch no cook (86 `secrets-unavailable`):", ...secrets.problemes].join("\n");
       return { sha, joue: true, pret: false, dureeMs: 0, avantOctets, apresOctets: avantOctets, sortie };
     }
     const debut = Date.now();
-    const setup = await jouerSetup({ worktree, ticket: TICKET_DE_SONDE, env: { ...environnementCook(env), ...secrets.env }, masquer: secrets.masquer, cloison: configCloison(env, { repertoireEtat: etat, clone }), delaiMs: dureeBailMs * PART_DU_SETUP });
+    const setup = await jouerSetup({ worktree, ticket: TICKET_DE_SONDE, env: { ...environnementCook(env), ...secrets.env }, masquer: secrets.masquer, partition: partitionConfig(env, { repertoireEtat: etat, clone }), delaiMs: leaseDurationMs * PART_DU_SETUP });
     const dureeMs = Date.now() - debut;
-    return { sha, joue: setup.pret ? setup.joue : true, pret: setup.pret, dureeMs, avantOctets, apresOctets: poids(worktree), sortie: setup.sortie };
+    return { sha, joue: setup.pret ? setup.joue : true, pret: setup.pret, dureeMs, avantOctets, apresOctets: weight(worktree), sortie: setup.sortie };
   } finally {
     depot.jeter(SONDE);
   }
@@ -959,14 +959,14 @@ export type Tenue = {
 // Ce que la mesure d'un setup veut dire à `cooks` cooks de front : un worktree
 // neuf par cook tient si le setup finit sous son plafond et si tous les
 // worktrees tiennent sur le disque, réserve de la station déduite.
-export function tenir(mesure: MesureSetup, machine: { cooks: number; entrees: number; bailMs: number; disqueLibre: number; disqueMinOctets: number }): Tenue {
-  const plafondMs = machine.bailMs * PART_DU_SETUP;
+export function tenir(measure: MeasureSetup, machine: { cooks: number; entrees: number; leaseMs: number; disqueLibre: number; disqueMinOctets: number }): Tenue {
+  const capMs = machine.leaseMs * PART_DU_SETUP;
   const vagues = Math.ceil(machine.cooks / machine.entrees);
-  const besoin = machine.cooks * mesure.apresOctets;
+  const besoin = machine.cooks * measure.apresOctets;
   const disponible = machine.disqueLibre - machine.disqueMinOctets;
-  const setup = { plafondMs, tient: mesure.pret && mesure.dureeMs <= plafondMs };
+  const setup = { plafondMs: capMs, tient: measure.pret && measure.dureeMs <= capMs };
   const disque = { besoin, disponible, tient: besoin <= disponible };
-  return { setup, entree: { vagues, dernierMs: (vagues - 1) * mesure.dureeMs }, disque, tient: setup.tient && disque.tient };
+  return { setup, entree: { vagues, dernierMs: (vagues - 1) * measure.dureeMs }, disque, tient: setup.tient && disque.tient };
 }
 
 export class InstallationRefusee extends Error {
@@ -1000,7 +1000,7 @@ function dedans(chemin: string, parent: string): boolean {
 // ne fait que le dire. Confirmée, elle refuse tant que le clone porte quelque
 // chose que l'origine n'a pas. Ni l'origine, ni le journal, ni l'unité de
 // service ne sont touchés. Rejouable.
-export function desinstaller(env: NodeJS.ProcessEnv, { confirme }: { confirme: boolean }): Desinstallation {
+export function uninstall(env: NodeJS.ProcessEnv, { confirme }: { confirme: boolean }): Desinstallation {
   const etat = env.BRIGADE_STATE_DIR;
   const clone = env.BRIGADE_REPO_DIR;
   if (!etat) throw new ConfigInvalide("BRIGADE_STATE_DIR n'est pas défini");

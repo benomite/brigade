@@ -46,9 +46,9 @@ test("`rail` : le rail de l'état d'exemple ne porte aucun mot français du glos
   const sansEtat = await sortie(montrerRail, [], {});
   assert.equal(sansEtat.code, 2);
   sansMotFrancais(sansEtat.lignes);
-  const sansJournal = await sortie(montrerRail, [], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
-  assert.equal(sansJournal.code, 1);
-  sansMotFrancais(sansJournal.lignes);
+  const withoutLog = await sortie(montrerRail, [], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
+  assert.equal(withoutLog.code, 1);
+  sansMotFrancais(withoutLog.lignes);
 });
 
 test("`log` : l'état d'exemple se lit sans mot français du glossaire, et ses refus aussi", async (t) => {

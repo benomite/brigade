@@ -64,18 +64,18 @@ export const FENETRE_PREMIER_COUP_PAR_DEFAUT = 10;
 // sous le seuil : `premiers` sur `retenus` (les mergés de la fenêtre), la
 // fenêtre et le seuil en %. Nulle au seuil ou au-dessus, et tant que la fenêtre
 // n'est pas pleine ou qu'aucun de ses tickets n'est mergé : rien à juger.
-export type DerivePremierCoup = { premiers: number; retenus: number; fenetre: number; seuil: number };
-export function derivePremierCoup(parcours: readonly Parcours[], { firstTryPercent, firstTryWindow }: { firstTryPercent?: number | null; firstTryWindow?: number | null }): DerivePremierCoup | null {
+export type FirstTryDrift = { premiers: number; retenus: number; fenetre: number; seuil: number };
+export function firstTryDrift(parcours: readonly Parcours[], { firstTryPercent, firstTryWindow }: { firstTryPercent?: number | null; firstTryWindow?: number | null }): FirstTryDrift | null {
   const seuil = firstTryPercent ?? SEUIL_PREMIER_COUP_PAR_DEFAUT;
   const fenetre = firstTryWindow ?? FENETRE_PREMIER_COUP_PAR_DEFAUT;
-  const { servis, retenus, premierCoup } = mesurerRenvois(parcours, fenetre);
-  if (servis < fenetre || premierCoup === null) return null;
+  const { servis: servedOnes, retenus, premierCoup } = mesurerRenvois(parcours, fenetre);
+  if (servedOnes < fenetre || premierCoup === null) return null;
   const premiers = Math.round(premierCoup * retenus);
   return (premiers * 100) / retenus < seuil ? { premiers, retenus, fenetre, seuil } : null;
 }
 
 // Sa ligne dans `status`, comme la dérive des mesures.
-export function direDerivePremierCoupEn({ premiers, retenus, fenetre, seuil }: DerivePremierCoup): string {
+export function sayFirstTryDriftEn({ premiers, retenus, fenetre, seuil }: FirstTryDrift): string {
   const part = `${premiers}/${retenus}`;
   return retenus === fenetre ? `${part} tickets delivered on the first try (threshold ${seuil}%)` : `${part} merged tickets delivered on the first try, among the last ${fenetre} served (threshold ${seuil}%)`;
 }
@@ -85,11 +85,11 @@ const ligne = (titre: string, valeur: string) => `${titre.padEnd(11)}${valeur}`.
 const ECARTES = "not merged (running, dropped, or served without a diff): left out of the count";
 
 // La mesure des renvois, ligne par ligne.
-export function decrireRenvois({ n, servis, retenus, ecartes, premierCoup, essaisMoyens, tempsMoyenMs }: Renvois): string[] {
-  if (servis === 0) return [ligne("retries", `no served ticket in the log: nothing to measure (N = ${n})`)];
+export function decrireRenvois({ n, servis: servedOnes, retenus, ecartes, premierCoup, essaisMoyens, tempsMoyenMs }: Renvois): string[] {
+  if (servedOnes === 0) return [ligne("retries", `no served ticket in the log: nothing to measure (N = ${n})`)];
   const tete = ligne(
     "retries",
-    `the last ${n} served tickets (N = ${n}): ${servis} in the log, ${retenus} kept, ${ecartes} set aside — ${ECARTES}`,
+    `the last ${n} served tickets (N = ${n}): ${servedOnes} in the log, ${retenus} kept, ${ecartes} set aside — ${ECARTES}`,
   );
   if (premierCoup === null || essaisMoyens === null || tempsMoyenMs === null) return [tete, ligne("", "none is merged: nothing to measure")];
   return [

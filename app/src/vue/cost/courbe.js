@@ -8,11 +8,11 @@
 // communique pas sa série, et la courbe ne se dessine pas vide : sa zone dit « not communicated ».
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément, HTML ou SVG, et rend des éléments.
 
-import { LECTURE, lignesDuConsomme, NON_COMMUNIQUE, tokensLus } from "./tete.js";
+import { LECTURE, consumedLines, NON_COMMUNIQUE, tokensLus } from "./tete.js";
 
 /** @typedef {import("./tete.js").Lecture} Lecture */
 /** @typedef {import("./tete.js").ProjetDuCout} ProjetDuCout */
-/** @typedef {{ createElement(balise: string): any, createElementNS(espace: string, balise: string): any }} Fabrique */
+/** @typedef {{ createElement(balise: string): any, createElementNS(namespace: string, balise: string): any }} Fabrique */
 // `points` : un nombre par jour de `jours`, `null` pour un jour que la série ne dit pas. La série
 // entière est `undefined` quand la box n'a pas encore été lue, `null` quand elle ne l'a pas communiquée.
 /** @typedef {{ projet: ProjetDuCout, points: (number | null)[] | null | undefined }} Serie */
@@ -35,7 +35,7 @@ const JOUR = /^(\d{4}-\d{2}-\d{2}) ?: (.*)$/;
 export function joursDe(texte) {
   /** @type {Map<string, number>} */
   const lus = new Map();
-  for (const valeur of lignesDuConsomme(texte)) {
+  for (const valeur of consumedLines(texte)) {
     const jour = JOUR.exec(valeur);
     if (jour === null) continue;
     const tokens = tokensLus(/** @type {string} */ (jour[2]).trim());

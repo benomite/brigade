@@ -21,7 +21,7 @@
 import { spawn } from "node:child_process";
 import { existsSync, lstatSync, readdirSync, realpathSync, rmdirSync, rmSync } from "node:fs";
 import { join, sep } from "node:path";
-import type { Rendu } from "./desinstaller-sous-le-compte.ts";
+import type { Rendu } from "./uninstall-as-the-account.ts";
 import { affectations, CODES, derniereLigne, DERNIER_PORT, DOC, douteux, instances, lancer, lireAppel, lireCompte, pasPrete, PATH_DE_SYSTEMD, Refus, sous, usage, USAGES, type Box, type Compte } from "./installateur.ts";
 
 // La liste fermée des options. `--confirmer` seule attend une valeur : le nom
@@ -110,7 +110,7 @@ export class Inachevee extends Error {
   }
 }
 
-const SOUS_LE_COMPTE = join(import.meta.dirname, "desinstaller-sous-le-compte.ts");
+const SOUS_LE_COMPTE = join(import.meta.dirname, "uninstall-as-the-account.ts");
 // Ce que systemd dit d'une unité qui ne tourne pas.
 const A_L_ARRET = ["inactive", "failed"];
 // Vider l'état d'un projet prend le temps du disque. Une garde, large.
@@ -222,7 +222,7 @@ function reconnaitre(box: Box, projet: string): Reconnu {
 }
 
 // Lit sur la box ce que la désinstallation du projet retirerait. Ne modifie rien.
-async function lire(box: Box, { projet, journal }: Retrait, reconnu: Reconnu): Promise<Lecture> {
+async function lire(box: Box, { projet, journal: log }: Retrait, reconnu: Reconnu): Promise<Lecture> {
   const { etat, clone, versions, dropIns, aUnEtat, aDesVersions } = reconnu;
   const unites = instances(projet);
   const env = { PATH: PATH_DE_SYSTEMD };
@@ -281,10 +281,10 @@ async function lire(box: Box, { projet, journal }: Retrait, reconnu: Reconnu): P
       worktrees: inventaire.worktrees,
       versions: aDesVersions ? versions : null,
       ports: [...new Set(ports)].sort((a, b) => a - b),
-      journal: journal && aUnEtat ? etat : null,
+      journal: log && aUnEtat ? etat : null,
     },
     garde: {
-      journal: !journal && aUnEtat ? etat : null,
+      journal: !log && aUnEtat ? etat : null,
       sauvegardes: affectations(dropIn(box, unites.sauvegarde), "BRIGADE_BACKUP_DIR").at(-1) ?? null,
     },
     perdus: inventaire.perdus,
@@ -301,13 +301,13 @@ async function lire(box: Box, { projet, journal }: Retrait, reconnu: Reconnu): P
 const rienARetirer = ({ retire }: Plan) => retire.unites.length === 0 && retire.dropIns.length === 0 && retire.clone === null && retire.worktrees === 0 && retire.versions === null && retire.journal === null;
 
 // La ligne qui confirme la désinstallation de ce projet.
-const confirmer = ({ projet, journal }: Pick<Retrait, "projet" | "journal">) => `sudo brigade-installer uninstall ${projet} --confirmer ${projet}${journal ? " --supprimer-le-journal" : ""}`;
+const confirmer = ({ projet, journal: log }: Pick<Retrait, "projet" | "journal">) => `sudo brigade-installer uninstall ${projet} --confirmer ${projet}${log ? " --supprimer-le-journal" : ""}`;
 
 // Désinstalle un projet de la box — ou, à blanc, dit ce qui le serait. Tout ce
 // qui peut être refusé l'est avant le premier geste : `avantDEcrire` est
 // appelée entre les deux. Ensuite, un pas qui échoue arrête la désinstallation
 // là : rien n'est remis, et elle se rejoue.
-export async function desinstaller(box: Box, retrait: Retrait, options: { avantDEcrire?: () => void; signal?: AbortSignal } = {}): Promise<Desinstalle> {
+export async function uninstall(box: Box, retrait: Retrait, options: { avantDEcrire?: () => void; signal?: AbortSignal } = {}): Promise<Desinstalle> {
   const { projet } = retrait;
   const reconnu = reconnaitre(box, projet);
   // La confirmation avant l'inventaire : ce qui retiendrait la désinstallation

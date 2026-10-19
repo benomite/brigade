@@ -13,7 +13,7 @@ import { constaterLimite, limiteDuProcess, refusPourLimite, type Limite } from "
 export const LABEL = "fire";
 // Le label par lequel un ticket dit qu'il ne se sert pas sur cette box — sa base
 // n'est pas celle du projet, par exemple. Il l'emporte sur `fire`.
-export const HORS_CUISINE = "hors-cuisine";
+export const SERVED_ELSEWHERE = "hors-cuisine";
 
 export type Issue = {
   number: number;

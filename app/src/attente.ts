@@ -13,7 +13,7 @@
 // donne : chaque champ est cité pour l'un puis pour l'autre, et rien n'y est exécuté. Ce module
 // ne lance rien : il n'a que l'`envoyer` du registre pour toucher au monde.
 import type { Projet } from "./config.ts";
-import { enPoste, mot } from "./gestes.ts";
+import { onWorkstation, mot } from "./gestes.ts";
 import { CONTROLE, type Terminal } from "./terminaux.ts";
 
 // Les trois gestes, par leur nom, ce qu'ils écrivent après `brigade <nom>`, et leur libellé.
@@ -60,7 +60,7 @@ export function commandeDAttente(id: unknown, projet: Projet, ticket: unknown, s
   const geste = GESTES_D_ATTENTE.find((candidat) => candidat.id === id);
   if (geste === undefined || projet.box === undefined) return undefined;
   if (typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1) return { refus: "nothing is written: the action names no ticket" };
-  if (geste.id !== "attente-poser") return enPoste(projet.box, projet.nom, `${geste.commande} ${ticket}`);
+  if (geste.id !== "attente-poser") return onWorkstation(projet.box, projet.nom, `${geste.commande} ${ticket}`);
   const champs = typeof saisie === "object" && saisie !== null ? (saisie as Record<string, unknown>) : {};
   const [quoi, qui, relance] = [champs.quoi, champs.qui, champs.relance].map((valeur) => (typeof valeur === "string" ? valeur.trim() : ""));
   if (quoi === "") return { refus: "nothing is written: say what it waits for, in your words" };
@@ -68,7 +68,7 @@ export function commandeDAttente(id: unknown, projet: Projet, ticket: unknown, s
   if ([quoi, qui, relance].some((valeur) => CONTROLE.test(valeur ?? ""))) return { refus: SANS_CONTROLE };
   const jour = relanceDe(relance ?? "", aujourdhui);
   if (typeof jour !== "string") return jour;
-  return enPoste(projet.box, projet.nom, `${geste.commande} ${ticket} --what ${mot(libre(quoi ?? ""))} --from ${mot(libre(qui ?? ""))} --remind ${jour}`);
+  return onWorkstation(projet.box, projet.nom, `${geste.commande} ${ticket} --what ${mot(libre(quoi ?? ""))} --from ${mot(libre(qui ?? ""))} --remind ${jour}`);
 }
 
 // Envoie le geste dans le second du projet — ou dit pourquoi rien n'est parti : un projet qui

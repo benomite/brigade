@@ -39,8 +39,8 @@ test("fauxGh : des appels simultanés gardent chacun leur jeton, à tout instant
   // Un appel n'est jamais lu sans son jeton, ni avec celui d'un autre.
   const apparies = () => {
     const appels = gh.appels();
-    const jetons = gh.jetons();
-    assert.deepEqual(appels.map((appel, i) => [appel[0], jetons[i]]), appels.map((appel) => [appel[0], `jeton-de-${appel[0]}`]));
+    const tokens = gh.tokens();
+    assert.deepEqual(appels.map((appel, i) => [appel[0], tokens[i]]), appels.map((appel) => [appel[0], `jeton-de-${appel[0]}`]));
     return appels.length;
   };
   const enfants = Array.from({ length: 12 }, (_, i) => spawn(gh.bin, [`appel-${i}`], { stdio: "ignore", env: { ...process.env, GH_TOKEN: `jeton-de-appel-${i}` } }));
@@ -89,8 +89,8 @@ for (const pose of POSES) {
     const { enfant, port } = await lancerSurPortPose(t, pose.fichier, {
       env: (port) => pose.env(repertoire, port),
       ouvert: pose.ouvert,
-      tirer: async (tirer) => {
-        tires.push(tires.length === 0 ? repris : await tirer());
+      draw: async (draw) => {
+        tires.push(tires.length === 0 ? repris : await draw());
         return tires.at(-1) as number;
       },
     });
@@ -107,7 +107,7 @@ for (const pose of POSES) {
     let tirages = 0;
 
     await assert.rejects(
-      lancerSurPortPose(t, pose.fichier, { env: (port) => pose.env(repertoire, port), ouvert: pose.ouvert, essais: 3, tirer: async () => (tirages++, repris) }),
+      lancerSurPortPose(t, pose.fichier, { env: (port) => pose.env(repertoire, port), ouvert: pose.ouvert, essais: 3, draw: async () => (tirages++, repris) }),
       new RegExp(`aucun port tenu en 3 essais, le dernier sur ${repris} : `),
     );
     assert.equal(tirages, 3);
@@ -116,10 +116,10 @@ for (const pose of POSES) {
 
 test("lancerSurPortPose : un process qui meurt d'autre chose que d'un port pris n'est pas relancé", async (t) => {
   let tirages = 0;
-  const [arbitre] = POSES;
+  const [arbiter] = POSES;
 
   await assert.rejects(
-    lancerSurPortPose(t, arbitre!.fichier, { env: (port) => ({ BRIGADE_ARBITER_PORT: String(port) }), ouvert: arbitre!.ouvert, tirer: async (tirer) => (tirages++, tirer()) }),
+    lancerSurPortPose(t, arbiter!.fichier, { env: (port) => ({ BRIGADE_ARBITER_PORT: String(port) }), ouvert: arbiter!.ouvert, draw: async (draw) => (tirages++, draw()) }),
     /process terminé sans « arbiter open[^»]*» : brigade : the arbiter refuses to start — BRIGADE_ARBITER_STATE_DIR is not set/,
   );
   assert.equal(tirages, 1);

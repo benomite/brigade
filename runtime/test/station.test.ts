@@ -4,20 +4,20 @@ import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { attentesDuChef } from "../src/attend.ts";
-import { faits, lireEtat } from "../src/etat.ts";
+import { attentesDuChef } from "../src/awaiting.ts";
+import { facts, lireEtat } from "../src/etat.ts";
 import { VARIABLES_DE_JETON } from "../src/claude.ts";
 import type { Depot } from "../src/depot.ts";
 import type { GitHub } from "../src/github.ts";
-import { MARQUEUR, porteFiche } from "../src/fiche.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { MARQUEUR, hasCard } from "../src/card.ts";
+import { openLog } from "../src/log.ts";
 import type { Machine } from "../src/machine.ts";
-import { cooksEnCours, etatDesGardeFous } from "../src/projections/guardrails.ts";
+import { cooksEnCours, guardrailsState } from "../src/projections/guardrails.ts";
 import { worktreesGardes } from "../src/projections/cleanup.ts";
 import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { configStation } from "../src/station.ts";
-import { BAIL_MS, CALIBRE, chef, controlerBase, cuisine, issue, MACHINE_CALME, PLAFONDS, plafonner, STATION } from "./aides/cuisine.ts";
+import { LEASE_MS, CALIBRE, chef, controlerBase, kitchen, issue, MACHINE_CALME, CAPS, plafonner, STATION } from "./aides/kitchen.ts";
 import { BASE, commiter, DEPOT, git, jusqua, mort, tuerLesRelais } from "./outils.ts";
 
 // Une base que le test fait bouger — un correctif mergé —, et le compte des
@@ -30,24 +30,24 @@ const baseMobile = () => {
 // Chaque test a ses lieux — répertoire d'état, dépôt, GitHub : ils se jouent de front.
 describe("la station", { concurrency: 8 }, () => {
   test("au branchement, la station annonce son nom, son moteur, ce qu'elle fournit et son plafond de cooks", (t) => {
-    const { journal } = cuisine(t);
+    const { journal: log } = kitchen(t);
 
-    const annonce = journal.tout().find((e) => e.type === "station.announced");
+    const annonce = log.tout().find((e) => e.type === "station.announced");
     assert.deepEqual([annonce?.author, annonce?.payload], [`station:${STATION}`, { station: "box/claude", engine: "claude", provides: ["code"], maxCooks: 1 }]);
-    assert.equal(etatStation(journal.base, STATION)?.maxCooks, 1);
+    assert.equal(etatStation(log.base, STATION)?.maxCooks, 1);
   });
 
   test("l'annonce n'est réécrite au redémarrage que si elle a changé", (t) => {
-    const premiere = cuisine(t);
+    const premiere = kitchen(t);
     premiere.runtime.arreter("test");
 
-    const seconde = cuisine(t, { lieux: premiere.lieux });
+    const seconde = kitchen(t, { lieux: premiere.lieux });
 
     assert.equal(seconde.types().filter((type) => type === "station.announced").length, 1);
   });
 
   test("un ticket calibré en attente est pris, et son cook part dans un worktree qui lui est propre", async (t) => {
-    const { repertoire, clone, etat, dernier, lancements, journal } = cuisine(t, { git: true, scenario: "bavard", issues: [issue(15)] });
+    const { repertoire, clone, etat, dernier, lancements, journal: log } = kitchen(t, { git: true, scenario: "bavard", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
     assert.equal(etat(15), "taken");
@@ -58,12 +58,12 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(cook?.cwd.endsWith(join("worktrees", run)), true);
     assert.equal(git(cook?.cwd ?? "", "rev-parse", "--abbrev-ref", "HEAD"), `cook/${run}`);
     assert.notEqual(git(cook?.cwd ?? "", "rev-parse", "--show-toplevel"), git(clone, "rev-parse", "--show-toplevel"));
-    assert.equal(journal.duTicket(15).find((e) => e.type === "ticket.taken")?.author, `station:${STATION}`);
+    assert.equal(log.duTicket(15).find((e) => e.type === "ticket.taken")?.author, `station:${STATION}`);
     assert.equal(existsSync(join(repertoire, "worktrees", run)), true);
   });
 
   test("le calibrage du ticket est celui du cook : passé au binaire, et porté par le journal", async (t) => {
-    const { dernier, lancements } = cuisine(t, { scenario: "bavard", issues: [issue(15, ["fire", "model:opus", "effort:xhigh"])] });
+    const { dernier, lancements } = kitchen(t, { scenario: "bavard", issues: [issue(15, ["fire", "model:opus", "effort:xhigh"])] });
     await jusqua(() => lancements().length === 1);
 
     const args = lancements()[0]?.args ?? [];
@@ -78,14 +78,14 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("le cook ne reçoit pas l'état du runtime qui le fait tourner", async (t) => {
-    const { lancements } = cuisine(t, { scenario: "bavard", issues: [issue(15)] });
+    const { lancements } = kitchen(t, { scenario: "bavard", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
     assert.equal(Object.keys(lancements()[0]?.env ?? {}).some((nom) => nom.startsWith("BRIGADE_")), false);
   });
 
   test("un cook qui livre : sa branche est poussée, une PR vise la base, le ticket part en pass", async (t) => {
-    const { origine, gh, etat, dernier, types } = cuisine(t, { git: true, issues: [issue(15)] });
+    const { origine, gh, etat, dernier, types } = kitchen(t, { git: true, issues: [issue(15)] });
     await jusqua(() => gh.commentaires.length === 1);
     // Le rangement du worktree suit le rapport : on attend ce fait, pas une durée.
     await jusqua(() => types(15).includes("worktree.removed"));
@@ -116,7 +116,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("le cook commente son ticket : ce qu'il a fait, son calibrage, ce qu'il a consommé, sa PR", async (t) => {
-    const { gh, dernier } = cuisine(t, { issues: [issue(15)] });
+    const { gh, dernier } = kitchen(t, { issues: [issue(15)] });
     await jusqua(() => gh.commentaires.length === 1);
 
     const [numero, corps] = gh.commentaires[0] ?? [0, ""];
@@ -131,12 +131,12 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un ticket sans calibrage n'est jamais lancé : il passe 86 et un commentaire dit quoi poser", async (t) => {
-    const { gh, etat, types, lancements, journal } = cuisine(t, { issues: [issue(15, ["fire", "model:sonnet"])] });
+    const { gh, etat, types, lancements, journal: log } = kitchen(t, { issues: [issue(15, ["fire", "model:sonnet"])] });
     await jusqua(() => gh.commentaires.length === 1);
 
     assert.equal(etat(15), "86");
-    assert.equal(journal.duTicket(15).at(-1)?.type, "ticket.86");
-    assert.deepEqual(journal.duTicket(15).at(-1)?.payload, { reason: "no-calibration", until: null });
+    assert.equal(log.duTicket(15).at(-1)?.type, "ticket.86");
+    assert.deepEqual(log.duTicket(15).at(-1)?.payload, { reason: "no-calibration", until: null });
     assert.equal(types().includes("cook.launched"), false);
     assert.deepEqual(lancements(), []);
     const [numero, corps] = gh.commentaires[0] ?? [0, ""];
@@ -146,25 +146,25 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un ticket non calibré ne retient pas le suivant", async (t) => {
-    const { etat, lancements } = cuisine(t, { scenario: "bavard", issues: [issue(14, ["fire"]), issue(15)] });
+    const { etat, lancements } = kitchen(t, { scenario: "bavard", issues: [issue(14, ["fire"]), issue(15)] });
     await jusqua(() => lancements().length === 1);
 
     assert.deepEqual([etat(14), etat(15)], ["86", "taken"]);
   });
 
   test("une fois ses labels posés, le ticket refusé revient en attente tout seul et son cook part", async (t) => {
-    const { gh, etat, lancements, journal } = cuisine(t, { scenario: "bavard", issues: [issue(15, ["fire"])] });
+    const { gh, etat, lancements, journal: log } = kitchen(t, { scenario: "bavard", issues: [issue(15, ["fire"])] });
     await jusqua(() => etat(15) === "86");
 
     gh.poser(issue(15, CALIBRE, { updatedAt: "2026-10-08T11:00:00Z" }));
     await jusqua(() => lancements().length === 1);
 
-    assert.deepEqual(journal.duTicket(15).find((e) => e.type === "ticket.released")?.payload, { reason: "calibrated", station: null });
+    assert.deepEqual(log.duTicket(15).find((e) => e.type === "ticket.released")?.payload, { reason: "calibrated", station: null });
     assert.equal(etat(15), "taken");
   });
 
   test("un ticket dont la fiche est illisible n'est jamais lancé : il passe 86 et un commentaire dit quoi corriger", async (t) => {
-    const { gh, etat, types, lancements, dernier } = cuisine(t, { scenario: "bavard" });
+    const { gh, etat, types, lancements, dernier } = kitchen(t, { scenario: "bavard" });
     gh.ficher(14, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- attend : #15\n- budget : 40 tours\n- zone : /etc`);
     gh.ficher(15, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : runtime/`);
     gh.poser(issue(14));
@@ -182,11 +182,11 @@ describe("la station", { concurrency: 8 }, () => {
     assert.match(corps, /reviendra en attente tout seul/);
     // Il cite le marqueur sans devenir une seconde fiche.
     assert.match(corps, /brigade:fiche/);
-    assert.equal(porteFiche(corps), false);
+    assert.equal(hasCard(corps), false);
   });
 
   test("un cook qui écrit hors de la zone de son ticket est signalé au chef : au journal et sur l'issue, sans que rien ne s'arrête", async (t) => {
-    const { gh, etat, dernier, types } = cuisine(t, { scenario: "bavard", suite: ["livre"] });
+    const { gh, etat, dernier, types } = kitchen(t, { scenario: "bavard", suite: ["livre"] });
     gh.ficher(15, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : runtime/src, docs/`);
     gh.ficher(16, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : travail.txt`);
     gh.poser(issue(15));
@@ -204,7 +204,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.match(corps, /- `travail\.txt` — dans la zone de #16/);
     assert.match(corps, /zone du ticket : `runtime\/src`, `docs\/`/);
     assert.match(corps, /Rien n'est arrêté/);
-    assert.equal(porteFiche(corps), false);
+    assert.equal(hasCard(corps), false);
   });
 
   // La livraison d'un ticket d'interface porte, en plus du travail du cook, les captures que voici.
@@ -213,7 +213,7 @@ describe("la station", { concurrency: 8 }, () => {
     (depot: Depot): Depot => ({ ...depot, changes: (branche) => [...depot.changes(branche), ...captures] });
 
   test("un ticket d'interface livré avec ses captures les montre sur sa PR et sur le ticket, avant et après côte à côte, et le journal les garde pour la carte", async (t) => {
-    const { gh, dernier, journal } = cuisine(t, { scenario: "bavard", suite: ["livre"], depot: avecCaptures("docs/captures/15/fiche-avant.png", "docs/captures/15/fiche-apres.png") });
+    const { gh, dernier, journal: log } = kitchen(t, { scenario: "bavard", suite: ["livre"], depot: avecCaptures("docs/captures/15/fiche-avant.png", "docs/captures/15/fiche-apres.png") });
     gh.ficher(15, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : app/src/vue`);
     gh.poser(issue(15));
     await jusqua(() => gh.commentaires.length === 1);
@@ -230,13 +230,13 @@ describe("la station", { concurrency: 8 }, () => {
     assert.ok(pr.indexOf("### Captures") < pr.indexOf("J'ai ajouté"), pr);
     assert.equal(gh.commentaires[0]?.[1].includes(ligne), true);
     // Ce que l'app lit : la carte du ticket en pass porte ses deux captures.
-    const enPass = faits(lireEtat(journal), new Date(), DEPOT).rail.find(({ ticket }) => ticket === 15);
+    const enPass = facts(lireEtat(log), new Date(), DEPOT).rail.find(({ ticket }) => ticket === 15);
     assert.deepEqual(enPass?.captures, { complet: true, ecrans: [{ ecran: "fiche", avant: image("avant"), apres: image("apres") }] });
   });
 
   test("un ticket d'interface livré sans ses captures est dit incomplet, sur sa PR, sur le ticket et pour la carte", async (t) => {
     // Désigné par le manager pour le cook design, sans zone : son label le dit d'interface.
-    const { gh, dernier, journal } = cuisine(t, { issues: [issue(15, [...CALIBRE, "cook:design"])] });
+    const { gh, dernier, journal: log } = kitchen(t, { issues: [issue(15, [...CALIBRE, "cook:design"])] });
     await jusqua(() => gh.commentaires.length === 1);
 
     assert.deepEqual((dernier("cook.reported", 15)?.captures as { screens: unknown[] } | undefined)?.screens, []);
@@ -244,11 +244,11 @@ describe("la station", { concurrency: 8 }, () => {
       assert.match(corps, /### Captures\n\n> \*\*Livraison incomplète : captures manquantes\*\* — aucune capture\./);
       assert.match(corps, /`docs\/captures\/15\/<écran>-avant\.png`/);
     }
-    assert.deepEqual(faits(lireEtat(journal), new Date(), DEPOT).rail.find(({ ticket }) => ticket === 15)?.captures, { complet: false, ecrans: [] });
+    assert.deepEqual(facts(lireEtat(log), new Date(), DEPOT).rail.find(({ ticket }) => ticket === 15)?.captures, { complet: false, ecrans: [] });
   });
 
   test("un ticket qui n'est pas d'interface ne dit rien de captures : ni sur sa PR, ni sur le ticket, ni au journal, ni pour la carte", async (t) => {
-    const { gh, dernier, journal } = cuisine(t, { scenario: "bavard", suite: ["livre"], depot: avecCaptures("docs/captures/15/fiche-avant.png") });
+    const { gh, dernier, journal: log } = kitchen(t, { scenario: "bavard", suite: ["livre"], depot: avecCaptures("docs/captures/15/fiche-avant.png") });
     gh.ficher(15, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : runtime/src, travail.txt, docs`);
     gh.poser(issue(15));
     await jusqua(() => gh.commentaires.length === 1);
@@ -256,7 +256,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal("captures" in (dernier("cook.reported", 15) ?? {}), false);
     assert.doesNotMatch(gh.prs[0]?.corps ?? "", /Captures|capture/);
     assert.doesNotMatch(gh.commentaires[0]?.[1] ?? "", /Captures|capture/);
-    assert.equal("captures" in (faits(lireEtat(journal), new Date(), DEPOT).rail.find(({ ticket }) => ticket === 15) ?? {}), false);
+    assert.equal("captures" in (facts(lireEtat(log), new Date(), DEPOT).rail.find(({ ticket }) => ticket === 15) ?? {}), false);
   });
 
   test("dans sa zone, dans un chemin commun, ou sans zone : rien n'est signalé", async (t) => {
@@ -268,27 +268,27 @@ describe("la station", { concurrency: 8 }, () => {
       [null, []],
     ];
     await Promise.all(
-      cas.map(async ([fiche, communs]) => {
-        const { gh, types, etat } = cuisine(t, { scenario: "bavard", suite: ["livre"], communs });
-        if (fiche !== null) gh.ficher(15, "2026-10-08T09:00:00Z", fiche);
+      cas.map(async ([card, communs]) => {
+        const { gh, types, etat } = kitchen(t, { scenario: "bavard", suite: ["livre"], communs });
+        if (card !== null) gh.ficher(15, "2026-10-08T09:00:00Z", card);
         gh.poser(issue(15));
         await jusqua(() => gh.commentaires.length === 1);
 
-        assert.equal(etat(15), "pass", String(fiche));
-        assert.equal(types(15).includes("cook.out-of-zone"), false, String(fiche));
-        assert.doesNotMatch(gh.commentaires[0]?.[1] ?? "", /Hors zone|fiche/i, String(fiche));
+        assert.equal(etat(15), "pass", String(card));
+        assert.equal(types(15).includes("cook.out-of-zone"), false, String(card));
+        assert.doesNotMatch(gh.commentaires[0]?.[1] ?? "", /Hors zone|fiche/i, String(card));
       }),
     );
   });
 
   test("une fiche modifiée pendant la cuisson ne change pas le juge : la zone est celle de la prise, et le changement est montré", async (t) => {
-    const { gh, journal, lancements, dernier, conclure } = cuisine(t, { scenario: "bavard", suite: ["commite-puis-attend"] });
+    const { gh, journal: log, lancements, dernier, conclure } = kitchen(t, { scenario: "bavard", suite: ["commite-puis-attend"] });
     gh.ficher(15, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : runtime/src`);
     gh.poser(issue(15));
     await jusqua(() => lancements().length === 1);
     // Le cook tourne sous le compte du service : il peut éditer la fiche de son propre ticket.
     gh.ficher(15, "2026-10-08T09:30:00Z", `${MARQUEUR}\n- zone : runtime/src, travail.txt`);
-    await jusqua(() => journal.duTicket(15).some((e) => e.type === "ticket.changed"));
+    await jusqua(() => log.duTicket(15).some((e) => e.type === "ticket.changed"));
     conclure();
     await jusqua(() => gh.commentaires.length === 1);
 
@@ -300,12 +300,12 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("une fiche modifiée pendant la cuisson est montrée même quand la livraison tient dans la zone de la prise", async (t) => {
-    const { gh, journal, lancements, dernier, conclure } = cuisine(t, { scenario: "bavard", suite: ["commite-puis-attend"] });
+    const { gh, journal: log, lancements, dernier, conclure } = kitchen(t, { scenario: "bavard", suite: ["commite-puis-attend"] });
     gh.ficher(15, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : travail.txt`);
     gh.poser(issue(15));
     await jusqua(() => lancements().length === 1);
     gh.ficher(15, "2026-10-08T09:30:00Z", `${MARQUEUR}\n- zone : aucune`);
-    await jusqua(() => journal.duTicket(15).some((e) => e.type === "ticket.changed"));
+    await jusqua(() => log.duTicket(15).some((e) => e.type === "ticket.changed"));
     conclure();
     await jusqua(() => gh.commentaires.length === 1);
 
@@ -316,7 +316,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("une fois sa fiche corrigée, le ticket refusé revient en attente tout seul et son cook part", async (t) => {
-    const { gh, etat, lancements, journal } = cuisine(t, { scenario: "bavard" });
+    const { gh, etat, lancements, journal: log } = kitchen(t, { scenario: "bavard" });
     gh.ficher(15, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- attend : le rail`);
     gh.poser(issue(15));
     await jusqua(() => etat(15) === "86");
@@ -324,51 +324,51 @@ describe("la station", { concurrency: 8 }, () => {
     gh.ficher(15, "2026-10-08T11:00:00Z", `${MARQUEUR}\n- attend : rien`);
     await jusqua(() => lancements().length === 1);
 
-    assert.deepEqual(journal.duTicket(15).find((e) => e.type === "ticket.released")?.payload, { reason: "card-readable", station: null });
+    assert.deepEqual(log.duTicket(15).find((e) => e.type === "ticket.released")?.payload, { reason: "card-readable", station: null });
     assert.equal(etat(15), "taken");
   });
 
   test("à un plafond d'un, la station ne fait tourner qu'un cook à la fois, même si le rail est plein", async (t) => {
-    const { runtime, repertoire, journal, etat, lancements, types } = cuisine(t, { scenario: "bavard", issues: [issue(14), issue(15), issue(16)] });
+    const { runtime, repertoire, journal: log, etat, lancements, types } = kitchen(t, { scenario: "bavard", issues: [issue(14), issue(15), issue(16)] });
     await jusqua(() => lancements().length === 1);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
     assert.deepEqual([etat(14), etat(15), etat(16)], ["taken", "waiting", "waiting"]);
     assert.equal(types().filter((type) => type === "cook.launched").length, 1);
     // Ceux qui attendent ne sont pas un mystère : la station dit ce qui la retient, une fois.
-    assert.deepEqual(journal.tout().filter((e) => e.type === "station.held").map((e) => e.payload), [{ station: STATION, reason: "cap" }]);
-    assert.equal(etatStation(journal.base, STATION)?.heldReason, "cap");
+    assert.deepEqual(log.tout().filter((e) => e.type === "station.held").map((e) => e.payload), [{ station: STATION, reason: "cap" }]);
+    assert.equal(etatStation(log.base, STATION)?.heldReason, "cap");
 
     // Arrêtée, la station ne retient plus personne : `status` n'en garde rien.
     runtime.arreter("test");
-    const relu = ouvrirJournal(repertoire, { lectureSeule: true });
+    const relu = openLog(repertoire, { lectureSeule: true });
     t.after(() => relu.fermer());
     assert.equal(etatStation(relu.base, STATION)?.heldReason, null);
     assert.equal(relu.tout().filter((e) => e.type.startsWith("station.")).at(-1)?.type, "station.released");
   });
 
   test("avec un plafond à trois, trois cooks tournent en même temps, chacun sur son ticket, son worktree et sa branche — jamais quatre", async (t) => {
-    const { journal, etat, lancements } = cuisine(t, { cooks: 3, scenario: "muet", issues: [issue(14), issue(15), issue(16), issue(17)] });
+    const { journal: log, etat, lancements } = kitchen(t, { cooks: 3, scenario: "muet", issues: [issue(14), issue(15), issue(16), issue(17)] });
     await jusqua(() => lancements().length === 3);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
     assert.deepEqual([etat(14), etat(15), etat(16), etat(17)], ["taken", "taken", "taken", "waiting"]);
-    const lances = journal.tout().filter((e) => e.type === "cook.launched");
+    const lances = log.tout().filter((e) => e.type === "cook.launched");
     assert.deepEqual(lances.map((e) => e.ticket).sort(), [14, 15, 16]);
     for (const { ticket, payload } of lances) {
       assert.match(String(payload.run), new RegExp(`^${ticket}-`));
       assert.deepEqual([payload.branch, payload.worktree], [`cook/${payload.run}`, join("worktrees", String(payload.run))]);
     }
     assert.equal(new Set(lancements().map((lance) => lance.cwd)).size, 3);
-    assert.equal(cooksEnCours(journal.base).length, 3);
+    assert.equal(cooksEnCours(log.base).length, 3);
   });
 
   test("le chef baisse le plafond pendant que des cooks tournent : aucun n'est arrêté, et la station n'en lance plus avant d'être revenue dessous ; zéro lève la limite", async (t) => {
-    const attend = "commite-puis-attend";
-    const { repertoire, etat, types, lancements, conclure } = cuisine(t, {
+    const awaiting = "commite-puis-attend";
+    const { repertoire, etat, types, lancements, conclure } = kitchen(t, {
       cooks: 3,
       scenario: "muet",
-      suite: [attend, attend, attend],
+      suite: [awaiting, awaiting, awaiting],
       issues: [14, 15, 16, 17, 18].map((numero) => issue(numero)),
     });
     await jusqua(() => lancements().length === 3);
@@ -391,7 +391,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("deux tickets dont les zones se recouvrent ne partent jamais ensemble, même sous le plafond : le second attend, et le rail dit qui tient sa zone", async (t) => {
-    const { gh, journal, etat, lancements } = cuisine(t, { cooks: 3, scenario: "muet" });
+    const { gh, journal: log, etat, lancements } = kitchen(t, { cooks: 3, scenario: "muet" });
     gh.ficher(14, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : runtime/src`);
     gh.ficher(15, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : runtime/src/rail.ts`);
     gh.ficher(16, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : docs/`);
@@ -400,12 +400,12 @@ describe("la station", { concurrency: 8 }, () => {
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
     assert.deepEqual([etat(14), etat(15), etat(16)], ["taken", "waiting", "taken"]);
-    assert.deepEqual(ticketDuRail(journal.base, 15)?.held, [{ ticket: 14, path: "runtime/src/rail.ts" }]);
+    assert.deepEqual(ticketDuRail(log.base, 15)?.held, [{ ticket: 14, path: "runtime/src/rail.ts" }]);
     assert.equal(lancements().length, 2);
   });
 
   test("un cook qui meurt et un cook qui dépasse un plafond n'emportent pas les autres : leurs tickets repartent, les autres continuent", async (t) => {
-    const { journal, etat, lancements } = cuisine(t, {
+    const { journal: log, etat, lancements } = kitchen(t, {
       cooks: 4,
       scenario: "muet",
       suite: ["echec", "bavard"],
@@ -415,25 +415,25 @@ describe("la station", { concurrency: 8 }, () => {
     // Quatre cooks, puis un neuf pour chacun des deux tickets rendus.
     await jusqua(() => lancements().length === 6);
 
-    const fins = journal.tout().filter((e) => e.type === "cook.exited");
+    const fins = log.tout().filter((e) => e.type === "cook.exited");
     assert.deepEqual(fins.map((e) => e.payload.outcome).sort(), ["failed", "guard"]);
     const rendus = fins.map((e) => e.ticket);
     assert.equal(new Set(rendus).size, 2);
     assert.deepEqual([14, 15, 16, 17].map(etat), ["taken", "taken", "taken", "taken"]);
     // Les deux autres n'ont eu qu'un cook, et il tourne encore.
-    const enCours = cooksEnCours(journal.base);
+    const enCours = cooksEnCours(log.base);
     assert.equal(enCours.length, 4);
     for (const numero of [14, 15, 16, 17].filter((ticket) => !rendus.includes(ticket))) {
-      assert.equal(journal.duTicket(numero).filter((e) => e.type === "cook.launched").length, 1);
-      assert.equal(journal.duTicket(numero).some((e) => e.type === "guard.tripped" || e.type === "cook.exited"), false);
+      assert.equal(log.duTicket(numero).filter((e) => e.type === "cook.launched").length, 1);
+      assert.equal(log.duTicket(numero).some((e) => e.type === "guard.tripped" || e.type === "cook.exited"), false);
     }
   });
 
   test("un cook qui perd son bail n'emporte pas son voisin : chacun a son regard, et seul celui qui ne progresse pas est arrêté", async (t) => {
-    const { repertoire, heure, journal, dernier, types, lancements } = cuisine(t, { cooks: 2, scenario: "muet", issues: [issue(14), issue(15)] });
+    const { repertoire, heure, journal: log, dernier, types, lancements } = kitchen(t, { cooks: 2, scenario: "muet", issues: [issue(14), issue(15)] });
     await jusqua(() => lancements().length === 2);
 
-    heure.avancer(BAIL_MS - 1);
+    heure.avancer(LEASE_MS - 1);
     writeFileSync(join(repertoire, String(dernier("cook.launched", 15)?.worktree), "note.txt"), "le cook avance\n");
     await jusqua(() => types(15).includes("ticket.renewed"));
     heure.avancer(1);
@@ -441,39 +441,39 @@ describe("la station", { concurrency: 8 }, () => {
     await jusqua(() => types(14).filter((type) => type === "cook.launched").length === 2);
     assert.equal(dernier("guard.tripped", 14)?.reason, "lease");
     assert.equal(types(15).some((type) => type === "guard.tripped" || type === "cook.exited"), false);
-    assert.equal(cooksEnCours(journal.base).some((cook) => cook.run === dernier("cook.launched", 15)?.run), true);
+    assert.equal(cooksEnCours(log.base).some((cook) => cook.run === dernier("cook.launched", 15)?.run), true);
   });
 
   test("un ticket rendu au rail pendant que son cook tourne n'est repris qu'une fois ce cook arrêté : jamais deux cooks sur un ticket", async (t) => {
-    const { runtime, journal, lancements } = cuisine(t, { cooks: 3, scenario: "muet", issues: [issue(15)] });
+    const { runtime, journal: log, lancements } = kitchen(t, { cooks: 3, scenario: "muet", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
     runtime.rail.rendre(15, "test");
     await jusqua(() => lancements().length === 2);
 
-    const vie = journal.duTicket(15).map((e) => e.type).filter((type) => type === "cook.launched" || type === "cook.exited");
+    const vie = log.duTicket(15).map((e) => e.type).filter((type) => type === "cook.launched" || type === "cook.exited");
     assert.deepEqual(vie, ["cook.launched", "cook.exited", "cook.launched"]);
-    assert.equal(cooksEnCours(journal.base).length, 1);
+    assert.equal(cooksEnCours(log.base).length, 1);
   });
 
   test("un jugement du manager ou une relecture en cours ne retient pas la prise : le plafond ne compte que les cooks de tickets", async (t) => {
-    const { journal, etat, lancements } = cuisine(t, { scenario: "muet", issues: [issue(15)] });
-    journal.ajouter({
+    const { journal: log, etat, lancements } = kitchen(t, { scenario: "muet", issues: [issue(15)] });
+    log.ajouter({
       project: "brigade",
       ticket: null,
       author: "runtime",
       type: "cook.launched",
-      payload: { run: "juge-9-aaaaaaaa", limits: PLAFONDS, stream: "runs/juge-9-aaaaaaaa.jsonl", station: "manager", model: "sonnet", effort: "medium" },
+      payload: { run: "juge-9-aaaaaaaa", limits: CAPS, stream: "runs/juge-9-aaaaaaaa.jsonl", station: "manager", model: "sonnet", effort: "medium" },
     });
 
     await jusqua(() => lancements().length === 1);
 
     assert.equal(etat(15), "taken");
-    assert.equal(cooksEnCours(journal.base).length, 2);
+    assert.equal(cooksEnCours(log.base).length, 2);
   });
 
   test("au plus deux tickets en entrée à la fois : le setup des suivants attend que les premiers soient partis", async (t) => {
-    const { journal, setup, etat, dernier, lancements } = cuisine(t, { cooks: 10, entrees: 2, setup: "attend", scenario: "muet", issues: [14, 15, 16, 17].map((numero) => issue(numero)) });
+    const { journal: log, setup, etat, dernier, lancements } = kitchen(t, { cooks: 10, entrees: 2, setup: "attend", scenario: "muet", issues: [14, 15, 16, 17].map((numero) => issue(numero)) });
     await jusqua(() => setup.appels().length === 2);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
@@ -485,12 +485,12 @@ describe("la station", { concurrency: 8 }, () => {
     await jusqua(() => lancements().length === 4);
     assert.deepEqual([14, 15, 16, 17].map(etat), ["taken", "taken", "taken", "taken"]);
     // Plus aucun ticket n'attend : la station ne retient plus personne, et le dit.
-    await jusqua(() => etatStation(journal.base, STATION)?.heldReason === null);
+    await jusqua(() => etatStation(log.base, STATION)?.heldReason === null);
   });
 
   test("une machine qui n'en peut plus : la station ne prend plus rien et le dit une fois, sans toucher aux cooks en cours ; elle reprend quand la machine respire", async (t) => {
     let machine: Machine = { ...MACHINE_CALME, charge: 16.2 };
-    const { gh, journal, etat, dernier, types, lancements, avertissements } = cuisine(t, { cooks: 3, scenario: "muet", machine: () => machine, issues: [issue(15)] });
+    const { gh, journal: log, etat, dernier, types, lancements, avertissements } = kitchen(t, { cooks: 3, scenario: "muet", machine: () => machine, issues: [issue(15)] });
     await jusqua(() => types().includes("station.saturated"));
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
@@ -500,12 +500,12 @@ describe("la station", { concurrency: 8 }, () => {
     assert.deepEqual(avertissements.map((ligne) => ligne.replace(/^brigade : /, "")), [
       `la station ${STATION} ne prend plus de ticket, la machine n'en peut plus — charge de 16,2 pour 12 au plus`,
     ]);
-    assert.equal(etatStation(journal.base, STATION)?.saturatedResource, "cpu");
+    assert.equal(etatStation(log.base, STATION)?.saturatedResource, "cpu");
     assert.deepEqual(dernier("station.held"), { station: STATION, reason: "machine" });
 
     machine = MACHINE_CALME;
     await jusqua(() => lancements().length === 1);
-    assert.deepEqual([types().includes("station.relieved"), etatStation(journal.base, STATION)?.saturatedAt], [true, null]);
+    assert.deepEqual([types().includes("station.relieved"), etatStation(log.base, STATION)?.saturatedAt], [true, null]);
 
     // Le disque se remplit pendant qu'un cook tourne : lui continue, le suivant attend.
     machine = { ...MACHINE_CALME, disqueLibre: 1024 ** 3 };
@@ -517,7 +517,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("une base d'intégration rouge : la station ne lance plus aucun cook et le dit, sans toucher à ceux qui tournent ; elle repart seule au vert", async (t) => {
-    const { repertoire, gh, journal, etat, dernier, types, lancements } = cuisine(t, { cooks: 3, scenario: "muet", issues: [issue(15)] });
+    const { repertoire, gh, journal: log, etat, dernier, types, lancements } = kitchen(t, { cooks: 3, scenario: "muet", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
     controlerBase(repertoire, "red");
@@ -526,8 +526,8 @@ describe("la station", { concurrency: 8 }, () => {
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
     assert.deepEqual([etat(15), etat(16), lancements().length], ["taken", "waiting", 1]);
-    assert.deepEqual(journal.tout().filter((e) => e.type === "station.held").map((e) => e.payload), [{ station: STATION, reason: "base" }]);
-    assert.equal(etatStation(journal.base, STATION)?.heldReason, "base");
+    assert.deepEqual(log.tout().filter((e) => e.type === "station.held").map((e) => e.payload), [{ station: STATION, reason: "base" }]);
+    assert.equal(etatStation(log.base, STATION)?.heldReason, "base");
     // Le cook parti avant le rouge continue : la retenue n'arrête personne.
     assert.equal(types(15).some((type) => type === "guard.tripped" || type === "cook.exited"), false);
 
@@ -539,11 +539,11 @@ describe("la station", { concurrency: 8 }, () => {
     controlerBase(repertoire, "green", "ba5e0003ffff");
     await jusqua(() => lancements().length === 2);
     assert.equal(etat(16), "taken");
-    await jusqua(() => etatStation(journal.base, STATION)?.heldReason === null);
+    await jusqua(() => etatStation(log.base, STATION)?.heldReason === null);
   });
 
   test("des gates de base qui n'ont pas pu se jouer ne sont pas un rouge : la station sert", async (t) => {
-    const { repertoire, gh, etat, types, lancements } = cuisine(t, { cooks: 3, scenario: "muet" });
+    const { repertoire, gh, etat, types, lancements } = kitchen(t, { cooks: 3, scenario: "muet" });
     controlerBase(repertoire, "skipped");
     gh.poser(issue(15));
     await jusqua(() => lancements().length === 1);
@@ -552,7 +552,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("le « stop » du chef et le disjoncteur passent avant la base rouge : c'est eux que la station nomme", async (t) => {
-    const { repertoire, gh, dernier } = cuisine(t, { cooks: 3, scenario: "muet" });
+    const { repertoire, gh, dernier } = kitchen(t, { cooks: 3, scenario: "muet" });
     controlerBase(repertoire, "red");
     chef(repertoire, "kitchen.stopped");
     gh.poser(issue(15));
@@ -567,7 +567,7 @@ describe("la station", { concurrency: 8 }, () => {
     // Deux cœurs : trois de charge au plus. La machine, elle, ne voit rien venir.
     const calme: Machine = { ...MACHINE_CALME, coeurs: 2 };
     const numeros = Array.from({ length: 30 }, (_, i) => 101 + i);
-    const { journal, heure, etat, types, lancements } = cuisine(t, { cooks: 30, entrees: 30, scenario: "muet", machine: () => calme, issues: numeros.map((numero) => issue(numero)) });
+    const { journal: log, heure, etat, types, lancements } = kitchen(t, { cooks: 30, entrees: 30, scenario: "muet", machine: () => calme, issues: numeros.map((numero) => issue(numero)) });
     await jusqua(() => lancements().length === 4);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
@@ -576,7 +576,7 @@ describe("la station", { concurrency: 8 }, () => {
     // Ce n'est pas une saturation : la machine respire, la station attend de le voir.
     assert.equal(types().includes("station.saturated"), false);
     // Mais les vingt-six qui attendent ne sont pas un mystère : elle le dit, une fois.
-    assert.deepEqual(journal.tout().filter((e) => e.type === "station.held").map((e) => e.payload), [{ station: STATION, reason: "ramp" }]);
+    assert.deepEqual(log.tout().filter((e) => e.type === "station.held").map((e) => e.payload), [{ station: STATION, reason: "ramp" }]);
 
     heure.avancer(59_999);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
@@ -589,7 +589,7 @@ describe("la station", { concurrency: 8 }, () => {
 
   test("la machine se lit même quand une autre borne retient la station : au plafond, une saturation se dit et se lève", async (t) => {
     let machine: Machine = MACHINE_CALME;
-    const { repertoire, journal, types, lancements } = cuisine(t, { cooks: 2, scenario: "muet", machine: () => machine, issues: [issue(14), issue(15), issue(16)] });
+    const { repertoire, journal: log, types, lancements } = kitchen(t, { cooks: 2, scenario: "muet", machine: () => machine, issues: [issue(14), issue(15), issue(16)] });
     await jusqua(() => lancements().length === 2);
 
     // Au plafond, et la machine sature : c'est dit quand même.
@@ -601,13 +601,13 @@ describe("la station", { concurrency: 8 }, () => {
     machine = MACHINE_CALME;
     await jusqua(() => types().includes("station.relieved"));
 
-    assert.equal(etatStation(journal.base, STATION)?.saturatedAt, null);
+    assert.equal(etatStation(log.base, STATION)?.saturatedAt, null);
     assert.equal(lancements().length, 2);
   });
 
   test("une machine devenue illisible pendant une saturation ne passe pas pour une machine qui respire : rien n'est levé, rien n'est pris", async (t) => {
     let lire = (): Machine => ({ ...MACHINE_CALME, charge: 16.2 });
-    const { journal, etat, types, lancements, avertissements } = cuisine(t, { scenario: "muet", machine: () => lire(), issues: [issue(15)] });
+    const { journal: log, etat, types, lancements, avertissements } = kitchen(t, { scenario: "muet", machine: () => lire(), issues: [issue(15)] });
     await jusqua(() => types().includes("station.saturated"));
 
     lire = () => {
@@ -617,12 +617,12 @@ describe("la station", { concurrency: 8 }, () => {
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
     assert.equal(types().includes("station.relieved"), false);
-    assert.equal(etatStation(journal.base, STATION)?.saturatedResource, "cpu");
+    assert.equal(etatStation(log.base, STATION)?.saturatedResource, "cpu");
     assert.deepEqual([etat(15), lancements().length], ["waiting", 0]);
   });
 
   test("un ticket rendu pendant que son cook tourne ne fait pas une place : à un plafond d'un, jamais deux cooks vivants", async (t) => {
-    const { runtime, journal, lancements } = cuisine(t, { scenario: "muet", issues: [issue(14), issue(15)] });
+    const { runtime, journal: log, lancements } = kitchen(t, { scenario: "muet", issues: [issue(14), issue(15)] });
     await jusqua(() => lancements().length === 1);
 
     runtime.rail.rendre(14, "test");
@@ -630,7 +630,7 @@ describe("la station", { concurrency: 8 }, () => {
 
     let vivants = 0;
     let plusHaut = 0;
-    for (const { type } of journal.tout()) {
+    for (const { type } of log.tout()) {
       if (type === "cook.launched") plusHaut = Math.max(plusHaut, ++vivants);
       if (type === "cook.exited") vivants--;
     }
@@ -638,7 +638,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un ticket rendu pendant que son cook tourne tient encore sa zone : un ticket qui la recouvre ne part pas tant que ce cook écrit", async (t) => {
-    const { gh, runtime, journal, types, lancements } = cuisine(t, { cooks: 3, scenario: "muet" });
+    const { gh, runtime, journal: log, types, lancements } = kitchen(t, { cooks: 3, scenario: "muet" });
     gh.ficher(14, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : runtime/src`);
     gh.ficher(15, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : runtime/src/rail.ts`);
     gh.poser(issue(14));
@@ -650,11 +650,11 @@ describe("la station", { concurrency: 8 }, () => {
     await jusqua(() => lancements().length === 2);
 
     assert.equal(types(15).includes("ticket.taken"), false);
-    assert.deepEqual(journal.tout().filter((e) => e.type === "cook.launched").map((e) => e.ticket), [14, 14]);
+    assert.deepEqual(log.tout().filter((e) => e.type === "cook.launched").map((e) => e.ticket), [14, 14]);
   });
 
   test("une machine illisible ne retient rien : la station le dit une fois et sert", async (t) => {
-    const { lancements, avertissements } = cuisine(t, {
+    const { lancements, avertissements } = kitchen(t, {
       scenario: "muet",
       machine: () => {
         throw new Error("statfs : ENOENT");
@@ -669,7 +669,7 @@ describe("la station", { concurrency: 8 }, () => {
 
   test("quatre cooks partent de front d'un même clone : quatre worktrees, quatre branches poussées, quatre PR", async (t) => {
     const numeros = [14, 15, 16, 17];
-    const { origine, gh, etat, dernier, avertissements } = cuisine(t, { git: true, cooks: 4, issues: numeros.map((numero) => issue(numero)) });
+    const { origine, gh, etat, dernier, avertissements } = kitchen(t, { git: true, cooks: 4, issues: numeros.map((numero) => issue(numero)) });
     await jusqua(() => gh.commentaires.length === 4);
 
     assert.deepEqual(numeros.map(etat), ["pass", "pass", "pass", "pass"]);
@@ -689,25 +689,25 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un cook fini, la station prend le ticket suivant", async (t) => {
-    const { etat } = cuisine(t, { issues: [issue(14), issue(15)] });
+    const { etat } = kitchen(t, { issues: [issue(14), issue(15)] });
 
     await jusqua(() => etat(14) === "pass" && etat(15) === "pass");
   });
 
   test("un cook qui échoue : le ticket revient en attente, le journal et un commentaire disent pourquoi", async (t) => {
-    const { gh, dernier, journal } = cuisine(t, { scenario: "bavard", suite: ["echec"], issues: [issue(15)] });
+    const { gh, dernier, journal: log } = kitchen(t, { scenario: "bavard", suite: ["echec"], issues: [issue(15)] });
     await jusqua(() => gh.commentaires.length === 1);
 
     assert.equal(dernier("cook.exited", 15)?.outcome, "failed");
-    const rapport = journal.duTicket(15).find((e) => e.type === "cook.reported")?.payload as Record<string, unknown>;
+    const rapport = log.duTicket(15).find((e) => e.type === "cook.reported")?.payload as Record<string, unknown>;
     assert.deepEqual([rapport.ending, rapport.reason, rapport.pr], ["failed", "code de sortie 1", null]);
     assert.match(gh.commentaires[0]?.[1] ?? "", /échoué.*code de sortie 1/s);
     assert.deepEqual(gh.prs, []);
   });
 
   test("un ticket qui échoue est repris par un cook neuf, et le disjoncteur borne la série", async (t) => {
-    const { journal, etat, types, lancements } = cuisine(t, { scenario: "echec", issues: [issue(15)] });
-    await jusqua(() => etatDesGardeFous(journal.base).breakerOpenedAt !== null);
+    const { journal: log, etat, types, lancements } = kitchen(t, { scenario: "echec", issues: [issue(15)] });
+    await jusqua(() => guardrailsState(log.base).breakerOpenedAt !== null);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
     assert.equal(types(15).filter((type) => type === "cook.launched").length, 3);
@@ -716,27 +716,27 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un cook que le modèle refuse n'a pas échoué : le ticket repart, le chef le lit sur l'issue, et le disjoncteur n'en sait rien", async (t) => {
-    const { gh, journal, etat, dernier, types } = cuisine(t, { scenario: "livre", suite: ["refuse", "refuse"], seuilDisjoncteur: 1, issues: [issue(15)] });
+    const { gh, journal: log, etat, dernier, types } = kitchen(t, { scenario: "livre", suite: ["refuse", "refuse"], seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => etat(15) === "pass");
 
-    const fins = journal.duTicket(15).flatMap((e) => (e.type === "cook.exited" ? [e.payload.outcome] : []));
-    const rapports = journal.duTicket(15).flatMap((e) => (e.type === "cook.reported" ? [[e.payload.ending, e.payload.reason]] : []));
+    const fins = log.duTicket(15).flatMap((e) => (e.type === "cook.exited" ? [e.payload.outcome] : []));
+    const rapports = log.duTicket(15).flatMap((e) => (e.type === "cook.reported" ? [[e.payload.ending, e.payload.reason]] : []));
     assert.deepEqual(fins, ["refused", "refused", "ok"]);
     assert.deepEqual(rapports.slice(0, 2), [["refused", "refus du modèle (reasoning_extraction)"], ["refused", "refus du modèle (reasoning_extraction)"]]);
     assert.deepEqual(dernier("ticket.released", 15), { reason: "refused", station: STATION });
-    assert.deepEqual([etatDesGardeFous(journal.base).failures, types().includes("breaker.opened")], [0, false]);
+    assert.deepEqual([guardrailsState(log.base).failures, types().includes("breaker.opened")], [0, false]);
     assert.match(gh.commentaires[0]?.[1] ?? "", /refusé par le modèle, essai 1\/3[\s\S]*refus du modèle \(reasoning_extraction\) — `stop_reason: refusal`[\s\S]*ni une panne ni un échec[\s\S]*revenu en attente/);
     assert.match(gh.commentaires[1]?.[1] ?? "", /essai 2\/3/);
   });
 
   test("un ticket que le modèle refuse trois fois d'affilée n'est pas relancé sans fin : il remonte au chef, 86, avec le motif", async (t) => {
-    const { gh, journal, etat, dernier, types, avertissements } = cuisine(t, { scenario: "refuse", seuilDisjoncteur: 1, issues: [issue(15)] });
+    const { gh, journal: log, etat, dernier, types, avertissements } = kitchen(t, { scenario: "refuse", seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => etat(15) === "86" && gh.commentaires.length === 3);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
     assert.equal(types(15).filter((type) => type === "cook.launched").length, 3);
     assert.deepEqual(dernier("ticket.86", 15), { reason: "refused", until: null });
-    assert.deepEqual([etatDesGardeFous(journal.base).failures, types().includes("breaker.opened")], [0, false]);
+    assert.deepEqual([guardrailsState(log.base).failures, types().includes("breaker.opened")], [0, false]);
     assert.match(gh.commentaires[2]?.[1] ?? "", /essai 3\/3[\s\S]*\*\*Remonté au chef\.\*\* 3 refus d'affilée : le ticket est 86/);
     assert.match(avertissements.join("\n"), /le modèle a refusé 3 fois d'affilée le ticket #15 — remonté au chef/);
   });
@@ -745,7 +745,7 @@ describe("la station", { concurrency: 8 }, () => {
     // Le ticket part entre la mort du cook et le regard suivant de la station :
     // au moment où elle lit son worktree pour juger sa fin.
     const partir: { geste?: () => void } = {};
-    const { gh, runtime, etat, dernier } = cuisine(t, {
+    const { gh, runtime, etat, dernier } = kitchen(t, {
       scenario: "refuse",
       issues: [issue(15)],
       depot: (depot) => ({ ...depot, commits: (worktree) => (partir.geste?.(), depot.commits(worktree)) }),
@@ -760,16 +760,16 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un cook qui a commité avant le refus du modèle a livré : son travail est récolté", async (t) => {
-    const { gh, journal, etat, dernier } = cuisine(t, { scenario: "commite-puis-refuse", issues: [issue(15)] });
+    const { gh, journal: log, etat, dernier } = kitchen(t, { scenario: "commite-puis-refuse", issues: [issue(15)] });
     await jusqua(() => etat(15) === "pass" && gh.commentaires.length === 1);
 
     assert.deepEqual([dernier("cook.reported", 15)?.ending, dernier("cook.reported", 15)?.reason], ["done", "harvested:refus du modèle (reasoning_extraction)"]);
-    assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "ok");
+    assert.equal(log.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "ok");
   });
 
   test("un cook qui conclut sans commit, avec un compte-rendu, a livré un ticket sans diff : il part en pass, sans rien pousser ni ouvrir de PR", async (t) => {
     const pousses: string[] = [];
-    const { gh, etat, dernier, journal } = cuisine(t, {
+    const { gh, etat, dernier, journal: log } = kitchen(t, {
       scenario: "bavard",
       suite: ["rapporte-sans-commit"],
       issues: [issue(15)],
@@ -777,7 +777,7 @@ describe("la station", { concurrency: 8 }, () => {
     });
     await jusqua(() => gh.commentaires.length === 1);
 
-    assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "ok");
+    assert.equal(log.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "ok");
     const rapport = dernier("cook.reported", 15);
     assert.deepEqual([rapport?.ending, rapport?.reason, rapport?.pr], ["done", "no-diff", null]);
     // Le livrable est ce que le cook a délimité ; son message entier reste au journal.
@@ -790,20 +790,20 @@ describe("la station", { concurrency: 8 }, () => {
       gh.commentaires[0]?.[1] ?? "",
       /fini, sans diff\*\*[^\n]*\nAucun commit : le livrable de ce ticket est ce que le cook a délimité, ci-dessous\.[^\n]*reviewer le relit[^\n]*\n\nAudit : la CI passe douze minutes[^\n]*\n\n<details>\n<summary>Le reste du message du cook<\/summary>\n\nJ'ai lu le workflow et trois runs\.\n\nVérifié sur les runs 41 à 43\.\n\n<\/details>$/,
     );
-    assert.equal(etatDesGardeFous(journal.base).failures, 0);
+    assert.equal(guardrailsState(log.base).failures, 0);
   });
 
   test("un cook qui conclut sans commit et sans rien délimiter n'a pas livré : c'est un échec, pas un ticket sans diff dont le message serait le livrable", async (t) => {
-    const { gh, etat, dernier, journal } = cuisine(t, { scenario: "bavard", suite: ["rapporte-sans-delimiter"], issues: [issue(15)] });
+    const { gh, etat, dernier, journal: log } = kitchen(t, { scenario: "bavard", suite: ["rapporte-sans-delimiter"], issues: [issue(15)] });
     await jusqua(() => gh.commentaires.length === 1);
 
-    assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "failed");
+    assert.equal(log.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "failed");
     const rapport = dernier("cook.reported", 15);
     assert.deepEqual([rapport?.ending, rapport?.reason, rapport?.deliverable], ["failed", "no-deliverable", null]);
     assert.match(String(rapport?.summary), /^Brouillon :/);
     assert.notEqual(etat(15), "pass");
     assert.equal(dernier("ticket.passing", 15), undefined);
-    assert.equal(etatDesGardeFous(journal.base).failures, 1);
+    assert.equal(guardrailsState(log.base).failures, 1);
     // Le chef lit pourquoi, et le message du cook n'est pas présenté comme un livrable.
     assert.match(
       gh.commentaires[0]?.[1] ?? "",
@@ -812,7 +812,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un cook qui a commité et délimité son compte-rendu : seul ce qu'il a délimité est publié en clair, sur le ticket comme dans la PR", async (t) => {
-    const { gh, dernier } = cuisine(t, { scenario: "bavard", suite: ["livre-et-delimite"], issues: [issue(15)] });
+    const { gh, dernier } = kitchen(t, { scenario: "bavard", suite: ["livre-et-delimite"], issues: [issue(15)] });
     await jusqua(() => gh.commentaires.length === 1);
 
     const rapport = dernier("cook.reported", 15);
@@ -826,7 +826,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un cook qui a commité sans rien délimiter n'est pas en échec : son message est son compte-rendu, publié tel quel", async (t) => {
-    const { gh, etat, dernier } = cuisine(t, { issues: [issue(15)] });
+    const { gh, etat, dernier } = kitchen(t, { issues: [issue(15)] });
     await jusqua(() => gh.commentaires.length === 1);
 
     const rapport = dernier("cook.reported", 15);
@@ -836,23 +836,23 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un cook qui écrit des fichiers, oublie de les commiter et dit avoir fini n'a rien livré : ce n'est pas un ticket sans diff", async (t) => {
-    const { gh, etat, dernier, journal } = cuisine(t, { scenario: "bavard", suite: ["ecrit-sans-commiter"], issues: [issue(15)] });
+    const { gh, etat, dernier, journal: log } = kitchen(t, { scenario: "bavard", suite: ["ecrit-sans-commiter"], issues: [issue(15)] });
     await jusqua(() => gh.commentaires.length === 1);
 
-    assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "failed");
+    assert.equal(log.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "failed");
     assert.deepEqual([dernier("cook.reported", 15)?.ending, dernier("cook.reported", 15)?.reason], ["failed", "no-commit"]);
     assert.notEqual(etat(15), "pass");
     assert.equal(dernier("ticket.passing", 15), undefined);
-    assert.equal(etatDesGardeFous(journal.base).failures, 1);
+    assert.equal(guardrailsState(log.base).failures, 1);
   });
 
   test("un cook qui conclut sans rien commiter ni rien dire a échoué", async (t) => {
-    const { gh, etat, dernier, journal } = cuisine(t, { scenario: "bavard", suite: ["fini"], issues: [issue(15)] });
+    const { gh, etat, dernier, journal: log } = kitchen(t, { scenario: "bavard", suite: ["fini"], issues: [issue(15)] });
     await jusqua(() => gh.commentaires.length === 1);
 
-    assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "failed");
-    assert.equal(journal.duTicket(15).find((e) => e.type === "cook.reported")?.payload.reason, "no-commit");
-    assert.equal(etatDesGardeFous(journal.base).failures, 1);
+    assert.equal(log.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "failed");
+    assert.equal(log.duTicket(15).find((e) => e.type === "cook.reported")?.payload.reason, "no-commit");
+    assert.equal(guardrailsState(log.base).failures, 1);
     assert.notEqual(etat(15), "pass");
     assert.equal(dernier("ticket.passing", 15), undefined);
   });
@@ -861,23 +861,23 @@ describe("la station", { concurrency: 8 }, () => {
     const pousser = () => {
       throw new Error("git push : remote: Permission denied");
     };
-    const { gh, journal } = cuisine(t, { scenario: "bavard", suite: ["livre"], issues: [issue(15)], depot: (depot) => ({ ...depot, pousser }) });
+    const { gh, journal: log } = kitchen(t, { scenario: "bavard", suite: ["livre"], issues: [issue(15)], depot: (depot) => ({ ...depot, pousser }) });
     await jusqua(() => gh.commentaires.length === 1);
 
-    const rapport = journal.duTicket(15).find((e) => e.type === "cook.reported")?.payload as Record<string, unknown>;
+    const rapport = log.duTicket(15).find((e) => e.type === "cook.reported")?.payload as Record<string, unknown>;
     assert.equal(rapport.ending, "failed");
     assert.match(String(rapport.reason), /push.*Permission denied/);
-    assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "failed");
+    assert.equal(log.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "failed");
     assert.deepEqual(gh.prs, []);
   });
 
   test("un cook qui a commité puis s'est arrêté en erreur a fini : son travail est récolté et part en pass", async (t) => {
-    const { gh, journal, etat, dernier } = cuisine(t, { scenario: "bavard", suite: ["commite-puis-echoue"], issues: [issue(15)] });
+    const { gh, journal: log, etat, dernier } = kitchen(t, { scenario: "bavard", suite: ["commite-puis-echoue"], issues: [issue(15)] });
     await jusqua(() => gh.commentaires.length === 1);
 
     assert.equal(etat(15), "pass");
-    assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "ok");
-    assert.equal(etatDesGardeFous(journal.base).failures, 0);
+    assert.equal(log.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "ok");
+    assert.equal(guardrailsState(log.base).failures, 0);
     const rapport = dernier("cook.reported", 15);
     assert.deepEqual([rapport?.ending, rapport?.reason], ["done", "harvested:code de sortie 1"]);
     assert.deepEqual(gh.prs.map((pr) => pr.branche), [rapport?.branch]);
@@ -885,7 +885,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un cook inerte après son commit est arrêté par l'inactivité, et son travail récolté", async (t) => {
-    const { gh, journal, etat, dernier, types } = cuisine(t, {
+    const { gh, journal: log, etat, dernier, types } = kitchen(t, {
       scenario: "bavard",
       suite: ["commite-puis-se-tait"],
       // Assez long pour que le cook ait commité avant, même sur une machine
@@ -897,15 +897,15 @@ describe("la station", { concurrency: 8 }, () => {
 
     assert.equal(etat(15), "pass");
     assert.equal(types(15).includes("guard.tripped"), true);
-    assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "ok");
+    assert.equal(log.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "ok");
     assert.equal(dernier("cook.reported", 15)?.reason, "harvested:guard:idle");
   });
 
   test("un cook arrêté par un garde-fou sans avoir rien commité reste un échec", async (t) => {
-    const { gh, journal, dernier } = cuisine(t, { scenario: "bavard", suite: ["muet"], plafonds: { idleMs: 300 }, seuilDisjoncteur: 1, issues: [issue(15)] });
+    const { gh, journal: log, dernier } = kitchen(t, { scenario: "bavard", suite: ["muet"], plafonds: { idleMs: 300 }, seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => gh.commentaires.length === 1);
 
-    assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "guard");
+    assert.equal(log.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "guard");
     assert.deepEqual([dernier("cook.reported", 15)?.ending, dernier("cook.reported", 15)?.reason], ["failed", "guard:idle"]);
     assert.deepEqual(gh.prs, []);
   });
@@ -914,7 +914,7 @@ describe("la station", { concurrency: 8 }, () => {
     const pousser = () => {
       throw new Error("git push : remote: Permission denied");
     };
-    const { gh, journal, dernier } = cuisine(t, {
+    const { gh, journal: log, dernier } = kitchen(t, {
       scenario: "bavard",
       suite: ["commite-puis-echoue"],
       issues: [issue(15)],
@@ -922,12 +922,12 @@ describe("la station", { concurrency: 8 }, () => {
     });
     await jusqua(() => gh.commentaires.length === 1);
 
-    assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "failed");
+    assert.equal(log.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "failed");
     assert.match(String(dernier("cook.reported", 15)?.reason), /push-failed/);
   });
 
   test("le « stop » du chef ne récolte rien : le ticket revient en attente, le travail reste sur la station", async (t) => {
-    const { repertoire, gh, etat, dernier, lancements } = cuisine(t, { scenario: "commite-puis-bavarde", issues: [issue(15)] });
+    const { repertoire, gh, etat, dernier, lancements } = kitchen(t, { scenario: "commite-puis-bavarde", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1 && existsSync(join(lancements()[0]?.cwd ?? "", "travail.txt")));
 
     chef(repertoire, "kitchen.stopped");
@@ -939,7 +939,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un quota épuisé après un commit reste un 86 : le ticket attend le retour du quota", async (t) => {
-    const { gh, etat, dernier } = cuisine(t, { scenario: "commite-puis-quota", issues: [issue(15)] });
+    const { gh, etat, dernier } = kitchen(t, { scenario: "commite-puis-quota", issues: [issue(15)] });
     await jusqua(() => dernier("cook.reported", 15) !== undefined);
 
     assert.equal(etat(15), "86");
@@ -947,7 +947,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("quota épuisé : le ticket passe 86 jusqu'à l'heure de retour, sans échec ni commentaire", async (t) => {
-    const { gh, journal, etat, dernier } = cuisine(t, { scenario: "quota", issues: [issue(15)] });
+    const { gh, journal: log, etat, dernier } = kitchen(t, { scenario: "quota", issues: [issue(15)] });
     await jusqua(() => etat(15) === "86");
     await jusqua(() => dernier("cook.reported", 15) !== undefined);
 
@@ -955,12 +955,12 @@ describe("la station", { concurrency: 8 }, () => {
     assert.deepEqual(dernier("ticket.86", 15), { reason: "quota", until: "2026-10-08T15:30:00.000Z" });
     assert.deepEqual(dernier("station.86"), { station: STATION, reason: "quota", until: "2026-10-08T15:30:00.000Z", window: "five_hour" });
     assert.equal(dernier("cook.reported", 15)?.ending, "86");
-    assert.equal(etatDesGardeFous(journal.base).failures, 0);
+    assert.equal(guardrailsState(log.base).failures, 0);
     assert.deepEqual(gh.commentaires, []);
   });
 
   test("tant que le quota n'est pas revenu la station ne prend rien ; à l'heure dite, elle reprend", async (t) => {
-    const { heure, etat, types } = cuisine(t, { scenario: "livre", suite: ["quota"], issues: [issue(14), issue(15)] });
+    const { heure, etat, types } = kitchen(t, { scenario: "livre", suite: ["quota"], issues: [issue(14), issue(15)] });
     await jusqua(() => etat(14) === "86");
     await new Promise((resoudre) => setTimeout(resoudre, 80));
     assert.equal(etat(15), "waiting");
@@ -972,7 +972,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un quota épuisé qui ne dit pas quand il revient est retenté une heure plus tard", async (t) => {
-    const { etat, dernier } = cuisine(t, { scenario: "quota-sans-heure", issues: [issue(15)] });
+    const { etat, dernier } = kitchen(t, { scenario: "quota-sans-heure", issues: [issue(15)] });
     await jusqua(() => etat(15) === "86");
 
     assert.equal(dernier("ticket.86", 15)?.until, "2026-10-08T11:00:00.000Z");
@@ -980,7 +980,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("connexion Max expirée : le ticket revient en attente, la station le signale et ne prend plus rien", async (t) => {
-    const { gh, journal, etat, dernier, types } = cuisine(t, { scenario: "non-connecte", issues: [issue(14), issue(15)] });
+    const { gh, journal: log, etat, dernier, types } = kitchen(t, { scenario: "non-connecte", issues: [issue(14), issue(15)] });
     await jusqua(() => gh.commentaires.length === 1);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
@@ -988,13 +988,13 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(types().filter((type) => type === "cook.launched").length, 1);
     assert.deepEqual(dernier("station.disconnected", 14), { station: STATION, reason: "authentication_failed", run: dernier("cook.launched", 14)?.run });
     assert.deepEqual(dernier("ticket.released", 14), { reason: "disconnected", station: STATION });
-    assert.equal(etatDesGardeFous(journal.base).failures, 0);
+    assert.equal(guardrailsState(log.base).failures, 0);
     assert.equal(gh.commentaires[0]?.[0], 14);
     assert.match(gh.commentaires[0]?.[1] ?? "", /connexion Max.*claude \/login.*reprendre/s);
   });
 
   test("après une connexion expirée, la station repart au « resume » du chef", async (t) => {
-    const { repertoire, gh, etat } = cuisine(t, { scenario: "livre", suite: ["non-connecte"], issues: [issue(15)] });
+    const { repertoire, gh, etat } = kitchen(t, { scenario: "livre", suite: ["non-connecte"], issues: [issue(15)] });
     await jusqua(() => gh.commentaires.length === 1);
 
     chef(repertoire, "kitchen.resumed");
@@ -1003,8 +1003,8 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("une machine sans session le dit dès le démarrage, sans lancer de cook", async (t) => {
-    const { journal, etat, dernier, types, avertissements } = cuisine(t, { session: "absente", issues: [issue(15)] });
-    await jusqua(() => etatStation(journal.base, STATION)?.disconnectedAt !== null);
+    const { journal: log, etat, dernier, types, avertissements } = kitchen(t, { session: "absente", issues: [issue(15)] });
+    await jusqua(() => etatStation(log.base, STATION)?.disconnectedAt !== null);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
     assert.deepEqual(dernier("station.disconnected"), { station: STATION, reason: "not-logged-in", run: null });
@@ -1014,21 +1014,21 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un cook vivant qui ne touche à rien ne renouvelle pas son bail : à l'échéance il est arrêté, et son ticket revient en attente", async (t) => {
-    const { gh, heure, journal, etat, dernier, lancements, types, avertissements } = cuisine(t, { scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)] });
+    const { gh, heure, journal: log, etat, dernier, lancements, types, avertissements } = kitchen(t, { scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
     // Passé la moitié du bail sans progrès, la station le signale à son regard
     // suivant — un dixième de bail plus tard, au plus — sans l'arrêter.
-    heure.avancer(BAIL_MS / 2 - 1);
+    heure.avancer(LEASE_MS / 2 - 1);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
     assert.equal(types(15).includes("cook.stalled"), false);
-    heure.avancer(BAIL_MS / 10);
+    heure.avancer(LEASE_MS / 10);
     await jusqua(() => types(15).includes("cook.stalled"));
     const run = dernier("cook.launched", 15)?.run;
-    assert.deepEqual(dernier("cook.stalled", 15), { run, station: STATION, idleMs: BAIL_MS * 0.6 - 1, leaseMs: BAIL_MS });
+    assert.deepEqual(dernier("cook.stalled", 15), { run, station: STATION, idleMs: LEASE_MS * 0.6 - 1, leaseMs: LEASE_MS });
     assert.match(avertissements.at(-1) ?? "", /le cook .* du ticket #15 coince — aucun progrès dans son worktree depuis 6 min, son bail tombe à 10 min/);
 
-    heure.avancer(BAIL_MS * 0.4);
+    heure.avancer(LEASE_MS * 0.4);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
     assert.equal(types(15).includes("guard.tripped"), false);
     // Signalé une fois par épisode, pas à chaque regard.
@@ -1037,7 +1037,7 @@ describe("la station", { concurrency: 8 }, () => {
 
     await jusqua(() => gh.commentaires.length === 1);
     assert.equal(types(15).includes("ticket.renewed"), false);
-    assert.deepEqual(dernier("guard.tripped", 15), { run, reason: "lease", limit: BAIL_MS, observed: BAIL_MS });
+    assert.deepEqual(dernier("guard.tripped", 15), { run, reason: "lease", limit: LEASE_MS, observed: LEASE_MS });
     assert.equal(dernier("cook.exited", 15)?.outcome, "guard");
     assert.deepEqual([dernier("cook.reported", 15)?.ending, dernier("cook.reported", 15)?.reason], ["failed", "guard:lease"]);
     assert.match(gh.commentaires[0]?.[1] ?? "", /échoué.*Aucun progrès dans son worktree depuis 10 min/s);
@@ -1045,53 +1045,53 @@ describe("la station", { concurrency: 8 }, () => {
     // du cook qui le remet en attente, et elle compte au disjoncteur.
     assert.equal(types(15).includes("ticket.released"), false);
     assert.equal(etat(15), "waiting");
-    assert.equal(etatDesGardeFous(journal.base).failures, 1);
+    assert.equal(guardrailsState(log.base).failures, 1);
   });
 
   test("un fichier touché dans le worktree renouvelle le bail, et l'échéance repart de là", async (t) => {
-    const { heure, dernier, lancements, types } = cuisine(t, { scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)] });
+    const { heure, dernier, lancements, types } = kitchen(t, { scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
     writeFileSync(join(lancements()[0]?.cwd ?? "", "brouillon.txt"), "pas encore commité\n");
-    heure.avancer(BAIL_MS / 2);
+    heure.avancer(LEASE_MS / 2);
 
     await jusqua(() => types(15).includes("ticket.renewed"));
-    assert.deepEqual(dernier("ticket.renewed", 15), { station: STATION, leaseUntil: new Date(heure.maintenant().getTime() + BAIL_MS).toISOString() });
+    assert.deepEqual(dernier("ticket.renewed", 15), { station: STATION, leaseUntil: new Date(heure.maintenant().getTime() + LEASE_MS).toISOString() });
     // Passé l'échéance du premier bail, le cook tient toujours son ticket…
-    heure.avancer(BAIL_MS - 1);
+    heure.avancer(LEASE_MS - 1);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
     assert.equal(types(15).includes("guard.tripped"), false);
     // … et le perd un bail entier après son dernier progrès.
     heure.avancer(1);
     await jusqua(() => dernier("guard.tripped", 15) !== undefined);
-    assert.deepEqual([dernier("guard.tripped", 15)?.reason, dernier("guard.tripped", 15)?.observed], ["lease", BAIL_MS]);
+    assert.deepEqual([dernier("guard.tripped", 15)?.reason, dernier("guard.tripped", 15)?.observed], ["lease", LEASE_MS]);
     assert.equal(types(15).filter((type) => type === "ticket.renewed").length, 1);
   });
 
   test("un commit renouvelle le bail ; un fichier que le projet ignore, non", async (t) => {
-    const { clone, heure, dernier, lancements, types } = cuisine(t, { git: true, scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)] });
+    const { clone, heure, dernier, lancements, types } = kitchen(t, { git: true, scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
     const worktree = lancements()[0]?.cwd ?? "";
 
     commiter(worktree);
-    heure.avancer(BAIL_MS / 2);
+    heure.avancer(LEASE_MS / 2);
     await jusqua(() => types(15).includes("ticket.renewed"));
 
     writeFileSync(join(clone, ".git/info/exclude"), "*.log\n");
     writeFileSync(join(worktree, "outil.log"), "une ligne de plus\n");
-    heure.avancer(BAIL_MS);
+    heure.avancer(LEASE_MS);
     await jusqua(() => dernier("guard.tripped", 15) !== undefined);
     assert.equal(dernier("guard.tripped", 15)?.reason, "lease");
     assert.equal(types(15).filter((type) => type === "ticket.renewed").length, 1);
   });
 
   test("un cook qui a commité puis ne progresse plus : à l'échéance son travail est récolté et part en pass", async (t) => {
-    const { gh, heure, journal, etat, dernier, lancements, types } = cuisine(t, { scenario: "commite-puis-bavarde", issues: [issue(15)] });
+    const { gh, heure, journal: log, etat, dernier, lancements, types } = kitchen(t, { scenario: "commite-puis-bavarde", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1 && existsSync(join(lancements()[0]?.cwd ?? "", "travail.txt")));
 
-    heure.avancer(BAIL_MS / 2);
+    heure.avancer(LEASE_MS / 2);
     await jusqua(() => types(15).includes("ticket.renewed"));
-    heure.avancer(BAIL_MS);
+    heure.avancer(LEASE_MS);
 
     await jusqua(() => gh.commentaires.length === 1);
     assert.equal(etat(15), "pass");
@@ -1100,7 +1100,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.deepEqual(gh.prs.map((pr) => pr.branche), [dernier("cook.reported", 15)?.branch]);
     assert.match(gh.commentaires[0]?.[1] ?? "", /récolté.*Aucun progrès dans son worktree depuis 10 min/s);
     assert.equal(types(15).includes("ticket.released"), false);
-    assert.equal(etatDesGardeFous(journal.base).failures, 0);
+    assert.equal(guardrailsState(log.base).failures, 0);
   });
 
   // Un dépôt dont la lecture du worktree tombe en panne quand le test le dit.
@@ -1114,12 +1114,12 @@ describe("la station", { concurrency: 8 }, () => {
 
   test("une lecture ratée du worktree à l'échéance n'arrête pas le cook : la station relit au tick suivant, et son progrès compte", async (t) => {
     const etat = { panne: false };
-    const { heure, lancements, types, avertissements } = cuisine(t, { scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)], depot: illisible(etat) });
+    const { heure, lancements, types, avertissements } = kitchen(t, { scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)], depot: illisible(etat) });
     await jusqua(() => lancements().length === 1);
     writeFileSync(join(lancements()[0]?.cwd ?? "", "brouillon.txt"), "pas encore commité\n");
 
     etat.panne = true;
-    heure.avancer(BAIL_MS);
+    heure.avancer(LEASE_MS);
     await jusqua(() => avertissements.length > 0);
     assert.match(avertissements[0] ?? "", /worktree du ticket #15 illisible.*not a git repository/s);
     etat.panne = false;
@@ -1130,21 +1130,21 @@ describe("la station", { concurrency: 8 }, () => {
 
   test("un worktree durablement illisible ne vaut pas progrès : passé un sursis, le bail tombe", async (t) => {
     const etat = { panne: false };
-    const { heure, dernier, lancements, types, avertissements } = cuisine(t, { scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)], depot: illisible(etat) });
+    const { heure, dernier, lancements, types, avertissements } = kitchen(t, { scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)], depot: illisible(etat) });
     await jusqua(() => lancements().length === 1);
 
     etat.panne = true;
-    heure.avancer(BAIL_MS + BAIL_MS / 10 - 1);
+    heure.avancer(LEASE_MS + LEASE_MS / 10 - 1);
     await jusqua(() => avertissements.length >= 3);
     assert.equal(types(15).includes("guard.tripped"), false);
     heure.avancer(1);
 
     await jusqua(() => dernier("guard.tripped", 15) !== undefined);
-    assert.deepEqual([dernier("guard.tripped", 15)?.reason, dernier("guard.tripped", 15)?.observed], ["lease", BAIL_MS + BAIL_MS / 10]);
+    assert.deepEqual([dernier("guard.tripped", 15)?.reason, dernier("guard.tripped", 15)?.observed], ["lease", LEASE_MS + LEASE_MS / 10]);
   });
 
   test("un ticket retiré du rail pendant que son cook tourne : le cook est arrêté", async (t) => {
-    const { gh, dernier, lancements, runtime } = cuisine(t, { scenario: "bavard", bailMs: 90, issues: [issue(15)] });
+    const { gh, dernier, lancements, runtime } = kitchen(t, { scenario: "bavard", bailMs: 90, issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
     gh.poser(issue(15, ["model:sonnet", "effort:low"], { updatedAt: "2026-10-08T11:00:00Z" }));
@@ -1163,14 +1163,14 @@ describe("la station", { concurrency: 8 }, () => {
     // au moment où elle lit son worktree pour juger sa fin.
     const partir: { geste?: () => void } = {};
     const pousses: string[] = [];
-    const { gh, journal, runtime, dernier } = cuisine(t, {
+    const { gh, journal: log, runtime, dernier } = kitchen(t, {
       issues: [issue(15)],
       depot: (depot) => ({ ...depot, commits: (worktree) => (partir.geste?.(), depot.commits(worktree)), pousser: (branche) => void pousses.push(branche) }),
     });
     partir.geste = () => {
       partir.geste = undefined;
       gh.poser(issue(15, CALIBRE, { state: "closed", updatedAt: "2026-10-08T11:00:00Z" }));
-      journal.ajouter({ project: "brigade", ticket: 15, author: "github", type: "ticket.left", payload: { reason: "closed" } });
+      log.ajouter({ project: "brigade", ticket: 15, author: "github", type: "ticket.left", payload: { reason: "closed" } });
     };
     await jusqua(() => gh.commentaires.length === 1);
 
@@ -1183,9 +1183,9 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("cuisine arrêtée : la station ne prend rien, et repart au « resume »", async (t) => {
-    const premiere = cuisine(t);
+    const premiere = kitchen(t);
     chef(premiere.repertoire, "kitchen.stopped");
-    await jusqua(() => etatDesGardeFous(premiere.journal.base).stoppedAt !== null);
+    await jusqua(() => guardrailsState(premiere.journal.base).stoppedAt !== null);
     premiere.gh.poser(issue(15));
     await jusqua(() => premiere.etat(15) === "waiting");
     await new Promise((resoudre) => setTimeout(resoudre, 80));
@@ -1197,7 +1197,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un « stop » pendant un cook rend le ticket au rail, sans commentaire ni reprise", async (t) => {
-    const { repertoire, gh, etat, dernier, lancements, types } = cuisine(t, { scenario: "bavard", issues: [issue(15)] });
+    const { repertoire, gh, etat, dernier, lancements, types } = kitchen(t, { scenario: "bavard", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
     chef(repertoire, "kitchen.stopped");
@@ -1211,7 +1211,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un cook mort pendant que le runtime était arrêté — son relais tué avec lui : au redémarrage son ticket est en attente, et un cook neuf le reprend", async (t) => {
-    const premiere = cuisine(t, { scenario: "bavard", issues: [issue(15)] });
+    const premiere = kitchen(t, { scenario: "bavard", issues: [issue(15)] });
     await jusqua(() => premiere.lancements().length === 1);
     const run = String(premiere.dernier("cook.launched", 15)?.run);
     await jusqua(() => existsSync(join(premiere.repertoire, "runs", `${run}.cook.pid`)));
@@ -1222,7 +1222,7 @@ describe("la station", { concurrency: 8 }, () => {
     tuerLesRelais(premiere.repertoire);
     await mort(relais);
 
-    const seconde = cuisine(t, { scenario: "livre", lieux: premiere.lieux });
+    const seconde = kitchen(t, { scenario: "livre", lieux: premiere.lieux });
 
     await jusqua(() => seconde.etat(15) === "pass");
     assert.deepEqual(
@@ -1232,19 +1232,19 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un ticket resté pris par une vie précédente, sans cook, est rendu au démarrage", async (t) => {
-    const premiere = cuisine(t, { session: "absente", issues: [issue(15)] });
+    const premiere = kitchen(t, { session: "absente", issues: [issue(15)] });
     await jusqua(() => premiere.etat(15) === "waiting");
     premiere.runtime.rail.prendre(STATION);
     premiere.runtime.arreter("test");
 
-    const seconde = cuisine(t, { session: "absente", lieux: premiere.lieux });
+    const seconde = kitchen(t, { session: "absente", lieux: premiere.lieux });
 
     assert.equal(seconde.etat(15), "waiting");
     assert.deepEqual(seconde.dernier("ticket.released", 15), { reason: "station-restarted", station: STATION });
   });
 
   test("un runtime mort entre l'envoi en pass et le compte-rendu : au redémarrage la station ouvre la PR, écrit le compte-rendu et le dit sur le ticket", async (t) => {
-    const premiere = cuisine(t);
+    const premiere = kitchen(t);
     const { github } = premiere.gh;
     const { ouvrirPR } = github;
     // GitHub ne répond pas : la station attend sa PR, le ticket déjà en pass.
@@ -1255,7 +1255,7 @@ describe("la station", { concurrency: 8 }, () => {
     premiere.runtime.arreter("test");
 
     github.ouvrirPR = ouvrirPR;
-    const { gh, etat, dernier, types, lancements, avertissements } = cuisine(t, { lieux: premiere.lieux });
+    const { gh, etat, dernier, types, lancements, avertissements } = kitchen(t, { lieux: premiere.lieux });
     await jusqua(() => gh.commentaires.length === 1);
 
     const run = String(dernier("cook.launched", 15)?.run);
@@ -1285,7 +1285,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("une PR ouverte juste avant la mort du runtime est retrouvée au redémarrage : jamais une seconde", async (t) => {
-    const premiere = cuisine(t);
+    const premiere = kitchen(t);
     const { github } = premiere.gh;
     const { ouvrirPR } = github;
     // La PR est créée, mais sa réponse n'arrive jamais.
@@ -1298,7 +1298,7 @@ describe("la station", { concurrency: 8 }, () => {
     premiere.runtime.arreter("test");
 
     github.ouvrirPR = ouvrirPR;
-    const { gh, dernier } = cuisine(t, { lieux: premiere.lieux });
+    const { gh, dernier } = kitchen(t, { lieux: premiere.lieux });
     await jusqua(() => gh.commentaires.length === 1);
 
     assert.equal(gh.prs.length, 1);
@@ -1307,14 +1307,14 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("GitHub injoignable au redémarrage : le compte-rendu repris s'écrit sans PR, et le commentaire le dit", async (t) => {
-    const premiere = cuisine(t);
+    const premiere = kitchen(t);
     premiere.gh.github.ouvrirPR = () => new Promise(() => {});
     premiere.gh.poser(issue(15));
     await jusqua(() => premiere.etat(15) === "pass");
     premiere.runtime.arreter("test");
 
     premiere.gh.pannes.lecture = true;
-    const { gh, dernier, avertissements } = cuisine(t, { lieux: premiere.lieux });
+    const { gh, dernier, avertissements } = kitchen(t, { lieux: premiere.lieux });
     await jusqua(() => gh.commentaires.length === 1);
 
     const rapport = dernier("cook.reported", 15);
@@ -1325,11 +1325,11 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("une livraison déjà racontée n'est pas reprise au redémarrage", async (t) => {
-    const premiere = cuisine(t, { issues: [issue(15)] });
+    const premiere = kitchen(t, { issues: [issue(15)] });
     await jusqua(() => premiere.gh.commentaires.length === 1);
     premiere.runtime.arreter("test");
 
-    const { gh, types, runtime } = cuisine(t, { session: "absente", lieux: premiere.lieux });
+    const { gh, types, runtime } = kitchen(t, { session: "absente", lieux: premiere.lieux });
     await jusqua(() => runtime.journal.tout().some((e) => e.type === "runtime.ticked"));
 
     assert.equal(types(15).filter((type) => type === "cook.reported").length, 1);
@@ -1341,7 +1341,7 @@ describe("la station", { concurrency: 8 }, () => {
     const preparer = async () => {
       throw new Error("git fetch : fatal: unable to access origin");
     };
-    const { etat, dernier, types, avertissements } = cuisine(t, { issues: [issue(15)], depot: (depot) => ({ ...depot, preparer }) });
+    const { etat, dernier, types, avertissements } = kitchen(t, { issues: [issue(15)], depot: (depot) => ({ ...depot, preparer }) });
 
     await jusqua(() => etat(15) === "86");
 
@@ -1361,17 +1361,17 @@ describe("la station", { concurrency: 8 }, () => {
 
     test("la même cause sur deux tickets bloque le projet : une alerte avec la cause et le geste, et chaque ticket dit en clair ce qu'il attend", async (t) => {
       const etat = { casse: true };
-      const { journal, etat: rail, types, dernier, heure, avertissements } = cuisine(t, { cooks: 10, issues: [issue(15), issue(16)], depot: (depot) => panne(depot, etat) });
+      const { journal: log, etat: rail, types, dernier, heure, avertissements } = kitchen(t, { cooks: 10, issues: [issue(15), issue(16)], depot: (depot) => panne(depot, etat) });
       await jusqua(() => types().includes("aside.blocked"));
 
       assert.deepEqual(dernier("aside.blocked", 16) ?? dernier("aside.blocked", 15), { station: STATION, reason: "worktree-failed", base: "base-0" });
       assert.equal(types().filter((type) => type === "aside.failed").length, 2);
-      const enFile = attentesDuChef(journal.base, lireRail(journal.base)).filter(({ quoi }) => quoi === "aside");
+      const enFile = attentesDuChef(log.base, lireRail(log.base)).filter(({ quoi }) => quoi === "aside");
       assert.equal(enFile.length, 1);
       assert.match(avertissements.join("\n"), /le worktree ne se prépare pas, deux fois de suite/);
       // L'état exposé à l'app : la raison en clair et la colonne, ticket par ticket.
       const maintenant = new Date(heure.maintenant());
-      const rendu = faits(lireEtat(journal, maintenant), maintenant);
+      const rendu = facts(lireEtat(log, maintenant), maintenant);
       const attente = (numero: number) => rendu.rail.find((ticket) => ticket.ticket === numero)?.attente;
       assert.deepEqual([rail(15), rail(16)], ["86", "86"]);
       for (const numero of [15, 16]) {
@@ -1381,9 +1381,9 @@ describe("la station", { concurrency: 8 }, () => {
 
     test("la cause levée, le projet reprend seul : un seul ticket sonde, et dès que son cook part l'entrée du chef disparaît", async (t) => {
       const etat = { casse: true };
-      const { journal, heure, types, lancements, etat: rail } = cuisine(t, { cooks: 10, scenario: "bavard", issues: [issue(15), issue(16)], depot: (depot) => panne(depot, etat) });
+      const { journal: log, heure, types, lancements, etat: rail } = kitchen(t, { cooks: 10, scenario: "bavard", issues: [issue(15), issue(16)], depot: (depot) => panne(depot, etat) });
       await jusqua(() => types().includes("aside.blocked"));
-      const enFile = () => attentesDuChef(journal.base, lireRail(journal.base)).some(({ quoi }) => quoi === "aside");
+      const enFile = () => attentesDuChef(log.base, lireRail(log.base)).some(({ quoi }) => quoi === "aside");
       assert.equal(enFile(), true);
 
       etat.casse = false;
@@ -1409,7 +1409,7 @@ describe("la station", { concurrency: 8 }, () => {
           return depot.preparer(run);
         },
       });
-      const { heure, types, dernier, etat: rail } = cuisine(t, { cooks: 10, scenario: "muet", issues: [issue(15), issue(16), issue(17)], depot: sonde });
+      const { heure, types, dernier, etat: rail } = kitchen(t, { cooks: 10, scenario: "muet", issues: [issue(15), issue(16), issue(17)], depot: sonde });
       t.after(() => lacher());
       await jusqua(() => types().includes("aside.blocked"));
       await jusqua(() => [15, 16, 17].every((ticket) => rail(ticket) === "86"));
@@ -1429,7 +1429,7 @@ describe("la station", { concurrency: 8 }, () => {
 
     test("une autre cause se présente : le blocage tombe seul, et c'est elle qui compte", async (t) => {
       const etat = { casse: true };
-      const { journal, heure, types, dernier, gh } = cuisine(t, { cooks: 10, scenario: "bavard", sansIdentite: true, issues: [issue(15), issue(16)], depot: (depot) => panne(depot, etat) });
+      const { journal: log, heure, types, dernier, gh } = kitchen(t, { cooks: 10, scenario: "bavard", sansIdentite: true, issues: [issue(15), issue(16)], depot: (depot) => panne(depot, etat) });
       await jusqua(() => types().includes("aside.blocked"));
       const lire = gh.github.commentaires;
       let coupe = false;
@@ -1447,12 +1447,12 @@ describe("la station", { concurrency: 8 }, () => {
       // et c'est elle que le chef lit.
       await jusqua(() => types().filter((type) => type === "aside.blocked").length === 2);
       assert.equal(dernier("aside.blocked")?.reason, "ticket-unreadable");
-      const [entree] = attentesDuChef(journal.base, lireRail(journal.base)).filter(({ quoi }) => quoi === "aside");
+      const [entree] = attentesDuChef(log.base, lireRail(log.base)).filter(({ quoi }) => quoi === "aside");
       assert.equal(entree?.quoi === "aside" && entree.aside.reason, "ticket-unreadable");
     });
 
     test("le setup n'en est pas : un setup en échec ne compte pas pour une cause de mise de côté", async (t) => {
-      const { types } = cuisine(t, { setup: "echec", issues: [issue(15)] });
+      const { types } = kitchen(t, { setup: "echec", issues: [issue(15)] });
       await jusqua(() => types().includes("setup.failed"));
 
       assert.equal(types().includes("aside.failed"), false);
@@ -1460,7 +1460,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("le setup du projet passe avant le cook, avec le numéro du ticket, et le cook reçoit ce qu'il exporte", async (t) => {
-    const { repertoire, setup, dernier, lancements, avertissements } = cuisine(t, { scenario: "bavard", setup: "exporte", issues: [issue(15)] });
+    const { repertoire, setup, dernier, lancements, avertissements } = kitchen(t, { scenario: "bavard", setup: "exporte", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
     const worktree = join(repertoire, String(dernier("cook.launched", 15)?.worktree));
@@ -1476,7 +1476,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un setup qui exporte une clé ne détourne pas le cook de la connexion Max : aucun jeton ne lui parvient", async (t) => {
-    const { lancements } = cuisine(t, { scenario: "bavard", setup: "jeton", issues: [issue(15)] });
+    const { lancements } = kitchen(t, { scenario: "bavard", setup: "jeton", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
     const env = lancements()[0]?.env ?? {};
@@ -1485,7 +1485,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("avec un jeton à son emplacement, le cook le reçoit dans CLAUDE_CODE_OAUTH_TOKEN — pas celui qu'un setup exporte", async (t) => {
-    const { lancements } = cuisine(t, { scenario: "bavard", setup: "jeton", jeton: "sk-ant-oat01-jeton-de-la-machine", issues: [issue(15)] });
+    const { lancements } = kitchen(t, { scenario: "bavard", setup: "jeton", jeton: "sk-ant-oat01-jeton-de-la-machine", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
     const env = lancements()[0]?.env ?? {};
@@ -1497,7 +1497,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un ticket qui quitte la station pendant son setup ne laisse pas de worktree : il est repris dans un neuf", async (t) => {
-    const { repertoire, runtime, setup, dernier, lancements, types } = cuisine(t, { scenario: "bavard", setup: "attend", issues: [issue(15)] });
+    const { repertoire, runtime, setup, dernier, lancements, types } = kitchen(t, { scenario: "bavard", setup: "attend", issues: [issue(15)] });
     await jusqua(() => setup.appels().length === 1);
 
     runtime.rail.rendre(15, "test");
@@ -1510,22 +1510,22 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("le setup tient le ticket : son bail repart quand le cook est lancé", async (t) => {
-    const { journal, lancements } = cuisine(t, { scenario: "bavard", setup: "exporte", issues: [issue(15)] });
+    const { journal: log, lancements } = kitchen(t, { scenario: "bavard", setup: "exporte", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
-    const types = journal.duTicket(15).map((e) => e.type).filter((type) => type !== "cook.progressed");
+    const types = log.duTicket(15).map((e) => e.type).filter((type) => type !== "cook.progressed");
     assert.deepEqual(types.slice(0, 4), ["ticket.arrived", "ticket.taken", "ticket.renewed", "cook.launched"]);
   });
 
   test("un setup en échec : aucun cook n'est lancé, le ticket est 86 dix minutes avec son motif, et rien n'est compté comme un échec de cook", async (t) => {
-    const { repertoire, journal, etat, dernier, types, lancements, avertissements, gh } = cuisine(t, { setup: "echec", issues: [issue(15)] });
+    const { repertoire, journal: log, etat, dernier, types, lancements, avertissements, gh } = kitchen(t, { setup: "echec", issues: [issue(15)] });
 
     await jusqua(() => etat(15) === "86");
 
     assert.deepEqual(dernier("ticket.86", 15), { reason: "setup-failed", until: "2026-10-08T10:10:00.000Z" });
     assert.equal(types().includes("cook.launched"), false);
     assert.deepEqual(lancements(), []);
-    assert.equal(etatDesGardeFous(journal.base).failures, 0);
+    assert.equal(guardrailsState(log.base).failures, 0);
     assert.match(avertissements[0] ?? "", /setup.*#15.*code de sortie 1.*npm ci a échoué/s);
     // Celui qui regarde l'issue lit ce qui a échoué, et quand le ticket repart.
     await jusqua(() => gh.commentaires.length === 1);
@@ -1540,8 +1540,8 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un setup qui bute sur la porte : l'issue nomme l'hôte refusé pendant ce setup, et le geste qui l'ouvre", async (t) => {
-    const { journal, setup, etat, dernier, gh } = cuisine(t, { setup: "refuse", issues: [issue(15)] });
-    const refuser = (host: string) => journal.ajouter({ project: "brigade", ticket: null, author: "porte", type: "network.refused", payload: { host, port: 443, count: 1 } });
+    const { journal: log, setup, etat, dernier, gh } = kitchen(t, { setup: "refuse", issues: [issue(15)] });
+    const refuser = (host: string) => log.ajouter({ project: "brigade", ticket: null, author: "porte", type: "network.refused", payload: { host, port: 443, count: 1 } });
     // Refusé avant le setup : ce n'est pas lui.
     refuser("avant.exemple.test");
     await jusqua(() => setup.appels().length === 1);
@@ -1561,7 +1561,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un setup qui échoue encore dix minutes plus tard, pour la même raison, bloque le projet : l'issue l'apprend, sans que l'échec y soit redit", async (t) => {
-    const { journal, heure, etat, gh, dernier, avertissements } = cuisine(t, { setup: "echec", issues: [issue(15)] });
+    const { journal: log, heure, etat, gh, dernier, avertissements } = kitchen(t, { setup: "echec", issues: [issue(15)] });
     await jusqua(() => etat(15) === "86");
     await jusqua(() => gh.commentaires.length === 1);
 
@@ -1569,7 +1569,7 @@ describe("la station", { concurrency: 8 }, () => {
     await jusqua(() => gh.commentaires.length === 2);
 
     assert.deepEqual(dernier("setup.blocked", 15), { station: STATION, why: "code de sortie 1", hosts: [], base: "base-0" });
-    assert.equal(journal.duTicket(15).filter((e) => e.type === "ticket.86").length, 2);
+    assert.equal(log.duTicket(15).filter((e) => e.type === "ticket.86").length, 2);
     const corps = gh.commentaires[1]?.[1] ?? "";
     assert.match(corps, /Setup du projet bloqué[\s\S]*code de sortie 1[\s\S]*`v2` ne bouge pas[\s\S]*`\.claude\/brigade\/reseau`/);
     assert.doesNotMatch(corps, /npm ci a échoué/);
@@ -1578,20 +1578,20 @@ describe("la station", { concurrency: 8 }, () => {
 
   test("deux tickets qui butent sur le même hôte bloquent le projet : plus aucun setup n'est lancé, pour aucun ticket, et le journal n'en redit rien", async (t) => {
     const mobile = baseMobile();
-    const { journal, heure, setup, etat, gh, types } = cuisine(t, { cooks: 10, entrees: 1, setup: "refuse", issues: [issue(15), issue(16), issue(17)], depot: mobile.depot });
+    const { journal: log, heure, setup, etat, gh, types } = kitchen(t, { cooks: 10, entrees: 1, setup: "refuse", issues: [issue(15), issue(16), issue(17)], depot: mobile.depot });
     await jusqua(() => setup.appels().length === 1);
-    journal.ajouter({ project: "brigade", ticket: null, author: "porte", type: "network.refused", payload: { host: "registry.npmjs.org", port: 443, count: 1 } });
+    log.ajouter({ project: "brigade", ticket: null, author: "porte", type: "network.refused", payload: { host: "registry.npmjs.org", port: 443, count: 1 } });
     // Le premier setup voit le refus ; le second, qui suit de près, bute sur
     // le même hôte sans que la porte le redise.
     setup.liberer();
     await jusqua(() => types().includes("setup.blocked"));
 
-    const bloque = journal.tout().findLast((e) => e.type === "setup.blocked");
-    assert.deepEqual(bloque?.payload, { station: STATION, why: "code de sortie 1", hosts: ["registry.npmjs.org:443"], base: "base-0" });
+    const blocked = log.tout().findLast((e) => e.type === "setup.blocked");
+    assert.deepEqual(blocked?.payload, { station: STATION, why: "code de sortie 1", hosts: ["registry.npmjs.org:443"], base: "base-0" });
     assert.equal(setup.appels().length, 2);
-    await jusqua(() => etatStation(journal.base, STATION)?.heldReason === "setup");
+    await jusqua(() => etatStation(log.base, STATION)?.heldReason === "setup");
     // Le chef l'apprend dans sa file, une fois pour le projet : trois tickets retenus, une entrée.
-    const enFile = () => attentesDuChef(journal.base, lireRail(journal.base)).filter(({ quoi }) => quoi === "setup");
+    const enFile = () => attentesDuChef(log.base, lireRail(log.base)).filter(({ quoi }) => quoi === "setup");
     assert.deepEqual(enFile().map((attente) => attente.quoi === "setup" && attente.setup.hosts), [["registry.npmjs.org:443"]]);
     // Une demi-heure passe : les deux tickets reviennent de leur 86, et la
     // station relit la base à chaque tick — elle n'a pas bougé.
@@ -1606,7 +1606,7 @@ describe("la station", { concurrency: 8 }, () => {
 
     assert.equal(setup.appels().length, 2);
     assert.deepEqual(
-      journal.depuis(bloque?.seq ?? 0).filter((e) => e.type === "setup.failed" || e.type === "ticket.86"),
+      log.depuis(blocked?.seq ?? 0).filter((e) => e.type === "setup.failed" || e.type === "ticket.86"),
       [],
     );
     // Chacun des deux l'a appris une fois : le premier l'hôte, le second le blocage.
@@ -1618,10 +1618,10 @@ describe("la station", { concurrency: 8 }, () => {
 
   test("la branche d'intégration bouge sous un setup bloqué — un hôte déclaré, un setup corrigé, mergés — : les setups reprennent d'eux-mêmes, sans attendre l'heure des tickets 86", async (t) => {
     const mobile = baseMobile();
-    const { journal, setup, etat, cooks, dernier, types, avertissements } = cuisine(t, { scenario: "bavard", cooks: 10, setup: "echec", issues: [issue(15), issue(16)], depot: mobile.depot });
+    const { journal: log, setup, etat, cooks, dernier, types, avertissements } = kitchen(t, { scenario: "bavard", cooks: 10, setup: "echec", issues: [issue(15), issue(16)], depot: mobile.depot });
     await jusqua(() => types().includes("setup.blocked"));
     await jusqua(() => etat(15) === "86" && etat(16) === "86");
-    const enFile = () => attentesDuChef(journal.base, lireRail(journal.base)).some(({ quoi }) => quoi === "setup");
+    const enFile = () => attentesDuChef(log.base, lireRail(log.base)).some(({ quoi }) => quoi === "setup");
     assert.equal(enFile(), true);
 
     setup.regler("exporte");
@@ -1639,7 +1639,7 @@ describe("la station", { concurrency: 8 }, () => {
 
   test("une base qui bouge sans lever la cause : un seul setup est retenté, et le projet est rebloqué sur la nouvelle base", async (t) => {
     const mobile = baseMobile();
-    const { journal, setup, types } = cuisine(t, { cooks: 10, entrees: 1, setup: "echec", issues: [issue(15), issue(16), issue(17)], depot: mobile.depot });
+    const { journal: log, setup, types } = kitchen(t, { cooks: 10, entrees: 1, setup: "echec", issues: [issue(15), issue(16), issue(17)], depot: mobile.depot });
     await jusqua(() => types().includes("setup.blocked"));
     assert.equal(setup.appels().length, 2);
 
@@ -1650,7 +1650,7 @@ describe("la station", { concurrency: 8 }, () => {
 
     assert.equal(setup.appels().length, 3);
     assert.deepEqual(
-      journal.tout().flatMap((e) => (e.type === "setup.blocked" || e.type === "setup.unblocked" ? [[e.type, e.payload.base]] : [])),
+      log.tout().flatMap((e) => (e.type === "setup.blocked" || e.type === "setup.unblocked" ? [[e.type, e.payload.base]] : [])),
       [
         ["setup.blocked", "base-0"],
         ["setup.unblocked", "base-1"],
@@ -1660,12 +1660,12 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un échec de setup dont la cause diffère du précédent ne bloque pas le projet : le ticket est 86 dix minutes, et retenté", async (t) => {
-    const { journal, heure, setup, etat, dernier, types } = cuisine(t, { setup: "echec", issues: [issue(15)] });
+    const { journal: log, heure, setup, etat, dernier, types } = kitchen(t, { setup: "echec", issues: [issue(15)] });
     await jusqua(() => etat(15) === "86");
 
     setup.regler("autre");
     heure.avancer(600_000);
-    await jusqua(() => journal.duTicket(15).filter((e) => e.type === "setup.failed").length === 2);
+    await jusqua(() => log.duTicket(15).filter((e) => e.type === "setup.failed").length === 2);
 
     assert.equal(etat(15), "86");
     assert.deepEqual(dernier("ticket.86", 15), { reason: "setup-failed", until: "2026-10-08T10:20:00.000Z" });
@@ -1676,7 +1676,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un hôte refusé que l'échec précédent ne nommait pas fait une autre cause : le projet n'est pas bloqué", async (t) => {
-    const { journal, heure, setup, etat, types } = cuisine(t, { setup: "refuse", issues: [issue(15)] });
+    const { journal: log, heure, setup, etat, types } = kitchen(t, { setup: "refuse", issues: [issue(15)] });
     await jusqua(() => setup.appels().length === 1);
     setup.liberer();
     await jusqua(() => etat(15) === "86");
@@ -1684,16 +1684,16 @@ describe("la station", { concurrency: 8 }, () => {
     setup.retenir();
     heure.avancer(600_000);
     await jusqua(() => setup.appels().length === 2);
-    journal.ajouter({ project: "brigade", ticket: null, author: "porte", type: "network.refused", payload: { host: "registry.npmjs.org", port: 443, count: 1 } });
+    log.ajouter({ project: "brigade", ticket: null, author: "porte", type: "network.refused", payload: { host: "registry.npmjs.org", port: 443, count: 1 } });
     setup.liberer();
-    await jusqua(() => journal.duTicket(15).filter((e) => e.type === "setup.failed").length === 2);
+    await jusqua(() => log.duTicket(15).filter((e) => e.type === "setup.failed").length === 2);
 
     assert.equal(etat(15), "86");
     assert.equal(types().includes("setup.blocked"), false);
   });
 
   test("un setup déjà parti quand le projet est bloqué, qui échoue pareil : son ticket est rendu au rail, sans échec de plus au journal", async (t) => {
-    const { journal, setup, etat, dernier, types } = cuisine(t, { cooks: 10, entrees: 3, setup: "refuse", issues: [issue(15), issue(16), issue(17)] });
+    const { journal: log, setup, etat, dernier, types } = kitchen(t, { cooks: 10, entrees: 3, setup: "refuse", issues: [issue(15), issue(16), issue(17)] });
     await jusqua(() => setup.appels().length === 3);
     setup.liberer();
     await jusqua(() => [15, 16, 17].every((ticket) => etat(ticket) !== "taken"));
@@ -1702,40 +1702,40 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(rendus.length, 1);
     assert.equal(etat(rendus[0] ?? 0), "waiting");
     assert.equal(types(rendus[0]).includes("setup.failed"), false);
-    assert.equal(journal.tout().filter((e) => e.type === "setup.failed").length, 2);
+    assert.equal(log.tout().filter((e) => e.type === "setup.failed").length, 2);
     assert.equal(types().filter((type) => type === "setup.blocked").length, 1);
   });
 
   test("un setup bloqué le reste après un redémarrage : la nouvelle vie ne relance aucun setup tant que la base n'a pas bougé", async (t) => {
-    const premiere = cuisine(t, { cooks: 10, setup: "echec", issues: [issue(15), issue(16)] });
+    const premiere = kitchen(t, { cooks: 10, setup: "echec", issues: [issue(15), issue(16)] });
     await jusqua(() => premiere.types().includes("setup.blocked"));
     premiere.runtime.arreter("test");
 
     const mobile = baseMobile();
-    const { heure, setup, etat, journal } = cuisine(t, { cooks: 10, setup: "echec", lieux: premiere.lieux, depot: mobile.depot });
+    const { heure, setup, etat, journal: log } = kitchen(t, { cooks: 10, setup: "echec", lieux: premiere.lieux, depot: mobile.depot });
     heure.avancer(600_000);
     await jusqua(() => etat(15) === "waiting" && etat(16) === "waiting");
     const relue = mobile.base.relue;
     await jusqua(() => mobile.base.relue > relue + 2);
 
     assert.equal(setup.appels().length, 2);
-    assert.equal(etatStation(journal.base, STATION)?.heldReason, "setup");
+    assert.equal(etatStation(log.base, STATION)?.heldReason, "setup");
   });
 
   test("un setup réparé : le ticket revient en attente à l'heure dite, et son cook part", async (t) => {
-    const { heure, setup, etat, lancements, journal } = cuisine(t, { scenario: "bavard", setup: "echec", issues: [issue(15)] });
+    const { heure, setup, etat, lancements, journal: log } = kitchen(t, { scenario: "bavard", setup: "echec", issues: [issue(15)] });
     await jusqua(() => etat(15) === "86");
 
     setup.regler("exporte");
     heure.avancer(600_000);
     await jusqua(() => lancements().length === 1);
 
-    assert.equal(journal.duTicket(15).find((e) => e.type === "ticket.released")?.payload.reason, "86-over");
+    assert.equal(log.duTicket(15).find((e) => e.type === "ticket.released")?.payload.reason, "86-over");
     assert.equal(setup.appels().length, 2);
   });
 
   test("un setup qui dépasse la moitié du bail est arrêté, et c'est un échec de setup", async (t) => {
-    const { etat, dernier, lancements, avertissements } = cuisine(t, { setup: "lent", bailMs: 400, issues: [issue(15)] });
+    const { etat, dernier, lancements, avertissements } = kitchen(t, { setup: "lent", bailMs: 400, issues: [issue(15)] });
     const debut = Date.now();
 
     await jusqua(() => etat(15) === "86");
@@ -1748,21 +1748,21 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("le runtime qui s'arrête abandonne le setup en cours, sans rien écrire sur le ticket", async (t) => {
-    const { repertoire, runtime, setup, lancements, avertissements } = cuisine(t, { setup: "lent", issues: [issue(15)] });
+    const { repertoire, runtime, setup, lancements, avertissements } = kitchen(t, { setup: "lent", issues: [issue(15)] });
     await jusqua(() => setup.appels().length === 1);
 
     runtime.arreter("test");
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
-    const journal = ouvrirJournal(repertoire);
-    t.after(() => journal.fermer());
-    assert.equal(journal.duTicket(15).at(-1)?.type, "ticket.taken");
+    const log = openLog(repertoire);
+    t.after(() => log.fermer());
+    assert.equal(log.duTicket(15).at(-1)?.type, "ticket.taken");
     assert.deepEqual(lancements(), []);
     assert.deepEqual(avertissements, []);
   });
 
   test("un ticket renvoyé par la pass repasse par le setup : le cook de renvoi reçoit lui aussi ce qu'il exporte", async (t) => {
-    const { gates, lancements } = cuisine(t, { pass: true, setup: "exporte", issues: [issue(17)] });
+    const { gates, lancements } = kitchen(t, { pass: true, setup: "exporte", issues: [issue(17)] });
     gates.regler("rouge");
     await jusqua(() => lancements().length === 2);
 
@@ -1776,7 +1776,7 @@ describe("la station", { concurrency: 8 }, () => {
     // Le setup casse quand le renvoi prépare son worktree : la pass, elle, a
     // jugé la livraison — et la base seule — sur un setup sain.
     let casse = false;
-    const lieu = cuisine(t, {
+    const lieu = kitchen(t, {
       pass: true,
       setup: "exporte",
       issues: [issue(17)],
@@ -1789,7 +1789,7 @@ describe("la station", { concurrency: 8 }, () => {
         },
       }),
     });
-    const { repertoire, gates, setup, heure, etat, lancements, dernier, journal } = lieu;
+    const { repertoire, gates, setup, heure, etat, lancements, dernier, journal: log } = lieu;
     gates.regler("rouge");
 
     await jusqua(() => etat(17) === "86");
@@ -1801,12 +1801,12 @@ describe("la station", { concurrency: 8 }, () => {
     setup.regler("exporte");
     heure.avancer(600_001);
     await jusqua(() => lancements().length === 2);
-    const branches = journal.duTicket(17).filter((e) => e.type === "cook.launched").map((e) => e.payload.branch);
+    const branches = log.duTicket(17).filter((e) => e.type === "cook.launched").map((e) => e.payload.branch);
     assert.equal(branches[1], branches[0]);
   });
 
   test("un cook qui échoue en laissant du travail non commité : son worktree part quand même, ce qu'il avait écrit est commité sur sa branche locale, et rien n'est poussé", async (t) => {
-    const { repertoire, origine, clone, gh, dernier, types } = cuisine(t, { git: true, scenario: "ecrit-puis-echoue", seuilDisjoncteur: 1, issues: [issue(15)] });
+    const { repertoire, origine, clone, gh, dernier, types } = kitchen(t, { git: true, scenario: "ecrit-puis-echoue", seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => types(15).includes("worktree.removed"));
 
     const run = String(dernier("cook.launched", 15)?.run);
@@ -1823,7 +1823,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un cook qui réécrit le fichier `.git` de son worktree ne fait rien lancer à la station : sa livraison échoue en le disant, rien n'est poussé, et son worktree est gardé", async (t) => {
-    const { repertoire, origine, gh, journal, etat, dernier, types } = cuisine(t, { git: true, scenario: "livre-puis-detourne", seuilDisjoncteur: 1, issues: [issue(15)] });
+    const { repertoire, origine, gh, journal: log, etat, dernier, types } = kitchen(t, { git: true, scenario: "livre-puis-detourne", seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => types(15).includes("worktree.kept"));
 
     const run = String(dernier("cook.launched", 15)?.run);
@@ -1838,12 +1838,12 @@ describe("la station", { concurrency: 8 }, () => {
     assert.throws(() => git(origine, "rev-parse", "--verify", "--quiet", `cook/${run}`));
     // Ce qu'il a laissé n'est pas perdu : le worktree reste, et c'est dit.
     assert.equal(existsSync(join(repertoire, "worktrees", run, "brouillon.txt")), true);
-    assert.deepEqual(worktreesGardes(journal.base).map(({ ticket, reason }) => [ticket, reason]), [[15, "failed"]]);
+    assert.deepEqual(worktreesGardes(log.base).map(({ ticket, reason }) => [ticket, reason]), [[15, "failed"]]);
     assert.match(String(dernier("worktree.kept", 15)?.detail), /ne désigne plus son dépôt dans le clone/);
   });
 
   test("un cook qui quitte sa branche et commite ailleurs n'a pas livré un ticket sans diff : il a échoué, rien ne part en pass, et son worktree est gardé avec ce travail", async (t) => {
-    const { repertoire, clone, gh, journal, etat, dernier, types, avertissements } = cuisine(t, { git: true, scenario: "commite-ailleurs", seuilDisjoncteur: 1, issues: [issue(15)] });
+    const { repertoire, clone, gh, journal: log, etat, dernier, types, avertissements } = kitchen(t, { git: true, scenario: "commite-ailleurs", seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => types(15).includes("worktree.kept"));
 
     const run = String(dernier("cook.launched", 15)?.run);
@@ -1854,13 +1854,13 @@ describe("la station", { concurrency: 8 }, () => {
     // Ce qu'il a commité ailleurs n'est pas perdu : le worktree reste, et c'est dit.
     assert.equal(git(clone, "show", "ailleurs:travail.txt"), "le travail du cook");
     assert.equal(existsSync(join(repertoire, "worktrees", run)), true);
-    assert.deepEqual(worktreesGardes(journal.base).map(({ ticket, reason }) => [ticket, reason]), [[15, "failed"]]);
+    assert.deepEqual(worktreesGardes(log.base).map(({ ticket, reason }) => [ticket, reason]), [[15, "failed"]]);
     assert.match(String(dernier("worktree.kept", 15)?.detail), /n'est plus sur sa branche `cook\/15-/);
     assert.equal(avertissements.filter((ligne) => /worktree du ticket #15 non rangé/.test(ligne)).length, 1);
   });
 
   test("un cook qui livre en laissant du travail non commité : la station le commite à sa place avant de pousser, et le dit sur l'issue", async (t) => {
-    const { repertoire, origine, gh, etat, dernier, types } = cuisine(t, { git: true, scenario: "livre-et-laisse", issues: [issue(15)] });
+    const { repertoire, origine, gh, etat, dernier, types } = kitchen(t, { git: true, scenario: "livre-et-laisse", issues: [issue(15)] });
     await jusqua(() => types(15).includes("worktree.removed") && gh.commentaires.length === 1);
 
     const run = String(dernier("cook.launched", 15)?.run);
@@ -1875,26 +1875,26 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un cook mort avec le runtime : au démarrage suivant son worktree est rangé, avec ce qu'il avait écrit, avant qu'un cook neuf ne reparte", async (t) => {
-    const premiere = cuisine(t, { git: true, scenario: "bavard", issues: [issue(15)] });
+    const premiere = kitchen(t, { git: true, scenario: "bavard", issues: [issue(15)] });
     await jusqua(() => premiere.lancements().length === 1);
     const run = String(premiere.dernier("cook.launched", 15)?.run);
     writeFileSync(join(premiere.lancements()[0]?.cwd ?? "", "brouillon.txt"), "à moitié écrit\n");
     premiere.runtime.arreter("test");
 
-    const { clone, repertoire, journal, types } = cuisine(t, { lieux: premiere.lieux, git: true, scenario: "bavard" });
+    const { clone, repertoire, journal: log, types } = kitchen(t, { lieux: premiere.lieux, git: true, scenario: "bavard" });
     await jusqua(() => types(15).filter((type) => type === "cook.launched").length === 2);
 
-    const faits = journal.duTicket(15);
-    const range = faits.findIndex((e) => e.type === "worktree.removed");
-    assert.deepEqual(faits[range]?.payload, { worktree: `worktrees/${run}`, branch: `cook/${run}`, harvest: git(clone, "rev-parse", `cook/${run}`) });
-    assert.ok(range < faits.findLastIndex((e) => e.type === "cook.launched"));
+    const facts = log.duTicket(15);
+    const range = facts.findIndex((e) => e.type === "worktree.removed");
+    assert.deepEqual(facts[range]?.payload, { worktree: `worktrees/${run}`, branch: `cook/${run}`, harvest: git(clone, "rev-parse", `cook/${run}`) });
+    assert.ok(range < facts.findLastIndex((e) => e.type === "cook.launched"));
     assert.equal(git(clone, "show", `cook/${run}:brouillon.txt`), "à moitié écrit");
     assert.equal(existsSync(join(repertoire, "worktrees", run)), false);
   });
 
   test("un worktree qui ne se range pas est gardé, et dit : au journal, à journald, dans `status` — et la station y revient à chaque tick", async (t) => {
     let essais = 0;
-    const { journal, dernier, types, avertissements } = cuisine(t, {
+    const { journal: log, dernier, types, avertissements } = kitchen(t, {
       issues: [issue(15)],
       depot: (depot) => ({
         ...depot,
@@ -1910,12 +1910,12 @@ describe("la station", { concurrency: 8 }, () => {
     const garde = { worktree: lance?.worktree, branch: lance?.branch, reason: "failed", detail: "git worktree : fatal: verrou tenu" };
     assert.deepEqual(dernier("worktree.kept", 15), garde);
     assert.equal(types(15).filter((type) => type === "worktree.kept").length, 1);
-    assert.deepEqual(worktreesGardes(journal.base).map(({ ticket, reason }) => [ticket, reason]), [[15, "failed"]]);
+    assert.deepEqual(worktreesGardes(log.base).map(({ ticket, reason }) => [ticket, reason]), [[15, "failed"]]);
     assert.equal(avertissements.filter((ligne) => /worktree du ticket #15 non rangé/.test(ligne)).length, 1);
   });
 
   test("une PR qui ne s'ouvre pas n'annule pas la livraison : le ticket part en pass, et le commentaire le dit", async (t) => {
-    const { gh, etat, dernier, avertissements } = cuisine(t);
+    const { gh, etat, dernier, avertissements } = kitchen(t);
     gh.pannes.pr = true;
     gh.poser(issue(15));
 
@@ -1928,7 +1928,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un commentaire qui ne part pas n'empêche pas le ticket d'avancer", async (t) => {
-    const { gh, etat, dernier, avertissements } = cuisine(t);
+    const { gh, etat, dernier, avertissements } = kitchen(t);
     gh.pannes.commentaire = true;
     gh.poser(issue(15));
 
@@ -1944,7 +1944,7 @@ describe("la station, cooks sans identité", { concurrency: 8 }, () => {
   const remisA = (repertoire: string, run: unknown) => join(repertoire, "runs", `${String(run)}.ticket.md`);
 
   test("le ticket est remis au cook en fichier, hors de son worktree — corps et commentaires —, et sa consigne l'y envoie au lieu de gh", async (t) => {
-    const { repertoire, gh, lancements, dernier } = cuisine(t, { scenario: "bavard", sansIdentite: true, issues: [issue(15, CALIBRE, { title: "Le ticket privé" })] });
+    const { repertoire, gh, lancements, dernier } = kitchen(t, { scenario: "bavard", sansIdentite: true, issues: [issue(15, CALIBRE, { title: "Le ticket privé" })] });
     gh.decrire(15, { body: "Fais ceci, puis cela." });
     gh.repondre(15, "Et n'oublie pas la doc.");
     await jusqua(() => lancements().length === 1);
@@ -1961,7 +1961,7 @@ describe("la station, cooks sans identité", { concurrency: 8 }, () => {
   });
 
   test("un ticket illisible sur GitHub ne lance aucun cook : il est reproposé plus tard, et son worktree ne reste pas", async (t) => {
-    const { repertoire, gh, etat, dernier, lancements, avertissements } = cuisine(t, { scenario: "bavard", sansIdentite: true, issues: [issue(15)] });
+    const { repertoire, gh, etat, dernier, lancements, avertissements } = kitchen(t, { scenario: "bavard", sansIdentite: true, issues: [issue(15)] });
     const lire = gh.github.commentaires;
     let lectures = 0;
     // Le rail lit les commentaires à l'arrivée du ticket ; la panne vient après.
@@ -1978,7 +1978,7 @@ describe("la station, cooks sans identité", { concurrency: 8 }, () => {
   });
 
   test("un setup qui exporte un jeton GitHub ne le passe pas au cook", async (t) => {
-    const { lancements } = cuisine(t, { scenario: "bavard", setup: "jeton", sansIdentite: true, issues: [issue(15)] });
+    const { lancements } = kitchen(t, { scenario: "bavard", setup: "jeton", sansIdentite: true, issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
     const env = lancements()[0]?.env ?? {};
@@ -1987,7 +1987,7 @@ describe("la station, cooks sans identité", { concurrency: 8 }, () => {
   });
 
   test("sous l'identité unique de la machine, rien ne change : le cook lit son ticket par gh, et aucun fichier ne lui est remis", async (t) => {
-    const { repertoire, lancements, dernier } = cuisine(t, { scenario: "bavard", setup: "jeton", issues: [issue(15)] });
+    const { repertoire, lancements, dernier } = kitchen(t, { scenario: "bavard", setup: "jeton", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
     assert.match(lancements()[0]?.args[1] ?? "", /gh issue view 15 --repo benomite\/brigade --comments/);

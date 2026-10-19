@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../../runtime/src/evenements.ts";
-import { ouvrirJournal } from "../../runtime/src/journal.ts";
+import { openLog } from "../../runtime/src/log.ts";
 import { principal } from "../../runtime/src/manager-cli.ts";
 import type { Lecture } from "../src/box.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GESTES, SANS_OUI } from "../src/gestes.ts";
@@ -27,15 +27,15 @@ const PARADE = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" }
 
 // Un journal, et `manager` jouée dessus comme le geste de la box la joue : sa sortie, telle quelle.
 // Chaque fait y est écrit une minute après le précédent, à partir de 9 h 01.
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-app-manager-"));
   let minute = 0;
-  const journal = ouvrirJournal(repertoire, { maintenant: () => new Date(Date.UTC(2026, 9, 13, 9, ++minute)) });
+  const log = openLog(repertoire, { maintenant: () => new Date(Date.UTC(2026, 9, 13, 9, ++minute)) });
   t.after(() => {
-    journal.fermer();
+    log.fermer();
     rmSync(repertoire, { recursive: true, force: true });
   });
-  const noter = (fait: Fait, ticket: number | null, author = "manager") => void journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const noter = (fait: Fait, ticket: number | null, author = "manager") => void log.ajouter({ project: "brigade", ticket, author, ...fait });
   const sortie = (): string => {
     const lignes: string[] = [];
     void principal({ args: [], env: { BRIGADE_STATE_DIR: repertoire }, dire: (ligne) => void lignes.push(ligne), redire: (ligne) => assert.fail(ligne) });
@@ -59,14 +59,14 @@ const lecture = (texte: string): Lecture => ({ projet: "parade", demande: 4, a: 
 
 describe("l'état du manager, lu dans la sortie de `manager`", () => {
   test("un manager allumé : il l'est, depuis quand, par qui — et ce que le runtime en dit, mot pour mot", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(allumer, null, "chef");
 
     assert.deepEqual(lu(sortie()).interrupteur, { allume: true, mot: "ON", depuis: "2026-10-13T09:01:00.000Z", par: "chef", dit: "it judges the open issues, sets `fire` and the calibration" });
   });
 
   test("un manager éteint : il l'est, depuis quand, par qui — ce qu'il a posé reste posé, et c'est le runtime qui le dit", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(allumer, null, "chef");
     noter(eteindre, null, "benoit");
 
@@ -74,13 +74,13 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
   });
 
   test("un manager jamais allumé est éteint, sans date ni auteur : l'app n'en invente pas", (t) => {
-    const { sortie } = cuisine(t);
+    const { sortie } = kitchen(t);
 
     assert.deepEqual(lu(sortie()).interrupteur, { allume: false, mot: "OFF", dit: "never turned on: no issue is judged, `fire` and the calibration are set by hand" });
   });
 
   test("une sortie sans décision : ni décision ni issue écartée, et c'est le mot du runtime qui le dit — « none »", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(allumer, null, "chef");
 
     const manager = lu(sortie());
@@ -91,7 +91,7 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
   });
 
   test("ses dernières décisions, la plus récente d'abord : l'instant, le ticket, et ce qu'il en a fait, mot pour mot", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(allumer, null, "chef");
     noter({ type: "manager.judged", payload: { run: "juge-30-a", fingerprint: "e1", verdict: "fire", kind: "ticket", reason: "Un livrable, un test.", missing: null, model: "haiku", effort: "low", calibration: "Mécanique." } }, 30);
     noter({ type: "manager.labeled", payload: { labels: ["fire", "effort:low"] } }, 30);
@@ -110,7 +110,7 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
   });
 
   test("ce qu'il a écarté : chaque écart avec son motif, et ce qui rend l'issue au manager quand le runtime le dit", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(allumer, null, "chef");
     noter({ type: "manager.set-aside", payload: { reason: "roadmap", fired: false } }, 1);
     noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 31);
@@ -140,7 +140,7 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
   });
 
   test("une issue rendue au manager et pas encore rejugée se lit parmi les écartées, telle que le runtime la dit", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter({ type: "manager.set-aside", payload: { reason: "chef-changed", fired: false } }, 30);
     noter({ type: "manager.handed-back", payload: {} }, 30, "chef");
 
@@ -233,7 +233,7 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
 
 describe("ce que l'onglet Manager pose au-dessus du texte", () => {
   test("lu : l'interrupteur, les décisions et les écartées, avec l'heure de la lecture — la vue n'y calcule rien", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(allumer, null, "chef");
     noter({ type: "manager.set-aside", payload: { reason: "roadmap", fired: false } }, 1);
 
@@ -248,7 +248,7 @@ describe("ce que l'onglet Manager pose au-dessus du texte", () => {
   });
 
   test("sans décision ni écart, chaque liste dit ce que le runtime en dit, à la place de ses lignes", (t) => {
-    const { sortie } = cuisine(t);
+    const { sortie } = kitchen(t);
 
     const vu = voir(lecture(sortie()));
 

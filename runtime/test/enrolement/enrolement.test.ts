@@ -10,7 +10,7 @@ import { CodeRefuse, DemandeInvalide, DUREE_MS, lireCode, ouvrirEnrolements, REC
 import { ouvrirRegistre, PresentationInvalide, type Presentation } from "../../src/stations-globales/registre.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
-const SERVEUR: Presentation = { nom: "serveur-1", machine: "Debian GNU/Linux 13 (trixie)", capacites: ["linux"], cloisonnee: false };
+const SERVER: Presentation = { nom: "serveur-1", machine: "Debian GNU/Linux 13 (trixie)", capacites: ["linux"], cloisonnee: false };
 
 const horloge = (depart = "2026-10-15T09:00:00.000Z") => {
   let instant = new Date(depart);
@@ -61,7 +61,7 @@ test("le bon code présente la machine au registre « en attente », avec ses ca
   const { enrolements, registre } = ouvrir(t);
   const { code } = enrolements.preparer({ vers: "chef@box" });
 
-  const presentee = enrolements.recevoir(code, SERVEUR);
+  const presentee = enrolements.recevoir(code, SERVER);
 
   assert.equal(presentee.statut, "en-attente");
   assert.deepEqual(registre.lire("serveur-1"), presentee);
@@ -79,7 +79,7 @@ test("le code se tape comme on le lit : minuscules, sans tiret, O pour 0, I ou L
   const { code } = enrolements.preparer({ vers: "chef@box" });
   const tape = code.replace("-", " ").toLowerCase().replaceAll("0", "o").replaceAll("1", "l");
 
-  enrolements.recevoir(tape, SERVEUR);
+  enrolements.recevoir(tape, SERVER);
 
   assert.equal(registre.lire("serveur-1")?.statut, "en-attente");
   assert.equal(lireCode("abcde-fghjk"), "ABCDEFGHJK");
@@ -94,11 +94,11 @@ test("un code faux est refusé, et la machine n'apparaît pas au registre", (t) 
   const faux = code.startsWith("0") ? `1${code.slice(1)}` : `0${code.slice(1)}`;
 
   for (const tente of [faux, "", "pas un code", `${code}0`]) {
-    assert.throws(() => enrolements.recevoir(tente, SERVEUR), refuse("inconnu"), tente);
+    assert.throws(() => enrolements.recevoir(tente, SERVER), refuse("inconnu"), tente);
   }
   assert.deepEqual(registre.liste(), []);
   // Le vrai sert encore.
-  assert.equal(enrolements.recevoir(code, SERVEUR).statut, "en-attente");
+  assert.equal(enrolements.recevoir(code, SERVER).statut, "en-attente");
 });
 
 test("un code expiré est refusé, et la machine n'apparaît pas au registre", (t) => {
@@ -107,17 +107,17 @@ test("un code expiré est refusé, et la machine n'apparaît pas au registre", (
 
   heure.aller(expireLe);
 
-  assert.throws(() => enrolements.recevoir(code, SERVEUR), refuse("expire"));
+  assert.throws(() => enrolements.recevoir(code, SERVER), refuse("expire"));
   assert.deepEqual(registre.liste(), []);
 });
 
 test("un code ne sert qu'une fois : une seconde présentation, de cette machine ou d'une autre, est refusée et n'entre pas au registre", (t) => {
   const { enrolements, registre } = ouvrir(t);
   const { code } = enrolements.preparer({ vers: "chef@box" });
-  const premiere = enrolements.recevoir(code, SERVEUR);
+  const premiere = enrolements.recevoir(code, SERVER);
 
-  assert.throws(() => enrolements.recevoir(code, { ...SERVEUR, nom: "intrus", machine: "Ubuntu 26.04" }), refuse("utilise"));
-  assert.throws(() => enrolements.recevoir(code, SERVEUR), refuse("utilise"));
+  assert.throws(() => enrolements.recevoir(code, { ...SERVER, nom: "intrus", machine: "Ubuntu 26.04" }), refuse("utilise"));
+  assert.throws(() => enrolements.recevoir(code, SERVER), refuse("utilise"));
   assert.deepEqual(registre.liste(), [premiere]);
 });
 
@@ -125,22 +125,22 @@ test("une présentation mal formée est refusée sans consommer le code", (t) =>
   const { enrolements, registre } = ouvrir(t);
   const { code } = enrolements.preparer({ vers: "chef@box" });
 
-  assert.throws(() => enrolements.recevoir(code, { ...SERVEUR, nom: "Pas Un Nom" }), PresentationInvalide);
+  assert.throws(() => enrolements.recevoir(code, { ...SERVER, nom: "Pas Un Nom" }), PresentationInvalide);
   assert.deepEqual(registre.liste(), []);
-  assert.equal(enrolements.recevoir(code, SERVEUR).statut, "en-attente");
+  assert.equal(enrolements.recevoir(code, SERVER).statut, "en-attente");
 });
 
 test("un enrôlement n'hérite jamais d'une acceptation : se présenter sous le nom d'une station acceptée est refusé", (t) => {
   const { enrolements, registre } = ouvrir(t);
-  registre.presenter(SERVEUR);
+  registre.presenter(SERVER);
   const acceptee = registre.accepter("serveur-1", { capacites: ["code"] });
   const { code } = enrolements.preparer({ vers: "chef@box" });
 
   // Même nom, même machine, même cloison : le registre la garderait acceptée.
-  assert.throws(() => enrolements.recevoir(code, SERVEUR), refuse("nom-pris"));
+  assert.throws(() => enrolements.recevoir(code, SERVER), refuse("nom-pris"));
   assert.deepEqual(registre.liste(), [acceptee]);
   // Le code reste bon sous un autre nom, qui entre en attente.
-  assert.equal(enrolements.recevoir(code, { ...SERVEUR, nom: "serveur-2" }).statut, "en-attente");
+  assert.equal(enrolements.recevoir(code, { ...SERVER, nom: "serveur-2" }).statut, "en-attente");
   assert.deepEqual(registre.utilisables(), [acceptee]);
 });
 
@@ -153,7 +153,7 @@ test("un code préparé dans un process se valide dans un autre : les enrôlemen
   assert.equal(readFileSync(join(repertoire, "enrolements.db")).includes(Buffer.from(code.replace("-", ""))), false);
   const apres = ouvrirEnrolements(repertoire);
   t.after(() => apres.fermer());
-  assert.equal(apres.recevoir(code, SERVEUR).statut, "en-attente");
+  assert.equal(apres.recevoir(code, SERVER).statut, "en-attente");
 });
 
 test("le registre du chef : BRIGADE_REGISTRE_DIR, sinon sous l'état de son compte", () => {

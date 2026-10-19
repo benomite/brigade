@@ -3,9 +3,9 @@
 // et ainsi de suite — jamais à chaque calcul (une alerte inchangée ne revient
 // pas toutes les 5 minutes). L'émission est un fait du journal : ce qui a été
 // dit se relit app fermée, et un redémarrage du runtime ne le redit pas.
-import { direAttente, nommerAttente } from "./attend.ts";
+import { direAttente, nommerAttente } from "./awaiting.ts";
 import { CAUSES_D_URGENCE, lireEtat } from "./etat.ts";
-import type { Journal } from "./journal.ts";
+import type { Log } from "./log.ts";
 import { alerteEnCours } from "./projections/emergency.ts";
 import type { Runtime } from "./runtime.ts";
 import { cleDUrgence, type Urgence } from "./urgence.ts";
@@ -23,14 +23,14 @@ export function libelleDUrgence(urgence: Urgence): string {
 
 // Une passe : écrit au journal l'alerte due, s'il y en a une. Rend ce qu'elle a
 // écrit, `null` quand rien n'était dû.
-export function annoncerUrgence(journal: Journal, maintenant: Date): "alerte" | "rappel" | "levee" | null {
-  const etat = lireEtat(journal, maintenant);
-  const { base } = journal;
+export function announceEmergency(log: Log, maintenant: Date): "alerte" | "rappel" | "levee" | null {
+  const etat = lireEtat(log, maintenant);
+  const { base } = log;
   const courante = alerteEnCours(base);
   const urgence = etat.urgence;
   if (urgence === null) {
     if (courante === null || etat.projet === null) return null;
-    journal.ajouter({ project: etat.projet, ticket: null, author: "runtime", type: "urgence.lifted", payload: { key: courante.key } });
+    log.ajouter({ project: etat.projet, ticket: null, author: "runtime", type: "urgence.lifted", payload: { key: courante.key } });
     return "levee";
   }
   if (etat.projet === null) return null;
@@ -38,7 +38,7 @@ export function annoncerUrgence(journal: Journal, maintenant: Date): "alerte" | 
   const rappel = courante !== null && courante.key === key;
   if (rappel && maintenant.getTime() - new Date(courante.derniereLe).getTime() < RAPPEL_D_URGENCE_MS) return null;
   const [premiere] = urgence.causes;
-  journal.ajouter({
+  log.ajouter({
     project: etat.projet,
     ticket: null,
     author: "runtime",
@@ -63,7 +63,7 @@ export function brancherAlerteUrgence<R extends Runtime>(runtime: R, options: { 
   const maintenant = options.maintenant ?? (() => new Date());
   const passer = () => {
     try {
-      annoncerUrgence(runtime.journal, maintenant());
+      announceEmergency(runtime.journal, maintenant());
     } catch (erreur) {
       console.error(`brigade : alerte d'urgence non évaluée — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
     }

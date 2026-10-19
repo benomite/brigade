@@ -6,7 +6,7 @@
 //
 // Une station tourne sur la machine du runtime, sauf celle que le projet dit
 // `distante` : celle-là vit ailleurs — le poste du chef —, et la box n'a aucun
-// chemin vers elle. C'est elle qui vient tirer son travail (`tirer.ts`).
+// chemin vers elle. C'est elle qui vient tirer son travail (`pull.ts`).
 //
 // Une station distante tourne sans cloison, sur le poste du chef : elle ne
 // prend que les tickets qui demandent une de ses capacités. Déclarée aussi
@@ -48,14 +48,14 @@ export type StationDeclaree = {
 // et tirets. C'est aussi ce qui distingue, au journal, le cook d'une station
 // d'un lancement du reviewer ou du manager.
 export const NOM_DE_STATION = /^[\p{Ll}\p{N}][\p{Ll}\p{N}-]*\/[\p{Ll}\p{N}][\p{Ll}\p{N}-]*$/u;
-const PLAFOND = /^[1-9][0-9]*$/;
+const CAP = /^[1-9][0-9]*$/;
 
 // Le quatrième champ, facultatif, d'une station qui tire son travail — suivi,
 // au besoin, de ce qu'elle prend en plus de ce qui exige ses capacités.
-export const DISTANTE = "distante";
+export const REMOTE = "distante";
 export const ORDINAIRES = "ordinaires";
 
-export const FORME = `<machine>/<engine>:<cooks cap>:<capability>+<capability>[:${DISTANTE}[+${ORDINAIRES}]]`;
+export const FORME = `<machine>/<engine>:<cooks cap>:<capability>+<capability>[:${REMOTE}[+${ORDINAIRES}]]`;
 export const EXEMPLE = "box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless";
 
 // Lit `BRIGADE_STATIONS` : une station par entrée, séparées par des virgules,
@@ -77,22 +77,22 @@ export function lireStations(env: Record<string, string | undefined>): StationDe
     };
     if (entree === "") refuser("it is empty: one comma too many");
     const champs = entree.split(":").map((champ) => champ.trim());
-    const [nom = "", plafond, capacites, lieu] = champs;
+    const [nom = "", cap, capacites, lieu] = champs;
     if (!NOM_DE_STATION.test(nom)) {
       refuser(`name: “${nom}” is not of the form \`<machine>/<engine>\`, in lower case, digits and hyphens (box/claude)`);
     }
     if (stations.some((station) => station.nom === nom)) refuser(`name: \`${nom}\` is already declared — two stations do not share a name`);
-    if (plafond === undefined) refuser("cap: it is missing — how many cooks this station runs at once");
-    const cooks = Number(plafond);
-    if (!PLAFOND.test(plafond ?? "") || !Number.isSafeInteger(cooks)) refuser(`cap: “${plafond}” is not an integer greater than zero`);
+    if (cap === undefined) refuser("cap: it is missing — how many cooks this station runs at once");
+    const cooks = Number(cap);
+    if (!CAP.test(cap ?? "") || !Number.isSafeInteger(cooks)) refuser(`cap: “${cap}” is not an integer greater than zero`);
     if (capacites === undefined || capacites === "") refuser("provides: it is missing — at least one capability, what this station provides");
     const marques = lieu === undefined ? [] : lieu.split("+").map((marque) => marque.trim());
-    const lisible = marques.length === 0 || (marques[0] === DISTANTE && (marques.length === 1 || (marques.length === 2 && marques[1] === ORDINAIRES)));
+    const lisible = marques.length === 0 || (marques[0] === REMOTE && (marques.length === 1 || (marques.length === 2 && marques[1] === ORDINAIRES)));
     if (champs.length > 4 || !lisible) {
-      if (champs.length <= 4 && marques.includes(ORDINAIRES) && !marques.includes(DISTANTE)) {
-        refuser(`\`${ORDINAIRES}\` only goes with a \`${DISTANTE}\` station (\`${DISTANTE}+${ORDINAIRES}\`): a station of the box already takes the ordinary tickets`);
+      if (champs.length <= 4 && marques.includes(ORDINAIRES) && !marques.includes(REMOTE)) {
+        refuser(`\`${ORDINAIRES}\` only goes with a \`${REMOTE}\` station (\`${REMOTE}+${ORDINAIRES}\`): a station of the box already takes the ordinary tickets`);
       }
-      refuser(`“${champs.slice(lisible ? 4 : 3).join(":")}” is one too many: a station has three fields — an optional fourth says only \`${DISTANTE}\`: it does not run on this machine, it comes to pull its work; or \`${DISTANTE}+${ORDINAIRES}\`: it also takes the ordinary tickets, inside the sandbox of its workstation`);
+      refuser(`“${champs.slice(lisible ? 4 : 3).join(":")}” is one too many: a station has three fields — an optional fourth says only \`${REMOTE}\`: it does not run on this machine, it comes to pull its work; or \`${REMOTE}+${ORDINAIRES}\`: it also takes the ordinary tickets, inside the sandbox of its workstation`);
     }
     // Le nom tel que la fiche d'un ticket le demandera.
     const fournit = (capacites ?? "").split("+").map((capacite) => nomDeCapacite(capacite.trim()));
@@ -105,7 +105,7 @@ export function lireStations(env: Record<string, string | undefined>): StationDe
       moteur: nom.slice(nom.indexOf("/") + 1),
       fournit,
       cooks,
-      ...(marques.includes(DISTANTE) ? { distante: true as const } : {}),
+      ...(marques.includes(REMOTE) ? { distante: true as const } : {}),
       ...(marques.includes(ORDINAIRES) ? { ordinaires: true as const } : {}),
     });
   });
@@ -115,7 +115,7 @@ export function lireStations(env: Record<string, string | undefined>): StationDe
 // Une station telle que `BRIGADE_STATIONS` l'écrit : ce que `lireStations`
 // relit à l'identique.
 export function ecrireStation(station: StationDeclaree): string {
-  const marques = [...(station.distante ? [DISTANTE] : []), ...(station.ordinaires ? [ORDINAIRES] : [])];
+  const marques = [...(station.distante ? [REMOTE] : []), ...(station.ordinaires ? [ORDINAIRES] : [])];
   return [station.nom, station.cooks, station.fournit.join("+"), ...(marques.length > 0 ? [marques.join("+")] : [])].join(":");
 }
 

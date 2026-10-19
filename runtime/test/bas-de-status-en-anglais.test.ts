@@ -8,16 +8,16 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { direCommentLeVoirEn } from "../src/projections/service.ts";
-import { commentLeVoir } from "../src/ecran.ts";
-import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
-import { direJaugeEn } from "../src/mesures.ts";
-import { SANS_SEUIL } from "../src/mesures.ts";
+import { commentLeVoir } from "../src/screen.ts";
+import { decrireEtat, facts, lireEtat } from "../src/etat.ts";
+import { direJaugeEn } from "../src/measures.ts";
+import { SANS_SEUIL } from "../src/measures.ts";
 import { direSaturationEn } from "../src/machine.ts";
 import { etatLu, etatLuEn, nomEtat, nomEtatEn } from "../src/rail.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
 import { exempleDuBas } from "./aides/bas-de-status.ts";
 import { ETAT_D_AVANT, etatDAvant, LU_LE } from "./aides/haut-de-status.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
 const FIXTURE_940 = join(import.meta.dirname, "fixtures/bas-de-status-d-avant-940");
@@ -170,7 +170,7 @@ test("sur l'état d'exemple d'avant, chaque ligne du bas dit les mêmes tickets,
 
 test("`facts` de l'état d'exemple est identique à ce qu'il était avant la traduction : mêmes clés, mêmes valeurs", (t) => {
   const avant = JSON.parse(readFileSync(join(FIXTURE_940, "facts.json"), "utf8"));
-  assert.deepEqual(JSON.parse(JSON.stringify(faits(lireEtat(exempleDuBas(t), LU_LE), LU_LE))), avant);
+  assert.deepEqual(JSON.parse(JSON.stringify(facts(lireEtat(exempleDuBas(t), LU_LE), LU_LE))), avant);
 });
 
 test("l'état lu en anglais est celui que `facts` dit en français, mot pour mot traduit", (t) => {
@@ -182,15 +182,15 @@ test("l'état lu en anglais est celui que `facts` dit en français, mot pour mot
 });
 
 test("comment voir l'écran d'une app à lancer : la phrase du journal, en français, est dite en anglais depuis sa commande et son écran", () => {
-  const ecran = { ecran: "/map", phrase: "the menu opens", source: "declare" as const };
-  const commentLeVoirFr = commentLeVoir({ worktree: "/tmp/wt/1-h", lancement: "npm --prefix app start", ecran });
+  const screen = { ecran: "/map", phrase: "the menu opens", source: "declare" as const };
+  const commentLeVoirFr = commentLeVoir({ worktree: "/tmp/wt/1-h", lancement: "npm --prefix app start", ecran: screen });
   assert.equal(
-    direCommentLeVoirEn({ commentLeVoir: commentLeVoirFr, ecran }),
+    direCommentLeVoirEn({ commentLeVoir: commentLeVoirFr, ecran: screen }),
     "no page in a browser: launch the app on the delivery's worktree, `cd '/tmp/wt/1-h' && npm --prefix app start`, then open the screen “/map” there — to look at: the menu opens",
   );
   assert.equal(direCommentLeVoirEn({ commentLeVoir: null, ecran: null }), "nothing to look at: the delivery names no screen, and touches none that the project declares");
   // Une phrase qui n'a pas la forme du runtime reste telle qu'elle est.
-  assert.equal(direCommentLeVoirEn({ commentLeVoir: "autre chose", ecran }), "autre chose");
+  assert.equal(direCommentLeVoirEn({ commentLeVoir: "autre chose", ecran: screen }), "autre chose");
 });
 
 test("une saturation et une dérive se disent en anglais, nombres compris", () => {
@@ -214,7 +214,7 @@ test("les lignes `project` et `github` sont en anglais : le projet, ou `unknown 
   assert.ok(!sortie.some((ligne) => /^projet\b/.test(ligne)), "aucune ligne `projet`");
   sansMotFrancais(sortie);
 
-  const vide = ouvrirJournal(repertoireTemporaire(t));
+  const vide = openLog(repertoireTemporaire(t));
   t.after(() => vide.fermer());
   const lue = decrireEtat(lireEtat(vide, LU_LE), LU_LE);
   assert.equal(lue[0], "project    unknown — empty log");

@@ -18,7 +18,7 @@ import { Sortie, type Appel } from "./appel.ts";
 import { DERNIERE, ETAPES, estUneEtape, installationDe, noterEtape, terminer, type Installation } from "./etapes.ts";
 import type { EtatDEtape } from "./events/installation.ts";
 import { etapesAReprendre, verifier, type Constat } from "./installation.ts";
-import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
+import { logPath, openLog, type Log } from "./log.ts";
 
 const USAGE = [
   "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run installation -- etapes [--json]",
@@ -32,7 +32,7 @@ const ETATS_TAPES: Record<string, EtatDEtape> = { faite: "done", "en-attente": "
 const ETATS_LUS: Record<EtatDEtape, string> = { todo: "à faire", done: "faite", waiting: "en attente" };
 
 // La forme JSON : un contrat avec l'app, figé par `test/etapes.test.ts`.
-export function faitsDesEtapes(installation: Installation) {
+export function stepsFacts(installation: Installation) {
   return {
     courante: installation.courante,
     etapes: installation.etapes.map(({ id, titre, sert, sauter, geste, etat }) => ({ id, titre, etat: ETATS_LUS[etat], sert, sauter, geste })),
@@ -56,7 +56,7 @@ export async function principal({ args, env, dire, redire }: Appel): Promise<voi
 
   if (args.length === 0 || (args.length === 1 && args[0] === "--json")) {
     const installation = installationDe(repertoireEtat);
-    if (args.length === 1) dire(JSON.stringify(faitsDesEtapes(installation)));
+    if (args.length === 1) dire(JSON.stringify(stepsFacts(installation)));
     else montrer(installation);
     return;
   }
@@ -66,27 +66,27 @@ export async function principal({ args, env, dire, redire }: Appel): Promise<voi
   if (args.length !== 2 || etat === undefined) echouer(2, USAGE);
   if (!estUneEtape(etape)) echouer(2, `« ${etape} » n'est pas une étape de l'installation — attendu ${ETAPES.map((connue) => connue.id).join(", ")}`);
   // Sans journal, il en naît un au nom que l'unité donne au projet.
-  if (!existsSync(cheminJournal(repertoireEtat)) && !env.BRIGADE_PROJECT) echouer(1, `aucun journal dans ${repertoireEtat}, et BRIGADE_PROJECT n'est pas défini : rien ne dit à quel projet noter l'étape`);
+  if (!existsSync(logPath(repertoireEtat)) && !env.BRIGADE_PROJECT) echouer(1, `aucun journal dans ${repertoireEtat}, et BRIGADE_PROJECT n'est pas défini : rien ne dit à quel projet noter l'étape`);
   // La vérification se joue avant d'ouvrir le journal : elle ne tient rien
   // pendant qu'elle interroge le clone et GitHub.
   if (etape === DERNIERE && etat === "done") return await finir(await verifier(env));
-  const journal = ouvrirJournal(repertoireEtat);
+  const log = openLog(repertoireEtat);
   try {
     const titre = ETAPES.find((connue) => connue.id === etape)?.titre;
-    const fait = noterEtape(journal, { projet: projetDuJournal(journal) ?? env.BRIGADE_PROJECT ?? "", etape, etat, auteur: AUTEUR });
+    const fait = noterEtape(log, { projet: logProject(log) ?? env.BRIGADE_PROJECT ?? "", etape, etat, auteur: AUTEUR });
     dire(fait === null ? `brigade : « ${titre} » est déjà ${ETATS_LUS[etat]} — rien n'est écrit` : `brigade : « ${titre} » notée ${ETATS_LUS[etat]}`);
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 
   async function finir(constats: Constat[]): Promise<void> {
     const aReprendre = etapesAReprendre(constats);
-    const journal = ouvrirJournal(repertoireEtat as string);
+    const log = openLog(repertoireEtat as string);
     let fin;
     try {
-      fin = terminer(journal, { projet: projetDuJournal(journal) ?? env.BRIGADE_PROJECT ?? "", aReprendre, auteur: AUTEUR });
+      fin = terminer(log, { projet: logProject(log) ?? env.BRIGADE_PROJECT ?? "", aReprendre, auteur: AUTEUR });
     } finally {
-      journal.fermer();
+      log.fermer();
     }
     if (fin.terminee) {
       dire(`brigade : installation terminée : « Vérifier » est vert — les ${ETAPES.length} étapes sont faites, la cuisine est prête à servir`);
@@ -123,6 +123,6 @@ export async function principal({ args, env, dire, redire }: Appel): Promise<voi
   }
 }
 
-function projetDuJournal(journal: Journal): string | undefined {
-  return journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
+function logProject(log: Log): string | undefined {
+  return log.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
 }

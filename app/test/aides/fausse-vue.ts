@@ -231,8 +231,8 @@ export class FauxXterm {
   dispose(): void {}
 }
 
-// Les variables que jetons.css pose sur la racine : le terminal y lit les siennes.
-export function jetonsDe(css: string): Map<string, string> {
+// Les variables que tokens.css pose sur la racine : le terminal y lit les siennes.
+export function tokensOf(css: string): Map<string, string> {
   const racine = /:root\s*\{([^}]*)\}/.exec(css.replace(/\/\*[\s\S]*?\*\//g, ""))?.[1] ?? "";
   return new Map([...racine.matchAll(/(--[a-z-]+)\s*:\s*([^;]+);/g)].map(([, nom = "", valeur = ""]) => [nom, valeur.trim()]));
 }
@@ -263,7 +263,7 @@ let jouees = 0;
 // Charge une vue neuve — son module entier, jusqu'à son premier affichage.
 export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "demarrage">>): Promise<Jouee> {
   const html = readFileSync(join(VUE, "index.html"), "utf8");
-  const jetons = jetonsDe(readFileSync(join(VUE, "jetons.css"), "utf8"));
+  const tokens = tokensOf(readFileSync(join(VUE, "tokens.css"), "utf8"));
 
   // Les éléments que la page porte et que la vue prend par leur nom : ceux qui ont un `id`, et
   // `main`. Leur place dans la page n'est pas rejouée.
@@ -312,9 +312,9 @@ export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "d
       querySelector: (selecteur: string) => (selecteur === "main" ? principal : null),
       createElement: (balise: string) => new Faux(balise),
       // Le tracé de Cost (cost/courbe.js) : un élément SVG s'y pose comme un autre.
-      createElementNS: (_espace: string, balise: string) => new Faux(balise),
+      createElementNS: (_namespace: string, balise: string) => new Faux(balise),
     },
-    getComputedStyle: () => ({ getPropertyValue: (nom: string) => jetons.get(nom) ?? "" }),
+    getComputedStyle: () => ({ getPropertyValue: (nom: string) => tokens.get(nom) ?? "" }),
     ResizeObserver: class {
       observe(): void {}
     },

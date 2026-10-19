@@ -61,12 +61,12 @@ export function commandeDuGeste(id: unknown, projet: Projet, grant?: unknown): {
   if (geste === undefined || projet.box === undefined) return undefined;
   const nomme = typeof grant === "string" && GRANTS.includes(grant) ? grant : undefined;
   if (geste.parGrant && nomme === undefined) return { refus: `nothing is written: this action applies to a grant, to be named among those in the docs (${GRANTS.join(", ")})` };
-  return enPoste(projet.box, projet.nom, `${geste.commande}${geste.parGrant ? ` ${nomme}` : ""}`);
+  return onWorkstation(projet.box, projet.nom, `${geste.commande}${geste.parGrant ? ` ${nomme}` : ""}`);
 }
 
 // Une commande du runtime dans sa forme de poste, pour ce projet : `suite` est ce qui suit
 // `brigade <nom>`, ses mots déjà cités pour les deux shells — ou pourquoi rien n'est écrit.
-export function enPoste({ hote }: { hote: string }, nom: string, suite: string): { commande: string } | { refus: string } {
+export function onWorkstation({ hote }: { hote: string }, nom: string, suite: string): { commande: string } | { refus: string } {
   // La forme de la doc ne met pas de `--` devant l'hôte : un tiret en tête y serait une option.
   if (hote.startsWith("-")) return { refus: `nothing is written: “hote” starts with a dash (${hote}), and \`ssh\` would read it as an option in the command — fix it in the projects file` };
   const commande = `ssh ${mot(hote)} brigade ${mot(cite(nom))} ${suite}`;

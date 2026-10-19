@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../../runtime/src/evenements.ts";
-import { ouvrirJournal } from "../../runtime/src/journal.ts";
+import { openLog } from "../../runtime/src/log.ts";
 import { principal as manager } from "../../runtime/src/manager-cli.ts";
 import { MANAGER_ETEINT, tenirBandes, type Bande } from "../src/alertes.ts";
 import { ALLUMAGE, AVERTISSEMENT, dire } from "../src/allumage.ts";
@@ -22,8 +22,8 @@ import type { Lecture } from "../src/box.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
 import { confirmationDe } from "../src/confirmation.ts";
 import { PALETTE } from "../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE, tenirFaits, type Faits } from "../src/faits.ts";
+import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
+import { BANNIERE, holdFacts, type Facts } from "../src/facts.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
@@ -38,13 +38,13 @@ const lecture = (commande: string, texte: string): Lecture => ({ projet: "parade
 // `manager`, jouée sur un journal où le chef a allumé, ou éteint, le manager à 9 h 25 : sa sortie, telle quelle.
 function sortieDeManager(t: TestContext, allume: boolean): string {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-app-interrupteur-"));
-  const journal = ouvrirJournal(repertoire, { maintenant: () => new Date("2026-10-13T09:25:00.000Z") });
+  const log = openLog(repertoire, { maintenant: () => new Date("2026-10-13T09:25:00.000Z") });
   t.after(() => {
-    journal.fermer();
+    log.fermer();
     rmSync(repertoire, { recursive: true, force: true });
   });
   const fait: Fait = { type: allume ? "manager.enabled" : "manager.disabled", payload: {} };
-  journal.ajouter({ project: "parade", ticket: null, author: "chef", ...fait });
+  log.ajouter({ project: "parade", ticket: null, author: "chef", ...fait });
   const lignes: string[] = [];
   void manager({ args: [], env: { BRIGADE_STATE_DIR: repertoire }, dire: (ligne) => void lignes.push(ligne), redire: (ligne) => assert.fail(ligne) });
   return `${lignes.join("\n")}\n`;
@@ -58,7 +58,7 @@ function bandeLue(sortie?: string): Bande {
 }
 
 // Un rail, pour voir sa tête : deux tickets en attente, un pris.
-const FAITS: Faits = {
+const FACTS: Facts = {
   etat: "ouverte",
   lu: A,
   dernierTick: A,
@@ -81,7 +81,7 @@ async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
       boutons: BOUTONS,
-      gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+      gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,
@@ -91,7 +91,7 @@ async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {
   });
   vue.element("projets").children[1]?.click();
   await repos();
-  const recue = tenirFaits().recevoir(lecture("facts", JSON.stringify(FAITS)));
+  const recue = holdFacts().recevoir(lecture("facts", JSON.stringify(FACTS)));
   vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
   await repos();
   return vue;

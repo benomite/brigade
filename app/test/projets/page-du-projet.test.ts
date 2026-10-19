@@ -13,8 +13,8 @@ import { pourLaBarre } from "../../src/barre.ts";
 import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
-import { BANNIERE } from "../../src/faits.ts";
+import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
+import { BANNIERE } from "../../src/facts.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { GESTES_DU_MANAGER } from "../../src/manager.ts";
@@ -43,7 +43,7 @@ const demarrage = (projets: Projet[], projetsDesStations: VuDesProjets | undefin
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
   boutons: BOUTONS,
-  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -77,11 +77,11 @@ test("l'écran d'ajout ne demande que le dossier, le dépôt et la branche : ni 
   for (const parti of ["hote", "box", "declarer", "nom", "sauvegardes", "manager-modele", "reviewer-effort"]) assert.throws(() => jouee.element(parti), new RegExp(`aucun élément « ${parti} »`), parti);
   // Ce qui se saisit dans l'écran, tel que la page le pose.
   const page = readFileSync(join(import.meta.dirname, "../../src/vue/index.html"), "utf8");
-  const ecran = page.slice(page.indexOf('<form id="formulaire"'), page.indexOf("</form>"));
-  assert.deepEqual([...ecran.matchAll(/<(?:input|select|textarea)\b[^>]*\bid="([^"]+)"/g)].map(([, id]) => id), ["depot", "base"]);
-  assert.doesNotMatch(ecran, /\bbox|\bssh\b|machine/i);
+  const screen = page.slice(page.indexOf('<form id="formulaire"'), page.indexOf("</form>"));
+  assert.deepEqual([...screen.matchAll(/<(?:input|select|textarea)\b[^>]*\bid="([^"]+)"/g)].map(([, id]) => id), ["depot", "base"]);
+  assert.doesNotMatch(screen, /\bbox|\bssh\b|machine/i);
   assert.equal(formulaire.hidden, false);
-  assert.match(ecran, /<button type="submit" id="ajouter">Add to the app<\/button>/);
+  assert.match(screen, /<button type="submit" id="ajouter">Add to the app<\/button>/);
 });
 
 test("le dossier choisi propose son dépôt et sa branche ; ajouté, le projet n'appelle que le fichier des projets, et sa page s'ouvre", async () => {

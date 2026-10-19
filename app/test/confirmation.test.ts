@@ -7,13 +7,13 @@ import { describe, test } from "node:test";
 import { AVERTISSEMENT as ALLUMER } from "../src/allumage.ts";
 import type { Projet } from "../src/config.ts";
 import { confirmationDe, type Confirmation, type Lus } from "../src/confirmation.ts";
-import type { Faits } from "../src/faits.ts";
+import type { Facts } from "../src/facts.ts";
 import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 
 const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
 const LU = "2026-10-13T10:00:00.000Z";
 
-const faits = (plus: Partial<Faits> = {}): Faits => ({
+const facts = (plus: Partial<Facts> = {}): Facts => ({
   etat: "ouverte",
   lu: LU,
   dernierTick: LU,
@@ -22,7 +22,7 @@ const faits = (plus: Partial<Faits> = {}): Faits => ({
   rail: [{ ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "" }],
   ...plus,
 });
-const lus = (plus: Partial<Faits> = {}): Lus => ({ faits: faits(plus), a: LU });
+const lus = (plus: Partial<Facts> = {}): Lus => ({ faits: facts(plus), a: LU });
 const PAS_LUS: Lus = { sans: "`facts` n'a pas encore été lu pour ce projet" };
 
 // Une confirmation, pas un refus.
@@ -85,8 +85,8 @@ describe("reprendre, accorder, révoquer, allumer : chacun dit ce qu'il engage",
     const accorder = confirmee(confirmationDe("grant-activer", PARADE, PAS_LUS, "merge"));
     assert.match(accorder.prix[0] ?? "", /^A green pass will be merged without you/);
     assert.deepEqual(accorder.choix.map(({ id }) => id), ["grant-activer"]);
-    const revoquer = confirmee(confirmationDe("grant-revoquer", PARADE, PAS_LUS, "merge"));
-    assert.match(revoquer.prix[0] ?? "", /^Nothing is merged without you any more/);
+    const revoke = confirmee(confirmationDe("grant-revoquer", PARADE, PAS_LUS, "merge"));
+    assert.match(revoke.prix[0] ?? "", /^Nothing is merged without you any more/);
   });
 
   test("allumer le manager : l'avertissement de la doc, et ses deux nombres à demander à la box", () => {

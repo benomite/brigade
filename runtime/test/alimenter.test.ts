@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { alimenter, avecRail, configRail, priorite } from "../src/alimenter.ts";
-import { cestArrive, mettreEnAttente } from "../src/attente.ts";
+import { cestArrive, putInQueue } from "../src/attente.ts";
 import { signalerBlocages } from "../src/dependances.ts";
-import { MARQUEUR } from "../src/fiche.ts";
+import { MARQUEUR } from "../src/card.ts";
 import type { Commentaire, GitHub, Issue } from "../src/github.ts";
-import { ouvrirJournal, type Journal } from "../src/journal.ts";
+import { openLog, type Log } from "../src/log.ts";
 import { communsDuRail, lireRail } from "../src/projections/rail.ts";
 import { ouvrirRail } from "../src/rail.ts";
 import { ConfigInvalide, demarrer } from "../src/runtime.ts";
@@ -31,7 +31,7 @@ function depot(...issues: Issue[]) {
   const etat = new Map(issues.map((i) => [i.number, i]));
   const compte = { sondages: 0, confirmes: 0, lectures: 0, commentaires: 0, fermetures: 0 };
   const commentaires = new Map<number, Commentaire[]>();
-  const postes: Array<[number, string]> = [];
+  const workstations: Array<[number, string]> = [];
   let muet = false;
   let confirme = false;
   let panne: Error | null = null;
@@ -57,7 +57,7 @@ function depot(...issues: Issue[]) {
     identite: async () => null,
     async commenter(numero, corps) {
       if (muet) throw new Error("gh api : HTTP 502");
-      postes.push([numero, corps]);
+      workstations.push([numero, corps]);
     },
     labelliser: async () => {},
     delabelliser: async () => {},
@@ -75,7 +75,7 @@ function depot(...issues: Issue[]) {
     github,
     compte,
     // Ce que le runtime a écrit sur les issues.
-    postes,
+    postes: workstations,
     refuserLesCommentaires: (refuses: boolean) => void (muet = refuses),
     poser(i: Issue) {
       etat.set(i.number, i);
@@ -97,13 +97,13 @@ function depot(...issues: Issue[]) {
   };
 }
 
-function cuisine(t: TestContext) {
-  const journal = ouvrirJournal(repertoireTemporaire(t));
-  t.after(() => journal.fermer());
-  return { journal, rail: ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000 }) };
+function kitchen(t: TestContext) {
+  const log = openLog(repertoireTemporaire(t));
+  t.after(() => log.fermer());
+  return { journal: log, rail: ouvrirRail(log, { projet: "brigade", dureeBailMs: 600_000 }) };
 }
 
-const faits = (journal: ReturnType<typeof ouvrirJournal>) => journal.tout().map((e) => [e.ticket, e.type, e.author]);
+const facts = (log: ReturnType<typeof openLog>) => log.tout().map((e) => [e.ticket, e.type, e.author]);
 
 test("la priorité d'un ticket se lit dans ses labels — `prio:0`, celle de la réparation d'une base rouge, passe devant toutes", () => {
   assert.equal(priorite(["fire", "prio:2", "feature"]), 2);
@@ -117,13 +117,13 @@ test("la priorité d'un ticket se lit dans ses labels — `prio:0`, celle de la 
 });
 
 test("les issues ouvertes qui portent le label arrivent sur le rail, une fois", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14, { labels: ["fire", "prio:1"] }), issue(13, { labels: ["feature"] }), issue(12, { state: "closed" }));
 
-  assert.equal(await alimenter(journal, gh.github, CIBLE), 1);
-  assert.equal(await alimenter(journal, gh.github, CIBLE), 0);
+  assert.equal(await alimenter(log, gh.github, CIBLE), 1);
+  assert.equal(await alimenter(log, gh.github, CIBLE), 0);
 
-  assert.deepEqual(faits(journal), [[14, "ticket.arrived", "github"]]);
+  assert.deepEqual(facts(log), [[14, "ticket.arrived", "github"]]);
   assert.deepEqual(
     rail.tickets().map((ticket) => [ticket.ticket, ticket.title, ticket.priority, ticket.createdAt, ticket.state]),
     [[14, "Ticket 14", 1, "2026-10-01T00:00:14Z", "waiting"]],
@@ -132,33 +132,33 @@ test("les issues ouvertes qui portent le label arrivent sur le rail, une fois", 
 });
 
 test("le calibrage posé sur l'issue arrive avec le ticket, et ses changements sont journalisés", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14, { labels: ["fire", "model:sonnet"] }));
-  await alimenter(journal, gh.github, CIBLE);
+  await alimenter(log, gh.github, CIBLE);
   assert.deepEqual(rail.tickets().map((ticket) => [ticket.model, ticket.effort]), [["sonnet", null]]);
 
   gh.poser(issue(14, { labels: ["fire", "model:sonnet", "effort:low"], updatedAt: "2026-10-08T11:00:00Z" }));
-  assert.equal(await alimenter(journal, gh.github, CIBLE), 1);
+  assert.equal(await alimenter(log, gh.github, CIBLE), 1);
 
-  assert.deepEqual(journal.duTicket(14).at(-1)?.payload, { title: "Ticket 14", priority: null, model: "sonnet", effort: "low", card: null });
+  assert.deepEqual(log.duTicket(14).at(-1)?.payload, { title: "Ticket 14", priority: null, model: "sonnet", effort: "low", card: null });
   assert.deepEqual(rail.tickets().map((ticket) => [ticket.model, ticket.effort]), [["sonnet", "low"]]);
 });
 
-const ficheDe = (...lignes: string[]) => [MARQUEUR, "**Fiche du ticket**", ...lignes].join("\n");
+const cardOf = (...lignes: string[]) => [MARQUEUR, "**Fiche du ticket**", ...lignes].join("\n");
 
 test("la fiche posée en commentaire arrive avec le ticket ; corrigée à la main, elle est relue et journalisée", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14), issue(15), issue(16));
-  gh.commenter(16, "2026-10-08T09:00:00Z", "Un commentaire.", ficheDe("- attend : #14, #15", "- zone : runtime/src/rail.ts"));
+  gh.commenter(16, "2026-10-08T09:00:00Z", "Un commentaire.", cardOf("- attend : #14, #15", "- zone : runtime/src/rail.ts"));
 
-  assert.equal(await alimenter(journal, gh.github, CIBLE), 3);
+  assert.equal(await alimenter(log, gh.github, CIBLE), 3);
   assert.deepEqual(rail.tickets().map((ticket) => ticket.card), [null, null, { waitsFor: [14, 15], zone: ["runtime/src/rail.ts"], problems: [] }]);
 
-  gh.commenter(16, "2026-10-08T11:00:00Z", ficheDe("- attend : #14", "- zone : runtime/src/rail.ts, docs/"));
-  assert.equal(await alimenter(journal, gh.github, CIBLE), 1);
-  assert.equal(await alimenter(journal, gh.github, CIBLE), 0);
+  gh.commenter(16, "2026-10-08T11:00:00Z", cardOf("- attend : #14", "- zone : runtime/src/rail.ts, docs/"));
+  assert.equal(await alimenter(log, gh.github, CIBLE), 1);
+  assert.equal(await alimenter(log, gh.github, CIBLE), 0);
 
-  const [type, payload] = [journal.duTicket(16).at(-1)?.type, journal.duTicket(16).at(-1)?.payload];
+  const [type, payload] = [log.duTicket(16).at(-1)?.type, log.duTicket(16).at(-1)?.payload];
   assert.deepEqual([type, payload], [
     "ticket.changed",
     { title: "Ticket 16", priority: null, model: null, effort: null, card: { waitsFor: [14], zone: ["runtime/src/rail.ts", "docs/"], problems: [] } },
@@ -167,34 +167,34 @@ test("la fiche posée en commentaire arrive avec le ticket ; corrigée à la mai
 });
 
 test("une fiche supprimée se reporte aussi : le ticket n'en porte plus", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14));
-  gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- zone : docs/"));
-  await alimenter(journal, gh.github, CIBLE);
+  gh.commenter(14, "2026-10-08T09:00:00Z", cardOf("- zone : docs/"));
+  await alimenter(log, gh.github, CIBLE);
 
   gh.commenter(14, "2026-10-08T11:00:00Z");
-  assert.equal(await alimenter(journal, gh.github, CIBLE), 1);
+  assert.equal(await alimenter(log, gh.github, CIBLE), 1);
 
   assert.equal(rail.tickets()[0]?.card, null);
 });
 
 test("une fiche que le runtime ne comprend pas arrive avec ses problèmes : le rail les porte", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14));
-  gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- budget : 40 tours"), ficheDe("- attend : #15"));
+  gh.commenter(14, "2026-10-08T09:00:00Z", cardOf("- budget : 40 tours"), cardOf("- attend : #15"));
 
-  await alimenter(journal, gh.github, CIBLE);
+  await alimenter(log, gh.github, CIBLE);
 
   assert.match(rail.tickets()[0]?.card?.problems[0] ?? "", /2 fiches/);
 });
 
 test("un ticket attendu qui ne désigne aucune issue, ou le ticket lui-même, rend la fiche illisible", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   // #12 est fermée et #13 hors du rail : elles existent, on peut les attendre.
   const gh = depot(issue(12, { state: "closed" }), issue(13, { labels: [] }), issue(14), issue(15));
-  gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- attend : #12, #13, #15, #14, #99"));
+  gh.commenter(14, "2026-10-08T09:00:00Z", cardOf("- attend : #12, #13, #15, #14, #99"));
 
-  await alimenter(journal, gh.github, CIBLE);
+  await alimenter(log, gh.github, CIBLE);
 
   const card = rail.tickets()[0]?.card;
   assert.deepEqual(card?.waitsFor, [12, 13, 15, 14, 99]);
@@ -202,12 +202,12 @@ test("un ticket attendu qui ne désigne aucune issue, ou le ticket lui-même, re
 });
 
 test("une fiche posée par qui n'a pas la main sur le dépôt est ignorée, et le runtime le dit", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14));
   const erreurs = t.mock.method(console, "error", () => {});
-  gh.commenter(14, "2026-10-08T09:00:00Z", { body: ficheDe("- zone : /"), author: "passant", association: "NONE" }, ficheDe("- zone : docs/"));
+  gh.commenter(14, "2026-10-08T09:00:00Z", { body: cardOf("- zone : /"), author: "passant", association: "NONE" }, cardOf("- zone : docs/"));
 
-  await alimenter(journal, gh.github, CIBLE);
+  await alimenter(log, gh.github, CIBLE);
 
   assert.deepEqual(rail.tickets()[0]?.card, { waitsFor: [], zone: ["docs/"], problems: [] });
   assert.equal(erreurs.mock.callCount(), 1);
@@ -215,224 +215,224 @@ test("une fiche posée par qui n'a pas la main sur le dépôt est ignorée, et l
 });
 
 test("un ticket attendu qui n'existe pas encore : la fiche est relue à chaque sondage, et se répare seule quand il est créé", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14));
-  gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- attend : #99"));
-  const fiches = new Map();
-  await alimenter(journal, gh.github, CIBLE, fiches);
-  assert.equal(await alimenter(journal, gh.github, CIBLE, fiches), 0);
+  gh.commenter(14, "2026-10-08T09:00:00Z", cardOf("- attend : #99"));
+  const cards = new Map();
+  await alimenter(log, gh.github, CIBLE, cards);
+  assert.equal(await alimenter(log, gh.github, CIBLE, cards), 0);
   assert.match(rail.tickets()[0]?.card?.problems[0] ?? "", /#99 ne désigne aucune issue/);
   // Créer #99 ne modifie pas #14 : seul un sondage resté inconditionnel le verra.
   assert.deepEqual([gh.compte.confirmes, gh.compte.commentaires], [0, 2]);
 
   gh.poser(issue(99));
-  assert.equal(await alimenter(journal, gh.github, CIBLE, fiches), 2);
+  assert.equal(await alimenter(log, gh.github, CIBLE, cards), 2);
 
   assert.deepEqual(rail.tickets()[0]?.card, { waitsFor: [99], zone: [], problems: [] });
   assert.equal(gh.compte.confirmes, 1);
   // #99 est entré sur le rail : ses commentaires ont été lus, une fois.
-  await alimenter(journal, gh.github, CIBLE, fiches);
+  await alimenter(log, gh.github, CIBLE, cards);
   assert.equal(gh.compte.commentaires, 4);
 });
 
 test("une fiche ignorée dont l'auteur devient collaborateur est lue, sans que l'issue ait bougé ; l'avertissement n'est dit qu'une fois", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14));
   const erreurs = t.mock.method(console, "error", () => {});
-  gh.commenter(14, "2026-10-08T09:00:00Z", { body: ficheDe("- zone : docs/"), author: "passant", association: "NONE" });
-  const fiches = new Map();
-  await alimenter(journal, gh.github, CIBLE, fiches);
-  await alimenter(journal, gh.github, CIBLE, fiches);
+  gh.commenter(14, "2026-10-08T09:00:00Z", { body: cardOf("- zone : docs/"), author: "passant", association: "NONE" });
+  const cards = new Map();
+  await alimenter(log, gh.github, CIBLE, cards);
+  await alimenter(log, gh.github, CIBLE, cards);
   assert.deepEqual([rail.tickets()[0]?.card, gh.compte.confirmes, erreurs.mock.callCount()], [null, 0, 1]);
 
-  gh.commenter(14, "2026-10-08T09:00:00Z", { body: ficheDe("- zone : docs/"), author: "passant", association: "COLLABORATOR" });
-  assert.equal(await alimenter(journal, gh.github, CIBLE, fiches), 1);
+  gh.commenter(14, "2026-10-08T09:00:00Z", { body: cardOf("- zone : docs/"), author: "passant", association: "COLLABORATOR" });
+  assert.equal(await alimenter(log, gh.github, CIBLE, cards), 1);
 
   assert.deepEqual(rail.tickets()[0]?.card?.zone, ["docs/"]);
   assert.equal(gh.compte.confirmes, 1);
 });
 
 test("une fiche que le journal n'a pas, sur une issue déjà changée à cette date, s'écrit quand même", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14));
-  await alimenter(journal, gh.github, CIBLE);
+  await alimenter(log, gh.github, CIBLE);
   gh.poser(issue(14, { title: "Renommé", updatedAt: "2026-10-08T11:00:00Z" }));
-  await alimenter(journal, gh.github, CIBLE);
+  await alimenter(log, gh.github, CIBLE);
   // Le runtime d'avant ne lisait pas la fiche : elle était déjà là à 11 h.
-  gh.commenter(14, "2026-10-08T11:00:00Z", ficheDe("- zone : docs/"));
+  gh.commenter(14, "2026-10-08T11:00:00Z", cardOf("- zone : docs/"));
 
-  assert.equal(await alimenter(journal, gh.github, CIBLE), 1);
+  assert.equal(await alimenter(log, gh.github, CIBLE), 1);
 
   assert.deepEqual(rail.tickets()[0]?.card?.zone, ["docs/"]);
   assert.equal(gh.compte.confirmes, 3);
-  assert.equal(await alimenter(journal, gh.github, CIBLE), 0);
+  assert.equal(await alimenter(log, gh.github, CIBLE), 0);
 });
 
 const attendus = (rail: { tickets(): ReturnType<typeof lireRail> }, numero: number) =>
   rail.tickets().find(({ ticket }) => ticket === numero)?.awaits.map((attendu) => [attendu.ticket, attendu.left?.reason ?? null]);
 
 test("un cycle de dépendances est refusé à la lecture des fiches : chacun de ses tickets le porte, nommé en entier", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14), issue(15), issue(16), issue(17));
-  gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- attend : #15"));
-  gh.commenter(15, "2026-10-08T09:00:00Z", ficheDe("- attend : #16"));
-  gh.commenter(17, "2026-10-08T09:00:00Z", ficheDe("- attend : #14"));
-  const fiches = new Map();
-  await alimenter(journal, gh.github, CIBLE, fiches);
+  gh.commenter(14, "2026-10-08T09:00:00Z", cardOf("- attend : #15"));
+  gh.commenter(15, "2026-10-08T09:00:00Z", cardOf("- attend : #16"));
+  gh.commenter(17, "2026-10-08T09:00:00Z", cardOf("- attend : #14"));
+  const cards = new Map();
+  await alimenter(log, gh.github, CIBLE, cards);
   assert.deepEqual(rail.tickets().map((ticket) => ticket.card?.problems ?? []), [[], [], [], []]);
 
   // La fiche qui ferme la boucle : c'est là que le cycle se crée.
-  gh.commenter(16, "2026-10-08T11:00:00Z", ficheDe("- attend : #14"));
-  assert.equal(await alimenter(journal, gh.github, CIBLE, fiches), 3);
+  gh.commenter(16, "2026-10-08T11:00:00Z", cardOf("- attend : #14"));
+  assert.equal(await alimenter(log, gh.github, CIBLE, cards), 3);
 
   const cycle = "attend : cycle de dépendances — #14 → #15 → #16 → #14 (chacun attend le suivant) : aucun ne partirait jamais, retirer une de ces attentes";
   assert.deepEqual(rail.tickets().map((ticket) => ticket.card?.problems ?? []), [[cycle], [cycle], [cycle], []]);
-  assert.equal(await alimenter(journal, gh.github, CIBLE, fiches), 0);
+  assert.equal(await alimenter(log, gh.github, CIBLE, cards), 0);
 });
 
 test("un cycle défait par une seule fiche est levé pour tous ; recréé puis redéfait, il l'est encore", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14), issue(15));
-  gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- attend : #15"));
-  const fiches = new Map();
-  await alimenter(journal, gh.github, CIBLE, fiches);
+  gh.commenter(14, "2026-10-08T09:00:00Z", cardOf("- attend : #15"));
+  const cards = new Map();
+  await alimenter(log, gh.github, CIBLE, cards);
   const problemes = () => rail.tickets().map((ticket) => ticket.card?.problems.length ?? 0);
 
   // #14 ne bouge plus : c'est la fiche de #15 qui fait et défait le cycle.
-  for (const [heure, attend, attendu] of [["11", "#14", [1, 1]], ["12", "rien", [0, 0]], ["13", "#14", [1, 1]], ["14", "rien", [0, 0]]] as const) {
-    gh.commenter(15, `2026-10-08T${heure}:00:00Z`, ficheDe(`- attend : ${attend}`));
-    await alimenter(journal, gh.github, CIBLE, fiches);
+  for (const [heure, awaiting, attendu] of [["11", "#14", [1, 1]], ["12", "rien", [0, 0]], ["13", "#14", [1, 1]], ["14", "rien", [0, 0]]] as const) {
+    gh.commenter(15, `2026-10-08T${heure}:00:00Z`, cardOf(`- attend : ${awaiting}`));
+    await alimenter(log, gh.github, CIBLE, cards);
     assert.deepEqual(problemes(), attendu, `à ${heure} h`);
   }
 });
 
 test("un cycle défait par le départ d'un de ses tickets est levé pour ceux qui restent, même revenus à une fiche déjà journalisée", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14), issue(15));
-  const fiches = new Map();
-  await alimenter(journal, gh.github, CIBLE, fiches);
-  gh.commenter(14, "2026-10-08T10:00:00Z", ficheDe("- attend : #15"));
-  await alimenter(journal, gh.github, CIBLE, fiches);
-  gh.commenter(15, "2026-10-08T11:00:00Z", ficheDe("- attend : #14"));
-  await alimenter(journal, gh.github, CIBLE, fiches);
+  const cards = new Map();
+  await alimenter(log, gh.github, CIBLE, cards);
+  gh.commenter(14, "2026-10-08T10:00:00Z", cardOf("- attend : #15"));
+  await alimenter(log, gh.github, CIBLE, cards);
+  gh.commenter(15, "2026-10-08T11:00:00Z", cardOf("- attend : #14"));
+  await alimenter(log, gh.github, CIBLE, cards);
   assert.equal(rail.tickets()[0]?.card?.problems.length, 1);
 
   gh.poser(issue(15, { state: "closed", updatedAt: "2026-10-08T12:00:00Z" }));
-  await alimenter(journal, gh.github, CIBLE, fiches);
+  await alimenter(log, gh.github, CIBLE, cards);
 
   assert.deepEqual(rail.tickets().map((ticket) => [ticket.ticket, ticket.card?.problems]), [[14, []]]);
   assert.equal(gh.compte.confirmes, 4);
 });
 
 test("un ticket déjà servi n'est dans aucun cycle : rouvert avec une attente, il ne rend illisible ni sa fiche ni celle de qui l'attend", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14), issue(15));
-  const fiches = new Map();
-  await alimenter(journal, gh.github, CIBLE, fiches);
+  const cards = new Map();
+  await alimenter(log, gh.github, CIBLE, cards);
   assert.equal(rail.prendre("box/claude")?.ticket, 14);
   rail.envoyerEnPass(14, "box/claude");
   rail.servir(14);
 
-  gh.commenter(14, "2026-10-08T11:00:00Z", ficheDe("- attend : #15"));
-  gh.commenter(15, "2026-10-08T11:00:00Z", ficheDe("- attend : #14"));
-  await alimenter(journal, gh.github, CIBLE, fiches);
+  gh.commenter(14, "2026-10-08T11:00:00Z", cardOf("- attend : #15"));
+  gh.commenter(15, "2026-10-08T11:00:00Z", cardOf("- attend : #14"));
+  await alimenter(log, gh.github, CIBLE, cards);
 
   assert.deepEqual(rail.tickets().map((ticket) => [ticket.ticket, ticket.card?.problems, ticket.awaits.map((attendu) => attendu.ticket)]), [[14, [], [15]], [15, [], []]]);
 });
 
 test("une PR n'est pas un ticket : l'attendre rend la fiche illisible, sans guetter sa fermeture", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14), issue(30, { labels: [], pr: true }));
-  gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- attend : #30"));
-  const fiches = new Map();
+  gh.commenter(14, "2026-10-08T09:00:00Z", cardOf("- attend : #30"));
+  const cards = new Map();
 
-  await alimenter(journal, gh.github, CIBLE, fiches);
+  await alimenter(log, gh.github, CIBLE, cards);
 
   assert.deepEqual(rail.tickets()[0]?.card?.problems, ["attend : #30 est une PR, pas un ticket"]);
   assert.equal(gh.compte.confirmes, 1);
   gh.poser(issue(30, { labels: [], pr: true, state: "closed", updatedAt: "2026-10-08T11:00:00Z" }));
-  await alimenter(journal, gh.github, CIBLE, fiches);
-  assert.deepEqual(journal.duTicket(30), []);
+  await alimenter(log, gh.github, CIBLE, cards);
+  assert.deepEqual(log.duTicket(30), []);
 });
 
 test("un ticket attendu, fermé sans être jamais entré sur le rail, est un abandon que le journal apprend une fois", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(12, { state: "closed" }), issue(14));
-  gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- attend : #12"));
-  const fiches = new Map();
+  gh.commenter(14, "2026-10-08T09:00:00Z", cardOf("- attend : #12"));
+  const cards = new Map();
 
-  assert.equal(await alimenter(journal, gh.github, CIBLE, fiches), 2);
-  assert.equal(await alimenter(journal, gh.github, CIBLE, fiches), 0);
+  assert.equal(await alimenter(log, gh.github, CIBLE, cards), 2);
+  assert.equal(await alimenter(log, gh.github, CIBLE, cards), 0);
 
-  assert.deepEqual(faits(journal), [[14, "ticket.arrived", "github"], [12, "ticket.left", "github"]]);
-  assert.deepEqual(journal.duTicket(12)[0]?.payload, { reason: "closed" });
+  assert.deepEqual(facts(log), [[14, "ticket.arrived", "github"], [12, "ticket.left", "github"]]);
+  assert.deepEqual(log.duTicket(12)[0]?.payload, { reason: "closed" });
   assert.deepEqual(attendus(rail, 14), [[12, "closed"]]);
   // Plus rien à guetter : le sondage redevient conditionnel.
   assert.equal(gh.compte.confirmes, 1);
 });
 
 test("un ticket attendu, ouvert mais jamais entré sur le rail, est guetté à chaque sondage : fermé, il devient un abandon", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(13, { labels: [] }), issue(14));
-  gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- attend : #13"));
-  const fiches = new Map();
-  await alimenter(journal, gh.github, CIBLE, fiches);
-  await alimenter(journal, gh.github, CIBLE, fiches);
+  gh.commenter(14, "2026-10-08T09:00:00Z", cardOf("- attend : #13"));
+  const cards = new Map();
+  await alimenter(log, gh.github, CIBLE, cards);
+  await alimenter(log, gh.github, CIBLE, cards);
   assert.deepEqual([attendus(rail, 14), gh.compte.confirmes], [[[13, null]], 0]);
 
   // Fermer #13 ne modifie ni #14 ni la liste des tickets.
   gh.poser(issue(13, { labels: [], state: "closed", updatedAt: "2026-10-08T11:00:00Z" }));
-  assert.equal(await alimenter(journal, gh.github, CIBLE, fiches), 1);
+  assert.equal(await alimenter(log, gh.github, CIBLE, cards), 1);
 
   assert.deepEqual([attendus(rail, 14), gh.compte.confirmes], [[[13, "closed"]], 1]);
 });
 
 test("un ticket attendu que le journal a servi, ou vu partir, ne se guette pas : le sondage reste conditionnel", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(12), issue(13));
-  await alimenter(journal, gh.github, CIBLE);
+  await alimenter(log, gh.github, CIBLE);
   rail.prendre("box/claude");
   rail.envoyerEnPass(12, "box/claude");
   rail.servir(12);
   gh.poser(issue(12, { state: "closed", updatedAt: "2026-10-08T10:00:00Z" }));
   gh.poser(issue(13, { labels: [], updatedAt: "2026-10-08T10:00:00Z" }));
-  await alimenter(journal, gh.github, CIBLE);
+  await alimenter(log, gh.github, CIBLE);
 
   gh.poser(issue(14));
-  gh.commenter(14, "2026-10-08T11:00:00Z", ficheDe("- attend : #12, #13"));
+  gh.commenter(14, "2026-10-08T11:00:00Z", cardOf("- attend : #12, #13"));
   const avant = gh.compte.confirmes;
-  assert.equal(await alimenter(journal, gh.github, CIBLE), 1);
+  assert.equal(await alimenter(log, gh.github, CIBLE), 1);
 
   assert.deepEqual(attendus(rail, 14), [[13, "unfired"]]);
   assert.equal(gh.compte.confirmes, avant + 1);
-  assert.deepEqual(journal.duTicket(12).map((e) => e.type).filter((type) => type === "ticket.left").length, 1);
+  assert.deepEqual(log.duTicket(12).map((e) => e.type).filter((type) => type === "ticket.left").length, 1);
 });
 
 test("un ticket `hors-cuisine` n'entre pas sur le rail même avec `fire`, et en sort s'il y était", async (t) => {
-  const { journal } = cuisine(t);
+  const { journal: log } = kitchen(t);
   const gh = depot(issue(12), issue(13, { labels: ["fire", "hors-cuisine"] }));
-  assert.equal(await alimenter(journal, gh.github, CIBLE), 1);
-  assert.deepEqual(journal.tout().filter((e) => e.type === "ticket.arrived").map((e) => e.ticket), [12]);
+  assert.equal(await alimenter(log, gh.github, CIBLE), 1);
+  assert.deepEqual(log.tout().filter((e) => e.type === "ticket.arrived").map((e) => e.ticket), [12]);
 
   gh.poser(issue(12, { labels: ["fire", "hors-cuisine"], updatedAt: "2026-10-08T10:00:00Z" }));
-  assert.equal(await alimenter(journal, gh.github, CIBLE), 1);
-  assert.deepEqual(journal.duTicket(12).filter((e) => e.type === "ticket.left").map((e) => e.payload), [{ reason: "hors-cuisine" }]);
+  assert.equal(await alimenter(log, gh.github, CIBLE), 1);
+  assert.deepEqual(log.duTicket(12).filter((e) => e.type === "ticket.left").map((e) => e.payload), [{ reason: "hors-cuisine" }]);
 });
 
 test("le chef est averti d'un ticket bloqué : un fait au journal et un commentaire sur l'issue, une fois par abandon", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14), issue(15), issue(16));
-  gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- attend : #15, #16"));
-  await alimenter(journal, gh.github, CIBLE);
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 0);
+  gh.commenter(14, "2026-10-08T09:00:00Z", cardOf("- attend : #15, #16"));
+  await alimenter(log, gh.github, CIBLE);
+  assert.equal(await signalerBlocages(log, gh.github, "brigade"), 0);
 
   gh.poser(issue(15, { labels: [], updatedAt: "2026-10-08T11:00:00Z" }));
-  await alimenter(journal, gh.github, CIBLE);
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 1);
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 0);
+  await alimenter(log, gh.github, CIBLE);
+  assert.equal(await signalerBlocages(log, gh.github, "brigade"), 1);
+  assert.equal(await signalerBlocages(log, gh.github, "brigade"), 0);
 
-  const bloque = journal.duTicket(14).at(-1);
-  assert.deepEqual([bloque?.type, bloque?.author, bloque?.payload], ["ticket.blocked", "runtime", { by: 15, reason: "unfired" }]);
+  const blocked = log.duTicket(14).at(-1);
+  assert.deepEqual([blocked?.type, blocked?.author, blocked?.payload], ["ticket.blocked", "runtime", { by: 15, reason: "unfired" }]);
   assert.equal(gh.postes.length, 1);
   assert.equal(gh.postes[0]?.[0], 14);
   assert.match(gh.postes[0]?.[1] ?? "", /^\*\*Rail — ticket bloqué\.\*\* Il attend #15 \(label `fire` retiré\)/);
@@ -442,20 +442,20 @@ test("le chef est averti d'un ticket bloqué : un fait au journal et un commenta
 
   // #15 revient, puis repart : c'est un autre abandon, donc un autre avertissement.
   gh.poser(issue(15, { updatedAt: "2026-10-08T12:00:00Z" }));
-  await alimenter(journal, gh.github, CIBLE);
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 0);
+  await alimenter(log, gh.github, CIBLE);
+  assert.equal(await signalerBlocages(log, gh.github, "brigade"), 0);
   gh.poser(issue(15, { state: "closed", updatedAt: "2026-10-08T13:00:00Z" }));
-  await alimenter(journal, gh.github, CIBLE);
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 1);
+  await alimenter(log, gh.github, CIBLE);
+  assert.equal(await signalerBlocages(log, gh.github, "brigade"), 1);
   assert.match(gh.postes[1]?.[1] ?? "", /#15 \(issue fermée sans avoir été servie\)/);
 });
 
 test("un ticket attendu parti en laissant une livraison n'est pas dit abandonné avant que la pass ait relu sa PR : mergée, personne n'est bloqué", async (t) => {
-  const { journal } = cuisine(t);
+  const { journal: log } = kitchen(t);
   const gh = depot(issue(14), issue(15), issue(16));
-  gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- attend : #15, #16"));
-  await alimenter(journal, gh.github, CIBLE);
-  const noter = (ticket: number, type: string, payload: Record<string, unknown>) => journal.ajouter({ project: "brigade", ticket, author: "pass", type, payload } as Parameters<Journal["ajouter"]>[0]);
+  gh.commenter(14, "2026-10-08T09:00:00Z", cardOf("- attend : #15, #16"));
+  await alimenter(log, gh.github, CIBLE);
+  const noter = (ticket: number, type: string, payload: Record<string, unknown>) => log.ajouter({ project: "brigade", ticket, author: "pass", type, payload } as Parameters<Log["ajouter"]>[0]);
   const livrer = (ticket: number) => {
     const [run, branch, pr] = [`run-${ticket}`, `cook/${ticket}`, `https://github.com/${DEPOT}/pull/${ticket + 100}`];
     noter(ticket, "cook.launched", { run, limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/${run}.jsonl`, branch, worktree: `worktrees/${run}` });
@@ -467,107 +467,107 @@ test("un ticket attendu parti en laissant une livraison n'est pas dit abandonné
 
   // Le chef merge la PR de #15 puis ferme l'issue : le sondage voit le départ avant la pass.
   gh.poser(issue(15, { state: "closed", updatedAt: "2026-10-08T11:00:00Z" }));
-  await alimenter(journal, gh.github, CIBLE);
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 0);
+  await alimenter(log, gh.github, CIBLE);
+  assert.equal(await signalerBlocages(log, gh.github, "brigade"), 0);
   noter(15, "merge.done", { pr: quinze.pr, sha: "sha-15", by: "outside", reconciled: false, unverified: true });
   noter(15, "pass.abandoned", { branch: quinze.branch, pr: null });
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 0);
+  assert.equal(await signalerBlocages(log, gh.github, "brigade"), 0);
   assert.deepEqual(gh.postes, []);
 
   // #16 part sans être mergé : l'abandon est dit dès que la pass a lâché sa livraison.
   gh.poser(issue(16, { state: "closed", updatedAt: "2026-10-08T12:00:00Z" }));
-  await alimenter(journal, gh.github, CIBLE);
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 0);
+  await alimenter(log, gh.github, CIBLE);
+  assert.equal(await signalerBlocages(log, gh.github, "brigade"), 0);
   noter(16, "pass.abandoned", { branch: seize.branch, pr: seize.pr });
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 1);
+  assert.equal(await signalerBlocages(log, gh.github, "brigade"), 1);
   assert.match(gh.postes[0]?.[1] ?? "", /Il attend #16 \(issue fermée sans avoir été servie\)/);
 });
 
 test("un ticket pris n'est pas signalé bloqué : il l'est s'il revient en attente", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14), issue(15));
-  await alimenter(journal, gh.github, CIBLE);
+  await alimenter(log, gh.github, CIBLE);
   assert.equal(rail.prendre("box/claude")?.ticket, 14);
   // La fiche arrive après la prise : une dépendance ne reprend pas un ticket parti.
-  gh.commenter(14, "2026-10-08T11:00:00Z", ficheDe("- attend : #15"));
+  gh.commenter(14, "2026-10-08T11:00:00Z", cardOf("- attend : #15"));
   gh.poser(issue(15, { labels: [], updatedAt: "2026-10-08T11:00:00Z" }));
-  await alimenter(journal, gh.github, CIBLE);
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 0);
+  await alimenter(log, gh.github, CIBLE);
+  assert.equal(await signalerBlocages(log, gh.github, "brigade"), 0);
 
   rail.rendre(14, "station-restarted", "box/claude");
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 1);
+  assert.equal(await signalerBlocages(log, gh.github, "brigade"), 1);
 });
 
 test("un commentaire de blocage qui ne part pas ne retient rien : le journal l'a, le runtime le dit", async (t) => {
-  const { journal } = cuisine(t);
+  const { journal: log } = kitchen(t);
   const gh = depot(issue(12, { state: "closed" }), issue(14));
-  gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- attend : #12"));
-  await alimenter(journal, gh.github, CIBLE);
+  gh.commenter(14, "2026-10-08T09:00:00Z", cardOf("- attend : #12"));
+  await alimenter(log, gh.github, CIBLE);
   const erreurs = t.mock.method(console, "error", () => {});
   gh.refuserLesCommentaires(true);
 
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 1);
+  assert.equal(await signalerBlocages(log, gh.github, "brigade"), 1);
 
-  assert.equal(journal.duTicket(14).at(-1)?.type, "ticket.blocked");
+  assert.equal(log.duTicket(14).at(-1)?.type, "ticket.blocked");
   assert.match(String(erreurs.mock.calls[0]?.arguments[0]), /commentaire non posté sur le ticket #14 — gh api : HTTP 502/);
 });
 
 test("les commentaires ne se relisent que pour les issues qui ont changé", async (t) => {
-  const { journal } = cuisine(t);
+  const { journal: log } = kitchen(t);
   const gh = depot(issue(14), issue(15), issue(16, { title: "" }));
   t.mock.method(console, "error", () => {});
-  const fiches = new Map();
-  await alimenter(journal, gh.github, CIBLE, fiches);
+  const cards = new Map();
+  await alimenter(log, gh.github, CIBLE, cards);
   assert.equal(gh.compte.commentaires, 2);
 
   gh.poser(issue(15, { title: "Renommé", updatedAt: "2026-10-08T11:00:00Z" }));
-  await alimenter(journal, gh.github, CIBLE, fiches);
+  await alimenter(log, gh.github, CIBLE, cards);
   assert.equal(gh.compte.commentaires, 3);
 
-  await alimenter(journal, gh.github, CIBLE, fiches);
+  await alimenter(log, gh.github, CIBLE, cards);
   assert.equal(gh.compte.commentaires, 3);
-  assert.deepEqual([...fiches.keys()], [14, 15]);
+  assert.deepEqual([...cards.keys()], [14, 15]);
 
   gh.poser(issue(14, { state: "closed", updatedAt: "2026-10-08T12:00:00Z" }));
-  await alimenter(journal, gh.github, CIBLE, fiches);
-  assert.deepEqual([...fiches.keys()], [15]);
+  await alimenter(log, gh.github, CIBLE, cards);
+  assert.deepEqual([...cards.keys()], [15]);
 });
 
 test("des commentaires illisibles font échouer le sondage entier : rien n'arrive sans sa fiche, et le suivant rattrape", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14));
-  gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- zone : docs/"));
-  const fiches = new Map();
+  gh.commenter(14, "2026-10-08T09:00:00Z", cardOf("- zone : docs/"));
+  const cards = new Map();
 
   gh.perdreLesCommentaires(true);
-  await assert.rejects(alimenter(journal, gh.github, CIBLE, fiches), /HTTP 502/);
+  await assert.rejects(alimenter(log, gh.github, CIBLE, cards), /HTTP 502/);
   assert.deepEqual([rail.tickets(), gh.compte.confirmes], [[], 0]);
 
   gh.perdreLesCommentaires(false);
-  assert.equal(await alimenter(journal, gh.github, CIBLE, fiches), 1);
+  assert.equal(await alimenter(log, gh.github, CIBLE, cards), 1);
   assert.deepEqual(rail.tickets()[0]?.card?.zone, ["docs/"]);
 });
 
 test("un label de priorité hors plage ne gèle pas le sondage : le ticket arrive sans priorité, les autres aussi", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14, { labels: ["fire", "prio:99999999999999999999"] }), issue(15, { labels: ["fire", "prio:1"] }));
 
-  assert.equal(await alimenter(journal, gh.github, CIBLE), 2);
+  assert.equal(await alimenter(log, gh.github, CIBLE), 2);
 
   assert.deepEqual(rail.tickets().map((ticket) => [ticket.ticket, ticket.priority]), [[15, 1], [14, null]]);
 });
 
 test("une issue illisible est écartée seule : les autres arrivent et partent quand même", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14), issue(16));
-  await alimenter(journal, gh.github, CIBLE);
+  await alimenter(log, gh.github, CIBLE);
   const erreurs = t.mock.method(console, "error", () => {});
 
   gh.poser(issue(15, { title: "" }));
   gh.poser(issue(17, { createdAt: undefined as never }));
   gh.poser(issue(18));
   gh.poser(issue(16, { state: "closed", updatedAt: "2026-10-08T11:00:00Z" }));
-  assert.equal(await alimenter(journal, gh.github, CIBLE), 2);
+  assert.equal(await alimenter(log, gh.github, CIBLE), 2);
 
   assert.deepEqual(rail.tickets().map((ticket) => ticket.ticket), [14, 18]);
   assert.equal(erreurs.mock.callCount(), 2);
@@ -575,58 +575,58 @@ test("une issue illisible est écartée seule : les autres arrivent et partent q
 });
 
 test("une issue fermée disparaît du rail, même prise ; le journal dit pourquoi", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14), issue(15));
-  await alimenter(journal, gh.github, CIBLE);
+  await alimenter(log, gh.github, CIBLE);
   assert.equal(rail.prendre("box/claude")?.ticket, 14);
 
   gh.poser(issue(14, { state: "closed", updatedAt: "2026-10-08T11:00:00Z" }));
-  await alimenter(journal, gh.github, CIBLE);
+  await alimenter(log, gh.github, CIBLE);
 
   assert.deepEqual(rail.tickets().map((ticket) => ticket.ticket), [15]);
-  const [depart] = journal.duTicket(14).slice(-1);
+  const [depart] = log.duTicket(14).slice(-1);
   assert.deepEqual([depart?.type, depart?.author, depart?.payload], ["ticket.left", "github", { reason: "closed" }]);
 });
 
 test("une issue qui perd son label quitte le rail ; une issue supprimée aussi", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14), issue(15), issue(16));
-  await alimenter(journal, gh.github, CIBLE);
+  await alimenter(log, gh.github, CIBLE);
 
   gh.poser(issue(14, { labels: ["feature"], updatedAt: "2026-10-08T11:00:00Z" }));
   gh.retirer(15);
-  await alimenter(journal, gh.github, CIBLE);
+  await alimenter(log, gh.github, CIBLE);
 
   assert.deepEqual(rail.tickets().map((ticket) => ticket.ticket), [16]);
   assert.deepEqual(
-    journal.tout().slice(-2).map((e) => [e.ticket, e.payload]),
+    log.tout().slice(-2).map((e) => [e.ticket, e.payload]),
     [[14, { reason: "unfired" }], [15, { reason: "gone" }]],
   );
 });
 
 test("une issue qui retrouve son label revient sur le rail, en attente", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14));
-  await alimenter(journal, gh.github, CIBLE);
+  await alimenter(log, gh.github, CIBLE);
   rail.prendre("box/claude");
   gh.poser(issue(14, { labels: [], updatedAt: "2026-10-08T11:00:00Z" }));
-  await alimenter(journal, gh.github, CIBLE);
+  await alimenter(log, gh.github, CIBLE);
 
   gh.poser(issue(14, { updatedAt: "2026-10-08T12:00:00Z" }));
-  await alimenter(journal, gh.github, CIBLE);
+  await alimenter(log, gh.github, CIBLE);
 
   assert.deepEqual(rail.tickets().map((ticket) => [ticket.ticket, ticket.state, ticket.station]), [[14, "waiting", null]]);
 });
 
 test("un titre ou une priorité qui change se reporte sur le rail sans toucher à l'état", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14), issue(15));
-  await alimenter(journal, gh.github, CIBLE);
+  await alimenter(log, gh.github, CIBLE);
   rail.prendre("box/claude");
 
   gh.poser(issue(14, { title: "Renommé", labels: ["fire", "prio:2"], updatedAt: "2026-10-08T11:00:00Z" }));
   gh.poser(issue(15, { labels: ["fire", "tech"], updatedAt: "2026-10-08T11:00:00Z" }));
-  assert.equal(await alimenter(journal, gh.github, CIBLE), 1);
+  assert.equal(await alimenter(log, gh.github, CIBLE), 1);
 
   assert.deepEqual(
     rail.tickets().map((ticket) => [ticket.ticket, ticket.title, ticket.priority, ticket.state]),
@@ -635,39 +635,39 @@ test("un titre ou une priorité qui change se reporte sur le rail sans toucher �
 });
 
 test("chaque fait de GitHub entre au journal sous une clé unique : le même changement ne s'écrit qu'une fois", async (t) => {
-  const { journal } = cuisine(t);
+  const { journal: log } = kitchen(t);
   const gh = depot(issue(14));
-  await alimenter(journal, gh.github, CIBLE);
-  const [arrivee] = journal.tout();
+  await alimenter(log, gh.github, CIBLE);
+  const [arrivee] = log.tout();
   assert.ok(arrivee);
 
   const { seq: _seq, at: _at, ...fait } = arrivee;
-  const doublon = journal.ajouter({ ...fait, dedupKey: `github:${DEPOT}#14:ticket.arrived:2026-10-08T09:00:00Z` });
+  const doublon = log.ajouter({ ...fait, dedupKey: `github:${DEPOT}#14:ticket.arrived:2026-10-08T09:00:00Z` });
 
   assert.equal(doublon, null);
-  assert.equal(journal.tout().length, 1);
+  assert.equal(log.tout().length, 1);
 });
 
 test("GitHub en panne : le rail reste tel quel, et le sondage suivant rattrape tout", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14));
-  await alimenter(journal, gh.github, CIBLE);
+  await alimenter(log, gh.github, CIBLE);
 
   gh.tomber(new Error("réseau coupé"));
   gh.poser(issue(15));
   gh.poser(issue(14, { state: "closed", updatedAt: "2026-10-08T11:00:00Z" }));
-  await assert.rejects(alimenter(journal, gh.github, CIBLE), /réseau coupé/);
+  await assert.rejects(alimenter(log, gh.github, CIBLE), /réseau coupé/);
   assert.deepEqual(rail.tickets().map((ticket) => ticket.ticket), [14]);
 
   gh.tomber(null);
-  assert.equal(await alimenter(journal, gh.github, CIBLE), 2);
+  assert.equal(await alimenter(log, gh.github, CIBLE), 2);
   assert.deepEqual(rail.tickets().map((ticket) => ticket.ticket), [15]);
 });
 
 test("un ticket absent de la liste mais toujours ouvert et labellisé reste sur le rail, et le sondage n'est pas confirmé", async (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal: log, rail } = kitchen(t);
   const gh = depot(issue(14));
-  await alimenter(journal, gh.github, CIBLE);
+  await alimenter(log, gh.github, CIBLE);
   // La liste ne le montre plus, mais l'issue relue l'est de nouveau : rouverte
   // entre les deux requêtes.
   const github: GitHub = {
@@ -675,7 +675,7 @@ test("un ticket absent de la liste mais toujours ouvert et labellisé reste sur 
     tickets: async () => ({ inchange: false, issues: [], confirmer: () => assert.fail("sondage confirmé à tort") }),
   };
 
-  assert.equal(await alimenter(journal, github, CIBLE), 0);
+  assert.equal(await alimenter(log, github, CIBLE), 0);
 
   assert.deepEqual(rail.tickets().map((ticket) => ticket.ticket), [14]);
 });
@@ -690,8 +690,8 @@ test("la configuration du rail vient de l'environnement ; le dépôt n'a pas de 
   for (const depot of ["brigade", "benomite/brigade/issues", "https://github.com/benomite/brigade", "benomite/ brigade"]) {
     assert.throws(() => configRail({ BRIGADE_GITHUB_REPO: depot }), /BRIGADE_GITHUB_REPO invalid/);
   }
-  for (const bail of ["0", "-5", "dix", "1.5"]) {
-    assert.throws(() => configRail({ BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_LEASE_SECONDS: bail }), /BRIGADE_LEASE_SECONDS invalid/);
+  for (const lease of ["0", "-5", "dix", "1.5"]) {
+    assert.throws(() => configRail({ BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_LEASE_SECONDS: lease }), /BRIGADE_LEASE_SECONDS invalid/);
   }
 });
 
@@ -708,10 +708,10 @@ test("les chemins communs entrent au journal au démarrage, et seulement quand i
   const repertoire = repertoireTemporaire(t);
   const gh = depot();
   const options = { depot: DEPOT, dureeBailMs: 600_000, gh: "gh", github: gh.github };
-  const faits = (journal: Journal) => journal.tout().filter((e) => e.type === "rail.commons").map((e) => e.payload);
+  const facts = (log: Log) => log.tout().filter((e) => e.type === "rail.commons").map((e) => e.payload);
   const vie = (communs?: string[]) => {
     const runtime = avecRail(demarrer({ repertoireEtat: repertoire, projet: "brigade" }), { ...options, communs });
-    const lus = [faits(runtime.journal), communsDuRail(runtime.journal.base)];
+    const lus = [facts(runtime.journal), communsDuRail(runtime.journal.base)];
     runtime.arreter("test");
     return lus;
   };
@@ -756,7 +756,7 @@ test("au tick, un bail échu rend son ticket sans que personne ne le demande", a
 
 test("le runtime avertit de lui-même : un ticket attendu perd son label, celui qui l'attendait est commenté au sondage qui le voit", async (t) => {
   const gh = depot(issue(14), issue(15));
-  gh.commenter(15, "2026-10-08T09:00:00Z", ficheDe("- attend : #14"));
+  gh.commenter(15, "2026-10-08T09:00:00Z", cardOf("- attend : #14"));
   const runtime = service(t, gh);
   await jusqua(() => runtime.rail.tickets().length === 2);
   assert.deepEqual(gh.postes, []);
@@ -778,7 +778,7 @@ test("le runtime porte de lui-même sur l'issue la mise en WAITING que le chef a
   const runtime = service(t, gh);
   await jusqua(() => runtime.rail.tickets().length === 1);
 
-  mettreEnAttente(runtime.journal, "brigade", 14, { quoi: "la réponse du client", qui: "le client" });
+  putInQueue(runtime.journal, "brigade", 14, { quoi: "la réponse du client", qui: "le client" });
   await jusqua(() => gh.postes.length === 1);
   assert.match(gh.postes[0]?.[1] ?? "", /^\*\*WAITING : en attente de le client\.\*\* la réponse du client/);
   assert.equal(runtime.rail.prendre("box/claude"), null);

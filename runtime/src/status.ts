@@ -8,10 +8,10 @@
 // tournent.
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
-import { AGE_MAX_SAUVEGARDE_MS, decrireEtat, lireEtat, suivre } from "./etat.ts";
-import { ouvrirJournal } from "./journal.ts";
+import { BACKUP_MAX_AGE_MS, decrireEtat, lireEtat, suivre } from "./etat.ts";
+import { openLog } from "./log.ts";
 import { pauseDeLaStation } from "./limite-github.ts";
-import { journalPasRejoue } from "./journal-pas-rejoue.ts";
+import { logNotReplayed } from "./log-not-replayed.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--follow [<numéro de ticket>]]";
 
@@ -32,31 +32,31 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
   if (reglage !== undefined && !/^[1-9][0-9]*$/.test(reglage)) {
     echouer(2, `BRIGADE_BACKUP_MAX_AGE_HOURS invalide : « ${reglage} » — attendu un nombre d'heures, 1 au moins`);
   }
-  const ageMaxSauvegardeMs = reglage === undefined ? AGE_MAX_SAUVEGARDE_MS : Number(reglage) * 3_600_000;
+  const backupMaxAgeMs = reglage === undefined ? BACKUP_MAX_AGE_MS : Number(reglage) * 3_600_000;
 
-  let journal;
+  let log;
   try {
-    journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
+    log = openLog(repertoireEtat, { lectureSeule: true });
   } catch (erreur) {
     echouer(1, erreur instanceof Error ? erreur.message : String(erreur));
   }
 
   let etat;
   try {
-    etat = lireEtat(journal);
+    etat = lireEtat(log);
   } catch (erreur) {
-    journal.fermer();
+    log.fermer();
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.
-    if (journalPasRejoue(erreur)) {
+    if (logNotReplayed(erreur)) {
       echouer(1, "ce journal n'a pas encore tout l'état que `status` lit : redémarrer le runtime, qui le recalcule");
     }
     throw erreur;
   }
-  for (const ligne of decrireEtat(etat, new Date(), ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, Date.now()))) dire(ligne);
+  for (const ligne of decrireEtat(etat, new Date(), backupMaxAgeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, Date.now()))) dire(ligne);
 
   if (option === undefined) {
-    journal.fermer();
+    log.fermer();
   } else {
     // Les gestionnaires précèdent l'annonce : qui la lit peut signaler sans courir.
     // Un second signal, ou l'autre des deux, ne doit pas refermer le journal.
@@ -66,11 +66,11 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
       if (arrete) return;
       arrete = true;
       arreter();
-      journal.fermer();
+      log.fermer();
     };
     for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, arretPropre);
     dire(`\nsuivi en direct${ticket === undefined ? "" : ` du ticket #${ticket}`} — Ctrl-C pour arrêter`);
-    arreter = suivre(journal, {
+    arreter = suivre(log, {
       depuis: etat.dernierSeq,
       ticket: ticket === undefined ? undefined : Number(ticket),
       ecrire: (ligne) => dire(ligne),

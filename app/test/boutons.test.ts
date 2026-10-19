@@ -41,11 +41,11 @@ describe("les boutons d'action", () => {
   });
 
   test("ce qui s'écrit est la forme de « Piloter », mot pour mot, préfixée du `!` qui la lance depuis le second", () => {
-    const DU_POSTE = "ssh <box> brigade <projet> status";
-    assert.ok(PILOTER.includes(`\`${DU_POSTE}\``), "« Piloter » ne donne plus cette forme depuis le poste");
+    const FROM_THE_WORKSTATION = "ssh <box> brigade <projet> status";
+    assert.ok(PILOTER.includes(`\`${FROM_THE_WORKSTATION}\``), "« Piloter » ne donne plus cette forme depuis le poste");
 
     for (const { id, commande } of BOUTONS) {
-      const attendu = `!${DU_POSTE.replace("<box>", "box").replace("<projet>", "parade").replace("status", commande)}`;
+      const attendu = `!${FROM_THE_WORKSTATION.replace("<box>", "box").replace("<projet>", "parade").replace("status", commande)}`;
       assert.deepEqual(ecritPar(id, PARADE), { commande: attendu });
     }
     assert.deepEqual(ecritPar("cooks", PARADE), { commande: "!ssh box brigade parade station cooks " });

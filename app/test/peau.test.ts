@@ -9,15 +9,15 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
-import type { Montree } from "../src/attend.ts";
+import type { Montree } from "../src/awaiting.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
 import type { Lecture } from "../src/box.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE, type Dessinable } from "../src/faits.ts";
-import { entete } from "../src/fiche.ts";
+import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
+import { BANNIERE, type Dessinable } from "../src/facts.ts";
+import { entete } from "../src/card.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS, type Vu as VuDesGrants } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
@@ -25,7 +25,7 @@ import { GESTES_DU_MANAGER, type Vu as VuDuManager } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Pages } from "../src/page.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { type Faux, jetonsDe, jouerLaVue, type Reponses, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
+import { type Faux, tokensOf, jouerLaVue, type Reponses, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
 const VUE = join(RACINE, "app/src/vue");
@@ -56,15 +56,15 @@ function regles(css: string): Regle[] {
 const COULEUR = /#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3,4})\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\(/gi;
 // Les mots qu'une propriété de couleur accepte ici : aucun n'est un nom de couleur.
 const MOTS_SANS_COULEUR = new Set(["none", "transparent", "currentcolor", "inherit", "solid", "dashed", "dotted", "var"]);
-const PORTE_UNE_COULEUR = /^(color|background|background-color|border|border-(top|right|bottom|left)|border-(top-|right-|bottom-|left-)?color|outline|outline-color|box-shadow|accent-color|text-decoration-color|caret-color|fill|stroke)$/;
+const SETS_A_COLOR = /^(color|background|background-color|border|border-(top|right|bottom|left)|border-(top-|right-|bottom-|left-)?color|outline|outline-color|box-shadow|accent-color|text-decoration-color|caret-color|fill|stroke)$/;
 
-const jetons = jetonsDe(lire("jetons.css"));
-const couleurs = new Map([...jetons].filter(([, valeur]) => valeur.startsWith("#")));
+const tokens = tokensOf(lire("tokens.css"));
+const couleurs = new Map([...tokens].filter(([, valeur]) => valeur.startsWith("#")));
 
 describe("la palette : un seul jeu de variables, écrit à un seul endroit", () => {
-  test("jetons.css est le seul fichier de la vue où une couleur s'écrit", () => {
-    assert.ok(fichiers.includes("jetons.css") && fichiers.includes("vue.css") && fichiers.includes("vue.js") && fichiers.includes("index.html"), fichiers.join(", "));
-    for (const fichier of fichiers.filter((nomme) => nomme !== "jetons.css")) {
+  test("tokens.css est le seul fichier de la vue où une couleur s'écrit", () => {
+    assert.ok(fichiers.includes("tokens.css") && fichiers.includes("vue.css") && fichiers.includes("vue.js") && fichiers.includes("index.html"), fichiers.join(", "));
+    for (const fichier of fichiers.filter((nomme) => nomme !== "tokens.css")) {
       const texte = fichier.endsWith(".css") ? sansCommentaires(lire(fichier)) : lire(fichier);
       assert.deepEqual(texte.match(COULEUR) ?? [], [], `${fichier} écrit une couleur en dur`);
     }
@@ -74,7 +74,7 @@ describe("la palette : un seul jeu de variables, écrit à un seul endroit", () 
   test("dans vue.css, une propriété de couleur ne nomme qu'une variable — jamais un nom de couleur", () => {
     for (const { selecteurs, declarations } of regles(lire("vue.css"))) {
       for (const [propriete, valeur] of declarations) {
-        if (!PORTE_UNE_COULEUR.test(propriete)) continue;
+        if (!SETS_A_COLOR.test(propriete)) continue;
         // Ce qui reste d'une valeur une fois ôtés ses variables et ses longueurs : des mots.
         const mots = valeur.replace(/var\(--[a-z-]+\)/g, " ").match(/[a-z][a-z-]*/gi) ?? [];
         const noms = mots.filter((mot) => !MOTS_SANS_COULEUR.has(mot.toLowerCase()) && !/^(px|em|%)$/.test(mot));
@@ -83,50 +83,50 @@ describe("la palette : un seul jeu de variables, écrit à un seul endroit", () 
     }
   });
 
-  test("chaque variable que la vue nomme est posée dans jetons.css — ou, pour le ton d'un état, d'après elles", () => {
+  test("chaque variable que la vue nomme est posée dans tokens.css — ou, pour le ton d'un état, d'après elles", () => {
     const css = sansCommentaires(lire("vue.css"));
-    // `--ton` : la couleur d'un mot d'état, posée par vue.css d'après le nom que faits.ts lui donne.
+    // `--ton` : la couleur d'un mot d'état, posée par vue.css d'après le nom que facts.ts lui donne.
     const locales = new Map([...css.matchAll(/(--[a-z-]+)\s*:\s*([^;]+);/g)].map(([, nom = "", valeur = ""]) => [nom, valeur.trim()]));
     assert.deepEqual([...new Set(locales.keys())], ["--ton"]);
     for (const [, valeur] of css.matchAll(/--ton\s*:\s*([^;]+);/g)) assert.match(valeur ?? "", /^var\(--(vert|jaune|rouge|bleu|gris)\)$/);
 
     const nommees = [...css.matchAll(/var\((--[a-z-]+)\)/g), ...lire("vue.js").matchAll(/jeton\("(--[a-z-]+)"\)/g)].map(([, nom = ""]) => nom);
     assert.ok(nommees.length > 100, "vue.css ne nomme presque aucune variable");
-    for (const nom of new Set(nommees)) assert.ok(jetons.has(nom) || nom === "--ton", `« ${nom} » n'est pas dans jetons.css`);
+    for (const nom of new Set(nommees)) assert.ok(tokens.has(nom) || nom === "--ton", `« ${nom} » n'est pas dans tokens.css`);
     // Et aucune n'y dort : ce qui est posé sert.
-    for (const nom of jetons.keys()) assert.ok(nommees.includes(nom), `« ${nom} » est dans jetons.css, et rien ne la nomme`);
+    for (const nom of tokens.keys()) assert.ok(nommees.includes(nom), `« ${nom} » est dans tokens.css, et rien ne la nomme`);
   });
 
-  test("jetons.css ne pose une couleur qu'une fois, sur la racine, et rien d'autre ne s'y peint", () => {
-    const css = sansCommentaires(lire("jetons.css"));
+  test("tokens.css ne pose une couleur qu'une fois, sur la racine, et rien d'autre ne s'y peint", () => {
+    const css = sansCommentaires(lire("tokens.css"));
     assert.deepEqual(regles(css).flatMap(({ selecteurs }) => selecteurs), ["@font-face", "@font-face", "@font-face", ":root"]);
     const posees = [...css.matchAll(/(--[a-z-]+)\s*:/g)].map(([, nom = ""]) => nom);
     assert.deepEqual(posees, [...new Set(posees)], "une variable est posée deux fois");
     assert.ok(couleurs.size >= 20, `${couleurs.size} couleurs`);
-    assert.equal(jetons.get("color-scheme"), undefined);
+    assert.equal(tokens.get("color-scheme"), undefined);
     assert.match(css, /color-scheme:\s*dark;/, "le thème est sombre, et lui seul");
   });
 
   test("le fond de la fenêtre, avant que la vue ne se peigne, est celui de la peau", () => {
     const fond = /backgroundColor: "(#[0-9a-f]{6})"/.exec(readFileSync(join(RACINE, "app/src/main.ts"), "utf8"))?.[1];
-    assert.equal(fond, jetons.get("--fond"));
+    assert.equal(fond, tokens.get("--fond"));
   });
 
   test("le terminal lit ses couleurs et sa police dans les jetons", async () => {
-    const vue = await ouvrirUnEspace();
+    const vue = await openASpace();
     const [xterm] = vue.xterms;
-    assert.deepEqual(xterm?.options.theme, { background: jetons.get("--terminal"), foreground: jetons.get("--texte-terminal"), cursor: jetons.get("--texte") });
-    assert.equal(xterm?.options.fontFamily, jetons.get("--police-mono"));
+    assert.deepEqual(xterm?.options.theme, { background: tokens.get("--terminal"), foreground: tokens.get("--texte-terminal"), cursor: tokens.get("--texte") });
+    assert.equal(xterm?.options.fontFamily, tokens.get("--police-mono"));
     // Sa police est chargée avant qu'il ne s'ouvre : il mesure ses cases à l'ouverture.
-    assert.deepEqual(vue.polices, [`13px ${jetons.get("--police-mono")}`, `bold 13px ${jetons.get("--police-mono")}`]);
+    assert.deepEqual(vue.polices, [`13px ${tokens.get("--police-mono")}`, `bold 13px ${tokens.get("--police-mono")}`]);
   });
 });
 
 describe("la palette est celle de la maquette", () => {
   // Les trois écrans qui font foi : `Commis.dc.html` est au parking (docs/maquettes/app/README.md).
-  const maquette = ["Main.dc.html", "Espace.dc.html", "Brigade.dc.html"].map((ecran) => readFileSync(join(MAQUETTES, ecran), "utf8").toLowerCase()).join("\n");
+  const maquette = ["Main.dc.html", "Espace.dc.html", "Brigade.dc.html"].map((screen) => readFileSync(join(MAQUETTES, screen), "utf8").toLowerCase()).join("\n");
 
-  test("chaque couleur de jetons.css est une couleur que la maquette écrit — aucune n'est inventée", () => {
+  test("chaque couleur de tokens.css est une couleur que la maquette écrit — aucune n'est inventée", () => {
     for (const [nom, valeur] of couleurs) assert.ok(new RegExp(`${valeur}\\b`).test(maquette), `${nom}: ${valeur} n'est dans aucun des trois écrans de la maquette`);
   });
 
@@ -139,14 +139,14 @@ describe("la palette est celle de la maquette", () => {
     assert.match(maquette, /const ok = '#6cc28a', warn = '#e9c46a', bad = '#ee6b5b', acc = '#f2994a', blue = '#7fb2f0'/);
     assert.match(maquette, /\.ticket\{background:#f3efe6;color:#1b1c1e;border-radius:4px;/);
     const roles = { "--fond": "#121418", "--carte": "#1a1d22", "--trait": "#2e333b", "--barre": "#0e1013", "--trait-doux": "#23272d", "--texte": "#ece9e3", "--vert": "#6cc28a", "--jaune": "#e9c46a", "--rouge": "#ee6b5b", "--accent": "#f2994a", "--bleu": "#7fb2f0", "--bon": "#f3efe6", "--bon-encre": "#1b1c1e" };
-    for (const [nom, valeur] of Object.entries(roles)) assert.equal(jetons.get(nom), valeur, nom);
-    assert.equal(jetons.get("--rayon-carte"), "10px");
-    assert.equal(jetons.get("--rayon-bon"), "4px");
+    for (const [nom, valeur] of Object.entries(roles)) assert.equal(tokens.get(nom), valeur, nom);
+    assert.equal(tokens.get("--rayon-carte"), "10px");
+    assert.equal(tokens.get("--rayon-bon"), "4px");
   });
 });
 
 describe("les polices : Archivo pour l'interface, JetBrains Mono pour ce qui se recopie", () => {
-  const css = sansCommentaires(lire("jetons.css"));
+  const css = sansCommentaires(lire("tokens.css"));
   const faces = regles(css).filter(({ selecteurs }) => selecteurs[0] === "@font-face");
 
   test("elles sont embarquées : chaque police déclarée est un fichier de l'app, à côté de sa licence", () => {
@@ -177,8 +177,8 @@ describe("les polices : Archivo pour l'interface, JetBrains Mono pour ce qui se 
   });
 
   test("l'interface est en Archivo, et vue.css ne nomme aucune autre police que les deux", () => {
-    assert.match(jetons.get("--police-interface") ?? "", /^"Archivo", /);
-    assert.match(jetons.get("--police-mono") ?? "", /^"JetBrains Mono", /);
+    assert.match(tokens.get("--police-interface") ?? "", /^"Archivo", /);
+    assert.match(tokens.get("--police-mono") ?? "", /^"JetBrains Mono", /);
     const feuille = regles(lire("vue.css"));
     assert.equal(feuille.find(({ selecteurs }) => selecteurs.join() === "body")?.declarations.get("font-family"), "var(--police-interface)");
     for (const { selecteurs, declarations } of feuille) {
@@ -230,7 +230,7 @@ const demarrage = () => ({
   exemple: EXEMPLE,
   onglets: ONGLETS, rubriques: RUBRIQUES,
   boutons: BOUTONS,
-  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -246,7 +246,7 @@ const textes = (elements: Faux[]) => elements.map((element) => element.textConte
 const entree = (vue: Awaited<ReturnType<typeof jouerLaVue>>, rang: number): Faux => vue.element("projets").children.at(rang) ?? assert.fail(`pas d'entrée ${rang} dans la barre`);
 
 // L'espace de « parade », ouvert par sa case de la barre : « T », puis elle, puis « + ».
-async function ouvrirUnEspace(reponses: Reponses = {}) {
+async function openASpace(reponses: Reponses = {}) {
   const vue = await jouerLaVue({ ...REPONSES, ...reponses });
   entree(vue, 1).click();
   await repos();
@@ -264,7 +264,7 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
   });
 
   test("dans le second, à droite : ce que le terminal reçoit est ce que le pty a écrit, tel quel", async () => {
-    const vue = await ouvrirUnEspace();
+    const vue = await openASpace();
     vue.dire("surSortie", SECOND.id, RELAYE);
     vue.dire("surSortie", SECOND.id, "\r\n");
 
@@ -272,7 +272,7 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
   });
 
   test("dans les onglets Rail, Cooks, Manager, Grants, Reliability et Log : la sortie de leur commande, mot pour mot", async () => {
-    const vue = await ouvrirUnEspace();
+    const vue = await openASpace();
     assert.deepEqual(ONGLETS.map(({ titre }) => titre), ["Rail", "Cooks", "Manager", "Grants", "Reliability", "Log"]);
 
     for (const { id, titre, commande } of ONGLETS) {
@@ -290,7 +290,7 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
   });
 
   test("dans le panneau de l'espace, sous chaque onglet : `status`, et ce que `ssh` a rendu quand la box n'est pas jointe", async () => {
-    const vue = await ouvrirUnEspace();
+    const vue = await openASpace();
     const demande = vue.dernier("regarder")[1] as number;
     const pages: Pages = { projet: PARADE, pages: [], aLancer: [], illisibles: ["  serveur illisible   tel quel  "], empeche: [], vide: "aucun serveur" };
     vue.dire("surLecture", { projet: PARADE, demande, a: A, attend: BLOC, sorties: [{ commande: "status", texte: RELAYE }] }, pages);
@@ -335,20 +335,20 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
   });
 
   test("sur un bon, deux lignes au plus ; ce que la fiche détaille garde ses blancs", async () => {
-    const vue = await ouvrirUnEspace();
-    vue.dire("surFaits", { ...FAITS, demande: vue.dernier("faits")[0] as number });
+    const vue = await openASpace();
+    vue.dire("surFaits", { ...FACTS, demande: vue.dernier("faits")[0] as number });
 
     // Sur la carte, deux lignes au plus ; ce que la box a écrit en entier ne s'y relaie plus, et la fiche ne le relaie pas non plus.
-    const bons = vue.element("rail").dessous("li").filter((li) => li.className === "bon");
-    for (const bon of bons) assert.ok(bon.dessous("p").length <= 2, `#${bon.children[0]?.children[0]?.textContent}`);
+    const slips = vue.element("rail").dessous("li").filter((li) => li.className === "bon");
+    for (const slip of slips) assert.ok(slip.dessous("p").length <= 2, `#${slip.children[0]?.children[0]?.textContent}`);
     assert.deepEqual(textes(vue.element("rail").dessous("p").filter((p) => p.className === "ligne")), []);
     const regle = regles(lire("vue.css")).find(({ selecteurs }) => selecteurs.includes("#fiche .details p") && selecteurs.length === 1);
     assert.equal(regle?.declarations.get("white-space"), "pre-wrap");
   });
 });
 
-// Ce que `faits` donne à dessiner d'un projet, prêt à poser (faits.ts) : deux cooks, un rail.
-const FAITS: Dessinable = {
+// Ce que `faits` donne à dessiner d'un projet, prêt à poser (facts.ts) : deux cooks, un rail.
+const FACTS: Dessinable = {
   projet: PARADE,
   demande: 0,
   a: A,
@@ -448,7 +448,7 @@ describe("la fenêtre se réduit sans que rien ne se casse", () => {
   test("une sortie longue, d'un seul mot comme de dix mille lignes, s'affiche entière dans chaque écran", async () => {
     const mot = `x${"0123456789".repeat(400)}`;
     const longue = [mot, ...Array.from({ length: 10000 }, (_, i) => `  ligne ${i}   avec    des blancs  `), mot].join("\n");
-    const vue = await ouvrirUnEspace();
+    const vue = await openASpace();
     const demande = vue.dernier("regarder")[1] as number;
     vue.dire("surLecture", { projet: PARADE, demande, a: A, attend: longue, sorties: [{ commande: "status", texte: longue }] }, { projet: PARADE, pages: [], aLancer: [], illisibles: [longue], empeche: [] });
     assert.deepEqual(textes(relayes(vue.element("lecture"))), [longue, longue]);
@@ -466,8 +466,8 @@ describe("la fenêtre se réduit sans que rien ne se casse", () => {
 describe("le monospace est une information, pas un style", () => {
   // Tout ce qui est posé dans la fenêtre, une fois l'espace ouvert, ses faits et ses pages lus.
   async function toutPose(onglet: string, manager?: VuDuManager, grants?: VuDesGrants): Promise<Faux[]> {
-    const vue = await ouvrirUnEspace();
-    vue.dire("surFaits", { ...FAITS, demande: vue.dernier("faits")[0] as number });
+    const vue = await openASpace();
+    vue.dire("surFaits", { ...FACTS, demande: vue.dernier("faits")[0] as number });
     vue.dire("surLecture", { projet: PARADE, demande: vue.dernier("regarder")[1] as number, a: A, attend: BLOC, sorties: [{ commande: "status", texte: RELAYE }] }, PAGES);
     await ouvrirLecture(vue, onglet);
     const numero = vue.dernier("onglet")[2] as number;
@@ -542,22 +542,22 @@ describe("le monospace est une information, pas un style", () => {
 describe("la carte d'un ticket servi : l'écran à regarder, sa phrase, la mention « déduit », et le bouton seulement s'il y a quelque chose à voir", () => {
   const PHRASE = "#591 : le rail a maintenant deux colonnes, TODO et WAITING";
   const DEDUIT = "écran déduit des fichiers touchés, pas déclaré par le cook";
-  const servie = (page: Partial<Pages["pages"][number]>): Pages["pages"][number] => ({ ticket: 12, worktree: "12-2a033691", port: 20012, etat: "écoute", route: "/rail", ecran: null, enCours: false, ...page });
+  const served = (page: Partial<Pages["pages"][number]>): Pages["pages"][number] => ({ ticket: 12, worktree: "12-2a033691", port: 20012, etat: "écoute", route: "/rail", ecran: null, enCours: false, ...page });
   // La carte du ticket #12 — sur le rail, dans « T'attend » —, ses faits et ses pages lus : ce qui y est posé de sa page.
   async function carte(pages: Pick<Pages, "pages" | "aLancer">) {
-    const vue = await ouvrirUnEspace({ ouvrirPage: () => undefined });
-    vue.dire("surFaits", { ...FAITS, demande: vue.dernier("faits")[0] as number });
+    const vue = await openASpace({ ouvrirPage: () => undefined });
+    vue.dire("surFaits", { ...FACTS, demande: vue.dernier("faits")[0] as number });
     vue.dire("surLecture", { projet: PARADE, demande: vue.dernier("regarder")[1] as number, a: A, attend: BLOC, sorties: [{ commande: "status", texte: RELAYE }] }, { projet: PARADE, illisibles: [], empeche: [], ...pages });
     await ouvrirLecture(vue, "Rail");
     const [posee, ...autres] = vue.poses().filter((pose) => pose.className === "servie");
     assert.ok(posee !== undefined && autres.length === 0, "une seule page posée");
-    const bon = vue.poses().find((pose) => pose.className.split(" ").includes("bon") && pose.dessous("div").includes(posee));
-    assert.ok(bon?.textContent.includes("Validation SIRET"), "la page n'est pas sur la carte de son ticket");
+    const slip = vue.poses().find((pose) => pose.className.split(" ").includes("bon") && pose.dessous("div").includes(posee));
+    assert.ok(slip?.textContent.includes("Validation SIRET"), "la page n'est pas sur la carte de son ticket");
     return { vue, posee, boutons: posee.dessous("button"), textes: posee.dessous("p").concat(posee.dessous("small")).map((pose) => pose.textContent) };
   }
 
   test("un écran déclaré, avec sa page : la phrase du cook, l'écran, et le bouton qui ouvre cette page — sans mention « déduit »", async () => {
-    const { vue, boutons, textes } = await carte({ pages: [servie({ ecran: { nom: "/rail", phrase: PHRASE, deduit: null } })], aLancer: [] });
+    const { vue, boutons, textes } = await carte({ pages: [served({ ecran: { nom: "/rail", phrase: PHRASE, deduit: null } })], aLancer: [] });
 
     assert.ok(textes.includes(PHRASE), textes.join(" | "));
     assert.ok(textes.includes("screen to look at: /rail"), textes.join(" | "));
@@ -569,7 +569,7 @@ describe("la carte d'un ticket servi : l'écran à regarder, sa phrase, la menti
   });
 
   test("un écran déduit des fichiers touchés : la carte le dit, mot pour mot", async () => {
-    const { textes, boutons } = await carte({ pages: [servie({ ecran: { nom: "/rail", phrase: null, deduit: DEDUIT } })], aLancer: [] });
+    const { textes, boutons } = await carte({ pages: [served({ ecran: { nom: "/rail", phrase: null, deduit: DEDUIT } })], aLancer: [] });
 
     assert.ok(textes.includes(DEDUIT), textes.join(" | "));
     assert.equal(boutons.length, 1);
@@ -577,7 +577,7 @@ describe("la carte d'un ticket servi : l'écran à regarder, sa phrase, la menti
 
   test("sans écran, pas de bouton — ce que `status` écrit à sa place se lit", async () => {
     const sansPage = "aucune page à ouvrir : la livraison ne dit aucun écran, et n'en touche aucun que le projet déclare";
-    const { boutons, textes } = await carte({ pages: [servie({ route: null, sansPage })], aLancer: [] });
+    const { boutons, textes } = await carte({ pages: [served({ route: null, sansPage })], aLancer: [] });
 
     assert.deepEqual(boutons, []);
     assert.ok(textes.includes(sansPage), textes.join(" | "));
@@ -604,8 +604,8 @@ describe("rien de ce qui est au parking n'apparaît", () => {
     const parking = readFileSync(join(MAQUETTES, "README.md"), "utf8");
     for (const dessine of ["box/codex", "mac/chrome", "chrome-connecté", "revue-humaine", "accès-prod", "depuis ton Mac", "en preprod", "toutes les brigades", "cook profiles", "carnet", "jauge chiffrée", "expire dans 2 j"]) assert.ok(parking.includes(dessine), `le README des maquettes ne nomme plus « ${dessine} »`);
 
-    const vue = await ouvrirUnEspace();
-    vue.dire("surFaits", { ...FAITS, demande: vue.dernier("faits")[0] as number });
+    const vue = await openASpace();
+    vue.dire("surFaits", { ...FACTS, demande: vue.dernier("faits")[0] as number });
     for (const pose of vue.poses()) assert.doesNotMatch(pose.textContent, PARKING, `<${pose.balise} id="${pose.id}">`);
     // Un compteur est un nombre, posé tel quel : ni barre, ni pourcentage.
     assert.deepEqual(textes(vue.element("carte").dessous("dd")), ["9", "2", "1", "1", "11"]);

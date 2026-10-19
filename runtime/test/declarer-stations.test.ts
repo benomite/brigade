@@ -9,7 +9,7 @@ import { test, type TestContext } from "node:test";
 import { decisionsPosees } from "../src/decisions.ts";
 import { principal } from "../src/declarer-stations.ts";
 import { installationDe, noterEtape } from "../src/etapes.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { appeler, BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, issueGitHub, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
 
@@ -38,11 +38,11 @@ async function declarer(etat: string, declaration: string, autres: Record<string
 }
 
 function evenements(etat: string) {
-  const journal = ouvrirJournal(etat, { lectureSeule: true });
+  const log = openLog(etat, { lectureSeule: true });
   try {
-    return journal.tout();
+    return log.tout();
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }
 
@@ -77,11 +77,11 @@ test("la déclaration choisie est posée au journal comme décision du chef, et 
   assert.equal(code, 0, sortie);
   assert.match(sortie, /^brigade : stations déclarées — box\/claude \(4 cooks at most; provides: code, raisonnement\) ; lues par le runtime à son réveil suivant, sans redémarrage/m);
   assert.match(sortie, /« Déclarer les stations » notée faite/);
-  const journal = ouvrirJournal(etat, { lectureSeule: true });
+  const log = openLog(etat, { lectureSeule: true });
   try {
-    assert.deepEqual(decisionsPosees(journal.base), { BRIGADE_STATIONS: "box/claude:4:code+raisonnement" });
+    assert.deepEqual(decisionsPosees(log.base), { BRIGADE_STATIONS: "box/claude:4:code+raisonnement" });
   } finally {
-    journal.fermer();
+    log.fermer();
   }
   const lue = await lire(etat);
   assert.deepEqual(lue.etape, { id: "stations", etat: "faite" });
@@ -94,9 +94,9 @@ test("la déclaration choisie est posée au journal comme décision du chef, et 
 
 test("les étapes qui précèdent faites, l'étape courante passe des stations à la suivante", async (t) => {
   const etat = repertoireTemporaire(t);
-  const journal = ouvrirJournal(etat);
-  for (const etape of ["ajout", "init", "verification"]) noterEtape(journal, { projet: PROJET, etape, etat: "done", auteur: "chef" });
-  journal.fermer();
+  const log = openLog(etat);
+  for (const etape of ["ajout", "init", "verification"]) noterEtape(log, { projet: PROJET, etape, etat: "done", auteur: "chef" });
+  log.fermer();
   assert.equal(installationDe(etat).courante, "stations");
 
   assert.equal((await declarer(etat, "box/claude:2:code")).code, 0);
@@ -211,11 +211,11 @@ test("de bout en bout : sur un runtime qui tourne sans station, l'action déclar
   });
   await runtime.attendre("démarré");
   const rail = () => {
-    const journal = ouvrirJournal(etat, { lectureSeule: true });
+    const log = openLog(etat, { lectureSeule: true });
     try {
-      return lireRail(journal.base);
+      return lireRail(log.base);
     } finally {
-      journal.fermer();
+      log.fermer();
     }
   };
   await jusqua(() => rail().length === 1);

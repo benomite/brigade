@@ -1,11 +1,11 @@
 // Le réseau d'un projet : la liste blanche de ce qu'il joint — Anthropic,
 // GitHub, et ce que son dépôt déclare —, et de quoi faire passer par la porte
-// tout ce que le runtime lance. La porte elle-même est dans `porte.ts` ; ce
+// tout ce que le runtime lance. La porte elle-même est dans `door.ts` ; ce
 // qui refuse une connexion qui la contourne est l'unité systemd, pas ce code.
 import { setGlobalProxyFromEnv } from "node:http";
 import { createSocket } from "node:dgram";
 import type { Fait } from "./evenements.ts";
-import { lire } from "./plafonds.ts";
+import { lire } from "./caps.ts";
 import type { Runtime } from "./runtime.ts";
 
 // Ce que le dépôt du projet déclare : un hôte par ligne.
@@ -83,14 +83,14 @@ export function configReseau(env: NodeJS.ProcessEnv): number | null {
 // `curl` et Node lisent ces variables. La boucle locale n'y passe pas — les
 // ports que le setup exporte se joignent directement.
 export function variablesDeRelais(port: number): Record<string, string> {
-  const porte = `http://127.0.0.1:${port}`;
+  const door = `http://127.0.0.1:${port}`;
   const directs = "localhost,127.0.0.1,::1";
-  return { HTTPS_PROXY: porte, HTTP_PROXY: porte, https_proxy: porte, http_proxy: porte, NO_PROXY: directs, no_proxy: directs, NODE_USE_ENV_PROXY: "1" };
+  return { HTTPS_PROXY: door, HTTP_PROXY: door, https_proxy: door, http_proxy: door, NO_PROXY: directs, no_proxy: directs, NODE_USE_ENV_PROXY: "1" };
 }
 
 // Fait passer le runtime lui-même par la porte, et tout ce qu'il lancera :
 // ses enfants héritent de son environnement.
-export function passerParLaPorte(port: number): void {
+export function goThroughTheDoor(port: number): void {
   Object.assign(process.env, variablesDeRelais(port));
   setGlobalProxyFromEnv();
 }
@@ -140,17 +140,17 @@ const AUTEUR = "runtime";
 // dernière déclaration lue tient alors : une lecture ratée ne ferme pas les
 // hôtes du projet.
 export function brancherReseau(runtime: Runtime, options: { base: string; declaration: () => string | null; avertir?: (message: string) => void }): () => void {
-  const { journal, projet } = runtime;
+  const { journal: log, projet } = runtime;
   const avertir = options.avertir ?? ((message: string) => console.error(message));
-  const noter = (fait: Fait) => journal.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
+  const noter = (fait: Fait) => log.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
   // Le dernier défaut dit : un clone illisible ne se répète pas à chaque tick.
   let dit: string | null = null;
   const publier = () => {
     try {
       const { hotes, problemes } = lireDeclaration(options.declaration() ?? "");
       const declare = { base: options.base, hosts: hotes, problems: problemes };
-      journal.base.transaction(() => {
-        const dernier = journal.duType("network.declared", 1)[0]?.payload ?? { base: options.base, hosts: [], problems: [] };
+      log.base.transaction(() => {
+        const dernier = log.duType("network.declared", 1)[0]?.payload ?? { base: options.base, hosts: [], problems: [] };
         if (JSON.stringify(dernier) !== JSON.stringify(declare)) noter({ type: "network.declared", payload: declare });
       });
       dit = null;

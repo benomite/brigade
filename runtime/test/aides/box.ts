@@ -10,7 +10,7 @@ import { Sortie } from "../../src/appel.ts";
 import type { Evenement } from "../../src/evenements.ts";
 import type { Box } from "../../src/installateur.ts";
 import { principal } from "../../src/installateur-cli.ts";
-import { cheminJournal, ouvrirJournal } from "../../src/journal.ts";
+import { logPath, openLog } from "../../src/log.ts";
 import { BASE, ENV_GIT, FAUX_BWRAP, git, repertoireDuFichier, repertoireTemporaire } from "../outils.ts";
 
 export const DEPLOIEMENT = join(import.meta.dirname, "../../deploy");
@@ -80,13 +80,13 @@ export type Boite = {
 export function boite(t: TestContext): Boite {
   const racine = realpathSync(repertoireTemporaire(t));
   const sous = (...noms: string[]) => join(racine, ...noms);
-  const [unites, etats, sauvegardes, versions, home, temoin, github, deploiement, bin] = [sous("unites"), sous("etats"), sous("sauvegardes"), sous("versions"), sous("home"), sous("temoin"), sous("github"), sous("deploy"), sous("bin")];
-  for (const repertoire of [unites, sauvegardes, versions, home, temoin, github, deploiement, bin]) mkdirSync(repertoire, { recursive: true });
+  const [unites, etats, backups, versions, home, temoin, github, deploiement, bin] = [sous("unites"), sous("etats"), sous("sauvegardes"), sous("versions"), sous("home"), sous("temoin"), sous("github"), sous("deploy"), sous("bin")];
+  for (const repertoire of [unites, backups, versions, home, temoin, github, deploiement, bin]) mkdirSync(repertoire, { recursive: true });
   // Les unités du dépôt, copiées telles quelles — à ceci près que l'état des
   // projets vit sous la box d'essai.
   for (const nom of GABARITS) writeFileSync(join(unites, nom), readFileSync(join(DEPLOIEMENT, nom), "utf8").replaceAll("/var/lib/brigade", etats));
   writeFileSync(join(deploiement, "cloison.conf"), readFileSync(join(DEPLOIEMENT, "cloison.conf"), "utf8").replace("/usr/bin/bwrap", FAUX_BWRAP).replace("/var/lib/brigade:/etc/brigade", `${etats}:${sous("etc-brigade")}`));
-  writeFileSync(sous("installer.conf"), `# le réglage du geste\nsauvegardes=${sauvegardes}\nports=${PREMIER_PORT}-${PREMIER_PORT + 9}\n`);
+  writeFileSync(sous("installer.conf"), `# le réglage du geste\nsauvegardes=${backups}\nports=${PREMIER_PORT}-${PREMIER_PORT + 9}\n`);
   writeFileSync(join(temoin, "compte"), `${COMPTE}\n`);
 
   const executable = (nom: string, lignes: string[]) => {
@@ -162,7 +162,7 @@ export function boite(t: TestContext): Boite {
     box,
     unites,
     etats,
-    sauvegardes,
+    sauvegardes: backups,
     versions,
     home,
     pousser(depot) {
@@ -172,7 +172,7 @@ export function boite(t: TestContext): Boite {
     demande(projet = "calculus", plus = {}) {
       const options: Record<string, string | null> = {
         "--depot": `acme/${projet}`,
-        "--sauvegardes": join(sauvegardes, projet),
+        "--sauvegardes": join(backups, projet),
         "--manager-modele": "sonnet",
         "--manager-effort": "medium",
         "--reviewer-modele": "haiku",
@@ -200,14 +200,14 @@ export function boite(t: TestContext): Boite {
     actives: () => lire(join(temoin, "actives")),
     demarrer: (unite) => writeFileSync(join(temoin, "actives"), `${unite}\n`, { flag: "a" }),
     refuserDActiver: (unite) => writeFileSync(join(temoin, "refuse"), `${unite}\n`),
-    photo: () => [unites, etats, sauvegardes, versions, home, box.config, deploiement, join(temoin, "actives")].reduce(voir, {}),
+    photo: () => [unites, etats, backups, versions, home, box.config, deploiement, join(temoin, "actives")].reduce(voir, {}),
     journal() {
-      if (!existsSync(cheminJournal(box.journal))) return [];
-      const journal = ouvrirJournal(box.journal, { lectureSeule: true, projections: [] });
+      if (!existsSync(logPath(box.journal))) return [];
+      const log = openLog(box.journal, { lectureSeule: true, projections: [] });
       try {
-        return journal.tout();
+        return log.tout();
       } finally {
-        journal.fermer();
+        log.fermer();
       }
     },
   };

@@ -1,7 +1,7 @@
 // La sonde du renouvellement : un systemd simulé, jamais le vrai.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { passagesDuJournal, sonderRenouvellement, type Passage, type Systemd } from "../src/sonde-renouvellement.ts";
+import { logPassages, sonderRenouvellement, type Passage, type Systemd } from "../src/sonde-renouvellement.ts";
 
 const faux = (actif: boolean, passages: Passage[]): Systemd => ({
   minuteurActif: async () => actif,
@@ -65,7 +65,7 @@ describe("sonde du renouvellement", () => {
       ligne("brigade-renouvellement : échec (claude-introuvable) : absent", 4_000_000),
       ligne("brigade-renouvellement.service: Failed with result 'exit-code'.", 5_000_000),
     ].join("\n");
-    const passages = passagesDuJournal(sortie);
+    const passages = logPassages(sortie);
     assert.equal(passages.length, 2);
     assert.equal(passages[0]?.reussi, false);
     assert.equal(passages[1]?.reussi, true);
@@ -79,7 +79,7 @@ describe("sonde du renouvellement", () => {
       ligne("brigade-renouvellement.service: Failed with result 'exit-code'.", 3_000_000),
       ligne("Failed to start brigade-renouvellement.service - Renouvellement de la session Max.", 4_000_000),
     ].join("\n");
-    const passages = passagesDuJournal(sortie);
+    const passages = logPassages(sortie);
     assert.equal(passages.length, 1);
     const etat = await sonderRenouvellement(faux(true, passages));
     assert.equal(etat.etat, "claude-introuvable");

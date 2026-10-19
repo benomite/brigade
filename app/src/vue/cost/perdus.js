@@ -44,10 +44,10 @@ export function perdusDe(texte) {
   for (const ligne of lignes.slice(debut + 1)) {
     if (!/^\s/.test(ligne)) break;
     // date, #ticket, run, calibrage, fin, puis (tours · tokens · durée) et la PR, quand le cook les a.
-    const [, ticket, run, , fin, consomme] = ligne.trim().split(CHAMPS);
+    const [, ticket, run, , fin, consumed] = ligne.trim().split(CHAMPS);
     const numero = /^#(\d+)$/.exec(ticket ?? "");
     if (numero === null || fin === undefined || fin === "fini" || fin === "done") continue;
-    const dit = consomme === undefined ? undefined : /^\d+ (?:tours?|turns?) · (.*) tokens? · /.exec(consomme)?.[1];
+    const dit = consumed === undefined ? undefined : /^\d+ (?:tours?|turns?) · (.*) tokens? · /.exec(consumed)?.[1];
     perdus.push({
       ticket: Number(numero[1]),
       run: run ?? "",

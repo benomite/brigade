@@ -20,9 +20,9 @@ import type { Detection } from "./detection.ts";
 
 // Ce que la box retient d'un poste dont le bac à sable est là : de quoi
 // configurer celui de chacun de ses cooks.
-export type Poste = { version: string; home: string; worktrees: string; caches: string[] };
+export type Workstation = { version: string; home: string; worktrees: string; caches: string[] };
 
-export type Constat = { disponible: true; poste: Poste } | { disponible: false; raison: string };
+export type Constat = { disponible: true; poste: Workstation } | { disponible: false; raison: string };
 
 // La station prend les tickets ordinaires, et n'a rien dit de son bac à
 // sable : une app d'avant ce réglage, qui ne le sonde pas.
@@ -48,19 +48,19 @@ export function constater(dit: unknown, hotes: Regle[]): Constat {
   if (available !== true || !texte(version) || !absolu(home) || !absolu(worktrees) || !lisibles) {
     return { disponible: false, raison: "what the station says about its sandbox cannot be read: it needs its `claude` version, and absolute paths for the account, the worktrees and the caches" };
   }
-  const poste: Poste = { version: version.trim().slice(0, 40), home, worktrees, caches: caches as string[] };
+  const workstation: Workstation = { version: version.trim().slice(0, 40), home, worktrees, caches: caches as string[] };
   try {
-    configurerLeCook(poste, ESSAI, hotes);
+    configurerLeCook(workstation, ESSAI, hotes);
   } catch (erreur) {
     if (!(erreur instanceof BacASableInvalide)) throw erreur;
     return { disponible: false, raison: `the sandbox configuration does not hold on this workstation — ${erreur.message}`.slice(0, RAISON_MAX) };
   }
-  return { disponible: true, poste };
+  return { disponible: true, poste: workstation };
 }
 
 // La configuration du bac à sable du cook de ce run, sur ce poste.
-export function configurerLeCook(poste: Poste, run: string, hotes: Regle[]): ConfigDeBacASable {
-  return configurer({ worktree: posix.join(poste.worktrees, run), caches: poste.caches, hotes, home: poste.home });
+export function configurerLeCook(workstation: Workstation, run: string, hotes: Regle[]): ConfigDeBacASable {
+  return configurer({ worktree: posix.join(workstation.worktrees, run), caches: workstation.caches, hotes, home: workstation.home });
 }
 
 // Les arguments d'un cook (`argumentsClaude`), lancé dans le bac à sable : son

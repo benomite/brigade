@@ -21,7 +21,7 @@ export type Retenue = "stopped" | "breaker" | "deploy" | "base" | "disconnected"
 
 // Un cook est signalé quand cette part du bail de son ticket est passée sans
 // progrès : assez tôt pour que le chef le voie avant que le bail ne tombe.
-export const PART_SANS_PROGRES = 0.5;
+export const NO_PROGRESS_SHARE = 0.5;
 
 // Les motifs qu'une station écrit sur la fin d'un cook.
 // Un cook qui conclut sans rien commiter : ce qu'il a délimité dans son
@@ -29,7 +29,7 @@ export const PART_SANS_PROGRES = 0.5;
 export const SANS_DIFF = "no-diff";
 // Un cook qui conclut sans rien commiter ni rien délimiter : son message n'est
 // pas un livrable, il n'a rien livré.
-export const SANS_LIVRABLE = "no-deliverable";
+export const NO_DELIVERABLE = "no-deliverable";
 // Ce que le cook a commité porte le nom ou la forme des identifiants de
 // Claude. Le motif dit le signe (`name`, `shape`), jamais le chemin ni le
 // contenu.

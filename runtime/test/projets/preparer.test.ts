@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { decisionsPosees, poserDecision } from "../../src/decisions.ts";
-import { ouvrirJournal } from "../../src/journal.ts";
+import { openLog } from "../../src/log.ts";
 import { cloner, decisionsDe, machineDe, poserLesDecisions, verifierAutorisation } from "../../src/projets/preparer.ts";
 import { fauxGitHubApps } from "../aides/faux-github-apps.ts";
 import { depotGit, git, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
@@ -25,8 +25,8 @@ test("avec ses Apps : autorisées, rien à faire ; une App pas installée sur le
   const env = { BRIGADE_GITHUB_APPS_DIR: apps.repertoire, BRIGADE_GITHUB_API_URL: apps.url };
   assert.deepEqual(await verifierAutorisation(env, "benomite/parade"), { autorisee: true });
 
-  apps.desinstaller("cook");
-  apps.desinstaller("manager");
+  apps.uninstall("cook");
+  apps.uninstall("manager");
   assert.deepEqual(await verifierAutorisation(env, "benomite/parade"), { autorisee: false, pages: ["https://github.com/apps/brigade-cook/installations/new", "https://github.com/apps/brigade-manager/installations/new"] });
 
   apps.panne(502, "Server Error");
@@ -70,13 +70,13 @@ test("les décisions du parcours sont posées sous le nom du chef ; celles qu'il
     BRIGADE_REVIEWER_EFFORT: "high",
   });
   assert.equal(machineDe("box"), "box");
-  const journal = ouvrirJournal(etat);
-  poserDecision(journal, { projet: "parade", nom: "BRIGADE_MANAGER_MODEL", valeur: "haiku", auteur: "chef" });
-  journal.fermer();
+  const log = openLog(etat);
+  poserDecision(log, { projet: "parade", nom: "BRIGADE_MANAGER_MODEL", valeur: "haiku", auteur: "chef" });
+  log.fermer();
 
   assert.deepEqual(poserLesDecisions(etat, "parade", decisionsDe(PARADE, "box")), ["BRIGADE_STATIONS", "BRIGADE_MANAGER_EFFORT", "BRIGADE_REVIEWER_MODEL", "BRIGADE_REVIEWER_EFFORT"]);
   assert.deepEqual(poserLesDecisions(etat, "parade", decisionsDe(PARADE, "box")), []);
-  const relu = ouvrirJournal(etat, { lectureSeule: true });
+  const relu = openLog(etat, { lectureSeule: true });
   try {
     assert.equal(decisionsPosees(relu.base).BRIGADE_MANAGER_MODEL, "haiku");
   } finally {

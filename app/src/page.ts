@@ -30,8 +30,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { connect, createServer, type AddressInfo, type Server, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Montree } from "./attend.ts";
-import type { Reglages, Servi } from "./box.ts";
+import type { Montree } from "./awaiting.ts";
+import type { Reglages, Served } from "./box.ts";
 import type { Projet } from "./config.ts";
 import { nombre } from "./format.ts";
 
@@ -39,7 +39,7 @@ import { nombre } from "./format.ts";
 // (runtime/src/projections/service.ts, `direEcran`) : `nom`, l'écran ou la route ;
 // `phrase`, ce qu'il faut y regarder — nulle, personne ne l'a dit ; `deduit`, ce que
 // `status` dit d'un écran que le cook n'a pas déclaré, mot pour mot — nul quand il l'a déclaré.
-export type Ecran = { nom: string; phrase: string | null; deduit: string | null };
+export type Screen = { nom: string; phrase: string | null; deduit: string | null };
 
 // Un serveur, tel que `status` l'écrit (runtime/src/etat.ts, `decrireServeurs`) :
 // `  #<ticket>  <worktree>  port <port>  <état> depuis <durée>  <branche>  <page>`.
@@ -47,20 +47,20 @@ export type Ecran = { nom: string; phrase: string | null; deduit: string | null 
 // `route` : celle de la page que la ligne écrit, sur le port de ce worktree — nulle quand elle
 // n'en écrit aucune, ou que la racine. `sansPage` : ce que la ligne écrit à sa place, mot pour
 // mot — absent quand elle n'écrit rien. `ecran` : nul quand `status` n'en dit aucun.
-export type Serveur = { ticket: number; worktree: string; port: number; etat: string; route: string | null; sansPage?: string; ecran: Ecran | null };
+export type StatusServer = { ticket: number; worktree: string; port: number; etat: string; route: string | null; sansPage?: string; ecran: Screen | null };
 // Une livraison d'une app qui ne s'ouvre pas dans un navigateur, telle que `status` l'écrit
 // sous sa ligne `à lancer` : `  #<ticket>  <worktree>  tenu depuis <durée>  <branche>  <comment le voir>`.
 // `commentLeVoir` : ce que `status` en dit, mot pour mot — la commande qui lance l'app sur ce
 // worktree et l'écran à y ouvrir, ou qu'il n'y a rien à regarder.
-export type ALancer = { ticket: number; worktree: string; commentLeVoir: string; ecran: Ecran | null };
+export type ALancer = { ticket: number; worktree: string; commentLeVoir: string; ecran: Screen | null };
 // `entete` : ce que la ligne `serveurs` dit d'eux tous — absente, `status` n'en montre aucun.
 // `illisibles` : les lignes sous elle, ou sous `à lancer`, qui n'ont pas leur forme, telles quelles.
 // `empeche` : ce que les lignes `service` disent, mot pour mot — ce qui empêche le projet d'être servi.
-export type Lus = { entete?: string; serveurs: Serveur[]; aLancer: ALancer[]; illisibles: string[]; empeche: string[] };
+export type Lus = { entete?: string; servers: StatusServer[]; aLancer: ALancer[]; illisibles: string[]; empeche: string[] };
 
 // `status` s'écrit en français ou en anglais (#939) : chaque forme est lue sous les deux, en entier —
 // une ligne qui mêle les deux langues dans une même forme n'est la forme d'aucune. Elle donne le même résultat.
-const SERVEUR = /^ {2}#(\d+) {2}(\S.*?) {2}port (\d+) {2}(?!starting |listening )(\S+) depuis /;
+const SERVER_FR = /^ {2}#(\d+) {2}(\S.*?) {2}port (\d+) {2}(?!starting |listening )(\S+) depuis /;
 const SERVER = /^ {2}#(\d+) {2}(\S.*?) {2}port (\d+) {2}(?!démarre |écoute )(\S+) since /;
 // La fin de la ligne d'un serveur : la durée, la branche, puis la page — ou ce qui la remplace.
 const SUITE = /^ {2}#\d+ {2}\S.*? {2}port \d+ {2}\S+ depuis .+? {2}\S+(?: {2}(.*))?$/;
@@ -68,7 +68,7 @@ const SUITE_EN = /^ {2}#\d+ {2}\S.*? {2}port \d+ {2}\S+ since .+? {2}\S+(?: {2}(
 const TENU = /^ {2}#(\d+) {2}(\S.*?) {2}tenu depuis .+? {2}\S+ {2}(.+)$/;
 const TENU_EN = /^ {2}#(\d+) {2}(\S.*?) {2}held since .+? {2}\S+ {2}(.+)$/;
 // Sous une ligne, l'écran et sa phrase.
-const ECRAN = /^ {4}écran : (.+) \((déclaré par le cook|écran déduit des fichiers touchés, pas déclaré par le cook)\)$/;
+const SCREEN_FR = /^ {4}écran : (.+) \((déclaré par le cook|écran déduit des fichiers touchés, pas déclaré par le cook)\)$/;
 const SCREEN = /^ {4}screen: (.+) \((declared by the cook|screen deduced from the touched files, not declared by the cook)\)$/;
 const PHRASE = /^ {4}à regarder : (.+)$/;
 const SENTENCE = /^ {4}to look at: (.+)$/;
@@ -76,7 +76,7 @@ const DECLARE = new Set(["déclaré par le cook", "declared by the cook"]);
 // Ce que `status` dit d'un écran que le cook n'a pas déclaré, dans l'une ou l'autre langue : l'app le garde en anglais.
 const DEDUIT = "screen deduced from the touched files, not declared by the cook";
 // L'état d'un serveur, dans l'une ou l'autre langue : l'app le garde en anglais — un autre mot est gardé tel quel.
-const ETAT_DU_SERVEUR: Record<string, string> = { démarre: "starting", écoute: "listening" };
+const SERVER_STATE: Record<string, string> = { démarre: "starting", écoute: "listening" };
 
 // La route de la page qu'une ligne écrit, si c'est une page de ce worktree — son port, sur la
 // boucle locale — et pas sa racine. Rien n'est deviné : une adresse qui n'a pas cette forme n'en est pas une.
@@ -88,20 +88,20 @@ function routeDe(ecrite: string | undefined, port: number): string | null {
 
 // Les serveurs que cette sortie de `status` montre, et les livraisons à lancer. Seules les lignes
 // qui suivent la ligne `serveurs`, ou `à lancer`, en sont : un titre de ticket, plus haut, n'en fait pas un.
-export function serveursDe(status: string): Lus {
+export function serversOf(status: string): Lus {
   const lignes = status.split("\n");
-  const lus: Lus = { serveurs: [], aLancer: [], illisibles: [], empeche: [] };
+  const lus: Lus = { servers: [], aLancer: [], illisibles: [], empeche: [] };
   const tete = lignes.findIndex((ligne) => /^(?:serveurs|servers)\s/.test(ligne));
   if (tete !== -1) lus.entete = (lignes[tete] as string).replace(/^(?:serveurs|servers)\s+/, "");
   // Les lignes d'un bloc ; l'écran et la phrase, plus en retrait, vont à l'entrée qu'ils suivent —
   // sous une ligne illisible, ils le sont aussi.
-  const bloc = (titre: RegExp, lire: (ligne: string) => { ecran: Ecran | null } | undefined) => {
+  const bloc = (titre: RegExp, lire: (ligne: string) => { ecran: Screen | null } | undefined) => {
     const debut = lignes.findIndex((ligne) => titre.test(ligne));
-    let derniere: { ecran: Ecran | null } | undefined;
+    let derniere: { ecran: Screen | null } | undefined;
     for (let rang = debut + 1; debut !== -1 && lignes[rang]?.startsWith("  ") === true; rang++) {
       const ligne = lignes[rang] as string;
       if (ligne.startsWith("    ")) {
-        const [, nom, source] = ECRAN.exec(ligne) ?? SCREEN.exec(ligne) ?? [];
+        const [, nom, source] = SCREEN_FR.exec(ligne) ?? SCREEN.exec(ligne) ?? [];
         const [, phrase] = PHRASE.exec(ligne) ?? SENTENCE.exec(ligne) ?? [];
         if (derniere !== undefined && nom !== undefined && source !== undefined && derniere.ecran === null) derniere.ecran = { nom, phrase: null, deduit: DECLARE.has(source) ? null : DEDUIT };
         else if (derniere?.ecran != null && phrase !== undefined && derniere.ecran.phrase === null) derniere.ecran.phrase = phrase;
@@ -113,16 +113,16 @@ export function serveursDe(status: string): Lus {
     }
   };
   bloc(/^(?:serveurs|servers)\s/, (ligne) => {
-    const [, ticket, worktree, port, ecrit] = SERVEUR.exec(ligne) ?? SERVER.exec(ligne) ?? [];
-    const etat = ecrit === undefined ? undefined : (ETAT_DU_SERVEUR[ecrit] ?? ecrit);
+    const [, ticket, worktree, port, ecrit] = SERVER_FR.exec(ligne) ?? SERVER.exec(ligne) ?? [];
+    const etat = ecrit === undefined ? undefined : (SERVER_STATE[ecrit] ?? ecrit);
     const lisible = ticket !== undefined && worktree !== undefined && port !== undefined && etat !== undefined && Number.isSafeInteger(Number(ticket)) && Number(port) >= 1 && Number(port) <= 65535;
     // Un worktree n'a qu'un serveur : une seconde ligne à son nom ne dit pas lequel ouvrir.
-    if (!lisible || lus.serveurs.some((lu) => lu.worktree === worktree)) return undefined;
+    if (!lisible || lus.servers.some((lu) => lu.worktree === worktree)) return undefined;
     const ecrite = (SUITE.test(ligne) ? SUITE : SUITE_EN).exec(ligne)?.[1];
     const route = routeDe(ecrite, Number(port));
-    const serveur: Serveur = { ticket: Number(ticket), worktree, port: Number(port), etat, route, ...(route === null && ecrite !== undefined && ecrite !== "" && !/^https?:/.test(ecrite) ? { sansPage: ecrite } : {}), ecran: null };
-    lus.serveurs.push(serveur);
-    return serveur;
+    const server: StatusServer = { ticket: Number(ticket), worktree, port: Number(port), etat, route, ...(route === null && ecrite !== undefined && ecrite !== "" && !/^https?:/.test(ecrite) ? { sansPage: ecrite } : {}), ecran: null };
+    lus.servers.push(server);
+    return server;
   });
   bloc(/^(?:à lancer|to launch)\s/, (ligne) => {
     const [, ticket, worktree, commentLeVoir] = TENU.exec(ligne) ?? TENU_EN.exec(ligne) ?? [];
@@ -141,7 +141,7 @@ export type Dit = { ouverte: boolean; texte: string };
 // inactif : `sansPage` dit pourquoi. `raison` : absente, le geste est posé ; sinon,
 // pourquoi il ne l'est pas. `enCours` : le geste est parti, et n'a pas encore abouti.
 // `dit` : ce que le dernier a donné, tant que le serveur est montré.
-export type Page = Serveur & { raison?: string; enCours: boolean; dit?: Dit };
+export type Page = StatusServer & { raison?: string; enCours: boolean; dit?: Dit };
 // Ce que la vue pose d'un projet, prêt à poser : elle n'y calcule rien.
 // `vide` : ce qui se lit à la place des gestes quand il n'y en a aucun.
 // `rappel` : où se dit le verdict — posé avec les gestes, et seulement avec eux.
@@ -154,7 +154,7 @@ export type Pages = { projet: string; pages: Page[]; aLancer: ALancer[]; illisib
 const ECOUTE = "listening";
 const SANS_FIN = "with no end in the log";
 const SANS_FIN_FR = "sans fin au journal";
-// Le geste de poste, tel que faits.ts l'écrit sans le projet : la vue le pose sur le sien.
+// Le geste de poste, tel que facts.ts l'écrit sans le projet : la vue le pose sur le sien.
 const STATUS = "`ssh <hote> brigade <nom> status`";
 
 const RAPPEL = "The app opens the page in your browser: it does not show it, and collects no opinion. Your yes or no is given on the ticket's issue — its number opens it, on the rail.";
@@ -168,7 +168,7 @@ const SANS_ROUTE = `no page to open: ${STATUS} writes no screen page for this se
 // Pourquoi ce serveur n'a pas de geste — rien, s'il en a un. Un port qui ne
 // répond pas encore n'ouvrirait qu'une erreur ; un serveur dont le runtime est
 // mort n'a plus personne pour dire s'il répond.
-function raisonDe({ entete }: Lus, { etat }: Serveur): string | undefined {
+function raisonDe({ entete }: Lus, { etat }: StatusServer): string | undefined {
   if ((entete?.includes(SANS_FIN) === true || entete?.includes(SANS_FIN_FR) === true)) return `no action: ${STATUS} says these servers are “${SANS_FIN}” — their runtime stopped without shutting them down, and nothing says whether they answer`;
   if (etat !== ECOUTE) return `no action: ${STATUS} says “${etat}”, not “${ECOUTE}” — nothing says its port answers on the station. The action comes with the read that says so`;
   return undefined;
@@ -205,7 +205,7 @@ async function tenirPort(prefere: number): Promise<Server | undefined> {
 // rien y lire. Seul ce `ssh` peut ouvrir cette prise : quand elle répond, c'est lui, et la
 // box est jointe — un port de ce poste qui répondrait ne dirait pas à qui il est.
 // Le `ssh` lancé est celui de l'app, tué par son pid — `fermer`, ou `signal` tant qu'il s'installe.
-export async function ouvrirTransfert(reglages: Reglages, { box }: Servi, port: number, signal?: AbortSignal): Promise<Transfert | { refus: string }> {
+export async function ouvrirTransfert(reglages: Reglages, { box }: Served, port: number, signal?: AbortSignal): Promise<Transfert | { refus: string }> {
   const ABANDON = "nothing opened: the action was abandoned — its project left the app, or the app is closing";
   if (signal?.aborted === true) return { refus: ABANDON };
   const relais = await tenirPort(port);
@@ -314,7 +314,7 @@ type Tenu = { lus?: Lus; ouverts: Map<string, Ouvert>; enCours: Map<string, Prom
 // que la box a montré pour ce worktree, à la dernière lecture de `status`.
 export function tenirPages(options: {
   // Le transfert de port vers la box du projet — par son passage, dans l'app, comme tout ce qui la joint.
-  transferer(servi: Servi, port: number, signal: AbortSignal): Promise<Transfert | { refus: string }>;
+  transferer(served: Served, port: number, signal: AbortSignal): Promise<Transfert | { refus: string }>;
   // La commande d'ouverture du poste : son navigateur par défaut.
   ouvrir(url: string): Promise<void>;
 }) {
@@ -329,13 +329,13 @@ export function tenirPages(options: {
 
   function poser(nom: string, refus?: string): Pages {
     const { lus, enCours, dits } = tenir(nom);
-    const { serveurs, aLancer, illisibles, empeche } = lus ?? { serveurs: [], aLancer: [], illisibles: [], empeche: [] };
-    const pages = serveurs.map((serveur): Page => {
+    const { servers, aLancer, illisibles, empeche } = lus ?? { servers: [], aLancer: [], illisibles: [], empeche: [] };
+    const pages = servers.map((server): Page => {
       // Sans page à ouvrir, pas de geste : ce qui se lit à sa place suffit.
-      if (serveur.route === null) return { ...serveur, sansPage: serveur.sansPage ?? SANS_ROUTE, enCours: false };
-      const raison = lus === undefined ? undefined : raisonDe(lus, serveur);
-      const dit = dits.get(serveur.worktree);
-      return { ...serveur, ...(raison === undefined ? {} : { raison }), enCours: enCours.has(serveur.worktree), ...(dit === undefined ? {} : { dit }) };
+      if (server.route === null) return { ...server, sansPage: server.sansPage ?? SANS_ROUTE, enCours: false };
+      const raison = lus === undefined ? undefined : raisonDe(lus, server);
+      const dit = dits.get(server.worktree);
+      return { ...server, ...(raison === undefined ? {} : { raison }), enCours: enCours.has(server.worktree), ...(dit === undefined ? {} : { dit }) };
     });
     const vide = lus === undefined ? PAS_LU : pages.length > 0 || aLancer.length > 0 ? undefined : illisibles.length > 0 ? ILLISIBLE : empeche.length > 0 ? EMPECHE : AUCUN;
     // Le rappel va avec un geste : sans page à ouvrir, il n'a rien à rappeler.
@@ -350,19 +350,19 @@ export function tenirPages(options: {
   }
 
   // Le geste : le transfert, s'il n'est pas déjà tenu, puis la commande d'ouverture.
-  async function mener(servi: Servi, tenu: Tenu, { worktree, port, route }: Serveur & { route: string }): Promise<void> {
+  async function mener(served: Served, tenu: Tenu, { worktree, port, route }: StatusServer & { route: string }): Promise<void> {
     const dire = (ouverte: boolean, texte: string) => void tenu.dits.set(worktree, { ouverte, texte });
     // Tenu pour une autre box, ou un autre port : ce n'est plus celui de ce serveur.
     const tenuAvant = tenu.ouverts.get(worktree);
-    if (tenuAvant !== undefined && (tenuAvant.hote !== servi.box.hote || tenuAvant.port !== port)) lacher(tenu, worktree);
+    if (tenuAvant !== undefined && (tenuAvant.hote !== served.box.hote || tenuAvant.port !== port)) lacher(tenu, worktree);
     let ouvert = tenu.ouverts.get(worktree);
     if (ouvert === undefined) {
-      const rendu = await options.transferer(servi, port, tenu.arret.signal);
+      const rendu = await options.transferer(served, port, tenu.arret.signal);
       if ("refus" in rendu) return dire(false, rendu.refus);
       // Le temps que `ssh` s'installe, le serveur a pu quitter `status`, et le projet l'app.
-      const montre = tenu.lus === undefined || tenu.lus.serveurs.some((lu) => lu.worktree === worktree && lu.port === port);
-      if (ferme || tenus.get(servi.nom) !== tenu || !montre) return rendu.fermer();
-      const neuf = (ouvert = { hote: servi.box.hote, port, transfert: rendu });
+      const montre = tenu.lus === undefined || tenu.lus.servers.some((lu) => lu.worktree === worktree && lu.port === port);
+      if (ferme || tenus.get(served.nom) !== tenu || !montre) return rendu.fermer();
+      const neuf = (ouvert = { hote: served.box.hote, port, transfert: rendu });
       tenu.ouverts.set(worktree, neuf);
       // `ssh` sorti de lui-même — la box qui ne répond plus : la page ouverte n'a plus de chemin.
       void rendu.fini.then(() => {
@@ -390,10 +390,10 @@ export function tenirPages(options: {
     recevoir(montree: Montree): Pages {
       const tenu = tenir(montree.projet);
       const status = "erreur" in montree ? undefined : montree.sorties.find(({ commande }) => commande === "status")?.texte;
-      const lus = (tenu.lus = status === undefined ? undefined : serveursDe(status));
+      const lus = (tenu.lus = status === undefined ? undefined : serversOf(status));
       if (lus !== undefined) {
-        for (const [worktree, { port }] of tenu.ouverts) if (!lus.serveurs.some((lu) => lu.worktree === worktree && lu.port === port)) lacher(tenu, worktree);
-        for (const worktree of tenu.dits.keys()) if (!lus.serveurs.some((lu) => lu.worktree === worktree)) tenu.dits.delete(worktree);
+        for (const [worktree, { port }] of tenu.ouverts) if (!lus.servers.some((lu) => lu.worktree === worktree && lu.port === port)) lacher(tenu, worktree);
+        for (const worktree of tenu.dits.keys()) if (!lus.servers.some((lu) => lu.worktree === worktree)) tenu.dits.delete(worktree);
       }
       return poser(montree.projet);
     },
@@ -405,16 +405,16 @@ export function tenirPages(options: {
       if (projet.box === undefined || ferme) return undefined;
       const tenu = tenir(projet.nom);
       if (tenu.lus === undefined) return poser(projet.nom, `nothing opened: ${STATUS} has not been read — the action comes back with its read`);
-      const serveur = tenu.lus.serveurs.find((lu) => lu.worktree === worktree);
-      if (serveur === undefined) return poser(projet.nom, PLUS_MONTRE);
-      const { route } = serveur;
-      if (route === null) return poser(projet.nom, `nothing opened: ${serveur.sansPage ?? SANS_ROUTE}`);
-      const raison = raisonDe(tenu.lus, serveur);
+      const server = tenu.lus.servers.find((lu) => lu.worktree === worktree);
+      if (server === undefined) return poser(projet.nom, PLUS_MONTRE);
+      const { route } = server;
+      if (route === null) return poser(projet.nom, `nothing opened: ${server.sansPage ?? SANS_ROUTE}`);
+      const raison = raisonDe(tenu.lus, server);
       if (raison !== undefined) return poser(projet.nom, `nothing opened: ${raison}`);
-      let partie = tenu.enCours.get(serveur.worktree);
+      let partie = tenu.enCours.get(server.worktree);
       if (partie === undefined) {
-        partie = mener({ nom: projet.nom, box: projet.box }, tenu, { ...serveur, route }).finally(() => void tenu.enCours.delete(serveur.worktree));
-        tenu.enCours.set(serveur.worktree, partie);
+        partie = mener({ nom: projet.nom, box: projet.box }, tenu, { ...server, route }).finally(() => void tenu.enCours.delete(server.worktree));
+        tenu.enCours.set(server.worktree, partie);
       }
       await partie;
       return poser(projet.nom);

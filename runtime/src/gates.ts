@@ -7,7 +7,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { envelopper, type Cloison } from "./cloison.ts";
+import { envelopper, type Partition } from "./partition.ts";
 import type { Depassement, Gates } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 
@@ -41,21 +41,21 @@ const LIGNE_MAX = 300;
 const SORTIE_MAX = 256 * 1024;
 // Une mesure déclarée par les gates : `MESURE  <nom>=<nombre>`, seule sur sa
 // ligne. Le nombre s'écrit avec un point ou une virgule.
-const MESURE = /^MESURE\s+([a-z][a-z0-9_]*)=([0-9]+(?:[.,][0-9]+)?)\s*$/;
-const MESURES_MAX = 20;
+const MEASURE = /^MESURE\s+([a-z][a-z0-9_]*)=([0-9]+(?:[.,][0-9]+)?)\s*$/;
+const MEASURES_MAX = 20;
 const FIN_MAX = 4000;
 // Le plafond de durée que les gates se donnent (binding « Plafond des gates »),
 // franchi : la ligne de leur mesure, puis leur ligne FAIL — celle dont le hook
 // d'arrêt tire l'empreinte de l'échec. Les deux nomment le même plafond.
 const NOMBRE = "([0-9]+(?:[.,][0-9]+)?)";
-const MESURE_FRANCHIE = new RegExp(`^durée des gates : ${NOMBRE} s de processeur\\b.* pour un plafond de ${NOMBRE} s — `);
-const PLAFOND_FRANCHI = new RegExp(`^FAIL\\s+plafond des gates franchi : plus de ${NOMBRE} s de processeur\\s*$`);
+const MEASURE_CROSSED = new RegExp(`^durée des gates : ${NOMBRE} s de processeur\\b.* pour un plafond de ${NOMBRE} s — `);
+const CAP_CROSSED = new RegExp(`^FAIL\\s+plafond des gates franchi : plus de ${NOMBRE} s de processeur\\s*$`);
 const lire = (nombre: string | undefined) => Number(nombre?.replace(",", "."));
 // Des tests coupés par la garde d'horloge des gates sans qu'aucun n'ait échoué
 // avant la coupure : leur ligne FAIL le dit en ces mots.
 const COUPEE_SANS_ECHEC = /^FAIL\s.*garde d'horloge, aucun test en échec/;
 // Ce qu'on laisse à la sortie d'un script pour se fermer une fois qu'il a fini.
-const DELAI_DE_FERMETURE_MS = 1000;
+const CLOSING_DELAY_MS = 1000;
 
 export type DemandeScript = {
   worktree: string;
@@ -74,7 +74,7 @@ export type DemandeScript = {
   masquer?: (texte: string) => string;
   // La cloison dans laquelle le script part : il y retrouve son worktree, en
   // écriture. Absente, il tourne sous le compte du runtime, sans rien autour.
-  cloison?: Cloison | null;
+  partition?: Partition | null;
 };
 
 // `joue` : le projet a un setup. Sans lui, l'environnement est rendu tel quel.
@@ -95,7 +95,7 @@ function jouer(script: string, args: string[], demande: DemandeScript): Promise<
   return new Promise((resoudre) => {
     // Son propre groupe de process : au plafond, le script meurt avec tout ce
     // qu'il a lancé.
-    const lancement = envelopper(demande.cloison, { commande: "bash", args: ["-c", script, "brigade", ...args] }, { cwd: demande.worktree, depot: "ecriture" });
+    const lancement = envelopper(demande.partition, { commande: "bash", args: ["-c", script, "brigade", ...args] }, { cwd: demande.worktree, depot: "ecriture" });
     const enfant = spawn(lancement.commande, lancement.args, {
       cwd: demande.worktree,
       env: demande.env,
@@ -122,7 +122,7 @@ function jouer(script: string, args: string[], demande: DemandeScript): Promise<
         // Déjà mort.
       }
     };
-    const plafond = setTimeout(() => {
+    const cap = setTimeout(() => {
       echu = true;
       tuer();
     }, demande.delaiMs);
@@ -132,7 +132,7 @@ function jouer(script: string, args: string[], demande: DemandeScript): Promise<
     const rendre = (code: number | null, erreur?: string) => {
       if (rendu) return;
       rendu = true;
-      clearTimeout(plafond);
+      clearTimeout(cap);
       demande.signal?.removeEventListener("abort", tuer);
       const dite = erreur ? `${sortie}\n${erreur}` : sortie;
       const masquee = masquerIdentifiants(demande.masquer?.(dite) ?? dite);
@@ -147,11 +147,11 @@ function jouer(script: string, args: string[], demande: DemandeScript): Promise<
     // ouverte jusqu'au plafond. Ce qu'il a laissé meurt avec son groupe ; la
     // sortie se ferme alors, et ce qui restait à lire est lu.
     enfant.on("exit", (code) => {
-      clearTimeout(plafond);
+      clearTimeout(cap);
       tuer();
       const fini = () => rendre(code);
       enfant.on("close", fini);
-      setTimeout(fini, DELAI_DE_FERMETURE_MS);
+      setTimeout(fini, CLOSING_DELAY_MS);
     });
   });
 }
@@ -173,16 +173,16 @@ export async function jouerSetup(demande: DemandeScript): Promise<Setup> {
 }
 
 // Le plafond que nomme une ligne FAIL de plafond franchi.
-const plafondDeLaLigne = (ligne: string) => (PLAFOND_FRANCHI.exec(ligne) ?? []).slice(1, 2).map(lire);
+const lineCap = (ligne: string) => (CAP_CROSSED.exec(ligne) ?? []).slice(1, 2).map(lire);
 
 // Le dépassement que des gates sorties rouges déclarent, ou null. Une ligne
 // FAIL de plafond sans la mesure qui nomme le même plafond n'en est pas un :
 // elle peut venir d'un test, et reste un échec comme un autre.
-function plafondFranchi(lignes: string[]): Depassement | null {
-  const plafonds = lignes.flatMap(plafondDeLaLigne);
+function capCrossed(lignes: string[]): Depassement | null {
+  const caps = lignes.flatMap(lineCap);
   for (const ligne of lignes) {
-    const [, cout, plafond] = MESURE_FRANCHIE.exec(ligne) ?? [];
-    if (cout !== undefined && plafonds.includes(lire(plafond))) return { cpuSeconds: lire(cout), limitSeconds: lire(plafond), line: ligne.slice(0, LIGNE_MAX) };
+    const [, cout, cap] = MEASURE_CROSSED.exec(ligne) ?? [];
+    if (cout !== undefined && caps.includes(lire(cap))) return { cpuSeconds: lire(cout), limitSeconds: lire(cap), line: ligne.slice(0, LIGNE_MAX) };
   }
   return null;
 }
@@ -200,15 +200,15 @@ export async function jouerGates(demande: DemandeScript): Promise<Gates> {
   const masques = setup.masques + passage.masques;
   const lignes = [setup.pret ? setup.sortie : "", passage.sortie].join("\n").split("\n").filter((ligne) => ligne.trim() !== "");
   // Déclarée deux fois, une mesure vaut sa dernière valeur.
-  const mesures = lignes.flatMap((ligne) => {
-    const [, nom, valeur] = MESURE.exec(ligne) ?? [];
+  const measures = lignes.flatMap((ligne) => {
+    const [, nom, valeur] = MEASURE.exec(ligne) ?? [];
     return nom === undefined || valeur === undefined ? [] : [[nom, Number(valeur.replace(",", "."))] as const];
   });
   const rouges = !passage.depasse && passage.code !== 0;
-  const franchi = rouges && passage.code !== null && !passage.coupee ? plafondFranchi(lignes) : null;
+  const franchi = rouges && passage.code !== null && !passage.coupee ? capCrossed(lignes) : null;
   // Seule la ligne qui nomme le plafond reconnu n'est pas un échec : une autre,
   // qui en nomme un autre, n'a pas sa mesure.
-  const echecs = lignes.filter((ligne) => /^FAIL\b/.test(ligne) && !(franchi && plafondDeLaLigne(ligne).includes(franchi.limitSeconds)));
+  const echecs = lignes.filter((ligne) => /^FAIL\b/.test(ligne) && !(franchi && lineCap(ligne).includes(franchi.limitSeconds)));
   // Coupées par leur garde d'horloge, et rien d'autre : aucune autre ligne
   // FAIL. Une sortie dont le début manque peut en avoir perdu une.
   const coupees = rouges && passage.code !== null && !passage.coupee ? echecs.filter((ligne) => COUPEE_SANS_ECHEC.test(ligne)) : [];
@@ -223,7 +223,7 @@ export async function jouerGates(demande: DemandeScript): Promise<Gates> {
     tail: lignes.slice(-LIGNES_DE_FIN).join("\n").slice(-FIN_MAX),
     ...(franchi ? { overCeiling: franchi } : {}),
     ...(coupee === undefined ? {} : { clockGuardCut: coupee.slice(0, LIGNE_MAX) }),
-    ...(mesures.length === 0 ? {} : { measures: Object.fromEntries(mesures.slice(-MESURES_MAX)) }),
+    ...(measures.length === 0 ? {} : { measures: Object.fromEntries(measures.slice(-MEASURES_MAX)) }),
     ...(masques === 0 ? {} : { credentialsMasked: masques }),
   };
 }

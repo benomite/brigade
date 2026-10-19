@@ -3,7 +3,7 @@ import { existsSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { dernierTick, sessionEnCours } from "../src/projections/sessions.ts";
 import { ConfigInvalide, DejaEnCours, demarrer, type CauseReveil } from "../src/runtime.ts";
 import { prendreVerrou } from "../src/verrou.ts";
@@ -30,10 +30,10 @@ test("arrêter journalise l'arrêt et son signal", (t) => {
   const repertoire = repertoireTemporaire(t);
   demarrer({ repertoireEtat: repertoire, projet: "brigade" }).arreter("SIGTERM");
 
-  const journal = ouvrirJournal(repertoire, { lectureSeule: true });
-  t.after(() => journal.fermer());
+  const log = openLog(repertoire, { lectureSeule: true });
+  t.after(() => log.fermer());
   assert.deepEqual(
-    journal.tout().map((e) => [e.type, e.payload]),
+    log.tout().map((e) => [e.type, e.payload]),
     [["runtime.started", { pid: process.pid, host: hostname(), node: process.version }], ["runtime.stopped", { signal: "SIGTERM" }]],
   );
 });
@@ -97,7 +97,7 @@ test("ce qu'un autre process écrit dans le journal réveille le runtime", async
   const reveil = new Promise<CauseReveil>((resoudre) => runtime.surReveil(resoudre));
 
   // Une autre connexion, comme le ferait la CLI depuis son propre process.
-  const cli = ouvrirJournal(repertoire);
+  const cli = openLog(repertoire);
   cli.ajouter({ project: "brigade", ticket: null, author: "chef", ...faitInconnu("chef.stop") });
   cli.fermer();
 
@@ -154,16 +154,16 @@ test("arrêter deux fois ne journalise qu'un arrêt", (t) => {
   runtime.arreter("SIGTERM");
   runtime.arreter("SIGINT");
 
-  const journal = ouvrirJournal(repertoire, { lectureSeule: true });
-  t.after(() => journal.fermer());
-  assert.deepEqual(journal.tout().map((e) => e.type), ["runtime.started", "runtime.stopped"]);
+  const log = openLog(repertoire, { lectureSeule: true });
+  t.after(() => log.fermer());
+  assert.deepEqual(log.tout().map((e) => e.type), ["runtime.started", "runtime.stopped"]);
 });
 
 test("au démarrage, les projections sont recalculées depuis le journal : une projection absente à l'écriture se retrouve", (t) => {
   const repertoire = repertoireTemporaire(t);
   // Un journal écrit par un runtime qui ne connaissait pas encore la projection
   // des sessions, et mort sans avoir noté son arrêt.
-  const ancien = ouvrirJournal(repertoire, { projections: [] });
+  const ancien = openLog(repertoire, { projections: [] });
   ancien.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
   ancien.fermer();
 
@@ -190,7 +190,7 @@ test("le refus reste un refus quand le journal de celui qui tourne n'est pas enc
   // Le premier runtime tient le verrou mais n'a pas encore posé ses projections.
   const verrou = prendreVerrou(repertoire);
   t.after(() => verrou.relacher());
-  ouvrirJournal(repertoire, { projections: [] }).fermer();
+  openLog(repertoire, { projections: [] }).fermer();
 
   assert.throws(
     () => demarrer({ repertoireEtat: repertoire, projet: "brigade" }),

@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { decisionsPosees, poserDecision } from "../decisions.ts";
 import { configIdentites, ouvrirIdentites, ROLES } from "../identites.ts";
-import { ouvrirJournal } from "../journal.ts";
+import { openLog } from "../log.ts";
 import type { ProjetDemande } from "./demande.ts";
 
 // Ce que la station déclare de son moteur : `claude` code et raisonne
@@ -98,11 +98,11 @@ export function decisionsDe(projet: ProjetDemande, station: string): Record<stri
 // noms posés.
 export function poserLesDecisions(repertoireEtat: string, projet: string, decisions: Record<string, string>): string[] {
   mkdirSync(repertoireEtat, { recursive: true });
-  const journal = ouvrirJournal(repertoireEtat);
+  const log = openLog(repertoireEtat);
   try {
-    const posees = decisionsPosees(journal.base);
-    return Object.entries(decisions).flatMap(([nom, valeur]) => (nom in posees ? [] : poserDecision(journal, { projet, nom, valeur, auteur: "chef" }) === null ? [] : [nom]));
+    const posees = decisionsPosees(log.base);
+    return Object.entries(decisions).flatMap(([nom, valeur]) => (nom in posees ? [] : poserDecision(log, { projet, nom, valeur, auteur: "chef" }) === null ? [] : [nom]));
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }

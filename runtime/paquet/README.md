@@ -44,7 +44,7 @@ configuration — hormis, après la connexion Max, le jeton et ses deux fichiers
 (`git`, `gh`, `bubblewrap`, `libatomic1`, `adduser`, `systemd`…) viennent d'apt.
 
 La commande du guide finit par la connexion Max du compte `brigade`, quand un terminal est là :
-`runtime/src/connexion-max/connecter-cli.ts`, que le paquet porte avec le reste du runtime, pose
+`runtime/src/connection-max/connecter-cli.ts`, que le paquet porte avec le reste du runtime, pose
 `claude` s'il manque, lance `claude setup-token` sous le compte, et range le jeton sans l'afficher :
 `/etc/brigade/claude-token` (600, au compte `brigade`), la date de sa création dans
 `/etc/brigade/claude-token.cree` (sans le jeton), et `/etc/brigade/jeton.env`, que l'unité lit pour
@@ -66,7 +66,7 @@ d'elle-même en démarrant (`/var/lib/brigade/en-service`).
 ## La porte réseau
 
 L'unité de la station ne joint que la boucle locale (`IPAddressDeny=any`, `IPAddressAllow=localhost`).
-Sa seule sortie est `brigade-station-porte.service` (`runtime/src/station/tenir-portes.ts`), une
+Sa seule sortie est `brigade-station-porte.service` (`runtime/src/station/hold-doors.ts`), une
 unité à côté, sans filtre, qui ne lance rien : elle tient la porte de la station — Anthropic et
 GitHub seulement — et une porte par projet de `/var/lib/brigade/projets`, ouverte quand le projet
 y entre, fermée quand il en sort. La porte d'un projet ne laisse passer que sa liste blanche :

@@ -22,7 +22,7 @@ Type=simple
 # projet, et y écrit ses refus.
 User=brigade
 WorkingDirectory=/usr/lib/brigade-station/runtime
-ExecStart=/usr/lib/brigade-station/node/bin/node src/station/tenir-portes.ts
+ExecStart=/usr/lib/brigade-station/node/bin/node src/station/hold-doors.ts
 
 StateDirectory=brigade
 StateDirectoryMode=0750

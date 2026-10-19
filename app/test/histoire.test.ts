@@ -59,9 +59,9 @@ describe("l'histoire d'un ticket mergé", () => {
 
 describe("ce que la fiche dit d'un ticket vivant", () => {
   test("en cours : ce que son cook fait en ce moment, mot pour mot", () => {
-    assert.deepEqual(situation({ etat: "pris", attend: [], dit: [{ libelle: "right now", valeur: "editing app/src/fiche.ts, for 3 min" }] }), {
+    assert.deepEqual(situation({ etat: "pris", attend: [], dit: [{ libelle: "right now", valeur: "editing app/src/card.ts, for 3 min" }] }), {
       libelle: "right now",
-      lignes: ["editing app/src/fiche.ts, for 3 min"],
+      lignes: ["editing app/src/card.ts, for 3 min"],
     });
   });
 

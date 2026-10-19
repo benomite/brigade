@@ -22,7 +22,7 @@ import { decisionsPosees, poserDecision } from "./decisions.ts";
 import { ETAPES, installationDe, noterEtape } from "./etapes.ts";
 import { geste } from "./geste.ts";
 import { trouver } from "./installation.ts";
-import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
+import { logPath, openLog, type Log } from "./log.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { direStations, FORME, lireStations, VARIABLE_DES_STATIONS, type StationDeclaree } from "./stations-declarees.ts";
 
@@ -60,25 +60,25 @@ export function stationsProposees(env: Record<string, string | undefined>): { pr
 
 // Les stations que le journal du répertoire d'état déclare, en lecture seule.
 // Aucun journal, ou une déclaration que le runtime ne lirait pas : aucune.
-export function stationsDeclareesAuJournal(repertoireEtat: string): StationDeclaree[] {
-  if (!existsSync(cheminJournal(repertoireEtat))) return [];
-  const journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
+export function loggedDeclaredStations(repertoireEtat: string): StationDeclaree[] {
+  if (!existsSync(logPath(repertoireEtat))) return [];
+  const log = openLog(repertoireEtat, { lectureSeule: true });
   try {
-    return lireStations({ [VARIABLE_DES_STATIONS]: decisionsPosees(journal.base)[VARIABLE_DES_STATIONS] });
+    return lireStations({ [VARIABLE_DES_STATIONS]: decisionsPosees(log.base)[VARIABLE_DES_STATIONS] });
   } catch {
     return [];
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }
 
 // Déclare les stations et note l'étape faite, ensemble : l'une ne s'écrit pas
 // sans l'autre. Rend vrai si la déclaration a changé. Une déclaration que le
 // runtime ne lirait pas lève `ConfigInvalide`, et rien n'est écrit.
-export function declarerStations(journal: Journal, pose: { projet: string; declaration: string; auteur: string }): boolean {
-  return journal.base.transaction(() => {
-    const posee = poserDecision(journal, { projet: pose.projet, nom: VARIABLE_DES_STATIONS, valeur: pose.declaration, auteur: pose.auteur });
-    noterEtape(journal, { projet: pose.projet, etape: ETAPE, etat: "done", auteur: pose.auteur });
+export function declarerStations(log: Log, pose: { projet: string; declaration: string; auteur: string }): boolean {
+  return log.base.transaction(() => {
+    const posee = poserDecision(log, { projet: pose.projet, nom: VARIABLE_DES_STATIONS, valeur: pose.declaration, auteur: pose.auteur });
+    noterEtape(log, { projet: pose.projet, etape: ETAPE, etat: "done", auteur: pose.auteur });
     return posee !== null;
   });
 }
@@ -86,12 +86,12 @@ export function declarerStations(journal: Journal, pose: { projet: string; decla
 const ETATS_LUS = { todo: "à faire", done: "faite", waiting: "en attente" } as const;
 
 // La forme JSON : un contrat avec l'app, figé par `test/declarer-stations.test.ts`.
-export function faitsDesStations(lus: { etat: keyof typeof ETATS_LUS; proposees: StationProposee[]; absent: string | null; declarees: StationDeclaree[] }) {
+export function stationsFacts(lus: { etat: keyof typeof ETATS_LUS; proposees: StationProposee[]; absent: string | null; declarees: StationDeclaree[] }) {
   return {
     etape: { id: ETAPE, etat: ETATS_LUS[lus.etat] },
     proposees: lus.proposees.map(({ nom, moteur, fournit, cooks }) => ({ nom, moteur, fournit, cooks })),
     absent: lus.absent,
-    declarees: lus.declarees.map(({ nom, moteur, fournit, cooks, distante }) => ({ nom, moteur, fournit, cooks, distante: distante === true })),
+    declarees: lus.declarees.map(({ nom, moteur, fournit, cooks, distante: remote }) => ({ nom, moteur, fournit, cooks, distante: remote === true })),
   };
 }
 
@@ -108,9 +108,9 @@ export function principal({ args, env, dire, redire }: Appel): void {
 
   if (args.length === 0 || (args.length === 1 && args[0] === "--json")) {
     const etat = installationDe(repertoireEtat).etapes.find((lue) => lue.id === ETAPE)?.etat ?? "todo";
-    const faits = faitsDesStations({ etat, ...stationsProposees(env), declarees: stationsDeclareesAuJournal(repertoireEtat) });
-    if (args.length === 1) dire(JSON.stringify(faits));
-    else montrer(faits);
+    const facts = stationsFacts({ etat, ...stationsProposees(env), declarees: loggedDeclaredStations(repertoireEtat) });
+    if (args.length === 1) dire(JSON.stringify(facts));
+    else montrer(facts);
     return;
   }
 
@@ -127,11 +127,11 @@ export function principal({ args, env, dire, redire }: Appel): void {
   }
   // Sans journal, il en naît un au nom que l'unité donne au projet, comme
   // pour une décision posée par `station`.
-  if (!existsSync(cheminJournal(repertoireEtat)) && !env.BRIGADE_PROJECT) echouer(1, `aucun journal dans ${repertoireEtat}, et BRIGADE_PROJECT n'est pas défini : rien ne dit à quel projet déclarer les stations`);
-  const journal = ouvrirJournal(repertoireEtat);
+  if (!existsSync(logPath(repertoireEtat)) && !env.BRIGADE_PROJECT) echouer(1, `aucun journal dans ${repertoireEtat}, et BRIGADE_PROJECT n'est pas défini : rien ne dit à quel projet déclarer les stations`);
+  const log = openLog(repertoireEtat);
   try {
-    const projet = journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ?? env.BRIGADE_PROJECT ?? "";
-    const change = declarerStations(journal, { projet, declaration, auteur: AUTEUR });
+    const projet = log.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ?? env.BRIGADE_PROJECT ?? "";
+    const change = declarerStations(log, { projet, declaration, auteur: AUTEUR });
     const stations = direStations(lireStations({ [VARIABLE_DES_STATIONS]: declaration }));
     dire(
       change
@@ -140,25 +140,25 @@ export function principal({ args, env, dire, redire }: Appel): void {
     );
     dire(`brigade : « ${etape.titre} » notée faite`);
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 
-  function montrer(faits: ReturnType<typeof faitsDesStations>): void {
+  function montrer(facts: ReturnType<typeof stationsFacts>): void {
     if (etape === undefined) return;
-    dire(`brigade : « ${etape.titre} » — ${faits.etape.etat}`);
+    dire(`brigade : « ${etape.titre} » — ${facts.etape.etat}`);
     dire(`  à quoi elle sert : ${etape.sert}`);
     dire(`  si tu la sautes  : ${etape.sauter}`);
     dire("");
     dire("Ce que cette machine fournit");
-    if (faits.absent !== null) dire(`  aucune station — ${faits.absent}`);
-    for (const proposee of faits.proposees) dire(`  ${proposee.nom.padEnd(16)}fournit : ${proposee.fournit.join(", ")} — plafond de cooks à choisir`);
+    if (facts.absent !== null) dire(`  aucune station — ${facts.absent}`);
+    for (const proposee of facts.proposees) dire(`  ${proposee.nom.padEnd(16)}fournit : ${proposee.fournit.join(", ")} — plafond de cooks à choisir`);
     dire("");
     dire("Ce que le projet déclare");
-    if (faits.declarees.length === 0) dire("  aucune station — aucun cook ne part, les tickets restent en attente");
-    for (const declaree of faits.declarees) {
+    if (facts.declarees.length === 0) dire("  aucune station — aucun cook ne part, les tickets restent en attente");
+    for (const declaree of facts.declarees) {
       dire(`  ${declaree.nom.padEnd(16)}fournit : ${declaree.fournit.join(", ")} — ${declaree.cooks} cook${declaree.cooks > 1 ? "s" : ""} au plus${declaree.distante ? " — distante : elle tire son travail" : ""}`);
     }
-    const exemple = faits.proposees[0];
+    const exemple = facts.proposees[0];
     dire("");
     dire(
       `Pour les déclarer : \`${geste(`installation stations ${exemple === undefined ? FORME : `${exemple.nom}:<plafond de cooks>:${exemple.fournit.join("+")}`}`, env)}\` — une station par entrée, séparées par des virgules`,

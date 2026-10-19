@@ -6,13 +6,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { cooksEnCours } from "../src/projections/guardrails.ts";
-import { chef, cuisine, issue, STATION, type Options } from "./aides/cuisine.ts";
+import { chef, kitchen, issue, STATION, type Options } from "./aides/kitchen.ts";
 import { BASE, git, jusqua, mort, vivant } from "./outils.ts";
 
 // Une première vie : un cook part sur #15 et commite, puis attend qu'on le
 // laisse conclure. Le runtime est arrêté pendant qu'il tourne.
 async function premiereVie(t: TestContext, options: Options = {}) {
-  const premiere = cuisine(t, { scenario: "commite-puis-attend", issues: [issue(15)], ...options });
+  const premiere = kitchen(t, { scenario: "commite-puis-attend", issues: [issue(15)], ...options });
   await jusqua(() => premiere.cooks().length === 1 && premiere.dernier("cook.launched", 15) !== undefined);
   const lancement = premiere.dernier("cook.launched", 15) ?? {};
   const run = String(lancement.run);
@@ -38,7 +38,7 @@ describe("la reprise des cooks en vol", { concurrency: 4 }, () => {
     assert.equal(vivant(pid), true);
     assert.equal(existsSync(worktree), true);
 
-    const seconde = cuisine(t, { scenario: "livre", lieux: premiere.lieux });
+    const seconde = kitchen(t, { scenario: "livre", lieux: premiere.lieux });
 
     assert.deepEqual(cooksEnCours(seconde.journal.base).map((cook) => [cook.run, cook.ticket]), [[run, 15]]);
     assert.deepEqual(seconde.dernier("cook.resumed", 15), { run, pid: Number(JSON.parse(readFileSync(join(seconde.repertoire, "runs", `${run}.relais.json`), "utf8")).pid) });
@@ -53,7 +53,7 @@ describe("la reprise des cooks en vol", { concurrency: 4 }, () => {
     const { premiere, run, pid, worktree, branche } = await premiereVie(t, { git: true });
     const tete = git(premiere.lieux.clone, "rev-parse", branche);
 
-    const seconde = cuisine(t, { lieux: premiere.lieux, git: true });
+    const seconde = kitchen(t, { lieux: premiere.lieux, git: true });
     // Plusieurs ticks : le rangement des worktrees et le bail ont eu leur tour.
     const ticks = () => seconde.journal.tout().filter((e) => e.type === "runtime.ticked").length;
     await jusqua(() => ticks() >= 5);
@@ -69,7 +69,7 @@ describe("la reprise des cooks en vol", { concurrency: 4 }, () => {
   test("le cook repris finit son travail : sa branche est poussée, sa PR ouverte, il passe la pass et se merge — sans qu'aucun cook neuf ne parte", async (t) => {
     const { premiere, run, pid, branche } = await premiereVie(t);
 
-    const seconde = cuisine(t, { lieux: premiere.lieux, pass: true });
+    const seconde = kitchen(t, { lieux: premiere.lieux, pass: true });
     chef(seconde.repertoire, "grant.activated");
     await jusqua(() => seconde.dernier("cook.resumed", 15) !== undefined);
     seconde.conclure();
@@ -98,7 +98,7 @@ describe("la reprise des cooks en vol", { concurrency: 4 }, () => {
     await jusqua(() => existsSync(join(premiere.repertoire, "runs", `${run}.fin.json`)));
     await mort(pid);
 
-    const seconde = cuisine(t, { lieux: premiere.lieux });
+    const seconde = kitchen(t, { lieux: premiere.lieux });
 
     await jusqua(() => seconde.etat(15) === "pass" && seconde.dernier("cook.reported", 15) !== undefined);
     assert.deepEqual([seconde.dernier("cook.exited", 15)?.run, seconde.dernier("cook.exited", 15)?.outcome], [run, "ok"]);
@@ -111,7 +111,7 @@ describe("la reprise des cooks en vol", { concurrency: 4 }, () => {
     // Le remplacement a duré plus que le bail.
     premiere.lieux.heure.avancer(3_600_000);
 
-    const seconde = cuisine(t, { lieux: premiere.lieux, bailMs: 600_000 });
+    const seconde = kitchen(t, { lieux: premiere.lieux, bailMs: 600_000 });
     await jusqua(() => seconde.dernier("cook.resumed", 15) !== undefined);
     const ticks = () => seconde.journal.tout().filter((e) => e.type === "runtime.ticked").length;
     await jusqua(() => ticks() >= 3);

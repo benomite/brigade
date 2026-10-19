@@ -11,9 +11,9 @@ import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE, type Dessinable } from "../src/faits.ts";
-import { entete } from "../src/fiche.ts";
+import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
+import { BANNIERE, type Dessinable } from "../src/facts.ts";
+import { entete } from "../src/card.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS, type Vu as VuDesGrants } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
@@ -34,7 +34,7 @@ const demarrage = () => ({
   exemple: EXEMPLE,
   onglets: ONGLETS, rubriques: RUBRIQUES,
   boutons: BOUTONS,
-  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -47,7 +47,7 @@ async function ouvrir() {
   await repos();
   return vue;
 }
-const faits = (etat: string, ton: string | undefined, arretee = false): Dessinable => ({
+const facts = (etat: string, ton: string | undefined, arretee = false): Dessinable => ({
   projet: PARADE,
   demande: 0,
   a: A,
@@ -115,13 +115,13 @@ describe("la cuisine, le grant, le manager : une pastille à forme, et son libel
   test("cuisine ouverte : disque vert ; arrêtée : carré rouge — le mot est dans la pilule", async () => {
     const vue = await ouvrir();
     const numero = () => vue.dernier("faits")[0] as number;
-    vue.dire("surFaits", { ...faits("ouverte", "vert"), demande: numero() });
+    vue.dire("surFaits", { ...facts("ouverte", "vert"), demande: numero() });
     const pilule = (vue.element("carte").dessous("span").find((s) => s.className === "pilule") ?? assert.fail("pas de pilule")) as Faux;
     const [point] = pilule.dessous("span");
     assert.equal(pilule.textContent, "ouverte");
     assert.deepEqual([point?.dataset.ton, point?.dataset.forme], ["vert", "disque"]);
 
-    vue.dire("surFaits", { ...faits("arrêtée", "rouge", true), demande: numero() });
+    vue.dire("surFaits", { ...facts("arrêtée", "rouge", true), demande: numero() });
     const arretee = (vue.element("carte").dessous("span").find((s) => s.className === "pilule") ?? assert.fail("pas de pilule")) as Faux;
     assert.equal(arretee.textContent, "arrêtée");
     assert.deepEqual([arretee.dessous("span")[0]?.dataset.ton, arretee.dessous("span")[0]?.dataset.forme], ["rouge", "carre"]);
@@ -132,7 +132,7 @@ describe("la cuisine, le grant, le manager : une pastille à forme, et son libel
 
   test("un mot hors des listes fermées garde la pastille vide : ni ton, ni forme, et le texte nu", async () => {
     const vue = await ouvrir();
-    vue.dire("surFaits", { ...faits("un mot inconnu", undefined), demande: vue.dernier("faits")[0] as number });
+    vue.dire("surFaits", { ...facts("un mot inconnu", undefined), demande: vue.dernier("faits")[0] as number });
     const pilule = vue.element("carte").dessous("span").find((s) => s.className === "pilule") ?? assert.fail("pas de pilule");
     assert.equal(pilule.textContent, "un mot inconnu");
     assert.deepEqual([pilule.dessous("span")[0]?.dataset.ton, pilule.dessous("span")[0]?.dataset.forme], [undefined, undefined]);
@@ -179,7 +179,7 @@ describe("un ticket qui t'attend", () => {
   test("sa pilule dit « t'attend » en mots, avec la forme de la colonne — et l'état du ticket garde la sienne", async () => {
     const vue = await ouvrir();
     // Le rail est au centre de l'espace : aucun onglet n'est à ouvrir pour le lire.
-    vue.dire("surFaits", { ...faits("ouverte", "vert"), demande: vue.dernier("faits")[0] as number });
+    vue.dire("surFaits", { ...facts("ouverte", "vert"), demande: vue.dernier("faits")[0] as number });
 
     const pilules = vue.element("rail").dessous("span").filter((s) => s.className.split(" ").includes("etat-ticket"));
     assert.deepEqual(

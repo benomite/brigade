@@ -2,8 +2,8 @@
 //   npm --prefix runtime run closing              the observation: it reads, and touches nothing
 //   npm --prefix runtime run closing -- write     the writing pass: the chef's gesture, and the only one that launches it
 //   npm --prefix runtime run closing -- cancel    withdraws the waiting request, before it leaves
-//   npm --prefix runtime run closing -- --json    what the app reads: the observation, the last request, the drift — it reads, and launches nothing (`fermeture-lecture/`)
-// and the same gestures for a program, the app (`fermeture-action/action.ts`):
+//   npm --prefix runtime run closing -- --json    what the app reads: the observation, the last request, the drift — it reads, and launches nothing (`closing-lecture/`)
+// and the same gestures for a program, the app (`closing-action/action.ts`):
 // `preview`, `write --json --confirm`, `cancel --json`.
 // The old words (`fermeture`, `ecrire`, `annuler`) still answer, saying the new
 // one (`commandes.ts`).
@@ -21,13 +21,13 @@
 import { existsSync } from "node:fs";
 import { enAnglais } from "../commandes.ts";
 import { Sortie, type Appel } from "../appel.ts";
-import { cheminJournal, ouvrirJournal } from "../journal.ts";
-import { journalPasRejoue } from "../journal-pas-rejoue.ts";
-import { agir, estPourLApp } from "../fermeture-action/action.ts";
-import { annuler, demander } from "../fermeture-action/demande.ts";
-import { direDecision, direRetrait } from "../fermeture-action/dire.ts";
+import { logPath, openLog } from "../log.ts";
+import { logNotReplayed } from "../log-not-replayed.ts";
+import { agir, estPourLApp } from "../closing-action/action.ts";
+import { annuler, demander } from "../closing-action/demande.ts";
+import { direDecision, direRetrait } from "../closing-action/dire.ts";
 import { principal as observer } from "./observer.ts";
-import { JSON_, principal as lire } from "../fermeture-lecture/commande.ts";
+import { JSON_, principal as lire } from "../closing-lecture/commande.ts";
 
 export const ECRIRE = "write";
 export const RENONCER = "cancel";
@@ -43,9 +43,9 @@ function gerer({ args, env, dire, redire }: Appel): void {
   if (args.length !== 1) echouer(2, USAGE);
   // The command opens the log for writing: without this check, it would
   // create one where there is none.
-  if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `no log in ${repertoireEtat}`);
+  if (!existsSync(logPath(repertoireEtat))) echouer(1, `no log in ${repertoireEtat}`);
 
-  const log = ouvrirJournal(repertoireEtat);
+  const log = openLog(repertoireEtat);
   try {
     // The decision is `fermeture-action`'s, the app's too: here it is said.
     if (args[0] === RENONCER) {
@@ -58,7 +58,7 @@ function gerer({ args, env, dire, redire }: Appel): void {
       dire(`brigade : ${direDecision(decision)}`);
     }
   } catch (erreur) {
-    if (journalPasRejoue(erreur)) echouer(1, "this log does not yet have the state of the rail and the guardrails: restart the runtime, which recomputes it");
+    if (logNotReplayed(erreur)) echouer(1, "this log does not yet have the state of the rail and the guardrails: restart the runtime, which recomputes it");
     throw erreur;
   } finally {
     log.fermer();

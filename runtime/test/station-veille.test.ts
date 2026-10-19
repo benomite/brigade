@@ -15,9 +15,9 @@ import type { Machine } from "../src/machine.ts";
 import { cooksEnCours } from "../src/projections/guardrails.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { lireStations } from "../src/stations-declarees.ts";
-import { demander } from "../src/tirer.ts";
+import { demander } from "../src/pull.ts";
 import { travailLaisse } from "../src/travail-conserve.ts";
-import { BAIL_MS, cuisine, issue, MACHINE_CALME, pousserSurLOrigine, type Options } from "./aides/cuisine.ts";
+import { LEASE_MS, kitchen, issue, MACHINE_CALME, pousserSurLOrigine, type Options } from "./aides/kitchen.ts";
 import { BASE, commiter, git, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const [BOX, MAC] = ["box/claude", "mac/claude"];
@@ -32,26 +32,26 @@ const laisserServir = () => new Promise((resoudre) => setTimeout(resoudre, 80));
 
 function service(t: TestContext, options: Options = {}) {
   let machine = PLEINE;
-  const lieu = cuisine(t, { stations: STATIONS, scenario: "muet", presenceMs: PRESENCE_MS, machine: () => machine, ...options });
-  const { gh, journal, repertoire, heure, etat, dernier } = lieu;
-  const tirer = (demande: Demande): Promise<Reponse> => demander(repertoire, MAC, demande, { maintenant: heure.maintenant, pasMs: 2 });
-  const reclamer = async (): Promise<Extract<Reponse, { verb: "claim" }>> => {
-    const reponse = await tirer({ verb: "claim", sandbox: DISPONIBLE });
+  const lieu = kitchen(t, { stations: STATIONS, scenario: "muet", presenceMs: PRESENCE_MS, machine: () => machine, ...options });
+  const { gh, journal: log, repertoire, heure, etat, dernier } = lieu;
+  const pull = (demande: Demande): Promise<Reponse> => demander(repertoire, MAC, demande, { maintenant: heure.maintenant, pasMs: 2 });
+  const claim = async (): Promise<Extract<Reponse, { verb: "claim" }>> => {
+    const reponse = await pull({ verb: "claim", sandbox: DISPONIBLE });
     assert.ok(reponse.ok && reponse.verb === "claim", JSON.stringify(reponse));
     return reponse;
   };
   const mission = async (): Promise<Mission> => {
-    const { mission: recue } = await reclamer();
+    const { mission: recue } = await claim();
     assert.ok(recue !== null, "aucune mission");
     return recue;
   };
   // Qui a pris le ticket, dans l'ordre.
-  const prises = (ticket: number) => journal.duTicket(ticket).flatMap((e) => (e.type === "ticket.taken" ? [e.author] : []));
+  const prises = (ticket: number) => log.duTicket(ticket).flatMap((e) => (e.type === "ticket.taken" ? [e.author] : []));
   // La box sature : le Mac s'annonce et prend #17, un ticket ordinaire.
   const prendre = async (): Promise<Mission> => {
     gh.poser(issue(17));
-    assert.ok((await tirer({ verb: "announce", sandbox: DISPONIBLE })).ok);
-    await jusqua(() => etatStation(journal.base, BOX)?.saturatedResource === "cpu" && etat(17) === "waiting");
+    assert.ok((await pull({ verb: "announce", sandbox: DISPONIBLE })).ok);
+    await jusqua(() => etatStation(log.base, BOX)?.saturatedResource === "cpu" && etat(17) === "waiting");
     const prise = await mission();
     assert.equal(prise.ticket, 17);
     assert.deepEqual(prises(17), [`station:${MAC}`]);
@@ -59,22 +59,22 @@ function service(t: TestContext, options: Options = {}) {
   };
   // Le Mac se ferme : plus aucune demande. Passé le bail, son cook est perdu.
   const fermer = async () => {
-    heure.avancer(BAIL_MS);
+    heure.avancer(LEASE_MS);
     await jusqua(() => dernier("cook.reported", 17) !== undefined);
   };
   // La box respire : elle prend de nouveau des tickets.
   const soulager = async () => {
     machine = MACHINE_CALME;
-    await jusqua(() => etatStation(journal.base, BOX)?.saturatedResource == null);
+    await jusqua(() => etatStation(log.base, BOX)?.saturatedResource == null);
   };
-  return { ...lieu, tirer, reclamer, mission, prises, prendre, fermer, soulager };
+  return { ...lieu, tirer: pull, reclamer: claim, mission, prises, prendre, fermer, soulager };
 }
 
 describe("le Mac fermé ou en veille : ses tickets reviennent au rail sans perte, et la box les reprend", { concurrency: 4 }, () => {
   test("en pleine cuisson, le Mac se tait : le bail tombe, le ticket revient prêt, et ce qu'il avait poussé est conservé", async (t) => {
-    const { gh, journal, repertoire, etat, dernier, tirer, prises, prendre, fermer } = service(t);
+    const { gh, journal: log, repertoire, etat, dernier, tirer: pull, prises, prendre, fermer } = service(t);
     const { run, branch } = await prendre();
-    assert.equal((await tirer({ verb: "renew", run, proof: "e1", turns: 3, tokens: 300 })).ok, true);
+    assert.equal((await pull({ verb: "renew", run, proof: "e1", turns: 3, tokens: 300 })).ok, true);
     // Son cook a commité, et sa station a poussé sa branche sur l'origine.
     pousserSurLOrigine(repertoire, branch);
 
@@ -86,13 +86,13 @@ describe("le Mac fermé ou en veille : ses tickets reviennent au rail sans perte
     // Le compte-rendu dit ce qui est conservé : la branche, et ses commits.
     const rapport = dernier("cook.reported", 17);
     assert.deepEqual([rapport?.ending, rapport?.reason, rapport?.branch, rapport?.kept], ["failed", "guard:lease", branch, 1]);
-    assert.deepEqual(travailLaisse(journal.base, 17), { run, branch, kept: 1 });
+    assert.deepEqual(travailLaisse(log.base, 17), { run, branch, kept: 1 });
     const commentaire = gh.commentaires.find(([numero, corps]) => numero === 17 && corps.startsWith("**Cook"))?.[1] ?? "";
     assert.match(commentaire, new RegExp(`Ce que la branche \`${branch}\` porte sur l'origine — 1 commit en plus de \`v2\` — est conservé : le cook suivant en repart`));
   });
 
   test("la box reprend le ticket sur la branche conservée, et repart de ce que le Mac avait poussé — sans redémarrer de zéro", async (t) => {
-    const { origine, etat, dernier, tirer, cooks, prises, prendre, fermer, soulager } = service(t, { git: true, scenario: "livre" });
+    const { origine, etat, dernier, tirer: pull, cooks, prises, prendre, fermer, soulager } = service(t, { git: true, scenario: "livre" });
     const { run, branch } = await prendre();
     // Sur le Mac : son cook commite, sa station pousse la branche.
     const mac = join(repertoireTemporaire(t), "mac");
@@ -100,7 +100,7 @@ describe("le Mac fermé ou en veille : ses tickets reviennent au rail sans perte
     git(mac, "checkout", "-q", "-b", branch, `origin/${BASE}`);
     commiter(mac, "travail-du-mac.txt");
     git(mac, "push", "-q", "origin", branch);
-    assert.equal((await tirer({ verb: "renew", run, proof: "e1", turns: 3, tokens: 300 })).ok, true);
+    assert.equal((await pull({ verb: "renew", run, proof: "e1", turns: 3, tokens: 300 })).ok, true);
 
     await fermer();
     assert.equal(dernier("cook.reported", 17)?.kept, 1);
@@ -125,49 +125,49 @@ describe("le Mac fermé ou en veille : ses tickets reviennent au rail sans perte
   });
 
   test("pendant la veille, aucun ticket n'est perdu ni doublé : tenu par le Mac, la box ne le prend pas ; perdu, un seul cook le reprend ; réveillé, le Mac n'en reçoit plus rien", async (t) => {
-    const { journal, repertoire, etat, heure, dernier, lancements, tirer, reclamer, prises, prendre, soulager } = service(t);
+    const { journal: log, repertoire, etat, heure, dernier, lancements, tirer: pull, reclamer: claim, prises, prendre, soulager } = service(t);
     const { run, branch } = await prendre();
     pousserSurLOrigine(repertoire, branch);
 
     // Une veille courte : la box a de la place, mais le ticket est tenu — elle
     // ne le prend pas. Réveillé avant la fin du bail, le Mac le garde.
-    heure.avancer(BAIL_MS / 2);
+    heure.avancer(LEASE_MS / 2);
     await soulager();
     await laisserServir();
     assert.deepEqual([etat(17), prises(17), lancements().length], ["taken", [`station:${MAC}`], 0]);
-    assert.equal((await tirer({ verb: "renew", run, proof: "e1", turns: 1, tokens: 10 })).ok, true);
+    assert.equal((await pull({ verb: "renew", run, proof: "e1", turns: 1, tokens: 10 })).ok, true);
 
     // Une veille longue : le bail tombe, et la box le reprend — une fois.
-    heure.avancer(BAIL_MS);
+    heure.avancer(LEASE_MS);
     await jusqua(() => lancements().length === 1 && etat(17) === "taken");
     assert.deepEqual(prises(17), [`station:${MAC}`, `station:${BOX}`]);
     assert.equal(dernier("cook.launched", 17)?.branch, branch);
 
     // Le Mac se réveille : son cook est arrêté, sa livraison n'est pas reçue, et
     // le ticket ne lui revient pas.
-    const renouvele = await tirer({ verb: "renew", run, proof: "e2", turns: 9, tokens: 90 });
+    const renouvele = await pull({ verb: "renew", run, proof: "e2", turns: 9, tokens: 90 });
     assert.deepEqual([renouvele.ok, !renouvele.ok && renouvele.refusal, !renouvele.ok && renouvele.stop], [false, "stopped", "lease"]);
-    const livre = await tirer({ verb: "deliver", run, ending: "delivered", reason: null, message: "J'ai fini.", turns: 9, tokens: 90 });
+    const livre = await pull({ verb: "deliver", run, ending: "delivered", reason: null, message: "J'ai fini.", turns: 9, tokens: 90 });
     assert.deepEqual([livre.ok, !livre.ok && livre.refusal], [false, "stopped"]);
-    assert.deepEqual(await reclamer(), { ok: true, verb: "claim", mission: null, held: null });
+    assert.deepEqual(await claim(), { ok: true, verb: "claim", mission: null, held: null });
     await laisserServir();
 
     // Un ticket, au rail une fois, tenu par la box, avec un seul cook en cours.
     assert.deepEqual(prises(17), [`station:${MAC}`, `station:${BOX}`]);
-    assert.equal(journal.duTicket(17).findLast((e) => e.type === "ticket.taken")?.author, `station:${BOX}`);
+    assert.equal(log.duTicket(17).findLast((e) => e.type === "ticket.taken")?.author, `station:${BOX}`);
     assert.equal(etat(17), "taken");
-    assert.equal(cooksEnCours(journal.base).filter((cook) => cook.ticket === 17).length, 1);
+    assert.equal(cooksEnCours(log.base).filter((cook) => cook.ticket === 17).length, 1);
     assert.equal(lancements().length, 1);
     assert.deepEqual(
-      journal.duTicket(17).flatMap((e) => (e.type === "cook.reported" ? [e.payload.ending] : [])),
+      log.duTicket(17).flatMap((e) => (e.type === "cook.reported" ? [e.payload.ending] : [])),
       ["failed"],
     );
   });
 
   test("réveillé, la box toujours saturée, le Mac reprend lui-même le travail conservé : même branche, tirée de l'origine", async (t) => {
-    const { repertoire, dernier, tirer, mission, prendre, fermer } = service(t);
+    const { repertoire, dernier, tirer: pull, mission, prendre, fermer } = service(t);
     const { run, branch } = await prendre();
-    assert.equal((await tirer({ verb: "renew", run, proof: "e1", turns: 3, tokens: 300 })).ok, true);
+    assert.equal((await pull({ verb: "renew", run, proof: "e1", turns: 3, tokens: 300 })).ok, true);
     pousserSurLOrigine(repertoire, branch);
     await fermer();
 
@@ -178,20 +178,20 @@ describe("le Mac fermé ou en veille : ses tickets reviennent au rail sans perte
     assert.equal(reprise.sandbox, true);
     assert.deepEqual([dernier("cook.launched", 17)?.continues, dernier("cook.launched", 17)?.branch], [run, branch]);
     // Son ancien cook, lui, n'est plus rien.
-    const ancien = await tirer({ verb: "renew", run, proof: "e2", turns: 1, tokens: 10 });
+    const ancien = await pull({ verb: "renew", run, proof: "e2", turns: 1, tokens: 10 });
     assert.deepEqual([ancien.ok, !ancien.ok && ancien.refusal], [false, "stopped"]);
   });
 
   test("rien de poussé : rien n'est conservé, et le cook suivant repart de la base, comme un premier", async (t) => {
-    const { gh, journal, etat, dernier, cooks, tirer, prendre, fermer, soulager } = service(t);
+    const { gh, journal: log, etat, dernier, cooks, tirer: pull, prendre, fermer, soulager } = service(t);
     const { run, branch } = await prendre();
-    assert.equal((await tirer({ verb: "renew", run, proof: "e1", turns: 3, tokens: 300 })).ok, true);
+    assert.equal((await pull({ verb: "renew", run, proof: "e1", turns: 3, tokens: 300 })).ok, true);
     await fermer();
     assert.equal(etat(17), "waiting");
     assert.equal(dernier("cook.reported", 17)?.kept, undefined);
     assert.match(gh.commentaires.find(([numero, corps]) => numero === 17 && corps.startsWith("**Cook"))?.[1] ?? "", /rien n'en était poussé sur l'origine/);
     // Le Mac a pu pousser depuis : la box le vérifie avant de partir.
-    assert.deepEqual(travailLaisse(journal.base, 17), { run, branch, kept: null });
+    assert.deepEqual(travailLaisse(log.base, 17), { run, branch, kept: null });
 
     await soulager();
     await jusqua(() => etat(17) === "taken" && dernier("cook.launched", 17)?.station === BOX);

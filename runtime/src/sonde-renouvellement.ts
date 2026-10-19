@@ -78,21 +78,21 @@ export async function sonderRenouvellement(systemd: Systemd): Promise<EtatDuReno
   return { etat: "echec", raison: dite, dernierReussi, echecsConsecutifs };
 }
 
-type EntreeJournal = { MESSAGE?: unknown; __REALTIME_TIMESTAMP?: string };
+type LogEntry = { MESSAGE?: unknown; __REALTIME_TIMESTAMP?: string };
 
 // Les passages, tirés des messages du journal : systemd dit « Finished … »
 // d'un passage réussi, « Failed with result … » puis « Failed to start … » d'un échec ; les lignes que le
 // script a écrites avant lui en donnent la raison.
-export function passagesDuJournal(sortie: string): Passage[] {
+export function logPassages(sortie: string): Passage[] {
   const passages: Passage[] = [];
   let lignes: string[] = [];
   // Le message précédent a clos un échec par « Failed with result ».
   let apresEchec = false;
   for (const brut of sortie.split("\n")) {
     if (brut.trim() === "") continue;
-    let entree: EntreeJournal;
+    let entree: LogEntry;
     try {
-      entree = JSON.parse(brut) as EntreeJournal;
+      entree = JSON.parse(brut) as LogEntry;
     } catch {
       continue;
     }
@@ -132,7 +132,7 @@ export const systemdReel: Systemd = {
   async passages(max) {
     try {
       const { stdout } = await execFileAsync("journalctl", ["-u", SERVICE, "-o", "json", "--no-pager", "-n", String(max * 8)]);
-      return passagesDuJournal(stdout).slice(0, max);
+      return logPassages(stdout).slice(0, max);
     } catch {
       return [];
     }

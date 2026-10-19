@@ -17,10 +17,10 @@ import { configRail } from "./alimenter.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { direAttenteDeTiersEn } from "./attente.ts";
 import { CLE_DES_CAPACITES } from "./capacites.ts";
-import { changerPriorite, mergerLaLivraison, retirerDuRail } from "./geste-ticket.ts";
+import { changerPriorite, mergeTheDelivery, retirerDuRail } from "./geste-ticket.ts";
 import { ouvrirGitHub } from "./github.ts";
-import { ouvrirJournal, type Journal } from "./journal.ts";
-import { journalPasRejoue } from "./journal-pas-rejoue.ts";
+import { openLog, type Log } from "./log.ts";
+import { logNotReplayed } from "./log-not-replayed.ts";
 import { communsDuRail, lireRail, type TicketRail } from "./projections/rail.ts";
 import { direRetenueEn, etatLuEn } from "./rail.ts";
 import { ConfigInvalide } from "./runtime.ts";
@@ -58,26 +58,26 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
       if (erreur instanceof ConfigInvalide) echouer(2, `${erreur.message}\n${USAGE}`);
       throw erreur;
     }
-    let journal: Journal;
+    let log: Log;
     try {
-      journal = ouvrirJournal(repertoireEtat);
+      log = openLog(repertoireEtat);
     } catch (erreur) {
       echouer(1, erreur instanceof Error ? erreur.message : String(erreur));
     }
     const github = ouvrirGitHub({ depot: rail.depot, bin: rail.gh });
     try {
-      const projet = journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
+      const projet = log.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
       if (!projet) echouer(1, "empty log: the runtime has never started on this state directory");
       let resultat: Awaited<ReturnType<typeof retirerDuRail>>;
       try {
         resultat =
           geste === "remove"
-            ? await retirerDuRail(journal, github, projet, ticket)
+            ? await retirerDuRail(log, github, projet, ticket)
             : geste === "merge"
-              ? await mergerLaLivraison(journal, github, ticket)
-              : await changerPriorite(journal, github, projet, ticket, priorite);
+              ? await mergeTheDelivery(log, github, ticket)
+              : await changerPriorite(log, github, projet, ticket, priorite);
       } catch (erreur) {
-        if (journalPasRejoue(erreur)) echouer(1, "this log does not have the rail state yet: restart the runtime, which recomputes it");
+        if (logNotReplayed(erreur)) echouer(1, "this log does not have the rail state yet: restart the runtime, which recomputes it");
         echouer(1, `the gesture on #${ticket} did not go through on GitHub: ${erreur instanceof Error ? erreur.message : String(erreur)}`);
       }
       const fait =
@@ -86,7 +86,7 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
       dire(`${fait} — cost: ${resultat.price}`);
     } finally {
       github.fermer();
-      journal.fermer();
+      log.fermer();
     }
   }
 
@@ -119,11 +119,11 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
 
   const RETRAIT = "     ";
 
-  function fiche({ card }: TicketRail): string[] {
+  function card({ card }: TicketRail): string[] {
     if (card === null) return [];
-    const attend = card.waitsFor.length === 0 ? "nothing" : card.waitsFor.map((numero) => `#${numero}`).join(", ");
+    const awaiting = card.waitsFor.length === 0 ? "nothing" : card.waitsFor.map((numero) => `#${numero}`).join(", ");
     return [
-      `${RETRAIT}card — awaiting: ${attend} · zone: ${card.zone.join(", ") || "none"}${card.requires?.length ? ` · \`${CLE_DES_CAPACITES}\`: ${card.requires.join(", ")}` : ""}`,
+      `${RETRAIT}card — awaiting: ${awaiting} · zone: ${card.zone.join(", ") || "none"}${card.requires?.length ? ` · \`${CLE_DES_CAPACITES}\`: ${card.requires.join(", ")}` : ""}`,
       ...card.problems.map((probleme) => `${RETRAIT}UNREADABLE CARD — ${probleme}`),
     ];
   }
@@ -132,27 +132,27 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
   if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR is not set\n${USAGE}`);
   if (args.length > 0) return jouer(repertoireEtat);
 
-  let journal;
+  let log;
   try {
-    journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
+    log = openLog(repertoireEtat, { lectureSeule: true });
   } catch (erreur) {
     echouer(1, erreur instanceof Error ? erreur.message : String(erreur));
   }
   try {
-    const tickets = lireRail(journal.base);
-    const communs = communsDuRail(journal.base);
+    const tickets = lireRail(log.base);
+    const communs = communsDuRail(log.base);
     if (communs.length > 0) dire(`common paths, held by no one: ${communs.join(", ")}`);
     if (tickets.length === 0) dire("empty rail");
-    for (const ticket of tickets) dire([formater(ticket), ...fiche(ticket)].join("\n"));
+    for (const ticket of tickets) dire([formater(ticket), ...card(ticket)].join("\n"));
   } catch (erreur) {
     // En lecture seule, rien ne crée le rail d'un journal écrit par un runtime
     // d'avant ses colonnes d'aujourd'hui.
-    if (journalPasRejoue(erreur)) {
+    if (logNotReplayed(erreur)) {
       echouer(1, "this log does not have the rail state yet: restart the runtime, which recomputes it");
     }
     throw erreur;
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }
 

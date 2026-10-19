@@ -722,7 +722,7 @@ une ligne.
 elle lance la station de la machine : **la même que celle d'un serveur**, le même point d'entrée
 (`runtime/src/station/main.ts`, celui que lance le service du paquet Debian), le même répertoire
 tenu, la même configuration des projets (une ligne chacun, dans `projets`), la même présence sur
-GitHub. Seule l'installation diffère : un paquet sur un serveur, l'app ici (`app/src/poste/`).
+GitHub. Seule l'installation diffère : un paquet sur un serveur, l'app ici (`app/src/workstation/`).
 
 - **Son répertoire** est `station/`, à côté du fichier des projets (`~/.config/brigade/station`) —
   ou `BRIGADE_STATION_DIR`, s'il est posé. Elle tourne sous ton compte, avec ton `gh` et ton
@@ -749,7 +749,7 @@ GitHub. Seule l'installation diffère : un paquet sur un serveur, l'app ici (`ap
 **Sur un téléphone, l'app est un poste** : elle pilote, elle ne cuit pas. Sa station n'y est pas
 démarrée, et aucun projet n'y fait cuire — ni le sien, ni les stations que ses projets confient au
 poste (« Le poste est une station »). C'est le seul endroit où la plateforme compte
-(`app/src/poste/role.ts`) ; tout le reste est le même code. L'app d'un ordinateur est aussi un
+(`app/src/workstation/role.ts`) ; tout le reste est le même code. L'app d'un ordinateur est aussi un
 poste, et le dit au lancement, quand le runtime n'est pas à côté d'elle, ou avec
 `BRIGADE_APP_STATION=0`.
 
@@ -1492,12 +1492,12 @@ attention. Chaque phrase est écrite d'après les faits que la file donne déjà
 **Ni « bail », ni « 86 », ni « non communiqué » sur une carte.** Quand une information manque, un
 petit repère `…` le signale, discret ; la carte ne dresse jamais la liste de ce qu'elle ne sait pas.
 Ce qui ne change pas ce que tu fais — qui tient le ticket, depuis quand, son bail, ce qu'il brûle, ce
-qui le bloque, `en ce moment` — est dans **la fiche**, qu'un clic sur la carte ouvre (`app/src/bon.ts`,
+qui le bloque, `en ce moment` — est dans **la fiche**, qu'un clic sur la carte ouvre (`app/src/slip.ts`,
 `dit`), avec ce qui a été livré et ses remarques dépliables pour un ticket livré. La ligne brute que
 `status` écrit du ticket n'est nulle part sur la carte ni sur la fiche : elle se lit entière dans
 Paramètres. Les captures d'un ticket d'interface livré restent sur la carte.
 
-**La fiche porte, elle, ce que la file dit du ticket** (`app/src/bon.ts`) — cinq choses, dans cet ordre,
+**La fiche porte, elle, ce que la file dit du ticket** (`app/src/slip.ts`) — cinq choses, dans cet ordre,
 et `en ce moment` (ce que la cuisine en fait, `rail[].activite`, voir « Ce que fait un cook en ce moment »
 dans `docs/runtime/garde-fous.md`) en tête :
 
@@ -1545,7 +1545,7 @@ S'y ajoute, pour un ticket en pass ou servi, `cuisiné par` : qui l'a cuisiné n
   gave up: …`), `Green, the CI did not conclude.` Quand elle touche aux juges (`.claude/brigade/`,
   `.github/workflows/`), leurs fichiers suivent, un par ligne, avec les lignes ajoutées et retirées —
   rien de rédigé. Tout vient de `attend[].livraison` dans `faits`, ce que la pass a consigné
-  (`runtime/src/attend.ts`, `Livraison` ; `judges` du `pass.judged`) ; sans rien de consigné, la
+  (`runtime/src/awaiting.ts`, `Livraison` ; `judges` du `pass.judged`) ; sans rien de consigné, la
   phrase d'avant reste seule. Les boutons « merger » et « retirer du rail » sont dessous.
 - **Chaque valeur est un morceau de ce que la box a écrit, ou un nombre qu'elle a donné.** L'app ne
   compte aucune durée (hors l'âge de `en ce moment`, ci-dessus) et n'additionne rien : deux cooks en vol sur le même ticket se lisent chacun
@@ -1560,7 +1560,7 @@ S'y ajoute, pour un ticket en pass ou servi, `cuisiné par` : qui l'a cuisiné n
   `status` écrit de ce ticket, relayé dessous tel quel``. C'est le cas d'un `86` et d'un mot d'état
   inconnu, dont le détail n'est pas découpé. Si le runtime reformule cette ligne, les cartes ne
   mentent pas : elles la relaient. Et un test de l'app fait écrire `status` et `faits` par le
-  runtime lui-même, du même état, et rougit les gates avant (`app/test/bon.test.ts`).
+  runtime lui-même, du même état, et rougit les gates avant (`app/test/slip.test.ts`).
 - **Dans T'attend, ce qui bloque le ticket est ce que le bloc `attend` en dit** : posé sur la carte
   sous un trait de coupe, **mot pour mot** — sa ligne et, dessous, les lignes plus en retrait qui la
   précisent, dans leurs blancs, ni tronquées ni remises en forme. Une ligne trop longue passe à la
@@ -1882,7 +1882,7 @@ fin attend
   pas ainsi n'est à aucun ticket. Si le runtime écrit cette tête autrement, T'attend se vide sans
   le dire, et les tickets se lisent dans leurs colonnes d'état : c'est pourquoi un test de l'app
   fait écrire le bloc par le runtime lui-même, une attente de chaque sorte, et rougit les gates
-  avant (`app/test/attend.test.ts`).
+  avant (`app/test/awaiting.test.ts`).
 - **Le reste de `status` suit, mot pour mot**, sous un titre qui dit ce qui lui manque (« sans son
   bloc `attend`, mis à part ci-dessus ») : le bloc n'est pas montré deux fois.
 - **Une sortie sans ce bord reste entière**, et l'app le dit à la place du bloc, en jaune :
@@ -2029,7 +2029,7 @@ habille **le cadre**, jamais le contenu.
   l'état du manager, celui des grants, le formulaire d'ajout. Une colonne du rail est une carte,
   un ticket y est un **bon** — du papier clair sur le sombre —, et ce qui t'attend a la sienne, la
   même que le bloc soit plein ou vide. Il n'y a qu'un thème, sombre, et aucun réglage.
-- **Une palette, écrite à un seul endroit** : `app/src/vue/jetons.css`. Chaque couleur y est une
+- **Une palette, écrite à un seul endroit** : `app/src/vue/tokens.css`. Chaque couleur y est une
   variable, et sa valeur est une couleur de la maquette ; `vue.css` et `vue.js` ne nomment que ces
   variables, le terminal y lit les siennes. Une couleur d'état reste celle de son mot (« Ce qui est
   dessiné ») : sur un bon, où une couleur claire ne se lirait pas en lettres, elle est dans la
@@ -2326,9 +2326,9 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   son titre, la frappe du chef, la preuve du mode shell ; les signes sont ceux relevés sur le vrai
   `claude`, rejoués sans en lancer aucun), `pty.ts` (le vrai pty, contre un faux `claude`),
   `box.ts` (la veille des box et ses états, contre un faux `ssh` que chaque test écrit : ni
-  réseau ni box), `attend.ts` (le bloc `attend` pris par son bord, sur des sorties recopiées du
+  réseau ni box), `awaiting.ts` (le bloc `attend` pris par son bord, sur des sorties recopiées du
   runtime ; et le numéro en tête d'une ligne, sur le bloc que le runtime écrit lui-même — le test
-  appelle `decrireAttentes` de `runtime/src/attend.ts`), `barre.ts` (le monogramme d'un projet), `couleurs.ts`
+  appelle `decrireAttentes` de `runtime/src/awaiting.ts`), `barre.ts` (le monogramme d'un projet), `couleurs.ts`
   (les couleurs d'un projet : tirées sans doublon tant que la palette n'est pas épuisée, écrites
   dans le fichier — et seulement celles qui manquent —, changées une à une ; dans la vue jouée, la
   case teinte, l'accent de l'espace, le choix sous Réglages ; aucune n'est une couleur d'état), `onglets.ts` (les cinq onglets de contenu :
@@ -2349,11 +2349,11 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   vrai journal et devant un faux `gh`, comptée et rangée en groupes sans rien y ajouter ; ce qui
   n'a pas la forme, une box pas jointe ou un runtime d'avant la commande ne donnent jamais de
   nombre ; et, vue jouée, le nombre en tête du rail, la liste qu'il déplie, la fiche qu'une issue
-  ouvre, et ce que dit un rail vide), `faits.ts` (ce qui se dessine : la
+  ouvre, et ce que dit un rail vide), `facts.ts` (ce qui se dessine : la
   forme lue champ pour champ sur l'exemple de `docs/runtime/etat-et-mesures.md`, ce qui n'est pas elle refusé sans
   un zéro, une couleur sur les seuls mots des listes fermées, l'adresse d'une issue, la bannière —
   le rail rangé en cinq colonnes, T'attend d'après `attend` de la forme et le bloc `attend` tenu à côté des faits —
-  la vue en reçoit un tableau prêt à poser, et n'y calcule rien), `bon.ts` (ce qu'une carte du rail porte : la ligne de
+  la vue en reçoit un tableau prêt à poser, et n'y calcule rien), `slip.ts` (ce qu'une carte du rail porte : la ligne de
   chaque ticket sous `rail`, tenue contre `status` et `faits` écrits par le runtime lui-même du même
   état ; les cinq choses dites, ou écrites manquantes, sur chaque ticket ; une ligne reformulée relayée
   entière, jamais devinée), `rail.test.ts` (le rail au centre, posé quel que soit l'onglet ; ce que le
@@ -2369,7 +2369,7 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   relance, par `npm start`),
   `runner.ts` (le poste joue une station, de bout en bout contre une box de test : la cuisine des
   tests du runtime — rail, garde-fous, stations, pass —, sur un vrai dépôt git, jointe par un faux
-  `ssh` qui lance le vrai `runtime/src/tirer-cli.ts` dans son process, et un faux `claude` pour
+  `ssh` qui lance le vrai `runtime/src/pull-cli.ts` dans son process, et un faux `claude` pour
   cook ; le ticket part, sa livraison passe la pass, son chemin au journal est celui d'un cook de
   la box ; app arrêtée il est `86`, relancée il repart ; le bail ne se renouvelle que sur un
   worktree qui a bougé, et tombe sinon ; chaque ligne passée à `ssh` est comparée à la forme du
@@ -2380,10 +2380,10 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   document (`app/test/aides/fausse-vue.ts` — juste ce que la vue en touche, et un faux pont), et
   `vue.css` y est lu règle par règle. Ce qui s'y tient : qu'un texte relayé de la box est posé mot
   pour mot sur les six onglets et l'écran d'ajout — « Tous les projets » n'en relaie rien —, et qu'aucune règle ne le
-  coupe ; qu'aucune couleur ne s'écrit hors de `jetons.css`, et que chacune est une couleur de la
+  coupe ; qu'aucune couleur ne s'écrit hors de `tokens.css`, et que chacune est une couleur de la
   maquette — hors celles d'un projet, que la vue reçoit du fichier (`couleurs.test.ts`) ; qu'une case
   de la barre se range en la glissant — le trait qui dit où elle atterrira, la place qu'elle prend,
-  le clic qui reste un clic, ce qui est glissé d'ailleurs et n'est pas reçu (`rangement.test.ts`) ; que les polices sont des fichiers de l'app ; qu'un numéro de ticket ou un port est en
+  le clic qui reste un clic, ce qui est glissé d'ailleurs et n'est pas reçu (`cleanup.test.ts`) ; que les polices sont des fichiers de l'app ; qu'un numéro de ticket ou un port est en
   monospace partout où il se pose ; que rien du parking de la maquette n'apparaît. **Ce qui se
   peint ne s'y voit pas** : un faux document ne mesure ni ne dessine rien — la peau se regarde en
   lançant l'app.

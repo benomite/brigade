@@ -4,22 +4,22 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import type { Plafonds } from "../src/events/guardrails.ts";
+import type { Caps } from "../src/events/guardrails.ts";
 import { superviser, type Arret } from "../src/superviseur.ts";
 import { aArreter, ENV_ENFANT, FAUX_CLAUDE, jusqua, repertoireTemporaire, temporaireDuFichier, vivant } from "./outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
-const LARGES: Plafonds = { turns: 1000, durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
+const LARGES: Caps = { turns: 1000, durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
 
-function cook(t: TestContext, scenario: string, plafonds: Partial<Plafonds> = {}, graceMs = 2000) {
+function cook(t: TestContext, scenario: string, caps: Partial<Caps> = {}, graceMs = 2000) {
   const flux = join(repertoireTemporaire(t), "run.jsonl");
   const arrets: Arret[] = [];
   const supervise = superviser({
     commande: FAUX_CLAUDE,
     args: ["-p", "peu importe"],
     env: { ...ENV_ENFANT, FAUX_CLAUDE: scenario },
-    plafonds: { ...LARGES, ...plafonds },
+    plafonds: { ...LARGES, ...caps },
     graceMs,
     flux,
     surArret: (arret) => arrets.push(arret),
@@ -169,13 +169,13 @@ describe("superviser", { concurrency: true }, () => {
   });
 
   test("ce qu'un cook a consommé se mesure pendant qu'il tourne", async (t) => {
-    const { mesure, flux } = cook(t, "muet-apres-un-tour");
-    assert.deepEqual(mesure(), { turns: 0, tokens: 0 });
+    const { mesure: measure, flux } = cook(t, "muet-apres-un-tour");
+    assert.deepEqual(measure(), { turns: 0, tokens: 0 });
 
     await aParle(flux);
-    while (mesure().turns === 0) await new Promise((resoudre) => setTimeout(resoudre, 5));
+    while (measure().turns === 0) await new Promise((resoudre) => setTimeout(resoudre, 5));
 
-    assert.deepEqual(mesure(), { turns: 1, tokens: 10 });
+    assert.deepEqual(measure(), { turns: 1, tokens: 10 });
   });
 
   test("le flux brut du cook est gardé tel quel dans son fichier", async (t) => {
@@ -396,8 +396,8 @@ describe("superviser", { concurrency: true }, () => {
 describe("superviser, à l'horloge du test", () => {
   test("un cook qui se tait après avoir parlé est détecté comme inactif", async (t) => {
     t.mock.timers.enable({ apis: ["setTimeout"] });
-    const { fin, mesure, arrets } = cook(t, "muet-apres-un-tour", { idleMs: 1000 });
-    while (mesure().turns === 0) await souffler();
+    const { fin, mesure: measure, arrets } = cook(t, "muet-apres-un-tour", { idleMs: 1000 });
+    while (measure().turns === 0) await souffler();
 
     t.mock.timers.tick(999);
     assert.deepEqual(arrets, []);
@@ -409,7 +409,7 @@ describe("superviser, à l'horloge du test", () => {
 
   test("un cook qui produit n'est pas pris pour un inactif", async (t) => {
     t.mock.timers.enable({ apis: ["setTimeout"] });
-    const { fin, mesure, pid } = cook(t, "au-signal", { idleMs: 1000, turns: 3 });
+    const { fin, mesure: measure, pid } = cook(t, "au-signal", { idleMs: 1000, turns: 3 });
     assert.ok(pid);
     let fini = false;
     void fin.then(() => (fini = true));
@@ -418,7 +418,7 @@ describe("superviser, à l'horloge du test", () => {
     // près de trois délais en tout, et seul un tour qui relance la veille
     // explique que le cook aille jusqu'à son plafond.
     for (let tour = 1; tour <= 3; tour += 1) {
-      while (!fini && mesure().turns < tour) await souffler();
+      while (!fini && measure().turns < tour) await souffler();
       t.mock.timers.tick(999);
       if (!fini) process.kill(pid, "SIGUSR1");
     }

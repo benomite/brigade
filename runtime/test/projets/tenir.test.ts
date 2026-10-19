@@ -8,7 +8,7 @@ import { test, type TestContext } from "node:test";
 import type { Canal, Fichiers } from "../../src/appairage/canal.ts";
 import { FICHIER_LOCAL } from "../../src/appairage/presence.ts";
 import { decisionsPosees } from "../../src/decisions.ts";
-import { ouvrirJournal } from "../../src/journal.ts";
+import { openLog } from "../../src/log.ts";
 import { DEBUT, FIN } from "../../src/projets/bloc.ts";
 import { FICHIER_PROJETS, FICHIER_SUIVI, type SuiviDuProjet } from "../../src/projets/demande.ts";
 import type { Autorisation } from "../../src/projets/preparer.ts";
@@ -48,7 +48,7 @@ function uneStation(t: TestContext, options: { appairee?: boolean } = {}) {
   // Ce que la station sert : ce que sa configuration nomme, sauf ce qu'elle refuse.
   const refuses = new Map<string, string>();
   let relectures = 0;
-  const servis = () => {
+  const servedOnes = () => {
     const texte = existsSync(join(racine, "projets")) ? readFileSync(join(racine, "projets"), "utf8") : "";
     return texte
       .split("\n")
@@ -68,7 +68,7 @@ function uneStation(t: TestContext, options: { appairee?: boolean } = {}) {
     canal,
     station: "box",
     env: {},
-    servis: { projets: servis, refus: (nom) => refuses.get(nom) ?? null },
+    servis: { projets: servedOnes, refus: (nom) => refuses.get(nom) ?? null },
     apresEcriture: () => void relectures++,
     dire: (ligne) => lignes.push(ligne),
     // Le minuteur ne bat pas pendant un test : c'est lui qui bat la mesure.
@@ -103,18 +103,18 @@ test("un projet dont la station est la principale : cloné, ses décisions posé
   assert.deepEqual(station.clones, [`benomite/parade → ${join(station.racine, "clones/parade")}`]);
   assert.equal(station.configuration(), `${DEBUT}\nparade benomite/parade main\n${FIN}\n`);
   assert.equal(station.relectures(), 1);
-  const journal = ouvrirJournal(join(station.racine, "etat/parade"), { lectureSeule: true });
+  const log = openLog(join(station.racine, "etat/parade"), { lectureSeule: true });
   try {
-    assert.deepEqual(decisionsPosees(journal.base), {
+    assert.deepEqual(decisionsPosees(log.base), {
       BRIGADE_STATIONS: "box/claude:2:code+raisonnement",
       BRIGADE_MANAGER_MODEL: "sonnet",
       BRIGADE_MANAGER_EFFORT: "medium",
       BRIGADE_REVIEWER_MODEL: "opus",
       BRIGADE_REVIEWER_EFFORT: "high",
     });
-    assert.ok(journal.tout().every((evenement) => evenement.author === "chef" && evenement.project === "parade"));
+    assert.ok(log.tout().every((evenement) => evenement.author === "chef" && evenement.project === "parade"));
   } finally {
-    journal.fermer();
+    log.fermer();
   }
   assert.deepEqual(station.suivi(), [{ nom: "parade", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z" }]);
   assert.ok(station.lignes.includes("brigade : station — parade ajouté depuis l'app : sa ligne est écrite dans la configuration"));

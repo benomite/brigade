@@ -6,14 +6,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { principal } from "../../src/closing/command.ts";
 import { SANS_MOTIF } from "../../src/closing/brief.ts";
-import { ouvrirJournal } from "../../src/journal.ts";
-import { chef, PLAFONDS, STATION } from "../aides/cuisine.ts";
+import { openLog } from "../../src/log.ts";
+import { chef, CAPS, STATION } from "../aides/kitchen.ts";
 import { appeler, BASE, ENV_GIT, git, jusqua } from "../outils.ts";
-import type { ReglagesDeFermeture } from "../../src/events/closing.ts";
-import { cuisineFermee, REGLAGES_DE_FERMETURE, RETIRER_M1 } from "./kitchen.ts";
+import type { ClosingSettings } from "../../src/events/closing.ts";
+import { closedKitchen, CLOSING_SETTINGS, RETIRER_M1 } from "./kitchen.ts";
 
 test("ce que la passe retire arrive par une PR vers la branche d'intégration — aucun commit direct dessus, aucun merge —, et tout ce qu'elle laisse y est écrit avec son motif", async (t) => {
-  const { demander, fin, closer, gh, journal, origine, clone, teteDeLaBase, branchesDeLOrigine, avertissements } = cuisineFermee(t);
+  const { demander, fin, closer, gh, journal: log, origine, clone, teteDeLaBase, branchesDeLOrigine, avertissements } = closedKitchen(t);
   const avant = teteDeLaBase();
   closer.gestes(RETIRER_M1);
   closer.message("J'ai retiré `inutile`, que rien n'appelle.\n\n<livrable>\nRetiré : M1.\nLAISSÉ D1 : les deux suites se ressemblent mais servent deux modules qui évoluent à part\n</livrable>\n");
@@ -31,7 +31,7 @@ test("ce que la passe retire arrive par une PR vers la branche d'intégration �
   assert.equal(teteDeLaBase(), avant);
   assert.equal(git(clone, "rev-parse", `origin/${BASE}`), avant);
   assert.deepEqual(gh.merges, []);
-  assert.deepEqual(journal.tout().filter((e) => e.type.startsWith("merge.") || e.type === "grant.used"), []);
+  assert.deepEqual(log.tout().filter((e) => e.type.startsWith("merge.") || e.type === "grant.used"), []);
   // Son travail est sur sa branche à elle, poussée, à un commit de la base.
   const branche = passe.branch ?? "";
   assert.deepEqual(branchesDeLOrigine(), [branche, BASE].sort());
@@ -62,45 +62,45 @@ test("ce que la passe retire arrive par une PR vers la branche d'intégration �
   assert.match(avertissements.join("\n"), /passe de fermeture fermeture-[0-9a-f]{8} — livrée : 1 ligne retirée dans 1 fichier, 2 candidats laissés faute d'être sûr/);
   // Le closer est parti une fois, dans son worktree, sous la station « closer ».
   assert.equal(closer.lancements().length, 1);
-  const lancement = journal.tout().find((e) => e.type === "cook.launched");
+  const lancement = log.tout().find((e) => e.type === "cook.launched");
   assert.equal(lancement?.ticket, null);
   assert.equal((lancement?.payload as { station?: string }).station, "closer");
   assert.match(closer.consigne(), /- M1 — export `inutile`/);
 });
 
 // Rien n'est parti : ni closer, ni lancement gardé, ni branche, ni PR.
-function rienNEstParti({ closer, journal, gh, branchesDeLOrigine }: ReturnType<typeof cuisineFermee>): void {
+function rienNEstParti({ closer, journal: log, gh, branchesDeLOrigine }: ReturnType<typeof closedKitchen>): void {
   assert.deepEqual(closer.lancements(), []);
-  assert.deepEqual(journal.tout().filter((e) => e.type === "cook.launched" || e.type === "closing.started"), []);
+  assert.deepEqual(log.tout().filter((e) => e.type === "cook.launched" || e.type === "closing.started"), []);
   assert.deepEqual(gh.prs, []);
   assert.deepEqual(branchesDeLOrigine(), [BASE]);
 }
 
 // Une passe arrêtée ne livre rien : ni branche poussée, ni PR, et la base n'a pas bougé.
-function rienNEstLivre({ gh, branchesDeLOrigine }: ReturnType<typeof cuisineFermee>): void {
+function rienNEstLivre({ gh, branchesDeLOrigine }: ReturnType<typeof closedKitchen>): void {
   assert.deepEqual(gh.prs, []);
   assert.deepEqual(branchesDeLOrigine(), [BASE]);
 }
 
 test("sans la commande du chef, aucune passe qui écrit ne démarre — pas même quand un déclencheur est franchi", async (t) => {
-  const cuisine = cuisineFermee(t);
-  const { journal, types } = cuisine;
-  cuisine.closer.gestes(RETIRER_M1);
+  const kitchen = closedKitchen(t);
+  const { journal: log, types } = kitchen;
+  kitchen.closer.gestes(RETIRER_M1);
   const seuils = { tests: null, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: 1, growthPercent: null };
-  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "drift.configured", payload: { limits: seuils } });
-  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "drift.crossed", payload: { measure: "merges", observed: 80, limit: 1 } });
+  log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "drift.configured", payload: { limits: seuils } });
+  log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "drift.crossed", payload: { measure: "merges", observed: 80, limit: 1 } });
   // Le runtime a vu le franchissement, et laissé passer dix ticks.
   const vus = types().filter((type) => type === "runtime.ticked").length;
   await jusqua(() => types().filter((type) => type === "runtime.ticked").length >= vus + 10);
 
-  rienNEstParti(cuisine);
+  rienNEstParti(kitchen);
   // Le seul fait de la fermeture au journal : ses réglages.
   assert.deepEqual(types().filter((type) => type.startsWith("closing.")), ["closing.configured"]);
 });
 
 test("demandée avec trop de cooks en vol, la passe attend et dit la condition qui manque et la valeur mesurée ; sous le seuil, elle part seule — sans rien toucher de ce que le cook en vol tient", async (t) => {
-  const cuisine = cuisineFermee(t, { reglages: { cooksBelow: 2 } });
-  const { runtime, demander, dernier, poser, closer, fin, gh, types } = cuisine;
+  const kitchen = closedKitchen(t, { reglages: { cooksBelow: 2 } });
+  const { runtime, demander, dernier, poser, closer, fin, gh, types } = kitchen;
   await poser(7, "src/tenu");
   await poser(8, "docs");
   assert.equal(runtime.rail.prendre(STATION)?.ticket, 7);
@@ -119,7 +119,7 @@ test("demandée avec trop de cooks en vol, la passe attend et dit la condition q
   const vus = types().filter((type) => type === "runtime.ticked").length;
   await jusqua(() => types().filter((type) => type === "runtime.ticked").length >= vus + 10);
   assert.equal(dernier("closing.refused"), undefined);
-  rienNEstParti(cuisine);
+  rienNEstParti(kitchen);
 
   // Un cook de moins : elle part, sans que le chef la redemande.
   runtime.rail.rendre(8, "essai", STATION);
@@ -138,25 +138,25 @@ test("demandée avec trop de cooks en vol, la passe attend et dit la condition q
 });
 
 test("un cook en vol qui ne déclare aucune zone tient tout : la passe attend qu'il ait fini, en le nommant", async (t) => {
-  const cuisine = cuisineFermee(t, { reglages: { cooksBelow: 2 } });
-  cuisine.closer.gestes(RETIRER_M1);
-  await cuisine.poser(9);
-  assert.equal(cuisine.runtime.rail.prendre(STATION)?.ticket, 9);
+  const kitchen = closedKitchen(t, { reglages: { cooksBelow: 2 } });
+  kitchen.closer.gestes(RETIRER_M1);
+  await kitchen.poser(9);
+  assert.equal(kitchen.runtime.rail.prendre(STATION)?.ticket, 9);
 
-  const { code, sortie } = await cuisine.demander();
+  const { code, sortie } = await kitchen.demander();
   assert.equal(code, 0, sortie);
   assert.match(sortie, /it waits: start condition not met: the cook in flight on #9 declares no zone/);
-  const vus = cuisine.types().filter((type) => type === "runtime.ticked").length;
-  await jusqua(() => cuisine.types().filter((type) => type === "runtime.ticked").length >= vus + 5);
-  rienNEstParti(cuisine);
+  const vus = kitchen.types().filter((type) => type === "runtime.ticked").length;
+  await jusqua(() => kitchen.types().filter((type) => type === "runtime.ticked").length >= vus + 5);
+  rienNEstParti(kitchen);
 
-  cuisine.runtime.rail.rendre(9, "essai", STATION);
-  assert.equal((await cuisine.fin()).outcome, "delivered");
+  kitchen.runtime.rail.rendre(9, "essai", STATION);
+  assert.equal((await kitchen.fin()).outcome, "delivered");
 });
 
 test("la passe ne modifie aucun fichier de la zone d'un cook en vol : un closer qui y écrit quand même ne livre rien", async (t) => {
-  const cuisine = cuisineFermee(t, { reglages: { cooksBelow: 2 } });
-  const { runtime, demander, poser, closer, fin, origine, avertissements } = cuisine;
+  const kitchen = closedKitchen(t, { reglages: { cooksBelow: 2 } });
+  const { runtime, demander, poser, closer, fin, origine, avertissements } = kitchen;
   await poser(7, "src/tenu");
   assert.equal(runtime.rail.prendre(STATION)?.ticket, 7);
   // Il retire M1, qu'on lui a proposé — et M2, dans la zone du ticket #7.
@@ -167,15 +167,15 @@ test("la passe ne modifie aucun fichier de la zone d'un cook en vol : un closer 
   assert.equal(passe.outcome, "zone");
   assert.deepEqual(passe.files, ["src/tenu/outils.ts"]);
   assert.match(avertissements.join("\n"), /arrêtée à la livraison : elle a écrit hors de ce qu'elle tenait \(`src\/tenu\/outils\.ts`\) ; elle a écrit dans ce qu'un cook tient \(`src\/tenu\/outils\.ts`\) — rien n'est livré/);
-  rienNEstLivre(cuisine);
+  rienNEstLivre(kitchen);
   assert.equal(git(origine, "show", `${BASE}:src/tenu/outils.ts`), "export function garde() { return 3; }\nexport function oublie() { return 4; }");
   // Un closer qui écrit ce qu'il ne tenait pas a échoué : le disjoncteur le compte.
-  assert.equal((cuisine.journal.tout().find((e) => e.type === "cook.exited")?.payload as { outcome?: string }).outcome, "failed");
+  assert.equal((kitchen.journal.tout().find((e) => e.type === "cook.exited")?.payload as { outcome?: string }).outcome, "failed");
 });
 
 test("un cook ne peut pas démarrer sur un fichier que la passe tient : son ticket attend qu'elle ait fini, et un ticket d'une autre zone part", async (t) => {
-  const cuisine = cuisineFermee(t, { station: true });
-  const { demander, poser, closer, fin, types, etat } = cuisine;
+  const kitchen = closedKitchen(t, { station: true });
+  const { demander, poser, closer, fin, types, etat } = kitchen;
   closer.gestes(`attendre\n${RETIRER_M1}`);
   assert.equal((await demander()).code, 0);
   await jusqua(() => closer.lancements().length === 1);
@@ -195,21 +195,21 @@ test("un cook ne peut pas démarrer sur un fichier que la passe tient : son tick
 });
 
 test("la passe s'arrête et le dit quand son plafond de tokens est atteint — le sien, par passe, pas celui d'un cook", async (t) => {
-  const cuisine = cuisineFermee(t, { reglages: { tokens: 500 } });
-  const { demander, closer, fin, journal, avertissements, clone, repertoire } = cuisine;
+  const kitchen = closedKitchen(t, { reglages: { tokens: 500 } });
+  const { demander, closer, fin, journal: log, avertissements, clone, repertoire } = kitchen;
   closer.gestes("assistant 600\nattendre\n");
 
   assert.equal((await demander()).code, 0);
   const passe = await fin();
   assert.deepEqual([passe.outcome, passe.observed, passe.limit], ["tokens", 610, 500]);
-  const lancement = journal.tout().find((e) => e.type === "cook.launched")?.payload as { limits: { tokens: number; turns: number } };
-  assert.deepEqual([lancement.limits.tokens, lancement.limits.turns], [500, PLAFONDS.turns]);
+  const lancement = log.tout().find((e) => e.type === "cook.launched")?.payload as { limits: { tokens: number; turns: number } };
+  assert.deepEqual([lancement.limits.tokens, lancement.limits.turns], [500, CAPS.turns]);
   assert.deepEqual(
-    journal.tout().flatMap((e) => (e.type === "guard.tripped" ? [[e.payload.reason, e.payload.limit, e.payload.observed]] : [])),
+    log.tout().flatMap((e) => (e.type === "guard.tripped" ? [[e.payload.reason, e.payload.limit, e.payload.observed]] : [])),
     [["tokens", 500, 610]],
   );
   assert.match(avertissements.join("\n"), /— arrêtée : plafond de tokens de la passe atteint \(610 pour un plafond de 500\) — rien n'est livré/);
-  rienNEstLivre(cuisine);
+  rienNEstLivre(kitchen);
   // Et le chef le lit là où il observe.
   const appel = appeler(principal, [], { ...ENV_GIT, BRIGADE_REPO_DIR: clone, BRIGADE_BASE_BRANCH: BASE, BRIGADE_STATE_DIR: repertoire });
   assert.equal(await appel.fin, 0, appel.sortie());
@@ -217,8 +217,8 @@ test("la passe s'arrête et le dit quand son plafond de tokens est atteint — l
 });
 
 test("la passe s'arrête et le dit quand son plafond de retraits est atteint, pendant qu'elle range", async (t) => {
-  const cuisine = cuisineFermee(t, { reglages: { removedLines: 3 } });
-  const { demander, closer, fin, journal, avertissements } = cuisine;
+  const kitchen = closedKitchen(t, { reglages: { removedLines: 3 } });
+  const { demander, closer, fin, journal: log, avertissements } = kitchen;
   // Huit lignes retirées, pas encore commitées, et il continue.
   closer.gestes("rm src/libre/a.ts\nattendre\n");
 
@@ -226,37 +226,37 @@ test("la passe s'arrête et le dit quand son plafond de retraits est atteint, pe
   const passe = await fin();
   assert.deepEqual([passe.outcome, passe.observed, passe.limit], ["removals", 8, 3]);
   assert.deepEqual(
-    journal.tout().flatMap((e) => (e.type === "guard.tripped" ? [[e.payload.reason, e.payload.limit, e.payload.observed]] : [])),
+    log.tout().flatMap((e) => (e.type === "guard.tripped" ? [[e.payload.reason, e.payload.limit, e.payload.observed]] : [])),
     [["removals", 3, 8]],
   );
   assert.match(avertissements.join("\n"), /— arrêtée : plafond de retraits de la passe atteint \(8 lignes pour un plafond de 3 lignes\) — rien n'est livré/);
-  rienNEstLivre(cuisine);
+  rienNEstLivre(kitchen);
 });
 
 test("un closer qui finit en ayant retiré plus que son plafond ne livre rien", async (t) => {
-  const cuisine = cuisineFermee(t, { reglages: { removedLines: 3 } });
-  cuisine.closer.gestes("git rm -q src/libre/a.ts\ncommiter\n");
+  const kitchen = closedKitchen(t, { reglages: { removedLines: 3 } });
+  kitchen.closer.gestes("git rm -q src/libre/a.ts\ncommiter\n");
 
-  assert.equal((await cuisine.demander()).code, 0);
-  const passe = await cuisine.fin();
+  assert.equal((await kitchen.demander()).code, 0);
+  const passe = await kitchen.fin();
   assert.deepEqual([passe.outcome, passe.observed, passe.limit], ["removals", 8, 3]);
-  rienNEstLivre(cuisine);
+  rienNEstLivre(kitchen);
 });
 
 test("la passe s'arrête et le dit après l'inactivité : un closer qui se tait est arrêté par la minuterie de tout cook", async (t) => {
-  const cuisine = cuisineFermee(t, { plafonds: { idleMs: 300 } });
-  cuisine.closer.gestes("attendre\n");
+  const kitchen = closedKitchen(t, { plafonds: { idleMs: 300 } });
+  kitchen.closer.gestes("attendre\n");
 
-  assert.equal((await cuisine.demander()).code, 0);
-  const passe = await cuisine.fin();
+  assert.equal((await kitchen.demander()).code, 0);
+  const passe = await kitchen.fin();
   assert.deepEqual([passe.outcome, passe.limit], ["idle", 300]);
-  assert.match(cuisine.avertissements.join("\n"), /— arrêtée : inactive \(rien produit depuis [\d.]+ s pour un plafond de 0\.3 s\) — rien n'est livré/);
-  rienNEstLivre(cuisine);
+  assert.match(kitchen.avertissements.join("\n"), /— arrêtée : inactive \(rien produit depuis [\d.]+ s pour un plafond de 0\.3 s\) — rien n'est livré/);
+  rienNEstLivre(kitchen);
 });
 
 test("la passe s'arrête et le dit sur le « stop » du chef, et aucune ne repart tant que la cuisine est arrêtée", async (t) => {
-  const cuisine = cuisineFermee(t);
-  const { demander, closer, fin, repertoire, avertissements } = cuisine;
+  const kitchen = closedKitchen(t);
+  const { demander, closer, fin, repertoire, avertissements } = kitchen;
   closer.gestes(`attendre\n${RETIRER_M1}`);
   assert.equal((await demander()).code, 0);
   await jusqua(() => closer.lancements().length === 1);
@@ -264,7 +264,7 @@ test("la passe s'arrête et le dit sur le « stop » du chef, et aucune ne repar
   chef(repertoire, "kitchen.stopped");
   assert.equal((await fin()).outcome, "stop");
   assert.match(avertissements.join("\n"), /— arrêtée par le « stop » du chef — rien n'est livré/);
-  rienNEstLivre(cuisine);
+  rienNEstLivre(kitchen);
 
   const { code, sortie } = await demander();
   assert.equal(code, 1);
@@ -273,19 +273,19 @@ test("la passe s'arrête et le dit sur le « stop » du chef, et aucune ne repar
 });
 
 test("la passe s'arrête et le dit sur disjoncteur : ouvert pendant qu'elle range, il l'arrête ; ouvert, aucune ne part", async (t) => {
-  const cuisine = cuisineFermee(t);
-  const { demander, closer, fin, repertoire, avertissements } = cuisine;
+  const kitchen = closedKitchen(t);
+  const { demander, closer, fin, repertoire, avertissements } = kitchen;
   closer.gestes(`attendre\n${RETIRER_M1}`);
   assert.equal((await demander()).code, 0);
   await jusqua(() => closer.lancements().length === 1);
 
   // Trois échecs d'affilée ailleurs dans la cuisine : le disjoncteur s'ouvre.
-  const journal = ouvrirJournal(repertoire);
-  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "breaker.opened", payload: { failures: 3, threshold: 3 } });
-  journal.fermer();
+  const log = openLog(repertoire);
+  log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "breaker.opened", payload: { failures: 3, threshold: 3 } });
+  log.fermer();
   assert.equal((await fin()).outcome, "breaker");
   assert.match(avertissements.join("\n"), /— arrêtée : le disjoncteur est ouvert — rien n'est livré/);
-  rienNEstLivre(cuisine);
+  rienNEstLivre(kitchen);
 
   const { code, sortie } = await demander();
   assert.equal(code, 1);
@@ -294,8 +294,8 @@ test("la passe s'arrête et le dit sur disjoncteur : ouvert pendant qu'elle rang
 });
 
 test("une seule passe à la fois : demandée pendant qu'une autre range, la commande refuse", async (t) => {
-  const cuisine = cuisineFermee(t);
-  const { demander, closer, fin } = cuisine;
+  const kitchen = closedKitchen(t);
+  const { demander, closer, fin } = kitchen;
   closer.gestes(`attendre\n${RETIRER_M1}`);
   assert.equal((await demander()).code, 0);
   await jusqua(() => closer.lancements().length === 1);
@@ -309,11 +309,11 @@ test("une seule passe à la fois : demandée pendant qu'une autre range, la comm
 });
 
 test("un closer qui ne retire rien ne livre rien : aucune PR, et ce qu'il a laissé reste au journal avec son motif", async (t) => {
-  const cuisine = cuisineFermee(t);
-  cuisine.closer.message("<livrable>\nLAISSÉ M1 : appelé par un script de déploiement hors du dépôt\nLAISSÉ M2 : idem\n</livrable>\n");
+  const kitchen = closedKitchen(t);
+  kitchen.closer.message("<livrable>\nLAISSÉ M1 : appelé par un script de déploiement hors du dépôt\nLAISSÉ M2 : idem\n</livrable>\n");
 
-  assert.equal((await cuisine.demander()).code, 0);
-  const passe = await cuisine.fin();
+  assert.equal((await kitchen.demander()).code, 0);
+  const passe = await kitchen.fin();
   assert.equal(passe.outcome, "nothing");
   assert.deepEqual(
     passe.kept?.map(({ id, reason }) => [id, reason]),
@@ -323,46 +323,46 @@ test("un closer qui ne retire rien ne livre rien : aucune PR, et ce qu'il a lais
       ["M2", "idem"],
     ],
   );
-  rienNEstLivre(cuisine);
+  rienNEstLivre(kitchen);
 });
 
 test("sans rien à ranger, sans closer réglé ou sans runtime qui tourne, la commande refuse et rien ne part", async (t) => {
-  const propre = cuisineFermee(t, { fichiers: { "src/app.ts": "console.log(1);\n" } });
+  const propre = closedKitchen(t, { fichiers: { "src/app.ts": "console.log(1);\n" } });
   assert.equal((await propre.demander()).code, 0);
   await jusqua(() => propre.types().includes("closing.refused"));
   assert.equal(propre.dernier("closing.refused")?.reason, "nothing");
   assert.match(propre.avertissements.join("\n"), /passe de fermeture refusée — rien à ranger — l'observation ne repère ni doublon ni code mort sur `v2`/);
   rienNEstParti(propre);
 
-  const sansCloser = cuisineFermee(t, { reglages: { calibration: null } });
+  const sansCloser = closedKitchen(t, { reglages: { calibration: null } });
   const refusee = await sansCloser.demander();
   assert.equal(refusee.code, 1);
   assert.match(refusee.sortie, /the closer is not set on this project — `brigade <projet> station closer-modele <model>` and `brigade <projet> station closer-effort <effort>`/);
   rienNEstParti(sansCloser);
 
-  const eteinte = cuisineFermee(t);
+  const eteinte = closedKitchen(t);
   eteinte.runtime.arreter("essai");
   const seule = appeler(principal, ["write"], { BRIGADE_STATE_DIR: eteinte.repertoire });
   assert.equal(await seule.fin, 1);
   assert.match(seule.sortie(), /no runtime is running on this project: the closing pass is not requested/);
-  const relu = ouvrirJournal(eteinte.repertoire, { lectureSeule: true });
+  const relu = openLog(eteinte.repertoire, { lectureSeule: true });
   t.after(() => relu.fermer());
   assert.ok(!relu.tout().some((e) => e.type === "closing.requested"));
 });
 
 test("une passe ne survit pas au runtime : celle qu'il a laissée en vol est dite interrompue, et une demande d'une autre vie ne lance rien", async (t) => {
-  const premiere = cuisineFermee(t);
+  const premiere = closedKitchen(t);
   premiere.closer.gestes(`attendre\n${RETIRER_M1}`);
   assert.equal((await premiere.demander()).code, 0);
   await jusqua(() => premiere.closer.lancements().length === 1);
   const run = premiere.dernier("closing.started")?.run;
   premiere.runtime.arreter("essai");
   // Le chef redemande pendant que rien ne tourne — à la main, la commande refuserait.
-  const journal = ouvrirJournal(premiere.repertoire);
-  journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: "closing.requested", payload: {} });
-  journal.fermer();
+  const log = openLog(premiere.repertoire);
+  log.ajouter({ project: "brigade", ticket: null, author: "chef", type: "closing.requested", payload: {} });
+  log.fermer();
 
-  const seconde = cuisineFermee(t, { lieux: premiere.lieux });
+  const seconde = closedKitchen(t, { lieux: premiere.lieux });
   assert.deepEqual(
     seconde.journal.tout().flatMap((e) => (e.type === "closing.ended" || e.type === "closing.refused" ? [[e.type, e.type === "closing.ended" ? e.payload.run : e.payload.reason, e.type === "closing.ended" ? e.payload.outcome : null]] : [])),
     [
@@ -382,23 +382,23 @@ test("une passe ne survit pas au runtime : celle qu'il a laissée en vol est dit
 });
 
 test("une PR que GitHub refuse d'ouvrir n'est pas une livraison : la passe le dit, et la base n'a pas bougé", async (t) => {
-  const cuisine = cuisineFermee(t);
-  const avant = cuisine.teteDeLaBase();
-  cuisine.gh.pannes.pr = true;
-  cuisine.closer.gestes(RETIRER_M1);
+  const kitchen = closedKitchen(t);
+  const avant = kitchen.teteDeLaBase();
+  kitchen.gh.pannes.pr = true;
+  kitchen.closer.gestes(RETIRER_M1);
 
-  assert.equal((await cuisine.demander()).code, 0);
-  const passe = await cuisine.fin();
+  assert.equal((await kitchen.demander()).code, 0);
+  const passe = await kitchen.fin();
   assert.equal(passe.outcome, "failed");
   assert.match(passe.detail ?? "", /^sa livraison n'est pas partie — /);
-  assert.equal(cuisine.teteDeLaBase(), avant);
-  assert.deepEqual(cuisine.gh.prs, []);
+  assert.equal(kitchen.teteDeLaBase(), avant);
+  assert.deepEqual(kitchen.gh.prs, []);
 });
 
 test("le calibrage posé par le chef vaut à la passe suivante, sans redémarrage : le refus le nomme, puis la passe part", async (t) => {
-  let calibration: ReglagesDeFermeture["calibration"] = null;
-  const cuisine = cuisineFermee(t, { reglagesAChaud: () => ({ ...REGLAGES_DE_FERMETURE, calibration }) });
-  const { demander, dernier, closer, fin, types, journal } = cuisine;
+  let calibration: ClosingSettings["calibration"] = null;
+  const kitchen = closedKitchen(t, { reglagesAChaud: () => ({ ...CLOSING_SETTINGS, calibration }) });
+  const { demander, dernier, closer, fin, types, journal: log } = kitchen;
   closer.gestes(RETIRER_M1);
 
   const refusee = await demander();
@@ -408,7 +408,7 @@ test("le calibrage posé par le chef vaut à la passe suivante, sans redémarrag
 
   // Le chef pose le calibrage : le journal change, le runtime se réveille.
   calibration = { model: "sonnet", effort: "medium" };
-  journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: "decision.set", payload: { name: "BRIGADE_CLOSING_EFFORT", value: "medium", previous: null } });
+  log.ajouter({ project: "brigade", ticket: null, author: "chef", type: "decision.set", payload: { name: "BRIGADE_CLOSING_EFFORT", value: "medium", previous: null } });
   await jusqua(() => types().includes("closing.configured"));
   const demandee = await demander();
   assert.equal(demandee.code, 0, demandee.sortie);

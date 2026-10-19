@@ -324,11 +324,11 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     veille.fermer();
 
     await morts(lu("pids"));
-    const tours = lu("tours");
+    const turns = lu("tours");
     // Leur mort ne relance rien, et ne dit rien : ni lecture, ni erreur.
     await new Promise((resoudre) => setImmediate(resoudre));
     assert.equal(lectures.length, recues);
-    assert.equal(lu("tours"), tours);
+    assert.equal(lu("tours"), turns);
   });
 
   test("un projet qui ne dit pas où est sa box n'est pas lu", async (t) => {
@@ -405,16 +405,16 @@ echo ok`;
   test("`status` et `faits` d'un même projet ne partent pas de front : la seconde veille attend que la première ait fini", async (t) => {
     const { racine, lu } = essai(t, LENT);
     const passage = new Map<string, Promise<unknown>>();
-    const { promise: faits, resolve: surFaits } = Promise.withResolvers<Lecture>();
+    const { promise: facts, resolve: onFacts } = Promise.withResolvers<Lecture>();
     const { promise: ailleurs, resolve: surAilleurs } = Promise.withResolvers<Lecture>();
     const reglages = { ssh: join(racine, "ssh"), intervalleMs: 3_600_000, delaiMs: 60_000, connexionS: 10 };
     const tenue = ouvrirVeille({ ...reglages, passage, surLecture: () => {} });
-    const desFaits = ouvrirVeille({ ...reglages, passage, surLecture: surFaits });
+    const someFacts = ouvrirVeille({ ...reglages, passage, surLecture: onFacts });
     const autre = ouvrirVeille({ ...reglages, passage, surLecture: surAilleurs });
-    t.after(() => [tenue, desFaits, autre].forEach((ouverte) => ouverte.fermer()));
+    t.after(() => [tenue, someFacts, autre].forEach((ouverte) => ouverte.fermer()));
 
     tenue.regarder([BRIGADE], ["status"], 1);
-    desFaits.regarder([BRIGADE], ["faits"], 1);
+    someFacts.regarder([BRIGADE], ["faits"], 1);
     // Un autre projet, par le même passage, n'attend personne : sa lecture aboutit pendant
     // que `status` tient — et laisse à un `faits` parti de front le temps de s'écrire.
     autre.regarder([PARADE], ["faits"], 1);
@@ -425,7 +425,7 @@ echo ok`;
     assert.deepEqual(lu("appels").trim().split("\n").filter((ligne) => ligne.includes(" brigade brigade ")), [`debut ${OPTIONS} -- box brigade brigade status`]);
 
     writeFileSync(join(racine, "lache"), "");
-    await faits;
+    await facts;
 
     assert.deepEqual(
       lu("appels").trim().split("\n").filter((ligne) => ligne.includes(" brigade brigade ")).map((ligne) => ligne.replace(`${OPTIONS} -- box brigade brigade `, "")),
@@ -435,15 +435,15 @@ echo ok`;
 
   test("sans passage partagé, une veille ne retient pas l'autre", async (t) => {
     const { racine, lu } = essai(t, LENT);
-    const { promise: faits, resolve: surFaits } = Promise.withResolvers<Lecture>();
+    const { promise: facts, resolve: onFacts } = Promise.withResolvers<Lecture>();
     const reglages = { ssh: join(racine, "ssh"), intervalleMs: 3_600_000, delaiMs: 60_000, connexionS: 10 };
     const tenue = ouvrirVeille({ ...reglages, surLecture: () => {} });
-    const desFaits = ouvrirVeille({ ...reglages, surLecture: surFaits });
-    t.after(() => [tenue, desFaits].forEach((ouverte) => ouverte.fermer()));
+    const someFacts = ouvrirVeille({ ...reglages, surLecture: onFacts });
+    t.after(() => [tenue, someFacts].forEach((ouverte) => ouverte.fermer()));
 
     tenue.regarder([BRIGADE], ["status"], 1);
-    desFaits.regarder([BRIGADE], ["faits"], 1);
-    await faits;
+    someFacts.regarder([BRIGADE], ["faits"], 1);
+    await facts;
     const appels = lu("appels");
     // `status` est lâché avant que le répertoire du test parte : son `ssh` ne lui survit pas.
     writeFileSync(join(racine, "lache"), "");

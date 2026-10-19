@@ -9,16 +9,16 @@ import { argumentsClaude, consigne, direRefus, environnementCook, lireFlux, sess
 import { ENV_ENFANT, FAUX_CLAUDE, lancementsDuFauxClaude, repertoireTemporaire } from "./outils.ts";
 
 const flux = (nom: string) => readFileSync(join(import.meta.dirname, "aides/flux", `${nom}.jsonl`), "utf8");
-const CALIBRAGE = { model: "sonnet", effort: "medium" };
+const CALIBRATION = { model: "sonnet", effort: "medium" };
 
 test("le binaire est lancé en flux JSON, avec la consigne et le calibrage du ticket", () => {
-  const args = argumentsClaude("la consigne", CALIBRAGE);
+  const args = argumentsClaude("la consigne", CALIBRATION);
 
   assert.deepEqual(args.slice(0, 9), ["-p", "la consigne", "--output-format", "stream-json", "--verbose", "--model", "sonnet", "--effort", "medium"]);
 });
 
 test("un cook n'attend aucune permission, mais ni le merge ni le push ne lui sont ouverts", () => {
-  const args = argumentsClaude("la consigne", CALIBRAGE);
+  const args = argumentsClaude("la consigne", CALIBRATION);
 
   assert.equal(args[args.indexOf("--permission-mode") + 1], "bypassPermissions");
   const interdits = args.slice(args.indexOf("--disallowedTools") + 1);
@@ -26,7 +26,7 @@ test("un cook n'attend aucune permission, mais ni le merge ni le push ne lui son
 });
 
 test("un cook ne charge aucune source de réglages, aucune skill, aucun serveur MCP", () => {
-  const args = argumentsClaude("la consigne", CALIBRAGE);
+  const args = argumentsClaude("la consigne", CALIBRATION);
 
   assert.deepEqual(SOURCES_DE_REGLAGES, []);
   assert.equal(args[args.indexOf("--setting-sources") + 1], "");
@@ -39,7 +39,7 @@ test("un cook ne charge aucune source de réglages, aucune skill, aucun serveur 
 
 test("le binaire reçoit ces arguments tels quels, la liste vide des sources comprise", (t) => {
   const temoin = repertoireTemporaire(t);
-  const args = argumentsClaude("la consigne", CALIBRAGE);
+  const args = argumentsClaude("la consigne", CALIBRATION);
 
   execFileSync(FAUX_CLAUDE, args, { env: { ...ENV_ENFANT, FAUX_CLAUDE: "fini", FAUX_CLAUDE_TEMOIN: temoin } });
 

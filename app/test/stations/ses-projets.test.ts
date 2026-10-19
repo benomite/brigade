@@ -12,8 +12,8 @@ import { pourLaBarre } from "../../src/barre.ts";
 import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
-import { BANNIERE } from "../../src/faits.ts";
+import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
+import { BANNIERE } from "../../src/facts.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
@@ -67,7 +67,7 @@ const demarrage = (projetsDesStations: VuDesProjets | undefined) => () => ({
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
   boutons: BOUTONS,
-  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -140,7 +140,7 @@ test("une station secondaire : le projet est marqué « secondary » sur sa lign
 });
 
 test("un projet que l'app demande et que la station ne sert pas encore est listé, avec ce qu'elle en dit", async () => {
-  const enAttente: VuDesProjets = {
+  const queued: VuDesProjets = {
     ...PARADE,
     projets: [
       ...PARADE.projets,
@@ -153,7 +153,7 @@ test("un projet que l'app demande et que la station ne sert pas encore est list�
       },
     ],
   };
-  const { page } = await laPage("box", enAttente);
+  const { page } = await laPage("box", queued);
   assert.deepEqual(
     lignes(page).map(({ dataset }) => dataset.projet),
     ["brigade", "cantine", "espace", "parade"],

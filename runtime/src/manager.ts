@@ -16,27 +16,27 @@ import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DE_CONFIANCE, priorite, type RuntimeAvecRail } from "./alimenter.ts";
-import { calibrage as calibragePose, complet, EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
-import { envelopper, type Cloison } from "./cloison.ts";
+import { calibration as setCalibration, complet, EFFORTS, MODELES, type Calibration } from "./calibration.ts";
+import { envelopper, type Partition } from "./partition.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { direRefus, environnementCook, lireFlux, REFUS_MAX, verdict, type Lecture } from "./claude.ts";
 import type { Decisions } from "./decisions.ts";
-import { ouvrirDecoupage, type Reponse } from "./decoupage.ts";
-import { MARQUEUR_QUESTION, neDUnDecoupage } from "./decouper.ts";
-import { porteListe } from "./epique.ts";
+import { openSplit, type Reponse } from "./split.ts";
+import { MARQUEUR_QUESTION, bornOfASplit } from "./decouper.ts";
+import { hasList } from "./epic.ts";
 import { commandeRendre, NOMS_DE_NATURE, type Ecart, type FaitManager, type Nature } from "./events/manager.ts";
 import type { FaitPass } from "./events/pass.ts";
 import type { FaitStation } from "./events/station.ts";
-import { LancementRefuse, type GardeFous, type Verdict } from "./garde-fous.ts";
-import { HORS_CUISINE, LABEL, type GitHub, type IssueOuverte } from "./github.ts";
+import { LancementRefuse, type Guardrails, type Verdict } from "./guardrails.ts";
+import { SERVED_ELSEWHERE, LABEL, type GitHub, type IssueOuverte } from "./github.ts";
 import { argumentsJuge, consigneDeJugement, empreinte, lireDecision, MARQUEUR_MANAGER, type Decision } from "./juger.ts";
-import { decoupageDe, epiquesEnAttente, ticketDEpique } from "./projections/splits.ts";
-import { etatDesGardeFous } from "./projections/guardrails.ts";
-import { issueDuManager, issuesEnAttente, managerAllume, remiseDe, remisesEnAttente, type IssueDuManager, type Remise } from "./projections/manager.ts";
+import { splitOf, queuedEpics, epicTicket } from "./projections/splits.ts";
+import { guardrailsState } from "./projections/guardrails.ts";
+import { issueDuManager, queuedIssues, managerAllume, remiseDe, queuedReturns, type IssueDuManager, type Remise } from "./projections/manager.ts";
 import { labelsMontes } from "./projections/reactions.ts";
 import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./projections/stations.ts";
 import { ouvrirReaction } from "./reaction.ts";
-import { configPlafond, type Plafond } from "./reagir.ts";
+import { capConfig, type Cap } from "./reagir.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
 
@@ -51,7 +51,7 @@ const RETENUE = "blocked-on-human";
 const LABELS_ECARTES: Ecart[] = [RETENUE, "question", "decision"];
 // Celui par lequel il dit qu'elle est à découper. Jamais exigé non plus : le
 // jugement reconnaît une épique sans lui.
-const LABEL_EPIQUE = "epic";
+const EPIC_LABEL = "epic";
 // Les écarts que le manager dit sur l'issue quand le chef y a posé `fire`.
 const ECARTS_DITS: Ecart[] = ["roadmap", "already-split", "hors-cuisine", ...LABELS_ECARTES];
 
@@ -61,11 +61,11 @@ const QUOTA = "quota";
 
 export type ConfigManager = {
   // Le modèle et l'effort de ses jugements.
-  calibrage: Calibrage;
+  calibrage: Calibration;
   // Le numéro de l'issue de roadmap du projet, s'il en a une.
   roadmap: number | null;
   // Jusqu'où il peut monter le calibrage d'un ticket qui échoue.
-  plafond: Plafond;
+  plafond: Cap;
   // Les fichiers suivis du dépôt : le plan dont un découpage tire les zones
   // de ses tickets. Sans lui, il découpe à l'aveugle.
   fichiers?: () => string[];
@@ -83,12 +83,12 @@ export function configManager(env: Record<string, string | undefined>): ConfigMa
     if (!admis.includes(valeur)) throw new ConfigInvalide(`${variable} invalide : « ${valeur} » — attendu ${liste(admis)}`);
     return valeur;
   };
-  const calibrage = { model: exiger("BRIGADE_MANAGER_MODEL", MODELES), effort: exiger("BRIGADE_MANAGER_EFFORT", EFFORTS) };
+  const calibration = { model: exiger("BRIGADE_MANAGER_MODEL", MODELES), effort: exiger("BRIGADE_MANAGER_EFFORT", EFFORTS) };
   const roadmap = env.BRIGADE_ROADMAP_ISSUE;
   if (roadmap && !/^[1-9][0-9]*$/.test(roadmap)) {
     throw new ConfigInvalide(`BRIGADE_ROADMAP_ISSUE invalide : « ${roadmap} » — attendu un numéro d'issue (1)`);
   }
-  return { calibrage, roadmap: roadmap ? Number(roadmap) : null, plafond: configPlafond(env) };
+  return { calibrage: calibration, roadmap: roadmap ? Number(roadmap) : null, plafond: capConfig(env) };
 }
 
 export type OptionsManager = ConfigManager & {
@@ -101,7 +101,7 @@ export type OptionsManager = ConfigManager & {
   // L'environnement dont part celui des jugements. Par défaut, celui du runtime.
   env?: NodeJS.ProcessEnv;
   // La cloison dans laquelle partent les jugements.
-  cloison?: Cloison | null;
+  cloison?: Partition | null;
   maintenant?: () => Date;
   // Où va ce que le manager a à dire hors du journal (journald).
   avertir?: (message: string) => void;
@@ -141,17 +141,17 @@ type Tri =
   | { quoi: "decouper" };
 
 const dimension = (labels: string[], prefixe: string) => labels.filter((label) => label.startsWith(prefixe));
-const deCalibrage = (label: string) => label.startsWith("model:") || label.startsWith("effort:");
+const isCalibration = (label: string) => label.startsWith("model:") || label.startsWith("effort:");
 
 // Rend le runtime, augmenté de son manager. Son `arreter` l'emporte avec lui.
-export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: R, options: OptionsManager): R {
-  const { journal, projet, rail } = runtime;
-  const { base } = journal;
+export function brancherManager<R extends RuntimeAvecRail & Guardrails>(runtime: R, options: OptionsManager): R {
+  const { journal: log, projet, rail } = runtime;
+  const { base } = log;
   const { github } = options;
   const maintenant = options.maintenant ?? (() => new Date());
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   const envJuge = environnementCook(options.env ?? process.env);
-  const noter = (ticket: number | null, fait: FaitManager | FaitStation | FaitPass) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
+  const noter = (ticket: number | null, fait: FaitManager | FaitStation | FaitPass) => log.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
 
   let arrete = false;
   // Les commentaires de confiance de chaque issue, tels que lus à sa dernière
@@ -171,18 +171,18 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const fired = issue.labels.includes(LABEL);
     // Le ticket dit qu'il ne se sert pas ici : il l'emporte sur tout le reste,
     // `fire` posé, calibrage complet ou grant `merge` compris.
-    if (issue.labels.includes(HORS_CUISINE)) return { quoi: "ecart", raison: "hors-cuisine", fired };
+    if (issue.labels.includes(SERVED_ELSEWHERE)) return { quoi: "ecart", raison: "hors-cuisine", fired };
     // Une épique découpée ne se rejuge plus ; il peut rester à finir ce que le
     // découpage a commencé.
-    const decoupee = decoupageDe(base, issue.number);
+    const decoupee = splitOf(base, issue.number);
     if (decoupee?.state === "split") {
       if (decoupee.done && decoupee.commented) return { quoi: "fini" };
       // Retenue par le chef au milieu des créations : elles attendent.
       return issue.labels.includes(RETENUE) ? { quoi: "ecart", raison: RETENUE, fired } : { quoi: "decouper" };
     }
     // Un ticket né d'un découpage est déjà jugé et calibré.
-    if (ticketDEpique(base, issue.number)?.index != null || neDUnDecoupage(issue.body)) return { quoi: "fini" };
-    if (fired && complet(calibragePose(issue.labels))) return { quoi: "rien" };
+    if (epicTicket(base, issue.number)?.index != null || bornOfASplit(issue.body)) return { quoi: "fini" };
+    if (fired && complet(setCalibration(issue.labels))) return { quoi: "rien" };
     // Le manager a déjà posé sur cette issue, et il y manque quelque chose : le
     // chef l'a retiré. Tout ce qu'elle porte est désormais à lui.
     if (connue && connue.posed.length > 0) return { quoi: "ecart", raison: "chef-changed", fired };
@@ -192,8 +192,8 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     if (label) return { quoi: "ecart", raison: label, fired };
     // La liste de ses tickets est déjà dans son corps, et le journal ne sait
     // rien d'un découpage : il a été fait à la main.
-    if (porteListe(issue.body)) return { quoi: "ecart", raison: "already-split", fired };
-    if (issue.labels.includes(LABEL_EPIQUE)) return { quoi: "decouper" };
+    if (hasList(issue.body)) return { quoi: "ecart", raison: "already-split", fired };
+    if (issue.labels.includes(EPIC_LABEL)) return { quoi: "decouper" };
     // Lancée, et chaque dimension porte déjà un label — illisible, ou en
     // double : le chef n'a pas fini de trancher, la station le lui dit.
     if (fired && dimension(issue.labels, "model:").length > 0 && dimension(issue.labels, "effort:").length > 0) return { quoi: "rien" };
@@ -220,7 +220,7 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // « stop », si le disjoncteur est ouvert, ou si une station dit le compte
   // épuisé ou déconnecté.
   const peutJuger = (): boolean => {
-    const garde = etatDesGardeFous(base);
+    const garde = guardrailsState(base);
     if (garde.stoppedAt !== null || garde.breakerOpenedAt !== null) return false;
     return !compteRetenu(base, maintenant());
   };
@@ -234,9 +234,9 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
 
   const signature = (run: string | null, verbe = "Jugé"): string => {
     const cook = run === null ? null : cookDeRun(base, run);
-    const calibrage = cook?.model && cook.effort ? ` en \`${cook.model}\` / \`${cook.effort}\`` : "";
-    const mesure = cook?.turns == null ? "" : ` · ${pluriel(cook.turns, "tour")} · ${nombre(cook.tokens ?? 0)} tokens · ${duree(cook.durationMs ?? 0)}`;
-    return `_${verbe} par le manager${calibrage}${mesure}._`;
+    const calibration = cook?.model && cook.effort ? ` en \`${cook.model}\` / \`${cook.effort}\`` : "";
+    const measure = cook?.turns == null ? "" : ` · ${pluriel(cook.turns, "tour")} · ${nombre(cook.tokens ?? 0)} tokens · ${duree(cook.durationMs ?? 0)}`;
+    return `_${verbe} par le manager${calibration}${measure}._`;
   };
 
   const dire = (issue: IssueOuverte, connue: IssueDuManager): string => {
@@ -414,15 +414,15 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
       return "valeur" in lue ? "neutral" : "failed";
     };
 
-    const calibrage = options.decisions?.manager() ?? options.calibrage;
+    const calibration = options.decisions?.manager() ?? options.calibrage;
     let lance;
     try {
       lance = runtime.lancer({
         ticket: null,
         run,
-        contexte: { station: MANAGER, ...calibrage },
+        contexte: { station: MANAGER, ...calibration },
         // Hors de tout dépôt : un jugement ne lit que sa consigne.
-        ...envelopper(options.cloison, { commande: options.bin, args: argumentsJuge(consigne, calibrage) }, { cwd: tmpdir(), depot: null }),
+        ...envelopper(options.cloison, { commande: options.bin, args: argumentsJuge(consigne, calibration) }, { cwd: tmpdir(), depot: null }),
         cwd: tmpdir(),
         env: environnementClaude(envJuge, options.env ?? process.env),
         juger: conclure,
@@ -492,8 +492,8 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     return true;
   };
 
-  const decoupage = ouvrirDecoupage({
-    journal,
+  const split = openSplit({
+    journal: log,
     github,
     depotGitHub: options.depotGitHub,
     fichiers: options.fichiers ?? (() => []),
@@ -507,7 +507,7 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
   });
 
   const reaction = ouvrirReaction({
-    journal,
+    journal: log,
     rail,
     github,
     depotGitHub: options.depotGitHub,
@@ -515,7 +515,7 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     noter,
     demander,
     peutJuger,
-    redecouper: decoupage.redecouper,
+    redecouper: split.redecouper,
     arrete: () => arrete,
     eteint: () => !managerAllume(base),
     avertir,
@@ -529,16 +529,16 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // d'une issue qu'il a relancée et calibrée lui-même entre-temps : elle peut
   // déjà cuire. Rend les labels de l'issue, ou null si le retrait reste à faire.
   const reprendre = async (issue: IssueOuverte, remise: Remise & { labels: string[] }): Promise<string[] | null> => {
-    const siens = new Set([...remise.labels, ...labelsMontes(base, issue.number)].filter(deCalibrage));
+    const siens = new Set([...remise.labels, ...labelsMontes(base, issue.number)].filter(isCalibration));
     let retires: string[] = [];
-    let portes = issue.labels;
+    let doors = issue.labels;
     try {
       // Relus juste avant d'écrire : ceux du sondage ont l'âge du tour.
       const fraiche = await github.issue(issue.number);
       if (arrete) return null;
       if (fraiche?.state === "open") {
-        portes = fraiche.labels;
-        if (!(portes.includes(LABEL) && complet(calibragePose(portes)))) retires = portes.filter((label) => siens.has(label));
+        doors = fraiche.labels;
+        if (!(doors.includes(LABEL) && complet(setCalibration(doors)))) retires = doors.filter((label) => siens.has(label));
         for (const label of retires) await github.delabelliser(issue.number, label);
         if (arrete) return null;
       }
@@ -547,15 +547,15 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
       return null;
     }
     noter(issue.number, { type: "manager.withdrew", payload: { labels: retires } });
-    return portes.filter((label) => !retires.includes(label));
+    return doors.filter((label) => !retires.includes(label));
   };
 
   // Ce que la liste des issues ouvertes dit de celles dont le manager attend
   // le chef : fermée, l'issue ne l'attend plus ; rouverte, de nouveau. Sans E/S.
   const constater = (presentes: Set<number>) => {
     const attendues = new Map([
-      ...epiquesEnAttente(base).map(({ epic, closed }) => [epic, closed] as const),
-      ...issuesEnAttente(base).map(({ ticket, closed }) => [ticket, closed] as const),
+      ...queuedEpics(base).map(({ epic, closed }) => [epic, closed] as const),
+      ...queuedIssues(base).map(({ ticket, closed }) => [ticket, closed] as const),
     ]);
     for (const [numero, closed] of attendues) {
       if (closed === presentes.has(numero)) noter(numero, { type: closed ? "manager.reopened" : "manager.closed", payload: {} });
@@ -578,16 +578,16 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     await reaction.traiter();
     if (arrete || !managerAllume(base)) return;
     // De même : l'état d'un ticket change sans qu'aucune issue bouge.
-    await decoupage.suivre();
+    await split.suivre();
     if (arrete) return;
     const sondage = await github.ouvertes();
     // Rendre une issue ne la modifie pas : GitHub répond « inchangé », et la
     // liste confirmée se retrie telle quelle.
-    if (sondage.inchange && (confirmees === null || remisesEnAttente(base).every((remise) => sansObjet.has(cle(remise))))) return;
+    if (sondage.inchange && (confirmees === null || queuedReturns(base).every((remise) => sansObjet.has(cle(remise))))) return;
     const issues = sondage.inchange ? (confirmees ?? []) : sondage.issues;
     const presentes = new Set(issues.map((issue) => issue.number));
     for (const numero of [...lus.keys()]) if (!presentes.has(numero)) lus.delete(numero);
-    decoupage.observer(issues.filter(lisible));
+    split.observer(issues.filter(lisible));
     constater(presentes);
 
     // Tant qu'une issue attend quelque chose qui ne la modifie pas — un quota,
@@ -596,7 +596,7 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     let complet = true;
     // Les remises que ce tour verra toutes : celle que le chef écrit pendant
     // qu'il tourne est au suivant.
-    const remises = remisesEnAttente(base);
+    const remises = queuedReturns(base);
     for (const sondee of issues.filter(lisible).sort(ordre)) {
       if (arrete || !managerAllume(base)) return;
       let issue = sondee;
@@ -611,7 +611,7 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
       }
       const connue = issueDuManager(base, issue.number);
       const tri = trier(issue, connue);
-      let epique = tri.quoi === "decouper";
+      let epic = tri.quoi === "decouper";
       if (tri.quoi === "fini") continue;
       if (tri.quoi === "ecart") ecarter(issue, tri, connue);
       else if (tri.quoi === "juger") {
@@ -626,12 +626,12 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
         // Le jugement y a reconnu une épique : elle ne se refuse pas, elle se
         // découpe.
         const jugee = issueDuManager(base, issue.number);
-        epique = jugee?.decision === "refused" && jugee.kind === ("epic" satisfies Nature);
+        epic = jugee?.decision === "refused" && jugee.kind === ("epic" satisfies Nature);
       }
-      if (epique) {
+      if (epic) {
         if (arrete || !managerAllume(base)) return;
         const { corps, echanges } = await lire(issue);
-        if (!(await decoupage.traiter(issue, corps, echanges))) complet = false;
+        if (!(await split.traiter(issue, corps, echanges))) complet = false;
         continue;
       }
       // Éteint pendant le jugement : la décision est au journal, rien n'est

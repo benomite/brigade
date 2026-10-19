@@ -4,25 +4,25 @@
 // rapporte et sur sa propre horloge. Les arrêter, ici, c'est ne plus rien
 // accepter de lui : la station l'apprend à sa demande suivante, et arrête le
 // sien. Mécanique pure : aucun journal ici.
-import type { Plafonds } from "./events/guardrails.ts";
+import type { Caps } from "./events/guardrails.ts";
 import { depassement, type Arret, type Fin, type Supervise } from "./superviseur.ts";
 
-export type Mesure = { turns: number; tokens: number };
+export type Measure = { turns: number; tokens: number };
 
 export type SuperviseADistance = Supervise & {
   // Ce que la station dit que son cook a consommé jusqu'ici. Un plafond
   // dépassé l'arrête, comme une ligne du flux arrête un cook de la box.
-  mesurer(mesure: Mesure): void;
+  mesurer(measure: Measure): void;
   // Le cook a fini chez elle, de lui-même : son code de sortie.
   rendre(code: number | null): void;
 };
 
-export function superviserADistance(options: { plafonds: Plafonds; surArret?: (arret: Arret) => void }): SuperviseADistance {
-  const { plafonds } = options;
+export function superviserADistance(options: { plafonds: Caps; surArret?: (arret: Arret) => void }): SuperviseADistance {
+  const { plafonds: caps } = options;
   const debut = performance.now();
   const ecoule = () => Math.round(performance.now() - debut);
 
-  let mesure: Mesure = { turns: 0, tokens: 0 };
+  let measure: Measure = { turns: 0, tokens: 0 };
   let arret: Arret | null = null;
   let fini = false;
   let resoudre: (fin: Fin) => void = () => {};
@@ -35,7 +35,7 @@ export function superviserADistance(options: { plafonds: Plafonds; surArret?: (a
     fini = true;
     clearTimeout(duree);
     clearTimeout(inactivite);
-    resoudre({ code, signal: null, ...mesure, durationMs: ecoule(), arret, erreur: null });
+    resoudre({ code, signal: null, ...measure, durationMs: ecoule(), arret, erreur: null });
   };
   const arreter = (motif: Arret) => {
     if (arret || fini) return;
@@ -51,25 +51,25 @@ export function superviserADistance(options: { plafonds: Plafonds; surArret?: (a
     }
   };
 
-  duree = setTimeout(() => arreter({ reason: "duration", limit: plafonds.durationMs, observed: ecoule() }), plafonds.durationMs);
+  duree = setTimeout(() => arreter({ reason: "duration", limit: caps.durationMs, observed: ecoule() }), caps.durationMs);
   // Le silence d'un cook de la box se lit sur son flux ; celui-ci, sur ce que
   // sa station en rapporte : une mesure qui ne bouge plus, ou plus de mesure
   // du tout.
   const veiller = () => {
     clearTimeout(inactivite);
     const depuis = performance.now();
-    inactivite = setTimeout(() => arreter({ reason: "idle", limit: plafonds.idleMs, observed: Math.round(performance.now() - depuis) }), plafonds.idleMs);
+    inactivite = setTimeout(() => arreter({ reason: "idle", limit: caps.idleMs, observed: Math.round(performance.now() - depuis) }), caps.idleMs);
   };
   veiller();
 
   return {
     pid: undefined,
-    mesure: () => ({ ...mesure }),
+    mesure: () => ({ ...measure }),
     mesurer(lue) {
       if (fini) return;
-      if (lue.turns !== mesure.turns || lue.tokens !== mesure.tokens) veiller();
-      mesure = { turns: lue.turns, tokens: lue.tokens };
-      const depasse = depassement(plafonds, mesure);
+      if (lue.turns !== measure.turns || lue.tokens !== measure.tokens) veiller();
+      measure = { turns: lue.turns, tokens: lue.tokens };
+      const depasse = depassement(caps, measure);
       if (depasse) arreter(depasse);
     },
     rendre: conclure,

@@ -20,9 +20,9 @@ import { userInfo } from "node:os";
 import { join } from "node:path";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import type { FaitInstallateur } from "./events/installer.ts";
-import { desinstaller, direDesinstallation, Inachevee, lireRetrait, type Retrait } from "./desinstallateur.ts";
+import { uninstall, direDesinstallation, Inachevee, lireRetrait, type Retrait } from "./desinstallateur.ts";
 import { ACTIONS, appelBorne, CODES, Echec, installer, lireAppel, lireDemande, PATH_DE_SYSTEMD, portLibre, projetDesigne, Refus, type Action, type Box, type Demande } from "./installateur.ts";
-import { ouvrirJournal, type Journal } from "./journal.ts";
+import { openLog, type Log } from "./log.ts";
 import { prendreVerrou, VerrouTenu, type Verrou } from "./verrou.ts";
 
 export const BOX: Box = {
@@ -70,20 +70,20 @@ export async function principal({ args, env, dire, redire }: Appel, box: Box = B
   if (process.getuid?.() !== box.racine) finir(CODES.sansDroit, "sans-droit", "ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chefs` — rien n'est fait");
 
   // Le journal d'abord : un appel qui ne peut pas s'y écrire n'a pas lieu.
-  let journal: Journal;
+  let log: Log;
   let verrou: Verrou | null = null;
   try {
     mkdirSync(box.journal, { recursive: true, mode: 0o700 });
     const lu = lstatSync(box.journal);
     if (!lu.isDirectory() || lu.uid !== box.racine || (lu.mode & 0o022) !== 0) throw new Error("ce n'est pas un répertoire de root seul");
-    journal = ouvrirJournal(box.journal, { projections: [] });
+    log = openLog(box.journal, { projections: [] });
   } catch (erreur) {
     finir(CODES.boxPasPrete, "journal-indisponible", `le journal du geste (${box.journal}) ne s'ouvre pas : ${erreur instanceof Error ? erreur.message : String(erreur)} — rien n'est fait, aucun usage ne passe sans trace`);
   }
 
   const qui = appelant(env);
   const appel = appelBorne(args);
-  const ecrire = (fait: FaitInstallateur) => journal.ajouter({ project: projet ?? HORS_PROJET, ticket: null, author: qui, ...fait });
+  const ecrire = (fait: FaitInstallateur) => log.ajouter({ project: projet ?? HORS_PROJET, ticket: null, author: qui, ...fait });
   const refuser = (code: number, motif: string, message: string): never => {
     ecrire({ type: "installer.refused", payload: { ...appel, result: "refused", reason: motif } });
     return finir(code, motif, message, { ecrit: false });
@@ -106,7 +106,7 @@ export async function principal({ args, env, dire, redire }: Appel, box: Box = B
     dire(JSON.stringify({ ok: true, action, ...installe }));
   };
   const desinstallation = (retrait: Retrait) => async () => {
-    const rendu = await desinstaller(box, retrait, options);
+    const rendu = await uninstall(box, retrait, options);
     const { retire } = rendu.plan;
     // Un plan n'a rien changé : sans trace au journal, il n'est pas rendu.
     if (rendu.fait === "plan") ecrire({ type: "installer.planned", payload: { ...appel, result: "planned" } });
@@ -154,7 +154,7 @@ export async function principal({ args, env, dire, redire }: Appel, box: Box = B
     refuser(CODES.boxPasPrete, "erreur-inattendue", `la box n'a pas pu être lue : ${erreur instanceof Error ? erreur.message : String(erreur)} — rien n'est fait`);
   } finally {
     verrou?.relacher();
-    journal.fermer();
+    log.fermer();
   }
 }
 

@@ -8,7 +8,7 @@
 // parmi les gists de station du compte, celui qui publie l'empreinte de ce
 // code, et y écrit l'appairage — la station le lit à son signe de vie suivant.
 // Un code mal formé, inconnu ou échu est refusé en une ligne, et rien n'est écrit.
-import type { ConnexionPubliee } from "../pannes/etats.ts";
+import type { PublishedConnection } from "../pannes/etats.ts";
 import { pannesDe, type Panne } from "../pannes/pannes.ts";
 import { empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, lireDocument, normaliser, type DocumentStation } from "./document.ts";
 import { suivreLesVersions, type VersionsVues } from "./versions.ts";
@@ -21,7 +21,7 @@ export type EtatDeStation = "en-ligne" | "hors-ligne" | "illisible";
 // (« online », « offline for 12 min ») ; sa `version` ; les `projets` qu'elle porte ; sa connexion Max
 // telle qu'elle la publie — nulle quand elle n'en dit rien, ou qu'elle se tait ; `versionDit`, sa ligne de
 // mise à jour (`ligneDeVersion`), vide quand il n'y a rien à en dire.
-export type StationVue = { id: string; nom: string; machine: string; etat: EtatDeStation; ligne: string; pannes: Panne[]; dit: string; version: string; projets: string[]; max: ConnexionPubliee["etat"] | null; versionDit?: string };
+export type StationVue = { id: string; nom: string; machine: string; etat: EtatDeStation; ligne: string; pannes: Panne[]; dit: string; version: string; projets: string[]; max: PublishedConnection["etat"] | null; versionDit?: string };
 // `sans` : pourquoi la dernière lecture n'a pas abouti — la liste est alors celle d'avant.
 // `limite` : c'est GitHub qui limite les appels du compte, et `reprise`, l'heure où il les rend —
 // nulle quand il ne l'a pas dite.

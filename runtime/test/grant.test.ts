@@ -6,7 +6,7 @@ import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { dureeEn as duree } from "../src/etat.ts";
 import { bientotEteint, commanderGrant, direCompris, direGrant, direInstant, direInstantEn, gestesDuGrant, GrantRefuse, lireEcheance, type Commande } from "../src/grant.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { etatDuGrant, pass, passDuTicket, usagesDuGrant } from "../src/projections/pass.ts";
 import { sessions } from "../src/projections/sessions.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
@@ -17,17 +17,17 @@ const a = (heure: string) => new Date(`${JOUR_HORLOGE}T${heure}.000Z`);
 const iso = (heure: string) => a(heure).toISOString();
 
 function histoire(t: TestContext) {
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge(), projections: [pass, sessions] });
-  t.after(() => journal.fermer());
-  const noter = (fait: Fait, ticket: number | null = null, author = "chef") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const log = openLog(repertoireTemporaire(t), { maintenant: horloge(), projections: [pass, sessions] });
+  t.after(() => log.fermer());
+  const noter = (fait: Fait, ticket: number | null = null, author = "chef") => log.ajouter({ project: "brigade", ticket, author, ...fait });
   const vouloir = (ticket: number) => noter({ type: "grant.used", payload: { action: "merge", pr: PR, number: 40, sha: `sha-${ticket}`, base: "v2", verdict: 1 } }, ticket, "pass");
   const merger = (ticket: number, by: "pass" | "outside" = "pass") => noter({ type: "merge.done", payload: { pr: PR, sha: `sha-${ticket}`, by, reconciled: false } }, ticket, "pass");
   const refuser = (ticket: number) => noter({ type: "merge.failed", payload: { pr: PR, sha: `sha-${ticket}`, reason: "refusé" } }, ticket, "pass");
   // Un cook parti sur le ticket : sa livraison a une branche, que la pass peut lâcher.
-  const cuisiner = (ticket: number) =>
+  const cook = (ticket: number) =>
     noter({ type: "cook.launched", payload: { run: `r${ticket}`, limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/r${ticket}.jsonl`, branch: `cook/${ticket}`, worktree: `worktrees/${ticket}` } }, ticket, "runtime");
-  const grant = (heure = "10:30:00") => etatDuGrant(journal.base, "merge", a(heure));
-  return { journal, base: journal.base, noter, cuisiner, vouloir, merger, refuser, grant };
+  const grant = (heure = "10:30:00") => etatDuGrant(log.base, "merge", a(heure));
+  return { journal: log, base: log.base, noter, cuisiner: cook, vouloir, merger, refuser, grant };
 }
 
 describe("le grant au journal", () => {
@@ -86,7 +86,7 @@ describe("le grant au journal", () => {
   });
 
   test("un merge que la pass n'a pas voulu ne consomme rien ; celui qu'elle a voulu consomme, quel que soit le nom que GitHub donne à son auteur", (t) => {
-    const { noter, cuisiner, vouloir, merger, grant } = histoire(t);
+    const { noter, cuisiner: cook, vouloir, merger, grant } = histoire(t);
     noter({ type: "grant.activated", payload: { action: "merge", uses: 3 } });
 
     // Le chef merge à la main une livraison arrêtée : aucune intention, aucun usage.
@@ -99,7 +99,7 @@ describe("le grant au journal", () => {
     assert.deepEqual([grant()?.usesLeft, grant()?.reserved], [2, 0]);
 
     // Un ticket parti, sa PR trouvée mergée : la livraison lâchée le dit, l'intention est consommée — une fois.
-    cuisiner(19);
+    cook(19);
     vouloir(19);
     noter({ type: "ticket.left", payload: { reason: "closed" } }, 19, "github");
     assert.deepEqual([grant()?.usesLeft, grant()?.reserved], [2, 1]);
@@ -112,11 +112,11 @@ describe("le grant au journal", () => {
   });
 
   test("une intention dont le ticket part ne retient pas son usage sans fin : lâchée non mergée, elle le rend, et le grant sert encore", (t) => {
-    const { base, noter, cuisiner, vouloir, merger, grant } = histoire(t);
+    const { base, noter, cuisiner: cook, vouloir, merger, grant } = histoire(t);
     noter({ type: "grant.activated", payload: { action: "merge", uses: 2 } });
 
     // GitHub n'a pas répondu au merge du 17, et son issue est fermée avant la réconciliation.
-    cuisiner(17);
+    cook(17);
     vouloir(17);
     noter({ type: "ticket.left", payload: { reason: "closed" } }, 17, "github");
     // Tant que la pass n'a pas relu GitHub, l'usage reste retenu.
@@ -199,16 +199,16 @@ describe("le grant au journal", () => {
   });
 
   test("un journal d'avant l'échéance se rejoue : son grant est sans échéance, ses vieux merges ne décomptent rien", (t) => {
-    const { journal, noter, vouloir, merger, grant } = histoire(t);
+    const { journal: log, noter, vouloir, merger, grant } = histoire(t);
     noter({ type: "grant.activated", payload: { action: "merge" } });
     vouloir(17);
     merger(17);
     noter({ type: "grant.extended", payload: { action: "merge", uses: 3 } });
-    const avant = photographier(journal, [pass]);
+    const avant = photographier(log, [pass]);
 
-    journal.reconstruire();
+    log.reconstruire();
 
-    assert.deepEqual(photographier(journal, [pass]), avant);
+    assert.deepEqual(photographier(log, [pass]), avant);
     assert.deepEqual([grant()?.active, grant()?.until, grant()?.usesLeft], [true, null, null]);
   });
 
@@ -318,14 +318,14 @@ describe("les gestes du chef sur le grant", () => {
       }
       return null;
     };
-    const faits = () => lieu.journal.tout().filter((e) => e.type.startsWith("grant.")).map((e) => [e.type, e.author, e.payload]);
+    const facts = () => lieu.journal.tout().filter((e) => e.type.startsWith("grant.")).map((e) => [e.type, e.author, e.payload]);
     const lu = (heure: Date) => direGrant(etatDuGrant(lieu.base, "merge", heure), heure, duree);
-    return { ...lieu, commander, refus, faits, lu };
+    return { ...lieu, commander, refus, faits: facts, lu };
   }
   const dans = (heures: number, depuis = T0) => new Date(depuis.getTime() + heures * 3_600_000);
 
   test("accordé sans échéance, il se lit « no deadline » ; accordé pour une durée et un nombre d'usages, il dit ce qu'il reste", (t) => {
-    const { commander, faits, lu, noter } = chef(t);
+    const { commander, faits: facts, lu, noter } = chef(t);
     assert.match(commander("enable", T0), /grant merge active, no deadline: every green pass from now on is merged[\s\S]*It holds until you revoke it/);
     assert.match(lu(dans(30)), /^ACTIVE since \S+ \(by chef\) — no deadline: a green pass is merged without you$/);
     noter({ type: "grant.revoked", payload: { action: "merge" } });
@@ -333,35 +333,35 @@ describe("les gestes du chef sur le grant", () => {
     const dit = commander("enable", T0, "--for", "4h", "--uses", "10");
 
     assert.match(dit, new RegExp(`grant merge active, 4 h 00 left \\(until ${direInstantEn(dans(4).toISOString())}\\) · for 10 uses: [\\s\\S]*It will lapse on its own`));
-    assert.deepEqual(faits().at(-1), ["grant.activated", "chef", { action: "merge", until: dans(4).toISOString(), uses: 10 }]);
+    assert.deepEqual(facts().at(-1), ["grant.activated", "chef", { action: "merge", until: dans(4).toISOString(), uses: 10 }]);
     assert.match(lu(dans(1)), new RegExp(`ACTIVE since \\S+ \\(by chef\\) — 3 h 00 left \\(until ${direInstantEn(dans(4).toISOString())}\\) · 10 uses left: a green pass`));
   });
 
   test("activer un grant déjà actif n'écrit rien, dit ce qu'il en reste et renvoie à `extend`", (t) => {
-    const { commander, faits } = chef(t);
+    const { commander, faits: facts } = chef(t);
     commander("enable", T0, "--for", "4h");
 
     const dit = commander("enable", dans(1), "--for", "8h");
 
     assert.match(dit, /grant merge already active since \S+ — 3 h 00 left \(until 8 Oct 14:00 UTC\)\. Nothing is written: to change its deadline, `extend merge`/);
-    assert.equal(faits().length, 1);
+    assert.equal(facts().length, 1);
   });
 
   test("le chef prolonge un grant en cours sans le révoquer : un fait de plus, que l'histoire garde", (t) => {
-    const { journal, commander, faits, lu } = chef(t);
+    const { journal: log, commander, faits: facts, lu } = chef(t);
     commander("enable", T0, "--for", "4h", "--uses", "2");
 
     // Deux heures à partir de maintenant, pas ajoutées à l'ancienne échéance.
     assert.match(commander("extend", dans(3), "--for", "2h"), new RegExp(`grant merge extended: 2 h 00 left \\(until ${direInstantEn(dans(5).toISOString())}\\) · 2 uses left`));
     assert.match(commander("extend", dans(3), "--uses", "5"), /extended: 2 h 00 left \(until \d+ \S+ \d\d:\d\d UTC\) · 7 uses left/);
 
-    assert.deepEqual(faits(), [
+    assert.deepEqual(facts(), [
       ["grant.activated", "chef", { action: "merge", until: dans(4).toISOString(), uses: 2 }],
       ["grant.extended", "chef", { action: "merge", until: dans(5).toISOString() }],
       ["grant.extended", "chef", { action: "merge", uses: 5 }],
     ]);
     assert.match(lu(dans(4.5)), /ACTIVE since \S+T10:00:\S+ \(by chef\) — EXPIRING SOON — 30 min left \(until \d+ \S+ \d\d:\d\d UTC\) · 7 uses left/);
-    const gestes = gestesDuGrant(journal);
+    const gestes = gestesDuGrant(log);
     assert.equal(gestes.length, 3);
     assert.match(gestes[0] ?? "", /merge  extended: 5 uses more  \(chef\)$/);
     assert.match(gestes[1] ?? "", new RegExp(`merge  extended: until ${direInstantEn(dans(5).toISOString())}  \\(chef\\)$`));
@@ -369,7 +369,7 @@ describe("les gestes du chef sur le grant", () => {
   });
 
   test("prolonger ne raccourcit pas : une date plus proche, ou une limite posée là où il n'y en avait pas, est refusée sans rien écrire", (t) => {
-    const { commander, refus, faits, noter } = chef(t);
+    const { commander, refus, faits: facts, noter } = chef(t);
     commander("enable", T0, "--for", "4h");
     assert.match(refus("extend", dans(1), "--for", "1h") ?? "", /already holds until \d+ \S+ \d\d:\d\d UTC: \d+ \S+ \d\d:\d\d UTC does not extend it — to shorten it, revoke it then enable it again/);
     assert.match(refus("extend", dans(1), "--uses", "3") ?? "", /does not count its uses/);
@@ -378,39 +378,39 @@ describe("les gestes du chef sur le grant", () => {
     commander("enable", T0, "--uses", "3");
     assert.match(refus("extend", dans(1), "--for", "1h") ?? "", /has no dated deadline/);
 
-    assert.deepEqual(faits().map(([type]) => type), ["grant.activated", "grant.revoked", "grant.activated"]);
+    assert.deepEqual(facts().map(([type]) => type), ["grant.activated", "grant.revoked", "grant.activated"]);
   });
 
   test("l'échéance se lève explicitement, et le journal le dit", (t) => {
-    const { journal, commander, faits, lu } = chef(t);
+    const { journal: log, commander, faits: facts, lu } = chef(t);
     commander("enable", T0, "--for", "4h", "--uses", "2");
 
     assert.match(commander("extend", dans(1), "--no-expiry"), /extended: its deadline is lifted/);
 
-    assert.deepEqual(faits().at(-1), ["grant.extended", "chef", { action: "merge", until: null, uses: null }]);
+    assert.deepEqual(facts().at(-1), ["grant.extended", "chef", { action: "merge", until: null, uses: null }]);
     assert.match(lu(dans(400)), /ACTIVE since \S+ \(by chef\) — no deadline/);
-    assert.match(gestesDuGrant(journal)[0] ?? "", /extended: deadline lifted/);
+    assert.match(gestesDuGrant(log)[0] ?? "", /extended: deadline lifted/);
     assert.match(commander("extend", dans(2), "--no-expiry"), /already has no deadline: nothing is written/);
   });
 
   test("éteint seul, il se lit ainsi avant même que le runtime l'écrive — et ne se prolonge pas : il se réaccorde, l'extinction d'abord écrite", (t) => {
-    const { journal, commander, refus, faits, lu } = chef(t);
+    const { journal: log, commander, refus, faits: facts, lu } = chef(t);
     commander("enable", T0, "--for", "4h");
 
     assert.match(lu(dans(6)), new RegExp(`^LAPSED since ${dans(4).toISOString()} — its deadline has passed \\(enabled by chef\\): the pass stops at the open PR \\(the runtime will write it to the log on its next pass\\)$`));
-    assert.equal(faits().length, 1);
+    assert.equal(facts().length, 1);
 
     assert.match(refus("extend", dans(6), "--for", "2h") ?? "", /nothing to extend: the merge grant is not active — it lapsed on \S+ \(its deadline has passed\) — to enable it again, `enable merge`/);
     assert.match(commander("revoke", dans(6)), /nothing to revoke: the merge grant is not active — it lapsed on/);
     commander("enable", dans(6), "--for", "1h");
 
     // Le geste du chef ne recouvre pas l'extinction : elle est au journal, à sa date, et pas en son nom.
-    assert.deepEqual(faits(), [
+    assert.deepEqual(facts(), [
       ["grant.activated", "chef", { action: "merge", until: dans(4).toISOString() }],
       ["grant.expired", "runtime", { action: "merge", cause: "until", since: dans(4).toISOString() }],
       ["grant.activated", "chef", { action: "merge", until: dans(7).toISOString() }],
     ]);
-    assert.match(gestesDuGrant(journal)[1] ?? "", new RegExp(`lapsed: its deadline has passed \\(since ${dans(4).toISOString()}\\)  \\(runtime\\)$`));
+    assert.match(gestesDuGrant(log)[1] ?? "", new RegExp(`lapsed: its deadline has passed \\(since ${dans(4).toISOString()}\\)  \\(runtime\\)$`));
     assert.doesNotMatch(lu(dans(6)), /the runtime will write it/);
   });
 

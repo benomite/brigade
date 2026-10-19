@@ -12,15 +12,15 @@ import { describe, test, type TestContext } from "node:test";
 import { NON_DIT } from "../src/bac-a-sable/ordinaires.ts";
 import { argumentsClaude } from "../src/claude.ts";
 import type { BacASableDeLaStation, Demande, Mission, Reponse } from "../src/events/remote.ts";
-import { faits, lireEtat } from "../src/etat.ts";
-import { MARQUEUR } from "../src/fiche.ts";
+import { facts, lireEtat } from "../src/etat.ts";
+import { MARQUEUR } from "../src/card.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import type { Machine } from "../src/machine.ts";
 import { DECLARATION_RESEAU } from "../src/reseau.ts";
 import { lireStations } from "../src/stations-declarees.ts";
-import { demander } from "../src/tirer.ts";
-import { cuisine, issue, MACHINE_CALME, type Lieux, type Options } from "./aides/cuisine.ts";
+import { demander } from "../src/pull.ts";
+import { kitchen, issue, MACHINE_CALME, type Lieux, type Options } from "./aides/kitchen.ts";
 import { appeler, jusqua } from "./outils.ts";
 
 const [BOX, MAC] = ["box/claude", "mac/claude"];
@@ -47,26 +47,26 @@ const laisserServir = () => new Promise((resoudre) => setTimeout(resoudre, 80));
 // à joindre. Le Mac est déclaré comme le test le veut. `box` : la station d'ici
 // telle que le test la déclare ; `occuper` : faux, #14 n'est pas posé.
 async function service(t: TestContext, mac: string, options: Options = {}, { box = `${BOX}:1:code`, occuper = true } = {}) {
-  const lieu = cuisine(t, {
+  const lieu = kitchen(t, {
     stations: declarer(mac, box),
     scenario: "muet",
     presenceMs: 120_000,
     depot: (depot) => ({ ...depot, lire: (branche, chemin) => (branche === "origin/v2" && chemin === DECLARATION_RESEAU ? "registry.npmjs.org\n" : null) }),
     ...options,
   });
-  const { journal, repertoire, heure } = lieu;
-  const tirer = (demande: Demande): Promise<Reponse> => demander(repertoire, MAC, demande, { maintenant: heure.maintenant, pasMs: 2 });
-  const reclamer = async (sandbox?: BacASableDeLaStation): Promise<Extract<Reponse, { verb: "claim" }>> => {
-    const reponse = await tirer(sandbox === undefined ? { verb: "claim" } : { verb: "claim", sandbox });
+  const { journal: log, repertoire, heure } = lieu;
+  const pull = (demande: Demande): Promise<Reponse> => demander(repertoire, MAC, demande, { maintenant: heure.maintenant, pasMs: 2 });
+  const claim = async (sandbox?: BacASableDeLaStation): Promise<Extract<Reponse, { verb: "claim" }>> => {
+    const reponse = await pull(sandbox === undefined ? { verb: "claim" } : { verb: "claim", sandbox });
     assert.ok(reponse.ok && reponse.verb === "claim", JSON.stringify(reponse));
     return reponse;
   };
   const mission = async (sandbox?: BacASableDeLaStation): Promise<Mission> => {
-    const { mission: recue } = await reclamer(sandbox);
+    const { mission: recue } = await claim(sandbox);
     assert.ok(recue !== null, "aucune mission");
     return recue;
   };
-  const lance = (ticket: number) => journal.duTicket(ticket).findLast((e) => e.type === "cook.launched")?.payload as Record<string, unknown> | undefined;
+  const lance = (ticket: number) => log.duTicket(ticket).findLast((e) => e.type === "cook.launched")?.payload as Record<string, unknown> | undefined;
   const station = async () => {
     const appel = appeler(montrerStation, [], { BRIGADE_STATE_DIR: repertoire });
     assert.equal(await appel.fin, 0);
@@ -74,25 +74,25 @@ async function service(t: TestContext, mac: string, options: Options = {}, { box
   };
   // Le Mac se manifeste pour la première fois : #16, que lui seul peut cuisiner,
   // était 86 — station absente — et repart.
-  const annoncer = async (sandbox: BacASableDeLaStation) => {
+  const announce = async (sandbox: BacASableDeLaStation) => {
     await jusqua(() => lieu.etat(16) === "86");
-    assert.ok((await tirer({ verb: "announce", sandbox })).ok);
+    assert.ok((await pull({ verb: "announce", sandbox })).ok);
     await jusqua(() => lieu.etat(16) === "waiting");
   };
-  const ordinaires = () => faits(lireEtat(journal, heure.maintenant()), heure.maintenant()).stations.find((s) => s.station === MAC);
+  const ordinaires = () => facts(lireEtat(log, heure.maintenant()), heure.maintenant()).stations.find((s) => s.station === MAC);
   if (occuper) {
     poser(lieu.gh, 14, "- requiert : code");
     await jusqua(() => lieu.lancements().length === 1 && lieu.etat(14) === "taken");
   }
-  return { ...lieu, tirer, reclamer, mission, lance, station, ordinaires, annoncer };
+  return { ...lieu, tirer: pull, reclamer: claim, mission, lance, station, ordinaires, annoncer: announce };
 }
 
 describe("une station distante et les tickets ordinaires", { concurrency: 4 }, () => {
   test("réglage désactivé : elle ne prend que les tickets qui demandent une de ses capacités, comme avant — même avec le bac à sable sur son poste", async (t) => {
-    const { gh, etat, journal, mission, reclamer, station, ordinaires, annoncer } = await service(t, `${MAC}:2:chrome-connecté:distante`);
+    const { gh, etat, journal: log, mission, reclamer: claim, station, ordinaires, annoncer: announce } = await service(t, `${MAC}:2:chrome-connecté:distante`);
     poser(gh, 16, "- requiert : chrome-connecté");
     poser(gh, 17);
-    await annoncer(DISPONIBLE);
+    await announce(DISPONIBLE);
 
     const recue = await mission(DISPONIBLE);
     assert.equal(recue.ticket, 16);
@@ -101,10 +101,10 @@ describe("une station distante et les tickets ordinaires", { concurrency: 4 }, (
     assert.deepEqual(recue.args, argumentsClaude(recue.prompt, { model: recue.model, effort: recue.effort }));
 
     // Le ticket ordinaire ne lui revient pas : il attend la station d'ici.
-    assert.deepEqual(await reclamer(DISPONIBLE), { ok: true, verb: "claim", mission: null, held: null });
+    assert.deepEqual(await claim(DISPONIBLE), { ok: true, verb: "claim", mission: null, held: null });
     await laisserServir();
     assert.equal(etat(17), "waiting");
-    assert.equal(journal.duTicket(17).filter((e) => e.type === "ticket.taken").length, 0);
+    assert.equal(log.duTicket(17).filter((e) => e.type === "ticket.taken").length, 0);
     assert.deepEqual(ordinaires(), {
       station: MAC,
       distante: true,
@@ -117,10 +117,10 @@ describe("une station distante et les tickets ordinaires", { concurrency: 4 }, (
   });
 
   test("réglage activé et bac à sable disponible : elle prend un ticket ordinaire, et son cook est lancé avec la configuration du bac à sable", async (t) => {
-    const { gh, etat, journal, mission, lance, station, ordinaires, annoncer } = await service(t, `${MAC}:2:chrome-connecté:distante+ordinaires`);
+    const { gh, etat, journal: log, mission, lance, station, ordinaires, annoncer: announce } = await service(t, `${MAC}:2:chrome-connecté:distante+ordinaires`);
     poser(gh, 16, "- requiert : chrome-connecté");
     poser(gh, 17);
-    await annoncer(DISPONIBLE);
+    await announce(DISPONIBLE);
 
     // Ce qui demande ses capacités reste pris comme avant, à nu.
     const capacite = await mission(DISPONIBLE);
@@ -133,7 +133,7 @@ describe("une station distante et les tickets ordinaires", { concurrency: 4 }, (
     const ordinaire = await mission(DISPONIBLE);
     assert.equal(ordinaire.ticket, 17);
     assert.equal(etat(17), "taken");
-    assert.equal(journal.duTicket(17).findLast((e) => e.type === "ticket.taken")?.author, `station:${MAC}`);
+    assert.equal(log.duTicket(17).findLast((e) => e.type === "ticket.taken")?.author, `station:${MAC}`);
     assert.equal(ordinaire.sandbox, true);
     assert.equal(lance(17)?.sandbox, true);
     assert.equal(lance(17)?.station, MAC);
@@ -161,26 +161,26 @@ describe("une station distante et les tickets ordinaires", { concurrency: 4 }, (
     assert.equal(reglages.sandbox.network.strictAllowlist, true);
 
     // L'état exposé : réglage, bac à sable, prise.
-    assert.deepEqual(etatStation(journal.base, MAC)?.sandbox, { available: true, reason: null, version: "2.1.250", at: etatStation(journal.base, MAC)?.sandbox?.at });
+    assert.deepEqual(etatStation(log.base, MAC)?.sandbox, { available: true, reason: null, version: "2.1.250", at: etatStation(log.base, MAC)?.sandbox?.at });
     assert.deepEqual([ordinaires()?.ordinaires, ordinaires()?.bacASable?.disponible, ordinaires()?.prendOrdinaires], [true, true, true]);
     assert.match(await station(), /ordinary tickets +taken when the box is saturated, each cook inside the Claude Code sandbox \(claude 2\.1\.250\)/);
   });
 
   test("réglage activé et bac à sable indisponible : elle ne prend aucun ticket ordinaire, et expose l'état et sa raison", async (t) => {
-    const { gh, etat, journal, mission, reclamer, station, ordinaires, avertissements, annoncer } = await service(t, `${MAC}:2:chrome-connecté:distante+ordinaires`);
+    const { gh, etat, journal: log, mission, reclamer: claim, station, ordinaires, avertissements, annoncer: announce } = await service(t, `${MAC}:2:chrome-connecté:distante+ordinaires`);
     poser(gh, 16, "- requiert : chrome-connecté");
     poser(gh, 17);
-    await annoncer(INDISPONIBLE);
+    await announce(INDISPONIBLE);
 
     // Ce qui demande ses capacités part quand même.
     assert.equal((await mission(INDISPONIBLE)).ticket, 16);
     // Le ticket ordinaire, non.
-    assert.deepEqual(await reclamer(INDISPONIBLE), { ok: true, verb: "claim", mission: null, held: null });
+    assert.deepEqual(await claim(INDISPONIBLE), { ok: true, verb: "claim", mission: null, held: null });
     await laisserServir();
     assert.equal(etat(17), "waiting");
-    assert.equal(journal.duTicket(17).filter((e) => e.type === "ticket.taken").length, 0);
+    assert.equal(log.duTicket(17).filter((e) => e.type === "ticket.taken").length, 0);
 
-    assert.deepEqual(etatStation(journal.base, MAC)?.sandbox, { available: false, reason: RAISON, version: null, at: etatStation(journal.base, MAC)?.sandbox?.at });
+    assert.deepEqual(etatStation(log.base, MAC)?.sandbox, { available: false, reason: RAISON, version: null, at: etatStation(log.base, MAC)?.sandbox?.at });
     assert.deepEqual(ordinaires(), {
       station: MAC,
       distante: true,
@@ -192,15 +192,15 @@ describe("une station distante et les tickets ordinaires", { concurrency: 4 }, (
     assert.ok(avertissements.some((message) => message.includes(`la station ${MAC} ne prend aucun ticket ordinaire — bac à sable indisponible : ${RAISON}`)));
     assert.match(await station(), new RegExp(`ordinary tickets +NONE TAKEN — sandbox unavailable since .+: ${RAISON.replace(/[.*+?^${}()|[\]\\/`]/g, "\\$&")}`));
     // Écrit quand ça change, pas à chaque demande.
-    assert.equal(journal.tout().filter((e) => e.type === "station.sandbox").length, 1);
+    assert.equal(log.tout().filter((e) => e.type === "station.sandbox").length, 1);
 
     // Une station qui n'en dit rien ne l'a pas.
-    assert.deepEqual(await reclamer(), { ok: true, verb: "claim", mission: null, held: null });
-    assert.equal(etatStation(journal.base, MAC)?.sandbox?.reason, NON_DIT);
+    assert.deepEqual(await claim(), { ok: true, verb: "claim", mission: null, held: null });
+    assert.equal(etatStation(log.base, MAC)?.sandbox?.reason, NON_DIT);
     // Ni un poste qui poserait ses worktrees là où un cook ne doit rien lire :
     // sa configuration ne tient pas.
-    assert.deepEqual(await reclamer({ ...DISPONIBLE, worktrees: `${HOME}/.config/brigade/stations/brigade` }), { ok: true, verb: "claim", mission: null, held: null });
-    assert.match(etatStation(journal.base, MAC)?.sandbox?.reason ?? "", /^the sandbox configuration does not hold on this workstation — .*\.config\/brigade/);
+    assert.deepEqual(await claim({ ...DISPONIBLE, worktrees: `${HOME}/.config/brigade/stations/brigade` }), { ok: true, verb: "claim", mission: null, held: null });
+    assert.match(etatStation(log.base, MAC)?.sandbox?.reason ?? "", /^the sandbox configuration does not hold on this workstation — .*\.config\/brigade/);
     assert.equal(etat(17), "waiting");
 
     // Le bac à sable revenu, le ticket part.
@@ -208,20 +208,20 @@ describe("une station distante et les tickets ordinaires", { concurrency: 4 }, (
   });
 
   test("elle ne dépasse jamais la limite de cooks fixée pour le Mac : tickets ordinaires compris", async (t) => {
-    const { gh, etat, journal, mission, reclamer, annoncer } = await service(t, `${MAC}:1:chrome-connecté:distante+ordinaires`);
+    const { gh, etat, journal: log, mission, reclamer: claim, annoncer: announce } = await service(t, `${MAC}:1:chrome-connecté:distante+ordinaires`);
     poser(gh, 17);
     poser(gh, 18);
     poser(gh, 16, "- requiert : chrome-connecté");
-    await annoncer(DISPONIBLE);
+    await announce(DISPONIBLE);
 
     assert.equal((await mission(DISPONIBLE)).ticket, 16);
     // Plein : ni l'ordinaire, ni rien d'autre.
-    for (let essai = 0; essai < 3; essai++) assert.deepEqual(await reclamer(DISPONIBLE), { ok: true, verb: "claim", mission: null, held: "cap" });
+    for (let essai = 0; essai < 3; essai++) assert.deepEqual(await claim(DISPONIBLE), { ok: true, verb: "claim", mission: null, held: "cap" });
     await laisserServir();
     assert.deepEqual([etat(17), etat(18)], ["waiting", "waiting"]);
-    const prisParLeMac = journal.tout().filter((e) => e.type === "ticket.taken" && e.author === `station:${MAC}`).length;
-    assert.equal(prisParLeMac, 1);
-    assert.equal(etatStation(journal.base, MAC)?.heldReason, "cap");
+    const takenByTheMac = log.tout().filter((e) => e.type === "ticket.taken" && e.author === `station:${MAC}`).length;
+    assert.equal(takenByTheMac, 1);
+    assert.equal(etatStation(log.base, MAC)?.heldReason, "cap");
   });
 });
 
@@ -232,20 +232,20 @@ describe("une station distante et les tickets ordinaires", { concurrency: 4 }, (
 // c'est ce que montrent les tests ci-dessus, où la box est à son plafond.
 describe("les tickets ordinaires partent sur le Mac quand la box sature, et alors seulement", { concurrency: 4 }, () => {
   const MAC_ORDINAIRES = `${MAC}:2:chrome-connecté:distante+ordinaires`;
-  const prisPar = (journal: { duTicket(ticket: number): Array<{ type: string; author: string }> }, ticket: number) =>
-    journal.duTicket(ticket).findLast((e) => e.type === "ticket.taken")?.author;
+  const takenBy = (log: { duTicket(ticket: number): Array<{ type: string; author: string }> }, ticket: number) =>
+    log.duTicket(ticket).findLast((e) => e.type === "ticket.taken")?.author;
 
   test("box saturée — à son plafond —, Mac éligible avec de la place : un ticket ordinaire en attente part sur le Mac", async (t) => {
-    const { gh, etat, journal, tirer, mission } = await service(t, MAC_ORDINAIRES);
+    const { gh, etat, journal: log, tirer: pull, mission } = await service(t, MAC_ORDINAIRES);
     poser(gh, 17);
-    assert.ok((await tirer({ verb: "announce", sandbox: DISPONIBLE })).ok);
+    assert.ok((await pull({ verb: "announce", sandbox: DISPONIBLE })).ok);
     await jusqua(() => etat(17) === "waiting");
 
     const recue = await mission(DISPONIBLE);
     assert.equal(recue.ticket, 17);
     assert.equal(recue.sandbox, true);
     assert.equal(etat(17), "taken");
-    assert.equal(prisPar(journal, 17), `station:${MAC}`);
+    assert.equal(takenBy(log, 17), `station:${MAC}`);
   });
 
   test("box non saturée — elle a de la place, et monte par paliers — : un ticket ordinaire en attente reste sur la box, même quand le Mac le réclame", async (t) => {
@@ -253,30 +253,30 @@ describe("les tickets ordinaires partent sur le Mac quand la box sature, et alor
     // la charge ne le reflète pas encore, et compté d'avance il la mènerait au
     // seuil (12 pour 8 cœurs). La box se retient le temps qu'il pèse — l'horloge
     // du test ne bouge pas —, elle ne sature pas.
-    const { gh, etat, journal, heure, tirer, reclamer } = await service(t, MAC_ORDINAIRES, { machine: () => ({ ...MACHINE_CALME, charge: 11.5 }) }, { box: `${BOX}:3:code` });
-    assert.ok((await tirer({ verb: "announce", sandbox: DISPONIBLE })).ok);
+    const { gh, etat, journal: log, heure, tirer: pull, reclamer: claim } = await service(t, MAC_ORDINAIRES, { machine: () => ({ ...MACHINE_CALME, charge: 11.5 }) }, { box: `${BOX}:3:code` });
+    assert.ok((await pull({ verb: "announce", sandbox: DISPONIBLE })).ok);
     poser(gh, 17);
     await jusqua(() => etat(17) === "waiting");
 
-    for (let essai = 0; essai < 3; essai++) assert.deepEqual(await reclamer(DISPONIBLE), { ok: true, verb: "claim", mission: null, held: null });
+    for (let essai = 0; essai < 3; essai++) assert.deepEqual(await claim(DISPONIBLE), { ok: true, verb: "claim", mission: null, held: null });
     assert.equal(etat(17), "waiting");
-    assert.equal(journal.tout().filter((e) => e.type === "ticket.taken" && e.author === `station:${MAC}`).length, 0);
+    assert.equal(log.tout().filter((e) => e.type === "ticket.taken" && e.author === `station:${MAC}`).length, 0);
 
     // Le cook de #14 a pesé : la box prend le ticket elle-même.
     heure.avancer(61_000);
     await jusqua(() => etat(17) === "taken");
-    assert.equal(prisPar(journal, 17), `station:${BOX}`);
+    assert.equal(takenBy(log, 17), `station:${BOX}`);
   });
 
   test("box saturée par sa machine, sous son plafond : le Mac prend le ticket ordinaire", async (t) => {
     const PLEINE: Machine = { ...MACHINE_CALME, charge: 64 };
     // Trois cooks au plus sur la box, aucun en cours : seule la machine la retient.
-    const { gh, etat, journal, tirer, mission } = await service(t, MAC_ORDINAIRES, { machine: () => PLEINE }, { box: `${BOX}:3:code`, occuper: false });
-    assert.ok((await tirer({ verb: "announce", sandbox: DISPONIBLE })).ok);
+    const { gh, etat, journal: log, tirer: pull, mission } = await service(t, MAC_ORDINAIRES, { machine: () => PLEINE }, { box: `${BOX}:3:code`, occuper: false });
+    assert.ok((await pull({ verb: "announce", sandbox: DISPONIBLE })).ok);
     poser(gh, 17);
-    await jusqua(() => etatStation(journal.base, BOX)?.saturatedResource === "cpu" && etat(17) === "waiting");
+    await jusqua(() => etatStation(log.base, BOX)?.saturatedResource === "cpu" && etat(17) === "waiting");
 
     assert.equal((await mission(DISPONIBLE)).ticket, 17);
-    assert.equal(prisPar(journal, 17), `station:${MAC}`);
+    assert.equal(takenBy(log, 17), `station:${MAC}`);
   });
 });

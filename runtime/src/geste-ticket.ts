@@ -9,10 +9,10 @@
 //
 // Un geste dit toujours son prix (`price`), refusé comme accompli : le chef le
 // lit avant d'agir, et l'app l'affiche après.
-import { attentesDuChef } from "./attend.ts";
+import { attentesDuChef } from "./awaiting.ts";
 import type { GitHub } from "./github.ts";
 import { LABEL } from "./github.ts";
-import type { Journal } from "./journal.ts";
+import type { Log } from "./log.ts";
 import { nomEtatEn } from "./rail.ts";
 import { passDuTicket } from "./projections/pass.ts";
 import { lireRail, ticketDuRail } from "./projections/rail.ts";
@@ -35,23 +35,23 @@ const dansLEtat = (ticket: number, etat: string, enCours: boolean): string =>
 export const PRIORITE_MIN = 1;
 export const PRIORITE_MAX = 9;
 
-// Ce que la file dit que ce ticket attend du chef, s'il l'attend (attend.ts).
-const attenteDuTicket = (journal: Journal, ticket: number) => attentesDuChef(journal.base, lireRail(journal.base)).find((attente) => attente.ticket === ticket);
+// Ce que la file dit que ce ticket attend du chef, s'il l'attend (awaiting.ts).
+const attenteDuTicket = (log: Log, ticket: number) => attentesDuChef(log.base, lireRail(log.base)).find((attente) => attente.ticket === ticket);
 
 // Retire du rail un ticket en attente — retenu ou non —, mis de côté (86), ou
 // que la file dit attendre le chef — une livraison verte non mergée, une PR
 // fermée sans merge : son label `fire` est retiré de l'issue, il ne repart pas.
 // Un ticket pris, en pass sans attendre le chef, ou servi est refusé, et rien
 // n'est modifié.
-export async function retirerDuRail(journal: Journal, github: GitHub, projet: string, ticket: number): Promise<Resultat> {
-  const courant = ticketDuRail(journal.base, ticket);
+export async function retirerDuRail(log: Log, github: GitHub, projet: string, ticket: number): Promise<Resultat> {
+  const courant = ticketDuRail(log.base, ticket);
   if (!courant) return refuse(`#${ticket} is not on the rail`);
-  const retirable = courant.state === "waiting" || courant.state === "86" || (courant.state === "pass" && attenteDuTicket(journal, ticket) !== undefined);
+  const retirable = courant.state === "waiting" || courant.state === "86" || (courant.state === "pass" && attenteDuTicket(log, ticket) !== undefined);
   if (!retirable) return refuse(dansLEtat(ticket, nomEtatEn(courant.state), courant.state === "taken" || courant.state === "pass"));
   await github.delabelliser(ticket, LABEL);
   // Pris entre-temps : le label est retiré, et le sondage en rendra compte.
-  if (ticketDuRail(journal.base, ticket)?.state === courant.state) {
-    journal.ajouter({ project: projet, ticket, author: AUTEUR, type: "ticket.left", payload: { reason: "unfired" } });
+  if (ticketDuRail(log.base, ticket)?.state === courant.state) {
+    log.ajouter({ project: projet, ticket, author: AUTEUR, type: "ticket.left", payload: { reason: "unfired" } });
   }
   return { done: true, price: `the ticket leaves the rail and is not cooked; its issue stays open and loses its \`${LABEL}\` label — put it back to bring the ticket back on the rail. Nothing is lost, nothing is spent` };
 }
@@ -59,12 +59,12 @@ export async function retirerDuRail(journal: Journal, github: GitHub, projet: st
 // Change la priorité d'un ticket, quel que soit son état : le label `prio:<n>`
 // de l'issue est remplacé. `priorite` : un entier de 1 à 9, ou null pour retirer
 // la priorité — le ticket passe alors après les autres.
-export async function changerPriorite(journal: Journal, github: GitHub, projet: string, ticket: number, priorite: unknown): Promise<Resultat> {
+export async function changerPriorite(log: Log, github: GitHub, projet: string, ticket: number, priorite: unknown): Promise<Resultat> {
   if (priorite !== null && !(Number.isInteger(priorite) && (priorite as number) >= PRIORITE_MIN && (priorite as number) <= PRIORITE_MAX)) {
     return refuse(`priority ${JSON.stringify(priorite) ?? String(priorite)} is not valid: expected a whole number from ${PRIORITE_MIN} to ${PRIORITE_MAX} (1 is served first), or null for none`);
   }
   const niveau = priorite as number | null;
-  const courant = ticketDuRail(journal.base, ticket);
+  const courant = ticketDuRail(log.base, ticket);
   if (!courant) return refuse(`#${ticket} is not on the rail`);
   const issue = await github.issue(ticket);
   if (!issue) return refuse(`the issue of #${ticket} is gone from GitHub`);
@@ -72,9 +72,9 @@ export async function changerPriorite(journal: Journal, github: GitHub, projet: 
   const anciens = issue.labels.filter((label) => /^prio:[0-9]$/.test(label) && label !== voulu);
   if (voulu !== null && !issue.labels.includes(voulu)) await github.labelliser(ticket, [voulu]);
   for (const ancien of anciens) await github.delabelliser(ticket, ancien);
-  const apres = ticketDuRail(journal.base, ticket);
+  const apres = ticketDuRail(log.base, ticket);
   if (apres && apres.priority !== niveau) {
-    journal.ajouter({
+    log.ajouter({
       project: projet,
       ticket,
       author: AUTEUR,
@@ -87,18 +87,18 @@ export async function changerPriorite(journal: Journal, github: GitHub, projet: 
 
 // Merge la livraison d'un ticket que la file demande de merger à la main — une
 // livraison verte que la pass ne merge pas elle-même, ou une remontée qui a sa
-// PR (attend.ts, `merge` et `remontee`) —, à la tête que sa PR porte sur GitHub.
+// PR (awaiting.ts, `merge` et `remontee`) —, à la tête que sa PR porte sur GitHub.
 // Rien n'est écrit au journal : la pass constate le merge à son tour suivant et
 // sert le ticket, comme pour tout merge à la main. Une livraison que la pass
 // tient encore, une PR fermée ou déjà mergée, un refus de GitHub : rien n'est
 // mergé, et la raison est dite.
-export async function mergerLaLivraison(journal: Journal, github: GitHub, ticket: number): Promise<Resultat> {
-  const attente = attenteDuTicket(journal, ticket);
-  const livraison = passDuTicket(journal.base, ticket);
+export async function mergeTheDelivery(log: Log, github: GitHub, ticket: number): Promise<Resultat> {
+  const attente = attenteDuTicket(log, ticket);
+  const delivery = passDuTicket(log.base, ticket);
   const aMerger = attente !== undefined && (attente.quoi === "merge" || attente.quoi === "remontee") && attente.pr !== null;
-  if (!aMerger || livraison === null || livraison.branch === null) return refuse(`#${ticket} has no delivery waiting for you to merge it`);
-  const pr = await github.prDeBranche(livraison.branch);
-  if (pr === null) return refuse(`GitHub has no PR for the branch of #${ticket} (${livraison.branch})`);
+  if (!aMerger || delivery === null || delivery.branch === null) return refuse(`#${ticket} has no delivery waiting for you to merge it`);
+  const pr = await github.prDeBranche(delivery.branch);
+  if (pr === null) return refuse(`GitHub has no PR for the branch of #${ticket} (${delivery.branch})`);
   if (pr.merged) return refuse(`${pr.url} is already merged — the pass sees it at its next tick`);
   if (pr.state !== "open") return refuse(`${pr.url} is closed: reopen it on GitHub to merge it`);
   const merge = await github.merger(pr.number, pr.sha);

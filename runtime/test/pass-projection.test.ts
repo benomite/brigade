@@ -3,10 +3,10 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { motifDArret, motifDeRemontee } from "../src/events/pass.ts";
-import { direSansGrant } from "../src/attend.ts";
-import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, lirePass, mergesAVerifier, orphelines, pass, passDuTicket, renvoiEnAttente, usagesDuGrant } from "../src/projections/pass.ts";
+import { direSansGrant } from "../src/awaiting.ts";
+import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, lirePass, mergesAVerifier, orphelines, pass, passDuTicket, queuedSendBack, usagesDuGrant } from "../src/projections/pass.ts";
 import { horloge, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const PR = "https://github.com/o/r/pull/40";
@@ -14,9 +14,9 @@ const PR = "https://github.com/o/r/pull/40";
 function histoire(t: TestContext) {
   // La pass seule : ce que les autres projections font des mêmes faits se
   // teste chez elles.
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge(), projections: [pass] });
-  t.after(() => journal.fermer());
-  const noter = (fait: Fait, ticket: number | null = 17, author = "pass") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const log = openLog(repertoireTemporaire(t), { maintenant: horloge(), projections: [pass] });
+  t.after(() => log.fermer());
+  const noter = (fait: Fait, ticket: number | null = 17, author = "pass") => log.ajouter({ project: "brigade", ticket, author, ...fait });
   const lancer = (run: string, branche = run) =>
     noter({ type: "cook.launched", payload: { run, limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/${run}.jsonl`, branch: `cook/${branche}`, worktree: `worktrees/${branche}` } });
   const livrer = (run: string, branche = run) => {
@@ -28,7 +28,7 @@ function histoire(t: TestContext) {
     const gates = { outcome: verdict, code: 0, failures: [], tail: "" };
     return noter({ type: "pass.judged", payload: { run, pr: PR, number: 40, sha: `sha-${run}`, verdict, gates, ci: { outcome: "none", checks: [] }, findings, judgeModified: false, review: { outcome: "skipped", run: null, summary: null, findings: [] }, noDiff: false } });
   };
-  return { journal, base: journal.base, noter, lancer, livrer, juger };
+  return { journal: log, base: log.base, noter, lancer, livrer, juger };
 }
 
 test("sans fait, il n'y a pas de grant ; activé puis révoqué, il dit depuis quand et par qui", (t) => {
@@ -88,18 +88,18 @@ test("un renvoi se compte, garde ses findings, et attend tant qu'aucun cook n'a 
   const { base, noter, lancer, livrer, juger } = histoire(t);
   livrer("a");
   juger("a", "red", ["Gates rouges."]);
-  assert.equal(renvoiEnAttente(base, 17), null);
+  assert.equal(queuedSendBack(base, 17), null);
   noter({ type: "pass.returned", payload: { n: 1, findings: ["Gates rouges."] } });
 
-  const renvoi = renvoiEnAttente(base, 17);
+  const renvoi = queuedSendBack(base, 17);
   assert.deepEqual([renvoi?.returns, renvoi?.findings, renvoi?.branch, renvoi?.worktree, renvoi?.pr, renvoi?.sha], [1, ["Gates rouges."], "cook/a", "worktrees/a", PR, "sha-a"]);
 
   // Le cook de renvoi part, sur la même branche : s'il échoue, le renvoi reste à faire.
   lancer("b", "a");
-  assert.deepEqual([renvoiEnAttente(base, 17)?.run, renvoiEnAttente(base, 17)?.pr], ["b", PR]);
+  assert.deepEqual([queuedSendBack(base, 17)?.run, queuedSendBack(base, 17)?.pr], ["b", PR]);
 
   livrer("b", "a");
-  assert.equal(renvoiEnAttente(base, 17), null);
+  assert.equal(queuedSendBack(base, 17), null);
   assert.deepEqual([passDuTicket(base, 17)?.phase, passDuTicket(base, 17)?.returns, passDuTicket(base, 17)?.startedAt], ["delivered", 1, null]);
 });
 
@@ -112,7 +112,7 @@ test("un cook relancé sur une autre branche est une livraison neuve : ni renvoi
   // Le worktree de la livraison a disparu : la station est repartie de la base.
   lancer("b");
 
-  assert.equal(renvoiEnAttente(base, 17), null);
+  assert.equal(queuedSendBack(base, 17), null);
   const connu = passDuTicket(base, 17);
   assert.deepEqual([connu?.phase, connu?.branch, connu?.sha, connu?.pr, connu?.number, connu?.returns], ["cooking", "cook/b", null, null, null, 1]);
 });
@@ -342,7 +342,7 @@ test("un ticket qui quitte le rail avec une livraison non mergée la laisse orph
 });
 
 test("des faits illisibles n'empêchent pas le journal de se rejouer", (t) => {
-  const { journal, base, noter } = histoire(t);
+  const { journal: log, base, noter } = histoire(t);
   const illisible = (type: string, payload: unknown, ticket: number | null = 17) => noter({ type, payload } as unknown as Fait, ticket);
   illisible("grant.activated", {});
   illisible("cook.launched", { run: 3 });
@@ -350,7 +350,7 @@ test("des faits illisibles n'empêchent pas le journal de se rejouer", (t) => {
   illisible("grant.used", { action: "merge" });
   illisible("pass.returned", { n: "deux", findings: "aucun" });
 
-  journal.reconstruire();
+  log.reconstruire();
 
   assert.deepEqual([etatDuGrant(base, "merge", new Date()), lirePass(base), usagesDuGrant(base, 10)], [null, [], []]);
 });
@@ -381,7 +381,7 @@ test("la relecture du reviewer se range sur la livraison sans en changer la phas
 test("un verdict retient ce sur quoi il porte — le commit, la tête de la base, l'arbre de leur fusion — et rien n'en reste sur un autre commit", (t) => {
   const { base, noter, livrer } = histoire(t);
   const connu = () => passDuTicket(base, 17);
-  const porte = () => [connu()?.phase, connu()?.sha, connu()?.judgedBase, connu()?.judgedTree];
+  const door = () => [connu()?.phase, connu()?.sha, connu()?.judgedBase, connu()?.judgedTree];
   const gates = { outcome: "green" as const, code: 0, failures: [], tail: "" };
   const verdict = (sha: string, sur: { base?: string; merged?: string | null }) => {
     noter({ type: "pass.started", payload: { run: "a", pr: PR, number: 40, sha } });
@@ -390,24 +390,24 @@ test("un verdict retient ce sur quoi il porte — le commit, la tête de la base
   livrer("a");
 
   verdict("sha-a", { base: "base-1", merged: "arbre-1" });
-  assert.deepEqual(porte(), ["green", "sha-a", "base-1", "arbre-1"]);
+  assert.deepEqual(door(), ["green", "sha-a", "base-1", "arbre-1"]);
   // Rejugée parce que la base a bougé : le même commit, une autre fusion.
   noter({ type: "pass.started", payload: { run: "a", pr: PR, number: 40, sha: "sha-a" } });
-  assert.deepEqual(porte(), ["judging", "sha-a", "base-1", "arbre-1"]);
+  assert.deepEqual(door(), ["judging", "sha-a", "base-1", "arbre-1"]);
   verdict("sha-a", { base: "base-2", merged: "arbre-2" });
-  assert.deepEqual(porte(), ["green", "sha-a", "base-2", "arbre-2"]);
+  assert.deepEqual(door(), ["green", "sha-a", "base-2", "arbre-2"]);
   // Elle attend — la base est rouge — sans rien perdre de son verdict.
   noter({ type: "pass.waiting", payload: { reason: "base-red" } });
-  assert.deepEqual([...porte(), connu()?.reason], ["waiting", "sha-a", "base-2", "arbre-2", "base-red"]);
+  assert.deepEqual([...door(), connu()?.reason], ["waiting", "sha-a", "base-2", "arbre-2", "base-red"]);
 
   // Sur un autre commit, la base du dernier verdict ne dit plus rien.
   noter({ type: "pass.started", payload: { run: "a", pr: PR, number: 40, sha: "sha-b" } });
-  assert.deepEqual(porte(), ["judging", "sha-b", null, null]);
+  assert.deepEqual(door(), ["judging", "sha-b", null, null]);
   // Une fusion qui ne se fait pas n'a pas d'arbre ; un verdict d'avant, rendu sur la branche seule, ne porte ni l'un ni l'autre.
   verdict("sha-b", { base: "base-2", merged: null });
-  assert.deepEqual(porte(), ["green", "sha-b", "base-2", null]);
+  assert.deepEqual(door(), ["green", "sha-b", "base-2", null]);
   verdict("sha-b", {});
-  assert.deepEqual(porte(), ["green", "sha-b", null, null]);
+  assert.deepEqual(door(), ["green", "sha-b", null, null]);
 });
 
 test("un journal d'avant se rejoue : ce que la pass écrivait de la rencontre d'une branche avec la base ne change plus l'état d'aucune livraison", (t) => {

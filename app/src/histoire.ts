@@ -3,8 +3,8 @@
 // l'ordre de la box, chacune avec son heure, et le coût. Rien n'est inventé : une étape qui n'a
 // pas eu lieu n'y est pas, une valeur que la box ne communique pas est écrite comme telle.
 // S'y ajoutent, pour un ticket vivant, ce que son cook fait en ce moment ou ce qui le bloque,
-// lus de ce que sa carte porte déjà (faits.ts) — aucune lecture de plus.
-import { duree } from "./faits.ts";
+// lus de ce que sa carte porte déjà (facts.ts) — aucune lecture de plus.
+import { duree } from "./facts.ts";
 
 export const NON_COMMUNIQUE = "not communicated";
 
@@ -87,8 +87,8 @@ export type Situation = { libelle: string; lignes: string[] } | undefined;
 type Carte = { etat?: string; attendu?: boolean; attend: readonly string[]; dit: readonly { libelle: string; valeur: string }[] };
 
 const AU_TRAVAIL = ["pris", "en pass"];
-const EN_ATTENTE = ["en attente", "BLOQUÉ", "WAITING", "86"];
-const CE_QUI_BLOQUE = ["blocked by", "set aside", "waiting for", "from", "since", "follow-up", "on arrival", "came back"];
+const QUEUED = ["en attente", "BLOQUÉ", "WAITING", "86"];
+const WHAT_BLOCKS = ["blocked by", "set aside", "waiting for", "from", "since", "follow-up", "on arrival", "came back"];
 
 export function situation(carte: Carte): Situation {
   const { etat } = carte;
@@ -96,8 +96,8 @@ export function situation(carte: Carte): Situation {
     const fait = carte.dit.find(({ libelle }) => libelle === "right now");
     return { libelle: "right now", lignes: [fait?.valeur ?? "activity not given"] };
   }
-  if ((etat !== undefined && EN_ATTENTE.includes(etat)) || carte.attend.length > 0) {
-    const dits = carte.dit.filter(({ libelle }) => CE_QUI_BLOQUE.includes(libelle)).map(({ libelle, valeur }) => `${libelle}: ${valeur}`);
+  if ((etat !== undefined && QUEUED.includes(etat)) || carte.attend.length > 0) {
+    const dits = carte.dit.filter(({ libelle }) => WHAT_BLOCKS.includes(libelle)).map(({ libelle, valeur }) => `${libelle}: ${valeur}`);
     if (dits.length > 0) return { libelle: "blocked", lignes: dits };
     return carte.attend.length > 0 ? undefined : { libelle: "blocked", lignes: ["what blocks it: not communicated"] };
   }

@@ -9,8 +9,8 @@ import { LABEL } from "./github.ts";
 // La priorité qui passe devant toutes les autres : celle de la réparation.
 export const PRIO_REPARATION = "prio:0";
 // Le calibrage d'une réparation : la base retient toute la cuisine.
-export const CALIBRAGE_REPARATION = { model: "opus", effort: "high" } as const;
-export const LABELS_REPARATION = [LABEL, PRIO_REPARATION, `model:${CALIBRAGE_REPARATION.model}`, `effort:${CALIBRAGE_REPARATION.effort}`];
+export const REPAIR_CALIBRATION = { model: "opus", effort: "high" } as const;
+export const LABELS_REPARATION = [LABEL, PRIO_REPARATION, `model:${REPAIR_CALIBRATION.model}`, `effort:${REPAIR_CALIBRATION.effort}`];
 
 // La marque d'une issue de réparation, avec le commit du rouge qu'elle répare :
 // c'est elle qui retrouve l'issue d'une création dont la réponse s'est perdue.
@@ -72,6 +72,6 @@ export function corpsDeReparation(rouge: RougeAReparer): string {
     "",
     "---",
     "",
-    `_Ouvert par la pass, sans geste du chef. Calibré \`${CALIBRAGE_REPARATION.model}\` / \`${CALIBRAGE_REPARATION.effort}\`, \`${PRIO_REPARATION}\` : il passe devant tout le rail._`,
+    `_Ouvert par la pass, sans geste du chef. Calibré \`${REPAIR_CALIBRATION.model}\` / \`${REPAIR_CALIBRATION.effort}\`, \`${PRIO_REPARATION}\` : il passe devant tout le rail._`,
   ].join("\n");
 }

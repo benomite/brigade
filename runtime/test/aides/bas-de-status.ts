@@ -3,7 +3,7 @@
 // la dérive et les transcripts peuvent dire. Chaque ligne du bas de `status` y paraît au moins une fois.
 import type { TestContext } from "node:test";
 import type { Fait } from "../../src/evenements.ts";
-import type { EcranDuServeur } from "../../src/events/service.ts";
+import type { ServerScreen } from "../../src/events/service.ts";
 import { etatDAvant, exemple, STATION } from "./haut-de-status.ts";
 
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -11,9 +11,9 @@ const SEUILS = { tests: 500, testsSeconds: null, gatesSeconds: null, contextKb: 
 
 // Ajoute à l'état d'exemple du haut ce qui fait paraître le bas : à utiliser sur le journal de `exemple(t)`
 // ou, avec `etatDAvant`, sur le journal d'avant — l'un et l'autre portent le même rail.
-export function ajouterLeBas(journal: ReturnType<typeof etatDAvant>["journal"]): void {
+export function ajouterLeBas(log: ReturnType<typeof etatDAvant>["journal"]): void {
   // Tout s'écrit à l'instant où l'état du haut s'arrête (10:02) : la lecture est à 10:04.
-  const noter = (fait: Fait, ticket: number | null = null, author = "runtime") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const noter = (fait: Fait, ticket: number | null = null, author = "runtime") => log.ajouter({ project: "brigade", ticket, author, ...fait });
   const arriver = (ticket: number, title: string, card?: { waitsFor: number[]; zone: string[]; problems: string[] }) =>
     noter({ type: "ticket.arrived", payload: { title, priority: null, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://exemple.test/${ticket}`, ...(card === undefined ? {} : { card }) } }, ticket, "github");
   const station = `station:${STATION}`;
@@ -63,7 +63,7 @@ export function ajouterLeBas(journal: ReturnType<typeof etatDAvant>["journal"]):
 
   // Les serveurs : l'un écoute sur un écran déclaré, un autre démarre sur un écran déduit, un troisième sans écran,
   // une app à lancer avec son écran, et un projet qui ne peut pas être servi.
-  const lance = (ticket: number, screen: EcranDuServeur | null) => ({
+  const lance = (ticket: number, screen: ServerScreen | null) => ({
     station: STATION, run: `${ticket}-s`, worktree: `worktrees/${ticket}-s`, branch: `cook/${ticket}-s`, port: 20000 + ticket, pid: 4000 + ticket, screen,
   });
   noter({ type: "service.started", payload: lance(20, { name: "/map", sentence: "the button is blue", source: "declare" }) }, 20, station);
@@ -71,7 +71,7 @@ export function ajouterLeBas(journal: ReturnType<typeof etatDAvant>["journal"]):
   noter({ type: "service.started", payload: lance(17, { name: "/rail", sentence: null, source: "deduit" }) }, 17, station);
   noter({ type: "service.started", payload: lance(18, { name: "dashboard", sentence: null, source: "declare" }) }, 18, station);
   noter({ type: "service.started", payload: lance(19, null) }, 19, station);
-  const tient = (ticket: number, screen: EcranDuServeur | null) => ({
+  const tient = (ticket: number, screen: ServerScreen | null) => ({
     station: STATION, run: `${ticket}-h`, worktree: `worktrees/${ticket}-h`, branch: `cook/${ticket}-h`, launch: "npm --prefix app start", how: screen === null ? null : `pas de page dans un navigateur : lancer l'app sur le worktree de la livraison, \`cd '/var/lib/brigade/etat/worktrees/${ticket}-h' && npm --prefix app start\`, puis y ouvrir l'écran « ${screen.name} »${screen.sentence === null ? "" : ` — à regarder : ${screen.sentence}`}`, screen,
   });
   noter({ type: "service.held", payload: tient(24, { name: "the map", sentence: "the menu opens", source: "declare" }) }, 24, station);
@@ -96,7 +96,7 @@ export function ajouterLeBas(journal: ReturnType<typeof etatDAvant>["journal"]):
 
 // L'état d'exemple du bas : l'état d'exemple du haut, et le bas par-dessus. Le journal est celui de `exemple(t)`.
 export function exempleDuBas(t: TestContext, repertoire?: string) {
-  const journal = exemple(t, repertoire);
-  ajouterLeBas(journal);
-  return journal;
+  const log = exemple(t, repertoire);
+  ajouterLeBas(log);
+  return log;
 }

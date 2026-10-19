@@ -12,7 +12,7 @@
 // qui rate pour elle prolonge la même récurrence, il n'en ouvre pas une autre.
 import { CAUSES, essaisRates } from "../causes-des-ratages.ts";
 import type { Evenement } from "../evenements.ts";
-import type { Journal } from "../journal.ts";
+import type { Log } from "../log.ts";
 import { parcoursDesTickets } from "../parcours-des-tickets.ts";
 import type { Parcours } from "../renvois.ts";
 import type { CandidatACorrection } from "./evenements.ts";
@@ -36,12 +36,12 @@ const deja = (poses: readonly Candidat[], { cause, tickets }: CandidatACorrectio
 
 // Relève les récurrences du journal et pose celles qui n'y sont pas encore.
 // Rend les candidats écrits par ce relevé — aucun s'il n'y a rien de neuf.
-export function detecter(journal: Journal, projet: string, reglages: ReglagesDuCorrectif): Candidat[] {
-  const poses = journal.duType("correction.candidate", Number.MAX_SAFE_INTEGER);
+export function detecter(log: Log, projet: string, reglages: ReglagesDuCorrectif): Candidat[] {
+  const poses = log.duType("correction.candidate", Number.MAX_SAFE_INTEGER);
   const ecrits: Candidat[] = [];
-  for (const candidat of reperer(parcoursDesTickets(journal.base), reglages)) {
+  for (const candidat of reperer(parcoursDesTickets(log.base), reglages)) {
     if (deja(poses, candidat)) continue;
-    const ecrit = journal.ajouter({
+    const ecrit = log.ajouter({
       project: projet,
       ticket: null,
       author: "runtime",

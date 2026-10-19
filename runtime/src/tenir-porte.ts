@@ -4,8 +4,8 @@
 // journal : sa liste blanche y est publiée par le runtime, et ses refus y
 // entrent. Le journal n'est ouvert que le temps d'un geste : une restauration
 // ne trouve pas la porte assise dessus.
-import { ouvrirPorte } from "./porte.ts";
-import { listeDuJournal, refusAuJournal } from "./porte-journal.ts";
+import { openDoor } from "./door.ts";
+import { logList, loggedRefusals } from "./door-log.ts";
 import { configReseau } from "./reseau.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
@@ -27,15 +27,15 @@ try {
 }
 if (port === null) refuser("BRIGADE_PROXY_PORT is not set");
 
-const regles = listeDuJournal(repertoireEtat);
-const surRefus = refusAuJournal(repertoireEtat, projet);
+const regles = logList(repertoireEtat);
+const surRefus = loggedRefusals(repertoireEtat, projet);
 
-const porte = await ouvrirPorte({ port, projet, regles, surRefus });
-console.log(`brigade : door of project “${projet}” open — 127.0.0.1:${porte.port}, allowlist read from ${repertoireEtat}`);
+const door = await openDoor({ port, projet, regles, surRefus });
+console.log(`brigade : door of project “${projet}” open — 127.0.0.1:${door.port}, allowlist read from ${repertoireEtat}`);
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
-    void porte.fermer().then(() => {
+    void door.fermer().then(() => {
       console.log(`brigade : door of project “${projet}” closed (${signal})`);
       process.exit(0);
     });

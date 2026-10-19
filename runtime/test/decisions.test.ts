@@ -9,16 +9,16 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { DECISIONS, decisionsDansLEnvironnement, decisionsPosees, direDecisionIgnoree, environnementDecide, poserDecision, retirerDecision, suivreDecisions, supportDesDecisions } from "../src/decisions.ts";
-import { brancherDerive, lireSeuils } from "../src/derive.ts";
-import { MARQUEUR } from "../src/fiche.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { plugDrift, lireSeuils } from "../src/drift.ts";
+import { MARQUEUR } from "../src/card.ts";
+import { openLog } from "../src/log.ts";
 import { configManager } from "../src/manager.ts";
 import { stationsAnnoncees } from "../src/projections/stations.ts";
 import { configReviewer } from "../src/reviewer.ts";
 import { ConfigInvalide, demarrer } from "../src/runtime.ts";
 import { lireStations } from "../src/stations-declarees.ts";
-import { demander } from "../src/tirer.ts";
-import { chef, cuisine, decider, issue, pousserSurLOrigine } from "./aides/cuisine.ts";
+import { demander } from "../src/pull.ts";
+import { chef, kitchen, decider, issue, pousserSurLOrigine } from "./aides/kitchen.ts";
 import { BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, git, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
 
 const MAIN = join(import.meta.dirname, "../src/main.ts");
@@ -55,9 +55,9 @@ const DECIDEES = {
 // Un journal neuf, dans un répertoire d'état à lui.
 function support(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoire);
-  t.after(() => journal.fermer());
-  return { repertoire, journal };
+  const log = openLog(repertoire);
+  t.after(() => log.fermer());
+  return { repertoire, journal: log };
 }
 
 function poserLesPremieres(repertoire: string): void {
@@ -71,9 +71,9 @@ const lu = (decisions: ReturnType<typeof suivreDecisions>) => {
 
 describe("les décisions du chef", { concurrency: 8 }, () => {
   test("chacune, posée au support, est lue à la lecture suivante — sans redémarrage ni rechargement du process", (t) => {
-    const { repertoire, journal } = support(t);
+    const { repertoire, journal: log } = support(t);
     poserLesPremieres(repertoire);
-    const decisions = suivreDecisions(journal.base, {});
+    const decisions = suivreDecisions(log.base, {});
     assert.deepEqual(lu(decisions), {
       stations: lireStations({ BRIGADE_STATIONS: ENV.BRIGADE_STATIONS }),
       ticketTokens: 500_000,
@@ -99,17 +99,17 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     // journal au nom du chef, avec ce qu'elle remplace.
     assert.deepEqual(Object.keys(DECIDEES).sort(), [...DECISIONS].sort());
     assert.deepEqual(
-      journal.tout().filter((e) => e.type === "decision.set").slice(Object.keys(ENV).length).map((e) => [e.author, e.payload]),
+      log.tout().filter((e) => e.type === "decision.set").slice(Object.keys(ENV).length).map((e) => [e.author, e.payload]),
       Object.entries(DECIDEES).map(([name, value]) => ["chef", { name, value, previous: ENV[name as keyof typeof ENV] ?? null }]),
     );
   });
 
   test("une variable de décision laissée dans l'environnement est ignorée au profit du support ; retirée du support, la décision ne retombe pas sur elle", (t) => {
-    const { repertoire, journal } = support(t);
+    const { repertoire, journal: log } = support(t);
     poserLesPremieres(repertoire);
     decider(repertoire, "BRIGADE_REVIEWER_MODEL", "opus");
     const dansLEnvironnement = { ...ENV, BRIGADE_REVIEWER_MODEL: "sonnet", BRIGADE_STATIONS: "box/claude:9:code", BRIGADE_DRIFT_TICKET_TOKENS: "1" };
-    const decide = environnementDecide(dansLEnvironnement, decisionsPosees(journal.base));
+    const decide = environnementDecide(dansLEnvironnement, decisionsPosees(log.base));
 
     // Le support l'emporte, et là où il se tait, la variable n'est pas lue.
     assert.equal(configReviewer(decide).calibrage.model, "opus");
@@ -124,12 +124,12 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     assert.match(direDecisionIgnoree("BRIGADE_REVIEWER_MODEL", "brigade"), /BRIGADE_REVIEWER_MODEL is ignored.*`brigade brigade station reviewer-modele <value>`.*remove `Environment=BRIGADE_REVIEWER_MODEL`/);
 
     // Retirée du support, la décision ne retombe pas sur la variable.
-    const decisions = suivreDecisions(journal.base, dansLEnvironnement, () => {});
+    const decisions = suivreDecisions(log.base, dansLEnvironnement, () => {});
     assert.equal(decisions.reviewer().model, "opus");
-    assert.notEqual(retirerDecision(journal, { projet: "brigade", nom: "BRIGADE_REVIEWER_MODEL", auteur: "chef" }), null);
+    assert.notEqual(retirerDecision(log, { projet: "brigade", nom: "BRIGADE_REVIEWER_MODEL", auteur: "chef" }), null);
     assert.equal(decisions.reviewer().model, "opus");
     // Rien à retirer : rien n'est écrit.
-    assert.equal(retirerDecision(journal, { projet: "brigade", nom: "BRIGADE_REVIEWER_MODEL", auteur: "chef" }), null);
+    assert.equal(retirerDecision(log, { projet: "brigade", nom: "BRIGADE_REVIEWER_MODEL", auteur: "chef" }), null);
   });
 
   test("le support n'est pas sous le clone du dépôt, et aucune pose de décision ne crée ni ne modifie un fichier du dépôt", (t) => {
@@ -153,26 +153,26 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     const avant = releve(clone);
 
     for (const [nom, valeur] of Object.entries(DECIDEES)) decider(repertoire, nom, valeur);
-    const journal = ouvrirJournal(repertoire, { lectureSeule: true });
-    t.after(() => journal.fermer());
-    assert.equal(Object.keys(decisionsPosees(journal.base)).length, DECISIONS.length);
+    const log = openLog(repertoire, { lectureSeule: true });
+    t.after(() => log.fermer());
+    assert.equal(Object.keys(decisionsPosees(log.base)).length, DECISIONS.length);
 
     assert.deepEqual(releve(clone), avant);
     assert.equal(git(clone, "status", "--porcelain", "--ignored"), statut);
   });
 
   test("une décision absente reste absente : ni station, ni seuil, ni calibrage par défaut", (t) => {
-    const { journal } = support(t);
-    const decide = environnementDecide({}, decisionsPosees(journal.base));
+    const { journal: log } = support(t);
+    const decide = environnementDecide({}, decisionsPosees(log.base));
 
-    assert.deepEqual(decisionsPosees(journal.base), {});
+    assert.deepEqual(decisionsPosees(log.base), {});
     for (const nom of DECISIONS) assert.equal(decide[nom], undefined, nom);
     assert.deepEqual(lireStations(decide), []);
     assert.deepEqual([lireSeuils(decide).ticketTokens, lireSeuils(decide).lostTokens], [null, null]);
     assert.throws(() => configManager(decide), /BRIGADE_MANAGER_MODEL n'est pas défini — le calibrage des jugements du manager n'a pas de défaut/);
     assert.throws(() => configReviewer(decide), /BRIGADE_REVIEWER_MODEL n'est pas défini — le calibrage des relectures du reviewer n'a pas de défaut/);
     // Le suivi n'en invente pas non plus : sans rien à lire, il refuse.
-    assert.throws(() => suivreDecisions(journal.base, {}), ConfigInvalide);
+    assert.throws(() => suivreDecisions(log.base, {}), ConfigInvalide);
 
     // Une valeur vide n'est pas une décision, ni une valeur que le runtime ne
     // lirait pas : refusées, rien n'est écrit.
@@ -185,18 +185,18 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
       ["BRIGADE_REVIEWER_EFFORT", "fort", /BRIGADE_REVIEWER_EFFORT invalid/],
       ["BRIGADE_PROXY_PORT", "8080", /is not a chef's decision/],
     ] as const) {
-      assert.throws(() => poserDecision(journal, { projet: "brigade", nom, valeur, auteur: "chef" }), motif, `${nom}=${valeur}`);
+      assert.throws(() => poserDecision(log, { projet: "brigade", nom, valeur, auteur: "chef" }), motif, `${nom}=${valeur}`);
     }
-    assert.deepEqual(journal.tout(), []);
+    assert.deepEqual(log.tout(), []);
   });
 
   test("retirée sans variable derrière, une décision ne tombe pas sur un défaut : le runtime s'en tient à ce qu'il lisait, et le dit une fois", (t) => {
-    const { repertoire, journal } = support(t);
+    const { repertoire, journal: log } = support(t);
     poserLesPremieres(repertoire);
     decider(repertoire, "BRIGADE_MANAGER_MODEL", "opus");
     const avertissements: string[] = [];
-    const decisions = suivreDecisions(journal.base, ENV, (message) => void avertissements.push(message));
-    retirerDecision(journal, { projet: "brigade", nom: "BRIGADE_MANAGER_MODEL", auteur: "chef" });
+    const decisions = suivreDecisions(log.base, ENV, (message) => void avertissements.push(message));
+    retirerDecision(log, { projet: "brigade", nom: "BRIGADE_MANAGER_MODEL", auteur: "chef" });
 
     assert.deepEqual([decisions.manager(), decisions.manager()], [{ model: "opus", effort: "medium" }, { model: "opus", effort: "medium" }]);
     assert.equal(avertissements.length, 1);
@@ -210,7 +210,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     const reveils: Array<() => void> = [];
     poserLesPremieres(repertoire);
     const decisions = suivreDecisions(runtime.journal.base, {});
-    brancherDerive({ ...runtime, surReveil: (ecouter) => (reveils.push(() => ecouter("log")), () => {}) }, decisions.seuils, () => {});
+    plugDrift({ ...runtime, surReveil: (ecouter) => (reveils.push(() => ecouter("log")), () => {}) }, decisions.seuils, () => {});
     const limites = () => runtime.journal.tout().filter((e) => e.type === "drift.configured").map((e) => [e.payload.limits.ticketTokens, e.payload.limits.lostTokens]);
     assert.deepEqual(limites(), [[500_000, 200_000]]);
 
@@ -225,21 +225,21 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
   });
 
   test("en cuisine : des stations posées par le chef sont annoncées et servies au réveil suivant — un ticket qu'aucune ne pouvait cuisiner part", async (t) => {
-    const { repertoire, journal, gh, types, etat } = cuisine(t, { decisions: true, scenario: "muet" });
+    const { repertoire, journal: log, gh, types, etat } = kitchen(t, { decisions: true, scenario: "muet" });
     gh.ficher(16, "2026-10-08T09:00:00Z", [MARQUEUR, "- requiert : navigateur-headless"].join("\n"));
     gh.poser(issue(16));
     await jusqua(() => types(16).includes("ticket.86"));
-    assert.deepEqual(stationsAnnoncees(journal.base), ["box/claude"]);
+    assert.deepEqual(stationsAnnoncees(log.base), ["box/claude"]);
 
     decider(repertoire, "BRIGADE_STATIONS", "box/claude:1:code,box/playwright:1:navigateur-headless");
 
     await jusqua(() => etat(16) === "taken" && types(16).includes("cook.launched"));
-    assert.deepEqual(stationsAnnoncees(journal.base), ["box/claude", "box/playwright"]);
-    assert.equal(journal.duTicket(16).find((e) => e.type === "ticket.taken")?.author, "station:box/playwright");
+    assert.deepEqual(stationsAnnoncees(log.base), ["box/claude", "box/playwright"]);
+    assert.equal(log.duTicket(16).find((e) => e.type === "ticket.taken")?.author, "station:box/playwright");
   });
 
   test("en cuisine : le calibrage du reviewer posé par le chef vaut dès la relecture suivante", async (t) => {
-    const { repertoire, gh, relectures } = cuisine(t, { decisions: true, pass: true, issues: [issue(16)] });
+    const { repertoire, gh, relectures } = kitchen(t, { decisions: true, pass: true, issues: [issue(16)] });
     await jusqua(() => relectures().length === 1);
 
     decider(repertoire, "BRIGADE_REVIEWER_MODEL", "opus");
@@ -247,15 +247,15 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     gh.poser(issue(17));
 
     await jusqua(() => relectures().length === 2);
-    const calibrage = (args: string[]) => [args[args.indexOf("--model") + 1], args[args.indexOf("--effort") + 1]];
-    assert.deepEqual(relectures().map((lancement) => calibrage(lancement.args)), [
+    const calibration = (args: string[]) => [args[args.indexOf("--model") + 1], args[args.indexOf("--effort") + 1]];
+    assert.deepEqual(relectures().map((lancement) => calibration(lancement.args)), [
       ["haiku", "medium"],
       ["opus", "high"],
     ]);
   });
 
   test("en cuisine : le calibrage du manager posé par le chef vaut dès le jugement suivant", async (t) => {
-    const { repertoire, gh, lancements } = cuisine(t, { decisions: true, manager: {}, issues: [issue(30, [])] });
+    const { repertoire, gh, lancements } = kitchen(t, { decisions: true, manager: {}, issues: [issue(30, [])] });
     chef(repertoire, "manager.enabled");
     const jugements = () => lancements().filter((lancement) => lancement.args.includes("--tools"));
     await jusqua(() => jugements().length === 1);
@@ -265,60 +265,60 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     gh.poser(issue(31, []));
 
     await jusqua(() => jugements().length === 2);
-    const calibrage = (args: string[]) => [args[args.indexOf("--model") + 1], args[args.indexOf("--effort") + 1]];
-    assert.deepEqual(jugements().map((lancement) => calibrage(lancement.args)), [
+    const calibration = (args: string[]) => [args[args.indexOf("--model") + 1], args[args.indexOf("--effort") + 1]];
+    assert.deepEqual(jugements().map((lancement) => calibration(lancement.args)), [
       ["sonnet", "medium"],
       ["opus", "high"],
     ]);
   });
 
   test("en cuisine : changer les décisions ne touche à aucun cook en vol — ni arrêt, ni relance, même quand sa station est retirée", async (t) => {
-    const { repertoire, journal, types, etat, cooks, conclure } = cuisine(t, { decisions: true, scenario: "commite-puis-attend", issues: [issue(16)] });
+    const { repertoire, journal: log, types, etat, cooks, conclure } = kitchen(t, { decisions: true, scenario: "commite-puis-attend", issues: [issue(16)] });
     await jusqua(() => cooks().length === 1 && types(16).includes("cook.launched"));
 
     // Toutes les décisions changent, et la station du cook en vol disparaît.
     for (const [nom, valeur] of Object.entries({ ...DECIDEES, BRIGADE_STATIONS: "box/autre:1:code" })) decider(repertoire, nom, valeur);
-    await jusqua(() => stationsAnnoncees(journal.base).join() === "box/autre");
+    await jusqua(() => stationsAnnoncees(log.base).join() === "box/autre");
 
     const ARRETS = ["cook.exited", "cook.interrupted", "guard.tripped", "ticket.released"];
     assert.deepEqual(types(16).filter((type) => ARRETS.includes(type)), []);
     assert.equal(cooks().length, 1);
     assert.equal(etat(16), "taken");
-    assert.deepEqual(journal.tout().filter((e) => e.type.startsWith("runtime.") && e.type !== "runtime.ticked").map((e) => e.type), ["runtime.started"]);
+    assert.deepEqual(log.tout().filter((e) => e.type.startsWith("runtime.") && e.type !== "runtime.ticked").map((e) => e.type), ["runtime.started"]);
 
     // Il finit de lui-même, comme il aurait fini : sa livraison est reçue.
     conclure();
     await jusqua(() => etat(16) === "pass");
-    assert.equal((journal.duTicket(16).find((e) => e.type === "cook.exited")?.payload as { outcome?: string } | undefined)?.outcome, "ok");
+    assert.equal((log.duTicket(16).find((e) => e.type === "cook.exited")?.payload as { outcome?: string } | undefined)?.outcome, "ok");
     assert.equal(cooks().length, 1);
     // Sa station retirée ne revient pas pour autant.
-    assert.deepEqual(stationsAnnoncees(journal.base), ["box/autre"]);
+    assert.deepEqual(stationsAnnoncees(log.base), ["box/autre"]);
   });
 
   test("en cuisine : une station distante retirée par le chef laisse son cook en vol renouveler et livrer — elle ne prend plus rien", async (t) => {
     const MAC = "mac/claude";
-    const { repertoire, journal, gh, heure, types, etat } = cuisine(t, { decisions: true, stations: lireStations({ BRIGADE_STATIONS: `${MAC}:1:chrome-connecté:distante` }) });
+    const { repertoire, journal: log, gh, heure, types, etat } = kitchen(t, { decisions: true, stations: lireStations({ BRIGADE_STATIONS: `${MAC}:1:chrome-connecté:distante` }) });
     gh.ficher(16, "2026-10-08T09:00:00Z", [MARQUEUR, "- requiert : chrome-connecté"].join("\n"));
     gh.poser(issue(16));
-    const tirer = (demande: Parameters<typeof demander>[2]) => demander(repertoire, MAC, demande, { maintenant: heure.maintenant, pasMs: 2 });
+    const pull = (demande: Parameters<typeof demander>[2]) => demander(repertoire, MAC, demande, { maintenant: heure.maintenant, pasMs: 2 });
     await jusqua(() => types(16).includes("ticket.86"));
-    await tirer({ verb: "announce" });
+    await pull({ verb: "announce" });
     await jusqua(() => types(16).includes("ticket.released"));
-    const prise = await tirer({ verb: "claim" });
+    const prise = await pull({ verb: "claim" });
     assert.ok(prise.ok && prise.verb === "claim" && prise.mission !== null);
     const { run, branch } = prise.mission;
 
     decider(repertoire, "BRIGADE_STATIONS", "box/claude:1:code");
-    await jusqua(() => stationsAnnoncees(journal.base).join() === "box/claude");
+    await jusqua(() => stationsAnnoncees(log.base).join() === "box/claude");
 
-    assert.equal((await tirer({ verb: "renew", run, proof: "e1", turns: 1, tokens: 10 })).ok, true);
+    assert.equal((await pull({ verb: "renew", run, proof: "e1", turns: 1, tokens: 10 })).ok, true);
     pousserSurLOrigine(repertoire, branch);
-    assert.equal((await tirer({ verb: "deliver", run, ending: "delivered", reason: null, message: null, turns: 2, tokens: 20 })).ok, true);
+    assert.equal((await pull({ verb: "deliver", run, ending: "delivered", reason: null, message: null, turns: 2, tokens: 20 })).ok, true);
     await jusqua(() => etat(16) === "pass");
     // Retirée, elle ne s'annonce plus et ne réclame plus rien.
-    const refus = await tirer({ verb: "claim" });
+    const refus = await pull({ verb: "claim" });
     assert.equal(refus.ok ? null : refus.refusal, "unknown-station");
-    assert.deepEqual(stationsAnnoncees(journal.base), ["box/claude"]);
+    assert.deepEqual(stationsAnnoncees(log.base), ["box/claude"]);
   });
 });
 
@@ -346,11 +346,11 @@ describe("le runtime et les décisions du chef", { concurrency: 4 }, () => {
     };
   };
   const relire = (repertoire: string) => {
-    const journal = ouvrirJournal(repertoire, { lectureSeule: true });
+    const log = openLog(repertoire, { lectureSeule: true });
     try {
-      return journal.tout();
+      return log.tout();
     } finally {
-      journal.fermer();
+      log.fermer();
     }
   };
 

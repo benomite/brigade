@@ -23,7 +23,7 @@ import { ouvrirTerminaux } from "../src/terminaux.ts";
 const RACINE = join(import.meta.dirname, "../..");
 const doc = docRuntime(RACINE);
 const PARADE = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
-const SERVI = { nom: "parade", box: { hote: "box" } };
+const SERVED = { nom: "parade", box: { hote: "box" } };
 const DEPOT = "benomite/parade";
 const OPTIONS = "-o BatchMode=yes -o ConnectTimeout=10";
 
@@ -113,7 +113,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     const sortie = await runtime(t, CONNU);
     const { reglages } = box(t, dit(sortie));
 
-    const compte = await compter(reglages, SERVI);
+    const compte = await compter(reglages, SERVED);
 
     assert.deepEqual(backlogDe(sortie), { ouvertes: 7, retenues: 3 });
     assert.deepEqual({ ...compte, a: "" }, { projet: "parade", a: "", ouvertes: 7, retenues: 3, dit: "it will judge 4 of the 7 open issues — 3 carry `blocked-on-human`" });
@@ -126,9 +126,9 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
 
     assert.deepEqual(backlogDe(une), { ouvertes: 1, retenues: 1 });
     assert.deepEqual(backlogDe(aucune), { ouvertes: 0, retenues: 0 });
-    const compte = await compter(box(t, dit(une)).reglages, SERVI);
+    const compte = await compter(box(t, dit(une)).reglages, SERVED);
     assert.equal("dit" in compte && compte.dit, "it will judge no issue: the only open issue carries `blocked-on-human`");
-    const vide = await compter(box(t, dit(aucune)).reglages, SERVI);
+    const vide = await compter(box(t, dit(aucune)).reglages, SERVED);
     assert.equal("dit" in vide && vide.dit, "it will judge no issue: none is open");
   });
 
@@ -165,7 +165,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
   test("la box répond autre chose que la ligne : les nombres ne sont pas lus, et ce qu'elle a rendu est gardé tel quel", async (t) => {
     const { reglages } = box(t, dit("Bienvenue sur la box.\n"));
 
-    const compte = await compter(reglages, SERVI);
+    const compte = await compter(reglages, SERVED);
 
     assert.ok("sans" in compte);
     assert.equal(compte.sans, "the two numbers were not read in what the station returned: it has no `backlog` line. This is not “no issue”: look at the backlog yourself before saying yes");
@@ -175,7 +175,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
   test("un runtime d'avant cette lecture la refuse (code 2) : l'app le dit, et dit quoi faire", async (t) => {
     const { reglages } = box(t, `echo "brigade : usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run manager -- [allumer | eteindre | rendre <n° d'issue>]" >&2\nexit 2`);
 
-    const compte = await compter(reglages, SERVI);
+    const compte = await compter(reglages, SERVED);
 
     assert.ok("sans" in compte);
     assert.match(compte.sans, /^the two numbers were not read: the station's runtime refused `manager backlog` \(code 2\) — if it is older than this app, it does not know this reading yet: update brigade on the station\. This is not “no issue”/);
@@ -185,7 +185,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
   test("la box n'a pas lu GitHub (code 1) : aucun nombre, et ce que le runtime en dit est gardé", async (t) => {
     const { reglages } = box(t, `echo "brigade : le backlog de ${DEPOT} n'a pas été lu : gh api repos/${DEPOT}/issues : gh: connexion impossible — ce n'est pas « aucune issue »" >&2\nexit 1`);
 
-    const compte = await compter(reglages, SERVI);
+    const compte = await compter(reglages, SERVED);
 
     assert.ok("sans" in compte);
     assert.match(compte.sans, /^the two numbers were not read: the station answered, but `manager backlog` did not read GitHub \(code 1\)/);
@@ -201,7 +201,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     test(`le geste, ou \`ssh\`, sort en ${code} : « ${titre} », et aucun nombre`, async (t) => {
       const { reglages } = box(t, `echo "refus ${code}" >&2\nexit ${code}`);
 
-      const compte = await compter(reglages, SERVI);
+      const compte = await compter(reglages, SERVED);
 
       assert.ok("sans" in compte);
       assert.ok(compte.sans.startsWith(`the two numbers were not read: ${titre} — what the app got is below. This is not “no issue”`), compte.sans);
@@ -212,7 +212,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
   test("un `ssh` qui ne se lance pas : aucun nombre, et la box n'est pas dite jointe", async (t) => {
     const { racine, reglages } = box(t, "");
 
-    const compte = await compter({ ...reglages, ssh: join(racine, "absent") }, SERVI);
+    const compte = await compter({ ...reglages, ssh: join(racine, "absent") }, SERVED);
 
     assert.ok("sans" in compte);
     assert.match(compte.sans, /^the two numbers were not read: NOT REACHED — /);

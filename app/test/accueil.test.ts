@@ -7,10 +7,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { decrireEtat, lireEtat } from "../../runtime/src/etat.ts";
-import { ouvrirJournal } from "../../runtime/src/journal.ts";
+import { openLog } from "../../runtime/src/log.ts";
 import type { EtatStation } from "../../runtime/src/projections/stations.ts";
-import { ligneDeProjet, ligneDeStation, sante, saturees, tenirAccueil, type FaitsLus, type ProjetDeLAccueil } from "../src/accueil.ts";
-import type { Faits } from "../src/faits.ts";
+import { ligneDeProjet, ligneDeStation, sante, saturees, tenirAccueil, type ReadFacts, type ProjetDeLAccueil } from "../src/accueil.ts";
+import type { Facts } from "../src/facts.ts";
 import { heureCourte } from "../src/format.ts";
 import type { Panne } from "../src/pannes/pannes.ts";
 import type { StationVue, VuDesStations } from "../src/stations/stations.ts";
@@ -19,7 +19,7 @@ const A = "2026-10-16T12:00:00.000Z";
 const MAINTENANT = Date.parse(A);
 const PROJET: ProjetDeLAccueil = { nom: "brigade", box: true, desinstalle: false };
 
-const desFaits = (champs: Partial<Faits> = {}, compteurs: Partial<Faits["compteurs"]> = {}): Faits => ({
+const someFacts = (champs: Partial<Facts> = {}, compteurs: Partial<Facts["compteurs"]> = {}): Facts => ({
   etat: "ouverte",
   lu: A,
   dernierTick: A,
@@ -32,9 +32,9 @@ const desFaits = (champs: Partial<Faits> = {}, compteurs: Partial<Faits["compteu
   urgence: null,
   ...champs,
 });
-const lus = (faits: Faits): FaitsLus => ({ a: A, faits });
+const lus = (facts: Facts): ReadFacts => ({ a: A, faits: facts });
 const cook = (ticket: number, station = "parade-box") => ({ ticket, titre: `ticket ${ticket}`, station });
-// Le bloc `attend` tel que `status` l'écrit (runtime/src/attend.ts, `decrireAttentes`).
+// Le bloc `attend` tel que `status` l'écrit (runtime/src/awaiting.ts, `decrireAttentes`).
 const UNE = "attend     1 décision attend le chef depuis 2 j\n  #867  depuis 2 j  merge à faire  Titre\nfin attend\n";
 const CINQ = "attend     5 décisions attendent le chef — la plus ancienne depuis 2 j\n  #1  depuis 2 j  merge\nfin attend\n";
 const BASE_ROUGE = [
@@ -61,52 +61,52 @@ const sansRienDeBrut = (texte: string) => {
 
 describe("la ligne d'un projet : sa pastille, et ce qui bloque, ce qui attend le chef, puis ce qui cuit", () => {
   test("rien n'attend le chef : vert, et ce qui cuit", () => {
-    assert.deepEqual(ligneDeProjet(PROJET, lus(desFaits({ cooks: [cook(867)] }, { auTravail: 1 })), undefined), { nom: "brigade", ton: "vert", dit: "#867 cooking", survol: `read at ${new Date(A).toLocaleTimeString("en-US")} — open it to act` });
-    assert.equal(ligneDeProjet(PROJET, lus(desFaits({ cooks: [cook(1), cook(2), cook(3)] })), undefined).dit, "3 cooks at work");
-    assert.equal(ligneDeProjet(PROJET, lus(desFaits({ cooks: [cook(1), cook(2)] })), undefined).dit, "#1 and #2 cooking");
-    assert.equal(ligneDeProjet(PROJET, lus(desFaits()), undefined).dit, "nothing cooking, nothing waits for you");
+    assert.deepEqual(ligneDeProjet(PROJET, lus(someFacts({ cooks: [cook(867)] }, { auTravail: 1 })), undefined), { nom: "brigade", ton: "vert", dit: "#867 cooking", survol: `read at ${new Date(A).toLocaleTimeString("en-US")} — open it to act` });
+    assert.equal(ligneDeProjet(PROJET, lus(someFacts({ cooks: [cook(1), cook(2), cook(3)] })), undefined).dit, "3 cooks at work");
+    assert.equal(ligneDeProjet(PROJET, lus(someFacts({ cooks: [cook(1), cook(2)] })), undefined).dit, "#1 and #2 cooking");
+    assert.equal(ligneDeProjet(PROJET, lus(someFacts()), undefined).dit, "nothing cooking, nothing waits for you");
   });
 
   test("une décision l'attend : jaune, combien, depuis quand — puis ce qui cuit", () => {
-    const une = ligneDeProjet(PROJET, lus(desFaits({ cooks: [cook(870)] }, { attend: 1 })), { texte: "cuisine    ouverte", attend: UNE });
+    const une = ligneDeProjet(PROJET, lus(someFacts({ cooks: [cook(870)] }, { attend: 1 })), { texte: "cuisine    ouverte", attend: UNE });
     assert.equal(une.ton, "jaune");
     assert.equal(une.dit, "1 decision awaits you, for 2 d · #870 cooking");
-    const cinq = ligneDeProjet(PROJET, lus(desFaits({}, { attend: 5 })), { texte: "", attend: CINQ });
+    const cinq = ligneDeProjet(PROJET, lus(someFacts({}, { attend: 5 })), { texte: "", attend: CINQ });
     assert.equal(cinq.dit, "5 decisions await you, for 2 d");
     // Le bloc en anglais (#927) se lit de même.
-    const enAnglais = (bloc: string) => ligneDeProjet(PROJET, lus(desFaits({}, { attend: 5 })), { texte: "", attend: bloc }).dit;
+    const enAnglais = (bloc: string) => ligneDeProjet(PROJET, lus(someFacts({}, { attend: 5 })), { texte: "", attend: bloc }).dit;
     assert.equal(enAnglais("awaiting   5 decisions await the chef — the oldest for 2 d\n  #1  for 2 d  merge\nend awaiting\n"), "5 decisions await you, for 2 d");
     assert.equal(enAnglais("awaiting   1 decision awaits the chef — for 3 h 00\n  #1  for 3 h 00  merge\nend awaiting\n"), "5 decisions await you, for 3 h 00");
     // Sans `status` lu, le nombre se dit, pas depuis quand.
-    assert.equal(ligneDeProjet(PROJET, lus(desFaits({}, { attend: 5 })), undefined).dit, "5 decisions await you");
+    assert.equal(ligneDeProjet(PROJET, lus(someFacts({}, { attend: 5 })), undefined).dit, "5 decisions await you");
   });
 
   test("bloqué : rouge — base rouge et sa réparation, cuisine arrêtée ou retenue, runtime éteint, box injoignable", () => {
-    const rouge = ligneDeProjet(PROJET, lus(desFaits({ etat: "retenue", cooks: [cook(655)] }, { auTravail: 1 })), { texte: BASE_ROUGE });
+    const rouge = ligneDeProjet(PROJET, lus(someFacts({ etat: "retenue", cooks: [cook(655)] }, { auTravail: 1 })), { texte: BASE_ROUGE });
     assert.deepEqual([rouge.ton, rouge.dit], ["rouge", "base red · #655 being repaired"]);
-    assert.deepEqual(ligneDeProjet(PROJET, lus(desFaits({ etat: "retenue", cooks: [cook(655)] }, { auTravail: 1 })), { texte: BASE_ROUGE_EN_FRANCAIS }), rouge);
+    assert.deepEqual(ligneDeProjet(PROJET, lus(someFacts({ etat: "retenue", cooks: [cook(655)] }, { auTravail: 1 })), { texte: BASE_ROUGE_EN_FRANCAIS }), rouge);
     for (const [etat, dit] of [["arrêtée", "kitchen stopped"], ["éteinte", "runtime stopped"], ["retenue", "kitchen held"]] as const) {
-      const ligne = ligneDeProjet(PROJET, lus(desFaits({ etat })), undefined);
+      const ligne = ligneDeProjet(PROJET, lus(someFacts({ etat })), undefined);
       assert.deepEqual([ligne.ton, ligne.dit], ["rouge", dit], etat);
     }
     const injoignable = ligneDeProjet(PROJET, { a: A, injoignable: true }, undefined);
     assert.deepEqual([injoignable.ton, injoignable.dit], ["rouge", "station unreachable"]);
     // Les causes que `status` dit d'une cuisine retenue.
-    assert.equal(ligneDeProjet(PROJET, lus(desFaits({ etat: "retenue" })), { texte: "cuisine    retenue — disjoncteur OUVERT après 3 échecs\nconnexion  perdue sur box : se reconnecter" }).dit, "breaker open · Max connection down");
-    assert.equal(ligneDeProjet(PROJET, lus(desFaits({ etat: "retenue" })), { texte: "kitchen    held · breaker OPEN for 1 h 00 (3 failures in a row)\nconnection Max EXPIRED for 1 h 00 on station/claude — no ticket is taken any more: `claude /login`" }).dit, "breaker open · Max connection down");
+    assert.equal(ligneDeProjet(PROJET, lus(someFacts({ etat: "retenue" })), { texte: "cuisine    retenue — disjoncteur OUVERT après 3 échecs\nconnexion  perdue sur box : se reconnecter" }).dit, "breaker open · Max connection down");
+    assert.equal(ligneDeProjet(PROJET, lus(someFacts({ etat: "retenue" })), { texte: "kitchen    held · breaker OPEN for 1 h 00 (3 failures in a row)\nconnection Max EXPIRED for 1 h 00 on station/claude — no ticket is taken any more: `claude /login`" }).dit, "breaker open · Max connection down");
   });
 
   test("dans l'ordre : ce qui bloque, ce qui attend le chef, puis ce qui cuit", () => {
-    const ligne = ligneDeProjet(PROJET, lus(desFaits({ etat: "retenue", cooks: [cook(655), cook(870)] }, { attend: 2 })), { texte: BASE_ROUGE, attend: CINQ.replace("5 décisions", "2 décisions") });
+    const ligne = ligneDeProjet(PROJET, lus(someFacts({ etat: "retenue", cooks: [cook(655), cook(870)] }, { attend: 2 })), { texte: BASE_ROUGE, attend: CINQ.replace("5 décisions", "2 décisions") });
     assert.deepEqual([ligne.ton, ligne.dit], ["rouge", "base red · #655 being repaired · 2 decisions await you, for 2 d · #870 cooking"]);
     // Toute la cuisine attend le chef : la décision le dit.
     const urgence = { decision: "#867", ticket: 867, cause: "merge", geste: "merger", url: null, depuis: A, retenus: [867], autres: [] };
-    assert.equal(ligneDeProjet(PROJET, lus(desFaits({ urgence }, { attend: 1 })), undefined).dit, "1 decision awaits you — nothing cooks until then");
+    assert.equal(ligneDeProjet(PROJET, lus(someFacts({ urgence }, { attend: 1 })), undefined).dit, "1 decision awaits you — nothing cooks until then");
   });
 
   test("rien de lu n'est dit sain : gris, sans box, désinstallé, pas encore lu, ou une box qui ne répond pas comme l'app l'attend", () => {
     assert.equal(ligneDeProjet({ ...PROJET, box: false }, undefined, undefined).ton, "gris");
-    assert.equal(ligneDeProjet({ ...PROJET, desinstalle: true }, lus(desFaits()), undefined).ton, "gris");
+    assert.equal(ligneDeProjet({ ...PROJET, desinstalle: true }, lus(someFacts()), undefined).ton, "gris");
     assert.deepEqual(ligneDeProjet(PROJET, undefined, undefined).dit, "first read in progress…");
     assert.equal(ligneDeProjet(PROJET, { a: A, illisible: true }, undefined).ton, "gris");
   });
@@ -179,10 +179,10 @@ describe("la ligne d'une station : son état, ce qu'elle fait, ses projets — s
 
   test("…telle que le runtime l'écrit, en anglais depuis #940 : `MACHINE SATURATED … : <station> takes no more tickets`", () => {
     const repertoire = mkdtempSync(join(tmpdir(), "brigade-app-accueil-"));
-    const journal = ouvrirJournal(repertoire);
+    const log = openLog(repertoire);
     try {
       const maintenant = new Date(A);
-      const etat = lireEtat(journal, maintenant);
+      const etat = lireEtat(log, maintenant);
       const saturee = (nom: string, saturatedAt: string | null): EtatStation => ({
         station: nom, engine: "claude", provides: ["code"], maxCooks: 2, cap: null, announcedAt: "2026-10-16T08:00:00.000Z",
         quotaUntil: null, quotaReason: null, disconnectedAt: null, disconnectedReason: null,
@@ -194,7 +194,7 @@ describe("la ligne d'une station : son état, ce qu'elle fait, ses projets — s
       assert.match(status, /MACHINE SATURATED/, "le runtime ne dit plus la saturation dans ces mots");
       assert.deepEqual(saturees(status), ["parade-box"]);
     } finally {
-      journal.fermer();
+      log.fermer();
       rmSync(repertoire, { recursive: true, force: true });
     }
   });
@@ -244,10 +244,10 @@ describe("la ligne de santé : Max et GitHub, verte et discrète quand tout va, 
 describe("l'accueil tenu : chaque lecture rend l'accueil à redessiner, rien quand il ne change pas", () => {
   test("`faits`, `status` et les stations se combinent : les cooks de chaque projet comptent pour leur station", () => {
     const accueil = tenirAccueil({ projets: () => [PROJET, { nom: "espace", box: true, desinstalle: false }], maintenant: () => MAINTENANT });
-    const faits = (projet: string, champs: Partial<Faits>, compteurs: Partial<Faits["compteurs"]> = {}) => ({ projet, demande: 1, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(desFaits(champs, compteurs)) }] });
-    assert.ok(accueil.faits(faits("brigade", { cooks: [cook(867)] })));
-    assert.equal(accueil.faits(faits("brigade", { cooks: [cook(867)] })), undefined, "rien n'a changé");
-    accueil.faits(faits("espace", { cooks: [cook(12)] }, { attend: 5 }));
+    const facts = (projet: string, champs: Partial<Facts>, compteurs: Partial<Facts["compteurs"]> = {}) => ({ projet, demande: 1, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(someFacts(champs, compteurs)) }] });
+    assert.ok(accueil.faits(facts("brigade", { cooks: [cook(867)] })));
+    assert.equal(accueil.faits(facts("brigade", { cooks: [cook(867)] })), undefined, "rien n'a changé");
+    accueil.faits(facts("espace", { cooks: [cook(12)] }, { attend: 5 }));
     const vu = accueil.stations(LUES);
     assert.deepEqual(vu?.stations?.map(({ dit }) => dit), ["online · 2 cooks · brigade, espace, calculus"]);
     assert.equal(accueil.status({ projet: "espace", demande: 1, a: A, attend: CINQ, sorties: [{ commande: "status", texte: "cuisine    ouverte" }] })?.projets[1]?.dit, "5 decisions await you, for 2 d · #12 cooking");

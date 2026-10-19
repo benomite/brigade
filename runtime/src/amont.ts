@@ -5,14 +5,14 @@
 // arrive à chaque issue vient du journal — le rail, le manager, ses découpages —
 // et de ce que l'issue porte, ses labels. Rien d'autre n'y est déduit, et cette
 // lecture n'écrit rien. Le contrat : docs/runtime/manager.md, « En amont du rail ».
-import { attentesDuChef, direAttenteEn } from "./attend.ts";
+import { attentesDuChef, direAttenteEn } from "./awaiting.ts";
 import { priorite } from "./alimenter.ts";
-import { bilanDEpique } from "./bilan-epique.ts";
+import { epicSummary } from "./epic-summary.ts";
 import { decrire, decrireEcart } from "./dire-manager.ts";
 import type { Nature } from "./events/manager.ts";
-import { HORS_CUISINE, LABEL, type Issue } from "./github.ts";
+import { SERVED_ELSEWHERE, LABEL, type Issue } from "./github.ts";
 import type { Base } from "./base.ts";
-import { decoupageDe, ticketDEpique, ticketsDEpique } from "./projections/splits.ts";
+import { splitOf, epicTicket, epicTickets } from "./projections/splits.ts";
 import { issueDuManager, remiseDe, seqDeDecision } from "./projections/manager.ts";
 import { lireRail, sortDuTicket } from "./projections/rail.ts";
 import { nomAbandonEn } from "./rail.ts";
@@ -33,7 +33,7 @@ export type EtatAmont = (typeof ETATS)[number];
 // `dit` : ce que la box en dit, en une ligne — ses mots, ceux de `status` ou de `manager`.
 export type IssueAmont = { ticket: number; titre: string; url: string; priorite: number | null; etat: EtatAmont; dit: string };
 
-const LABEL_EPIQUE = "epic";
+const EPIC_LABEL = "epic";
 
 // Une raison du manager tient sur une ligne : ses retours à la ligne ne disent rien de plus.
 const enUneLigne = (texte: string) => texte.replace(/\s+/g, " ").trim();
@@ -50,33 +50,33 @@ function etatDe(base: Base, issue: Issue, attentes: Map<number, string>): { etat
   const sort = sortDuTicket(base, ticket);
   // Ce que le rail en a fait ne vaut que s'il est plus récent que ce que le manager en a décidé.
   const sortRecent = sort !== null && (decidee === null || sort.seq > decidee) ? sort : null;
-  const horsCuisine = labels.includes(HORS_CUISINE);
+  const servedElsewhere = labels.includes(SERVED_ELSEWHERE);
 
-  if (!horsCuisine && labels.includes(LABEL)) return { etat: "en-route", dit: "it carries `fire`: the rail takes it on its next poll" };
-  if (!horsCuisine && decision?.decision === "fire" && sortRecent === null) return { etat: "en-route", dit: `put on the rail by the manager, ${decision.model} / ${decision.effort} — \`fire\` is not set on it yet` };
-  const ne = ticketDEpique(base, ticket);
-  if (!horsCuisine && ne !== null && ne.index !== null && sortRecent === null) return { etat: "en-route", dit: `born of the split of epic #${ne.epic}: the rail takes it once \`fire\` is set` };
+  if (!servedElsewhere && labels.includes(LABEL)) return { etat: "en-route", dit: "it carries `fire`: the rail takes it on its next poll" };
+  if (!servedElsewhere && decision?.decision === "fire" && sortRecent === null) return { etat: "en-route", dit: `put on the rail by the manager, ${decision.model} / ${decision.effort} — \`fire\` is not set on it yet` };
+  const ne = epicTicket(base, ticket);
+  if (!servedElsewhere && ne !== null && ne.index !== null && sortRecent === null) return { etat: "en-route", dit: `born of the split of epic #${ne.epic}: the rail takes it once \`fire\` is set` };
 
   if (sortRecent?.outcome === "left") return { etat: "sortie", dit: `left the rail: ${nomAbandonEn(sortRecent.reason ?? "")}` };
   if (sortRecent?.outcome === "served") return { etat: "servie", dit: "served, and its issue is still open" };
 
-  const decoupage = decoupageDe(base, ticket);
-  if (decoupage?.state === "split") {
-    const tickets = ticketsDEpique(base, ticket);
-    if (!decoupage.done) {
+  const split = splitOf(base, ticket);
+  if (split?.state === "split") {
+    const tickets = epicTickets(base, ticket);
+    if (!split.done) {
       const lances = tickets.filter((ne) => ne.index !== null && ne.fired).length;
-      return { etat: "epique", dit: `split in progress, ${lances}/${decoupage.tickets.length} tickets created and fired` };
+      return { etat: "epique", dit: `split in progress, ${lances}/${split.tickets.length} tickets created and fired` };
     }
-    const { servis, manquants } = bilanDEpique(base, ticket);
+    const { servis: servedOnes, manquants } = epicSummary(base, ticket);
     const manque = manquants.length === 0 ? "" : `, ${manquants.map(({ ditEn }) => ditEn).join(", ")}`;
-    return { etat: "decoupee", dit: `split, ${servis.length}/${pluriel(tickets.length, "ticket")} served${tickets.length === 0 ? "" : ` (${tickets.map((ne) => `#${ne.ticket}`).join(", ")})`}${manque}` };
+    return { etat: "decoupee", dit: `split, ${servedOnes.length}/${pluriel(tickets.length, "ticket")} served${tickets.length === 0 ? "" : ` (${tickets.map((ne) => `#${ne.ticket}`).join(", ")})`}${manque}` };
   }
 
-  const epique = decision?.decision === "refused" && decision.kind === ("epic" satisfies Nature);
-  if (decision !== null && !epique && decision.decision !== "fire") {
+  const epic = decision?.decision === "refused" && decision.kind === ("epic" satisfies Nature);
+  if (decision !== null && !epic && decision.decision !== "fire") {
     return { etat: "ecartee", dit: enUneLigne(decision.decision === "aside" ? decrireEcart(decision) : decrire(decision)) };
   }
-  if (epique || labels.includes(LABEL_EPIQUE)) return { etat: "epique", dit: epique ? enUneLigne(`not split yet — ${decision?.reason ?? ""}`) : "it carries `epic`: not split yet" };
+  if (epic || labels.includes(EPIC_LABEL)) return { etat: "epique", dit: epic ? enUneLigne(`not split yet — ${decision?.reason ?? ""}`) : "it carries `epic`: not split yet" };
 
   if (remiseDe(base, ticket) !== null) return { etat: "non-lue", dit: "returned to the manager, not rejudged yet" };
   // Mise sur le rail par le manager, puis dite hors cuisine avant d'y entrer : il ne l'a pas relue depuis.
@@ -86,9 +86,9 @@ function etatDe(base: Base, issue: Issue, attentes: Map<number, string>): { etat
 
 // Une épique découpée dont tous les tickets sont servis n'attend plus rien : le
 // manager la ferme, et d'ici là elle n'a pas sa place parmi ce qui vient.
-function epiqueToutServie(base: Base, numero: number): boolean {
-  const decoupage = decoupageDe(base, numero);
-  return decoupage?.state === "split" && decoupage.done && bilanDEpique(base, numero).toutServi;
+function epicAllServed(base: Base, numero: number): boolean {
+  const split = splitOf(base, numero);
+  return split?.state === "split" && split.done && epicSummary(base, numero).allServed;
 }
 
 // Les issues ouvertes que le rail ne porte pas, dans l'ordre où le manager les
@@ -99,7 +99,7 @@ export function enAmont(base: Base, ouvertes: readonly Issue[]): IssueAmont[] {
   // Ce qui attend le chef et n'est pas sur le rail : ce sont les attentes du manager.
   const attentes = new Map(attentesDuChef(base, rail).flatMap((attente) => (attente.ticket === null || surLeRail.has(attente.ticket) ? [] : [[attente.ticket, direAttenteEn(attente)] as const])));
   return ouvertes
-    .filter((issue) => issue.pr !== true && !surLeRail.has(issue.number) && !epiqueToutServie(base, issue.number))
+    .filter((issue) => issue.pr !== true && !surLeRail.has(issue.number) && !epicAllServed(base, issue.number))
     .sort((a, b) => (priorite(a.labels) ?? 10) - (priorite(b.labels) ?? 10) || a.createdAt.localeCompare(b.createdAt) || a.number - b.number)
     .map((issue) => ({ ticket: issue.number, titre: issue.title, url: issue.url, priorite: priorite(issue.labels), ...etatDe(base, issue, attentes) }));
 }

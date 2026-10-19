@@ -4,7 +4,7 @@
 import type { Activite } from "../activite.ts";
 
 // What a cook cannot exceed, whatever its ticket.
-export type Plafonds = { turns: number; durationMs: number; tokens: number; idleMs: number };
+export type Caps = { turns: number; durationMs: number; tokens: number; idleMs: number };
 
 // Why a guardrail stopped a cook. `stop`: the chef's command. `lease`: the
 // lease on its ticket lapsed, for lack of progress in its worktree — its
@@ -55,15 +55,15 @@ export type ContexteCook = {
   continues?: string;
 };
 
-export type FaitGardeFous =
+export type GuardrailsFact =
   // The settings in force, written when they change: this is where the chef
   // reads the caps.
-  | { type: "guard.configured"; payload: { limits: Plafonds; breakerThreshold: number } }
+  | { type: "guard.configured"; payload: { limits: Caps; breakerThreshold: number } }
   // The intent: written before the subprocess exists. `stream` is the path of
   // the raw stream, relative to the state directory. The rest comes from the
   // launching station: its name, the cook's calibration, its branch, its
   // worktree.
-  | { type: "cook.launched"; payload: { run: string; limits: Plafonds; stream: string } & Partial<ContexteCook> }
+  | { type: "cook.launched"; payload: { run: string; limits: Caps; stream: string } & Partial<ContexteCook> }
   // The reading of a running cook, written at every tick: what it has consumed
   // so far, and what it is doing right now according to its stream — the kind
   // of action and what it aims at, never its content. `activity` absent: whoever

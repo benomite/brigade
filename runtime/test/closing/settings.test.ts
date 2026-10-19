@@ -4,15 +4,15 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { candidats, proposer, restants } from "../../src/closing/candidates.ts";
 import { consigneDuCloser, laisses, motifsDuCloser } from "../../src/closing/brief.ts";
-import { configFermeture } from "../../src/closing/settings.ts";
+import { closingConfig } from "../../src/closing/settings.ts";
 import { ConfigInvalide } from "../../src/runtime.ts";
 import { PROJET } from "./kitchen.ts";
 
 const textes = (fichiers: Record<string, string | null>) => ({ textes: Object.entries(fichiers).flatMap(([chemin, texte]) => (texte === null ? [] : [{ chemin, texte }])) });
 
 test("sans calibrage, le projet n'a pas de closer : aucun défaut ne lui en donne un — ses seuils et ses plafonds, eux, en ont", () => {
-  assert.deepEqual(configFermeture({}), { calibration: null, cooksBelow: 1, tokens: 500_000, removedLines: 500 });
-  assert.deepEqual(configFermeture({ BRIGADE_CLOSING_MODEL: "opus", BRIGADE_CLOSING_EFFORT: "high", BRIGADE_CLOSING_COOKS: "3", BRIGADE_CLOSING_MAX_TOKENS: "200000", BRIGADE_CLOSING_MAX_REMOVED_LINES: "120" }), {
+  assert.deepEqual(closingConfig({}), { calibration: null, cooksBelow: 1, tokens: 500_000, removedLines: 500 });
+  assert.deepEqual(closingConfig({ BRIGADE_CLOSING_MODEL: "opus", BRIGADE_CLOSING_EFFORT: "high", BRIGADE_CLOSING_COOKS: "3", BRIGADE_CLOSING_MAX_TOKENS: "200000", BRIGADE_CLOSING_MAX_REMOVED_LINES: "120" }), {
     calibration: { model: "opus", effort: "high" },
     cooksBelow: 3,
     tokens: 200_000,
@@ -21,11 +21,11 @@ test("sans calibrage, le projet n'a pas de closer : aucun défaut ne lui en donn
 });
 
 test("un closer à moitié réglé, ou un plafond illisible, est un refus de démarrer — jamais un repli silencieux", () => {
-  assert.throws(() => configFermeture({ BRIGADE_CLOSING_MODEL: "opus" }), (erreur) => erreur instanceof ConfigInvalide && /BRIGADE_CLOSING_EFFORT is not set/.test(erreur.message));
-  assert.throws(() => configFermeture({ BRIGADE_CLOSING_EFFORT: "high" }), (erreur) => erreur instanceof ConfigInvalide && /BRIGADE_CLOSING_MODEL is not set/.test(erreur.message));
-  assert.throws(() => configFermeture({ BRIGADE_CLOSING_MODEL: "gpt", BRIGADE_CLOSING_EFFORT: "high" }), /BRIGADE_CLOSING_MODEL invalid: “gpt” — expected opus, sonnet or haiku/);
+  assert.throws(() => closingConfig({ BRIGADE_CLOSING_MODEL: "opus" }), (erreur) => erreur instanceof ConfigInvalide && /BRIGADE_CLOSING_EFFORT is not set/.test(erreur.message));
+  assert.throws(() => closingConfig({ BRIGADE_CLOSING_EFFORT: "high" }), (erreur) => erreur instanceof ConfigInvalide && /BRIGADE_CLOSING_MODEL is not set/.test(erreur.message));
+  assert.throws(() => closingConfig({ BRIGADE_CLOSING_MODEL: "gpt", BRIGADE_CLOSING_EFFORT: "high" }), /BRIGADE_CLOSING_MODEL invalid: “gpt” — expected opus, sonnet or haiku/);
   for (const variable of ["BRIGADE_CLOSING_COOKS", "BRIGADE_CLOSING_MAX_TOKENS", "BRIGADE_CLOSING_MAX_REMOVED_LINES"]) {
-    for (const valeur of ["0", "-1", "1.5", "beaucoup"]) assert.throws(() => configFermeture({ [variable]: valeur }), ConfigInvalide, `${variable}=${valeur}`);
+    for (const valeur of ["0", "-1", "1.5", "beaucoup"]) assert.throws(() => closingConfig({ [variable]: valeur }), ConfigInvalide, `${variable}=${valeur}`);
   }
 });
 

@@ -21,7 +21,7 @@ import { Sortie } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
 import { principal as declarerStations } from "./declarer-stations.ts";
 import { nommerEtape, principal as etapes } from "./etapes-cli.ts";
-import { desinstaller, etapesAReprendre, InstallationRefusee, mesurerSetup, poserLabels, tenir, verifier, type Constat } from "./installation.ts";
+import { uninstall, etapesAReprendre, InstallationRefusee, mesurerSetup, poserLabels, tenir, verifier, type Constat } from "./installation.ts";
 import { configMachine, lireMachine } from "./machine.ts";
 import { principal as poserDecisions } from "./poser-decisions.ts";
 import { principal as protegerBranche } from "./proteger-branche.ts";
@@ -102,23 +102,23 @@ async function labelliser(): Promise<number> {
 
 async function mesurer(cooks: number): Promise<number> {
   const station = configStation(env);
-  const { dureeBailMs } = configRail(env);
-  const mesure = await mesurerSetup(env);
-  const sur = `\`${station.base}\` (${mesure.sha.slice(0, 7)})`;
-  if (!mesure.pret) {
-    console.error(`brigade : setup failed on ${sur}, after ${duree(mesure.dureeMs)} — the station would launch no cook (86 \`setup-failed\`). What it said:`);
-    console.error(mesure.sortie.trim().split("\n").slice(-20).join("\n"));
+  const { dureeBailMs: leaseDurationMs } = configRail(env);
+  const measure = await mesurerSetup(env);
+  const sur = `\`${station.base}\` (${measure.sha.slice(0, 7)})`;
+  if (!measure.pret) {
+    console.error(`brigade : setup failed on ${sur}, after ${duree(measure.dureeMs)} — the station would launch no cook (86 \`setup-failed\`). What it said:`);
+    console.error(measure.sortie.trim().split("\n").slice(-20).join("\n"));
     return 1;
   }
   const machine = lireMachine(env.BRIGADE_STATE_DIR ?? ".");
-  const tenue = tenir(mesure, { cooks, entrees: station.entreesMax, bailMs: dureeBailMs, disqueLibre: machine.disqueLibre, disqueMinOctets: station.seuils.disqueMinMo * MO });
+  const tenue = tenir(measure, { cooks, entrees: station.entreesMax, leaseMs: leaseDurationMs, disqueLibre: machine.disqueLibre, disqueMinOctets: station.seuils.disqueMinMo * MO });
   const ligne = (titre: string, valeur: string) => console.log(`  ${titre.padEnd(12)}${valeur}`);
   console.log(
-    mesure.joue
-      ? `brigade : setup played in ${duree(mesure.dureeMs)} on ${sur} — once, alone, as a dry run, machine load ${nombre(machine.charge, 1)} on ${nombre(machine.coeurs)} cores`
+    measure.joue
+      ? `brigade : setup played in ${duree(measure.dureeMs)} on ${sur} — once, alone, as a dry run, machine load ${nombre(machine.charge, 1)} on ${nombre(machine.coeurs)} cores`
       : `brigade : the project has no setup on ${sur} — a fresh worktree starts as it is`,
   );
-  ligne("worktree", `${taille(mesure.avantOctets)} when created, ${taille(mesure.apresOctets)} once the setup has run`);
+  ligne("worktree", `${taille(measure.avantOctets)} when created, ${taille(measure.apresOctets)} once the setup has run`);
   ligne("cap", `${duree(tenue.setup.plafondMs)}, half the lease — beyond it the station stops the setup: ${tient(tenue.setup.tient)}`);
   console.log(`At ${pluriel(cooks, "cook")}, ${nombre(station.entreesMax)} entering at a time (BRIGADE_MAX_SETUPS)`);
   ligne("intake", `${pluriel(tenue.entree.vagues, "wave")} of setups: the last cook starts ${duree(tenue.entree.dernierMs)} after the first, at best — later if the machine saturates`);
@@ -132,7 +132,7 @@ async function mesurer(cooks: number): Promise<number> {
 }
 
 function retirer(confirme: boolean): number {
-  const bilan = desinstaller(env, { confirme });
+  const bilan = uninstall(env, { confirme });
   const etat = env.BRIGADE_STATE_DIR;
   const parts = [bilan.clone === null ? [] : [`the reserved clone ${bilan.clone}`], bilan.worktrees === 0 ? [] : [`${pluriel(bilan.worktrees, "cook worktree")}`]].flat();
   const quoi = parts.join(" and ");

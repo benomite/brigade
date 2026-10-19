@@ -10,13 +10,13 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { test, type TestContext } from "node:test";
-import { configCloison, envelopper } from "../src/cloison.ts";
+import { partitionConfig, envelopper } from "../src/partition.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import type { ObservationDeSession } from "../src/events/renewal.ts";
-import { etatDesGardeFous } from "../src/projections/guardrails.ts";
-import { principal as gardeFous } from "../src/garde-fous-cli.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { guardrailsState } from "../src/projections/guardrails.ts";
+import { principal as guardrails } from "../src/guardrails-cli.ts";
+import { openLog } from "../src/log.ts";
 import { alerteDeSession } from "../src/projections/renewal.ts";
 import { stationsDeconnectees } from "../src/projections/stations.ts";
 import { brancherJeton } from "../src/jeton-claude.ts";
@@ -48,25 +48,25 @@ const observation = (lue: Partial<ObservationDeSession> = {}): ObservationDeSess
 
 // Une cuisine dont le test tient l'horloge, et le bloc `attend` de `status`
 // tel que le chef le lit à une heure donnée.
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   let instant = a("08:00:00");
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: () => new Date(instant) });
-  t.after(() => journal.fermer());
-  const noter = (fait: Fait, author = "runtime") => journal.ajouter({ project: "brigade", ticket: null, author, ...fait });
+  const log = openLog(repertoireTemporaire(t), { maintenant: () => new Date(instant) });
+  t.after(() => log.fermer());
+  const noter = (fait: Fait, author = "runtime") => log.ajouter({ project: "brigade", ticket: null, author, ...fait });
   const aLHeure = (heure: string) => void (instant = a(heure));
   const observer = (heure: string, lue: Partial<ObservationDeSession>) => {
     aLHeure(heure);
     noter({ type: "session.observed", payload: observation(lue) });
   };
   const bloc = (heure: string) => {
-    const lignes = decrireEtat(lireEtat(journal, new Date(a(heure))), new Date(a(heure)));
+    const lignes = decrireEtat(lireEtat(log, new Date(a(heure))), new Date(a(heure)));
     return lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("awaiting")), lignes.indexOf("end awaiting"));
   };
-  return { journal, noter, aLHeure, observer, bloc };
+  return { journal: log, noter, aLHeure, observer, bloc };
 }
 
 test("sans renouvellement qui tourne : rien sous le seuil, l'échéance annoncée au-delà avec son heure et le geste, et la ligne sort au renouvellement suivant", (t) => {
-  const { observer, bloc } = cuisine(t);
+  const { observer, bloc } = kitchen(t);
   observer("08:00:00", { renewed: a("08:00:00"), written: a("08:00:00") });
 
   // Échéance estimée : 16 h ; le préavis de trois heures s'ouvre à 13 h.
@@ -81,7 +81,7 @@ test("sans renouvellement qui tourne : rien sous le seuil, l'échéance annoncé
 });
 
 test("un renouvellement en échec s'annonce aussitôt, avant le seuil, avec sa nature et ce qu'il en dit — et sort au passage réussi suivant", (t) => {
-  const { noter, observer, bloc } = cuisine(t);
+  const { noter, observer, bloc } = kitchen(t);
   observer("09:00:00", { renewed: a("09:00:00"), written: a("09:00:00"), live: true });
   noter({ type: "runtime.ticked", payload: { intervalMs: 60_000 } });
   assert.deepEqual(bloc("10:04:00"), RIEN);
@@ -104,7 +104,7 @@ test("un renouvellement en échec s'annonce aussitôt, avant le seuil, avec sa n
 });
 
 test("un renouvellement qui tourne et réussit n'éteint pas l'annonce : elle vient au seuil comme sans lui, et sort quand il fait repartir l'échéance", (t) => {
-  const { noter, aLHeure, observer, bloc } = cuisine(t);
+  const { noter, aLHeure, observer, bloc } = kitchen(t);
   observer("08:00:00", { renewed: a("08:00:00"), written: a("08:00:00"), live: true });
   aLHeure("12:59:00");
   noter({ type: "runtime.ticked", payload: { intervalMs: 60_000 } });
@@ -123,14 +123,14 @@ test("un renouvellement qui tourne et réussit n'éteint pas l'annonce : elle vi
 });
 
 test("une session déjà tombée se dit comme avant — depuis quand, et le geste — sans annonce d'échéance ; la reprise date la reconnexion, d'où se compte la suivante", (t) => {
-  const { journal, noter, aLHeure, observer, bloc } = cuisine(t);
+  const { journal: log, noter, aLHeure, observer, bloc } = kitchen(t);
   noter({ type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["opus"], maxCooks: 2 } });
   observer("08:00:00", { file: "absent" });
   aLHeure("08:05:00");
   noter({ type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run: null } }, `station:${STATION}`);
 
   assert.deepEqual(bloc("08:25:00"), ["awaiting   1 decision awaits the chef — for 20 min", `  ${STATION}  for 20 min  Max connection expired (authentication_failed) — to restore: ${GESTE_TOMBEE_EN}`]);
-  const station = decrireEtat(lireEtat(journal, new Date(a("08:25:00"))), new Date(a("08:25:00"))).filter((ligne) => ligne.startsWith("connection"));
+  const station = decrireEtat(lireEtat(log, new Date(a("08:25:00"))), new Date(a("08:25:00"))).filter((ligne) => ligne.startsWith("connection"));
   assert.deepEqual(station, [`connection Max EXPIRED for 20 min on ${STATION} (authentication_failed) — no ticket is taken any more: ${GESTE_TOMBEE}`]);
 
   aLHeure("08:30:00");
@@ -143,7 +143,7 @@ test("une session déjà tombée se dit comme avant — depuis quand, et le gest
 });
 
 test("sans rien qui dise quand la session a été ouverte, rien n'est annoncé", (t) => {
-  const { observer, bloc } = cuisine(t);
+  const { observer, bloc } = kitchen(t);
   assert.deepEqual(bloc("23:00:00"), RIEN);
   observer("08:00:00", { file: "absent" });
   assert.deepEqual(bloc("23:00:00"), RIEN);
@@ -153,11 +153,11 @@ test("sans rien qui dise quand la session a été ouverte, rien n'est annoncé",
 
 test("« resume » après l'annonce date la reconnexion : la ligne sort, et un « resume » sans annonce n'écrit toujours rien", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoire);
-  t.after(() => journal.fermer());
-  const noter = (fait: Fait) => journal.ajouter({ project: "brigade", ticket: null, author: "runtime", ...fait });
+  const log = openLog(repertoire);
+  t.after(() => log.fermer());
+  const noter = (fait: Fait) => log.ajouter({ project: "brigade", ticket: null, author: "runtime", ...fait });
   const reprendre = async () => {
-    const cli = appeler(gardeFous, ["resume"], { BRIGADE_STATE_DIR: repertoire });
+    const cli = appeler(guardrails, ["resume"], { BRIGADE_STATE_DIR: repertoire });
     return { code: await cli.fin, sortie: cli.sortie() };
   };
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
@@ -165,13 +165,13 @@ test("« resume » après l'annonce date la reconnexion : la ligne sort, et un �
 
   const ilYA = (heures: number) => new Date(Date.now() - heures * 3_600_000).toISOString();
   noter({ type: "session.observed", payload: observation({ renewed: ilYA(6), written: ilYA(6) }) });
-  assert.notEqual(alerteDeSession(journal.base, new Date()), null);
+  assert.notEqual(alerteDeSession(log.base, new Date()), null);
 
   const { code, sortie } = await reprendre();
   assert.equal(code, 0);
   assert.match(sortie, /Max session taken as renewed/);
-  assert.deepEqual(journal.tout().filter((e) => e.type === "session.reconnected").length, 1);
-  assert.equal(alerteDeSession(journal.base, new Date()), null);
+  assert.deepEqual(log.tout().filter((e) => e.type === "session.reconnected").length, 1);
+  assert.equal(alerteDeSession(log.base, new Date()), null);
   assert.match((await reprendre()).sortie, /nothing to resume/);
 });
 
@@ -280,7 +280,7 @@ test("une connexion tombée se rétablit seule : un passage réussi postérieur 
   assert.equal(levees.length, 1);
   assert.deepEqual(levees[0]?.payload, { stations: [STATION], verified: "2099-01-01T00:00:30.000Z" });
   // L'arrêt du chef, lui, n'est pas levé.
-  assert.notEqual(etatDesGardeFous(runtime.journal.base).stoppedAt, null);
+  assert.notEqual(guardrailsState(runtime.journal.base).stoppedAt, null);
 });
 
 test("le runtime écrit au journal ce qu'il lit au démarrage, puis ce qui change à chaque tick — un passage qui ne change rien n'écrit rien", (t) => {
@@ -333,9 +333,9 @@ test("la cloison monte les identifiants en lecture seule pour tous les rôles �
   mkdirSync(worktree, { recursive: true });
   const home = join(racine, "compte");
   mkdirSync(join(home, ".claude"), { recursive: true });
-  const cloison = configCloison({ BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: join(racine, "etats"), HOME: home }, lieux);
+  const partition = partitionConfig({ BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: join(racine, "etats"), HOME: home }, lieux);
   const identifiants = join(home, ".claude/.credentials.json");
-  assert.equal(cloison?.identifiants, identifiants);
+  assert.equal(partition?.identifiants, identifiants);
 
   const roles = {
     "setup, cook et gates": { cwd: worktree, depot: "ecriture" as const },
@@ -343,7 +343,7 @@ test("la cloison monte les identifiants en lecture seule pour tous les rôles �
     juge: { cwd: "/tmp", depot: null },
   };
   for (const [role, acces] of Object.entries(roles)) {
-    const { args } = envelopper(cloison, { commande: "claude", args: [] }, acces);
+    const { args } = envelopper(partition, { commande: "claude", args: [] }, acces);
     const recu = args.slice(args.indexOf("brigade") + 1, args.indexOf("--"));
     const montages = recu.flatMap((arg, i) => (arg.startsWith("--") && recu[i + 2] === identifiants ? [arg] : []));
     assert.deepEqual(montages, ["--ro-bind-try"], role);
@@ -366,17 +366,17 @@ test("aucun code du runtime n'ouvre le fichier d'identifiants : son nom n'y sert
 
   // Son nom en clair : la cloison, qui le monte, le module qui le reconnaît dans une livraison, et le bac à
   // sable des cooks du Mac, qui en interdit la lecture.
-  assert.deepEqual(qui(/\.credentials\.json/), ["bac-a-sable/configuration.ts", "cloison.ts", "identifiants.ts"]);
+  assert.deepEqual(qui(/\.credentials\.json/), ["bac-a-sable/configuration.ts", "identifiants.ts", "partition.ts"]);
   // Son nom par la constante : les messages d'un refus de push, et le refus d'un fichier d'état qui le désignerait.
   assert.deepEqual(qui(/\bFICHIER_DES_IDENTIFIANTS\b/), ["identifiants.ts", "renouvellement.ts", "station.ts"]);
   // Son chemin, tel que la cloison le donne : l'annonce au journal — par le runtime d'un projet, et par la cuisine
   // que la station ouvre pour chacun des siens —, et la sonde qui le regarde de l'intérieur de la cloison.
-  assert.deepEqual(qui(/\.identifiants\b/), ["eprouver.ts", "main.ts", "station/cuisine.ts"]);
+  assert.deepEqual(qui(/\.identifiants\b/), ["eprouver.ts", "main.ts", "station/kitchen.ts"]);
   // Et aucune lecture, ouverture ou copie de quoi que ce soit qui le nomme.
   assert.deepEqual(qui(/\b(readFileSync|readFile|openSync|open|createReadStream|copyFileSync|copyFile|cpSync|readSync)\s*\([^)]*(identifiants|credentials)/i), []);
   // La sonde n'ouvre rien : `test -r` et `test -w` n'en demandent que les droits.
   const sonde = lues.find(({ nom }) => nom === "eprouver.ts")?.texte ?? "";
-  assert.match(sonde, /sh\('\[ -r "\$1" \] && ! \[ -w "\$1" \]', cloison\.identifiants\)/);
+  assert.match(sonde, /sh\('\[ -r "\$1" \] && ! \[ -w "\$1" \]', partition\.identifiants\)/);
 });
 
 test("avec un jeton longue durée, le renouvellement n'est pas suivi : aucun fichier lu, rien d'écrit, aucune perte rétablie ni annoncée ; sans jeton, comme avant", (t) => {
@@ -387,7 +387,7 @@ test("avec un jeton longue durée, le renouvellement n'est pas suivi : aucun fic
   let abonnements = 0;
   t.after(() => runtime.arreter("test"));
   const noter = (fait: Fait) => runtime.journal.ajouter({ project: "brigade", ticket: null, author: "runtime", ...fait });
-  const faits = (type: string) => runtime.journal.tout().filter((e) => e.type === type);
+  const facts = (type: string) => runtime.journal.tout().filter((e) => e.type === type);
   const ecrire = (texte: string) => writeFileSync(etat, texte);
 
   noter({ type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["opus"], maxCooks: 2 } });
@@ -396,18 +396,18 @@ test("avec un jeton longue durée, le renouvellement n'est pas suivi : aucun fic
   brancherSession({ ...runtime, surReveil: (ecouter) => ((tick = ecouter), void abonnements++, () => {}) }, CONFIG(etat), () => new Date(a("12:00:00")), "/secret/jeton");
   tick("tick");
   assert.equal(abonnements, 0);
-  assert.equal(faits("session.observed").length, 0);
-  assert.equal(faits("session.restored").length, 0);
+  assert.equal(facts("session.observed").length, 0);
+  assert.equal(facts("session.restored").length, 0);
   assert.deepEqual(stationsDeconnectees(runtime.journal.base), [STATION]);
 
   // Sans jeton : le même fichier est lu, et la connexion rétablie.
   brancherSession({ ...runtime, surReveil: (ecouter) => ((tick = ecouter), () => {}) }, CONFIG(etat), () => new Date(a("12:00:00")));
-  assert.equal(faits("session.observed").length, 1);
-  assert.equal(faits("session.restored").length, 1);
+  assert.equal(facts("session.observed").length, 1);
+  assert.equal(facts("session.restored").length, 1);
 });
 
 test("une échéance de session déjà annoncée sort de la file dès qu'un jeton longue durée est configuré", (t) => {
-  const { observer, noter, bloc } = cuisine(t);
+  const { observer, noter, bloc } = kitchen(t);
   observer("08:00:00", { renewed: a("07:00:00"), lifetimeS: 8 * 3600, warningS: 3 * 3600 });
   assert.notDeepEqual(bloc("12:00:00"), RIEN);
   noter({ type: "token.observed", payload: { token: "/secret/jeton", file: "/secret/jeton.cree", state: "read", created: a("07:00:00"), lifetimeDays: 365, warningDays: 30 } });

@@ -25,9 +25,9 @@
 // Levée — le chef a tranché, la cuisine est repartie —, l'urgence qui revient
 // part d'un nouveau mouvement ou d'une nouvelle décision : son début aussi.
 import type { Base } from "./base.ts";
-import { nommerAttente, type Attente } from "./attend.ts";
+import { nommerAttente, type Attente } from "./awaiting.ts";
 import { fournitTout } from "./capacites.ts";
-import { illisible, requises } from "./fiche.ts";
+import { illisible, requises } from "./card.ts";
 import { cooksEnCours } from "./projections/guardrails.ts";
 import type { TicketRail } from "./projections/rail.ts";
 import type { EtatStation } from "./projections/stations.ts";
@@ -69,8 +69,8 @@ export function urgenceDuChef(base: Base, rail: TicketRail[], attentes: Attente[
   // une livraison est à la pass sans attendre le chef.
   if (cooksEnCours(base).some(({ ticket }) => ticket !== null)) return null;
   if (rail.some(({ ticket, state }) => state === "taken" || (state === "pass" && !duChef.has(ticket)))) return null;
-  const enAttente = rail.filter(({ state }) => state === "waiting");
-  if (enAttente.length === 0) return null;
+  const queued = rail.filter(({ state }) => state === "waiting");
+  if (queued.length === 0) return null;
 
   const parTicket = new Map(rail.map((ticket) => [ticket.ticket, ticket]));
   const globales = attentes.filter((attente) => attente.ticket === null);
@@ -111,7 +111,7 @@ export function urgenceDuChef(base: Base, rail: TicketRail[], attentes: Attente[
   };
 
   const parCause = new Map<string, CauseDUrgence>();
-  for (const ticket of enAttente) {
+  for (const ticket of queued) {
     const causes = causesDe(ticket, new Set());
     if (causes === null) return null;
     for (const attente of causes) {
@@ -127,7 +127,7 @@ export function urgenceDuChef(base: Base, rail: TicketRail[], attentes: Attente[
   if (premiere === undefined) return null;
   // Les horodatages sont en ISO 8601 UTC : l'ordre des chaînes est celui du temps.
   const depuis = [dernierMouvement(base) ?? "", ...[...parCause.values()].map(({ attente }) => attente.since)].sort().at(-1) ?? premiere.attente.since;
-  return { depuis, retenus: enAttente.map(({ ticket }) => ticket), causes: [premiere, ...autres] };
+  return { depuis, retenus: queued.map(({ ticket }) => ticket), causes: [premiere, ...autres] };
 }
 
 // Ce qui fait la même urgence : son début, et les décisions du chef qui la

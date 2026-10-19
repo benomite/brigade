@@ -4,11 +4,11 @@
 // sans redémarrer la station ni toucher aux autres projets.
 import { AsyncLocalStorage } from "node:async_hooks";
 import { join } from "node:path";
-import type { VeilleConnexionMax } from "../connexion-max/veille.ts";
+import type { MaxConnectionWatch } from "../connection-max/veille.ts";
 import { DejaEnCours } from "../runtime.ts";
 import { CONFIGURATION, environnementDuProjet, lireFichierDeConfiguration, type ProjetConfigure } from "./configuration.ts";
-import { ouvrirCuisine, type Cuisine, type OptionsCuisine } from "./cuisine.ts";
-import { lirePortes, UNITE_DES_PORTES, type Portes } from "./portes.ts";
+import { openKitchen, type Kitchen, type KitchenOptions } from "./kitchen.ts";
+import { readDoors, DOORS_UNIT, type Doors } from "./doors.ts";
 
 export type OptionsStation = {
   // Le répertoire de la station (`BRIGADE_STATION_DIR`) : sa configuration,
@@ -19,15 +19,15 @@ export type OptionsStation = {
   // Une ligne du journal de service : la station n'en a qu'un, pour tous ses
   // projets.
   dire: (ligne: string) => void;
-  ouvrir?: (env: Record<string, string | undefined>, options: OptionsCuisine) => Cuisine;
+  ouvrir?: (env: Record<string, string | undefined>, options: KitchenOptions) => Kitchen;
   // Entre deux relectures de la configuration.
   relectureMs?: number;
   // La connexion Max de la machine, remise à chaque cuisine.
-  connexion?: VeilleConnexionMax;
+  connexion?: MaxConnectionWatch;
   // Le fichier des ports des portes que tient `brigade-station-porte`
   // (`BRIGADE_STATION_PORTES`), ou null : chaque projet sort alors par la
   // porte que sa ligne nomme, ou sans porte.
-  portes?: string | null;
+  doors?: string | null;
 };
 
 export type Station = {
@@ -61,11 +61,11 @@ const auNomDe = (dire: (ligne: string) => void, projet: string) => (ligne: strin
 
 export function ouvrirStation(options: OptionsStation): Station {
   const { racine, env, dire } = options;
-  const ouvrir = options.ouvrir ?? ouvrirCuisine;
+  const ouvrir = options.ouvrir ?? openKitchen;
   const fichier = join(racine, CONFIGURATION);
-  const portes = options.portes ?? null;
+  const doors = options.doors ?? null;
   // Ce qui, changé, rouvre un projet : sa ligne, et le port de sa porte.
-  const ouvertes = new Map<string, { cle: string; cuisine: Cuisine }>();
+  const ouvertes = new Map<string, { cle: string; cuisine: Kitchen }>();
   // Un projet refusé ne se réessaie que si sa ligne ou sa porte change — sauf
   // celui qu'un autre runtime tient encore : il est repris dès qu'il est libre.
   const refuses = new Map<string, { cle: string; motif: string; reessayer: boolean }>();
@@ -83,28 +83,28 @@ export function ouvrirStation(options: OptionsStation): Station {
     }
   };
 
-  const portDe = (projet: ProjetConfigure, lus: Portes | null): number | null => lus?.projets[projet.nom] ?? null;
-  const cleDe = (projet: ProjetConfigure, lus: Portes | null) => (lus === null ? projet.ligne : `${projet.ligne} porte=${portDe(projet, lus) ?? "-"}`);
+  const portDe = (projet: ProjetConfigure, lus: Doors | null): number | null => lus?.projets[projet.nom] ?? null;
+  const cleDe = (projet: ProjetConfigure, lus: Doors | null) => (lus === null ? projet.ligne : `${projet.ligne} porte=${portDe(projet, lus) ?? "-"}`);
 
   // L'environnement d'un projet : sous les portes de la station, le port de
   // la sienne — jamais celle d'un autre projet, ni celle de la station.
-  const environnement = (projet: ProjetConfigure, lus: Portes | null) => {
+  const environnement = (projet: ProjetConfigure, lus: Doors | null) => {
     const sien = environnementDuProjet(racine, projet, env);
     if (lus === null) return sien;
-    if ("BRIGADE_PROXY_PORT" in projet.reglages) throw new Error(`BRIGADE_PROXY_PORT ne se règle pas sur sa ligne : la station donne à chaque projet sa porte (${UNITE_DES_PORTES})`);
+    if ("BRIGADE_PROXY_PORT" in projet.reglages) throw new Error(`BRIGADE_PROXY_PORT ne se règle pas sur sa ligne : la station donne à chaque projet sa porte (${DOORS_UNIT})`);
     const port = portDe(projet, lus);
-    if (port === null) throw new Error(`sa porte n'est pas ouverte — ${UNITE_DES_PORTES} n'a pas écrit son port dans ${portes} (journalctl -u ${UNITE_DES_PORTES}) ; la station l'ouvre dès qu'elle l'est`);
+    if (port === null) throw new Error(`sa porte n'est pas ouverte — ${DOORS_UNIT} n'a pas écrit son port dans ${doors} (journalctl -u ${DOORS_UNIT}) ; la station l'ouvre dès qu'elle l'est`);
     return { ...sien, BRIGADE_PROXY_PORT: String(port) };
   };
 
-  const tenter = (projet: ProjetConfigure, lus: Portes | null) => {
+  const tenter = (projet: ProjetConfigure, lus: Doors | null) => {
     const dit = auNomDe(dire, projet.nom);
     const cle = cleDe(projet, lus);
     try {
-      const cuisine = enCours.run(projet.nom, () => ouvrir(environnement(projet, lus), { dire: dit, connexion: options.connexion }));
-      ouvertes.set(projet.nom, { cle, cuisine });
+      const kitchen = enCours.run(projet.nom, () => ouvrir(environnement(projet, lus), { dire: dit, connexion: options.connexion }));
+      ouvertes.set(projet.nom, { cle, cuisine: kitchen });
       refuses.delete(projet.nom);
-      dit(`servi par la station — ${projet.depot}, branche ${projet.base}, état dans ${cuisine.repertoireEtat}`);
+      dit(`servi par la station — ${projet.depot}, branche ${projet.base}, état dans ${kitchen.repertoireEtat}`);
     } catch (erreur) {
       const motif = message(erreur);
       const avant = refuses.get(projet.nom);
@@ -120,14 +120,14 @@ export function ouvrirStation(options: OptionsStation): Station {
     if (dits !== ditsProblemes) for (const probleme of problemes) dire(`brigade : station — ${probleme}`);
     ditsProblemes = dits;
 
-    const lus = portes === null ? null : lirePortes(portes);
+    const lus = doors === null ? null : readDoors(doors);
 
     const voulus = new Map(projets.map((projet) => [projet.nom, projet]));
     for (const [nom, ouverte] of [...ouvertes]) {
       const voulu = voulus.get(nom);
       if (voulu && cleDe(voulu, lus) === ouverte.cle) continue;
-      const seulementLaPorte = voulu !== undefined && ouverte.cle.startsWith(`${voulu.ligne} porte=`);
-      auNomDe(dire, nom)(!voulu ? "retiré de la configuration : la station ne le sert plus" : seulementLaPorte ? "sa porte a changé de port : la station le rouvre" : "sa ligne a changé : la station le rouvre");
+      const onlyTheDoor = voulu !== undefined && ouverte.cle.startsWith(`${voulu.ligne} porte=`);
+      auNomDe(dire, nom)(!voulu ? "retiré de la configuration : la station ne le sert plus" : onlyTheDoor ? "sa porte a changé de port : la station le rouvre" : "sa ligne a changé : la station le rouvre");
       fermer(nom, voulu ? "reconfigured" : "removed");
     }
     for (const nom of [...refuses.keys()]) if (!voulus.has(nom)) refuses.delete(nom);

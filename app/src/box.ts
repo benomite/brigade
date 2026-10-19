@@ -33,7 +33,7 @@ export type Echec = { erreur: string; atteinte: boolean; cas: Cas | null };
 export type Lecture = { projet: string; demande: number; a: string } & ({ sorties: Sortie[] } | Echec);
 
 // Un projet qui a une box : son nom est celui que le geste reçoit.
-export type Servi = { nom: string; box: Box };
+export type Served = { nom: string; box: Box };
 
 // Ce qui règle un `ssh` : son binaire, le délai passé lequel il est arrêté, et ce
 // qu'il s'accorde pour joindre la box, en secondes.
@@ -54,7 +54,7 @@ export const cite = (nom: string) => (/^[a-z0-9-]+$/.test(nom) ? nom : `'${nom.r
 
 // Une commande du geste, lancée une fois sur la box d'un projet. Jamais d'exception :
 // ce qui arrive est rendu, et c'est à qui l'a lancée de dire ce que ça prouve.
-export function lancerGeste(reglages: Reglages, { nom, box }: Servi, commande: string, signal?: AbortSignal): Promise<Rendu> {
+export function lancerGeste(reglages: Reglages, { nom, box }: Served, commande: string, signal?: AbortSignal): Promise<Rendu> {
   // Sans terminal, `ssh` ne peut rien demander : il échoue plutôt que d'attendre un mot de passe.
   const args = ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${reglages.connexionS}`, "--", box.hote, `brigade ${cite(nom)} ${commande}`];
   return new Promise((resoudre) => {
@@ -105,14 +105,14 @@ export function ouvrirVeille(options: {
   const passage = options.passage ?? new Map<string, Promise<unknown>>();
 
   // Chacune attend que la précédente du même projet ait fini, de quelque veille qu'elle soit.
-  function lancer(servi: Servi, commande: string, signal: AbortSignal): Promise<Sortie | Echec> {
-    const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => joindre(servi, commande, signal));
-    passage.set(servi.nom, rendu);
+  function lancer(served: Served, commande: string, signal: AbortSignal): Promise<Sortie | Echec> {
+    const rendu = (passage.get(served.nom) ?? Promise.resolve()).then(() => joindre(served, commande, signal));
+    passage.set(served.nom, rendu);
     return rendu;
   }
 
-  async function joindre(servi: Servi, commande: string, signal: AbortSignal): Promise<Sortie | Echec> {
-    const rendu = await lancerGeste(options, servi, commande, signal);
+  async function joindre(served: Served, commande: string, signal: AbortSignal): Promise<Sortie | Echec> {
+    const rendu = await lancerGeste(options, served, commande, signal);
     const { erreur } = rendu;
     return erreur === null ? { commande, texte: rendu.sortie } : echecDe({ ...rendu, erreur }, options.delaiMs);
   }
@@ -120,10 +120,10 @@ export function ouvrirVeille(options: {
   // Les commandes partent l'une après l'autre, et la première qui échoue est
   // l'erreur : un projet n'ouvre qu'une connexion à la fois, pour que tous les
   // projets d'une même box, lus de front, n'y soient pas refusés pour leur nombre.
-  async function lire(servi: Servi, commandes: readonly Commande[], signal: AbortSignal): Promise<{ sorties: Sortie[] } | Echec> {
+  async function lire(served: Served, commandes: readonly Commande[], signal: AbortSignal): Promise<{ sorties: Sortie[] } | Echec> {
     const sorties: Sortie[] = [];
     for (const voulue of commandes) {
-      const rendu = await lancer(servi, typeof voulue === "string" ? voulue : voulue(sorties), signal);
+      const rendu = await lancer(served, typeof voulue === "string" ? voulue : voulue(sorties), signal);
       if ("erreur" in rendu) return rendu;
       sorties.push(rendu);
     }
@@ -131,12 +131,12 @@ export function ouvrirVeille(options: {
   }
 
   // Un projet : lu tout de suite, puis à chaque intervalle, sans rien attendre des autres.
-  async function suivre(servi: Servi, commandes: readonly Commande[], demande: number, signal: AbortSignal): Promise<void> {
+  async function suivre(served: Served, commandes: readonly Commande[], demande: number, signal: AbortSignal): Promise<void> {
     for (;;) {
-      const lue = await lire(servi, commandes, signal);
+      const lue = await lire(served, commandes, signal);
       // Le chef regarde ailleurs, ou l'app ferme : cette lecture n'est plus à personne.
       if (signal.aborted) return;
-      options.surLecture({ projet: servi.nom, demande, a: new Date().toISOString(), ...lue });
+      options.surLecture({ projet: served.nom, demande, a: new Date().toISOString(), ...lue });
       await attendre(options.intervalleMs, undefined, { signal }).catch(() => {});
       if (signal.aborted) return;
     }

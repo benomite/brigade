@@ -27,9 +27,9 @@ import { execFile } from "node:child_process";
 import { existsSync, lchownSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, rmdirSync, writeFileSync, type Stats } from "node:fs";
 import { createServer } from "node:net";
 import { dirname, join, normalize, sep } from "node:path";
-import { EFFORTS, MODELES } from "./calibrage.ts";
+import { EFFORTS, MODELES } from "./calibration.ts";
 import { poserDecision } from "./decisions.ts";
-import { cheminJournal, ouvrirJournal } from "./journal.ts";
+import { logPath, openLog } from "./log.ts";
 import type { AppelDInstallateur } from "./events/installer.ts";
 import { NOM_DE_PROJET } from "./runtime.ts";
 
@@ -215,10 +215,10 @@ export function lireDemande(args: string[]): Demande {
   };
   const manager = { modele: calibre("--manager-modele", MODELES), effort: calibre("--manager-effort", EFFORTS) };
   const reviewer = { modele: calibre("--reviewer-modele", MODELES), effort: calibre("--reviewer-effort", EFFORTS) };
-  const sauvegardes = lue("--sauvegardes");
-  const refus = refusDeChemin(sauvegardes, "--sauvegardes", "sauvegardes");
+  const backups = lue("--sauvegardes");
+  const refus = refusDeChemin(backups, "--sauvegardes", "sauvegardes");
   if (refus) throw refus;
-  return { projet, depot, branche, sauvegardes, manager, reviewer };
+  return { projet, depot, branche, sauvegardes: backups, manager, reviewer };
 }
 
 const ARGUMENTS_GARDES = 16;
@@ -303,8 +303,8 @@ const PORTS_PAR_DEFAUT: [number, number] = [3128, 3227];
 const PREMIER_PORT_LIBRE = 1024;
 export const DERNIER_PORT = 65535;
 const GABARITS = ["brigade@.service", "brigade-sauvegarde@.service", "brigade-sauvegarde@.timer", "brigade-porte@.service"];
-const CLOISON = "cloison.conf";
-const ARBITRE = "brigade-arbitre.service";
+const PARTITION = "cloison.conf";
+const ARBITER = "brigade-arbitre.service";
 export const DOC = "docs/installer.md";
 const DELAI_DU_CLONE_MS = 600_000;
 const DELAI_MS = 120_000;
@@ -379,9 +379,9 @@ export function lireReglage(box: Pick<Box, "racine" | "config">): Reglage {
     if (cle === undefined || valeur === undefined || !["sauvegardes", "ports"].includes(cle)) throw pasPrete("reglage-illisible", `le réglage du geste (${box.config}) porte une ligne qui ne se lit pas : « ${ligne} » — attendu \`sauvegardes=<chemin>\` ou \`ports=<début>-<fin>\``);
     cles.set(cle, valeur);
   }
-  const sauvegardes = cles.get("sauvegardes");
-  if (sauvegardes === undefined) throw pasPrete("reglage-illisible", `le réglage du geste (${box.config}) ne dit pas \`sauvegardes=\` : aucune destination de sauvegarde n'est acceptée — ${poser}`);
-  const refus = refusDeChemin(sauvegardes, `\`sauvegardes=\` de ${box.config}`, "reglage");
+  const backups = cles.get("sauvegardes");
+  if (backups === undefined) throw pasPrete("reglage-illisible", `le réglage du geste (${box.config}) ne dit pas \`sauvegardes=\` : aucune destination de sauvegarde n'est acceptée — ${poser}`);
+  const refus = refusDeChemin(backups, `\`sauvegardes=\` de ${box.config}`, "reglage");
   if (refus) throw pasPrete("reglage-illisible", refus.message);
   let ports = PORTS_PAR_DEFAUT;
   const plage = cles.get("ports");
@@ -392,7 +392,7 @@ export function lireReglage(box: Pick<Box, "racine" | "config">): Reglage {
       throw pasPrete("reglage-illisible", `le réglage du geste (${box.config}) porte une plage de ports qui ne se lit pas : « ${plage} » — attendu <début>-<fin>, de ${PREMIER_PORT_LIBRE} à ${DERNIER_PORT}`);
     }
   }
-  return { sauvegardes, ports };
+  return { sauvegardes: backups, ports };
 }
 
 export const instances = (projet: string) => ({ runtime: `brigade@${projet}.service`, sauvegarde: `brigade-sauvegarde@${projet}.service`, minuteur: `brigade-sauvegarde@${projet}.timer`, porte: `brigade-porte@${projet}.service` });
@@ -432,8 +432,8 @@ function declarees(box: Box, variables: string[]): string[] {
 const portsDeclares = (box: Box) => new Set(declarees(box, ["BRIGADE_PROXY_PORT", "BRIGADE_ARBITER_PORT"]).map(Number).filter(Number.isInteger));
 
 // Le port de l'arbitre de la box, ou null si elle n'en a pas déclaré.
-function portDeLArbitre(box: Box): number | null {
-  const port = Number(affectations(join(box.unites, `${ARBITRE}.d`), "BRIGADE_ARBITER_PORT").at(-1));
+function arbiterPort(box: Box): number | null {
+  const port = Number(affectations(join(box.unites, `${ARBITER}.d`), "BRIGADE_ARBITER_PORT").at(-1));
   return Number.isInteger(port) && port >= 1 && port <= DERNIER_PORT ? port : null;
 }
 
@@ -446,9 +446,9 @@ export async function lireCompte(box: Box, unite: string, env: Record<string, st
   if (!/^[a-z_][a-z0-9_-]{0,31}$/.test(nom) || nom === "root") {
     throw pasPrete("compte-inconnu", `le compte du service ne se lit pas dans ${unite} (\`User=${nom}\`) : le runtime d'un projet ne tourne pas sous root — ${preparer}`);
   }
-  const fiche = await lancer(box.getent, ["passwd", nom], { env });
-  const [, , uid, gid, , home] = fiche.stdout.trim().split(":");
-  if (fiche.code !== 0 || !/^[0-9]+$/.test(uid ?? "") || !/^[0-9]+$/.test(gid ?? "") || !home?.startsWith(sep)) {
+  const card = await lancer(box.getent, ["passwd", nom], { env });
+  const [, , uid, gid, , home] = card.stdout.trim().split(":");
+  if (card.code !== 0 || !/^[0-9]+$/.test(uid ?? "") || !/^[0-9]+$/.test(gid ?? "") || !home?.startsWith(sep)) {
     throw pasPrete("compte-inconnu", `le compte du service « ${nom} » (${unite}) n'existe pas sur cette box — ${preparer}`);
   }
   if (Number(uid) === 0) throw pasPrete("compte-inconnu", `le compte du service « ${nom} » est root : le runtime d'un projet ne tourne pas sous root — ${preparer}`);
@@ -487,13 +487,13 @@ export async function installer(box: Box, demande: Demande, options: { avantDEcr
   const reglage = lireReglage(box);
   const manquants = GABARITS.filter((nom) => !existsSync(join(box.unites, nom)));
   if (manquants.length > 0) throw pasPrete("unites-absentes", `les unités de brigade ne sont pas posées sous ${box.unites} (${manquants.join(", ")}) — ${DOC}, « Préparer la box »`);
-  let cloison: string;
+  let partition: string;
   try {
-    cloison = readFileSync(join(box.deploiement, CLOISON), "utf8");
+    partition = readFileSync(join(box.deploiement, PARTITION), "utf8");
   } catch {
-    throw pasPrete("cloison-absente", `la cloison ne se lit pas dans le clone de brigade (${join(box.deploiement, CLOISON)})`);
+    throw pasPrete("cloison-absente", `la cloison ne se lit pas dans le clone de brigade (${join(box.deploiement, PARTITION)})`);
   }
-  const bwrap = /^Environment=BRIGADE_SANDBOX_BIN=(.+)$/m.exec(cloison)?.[1]?.trim();
+  const bwrap = /^Environment=BRIGADE_SANDBOX_BIN=(.+)$/m.exec(partition)?.[1]?.trim();
   if (bwrap === undefined || !existsSync(bwrap)) {
     throw pasPrete("bwrap-absent", `\`bwrap\` n'est pas sur cette box (${bwrap ?? "la cloison ne le nomme pas"}) : le runtime d'un projet cloisonné refuserait de démarrer — \`sudo apt install bubblewrap\` (${DOC}, « La cloison »)`);
   }
@@ -501,22 +501,22 @@ export async function installer(box: Box, demande: Demande, options: { avantDEcr
 
   // La destination des sauvegardes : sous la racine que root a écrite, par un
   // chemin que root seul peut modifier, et hors de l'état du projet.
-  const { sauvegardes } = demande;
-  if (sauvegardes === reglage.sauvegardes || !sous(sauvegardes, reglage.sauvegardes)) {
-    throw usage("sauvegardes-hors-racine", `--sauvegardes : « ${sauvegardes} » n'est pas sous la racine autorisée sur cette box (${reglage.sauvegardes}, lue dans ${box.config})`);
+  const { sauvegardes: backups } = demande;
+  if (backups === reglage.sauvegardes || !sous(backups, reglage.sauvegardes)) {
+    throw usage("sauvegardes-hors-racine", `--sauvegardes : « ${backups} » n'est pas sous la racine autorisée sur cette box (${reglage.sauvegardes}, lue dans ${box.config})`);
   }
-  if (sous(sauvegardes, etat)) throw usage("sauvegardes-hors-racine", `--sauvegardes : « ${sauvegardes} » est dans l'état du projet (${etat}) : une sauvegarde ne se garde pas avec ce qu'elle sauve`);
+  if (sous(backups, etat)) throw usage("sauvegardes-hors-racine", `--sauvegardes : « ${backups} » est dans l'état du projet (${etat}) : une sauvegarde ne se garde pas avec ce qu'elle sauve`);
   // Une destination par projet : la sauvegarde refuserait, chaque nuit, celle
   // qui porte déjà les sauvegardes d'un autre.
-  const prise = declarees(box, ["BRIGADE_BACKUP_DIR"]).find((autre) => sous(sauvegardes, autre) || sous(autre, sauvegardes));
-  if (prise !== undefined) throw usage("sauvegardes-deja-prises", `--sauvegardes : « ${sauvegardes} » croise la destination d'un autre projet de cette box (${prise}) : une destination par projet — en donner une autre sous ${reglage.sauvegardes}`);
+  const prise = declarees(box, ["BRIGADE_BACKUP_DIR"]).find((autre) => sous(backups, autre) || sous(autre, backups));
+  if (prise !== undefined) throw usage("sauvegardes-deja-prises", `--sauvegardes : « ${backups} » croise la destination d'un autre projet de cette box (${prise}) : une destination par projet — en donner une autre sous ${reglage.sauvegardes}`);
   const racine = lstatSync(reglage.sauvegardes, { throwIfNoEntry: false });
   if (racine === undefined) throw pasPrete("racine-des-sauvegardes", `la racine des sauvegardes (${reglage.sauvegardes}, lue dans ${box.config}) n'existe pas — \`sudo install -d ${reglage.sauvegardes}\``);
-  const doute = douteux(box, dirname(sauvegardes));
-  if (doute !== null) throw pasPrete("racine-des-sauvegardes", `le chemin des sauvegardes (${sauvegardes}) passe par un répertoire que root ne tient pas seul : ${doute} — root n'y crée rien`);
-  const destination = lstatSync(sauvegardes, { throwIfNoEntry: false });
+  const doute = douteux(box, dirname(backups));
+  if (doute !== null) throw pasPrete("racine-des-sauvegardes", `le chemin des sauvegardes (${backups}) passe par un répertoire que root ne tient pas seul : ${doute} — root n'y crée rien`);
+  const destination = lstatSync(backups, { throwIfNoEntry: false });
   if (destination !== undefined && (!destination.isDirectory() || destination.uid !== compte.uid)) {
-    throw pasPrete("destination-des-sauvegardes", `la destination des sauvegardes (${sauvegardes}) existe et n'est pas un répertoire du compte « ${compte.nom} » : rien n'y est changé — en donner une autre, ou la lui rendre`);
+    throw pasPrete("destination-des-sauvegardes", `la destination des sauvegardes (${backups}) existe et n'est pas un répertoire du compte « ${compte.nom} » : rien n'y est changé — en donner une autre, ou la lui rendre`);
   }
 
   // L'état du projet : absent, ou laissé par une désinstallation — au compte.
@@ -528,12 +528,12 @@ export async function installer(box: Box, demande: Demande, options: { avantDEcr
   // Le port de la porte : le premier de la plage que ni une unité de la box
   // ne déclare, ni un process ne tient.
   const declares = portsDeclares(box);
-  let porte: number | null = null;
-  for (let port = reglage.ports[0]; port <= reglage.ports[1] && porte === null; port++) {
-    if (!declares.has(port) && (await box.portLibre(port))) porte = port;
+  let door: number | null = null;
+  for (let port = reglage.ports[0]; port <= reglage.ports[1] && door === null; port++) {
+    if (!declares.has(port) && (await box.portLibre(port))) door = port;
   }
-  if (porte === null) throw pasPrete("aucun-port-libre", `aucun port libre de ${reglage.ports[0]} à ${reglage.ports[1]} pour la porte du projet : élargir la plage (\`ports=<début>-<fin>\` dans ${box.config})`);
-  const arbitre = portDeLArbitre(box);
+  if (door === null) throw pasPrete("aucun-port-libre", `aucun port libre de ${reglage.ports[0]} à ${reglage.ports[1]} pour la porte du projet : élargir la plage (\`ports=<début>-<fin>\` dans ${box.config})`);
+  const arbiter = arbiterPort(box);
 
   // --- Ce qui s'écrit. Chaque pas note comment se défaire.
   options.avantDEcrire?.();
@@ -560,8 +560,8 @@ export async function installer(box: Box, demande: Demande, options: { avantDEcr
     if (laisse === undefined) creer(etat, compte);
     // Ce qui mène à la destination reste à root ; elle seule est au compte.
     const aCreer: string[] = [];
-    for (let chemin = sauvegardes; lstatSync(chemin, { throwIfNoEntry: false }) === undefined; chemin = dirname(chemin)) aCreer.unshift(chemin);
-    for (const chemin of aCreer) creer(chemin, chemin === sauvegardes ? compte : undefined);
+    for (let chemin = backups; lstatSync(chemin, { throwIfNoEntry: false }) === undefined; chemin = dirname(chemin)) aCreer.unshift(chemin);
+    for (const chemin of aCreer) creer(chemin, chemin === backups ? compte : undefined);
 
     // Le clone réservé, sous le compte du service : c'est lui que GitHub
     // connaît, et root n'a rien à lire d'un dépôt.
@@ -617,13 +617,13 @@ export async function installer(box: Box, demande: Demande, options: { avantDEcr
       ["BRIGADE_REVIEWER_MODEL", demande.reviewer.modele],
       ["BRIGADE_REVIEWER_EFFORT", demande.reviewer.effort],
     ];
-    if (!existsSync(cheminJournal(etat))) {
+    if (!existsSync(logPath(etat))) {
       defaire.push({ quoi: `le journal de ${etat}`, geste: () => void readdirSync(etat).filter((nom) => nom.startsWith("log.db")).forEach((nom) => rmSync(join(etat, nom), { force: true })) });
-      const journal = ouvrirJournal(etat);
+      const log = openLog(etat);
       try {
-        for (const [nom, valeur] of decisions) poserDecision(journal, { projet, nom, valeur, auteur: "installeur" });
+        for (const [nom, valeur] of decisions) poserDecision(log, { projet, nom, valeur, auteur: "installeur" });
       } finally {
-        journal.fermer();
+        log.fermer();
       }
       if (process.getuid?.() !== compte.uid) {
         for (const nom of readdirSync(etat).filter((n) => n.startsWith("log.db"))) lchownSync(join(etat, nom), compte.uid, compte.gid);
@@ -631,11 +631,11 @@ export async function installer(box: Box, demande: Demande, options: { avantDEcr
     }
     // La cloison, copiée telle quelle ; puis le même port des deux côtés — la
     // porte l'ouvre, le runtime sort par lui.
-    poser(dropIns.runtime, CLOISON, cloison);
-    poser(dropIns.runtime, "porte.conf", variables([["BRIGADE_PROXY_PORT", porte]]));
-    poser(dropIns.porte, "porte.conf", variables([["BRIGADE_PROXY_PORT", porte]]));
-    if (arbitre !== null) poser(dropIns.runtime, "arbitre.conf", variables([["BRIGADE_ARBITER_PORT", arbitre]]));
-    poser(dropIns.sauvegarde, "projet.conf", variables([["BRIGADE_BACKUP_DIR", sauvegardes]]));
+    poser(dropIns.runtime, PARTITION, partition);
+    poser(dropIns.runtime, "porte.conf", variables([["BRIGADE_PROXY_PORT", door]]));
+    poser(dropIns.porte, "porte.conf", variables([["BRIGADE_PROXY_PORT", door]]));
+    if (arbiter !== null) poser(dropIns.runtime, "arbitre.conf", variables([["BRIGADE_ARBITER_PORT", arbiter]]));
+    poser(dropIns.sauvegarde, "projet.conf", variables([["BRIGADE_BACKUP_DIR", backups]]));
 
     interrompu();
     await systemctl("daemon-reload");
@@ -651,13 +651,13 @@ export async function installer(box: Box, demande: Demande, options: { avantDEcr
       compte: compte.nom,
       etat,
       clone,
-      sauvegardes,
-      ports: { porte, arbitre },
+      sauvegardes: backups,
+      ports: { porte: door, arbitre: arbiter },
       unites: [unites.runtime, unites.porte, unites.minuteur],
       aSavoir: [
         `le calibrage du manager et du reviewer est posé au journal du projet, pas dans un drop-in : \`brigade ${projet} station\` le montre, \`brigade ${projet} station manager-modele <modèle>\` le change`,
         `le runtime du projet n'est pas démarré : vérifier d'abord (\`brigade ${projet} installation\`), puis \`sudo systemctl enable --now ${unites.runtime}\``,
-        ...(arbitre === null ? [`cette box n'a pas d'arbitre déclaré (${ARBITRE}) : ce projet se tient pour seul sur la machine et sur le compte Max — ${DOC}, « L'arbitre »`] : []),
+        ...(arbiter === null ? [`cette box n'a pas d'arbitre déclaré (${ARBITER}) : ce projet se tient pour seul sur la machine et sur le compte Max — ${DOC}, « L'arbitre »`] : []),
       ],
     };
   } catch (erreur) {

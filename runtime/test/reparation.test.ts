@@ -10,10 +10,10 @@ import { describe, test, type TestContext } from "node:test";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import type { Issue } from "../src/github.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { etatDeLaBase, pass, reparationDeLaBase, reparationEnCours } from "../src/projections/pass.ts";
 import { lireRail, rail } from "../src/projections/rail.ts";
-import { chef, controlerBase, cuisine, issue } from "./aides/cuisine.ts";
+import { chef, controlerBase, kitchen, issue } from "./aides/kitchen.ts";
 import { horloge, jusqua, repertoireTemporaire } from "./outils.ts";
 
 type Scenario = "vert" | "rouge";
@@ -24,7 +24,7 @@ type Scenario = "vert" | "rouge";
 function service(t: TestContext, options: { issues?: Issue[]; scenario?: string; essais?: Record<string, Scenario>; avantEssai?: (nom: string) => Promise<void> } = {}) {
   const base = { tete: "base-1" };
   const essais: Record<string, Scenario> = { ...options.essais };
-  const lieu = cuisine(t, {
+  const lieu = kitchen(t, {
     pass: true,
     issues: options.issues ?? [],
     scenario: options.scenario,
@@ -40,8 +40,8 @@ function service(t: TestContext, options: { issues?: Issue[]; scenario?: string;
     }),
   });
   chef(lieu.repertoire, "grant.activated");
-  const { journal } = lieu;
-  const compter = (type: string) => journal.tout().filter((e) => e.type === type).length;
+  const { journal: log } = lieu;
+  const compter = (type: string) => log.tout().filter((e) => e.type === type).length;
   const jusquAu = (type: string, combien = 1) => jusqua(() => compter(type) >= combien);
   const laisserTourner = () => jusquAu("runtime.ticked", compter("runtime.ticked") + 5);
   const lance = (ticket: number) => lieu.dernier("cook.launched", ticket) !== undefined;
@@ -53,9 +53,9 @@ function service(t: TestContext, options: { issues?: Issue[]; scenario?: string;
 describe("une base rouge : rejeu automatique, puis ticket de réparation", { concurrency: 8 }, () => {
   test("rouge puis verte au rejeu : la pass rejoue seule, aucun ticket de réparation n'est ouvert, et la cuisine reprend le travail", async (t) => {
     // Le rejeu attend que le test ait vu la station retenue par la base.
-    let rejouer = () => {};
-    const retenu = new Promise<void>((resoudre) => (rejouer = resoudre));
-    const { journal, gh, gates, avertissements, dernier, compter, jusquAu, laisserTourner, lance, rougir } = service(t, {
+    let replay = () => {};
+    const retenu = new Promise<void>((resoudre) => (replay = resoudre));
+    const { journal: log, gh, gates, avertissements, dernier, compter, jusquAu, laisserTourner, lance, rougir } = service(t, {
       avantEssai: (nom) => (nom === "base" ? retenu : Promise.resolve()),
     });
     rougir();
@@ -64,30 +64,30 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
     assert.equal(lance(18), false);
 
     // Personne n'a rien demandé : la pass demande elle-même le rejeu, et le joue.
-    rejouer();
+    replay();
     await jusquAu("base.checked", 2);
-    const demandes = journal.tout().filter((e) => e.type === "base.recheck-requested");
+    const demandes = log.tout().filter((e) => e.type === "base.recheck-requested");
     assert.deepEqual(demandes.map((e) => e.author), ["pass"]);
-    assert.deepEqual([dernier("base.checked")?.sha, dernier("base.checked")?.outcome, etatDeLaBase(journal.base)?.outcome], ["base-1", "green", "green"]);
+    assert.deepEqual([dernier("base.checked")?.sha, dernier("base.checked")?.outcome, etatDeLaBase(log.base)?.outcome], ["base-1", "green", "green"]);
     assert.deepEqual(gates.appels().length, 1);
     assert.match(avertissements.join("\n"), /v2 n'est plus rouge \(base-1\)/);
 
     // La cuisine reprend : le ticket qui attendait part.
     await jusqua(() => lance(18));
     await laisserTourner();
-    assert.deepEqual([gh.creations, compter("base.repair-opening"), compter("base.repair-opened"), reparationDeLaBase(journal.base)], [[], 0, 0, null]);
+    assert.deepEqual([gh.creations, compter("base.repair-opening"), compter("base.repair-opened"), reparationDeLaBase(log.base)], [[], 0, 0, null]);
     assert.equal(compter("base.recheck-requested"), 1);
   });
 
   test("rouge qui reste rouge après le rejeu : un ticket de réparation est ouvert, qui nomme ce qui échoue et la base — calibré, `fire`, et `prio:0`", async (t) => {
-    const { journal, gh, avertissements, dernier, jusquAu, rougir } = service(t, { essais: { base: "rouge" } });
+    const { journal: log, gh, avertissements, dernier, jusquAu, rougir } = service(t, { essais: { base: "rouge" } });
     rougir();
     await jusquAu("base.repair-opened");
 
     // Le rejeu a eu lieu, demandé par la pass, et il est resté rouge.
-    const types = journal.tout().map((e) => e.type).filter((type) => type.startsWith("base."));
+    const types = log.tout().map((e) => e.type).filter((type) => type.startsWith("base."));
     assert.deepEqual(types, ["base.checked", "base.recheck-requested", "base.checked", "base.repair-opening", "base.repair-opened"]);
-    assert.equal(journal.tout().find((e) => e.type === "base.recheck-requested")?.author, "pass");
+    assert.equal(log.tout().find((e) => e.type === "base.recheck-requested")?.author, "pass");
 
     assert.deepEqual(gh.creations, [501]);
     const ouverte = gh.lire(501);
@@ -99,12 +99,12 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
     assert.match(corps, /## Ce qui échoue\n\n- tests du projet en échec\n/);
     assert.match(corps, /Gates rouges : `\.claude\/brigade\/gates\.sh` est sorti en 1\.\nFAIL {2}tests du projet en échec/);
 
-    const ouvert = journal.tout().find((e) => e.type === "base.repair-opened");
+    const ouvert = log.tout().find((e) => e.type === "base.repair-opened");
     assert.deepEqual([ouvert?.ticket, ouvert?.author, ouvert?.payload], [501, "pass", { sha: "base-1", failures: ["tests du projet en échec"], reconciled: false }]);
-    const reparation = reparationDeLaBase(journal.base);
+    const reparation = reparationDeLaBase(log.base);
     assert.deepEqual(
       [reparation?.ticket, reparation?.sha, reparation?.redSince, reparation?.failures, reparation?.etat],
-      [501, "base-1", etatDeLaBase(journal.base)?.redSince, ["tests du projet en échec"], "en-cours"],
+      [501, "base-1", etatDeLaBase(log.base)?.redSince, ["tests du projet en échec"], "en-cours"],
     );
     assert.match(avertissements.join("\n"), /v2 reste ROUGE \(base-1\) : rejouées une fois d'elles-mêmes, ses gates ne passent toujours pas/);
     assert.match(avertissements.join("\n"), /v2 reste ROUGE après son rejeu \(base-1\) — ticket de réparation #501 ouvert/);
@@ -112,7 +112,7 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
   });
 
   test("le ticket de réparation passe devant tous les tickets en attente et part dans une station alors que la base est encore rouge, sans commande du chef — puis il est jugé et mergé malgré elle, et la cuisine repart", async (t) => {
-    const { journal, gh, base, essais, dernier, jusquAu, laisserTourner, lance, rougir, runtime } = service(t, { essais: { base: "rouge" } });
+    const { journal: log, gh, base, essais, dernier, jusquAu, laisserTourner, lance, rougir, runtime } = service(t, { essais: { base: "rouge" } });
     rougir();
     // Des tickets attendent, dont un en `prio:1` : la base rouge les retient tous.
     gh.poser(issue(17, ["fire", "model:sonnet", "effort:low", "prio:1"]));
@@ -122,36 +122,36 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
     await jusquAu("base.repair-opened");
     // Sur le rail, il passe devant : `prio:0`.
     await jusqua(() => runtime.rail.tickets().some((ticket) => ticket.ticket === 501));
-    assert.deepEqual(lireRail(journal.base).map((ticket) => [ticket.ticket, ticket.priority]), [[501, 0], [17, 1], [18, null]]);
+    assert.deepEqual(lireRail(log.base).map((ticket) => [ticket.ticket, ticket.priority]), [[501, 0], [17, 1], [18, null]]);
 
     // Il part, la base toujours rouge ; aucun autre ne part.
     await jusqua(() => lance(501));
-    const lancement = journal.tout().find((e) => e.type === "cook.launched" && e.ticket === 501);
-    const rougeAuLancement = journal.tout().findLast((e) => e.type === "base.checked" && e.seq < (lancement?.seq ?? 0));
+    const lancement = log.tout().find((e) => e.type === "cook.launched" && e.ticket === 501);
+    const rougeAuLancement = log.tout().findLast((e) => e.type === "base.checked" && e.seq < (lancement?.seq ?? 0));
     assert.equal(rougeAuLancement?.type === "base.checked" && rougeAuLancement.payload.outcome, "red");
-    assert.equal(etatDeLaBase(journal.base)?.outcome, "red");
-    assert.equal(journal.tout().some((e) => ["kitchen.resumed", "base.recheck-requested"].includes(e.type) && e.author === "chef"), false);
+    assert.equal(etatDeLaBase(log.base)?.outcome, "red");
+    assert.equal(log.tout().some((e) => ["kitchen.resumed", "base.recheck-requested"].includes(e.type) && e.author === "chef"), false);
     assert.deepEqual([lance(17), lance(18)], [false, false]);
 
     // Sa livraison est jugée fusionnée avec la base rouge, verte, et mergée sous grant.
     await jusqua(() => dernier("merge.done", 501) !== undefined);
     assert.deepEqual([dernier("pass.judged", 501)?.verdict, dernier("pass.judged", 501)?.base], ["green", "base-1"]);
-    assert.equal(journal.duTicket(501).some((e) => e.type === "pass.waiting"), false);
+    assert.equal(log.duTicket(501).some((e) => e.type === "pass.waiting"), false);
     await laisserTourner();
-    assert.deepEqual([lance(17), lance(18), reparationDeLaBase(journal.base)?.etat], [false, false, "servie"]);
+    assert.deepEqual([lance(17), lance(18), reparationDeLaBase(log.base)?.etat], [false, false, "servie"]);
 
     // Le merge fait bouger la base : rejouée, elle est verte, et la cuisine repart — `prio:1` d'abord.
     essais.base = "vert";
     base.tete = "base-2";
     await jusqua(() => lance(17));
-    assert.equal(etatDeLaBase(journal.base)?.outcome, "green");
+    assert.equal(etatDeLaBase(log.base)?.outcome, "green");
     assert.deepEqual(gh.creations, [501]);
   });
 
   test("une réparation mergée qui laisse la base rouge met une ligne dans le bloc `awaiting` ; la base revenue au vert, la ligne en sort et la cuisine relance seule les tickets retenus", async (t) => {
-    const { journal, gh, base, essais, dernier, jusquAu, laisserTourner, lance, rougir } = service(t, { essais: { base: "rouge" } });
+    const { journal: log, gh, base, essais, dernier, jusquAu, laisserTourner, lance, rougir } = service(t, { essais: { base: "rouge" } });
     const ligneDeLaBase = () => {
-      const lignes = decrireEtat(lireEtat(journal, new Date()), new Date());
+      const lignes = decrireEtat(lireEtat(log, new Date()), new Date());
       return lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("awaiting")), lignes.indexOf("end awaiting")).filter((ligne) => ligne.startsWith("  base  "));
     };
     rougir();
@@ -165,7 +165,7 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
 
     // Le merge fait bouger la base, qui reste rouge : la réparation a échoué, la base attend le chef.
     base.tete = "base-2";
-    await jusqua(() => reparationDeLaBase(journal.base)?.etat === "echouee");
+    await jusqua(() => reparationDeLaBase(log.base)?.etat === "echouee");
     const [ligne] = ligneDeLaBase();
     assert.match(ligne ?? "", /^ {2}base {2}for .+? {2}BASE RED on base-2, failing: tests du projet en échec — its repair #501 merged, did not bring it back to green — to repair: fix the base by hand; .*`brigade <projet> base replay`$/);
     await laisserTourner();
@@ -175,20 +175,20 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
     essais.base = "vert";
     base.tete = "base-3";
     await jusqua(() => lance(18));
-    assert.equal(etatDeLaBase(journal.base)?.outcome, "green");
+    assert.equal(etatDeLaBase(log.base)?.outcome, "green");
     assert.deepEqual(ligneDeLaBase(), []);
-    assert.equal(journal.tout().some((e) => e.author === "chef" && e.type !== "grant.activated"), false);
+    assert.equal(log.tout().some((e) => e.author === "chef" && e.type !== "grant.activated"), false);
   });
 
   test("tant que le premier ticket de réparation est en cours, aucun second n'est ouvert — ni quand la base bouge en restant rouge, ni au rejeu demandé par le chef", async (t) => {
-    const { journal, repertoire, gh, base, compter, jusquAu, laisserTourner, lance, rougir } = service(t, { essais: { base: "rouge" }, scenario: "commite-puis-attend" });
+    const { journal: log, repertoire, gh, base, compter, jusquAu, laisserTourner, lance, rougir } = service(t, { essais: { base: "rouge" }, scenario: "commite-puis-attend" });
     rougir();
     await jusquAu("base.repair-opened");
     await jusqua(() => lance(501));
 
     // La base bouge, toujours rouge : rejouée, elle le reste.
     base.tete = "base-2";
-    await jusqua(() => journal.tout().some((e) => e.type === "base.checked" && e.payload.sha === "base-2"));
+    await jusqua(() => log.tout().some((e) => e.type === "base.checked" && e.payload.sha === "base-2"));
     // Le chef la fait rejouer : rouge encore.
     const avant = compter("base.checked");
     chef(repertoire, "base.recheck-requested");
@@ -196,20 +196,20 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
     await laisserTourner();
 
     assert.deepEqual([gh.creations, compter("base.repair-opening"), compter("base.repair-opened")], [[501], 1, 1]);
-    assert.deepEqual([reparationEnCours(journal.base), reparationDeLaBase(journal.base)?.etat, etatDeLaBase(journal.base)?.outcome], [501, "en-cours", "red"]);
+    assert.deepEqual([reparationEnCours(log.base), reparationDeLaBase(log.base)?.etat, etatDeLaBase(log.base)?.outcome], [501, "en-cours", "red"]);
     // Un rejeu de la pass vaut pour tout le rouge : elle ne le redemande pas.
-    assert.equal(journal.tout().filter((e) => e.type === "base.recheck-requested" && e.author === "pass").length, 1);
+    assert.equal(log.tout().filter((e) => e.type === "base.recheck-requested" && e.author === "pass").length, 1);
   });
 
   test("une création dont la réponse se perd n'ouvre pas une seconde issue : au tick suivant, la pass retrouve la sienne par sa marque", async (t) => {
-    const { journal, gh, avertissements, jusquAu, laisserTourner, lance, rougir } = service(t, { essais: { base: "rouge" } });
+    const { journal: log, gh, avertissements, jusquAu, laisserTourner, lance, rougir } = service(t, { essais: { base: "rouge" } });
     gh.pannes.apresCreation = true;
     rougir();
     await jusquAu("base.repair-opened");
     await laisserTourner();
 
     assert.deepEqual(gh.creations, [501]);
-    const ouvert = journal.tout().filter((e) => e.type === "base.repair-opened");
+    const ouvert = log.tout().filter((e) => e.type === "base.repair-opened");
     assert.deepEqual(ouvert.map((e) => [e.ticket, e.payload.reconciled]), [[501, true]]);
     assert.equal(avertissements.filter((ligne) => /ticket de réparation n'a pas pu être ouvert — gh api : délai dépassé/.test(ligne)).length, 1);
     await jusqua(() => lance(501));
@@ -219,15 +219,15 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
 // Ce que la projection dit d'une réparation, d'un fait à l'autre — avec le
 // rail, dont elle lit le sort du ticket.
 test("une réparation est en cours jusqu'à son service ; elle a échoué si elle quitte le rail sans être servie, ou si la base reste rouge après son merge — et un rouge neuf repart sans rejeu", (t) => {
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge(), projections: [rail, pass] });
-  t.after(() => journal.fermer());
-  const noter = (fait: Fait, ticket: number | null = null, author = "pass") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const log = openLog(repertoireTemporaire(t), { maintenant: horloge(), projections: [rail, pass] });
+  t.after(() => log.fermer());
+  const noter = (fait: Fait, ticket: number | null = null, author = "pass") => log.ajouter({ project: "brigade", ticket, author, ...fait });
   const ROUGES = { outcome: "red" as const, code: 1, failures: ["FAIL  tests du projet en échec"], tail: "" };
   const VERTES = { outcome: "green" as const, code: 0, failures: [], tail: "" };
   const controler = (sha: string, outcome: "red" | "green") => noter({ type: "base.checked", payload: { sha, outcome, gates: outcome === "red" ? ROUGES : VERTES, tickets: [] } });
   const arriver = (ticket: number) =>
     noter({ type: "ticket.arrived", payload: { title: `Ticket ${ticket}`, priority: 0, createdAt: "2026-10-08T10:00:00Z", url: `https://github.com/o/r/issues/${ticket}` } }, ticket, "github");
-  const { base } = journal;
+  const { base } = log;
   const etat = () => reparationDeLaBase(base)?.etat;
 
   assert.equal(reparationDeLaBase(base), null);

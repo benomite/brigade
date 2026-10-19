@@ -9,16 +9,16 @@ import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readF
 import { createServer, type AddressInfo } from "node:net";
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { EFFORTS, MODELES } from "../src/calibrage.ts";
+import { EFFORTS, MODELES } from "../src/calibration.ts";
 import { decisionsPosees } from "../src/decisions.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { JAMAIS_ACCORDEES, jamaisAccordee } from "../src/grant.ts";
 import { LABELS, verifier } from "../src/installation.ts";
 import { CODES, lireDemande, portLibre, Refus, VARIABLES_POSEES } from "../src/installateur.ts";
 import { BOX } from "../src/installateur-cli.ts";
 import { principal as relire } from "../src/relire.ts";
 import { prendreVerrou } from "../src/verrou.ts";
-import { decider } from "./aides/cuisine.ts";
+import { decider } from "./aides/kitchen.ts";
 import { boite, CHEF, COMPTE, DEPLOIEMENT, PREMIER_PORT, type Boite, type Rendu } from "./aides/box.ts";
 import { BASE, ENV_GIT, FAUX_CLAUDE, fauxGh, git, repertoireTemporaire } from "./outils.ts";
 
@@ -69,7 +69,7 @@ describe("installer un projet", () => {
 
     assert.equal(rendu.code, 0, rendu.erreur);
     assert.equal(rendu.erreur, "");
-    const [etat, sauvegardes] = [join(b.etats, "calculus"), join(b.sauvegardes, "calculus")];
+    const [etat, backups] = [join(b.etats, "calculus"), join(b.sauvegardes, "calculus")];
     assert.deepEqual(rendu.json, {
       ok: true,
       action: "install",
@@ -79,7 +79,7 @@ describe("installer un projet", () => {
       compte: COMPTE,
       etat,
       clone: join(etat, "depot"),
-      sauvegardes,
+      sauvegardes: backups,
       ports: { porte: PREMIER_PORT, arbitre: 4321 },
       unites: ["brigade@calculus.service", "brigade-porte@calculus.service", "brigade-sauvegarde@calculus.timer"],
       aSavoir: ["le calibrage du manager et du reviewer est posé au journal du projet, pas dans un drop-in : `brigade calculus station` le montre, `brigade calculus station manager-modele <modèle>` le change", "le runtime du projet n'est pas démarré : vérifier d'abord (`brigade calculus installation`), puis `sudo systemctl enable --now brigade@calculus.service`"],
@@ -87,11 +87,11 @@ describe("installer un projet", () => {
 
     // Ce que la partie « par projet » de docs/installer.md pose, et rien d'autre.
     assert.equal(git(join(etat, "depot"), "rev-parse", "--abbrev-ref", "HEAD"), BASE);
-    assert.ok(lstatSync(sauvegardes).isDirectory());
+    assert.ok(lstatSync(backups).isDirectory());
     assert.deepEqual(readdirSync(join(b.unites, "brigade@calculus.service.d")).sort(), ["arbitre.conf", "cloison.conf", "porte.conf", "projet.conf"]);
     assert.equal(dropIn(b, "brigade@calculus.service", "cloison.conf"), readFileSync(join(b.box.deploiement, "cloison.conf"), "utf8"));
     assert.equal(dropIn(b, "brigade@calculus.service", "porte.conf"), dropIn(b, "brigade-porte@calculus.service", "porte.conf"));
-    assert.match(dropIn(b, "brigade-sauvegarde@calculus.service", "projet.conf"), new RegExp(`^Environment=BRIGADE_BACKUP_DIR=${sauvegardes}$`, "m"));
+    assert.match(dropIn(b, "brigade-sauvegarde@calculus.service", "projet.conf"), new RegExp(`^Environment=BRIGADE_BACKUP_DIR=${backups}$`, "m"));
     assert.deepEqual(b.actives(), ["brigade-sauvegarde@calculus.timer", "brigade-porte@calculus.service"]);
     // Le runtime du projet n'est ni démarré ni activé : la vérification d'abord.
     assert.deepEqual(b.appels().filter((appel) => !appel.startsWith("show ")), ["daemon-reload", "enable --now brigade-sauvegarde@calculus.timer", "enable --now brigade-porte@calculus.service"]);
@@ -458,11 +458,11 @@ describe("le journal du geste", () => {
     assert.equal((await b.geste(b.demande("boutique"), { qui: "benoit" })).code, CODES.echec);
 
     const fin = new Date();
-    const journal = b.journal();
-    for (const evenement of journal) assert.ok(debut.toISOString() <= evenement.at && evenement.at <= fin.toISOString(), evenement.at);
+    const log = b.journal();
+    for (const evenement of log) assert.ok(debut.toISOString() <= evenement.at && evenement.at <= fin.toISOString(), evenement.at);
     const args = b.demande().slice(1);
     assert.deepEqual(
-      journal.map(({ author, project, type, payload }) => ({ author, project, type, payload })),
+      log.map(({ author, project, type, payload }) => ({ author, project, type, payload })),
       [
         { author: "benoit", project: "calculus", type: "installer.started", payload: { action: "install", args, result: "started" } },
         { author: "benoit", project: "calculus", type: "installer.used", payload: { action: "install", args, result: "installed", ports: { porte: PREMIER_PORT, arbitre: null } } },
@@ -474,11 +474,11 @@ describe("le journal du geste", () => {
           author: "benoit",
           project: "boutique",
           type: "installer.failed",
-          payload: { action: "install", args: b.demande("boutique").slice(1), result: "failed", reason: (journal.at(-1)?.payload as { reason: string }).reason, undone: true },
+          payload: { action: "install", args: b.demande("boutique").slice(1), result: "failed", reason: (log.at(-1)?.payload as { reason: string }).reason, undone: true },
         },
       ],
     );
-    assert.match((journal.at(-1)?.payload as { reason: string }).reason, /le dépôt acme\/boutique n'a pas pu être cloné/);
+    assert.match((log.at(-1)?.payload as { reason: string }).reason, /le dépôt acme\/boutique n'a pas pu être cloné/);
   });
 
   test("il se relit par la commande `journal`, une ligne par appel", async (t) => {
@@ -558,7 +558,7 @@ describe("le plafond dur ne bouge pas", () => {
     mkdirSync(dirname(identifiants));
     writeFileSync(identifiants, '{"claudeAiOauth":{"accessToken":"le-jeton-du-compte"}}\n');
     chmodSync(identifiants, 0o000);
-    const plafond = structuredClone(JAMAIS_ACCORDEES);
+    const cap = structuredClone(JAMAIS_ACCORDEES);
 
     const rendu = await b.geste(b.demande());
 
@@ -572,11 +572,11 @@ describe("le plafond dur ne bouge pas", () => {
     const poses = ["brigade@calculus.service", "brigade-porte@calculus.service", "brigade-sauvegarde@calculus.service"].flatMap((unite) =>
       readdirSync(join(b.unites, `${unite}.d`)).map((nom) => ({ unite, nom, contenu: dropIn(b, unite, nom) })),
     );
-    const cloison = readFileSync(join(b.box.deploiement, "cloison.conf"), "utf8");
+    const partition = readFileSync(join(b.box.deploiement, "cloison.conf"), "utf8");
     for (const { unite, nom, contenu } of poses) {
       if (nom === "cloison.conf") {
         // La cloison telle que brigade la livre : ce qu'elle masque n'a pas bougé.
-        assert.equal(contenu, cloison);
+        assert.equal(contenu, partition);
         continue;
       }
       const lignes = contenu.split("\n").filter((ligne) => ligne !== "" && !ligne.startsWith("#"));
@@ -587,10 +587,10 @@ describe("le plafond dur ne bouge pas", () => {
       }
     }
     for (const variable of VARIABLES_POSEES) assert.doesNotMatch(variable, /SECRET|TOKEN|KEY|CLAUDE|ANTHROPIC|GITHUB_APPS|SANDBOX|HOME|PATH|PROD|GRANT/);
-    assert.match(cloison, new RegExp(`^Environment=BRIGADE_SANDBOX_HIDDEN=${b.etats}:`, "m"));
+    assert.match(partition, new RegExp(`^Environment=BRIGADE_SANDBOX_HIDDEN=${b.etats}:`, "m"));
 
     // Le plafond dur est celui d'avant : la liste, et son refus.
-    assert.deepEqual(JAMAIS_ACCORDEES, plafond);
+    assert.deepEqual(JAMAIS_ACCORDEES, cap);
     assert.deepEqual(JAMAIS_ACCORDEES.map(({ action }) => action), ["identifiants-max", "acces-prod"]);
     assert.equal(jamaisAccordee("accès-prod")?.action, "acces-prod");
     assert.equal(jamaisAccordee("identifiants-max")?.action, "identifiants-max");
@@ -598,11 +598,11 @@ describe("le plafond dur ne bouge pas", () => {
     assert.deepEqual(readdirSync(join(b.etats, "calculus")), ["depot", "log.db"]);
     // Le calibrage demandé est une décision du chef : au journal du projet, et
     // dans aucune unité.
-    const journal = ouvrirJournal(join(b.etats, "calculus"), { lectureSeule: true });
+    const log = openLog(join(b.etats, "calculus"), { lectureSeule: true });
     try {
-      assert.deepEqual(decisionsPosees(journal.base), { BRIGADE_MANAGER_MODEL: "sonnet", BRIGADE_MANAGER_EFFORT: "medium", BRIGADE_REVIEWER_MODEL: "haiku", BRIGADE_REVIEWER_EFFORT: "low" });
+      assert.deepEqual(decisionsPosees(log.base), { BRIGADE_MANAGER_MODEL: "sonnet", BRIGADE_MANAGER_EFFORT: "medium", BRIGADE_REVIEWER_MODEL: "haiku", BRIGADE_REVIEWER_EFFORT: "low" });
     } finally {
-      journal.fermer();
+      log.fermer();
     }
     // Rien de ce que le geste rend ou journalise ne porte la connexion du compte.
     assert.doesNotMatch(JSON.stringify([rendu.json, b.journal()]), /le-jeton-du-compte|credentials/);
@@ -647,12 +647,12 @@ describe("le fichier que la règle sudoers nomme", () => {
   test("lancé sans `sudo`, le vrai geste refuse et ne touche à rien", (t) => {
     if (!memeNode) return t.skip(SANS_NODE);
     if (process.getuid?.() === BOX.racine) return t.skip("la suite est jouée en root : le vrai geste n'y est pas lancé contre la vraie box");
-    const journal = existsSync(BOX.journal);
+    const log = existsSync(BOX.journal);
     const lance = spawnSync(GESTE, ["install", "calculus", "--depot", "acme/calculus"], { encoding: "utf8", env: { PATH: "/nulle/part", SUDO_USER: "root" } });
     assert.equal(lance.status, CODES.sansDroit, lance.stderr);
     assert.deepEqual(JSON.parse(lance.stdout), { ok: false, action: "install", projet: "calculus", motif: "sans-droit", message: JSON.parse(lance.stdout).message });
     assert.match(lance.stderr, /^brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`/);
-    assert.equal(existsSync(BOX.journal), journal);
+    assert.equal(existsSync(BOX.journal), log);
   });
 
   test("la box réelle est écrite dans le code, et nulle part ailleurs", () => {

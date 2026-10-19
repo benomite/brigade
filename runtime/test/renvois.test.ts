@@ -5,23 +5,23 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { parcoursDesTickets } from "../src/parcours-des-tickets.ts";
-import { decrireRenvois, derivePremierCoup, DERNIERS_PAR_DEFAUT, direDerivePremierCoupEn, mesurerRenvois, type Parcours } from "../src/renvois.ts";
+import { decrireRenvois, firstTryDrift, DERNIERS_PAR_DEFAUT, sayFirstTryDriftEn, mesurerRenvois, type Parcours } from "../src/renvois.ts";
 import { horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
 
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
-const MESURES = join(import.meta.dirname, "../src/montrer-mesures.ts");
+const MEASURES = join(import.meta.dirname, "../src/show-measures.ts");
 
 const a = (heure: string) => `${JOUR_HORLOGE}T${heure}:00.000Z`;
 const essais = (combien: number) => Array.from({ length: combien }, (_, i) => ({ run: `run-${i}`, at: a("10:00"), outcome: "ok", verdict: i === combien - 1 ? ("green" as const) : ("red" as const) }));
-const merge = (ticket: number, combien: number, pris: string, merge: string): Parcours => ({ ticket, takenAt: a(pris), end: { kind: "merged", at: a(merge) }, attempts: essais(combien) });
+const merge = (ticket: number, combien: number, taken: string, merge: string): Parcours => ({ ticket, takenAt: a(taken), end: { kind: "merged", at: a(merge) }, attempts: essais(combien) });
 
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
-  t.after(() => journal.fermer());
-  const noter = (fait: Fait, ticket: number) => journal.ajouter({ project: "brigade", ticket, author: "runtime", ...fait });
+  const log = openLog(repertoire, { maintenant: horloge() });
+  t.after(() => log.fermer());
+  const noter = (fait: Fait, ticket: number) => log.ajouter({ project: "brigade", ticket, author: "runtime", ...fait });
   let runs = 0;
   const prendre = (ticket: number) => noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: a("23:00") } }, ticket);
   const rendre = (ticket: number) => noter({ type: "ticket.released", payload: { reason: "lease", station: "box/claude" } }, ticket);
@@ -59,7 +59,7 @@ function cuisine(t: TestContext) {
     juger(ticket, cuire(ticket), "green");
     merger(ticket);
   };
-  return { repertoire, journal, noter, prendre, rendre, cuire, juger, merger, servir };
+  return { repertoire, journal: log, noter, prendre, rendre, cuire, juger, merger, servir };
 }
 
 test("sur un ticket livré du premier coup, un à deux essais et un à quatre, les trois chiffres sont exactement ceux attendus", () => {
@@ -96,7 +96,7 @@ test("sans ticket servi, ou sans aucun mergé, la mesure le dit au lieu de montr
 });
 
 test("le parcours d'un ticket va de sa première prise à son merge, rendu et repris compris ; ni relecture ni jugement n'y sont des essais", (t) => {
-  const { journal, prendre, rendre, cuire, juger, merger } = cuisine(t);
+  const { journal: log, prendre, rendre, cuire, juger, merger } = kitchen(t);
   prendre(7);
   const premier = cuire(7, "box/claude", "failed");
   rendre(7);
@@ -112,12 +112,12 @@ test("le parcours d'un ticket va de sa première prise à son merge, rendu et re
   prendre(7);
   cuire(7);
 
-  const parcours = parcoursDesTickets(journal.base);
+  const parcours = parcoursDesTickets(log.base);
 
   assert.equal(parcours.length, 2);
-  const [servi, rouvert] = parcours;
+  const [served, rouvert] = parcours;
   // Les `signaux` de chaque essai sont ceux de `causes-des-ratages.test.ts`.
-  assert.deepEqual(servi && { ...servi, attempts: servi.attempts.map(({ signaux: _, ...essai }) => essai) }, {
+  assert.deepEqual(served && { ...served, attempts: served.attempts.map(({ signaux: _, ...essai }) => essai) }, {
     ticket: 7,
     takenAt: a("10:00"),
     end: { kind: "merged", at: `${JOUR_HORLOGE}T10:00:13.000Z` },
@@ -132,7 +132,7 @@ test("le parcours d'un ticket va de sa première prise à son merge, rendu et re
 });
 
 test("`measures --last` mesure les renvois des N derniers tickets servis, dit N et ce qu'il écarte, et refuse un N qui n'en est pas un", async (t) => {
-  const { repertoire, servir, prendre, cuire } = cuisine(t);
+  const { repertoire, servir, prendre, cuire } = kitchen(t);
   servir(1, 3);
   servir(2);
   servir(3, 1);
@@ -140,9 +140,9 @@ test("`measures --last` mesure les renvois des N derniers tickets servis, dit N 
   prendre(5);
   cuire(5);
 
-  const commande = lancer(t, MESURES, ["--last", "4", "--by", "2"], { BRIGADE_STATE_DIR: repertoire });
-  const nul = lancer(t, MESURES, ["--last", "0"], { BRIGADE_STATE_DIR: repertoire });
-  const double = lancer(t, MESURES, ["--last", "2", "--last", "3"], { BRIGADE_STATE_DIR: repertoire });
+  const commande = lancer(t, MEASURES, ["--last", "4", "--by", "2"], { BRIGADE_STATE_DIR: repertoire });
+  const nul = lancer(t, MEASURES, ["--last", "0"], { BRIGADE_STATE_DIR: repertoire });
+  const double = lancer(t, MEASURES, ["--last", "2", "--last", "3"], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
   assert.match(commande.sortie(), /^report {5}brigade — 4 merges in the log, in slices of 2\n/);
@@ -157,35 +157,35 @@ test("`measures --last` mesure les renvois des N derniers tickets servis, dit N 
 
 test("`measures` sur un journal où aucun ticket n'a été servi le dit, sans planter", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  ouvrirJournal(repertoire).fermer();
+  openLog(repertoire).fermer();
 
-  const commande = lancer(t, MESURES, [], { BRIGADE_STATE_DIR: repertoire });
+  const commande = lancer(t, MEASURES, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
   assert.match(commande.sortie(), /\n\nretries {4}no served ticket in the log: nothing to measure \(N = 20\)\n\nfailures/);
 });
 
 // La dérive sur le premier coup : `k` tickets livrés du premier coup sur `n`.
-const servis = (n: number, premiers: number) => Array.from({ length: n }, (_, i) => merge(i + 1, i < premiers ? 1 : 2, "10:00", "11:00"));
+const servedOnes = (n: number, premiers: number) => Array.from({ length: n }, (_, i) => merge(i + 1, i < premiers ? 1 : 2, "10:00", "11:00"));
 
 test("la part livrée du premier coup sous le seuil est signalée, avec sa fenêtre et son seuil ; au seuil ou au-dessus, rien", () => {
-  assert.deepEqual(derivePremierCoup(servis(10, 4), {}), { premiers: 4, retenus: 10, fenetre: 10, seuil: 50 });
-  assert.equal(direDerivePremierCoupEn({ premiers: 4, retenus: 10, fenetre: 10, seuil: 50 }), "4/10 tickets delivered on the first try (threshold 50%)");
-  assert.equal(derivePremierCoup(servis(10, 5), {}), null);
-  assert.equal(derivePremierCoup(servis(10, 8), {}), null);
+  assert.deepEqual(firstTryDrift(servedOnes(10, 4), {}), { premiers: 4, retenus: 10, fenetre: 10, seuil: 50 });
+  assert.equal(sayFirstTryDriftEn({ premiers: 4, retenus: 10, fenetre: 10, seuil: 50 }), "4/10 tickets delivered on the first try (threshold 50%)");
+  assert.equal(firstTryDrift(servedOnes(10, 5), {}), null);
+  assert.equal(firstTryDrift(servedOnes(10, 8), {}), null);
 });
 
 test("sans assez de tickets servis pour remplir la fenêtre, ou sans merge dans la fenêtre, la dérive ne dit rien et ne plante pas", () => {
-  assert.equal(derivePremierCoup([], {}), null);
-  assert.equal(derivePremierCoup(servis(9, 0), {}), null);
-  const abandonnes: Parcours[] = Array.from({ length: 10 }, (_, i) => ({ ticket: i + 1, takenAt: a("10:00"), end: null, attempts: essais(1) }));
-  assert.equal(derivePremierCoup(abandonnes, {}), null);
+  assert.equal(firstTryDrift([], {}), null);
+  assert.equal(firstTryDrift(servedOnes(9, 0), {}), null);
+  const droppedOnes: Parcours[] = Array.from({ length: 10 }, (_, i) => ({ ticket: i + 1, takenAt: a("10:00"), end: null, attempts: essais(1) }));
+  assert.equal(firstTryDrift(droppedOnes, {}), null);
 });
 
 test("le seuil et la fenêtre se règlent : un autre seuil change le verdict, une autre fenêtre change les tickets regardés", () => {
-  assert.equal(derivePremierCoup(servis(10, 5), { firstTryPercent: 60 })?.seuil, 60);
-  assert.equal(derivePremierCoup(servis(10, 4), { firstTryPercent: 40 }), null);
+  assert.equal(firstTryDrift(servedOnes(10, 5), { firstTryPercent: 60 })?.seuil, 60);
+  assert.equal(firstTryDrift(servedOnes(10, 4), { firstTryPercent: 40 }), null);
   // Fenêtre de 4 : les quatre derniers ont tous demandé deux essais.
-  assert.deepEqual(derivePremierCoup(servis(10, 6), { firstTryWindow: 4 }), { premiers: 0, retenus: 4, fenetre: 4, seuil: 50 });
-  assert.equal(derivePremierCoup(servis(4, 4), { firstTryWindow: 4 }), null);
+  assert.deepEqual(firstTryDrift(servedOnes(10, 6), { firstTryWindow: 4 }), { premiers: 0, retenus: 4, fenetre: 4, seuil: 50 });
+  assert.equal(firstTryDrift(servedOnes(4, 4), { firstTryWindow: 4 }), null);
 });

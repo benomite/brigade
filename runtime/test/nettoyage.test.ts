@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { ouvrirNettoyage } from "../src/nettoyage.ts";
 import { worktreesGardes } from "../src/projections/cleanup.ts";
 import { horloge, repertoireTemporaire } from "./outils.ts";
@@ -14,13 +14,13 @@ import { horloge, repertoireTemporaire } from "./outils.ts";
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 const STATION = "box/claude";
 
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
-  t.after(() => journal.fermer());
-  const noter = (ticket: number, fait: Fait, author = "runtime") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const log = openLog(repertoire, { maintenant: horloge() });
+  t.after(() => log.fermer());
+  const noter = (ticket: number, fait: Fait, author = "runtime") => log.ajouter({ project: "brigade", ticket, author, ...fait });
   // Une vie du runtime commence : les cooks d'avant sont morts.
-  const demarrer = () => journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "26" } });
+  const demarrer = () => log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "26" } });
   const arriver = (ticket: number) =>
     noter(ticket, { type: "ticket.arrived", payload: { title: `Ticket ${ticket}`, priority: 1, createdAt: "2026-10-01T00:00:00Z", url: `https://exemple.test/${ticket}` } });
   // Un cook lancé dans son worktree, sur sa branche. `fini` : il a rendu la main.
@@ -42,7 +42,7 @@ function cuisine(t: TestContext) {
     raconter(ticket, run, livree);
   };
   // Un ticket arrivé, et ses cooks finis, chacun dans son worktree.
-  const cuisiner = (ticket: number, ...runs: string[]) => {
+  const cook = (ticket: number, ...runs: string[]) => {
     arriver(ticket);
     for (const run of runs) {
       lancer(ticket, run);
@@ -60,7 +60,7 @@ function cuisine(t: TestContext) {
   const elaguees: string[] = [];
   const avertissements: string[] = [];
   const nettoyage = ouvrirNettoyage({
-    journal,
+    journal: log,
     projet: "brigade",
     repertoireEtat: repertoire,
     depot: {
@@ -79,58 +79,58 @@ function cuisine(t: TestContext) {
     },
     avertir: (message) => void avertissements.push(message),
   });
-  const faits = (ticket: number) =>
-    journal
+  const facts = (ticket: number) =>
+    log
       .duTicket(ticket)
       .filter((e) => e.type.startsWith("worktree.") || e.type.startsWith("branch."))
       .map((e) => [e.type, e.payload]);
   const chemin = (run: string) => join(repertoire, "worktrees", run);
-  return { journal, noter, demarrer, arriver, lancer, sortir, interrompre, reprendre, raconter, finir, cuisiner, servir, partir, recoltes, ranges, pousses, elaguees, avertissements, nettoyage, faits, chemin };
+  return { journal: log, noter, demarrer, arriver, lancer, sortir, interrompre, reprendre, raconter, finir, cuisiner: cook, servir, partir, recoltes, ranges, pousses, elaguees, avertissements, nettoyage, faits: facts, chemin };
 }
 
 const retire = (run: string, harvest: string | null = null) => ["worktree.removed", { worktree: `worktrees/${run}`, branch: `cook/${run}`, harvest }];
 
 test("à la fin d'un cook, son worktree est rangé et le journal le dit, avec le commit de ce qui y traînait", async (t) => {
-  const { cuisiner, recoltes, ranges, nettoyage, faits, chemin, journal, avertissements } = cuisine(t);
-  cuisiner(17, "17-aaa", "17-bbb");
+  const { cuisiner: cook, recoltes, ranges, nettoyage, faits: facts, chemin, journal: log, avertissements } = kitchen(t);
+  cook(17, "17-aaa", "17-bbb");
   recoltes.set("17-bbb", "c0ffee");
 
   await nettoyage.ranger(17, "worktrees/17-aaa", "cook/17-aaa");
   await nettoyage.ranger(17, "worktrees/17-bbb", "cook/17-bbb");
 
   assert.deepEqual(ranges, [[chemin("17-aaa"), "cook/17-aaa"], [chemin("17-bbb"), "cook/17-bbb"]]);
-  assert.deepEqual(faits(17), [retire("17-aaa"), retire("17-bbb", "c0ffee")]);
-  assert.deepEqual(worktreesGardes(journal.base), []);
+  assert.deepEqual(facts(17), [retire("17-aaa"), retire("17-bbb", "c0ffee")]);
+  assert.deepEqual(worktreesGardes(log.base), []);
   assert.deepEqual(avertissements, []);
 });
 
 test("un worktree qui ne se range pas est gardé et dit une fois ; le rattrapage y revient à chaque passage, et il part dès que ça passe", async (t) => {
-  const { cuisiner, recoltes, ranges, nettoyage, faits, journal, avertissements } = cuisine(t);
-  cuisiner(17, "17-aaa");
+  const { cuisiner: cook, recoltes, ranges, nettoyage, faits: facts, journal: log, avertissements } = kitchen(t);
+  cook(17, "17-aaa");
   recoltes.set("17-aaa", new Error("git worktree : fatal: verrou tenu"));
 
   await nettoyage.ranger(17, "worktrees/17-aaa", "cook/17-aaa");
 
   const garde = { worktree: "worktrees/17-aaa", branch: "cook/17-aaa", reason: "failed", detail: "git worktree : fatal: verrou tenu" };
-  assert.deepEqual(faits(17), [["worktree.kept", garde]]);
-  assert.deepEqual(worktreesGardes(journal.base), [{ ticket: 17, ...garde, since: journal.duTicket(17).at(-1)?.at }]);
+  assert.deepEqual(facts(17), [["worktree.kept", garde]]);
+  assert.deepEqual(worktreesGardes(log.base), [{ ticket: 17, ...garde, since: log.duTicket(17).at(-1)?.at }]);
   assert.equal(avertissements.length, 1);
   assert.match(String(avertissements[0]), /worktree du ticket #17 non rangé \(worktrees\/17-aaa, branche cook\/17-aaa\) — git worktree : fatal: verrou tenu/);
 
   // Réessayé, sans se répéter.
   await nettoyage.rattraper();
   assert.equal(ranges.length, 2);
-  assert.equal(faits(17).length, 1);
+  assert.equal(facts(17).length, 1);
   assert.equal(avertissements.length, 1);
 
   recoltes.delete("17-aaa");
   await nettoyage.rattraper();
-  assert.deepEqual(faits(17).at(-1), retire("17-aaa"));
-  assert.deepEqual(worktreesGardes(journal.base), []);
+  assert.deepEqual(facts(17).at(-1), retire("17-aaa"));
+  assert.deepEqual(worktreesGardes(log.base), []);
 });
 
 test("le rattrapage range les worktrees des cooks d'une vie précédente, quel que soit l'état de leur ticket — pas ceux de la vie en cours, que la station range", async (t) => {
-  const { demarrer, arriver, lancer, finir, sortir, interrompre, servir, ranges, nettoyage, faits, chemin } = cuisine(t);
+  const { demarrer, arriver, lancer, finir, sortir, interrompre, servir, ranges, nettoyage, faits: facts, chemin } = kitchen(t);
   demarrer();
   // Un ticket servi, un ticket encore sur le rail dont le cook a échoué, un cook mort avec le runtime.
   arriver(17);
@@ -150,15 +150,15 @@ test("le rattrapage range les worktrees des cooks d'une vie précédente, quel q
   await nettoyage.rattraper();
 
   assert.deepEqual(ranges.map(([worktree]) => worktree), [chemin("17-aaa"), chemin("18-aaa"), chemin("19-aaa")]);
-  assert.deepEqual(faits(18), [retire("18-aaa")]);
-  assert.deepEqual(faits(20), []);
+  assert.deepEqual(facts(18), [retire("18-aaa")]);
+  assert.deepEqual(facts(20), []);
   // Rangés, ils ne sont plus regardés.
   await nettoyage.rattraper();
   assert.equal(ranges.length, 3);
 });
 
 test("le worktree d'un cook en vol n'est jamais rangé, ni celui d'un cook que la vie en cours a repris : c'est sa station qui le range — sauf une vie plus tard", async (t) => {
-  const { demarrer, arriver, lancer, sortir, reprendre, ranges, nettoyage, chemin } = cuisine(t);
+  const { demarrer, arriver, lancer, sortir, reprendre, ranges, nettoyage, chemin } = kitchen(t);
   demarrer();
   arriver(21);
   lancer(21, "21-aaa");
@@ -180,7 +180,7 @@ test("le worktree d'un cook en vol n'est jamais rangé, ni celui d'un cook que l
 });
 
 test("un journal d'avant #164 : le worktree gardé pour un travail non poussé ou une PR ouverte est rangé comme les autres, et un worktree partagé par un renvoi ne l'est qu'une fois", async (t) => {
-  const { noter, demarrer, arriver, lancer, finir, journal, ranges, nettoyage, faits } = cuisine(t);
+  const { noter, demarrer, arriver, lancer, finir, journal: log, ranges, nettoyage, faits: facts } = kitchen(t);
   demarrer();
   arriver(17);
   lancer(17, "17-aaa");
@@ -199,15 +199,15 @@ test("un journal d'avant #164 : le worktree gardé pour un travail non poussé o
   await nettoyage.rattraper();
 
   assert.equal(ranges.length, 1);
-  assert.deepEqual(faits(17).at(-1), retire("17-aaa"));
-  assert.deepEqual(worktreesGardes(journal.base), []);
-  assert.deepEqual(faits(18).map(([type]) => type), ["worktree.removed"]);
+  assert.deepEqual(facts(17).at(-1), retire("17-aaa"));
+  assert.deepEqual(worktreesGardes(log.base), []);
+  assert.deepEqual(facts(18).map(([type]) => type), ["worktree.removed"]);
 });
 
 test("la branche locale part une fois le ticket servi ou sorti du rail, ses worktrees rangés et tout sur l'origine — pas avant", async (t) => {
-  const { cuisiner, servir, partir, elaguees, nettoyage, faits } = cuisine(t);
-  cuisiner(17, "17-aaa", "17-bbb");
-  cuisiner(18, "18-aaa");
+  const { cuisiner: cook, servir, partir, elaguees, nettoyage, faits: facts } = kitchen(t);
+  cook(17, "17-aaa", "17-bbb");
+  cook(18, "18-aaa");
   await nettoyage.ranger(17, "worktrees/17-aaa", "cook/17-aaa");
 
   // Sur le rail, rien ne part ; servi, seule la branche dont le worktree est rangé.
@@ -216,7 +216,7 @@ test("la branche locale part une fois le ticket servi ou sorti du rail, ses work
   servir(17);
   await nettoyage.rattraper();
   assert.deepEqual(elaguees, ["cook/17-aaa"]);
-  assert.deepEqual(faits(17).at(-1), ["branch.removed", { branch: "cook/17-aaa" }]);
+  assert.deepEqual(facts(17).at(-1), ["branch.removed", { branch: "cook/17-aaa" }]);
 
   await nettoyage.ranger(17, "worktrees/17-bbb", "cook/17-bbb");
   await nettoyage.ranger(18, "worktrees/18-aaa", "cook/18-aaa");
@@ -229,8 +229,8 @@ test("la branche locale part une fois le ticket servi ou sorti du rail, ses work
 });
 
 test("une branche qui porte des commits absents de l'origine reste, sans bruit : ni fait, ni avertissement, ni worktree gardé — et n'est regardée qu'une fois par vie du runtime", async (t) => {
-  const { cuisiner, partir, journal, pousses, elaguees, nettoyage, faits, avertissements } = cuisine(t);
-  cuisiner(17, "17-aaa");
+  const { cuisiner: cook, partir, journal: log, pousses, elaguees, nettoyage, faits: facts, avertissements } = kitchen(t);
+  cook(17, "17-aaa");
   await nettoyage.ranger(17, "worktrees/17-aaa", "cook/17-aaa");
   partir(17);
   pousses.set("17-aaa", false);
@@ -239,9 +239,9 @@ test("une branche qui porte des commits absents de l'origine reste, sans bruit :
   await nettoyage.rattraper();
 
   assert.deepEqual(elaguees, ["cook/17-aaa"]);
-  assert.deepEqual(faits(17), [retire("17-aaa")]);
+  assert.deepEqual(facts(17), [retire("17-aaa")]);
   assert.deepEqual(avertissements, []);
-  assert.deepEqual(worktreesGardes(journal.base), []);
+  assert.deepEqual(worktreesGardes(log.base), []);
 
   // Rien ne la fera pousser dans cette vie : elle n'est pas relue, tick après tick.
   pousses.set("17-aaa", true);
@@ -250,8 +250,8 @@ test("une branche qui porte des commits absents de l'origine reste, sans bruit :
 });
 
 test("une branche que git refuse de retirer se dit une fois, n'est pas réessayée dans cette vie, et ne coûte pas les autres", async (t) => {
-  const { cuisiner, servir, pousses, nettoyage, faits, avertissements } = cuisine(t);
-  cuisiner(17, "17-aaa", "17-bbb");
+  const { cuisiner: cook, servir, pousses, nettoyage, faits: facts, avertissements } = kitchen(t);
+  cook(17, "17-aaa", "17-bbb");
   for (const run of ["17-aaa", "17-bbb"]) await nettoyage.ranger(17, `worktrees/${run}`, `cook/${run}`);
   servir(17);
   pousses.set("17-aaa", new Error("git branch : fatal: verrou tenu"));
@@ -260,12 +260,12 @@ test("une branche que git refuse de retirer se dit une fois, n'est pas réessay�
   await nettoyage.rattraper();
 
   assert.deepEqual(avertissements, ["brigade : branche locale cook/17-aaa du ticket #17 non retirée — git branch : fatal: verrou tenu"]);
-  assert.deepEqual(faits(17).at(-1), ["branch.removed", { branch: "cook/17-bbb" }]);
+  assert.deepEqual(facts(17).at(-1), ["branch.removed", { branch: "cook/17-bbb" }]);
 });
 
 test("un ticket servi puis rouvert garde les branches de ses nouveaux cooks tant qu'il n'est pas servi à nouveau", async (t) => {
-  const { cuisiner, arriver, lancer, finir, servir, partir, elaguees, nettoyage } = cuisine(t);
-  cuisiner(17, "17-aaa");
+  const { cuisiner: cook, arriver, lancer, finir, servir, partir, elaguees, nettoyage } = kitchen(t);
+  cook(17, "17-aaa");
   servir(17);
   partir(17);
   await nettoyage.ranger(17, "worktrees/17-aaa", "cook/17-aaa");
@@ -286,12 +286,12 @@ test("un ticket servi puis rouvert garde les branches de ses nouveaux cooks tant
 
 test("un runtime qui s'arrête ne commence plus rien", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
-  t.after(() => journal.fermer());
+  const log = openLog(repertoire, { maintenant: horloge() });
+  t.after(() => log.fermer());
   const ranges: string[] = [];
   let arrete = false;
   const nettoyage = ouvrirNettoyage({
-    journal,
+    journal: log,
     projet: "brigade",
     repertoireEtat: repertoire,
     depot: {
@@ -306,7 +306,7 @@ test("un runtime qui s'arrête ne commence plus rien", async (t) => {
     arrete: () => arrete,
   });
   for (const run of ["17-aaa", "17-bbb"]) {
-    journal.ajouter({
+    log.ajouter({
       project: "brigade",
       ticket: 17,
       author: "runtime",
@@ -314,8 +314,8 @@ test("un runtime qui s'arrête ne commence plus rien", async (t) => {
       payload: { run, limits: LIMITES, stream: `runs/${run}.jsonl`, station: STATION, model: "sonnet", effort: "low", branch: `cook/${run}`, worktree: join("worktrees", run) },
     });
   }
-  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "26" } });
-  for (const run of ["17-aaa", "17-bbb"]) journal.ajouter({ project: "brigade", ticket: 17, author: "runtime", type: "cook.interrupted", payload: { run } });
+  log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "26" } });
+  for (const run of ["17-aaa", "17-bbb"]) log.ajouter({ project: "brigade", ticket: 17, author: "runtime", type: "cook.interrupted", payload: { run } });
 
   await nettoyage.rattraper();
 

@@ -49,7 +49,7 @@ export function lireEnService(racine: string): EnService | null {
 // La station annonce qu'elle est en service, puis réannonce dès que ce qu'elle
 // sert change — un projet repris, ajouté, refusé. Rend de quoi arrêter.
 // N'empêche jamais le process de sortir.
-export function annoncerEnService(
+export function announceInService(
   racine: string,
   lire: () => { servis: string[]; refuses: Record<string, string> },
   options: { version?: string; pid?: number; maintenant?: () => Date; intervalleMs?: number; dire?: (ligne: string) => void } = {},
@@ -60,9 +60,9 @@ export function annoncerEnService(
   const fichier = join(racine, EN_SERVICE);
   let ecrit = "";
   let ditEchec = false;
-  const annoncer = () => {
-    const { servis, refuses } = lire();
-    const texte = `${JSON.stringify({ version, pid, depuis, servis: [...servis].sort(), refuses } satisfies EnService)}\n`;
+  const announce = () => {
+    const { servis: servedOnes, refuses } = lire();
+    const texte = `${JSON.stringify({ version, pid, depuis, servis: [...servedOnes].sort(), refuses } satisfies EnService)}\n`;
     if (texte === ecrit) return;
     try {
       writeFileSync(`${fichier}.${pid}`, texte);
@@ -74,8 +74,8 @@ export function annoncerEnService(
       ditEchec = true;
     }
   };
-  annoncer();
-  const veille = setInterval(annoncer, options.intervalleMs ?? 2000);
+  announce();
+  const veille = setInterval(announce, options.intervalleMs ?? 2000);
   veille.unref();
   return () => clearInterval(veille);
 }

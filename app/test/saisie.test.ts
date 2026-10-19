@@ -8,7 +8,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { DIT, ouvrirTours, PREUVE, reglages, suivreSaisie } from "../src/saisie.ts";
+import { DIT, openTurns, PROOF, reglages, suivreSaisie } from "../src/saisie.ts";
 
 // Les titres que `claude` donne à son terminal : au repos, et au travail (deux images d'une même roue).
 const REPOS = "\x1b]0;✳ Claude Code\x07";
@@ -16,16 +16,16 @@ const TRAVAIL = ["\x1b]0;◐ Claude Code\x07", "\x1b]0;◑ Claude Code\x07"];
 
 // Une saisie suivie, et ce que le second a dit de ses tours.
 function suivie(dits = "") {
-  const tours = { dits };
-  return { tours, saisie: suivreSaisie(() => tours.dits) };
+  const turns = { dits };
+  return { tours: turns, saisie: suivreSaisie(() => turns.dits) };
 }
 
 // Un second à son invite, saisie vide : un tour fini, le titre du repos.
 function libre() {
-  const { tours, saisie } = suivie("tour\nfin\n");
+  const { tours: turns, saisie } = suivie("tour\nfin\n");
   saisie.sortie(REPOS);
   assert.deepEqual(saisie.etat(), { libre: true });
-  return { tours, saisie };
+  return { tours: turns, saisie };
 }
 
 describe("les tours du second, dits par ses crochets", () => {
@@ -46,9 +46,9 @@ describe("les tours du second, dits par ses crochets", () => {
   });
 
   test("joués par un vrai `sh`, les crochets écrivent ce que l'app relit — dans un dossier dont le nom porte une espace et une apostrophe, sans rien sur leur sortie", (t) => {
-    const tours = ouvrirTours(dossier(t, "brigade l'app "));
-    t.after(tours.fermer);
-    const fichier = tours.de(7);
+    const turns = openTurns(dossier(t, "brigade l'app "));
+    t.after(turns.fermer);
+    const fichier = turns.de(7);
     const { hooks } = JSON.parse(reglages(fichier.chemin)) as { hooks: Record<string, { hooks: { command: string }[] }[]> };
     const jouer = (crochet: string) => execFileSync("sh", ["-c", hooks[crochet]?.[0]?.hooks[0]?.command ?? assert.fail(crochet)], { encoding: "utf8" });
     const { saisie } = { saisie: suivreSaisie(fichier.lire) };
@@ -74,15 +74,15 @@ describe("les tours du second, dits par ses crochets", () => {
 
   test("chaque second a son fichier, et l'app retire le dossier en fermant", (t) => {
     const racine = dossier(t, "brigade-tours-");
-    const tours = ouvrirTours(racine);
+    const turns = openTurns(racine);
 
-    const [un, deux] = [tours.de(1), tours.de(2)];
+    const [un, deux] = [turns.de(1), turns.de(2)];
     assert.notEqual(un.chemin, deux.chemin);
     assert.ok(un.chemin.startsWith(racine));
     un.vider();
     assert.ok(existsSync(un.chemin));
 
-    tours.fermer();
+    turns.fermer();
     assert.ok(!existsSync(un.chemin));
     assert.equal(un.lire(), "");
   });
@@ -90,12 +90,12 @@ describe("les tours du second, dits par ses crochets", () => {
 
 describe("le second est dit libre quand ses tours, son titre et sa saisie s'accordent", () => {
   test("aucun tour fini depuis son lancement : il démarre — même si son titre est déjà celui du repos", () => {
-    const { tours, saisie } = suivie();
+    const { tours: turns, saisie } = suivie();
     saisie.sortie(REPOS);
     assert.deepEqual(saisie.etat(), { libre: false, dit: DIT.demarre });
 
     // Des crochets qui écriraient autre chose ne disent rien non plus.
-    tours.dits = "n'importe quoi\n";
+    turns.dits = "n'importe quoi\n";
     assert.deepEqual(saisie.etat(), { libre: false, dit: DIT.demarre });
   });
 
@@ -116,14 +116,14 @@ describe("le second est dit libre quand ses tours, son titre et sa saisie s'acco
   });
 
   test("un tour en cours, le titre au repos : il attend une réponse du chef — c'est ce que `claude` montre devant un dialogue de permission", () => {
-    const { tours, saisie } = libre();
-    tours.dits += "tour\ntour\n";
+    const { tours: turns, saisie } = libre();
+    turns.dits += "tour\ntour\n";
     assert.deepEqual(saisie.etat(), { libre: false, dit: DIT.attend });
 
     // Le dialogue validé, le tour reprend, puis finit.
     saisie.sortie(TRAVAIL[1] ?? "");
     assert.deepEqual(saisie.etat(), { libre: false, dit: DIT.occupe });
-    tours.dits += "fin\n";
+    turns.dits += "fin\n";
     saisie.sortie(REPOS);
     // Le chef a validé d'une Entrée : rien n'est resté dans sa saisie.
     saisie.frappe("\r");
@@ -204,16 +204,16 @@ describe("la saisie du second n'est dite vide qu'après l'Entrée du chef", () =
 
 describe("l'Entrée de l'app attend la preuve du mode shell", () => {
   test("`claude` se montre en mode shell : la preuve est rendue une fois, où que le pty coupe sa sortie", () => {
-    for (let coupe = 0; coupe <= PREUVE.length; coupe++) {
+    for (let coupe = 0; coupe <= PROOF.length; coupe++) {
       const { saisie } = libre();
       const issues: boolean[] = [];
-      saisie.ecrit((preuve) => void issues.push(preuve));
+      saisie.ecrit((proof) => void issues.push(proof));
 
       // Tant qu'elle n'est pas venue, une commande est en route.
       assert.deepEqual(saisie.etat(), { libre: false, dit: DIT.route });
-      saisie.sortie(`\x1b[2C\x1b[1B${PREUVE.slice(0, coupe)}`);
-      saisie.sortie(`${PREUVE.slice(coupe)}\x1b[39m\x1b[K`);
-      saisie.sortie(PREUVE);
+      saisie.sortie(`\x1b[2C\x1b[1B${PROOF.slice(0, coupe)}`);
+      saisie.sortie(`${PROOF.slice(coupe)}\x1b[39m\x1b[K`);
+      saisie.sortie(PROOF);
 
       assert.deepEqual(issues, [true], `coupe ${coupe}`);
     }
@@ -221,9 +221,9 @@ describe("l'Entrée de l'app attend la preuve du mode shell", () => {
 
   test("ce que le second affichait avant l'écriture ne prouve rien", () => {
     const { saisie } = libre();
-    saisie.sortie(PREUVE);
+    saisie.sortie(PROOF);
     const issues: boolean[] = [];
-    saisie.ecrit((preuve) => void issues.push(preuve));
+    saisie.ecrit((proof) => void issues.push(proof));
     saisie.sortie("autre chose");
     assert.deepEqual(issues, []);
   });
@@ -231,11 +231,11 @@ describe("l'Entrée de l'app attend la preuve du mode shell", () => {
   test("l'app renonce : sans preuve, sa commande est quelque part dans ce que le second montre — sa saisie n'est plus dite vide", () => {
     const { saisie } = libre();
     const issues: boolean[] = [];
-    saisie.ecrit((preuve) => void issues.push(preuve));
+    saisie.ecrit((proof) => void issues.push(proof));
 
     saisie.renoncer();
     saisie.renoncer();
-    saisie.sortie(PREUVE);
+    saisie.sortie(PROOF);
 
     assert.deepEqual(issues, [false]);
     assert.deepEqual(saisie.etat(), { libre: false, dit: DIT.ecrit });
@@ -244,26 +244,26 @@ describe("l'Entrée de l'app attend la preuve du mode shell", () => {
   test("le chef tape avant la preuve : l'app renonce à son Entrée — et si c'est la sienne qu'il a faite, la saisie est vide", () => {
     const { saisie } = libre();
     const issues: boolean[] = [];
-    saisie.ecrit((preuve) => void issues.push(preuve));
+    saisie.ecrit((proof) => void issues.push(proof));
     saisie.frappe("x");
     assert.deepEqual(issues, [false]);
     assert.deepEqual(saisie.etat(), { libre: false, dit: DIT.frappe });
 
-    saisie.ecrit((preuve) => void issues.push(preuve));
+    saisie.ecrit((proof) => void issues.push(proof));
     saisie.frappe("\r");
     assert.deepEqual(issues, [false, false]);
     assert.deepEqual(saisie.etat(), { libre: true });
   });
 
   test("partie, la commande est en route jusqu'à ce que `claude` se montre au travail — puis il est occupé, puis libre", () => {
-    const { tours, saisie } = libre();
+    const { tours: turns, saisie } = libre();
     saisie.parti();
     assert.deepEqual(saisie.etat(), { libre: false, dit: DIT.route });
 
     saisie.sortie(TRAVAIL[0] ?? "");
     assert.deepEqual(saisie.etat(), { libre: false, dit: DIT.occupe });
     // Le second tire un tour de la sortie de la commande, que `Stop` ferme.
-    tours.dits += "fin\n";
+    turns.dits += "fin\n";
     saisie.sortie(REPOS);
     assert.deepEqual(saisie.etat(), { libre: true });
   });

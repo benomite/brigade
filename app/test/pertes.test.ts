@@ -13,15 +13,15 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { Sortie } from "../../runtime/src/appel.ts";
 import { declarerStations, principal as stations } from "../../runtime/src/declarer-stations.ts";
-import { decrireEtat, faits as faitsDuRuntime, lireEtat } from "../../runtime/src/etat.ts";
+import { decrireEtat, facts as runtimeFacts, lireEtat } from "../../runtime/src/etat.ts";
 import { nommerEtape, principal as etapes } from "../../runtime/src/etapes-cli.ts";
 import { terminer } from "../../runtime/src/etapes.ts";
 import type { Fait } from "../../runtime/src/evenements.ts";
 import { jugerRenouvellement } from "../../runtime/src/installation.ts";
-import { ouvrirJournal } from "../../runtime/src/journal.ts";
+import { openLog } from "../../runtime/src/log.ts";
 import { principal as manager } from "../../runtime/src/manager-cli.ts";
 import { ECHECS_POUR_ALERTER, signalDe, tenirBandes, type Alerte, type Bande } from "../src/alertes.ts";
-import { mettreAPart } from "../src/attend.ts";
+import { mettreAPart } from "../src/awaiting.ts";
 import type { Lecture, Rendu } from "../src/box.ts";
 import type { Projet } from "../src/config.ts";
 import { verdictDesConstats, verdictDeLaPanne } from "../../runtime/src/verdict.ts";
@@ -64,14 +64,14 @@ function boxInstallee(t: TestContext, { terminee = true } = {}) {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-app-pertes-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const env: Record<string, string> = { BRIGADE_STATE_DIR: repertoire, BRIGADE_PROJECT: "parade", BRIGADE_CLAUDE_BIN: FAUX_CLAUDE, PATH: "" };
-  const journal = ouvrirJournal(repertoire);
-  declarerStations(journal, { projet: "parade", declaration: `${STATION}:2:code+raisonnement`, auteur: "chef" });
-  if (terminee) assert.equal(terminer(journal, { projet: "parade", aReprendre: [], auteur: "chef" }).terminee, true);
-  journal.fermer();
+  const log = openLog(repertoire);
+  declarerStations(log, { projet: "parade", declaration: `${STATION}:2:code+raisonnement`, auteur: "chef" });
+  if (terminee) assert.equal(terminer(log, { projet: "parade", aReprendre: [], auteur: "chef" }).terminee, true);
+  log.fermer();
 
   const reglage = { claude: true, constats: [VARIABLES] as Constat[], panne: undefined as string | undefined };
   const appels: string[] = [];
-  async function lancer(_servi: unknown, commande: string): Promise<Rendu> {
+  async function lancer(_served: unknown, commande: string): Promise<Rendu> {
     appels.push(commande);
     const sortie: string[] = [];
     const dire = (ligne: string) => void sortie.push(ligne);
@@ -251,29 +251,29 @@ describe("un projet installé perd un geste de box : une alerte en bande et sur 
 // Une cuisine qui tourne, et où tout va bien : ce que la box en rend, écrit par le runtime.
 function saine(t: TestContext): Lecture[] {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-app-pertes-saine-"));
-  const journal = ouvrirJournal(repertoire);
+  const log = openLog(repertoire);
   t.after(() => {
-    journal.fermer();
+    log.fermer();
     rmSync(repertoire, { recursive: true, force: true });
   });
-  const noter = (fait: Fait, author = "runtime") => void journal.ajouter({ project: "parade", ticket: null, author, ...fait });
+  const noter = (fait: Fait, author = "runtime") => void log.ajouter({ project: "parade", ticket: null, author, ...fait });
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
   noter({ type: "manager.enabled", payload: {} }, "chef");
   const maintenant = new Date();
-  const etat = lireEtat(journal, maintenant);
+  const etat = lireEtat(log, maintenant);
   const dits: string[] = [];
   void manager({ args: [], env: { BRIGADE_STATE_DIR: repertoire }, dire: (ligne) => void dits.push(ligne), redire: (ligne) => assert.fail(ligne) });
   const lecture = (commande: string, texte: string): Lecture => ({ projet: "parade", demande: 1, a: maintenant.toISOString(), sorties: [{ commande, texte }] });
-  return [lecture("facts", `${JSON.stringify(faitsDuRuntime(etat, maintenant))}\n`), lecture("status", `${decrireEtat(etat, maintenant).join("\n")}\n`), lecture("manager", `${dits.join("\n")}\n`)];
+  return [lecture("facts", `${JSON.stringify(runtimeFacts(etat, maintenant))}\n`), lecture("status", `${decrireEtat(etat, maintenant).join("\n")}\n`), lecture("manager", `${dits.join("\n")}\n`)];
 }
 
 describe("un projet installé sans manque", () => {
   test("rien n'est perdu : aucune alerte, ni dans la bande ni sur la case — et l'espace du projet reste le rail", async (t) => {
     const box = boxInstallee(t);
     const { bandes, controler } = app(box);
-    const [faits, status, lu] = saine(t) as [Lecture, Lecture, Lecture];
+    const [facts, status, lu] = saine(t) as [Lecture, Lecture, Lecture];
     bandes.veiller([PARADE.nom]);
-    bandes.faits(faits);
+    bandes.faits(facts);
     bandes.status(mettreAPart(status));
     bandes.manager(lu);
 

@@ -24,7 +24,7 @@ import { join } from "node:path";
 import { empreinteDuCode } from "../code.ts";
 import { LimiteGitHubAtteinte } from "../limite-github.ts";
 import type { Canal } from "./canal.ts";
-import { description, DUREE_DU_CODE_MS, ECHUS_GARDES, empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, FORMAT, tirerCode, type DocumentStation, type EtatsPublies } from "./document.ts";
+import { description, DUREE_DU_CODE_MS, ECHUS_GARDES, empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, FORMAT, drawCode, type DocumentStation, type EtatsPublies } from "./document.ts";
 
 export const FICHIER_LOCAL = "appairage.json";
 // Entre deux regards sur son état : aucun appel GitHub, une comparaison.
@@ -58,7 +58,7 @@ export type OptionsPresence = {
   apres?: (tache: () => void, ms: number, retient?: boolean) => () => void;
   dureeDuCodeMs?: number;
   maintenant?: () => number;
-  tirer?: (borne: number) => number;
+  pull?: (borne: number) => number;
 };
 
 export type Presence = {
@@ -152,10 +152,10 @@ export function tenirPresence(options: OptionsPresence): Presence {
 
   const sauver = () => writeFileSync(fichier, `${JSON.stringify(etat, null, 2)}\n`, { mode: 0o600 });
 
-  const renouvelerCode = (instant: number) => {
+  const renewCode = (instant: number) => {
     if (etat.appairee || (etat.code !== null && etat.expireLe !== null && Date.parse(etat.expireLe) > instant)) return;
     const echus = etat.code === null ? etat.echus : [empreinte(etat.code), ...etat.echus];
-    etat = { ...etat, code: tirerCode(options.tirer), expireLe: new Date(instant + dureeDuCodeMs).toISOString(), echus: echus.slice(0, ECHUS_GARDES) };
+    etat = { ...etat, code: drawCode(options.pull), expireLe: new Date(instant + dureeDuCodeMs).toISOString(), echus: echus.slice(0, ECHUS_GARDES) };
     sauver();
   };
 
@@ -214,7 +214,7 @@ export function tenirPresence(options: OptionsPresence): Presence {
       await lireAppairage(etat.gist);
       appele = true;
     }
-    if (!arret) renouvelerCode(instant);
+    if (!arret) renewCode(instant);
     // Une station qui s'arrête avant d'avoir publié quoi que ce soit n'a rien à dire.
     if (arret && etat.gist === null) return;
     let ecriture = preparer(instant, arret);
@@ -238,7 +238,7 @@ export function tenirPresence(options: OptionsPresence): Presence {
       } else if ((await canal.ecrire(etat.gist, ecriture.fichiers)) === "absent") {
         repartirDeZero("son gist a disparu de GitHub");
         if (arret) return;
-        renouvelerCode(instant);
+        renewCode(instant);
         ecriture = preparer(instant, false);
         etat = { ...etat, gist: await canal.creer(description(identite.nom), ecriture.fichiers) };
         sauver();

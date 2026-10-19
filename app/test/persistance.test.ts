@@ -30,7 +30,7 @@ import {
 } from "../src/persistance.ts";
 import { ouvrirPty, ptyDisponible } from "../src/pty.ts";
 
-const POSTE: Cible = { lieu: "poste" };
+const WORKSTATION: Cible = { lieu: "poste" };
 const BOX: Cible = { lieu: "box", nom: "parade-box", hote: "parade-box" };
 const AIDE_PTY = join(import.meta.dirname, "aides/pty.py");
 
@@ -67,7 +67,7 @@ describe("la commande d'un shell persistant", () => {
   const session: Session = { nom: "brigade-parade-1", cible: BOX };
 
   test("sur le poste, `sh` lit le script : il crée la session ou s'y rattache", () => {
-    const { commande, args } = rattachement({ nom: "brigade-parade-1", cible: POSTE });
+    const { commande, args } = rattachement({ nom: "brigade-parade-1", cible: WORKSTATION });
     assert.equal(commande, "/bin/sh");
     assert.deepEqual(args, ["-c", scriptDeRattachement("brigade-parade-1")]);
   });
@@ -88,9 +88,9 @@ describe("la commande d'un shell persistant", () => {
       assert.ok(!options.includes("-l"), lus.join(" "));
       assert.ok(!options.some((option) => /^user=/i.test(option)), lus.join(" "));
       // Et une fois sur la box, rien ne change de compte.
-      const distante = lus.at(-1) ?? "";
-      assert.doesNotMatch(distante, /\b(sudo|su|runuser|doas|pkexec|machinectl)\b/);
-      assert.doesNotMatch(distante, /\bbrigade@/);
+      const remote = lus.at(-1) ?? "";
+      assert.doesNotMatch(remote, /\b(sudo|su|runuser|doas|pkexec|machinectl)\b/);
+      assert.doesNotMatch(remote, /\bbrigade@/);
     }
   });
 
@@ -100,11 +100,11 @@ describe("la commande d'un shell persistant", () => {
 
   test("la sonde demande à la machine si elle répond, sans terminal, sans rien demander au chef, et n'y lance rien", () => {
     assert.deepEqual(sonde(BOX, "/usr/bin/ssh"), { commande: "/usr/bin/ssh", args: ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "--", "parade-box", "true"] });
-    assert.deepEqual(sonde(POSTE), { commande: "/bin/sh", args: ["-c", "true"] });
+    assert.deepEqual(sonde(WORKSTATION), { commande: "/bin/sh", args: ["-c", "true"] });
   });
 
   test("une machine qui ne répond pas : la sonde rend ce que `ssh` en a dit, sans exception", async () => {
-    assert.deepEqual(await joindre(POSTE), { joint: true });
+    assert.deepEqual(await joindre(WORKSTATION), { joint: true });
     const rendu = await joindre(BOX, { ssh: "/nonexistent/ssh" });
     assert.ok("erreur" in rendu && rendu.erreur.length > 0, JSON.stringify(rendu));
   });
@@ -242,10 +242,10 @@ function brancher(t: TestContext, { commande, args }: Commande, dossier: string,
 let essais = 0;
 
 // Ce poste, isolé : les sockets des sessions, le `HOME` et le dossier du test.
-function poste(t: TestContext) {
+function workstation(t: TestContext) {
   const racine = realpathSync(mkdtempSync(join(tmpdir(), "brigade-app-persistance-")));
   const env = { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: racine, SHELL: "/bin/sh", TERM: "xterm-256color", TMUX_TMPDIR: racine, SCREENDIR: racine, LANG: "C" };
-  const session: Session = { nom: nomDeSession(`essai-${process.pid}`, ++essais), cible: POSTE };
+  const session: Session = { nom: nomDeSession(`essai-${process.pid}`, ++essais), cible: WORKSTATION };
   t.after(async () => {
     await detruire(session, { env });
     rmSync(racine, { recursive: true, force: true });
@@ -255,7 +255,7 @@ function poste(t: TestContext) {
 
 describe(`une session persistante sur ce poste${multiplexeur === undefined ? "" : `, par ${multiplexeur}`}`, { skip: SAUTE, concurrency: 4 }, () => {
   test("fermer le terminal ne fait que s'en détacher : rattaché, la commande lancée avant tourne toujours, et ce qu'elle avait affiché est là", async (t) => {
-    const { ouvrir } = poste(t);
+    const { ouvrir } = workstation(t);
 
     const premier = ouvrir();
     // `cat` reste au premier plan : il ne rend ce qu'il reçoit que s'il tourne encore.
@@ -274,7 +274,7 @@ describe(`une session persistante sur ce poste${multiplexeur === undefined ? "" 
   });
 
   test("détruite, la session n'est plus : le rattachement suivant en crée une neuve, vide", async (t) => {
-    const { ouvrir, session, env } = poste(t);
+    const { ouvrir, session, env } = workstation(t);
 
     const premier = ouvrir();
     premier.ecrire("echo ANCIENNE-$((6*7)); cat\r");
@@ -291,7 +291,7 @@ describe(`une session persistante sur ce poste${multiplexeur === undefined ? "" 
   });
 
   test("détruire une session qui n'existe pas n'est pas un échec : il n'y avait rien à détruire", async (t) => {
-    const { session, env } = poste(t);
+    const { session, env } = workstation(t);
     assert.deepEqual(await detruire(session, { env }), { detruite: true });
   });
 });

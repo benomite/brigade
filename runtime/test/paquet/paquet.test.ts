@@ -152,11 +152,11 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
     assert.deepEqual([station("IPAddressDeny"), station("IPAddressAllow")], [["any"], ["localhost"]]);
     assert.ok(station("Wants").includes("brigade-station-porte.service"), station("Wants").join(" "));
     assert.ok(station("After").includes("brigade-station-porte.service"), station("After").join(" "));
-    const portes = lireUnite("brigade-station-porte.service");
-    assert.deepEqual([portes("IPAddressDeny"), portes("IPAddressAllow")], [[], []]);
+    const doors = lireUnite("brigade-station-porte.service");
+    assert.deepEqual([doors("IPAddressDeny"), doors("IPAddressAllow")], [[], []]);
 
-    const lanceesPortes = lancerUnite("brigade-station-porte.service");
-    await lanceesPortes.attendre("portes de la station ouvertes");
+    const launchedDoors = lancerUnite("brigade-station-porte.service");
+    await launchedDoors.attendre("portes de la station ouvertes");
     const lancee = lancerUnite("brigade-station.service");
     await lancee.attendre("station démarrée");
     assert.match(lancee.sortie(), new RegExp(`station démarrée — pid ${lancee.process.pid}, configuration ${join(machine, "var/lib/brigade/projets")} ; aucun projet servi`));

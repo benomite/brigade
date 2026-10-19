@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { annoncerEnService, lireEnService, versionDuRuntime } from "../../src/mise-a-jour/en-service.ts";
+import { announceInService, lireEnService, versionDuRuntime } from "../../src/mise-a-jour/en-service.ts";
 import { jusqua, repertoireTemporaire } from "../outils.ts";
 
 test("hors du paquet, la version du runtime est celle du dépôt", () => {
@@ -13,12 +13,12 @@ test("hors du paquet, la version du runtime est celle du dépôt", () => {
 
 test("la station dit sa version, son pid, depuis quand et ce qu'elle sert — puis le redit quand ce qu'elle sert change", async (t) => {
   const racine = repertoireTemporaire(t);
-  let servis = ["brigade"];
+  let servedOnes = ["brigade"];
   let refuses: Record<string, string> = { espace: "le clone du projet n'existe pas" };
-  const arreter = annoncerEnService(racine, () => ({ servis, refuses }), { version: "1.2.0", pid: 4242, maintenant: () => new Date("2026-10-15T14:02:00.000Z"), intervalleMs: 5 });
+  const arreter = announceInService(racine, () => ({ servis: servedOnes, refuses }), { version: "1.2.0", pid: 4242, maintenant: () => new Date("2026-10-15T14:02:00.000Z"), intervalleMs: 5 });
   t.after(arreter);
   assert.deepEqual(lireEnService(racine), { version: "1.2.0", pid: 4242, depuis: "2026-10-15T14:02:00.000Z", servis: ["brigade"], refuses });
-  servis = ["espace", "brigade"];
+  servedOnes = ["espace", "brigade"];
   refuses = {};
   await jusqua(() => lireEnService(racine)?.servis.length === 2);
   assert.deepEqual(lireEnService(racine), { version: "1.2.0", pid: 4242, depuis: "2026-10-15T14:02:00.000Z", servis: ["brigade", "espace"], refuses: {} });

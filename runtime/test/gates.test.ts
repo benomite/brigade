@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import type { Cloison } from "../src/cloison.ts";
+import type { Partition } from "../src/partition.ts";
 import { aDesGates, jouerGates, jouerSetup } from "../src/gates.ts";
 import { JETON_MASQUE } from "../src/identifiants.ts";
 import { environnementClaude, FICHIER_DU_JETON } from "../src/jeton-claude.ts";
@@ -97,7 +97,7 @@ describe("les gates", { concurrency: 8 }, () => {
 
   // Ce que `gates.sh` écrit quand son plafond de durée est franchi : la mesure,
   // puis la ligne FAIL — sur sa sortie d'erreur.
-  const PLAFOND_FRANCHI = [
+  const CAP_CROSSED = [
     `echo "durée des gates : 178,3 s de processeur (136,1 utilisateur + 42,2 système), 35 s d'horloge, charge du poste 4,82 pour un plafond de 165 s — 13,3 s de trop (+8 %)" >&2`,
     'echo "FAIL  plafond des gates franchi : plus de 165 s de processeur" >&2',
   ].join("; ");
@@ -108,7 +108,7 @@ describe("les gates", { concurrency: 8 }, () => {
   };
 
   test("des gates dont le seul rouge est leur plafond de durée sont vertes : le runtime ne le juge pas, et garde le dépassement", async (t) => {
-    const racine = worktree(t, { gates: `echo "ok    tests du runtime"; ${PLAFOND_FRANCHI}; echo "MESURE  tests=888"; echo "gates : ROUGE" >&2; exit 1` });
+    const racine = worktree(t, { gates: `echo "ok    tests du runtime"; ${CAP_CROSSED}; echo "MESURE  tests=888"; echo "gates : ROUGE" >&2; exit 1` });
 
     const gates = await jouer(racine);
 
@@ -118,7 +118,7 @@ describe("les gates", { concurrency: 8 }, () => {
   });
 
   test("le gates.sh type, qui sort dès sa ligne FAIL, est lu de même", async (t) => {
-    const racine = worktree(t, { gates: `set -euo pipefail; echo "tests verts"; ${PLAFOND_FRANCHI}; exit 1` });
+    const racine = worktree(t, { gates: `set -euo pipefail; echo "tests verts"; ${CAP_CROSSED}; exit 1` });
 
     const gates = await jouer(racine);
 
@@ -126,7 +126,7 @@ describe("les gates", { concurrency: 8 }, () => {
   });
 
   test("rouges sur autre chose, des gates le restent, plafond franchi ou non : le dépassement est gardé à part, hors de leurs échecs", async (t) => {
-    const racine = worktree(t, { gates: `echo "FAIL  tests du runtime en échec" >&2; ${PLAFOND_FRANCHI}; echo "gates : ROUGE" >&2; exit 1` });
+    const racine = worktree(t, { gates: `echo "FAIL  tests du runtime en échec" >&2; ${CAP_CROSSED}; echo "gates : ROUGE" >&2; exit 1` });
 
     const gates = await jouer(racine);
 
@@ -136,15 +136,15 @@ describe("les gates", { concurrency: 8 }, () => {
 
   test("une ligne de plafond franchi sans la mesure qui l'accompagne n'est pas celle des gates : elle reste un échec comme un autre", async (t) => {
     const seule = 'echo "FAIL  plafond des gates franchi : plus de 165 s de processeur"; exit 1';
-    const autrePlafond = `echo "durée des gates : 9,0 s de processeur pour un plafond de 5 s — 4,0 s de trop (+80 %)"; ${seule}`;
+    const otherCap = `echo "durée des gates : 9,0 s de processeur pour un plafond de 5 s — 4,0 s de trop (+80 %)"; ${seule}`;
 
-    for (const gates of [await jouer(worktree(t, { gates: seule })), await jouer(worktree(t, { gates: autrePlafond }))]) {
+    for (const gates of [await jouer(worktree(t, { gates: seule })), await jouer(worktree(t, { gates: otherCap }))]) {
       assert.deepEqual([gates.outcome, gates.failures, gates.overCeiling], ["red", ["FAIL  plafond des gates franchi : plus de 165 s de processeur"], undefined]);
     }
   });
 
   test("à côté du plafond reconnu, une ligne qui en nomme un autre reste un échec : seule celle de la mesure est mise à part", async (t) => {
-    const racine = worktree(t, { gates: `echo "FAIL  plafond des gates franchi : plus de 10 s de processeur"; ${PLAFOND_FRANCHI}; exit 1` });
+    const racine = worktree(t, { gates: `echo "FAIL  plafond des gates franchi : plus de 10 s de processeur"; ${CAP_CROSSED}; exit 1` });
 
     const gates = await jouer(racine);
 
@@ -152,13 +152,13 @@ describe("les gates", { concurrency: 8 }, () => {
   });
 
   test("des gates sorties en 0 ne franchissent rien, quoi qu'elles aient écrit", async (t) => {
-    const gates = await jouer(worktree(t, { gates: PLAFOND_FRANCHI }));
+    const gates = await jouer(worktree(t, { gates: CAP_CROSSED }));
 
     assert.deepEqual([gates.outcome, gates.overCeiling], ["green", undefined]);
   });
 
   test("une sortie trop longue pour être gardée entière ne prouve pas que le plafond est le seul rouge : les gates restent rouges", async (t) => {
-    const racine = worktree(t, { gates: `echo "FAIL  tests du runtime en échec"; head -c 300000 /dev/zero | tr '\\0' x; echo; ${PLAFOND_FRANCHI}; exit 1` });
+    const racine = worktree(t, { gates: `echo "FAIL  tests du runtime en échec"; head -c 300000 /dev/zero | tr '\\0' x; echo; ${CAP_CROSSED}; exit 1` });
 
     const gates = await jouer(racine);
 
@@ -194,7 +194,7 @@ describe("les gates", { concurrency: 8 }, () => {
   });
 
   test("arrêtées au plafond de la pass, des gates ne sont pas vertes pour autant", async (t) => {
-    const gates = await jouer(worktree(t, { gates: `${PLAFOND_FRANCHI}; sleep 30 & wait` }), 2000);
+    const gates = await jouer(worktree(t, { gates: `${CAP_CROSSED}; sleep 30 & wait` }), 2000);
 
     assert.equal(gates.outcome, "timeout");
   });
@@ -259,15 +259,15 @@ describe("les gates", { concurrency: 8 }, () => {
 
   test("des gates sorties d'elles-mêmes sont jugées sur leur code, même si leur plafond tombe avant que leur fin soit traitée", async (t) => {
     const racine = worktree(t, { gates: 'echo "gates : VERT"; echo $$ > pid' });
-    const plafondMs = 100;
+    const capMs = 100;
     // Le runtime en retard : sa boucle d'événements est tenue, sans rendre la
     // main, du lancement des gates jusqu'à ce qu'elles aient fini seules ET que
     // leur plafond soit échu. Relâchée dans sa phase « check », elle passe par
     // ses minuteurs — le plafond tombe — avant de lire la fin du script.
     await new Promise((resoudre) => setImmediate(resoudre));
     let lancees = false;
-    const temoin: Cloison = { bin: "", masques: [], identifiants: "", jeton: null, claude: "", envelopper: (lancement) => ((lancees = true), lancement) };
-    const enCours = jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: plafondMs, cloison: temoin });
+    const temoin: Partition = { bin: "", masques: [], identifiants: "", jeton: null, claude: "", envelopper: (lancement) => ((lancees = true), lancement) };
+    const enCours = jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: capMs, partition: temoin });
     while (!lancees) await Promise.resolve();
     const debut = Date.now();
     // Fini, et pas encore recueilli par le runtime : le script est un zombie.
@@ -279,7 +279,7 @@ describe("les gates", { concurrency: 8 }, () => {
       if (!/^\d+\n$/.test(ecrit)) return false;
       return spawnSync("ps", ["-o", "stat=", "-p", ecrit.trim()], { encoding: "utf8" }).stdout.startsWith("Z");
     };
-    while (!fini() || Date.now() - debut <= plafondMs) {
+    while (!fini() || Date.now() - debut <= capMs) {
       if (Date.now() - debut > 60_000) throw new Error("les gates n'ont jamais fini");
     }
 

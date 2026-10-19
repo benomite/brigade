@@ -6,26 +6,26 @@ import { chmodSync, chownSync, cpSync, existsSync, mkdirSync, readdirSync, readF
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { empreinteDuCode, lireCodeEnService, noterCodeEnService } from "../src/code.ts";
-import { desinstaller, etapesAReprendre, InstallationRefusee, jugerReseau, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier, jugerRenouvellement, type Constat } from "../src/installation.ts";
+import { uninstall, etapesAReprendre, InstallationRefusee, jugerReseau, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier, jugerRenouvellement, type Constat } from "../src/installation.ts";
 import type { EtatDuRenouvellement } from "../src/sonde-renouvellement.ts";
 import type { Verdict } from "../src/verdict.ts";
 import { retirerDecision } from "../src/decisions.ts";
 import { configRail } from "../src/alimenter.ts";
-import { lireSeuils } from "../src/derive.ts";
-import { lireReglages } from "../src/garde-fous.ts";
+import { lireSeuils } from "../src/drift.ts";
+import { lireReglages } from "../src/guardrails.ts";
 import { configManager } from "../src/manager.ts";
 import { configPass } from "../src/pass.ts";
 import { configReviewer } from "../src/reviewer.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { configStation } from "../src/station.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { principal as declarerStations } from "../src/declarer-stations.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
 import { principal as poserDecisions } from "../src/poser-decisions.ts";
 import { principal as etapes } from "../src/etapes-cli.ts";
 import { ETAPES, installationDe } from "../src/etapes.ts";
 import { prendreVerrou } from "../src/verrou.ts";
-import { decider } from "./aides/cuisine.ts";
+import { decider } from "./aides/kitchen.ts";
 import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, issueGitHub, jusqua, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, type FauxGh } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/installation-cli.ts");
@@ -62,14 +62,14 @@ type Fichier = { contenu: string; executable?: boolean } | { lien: string };
 // Ce que le dépôt du projet porte sur sa branche d'intégration. `null` : le
 // fichier n'y est pas.
 // `secrets` : les noms de secrets qu'il déclare.
-type Porte = { bindings?: string | null; gates?: Fichier | null; setup?: Fichier | null; secrets?: string };
+type Door = { bindings?: string | null; gates?: Fichier | null; setup?: Fichier | null; secrets?: string };
 
 // Le dépôt d'un projet tel qu'il est poussé sur son origine, fabriqué une fois
 // par fichier pour chaque chose qu'un test lui fait porter : chaque test en
 // reçoit une copie, et copier coûte bien moins que rejouer `git`.
 const gabarits = new Map<string, string>();
-function gabarit(porte: Porte): string {
-  const cle = JSON.stringify(porte);
+function gabarit(door: Door): string {
+  const cle = JSON.stringify(door);
   const connu = gabarits.get(cle);
   if (connu !== undefined) return connu;
   const racine = repertoireDuFichier("brigade-test-installation-", () => gabarits.clear());
@@ -78,10 +78,10 @@ function gabarit(porte: Porte): string {
   git(racine, "init", "-q", "--bare", `--initial-branch=${BASE}`, origine);
   git(racine, "init", "-q", `--initial-branch=${BASE}`, travail);
   const fichiers: Record<string, Fichier | null> = {
-    "CLAUDE.md": porte.bindings === null ? null : { contenu: porte.bindings ?? BINDINGS },
-    [GATES]: porte.gates === undefined ? { contenu: "#!/usr/bin/env bash\nexit 0\n", executable: true } : porte.gates,
-    [SETUP]: porte.setup === undefined ? { lien: FAUX_SETUP } : porte.setup,
-    ".claude/brigade/secrets": porte.secrets === undefined ? null : { contenu: porte.secrets },
+    "CLAUDE.md": door.bindings === null ? null : { contenu: door.bindings ?? BINDINGS },
+    [GATES]: door.gates === undefined ? { contenu: "#!/usr/bin/env bash\nexit 0\n", executable: true } : door.gates,
+    [SETUP]: door.setup === undefined ? { lien: FAUX_SETUP } : door.setup,
+    ".claude/brigade/secrets": door.secrets === undefined ? null : { contenu: door.secrets },
   };
   writeFileSync(join(travail, "LISEZMOI"), "le projet\n");
   for (const [chemin, fichier] of Object.entries(fichiers)) {
@@ -108,9 +108,9 @@ function gabarit(porte: Porte): string {
 
 // Un projet installé : son dépôt poussé sur l'origine, le clone réservé, le
 // répertoire d'état, et l'environnement du service — celui que la commande lit.
-function projet(t: TestContext, porte: Porte = {}) {
+function projet(t: TestContext, door: Door = {}) {
   const racine = repertoireTemporaire(t);
-  cpSync(gabarit(porte), racine, { recursive: true });
+  cpSync(gabarit(door), racine, { recursive: true });
   const [origine, clone] = [join(racine, "origine.git"), join(racine, "clone")];
   const config = join(clone, ".git/config");
   writeFileSync(config, readFileSync(config, "utf8").replaceAll(ORIGINE, origine));
@@ -162,22 +162,22 @@ const DECIDEES = {
 
 // Une décision qui n'est plus posée au journal.
 function sansDecision(etat: string, ...noms: string[]): void {
-  const journal = ouvrirJournal(etat);
+  const log = openLog(etat);
   try {
-    for (const nom of noms) retirerDecision(journal, { projet: PROJET, nom, auteur: "chef" });
+    for (const nom of noms) retirerDecision(log, { projet: PROJET, nom, auteur: "chef" });
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }
 
 // Une décision posée telle quelle, valeur illisible comprise : ce qu'un journal
 // d'une autre version, ou écrit à la main, pourrait porter.
 function decisionBrute(etat: string, nom: string, valeur: string): void {
-  const journal = ouvrirJournal(etat);
+  const log = openLog(etat);
   try {
-    journal.ajouter({ project: PROJET, ticket: null, author: "chef", type: "decision.set", payload: { name: nom, value: valeur, previous: null } });
+    log.ajouter({ project: PROJET, ticket: null, author: "chef", type: "decision.set", payload: { name: nom, value: valeur, previous: null } });
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }
 
@@ -219,7 +219,7 @@ describe("les variables obligatoires", () => {
 });
 
 describe("le réglage du geste d'installation", () => {
-  const sauvegardes = (racine: string) => join(racine, "sauvegardes");
+  const backups = (racine: string) => join(racine, "sauvegardes");
   const du_geste = (constats: Constat[]) => constats.filter((constat) => /installation gesture|backups root|réglage du geste|`sauvegardes=` /.test(constat.texte));
 
   test("une racine que root tient seul est constatée, avec ce qui a été lu", async (t) => {
@@ -229,7 +229,7 @@ describe("le réglage du geste d'installation", () => {
 
     const [dit] = du_geste(constats);
     assert.equal(dit?.etat, "ok");
-    assert.ok(dit?.texte.includes(sauvegardes(racine)));
+    assert.ok(dit?.texte.includes(backups(racine)));
     assert.ok(dit?.texte.includes(join(racine, "installateur.conf")));
   });
 
@@ -247,59 +247,59 @@ describe("le réglage du geste d'installation", () => {
 
   test("une racine tenue par le compte de service manque : à qui elle appartient, et la commande qui la remet à root", { skip: process.getuid?.() !== 0 && "chown réclame root : la box de test n'a pas de root" }, async (t) => {
     const { env, racine } = projet(t);
-    chownSync(sauvegardes(racine), 1001, 1001);
+    chownSync(backups(racine), 1001, 1001);
 
     const [dit] = du_geste(await verifier(env));
 
     assert.equal(dit?.etat, "manque");
-    assert.match(dit?.texte ?? "", new RegExp(`${sauvegardes(racine)} belongs to uid 1001 \\(mode 755\\)`));
+    assert.match(dit?.texte ?? "", new RegExp(`${backups(racine)} belongs to uid 1001 \\(mode 755\\)`));
     assert.match(dit?.texte ?? "", /root creates nothing there/);
-    assert.equal(dit?.geste?.includes(`sudo chown root:root ${sauvegardes(racine)} && sudo chmod go-w ${sauvegardes(racine)}`), true);
+    assert.equal(dit?.geste?.includes(`sudo chown root:root ${backups(racine)} && sudo chmod go-w ${backups(racine)}`), true);
   });
 
   test("une racine ouverte en écriture manque, avec le répertoire, son mode et la commande qui le ferme", async (t) => {
     const { env, racine } = projet(t);
-    chmodSync(sauvegardes(racine), 0o775);
+    chmodSync(backups(racine), 0o775);
 
     const [dit] = du_geste(await verifier(env));
 
     assert.equal(dit?.etat, "manque");
-    assert.match(dit?.texte ?? "", new RegExp(`${sauvegardes(racine)} belongs to uid ${process.getuid?.()} \\(mode 775\\)`));
+    assert.match(dit?.texte ?? "", new RegExp(`${backups(racine)} belongs to uid ${process.getuid?.()} \\(mode 775\\)`));
     assert.match(dit?.texte ?? "", /root creates nothing there/);
-    assert.equal(dit?.geste?.includes(`sudo chown root:root ${sauvegardes(racine)} && sudo chmod go-w ${sauvegardes(racine)}`), true);
+    assert.equal(dit?.geste?.includes(`sudo chown root:root ${backups(racine)} && sudo chmod go-w ${backups(racine)}`), true);
   });
 
   test("un parent de la racine que root ne tient pas manque, et c'est lui qui est nommé", async (t) => {
     const { env, racine } = projet(t);
-    const profonde = join(sauvegardes(racine), "sous");
+    const profonde = join(backups(racine), "sous");
     mkdirSync(profonde);
-    chmodSync(sauvegardes(racine), 0o775);
+    chmodSync(backups(racine), 0o775);
     writeFileSync(join(racine, "installateur.conf"), `sauvegardes=${profonde}\n`);
 
     const constats = await verifier(env);
 
     const [dit] = du_geste(constats);
     assert.equal(dit?.etat, "manque");
-    assert.ok(dit?.texte.includes(`${sauvegardes(racine)} belongs to uid`), dit?.texte);
+    assert.ok(dit?.texte.includes(`${backups(racine)} belongs to uid`), dit?.texte);
     assert.ok(dit?.texte.includes("mode 775"));
   });
 
   test("une racine absente manque, avec la commande qui la crée", async (t) => {
     const { env, racine } = projet(t);
-    rmSync(sauvegardes(racine), { recursive: true });
+    rmSync(backups(racine), { recursive: true });
 
     const [dit] = du_geste(await verifier(env));
 
     assert.equal(dit?.etat, "manque");
     assert.match(dit?.texte ?? "", /does not exist/);
-    assert.equal(dit?.geste?.includes(`sudo install -d ${sauvegardes(racine)}`), true);
+    assert.equal(dit?.geste?.includes(`sudo install -d ${backups(racine)}`), true);
   });
 
   test("une racine qui est un lien manque", async (t) => {
     const { env, racine } = projet(t);
-    rmSync(sauvegardes(racine), { recursive: true });
+    rmSync(backups(racine), { recursive: true });
     mkdirSync(join(racine, "ailleurs"));
-    symlinkSync(join(racine, "ailleurs"), sauvegardes(racine));
+    symlinkSync(join(racine, "ailleurs"), backups(racine));
 
     const [dit] = du_geste(await verifier(env));
 
@@ -460,9 +460,9 @@ describe("la vérification", () => {
 
   test("une connexion Max que le journal dit expirée manque, avec sa date, même si `claude auth status` répond connecté", async (t) => {
     const { env } = projet(t);
-    const journal = ouvrirJournal(env.BRIGADE_STATE_DIR as string);
-    journal.ajouter({ project: PROJET, ticket: null, author: "runtime", type: "station.disconnected", payload: { station: "box/claude", reason: "authentication_failed", run: null } });
-    journal.fermer();
+    const log = openLog(env.BRIGADE_STATE_DIR as string);
+    log.ajouter({ project: PROJET, ticket: null, author: "runtime", type: "station.disconnected", payload: { station: "box/claude", reason: "authentication_failed", run: null } });
+    log.fermer();
 
     const constats = await verifier(env);
 
@@ -480,10 +480,10 @@ describe("la vérification", () => {
 
   test("une connexion reprise ou un journal qui n'en dit rien ne change pas le constat", async (t) => {
     const { env } = projet(t);
-    const journal = ouvrirJournal(env.BRIGADE_STATE_DIR as string);
-    journal.ajouter({ project: PROJET, ticket: null, author: "runtime", type: "station.disconnected", payload: { station: "box/claude", reason: "authentication_failed", run: null } });
-    journal.ajouter({ project: PROJET, ticket: null, author: "chef", type: "kitchen.resumed", payload: {} });
-    journal.fermer();
+    const log = openLog(env.BRIGADE_STATE_DIR as string);
+    log.ajouter({ project: PROJET, ticket: null, author: "runtime", type: "station.disconnected", payload: { station: "box/claude", reason: "authentication_failed", run: null } });
+    log.ajouter({ project: PROJET, ticket: null, author: "chef", type: "kitchen.resumed", payload: {} });
+    log.fermer();
 
     const constats = await verifier(env);
 
@@ -746,9 +746,9 @@ describe("la vérification", () => {
     const lu = { repertoire: "/tmp/claude-1001", proprietaire: 0, uid: 1001 };
 
     assert.equal(jugerTemporaire({ ...lu, prive: false }).etat, "manque");
-    const sousCloison = jugerTemporaire({ ...lu, prive: true });
-    assert.equal(sousCloison.etat, "note");
-    assert.match(sousCloison.texte, /\/tmp\/claude-1001.*uid 0, expected 1001.*`PrivateTmp`.*Max connection/);
+    const underPartition = jugerTemporaire({ ...lu, prive: true });
+    assert.equal(underPartition.etat, "note");
+    assert.match(underPartition.texte, /\/tmp\/claude-1001.*uid 0, expected 1001.*`PrivateTmp`.*Max connection/);
   });
 
   test("une sauvegarde qui n'est pas programmée est signalée sans rien retenir", async (t) => {
@@ -848,14 +848,14 @@ describe("« Vérifier » vert, « installation terminée »", () => {
   test("un refus ne touche ni ce qui n'est pas noté, ni l'étape d'un manque déjà à faire : rien n'est écrit pour rien", async (t) => {
     const { env, etat } = projet(t);
     sansDecision(etat, "BRIGADE_REVIEWER_MODEL");
-    const journal = ouvrirJournal(etat, { lectureSeule: true });
-    const compter = () => journal.tout().filter((e) => e.type === "installation.step").length;
+    const log = openLog(etat, { lectureSeule: true });
+    const compter = () => log.tout().filter((e) => e.type === "installation.step").length;
     try {
       const refus = appeler(etapes, ["demarrage", "faite"], env);
       assert.equal(await refus.fin, 1, refus.sortie());
       assert.equal(compter(), 0);
     } finally {
-      journal.fermer();
+      log.fermer();
     }
   });
 
@@ -880,11 +880,11 @@ describe("« Vérifier » vert, « installation terminée »", () => {
     // Le runtime démarré dans l'environnement vérifié, et rien d'autre.
     const runtime = lancer(t, MAIN, [], service);
     const lancements = () => {
-      const journal = ouvrirJournal(etat, { lectureSeule: true });
+      const log = openLog(etat, { lectureSeule: true });
       try {
-        return journal.tout().filter((e) => e.type === "cook.launched").map((e) => e.ticket);
+        return log.tout().filter((e) => e.type === "cook.launched").map((e) => e.ticket);
       } finally {
-        journal.fermer();
+        log.fermer();
       }
     };
     await jusqua(() => lancements().length > 0);
@@ -896,10 +896,10 @@ describe("« Vérifier » vert, « installation terminée »", () => {
 
 describe("la mise à jour de la box", () => {
   const MISE_A_JOUR = /docs\/installer\.md, “Mettre brigade à jour”/;
-  const cloisonPosee = (unites: string) => join(unites, `brigade@${PROJET}.service.d`, "cloison.conf");
-  const poserCloison = (unites: string, regler: (contenu: string) => string = (contenu) => contenu) => {
-    mkdirSync(dirname(cloisonPosee(unites)), { recursive: true });
-    writeFileSync(cloisonPosee(unites), regler(readFileSync(join(DEPLOIEMENT, "cloison.conf"), "utf8")));
+  const setPartition = (unites: string) => join(unites, `brigade@${PROJET}.service.d`, "cloison.conf");
+  const installPartition = (unites: string, regler: (contenu: string) => string = (contenu) => contenu) => {
+    mkdirSync(dirname(setPartition(unites)), { recursive: true });
+    writeFileSync(setPartition(unites), regler(readFileSync(join(DEPLOIEMENT, "cloison.conf"), "utf8")));
   };
 
   test("des unités posées qui sont celles du dépôt : « à jour » est dit, et ce qui a été comparé est nommé", async (t) => {
@@ -935,7 +935,7 @@ describe("la mise à jour de la box", () => {
 
   test("la cloison posée se compare aussi, réglages du chef mis à part", async (t) => {
     const { env, unites } = projet(t);
-    poserCloison(unites, (contenu) =>
+    installPartition(unites, (contenu) =>
       contenu
         .replace("BRIGADE_SANDBOX_HIDDEN=/var/lib/brigade:/etc/brigade", "BRIGADE_SANDBOX_HIDDEN=/var/lib/brigade:/etc/brigade:/home/brigade/.ssh")
         .replace("#Environment=BRIGADE_SANDBOX_PRIVATE=<nom>:<nom>", "Environment=BRIGADE_SANDBOX_PRIVATE=.cargo"),
@@ -946,12 +946,12 @@ describe("la mise à jour de la box", () => {
     assert.match(constates(regles).join("\n"), /units up to date.*cloison\.conf/);
     assert.deepEqual(notes(regles), []);
 
-    poserCloison(unites, (contenu) => contenu.replace("PrivateTmp=yes", "PrivateTmp=no"));
+    installPartition(unites, (contenu) => contenu.replace("PrivateTmp=yes", "PrivateTmp=no"));
 
     const perimee = (await verifier(env)).find((constat) => constat.texte.startsWith("units out of date"));
     assert.match(perimee?.texte ?? "", /units out of date: cloison\.conf — /);
     // Sa copie porte les réglages du chef : elle ne se recopie pas à l'aveugle.
-    assert.ok(perimee?.geste?.includes(cloisonPosee(unites)));
+    assert.ok(perimee?.geste?.includes(setPartition(unites)));
     assert.match(perimee?.geste ?? "", /BRIGADE_SANDBOX_HIDDEN.*BRIGADE_SANDBOX_PRIVATE/);
     assert.doesNotMatch(perimee?.geste ?? "", /\*\.service/);
   });
@@ -1100,11 +1100,11 @@ describe("le coût du setup", () => {
   test("le setup est joué une fois, à blanc, dans un worktree neuf de la base — retiré ensuite", async (t) => {
     const { env, clone, etat, origine } = projet(t);
 
-    const mesure = await mesurerSetup(env);
+    const measure = await mesurerSetup(env);
 
-    assert.equal(mesure.pret, true);
-    assert.equal(mesure.joue, true);
-    assert.equal(mesure.sha, git(origine, "rev-parse", BASE));
+    assert.equal(measure.pret, true);
+    assert.equal(measure.joue, true);
+    assert.equal(measure.sha, git(origine, "rev-parse", BASE));
     // Le numéro d'aucun ticket : rien de ce que le setup réserve par numéro ne croise un cook.
     assert.equal(readFileSync(`${env.FAUX_SETUP}.appels`, "utf8"), `0 ${essais(etat)}\n`);
     assert.equal(existsSync(essais(etat)), false);
@@ -1115,20 +1115,20 @@ describe("le coût du setup", () => {
     const pose = '#!/usr/bin/env bash\nhead -c 400000 /dev/urandom > "$2/dependances.bin"\necho "export PRET=1"\n';
     const { env } = projet(t, { setup: { contenu: pose, executable: true } });
 
-    const mesure = await mesurerSetup(env);
+    const measure = await mesurerSetup(env);
 
-    assert.equal(mesure.pret, true);
-    assert.ok(mesure.apresOctets - mesure.avantOctets >= 300_000, `${mesure.avantOctets} → ${mesure.apresOctets}`);
+    assert.equal(measure.pret, true);
+    assert.ok(measure.apresOctets - measure.avantOctets >= 300_000, `${measure.avantOctets} → ${measure.apresOctets}`);
   });
 
   test("un setup en échec est rendu avec ce qu'il a dit, et son worktree est retiré", async (t) => {
     const { env, etat } = projet(t);
     writeFileSync(env.FAUX_SETUP ?? "", "echec");
 
-    const mesure = await mesurerSetup(env);
+    const measure = await mesurerSetup(env);
 
-    assert.equal(mesure.pret, false);
-    assert.match(mesure.sortie, /npm ci a échoué/);
+    assert.equal(measure.pret, false);
+    assert.match(measure.sortie, /npm ci a échoué/);
     assert.equal(existsSync(essais(etat)), false);
   });
 
@@ -1137,19 +1137,19 @@ describe("le coût du setup", () => {
     const { env, racine } = projet(t, { setup: { contenu: dit, executable: true }, secrets: "DATABASE_URL\n" });
     writeFileSync(join(racine, "secrets.env"), "DATABASE_URL=postgres://dev:mot-de-passe@localhost\n", { mode: 0o600 });
 
-    const mesure = await mesurerSetup({ ...env, BRIGADE_SECRETS_FILE: join(racine, "secrets.env") });
+    const measure = await mesurerSetup({ ...env, BRIGADE_SECRETS_FILE: join(racine, "secrets.env") });
 
-    assert.equal(mesure.pret, true);
-    assert.equal(mesure.sortie, "base créée sur [secret:DATABASE_URL]\n");
+    assert.equal(measure.pret, true);
+    assert.equal(measure.sortie, "base créée sur [secret:DATABASE_URL]\n");
   });
 
   test("un secret déclaré que la machine ne détient pas : le setup n'est pas joué, comme la station ne lancerait aucun cook", async (t) => {
     const { env, etat } = projet(t, { secrets: "DATABASE_URL\n" });
 
-    const mesure = await mesurerSetup(env);
+    const measure = await mesurerSetup(env);
 
-    assert.equal(mesure.pret, false);
-    assert.match(mesure.sortie, /project secrets unavailable[\s\S]*BRIGADE_SECRETS_FILE n'est pas défini.*`DATABASE_URL`/);
+    assert.equal(measure.pret, false);
+    assert.match(measure.sortie, /project secrets unavailable[\s\S]*BRIGADE_SECRETS_FILE n'est pas défini.*`DATABASE_URL`/);
     assert.equal(existsSync(`${env.FAUX_SETUP}.appels`), false);
     assert.equal(existsSync(essais(etat)), false);
   });
@@ -1166,18 +1166,18 @@ describe("le coût du setup", () => {
   test("un projet sans setup n'a rien à mesurer que son worktree", async (t) => {
     const { env } = projet(t, { setup: null });
 
-    const mesure = await mesurerSetup(env);
+    const measure = await mesurerSetup(env);
 
-    assert.equal(mesure.joue, false);
-    assert.equal(mesure.avantOctets, mesure.apresOctets);
+    assert.equal(measure.joue, false);
+    assert.equal(measure.avantOctets, measure.apresOctets);
   });
 
   const MO = 1024 ** 2;
-  const mesure = { pret: true as const, joue: true, sha: "abc", dureeMs: 60_000, avantOctets: 11 * MO, apresOctets: 400 * MO, sortie: "" };
-  const machine = { cooks: 30, entrees: 4, bailMs: 1_800_000, disqueLibre: 100 * 1024 * MO, disqueMinOctets: 5 * 1024 * MO };
+  const measure = { pret: true as const, joue: true, sha: "abc", dureeMs: 60_000, avantOctets: 11 * MO, apresOctets: 400 * MO, sortie: "" };
+  const machine = { cooks: 30, entrees: 4, leaseMs: 1_800_000, disqueLibre: 100 * 1024 * MO, disqueMinOctets: 5 * 1024 * MO };
 
   test("à 30 cooks : le disque que trente worktrees prennent, et le temps que le dernier attend son entrée", () => {
-    const tenue = tenir(mesure, machine);
+    const tenue = tenir(measure, machine);
 
     assert.deepEqual(tenue.disque, { besoin: 30 * 400 * MO, disponible: 95 * 1024 * MO, tient: true });
     // Huit vagues de quatre setups, une minute chacune : la dernière part sept minutes après la première.
@@ -1187,18 +1187,18 @@ describe("le coût du setup", () => {
   });
 
   test("à une seule vague, le dernier cook part avec le premier", () => {
-    assert.deepEqual(tenir(mesure, { ...machine, cooks: 4 }).entree, { vagues: 1, dernierMs: 0 });
+    assert.deepEqual(tenir(measure, { ...machine, cooks: 4 }).entree, { vagues: 1, dernierMs: 0 });
   });
 
   test("trente worktrees qui ne tiennent pas sur le disque : ça ne tient pas", () => {
-    const tenue = tenir(mesure, { ...machine, disqueLibre: 16 * 1024 * MO });
+    const tenue = tenir(measure, { ...machine, disqueLibre: 16 * 1024 * MO });
 
     assert.equal(tenue.disque.tient, false);
     assert.equal(tenue.tient, false);
   });
 
   test("un setup plus long que la moitié du bail ne tient pas : la station l'arrêterait à chaque ticket", () => {
-    const tenue = tenir({ ...mesure, dureeMs: 901_000 }, machine);
+    const tenue = tenir({ ...measure, dureeMs: 901_000 }, machine);
 
     assert.equal(tenue.setup.tient, false);
     assert.equal(tenue.tient, false);
@@ -1211,7 +1211,7 @@ describe("la désinstallation", () => {
   test("sans confirmation, elle dit ce qu'elle retirerait et ne retire rien", (t) => {
     const { env, clone } = projet(t);
 
-    const bilan = desinstaller(env, { confirme: false });
+    const bilan = uninstall(env, { confirme: false });
 
     assert.equal(bilan.retire, false);
     assert.equal(bilan.clone, clone);
@@ -1225,7 +1225,7 @@ describe("la désinstallation", () => {
     writeFileSync(join(etat, "log.db"), "le journal");
     const avant = refs(origine);
 
-    const bilan = desinstaller(env, { confirme: true });
+    const bilan = uninstall(env, { confirme: true });
 
     assert.equal(bilan.retire, true);
     assert.equal(bilan.worktrees, 1);
@@ -1252,12 +1252,12 @@ describe("la désinstallation", () => {
     git(clone, "worktree", "add", "-q", "-b", "cook/a", join(etat, "worktrees/a"), `origin/${BASE}`);
     writeFileSync(join(etat, "worktrees/a/travail.txt"), "en cours\n");
 
-    const { perdus } = desinstaller(env, { confirme: false });
+    const { perdus } = uninstall(env, { confirme: false });
 
     const attendus = [/^commit never pushed.*travail jamais poussé/, /^commit never pushed.*essai hors branche/, /^stash.*mis de côté/, /^uncommitted.*clone: LISEZMOI/, /^uncommitted.*brouillon\.txt/, /^uncommitted.*worktrees\/a: travail\.txt/];
     for (const attendu of attendus) assert.equal(perdus.filter((perdu) => attendu.test(perdu)).length, 1, `${attendu}\n${perdus.join("\n")}`);
     assert.equal(perdus.length, attendus.length, perdus.join("\n"));
-    assert.throws(() => desinstaller(env, { confirme: true }), /travail jamais poussé[^]*brouillon\.txt/);
+    assert.throws(() => uninstall(env, { confirme: true }), /travail jamais poussé[^]*brouillon\.txt/);
     assert.equal(existsSync(join(clone, "brouillon.txt")), true);
   });
 
@@ -1265,7 +1265,7 @@ describe("la désinstallation", () => {
     const { env, clone } = projet(t);
     writeFileSync(join(clone, "brouillon.txt"), "en cours\n");
 
-    assert.throws(() => desinstaller(env, { confirme: true }), InstallationRefusee);
+    assert.throws(() => uninstall(env, { confirme: true }), InstallationRefusee);
     assert.equal(existsSync(clone), true);
   });
 
@@ -1274,7 +1274,7 @@ describe("la désinstallation", () => {
     git(clone, "fetch", "-q", "origin");
     git(clone, "checkout", "-q", "-B", BASE, `origin/${BASE}`);
 
-    assert.deepEqual(desinstaller(env, { confirme: false }).perdus, []);
+    assert.deepEqual(uninstall(env, { confirme: false }).perdus, []);
   });
 
   test("le clone déjà parti, les worktrees qui restent sont annoncés à blanc, puis retirés — et c'est dit", (t) => {
@@ -1282,20 +1282,20 @@ describe("la désinstallation", () => {
     rmSync(clone, { recursive: true });
     mkdirSync(join(etat, "worktrees/a"), { recursive: true });
 
-    const blanc = desinstaller(env, { confirme: false });
+    const blanc = uninstall(env, { confirme: false });
     assert.deepEqual({ retire: blanc.retire, clone: blanc.clone, worktrees: blanc.worktrees }, { retire: false, clone: null, worktrees: 1 });
     assert.equal(existsSync(join(etat, "worktrees/a")), true);
 
-    const bilan = desinstaller(env, { confirme: true });
+    const bilan = uninstall(env, { confirme: true });
     assert.deepEqual({ retire: bilan.retire, clone: bilan.clone, worktrees: bilan.worktrees }, { retire: true, clone: null, worktrees: 1 });
     assert.equal(existsSync(join(etat, "worktrees")), false);
   });
 
   test("rejouée, elle ne trouve plus rien à retirer et ne se plaint pas", (t) => {
     const { env } = projet(t);
-    desinstaller(env, { confirme: true });
+    uninstall(env, { confirme: true });
 
-    const bilan = desinstaller(env, { confirme: true });
+    const bilan = uninstall(env, { confirme: true });
 
     assert.equal(bilan.clone, null);
     assert.equal(bilan.retire, false);
@@ -1306,7 +1306,7 @@ describe("la désinstallation", () => {
     const verrou = prendreVerrou(etat);
     t.after(() => verrou.relacher());
 
-    assert.throws(() => desinstaller(env, { confirme: true }), InstallationRefusee);
+    assert.throws(() => uninstall(env, { confirme: true }), InstallationRefusee);
     assert.equal(existsSync(clone), true);
   });
 
@@ -1316,7 +1316,7 @@ describe("la désinstallation", () => {
     mkdirSync(ailleurs);
     writeFileSync(join(ailleurs, "important.txt"), "à garder");
 
-    assert.throws(() => desinstaller({ ...env, BRIGADE_REPO_DIR: ailleurs }, { confirme: true }), InstallationRefusee);
+    assert.throws(() => uninstall({ ...env, BRIGADE_REPO_DIR: ailleurs }, { confirme: true }), InstallationRefusee);
     assert.equal(existsSync(join(ailleurs, "important.txt")), true);
   });
 
@@ -1326,7 +1326,7 @@ describe("la désinstallation", () => {
       const etat = join(clone, nom);
       mkdirSync(etat);
 
-      assert.throws(() => desinstaller({ ...env, BRIGADE_STATE_DIR: etat }, { confirme: true }), /inside the clone/);
+      assert.throws(() => uninstall({ ...env, BRIGADE_STATE_DIR: etat }, { confirme: true }), /inside the clone/);
       assert.equal(existsSync(clone), true);
     });
   }
@@ -1338,7 +1338,7 @@ describe("la désinstallation", () => {
     const lien = join(racine, "lien-vers-le-clone");
     symlinkSync(clone, lien);
 
-    assert.throws(() => desinstaller({ ...env, BRIGADE_REPO_DIR: lien, BRIGADE_STATE_DIR: etat }, { confirme: true }), /inside the clone/);
+    assert.throws(() => uninstall({ ...env, BRIGADE_REPO_DIR: lien, BRIGADE_STATE_DIR: etat }, { confirme: true }), /inside the clone/);
     assert.equal(existsSync(join(clone, ".git")), true);
   });
 });

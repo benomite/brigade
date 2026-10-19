@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { Sortie } from "../src/appel.ts";
 import { lireRetrait, type Plan } from "../src/desinstallateur.ts";
-import { principal as sousLeCompte } from "../src/desinstaller-sous-le-compte.ts";
+import { principal as sousLeCompte } from "../src/uninstall-as-the-account.ts";
 import { CODES, Refus } from "../src/installateur.ts";
 import { BOX } from "../src/installateur-cli.ts";
 import { prendreVerrou } from "../src/verrou.ts";
@@ -181,17 +181,17 @@ describe("désinstaller un projet", () => {
     const [avant, rang] = [b.photo(), b.appels().length];
 
     const nue = await b.geste(["uninstall", "calculus"]);
-    const avecLeJournal = await b.geste(["uninstall", "calculus", "--supprimer-le-journal"]);
+    const withTheLog = await b.geste(["uninstall", "calculus", "--supprimer-le-journal"]);
     const autre = await b.geste(["uninstall", "calculus", "--confirmer", "boutique"]);
 
-    for (const rendu of [nue, avecLeJournal, autre]) {
+    for (const rendu of [nue, withTheLog, autre]) {
       assert.equal(rendu.code, CODES.sansConfirmation, rendu.erreur);
       assert.deepEqual({ ok: rendu.json.ok, ecrit: rendu.json.ecrit }, { ok: false, ecrit: false });
       assert.match(rendu.erreur, /^brigade-installer : rien n'est retiré : /);
     }
     assert.equal(nue.json.motif, "sans-confirmation");
     assert.match(nue.erreur, /désinstaller « calculus » se confirme en le nommant — `sudo brigade-installer uninstall calculus --confirmer calculus` ; `--plan` dit d'abord ce qui serait retiré$/);
-    assert.match(avecLeJournal.erreur, /`sudo brigade-installer uninstall calculus --confirmer calculus --supprimer-le-journal`/);
+    assert.match(withTheLog.erreur, /`sudo brigade-installer uninstall calculus --confirmer calculus --supprimer-le-journal`/);
     assert.equal(autre.json.motif, "confirmation-d-un-autre");
     assert.match(autre.erreur, /la confirmation nomme « boutique », pas « calculus »/);
     assert.deepEqual(b.photo(), avant);
@@ -347,8 +347,8 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", () 
     const b = await installee(t);
     servir(b);
     writeFileSync(join(b.etats, "calculus/worktrees/a/travail.txt"), "en cours\n");
-    for (const journal of [[], ["--supprimer-le-journal"]]) {
-      await refuse(b, ["uninstall", "calculus", "--confirmer", "calculus", ...journal], "travail-jamais-pousse", /le clone de « calculus » porte ce que l'origine n'a pas .* rien n'est retiré :\n {2}uncommitted in .*worktrees\/a: travail\.txt$/, CODES.retenu);
+    for (const log of [[], ["--supprimer-le-journal"]]) {
+      await refuse(b, ["uninstall", "calculus", "--confirmer", "calculus", ...log], "travail-jamais-pousse", /le clone de « calculus » porte ce que l'origine n'a pas .* rien n'est retiré :\n {2}uncommitted in .*worktrees\/a: travail\.txt$/, CODES.retenu);
     }
   });
 
@@ -504,12 +504,12 @@ describe("le journal du geste, pour une désinstallation", () => {
     assert.equal((await b.geste(["uninstall", "calculus", "--confirmer", "calculus"], { qui: "benoit" })).code, 0);
 
     const fin = new Date();
-    const journal = b.journal().slice(deja);
-    for (const evenement of journal) assert.ok(debut.toISOString() <= evenement.at && evenement.at <= fin.toISOString(), evenement.at);
+    const log = b.journal().slice(deja);
+    for (const evenement of log) assert.ok(debut.toISOString() <= evenement.at && evenement.at <= fin.toISOString(), evenement.at);
     const confirmee = { action: "uninstall", args: ["calculus", "--confirmer", "calculus"] };
-    const echec = journal[5]?.payload as { reason: string; left: string[] };
+    const echec = log[5]?.payload as { reason: string; left: string[] };
     assert.deepEqual(
-      journal.map(({ author, project, type, payload }) => ({ author, project, type, payload })),
+      log.map(({ author, project, type, payload }) => ({ author, project, type, payload })),
       [
         { author: "benoit", project: "calculus", type: "installer.planned", payload: { action: "uninstall", args: ["calculus", "--plan"], result: "planned" } },
         { author: "associe", project: "calculus", type: "installer.refused", payload: { action: "uninstall", args: ["calculus"], result: "refused", reason: "sans-confirmation" } },

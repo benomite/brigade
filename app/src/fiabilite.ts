@@ -12,18 +12,18 @@
 // En deçà, la page le dit — jamais des zéros.
 //
 // Les tokens perdus sont ceux que le runtime juge face à `seuil-perdus` : sur les 10 derniers merges
-// (runtime/src/mesures.ts, `FENETRE_DE_PENTE`). `measures --by 1` range chaque merge dans sa tranche :
+// (runtime/src/measures.ts, `FENETRE_DE_PENTE`). `measures --by 1` range chaque merge dans sa tranche :
 // chaque ligne du bloc `launches` porte alors son rang, et la somme se fait sur les dix derniers.
 import type { Commande, Lecture, Sortie } from "./box.ts";
 
 export const ONGLET = "fiabilite";
 export const STATION = "station";
-export const MESURES = "measures";
+export const MEASURES = "measures";
 
 // Faute de réglage du chef, ceux du runtime (runtime/src/renvois.ts).
 export const FENETRE_PAR_DEFAUT = 10;
 export const SEUIL_PAR_DEFAUT = 50;
-// Les merges sur lesquels le runtime compte les tokens perdus (runtime/src/mesures.ts, `FENETRE_DE_PENTE`).
+// Les merges sur lesquels le runtime compte les tokens perdus (runtime/src/measures.ts, `FENETRE_DE_PENTE`).
 export const MERGES_DES_PERDUS = 10;
 // Les causes montrées, au plus.
 export const CAUSES_MONTREES = 3;
@@ -55,8 +55,8 @@ export function reglagesDe(station: string): Reglages {
 }
 
 // Ce que la veille lance, dans l'ordre : `station`, puis `measures` sur la fenêtre qu'il dit.
-export const mesuresSur = (fenetre: number) => `${MESURES} --last ${fenetre} --by 1`;
-export const COMMANDES: readonly Commande[] = [STATION, (lues: readonly Sortie[]) => mesuresSur(reglagesDe(lues.find(({ commande }) => commande === STATION)?.texte ?? "").fenetre)];
+export const measuresOver = (fenetre: number) => `${MEASURES} --last ${fenetre} --by 1`;
+export const COMMANDES: readonly Commande[] = [STATION, (lues: readonly Sortie[]) => measuresOver(reglagesDe(lues.find(({ commande }) => commande === STATION)?.texte ?? "").fenetre)];
 
 // --- Ce que `measures` écrit ------------------------------------------------------
 
@@ -82,12 +82,12 @@ export function renvoisDe(texte: string): Renvois | undefined {
   if (bloc === undefined) return undefined;
   const [tete = "", ...suite] = bloc;
   if (/^no served ticket in the log/.test(tete)) return { servis: 0, retenus: 0 };
-  const [, servis, retenus, ecartes] = /: (\d+) in the log, (\d+) kept, (\d+) set aside/.exec(tete) ?? [];
-  if (servis === undefined || retenus === undefined || ecartes === undefined) return undefined;
+  const [, servedOnes, retenus, ecartes] = /: (\d+) in the log, (\d+) kept, (\d+) set aside/.exec(tete) ?? [];
+  if (servedOnes === undefined || retenus === undefined || ecartes === undefined) return undefined;
   const [, premiers] = /^delivered on the first try: [\d.,]+% \((\d+) of \d+\)$/.exec(suite.find((ligne) => ligne.startsWith("delivered on the first try")) ?? "") ?? [];
   const [, essais] = /^attempts per ticket: ([\d.,]+) on average$/.exec(suite.find((ligne) => ligne.startsWith("attempts per ticket")) ?? "") ?? [];
-  if (premiers === undefined || essais === undefined) return { servis: Number(servis), retenus: Number(retenus) };
-  return { servis: Number(servis), retenus: Number(retenus), ecartes: Number(ecartes), premiers: Number(premiers), essaisMoyens: nombre(essais) };
+  if (premiers === undefined || essais === undefined) return { servis: Number(servedOnes), retenus: Number(retenus) };
+  return { servis: Number(servedOnes), retenus: Number(retenus), ecartes: Number(ecartes), premiers: Number(premiers), essaisMoyens: nombre(essais) };
 }
 
 // Le bloc `failures` (runtime/src/causes-des-ratages.ts, `decrireCauses`) : chaque cause, son nombre
@@ -144,7 +144,7 @@ export function perdusDe(texte: string): Perdus | undefined {
 
 // `sous` : la part est sous son seuil — comme dans la file, elle est mise en évidence.
 // `depasse` : les tokens perdus dépassent `seuil-perdus` ; sans seuil posé, rien n'est jugé.
-export type Mesure = {
+export type Measure = {
   fenetre: number;
   servis: number;
   retenus: number;
@@ -156,7 +156,7 @@ export type Mesure = {
 };
 // `sans` : la lecture n'a pas donné de quoi mesurer, et pourquoi, dans les mots de l'app.
 // `pasAssez` : pas encore assez de tickets servis pour mesurer.
-export type Vu = { projet: string; demande: number; a: string } & ({ sans: string } | { pasAssez: { servis: number; retenus: number; fenetre: number } } | { mesure: Mesure });
+export type Vu = { projet: string; demande: number; a: string } & ({ sans: string } | { pasAssez: { servis: number; retenus: number; fenetre: number } } | { mesure: Measure });
 
 const PAS_LU = "the reliability was not read: what the app got in its place is below";
 const ANCIEN = "the reliability is not communicated: the measures of this station do not count retries yet — its runtime predates it";
@@ -165,28 +165,28 @@ export function voir(lecture: Lecture): Vu {
   const { projet, demande, a } = lecture;
   if ("erreur" in lecture) return { projet, demande, a, sans: PAS_LU };
   const station = lecture.sorties.find(({ commande }) => commande === STATION)?.texte;
-  const mesures = lecture.sorties.find(({ commande }) => commande.split(" ")[0] === MESURES)?.texte;
-  if (station === undefined || mesures === undefined) return { projet, demande, a, sans: PAS_LU };
+  const measures = lecture.sorties.find(({ commande }) => commande.split(" ")[0] === MEASURES)?.texte;
+  if (station === undefined || measures === undefined) return { projet, demande, a, sans: PAS_LU };
   const reglages = reglagesDe(station);
-  const renvois = renvoisDe(mesures);
+  const renvois = renvoisDe(measures);
   if (renvois === undefined) return { projet, demande, a, sans: ANCIEN };
   if (!("premiers" in renvois) || renvois.servis < reglages.fenetre || renvois.retenus === 0) return { projet, demande, a, pasAssez: { servis: renvois.servis, retenus: renvois.retenus, fenetre: reglages.fenetre } };
-  const { servis, retenus, ecartes, premiers, essaisMoyens } = renvois;
-  const perdus = perdusDe(mesures);
+  const { servis: servedOnes, retenus, ecartes, premiers, essaisMoyens } = renvois;
+  const perdus = perdusDe(measures);
   return {
     projet,
     demande,
     a,
     mesure: {
       fenetre: reglages.fenetre,
-      servis,
+      servis: servedOnes,
       retenus,
       ecartes,
       // Le jugement de la dérive (runtime/src/renvois.ts, `derivePremierCoup`) : strictement sous le seuil.
       premierCoup: { premiers, retenus, pourcent: Math.round((premiers * 100) / retenus), seuil: reglages.seuil, seuilPose: reglages.seuilPose, sous: (premiers * 100) / retenus < reglages.seuil },
       essaisMoyens,
       perdus: perdus === undefined ? null : { ...perdus, seuil: reglages.seuilPerdus, depasse: reglages.seuilPerdus !== null && perdus.tokens > reglages.seuilPerdus },
-      causes: ((causes) => (causes === undefined ? null : { rates: causes.rates, causes: causes.causes.filter(({ essais }) => essais > 0).sort((x, y) => y.essais - x.essais).slice(0, CAUSES_MONTREES) }))(causesDe(mesures)),
+      causes: ((causes) => (causes === undefined ? null : { rates: causes.rates, causes: causes.causes.filter(({ essais }) => essais > 0).sort((x, y) => y.essais - x.essais).slice(0, CAUSES_MONTREES) }))(causesDe(measures)),
     },
   };
 }
@@ -196,7 +196,7 @@ export function voir(lecture: Lecture): Vu {
 // Ce que la file dit d'une fiabilité qui a dérivé : ses lignes `drift` (runtime/src/etat.ts) — la part
 // livrée du premier coup sous son seuil, ou les tokens perdus au-delà du leur —, sans le geste qui les
 // suit. Les autres seuils franchis (tests, dépôt, ticket le plus cher) ne sont pas la fiabilité des cooks.
-export function deriveDe(status: string): string[] {
+export function driftOf(status: string): string[] {
   return [...status.matchAll(/^drift {6}(.*)$/gm)].flatMap(([, ligne = ""]) => {
     const dite = ligne.replace(/ — `[^`]*`$/, "");
     if (/delivered on the first try/.test(dite)) return [dite];

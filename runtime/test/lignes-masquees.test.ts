@@ -131,11 +131,11 @@ describe("lignesMasquees", () => {
       () => "\n",
     ];
     // Les séparateurs sont rares : c'est dans les longues suites que la coupe se joue.
-    const tirer = () => (hasard() < 0.06 ? parmi(morceaux.slice(7)) : parmi(morceaux.slice(0, 7)))();
+    const pull = () => (hasard() < 0.06 ? parmi(morceaux.slice(7)) : parmi(morceaux.slice(0, 7)))();
     let masques = 0;
     let coupesDansUneSuite = 0;
     for (let essai = 0; essai < 3000; essai++) {
-      const texte = Array.from({ length: 1 + entier(25) }, tirer).join("");
+      const texte = Array.from({ length: 1 + entier(25) }, pull).join("");
       const attendu = masquerIdentifiants(texte);
       const borne = parmi([1, 20, 58, 70, 100, 200, 257, 1000]);
       const pasMax = parmi([1, 3, 7, 64, 300, 2000]);

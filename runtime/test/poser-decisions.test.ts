@@ -8,11 +8,11 @@ import assert from "node:assert/strict";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { attentesDuChef } from "../src/attend.ts";
+import { attentesDuChef } from "../src/awaiting.ts";
 import { DECISIONS, decisionsPosees, OBLIGATOIRES, verifierDecision } from "../src/decisions.ts";
 import { principal as declarerStations } from "../src/declarer-stations.ts";
 import { installationDe, noterEtape } from "../src/etapes.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { POSABLES, principal } from "../src/poser-decisions.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { appeler, BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, lancer, repertoireTemporaire } from "./outils.ts";
@@ -68,11 +68,11 @@ async function repondre(etat: string, args: readonly string[]) {
 }
 
 function evenements(etat: string) {
-  const journal = ouvrirJournal(etat, { lectureSeule: true });
+  const log = openLog(etat, { lectureSeule: true });
   try {
-    return journal.tout();
+    return log.tout();
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }
 
@@ -129,16 +129,16 @@ test("les réponses sont posées au journal comme décisions du chef, et l'étap
   assert.match(sortie, /^brigade : manager-modele : sonnet \(c'était : non posée\)$/m);
   assert.match(sortie, /lues par le runtime à sa lecture suivante, sans redémarrage/);
   assert.match(sortie, /« Poser les décisions que le démarrage réclame » notée faite/);
-  const journal = ouvrirJournal(etat, { lectureSeule: true });
+  const log = openLog(etat, { lectureSeule: true });
   try {
-    assert.deepEqual(decisionsPosees(journal.base), {
+    assert.deepEqual(decisionsPosees(log.base), {
       BRIGADE_MANAGER_MODEL: "sonnet",
       BRIGADE_MANAGER_EFFORT: "medium",
       BRIGADE_REVIEWER_MODEL: "sonnet",
       BRIGADE_REVIEWER_EFFORT: "medium",
     });
   } finally {
-    journal.fermer();
+    log.fermer();
   }
   assert.deepEqual(evenements(etat).map((e) => [e.type, e.author, e.project]), [
     ...RECLAMEES.map(() => ["decision.set", "chef", PROJET]),
@@ -168,9 +168,9 @@ test("une réponse partielle est posée, l'étape reste à faire et la sortie di
 
 test("les étapes qui précèdent faites, l'étape courante passe des décisions au démarrage", async (t) => {
   const etat = repertoireTemporaire(t);
-  const journal = ouvrirJournal(etat);
-  for (const etape of ["ajout", "init", "verification", "stations", "protection"]) noterEtape(journal, { projet: PROJET, etape, etat: "done", auteur: "chef" });
-  journal.fermer();
+  const log = openLog(etat);
+  for (const etape of ["ajout", "init", "verification", "stations", "protection"]) noterEtape(log, { projet: PROJET, etape, etat: "done", auteur: "chef" });
+  log.fermer();
   assert.equal(installationDe(etat).courante, "decisions");
 
   assert.equal((await repondre(etat, RECLAMEES.flat())).code, 0);
@@ -298,11 +298,11 @@ test("de bout en bout : toutes les décisions posées pendant l'installation, le
   // Aucune décision n'est dite manquante, ni ignorée dans l'environnement.
   for (const decision of DECISIONS) assert.equal(runtime.sortie().includes(decision), false, `${decision} : ${runtime.sortie()}`);
   assert.doesNotMatch(runtime.sortie(), /non relu/);
-  const journal = ouvrirJournal(etat, { lectureSeule: true });
+  const log = openLog(etat, { lectureSeule: true });
   try {
-    assert.deepEqual(attentesDuChef(journal.base, lireRail(journal.base)), []);
+    assert.deepEqual(attentesDuChef(log.base, lireRail(log.base)), []);
   } finally {
-    journal.fermer();
+    log.fermer();
   }
   runtime.process.kill("SIGTERM");
   assert.equal(await runtime.fin, 0);

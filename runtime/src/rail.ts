@@ -2,10 +2,10 @@
 // et le faire avancer jusqu'au service. Chaque geste vérifie puis écrit dans
 // une seule transaction d'écriture : deux gestes concurrents se suivent, ils ne
 // se croisent pas.
-import { BAIL_ECHU, FIN_DE_86, motifDeRelance, type FaitRail } from "./events/rail.ts";
+import { LEASE_EXPIRED, FIN_DE_86, motifDeRelance, type FaitRail } from "./events/rail.ts";
 import { fournitTout } from "./capacites.ts";
-import { illisible, requises } from "./fiche.ts";
-import type { Journal } from "./journal.ts";
+import { illisible, requises } from "./card.ts";
+import type { Log } from "./log.ts";
 import { cooksEnCours } from "./projections/guardrails.ts";
 import { communsDuRail, lireRail, ticketDuRail, type Etat, type TicketRail } from "./projections/rail.ts";
 import { recouvrement } from "./zones.ts";
@@ -52,11 +52,11 @@ export type Rail = {
   // que ce cook écrit encore.
   // `seul` : ce ticket-là, ou rien — la réparation d'une base rouge, seule à
   // en partir.
-  prendre(station: string | readonly Preneuse[], enCuisine?: ReadonlyMap<number, string[]>, seul?: number): TicketRail | null;
+  prendre(station: string | readonly Preneuse[], cooking?: ReadonlyMap<number, string[]>, seul?: number): TicketRail | null;
   // Combien de tickets `prendre` pourrait donner, sans en prendre aucun : ce
   // qui attend derrière une station qui se retient. `preneuses` : seulement
   // ceux que l'une de ces stations peut cuisiner.
-  servables(enCuisine?: ReadonlyMap<number, string[]>, preneuses?: readonly Preneuse[], seul?: number): number;
+  servables(cooking?: ReadonlyMap<number, string[]>, preneuses?: readonly Preneuse[], seul?: number): number;
   // Repousse l'échéance du bail : le travail de la station a progressé.
   renouveler(ticket: number, station: string): void;
   // Remet le ticket en attente. Avec `station`, c'est elle qui le rend, et elle
@@ -99,7 +99,7 @@ export function retenue(ticket: TicketRail): "attend" | "bloque" | "zone" | null
   return ticket.awaits.some((attendu) => attendu.left !== null) ? "bloque" : "attend";
 }
 
-export const BLOQUE = "BLOQUÉ";
+export const BLOCKED = "BLOQUÉ";
 // Un ticket en attente d'un tiers : 86 sans heure de retour, que seul un geste
 // du chef en sort.
 export const EN_WAITING = "WAITING";
@@ -113,15 +113,15 @@ const DIT_GELE = "86 sans heure de retour, non jugé par la pass";
 // De même, WAITING est un 86 : celui d'un ticket en attente d'un tiers.
 export function etatLu(ticket: TicketRail): string {
   if (ticket.waitingFor !== null) return EN_WAITING;
-  return retenue(ticket) === "bloque" || ticket.frozenBy.length > 0 ? BLOQUE : nomEtat(ticket.state);
+  return retenue(ticket) === "bloque" || ticket.frozenBy.length > 0 ? BLOCKED : nomEtat(ticket.state);
 }
 
-export const BLOQUE_EN = "BLOCKED";
+export const BLOCKED_EN = "BLOCKED";
 
 // L'état lu en anglais : le même que `etatLu`, mot pour mot traduit.
 export function etatLuEn(ticket: TicketRail): string {
   if (ticket.waitingFor !== null) return EN_WAITING;
-  return retenue(ticket) === "bloque" || ticket.frozenBy.length > 0 ? BLOQUE_EN : nomEtatEn(ticket.state);
+  return retenue(ticket) === "bloque" || ticket.frozenBy.length > 0 ? BLOCKED_EN : nomEtatEn(ticket.state);
 }
 
 const ABANDONS: Record<string, string> = {
@@ -155,15 +155,15 @@ const numeros = (tickets: { ticket: number }[]) => tickets.map(({ ticket }) => `
 // Pourquoi un ticket en attente ne part pas, ou null si rien ne le retient.
 export function direRetenue(ticket: TicketRail): string | null {
   if (retenue(ticket) === null) return null;
-  const abandonnes = ticket.awaits.filter((attendu) => attendu.left !== null);
+  const droppedOnes = ticket.awaits.filter((attendu) => attendu.left !== null);
   const enCours = ticket.awaits.filter((attendu) => attendu.left === null);
   const gele = (attendu: { ticket: number }) => ticket.frozenBy.includes(attendu.ticket);
-  const bloque = abandonnes.map((attendu) => `#${attendu.ticket} abandonné (${nomAbandon(attendu.left?.reason ?? "")})`).join(", ");
+  const blocked = droppedOnes.map((attendu) => `#${attendu.ticket} abandonné (${nomAbandon(attendu.left?.reason ?? "")})`).join(", ");
   const attendus = enCours.filter((attendu) => !gele(attendu));
   return [
-    ...(abandonnes.length === 0 ? [] : [bloque]),
+    ...(droppedOnes.length === 0 ? [] : [blocked]),
     ...enCours.filter(gele).map((attendu) => `${GELE} par #${attendu.ticket} (${DIT_GELE})`),
-    ...(attendus.length === 0 ? [] : [`attend ${abandonnes.length === 0 ? "" : "aussi "}${numeros(attendus)}`]),
+    ...(attendus.length === 0 ? [] : [`attend ${droppedOnes.length === 0 ? "" : "aussi "}${numeros(attendus)}`]),
     ...ticket.held.map((tenant) => (gele(tenant) ? `${GELE} par #${tenant.ticket} (${DIT_GELE} — zone tenue : ${tenant.path})` : `zone tenue par #${tenant.ticket} (${tenant.path})`)),
   ].join(" · ");
 }
@@ -171,15 +171,15 @@ export function direRetenue(ticket: TicketRail): string | null {
 // La même, en anglais : ce que dit la ligne du ticket dans `status`.
 export function direRetenueEn(ticket: TicketRail): string | null {
   if (retenue(ticket) === null) return null;
-  const abandonnes = ticket.awaits.filter((attendu) => attendu.left !== null);
+  const droppedOnes = ticket.awaits.filter((attendu) => attendu.left !== null);
   const enCours = ticket.awaits.filter((attendu) => attendu.left === null);
   const gele = (attendu: { ticket: number }) => ticket.frozenBy.includes(attendu.ticket);
-  const bloque = abandonnes.map((attendu) => `#${attendu.ticket} dropped (${nomAbandonEn(attendu.left?.reason ?? "")})`).join(", ");
+  const blocked = droppedOnes.map((attendu) => `#${attendu.ticket} dropped (${nomAbandonEn(attendu.left?.reason ?? "")})`).join(", ");
   const attendus = enCours.filter((attendu) => !gele(attendu));
   return [
-    ...(abandonnes.length === 0 ? [] : [bloque]),
+    ...(droppedOnes.length === 0 ? [] : [blocked]),
     ...enCours.filter(gele).map((attendu) => `${GELE_EN} by #${attendu.ticket} (${DIT_GELE_EN})`),
-    ...(attendus.length === 0 ? [] : [`${abandonnes.length === 0 ? "" : "also "}awaiting ${numeros(attendus)}`]),
+    ...(attendus.length === 0 ? [] : [`${droppedOnes.length === 0 ? "" : "also "}awaiting ${numeros(attendus)}`]),
     ...ticket.held.map((tenant) => (gele(tenant) ? `${GELE_EN} by #${tenant.ticket} (${DIT_GELE_EN} — zone held: ${tenant.path})` : `zone held by #${tenant.ticket} (${tenant.path})`)),
   ].join(" · ");
 }
@@ -197,13 +197,13 @@ const preneusesDe = (ticket: TicketRail, preneuses: readonly Preneuse[]) =>
     return fournitTout(fournit, demande) && (ordinaires !== false || demande.length > 0);
   });
 
-export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
-  const { projet, dureeBailMs } = options;
+export function ouvrirRail(log: Log, options: OptionsRail): Rail {
+  const { projet, dureeBailMs: leaseDurationMs } = options;
   const maintenant = options.maintenant ?? (() => new Date());
-  const { base } = journal;
+  const { base } = log;
 
   const noter = (ticket: number, station: string | undefined, fait: FaitRail) =>
-    journal.ajouter({ project: projet, ticket, author: station === undefined ? "runtime" : `station:${station}`, ...fait });
+    log.ajouter({ project: projet, ticket, author: station === undefined ? "runtime" : `station:${station}`, ...fait });
 
   const exiger = (ticket: number, etats: Etat[], station?: string): TicketRail => {
     const trouve = ticketDuRail(base, ticket);
@@ -222,12 +222,12 @@ export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
       // Les horodatages sont tous au même format ISO 8601 UTC : l'ordre des
       // chaînes est celui du temps.
       const instant = maintenant().toISOString();
-      const enCuisine = new Set(cooksEnCours(base).map((cook) => cook.ticket));
+      const cooking = new Set(cooksEnCours(base).map((cook) => cook.ticket));
       let rendus = 0;
       for (const ticket of lireRail(base)) {
         if (ticket.state === "taken" && ticket.leaseUntil !== null && ticket.leaseUntil <= instant) {
-          if (enCuisine.has(ticket.ticket)) continue;
-          noter(ticket.ticket, undefined, { type: "ticket.released", payload: { reason: BAIL_ECHU, station: ticket.station } });
+          if (cooking.has(ticket.ticket)) continue;
+          noter(ticket.ticket, undefined, { type: "ticket.released", payload: { reason: LEASE_EXPIRED, station: ticket.station } });
           rendus++;
         } else if (ticket.state === "86" && ticket.until !== null && ticket.until <= instant) {
           noter(ticket.ticket, undefined, { type: "ticket.released", payload: { reason: FIN_DE_86, station: null } });
@@ -248,31 +248,31 @@ export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
   // Les tickets qu'une station peut prendre, dans l'ordre de service : rien ne
   // les retient sur le rail, et leur zone ne recouvre celle d'aucun ticket
   // encore en cuisine.
-  const prenables = (enCuisine?: ReadonlyMap<number, string[]>, preneuses?: readonly Preneuse[], seul?: number): TicketRail[] => {
-    const communs = enCuisine?.size ? communsDuRail(base) : [];
+  const prenables = (cooking?: ReadonlyMap<number, string[]>, preneuses?: readonly Preneuse[], seul?: number): TicketRail[] => {
+    const communs = cooking?.size ? communsDuRail(base) : [];
     const zoneLibre = (ticket: TicketRail) => {
       const zone = illisible(ticket.card) === null ? (ticket.card?.zone ?? []) : [];
-      return ![...(enCuisine?.values() ?? [])].some((tenue) => recouvrement(zone, tenue, communs) !== null);
+      return ![...(cooking?.values() ?? [])].some((tenue) => recouvrement(zone, tenue, communs) !== null);
     };
     const cuisinable = (ticket: TicketRail) => preneuses === undefined || preneusesDe(ticket, preneuses).length > 0;
     return lireRail(base).filter(
-      (ticket) => (seul === undefined || ticket.ticket === seul) && servable(ticket) && !enCuisine?.has(ticket.ticket) && zoneLibre(ticket) && cuisinable(ticket),
+      (ticket) => (seul === undefined || ticket.ticket === seul) && servable(ticket) && !cooking?.has(ticket.ticket) && zoneLibre(ticket) && cuisinable(ticket),
     );
   };
 
-  const echeance = () => new Date(maintenant().getTime() + dureeBailMs).toISOString();
+  const echeance = () => new Date(maintenant().getTime() + leaseDurationMs).toISOString();
 
   return {
     tickets: () => lireRail(base),
     relever,
-    prendre(qui, enCuisine, seul) {
+    prendre(qui, cooking, seul) {
       const preneuses = typeof qui === "string" ? undefined : qui;
       if (qui === "" || preneuses?.some(({ station }) => station === "")) throw new GesteRefuse("une station sans nom ne prend pas de ticket");
       return base.transaction(() => {
         // Un ticket dont le bail vient d'échoir n'attend pas le tick pour
         // redevenir prenable.
         relever();
-        const suivant = prenables(enCuisine, preneuses, seul)[0];
+        const suivant = prenables(cooking, preneuses, seul)[0];
         if (!suivant) return null;
         const station = typeof qui === "string" ? qui : preneusesDe(suivant, qui)[0]?.station;
         if (station === undefined) return null;
@@ -280,7 +280,7 @@ export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
         return ticketDuRail(base, suivant.ticket);
       });
     },
-    servables: (enCuisine, preneuses, seul) => prenables(enCuisine, preneuses, seul).length,
+    servables: (cooking, preneuses, seul) => prenables(cooking, preneuses, seul).length,
     renouveler(ticket, station) {
       base.transaction(() => {
         exiger(ticket, ["taken"], station);

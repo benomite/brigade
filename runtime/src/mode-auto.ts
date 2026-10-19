@@ -83,7 +83,7 @@ export function verifierCible({ nom, hote }: Cible): void {
 }
 
 // La commande exacte qui lit, sur la box, ce que `distante` nomme.
-export const surLaBox = (hote: string, distante: string) => `${SSH} ${hote} ${distante}`;
+export const surLaBox = (hote: string, remote: string) => `${SSH} ${hote} ${remote}`;
 
 export const lireLaFile = (hote: string, nom: string) => surLaBox(hote, `brigade ${nom} ${LECTURE_DE_LA_FILE}`);
 export const lireLEtat = (hote: string, nom: string) => LECTURES_DE_L_ETAT.map((commande) => surLaBox(hote, `brigade ${nom} ${commande}`));

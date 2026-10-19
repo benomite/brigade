@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ouvrirJournal, type Journal } from "../src/journal.ts";
+import { openLog, type Log } from "../src/log.ts";
 import { definirProjection } from "../src/projection.ts";
 import { PROJECTIONS } from "../src/projections.ts";
-import { activitesDesCooksEnCours, cooksEnCours, derniersCooks, mesuresDesCooksEnCours } from "../src/projections/guardrails.ts";
+import { activitesDesCooksEnCours, cooksEnCours, derniersCooks, runningCooksMeasures } from "../src/projections/guardrails.ts";
 import { dernierTick, derniereSession, sessionEnCours, sessions } from "../src/projections/sessions.ts";
 import { ouvrirRail } from "../src/rail.ts";
 import type { Fait } from "../src/evenements.ts";
-import type { FaitGardeFous } from "../src/events/guardrails.ts";
+import type { GuardrailsFact } from "../src/events/guardrails.ts";
 import type { FaitRuntime } from "../src/events/runtime.ts";
 import { faitInconnu, horloge, photographier, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
@@ -17,40 +17,40 @@ const demarrage = (pid: number) =>
 // Une histoire qui fait passer chaque projection du registre par tous ses
 // états. Un domaine qui ajoute sa projection ajoute ici les faits qui la
 // nourrissent : le test de rejeu la couvre alors sans autre changement.
-function raconter(journal: Journal): void {
-  journal.ajouter(demarrage(100));
-  journal.ajouter({ project: "brigade", ticket: 7, author: "github", ...faitInconnu("ticket.arrived") });
-  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.stopped", payload: { signal: "SIGTERM" } });
-  journal.ajouter(demarrage(200));
-  journal.ajouter(demarrage(300));
-  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.ticked", payload: { intervalMs: 60_000 } });
-  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.interrupted", payload: { startedSeq: 4 } });
-  raconterLeRail(journal);
-  raconterLesGardeFous(journal);
-  raconterLaStation(journal);
-  raconterLaPass(journal);
-  raconterLeManager(journal);
-  raconterLaSauvegarde(journal);
-  raconterLeNettoyage(journal);
-  raconterLaDerive(journal);
-  raconterLeService(journal);
-  raconterLUrgence(journal);
-  raconterLeJeton(journal);
-  raconterLAncienneMiseEnService(journal);
+function raconter(log: Log): void {
+  log.ajouter(demarrage(100));
+  log.ajouter({ project: "brigade", ticket: 7, author: "github", ...faitInconnu("ticket.arrived") });
+  log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.stopped", payload: { signal: "SIGTERM" } });
+  log.ajouter(demarrage(200));
+  log.ajouter(demarrage(300));
+  log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.ticked", payload: { intervalMs: 60_000 } });
+  log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.interrupted", payload: { startedSeq: 4 } });
+  raconterLeRail(log);
+  tellTheGuardrails(log);
+  raconterLaStation(log);
+  raconterLaPass(log);
+  raconterLeManager(log);
+  tellTheBackup(log);
+  raconterLeNettoyage(log);
+  tellTheDrift(log);
+  raconterLeService(log);
+  raconterLUrgence(log);
+  raconterLeJeton(log);
+  raconterLAncienneMiseEnService(log);
 }
 
 // La date du jeton longue durée : illisible, puis lue — la dernière l'emporte.
-function raconterLeJeton(journal: Journal): void {
+function raconterLeJeton(log: Log): void {
   const commun = { token: "/etc/brigade/claude-token", file: "/etc/brigade/claude-token.cree", lifetimeDays: 365, warningDays: 30 };
-  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "token.observed", payload: { ...commun, state: "absent", created: null } });
-  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "token.observed", payload: { ...commun, state: "read", created: `${JOUR_HORLOGE}T08:00:00.000Z` } });
+  log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "token.observed", payload: { ...commun, state: "absent", created: null } });
+  log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "token.observed", payload: { ...commun, state: "read", created: `${JOUR_HORLOGE}T08:00:00.000Z` } });
 }
 
 // Ce que les journaux d'avant la station portent de la mise en service par
 // projet et de la comparaison de version : plus aucune projection ne le lit,
 // son rejeu ne change rien.
-function raconterLAncienneMiseEnService(journal: Journal): void {
-  const noter = (type: string, payload: Record<string, unknown>) => journal.ajouter({ project: "brigade", ticket: null, author: "runtime", ...faitInconnu(type, payload) });
+function raconterLAncienneMiseEnService(log: Log): void {
+  const noter = (type: string, payload: Record<string, unknown>) => log.ajouter({ project: "brigade", ticket: null, author: "runtime", ...faitInconnu(type, payload) });
   noter("version.compared", { outcome: "waiting", served: "a".repeat(40), branch: "origin/v2", head: "b".repeat(40), since: `${JOUR_HORLOGE}T08:21:07.000Z`, deliveries: 2 });
   noter("deploy.requested", { cut: false });
   noter("deploy.launched", { command: ["sudo", "-n", "--"], flying: [], log: "mise-en-service.log", served: "a".repeat(40) });
@@ -58,17 +58,17 @@ function raconterLAncienneMiseEnService(journal: Journal): void {
 }
 
 // Une urgence annoncée, puis rappelée : l'alerte en cours garde le rappel.
-function raconterLUrgence(journal: Journal): void {
+function raconterLUrgence(log: Log): void {
   const payload = { key: "k", label: "brigade : toute la cuisine attend ton merge de #7", decision: "#7", ticket: 7, cause: "merge", geste: "merge", since: `${JOUR_HORLOGE}T08:00:00.000Z`, retenus: [8] };
-  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "urgence.alerted", payload: { ...payload, reminder: false } });
-  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "urgence.alerted", payload: { ...payload, reminder: true } });
+  log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "urgence.alerted", payload: { ...payload, reminder: false } });
+  log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "urgence.alerted", payload: { ...payload, reminder: true } });
 }
 
 // Deux livraisons servies : l'une écoute, l'autre démarre encore ; une
 // troisième, arrêtée. Deux worktrees tenus pour une app à lancer, dont l'un
 // relâché. Et un projet qui ne se servait pas, s'est servi, puis ne se sert plus.
-function raconterLeService(journal: Journal): void {
-  const noter = (fait: Fait, ticket: number | null = null) => journal.ajouter({ project: "brigade", ticket, author: "station:box/claude", ...fait });
+function raconterLeService(log: Log): void {
+  const noter = (fait: Fait, ticket: number | null = null) => log.ajouter({ project: "brigade", ticket, author: "station:box/claude", ...fait });
   const lance = (ticket: number) => ({ station: "box/claude", run: `${ticket}-a`, worktree: `worktrees/${ticket}-a`, branch: `cook/${ticket}-a`, port: 20000 + ticket, pid: 4000 + ticket });
   noter({ type: "service.unavailable", payload: { station: "box/claude", declared: false, why: "ce projet ne déclare pas comment il est servi", delivery: 50 } });
   noter({ type: "service.available", payload: { station: "box/claude" } });
@@ -84,8 +84,8 @@ function raconterLeService(journal: Journal): void {
 
 // Une livraison dont les gates déclarent leurs mesures, mergée ; des seuils
 // déclarés puis changés ; un franchissement signalé puis levé, un autre resté.
-function raconterLaDerive(journal: Journal): void {
-  const noter = (fait: Fait, ticket: number | null = null) => journal.ajouter({ project: "brigade", ticket, author: "runtime", ...fait });
+function tellTheDrift(log: Log): void {
+  const noter = (fait: Fait, ticket: number | null = null) => log.ajouter({ project: "brigade", ticket, author: "runtime", ...fait });
   const limits = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
   const seuils = { tests: 500, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null };
   noter({ type: "cook.launched", payload: { run: "m", limits, stream: "runs/m.jsonl", station: "box/claude", model: "opus", effort: "high" } }, 40);
@@ -100,28 +100,28 @@ function raconterLaDerive(journal: Journal): void {
 }
 
 // Un worktree gardé puis retiré, un autre resté gardé, et les transcripts rangés.
-function raconterLeNettoyage(journal: Journal): void {
-  const noter = (fait: Fait) => journal.ajouter({ project: "brigade", ticket: 1, author: "nettoyage", ...fait });
+function raconterLeNettoyage(log: Log): void {
+  const noter = (fait: Fait) => log.ajouter({ project: "brigade", ticket: 1, author: "nettoyage", ...fait });
   noter({ type: "worktree.kept", payload: { worktree: "worktrees/d", branch: "cook/d", reason: "pr-open", detail: "https://github.com/o/r/pull/9" } });
   noter({ type: "worktree.removed", payload: { worktree: "worktrees/d", branch: "cook/d" } });
   noter({ type: "worktree.kept", payload: { worktree: "worktrees/e", branch: "cook/e", reason: "unpushed", detail: "1 commit absent de l'origine" } });
   // Deux rangements de transcripts : seul le dernier compte.
   for (const removed of [0, 3]) {
-    journal.ajouter({ project: "brigade", ticket: null, author: "nettoyage", type: "transcripts.tidied", payload: { removed, freedBytes: removed * 100, kept: 2, keptBytes: 200, keepMs: 604_800_000 } });
+    log.ajouter({ project: "brigade", ticket: null, author: "nettoyage", type: "transcripts.tidied", payload: { removed, freedBytes: removed * 100, kept: 2, keptBytes: 200, keepMs: 604_800_000 } });
   }
 }
 
 // Deux sauvegardes réussies : seule la dernière compte.
-function raconterLaSauvegarde(journal: Journal): void {
+function tellTheBackup(log: Log): void {
   for (const [name, lastSeq] of [["2026-10-07T03-30-00Z", 3], [`${JOUR_HORLOGE}T03-30-00Z`, 9]] as const) {
-    journal.ajouter({ project: "brigade", ticket: null, author: "sauvegarde", type: "backup.completed", payload: { name, lastSeq, events: lastSeq, streams: 0 } });
+    log.ajouter({ project: "brigade", ticket: null, author: "sauvegarde", type: "backup.completed", payload: { name, lastSeq, events: lastSeq, streams: 0 } });
   }
 }
 
 // Le manager allumé, éteint, rallumé ; une issue jugée, lancée et commentée ;
 // une autre refusée, puis écartée ; un jugement illisible.
-function raconterLeManager(journal: Journal): void {
-  const noter = (fait: Fait, ticket: number | null = null, author = "manager") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
+function raconterLeManager(log: Log): void {
+  const noter = (fait: Fait, ticket: number | null = null, author = "manager") => log.ajouter({ project: "brigade", ticket, author, ...fait });
   noter({ type: "manager.enabled", payload: {} }, null, "chef");
   noter({ type: "manager.disabled", payload: {} }, null, "chef");
   noter({ type: "manager.enabled", payload: {} }, null, "chef");
@@ -170,9 +170,9 @@ function raconterLeManager(journal: Journal): void {
 
 // Le grant donné puis repris ; un ticket jugé rouge, renvoyé, puis vert et
 // mergé sous grant ; un autre vert sans grant, arrêté ; un troisième remonté.
-function raconterLaPass(journal: Journal): void {
+function raconterLaPass(log: Log): void {
   const limits = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
-  const noter = (fait: Fait, ticket: number | null = null, author = "pass") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const noter = (fait: Fait, ticket: number | null = null, author = "pass") => log.ajouter({ project: "brigade", ticket, author, ...fait });
   const livrer = (run: string, ticket: number, branche = run) => {
     const payload = { run, limits, stream: `runs/${run}.jsonl`, station: "box/claude", model: "sonnet", effort: "low", branch: `cook/${branche}`, worktree: `worktrees/${branche}` };
     noter({ type: "cook.launched", payload }, ticket, "runtime");
@@ -224,11 +224,11 @@ function raconterLaPass(journal: Journal): void {
 
 // Une station qui s'annonce, lance un cook qui livre, bute sur le quota, perd
 // sa connexion, puis que le chef fait reprendre.
-function raconterLaStation(journal: Journal): void {
+function raconterLaStation(log: Log): void {
   const station = "box/claude";
   const limits = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
   const noter = (fait: Fait, ticket: number | null = null, author = `station:${station}`) =>
-    journal.ajouter({ project: "brigade", ticket, author, ...fait });
+    log.ajouter({ project: "brigade", ticket, author, ...fait });
   const lancer = (run: string, ticket: number) =>
     noter({ type: "cook.launched", payload: { run, limits, stream: `runs/${run}.jsonl`, station, model: "sonnet", effort: "low", branch: `cook/${run}`, worktree: `worktrees/${run}` } }, ticket, "runtime");
   const sortir = (run: string, ticket: number, outcome: "ok" | "neutral") =>
@@ -269,10 +269,10 @@ function raconterLaStation(journal: Journal): void {
 }
 
 // Six tickets, un par destin : resté en attente, pris, rendu, servi, 86, parti.
-function raconterLeRail(journal: Journal): void {
-  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T11:00:00.000Z`) });
+function raconterLeRail(log: Log): void {
+  const rail = ouvrirRail(log, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T11:00:00.000Z`) });
   for (const ticket of [1, 2, 3, 4, 5, 6]) {
-    journal.ajouter({
+    log.ajouter({
       project: "brigade",
       ticket,
       author: "github",
@@ -280,9 +280,9 @@ function raconterLeRail(journal: Journal): void {
       payload: { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-0${ticket}T00:00:00.000Z`, url: `https://exemple.test/${ticket}` },
     });
   }
-  journal.ajouter({ project: "brigade", ticket: 1, author: "github", type: "ticket.changed", payload: { title: "Renommé", priority: 3 } });
-  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "rail.commons", payload: { paths: ["docs/runtime.md"] } });
-  journal.ajouter({ project: "brigade", ticket: 6, author: "github", type: "ticket.left", payload: { reason: "closed" } });
+  log.ajouter({ project: "brigade", ticket: 1, author: "github", type: "ticket.changed", payload: { title: "Renommé", priority: 3 } });
+  log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "rail.commons", payload: { paths: ["docs/runtime.md"] } });
+  log.ajouter({ project: "brigade", ticket: 6, author: "github", type: "ticket.left", payload: { reason: "closed" } });
   // Le ticket 1 passe son tour : les stations prennent les suivants, dans l'ordre.
   rail.quatreVingtSix(1, { motif: "station absente" });
   for (const ticket of [2, 3, 4, 5]) assert.equal(rail.prendre(`box/cook-${ticket}`)?.ticket, ticket);
@@ -299,7 +299,7 @@ function raconterLeRail(journal: Journal): void {
   // Deux tickets attendent un tiers, et leur issue le dit : l'un attend
   // encore, l'autre est repris — sa marque retirée.
   for (const ticket of [70, 71]) {
-    journal.ajouter({
+    log.ajouter({
       project: "brigade",
       ticket,
       author: "github",
@@ -307,19 +307,19 @@ function raconterLeRail(journal: Journal): void {
       payload: { title: `Ticket ${ticket}`, priority: null, createdAt: "2026-10-09T00:00:00.000Z", url: `https://exemple.test/${ticket}` },
     });
     const waiting = { what: "la réponse du client", who: "le client", followUp: `${JOUR_HORLOGE}T18:00:00.000Z` };
-    journal.ajouter({ project: "brigade", ticket, author: "chef", type: "ticket.waiting", payload: waiting });
-    journal.ajouter({ project: "brigade", ticket, author: "runtime", type: "waiting.marked", payload: { waiting, heard: 2 } });
+    log.ajouter({ project: "brigade", ticket, author: "chef", type: "ticket.waiting", payload: waiting });
+    log.ajouter({ project: "brigade", ticket, author: "runtime", type: "waiting.marked", payload: { waiting, heard: 2 } });
   }
-  journal.ajouter({ project: "brigade", ticket: 71, author: "chef", type: "ticket.resumed", payload: { to: "todo", why: "chef" } });
-  journal.ajouter({ project: "brigade", ticket: 71, author: "runtime", type: "waiting.marked", payload: { waiting: null } });
+  log.ajouter({ project: "brigade", ticket: 71, author: "chef", type: "ticket.resumed", payload: { to: "todo", why: "chef" } });
+  log.ajouter({ project: "brigade", ticket: 71, author: "runtime", type: "waiting.marked", payload: { waiting: null } });
 }
 
 // Un cook arrêté par un plafond, un autre mort avec le runtime, le disjoncteur
 // qui s'ouvre, puis le chef qui arrête et reprend.
-function raconterLesGardeFous(journal: Journal): void {
+function tellTheGuardrails(log: Log): void {
   const limits = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
-  const noter = (fait: FaitGardeFous, ticket: number | null = null, author = "runtime") =>
-    journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const noter = (fait: GuardrailsFact, ticket: number | null = null, author = "runtime") =>
+    log.ajouter({ project: "brigade", ticket, author, ...fait });
   noter({ type: "guard.configured", payload: { limits, breakerThreshold: 1 } });
   noter({ type: "cook.launched", payload: { run: "a", limits, stream: "runs/a.jsonl" } }, 7);
   noter({ type: "guard.tripped", payload: { run: "a", reason: "turns", limit: 100, observed: 101 } }, 7);
@@ -336,85 +336,85 @@ function raconterLesGardeFous(journal: Journal): void {
 }
 
 test("effacer les projections et rejouer le journal redonne le même état", (t) => {
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
-  t.after(() => journal.fermer());
-  raconter(journal);
-  const avant = photographier(journal, PROJECTIONS);
+  const log = openLog(repertoireTemporaire(t), { maintenant: horloge() });
+  t.after(() => log.fermer());
+  raconter(log);
+  const avant = photographier(log, PROJECTIONS);
   for (const [table, lignes] of Object.entries(avant)) {
     assert.notEqual(lignes.length, 0, `l'histoire ne nourrit pas ${table} : le rejeu ne prouverait rien`);
   }
 
-  journal.reconstruire();
+  log.reconstruire();
 
-  assert.deepEqual(photographier(journal, PROJECTIONS), avant);
+  assert.deepEqual(photographier(log, PROJECTIONS), avant);
 });
 
 test("des projections perdues se retrouvent en rejouant le journal", (t) => {
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
-  t.after(() => journal.fermer());
-  raconter(journal);
-  const avant = photographier(journal, PROJECTIONS);
+  const log = openLog(repertoireTemporaire(t), { maintenant: horloge() });
+  t.after(() => log.fermer());
+  raconter(log);
+  const avant = photographier(log, PROJECTIONS);
   for (const projection of PROJECTIONS) {
-    for (const table of projection.tables) journal.base.executer(`DELETE FROM ${table}`);
+    for (const table of projection.tables) log.base.executer(`DELETE FROM ${table}`);
   }
 
-  journal.reconstruire();
+  log.reconstruire();
 
-  assert.deepEqual(photographier(journal, PROJECTIONS), avant);
+  assert.deepEqual(photographier(log, PROJECTIONS), avant);
 });
 
 test("une projection dont la table date d'une version précédente est refaite au rejeu", (t) => {
   const repertoire = repertoireTemporaire(t);
-  const ancien = ouvrirJournal(repertoire, { maintenant: horloge() });
+  const ancien = openLog(repertoire, { maintenant: horloge() });
   raconter(ancien);
   const avant = photographier(ancien, PROJECTIONS);
   // Le rail d'avant le calibrage : une table du même nom, sans les colonnes d'aujourd'hui.
   ancien.base.script("DROP TABLE rail; CREATE TABLE rail (ticket INTEGER PRIMARY KEY, title TEXT) STRICT;");
   ancien.fermer();
 
-  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
-  t.after(() => journal.fermer());
-  journal.reconstruire();
+  const log = openLog(repertoire, { maintenant: horloge() });
+  t.after(() => log.fermer());
+  log.reconstruire();
 
-  assert.deepEqual(photographier(journal, PROJECTIONS), avant);
+  assert.deepEqual(photographier(log, PROJECTIONS), avant);
 });
 
 test("rejouer le journal n'y ajoute ni n'en retire aucun événement", (t) => {
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
-  t.after(() => journal.fermer());
-  raconter(journal);
-  const avant = journal.tout();
+  const log = openLog(repertoireTemporaire(t), { maintenant: horloge() });
+  t.after(() => log.fermer());
+  raconter(log);
+  const avant = log.tout();
 
-  journal.reconstruire();
+  log.reconstruire();
 
-  assert.deepEqual(journal.tout(), avant);
+  assert.deepEqual(log.tout(), avant);
 });
 
 test("un runtime démarré est la session en cours ; arrêté, il n'y en a plus", (t) => {
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
-  t.after(() => journal.fermer());
+  const log = openLog(repertoireTemporaire(t), { maintenant: horloge() });
+  t.after(() => log.fermer());
 
-  assert.equal(sessionEnCours(journal.base), null);
-  journal.ajouter(demarrage(100));
-  assert.deepEqual(sessionEnCours(journal.base), {
+  assert.equal(sessionEnCours(log.base), null);
+  log.ajouter(demarrage(100));
+  assert.deepEqual(sessionEnCours(log.base), {
     startedSeq: 1,
     startedAt: `${JOUR_HORLOGE}T10:00:00.000Z`,
     pid: 100,
     host: "box",
   });
-  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.stopped", payload: { signal: "SIGTERM" } });
-  assert.equal(sessionEnCours(journal.base), null);
+  log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.stopped", payload: { signal: "SIGTERM" } });
+  assert.equal(sessionEnCours(log.base), null);
 });
 
 test("une session interrompue garde la trace de sa fin", (t) => {
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
-  t.after(() => journal.fermer());
-  journal.ajouter(demarrage(100));
-  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.interrupted", payload: { startedSeq: 1 } });
+  const log = openLog(repertoireTemporaire(t), { maintenant: horloge() });
+  t.after(() => log.fermer());
+  log.ajouter(demarrage(100));
+  log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.interrupted", payload: { startedSeq: 1 } });
 
-  assert.equal(sessionEnCours(journal.base), null);
-  assert.deepEqual(derniereSession(journal.base)?.ending, "interrupted");
-  assert.deepEqual(photographier(journal, [sessions])["sessions/runtime_sessions"], [
+  assert.equal(sessionEnCours(log.base), null);
+  assert.deepEqual(derniereSession(log.base)?.ending, "interrupted");
+  assert.deepEqual(photographier(log, [sessions])["sessions/runtime_sessions"], [
     { started_seq: 1, started_at: `${JOUR_HORLOGE}T10:00:00.000Z`, pid: 100, host: "box", ended_seq: 2, ended_at: `${JOUR_HORLOGE}T10:00:01.000Z`, ending: "interrupted" },
   ]);
 });
@@ -433,31 +433,31 @@ test("une projection qui échoue annule l'événement : jamais d'événement san
       "runtime.ticked": () => {},
     },
   });
-  const journal = ouvrirJournal(repertoireTemporaire(t), { projections: [fragile] });
-  t.after(() => journal.fermer());
-  journal.ajouter(demarrage(100));
+  const log = openLog(repertoireTemporaire(t), { projections: [fragile] });
+  t.after(() => log.fermer());
+  log.ajouter(demarrage(100));
 
   assert.throws(
-    () => journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.stopped", payload: { signal: "SIGTERM" } }),
+    () => log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.stopped", payload: { signal: "SIGTERM" } }),
     /projection en panne/,
   );
 
-  assert.deepEqual(journal.tout().map((e) => e.type), ["runtime.started"]);
-  assert.deepEqual(photographier(journal, [fragile]), { "fragile/fragile": [{ seq: 1 }] });
+  assert.deepEqual(log.tout().map((e) => e.type), ["runtime.started"]);
+  assert.deepEqual(photographier(log, [fragile]), { "fragile/fragile": [{ seq: 1 }] });
 });
 
 test("seul le dernier tick est gardé, avec son heure et la cadence attendue", (t) => {
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
-  t.after(() => journal.fermer());
-  const tick = () => journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.ticked", payload: { intervalMs: 60_000 } });
+  const log = openLog(repertoireTemporaire(t), { maintenant: horloge() });
+  t.after(() => log.fermer());
+  const tick = () => log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.ticked", payload: { intervalMs: 60_000 } });
 
-  assert.equal(dernierTick(journal.base), null);
-  journal.ajouter(demarrage(100));
+  assert.equal(dernierTick(log.base), null);
+  log.ajouter(demarrage(100));
   tick();
   tick();
 
-  assert.deepEqual(dernierTick(journal.base), { seq: 3, at: `${JOUR_HORLOGE}T10:00:02.000Z`, intervalMs: 60_000 });
-  assert.deepEqual(derniereSession(journal.base), {
+  assert.deepEqual(dernierTick(log.base), { seq: 3, at: `${JOUR_HORLOGE}T10:00:02.000Z`, intervalMs: 60_000 });
+  assert.deepEqual(derniereSession(log.base), {
     startedSeq: 1,
     startedAt: `${JOUR_HORLOGE}T10:00:00.000Z`,
     pid: 100,
@@ -468,33 +468,33 @@ test("seul le dernier tick est gardé, avec son heure et la cadence attendue", (
 });
 
 test("un cook en cours porte son dernier relevé ; fini, il n'en a plus", (t) => {
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
-  t.after(() => journal.fermer());
+  const log = openLog(repertoireTemporaire(t), { maintenant: horloge() });
+  t.after(() => log.fermer());
   const limits = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
-  const noter = (fait: FaitGardeFous) => journal.ajouter({ project: "brigade", ticket: 7, author: "runtime", ...fait });
+  const noter = (fait: GuardrailsFact) => log.ajouter({ project: "brigade", ticket: 7, author: "runtime", ...fait });
   noter({ type: "cook.launched", payload: { run: "a", limits, stream: "runs/a.jsonl" } });
   noter({ type: "cook.launched", payload: { run: "b", limits, stream: "runs/b.jsonl" } });
-  assert.deepEqual(mesuresDesCooksEnCours(journal.base), []);
+  assert.deepEqual(runningCooksMeasures(log.base), []);
 
   noter({ type: "cook.progressed", payload: { run: "a", turns: 2, tokens: 300 } });
   noter({ type: "cook.progressed", payload: { run: "a", turns: 5, tokens: 900 } });
 
-  assert.deepEqual(mesuresDesCooksEnCours(journal.base), [{ run: "a", at: `${JOUR_HORLOGE}T10:00:03.000Z`, turns: 5, tokens: 900 }]);
+  assert.deepEqual(runningCooksMeasures(log.base), [{ run: "a", at: `${JOUR_HORLOGE}T10:00:03.000Z`, turns: 5, tokens: 900 }]);
 
   noter({ type: "cook.exited", payload: { run: "a", outcome: "ok", code: 0, signal: null, turns: 6, tokens: 950, durationMs: 40 } });
 
-  assert.deepEqual(mesuresDesCooksEnCours(journal.base), []);
-  assert.deepEqual(cooksEnCours(journal.base).map((cook) => cook.run), ["b"]);
+  assert.deepEqual(runningCooksMeasures(log.base), []);
+  assert.deepEqual(cooksEnCours(log.base).map((cook) => cook.run), ["b"]);
 });
 
 test("ce que fait un cook se garde au relevé qui le dit : un relevé muet laisse le précédent, une forme inconnue ne s'écrit pas", (t) => {
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
-  t.after(() => journal.fermer());
+  const log = openLog(repertoireTemporaire(t), { maintenant: horloge() });
+  t.after(() => log.fermer());
   const limits = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
-  const noter = (fait: FaitGardeFous, ticket: number | null = 7) => journal.ajouter({ project: "brigade", ticket, author: "runtime", ...fait });
+  const noter = (fait: GuardrailsFact, ticket: number | null = 7) => log.ajouter({ project: "brigade", ticket, author: "runtime", ...fait });
   noter({ type: "cook.launched", payload: { run: "a", limits, stream: "runs/a.jsonl", station: "box/claude" } });
-  assert.deepEqual([...activitesDesCooksEnCours(journal.base)], []);
-  assert.deepEqual(derniersCooks(journal.base).get(7)?.measured, false);
+  assert.deepEqual([...activitesDesCooksEnCours(log.base)], []);
+  assert.deepEqual(derniersCooks(log.base).get(7)?.measured, false);
 
   const lit = { doing: "reading", target: "runtime/src/etat.ts", since: `${JOUR_HORLOGE}T10:00:01.500Z` } as const;
   noter({ type: "cook.progressed", payload: { run: "a", turns: 2, tokens: 300, activity: lit } });
@@ -503,13 +503,13 @@ test("ce que fait un cook se garde au relevé qui le dit : un relevé muet laiss
   noter({ type: "cook.progressed", payload: { run: "a", turns: 5, tokens: 600, activity: { doing: "dances", target: null, since: lit.since } } as never });
   noter({ type: "cook.progressed", payload: { run: "a", turns: 6, tokens: 700, activity: { doing: "writing", target: 42, since: lit.since } } as never });
 
-  assert.deepEqual([...activitesDesCooksEnCours(journal.base)], [["a", lit]]);
-  assert.deepEqual(derniersCooks(journal.base).get(7), { run: "a", ticket: 7, station: "box/claude", launchedAt: `${JOUR_HORLOGE}T10:00:00.000Z`, endedAt: null, measured: true, activity: lit });
+  assert.deepEqual([...activitesDesCooksEnCours(log.base)], [["a", lit]]);
+  assert.deepEqual(derniersCooks(log.base).get(7), { run: "a", ticket: 7, station: "box/claude", launchedAt: `${JOUR_HORLOGE}T10:00:00.000Z`, endedAt: null, measured: true, activity: lit });
 
   // Le dernier cook du ticket est celui qui compte : une relecture lancée après lui.
   noter({ type: "cook.exited", payload: { run: "a", outcome: "ok", code: 0, signal: null, turns: 6, tokens: 950, durationMs: 40 } });
   noter({ type: "cook.launched", payload: { run: "r", limits, stream: "runs/r.jsonl", station: "reviewer" } });
   noter({ type: "cook.launched", payload: { run: "m", limits, stream: "runs/m.jsonl", station: "manager" } }, null);
-  assert.deepEqual([...activitesDesCooksEnCours(journal.base)], []);
-  assert.deepEqual([...derniersCooks(journal.base).values()].map(({ run, station, endedAt, activity }) => ({ run, station, endedAt, activity })), [{ run: "r", station: "reviewer", endedAt: null, activity: null }]);
+  assert.deepEqual([...activitesDesCooksEnCours(log.base)], []);
+  assert.deepEqual([...derniersCooks(log.base).values()].map(({ run, station, endedAt, activity }) => ({ run, station, endedAt, activity })), [{ run: "r", station: "reviewer", endedAt: null, activity: null }]);
 });

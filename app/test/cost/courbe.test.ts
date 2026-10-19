@@ -9,8 +9,8 @@ import { pourLaBarre } from "../../src/barre.ts";
 import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
-import { BANNIERE } from "../../src/faits.ts";
+import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
+import { BANNIERE } from "../../src/facts.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
@@ -20,7 +20,7 @@ import { JOURS, joursDe, poserCourbe, series, TITRE } from "../../src/vue/cost/c
 import { fenetresDe, LECTURE, NON_COMMUNIQUE } from "../../src/vue/cost/tete.js";
 import { Faux, type Jouee, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
-const doc = { createElement: (balise: string) => new Faux(balise), createElementNS: (_espace: string, balise: string) => new Faux(balise) };
+const doc = { createElement: (balise: string) => new Faux(balise), createElementNS: (_space: string, balise: string) => new Faux(balise) };
 const A = "2026-10-17T10:00:00.000Z";
 // Un nombre tel que le runtime l'écrit (fr-FR) : séparé d'espaces fines insécables.
 const n = (chiffres: string) => chiffres.replaceAll(" ", " ");
@@ -176,7 +176,7 @@ describe("la courbe, dans l'onglet Cost", () => {
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
         boutons: BOUTONS,
-        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,

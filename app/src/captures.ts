@@ -47,18 +47,18 @@ export function lireAdresse(adresse: string): { depot: string; sha: string; chem
 
 // Ce que la carte pose des captures que la box donne.
 export function capturesDeCarte(lues: CapturesLues): CapturesDeCarte {
-  const capture = (ecran: string, moment: Moment, adresse: string | null): Capture => ({
+  const capture = (screen: string, moment: Moment, adresse: string | null): Capture => ({
     moment,
-    legende: ecran === "" ? LEGENDES[moment] : `${ecran} — ${LEGENDES[moment]}`,
+    legende: screen === "" ? LEGENDES[moment] : `${screen} — ${LEGENDES[moment]}`,
     livree: adresse !== null,
     version: adresse === null ? "" : (lireAdresse(adresse)?.sha ?? ""),
   });
-  const manquantes = lues.ecrans.flatMap(({ ecran, avant, apres }) =>
-    ([["avant", avant], ["apres", apres]] as const).flatMap(([moment, adresse]) => (adresse === null ? [`${NOMS[moment]}${ecran === "" ? "" : ` of ${ecran}`}`] : [])),
+  const manquantes = lues.ecrans.flatMap(({ ecran: screen, avant, apres }) =>
+    ([["avant", avant], ["apres", apres]] as const).flatMap(([moment, adresse]) => (adresse === null ? [`${NOMS[moment]}${screen === "" ? "" : ` of ${screen}`}`] : [])),
   );
   const manque = lues.ecrans.length === 0 ? "no screenshot" : manquantes.join(", ");
   return {
-    ecrans: lues.ecrans.map(({ ecran, avant, apres }) => ({ ecran, avant: capture(ecran, "avant", avant), apres: capture(ecran, "apres", apres) })),
+    ecrans: lues.ecrans.map(({ ecran: screen, avant, apres }) => ({ ecran: screen, avant: capture(screen, "avant", avant), apres: capture(screen, "apres", apres) })),
     ...(lues.complet && manquantes.length === 0 && lues.ecrans.length > 0
       ? {}
       : {

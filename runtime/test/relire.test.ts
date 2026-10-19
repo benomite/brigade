@@ -9,7 +9,7 @@ import { appeler, faitInconnu, horloge, lancer, repertoireTemporaire, JOUR_HORLO
 const RELIRE = join(import.meta.dirname, "../src/relire.ts");
 
 // Un runtime qui tourne, et deux tickets qui traversent la cuisine.
-function cuisine(repertoire: string) {
+function kitchen(repertoire: string) {
   const runtime = demarrer({ repertoireEtat: repertoire, projet: "brigade", maintenant: horloge() });
   const ajouter = (ticket: number, author: string, type: string, payload = {}) =>
     runtime.journal.ajouter({ project: "brigade", ticket, author, ...faitInconnu(type, payload) });
@@ -22,7 +22,7 @@ function cuisine(repertoire: string) {
 
 test("le journal d'un ticket se relit en entier et dans l'ordre, pendant que le runtime tourne", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const runtime = cuisine(repertoire);
+  const runtime = kitchen(repertoire);
   t.after(() => runtime.arreter("test"));
 
   const commande = lancer(t, RELIRE, ["7"], { BRIGADE_STATE_DIR: repertoire });
@@ -37,7 +37,7 @@ test("le journal d'un ticket se relit en entier et dans l'ordre, pendant que le 
 
 test("sans numéro de ticket, tout le journal se relit", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const runtime = cuisine(repertoire);
+  const runtime = kitchen(repertoire);
   t.after(() => runtime.arreter("test"));
 
   const commande = appeler(relire, [], { BRIGADE_STATE_DIR: repertoire });
@@ -50,7 +50,7 @@ test("sans numéro de ticket, tout le journal se relit", async (t) => {
 
 test("un ticket sans événement le dit, sans passer pour une erreur", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const runtime = cuisine(repertoire);
+  const runtime = kitchen(repertoire);
   t.after(() => runtime.arreter("test"));
 
   const commande = appeler(relire, ["99"], { BRIGADE_STATE_DIR: repertoire });
@@ -61,7 +61,7 @@ test("un ticket sans événement le dit, sans passer pour une erreur", async (t)
 
 test("relire ne modifie pas le journal", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const runtime = cuisine(repertoire);
+  const runtime = kitchen(repertoire);
   t.after(() => runtime.arreter("test"));
   const avant = runtime.journal.tout();
 
@@ -95,7 +95,7 @@ test("un argument qui n'est pas un numéro de ticket est refusé avec l'usage", 
 
 test("sans argument, les battements du runtime sont masqués ; `--ticks` les montre", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const runtime = cuisine(repertoire);
+  const runtime = kitchen(repertoire);
   t.after(() => runtime.arreter("test"));
   runtime.journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.ticked", payload: { intervalMs: 60_000 } });
 
@@ -111,7 +111,7 @@ test("sans argument, les battements du runtime sont masqués ; `--ticks` les mon
 
 test("--derniers ne rend que la fin du journal, dans l'ordre, sans compter les battements", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const runtime = cuisine(repertoire);
+  const runtime = kitchen(repertoire);
   t.after(() => runtime.arreter("test"));
   runtime.journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.ticked", payload: { intervalMs: 60_000 } });
   runtime.journal.ajouter({ project: "brigade", ticket: 8, author: "pass", ...faitInconnu("pass.verdict", { vert: false }) });
@@ -127,7 +127,7 @@ test("--derniers ne rend que la fin du journal, dans l'ordre, sans compter les b
 
 test("--derniers sur un journal plus court rend tout ce qu'il a, et se combine avec un ticket", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const runtime = cuisine(repertoire);
+  const runtime = kitchen(repertoire);
   t.after(() => runtime.arreter("test"));
 
   const tout = appeler(relire, ["--last", "100"], { BRIGADE_STATE_DIR: repertoire });

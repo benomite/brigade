@@ -4,7 +4,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { hostname } from "node:os";
 import type { Fait } from "./evenements.ts";
-import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
+import { logPath, openLog, type Log } from "./log.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import { prendreVerrou, VerrouTenu } from "./verrou.ts";
 
@@ -42,7 +42,7 @@ export type OptionsRuntime = {
 
 export type Runtime = {
   projet: string;
-  journal: Journal;
+  journal: Log;
   // Abonne un écouteur aux réveils ; rend de quoi le désabonner.
   surReveil(ecouter: (cause: CauseReveil) => void): () => void;
   // Journalise l'arrêt, rend le verrou. Sans effet la seconde fois.
@@ -68,30 +68,30 @@ export function demarrer(options: OptionsRuntime): Runtime {
   }
 
   // Passé ce point le verrou est à nous : un démarrage qui échoue le rend.
-  let journal: Journal;
+  let log: Log;
   try {
-    journal = ouvrirJournal(repertoireEtat, { maintenant: options.maintenant });
+    log = openLog(repertoireEtat, { maintenant: options.maintenant });
   } catch (erreur) {
     verrou.relacher();
     throw erreur;
   }
-  const noter = (fait: Fait) => journal.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
+  const noter = (fait: Fait) => log.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
 
   try {
     // Les projections sont recalculées à chaque démarrage : le journal est la
     // seule vérité, et une projection ajoutée depuis la dernière vie du runtime
     // se remplit ainsi de tout ce qui a été écrit avant elle.
-    journal.reconstruire();
+    log.reconstruire();
 
     // Réconciliation : une session sans fin au journal est celle d'un runtime
     // mort sans avoir pu l'écrire.
-    journal.base.transaction(() => {
-      const orpheline = sessionEnCours(journal.base);
+    log.base.transaction(() => {
+      const orpheline = sessionEnCours(log.base);
       if (orpheline) noter({ type: "runtime.interrupted", payload: { startedSeq: orpheline.startedSeq } });
       noter({ type: "runtime.started", payload: { pid: process.pid, host: hostname(), node: process.version } });
     });
   } catch (erreur) {
-    journal.fermer();
+    log.fermer();
     verrou.relacher();
     throw erreur;
   }
@@ -100,9 +100,9 @@ export function demarrer(options: OptionsRuntime): Runtime {
   const reveiller = (cause: CauseReveil) => {
     for (const ecouter of [...ecouteurs]) ecouter(cause);
   };
-  let version = journal.base.versionDonnees();
+  let version = log.base.versionDonnees();
   const veille = setInterval(() => {
-    const courante = journal.base.versionDonnees();
+    const courante = log.base.versionDonnees();
     if (courante === version) return;
     version = courante;
     reveiller("log");
@@ -123,7 +123,7 @@ export function demarrer(options: OptionsRuntime): Runtime {
   let arrete = false;
   return {
     projet,
-    journal,
+    journal: log,
     surReveil(ecouter) {
       if (arrete) return () => {};
       ecouteurs.add(ecouter);
@@ -140,7 +140,7 @@ export function demarrer(options: OptionsRuntime): Runtime {
       try {
         noter({ type: "runtime.stopped", payload: { signal } });
       } finally {
-        journal.fermer();
+        log.fermer();
         verrou.relacher();
       }
     },
@@ -154,14 +154,14 @@ function motifDuRefus(projet: string, repertoireEtat: string): string {
   // encore posé son journal, ou être en train d'y écrire. Quoi qu'il arrive à
   // cette lecture, le refus reste un refus.
   try {
-    if (!existsSync(cheminJournal(repertoireEtat))) return refus;
-    const journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
+    if (!existsSync(logPath(repertoireEtat))) return refus;
+    const log = openLog(repertoireEtat, { lectureSeule: true });
     try {
-      const session = sessionEnCours(journal.base);
+      const session = sessionEnCours(log.base);
       if (!session) return refus;
       return `${refus}: pid ${session.pid} on ${session.host}, started on ${session.startedAt}`;
     } finally {
-      journal.fermer();
+      log.fermer();
     }
   } catch {
     return refus;

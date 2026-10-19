@@ -44,7 +44,7 @@ const elaguer = (base: Base, branch: unknown) => {
 
 const NOMBRES = ["removed", "freedBytes", "kept", "keptBytes", "keepMs"] as const;
 
-export type RangementDeTranscripts = { at: string } & Record<(typeof NOMBRES)[number], number>;
+export type TranscriptsCleanup = { at: string } & Record<(typeof NOMBRES)[number], number>;
 
 export const nettoyage = definirProjection<FaitNettoyage>({
   nom: "nettoyage",
@@ -103,9 +103,9 @@ export function worktreesGardes(base: Base): WorktreeGarde[] {
 
 // The last transcript cleanup, or null if none has taken place since the
 // project was partitioned.
-export function rangementDesTranscripts(base: Base): RangementDeTranscripts | null {
+export function transcriptsCleanup(base: Base): TranscriptsCleanup | null {
   return (
-    base.lire<RangementDeTranscripts>(
+    base.lire<TranscriptsCleanup>(
       "SELECT at, removed, freed_bytes AS freedBytes, kept, kept_bytes AS keptBytes, keep_ms AS keepMs FROM transcript_tidy",
     )[0] ?? null
   );

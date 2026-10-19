@@ -3,22 +3,22 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
-import type { Plafonds } from "../src/events/guardrails.ts";
-import { brancherGardeFous } from "../src/garde-fous.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import type { Caps } from "../src/events/guardrails.ts";
+import { plugGuardrails } from "../src/guardrails.ts";
+import { openLog } from "../src/log.ts";
 import { PROJECTIONS } from "../src/projections.ts";
 import { demarrer } from "../src/runtime.ts";
 import { principal as status } from "../src/status.ts";
 import { appeler, ENV_ENFANT, faitInconnu, FAUX_CLAUDE, lancer, photographier, repertoireTemporaire } from "./outils.ts";
 
 const STATUS = join(import.meta.dirname, "../src/status.ts");
-const PLAFONDS: Plafonds = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const CAPS: Caps = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 
 // Un runtime qui tourne, un ticket sur le rail et son cook en cours.
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
-  const runtime = brancherGardeFous(
-    { plafonds: PLAFONDS, seuilDisjoncteur: 3, graceMs: 2000 },
+  const runtime = plugGuardrails(
+    { plafonds: CAPS, seuilDisjoncteur: 3, graceMs: 2000 },
     demarrer({ repertoireEtat: repertoire, projet: "brigade", intervalleVeilleMs: 60_000, intervalleTickMs: 20 }),
   );
   t.after(() => runtime.arreter("test"));
@@ -34,7 +34,7 @@ function cuisine(t: TestContext) {
 }
 
 test("pendant qu'un cook tourne, la commande répond et montre le runtime, le rail, le cook et les derniers événements", async (t) => {
-  const { repertoire, runtime, cook } = cuisine(t);
+  const { repertoire, runtime, cook } = kitchen(t);
   while (!runtime.journal.duTicket(7).some((e) => e.type === "cook.progressed" && e.payload.turns === 1)) {
     await new Promise((resoudre) => setTimeout(resoudre, 5));
   }
@@ -58,11 +58,11 @@ test("la commande ne modifie ni le journal ni ses projections", async (t) => {
   const repertoire = repertoireTemporaire(t);
   demarrer({ repertoireEtat: repertoire, projet: "brigade" }).arreter("SIGTERM");
   const lire = () => {
-    const journal = ouvrirJournal(repertoire, { lectureSeule: true });
+    const log = openLog(repertoire, { lectureSeule: true });
     try {
-      return [journal.tout(), photographier(journal, PROJECTIONS)];
+      return [log.tout(), photographier(log, PROJECTIONS)];
     } finally {
-      journal.fermer();
+      log.fermer();
     }
   };
   const avant = lire();
@@ -76,9 +76,9 @@ test("la commande ne modifie ni le journal ni ses projections", async (t) => {
 
 test("avec `--suivre`, le chef voit la photo puis chaque événement à mesure qu'il s'écrit, jusqu'à Ctrl-C", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoire);
-  t.after(() => journal.fermer());
-  const noter = (ticket: number, type: string) => journal.ajouter({ project: "brigade", ticket, author: "runtime", ...faitInconnu(type) });
+  const log = openLog(repertoire);
+  t.after(() => log.fermer());
+  const noter = (ticket: number, type: string) => log.ajouter({ project: "brigade", ticket, author: "runtime", ...faitInconnu(type) });
   noter(7, "ticket.arrived");
 
   const commande = lancer(t, STATUS, ["--follow", "7"], { BRIGADE_STATE_DIR: repertoire });
@@ -96,9 +96,9 @@ test("avec `--suivre`, le chef voit la photo puis chaque événement à mesure q
 
 test("avec `--suivre`, deux signaux rapprochés arrêtent proprement la commande : code 0, aucune trace", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoire);
-  t.after(() => journal.fermer());
-  journal.ajouter({ project: "brigade", ticket: 7, author: "runtime", ...faitInconnu("ticket.arrived") });
+  const log = openLog(repertoire);
+  t.after(() => log.fermer());
+  log.ajouter({ project: "brigade", ticket: 7, author: "runtime", ...faitInconnu("ticket.arrived") });
 
   const commande = lancer(t, STATUS, ["--follow"], { BRIGADE_STATE_DIR: repertoire });
   await commande.attendre("Ctrl-C pour arrêter");
@@ -116,15 +116,15 @@ test("avec `--suivre`, deux signaux rapprochés arrêtent proprement la commande
 
 test("sans répertoire d'état, sans journal, ou avec un argument inconnu, la commande échoue en disant pourquoi", async (t) => {
   const sansVariable = lancer(t, STATUS, []);
-  const sansJournal = appeler(status, [], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
+  const withoutLog = appeler(status, [], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
   const arguments_ = [["7"], ["--follow", "sept"], ["--follow", "7", "8"], ["--regarder"]].map((args) =>
     appeler(status, args, { BRIGADE_STATE_DIR: repertoireTemporaire(t) }),
   );
 
   assert.equal(await sansVariable.fin, 2);
   assert.match(sansVariable.sortie(), /BRIGADE_STATE_DIR n'est pas défini/);
-  assert.equal(await sansJournal.fin, 1);
-  assert.match(sansJournal.sortie(), /no log in/);
+  assert.equal(await withoutLog.fin, 1);
+  assert.match(withoutLog.sortie(), /no log in/);
   for (const commande of arguments_) {
     assert.equal(await commande.fin, 2);
     assert.match(commande.sortie(), /usage/);
@@ -133,9 +133,9 @@ test("sans répertoire d'état, sans journal, ou avec un argument inconnu, la co
 
 test("la commande montre la dernière sauvegarde, et la marque au-delà de l'âge déclaré", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoire, { maintenant: () => new Date(Date.now() - 3 * 3_600_000) });
-  journal.ajouter({ project: "brigade", ticket: null, author: "sauvegarde", type: "backup.completed", payload: { name: "s", lastSeq: 0, events: 0, streams: 0 } });
-  journal.fermer();
+  const log = openLog(repertoire, { maintenant: () => new Date(Date.now() - 3 * 3_600_000) });
+  log.ajouter({ project: "brigade", ticket: null, author: "sauvegarde", type: "backup.completed", payload: { name: "s", lastSeq: 0, events: 0, streams: 0 } });
+  log.fermer();
 
   const parDefaut = appeler(status, [], { BRIGADE_STATE_DIR: repertoire });
   const serree = appeler(status, [], { BRIGADE_STATE_DIR: repertoire, BRIGADE_BACKUP_MAX_AGE_HOURS: "2" });
@@ -148,7 +148,7 @@ test("la commande montre la dernière sauvegarde, et la marque au-delà de l'âg
 
 test("un âge de sauvegarde mal déclaré est un refus, pas un défaut silencieux", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  ouvrirJournal(repertoire).fermer();
+  openLog(repertoire).fermer();
   const commandes = ["0", "deux", "1.5", ""].map((valeur) => appeler(status, [], { BRIGADE_STATE_DIR: repertoire, BRIGADE_BACKUP_MAX_AGE_HOURS: valeur }));
 
   for (const commande of commandes) {
@@ -158,7 +158,7 @@ test("un âge de sauvegarde mal déclaré est un refus, pas un défaut silencieu
 });
 
 test("une cuisine retenue par une base rouge le dit sans qu'on le demande : depuis quand, sur quel commit, et le geste qui fait rejouer", async (t) => {
-  const { repertoire, runtime } = cuisine(t);
+  const { repertoire, runtime } = kitchen(t);
   const statut = async () => {
     const commande = appeler(status, [], { BRIGADE_STATE_DIR: repertoire });
     assert.equal(await commande.fin, 0);
@@ -191,7 +191,7 @@ test("une cuisine retenue par une base rouge le dit sans qu'on le demande : depu
 });
 
 test("la commande dit au chef qu'on l'attend, sans qu'il le demande, et cesse de le dire une fois la décision prise sur GitHub", async (t) => {
-  const { repertoire, runtime } = cuisine(t);
+  const { repertoire, runtime } = kitchen(t);
   const statut = async () => {
     const commande = appeler(status, [], { BRIGADE_STATE_DIR: repertoire });
     assert.equal(await commande.fin, 0);
@@ -215,7 +215,7 @@ test("la commande dit au chef qu'on l'attend, sans qu'il le demande, et cesse de
 });
 
 test("un contrôle de base que le rapatriement retient se lit sans qu'on le demande : retenu, pourquoi, depuis quand — et un rejeu demandé n'est pas annoncé comme imminent", async (t) => {
-  const { repertoire, runtime } = cuisine(t);
+  const { repertoire, runtime } = kitchen(t);
   const statut = async () => {
     const commande = appeler(status, [], { BRIGADE_STATE_DIR: repertoire });
     assert.equal(await commande.fin, 0);
@@ -250,7 +250,7 @@ test("un contrôle de base que le rapatriement retient se lit sans qu'on le dema
 
 test("un journal d'avant ces projections le dit, au lieu d'une erreur de base", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  ouvrirJournal(repertoire, { projections: [] }).fermer();
+  openLog(repertoire, { projections: [] }).fermer();
 
   const commande = appeler(status, [], { BRIGADE_STATE_DIR: repertoire });
 
@@ -260,9 +260,9 @@ test("un journal d'avant ces projections le dit, au lieu d'une erreur de base", 
 
 test("un journal dont le rail date d'avant la date de progrès le dit aussi", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoire);
-  journal.base.script("DROP TABLE rail; CREATE TABLE rail (ticket INTEGER PRIMARY KEY, title TEXT) STRICT;");
-  journal.fermer();
+  const log = openLog(repertoire);
+  log.base.script("DROP TABLE rail; CREATE TABLE rail (ticket INTEGER PRIMARY KEY, title TEXT) STRICT;");
+  log.fermer();
 
   const commande = appeler(status, [], { BRIGADE_STATE_DIR: repertoire });
 

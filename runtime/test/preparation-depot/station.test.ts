@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { ouvrirJournal } from "../../src/journal.ts";
+import { openLog } from "../../src/log.ts";
 import { FICHIER } from "../../src/preparation-depot/ouvrir.ts";
 import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_CLAUDE, fauxGh, issueGitHub, jusqua, lancer, repertoireTemporaire, temporaireDuFichier, tuerLesRelais } from "../outils.ts";
 
@@ -30,17 +30,17 @@ function uneStation(t: TestContext, preparation: "ouverte" | "servie") {
   aArreter(t, () => tuerLesRelais(etat));
   // Ce que la station a fait en ajoutant le projet depuis l'app : les décisions
   // du parcours au journal, et le ticket qui prépare le dépôt.
-  const journal = ouvrirJournal(etat);
+  const log = openLog(etat);
   const decide = { BRIGADE_STATIONS: "box/claude:30:code", BRIGADE_MANAGER_MODEL: "sonnet", BRIGADE_MANAGER_EFFORT: "medium", BRIGADE_REVIEWER_MODEL: "sonnet", BRIGADE_REVIEWER_EFFORT: "medium" };
-  for (const [name, value] of Object.entries(decide)) journal.ajouter({ project: "parade", ticket: null, author: "chef", type: "decision.set", payload: { name, value, previous: null } });
+  for (const [name, value] of Object.entries(decide)) log.ajouter({ project: "parade", ticket: null, author: "chef", type: "decision.set", payload: { name, value, previous: null } });
   if (preparation === "servie") {
-    const noter = (type: string, payload: object, author = "runtime") => journal.ajouter({ project: "parade", ticket: PREPARATION, author, type, payload } as never);
+    const noter = (type: string, payload: object, author = "runtime") => log.ajouter({ project: "parade", ticket: PREPARATION, author, type, payload } as never);
     noter("ticket.arrived", { title: "Préparer le dépôt", priority: null, createdAt: "2026-10-15T00:00:00Z", url: `https://github.com/${DEPOT}/issues/${PREPARATION}`, model: "opus", effort: "high", card: null }, "github");
     noter("ticket.taken", { station: "box/claude", leaseUntil: "2026-10-15T01:00:00.000Z" }, "station:box/claude");
     noter("ticket.passing", { station: "box/claude" }, "station:box/claude");
     noter("ticket.served", {});
   }
-  journal.fermer();
+  log.fermer();
   writeFileSync(join(etat, FICHIER), JSON.stringify({ ticket: PREPARATION, ouvertLe: "2026-10-15T00:00:00.000Z" }));
 
   const { clone } = depotGit(t);
@@ -69,29 +69,29 @@ function uneStation(t: TestContext, preparation: "ouverte" | "servie") {
     BRIGADE_MIN_FREE_MEMORY_MB: "0",
     BRIGADE_MIN_FREE_DISK_MB: "0",
   });
-  const faits = (type: string) => {
-    const lu = ouvrirJournal(etat, { lectureSeule: true });
+  const facts = (type: string) => {
+    const lu = openLog(etat, { lectureSeule: true });
     try {
       return lu.tout().filter((evenement) => evenement.type === type);
     } finally {
       lu.fermer();
     }
   };
-  return { station, faits };
+  return { station, faits: facts };
 }
 
 test("tant que le ticket qui prépare le dépôt n'est pas servi, la cuisine ne prend que lui — un ticket plus ancien reste sur le rail", async (t) => {
-  const { station, faits } = uneStation(t, "ouverte");
+  const { station, faits: facts } = uneStation(t, "ouverte");
   await station.attendre("le rail attend #20 (préparer le dépôt) — aucun autre ticket ne part avant son merge");
-  await jusqua(() => faits("cook.launched").length === 1);
+  await jusqua(() => facts("cook.launched").length === 1);
   // Une prise et la suivante se font d'un trait, avant que le premier cook ne
   // soit lancé : l'autre ticket, s'il pouvait partir, serait déjà pris.
   assert.deepEqual(
-    faits("ticket.taken").map((evenement) => evenement.ticket),
+    facts("ticket.taken").map((evenement) => evenement.ticket),
     [PREPARATION],
   );
   assert.deepEqual(
-    faits("ticket.arrived").map((evenement) => evenement.ticket).sort(),
+    facts("ticket.arrived").map((evenement) => evenement.ticket).sort(),
     [DU_CHEF, PREPARATION],
   );
   station.process.kill("SIGTERM");
@@ -99,10 +99,10 @@ test("tant que le ticket qui prépare le dépôt n'est pas servi, la cuisine ne 
 });
 
 test("le ticket qui prépare le dépôt servi, la cuisine prend les autres", async (t) => {
-  const { station, faits } = uneStation(t, "servie");
-  await jusqua(() => faits("cook.launched").length === 1);
+  const { station, faits: facts } = uneStation(t, "servie");
+  await jusqua(() => facts("cook.launched").length === 1);
   assert.deepEqual(
-    faits("ticket.taken").map((evenement) => evenement.ticket),
+    facts("ticket.taken").map((evenement) => evenement.ticket),
     [PREPARATION, DU_CHEF],
   );
   station.process.kill("SIGTERM");

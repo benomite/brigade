@@ -141,9 +141,9 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
     assert.equal(aAutoriser.projets[0]?.servi, null);
 
     suivre("g1", [{ nom: "parade", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:03:05.000Z" }]);
-    const servi = await projets.relire();
-    assert.equal(servi.projets[0]?.stations[0]?.etat, "servi");
-    assert.equal(servi.projets[0]?.servi, "served by box 3 min 05 s after “add a project” was opened");
+    const served = await projets.relire();
+    assert.equal(served.projets[0]?.stations[0]?.etat, "servi");
+    assert.equal(served.projets[0]?.servi, "served by box 3 min 05 s after “add a project” was opened");
     assert.deepEqual(projets.pages(), []);
   });
 

@@ -5,7 +5,7 @@
 import { statfsSync } from "node:fs";
 import { availableParallelism, loadavg } from "node:os";
 import type { Ressource } from "./events/station.ts";
-import { lire } from "./plafonds.ts";
+import { lire } from "./caps.ts";
 
 const MO = 1024 * 1024;
 

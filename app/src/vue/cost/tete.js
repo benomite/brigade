@@ -39,7 +39,7 @@ const TOKENS = /(\d[\d\s  .,]*?)\s*tokens?\s*$/;
 // la ligne qui porte ce titre, et se poursuit sur les lignes en retrait. La courbe (courbe.js) y
 // lit ses jours.
 /** @param {string} texte @returns {string[]} */
-export function lignesDuConsomme(texte) {
+export function consumedLines(texte) {
   const lignes = texte.split("\n");
   const debut = lignes.findIndex((ligne) => /^(consommé|consumed)(\s|$)/.test(ligne));
   if (debut === -1) return [];
@@ -66,7 +66,7 @@ export function tokensLus(dit) {
 export function fenetresDe(texte) {
   /** @type {Map<number, number>} */
   const lues = new Map();
-  for (const valeur of lignesDuConsomme(texte)) {
+  for (const valeur of consumedLines(texte)) {
     const fenetre = FENETRE.exec(valeur);
     if (fenetre === null) continue;
     const heures = Number(fenetre[1]) * (fenetre[2] === "h" ? 1 : 24);

@@ -3,14 +3,14 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
-import { ouvrirJournal } from "../src/journal.ts";
-import { decisionsDuManager, ecarteesDuManager, etatDuManager, issueDuManager, issuesEnAttente, manager, remiseDe, remisesEnAttente } from "../src/projections/manager.ts";
+import { openLog } from "../src/log.ts";
+import { decisionsDuManager, ecarteesDuManager, etatDuManager, issueDuManager, queuedIssues, manager, remiseDe, queuedReturns } from "../src/projections/manager.ts";
 import { horloge, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 function histoire(t: TestContext) {
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge(), projections: [manager] });
-  t.after(() => journal.fermer());
-  const noter = (fait: Fait, ticket: number | null = 30, author = "manager") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const log = openLog(repertoireTemporaire(t), { maintenant: horloge(), projections: [manager] });
+  t.after(() => log.fermer());
+  const noter = (fait: Fait, ticket: number | null = 30, author = "manager") => log.ajouter({ project: "brigade", ticket, author, ...fait });
   const juger = (verdict: "fire" | "refused", fingerprint = "e1") =>
     noter({
       type: "manager.judged",
@@ -19,7 +19,7 @@ function histoire(t: TestContext) {
           ? { run: "juge-30-a", fingerprint, verdict, kind: "ticket", reason: "Un livrable, des critères vérifiables.", missing: null, model: "sonnet", effort: "low", calibration: "Correctif mécanique." }
           : { run: "juge-30-a", fingerprint, verdict, kind: "epic", reason: "Plusieurs livrables.", missing: "La découper.", model: null, effort: null, calibration: null },
     });
-  return { journal, base: journal.base, noter, juger };
+  return { journal: log, base: log.base, noter, juger };
 }
 
 test("sans fait, le manager est éteint ; allumé puis éteint, il dit depuis quand et par qui", (t) => {
@@ -115,13 +115,13 @@ test("les dernières décisions se lisent de la plus récente à la plus ancienn
 });
 
 test("rejouer le journal rend le même état", (t) => {
-  const { journal, base, noter, juger } = histoire(t);
+  const { journal: log, base, noter, juger } = histoire(t);
   noter({ type: "manager.enabled", payload: {} }, null, "chef");
   juger("fire");
   noter({ type: "manager.labeled", payload: { labels: ["fire"] } });
   const avant = [etatDuManager(base), issueDuManager(base, 30)];
 
-  journal.reconstruire();
+  log.reconstruire();
 
   assert.deepEqual([etatDuManager(base), issueDuManager(base, 30)], avant);
 });
@@ -138,7 +138,7 @@ test("une issue rendue par le chef ne garde rien de sa décision : seul ce que l
   assert.deepEqual(remiseDe(base, 30), { ticket: 30, at: `${JOUR_HORLOGE}T10:00:03.000Z`, labels: ["fire", "model:sonnet"] });
 
   noter({ type: "manager.withdrew", payload: { labels: ["model:sonnet"] } });
-  assert.deepEqual(remisesEnAttente(base), [{ ticket: 30, at: `${JOUR_HORLOGE}T10:00:03.000Z`, labels: null }]);
+  assert.deepEqual(queuedReturns(base), [{ ticket: 30, at: `${JOUR_HORLOGE}T10:00:03.000Z`, labels: null }]);
 
   // Rejugée : la remise est soldée, et rien de ce qui avait été posé avant elle ne traverse.
   juger("fire", "e2");
@@ -177,7 +177,7 @@ test("un `chef-changed` porte ce qui manquait à l'issue, et reste dit quand seu
 
 test("une issue écartée ou d'un jugement illisible attend le chef ; fermée, elle le dit, jusqu'à sa réouverture ou sa décision suivante", (t) => {
   const { base, noter, juger } = histoire(t);
-  const attendues = () => issuesEnAttente(base).map(({ ticket, decision, reason, closed }) => [ticket, decision, reason, closed]);
+  const attendues = () => queuedIssues(base).map(({ ticket, decision, reason, closed }) => [ticket, decision, reason, closed]);
   noter({ type: "manager.set-aside", payload: { reason: "question", fired: false } });
   noter({ type: "manager.failed", payload: { run: "juge-31-a", fingerprint: "e1", reason: "aucun objet JSON" } }, 31);
   juger("refused");

@@ -4,7 +4,7 @@
 // après l'annonce de son échéance. C'est ici que se lit « la session va-t-elle
 // tomber ? » ; « est-elle tombée ? » se lit des stations.
 import type { Base } from "../base.ts";
-import type { FaitGardeFous } from "../events/guardrails.ts";
+import type { GuardrailsFact } from "../events/guardrails.ts";
 import { PREAVIS_PAR_DEFAUT_S, VIE_PAR_DEFAUT_S, type EchecDeRenouvellement, type FaitRenouvellement, type ObservationDeSession } from "../events/renewal.ts";
 import type { FaitStation } from "../events/station.ts";
 import { definirProjection } from "../projection.ts";
@@ -13,7 +13,7 @@ import { stationsDeconnectees } from "./stations.ts";
 
 const ligne = (base: Base) => base.executer("INSERT OR IGNORE INTO session_max (id) VALUES (1)");
 
-export const renouvellement = definirProjection<FaitRenouvellement | Extract<FaitStation, { type: "station.disconnected" }> | Extract<FaitGardeFous, { type: "kitchen.resumed" }>>({
+export const renouvellement = definirProjection<FaitRenouvellement | Extract<FaitStation, { type: "station.disconnected" }> | Extract<GuardrailsFact, { type: "kitchen.resumed" }>>({
   nom: "renouvellement",
   tables: ["session_max"],
   schema: `

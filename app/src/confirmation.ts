@@ -10,7 +10,7 @@
 // rien, n'écrit dans aucun terminal, et ne fait rien partir : il dit.
 import { AVERTISSEMENT as ALLUMER } from "./allumage.ts";
 import type { Projet } from "./config.ts";
-import type { Faits } from "./faits.ts";
+import type { Facts } from "./facts.ts";
 import { commandeDuGeste, CONFIRMES } from "./gestes.ts";
 import { nombre } from "./format.ts";
 
@@ -24,7 +24,7 @@ export type Choix = { id: string; libelle: string; dit: string };
 export type Confirmation = { titre: string; prix: string[]; lu?: string; chiffrer?: true; choix: Choix[]; renoncer: string };
 
 // Les derniers faits lus d'un projet, et l'heure de leur lecture — ou pourquoi il n'y en a pas.
-export type Lus = { faits: Faits; a: string } | { sans: string };
+export type Lus = { faits: Facts; a: string } | { sans: string };
 
 const s = (combien: number) => (combien > 1 ? "s" : "");
 
@@ -40,14 +40,14 @@ const PLUS_SANS_TOI = "Nothing is merged without you any more: the pass stops at
 // Les cooks en vol à cette lecture, d'après `faits` : ce qu'il en donne, et ce qui manque, dit tel.
 function cooksEnVol(lus: Lus): { prix: string[]; lu?: string } {
   if ("sans" in lus) return { prix: [`Cooks in flight are not read: ${lus.sans}. This is not “no cook in flight”.`] };
-  const { faits, a } = lus;
-  if (faits.cooks === undefined) return { prix: ["Cooks in flight are not read: this station's runtime does not give them in `facts`. This is not “no cook in flight”."], lu: a };
-  const tickets = faits.cooks.map(({ ticket }) => `#${ticket}`).join(", ");
+  const { faits: facts, a } = lus;
+  if (facts.cooks === undefined) return { prix: ["Cooks in flight are not read: this station's runtime does not give them in `facts`. This is not “no cook in flight”."], lu: a };
+  const tickets = facts.cooks.map(({ ticket }) => `#${ticket}`).join(", ");
   return {
     prix: [
-      faits.cooks.length === 0
+      facts.cooks.length === 0
         ? "No cook running at this reading — what they would have spent, this station's runtime does not say."
-        : `${faits.cooks.length} cook${s(faits.cooks.length)} running at this reading (${tickets}) — what they spent, this station's runtime does not say in \`facts\`.`,
+        : `${facts.cooks.length} cook${s(facts.cooks.length)} running at this reading (${tickets}) — what they spent, this station's runtime does not say in \`facts\`.`,
     ],
     lu: a,
   };

@@ -8,7 +8,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { ETAPES, installationDe, noterEtape } from "../src/etapes.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { commande, constater, lire, PROTECTION, type ClientGitHub, type RequeteGitHub } from "../src/proteger-branche.ts";
 import { appeler, BASE, DEPOT, fauxGh, lancer, repertoireTemporaire } from "./outils.ts";
 
@@ -67,11 +67,11 @@ async function jouer(etat: string, gh: ReturnType<typeof github>, args: string[]
 const etatDeLEtape = (etat: string) => installationDe(etat).etapes.find((etape) => etape.id === "protection")?.etat;
 
 function evenements(etat: string) {
-  const journal = ouvrirJournal(etat, { lectureSeule: true });
+  const log = openLog(etat, { lectureSeule: true });
   try {
-    return journal.tout();
+    return log.tout();
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }
 
@@ -219,9 +219,9 @@ test("la push protection est activée au passage ; refusée, elle est dite sans 
 
 test("les étapes qui précèdent faites, l'étape courante passe de la protection à la suivante", async (t) => {
   const etat = repertoireTemporaire(t);
-  const journal = ouvrirJournal(etat);
-  for (const etape of ["ajout", "init", "verification", "stations"]) noterEtape(journal, { projet: PROJET, etape, etat: "done", auteur: "chef" });
-  journal.fermer();
+  const log = openLog(etat);
+  for (const etape of ["ajout", "init", "verification", "stations"]) noterEtape(log, { projet: PROJET, etape, etat: "done", auteur: "chef" });
+  log.fermer();
   assert.equal(installationDe(etat).courante, "protection");
 
   assert.equal((await jouer(etat, github())).code, 0);

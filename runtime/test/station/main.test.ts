@@ -7,16 +7,16 @@ import { appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFile
 import { join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ROLES } from "../../src/identites.ts";
-import { ouvrirJournal } from "../../src/journal.ts";
+import { openLog } from "../../src/log.ts";
 import { REPERTOIRE_COMPTEUR } from "../../src/limite-github.ts";
-import { lirePortes } from "../../src/station/portes.ts";
+import { readDoors } from "../../src/station/doors.ts";
 import { fauxGitHubApps } from "../aides/faux-github-apps.ts";
 import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, mort, repertoireTemporaire, temporaireDuFichier, tuerLesRelais, vivant } from "../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
 const STATION = join(import.meta.dirname, "../../src/station/main.ts");
-const PORTES = join(import.meta.dirname, "../../src/station/tenir-portes.ts");
+const DOORS = join(import.meta.dirname, "../../src/station/hold-doors.ts");
 const FAUX_GH_GISTS = join(import.meta.dirname, "../appairage/faux-gh-gists.ts");
 const REFUS = 2;
 
@@ -60,10 +60,10 @@ function uneStation(t: TestContext) {
   // journal, et — sans clone nommé sur sa ligne — un clone à sa place.
   const preparer = (projet: string, options: { clone?: boolean; grant?: boolean } = {}) => {
     mkdirSync(etat(projet), { recursive: true });
-    const journal = ouvrirJournal(etat(projet));
-    for (const [name, value] of Object.entries(DECIDE)) journal.ajouter({ project: projet, ticket: null, author: "chef", type: "decision.set", payload: { name, value, previous: null } });
-    if (options.grant) journal.ajouter({ project: projet, ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
-    journal.fermer();
+    const log = openLog(etat(projet));
+    for (const [name, value] of Object.entries(DECIDE)) log.ajouter({ project: projet, ticket: null, author: "chef", type: "decision.set", payload: { name, value, previous: null } });
+    if (options.grant) log.ajouter({ project: projet, ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
+    log.fermer();
     if (options.clone !== false) {
       const clone = join(racine, "clones", projet);
       mkdirSync(clone, { recursive: true });
@@ -73,15 +73,15 @@ function uneStation(t: TestContext) {
   const configurer = (texte: string) => writeFileSync(join(racine, "projets"), texte);
   const relire = (projet: string) => {
     if (!existsSync(join(etat(projet), "log.db"))) return [];
-    const journal = ouvrirJournal(etat(projet), { lectureSeule: true });
+    const log = openLog(etat(projet), { lectureSeule: true });
     try {
-      return journal.tout().filter((e) => e.type !== "decision.set");
+      return log.tout().filter((e) => e.type !== "decision.set");
     } finally {
-      journal.fermer();
+      log.fermer();
     }
   };
-  const faits = (projet: string, type: string) => relire(projet).flatMap((e) => (e.type === type ? [{ ticket: e.ticket, payload: e.payload as Record<string, unknown> }] : []));
-  return { machine, racine, compte, env, etat, preparer, configurer, relire, faits };
+  const facts = (projet: string, type: string) => relire(projet).flatMap((e) => (e.type === type ? [{ ticket: e.ticket, payload: e.payload as Record<string, unknown> }] : []));
+  return { machine, racine, compte, env, etat, preparer, configurer, relire, faits: facts };
 }
 
 // Les réponses du faux `gh` pour un autre dépôt que celui des outils : ses
@@ -117,14 +117,14 @@ test("deux projets dans la configuration : un seul process les sert, chacun avec
   const brigade = fauxGh(t);
   brigade.issues([]);
   // Le `gh` d'espace ne répond rien : son sondage échoue, et la ligne qui le dit porte son nom.
-  const espace = fauxGh(t);
+  const space = fauxGh(t);
   preparer("brigade");
   preparer("espace");
   configurer(
     [
       "# projet  dépôt             branche  réglages",
       `brigade   benomite/brigade  ${BASE}  BRIGADE_GH_BIN=${brigade.bin}`,
-      `espace    benomite/espace   main     BRIGADE_GH_BIN=${espace.bin} BRIGADE_SANDBOX_BIN=${FAUX_BWRAP} BRIGADE_SANDBOX_HIDDEN=${racine} BRIGADE_PROXY_PORT=3128`,
+      `espace    benomite/espace   main     BRIGADE_GH_BIN=${space.bin} BRIGADE_SANDBOX_BIN=${FAUX_BWRAP} BRIGADE_SANDBOX_HIDDEN=${racine} BRIGADE_PROXY_PORT=3128`,
       "",
     ].join("\n"),
   );
@@ -143,16 +143,16 @@ test("deux projets dans la configuration : un seul process les sert, chacun avec
   // Chacun sa cloison et sa porte, dites à son nom dans la même sortie.
   assert.deepEqual(relire("brigade").find((e) => e.type === "isolation.configured")?.payload, { sandbox: null, proxy: null });
   await jusqua(() => relire("espace").some((e) => e.type === "isolation.configured"));
-  const espaceCloison = relire("espace").find((e) => e.type === "isolation.configured")?.payload as { sandbox: unknown; proxy: { port: number } };
-  assert.deepEqual(espaceCloison.sandbox, { bin: FAUX_BWRAP, hidden: [racine], credentials: join(compte, ".claude/.credentials.json") });
-  assert.equal(espaceCloison.proxy.port, 3128);
+  const partitionSpace = relire("espace").find((e) => e.type === "isolation.configured")?.payload as { sandbox: unknown; proxy: { port: number } };
+  assert.deepEqual(partitionSpace.sandbox, { bin: FAUX_BWRAP, hidden: [racine], credentials: join(compte, ".claude/.credentials.json") });
+  assert.equal(partitionSpace.proxy.port, 3128);
   await station.attendre("brigade [espace] : réseau — ");
   assert.match(station.sortie(), /brigade \[brigade\] : cloison — none/);
   assert.match(station.sortie(), new RegExp(`brigade \\[espace\\] : cloison — every launch .* runs in \`${FAUX_BWRAP}\``));
   // Chacun sonde son dépôt par son `gh`.
-  await jusqua(() => brigade.appels().length > 0 && espace.appels().length > 0);
+  await jusqua(() => brigade.appels().length > 0 && space.appels().length > 0);
   assert.ok(brigade.appels().every((appel) => !appel.join(" ").includes("benomite/espace")));
-  assert.ok(espace.appels().every((appel) => !appel.join(" ").includes("benomite/brigade")));
+  assert.ok(space.appels().every((appel) => !appel.join(" ").includes("benomite/brigade")));
   await station.attendre("brigade [espace] : sondage GitHub en échec");
   assert.doesNotMatch(station.sortie(), /^brigade : sondage/m);
 
@@ -163,11 +163,11 @@ test("deux projets dans la configuration : un seul process les sert, chacun avec
 });
 
 test("un projet ajouté à la configuration est servi, sans redémarrer ; retiré, il ne l'est plus ; et rien d'autre que la configuration n'a été écrit pour cela", async (t) => {
-  const { machine, racine, env, preparer, configurer, relire, faits } = uneStation(t);
+  const { machine, racine, env, preparer, configurer, relire, faits: facts } = uneStation(t);
   const brigade = fauxGh(t);
   brigade.issues([]);
-  const espace = fauxGh(t);
-  issuesDe(espace, "benomite/espace", []);
+  const space = fauxGh(t);
+  issuesDe(space, "benomite/espace", []);
   preparer("brigade");
   preparer("espace");
   const ligneBrigade = `brigade benomite/brigade ${BASE} BRIGADE_GH_BIN=${brigade.bin}\n`;
@@ -176,7 +176,7 @@ test("un projet ajouté à la configuration est servi, sans redémarrer ; retir�
   await station.attendre("station démarrée");
   const pid = station.process.pid;
   assert.match(station.sortie(), /1 projet servi : brigade/);
-  assert.deepEqual(faits("espace", "runtime.started"), []);
+  assert.deepEqual(facts("espace", "runtime.started"), []);
   // Sa présence sur GitHub publiée, la station n'écrit plus rien d'elle-même.
   await station.attendre("station à appairer");
 
@@ -188,28 +188,28 @@ test("un projet ajouté à la configuration est servi, sans redémarrer ; retir�
   const avant = photographier(machine, sauf);
 
   // Ajouter : une ligne de plus, rien d'autre.
-  appendFileSync(join(racine, "projets"), `espace benomite/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
-  await jusqua(() => faits("espace", "runtime.started").length === 1);
-  assert.equal(faits("espace", "runtime.started")[0]?.payload.pid, pid);
+  appendFileSync(join(racine, "projets"), `espace benomite/espace main BRIGADE_GH_BIN=${space.bin}\n`);
+  await jusqua(() => facts("espace", "runtime.started").length === 1);
+  assert.equal(facts("espace", "runtime.started")[0]?.payload.pid, pid);
   await station.attendre("brigade [espace] : servi par la station");
-  await jusqua(() => espace.appels().length > 0);
+  await jusqua(() => space.appels().length > 0);
 
   // Retirer : la ligne s'en va ; le projet s'arrête, la station et l'autre projet restent.
   configurer(ligneBrigade);
-  await jusqua(() => faits("espace", "runtime.stopped").length === 1);
-  assert.deepEqual(faits("espace", "runtime.stopped")[0]?.payload, { signal: "removed" });
+  await jusqua(() => facts("espace", "runtime.stopped").length === 1);
+  assert.deepEqual(facts("espace", "runtime.stopped")[0]?.payload, { signal: "removed" });
   await station.attendre("brigade [espace] : retiré de la configuration : la station ne le sert plus");
   assert.equal(vivant(pid), true);
-  assert.deepEqual(faits("brigade", "runtime.stopped"), []);
-  const sondes = espace.appels().length;
+  assert.deepEqual(facts("brigade", "runtime.stopped"), []);
+  const sondes = space.appels().length;
 
   // Rajouté, il repart de son journal : son verrou a été rendu, rien n'est interrompu.
-  appendFileSync(join(racine, "projets"), `espace benomite/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
-  await jusqua(() => faits("espace", "runtime.started").length === 2);
-  assert.deepEqual(faits("espace", "runtime.interrupted"), []);
-  await jusqua(() => espace.appels().length > sondes);
+  appendFileSync(join(racine, "projets"), `espace benomite/espace main BRIGADE_GH_BIN=${space.bin}\n`);
+  await jusqua(() => facts("espace", "runtime.started").length === 2);
+  assert.deepEqual(facts("espace", "runtime.interrupted"), []);
+  await jusqua(() => space.appels().length > sondes);
   configurer(ligneBrigade);
-  await jusqua(() => faits("espace", "runtime.stopped").length === 2);
+  await jusqua(() => facts("espace", "runtime.stopped").length === 2);
 
   // Ni unité, ni drop-in, ni compte, ni clone : rien hors de l'état des projets n'a bougé.
   assert.deepEqual(photographier(machine, sauf), avant);
@@ -222,7 +222,7 @@ test("un projet ajouté à la configuration est servi, sans redémarrer ; retir�
 });
 
 test("une ligne refusée n'arrête pas la station : elle le dit au nom du projet, et sert les autres", async (t) => {
-  const { env, preparer, configurer, faits } = uneStation(t);
+  const { env, preparer, configurer, faits: facts } = uneStation(t);
   const brigade = fauxGh(t);
   brigade.issues([]);
   preparer("brigade");
@@ -234,41 +234,41 @@ test("une ligne refusée n'arrête pas la station : elle le dit au nom du projet
   assert.match(station.sortie(), /1 projet servi : brigade/);
   assert.match(station.sortie(), /brigade \[espace\] : refusé par la station, les autres projets restent servis — /);
   assert.match(station.sortie(), /brigade : station — ligne 3 de la configuration \(« seul »\)/);
-  assert.equal(faits("brigade", "runtime.started").length, 1);
-  assert.deepEqual(faits("espace", "runtime.started"), []);
+  assert.equal(facts("brigade", "runtime.started").length, 1);
+  assert.deepEqual(facts("espace", "runtime.started"), []);
   station.process.kill("SIGTERM");
   assert.equal(await station.fin, 0);
 });
 
 test("sous les portes de la station : elle attend la sienne avant de rien joindre, puis chaque projet sort par la sienne — jamais par celle d'un autre", async (t) => {
-  const { racine, env, preparer, configurer, faits } = uneStation(t);
+  const { racine, env, preparer, configurer, faits: facts } = uneStation(t);
   const brigade = fauxGh(t);
   brigade.issues([]);
-  const espace = fauxGh(t);
-  issuesDe(espace, "benomite/espace", []);
+  const space = fauxGh(t);
+  issuesDe(space, "benomite/espace", []);
   preparer("brigade");
   preparer("espace");
-  configurer(`brigade benomite/brigade ${BASE} BRIGADE_GH_BIN=${brigade.bin}\nespace benomite/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
+  configurer(`brigade benomite/brigade ${BASE} BRIGADE_GH_BIN=${brigade.bin}\nespace benomite/espace main BRIGADE_GH_BIN=${space.bin}\n`);
   const fichier = join(racine, "portes.json");
 
   const station = lancer(t, STATION, [], { ...env, BRIGADE_STATION_PORTES: fichier });
   await station.attendre(`la station attend sa porte — brigade-station-porte.service n'a pas encore écrit son port dans ${fichier}`);
-  assert.deepEqual(faits("brigade", "runtime.started"), []);
+  assert.deepEqual(facts("brigade", "runtime.started"), []);
 
-  const portes = lancer(t, PORTES, [], { BRIGADE_STATION_DIR: racine, BRIGADE_STATION_PORTES: fichier });
+  const doors = lancer(t, DOORS, [], { BRIGADE_STATION_DIR: racine, BRIGADE_STATION_PORTES: fichier });
   await station.attendre("station démarrée");
   assert.match(station.sortie(), /2 projets servis : brigade, espace/);
-  const ports = lirePortes(fichier);
+  const ports = readDoors(fichier);
   assert.equal(new Set([ports.station, ports.projets.brigade, ports.projets.espace]).size, 3);
   for (const projet of ["brigade", "espace"]) {
-    await jusqua(() => faits(projet, "isolation.configured").length > 0);
-    assert.equal((faits(projet, "isolation.configured")[0]?.payload.proxy as { port: number }).port, ports.projets[projet], projet);
+    await jusqua(() => facts(projet, "isolation.configured").length > 0);
+    assert.equal((facts(projet, "isolation.configured")[0]?.payload.proxy as { port: number }).port, ports.projets[projet], projet);
   }
 
   station.process.kill("SIGTERM");
   assert.equal(await station.fin, 0);
-  portes.process.kill("SIGTERM");
-  assert.equal(await portes.fin, 0);
+  doors.process.kill("SIGTERM");
+  assert.equal(await doors.fin, 0);
 });
 
 test("BRIGADE_PROXY_PORT et BRIGADE_STATION_PORTES ensemble : la station refuse de démarrer — sous ses portes, la sienne est celle qu'elles ouvrent", async (t) => {
@@ -295,7 +295,7 @@ test("sans BRIGADE_STATION_DIR, la station refuse de démarrer et nomme la varia
 // Deux cuisines complètes : elles se jouent de front.
 describe("de bout en bout", { concurrency: 2 }, () => {
   test("deux projets cuisinés par le même process : chacun voit son issue devenir une branche poussée sur son origine, une PR et un commentaire", async (t) => {
-    const { env, preparer, configurer, faits } = uneStation(t);
+    const { env, preparer, configurer, faits: facts } = uneStation(t);
     const projets = [
       { nom: "brigade", depot: "benomite/brigade", numero: 15 },
       { nom: "espace", depot: "benomite/espace", numero: 7 },
@@ -314,8 +314,8 @@ describe("de bout en bout", { concurrency: 2 }, () => {
     for (const p of projets) await jusqua(() => p.gh.appels().some((appel) => appel.at(-1) === `repos/${p.depot}/issues/${p.numero}/comments`));
 
     for (const p of projets) {
-      assert.equal(faits(p.nom, "runtime.started")[0]?.payload.pid, station.process.pid);
-      const [lancement] = faits(p.nom, "cook.launched");
+      assert.equal(facts(p.nom, "runtime.started")[0]?.payload.pid, station.process.pid);
+      const [lancement] = facts(p.nom, "cook.launched");
       assert.deepEqual([lancement?.ticket, lancement?.payload.model, lancement?.payload.effort], [p.numero, "sonnet", "low"]);
       assert.equal(git(p.origine, "show", `cook/${String(lancement?.payload.run)}:travail.txt`), "le travail du cook");
       const pr = p.gh.appels().find((appel) => appel.at(-1) === `repos/${p.depot}/pulls`) ?? [];
@@ -326,7 +326,7 @@ describe("de bout en bout", { concurrency: 2 }, () => {
   });
 
   test("une identité par rôle sous la station : la PR part sous l'identité cook, et ni le cook ni le reviewer ne reçoivent de jeton — pas même celui du compte de la station", async (t) => {
-    const { env, etat, preparer, configurer, faits } = uneStation(t);
+    const { env, etat, preparer, configurer, faits: facts } = uneStation(t);
     const { origine, clone } = depotGit(t);
     const gh = fauxGh(t);
     gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
@@ -341,11 +341,11 @@ describe("de bout en bout", { concurrency: 2 }, () => {
 
     await jusqua(() => gh.appels().some((appel) => appel.at(-1) === "repos/benomite/brigade/issues/15/comments"));
     assert.match(station.sortie(), /brigade \[brigade\] : GitHub — une identité par rôle \(cook, pass, manager\)/);
-    const sous = (chemin: string) => [...new Set(gh.appels().flatMap((appel, i) => (appel.at(-1) === chemin ? [/^ghs_([a-z]+)_/.exec(gh.jetons()[i] ?? "")?.[1] ?? gh.jetons()[i]] : [])))];
+    const sous = (chemin: string) => [...new Set(gh.appels().flatMap((appel, i) => (appel.at(-1) === chemin ? [/^ghs_([a-z]+)_/.exec(gh.tokens()[i] ?? "")?.[1] ?? gh.tokens()[i]] : [])))];
     assert.deepEqual(sous("repos/benomite/brigade/pulls"), ["cook"]);
     assert.deepEqual(sous("repos/benomite/brigade/issues?labels=fire&state=open&per_page=100"), ["manager"]);
-    assert.ok(!gh.jetons().includes(null) && !gh.jetons().includes("ghp_du_compte"));
-    const [lancement] = faits("brigade", "cook.launched");
+    assert.ok(!gh.tokens().includes(null) && !gh.tokens().includes("ghp_du_compte"));
+    const [lancement] = facts("brigade", "cook.launched");
     assert.equal(git(origine, "show", `cook/${String(lancement?.payload.run)}:travail.txt`), "le travail du cook");
 
     const lances = lancementsDuFauxClaude(temoin);
@@ -357,14 +357,14 @@ describe("de bout en bout", { concurrency: 2 }, () => {
     }
     station.process.kill("SIGTERM");
     assert.equal(await station.fin, 0);
-    const secrets = [...ROLES.flatMap((role) => apps.jetons(role)), ...apps.jwts(), "ghp_du_compte"];
-    const ecrits = [JSON.stringify(faits("brigade", "cook.launched")), JSON.stringify(faits("brigade", "cook.exited")), station.sortie()];
+    const secrets = [...ROLES.flatMap((role) => apps.tokens(role)), ...apps.jwts(), "ghp_du_compte"];
+    const ecrits = [JSON.stringify(facts("brigade", "cook.launched")), JSON.stringify(facts("brigade", "cook.exited")), station.sortie()];
     for (const ecrit of ecrits) for (const secret of secrets) assert.ok(!ecrit.includes(secret), `un jeton s'est écrit : ${ecrit.slice(0, 200)}`);
   });
 });
 
 test("la station remplacée pendant qu'un cook tourne — une mise à jour : le cook lui survit, la station suivante le reprend sans le relancer, et sa livraison est jugée, mergée sous grant et servie", async (t) => {
-  const { env, etat, preparer, configurer, faits } = uneStation(t);
+  const { env, etat, preparer, configurer, faits: facts } = uneStation(t);
   aArreter(t, () => tuerLesRelais(etat("brigade")));
   const { origine, clone } = depotGit(t);
   mkdirSync(join(clone, ".claude/brigade"), { recursive: true });
@@ -394,8 +394,8 @@ test("la station remplacée pendant qu'un cook tourne — une mise à jour : le 
   const envDeStation = { ...env, FAUX_CLAUDE: "relit-vert", FAUX_CLAUDE_SUITE: suite, FAUX_CLAUDE_FEU: feu };
 
   const premiere = lancer(t, STATION, [], envDeStation);
-  await jusqua(() => faits("brigade", "cook.launched").length === 1);
-  const run = String(faits("brigade", "cook.launched")[0]?.payload.run);
+  await jusqua(() => facts("brigade", "cook.launched").length === 1);
+  const run = String(facts("brigade", "cook.launched")[0]?.payload.run);
   const fichierDuPid = join(etat("brigade"), "runs", `${run}.cook.pid`);
   await jusqua(() => existsSync(fichierDuPid));
   const pid = Number(readFileSync(fichierDuPid, "utf8"));
@@ -406,18 +406,18 @@ test("la station remplacée pendant qu'un cook tourne — une mise à jour : le 
   assert.equal(vivant(pid), true);
 
   const seconde = lancer(t, STATION, [], envDeStation);
-  await jusqua(() => faits("brigade", "cook.resumed").length === 1);
+  await jusqua(() => facts("brigade", "cook.resumed").length === 1);
   assert.equal(vivant(pid), true);
-  assert.deepEqual(faits("brigade", "cook.interrupted"), []);
+  assert.deepEqual(facts("brigade", "cook.interrupted"), []);
 
   writeFileSync(feu, "");
-  await jusqua(() => faits("brigade", "ticket.served").length === 1);
+  await jusqua(() => facts("brigade", "ticket.served").length === 1);
   await mort(pid);
   const juge = git(origine, "rev-parse", `cook/${run}`);
-  assert.deepEqual(faits("brigade", "cook.launched").filter((e) => e.ticket === 15).map((e) => e.payload.run), [run]);
-  assert.deepEqual([faits("brigade", "pass.judged")[0]?.payload.verdict, faits("brigade", "pass.judged")[0]?.payload.sha], ["green", juge]);
+  assert.deepEqual(facts("brigade", "cook.launched").filter((e) => e.ticket === 15).map((e) => e.payload.run), [run]);
+  assert.deepEqual([facts("brigade", "pass.judged")[0]?.payload.verdict, facts("brigade", "pass.judged")[0]?.payload.sha], ["green", juge]);
   assert.deepEqual(gh.appels().find((appel) => appel.includes("PUT")), ["api", "-i", "-X", "PUT", "-f", `sha=${juge}`, "-f", "merge_method=merge", `repos/${depot}/pulls/40/merge`]);
-  assert.deepEqual(faits("brigade", "grant.used").length, 1);
+  assert.deepEqual(facts("brigade", "grant.used").length, 1);
   seconde.process.kill("SIGTERM");
   assert.equal(await seconde.fin, 0);
 });

@@ -3,9 +3,9 @@
 // attente qui ne retient qu'une partie du rail, et ce qui la lève.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
+import { decrireEtat, facts, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
 import { JOUR_HORLOGE, jourDecale, repertoireTemporaire } from "./outils.ts";
 
@@ -15,11 +15,11 @@ const pr = (ticket: number) => `https://exemple.test/pull/${ticket}`;
 const heure = (h: string) => `${JOUR_HORLOGE}T${h}.000Z`;
 
 // Une cuisine dont le test tient l'horloge : chaque fait s'écrit à l'heure dite.
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   let instant = heure("08:00:00");
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: () => new Date(instant) });
-  t.after(() => journal.fermer());
-  const noter = (fait: Fait, ticket: number | null = null, author = "runtime") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const log = openLog(repertoireTemporaire(t), { maintenant: () => new Date(instant) });
+  t.after(() => log.fermer());
+  const noter = (fait: Fait, ticket: number | null = null, author = "runtime") => log.ajouter({ project: "brigade", ticket, author, ...fait });
   const a = (h: string) => {
     instant = heure(h);
   };
@@ -33,7 +33,7 @@ function cuisine(t: TestContext) {
       "github",
     );
   // Le ticket déjà sur le rail, pris, cuisiné, livré avec sa PR.
-  const cuisiner = (ticket: number) => {
+  const cook = (ticket: number) => {
     noter({ type: "ticket.taken", payload: { station: STATION, leaseUntil: `${jourDecale(30)}T00:00:00.000Z` } }, ticket, `station:${STATION}`);
     noter({ type: "cook.launched", payload: { run: `${ticket}-aa`, limits: LIMITES, stream: `runs/${ticket}-aa.jsonl`, branch: `cook/${ticket}-aa`, worktree: `worktrees/${ticket}-aa` } }, ticket);
     noter({ type: "cook.exited", payload: { run: `${ticket}-aa`, outcome: "ok", code: 0, signal: null, turns: 3, tokens: 1000, durationMs: 1000 } }, ticket);
@@ -49,20 +49,20 @@ function cuisine(t: TestContext) {
   };
   const lire = (h: string) => {
     const maintenant = new Date(heure(h));
-    const etat = lireEtat(journal, maintenant);
-    return { etat, faits: faits(etat, maintenant, "benomite/brigade"), texte: decrireEtat(etat, maintenant) };
+    const etat = lireEtat(log, maintenant);
+    return { etat, faits: facts(etat, maintenant, "benomite/brigade"), texte: decrireEtat(etat, maintenant) };
   };
   noter({ type: "runtime.started", payload: { pid: 1, host: "box" } } as Fait);
   noter({ type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["opus"], maxCooks: 2 } });
-  return { noter, a, arriver, cuisiner, retenir, merger, lire };
+  return { noter, a, arriver, cuisiner: cook, retenir, merger, lire };
 }
 
 test("une livraison à merger à la main qui tient toutes les zones : l'urgence porte la cause, la décision, son geste et le début de l'arrêt total — et `status` le dit en première ligne", (t) => {
-  const { a, arriver, cuisiner, retenir, lire } = cuisine(t);
+  const { a, arriver, cuisiner: cook, retenir, lire } = kitchen(t);
   arriver(535, ["runtime", "app"]);
   arriver(536, ["runtime/src"]);
   arriver(537, ["app/src"]);
-  cuisiner(535); // le cook finit à 08:00:00
+  cook(535); // le cook finit à 08:00:00
   a("08:30:00");
   retenir(535);
 
@@ -92,11 +92,11 @@ test("une livraison à merger à la main qui tient toutes les zones : l'urgence 
 });
 
 test("l'arrêt total part du dernier mouvement de la cuisine quand il suit la décision : un cook fini après elle", (t) => {
-  const { a, arriver, cuisiner, retenir, noter, lire } = cuisine(t);
+  const { a, arriver, cuisiner: cook, retenir, noter, lire } = kitchen(t);
   arriver(535, ["runtime"]);
   arriver(540, ["app"]);
   arriver(541, ["runtime/src"]);
-  cuisiner(535);
+  cook(535);
   a("08:10:00");
   retenir(535);
   // #540 ne touche pas la zone de #535 : il cuit encore, la cuisine bouge.
@@ -121,7 +121,7 @@ test("l'arrêt total part du dernier mouvement de la cuisine quand il suit la d�
 });
 
 test("une session Max expirée sur la seule station : toute la cuisine attend la reconnexion du chef — levée à la reprise, l'urgence qui revient repart de sa nouvelle expiration", (t) => {
-  const { a, arriver, noter, lire } = cuisine(t);
+  const { a, arriver, noter, lire } = kitchen(t);
   arriver(14, ["runtime"]);
   arriver(15, ["app"]);
   assert.equal(lire("08:05:00").faits.urgence, null);
@@ -155,11 +155,11 @@ test("une session Max expirée sur la seule station : toute la cuisine attend la
 });
 
 test("une décision qui ne retient qu'une partie du rail n'est pas une urgence : un ticket peut encore cuire, la décision reste une ligne de la file", (t) => {
-  const { a, arriver, cuisiner, retenir, lire } = cuisine(t);
+  const { a, arriver, cuisiner: cook, retenir, lire } = kitchen(t);
   arriver(535, ["runtime"]);
   arriver(536, ["runtime/src"]);
   arriver(540, ["app"]);
-  cuisiner(535);
+  cook(535);
   a("08:30:00");
   retenir(535);
 
@@ -171,21 +171,21 @@ test("une décision qui ne retient qu'une partie du rail n'est pas une urgence :
 });
 
 test("rien qui attend d'être cuisiné, rien qui retient : la décision seule sur le rail n'arrête aucune cuisine", (t) => {
-  const { a, arriver, cuisiner, retenir, lire } = cuisine(t);
+  const { a, arriver, cuisiner: cook, retenir, lire } = kitchen(t);
   arriver(535, ["runtime"]);
-  cuisiner(535);
+  cook(535);
   a("08:30:00");
   retenir(535);
   assert.equal(lire("10:00:00").faits.urgence, null);
 });
 
 test("un ticket retenu par un autre, lui-même retenu par la décision du chef, est à l'arrêt à cause d'elle", (t) => {
-  const { a, arriver, cuisiner, retenir, lire } = cuisine(t);
+  const { a, arriver, cuisiner: cook, retenir, lire } = kitchen(t);
   arriver(535, ["runtime"]);
   arriver(536, ["runtime/src"]);
   // #537 attend #536, qui ne partira pas avant que #535 ait libéré sa zone.
   arriver(537, ["docs"], [536]);
-  cuisiner(535);
+  cook(535);
   a("08:30:00");
   retenir(535);
   const urgence = lire("10:00:00").faits.urgence;
@@ -194,14 +194,14 @@ test("un ticket retenu par un autre, lui-même retenu par la décision du chef, 
 });
 
 test("deux décisions qui, à elles deux, retiennent tout : l'urgence nomme celle qui retient le plus, et l'autre aussi", (t) => {
-  const { a, arriver, cuisiner, retenir, lire } = cuisine(t);
+  const { a, arriver, cuisiner: cook, retenir, lire } = kitchen(t);
   arriver(535, ["runtime"]);
   arriver(540, ["app"]);
   arriver(536, ["runtime/src"]);
   arriver(541, ["app/src"]);
   arriver(542, ["app/test"]);
-  cuisiner(535);
-  cuisiner(540);
+  cook(535);
+  cook(540);
   a("08:30:00");
   retenir(535);
   a("08:40:00");
@@ -220,11 +220,11 @@ test("deux décisions qui, à elles deux, retiennent tout : l'urgence nomme cell
 });
 
 test("le chef merge à la main : l'urgence est levée, la cuisine repart — et celle qui revient part de la nouvelle décision, pas de l'ancienne", (t) => {
-  const { a, arriver, cuisiner, retenir, merger, lire } = cuisine(t);
+  const { a, arriver, cuisiner: cook, retenir, merger, lire } = kitchen(t);
   arriver(535, ["runtime"]);
   arriver(536, ["runtime/src"]);
   arriver(537, ["runtime/src/etat.ts"]);
-  cuisiner(535);
+  cook(535);
   a("08:30:00");
   retenir(535);
   assert.equal(lire("09:00:00").faits.urgence?.depuis, heure("08:30:00"));
@@ -236,7 +236,7 @@ test("le chef merge à la main : l'urgence est levée, la cuisine repart — et 
   // #536 part, cuit, et sa livraison attend à son tour le chef : #537 est à
   // l'arrêt derrière elle.
   a("10:00:00");
-  cuisiner(536);
+  cook(536);
   assert.equal(lire("10:00:30").faits.urgence, null);
   a("10:45:00");
   retenir(536);
@@ -247,10 +247,10 @@ test("le chef merge à la main : l'urgence est levée, la cuisine repart — et 
 });
 
 test("le « stop » du chef retient la cuisine lui-même : pas d'urgence tant qu'il dure", (t) => {
-  const { a, arriver, cuisiner, retenir, noter, lire } = cuisine(t);
+  const { a, arriver, cuisiner: cook, retenir, noter, lire } = kitchen(t);
   arriver(535, ["runtime"]);
   arriver(536, ["runtime/src"]);
-  cuisiner(535);
+  cook(535);
   a("08:30:00");
   retenir(535);
   noter({ type: "kitchen.stopped", payload: {} }, null, "chef");
@@ -258,7 +258,7 @@ test("le « stop » du chef retient la cuisine lui-même : pas d'urgence tant qu
 });
 
 test("le disjoncteur ouvert entre dans la file avec ses échecs et son geste, vaut urgence tant que des tickets attendent, et disparaît au « resume »", (t) => {
-  const { noter, a, arriver, lire } = cuisine(t);
+  const { noter, a, arriver, lire } = kitchen(t);
   arriver(601, ["runtime/src"]);
   arriver(602, ["app/src"]);
   for (const [i, ticket] of [701, 702, 703].entries()) {

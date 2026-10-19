@@ -9,17 +9,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../../runtime/src/evenements.ts";
-import { ouvrirJournal } from "../../runtime/src/journal.ts";
+import { openLog } from "../../runtime/src/log.ts";
 import { principal as status } from "../../runtime/src/status.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
-import { mettreAPart, ticketsDe } from "../src/attend.ts";
+import { mettreAPart, ticketsDe } from "../src/awaiting.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
 import type { Lecture } from "../src/box.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE } from "../src/faits.ts";
+import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
+import { BANNIERE } from "../src/facts.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
@@ -33,11 +33,11 @@ const HEURE_MS = 3_600_000;
 
 // Une cuisine dont la base est rouge depuis trois heures : rejouée, elle l'est restée, et son
 // ticket de réparation a quitté le rail sans être servi. `status` : ce que la box en rend.
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-app-base-rouge-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
-  const journal = ouvrirJournal(repertoire, { maintenant: () => new Date(Date.now() - 3 * HEURE_MS) });
-  const noter = (fait: Fait, ticket: number | null = null, author = "pass") => journal.ajouter({ project: PARADE, ticket, author, ...fait });
+  const log = openLog(repertoire, { maintenant: () => new Date(Date.now() - 3 * HEURE_MS) });
+  const noter = (fait: Fait, ticket: number | null = null, author = "pass") => log.ajouter({ project: PARADE, ticket, author, ...fait });
   const gates = { outcome: "red" as const, code: 1, failures: ["FAIL  tests du runtime en échec"], tail: "" };
   noter({ type: "base.checked", payload: { sha: "ba5e0001ffff", outcome: "red", gates, tickets: [] } });
   noter({ type: "base.recheck-requested", payload: {} });
@@ -46,7 +46,7 @@ function cuisine(t: TestContext) {
   noter({ type: "base.repair-opened", payload: { sha: "ba5e0001ffff", failures: ["tests du runtime en échec"], reconciled: false } }, 501);
   noter({ type: "ticket.arrived", payload: { title: "Réparer la base `v2`", priority: 0, createdAt: "2026-10-01T00:00:00Z", url: "https://exemple.test/501" } }, 501, "github");
   noter({ type: "ticket.left", payload: { reason: "closed" } }, 501, "github");
-  journal.fermer();
+  log.fermer();
   return {
     status: () => {
       let texte = "";
@@ -56,7 +56,7 @@ function cuisine(t: TestContext) {
     },
     // La base est revenue au vert : la pass l'a contrôlée.
     verdir: () => {
-      const rouvert = ouvrirJournal(repertoire);
+      const rouvert = openLog(repertoire);
       rouvert.ajouter({ project: PARADE, ticket: null, author: "pass", type: "base.checked", payload: { sha: "ba5e0002ffff", outcome: "green", gates: { outcome: "green", code: 0, failures: [], tail: "" }, tickets: [] } });
       rouvert.fermer();
     },
@@ -76,7 +76,7 @@ const REPONSES = {
     exemple: EXEMPLE,
     onglets: ONGLETS, rubriques: RUBRIQUES,
     boutons: BOUTONS,
-    gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+    gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
     banniere: BANNIERE,
     calibrage: { modeles: MODELES, efforts: EFFORTS },
     code: undefined,
@@ -88,7 +88,7 @@ const relayes = (ou: Faux) => ou.dessous("pre").filter((pre) => pre.className ==
 
 describe("une base rouge dont la réparation a échoué : la même ligne dans le panneau de l'app et dans le second", () => {
   test("le second reçoit la sortie de `status`, qui porte la ligne dans le bloc `attend` ; l'app la pose à part, mot pour mot, sans en faire un ticket", async (t) => {
-    const { status } = cuisine(t);
+    const { status } = kitchen(t);
     const texte = status();
 
     // Ce que le second relaie : la sortie entière, la ligne entre les bords du bloc.
@@ -117,7 +117,7 @@ describe("une base rouge dont la réparation a échoué : la même ligne dans le
   });
 
   test("la base revenue au vert, la ligne a quitté le bloc : ni le second ni l'app ne la lisent plus", (t) => {
-    const { status, verdir } = cuisine(t);
+    const { status, verdir } = kitchen(t);
     assert.equal(lignesDeBase(status()).length, 1);
 
     verdir();

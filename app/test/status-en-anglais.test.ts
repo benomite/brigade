@@ -4,10 +4,10 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { alertes, etatDuMerge, tetesDe } from "../src/alertes.ts";
-import type { Faits } from "../src/faits.ts";
+import type { Facts } from "../src/facts.ts";
 
 const A = "2026-10-16T12:00:00.000Z";
-const FAITS: Faits = {
+const FACTS: Facts = {
   etat: "retenue",
   lu: A,
   dernierTick: A,
@@ -19,7 +19,7 @@ const FAITS: Faits = {
 };
 const MANAGER = { allume: true, mot: "ALLUMÉ", dit: "" };
 const bande = (...tetes: string[]) => ["projet     parade", ...tetes, "", "rail       vide", ""].join("\n");
-const lue = (status: string) => alertes({ projet: "parade", faits: FAITS, status, manager: MANAGER });
+const lue = (status: string) => alertes({ projet: "parade", faits: FACTS, status, manager: MANAGER });
 // Ce que dit une bande : le geste que la box nomme est dans sa langue, il suffit qu'il soit repris.
 const dits = (status: string) => lue(status).map(({ sujet, dit, ton, appel }) => ({ sujet, dit, ton, appel }));
 const gestes = (status: string) => lue(status).map(({ geste }) => geste);
@@ -66,9 +66,9 @@ describe("l'app lit le haut de `status` en français comme en anglais", () => {
   }
 
   test("le geste que la box nomme après le dernier `: ` est repris tel qu'elle l'écrit", () => {
-    const [connexion] = lue(bande("kitchen    held", "connection Max EXPIRED for 18 min on box/claude — no ticket is taken any more: `claude /login` under the service account"));
-    assert.equal(connexion?.geste, "`claude /login` under the service account");
-    assert.equal(connexion?.releve, "Max EXPIRED for 18 min on box/claude — no ticket is taken any more");
+    const [connection] = lue(bande("kitchen    held", "connection Max EXPIRED for 18 min on box/claude — no ticket is taken any more: `claude /login` under the service account"));
+    assert.equal(connection?.geste, "`claude /login` under the service account");
+    assert.equal(connection?.releve, "Max EXPIRED for 18 min on box/claude — no ticket is taken any more");
     const [stations] = lue(bande("kitchen    held", "stations   NONE DECLARED for 1 h 00 — no cook leaves: set them with `station stations`"));
     assert.equal(stations?.geste, "set them with `station stations`");
   });

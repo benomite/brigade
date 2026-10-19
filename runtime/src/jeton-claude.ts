@@ -24,7 +24,7 @@
 // comme la forme des identifiants, dans tout ce que le runtime garde ou publie
 // (journal, flux des cooks, comptes-rendus, sortie des gates, GitHub, sa
 // propre sortie). Le fichier, lui, la cloison le cache aux lancements
-// (`cloison.ts`).
+// (`partition.ts`).
 //
 // Le jeton vit un an (`VIE_DU_JETON_JOURS`). L'étape de connexion Max range la
 // date de sa création à côté de lui (`<fichier>.cree`, sans le jeton) : le

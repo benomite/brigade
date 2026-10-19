@@ -34,16 +34,16 @@ function accepte(texte: string) {
 }
 
 test("les gestes cités en constantes sont ceux de la box", async () => {
-  const fermeture = await import("../src/closing/say.ts");
+  const closing = await import("../src/closing/say.ts");
   const stations = await import("../src/projections/stations.ts");
   const declarees = await import("../src/stations-declarees.ts");
-  const attend = await import("../src/attend.ts");
+  const awaiting = await import("../src/awaiting.ts");
   const base = await import("../src/dire-base.ts");
   const manager = await import("../src/events/manager.ts");
   for (const texte of [
-    fermeture.DEMANDER, fermeture.ANNULER,
-    stations.GESTE_DE_CONNEXION, declarees.GESTE_DE_STATION_A_CHAUD,
-    attend.ACCORDER_LE_GRANT, base.REJOUER_LA_BASE, manager.commandeRendre(12),
+    closing.DEMANDER, closing.ANNULER,
+    stations.CONNECTION_ACTION, declarees.GESTE_DE_STATION_A_CHAUD,
+    awaiting.ACCORDER_LE_GRANT, base.REPLAY_THE_BASE, manager.commandeRendre(12),
   ]) accepte(texte);
 });
 

@@ -21,7 +21,7 @@ const VALEUR = ["sk-ant-oat01", "x".repeat(60)].join("-");
 
 // Un jeton rangé comme l'étape de connexion Max le range, une cuisine dont le
 // test tient les ticks, et le bloc `attend` de `status` tel que le chef le lit.
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   const etc = repertoireTemporaire(t);
   const jeton = join(etc, "claude-token");
   writeFileSync(jeton, `${VALEUR}\n`, { mode: 0o600 });
@@ -56,7 +56,7 @@ test("la vie d'un jeton est d'un an, et l'échéance s'annonce des semaines avan
 });
 
 test("créé il y a 340 jours, sur 365 : la file porte l'échéance du jeton, sa date, et le seul geste à faire — jamais sa valeur", (t) => {
-  const { jeton, brancher, creeIlYA, bloc, journal } = cuisine(t);
+  const { jeton, brancher, creeIlYA, bloc, journal: log } = kitchen(t);
   const maintenant = new Date();
   const cree = creeIlYA(340, maintenant);
   brancher();
@@ -71,11 +71,11 @@ test("créé il y a 340 jours, sur 365 : la file porte l'échéance du jeton, sa
   assert.ok(ligne.endsWith(`Max connection token close to its expiry — it expires on ${echeance}, 365 days after its creation (${cree}) — to do before then: ${GESTE(jeton)}`), ligne);
   // Le geste nomme le fichier, jamais ce qu'il porte : ni la file ni le journal.
   assert.ok(!ligne.includes(VALEUR));
-  assert.ok(!JSON.stringify(journal().tout()).includes(VALEUR));
+  assert.ok(!JSON.stringify(log().tout()).includes(VALEUR));
 });
 
 test("créé récemment, ou juste avant le préavis : aucune alerte", (t) => {
-  const { brancher, creeIlYA, bloc, observees } = cuisine(t);
+  const { brancher, creeIlYA, bloc, observees } = kitchen(t);
   const maintenant = new Date();
   creeIlYA(2, maintenant);
   brancher();
@@ -91,7 +91,7 @@ test("créé récemment, ou juste avant le préavis : aucune alerte", (t) => {
 });
 
 test("l'alerte n'est pas dupliquée : des passages successifs et un redémarrage n'écrivent rien de neuf, la file garde une ligne et sa date ; un jeton refait la fait sortir", (t) => {
-  const { brancher, tick, creeIlYA, bloc, observees, redemarrer } = cuisine(t);
+  const { brancher, tick, creeIlYA, bloc, observees, redemarrer } = kitchen(t);
   const maintenant = new Date();
   creeIlYA(340, maintenant);
   brancher();
@@ -118,7 +118,7 @@ test("l'alerte n'est pas dupliquée : des passages successifs et un redémarrage
 });
 
 test("échu : la file le dit, avec la date et le geste ; le runtime tourne", (t) => {
-  const { jeton, brancher, creeIlYA, bloc } = cuisine(t);
+  const { jeton, brancher, creeIlYA, bloc } = kitchen(t);
   const maintenant = new Date();
   const cree = creeIlYA(400, maintenant);
   assert.doesNotThrow(() => brancher());
@@ -133,7 +133,7 @@ test("échu : la file le dit, avec la date et le geste ; le runtime tourne", (t)
 });
 
 test("date absente, illisible ou qui n'en est pas une : la file le dit clairement, sans planter le runtime, et ne garde rien de ce que le fichier porte", (t) => {
-  const { jeton, brancher, tick, bloc, observees, journal } = cuisine(t);
+  const { jeton, brancher, tick, bloc, observees, journal: log } = kitchen(t);
   const cree = fichierDeCreation(jeton);
   const dit = (pourquoi: string) => `Max connection token creation date ${pourquoi} (${cree}) — its expiry is unknown: it lives 365 days — to do: ${GESTE(jeton)}`;
   const ligne = () => bloc()[1] ?? "";
@@ -158,12 +158,12 @@ test("date absente, illisible ou qui n'en est pas une : la file le dit clairemen
 
   assert.deepEqual(observees().map((e) => e.payload.state), ["absent", "invalid", "unreadable"]);
   assert.equal(bloc().filter((l) => l.startsWith("  token")).length, 1);
-  assert.ok(!JSON.stringify(journal().tout()).includes(VALEUR));
+  assert.ok(!JSON.stringify(log().tout()).includes(VALEUR));
   assert.ok(!bloc().join("\n").includes(VALEUR));
 });
 
 test("sans jeton configuré, rien ne s'écrit ni ne s'annonce ; un jeton retiré efface l'annonce d'avant", (t) => {
-  const { brancher, tick, creeIlYA, bloc, observees, redemarrer } = cuisine(t);
+  const { brancher, tick, creeIlYA, bloc, observees, redemarrer } = kitchen(t);
   brancher(null);
   tick();
   assert.equal(observees().length, 0);

@@ -10,10 +10,10 @@ import { createServer as ouvrirPort, type AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import type { Montree } from "../src/attend.ts";
+import type { Montree } from "../src/awaiting.ts";
 import type { Reglages } from "../src/box.ts";
 import type { Projet } from "../src/config.ts";
-import { ouvrirTransfert, serveursDe, tenirPages, type Pages } from "../src/page.ts";
+import { ouvrirTransfert, serversOf, tenirPages, type Pages } from "../src/page.ts";
 
 const AIDE = join(import.meta.dirname, "aides/faux-transfert.ts");
 const SOURCES = join(import.meta.dirname, "../src");
@@ -22,7 +22,7 @@ const A = "2026-10-13T09:00:00.000Z";
 
 // La sortie de `status`, telle que le runtime l'écrit (runtime/src/etat.ts) : ce qui
 // se glisse entre les cooks et les derniers événements est ce que le test y met.
-const status = (...serveurs: string[]) =>
+const status = (...servers: string[]) =>
   [
     "projet     calculus",
     "runtime    en marche depuis 2 h 10 (pid 4242)",
@@ -33,20 +33,20 @@ const status = (...serveurs: string[]) =>
     "",
     "cooks      1 en cours",
     "",
-    ...serveurs,
+    ...servers,
     "derniers événements",
     "  09:00:00  service.listening  #412",
     "",
   ].join("\n");
-const SERVEURS = (nombre: number) => `serveurs   ${nombre} serveur${nombre > 1 ? "s" : ""} — une livraison d'interface, servie depuis son worktree sur le port de ce worktree`;
+const SERVERS = (nombre: number) => `serveurs   ${nombre} serveur${nombre > 1 ? "s" : ""} — une livraison d'interface, servie depuis son worktree sur le port de ce worktree`;
 // La ligne d'un serveur, et la page qu'elle écrit au bout : par défaut, celle de l'écran `/rail`.
-const serveur = (ticket: number, port: number, etat = "écoute", page = `http://127.0.0.1:${port}/rail`) =>
+const server = (ticket: number, port: number, etat = "écoute", page = `http://127.0.0.1:${port}/rail`) =>
   `  #${ticket}  worktrees/${ticket}-ab12cd34  port ${port}  ${etat} depuis 3 min  cook/${ticket}-ab12cd34${page === "" ? "" : `  ${page}`}`;
 // Ce que `status` écrit dessous (runtime/src/projections/service.ts, `direEcran`).
 const DECLARE = "    écran : /rail (déclaré par le cook)";
 const DEDUIT = "    écran : /rail (écran déduit des fichiers touchés, pas déclaré par le cook)";
 const PHRASE = "    à regarder : #591 : le rail a maintenant deux colonnes, TODO et WAITING";
-const SANS_ECRAN = "aucune page à ouvrir : la livraison ne dit aucun écran, et n'en touche aucun que le projet déclare";
+const NO_SCREEN = "aucune page à ouvrir : la livraison ne dit aucun écran, et n'en touche aucun que le projet déclare";
 const A_LANCER = "à lancer   1 — le worktree d'une livraison d'une app qui ne s'ouvre pas dans un navigateur, tenu pour qu'on l'y lance : aucune page";
 const COMMENT = "pas de page dans un navigateur : lancer l'app sur le worktree de la livraison, `cd '/etat/worktrees/631-ab12cd34' && npm --prefix app start`, puis y ouvrir l'écran « la carte » — à regarder : la carte dit comment voir l'écran";
 const tenu = (ticket: number, comment = COMMENT) => `  #${ticket}  worktrees/${ticket}-ab12cd34  tenu depuis 3 min  cook/${ticket}-ab12cd34  ${comment}`;
@@ -102,7 +102,7 @@ function essai(t: TestContext, mode: "relaie" | "ouvre" | "refuse" | "muet" = "r
 
   const ouvertes: string[] = [];
   const pages = tenirPages({
-    transferer: (servi, port, signal) => ouvrirTransfert({ ssh, delaiMs: 60_000, connexionS: 10, ...reglages }, servi, port, signal),
+    transferer: (served, port, signal) => ouvrirTransfert({ ssh, delaiMs: 60_000, connexionS: 10, ...reglages }, served, port, signal),
     ouvrir: ouvrir ?? (async (url) => void ouvertes.push(url)),
   });
   t.after(() => {
@@ -126,11 +126,11 @@ const seule = (rendues: Pages | undefined) => {
 
 describe("ce que `status` montre des serveurs", () => {
   test("chaque serveur se lit sous la ligne `serveurs` : son ticket, son worktree, son port, son état", () => {
-    const lus = serveursDe(status(SERVEURS(2), serveur(412, 20412), serveur(415, 20415, "démarre"), ""));
+    const lus = serversOf(status(SERVERS(2), server(412, 20412), server(415, 20415, "démarre"), ""));
 
     assert.deepEqual(lus, {
       entete: "2 serveurs — une livraison d'interface, servie depuis son worktree sur le port de ce worktree",
-      serveurs: [
+      servers: [
         { ticket: 412, worktree: "worktrees/412-ab12cd34", port: 20412, etat: "listening", route: "/rail", ecran: null },
         { ticket: 415, worktree: "worktrees/415-ab12cd34", port: 20415, etat: "starting", route: "/rail", ecran: null },
       ],
@@ -141,30 +141,30 @@ describe("ce que `status` montre des serveurs", () => {
   });
 
   test("sans ligne `serveurs`, aucun serveur — une ligne du rail qui leur ressemble n'en est pas un", () => {
-    assert.deepEqual(serveursDe(status()), { serveurs: [], aLancer: [], illisibles: [], empeche: [] });
+    assert.deepEqual(serversOf(status()), { servers: [], aLancer: [], illisibles: [], empeche: [] });
   });
 
   test("une ligne `service` est gardée mot pour mot : c'est elle qui dit ce qui empêche le projet d'être servi", () => {
-    const lus = serveursDe(status(NON_DECLARE, ""));
+    const lus = serversOf(status(NON_DECLARE, ""));
 
-    assert.deepEqual(lus.serveurs, []);
+    assert.deepEqual(lus.servers, []);
     assert.deepEqual(lus.empeche, [NON_DECLARE.replace(/^service\s+/, "")]);
   });
 
   test("sous `serveurs`, une ligne qui n'a pas la forme n'est pas un serveur — elle reste à lire, telle quelle", () => {
     const sansPort = "  #416  worktrees/416-ab12cd34  écoute depuis 3 min";
-    const lus = serveursDe(status(SERVEURS(4), serveur(412, 20412), serveur(413, 70000), sansPort, serveur(412, 20499), ""));
+    const lus = serversOf(status(SERVERS(4), server(412, 20412), server(413, 70000), sansPort, server(412, 20499), ""));
 
-    assert.deepEqual(lus.serveurs, [{ ticket: 412, worktree: "worktrees/412-ab12cd34", port: 20412, etat: "listening", route: "/rail", ecran: null }]);
+    assert.deepEqual(lus.servers, [{ ticket: 412, worktree: "worktrees/412-ab12cd34", port: 20412, etat: "listening", route: "/rail", ecran: null }]);
     // Un port qui n'en est pas un, une ligne sans port, un worktree déjà lu.
-    assert.deepEqual(lus.illisibles, [serveur(413, 70000), sansPort, serveur(412, 20499)]);
+    assert.deepEqual(lus.illisibles, [server(413, 70000), sansPort, server(412, 20499)]);
   });
 
   test("sous la ligne d'un serveur, l'écran que le cook déclare et sa phrase ; un écran déduit le dit, mot pour mot", () => {
-    const lus = serveursDe(status(SERVEURS(2), serveur(412, 20412), DECLARE, PHRASE, serveur(415, 20415), DEDUIT, ""));
+    const lus = serversOf(status(SERVERS(2), server(412, 20412), DECLARE, PHRASE, server(415, 20415), DEDUIT, ""));
 
     assert.deepEqual(
-      lus.serveurs.map(({ ticket, route, ecran }) => ({ ticket, route, ecran })),
+      lus.servers.map(({ ticket, route, ecran: screen }) => ({ ticket, route, ecran: screen })),
       [
         { ticket: 412, route: "/rail", ecran: { nom: "/rail", phrase: "#591 : le rail a maintenant deux colonnes, TODO et WAITING", deduit: null } },
         { ticket: 415, route: "/rail", ecran: { nom: "/rail", phrase: null, deduit: "screen deduced from the touched files, not declared by the cook" } },
@@ -174,14 +174,14 @@ describe("ce que `status` montre des serveurs", () => {
   });
 
   test("une ligne qui n'écrit pas la page d'un écran n'a pas de route : ce qu'elle écrit à la place, la racine, une autre adresse, ou rien", () => {
-    const lus = serveursDe(
-      status(SERVEURS(5), serveur(412, 20412, "écoute", SANS_ECRAN), serveur(413, 20413, "écoute", "http://127.0.0.1:20413/"), serveur(414, 20414, "écoute", "http://127.0.0.1:20999/rail"), serveur(415, 20415, "écoute", ""), serveur(416, 20416, "écoute", "http://127.0.0.1:20416//ailleurs"), ""),
+    const lus = serversOf(
+      status(SERVERS(5), server(412, 20412, "écoute", NO_SCREEN), server(413, 20413, "écoute", "http://127.0.0.1:20413/"), server(414, 20414, "écoute", "http://127.0.0.1:20999/rail"), server(415, 20415, "écoute", ""), server(416, 20416, "écoute", "http://127.0.0.1:20416//ailleurs"), ""),
     );
 
     assert.deepEqual(
-      lus.serveurs.map(({ ticket, route, sansPage }) => ({ ticket, route, sansPage })),
+      lus.servers.map(({ ticket, route, sansPage }) => ({ ticket, route, sansPage })),
       [
-        { ticket: 412, route: null, sansPage: SANS_ECRAN },
+        { ticket: 412, route: null, sansPage: NO_SCREEN },
         { ticket: 413, route: null, sansPage: undefined },
         { ticket: 414, route: null, sansPage: undefined },
         { ticket: 415, route: null, sansPage: undefined },
@@ -191,9 +191,9 @@ describe("ce que `status` montre des serveurs", () => {
   });
 
   test("sous la ligne `à lancer`, la livraison d'une app : comment la voir, son écran et sa phrase — aucun serveur", () => {
-    const lus = serveursDe(status(A_LANCER, tenu(631), "    écran : la carte (déclaré par le cook)", "    à regarder : la carte dit comment voir l'écran", ""));
+    const lus = serversOf(status(A_LANCER, tenu(631), "    écran : la carte (déclaré par le cook)", "    à regarder : la carte dit comment voir l'écran", ""));
 
-    assert.deepEqual(lus.serveurs, []);
+    assert.deepEqual(lus.servers, []);
     assert.deepEqual(lus.aLancer, [
       { ticket: 631, worktree: "worktrees/631-ab12cd34", commentLeVoir: COMMENT, ecran: { nom: "la carte", phrase: "la carte dit comment voir l'écran", deduit: null } },
     ]);
@@ -202,10 +202,10 @@ describe("ce que `status` montre des serveurs", () => {
 
   test("un retrait qui n'est ni un écran ni sa phrase, ou qui ne suit aucune entrée lisible, reste à lire tel quel", () => {
     const autre = "    autre chose : rien";
-    const lus = serveursDe(status(SERVEURS(2), serveur(412, 20412), autre, PHRASE, serveur(413, 70000), DECLARE, ""));
+    const lus = serversOf(status(SERVERS(2), server(412, 20412), autre, PHRASE, server(413, 70000), DECLARE, ""));
 
-    assert.equal(lus.serveurs[0]?.ecran, null);
-    assert.deepEqual(lus.illisibles, [autre, PHRASE, serveur(413, 70000), DECLARE]);
+    assert.equal(lus.servers[0]?.ecran, null);
+    assert.deepEqual(lus.illisibles, [autre, PHRASE, server(413, 70000), DECLARE]);
   });
 });
 
@@ -213,7 +213,7 @@ describe("le geste posé", () => {
   test("un serveur qui écoute a son geste ; celui qui démarre ne l'a pas, et dit pourquoi", (t) => {
     const { pages } = essai(t);
 
-    const rendues = pages.recevoir(lue(status(SERVEURS(2), serveur(412, 20412), serveur(415, 20415, "démarre"), "")));
+    const rendues = pages.recevoir(lue(status(SERVERS(2), server(412, 20412), server(415, 20415, "démarre"), "")));
 
     assert.equal(rendues.projet, "calculus");
     assert.deepEqual(rendues.pages[0], { ticket: 412, worktree: "worktrees/412-ab12cd34", port: 20412, etat: "listening", route: "/rail", ecran: null, enCours: false });
@@ -230,7 +230,7 @@ describe("le geste posé", () => {
   test("des serveurs sans fin au journal n'ont pas de geste : leur runtime s'est arrêté sans les éteindre", (t) => {
     const { pages } = essai(t);
 
-    const rendues = pages.recevoir(lue(status("serveurs   1 serveur sans fin au journal — leur runtime s'est arrêté sans les éteindre", serveur(412, 20412), "")));
+    const rendues = pages.recevoir(lue(status("serveurs   1 serveur sans fin au journal — leur runtime s'est arrêté sans les éteindre", server(412, 20412), "")));
 
     assert.match(seule(rendues).raison ?? "", /with no end in the log/);
   });
@@ -259,7 +259,7 @@ describe("le geste posé", () => {
 
   test("une lecture ratée ne dit pas « aucun serveur » : elle dit que `status` n'a pas été lu", (t) => {
     const { pages } = essai(t);
-    pages.recevoir(lue(status(SERVEURS(1), serveur(412, 20412), "")));
+    pages.recevoir(lue(status(SERVERS(1), server(412, 20412), "")));
 
     const rendues = pages.recevoir(ratee());
 
@@ -271,12 +271,12 @@ describe("le geste posé", () => {
   test("un serveur sans page d'écran n'a pas de geste — pas même inactif : ce que `status` écrit à la place se lit, et le rappel n'a rien à rappeler", (t) => {
     const { pages } = essai(t);
 
-    const rendues = pages.recevoir(lue(status(SERVEURS(2), serveur(412, 20412, "écoute", SANS_ECRAN), serveur(413, 20413, "écoute", "http://127.0.0.1:20413/"), "")));
+    const rendues = pages.recevoir(lue(status(SERVERS(2), server(412, 20412, "écoute", NO_SCREEN), server(413, 20413, "écoute", "http://127.0.0.1:20413/"), "")));
 
     assert.deepEqual(
       rendues.pages.map(({ ticket, route, sansPage, raison }) => ({ ticket, route, sansPage, raison })),
       [
-        { ticket: 412, route: null, sansPage: SANS_ECRAN, raison: undefined },
+        { ticket: 412, route: null, sansPage: NO_SCREEN, raison: undefined },
         { ticket: 413, route: null, sansPage: "no page to open: `ssh <hote> brigade <nom> status` writes no screen page for this server — the app never opens the root of a worktree, which a file server shows as a folder listing", raison: undefined },
       ],
     );
@@ -298,10 +298,10 @@ describe("le geste posé", () => {
   test("une ligne que l'app n'a pas su lire est montrée, sans geste", (t) => {
     const { pages } = essai(t);
 
-    const rendues = pages.recevoir(lue(status(SERVEURS(1), serveur(413, 70000), "")));
+    const rendues = pages.recevoir(lue(status(SERVERS(1), server(413, 70000), "")));
 
     assert.deepEqual(rendues.pages, []);
-    assert.deepEqual(rendues.illisibles, [serveur(413, 70000)]);
+    assert.deepEqual(rendues.illisibles, [server(413, 70000)]);
     assert.match(rendues.vide ?? "", /could not read/);
   });
 });
@@ -310,7 +310,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
   test("il amène le port du worktree sur ce poste par `ssh`, sans rien lancer sur la box, et ouvre l'adresse locale — elle rend la page du worktree", async (t) => {
     const port = await servir(t, "la page du worktree 412");
     const { pages, ouvertes, appels } = essai(t);
-    pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
+    pages.recevoir(lue(status(SERVERS(1), server(412, port), "")));
 
     const rendues = await pages.ouvrir(CALCULUS, WORKTREE);
 
@@ -340,7 +340,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     const { port } = donne.address() as AddressInfo;
     await new Promise((resoudre) => donne.close(resoudre));
     const { pages, ouvertes } = essai(t, "ouvre");
-    pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
+    pages.recevoir(lue(status(SERVERS(1), server(412, port), "")));
 
     const page = seule(await pages.ouvrir(CALCULUS, WORKTREE));
 
@@ -351,11 +351,11 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
   test("un second geste ne rouvre rien : le transfert est tenu, et la même adresse s'ouvre", async (t) => {
     const port = await servir(t, "la page");
     const { pages, ouvertes, appels } = essai(t);
-    pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
+    pages.recevoir(lue(status(SERVERS(1), server(412, port), "")));
 
     await pages.ouvrir(CALCULUS, WORKTREE);
     // Une lecture de plus, qui le montre toujours : rien n'est fermé.
-    pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
+    pages.recevoir(lue(status(SERVERS(1), server(412, port), "")));
     await pages.ouvrir(CALCULUS, WORKTREE);
 
     assert.equal(appels().length, 1);
@@ -367,11 +367,11 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
   test("deux gestes de front n'ouvrent qu'un transfert, et qu'une fois la page", async (t) => {
     const port = await servir(t, "la page");
     const { pages, ouvertes, appels } = essai(t);
-    pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
+    pages.recevoir(lue(status(SERVERS(1), server(412, port), "")));
 
     const premier = pages.ouvrir(CALCULUS, WORKTREE);
     // Tant qu'il n'a pas abouti, le geste se dit en cours.
-    assert.equal(seule(pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")))).enCours, true);
+    assert.equal(seule(pages.recevoir(lue(status(SERVERS(1), server(412, port), "")))).enCours, true);
     await Promise.all([premier, pages.ouvrir(CALCULUS, WORKTREE)]);
 
     assert.equal(appels().length, 1);
@@ -381,7 +381,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
   test("quand `status` ne montre plus le serveur, son transfert est fermé — et le geste ne lance plus rien", async (t) => {
     const port = await servir(t, "la page");
     const { pages, ouvertes, appels, pids } = essai(t);
-    pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
+    pages.recevoir(lue(status(SERVERS(1), server(412, port), "")));
     await pages.ouvrir(CALCULUS, WORKTREE);
 
     pages.recevoir(lue(status()));
@@ -400,7 +400,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
   test("une lecture ratée ne ferme rien : rien ne prouve que le serveur n'est plus là — mais aucun geste ne part", async (t) => {
     const port = await servir(t, "la page");
     const { pages, ouvertes, appels } = essai(t);
-    pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
+    pages.recevoir(lue(status(SERVERS(1), server(412, port), "")));
     await pages.ouvrir(CALCULUS, WORKTREE);
 
     pages.recevoir(ratee());
@@ -415,7 +415,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
   test("un `ssh` qui ne joint pas la box : rien n'est ouvert, et ce qu'il a dit est rendu tel quel", async (t) => {
     const port = await servir(t, "la page");
     const { pages, ouvertes, ssh } = essai(t, "refuse");
-    pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
+    pages.recevoir(lue(status(SERVERS(1), server(412, port), "")));
 
     const page = seule(await pages.ouvrir(CALCULUS, WORKTREE));
 
@@ -433,7 +433,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     // Court, et vrai quel que soit le temps que tout met : ce `ssh`-là n'ouvre jamais rien.
     const port = await servir(t, "la page");
     const { pages, ouvertes, pids } = essai(t, "muet", { delaiMs: 300 });
-    pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
+    pages.recevoir(lue(status(SERVERS(1), server(412, port), "")));
 
     const page = seule(await pages.ouvrir(CALCULUS, WORKTREE));
 
@@ -444,7 +444,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
 
   test("là où aucun geste n'est posé, rien ne part : serveur qui démarre, worktree que `status` ne montre pas, projet sans box", async (t) => {
     const { pages, ouvertes, appels } = essai(t);
-    pages.recevoir(lue(status(SERVEURS(1), serveur(412, 20412, "démarre"), "")));
+    pages.recevoir(lue(status(SERVERS(1), server(412, 20412, "démarre"), "")));
 
     const demarre = await pages.ouvrir(CALCULUS, WORKTREE);
     const inconnu = await pages.ouvrir(CALCULUS, "worktrees/999-ab12cd34");
@@ -461,13 +461,13 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
 
   test("sur un serveur sans page d'écran, le geste ne part pas — rien n'est transféré ni ouvert, la racine moins que tout", async (t) => {
     const { pages, ouvertes, appels } = essai(t);
-    pages.recevoir(lue(status(SERVEURS(3), serveur(412, 20412, "écoute", SANS_ECRAN), serveur(413, 20413, "écoute", "http://127.0.0.1:20413/"), serveur(414, 20414, "écoute", ""), "")));
+    pages.recevoir(lue(status(SERVERS(3), server(412, 20412, "écoute", NO_SCREEN), server(413, 20413, "écoute", "http://127.0.0.1:20413/"), server(414, 20414, "écoute", ""), "")));
 
-    const sansEcran = await pages.ouvrir(CALCULUS, WORKTREE);
+    const withoutScreen = await pages.ouvrir(CALCULUS, WORKTREE);
     const racine = await pages.ouvrir(CALCULUS, "worktrees/413-ab12cd34");
     const muette = await pages.ouvrir(CALCULUS, "worktrees/414-ab12cd34");
 
-    assert.equal(sansEcran?.refus, `nothing opened: ${SANS_ECRAN}`);
+    assert.equal(withoutScreen?.refus, `nothing opened: ${NO_SCREEN}`);
     assert.match(racine?.refus ?? "", /^nothing opened: .* never opens the root of a worktree/);
     assert.match(muette?.refus ?? "", /^nothing opened: .* never opens the root of a worktree/);
     assert.deepEqual(appels(), []);
@@ -477,7 +477,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
   test("l'écran déclaré ouvre sa route, quelle qu'elle soit — sa requête et son ancre comprises", async (t) => {
     const port = await servir(t, "la page");
     const { pages, ouvertes } = essai(t);
-    pages.recevoir(lue(status(SERVEURS(1), serveur(412, port, "écoute", `http://127.0.0.1:${port}/projets/12?onglet=notes#haut`), "")));
+    pages.recevoir(lue(status(SERVERS(1), server(412, port, "écoute", `http://127.0.0.1:${port}/projets/12?onglet=notes#haut`), "")));
 
     await pages.ouvrir(CALCULUS, WORKTREE);
 
@@ -488,7 +488,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
   test("le poste n'a pas pu ouvrir l'adresse : le transfert reste, et l'adresse est dite pour être ouverte à la main", async (t) => {
     const port = await servir(t, "la page");
     const { pages } = essai(t, "relaie", {}, () => Promise.reject(new Error("aucun navigateur")));
-    pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
+    pages.recevoir(lue(status(SERVERS(1), server(412, port), "")));
 
     const page = seule(await pages.ouvrir(CALCULUS, WORKTREE));
 
@@ -501,16 +501,16 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
   test("un transfert qui tombe de lui-même se dit : la page ouverte ne répond plus", async (t) => {
     const port = await servir(t, "la page");
     const { pages, pids } = essai(t);
-    pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
+    pages.recevoir(lue(status(SERVERS(1), server(412, port), "")));
     await pages.ouvrir(CALCULUS, WORKTREE);
 
     // Par son pid, et lui seul : c'est le `ssh` de ce test.
     for (const pid of pids()) process.kill(pid);
 
-    let page = seule(pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), ""))));
+    let page = seule(pages.recevoir(lue(status(SERVERS(1), server(412, port), ""))));
     while (page.dit?.ouverte !== false) {
       await new Promise((resoudre) => setTimeout(resoudre, 10));
-      page = seule(pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), ""))));
+      page = seule(pages.recevoir(lue(status(SERVERS(1), server(412, port), ""))));
     }
     assert.match(page.dit.texte, /^the port forward closed/);
   });
@@ -518,8 +518,8 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
   test("un projet qui quitte l'app, et l'app qui ferme : leurs transferts sont fermés, par leur pid", async (t) => {
     const port = await servir(t, "la page");
     const { pages, pids } = essai(t);
-    pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
-    pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), ""), "parade"));
+    pages.recevoir(lue(status(SERVERS(1), server(412, port), "")));
+    pages.recevoir(lue(status(SERVERS(1), server(412, port), ""), "parade"));
     await pages.ouvrir(CALCULUS, WORKTREE);
     await pages.ouvrir({ ...CALCULUS, nom: "parade" }, WORKTREE);
     const [premier, second] = pids() as [number, number];
@@ -535,7 +535,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
   test("un geste encore en route quand l'app ferme est abandonné : son `ssh` est arrêté", async (t) => {
     const port = await servir(t, "la page");
     const { pages, ouvertes, pids } = essai(t, "muet");
-    pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
+    pages.recevoir(lue(status(SERVERS(1), server(412, port), "")));
 
     const enRoute = pages.ouvrir(CALCULUS, WORKTREE);
     await jusqua(() => pids().length === 1);
@@ -568,11 +568,11 @@ describe("ce que l'app n'est pas", () => {
       assert.notEqual(debut, -1, nom);
       return vue.slice(debut, vue.indexOf("\n}\n", debut));
     };
-    const servie = fonction("poserServie");
+    const served = fonction("renderServed");
     const sous = fonction("poserPages");
 
-    assert.equal((servie.match(/bouton\(/g) ?? []).length, 1);
+    assert.equal((served.match(/bouton\(/g) ?? []).length, 1);
     assert.equal((sous.match(/bouton\(/g) ?? []).length, 0);
-    for (const poser of [servie, sous]) assert.doesNotMatch(poser, /valider|refuser|approuver|rejeter|<input|createElement\("(input|select|textarea|form)"\)/i);
+    for (const poser of [served, sous]) assert.doesNotMatch(poser, /valider|refuser|approuver|rejeter|<input|createElement\("(input|select|textarea|form)"\)/i);
   });
 });

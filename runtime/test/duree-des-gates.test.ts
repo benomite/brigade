@@ -40,7 +40,7 @@ const deLaDuree = (lignes: string[]) => lignes.filter((ligne) => /plafond|durée
 
 // La ligne `durée des gates :` : le processeur et son partage entre utilisateur
 // et système, l'horloge, la charge du poste.
-const MESURE = String.raw`durée des gates : \d+,\d s de processeur \(\d+,\d utilisateur \+ \d+,\d système\), \d+ s d'horloge, charge du poste (?:\d+,\d+|inconnue)`;
+const MEASURE = String.raw`durée des gates : \d+,\d s de processeur \(\d+,\d utilisateur \+ \d+,\d système\), \d+ s d'horloge, charge du poste (?:\d+,\d+|inconnue)`;
 function releve(ligne: string): { processeur: number; utilisateur: number; systeme: number; horloge: number } {
   const lu = /durée des gates : (\d+),(\d) s de processeur \((\d+),(\d) utilisateur \+ (\d+),(\d) système\), (\d+) s d'horloge/.exec(ligne);
   assert.ok(lu, ligne);
@@ -58,7 +58,7 @@ describe("la durée des gates", { concurrency: 8 }, () => {
       const { lignes } = await jouer(projet(t, { binding }));
 
       assert.equal(deLaDuree(lignes).length, 1, lignes.join("\n"));
-      assert.match(deLaDuree(lignes)[0] ?? "", new RegExp(`^ok {4}${MESURE}$`));
+      assert.match(deLaDuree(lignes)[0] ?? "", new RegExp(`^ok {4}${MEASURE}$`));
     }
   });
 

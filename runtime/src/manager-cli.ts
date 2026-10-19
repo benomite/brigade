@@ -19,10 +19,10 @@ import { enAnglais } from "./commandes.ts";
 import { decrire, decrireEcart, ecart } from "./dire-manager.ts";
 import type { Ecart } from "./events/manager.ts";
 import { ouvrirGitHub, type IssueOuverte } from "./github.ts";
-import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
-import { journalPasRejoue } from "./journal-pas-rejoue.ts";
-import { decoupagesDuManager, ticketsDEpique, type Decoupage } from "./projections/splits.ts";
-import { decisionsDuManager, ecarteesDuManager, etatDuManager, issueDuManager, remiseDe, remisesEnAttente } from "./projections/manager.ts";
+import { logPath, openLog, type Log } from "./log.ts";
+import { logNotReplayed } from "./log-not-replayed.ts";
+import { managerSplits, epicTickets, type Split } from "./projections/splits.ts";
+import { decisionsDuManager, ecarteesDuManager, etatDuManager, issueDuManager, remiseDe, queuedReturns } from "./projections/manager.ts";
 import { sortDuTicket } from "./projections/rail.ts";
 import { reactionsDuManager, type ReactionDeTicket } from "./projections/reactions.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
@@ -32,7 +32,7 @@ const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime r
 const AUTEUR = "chef";
 const DECISIONS_MONTREES = 15;
 const ECARTEES_MONTREES = 10;
-const EPIQUES_MONTREES = 10;
+const EPICS_SHOWN = 10;
 const REACTIONS_MONTREES = 10;
 
 // Seules `backlog` et `upstream` attendent quelque chose — GitHub : les autres rendent la main aussitôt.
@@ -46,27 +46,27 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
   const ligne = (titre: string, valeur: string) => dire(`${titre.padEnd(22)}${valeur}`);
 
   // Où en est une épique : ce que le manager en a fait, et ce qu'il attend.
-  function decrireEpique(journal: Journal, epique: Decoupage): string {
-    switch (epique.state) {
+  function describeEpic(log: Log, epic: Split): string {
+    switch (epic.state) {
       case "split": {
-        const tickets = ticketsDEpique(journal.base, epique.epic);
+        const tickets = epicTickets(log.base, epic.epic);
         const nes = tickets.filter((ticket) => ticket.index !== null && ticket.fired).length;
-        if (!epique.done) return `split in progress, ${nes}/${epique.tickets.length} tickets created and fired — ${epique.reason}`;
-        const servis = tickets.filter((ticket) => sortDuTicket(journal.base, ticket.ticket)?.outcome === "served").length;
-        return `split, ${servis}/${tickets.length} served (${tickets.map((ticket) => `#${ticket.ticket}`).join(", ")}) — ${epique.reason}`;
+        if (!epic.done) return `split in progress, ${nes}/${epic.tickets.length} tickets created and fired — ${epic.reason}`;
+        const servedOnes = tickets.filter((ticket) => sortDuTicket(log.base, ticket.ticket)?.outcome === "served").length;
+        return `split, ${servedOnes}/${tickets.length} served (${tickets.map((ticket) => `#${ticket.ticket}`).join(", ")}) — ${epic.reason}`;
       }
       case "asked":
-        return `QUESTION ASKED, awaiting your answer on the epic — ${epique.reason}`;
+        return `QUESTION ASKED, awaiting your answer on the epic — ${epic.reason}`;
       case "skipped":
-        return `already split, no ticket created — ${epique.reason}`;
+        return `already split, no ticket created — ${epic.reason}`;
       case "failed":
-        return `unreadable split — ${epique.reason}`;
+        return `unreadable split — ${epic.reason}`;
     }
   }
 
   // Ce que le manager a fait d'un ticket que la pass a jugé rouge, et pourquoi.
   function decrireReaction(reaction: ReactionDeTicket): string {
-    const dit = (calibrage: { model: string; effort: string }) => `${calibrage.model} / ${calibrage.effort}`;
+    const dit = (calibration: { model: string; effort: string }) => `${calibration.model} / ${calibration.effort}`;
     const apres = `after ${reaction.returns} return${reaction.returns > 1 ? "s" : ""}`;
     switch (reaction.choice) {
       case "retry":
@@ -81,8 +81,8 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
     }
   }
 
-  function montrer(journal: Journal): void {
-    const { base } = journal;
+  function montrer(log: Log): void {
+    const { base } = log;
     const etat = etatDuManager(base);
     ligne(
       "manager",
@@ -96,13 +96,13 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
     ligne("latest decisions", decisions.length === 0 ? "none" : "");
     for (const issue of decisions) dire(`  ${issue.at}  #${issue.ticket}  ${decrire(issue)}`);
     const ecartees = ecarteesDuManager(base, ECARTEES_MONTREES);
-    const remises = remisesEnAttente(base);
+    const remises = queuedReturns(base);
     ligne("set aside", ecartees.length + remises.length === 0 ? "none" : "");
     for (const remise of remises) dire(`  ${remise.at}  #${remise.ticket}  returned to the manager, not rejudged yet — it rejudges it on its next wake-up, if it is on`);
     for (const issue of ecartees) dire(`  ${issue.at}  #${issue.ticket}  ${decrireEcart(issue)}`);
-    const epiques = decoupagesDuManager(base, EPIQUES_MONTREES);
-    ligne("epics", epiques.length === 0 ? "none" : "");
-    for (const epique of epiques) dire(`  ${epique.at}  #${epique.epic}  ${decrireEpique(journal, epique)}`);
+    const epics = managerSplits(base, EPICS_SHOWN);
+    ligne("epics", epics.length === 0 ? "none" : "");
+    for (const epic of epics) dire(`  ${epic.at}  #${epic.epic}  ${describeEpic(log, epic)}`);
     const reactions = reactionsDuManager(base, REACTIONS_MONTREES);
     ligne("reactions", reactions.length === 0 ? "none" : "");
     for (const reaction of reactions) dire(`  ${reaction.at}  #${reaction.ticket}  ${decrireReaction(reaction)}`);
@@ -110,8 +110,8 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
 
   // Écrit la commande du chef si elle change quelque chose, et dit ce qu'il en
   // est. Vérifier et écrire tiennent dans une seule transaction.
-  function commander(journal: Journal, commande: "on" | "off"): string {
-    const { base } = journal;
+  function commander(log: Log, commande: "on" | "off"): string {
+    const { base } = log;
     return base.transaction(() => {
       const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
       if (!projet) echouer(1, "empty log: the runtime has never started on this state directory");
@@ -120,19 +120,19 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
 
       if (commande === "on") {
         if (etat?.active) return `manager already on since ${etat.since}`;
-        journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "manager.enabled", payload: {} });
+        log.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "manager.enabled", payload: {} });
         return `manager on: it judges the open issues, sets \`fire\` and the calibration on the executable ones, splits epics into tickets, and says why on the others — an issue carrying \`blocked-on-human\` or \`hors-cuisine\` is never judged${absent}`;
       }
       if (!etat?.active) return "nothing to turn off: the manager is not on";
-      journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "manager.disabled", payload: {} });
+      log.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "manager.disabled", payload: {} });
       return `manager off: no issue is judged any more — what it set stays set; a judgment under way runs to its end, but its decision is only applied once it is turned on again${absent}`;
     });
   }
 
   // Rend une issue au manager, si c'est par là que son écart se lève ; sinon dit
   // le geste qui le lève. `fait` : la remise est au journal, ou y était déjà.
-  function rendre(journal: Journal, numero: number): { fait: boolean; message: string } {
-    const { base } = journal;
+  function rendre(log: Log, numero: number): { fait: boolean; message: string } {
+    const { base } = log;
     return base.transaction(() => {
       const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
       if (!projet) echouer(1, "empty log: the runtime has never started on this state directory");
@@ -149,7 +149,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
         const { motif, geste } = ecart(issue);
         return { fait: false, message: `#${numero} is not returned: ${motif}. ${geste === null ? "Nothing returns it to the manager." : `What lifts this: ${geste}.`}` };
       }
-      journal.ajouter({ project: projet, ticket: numero, author: AUTEUR, type: "manager.handed-back", payload: {} });
+      log.ajouter({ project: projet, ticket: numero, author: AUTEUR, type: "manager.handed-back", payload: {} });
       return {
         fait: true,
         message: `#${numero} returned to the manager: it rejudges it from scratch — it removes the calibration it had set there, then sets \`fire\` and the one from the new judgment, or says why it is not an executable ticket. A return counts for one judgment${suite}`,
@@ -199,14 +199,14 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
   async function enAmontDuRail(repertoireEtat: string): Promise<void> {
     const { depot, issues } = await lireOuvertes((depot) => `what is upstream of the rail of ${depot}`);
     const lu = new Date().toISOString();
-    const journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
+    const log = openLog(repertoireEtat, { lectureSeule: true });
     try {
-      dire(JSON.stringify({ lu, depot, issues: enAmont(journal.base, issues) }));
+      dire(JSON.stringify({ lu, depot, issues: enAmont(log.base, issues) }));
     } catch (erreur) {
-      if (journalPasRejoue(erreur)) echouer(1, "this log does not have the manager's state yet: restart the runtime, which recomputes it");
+      if (logNotReplayed(erreur)) echouer(1, "this log does not have the manager's state yet: restart the runtime, which recomputes it");
       throw erreur;
     } finally {
-      journal.fermer();
+      log.fermer();
     }
   }
 
@@ -221,26 +221,26 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
   if (!montre && !amont && numero === null && (args.length !== 1 || (commande !== "on" && commande !== "off"))) echouer(2, USAGE);
   // Une commande ouvre le journal en écriture : sans ce contrôle, elle en
   // créerait un là où il n'y en a pas.
-  if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `no log in ${repertoireEtat}`);
+  if (!existsSync(logPath(repertoireEtat))) echouer(1, `no log in ${repertoireEtat}`);
   if (amont) return enAmontDuRail(repertoireEtat);
 
-  const journal = ouvrirJournal(repertoireEtat, { lectureSeule: montre });
+  const log = openLog(repertoireEtat, { lectureSeule: montre });
   try {
-    if (montre) montrer(journal);
+    if (montre) montrer(log);
     else if (numero !== null) {
-      const { fait, message } = rendre(journal, numero);
+      const { fait, message } = rendre(log, numero);
       dire(`brigade : ${message}`);
       if (!fait) throw new Sortie(1);
-    } else dire(`brigade : ${commander(journal, commande as "on" | "off")}`);
+    } else dire(`brigade : ${commander(log, commande as "on" | "off")}`);
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant le manager.
-    if (journalPasRejoue(erreur)) {
+    if (logNotReplayed(erreur)) {
       echouer(1, "this log does not have the manager's state yet: restart the runtime, which recomputes it");
     }
     throw erreur;
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }
 

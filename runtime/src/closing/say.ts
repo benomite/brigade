@@ -2,7 +2,7 @@
 // comment elle a fini. Les mêmes mots sur la sortie de sa commande, dans
 // journald et dans le bloc `journal` de l'observation. Et la mise en page de
 // `run closing` : un titre, puis des colonnes sous lui.
-import { SANS_ISSUE_MS, type FaitFermeture, type ReglagesDeFermeture } from "../events/closing.ts";
+import { SANS_ISSUE_MS, type ClosingFact, type ClosingSettings } from "../events/closing.ts";
 import { geste } from "../geste.ts";
 import { faitAttendre, type Demande, type Refus } from "./condition.ts";
 
@@ -103,7 +103,7 @@ export function direDemandeEn({ since, sansIssue }: Demande, retenue: Refus | nu
 }
 
 // Les plafonds d'une passe, tels que sa commande les annonce.
-export function direReglages({ calibration, cooksBelow, tokens, removedLines }: ReglagesDeFermeture): string {
+export function direReglages({ calibration, cooksBelow, tokens, removedLines }: ClosingSettings): string {
   return [
     calibration === null ? "closer non réglé" : `closer en \`${calibration.model}\` / \`${calibration.effort}\``,
     `part sous ${pluriel(cooksBelow, "cook")} en vol`,
@@ -113,7 +113,7 @@ export function direReglages({ calibration, cooksBelow, tokens, removedLines }: 
 }
 
 // Les mêmes, en anglais : ce que dit `station`, et `closing write`.
-export function direReglagesEn({ calibration, cooksBelow, tokens, removedLines }: ReglagesDeFermeture): string {
+export function direReglagesEn({ calibration, cooksBelow, tokens, removedLines }: ClosingSettings): string {
   return [
     calibration === null ? "closer not set" : `closer on \`${calibration.model}\` / \`${calibration.effort}\``,
     `starts under ${pluralEn(cooksBelow, "cook")} in flight`,
@@ -123,8 +123,8 @@ export function direReglagesEn({ calibration, cooksBelow, tokens, removedLines }
 }
 
 // La fin d'une passe, telle que le chef la lit.
-export function direFin({ outcome, observed, limit, pr, removedLines, files, kept, detail }: Extract<FaitFermeture, { type: "closing.ended" }>["payload"]): string {
-  const mesure = (unite: (valeur: number) => string) => `${observed == null ? "?" : unite(observed)} pour un plafond de ${limit == null ? "?" : unite(limit)}`;
+export function direFin({ outcome, observed, limit, pr, removedLines, files, kept, detail }: Extract<ClosingFact, { type: "closing.ended" }>["payload"]): string {
+  const measure = (unite: (valeur: number) => string) => `${observed == null ? "?" : unite(observed)} pour un plafond de ${limit == null ? "?" : unite(limit)}`;
   const rienDeLivre = "rien n'est livré";
   switch (outcome) {
     case "delivered":
@@ -132,15 +132,15 @@ export function direFin({ outcome, observed, limit, pr, removedLines, files, kep
     case "nothing":
       return `finie sans rien retirer : ${pluriel(kept?.length ?? 0, "candidat")} laissé${(kept?.length ?? 0) > 1 ? "s" : ""}, aucune PR`;
     case "tokens":
-      return `arrêtée : plafond de tokens de la passe atteint (${mesure(nombre)}) — ${rienDeLivre}`;
+      return `arrêtée : plafond de tokens de la passe atteint (${measure(nombre)}) — ${rienDeLivre}`;
     case "removals":
-      return `arrêtée : plafond de retraits de la passe atteint (${mesure((lignes) => pluriel(lignes, "ligne"))}) — ${rienDeLivre}`;
+      return `arrêtée : plafond de retraits de la passe atteint (${measure((lignes) => pluriel(lignes, "ligne"))}) — ${rienDeLivre}`;
     case "idle":
-      return `arrêtée : inactive (rien produit depuis ${mesure(duree)}) — ${rienDeLivre}`;
+      return `arrêtée : inactive (rien produit depuis ${measure(duree)}) — ${rienDeLivre}`;
     case "duration":
-      return `arrêtée : plafond de durée atteint (${mesure(duree)}) — ${rienDeLivre}`;
+      return `arrêtée : plafond de durée atteint (${measure(duree)}) — ${rienDeLivre}`;
     case "turns":
-      return `arrêtée : plafond de tours atteint (${mesure(nombre)}) — ${rienDeLivre}`;
+      return `arrêtée : plafond de tours atteint (${measure(nombre)}) — ${rienDeLivre}`;
     case "stop":
       return `arrêtée par le « stop » du chef — ${rienDeLivre}`;
     case "breaker":
@@ -155,8 +155,8 @@ export function direFin({ outcome, observed, limit, pr, removedLines, files, kep
 }
 
 // La fin d'une passe, en anglais : ce que dit `closing`.
-export function direFinEn({ outcome, observed, limit, pr, removedLines, files, kept, detail }: Extract<FaitFermeture, { type: "closing.ended" }>["payload"]): string {
-  const mesure = (unite: (valeur: number) => string) => `${observed == null ? "?" : unite(observed)} for a cap of ${limit == null ? "?" : unite(limit)}`;
+export function direFinEn({ outcome, observed, limit, pr, removedLines, files, kept, detail }: Extract<ClosingFact, { type: "closing.ended" }>["payload"]): string {
+  const measure = (unite: (valeur: number) => string) => `${observed == null ? "?" : unite(observed)} for a cap of ${limit == null ? "?" : unite(limit)}`;
   const nothingDelivered = "nothing is delivered";
   switch (outcome) {
     case "delivered":
@@ -164,15 +164,15 @@ export function direFinEn({ outcome, observed, limit, pr, removedLines, files, k
     case "nothing":
       return `finished without removing anything: ${pluralEn(kept?.length ?? 0, "candidate")} left, no PR`;
     case "tokens":
-      return `stopped: the closing's token cap reached (${mesure(nombre)}) — ${nothingDelivered}`;
+      return `stopped: the closing's token cap reached (${measure(nombre)}) — ${nothingDelivered}`;
     case "removals":
-      return `stopped: the closing's removal cap reached (${mesure((lignes) => pluralEn(lignes, "line"))}) — ${nothingDelivered}`;
+      return `stopped: the closing's removal cap reached (${measure((lignes) => pluralEn(lignes, "line"))}) — ${nothingDelivered}`;
     case "idle":
-      return `stopped: idle (nothing produced for ${mesure(duree)}) — ${nothingDelivered}`;
+      return `stopped: idle (nothing produced for ${measure(duree)}) — ${nothingDelivered}`;
     case "duration":
-      return `stopped: duration cap reached (${mesure(duree)}) — ${nothingDelivered}`;
+      return `stopped: duration cap reached (${measure(duree)}) — ${nothingDelivered}`;
     case "turns":
-      return `stopped: turn cap reached (${mesure(nombre)}) — ${nothingDelivered}`;
+      return `stopped: turn cap reached (${measure(nombre)}) — ${nothingDelivered}`;
     case "stop":
       return `stopped by the chef's “stop” — ${nothingDelivered}`;
     case "breaker":

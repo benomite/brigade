@@ -8,26 +8,26 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSyn
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { argumentsClaude } from "../src/claude.ts";
-import { decrireReleve, trancher } from "../src/mesures.ts";
+import { decrireReleve, trancher } from "../src/measures.ts";
 import { mergedDeliveries } from "../src/projections/measures.ts";
 import { dossierDuProjet, preparerReprise, sessionDuFlux } from "../src/reprise-de-session.ts";
-import { chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
+import { chef, kitchen, issue, type Options } from "./aides/kitchen.ts";
 import { jusqua, repertoireTemporaire } from "./outils.ts";
 
 // Une cuisine avec sa pass, un ticket sur le rail, et des gates rouges : sa
 // première livraison est renvoyée. Elles passent au vert dès le renvoi.
 function renvoye(t: TestContext, options: Options = {}) {
-  const lieu = cuisine(t, { pass: true, issues: [issue(17)], configClaude: true, suite: ["livre-en-session", "livre-en-session"], ...options });
+  const lieu = kitchen(t, { pass: true, issues: [issue(17)], configClaude: true, suite: ["livre-en-session", "livre-en-session"], ...options });
   lieu.gates.regler("rouge");
-  const { journal } = lieu;
-  const compter = (type: string) => journal.duTicket(17).filter((e) => e.type === type).length;
+  const { journal: log } = lieu;
+  const compter = (type: string) => log.duTicket(17).filter((e) => e.type === type).length;
   const jusquAu = async (type: string, combien = 1) => jusqua(() => compter(type) >= combien);
-  const lances = () => journal.duTicket(17).filter((e) => e.type === "cook.launched").map((e) => e.payload as Record<string, unknown>);
+  const lances = () => log.duTicket(17).filter((e) => e.type === "cook.launched").map((e) => e.payload as Record<string, unknown>);
   // La session qu'un cook a ouverte, telle que son flux brut la dit.
   const sessionDe = (lance: Record<string, unknown> | undefined) => sessionDuFlux(readFileSync(join(lieu.repertoire, String(lance?.stream)), "utf8"));
   // Ce que la pass a dit, dans l'ordre, sans le bruit des baux et des relevés.
   const histoire = () =>
-    journal
+    log
       .duTicket(17)
       .map((e) => e.type)
       .filter((type) => /^(pass|grant|merge)\.|^ticket\.(served|released|86|left)$/.test(type));
@@ -46,7 +46,7 @@ const projet = (config: string, cwd: string) => dossierDuProjet(config, cwd) ?? 
 
 describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
   test("un renvoi reprend la session du cook dont la pass a refusé la livraison : il reçoit ce contexte et ce qu'elle a trouvé, sans repasser par la lecture du ticket", async (t) => {
-    const { configClaude, gates, cooks, lances, sessionDe, jusquAu, journal } = renvoye(t);
+    const { configClaude, gates, cooks, lances, sessionDe, jusquAu, journal: log } = renvoye(t);
     await jusquAu("pass.returned");
     gates.regler("vert");
     await jusquAu("pass.held");
@@ -63,7 +63,7 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
     assert.deepEqual(relance?.resumes, { run: lance?.run, session });
     // Sa consigne : le refus, ce que la pass a trouvé, et son nouveau worktree — ni le ticket à relire, ni le `CLAUDE.md`.
     const consigne = consigneDe(renvoi?.args);
-    const findings = journal.duTicket(17).find((e) => e.type === "pass.returned")?.payload.findings as string[];
+    const findings = log.duTicket(17).find((e) => e.type === "pass.returned")?.payload.findings as string[];
     assert.ok(findings.length > 0);
     for (const finding of findings) assert.ok(consigne.includes(finding), finding);
     assert.match(consigne, /refusé ta livraison : c'est le renvoi 1 sur 2/);
@@ -128,7 +128,7 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
       }),
     });
     config = String(lieu.configClaude);
-    const { gates, cooks, lances, jusquAu, avertissements, journal } = lieu;
+    const { gates, cooks, lances, jusquAu, avertissements, journal: log } = lieu;
     await jusquAu("pass.returned");
     gates.regler("vert");
     await jusquAu("pass.held");
@@ -138,7 +138,7 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
     assert.equal(lances()[1]?.resumes, undefined);
     // La consigne d'avant la reprise : relire le ticket et ce qui est commité.
     assert.match(consigneDe(renvoi?.args), /1\. Relis le ticket/);
-    assert.deepEqual(journal.duTicket(17).filter((e) => e.type === "cook.exited").map((e) => e.payload.outcome), ["ok", "ok"]);
+    assert.deepEqual(log.duTicket(17).filter((e) => e.type === "cook.exited").map((e) => e.payload.outcome), ["ok", "ok"]);
     assert.deepEqual(avertissements.filter(autreQueLeRouge), []);
   });
 
@@ -159,12 +159,12 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
   });
 
   test("un cook de renvoi repris qui échoue sans rien livrer : le suivant part d'un cook neuf — la reprise elle-même a pu buter", async (t) => {
-    const { gates, cooks, lances, sessionDe, jusquAu, journal } = renvoye(t, { suite: ["livre-en-session", "echec", "livre-en-session"] });
+    const { gates, cooks, lances, sessionDe, jusquAu, journal: log } = renvoye(t, { suite: ["livre-en-session", "echec", "livre-en-session"] });
     await jusquAu("pass.returned");
     gates.regler("vert");
     await jusquAu("pass.held");
 
-    assert.deepEqual(journal.duTicket(17).filter((e) => e.type === "cook.exited").map((e) => e.payload.outcome), ["ok", "failed", "ok"]);
+    assert.deepEqual(log.duTicket(17).filter((e) => e.type === "cook.exited").map((e) => e.payload.outcome), ["ok", "failed", "ok"]);
     assert.equal(reprend(cooks()[1]?.args, sessionDe(lances()[0])), true);
     assert.equal(cooks()[2]?.args.includes("--resume"), false);
     assert.equal(lances()[2]?.resumes, undefined);
@@ -199,10 +199,10 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
     repris.gates.regler("vert");
     await repris.jusquAu("merge.done");
 
-    const [livraison] = mergedDeliveries(repris.journal.base);
+    const [delivery] = mergedDeliveries(repris.journal.base);
     // Le premier cook part de zéro ; le premier renvoi est repris, et échoue ; le suivant repart de zéro, livre ; le second renvoi reprend.
     assert.deepEqual(
-      livraison?.cooks.map(({ delivered, resumed }) => [delivered, resumed ?? false]),
+      delivery?.cooks.map(({ delivered, resumed }) => [delivered, resumed ?? false]),
       [
         [true, false],
         [false, true],
@@ -212,26 +212,26 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
     );
     const [paiement] = trancher(mergedDeliveries(repris.journal.base))[0]?.paiements ?? [];
     // Les tokens du lancement repris qui n'a rien livré sont perdus, comme ceux de tout autre.
-    const tokens = (livraison?.cooks ?? []).map((cook) => cook.tokens ?? 0);
+    const tokens = (delivery?.cooks ?? []).map((cook) => cook.tokens ?? 0);
     assert.deepEqual(paiement, { ticket: 17, lancements: 4, inconnus: 0, repris: 2, tokens: { utiles: (tokens[0] ?? 0) + (tokens[2] ?? 0) + (tokens[3] ?? 0), perdus: tokens[1] } });
   });
 });
 
 describe("le relevé des lancements repris", () => {
   const cook = (tokens: number, delivered: boolean, resumed = false) => ({ calibration: "opus/high", turns: 5, durationMs: 1000, tokens, delivered, ...(resumed ? { resumed: true as const } : {}) });
-  const livraison = (ticket: number, cooks: ReturnType<typeof cook>[]) => ({ ticket, at: "2026-10-08T10:00:00.000Z", measures: {}, state: {}, gatesS: null, cooks });
+  const delivery = (ticket: number, cooks: ReturnType<typeof cook>[]) => ({ ticket, at: "2026-10-08T10:00:00.000Z", measures: {}, state: {}, gatesS: null, cooks });
   const lancements = (lignes: string[]) => lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("launches")));
 
   test("la colonne des lancements dit combien ont été repris ; la légende le dit seulement quand il y en a", () => {
     const lignes = lancements(
-      decrireReleve({ projet: "brigade", livraisons: [livraison(1, [cook(9000, true), cook(400, false, true), cook(1500, true)]), livraison(2, [cook(9000, true), cook(1500, true)])], seuils: null }),
+      decrireReleve({ projet: "brigade", deliveries: [delivery(1, [cook(9000, true), cook(400, false, true), cook(1500, true)]), delivery(2, [cook(9000, true), cook(1500, true)])], seuils: null }),
     );
     assert.match(lignes[0] ?? "", /; resumed: the retries that continued the previous cook's session instead of starting from scratch$/);
     assert.match(lignes[2] ?? "", /^1-2\s+#1\s+3, of which 1 resumed\s+10,900\s+10,500\s+400 \(4%\)$/);
     // Reparti de zéro : rien de plus qu'avant.
     assert.match(lignes[3] ?? "", /^1-2\s+#2\s+2\s+10,500\s+10,500\s+0$/);
 
-    const sansReprise = lancements(decrireReleve({ projet: "brigade", livraisons: [livraison(2, [cook(9000, true), cook(1500, true)])], seuils: null }));
+    const sansReprise = lancements(decrireReleve({ projet: "brigade", deliveries: [delivery(2, [cook(9000, true), cook(1500, true)])], seuils: null }));
     assert.doesNotMatch(sansReprise[0] ?? "", /resumed/);
   });
 });

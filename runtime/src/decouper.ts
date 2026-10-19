@@ -3,11 +3,11 @@
 // dépôt —, ce qu'il lit de sa réponse, et ce qu'il écrit des tickets qui en
 // naissent : leur corps, leur fiche. Sans E/S : un découpage dont un seul
 // ticket ne se lit pas n'est pas un découpage, c'est un motif dit.
-import { COOKS, LABEL_COOK_DESIGN, MODELES, PROFIL_COOK_DESIGN, toucheLaVue, VUE_DE_L_APP } from "./calibrage.ts";
+import { COOKS, LABEL_COOK_DESIGN, MODELES, PROFIL_COOK_DESIGN, toucheLaVue, VUE_DE_L_APP } from "./calibration.ts";
 import { capacite, CAPACITE, CLE_DES_CAPACITES, FORME_DE_CAPACITE } from "./capacites.ts";
-import { lignesHorsCode, reference, sansListe } from "./epique.ts";
+import { lignesHorsCode, reference, sansListe } from "./epic.ts";
 import type { TicketPrevu } from "./events/manager.ts";
-import { fiche, MARQUEUR } from "./fiche.ts";
+import { card, MARQUEUR } from "./card.ts";
 import { recouvrement } from "./zones.ts";
 import { COMMENTAIRES_MAX, CORPS_MAX, couper, CRITERE_DE_FORME, EFFORTS_DU_MANAGER, empreinte, objet, parmi, phrase, type IssueAJuger } from "./juger.ts";
 
@@ -35,7 +35,7 @@ export function marqueDe(corps: string): { epic: number; index: number } | null 
   return null;
 }
 
-export function neDUnDecoupage(corps: string): boolean {
+export function bornOfASplit(corps: string): boolean {
   return marqueDe(corps) !== null;
 }
 
@@ -71,7 +71,7 @@ export function plan(fichiers: string[]): string[] {
 
 // `communs` : les chemins du projet qui n'appartiennent à aucun ticket.
 // `capacites` : ce que fournissent les stations que le projet déclare.
-export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger; commentaires: string[]; fichiers: string[]; communs?: string[]; capacites?: string[] }): string {
+export function splitInstruction(mission: { depot: string; issue: IssueAJuger; commentaires: string[]; fichiers: string[]; communs?: string[]; capacites?: string[] }): string {
   const { depot, issue, commentaires, fichiers, communs = [], capacites = [] } = mission;
   // Le cook design ne se désigne que dans un dépôt qui le définit.
   const design = fichiers.includes(PROFIL_COOK_DESIGN);
@@ -164,11 +164,11 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
 
 // La fiche d'un ticket né du découpage. `numeros` : le numéro d'issue de
 // chaque rang déjà créé.
-export function ficheDuTicket(prevu: Pick<TicketPrevu, "waitsFor" | "zone" | "requires">, numeros: (rang: number) => number): string {
-  const attend = prevu.waitsFor.map((rang) => `#${numeros(rang)}`).join(", ");
+export function ticketCard(prevu: Pick<TicketPrevu, "waitsFor" | "zone" | "requires">, numeros: (rang: number) => number): string {
+  const awaiting = prevu.waitsFor.map((rang) => `#${numeros(rang)}`).join(", ");
   // La ligne des capacités n'est écrite que pour un ticket qui en demande.
   const requiert = prevu.requires?.length ? [`- ${CLE_DES_CAPACITES} : ${prevu.requires.join(", ")}`] : [];
-  return [MARQUEUR, `- attend : ${attend || "rien"}`, `- zone : ${prevu.zone.join(", ") || "aucune"}`, ...requiert].join("\n");
+  return [MARQUEUR, `- attend : ${awaiting || "rien"}`, `- zone : ${prevu.zone.join(", ") || "aucune"}`, ...requiert].join("\n");
 }
 
 const REPONSES = ["tickets", "question", "deja-decoupee"];
@@ -181,8 +181,8 @@ function lireTicket(brut: unknown, rang: number): TicketPrevu | string {
   if (!title) return `${ou} : titre absent`;
   const criteres = Array.isArray(lu.criteres) ? lu.criteres.map(phrase) : [];
   if (criteres.length === 0 || criteres.includes(null)) return `${ou} : critères d'acceptation absents ou vides`;
-  const attend = lu.attend ?? [];
-  if (!Array.isArray(attend) || !attend.every((valeur) => Number.isSafeInteger(valeur) && valeur >= 1 && valeur < rang)) {
+  const awaiting = lu.attend ?? [];
+  if (!Array.isArray(awaiting) || !awaiting.every((valeur) => Number.isSafeInteger(valeur) && valeur >= 1 && valeur < rang)) {
     return `${ou} : attend ${JSON.stringify(lu.attend)} — attendu des rangs de tickets placés avant lui`;
   }
   const zone = Array.isArray(lu.zone) ? lu.zone.map(phrase) : [];
@@ -192,10 +192,10 @@ function lireTicket(brut: unknown, rang: number): TicketPrevu | string {
     return `${ou} : capacites ${JSON.stringify(lu.capacites)} — attendu des noms de capacité : ${FORME_DE_CAPACITE}`;
   }
   const requires = [...new Set((capacites as string[]).map((nom) => capacite(nom.trim())))];
-  const prevu = { waitsFor: [...new Set(attend as number[])], zone: [...new Set(zone as string[])], ...(requires.length === 0 ? {} : { requires }) };
+  const prevu = { waitsFor: [...new Set(awaiting as number[])], zone: [...new Set(zone as string[])], ...(requires.length === 0 ? {} : { requires }) };
   // La fiche qui en sortira doit se relire telle quelle : un chemin que le
   // rail refuserait ne part pas sur GitHub.
-  const relue = fiche([ficheDuTicket(prevu, (n) => n)]);
+  const relue = card([ticketCard(prevu, (n) => n)]);
   if (!relue || relue.problems.length > 0 || JSON.stringify(relue.zone) !== JSON.stringify(prevu.zone) || JSON.stringify(relue.requires ?? []) !== JSON.stringify(requires)) {
     return `${ou} : zone illisible — ${relue?.problems.join(" ; ") || "attendu des chemins du dépôt, sans virgule"}`;
   }
@@ -214,7 +214,7 @@ function lireTicket(brut: unknown, rang: number): TicketPrevu | string {
 }
 
 // Lit le découpage dans le dernier message du jugement.
-export function lireDecoupage(message: string | null): { valeur: Decoupe } | { illisible: string } {
+export function readSplit(message: string | null): { valeur: Decoupe } | { illisible: string } {
   if (message === null || message.trim() === "") return { illisible: "aucune réponse" };
   const lu = objet(message);
   if (!lu) return { illisible: "aucun objet JSON dans la réponse" };
@@ -299,6 +299,6 @@ export function corpsDuTicket(epic: number, index: number, prevu: TicketPrevu): 
 
 // L'empreinte de ce que le découpage lit d'une épique : la liste que le
 // runtime écrit dans son corps n'y entre pas.
-export function empreinteDEpique(issue: IssueAJuger, commentaires: string[]): string {
+export function epicFingerprint(issue: IssueAJuger, commentaires: string[]): string {
   return empreinte({ ...issue, body: sansListe(issue.body) }, commentaires);
 }

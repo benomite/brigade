@@ -6,10 +6,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Canal, Fichiers } from "../../src/appairage/canal.ts";
-import { empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, normaliser, tirerCode, type DocumentStation, type EtatsPublies } from "../../src/appairage/document.ts";
+import { empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, normaliser, drawCode, type DocumentStation, type EtatsPublies } from "../../src/appairage/document.ts";
 import { etatsPublies } from "../../src/appairage/etats.ts";
 import { BATTEMENT_MS, CADENCE_MS, codeAffiche, ECART_MINIMAL_MS, FICHIER_LOCAL, REGARD_MS, tenirPresence } from "../../src/appairage/presence.ts";
-import type { ConnexionMax } from "../../src/connexion-max/connexion.ts";
+import type { MaxConnection } from "../../src/connection-max/connection.ts";
 import type { EtatMiseAJour } from "../../src/mise-a-jour/etat.ts";
 import { aArreter, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
@@ -103,7 +103,7 @@ function unePresence(t: TestContext, options: { racine?: string; projets?: strin
 }
 
 test("le code a huit signes lisibles, et se compare tel que le chef le tape", () => {
-  const code = tirerCode();
+  const code = drawCode();
   assert.match(code, /^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/);
   assert.equal(normaliser(code.toLowerCase().replace("-", " ")), code.replace("-", ""));
   assert.equal(normaliser("abcd-efgo"), "ABCDEFG0");
@@ -185,8 +185,8 @@ test("ce qui est publié d'une mise à jour : la version visée et la restaurée
     ratees: ["1.5.0"],
     derniere: { quoi: "revenue", visee: "1.5.0", restauree: "1.4.0", motif: "sudo systemctl restart brigade-station a échoué", le: "2026-10-15T11:58:00.000Z", retour: null },
   };
-  const connexion: ConnexionMax = { etat: "perdue", depuis: "2026-10-15T11:50:00.000Z", raison: "session-refusee", detail: "claude auth login", verifiee: null, reecrite: null, renouvellement: { vivant: true, echec: null }, geste: "claude auth login" };
-  const publies = etatsPublies(etat, connexion);
+  const connection: MaxConnection = { etat: "perdue", depuis: "2026-10-15T11:50:00.000Z", raison: "session-refusee", detail: "claude auth login", verifiee: null, reecrite: null, renouvellement: { vivant: true, echec: null }, geste: "claude auth login" };
+  const publies = etatsPublies(etat, connection);
   assert.deepEqual(publies, { miseAJour: { visee: "1.5.0", restauree: "1.4.0", le: "2026-10-15T11:58:00.000Z", retourRate: false }, connexionMax: { etat: "perdue", depuis: "2026-10-15T11:50:00.000Z" } });
   assert.doesNotMatch(JSON.stringify(publies), /systemctl|sudo|claude/);
   // Un passage réussi efface la panne ; un retour raté se publie raté.

@@ -2,7 +2,7 @@
 // qu'elle demande au pont est calculé par les modules de l'app, à partir de ce que la box rend :
 // `pass 14 --json` pour l'histoire, `pass 14 issue` pour la discussion.
 import { discussionDe } from "../../../app/src/discussion.ts";
-import { gestesDeCarte } from "../../../app/src/gestes-fiche.ts";
+import { gestesDeCarte } from "../../../app/src/card-actions.ts";
 import { histoireDe, situationDe } from "../../../app/src/histoire.ts";
 import type { Terminal } from "../../../app/src/terminaux.ts";
 import { carteDe, configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";

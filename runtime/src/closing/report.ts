@@ -12,14 +12,14 @@
 // (« avant ») — le contrôle de la base seule, ou le jugement de la livraison
 // dont le merge l'a faite. Les deux mesures ne diffèrent donc que de ce que
 // la passe a écrit.
-import type { FaitFermeture, Laisse, Pente } from "../events/closing.ts";
+import type { ClosingFact, Laisse, Pente } from "../events/closing.ts";
 import type { Gates } from "../events/pass.ts";
-import type { Journal } from "../journal.ts";
+import type { Log } from "../log.ts";
 import { SANS_MOTIF } from "./brief.ts";
 import { colonnes, ligne, nombre, pluriel } from "./say.ts";
 import { direRatio } from "./ratio.ts";
 
-type Fin = Extract<FaitFermeture, { type: "closing.ended" }>["payload"];
+type Fin = Extract<ClosingFact, { type: "closing.ended" }>["payload"];
 
 // Ce que les gates du projet déclarent pour le bilan, par leurs lignes
 // `MESURE  <nom>=<nombre>` : la couverture de tests, en pourcentage, et le
@@ -28,16 +28,16 @@ export const COUVERTURE = "couverture";
 export const VERIFICATIONS = "verifications";
 
 // `inconnu` : rien ne dit qu'il tient — ce n'est pas « tenu ».
-export type GardeFou = { nom: string; avant: string; apres: string; verdict: "tenu" | "echec" | "inconnu"; detail: string | null };
+export type Guardrail = { nom: string; avant: string; apres: string; verdict: "tenu" | "echec" | "inconnu"; detail: string | null };
 
 const ABSENT = "—";
 const ETATS: Record<Gates["outcome"], string> = { green: "gates green", red: "gates red", timeout: "gates stopped at their duration cap", skipped: "gates not run" };
 
 // Les trois garde-fous, de ce que les gates ont dit avant et après la passe.
 // `sansApres`, `sansAvant` : pourquoi l'une ou l'autre manque.
-export function gardeFous(avant: Gates | null, apres: Gates | null, sansAvant: string, sansApres: string): GardeFou[] {
+export function guardrails(avant: Gates | null, apres: Gates | null, sansAvant: string, sansApres: string): Guardrail[] {
   // Une mesure déclarée par les gates, qui ne doit pas baisser.
-  const mesure = (nom: string, cle: string, unite: string): GardeFou => {
+  const measure = (nom: string, cle: string, unite: string): Guardrail => {
     const [a, b] = [avant?.measures?.[cle], apres?.measures?.[cle]];
     const dire = (valeur: number | undefined) => (valeur === undefined ? ABSENT : `${valeur.toLocaleString("en-US", { maximumFractionDigits: 2 })}${unite}`);
     const dites = { nom, avant: dire(a), apres: dire(b) };
@@ -47,7 +47,7 @@ export function gardeFous(avant: Gates | null, apres: Gates | null, sansAvant: s
     if (a === undefined) return { ...dites, verdict: "inconnu", detail: `the gates run on the base did not declare \`MESURE ${cle}\`` };
     return b < a ? { ...dites, verdict: "echec", detail: "down" } : { ...dites, verdict: "tenu", detail: null };
   };
-  const produit: GardeFou = {
+  const produit: Guardrail = {
     nom: "product state",
     avant: avant === null ? ABSENT : ETATS[avant.outcome],
     apres: apres === null ? ABSENT : ETATS[apres.outcome],
@@ -59,7 +59,7 @@ export function gardeFous(avant: Gates | null, apres: Gates | null, sansAvant: s
           ? { verdict: "inconnu", detail: "the PR did not merge with the base: its gates were not run" }
           : { verdict: "echec", detail: "the test suite is not green" }),
   };
-  return [mesure("test coverage", COUVERTURE, " %"), mesure("gate checks", VERIFICATIONS, ""), produit];
+  return [measure("test coverage", COUVERTURE, " %"), measure("gate checks", VERIFICATIONS, ""), produit];
 }
 
 // Une fenêtre de la pente, avant la passe et avec ce qu'elle retire — sur les
@@ -95,24 +95,24 @@ function direPente([courte]: Mouvement[]): string {
 
 // Ce que la pass a fait de la PR d'une passe livrée : le dernier jugement
 // qu'elle en a rendu, et son merge.
-function suivre(journal: Journal, run: string) {
-  const entree = journal.duType("pass.entered", 20).find(({ payload }) => payload.run === run);
+function suivre(log: Log, run: string) {
+  const entree = log.duType("pass.entered", 20).find(({ payload }) => payload.run === run);
   if (entree === undefined) return null;
-  const faits = journal.duTicket(entree.payload.number).filter(({ seq }) => seq > entree.seq);
+  const facts = log.duTicket(entree.payload.number).filter(({ seq }) => seq > entree.seq);
   return {
     numero: entree.payload.number,
-    jugement: faits.findLast((fait) => fait.type === "pass.judged") ?? null,
-    merge: faits.findLast((fait) => fait.type === "merge.done") ?? null,
+    jugement: facts.findLast((fait) => fait.type === "pass.judged") ?? null,
+    merge: facts.findLast((fait) => fait.type === "merge.done") ?? null,
   };
 }
 
 // Les gates que la pass a jouées sur l'arbre même de ce commit de la base : son
 // contrôle seule, ou le jugement d'une livraison dont la fusion a donné cet
 // arbre. Les dernières l'emportent.
-function gatesDeLaBase(journal: Journal, commit: string, arbre: string | null): Gates | null {
+function gatesDeLaBase(log: Log, commit: string, arbre: string | null): Gates | null {
   const jouees = [
-    ...journal.duType("base.checked", 50).filter(({ payload }) => payload.sha === commit && payload.outcome !== "skipped"),
-    ...(arbre === null ? [] : journal.duType("pass.judged", 200).filter(({ payload }) => payload.merged === arbre && payload.gates.outcome !== "skipped")),
+    ...log.duType("base.checked", 50).filter(({ payload }) => payload.sha === commit && payload.outcome !== "skipped"),
+    ...(arbre === null ? [] : log.duType("pass.judged", 200).filter(({ payload }) => payload.merged === arbre && payload.gates.outcome !== "skipped")),
   ];
   return jouees.sort((un, autre) => un.seq - autre.seq).at(-1)?.payload.gates ?? null;
 }
@@ -123,7 +123,7 @@ const laisse = ({ id, what, reason }: Laisse) => [id, what, reason ?? SANS_MOTIF
 
 // Le bilan de la passe finie par `fin`, ligne par ligne : son verdict en tête,
 // puis de quoi le vérifier. `arbreDe` : l'arbre d'un commit du clone du projet.
-export function direBilan(journal: Journal, fin: Fin, arbreDe: (commit: string) => string | null): string[] {
+export function direBilan(log: Log, fin: Fin, arbreDe: (commit: string) => string | null): string[] {
   const gardes = (fin.kept ?? []).filter(({ before }) => !before);
   const ecartes = (fin.kept ?? []).filter(({ before }) => before);
   const restes = [
@@ -132,12 +132,12 @@ export function direBilan(journal: Journal, fin: Fin, arbreDe: (commit: string) 
   ];
   if (fin.outcome !== "delivered") return [ligne("summary", `${fin.outcome === "nothing" ? "nothing was removed" : "nothing is delivered"}: the slope did not move, the pass was of no use`), ...restes];
 
-  const suivi = suivre(journal, fin.run);
+  const suivi = suivre(log, fin.run);
   const jugement = suivi?.jugement ?? null;
   const sur = jugement?.payload.base ?? null;
   const apres = jugement?.payload.gates ?? null;
-  const avant = sur === null ? null : gatesDeLaBase(journal, sur, arbreDe(sur));
-  const gardeFousDeLaPasse = gardeFous(
+  const avant = sur === null ? null : gatesDeLaBase(log, sur, arbreDe(sur));
+  const passGuardrails = guardrails(
     avant,
     apres,
     sur === null ? "the pass did not say on which base it judged the PR" : `no gate in the log was run on the base \`${court(sur)}\` alone`,
@@ -149,8 +149,8 @@ export function direBilan(journal: Journal, fin: Fin, arbreDe: (commit: string) 
 
   // En tête : un garde-fou qui a cédé, avant tout le reste — des gates vertes
   // n'y changent rien.
-  const echecs = gardeFousDeLaPasse.filter(({ verdict }) => verdict === "echec");
-  const inconnus = gardeFousDeLaPasse.filter(({ verdict }) => verdict === "inconnu");
+  const echecs = passGuardrails.filter(({ verdict }) => verdict === "echec");
+  const inconnus = passGuardrails.filter(({ verdict }) => verdict === "inconnu");
   const tete = [
     echecs.length === 0
       ? null
@@ -186,6 +186,6 @@ export function direBilan(journal: Journal, fin: Fin, arbreDe: (commit: string) 
           ),
         ]),
     ligne("guardrails", `before the pass → after, by the gates the pass ran: on the base${sur === null ? "" : ` \`${court(sur)}\``}, then on the PR merged with it`),
-    ...colonnes(gardeFousDeLaPasse.map(({ nom, avant: debut, apres: suite, verdict, detail }) => [nom, `${debut} → ${suite}`, verdict === "tenu" ? "holds" : `${verdict === "echec" ? "FAILURE" : "not established"} — ${detail}`])),
+    ...colonnes(passGuardrails.map(({ nom, avant: debut, apres: suite, verdict, detail }) => [nom, `${debut} → ${suite}`, verdict === "tenu" ? "holds" : `${verdict === "echec" ? "FAILURE" : "not established"} — ${detail}`])),
   ];
 }

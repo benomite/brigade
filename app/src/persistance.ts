@@ -56,7 +56,7 @@ function verifier(nom: string): void {
 }
 
 // `screen` prend un nom qui n'est que le début d'un autre : l'existence se vérifie à la lettre.
-const ecranExiste = (nom: string) => `screen -ls 2>/dev/null | grep -q "[.]${nom}[[:space:]]"`;
+const screenExists = (nom: string) => `screen -ls 2>/dev/null | grep -q "[.]${nom}[[:space:]]"`;
 
 // Le script qui crée la session ou s'y rattache. Il est lu par `sh` : sur le poste
 // directement, sur une machine distante par le shell de connexion du compte, quel
@@ -71,7 +71,7 @@ export function scriptDeRattachement(nom: string): string {
     ...REGLAGES_TMUX.map((reglage) => `  tmux set-option -t =${nom} ${reglage}`),
     `  exec tmux attach-session -t =${nom}`,
     "elif command -v screen >/dev/null 2>&1; then",
-    `  ${ecranExiste(nom)} || screen -dmS ${nom} || exit`,
+    `  ${screenExists(nom)} || screen -dmS ${nom} || exit`,
     ...REGLAGES_SCREEN.map((reglage) => `  screen -S ${nom} -X ${reglage}`),
     `  exec screen -x ${nom}`,
     "fi",
@@ -88,7 +88,7 @@ export function scriptDeDestruction(nom: string): string {
     "unset TMUX STY",
     "r=0",
     `if command -v tmux >/dev/null 2>&1 && tmux has-session -t =${nom} 2>/dev/null; then tmux kill-session -t =${nom} || r=1; fi`,
-    `if command -v screen >/dev/null 2>&1 && ${ecranExiste(nom)}; then screen -S ${nom} -X quit || r=1; fi`,
+    `if command -v screen >/dev/null 2>&1 && ${screenExists(nom)}; then screen -S ${nom} -X quit || r=1; fi`,
     "exit $r",
   ].join("\n");
 }
@@ -112,8 +112,8 @@ export const rattachement = ({ nom, cible }: Session, ssh = "ssh"): Commande => 
 
 // Ce qui demande à une machine si elle répond, sans terminal et sans rien y lancer : la même
 // connexion que celle de la veille, qui ne demande rien — ni mot de passe, ni hôte à confirmer.
-export const sonde = (cible: Cible, ssh = "ssh", connexionS = 10): Commande =>
-  cible.lieu === "poste" ? { commande: "/bin/sh", args: ["-c", "true"] } : { commande: ssh, args: ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${connexionS}`, "--", cible.hote, "true"] };
+export const sonde = (cible: Cible, ssh = "ssh", connectionS = 10): Commande =>
+  cible.lieu === "poste" ? { commande: "/bin/sh", args: ["-c", "true"] } : { commande: ssh, args: ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${connectionS}`, "--", cible.hote, "true"] };
 
 // La machine répond-elle ? Jamais d'exception : quand elle ne répond pas, ce que `ssh` en a dit,
 // sa dernière ligne — « connect to host … : Network is unreachable ».
@@ -131,8 +131,8 @@ export function joindre(cible: Cible, reglages: { ssh?: string; delaiMs?: number
 
 // La commande qui détruit la session. Sans terminal, `ssh` ne peut rien demander : il
 // échoue plutôt que d'attendre un mot de passe.
-export const destruction = ({ nom, cible }: Session, ssh = "ssh", connexionS = 10): Commande =>
-  sur(cible, scriptDeDestruction(nom), ssh, ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${connexionS}`]);
+export const destruction = ({ nom, cible }: Session, ssh = "ssh", connectionS = 10): Commande =>
+  sur(cible, scriptDeDestruction(nom), ssh, ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${connectionS}`]);
 
 // Détruit la session pour de bon : un rattachement ultérieur en crée une neuve. Jamais
 // d'exception : un échec rend ce qui a été lancé, et ce qui en est revenu.

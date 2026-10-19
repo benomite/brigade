@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../../runtime/src/evenements.ts";
-import { ouvrirJournal } from "../../runtime/src/journal.ts";
+import { openLog } from "../../runtime/src/log.ts";
 import { principal } from "../../runtime/src/manager-cli.ts";
 import { appeler, DEPOT, fauxGh, issueGitHub } from "../../runtime/test/outils.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
@@ -21,13 +21,13 @@ import type { Lecture } from "../src/box.ts";
 import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE, tenirFaits, type Faits } from "../src/faits.ts";
+import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
+import { BANNIERE, holdFacts, type Facts } from "../src/facts.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { COMMANDE as COMMANDE_MANAGER, GESTES_DU_MANAGER, voir as voirManager } from "../src/manager.ts";
-import { gestesDeCarte } from "../src/gestes-fiche.ts";
+import { gestesDeCarte } from "../src/card-actions.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import type { Terminal } from "../src/terminaux.ts";
@@ -39,16 +39,16 @@ const OUVERTES = `repos/${DEPOT}/issues?state=open&per_page=100`;
 
 // Un journal, et ce que la box rendrait : `manager upstream` devant un faux `gh` qui dicte les
 // issues ouvertes, et `manager` — l'état du manager —, telles quelles.
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-app-amont-"));
   let minute = 0;
-  const journal = ouvrirJournal(repertoire, { maintenant: () => new Date(Date.UTC(2026, 9, 15, 9, ++minute)) });
+  const log = openLog(repertoire, { maintenant: () => new Date(Date.UTC(2026, 9, 15, 9, ++minute)) });
   t.after(() => {
-    journal.fermer();
+    log.fermer();
     rmSync(repertoire, { recursive: true, force: true });
   });
   const gh = fauxGh(t);
-  const noter = (fait: Fait, ticket: number | null, author = "manager") => void journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const noter = (fait: Fait, ticket: number | null, author = "manager") => void log.ajouter({ project: "brigade", ticket, author, ...fait });
   const amont = async (issues: ReturnType<typeof issueGitHub>[]): Promise<string> => {
     gh.repondre(OUVERTES, { corps: issues });
     const cli = appeler(principal, ["upstream"], { BRIGADE_STATE_DIR: repertoire, BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin });
@@ -75,7 +75,7 @@ function compte(vu: Vu) {
 
 // Un dépôt dont chaque issue ouverte hors du rail est dans un état différent.
 async function unDepot(t: TestContext) {
-  const { noter, amont, manager } = cuisine(t);
+  const { noter, amont, manager } = kitchen(t);
   // Sur le rail : il n'est pas à venir.
   noter(arrivee("Sur le rail"), 10, "github");
   // Sortie du rail : `fire` retiré, encore ouverte.
@@ -158,7 +158,7 @@ describe("ce qui n'est pas encore sur le rail, lu dans la sortie de `manager ups
     assert.match(amonts.manager(lectureManager(manager()))?.vide ?? "", / — the manager is on: it reads them at each wake-up, judges what it has not read and splits the epics$/);
 
     // Rien en amont non plus.
-    const { amont } = cuisine(t);
+    const { amont } = kitchen(t);
     assert.equal(voir(lecture(await amont([]))).vide, "nothing on the rail, nothing upcoming");
     assert.equal(compte(voir(lecture(await amont([])))).compte, 0);
   });
@@ -222,7 +222,7 @@ const demarrage = () => ({
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
   boutons: BOUTONS,
-  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -234,7 +234,7 @@ async function ouvrir(): Promise<Jouee> {
   return vue;
 }
 
-const FAITS: Faits = {
+const FACTS: Facts = {
   etat: "ouverte",
   lu: A,
   dernierTick: A,
@@ -244,22 +244,22 @@ const FAITS: Faits = {
   cooks: [],
   attend: [],
 };
-const RAIL_VIDE: Faits = { ...FAITS, compteurs: { ...FAITS.compteurs, rail: 0 }, rail: [] };
-function recevoirFaits(vue: Jouee, faits: Faits): void {
-  const recue = tenirFaits().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
+const RAIL_VIDE: Facts = { ...FACTS, compteurs: { ...FACTS.compteurs, rail: 0 }, rail: [] };
+function receiveFacts(vue: Jouee, facts: Facts): void {
+  const recue = holdFacts().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts) }] });
   vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
 }
 
 const tete = (vue: Jouee): Faux => vue.element("rail").dessous("div").find((pose) => pose.className === "amont") ?? assert.fail("pas d'en-tête de ce qui est à venir");
 const nombre = (vue: Jouee): Faux => tete(vue).dessous("button").find((pose) => pose.className === "nombre") ?? assert.fail("pas de nombre");
 const liste = (vue: Jouee): Faux | undefined => vue.element("rail").dessous("section").find((pose) => pose.className === "amont-liste");
-const fiche = (vue: Jouee) => vue.element("fiche");
+const card = (vue: Jouee) => vue.element("fiche");
 
 describe("dans l'espace du projet, ce qui est à venir se lit à côté du rail", () => {
   test("un nombre en tête du rail ; un clic déplie la liste, groupe par groupe ; un autre la replie", async (t) => {
     const { sortie } = await unDepot(t);
     const vue = await ouvrir();
-    recevoirFaits(vue, FAITS);
+    receiveFacts(vue, FACTS);
     // Avant la première lecture : rien de technique en tête du rail (#623), et aucun nombre.
     assert.equal(tete(vue).textContent, "upcoming: being read…");
     assert.match(tete(vue).children[0]?.title ?? "", /ssh box brigade parade manager upstream/);
@@ -290,21 +290,21 @@ describe("dans l'espace du projet, ce qui est à venir se lit à côté du rail"
   test("une issue s'ouvre sur sa fiche, avec son titre et sa priorité ; son lien nomme le projet et le ticket, jamais une adresse", async (t) => {
     const { sortie } = await unDepot(t);
     const vue = await ouvrir();
-    recevoirFaits(vue, FAITS);
+    receiveFacts(vue, FACTS);
     vue.dire("surAmont", tenirAmont().recevoir(lecture(sortie)));
     nombre(vue).click();
 
-    const bon = (liste(vue) ?? assert.fail("pas de liste")).dessous("li").find((li) => li.textContent.startsWith("#11")) ?? assert.fail("pas de #11");
-    (bon.dessous("button")[0] ?? assert.fail("pas de bouton")).click();
+    const slip = (liste(vue) ?? assert.fail("pas de liste")).dessous("li").find((li) => li.textContent.startsWith("#11")) ?? assert.fail("pas de #11");
+    (slip.dessous("button")[0] ?? assert.fail("pas de bouton")).click();
     await repos();
 
-    assert.equal(fiche(vue).hidden, false);
-    assert.equal(fiche(vue).dessous("header")[0]?.children[0]?.textContent, "#11");
-    assert.equal(fiche(vue).dessous("h3")[0]?.textContent, "Le ticket sorti");
-    const ligne = (libelle: string) => fiche(vue).dessous("div").find((rang) => rang.children[0]?.textContent === libelle)?.children[1] ?? assert.fail(`pas de ligne ${libelle}`);
+    assert.equal(card(vue).hidden, false);
+    assert.equal(card(vue).dessous("header")[0]?.children[0]?.textContent, "#11");
+    assert.equal(card(vue).dessous("h3")[0]?.textContent, "Le ticket sorti");
+    const ligne = (libelle: string) => card(vue).dessous("div").find((rang) => rang.children[0]?.textContent === libelle)?.children[1] ?? assert.fail(`pas de ligne ${libelle}`);
     assert.equal(ligne("priority").textContent, "prio:2");
     // Son issue s'ouvre par un geste de la fiche (#639).
-    const ouvrirLIssue = fiche(vue).dessous("li").find((pose) => pose.dataset.geste === "issue")?.dessous("button")[0] ?? assert.fail("pas de geste « issue »");
+    const ouvrirLIssue = card(vue).dessous("li").find((pose) => pose.dataset.geste === "issue")?.dessous("button")[0] ?? assert.fail("pas de geste « issue »");
     ouvrirLIssue.click();
     await repos();
     assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 11]);
@@ -313,7 +313,7 @@ describe("dans l'espace du projet, ce qui est à venir se lit à côté du rail"
   test("rail vide : il le dit, et dit ce qui est en amont — ou qu'il n'y a rien, ni sur le rail ni à venir", async (t) => {
     const { sortie } = await unDepot(t);
     const vue = await ouvrir();
-    recevoirFaits(vue, RAIL_VIDE);
+    receiveFacts(vue, RAIL_VIDE);
     const phrase = () => tete(vue).dessous("p").find((pose) => pose.className === "vide")?.textContent;
     assert.equal(phrase(), "nothing on the rail — what is upcoming is being read…");
 
@@ -327,7 +327,7 @@ describe("dans l'espace du projet, ce qui est à venir se lit à côté du rail"
 
   test("une lecture ratée : le bouton dit qu'elle n'a pas été lue, la liste dépliée dit pourquoi — aucun nombre", async () => {
     const vue = await ouvrir();
-    recevoirFaits(vue, FAITS);
+    receiveFacts(vue, FACTS);
     vue.dire("surAmont", voir({ projet: PARADE, demande: 3, a: A, erreur: "$ ssh …\nusage : …\n→ exit code 2", atteinte: true, cas: null }));
 
     assert.equal(nombre(vue).textContent, "upcoming: not read");

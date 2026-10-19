@@ -1,28 +1,28 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import type { FaitGardeFous, Issue, Plafonds } from "../src/events/guardrails.ts";
-import { ouvrirJournal } from "../src/journal.ts";
-import { arretsRecents, consommation, cooksEnCours, etatDesGardeFous } from "../src/projections/guardrails.ts";
+import type { GuardrailsFact, Issue, Caps } from "../src/events/guardrails.ts";
+import { openLog } from "../src/log.ts";
+import { arretsRecents, consommation, cooksEnCours, guardrailsState } from "../src/projections/guardrails.ts";
 import { horloge, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
-const PLAFONDS: Plafonds = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const CAPS: Caps = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 
-function cuisine(t: TestContext) {
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
-  t.after(() => journal.fermer());
-  const noter = (fait: FaitGardeFous, ticket: number | null = null, author = "runtime") =>
-    journal.ajouter({ project: "brigade", ticket, author, ...fait });
+function kitchen(t: TestContext) {
+  const log = openLog(repertoireTemporaire(t), { maintenant: horloge() });
+  t.after(() => log.fermer());
+  const noter = (fait: GuardrailsFact, ticket: number | null = null, author = "runtime") =>
+    log.ajouter({ project: "brigade", ticket, author, ...fait });
   const lancer = (run: string, ticket: number) =>
-    noter({ type: "cook.launched", payload: { run, limits: PLAFONDS, stream: `runs/${run}.jsonl` } }, ticket);
+    noter({ type: "cook.launched", payload: { run, limits: CAPS, stream: `runs/${run}.jsonl` } }, ticket);
   const finir = (run: string, ticket: number, outcome: Issue) =>
     noter({ type: "cook.exited", payload: { run, outcome, code: outcome === "ok" ? 0 : 1, signal: null, turns: 3, tokens: 40, durationMs: 5 } }, ticket);
-  return { journal, base: journal.base, noter, lancer, finir };
+  return { journal: log, base: log.base, noter, lancer, finir };
 }
 
 test("avant tout réglage, les plafonds sont inconnus et la cuisine est ouverte", (t) => {
-  const { base } = cuisine(t);
+  const { base } = kitchen(t);
 
-  assert.deepEqual(etatDesGardeFous(base), {
+  assert.deepEqual(guardrailsState(base), {
     limits: null,
     breakerThreshold: null,
     failures: 0,
@@ -32,22 +32,22 @@ test("avant tout réglage, les plafonds sont inconnus et la cuisine est ouverte"
 });
 
 test("les réglages journalisés sont ceux que le chef lit", (t) => {
-  const { base, noter } = cuisine(t);
-  noter({ type: "guard.configured", payload: { limits: PLAFONDS, breakerThreshold: 3 } });
+  const { base, noter } = kitchen(t);
+  noter({ type: "guard.configured", payload: { limits: CAPS, breakerThreshold: 3 } });
 
-  const etat = etatDesGardeFous(base);
-  assert.deepEqual(etat.limits, PLAFONDS);
+  const etat = guardrailsState(base);
+  assert.deepEqual(etat.limits, CAPS);
   assert.equal(etat.breakerThreshold, 3);
 });
 
 test("un cook lancé est en cours jusqu'à sa fin", (t) => {
-  const { base, lancer, finir } = cuisine(t);
+  const { base, lancer, finir } = kitchen(t);
   lancer("a", 7);
   lancer("b", 8);
 
   assert.deepEqual(cooksEnCours(base), [
-    { run: "a", ticket: 7, launchedAt: `${JOUR_HORLOGE}T10:00:00.000Z`, limits: PLAFONDS, stream: "runs/a.jsonl" },
-    { run: "b", ticket: 8, launchedAt: `${JOUR_HORLOGE}T10:00:01.000Z`, limits: PLAFONDS, stream: "runs/b.jsonl" },
+    { run: "a", ticket: 7, launchedAt: `${JOUR_HORLOGE}T10:00:00.000Z`, limits: CAPS, stream: "runs/a.jsonl" },
+    { run: "b", ticket: 8, launchedAt: `${JOUR_HORLOGE}T10:00:01.000Z`, limits: CAPS, stream: "runs/b.jsonl" },
   ]);
 
   finir("a", 7, "ok");
@@ -55,7 +55,7 @@ test("un cook lancé est en cours jusqu'à sa fin", (t) => {
 });
 
 test("un cook interrompu par la mort du runtime n'est plus en cours", (t) => {
-  const { base, lancer, noter } = cuisine(t);
+  const { base, lancer, noter } = kitchen(t);
   lancer("a", 7);
   noter({ type: "cook.interrupted", payload: { run: "a" } }, 7);
 
@@ -63,8 +63,8 @@ test("un cook interrompu par la mort du runtime n'est plus en cours", (t) => {
 });
 
 test("les échecs d'affilée se comptent : garde-fou et erreur comptent, une réussite remet à zéro", (t) => {
-  const { base, lancer, finir } = cuisine(t);
-  const echecs = () => etatDesGardeFous(base).failures;
+  const { base, lancer, finir } = kitchen(t);
+  const echecs = () => guardrailsState(base).failures;
   for (const [run, issue, attendu] of [
     ["a", "failed", 1],
     ["b", "guard", 2],
@@ -80,41 +80,41 @@ test("les échecs d'affilée se comptent : garde-fou et erreur comptent, une ré
 });
 
 test("une interruption par redémarrage n'est pas un échec", (t) => {
-  const { base, lancer, noter } = cuisine(t);
+  const { base, lancer, noter } = kitchen(t);
   lancer("a", 7);
   noter({ type: "cook.interrupted", payload: { run: "a" } }, 7);
 
-  assert.equal(etatDesGardeFous(base).failures, 0);
+  assert.equal(guardrailsState(base).failures, 0);
 });
 
 test("le disjoncteur ouvert et le « stop » tiennent jusqu'à « resume », qui remet tout à zéro", (t) => {
-  const { base, noter, lancer, finir } = cuisine(t);
+  const { base, noter, lancer, finir } = kitchen(t);
   lancer("a", 7);
   finir("a", 7, "failed");
   noter({ type: "breaker.opened", payload: { failures: 1, threshold: 1 } });
   noter({ type: "kitchen.stopped", payload: {} }, null, "chef");
 
   assert.deepEqual(
-    { ...etatDesGardeFous(base), limits: undefined, breakerThreshold: undefined },
+    { ...guardrailsState(base), limits: undefined, breakerThreshold: undefined },
     { failures: 1, breakerOpenedAt: `${JOUR_HORLOGE}T10:00:02.000Z`, stoppedAt: `${JOUR_HORLOGE}T10:00:03.000Z`, limits: undefined, breakerThreshold: undefined },
   );
 
   noter({ type: "kitchen.resumed", payload: {} }, null, "chef");
 
-  const etat = etatDesGardeFous(base);
+  const etat = guardrailsState(base);
   assert.deepEqual([etat.failures, etat.breakerOpenedAt, etat.stoppedAt], [0, null, null]);
 });
 
 test("« resume » ne touche pas aux réglages", (t) => {
-  const { base, noter } = cuisine(t);
-  noter({ type: "guard.configured", payload: { limits: PLAFONDS, breakerThreshold: 3 } });
+  const { base, noter } = kitchen(t);
+  noter({ type: "guard.configured", payload: { limits: CAPS, breakerThreshold: 3 } });
   noter({ type: "kitchen.resumed", payload: {} }, null, "chef");
 
-  assert.equal(etatDesGardeFous(base).breakerThreshold, 3);
+  assert.equal(guardrailsState(base).breakerThreshold, 3);
 });
 
 test("chaque arrêt par garde-fou se retrouve avec son ticket et son motif, le plus récent d'abord", (t) => {
-  const { base, noter, lancer, finir } = cuisine(t);
+  const { base, noter, lancer, finir } = kitchen(t);
   lancer("a", 7);
   noter({ type: "guard.tripped", payload: { run: "a", reason: "turns", limit: 100, observed: 101 } }, 7);
   finir("a", 7, "guard");
@@ -131,35 +131,35 @@ test("chaque arrêt par garde-fou se retrouve avec son ticket et son motif, le p
 });
 
 test("le cook d'une relance du manager qui livre ne remet pas les échecs à zéro : c'est le verdict de la pass qui compte", (t) => {
-  const { base, noter, lancer, finir } = cuisine(t);
+  const { base, noter, lancer, finir } = kitchen(t);
   lancer("17-a", 17);
   finir("17-a", 17, "failed");
-  noter({ type: "cook.launched", payload: { run: "17-b", limits: PLAFONDS, stream: "runs/17-b.jsonl", relaunch: true } }, 17);
+  noter({ type: "cook.launched", payload: { run: "17-b", limits: CAPS, stream: "runs/17-b.jsonl", relaunch: true } }, 17);
   finir("17-b", 17, "ok");
-  assert.equal(etatDesGardeFous(base).failures, 1);
+  assert.equal(guardrailsState(base).failures, 1);
 
   noter({ type: "relaunch.judged", payload: { run: "17-b", verdict: "red" } }, 17);
-  assert.equal(etatDesGardeFous(base).failures, 2);
+  assert.equal(guardrailsState(base).failures, 2);
 });
 
 test("une relance du manager que la pass juge verte remet les échecs à zéro, et un cook de relance qui échoue compte comme un autre", (t) => {
-  const { base, noter, finir } = cuisine(t);
-  const relancer = (run: string) => noter({ type: "cook.launched", payload: { run, limits: PLAFONDS, stream: `runs/${run}.jsonl`, relaunch: true } }, 17);
+  const { base, noter, finir } = kitchen(t);
+  const relancer = (run: string) => noter({ type: "cook.launched", payload: { run, limits: CAPS, stream: `runs/${run}.jsonl`, relaunch: true } }, 17);
   relancer("17-a");
   finir("17-a", 17, "guard");
   relancer("17-b");
   finir("17-b", 17, "failed");
-  assert.equal(etatDesGardeFous(base).failures, 2);
+  assert.equal(guardrailsState(base).failures, 2);
 
   relancer("17-c");
   finir("17-c", 17, "ok");
   noter({ type: "relaunch.judged", payload: { run: "17-c", verdict: "green" } }, 17);
-  assert.equal(etatDesGardeFous(base).failures, 0);
+  assert.equal(guardrailsState(base).failures, 0);
 });
 
 test("à plusieurs cooks, « d'affilée » se compte dans l'ordre des lancements : une réussite n'efface que les échecs des cooks lancés avant elle", (t) => {
-  const { base, lancer, finir } = cuisine(t);
-  const echecs = () => etatDesGardeFous(base).failures;
+  const { base, lancer, finir } = kitchen(t);
+  const echecs = () => guardrailsState(base).failures;
   for (const run of ["vieux", "a", "b", "c"]) lancer(run, 7);
 
   finir("a", 7, "failed");
@@ -181,21 +181,21 @@ test("à plusieurs cooks, « d'affilée » se compte dans l'ordre des lancements
 });
 
 test("après « resume », seuls comptent les échecs jugés depuis", (t) => {
-  const { base, noter, lancer, finir } = cuisine(t);
+  const { base, noter, lancer, finir } = kitchen(t);
   lancer("a", 7);
   lancer("b", 7);
   finir("a", 7, "failed");
   noter({ type: "kitchen.resumed", payload: {} }, null, "chef");
-  assert.equal(etatDesGardeFous(base).failures, 0);
+  assert.equal(guardrailsState(base).failures, 0);
 
   finir("b", 7, "failed");
-  assert.equal(etatDesGardeFous(base).failures, 1);
+  assert.equal(guardrailsState(base).failures, 1);
 });
 
 test("le relevé agrégé additionne les cooks en cours et ceux qui ont fini dans la fenêtre, relectures et jugements compris", (t) => {
-  const { base, noter, finir } = cuisine(t);
+  const { base, noter, finir } = kitchen(t);
   const lancer = (run: string, ticket: number | null, station: string) =>
-    noter({ type: "cook.launched", payload: { run, limits: PLAFONDS, stream: `runs/${run}.jsonl`, station } }, ticket);
+    noter({ type: "cook.launched", payload: { run, limits: CAPS, stream: `runs/${run}.jsonl`, station } }, ticket);
   assert.deepEqual(consommation(base, `${JOUR_HORLOGE}T00:00:00.000Z`), { runs: 0, reviews: 0, judgments: 0, turns: 0, tokens: 0 });
 
   lancer("vieux", 7, "box/claude"); // 10:00:00
@@ -217,8 +217,8 @@ test("le relevé agrégé additionne les cooks en cours et ceux qui ont fini dan
 
 test("un journal dont les garde-fous ont la forme d'avant s'ouvre, et prend sa forme du jour au rejeu", (t) => {
   const repertoire = repertoireTemporaire(t);
-  const avant = ouvrirJournal(repertoire, { maintenant: horloge() });
-  avant.ajouter({ project: "brigade", ticket: 7, author: "runtime", type: "cook.launched", payload: { run: "a", limits: PLAFONDS, stream: "runs/a.jsonl" } });
+  const avant = openLog(repertoire, { maintenant: horloge() });
+  avant.ajouter({ project: "brigade", ticket: 7, author: "runtime", type: "cook.launched", payload: { run: "a", limits: CAPS, stream: "runs/a.jsonl" } });
   avant.ajouter({ project: "brigade", ticket: 7, author: "runtime", type: "cook.exited", payload: { run: "a", outcome: "failed", code: 1, signal: null, turns: 3, tokens: 40, durationMs: 5 } });
   // Les tables telles qu'un runtime d'avant le compte par lancement les a laissées.
   avant.base.script(`
@@ -233,10 +233,10 @@ test("un journal dont les garde-fous ont la forme d'avant s'ouvre, et prend sa f
   avant.fermer();
 
   // Ce que fait le runtime à son démarrage : ouvrir, puis rejouer.
-  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
-  t.after(() => journal.fermer());
-  journal.reconstruire();
+  const log = openLog(repertoire, { maintenant: horloge() });
+  t.after(() => log.fermer());
+  log.reconstruire();
 
-  assert.equal(etatDesGardeFous(journal.base).failures, 1);
-  assert.deepEqual(consommation(journal.base, `${JOUR_HORLOGE}T00:00:00.000Z`), { runs: 1, reviews: 0, judgments: 0, turns: 3, tokens: 40 });
+  assert.equal(guardrailsState(log.base).failures, 1);
+  assert.deepEqual(consommation(log.base, `${JOUR_HORLOGE}T00:00:00.000Z`), { runs: 1, reviews: 0, judgments: 0, turns: 3, tokens: 40 });
 });

@@ -2,13 +2,13 @@
 //
 // Un domaine (rail, garde-fous, pass…) ajoute son fichier sous evenements/ et
 // une ligne à l'union `Fait` ci-dessous — rien d'autre ici.
-import type { FaitCloison } from "./events/partition.ts";
+import type { PartitionFact } from "./events/partition.ts";
 import type { FaitCorrectif } from "./correctif/evenements.ts";
 import type { FaitDecision } from "./events/decisions.ts";
-import type { FaitDerive } from "./events/drift.ts";
-import type { FaitDistante } from "./events/remote.ts";
-import type { FaitFermeture } from "./events/closing.ts";
-import type { FaitGardeFous } from "./events/guardrails.ts";
+import type { DriftFact } from "./events/drift.ts";
+import type { RemoteFact } from "./events/remote.ts";
+import type { ClosingFact } from "./events/closing.ts";
+import type { GuardrailsFact } from "./events/guardrails.ts";
 import type { FaitInstallateur } from "./events/installer.ts";
 import type { FaitInstallation } from "./events/installation.ts";
 import type { FaitJeton } from "./events/token.ts";
@@ -19,12 +19,12 @@ import type { FaitPass, FaitPassRevolu } from "./events/pass.ts";
 import type { FaitRail } from "./events/rail.ts";
 import type { FaitRenouvellement } from "./events/renewal.ts";
 import type { FaitRuntime } from "./events/runtime.ts";
-import type { FaitSauvegarde } from "./events/backup.ts";
+import type { BackupFact } from "./events/backup.ts";
 import type { FaitService } from "./events/service.ts";
 import type { FaitStation } from "./events/station.ts";
 import type { FaitUrgence } from "./events/emergency.ts";
 
-export type Fait = FaitRuntime | FaitRail | FaitGardeFous | FaitStation | FaitPass | FaitPassRevolu | FaitSauvegarde | FaitManager | FaitNettoyage | FaitDerive | FaitCloison | FaitInstallateur | FaitInstallation | FaitService | FaitDistante | FaitFermeture | FaitMiseAJour | FaitDecision | FaitRenouvellement | FaitJeton | FaitUrgence | FaitCorrectif;
+export type Fait = FaitRuntime | FaitRail | GuardrailsFact | FaitStation | FaitPass | FaitPassRevolu | BackupFact | FaitManager | FaitNettoyage | DriftFact | PartitionFact | FaitInstallateur | FaitInstallation | FaitService | RemoteFact | ClosingFact | FaitMiseAJour | FaitDecision | FaitRenouvellement | FaitJeton | FaitUrgence | FaitCorrectif;
 
 export type Enveloppe = {
   // Numéro de séquence : l'ordre de vérité du journal.

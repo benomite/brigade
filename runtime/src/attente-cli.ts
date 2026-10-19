@@ -12,10 +12,10 @@
 // sur l'issue (label `waiting`, commentaire) dès qu'il le lit.
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
-import { cestArrive, direAttenteDeTiersEn, lireRelance, mettreEnAttente, reprendre } from "./attente.ts";
+import { cestArrive, direAttenteDeTiersEn, lireRelance, putInQueue, reprendre } from "./attente.ts";
 import { dureeEn } from "./etat.ts";
-import { ouvrirJournal, type Journal } from "./journal.ts";
-import { journalPasRejoue } from "./journal-pas-rejoue.ts";
+import { openLog, type Log } from "./log.ts";
+import { logNotReplayed } from "./log-not-replayed.ts";
 import { lireRail, type TicketRail } from "./projections/rail.ts";
 import { GesteRefuse } from "./rail.ts";
 
@@ -51,9 +51,9 @@ export function principal({ args: tapes, env, dire, redire }: Appel, maintenant 
   if (geste !== "set" && lues.size > 0) echouer(2, USAGE);
   const ticket = Number(numero);
 
-  let journal: Journal;
+  let log: Log;
   try {
-    journal = ouvrirJournal(repertoireEtat, { lectureSeule: geste === undefined });
+    log = openLog(repertoireEtat, { lectureSeule: geste === undefined });
   } catch (erreur) {
     echouer(1, erreur instanceof Error ? erreur.message : String(erreur));
   }
@@ -62,12 +62,12 @@ export function principal({ args: tapes, env, dire, redire }: Appel, maintenant 
     const depuis = (moment: string) => `${dureeEn(instant.getTime() - Date.parse(moment))} (${moment})`;
     const ligne = (lu: TicketRail) => `#${lu.ticket}  ${lu.waitingFor === null ? "" : direAttenteDeTiersEn(lu.waitingFor, depuis)}  ${lu.title}`;
     if (geste === undefined) {
-      const enAttente = lireRail(journal.base).filter((lu) => lu.waitingFor !== null);
-      if (enAttente.length === 0) dire("no ticket is waiting for a third party");
-      for (const lu of enAttente) dire(ligne(lu));
+      const queued = lireRail(log.base).filter((lu) => lu.waitingFor !== null);
+      if (queued.length === 0) dire("no ticket is waiting for a third party");
+      for (const lu of queued) dire(ligne(lu));
       return;
     }
-    const projet = journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
+    const projet = log.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
     if (!projet) echouer(1, "empty log: the runtime has never started on this state directory");
     try {
       if (geste === "set") {
@@ -76,13 +76,13 @@ export function principal({ args: tapes, env, dire, redire }: Appel, maintenant 
         if (quoi === undefined || qui === undefined) echouer(2, `set: --what and --from are to be said\n${USAGE}`);
         const brute = lues.get("--remind");
         const relance = brute === undefined ? undefined : lireRelance(brute, instant);
-        const lu = mettreEnAttente(journal, projet, ticket, { quoi, qui, ...(relance === undefined ? {} : { relance }) }, instant);
+        const lu = putInQueue(log, projet, ticket, { quoi, qui, ...(relance === undefined ? {} : { relance }) }, instant);
         dire(`WAITING: ${ligne(lu)}`);
       } else if (geste === "resume") {
-        reprendre(journal, projet, ticket);
+        reprendre(log, projet, ticket);
         dire(`#${ticket} resumed: it goes back to TODO, in front of the chef`);
       } else {
-        cestArrive(journal, projet, ticket);
+        cestArrive(log, projet, ticket);
         dire(`#${ticket}: it arrived — it goes back to the kitchen`);
       }
     } catch (erreur) {
@@ -90,10 +90,10 @@ export function principal({ args: tapes, env, dire, redire }: Appel, maintenant 
       throw erreur;
     }
   } catch (erreur) {
-    if (journalPasRejoue(erreur)) echouer(1, "this log does not have the rail state yet: restart the runtime, which recomputes it");
+    if (logNotReplayed(erreur)) echouer(1, "this log does not have the rail state yet: restart the runtime, which recomputes it");
     throw erreur;
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }
 

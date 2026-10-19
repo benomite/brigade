@@ -16,16 +16,16 @@
 import { configRail } from "./alimenter.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { direBaseRougeEn, direControleRetenuEn, direPanneEn } from "./dire-base.ts";
-import { direSansGrantEn } from "./attend.ts";
+import { direSansGrantEn } from "./awaiting.ts";
 import type { Evenement } from "./evenements.ts";
 import type { Resultat } from "./geste-ticket.ts";
 import type { ChoixDeReaction } from "./events/manager.ts";
 import { DIRE_GATES_COUPEES_EN, GATES_COUPEES, motifDArret, motifDeRemontee, type CI, type Finding, type Gates, type Review } from "./events/pass.ts";
-import { ouvrirJournal, type Journal } from "./journal.ts";
+import { openLog, type Log } from "./log.ts";
 import { ouvrirGitHub } from "./github.ts";
 import { histoireDuTicket } from "./histoire-ticket.ts";
 import { commenterIssue, demanderAuSecond, lireIssue, type Demande, type Lecture } from "./issue-ticket.ts";
-import { journalPasRejoue } from "./journal-pas-rejoue.ts";
+import { logNotReplayed } from "./log-not-replayed.ts";
 import { RENVOIS_MAX } from "./pass.ts";
 import { bilanSansGrant, controleRetenu, etatDeLaBase, lirePass, mergesAVerifier, passDuTicket, type PassDeTicket, type Phase } from "./projections/pass.ts";
 import { ConfigInvalide } from "./runtime.ts";
@@ -77,9 +77,9 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
   const GATES: Record<Gates["outcome"], string> = { green: "green", red: "red", timeout: "stopped at the cap", skipped: "not played" };
   // Le plafond de durée des gates, franchi : la pass ne le juge pas. Seul rouge,
   // il laisse les gates vertes sous un code de sortie qui ne l'est pas.
-  const direPlafond = (gates: Gates) => (gates.overCeiling ? ", their duration cap exceeded but not judged" : "");
+  const sayCap = (gates: Gates) => (gates.overCeiling ? ", their duration cap exceeded but not judged" : "");
   const direGates = (gates: Gates) =>
-    `${GATES[gates.outcome] ?? gates.outcome}${gates.outcome === "green" ? direPlafond(gates) : ""}${gates.code === null ? "" : ` (code ${gates.code})`}`;
+    `${GATES[gates.outcome] ?? gates.outcome}${gates.outcome === "green" ? sayCap(gates) : ""}${gates.code === null ? "" : ` (code ${gates.code})`}`;
   // Leurs lignes FAIL, puis ce dépassement — qui n'en est pas une pour la pass.
   const echecs = (gates: Gates) => [
     ...gates.failures.map((echec) => `      ${echec}`),
@@ -183,7 +183,7 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
         const { sha, outcome, gates, red, reason } = evenement.payload;
         const pourquoi = reason === undefined ? "the base has no gates" : `the attempt did not run (${reason})`;
         const nonJouees = red === undefined ? `not played, ${pourquoi}` : `not played${direPanneEn(reason)} — the base stays RED, a check that was not played does not lift the red found on ${red.slice(0, 7)}`;
-        const dit = outcome === "green" ? `green${direPlafond(gates)}` : outcome === "skipped" ? nonJouees : `RED${gates.code === null ? "" : ` (code ${gates.code})`} — judgments and merges suspended`;
+        const dit = outcome === "green" ? `green${sayCap(gates)}` : outcome === "skipped" ? nonJouees : `RED${gates.code === null ? "" : ` (code ${gates.code})`} — judgments and merges suspended`;
         return [`${tete}gates played on the base alone (${sha.slice(0, 7)}): ${dit}`, ...echecs(gates)];
       }
       case "pass.returned": {
@@ -207,10 +207,10 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
 
   // Ce que le chef doit savoir de la base avant de lire les livraisons : rouge,
   // plus rien n'est jugé ni mergé, plus aucun ticket n'est pris.
-  function direBase(journal: Journal): string[] {
-    const controle = etatDeLaBase(journal.base);
-    const retenu = controleRetenu(journal.base);
-    const aVerifier = mergesAVerifier(journal.base).map((ticket) => `#${ticket}`);
+  function direBase(log: Log): string[] {
+    const controle = etatDeLaBase(log.base);
+    const retenu = controleRetenu(log.base);
+    const aVerifier = mergesAVerifier(log.base).map((ticket) => `#${ticket}`);
     const citer = (tickets: string[]) => (tickets.length === 0 ? "" : ` — after the merge of ${tickets.join(", ")}`);
     const rouge = controle?.outcome === "red";
     return [
@@ -221,11 +221,11 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
     ];
   }
 
-  function montrerTicket(journal: Journal, ticket: number): void {
-    const pass = passDuTicket(journal.base, ticket);
+  function montrerTicket(log: Log, ticket: number): void {
+    const pass = passDuTicket(log.base, ticket);
     // Le contrôle de la base est hors ticket : il se lit chez ceux dont il
     // vérifiait le merge.
-    const histoire = journal
+    const histoire = log
       .tout()
       .filter((evenement) => evenement.ticket === ticket || (evenement.type === "base.checked" && evenement.payload.tickets.includes(ticket)))
       .flatMap(raconter);
@@ -234,18 +234,18 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
       return;
     }
     // Hors du rail, la pass cesse de suivre une livraison mergée, ou fermée sans merge.
-    const horsRail = histoire.length > 0 && journal.duTicket(ticket).some((evenement) => evenement.type === "pass.entered");
+    const horsRail = histoire.length > 0 && log.duTicket(ticket).some((evenement) => evenement.type === "pass.entered");
     dire(pass ? decrire(pass) : horsRail ? `PR #${ticket}  off the rail — the pass no longer follows it` : `#${ticket}  left the rail`);
     for (const ligne of histoire) dire(ligne);
   }
 
-  function montrer(journal: Journal): void {
+  function montrer(log: Log): void {
     // Un ticket encore en cuisine pour la première fois n'a rien à montrer ici.
-    const livraisons = lirePass(journal.base).filter((pass) => pass.phase !== "cooking" || pass.returns > 0);
-    for (const ligne of direBase(journal)) dire(ligne);
-    if (livraisons.length === 0) dire("no delivery in pass");
-    for (const pass of livraisons) dire(decrire(pass));
-    const sansGrant = direSansGrantEn(bilanSansGrant(journal.base));
+    const deliveries = lirePass(log.base).filter((pass) => pass.phase !== "cooking" || pass.returns > 0);
+    for (const ligne of direBase(log)) dire(ligne);
+    if (deliveries.length === 0) dire("no delivery in pass");
+    for (const pass of deliveries) dire(decrire(pass));
+    const sansGrant = direSansGrantEn(bilanSansGrant(log.base));
     if (sansGrant !== null) dire(sansGrant);
   }
 
@@ -286,25 +286,25 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
   const json = args.length === 2 && args[1] === "--json";
   if (args.length > 2 || (args.length === 2 && !json) || (args[0] !== undefined && !/^[1-9][0-9]*$/.test(args[0]))) echouer(2, USAGE);
 
-  let journal;
+  let log;
   try {
-    journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
+    log = openLog(repertoireEtat, { lectureSeule: true });
   } catch (erreur) {
     echouer(1, erreur instanceof Error ? erreur.message : String(erreur));
   }
   try {
-    if (args[0] === undefined) montrer(journal);
-    else if (json) dire(JSON.stringify(histoireDuTicket(journal.base, Number(args[0]))));
-    else montrerTicket(journal, Number(args[0]));
+    if (args[0] === undefined) montrer(log);
+    else if (json) dire(JSON.stringify(histoireDuTicket(log.base, Number(args[0]))));
+    else montrerTicket(log, Number(args[0]));
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant la pass.
-    if (journalPasRejoue(erreur)) {
+    if (logNotReplayed(erreur)) {
       echouer(1, "this log does not have the pass state yet: restart the runtime, which recomputes it");
     }
     throw erreur;
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }
 

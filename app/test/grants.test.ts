@@ -15,7 +15,7 @@ import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../../runtime/src/evenements.ts";
 import { principal } from "../../runtime/src/grant-cli.ts";
 import { JAMAIS_ACCORDEES } from "../../runtime/src/grant.ts";
-import { ouvrirJournal } from "../../runtime/src/journal.ts";
+import { openLog } from "../../runtime/src/log.ts";
 import type { Lecture } from "../src/box.ts";
 import { CONFIRMES, ecrireGeste, GESTES, GRANTS, SANS_OUI } from "../src/gestes.ts";
 import { DIT } from "../src/saisie.ts";
@@ -31,15 +31,15 @@ const A_16H30 = "2026-10-13T16:30:00.000Z";
 // Un journal, et `grant` jouée dessus comme le geste de la box la joue : sa sortie, telle quelle.
 // Chaque fait y est écrit une minute après le précédent, à partir de 9 h 01 ; la commande,
 // elle, lit l'horloge — fixée pour elle, le temps de son appel, à l'heure que le test donne.
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-app-grants-"));
   let minute = 0;
-  const journal = ouvrirJournal(repertoire, { maintenant: () => new Date(Date.UTC(2026, 9, 13, 9, ++minute)) });
+  const log = openLog(repertoire, { maintenant: () => new Date(Date.UTC(2026, 9, 13, 9, ++minute)) });
   t.after(() => {
-    journal.fermer();
+    log.fermer();
     rmSync(repertoire, { recursive: true, force: true });
   });
-  const noter = (fait: Fait, ticket: number | null = null, author = "chef") => void journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const noter = (fait: Fait, ticket: number | null = null, author = "chef") => void log.ajouter({ project: "brigade", ticket, author, ...fait });
   const sortie = (a = A_16H30): string => {
     const lignes: string[] = [];
     t.mock.timers.enable({ apis: ["Date"], now: new Date(a) });
@@ -61,7 +61,7 @@ function lu(sortie: string): Grants {
 }
 
 const accorder = (payload: { until?: string; uses?: number } = {}) => ({ type: "grant.activated", payload: { action: "merge", ...payload } }) as const;
-const revoquer = { type: "grant.revoked", payload: { action: "merge" } } as const;
+const revoke = { type: "grant.revoked", payload: { action: "merge" } } as const;
 const user = (numero: number, sha: string, verdict: number) => ({ type: "grant.used", payload: { action: "merge", pr: `https://github.com/benomite/brigade/pull/${numero}`, number: numero, sha, base: "v2", verdict } }) as const;
 const AUCUN = { dit: "none", lignes: [], illisibles: [] };
 const INTERDITS = [
@@ -147,7 +147,7 @@ describe("la double lecture : la sortie de `grant` en anglais, et l'ancienne en 
 
 describe("l'état des grants, lu dans la sortie de `grant`", () => {
   test("un grant actif avec une échéance : il l'est, depuis quand, par qui — et de son échéance, la durée restante d'abord, l'heure ensuite", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(accorder({ until: "2026-10-13T18:40:00.000Z" }));
 
     assert.deepEqual(lu(sortie()).grants, [
@@ -165,7 +165,7 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
   });
 
   test("la durée restante est celle que la box a comptée à l'heure de la lecture : l'app n'en recalcule aucune", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(accorder({ until: "2026-10-20T12:00:00.000Z" }));
 
     const dans = (a: string) => {
@@ -179,14 +179,14 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
   });
 
   test("un grant actif sans échéance : c'est le runtime qui le dit, et l'app ne lui en prête aucune", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(accorder());
 
     assert.deepEqual(lu(sortie()).grants, [{ action: "merge", actif: true, mot: "ACTIVE", depuis: "2026-10-13T09:01:00.000Z", par: "chef", limites: ["no deadline"], dit: "a green pass is merged without you" }]);
   });
 
   test("un grant compté en usages : ce qu'il en reste se lit mot pour mot, à côté de l'échéance", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(accorder({ until: "2026-10-13T18:40:00.000Z", uses: 10 }));
     noter(user(53, "4be1f07aaaaaaaaaa", 12), 18, "pass");
 
@@ -198,7 +198,7 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
   });
 
   test("un grant qui va s'éteindre : le runtime le dit `EXPIRING SOON`, et l'app le pose avec son mot", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(accorder({ until: "2026-10-13T17:00:00.000Z" }));
 
     const [grant] = lu(sortie()).grants;
@@ -210,7 +210,7 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
   });
 
   test("sans grant actif — jamais donné : il est absent, sans date ni auteur, et rien ne lui reste", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     // Un journal qui n'a jamais vu de grant : il a d'autres faits, pas celui-là.
     noter({ type: "manager.enabled", payload: {} });
 
@@ -218,15 +218,15 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
   });
 
   test("sans grant actif — révoqué : il ne l'est plus, depuis quand et par qui", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(accorder());
-    noter(revoquer, null, "benoit");
+    noter(revoke, null, "benoit");
 
     assert.deepEqual(lu(sortie()).grants, [{ action: "merge", actif: false, mot: "REVOKED", depuis: "2026-10-13T09:02:00.000Z", par: "benoit", limites: [], dit: "the pass stops at the open PR" }]);
   });
 
   test("une échéance dépassée : le grant n'est plus actif, il s'est éteint seul à son échéance — et aucune durée ne lui reste", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(accorder({ until: "2026-10-13T12:00:00.000Z" }));
 
     // À 11 h 30, il vaut encore ; à 16 h 30, son heure est passée — que le journal le dise ou non.
@@ -252,7 +252,7 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
   });
 
   test("ses derniers usages, le plus récent d'abord : l'issue, la PR, le commit, le verdict, et ce que le merge est devenu", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(accorder());
     noter(user(53, "4be1f07aaaaaaaaaa", 12), 18, "pass");
     noter({ type: "merge.done", payload: { pr: "https://github.com/benomite/brigade/pull/53", sha: "4be1f07aaaaaaaaaa", by: "pass", reconciled: false } }, 18, "pass");
@@ -269,14 +269,14 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
   });
 
   test("un grant qui n'a jamais servi : aucun usage, et c'est le mot du runtime qui le dit — « aucun »", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(accorder());
 
     assert.deepEqual(lu(sortie()).usages, AUCUN);
   });
 
   test("ce qu'aucun grant n'autorise : la liste du runtime, action par action, mot pour mot", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(accorder());
     // Une demande refusée s'écrit dans les derniers gestes : elle n'ajoute rien à la liste, et n'en retire rien.
     noter({ type: "grant.refused", payload: { action: "acces-prod", line: "any action on a project's production" } });
@@ -288,7 +288,7 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
   });
 
   test("le bilan des arrêts faute de grant, quand la sortie le porte, se lit tel quel — il n'est pris pour aucun usage", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter({ type: "pass.started", payload: { run: "cook-18-a", pr: null, number: null, sha: "4be1f07aaaaaaaaaa" } }, 18, "pass");
     noter({ type: "pass.pr-opened", payload: { pr: "https://github.com/benomite/brigade/pull/53", number: 53, reconciled: false } }, 18, "pass");
     noter({ type: "pass.held", payload: { reason: "no-grant" } }, 18, "pass");
@@ -356,7 +356,7 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
 
 describe("ce que l'onglet Grants pose au-dessus du texte", () => {
   test("lu, un grant actif : sa pastille, son échéance — la durée restante en tête —, ses usages à lui, ce qu'aucun grant n'autorise, et l'heure de la lecture", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(accorder({ until: "2026-10-13T18:40:00.000Z" }));
     noter(user(53, "4be1f07aaaaaaaaaa", 12), 18, "pass");
 
@@ -378,8 +378,8 @@ describe("ce que l'onglet Grants pose au-dessus du texte", () => {
   });
 
   test("la couleur suit ce que le runtime dit : vert actif, jaune bientôt éteint ou éteint seul, gris absent ou révoqué", (t) => {
-    const ton = (noter: (journal: ReturnType<typeof cuisine>["noter"]) => void) => {
-      const { noter: ecrire, sortie } = cuisine(t);
+    const ton = (noter: (log: ReturnType<typeof kitchen>["noter"]) => void) => {
+      const { noter: ecrire, sortie } = kitchen(t);
       noter(ecrire);
       const vu = voir(lecture(sortie()));
       assert.ok("grants" in vu);
@@ -395,14 +395,14 @@ describe("ce que l'onglet Grants pose au-dessus du texte", () => {
     assert.deepEqual(
       ton((noter) => {
         noter(accorder());
-        noter(revoquer);
+        noter(revoke);
       }),
       ["REVOKED", "gris"],
     );
   });
 
   test("sans usage, la liste du grant dit ce que le runtime en dit, à la place de ses lignes", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(accorder());
 
     const vu = voir(lecture(sortie()));

@@ -12,7 +12,7 @@ import type { Commande } from "../src/appel.ts";
 import { principal as base } from "../src/base-cli.ts";
 import type { Fait } from "../src/evenements.ts";
 import { principal as grant } from "../src/grant-cli.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { principal as pass } from "../src/montrer-pass.ts";
 import { sessions } from "../src/projections/sessions.ts";
 import { demarrer } from "../src/runtime.ts";
@@ -29,12 +29,12 @@ const ROUGES = { outcome: "red" as const, code: 1, failures: ["FAIL  tests du ru
 const VERTES = { outcome: "green" as const, code: 0, failures: [], tail: "" };
 const NON_JOUEES = { outcome: "skipped" as const, code: null, failures: [], tail: "" };
 
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
   const runtime = demarrer({ repertoireEtat: repertoire, projet: "brigade", intervalleVeilleMs: 5, maintenant: horloge() });
   t.after(() => runtime.arreter("test"));
-  const { journal } = runtime;
-  const noter = (fait: Fait, ticket: number | null = 17, author = "pass") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const { journal: log } = runtime;
+  const noter = (fait: Fait, ticket: number | null = 17, author = "pass") => log.ajouter({ project: "brigade", ticket, author, ...fait });
   const rendre = async (cli: { fin: Promise<number | null>; sortie: () => string }) => ({ code: await cli.fin, sortie: cli.sortie() });
   const commande = (cli: Cli, ...args: string[]) => rendre(appeler(cli.commande, args, { BRIGADE_STATE_DIR: repertoire }));
   // Par son fichier, dans son propre process : comme `npm run` la lance.
@@ -65,14 +65,14 @@ function cuisine(t: TestContext) {
       },
     });
   };
-  const grants = () => journal.tout().filter((e) => e.type.startsWith("grant."));
-  return { runtime, journal, repertoire, noter, commande, lancee, livrer, juger, grants };
+  const grants = () => log.tout().filter((e) => e.type.startsWith("grant."));
+  return { runtime, journal: log, repertoire, noter, commande, lancee, livrer, juger, grants };
 }
 
 // Chaque test a son répertoire d'état : ils se jouent de front.
 describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   test("sans grant jamais donné, le chef le lit absent, et sans usage", async (t) => {
-    const { commande } = cuisine(t);
+    const { commande } = kitchen(t);
 
     const { code, sortie } = await commande(GRANT);
 
@@ -82,7 +82,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("le chef active le grant sans redémarrer le runtime, en son nom, et voit son état", async (t) => {
-    const { lancee, grants } = cuisine(t);
+    const { lancee, grants } = kitchen(t);
 
     const activation = await lancee(GRANT, "enable", "merge");
 
@@ -94,7 +94,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("`--until` rend ce qu'il a compris, en UTC et avec la durée, avant toute autre ligne", async (t) => {
-    const { commande, grants } = cuisine(t);
+    const { commande, grants } = kitchen(t);
 
     const { code, sortie } = await commande(GRANT, "enable", "merge", "--until", "2999-01-01T18:00");
 
@@ -107,7 +107,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("activer deux fois ne s'écrit qu'une fois ; révoquer se lit, et ne s'écrit pas sans grant actif", async (t) => {
-    const { commande, grants } = cuisine(t);
+    const { commande, grants } = kitchen(t);
     assert.match((await commande(GRANT, "revoke", "merge")).sortie, /nothing to revoke/);
 
     await commande(GRANT, "enable", "merge");
@@ -119,7 +119,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("chaque usage du grant se relit : quel ticket, quelle PR, quel verdict, quand", async (t) => {
-    const { commande, noter, livrer, juger } = cuisine(t);
+    const { commande, noter, livrer, juger } = kitchen(t);
     livrer("a");
     const verdict = juger("a", "green");
     const usage = noter({ type: "grant.used", payload: { action: "merge", pr: PR, number: 40, sha: "abcdef0a", base: "v2", verdict: verdict?.seq ?? 0 } });
@@ -136,7 +136,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("avant d'accorder, le chef lit ce qu'il a fait de ce que la pass a arrêté faute de grant, là où il regarde déjà — sans rien écrire", async (t) => {
-    const { journal, commande, noter, livrer, juger } = cuisine(t);
+    const { journal: log, commande, noter, livrer, juger } = kitchen(t);
     livrer("a");
     juger("a", "green");
     // Trois livraisons arrêtées : une qu'il merge, une qu'il ferme, une qu'il laisse.
@@ -151,29 +151,29 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     noter({ type: "pass.held", payload: { reason: "no-grant" } }, 19);
     noter({ type: "pass.started", payload: { run: "d", pr: `${PR}0`, number: 400, sha: "abcdef0d" } }, 20);
     noter({ type: "pass.held", payload: { reason: "review-required", cause: "judge-modified" } }, 20);
-    const avant = journal.tout();
+    const avant = log.tout();
 
     assert.match((await commande(PASS)).sortie, /^without a grant, 3 green deliveries stopped: 1 merged by hand, 1 closed without merge — 1 disagreement —, 1 still open$/m);
     assert.match((await commande(GRANT)).sortie, /^without a grant, 3 green deliveries stopped: 1 merged by hand, 1 closed without merge — 1 disagreement —, 1 still open$/m);
     // La commande `essai` n'existe plus : le chiffre se lit sans elle.
     assert.equal((await commande(GRANT, "essai")).code, 2);
-    assert.deepEqual(journal.tout(), avant);
+    assert.deepEqual(log.tout(), avant);
   });
 
   test("le grant donné sans runtime qui tourne tient quand même, et le dit", async (t) => {
-    const { runtime, repertoire, commande } = cuisine(t);
+    const { runtime, repertoire, commande } = kitchen(t);
     runtime.arreter("test");
 
     const { sortie } = await commande(GRANT, "enable", "merge");
 
     assert.match(sortie, /no runtime is running: the command will take effect on its next start/);
-    const journal = ouvrirJournal(repertoire, { lectureSeule: true });
-    t.after(() => journal.fermer());
-    assert.equal(journal.tout().at(-1)?.type, "grant.activated");
+    const log = openLog(repertoire, { lectureSeule: true });
+    t.after(() => log.fermer());
+    assert.equal(log.tout().at(-1)?.type, "grant.activated");
   });
 
   test("le chef accorde avec une échéance, lit ce qu'il reste, prolonge sans révoquer — et l'histoire de ses gestes se relit", async (t) => {
-    const { commande, grants } = cuisine(t);
+    const { commande, grants } = kitchen(t);
 
     const accorde = await commande(GRANT, "enable", "merge", "--for", "4h", "--uses", "3");
     assert.equal(accorde.code, 0);
@@ -194,7 +194,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("`grant` lit éteint un grant échu que le runtime n'a pas encore constaté, et n'écrit rien : il ne prend pas le journal", async (t) => {
-    const { commande, noter, grants } = cuisine(t);
+    const { commande, noter, grants } = kitchen(t);
     noter({ type: "grant.activated", payload: { action: "merge", until: "2026-01-01T00:00:00.000Z" } }, null, "chef");
 
     const { code, sortie } = await commande(GRANT);
@@ -205,7 +205,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("une commande inconnue, ou un grant autre que merge, est refusé avec l'usage, sans rien écrire", async (t) => {
-    const { commande, grants } = cuisine(t);
+    const { commande, grants } = kitchen(t);
 
     for (const args of [["enable"], ["enable", "push-tag"], ["donner", "merge"], ["enable", "merge", "vite"], ["enable", "merge", "--until", "vendredi"]]) {
       const { code, sortie } = await commande(GRANT, ...args);
@@ -216,7 +216,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("le chef lit ce qu'aucun grant n'autorise là où il lit ses grants", async (t) => {
-    const { commande } = cuisine(t);
+    const { commande } = kitchen(t);
 
     const { code, sortie } = await commande(GRANT);
 
@@ -225,7 +225,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("ce qu'aucun grant n'autorise est refusé au chef lui-même : la ligne est nommée, la demande journalisée, rien n'est accordé", async (t) => {
-    const { commande, lancee, grants } = cuisine(t);
+    const { commande, lancee, grants } = kitchen(t);
 
     const prod = await lancee(GRANT, "enable", "accès-prod");
     const max = await commande(GRANT, "enable", "identifiants-max", "--for", "4h");
@@ -250,7 +250,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("`enable`, `extend`, `revoke`, l'état et chacun de leurs refus s'écrivent sans mot français du glossaire", async (t) => {
-    const { commande, noter, livrer, juger } = cuisine(t);
+    const { commande, noter, livrer, juger } = kitchen(t);
     const lignes: string[] = [];
     const dire = async (...args: string[]) => {
       const { sortie } = await commande(GRANT, ...args);
@@ -294,7 +294,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("`--for 2d` est accepté, et `--for 2j` l'est toujours", async (t) => {
-    const { commande, grants } = cuisine(t);
+    const { commande, grants } = kitchen(t);
 
     const deux = await commande(GRANT, "enable", "merge", "--for", "2d");
     assert.equal(deux.code, 0);
@@ -310,7 +310,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("un grant posé avant ce ticket — ancien mot de commande, ancienne durée, refus au libellé français — est montré et appliqué sans édition", async (t) => {
-    const { commande, noter, grants } = cuisine(t);
+    const { commande, noter, grants } = kitchen(t);
     // Ce que le journal d'une box d'avant garde : un refus au libellé français, un grant à durée.
     noter({ type: "grant.refused", payload: { action: "acces-prod", line: "toute action sur la production d'un projet" } }, null, "chef");
     noter({ type: "grant.activated", payload: { action: "merge", until: new Date(Date.now() + 3_600_000).toISOString(), uses: 3 } }, null, "chef");
@@ -349,7 +349,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     assert.equal(existsSync(join(vide, "log.db")), false);
 
     const ancien = repertoireTemporaire(t);
-    ouvrirJournal(ancien, { projections: [sessions] }).fermer();
+    openLog(ancien, { projections: [sessions] }).fermer();
     for (const cli of [GRANT, PASS, BASE]) {
       const enfant = appeler(cli.commande, [], { BRIGADE_STATE_DIR: ancien });
       assert.equal(await enfant.fin, 1);
@@ -358,7 +358,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("une livraison entre les mains du manager se lit comme telle, et ses relances ne passent pas pour des renvois de la pass", async (t) => {
-    const { noter, commande, livrer } = cuisine(t);
+    const { noter, commande, livrer } = kitchen(t);
     livrer("a");
     noter({ type: "pass.returned", payload: { n: 3, findings: ["Gates rouges."] } }, 17, "manager");
     noter({ type: "pass.deferred", payload: {} });
@@ -377,7 +377,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("le chef voit les livraisons en pass : leur phase, leurs renvois consommés, leur PR", async (t) => {
-    const { lancee, noter, livrer, juger } = cuisine(t);
+    const { lancee, noter, livrer, juger } = kitchen(t);
     assert.match((await lancee(PASS)).sortie, /no delivery in pass/);
 
     livrer("a");
@@ -391,7 +391,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("pour un ticket, le chef relit chaque verdict et ce qui l'a produit, jusqu'au merge", async (t) => {
-    const { commande, noter, livrer, juger } = cuisine(t);
+    const { commande, noter, livrer, juger } = kitchen(t);
     livrer("a");
     const rouge = juger("a", "red");
     noter({ type: "pass.returned", payload: { n: 1, findings: ["CI rouge."] } });
@@ -411,7 +411,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("le relevé dit sous quelle identité un merge a été fait, quand le journal la porte", async (t) => {
-    const { commande, noter, livrer, juger } = cuisine(t);
+    const { commande, noter, livrer, juger } = kitchen(t);
     livrer("a");
     juger("a", "green");
     noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0a", by: "pass", actor: "brigade-pass[bot]", reconciled: true } });
@@ -422,7 +422,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("le chef lit ce que le reviewer a dit — son résumé, chaque constat — et un ticket sans diff servi sans merge", async (t) => {
-    const { commande, noter, livrer } = cuisine(t);
+    const { commande, noter, livrer } = kitchen(t);
     livrer("a");
     noter({ type: "pass.started", payload: { run: "a", pr: null, number: null, sha: "abcdef0a" } });
     const findings = [
@@ -451,7 +451,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("le chef lit qu'une livraison arrêtée touche à ce que le projet s'ouvre, et à quel fichier", async (t) => {
-    const { commande, noter, livrer } = cuisine(t);
+    const { commande, noter, livrer } = kitchen(t);
     livrer("a");
     noter({ type: "pass.started", payload: { run: "a", pr: PR, number: 40, sha: "abcdef0a" } });
     const gates = { outcome: "green" as const, code: 0, failures: [], tail: "" };
@@ -466,7 +466,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("un ticket jamais passé par la pass le dit ; un argument qui n'est pas un ticket est refusé", async (t) => {
-    const { commande } = cuisine(t);
+    const { commande } = kitchen(t);
 
     assert.match((await commande(PASS, "99")).sortie, /ticket #99 has never been through the pass/);
     const refus = await commande(PASS, "tous");
@@ -475,17 +475,17 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("voir ne modifie pas le journal", async (t) => {
-    const { journal, commande } = cuisine(t);
-    const avant = journal.tout();
+    const { journal: log, commande } = kitchen(t);
+    const avant = log.tout();
 
     await commande(GRANT);
     await commande(PASS);
 
-    assert.deepEqual(journal.tout(), avant);
+    assert.deepEqual(log.tout(), avant);
   });
 
   test("le chef lit ce que la base est devenue : rouge après un merge, ce qui l'attend — et, dans un journal d'avant, le rejeu et le merge sans rejeu d'une livraison jugée sur sa branche seule", async (t) => {
-    const { commande, noter, livrer, juger } = cuisine(t);
+    const { commande, noter, livrer, juger } = kitchen(t);
     const gates = (outcome: "green" | "red") => ({ outcome, code: outcome === "green" ? 0 : 1, failures: outcome === "green" ? [] : ["FAIL  tests du runtime"], tail: "" });
     livrer("a");
     juger("a", "green");
@@ -512,7 +512,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("le plafond de durée des gates, franchi, se lit dans `run pass` : non jugé quand il est leur seul rouge, à part de leurs échecs sinon", async (t) => {
-    const { commande, noter, livrer } = cuisine(t);
+    const { commande, noter, livrer } = kitchen(t);
     const overCeiling = { cpuSeconds: 178.3, limitSeconds: 165, line: "durée des gates : 178,3 s de processeur pour un plafond de 165 s — 13,3 s de trop (+8 %)" };
     const jugement = (verdict: "green" | "red", gates: { outcome: "green" | "red"; failures: string[] }) =>
       noter({
@@ -544,8 +544,8 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("le chef fait rejouer les gates d'une base rouge, en son nom, sans redémarrer le runtime ; demandé deux fois, le rejeu ne s'écrit qu'une fois", async (t) => {
-    const { lancee, noter, journal } = cuisine(t);
-    const demandes = () => journal.tout().filter((e) => e.type === "base.recheck-requested");
+    const { lancee, noter, journal: log } = kitchen(t);
+    const demandes = () => log.tout().filter((e) => e.type === "base.recheck-requested");
     noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: ROUGES, tickets: [17] } }, null);
 
     const vue = await lancee(BASE);
@@ -575,7 +575,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("un contrôle que le rapatriement retient se lit dans `run base` et `run pass` : retenu, pourquoi, depuis quand — sur des merges à vérifier comme sur un rejeu demandé", async (t) => {
-    const { commande, noter } = cuisine(t);
+    const { commande, noter } = kitchen(t);
     const retenir = () => noter({ type: "base.check-held", payload: { reason: "git fetch : fatal: origine injoignable" } }, null);
     const RETENU = `check held since ${JOUR_HORLOGE}T\\S+: the base cannot be fetched \\(git fetch : fatal: origine injoignable\\) — the pass comes back to it on its own, at every tick`;
     const RETENU_EN = `check held since ${JOUR_HORLOGE}T\\S+: the base cannot be fetched \\(git fetch : fatal: origine injoignable\\) — the pass comes back to it on its own, at every tick`;
@@ -596,19 +596,19 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     // Le rejeu demandé bute à son tour : il n'est pas annoncé comme imminent, ni à qui regarde ni à qui redemande.
     assert.match((await commande(BASE, "replay")).sortie, /replay asked: .*If the machine saturates or the base cannot be fetched, it waits/);
     retenir();
-    const attend = new RegExp(`the base cannot be fetched since ${JOUR_HORLOGE}T\\S+ \\(git fetch : fatal: origine injoignable\\), the pass comes back to it on its own`);
+    const awaiting = new RegExp(`the base cannot be fetched since ${JOUR_HORLOGE}T\\S+ \\(git fetch : fatal: origine injoignable\\), the pass comes back to it on its own`);
     for (const sortie of [(await commande(BASE)).sortie, (await commande(BASE, "replay")).sortie]) {
-      assert.match(sortie, attend);
+      assert.match(sortie, awaiting);
       assert.doesNotMatch(sortie, /next round/);
     }
-    const attendEn = (new RegExp(`the base cannot be fetched since ${JOUR_HORLOGE}T\\S+ \\(git fetch : fatal: origine injoignable\\), the pass comes back to it on its own`));
-    assert.match((await commande(PASS)).sortie, attendEn);
+    const awaitingEn = (new RegExp(`the base cannot be fetched since ${JOUR_HORLOGE}T\\S+ \\(git fetch : fatal: origine injoignable\\), the pass comes back to it on its own`));
+    assert.match((await commande(PASS)).sortie, awaitingEn);
     assert.doesNotMatch((await commande(PASS)).sortie, /next round/);
   });
 
   test("sur une base qui n'est pas rouge, il n'y a rien à rejouer : la commande le dit et n'écrit rien", async (t) => {
-    const { commande, noter, journal } = cuisine(t);
-    const ecrits = () => journal.tout().filter((e) => e.type === "base.recheck-requested").length;
+    const { commande, noter, journal: log } = kitchen(t);
+    const ecrits = () => log.tout().filter((e) => e.type === "base.recheck-requested").length;
 
     assert.match((await commande(BASE)).sortie, /^base never checked: no merge has had to be verified on it yet$/m);
     assert.match((await commande(BASE, "replay")).sortie, /nothing to replay: the base is not red/);
@@ -632,7 +632,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("le rejeu demandé sans runtime qui tourne tient quand même, et le dit", async (t) => {
-    const { runtime, commande, noter } = cuisine(t);
+    const { runtime, commande, noter } = kitchen(t);
     noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: ROUGES, tickets: [] } }, null);
     runtime.arreter("test");
 
@@ -640,7 +640,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("un contrôle non joué sur une base rouge se lit : la base reste rouge, et le chef voit sur quel commit rien n'a pu être vérifié", async (t) => {
-    const { commande, noter } = cuisine(t);
+    const { commande, noter } = kitchen(t);
     noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: ROUGES, tickets: [17] } }, null);
     noter({ type: "base.checked", payload: { sha: "c0ffee05ffff", outcome: "skipped", gates: NON_JOUEES, tickets: [17], red: "ba5e0004ffff" } }, null);
 
@@ -655,7 +655,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("un rejeu demandé dont l'essai ne se fait pas n'est pas annoncé comme imminent : le chef lit pourquoi, depuis quand, et le geste lui est rendu", async (t) => {
-    const { commande, noter } = cuisine(t);
+    const { commande, noter } = kitchen(t);
     noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: ROUGES, tickets: [17] } }, null);
     noter({ type: "base.recheck-requested", payload: {} }, null, "chef");
     noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "skipped", gates: NON_JOUEES, tickets: [17], red: "ba5e0004ffff", reason: "git worktree : fatal: disque plein" } }, null);

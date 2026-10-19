@@ -6,8 +6,8 @@
 // table after 3 pm, it is the reader who compares with the current time.
 import type { Base } from "../base.ts";
 import { geste } from "../geste.ts";
-import type { FaitDistante } from "../events/remote.ts";
-import type { FaitGardeFous } from "../events/guardrails.ts";
+import type { RemoteFact } from "../events/remote.ts";
+import type { GuardrailsFact } from "../events/guardrails.ts";
 import type { FaitRenouvellement } from "../events/renewal.ts";
 import type { FaitStation, Ressource, Retenue } from "../events/station.ts";
 import { definirProjection } from "../projection.ts";
@@ -77,8 +77,8 @@ export type CookDeStation = {
 
 type Ecoutes =
   | FaitStation
-  | Extract<FaitGardeFous, { type: "cook.launched" | "cook.exited" | "cook.interrupted" | "kitchen.resumed" }>
-  | Extract<FaitDistante, { type: "remote.asked" }>
+  | Extract<GuardrailsFact, { type: "cook.launched" | "cook.exited" | "cook.interrupted" | "kitchen.resumed" }>
+  | Extract<RemoteFact, { type: "remote.asked" }>
   | Extract<FaitRenouvellement, { type: "session.restored" }>;
 
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur !== "";
@@ -127,27 +127,27 @@ export const direRetenueDeStationEn = (raison: Retenue) => RETENUES_EN[raison];
 
 // The reason for a disconnection observed at start: the service's account
 // was never connected.
-export const SANS_CONNEXION = "not-logged-in";
+export const NO_CONNECTION = "not-logged-in";
 // The missing Max connection, as the chef reads it: absent when the start
 // did not find it, expired when it dropped along the way.
-export const direDeconnexion = (raison: string | null) => (raison === SANS_CONNEXION || raison?.startsWith("binaire introuvable") ? "absente" : "expirée");
-export const GESTE_DE_CONNEXION = `\`claude /login\` sous le compte du service, puis \`${geste("guardrails resume")}\``;
+export const direDeconnexion = (raison: string | null) => (raison === NO_CONNECTION || raison?.startsWith("binaire introuvable") ? "absente" : "expirée");
+export const CONNECTION_ACTION = `\`claude /login\` sous le compte du service, puis \`${geste("guardrails resume")}\``;
 // The gesture for an already dropped connection: the only one, `claude /login` — the kitchen
 // starts again on its own at the first successful pass of the renewal (`session.restored`),
 // within the minute. "resume" stays for the other stops.
-export const GESTE_DE_CONNEXION_TOMBEE = "`claude /login` sous le compte du service — la cuisine reprend seule dans la minute, sans « resume »";
+export const DROPPED_CONNECTION_ACTION = "`claude /login` sous le compte du service — la cuisine reprend seule dans la minute, sans « resume »";
 // The same, in English: what the `awaiting` block of `status` says.
 export const direDeconnexionEn = (raison: string | null) => (direDeconnexion(raison) === "absente" ? "missing" : "expired");
-export const GESTE_DE_CONNEXION_EN = `\`claude /login\` under the service account, then \`${geste("guardrails resume")}\``;
-export const GESTE_DE_CONNEXION_TOMBEE_EN = "`claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”";
+export const CONNECTION_ACTION_EN = `\`claude /login\` under the service account, then \`${geste("guardrails resume")}\``;
+export const DROPPED_CONNECTION_ACTION_EN = "`claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”";
 // The dropped Max connection, said from one place: `run installation` quotes it
 // as is (`station` says it in English, below, from the same fact).
-export const direConnexionTombee = (etat: Pick<EtatStation, "disconnectedAt" | "disconnectedReason">) =>
+export const sayDroppedConnection = (etat: Pick<EtatStation, "disconnectedAt" | "disconnectedReason">) =>
   `EXPIRÉE depuis le ${etat.disconnectedAt} (${etat.disconnectedReason}) — plus aucun ticket n'est pris ; \`claude /login\` sous le compte du service — la cuisine reprend seule dans la minute`;
 
 // The same, in English: what `station` says.
-export const direConnexionTombeeEn = (etat: Pick<EtatStation, "disconnectedAt" | "disconnectedReason">) =>
-  `EXPIRED since ${etat.disconnectedAt} (${etat.disconnectedReason}) — no ticket is taken any more; ${GESTE_DE_CONNEXION_TOMBEE_EN}`;
+export const sayDroppedConnectionEn = (etat: Pick<EtatStation, "disconnectedAt" | "disconnectedReason">) =>
+  `EXPIRED since ${etat.disconnectedAt} (${etat.disconnectedReason}) — no ticket is taken any more; ${DROPPED_CONNECTION_ACTION_EN}`;
 
 // A station enters the table at the first fact that names it: an exhausted
 // quota or a disconnection holds even if the announcement was lost.
@@ -443,9 +443,9 @@ export function dernierEchecDeSetup(base: Base): CauseDeSetup | null {
 // The project's blocked setup: since when, on which cause, by which ticket,
 // and the base the worktree had left from — as long as it has not moved, no
 // setup is launched. Null: nothing blocks it.
-export type SetupBloque = CauseDeSetup & { since: string; base: string; ticket: number | null; station: string | null };
+export type BlockedSetup = CauseDeSetup & { since: string; base: string; ticket: number | null; station: string | null };
 
-export function setupBloque(base: Base): SetupBloque | null {
+export function blockedSetup(base: Base): BlockedSetup | null {
   const ligne = base.lire<{ since: string | null; why: string; hosts: string; base: string; ticket: number | null; station: string | null }>(
     "SELECT blocked_at AS since, blocked_why AS why, blocked_hosts AS hosts, blocked_base AS base, blocked_ticket AS ticket, blocked_by AS station FROM setup_du_projet",
   )[0];
@@ -489,7 +489,7 @@ export function etatStation(base: Base, station: string): EtatStation | null {
 
 // How many cooks the station runs at once, at most: what the chef set,
 // otherwise what it announces. Null: no limit — that is what zero says.
-export function plafondDeCooks(etat: Pick<EtatStation, "maxCooks" | "cap">): number | null {
+export function cooksCap(etat: Pick<EtatStation, "maxCooks" | "cap">): number | null {
   const regle = etat.cap ?? etat.maxCooks;
   return regle === 0 ? null : regle;
 }
@@ -595,9 +595,9 @@ export function derniereMiseDeCote(base: Base): string | null {
 
 // The project blocked on an aside cause that repeats: since when, which one,
 // by which ticket, and the base it was seen from. Null: nothing blocks it.
-export type MiseDeCoteBloquee = { since: string; reason: string; base: string; ticket: number | null; station: string | null };
+export type BlockedAside = { since: string; reason: string; base: string; ticket: number | null; station: string | null };
 
-export function miseDeCoteBloquee(base: Base): MiseDeCoteBloquee | null {
+export function blockedAside(base: Base): BlockedAside | null {
   const ligne = base.lire<{ since: string | null; reason: string; base: string; ticket: number | null; station: string | null }>(
     "SELECT blocked_at AS since, blocked_reason AS reason, blocked_base AS base, blocked_ticket AS ticket, blocked_by AS station FROM mise_de_cote_du_projet",
   )[0];

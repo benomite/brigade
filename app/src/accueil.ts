@@ -15,11 +15,11 @@
 // Ce module ne lance rien et ne demande rien de neuf à personne : il dit, d'après ce que les veilles
 // ont déjà lu — `faits` de chaque projet, son `status` quand il est lu, les stations et leurs
 // projets sur GitHub. Un état qui n'a pas été lu n'est jamais dit sain.
-import { CONNEXION, CUISINE, tetesDe } from "./alertes.ts";
-import type { Montree } from "./attend.ts";
+import { CONNECTION, KITCHEN, tetesDe } from "./alertes.ts";
+import type { Montree } from "./awaiting.ts";
 import type { Lecture } from "./box.ts";
-import { COMMANDE as FAITS, comprendre, type Faits } from "./faits.ts";
-import { deriveDe } from "./fiabilite.ts";
+import { COMMANDE as FACTS, comprendre, type Facts } from "./facts.ts";
+import { driftOf } from "./fiabilite.ts";
 import { heure, heureCourte } from "./format.ts";
 import type { VuDesProjets } from "./projets/projets.ts";
 import { LIMITE, type StationVue, type VuDesStations } from "./stations/stations.ts";
@@ -40,7 +40,7 @@ export type Accueil = { projets: LigneDeProjet[]; stations?: LigneDeStation[]; s
 export type ProjetDeLAccueil = { nom: string; box: boolean; desinstalle: boolean };
 // Ce que la dernière lecture de `faits` a donné d'un projet : ses faits, une box qui n'a pas été
 // jointe, ou une box jointe qui n'a pas rendu ce que l'app lit.
-export type FaitsLus = { a: string } & ({ faits: Faits } | { injoignable: true } | { illisible: true });
+export type ReadFacts = { a: string } & ({ faits: Facts } | { injoignable: true } | { illisible: true });
 // Le dernier `status` lu d'un projet, son bloc `attend` mis à part.
 export type StatusLu = { texte: string; attend?: string };
 
@@ -53,9 +53,9 @@ const enAnglais = (duree: string) => duree.replace(/ j$/, " d");
 // Ce qui retient la cuisine, d'après les lignes de tête de `status` (alertes.ts lit les mêmes).
 function causes(status: string): string[] {
   return tetesDe(status).flatMap(({ titre, valeur }) => {
-    if (CUISINE.includes(titre) && /disjoncteur OUVERT|breaker OPEN/.test(valeur)) return ["breaker open"];
+    if (KITCHEN.includes(titre) && /disjoncteur OUVERT|breaker OPEN/.test(valeur)) return ["breaker open"];
     if (titre === "stations") return ["no station declared"];
-    if (CONNEXION.includes(titre)) return ["Max connection down"];
+    if (CONNECTION.includes(titre)) return ["Max connection down"];
     if (titre === "setup" && /^(?:BLOQUÉ|BLOCKED)(?![\p{L}\p{N}_])/u.test(valeur)) return ["project setup blocked"];
     return [];
   });
@@ -70,9 +70,9 @@ const reparation = (status: string | undefined): number | undefined => {
 };
 
 // Ce qui bloque le projet, le plus grave d'abord : rien ne le débloque sans le chef.
-function bloque(faits: Faits, status: string | undefined): string[] {
+function blockers(facts: Facts, status: string | undefined): string[] {
   const rouge = baseRouge(status) ? [reparation(status) === undefined ? "base red" : `base red · #${reparation(status)} being repaired`] : [];
-  switch (faits.etat) {
+  switch (facts.etat) {
     case "éteinte":
       return ["runtime stopped", ...rouge];
     case "arrêtée":
@@ -87,51 +87,51 @@ function bloque(faits: Faits, status: string | undefined): string[] {
   }
 }
 
-// Depuis quand la plus ancienne décision attend le chef : la tête du bloc `attend` (runtime/src/attend.ts, `decrireAttentes`),
+// Depuis quand la plus ancienne décision attend le chef : la tête du bloc `attend` (runtime/src/awaiting.ts, `decrireAttentes`),
 // en français ou en anglais (`awaiting   2 decisions await the chef — the oldest for 3 d`, #927).
-const depuis = (attend: string | undefined): string | undefined => {
-  const [, duree] = /^(?:attend +\d+ décisions? attend(?:ent)? le chef(?: — la plus ancienne)? depuis|awaiting +\d+ decisions? awaits? the chef — (?:the oldest )?for) (.+)$/m.exec(attend ?? "") ?? [];
+const depuis = (awaiting: string | undefined): string | undefined => {
+  const [, duree] = /^(?:attend +\d+ décisions? attend(?:ent)? le chef(?: — la plus ancienne)? depuis|awaiting +\d+ decisions? awaits? the chef — (?:the oldest )?for) (.+)$/m.exec(awaiting ?? "") ?? [];
   return duree === undefined ? undefined : enAnglais(duree.trim());
 };
 
 // Ce qui attend le chef : combien de décisions, depuis quand ; et, quand toute la cuisine les attend, que rien ne cuit d'ici là.
-function attend(faits: Faits, status: StatusLu | undefined): string[] {
-  const combien = faits.compteurs.attend;
+function awaiting(facts: Facts, status: StatusLu | undefined): string[] {
+  const combien = facts.compteurs.attend;
   if (combien === 0) return [];
   const duree = depuis(status?.attend);
   const dit = `${combien} decision${s(combien)} await${combien === 1 ? "s" : ""} you${duree === undefined ? "" : `, for ${duree}`}`;
-  return [faits.urgence == null ? dit : `${dit} — nothing cooks until then`];
+  return [facts.urgence == null ? dit : `${dit} — nothing cooks until then`];
 }
 
 // Ce qui cuit : les tickets de ses cooks — la réparation de la base est déjà dite —, sinon ce qui est à la pass.
-function cuit(faits: Faits, repare: number | undefined): string[] {
-  const tickets = faits.cooks?.map(({ ticket }) => ticket).filter((ticket) => ticket !== repare);
-  if (tickets === undefined) return faits.compteurs.auTravail > 0 ? [`${faits.compteurs.auTravail} at work`] : [];
+function cuit(facts: Facts, repare: number | undefined): string[] {
+  const tickets = facts.cooks?.map(({ ticket }) => ticket).filter((ticket) => ticket !== repare);
+  if (tickets === undefined) return facts.compteurs.auTravail > 0 ? [`${facts.compteurs.auTravail} at work`] : [];
   if (tickets.length > 2) return [`${tickets.length} cooks at work`];
   if (tickets.length > 0) return [`${tickets.map((ticket) => `#${ticket}`).join(" and ")} cooking`];
-  return faits.compteurs.aLaPass > 0 ? [`${faits.compteurs.aLaPass} at the pass`] : [];
+  return facts.compteurs.aLaPass > 0 ? [`${facts.compteurs.aLaPass} at the pass`] : [];
 }
 
-export function ligneDeProjet(projet: ProjetDeLAccueil, lu: FaitsLus | undefined, status: StatusLu | undefined): LigneDeProjet {
+export function ligneDeProjet(projet: ProjetDeLAccueil, lu: ReadFacts | undefined, status: StatusLu | undefined): LigneDeProjet {
   const { nom } = projet;
   if (projet.desinstalle) return { nom, ton: "gris", dit: "uninstalled from its station: nothing is read", survol: "the app uninstalled it from its station — open it to remove it from the app" };
   if (!projet.box) return { nom, ton: "gris", dit: "no station: nothing is read", survol: "its entry in the projects file does not say where its station is — open it to see what is missing" };
   if (lu === undefined) return { nom, ton: "gris", dit: "first read in progress…", survol: "the app reads every project's station every 30 s" };
   if ("injoignable" in lu) return { nom, ton: "rouge", dit: "station unreachable", survol: `its station did not answer at ${heure(lu.a)} — the app tries again every 30 s; open it to see why` };
   if ("illisible" in lu) return { nom, ton: "gris", dit: "not read: its station does not answer as the app expects", survol: `tried at ${heure(lu.a)} — open it to see what its station returned` };
-  const { faits } = lu;
-  const bloquant = bloque(faits, status?.texte);
-  const attendu = attend(faits, status);
+  const { faits: facts } = lu;
+  const bloquant = blockers(facts, status?.texte);
+  const attendu = awaiting(facts, status);
   // La dérive se lit dans les lignes `drift` de `status` : un mot sur la ligne, ce qu'elle dit au survol.
   // Elle ne change pas la pastille — rien n'attend le chef, rien ne bloque.
-  const derive = status === undefined ? [] : deriveDe(status.texte);
-  const parties = [...bloquant, ...attendu, ...cuit(faits, reparation(status?.texte))];
+  const drift = status === undefined ? [] : driftOf(status.texte);
+  const parties = [...bloquant, ...attendu, ...cuit(facts, reparation(status?.texte))];
   const dit = parties.length === 0 ? "nothing cooking, nothing waits for you" : parties.join(" · ");
   return {
     nom,
     ton: bloquant.length > 0 ? "rouge" : attendu.length > 0 ? "jaune" : "vert",
-    dit: derive.length === 0 ? dit : `${dit} · drifting`,
-    survol: `read at ${heure(lu.a)} — ${derive.length === 0 ? "" : `reliability drifting: ${derive.join(" · ")} — `}open it to act`,
+    dit: drift.length === 0 ? dit : `${dit} · drifting`,
+    survol: `read at ${heure(lu.a)} — ${drift.length === 0 ? "" : `reliability drifting: ${drift.join(" · ")} — `}open it to act`,
   };
 }
 
@@ -146,21 +146,21 @@ export function saturees(status: string): string[] {
 }
 
 // Un projet ouvert dans l'app dont la cuisine tourne sur une autre station : `station` la nomme.
-export type CuisineAilleurs = { projet: string; station: string };
+export type KitchenElsewhere = { projet: string; station: string };
 
 // Ce que la station dit des cuisines portées ailleurs, quand c'est l'ordinateur de l'app : « your 3 projects cook on parade-box ».
-function cuisinesAilleurs(ailleurs: readonly CuisineAilleurs[]): string {
+function kitchensElsewhere(ailleurs: readonly KitchenElsewhere[]): string {
   const stations = [...new Set(ailleurs.map(({ station }) => station))];
   return `your ${ailleurs.length === 1 ? "project cooks" : `${ailleurs.length} projects cook`} on ${stations.join(", ")}`;
 }
 
 // `cooks` : ceux que les projets disent en cours sur elle ; `saturee` : un `status` lu la dit saturée ;
 // `ailleurs` : si c'est l'ordinateur de l'app, ses projets ouverts dont la cuisine tourne sur une autre station.
-export function ligneDeStation(station: StationVue, cooks: number, saturee: boolean, ailleurs: readonly CuisineAilleurs[] = []): LigneDeStation {
+export function ligneDeStation(station: StationVue, cooks: number, saturee: boolean, ailleurs: readonly KitchenElsewhere[] = []): LigneDeStation {
   const { id, nom } = station;
   const survol = [station.machine, station.version === "" ? "" : `version ${station.version}`].filter((partie) => partie !== "").join(" · ");
-  const sansCuisine = station.projets.length === 0;
-  const projets = sansCuisine ? "no project" : station.projets.join(", ");
+  const withoutKitchen = station.projets.length === 0;
+  const projets = withoutKitchen ? "no project" : station.projets.join(", ");
   if (station.etat !== "en-ligne") return { id, nom, ton: "gris", dit: [station.dit, ...(station.etat === "illisible" ? [] : [projets])].join(" · "), phrase: station.dit, survol: survol === "" ? "its state on GitHub cannot be read — open it to see why" : survol };
   const max = station.pannes.some(({ sujet }) => sujet === "connexion-max");
   const miseAJour = station.pannes.some(({ sujet }) => sujet === "mise-a-jour");
@@ -169,11 +169,11 @@ export function ligneDeStation(station: StationVue, cooks: number, saturee: bool
     id,
     nom,
     ton: max ? "rouge" : miseAJour || saturee ? "jaune" : "vert",
-    dit: [station.dit, ...(fait.length === 0 ? ["idle"] : fait), sansCuisine ? "runs no kitchen" : projets].join(" · "),
+    dit: [station.dit, ...(fait.length === 0 ? ["idle"] : fait), withoutKitchen ? "runs no kitchen" : projets].join(" · "),
     // Saturée, elle ne prend plus de ticket : c'est ce qui compte d'elle, ses cooks attendent.
     phrase: saturee ? "saturated" : `${station.dit} · ${cooks === 0 ? "no cook running" : `${cooks} cook${s(cooks)} running`}`,
-    survol: sansCuisine && ailleurs.length > 0 ? [survol, cuisinesAilleurs(ailleurs)].filter((partie) => partie !== "").join(" · ") : survol,
-    ...(sansCuisine
+    survol: withoutKitchen && ailleurs.length > 0 ? [survol, kitchensElsewhere(ailleurs)].filter((partie) => partie !== "").join(" · ") : survol,
+    ...(withoutKitchen
       ? {
           note:
             ailleurs.length > 0
@@ -189,7 +189,7 @@ export function ligneDeStation(station: StationVue, cooks: number, saturee: bool
 // L'état d'une des deux choses que la ligne dit : bon, en panne — et ce qui ne va pas, en une phrase —, ou pas su.
 type Etat = { bon: true } | { panne: string[] } | { pas: string };
 
-// Ce que les blocs `attend` des projets disent du jeton et de la session Max (runtime/src/attend.ts) : une entrée qui ne porte pas de ticket.
+// Ce que les blocs `attend` des projets disent du jeton et de la session Max (runtime/src/awaiting.ts) : une entrée qui ne porte pas de ticket.
 // Le bloc se lit en français ou en anglais (`token  for …`, #927).
 function maxDesBlocs(blocs: readonly string[], maintenant: number): string[] {
   return blocs.flatMap((bloc) =>
@@ -251,7 +251,7 @@ export type OptionsAccueil = { projets: () => readonly ProjetDeLAccueil[]; local
 // même chose qu'avant : rien ne bouge. Un `status` que plus rien ne rafraîchit est lâché : la
 // ligne redit alors ce que `faits` seul en dit.
 export function tenirAccueil({ projets, locale = () => null, maintenant = Date.now }: OptionsAccueil) {
-  const faits = new Map<string, FaitsLus>();
+  const facts = new Map<string, ReadFacts>();
   const statuts = new Map<string, StatusLu>();
   let stations: VuDesStations | undefined;
   let projetsDesStations: VuDesProjets | undefined;
@@ -259,24 +259,24 @@ export function tenirAccueil({ projets, locale = () => null, maintenant = Date.n
 
   const vu = (): Accueil => {
     const liste = projets();
-    const lus = liste.map(({ nom }) => faits.get(nom)).flatMap((lu) => (lu !== undefined && "faits" in lu ? [lu.faits] : []));
+    const lus = liste.map(({ nom }) => facts.get(nom)).flatMap((lu) => (lu !== undefined && "faits" in lu ? [lu.faits] : []));
     const cooks = (station: string) => lus.reduce((total, { cooks = [] }) => total + cooks.filter((cook) => cook.station === station).length, 0);
     // Les projets ouverts ici dont la cuisine tourne sur une autre station : celle que le projet nomme principale, à défaut une autre qui le porte.
-    const ailleursDe = (locale_: string): CuisineAilleurs[] =>
+    const ailleursDe = (locale_: string): KitchenElsewhere[] =>
       liste.flatMap(({ nom }) => {
         const principale = projetsDesStations?.projets.find((projet) => projet.nom === nom)?.stations.find(({ principale: est, id }) => est && id !== locale_)?.nom;
-        const portee = principale ?? stations?.stations.find(({ id, projets: portes }) => id !== locale_ && portes.includes(nom))?.nom;
+        const portee = principale ?? stations?.stations.find(({ id, projets: doors }) => id !== locale_ && doors.includes(nom))?.nom;
         return portee === undefined ? [] : [{ projet: nom, station: portee }];
       });
     const ici = locale();
     const pleines = new Set([...statuts.values()].flatMap(({ texte }) => saturees(texte)));
     return {
-      projets: liste.map((projet) => ligneDeProjet(projet, faits.get(projet.nom), statuts.get(projet.nom))),
+      projets: liste.map((projet) => ligneDeProjet(projet, facts.get(projet.nom), statuts.get(projet.nom))),
       ...(stations === undefined ? {} : { stations: stations.stations.map((station) => ligneDeStation(station, cooks(station.nom), pleines.has(station.nom), station.id === ici ? ailleursDe(station.id) : [])) }),
       sante: sante(
         stations,
         projetsDesStations,
-        [...statuts.values()].flatMap(({ attend }) => (attend === undefined ? [] : [attend])),
+        [...statuts.values()].flatMap(({ attend: awaiting }) => (awaiting === undefined ? [] : [awaiting])),
         maintenant(),
       ),
     };
@@ -297,10 +297,10 @@ export function tenirAccueil({ projets, locale = () => null, maintenant = Date.n
     // Une lecture de `faits`.
     faits(lecture: Lecture): Accueil | undefined {
       const { projet, a } = lecture;
-      if ("erreur" in lecture) faits.set(projet, lecture.atteinte ? { a, illisible: true } : { a, injoignable: true });
+      if ("erreur" in lecture) facts.set(projet, lecture.atteinte ? { a, illisible: true } : { a, injoignable: true });
       else {
-        const lu = comprendre(lecture.sorties.find(({ commande }) => commande === FAITS)?.texte ?? "");
-        faits.set(projet, "informe" in lu ? { a, illisible: true } : { a, faits: lu });
+        const lu = comprendre(lecture.sorties.find(({ commande }) => commande === FACTS)?.texte ?? "");
+        facts.set(projet, "informe" in lu ? { a, illisible: true } : { a, faits: lu });
       }
       return change();
     },
@@ -318,7 +318,7 @@ export function tenirAccueil({ projets, locale = () => null, maintenant = Date.n
     },
     // La barre est reposée : `faits` va être relu pour chacun.
     oublier(): Accueil | undefined {
-      faits.clear();
+      facts.clear();
       return change();
     },
     stations(lues: VuDesStations): Accueil | undefined {

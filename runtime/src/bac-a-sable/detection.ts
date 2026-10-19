@@ -4,7 +4,7 @@
 // prod, les identifiants du chef. Le bac à sable des cooks du Mac est celui de
 // macOS (Seatbelt, piloté par `sandbox-exec`) : sur une autre plateforme, il
 // est indisponible, même si `claude` sait en monter un — la box a sa cloison
-// à elle (`cloison.ts`).
+// à elle (`partition.ts`).
 //
 // Trois choses à réunir : macOS, l'outil de Seatbelt, et un `claude` assez
 // récent pour lire la configuration que `configuration.ts` écrit. Ce dernier

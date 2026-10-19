@@ -1,13 +1,13 @@
 // The facts of the closing that writes: the pass the chef commands, what
 // refuses it, what it holds while it tidies, and how it ends. The closing that
 // observes writes none: it touches nothing.
-import type { Calibrage } from "../calibrage.ts";
+import type { Calibration } from "../calibration.ts";
 
 // The settings of a pass. `calibration` null: the project does not set the
 // closer, no pass starts. `cooksBelow`: the pass starts when fewer cooks than
 // that are in flight. `tokens`, `removedLines`: its caps — what it may
 // consume, and the lines it may remove.
-export type ReglagesDeFermeture = { calibration: Calibrage | null; cooksBelow: number; tokens: number; removedLines: number };
+export type ClosingSettings = { calibration: Calibration | null; cooksBelow: number; tokens: number; removedLines: number };
 
 // Why a requested pass did not start. `unconfigured`: the closer is not set.
 // `busy`: a pass is already tidying. `stopped`, `breaker`: the chef's "stop",
@@ -52,10 +52,10 @@ export type Retrait = { id: string; what: string };
 // `window` merges, at the moment the pass started.
 export type Pente = { window: number; merges: number; added: number; removed: number };
 
-export type FaitFermeture =
+export type ClosingFact =
   // The settings in force, written when they change: this is where the chef's
   // command reads them.
-  | { type: "closing.configured"; payload: ReglagesDeFermeture }
+  | { type: "closing.configured"; payload: ClosingSettings }
   // The chef's gesture: only it starts a pass that writes. No other fact
   // launches it — neither a crossed threshold nor a clock. It waits until its
   // run condition is met, and then starts, once.

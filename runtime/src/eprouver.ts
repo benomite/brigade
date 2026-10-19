@@ -3,7 +3,7 @@
 // cook, aucun quota. Ce que cela prouve vaut pour la machine où c'est lancé.
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import type { Cloison, Lancement } from "./cloison.ts";
+import type { Partition, Lancement } from "./partition.ts";
 
 // `tient` nul : la sonde n'a rien pu prouver.
 export type Sonde = { quoi: string; tient: boolean | null; detail: string };
@@ -18,9 +18,9 @@ const DEPART = "/tmp";
 
 const mediane = (valeurs: number[]) => [...valeurs].sort((a, b) => a - b)[Math.floor(valeurs.length / 2)] ?? 0;
 
-export function eprouver(cloison: Cloison, options: { claude: string; env: NodeJS.ProcessEnv; essais: number }): Promise<{ sondes: Sonde[]; cout: Cout | null }> {
+export function eprouver(partition: Partition, options: { claude: string; env: NodeJS.ProcessEnv; essais: number }): Promise<{ sondes: Sonde[]; cout: Cout | null }> {
   const { env } = options;
-  const dedans = (commande: string, ...args: string[]): Lancement => cloison.envelopper({ commande, args }, { cwd: DEPART, depot: null });
+  const dedans = (commande: string, ...args: string[]): Lancement => partition.envelopper({ commande, args }, { cwd: DEPART, depot: null });
   const jouer = ({ commande, args }: Lancement) => {
     const rendu = spawnSync(commande, args, { cwd: DEPART, env, encoding: "utf8", timeout: DELAI_MS });
     return { code: rendu.status, sortie: `${rendu.stdout ?? ""}`.trim(), erreur: `${rendu.stderr ?? ""}${rendu.error?.message ?? ""}`.trim() };
@@ -32,27 +32,27 @@ export function eprouver(cloison: Cloison, options: { claude: string; env: NodeJ
   sondes.push({
     quoi: "un lancement part dans la cloison",
     tient: depart.code === 0,
-    detail: depart.code === 0 ? cloison.bin : depart.erreur.slice(-400) || `code de sortie ${depart.code}`,
+    detail: depart.code === 0 ? partition.bin : depart.erreur.slice(-400) || `code de sortie ${depart.code}`,
   });
   // Sans elle, aucune autre sonde ne dirait rien de vrai.
   if (depart.code !== 0) return Promise.resolve({ sondes, cout: null });
 
-  for (const masque of cloison.masques) {
+  for (const masque of partition.masques) {
     const vu = sh('ls -A "$1" | wc -l', masque);
     const entrees = Number(vu.sortie);
     sondes.push({ quoi: `${masque} est masqué`, tient: vu.code === 0 && entrees === 0, detail: vu.code === 0 ? (entrees === 0 ? "vide, vu de la cloison" : `${entrees} entrées y sont visibles`) : vu.erreur.slice(-200) });
   }
 
-  if (existsSync(cloison.identifiants)) {
-    const lu = sh('[ -r "$1" ] && ! [ -w "$1" ]', cloison.identifiants);
-    sondes.push({ quoi: "les identifiants Max sont en lecture seule", tient: lu.code === 0, detail: lu.code === 0 ? cloison.identifiants : `${cloison.identifiants} est inscriptible ou illisible dans la cloison` });
+  if (existsSync(partition.identifiants)) {
+    const lu = sh('[ -r "$1" ] && ! [ -w "$1" ]', partition.identifiants);
+    sondes.push({ quoi: "les identifiants Max sont en lecture seule", tient: lu.code === 0, detail: lu.code === 0 ? partition.identifiants : `${partition.identifiants} est inscriptible ou illisible dans la cloison` });
   } else {
-    sondes.push({ quoi: "les identifiants Max sont en lecture seule", tient: null, detail: `${cloison.identifiants} n'existe pas : ce compte n'a pas de connexion Max, ou la garde ailleurs` });
+    sondes.push({ quoi: "les identifiants Max sont en lecture seule", tient: null, detail: `${partition.identifiants} n'existe pas : ce compte n'a pas de connexion Max, ou la garde ailleurs` });
   }
 
-  if (cloison.jeton !== null) {
-    const lu = sh('! [ -s "$1" ] && ! [ -w "$1" ]', cloison.jeton);
-    sondes.push({ quoi: "le fichier du jeton se lit vide et refuse l'écriture", tient: lu.code === 0, detail: lu.code === 0 ? cloison.jeton : `${cloison.jeton} est lisible ou inscriptible dans la cloison` });
+  if (partition.jeton !== null) {
+    const lu = sh('! [ -s "$1" ] && ! [ -w "$1" ]', partition.jeton);
+    sondes.push({ quoi: "le fichier du jeton se lit vide et refuse l'écriture", tient: lu.code === 0, detail: lu.code === 0 ? partition.jeton : `${partition.jeton} est lisible ou inscriptible dans la cloison` });
   }
 
   // Là où pnpm, npm et les autres écrivent leur cache sans qu'on le leur dise.
@@ -78,7 +78,7 @@ export function eprouver(cloison: Cloison, options: { claude: string; env: NodeJ
     detail: connecte === true ? "connecté" : connecte === false ? "il répond qu'aucune session n'est ouverte" : (session.erreur.slice(-200) || "réponse illisible"),
   });
 
-  return mesurer(cloison, options).then((cout) => ({ sondes, cout }));
+  return mesurer(partition, options).then((cout) => ({ sondes, cout }));
 }
 
 // Les descendants d'un process, lui compris — sous Linux.
@@ -98,14 +98,14 @@ const champ = (pid: number, nom: string): string | null => {
   }
 };
 
-async function mesurer(cloison: Cloison, { env, essais }: { env: NodeJS.ProcessEnv; essais: number }): Promise<Cout> {
+async function mesurer(partition: Partition, { env, essais }: { env: NodeJS.ProcessEnv; essais: number }): Promise<Cout> {
   const duree = ({ commande, args }: Lancement) => {
     const debut = performance.now();
     spawnSync(commande, args, { cwd: DEPART, env, stdio: "ignore", timeout: DELAI_MS });
     return performance.now() - debut;
   };
   const nu: Lancement = { commande: "true", args: [] };
-  const cloisonne = cloison.envelopper(nu, { cwd: DEPART, depot: null });
+  const cloisonne = partition.envelopper(nu, { cwd: DEPART, depot: null });
   const nus: number[] = [];
   const cloisonnes: number[] = [];
   for (let i = 0; i < essais; i++) {
@@ -116,7 +116,7 @@ async function mesurer(cloison: Cloison, { env, essais }: { env: NodeJS.ProcessE
   // Ce qui reste de la cloison pendant que la commande vit : ses `bwrap`.
   let memoireKo: number | null = null;
   if (existsSync("/proc/self/status")) {
-    const dort = cloison.envelopper({ commande: "sleep", args: ["60"] }, { cwd: DEPART, depot: null });
+    const dort = partition.envelopper({ commande: "sleep", args: ["60"] }, { cwd: DEPART, depot: null });
     const enfant = spawn(dort.commande, dort.args, { cwd: DEPART, env, stdio: "ignore", detached: true });
     try {
       const limite = performance.now() + DELAI_MS;

@@ -6,9 +6,9 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { configTranscripts, ouvrirNettoyage } from "../src/nettoyage.ts";
-import { rangementDesTranscripts } from "../src/projections/cleanup.ts";
+import { transcriptsCleanup } from "../src/projections/cleanup.ts";
 import { JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -17,17 +17,17 @@ const JOUR = 24 * HEURE;
 const DEPART = Date.parse(`${JOUR_HORLOGE}T10:00:00.000Z`);
 const GARDE_MS = 7 * JOUR;
 
-function cuisine(t: TestContext, options: { cloisonne?: boolean } = {}) {
+function kitchen(t: TestContext, options: { cloisonne?: boolean } = {}) {
   const repertoire = repertoireTemporaire(t);
   const claude = join(repertoire, "claude");
   // L'horloge du test : elle n'avance que quand il le dit.
   let instant = DEPART;
   const maintenant = () => new Date(instant);
-  const journal = ouvrirJournal(repertoire, { maintenant });
-  t.after(() => journal.fermer());
+  const log = openLog(repertoire, { maintenant });
+  t.after(() => log.fermer());
   const avertissements: string[] = [];
   const nettoyage = ouvrirNettoyage({
-    journal,
+    journal: log,
     projet: "brigade",
     repertoireEtat: repertoire,
     depot: { ranger: async () => null, elaguer: async () => true },
@@ -45,14 +45,14 @@ function cuisine(t: TestContext, options: { cloisonne?: boolean } = {}) {
   };
   const dater = (chemin: string, ecrit: number) => utimesSync(join(claude, chemin), new Date(ecrit), new Date(ecrit));
   const la = (chemin: string) => existsSync(join(claude, chemin));
-  const lancer = (run: string) => journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "cook.launched", payload: { run, limits: LIMITES, stream: `runs/${run}.jsonl` } });
+  const lancer = (run: string) => log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "cook.launched", payload: { run, limits: LIMITES, stream: `runs/${run}.jsonl` } });
   const sortir = (run: string) =>
-    journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "cook.exited", payload: { run, outcome: "ok", code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1 } });
-  const rangements = () => journal.duType("transcripts.tidied", 100).map((e) => e.payload);
+    log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "cook.exited", payload: { run, outcome: "ok", code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1 } });
+  const cleanups = () => log.duType("transcripts.tidied", 100).map((e) => e.payload);
   return {
     repertoire,
     claude,
-    journal,
+    journal: log,
     nettoyage,
     avertissements,
     poser,
@@ -60,13 +60,13 @@ function cuisine(t: TestContext, options: { cloisonne?: boolean } = {}) {
     la,
     lancer,
     sortir,
-    rangements,
+    rangements: cleanups,
     avancer: (ms: number) => void (instant += ms),
   };
 }
 
 test("un transcript que rien n'a écrit depuis la durée de garde part, avec le répertoire de sa session ; un plus jeune reste, et le journal dit les deux", async (t) => {
-  const { nettoyage, poser, dater, la, rangements, journal, avertissements } = cuisine(t);
+  const { nettoyage, poser, dater, la, rangements: cleanups, journal: log, avertissements } = kitchen(t);
   poser("projects/-etat-worktrees-17-aaa/vieux.jsonl", DEPART - 8 * JOUR, "x".repeat(100));
   poser("projects/-etat-worktrees-17-aaa/vieux/subagents/agent-1.jsonl", DEPART - 8 * JOUR, "x".repeat(50));
   // Un répertoire porte la date de sa dernière entrée : elle compte aussi.
@@ -80,20 +80,20 @@ test("un transcript que rien n'a écrit depuis la durée de garde part, avec le 
   assert.equal(la("projects/-etat-worktrees-17-aaa/vieux"), false);
   assert.equal(la("projects/-tmp/jugement.jsonl"), false);
   assert.equal(la("projects/-etat-worktrees-18-aaa/jeune.jsonl"), true);
-  const [rangement] = rangements();
-  assert.equal(rangement?.removed, 2);
-  assert.equal(rangement?.kept, 1);
-  assert.equal(rangement?.keptBytes, 30);
-  assert.equal(rangement?.keepMs, GARDE_MS);
+  const [cleanup] = cleanups();
+  assert.equal(cleanup?.removed, 2);
+  assert.equal(cleanup?.kept, 1);
+  assert.equal(cleanup?.keptBytes, 30);
+  assert.equal(cleanup?.keepMs, GARDE_MS);
   // Ce qui est libéré compte au moins ce que les fichiers portaient.
-  assert.ok((rangement?.freedBytes ?? 0) >= 170);
-  assert.equal(rangements().length, 1);
-  assert.deepEqual(rangementDesTranscripts(journal.base), { at: new Date(DEPART).toISOString(), ...rangement });
+  assert.ok((cleanup?.freedBytes ?? 0) >= 170);
+  assert.equal(cleanups().length, 1);
+  assert.deepEqual(transcriptsCleanup(log.base), { at: new Date(DEPART).toISOString(), ...cleanup });
   assert.deepEqual(avertissements, []);
 });
 
 test("le transcript d'un lancement en cours n'est jamais touché, si vieille que soit sa dernière écriture ; son lancement fini, il part au rangement suivant", async (t) => {
-  const { nettoyage, poser, la, lancer, sortir, avancer, rangements } = cuisine(t);
+  const { nettoyage, poser, la, lancer, sortir, avancer, rangements: cleanups } = kitchen(t);
   poser("projects/-etat-worktrees-17-aaa/avant.jsonl", DEPART - JOUR);
   lancer("17-aaa");
   lancer("juge-1");
@@ -108,7 +108,7 @@ test("le transcript d'un lancement en cours n'est jamais touché, si vieille que
   assert.equal(la("projects/-etat-worktrees-17-aaa/avant.jsonl"), false);
   assert.equal(la("projects/-etat-worktrees-17-aaa/en-cours.jsonl"), true);
   assert.equal(la("projects/-tmp/juge-1.jsonl"), true);
-  assert.deepEqual(rangements().map(({ removed, kept }) => [removed, kept]), [[1, 2]]);
+  assert.deepEqual(cleanups().map(({ removed, kept }) => [removed, kept]), [[1, 2]]);
 
   sortir("17-aaa");
   avancer(JOUR);
@@ -116,11 +116,11 @@ test("le transcript d'un lancement en cours n'est jamais touché, si vieille que
 
   assert.equal(la("projects/-etat-worktrees-17-aaa/en-cours.jsonl"), false);
   assert.equal(la("projects/-tmp/juge-1.jsonl"), false);
-  assert.deepEqual(rangements().map(({ removed, kept }) => [removed, kept]), [[1, 2], [2, 0]]);
+  assert.deepEqual(cleanups().map(({ removed, kept }) => [removed, kept]), [[1, 2], [2, 0]]);
 });
 
 test("une session dont le répertoire a reçu une écriture récente reste entière, fichier compris", async (t) => {
-  const { nettoyage, poser, la, rangements } = cuisine(t);
+  const { nettoyage, poser, la, rangements: cleanups } = kitchen(t);
   poser("projects/-etat-worktrees-17-aaa/session.jsonl", DEPART - 30 * JOUR);
   poser("projects/-etat-worktrees-17-aaa/session/tool-results/sortie.txt", DEPART - JOUR);
 
@@ -128,7 +128,7 @@ test("une session dont le répertoire a reçu une écriture récente reste enti�
 
   assert.equal(la("projects/-etat-worktrees-17-aaa/session.jsonl"), true);
   assert.equal(la("projects/-etat-worktrees-17-aaa/session/tool-results/sortie.txt"), true);
-  assert.deepEqual(rangements().map(({ removed, kept }) => [removed, kept]), [[0, 1]]);
+  assert.deepEqual(cleanups().map(({ removed, kept }) => [removed, kept]), [[0, 1]]);
 });
 
 test("la durée de garde se règle en jours, sept par défaut ; illisible, c'est un refus", () => {
@@ -140,7 +140,7 @@ test("la durée de garde se règle en jours, sept par défaut ; illisible, c'est
 });
 
 test("seuls les transcripts partent : la mémoire du projet, ses réglages et ce qui n'est pas une session restent", async (t) => {
-  const { nettoyage, poser, la, rangements } = cuisine(t);
+  const { nettoyage, poser, la, rangements: cleanups } = kitchen(t);
   const vieux = DEPART - 90 * JOUR;
   poser("projects/-etat-worktrees-17-aaa/session.jsonl", vieux);
   poser("projects/-etat-worktrees-17-aaa/memory/MEMORY.md", vieux);
@@ -156,11 +156,11 @@ test("seuls les transcripts partent : la mémoire du projet, ses réglages et ce
   for (const reste of ["projects/-etat-worktrees-17-aaa/memory/MEMORY.md", "projects/-etat-worktrees-17-aaa/autre/notes.jsonl", "projects/egare.jsonl", "settings.json", "todos/session.json"]) {
     assert.equal(la(reste), true, reste);
   }
-  assert.deepEqual(rangements().map(({ removed, kept }) => [removed, kept]), [[1, 0]]);
+  assert.deepEqual(cleanups().map(({ removed, kept }) => [removed, kept]), [[1, 0]]);
 });
 
 test("un répertoire de projet vidé de ses transcripts part avec eux, s'il n'a rien reçu depuis la durée de garde", async (t) => {
-  const { nettoyage, poser, dater, la } = cuisine(t);
+  const { nettoyage, poser, dater, la } = kitchen(t);
   poser("projects/-etat-worktrees-17-aaa/vieux.jsonl", DEPART - 8 * JOUR);
   dater("projects/-etat-worktrees-17-aaa", DEPART - 8 * JOUR);
   poser("projects/-etat-worktrees-18-aaa/vieux.jsonl", DEPART - 8 * JOUR);
@@ -179,7 +179,7 @@ test("un répertoire de projet vidé de ses transcripts part avec eux, s'il n'a 
 });
 
 test("un lien posé là par un cook n'est pas suivi : rien n'est retiré hors du `~/.claude` du projet", async (t) => {
-  const { repertoire, claude, nettoyage, poser, rangements } = cuisine(t);
+  const { repertoire, claude, nettoyage, poser, rangements: cleanups } = kitchen(t);
   const vieux = DEPART - 90 * JOUR;
   const dehors = join(repertoire, "dehors");
   mkdirSync(join(dehors, "session"), { recursive: true });
@@ -197,11 +197,11 @@ test("un lien posé là par un cook n'est pas suivi : rien n'est retiré hors du
   assert.equal(existsSync(join(dehors, "session.jsonl")), true);
   assert.equal(existsSync(join(dehors, "session/agent.jsonl")), true);
   assert.equal(existsSync(join(claude, "projects/-etat-worktrees-17-aaa/lie.jsonl")), false);
-  assert.deepEqual(rangements().map(({ removed }) => removed), [1]);
+  assert.deepEqual(cleanups().map(({ removed }) => removed), [1]);
 });
 
 test("`projects` remplacé par un lien : rien n'est lu ni retiré derrière", async (t) => {
-  const { repertoire, claude, nettoyage, rangements } = cuisine(t);
+  const { repertoire, claude, nettoyage, rangements: cleanups } = kitchen(t);
   const dehors = join(repertoire, "dehors");
   mkdirSync(join(dehors, "-projet"), { recursive: true });
   writeFileSync(join(dehors, "-projet/session.jsonl"), "{}\n");
@@ -212,17 +212,17 @@ test("`projects` remplacé par un lien : rien n'est lu ni retiré derrière", as
   await nettoyage.rattraper();
 
   assert.equal(existsSync(join(dehors, "-projet/session.jsonl")), true);
-  assert.deepEqual(rangements().map(({ removed, kept }) => [removed, kept]), [[0, 0]]);
+  assert.deepEqual(cleanups().map(({ removed, kept }) => [removed, kept]), [[0, 0]]);
 });
 
 test("le rangement passe au démarrage puis une fois par jour, pas à chaque tick — et chaque passage est au journal, même s'il ne retire rien", async (t) => {
-  const { nettoyage, poser, la, avancer, rangements } = cuisine(t);
+  const { nettoyage, poser, la, avancer, rangements: cleanups } = kitchen(t);
   poser("projects/-tmp/a.jsonl", DEPART - 6 * JOUR - 12 * HEURE);
 
   await nettoyage.rattraper();
   avancer(HEURE);
   await nettoyage.rattraper();
-  assert.deepEqual(rangements().map(({ removed, kept }) => [removed, kept]), [[0, 1]]);
+  assert.deepEqual(cleanups().map(({ removed, kept }) => [removed, kept]), [[0, 1]]);
 
   // Il a passé sept jours dans l'heure : il part au passage du lendemain.
   avancer(22 * HEURE);
@@ -231,42 +231,42 @@ test("le rangement passe au démarrage puis une fois par jour, pas à chaque tic
   avancer(HEURE);
   await nettoyage.rattraper();
   assert.equal(la("projects/-tmp/a.jsonl"), false);
-  assert.deepEqual(rangements().map(({ removed, kept }) => [removed, kept]), [[0, 1], [1, 0]]);
+  assert.deepEqual(cleanups().map(({ removed, kept }) => [removed, kept]), [[0, 1], [1, 0]]);
 });
 
 test("sans cloison, rien n'est rangé ni écrit au journal : le `~/.claude` du compte n'est pas au runtime", async (t) => {
-  const { nettoyage, poser, la, rangements, journal } = cuisine(t, { cloisonne: false });
+  const { nettoyage, poser, la, rangements: cleanups, journal: log } = kitchen(t, { cloisonne: false });
   poser("projects/-tmp/vieux.jsonl", DEPART - 90 * JOUR);
 
   await nettoyage.rattraper();
 
   assert.equal(la("projects/-tmp/vieux.jsonl"), true);
-  assert.deepEqual(rangements(), []);
-  assert.equal(rangementDesTranscripts(journal.base), null);
+  assert.deepEqual(cleanups(), []);
+  assert.equal(transcriptsCleanup(log.base), null);
 });
 
 test("un projet cloisonné qui n'a encore rien lancé n'a pas de `~/.claude` : le rangement le dit vide, sans rien créer", async (t) => {
-  const { nettoyage, la, rangements } = cuisine(t);
+  const { nettoyage, la, rangements: cleanups } = kitchen(t);
 
   await nettoyage.rattraper();
 
   assert.equal(la("."), false);
-  assert.deepEqual(rangements().map(({ removed, kept }) => [removed, kept]), [[0, 0]]);
+  assert.deepEqual(cleanups().map(({ removed, kept }) => [removed, kept]), [[0, 0]]);
 });
 
 test("un projet qui a été cloisonné puis redémarre sans cloison n'a plus de dernier rangement à lire", async (t) => {
-  const { nettoyage, journal, poser, repertoire } = cuisine(t);
+  const { nettoyage, journal: log, poser, repertoire } = kitchen(t);
   poser("projects/-tmp/jeune.jsonl", DEPART - HEURE);
   await nettoyage.rattraper();
-  assert.notEqual(rangementDesTranscripts(journal.base), null);
+  assert.notEqual(transcriptsCleanup(log.base), null);
 
-  const sansCloison = () =>
-    ouvrirNettoyage({ journal, projet: "brigade", repertoireEtat: repertoire, depot: { ranger: async () => null, elaguer: async () => true }, avertir: () => {}, transcripts: null });
-  sansCloison();
-  assert.equal(rangementDesTranscripts(journal.base), null);
-  assert.equal(journal.duType("transcripts.released", 100).length, 1);
+  const withoutPartition = () =>
+    ouvrirNettoyage({ journal: log, projet: "brigade", repertoireEtat: repertoire, depot: { ranger: async () => null, elaguer: async () => true }, avertir: () => {}, transcripts: null });
+  withoutPartition();
+  assert.equal(transcriptsCleanup(log.base), null);
+  assert.equal(log.duType("transcripts.released", 100).length, 1);
 
   // Rien à défaire : un démarrage de plus n'écrit rien.
-  sansCloison();
-  assert.equal(journal.duType("transcripts.released", 100).length, 1);
+  withoutPartition();
+  assert.equal(log.duType("transcripts.released", 100).length, 1);
 });

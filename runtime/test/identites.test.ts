@@ -35,7 +35,7 @@ test("un jeton est demandé au nom de l'App du rôle, pour ce dépôt seul et av
 
   for (const role of ROLES) {
     const jeton = await ouvertes.jeton(role).frais();
-    assert.equal(jeton, apps.jetons(role).at(-1));
+    assert.equal(jeton, apps.tokens(role).at(-1));
     const [echange] = echanges(apps, role);
     // Le faux GitHub a vérifié la signature : le JWT est celui de cette App.
     assert.deepEqual(echange?.corps, { repositories: ["brigade"], permissions: DROITS[role] });
@@ -130,7 +130,7 @@ test("l'identité d'un rôle est celle que GitHub donne à son App", async (t) =
 
 test("une App qui n'est pas installée sur le dépôt se dit, rôle et dépôt nommés", async (t) => {
   const { apps, identites: ouvertes } = await identites(t);
-  apps.desinstaller("manager");
+  apps.uninstall("manager");
 
   await assert.rejects(ouvertes.jeton("manager").frais(), /identité « manager ».*pas installée sur benomite\/brigade/);
 });
@@ -147,7 +147,7 @@ test("un refus de GitHub se lit avec son motif, sans jamais porter de jeton ni d
   );
 
   assert.match(erreur?.message ?? "", /identité « pass ».*HTTP 422.*not granted/);
-  for (const secret of [...apps.jetons("pass"), ...apps.jwts()]) assert.ok(!erreur?.message.includes(secret));
+  for (const secret of [...apps.tokens("pass"), ...apps.jwts()]) assert.ok(!erreur?.message.includes(secret));
 });
 
 function repertoireDApps(t: TestContext, apps: FauxGitHubApps): string {
@@ -221,7 +221,7 @@ test("chaque geste part sous l'identité de son rôle : le cook livre, la pass m
   gh.repondre(`repos/${DEPOT}/pulls/40/merge`, { corps: { merged: true } });
   const sous = async (geste: () => Promise<unknown>) => {
     await geste();
-    return roleDe(gh.jetons().at(-1) ?? null);
+    return roleDe(gh.tokens().at(-1) ?? null);
   };
   const pr = { branche: "cook/14-a", base: "main", titre: "t", corps: "c" };
 
@@ -255,6 +255,6 @@ test("sans identités, les quatre passent par le même gh, sous le compte de la 
 
   assert.equal(githubs.station, githubs.pass);
   assert.equal(githubs.manager, githubs.rail);
-  assert.deepEqual(gh.jetons().map(roleDe), ["machine", "machine"]);
+  assert.deepEqual(gh.tokens().map(roleDe), ["machine", "machine"]);
   assert.equal(await githubs.pass.identite(), null);
 });

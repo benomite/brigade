@@ -217,17 +217,17 @@ export function decisionsDuManager(base: Base, combien: number): IssueDuManager[
 
 // An issue the manager is waiting on the chief for: set aside, or with an
 // unreadable judgment. `closed`: it has since left the list of open issues.
-export type IssueEnAttente = { ticket: number; decision: "aside" | "failed"; reason: string; at: string; closed: boolean };
+export type QueuedIssue = { ticket: number; decision: "aside" | "failed"; reason: string; at: string; closed: boolean };
 
-export function issuesEnAttente(base: Base): IssueEnAttente[] {
+export function queuedIssues(base: Base): QueuedIssue[] {
   return base
-    .lire<Omit<IssueEnAttente, "closed"> & { closed: number }>("SELECT ticket, decision, reason, at, closed FROM manager_issues WHERE decision IN ('aside', 'failed') ORDER BY ticket")
+    .lire<Omit<QueuedIssue, "closed"> & { closed: number }>("SELECT ticket, decision, reason, at, closed FROM manager_issues WHERE decision IN ('aside', 'failed') ORDER BY ticket")
     .map((ligne) => ({ ...ligne, closed: ligne.closed === 1 }));
 }
 
 // Has the issue stopped being an epic to split since event `seq`: a more
 // recent decision says something other than "an epic".
-export function plusUneEpiqueDepuis(base: Base, ticket: number, seq: number): boolean {
+export function noLongerAnEpicSince(base: Base, ticket: number, seq: number): boolean {
   const later = base.lire<{ decision: string; kind: string | null }>("SELECT decision, kind FROM manager_issues WHERE ticket = ? AND decided_seq > ?", ticket, seq)[0];
   return later !== undefined && !(later.decision === "refused" && later.kind === ("epic" satisfies Nature));
 }
@@ -245,7 +245,7 @@ export function remiseDe(base: Base, ticket: number): Remise | null {
   return lireRemises(base, "WHERE ticket = ?", ticket)[0] ?? null;
 }
 
-export function remisesEnAttente(base: Base): Remise[] {
+export function queuedReturns(base: Base): Remise[] {
   return lireRemises(base, "ORDER BY ticket");
 }
 

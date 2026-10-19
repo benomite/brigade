@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { FICHIER_APPAIRAGE, FICHIER_STATION } from "../../src/appairage/document.ts";
 import { FICHIER_LOCAL } from "../../src/appairage/presence.ts";
-import { ouvrirJournal } from "../../src/journal.ts";
+import { openLog } from "../../src/log.ts";
 import { FICHIER_PROJETS, FICHIER_SUIVI } from "../../src/projets/demande.ts";
 import { depotGit, ENV_GIT, FAUX_CLAUDE, git, jusqua, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
@@ -109,9 +109,9 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
   ]);
 
   await jusqua(tenue(() => projetsPublies()?.includes("parade") === true), DIX_MINUTES);
-  const mesure = Date.now() - ouvert;
-  t.diagnostic(`du parcours ouvert au projet dans la liste de la station : ${Math.round(mesure / 1000)} s, dont ${PARCOURS_MS / 1000} s de parcours`);
-  assert.ok(mesure < DIX_MINUTES, `${Math.round(mesure / 1000)} s`);
+  const measure = Date.now() - ouvert;
+  t.diagnostic(`du parcours ouvert au projet dans la liste de la station : ${Math.round(measure / 1000)} s, dont ${PARCOURS_MS / 1000} s de parcours`);
+  assert.ok(measure < DIX_MINUTES, `${Math.round(measure / 1000)} s`);
 
   // Ce qui l'a servi : le clone, les décisions du parcours, son premier ticket, sa ligne — et rien qu'il ait fallu taper.
   assert.ok(existsSync(join(racine, "clones/parade/LISEZMOI")));
@@ -125,11 +125,11 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
   assert.deepEqual(JSON.parse(readFileSync(join(racine, "etat/parade/preparation-depot.json"), "utf8")).ticket, 1);
   await station.attendre("brigade [parade] : servi par la station");
   await station.attendre("brigade [parade] : le rail attend #1 (préparer le dépôt) — aucun autre ticket ne part avant son merge");
-  const journal = ouvrirJournal(join(racine, "etat/parade"), { lectureSeule: true });
+  const log = openLog(join(racine, "etat/parade"), { lectureSeule: true });
   try {
-    assert.ok(journal.tout().some((evenement) => evenement.type === "runtime.started" && evenement.project === "parade"));
+    assert.ok(log.tout().some((evenement) => evenement.type === "runtime.started" && evenement.project === "parade"));
   } finally {
-    journal.fermer();
+    log.fermer();
   }
   await jusqua(() => (JSON.parse(fichier(FICHIER_SUIVI) ?? '{"projets":[]}') as { projets: Array<{ etat: string }> }).projets[0]?.etat === "servi", DIX_MINUTES);
 

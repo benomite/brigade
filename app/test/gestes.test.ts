@@ -16,8 +16,8 @@ import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS, ecritPar } from "../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE } from "../src/faits.ts";
+import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
+import { BANNIERE } from "../src/facts.ts";
 import { commandeDuGeste, CONFIRMES, DIRECTS, ecrireGeste, GESTES, GRANTS, SANS_OUI } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
@@ -34,7 +34,7 @@ const PARADE = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" }
 
 // Les deux écritures que « Piloter » tient séparées : sur la box, et depuis le poste.
 const DE_BOX = "brigade <projet> <commande>";
-const DE_POSTE = "ssh <hote> brigade <nom> <commande>";
+const FROM_WORKSTATION = "ssh <hote> brigade <nom> <commande>";
 
 // Ce qu'une ligne de « Piloter » cite : entre crochets c'est facultatif, et `|` y sépare les choix.
 function formes(usage: string): string[] {
@@ -52,7 +52,7 @@ function formes(usage: string): string[] {
       do choix.push(...suite());
       while (usage[ou++] === "|");
       assert.equal(usage[ou - 1], "]", `un crochet ne se ferme pas dans \`${usage}\``);
-      ecrites = ecrites.flatMap((debut) => choix.map((pris) => debut + pris));
+      ecrites = ecrites.flatMap((debut) => choix.map((taken) => debut + taken));
     }
     return ecrites;
   };
@@ -156,11 +156,11 @@ describe("les gestes du chef", () => {
     }
   });
 
-  test(`${SOURCE}, « Piloter », donne les deux écritures d'un geste : \`${DE_BOX}\` sur la box, \`${DE_POSTE}\` depuis le poste — c'est la seconde que l'app écrit`, () => {
+  test(`${SOURCE}, « Piloter », donne les deux écritures d'un geste : \`${DE_BOX}\` sur la box, \`${FROM_WORKSTATION}\` depuis le poste — c'est la seconde que l'app écrit`, () => {
     // La doc se replie où elle veut : seuls ses mots comptent.
     const mots = PILOTER.replace(/\s+/g, " ");
     assert.ok(mots.includes(`Le *geste de box* est \`${DE_BOX}\``), "« Piloter » ne donne plus cette forme sur la box");
-    assert.ok(mots.includes(`Le *geste de poste* est \`${DE_POSTE}\``), "« Piloter » ne donne plus cette forme depuis le poste");
+    assert.ok(mots.includes(`Le *geste de poste* est \`${FROM_WORKSTATION}\``), "« Piloter » ne donne plus cette forme depuis le poste");
   });
 
   for (const [id, grant, citee, ecrite, section] of GESTES_DE_LA_DOC) {
@@ -169,7 +169,7 @@ describe("les gestes du chef", () => {
       // La forme de poste de la doc, avec l'hôte et le nom de ce projet : rien d'autre n'y est changé.
       const mots = citee.slice(DE_BOX.indexOf("<commande>"));
       assert.equal(DE_BOX.replace("<commande>", mots), citee);
-      const attendu = DE_POSTE.replace("<hote>", "box").replace("<nom>", "parade").replace("<commande>", mots);
+      const attendu = FROM_WORKSTATION.replace("<hote>", "box").replace("<nom>", "parade").replace("<commande>", mots);
 
       assert.deepEqual(commandeDuGeste(id, PARADE, grant), { commande: attendu });
       assert.equal(attendu, ecrite);
@@ -347,7 +347,7 @@ async function ouvrir(geste: NonNullable<Reponses["geste"]>, autres: Reponses = 
       exemple: EXEMPLE,
       onglets: ONGLETS, rubriques: RUBRIQUES,
       boutons: BOUTONS,
-      gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+      gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,

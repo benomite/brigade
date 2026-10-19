@@ -26,7 +26,7 @@ export const ONGLETS: readonly Onglet[] = [
 // `defaut` : la lecture que l'onglet ouvre — sans commande pour Paramètres, qui pose d'abord l'état.
 export type Rubrique = { id: string; titre: string; defaut: string; lectures: readonly string[] };
 export const PARAMETRES = "parametres";
-export const JOURNAL = "log";
+export const LOG = "log";
 export const RUBRIQUES: readonly Rubrique[] = [
   { id: "cout", titre: "Cost", defaut: "cooks", lectures: ["cooks"] },
   { id: PARAMETRES, titre: "Settings", defaut: PARAMETRES, lectures: [PARAMETRES, "manager", "grants", "rail", "fiabilite"] },

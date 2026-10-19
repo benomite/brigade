@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { decisionsPosees, environnementDecide } from "../src/decisions.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
 import { exempleDuBas } from "./aides/bas-de-status.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
@@ -77,7 +77,7 @@ test("`station` : chaque refus, y compris ceux de `decisions.ts` et de `stations
   }
   // Un plafond avant toute station : le refus dit le geste, en anglais.
   const vide = repertoireTemporaire(t);
-  ouvrirJournal(vide).fermer();
+  openLog(vide).fermer();
   const sansStation = await sortie(["cooks", "3"], { BRIGADE_STATE_DIR: vide });
   assert.notEqual(sansStation.code, 0);
   sansMotFrancais(sansStation.lignes);
@@ -86,12 +86,12 @@ test("`station` : chaque refus, y compris ceux de `decisions.ts` et de `stations
 test("`station` : un état posé avant le ticket — décisions écrites, anciens mots — est montré et appliqué sans édition manuelle", async (t) => {
   const repertoire = repertoireTemporaire(t);
   // Le journal d'un runtime d'avant : des décisions posées par le chef, la station annoncée.
-  const journal = ouvrirJournal(repertoire);
-  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
-  journal.ajouter({ project: "brigade", ticket: null, author: `station:${STATION}`, type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["code"], maxCooks: 1 } });
-  journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: "decision.set", payload: { name: "BRIGADE_DRIFT_TICKET_TOKENS", value: "800000", previous: null } });
-  journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: "decision.set", payload: { name: "BRIGADE_REVIEWER_MODEL", value: "opus", previous: null } });
-  journal.fermer();
+  const log = openLog(repertoire);
+  log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
+  log.ajouter({ project: "brigade", ticket: null, author: `station:${STATION}`, type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["code"], maxCooks: 1 } });
+  log.ajouter({ project: "brigade", ticket: null, author: "chef", type: "decision.set", payload: { name: "BRIGADE_DRIFT_TICKET_TOKENS", value: "800000", previous: null } });
+  log.ajouter({ project: "brigade", ticket: null, author: "chef", type: "decision.set", payload: { name: "BRIGADE_REVIEWER_MODEL", value: "opus", previous: null } });
+  log.fermer();
   const env = { BRIGADE_STATE_DIR: repertoire };
 
   // Montrées : la valeur posée avant, sous le geste qui garde son nom.
@@ -102,7 +102,7 @@ test("`station` : un état posé avant le ticket — décisions écrites, ancien
   assert.ok(vue.lignes.some((ligne) => /^  reviewer-modele\s+opus$/.test(ligne)), vue.lignes.join("\n"));
 
   // Appliquées : le runtime les lit telles quelles, et un nouveau réglage garde la valeur d'avant comme « was ».
-  const lecture = ouvrirJournal(repertoire, { lectureSeule: true });
+  const lecture = openLog(repertoire, { lectureSeule: true });
   t.after(() => lecture.fermer());
   assert.deepEqual(decisionsPosees(lecture.base), { BRIGADE_DRIFT_TICKET_TOKENS: "800000", BRIGADE_REVIEWER_MODEL: "opus" });
   assert.equal(environnementDecide({}, decisionsPosees(lecture.base)).BRIGADE_REVIEWER_MODEL, "opus");

@@ -2,10 +2,10 @@
 // zéro quand la cause change ou que l'urgence est levée, et lisible du journal.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { annoncerUrgence, RAPPEL_D_URGENCE_MS } from "../src/alerte-urgence.ts";
-import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
+import { announceEmergency, RAPPEL_D_URGENCE_MS } from "../src/alerte-urgence.ts";
+import { decrireEtat, facts, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { JOUR_HORLOGE, jourDecale, repertoireTemporaire } from "./outils.ts";
 
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -14,11 +14,11 @@ const pr = (ticket: number) => `https://exemple.test/pull/${ticket}`;
 const heure = (h: string) => `${JOUR_HORLOGE}T${h}.000Z`;
 
 // Une cuisine dont le test tient l'horloge : chaque fait s'écrit à l'heure dite.
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   let instant = heure("08:00:00");
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: () => new Date(instant) });
-  t.after(() => journal.fermer());
-  const noter = (fait: Fait, ticket: number | null = null, author = "runtime") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const log = openLog(repertoireTemporaire(t), { maintenant: () => new Date(instant) });
+  t.after(() => log.fermer());
+  const noter = (fait: Fait, ticket: number | null = null, author = "runtime") => log.ajouter({ project: "brigade", ticket, author, ...fait });
   const a = (h: string) => {
     instant = heure(h);
   };
@@ -32,7 +32,7 @@ function cuisine(t: TestContext) {
       "github",
     );
   // Le ticket déjà sur le rail, pris, cuisiné, livré avec sa PR.
-  const cuisiner = (ticket: number) => {
+  const cook = (ticket: number) => {
     noter({ type: "ticket.taken", payload: { station: STATION, leaseUntil: `${jourDecale(30)}T00:00:00.000Z` } }, ticket, `station:${STATION}`);
     noter({ type: "cook.launched", payload: { run: `${ticket}-aa`, limits: LIMITES, stream: `runs/${ticket}-aa.jsonl`, branch: `cook/${ticket}-aa`, worktree: `worktrees/${ticket}-aa` } }, ticket);
     noter({ type: "cook.exited", payload: { run: `${ticket}-aa`, outcome: "ok", code: 0, signal: null, turns: 3, tokens: 1000, durationMs: 1000 } }, ticket);
@@ -48,23 +48,23 @@ function cuisine(t: TestContext) {
   };
   const lire = (h: string) => {
     const maintenant = new Date(heure(h));
-    const etat = lireEtat(journal, maintenant);
-    return { etat, faits: faits(etat, maintenant, "benomite/brigade"), texte: decrireEtat(etat, maintenant) };
+    const etat = lireEtat(log, maintenant);
+    return { etat, faits: facts(etat, maintenant, "benomite/brigade"), texte: decrireEtat(etat, maintenant) };
   };
   noter({ type: "runtime.started", payload: { pid: 1, host: "box" } } as Fait);
   noter({ type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["opus"], maxCooks: 2 } });
-  const annoncer = (h: string) => {
+  const announce = (h: string) => {
     a(h);
-    return annoncerUrgence(journal, new Date(heure(h)));
+    return announceEmergency(log, new Date(heure(h)));
   };
-  return { noter, a, arriver, cuisiner, retenir, merger, lire, annoncer, journal };
+  return { noter, a, arriver, cuisiner: cook, retenir, merger, lire, annoncer: announce, journal: log };
 }
 
 
-const alertes = (journal: ReturnType<typeof cuisine>["journal"]) => journal.base.lire<{ payload: string }>("SELECT payload FROM events WHERE type = 'urgence.alerted' ORDER BY seq").map(({ payload }) => JSON.parse(payload));
+const alertes = (log: ReturnType<typeof kitchen>["journal"]) => log.base.lire<{ payload: string }>("SELECT payload FROM events WHERE type = 'urgence.alerted' ORDER BY seq").map(({ payload }) => JSON.parse(payload));
 
 function urgenceSurMerge(t: TestContext) {
-  const c = cuisine(t);
+  const c = kitchen(t);
   c.arriver(535, ["runtime", "app"]);
   c.arriver(536, ["runtime/src"]);
   c.cuisiner(535);
@@ -74,12 +74,12 @@ function urgenceSurMerge(t: TestContext) {
 }
 
 test("l'urgence est annoncée une fois, d'une ligne, puis plus rien aux calculs suivants — dont un rappel absent à 5 min", (t) => {
-  const { annoncer, journal } = urgenceSurMerge(t);
-  assert.equal(annoncer("08:35:00"), "alerte");
-  assert.equal(annoncer("08:40:00"), null);
-  assert.equal(annoncer("09:00:00"), null);
-  assert.equal(annoncer("10:29:00"), null);
-  const [alerte, ...autres] = alertes(journal);
+  const { annoncer: announce, journal: log } = urgenceSurMerge(t);
+  assert.equal(announce("08:35:00"), "alerte");
+  assert.equal(announce("08:40:00"), null);
+  assert.equal(announce("09:00:00"), null);
+  assert.equal(announce("10:29:00"), null);
+  const [alerte, ...autres] = alertes(log);
   assert.equal(autres.length, 0);
   assert.equal(alerte.label, "brigade : toute la cuisine attend ton merge de #535");
   assert.ok(!alerte.label.includes("\n"));
@@ -88,37 +88,37 @@ test("l'urgence est annoncée une fois, d'une ligne, puis plus rien aux calculs 
 });
 
 test("un rappel unique à 2 h, puis le suivant 2 h après lui", (t) => {
-  const { annoncer, journal } = urgenceSurMerge(t);
+  const { annoncer: announce, journal: log } = urgenceSurMerge(t);
   assert.equal(RAPPEL_D_URGENCE_MS, 2 * 3_600_000);
-  assert.equal(annoncer("08:35:00"), "alerte");
-  assert.equal(annoncer("10:34:59"), null);
-  assert.equal(annoncer("10:35:00"), "rappel");
-  assert.equal(annoncer("10:40:00"), null);
-  assert.equal(annoncer("12:34:00"), null);
-  assert.equal(annoncer("12:35:00"), "rappel");
+  assert.equal(announce("08:35:00"), "alerte");
+  assert.equal(announce("10:34:59"), null);
+  assert.equal(announce("10:35:00"), "rappel");
+  assert.equal(announce("10:40:00"), null);
+  assert.equal(announce("12:34:00"), null);
+  assert.equal(announce("12:35:00"), "rappel");
   assert.deepEqual(
-    alertes(journal).map(({ reminder }) => reminder),
+    alertes(log).map(({ reminder }) => reminder),
     [false, true, true],
   );
 });
 
 test("une urgence levée n'émet plus rien ; celle qui revient est annoncée tout de suite", (t) => {
-  const { annoncer, merger, arriver, cuisiner, retenir, a, journal } = urgenceSurMerge(t);
-  assert.equal(annoncer("08:35:00"), "alerte");
+  const { annoncer: announce, merger, arriver, cuisiner: cook, retenir, a, journal: log } = urgenceSurMerge(t);
+  assert.equal(announce("08:35:00"), "alerte");
   a("09:00:00");
   merger(535);
-  assert.equal(annoncer("09:00:00"), "levee");
-  assert.equal(annoncer("09:05:00"), null);
-  assert.equal(annoncer("12:00:00"), null);
+  assert.equal(announce("09:00:00"), "levee");
+  assert.equal(announce("09:05:00"), null);
+  assert.equal(announce("12:00:00"), null);
   // Une nouvelle urgence, vingt minutes plus tard : annoncée sans attendre 2 h.
   a("12:10:00");
   arriver(537, ["runtime"]);
-  cuisiner(537);
+  cook(537);
   a("12:20:00");
   retenir(537);
-  assert.equal(annoncer("12:25:00"), "alerte");
+  assert.equal(announce("12:25:00"), "alerte");
   assert.deepEqual(
-    alertes(journal).map(({ label, reminder }) => [label, reminder]),
+    alertes(log).map(({ label, reminder }) => [label, reminder]),
     [
       ["brigade : toute la cuisine attend ton merge de #535", false],
       ["brigade : toute la cuisine attend ton merge de #537", false],
@@ -127,7 +127,7 @@ test("une urgence levée n'émet plus rien ; celle qui revient est annoncée tou
 });
 
 test("un changement de cause remet le compteur à zéro : la nouvelle cause est annoncée sans attendre 2 h", (t) => {
-  const c = cuisine(t);
+  const c = kitchen(t);
   c.arriver(535, ["runtime"]);
   c.arriver(540, ["app"]);
   c.arriver(536, ["runtime", "app"]);
@@ -150,10 +150,10 @@ test("un changement de cause remet le compteur à zéro : la nouvelle cause est 
 });
 
 test("l'alerte en cours se lit de l'état, sans qu'aucune app ait été là, et survit à une relecture du journal", (t) => {
-  const { annoncer, lire, journal } = urgenceSurMerge(t);
+  const { annoncer: announce, lire, journal: log } = urgenceSurMerge(t);
   assert.equal(lire("08:30:00").faits.urgence?.alerte ?? null, null);
-  annoncer("08:35:00");
-  annoncer("10:35:00");
+  announce("08:35:00");
+  announce("10:35:00");
   const { faits: lus, etat } = lire("10:36:00");
   assert.deepEqual(lus.urgence?.alerte, {
     libelle: "brigade : toute la cuisine attend ton merge de #535",
@@ -163,6 +163,6 @@ test("l'alerte en cours se lit de l'état, sans qu'aucune app ait été là, et 
   });
   assert.equal(lus.urgence?.depuis, heure("08:30:00"));
   assert.equal(etat.alerteUrgence?.key, `${heure("08:30:00")}|#535`);
-  journal.reconstruire();
-  assert.equal(lireEtat(journal, new Date(heure("10:37:00"))).alerteUrgence?.rappels, 1);
+  log.reconstruire();
+  assert.equal(lireEtat(log, new Date(heure("10:37:00"))).alerteUrgence?.rappels, 1);
 });

@@ -12,7 +12,7 @@ import { ouvrirTerminaux, type Terminal } from "../src/terminaux.ts";
 
 const FAUX_CLAUDE = join(import.meta.dirname, "aides/faux-claude.sh");
 
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   const dossier = realpathSync(mkdtempSync(join(tmpdir(), "brigade-app-")));
   const sorties = new Map<number, string>();
   const etats: Terminal[] = [];
@@ -54,7 +54,7 @@ const SAUTE = ptyDisponible ? false : `node-pty n'est pas livré compilé pour $
 // Chaque test a son dossier : ils se jouent de front.
 describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
   test("sans fil à reprendre, une session neuve s'ouvre dans le dossier du projet, sur un terminal — et la note le dit", async (t) => {
-    const { projet, terminaux, etats, sortie } = cuisine(t);
+    const { projet, terminaux, etats, sortie } = kitchen(t);
 
     const [second] = terminaux.espace(projet);
     assert.ok(second);
@@ -68,7 +68,7 @@ describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
   });
 
   test("avec un fil dans le dossier, il est repris : aucune session neuve, et la note reste « fil repris »", async (t) => {
-    const { projet, terminaux, etats, sortie } = cuisine(t);
+    const { projet, terminaux, etats, sortie } = kitchen(t);
     writeFileSync(join(projet.dossier, ".fil"), "");
 
     const [second] = terminaux.espace(projet);
@@ -81,7 +81,7 @@ describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
   });
 
   test("ce qui est tapé arrive au second, sa taille suit la vue, et un shell ouvert à côté ne le dérange pas", async (t) => {
-    const { projet, terminaux, sortie } = cuisine(t);
+    const { projet, terminaux, sortie } = kitchen(t);
     writeFileSync(join(projet.dossier, ".fil"), "");
     const [second] = terminaux.espace(projet);
     assert.ok(second);
@@ -98,7 +98,7 @@ describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
   });
 
   test("une commande inscrite n'est pas envoyée : le second ne la reçoit qu'à l'Entrée du chef, avec ce qu'il a tapé à la suite", async (t) => {
-    const { projet, terminaux, sortie } = cuisine(t);
+    const { projet, terminaux, sortie } = kitchen(t);
     writeFileSync(join(projet.dossier, ".fil"), "");
     const [second] = terminaux.espace(projet);
     assert.ok(second);
@@ -114,7 +114,7 @@ describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
   });
 
   test("le second quitté est dit arrêté ; une touche le relance, et il reprend le fil qu'il avait laissé", async (t) => {
-    const { projet, terminaux, etats, sortie } = cuisine(t);
+    const { projet, terminaux, etats, sortie } = kitchen(t);
     const [second] = terminaux.espace(projet);
     assert.ok(second);
     await jusqua(() => sortie(second.id).includes("sur un terminal"), () => sortie(second.id));

@@ -19,7 +19,7 @@ import type { StationVue } from "../stations/stations.ts";
 import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireSuivi, type Calibre, type EtatDuProjet, type ProjetDemande } from "./demande.ts";
 import type { DepotDuChef } from "./github.ts";
 
-// Le calibrage que la station accepte : ses deux listes fermées (runtime/src/calibrage.ts).
+// Le calibrage que la station accepte : ses deux listes fermées (runtime/src/calibration.ts).
 export const MODELES = ["opus", "sonnet", "haiku"] as const;
 export const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
 
@@ -93,8 +93,8 @@ export const estUnOrdinateur = (station: Pick<StationVue, "machine">) => /^(macO
 
 // La principale que l'app recommande : une station serveur, en ligne d'abord.
 export function principaleRecommandee(stations: readonly StationVue[]): string | undefined {
-  const serveurs = stations.filter((station) => station.etat !== "illisible" && !estUnOrdinateur(station));
-  return (serveurs.find((station) => station.etat === "en-ligne") ?? serveurs[0])?.id;
+  const servers = stations.filter((station) => station.etat !== "illisible" && !estUnOrdinateur(station));
+  return (servers.find((station) => station.etat === "en-ligne") ?? servers[0])?.id;
 }
 
 // Ce que l'app dit au moment où le chef choisit cette principale.
@@ -339,10 +339,10 @@ export function tenirProjets(options: OptionsProjets): Projets {
         return { refus: `${saisie.nom} was not entrusted to a station: GitHub could not be read — ${message(erreur)}` };
       }
       const demandes = lus.flatMap(({ station, demande }) => (demande ?? []).filter(({ nom }) => nom === saisie.nom).map((projet) => ({ station, projet })));
-      const servie = stations.filter((station) => station.projets.includes(saisie.nom));
+      const served = stations.filter((station) => station.projets.includes(saisie.nom));
       const tenu: DejaTenu = {
-        portee: [...new Set([...demandes.map(({ station }) => station.id), ...servie.map(({ id }) => id)])],
-        principale: servie.length > 0 || demandes.some(({ projet }) => projet.principale),
+        portee: [...new Set([...demandes.map(({ station }) => station.id), ...served.map(({ id }) => id)])],
+        principale: served.length > 0 || demandes.some(({ projet }) => projet.principale),
         ...(demandes[0] === undefined ? {} : { demande: demandes.find(({ projet }) => projet.principale)?.projet ?? demandes[0].projet }),
       };
       const signales = refusDeConfiance(saisie, stations, tenu);

@@ -8,25 +8,25 @@
 // `orphaned` : son worktree n'existe plus. `shutdown` : le runtime s'en va.
 export type FinDeService = "exited" | "retaken" | "served" | "left" | "removed" | "orphaned" | "shutdown";
 
-export type EcranDuServeur = { name: string; sentence: string | null; source: "declare" | "deduit" };
+export type ServerScreen = { name: string; sentence: string | null; source: "declare" | "deduit" };
 
 export type FaitService =
   // Un serveur est lancé : la commande que le projet déclare, depuis le
   // worktree de la livraison, sur le port que son setup lui a attribué.
   // `worktree` : son chemin, relatif au répertoire d'état. Rien ne dit encore
   // que le port répond. `screen` : l'écran à regarder de la livraison
-  // (`ecran.ts`) — `name`, l'écran ou la route ; `sentence`, ce qu'il faut y
+  // (`screen.ts`) — `name`, l'écran ou la route ; `sentence`, ce qu'il faut y
   // regarder ; `source`, `declare` par le cook ou `deduit` de ses fichiers.
   // Nul : elle n'en a pas, et il n'y a aucune page à ouvrir. Absent d'un fait
   // écrit avant lui.
-  | { type: "service.started"; payload: { station: string; run: string; worktree: string; branch: string; port: number; pid: number; screen?: EcranDuServeur | null } }
+  | { type: "service.started"; payload: { station: string; run: string; worktree: string; branch: string; port: number; pid: number; screen?: ServerScreen | null } }
   // Une livraison d'une app qui ne s'ouvre pas dans un navigateur : rien n'est
   // lancé ni servi, aucune page ne s'ouvre, mais son worktree est tenu pour
   // qu'on y lance l'app. `launch` : ce que le projet déclare pour la lancer
-  // (`service.ts`) ; `how` : comment voir l'écran (`ecran.ts`), la commande
+  // (`service.ts`) ; `how` : comment voir l'écran (`screen.ts`), la commande
   // sur le worktree comprise — nul, la livraison n'a pas d'écran. `screen` :
   // comme pour `service.started`.
-  | { type: "service.held"; payload: { station: string; run: string; worktree: string; branch: string; launch: string; how: string | null; screen: EcranDuServeur | null } }
+  | { type: "service.held"; payload: { station: string; run: string; worktree: string; branch: string; launch: string; how: string | null; screen: ServerScreen | null } }
   // Le worktree tenu n'a plus à l'être : il part, sauf quand le runtime s'en va.
   | { type: "service.released"; payload: { worktree: string; reason: Exclude<FinDeService, "exited"> } }
   // Le port du worktree répond : la page peut être ouverte.

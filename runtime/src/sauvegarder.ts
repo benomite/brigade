@@ -3,7 +3,7 @@
 // runtime tourne. La destination vient de l'environnement, sans défaut : une
 // sauvegarde qui choisit seule où elle va finit sur le disque qu'elle devait
 // protéger.
-import { sauvegarder, SauvegardeRefusee } from "./sauvegarde.ts";
+import { backup, BackupRefused } from "./backup.ts";
 
 const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> BRIGADE_BACKUP_DIR=<destination> npm --prefix runtime run backup";
 const REFUS = 2;
@@ -33,10 +33,10 @@ const nombre = (valeur: number) => valeur.toLocaleString("en-US");
 
 let bilan;
 try {
-  bilan = sauvegarder({ repertoireEtat, destination, garder });
+  bilan = backup({ repertoireEtat, destination, garder });
 } catch (erreur) {
   const message = erreur instanceof Error ? erreur.message : String(erreur);
-  if (erreur instanceof SauvegardeRefusee) echouer(REFUS, `backup refused — ${message}`);
+  if (erreur instanceof BackupRefused) echouer(REFUS, `backup refused — ${message}`);
   echouer(1, `backup failed — ${message}`);
 }
 if (bilan === null) {

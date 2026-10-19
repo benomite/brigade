@@ -4,25 +4,25 @@
 // chef's command, the runtime and the queue read the same thing: what one
 // refuses, the other does not launch.
 import type { Base } from "../base.ts";
-import { MOTIFS_D_ATTENTE, type FaitFermeture, type MotifDAttente, type MotifDeRefus, type ReglagesDeFermeture } from "../events/closing.ts";
-import { illisible } from "../fiche.ts";
-import type { Journal } from "../journal.ts";
-import { cooksEnCours, etatDesGardeFous } from "../projections/guardrails.ts";
+import { MOTIFS_D_ATTENTE, type ClosingFact, type MotifDAttente, type MotifDeRefus, type ClosingSettings } from "../events/closing.ts";
+import { illisible } from "../card.ts";
+import type { Log } from "../log.ts";
+import { cooksEnCours, guardrailsState } from "../projections/guardrails.ts";
 import { lireRail, type TicketRail } from "../projections/rail.ts";
 import { possede } from "../zones.ts";
 
-type Fait<T extends FaitFermeture["type"]> = { seq: number; at: string; payload: Extract<FaitFermeture, { type: T }>["payload"] };
+type Fait<T extends ClosingFact["type"]> = { seq: number; at: string; payload: Extract<ClosingFact, { type: T }>["payload"] };
 
 // The last fact of this type, read from the base: the queue reads it without a log.
-function dernier<T extends FaitFermeture["type"]>(base: Base, type: T): Fait<T> | undefined {
+function dernier<T extends ClosingFact["type"]>(base: Base, type: T): Fait<T> | undefined {
   const ligne = base.lire<{ seq: number; at: string; payload: string }>("SELECT seq, at, payload FROM events WHERE type = ? ORDER BY seq DESC LIMIT 1", type)[0];
   return ligne && { seq: ligne.seq, at: ligne.at, payload: JSON.parse(ligne.payload) };
 }
 
-const baseDe = (lu: Journal | Base): Base => ("base" in lu ? lu.base : lu);
+const baseDe = (lu: Log | Base): Base => ("base" in lu ? lu.base : lu);
 
 // The settings in force, or null if no runtime has started with them.
-export function reglagesEnVigueur(log: Journal | Base): ReglagesDeFermeture | null {
+export function reglagesEnVigueur(log: Log | Base): ClosingSettings | null {
   return dernier(baseDe(log), "closing.configured")?.payload ?? null;
 }
 
@@ -35,22 +35,22 @@ export const DEMANDEE = "demandée";
 export type Demande = { seq: number; since: string; sansIssue: string | null };
 
 // The request that is waiting: neither started, nor refused, nor withdrawn by the chef.
-export function demandeEnAttente(base: Base): Demande | null {
+export function queuedRequest(base: Base): Demande | null {
   const demandee = dernier(base, "closing.requested");
   if (demandee === undefined) return null;
   const close = Math.max(...(["closing.started", "closing.refused", "closing.cancelled"] as const).map((type) => dernier(base, type)?.seq ?? 0));
   if (demandee.seq < close) return null;
-  const bloquee = dernier(base, "closing.stalled");
-  return { seq: demandee.seq, since: demandee.at, sansIssue: bloquee !== undefined && bloquee.seq > demandee.seq ? bloquee.at : null };
+  const blocked = dernier(base, "closing.stalled");
+  return { seq: demandee.seq, since: demandee.at, sansIssue: blocked !== undefined && blocked.seq > demandee.seq ? blocked.at : null };
 }
 
 // The pass that is tidying: its run, `DEMANDEE` if a request is waiting for
 // the runtime to start it, or null.
-export function passeEnCours(log: Journal | Base): string | null {
+export function passeEnCours(log: Log | Base): string | null {
   const base = baseDe(log);
   const partie = dernier(base, "closing.started");
   if (partie && partie.seq > (dernier(base, "closing.ended")?.seq ?? 0)) return partie.payload.run;
-  return demandeEnAttente(base) === null ? null : DEMANDEE;
+  return queuedRequest(base) === null ? null : DEMANDEE;
 }
 
 // A cook in flight, and the zone it holds. Null: its ticket declares none that
@@ -120,13 +120,13 @@ export const faitAttendre = (motif: Refus): motif is Refus & { reason: MotifDAtt
 // What keeps a pass from leaving, or null if nothing: its settings, the
 // kitchen's guardrails, a requested switch-on, then its start condition.
 // `occupee`: a pass is already tidying.
-export function refus(base: Base, reglages: ReglagesDeFermeture | null, occupee: boolean): Refus | null {
+export function refus(base: Base, reglages: ClosingSettings | null, occupee: boolean): Refus | null {
   const sans = (reason: MotifDeRefus, detail: string | null = null): Refus => ({ reason, observed: null, limit: null, detail });
   if (!reglages?.calibration) return sans("unconfigured");
   if (occupee) return sans("busy");
-  const gardeFous = etatDesGardeFous(base);
-  if (gardeFous.stoppedAt !== null) return sans("stopped", gardeFous.stoppedAt);
-  if (gardeFous.breakerOpenedAt !== null) return sans("breaker", gardeFous.breakerOpenedAt);
+  const guardrails = guardrailsState(base);
+  if (guardrails.stoppedAt !== null) return sans("stopped", guardrails.stoppedAt);
+  if (guardrails.breakerOpenedAt !== null) return sans("breaker", guardrails.breakerOpenedAt);
   const condition = mesurerCondition(base, reglages.cooksBelow);
   if (!condition.remplie) return { reason: "cooks", observed: condition.enVol, limit: condition.seuil, detail: String(condition.rail) };
   if (condition.sansZone.length > 0) return sans("zoneless", condition.sansZone.map((ticket) => `#${ticket}`).join(", "));

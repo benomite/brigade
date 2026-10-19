@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { principal } from "../src/etapes-cli.ts";
 import { ETAPES, installationDe, noterEtape } from "../src/etapes.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, lancer, repertoireTemporaire } from "./outils.ts";
 
 const MAIN = join(import.meta.dirname, "../src/main.ts");
@@ -91,14 +91,14 @@ test("noter une étape écrit un fait au journal, une fois : la même note ne r�
   assert.match(seconde.sortie, /déjà faite — rien n'est écrit/);
   // Une étape jamais notée est à faire : l'y remettre ne s'écrit pas.
   assert.match((await noter(repertoire, "init", "a-faire")).sortie, /déjà à faire/);
-  const journal = ouvrirJournal(repertoire, { lectureSeule: true });
+  const log = openLog(repertoire, { lectureSeule: true });
   try {
     assert.deepEqual(
-      journal.tout().map((e) => [e.type, e.project, e.author, e.payload]),
+      log.tout().map((e) => [e.type, e.project, e.author, e.payload]),
       [["installation.step", "espace", "chef", { step: "ajout", state: "done", previous: "todo" }]],
     );
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 });
 
@@ -115,13 +115,13 @@ test("une étape inconnue, un état inconnu sont refusés sans rien écrire ; sa
 
 test("une étape notée par une version plus récente, que ce runtime ne connaît pas, est ignorée", (t) => {
   const repertoire = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoire);
+  const log = openLog(repertoire);
   try {
-    journal.ajouter({ project: "espace", ticket: null, author: "chef", type: "installation.step", payload: { step: "plus-tard", state: "done", previous: "todo" } });
-    noterEtape(journal, { projet: "espace", etape: "ajout", etat: "done", auteur: "chef" });
-    assert.throws(() => noterEtape(journal, { projet: "espace", etape: "plus-tard", etat: "done", auteur: "chef" }), /n'est pas une étape/);
+    log.ajouter({ project: "espace", ticket: null, author: "chef", type: "installation.step", payload: { step: "plus-tard", state: "done", previous: "todo" } });
+    noterEtape(log, { projet: "espace", etape: "ajout", etat: "done", auteur: "chef" });
+    assert.throws(() => noterEtape(log, { projet: "espace", etape: "plus-tard", etat: "done", auteur: "chef" }), /n'est pas une étape/);
   } finally {
-    journal.fermer();
+    log.fermer();
   }
   const lue = installationDe(repertoire);
   assert.deepEqual(lue.etapes.map((etape) => etape.id), ORDRE);
@@ -198,15 +198,15 @@ test("après le redémarrage du runtime, la même lecture rend les mêmes états
 
 test("rejouer le journal ne change rien aux étapes : leur état ne vit que dans ses faits", (t) => {
   const repertoire = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoire);
+  const log = openLog(repertoire);
   try {
-    noterEtape(journal, { projet: "espace", etape: "ajout", etat: "done", auteur: "chef" });
-    noterEtape(journal, { projet: "espace", etape: "init", etat: "waiting", auteur: "chef" });
+    noterEtape(log, { projet: "espace", etape: "ajout", etat: "done", auteur: "chef" });
+    noterEtape(log, { projet: "espace", etape: "init", etat: "waiting", auteur: "chef" });
     const avant = installationDe(repertoire);
-    journal.reconstruire();
+    log.reconstruire();
     assert.deepEqual(installationDe(repertoire), avant);
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 });
 

@@ -111,13 +111,13 @@ function suite<T extends { lettre: string }>(lus: readonly T[]): T[] {
   for (let debut = 0; debut < lus.length; debut++) {
     const premiere = lus[debut]?.lettre ?? "";
     if (premiere !== "a" && premiere !== "A") continue;
-    const pris = [lus[debut] as T];
+    const taken = [lus[debut] as T];
     for (let i = debut + 1; i < lus.length; i++) {
-      const attendue = String.fromCharCode(premiere.charCodeAt(0) + pris.length);
+      const attendue = String.fromCharCode(premiere.charCodeAt(0) + taken.length);
       if (lus[i]?.lettre !== attendue) break;
-      pris.push(lus[i] as T);
+      taken.push(lus[i] as T);
     }
-    if (pris.length >= 2) return pris;
+    if (taken.length >= 2) return taken;
   }
   return [];
 }
@@ -182,14 +182,14 @@ function commentairesDe(sortie: string): Commentaire[] | string {
   }
   const commentaires = (lu as { comments?: unknown } | null)?.comments;
   if (!Array.isArray(commentaires)) return "its output has no `comments` list";
-  const pris: Commentaire[] = [];
+  const taken: Commentaire[] = [];
   for (const brut of commentaires as unknown[]) {
     const { author, authorAssociation, createdAt, url, body } = (brut ?? {}) as Record<string, unknown>;
     const auteur = (author as { login?: unknown } | null)?.login;
     if (typeof body !== "string" || typeof createdAt !== "string" || typeof url !== "string") return "a comment lacks its `body`, `createdAt` or `url`";
-    pris.push({ auteur: typeof auteur === "string" ? auteur : "ghost", association: typeof authorAssociation === "string" ? authorAssociation : "NONE", a: createdAt, url, corps: body });
+    taken.push({ auteur: typeof auteur === "string" ? auteur : "ghost", association: typeof authorAssociation === "string" ? authorAssociation : "NONE", a: createdAt, url, corps: body });
   }
-  return pris;
+  return taken;
 }
 
 // L'issue à cette adresse, lue par `gh` : la question du manager qu'elle porte, s'il y en a une.

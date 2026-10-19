@@ -1,7 +1,7 @@
 // Ce qu'on attend du chef, en tête de la fiche d'une carte qui l'attend : une phrase dans les mots
 // de l'app — jamais la ligne de la file, qui dit la même chose en mots du runtime, commandes
 // comprises —, et les gestes qui tranchent, le recommandé en premier. Les deux se lisent de la
-// décision que `faits` donne pour ce ticket (runtime/src/attend.ts, `Decision`) : sa sorte, son
+// décision que `faits` donne pour ce ticket (runtime/src/awaiting.ts, `Decision`) : sa sorte, son
 // motif, ce qui le précise, sa PR. Une box d'avant ce champ, ou une sorte que l'app ne connaît
 // pas : une phrase qui ne devine rien, et aucun geste de plus que ceux de tous.
 // Ce module ne lance rien : il dit.
@@ -92,10 +92,10 @@ export function decisionLue(brute: unknown): Decision | undefined {
   return texte(quoi) && texteOuRien(motif) && texteOuRien(cause) && texteOuRien(pr) ? { quoi, motif, cause, pr } : undefined;
 }
 
-// Ce que la pass a consigné de la livraison qui attend (runtime/src/attend.ts, `Livraison`) : le
+// Ce que la pass a consigné de la livraison qui attend (runtime/src/awaiting.ts, `Livraison`) : le
 // résumé de sa relecture, son premier constat bloquant, les fichiers de ses juges qu'elle change.
 export type Juge = { fichier: string; ajoutees: number; retirees: number };
-export type Livraison = { resume?: string; constat?: string; juges?: Juge[] };
+export type Delivery = { resume?: string; constat?: string; juges?: Juge[] };
 
 // La tête de la fiche d'une livraison qui attend un merge, en deux lignes : `fait`, ce qu'elle
 // fait — la première phrase du résumé de sa relecture, absente quand la relecture n'en donne pas —,
@@ -114,29 +114,29 @@ const encore = (suite: string | undefined) => (suite === undefined ? "" : `: ${p
 
 // Rien pour une décision qui n'est pas une livraison, pour une livraison dont la pass n'a rien
 // consigné, ni pour une livraison dont le motif n'est pas l'un des trois : la phrase d'`attenduDe` suffit.
-export function teteDe(decision: Decision | undefined, livraison: Livraison | undefined): Tete | undefined {
-  if (decision === undefined || livraison === undefined || Object.keys(livraison).length === 0) return undefined;
+export function teteDe(decision: Decision | undefined, delivery: Delivery | undefined): Tete | undefined {
+  if (decision === undefined || delivery === undefined || Object.keys(delivery).length === 0) return undefined;
   const { quoi, motif, cause } = decision;
-  const juges = livraison.juges ?? [];
+  const juges = delivery.juges ?? [];
   const pourquoi =
     quoi === "merge" && motif === "review-required" && juges.length > 0
       ? "Green, but it touches the judges: review it."
       : quoi === "remontee" && motif === "still-red"
         ? cause === "manager-escalated"
-          ? `Red, the manager gave up${encore(livraison.constat)}`
-          : `Red after 2 returns${encore(livraison.constat)}`
+          ? `Red, the manager gave up${encore(delivery.constat)}`
+          : `Red after 2 returns${encore(delivery.constat)}`
         : quoi === "remontee" && motif === "unjudged" && cause === "ci-silent"
           ? "Green, the CI did not conclude."
           : undefined;
   if (pourquoi === undefined) return undefined;
-  const fait = livraison.resume === undefined || livraison.resume.trim() === "" ? undefined : premierePhrase(livraison.resume);
+  const fait = delivery.resume === undefined || delivery.resume.trim() === "" ? undefined : premierePhrase(delivery.resume);
   return { ...(fait === undefined ? {} : { fait }), pourquoi, juges };
 }
 
 const nombre = (valeur: unknown): valeur is number => typeof valeur === "number" && Number.isFinite(valeur);
 
 // La même, venue de la box : ce qui n'a pas sa forme n'est pas lu.
-export function livraisonLue(brute: unknown): Livraison | undefined {
+export function readDelivery(brute: unknown): Delivery | undefined {
   if (typeof brute !== "object" || brute === null) return undefined;
   const { resume, constat, juges } = brute as Record<string, unknown>;
   const lus = (Array.isArray(juges) ? juges : []).flatMap((juge: unknown): Juge[] => {

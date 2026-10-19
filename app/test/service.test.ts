@@ -17,18 +17,18 @@ import { ETAPES, terminer } from "../../runtime/src/etapes.ts";
 import { nommerEtape, principal as etapes } from "../../runtime/src/etapes-cli.ts";
 import { principal as stations } from "../../runtime/src/declarer-stations.ts";
 import { etapesAReprendre, type Constat } from "../../runtime/src/installation.ts";
-import { ouvrirJournal } from "../../runtime/src/journal.ts";
+import { openLog } from "../../runtime/src/log.ts";
 import { principal as decisions } from "../../runtime/src/poser-decisions.ts";
 import { commande as protection, type ClientGitHub } from "../../runtime/src/proteger-branche.ts";
 import { verdictDeLaPanne, verdictDesConstats } from "../../runtime/src/verdict.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
-import { lancerGeste, type Reglages, type Rendu, type Servi } from "../src/box.ts";
+import { lancerGeste, type Reglages, type Rendu, type Served } from "../src/box.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE } from "../src/faits.ts";
+import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
+import { BANNIERE } from "../src/facts.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
@@ -143,9 +143,9 @@ function essai(t: TestContext, corps: string) {
 const refus = (rendu: Terminal | { refus: string }): string => ("refus" in rendu ? rendu.refus : "");
 
 // `installation`, lancée sur la box par le geste, comme l'écran la lance — et ce que son rendu prouve.
-const verifier = async (reglages: Reglages, servi: Servi) => verdictDe(await lancerGeste(reglages, servi, VERIFICATION), servi.nom, reglages.delaiMs);
+const verifier = async (reglages: Reglages, served: Served) => verdictDe(await lancerGeste(reglages, served, VERIFICATION), served.nom, reglages.delaiMs);
 // `installation --json`, lancée comme « Vérifier » la lance — et le verdict que l'écran en lit.
-const juger = async (reglages: Reglages, servi: Servi) => jugementDe(await lancerGeste(reglages, servi, JUGEMENT), reglages.delaiMs);
+const juger = async (reglages: Reglages, served: Served) => jugementDe(await lancerGeste(reglages, served, JUGEMENT), reglages.delaiMs);
 
 describe("le contrôle d'un projet installé : `installation`, en texte, lancée une fois sur la box du projet", () => {
   test("ce qui part est le geste de la box, comme la veille le lance — `brigade <nom> installation`, sans terminal ni rien de plus", async (t) => {
@@ -425,12 +425,12 @@ function boxSimulee(t: TestContext, reglage: { admin?: boolean; calibrage?: bool
     PATH: "",
   };
   // Le geste d'installation pose le calibrage du manager et du reviewer (runtime/src/installateur.ts).
-  const journal = ouvrirJournal(etat);
-  const calibrage = [["BRIGADE_MANAGER_MODEL", "sonnet"], ["BRIGADE_MANAGER_EFFORT", "medium"], ["BRIGADE_REVIEWER_MODEL", "sonnet"], ["BRIGADE_REVIEWER_EFFORT", "medium"]] as const;
-  for (const [nom, valeur] of reglage.calibrage === false ? calibrage.slice(1) : calibrage) {
-    poserDecision(journal, { projet: "calculus", nom, valeur, auteur: "installeur" });
+  const log = openLog(etat);
+  const calibration = [["BRIGADE_MANAGER_MODEL", "sonnet"], ["BRIGADE_MANAGER_EFFORT", "medium"], ["BRIGADE_REVIEWER_MODEL", "sonnet"], ["BRIGADE_REVIEWER_EFFORT", "medium"]] as const;
+  for (const [nom, valeur] of reglage.calibrage === false ? calibration.slice(1) : calibration) {
+    poserDecision(log, { projet: "calculus", nom, valeur, auteur: "installeur" });
   }
-  journal.fermer();
+  log.fermer();
 
   let protegee = false;
   const github: ClientGitHub = async ({ methode, chemin }) => {
@@ -442,7 +442,7 @@ function boxSimulee(t: TestContext, reglage: { admin?: boolean; calibrage?: bool
     return { statut: 500, corps: null, scopes: null };
   };
   const stationsDeclarees = () => {
-    const lu = ouvrirJournal(etat, { lectureSeule: true });
+    const lu = openLog(etat, { lectureSeule: true });
     try {
       return decisionsPosees(lu.base).BRIGADE_STATIONS !== undefined;
     } finally {
@@ -469,7 +469,7 @@ function boxSimulee(t: TestContext, reglage: { admin?: boolean; calibrage?: bool
     // La dernière étape joue la vérification, puis termine — ou remet à faire (runtime/src/etapes-cli.ts).
     if (sous === "etapes" && reste.join(" ") === "demarrage faite") {
       const { code } = rendue(verification(), false);
-      const ouvert = ouvrirJournal(etat);
+      const ouvert = openLog(etat);
       const fin = terminer(ouvert, { projet: "calculus", aReprendre: code === 0 ? [] : ["verification"], auteur: "chef" });
       ouvert.fermer();
       if (fin.terminee) return dire(`brigade : installation terminée : « Vérifier » est vert — les ${ETAPES.length} étapes sont faites, la cuisine est prête à servir`);
@@ -484,14 +484,14 @@ function boxSimulee(t: TestContext, reglage: { admin?: boolean; calibrage?: bool
     throw new Sortie(2);
   }
   // Ce que le geste de la box rend d'une commande : ses deux sorties, et son code.
-  async function lancer(servi: { nom: string }, commande: string): Promise<Rendu> {
+  async function lancer(served: { nom: string }, commande: string): Promise<Rendu> {
     appels.push(commande);
     const [premier, ...args] = commande.split(" ");
     const sortie: string[] = [];
     const erreurs: string[] = [];
     let code = 0;
     try {
-      if (premier !== "installation" || servi.nom !== "calculus") throw new Sortie(65);
+      if (premier !== "installation" || served.nom !== "calculus") throw new Sortie(65);
       await jouer(args, (ligne) => void sortie.push(ligne), (ligne) => void erreurs.push(ligne));
     } catch (erreur) {
       if (!(erreur instanceof Sortie)) throw erreur;
@@ -501,12 +501,12 @@ function boxSimulee(t: TestContext, reglage: { admin?: boolean; calibrage?: bool
     return { lance: `$ ssh ${OPTIONS} -- box brigade calculus ${commande}`, erreur: echec, sortie: sortie.map((ligne) => `${ligne}\n`).join(""), erreurs: erreurs.map((ligne) => `${ligne}\n`).join("") };
   }
   // Ce que le journal porte, relu par la commande du runtime — pas par l'app.
-  const etapesAuJournal = async () => {
+  const loggedSteps = async () => {
     const dit: string[] = [];
     await etapes({ args: ["--json"], env, dire: (ligne) => void dit.push(ligne), redire: () => {} });
     return lireEtapes(dit.join("\n"));
   };
-  return { env, appels, lancer, etapesAuJournal, protegee: () => protegee };
+  return { env, appels, lancer, etapesAuJournal: loggedSteps, protegee: () => protegee };
 }
 
 // L'app, ouverte sur cette box : ses installations, branchées comme dans le process principal (main.ts).
@@ -657,10 +657,10 @@ describe("chaque geste est un bouton ou une réponse", () => {
     assert.match(detail.lu.droits[0]?.action ?? "", /donner le rôle Admin sur chef\/calculus à `chef`/);
 
     await services.proteger(CALCULUS);
-    const bloquee = await guide(services);
+    const blocked = await guide(services);
 
-    assert.equal(etats(bloquee).protection, "waiting");
-    assert.equal(bloquee.fait?.ok, false);
+    assert.equal(etats(blocked).protection, "waiting");
+    assert.equal(blocked.fait?.ok, false);
     assert.equal(box.protegee(), false);
   });
 
@@ -933,7 +933,7 @@ describe("ce que l'app lit du runtime : ses formes, telles qu'il les écrit", ()
 
 describe("l'écran, tel que la vue le pose", () => {
   // L'espace de « calculus », ouvert par sa case de la barre, sur l'installation que l'app tient de sa box.
-  async function ouvrirLEcran(lu: Guide) {
+  async function openTheScreen(lu: Guide) {
     const vue = await jouerLaVue({
       demarrage: () => ({
         configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [CALCULUS], hotes: ["box"] }),
@@ -942,7 +942,7 @@ describe("l'écran, tel que la vue le pose", () => {
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
         boutons: BOUTONS,
-        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,
@@ -963,7 +963,7 @@ describe("l'écran, tel que la vue le pose", () => {
     services.suivre(CALCULUS);
     const lu = await guide(services);
 
-    const vue = await ouvrirLEcran(lu);
+    const vue = await openTheScreen(lu);
 
     const service = vue.element("service") as Faux & { open?: boolean };
     assert.equal(service.hidden, false);
@@ -1002,7 +1002,7 @@ describe("l'écran, tel que la vue le pose", () => {
     await services.direMerge(CALCULUS, true);
     const lu = await guide(services);
 
-    const vue = await ouvrirLEcran(lu);
+    const vue = await openTheScreen(lu);
     const stations = vue.element("service-etapes").children[3];
     assert.ok(stations !== undefined);
     const nombre = stations.dessous("input").find((champ) => (champ as Faux & { type?: string }).type === "number");
@@ -1015,7 +1015,7 @@ describe("l'écran, tel que la vue le pose", () => {
   });
 
   // Le bloc de « Vérifier », sous son bouton : le verdict, puis ce qu'il dit.
-  const verificationDe = (vue: Awaited<ReturnType<typeof ouvrirLEcran>>) => vue.element("service-tete").dessous("div").find(({ className }) => className === "verification") ?? assert.fail("aucune vérification posée");
+  const verificationDe = (vue: Awaited<ReturnType<typeof openTheScreen>>) => vue.element("service-tete").dessous("div").find(({ className }) => className === "verification") ?? assert.fail("aucune vérification posée");
   const partie = (verification: Faux, classe: string) => verification.children.find(({ className }) => className === classe);
   // Le mode d'emploi qu'elle portait, et le verdict qu'il accompagnait : plus rien de cela.
   const MODE_D_EMPLOI = /Each `MANQUE` line|the arrow \(`→`\)|Where the arrow says|holds nothing back —|NOT READY/;
@@ -1028,7 +1028,7 @@ describe("l'écran, tel que la vue le pose", () => {
     const lu = await guide(services);
     assert.ok(lu.verification?.etat === "pret");
 
-    const vue = await ouvrirLEcran(lu);
+    const vue = await openTheScreen(lu);
 
     const verification = verificationDe(vue);
     const [premiere] = verification.children;
@@ -1055,7 +1055,7 @@ describe("l'écran, tel que la vue le pose", () => {
     const lu = await guide(services);
     assert.ok(lu.verification?.etat === "pas-pret");
 
-    const vue = await ouvrirLEcran(lu);
+    const vue = await openTheScreen(lu);
 
     const verification = verificationDe(vue);
     assert.equal(verification.children[0]?.textContent, "pas prêt : 4 choses à faire");
@@ -1089,7 +1089,7 @@ describe("l'écran, tel que la vue le pose", () => {
     const lu = await guide(services);
     assert.ok(lu.verification?.etat === "plantee");
 
-    const vue = await ouvrirLEcran(lu);
+    const vue = await openTheScreen(lu);
 
     const verification = verificationDe(vue);
     const phrase = verification.children[0]?.textContent ?? "";
@@ -1114,7 +1114,7 @@ describe("l'écran, tel que la vue le pose", () => {
     const lu = await guide(services);
     assert.equal(lu.termine, true);
 
-    const vue = await ouvrirLEcran(lu);
+    const vue = await openTheScreen(lu);
 
     assert.equal((vue.element("service") as Faux & { hidden?: boolean }).hidden, true);
     assert.equal(vue.element("service-etapes").children.length, 0);
@@ -1128,7 +1128,7 @@ describe("un projet installé n'affiche jamais l'écran d'installation", () => {
   function boxInstallee() {
     const { terminaux } = fauxTerminaux();
     const etat = { muette: false };
-    const lancer = async (_servi: unknown, commande: string): Promise<Rendu> => {
+    const lancer = async (_served: unknown, commande: string): Promise<Rendu> => {
       if (etat.muette) return { lance: "$ ssh box", erreur: Object.assign(new Error("ssh"), { code: 255, killed: false, cmd: "ssh" }), sortie: "", erreurs: "ssh: connect to host box port 22: Connection refused\n" };
       return { lance: `$ ssh box ${commande}`, erreur: null, sortie: commande === COMMANDES.etapes ? `${finies}\n` : "", erreurs: "" };
     };

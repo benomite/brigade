@@ -10,8 +10,8 @@ export type Affichee = Omit<Configuration, "projets"> & { projets: (Projet & { m
 export function monogramme(nom: string): string {
   const mots = nom.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   const [premier, second] = mots.map((mot) => [...mot]);
-  const pris = premier === undefined ? [...nom.trim()].slice(0, 2) : second === undefined ? premier.slice(0, 2) : [premier[0], second[0]];
-  return majuscules(pris.join(""));
+  const taken = premier === undefined ? [...nom.trim()].slice(0, 2) : second === undefined ? premier.slice(0, 2) : [premier[0], second[0]];
+  return majuscules(taken.join(""));
 }
 
 // Ce que la vue reçoit du fichier des projets : le même, et un monogramme par projet.

@@ -27,7 +27,7 @@ import { Sortie, type Appel } from "./appel.ts";
 import { ETAPES, installationDe, noterEtape } from "./etapes.ts";
 import type { EtatDEtape } from "./events/installation.ts";
 import { geste } from "./geste.ts";
-import { cheminJournal, ouvrirJournal } from "./journal.ts";
+import { logPath, openLog } from "./log.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
 const ETAPE = "protection";
@@ -286,7 +286,7 @@ const ETATS_LUS: Record<EtatDEtape, string> = { todo: "à faire", done: "faite",
 const PROTECTIONS_LUES = { posee: "posée", autre: "autre", absente: "absente", illisible: "illisible" } as const;
 
 // La forme JSON : un contrat avec l'app, figé par `test/proteger-branche.test.ts`.
-export function faitsDeLaProtection(lus: { etat: EtatDEtape; depot: string; branche: string; lecture: Lecture | null; illisible: string | null }) {
+export function protectionFacts(lus: { etat: EtatDEtape; depot: string; branche: string; lecture: Lecture | null; illisible: string | null }) {
   const { lecture } = lus;
   const protection = lecture?.protection;
   return {
@@ -331,28 +331,28 @@ export async function commande({ args, env, dire, redire }: Appel, client: Clien
     } catch (erreur) {
       illisible = erreur instanceof Error ? erreur.message : String(erreur);
     }
-    const faits = faitsDeLaProtection({ etat, depot, branche, lecture, illisible });
-    if (args.length === 1) dire(JSON.stringify(faits));
-    else montrer(faits);
+    const facts = protectionFacts({ etat, depot, branche, lecture, illisible });
+    if (args.length === 1) dire(JSON.stringify(facts));
+    else montrer(facts);
     return;
   }
   if (args.length !== 1 || args[0] !== "poser") echouer(2, USAGE);
 
   // Sans journal, il en naîtra un au nom que l'unité donne au projet : sans
   // ce nom, rien n'est essayé sur GitHub.
-  if (!existsSync(cheminJournal(repertoireEtat)) && !env.BRIGADE_PROJECT) echouer(1, `aucun journal dans ${repertoireEtat}, et BRIGADE_PROJECT n'est pas défini : rien ne dit à quel projet noter l'étape`);
+  if (!existsSync(logPath(repertoireEtat)) && !env.BRIGADE_PROJECT) echouer(1, `aucun journal dans ${repertoireEtat}, et BRIGADE_PROJECT n'est pas défini : rien ne dit à quel projet noter l'étape`);
   let pose: Pose;
   try {
     pose = await poser(client, depot, branche);
   } catch (erreur) {
     echouer(1, `${erreur instanceof Error ? erreur.message : String(erreur)} — rien n'est posé, l'étape reste où elle en était`);
   }
-  const journal = ouvrirJournal(repertoireEtat);
+  const log = openLog(repertoireEtat);
   try {
-    const projet = journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ?? env.BRIGADE_PROJECT ?? "";
-    noterEtape(journal, { projet, etape: ETAPE, etat: pose.issue === "posee" ? "done" : "waiting", auteur: AUTEUR });
+    const projet = log.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ?? env.BRIGADE_PROJECT ?? "";
+    noterEtape(log, { projet, etape: ETAPE, etat: pose.issue === "posee" ? "done" : "waiting", auteur: AUTEUR });
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 
   if (pose.issue === "bloquee") {
@@ -375,28 +375,28 @@ export async function commande({ args, env, dire, redire }: Appel, client: Clien
   else dire(`brigade : la push protection de GitHub n'est pas activée (${push.raison}) : gratuite sur un dépôt public, elle réclame GitHub Secret Protection sur un dépôt privé — la station reste la seule barrière contre une livraison qui porterait des identifiants`);
   dire(`brigade : « ${etape.titre} » notée faite`);
 
-  function montrer(faits: ReturnType<typeof faitsDeLaProtection>): void {
+  function montrer(facts: ReturnType<typeof protectionFacts>): void {
     if (etape === undefined) return;
-    dire(`brigade : « ${etape.titre} » — ${faits.etape.etat}`);
+    dire(`brigade : « ${etape.titre} » — ${facts.etape.etat}`);
     dire(`  à quoi elle sert : ${etape.sert}`);
     dire(`  si tu la sautes  : ${etape.sauter}`);
     dire("");
     const lue = {
-      posée: `\`${faits.branche}\` est protégée sur ${faits.depot}`,
-      autre: `\`${faits.branche}\` est protégée sur ${faits.depot}, sans ${faits.manque.join(", ni ")}`,
-      absente: `\`${faits.branche}\` n'est pas protégée sur ${faits.depot}`,
-      illisible: `\`${faits.branche}\` sur ${faits.depot} : ${faits.raison ?? "illisible"}`,
-    }[faits.protection];
+      posée: `\`${facts.branche}\` est protégée sur ${facts.depot}`,
+      autre: `\`${facts.branche}\` est protégée sur ${facts.depot}, sans ${facts.manque.join(", ni ")}`,
+      absente: `\`${facts.branche}\` n'est pas protégée sur ${facts.depot}`,
+      illisible: `\`${facts.branche}\` sur ${facts.depot} : ${facts.raison ?? "illisible"}`,
+    }[facts.protection];
     dire(lue);
-    if (faits.protection === "autre") dire(`  → ${REGLER_A_LA_MAIN(faits.depot, faits.branche)}`);
-    if (faits.protection !== "absente") return;
-    for (const droit of faits.droits) {
+    if (facts.protection === "autre") dire(`  → ${REGLER_A_LA_MAIN(facts.depot, facts.branche)}`);
+    if (facts.protection !== "absente") return;
+    for (const droit of facts.droits) {
       dire(`  il manque : ${droit.droit}`);
       dire(`  → ${droit.action}`);
       dire(`    pourquoi : ${droit.pourquoi}`);
     }
     dire("");
-    dire(`Pour la protéger : \`${geste("installation protection poser", env)}\`${faits.droits.length > 0 ? ", une fois ce qui manque donné" : ""}`);
+    dire(`Pour la protéger : \`${geste("installation protection poser", env)}\`${facts.droits.length > 0 ? ", une fois ce qui manque donné" : ""}`);
   }
 }
 

@@ -16,7 +16,7 @@ import { chownSync, existsSync, lchownSync, mkdirSync, readFileSync, renameSync,
 import { dirname, join } from "node:path";
 import { lireEnService } from "../mise-a-jour/en-service.ts";
 import { CONFIGURATION, ETATS } from "../station/configuration.ts";
-import { ecrirePortes, FICHIER_PORTES, lirePortes } from "../station/portes.ts";
+import { writeDoors, DOORS_FILE, readDoors } from "../station/doors.ts";
 import type { Lieux, Plan } from "./ancienne.ts";
 
 export type Systemctl = (args: string[]) => { code: number; sortie: string };
@@ -72,11 +72,11 @@ export function basculer(plan: Plan, ici: Lieux, options: { systemctl?: Systemct
   }
   // Puis leurs portes : celles de la station prendront leurs ports. Leurs
   // cooks en vol restent sans réseau jusque-là.
-  if (plan.portes.length > 0) {
-    dire(`bascule : arrêt des anciennes portes — ${plan.portes.join(", ")} ; celles de la station reprennent leurs ports`);
-    exiger(["disable", "--now", ...plan.portes]);
+  if (plan.doors.length > 0) {
+    dire(`bascule : arrêt des anciennes portes — ${plan.doors.join(", ")} ; celles de la station reprennent leurs ports`);
+    exiger(["disable", "--now", ...plan.doors]);
   }
-  for (const unite of plan.portes) {
+  for (const unite of plan.doors) {
     if (lancer(["is-active", "--quiet", unite]).code === 0) throw new BasculeEnEchec(`${unite} tourne encore après son arrêt : la porte de la station ne peut pas reprendre son port`);
   }
   if (plan.renouvellement.length > 0) {
@@ -102,13 +102,13 @@ export function basculer(plan: Plan, ici: Lieux, options: { systemctl?: Systemct
   // Le port de chaque porte reprise, là où les portes de la station le
   // chercheront : chacune reprend le sien. Ce qu'elles tiennent déjà n'est
   // pas touché.
-  const portes = join(ici.station, FICHIER_PORTES);
-  const tenues = lirePortes(portes);
+  const doors = join(ici.station, DOORS_FILE);
+  const tenues = readDoors(doors);
   const reprises = plan.projets.filter((projet) => projet.porte !== null && tenues.projets[projet.nom] === undefined);
   if (reprises.length > 0) {
     const projets = { ...tenues.projets };
     for (const projet of reprises) projets[projet.nom] = projet.porte ?? 0;
-    ecrirePortes(portes, { station: tenues.station, projets }, sien ?? undefined);
+    writeDoors(doors, { station: tenues.station, projets }, sien ?? undefined);
   }
   const fichier = join(ici.station, CONFIGURATION);
   const avant = existsSync(fichier) ? readFileSync(fichier, "utf8") : "";
@@ -131,7 +131,7 @@ export function basculer(plan: Plan, ici: Lieux, options: { systemctl?: Systemct
     if (projet.decisionsEcartees.length > 0) dire(`bascule : ${projet.nom} — ${projet.decisionsEcartees.join(", ")} dans son unité, non repris : une décision vit au journal du projet, que l'ancienne unité lisait déjà`);
     if (projet.reglagesDeLUnite.length > 0) dire(`bascule : ${projet.nom} — réglages de son unité non repris (${projet.reglagesDeLUnite.join(", ")}) : ceux de la station s'appliquent`);
   }
-  for (const nom of plan.sansJournal) dire(`bascule : brigade@${nom}.service — aucun journal, rien à reprendre : son unité est retirée`);
+  for (const nom of plan.withoutLog) dire(`bascule : brigade@${nom}.service — aucun journal, rien à reprendre : son unité est retirée`);
 
   // 3. Ce que l'ancienne installation avait posé dans le système part.
   for (const chemin of [...plan.regles, ...plan.liens, ...plan.unites]) {
@@ -173,8 +173,8 @@ export async function attendreLaReprise(ici: Lieux, options: { delaiMs?: number;
   const limite = Date.now() + (options.delaiMs ?? 180_000);
   for (;;) {
     const enService = lireEnService(ici.station);
-    const servis = enService !== null && vivant(enService.pid) ? enService.servis : [];
-    const manquent = note.projets.filter((projet) => !servis.includes(projet));
+    const servedOnes = enService !== null && vivant(enService.pid) ? enService.servis : [];
+    const manquent = note.projets.filter((projet) => !servedOnes.includes(projet));
     if (manquent.length === 0) {
       const reprise = maintenant();
       ecrireAtomique(ici.note, `${JSON.stringify({ ...note, reprise: reprise.toISOString() } satisfies Note)}\n`);

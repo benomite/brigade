@@ -6,14 +6,14 @@
 import type { Appel } from "../appel.ts";
 import { geste } from "../geste.ts";
 import { Sortie } from "../appel.ts";
-import { ouvrirJournal, type Journal } from "../journal.ts";
-import { journalPasRejoue } from "../journal-pas-rejoue.ts";
-import { direJaugeEn, franchis, SANS_SEUIL } from "../mesures.ts";
+import { openLog, type Log } from "../log.ts";
+import { logNotReplayed } from "../log-not-replayed.ts";
+import { direJaugeEn, franchis, SANS_SEUIL } from "../measures.ts";
 import { mergedDeliveries, seuilsEnVigueur } from "../projections/measures.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { MODULE, repererCodeMort, type Mort } from "./dead-code.ts";
 import { direBilan } from "./report.ts";
-import { demandeEnAttente, refus, reglagesEnVigueur } from "./condition.ts";
+import { queuedRequest, refus, reglagesEnVigueur } from "./condition.ts";
 import { colonnes, direDemandeEn, direFinEn, direRefusEn, ligne, pluriel } from "./say.ts";
 import { CODE, LIGNES_MIN, repererDoublons, type Doublon } from "./duplicates.ts";
 import { arbreDe, DepotIllisible, lireDepot, TAILLE_MAX, type Depot } from "./reading.ts";
@@ -97,13 +97,13 @@ export function decrire({ ref, sha, dernierMerge, fenetres, doublons, fichiers, 
 // range, la demande qui attend et ce qui la retient, ou comment la dernière a fini — c'est ici qu'une passe arrêtée par un
 // garde-fou se lit —, puis le bilan de la dernière qui a fini. Rien, tant
 // qu'aucune n'a été demandée.
-function direPasse(journal: Journal, arbre: (commit: string) => string | null): string[] {
-  const dernier = <T extends "closing.requested" | "closing.refused" | "closing.cancelled" | "closing.started" | "closing.ended">(type: T) => journal.duType(type, 1)[0];
+function direPasse(log: Log, arbre: (commit: string) => string | null): string[] {
+  const dernier = <T extends "closing.requested" | "closing.refused" | "closing.cancelled" | "closing.started" | "closing.ended">(type: T) => log.duType(type, 1)[0];
   const [demandee, refusee, retiree, partie, finie] = [dernier("closing.requested"), dernier("closing.refused"), dernier("closing.cancelled"), dernier("closing.started"), dernier("closing.ended")];
   const recent = [demandee, refusee, retiree, partie, finie].reduce((plus, fait) => Math.max(plus, fait?.seq ?? 0), 0);
   if (recent === 0) return [];
   const le = (at: string) => at.slice(0, 16).replace("T", " ");
-  const attend = demandeEnAttente(journal.base);
+  const awaiting = queuedRequest(log.base);
   const dit =
     finie?.seq === recent
       ? `${finie.payload.run}, on ${le(finie.at)} — ${direFinEn(finie.payload)}`
@@ -113,39 +113,39 @@ function direPasse(journal: Journal, arbre: (commit: string) => string | null): 
           ? `refused on ${le(refusee.at)} — ${direRefusEn(refusee.payload)}`
           : retiree?.seq === recent
             ? `requested then withdrawn by the chef on ${le(retiree.at)} — nothing has left`
-            : attend !== null
-              ? direDemandeEn(attend, refus(journal.base, reglagesEnVigueur(journal), false))
+            : awaiting !== null
+              ? direDemandeEn(awaiting, refus(log.base, reglagesEnVigueur(log), false))
               : `requested on ${le(demandee?.at ?? "")} — the runtime has not taken it yet`;
   return [
     ligne("pass", dit),
     // Une demande venue depuis ne l'efface pas : le bilan dit alors de quelle passe il est.
-    ...(finie === undefined ? [] : [...(finie.seq === recent ? [] : [ligne("", `the last finished pass: ${finie.payload.run}, on ${le(finie.at)} — ${direFinEn(finie.payload)}`)]), ...direBilan(journal, finie.payload, arbre)]),
+    ...(finie === undefined ? [] : [...(finie.seq === recent ? [] : [ligne("", `the last finished pass: ${finie.payload.run}, on ${le(finie.at)} — ${direFinEn(finie.payload)}`)]), ...direBilan(log, finie.payload, arbre)]),
   ];
 }
 
 // Les compteurs de la dérive, tels que le relevé des mesures les tient : rien
 // n'est recompté ici. `arbre` : l'arbre d'un commit du clone, pour le bilan. Le journal est lu sans être ouvert en écriture, et son
 // absence n'empêche pas d'observer le dépôt.
-function direJournal(repertoireEtat: string | undefined, arbre: (commit: string) => string | null): string[] {
+function sayLog(repertoireEtat: string | undefined, arbre: (commit: string) => string | null): string[] {
   const nonLu = (pourquoi: string) => [ligne("log", `not read: ${pourquoi} — the drift counters are read with \`${geste(`measures`)}\``)];
   if (!repertoireEtat) return nonLu("BRIGADE_STATE_DIR is not set");
-  let journal;
+  let log;
   try {
-    journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
+    log = openLog(repertoireEtat, { lectureSeule: true });
   } catch (erreur) {
     return nonLu(erreur instanceof Error ? erreur.message : String(erreur));
   }
   try {
-    const livraisons = mergedDeliveries(journal.base);
-    const seuils = seuilsEnVigueur(journal.base);
-    const passes = franchis(livraisons, seuils ?? SANS_SEUIL);
+    const deliveries = mergedDeliveries(log.base);
+    const seuils = seuilsEnVigueur(log.base);
+    const passes = franchis(deliveries, seuils ?? SANS_SEUIL);
     const constat = seuils === null ? "no threshold declared" : passes.length === 0 ? "no threshold crossed" : `${pluriel(passes.length, "threshold")} crossed, details with \`${geste(`measures`)}\``;
-    return [ligne("log", `${pluriel(livraisons.length, "merge")} since the last closing (none in the log) — ${constat}`), ...passes.map((franchi) => ligne("", direJaugeEn(franchi))), ...direPasse(journal, arbre)];
+    return [ligne("log", `${pluriel(deliveries.length, "merge")} since the last closing (none in the log) — ${constat}`), ...passes.map((franchi) => ligne("", direJaugeEn(franchi))), ...direPasse(log, arbre)];
   } catch (erreur) {
-    if (journalPasRejoue(erreur)) return nonLu("it does not yet have the measures record, restart the runtime to recompute it");
+    if (logNotReplayed(erreur)) return nonLu("it does not yet have the measures record, restart the runtime to recompute it");
     throw erreur;
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }
 
@@ -165,5 +165,5 @@ export function principal({ args, env, dire: sortir, redire }: Appel): void {
     if (erreur instanceof DepotIllisible) echouer(1, erreur.message);
     throw erreur;
   }
-  for (const texte of [...decrire(observer(depot)), "", ...direJournal(env.BRIGADE_STATE_DIR, (commit) => arbreDe(clone, env, commit))]) sortir(texte);
+  for (const texte of [...decrire(observer(depot)), "", ...sayLog(env.BRIGADE_STATE_DIR, (commit) => arbreDe(clone, env, commit))]) sortir(texte);
 }

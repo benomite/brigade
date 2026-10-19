@@ -10,16 +10,16 @@ import { describe, test, type TestContext } from "node:test";
 import { direDesinstallation, lireRetrait, type Plan } from "../../runtime/src/desinstallateur.ts";
 import { ouvrirVeille } from "../src/box.ts";
 import type { Projet } from "../src/config.ts";
-import { argumentsDuRetrait, DESINSTALLER, gesteDeRetrait, lancerRetrait, PLANIFIER, RETIRER, tenirRetraits, type Demande, type Montre, type Rendu, type Retrait } from "../src/retrait.ts";
+import { argumentsDuRetrait, UNINSTALL, gesteDeRetrait, lancerRetrait, PLANIFIER, RETIRER, tenirRetraits, type Demande, type Montre, type Rendu, type Retrait } from "../src/retrait.ts";
 import { suivreConfiguration } from "../src/suivi.ts";
 
 const OPTIONS = "-o BatchMode=yes -o ConnectTimeout=10";
 const GESTE = "sudo -n /usr/local/bin/brigade-installer uninstall calculus";
 const ETAT = "/var/lib/brigade/calculus";
-const JOURNAL = "le journal de calculus, sur la box\n";
+const LOG = "le journal de calculus, sur la box\n";
 
 // Ce que le geste de la box dit d'un projet installé et servi : son plan, avec ou sans son journal.
-const plan = (journal: boolean): Plan => ({
+const plan = (log: boolean): Plan => ({
   projet: "calculus",
   retire: {
     unites: [{ unite: "brigade@calculus.service", enMarche: true }],
@@ -28,16 +28,16 @@ const plan = (journal: boolean): Plan => ({
     worktrees: 2,
     versions: null,
     ports: [3129],
-    journal: journal ? ETAT : null,
+    journal: log ? ETAT : null,
   },
-  garde: { journal: journal ? null : ETAT, sauvegardes: "/srv/sauvegardes/calculus" },
+  garde: { journal: log ? null : ETAT, sauvegardes: "/srv/sauvegardes/calculus" },
   perdus: [],
   aSavoir: [],
 });
 // Ce qu'il écrit : ses phrases sur sa sortie d'erreur, son objet sur sa sortie standard (runtime/src/installateur-cli.ts).
-const phrases = (fait: "plan" | "desinstalle", journal: boolean) =>
-  direDesinstallation({ fait, plan: plan(journal) }, { projet: "calculus", plan: fait === "plan", confirmation: fait === "plan" ? null : "calculus", journal });
-const objet = (fait: "plan" | "desinstalle", journal: boolean) => JSON.stringify({ ok: true, action: "uninstall", fait, ...plan(journal) });
+const phrases = (fait: "plan" | "desinstalle", log: boolean) =>
+  direDesinstallation({ fait, plan: plan(log) }, { projet: "calculus", plan: fait === "plan", confirmation: fait === "plan" ? null : "calculus", journal: log });
+const objet = (fait: "plan" | "desinstalle", log: boolean) => JSON.stringify({ ok: true, action: "uninstall", fait, ...plan(log) });
 
 // Une ligne que le faux ssh écrit telle quelle, quoi qu'elle porte.
 const dit = (ligne: string) => `printf '%s\\n' '${ligne.replaceAll("'", `'\\''`)}'`;
@@ -66,12 +66,12 @@ function essai(t: TestContext, corps: string = STATION, contenu?: (racine: strin
   chmodSync(ssh, 0o755);
   for (const dossier of ["calculus", "parade", "box", "rendus"]) mkdirSync(join(racine, dossier));
   writeFileSync(join(racine, "box/drop-in"), "[Service]\n");
-  writeFileSync(join(racine, "box/journal"), JOURNAL);
+  writeFileSync(join(racine, "box/journal"), LOG);
   for (const fait of ["plan", "desinstalle"] as const) {
-    for (const journal of [false, true]) {
-      const nom = join(racine, "rendus", `${fait}-${journal ? "supprime" : "garde"}`);
-      writeFileSync(`${nom}.err`, `${phrases(fait, journal).join("\n")}\n`);
-      writeFileSync(`${nom}.out`, `${objet(fait, journal)}\n`);
+    for (const log of [false, true]) {
+      const nom = join(racine, "rendus", `${fait}-${log ? "supprime" : "garde"}`);
+      writeFileSync(`${nom}.err`, `${phrases(fait, log).join("\n")}\n`);
+      writeFileSync(`${nom}.out`, `${objet(fait, log)}\n`);
     }
   }
   const chemin = join(racine, "app.json");
@@ -84,9 +84,9 @@ function essai(t: TestContext, corps: string = STATION, contenu?: (racine: strin
   const retraits = tenirRetraits({
     chemin,
     retirer: suivi.retirer,
-    lancer: (servi, demande) => {
+    lancer: (served, demande) => {
       demandes.push(demande);
-      return lancerRetrait({ ssh, delaiMs: demande.plan ? delais.plan : delais.execution, connexionS: 10 }, servi, demande);
+      return lancerRetrait({ ssh, delaiMs: demande.plan ? delais.plan : delais.execution, connexionS: 10 }, served, demande);
     },
     surDesinstalle: (nom) => void desinstalles.push(nom),
   });
@@ -112,26 +112,26 @@ describe("retirer un projet : deux gestes, deux libellés", () => {
   test("deux actions distinctes sont proposées pour un projet, et leurs libellés disent laquelle touche à quoi", (t) => {
     const { retraits, calculus, chemin } = essai(t);
 
-    const { retirer, desinstaller } = retraits.etat(calculus);
+    const { retirer, desinstaller: uninstall } = retraits.etat(calculus);
 
     assert.equal(retirer.libelle, "Remove from the app");
-    assert.equal(desinstaller.libelle, "Uninstall from the station");
-    assert.deepEqual([retirer.libelle, desinstaller.libelle, PLANIFIER], [RETIRER, DESINSTALLER, "See what the station would remove"]);
+    assert.equal(uninstall.libelle, "Uninstall from the station");
+    assert.deepEqual([retirer.libelle, uninstall.libelle, PLANIFIER], [RETIRER, UNINSTALL, "See what the station would remove"]);
     // Chacun dit ce qu'il ne fait pas : le premier ne touche pas à la box, le second ne retire rien de l'app.
     assert.ok(retirer.lignes.some((ligne) => ligne.includes(chemin)));
     assert.match(retirer.lignes.join("\n"), /Nothing is sent to station “box”: the project stays installed there.*with its log intact/);
-    assert.match(desinstaller.lignes.join("\n"), /the station first states its plan, removing nothing/);
-    assert.match(desinstaller.lignes.join("\n"), /It stays in the app: removing it from there is the other action/);
+    assert.match(uninstall.lignes.join("\n"), /the station first states its plan, removing nothing/);
+    assert.match(uninstall.lignes.join("\n"), /It stays in the app: removing it from there is the other action/);
   });
 
   test("un projet sans box n'a que le premier : il n'y a rien à désinstaller, et c'est dit", (t) => {
     const { retraits, racine, appels } = essai(t);
 
-    const { retirer, desinstaller } = retraits.etat({ nom: "parade", dossier: join(racine, "parade") });
+    const { retirer, desinstaller: uninstall } = retraits.etat({ nom: "parade", dossier: join(racine, "parade") });
 
     assert.equal(retirer.libelle, RETIRER);
-    assert.equal(desinstaller.geste, undefined);
-    assert.match(desinstaller.lignes.join("\n"), /“parade” does not say where its station is: the app has nothing to uninstall there/);
+    assert.equal(uninstall.geste, undefined);
+    assert.match(uninstall.lignes.join("\n"), /“parade” does not say where its station is: the app has nothing to uninstall there/);
     assert.deepEqual(appels(), []);
   });
 });
@@ -145,7 +145,7 @@ describe("retirer de l'app", () => {
     // Ni `ssh` lancé, ni rien de demandé à la box — et la box est comme avant.
     assert.deepEqual(appels(), []);
     assert.deepEqual(demandes, []);
-    assert.equal(lu("box/journal"), JOURNAL);
+    assert.equal(lu("box/journal"), LOG);
     assert.equal(existsSync(join(racine, "box/drop-in")), true);
     // L'app, elle, ne l'a plus : ni dans le fichier, ni dans la liste que la barre montre.
     assert.deepEqual(declares(), ["parade"]);
@@ -166,7 +166,7 @@ describe("retirer de l'app", () => {
     // Rien d'autre n'a été demandé à la box que ce plan : ni lancé, ni même en route.
     assert.deepEqual(demandes, [{ plan: true, journal: false }]);
     assert.deepEqual(appels(), [`${OPTIONS} -- box ${GESTE} --plan`]);
-    assert.equal(lu("box/journal"), JOURNAL);
+    assert.equal(lu("box/journal"), LOG);
     assert.deepEqual(declares(), ["parade"]);
   });
 
@@ -235,7 +235,7 @@ describe("désinstaller de la box", () => {
   test("le plan d'abord : ce que la box dit qu'elle retirerait est affiché mot pour mot, et rien n'est retiré", async (t) => {
     const { retraits, calculus, appels, lu, racine, desinstalles } = essai(t);
 
-    const { plan: montre, desinstallerRefuse } = geste(await retraits.planifier(calculus));
+    const { plan: montre, desinstallerRefuse: uninstallRefused } = geste(await retraits.planifier(calculus));
 
     assert.equal(montre?.etat, "plan");
     assert.match(montre?.titre ?? "", /^WHAT STATION “box” WOULD REMOVE — nothing is removed/);
@@ -244,23 +244,23 @@ describe("désinstaller de la box", () => {
     assert.match(texte(montre), /The log is not part of what the station would remove: it keeps it \(\/var\/lib\/brigade\/calculus\)\./);
     // Un seul appel, le plan — et la box est comme avant.
     assert.deepEqual(appels(), [`${OPTIONS} -- box ${GESTE} --plan`]);
-    assert.equal(lu("box/journal"), JOURNAL);
+    assert.equal(lu("box/journal"), LOG);
     assert.equal(existsSync(join(racine, "box/drop-in")), true);
     assert.deepEqual(desinstalles, []);
     // Le plan rendu, la désinstallation se propose : il reste à la confirmer.
-    assert.equal(desinstallerRefuse, undefined);
+    assert.equal(uninstallRefused, undefined);
   });
 
   test("sans plan, rien ne s'exécute : la désinstallation est refusée, et rien ne part vers la box", async (t) => {
     const { retraits, calculus, appels, lu } = essai(t);
 
     assert.match(geste(retraits.etat(calculus)).desinstallerRefuse ?? "", /^No uninstall: the station has not yet said what it would remove/);
-    const { issue } = geste(await retraits.desinstaller(calculus, "calculus"));
+    const { issue } = geste(await retraits.uninstall(calculus, "calculus"));
 
     assert.equal(issue?.etat, "pas-parti");
     assert.match(texte(issue), /The station has not yet said what it would remove: “See what the station would remove” first/);
     assert.deepEqual(appels(), []);
-    assert.equal(lu("box/journal"), JOURNAL);
+    assert.equal(lu("box/journal"), LOG);
   });
 
   const SANS_NOM: [string, unknown, RegExp][] = [
@@ -275,14 +275,14 @@ describe("désinstaller de la box", () => {
       const { retraits, calculus, appels, lu, racine, desinstalles } = essai(t);
       await retraits.planifier(calculus);
 
-      const pose = geste(await retraits.desinstaller(calculus, saisi));
+      const pose = geste(await retraits.uninstall(calculus, saisi));
 
       assert.equal(pose.issue?.etat, "pas-parti");
       assert.match(texte(pose.issue), /^NOTHING WAS SENT TO THE STATION/);
       assert.match(texte(pose.issue), raison);
       // Le plan, et lui seul : la box n'a rien reçu d'autre, et n'a rien perdu.
       assert.deepEqual(appels(), [`${OPTIONS} -- box ${GESTE} --plan`]);
-      assert.equal(lu("box/journal"), JOURNAL);
+      assert.equal(lu("box/journal"), LOG);
       assert.equal(existsSync(join(racine, "box/drop-in")), true);
       assert.deepEqual(desinstalles, []);
       // Le plan vaut toujours : il reste à écrire le bon nom.
@@ -294,7 +294,7 @@ describe("désinstaller de la box", () => {
     const { retraits, calculus, appels, lu, racine, desinstalles } = essai(t);
     await retraits.planifier(calculus);
 
-    const pose = geste(await retraits.desinstaller(calculus, " calculus "));
+    const pose = geste(await retraits.uninstall(calculus, " calculus "));
 
     assert.equal(pose.issue?.etat, "desinstalle");
     assert.equal(pose.issue?.titre, "UNINSTALLED FROM STATION “box”");
@@ -302,7 +302,7 @@ describe("désinstaller de la box", () => {
     assert.deepEqual(appels(), [`${OPTIONS} -- box ${GESTE} --plan`, `${OPTIONS} -- box ${GESTE} --confirmer calculus`]);
     // La box a retiré le projet, pas son journal.
     assert.equal(existsSync(join(racine, "box/drop-in")), false);
-    assert.equal(lu("box/journal"), JOURNAL);
+    assert.equal(lu("box/journal"), LOG);
     assert.match(texte(pose.issue), /The project's log still exists on the station: \/var\/lib\/brigade\/calculus\. The uninstall did not delete it\./);
     assert.deepEqual(desinstalles, ["calculus"]);
     // Le plan a servi : une autre désinstallation en redemande un.
@@ -312,12 +312,12 @@ describe("désinstaller de la box", () => {
   test("l'option qui supprime le journal est décochée par défaut, et son avertissement est là avant qu'on la coche", (t) => {
     const { retraits, calculus } = essai(t);
 
-    const { journal } = geste(retraits.etat(calculus));
+    const { journal: log } = geste(retraits.etat(calculus));
 
-    assert.equal(journal.coche, false);
-    assert.equal(journal.libelle, "Also delete the project's log on the station");
-    assert.match(journal.avertissement.join("\n"), /Unticked — the default/);
-    assert.match(journal.avertissement.join("\n"), /cannot be undone/);
+    assert.equal(log.coche, false);
+    assert.equal(log.libelle, "Also delete the project's log on the station");
+    assert.match(log.avertissement.join("\n"), /Unticked — the default/);
+    assert.match(log.avertissement.join("\n"), /cannot be undone/);
   });
 
   test("cochée, l'option part avec le plan et avec la désinstallation : le journal est supprimé, et l'écran le dit — un plan demandé sans elle ne vaut plus", async (t) => {
@@ -325,19 +325,19 @@ describe("désinstaller de la box", () => {
     await retraits.planifier(calculus);
 
     // Cocher lâche le plan rendu sans l'option : rien ne s'exécute sur sa foi.
-    const cochee = geste(retraits.direJournal(calculus, true));
+    const cochee = geste(retraits.sayLog(calculus, true));
     assert.equal(cochee.journal.coche, true);
     assert.equal(cochee.plan, undefined);
     assert.match(cochee.desinstallerRefuse ?? "", /^No uninstall: the station has not yet said what it would remove/);
-    assert.equal(geste(await retraits.desinstaller(calculus, "calculus")).issue?.etat, "pas-parti");
-    assert.equal(lu("box/journal"), JOURNAL);
+    assert.equal(geste(await retraits.uninstall(calculus, "calculus")).issue?.etat, "pas-parti");
+    assert.equal(lu("box/journal"), LOG);
 
     const planifie = geste(await retraits.planifier(calculus));
     for (const phrase of phrases("plan", true)) assert.ok(texte(planifie.plan).includes(phrase), `le plan affiché n'a pas « ${phrase} »`);
     assert.match(texte(planifie.plan), /The log is part of what the station would remove \(\/var\/lib\/brigade\/calculus\): deleting it cannot be undone\./);
-    assert.equal(lu("box/journal"), JOURNAL);
+    assert.equal(lu("box/journal"), LOG);
 
-    const pose = geste(await retraits.desinstaller(calculus, "calculus"));
+    const pose = geste(await retraits.uninstall(calculus, "calculus"));
 
     assert.equal(pose.issue?.etat, "desinstalle");
     assert.deepEqual(appels(), [`${OPTIONS} -- box ${GESTE} --plan`, `${OPTIONS} -- box ${GESTE} --plan --supprimer-le-journal`, `${OPTIONS} -- box ${GESTE} --confirmer calculus --supprimer-le-journal`]);
@@ -347,14 +347,14 @@ describe("désinstaller de la box", () => {
 
   test("décocher lâche de même le plan qui emportait le journal", async (t) => {
     const { retraits, calculus, appels } = essai(t);
-    retraits.direJournal(calculus, true);
+    retraits.sayLog(calculus, true);
     await retraits.planifier(calculus);
 
-    const decochee = geste(retraits.direJournal(calculus, false));
+    const decochee = geste(retraits.sayLog(calculus, false));
 
     assert.equal(decochee.journal.coche, false);
     assert.equal(decochee.plan, undefined);
-    assert.equal(geste(await retraits.desinstaller(calculus, "calculus")).issue?.etat, "pas-parti");
+    assert.equal(geste(await retraits.uninstall(calculus, "calculus")).issue?.etat, "pas-parti");
     assert.deepEqual(appels(), [`${OPTIONS} -- box ${GESTE} --plan --supprimer-le-journal`]);
   });
 
@@ -365,7 +365,7 @@ describe("désinstaller de la box", () => {
     await retraits.planifier(calculus);
     assert.equal(retraits.vu(calculus), calculus);
 
-    await retraits.desinstaller(calculus, "calculus");
+    await retraits.uninstall(calculus, "calculus");
 
     const vu = retraits.vu(calculus);
     assert.equal(vu.box, undefined);
@@ -390,20 +390,20 @@ describe("désinstaller de la box", () => {
     // n'écrive plus dans le répertoire du test quand celui-ci est effacé.
     await passage.get("calculus");
     // Ce qui reste à faire de lui est l'autre geste, et il le dit.
-    const { retirer, desinstaller } = retraits.etat(calculus);
+    const { retirer, desinstaller: uninstall } = retraits.etat(calculus);
     assert.match(retirer.lignes.join("\n"), /It is uninstalled from station “box”/);
-    assert.match(desinstaller.lignes.join("\n"), /It is uninstalled from station “box”/);
+    assert.match(uninstall.lignes.join("\n"), /It is uninstalled from station “box”/);
   });
 
   test("désinstallé, journal gardé : le geste se rejoue avec l'option, par le même chemin — le plan, puis la confirmation", async (t) => {
     const { retraits, calculus, appels, racine } = essai(t);
     await retraits.planifier(calculus);
-    await retraits.desinstaller(calculus, "calculus");
+    await retraits.uninstall(calculus, "calculus");
 
-    retraits.direJournal(calculus, true);
-    assert.equal(geste(await retraits.desinstaller(calculus, "calculus")).issue?.etat, "pas-parti");
+    retraits.sayLog(calculus, true);
+    assert.equal(geste(await retraits.uninstall(calculus, "calculus")).issue?.etat, "pas-parti");
     await retraits.planifier(calculus);
-    const pose = geste(await retraits.desinstaller(calculus, "calculus"));
+    const pose = geste(await retraits.uninstall(calculus, "calculus"));
 
     assert.equal(pose.issue?.etat, "desinstalle");
     assert.equal(appels().length, 4);
@@ -416,7 +416,7 @@ describe("désinstaller de la box", () => {
     const { retraits, calculus, desinstalles } = essai(t, confirmee(refus(81, "travail-jamais-pousse", message)));
     await retraits.planifier(calculus);
 
-    const pose = geste(await retraits.desinstaller(calculus, "calculus"));
+    const pose = geste(await retraits.uninstall(calculus, "calculus"));
 
     assert.equal(pose.issue?.etat, "refuse");
     assert.equal(pose.issue?.titre, "STATION “box” REFUSED (travail-jamais-pousse) — nothing is removed");
@@ -433,7 +433,7 @@ describe("désinstaller de la box", () => {
     const { retraits, calculus, desinstalles } = essai(t, confirmee(refus(79, "echec", message, { retires: ["brigade@calculus.service (arrêtée, désactivée)"], restes: ["systemctl daemon-reload"] })));
     await retraits.planifier(calculus);
 
-    const pose = geste(await retraits.desinstaller(calculus, "calculus"));
+    const pose = geste(await retraits.uninstall(calculus, "calculus"));
 
     assert.equal(pose.issue?.etat, "inachevee");
     assert.ok(texte(pose.issue).includes(`brigade-installer : ${message}`));
@@ -454,7 +454,7 @@ describe("désinstaller de la box", () => {
     assert.ok(texte(pose.plan).includes(`brigade-installer : ${message}`));
     assert.match(texte(pose.plan), /there is nothing to uninstall there.*“Remove from the app”/);
     assert.match(pose.desinstallerRefuse ?? "", /^No uninstall/);
-    assert.equal(geste(await retraits.desinstaller(calculus, "calculus")).issue?.etat, "pas-parti");
+    assert.equal(geste(await retraits.uninstall(calculus, "calculus")).issue?.etat, "pas-parti");
   });
 
   test("la box est injoignable (ssh sort en 255) : pas de plan, donc rien à confirmer — et l'écran dit où lire ce que ssh a dit", async (t) => {
@@ -466,7 +466,7 @@ describe("désinstaller de la box", () => {
     assert.equal(pose.plan?.titre, "STATION “box” COULD NOT BE REACHED — nothing is removed");
     assert.match(texte(pose.plan), /ssh: connect to host box port 22: Connection refused\n\n→ exit code 255/);
     assert.match(texte(pose.plan), /docs\/installer\.md, section 2, « Joindre »/);
-    assert.equal(geste(await retraits.desinstaller(calculus, "calculus")).issue?.etat, "pas-parti");
+    assert.equal(geste(await retraits.uninstall(calculus, "calculus")).issue?.etat, "pas-parti");
     assert.equal(appels().length, 1);
   });
 
@@ -487,7 +487,7 @@ describe("désinstaller de la box", () => {
       assert.equal(pose.plan?.etat, "geste-absent");
       assert.match(texte(pose.plan), /docs\/installer\.md, section 3, « Préparer » — « Le geste d'installation »/);
       assert.match(pose.desinstallerRefuse ?? "", /^No uninstall/);
-      assert.equal(geste(await retraits.desinstaller(calculus, "calculus")).issue?.etat, "pas-parti");
+      assert.equal(geste(await retraits.uninstall(calculus, "calculus")).issue?.etat, "pas-parti");
       assert.equal(appels().length, 1);
     });
   }
@@ -496,7 +496,7 @@ describe("désinstaller de la box", () => {
     const { retraits, calculus, desinstalles } = essai(t, confirmee("echo 'Connection to station closed by remote host.' >&2\nexit 255"));
     await retraits.planifier(calculus);
 
-    const pose = geste(await retraits.desinstaller(calculus, "calculus"));
+    const pose = geste(await retraits.uninstall(calculus, "calculus"));
 
     assert.equal(pose.issue?.etat, "injoignable");
     assert.equal(pose.issue?.titre, "`ssh` FAILED WITHOUT AN ANSWER FROM STATION “box”");
@@ -528,7 +528,7 @@ describe("désinstaller de la box", () => {
     const { retraits, calculus, desinstalles } = essai(t, confirmee(`cat "$D/rendus/plan-garde.out"`));
     await retraits.planifier(calculus);
 
-    const pose = geste(await retraits.desinstaller(calculus, "calculus"));
+    const pose = geste(await retraits.uninstall(calculus, "calculus"));
 
     assert.equal(pose.issue?.etat, "geste-absent");
     assert.equal(retraits.vu(calculus), calculus);
@@ -542,7 +542,7 @@ describe("désinstaller de la box", () => {
     const { retraits, calculus, desinstalles } = essai(t, confirmee("exec sleep 600"), undefined, { plan: 60_000, execution: 200 });
     await retraits.planifier(calculus);
 
-    const pose = geste(await retraits.desinstaller(calculus, "calculus"));
+    const pose = geste(await retraits.uninstall(calculus, "calculus"));
 
     assert.equal(pose.issue?.etat, "sans-reponse");
     assert.match(texte(pose.issue), /→ no answer in 0\.2 s: ssh stopped/);
@@ -591,7 +591,7 @@ describe("ce qui est tenu d'une désinstallation", () => {
     const { retraits, demandes, calculus } = tenue();
     const demande = retraits.planifier(calculus);
 
-    retraits.direJournal(calculus, true);
+    retraits.sayLog(calculus, true);
     demandes[0]?.rendre(PLAN);
 
     const pose = geste(await demande);
@@ -606,8 +606,8 @@ describe("ce qui est tenu d'une désinstallation", () => {
     demandes[0]?.rendre(PLAN);
     await planifie;
 
-    const premier = retraits.desinstaller(calculus, "calculus");
-    const second = retraits.desinstaller(calculus, "calculus");
+    const premier = retraits.uninstall(calculus, "calculus");
+    const second = retraits.uninstall(calculus, "calculus");
 
     const enCours = geste(retraits.etat(calculus));
     assert.equal(enCours.issue?.etat, "en-cours");
@@ -615,7 +615,7 @@ describe("ce qui est tenu d'une désinstallation", () => {
     assert.match(enCours.planifierRefuse ?? "", /^The uninstall is under way/);
     assert.match(enCours.journal.refus ?? "", /^The uninstall is under way/);
     // La case ne bouge pas sous une désinstallation partie avec l'autre réglage.
-    assert.equal(geste(retraits.direJournal(calculus, true)).journal.coche, false);
+    assert.equal(geste(retraits.sayLog(calculus, true)).journal.coche, false);
     await retraits.planifier(calculus);
     assert.deepEqual(demandes.map(({ demande }) => demande), [{ plan: true, journal: false }, { plan: false, confirmation: "calculus", journal: false }]);
     demandes[1]?.rendre(FAIT);
@@ -629,7 +629,7 @@ describe("ce qui est tenu d'une désinstallation", () => {
     const planifie = retraits.planifier(calculus);
     demandes[0]?.rendre(PLAN);
     await planifie;
-    const desinstalle = retraits.desinstaller(calculus, "calculus");
+    const desinstalle = retraits.uninstall(calculus, "calculus");
 
     demandes[1]?.rendre({ etat: "refuse", motif: "echec", code: null, obtenu: "arrêtée là" });
 
@@ -645,17 +645,17 @@ describe("ce qui est tenu d'une désinstallation", () => {
     const planifie = retraits.planifier(calculus);
     demandes[0]?.rendre(PLAN);
     await planifie;
-    const desinstalle = retraits.desinstaller(calculus, "calculus");
+    const desinstalle = retraits.uninstall(calculus, "calculus");
     demandes[1]?.rendre(FAIT);
     await desinstalle;
     assert.match(retraits.vu(calculus).desinstalle?.lignes.join("\n") ?? "", /The project's log still exists on the station/);
 
     // Le chef veut aussi supprimer le journal : le plan, la confirmation — et `ssh` est arrêté au délai.
-    retraits.direJournal(calculus, true);
+    retraits.sayLog(calculus, true);
     const replanifie = retraits.planifier(calculus);
     demandes[2]?.rendre({ etat: "plan", journal: { garde: null, retire: ETAT }, obtenu: "le plan" });
     await replanifie;
-    const rejouee = retraits.desinstaller(calculus, "calculus");
+    const rejouee = retraits.uninstall(calculus, "calculus");
     demandes[3]?.rendre({ etat: "sans-reponse", obtenu: "ssh arrêté" });
     const pose = geste(await rejouee);
 
@@ -675,7 +675,7 @@ describe("ce qui est tenu d'une désinstallation", () => {
     const demande = retraits.planifier(calculus);
     const ailleurs: Projet = { ...calculus, box: { hote: "autre-box" } };
     // Le fichier change pendant que la première box répond : sur l'autre, le chef a coché l'option.
-    retraits.direJournal(ailleurs, true);
+    retraits.sayLog(ailleurs, true);
 
     demandes[0]?.rendre(PLAN);
     await demande;
@@ -691,7 +691,7 @@ describe("ce qui est tenu d'une désinstallation", () => {
     const planifie = retraits.planifier(calculus);
     demandes[0]?.rendre(PLAN);
     await planifie;
-    const desinstalle = retraits.desinstaller(calculus, "calculus");
+    const desinstalle = retraits.uninstall(calculus, "calculus");
 
     const retenu = retraits.retirerDeLApp(calculus);
 
@@ -710,7 +710,7 @@ describe("ce qui est tenu d'une désinstallation", () => {
     const planifie = retraits.planifier(calculus);
     demandes[0]?.rendre(PLAN);
     await planifie;
-    const desinstalle = retraits.desinstaller(calculus, "calculus");
+    const desinstalle = retraits.uninstall(calculus, "calculus");
     demandes[1]?.rendre(FAIT);
     await desinstalle;
     assert.equal(retraits.vu(calculus).box, undefined);
@@ -729,7 +729,7 @@ describe("ce qui est tenu d'une désinstallation", () => {
     const planifie = retraits.planifier(calculus);
     demandes[0]?.rendre(PLAN);
     await planifie;
-    const desinstalle = retraits.desinstaller(calculus, "calculus");
+    const desinstalle = retraits.uninstall(calculus, "calculus");
     demandes[1]?.rendre(FAIT);
     await desinstalle;
 
@@ -744,8 +744,8 @@ describe("ce qui est tenu d'une désinstallation", () => {
     const parade: Projet = { nom: "parade", dossier: "/projets/parade" };
 
     assert.equal((await retraits.planifier(parade)).desinstaller.geste, undefined);
-    assert.equal((await retraits.desinstaller(parade, "parade")).desinstaller.geste, undefined);
-    assert.equal(retraits.direJournal(parade, true).desinstaller.geste, undefined);
+    assert.equal((await retraits.uninstall(parade, "parade")).desinstaller.geste, undefined);
+    assert.equal(retraits.sayLog(parade, true).desinstaller.geste, undefined);
     assert.equal(demandes.length, 0);
   });
 });

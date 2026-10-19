@@ -48,8 +48,8 @@ describe("lire ce que fait un cook", () => {
     assert.equal(dit(), "démarre");
     lire(f.outil("Read", { file_path: `${WT}/runtime/src/etat.ts` }).ligne);
     assert.equal(dit(), "lit runtime/src/etat.ts");
-    lire(f.outil("Edit", { file_path: `${WT}/app/src/bon.ts`, old_string: "const a = 1;", new_string: "const a = 2;" }).ligne);
-    assert.equal(dit(), "écrit app/src/bon.ts");
+    lire(f.outil("Edit", { file_path: `${WT}/app/src/slip.ts`, old_string: "const a = 1;", new_string: "const a = 2;" }).ligne);
+    assert.equal(dit(), "écrit app/src/slip.ts");
     lire(f.outil("Grep", { pattern: "motDePasse", path: WT }).ligne);
     assert.equal(dit(), "cherche dans le code");
     lire(f.outil("Bash", { command: "gh issue view 564 --repo benomite/brigade --comments" }).ligne);
@@ -81,11 +81,11 @@ describe("lire ce que fait un cook", () => {
     assert.equal(dit(), "lance les tests");
     lire(f.rendu(tests.id, "not ok 3 - la carte dit ce que fait le cook\nExit code 1", true));
     assert.equal(dit(), "tests rouges");
-    lire(f.outil("Read", { file_path: `${WT}/app/src/bon.ts` }).ligne);
-    assert.equal(dit(), "lit app/src/bon.ts");
-    lire(f.outil("Edit", { file_path: `${WT}/app/src/bon.ts` }).ligne);
-    assert.equal(dit(), "tests rouges, corrige app/src/bon.ts");
-    const encore = f.outil("Bash", { command: "node --test test/bon.test.ts" });
+    lire(f.outil("Read", { file_path: `${WT}/app/src/slip.ts` }).ligne);
+    assert.equal(dit(), "lit app/src/slip.ts");
+    lire(f.outil("Edit", { file_path: `${WT}/app/src/slip.ts` }).ligne);
+    assert.equal(dit(), "tests rouges, corrige app/src/slip.ts");
+    const encore = f.outil("Bash", { command: "node --test test/slip.test.ts" });
     lire(encore.ligne);
     assert.equal(dit(), "lance les tests");
     lire(f.rendu(encore.id, "ok"));

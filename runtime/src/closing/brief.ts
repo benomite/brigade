@@ -2,7 +2,7 @@
 // writes in its PR. The closer removes, it does not judge alone: what it leaves
 // for lack of certainty is said, one line per candidate, and the PR carries it.
 import type { Laisse } from "../events/closing.ts";
-import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE } from "../livrable.ts";
+import { CONSIGNE_DE_FIN_DE_TOUR, DELIVERABLE_INSTRUCTION } from "../deliverable.ts";
 import type { Candidat } from "./candidates.ts";
 
 // The line by which the closer says it leaves a candidate, and why.
@@ -27,7 +27,7 @@ export function consigneDuCloser(mission: { depot: string; base: string; candida
     ...zone.map((fichier) => `   - \`${fichier}\``),
     `5. Tu ne retires pas plus de ${pluriel(retraits, "ligne")} en tout : au-delà, la passe est arrêtée et rien n'est livré. Mieux vaut une passe courte et sûre.`,
     "6. Vérifie ton travail comme le dépôt le demande (tests, gates), puis commite-le sur cette branche. Tu ne pousses rien, tu n'ouvres pas de PR et tu ne merges jamais : la passe ouvre la PR, que la pass juge et merge comme celle d'un ticket.",
-    `7. Termine par ton compte-rendu, en clair : ce que tu as retiré, comment tu as vérifié que rien de vivant n'en dépendait. Pour chaque candidat que tu n'as pas retiré, écris une ligne à part, de cette forme exacte : \`${MOT_LAISSE} <nom du candidat> : <pourquoi tu n'es pas sûr>\` — par exemple \`${MOT_LAISSE} M2 : lu par convention par le framework de tests\`. Ces lignes sont recopiées dans la PR : un candidat laissé sans motif y est dit laissé sans motif. ${CONSIGNE_DU_LIVRABLE}`,
+    `7. Termine par ton compte-rendu, en clair : ce que tu as retiré, comment tu as vérifié que rien de vivant n'en dépendait. Pour chaque candidat que tu n'as pas retiré, écris une ligne à part, de cette forme exacte : \`${MOT_LAISSE} <nom du candidat> : <pourquoi tu n'es pas sûr>\` — par exemple \`${MOT_LAISSE} M2 : lu par convention par le framework de tests\`. Ces lignes sont recopiées dans la PR : un candidat laissé sans motif y est dit laissé sans motif. ${DELIVERABLE_INSTRUCTION}`,
     "",
     CONSIGNE_DE_FIN_DE_TOUR,
   ].join("\n");

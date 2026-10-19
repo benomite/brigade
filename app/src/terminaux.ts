@@ -16,7 +16,7 @@ import { compteDe, texteBandeau } from "./bandeau.ts";
 import type { Projet } from "./config.ts";
 import { lieuDe } from "./machines.ts";
 import { detruire as detruireSession, joindre as joindreMachine, nomDeSession, rattachement, type Cible, type Session } from "./persistance.ts";
-import { DIT, PREUVE, reglages, suivreSaisie, type Saisie, type Tours } from "./saisie.ts";
+import { DIT, PROOF, reglages, suivreSaisie, type Saisie, type Turns } from "./saisie.ts";
 import type { Rappel, Souvenir, Souvenirs } from "./souvenirs.ts";
 
 export type Pty = {
@@ -95,9 +95,9 @@ export function ouvrirTerminaux(options: {
   // Un terminal a changé : sa note, ou il s'est arrêté.
   surEtat(terminal: Terminal): void;
   // Le fichier où ce second dira ses tours (saisie.ts). Sans lui, aucun second n'est jamais dit libre : aucun geste direct ne part.
-  tours?(id: number): Tours;
+  turns?(id: number): Turns;
   // Ce que l'app laisse à `claude` pour se montrer en mode shell avant qu'elle renonce à son Entrée : une garde, large.
-  delaiPreuveMs?: number;
+  proofDelayMs?: number;
   // Ce que l'app se rappelle des shells persistants. Sans lui, aucun ne revient à la réouverture.
   souvenirs?: Souvenirs;
   // Le `ssh` qui joint une machine distante — jamais posé hors des essais.
@@ -149,14 +149,14 @@ export function ouvrirTerminaux(options: {
     tenu.arrete = false;
     // Un second dit ses tours à l'app par ses crochets, dans un fichier qui repart vide avec lui —
     // les réglages suivent ce qui est lancé : le rôle reste le premier mot que `claude` reçoit.
-    const tours = tenu.genre === "second" ? options.tours?.(tenu.id) : undefined;
-    tours?.vider();
-    const saisie = tenu.genre === "second" ? suivreSaisie(() => tours?.lire() ?? "") : undefined;
+    const turns = tenu.genre === "second" ? options.turns?.(tenu.id) : undefined;
+    turns?.vider();
+    const saisie = tenu.genre === "second" ? suivreSaisie(() => turns?.lire() ?? "") : undefined;
     tenu.saisie = saisie;
     const lance = ++tenu.lances;
     tenu.pty = options.ouvrirPty({
       commande,
-      args: tours === undefined ? args : [...args, "--settings", reglages(tours.chemin)],
+      args: turns === undefined ? args : [...args, "--settings", reglages(turns.chemin)],
       dossier: tenu.dossier,
       colonnes: tenu.colonnes,
       lignes: tenu.lignes,
@@ -261,17 +261,17 @@ export function ouvrirTerminaux(options: {
     const etat = saisie.etat();
     if (!etat.libre) return Promise.resolve({ refus: `${etat.dit} — the command did not go, and nothing is written: \`${commande}\`` });
     return new Promise((rendre) => {
-      const garde = setTimeout(saisie.renoncer, options.delaiPreuveMs ?? 5_000);
-      saisie.ecrit((preuve) => {
+      const garde = setTimeout(saisie.renoncer, options.proofDelayMs ?? 5_000);
+      saisie.ecrit((proof) => {
         clearTimeout(garde);
         // Le second arrêté entre-temps a sa propre note, et plus de saisie.
         if (second.pty !== pty) return rendre(montre(second));
-        if (preuve) {
+        if (proof) {
           pty.ecrire("\r");
           saisie.parti();
           second.note = `sent to the second: \`${commande}\` — \`claude\` went into shell mode, the app pressed Enter. Its output is read in its thread, and the second reads it too`;
         } else {
-          second.note = `written into the second, but not sent: \`${commande}\` — \`claude\` did not show itself in shell mode (“${PREUVE}”), so the app did not press Enter. Its input was not empty, or it was showing something other than its prompt: look at the second, and erase what is written there`;
+          second.note = `written into the second, but not sent: \`${commande}\` — \`claude\` did not show itself in shell mode (“${PROOF}”), so the app did not press Enter. Its input was not empty, or it was showing something other than its prompt: look at the second, and erase what is written there`;
         }
         rendre(montre(second));
       });
@@ -339,7 +339,7 @@ export function ouvrirTerminaux(options: {
     });
   }
 
-  const distante = (tenu: Tenu): tenu is Tenu & { persistant: { session: { cible: Exclude<Cible, { lieu: "poste" }> } } } =>
+  const remote = (tenu: Tenu): tenu is Tenu & { persistant: { session: { cible: Exclude<Cible, { lieu: "poste" }> } } } =>
     tenu.persistant !== undefined && tenu.persistant.session.cible.lieu !== "poste";
 
   // Ce que la note d'un shell en attente dit : la machine, la session qui l'attend là-bas, et ce
@@ -377,20 +377,20 @@ export function ouvrirTerminaux(options: {
     attente.annuler = plusTard(() => void sonder(tenu, attente), ms);
   }
 
-  const enAttente = (tenu: Tenu, attente: Attente) => !ferme && tenus.get(tenu.id) === tenu && tenu.attente === attente;
+  const queued = (tenu: Tenu, attente: Attente) => !ferme && tenus.get(tenu.id) === tenu && tenu.attente === attente;
 
   // Sonde la machine : elle répond, le shell s'y rattache ; sinon, la note dit ce que `ssh` a
   // dit, et la sonde suivante est prévue.
   async function sonder(tenu: Tenu, attente: Attente): Promise<void> {
     const session = tenu.persistant?.session;
-    if (session === undefined || !enAttente(tenu, attente) || attente.sonde) return;
+    if (session === undefined || !queued(tenu, attente) || attente.sonde) return;
     attente.annuler?.();
     attente.annuler = undefined;
     attente.sonde = true;
     attente.essais += 1;
     const rendu = await joindre(session.cible);
     delete attente.sonde;
-    if (!enAttente(tenu, attente)) return;
+    if (!queued(tenu, attente)) return;
     if ("joint" in rendu) {
       reprendre(tenu, `${lieuDe(session.cible)} answers again — reattaching to session \`${session.nom}\``);
       return;
@@ -556,7 +556,7 @@ export function ouvrirTerminaux(options: {
     // Les shells de ce poste et le second, eux, n'ont pas de connexion à refaire.
     reveiller(): void {
       if (ferme) return;
-      for (const tenu of [...tenus.values()].filter(distante)) {
+      for (const tenu of [...tenus.values()].filter(remote)) {
         const { session } = tenu.persistant;
         if (tenu.attente !== undefined) {
           void sonder(tenu, tenu.attente);

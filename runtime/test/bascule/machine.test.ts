@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, test } from "node:test";
 import { lireConfiguration } from "../../src/station/configuration.ts";
-import { lirePortes } from "../../src/station/portes.ts";
+import { readDoors } from "../../src/station/doors.ts";
 import { lireEnService } from "../../src/mise-a-jour/en-service.ts";
 import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancer, mort, repertoireTemporaire, tuerLesRelais, vivant } from "../outils.ts";
 import { construirePaquet, sansDpkgDeb, uneMachine } from "../mise-a-jour/aides/machine.ts";
@@ -47,7 +47,7 @@ describe("la bascule d'une machine servie à l'ancienne, sur une installation de
     const feu = join(essais, "feu");
     // Le cook commite, puis attend qu'on le laisse conclure ; le reviewer relit vert.
     ecrireSuite(suite, ["commite-puis-attend"]);
-    const cuisine = {
+    const kitchen = {
       ...ENV_GIT,
       HOME: compte,
       BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
@@ -59,7 +59,7 @@ describe("la bascule d'une machine servie à l'ancienne, sur une installation de
       BRIGADE_MIN_FREE_DISK_MB: "0",
     };
     // La station publie sa présence sur GitHub : une doublure, ici.
-    const machine = uneMachine(t, { ...cuisine, BRIGADE_GH_BIN: FAUX_GH_GISTS, FAUX_GISTS: gists });
+    const machine = uneMachine(t, { ...kitchen, BRIGADE_GH_BIN: FAUX_GH_GISTS, FAUX_GISTS: gists });
     const station = machine.station;
 
     // GitHub, pour les trois projets : #15 attend un cook sur brigade, rien sur les deux autres.
@@ -101,7 +101,7 @@ describe("la bascule d'une machine servie à l'ancienne, sur une installation de
     mkdirSync(join(machine.racine, "run/faux-systemd"), { recursive: true });
     const vies = projets.map((projet) => {
       const vie = lancer(t, MAIN, [], {
-        ...cuisine,
+        ...kitchen,
         ...projet.environnement,
         BRIGADE_STATE_DIR: ancienne.etat(projet.nom),
         BRIGADE_PROJECT: projet.nom,
@@ -112,18 +112,18 @@ describe("la bascule d'une machine servie à l'ancienne, sur une installation de
       writeFileSync(join(machine.racine, "run/faux-systemd", `brigade@${projet.nom}.service.pid`), String(vie.process.pid));
       return vie;
     });
-    const faits = (nom: string, type?: string) => ancienne.faits(nom).filter((e) => type === undefined || e.type === type);
-    for (const { nom } of projets) await jusqua(() => faits(nom, "runtime.started").length === 1);
+    const facts = (nom: string, type?: string) => ancienne.faits(nom).filter((e) => type === undefined || e.type === type);
+    for (const { nom } of projets) await jusqua(() => facts(nom, "runtime.started").length === 1);
     // Le ticket en cours : un cook de l'ancien runtime, en vol, qui a commencé son travail.
-    await jusqua(() => faits("brigade", "cook.launched").length === 1);
-    const run = String((faits("brigade", "cook.launched")[0]?.payload as { run: string }).run);
+    await jusqua(() => facts("brigade", "cook.launched").length === 1);
+    const run = String((facts("brigade", "cook.launched")[0]?.payload as { run: string }).run);
     const fichierDuPid = join(ancienne.etat("brigade"), "runs", `${run}.cook.pid`);
     await jusqua(() => existsSync(fichierDuPid));
     const pid = Number(readFileSync(fichierDuPid, "utf8"));
     await jusqua(() => existsSync(join(ancienne.etat("brigade"), "worktrees", run, "travail.txt")));
 
     // Avant : ce que chaque journal porte, et la machine.
-    const avant = Object.fromEntries(projets.map(({ nom }) => [nom, faits(nom)]));
+    const avant = Object.fromEntries(projets.map(({ nom }) => [nom, facts(nom)]));
     const machineAvant = ancienne.photo();
 
     // Le geste du chef : installer le paquet. Rien d'autre.
@@ -138,43 +138,43 @@ describe("la bascule d'une machine servie à l'ancienne, sur une installation de
     assert.equal(vivant(pid), true);
 
     // La station sert les trois projets, sous une seule installation.
-    const servis = lireEnService(station);
-    assert.deepEqual(servis?.servis, ["brigade", "calculus-workspace", "espace"]);
-    assert.equal(servis?.pid, machine.service().pid);
+    const servedOnes = lireEnService(station);
+    assert.deepEqual(servedOnes?.servis, ["brigade", "calculus-workspace", "espace"]);
+    assert.equal(servedOnes?.pid, machine.service().pid);
     assert.deepEqual(
       lireConfiguration(readFileSync(join(station, "projets"), "utf8")).projets.map((p) => [p.nom, p.depot, p.base]),
       projets.map((p) => [p.nom, p.depot, p.base]),
     );
     // Chacun sort par sa porte, que tiennent les portes de la station : une
     // chacun, et la sienne seulement.
-    const portes = lirePortes(join(station, "portes.json"));
-    assert.deepEqual(Object.keys(portes.projets), ["brigade", "calculus-workspace", "espace"]);
-    assert.equal(new Set([portes.station, ...Object.values(portes.projets)]).size, 4);
+    const doors = readDoors(join(station, "portes.json"));
+    assert.deepEqual(Object.keys(doors.projets), ["brigade", "calculus-workspace", "espace"]);
+    assert.equal(new Set([doors.station, ...Object.values(doors.projets)]).size, 4);
     for (const { nom } of projets) {
-      await jusqua(() => faits(nom, "isolation.configured").some((e) => (e.payload as { proxy: { port: number } | null }).proxy?.port === portes.projets[nom]));
+      await jusqua(() => facts(nom, "isolation.configured").some((e) => (e.payload as { proxy: { port: number } | null }).proxy?.port === doors.projets[nom]));
     }
 
     // L'arrêt de la cuisine, mesuré par l'installation elle-même : de l'arrêt
     // des anciennes unités à la station qui sert les trois projets.
-    const mesure = /bascule : cuisine reprise par la station — brigade, calculus-workspace, espace ; arrêtée (\d+ s|\d+ min \d\d s), de \d\d:\d\d:\d\d à \d\d:\d\d:\d\d/.exec(installation.sortie);
-    assert.ok(mesure, installation.sortie);
-    t.diagnostic(`interruption de la cuisine : ${mesure[1]}`);
+    const measure = /bascule : cuisine reprise par la station — brigade, calculus-workspace, espace ; arrêtée (\d+ s|\d+ min \d\d s), de \d\d:\d\d:\d\d à \d\d:\d\d:\d\d/.exec(installation.sortie);
+    assert.ok(measure, installation.sortie);
+    t.diagnostic(`interruption de la cuisine : ${measure[1]}`);
 
     // Journal, décisions et ticket en cours : tout ce que chaque journal
     // portait avant y est, à l'identique, et la station écrit à sa suite.
     for (const { nom } of projets) {
-      await jusqua(() => faits(nom, "runtime.started").length === 2);
-      assert.deepEqual(faits(nom).slice(0, avant[nom]?.length), avant[nom], nom);
+      await jusqua(() => facts(nom, "runtime.started").length === 2);
+      assert.deepEqual(facts(nom).slice(0, avant[nom]?.length), avant[nom], nom);
     }
     // Le cook en vol est repris par la station, sans être relancé ni interrompu.
-    await jusqua(() => faits("brigade", "cook.resumed").length === 1);
-    assert.deepEqual(faits("brigade", "cook.interrupted"), []);
+    await jusqua(() => facts("brigade", "cook.resumed").length === 1);
+    assert.deepEqual(facts("brigade", "cook.interrupted"), []);
     writeFileSync(feu, "");
-    await jusqua(() => faits("brigade", "ticket.served").length === 1);
+    await jusqua(() => facts("brigade", "ticket.served").length === 1);
     await mort(pid);
     // Aucun cook neuf n'est parti sur #15 : celui de l'ancien runtime l'a livré (le reviewer, lui, a relu).
-    assert.deepEqual(faits("brigade", "cook.launched").map((e) => (e.payload as { run: string }).run).filter((lance) => !lance.startsWith("review-")), [run]);
-    const juge = faits("brigade", "pass.judged")[0]?.payload as { verdict: string; sha: string } | undefined;
+    assert.deepEqual(facts("brigade", "cook.launched").map((e) => (e.payload as { run: string }).run).filter((lance) => !lance.startsWith("review-")), [run]);
+    const juge = facts("brigade", "pass.judged")[0]?.payload as { verdict: string; sha: string } | undefined;
     assert.deepEqual([juge?.verdict, juge?.sha], ["green", git(origine, "rev-parse", `cook/${run}`)]);
 
     // Ce que l'ancien chemin avait posé n'existe plus : ni ses unités, ni leurs

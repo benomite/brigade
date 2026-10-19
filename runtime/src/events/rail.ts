@@ -1,6 +1,6 @@
 // Les faits du rail : ce qui arrive à un ticket, de son entrée à son service.
 // Chacun porte le numéro du ticket dans son enveloppe.
-import type { Fiche } from "../fiche.ts";
+import type { Card } from "../card.ts";
 
 export type FaitRail =
   // GitHub : une issue ouverte porte le label `fire`. `model` et `effort` : son
@@ -9,9 +9,9 @@ export type FaitRail =
   // rail ne les lise.
   | {
       type: "ticket.arrived";
-      payload: { title: string; priority: number | null; createdAt: string; url: string; model?: string | null; effort?: string | null; card?: Fiche | null };
+      payload: { title: string; priority: number | null; createdAt: string; url: string; model?: string | null; effort?: string | null; card?: Card | null };
     }
-  | { type: "ticket.changed"; payload: { title: string; priority: number | null; model?: string | null; effort?: string | null; card?: Fiche | null } }
+  | { type: "ticket.changed"; payload: { title: string; priority: number | null; model?: string | null; effort?: string | null; card?: Card | null } }
   // L'issue est fermée (`closed`), a perdu son label (`unfired`), porte `hors-cuisine`
   // ou n'existe plus (`gone`) : le ticket quitte le rail, quel que soit son état.
   // S'écrit aussi d'une issue qui n'y est jamais entrée, quand un ticket du
@@ -61,7 +61,7 @@ export type FaitRail =
 export type MotifDepart = "closed" | "unfired" | "gone" | "hors-cuisine";
 
 // Motifs de retour en attente que le runtime écrit de lui-même.
-export const BAIL_ECHU = "lease-expired";
+export const LEASE_EXPIRED = "lease-expired";
 export const FIN_DE_86 = "86-over";
 
 // Le motif du 86 d'un ticket que le manager a redécoupé : ses sous-tickets
@@ -81,7 +81,7 @@ export const STATION_ABSENTE = "station-absent";
 // Le motif du 86 d'un ticket en attente d'un tiers (WAITING). Sans heure de
 // retour : seul un geste l'en sort. Jamais parti pour cette attente, il ne
 // tient de zone que s'il porte une livraison ouverte.
-export const ATTEND_UN_TIERS = "third-party";
+export const AWAITS_A_THIRD_PARTY = "third-party";
 // Le motif du 86 d'un ticket sorti de WAITING vers le chef, quand il n'était
 // pas mis de côté avant d'attendre : il revient devant le chef, pas en cuisine.
 export const REVENU_D_ATTENTE = "third-party:resumed";

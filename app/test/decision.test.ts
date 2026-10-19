@@ -3,7 +3,7 @@
 // qui la tranchent, le recommandé en premier.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { attenduDe, decisionLue, livraisonLue, premierePhrase, SANS_DECISION, teteDe, type Decision } from "../src/decision.ts";
+import { attenduDe, decisionLue, readDelivery, premierePhrase, SANS_DECISION, teteDe, type Decision } from "../src/decision.ts";
 
 const PR = "https://github.com/benomite/brigade/pull/840";
 const decision = (quoi: string, plus: Partial<Decision> = {}): Decision => ({ quoi, motif: null, cause: null, pr: null, ...plus });
@@ -108,7 +108,7 @@ describe("la tête d'une livraison qui attend son merge (#731) : deux lignes, et
   test("la première phrase, et la livraison venue de la box", () => {
     assert.equal(premierePhrase("  One sentence\nover two lines.  Next. "), "One sentence over two lines.");
     assert.equal(premierePhrase("No full stop"), "No full stop");
-    assert.deepEqual(livraisonLue({ resume: RESUME, juges: [...JUGES, { fichier: 1 }] }), { resume: RESUME, juges: JUGES });
-    assert.equal(livraisonLue("x"), undefined);
+    assert.deepEqual(readDelivery({ resume: RESUME, juges: [...JUGES, { fichier: 1 }] }), { resume: RESUME, juges: JUGES });
+    assert.equal(readDelivery("x"), undefined);
   });
 });

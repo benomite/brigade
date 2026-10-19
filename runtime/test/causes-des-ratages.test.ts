@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { classerEssai, decrireCauses, mesurerCauses, SANS_SIGNAUX, type Cause, type Jugement, type Signaux } from "../src/causes-des-ratages.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { parcoursDesTickets } from "../src/parcours-des-tickets.ts";
 import type { Essai, Parcours } from "../src/renvois.ts";
 import { horloge, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
@@ -41,18 +41,18 @@ test("« critères contradictoires ou ticket incomplet » n'est retenue que si l
 
 const essai = (i: number, un: Signaux, fin: Partial<Essai> = {}): Essai => ({ run: `run-${i}`, at: JOUR_HORLOGE, outcome: "ok", verdict: "red", signaux: un, ...fin });
 // Un ticket abandonné : tous ses essais ont raté.
-const abandonne = (ticket: number, ...essais: Essai[]): Parcours => ({ ticket, takenAt: JOUR_HORLOGE, end: null, attempts: essais });
+const dropped = (ticket: number, ...essais: Essai[]): Parcours => ({ ticket, takenAt: JOUR_HORLOGE, end: null, attempts: essais });
 
 test("comptes, parts et 3 derniers tickets, sur un jeu qui couvre chaque cause ; le total classé est celui des essais ratés", () => {
   let i = 0;
   // Un ticket par essai du jeu, du plus ancien (#101) au plus récent ; les relecture bloquantes en plus sur 4 tickets.
-  const parcours = CAS.map(([, un], k) => abandonne(101 + k, essai(i++, un)));
-  const relectures = [201, 202, 203, 204].map((t) => abandonne(t, essai(i++, CAS[0]![1])));
+  const parcours = CAS.map(([, un], k) => dropped(101 + k, essai(i++, un)));
+  const relectures = [201, 202, 203, 204].map((t) => dropped(t, essai(i++, CAS[0]![1])));
   // Un ticket mergé au 2e essai : le 1er est raté, le 2e a abouti ; un ticket en cours dont l'essai tourne : pas raté.
   const merge: Parcours = { ticket: 301, takenAt: JOUR_HORLOGE, end: { kind: "merged", at: JOUR_HORLOGE }, attempts: [essai(i++, CAS[4]![1]), essai(i++, SANS_SIGNAUX, { verdict: "green" })] };
-  const enCours = abandonne(302, essai(i++, SANS_SIGNAUX, { outcome: null, verdict: null }));
-  const enAttente = abandonne(303, essai(i++, SANS_SIGNAUX, { verdict: "green" }));
-  const tout = [...parcours, ...relectures, merge, enCours, enAttente];
+  const enCours = dropped(302, essai(i++, SANS_SIGNAUX, { outcome: null, verdict: null }));
+  const queued = dropped(303, essai(i++, SANS_SIGNAUX, { verdict: "green" }));
+  const tout = [...parcours, ...relectures, merge, enCours, queued];
 
   const { rates, lignes } = mesurerCauses(tout);
   const de = (cause: Cause) => lignes.find((l) => l.cause === cause)!;
@@ -80,20 +80,20 @@ test("sans essai raté, rien n'est classé et toutes les parts sont nulles", () 
 });
 
 test("la sortie dit chaque cause, son nombre, sa part et ses tickets ; les parts arrondies font 100 %", () => {
-  const trois = [1, 2, 3].map((t) => abandonne(t, essai(t, signaux({ arret: "turns" }))));
+  const trois = [1, 2, 3].map((t) => dropped(t, essai(t, signaux({ arret: "turns" }))));
   const dit = decrireCauses(mesurerCauses(trois));
   assert.equal(dit.length, 1 + 9);
   assert.equal(dit[0], "failures   3 failed attempts (not ending in a merge), each under one cause");
   assert.ok(dit.includes("           cap on turns or duration: 3 (100%) — #3, #2, #1"));
   assert.ok(dit.includes("           other: 0 (0%)"));
-  const tiers = mesurerCauses([1, 2, 3].map((t) => abandonne(t, essai(t, [signaux({ arret: "turns" }), signaux({ panne: true }), SANS_SIGNAUX][t - 1]!))));
+  const tiers = mesurerCauses([1, 2, 3].map((t) => dropped(t, essai(t, [signaux({ arret: "turns" }), signaux({ panne: true }), SANS_SIGNAUX][t - 1]!))));
   assert.deepEqual(tiers.lignes.map((l) => l.pourcent).reduce((a, b) => a + b, 0), 100);
 });
 
 test("le journal est lu : l'arrêt, la panne, le jugement et le texte du cook se retrouvent sur l'essai qui les porte", (t) => {
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
-  t.after(() => journal.fermer());
-  const noter = (ticket: number, fait: Parameters<typeof journal.ajouter>[0] extends infer F ? Omit<F & object, "project" | "ticket" | "author"> : never) => journal.ajouter({ project: "brigade", ticket, author: "runtime", ...(fait as object) } as never);
+  const log = openLog(repertoireTemporaire(t), { maintenant: horloge() });
+  t.after(() => log.fermer());
+  const noter = (ticket: number, fait: Parameters<typeof log.ajouter>[0] extends infer F ? Omit<F & object, "project" | "ticket" | "author"> : never) => log.ajouter({ project: "brigade", ticket, author: "runtime", ...(fait as object) } as never);
   const limites = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
   const lancer = (run: string) => noter(7, { type: "cook.launched", payload: { run, limits: limites, stream: `runs/${run}.jsonl`, station: "box/claude" } });
   const sortir = (run: string, outcome: string) => noter(7, { type: "cook.exited", payload: { run, outcome, code: 1, signal: null, turns: 1, tokens: 1, durationMs: 1 } });
@@ -108,7 +108,7 @@ test("le journal est lu : l'arrêt, la panne, le jugement et le texte du cook se
   noter(7, { type: "pass.judged", payload: { run: "c", pr: "p", number: 7, sha: "s", base: "b", merged: null, verdict: "red", gates: { outcome: "skipped", code: null, failures: [], tail: "" }, ci: { outcome: "none", checks: [] }, review: { outcome: "skipped", run: null, summary: null, findings: [] }, findings: [], judgeModified: false, noDiff: false } });
   sortir("c", "ok");
 
-  const [parcours] = parcoursDesTickets(journal.base);
+  const [parcours] = parcoursDesTickets(log.base);
   assert.deepEqual(parcours!.attempts.map((e) => classerEssai(e.signaux!)), ["plafond", "criteres", "conflit"]);
   assert.deepEqual(mesurerCauses([parcours!]).lignes.filter((l) => l.essais > 0).map((l) => [l.cause, l.tickets]), [["conflit", [7]], ["plafond", [7]], ["criteres", [7]]]);
 });

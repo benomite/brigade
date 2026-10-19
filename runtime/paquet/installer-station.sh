@@ -16,7 +16,7 @@
 # puis fait la connexion Max du compte brigade, si quelqu'un est devant le
 # terminal : `claude setup-token`, une fois, par le binaire officiel, que
 # l'étape pose s'il manque, et dont elle range le jeton sans le montrer
-# (runtime/src/connexion-max/connecter-cli.ts). C'est le seul geste root de la station : sa vie courante n'en demande aucun. La relancer
+# (runtime/src/connection-max/connecter-cli.ts). C'est le seul geste root de la station : sa vie courante n'en demande aucun. La relancer
 # ne réinstalle rien de neuf, et ne refait pas un jeton déjà rangé.
 #
 # Codes de sortie :

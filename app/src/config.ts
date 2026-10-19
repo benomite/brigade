@@ -10,10 +10,10 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 import { ordinairesLus } from "./ordinaires.ts";
-import { couleursLues, entieres, estCouleur, ROLES, tirer, type Couleurs, type Role } from "./couleurs.ts";
+import { couleursLues, entieres, estCouleur, ROLES, draw, type Couleurs, type Role } from "./couleurs.ts";
 
 // Le modèle et l'effort du manager et du reviewer d'un projet.
-export type CalibrageDuProjet = { manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string } };
+export type ProjectCalibration = { manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string } };
 
 // Où tourne le runtime d'un projet : l'hôte que `ssh` connaît, et rien d'autre.
 // Ce qui s'y lance est le geste de la box, avec le `nom` du projet.
@@ -33,14 +33,14 @@ export type Desinstalle = { hote: string; a: string; titre: string; lignes: stri
 // manque y est tirée, puis écrite (`colorerProjets`).
 // `depot`, `base` : son dépôt GitHub et sa branche d'intégration, posés à son ajout depuis l'app
 // (ajout.ts) — c'est d'eux que se confie sa cuisine à une station. Absents d'un projet écrit à la main.
-export type Projet = { nom: string; dossier: string; depot?: string; base?: string; refus?: string; box?: Box; desinstalle?: Desinstalle; calibrage?: CalibrageDuProjet; stations?: string[]; couleurs?: Couleurs; ordinaires?: boolean; limiteCooks?: number };
+export type Projet = { nom: string; dossier: string; depot?: string; base?: string; refus?: string; box?: Box; desinstalle?: Desinstalle; calibrage?: ProjectCalibration; stations?: string[]; couleurs?: Couleurs; ordinaires?: boolean; limiteCooks?: number };
 // `refus` : le fichier entier n'a pas pu être lu — aucun projet, et la raison.
 // `nonRelu` : il a changé depuis, et sa relecture a été refusée — les projets
 // sont ceux d'avant, et la raison est celle du fichier tel qu'il est.
 // `hotes` : les box que le fichier déclare, dans son ordre — absente, il n'en déclare aucune.
 export type Configuration = { chemin: string; projets: Projet[]; hotes?: string[]; refus?: string; nonRelu?: string };
 // Un projet tel qu'il s'écrit dans le fichier.
-export type Declare = { nom: string; dossier: string; depot?: string; base?: string; hote?: string; calibrage?: CalibrageDuProjet };
+export type Declare = { nom: string; dossier: string; depot?: string; base?: string; hote?: string; calibrage?: ProjectCalibration };
 
 // Rien ici ne se recopie tel quel : chaque valeur dit ce qui la remplace.
 export const EXEMPLE = JSON.stringify(
@@ -103,7 +103,7 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
     if (commande !== undefined) return refuse(`${lequel}: “commande” is no longer read — remove it: the app runs the station's action (\`ssh <hote> brigade ${nom} <commande>\`), “hote” is all it needs`);
     if (hote !== undefined && (typeof hote !== "string" || hote.trim() === "")) return refuse(`${lequel}: “hote” must be a non-empty string`);
     const refus = refusDuDossier(absolu);
-    const calibrage = calibrageLu((declare as { calibrage?: unknown }).calibrage);
+    const calibration = readCalibration((declare as { calibrage?: unknown }).calibrage);
     const stations = stationsLues((declare as { stations?: unknown }).stations, hote !== undefined);
     if (typeof stations === "string") return refuse(`${lequel}: ${stations}`);
     const couleurs = couleursLues((declare as { couleurs?: unknown }).couleurs);
@@ -113,13 +113,13 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
     const { depot, base } = declare as { depot?: unknown; base?: unknown };
     if (depot !== undefined && (typeof depot !== "string" || depot.trim() === "")) return refuse(`${lequel}: “depot” must be a non-empty string — its GitHub repository, \`<owner>/<name>\``);
     if (base !== undefined && (typeof base !== "string" || base.trim() === "")) return refuse(`${lequel}: “base” must be a non-empty string — its integration branch`);
-    projets.push({ nom, dossier: absolu, ...(depot === undefined ? {} : { depot }), ...(base === undefined ? {} : { base }), ...ordinaires, ...(calibrage === undefined ? {} : { calibrage }), ...(refus === undefined ? {} : { refus }), ...(hote === undefined ? {} : { box: { hote } }), ...(stations === undefined ? {} : { stations }), ...(couleurs === undefined ? {} : { couleurs }) });
+    projets.push({ nom, dossier: absolu, ...(depot === undefined ? {} : { depot }), ...(base === undefined ? {} : { base }), ...ordinaires, ...(calibration === undefined ? {} : { calibrage: calibration }), ...(refus === undefined ? {} : { refus }), ...(hote === undefined ? {} : { box: { hote } }), ...(stations === undefined ? {} : { stations }), ...(couleurs === undefined ? {} : { couleurs }) });
   }
   return { chemin, projets, ...(declares === undefined ? {} : { hotes }) };
 }
 
 // Le calibrage écrit d'un projet, s'il est entier — sinon l'app n'en lit rien, et ne le refuse pas.
-function calibrageLu(lu: unknown): CalibrageDuProjet | undefined {
+function readCalibration(lu: unknown): ProjectCalibration | undefined {
   const texte = (valeur: unknown) => (typeof valeur === "string" && valeur.trim() !== "" ? valeur : undefined);
   const role = (valeur: unknown) => {
     const { modele, effort } = (valeur ?? {}) as { modele?: unknown; effort?: unknown };
@@ -134,7 +134,7 @@ function calibrageLu(lu: unknown): CalibrageDuProjet | undefined {
 // Les stations que ce poste joue pour un projet, telles qu'elles sont écrites — ou la raison
 // pour laquelle elles ne se lisent pas. Une station se joue auprès d'une box : sans « hote »,
 // il n'y a personne chez qui tirer. Un autre moteur que `claude` ne se lance pas d'ici.
-function stationsLues(lu: unknown, servi: boolean): string[] | string | undefined {
+function stationsLues(lu: unknown, served: boolean): string[] | string | undefined {
   if (lu === undefined) return undefined;
   if (!Array.isArray(lu)) return "“stations” must be a list — the stations this workstation plays for the project (mac/claude)";
   const stations: string[] = [];
@@ -144,7 +144,7 @@ function stationsLues(lu: unknown, servi: boolean): string[] | string | undefine
     if (stations.includes(nom)) return `“stations”: \`${nom}\` is written twice`;
     stations.push(nom);
   }
-  if (stations.length > 0 && !servi) return "“stations” without “hote”: a station pulls its work from the project's main station — it needs the name your ssh uses to reach it";
+  if (stations.length > 0 && !served) return "“stations” without “hote”: a station pulls its work from the project's main station — it needs the name your ssh uses to reach it";
   return stations.length === 0 ? undefined : stations;
 }
 
@@ -263,7 +263,7 @@ export function colorerProjets(chemin: string, maison = homedir(), hasard: () =>
   // Le fichier a été compris : ses projets sont ceux qui ont été lus, dans le même ordre.
   for (const [rang, couleurs] of tenues.entries()) {
     if (entieres(couleurs)) continue;
-    for (const role of ROLES) couleurs[role] ??= tirer(tenues.map((autre) => (autre === couleurs ? undefined : autre[role])), hasard);
+    for (const role of ROLES) couleurs[role] ??= draw(tenues.map((autre) => (autre === couleurs ? undefined : autre[role])), hasard);
     const declare = ouvert.contenu.projets[rang] as { couleurs?: Couleurs };
     declare.couleurs = { ...declare.couleurs, ...couleurs };
   }

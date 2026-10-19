@@ -25,13 +25,13 @@
 // closer sans son effort —, est refusé avant d'écrire, pas même un journal neuf.
 import { existsSync } from "node:fs";
 import { Sortie, type Appel } from "./appel.ts";
-import { EFFORTS, MODELES } from "./calibrage.ts";
+import { EFFORTS, MODELES } from "./calibration.ts";
 import { decisionsPosees, environnementDecide, gesteDe, OBLIGATOIRES, poserDecision, verifierDecision, type Decision, type Posees } from "./decisions.ts";
 import { ETAPES, installationDe, noterEtape } from "./etapes.ts";
 import type { EtatDEtape } from "./events/installation.ts";
-import { COOKS_PAR_DEFAUT, configFermeture, RETRAITS_PAR_DEFAUT, TOKENS_PAR_DEFAUT } from "./closing/settings.ts";
+import { COOKS_PAR_DEFAUT, closingConfig, RETRAITS_PAR_DEFAUT, TOKENS_PAR_DEFAUT } from "./closing/settings.ts";
 import { geste } from "./geste.ts";
-import { cheminJournal, ouvrirJournal } from "./journal.ts";
+import { logPath, openLog } from "./log.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { VARIABLE_DES_STATIONS } from "./stations-declarees.ts";
 
@@ -190,13 +190,13 @@ const forme = ({ options }: DecisionPosable) => (options.some((option) => option
 
 // Ce que le journal du répertoire d'état porte, en lecture seule. Aucun
 // journal : rien n'est posé, et aucun journal n'est créé pour le dire.
-function poseesAuJournal(repertoireEtat: string): Posees {
-  if (!existsSync(cheminJournal(repertoireEtat))) return {};
-  const journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
+function loggedSettings(repertoireEtat: string): Posees {
+  if (!existsSync(logPath(repertoireEtat))) return {};
+  const log = openLog(repertoireEtat, { lectureSeule: true });
   try {
-    return decisionsPosees(journal.base);
+    return decisionsPosees(log.base);
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }
 
@@ -222,7 +222,7 @@ export function lireReponses(args: string[], posees: Posees): Array<{ posable: D
   // modèle et son effort, ou par aucun.
   const apres: Posees = { ...posees, ...Object.fromEntries(reponses.map(({ posable, valeur }) => [posable.decision, valeur])) };
   try {
-    configFermeture(environnementDecide({}, apres));
+    closingConfig(environnementDecide({}, apres));
   } catch (erreur) {
     if (!(erreur instanceof ConfigInvalide)) throw erreur;
     throw new ConfigInvalide(`${erreur.message} — donner ${gesteDe("BRIGADE_CLOSING_MODEL")} et ${gesteDe("BRIGADE_CLOSING_EFFORT")} dans la même réponse`);
@@ -244,7 +244,7 @@ const COMPAGNONS: Partial<Record<Decision, Decision>> = { BRIGADE_CLOSING_MODEL:
 // La lecture « une par une » : la décision courante avec ce que sa réponse
 // déclenche, et combien restent — elle comprise. `courante` est null quand
 // plus aucune ne reste : « aucune décision en attente ».
-export function faitsDeLaCourante(lus: { posees: Posees }) {
+export function currentFacts(lus: { posees: Posees }) {
   const reste = restantes(lus.posees);
   const courante = reste[0];
   const compagnon = courante === undefined ? undefined : COMPAGNONS[courante.decision];
@@ -277,7 +277,7 @@ const ETATS_LUS = { todo: "à faire", done: "faite", waiting: "en attente" } as 
 // La forme JSON : un contrat avec l'app, figé par `test/poser-decisions.test.ts`.
 // `posee` : la valeur que le journal porte, ou null. `manquantes` : celles que
 // le démarrage réclame et qui ne sont pas posées.
-export function faitsDesDecisions(lus: { etat: EtatDEtape; posees: Posees }) {
+export function decisionsFacts(lus: { etat: EtatDEtape; posees: Posees }) {
   return {
     etape: { id: ETAPE, etat: ETATS_LUS[lus.etat] },
     decisions: POSABLES.map(({ nom, decision, question, options, recommandee, sauter, reclamee }) => ({
@@ -308,14 +308,14 @@ export function principal({ args: appelArgs, env, dire, redire }: Appel): void {
   const etatDeLEtape = () => installationDe(repertoireEtat).etapes.find((lue) => lue.id === ETAPE)?.etat ?? "todo";
 
   if (args.length === 0 || (args.length === 1 && args[0] === "--json")) {
-    const faits = faitsDesDecisions({ etat: etatDeLEtape(), posees: poseesAuJournal(repertoireEtat) });
-    if (args.length === 1) dire(JSON.stringify(faits));
-    else montrer(faits);
+    const facts = decisionsFacts({ etat: etatDeLEtape(), posees: loggedSettings(repertoireEtat) });
+    if (args.length === 1) dire(JSON.stringify(facts));
+    else montrer(facts);
     return;
   }
 
   if (args[0] === "courante") {
-    const lues = faitsDeLaCourante({ posees: poseesAuJournal(repertoireEtat) });
+    const lues = currentFacts({ posees: loggedSettings(repertoireEtat) });
     const reste = args.slice(1);
     if (reste.length === 0 || (reste.length === 1 && reste[0] === "--json")) {
       if (reste.length === 1) dire(JSON.stringify(lues));
@@ -336,42 +336,42 @@ export function principal({ args: appelArgs, env, dire, redire }: Appel): void {
   // journal neuf.
   let reponses;
   try {
-    reponses = lireReponses(args, poseesAuJournal(repertoireEtat));
+    reponses = lireReponses(args, loggedSettings(repertoireEtat));
   } catch (erreur) {
     if (erreur instanceof ConfigInvalide) echouer(2, `${erreur.message} — rien n'est écrit`);
     throw erreur;
   }
   // Sans journal, il en naît un au nom que l'unité donne au projet, comme
   // pour une décision posée par `station`.
-  if (!existsSync(cheminJournal(repertoireEtat)) && !env.BRIGADE_PROJECT) echouer(1, `aucun journal dans ${repertoireEtat}, et BRIGADE_PROJECT n'est pas défini : rien ne dit à quel projet poser les décisions`);
-  const journal = ouvrirJournal(repertoireEtat);
+  if (!existsSync(logPath(repertoireEtat)) && !env.BRIGADE_PROJECT) echouer(1, `aucun journal dans ${repertoireEtat}, et BRIGADE_PROJECT n'est pas défini : rien ne dit à quel projet poser les décisions`);
+  const log = openLog(repertoireEtat);
   try {
-    const projet = journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ?? env.BRIGADE_PROJECT ?? "";
+    const projet = log.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ?? env.BRIGADE_PROJECT ?? "";
     // Les réponses et l'étape s'écrivent ensemble : l'étape n'est jamais
     // notée faite sur une réponse qui ne l'est pas.
-    const { lignes, manquantes, notee } = journal.base.transaction(() => {
+    const { lignes, manquantes, notee } = log.base.transaction(() => {
       const lignes = reponses.map(({ posable, valeur }) => {
-        const fait = poserDecision(journal, { projet, nom: posable.decision, valeur, auteur: AUTEUR });
+        const fait = poserDecision(log, { projet, nom: posable.decision, valeur, auteur: AUTEUR });
         if (fait?.type !== "decision.set") return `${posable.nom} : déjà posée — ${valeur} ; rien n'est réécrit`;
         return `${posable.nom} : ${fait.payload.value} (c'était : ${fait.payload.previous ?? "non posée"})`;
       });
-      const posees = decisionsPosees(journal.base);
+      const posees = decisionsPosees(log.base);
       const manquantes = POSABLES.filter((posable) => posable.reclamee && posees[posable.decision] === undefined);
-      const notee = manquantes.length === 0 && noterEtape(journal, { projet, etape: ETAPE, etat: "done", auteur: AUTEUR }) !== null;
+      const notee = manquantes.length === 0 && noterEtape(log, { projet, etape: ETAPE, etat: "done", auteur: AUTEUR }) !== null;
       return { lignes, manquantes, notee };
     });
     for (const ligne of lignes) dire(`brigade : ${ligne}`);
     dire("brigade : lues par le runtime à sa lecture suivante, sans redémarrage, ou à son démarrage");
     if (manquantes.length > 0) dire(`brigade : le démarrage réclame encore ${manquantes.map((posable) => posable.nom).join(", ")} — « ${etape.titre} » reste à faire`);
     else if (notee) dire(`brigade : « ${etape.titre} » notée faite`);
-    const suite = faitsDeLaCourante({ posees: decisionsPosees(journal.base) });
+    const suite = currentFacts({ posees: decisionsPosees(log.base) });
     if (suite.courante === null) dire("brigade : aucune décision en attente");
     else dire(`brigade : décision suivante : ${suite.courante.nom} — ${suite.enAttente} en attente`);
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 
-  function montrerCourante(lues: ReturnType<typeof faitsDeLaCourante>): void {
+  function montrerCourante(lues: ReturnType<typeof currentFacts>): void {
     const { courante } = lues;
     if (courante === null) {
       dire("brigade : aucune décision en attente");
@@ -390,12 +390,12 @@ export function principal({ args: appelArgs, env, dire, redire }: Appel): void {
     dire(`Pour répondre : \`${geste(`installation decisions courante ${valeurs}`, env)}\``);
   }
 
-  function montrer(faits: ReturnType<typeof faitsDesDecisions>): void {
+  function montrer(facts: ReturnType<typeof decisionsFacts>): void {
     if (etape === undefined) return;
-    dire(`brigade : « ${etape.titre} » — ${faits.etape.etat}`);
+    dire(`brigade : « ${etape.titre} » — ${facts.etape.etat}`);
     dire(`  à quoi elle sert : ${etape.sert}`);
     dire(`  si tu la sautes  : ${etape.sauter}`);
-    for (const decision of faits.decisions) {
+    for (const decision of facts.decisions) {
       dire("");
       const statut = decision.posee !== null ? `posée : ${decision.posee}` : decision.reclamee ? "à poser — le démarrage la réclame" : "non posée";
       dire(`${decision.nom} — ${statut}`);
@@ -406,9 +406,9 @@ export function principal({ args: appelArgs, env, dire, redire }: Appel): void {
     }
     dire("");
     dire(
-      faits.manquantes.length === 0
+      facts.manquantes.length === 0
         ? `Le démarrage ne réclame plus rien. Pour changer une réponse : \`${geste("installation decisions <décision> <valeur>", env)}\``
-        : `Pour répondre : \`${geste(`installation decisions ${faits.manquantes.map((nom) => `${nom} ${forme(parNom(nom) as DecisionPosable)}`).join(" ")}`, env)}\` — plusieurs réponses à la fois, écrites ensemble`,
+        : `Pour répondre : \`${geste(`installation decisions ${facts.manquantes.map((nom) => `${nom} ${forme(parNom(nom) as DecisionPosable)}`).join(" ")}`, env)}\` — plusieurs réponses à la fois, écrites ensemble`,
     );
   }
 }

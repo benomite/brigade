@@ -3,7 +3,7 @@
 // remonter au chef —, ce qu'il demande à son LLM pour choisir, et ce qu'il lit
 // de sa réponse. Sans E/S : tout ce qui n'est pas un choix lisible et permis
 // devient un motif dit, jamais un choix deviné.
-import { EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
+import { EFFORTS, MODELES, type Calibration } from "./calibration.ts";
 import { COMMENTAIRES_MAX, CORPS_MAX, couper, objet, parmi, phrase, type IssueAJuger } from "./juger.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
@@ -11,16 +11,16 @@ import { ConfigInvalide } from "./runtime.ts";
 const ECHELLES = { model: [...MODELES].reverse() as string[], effort: [...EFFORTS] as string[] };
 const VARIABLES = { model: "BRIGADE_CEILING_MODEL", effort: "BRIGADE_CEILING_EFFORT" };
 
-type Dimension = keyof Calibrage;
+type Dimension = keyof Calibration;
 
 // Le plus haut calibrage qu'une montée peut atteindre. Une dimension sans
 // plafond ne monte jamais : il n'y a pas de valeur par défaut.
-export type Plafond = { model: string | null; effort: string | null };
+export type Cap = { model: string | null; effort: string | null };
 
 // Les dimensions dont le label vient du manager : les seules qu'il remplace.
 export type Libre = { model: boolean; effort: boolean };
 
-export function configPlafond(env: Record<string, string | undefined>): Plafond {
+export function capConfig(env: Record<string, string | undefined>): Cap {
   const lire = (dimension: Dimension): string | null => {
     const valeur = env[VARIABLES[dimension]];
     if (!valeur) return null;
@@ -34,9 +34,9 @@ export function configPlafond(env: Record<string, string | undefined>): Plafond 
 
 // Le cran au-dessus dans une dimension, ou null s'il n'y en a pas sous le
 // plafond.
-function cran(dimension: Dimension, pose: Calibrage, plafond: Plafond, libre: Libre): string | null {
+function cran(dimension: Dimension, pose: Calibration, cap: Cap, libre: Libre): string | null {
   const echelle = ECHELLES[dimension];
-  const sommet = plafond[dimension];
+  const sommet = cap[dimension];
   const rang = echelle.indexOf(pose[dimension]);
   if (!libre[dimension] || sommet === null || rang === -1 || rang >= echelle.indexOf(sommet)) return null;
   return echelle[rang + 1] ?? null;
@@ -44,32 +44,32 @@ function cran(dimension: Dimension, pose: Calibrage, plafond: Plafond, libre: Li
 
 // Le calibrage un cran au-dessus : l'effort d'abord, puis le modèle en gardant
 // l'effort atteint. Null : rien ne peut monter.
-export function monter(pose: Calibrage, plafond: Plafond, libre: Libre): Calibrage | null {
-  const effort = cran("effort", pose, plafond, libre);
+export function monter(pose: Calibration, cap: Cap, libre: Libre): Calibration | null {
+  const effort = cran("effort", pose, cap, libre);
   if (effort !== null) return { ...pose, effort };
-  const model = cran("model", pose, plafond, libre);
+  const model = cran("model", pose, cap, libre);
   return model === null ? null : { ...pose, model };
 }
 
 const NOMS = { model: "du modèle", effort: "de l'effort" };
 
 // Pourquoi rien ne peut monter, tel que le chef le lit.
-export function obstacle(pose: Calibrage, plafond: Plafond, libre: Libre): string {
+export function obstacle(pose: Calibration, cap: Cap, libre: Libre): string {
   const dimensions: Dimension[] = ["model", "effort"];
-  if (dimensions.every((dimension) => plafond[dimension] === null)) {
+  if (dimensions.every((dimension) => cap[dimension] === null)) {
     return `aucun plafond de calibrage n'est configuré (\`${VARIABLES.model}\`, \`${VARIABLES.effort}\`) : sans plafond, le manager ne monte rien`;
   }
   if (dimensions.every((dimension) => !libre[dimension])) {
     return `\`model:${pose.model}\` et \`effort:${pose.effort}\` ont été posés par le chef : le manager ne remplace que ses propres labels`;
   }
-  if (dimensions.every((dimension) => libre[dimension] && plafond[dimension] !== null)) {
-    return `le calibrage est déjà au plafond (\`${plafond.model}\` / \`${plafond.effort}\`)`;
+  if (dimensions.every((dimension) => libre[dimension] && cap[dimension] !== null)) {
+    return `le calibrage est déjà au plafond (\`${cap.model}\` / \`${cap.effort}\`)`;
   }
   return dimensions
     .map((dimension) => {
       if (!libre[dimension]) return `\`${dimension}:${pose[dimension]}\` a été posé par le chef`;
-      if (plafond[dimension] === null) return `\`${VARIABLES[dimension]}\` n'est pas configuré`;
-      return `\`${plafond[dimension]}\` est le plafond ${NOMS[dimension]}`;
+      if (cap[dimension] === null) return `\`${VARIABLES[dimension]}\` n'est pas configuré`;
+      return `\`${cap[dimension]}\` est le plafond ${NOMS[dimension]}`;
     })
     .join(", et ");
 }
@@ -79,7 +79,7 @@ export function obstacle(pose: Calibrage, plafond: Plafond, libre: Libre): strin
 export type Tentative = { model: string | null; effort: string | null; findings: string[] };
 
 // Ce que le code offre au jugement. `monter` : le calibrage visé, ou null.
-export type Choix = { monter: Calibrage | null; redecouper: boolean };
+export type Choix = { monter: Calibration | null; redecouper: boolean };
 
 export type Reaction = {
   choice: "raise" | "split" | "escalate";
@@ -89,9 +89,9 @@ export type Reaction = {
 };
 
 const FINDINGS_MAX = 4000;
-const dit = (calibrage: { model: string | null; effort: string | null }) => `\`${calibrage.model ?? "?"}\` / \`${calibrage.effort ?? "?"}\``;
+const dit = (calibration: { model: string | null; effort: string | null }) => `\`${calibration.model ?? "?"}\` / \`${calibration.effort ?? "?"}\``;
 
-export function consigneDeReaction(mission: { depot: string; issue: IssueAJuger; tentatives: Tentative[]; pose: Calibrage; choix: Choix; obstacle: string | null }): string {
+export function consigneDeReaction(mission: { depot: string; issue: IssueAJuger; tentatives: Tentative[]; pose: Calibration; choix: Choix; obstacle: string | null }): string {
   const { depot, issue, tentatives, pose, choix } = mission;
   return [
     `Tu es le manager de la brigade sur le dépôt ${depot}. Un ticket a été confié à un cook — un agent qui exécute un ticket seul et livre une PR — et la pass (les gates du dépôt, sa CI, la relecture d'un reviewer) a refusé chacune de ses livraisons. Les renvois sont épuisés. Tu décides de la suite, et d'une seule chose.`,

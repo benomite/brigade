@@ -9,7 +9,7 @@
 import { createHash } from "node:crypto";
 import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
-import { ouvrirJournal } from "../../src/journal.ts";
+import { openLog } from "../../src/log.ts";
 import { git } from "../outils.ts";
 
 export const UNITE_DE_LA_STATION = join(import.meta.dirname, "../../paquet/systemd/brigade-station.service");
@@ -30,7 +30,7 @@ export type AncienProjet = {
   // Des affectations de plus, dans un drop-in à elles (`reglages.conf`).
   environnement?: Record<string, string>;
   // Sans journal : une unité déclarée qui n'a jamais servi.
-  sansJournal?: boolean;
+  withoutLog?: boolean;
 };
 
 export const TROIS: AncienProjet[] = [
@@ -61,8 +61,8 @@ export type AncienneMachine = {
 
 // `arbitre` : le port de l'arbitre que chaque projet consulte — `null`, aucun.
 // `sansPorte` : les projets servis sans cloison, ni porte ni filtre.
-export function ancienneMachine(racine: string, projets: AncienProjet[] = TROIS, options: { renouvellement?: boolean; paquet?: boolean; arbitre?: string | null; sansPorte?: string[] } = {}): AncienneMachine {
-  const arbitre = options.arbitre === undefined ? "8470" : options.arbitre;
+export function ancienneMachine(racine: string, projets: AncienProjet[] = TROIS, options: { renouvellement?: boolean; paquet?: boolean; arbitre?: string | null; withoutDoor?: string[] } = {}): AncienneMachine {
+  const arbiter = options.arbitre === undefined ? "8470" : options.arbitre;
   const sous = (...chemin: string[]) => join(racine, ...chemin);
   const unites = sous("etc/systemd/system");
   const etat = (nom: string) => sous("var/lib/brigade", nom);
@@ -105,16 +105,16 @@ export function ancienneMachine(racine: string, projets: AncienProjet[] = TROIS,
   // l'arbitre des projets, qui n'est pas à l'ancienne unité : il reste.
   ecrire(join(unites, "brigade-porte@.service"), `[Unit]\nDescription=brigade — porte du projet %i\nBefore=brigade@%i.service\n\n[Service]\nWorkingDirectory=${clone}/runtime\nExecStart=/usr/bin/env node src/tenir-porte.ts\n`);
   ecrire(join(unites, "brigade-arbitre.service"), `[Service]\nWorkingDirectory=${clone}/runtime\nExecStart=/usr/bin/env node src/tenir-arbitre.ts\n`);
-  ecrire(join(unites, "brigade-arbitre.service.d/reglages.conf"), `[Service]\nEnvironment=BRIGADE_ARBITER_PORT=${arbitre ?? "8470"}\n`);
+  ecrire(join(unites, "brigade-arbitre.service.d/reglages.conf"), `[Service]\nEnvironment=BRIGADE_ARBITER_PORT=${arbiter ?? "8470"}\n`);
   lier(join(unites, "brigade-arbitre.service"), join(unites, "multi-user.target.wants/brigade-arbitre.service"));
 
   for (const projet of projets) {
     const instance = join(unites, `brigade@${projet.nom}.service.d`);
     ecrire(join(instance, "projet.conf"), `[Service]\nEnvironment=BRIGADE_GITHUB_REPO=${projet.depot}\nEnvironment=BRIGADE_BASE_BRANCH=${projet.base}\n`);
     ecrire(join(instance, "code.conf"), `[Service]\nWorkingDirectory=${sous("opt/brigade-versions", projet.nom, "en-service/runtime")}\n`);
-    if (arbitre !== null) ecrire(join(instance, "arbitre.conf"), `[Service]\nEnvironment=BRIGADE_ARBITER_PORT=${arbitre}\n`);
-    const sansPorte = options.sansPorte?.includes(projet.nom) ?? false;
-    if (!sansPorte) {
+    if (arbiter !== null) ecrire(join(instance, "arbitre.conf"), `[Service]\nEnvironment=BRIGADE_ARBITER_PORT=${arbiter}\n`);
+    const withoutDoor = options.withoutDoor?.includes(projet.nom) ?? false;
+    if (!withoutDoor) {
       ecrire(
         join(instance, "cloison.conf"),
         "[Unit]\nRequires=brigade-porte@%i.service\nAfter=brigade-porte@%i.service\n\n[Service]\nEnvironment=BRIGADE_SANDBOX_BIN=/usr/bin/bwrap\nEnvironment=BRIGADE_SANDBOX_HIDDEN=/var/lib/brigade:/etc/brigade\nPrivateTmp=yes\nIPAddressDeny=any\nIPAddressAllow=localhost\n",
@@ -127,17 +127,17 @@ export function ancienneMachine(racine: string, projets: AncienProjet[] = TROIS,
       ecrire(join(instance, "reglages.conf"), `[Service]\n${lignes.join("\n")}\n`);
     }
     lier(join(unites, "brigade@.service"), join(unites, `multi-user.target.wants/brigade@${projet.nom}.service`));
-    if (!sansPorte) {
+    if (!withoutDoor) {
       ecrire(join(unites, `brigade-porte@${projet.nom}.service.d/port.conf`), `[Service]\nEnvironment=BRIGADE_PROXY_PORT=${projet.environnement?.BRIGADE_PROXY_PORT ?? "8480"}\n`);
       lier(join(unites, "brigade-porte@.service"), join(unites, `multi-user.target.wants/brigade-porte@${projet.nom}.service`));
     }
 
-    if (projet.sansJournal) continue;
+    if (projet.withoutLog) continue;
     mkdirSync(join(etat(projet.nom), "runs"), { recursive: true });
-    const journal = ouvrirJournal(etat(projet.nom));
-    for (const [name, value] of Object.entries(DECIDE)) journal.ajouter({ project: projet.nom, ticket: null, author: "chef", type: "decision.set", payload: { name, value, previous: null } });
-    journal.ajouter({ project: projet.nom, ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
-    journal.fermer();
+    const log = openLog(etat(projet.nom));
+    for (const [name, value] of Object.entries(DECIDE)) log.ajouter({ project: projet.nom, ticket: null, author: "chef", type: "decision.set", payload: { name, value, previous: null } });
+    log.ajouter({ project: projet.nom, ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
+    log.fermer();
     const depot = join(etat(projet.nom), "depot");
     mkdirSync(depot, { recursive: true });
     git(depot, "init", "-q");
@@ -180,13 +180,13 @@ export function ancienneMachine(racine: string, projets: AncienProjet[] = TROIS,
     if (existsSync(racine)) parcourir(racine);
     return vu;
   };
-  const faits = (nom: string) => {
-    const journal = ouvrirJournal(etat(nom), { lectureSeule: true });
+  const facts = (nom: string) => {
+    const log = openLog(etat(nom), { lectureSeule: true });
     try {
-      return journal.tout().map((e) => ({ seq: e.seq, at: e.at, type: e.type, ticket: e.ticket, payload: e.payload }));
+      return log.tout().map((e) => ({ seq: e.seq, at: e.at, type: e.type, ticket: e.ticket, payload: e.payload }));
     } finally {
-      journal.fermer();
+      log.fermer();
     }
   };
-  return { racine, sous, etat, photo, faits };
+  return { racine, sous, etat, photo, faits: facts };
 }

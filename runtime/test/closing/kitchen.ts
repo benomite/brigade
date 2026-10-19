@@ -7,18 +7,18 @@ import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { avecRail } from "../../src/alimenter.ts";
 import { ouvrirDepot } from "../../src/depot.ts";
-import type { FaitFermeture, ReglagesDeFermeture } from "../../src/events/closing.ts";
-import type { Plafonds } from "../../src/events/guardrails.ts";
+import type { ClosingFact, ClosingSettings } from "../../src/events/closing.ts";
+import type { Caps } from "../../src/events/guardrails.ts";
 import { principal } from "../../src/closing/command.ts";
-import { brancherFermeture } from "../../src/closing/run.ts";
-import { MARQUEUR } from "../../src/fiche.ts";
-import { brancherGardeFous } from "../../src/garde-fous.ts";
+import { plugClosing } from "../../src/closing/run.ts";
+import { MARQUEUR } from "../../src/card.ts";
+import { plugGuardrails } from "../../src/guardrails.ts";
 import type { Issue } from "../../src/github.ts";
 import { brancherPass } from "../../src/pass.ts";
 import { lirePass } from "../../src/projections/pass.ts";
 import { demarrer } from "../../src/runtime.ts";
 import { brancherStation } from "../../src/station.ts";
-import { BAIL_MS, CALIBRAGE_DU_REVIEWER, fauxGitHub, issue, MACHINE_CALME, montre, PLAFONDS, REGLAGES, STATION } from "../aides/cuisine.ts";
+import { LEASE_MS, REVIEWER_CALIBRATION, fauxGitHub, issue, MACHINE_CALME, montre, CAPS, REGLAGES, STATION } from "../aides/kitchen.ts";
 import { appeler, BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, git, jusqua, lancementsDuFauxClaude, repertoireTemporaire } from "../outils.ts";
 import { ecrireHistoire, type Etape, type Fichiers } from "./history.ts";
 
@@ -26,11 +26,11 @@ const FAUX_CLOSER = join(import.meta.dirname, "fake-closer.sh");
 const FAUSSES_GATES = join(import.meta.dirname, "../aides/fausses-gates.sh");
 // Les gates du projet des tests : les fausses gates, précédées des mesures que
 // le test leur fait déclarer.
-const GATES_A_MESURES = join(import.meta.dirname, "gates-to-measures.sh");
+const GATES_WITH_MEASURES = join(import.meta.dirname, "gates-to-measures.sh");
 
 // Les réglages d'une passe, quand un test n'en dit rien : aucun cook en vol,
 // et des plafonds qu'un closer qui retire une ligne n'atteint pas.
-export const REGLAGES_DE_FERMETURE: ReglagesDeFermeture = { calibration: { model: "sonnet", effort: "low" }, cooksBelow: 1, tokens: 1000, removedLines: 20 };
+export const CLOSING_SETTINGS: ClosingSettings = { calibration: { model: "sonnet", effort: "low" }, cooksBelow: 1, tokens: 1000, removedLines: 20 };
 
 const SUITE = Array.from({ length: 8 }, (_, i) => `const ligne${i + 1} = calculer(${i + 1});\n`).join("");
 // Le projet des tests. L'observation y repère, dans cet ordre :
@@ -50,10 +50,10 @@ export const PROJET: Record<string, string> = {
 export const RETIRER_M1 = "effacer inutile src/libre/outils.ts\ncommiter\n";
 
 export type Options = {
-  reglages?: Partial<ReglagesDeFermeture>;
+  reglages?: Partial<ClosingSettings>;
   // Les réglages relus à chaud, comme le runtime les relit des décisions du chef.
-  reglagesAChaud?: () => ReglagesDeFermeture;
-  plafonds?: Partial<Plafonds>;
+  reglagesAChaud?: () => ClosingSettings;
+  plafonds?: Partial<Caps>;
   issues?: Issue[];
   // Brancher une station, dont les cooks jouent le faux `claude` « livre ».
   station?: boolean;
@@ -69,9 +69,9 @@ export type Options = {
 export type Lieux = { repertoire: string; origine: string; clone: string; gh: ReturnType<typeof fauxGitHub> };
 
 // La fiche d'un ticket qui possède ces chemins.
-export const fiche = (...zone: string[]) => [MARQUEUR, "- attend : rien", `- zone : ${zone.join(", ")}`].join("\n");
+export const card = (...zone: string[]) => [MARQUEUR, "- attend : rien", `- zone : ${zone.join(", ")}`].join("\n");
 
-export function cuisineFermee(t: TestContext, options: Options = {}) {
+export function closedKitchen(t: TestContext, options: Options = {}) {
   // Enregistré avant tout répertoire temporaire : le runtime doit être arrêté
   // avant qu'on retire son état.
   let aArreter: { arreter(signal: string): void } | undefined;
@@ -81,7 +81,7 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
   if (!options.lieux) {
     // Le projet est sur l'origine : c'est de là que la passe rapatrie la base.
     // Ses gates sont la doublure : c'est sur elles que la pass juge la PR d'une passe.
-    ecrireHistoire(clone, [...(options.histoire ?? []), { commit: { ...(options.fichiers ?? PROJET), ".claude/brigade/gates.sh": { lien: GATES_A_MESURES } } }]);
+    ecrireHistoire(clone, [...(options.histoire ?? []), { commit: { ...(options.fichiers ?? PROJET), ".claude/brigade/gates.sh": { lien: GATES_WITH_MEASURES } } }]);
     git(clone, "push", "-q", "origin", `refs/remotes/origin/${BASE}:refs/heads/${BASE}`);
   }
   const heure = montre();
@@ -99,14 +99,14 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
 
   const depot = ouvrirDepot({ clone, base: BASE, worktrees: join(repertoire, "worktrees"), env: ENV_GIT });
   const socle = demarrer({ repertoireEtat: repertoire, projet: "brigade", intervalleVeilleMs: 5, intervalleTickMs: 20, maintenant: heure.maintenant });
-  const garde = brancherGardeFous({ ...REGLAGES, plafonds: { ...PLAFONDS, ...options.plafonds } }, avecRail(socle, { depot: DEPOT, dureeBailMs: BAIL_MS, gh: "", github: gh.github, maintenant: heure.maintenant }));
+  const garde = plugGuardrails({ ...REGLAGES, plafonds: { ...CAPS, ...options.plafonds } }, avecRail(socle, { depot: DEPOT, dureeBailMs: LEASE_MS, gh: "", github: gh.github, maintenant: heure.maintenant }));
   // La pass avant la fermeture : c'est à elle que la passe remet sa PR.
   const jugee = brancherPass(garde, {
     repertoireEtat: repertoire,
     depot,
     github: gh.github,
     base: BASE,
-    reviewer: { calibrage: CALIBRAGE_DU_REVIEWER },
+    reviewer: { calibrage: REVIEWER_CALIBRATION },
     depotGitHub: DEPOT,
     bin: FAUX_CLAUDE,
     env: { ...env, FAUX_CLAUDE: options.relecture ?? "relit-vert" },
@@ -116,8 +116,8 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
     maintenant: heure.maintenant,
     avertir,
   });
-  const fermee = brancherFermeture(jugee, {
-    reglages: options.reglagesAChaud ?? { ...REGLAGES_DE_FERMETURE, ...options.reglages },
+  const fermee = plugClosing(jugee, {
+    reglages: options.reglagesAChaud ?? { ...CLOSING_SETTINGS, ...options.reglages },
     repertoireEtat: repertoire,
     depot,
     clone,
@@ -139,7 +139,7 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
         bin: FAUX_CLAUDE,
         env,
         session: async () => "connectee",
-        dureeBailMs: BAIL_MS,
+        dureeBailMs: LEASE_MS,
         stations: [{ nom: STATION, moteur: "claude", fournit: ["code"], cooks: 1 }],
         machine: () => MACHINE_CALME,
         maintenant: heure.maintenant,
@@ -149,13 +149,13 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
     : fermee;
   aArreter = runtime;
 
-  const { journal } = runtime;
-  const types = (ticket?: number) => (ticket === undefined ? journal.tout() : journal.duTicket(ticket)).map((e) => e.type);
+  const { journal: log } = runtime;
+  const types = (ticket?: number) => (ticket === undefined ? log.tout() : log.duTicket(ticket)).map((e) => e.type);
   // Le dernier fait de ce type que la fermeture a écrit.
-  const dernier = <T extends FaitFermeture["type"]>(type: T) => journal.tout().findLast((e) => e.type === type)?.payload as Extract<FaitFermeture, { type: T }>["payload"] | undefined;
+  const dernier = <T extends ClosingFact["type"]>(type: T) => log.tout().findLast((e) => e.type === type)?.payload as Extract<ClosingFact, { type: T }>["payload"] | undefined;
   return {
     runtime,
-    journal,
+    journal: log,
     lieux,
     repertoire,
     origine,
@@ -167,11 +167,11 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
     dernier,
     etat: (ticket: number) => runtime.rail.tickets().find((x) => x.ticket === ticket)?.state,
     // Ce que la pass suit, et ce qu'elle a fait jouer : ses gates, son reviewer.
-    pass: () => lirePass(journal.base),
+    pass: () => lirePass(log.base),
     gates: {
       regler: (scenario: "vert" | "rouge") => writeFileSync(fichierGates, scenario),
       // Ce que les gates déclarent désormais, chaque fois qu'elles sont jouées.
-      mesurer: (mesures: Record<string, number>) => writeFileSync(`${fichierGates}.mesures`, Object.entries(mesures).map(([nom, valeur]) => `${nom}=${valeur}\n`).join("")),
+      mesurer: (measures: Record<string, number>) => writeFileSync(`${fichierGates}.mesures`, Object.entries(measures).map(([nom, valeur]) => `${nom}=${valeur}\n`).join("")),
       appels: () => (existsSync(`${fichierGates}.appels`) ? readFileSync(`${fichierGates}.appels`, "utf8").trimEnd().split("\n") : []),
     },
     relectures: () => lancementsDuFauxClaude(temoin).filter((lance) => lance.args.includes("--tools")),
@@ -204,7 +204,7 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
     },
     // Un ticket du rail, avec sa fiche, tel que le sondage le fait entrer.
     async poser(numero: number, ...zone: string[]) {
-      if (zone.length > 0) gh.ficher(numero, "2026-10-08T09:00:00Z", fiche(...zone));
+      if (zone.length > 0) gh.ficher(numero, "2026-10-08T09:00:00Z", card(...zone));
       gh.poser(issue(numero));
       await jusqua(() => types(numero).includes("ticket.arrived"));
     },

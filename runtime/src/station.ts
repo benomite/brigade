@@ -12,7 +12,7 @@
 //
 // Sauf celles qu'il dit distantes : celles-là vivent ailleurs — le poste du
 // chef —, et rien d'ici ne les joint. Ce sont elles qui viennent tirer leur
-// travail (`distantes.ts`), sous les mêmes bornes, les mêmes garde-fous et la
+// travail (`remote.ts`), sous les mêmes bornes, les mêmes garde-fous et la
 // même pass ; ce module ne leur lance rien, et raconte la fin de leurs cooks
 // comme celle des siens. Absente, une station distante ne retient que les
 // tickets qu'elle seule peut cuisiner : ils sont 86, et les autres partent.
@@ -45,46 +45,46 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { geste as commandeDeBox } from "./geste.ts";
 import { dirname, join, resolve } from "node:path";
 import type { RuntimeAvecRail } from "./alimenter.ts";
-import type { Mot } from "./arbitre.ts";
-import { ArbitreInjoignable, type Arbitrage, type Reponse } from "./arbitrage.ts";
-import { complet, manquant, type Calibrage } from "./calibrage.ts";
+import type { Mot } from "./arbiter.ts";
+import { ArbiterUnreachable, type Arbitration, type Reponse } from "./arbitration.ts";
+import { complet, manquant, type Calibration } from "./calibration.ts";
 import { capturesLivrees, direCaptures, estDInterface, zoneALaPrise as zonePrise, type Captures } from "./captures.ts";
 import { absentesDuMotif, CLE_DES_CAPACITES, direManque, direStationAbsente, fournitTout, gesteDeCapacite, manque, manqueDuMotif, motifSansStation, motifStationAbsente } from "./capacites.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsClaude, consigne, consigneDeSuite, direRefus, environnementCook, lireFlux, REFUS_MAX, ticketRemis, verdict, VARIABLES_DE_CLE, VARIABLES_DE_JETON, type Lecture, type Session } from "./claude.ts";
 import type { Decisions } from "./decisions.ts";
 import { ouvrirDepot, type Depot, type OptionsDepot } from "./depot.ts";
-import { configPresence, ouvrirDistantes, PRESENCE_PAR_DEFAUT_MIN, type Conclusion } from "./distantes.ts";
+import { configPresence, openRemotes, PRESENCE_PAR_DEFAUT_MIN, type Conclusion } from "./remote.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
 import { STATION_ABSENTE } from "./events/rail.ts";
 import type { ContexteCook } from "./events/guardrails.ts";
-import { IDENTIFIANTS_LIVRES, PART_SANS_PROGRES, SANS_DIFF, SANS_LIVRABLE, type FaitStation, type FinDeCook, type Retenue } from "./events/station.ts";
-import { illisible, MARQUEUR, requises } from "./fiche.ts";
+import { IDENTIFIANTS_LIVRES, NO_PROGRESS_SHARE, SANS_DIFF, NO_DELIVERABLE, type FaitStation, type FinDeCook, type Retenue } from "./events/station.ts";
+import { illisible, MARQUEUR, requises } from "./card.ts";
 import { direMasquage, FICHIER_DES_IDENTIFIANTS, identifiantsLivres, LONGUEUR_MIN_DU_JETON, type SigneDIdentifiants } from "./identifiants.ts";
-import { envelopper, type Cloison } from "./cloison.ts";
+import { envelopper, type Partition } from "./partition.ts";
 import { jouerSetup, SCRIPT_SETUP } from "./gates.ts";
 import { CAUSES_DU_PROJET } from "./mise-de-cote.ts";
-import { direDefaut, lireLivrable, type Defaut } from "./livrable.ts";
-import { LancementRefuse, nomDeRun, type CookLance, type FinDeCook as FinGardee, type GardeFous, type Verdict } from "./garde-fous.ts";
+import { direDefaut, readDeliverable, type Defaut } from "./deliverable.ts";
+import { LancementRefuse, nomDeRun, type CookLance, type FinDeCook as FinGardee, type Guardrails, type Verdict } from "./guardrails.ts";
 import type { GitHub } from "./github.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import { configTranscripts, ouvrirNettoyage } from "./nettoyage.ts";
 import { configMachine, direSaturation, JEUNE_MS, lireMachine, reserver, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
 import { consigneDeRenvoi, consigneDeReprise, RENVOIS_MAX } from "./pass.ts";
 import { commitsConserves, travailLaisse, type TravailLaisse } from "./travail-conserve.ts";
-import { lire } from "./plafonds.ts";
-import { etatDesGardeFous, fluxDuCook } from "./projections/guardrails.ts";
-import { etatDeLaBase, passDuTicket, renvoiEnAttente, reparationEnCours } from "./projections/pass.ts";
-import { communsDuRail, lireRail, prisPar, ticketDuRail, type TicketRail } from "./projections/rail.ts";
-import { consommationDesCooks, derniereMiseDeCote, dernierEchecDeSetup, etatStation, miseDeCoteBloquee, memeCause, plafondDeCooks, refusDAffilee, SANS_CONNEXION, sansStationDepuis, setupBloque, stationsAnnoncees } from "./projections/stations.ts";
+import { lire } from "./caps.ts";
+import { guardrailsState, fluxDuCook } from "./projections/guardrails.ts";
+import { etatDeLaBase, passDuTicket, queuedSendBack, reparationEnCours } from "./projections/pass.ts";
+import { communsDuRail, lireRail, takenBy, ticketDuRail, type TicketRail } from "./projections/rail.ts";
+import { consommationDesCooks, derniereMiseDeCote, dernierEchecDeSetup, etatStation, blockedAside, memeCause, cooksCap, refusDAffilee, NO_CONNECTION, sansStationDepuis, blockedSetup, stationsAnnoncees } from "./projections/stations.ts";
 import { GesteRefuse, type Preneuse } from "./rail.ts";
-import { AUTRES_HOTES } from "./porte.ts";
+import { AUTRES_HOTES } from "./door.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
 import { preparerReprise, type Reprise as SessionReprise } from "./reprise-de-session.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
 import { DECLARATION, lireSecrets } from "./secrets.ts";
-import { ouvrirServeurs, type Livraison, type Serveurs } from "./servir.ts";
+import { openServers, type Delivery, type Servers } from "./servir.ts";
 import { direStations, lireStations, type StationDeclaree } from "./stations-declarees.ts";
 import { horsZone, possede } from "./zones.ts";
 
@@ -96,10 +96,10 @@ export const ENTREES_PAR_DEFAUT = 4;
 const auteurDe = (station: string) => `station:${station}`;
 
 // Les motifs que la station écrit sur le rail.
-export const SANS_CALIBRAGE = "no-calibration";
+export const NO_CALIBRATION = "no-calibration";
 const CALIBRE = "calibrated";
-export const FICHE_ILLISIBLE = "unreadable-card";
-const FICHE_LISIBLE = "card-readable";
+export const UNREADABLE_CARD = "unreadable-card";
+const READABLE_CARD = "card-readable";
 // Ce qu'un ticket 86 faute de station demande n'est plus ce qui manquait : une
 // station le fournit désormais, ou sa fiche a changé.
 const CAPACITES_RELUES = "capabilities-reread";
@@ -112,7 +112,7 @@ const REFUS = "refused";
 const SETUP_EN_ECHEC = "setup-failed";
 // Un setup en cours quand le projet a été bloqué échoue comme celui qui l'a
 // bloqué : son ticket est rendu au rail, sans rien de plus au journal.
-const SETUP_BLOQUE = "setup-blocked";
+const SETUP_BLOCKED = "setup-blocked";
 // La branche d'intégration a bougé : les tickets 86 sur un setup en échec
 // n'attendent pas leur heure de retour.
 const SETUP_DEBLOQUE = "setup-unblocked";
@@ -130,7 +130,7 @@ export const SECRET_LIVRE = "secret-committed";
 class SecretLivre extends Error {}
 // Ce que le cook a commité porte le nom ou la forme des identifiants de
 // Claude : rien n'est poussé.
-export { IDENTIFIANTS_LIVRES, SANS_DIFF, SANS_LIVRABLE };
+export { IDENTIFIANTS_LIVRES, SANS_DIFF, NO_DELIVERABLE };
 class IdentifiantsLivres extends Error {}
 const SIGNES_D_IDENTIFIANTS: Record<SigneDIdentifiants, string> = {
   name: `un fichier nommé \`${FICHIER_DES_IDENTIFIANTS}\`, comme celui où Claude garde la connexion du compte`,
@@ -162,7 +162,7 @@ const FIN_DE_SETUP_MAX = 2000;
 const CLOTURE_DE_SORTIE = "```";
 // Le worktree d'un cook est regardé au tick, au plus une fois par dixième de
 // bail : un `git status` toutes les trois minutes pour un bail de trente.
-const REGARDS_PAR_BAIL = 10;
+const LOOKS_PER_LEASE = 10;
 // GitHub refuse un commentaire au-delà de 65 536 caractères.
 const COMPTE_RENDU_MAX = 20_000;
 // Ce que le commentaire nomme des fichiers écrits hors zone ; le journal les
@@ -243,7 +243,7 @@ export type OptionsStation = {
   sansIdentite?: boolean;
   // La cloison dans laquelle partent le setup et le cook. Absente : ils
   // tournent sous le compte du runtime, sans rien autour.
-  cloison?: Cloison | null;
+  cloison?: Partition | null;
   // Sous cloison, la durée de garde des transcripts du projet. Absente :
   // celle par défaut.
   gardeTranscriptsMs?: number;
@@ -263,7 +263,7 @@ export type OptionsStation = {
   apresCook?: () => void;
   // L'arbitre entre projets, consulté avant chaque lancement. Absent : le
   // projet se tient pour seul sur la machine.
-  arbitre?: Arbitrage | null;
+  arbitre?: Arbitration | null;
 };
 
 // Ouvre le dépôt de la station là où le runtime le range : les worktrees des
@@ -292,7 +292,7 @@ const pluriel = (combien: number, mot: string) => `${nombre(combien)} ${mot}${co
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
 // Ce que la station dit d'un cook que le bail de son ticket a arrêté.
-const sansProgres = (fin: FinGardee): string | null =>
+const noProgress = (fin: FinGardee): string | null =>
   fin.arret?.reason === "lease" ? `Aucun progrès dans son worktree depuis ${duree(fin.arret.observed ?? 0)} : le bail du ticket est tombé.` : null;
 
 // Ce que l'issue dit d'un cook dont le flux portait la forme d'identifiants
@@ -300,16 +300,16 @@ const sansProgres = (fin: FinGardee): string | null =>
 const masquageDuCook = (masques: number | undefined): string[] =>
   masques ? [direMasquage(masques, "ce que ce cook a dit — son flux brut, d'où viennent ce compte-rendu et celui du journal")] : [];
 
-function entete(station: string, fin: string, calibrage: Calibrage, mesure: Fin): string {
+function entete(station: string, fin: string, calibration: Calibration, measure: Fin): string {
   return [
     [
       `**Cook \`${station}\` — ${fin}**`,
-      `\`${calibrage.model}\` / \`${calibrage.effort}\``,
-      pluriel(mesure.turns, "tour"),
-      `${nombre(mesure.tokens)} tokens`,
-      duree(mesure.durationMs),
+      `\`${calibration.model}\` / \`${calibration.effort}\``,
+      pluriel(measure.turns, "tour"),
+      `${nombre(measure.tokens)} tokens`,
+      duree(measure.durationMs),
     ].join(" · "),
-    ...masquageDuCook(mesure.masques),
+    ...masquageDuCook(measure.masques),
   ].join("\n");
 }
 
@@ -322,14 +322,14 @@ const replier = (titre: string, texte: string) => ["<details>", `<summary>${titr
 type Rendu = { summary: string | null; deliverable: string | null; defaut: Defaut | null; publie: string[] };
 function rendre(message: string | null): Rendu {
   const couper = (texte: string | null) => texte?.slice(0, COMPTE_RENDU_MAX) ?? null;
-  const livrable = lireLivrable(message);
-  const deliverable = couper(livrable.texte);
-  const autour = couper(livrable.autour);
-  const reste = `Le reste du message du cook${livrable.delimitations > 1 ? ` — il a délimité ${livrable.delimitations} fois, la dernière délimitation est retenue` : ""}`;
+  const parsedDeliverable = readDeliverable(message);
+  const deliverable = couper(parsedDeliverable.texte);
+  const autour = couper(parsedDeliverable.autour);
+  const reste = `Le reste du message du cook${parsedDeliverable.delimitations > 1 ? ` — il a délimité ${parsedDeliverable.delimitations} fois, la dernière délimitation est retenue` : ""}`;
   return {
     summary: couper(message),
     deliverable,
-    defaut: livrable.defaut,
+    defaut: parsedDeliverable.defaut,
     publie: deliverable === null ? [autour ?? "_Le cook n'a laissé aucun compte-rendu._"] : [deliverable, ...(autour === null ? [] : ["", ...replier(reste, autour)])],
   };
 }
@@ -337,14 +337,14 @@ function rendre(message: string | null): Rendu {
 // Le corps de la PR d'une livraison. Le calibrage manque si le ticket l'a
 // perdu depuis son cook. `captures` : ce qu'en dit une livraison d'interface,
 // sous la première ligne — rien pour un autre ticket.
-const corpsDePR = (station: string, numero: number, calibrage: Calibrage | null, compteRendu: string | null, captures: string[] = []) =>
-  [`Ticket #${numero}, cuisiné par \`${station}\`${calibrage ? ` (\`${calibrage.model}\` / \`${calibrage.effort}\`)` : ""}.`, ...captures, "", compteRendu ?? ""].join("\n");
+const corpsDePR = (station: string, numero: number, calibration: Calibration | null, compteRendu: string | null, captures: string[] = []) =>
+  [`Ticket #${numero}, cuisiné par \`${station}\`${calibration ? ` (\`${calibration.model}\` / \`${calibration.effort}\`)` : ""}.`, ...captures, "", compteRendu ?? ""].join("\n");
 
 // Ce que la station dit d'un cook qui finit alors que son ticket a quitté le
 // rail : sa livraison ne part pas en pass, et aucune PR n'est ouverte pour lui.
 // `pr` : celle de la livraison qu'un renvoi reprenait, ou qu'elle venait
 // d'ouvrir quand le ticket est parti.
-function direLivraisonSansTicket(branche: string, base: string, pr: string | null, sansCommit: boolean): string[] {
+function sayDeliveryWithoutTicket(branche: string, base: string, pr: string | null, sansCommit: boolean): string[] {
   const reste = sansCommit
     ? "Aucun commit, et rien n'est poussé : ce compte-rendu est tout ce que ce cook laisse."
     : pr
@@ -354,9 +354,9 @@ function direLivraisonSansTicket(branche: string, base: string, pr: string | nul
 }
 
 // Rend le runtime, augmenté de ses stations. Son `arreter` les emporte avec lui.
-export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: R, options: OptionsStation): R {
-  const { journal, projet, rail } = runtime;
-  const { base } = journal;
+export function brancherStation<R extends RuntimeAvecRail & Guardrails>(runtime: R, options: OptionsStation): R {
+  const { journal: log, projet, rail } = runtime;
+  const { base } = log;
   const { depot, github } = options;
   // Toutes les stations que le projet déclare, puis celles d'ici : les seules
   // où ce module lance un cook. Une station distante tire son travail. Le chef
@@ -365,7 +365,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   let toutes = options.stations;
   let declarees = toutes.filter((declaree) => !declaree.distante);
   let noms = declarees.map((declaree) => declaree.nom);
-  const estDistante = (station: string) => toutes.some((declaree) => declaree.nom === station && declaree.distante);
+  const isRemote = (station: string) => toutes.some((declaree) => declaree.nom === station && declaree.distante);
   // Les stations telles que le rail les lit pour leur prêter un ticket : dans
   // l'ordre de la déclaration, chacune avec ce qu'elle fournit.
   // Une distante ne prend les tickets ordinaires que si le chef le lui fait
@@ -390,11 +390,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   const maintenant = options.maintenant ?? (() => new Date());
   const envCook = environnementCook(options.env ?? process.env);
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
-  const pasDeRegard = options.dureeBailMs / REGARDS_PAR_BAIL;
+  const pasDeRegard = options.dureeBailMs / LOOKS_PER_LEASE;
   const entreesMax = options.entreesMax ?? ENTREES_PAR_DEFAUT;
   const seuils = options.seuils ?? configMachine({});
   const machine = options.machine ?? (() => lireMachine(options.repertoireEtat));
-  const noter = (station: string, ticket: number | null, fait: FaitStation) => journal.ajouter({ project: projet, ticket, author: auteurDe(station), ...fait });
+  const noter = (station: string, ticket: number | null, fait: FaitStation) => log.ajouter({ project: projet, ticket, author: auteurDe(station), ...fait });
   // Ce qui vaut pour toutes les stations d'ici s'écrit pour chacune : chacune
   // se lit seule, dans `status` comme dans `station`.
   const noterPourChacune = (fait: (station: string) => FaitStation, celles: string[] = noms) => {
@@ -428,11 +428,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   const aSuivre: Array<{ station: string; ticket: TicketRail; run: string }> = [];
   // Ce que le lancement d'un cook a dit de lui.
   const lancementDe = (numero: number, run: string) =>
-    journal.duTicket(numero).findLast((evenement) => evenement.type === "cook.launched" && evenement.payload.run === run)?.payload as Partial<ContexteCook> | undefined;
+    log.duTicket(numero).findLast((evenement) => evenement.type === "cook.launched" && evenement.payload.run === run)?.payload as Partial<ContexteCook> | undefined;
 
   // Ce que le journal montre des stations devient ce que le projet déclare :
   // au démarrage, et à chaque fois que le chef les change.
-  const annoncer = () => {
+  const announce = () => {
     const nomsDeToutes = toutes.map((declaree) => declaree.nom);
     // Une station que le projet ne déclare plus ne reste pas montrée comme si
     // elle servait.
@@ -462,7 +462,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // Sans station, aucun cook ne part : c'est écrit, une fois, et `status`
     // le dit tant que ça dure.
     if (toutes.length === 0 && sansStationDepuis(base) === null) {
-      journal.ajouter({ project: projet, ticket: null, author: "runtime", type: "stations.undeclared", payload: {} });
+      log.ajouter({ project: projet, ticket: null, author: "runtime", type: "stations.undeclared", payload: {} });
     }
   };
 
@@ -483,14 +483,14 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       else if (ticket.state === "taken") geste(() => rail.rendre(ticket.ticket, "station-restarted", station));
       if (sansCompteRendu(ticket.ticket)) aReprendre.push(ticket.ticket);
     }
-    annoncer();
+    announce();
   });
 
   let arrete = false;
   // Le worktree d'un cook part à la fin de ce cook : la station le range, et
   // rattrape au tick ce qui lui a échappé.
   const nettoyage = ouvrirNettoyage({
-    journal,
+    journal: log,
     projet,
     repertoireEtat: options.repertoireEtat,
     depot,
@@ -498,7 +498,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     arrete: () => arrete,
     // Rangé par la station, par le rattrapage ou sur un chemin d'erreur, un
     // worktree ne part pas sous un serveur qui tourne.
-    avant: (relatif) => serveurs.liberer(relatif),
+    avant: (relatif) => servers.liberer(relatif),
     transcripts: options.cloison ? { claude: options.cloison.claude, gardeMs: options.gardeTranscriptsMs ?? configTranscripts({}).gardeMs } : null,
     maintenant,
   });
@@ -507,13 +507,13 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // ce qui arrête, libère ou éteint un serveur ne demande pas laquelle.
   // Une station retirée par le chef garde les siens : ils tiennent le
   // worktree d'un cook qui a déjà livré.
-  const serveursDe = new Map<string, Serveurs>();
-  const ouvrirServeursDe = (station: string) => {
-    if (serveursDe.has(station)) return;
-    serveursDe.set(
+  const serversOf = new Map<string, Servers>();
+  const openServersOf = (station: string) => {
+    if (serversOf.has(station)) return;
+    serversOf.set(
       station,
-      ouvrirServeurs({
-        journal,
+      openServers({
+        journal: log,
         projet,
         station,
         auteur: auteurDe(station),
@@ -525,15 +525,15 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       }),
     );
   };
-  for (const station of noms) ouvrirServeursDe(station);
-  const serveurs = {
-    servir: (station: string, livraison: Livraison) => serveursDe.get(station)?.servir(livraison) ?? false,
-    arreter: async (ticket: number, motif: Parameters<Serveurs["arreter"]>[1]) => void (await Promise.all([...serveursDe.values()].map((tenus) => tenus.arreter(ticket, motif)))),
-    liberer: async (relatif: string) => void (await Promise.all([...serveursDe.values()].map((tenus) => tenus.liberer(relatif)))),
-    tenus: () => [...serveursDe.values()].flatMap((tenus) => tenus.tenus()),
-    orphelins: () => [...serveursDe.values()].flatMap((tenus) => tenus.orphelins()),
+  for (const station of noms) openServersOf(station);
+  const servers = {
+    servir: (station: string, delivery: Delivery) => serversOf.get(station)?.servir(delivery) ?? false,
+    arreter: async (ticket: number, motif: Parameters<Servers["arreter"]>[1]) => void (await Promise.all([...serversOf.values()].map((tenus) => tenus.arreter(ticket, motif)))),
+    liberer: async (relatif: string) => void (await Promise.all([...serversOf.values()].map((tenus) => tenus.liberer(relatif)))),
+    tenus: () => [...serversOf.values()].flatMap((tenus) => tenus.tenus()),
+    orphelins: () => [...serversOf.values()].flatMap((tenus) => tenus.orphelins()),
     fermer: () => {
-      for (const tenus of serveursDe.values()) tenus.fermer();
+      for (const tenus of serversOf.values()) tenus.fermer();
     },
   };
   // Arrête le setup en cours quand le runtime s'en va.
@@ -549,10 +549,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // au plafond, tient encore sa zone, et n'est pas repris tant que cette
   // cuisine-là n'est pas défaite : ni deux cooks sur un ticket, ni un cook de
   // plus que le plafond, ni deux cooks dans les mêmes fichiers.
-  const enCuisine = new Map<number, string[]>();
+  const cooking = new Map<number, string[]>();
   // La station de chacun d'eux : son plafond les compte.
-  const cuisinePar = new Map<number, string>();
-  const enCuisineDe = (station: string) => [...cuisinePar.values()].filter((celle) => celle === station).length;
+  const cookedBy = new Map<number, string>();
+  const cookingOn = (station: string) => [...cookedBy.values()].filter((celle) => celle === station).length;
   // L'instant où chaque cook encore jeune est parti (voir `machineRetient`).
   let departs: number[] = [];
 
@@ -624,20 +624,20 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Les cooks de tickets qu'une station fait tourner : les tickets qu'elle
   // tient et ses cuisines pas encore défaites — le plus grand des deux : un
   // ticket rendu pendant que son cook tourne ne fait pas une place.
-  const cooksDe = (station: string) => Math.max(prisPar(base, station), enCuisineDe(station));
+  const cooksDe = (station: string) => Math.max(takenBy(base, station), cookingOn(station));
 
   // Les bornes qu'une station lit avant de prendre un ticket, qu'elle tourne
   // ici ou qu'elle tire son travail : le « stop » du chef, le disjoncteur, la
   // base rouge, sa connexion, son quota, son
   // plafond de cooks.
-  const borneDe = ({ nom, cooks }: StationDeclaree, etat: ReturnType<typeof etatStation>, garde: ReturnType<typeof etatDesGardeFous>, rouge: boolean, instant: string): Retenue | null => {
+  const borneDe = ({ nom, cooks }: StationDeclaree, etat: ReturnType<typeof etatStation>, garde: ReturnType<typeof guardrailsState>, rouge: boolean, instant: string): Retenue | null => {
     if (garde.stoppedAt !== null) return "stopped";
     if (garde.breakerOpenedAt !== null) return "breaker";
     if (rouge) return "base";
     if (etat?.disconnectedAt) return "disconnected";
     if (etat?.quotaUntil && etat.quotaUntil > instant) return "quota";
-    const plafond = plafondDeCooks(etat ?? { maxCooks: cooks, cap: null });
-    if (plafond !== null && cooksDe(nom) >= plafond) return "cap";
+    const cap = cooksCap(etat ?? { maxCooks: cooks, cap: null });
+    if (cap !== null && cooksDe(nom) >= cap) return "cap";
     return null;
   };
 
@@ -659,7 +659,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // La machine se lit d'abord, quoi qu'il arrive ensuite : ce que `status`
     // en dit ne doit pas dépendre d'une autre borne.
     const machine = machineRetient(new Map([...etats].map(([station, etat]) => [station, etat?.saturatedResource ?? null])));
-    const garde = etatDesGardeFous(base);
+    const garde = guardrailsState(base);
     // Un cook parti d'une base rouge livrerait des gates rouges pour une raison
     // qui n'est pas la sienne : ses renvois se consommeraient pour rien. La
     // pass relit la base ; au vert, la prise reprend d'elle-même. Seule sa
@@ -670,13 +670,13 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const instant = maintenant().toISOString();
     // Un setup bloqué retient les stations d'ici, celles qui le jouent sur
     // cette machine ; une distante joue le sien sur son poste.
-    const sansSetup = setupBloque(base) !== null;
+    const sansSetup = blockedSetup(base) !== null;
     // Une cause de mise de côté répétée n'arrête pas la cuisine, elle l'amène
     // à un ticket à la fois : celui qui sonde si la cause a changé — la valeur
     // d'un secret posée, GitHub revenu n'ont aucun commit à attendre.
-    const sansCause = miseDeCoteBloquee(base) !== null && rail.tickets().some((ticket) => ticket.state === "taken");
+    const sansCause = blockedAside(base) !== null && rail.tickets().some((ticket) => ticket.state === "taken");
     const retient = (declaree: StationDeclaree): Retenue | null => {
-      const reparable = typeof seule === "number" && rail.servables(enCuisine, preneuses([declaree.nom]), seule) > 0;
+      const reparable = typeof seule === "number" && rail.servables(cooking, preneuses([declaree.nom]), seule) > 0;
       const borne = borneDe(declaree, etats.get(declaree.nom) ?? null, garde, rouge && !reparable, instant);
       if (borne !== null) return borne;
       if (sansSetup) return "setup";
@@ -689,8 +689,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Ce qui retient une station distante de prendre le ticket qu'elle réclame :
   // les bornes de toute station. L'entrée et la machine sont celles d'ici —
   // son worktree et son cook pèsent sur son poste, pas sur la box.
-  const ceQuiRetientLaDistante = (declaree: StationDeclaree): Retenue | null =>
-    borneDe(declaree, etatStation(base, declaree.nom), etatDesGardeFous(base), etatDeLaBase(base)?.outcome === "red", maintenant().toISOString());
+  const whatHoldsTheRemote = (declaree: StationDeclaree): Retenue | null =>
+    borneDe(declaree, etatStation(base, declaree.nom), guardrailsState(base), etatDeLaBase(base)?.outcome === "red", maintenant().toISOString());
 
   // La box sature : aucune de ses stations n'a de place pour un cook de plus —
   // chacune est à son plafond, ou la machine n'en peut plus, lue à l'instant.
@@ -716,7 +716,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // devant des tickets qu'elle ne peut pas cuisiner, faute de fournir ce qu'ils
   // demandent.
   const direCeQuiRetient = (station: string, retenue: Retenue | null) => {
-    const raison = retenue !== null && rail.servables(enCuisine, preneuses([station])) > 0 ? retenue : null;
+    const raison = retenue !== null && rail.servables(cooking, preneuses([station])) > 0 ? retenue : null;
     if (raison === (etatStation(base, station)?.heldReason ?? null)) return;
     noter(station, null, raison === null ? { type: "station.released", payload: { station } } : { type: "station.held", payload: { station, reason: raison } });
   };
@@ -726,7 +726,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // ticket qu'elle s'apprête à prendre ; et le projet lui redit son état chaque
   // fois qu'il change, et à chaque tick — c'est ce qui remplit un arbitre qui
   // revient.
-  const arbitre = options.arbitre ?? null;
+  const arbiter = options.arbitre ?? null;
   // La place en main : accordée par l'arbitre, ou prise sans lui parce qu'il
   // ne répond pas et qu'aucun cook ne tourne.
   let droit: "arbitre" | "seul" | null = null;
@@ -734,7 +734,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   let demandeEnVol = false;
   let degrade = noms.some((station) => etatStation(base, station)?.unarbitratedAt != null);
   // Les tickets en cuisine partis sans arbitre.
-  const nonArbitres = new Set<number>();
+  const nonArbitrated = new Set<number>();
   // Le dernier état dit à l'arbitre, et s'il faut le redire quand même.
   let dernierMot: string | null = null;
   let aRedire = false;
@@ -745,7 +745,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Les cooks de tickets que le projet fait tourner, comptés comme au plafond.
   // Ceux d'une station distante n'en sont pas : l'arbitre partage cette
   // machine, et ils tournent sur une autre.
-  const cooksTenus = () => Math.max(noms.reduce((somme, station) => somme + prisPar(base, station), 0), [...cuisinePar.values()].filter((station) => noms.includes(station)).length);
+  const cooksTenus = () => Math.max(noms.reduce((somme, station) => somme + takenBy(base, station), 0), [...cookedBy.values()].filter((station) => noms.includes(station)).length);
   // Ce qui laisse une station demander une place : rien ne la retient, ou
   // seulement un pas d'allure.
   const dAllure = (retenue: Retenue | null) => retenue === null || retenue === "machine" || retenue === "ramp" || retenue === "setups";
@@ -757,18 +757,18 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // demande suit dans les secondes. `retenues` : ce qui retient chacune de ses
   // stations — il suffit qu'une seule puisse prendre un ticket qu'elle peut
   // cuisiner : celui que seule une station retenue fournirait ne demande rien.
-  const motPourLArbitre = (retenues: ReadonlyMap<string, Retenue | null>): Mot => {
+  const wordForTheArbiter = (retenues: ReadonlyMap<string, Retenue | null>): Mot => {
     const allantes = [...retenues].filter(([, retenue]) => dAllure(retenue));
     const pas = allantes[0]?.[1];
-    const demande = allantes.length > 0 && rail.servables(enCuisine, preneuses(allantes.map(([station]) => station))) > 0;
+    const demande = allantes.length > 0 && rail.servables(cooking, preneuses(allantes.map(([station]) => station))) > 0;
     const consommation = noms
       .map((station) => consommationDesCooks(base, station, maintenant()))
       .reduce((somme, { jour, semaine }) => ({ jour: somme.jour + jour, semaine: somme.semaine + semaine }), { jour: 0, semaine: 0 });
-    return { cooks: cooksTenus(), demande, machine: demande && pas === "machine", nonArbitres: nonArbitres.size, consommation };
+    return { cooks: cooksTenus(), demande, machine: demande && pas === "machine", nonArbitres: nonArbitrated.size, consommation };
   };
   // `suite` reçoit la réponse, ou null si l'arbitre n'a pas répondu. L'entrée
   // en mode dégradé et le retour s'écrivent une fois chacun.
-  const echanger = (joint: Arbitrage, dit: Mot & { veut: boolean }, suite: (reponse: Reponse | null) => void) => {
+  const echanger = (joint: Arbitration, dit: Mot & { veut: boolean }, suite: (reponse: Reponse | null) => void) => {
     echanges = echanges
       .then(async () => {
         if (arrete) return;
@@ -785,7 +785,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         try {
           if (reponse === null && !degrade) {
             degrade = true;
-            const reason = panne instanceof ArbitreInjoignable ? panne.motif : message(panne);
+            const reason = panne instanceof ArbiterUnreachable ? panne.motif : message(panne);
             noterPourChacune((station) => ({ type: "station.unarbitrated", payload: { station, reason } }));
             avertir(`brigade : ${message(panne)} — mode dégradé : ${lesStations("ne lance plus", "ne lancent plus")} qu'un cook à la fois, sans arbitrage, jusqu'à son retour`);
           } else if (reponse !== null && degrade) {
@@ -809,12 +809,12 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // relance le service ou dit ce qui retient. `libres` : les stations qui
   // prendraient un ticket si la place était là — ce sont elles qu'un refus
   // retient.
-  const placeEnMain = (joint: Arbitrage, libres: string[]): "attente" | null => {
+  const placeEnMain = (joint: Arbitration, libres: string[]): "attente" | null => {
     if (droit === "arbitre" || (droit === "seul" && cooksTenus() === 0)) return null;
     droit = null;
     if (demandeEnVol) return "attente";
     demandeEnVol = true;
-    const dit = motPourLArbitre(new Map(libres.map((station) => [station, null])));
+    const dit = wordForTheArbiter(new Map(libres.map((station) => [station, null])));
     dernierMot = JSON.stringify(dit);
     echanger(joint, { ...dit, veut: true }, (reponse) => {
       demandeEnVol = false;
@@ -829,8 +829,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     });
     return "attente";
   };
-  const redire = (joint: Arbitrage, retenues: ReadonlyMap<string, Retenue | null>) => {
-    const dit = motPourLArbitre(retenues);
+  const redire = (joint: Arbitration, retenues: ReadonlyMap<string, Retenue | null>) => {
+    const dit = wordForTheArbiter(retenues);
     const cle = JSON.stringify(dit);
     if (!aRedire && cle === dernierMot) return;
     aRedire = false;
@@ -838,7 +838,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     echanger(joint, { ...dit, veut: false }, () => {});
   };
   // Un projet qui n'a plus d'arbitre n'est plus en mode dégradé.
-  if (arbitre === null && degrade) {
+  if (arbiter === null && degrade) {
     degrade = false;
     noterPourChacune(
       (station) => ({ type: "station.arbitrated", payload: { station } }),
@@ -857,8 +857,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   const rendreLesCorriges = () => {
     for (const ticket of rail.tickets()) {
       if (ticket.state !== "86") continue;
-      if (ticket.reason === SANS_CALIBRAGE && complet(ticket)) geste(() => rail.rendre(ticket.ticket, CALIBRE));
-      if (ticket.reason === FICHE_ILLISIBLE && illisible(ticket.card) === null) geste(() => rail.rendre(ticket.ticket, FICHE_LISIBLE));
+      if (ticket.reason === NO_CALIBRATION && complet(ticket)) geste(() => rail.rendre(ticket.ticket, CALIBRE));
+      if (ticket.reason === UNREADABLE_CARD && illisible(ticket.card) === null) geste(() => rail.rendre(ticket.ticket, READABLE_CARD));
       if (manqueDuMotif(ticket.reason) !== null) {
         const absent = sansStation(ticket);
         if (absent === null || motifSansStation(absent) !== ticket.reason) geste(() => rail.rendre(ticket.ticket, CAPACITES_RELUES));
@@ -880,7 +880,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const demande = requises(ticket.card);
     const capables = toutes.filter((declaree) => fournitTout(declaree.fournit, demande) && (demande.length > 0 || !declaree.distante || declaree.ordinaires === true));
     if (capables.length === 0) return null;
-    const absentes = distantes.absentes();
+    const absentes = remotes.absentes();
     return capables.every((declaree) => absentes.includes(declaree.nom)) ? capables.map((declaree) => declaree.nom) : null;
   };
 
@@ -891,12 +891,12 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // dès qu'elle se manifeste. Son issue ne l'apprend qu'une fois : une station
   // qui va et vient n'y écrit pas à chaque fois.
   const ecarterSansPresence = () => {
-    if (distantes.absentes().length === 0) return;
+    if (remotes.absentes().length === 0) return;
     for (const ticket of rail.tickets()) {
-      if (ticket.state !== "waiting" || enCuisine.has(ticket.ticket)) continue;
+      if (ticket.state !== "waiting" || cooking.has(ticket.ticket)) continue;
       const absentes = sansStationPresente(ticket);
       if (absentes === null) continue;
-      const deja = journal.duTicket(ticket.ticket).some((evenement) => evenement.type === "ticket.86" && evenement.payload.reason.startsWith(STATION_ABSENTE));
+      const deja = log.duTicket(ticket.ticket).some((evenement) => evenement.type === "ticket.86" && evenement.payload.reason.startsWith(STATION_ABSENTE));
       if (!geste(() => rail.quatreVingtSix(ticket.ticket, { motif: motifStationAbsente(absentes) })) || deja) continue;
       const dit = direStationAbsente(absentes);
       void commenter(
@@ -919,7 +919,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Un ticket dont la cuisine n'est pas défaite attend qu'elle le soit.
   const ecarterSansStation = () => {
     for (const ticket of rail.tickets()) {
-      if (ticket.state !== "waiting" || enCuisine.has(ticket.ticket)) continue;
+      if (ticket.state !== "waiting" || cooking.has(ticket.ticket)) continue;
       const absent = sansStation(ticket);
       if (absent === null) continue;
       if (!geste(() => rail.quatreVingtSix(ticket.ticket, { motif: motifSansStation(absent) }))) continue;
@@ -940,7 +940,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   };
 
   const refuser = async (station: string, ticket: TicketRail) => {
-    if (!geste(() => rail.quatreVingtSix(ticket.ticket, { motif: SANS_CALIBRAGE, station }))) return;
+    if (!geste(() => rail.quatreVingtSix(ticket.ticket, { motif: NO_CALIBRATION, station }))) return;
     await commenter(
       ticket.ticket,
       [
@@ -951,8 +951,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     );
   };
 
-  const refuserLaFiche = async (station: string, ticket: TicketRail) => {
-    if (!geste(() => rail.quatreVingtSix(ticket.ticket, { motif: FICHE_ILLISIBLE, station }))) return;
+  const refuseTheCard = async (station: string, ticket: TicketRail) => {
+    if (!geste(() => rail.quatreVingtSix(ticket.ticket, { motif: UNREADABLE_CARD, station }))) return;
     await commenter(
       ticket.ticket,
       [
@@ -979,15 +979,15 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       const cause = CAUSES_DU_PROJET[motif];
       if (cause === undefined) return true;
       const precedente = derniereMiseDeCote(base);
-      const bloquee = miseDeCoteBloquee(base);
+      const blocked = blockedAside(base);
       const vue = depot.vue();
       noter(station, numero, { type: "aside.failed", payload: { station, reason: motif } });
-      if (bloquee !== null && bloquee.reason !== motif) {
+      if (blocked !== null && blocked.reason !== motif) {
         noter(station, null, { type: "aside.unblocked", payload: { station, base: vue, why: "cause" } });
         for (const ticket of rail.tickets()) {
-          if (ticket.ticket !== numero && ticket.state === "86" && ticket.reason === bloquee.reason) geste(() => rail.rendre(ticket.ticket, MISE_DE_COTE_LEVEE));
+          if (ticket.ticket !== numero && ticket.state === "86" && ticket.reason === blocked.reason) geste(() => rail.rendre(ticket.ticket, MISE_DE_COTE_LEVEE));
         }
-      } else if (bloquee === null && precedente === motif) {
+      } else if (blocked === null && precedente === motif) {
         noter(station, numero, { type: "aside.blocked", payload: { station, reason: motif, base: vue } });
         avertir(`brigade : ${cause.texte}, deux fois de suite — un seul ticket est repris à la fois pour voir si elle a changé : ${cause.geste}`);
       }
@@ -1001,7 +1001,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // changent, ou si un cook est parti depuis.
   const refuserSansSecrets = async (station: string, numero: number, problemes: string[]) => {
     const neuf = base.transaction(() => {
-      const dernier = journal.duTicket(numero).findLast((evenement) => evenement.type === "secrets.unavailable" || evenement.type === "cook.launched");
+      const dernier = log.duTicket(numero).findLast((evenement) => evenement.type === "secrets.unavailable" || evenement.type === "cook.launched");
       const dits = dernier?.type === "secrets.unavailable" ? dernier.payload.problems : null;
       if (!ecarter(station, numero, SECRETS_INDISPONIBLES, new Date(maintenant().getTime() + REPLI_WORKTREE_MS))) return false;
       if (JSON.stringify(dits) === JSON.stringify(problemes)) return false;
@@ -1038,24 +1038,24 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const retour = new Date(maintenant().getTime() + REPLI_WORKTREE_MS);
     const cause = { why: echec.pourquoi, hosts: echec.hotes };
     const issue = base.transaction((): { neuf: boolean; bloque: boolean } => {
-      const bloque = setupBloque(base);
+      const blocked = blockedSetup(base);
       // Un setup parti avant le blocage, qui échoue comme celui qui l'a
       // bloqué : rien de neuf à en dire, et son ticket attend la base.
-      if (bloque !== null && memeCause(bloque, cause)) {
-        geste(() => rail.rendre(numero, SETUP_BLOQUE, station));
+      if (blocked !== null && memeCause(blocked, cause)) {
+        geste(() => rail.rendre(numero, SETUP_BLOCKED, station));
         return { neuf: false, bloque: false };
       }
       // Ce que l'issue sait déjà : le dernier motif dit, et tous les hôtes
       // nommés depuis le dernier cook. Les hôtes ne se comparent pas d'un
       // essai à l'autre — la porte ne redit pas un hôte avant dix minutes, à
       // qui que ce soit : seul un hôte jamais nommé ici est une nouvelle.
-      const essais = journal.duTicket(numero);
+      const essais = log.duTicket(numero);
       const dits = essais.slice(essais.findLastIndex((evenement) => evenement.type === "cook.launched") + 1).flatMap((evenement) => (evenement.type === "setup.failed" ? [evenement.payload] : []));
       const nommes = new Set(dits.flatMap((dit) => dit.hosts));
       const precedent = dernierEchecDeSetup(base);
       if (!geste(() => rail.quatreVingtSix(numero, { motif: SETUP_EN_ECHEC, retour, station }))) return { neuf: false, bloque: false };
       noter(station, numero, { type: "setup.failed", payload: { station, why: echec.pourquoi, hosts: echec.hotes } });
-      const bloquer = bloque === null && precedent !== null && memeCause(precedent, cause);
+      const bloquer = blocked === null && precedent !== null && memeCause(precedent, cause);
       if (bloquer) {
         const hosts = [...new Set([...precedent.hosts, ...echec.hotes])].sort();
         noter(station, numero, { type: "setup.blocked", payload: { station, why: echec.pourquoi, hosts, base: echec.vue } });
@@ -1098,18 +1098,18 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // rapatrie pas est retentée au tick suivant.
   let relue = false;
   const relireLaBase = async () => {
-    const bloque = setupBloque(base);
-    const ecartee = miseDeCoteBloquee(base);
-    if ((bloque === null && ecartee === null) || relue || arrete) return;
+    const blocked = blockedSetup(base);
+    const ecartee = blockedAside(base);
+    if ((blocked === null && ecartee === null) || relue || arrete) return;
     relue = true;
     try {
       const vue = await depot.rapatrier();
       if (arrete) return;
       let leve = false;
-      if (bloque !== null && vue !== bloque.base) {
+      if (blocked !== null && vue !== blocked.base) {
         leve = base.transaction(() => {
-          if (setupBloque(base)?.base !== bloque.base) return false;
-          const station = bloque.station ?? noms[0] ?? "";
+          if (blockedSetup(base)?.base !== blocked.base) return false;
+          const station = blocked.station ?? noms[0] ?? "";
           noter(station, null, { type: "setup.unblocked", payload: { station, base: vue } });
           for (const ticket of rail.tickets()) {
             if (ticket.state === "86" && ticket.reason === SETUP_EN_ECHEC) geste(() => rail.rendre(ticket.ticket, SETUP_DEBLOQUE));
@@ -1120,7 +1120,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       }
       if (ecartee !== null && vue !== ecartee.base) {
         const leveeCote = base.transaction(() => {
-          if (miseDeCoteBloquee(base)?.base !== ecartee.base) return false;
+          if (blockedAside(base)?.base !== ecartee.base) return false;
           const station = ecartee.station ?? noms[0] ?? "";
           noter(station, null, { type: "aside.unblocked", payload: { station, base: vue, why: "base" } });
           for (const ticket of rail.tickets()) {
@@ -1139,7 +1139,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     }
   };
 
-  const zoneALaPrise = (numero: number): string[] => zonePrise(journal.duTicket(numero));
+  const zoneALaPrise = (numero: number): string[] => zonePrise(log.duTicket(numero));
 
   // Confronte une livraison à la zone de son ticket : ce qu'elle écrit
   // ailleurs, et une fiche qui a changé pendant la cuisson, vont au journal.
@@ -1223,14 +1223,14 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // navigateur, si son worktree est tenu pour qu'on l'y lance. Ne lève pas : une livraison qu'on ne sait pas
   // servir reste une livraison. L'écran à regarder se lit dans ce que le cook
   // a livré, tel que le corps de sa PR le porte.
-  const servirLaLivraison = (station: string, livraison: Omit<Livraison, "changes" | "corps">, fin: FinGardee, conclusion: Conclusion | null): boolean => {
+  const serveTheDelivery = (station: string, delivery: Omit<Delivery, "changes" | "corps">, fin: FinGardee, conclusion: Conclusion | null): boolean => {
     if (fin.outcome !== "ok" || conclusion === null || conclusion.sansCommit) return false;
     try {
-      if (!attendue(livraison.ticket)) return false;
+      if (!attendue(delivery.ticket)) return false;
       const { deliverable, summary } = rendre(conclusion.lecture.message);
-      return serveurs.servir(station, { ...livraison, changes: depot.changes(livraison.branche), corps: deliverable ?? summary });
+      return servers.servir(station, { ...delivery, changes: depot.changes(delivery.branche), corps: deliverable ?? summary });
     } catch (erreur) {
-      avertir(`brigade : livraison du ticket #${livraison.ticket} non servie — ${message(erreur)}`);
+      avertir(`brigade : livraison du ticket #${delivery.ticket} non servie — ${message(erreur)}`);
       return false;
     }
   };
@@ -1239,10 +1239,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // il s'arrête, et son worktree part. Un serveur dont le worktree a disparu
   // sans lui s'arrête aussi : rien n'y est plus servi, et il ne reste pas
   // listé comme vivant.
-  const eteindreLesServeurs = () => {
-    for (const numero of serveurs.orphelins()) void serveurs.arreter(numero, "orphaned");
-    for (const numero of serveurs.tenus()) {
-      if (!attendue(numero)) void serveurs.arreter(numero, ticketDuRail(base, numero) === null ? "left" : "served");
+  const stopTheServers = () => {
+    for (const numero of servers.orphelins()) void servers.arreter(numero, "orphaned");
+    for (const numero of servers.tenus()) {
+      if (!attendue(numero)) void servers.arreter(numero, ticketDuRail(base, numero) === null ? "left" : "served");
     }
   };
 
@@ -1250,7 +1250,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   const conclure = async (
     station: string,
     ticket: TicketRail,
-    calibrage: Calibrage,
+    calibration: Calibration,
     run: string,
     branche: string,
     fin: FinGardee,
@@ -1260,7 +1260,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const numero = ticket.ticket;
     // Le cook d'une station distante n'a rien laissé ici : ni worktree, ni
     // branche que la station d'ici aurait poussée ou retenue.
-    const distante = estDistante(station);
+    const remote = isRemote(station);
     const rendu = rendre(conclusion?.lecture.message ?? null);
     const compteRendu = rendu.summary;
     // Ce que sa branche porte sur l'origine, s'il n'a rien livré : le cook
@@ -1285,8 +1285,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         await commenter(
           numero,
           [
-            entete(station, "arrêté : le ticket a quitté le rail", calibrage, fin),
-            distante
+            entete(station, "arrêté : le ticket a quitté le rail", calibration, fin),
+            remote
               ? `La box ne reçoit plus rien de ce cook, et aucun ne repartira : le ticket n'est plus sur le rail. \`${station}\` l'apprend à sa demande suivante, et arrête le sien ; ce qu'il avait écrit reste chez elle, branche \`${branche}\`.`
               : `Rien n'est poussé, et aucun cook ne repartira : le ticket n'est plus sur le rail. Son worktree est retiré ; ce que ce cook avait écrit, commité ou non, est sur la branche \`${branche}\` du clone de la station.`,
           ].join("\n"),
@@ -1312,7 +1312,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
               branche,
               base: options.base,
               titre: `#${numero} — ${ticket.title}`,
-              corps: corpsDePR(station, numero, calibrage, rendu.deliverable ?? compteRendu, montrees),
+              corps: corpsDePR(station, numero, calibration, rendu.deliverable ?? compteRendu, montrees),
             });
           }
         } catch (erreur) {
@@ -1322,7 +1322,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         if (arrete) return;
         // Récolté : le cook s'est arrêté sans conclure, son travail est parti quand même.
         const recolte = conclusion?.raison?.startsWith("harvested:") ? conclusion.raison.replace(/^harvested:/, "") : null;
-        const bailTombe = sansProgres(fin);
+        const leaseLapsed = noProgress(fin);
         // Relu après l'ouverture de la PR : le ticket a pu partir pendant l'appel.
         const sorti = parti();
         // Le signal et le compte-rendu s'écrivent ensemble : une livraison
@@ -1336,8 +1336,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           await commenter(
             numero,
             [
-              entete(station, "fini, ticket sorti du rail", calibrage, fin),
-              ...direLivraisonSansTicket(branche, options.base, pr, sansCommit),
+              entete(station, "fini, ticket sorti du rail", calibration, fin),
+              ...sayDeliveryWithoutTicket(branche, options.base, pr, sansCommit),
               "",
               ...rendu.publie,
             ].join("\n"),
@@ -1347,14 +1347,14 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         await commenter(
           numero,
           [
-            entete(station, sansDiff ? "fini, sans diff" : recolte === null ? "fini" : `récolté (${recolte})`, calibrage, fin),
+            entete(station, sansDiff ? "fini, sans diff" : recolte === null ? "fini" : `récolté (${recolte})`, calibration, fin),
             sansDiff
               ? "Aucun commit : le livrable de ce ticket est ce que le cook a délimité, ci-dessous. Il part en pass, où le reviewer le relit — rien n'est servi sans cette relecture."
               : sansCommit
                 ? "Aucun commit, et rien n'est poussé : c'est la pass qui dira ce que vaut cette livraison."
                 : `Branche \`${branche}\` · ${pr ?? `PR non ouverte : ${sansPR}`}`,
             ...(reprise === null ? [] : [`${reprise.n <= RENVOIS_MAX ? `Renvoi ${reprise.n}/${RENVOIS_MAX} de la pass` : "Relance décidée par le manager"} : le cook a repris la livraison que la pass avait refusée.`]),
-            ...(bailTombe === null ? [] : [bailTombe]),
+            ...(leaseLapsed === null ? [] : [leaseLapsed]),
             ...(recolte === null ? [] : ["Le cook s'est arrêté sans conclure : ce qu'il avait commité est poussé et part en pass."]),
             ...(conclusion?.recolte
               ? [`Le cook avait laissé du travail non commité dans son worktree : la station l'a commité à sa place (\`${conclusion.recolte.slice(0, 7)}\`), et il fait partie de la livraison — la pass le juge avec le reste.`]
@@ -1370,8 +1370,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       case "guard":
       case "failed": {
         const raison = conclusion?.raison ?? fin.erreur ?? "échec";
-        const bailTombe = sansProgres(fin);
-        const sansLivrable = raison === SANS_LIVRABLE;
+        const leaseLapsed = noProgress(fin);
+        const withoutDeliverable = raison === NO_DELIVERABLE;
         // Rien de ce que le cook a commité ne part : un secret du projet, ou
         // les identifiants de Claude.
         const retenue = raison.startsWith(SECRET_LIVRE) || raison.startsWith(IDENTIFIANTS_LIVRES);
@@ -1383,9 +1383,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         await commenter(
           numero,
           [
-            entete(station, `échoué (${raison})`, calibrage, fin),
-            ...(bailTombe === null ? [] : [bailTombe]),
-            ...(sansLivrable
+            entete(station, `échoué (${raison})`, calibration, fin),
+            ...(leaseLapsed === null ? [] : [leaseLapsed]),
+            ...(withoutDeliverable
               ? [`Aucun commit, et ${direDefaut(rendu.defaut)} dans le dernier message du cook : il n'a pas de livrable. Un message n'en est pas un, quelle que soit sa longueur — seul ce qui est délimité est publié et relu.`]
               : []),
             ...(raison.startsWith(SECRET_LIVRE)
@@ -1393,27 +1393,27 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
                   `Ce que le cook a commité porte la valeur d'un secret du projet (${raison.slice(SECRET_LIVRE.length + 2)}) : la station ne pousse pas une branche qui en publierait un. ${suiteDeLaRetenue}`,
                 ]
               : []),
-            ...(raison.startsWith(IDENTIFIANTS_LIVRES) && distante
+            ...(raison.startsWith(IDENTIFIANTS_LIVRES) && remote
               ? [
                   `Ce que le cook a livré porte ${direSignes(raison.slice(IDENTIFIANTS_LIVRES.length + 2))} : la box n'envoie pas en pass une branche qui porterait la connexion d'un compte Max. Elle reconnaît un nom et une forme, sans rien lire ni comparer — elle ne dit donc pas que ce sont de vrais identifiants.`,
                   `**La branche \`${branche}\` est déjà sur l'origine** : c'est \`${station}\` qui l'y a poussée, la box n'y peut rien. Si ce sont de vrais identifiants : supprime-la (\`git push origin --delete ${branche}\`) et révoque la connexion — voir « Révoquer la connexion Max » dans \`docs/runtime/station-cook.md\`.`,
                 ]
               : []),
-            ...(raison.startsWith(IDENTIFIANTS_LIVRES) && !distante
+            ...(raison.startsWith(IDENTIFIANTS_LIVRES) && !remote
               ? [
                   `Ce que le cook a commité porte ${direSignes(raison.slice(IDENTIFIANTS_LIVRES.length + 2))} : la station ne pousse pas une branche qui publierait la connexion du compte Max. Elle reconnaît un nom et une forme, sans lire les identifiants du compte ni rien leur comparer — elle ne dit donc pas que ce sont les vôtres. ${suiteDeLaRetenue}`,
                   `Refusé à tort ? Un fichier du projet ne peut pas s'appeler \`${FICHIER_DES_IDENTIFIANTS}\` ; un exemple de jeton s'écrit tronqué (moins de ${LONGUEUR_MIN_DU_JETON} caractères après \`sk-ant-<type>-\`), un jeu d'essai s'assemble à l'exécution au lieu de s'écrire en clair. Si ce sont de vrais identifiants : rien n'est sorti de la machine, mais un cook les a copiés — voir « Révoquer la connexion Max » dans \`docs/runtime/station-cook.md\`.`,
                 ]
               : []),
-            distante && conserve !== undefined
+            remote && conserve !== undefined
               ? `La box n'a reçu aucune livraison de ce cook. Le ticket est revenu en attente. ${direConserve(conserve)}`
-              : distante
+              : remote
                 ? `La box n'a reçu aucune livraison de ce cook. Le ticket est revenu en attente ; son travail reste chez \`${station}\`, branche \`${branche}\` — rien n'en était poussé sur l'origine.`
                 : retenue && reprise !== null
                   ? "Rien n'est poussé. Le ticket est revenu en attente."
                   : `Rien n'est poussé. Le ticket est revenu en attente ; le travail du cook reste sur la station, branche \`${branche}\`.`,
-            ...(!distante && conserve !== undefined ? [direConserve(conserve)] : []),
-            ...(!compteRendu ? [] : ["", ...(sansLivrable ? replier("Le message du cook, sans livrable", compteRendu) : rendu.publie)]),
+            ...(!remote && conserve !== undefined ? [direConserve(conserve)] : []),
+            ...(!compteRendu ? [] : ["", ...(withoutDeliverable ? replier("Le message du cook, sans livrable", compteRendu) : rendu.publie)]),
           ].join("\n"),
         );
         return;
@@ -1435,7 +1435,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         await commenter(
           numero,
           [
-            entete(station, `refusé par le modèle, essai ${Math.min(refus, REFUS_MAX)}/${REFUS_MAX}`, calibrage, fin),
+            entete(station, `refusé par le modèle, essai ${Math.min(refus, REFUS_MAX)}/${REFUS_MAX}`, calibration, fin),
             `Le cook s'est arrêté sur un ${conclusion?.raison ?? "refus du modèle"} — \`stop_reason: refusal\` : ce n'est ni une panne ni un échec du cook, et le disjoncteur ne le compte pas. Rien n'est poussé ; le travail du cook reste sur la station, branche \`${branche}\`.`,
             "",
             !tenu
@@ -1484,7 +1484,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Les stations distantes : elles tirent leur travail, et partagent avec
   // celles d'ici les cuisines en cours, les bornes, les refus et la fin
   // racontée. Rien ne part d'ici vers elles.
-  const distantes = ouvrirDistantes({
+  const remotes = openRemotes({
     runtime,
     // Relues à chaque demande : le chef a pu les changer.
     get stations() {
@@ -1498,14 +1498,14 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     maintenant,
     avertir,
     arrete: () => arrete,
-    enCuisine,
-    cuisinePar,
-    retenue: ceQuiRetientLaDistante,
+    enCuisine: cooking,
+    cuisinePar: cookedBy,
+    retenue: whatHoldsTheRemote,
     boxSaturee,
     direCeQuiRetient: (station, retenue) => direCeQuiRetient(station, retenue),
     refuser,
-    refuserLaFiche,
-    liberer: (ticket) => serveurs.arreter(ticket, "retaken"),
+    refuserLaFiche: refuseTheCard,
+    liberer: (ticket) => servers.arreter(ticket, "retaken"),
     conclure,
     servir: () => servir(),
     apresCook: options.apresCook,
@@ -1569,15 +1569,15 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Cuisine un ticket que la station vient de prendre. Résolue quand le cook
   // est fini et sa fin racontée. `parti` : appelé une fois le cook lancé —
   // l'entrée du ticket est finie.
-  const cuisiner = async (station: string, ticket: TicketRail, parti: () => void, sansArbitre: boolean) => {
+  const cook = async (station: string, ticket: TicketRail, parti: () => void, withoutArbiter: boolean) => {
     const numero = ticket.ticket;
     if (!complet(ticket)) return refuser(station, ticket);
-    if (illisible(ticket.card) !== null) return refuserLaFiche(station, ticket);
-    const calibrage: Calibrage = { model: ticket.model, effort: ticket.effort };
+    if (illisible(ticket.card) !== null) return refuseTheCard(station, ticket);
+    const calibration: Calibration = { model: ticket.model, effort: ticket.effort };
 
     // Le serveur de sa livraison précédente tient encore son worktree, et sa
     // branche avec : un cook qui reprend le ticket prend sa place.
-    await serveurs.arreter(numero, "retaken");
+    await servers.arreter(numero, "retaken");
     if (arrete) return;
 
     const run = nomDeRun(numero);
@@ -1585,7 +1585,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // branche, même PR, dans un worktree neuf accroché à cette branche — celui
     // de la livraison est parti avec son cook. Si le clone ne connaît plus la
     // branche, le cook repart de la base comme un premier.
-    const renvoi = renvoiEnAttente(base, numero);
+    const renvoi = queuedSendBack(base, numero);
     // Sinon, un cook perdu en route — sa station distante a disparu — a pu
     // laisser son travail sur l'origine : relu de là, le cook en repart, dans
     // un worktree neuf accroché à sa branche. L'origine ne porte rien de plus
@@ -1650,8 +1650,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const masquer = Object.keys(secrets.env).length === 0 ? undefined : secrets.masquer;
     const delaiSetupMs = options.dureeBailMs * PART_DU_SETUP;
     const interdites = options.sansIdentite ? [...VARIABLES_DE_JETON, ...VARIABLES_GITHUB] : VARIABLES_DE_JETON;
-    const avantLeSetup = journal.dernierSeq();
-    const setup = await jouerSetup({ worktree, ticket: numero, env: { ...envCook, ...secrets.env }, interdites, masquer, cloison: options.cloison, delaiMs: delaiSetupMs, signal: abandon.signal });
+    const avantLeSetup = log.dernierSeq();
+    const setup = await jouerSetup({ worktree, ticket: numero, env: { ...envCook, ...secrets.env }, interdites, masquer, partition: options.cloison, delaiMs: delaiSetupMs, signal: abandon.signal });
     if (arrete) return;
     if (!setup.pret) {
       const pourquoi = setup.depasse ? `plafond de ${duree(delaiSetupMs)} dépassé` : setup.code === null ? "interrompu" : `code de sortie ${setup.code}`;
@@ -1661,7 +1661,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           .join("\n"),
       );
       retirerLeNeuf();
-      const hotes = journal
+      const hotes = log
         .depuis(avantLeSetup)
         .flatMap((evenement) => (evenement.type === "network.refused" && evenement.payload.host !== AUTRES_HOTES ? [`${evenement.payload.host}:${evenement.payload.port}`] : []));
       return refuserSansSetup(station, numero, { pourquoi, sortie: setup.sortie.trim().slice(-FIN_DE_SETUP_MAX), masques: setup.masques, hotes: [...new Set(hotes)].sort(), vue });
@@ -1718,7 +1718,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           run,
           contexte: {
             station,
-            ...calibrage,
+            ...calibration,
             branch: branche,
             worktree: join("worktrees", run),
             // Passé les renvois de la pass, c'est une relance du manager : sa
@@ -1730,7 +1730,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             // Le cook dont il reprend le travail conservé.
             ...(suite === null ? {} : { continues: suite.run }),
             // L'arbitre entre projets ne répondait pas : ce lancement n'est pas arbitré.
-            ...(sansArbitre ? { unarbitrated: true } : {}),
+            ...(withoutArbiter ? { unarbitrated: true } : {}),
             // La tête de la branche à l'entrée : un runtime qui reprend ce cook
             // lit contre elle ce qu'il a livré.
             head: entree,
@@ -1749,7 +1749,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
                     : suite
                       ? consigneDeSuite({ ...mission, branche })
                       : consigne(mission),
-                calibrage,
+                calibration,
                 reprise?.session,
               ),
             },
@@ -1779,7 +1779,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // Ce que le setup a exporté, retenu pour un runtime qui reprendrait ce
     // cook : sans lui, il ne saurait pas servir sa livraison.
     retenirLeSetup(run, envDuCook, { ...envCook, ...secrets.env });
-    await mener({ station, ticket, calibrage, run, worktree, branche, entree, repris, suite: suite !== null, secrets: { env: secrets.env, fuites: secrets.fuites }, masquer, envDuCook }, lancer);
+    await mener({ station, ticket, calibrage: calibration, run, worktree, branche, entree, repris, suite: suite !== null, secrets: { env: secrets.env, fuites: secrets.fuites }, masquer, envDuCook }, lancer);
   };
 
   // Ce qu'une cuisine en cours doit savoir pour être menée à sa fin — que son
@@ -1789,12 +1789,12 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   type Cuisson = {
     station: string;
     ticket: TicketRail;
-    calibrage: Calibrage;
+    calibrage: Calibration;
     run: string;
     worktree: string;
     branche: string;
     entree: string;
-    repris: ReturnType<typeof renvoiEnAttente>;
+    repris: ReturnType<typeof queuedSendBack>;
     // Il reprend le travail conservé d'un cook perdu en route : sa branche en
     // porte les commits, poussés.
     suite: boolean;
@@ -1808,7 +1808,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // lance le cook — ou le reprend — et rend de quoi le suivre, ou null s'il ne
   // part pas ; il est appelé avant la première attente.
   const mener = async (cuisson: Cuisson, demarrer: (juger: (fin: Fin) => Verdict) => CookLance | null) => {
-    const { station, ticket, calibrage, run, worktree, branche, entree, repris, suite, secrets, masquer, envDuCook } = cuisson;
+    const { station, ticket, calibrage: calibration, run, worktree, branche, entree, repris, suite, secrets, masquer, envDuCook } = cuisson;
     const numero = ticket.ticket;
     // La fin d'un cook, lue dans son flux brut — puis dans son worktree, qui
     // fait foi : le runtime récolte. Un cook qui a commité puis s'est arrêté,
@@ -1886,10 +1886,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             if (lu !== "done") [lu, raison] = ["done", `harvested:${raison}`];
           } else if (lu === "done") {
             const intact = depot.intact(worktree);
-            if (intact && lireLivrable(lecture.message).texte !== null) raison = SANS_DIFF;
+            if (intact && readDeliverable(lecture.message).texte !== null) raison = SANS_DIFF;
             // Un message où rien n'est délimité n'est pas un livrable : rien
             // n'est livré, renvoi ou non.
-            else if (intact && lecture.message?.trim()) [lu, raison] = ["failed", SANS_LIVRABLE];
+            else if (intact && lecture.message?.trim()) [lu, raison] = ["failed", NO_DELIVERABLE];
             // Des fichiers écrits, aucun commit : rien n'est livré, renvoi ou non.
             else if (!repris || !intact) [lu, raison] = ["failed", "no-commit"];
           }
@@ -1949,7 +1949,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         if (!geste(() => rail.renouveler(numero, station))) lance.arreter();
       } else if (echu) {
         lance.arreter({ reason: "lease", limit: options.dureeBailMs, observed: instant - progres });
-      } else if (!signale && instant - progres >= options.dureeBailMs * PART_SANS_PROGRES) {
+      } else if (!signale && instant - progres >= options.dureeBailMs * NO_PROGRESS_SHARE) {
         // Le chef le lit sans l'avoir demandé, avant que le bail ne tombe.
         signale = true;
         noter(station, numero, { type: "cook.stalled", payload: { run, station, idleMs: instant - progres, leaseMs: options.dureeBailMs } });
@@ -1968,16 +1968,16 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     if (arrete) return;
     // Vrai : un serveur tient le worktree, ou il est tenu pour qu'on y lance
     // l'app — pour qu'on y regarde la livraison.
-    let servi = false;
+    let served = false;
     try {
-      await conclure(station, ticket, calibrage, lance.run, branche, fin, conclusion, repris && { n: repris.returns, pr: repris.pr });
-      if (!arrete) servi = servirLaLivraison(station, { ticket: numero, run, worktree, relatif: join("worktrees", run), branche, env: envDuCook, masquer }, fin, conclusion);
+      await conclure(station, ticket, calibration, lance.run, branche, fin, conclusion, repris && { n: repris.returns, pr: repris.pr });
+      if (!arrete) served = serveTheDelivery(station, { ticket: numero, run, worktree, relatif: join("worktrees", run), branche, env: envDuCook, masquer }, fin, conclusion);
       options.apresCook?.();
     } finally {
       // Réussi ou non, le cook est fini : son worktree part, ce qui y traîne
       // commité sur sa branche — sauf celui d'une livraison servie, qui part
       // avec son serveur.
-      if (!arrete && !servi) await nettoyage.ranger(numero, join("worktrees", run), branche);
+      if (!arrete && !served) await nettoyage.ranger(numero, join("worktrees", run), branche);
       if (!arrete) oublierLeSetup(run);
     }
   };
@@ -1987,11 +1987,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // PR, ouverte ou non : GitHub le dit, et elle n'est ouverte que s'il n'en
   // connaît aucune. Le compte-rendu se relit dans le flux brut du cook.
   const reprendre = async (numero: number) => {
-    const livraison = passDuTicket(base, numero);
+    const delivery = passDuTicket(base, numero);
     const ticket = ticketDuRail(base, numero);
     const station = ticket?.station;
-    if (!livraison || !ticket || !station || livraison.branch === null) return;
-    const { run, branch: branche } = livraison;
+    if (!delivery || !ticket || !station || delivery.branch === null) return;
+    const { run, branch: branche } = delivery;
     let rendu = rendre(null);
     try {
       rendu = rendre(lireFlux(readFileSync(join(options.repertoireEtat, "runs", `${run}.jsonl`), "utf8")).message);
@@ -2000,11 +2000,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     }
     const compteRendu = rendu.summary;
     // La fin du cook est au journal : elle dit ce qui a été masqué dans son flux.
-    const masques = journal
+    const masques = log
       .duTicket(numero)
       .flatMap((evenement) => (evenement.type === "cook.exited" && evenement.payload.run === run ? [evenement.payload.credentialsMasked] : []))
       .at(-1);
-    let pr = livraison.pr;
+    let pr = delivery.pr;
     let sansPR = "";
     // Une livraison sans diff n'a jamais eu de PR à ouvrir.
     let sansDiff = false;
@@ -2085,7 +2085,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     if (!lus.pret) avertir(`brigade : secrets du projet illisibles à la reprise du cook ${run} (ticket #${numero}) — rien ne sera poussé de sa livraison : ${lus.problemes.join(" ; ")}`);
     const secrets = lus.pret ? { env: lus.env, fuites: lus.fuites } : { env: {}, fuites: null };
     const masquer = lus.pret && Object.keys(lus.env).length > 0 ? lus.masquer : undefined;
-    const renvoi = renvoiEnAttente(base, numero);
+    const renvoi = queuedSendBack(base, numero);
     const cuisson: Cuisson = {
       station,
       ticket,
@@ -2100,8 +2100,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       masquer,
       envDuCook: { ...envCook, ...secrets.env, ...lireLeSetup(run) },
     };
-    enCuisine.set(numero, illisible(ticket.card) === null ? (ticket.card?.zone ?? []) : []);
-    cuisinePar.set(numero, station);
+    cooking.set(numero, illisible(ticket.card) === null ? (ticket.card?.zone ?? []) : []);
+    cookedBy.set(numero, station);
     let repris = false;
     const menee = mener(cuisson, (juger) => {
       const lance = runtime.reprendre(run, juger);
@@ -2117,8 +2117,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         if (!arrete) avertir(`brigade : la station ${station} a buté sur le cook repris du ticket #${numero} — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
       })
       .finally(() => {
-        enCuisine.delete(numero);
-        cuisinePar.delete(numero);
+        cooking.delete(numero);
+        cookedBy.delete(numero);
         servir();
       });
     return repris;
@@ -2130,11 +2130,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Le ticket part en cuisine, et la prise n'attend pas sa fin. Ce qui bute sur
   // un ticket n'emporte ni le runtime ni les autres cooks : il revient par son
   // bail.
-  const partir = async (station: string, ticket: TicketRail, sansArbitre: boolean) => {
+  const partir = async (station: string, ticket: TicketRail, withoutArbiter: boolean) => {
     entrees++;
-    enCuisine.set(ticket.ticket, illisible(ticket.card) === null ? (ticket.card?.zone ?? []) : []);
-    cuisinePar.set(ticket.ticket, station);
-    if (sansArbitre) nonArbitres.add(ticket.ticket);
+    cooking.set(ticket.ticket, illisible(ticket.card) === null ? (ticket.card?.zone ?? []) : []);
+    cookedBy.set(ticket.ticket, station);
+    if (withoutArbiter) nonArbitrated.add(ticket.ticket);
     let enEntree = true;
     const sortir = () => {
       if (!enEntree) return;
@@ -2142,7 +2142,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       entrees--;
     };
     try {
-      await cuisiner(
+      await cook(
         station,
         ticket,
         () => {
@@ -2150,15 +2150,15 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           departs.push(maintenant().getTime());
           servir();
         },
-        sansArbitre,
+        withoutArbiter,
       );
     } catch (erreur) {
       if (!arrete) avertir(`brigade : la station ${station} a buté sur le ticket #${ticket.ticket} — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
     } finally {
       sortir();
-      enCuisine.delete(ticket.ticket);
-      cuisinePar.delete(ticket.ticket);
-      nonArbitres.delete(ticket.ticket);
+      cooking.delete(ticket.ticket);
+      cookedBy.delete(ticket.ticket);
+      nonArbitrated.delete(ticket.ticket);
       servir();
     }
   };
@@ -2186,7 +2186,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         let retenues = new Map<string, Retenue | null>();
         // La réponse de l'arbitre est attendue : rien n'est encore à dire des
         // stations qui prendraient.
-        let enAttente = false;
+        let queued = false;
         while (!arrete) {
           retenues = ceQuiRetient();
           // Celles que rien ne retient, dans l'ordre où le projet les déclare.
@@ -2196,20 +2196,20 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           // Une base rouge ne laisse partir que sa réparation.
           const seule = seuleAPartir();
           if (seule === null) break;
-          if (arbitre !== null) {
+          if (arbiter !== null) {
             // Sans ticket à prendre, il n'y a rien à lui demander.
-            if (rail.servables(enCuisine, libres, seule) === 0) break;
-            enAttente = placeEnMain(arbitre, libres.map(({ station }) => station)) !== null;
-            if (enAttente) break;
+            if (rail.servables(cooking, libres, seule) === 0) break;
+            queued = placeEnMain(arbiter, libres.map(({ station }) => station)) !== null;
+            if (queued) break;
           }
           // Le premier ticket, dans l'ordre de service, que l'une d'elles peut
           // cuisiner : il va à la première qui fournit ce qu'il demande.
-          const ticket = rail.prendre(libres, enCuisine, seule);
+          const ticket = rail.prendre(libres, cooking, seule);
           const station = ticket?.station;
           if (!ticket || !station) break;
-          const sansArbitre = droit === "seul";
+          const withoutArbiter = droit === "seul";
           droit = null;
-          void partir(station, ticket, sansArbitre);
+          void partir(station, ticket, withoutArbiter);
         }
         // Une place accordée et pas prise se rend : l'arbitre l'a déjà comptée.
         if (droit !== null) {
@@ -2218,9 +2218,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         }
         if (arrete) break;
         for (const [station, retenue] of retenues) {
-          if (!(enAttente && retenue === null)) direCeQuiRetient(station, retenue);
+          if (!(queued && retenue === null)) direCeQuiRetient(station, retenue);
         }
-        if (arbitre !== null && !demandeEnVol) redire(arbitre, retenues);
+        if (arbiter !== null && !demandeEnVol) redire(arbiter, retenues);
       } while (aRefaire && !arrete);
     } catch (erreur) {
       // Rien ne doit tuer le runtime depuis ici : le réveil suivant relance le
@@ -2253,7 +2253,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // Une station déjà dite déconnectée ne l'est pas deux fois.
     const tenues = noms.filter((station) => !etatStation(base, station)?.disconnectedAt);
     if ((session === "absente" || session === "introuvable") && tenues.length > 0) {
-      deconnecter(session === "absente" ? SANS_CONNEXION : `binaire introuvable : ${options.bin}`, tenues);
+      deconnecter(session === "absente" ? NO_CONNECTION : `binaire introuvable : ${options.bin}`, tenues);
     }
     pret = true;
     servir();
@@ -2262,7 +2262,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Un regard qui bute n'empêche pas les autres : chaque cook a le sien, et
   // les serveurs le leur.
   const porterLesRegards = () => {
-    for (const observer of [...regards, eteindreLesServeurs]) {
+    for (const observer of [...regards, stopTheServers]) {
       try {
         observer();
       } catch (erreur) {
@@ -2273,11 +2273,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
 
   // Ce qu'une station distante a demandé depuis le dernier réveil, et ce que
   // l'horloge dit de ses cooks et de sa présence.
-  const servirLesDistantes = (regarder: boolean) => {
+  const serveTheRemotes = (regarder: boolean) => {
     if (arrete || !pret) return;
     try {
-      distantes.repondre();
-      if (regarder) distantes.veiller();
+      remotes.repondre();
+      if (regarder) remotes.veiller();
     } catch (erreur) {
       if (!arrete) avertir(`brigade : le service des stations distantes a buté — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
     }
@@ -2300,8 +2300,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       declarees = toutes.filter((declaree) => !declaree.distante);
       noms = declarees.map((declaree) => declaree.nom);
       offres = toutes.map((declaree) => declaree.fournit);
-      for (const station of noms) ouvrirServeursDe(station);
-      base.transaction(annoncer);
+      for (const station of noms) openServersOf(station);
+      base.transaction(announce);
       adoptees = empreinte;
       avertir(`brigade : stations relues — ${direStations(toutes)}`);
     } catch (erreur) {
@@ -2312,7 +2312,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   const desabonner = [
     runtime.surReveil((cause) => {
       adopter();
-      servirLesDistantes(cause === "tick");
+      serveTheRemotes(cause === "tick");
       if (cause === "tick") {
         porterLesRegards();
         void rattraper();
@@ -2326,7 +2326,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // pour que son cook s'arrête.
     runtime.surSondage(() => {
       adopter();
-      servirLesDistantes(true);
+      serveTheRemotes(true);
       porterLesRegards();
       servir();
     }),
@@ -2349,7 +2349,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       }
       // Aucun serveur ne survit au runtime : ils meurent ici, et le journal,
       // encore ouvert, le dit.
-      serveurs.fermer();
+      servers.fermer();
       arrete = true;
       // Les cooks survivent au runtime, ou meurent avec lui mais pas dans
       // l'instant : leur bail ne doit pas se renouveler sur un journal fermé.
@@ -2357,7 +2357,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       abandon.abort();
       // Le projet rend sa part ; un arbitre qui n'entend pas ce départ la
       // garde réservée, et le chef le lit.
-      if (arbitre !== null) echanges = echanges.then(() => arbitre.quitter(projet)).catch(() => {});
+      if (arbiter !== null) echanges = echanges.then(() => arbiter.quitter(projet)).catch(() => {});
       for (const quitter of desabonner) quitter();
       runtime.arreter(signal);
     },

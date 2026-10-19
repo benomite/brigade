@@ -3,7 +3,7 @@
 // la box n'a aucun chemin vers elle : c'est elle qui vient, par le geste de la
 // box (`run pull`), écrire sa demande ici ; le runtime qui tourne la lit à son
 // réveil et y répond de même. Rien ne part de la box vers la station.
-import type { Plafonds } from "./guardrails.ts";
+import type { Caps } from "./guardrails.ts";
 
 // Ce qu'une station distante peut demander : s'annoncer, réclamer un ticket,
 // renouveler le bail de celui qu'elle cuisine, le rendre — livré, ou non.
@@ -52,7 +52,7 @@ export type Mission = {
   prompt: string;
   args: string[];
   sandbox?: true;
-  limits: Plafonds;
+  limits: Caps;
   leaseMs: number;
   leaseUntil: string;
   resumes: { returns: number; pr: string | null } | null;
@@ -70,7 +70,7 @@ export type Refus =
   | "invalid";
 
 export type Reponse =
-  | { ok: true; verb: "announce"; provides: string[]; maxCooks: number; presenceMs: number; leaseMs: number; limits: Plafonds }
+  | { ok: true; verb: "announce"; provides: string[]; maxCooks: number; presenceMs: number; leaseMs: number; limits: Caps }
   // `mission` nulle : rien à prendre pour l'instant. `held` : ce qui retient
   // la station, si quelque chose la retient.
   | { ok: true; verb: "claim"; mission: Mission | null; held: string | null }
@@ -80,7 +80,7 @@ export type Reponse =
   // `leaseUntil` : l'échéance du bail, quand le cook tourne encore.
   | { ok: false; verb: Geste; refusal: Refus; said: string; stop?: string | null; leaseUntil?: string | null };
 
-export type FaitDistante =
+export type RemoteFact =
   // La demande d'une station, écrite par son geste. `id` : ce par quoi la
   // réponse la retrouve.
   | { type: "remote.asked"; payload: { id: string; station: string } & Demande }

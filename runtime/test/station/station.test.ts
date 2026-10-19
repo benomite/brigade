@@ -7,8 +7,8 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { DEBUT, FIN } from "../../src/projets/bloc.ts";
 import { ConfigInvalide, DejaEnCours } from "../../src/runtime.ts";
-import type { Cuisine, OptionsCuisine } from "../../src/station/cuisine.ts";
-import { ecrirePortes } from "../../src/station/portes.ts";
+import type { Kitchen, KitchenOptions } from "../../src/station/kitchen.ts";
+import { writeDoors } from "../../src/station/doors.ts";
 import { ouvrirStation } from "../../src/station/station.ts";
 import { aArreter, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
@@ -19,14 +19,14 @@ type Ouverture = { projet: string; env: Record<string, string | undefined>; arre
 // Une station dont chaque cuisine est un témoin : ce qu'on lui a donné, et
 // comment elle a été arrêtée. `refus` : ce qu'un projet lève à l'ouverture.
 // `portes` : sous les portes de la station, le fichier où elles écrivent leurs ports.
-function station(t: TestContext, configuration: string, options: { portes?: boolean } = {}) {
+function station(t: TestContext, configuration: string, options: { doors?: boolean } = {}) {
   const racine = repertoireTemporaire(t);
   const ecrire = (texte: string) => writeFileSync(join(racine, "projets"), texte);
   ecrire(configuration);
   const ouvertures: Ouverture[] = [];
   const lignes: string[] = [];
   const refus = new Map<string, Error>();
-  const ouvrir = (env: Record<string, string | undefined>, options: OptionsCuisine): Cuisine => {
+  const ouvrir = (env: Record<string, string | undefined>, options: KitchenOptions): Kitchen => {
     const projet = env.BRIGADE_PROJECT ?? "";
     const leve = refus.get(projet);
     if (leve) throw leve;
@@ -36,15 +36,15 @@ function station(t: TestContext, configuration: string, options: { portes?: bool
     return { projet, repertoireEtat: env.BRIGADE_STATE_DIR ?? "", arreter: (motif) => void ouverture.arrets.push(motif) };
   };
   // Aucune relecture ne vient d'une minuterie : le test relit quand il veut.
-  const portes = options.portes ? join(racine, "portes.json") : null;
-  const servie = ouvrirStation({ racine, env: { BRIGADE_CLAUDE_BIN: "claude" }, dire: (ligne) => void lignes.push(ligne), ouvrir, relectureMs: 3_600_000, portes });
-  aArreter(t, () => servie.arreter("fin du test"));
-  return { racine, ecrire, ouvertures, lignes, refus, servie, portes };
+  const doors = options.doors ? join(racine, "portes.json") : null;
+  const served = ouvrirStation({ racine, env: { BRIGADE_CLAUDE_BIN: "claude" }, dire: (ligne) => void lignes.push(ligne), ouvrir, relectureMs: 3_600_000, doors });
+  aArreter(t, () => served.arreter("fin du test"));
+  return { racine, ecrire, ouvertures, lignes, refus, servie: served, portes: doors };
 }
 
 test("chaque projet de la configuration est ouvert avec son environnement, et chaque ligne qu'il dit porte son nom", (t) => {
-  const { racine, ouvertures, lignes, servie } = station(t, "brigade benomite/brigade v2\nespace benomite/espace main BRIGADE_SECRETS_FILE=/s\n");
-  assert.deepEqual(servie.projets(), ["brigade", "espace"]);
+  const { racine, ouvertures, lignes, servie: served } = station(t, "brigade benomite/brigade v2\nespace benomite/espace main BRIGADE_SECRETS_FILE=/s\n");
+  assert.deepEqual(served.projets(), ["brigade", "espace"]);
   assert.deepEqual(
     ouvertures.map(({ env }) => [env.BRIGADE_PROJECT, env.BRIGADE_GITHUB_REPO, env.BRIGADE_BASE_BRANCH, env.BRIGADE_STATE_DIR, env.BRIGADE_SECRETS_FILE, env.BRIGADE_CLAUDE_BIN]),
     [
@@ -56,104 +56,104 @@ test("chaque projet de la configuration est ouvert avec son environnement, et ch
 });
 
 test("un projet ajouté s'ouvre, un projet retiré s'arrête, une ligne changée rouvre son projet — et les autres ne sont pas touchés", (t) => {
-  const { ecrire, ouvertures, lignes, servie } = station(t, "brigade benomite/brigade v2\n");
+  const { ecrire, ouvertures, lignes, servie: served } = station(t, "brigade benomite/brigade v2\n");
   ecrire("brigade benomite/brigade v2\nespace benomite/espace main\n");
-  servie.relire();
-  assert.deepEqual(servie.projets(), ["brigade", "espace"]);
+  served.relire();
+  assert.deepEqual(served.projets(), ["brigade", "espace"]);
 
   // Relire sans changement ne rouvre rien ; les blancs ne sont pas un changement.
   ecrire("brigade   benomite/brigade\tv2\n\n# un commentaire\nespace benomite/espace main\n");
-  servie.relire();
+  served.relire();
   assert.equal(ouvertures.length, 2);
 
   ecrire("brigade benomite/brigade v2\n");
-  servie.relire();
-  assert.deepEqual(servie.projets(), ["brigade"]);
+  served.relire();
+  assert.deepEqual(served.projets(), ["brigade"]);
   assert.deepEqual(ouvertures.map((o) => [o.projet, o.arrets]), [["brigade", []], ["espace", ["removed"]]]);
   assert.ok(lignes.includes("brigade [espace] : retiré de la configuration : la station ne le sert plus"));
 
   ecrire("brigade benomite/brigade v3\n");
-  servie.relire();
+  served.relire();
   assert.deepEqual(ouvertures.map((o) => [o.projet, o.env.BRIGADE_BASE_BRANCH, o.arrets]), [["brigade", "v2", ["reconfigured"]], ["espace", "main", ["removed"]], ["brigade", "v3", []]]);
 
   // Tout retiré : la station tourne encore, sans projet.
   ecrire("");
-  servie.relire();
-  assert.deepEqual(servie.projets(), []);
+  served.relire();
+  assert.deepEqual(served.projets(), []);
   assert.deepEqual(ouvertures.at(-1)?.arrets, ["removed"]);
 });
 
 test("un projet refusé est dit une fois, les autres sont servis ; il n'est réessayé que si sa ligne change", (t) => {
-  const { ecrire, refus, lignes, servie, ouvertures } = station(t, "");
+  const { ecrire, refus, lignes, servie: served, ouvertures } = station(t, "");
   refus.set("espace", new ConfigInvalide("BRIGADE_SECRETS_FILE invalide"));
   ecrire("brigade benomite/brigade v2\nespace benomite/espace main\n");
-  servie.relire();
-  servie.relire();
-  assert.deepEqual(servie.projets(), ["brigade"]);
+  served.relire();
+  served.relire();
+  assert.deepEqual(served.projets(), ["brigade"]);
   assert.deepEqual(lignes.filter((ligne) => ligne.startsWith("brigade [espace]")), ["brigade [espace] : refusé par la station, les autres projets restent servis — BRIGADE_SECRETS_FILE invalide"]);
 
   // Réparé sans que sa ligne change : rien n'est réessayé.
   refus.delete("espace");
-  servie.relire();
-  assert.deepEqual(servie.projets(), ["brigade"]);
+  served.relire();
+  assert.deepEqual(served.projets(), ["brigade"]);
   ecrire("brigade benomite/brigade v2\nespace benomite/espace main BRIGADE_SECRETS_FILE=/s\n");
-  servie.relire();
-  assert.deepEqual(servie.projets(), ["brigade", "espace"]);
+  served.relire();
+  assert.deepEqual(served.projets(), ["brigade", "espace"]);
   assert.equal(ouvertures.length, 2);
 });
 
 test("un projet qu'un autre runtime tient encore est repris dès qu'il est libre, sans que sa ligne change", (t) => {
-  const { ecrire, refus, lignes, servie } = station(t, "");
+  const { ecrire, refus, lignes, servie: served } = station(t, "");
   refus.set("brigade", new DejaEnCours("un runtime tient déjà le projet « brigade »"));
   ecrire("brigade benomite/brigade v2\n");
-  servie.relire();
-  servie.relire();
-  assert.deepEqual(servie.projets(), []);
+  served.relire();
+  served.relire();
+  assert.deepEqual(served.projets(), []);
   assert.equal(lignes.filter((ligne) => ligne.includes("refusé")).length, 1);
   refus.delete("brigade");
-  servie.relire();
-  assert.deepEqual(servie.projets(), ["brigade"]);
+  served.relire();
+  assert.deepEqual(served.projets(), ["brigade"]);
 });
 
 test("une ligne illisible de la configuration est dite une fois, tant qu'elle ne change pas", (t) => {
-  const { ecrire, lignes, servie } = station(t, "brigade benomite/brigade v2\nseul\n");
-  servie.relire();
+  const { ecrire, lignes, servie: served } = station(t, "brigade benomite/brigade v2\nseul\n");
+  served.relire();
   assert.deepEqual(lignes.filter((ligne) => ligne.startsWith("brigade : station")), ["brigade : station — ligne 2 de la configuration (« seul ») : attendu le nom du projet, son dépôt GitHub (<owner>/<repo>) et sa branche d'intégration"]);
-  assert.deepEqual(servie.projets(), ["brigade"]);
+  assert.deepEqual(served.projets(), ["brigade"]);
   ecrire("brigade benomite/brigade v2\n");
-  servie.relire();
+  served.relire();
   ecrire("brigade benomite/brigade v2\nseul\n");
-  servie.relire();
+  served.relire();
   assert.equal(lignes.filter((ligne) => ligne.startsWith("brigade : station")).length, 2);
 });
 
 test("arrêtée, la station arrête chacun de ses projets par le signal reçu, et ne relit plus rien", (t) => {
-  const { ecrire, ouvertures, servie } = station(t, "brigade benomite/brigade v2\nespace benomite/espace main\n");
-  servie.arreter("SIGTERM");
+  const { ecrire, ouvertures, servie: served } = station(t, "brigade benomite/brigade v2\nespace benomite/espace main\n");
+  served.arreter("SIGTERM");
   assert.deepEqual(ouvertures.map((o) => o.arrets), [["SIGTERM"], ["SIGTERM"]]);
   ecrire("calculus benomite/calculus main\n");
-  servie.relire();
+  served.relire();
   assert.equal(ouvertures.length, 2);
-  assert.deepEqual(servie.projets(), []);
+  assert.deepEqual(served.projets(), []);
 });
 
 // Ce que la station publie de ses projets (appairage/presence.ts, `projets: () => station.projets()`
 // dans station/main.ts) : l'app en tire la liste de sa page (#878). Une ligne écrite à la main n'y est
 // pas moins qu'une ligne que l'app a fait écrire.
 test("les projets servis sont tous ceux de la configuration : ceux que l'app a ajoutés, et ceux écrits à la main hors de son bloc", (t) => {
-  const { servie } = station(t, ["cantine benomite/cantine main", DEBUT, "parade benomite/parade main", FIN, "brigade benomite/brigade v2", ""].join("\n"));
-  assert.deepEqual([...servie.projets()].sort(), ["brigade", "cantine", "parade"]);
+  const { servie: served } = station(t, ["cantine benomite/cantine main", DEBUT, "parade benomite/parade main", FIN, "brigade benomite/brigade v2", ""].join("\n"));
+  assert.deepEqual([...served.projets()].sort(), ["brigade", "cantine", "parade"]);
 });
 
 test("station.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
 
 test("sous les portes de la station, chaque projet reçoit le port de la sienne — jamais celui d'un autre projet ni celui de la station", (t) => {
   const racine = repertoireTemporaire(t);
-  ecrirePortes(join(racine, "portes.json"), { station: 41000, projets: { brigade: 41001, espace: 41002 } });
+  writeDoors(join(racine, "portes.json"), { station: 41000, projets: { brigade: 41001, espace: 41002 } });
   const ecrire = (texte: string) => writeFileSync(join(racine, "projets"), texte);
   ecrire("brigade benomite/brigade v2\nespace benomite/espace main\n");
   const ports: Record<string, string | undefined> = {};
-  const servie = ouvrirStation({
+  const served = ouvrirStation({
     racine,
     env: { BRIGADE_CLAUDE_BIN: "claude" },
     dire: () => {},
@@ -162,55 +162,55 @@ test("sous les portes de la station, chaque projet reçoit le port de la sienne 
       return { projet: env.BRIGADE_PROJECT ?? "", repertoireEtat: "", arreter: () => {} };
     },
     relectureMs: 3_600_000,
-    portes: join(racine, "portes.json"),
+    doors: join(racine, "portes.json"),
   });
-  aArreter(t, () => servie.arreter("fin du test"));
-  assert.deepEqual(servie.projets(), ["brigade", "espace"]);
+  aArreter(t, () => served.arreter("fin du test"));
+  assert.deepEqual(served.projets(), ["brigade", "espace"]);
   assert.deepEqual(ports, { brigade: "41001", espace: "41002" });
 });
 
 test("un projet dont la porte n'a pas encore dit son port attend, en le disant ; servi dès qu'elle l'a écrit — les autres projets ne l'attendent pas", (t) => {
-  const { portes, ouvertures, lignes, servie } = station(t, "brigade benomite/brigade v2\nespace benomite/espace main\n", { portes: true });
-  assert.ok(portes);
-  assert.deepEqual(servie.projets(), []);
-  assert.match(servie.refus("espace") ?? "", /sa porte n'est pas ouverte — brigade-station-porte\.service n'a pas écrit son port dans .*portes\.json/);
+  const { portes: doors, ouvertures, lignes, servie: served } = station(t, "brigade benomite/brigade v2\nespace benomite/espace main\n", { doors: true });
+  assert.ok(doors);
+  assert.deepEqual(served.projets(), []);
+  assert.match(served.refus("espace") ?? "", /sa porte n'est pas ouverte — brigade-station-porte\.service n'a pas écrit son port dans .*portes\.json/);
   // Relire sans port ne le redit pas.
   const dits = lignes.length;
-  servie.relire();
+  served.relire();
   assert.equal(lignes.length, dits);
 
-  ecrirePortes(portes, { station: 41000, projets: { brigade: 41001 } });
-  servie.relire();
-  assert.deepEqual(servie.projets(), ["brigade"]);
-  ecrirePortes(portes, { station: 41000, projets: { brigade: 41001, espace: 41002 } });
-  servie.relire();
-  assert.deepEqual(servie.projets(), ["brigade", "espace"]);
+  writeDoors(doors, { station: 41000, projets: { brigade: 41001 } });
+  served.relire();
+  assert.deepEqual(served.projets(), ["brigade"]);
+  writeDoors(doors, { station: 41000, projets: { brigade: 41001, espace: 41002 } });
+  served.relire();
+  assert.deepEqual(served.projets(), ["brigade", "espace"]);
   assert.deepEqual(ouvertures.map(({ projet, env }) => [projet, env.BRIGADE_PROXY_PORT]), [["brigade", "41001"], ["espace", "41002"]]);
-  assert.equal(servie.refus("espace"), null);
+  assert.equal(served.refus("espace"), null);
 });
 
 test("une porte qui change de port rouvre son projet, et lui seul ; une porte qui disparaît arrête son projet : il ne part jamais sans elle", (t) => {
-  const { portes, ouvertures, lignes, servie } = station(t, "brigade benomite/brigade v2\nespace benomite/espace main\n", { portes: true });
-  assert.ok(portes);
-  ecrirePortes(portes, { station: 41000, projets: { brigade: 41001, espace: 41002 } });
-  servie.relire();
-  ecrirePortes(portes, { station: 41000, projets: { brigade: 41001, espace: 41003 } });
-  servie.relire();
+  const { portes: doors, ouvertures, lignes, servie: served } = station(t, "brigade benomite/brigade v2\nespace benomite/espace main\n", { doors: true });
+  assert.ok(doors);
+  writeDoors(doors, { station: 41000, projets: { brigade: 41001, espace: 41002 } });
+  served.relire();
+  writeDoors(doors, { station: 41000, projets: { brigade: 41001, espace: 41003 } });
+  served.relire();
   assert.deepEqual(ouvertures.map(({ projet, env, arrets }) => [projet, env.BRIGADE_PROXY_PORT, arrets]), [["brigade", "41001", []], ["espace", "41002", ["reconfigured"]], ["espace", "41003", []]]);
   assert.ok(lignes.includes("brigade [espace] : sa porte a changé de port : la station le rouvre"), lignes.join("\n"));
 
-  ecrirePortes(portes, { station: 41000, projets: { brigade: 41001 } });
-  servie.relire();
-  assert.deepEqual(servie.projets(), ["brigade"]);
+  writeDoors(doors, { station: 41000, projets: { brigade: 41001 } });
+  served.relire();
+  assert.deepEqual(served.projets(), ["brigade"]);
   assert.deepEqual(ouvertures.at(-1)?.arrets, ["reconfigured"]);
-  assert.match(servie.refus("espace") ?? "", /sa porte n'est pas ouverte/);
+  assert.match(served.refus("espace") ?? "", /sa porte n'est pas ouverte/);
 });
 
 test("sous les portes de la station, une ligne qui nomme sa propre porte est refusée : la station la donne, elle ne se règle pas", (t) => {
-  const { portes, servie } = station(t, "brigade benomite/brigade v2 BRIGADE_PROXY_PORT=3128\nespace benomite/espace main\n", { portes: true });
-  assert.ok(portes);
-  ecrirePortes(portes, { station: 41000, projets: { brigade: 41001, espace: 41002 } });
-  servie.relire();
-  assert.deepEqual(servie.projets(), ["espace"]);
-  assert.match(servie.refus("brigade") ?? "", /BRIGADE_PROXY_PORT ne se règle pas sur sa ligne : la station donne à chaque projet sa porte \(brigade-station-porte\.service\)/);
+  const { portes: doors, servie: served } = station(t, "brigade benomite/brigade v2 BRIGADE_PROXY_PORT=3128\nespace benomite/espace main\n", { doors: true });
+  assert.ok(doors);
+  writeDoors(doors, { station: 41000, projets: { brigade: 41001, espace: 41002 } });
+  served.relire();
+  assert.deepEqual(served.projets(), ["espace"]);
+  assert.match(served.refus("brigade") ?? "", /BRIGADE_PROXY_PORT ne se règle pas sur sa ligne : la station donne à chaque projet sa porte \(brigade-station-porte\.service\)/);
 });

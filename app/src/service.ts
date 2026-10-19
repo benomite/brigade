@@ -33,9 +33,9 @@
 // ses stations (`installation stations --json`) et ce que la vérification dit manquer, relus
 // sans rien noter au journal — une étape remise à faire rouvrirait l'écran. Ce qu'il a perdu
 // se dit dans la bande d'alertes, avec son geste (alertes.ts, « Ce qu'un projet installé a perdu »).
-import { echecDe, type Echec, type Rendu as RenduDeBox, type Servi } from "./box.ts";
+import { echecDe, type Echec, type Rendu as RenduDeBox, type Served } from "./box.ts";
 import type { Projet } from "./config.ts";
-import { titreDEchec } from "./faits.ts";
+import { titreDEchec } from "./facts.ts";
 import { FORME_ATTENDUE, refusDeForme } from "./nom.ts";
 import type { Terminal } from "./terminaux.ts";
 
@@ -132,9 +132,9 @@ export function lireStations(sortie: string): StationsLues | undefined {
   }
   const declarees: StationDeclaree[] = [];
   for (const recue of lu.declarees as unknown[]) {
-    const { nom, moteur, fournit, cooks, distante } = (recue ?? {}) as Lu;
+    const { nom, moteur, fournit, cooks, distante: remote } = (recue ?? {}) as Lu;
     if (!chaine(nom) || !chaine(moteur) || !chaines(fournit) || typeof cooks !== "number") return undefined;
-    declarees.push({ nom, moteur, fournit, cooks, distante: distante === true });
+    declarees.push({ nom, moteur, fournit, cooks, distante: remote === true });
   }
   return { proposees, absent: lu.absent, declarees };
 }
@@ -170,8 +170,8 @@ function options(lu: unknown): Option[] | undefined {
 export function lireCourante(sortie: string): CouranteLue | undefined {
   const lu = objetDe(sortie, (objet) => typeof objet.enAttente === "number" && "courante" in objet);
   if (lu === undefined || !chaines(lu.suivantes)) return undefined;
-  const { enAttente, suivantes } = lu as { enAttente: number; suivantes: string[] };
-  if (lu.courante === null) return { enAttente, courante: null, suivantes };
+  const { enAttente: queued, suivantes } = lu as { enAttente: number; suivantes: string[] };
+  if (lu.courante === null) return { enAttente: queued, courante: null, suivantes };
   const { nom, question, options: recues, recommandee, sauter, reclamee, avec } = (lu.courante ?? {}) as Lu;
   const lues = options(recues);
   const conseil = recommandee as Lu | null;
@@ -185,7 +185,7 @@ export function lireCourante(sortie: string): CouranteLue | undefined {
     compagne = { nom: autre, question: demande, options: lues };
   }
   return {
-    enAttente,
+    enAttente: queued,
     courante: { nom, question, options: lues, recommandee: conseil === null ? null : { valeur: conseil.valeur as string, pourquoi: conseil.pourquoi as string }, sauter, reclamee, avec: compagne },
     suivantes,
   };
@@ -549,7 +549,7 @@ const LIGNES: Readonly<Record<string, (projet: Projet) => string[]>> = {
 // installation qui change.
 export function tenirServices(options: {
   delaiMs: number;
-  lancer(servi: Servi, commande: string): Promise<RenduDeBox>;
+  lancer(served: Served, commande: string): Promise<RenduDeBox>;
   session(projet: Projet, commande: string): Terminal;
   shell(projet: Projet, ecrit: string): Terminal;
   surGuide(guide: Guide): void;
@@ -568,10 +568,10 @@ export function tenirServices(options: {
     return neuf;
   }
 
-  const servi = (projet: Projet & { box: NonNullable<Projet["box"]> }): Servi => ({ nom: projet.nom, box: projet.box });
+  const served = (projet: Projet & { box: NonNullable<Projet["box"]> }): Served => ({ nom: projet.nom, box: projet.box });
 
   async function jouer(projet: Projet & { box: NonNullable<Projet["box"]> }, commande: string): Promise<Joue> {
-    const rendu = await options.lancer(servi(projet), commande);
+    const rendu = await options.lancer(served(projet), commande);
     const a = new Date().toISOString();
     const { erreur } = rendu;
     const code = erreur === null ? 0 : erreur.killed !== true && (erreur.code === 1 || erreur.code === 2) ? erreur.code : undefined;
@@ -672,7 +672,7 @@ export function tenirServices(options: {
     if (tenu.verifiant !== undefined) return tenu.verifiant;
     tenu.verification = undefined;
     tenu.verifiant = (async () => {
-      const jugee = jugementDe(await options.lancer(servi(projet), JUGEMENT), options.delaiMs);
+      const jugee = jugementDe(await options.lancer(served(projet), JUGEMENT), options.delaiMs);
       tenu.verification = jugee;
       tenu.verifiant = undefined;
       pousser(projet, tenu);
@@ -697,7 +697,7 @@ export function tenirServices(options: {
       try {
         const joue = await jouer(projet, COMMANDES.stations);
         const stations = "echec" in joue || joue.code !== 0 ? undefined : lireStations(joue.sortie);
-        const jugee = jugementDe(await options.lancer(servi(projet), JUGEMENT), options.delaiMs);
+        const jugee = jugementDe(await options.lancer(served(projet), JUGEMENT), options.delaiMs);
         const lu = jugee.etat === "jugee" && jugee.jugement.verdict !== "plantee" ? jugee.jugement : undefined;
         const manques = lu === undefined ? undefined : manquesDuJugement(lu);
         const avant = tenu.controle;

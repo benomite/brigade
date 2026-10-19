@@ -11,7 +11,7 @@ import { pathToFileURL } from "node:url";
 import { Sortie, type Commande } from "../src/appel.ts";
 import type { Fait } from "../src/evenements.ts";
 import { DECISIONS } from "../src/decisions.ts";
-import { ouvrirJournal, type Journal } from "../src/journal.ts";
+import { openLog, type Log } from "../src/log.ts";
 import type { Projection } from "../src/projection.ts";
 
 // La doublure de `claude` : son scénario se choisit par la variable FAUX_CLAUDE.
@@ -193,11 +193,11 @@ export function horloge(depart = `${JOUR_HORLOGE}T10:00:00.000Z`): () => Date {
 }
 
 // L'état complet des projections : le contenu de chacune de leurs tables.
-export function photographier(journal: Journal, projections: Projection[]): Record<string, unknown[]> {
+export function photographier(log: Log, projections: Projection[]): Record<string, unknown[]> {
   const photo: Record<string, unknown[]> = {};
   for (const projection of projections) {
     for (const table of projection.tables) {
-      photo[`${projection.nom}/${table}`] = journal.base.lire(`SELECT * FROM ${table} ORDER BY rowid`);
+      photo[`${projection.nom}/${table}`] = log.base.lire(`SELECT * FROM ${table} ORDER BY rowid`);
     }
   }
   return photo;
@@ -218,21 +218,21 @@ export type Enfant = {
 // Ce que le journal porte déjà n'est pas écrasé, et la variable reste alors à
 // l'environnement : le runtime l'ignore et le dit.
 // `BRIGADE_TEST_SANS_DECISIONS=1` laisse les variables où elles sont.
-function decisionsAuJournal(fichier: string, env: Record<string, string>): Record<string, string> {
+function loggedDecisions(fichier: string, env: Record<string, string>): Record<string, string> {
   const { BRIGADE_TEST_SANS_DECISIONS: sans, ...reste } = env;
   const decisions = DECISIONS.filter((nom) => (reste[nom] ?? "") !== "");
   const etat = reste.BRIGADE_STATE_DIR;
   if (sans === "1" || !fichier.endsWith("main.ts") || decisions.length === 0 || !etat || !existsSync(etat)) return reste;
-  const journal = ouvrirJournal(etat);
+  const log = openLog(etat);
   try {
-    const posees = new Set(journal.tout().filter((e) => e.type === "decision.set").map((e) => String(e.payload.name)));
+    const posees = new Set(log.tout().filter((e) => e.type === "decision.set").map((e) => String(e.payload.name)));
     for (const nom of decisions) {
       if (posees.has(nom)) continue;
-      journal.ajouter({ project: reste.BRIGADE_PROJECT ?? "brigade", ticket: null, author: "chef", type: "decision.set", payload: { name: nom, value: reste[nom] ?? "", previous: null } });
+      log.ajouter({ project: reste.BRIGADE_PROJECT ?? "brigade", ticket: null, author: "chef", type: "decision.set", payload: { name: nom, value: reste[nom] ?? "", previous: null } });
       delete reste[nom];
     }
   } finally {
-    journal.fermer();
+    log.fermer();
   }
   return reste;
 }
@@ -241,11 +241,11 @@ function decisionsAuJournal(fichier: string, env: Record<string, string>): Recor
 // décisions du chef.
 export function rienEcritParLeRuntime(repertoire: string): boolean {
   if (!existsSync(join(repertoire, "log.db"))) return true;
-  const journal = ouvrirJournal(repertoire, { lectureSeule: true });
+  const log = openLog(repertoire, { lectureSeule: true });
   try {
-    return journal.tout().every((e) => e.type === "decision.set");
+    return log.tout().every((e) => e.type === "decision.set");
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }
 
@@ -254,7 +254,7 @@ export function rienEcritParLeRuntime(repertoire: string): boolean {
 // un BRIGADE_STATE_DIR posé dans le shell du dev ne lui parvient jamais.
 export function lancer(t: TestContext, fichier: string, args: string[] = [], env: Record<string, string> = {}): Enfant {
   const enfant = spawn(process.execPath, [fichier, ...args], {
-    env: { ...ENV_ENFANT, ...decisionsAuJournal(fichier, env) },
+    env: { ...ENV_ENFANT, ...loggedDecisions(fichier, env) },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let sortie = "";
@@ -327,7 +327,7 @@ export async function portsFermesALInstant(combien: number): Promise<number[]> {
 
 // Ce que dit un process lancé sur un port qu'un autre tient : le refus de
 // l'arbitre, ou l'erreur du système telle que la porte la laisse remonter.
-const PORT_PRIS = /EADDRINUSE|est déjà pris|is already taken/;
+const PORT_TAKEN = /EADDRINUSE|est déjà pris|is already taken/;
 
 // Lance un process qui doit écouter sur un port posé par le chef — connu, donc,
 // avant le lancement. Le port est tiré puis fermé ; s'il a été repris entre-temps,
@@ -342,18 +342,18 @@ export async function lancerSurPortPose(
     ouvert: (port: number) => string;
     essais?: number;
     // Pour un test de cet outil : choisir les ports tirés.
-    tirer?: (tirer: () => Promise<number>) => Promise<number>;
+    draw?: (draw: () => Promise<number>) => Promise<number>;
   },
 ): Promise<{ enfant: Enfant; port: number }> {
-  const { essais = 5, tirer = (tirer) => tirer() } = options;
+  const { essais = 5, draw = (draw) => draw() } = options;
   for (let essai = 1; ; essai++) {
-    const port = await tirer(portFermeALInstant);
+    const port = await draw(portFermeALInstant);
     const enfant = lancer(t, fichier, [], options.env(port));
     try {
       await enfant.attendre(options.ouvert(port));
       return { enfant, port };
     } catch (erreur) {
-      if (!PORT_PRIS.test(enfant.sortie())) throw erreur;
+      if (!PORT_TAKEN.test(enfant.sortie())) throw erreur;
       if (essai === essais) throw new Error(`aucun port tenu en ${essais} essais, le dernier sur ${port} : ${enfant.sortie()}`);
     }
   }
@@ -393,7 +393,7 @@ export type FauxGh = {
   // Les arguments de chaque appel reçu, dans l'ordre.
   appels(): string[][];
   // Le jeton (`GH_TOKEN`) sous lequel chaque appel a été fait, ou null.
-  jetons(): Array<string | null>;
+  tokens(): Array<string | null>;
 };
 
 // La doublure de `gh`, appelée par un lien posé dans le répertoire du test.
@@ -430,8 +430,8 @@ export function fauxGh(t: TestContext): FauxGh {
     const ordre = join(repertoire, "appels/ordre");
     if (!existsSync(ordre)) return [];
     return readFileSync(ordre, "utf8").split("\n").slice(0, -1).map((nom) => {
-      const [porte, jeton = "", ...args] = readFileSync(join(repertoire, "appels", nom), "utf8").split("\0").slice(0, -1);
-      return { args, jeton: porte === "1" ? jeton : null };
+      const [door, jeton = "", ...args] = readFileSync(join(repertoire, "appels", nom), "utf8").split("\0").slice(0, -1);
+      return { args, jeton: door === "1" ? jeton : null };
     });
   };
   const commentaires = (numero: number) => `repos/${DEPOT}/issues/${numero}/comments?per_page=100`;
@@ -451,7 +451,7 @@ export function fauxGh(t: TestContext): FauxGh {
     appels() {
       return notes().map((note) => note.args);
     },
-    jetons() {
+    tokens() {
       return notes().map((note) => note.jeton);
     },
   };

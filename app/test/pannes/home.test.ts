@@ -9,8 +9,8 @@ import { pourLaBarre } from "../../src/barre.ts";
 import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
-import { BANNIERE } from "../../src/faits.ts";
+import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
+import { BANNIERE } from "../../src/facts.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
@@ -22,9 +22,9 @@ import type { StationVue, VuDesStations } from "../../src/stations/stations.ts";
 import { type Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-15T12:00:00.000Z";
-const CONNEXION: Panne = { cle: "connexion-max:2026-10-15T11:48:00.000Z", sujet: "connexion-max", ligne: "Max connection lost 12 min ago", survol: "nothing cooks on box until you log in", bouton: { libelle: "log in", geste: "login" } };
+const CONNECTION: Panne = { cle: "connexion-max:2026-10-15T11:48:00.000Z", sujet: "connexion-max", ligne: "Max connection lost 12 min ago", survol: "nothing cooks on box until you log in", bouton: { libelle: "log in", geste: "login" } };
 const MISE_A_JOUR: Panne = { cle: "mise-a-jour:2026-10-15T11:56:00.000Z", sujet: "mise-a-jour", ligne: "update to version 1.5.0 failed", survol: "box stayed on version 1.4.0; the next version will be tried on its own", bouton: { libelle: "dismiss", geste: "ecarter" } };
-const BOX: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [MISE_A_JOUR, CONNEXION], dit: "online", version: "1.4.0", projets: [], max: "perdue" };
+const BOX: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [MISE_A_JOUR, CONNECTION], dit: "online", version: "1.4.0", projets: [], max: "perdue" };
 const ACCUEIL: Accueil = { projets: [], stations: [{ id: "g1", nom: "box", ton: "rouge", dit: "online · Max connection lost · update failed · no project", phrase: "online · no cook running", survol: "Linux 6.1.0 · version 1.4.0" }], sante: { ton: "rouge", dit: "Max: connection lost on box  ·  GitHub ✓", survol: "" } };
 
 const demarrage = (stations: VuDesStations) => ({
@@ -34,7 +34,7 @@ const demarrage = (stations: VuDesStations) => ({
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
   boutons: BOUTONS,
-  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -61,16 +61,16 @@ test("chaque panne est une ligne sur la page de sa station, avec son bouton ; le
   const tete = section().children[1];
   assert.equal(tete?.children[2]?.textContent, "online · no cook running");
   assert.equal(tete?.dessous("button").find(({ className }) => className === "aide")?.ariaLabel, "Linux 6.1.0 · version 1.4.0");
-  const [miseAJour, connexion] = lignes(section());
+  const [miseAJour, connection] = lignes(section());
   assert.equal(miseAJour?.className, "panne");
   assert.equal(miseAJour?.textContent, "update to version 1.5.0 faileddismiss?");
-  assert.equal(connexion?.dataset.sujet, "connexion-max");
-  const bouton = connexion?.dessous("button")[0] ?? assert.fail("pas de bouton sur la panne");
+  assert.equal(connection?.dataset.sujet, "connexion-max");
+  const bouton = connection?.dessous("button")[0] ?? assert.fail("pas de bouton sur la panne");
   assert.equal(bouton.textContent, "log in");
   bouton.click();
   await repos();
   await repos();
-  assert.deepEqual(jouee.dernier("panne"), ["g1", CONNEXION.cle]);
+  assert.deepEqual(jouee.dernier("panne"), ["g1", CONNECTION.cle]);
   assert.match(survolDe(lignes(section())[1]), new RegExp(rendu.fait));
 
   // Relue, la ligne redit ce que le bouton a rendu ; un refus se lit de même.

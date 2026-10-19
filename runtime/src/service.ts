@@ -11,7 +11,7 @@
 // déclare son `lancement`, la commande qui lance l'app depuis la racine d'un
 // worktree. C'est cette déclaration, et elle seule, qui dit qu'un projet n'est
 // pas servable en navigateur : rien n'est deviné de ses dépendances. Un tel
-// projet n'a ni serveur ni page ; sa livraison dit comment la voir (`ecran.ts`).
+// projet n'a ni serveur ni page ; sa livraison dit comment la voir (`screen.ts`).
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { SCRIPT_SETUP } from "./gates.ts";

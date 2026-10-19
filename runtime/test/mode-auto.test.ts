@@ -16,7 +16,7 @@ const SSH = "ssh -o BatchMode=yes -o ConnectTimeout=10 --";
 
 // Un poste : un dossier personnel, un projet, et la déclaration de l'app qui
 // le relie à sa box.
-function poste(t: TestContext, projet: { nom?: string; hote?: string } | null = { nom: "espace", hote: "mabox" }) {
+function workstation(t: TestContext, projet: { nom?: string; hote?: string } | null = { nom: "espace", hote: "mabox" }) {
   const maison = repertoireTemporaire(t);
   const dossier = join(maison, "code/espace");
   mkdirSync(dossier, { recursive: true });
@@ -51,7 +51,7 @@ function autorise(regle: string, commande: string): boolean {
 }
 
 test("après l'installation, le fichier du projet autorise la lecture de la file, de la doc et de l'état de brigade sur la box", async (t) => {
-  const { installer, lus, reglages } = poste(t);
+  const { installer, lus, reglages } = workstation(t);
 
   const { code, sortie } = await installer();
 
@@ -67,7 +67,7 @@ test("après l'installation, le fichier du projet autorise la lecture de la file
 });
 
 test("le merge d'une PR à la demande du chef n'est pas autorisé par la configuration, et la sortie le dit avec la raison et le geste", async (t) => {
-  const { installer, lus } = poste(t);
+  const { installer, lus } = workstation(t);
 
   const { sortie } = await installer();
 
@@ -79,7 +79,7 @@ test("le merge d'une PR à la demande du chef n'est pas autorisé par la configu
 });
 
 test("aucune règle ne généralise : ni un ssh vers une autre cible, ni une commande hors liste, ni un merge", async (t) => {
-  const { installer, lus } = poste(t);
+  const { installer, lus } = workstation(t);
   await installer();
   const allow = lus().permissions.allow;
 
@@ -128,7 +128,7 @@ test("un hôte ou un nom qui ferait une règle large est refusé, et rien n'est 
     ["--nom", "espace *"],
     ["--nom", "Espace"],
   ] as const) {
-    const { installer, reglages } = poste(t);
+    const { installer, reglages } = workstation(t);
 
     const { code, sortie } = await installer(option, valeur);
 
@@ -139,7 +139,7 @@ test("un hôte ou un nom qui ferait une règle large est refusé, et rien n'est 
 });
 
 test("relancer l'installation ne duplique rien et ne retire aucun réglage du chef", async (t) => {
-  const { installer, reglages, lus } = poste(t);
+  const { installer, reglages, lus } = workstation(t);
   mkdirSync(join(reglages, ".."), { recursive: true });
   const duChef = {
     env: { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1" },
@@ -178,7 +178,7 @@ test("relancer l'installation ne duplique rien et ne retire aucun réglage du ch
 
 test("un fichier de réglages illisible n'est pas réécrit", async (t) => {
   for (const contenu of ['{ "permissions": { "allow": [ } }', '{ "permissions": { "allow": "Bash(npm test)" } }', "[]"]) {
-    const { installer, reglages } = poste(t);
+    const { installer, reglages } = workstation(t);
     mkdirSync(join(reglages, ".."), { recursive: true });
     writeFileSync(reglages, contenu);
 
@@ -191,7 +191,7 @@ test("un fichier de réglages illisible n'est pas réécrit", async (t) => {
 });
 
 test("sans hôte déclaré, les lectures de la box ne sont pas posées, et la sortie dit pourquoi et quoi faire", async (t) => {
-  const { installer, lus } = poste(t, null);
+  const { installer, lus } = workstation(t, null);
 
   const { code, sortie } = await installer();
 
@@ -203,7 +203,7 @@ test("sans hôte déclaré, les lectures de la box ne sont pas posées, et la so
 });
 
 test("--hote et --nom remplacent ce que l'app déclare", async (t) => {
-  const { installer, lus } = poste(t, { nom: "espace" });
+  const { installer, lus } = workstation(t, { nom: "espace" });
 
   const { code, sortie } = await installer("--hote", "chef@box.example.org", "--nom", "atelier");
 
@@ -212,7 +212,7 @@ test("--hote et --nom remplacent ce que l'app déclare", async (t) => {
 });
 
 test("chaque geste que les rôles prévoient a sa ligne : autorisé, sans règle, ou pas autorisable — et sa raison", async (t) => {
-  const { installer } = poste(t);
+  const { installer } = workstation(t);
   const { sortie } = await installer();
 
   for (const role of ROLES) {
@@ -242,7 +242,7 @@ test("les lectures autorisées existent : des commandes du runtime, et des docs 
 });
 
 test("lancée par son fichier, la commande écrit les règles et rend 0", async (t) => {
-  const { dossier, env, lus } = poste(t);
+  const { dossier, env, lus } = workstation(t);
 
   const cli = lancer(t, CLI, [dossier], env);
 

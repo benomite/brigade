@@ -3,19 +3,19 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
-import { ouvrirJournal } from "../src/journal.ts";
-import { compteRetenu, consommationDesCooks, cooksDeStation, etatStation, plafondDeCooks, sansStationDepuis, stationsAnnoncees } from "../src/projections/stations.ts";
+import { openLog } from "../src/log.ts";
+import { compteRetenu, consommationDesCooks, cooksDeStation, etatStation, cooksCap, sansStationDepuis, stationsAnnoncees } from "../src/projections/stations.ts";
 import { faitInconnu, horloge, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const STATION = "box/claude";
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 const ANNONCE = { station: STATION, engine: "claude", provides: ["code"], maxCooks: 1 };
 
-function cuisine(t: TestContext) {
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
-  t.after(() => journal.fermer());
+function kitchen(t: TestContext) {
+  const log = openLog(repertoireTemporaire(t), { maintenant: horloge() });
+  t.after(() => log.fermer());
   const noter = (fait: Fait, ticket: number | null = null, author = `station:${STATION}`) =>
-    journal.ajouter({ project: "brigade", ticket, author, ...fait });
+    log.ajouter({ project: "brigade", ticket, author, ...fait });
   const lancer = (run: string, ticket: number) =>
     noter(
       {
@@ -25,15 +25,15 @@ function cuisine(t: TestContext) {
       ticket,
       "runtime",
     );
-  return { base: journal.base, noter, lancer };
+  return { base: log.base, noter, lancer };
 }
 
 test("une station qui ne s'est jamais annoncée est inconnue", (t) => {
-  assert.equal(etatStation(cuisine(t).base, STATION), null);
+  assert.equal(etatStation(kitchen(t).base, STATION), null);
 });
 
 test("une station annoncée se lit avec son moteur, ce qu'elle fournit et son plafond de cooks", (t) => {
-  const { base, noter } = cuisine(t);
+  const { base, noter } = kitchen(t);
   noter({ type: "station.announced", payload: ANNONCE });
 
   assert.deepEqual(etatStation(base, STATION), {
@@ -61,7 +61,7 @@ test("une station annoncée se lit avec son moteur, ce qu'elle fournit et son pl
 });
 
 test("une station distante réglée pour les tickets ordinaires se lit avec ce qu'elle a dit de son bac à sable, et depuis quand", (t) => {
-  const { base, noter } = cuisine(t);
+  const { base, noter } = kitchen(t);
   noter({ type: "station.announced", payload: { station: "mac/claude", engine: "claude", provides: ["chrome-connecté"], maxCooks: 1, remote: true, ordinary: true } });
   assert.deepEqual([etatStation(base, "mac/claude")?.ordinary, etatStation(base, "mac/claude")?.sandbox], [true, null]);
 
@@ -76,7 +76,7 @@ test("une station distante réglée pour les tickets ordinaires se lit avec ce q
 });
 
 test("un arbitre injoignable se lit sur la station, avec ce que l'échange a donné, jusqu'à son retour", (t) => {
-  const { base, noter } = cuisine(t);
+  const { base, noter } = kitchen(t);
   noter({ type: "station.announced", payload: ANNONCE });
   noter({ type: "station.unarbitrated", payload: { station: STATION, reason: "connexion refusée" } });
   assert.deepEqual([etatStation(base, STATION)?.unarbitratedAt, etatStation(base, STATION)?.unarbitratedReason], [`${JOUR_HORLOGE}T10:00:01.000Z`, "connexion refusée"]);
@@ -86,7 +86,7 @@ test("un arbitre injoignable se lit sur la station, avec ce que l'échange a don
 });
 
 test("la consommation des cooks se totalise sur 24 h et sur 7 jours glissants : ceux qui ont fini dans la fenêtre", (t) => {
-  const { base, noter, lancer } = cuisine(t);
+  const { base, noter, lancer } = kitchen(t);
   noter({ type: "station.announced", payload: ANNONCE });
   const finir = (run: string, tokens: number) =>
     noter({ type: "cook.exited", payload: { run, outcome: "ok", code: 0, signal: null, turns: 3, tokens, durationMs: 1000 } }, 15, "runtime");
@@ -105,7 +105,7 @@ test("la consommation des cooks se totalise sur 24 h et sur 7 jours glissants : 
 });
 
 test("ce qui retient la station se lit sur elle, avec la raison, jusqu'à ce qu'elle se libère ; une raison inconnue reste au journal, sans effet", (t) => {
-  const { base, noter } = cuisine(t);
+  const { base, noter } = kitchen(t);
   noter({ type: "station.announced", payload: ANNONCE });
   const retenue = () => [etatStation(base, STATION)?.heldAt, etatStation(base, STATION)?.heldReason];
 
@@ -124,23 +124,23 @@ test("ce qui retient la station se lit sur elle, avec la raison, jusqu'à ce qu'
 });
 
 test("le plafond de cooks est celui de l'annonce tant que le chef n'a rien réglé ; son réglage l'emporte, et zéro lève la limite", (t) => {
-  const { base, noter } = cuisine(t);
-  const plafond = () => plafondDeCooks(etatStation(base, STATION) ?? { maxCooks: -1, cap: null });
+  const { base, noter } = kitchen(t);
+  const cap = () => cooksCap(etatStation(base, STATION) ?? { maxCooks: -1, cap: null });
   noter({ type: "station.announced", payload: { ...ANNONCE, maxCooks: 30 } });
-  assert.equal(plafond(), 30);
+  assert.equal(cap(), 30);
 
   noter({ type: "station.capped", payload: { station: STATION, maxCooks: 4 } }, null, "chef");
-  assert.equal(plafond(), 4);
+  assert.equal(cap(), 4);
   // Une annonce réécrite au redémarrage ne défait pas le réglage du chef.
   noter({ type: "station.announced", payload: { ...ANNONCE, maxCooks: 12 } });
-  assert.deepEqual([etatStation(base, STATION)?.maxCooks, plafond()], [12, 4]);
+  assert.deepEqual([etatStation(base, STATION)?.maxCooks, cap()], [12, 4]);
 
   noter({ type: "station.capped", payload: { station: STATION, maxCooks: 0 } }, null, "chef");
-  assert.equal(plafond(), null);
+  assert.equal(cap(), null);
 });
 
 test("un plafond illisible est ignoré : il reste au journal, sans effet", (t) => {
-  const { base, noter } = cuisine(t);
+  const { base, noter } = kitchen(t);
   noter({ type: "station.announced", payload: ANNONCE });
   for (const maxCooks of [-1, 1.5, "trois"]) noter({ type: "station.capped", payload: { station: STATION, maxCooks: maxCooks as number } }, null, "chef");
 
@@ -148,7 +148,7 @@ test("un plafond illisible est ignoré : il reste au journal, sans effet", (t) =
 });
 
 test("une machine saturée se lit sur la station, avec ce qui manque, jusqu'à ce qu'elle respire", (t) => {
-  const { base, noter } = cuisine(t);
+  const { base, noter } = kitchen(t);
   noter({ type: "station.announced", payload: ANNONCE });
   noter({ type: "station.saturated", payload: { station: STATION, resource: "cpu", observed: 16.2, limit: 15 } });
 
@@ -163,7 +163,7 @@ test("une machine saturée se lit sur la station, avec ce qui manque, jusqu'à c
 });
 
 test("un quota épuisé se lit sur la station, avec son heure de retour", (t) => {
-  const { base, noter } = cuisine(t);
+  const { base, noter } = kitchen(t);
   noter({ type: "station.announced", payload: ANNONCE });
   noter({ type: "station.86", payload: { station: STATION, reason: "quota", until: `${JOUR_HORLOGE}T15:00:00.000Z`, window: "five_hour" } });
 
@@ -172,7 +172,7 @@ test("un quota épuisé se lit sur la station, avec son heure de retour", (t) =>
 });
 
 test("une station déconnectée le reste, annonce comprise, jusqu'au « resume » du chef", (t) => {
-  const { base, noter } = cuisine(t);
+  const { base, noter } = kitchen(t);
   noter({ type: "station.announced", payload: ANNONCE });
   noter({ type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run: "7-a" } }, 7);
   noter({ type: "station.announced", payload: { ...ANNONCE, maxCooks: 2 } });
@@ -185,7 +185,7 @@ test("une station déconnectée le reste, annonce comprise, jusqu'au « resume �
 });
 
 test("chaque cook de la station se lit avec son calibrage, sa fin et ce qu'il a consommé", (t) => {
-  const { base, noter, lancer } = cuisine(t);
+  const { base, noter, lancer } = kitchen(t);
   lancer("7-a", 7);
   noter({ type: "cook.exited", payload: { run: "7-a", outcome: "ok", code: 0, signal: null, turns: 12, tokens: 3400, durationMs: 90_000 } }, 7, "runtime");
   noter({ type: "cook.reported", payload: { run: "7-a", ending: "done", reason: null, summary: "fait", branch: "cook/7-a", pr: "https://github.com/o/r/pull/9" } }, 7);
@@ -204,7 +204,7 @@ test("chaque cook de la station se lit avec son calibrage, sa fin et ce qu'il a 
 });
 
 test("sans compte-rendu de la station, la fin d'un cook est celle que les garde-fous ont notée", (t) => {
-  const { base, noter, lancer } = cuisine(t);
+  const { base, noter, lancer } = kitchen(t);
   lancer("7-a", 7);
   noter({ type: "cook.exited", payload: { run: "7-a", outcome: "guard", code: null, signal: "SIGTERM", turns: 101, tokens: 9, durationMs: 5 } }, 7, "runtime");
   lancer("8-b", 8);
@@ -214,14 +214,14 @@ test("sans compte-rendu de la station, la fin d'un cook est celle que les garde-
 });
 
 test("un cook lancé sans station — d'avant elle — n'appartient à aucune", (t) => {
-  const { base, noter } = cuisine(t);
+  const { base, noter } = kitchen(t);
   noter({ type: "cook.launched", payload: { run: "7-a", limits: LIMITES, stream: "runs/7-a.jsonl" } }, 7, "runtime");
 
   assert.deepEqual(cooksDeStation(base, STATION, 10), []);
 });
 
 test("une station que le projet ne déclare plus sort des stations annoncées, avec ce qui la retenait ; ses cooks restent au relevé", (t) => {
-  const { base, noter, lancer } = cuisine(t);
+  const { base, noter, lancer } = kitchen(t);
   noter({ type: "station.announced", payload: ANNONCE });
   noter({ type: "station.announced", payload: { station: "box/playwright", engine: "playwright", provides: ["navigateur-headless"], maxCooks: 2 } });
   noter({ type: "station.held", payload: { station: STATION, reason: "cap" } });
@@ -239,7 +239,7 @@ test("une station que le projet ne déclare plus sort des stations annoncées, a
 });
 
 test("un projet sans station se lit, depuis le démarrage qui l'a dit ; la première annonce l'efface", (t) => {
-  const { base, noter } = cuisine(t);
+  const { base, noter } = kitchen(t);
   assert.equal(sansStationDepuis(base), null);
 
   noter({ type: "stations.undeclared", payload: {} }, null, "runtime");
@@ -251,7 +251,7 @@ test("un projet sans station se lit, depuis le démarrage qui l'a dit ; la premi
 });
 
 test("le compte est retenu dès qu'une station le dit déconnecté, ou épuisé jusqu'à une heure qui n'est pas passée", (t) => {
-  const { base, noter } = cuisine(t);
+  const { base, noter } = kitchen(t);
   const a = (heure: string) => new Date(`${JOUR_HORLOGE}T${heure}:00.000Z`);
   // Sans station, rien ne le dit.
   assert.equal(compteRetenu(base, a("12:00")), false);

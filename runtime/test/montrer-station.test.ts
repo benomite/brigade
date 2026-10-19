@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { openLog } from "../src/log.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
 import { appeler, horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
 
@@ -11,13 +11,13 @@ const MONTRER = join(import.meta.dirname, "../src/montrer-station.ts");
 const STATION = "box/claude";
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
-  t.after(() => journal.fermer());
+  const log = openLog(repertoire, { maintenant: horloge() });
+  t.after(() => log.fermer());
   const noter = (fait: Fait, ticket: number | null = null, author = `station:${STATION}`) =>
-    journal.ajouter({ project: "brigade", ticket, author, ...fait });
-  const annoncer = () => noter({ type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["code"], maxCooks: 1 } });
+    log.ajouter({ project: "brigade", ticket, author, ...fait });
+  const announce = () => noter({ type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["code"], maxCooks: 1 } });
   const lancerCook = (run: string, ticket: number, model = "sonnet", effort = "medium") =>
     noter(
       { type: "cook.launched", payload: { run, limits: LIMITES, stream: `runs/${run}.jsonl`, station: STATION, model, effort, branch: `cook/${run}`, worktree: `worktrees/${run}` } },
@@ -28,12 +28,12 @@ function cuisine(t: TestContext) {
   const montrer = (...args: string[]) => rendre(appeler(montrerStation, args, { BRIGADE_STATE_DIR: repertoire }));
   // Par son fichier, dans son propre process : comme `npm run` la lance.
   const lancee = (...args: string[]) => rendre(lancer(t, MONTRER, args, { BRIGADE_STATE_DIR: repertoire }));
-  return { repertoire, journal, noter, annoncer, lancerCook, montrer, lancee };
+  return { repertoire, journal: log, noter, annoncer: announce, lancerCook, montrer, lancee };
 }
 
 test("le chef voit la station : son nom, ce qu'elle fournit, son plafond, sa connexion et son quota", async (t) => {
-  const { annoncer, lancee } = cuisine(t);
-  annoncer();
+  const { annoncer: announce, lancee } = kitchen(t);
+  announce();
 
   const { code, sortie } = await lancee();
 
@@ -50,8 +50,8 @@ test("le chef voit la station : son nom, ce qu'elle fournit, son plafond, sa con
 });
 
 test("le chef voit ce qu'il paie : chaque cook avec son calibrage, sa fin et ce qu'il a consommé", async (t) => {
-  const { annoncer, lancerCook, noter, montrer } = cuisine(t);
-  annoncer();
+  const { annoncer: announce, lancerCook, noter, montrer } = kitchen(t);
+  announce();
   lancerCook("7-a", 7, "opus", "high");
   noter({ type: "cook.exited", payload: { run: "7-a", outcome: "ok", code: 0, signal: null, turns: 12, tokens: 34_567, durationMs: 252_000 } }, 7, "runtime");
   noter({ type: "cook.reported", payload: { run: "7-a", ending: "done", reason: null, summary: "fait", branch: "cook/7-a", pr: "https://github.com/o/r/pull/9" } }, 7);
@@ -68,8 +68,8 @@ test("le chef voit ce qu'il paie : chaque cook avec son calibrage, sa fin et ce 
 });
 
 test("un quota épuisé se lit « 86 » avec l'heure de son retour ; passé cette heure, il est disponible", async (t) => {
-  const { annoncer, noter, montrer } = cuisine(t);
-  annoncer();
+  const { annoncer: announce, noter, montrer } = kitchen(t);
+  announce();
   const epuiser = (until: string) => noter({ type: "station.86", payload: { station: STATION, reason: "quota", until, window: "five_hour" } });
 
   epuiser("2999-01-01T00:00:00.000Z");
@@ -79,8 +79,8 @@ test("un quota épuisé se lit « 86 » avec l'heure de son retour ; passé cett
 });
 
 test("une connexion Max expirée se voit, avec ce qu'il faut faire", async (t) => {
-  const { annoncer, noter, montrer } = cuisine(t);
-  annoncer();
+  const { annoncer: announce, noter, montrer } = kitchen(t);
+  announce();
   noter({ type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run: "7-a" } }, 7);
 
   const { sortie } = await montrer();
@@ -89,8 +89,8 @@ test("une connexion Max expirée se voit, avec ce qu'il faut faire", async (t) =
 });
 
 test("à trente cooks, la station les montre tous, et ses dix derniers cooks finis", async (t) => {
-  const { annoncer, lancerCook, noter, montrer } = cuisine(t);
-  annoncer();
+  const { annoncer: announce, lancerCook, noter, montrer } = kitchen(t);
+  announce();
   for (let n = 1; n <= 12; n++) {
     lancerCook(`${n}-fini`, n);
     noter({ type: "cook.exited", payload: { run: `${n}-fini`, outcome: "ok", code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1000 } }, n, "runtime");
@@ -105,41 +105,41 @@ test("à trente cooks, la station les montre tous, et ses dix derniers cooks fin
 });
 
 test("le chef règle le plafond de cooks : le journal le porte, la station le montre, et rien n'est écrit s'il ne change pas", async (t) => {
-  const { journal, annoncer, montrer } = cuisine(t);
-  annoncer();
+  const { journal: log, annoncer: announce, montrer } = kitchen(t);
+  announce();
 
   const reglage = await montrer("cooks", "12");
 
   assert.equal(reglage.code, 0);
   assert.match(reglage.sortie, /box\/claude: simultaneous cooks, 12 at most \(was: 1 at most\) — no running cook is stopped/);
   assert.match(reglage.sortie, /no runtime is running/);
-  const fait = journal.tout().at(-1);
+  const fait = log.tout().at(-1);
   assert.deepEqual([fait?.type, fait?.author, fait?.payload], ["station.capped", "chef", { station: STATION, maxCooks: 12 }]);
   assert.match((await montrer()).sortie, /simultaneous cooks\s+12 at most \(set by the chef\)/);
 
   assert.match((await montrer("cooks", "12")).sortie, /cap already set — 12 at most/);
-  assert.equal(journal.tout().filter((evenement) => evenement.type === "station.capped").length, 1);
+  assert.equal(log.tout().filter((evenement) => evenement.type === "station.capped").length, 1);
 });
 
 test("zéro lève la limite", async (t) => {
-  const { annoncer, montrer } = cuisine(t);
-  annoncer();
+  const { annoncer: announce, montrer } = kitchen(t);
+  announce();
 
   assert.match((await montrer("cooks", "0")).sortie, /simultaneous cooks, no limit \(was: 1 at most\)/);
   assert.match((await montrer()).sortie, /simultaneous cooks\s+no limit \(set by the chef\)/);
 });
 
 test("une base d'intégration rouge se lit sur la ligne de retenue", async (t) => {
-  const { annoncer, noter, montrer } = cuisine(t);
-  annoncer();
+  const { annoncer: announce, noter, montrer } = kitchen(t);
+  announce();
   noter({ type: "station.held", payload: { station: STATION, reason: "base" } });
 
   assert.match((await montrer()).sortie, new RegExp(String.raw`withholding\s+since ${JOUR_HORLOGE}T10:00:01.000Z — integration base red: the servable tickets wait`));
 });
 
 test("un arbitre injoignable se voit, avec le mode dégradé ; rien n'en est dit tant qu'il répond", async (t) => {
-  const { annoncer, noter, montrer } = cuisine(t);
-  annoncer();
+  const { annoncer: announce, noter, montrer } = kitchen(t);
+  announce();
   assert.doesNotMatch((await montrer()).sortie, /^arbiter/m);
   noter({ type: "station.unarbitrated", payload: { station: STATION, reason: "connexion refusée" } });
   noter({ type: "station.held", payload: { station: STATION, reason: "unarbitrated" } });
@@ -150,8 +150,8 @@ test("un arbitre injoignable se voit, avec le mode dégradé ; rien n'en est dit
 });
 
 test("une machine saturée se voit, avec ce qui manque", async (t) => {
-  const { annoncer, noter, montrer } = cuisine(t);
-  annoncer();
+  const { annoncer: announce, noter, montrer } = kitchen(t);
+  announce();
   noter({ type: "station.saturated", payload: { station: STATION, resource: "disk", observed: 2048, limit: 5120 } });
   noter({ type: "station.held", payload: { station: STATION, reason: "machine" } });
 
@@ -160,7 +160,7 @@ test("une machine saturée se voit, avec ce qui manque", async (t) => {
 });
 
 test("un plafond qui n'est pas un nombre, ou réglé avant toute station, est refusé sans rien écrire", async (t) => {
-  const { journal, noter, montrer } = cuisine(t);
+  const { journal: log, noter, montrer } = kitchen(t);
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } }, null, "runtime");
 
   for (const args of [["cooks"], ["cooks", "-1"], ["cooks", "beaucoup"], ["cooks", "3", "4"], ["stop"]]) {
@@ -170,11 +170,11 @@ test("un plafond qui n'est pas un nombre, ou réglé avant toute station, est re
   const sansStation = await montrer("cooks", "3");
   assert.equal(sansStation.code, 1);
   assert.match(sansStation.sortie, /no station has announced itself/);
-  assert.equal(journal.tout().some((evenement) => evenement.type === "station.capped"), false);
+  assert.equal(log.tout().some((evenement) => evenement.type === "station.capped"), false);
 });
 
 test("une station qui ne s'est jamais annoncée le dit", async (t) => {
-  const { montrer } = cuisine(t);
+  const { montrer } = kitchen(t);
 
   const { code, sortie } = await montrer();
 
@@ -183,7 +183,7 @@ test("une station qui ne s'est jamais annoncée le dit", async (t) => {
 });
 
 test("un projet qui ne déclare aucune station : la commande le dit, avec le geste, et ne règle aucun plafond", async (t) => {
-  const { journal, noter, montrer } = cuisine(t);
+  const { journal: log, noter, montrer } = kitchen(t);
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } }, null, "runtime");
   noter({ type: "stations.undeclared", payload: {} }, null, "runtime");
 
@@ -194,12 +194,12 @@ test("un projet qui ne déclare aucune station : la commande le dit, avec le ges
   const reglage = await montrer("cooks", "3");
   assert.equal(reglage.code, 1);
   assert.match(reglage.sortie, /the project declares no station: there is no cap to set — set them with `brigade <projet> station stations /);
-  assert.equal(journal.tout().some((evenement) => evenement.type === "station.capped"), false);
+  assert.equal(log.tout().some((evenement) => evenement.type === "station.capped"), false);
 });
 
 test("deux stations déclarées : la commande montre chacune, avec ce qu'elle fournit et son plafond ; une station retirée n'y est plus", async (t) => {
-  const { noter, annoncer, montrer } = cuisine(t);
-  annoncer();
+  const { noter, annoncer: announce, montrer } = kitchen(t);
+  announce();
   const playwright = "box/playwright";
   noter({ type: "station.announced", payload: { station: playwright, engine: "playwright", provides: ["navigateur-headless"], maxCooks: 2 } }, null, `station:${playwright}`);
 
@@ -217,20 +217,20 @@ test("deux stations déclarées : la commande montre chacune, avec ce qu'elle fo
 
 test("sans répertoire d'état, sans journal, ou avec un argument, la commande échoue en disant pourquoi", async (t) => {
   const sansVariable = lancer(t, MONTRER, []);
-  const sansJournal = appeler(montrerStation, [], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
+  const withoutLog = appeler(montrerStation, [], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
   const avecArgument = appeler(montrerStation, ["14"], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
 
   assert.equal(await sansVariable.fin, 2);
   assert.match(sansVariable.sortie(), /BRIGADE_STATE_DIR is not set/);
-  assert.equal(await sansJournal.fin, 1);
-  assert.match(sansJournal.sortie(), /no log/);
+  assert.equal(await withoutLog.fin, 1);
+  assert.match(withoutLog.sortie(), /no log/);
   assert.equal(await avecArgument.fin, 2);
   assert.match(avecArgument.sortie(), /usage/);
 });
 
 test("une station distante se lit par sa présence, pas par la machine de la box : absente tant qu'elle ne s'est pas manifestée, présente ensuite, absente de nouveau — sans que ce soit une panne", async (t) => {
-  const { noter, annoncer, montrer } = cuisine(t);
-  annoncer();
+  const { noter, annoncer: announce, montrer } = kitchen(t);
+  announce();
   const MAC = "mac/claude";
   const duMac = (fait: Fait, auteur = `station:${MAC}`) => noter(fait, null, auteur);
   duMac({ type: "station.announced", payload: { station: MAC, engine: "claude", provides: ["chrome-connecté"], maxCooks: 1, remote: true } });

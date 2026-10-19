@@ -7,8 +7,8 @@
 // À côté du rail, un nombre — « 23 upcoming » — qui ouvre la liste ; et, quand le rail est vide, ce
 // qu'il y a en amont, et si le manager les lit — son état vient de `manager` (manager.ts).
 import type { Lecture } from "./box.ts";
-import { titreDEchec } from "./faits.ts";
-import { entete, type Entete } from "./fiche.ts";
+import { titreDEchec } from "./facts.ts";
+import { entete, type Entete } from "./card.ts";
 import { voir as voirManager, type Vu as VuManager } from "./manager.ts";
 
 export const COMMANDE = "manager upstream";
@@ -34,7 +34,7 @@ export const GROUPES = [
 ] as const;
 
 // Une ligne de la liste : son numéro, son titre, ce que la box en dit. `ouvrable` : son issue
-// s'ouvre d'un clic — l'adresse reste au process principal. `fiche` : l'en-tête de sa fiche (fiche.ts).
+// s'ouvre d'un clic — l'adresse reste au process principal. `fiche` : l'en-tête de sa fiche (card.ts).
 export type Issue = { ticket: number; titre: string; dit: string; ouvrable: boolean; fiche: Entete };
 export type Groupe = { etat: string; nom: string; issues: Issue[] };
 // Ce que la vue pose, sans rien calculer : le nombre et la liste — ou, `sans`, pourquoi rien n'est

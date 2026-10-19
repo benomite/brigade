@@ -23,13 +23,13 @@ export type FauxGitHubApps = {
   // Les jetons demandés, dans l'ordre : pour qui, et avec quel corps.
   echanges(): Array<{ role: Role; corps: unknown }>;
   // Les jetons rendus à un rôle, dans l'ordre.
-  jetons(role: Role): string[];
+  tokens(role: Role): string[];
   // Tous les JWT reçus.
   jwts(): string[];
   // Tout ce qui suit répond ce statut, avec ce message — jusqu'à `null`.
   panne(statut: number | null, message?: string): void;
   refuser(statut: number, message: string): void;
-  desinstaller(role: Role): void;
+  uninstall(role: Role): void;
 };
 
 // Fabriquer une clé RSA coûte : une paire par rôle, pour tout le fichier.
@@ -59,7 +59,7 @@ export async function fauxGitHubApps(t: TestContext): Promise<FauxGitHubApps> {
   let panne: { statut: number; message: string } | null = null;
   const absentes = new Set<Role>();
   const echanges: Array<{ role: Role; corps: unknown }> = [];
-  const jetons: Record<Role, string[]> = { cook: [], pass: [], manager: [] };
+  const tokens: Record<Role, string[]> = { cook: [], pass: [], manager: [] };
   const jwts: string[] = [];
 
   // Le rôle que le JWT prouve, ou null : signature, émetteur et dates.
@@ -85,7 +85,7 @@ export async function fauxGitHubApps(t: TestContext): Promise<FauxGitHubApps> {
     return role;
   };
 
-  const serveur = createServer((requete, reponse) => {
+  const server = createServer((requete, reponse) => {
     let recu = "";
     requete.on("data", (morceau) => (recu += morceau));
     requete.on("end", () => {
@@ -104,27 +104,27 @@ export async function fauxGitHubApps(t: TestContext): Promise<FauxGitHubApps> {
       if (requete.method === "POST" && chemin === `/app/installations/${Number(ID[role]) + 7000}/access_tokens`) {
         if (absentes.has(role)) return repondre(404, { message: "Not Found" });
         echanges.push({ role, corps: JSON.parse(recu || "null") });
-        const jeton = `ghs_${role}_${jetons[role].length + 1}_secret`;
-        jetons[role].push(jeton);
+        const jeton = `ghs_${role}_${tokens[role].length + 1}_secret`;
+        tokens[role].push(jeton);
         return repondre(201, { token: jeton, expires_at: new Date(maintenant() + 3_600_000).toISOString() });
       }
       repondre(404, { message: "Not Found" });
     });
   });
-  await new Promise<void>((resoudre) => serveur.listen(0, "127.0.0.1", resoudre));
-  aArreter(t, () => new Promise((resoudre) => (serveur.closeAllConnections(), serveur.close(resoudre))));
+  await new Promise<void>((resoudre) => server.listen(0, "127.0.0.1", resoudre));
+  aArreter(t, () => new Promise((resoudre) => (server.closeAllConnections(), server.close(resoudre))));
 
   return {
-    url: `http://127.0.0.1:${(serveur.address() as AddressInfo).port}`,
+    url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
     repertoire,
     id: (role) => ID[role],
     cle: (role) => paire[role].privee,
     horloge: (lire) => void (maintenant = lire),
     echanges: () => [...echanges],
-    jetons: (role) => [...jetons[role]],
+    tokens: (role) => [...tokens[role]],
     jwts: () => [...jwts],
     panne: (statut, message = "Service Unavailable") => void (panne = statut === null ? null : { statut, message }),
     refuser: (statut, message) => void (panne = { statut, message }),
-    desinstaller: (role) => void absentes.add(role),
+    uninstall: (role) => void absentes.add(role),
   };
 }

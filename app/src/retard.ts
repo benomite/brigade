@@ -322,9 +322,9 @@ export function tenirRetards(options: { reglages: Reglages; app: string; projets
       if (ecrit === undefined) return undefined;
       if (CONTROLE.test(ecrit.commande)) return { refus: "nothing is written: this clone's path has a control character, and a line break would have sent the command" };
       const ouvrables = options.projets().filter((projet) => projet.refus === undefined);
-      const espace = ouvrables.find((projet) => ecrit.projets.includes(projet.nom)) ?? ouvrables[0];
-      if (espace === undefined) return { refus: `nothing is written: no project opens here, and an app shell lives in a project's space — copy the command: \`${ecrit.commande}\`` };
-      return terminaux.shell(espace, ecrit.commande);
+      const space = ouvrables.find((projet) => ecrit.projets.includes(projet.nom)) ?? ouvrables[0];
+      if (space === undefined) return { refus: `nothing is written: no project opens here, and an app shell lives in a project's space — copy the command: \`${ecrit.commande}\`` };
+      return terminaux.shell(space, ecrit.commande);
     },
 
     // L'app se ferme : ce qui se lisait encore est arrêté, et ne dit plus rien.

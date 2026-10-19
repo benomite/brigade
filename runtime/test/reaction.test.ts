@@ -3,12 +3,12 @@
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import { REDECOUPE } from "../src/events/rail.ts";
-import { MARQUEUR } from "../src/fiche.ts";
+import { MARQUEUR } from "../src/card.ts";
 import { MARQUEUR_MANAGER } from "../src/juger.ts";
-import { etatDesGardeFous } from "../src/projections/guardrails.ts";
+import { guardrailsState } from "../src/projections/guardrails.ts";
 import { passDuTicket } from "../src/projections/pass.ts";
 import { reactionDe } from "../src/projections/reactions.ts";
-import { chef, cuisine, issue, STATION, type Options } from "./aides/cuisine.ts";
+import { chef, kitchen, issue, STATION, type Options } from "./aides/kitchen.ts";
 import { jusqua } from "./outils.ts";
 
 type Charge = Record<string, unknown>;
@@ -16,15 +16,15 @@ type Charge = Record<string, unknown>;
 // Une cuisine dont les gates sont rouges et le manager allumé, sauf mention
 // contraire.
 function echec(t: TestContext, options: Options & { eteint?: boolean } = {}) {
-  const c = cuisine(t, { pass: true, ...options, manager: { jugement: "reagit-remonte", ...options.manager } });
+  const c = kitchen(t, { pass: true, ...options, manager: { jugement: "reagit-remonte", ...options.manager } });
   c.gates.regler("rouge");
   if (!options.eteint) chef(c.repertoire, "manager.enabled");
-  const { journal } = c;
-  const faits = (type: string, ticket?: number) => (ticket === undefined ? journal.tout() : journal.duTicket(ticket)).filter((e) => e.type === type);
-  const charges = (type: string, ticket: number) => faits(type, ticket).map((e) => e.payload as Charge);
-  const jusquAu = (type: string, ticket: number, combien = 1) => jusqua(() => faits(type, ticket).length >= combien);
+  const { journal: log } = c;
+  const facts = (type: string, ticket?: number) => (ticket === undefined ? log.tout() : log.duTicket(ticket)).filter((e) => e.type === type);
+  const charges = (type: string, ticket: number) => facts(type, ticket).map((e) => e.payload as Charge);
+  const jusquAu = (type: string, ticket: number, combien = 1) => jusqua(() => facts(type, ticket).length >= combien);
   // Le calibrage de chaque cook parti sur le ticket, dans l'ordre.
-  const calibrages = (ticket: number) =>
+  const calibrations = (ticket: number) =>
     charges("cook.launched", ticket)
       .filter((lance) => lance.station === STATION)
       .map((lance) => `${lance.model}/${lance.effort}`);
@@ -32,7 +32,7 @@ function echec(t: TestContext, options: Options & { eteint?: boolean } = {}) {
   const dits = (numero: number) => c.gh.commentaires.filter(([n, corps]) => n === numero && corps.includes(MARQUEUR_MANAGER)).map(([, corps]) => corps);
   const labels = (numero: number) => c.gh.lire(numero)?.labels ?? [];
   const ticket = (numero: number) => c.runtime.rail.tickets().find((x) => x.ticket === numero);
-  return { ...c, faits, charges, jusquAu, calibrages, jugements, dits, labels, ticket, pass: (numero: number) => passDuTicket(journal.base, numero) };
+  return { ...c, faits: facts, charges, jusquAu, calibrages: calibrations, jugements, dits, labels, ticket, pass: (numero: number) => passDuTicket(log.base, numero) };
 }
 
 describe("le manager réagit à un échec", { concurrency: 8 }, () => {
@@ -197,7 +197,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     // Les deux relances décidées par le manager sont marquées, et jugées rouges.
     assert.deepEqual(c.charges("cook.launched", 30).filter((lance) => lance.station === STATION).map((lance) => lance.relaunch === true), [false, false, false, true, true]);
     assert.deepEqual(c.charges("relaunch.judged", 30).map((juge) => juge.verdict), ["red", "red"]);
-    assert.notEqual(etatDesGardeFous(c.journal.base).breakerOpenedAt, null);
+    assert.notEqual(guardrailsState(c.journal.base).breakerOpenedAt, null);
     // Il lui restait de quoi monter — `opus` —, et il ne l'a pas fait.
     assert.deepEqual(c.calibrages(30), ["haiku/low", "haiku/low", "haiku/medium", "haiku/high", "sonnet/high"]);
     const reaction = c.charges("manager.reacted", 30).at(-1);

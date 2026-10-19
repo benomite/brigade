@@ -4,7 +4,7 @@
 // ce qui n'est pas une décision lisible devient un motif dit, jamais une
 // décision devinée.
 import { createHash } from "node:crypto";
-import { EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
+import { EFFORTS, MODELES, type Calibration } from "./calibration.ts";
 import { SOURCES_DE_REGLAGES } from "./claude.ts";
 import { NATURES, type Nature } from "./events/manager.ts";
 
@@ -32,7 +32,7 @@ export type Decision = {
 // Le jugement n'a ni outil, ni skill, ni serveur MCP, ni réglages : il lit la
 // consigne et répond. `--tools ""` vient avant les options qui le suivent, il
 // avale tout ce qui n'en est pas une.
-export function argumentsJuge(texte: string, calibrage: Calibrage): string[] {
+export function argumentsJuge(texte: string, calibration: Calibration): string[] {
   return [
     "-p",
     texte,
@@ -40,9 +40,9 @@ export function argumentsJuge(texte: string, calibrage: Calibrage): string[] {
     "stream-json",
     "--verbose",
     "--model",
-    calibrage.model,
+    calibration.model,
     "--effort",
-    calibrage.effort,
+    calibration.effort,
     "--tools",
     "",
     "--setting-sources",

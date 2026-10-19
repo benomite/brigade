@@ -1,7 +1,7 @@
 // Les réglages du correctif, lus de l'environnement du runtime comme ceux des
-// garde-fous (`plafonds.ts`) : un défaut prudent, que l'unité du projet ajuste.
+// garde-fous (`caps.ts`) : un défaut prudent, que l'unité du projet ajuste.
 // Une valeur illisible refuse le démarrage, jamais un repli sur le défaut.
-import { lire } from "../plafonds.ts";
+import { lire } from "../caps.ts";
 import { DERNIERS_PAR_DEFAUT } from "../renvois.ts";
 
 // Le nombre de tickets récents qui, ratés pour la même cause, en font une

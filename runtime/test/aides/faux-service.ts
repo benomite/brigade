@@ -10,13 +10,13 @@ import { createServer } from "node:http";
 const port = Number(process.env.BRIGADE_PORT);
 if (process.env.FAUX_SERVICE === "sourd") process.on("SIGTERM", () => {});
 
-const serveur = createServer((_requete, reponse) => {
+const server = createServer((_requete, reponse) => {
   reponse.setHeader("content-type", "application/json");
   reponse.setHeader("connection", "close");
   reponse.end(JSON.stringify({ cwd: process.cwd(), port, fichiers: readdirSync(".").sort() }));
 });
-serveur.on("error", (erreur) => {
+server.on("error", (erreur) => {
   console.error(`faux service : ${erreur.message}`);
   process.exit(98);
 });
-serveur.listen(port, "127.0.0.1", () => console.log(`faux service : à l'écoute sur ${port}`));
+server.listen(port, "127.0.0.1", () => console.log(`faux service : à l'écoute sur ${port}`));

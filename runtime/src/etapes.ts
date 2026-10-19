@@ -19,7 +19,7 @@ import { existsSync } from "node:fs";
 import { Base } from "./base.ts";
 import type { Evenement } from "./evenements.ts";
 import type { EtatDEtape } from "./events/installation.ts";
-import { cheminJournal, type Journal } from "./journal.ts";
+import { logPath, type Log } from "./log.ts";
 
 export type Etape = {
   id: string;
@@ -122,7 +122,7 @@ export function lireInstallation(etats: Map<string, EtatDEtape>): Installation {
 // lecture seule. Aucun journal : rien n'a été noté, tout est à faire — et
 // aucun journal n'est créé pour le dire.
 export function installationDe(repertoireEtat: string): Installation {
-  const chemin = cheminJournal(repertoireEtat);
+  const chemin = logPath(repertoireEtat);
   if (!existsSync(chemin)) return lireInstallation(new Map());
   const base = new Base(chemin, { lectureSeule: true, attenteMs: 5000 });
   try {
@@ -134,12 +134,12 @@ export function installationDe(repertoireEtat: string): Installation {
 
 // Note l'état d'une étape, au nom de `auteur`. Rend le fait écrit, ou null si
 // elle en était déjà là. N'écrit que le journal, et ne fait rien de l'étape.
-export function noterEtape(journal: Journal, note: { projet: string; etape: string; etat: EtatDEtape; auteur: string }): Evenement | null {
+export function noterEtape(log: Log, note: { projet: string; etape: string; etat: EtatDEtape; auteur: string }): Evenement | null {
   if (!estUneEtape(note.etape)) throw new Error(`« ${note.etape} » n'est pas une étape de l'installation — attendu ${ETAPES.map((etape) => etape.id).join(", ")}`);
-  return journal.base.transaction(() => {
-    const previous = etatsNotes(journal.base).get(note.etape) ?? "todo";
+  return log.base.transaction(() => {
+    const previous = etatsNotes(log.base).get(note.etape) ?? "todo";
     if (previous === note.etat) return null;
-    return journal.ajouter({ project: note.projet, ticket: null, author: note.auteur, type: NOTEE, payload: { step: note.etape, state: note.etat, previous } });
+    return log.ajouter({ project: note.projet, ticket: null, author: note.auteur, type: NOTEE, payload: { step: note.etape, state: note.etat, previous } });
   });
 }
 
@@ -156,16 +156,16 @@ export type Fin = { terminee: true; notees: string[] } | { terminee: false; remi
 // Sinon rien n'est terminé : celles que la vérification nomme et que le
 // journal portait faites, et la dernière si elle l'était, sont remises à faire
 // — la liste ne dit pas fait ce qui ne l'est plus. N'écrit que le journal.
-export function terminer(journal: Journal, fin: { projet: string; aReprendre: string[]; auteur: string }): Fin {
+export function terminer(log: Log, fin: { projet: string; aReprendre: string[]; auteur: string }): Fin {
   const { projet, auteur } = fin;
-  return journal.base.transaction(() => {
+  return log.base.transaction(() => {
     if (fin.aReprendre.length === 0) {
-      const notees = ETAPES.filter(({ id }) => noterEtape(journal, { projet, etape: id, etat: "done", auteur }) !== null).map(({ id }) => id);
+      const notees = ETAPES.filter(({ id }) => noterEtape(log, { projet, etape: id, etat: "done", auteur }) !== null).map(({ id }) => id);
       return { terminee: true, notees };
     }
-    const etats = etatsNotes(journal.base);
+    const etats = etatsNotes(log.base);
     const remises = ETAPES.map(({ id }) => id).filter((id) => (fin.aReprendre.includes(id) || id === DERNIERE) && etats.get(id) === "done");
-    for (const etape of remises) noterEtape(journal, { projet, etape, etat: "todo", auteur });
+    for (const etape of remises) noterEtape(log, { projet, etape, etat: "todo", auteur });
     return { terminee: false, remises };
   });
 }

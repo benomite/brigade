@@ -57,14 +57,14 @@ test("les versions se comparent nombre par nombre, pas comme du texte", () => {
 test("les sondes de la machine lisent la version du `claude` qu'on leur nomme, et null s'il échoue ou n'existe pas", (t) => {
   const dossier = mkdtempSync(join(tmpdir(), "bac-a-sable-"));
   t.after(() => rmSync(dossier, { recursive: true, force: true }));
-  const bon = join(dossier, "claude");
-  writeFileSync(bon, '#!/bin/sh\n[ "$1" = "--version" ] && echo "2.1.300 (Claude Code)"\n');
+  const slip = join(dossier, "claude");
+  writeFileSync(slip, '#!/bin/sh\n[ "$1" = "--version" ] && echo "2.1.300 (Claude Code)"\n');
   const casse = join(dossier, "casse");
   writeFileSync(casse, "#!/bin/sh\nexit 3\n");
-  chmodSync(bon, 0o755);
+  chmodSync(slip, 0o755);
   chmodSync(casse, 0o755);
-  assert.equal(sondesDeLaMachine(bon).versionDeClaude(), "2.1.300 (Claude Code)\n");
+  assert.equal(sondesDeLaMachine(slip).versionDeClaude(), "2.1.300 (Claude Code)\n");
   assert.equal(sondesDeLaMachine(casse).versionDeClaude(), null);
   assert.equal(sondesDeLaMachine(join(dossier, "absent")).versionDeClaude(), null);
-  assert.equal(sondesDeLaMachine(bon).plateforme, process.platform);
+  assert.equal(sondesDeLaMachine(slip).plateforme, process.platform);
 });

@@ -47,8 +47,8 @@ export function attendreLaPreparation<R extends RuntimeAvecRail>(runtime: R, opt
   };
   const rail: Rail = {
     ...runtime.rail,
-    prendre: (qui, enCuisine, seul) => runtime.rail.prendre(qui, enCuisine, seul ?? seulAPartir()),
-    servables: (enCuisine, preneuses, seul) => runtime.rail.servables(enCuisine, preneuses, seul ?? seulAPartir()),
+    prendre: (qui, cooking, seul) => runtime.rail.prendre(qui, cooking, seul ?? seulAPartir()),
+    servables: (cooking, preneuses, seul) => runtime.rail.servables(cooking, preneuses, seul ?? seulAPartir()),
   };
   return { ...runtime, rail };
 }

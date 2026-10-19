@@ -1,13 +1,13 @@
 // Les corrections proposées, dans la forme qu'une carte de la file du projet
 // dessine : la cause, les tickets concernés — chacun avec l'adresse de son
 // issue —, le diff, et ce que la proposition a coûté. C'est `facts` qui les
-// porte (`faits.ts`) : l'app n'y déduit rien.
+// porte (`facts.ts`) : l'app n'y déduit rien.
 //
 // Seule une `correction.proposed` en fait une, et seulement si son diff, relu
 // ici, ne touche que les consignes du projet (`portee.ts`) : une proposition
 // écartée n'a pas de carte, et n'en aura jamais.
 import { DEPOT_GITHUB } from "../etat.ts";
-import type { Journal } from "../journal.ts";
+import type { Log } from "../log.ts";
 import { lireDiff } from "./portee.ts";
 
 // `proposition` : le fait qui la porte, par son `seq` — ce que le « oui » ou le
@@ -29,9 +29,9 @@ export type CarteDeCorrection = {
 };
 
 // Les corrections proposées, la plus ancienne d'abord.
-export function cartesDeCorrection(journal: Journal, depot?: string): CarteDeCorrection[] {
+export function cartesDeCorrection(log: Log, depot?: string): CarteDeCorrection[] {
   const adresse = (ticket: number) => (depot !== undefined && DEPOT_GITHUB.test(depot) ? `https://github.com/${depot}/issues/${ticket}` : null);
-  return journal.duType("correction.proposed", Number.MAX_SAFE_INTEGER).flatMap(({ seq, at, payload }) => {
+  return log.duType("correction.proposed", Number.MAX_SAFE_INTEGER).flatMap(({ seq, at, payload }) => {
     if ("refus" in lireDiff(payload.diff)) return [];
     return [
       {

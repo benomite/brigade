@@ -2,9 +2,9 @@
 // The closer's calibration has no default, no more than a cook's: without it
 // the project has no writing pass, and nothing else changes. Its thresholds and
 // caps, though, have a prudent default the chef adjusts.
-import { EFFORTS, MODELES } from "../calibrage.ts";
-import type { ReglagesDeFermeture } from "../events/closing.ts";
-import { lire } from "../plafonds.ts";
+import { EFFORTS, MODELES } from "../calibration.ts";
+import type { ClosingSettings } from "../events/closing.ts";
+import { lire } from "../caps.ts";
 import { ConfigInvalide } from "../runtime.ts";
 
 // The pass leaves when fewer cooks than this are in flight: by default, none.
@@ -15,7 +15,7 @@ export const RETRAITS_PAR_DEFAUT = 500;
 
 const ou = (valeurs: readonly string[]) => `${valeurs.slice(0, -1).join(", ")} or ${valeurs.at(-1)}`;
 
-export function configFermeture(env: Record<string, string | undefined>): ReglagesDeFermeture {
+export function closingConfig(env: Record<string, string | undefined>): ClosingSettings {
   const calibre = (variable: string, admis: readonly string[]): string | null => {
     const valeur = env[variable];
     if (!valeur) return null;

@@ -14,7 +14,7 @@
 // la file (#438) : l'app lit elle-même `manager`, pour chaque projet, au rythme de `faits`,
 // quel que soit l'onglet affiché. Il n'est « non vérifié » que le temps de la première
 // lecture, ou quand cette lecture échoue — et la ligne dit pourquoi.
-// D'où vient chaque état : la cuisine de `faits` (faits.ts), la cause d'une
+// D'où vient chaque état : la cuisine de `faits` (facts.ts), la cause d'une
 // cuisine retenue et le grant des lignes de tête de `status` — celles que le runtime écrit
 // d'un titre et d'une valeur (runtime/src/etat.ts, `decrireEtat`) —, le manager de la
 // sortie de `manager` (manager.ts). Le setup du projet bloqué est une cause de la cuisine :
@@ -32,9 +32,9 @@
 // ligne « non vérifié » mène à l'onglet qui lit l'état que la file ne dit pas. Ce module ne lance rien.
 // Au-dessus de tout, une ligne à part : l'urgence — plus rien ne cuit, et c'est le chef que toute la
 // cuisine attend (« L'urgence », plus bas). Elle vient de `faits`, et la case du projet la dit aussi.
-import type { Montree } from "./attend.ts";
+import type { Montree } from "./awaiting.ts";
 import type { Echec, Lecture } from "./box.ts";
-import { COMMANDE as FAITS, comprendre, duree, tick, titreDEchec, type DecisionUrgente, type Faits } from "./faits.ts";
+import { COMMANDE as FACTS, comprendre, duree, tick, titreDEchec, type DecisionUrgente, type Facts } from "./facts.ts";
 import { GRANTS } from "./gestes.ts";
 import { COMMANDE as MANAGER, managerDe, type Interrupteur } from "./manager.ts";
 import { heureHM } from "./format.ts";
@@ -80,10 +80,10 @@ export type Bande = { projet: string; alertes: Alerte[]; signal?: Signal; manage
 // Un état que l'app n'a pas : pourquoi, dans ses mots.
 export type Sans = { sans: string };
 // Ce que la bande lit d'un projet. `status` : sa sortie, le bloc `attend` mis à part ou non ;
-// `attend` : ce bloc, quand il a été mis à part (attend.ts, `mettreAPart`).
+// `attend` : ce bloc, quand il a été mis à part (awaiting.ts, `mettreAPart`).
 // `controle` : ce que la box a dit d'un projet installé, ses stations et ses manques (service.ts) —
 // absent, rien n'en a été lu : un projet pas encore installé, ou pas encore contrôlé.
-export type Lu = { projet: string; faits: Faits | Sans; status: string | Sans; attend?: string; manager: Interrupteur | Sans; controle?: Controle; limite?: LimiteDeLApp };
+export type Lu = { projet: string; faits: Facts | Sans; status: string | Sans; attend?: string; manager: Interrupteur | Sans; controle?: Controle; limite?: LimiteDeLApp };
 
 // Ce que l'app a lu de sa propre limite : GitHub refuse ses appels, et `reprise` est l'instant où il les rend, nul s'il ne le dit pas.
 export type LimiteDeLApp = { reprise: string | null };
@@ -92,7 +92,7 @@ const s = (combien: number) => (combien > 1 ? "s" : "");
 const court = (commit: string) => commit.slice(0, 12);
 const AUCUN = "none: nothing changes on the station";
 const LIRE = "none: reading changes nothing on the station";
-const RELIRE_FAITS = `wait for it to be read: \`${FAITS}\` is re-read every 30 s`;
+const REREAD_FACTS = `wait for it to be read: \`${FACTS}\` is re-read every 30 s`;
 // Le geste d'une ligne qui demande de lire, de juger ou d'agir sur la box : une demande au second.
 const DEMANDE = { demande: true } as const;
 
@@ -117,9 +117,9 @@ const nonVerifie = (sujet: Sujet, dit: string, { pourquoi, releve, geste, prix, 
 // propre erreur de limite (stations/stations.ts) — c'est elle qui reste quand la box ne passe plus
 // par GitHub. Une seule ligne, l'heure de reprise à l'heure locale du chef, jamais le texte de `gh`.
 // Elle n'attend rien du chef : elle tombe d'elle-même quand les appels reprennent.
-function deLaLimite(faits: Faits | Sans, limite: LimiteDeLApp | undefined): Alerte[] {
-  const reprise = limite !== undefined ? limite.reprise : "sans" in faits ? null : (faits.limiteGithub ?? null);
-  if (limite === undefined && ("sans" in faits || faits.limiteGithub === undefined)) return [];
+function deLaLimite(facts: Facts | Sans, limite: LimiteDeLApp | undefined): Alerte[] {
+  const reprise = limite !== undefined ? limite.reprise : "sans" in facts ? null : (facts.limiteGithub ?? null);
+  if (limite === undefined && ("sans" in facts || facts.limiteGithub === undefined)) return [];
   return [
     {
       sujet: "github",
@@ -158,9 +158,9 @@ const attendu = ({ decision, cause }: DecisionUrgente) => ATTENDU.get(cause)?.(d
 // Une décision en cause, comme le bloc `attend` l'écrit : ce qui la nomme, puis sa ligne.
 const enCause = ({ decision, geste }: DecisionUrgente) => `${decision}  ${geste}`;
 
-function deLUrgence(faits: Faits | Sans): Alerte[] {
-  if ("sans" in faits || faits.urgence == null) return [];
-  const urgence = faits.urgence;
+function deLUrgence(facts: Facts | Sans): Alerte[] {
+  if ("sans" in facts || facts.urgence == null) return [];
+  const urgence = facts.urgence;
   const { retenus, autres } = urgence;
   const aussi = autres.length === 0 ? "" : ` — also held by ${autres.map(({ decision }) => decision).join(", ")}`;
   return [
@@ -168,7 +168,7 @@ function deLUrgence(faits: Faits | Sans): Alerte[] {
       sujet: "urgence",
       verifie: true,
       ton: "rouge",
-      dit: `the whole kitchen is waiting for ${attendu(urgence)} — at a standstill for ${duree(Date.parse(faits.lu) - Date.parse(urgence.depuis))}`,
+      dit: `the whole kitchen is waiting for ${attendu(urgence)} — at a standstill for ${duree(Date.parse(facts.lu) - Date.parse(urgence.depuis))}`,
       pourquoi: `${retenus.length} ticket${s(retenus.length)} held, none can cook until you act: ${retenus.map((ticket) => `#${ticket}`).join(", ")}${aussi}`,
       releve: [urgence, ...autres].map(enCause).join("\n"),
       geste: `do what ${urgence.decision} waits for, as the station writes it`,
@@ -248,23 +248,23 @@ const REDEMARRAGE = "a runtime restart: what is in flight is interrupted — the
 // Le disjoncteur ouvert, tel que la ligne `cuisine` / `kitchen` de `status` le dit : en français
 // ou en anglais (#928).
 const ROUGE = /^(?:ROUGE|RED)(?![\p{L}\p{N}_])/u;
-const DISJONCTEUR = /disjoncteur OUVERT|breaker OPEN/;
+const BREAKER = /disjoncteur OUVERT|breaker OPEN/;
 // Les titres des lignes de tête que #928 a traduits : l'app lit les deux.
-export const CUISINE = ["cuisine", "kitchen"];
-export const CONNEXION = ["connexion", "connection"];
+export const KITCHEN = ["cuisine", "kitchen"];
+export const CONNECTION = ["connexion", "connection"];
 
 // Ce qui retient la cuisine, d'après les lignes de tête de `status` : une ligne par cause
 // que l'app sait lire.
 function causesDeRetenue(status: string): Alerte[] {
   return tetesDe(status).flatMap(({ titre, valeur, suite }): Alerte[] => {
-    if (CUISINE.includes(titre) && DISJONCTEUR.test(valeur))
+    if (KITCHEN.includes(titre) && BREAKER.test(valeur))
       return [
         {
           sujet: "cuisine",
           verifie: true,
           ton: "rouge",
           dit: "breaker open: the latest launches failed in a row, no cook goes any more",
-          releve: valeur.slice(valeur.search(DISJONCTEUR)),
+          releve: valeur.slice(valeur.search(BREAKER)),
           geste: "resume the kitchen, once you have read why they fail",
           appel: { geste: "reprendre" },
           prix: `the breaker closes: ${REPRENDRE}`,
@@ -274,7 +274,7 @@ function causesDeRetenue(status: string): Alerte[] {
       const { releve, geste } = coupee(valeur);
       return [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "no station declared: no cook goes, the kitchen is frozen", releve, geste: geste ?? "declare a station, then restart the runtime", appel: DEMANDE, prix: REDEMARRAGE }];
     }
-    if (CONNEXION.includes(titre)) {
+    if (CONNECTION.includes(titre)) {
       const { releve, geste } = coupee(valeur);
       return [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "Max connection down: no ticket is taken any more", releve, geste: geste ?? "reconnect, then resume the kitchen", appel: DEMANDE, prix: REPRENDRE }];
     }
@@ -296,20 +296,20 @@ function causesDeRetenue(status: string): Alerte[] {
 }
 
 // Le statut lu d'un projet, ou pourquoi il ne l'est pas.
-const PAS_DE_CUISINE = "the output of `status` has no `kitchen` line: this is not a shape the app can read";
+const NO_KITCHEN = "the output of `status` has no `kitchen` line: this is not a shape the app can read";
 function statusLu(status: string | Sans): string | Sans {
   if (typeof status !== "string") return status;
-  return tetesDe(status).some(({ titre }) => CUISINE.includes(titre)) ? status : { sans: PAS_DE_CUISINE };
+  return tetesDe(status).some(({ titre }) => KITCHEN.includes(titre)) ? status : { sans: NO_KITCHEN };
 }
 
 // --- Le setup du projet -------------------------------------------------------
 
 // La ligne de tête `setup` de `status` (runtime/src/etat.ts, `decrireSetup`) : `BLOCKED for …
 // on <commit> — …` (`BLOQUÉ depuis …` avant #928). Absente, le setup du projet n'est pas bloqué : rien à dire.
-const SETUP_BLOQUE = /^(?:BLOQUÉ|BLOCKED)(?![\p{L}\p{N}_])/u;
-const bloqueLeSetup = (status: string) => tetesDe(status).some(({ titre, valeur }) => titre === "setup" && SETUP_BLOQUE.test(valeur));
+const SETUP_BLOCKED = /^(?:BLOQUÉ|BLOCKED)(?![\p{L}\p{N}_])/u;
+const blocksTheSetup = (status: string) => tetesDe(status).some(({ titre, valeur }) => titre === "setup" && SETUP_BLOCKED.test(valeur));
 
-// L'entrée `setup` du bloc `attend` (runtime/src/attend.ts, `decrireAttentes`) : deux espaces,
+// L'entrée `setup` du bloc `attend` (runtime/src/awaiting.ts, `decrireAttentes`) : deux espaces,
 // `setup`, deux espaces, depuis quand, deux espaces, puis la cause et le geste — c'est ce qui en
 // est repris, mot pour mot, avec les lignes qui la précisent, sans leur retrait. Rien quand le
 // texte n'en a pas. Depuis quand se dit `depuis …` ou `for …` (#927).
@@ -336,11 +336,11 @@ export function entreeDeSetup(texte: string): string | undefined {
 // ouverte, et la ligne le dit, moins grave.
 const LEVER_LE_SETUP = "clear its cause as the station says — declare the refused host in `.claude/brigade/reseau` of the project, or fix the project's setup — then merge on the integration branch";
 const PRIX_DU_SETUP = "no cook is interrupted: the setups resume by themselves once the integration branch moves";
-function duSetup(faits: Faits | Sans, status: string | Sans, attend: string | undefined): Alerte[] {
+function duSetup(facts: Facts | Sans, status: string | Sans, awaiting: string | undefined): Alerte[] {
   const lu = statusLu(status);
-  if (typeof lu !== "string" || !bloqueLeSetup(lu)) return [];
-  const entree = entreeDeSetup(attend ?? lu);
-  const ailleurs = !("sans" in faits) && faits.etat === "ouverte";
+  if (typeof lu !== "string" || !blocksTheSetup(lu)) return [];
+  const entree = entreeDeSetup(awaiting ?? lu);
+  const ailleurs = !("sans" in facts) && facts.etat === "ouverte";
   return [
     {
       sujet: "cuisine",
@@ -358,9 +358,9 @@ function duSetup(faits: Faits | Sans, status: string | Sans, attend: string | un
   ];
 }
 
-function deLaCuisine(projet: string, faits: Faits | Sans, status: string | Sans): Alerte[] {
-  if ("sans" in faits) return [nonVerifie("cuisine", "kitchen state not verified", { pourquoi: faits.sans, geste: RELIRE_FAITS, prix: LIRE })];
-  switch (faits.etat) {
+function ofTheKitchen(projet: string, facts: Facts | Sans, status: string | Sans): Alerte[] {
+  if ("sans" in facts) return [nonVerifie("cuisine", "kitchen state not verified", { pourquoi: facts.sans, geste: REREAD_FACTS, prix: LIRE })];
+  switch (facts.etat) {
     case "ouverte":
       return [];
     case "éteinte":
@@ -370,7 +370,7 @@ function deLaCuisine(projet: string, faits: Faits | Sans, status: string | Sans)
           verifie: true,
           ton: "rouge",
           dit: "runtime stopped: nothing is running, no ticket is taken",
-          pourquoi: tick(faits),
+          pourquoi: tick(facts),
           geste: `start it on the station: \`systemctl start brigade@${projet}\``,
           appel: DEMANDE,
           prix: "no cook is interrupted: nothing is running — queued tickets start again, on your quota",
@@ -383,7 +383,7 @@ function deLaCuisine(projet: string, faits: Faits | Sans, status: string | Sans)
       const causes = typeof lu === "string" ? causesDeRetenue(lu) : [];
       // Retenue par le seul setup bloqué : sa ligne le dit déjà.
       // Sans `status` lu, rien ne dit qu'une cause est seule à la retenir.
-      if (typeof lu === "string" && (causes.length > 0 || bloqueLeSetup(lu))) return causes;
+      if (typeof lu === "string" && (causes.length > 0 || blocksTheSetup(lu))) return causes;
       return [
         {
           sujet: "cuisine",
@@ -398,7 +398,7 @@ function deLaCuisine(projet: string, faits: Faits | Sans, status: string | Sans)
       ];
     }
     default:
-      return [nonVerifie("cuisine", "kitchen state not verified", { pourquoi: `the kitchen is “${faits.etat}” according to \`${FAITS}\`, a word the app does not know`, geste: "update the app", prix: AUCUN })];
+      return [nonVerifie("cuisine", "kitchen state not verified", { pourquoi: `the kitchen is “${facts.etat}” according to \`${FACTS}\`, a word the app does not know`, geste: "update the app", prix: AUCUN })];
   }
 }
 
@@ -547,7 +547,7 @@ function desPertes(controle: Controle | undefined, status: string | Sans): Alert
   if (stations !== undefined) {
     const fournies = new Set(stations.proposees.map(({ nom }) => nom));
     // Une station distante tourne sur un poste : ce que cette machine fournit n'en dit rien.
-    for (const { nom, moteur } of stations.declarees.filter(({ distante }) => !distante)) {
+    for (const { nom, moteur } of stations.declarees.filter(({ distante: remote }) => !remote)) {
       // Le manque qui dit son moteur introuvable par le service : la station ne lance rien, même
       // si la commande qui la propose le trouve encore — et il porte le geste qui le remet, mot pour mot.
       const introuvable = manques.find(({ texte }) => texte.startsWith(`\`${moteur}\` est introuvable`));
@@ -619,8 +619,8 @@ const avecBouton = (alerte: Alerte): Alerte => {
 
 // La bande d'un projet, d'après ce qui en a été lu : l'urgence, le manager, la cuisine — et
 // son setup —, le grant, et ce que le projet installé a perdu.
-export function alertes({ projet, faits, status, attend, manager, controle, limite }: Lu): Alerte[] {
-  return parGravite([...deLUrgence(faits), ...deLaLimite(faits, limite), ...duManager(manager), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle), ...dUnePanne(controle)].map(avecBouton));
+export function alertes({ projet, faits: facts, status, attend: awaiting, manager, controle, limite }: Lu): Alerte[] {
+  return parGravite([...deLUrgence(facts), ...deLaLimite(facts, limite), ...duManager(manager), ...ofTheKitchen(projet, facts, status), ...duSetup(facts, status, awaiting), ...duGrant(status), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle), ...dUnePanne(controle)].map(avecBouton));
 }
 
 // La plus grave d'abord : l'urgence au-dessus de tout, puis une alerte lue avant un état non vérifié,
@@ -678,11 +678,11 @@ function deLaBoxMuette({ depuis, a, lectures, cause }: SansReponse): Alerte {
 
 // --- Ce qui est tenu, projet par projet -----------------------------------------
 
-const FAITS_PAS_ENCORE = "first reading in progress";
+const FACTS_NOT_YET = "first reading in progress";
 const STATUS_PAS_LU = "`status` is only read for the project shown, or for all of them in “All projects” — not for this one right now";
 const STATUS_PAS_ENCORE = "first reading of `status` in progress";
 
-// Ce qu'une lecture ratée dit, dans les mots de la carte du projet (faits.ts, `titreDEchec`).
+// Ce qu'une lecture ratée dit, dans les mots de la carte du projet (facts.ts, `titreDEchec`).
 const rate = (commande: string, lecture: Echec) =>
   `\`${commande}\` was not read: ${titreDEchec(lecture, `REACHED, BUT \`${commande}\` DID NOT ANSWER`).toLowerCase()}`;
 
@@ -697,7 +697,7 @@ export const LECTURES_POUR_ETABLIR = 2;
 // Elle part à la première réception qui suit — `faits` est relu toutes les 30 s.
 export const AFFICHAGE_MINIMUM = 20_000;
 // Ce qui est dit « pas encore lu » le temps d'une première lecture ne se montre jamais : l'app attend son résultat.
-const EN_COURS = [FAITS_PAS_ENCORE, STATUS_PAS_ENCORE, MANAGER_PAS_DIT];
+const EN_COURS = [FACTS_NOT_YET, STATUS_PAS_ENCORE, MANAGER_PAS_DIT];
 
 type Source = "faits" | "status" | "manager" | "controle";
 // Quelles lectures disent chaque sujet : une réception ne compte que pour les alertes qu'elle a relues.
@@ -716,7 +716,7 @@ const LECTURES_DE: Record<Sujet, readonly Source[]> = {
 const cle = ({ sujet, dit }: Alerte) => `${sujet}\u0000${dit}`;
 
 export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETABLIR, minimum = AFFICHAGE_MINIMUM }: { maintenant?: () => number; etablir?: number; minimum?: number } = {}) {
-  const faits = new Map<string, Faits | Sans>();
+  const facts = new Map<string, Facts | Sans>();
   const statuts = new Map<string, string | Sans>();
   // Le bloc `attend` du dernier `status` lu, mis à part : il ne vit qu'avec lui.
   const attends = new Map<string, string>();
@@ -733,13 +733,13 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
   // La box d'un projet qui ne répond pas : depuis quand, et combien de lectures de `faits` de suite.
   const silences = new Map<string, SansReponse>();
   const brute = (projet: string): Alerte[] => {
-    const attend = attends.get(projet);
+    const awaiting = attends.get(projet);
     const controle = controles.get(projet);
     return alertes({
       projet,
-      faits: faits.get(projet) ?? { sans: FAITS_PAS_ENCORE },
+      faits: facts.get(projet) ?? { sans: FACTS_NOT_YET },
       status: statuts.get(projet) ?? { sans: STATUS_PAS_LU },
-      ...(attend === undefined ? {} : { attend }),
+      ...(awaiting === undefined ? {} : { attend: awaiting }),
       manager: managers.get(projet) ?? { sans: MANAGER_PAS_DIT },
       ...(controle === undefined ? {} : { controle }),
       ...(limiteDeLApp === undefined ? {} : { limite: limiteDeLApp }),
@@ -751,7 +751,7 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
   // Faute de mots reconnus (un mot que l'app ne connaît pas), la première lecture du sujet — celle qui l'a dit.
   const origineDe = (projet: string, alerte: Alerte): Source => {
     const sans: Partial<Record<Source, string>> = {};
-    const f = faits.get(projet);
+    const f = facts.get(projet);
     if (f !== undefined && "sans" in f) sans.faits = f.sans;
     const st = statuts.get(projet);
     if (st !== undefined && typeof st !== "string") sans.status = st.sans;
@@ -829,17 +829,17 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
     // La barre est posée : `faits` va être lu pour chacun de ces projets. Ce qui en était
     // lu est oublié ; un projet qui n'en est plus n'a plus rien de tenu.
     ouvrir(projets: readonly string[]): Bande[] {
-      faits.clear();
+      facts.clear();
       for (const tenus of [statuts, attends, managers, controles, silences, suivis, rendues]) for (const projet of tenus.keys()) if (!projets.includes(projet)) tenus.delete(projet);
       return projets.map((projet) => bande(projet));
     },
     // Une lecture de `faits`.
     faits(lecture: Lecture): Bande {
       noter(lecture, true);
-      if ("erreur" in lecture) faits.set(lecture.projet, { sans: rate(FAITS, lecture) });
+      if ("erreur" in lecture) facts.set(lecture.projet, { sans: rate(FACTS, lecture) });
       else {
-        const lu = comprendre(lecture.sorties.find(({ commande }) => commande === FAITS)?.texte ?? "");
-        faits.set(lecture.projet, "informe" in lu ? { sans: `the station did not return the shape of \`${FAITS}\`: ${lu.informe}` } : lu);
+        const lu = comprendre(lecture.sorties.find(({ commande }) => commande === FACTS)?.texte ?? "");
+        facts.set(lecture.projet, "informe" in lu ? { sans: `the station did not return the shape of \`${FACTS}\`: ${lu.informe}` } : lu);
       }
       return bande(lecture.projet, "faits");
     },

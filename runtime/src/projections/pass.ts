@@ -4,7 +4,7 @@
 // progress is found again after a restart — and where the chef reads "why is
 // this code on the base?".
 import type { Base } from "../base.ts";
-import type { FaitGardeFous } from "../events/guardrails.ts";
+import type { GuardrailsFact } from "../events/guardrails.ts";
 import { motifDArret, motifDeRemontee, SANS_GRANT, type ActionDeGrant, type CauseDExtinction, type FaitPass, type Finding, type Gates, type Verdict } from "../events/pass.ts";
 import type { FaitRail } from "../events/rail.ts";
 import type { FaitStation } from "../events/station.ts";
@@ -177,7 +177,7 @@ export type UsageDeGrant = {
 
 type Ecoutes =
   | FaitPass
-  | Extract<FaitGardeFous, { type: "cook.launched" }>
+  | Extract<GuardrailsFact, { type: "cook.launched" }>
   | Extract<FaitStation, { type: "cook.reported" }>
   | Extract<FaitRail, { type: "ticket.left" }>;
 
@@ -662,7 +662,7 @@ export function passDuTicket(base: Base, ticket: number): PassDeTicket | null {
 // The return a ticket awaits: the pass judged it red and gave it back to the
 // rail, and no cook has delivered since. Its delivery is a branch; its
 // worktree is only known if its cook ran on this machine.
-export function renvoiEnAttente(base: Base, ticket: number): (PassDeTicket & { branch: string }) | null {
+export function queuedSendBack(base: Base, ticket: number): (PassDeTicket & { branch: string }) | null {
   const connu = passDuTicket(base, ticket);
   if (!connu || connu.phase !== "returned" || connu.branch === null) return null;
   return { ...connu, branch: connu.branch };

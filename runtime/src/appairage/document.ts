@@ -44,9 +44,9 @@ export type Appairage = { empreinte: string; expireLe: string };
 // La dernière mise à jour, quand elle n'a pas démarré : `visee` ratée, la
 // station revenue à `restauree` — ou pas, `retourRate`.
 export type MiseAJourRevenue = { visee: string; restauree: string; le: string; retourRate: boolean };
-export type ConnexionPubliee = { etat: "connectee" | "perdue" | "inconnue"; depuis: string | null };
+export type PublishedConnection = { etat: "connectee" | "perdue" | "inconnue"; depuis: string | null };
 // Ce que la station publie de ses pannes : nul, elle n'en sait rien.
-export type EtatsPublies = { miseAJour: MiseAJourRevenue | null; connexionMax: ConnexionPubliee | null };
+export type EtatsPublies = { miseAJour: MiseAJourRevenue | null; connexionMax: PublishedConnection | null };
 
 export type DocumentStation = {
   brigade: "station";
@@ -63,8 +63,8 @@ export type DocumentStation = {
 } & EtatsPublies;
 
 // Un code neuf, tel que la station l'affiche : `ABCD-EFGH`.
-export function tirerCode(tirer: (borne: number) => number = randomInt): string {
-  const signes = Array.from({ length: LONGUEUR }, () => ALPHABET[tirer(ALPHABET.length)]).join("");
+export function drawCode(draw: (borne: number) => number = randomInt): string {
+  const signes = Array.from({ length: LONGUEUR }, () => ALPHABET[draw(ALPHABET.length)]).join("");
   return `${signes.slice(0, 4)}-${signes.slice(4)}`;
 }
 

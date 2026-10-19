@@ -25,7 +25,7 @@ export type Seuils = {
   firstTryWindow?: number | null;
 };
 
-export type FaitDerive =
+export type DriftFact =
   // The thresholds in force, written when they change: this is where `status`
   // and `measures` read them.
   | { type: "drift.configured"; payload: { limits: Seuils } }

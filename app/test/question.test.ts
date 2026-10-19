@@ -12,7 +12,7 @@ import { choixDe, type Commentaire, lever, lireQuestion, MARQUEUR_MANAGER, MARQU
 const ISSUE = "https://github.com/benomite/brigade/issues/676";
 const A = "2026-10-15T08:00:00Z";
 
-// La question telle que le runtime l'écrit sur une épique (runtime/src/decoupage.ts, `asked`).
+// La question telle que le runtime l'écrit sur une épique (runtime/src/split.ts, `asked`).
 const QUESTION = [
   MARQUEUR_MANAGER,
   MARQUEUR_QUESTION,
@@ -105,7 +105,7 @@ describe("les choix qu'elle propose", () => {
 // Un faux `gh` : un script sh, dans le répertoire du test. Il note ses arguments et ce qu'il lit
 // sur son entrée ; `vue` est ce qu'il rend à `issue view`, `poste` ce qu'il rend à `issue comment`,
 // et `corps` se joue avant de répondre — une panne s'y écrit.
-function essai(t: TestContext, { vue, poste = `${ISSUE}#issuecomment-9`, corps = "" }: { vue: string; poste?: string; corps?: string }) {
+function essai(t: TestContext, { vue, poste: workstation = `${ISSUE}#issuecomment-9`, corps = "" }: { vue: string; poste?: string; corps?: string }) {
   const racine = mkdtempSync(join(tmpdir(), "brigade-app-question-"));
   const gh = join(racine, "gh");
   writeFileSync(join(racine, "vue"), vue);
@@ -118,7 +118,7 @@ function essai(t: TestContext, { vue, poste = `${ISSUE}#issuecomment-9`, corps =
       corps,
       'case "$2" in',
       '  view) cat "$D/vue" ;;',
-      `  comment) cat > "$D/poste"; echo '${poste}' ;;`,
+      `  comment) cat > "$D/poste"; echo '${workstation}' ;;`,
       "esac",
     ].join("\n"),
   );

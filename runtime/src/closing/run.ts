@@ -10,7 +10,7 @@
 //
 // - sa condition d'exécution, relue à l'instant de partir : moins de cooks en
 //   vol que son seuil (`condition.ts`) ;
-// - le lancement gardé de `garde-fous.ts` : le « stop » du chef, le
+// - le lancement gardé de `guardrails.ts` : le « stop » du chef, le
 //   disjoncteur, l'inactivité, la durée, et son propre plafond de tokens à la
 //   place de celui d'un cook ;
 // - son plafond de retraits, relevé au tick dans son worktree et à sa fin ;
@@ -30,19 +30,19 @@ import { join, relative } from "node:path";
 import type { RuntimeAvecRail } from "../alimenter.ts";
 import { argumentsClaude, environnementCook, lireFlux, verdict } from "../claude.ts";
 import { environnementClaude } from "../jeton-claude.ts";
-import { envelopper, type Cloison } from "../cloison.ts";
+import { envelopper, type Partition } from "../partition.ts";
 import type { Depot as DepotDeStation } from "../depot.ts";
-import { SANS_ISSUE_MS, type FaitFermeture, type FinDePasse, type Laisse, type Pente, type ReglagesDeFermeture, type Retrait } from "../events/closing.ts";
-import { LancementRefuse, type CookLance, type GardeFous, type Verdict } from "../garde-fous.ts";
+import { SANS_ISSUE_MS, type ClosingFact, type FinDePasse, type Laisse, type Pente, type ClosingSettings, type Retrait } from "../events/closing.ts";
+import { LancementRefuse, type CookLance, type Guardrails, type Verdict } from "../guardrails.ts";
 import type { GitHub } from "../github.ts";
 import { identifiantsLivres } from "../identifiants.ts";
 import type { Pass } from "../pass.ts";
-import { etatDesGardeFous } from "../projections/guardrails.ts";
+import { guardrailsState } from "../projections/guardrails.ts";
 import type { Rail } from "../rail.ts";
 import type { Fin } from "../superviseur.ts";
 import { horsZone } from "../zones.ts";
 import { candidats, proposer, restants, type Proposition } from "./candidates.ts";
-import { DEMANDEE, demandeEnAttente, faitAttendre, passeEnCours, refus, reglagesEnVigueur, tenant, zonesTenues, type Demande, type Refus } from "./condition.ts";
+import { DEMANDEE, queuedRequest, faitAttendre, passeEnCours, refus, reglagesEnVigueur, tenant, zonesTenues, type Demande, type Refus } from "./condition.ts";
 import { consigneDuCloser, corpsDeLaPR, laisses, motifsDuCloser, titreDeLaPR } from "./brief.ts";
 import { direDemande, direFin, direRefus } from "./say.ts";
 import { lignesChangees, lignesRetirees, lireDepot } from "./reading.ts";
@@ -56,10 +56,10 @@ export const STATION = "closer";
 // ticket ne porte ce numéro.
 const PASSE = 0;
 
-export type OptionsFermeture = {
+export type ClosingOptions = {
   // Lus à chaque passe, et jamais pendant qu'elle range : une décision du chef
   // vaut à la suivante, et ne change pas les plafonds de celle qui tourne.
-  reglages: ReglagesDeFermeture | (() => ReglagesDeFermeture);
+  reglages: ClosingSettings | (() => ClosingSettings);
   repertoireEtat: string;
   // Le dépôt de la station : le worktree de la passe est un worktree comme un
   // autre, et sa branche se pousse par le même geste.
@@ -74,17 +74,17 @@ export type OptionsFermeture = {
   bin: string;
   // L'environnement dont part celui du closer. Par défaut, celui du runtime.
   env?: NodeJS.ProcessEnv;
-  cloison?: Cloison | null;
+  cloison?: Partition | null;
   // Où va ce que la passe a à dire hors du journal (journald).
   avertir?: (message: string) => void;
   // L'heure à laquelle se compte l'attente d'une demande. Par défaut, l'horloge.
   maintenant?: () => Date;
 };
 
-type FinEcrite = Omit<Extract<FaitFermeture, { type: "closing.ended" }>["payload"], "run">;
+type FinEcrite = Omit<Extract<ClosingFact, { type: "closing.ended" }>["payload"], "run">;
 // Ce que la passe retient d'un closer qui a livré, entre le jugement de sa
 // fin et le push.
-type Livraison = { fichiers: string[]; retirees: number; ajoutees: number; retires: Retrait[]; gardes: Laisse[]; compteRendu: string | null };
+type Delivery = { fichiers: string[]; retirees: number; ajoutees: number; retires: Retrait[]; gardes: Laisse[]; compteRendu: string | null };
 type EnCours = { lance: CookLance; worktree: string; entree: string; disjoncte: boolean };
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -93,16 +93,16 @@ const liste = (fichiers: string[]) => fichiers.map((fichier) => `\`${fichier}\``
 // Rend le runtime, augmenté de sa fermeture. À brancher avant les stations :
 // c'est par son rail qu'elles se voient refuser ce que la passe tient. Et
 // après la pass : c'est à elle que la passe remet sa PR.
-export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(runtime: R, options: OptionsFermeture): R {
-  const { journal, projet } = runtime;
-  const { base } = journal;
+export function plugClosing<R extends RuntimeAvecRail & Guardrails & Pass>(runtime: R, options: ClosingOptions): R {
+  const { journal: log, projet } = runtime;
+  const { base } = log;
   const { depot } = options;
-  const lireReglages = typeof options.reglages === "function" ? options.reglages : () => options.reglages as ReglagesDeFermeture;
+  const lireReglages = typeof options.reglages === "function" ? options.reglages : () => options.reglages as ClosingSettings;
   let reglages = lireReglages();
   const env = options.env ?? process.env;
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   const maintenant = options.maintenant ?? (() => new Date());
-  const noter = (fait: FaitFermeture) => journal.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
+  const noter = (fait: ClosingFact) => log.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
   const refuser = (motif: Refus) => {
     noter({ type: "closing.refused", payload: motif });
     avertir(`brigade : passe de fermeture refusée — ${direRefus(motif)}`);
@@ -114,11 +114,11 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
     // plus dangereux ne part pas d'un geste d'une autre vie.
     // L'une n'exclut pas l'autre : le chef a pu redemander après la mort du
     // runtime.
-    const orpheline = passeEnCours(journal);
+    const orpheline = passeEnCours(log);
     if (orpheline !== null && orpheline !== DEMANDEE) noter({ type: "closing.ended", payload: { run: orpheline, outcome: "interrupted" } });
-    if (passeEnCours(journal) === DEMANDEE) refuser({ reason: "restarted", observed: null, limit: null, detail: null });
+    if (passeEnCours(log) === DEMANDEE) refuser({ reason: "restarted", observed: null, limit: null, detail: null });
     // Un projet qui n'a jamais réglé son closer n'a rien à écrire.
-    const connus = reglagesEnVigueur(journal);
+    const connus = reglagesEnVigueur(log);
     if ((connus !== null || reglages.calibration !== null) && JSON.stringify(connus) !== JSON.stringify(reglages)) noter({ type: "closing.configured", payload: reglages });
   });
 
@@ -132,11 +132,11 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
   // Le rail, tel que les stations le lisent : ce que la passe tient y compte
   // comme la zone d'un ticket en cuisine. C'est le même recouvrement que
   // celui de deux tickets — rien n'en est récrit ici.
-  const avecLaPasse = (enCuisine?: ReadonlyMap<number, string[]>) => (tenue === null ? enCuisine : new Map([...(enCuisine ?? []), [PASSE, tenue]]));
+  const avecLaPasse = (cooking?: ReadonlyMap<number, string[]>) => (tenue === null ? cooking : new Map([...(cooking ?? []), [PASSE, tenue]]));
   const rail: Rail = {
     ...runtime.rail,
-    prendre: (qui, enCuisine) => runtime.rail.prendre(qui, avecLaPasse(enCuisine)),
-    servables: (enCuisine, preneuses) => runtime.rail.servables(avecLaPasse(enCuisine), preneuses),
+    prendre: (qui, cooking) => runtime.rail.prendre(qui, avecLaPasse(cooking)),
+    servables: (cooking, preneuses) => runtime.rail.servables(avecLaPasse(cooking), preneuses),
   };
 
   // Relit les réglages entre deux passes, et les note au journal quand ils ont
@@ -146,11 +146,11 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
     const lus = lireReglages();
     if (JSON.stringify(lus) === JSON.stringify(reglages)) return;
     reglages = lus;
-    const connus = reglagesEnVigueur(journal);
+    const connus = reglagesEnVigueur(log);
     if ((connus !== null || lus.calibration !== null) && JSON.stringify(connus) !== JSON.stringify(lus)) noter({ type: "closing.configured", payload: lus });
   };
 
-  const ranger = async (calibrage: NonNullable<ReglagesDeFermeture["calibration"]>, demande: Demande): Promise<void> => {
+  const ranger = async (calibration: NonNullable<ClosingSettings["calibration"]>, demande: Demande): Promise<void> => {
     const run = `fermeture-${randomUUID().slice(0, 8)}`;
     // Une passe partie a une fin au journal, une seule.
     let finie = false;
@@ -178,7 +178,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
     // entre les deux, et le chef ne retire pas la demande entre les deux.
     const proposition = base.transaction((): Proposition | null => {
       // Retirée par le chef pendant le rapatriement : rien ne part.
-      if (demandeEnAttente(base)?.seq !== demande.seq) return null;
+      if (queuedRequest(base)?.seq !== demande.seq) return null;
       const motif = refus(base, reglages, false);
       // Un cook parti pendant le rapatriement : elle attend encore, et le
       // prochain réveil la relit.
@@ -207,13 +207,13 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
     // Passé ce point la passe est partie : quoi qu'il lui arrive, elle finit
     // au journal — sans quoi elle passerait pour ranger jusqu'au redémarrage.
     try {
-      await cuisiner(run, calibrage, proposition, pente, finir);
+      await cook(run, calibration, proposition, pente, finir);
     } catch (erreur) {
       finir({ outcome: "failed", detail: message(erreur) });
     }
   };
 
-  const cuisiner = async (run: string, calibrage: NonNullable<ReglagesDeFermeture["calibration"]>, { proposes, ecartes, zone }: Proposition, pente: Pente[], finir: (fin: FinEcrite) => void): Promise<void> => {
+  const cook = async (run: string, calibration: NonNullable<ClosingSettings["calibration"]>, { proposes, ecartes, zone }: Proposition, pente: Pente[], finir: (fin: FinEcrite) => void): Promise<void> => {
     let worktree: string;
     let branche: string;
     try {
@@ -235,7 +235,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
     // La fin du closer se juge ici, avant qu'elle ne s'écrive : un closer qui
     // sort en 0 mais dépasse son plafond de retraits, ou écrit ce qu'il ne
     // tenait pas, a échoué — et le disjoncteur le compte.
-    const issue: { fin: FinEcrite; livraison: Livraison | null } = { fin: { outcome: "failed" }, livraison: null };
+    const issue: { fin: FinEcrite; livraison: Delivery | null } = { fin: { outcome: "failed" }, livraison: null };
     const conclure = (fin: FinEcrite, verdictDuCook: Verdict): Verdict => {
       issue.fin = fin;
       return verdictDuCook;
@@ -289,12 +289,12 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
       lance = runtime.lancer({
         ticket: null,
         run,
-        contexte: { station: STATION, ...calibrage, branch: branche, worktree: relative(options.repertoireEtat, worktree) },
+        contexte: { station: STATION, ...calibration, branch: branche, worktree: relative(options.repertoireEtat, worktree) },
         // Son plafond de tokens est le sien, par passe.
         plafonds: { tokens: reglages.tokens },
         ...envelopper(
           options.cloison,
-          { commande: options.bin, args: argumentsClaude(consigneDuCloser({ depot: options.depotGitHub, base: options.base, candidats: proposes, zone, retraits: reglages.removedLines }), calibrage) },
+          { commande: options.bin, args: argumentsClaude(consigneDuCloser({ depot: options.depotGitHub, base: options.base, candidats: proposes, zone, retraits: reglages.removedLines }), calibration) },
           { cwd: worktree, depot: "ecriture" },
         ),
         cwd: worktree,
@@ -327,7 +327,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
       // Sa branche, jamais celle d'intégration ; et une PR, que rien ici ne merge.
       try {
         depot.pousser(branche);
-        const corps = corpsDeLaPR({ run, base: options.base, calibration: calibrage, proposes, laisses: livree.gardes, ecartes, retirees: livree.retirees, cap: reglages.removedLines, fichiers: livree.fichiers, compteRendu: livree.compteRendu });
+        const corps = corpsDeLaPR({ run, base: options.base, calibration: calibration, proposes, laisses: livree.gardes, ecartes, retirees: livree.retirees, cap: reglages.removedLines, fichiers: livree.fichiers, compteRendu: livree.compteRendu });
         const pr = await options.github.ouvrirPR({ branche, base: options.base, titre: titreDeLaPR(run), corps });
         const ouverte = await options.github.prDeBranche(branche);
         if (ouverte === null) throw new Error(`GitHub ne rend pas la PR qu'il vient d'ouvrir (${pr})`);
@@ -366,7 +366,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
     if (arrete || occupee) return;
     relire();
     const lue = base.transaction(() => {
-      const demande = demandeEnAttente(base);
+      const demande = queuedRequest(base);
       if (demande === null) return null;
       const motif = refus(base, reglages, false);
       if (motif === null || !faitAttendre(motif)) return { demande, motif };
@@ -380,9 +380,9 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
     if (lue === null) return;
     const { demande, motif } = lue;
     if (motif || !reglages.calibration) return refuser(motif ?? { reason: "unconfigured", observed: null, limit: null, detail: null });
-    const calibrage = reglages.calibration;
+    const calibration = reglages.calibration;
     occupee = true;
-    void ranger(calibrage, demande)
+    void ranger(calibration, demande)
       .catch((erreur) => {
         if (!arrete) avertir(`brigade : la passe de fermeture a buté — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
       })
@@ -400,7 +400,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
     if (vol === null) return;
     // Le disjoncteur s'est ouvert pendant qu'elle rangeait : la cuisine échoue
     // d'affilée, et ce n'est pas le moment d'y effacer quoi que ce soit.
-    if (!vol.disjoncte && etatDesGardeFous(base).breakerOpenedAt !== null) {
+    if (!vol.disjoncte && guardrailsState(base).breakerOpenedAt !== null) {
       vol.disjoncte = true;
       vol.lance.arreter();
     }

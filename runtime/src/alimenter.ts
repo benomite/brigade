@@ -3,13 +3,13 @@
 // pas un flux — un sondage manqué se rattrape au suivant, sans rien rejouer.
 import { createHash } from "node:crypto";
 import { marquerAttentes, ramenerSurNouveau } from "./attente.ts";
-import { calibrage } from "./calibrage.ts";
+import { calibration } from "./calibration.ts";
 import { cycles, direCycle, signalerBlocages } from "./dependances.ts";
-import { fiche, porteFiche, type Fiche } from "./fiche.ts";
-import { HORS_CUISINE, LABEL, ouvrirGitHub, type GitHub, type Issue } from "./github.ts";
+import { card, hasCard, type Card } from "./card.ts";
+import { SERVED_ELSEWHERE, LABEL, ouvrirGitHub, type GitHub, type Issue } from "./github.ts";
 import { LimiteGitHubAtteinte } from "./limite-github.ts";
 import type { FaitRail } from "./events/rail.ts";
-import type { Journal } from "./journal.ts";
+import type { Log } from "./log.ts";
 import { communsDuRail, lireRail, sortDuTicket, ticketDuRail } from "./projections/rail.ts";
 import { ouvrirRail, type Rail } from "./rail.ts";
 import { ConfigInvalide, type Runtime } from "./runtime.ts";
@@ -43,7 +43,7 @@ function lisible(issue: Issue): boolean {
 // chaque sondage.
 // `fermees` : les issues attendues que GitHub dit fermées et dont le journal
 // ne sait rien — elles n'ont jamais été sur le rail.
-export type FichesLues = Map<number, { updatedAt: string; fiche: Fiche | null; stable: boolean; fermees?: Issue[] }>;
+export type ReadCards = Map<number, { updatedAt: string; fiche: Card | null; stable: boolean; fermees?: Issue[] }>;
 
 // Ceux dont un commentaire fait foi : le propriétaire du dépôt, les membres de
 // son organisation, ses collaborateurs. Tout le monde peut commenter une issue
@@ -54,19 +54,19 @@ export const DE_CONFIANCE = ["OWNER", "MEMBER", "COLLABORATOR"];
 // sait : si chaque ticket attendu existe, et — pour celui dont le journal ne
 // sait rien — s'il est fermé. `relecture` : l'issue n'a pas bougé depuis la
 // lecture précédente, ce qui a déjà été dit ne se redit pas.
-async function lireFiche(
-  journal: Journal,
+async function readCard(
+  log: Log,
   github: GitHub,
   issue: Issue,
   presentes: Map<number, Issue>,
   relecture: boolean,
-): Promise<{ fiche: Fiche | null; stable: boolean; fermees: Issue[] }> {
+): Promise<{ fiche: Card | null; stable: boolean; fermees: Issue[] }> {
   const corps: string[] = [];
   const fermees: Issue[] = [];
   let stable = true;
   for (const commentaire of await github.commentaires(issue.number)) {
     if (DE_CONFIANCE.includes(commentaire.association)) corps.push(commentaire.body);
-    else if (porteFiche(commentaire.body)) {
+    else if (hasCard(commentaire.body)) {
       stable = false;
       if (relecture) continue;
       console.error(
@@ -74,7 +74,7 @@ async function lireFiche(
       );
     }
   }
-  const lue = fiche(corps);
+  const lue = card(corps);
   for (const attendu of lue?.waitsFor ?? []) {
     if (attendu === issue.number) lue?.problems.push(`attend : #${attendu} est ce ticket lui-même`);
     else if (!presentes.has(attendu)) {
@@ -84,7 +84,7 @@ async function lireFiche(
         lue?.problems.push(`attend : #${attendu} ne désigne aucune issue du dépôt`);
       } else if (autre.pr) {
         lue?.problems.push(`attend : #${attendu} est une PR, pas un ticket`);
-      } else if (sortDuTicket(journal.base, attendu) === null) {
+      } else if (sortDuTicket(log.base, attendu) === null) {
         // Ni servie ni partie du rail : le journal n'en sait rien. Fermée, elle
         // ne sera jamais servie — c'est un abandon, à écrire. Ouverte, elle
         // peut le devenir sans que rien ne bouge sur le rail.
@@ -100,30 +100,30 @@ type Depart = { ticket: number; reason: "closed" | "unfired" | "gone" | "hors-cu
 
 // Reporte sur le rail ce que GitHub dit. Rend le nombre de faits écrits.
 export async function alimenter(
-  journal: Journal,
+  log: Log,
   github: GitHub,
   cible: { projet: string; depot: string },
-  fiches: FichesLues = new Map(),
+  cards: ReadCards = new Map(),
 ): Promise<number> {
   const sondage = await github.tickets();
   if (sondage.inchange) return 0;
   const presentes = new Map(sondage.issues.map((issue) => [issue.number, issue]));
   // Un ticket `hors-cuisine` n'entre pas sur le rail, `fire` ou non : il existe
   // (on peut l'attendre), mais la box ne le sert pas.
-  const servables = sondage.issues.filter((issue) => !(Array.isArray(issue.labels) && issue.labels.includes(HORS_CUISINE)));
+  const servables = sondage.issues.filter((issue) => !(Array.isArray(issue.labels) && issue.labels.includes(SERVED_ELSEWHERE)));
   let complet = true;
 
   // Les commentaires ne se relisent que pour une issue qui a changé : en poser
   // un, l'éditer ou le supprimer fait bouger son `updated_at` (mesuré contre
   // GitHub le 2026-10-08).
-  for (const numero of [...fiches.keys()]) if (!presentes.has(numero)) fiches.delete(numero);
+  for (const numero of [...cards.keys()]) if (!presentes.has(numero)) cards.delete(numero);
   for (const issue of servables) {
     if (!lisible(issue)) continue;
-    const connue = fiches.get(issue.number);
+    const connue = cards.get(issue.number);
     const relecture = connue?.updatedAt === issue.updatedAt;
     if (relecture && connue.stable) continue;
-    const lue = await lireFiche(journal, github, issue, presentes, relecture);
-    fiches.set(issue.number, { updatedAt: issue.updatedAt, ...lue });
+    const lue = await readCard(log, github, issue, presentes, relecture);
+    cards.set(issue.number, { updatedAt: issue.updatedAt, ...lue });
     // Ce qui la réparerait ne modifie pas cette issue, donc pas la liste : le
     // sondage reste inconditionnel tant qu'elle n'est pas stable.
     if (!lue.stable) complet = false;
@@ -132,19 +132,19 @@ export async function alimenter(
   // Un cycle ne tient à aucune fiche seule : il se cherche sur toutes, à chaque
   // sondage, et se porte en problème sur la fiche de chacun de ses tickets.
   // Un ticket déjà servi n'est attendu par personne : il ne ferme aucune boucle.
-  const pasServi = (numero: number) => sortDuTicket(journal.base, numero)?.outcome !== "served";
+  const notServed = (numero: number) => sortDuTicket(log.base, numero)?.outcome !== "served";
   const enCycle = cycles(
-    new Map(servables.filter(lisible).map((issue) => [issue.number, (fiches.get(issue.number)?.fiche?.waitsFor ?? []).filter(pasServi)])),
+    new Map(servables.filter(lisible).map((issue) => [issue.number, (cards.get(issue.number)?.fiche?.waitsFor ?? []).filter(notServed)])),
   );
   // Un ticket du rail absent de la liste : son issue dit pourquoi.
   const departs: Depart[] = [];
-  for (const { ticket } of lireRail(journal.base)) {
+  for (const { ticket } of lireRail(log.base)) {
     const listee = presentes.get(ticket);
     if (listee && servables.includes(listee)) continue;
     const issue = listee ?? (await github.issue(ticket));
     if (!issue) departs.push({ ticket, reason: "gone", updatedAt: null });
     else if (issue.state === "closed") departs.push({ ticket, reason: "closed", updatedAt: issue.updatedAt });
-    else if (issue.labels.includes(HORS_CUISINE)) departs.push({ ticket, reason: "hors-cuisine", updatedAt: issue.updatedAt });
+    else if (issue.labels.includes(SERVED_ELSEWHERE)) departs.push({ ticket, reason: "hors-cuisine", updatedAt: issue.updatedAt });
     else if (!issue.labels.includes(LABEL)) departs.push({ ticket, reason: "unfired", updatedAt: issue.updatedAt });
     // Rouverte ou relabellisée entre les deux requêtes : le prochain sondage tranchera.
     else complet = false;
@@ -160,26 +160,26 @@ export async function alimenter(
   const noter = (ticket: number, fait: FaitRail, updatedAt: string | null): number => {
     const empreinte =
       fait.type === "ticket.changed"
-        ? `:${createHash("sha256").update(JSON.stringify(fait.payload)).digest("hex").slice(0, 16)}:${journal.duTicket(ticket).at(-1)?.seq ?? 0}`
+        ? `:${createHash("sha256").update(JSON.stringify(fait.payload)).digest("hex").slice(0, 16)}:${log.duTicket(ticket).at(-1)?.seq ?? 0}`
         : "";
     const dedupKey = updatedAt === null ? undefined : `github:${cible.depot}#${ticket}:${fait.type}:${updatedAt}${empreinte}`;
-    if (journal.ajouter({ project: cible.projet, ticket, author: AUTEUR, dedupKey, ...fait })) return 1;
+    if (log.ajouter({ project: cible.projet, ticket, author: AUTEUR, dedupKey, ...fait })) return 1;
     complet = false;
     return 0;
   };
 
-  const ecrits = journal.base.transaction(() => {
+  const ecrits = log.base.transaction(() => {
     let nombre = 0;
     for (const issue of servables) {
       if (!lisible(issue)) {
         console.error(`brigade : issue GitHub illisible, écartée du rail — ${JSON.stringify(issue)}`);
         continue;
       }
-      const connu = ticketDuRail(journal.base, issue.number);
+      const connu = ticketDuRail(log.base, issue.number);
       const { title } = issue;
       const priority = priorite(issue.labels);
-      const { model, effort } = calibrage(issue.labels);
-      const lue = fiches.get(issue.number)?.fiche ?? null;
+      const { model, effort } = calibration(issue.labels);
+      const lue = cards.get(issue.number)?.fiche ?? null;
       const cycle = enCycle.get(issue.number);
       const card = lue && cycle ? { ...lue, problems: [...lue.problems, direCycle(cycle)] } : lue;
       if (!connu) {
@@ -196,13 +196,13 @@ export async function alimenter(
       }
     }
     for (const { ticket, reason, updatedAt } of departs) {
-      if (ticketDuRail(journal.base, ticket)) nombre += noter(ticket, { type: "ticket.left", payload: { reason } }, updatedAt);
+      if (ticketDuRail(log.base, ticket)) nombre += noter(ticket, { type: "ticket.left", payload: { reason } }, updatedAt);
     }
     // Une issue attendue, fermée sans être jamais entrée sur le rail : le
     // journal l'apprend ici, une fois, et celui qui l'attend en est bloqué.
-    for (const { fermees = [] } of fiches.values()) {
+    for (const { fermees = [] } of cards.values()) {
       for (const fermee of fermees) {
-        if (ticketDuRail(journal.base, fermee.number) || sortDuTicket(journal.base, fermee.number)) continue;
+        if (ticketDuRail(log.base, fermee.number) || sortDuTicket(log.base, fermee.number)) continue;
         nombre += noter(fermee.number, { type: "ticket.left", payload: { reason: "closed" } }, fermee.updatedAt);
       }
     }
@@ -224,7 +224,7 @@ export type ConfigRail = {
 
 // Trois fois le délai d'inactivité, la moitié du plafond de durée : un cook
 // qui lit longuement avant d'écrire garde son ticket.
-const BAIL_PAR_DEFAUT_S = 1800;
+const DEFAULT_LEASE_S = 1800;
 
 // Lit la configuration du rail dans l'environnement. Le dépôt n'a pas de
 // défaut : le nom de projet est un identifiant court, il ne le désigne pas.
@@ -234,9 +234,9 @@ export function configRail(env: Record<string, string | undefined>): ConfigRail 
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(depot)) {
     throw new ConfigInvalide(`BRIGADE_GITHUB_REPO invalid: “${depot}” — expected <owner>/<repo>`);
   }
-  const bail = env.BRIGADE_LEASE_SECONDS || String(BAIL_PAR_DEFAUT_S);
-  if (!/^[1-9][0-9]*$/.test(bail)) {
-    throw new ConfigInvalide(`BRIGADE_LEASE_SECONDS invalid: “${bail}” — expected a whole number of seconds`);
+  const lease = env.BRIGADE_LEASE_SECONDS || String(DEFAULT_LEASE_S);
+  if (!/^[1-9][0-9]*$/.test(lease)) {
+    throw new ConfigInvalide(`BRIGADE_LEASE_SECONDS invalid: “${lease}” — expected a whole number of seconds`);
   }
   const communs = [...new Set((env.BRIGADE_COMMON_PATHS ?? "").split(",").map((chemin) => chemin.trim()).filter(Boolean))];
   for (const chemin of communs) {
@@ -245,7 +245,7 @@ export function configRail(env: Record<string, string | undefined>): ConfigRail 
       throw new ConfigInvalide(`BRIGADE_COMMON_PATHS invalid: “${chemin}” ${pourquoi} — expected paths relative to its root, separated by commas`);
     }
   }
-  return { depot, dureeBailMs: Number(bail) * 1000, gh: env.BRIGADE_GH_BIN || "gh", communs };
+  return { depot, dureeBailMs: Number(lease) * 1000, gh: env.BRIGADE_GH_BIN || "gh", communs };
 }
 
 export type RuntimeAvecRail = Runtime & {
@@ -266,15 +266,15 @@ export type OptionsRail = Omit<ConfigRail, "communs"> & {
 // Donne son rail au runtime : sondé dès maintenant puis à chaque tick, et
 // relevé (baux échus, 86 passés) à chaque réveil.
 export function avecRail(runtime: Runtime, options: OptionsRail): RuntimeAvecRail {
-  const { projet, journal } = runtime;
+  const { projet, journal: log } = runtime;
   const github = options.github ?? ouvrirGitHub({ depot: options.depot, bin: options.gh });
-  const rail = ouvrirRail(journal, { projet, dureeBailMs: options.dureeBailMs, maintenant: options.maintenant });
+  const rail = ouvrirRail(log, { projet, dureeBailMs: options.dureeBailMs, maintenant: options.maintenant });
 
   // Le rail se relit du journal seul : ce que la configuration dit des chemins
   // communs y entre, quand elle change.
   const communs = [...(options.communs ?? [])].sort();
-  if (JSON.stringify(communs) !== JSON.stringify(communsDuRail(journal.base))) {
-    journal.ajouter({ project: projet, ticket: null, author: "runtime", type: "rail.commons", payload: { paths: communs } });
+  if (JSON.stringify(communs) !== JSON.stringify(communsDuRail(log.base))) {
+    log.ajouter({ project: projet, ticket: null, author: "runtime", type: "rail.commons", payload: { paths: communs } });
   }
 
   let arrete = false;
@@ -290,17 +290,17 @@ export function avecRail(runtime: Runtime, options: OptionsRail): RuntimeAvecRai
     }
     console.error(`brigade : ${quoi} — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
   };
-  const fiches: FichesLues = new Map();
+  const cards: ReadCards = new Map();
   const ecouteurs = new Set<() => void>();
   const sonder = async () => {
     // Un sondage plus lent que le tick n'en lance pas un second.
     if (enCours || arrete) return;
     enCours = true;
     try {
-      const ecrits = await alimenter(journal, github, { projet, depot: options.depot }, fiches);
+      const ecrits = await alimenter(log, github, { projet, depot: options.depot }, cards);
       if (ecrits > 0 && !arrete) for (const ecouter of [...ecouteurs]) ecouter();
       // Un abandon n'arrive que par un sondage : c'est le moment d'en avertir.
-      if (!arrete) await signalerBlocages(journal, github, projet);
+      if (!arrete) await signalerBlocages(log, github, projet);
       limiteDite = false;
     } catch (erreur) {
       // `gh` en panne (réseau, connexion expirée) : le rail reste tel quel, et
@@ -320,8 +320,8 @@ export function avecRail(runtime: Runtime, options: OptionsRail): RuntimeAvecRai
     if (marquage || arrete) return;
     marquage = true;
     try {
-      await marquerAttentes(journal, github, projet);
-      await ramenerSurNouveau(journal, github, projet);
+      await marquerAttentes(log, github, projet);
+      await ramenerSurNouveau(log, github, projet);
     } catch (erreur) {
       echec("attentes non marquées sur GitHub", erreur);
     } finally {

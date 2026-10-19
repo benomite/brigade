@@ -3,7 +3,7 @@
 // wake-up, what remains to be put on, to be said, to be handed back — it keeps
 // nothing in memory — and where the chief reads why.
 import type { Base } from "../base.ts";
-import type { Calibrage as Calibration } from "../calibrage.ts";
+import type { Calibration as Calibration } from "../calibration.ts";
 import type { ChoixDeReaction, FaitReaction } from "../events/manager.ts";
 import { definirProjection } from "../projection.ts";
 

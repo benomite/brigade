@@ -14,35 +14,35 @@
 // réveil suivant sans rejuger.
 import { DE_CONFIANCE } from "./alimenter.ts";
 import { geste } from "./geste.ts";
-import { calibrage as calibragePose, complet, type Calibrage, type CalibragePose } from "./calibrage.ts";
-import type { Reponse } from "./decoupage.ts";
+import { calibration as setCalibration, complet, type Calibration, type SetCalibration } from "./calibration.ts";
+import type { Reponse } from "./split.ts";
 import type { ChoixDeReaction, FaitManager } from "./events/manager.ts";
 import { DU_MANAGER, ENCORE_ROUGE, REDECOUPE as REDECOUPE_PAR_LE_MANAGER, type FaitPass } from "./events/pass.ts";
 import { REDECOUPE } from "./events/rail.ts";
 import type { GitHub, IssueOuverte } from "./github.ts";
-import type { Journal } from "./journal.ts";
+import type { Log } from "./log.ts";
 import { MARQUEUR_MANAGER } from "./juger.ts";
 import { PASS_ROUGE, RENVOIS_MAX } from "./pass.ts";
-import { decoupageDe, ticketDEpique } from "./projections/splits.ts";
-import { etatDesGardeFous } from "./projections/guardrails.ts";
+import { splitOf, epicTicket } from "./projections/splits.ts";
+import { guardrailsState } from "./projections/guardrails.ts";
 import { issueDuManager } from "./projections/manager.ts";
 import { lirePass, passDuTicket, type PassDeTicket } from "./projections/pass.ts";
 import { ticketDuRail } from "./projections/rail.ts";
 import { labelsMontes, reactionDe, type ReactionDeTicket } from "./projections/reactions.ts";
 import type { Rail } from "./rail.ts";
-import { consigneDeReaction, lireReaction, monter, obstacle, type Choix, type Libre, type Plafond, type Tentative } from "./reagir.ts";
+import { consigneDeReaction, lireReaction, monter, obstacle, type Choix, type Libre, type Cap, type Tentative } from "./reagir.ts";
 import { NOM_DE_STATION } from "./stations-declarees.ts";
 
 // Le motif du 86 d'un ticket que le manager remonte au chef.
 export const REMONTE = "manager:escalated";
 
 export type AtelierDeReaction = {
-  journal: Journal;
+  journal: Log;
   rail: Rail;
   github: GitHub;
   // `<owner>/<repo>`, pour la consigne.
   depotGitHub: string;
-  plafond: Plafond;
+  plafond: Cap;
   noter: (ticket: number | null, fait: FaitManager | FaitPass) => unknown;
   // Fait répondre le LLM à une consigne, sous les garde-fous.
   demander: <T>(sujet: { numero: number; prefixe: string; nom: string }, consigne: string, lire: (message: string | null) => { valeur: T } | { illisible: string }) => Promise<Reponse<T> | null>;
@@ -57,13 +57,13 @@ export type AtelierDeReaction = {
 };
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
-const dit = (calibrage: { model: string | null; effort: string | null }) => `\`${calibrage.model ?? "?"}\` / \`${calibrage.effort ?? "?"}\``;
-const labels = (calibrage: Calibrage) => [`model:${calibrage.model}`, `effort:${calibrage.effort}`];
-const egaux = (a: Calibrage, b: Calibrage) => a.model === b.model && a.effort === b.effort;
+const dit = (calibration: { model: string | null; effort: string | null }) => `\`${calibration.model ?? "?"}\` / \`${calibration.effort ?? "?"}\``;
+const labels = (calibration: Calibration) => [`model:${calibration.model}`, `effort:${calibration.effort}`];
+const egaux = (a: Calibration, b: Calibration) => a.model === b.model && a.effort === b.effort;
 
 export function ouvrirReaction(atelier: AtelierDeReaction) {
-  const { journal, rail, github, noter, avertir, arrete } = atelier;
-  const { base } = journal;
+  const { journal: log, rail, github, noter, avertir, arrete } = atelier;
+  const { base } = log;
 
   // Les livraisons que la pass a jugées rouges, chacune avec le calibrage de
   // son cook : ce qui a été tenté, tel que le journal le garde. Une livraison
@@ -73,7 +73,7 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
   const tentatives = (ticket: number): Tentative[] => {
     const faites: Tentative[] = [];
     let cook: { model: string | null; effort: string | null } = { model: null, effort: null };
-    for (const evenement of journal.duTicket(ticket)) {
+    for (const evenement of log.duTicket(ticket)) {
       // Le cook d'une station, quelle qu'elle soit — pas une relecture ni un
       // jugement, qui portent le nom de leur rôle.
       if (evenement.type === "cook.launched" && typeof evenement.payload.station === "string" && NOM_DE_STATION.test(evenement.payload.station)) {
@@ -91,10 +91,10 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
 
   // Les dimensions dont le label vient du manager : celui de sa qualification,
   // celui du découpage dont le ticket est né, ou celui d'une montée.
-  const libres = (ticket: number, pose: Calibrage): Libre => {
+  const libres = (ticket: number, pose: Calibration): Libre => {
     const poses = new Set([...(issueDuManager(base, ticket)?.posed ?? []), ...labelsMontes(base, ticket)]);
-    const ne = ticketDEpique(base, ticket);
-    const prevu = ne?.index == null ? undefined : decoupageDe(base, ne.epic)?.tickets[ne.index - 1];
+    const ne = epicTicket(base, ticket);
+    const prevu = ne?.index == null ? undefined : splitOf(base, ne.epic)?.tickets[ne.index - 1];
     if (prevu) for (const label of labels(prevu)) poses.add(label);
     const [model = "", effort = ""] = labels(pose);
     return { model: poses.has(model), effort: poses.has(effort) };
@@ -102,22 +102,22 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
 
   // Un ticket né d'un redécoupage ne se redécoupe pas.
   const neDUneReaction = (ticket: number): boolean => {
-    const ne = ticketDEpique(base, ticket);
-    return ne !== null && journal.duTicket(ne.epic).some((evenement) => evenement.type === "manager.reacted" && evenement.payload.choice === "split");
+    const ne = epicTicket(base, ticket);
+    return ne !== null && log.duTicket(ne.epic).some((evenement) => evenement.type === "manager.reacted" && evenement.payload.choice === "split");
   };
 
   const lister = (faites: Tentative[]) =>
     faites.flatMap((tentative, i) => [`${i + 1}. ${dit(tentative)} — pass rouge :`, "", ...tentative.findings.flatMap((finding) => [finding.replace(/^/gm, "   "), ""])]);
 
   // `actuel` : le calibrage que l'issue porte, quand une montée n'a pas eu lieu.
-  const dire = (connu: PassDeTicket, reaction: ReactionDeTicket, actuel: CalibragePose | null = null): string => {
-    const livraison = connu.pr ? ` ${connu.pr}` : "";
+  const dire = (connu: PassDeTicket, reaction: ReactionDeTicket, actuel: SetCalibration | null = null): string => {
+    const delivery = connu.pr ? ` ${connu.pr}` : "";
     // Le chef a recalibré entre le choix et l'écriture : rien n'a été posé.
     if (reaction.choice === "raise" && reaction.raised && !reaction.applied) {
       const partis = labels(reaction.from).filter((label) => !labels(reaction.to ?? reaction.from).includes(label));
       return [
         MARQUEUR_MANAGER,
-        `**Manager — ${reaction.returns < RENVOIS_MAX ? "second renvoi" : "relance"} à ton calibrage${actuel === null ? "" : ` (${dit(actuel)})`}.**${livraison}`,
+        `**Manager — ${reaction.returns < RENVOIS_MAX ? "second renvoi" : "relance"} à ton calibrage${actuel === null ? "" : ` (${dit(actuel)})`}.**${delivery}`,
         "",
         `Il allait monter le calibrage de ${dit(reaction.from)} à ${dit(reaction.to ?? reaction.from)}, mais ${partis.map((label) => `\`${label}\``).join(", ")} n'y est plus : tu as recalibré entre-temps, et ton geste est plus fort. Rien n'a été posé.`,
         "",
@@ -128,7 +128,7 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
       case "retry":
         return [
           MARQUEUR_MANAGER,
-          `**Manager — second renvoi au même calibrage (${dit(reaction.from)}).**${livraison}`,
+          `**Manager — second renvoi au même calibrage (${dit(reaction.from)}).**${delivery}`,
           "",
           `Le second renvoi monte le calibrage d'un cran quand il le peut. Ici, non : ${reaction.reason}.`,
           "",
@@ -139,8 +139,8 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
         return [
           MARQUEUR_MANAGER,
           second
-            ? `**Manager — second renvoi : calibrage monté de ${dit(reaction.from)} à ${dit(reaction.to ?? reaction.from)}.**${livraison}`
-            : `**Manager — rouge après ${reaction.returns} renvois : il monte le calibrage, de ${dit(reaction.from)} à ${dit(reaction.to ?? reaction.from)}.**${livraison}`,
+            ? `**Manager — second renvoi : calibrage monté de ${dit(reaction.from)} à ${dit(reaction.to ?? reaction.from)}.**${delivery}`
+            : `**Manager — rouge après ${reaction.returns} renvois : il monte le calibrage, de ${dit(reaction.from)} à ${dit(reaction.to ?? reaction.from)}.**${delivery}`,
           "",
           second ? "Les deux renvois ne sont pas deux tentatives identiques : le second monte d'un cran, dans la limite du plafond du projet." : `**Pourquoi.** ${reaction.reason}`,
           "",
@@ -151,7 +151,7 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
       case "split":
         return [
           MARQUEUR_MANAGER,
-          `**Manager — rouge après ${reaction.returns} renvois : il redécoupe le ticket.**${livraison}`,
+          `**Manager — rouge après ${reaction.returns} renvois : il redécoupe le ticket.**${delivery}`,
           "",
           `**Pourquoi.** ${reaction.reason}`,
           "",
@@ -162,7 +162,7 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
       case "escalate":
         return [
           MARQUEUR_MANAGER,
-          `**Manager — rouge après ${reaction.returns} renvois : remontée au chef.**${livraison}`,
+          `**Manager — rouge après ${reaction.returns} renvois : remontée au chef.**${delivery}`,
           "",
           "**Ce qui a été tenté.**",
           "",
@@ -190,7 +190,7 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
     const sur = ticketDuRail(base, ticket);
     // Un calibrage incomplet : le chef est en train d'y toucher.
     if (!sur || !complet(sur)) return false;
-    const pose: Calibrage = { model: sur.model, effort: sur.effort };
+    const pose: Calibration = { model: sur.model, effort: sur.effort };
     const libre = libres(ticket, pose);
     const cible = monter(pose, atelier.plafond, libre);
     const empechement = cible === null ? obstacle(pose, atelier.plafond, libre) : null;
@@ -199,7 +199,7 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
         type: "manager.reacted",
         payload: { verdict, returns: connu.returns, choice, reason: suite.reason, proposal: suite.proposal ?? null, run: suite.run ?? null, from: pose, to: choice === "raise" ? cible : null },
       });
-    const ouvert = etatDesGardeFous(base).breakerOpenedAt !== null;
+    const ouvert = guardrailsState(base).breakerOpenedAt !== null;
 
     // Le second renvoi : le code tranche seul.
     if (connu.returns < RENVOIS_MAX) {
@@ -242,7 +242,7 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
     if (reaction.commented) return;
     const devancee = reaction.choice === "raise" && reaction.raised && !reaction.applied;
     const fraiche = devancee ? await github.issue(connu.ticket) : null;
-    await github.commenter(connu.ticket, dire(connu, reaction, fraiche ? calibragePose(fraiche.labels) : null));
+    await github.commenter(connu.ticket, dire(connu, reaction, fraiche ? setCalibration(fraiche.labels) : null));
     noter(connu.ticket, { type: "manager.reaction-commented", payload: {} });
   };
 
@@ -293,12 +293,12 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
           // rien n'est posé, et le ticket repartira à son calibrage.
           const fraiche = await github.issue(ticket);
           if (arrete() || !fraiche) return;
-          const porte = (label: string) => fraiche.labels.includes(label);
+          const hasLabel = (label: string) => fraiche.labels.includes(label);
           // L'ancien label absent et le nouveau présent : l'échange a déjà eu
           // lieu, sa note s'était perdue — le label posé reste au manager.
-          const faite = added.every(porte) && !removed.some(porte);
+          const faite = added.every(hasLabel) && !removed.some(hasLabel);
           if (!faite) {
-            if (removed.every(porte)) {
+            if (removed.every(hasLabel)) {
               await github.labelliser(ticket, added);
               for (const label of removed) await github.delabelliser(ticket, label);
             } else [added, removed] = [[], []];
