@@ -1996,8 +1996,15 @@ function marquerPastille(nom) {
     const forme = formeDe(tenu.tableau.ton);
     if (forme !== undefined) posee.dataset.forme = forme;
   }
-  const dit = tenu === undefined ? "first read in progress…" : "tableau" in tenu ? tenu.tableau.etat : `no facts read — ${tenu.titre}`;
-  posee.textContent = tenu !== undefined && !("tableau" in tenu) ? "!" : "";
+  // La box ne répond pas : un mot, le même que la bande (alertes.ts) — ce que le dernier rail disait n'est plus lu.
+  const muette = signaux.get(nom)?.etat === "injoignable";
+  if (muette) {
+    delete posee.dataset.ton;
+    delete posee.dataset.forme;
+    posee.dataset.lu = "non";
+  }
+  const dit = muette ? "unreachable" : tenu === undefined ? "first read in progress…" : "tableau" in tenu ? tenu.tableau.etat : `no facts read — ${tenu.titre}`;
+  posee.textContent = muette || (tenu !== undefined && !("tableau" in tenu)) ? "!" : "";
   const entree = /** @type {HTMLElement} */ (posee.parentElement);
   entree.title = `${nom} — ${dit}`;
   entree.ariaLabel = entree.title;
@@ -2022,13 +2029,15 @@ function marquerSignal(nom) {
   const marque = pose ?? document.createElement("span");
   marque.className = "signal";
   marque.dataset.etat = signal.etat;
-  marque.textContent = signal.etat === "urgence" ? "!!" : signal.etat === "alerte" ? "!" : "?";
+  marque.textContent = signal.etat === "urgence" ? "!!" : signal.etat === "alerte" ? "!" : signal.etat === "injoignable" ? "×" : "?";
   marque.title =
-    signal.etat === "urgence"
-      ? `${nom}: ${signal.dit} — urgent: the whole kitchen is waiting for you, nothing cooks until you act. Click to open ${nom}, with what it waits for and since when`
-      : signal.etat === "alerte"
-        ? `${nom}: ${signal.dit} — alert: something needs doing. Click to open ${nom}, with the alert, its action and its price`
-        : `${nom}: ${signal.dit} — not verified: the app could not read this state, it is not a failure. Click to open ${nom}, with what could not be read`;
+    signal.etat === "injoignable"
+      ? `${nom}: unreachable — ${signal.dit}. Click to open ${nom}: its last reading is kept, with the gesture to try again`
+      : signal.etat === "urgence"
+          ? `${nom}: ${signal.dit} — urgent: the whole kitchen is waiting for you, nothing cooks until you act. Click to open ${nom}, with what it waits for and since when`
+        : signal.etat === "alerte"
+          ? `${nom}: ${signal.dit} — alert: something needs doing. Click to open ${nom}, with the alert, its action and its price`
+          : `${nom}: ${signal.dit} — not verified: the app could not read this state, it is not a failure. Click to open ${nom}, with what could not be read`;
   marque.ariaLabel = marque.title;
   if (pose === undefined) {
     marque.addEventListener("click", (evenement) => {
@@ -3237,6 +3246,56 @@ function fraicheur(a) {
   dit.className = "fraicheur";
   return [dit];
 }
+// La box d'un projet ne répond pas (alertes.ts, `injoignable`) : depuis quand, d'après la première
+// lecture ratée de la série. Le rail garde alors sa dernière lecture — il n'est plus remplacé par
+// « non joint ».
+/** @type {Map<string, string>} */
+const muets = new Map();
+// Les tickets `fire` que GitHub a rendus pour un projet muet, et ceux dont la lecture est en route.
+/** @type {Map<string, import("../feu.ts").Feu>} */
+const feux = new Map();
+/** @type {Set<string>} */
+const feuxEnRoute = new Set();
+const FEU_VIEUX_MS = 60_000;
+/** @param {Projet} projet */
+function chargerFeu(projet) {
+  const feu = feux.get(projet.nom);
+  if (feuxEnRoute.has(projet.nom) || (feu !== undefined && Date.now() - new Date(feu.a).getTime() < FEU_VIEUX_MS)) return;
+  feuxEnRoute.add(projet.nom);
+  void brigade.lireFeu(projet.nom).then((lu) => {
+    feuxEnRoute.delete(projet.nom);
+    if (lu !== undefined) feux.set(projet.nom, lu);
+    if (courant?.nom === projet.nom && muets.has(projet.nom) && !rail.hidden) poserRail(courant);
+  });
+}
+// La marque d'un rail muet : sa dernière lecture, depuis quand la box ne répond pas, et les tickets
+// `fire` lus sur GitHub — sans leur état en cuisine, que seule la box dit.
+/** @param {Projet} projet @param {string | undefined} lu @param {string} depuis */
+function poserMuet(projet, lu, depuis) {
+  chargerFeu(projet);
+  const mention = bloc("p", lu === undefined ? `no reading of the rail — box unreachable since ${heureDe(depuis)}` : `read at ${heureDe(lu)}, box unreachable since ${heureDe(depuis)}`);
+  mention.className = "fraicheur";
+  const feu = feux.get(projet.nom);
+  const bloc2 = document.createElement("section");
+  bloc2.className = "feu";
+  bloc2.append(bloc("h3", "kitchen state unknown: box unreachable — the tickets labelled `fire`, as GitHub says them"));
+  if (feu === undefined) bloc2.append(bloc("p", "reading GitHub…"));
+  else if ("sans" in feu) bloc2.append(bloc("p", "GitHub did not answer either:"), bloc("pre", feu.sans));
+  else if (feu.tickets.length === 0) bloc2.append(bloc("p", "no open ticket labelled `fire`"));
+  else {
+    const liste = document.createElement("ol");
+    liste.append(
+      ...feu.tickets.map(({ ticket, titre, prio }) => {
+        const ligne = document.createElement("li");
+        ligne.append(exact("span", `#${ticket}`), bloc("span", ` ${titre}`), ...(prio === undefined ? [] : [bloc("small", ` — ${prio}`)]));
+        return ligne;
+      }),
+    );
+    bloc2.append(liste);
+  }
+  return [mention, bloc2];
+}
+
 // Le rail vieillit sans qu'aucune lecture n'arrive : sa mention se repose d'elle-même.
 setInterval(() => {
   if (courant !== undefined && tenus.has(courant.nom) && !rail.hidden) poserRail(courant);
@@ -3377,9 +3436,16 @@ function poserRail(projet) {
   // Plus de rail, plus de fiche par-dessus.
   if (rail.hidden && ouverte !== undefined) fermerFiche();
   if (rail.hidden) return rail.replaceChildren();
-  if (tenu === undefined) return rail.replaceChildren(bloc("h3", `the rail: first read of \`${geste(projet, "facts")}\` in progress…`));
+  const muet = muets.get(projet.nom);
+  if (tenu === undefined && muet === undefined) return rail.replaceChildren(bloc("h3", `the rail: first read of \`${geste(projet, "facts")}\` in progress…`));
+  // La box ne répond pas : rien de ce que dit le rail n'est lu à neuf. Il garde sa dernière lecture,
+  // marquée, et les tickets `fire` que GitHub dit encore passent au-dessus (feu.ts).
+  const marque = muet === undefined ? [] : poserMuet(projet, tenu !== undefined && "tableau" in tenu ? tenu.a : undefined, muet);
+  if (tenu === undefined || !("tableau" in tenu)) {
+    const sans = tenu === undefined ? "" : `the rail is not drawn: ${tenu.titre} — tried at ${heureDe(tenu.a)}. What the app got is in the panel, on the right`;
+    return rail.replaceChildren(...marque, ...(sans === "" ? [] : [bloc("h3", sans)]));
+  }
   const heure = heureDe(tenu.a);
-  if (!("tableau" in tenu)) return rail.replaceChildren(bloc("h3", `the rail is not drawn: ${tenu.titre} — tried at ${heure}. What the app got is in the panel, on the right`));
   const { colonnes, hors, attendLu, railLu } = tenu.tableau.rail;
   // Le bon posé pour chaque carte : celui de la fiche ouverte y reprend le clavier.
   /** @type {Map<import("../faits.ts").Carte, HTMLElement>} */
@@ -3447,7 +3513,7 @@ function poserRail(projet) {
   const tape = /** @type {HTMLInputElement | null | undefined} */ (document.activeElement);
   const reprise = tape?.dataset?.cle === undefined ? undefined : { cle: tape.dataset.cle, champ: tape.dataset.champ };
   rail.replaceChildren(
-    ...fraicheur(tenu.a),
+    ...(muet === undefined ? fraicheur(tenu.a) : marque),
     ...teteDuRail(projet),
     ...poserAmont(projet, tenu.tableau.rail, [...colonnes.flatMap(({ cartes: siennes }) => siennes), ...hors]),
     grille,
@@ -4468,6 +4534,9 @@ function poserControle(projet, alerte, endroit) {
     demande.ariaExpanded = cout === "" ? null : String(ouverte !== undefined);
     demande.title = cout === "" ? "writes into the second a request about this line — nothing is sent: you press Enter" : "says first what lifting it costs — then writes the request into the second, without sending it";
     pose = ouverte === undefined ? [demande] : [demande, poserConfirmation(projet, ouverte, undefined, () => void demanderAlerte(alerte))];
+  } else if ("relire" in appel) {
+    // Réessayer maintenant : la box est relue tout de suite, au lieu d'attendre le tour des trente secondes.
+    pose = [bouton(mot, () => brigade.relireBox(demandeFaits))];
   } else {
     const { onglet } = appel;
     pose = [bouton(mot, () => (laisse.get(projet.nom) === onglet ? undefined : activer(onglet)))];
@@ -4921,6 +4990,8 @@ brigade.surAlertes(({ projet, alertes, signal, manager: etatDuManager, merge: et
   bandes.set(projet, alertes);
   signaux.set(projet, signal);
   marquerSignal(projet);
+  // La pastille dit la même chose que la bande, en un mot.
+  marquerPastille(projet);
   const bascule = JSON.stringify(etatsDuManager.get(projet)) !== JSON.stringify(etatDuManager);
   const basculeMerge = JSON.stringify(etatsDuMerge.get(projet)) !== JSON.stringify(etatDuMerge);
   etatsDuManager.set(projet, etatDuManager);
@@ -4961,7 +5032,12 @@ brigade.surAmont((vu) => {
 });
 brigade.surFaits((recue) => {
   if (recue.demande !== demandeFaits) return;
-  tenus.set(recue.projet, recue);
+  // Une box pas jointe n'efface pas le rail : la dernière lecture reste, marquée (poserRail).
+  const muette = !("tableau" in recue) && "atteinte" in recue && !recue.atteinte;
+  if (muette) muets.set(recue.projet, muets.get(recue.projet) ?? recue.a);
+  else muets.delete(recue.projet);
+  const gardee = tenus.get(recue.projet);
+  if (!(muette && gardee !== undefined && "tableau" in gardee)) tenus.set(recue.projet, recue);
   marquerPastille(recue.projet);
   if (courant?.nom === recue.projet) {
     dessiner();
@@ -5113,6 +5189,7 @@ function afficher() {
   ].join("\n");
   // La barre est reposée : les faits d'avant répondaient à une autre liste, ils sont relus.
   tenus.clear();
+  muets.clear();
   pastilles.clear();
   signalees.clear();
   barre.replaceChildren(
