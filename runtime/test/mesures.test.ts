@@ -237,46 +237,46 @@ test("le chef lit les mesures dans le temps : une ligne par tranche, la pente, l
   livrer(4, { tests: 622, tests_s: 6.2, gates_s: 21, depot_octets: 2_900_000, contexte_octets: 9400, doc_octets: 511_000 }, { tours: 58, ms: 170_000, modele: "opus", effort: "high" });
 
   assert.deepEqual(decrireReleve({ projet: "brigade", livraisons: livraisonsMergees(base), seuils: seuils({ tests: 500, testsSeconds: 10 }) }, 2), [
-    "relevé     brigade — 4 merges au journal, par tranches de 2",
-    "           4 depuis la dernière fermeture (aucune au journal) · 4 depuis le dernier regard sécurité (aucun au journal)",
-    "           seules comptent les livraisons que la pass a jugées, et les cooks du journal — pas la consommation du compte",
+    "report     brigade — 4 merges in the log, in slices of 2",
+    "           4 since the last closing (none in the log) · 4 since the last security review (none in the log)",
+    "           only the deliveries the pass judged count, and the cooks in the log — not the account's consumption",
     "",
-    "merges  jusqu'au    tests  suite  gates  part gates  dépôt   contexte  doc",
-    `1-2     ${JOUR_HORLOGE}  287    1,9 s  10 s   5 %         1,5 Mo  6,1 ko    268 ko`,
-    `3-4     ${JOUR_HORLOGE}  622    6,2 s  21 s   11 %        2,9 Mo  9,4 ko    511 ko`,
-    "pente               ×2,2   ×3,3   ×2,1               ×1,9    ×1,5      ×1,9",
+    "merges  up to       tests  test suite  gates  gates share  repo    context  docs",
+    `1-2     ${JOUR_HORLOGE}  287    1.9 s       10 s   5%           1.5 MB  6.1 KB   268 KB`,
+    `3-4     ${JOUR_HORLOGE}  622    6.2 s       21 s   11%          2.9 MB  9.4 KB   511 KB`,
+    "slope               ×2.2   ×3.3        ×2.1                ×1.9    ×1.5     ×1.9",
     "",
-    "tours      d'un ticket, médiane par calibrage (entre parenthèses : sur combien de tickets)",
+    "turns      per ticket, median by calibration (in parentheses: over how many tickets)",
     "merges  opus/high  sonnet/low",
     "1-2     31 (1)     12 (1)",
     "3-4     58 (1)     14 (1)",
     "",
-    "tokens     d'un ticket, médiane par calibrage (entre parenthèses : sur combien de tickets), et le plus cher de la tranche",
+    "tokens     per ticket, median by calibration (in parentheses: over how many tickets), and the costliest of the slice",
     "merges  opus/high                 sonnet/low",
-    "1-2     1\u202f000 (1) · max #1 1\u202f000  1\u202f000 (1) · max #2 1\u202f000",
-    "3-4     1\u202f000 (1) · max #4 1\u202f000  1\u202f000 (1) · max #3 1\u202f000",
+    "1-2     1,000 (1) · max #1 1,000  1,000 (1) · max #2 1,000",
+    "3-4     1,000 (1) · max #4 1,000  1,000 (1) · max #3 1,000",
     "",
-    "lancements aucun ticket lancé plus d'une fois, ni lancement sans livraison, derrière ces merges",
+    "launches   no ticket launched more than once, and no launch without a delivery, behind these merges",
     "",
-    "seuils     tests 622 pour un seuil de 500 — FRANCHI",
-    "           suite 6,2 s pour un seuil de 10 s",
-    "fermeture  proposée — tests 622 pour un seuil de 500 · à lancer par toi : `brigade <projet> closing` observe, rien ne part seul",
+    "thresholds tests 622 for a threshold of 500 — CROSSED",
+    "           test suite 6.2 s for a threshold of 10 s",
+    "closing    proposed — tests 622 for a threshold of 500 · yours to run: `brigade <projet> closing` observes, nothing starts by itself",
   ]);
 });
 
 test("un compteur franchi propose la fermeture, avec ce qu'il franchit ; tous sous leur seuil, la ligne n'apparaît pas", () => {
   const livraisons = [livraison({ tests: 622, gates_s: 21 }), livraison({ tests: 622, gates_s: 21 })];
 
-  const proposee = decrireReleve({ projet: "brigade", livraisons, seuils: seuils({ tests: 500, gatesSeconds: 20, merges: 2 }) }).filter((ligne) => ligne.includes("proposée"));
+  const proposee = decrireReleve({ projet: "brigade", livraisons, seuils: seuils({ tests: 500, gatesSeconds: 20, merges: 2 }) }).filter((ligne) => ligne.includes("proposed"));
   const toutesSous = decrireReleve({ projet: "brigade", livraisons, seuils: seuils({ tests: 700, gatesSeconds: 30, merges: 3 }) });
   const sansSeuil = decrireReleve({ projet: "brigade", livraisons, seuils: null });
 
   assert.equal(proposee.length, 3);
-  assert.match(proposee[0] ?? "", /^fermeture {2}proposée — tests 622 pour un seuil de 500/);
-  assert.match(proposee[1] ?? "", /proposée — gates 21 s pour un seuil de 20 s/);
-  assert.match(proposee[2] ?? "", /proposée — 2 merges depuis la dernière fermeture pour un seuil de 2/);
-  assert.doesNotMatch(toutesSous.join("\n"), /proposée|fermeture {2}/);
-  assert.doesNotMatch(sansSeuil.join("\n"), /proposée|fermeture {2}/);
+  assert.match(proposee[0] ?? "", /^closing {4}proposed — tests 622 for a threshold of 500/);
+  assert.match(proposee[1] ?? "", /proposed — gates 21 s for a threshold of 20 s/);
+  assert.match(proposee[2] ?? "", /proposed — 2 merges since the last closing for a threshold of 2/);
+  assert.doesNotMatch(toutesSous.join("\n"), /proposed|closing {4}/);
+  assert.doesNotMatch(sansSeuil.join("\n"), /proposed|closing {4}/);
 });
 
 test("`run mesures` au-dessus d'un seuil le dit sans lancer de passe, sans rien écrire, et le relancer ne change rien", async (t) => {
@@ -295,36 +295,36 @@ test("`run mesures` au-dessus d'un seuil le dit sans lancer de passe, sans rien 
   const seconde = lancer(t, MESURES, [], env);
   assert.equal(await seconde.fin, 0);
 
-  assert.match(premiere.sortie(), /\nfermeture {2}proposée — tests 622 pour un seuil de 500/);
+  assert.match(premiere.sortie(), /\nclosing {4}proposed — tests 622 for a threshold of 500/);
   assert.equal(seconde.sortie(), premiere.sortie());
   assert.equal(journal.dernierSeq(), avant);
   assert.equal(existsSync(trace), false);
 });
 
 test("sans merge, sans cook calibré ou sans seuil, le relevé le dit au lieu de montrer des zéros", () => {
-  assert.deepEqual(decrireReleve({ projet: "brigade", livraisons: [], seuils: null }), ["relevé     brigade — aucun merge au journal : rien à relever"]);
+  assert.deepEqual(decrireReleve({ projet: "brigade", livraisons: [], seuils: null }), ["report     brigade — no merge in the log: nothing to report"]);
 
   const lignes = decrireReleve({ projet: "brigade", livraisons: [livraison({})], seuils: null });
 
   assert.deepEqual(lignes.slice(4), [
-    "merges  jusqu'au    tests  suite  gates  part gates  dépôt  contexte  doc",
-    `1       ${JOUR_HORLOGE}  —      —      —      —           —      —         —`,
-    "pente",
+    "merges  up to       tests  test suite  gates  gates share  repo  context  docs",
+    `1       ${JOUR_HORLOGE}  —      —           —      —            —     —        —`,
+    "slope",
     "",
-    "tours      aucun cook calibré derrière ces merges",
+    "turns      no calibrated cook behind these merges",
     "",
-    "tokens     rien à mesurer : aucun cook calibré, ou sans tokens connus, derrière ces merges",
+    "tokens     nothing to measure: no calibrated cook, or none with known tokens, behind these merges",
     "",
-    "lancements aucun ticket lancé plus d'une fois, ni lancement sans livraison, derrière ces merges",
+    "launches   no ticket launched more than once, and no launch without a delivery, behind these merges",
     "",
-    "seuils     aucun déclaré — rien n'est signalé",
+    "thresholds none declared — nothing is flagged",
   ]);
 });
 
 test("au-delà de douze tranches, seules les dernières sont montrées, et le relevé le dit", () => {
   const lignes = decrireReleve({ projet: "brigade", livraisons: Array.from({ length: 14 }, () => livraison({ tests: 1 })), seuils: null }, 1);
 
-  assert.equal(lignes[0], "relevé     brigade — 14 merges au journal, par tranches de 1 (les 12 dernières)");
+  assert.equal(lignes[0], "report     brigade — 14 merges in the log, in slices of 1 (the last 12)");
   assert.deepEqual(lignes.slice(5, 17).map((ligne) => ligne.split(" ")[0]), ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14"]);
 });
 
@@ -338,11 +338,11 @@ test("la commande montre le relevé sans rien écrire, et refuse un argument qu'
   const refus = lancer(t, MESURES, ["--by", "zéro"], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
-  assert.match(commande.sortie(), /^relevé {5}brigade — 2 merges au journal, par tranches de 1\n/);
+  assert.match(commande.sortie(), /^report {5}brigade — 2 merges in the log, in slices of 1\n/);
   assert.match(commande.sortie(), new RegExp(String.raw`\n2 {7}${JOUR_HORLOGE} {2}287 `));
   assert.equal(journal.dernierSeq(), avant);
   assert.equal(await refus.fin, 2);
-  assert.match(refus.sortie(), /usage : BRIGADE_STATE_DIR=/);
+  assert.match(refus.sortie(), /usage: BRIGADE_STATE_DIR=/);
 });
 
 test("le plafond des gates, franchi sans être jugé, se lit au relevé : sur combien de livraisons, et de combien à la dernière", (t) => {
@@ -384,7 +384,7 @@ test("le plafond des gates, franchi sans être jugé, se lit au relevé : sur co
   assert.deepEqual(livraisons.map((livraison) => livraison.measures), [{ tests: 200 }, {}, { tests: 203 }, { tests: 204 }]);
   assert.equal(
     decrireReleve({ projet: "brigade", livraisons, seuils: null }).at(-1),
-    "plafond    des gates franchi sur 2 des 4 livraisons — non jugé par la pass ; la dernière : #19, 178,3 s de processeur pour un plafond de 165 s (+8 %)",
+    "cap        of the gates exceeded on 2 of 4 deliveries — not judged by the pass; the latest: #19, 178.3 s of CPU for a cap of 165 s (+8%)",
   );
   assert.doesNotMatch(decrireReleve({ projet: "brigade", livraisons: livraisons.slice(0, 1), seuils: null }).join("\n"), /plafond/);
 });

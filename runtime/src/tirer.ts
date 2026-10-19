@@ -42,19 +42,19 @@ export type OptionsDeDemande = {
 // runtime. Lève `SansReponse` si aucun runtime ne tourne sur ce répertoire
 // d'état, ou s'il n'a pas répondu à temps.
 export async function demander(repertoireEtat: string, station: string, demande: Demande, options: OptionsDeDemande = {}): Promise<Reponse> {
-  if (!NOM_DE_STATION.test(station)) throw new SansReponse(`« ${station} » n'est pas un nom de station — attendu \`<machine>/<moteur>\`, tel que le projet la déclare (mac/claude)`);
+  if (!NOM_DE_STATION.test(station)) throw new SansReponse(`“${station}” is not a station name — expected \`<machine>/<engine>\`, as the project declares it (mac/claude)`);
   // Le geste ouvre le journal en écriture : sans ce contrôle, il en créerait
   // un là où il n'y en a pas.
-  if (!existsSync(cheminJournal(repertoireEtat))) throw new SansReponse(`aucun journal dans ${repertoireEtat} : le runtime n'a jamais démarré sur ce répertoire d'état`);
+  if (!existsSync(cheminJournal(repertoireEtat))) throw new SansReponse(`no log in ${repertoireEtat}: the runtime has never started on this state directory`);
   const journal = ouvrirJournal(repertoireEtat, { maintenant: options.maintenant });
   try {
     const { base } = journal;
     const id = randomUUID();
     const ecrite = base.transaction(() => {
       const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
-      if (!projet) throw new SansReponse("journal vide : le runtime n'a jamais démarré sur ce répertoire d'état");
+      if (!projet) throw new SansReponse("empty log: the runtime has never started on this state directory");
       // Sans runtime, personne ne répondrait : la demande n'est pas écrite.
-      if (!sessionEnCours(base)) throw new SansReponse("aucun runtime ne tourne pour ce projet : personne ne répondrait à la station — le démarrer, puis redemander");
+      if (!sessionEnCours(base)) throw new SansReponse("no runtime is running for this project: nobody would answer the station — start it, then ask again");
       // Le dernier message d'un cook est gardé comme celui d'un cook de la box :
       // borné. Une empreinte et un motif sont courts.
       const ecrire =
@@ -73,7 +73,7 @@ export async function demander(repertoireEtat: string, station: string, demande:
         const { id: _id, station: _station, ...rendue } = reponse.payload;
         return rendue as Reponse;
       }
-      if (performance.now() >= echeance) throw new SansReponse("le runtime n'a pas répondu à temps : rien n'est à supposer de ce qu'il a fait de la demande — redemander");
+      if (performance.now() >= echeance) throw new SansReponse("the runtime did not answer in time: nothing can be assumed about what it did with the request — ask again");
       await new Promise((resoudre) => setTimeout(resoudre, options.pasMs ?? PAS_MS));
     }
   } finally {

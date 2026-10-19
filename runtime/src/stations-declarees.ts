@@ -134,9 +134,9 @@ export const GESTE_DE_STATION_A_CHAUD_EN = `set them with \`${geste(`station sta
 // Ce que le runtime dit de ses stations au démarrage.
 export function direStations(stations: StationDeclaree[]): string {
   if (stations.length === 0) {
-    return `aucune (${VARIABLE_DES_STATIONS} n'est posée ni au journal) : aucun cook ne partira, les tickets restent en attente sur le rail — ${GESTE_DE_STATION}`;
+    return `none (${VARIABLE_DES_STATIONS} is set neither in the environment nor in the log): no cook will leave, the tickets stay queued on the rail — ${GESTE_DE_STATION_A_CHAUD_EN}`;
   }
   return stations
-    .map((station) => `${station.nom} (${station.cooks} cook${station.cooks > 1 ? "s" : ""} au plus ; fournit : ${station.fournit.join(", ")}${station.distante ? " ; distante : elle tire son travail, la box ne la joint jamais" : ""}${station.ordinaires ? " ; prend aussi les tickets ordinaires, dans le bac à sable de son poste" : ""})`)
+    .map((station) => `${station.nom} (${station.cooks} cook${station.cooks > 1 ? "s" : ""} at most; provides: ${station.fournit.join(", ")}${station.distante ? "; remote: it pulls its work, the box never reaches it" : ""}${station.ordinaires ? "; also takes ordinary tickets, in the sandbox of its workstation" : ""})`)
     .join(" ; ");
 }

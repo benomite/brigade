@@ -135,7 +135,7 @@ test("la durée de garde se règle en jours, sept par défaut ; illisible, c'est
   assert.equal(configTranscripts({}).gardeMs, 7 * JOUR);
   assert.equal(configTranscripts({ BRIGADE_TRANSCRIPTS_KEEP_DAYS: "0.5" }).gardeMs, 12 * HEURE);
   for (const valeur of ["0", "-1", "toujours", "4000"]) {
-    assert.throws(() => configTranscripts({ BRIGADE_TRANSCRIPTS_KEEP_DAYS: valeur }), /BRIGADE_TRANSCRIPTS_KEEP_DAYS invalide : « .* » — attendu un nombre de jours supérieur à zéro, 3650 au plus/);
+    assert.throws(() => configTranscripts({ BRIGADE_TRANSCRIPTS_KEEP_DAYS: valeur }), /invalid BRIGADE_TRANSCRIPTS_KEEP_DAYS: “.*” — expected/);
   }
 });
 

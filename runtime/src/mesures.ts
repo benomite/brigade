@@ -16,17 +16,22 @@ const GATES = "gates_s";
 
 const dire = (valeur: number, decimales = 1) => valeur.toLocaleString("fr-FR", { maximumFractionDigits: decimales });
 const secondes = (valeur: number) => `${dire(valeur)} s`;
-const octets = (valeur: number) => (valeur < 1000 ? `${dire(valeur, 0)} o` : valeur < 1_000_000 ? `${dire(valeur / 1000)} ko` : `${dire(valeur / 1_000_000)} Mo`);
 const pourcent = (valeur: number) => `${dire(valeur, 0)} %`;
+// Le relevé s'écrit en anglais, nombres compris ; la forme française ci-dessus
+// ne sert plus qu'à `direJauge`.
+const direEn = (valeur: number, decimales = 1) => valeur.toLocaleString("en-US", { maximumFractionDigits: decimales });
+const secondesEn = (valeur: number) => `${direEn(valeur)} s`;
+const pourcentEn = (valeur: number) => `${direEn(valeur, 0)}%`;
+const octetsEn = (valeur: number) => (valeur < 1000 ? `${direEn(valeur, 0)} B` : valeur < 1_000_000 ? `${direEn(valeur / 1000)} KB` : `${direEn(valeur / 1_000_000)} MB`);
 
 // Les mesures d'état : ce que le projet pèse une fois la livraison mergée,
 // sous le nom que ses gates leur donnent. `unite` : celle de leur seuil.
 const ETATS = [
-  { nom: "tests", titre: "tests", lire: (valeur: number) => dire(valeur, 0), seuil: "tests", unite: 1 },
-  { nom: "tests_s", titre: "suite", lire: secondes, seuil: "testsSeconds", unite: 1 },
-  { nom: "depot_octets", titre: "dépôt", lire: octets, seuil: "repoMb", unite: 1_000_000 },
-  { nom: "contexte_octets", titre: "contexte", lire: octets, seuil: "contextKb", unite: 1000 },
-  { nom: "doc_octets", titre: "doc", lire: octets, seuil: null, unite: 1 },
+  { nom: "tests", titre: "tests", lire: (valeur: number) => direEn(valeur, 0), seuil: "tests", unite: 1 },
+  { nom: "tests_s", titre: "suite", lire: secondesEn, seuil: "testsSeconds", unite: 1 },
+  { nom: "depot_octets", titre: "dépôt", lire: octetsEn, seuil: "repoMb", unite: 1_000_000 },
+  { nom: "contexte_octets", titre: "contexte", lire: octetsEn, seuil: "contextKb", unite: 1000 },
+  { nom: "doc_octets", titre: "doc", lire: octetsEn, seuil: null, unite: 1 },
 ] as const satisfies ReadonlyArray<{ nom: string; titre: string; lire: (valeur: number) => string; seuil: keyof Seuils | null; unite: number }>;
 
 export const SANS_SEUIL: Seuils = { tests: null, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null, ticketTokens: null, lostTokens: null, firstTryPercent: null, firstTryWindow: null };
@@ -93,23 +98,23 @@ export function motifDeDerive(livraison: Livraison): string {
   const { cooks } = livraison;
   const { tokens } = paiementDuTicket(livraison);
   const total = cooks.reduce((somme, cook) => somme + (cook.tokens ?? 0), 0);
-  const prefixe = livraison.ticket === null ? "hors ticket" : `#${livraison.ticket}`;
-  if (cooks.length <= 1) return `${prefixe} : 1 passage, ${dire(total, 0)} tokens d'une traite, sans renvoi — lecture initiale ou travail trop lourd`;
+  const prefixe = livraison.ticket === null ? "no ticket" : `#${livraison.ticket}`;
+  if (cooks.length <= 1) return `${prefixe}: 1 pass, ${direEn(total, 0)} tokens in one go, no retry — initial reading or work too heavy`;
   const renvois = cooks.slice(1);
   const repartis = renvois.filter((cook) => cook.resumed !== true).length;
   const raisons = [
-    `${cooks.length} passages`,
-    ...(tokens === null || tokens.utiles + tokens.perdus === 0 ? [] : [`${pourcent((tokens.perdus * 100) / (tokens.utiles + tokens.perdus))} perdus au renvoi`]),
-    ...(repartis === 0 ? ["renvois repris"] : [`${repartis} renvoi${repartis > 1 ? "s" : ""} reparti${repartis > 1 ? "s" : ""} de zéro`]),
+    `${cooks.length} passes`,
+    ...(tokens === null || tokens.utiles + tokens.perdus === 0 ? [] : [`${pourcentEn((tokens.perdus * 100) / (tokens.utiles + tokens.perdus))} lost on retries`]),
+    ...(repartis === 0 ? ["retries resumed"] : [`${repartis} ${repartis > 1 ? "retries" : "retry"} restarted from scratch`]),
   ];
-  return `${prefixe} : ${raisons.join(", ")}`;
+  return `${prefixe}: ${raisons.join(", ")}`;
 }
 
 // Les lancements d'un ticket, et parmi eux ceux qui ont repris une session et
 // ceux dont les tokens ne sont pas connus.
 function direLancements(lancements: number, repris: number | undefined, inconnus: number): string {
-  const dont = [...(repris === undefined ? [] : [`${repris} repris`]), ...(inconnus === 0 ? [] : [`${inconnus} sans tokens connus`])];
-  return `${lancements}${dont.length === 0 ? "" : `, dont ${dont.join(", ")}`}`;
+  const dont = [...(repris === undefined ? [] : [`${repris} resumed`]), ...(inconnus === 0 ? [] : [`${inconnus} with unknown tokens`])];
+  return `${lancements}${dont.length === 0 ? "" : `, of which ${dont.join(", ")}`}`;
 }
 
 // Un ticket lancé une fois, et qui a livré, a coûté son prix : il n'y a rien à
@@ -238,9 +243,6 @@ export function direJauge({ measure, observed, limit }: Omit<Jauge, "franchi">):
 }
 
 // La même, en anglais : la ligne `drift` de `status`.
-const direEn = (valeur: number, decimales = 1) => valeur.toLocaleString("en-US", { maximumFractionDigits: decimales });
-const secondesEn = (valeur: number) => `${direEn(valeur)} s`;
-const pourcentEn = (valeur: number) => `${direEn(valeur, 0)}%`;
 const UNITES_EN: Record<string, (valeur: number) => string> = {
   tests: (valeur) => direEn(valeur, 0),
   tests_s: secondesEn,
@@ -285,7 +287,7 @@ function tableau(lignes: string[][]): string[] {
 function pente(valeurs: Array<number | null>): string {
   const connues = valeurs.flatMap((valeur) => valeur ?? []);
   const [premiere, fin] = [connues[0], connues.at(-1)];
-  return connues.length < 2 || premiere === undefined || fin === undefined || premiere <= 0 ? "" : `×${dire(fin / premiere)}`;
+  return connues.length < 2 || premiere === undefined || fin === undefined || premiere <= 0 ? "" : `×${direEn(fin / premiere)}`;
 }
 
 // Le plafond de durée que les gates du projet se donnent : la pass ne le juge
@@ -296,11 +298,11 @@ function direPlafond(livraisons: Livraison[]): string[] {
   const derniere = franchies.at(-1);
   if (derniere?.overCeiling === undefined) return [];
   const { cpuSeconds, limitSeconds } = derniere.overCeiling;
-  const trop = limitSeconds > 0 ? ` (+${pourcent(((cpuSeconds - limitSeconds) * 100) / limitSeconds)})` : "";
+  const trop = limitSeconds > 0 ? ` (+${pourcentEn(((cpuSeconds - limitSeconds) * 100) / limitSeconds)})` : "";
   return [
     ligne(
-      "plafond",
-      `des gates franchi sur ${franchies.length} des ${livraisons.length} livraisons — non jugé par la pass ; la dernière : ${derniere.ticket === null ? "hors ticket" : `#${derniere.ticket}`}, ${secondes(cpuSeconds)} de processeur pour un plafond de ${secondes(limitSeconds)}${trop}`,
+      "cap",
+      `of the gates exceeded on ${franchies.length} of ${livraisons.length} deliveries — not judged by the pass; the latest: ${derniere.ticket === null ? "no ticket" : `#${derniere.ticket}`}, ${secondesEn(cpuSeconds)} of CPU for a cap of ${secondesEn(limitSeconds)}${trop}`,
     ),
   ];
 }
@@ -310,7 +312,7 @@ function direPlafond(livraisons: Livraison[]): string[] {
 function direProposition(jauges: Jauge[]): string[] {
   const franchies = jauges.filter((jauge) => jauge.franchi);
   if (franchies.length === 0) return [];
-  return franchies.map((jauge, i) => ligne(i === 0 ? "fermeture" : "", `proposée — ${direJauge(jauge)} · à lancer par toi : \`${geste(`closing`)}\` observe, rien ne part seul`));
+  return franchies.map((jauge, i) => ligne(i === 0 ? "closing" : "", `proposed — ${direJaugeEn(jauge)} · yours to run: \`${geste(`closing`)}\` observes, nothing starts by itself`));
 }
 
 export type Releve = { projet: string | null; livraisons: Livraison[]; seuils: Seuils | null };
@@ -318,7 +320,7 @@ export type Releve = { projet: string | null; livraisons: Livraison[]; seuils: S
 // Le relevé, ligne par ligne.
 export function decrireReleve({ projet, livraisons, seuils }: Releve, par = PAR_DEFAUT): string[] {
   const merges = livraisons.length;
-  if (merges === 0) return [ligne("relevé", `${projet ?? "inconnu — journal vide"} — aucun merge au journal : rien à relever`)];
+  if (merges === 0) return [ligne("report", `${projet ?? "unknown — empty log"} — no merge in the log: nothing to report`)];
   const toutes = trancher(livraisons, par);
   const tranches = toutes.slice(-TRANCHES_MONTREES);
   const rang = ({ premier, dernier }: Tranche) => (premier === dernier ? String(premier) : `${premier}-${dernier}`);
@@ -328,22 +330,22 @@ export function decrireReleve({ projet, livraisons, seuils }: Releve, par = PAR_
   const jauges = jauger(livraisons, seuils ?? SANS_SEUIL);
   const payes = tranches.flatMap((tranche) => tranche.paiements.map((paiement) => ({ tranche, ...paiement })));
   return [
-    ligne("relevé", `${projet ?? "inconnu"} — ${merges} merge${merges > 1 ? "s" : ""} au journal, par tranches de ${par}${toutes.length > tranches.length ? ` (les ${tranches.length} dernières)` : ""}`),
-    ligne("", `${merges} depuis la dernière fermeture (aucune au journal) · ${merges} depuis le dernier regard sécurité (aucun au journal)`),
-    ligne("", "seules comptent les livraisons que la pass a jugées, et les cooks du journal — pas la consommation du compte"),
+    ligne("report", `${projet ?? "unknown"} — ${merges} merge${merges > 1 ? "s" : ""} in the log, in slices of ${par}${toutes.length > tranches.length ? ` (the last ${tranches.length})` : ""}`),
+    ligne("", `${merges} since the last closing (none in the log) · ${merges} since the last security review (none in the log)`),
+    ligne("", "only the deliveries the pass judged count, and the cooks in the log — not the account's consumption"),
     "",
     ...tableau([
-      ["merges", "jusqu'au", ...ETATS.slice(0, 2).map(({ titre }) => titre), "gates", "part gates", ...ETATS.slice(2).map(({ titre }) => titre)],
+      ["merges", "up to", ...ETATS.slice(0, 2).map(({ nom }) => TITRES_EN[nom] ?? nom), "gates", "gates share", ...ETATS.slice(2).map(({ nom }) => TITRES_EN[nom] ?? nom)],
       ...tranches.map((tranche) => [
         rang(tranche),
         tranche.jusquAu.slice(0, 10),
         ...ETATS.slice(0, 2).map(({ nom, lire }) => ou(tranche.etats[nom] ?? null, lire)),
-        ou(tranche.gatesS, secondes),
-        ou(tranche.partGates, (part) => pourcent(part * 100)),
+        ou(tranche.gatesS, secondesEn),
+        ou(tranche.partGates, (part) => pourcentEn(part * 100)),
         ...ETATS.slice(2).map(({ nom, lire }) => ou(tranche.etats[nom] ?? null, lire)),
       ]),
       [
-        "pente",
+        "slope",
         "",
         ...ETATS.slice(0, 2).map(({ nom }) => pente(tranches.map((tranche) => tranche.etats[nom] ?? null))),
         pente(tranches.map((tranche) => tranche.gatesS)),
@@ -352,18 +354,18 @@ export function decrireReleve({ projet, livraisons, seuils }: Releve, par = PAR_
       ],
     ]),
     "",
-    ligne("tours", calibrages.length === 0 ? "aucun cook calibré derrière ces merges" : "d'un ticket, médiane par calibrage (entre parenthèses : sur combien de tickets)"),
+    ligne("turns", calibrages.length === 0 ? "no calibrated cook behind these merges" : "per ticket, median by calibration (in parentheses: over how many tickets)"),
     ...(calibrages.length === 0
       ? []
       : tableau([
           ["merges", ...calibrages],
           ...tranches.map((tranche) => [
             rang(tranche),
-            ...calibrages.map((calibrage) => ou(tranche.tours.get(calibrage) ?? null, ({ mediane: tours, tickets }) => `${dire(tours)} (${tickets})`)),
+            ...calibrages.map((calibrage) => ou(tranche.tours.get(calibrage) ?? null, ({ mediane: tours, tickets }) => `${direEn(tours)} (${tickets})`)),
           ]),
         ])),
     "",
-    ligne("tokens", cout.length === 0 ? "rien à mesurer : aucun cook calibré, ou sans tokens connus, derrière ces merges" : "d'un ticket, médiane par calibrage (entre parenthèses : sur combien de tickets), et le plus cher de la tranche"),
+    ligne("tokens", cout.length === 0 ? "nothing to measure: no calibrated cook, or none with known tokens, behind these merges" : "per ticket, median by calibration (in parentheses: over how many tickets), and the costliest of the slice"),
     ...(cout.length === 0
       ? []
       : tableau([
@@ -371,38 +373,38 @@ export function decrireReleve({ projet, livraisons, seuils }: Releve, par = PAR_
           ...tranches.map((tranche) => [
             rang(tranche),
             ...cout.map((calibrage) =>
-              ou(tranche.tokens.get(calibrage) ?? null, ({ mediane: tokens, tickets, plusCher }) => `${dire(tokens, 0)} (${tickets}) · max ${plusCher.ticket === null ? "hors ticket" : `#${plusCher.ticket}`} ${dire(plusCher.tokens, 0)}`),
+              ou(tranche.tokens.get(calibrage) ?? null, ({ mediane: tokens, tickets, plusCher }) => `${direEn(tokens, 0)} (${tickets}) · max ${plusCher.ticket === null ? "no ticket" : `#${plusCher.ticket}`} ${direEn(plusCher.tokens, 0)}`),
             ),
           ]),
         ])),
     "",
     ligne(
-      "lancements",
+      "launches",
       payes.length === 0
-        ? "aucun ticket lancé plus d'une fois, ni lancement sans livraison, derrière ces merges"
-        : `des tickets lancés plus d'une fois, ou dont un lancement n'a rien livré — utiles : les tokens des lancements qui ont livré ; perdus : ceux des autres${
-            payes.some(({ repris }) => repris !== undefined) ? " ; repris : les renvois repartis de la session du cook précédent, et non de zéro" : ""
+        ? "no ticket launched more than once, and no launch without a delivery, behind these merges"
+        : `tickets launched more than once, or with a launch that delivered nothing — useful: the tokens of the launches that delivered; lost: those of the others${
+            payes.some(({ repris }) => repris !== undefined) ? "; resumed: the retries that continued the previous cook's session instead of starting from scratch" : ""
           }`,
     ),
     ...(payes.length === 0
       ? []
       : tableau([
-          ["merges", "ticket", "lancements", "tokens", "utiles", "perdus"],
+          ["merges", "ticket", "launches", "tokens", "useful", "lost"],
           ...payes.map(({ tranche, ticket, lancements, inconnus, repris, tokens }) => [
             rang(tranche),
-            ticket === null ? "hors ticket" : `#${ticket}`,
+            ticket === null ? "no ticket" : `#${ticket}`,
             direLancements(lancements, repris, inconnus),
-            ou(tokens, ({ utiles, perdus }) => dire(utiles + perdus, 0)),
-            ou(tokens, ({ utiles }) => dire(utiles, 0)),
-            ou(tokens, ({ utiles, perdus }) => (perdus === 0 ? "0" : `${dire(perdus, 0)} (${pourcent((perdus * 100) / (utiles + perdus))})`)),
+            ou(tokens, ({ utiles, perdus }) => direEn(utiles + perdus, 0)),
+            ou(tokens, ({ utiles }) => direEn(utiles, 0)),
+            ou(tokens, ({ utiles, perdus }) => (perdus === 0 ? "0" : `${direEn(perdus, 0)} (${pourcentEn((perdus * 100) / (utiles + perdus))})`)),
           ]),
         ])),
     "",
     ...(jauges.length === 0
-      ? [ligne("seuils", "aucun déclaré — rien n'est signalé")]
+      ? [ligne("thresholds", "none declared — nothing is flagged")]
       : jauges.flatMap((jauge, i) => [
-          ligne(i === 0 ? "seuils" : "", `${direJauge(jauge)}${jauge.franchi ? " — FRANCHI" : ""}`),
-          ...(jauge.franchi ? (jauge.motifs ?? []) : []).map((motif) => ligne("", `  motif de dérive — ${motif}`)),
+          ligne(i === 0 ? "thresholds" : "", `${direJaugeEn(jauge)}${jauge.franchi ? " — CROSSED" : ""}`),
+          ...(jauge.franchi ? (jauge.motifs ?? []) : []).map((motif) => ligne("", `  reason for the drift — ${motif}`)),
         ])),
     ...direProposition(jauges),
     ...direPlafond(livraisons),

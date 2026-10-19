@@ -53,10 +53,10 @@ export function demarrer(options: OptionsRuntime): Runtime {
   const { repertoireEtat, projet } = options;
   if (!NOM_DE_PROJET.test(projet)) {
     throw new ConfigInvalide(
-      `nom de projet invalide : « ${projet} » — attendu un identifiant court en minuscules, chiffres et tirets (brigade, thermigo)`,
+      `invalid project name: “${projet}” — expected a short identifier in lowercase letters, digits and hyphens (brigade, thermigo)`,
     );
   }
-  if (repertoireEtat === "") throw new ConfigInvalide("répertoire d'état vide");
+  if (repertoireEtat === "") throw new ConfigInvalide("empty state directory");
   mkdirSync(repertoireEtat, { recursive: true });
 
   let verrou;
@@ -149,7 +149,7 @@ export function demarrer(options: OptionsRuntime): Runtime {
 
 // Dit qui tient le projet, d'après le dernier démarrage sans fin du journal.
 function motifDuRefus(projet: string, repertoireEtat: string): string {
-  const refus = `un runtime tient déjà le projet « ${projet} » (${repertoireEtat})`;
+  const refus = `a runtime already holds project “${projet}” (${repertoireEtat})`;
   // Le détail est un confort : celui qui tient le verrou peut ne pas avoir
   // encore posé son journal, ou être en train d'y écrire. Quoi qu'il arrive à
   // cette lecture, le refus reste un refus.
@@ -159,7 +159,7 @@ function motifDuRefus(projet: string, repertoireEtat: string): string {
     try {
       const session = sessionEnCours(journal.base);
       if (!session) return refus;
-      return `${refus} : pid ${session.pid} sur ${session.host}, démarré le ${session.startedAt}`;
+      return `${refus}: pid ${session.pid} on ${session.host}, started on ${session.startedAt}`;
     } finally {
       journal.fermer();
     }

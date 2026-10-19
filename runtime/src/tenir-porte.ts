@@ -12,12 +12,12 @@ import { ConfigInvalide } from "./runtime.ts";
 const REFUS = 2;
 
 function refuser(motif: string): never {
-  console.error(`brigade : la porte refuse de démarrer — ${motif}`);
+  console.error(`brigade : the door refuses to start — ${motif}`);
   process.exit(REFUS);
 }
 
-const repertoireEtat = process.env.BRIGADE_STATE_DIR || refuser("BRIGADE_STATE_DIR n'est pas défini");
-const projet = process.env.BRIGADE_PROJECT || refuser("BRIGADE_PROJECT n'est pas défini");
+const repertoireEtat = process.env.BRIGADE_STATE_DIR || refuser("BRIGADE_STATE_DIR is not set");
+const projet = process.env.BRIGADE_PROJECT || refuser("BRIGADE_PROJECT is not set");
 let port: number | null;
 try {
   port = configReseau(process.env);
@@ -25,18 +25,18 @@ try {
   if (erreur instanceof ConfigInvalide) refuser(erreur.message);
   throw erreur;
 }
-if (port === null) refuser("BRIGADE_PROXY_PORT n'est pas défini");
+if (port === null) refuser("BRIGADE_PROXY_PORT is not set");
 
 const regles = listeDuJournal(repertoireEtat);
 const surRefus = refusAuJournal(repertoireEtat, projet);
 
 const porte = await ouvrirPorte({ port, projet, regles, surRefus });
-console.log(`brigade : porte du projet « ${projet} » ouverte — 127.0.0.1:${porte.port}, liste blanche lue dans ${repertoireEtat}`);
+console.log(`brigade : door of project “${projet}” open — 127.0.0.1:${porte.port}, allowlist read from ${repertoireEtat}`);
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
     void porte.fermer().then(() => {
-      console.log(`brigade : porte du projet « ${projet} » fermée (${signal})`);
+      console.log(`brigade : door of project “${projet}” closed (${signal})`);
       process.exit(0);
     });
   });

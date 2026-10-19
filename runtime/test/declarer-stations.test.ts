@@ -75,7 +75,7 @@ test("la déclaration choisie est posée au journal comme décision du chef, et 
   const { code, sortie } = await declarer(etat, "box/claude:4:code+raisonnement");
 
   assert.equal(code, 0, sortie);
-  assert.match(sortie, /^brigade : stations déclarées — box\/claude \(4 cooks au plus ; fournit : code, raisonnement\) ; lues par le runtime à son réveil suivant, sans redémarrage/m);
+  assert.match(sortie, /^brigade : stations déclarées — box\/claude \(4 cooks at most; provides: code, raisonnement\) ; lues par le runtime à son réveil suivant, sans redémarrage/m);
   assert.match(sortie, /« Déclarer les stations » notée faite/);
   const journal = ouvrirJournal(etat, { lectureSeule: true });
   try {

@@ -194,7 +194,7 @@ test("le refus reste un refus quand le journal de celui qui tourne n'est pas enc
 
   assert.throws(
     () => demarrer({ repertoireEtat: repertoire, projet: "brigade" }),
-    (erreur: unknown) => erreur instanceof DejaEnCours && /tient déjà le projet « brigade »/.test(erreur.message),
+    (erreur: unknown) => erreur instanceof DejaEnCours && /already holds project “brigade”/.test(erreur.message),
   );
 });
 

@@ -20,7 +20,7 @@ test("ce que la passe retire arrive par une PR vers la branche d'intégration �
 
   const { code, sortie } = await demander();
   assert.equal(code, 0, sortie);
-  assert.match(sortie, /^brigade : passe de fermeture demandée — condition d'exécution remplie : 0 cook en vol pour un seuil de 1, rail vide\n/);
+  assert.match(sortie, /^brigade : closing pass requested — start condition met: 0 cook in flight for a threshold of 1, rail empty\n/);
   const passe = await fin();
 
   assert.equal(passe.outcome, "delivered");
@@ -46,12 +46,12 @@ test("ce que la passe retire arrive par une PR vers la branche d'intégration �
   assert.equal(passe.pr, "https://github.com/benomite/brigade/pull/101");
   const corps = pr?.corps ?? "";
   assert.match(corps, /ne merge rien : ce qu'elle retire arrive par cette PR/);
-  assert.match(corps, /## Retiré — 1 sur 3 candidats\n\n- \*\*M1\*\* — export `inutile` de `src\/libre\/outils\.ts:2` — référencé nulle part\n/);
+  assert.match(corps, /## Retiré — 1 sur 3 candidats\n\n- \*\*M1\*\* — export `inutile` of `src\/libre\/outils\.ts:2` — referenced nowhere\n/);
   // Ce qu'elle a laissé : ce que le closer dit, avec son motif — et ce qu'il
   // n'a pas nommé mais que sa branche porte encore, dit sans motif.
   assert.match(corps, /## Laissé faute d'être sûr — 2\n/);
-  assert.match(corps, /- \*\*D1\*\* — 8 lignes de code identiques : `src\/libre\/a\.ts:1-8` = `src\/libre\/b\.ts:1-8`\n {2}- les deux suites se ressemblent mais servent deux modules qui évoluent à part\n/);
-  assert.ok(corps.includes(`- **M2** — export \`oublie\` de \`src/tenu/outils.ts:2\` — référencé nulle part\n  - ${SANS_MOTIF}`), corps);
+  assert.match(corps, /- \*\*D1\*\* — 8 identical lines of code: `src\/libre\/a\.ts:1-8` = `src\/libre\/b\.ts:1-8`\n {2}- les deux suites se ressemblent mais servent deux modules qui évoluent à part\n/);
+  assert.ok(corps.includes(`- **M2** — export \`oublie\` of \`src/tenu/outils.ts:2\` — referenced nowhere\n  - ${SANS_MOTIF}`), corps);
   assert.deepEqual(
     passe.kept?.map(({ id, reason, before }) => [id, reason, before]),
     [
@@ -111,10 +111,10 @@ test("demandée avec trop de cooks en vol, la passe attend et dit la condition q
   assert.equal(demandee.code, 0, demandee.sortie);
   assert.match(
     demandee.sortie,
-    /^brigade : passe de fermeture demandée — elle attend : condition d'exécution non remplie : 2 cooks en vol pour un seuil de 2 — la passe part quand il y en a moins que le seuil, ou quand le rail est vide \(il porte 2 tickets non servis\)\n/,
+    /^brigade : closing pass requested — it waits: start condition not met: 2 cooks in flight for a threshold of 2 — the pass leaves when there are fewer than the threshold, or when the rail is empty \(it carries 2 unserved tickets\)\n/,
   );
-  assert.match(demandee.sortie, /le runtime la fait partir seul, une fois, dès que rien ne la retient — rien à guetter, rien à relancer/);
-  assert.match(demandee.sortie, /pour y renoncer avant qu'elle parte : `brigade <projet> closing cancel`/);
+  assert.match(demandee.sortie, /the runtime starts it on its own, once, as soon as nothing holds it back — nothing to watch, nothing to restart/);
+  assert.match(demandee.sortie, /to withdraw it before it leaves: `brigade <projet> closing cancel`/);
   // Le runtime l'a relue à dix ticks : elle attend, rien n'est refusé, rien n'est parti.
   const vus = types().filter((type) => type === "runtime.ticked").length;
   await jusqua(() => types().filter((type) => type === "runtime.ticked").length >= vus + 10);
@@ -134,7 +134,7 @@ test("demandée avec trop de cooks en vol, la passe attend et dit la condition q
   assert.equal(partie?.candidates, 2);
   assert.doesNotMatch(closer.consigne(), /oublie|src\/tenu/);
   assert.deepEqual(passe.files, ["src/libre/outils.ts"]);
-  assert.match(gh.prs[0]?.corps ?? "", /## Écarté avant la passe — 1\n\n- \*\*M2\*\* — export `oublie` de `src\/tenu\/outils\.ts:2` — référencé nulle part\n {2}- `src\/tenu\/outils\.ts` est tenu par le ticket #7 \(zone `src\/tenu`\)/);
+  assert.match(gh.prs[0]?.corps ?? "", /## Écarté avant la passe — 1\n\n- \*\*M2\*\* — export `oublie` of `src\/tenu\/outils\.ts:2` — referenced nowhere\n {2}- `src\/tenu\/outils\.ts` is held by ticket #7 \(zone `src\/tenu`\)/);
 });
 
 test("un cook en vol qui ne déclare aucune zone tient tout : la passe attend qu'il ait fini, en le nommant", async (t) => {
@@ -145,7 +145,7 @@ test("un cook en vol qui ne déclare aucune zone tient tout : la passe attend qu
 
   const { code, sortie } = await cuisine.demander();
   assert.equal(code, 0, sortie);
-  assert.match(sortie, /elle attend : condition d'exécution non remplie : le cook en vol de #9 ne déclare aucune zone/);
+  assert.match(sortie, /it waits: start condition not met: the cook in flight on #9 declares no zone/);
   const vus = cuisine.types().filter((type) => type === "runtime.ticked").length;
   await jusqua(() => cuisine.types().filter((type) => type === "runtime.ticked").length >= vus + 5);
   rienNEstParti(cuisine);
@@ -213,7 +213,7 @@ test("la passe s'arrête et le dit quand son plafond de tokens est atteint — l
   // Et le chef le lit là où il observe.
   const appel = appeler(principal, [], { ...ENV_GIT, BRIGADE_REPO_DIR: clone, BRIGADE_BASE_BRANCH: BASE, BRIGADE_STATE_DIR: repertoire });
   assert.equal(await appel.fin, 0, appel.sortie());
-  assert.match(appel.sortie(), /\npasse {6}fermeture-[0-9a-f]{8}, le 2026-10-08 10:00 — arrêtée : plafond de tokens de la passe atteint \(610 pour un plafond de 500\) — rien n'est livré\n/);
+  assert.match(appel.sortie(), /\npass {7}fermeture-[0-9a-f]{8}, on 2026-10-08 10:00 — stopped: the closing's token cap reached \(610 for a cap of 500\) — nothing is delivered\n/);
 });
 
 test("la passe s'arrête et le dit quand son plafond de retraits est atteint, pendant qu'elle range", async (t) => {
@@ -250,7 +250,7 @@ test("la passe s'arrête et le dit après l'inactivité : un closer qui se tait 
   assert.equal((await cuisine.demander()).code, 0);
   const passe = await cuisine.fin();
   assert.deepEqual([passe.outcome, passe.limit], ["idle", 300]);
-  assert.match(cuisine.avertissements.join("\n"), /— arrêtée : inactive \(rien produit depuis [\d,]+ s pour un plafond de 0,3 s\) — rien n'est livré/);
+  assert.match(cuisine.avertissements.join("\n"), /— arrêtée : inactive \(rien produit depuis [\d.]+ s pour un plafond de 0\.3 s\) — rien n'est livré/);
   rienNEstLivre(cuisine);
 });
 
@@ -268,7 +268,7 @@ test("la passe s'arrête et le dit sur le « stop » du chef, et aucune ne repar
 
   const { code, sortie } = await demander();
   assert.equal(code, 1);
-  assert.match(sortie, /passe de fermeture refusée, rien n'est lancé — la cuisine est arrêtée par le chef depuis le /);
+  assert.match(sortie, /closing pass refused, nothing is started — the kitchen has been stopped by the chef since /);
   assert.equal(closer.lancements().length, 1);
 });
 
@@ -289,7 +289,7 @@ test("la passe s'arrête et le dit sur disjoncteur : ouvert pendant qu'elle rang
 
   const { code, sortie } = await demander();
   assert.equal(code, 1);
-  assert.match(sortie, /passe de fermeture refusée, rien n'est lancé — le disjoncteur est ouvert depuis le /);
+  assert.match(sortie, /closing pass refused, nothing is started — the breaker has been open since /);
   assert.equal(closer.lancements().length, 1);
 });
 
@@ -302,7 +302,7 @@ test("une seule passe à la fois : demandée pendant qu'une autre range, la comm
 
   const { code, sortie } = await demander();
   assert.equal(code, 1);
-  assert.match(sortie, /une passe de fermeture range déjà, ou est déjà demandée — une seule à la fois/);
+  assert.match(sortie, /a closing pass is already tidying up, or is already requested — only one at a time/);
   closer.feu();
   assert.equal((await fin()).outcome, "delivered");
   assert.equal(closer.lancements().length, 1);
@@ -337,14 +337,14 @@ test("sans rien à ranger, sans closer réglé ou sans runtime qui tourne, la co
   const sansCloser = cuisineFermee(t, { reglages: { calibration: null } });
   const refusee = await sansCloser.demander();
   assert.equal(refusee.code, 1);
-  assert.match(refusee.sortie, /le closer n'est pas réglé sur ce projet — `brigade <projet> station closer-modele <modèle>` et `brigade <projet> station closer-effort <effort>`/);
+  assert.match(refusee.sortie, /the closer is not set on this project — `brigade <projet> station closer-modele <model>` and `brigade <projet> station closer-effort <effort>`/);
   rienNEstParti(sansCloser);
 
   const eteinte = cuisineFermee(t);
   eteinte.runtime.arreter("essai");
   const seule = appeler(principal, ["write"], { BRIGADE_STATE_DIR: eteinte.repertoire });
   assert.equal(await seule.fin, 1);
-  assert.match(seule.sortie(), /aucun runtime ne tourne sur ce projet : la passe n'est pas demandée/);
+  assert.match(seule.sortie(), /no runtime is running on this project: the closing pass is not requested/);
   const relu = ouvrirJournal(eteinte.repertoire, { lectureSeule: true });
   t.after(() => relu.fermer());
   assert.ok(!relu.tout().some((e) => e.type === "closing.requested"));
@@ -403,7 +403,7 @@ test("le calibrage posé par le chef vaut à la passe suivante, sans redémarrag
 
   const refusee = await demander();
   assert.equal(refusee.code, 1);
-  assert.match(refusee.sortie, /`brigade <projet> station closer-modele <modèle>` et `brigade <projet> station closer-effort <effort>`/);
+  assert.match(refusee.sortie, /`brigade <projet> station closer-modele <model>` and `brigade <projet> station closer-effort <effort>`/);
   assert.doesNotMatch(refusee.sortie, /BRIGADE_CLOSING|redémarrer/);
 
   // Le chef pose le calibrage : le journal change, le runtime se réveille.

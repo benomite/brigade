@@ -138,9 +138,9 @@ describe("le plan d'une désinstallation", () => {
     const rendu = await b.geste(["uninstall", "calculus", "--plan"]);
 
     assert.equal(rendu.code, 0, rendu.erreur);
-    assert.deepEqual(rendu.json.perdus, [`non commité dans ${join(b.etats, "calculus/depot")} : brouillon.txt`]);
+    assert.deepEqual(rendu.json.perdus, [`uncommitted in ${join(b.etats, "calculus/depot")}: brouillon.txt`]);
     assert.match((rendu.json.aSavoir as string[]).join("\n"), /la désinstallation refuse tant qu'il en reste/);
-    assert.match(rendu.erreur, /Ce que le clone porte et que l'origine n'a pas :\n {2}non commité dans .* : brouillon\.txt\n/);
+    assert.match(rendu.erreur, /Ce que le clone porte et que l'origine n'a pas :\n {2}uncommitted in .*: brouillon\.txt\n/);
     assert.deepEqual(b.photo(), avant);
   });
 
@@ -348,7 +348,7 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", () 
     servir(b);
     writeFileSync(join(b.etats, "calculus/worktrees/a/travail.txt"), "en cours\n");
     for (const journal of [[], ["--supprimer-le-journal"]]) {
-      await refuse(b, ["uninstall", "calculus", "--confirmer", "calculus", ...journal], "travail-jamais-pousse", /le clone de « calculus » porte ce que l'origine n'a pas .* rien n'est retiré :\n {2}non commité dans .*worktrees\/a : travail\.txt$/, CODES.retenu);
+      await refuse(b, ["uninstall", "calculus", "--confirmer", "calculus", ...journal], "travail-jamais-pousse", /le clone de « calculus » porte ce que l'origine n'a pas .* rien n'est retiré :\n {2}uncommitted in .*worktrees\/a: travail\.txt$/, CODES.retenu);
     }
   });
 
@@ -361,7 +361,7 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", () 
     git(etat, "init", "-q");
     symlinkSync(".", join(etat, "depot"));
     for (const forme of [["--plan"], ["--confirmer", "calculus"], ["--confirmer", "calculus", "--supprimer-le-journal"]]) {
-      await refuse(b, ["uninstall", "calculus", ...forme], "retenu-par-le-runtime", /la désinstallation du runtime refuse — le répertoire d'état .* est dans le clone .* : le retirer emporterait le journal — rien n'est retiré$/, CODES.retenu);
+      await refuse(b, ["uninstall", "calculus", ...forme], "retenu-par-le-runtime", /la désinstallation du runtime refuse — the state directory .* is inside the clone .*: removing it would take the log with it — nothing is removed$/, CODES.retenu);
     }
     assert.equal(readFileSync(join(etat, "log.db"), "utf8"), HISTOIRE);
   });
@@ -372,7 +372,7 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", () 
     rmSync(depot, { recursive: true });
     mkdirSync(depot);
     writeFileSync(join(depot, "important.txt"), "à garder\n");
-    await refuse(b, ["uninstall", "calculus", "--confirmer", "calculus"], "retenu-par-le-runtime", /n'est pas un clone git : rien n'est retiré$/, CODES.retenu);
+    await refuse(b, ["uninstall", "calculus", "--confirmer", "calculus"], "retenu-par-le-runtime", /is not a git clone: nothing is removed$/, CODES.retenu);
   });
 
   test("ce que root retirerait lui-même et qui contient l'état du projet n'est jamais retiré", async (t) => {
@@ -396,7 +396,7 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", () 
     // le verrou que ce process-ci tiendrait.
     await lancer(t, TIENT_VERROU, [join(b.etats, "calculus")]).attendre("tenu");
     for (const forme of [["--plan"], ["--confirmer", "calculus"]]) {
-      await refuse(b, ["uninstall", "calculus", ...forme], "retenu-par-le-runtime", /le runtime du projet tourne encore sur .* : l'arrêter d'abord — rien n'est retiré$/, CODES.retenu);
+      await refuse(b, ["uninstall", "calculus", ...forme], "retenu-par-le-runtime", /the project's runtime is still running on .*: stop it first — nothing is removed$/, CODES.retenu);
     }
     // Ce qui la retiendrait ne cache pas, à qui ne l'a pas confirmée, comment le faire.
     await refuse(b, ["uninstall", "calculus"], "sans-confirmation", /se confirme en le nommant/, CODES.sansConfirmation);
@@ -521,7 +521,7 @@ describe("le journal du geste, pour une désinstallation", () => {
         { author: "benoit", project: "calculus", type: "installer.used", payload: { ...confirmee, result: "uninstalled", ports: [PREMIER_PORT], journal: "kept" } },
       ],
     );
-    assert.match(echec.reason, /porte ce que l'origine n'a pas[^]*brouillon\.txt/);
+    assert.match(echec.reason, /carries what the origin does not have[^]*brouillon\.txt/);
     assert.equal(echec.left[0], `${join(b.etats, "calculus/depot")} (le clone réservé et les worktrees)`);
   });
 });

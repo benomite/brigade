@@ -109,7 +109,7 @@ describe("installer un projet", () => {
     // qu'une au projet, et `installation` dit laquelle variable la déclare.
     assert.deepEqual(
       (await verifier(duService)).filter((constat) => constat.etat === "manque").map((constat) => constat.texte),
-      ["aucune station déclarée (BRIGADE_STATIONS n'est posée ni au journal du projet) : le runtime démarre, mais aucun cook ne partirait — les tickets resteraient en attente"],
+      ["no station declared (BRIGADE_STATIONS is not set in the project's log): the runtime starts, but no cook would leave — tickets would stay queued"],
     );
     // Une fois déclarée par le chef, par le geste : au journal du projet, prêt.
     decider(etat, "BRIGADE_STATIONS", "box/claude:30:code");

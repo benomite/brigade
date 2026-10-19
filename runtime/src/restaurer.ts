@@ -4,7 +4,7 @@
 // d'habitude : il retrouve le journal d'un runtime mort sans préavis.
 import { restaurer, SauvegardeRefusee } from "./sauvegarde.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état neuf> npm --prefix runtime run restore -- <sauvegarde datée>";
+const USAGE = "usage: BRIGADE_STATE_DIR=<new state directory> npm --prefix runtime run restore -- <dated backup>";
 const REFUS = 2;
 
 function echouer(code: number, message: string): never {
@@ -14,7 +14,7 @@ function echouer(code: number, message: string): never {
 
 const args = process.argv.slice(2);
 const repertoireEtat = process.env.BRIGADE_STATE_DIR;
-if (!repertoireEtat) echouer(REFUS, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
+if (!repertoireEtat) echouer(REFUS, `BRIGADE_STATE_DIR is not set\n${USAGE}`);
 const [sauvegarde] = args;
 if (args.length !== 1 || sauvegarde === undefined) echouer(REFUS, USAGE);
 
@@ -23,16 +23,16 @@ try {
   bilan = restaurer({ sauvegarde, repertoireEtat });
 } catch (erreur) {
   const message = erreur instanceof Error ? erreur.message : String(erreur);
-  if (erreur instanceof SauvegardeRefusee) echouer(REFUS, `restauration refusée — ${message}`);
-  echouer(1, `restauration en échec — ${message}`);
+  if (erreur instanceof SauvegardeRefusee) echouer(REFUS, `restore refused — ${message}`);
+  echouer(1, `restore failed — ${message}`);
 }
 console.log(
-  `brigade : état du projet « ${bilan.projet} » restauré dans ${repertoireEtat} — sauvegarde du ${bilan.prise}, ` +
-    `${bilan.evenements.toLocaleString("fr-FR")} événements jusqu'au n° ${bilan.dernierSeq}, ${bilan.flux.toLocaleString("fr-FR")} flux bruts`,
+  `brigade : state of project "${bilan.projet}" restored in ${repertoireEtat} — backup of ${bilan.prise}, ` +
+    `${bilan.evenements.toLocaleString("en-US")} events up to no. ${bilan.dernierSeq}, ${bilan.flux.toLocaleString("en-US")} raw streams`,
 );
 if (bilan.fluxManquants > 0) {
   console.error(
-    `brigade : ${bilan.fluxManquants.toLocaleString("fr-FR")} flux bruts annoncés par la sauvegarde n'ont pas été trouvés — ils vivent dans runs/, à côté des sauvegardes datées : rapatrie-le avec elles. Le journal, lui, est complet`,
+    `brigade : ${bilan.fluxManquants.toLocaleString("en-US")} raw streams announced by the backup were not found — they live in runs/, next to the dated backups: bring them over with those. The log itself is complete`,
   );
 }
-console.log("brigade : ni le clone de la station ni les worktrees ne sont restaurés — reclone le dépôt, puis démarre le runtime");
+console.log("brigade : neither the station's clone nor the worktrees are restored — clone the repository again, then start the runtime");

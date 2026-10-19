@@ -161,7 +161,7 @@ const GESTES_DES_DECISIONS: Record<Decision, string> = {
 // Ce que le runtime dit d'une variable de décision laissée dans son
 // environnement : nommée, ignorée, et le geste qui la remplace.
 export function direDecisionIgnoree(nom: Decision, projet: string): string {
-  return `${nom} est ignorée dans l'environnement de l'unité : une décision du chef ne s'y lit plus — la poser par \`brigade ${projet} station ${gesteDe(nom)} <valeur>\`, puis retirer \`Environment=${nom}\` du drop-in`;
+  return `${nom} is ignored in the unit's environment: a chef's decision is no longer read there — set it with \`brigade ${projet} station ${gesteDe(nom)} <value>\`, then remove \`Environment=${nom}\` from the drop-in`;
 }
 
 // Le support des décisions : le journal du répertoire d'état. Sous le clone,

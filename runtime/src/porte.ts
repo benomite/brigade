@@ -42,7 +42,7 @@ export function garderLaListe(lire: () => Regle[], options: { delaiMs: number; p
     try {
       courantes = lire();
     } catch (erreur) {
-      avertir(`brigade : liste blanche illisible, la porte s'en tient ${lues === null ? "au socle" : "à la dernière lue"} — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+      avertir(`brigade : allowlist unreadable, the door sticks to ${lues === null ? "the base list" : "the last one read"} — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
       courantes = lues?.regles ?? REGLES_DE_BASE;
     }
     lues = { regles: courantes, le: maintenant() };
@@ -54,7 +54,7 @@ export function garderLaListe(lire: () => Regle[], options: { delaiMs: number; p
 export const ENTETE_DE_REFUS = "x-brigade-refus";
 
 export const direRefus = (projet: string, hote: string, port: number) =>
-  `brigade : « ${hote}:${port} » est refusé — hors de la liste blanche du réseau du projet « ${projet} ». Pour l'ouvrir : une ligne « ${hote} » dans ${DECLARATION_RESEAU}, mergée sur la branche d'intégration.\n`;
+  `brigade : “${hote}:${port}” is refused — not on the network allowlist of project “${projet}”. To open it: a line “${hote}” in ${DECLARATION_RESEAU}, merged on the integration branch.\n`;
 
 // `hôte:port`, ou `[adresse]:port` — la cible d'un `CONNECT`.
 function cible(brute: string): { hote: string; port: number } | null {
@@ -82,12 +82,12 @@ export function ouvrirPorte(options: OptionsPorte): Promise<Porte> {
   const serveur = createServer((demande: IncomingMessage, rendu: ServerResponse) => {
     const dire = (statut: number, texte: string, entetes: Record<string, string> = {}) => rendu.writeHead(statut, { "content-type": "text/plain; charset=utf-8", ...entetes }).end(texte);
     // Une demande adressée à la porte elle-même : elle dit qui elle est.
-    if (!/^http:\/\//i.test(demande.url ?? "")) return dire(200, `brigade : porte du projet « ${projet} »\n`);
+    if (!/^http:\/\//i.test(demande.url ?? "")) return dire(200, `brigade : door of project “${projet}”\n`);
     let url: URL;
     try {
       url = new URL(demande.url ?? "");
     } catch {
-      return dire(400, "brigade : adresse illisible\n");
+      return dire(400, "brigade : unreadable address\n");
     }
     const port = Number(url.port || 80);
     if (!passe(url.hostname, port)) return dire(403, direRefus(projet, url.hostname, port), { [ENTETE_DE_REFUS]: url.hostname });
@@ -99,7 +99,7 @@ export function ouvrirPorte(options: OptionsPorte): Promise<Porte> {
       recu.on("error", () => rendu.destroy());
       recu.on("aborted", () => rendu.destroy());
     });
-    amont.on("error", (erreur) => (rendu.headersSent ? rendu.destroy() : dire(502, `brigade : « ${url.hostname}:${port} » est en liste blanche mais ne répond pas — ${erreur.message}\n`)));
+    amont.on("error", (erreur) => (rendu.headersSent ? rendu.destroy() : dire(502, `brigade : “${url.hostname}:${port}” is on the allowlist but does not answer — ${erreur.message}\n`)));
     // Un client parti avant la fin n'attend plus rien : l'amont est lâché.
     rendu.on("close", () => amont.destroy());
     demande.pipe(amont);
@@ -117,7 +117,7 @@ export function ouvrirPorte(options: OptionsPorte): Promise<Porte> {
     client.on("error", () => {});
     suivre(client);
     const vers = cible(demande.url ?? "");
-    if (vers === null) return void client.end(reponse("400 Bad Request", "brigade : cible illisible\n"));
+    if (vers === null) return void client.end(reponse("400 Bad Request", "brigade : unreadable target\n"));
     if (!passe(vers.hote, vers.port)) return void client.end(reponse("403 Forbidden", direRefus(projet, vers.hote, vers.port), [`${ENTETE_DE_REFUS}: ${vers.hote}`]));
     const amont = joindre(vers.hote, vers.port);
     suivre(amont);
@@ -131,7 +131,7 @@ export function ouvrirPorte(options: OptionsPorte): Promise<Porte> {
     });
     amont.on("error", (erreur) => {
       if (ouvert) client.destroy();
-      else client.end(reponse("502 Bad Gateway", `brigade : « ${vers.hote}:${vers.port} » est en liste blanche mais ne répond pas — ${erreur.message}\n`));
+      else client.end(reponse("502 Bad Gateway", `brigade : “${vers.hote}:${vers.port}” is on the allowlist but does not answer — ${erreur.message}\n`));
     });
     client.on("close", () => amont.destroy());
   });

@@ -82,8 +82,8 @@ describe("la porte", { concurrency: 8 }, () => {
     const { reponse, echo } = await tunnel(port, "registry.npmjs.org:443");
     assert.match(reponse, /^HTTP\/1\.1 403 Forbidden\r\n/);
     assert.match(reponse, new RegExp(`${ENTETE_DE_REFUS}: registry\\.npmjs\\.org`));
-    assert.match(echo, /« registry\.npmjs\.org:443 » est refusé — hors de la liste blanche du réseau du projet « brigade »/);
-    assert.match(echo, /une ligne « registry\.npmjs\.org » dans \.claude\/brigade\/reseau, mergée sur la branche d'intégration/);
+    assert.match(echo, /“registry\.npmjs\.org:443” is refused — not on the network allowlist of project “brigade”/);
+    assert.match(echo, /a line “registry\.npmjs\.org” in \.claude\/brigade\/reseau, merged on the integration branch/);
     // Rien n'est sorti.
     assert.deepEqual(joints, []);
     assert.deepEqual(refus, ["registry.npmjs.org:443"]);
@@ -115,7 +115,7 @@ describe("la porte", { concurrency: 8 }, () => {
     const refuse = await demander("http://ailleurs.exemple.test/");
     assert.equal(refuse.statut, 403);
     assert.equal(refuse.refus, "ailleurs.exemple.test");
-    assert.match(refuse.corps, /« ailleurs\.exemple\.test:80 » est refusé/);
+    assert.match(refuse.corps, /“ailleurs\.exemple\.test:80” is refused/);
     assert.deepEqual(refus, ["ailleurs.exemple.test:80"]);
   });
 
@@ -185,7 +185,7 @@ describe("la porte", { concurrency: 8 }, () => {
     t.after(() => ouverte.fermer());
     const { reponse, echo } = await tunnel(ouverte.port, "github.com:443");
     assert.match(reponse, /^HTTP\/1\.1 502/);
-    assert.match(echo, /« github\.com:443 » est en liste blanche mais ne répond pas — connect ECONNREFUSED github\.com:443/);
+    assert.match(echo, /“github\.com:443” is on the allowlist but does not answer — connect ECONNREFUSED github\.com:443/);
     assert.deepEqual(refus, []);
   });
 
@@ -296,7 +296,7 @@ describe("la porte", { concurrency: 8 }, () => {
     instant = 60_000;
     assert.equal(ouvert(), true);
     assert.equal(ouvert(true), true);
-    assert.match(avertissements[0] ?? "", /liste blanche illisible.*journal verrouillé/);
+    assert.match(avertissements[0] ?? "", /allowlist unreadable.*journal verrouillé/);
   });
 
   test("une rafale de refus ne lit le journal qu'une fois : les lectures fraîches ont un plancher", () => {
@@ -337,7 +337,7 @@ describe("la porte", { concurrency: 8 }, () => {
     // La porte n'en choisit pas : c'est le chef qui pose le port, et la porte dit celui qu'elle tient.
     const { enfant: tenue, port } = await lancerSurPortPose(t, TENIR, {
       env: (port) => ({ BRIGADE_STATE_DIR: repertoireEtat, BRIGADE_PROJECT: "brigade", BRIGADE_PROXY_PORT: String(port) }),
-      ouvert: (port) => `porte du projet « brigade » ouverte — 127.0.0.1:${port}`,
+      ouvert: (port) => `door of project “brigade” open — 127.0.0.1:${port}`,
     });
 
     assert.match((await tunnel(port, "pirate.exemple.test:443")).reponse, /^HTTP\/1\.1 403/);
@@ -345,7 +345,7 @@ describe("la porte", { concurrency: 8 }, () => {
     await jusqua(() => refus().length === 1);
     assert.deepEqual(refus()[0]?.payload, { host: "pirate.exemple.test", port: 443, count: 1 });
     assert.equal(refus()[0]?.author, "porte");
-    assert.match(tenue.sortie(), /sortie refusée — pirate\.exemple\.test:443/);
+    assert.match(tenue.sortie(), /outgoing connection refused — pirate\.exemple\.test:443/);
 
     tenue.process.kill("SIGTERM");
     assert.equal(await tenue.fin, 0);
@@ -356,8 +356,8 @@ describe("la porte", { concurrency: 8 }, () => {
       const tenue = lancer(t, TENIR, [], env);
       return { code: await tenue.fin, sortie: tenue.sortie() };
     };
-    assert.deepEqual(await sans({}), { code: 2, sortie: "brigade : la porte refuse de démarrer — BRIGADE_STATE_DIR n'est pas défini\n" });
-    assert.match((await sans({ BRIGADE_STATE_DIR: "/x", BRIGADE_PROJECT: "brigade" })).sortie, /BRIGADE_PROXY_PORT n'est pas défini/);
-    assert.match((await sans({ BRIGADE_STATE_DIR: "/x", BRIGADE_PROJECT: "brigade", BRIGADE_PROXY_PORT: "porte" })).sortie, /BRIGADE_PROXY_PORT invalide/);
+    assert.deepEqual(await sans({}), { code: 2, sortie: "brigade : the door refuses to start — BRIGADE_STATE_DIR is not set\n" });
+    assert.match((await sans({ BRIGADE_STATE_DIR: "/x", BRIGADE_PROJECT: "brigade" })).sortie, /BRIGADE_PROXY_PORT is not set/);
+    assert.match((await sans({ BRIGADE_STATE_DIR: "/x", BRIGADE_PROJECT: "brigade", BRIGADE_PROXY_PORT: "porte" })).sortie, /BRIGADE_PROXY_PORT/);
   });
 });

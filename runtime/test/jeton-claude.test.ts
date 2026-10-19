@@ -99,10 +99,10 @@ test("sans jeton lisible au moment du lancement, `claude` part sur la connexion 
 
 test("le démarrage dit d'où vient la connexion de `claude`, sans jamais citer le jeton", (t) => {
   const { fichier } = machine(t);
-  assert.match(direJeton(null, {}), /celle du compte \(BRIGADE_CLAUDE_TOKEN_FILE n'est pas défini\)$/);
-  assert.match(direJeton(fichier, {}), new RegExp(`jeton longue durée lu dans ${fichier}, relu à chaque lancement`));
+  assert.match(direJeton(null, {}), /the account's own \(BRIGADE_CLAUDE_TOKEN_FILE is not set\)$/);
+  assert.match(direJeton(fichier, {}), new RegExp(`long-lived token read from ${fichier}, read again at each launch`));
   const ignore = direJeton(null, { CLAUDE_CODE_OAUTH_TOKEN: JETON });
-  assert.match(ignore, /CLAUDE_CODE_OAUTH_TOKEN est dans l'environnement du runtime : il n'est transmis à aucun `claude`/);
+  assert.match(ignore, /CLAUDE_CODE_OAUTH_TOKEN is in the runtime's environment: it is passed to no `claude`/);
   assert.equal(ignore.includes(JETON), false);
 });
 

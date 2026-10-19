@@ -45,32 +45,32 @@ describe("la cloison", { concurrency: 8 }, () => {
 
   test("une cloison à moitié posée est un refus de démarrer", (t) => {
     const { lieux, env, racine } = machine(t);
-    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_BIN: undefined }, lieux)), /BRIGADE_SANDBOX_HIDDEN est défini sans BRIGADE_SANDBOX_BIN/);
-    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: "" }, lieux)), /ne masquerait rien/);
-    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_BIN: "bwrap" }, lieux)), /chemin absolu de `bwrap`/);
-    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_BIN: join(racine, "absent") }, lieux)), /il doit exister/);
-    assert.match(refus(() => configCloison({ ...env, HOME: undefined }, lieux)), /pas HOME/);
-    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: "etats" }, lieux)), /n'est pas un chemin absolu/);
+    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_BIN: undefined }, lieux)), /BRIGADE_SANDBOX_HIDDEN is set without BRIGADE_SANDBOX_BIN/);
+    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: "" }, lieux)), /would hide nothing/);
+    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_BIN: "bwrap" }, lieux)), /absolute path of `bwrap`/);
+    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_BIN: join(racine, "absent") }, lieux)), /it must exist/);
+    assert.match(refus(() => configCloison({ ...env, HOME: undefined }, lieux)), /but HOME is not/);
+    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: "etats" }, lieux)), /is not an absolute path/);
   });
 
   test("une cloison qui masquerait le compte, /tmp ou le système est refusée", (t) => {
     const { lieux, env, racine } = machine(t);
-    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: racine }, lieux)), /masquerait le répertoire du compte/);
-    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: "/" }, lieux)), /masquerait/);
+    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: racine }, lieux)), /would hide the account's home directory/);
+    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: "/" }, lieux)), /would hide/);
     // Le compte de la machine d'essai vit sous le répertoire temporaire — donc
     // sous /tmp, sur Linux : masquer /tmp y masquerait d'abord le compte. Le
     // refus propre à /tmp se lit avec un compte qui n'y est pas.
-    assert.match(refus(() => configCloison({ ...env, HOME: "/home/brigade", BRIGADE_SANDBOX_HIDDEN: `${env.BRIGADE_SANDBOX_HIDDEN}:/tmp` }, lieux)), /« \/tmp » masquerait \/tmp/);
+    assert.match(refus(() => configCloison({ ...env, HOME: "/home/brigade", BRIGADE_SANDBOX_HIDDEN: `${env.BRIGADE_SANDBOX_HIDDEN}:/tmp` }, lieux)), /“\/tmp” would hide \/tmp/);
   });
 
   test("ce que la cloison doit cacher et qu'elle laisserait dehors est nommé", (t) => {
     const { lieux, env, racine, masques } = machine(t);
     const ailleurs = join(racine, "ailleurs");
-    assert.match(refus(() => configCloison(env, { ...lieux, repertoireEtat: ailleurs })), /^BRIGADE_STATE_DIR \(.*ailleurs\) n'est sous aucun répertoire de BRIGADE_SANDBOX_HIDDEN/);
+    assert.match(refus(() => configCloison(env, { ...lieux, repertoireEtat: ailleurs })), /^BRIGADE_STATE_DIR \(.*ailleurs\) is not under any directory of BRIGADE_SANDBOX_HIDDEN/);
     assert.match(refus(() => configCloison(env, { ...lieux, clone: ailleurs })), /^BRIGADE_REPO_DIR/);
-    assert.match(refus(() => configCloison({ ...env, BRIGADE_SECRETS_FILE: join(ailleurs, "secrets.env") }, lieux)), /^BRIGADE_SECRETS_FILE .* un cook le lirait malgré la cloison/);
+    assert.match(refus(() => configCloison({ ...env, BRIGADE_SECRETS_FILE: join(ailleurs, "secrets.env") }, lieux)), /^BRIGADE_SECRETS_FILE .* a cook would read it despite the partition/);
     assert.match(refus(() => configCloison({ ...env, BRIGADE_GITHUB_APPS_DIR: ailleurs }, lieux)), /^BRIGADE_GITHUB_APPS_DIR/);
-    assert.match(refus(() => configCloison({ ...env, BRIGADE_CLAUDE_TOKEN_FILE: join(ailleurs, "jeton-claude") }, lieux)), /^BRIGADE_CLAUDE_TOKEN_FILE .* un cook le lirait malgré la cloison/);
+    assert.match(refus(() => configCloison({ ...env, BRIGADE_CLAUDE_TOKEN_FILE: join(ailleurs, "jeton-claude") }, lieux)), /^BRIGADE_CLAUDE_TOKEN_FILE .* a cook would read it despite the partition/);
     const cloison = configCloison({ ...env, BRIGADE_SECRETS_FILE: join(racine, "secrets/brigade/secrets.env"), BRIGADE_GITHUB_APPS_DIR: join(racine, "secrets/brigade/apps") }, lieux);
     assert.deepEqual(cloison?.masques, masques);
     assert.equal(cloison?.identifiants, join(racine, "compte/.claude/.credentials.json"));
@@ -127,7 +127,7 @@ describe("la cloison", { concurrency: 8 }, () => {
   test("un masque qui est un fichier est refusé au démarrage, pas à chaque lancement", (t) => {
     const { lieux, env, racine } = machine(t);
     writeFileSync(join(racine, "netrc"), "machine exemple.test");
-    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: `${env.BRIGADE_SANDBOX_HIDDEN}:${join(racine, "netrc")}` }, lieux)), /netrc » n'est pas un répertoire — masquer celui qui le contient/);
+    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: `${env.BRIGADE_SANDBOX_HIDDEN}:${join(racine, "netrc")}` }, lieux)), /netrc” is not a directory — hide the one that contains it/);
   });
 
   test("un cook ne retrouve de ce qui est masqué que son worktree, sa vue du `.git` et son ticket", (t) => {
@@ -189,7 +189,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.ok(recu.lastIndexOf(join(home, ".claude/.credentials.json")) > recu.lastIndexOf(join(home, ".gitconfig")));
     assert.equal(readFileSync(join(home, ".gitconfig"), "utf8"), "[user]\n\tname = brigade\n");
 
-    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_PRIVATE: ".config/gh" }, lieux)), /BRIGADE_SANDBOX_PRIVATE invalide/);
+    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_PRIVATE: ".config/gh" }, lieux)), /invalid BRIGADE_SANDBOX_PRIVATE/);
   });
 
   test("un outil écrit ses données et son état sous ~/.local, au projet : retrouvés d'un lancement à l'autre, et ce qu'y garde le compte reste en lecture seule", (t) => {

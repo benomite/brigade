@@ -8,20 +8,20 @@ import { geste } from "../geste.ts";
 import { Sortie } from "../appel.ts";
 import { ouvrirJournal, type Journal } from "../journal.ts";
 import { journalPasRejoue } from "../journal-pas-rejoue.ts";
-import { direJauge, franchis, SANS_SEUIL } from "../mesures.ts";
+import { direJaugeEn, franchis, SANS_SEUIL } from "../mesures.ts";
 import { livraisonsMergees, seuilsEnVigueur } from "../projections/mesures.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { MODULE, repererCodeMort, type Mort } from "./code-mort.ts";
 import { direBilan } from "./bilan.ts";
 import { demandeEnAttente, refus, reglagesEnVigueur } from "./condition.ts";
-import { colonnes, direDemande, direFin, direRefus, ligne, pluriel } from "./dire.ts";
+import { colonnes, direDemandeEn, direFinEn, direRefusEn, ligne, pluriel } from "./dire.ts";
 import { CODE, LIGNES_MIN, repererDoublons, type Doublon } from "./doublons.ts";
 import { arbreDe, DepotIllisible, lireDepot, TAILLE_MAX, type Depot } from "./lecture.ts";
 import { direRatio, mesurerRatio, type Fenetre } from "./ratio.ts";
 
 const USAGE = [
-  "usage : BRIGADE_REPO_DIR=<clone du projet> BRIGADE_BASE_BRANCH=<branche d'intégration> npm --prefix runtime run closing",
-  "        BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run closing -- write     la passe qui écrit",
+  "usage: BRIGADE_REPO_DIR=<project clone> BRIGADE_BASE_BRANCH=<integration branch> npm --prefix runtime run closing",
+  "        BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run closing -- write     the pass that writes",
 ].join("\n");
 
 // `fichiers`, `modules` : parmi combien de fichiers les doublons et le code
@@ -53,43 +53,43 @@ export function observer({ ref, sha, merges, textes, ecartes }: Depot): Observat
   };
 }
 
-const dire = (valeur: number, decimales = 0) => valeur.toLocaleString("fr-FR", { maximumFractionDigits: decimales });
+const dire = (valeur: number, decimales = 0) => valeur.toLocaleString("en-US", { maximumFractionDigits: decimales });
 
 // L'observation, ligne par ligne.
 export function decrire({ ref, sha, dernierMerge, fenetres, doublons, fichiers, morts, modules, ecartes }: Observation): string[] {
   const total = fenetres.reduce((plus, { merges }) => Math.max(plus, merges), 0);
   return [
-    ligne("fermeture", `observation de ${ref} (${sha.slice(0, 7)}, ${dernierMerge === null ? "aucun merge" : `dernier merge le ${dernierMerge.slice(0, 10)}`}) — rien n'est modifié : ni fichier, ni branche, ni PR`),
+    ligne("closing", `observation of ${ref} (${sha.slice(0, 7)}, ${dernierMerge === null ? "no merge" : `last merge on ${dernierMerge.slice(0, 10)}`}) — nothing is modified: no file, no branch, no PR`),
     "",
     ...(total === 0
-      ? [ligne("ratio", `aucun merge sur ${ref} : rien à mesurer`)]
+      ? [ligne("ratio", `no merge on ${ref}: nothing to measure`)]
       : [
-          ligne("ratio", "ajouté / retiré sur les derniers merges, chacun compté contre son premier parent"),
+          ligne("ratio", "added / removed over the latest merges, each counted against its first parent"),
           ...colonnes(
             fenetres.map(({ fenetre, merges, ajoute, retire }) => [
               `${fenetre} merges`,
               `+${dire(ajoute)} / −${dire(retire)}`,
-              `${direRatio({ ajoute, retire })}${merges < fenetre ? ` — ${pluriel(merges, "merge")} seulement sur la branche` : ""}`,
+              `${direRatio({ ajoute, retire })}${merges < fenetre ? ` — only ${pluriel(merges, "merge")} on the branch` : ""}`,
             ]),
           ),
         ]),
     "",
     ligne(
-      "doublons",
+      "duplicates",
       fichiers === 0
-        ? "aucun repéré — aucun fichier de code sur la branche"
-        : `${doublons.length === 0 ? "aucun repéré" : `${dire(doublons.length)} repéré${doublons.length > 1 ? "s" : ""}, ${pluriel(doublons.reduce((somme, { lignes }) => somme + lignes, 0), "ligne")}`} — au moins ${LIGNES_MIN} lignes de code identiques de suite, parmi ${pluriel(fichiers, "fichier")} de code`,
+        ? "none spotted — no code file on the branch"
+        : `${doublons.length === 0 ? "none spotted" : `${dire(doublons.length)} spotted, ${pluriel(doublons.reduce((somme, { lignes }) => somme + lignes, 0), "line")}`} — at least ${LIGNES_MIN} identical lines of code in a row, among ${pluriel(fichiers, "code file")}`,
     ),
-    ...colonnes(doublons.map(({ lignes, passages }) => [pluriel(lignes, "ligne"), passages.map(({ chemin, debut, fin }) => `${chemin}:${debut}-${fin}`).join(" = ")])),
+    ...colonnes(doublons.map(({ lignes, passages }) => [pluriel(lignes, "line"), passages.map(({ chemin, debut, fin }) => `${chemin}:${debut}-${fin}`).join(" = ")])),
     "",
     ligne(
-      "code mort",
+      "dead code",
       modules === 0
-        ? "aucun repéré — aucun fichier TypeScript ou JavaScript sur la branche"
-        : `${morts.length === 0 ? "aucun repéré" : `${dire(morts.length)} export${morts.length > 1 ? "s" : ""} repéré${morts.length > 1 ? "s" : ""}`}, parmi ${pluriel(modules, "fichier")} TypeScript ou JavaScript`,
+        ? "none spotted — no TypeScript or JavaScript file on the branch"
+        : `${morts.length === 0 ? "none spotted" : `${dire(morts.length)} export${morts.length > 1 ? "s" : ""} spotted`}, among ${pluriel(modules, "TypeScript or JavaScript file")}`,
     ),
-    ...colonnes(morts.map(({ chemin, ligne: numero, nom, tests }) => [`${chemin}:${numero}`, `\`${nom}\` — référencé ${tests.length === 0 ? "nulle part" : `seulement par des tests : ${tests.join(", ")}`}`])),
-    ...(ecartes === 0 ? [] : [ligne("", `${pluriel(ecartes, "fichier")} de plus de ${dire(TAILLE_MAX / 1_000_000)} Mo sur la branche : non lu${ecartes > 1 ? "s" : ""}`)]),
+    ...colonnes(morts.map(({ chemin, ligne: numero, nom, tests }) => [`${chemin}:${numero}`, `\`${nom}\` — referenced ${tests.length === 0 ? "nowhere" : `only by tests: ${tests.join(", ")}`}`])),
+    ...(ecartes === 0 ? [] : [ligne("", `${pluriel(ecartes, "file")} of more than ${dire(TAILLE_MAX / 1_000_000)} MB on the branch: not read`)]),
   ];
 }
 
@@ -106,20 +106,20 @@ function direPasse(journal: Journal, arbre: (commit: string) => string | null): 
   const attend = demandeEnAttente(journal.base);
   const dit =
     finie?.seq === recent
-      ? `${finie.payload.run}, le ${le(finie.at)} — ${direFin(finie.payload)}`
+      ? `${finie.payload.run}, on ${le(finie.at)} — ${direFinEn(finie.payload)}`
       : partie?.seq === recent
-        ? `${partie.payload.run} range depuis le ${le(partie.at)} — elle tient ${pluriel(partie.payload.zone.length, "fichier")}, aucun cook ne démarre dessus`
+        ? `${partie.payload.run} has been tidying up since ${le(partie.at)} — it holds ${pluriel(partie.payload.zone.length, "file")}, no cook starts on them`
         : refusee?.seq === recent
-          ? `refusée le ${le(refusee.at)} — ${direRefus(refusee.payload)}`
+          ? `refused on ${le(refusee.at)} — ${direRefusEn(refusee.payload)}`
           : retiree?.seq === recent
-            ? `demandée puis retirée par le chef le ${le(retiree.at)} — rien n'est parti`
+            ? `requested then withdrawn by the chef on ${le(retiree.at)} — nothing has left`
             : attend !== null
-              ? direDemande(attend, refus(journal.base, reglagesEnVigueur(journal), false))
-              : `demandée le ${le(demandee?.at ?? "")} — le runtime ne l'a pas encore prise`;
+              ? direDemandeEn(attend, refus(journal.base, reglagesEnVigueur(journal), false))
+              : `requested on ${le(demandee?.at ?? "")} — the runtime has not taken it yet`;
   return [
-    ligne("passe", dit),
+    ligne("pass", dit),
     // Une demande venue depuis ne l'efface pas : le bilan dit alors de quelle passe il est.
-    ...(finie === undefined ? [] : [...(finie.seq === recent ? [] : [ligne("", `la dernière passe finie : ${finie.payload.run}, le ${le(finie.at)} — ${direFin(finie.payload)}`)]), ...direBilan(journal, finie.payload, arbre)]),
+    ...(finie === undefined ? [] : [...(finie.seq === recent ? [] : [ligne("", `the last finished pass: ${finie.payload.run}, on ${le(finie.at)} — ${direFinEn(finie.payload)}`)]), ...direBilan(journal, finie.payload, arbre)]),
   ];
 }
 
@@ -127,8 +127,8 @@ function direPasse(journal: Journal, arbre: (commit: string) => string | null): 
 // n'est recompté ici. `arbre` : l'arbre d'un commit du clone, pour le bilan. Le journal est lu sans être ouvert en écriture, et son
 // absence n'empêche pas d'observer le dépôt.
 function direJournal(repertoireEtat: string | undefined, arbre: (commit: string) => string | null): string[] {
-  const nonLu = (pourquoi: string) => [ligne("journal", `non lu : ${pourquoi} — les compteurs de la dérive se lisent par \`${geste(`measures`)}\``)];
-  if (!repertoireEtat) return nonLu("BRIGADE_STATE_DIR n'est pas défini");
+  const nonLu = (pourquoi: string) => [ligne("log", `not read: ${pourquoi} — the drift counters are read with \`${geste(`measures`)}\``)];
+  if (!repertoireEtat) return nonLu("BRIGADE_STATE_DIR is not set");
   let journal;
   try {
     journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
@@ -139,10 +139,10 @@ function direJournal(repertoireEtat: string | undefined, arbre: (commit: string)
     const livraisons = livraisonsMergees(journal.base);
     const seuils = seuilsEnVigueur(journal.base);
     const passes = franchis(livraisons, seuils ?? SANS_SEUIL);
-    const constat = seuils === null ? "aucun seuil déclaré" : passes.length === 0 ? "aucun seuil franchi" : `${pluriel(passes.length, "seuil")} franchi${passes.length > 1 ? "s" : ""}, le détail par \`${geste(`measures`)}\``;
-    return [ligne("journal", `${pluriel(livraisons.length, "merge")} depuis la dernière fermeture (aucune au journal) — ${constat}`), ...passes.map((franchi) => ligne("", direJauge(franchi))), ...direPasse(journal, arbre)];
+    const constat = seuils === null ? "no threshold declared" : passes.length === 0 ? "no threshold crossed" : `${pluriel(passes.length, "threshold")} crossed, details with \`${geste(`measures`)}\``;
+    return [ligne("log", `${pluriel(livraisons.length, "merge")} since the last closing (none in the log) — ${constat}`), ...passes.map((franchi) => ligne("", direJaugeEn(franchi))), ...direPasse(journal, arbre)];
   } catch (erreur) {
-    if (journalPasRejoue(erreur)) return nonLu("il n'a pas encore le relevé des mesures, redémarrer le runtime le recalcule");
+    if (journalPasRejoue(erreur)) return nonLu("it does not yet have the measures record, restart the runtime to recompute it");
     throw erreur;
   } finally {
     journal.fermer();
@@ -154,7 +154,7 @@ export function principal({ args, env, dire: sortir, redire }: Appel): void {
     redire(`brigade : ${message}`);
     throw new Sortie(code);
   }
-  const exiger = (variable: string): string => env[variable] || echouer(2, `${variable} n'est pas défini\n${USAGE}`);
+  const exiger = (variable: string): string => env[variable] || echouer(2, `${variable} is not set\n${USAGE}`);
   if (args.length !== 0) echouer(2, USAGE);
   let depot: Depot;
   const clone = exiger("BRIGADE_REPO_DIR");

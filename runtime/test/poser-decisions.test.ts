@@ -202,7 +202,7 @@ test("une réponse que le runtime ne lirait pas est refusée avant d'écrire : n
     [["stations", "box/claude:2:code"], /les stations ont leur étape : `installation stations`/],
     [["manager-modele", "  "], /an empty value is not a decision/],
     // Le closer se règle par les deux, ou par aucun : le runtime refuserait l'un sans l'autre.
-    [["closer-modele", "sonnet"], /BRIGADE_CLOSING_EFFORT n'est pas défini — le closer se règle par les deux, ou par aucun.* — donner closer-modele et closer-effort dans la même réponse — rien n'est écrit/],
+    [["closer-modele", "sonnet"], /BRIGADE_CLOSING_EFFORT is not set — the closer is set by both, or by neither.* — donner closer-modele et closer-effort dans la même réponse — rien n'est écrit/],
   ] as const) {
     const { code, sortie } = await repondre(etat, args);
     assert.equal(code, 2, `${args.join(" ")} : ${sortie}`);

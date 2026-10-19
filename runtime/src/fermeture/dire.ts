@@ -10,9 +10,9 @@ import { faitAttendre, type Demande, type Refus } from "./condition.ts";
 export const DEMANDER = geste("closing write");
 export const ANNULER = geste("closing cancel");
 
-export const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
+export const nombre = (valeur: number) => valeur.toLocaleString("en-US");
 export const pluriel = (combien: number, mot: string) => `${nombre(combien)} ${mot}${combien > 1 ? "s" : ""}`;
-const arrondi = (valeur: number) => valeur.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
+const arrondi = (valeur: number) => valeur.toLocaleString("en-US", { maximumFractionDigits: 1 });
 const duree = (ms: number) => (ms >= 60_000 ? `${arrondi(ms / 60_000)} min` : `${arrondi(ms / 1000)} s`);
 
 const TITRE = 11;
@@ -62,9 +62,9 @@ export function direDemande({ depuis, sansIssue }: Demande, retenue: Refus | nul
 }
 
 // Le refus et la demande, en anglais : ce que dit le bloc `awaiting` de
-// `status`. La commande de la passe et l'observation gardent les mots français
-// ci-dessus.
-const pluralEn = (combien: number, mot: string) => `${combien.toLocaleString("en-US")} ${mot}${combien > 1 ? "s" : ""}`;
+// `status`, et ce que dit `closing`. Les versions françaises ci-dessus ne
+// servent plus qu'au journald du runtime et au `status` français.
+const pluralEn = pluriel;
 
 export function direRefusEn({ reason, observed, limit, detail }: Refus): string {
   switch (reason) {
@@ -112,8 +112,7 @@ export function direReglages({ calibration, cooksBelow, tokens, removedLines }: 
   ].join(" · ");
 }
 
-// Les mêmes, en anglais : ce que dit `station`. La commande de la passe garde
-// les mots français ci-dessus.
+// Les mêmes, en anglais : ce que dit `station`, et `closing write`.
 export function direReglagesEn({ calibration, cooksBelow, tokens, removedLines }: ReglagesDeFermeture): string {
   return [
     calibration === null ? "closer not set" : `closer on \`${calibration.model}\` / \`${calibration.effort}\``,
@@ -152,5 +151,37 @@ export function direFin({ outcome, observed, limit, pr, removedLines, files, kep
       return `échouée${detail ? ` : ${detail}` : ""} — ${rienDeLivre}`;
     case "interrupted":
       return `interrompue : le runtime s'est arrêté pendant qu'elle rangeait — ${rienDeLivre}`;
+  }
+}
+
+// La fin d'une passe, en anglais : ce que dit `closing`.
+export function direFinEn({ outcome, observed, limit, pr, removedLines, files, kept, detail }: Extract<FaitFermeture, { type: "closing.ended" }>["payload"]): string {
+  const mesure = (unite: (valeur: number) => string) => `${observed == null ? "?" : unite(observed)} for a cap of ${limit == null ? "?" : unite(limit)}`;
+  const nothingDelivered = "nothing is delivered";
+  switch (outcome) {
+    case "delivered":
+      return `delivered: ${pluralEn(removedLines ?? 0, "line")} removed in ${pluralEn(files?.length ?? 0, "file")}, ${pluralEn(kept?.filter(({ before }) => !before).length ?? 0, "candidate")} left for lack of certainty — ${pr}, handed to the pass, which judges and merges it like any delivery: the closing merges nothing`;
+    case "nothing":
+      return `finished without removing anything: ${pluralEn(kept?.length ?? 0, "candidate")} left, no PR`;
+    case "tokens":
+      return `stopped: the closing's token cap reached (${mesure(nombre)}) — ${nothingDelivered}`;
+    case "removals":
+      return `stopped: the closing's removal cap reached (${mesure((lignes) => pluralEn(lignes, "line"))}) — ${nothingDelivered}`;
+    case "idle":
+      return `stopped: idle (nothing produced for ${mesure(duree)}) — ${nothingDelivered}`;
+    case "duration":
+      return `stopped: duration cap reached (${mesure(duree)}) — ${nothingDelivered}`;
+    case "turns":
+      return `stopped: turn cap reached (${mesure(nombre)}) — ${nothingDelivered}`;
+    case "stop":
+      return `stopped by the chef's “stop” — ${nothingDelivered}`;
+    case "breaker":
+      return `stopped: the breaker is open — ${nothingDelivered}`;
+    case "zone":
+      return `stopped at delivery: ${detail ?? "it wrote outside what it held"} — ${nothingDelivered}`;
+    case "failed":
+      return `failed${detail ? `: ${detail}` : ""} — ${nothingDelivered}`;
+    case "interrupted":
+      return `interrupted: the runtime stopped while it was tidying up — ${nothingDelivered}`;
   }
 }

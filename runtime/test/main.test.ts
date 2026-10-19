@@ -135,8 +135,8 @@ test("sans cloison ni porte, le runtime le dit au démarrage et l'écrit : les p
   const runtime = lancer(t, MAIN, [], environnement(t, repertoire));
   await runtime.attendre("démarré");
 
-  assert.match(runtime.sortie(), /brigade : cloison — aucune \(BRIGADE_SANDBOX_BIN n'est pas défini\) : un cook lit tout ce que lit le compte du service — l'état, le clone, les worktrees et les secrets des autres projets compris/);
-  assert.match(runtime.sortie(), /brigade : réseau — ouvert \(BRIGADE_PROXY_PORT n'est pas défini\) : un cook joint tout ce que joint la machine/);
+  assert.match(runtime.sortie(), /brigade : cloison — none \(BRIGADE_SANDBOX_BIN is not set\): a cook reads everything the service account reads — the state, the clone, the worktrees and the secrets of the other projects included/);
+  assert.match(runtime.sortie(), /brigade : réseau — open \(BRIGADE_PROXY_PORT is not set\): a cook reaches everything the machine reaches/);
   assert.deepEqual(relire(repertoire).find((e) => e.type === "isolation.configured")?.payload, { sandbox: null, proxy: null });
 });
 
@@ -158,7 +158,7 @@ test("avec une cloison, le runtime dit ce qu'elle masque, et le journal le garde
   const runtime = lancer(t, MAIN, [], env);
   await runtime.attendre("démarré");
 
-  assert.match(runtime.sortie(), new RegExp(`brigade : cloison — chaque lancement \\(setup, cook, gates, reviewer, juges\\) part dans \`${FAUX_BWRAP}\` — masqués : ${join(racine, "etats")}`));
+  assert.match(runtime.sortie(), new RegExp(`brigade : cloison — every launch \\(setup, cook, gates, reviewer, judges\\) runs in \`${FAUX_BWRAP}\` — hidden: ${join(racine, "etats")}`));
   assert.deepEqual(relire(repertoire).find((e) => e.type === "isolation.configured")?.payload, {
     sandbox: { bin: FAUX_BWRAP, hidden: [join(racine, "etats")], credentials: join(racine, "compte/.claude/.credentials.json") },
     proxy: null,
@@ -217,20 +217,20 @@ for (const [cas, variables, motif] of [
   ["sans BRIGADE_REVIEWER_EFFORT", { BRIGADE_REVIEWER_EFFORT: "" }, /BRIGADE_REVIEWER_EFFORT n'est pas défini/],
   ["avec un effort de reviewer inconnu", { BRIGADE_REVIEWER_EFFORT: "fort" }, /BRIGADE_REVIEWER_EFFORT invalid/],
   ["avec une roadmap qui n'est pas un numéro d'issue", { BRIGADE_ROADMAP_ISSUE: "roadmap" }, /BRIGADE_ROADMAP_ISSUE invalide/],
-  ["avec un nombre d'entrées simultanées nul", { BRIGADE_MAX_SETUPS: "0" }, /BRIGADE_MAX_SETUPS invalide/],
-  ["avec une durée de garde des transcripts illisible", { BRIGADE_TRANSCRIPTS_KEEP_DAYS: "toujours" }, /BRIGADE_TRANSCRIPTS_KEEP_DAYS invalide/],
-  ["avec un seuil de mémoire illisible", { BRIGADE_MIN_FREE_MEMORY_MB: "un peu" }, /BRIGADE_MIN_FREE_MEMORY_MB invalide/],
+  ["avec un nombre d'entrées simultanées nul", { BRIGADE_MAX_SETUPS: "0" }, /invalid BRIGADE_MAX_SETUPS/],
+  ["avec une durée de garde des transcripts illisible", { BRIGADE_TRANSCRIPTS_KEEP_DAYS: "toujours" }, /invalid BRIGADE_TRANSCRIPTS_KEEP_DAYS/],
+  ["avec un seuil de mémoire illisible", { BRIGADE_MIN_FREE_MEMORY_MB: "un peu" }, /invalid BRIGADE_MIN_FREE_MEMORY_MB/],
   ["avec un plafond de calibrage inconnu", { BRIGADE_CEILING_EFFORT: "extrême" }, /BRIGADE_CEILING_EFFORT invalide/],
   ["avec une clé d'API dans l'environnement", { ANTHROPIC_API_KEY: "sk-ant-jamais" }, /ANTHROPIC_API_KEY est défini.*connexion Max/],
   ["avec un jeton d'API dans l'environnement", { ANTHROPIC_AUTH_TOKEN: "jamais" }, /ANTHROPIC_AUTH_TOKEN est défini.*connexion Max/],
   ["avec un fichier de jeton absent", { BRIGADE_CLAUDE_TOKEN_FILE: "/chemin/jamais/cree" }, /BRIGADE_CLAUDE_TOKEN_FILE invalide : « \/chemin\/jamais\/cree » est illisible ou absent/],
-  ["avec une cloison qui ne masque rien", { BRIGADE_SANDBOX_BIN: FAUX_BWRAP, HOME: "/home/jamais" }, /BRIGADE_SANDBOX_BIN est défini sans BRIGADE_SANDBOX_HIDDEN/],
-  ["avec une cloison qui laisse l'état dehors", { BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: "/var/lib/jamais", HOME: "/home/jamais" }, /BRIGADE_STATE_DIR \(.*\) n'est sous aucun répertoire de BRIGADE_SANDBOX_HIDDEN/],
+  ["avec une cloison qui ne masque rien", { BRIGADE_SANDBOX_BIN: FAUX_BWRAP, HOME: "/home/jamais" }, /BRIGADE_SANDBOX_BIN is set without BRIGADE_SANDBOX_HIDDEN/],
+  ["avec une cloison qui laisse l'état dehors", { BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: "/var/lib/jamais", HOME: "/home/jamais" }, /BRIGADE_STATE_DIR \(.*\) is not under any directory of BRIGADE_SANDBOX_HIDDEN/],
   ["avec une station dont le nom n'est pas <machine>/<moteur>", { BRIGADE_STATIONS: "box:2:code" }, /BRIGADE_STATIONS invalid: station no\. 1 \(“box:2:code”\) — name: “box” is not of the form/],
   ["avec une station au plafond nul", { BRIGADE_STATIONS: "box/claude:0:code" }, /BRIGADE_STATIONS invalid: station no\. 1 .* — cap: “0” is not an integer greater than zero/],
   ["avec deux stations du même nom", { BRIGADE_STATIONS: "box/claude:2:code,box/claude:1:code" }, /BRIGADE_STATIONS invalid: station no\. 2 .* — name: `box\/claude` is already declared/],
-  ["avec un port de porte illisible", { BRIGADE_PROXY_PORT: "porte" }, /BRIGADE_PROXY_PORT invalide/],
-  ["avec un port d'arbitre illisible", { BRIGADE_ARBITER_PORT: "arbitre" }, /BRIGADE_ARBITER_PORT invalide/],
+  ["avec un port de porte illisible", { BRIGADE_PROXY_PORT: "porte" }, /invalid BRIGADE_PROXY_PORT/],
+  ["avec un port d'arbitre illisible", { BRIGADE_ARBITER_PORT: "arbitre" }, /invalid BRIGADE_ARBITER_PORT/],
 ] as const) {
   test(`${cas}, le runtime refuse de démarrer, et rien n'est écrit`, async (t) => {
     const repertoire = repertoireTemporaire(t);
@@ -264,7 +264,7 @@ test("un projet qui déclare deux stations démarre avec les deux : chacune s'an
       ["station:box/playwright", { station: "box/playwright", engine: "playwright", provides: ["navigateur-headless"], maxCooks: 1 }],
     ],
   );
-  assert.match(runtime.sortie(), /brigade : stations — box\/claude \(3 cooks au plus ; fournit : code, raisonnement\) ; box\/playwright \(1 cook au plus ; fournit : navigateur-headless\)/);
+  assert.match(runtime.sortie(), /brigade : stations — box\/claude \(3 cooks at most; provides: code, raisonnement\) ; box\/playwright \(1 cook at most; provides: navigateur-headless\)/);
   runtime.process.kill("SIGTERM");
   assert.equal(await runtime.fin, 0);
 });
@@ -279,7 +279,7 @@ test("sur le vrai process : une station déclarée distante s'annonce et réclam
   mkdirSync(temoin);
   const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_STATIONS: "mac/claude:1:chrome-connecté:distante", FAUX_CLAUDE_TEMOIN: temoin });
   await runtime.attendre("démarré");
-  assert.match(runtime.sortie(), /brigade : stations — mac\/claude \(1 cook au plus ; fournit : chrome-connecté ; distante : elle tire son travail, la box ne la joint jamais\)/);
+  assert.match(runtime.sortie(), /brigade : stations — mac\/claude \(1 cook at most; provides: chrome-connecté; remote: it pulls its work, the box never reaches it\)/);
   assert.deepEqual(
     relire(repertoire).flatMap((e) => (e.type === "station.announced" ? [e.payload] : [])),
     [{ station: "mac/claude", engine: "claude", provides: ["chrome-connecté"], maxCooks: 1, remote: true }],
@@ -328,7 +328,7 @@ test("un projet qui ne déclare aucune station démarre quand même : le runtime
   // Le temps qu'une prise qui ne doit pas avoir lieu aurait largement eu pour se faire.
   await new Promise((resoudre) => setTimeout(resoudre, 300));
 
-  assert.match(runtime.sortie(), /brigade : stations — aucune \(BRIGADE_STATIONS n'est posée ni au journal\) : aucun cook ne partira, les tickets restent en attente sur le rail — déclarer une station par `brigade <projet> station stations box\/claude:30:code\+raisonnement`/);
+  assert.match(runtime.sortie(), /brigade : stations — none \(BRIGADE_STATIONS is set neither in the environment nor in the log\): no cook will leave, the tickets stay queued on the rail — set them with `brigade brigade station stations box\/claude:30:code\+raisonnement`/);
   const types = relire(repertoire).map((e) => e.type);
   assert.deepEqual(types.slice(0, 5), ["runtime.started", "guard.configured", "stations.undeclared", "session.observed", "isolation.configured"]);
   assert.deepEqual(types.filter((type) => type.startsWith("station.") || type === "cook.launched" || type === "ticket.taken"), []);
@@ -435,7 +435,7 @@ describe("de bout en bout", { concurrency: 2 }, () => {
 
     await jusqua(() => lancementsDuFauxClaude(temoin).length === 1);
 
-    assert.ok(runtime.sortie().includes(`connexion de \`claude\` — jeton longue durée lu dans ${fichier}, relu à chaque lancement`), runtime.sortie());
+    assert.ok(runtime.sortie().includes(`connection of \`claude\` — long-lived token read from ${fichier}, read again at each launch`), runtime.sortie());
     assert.equal(runtime.sortie().includes("sk-ant-oat01-jeton-de-la-machine"), false);
     const [cook] = lancementsDuFauxClaude(temoin);
     assert.equal(cook?.env.CLAUDE_CODE_OAUTH_TOKEN, "sk-ant-oat01-jeton-de-la-machine");
@@ -597,7 +597,7 @@ test("avec CLAUDE_CODE_OAUTH_TOKEN seul dans l'environnement, le runtime démarr
   const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoireTemporaire(t)), CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-pose-dans-l-environnement" });
   await runtime.attendre("démarré");
 
-  assert.match(runtime.sortie(), /connexion de `claude` — celle du compte \(BRIGADE_CLAUDE_TOKEN_FILE n'est pas défini\) ; CLAUDE_CODE_OAUTH_TOKEN est dans l'environnement du runtime : il n'est transmis à aucun `claude`/);
+  assert.match(runtime.sortie(), /connection of `claude` — the account's own \(BRIGADE_CLAUDE_TOKEN_FILE is not set\); CLAUDE_CODE_OAUTH_TOKEN is in the runtime's environment: it is passed to no `claude`/);
   assert.equal(runtime.sortie().includes("sk-ant-oat01-pose-dans-l-environnement"), false);
   runtime.process.kill("SIGTERM");
   assert.equal(await runtime.fin, 0);
@@ -607,7 +607,7 @@ test("sans jeton, le runtime démarre sur la connexion du compte et le dit", asy
   const runtime = lancer(t, MAIN, [], environnement(t, repertoireTemporaire(t)));
   await runtime.attendre("démarré");
 
-  assert.match(runtime.sortie(), /connexion de `claude` — celle du compte \(BRIGADE_CLAUDE_TOKEN_FILE n'est pas défini\)$/m);
+  assert.match(runtime.sortie(), /connection of `claude` — the account's own \(BRIGADE_CLAUDE_TOKEN_FILE is not set\)$/m);
   runtime.process.kill("SIGTERM");
   assert.equal(await runtime.fin, 0);
 });

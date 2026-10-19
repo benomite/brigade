@@ -44,8 +44,8 @@ const npm = (nom: string, args: string[] = []) => jouer(["npm", "--silent", "run
 const SANS_EFFET: Record<string, { args?: string[]; dit: RegExp }> = {
   installation: { args: ["inconnue"], dit: /run installation -- \[labels/ },
   closing: { dit: /run closing\b/ },
-  door: { dit: /la porte refuse de démarrer/ },
-  "hold-arbiter": { dit: /l'arbitre refuse de démarrer/ },
+  door: { dit: /the door refuses to start/ },
+  "hold-arbiter": { dit: /the arbiter refuses to start/ },
 };
 const refusDe = (nom: string) => SANS_EFFET[nom] ?? { dit: new RegExp(`run ${nom}\\b`) };
 

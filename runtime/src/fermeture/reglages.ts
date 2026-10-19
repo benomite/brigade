@@ -13,22 +13,22 @@ export const TOKENS_PAR_DEFAUT = 500_000;
 // Les lignes qu'une passe peut retirer.
 export const RETRAITS_PAR_DEFAUT = 500;
 
-const ou = (valeurs: readonly string[]) => `${valeurs.slice(0, -1).join(", ")} ou ${valeurs.at(-1)}`;
+const ou = (valeurs: readonly string[]) => `${valeurs.slice(0, -1).join(", ")} or ${valeurs.at(-1)}`;
 
 export function configFermeture(env: Record<string, string | undefined>): ReglagesDeFermeture {
   const calibre = (variable: string, admis: readonly string[]): string | null => {
     const valeur = env[variable];
     if (!valeur) return null;
-    if (!admis.includes(valeur)) throw new ConfigInvalide(`${variable} invalide : « ${valeur} » — attendu ${ou(admis)}`);
+    if (!admis.includes(valeur)) throw new ConfigInvalide(`${variable} invalid: “${valeur}” — expected ${ou(admis)}`);
     return valeur;
   };
   const model = calibre("BRIGADE_CLOSING_MODEL", MODELES);
   const effort = calibre("BRIGADE_CLOSING_EFFORT", EFFORTS);
   // L'un sans l'autre est une faute de frappe, pas un closer à moitié réglé.
   if ((model === null) !== (effort === null)) {
-    throw new ConfigInvalide(`${model === null ? "BRIGADE_CLOSING_MODEL" : "BRIGADE_CLOSING_EFFORT"} n'est pas défini — le closer se règle par les deux, ou par aucun : sans eux, aucune passe de fermeture n'écrit`);
+    throw new ConfigInvalide(`${model === null ? "BRIGADE_CLOSING_MODEL" : "BRIGADE_CLOSING_EFFORT"} is not set — the closer is set by both, or by neither: without them, no closing pass writes`);
   }
-  const entier = (variable: string, defaut: number) => lire(env, variable, defaut, "un entier supérieur à zéro", (valeur) => Number.isSafeInteger(valeur) && valeur > 0);
+  const entier = (variable: string, defaut: number) => lire(env, variable, defaut, "an integer greater than zero", (valeur) => Number.isSafeInteger(valeur) && valeur > 0);
   return {
     calibration: model === null || effort === null ? null : { model, effort },
     cooksBelow: entier("BRIGADE_CLOSING_COOKS", COOKS_PAR_DEFAUT),

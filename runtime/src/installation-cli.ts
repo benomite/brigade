@@ -29,7 +29,7 @@ import { ConfigInvalide } from "./runtime.ts";
 import { configStation } from "./station.ts";
 import { verdictDeVerification } from "./verdict.ts";
 
-const USAGE = "usage : <environnement du service> npm --prefix runtime run installation -- [labels | setup [<cooks>] | uninstall [--confirm] | etapes [--json | <étape> <état>] | stations [--json | <déclaration>] | protection [--json | poser] | decisions [--json | <décision> <valeur>…] | --json]";
+const USAGE = "usage: <service environment> npm --prefix runtime run installation -- [labels | setup [<cooks>] | uninstall [--confirm] | etapes [--json | <step> <state>] | stations [--json | <declaration>] | protection [--json | poser] | decisions [--json | <decision> <value>…] | --json]";
 const REFUS = 2;
 const MO = 1024 ** 2;
 
@@ -39,15 +39,15 @@ function echouer(code: number, message: string): never {
 }
 
 const env = process.env;
-const projet = env.BRIGADE_PROJECT || "<projet>";
-const nombre = (valeur: number, decimales = 0) => valeur.toLocaleString("fr-FR", { maximumFractionDigits: decimales });
+const projet = env.BRIGADE_PROJECT || "<project>";
+const nombre = (valeur: number, decimales = 0) => valeur.toLocaleString("en-US", { maximumFractionDigits: decimales });
 const pluriel = (combien: number, mot: string) => `${nombre(combien)} ${mot}${combien > 1 ? "s" : ""}`;
 const duree = (ms: number) => (ms >= 60_000 ? `${nombre(ms / 60_000, 1)} min` : `${nombre(ms / 1000, 1)} s`);
-const taille = (octets: number) => (octets >= 1024 * MO ? `${nombre(octets / (1024 * MO), 1)} Go` : `${nombre(octets / MO, 1)} Mo`);
-const tient = (oui: boolean) => (oui ? "tient" : "NE TIENT PAS");
+const taille = (octets: number) => (octets >= 1024 * MO ? `${nombre(octets / (1024 * MO), 1)} GB` : `${nombre(octets / MO, 1)} MB`);
+const tient = (oui: boolean) => (oui ? "holds" : "DOES NOT HOLD");
 
-const TITRES: Record<Constat["ou"], string> = { machine: "Sur la machine", depot: "Dans le dépôt", github: "Sur GitHub" };
-const MARQUES: Record<Constat["etat"], string> = { ok: "ok", manque: "MANQUE", note: "à savoir" };
+const TITRES: Record<Constat["ou"], string> = { machine: "On the machine", depot: "In the repository", github: "On GitHub" };
+const MARQUES: Record<Constat["etat"], string> = { ok: "ok", manque: "MISSING", note: "note" };
 
 // Ce que la vérification écrit, ligne à ligne, à `console` : la sortie
 // standard, ou la sortie brute jointe au verdict — les mêmes lignes, que l'app
@@ -58,14 +58,14 @@ function ecrire(constats: Constat[], console: { log: (ligne: string) => void }):
     for (const constat of constats.filter((lu) => lu.ou === ou)) {
       console.log(`  ${MARQUES[constat.etat].padEnd(10)}${constat.texte}`);
       if (constat.geste !== undefined) console.log(`            → ${constat.geste}`);
-      if (constat.etape !== undefined) console.log(`            → étape à reprendre : ${nommerEtape(constat.etape)} (${constat.etape})`);
+      if (constat.etape !== undefined) console.log(`            → step to resume: ${nommerEtape(constat.etape)} (${constat.etape})`);
     }
   }
   const manques = constats.filter((constat) => constat.etat === "manque").length;
   console.log(
     manques === 0
-      ? `\nbrigade : projet « ${projet} » : prêt — rien ne manque pour lancer un cook`
-      : `\nbrigade : projet « ${projet} » : ${pluriel(manques, "manque")} : aucun cook ne doit être lancé tant qu'il en reste — à reprendre : ${etapesAReprendre(constats).map(nommerEtape).join(", ")}`,
+      ? `\nbrigade : project “${projet}” : ready — nothing is missing to launch a cook`
+      : `\nbrigade : project “${projet}” : ${nombre(manques)} missing : no cook must be launched while any is left — to resume: ${etapesAReprendre(constats).map(nommerEtape).join(", ")}`,
   );
   return manques === 0 ? 0 : 1;
 }
@@ -94,8 +94,8 @@ async function labelliser(): Promise<number> {
   const { crees, presents } = await poserLabels(env);
   console.log(
     crees.length === 0
-      ? `brigade : rien à créer sur ${depot} — les ${pluriel(presents.length, "label")} du rail y sont déjà`
-      : `brigade : ${pluriel(crees.length, "label")} créés sur ${depot} : ${crees.join(", ")}${presents.length === 0 ? "" : ` (${nombre(presents.length)} y étaient déjà)`}`,
+      ? `brigade : nothing to create on ${depot} — the ${pluriel(presents.length, "label")} of the rail are already there`
+      : `brigade : ${pluriel(crees.length, "label")} created on ${depot}: ${crees.join(", ")}${presents.length === 0 ? "" : ` (${nombre(presents.length)} were already there)`}`,
   );
   return 0;
 }
@@ -106,7 +106,7 @@ async function mesurer(cooks: number): Promise<number> {
   const mesure = await mesurerSetup(env);
   const sur = `\`${station.base}\` (${mesure.sha.slice(0, 7)})`;
   if (!mesure.pret) {
-    console.error(`brigade : setup en échec sur ${sur}, après ${duree(mesure.dureeMs)} — la station ne lancerait aucun cook (86 \`setup-failed\`). Ce qu'il a dit :`);
+    console.error(`brigade : setup failed on ${sur}, after ${duree(mesure.dureeMs)} — the station would launch no cook (86 \`setup-failed\`). What it said:`);
     console.error(mesure.sortie.trim().split("\n").slice(-20).join("\n"));
     return 1;
   }
@@ -115,18 +115,18 @@ async function mesurer(cooks: number): Promise<number> {
   const ligne = (titre: string, valeur: string) => console.log(`  ${titre.padEnd(12)}${valeur}`);
   console.log(
     mesure.joue
-      ? `brigade : setup joué en ${duree(mesure.dureeMs)} sur ${sur} — une fois, seul, à blanc, charge de la machine ${nombre(machine.charge, 1)} sur ${nombre(machine.coeurs)} cœurs`
-      : `brigade : le projet n'a pas de setup sur ${sur} — un worktree neuf part tel quel`,
+      ? `brigade : setup played in ${duree(mesure.dureeMs)} on ${sur} — once, alone, as a dry run, machine load ${nombre(machine.charge, 1)} on ${nombre(machine.coeurs)} cores`
+      : `brigade : the project has no setup on ${sur} — a fresh worktree starts as it is`,
   );
-  ligne("worktree", `${taille(mesure.avantOctets)} à sa création, ${taille(mesure.apresOctets)} une fois le setup passé`);
-  ligne("plafond", `${duree(tenue.setup.plafondMs)}, la moitié du bail — au-delà la station arrête le setup : ${tient(tenue.setup.tient)}`);
-  console.log(`À ${pluriel(cooks, "cook")}, ${nombre(station.entreesMax)} en entrée à la fois (BRIGADE_MAX_SETUPS)`);
-  ligne("entrée", `${pluriel(tenue.entree.vagues, "vague")} de setups : le dernier cook part ${duree(tenue.entree.dernierMs)} après le premier, au mieux — plus si la machine sature`);
-  ligne("disque", `${taille(tenue.disque.besoin)} pour ${pluriel(cooks, "worktree")}, ${taille(tenue.disque.disponible)} disponibles une fois la réserve de la station déduite : ${tient(tenue.disque.tient)}`);
+  ligne("worktree", `${taille(mesure.avantOctets)} when created, ${taille(mesure.apresOctets)} once the setup has run`);
+  ligne("cap", `${duree(tenue.setup.plafondMs)}, half the lease — beyond it the station stops the setup: ${tient(tenue.setup.tient)}`);
+  console.log(`At ${pluriel(cooks, "cook")}, ${nombre(station.entreesMax)} entering at a time (BRIGADE_MAX_SETUPS)`);
+  ligne("intake", `${pluriel(tenue.entree.vagues, "wave")} of setups: the last cook starts ${duree(tenue.entree.dernierMs)} after the first, at best — later if the machine saturates`);
+  ligne("disk", `${taille(tenue.disque.besoin)} for ${pluriel(cooks, "worktree")}, ${taille(tenue.disque.disponible)} available once the station's reserve is deducted: ${tient(tenue.disque.tient)}`);
   console.log(
     tenue.tient
-      ? `brigade : un worktree neuf par cook tient à ${pluriel(cooks, "cook")} sur cette machine`
-      : `brigade : un worktree neuf par cook NE TIENT PAS à ${pluriel(cooks, "cook")} sur cette machine — baisser le plafond de cooks (\`${geste(`station cooks <N>`)}\`), alléger le setup, ou partager ce qu'il installe`,
+      ? `brigade : a fresh worktree per cook holds at ${pluriel(cooks, "cook")} on this machine`
+      : `brigade : a fresh worktree per cook DOES NOT HOLD at ${pluriel(cooks, "cook")} on this machine — lower the cooks cap (\`${geste(`station cooks <N>`)}\`), lighten the setup, or share what it installs`,
   );
   return tenue.tient ? 0 : 1;
 }
@@ -134,24 +134,24 @@ async function mesurer(cooks: number): Promise<number> {
 function retirer(confirme: boolean): number {
   const bilan = desinstaller(env, { confirme });
   const etat = env.BRIGADE_STATE_DIR;
-  const parts = [bilan.clone === null ? [] : [`le clone réservé ${bilan.clone}`], bilan.worktrees === 0 ? [] : [`${pluriel(bilan.worktrees, "worktree")} de cook`]].flat();
-  const quoi = parts.join(" et ");
+  const parts = [bilan.clone === null ? [] : [`the reserved clone ${bilan.clone}`], bilan.worktrees === 0 ? [] : [`${pluriel(bilan.worktrees, "cook worktree")}`]].flat();
+  const quoi = parts.join(" and ");
   if (bilan.perdus.length > 0) {
-    console.log(`brigade : le clone porte ce que l'origine n'a pas — \`--confirm\` refusera tant qu'il en reste :`);
+    console.log(`brigade : the clone carries what the origin does not have — \`--confirm\` will refuse as long as any remains:`);
     for (const perdu of bilan.perdus) console.log(`  ${perdu}`);
   }
-  if (bilan.retire) console.log(`brigade : retiré — ${quoi}${bilan.clone === null ? " (le clone réservé n'y était déjà plus)" : ""}`);
-  else if (parts.length === 0) console.log("brigade : rien à retirer — ni clone réservé, ni worktree");
-  else console.log(`brigade : rien n'est retiré — \`uninstall --confirm\` retirerait ${quoi}`);
+  if (bilan.retire) console.log(`brigade : removed — ${quoi}${bilan.clone === null ? " (the reserved clone was already gone)" : ""}`);
+  else if (parts.length === 0) console.log("brigade : nothing to remove — neither a reserved clone nor a worktree");
+  else console.log(`brigade : nothing is removed — \`uninstall --confirm\` would remove ${quoi}`);
   console.log(
     [
       "",
-      "Reste à la main, sous un compte qui a `sudo` :",
+      "Left to do by hand, under an account that has `sudo`:",
       `  sudo systemctl disable --now brigade@${projet}.service brigade-sauvegarde@${projet}.timer`,
       `  sudo rm -rf /etc/systemd/system/brigade@${projet}.service.d /etc/systemd/system/brigade-sauvegarde@${projet}.service.d`,
       "  sudo systemctl daemon-reload",
-      `Gardé : le journal du projet, ses flux et ses sauvegardes, dans ${etat} — c'est l'histoire de la cuisine ; \`rm -rf\` si tu n'en veux plus.`,
-      "Le dépôt reste un dépôt ordinaire : ses issues, ses PR et son historique ne dépendent pas de brigade. Ce qu'elle y laisse — labels, `.claude/brigade/`, bloc de bindings, branches `cook/*` — ne fait rien sans elle et se retire quand tu veux (docs/installer.md).",
+      `Kept: the project's log, its streams and its backups, in ${etat} — it is the kitchen's history; \`rm -rf\` if you no longer want it.`,
+      "The repository stays an ordinary repository: its issues, its PRs and its history do not depend on brigade. What brigade leaves there — labels, `.claude/brigade/`, the bindings block, `cook/*` branches — does nothing without it and can be removed whenever you like (docs/installer.md).",
     ].join("\n"),
   );
   return 0;

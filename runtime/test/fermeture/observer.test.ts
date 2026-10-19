@@ -75,11 +75,11 @@ test("sur un historique de merges fixe, le ratio ajouté / retiré de chaque fen
 
   const { code, sortie } = await observer(clone);
   assert.equal(code, 0, sortie);
-  assert.match(sortie, new RegExp(`^fermeture  observation de origin/${BASE} \\(${tete.slice(0, 7)}, dernier merge le 2025-10-09\\) — rien n'est modifié : ni fichier, ni branche, ni PR\n`));
-  assert.match(sortie, /\nratio      ajouté \/ retiré sur les derniers merges, chacun compté contre son premier parent\n/);
+  assert.match(sortie, new RegExp(`^closing    observation of origin/${BASE} \\(${tete.slice(0, 7)}, last merge on 2025-10-09\\) — nothing is modified: no file, no branch, no PR\n`));
+  assert.match(sortie, /\nratio      added \/ removed over the latest merges, each counted against its first parent\n/);
   assert.match(sortie, /\n {11}20 merges {3}\+200 \/ −20 {5}10:1\n/);
-  assert.match(sortie, /\n {11}50 merges {3}\+500 \/ −140 {4}3,6:1\n/);
-  assert.match(sortie, /\n {11}100 merges {2}\+1 000 \/ −640 {2}1,6:1\n/);
+  assert.match(sortie, /\n {11}50 merges {3}\+500 \/ −140 {4}3\.6:1\n/);
+  assert.match(sortie, /\n {11}100 merges {2}\+1,000 \/ −640 {2}1.6:1\n/);
 });
 
 test("un merge compte pour ce qu'il apporte à la branche d'intégration : ni un commit posé droit dessus, ni ce que sa branche a écrit puis retiré, ni ce que la base a reçu pendant qu'elle était ouverte", (t) => {
@@ -106,14 +106,14 @@ test("une fenêtre plus large que l'historique dit combien de merges elle a trou
 
   const peu = depot(t, [{ merge: { "a.txt": lignes(5) } }, { merge: { "b.txt": lignes(7) } }]);
   const { sortie } = await observer(peu);
-  assert.match(sortie, /\n {11}20 merges {3}\+12 \/ −0 {2}rien de retiré — 2 merges seulement sur la branche\n/);
-  assert.match(sortie, /\n {11}100 merges {2}\+12 \/ −0 {2}rien de retiré — 2 merges seulement sur la branche\n/);
+  assert.match(sortie, /\n {11}20 merges {3}\+12 \/ −0 {2}nothing removed — only 2 merges on the branch\n/);
+  assert.match(sortie, /\n {11}100 merges {2}\+12 \/ −0 {2}nothing removed — only 2 merges on the branch\n/);
 
   const aucun = depot(t, [{ commit: { "a.txt": lignes(5) } }]);
   const vide = await observer(aucun);
   assert.equal(vide.code, 0);
-  assert.match(vide.sortie, /\nratio      aucun merge sur origin\/v2 : rien à mesurer\n/);
-  assert.match(vide.sortie, /^fermeture  observation de origin\/v2 \([0-9a-f]{7}, aucun merge\) — /);
+  assert.match(vide.sortie, /\nratio      no merge on origin\/v2: nothing to measure\n/);
+  assert.match(vide.sortie, /^closing    observation of origin\/v2 \([0-9a-f]{7}, no merge\) — /);
 });
 
 const BLOC = ["const lus = [];", "for (const nom of noms) {", "  const brut = lire(nom);", "  if (brut === null) continue;", "  const net = brut.trim();", "  if (net === '') continue;", "  lus.push(net.toLowerCase());", "}", "return lus.sort();"].join("\n");
@@ -133,24 +133,24 @@ test("la même sortie liste les doublons et le code mort repérés, chacun avec 
   const { code, sortie } = await observer(clone);
 
   assert.equal(code, 0, sortie);
-  assert.match(sortie, /\ndoublons   1 repéré, 8 lignes — au moins 8 lignes de code identiques de suite, parmi 4 fichiers de code\n {11}8 lignes {2}src\/a\.ts:3-11 = src\/b\.ts:5-13\n/);
+  assert.match(sortie, /\nduplicates 1 spotted, 8 lines — at least 8 identical lines of code in a row, among 4 code files\n {11}8 lines {2}src\/a\.ts:3-11 = src\/b\.ts:5-13\n/);
   assert.match(
     sortie,
-    /\ncode mort  2 exports repérés, parmi 4 fichiers TypeScript ou JavaScript\n {11}src\/a\.ts:13 {2}`OUBLIE` — référencé nulle part\n {11}src\/b\.ts:15 {2}`eprouve` — référencé seulement par des tests : test\/b\.test\.ts\n/,
+    /\ndead code  2 exports spotted, among 4 TypeScript or JavaScript files\n {11}src\/a\.ts:13 {2}`OUBLIE` — referenced nowhere\n {11}src\/b\.ts:15 {2}`eprouve` — referenced only by tests: test\/b\.test\.ts\n/,
   );
 });
 
 test("quand il n'y a ni doublon ni code mort, la sortie le dit explicitement — et dit ce qu'elle n'a pas pu chercher", async (t) => {
   const propre = depot(t, [{ merge: { "src/a.ts": "export const un = 1;\n", "src/b.ts": 'import { un } from "./a.ts";\nconsole.log(un);\n' } }]);
   const { sortie } = await observer(propre);
-  assert.match(sortie, /\ndoublons   aucun repéré — au moins 8 lignes de code identiques de suite, parmi 2 fichiers de code\n/);
-  assert.match(sortie, /\ncode mort  aucun repéré, parmi 2 fichiers TypeScript ou JavaScript\n/);
+  assert.match(sortie, /\nduplicates none spotted — at least 8 identical lines of code in a row, among 2 code files\n/);
+  assert.match(sortie, /\ndead code  none spotted, among 2 TypeScript or JavaScript files\n/);
 
   // Le dépôt du gabarit ne porte qu'un LISEZMOI.
   const sansCode = depot(t, [{ merge: { "notes.txt": lignes(3) } }]);
   const rien = await observer(sansCode);
-  assert.match(rien.sortie, /\ndoublons   aucun repéré — aucun fichier de code sur la branche\n/);
-  assert.match(rien.sortie, /\ncode mort  aucun repéré — aucun fichier TypeScript ou JavaScript sur la branche\n/);
+  assert.match(rien.sortie, /\nduplicates none spotted — no code file on the branch\n/);
+  assert.match(rien.sortie, /\ndead code  none spotted — no TypeScript or JavaScript file on the branch\n/);
 });
 
 test("l'observation n'écrit aucun fichier du dépôt cible, n'y crée aucune branche et n'y prend aucun verrou — même quand un autre en tient", async (t) => {
@@ -161,7 +161,7 @@ test("l'observation n'écrit aucun fichier du dépôt cible, n'y crée aucune br
   const { code, sortie } = await observer(clone);
 
   assert.equal(code, 0, sortie);
-  assert.match(sortie, /\n {11}20 merges {3}\+200 \/ −90 {2}2,2:1\n/);
+  assert.match(sortie, /\n {11}20 merges {3}\+200 \/ −90 {2}2\.2:1\n/);
   assert.deepEqual(photographier(clone), avant);
 
   // Ce que tiendraient un cook qui commite et un rapatriement de la base :
@@ -189,12 +189,12 @@ test("le journal, s'il est là, dit les compteurs de la dérive : les merges dep
   journal.fermer();
 
   const avec = await observer(clone, { BRIGADE_STATE_DIR: etat });
-  assert.match(avec.sortie, /\njournal    3 merges depuis la dernière fermeture \(aucune au journal\) — 1 seuil franchi, le détail par `brigade <projet> measures`\n {11}3 merges depuis la dernière fermeture pour un seuil de 2\n$/);
+  assert.match(avec.sortie, /\nlog        3 merges since the last closing \(none in the log\) — 1 threshold crossed, details with `brigade <projet> measures`\n {11}3 merges since the last closing for a threshold of 2\n$/);
 
   const sans = await observer(clone);
-  assert.match(sans.sortie, /\njournal    non lu : BRIGADE_STATE_DIR n'est pas défini — les compteurs de la dérive se lisent par `brigade <projet> measures`\n$/);
+  assert.match(sans.sortie, /\nlog        not read: BRIGADE_STATE_DIR is not set — the drift counters are read with `brigade <projet> measures`\n$/);
   const vide = await observer(clone, { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
-  assert.match(vide.sortie, /\njournal    non lu : no log in /);
+  assert.match(vide.sortie, /\nlog        not read: no log in /);
 });
 
 test("la commande refuse ce qu'elle ne comprend pas, et dit ce qui lui manque du dépôt", async (t) => {
@@ -203,19 +203,19 @@ test("la commande refuse ce qu'elle ne comprend pas, et dit ce qui lui manque du
   for (const variable of ["BRIGADE_REPO_DIR", "BRIGADE_BASE_BRANCH"]) {
     const appel = appeler(principal, [], { ...env(clone), [variable]: "" });
     assert.equal(await appel.fin, 2);
-    assert.match(appel.sortie(), new RegExp(`^brigade : ${variable} n'est pas défini\nusage : `));
+    assert.match(appel.sortie(), new RegExp(`^brigade : ${variable} is not set\nusage: `));
   }
   const bavard = await observer(clone, {}, ["write"]);
   assert.equal(bavard.code, 2);
-  assert.match(bavard.sortie, /^brigade : usage : BRIGADE_REPO_DIR=/);
+  assert.match(bavard.sortie, /^brigade : usage: BRIGADE_REPO_DIR=/);
 
   const ailleurs = await observer(repertoireTemporaire(t));
   assert.equal(ailleurs.code, 2);
-  assert.match(ailleurs.sortie, /^brigade : BRIGADE_REPO_DIR invalide : « .* » n'est pas un dépôt git\n$/);
+  assert.match(ailleurs.sortie, /^brigade : BRIGADE_REPO_DIR invalid: “.*” is not a git repository\n$/);
 
   const sansBase = await observer(clone, { BRIGADE_BASE_BRANCH: "inconnue" });
   assert.equal(sansBase.code, 1);
-  assert.match(sansBase.sortie, /^brigade : la branche `origin\/inconnue` n'est pas dans le clone /);
+  assert.match(sansBase.sortie, /^brigade : the branch `origin\/inconnue` is not in the clone /);
 });
 
 test("`run closing` joue l'observation dans son propre process", async (t) => {
@@ -226,6 +226,6 @@ test("`run closing` joue l'observation dans son propre process", async (t) => {
   const enfant = lancer(t, join(import.meta.dirname, "../../src/fermeture.ts"), [], env(clone));
 
   assert.equal(await enfant.fin, 0, enfant.sortie());
-  assert.match(enfant.sortie(), /^fermeture  observation de origin\/v2 /);
+  assert.match(enfant.sortie(), /^closing    observation of origin\/v2 /);
   assert.match(enfant.sortie(), /\n {11}20 merges {3}\+5 \/ −0 /);
 });

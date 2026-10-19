@@ -108,10 +108,10 @@ export function environnementClaude(base: NodeJS.ProcessEnv, env: Record<string,
 
 // Ce que le démarrage dit de la connexion des `claude` lancés.
 export function direJeton(fichier: string | null, env: Record<string, string | undefined>): string {
-  const ignore = env[VARIABLE_DU_JETON] ? ` ; ${VARIABLE_DU_JETON} est dans l'environnement du runtime : il n'est transmis à aucun \`claude\`` : "";
+  const ignore = env[VARIABLE_DU_JETON] ? `; ${VARIABLE_DU_JETON} is in the runtime's environment: it is passed to no \`claude\`` : "";
   return fichier
-    ? `connexion de \`claude\` — jeton longue durée lu dans ${fichier}, relu à chaque lancement ; ne parvient qu'aux \`claude\` lancés, ni au setup ni aux gates${ignore}`
-    : `connexion de \`claude\` — celle du compte (${FICHIER_DU_JETON} n'est pas défini)${ignore}`;
+    ? `connection of \`claude\` — long-lived token read from ${fichier}, read again at each launch; reaches only the \`claude\` launched, neither the setup nor the gates${ignore}`
+    : `connection of \`claude\` — the account's own (${FICHIER_DU_JETON} is not set)${ignore}`;
 }
 
 // La sortie du runtime — ce que journald garde — passe par le même masque :

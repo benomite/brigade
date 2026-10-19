@@ -39,11 +39,11 @@ test("le relevé affiche les tokens à côté des tours, et dit qu'il n'y a rien
   const i = lignes.findIndex((ligne) => ligne.startsWith("tokens"));
 
   assert.deepEqual(lignes.slice(i, i + 3), [
-    "tokens     d'un ticket, médiane par calibrage (entre parenthèses : sur combien de tickets), et le plus cher de la tranche",
+    "tokens     per ticket, median by calibration (in parentheses: over how many tickets), and the costliest of the slice",
     "merges  sonnet/medium",
-    "1-2     4\u202f000 (2) · max #2 5\u202f000",
+    "1-2     4,000 (2) · max #2 5,000",
   ]);
 
   const vide = decrireReleve({ projet: "brigade", livraisons: [livraison(1, [])], seuils: null });
-  assert.ok(vide.includes("tokens     rien à mesurer : aucun cook calibré, ou sans tokens connus, derrière ces merges"));
+  assert.ok(vide.includes("tokens     nothing to measure: no calibrated cook, or none with known tokens, behind these merges"));
 });

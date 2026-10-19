@@ -2,7 +2,7 @@
 // Des fonctions sans effet, qui ne lisent rien : le parcours de chaque ticket
 // leur vient de `parcours-des-tickets.ts`, qui le reconstitue du journal.
 import type { Signaux } from "./causes-des-ratages.ts";
-import { duree } from "./etat.ts";
+import { dureeEn } from "./etat.ts";
 
 // Le nombre de tickets servis mesurés, faute d'option.
 export const DERNIERS_PAR_DEFAUT = 20;
@@ -80,22 +80,22 @@ export function direDerivePremierCoupEn({ premiers, retenus, fenetre, seuil }: D
   return retenus === fenetre ? `${part} tickets delivered on the first try (threshold ${seuil}%)` : `${part} merged tickets delivered on the first try, among the last ${fenetre} served (threshold ${seuil}%)`;
 }
 
-const dire = (valeur: number, decimales = 1) => valeur.toLocaleString("fr-FR", { maximumFractionDigits: decimales });
+const dire = (valeur: number, decimales = 1) => valeur.toLocaleString("en-US", { maximumFractionDigits: decimales });
 const ligne = (titre: string, valeur: string) => `${titre.padEnd(11)}${valeur}`.trimEnd();
-const ECARTES = "non mergés (en cours, abandonnés, ou servis sans diff) : hors du calcul";
+const ECARTES = "not merged (running, dropped, or served without a diff): left out of the count";
 
 // La mesure des renvois, ligne par ligne.
 export function decrireRenvois({ n, servis, retenus, ecartes, premierCoup, essaisMoyens, tempsMoyenMs }: Renvois): string[] {
-  if (servis === 0) return [ligne("renvois", `aucun ticket servi au journal : rien à mesurer (N = ${n})`)];
+  if (servis === 0) return [ligne("retries", `no served ticket in the log: nothing to measure (N = ${n})`)];
   const tete = ligne(
-    "renvois",
-    `les ${n} derniers tickets servis (N = ${n}) : ${servis} au journal, ${retenus} retenu${retenus > 1 ? "s" : ""}, ${ecartes} écarté${ecartes > 1 ? "s" : ""} — ${ECARTES}`,
+    "retries",
+    `the last ${n} served tickets (N = ${n}): ${servis} in the log, ${retenus} kept, ${ecartes} set aside — ${ECARTES}`,
   );
-  if (premierCoup === null || essaisMoyens === null || tempsMoyenMs === null) return [tete, ligne("", "aucun n'est mergé : rien à mesurer")];
+  if (premierCoup === null || essaisMoyens === null || tempsMoyenMs === null) return [tete, ligne("", "none is merged: nothing to measure")];
   return [
     tete,
-    ligne("", `livrés du premier coup : ${dire(premierCoup * 100, 0)} % (${Math.round(premierCoup * retenus)} sur ${retenus})`),
-    ligne("", `essais par ticket : ${dire(essaisMoyens)} en moyenne`),
-    ligne("", `de la prise au merge : ${duree(tempsMoyenMs)} en moyenne`),
+    ligne("", `delivered on the first try: ${dire(premierCoup * 100, 0)}% (${Math.round(premierCoup * retenus)} of ${retenus})`),
+    ligne("", `attempts per ticket: ${dire(essaisMoyens)} on average`),
+    ligne("", `from taking to merge: ${dureeEn(tempsMoyenMs)} on average`),
   ];
 }

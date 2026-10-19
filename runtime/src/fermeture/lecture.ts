@@ -46,7 +46,7 @@ export function lignesChangees(lieu: string, env: NodeJS.ProcessEnv, depuis: str
     stats = lancer(lieu, env, "diff", ["--numstat", "--no-renames", "--no-ext-diff", depuis, ...(jusqua === undefined ? [] : [jusqua]), "--"]).toString();
   } catch (erreur) {
     const { stderr, message } = erreur as { stderr?: Buffer; message?: string };
-    throw new DepotIllisible(`git diff : ${String(stderr ?? "").trim() || message || "échec"}`);
+    throw new DepotIllisible(`git diff : ${String(stderr ?? "").trim() || message || "failure"}`);
   }
   const somme = (rang: 1 | 2) => stats.split("\n").reduce((total, stat) => total + (Number(/^(\d+|-)\t(\d+|-)\t/.exec(stat)?.[rang]) || 0), 0);
   return { ajoute: somme(1), retire: somme(2) };
@@ -74,20 +74,20 @@ export function lireDepot(clone: string, base: string, env: NodeJS.ProcessEnv, c
       return git(commande, args, entree);
     } catch (erreur) {
       const { stderr, message } = erreur as { stderr?: Buffer; message?: string };
-      throw new DepotIllisible(`git ${commande} : ${String(stderr ?? "").trim() || message || "échec"}`);
+      throw new DepotIllisible(`git ${commande} : ${String(stderr ?? "").trim() || message || "failure"}`);
     }
   };
 
   try {
     git("rev-parse", ["--git-dir"]);
   } catch {
-    throw new ConfigInvalide(`BRIGADE_REPO_DIR invalide : « ${clone} » n'est pas un dépôt git`);
+    throw new ConfigInvalide(`BRIGADE_REPO_DIR invalid: “${clone}” is not a git repository`);
   }
   let sha: string;
   try {
     sha = git("rev-parse", ["--verify", "--quiet", `${ref}^{commit}`]).toString().trim();
   } catch {
-    throw new DepotIllisible(`la branche \`${ref}\` n'est pas dans le clone « ${clone} » — l'observation lit ce qu'il a rapatrié, et ne rapatrie rien`);
+    throw new DepotIllisible(`the branch \`${ref}\` is not in the clone “${clone}” — the observation reads what it has fetched, and fetches nothing`);
   }
 
   // Un merge par bloc : son entête derrière un octet nul, puis une ligne par
@@ -121,7 +121,7 @@ export function lireDepot(clone: string, base: string, env: NodeJS.ProcessEnv, c
   for (const { chemin, objet } of lus) {
     const fin = contenus.indexOf(10, curseur);
     const [, type, taille] = contenus.subarray(curseur, Math.max(fin, curseur)).toString().split(" ");
-    if (fin < 0 || type !== "blob") throw new DepotIllisible(`git cat-file : « ${chemin} » (${objet}) ne se lit pas`);
+    if (fin < 0 || type !== "blob") throw new DepotIllisible(`git cat-file : “${chemin}” (${objet}) cannot be read`);
     const contenu = contenus.subarray(fin + 1, fin + 1 + Number(taille));
     curseur = fin + 2 + Number(taille);
     // Un octet nul : ce n'est pas du texte.

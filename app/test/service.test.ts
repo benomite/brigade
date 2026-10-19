@@ -48,7 +48,7 @@ const OPTIONS = "-o BatchMode=yes -o ConnectTimeout=10";
 // forme que l'app lit » la compare à son source. C'est aussi la sortie brute que son verdict
 // structuré (`installation --json`, runtime/src/verdict.ts) porte, au caractère près.
 const TITRES = { machine: "Sur la machine", depot: "Dans le dépôt", github: "Sur GitHub" } as const;
-const MARQUES = { ok: "ok", manque: "MANQUE", note: "à savoir" } as const;
+const MARQUES = { ok: "ok", manque: "MISSING", note: "note" } as const;
 function ecrite(constats: Constat[], projet = "calculus"): string {
   const lignes: string[] = [];
   for (const ou of ["machine", "depot", "github"] as const) {
@@ -56,15 +56,15 @@ function ecrite(constats: Constat[], projet = "calculus"): string {
     for (const { etat, texte, geste, etape } of constats.filter((constat) => constat.ou === ou)) {
       lignes.push(`  ${MARQUES[etat].padEnd(10)}${texte}`);
       if (geste !== undefined) lignes.push(`            → ${geste}`);
-      if (etape !== undefined) lignes.push(`            → étape à reprendre : ${nommerEtape(etape)} (${etape})`);
+      if (etape !== undefined) lignes.push(`            → step to resume: ${nommerEtape(etape)} (${etape})`);
     }
   }
   const manques = constats.filter(({ etat }) => etat === "manque").length;
   lignes.push(
     "",
     manques === 0
-      ? `brigade : projet « ${projet} » : prêt — rien ne manque pour lancer un cook`
-      : `brigade : projet « ${projet} » : ${manques} manque${manques > 1 ? "s" : ""} : aucun cook ne doit être lancé tant qu'il en reste — à reprendre : ${etapesAReprendre(constats).map(nommerEtape).join(", ")}`,
+      ? `brigade : project “${projet}” : ready — nothing is missing to launch a cook`
+      : `brigade : project “${projet}” : ${manques} missing : no cook must be launched while any is left — to resume: ${etapesAReprendre(constats).map(nommerEtape).join(", ")}`,
   );
   return `${lignes.join("\n")}\n`;
 }
@@ -176,8 +176,8 @@ describe("le contrôle d'un projet installé : `installation`, en texte, lancée
     assert.equal(obtenu, `$ ${reglages.ssh} ${OPTIONS} -- box brigade calculus installation\n${INCOMPLET}\n\n→ exit code 1`);
     // Les deux manques, chacun suivi de son geste.
     const lignes = obtenu.split("\n");
-    for (const manque of lignes.filter((ligne) => ligne.includes("MANQUE"))) assert.match(lignes[lignes.indexOf(manque) + 1] ?? "", /^ +→ /);
-    assert.equal(lignes.filter((ligne) => ligne.includes("MANQUE")).length, 2);
+    for (const manque of lignes.filter((ligne) => ligne.includes("MISSING"))) assert.match(lignes[lignes.indexOf(manque) + 1] ?? "", /^ +→ /);
+    assert.equal(lignes.filter((ligne) => ligne.includes("MISSING")).length, 2);
   });
 
   test("sortie en 2 : la commande a été lancée et a refusé son environnement — pas prêt, et ce qu'elle a dit sur sa sortie d'erreur est rendu", async (t) => {
@@ -190,7 +190,7 @@ describe("le contrôle d'un projet installé : `installation`, en texte, lancée
   });
 
   test("un 0 sans la ligne de verdict n'est pas un « prêt » : une commande forcée qui remplace celle de l'app, un autre projet", async (t) => {
-    for (const sortie of ["Bienvenue sur la box.", PRET.replace("« calculus »", "« parade »"), INCOMPLET, ""]) {
+    for (const sortie of ["Bienvenue sur la box.", PRET.replace("“calculus”", "“parade”"), INCOMPLET, ""]) {
       const { reglages } = essai(t, dit(sortie));
 
       const rendu = await verifier(reglages, { nom: "calculus", box: { hote: "box" } });
@@ -203,8 +203,8 @@ describe("le contrôle d'un projet installé : `installation`, en texte, lancée
   test("la ligne de verdict attendue est celle que le runtime écrit", () => {
     const cli = readFileSync(join(RACINE, "runtime/src/installation-cli.ts"), "utf8");
 
-    assert.ok(cli.includes("brigade : projet « ${projet} » : prêt"), "`installation` n'écrit plus son verdict sous cette forme");
-    assert.ok(PRET.includes("brigade : projet « calculus » : prêt"));
+    assert.ok(cli.includes("brigade : project “${projet}” : ready"), "`installation` n'écrit plus son verdict sous cette forme");
+    assert.ok(PRET.includes("brigade : project “calculus” : ready"));
   });
 
   const ECHECS: [number, string, boolean][] = [
@@ -920,7 +920,7 @@ describe("ce que l'app lit du runtime : ses formes, telles qu'il les écrit", ()
     const cli = readFileSync(join(RACINE, "runtime/src/installation-cli.ts"), "utf8");
     assert.ok(cli.includes("console.log(`  ${MARQUES[constat.etat].padEnd(10)}${constat.texte}`);"));
     assert.ok(cli.includes("console.log(`            → ${constat.geste}`);"));
-    assert.ok(cli.includes("console.log(`            → étape à reprendre : ${nommerEtape(constat.etape)} (${constat.etape})`);"));
+    assert.ok(cli.includes("console.log(`            → step to resume: ${nommerEtape(constat.etape)} (${constat.etape})`);"));
   });
 
   test("une forme que l'app ne connaît pas n'est pas lue : rien n'en est déduit", () => {

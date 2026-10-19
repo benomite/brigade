@@ -22,16 +22,16 @@ export function lire(env: NodeJS.ProcessEnv, variable: string, defaut: number, a
   const brut = env[variable];
   if (brut === undefined || brut === "") return defaut;
   const valeur = Number(brut);
-  if (!valide(valeur)) throw new ConfigInvalide(`${variable} invalide : « ${brut} » — attendu ${attendu}`);
+  if (!valide(valeur)) throw new ConfigInvalide(`invalid ${variable}: “${brut}” — expected ${attendu}`);
   return valeur;
 }
 
 const entier = (env: NodeJS.ProcessEnv, variable: string, defaut: number) =>
-  lire(env, variable, defaut, "un entier supérieur à zéro", (valeur) => Number.isSafeInteger(valeur) && valeur > 0);
+  lire(env, variable, defaut, "an integer greater than zero", (valeur) => Number.isSafeInteger(valeur) && valeur > 0);
 
 const minutes = (env: NodeJS.ProcessEnv, variable: string, defaut: number) =>
   Math.round(
-    lire(env, variable, defaut, `un nombre de minutes supérieur à zéro, ${MINUTES_MAX} au plus`, (valeur) => valeur > 0 && valeur <= MINUTES_MAX) * MINUTE,
+    lire(env, variable, defaut, `a number of minutes greater than zero, ${MINUTES_MAX} at most`, (valeur) => valeur > 0 && valeur <= MINUTES_MAX) * MINUTE,
   );
 
 export function lireReglages(env: NodeJS.ProcessEnv): Reglages {

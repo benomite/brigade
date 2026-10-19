@@ -78,7 +78,7 @@ function controler(chemin: string): { projet: string | null; evenements: number;
   const base = new Base(chemin, { lectureSeule: true });
   try {
     const verdict = base.lire<{ integrity_check: string }>("PRAGMA integrity_check")[0]?.integrity_check;
-    if (verdict !== "ok") throw new Error(`instantané illisible (${chemin}) : ${verdict}`);
+    if (verdict !== "ok") throw new Error(`unreadable snapshot (${chemin}): ${verdict}`);
     const compte = base.lire<{ evenements: number; dernier: number | null }>("SELECT count(*) AS evenements, max(seq) AS dernier FROM events")[0];
     const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ?? null;
     return { projet, evenements: compte?.evenements ?? 0, dernierSeq: compte?.dernier ?? 0 };
@@ -133,11 +133,11 @@ export function sauvegarder(options: OptionsSauvegarde): Bilan | null {
   const destination = resolve(options.destination);
   const maintenant = options.maintenant ?? (() => new Date());
   if (estDans(destination, repertoireEtat)) {
-    throw new SauvegardeRefusee(`la destination (${destination}) est dans le répertoire d'état (${repertoireEtat}) : elle partirait avec lui`);
+    throw new SauvegardeRefusee(`the destination (${destination}) is inside the state directory (${repertoireEtat}): it would go with it`);
   }
   // Un répertoire d'état absent n'est pas un projet sans journal : c'est un
   // chemin mal écrit, qui passerait sinon pour une sauvegarde sans rien à faire.
-  if (!existsSync(repertoireEtat)) throw new SauvegardeRefusee(`le répertoire d'état (${repertoireEtat}) n'existe pas`);
+  if (!existsSync(repertoireEtat)) throw new SauvegardeRefusee(`the state directory (${repertoireEtat}) does not exist`);
   if (!existsSync(cheminJournal(repertoireEtat))) return null;
 
   mkdirSync(destination, { recursive: true });
@@ -149,7 +149,7 @@ export function sauvegarder(options: OptionsSauvegarde): Bilan | null {
   const prise = maintenant();
   const nom = `${prise.toISOString().slice(0, 19).replaceAll(":", "-")}Z`;
   const chemin = join(destination, nom);
-  if (existsSync(chemin)) throw new Error(`la sauvegarde ${nom} existe déjà dans ${destination}`);
+  if (existsSync(chemin)) throw new Error(`the backup ${nom} already exists in ${destination}`);
   const enCours = join(destination, `${EN_COURS}${nom}`);
   mkdirSync(enCours);
   let bilan: Bilan;
@@ -163,7 +163,7 @@ export function sauvegarder(options: OptionsSauvegarde): Bilan | null {
     const precedente = datees(destination).at(-1);
     const voisin = precedente === undefined ? projet : lireManifeste(join(destination, precedente)).project;
     if (voisin !== projet) {
-      throw new SauvegardeRefusee(`${destination} porte déjà les sauvegardes du projet « ${voisin} » : une destination par projet`);
+      throw new SauvegardeRefusee(`${destination} already holds the backups of project "${voisin}": one destination per project`);
     }
     const flux = copierFlux(join(repertoireEtat, FLUX), join(destination, FLUX));
     const manifeste: Manifeste = { project: projet, at: prise.toISOString(), lastSeq: dernierSeq, events: evenements, streams: flux.total, node: process.version };
@@ -236,19 +236,19 @@ export function restaurer(options: OptionsRestauration): BilanRestauration {
   const repertoireEtat = resolve(options.repertoireEtat);
   const instantane = join(sauvegarde, "log.db");
   if (!existsSync(instantane) || !existsSync(join(sauvegarde, MANIFESTE))) {
-    throw new SauvegardeRefusee(`${sauvegarde} n'est pas une sauvegarde : il y faut log.db et ${MANIFESTE}`);
+    throw new SauvegardeRefusee(`${sauvegarde} is not a backup: it needs log.db and ${MANIFESTE}`);
   }
   const presents = FICHIERS_DU_JOURNAL.filter((fichier) => existsSync(join(repertoireEtat, fichier)));
   if (presents.length > 0) {
     throw new SauvegardeRefusee(
-      `${repertoireEtat} a déjà un journal (${presents.join(", ")}) : une restauration n'en écrase jamais un — déplace d'abord l'ancien état, ses trois fichiers ${FICHIERS_DU_JOURNAL.join(", ")} compris`,
+      `${repertoireEtat} already has a log (${presents.join(", ")}): a restore never overwrites one — move the old state aside first, its three files ${FICHIERS_DU_JOURNAL.join(", ")} included`,
     );
   }
   const manifeste = lireManifeste(sauvegarde);
   const lu = controler(instantane);
   if (lu.projet !== manifeste.project || lu.dernierSeq !== manifeste.lastSeq || lu.evenements !== manifeste.events) {
     throw new SauvegardeRefusee(
-      `la base de ${sauvegarde} ne dit pas ce que dit son manifeste (projet ${lu.projet}, ${lu.evenements} événements jusqu'au n° ${lu.dernierSeq}) : sauvegarde abîmée`,
+      `the database of ${sauvegarde} does not say what its manifest says (project ${lu.projet}, ${lu.evenements} events up to no. ${lu.dernierSeq}): damaged backup`,
     );
   }
 

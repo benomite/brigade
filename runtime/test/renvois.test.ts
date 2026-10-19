@@ -67,10 +67,10 @@ test("sur un ticket livré du premier coup, un à deux essais et un à quatre, l
 
   assert.deepEqual(renvois, { n: 13, servis: 3, retenus: 3, ecartes: 0, premierCoup: 1 / 3, essaisMoyens: 7 / 3, tempsMoyenMs: 3 * 3_600_000 });
   assert.deepEqual(decrireRenvois(renvois), [
-    "renvois    les 13 derniers tickets servis (N = 13) : 3 au journal, 3 retenus, 0 écarté — non mergés (en cours, abandonnés, ou servis sans diff) : hors du calcul",
-    "           livrés du premier coup : 33 % (1 sur 3)",
-    "           essais par ticket : 2,3 en moyenne",
-    "           de la prise au merge : 3 h 00 en moyenne",
+    "retries    the last 13 served tickets (N = 13): 3 in the log, 3 kept, 0 set aside — not merged (running, dropped, or served without a diff): left out of the count",
+    "           delivered on the first try: 33% (1 of 3)",
+    "           attempts per ticket: 2.3 on average",
+    "           from taking to merge: 3 h 00 on average",
   ]);
 });
 
@@ -82,16 +82,16 @@ test("les tickets non mergés sont écartés du calcul et comptés ; seuls les N
   const renvois = mesurerRenvois([ancien, merge(1, 1, "10:00", "11:00"), enCours, merge(2, 2, "10:00", "12:00"), sansDiff], 4);
 
   assert.deepEqual(renvois, { n: 4, servis: 4, retenus: 2, ecartes: 2, premierCoup: 0.5, essaisMoyens: 1.5, tempsMoyenMs: 1.5 * 3_600_000 });
-  assert.match(decrireRenvois(renvois)[0] ?? "", /^renvois {4}les 4 derniers tickets servis \(N = 4\) : 4 au journal, 2 retenus, 2 écartés — non mergés/);
+  assert.match(decrireRenvois(renvois)[0] ?? "", /^retries {4}the last 4 served tickets \(N = 4\): 4 in the log, 2 kept, 2 set aside — not merged/);
   assert.equal(mesurerRenvois([]).n, DERNIERS_PAR_DEFAUT);
 });
 
 test("sans ticket servi, ou sans aucun mergé, la mesure le dit au lieu de montrer des zéros", () => {
   assert.deepEqual(mesurerRenvois([], 20), { n: 20, servis: 0, retenus: 0, ecartes: 0, premierCoup: null, essaisMoyens: null, tempsMoyenMs: null });
-  assert.deepEqual(decrireRenvois(mesurerRenvois([], 20)), ["renvois    aucun ticket servi au journal : rien à mesurer (N = 20)"]);
+  assert.deepEqual(decrireRenvois(mesurerRenvois([], 20)), ["retries    no served ticket in the log: nothing to measure (N = 20)"]);
   assert.deepEqual(decrireRenvois(mesurerRenvois([{ ticket: 4, takenAt: a("10:00"), end: null, attempts: [] }], 20)), [
-    "renvois    les 20 derniers tickets servis (N = 20) : 1 au journal, 0 retenu, 1 écarté — non mergés (en cours, abandonnés, ou servis sans diff) : hors du calcul",
-    "           aucun n'est mergé : rien à mesurer",
+    "retries    the last 20 served tickets (N = 20): 1 in the log, 0 kept, 1 set aside — not merged (running, dropped, or served without a diff): left out of the count",
+    "           none is merged: nothing to measure",
   ]);
 });
 
@@ -145,13 +145,13 @@ test("`measures --last` mesure les renvois des N derniers tickets servis, dit N 
   const double = lancer(t, MESURES, ["--last", "2", "--last", "3"], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
-  assert.match(commande.sortie(), /^relevé {5}brigade — 4 merges au journal, par tranches de 2\n/);
+  assert.match(commande.sortie(), /^report {5}brigade — 4 merges in the log, in slices of 2\n/);
   assert.match(
     commande.sortie(),
-    /\n\nrenvois {4}les 4 derniers tickets servis \(N = 4\) : 4 au journal, 3 retenus, 1 écarté — non mergés[^\n]*\n {11}livrés du premier coup : 33 % \(1 sur 3\)\n {11}essais par ticket : 2,3 en moyenne\n {11}de la prise au merge : \d+ s en moyenne\n\nratages/,
+    /\n\nretries {4}the last 4 served tickets \(N = 4\): 4 in the log, 3 kept, 1 set aside — not merged[^\n]*\n {11}delivered on the first try: 33% \(1 of 3\)\n {11}attempts per ticket: 2\.3 on average\n {11}from taking to merge: \d+ s on average\n\nfailures/,
   );
   assert.equal(await nul.fin, 2);
-  assert.match(nul.sortie(), /usage : .*--last <nombre de tickets>/);
+  assert.match(nul.sortie(), /usage: .*--last <number of tickets>/);
   assert.equal(await double.fin, 2);
 });
 
@@ -162,7 +162,7 @@ test("`measures` sur un journal où aucun ticket n'a été servi le dit, sans pl
   const commande = lancer(t, MESURES, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
-  assert.match(commande.sortie(), /\n\nrenvois {4}aucun ticket servi au journal : rien à mesurer \(N = 20\)\n\nratages/);
+  assert.match(commande.sortie(), /\n\nretries {4}no served ticket in the log: nothing to measure \(N = 20\)\n\nfailures/);
 });
 
 // La dérive sur le premier coup : `k` tickets livrés du premier coup sur `n`.

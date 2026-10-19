@@ -8,7 +8,7 @@ import { ConfigInvalide, DejaEnCours } from "./runtime.ts";
 const REFUS = 2;
 
 function refuser(motif: string): never {
-  console.error(`brigade : l'arbitre refuse de démarrer — ${motif}`);
+  console.error(`brigade : the arbiter refuses to start — ${motif}`);
   process.exit(REFUS);
 }
 
@@ -29,20 +29,20 @@ try {
 } catch (erreur) {
   arbitre.fermer();
   // Un port pris ne se libère pas en réessayant : c'est au chef d'en poser un autre.
-  if ((erreur as NodeJS.ErrnoException).code === "EADDRINUSE") refuser(`le port ${config.port} est déjà pris (BRIGADE_ARBITER_PORT)`);
+  if ((erreur as NodeJS.ErrnoException).code === "EADDRINUSE") refuser(`port ${config.port} is already taken (BRIGADE_ARBITER_PORT)`);
   throw erreur;
 }
 const connus = arbitre.etat().projets.filter((projet) => projet.presence === "muet").map((projet) => projet.projet);
 console.log(
-  `brigade : arbitre ouvert — 127.0.0.1:${serveur.port}, plafond du compte : ${config.plafond} cooks, réglages dans ${config.repertoire}` +
-    (connus.length === 0 ? "" : ` ; part réservée, tant qu'ils n'ont pas reparlé : ${connus.join(", ")}`),
+  `brigade : arbiter open — 127.0.0.1:${serveur.port}, account cap: ${config.plafond} cooks, settings in ${config.repertoire}` +
+    (connus.length === 0 ? "" : `; share reserved, until they speak again: ${connus.join(", ")}`),
 );
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
     void serveur.fermer().then(() => {
       arbitre.fermer();
-      console.log(`brigade : arbitre fermé (${signal}) — chaque projet lance au plus un cook à la fois jusqu'à son retour`);
+      console.log(`brigade : arbiter closed (${signal}) — each project launches at most one cook at a time until it is back`);
       process.exit(0);
     });
   });
