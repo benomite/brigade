@@ -6,7 +6,7 @@
 import { createHash } from "node:crypto";
 import { EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { SOURCES_DE_REGLAGES } from "./claude.ts";
-import { NATURES, type Nature } from "./evenements/manager.ts";
+import { NATURES, type Nature } from "./events/manager.ts";
 
 // Ce qui marque un commentaire du manager : il ne se relit pas lui-même.
 export const MARQUEUR_MANAGER = "<!-- brigade:manager -->";

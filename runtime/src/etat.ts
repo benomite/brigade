@@ -4,15 +4,15 @@
 // ses projections — rien n'est calculé ni gardé ailleurs, et rien n'est écrit.
 import { direActiviteEn, type Activite } from "./activite.ts";
 import { activitesDuRail, type ActiviteDeTicket } from "./activites.ts";
-import { DIRE_GATES_COUPEES, DIRE_GATES_COUPEES_EN } from "./evenements/pass.ts";
+import { DIRE_GATES_COUPEES, DIRE_GATES_COUPEES_EN } from "./events/pass.ts";
 import { attentesDuChef, decisionDe, type Livraison, decrireAttentes, direAttente, direAttenteEn, nommerAttente, nommerEn, passageEnService, type Attente, type Decision, type Passage } from "./attend.ts";
 import { geste } from "./geste.ts";
 import { fournitTout } from "./capacites.ts";
 import { capturesVues, lireCaptures, type Captures, type CapturesVues } from "./captures.ts";
 import type { Evenement } from "./evenements.ts";
-import { RELEVE } from "./evenements/garde-fous.ts";
-import { PART_SANS_PROGRES } from "./evenements/station.ts";
-import { BATTEMENT } from "./evenements/runtime.ts";
+import { RELEVE } from "./events/guardrails.ts";
+import { PART_SANS_PROGRES } from "./events/station.ts";
+import { BATTEMENT } from "./events/runtime.ts";
 import { direControleRetenuEn, suiteDeBaseRougeEn } from "./dire-base.ts";
 import { requises } from "./fiche.ts";
 import { ACTIONS, bientotEteint, direExtinctionEn, direResteEn } from "./grant.ts";
@@ -31,24 +31,24 @@ import {
   type CookEnCours,
   type EtatGardeFous,
   type Mesure,
-} from "./projections/garde-fous.ts";
+} from "./projections/guardrails.ts";
 import { parcoursDesTickets } from "./parcours-des-tickets.ts";
 import { derivePremierCoup, direDerivePremierCoupEn, type DerivePremierCoup } from "./renvois.ts";
-import { livraisonsMergees, seuilsEnVigueur } from "./projections/mesures.ts";
+import { mergedDeliveries, seuilsEnVigueur } from "./projections/measures.ts";
 import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, reparationDeLaBase, type ControleRetenu, type EtatDeLaBase, type Grant, type ReparationDeLaBase, type SansGrant } from "./projections/pass.ts";
-import { direMotifDeGardeEn, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/nettoyage.ts";
+import { direMotifDeGardeEn, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/cleanup.ts";
 import { lireRail, livresDepuis, type Etat as EtatTicket, type Livre, type TicketRail } from "./projections/rail.ts";
 import { direCommentLeVoirEn, direEcranEn, direEtatDeServeurEn, direPageEn, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus, type Serveur, type ServiceIndisponible, type WorktreeTenu } from "./projections/service.ts";
-import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
+import { lastBackup, type Backup } from "./projections/backups.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
 import { cookDeRun, cooksEnCoursDeStation, direDeconnexionEn, direRetenueDeStationEn, etatStation, GESTE_DE_CONNEXION_TOMBEE_EN, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
 import { BLOQUE, BLOQUE_EN, direRetenueEn, EN_WAITING, etatLu, etatLuEn, nomEtat, nomEtatEn } from "./rail.ts";
-import { PAR_LE_CHEF } from "./evenements/rail.ts";
+import { PAR_LE_CHEF } from "./events/rail.ts";
 import { direAttenteDeTiersEn } from "./attente.ts";
 import { direMiseDeCote } from "./mise-de-cote.ts";
 import { GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
-import { alerteEnCours, type AlerteEnCours } from "./projections/urgence.ts";
+import { alerteEnCours, type AlerteEnCours } from "./projections/emergency.ts";
 import { cleDUrgence, urgenceDuChef, type Urgence } from "./urgence.ts";
 
 const EVENEMENTS_MONTRES = 15;
@@ -83,7 +83,7 @@ export type EtatCuisine = {
   tick: Tick | null;
   gardeFous: EtatGardeFous;
   // La dernière sauvegarde réussie, si le projet en a une.
-  sauvegarde: Sauvegarde | null;
+  sauvegarde: Backup | null;
   rail: TicketRail[];
   // Ce que la cuisine fait en ce moment de chaque ticket pris ou en pass — nul
   // quand le runtime ne le sait pas. Les autres tickets n'y sont pas.
@@ -178,7 +178,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     session,
     tick: session && session.endedAt === null && tick && tick.seq > session.startedSeq ? tick : null,
     gardeFous,
-    sauvegarde: derniereSauvegarde(base),
+    sauvegarde: lastBackup(base),
     base: etatDeLaBase(base),
     baseRetenue: controleRetenu(base),
     reparation: reparationDeLaBase(base),
@@ -206,7 +206,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
       enCours: consommation(base),
       fenetres: FENETRES_H.map((heures) => ({ heures, ...consommation(base, new Date(maintenant.getTime() - heures * HEURE_MS).toISOString()) })),
     },
-    derive: franchis(livraisonsMergees(base), seuilsEnVigueur(base) ?? SANS_SEUIL),
+    derive: franchis(mergedDeliveries(base), seuilsEnVigueur(base) ?? SANS_SEUIL),
     derivePremierCoup: derivePremierCoup(parcoursDesTickets(base), seuilsEnVigueur(base) ?? SANS_SEUIL),
     livres,
     evenements: journal.derniers(EVENEMENTS_MONTRES, RESUMES),

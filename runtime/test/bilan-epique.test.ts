@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { bilanDEpique } from "../src/bilan-epique.ts";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { decoupages } from "../src/projections/decoupages.ts";
+import { decoupages } from "../src/projections/splits.ts";
 import { rail } from "../src/projections/rail.ts";
 import { horloge, repertoireTemporaire } from "./outils.ts";
 

@@ -25,7 +25,7 @@ import { existsSync } from "node:fs";
 import { configRail } from "./alimenter.ts";
 import { Sortie, type Appel } from "./appel.ts";
 import { ETAPES, installationDe, noterEtape } from "./etapes.ts";
-import type { EtatDEtape } from "./evenements/installation.ts";
+import type { EtatDEtape } from "./events/installation.ts";
 import { geste } from "./geste.ts";
 import { cheminJournal, ouvrirJournal } from "./journal.ts";
 import { ConfigInvalide } from "./runtime.ts";

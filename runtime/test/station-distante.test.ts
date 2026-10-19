@@ -9,11 +9,11 @@
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import { DELAI_DE_REPONSE_MS } from "../src/distantes.ts";
-import type { Demande, Mission, Reponse } from "../src/evenements/distante.ts";
+import type { Demande, Mission, Reponse } from "../src/events/remote.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import { MARQUEUR } from "../src/fiche.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { etatDesGardeFous } from "../src/projections/garde-fous.ts";
+import { etatDesGardeFous } from "../src/projections/guardrails.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { lireStations } from "../src/stations-declarees.ts";
 import { demander } from "../src/tirer.ts";

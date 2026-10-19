@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
-import type { Plafonds } from "../src/evenements/garde-fous.ts";
+import type { Plafonds } from "../src/events/guardrails.ts";
 import { brancherGardeFous } from "../src/garde-fous.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { PROJECTIONS } from "../src/projections.ts";

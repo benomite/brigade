@@ -10,7 +10,7 @@ import { capturesManquantes, type CapturesDEcran } from "./captures.ts";
 import { EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { SOURCES_DE_REGLAGES } from "./claude.ts";
 import { FERMETURE, OUVERTURE } from "./livrable.ts";
-import type { Finding } from "./evenements/pass.ts";
+import type { Finding } from "./events/pass.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
 // Le nom sous lequel les relectures figurent au journal, à la place d'une

@@ -2,26 +2,26 @@
 //
 // Un domaine (rail, garde-fous, pass…) ajoute son fichier sous evenements/ et
 // une ligne à l'union `Fait` ci-dessous — rien d'autre ici.
-import type { FaitCloison } from "./evenements/cloison.ts";
-import type { FaitDecision } from "./evenements/decisions.ts";
-import type { FaitDerive } from "./evenements/derive.ts";
-import type { FaitDistante } from "./evenements/distante.ts";
-import type { FaitFermeture } from "./evenements/fermeture.ts";
-import type { FaitGardeFous } from "./evenements/garde-fous.ts";
-import type { FaitInstallateur } from "./evenements/installateur.ts";
-import type { FaitInstallation } from "./evenements/installation.ts";
-import type { FaitJeton } from "./evenements/jeton.ts";
-import type { FaitManager } from "./evenements/manager.ts";
-import type { FaitMiseAJour } from "./evenements/mise-a-jour.ts";
-import type { FaitNettoyage } from "./evenements/nettoyage.ts";
-import type { FaitPass, FaitPassRevolu } from "./evenements/pass.ts";
-import type { FaitRail } from "./evenements/rail.ts";
-import type { FaitRenouvellement } from "./evenements/renouvellement.ts";
-import type { FaitRuntime } from "./evenements/runtime.ts";
-import type { FaitSauvegarde } from "./evenements/sauvegarde.ts";
-import type { FaitService } from "./evenements/service.ts";
-import type { FaitStation } from "./evenements/station.ts";
-import type { FaitUrgence } from "./evenements/urgence.ts";
+import type { FaitCloison } from "./events/partition.ts";
+import type { FaitDecision } from "./events/decisions.ts";
+import type { FaitDerive } from "./events/drift.ts";
+import type { FaitDistante } from "./events/remote.ts";
+import type { FaitFermeture } from "./events/closing.ts";
+import type { FaitGardeFous } from "./events/guardrails.ts";
+import type { FaitInstallateur } from "./events/installer.ts";
+import type { FaitInstallation } from "./events/installation.ts";
+import type { FaitJeton } from "./events/token.ts";
+import type { FaitManager } from "./events/manager.ts";
+import type { FaitMiseAJour } from "./events/update.ts";
+import type { FaitNettoyage } from "./events/cleanup.ts";
+import type { FaitPass, FaitPassRevolu } from "./events/pass.ts";
+import type { FaitRail } from "./events/rail.ts";
+import type { FaitRenouvellement } from "./events/renewal.ts";
+import type { FaitRuntime } from "./events/runtime.ts";
+import type { FaitSauvegarde } from "./events/backup.ts";
+import type { FaitService } from "./events/service.ts";
+import type { FaitStation } from "./events/station.ts";
+import type { FaitUrgence } from "./events/emergency.ts";
 
 export type Fait = FaitRuntime | FaitRail | FaitGardeFous | FaitStation | FaitPass | FaitPassRevolu | FaitSauvegarde | FaitManager | FaitNettoyage | FaitDerive | FaitCloison | FaitInstallateur | FaitInstallation | FaitService | FaitDistante | FaitFermeture | FaitMiseAJour | FaitDecision | FaitRenouvellement | FaitJeton | FaitUrgence;
 

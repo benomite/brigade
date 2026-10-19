@@ -19,7 +19,7 @@ import { lstatSync, mkdirSync } from "node:fs";
 import { userInfo } from "node:os";
 import { join } from "node:path";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
-import type { FaitInstallateur } from "./evenements/installateur.ts";
+import type { FaitInstallateur } from "./events/installer.ts";
 import { desinstaller, direDesinstallation, Inachevee, lireRetrait, type Retrait } from "./desinstallateur.ts";
 import { ACTIONS, appelBorne, CODES, Echec, installer, lireAppel, lireDemande, PATH_DE_SYSTEMD, portLibre, projetDesigne, Refus, type Action, type Box, type Demande } from "./installateur.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";

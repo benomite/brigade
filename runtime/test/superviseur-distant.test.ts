@@ -2,7 +2,7 @@
 // plafonds que celui de la box, sur ce que sa station rapporte et sur l'horloge.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { Plafonds } from "../src/evenements/garde-fous.ts";
+import type { Plafonds } from "../src/events/guardrails.ts";
 import { depassement, type Arret } from "../src/superviseur.ts";
 import { superviserADistance } from "../src/superviseur-distant.ts";
 

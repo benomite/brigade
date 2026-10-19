@@ -14,7 +14,7 @@
 // Ce qui attend un tiers reste lisible sur l'issue, l'app fermée : le label
 // `waiting` tant qu'il attend, et un commentaire à chaque changement — qui,
 // quoi, jusqu'à quand ; puis qu'il n'attend plus, et pourquoi.
-import { NOUVEAU_SUR_L_ISSUE, PAR_LE_CHEF, REVENU_D_ATTENTE } from "./evenements/rail.ts";
+import { NOUVEAU_SUR_L_ISSUE, PAR_LE_CHEF, REVENU_D_ATTENTE } from "./events/rail.ts";
 import { geste } from "./geste.ts";
 import type { GitHub } from "./github.ts";
 import { dateLocale, direInstant, direInstantEn, dureeTapee } from "./grant.ts";

@@ -7,9 +7,9 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { ContexteCook, FaitGardeFous, Issue, Plafonds } from "./evenements/garde-fous.ts";
+import type { ContexteCook, FaitGardeFous, Issue, Plafonds } from "./events/guardrails.ts";
 import type { Reglages } from "./plafonds.ts";
-import { cooksEnCours, etatDesGardeFous } from "./projections/garde-fous.ts";
+import { cooksEnCours, etatDesGardeFous } from "./projections/guardrails.ts";
 import type { Runtime } from "./runtime.ts";
 import { arreterParLeRelais, relaisASuivre, superviser, superviserParRelais, suivreLeRelais, type Arret, type Fin, type Supervise } from "./superviseur.ts";
 import { superviserADistance, type Mesure } from "./superviseur-distant.ts";

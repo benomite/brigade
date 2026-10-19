@@ -9,7 +9,7 @@ import { execFileSync } from "node:child_process";
 import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { Fait } from "./evenements.ts";
-import type { EtatDeCloison } from "./evenements/cloison.ts";
+import type { EtatDeCloison } from "./events/partition.ts";
 import { FICHIER_DU_JETON } from "./jeton-claude.ts";
 import type { Runtime } from "./runtime.ts";
 import { ConfigInvalide } from "./runtime.ts";

@@ -6,6 +6,6 @@
 // ni dans l'autre : elle répond pendant que le runtime tourne. `write` et
 // `cancel` n'écrivent qu'au journal : c'est le runtime qui range.
 import { enProcess } from "./appel.ts";
-import { principal } from "./fermeture/commande.ts";
+import { principal } from "./closing/command.ts";
 
 await enProcess(principal);

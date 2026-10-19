@@ -30,13 +30,13 @@
 // date de sa création à côté de lui (`<fichier>.cree`, sans le jeton) : le
 // runtime la relit au démarrage puis à chaque tick, écrit au journal ce qui
 // change (`token.observed`), et la file du chef en tire l'annonce de
-// l'échéance (`projections/jeton.ts`).
+// l'échéance (`projections/token.ts`).
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import { format } from "node:util";
-import { PREAVIS_DU_JETON_JOURS, VIE_DU_JETON_JOURS, type ObservationDuJeton } from "./evenements/jeton.ts";
+import { PREAVIS_DU_JETON_JOURS, VIE_DU_JETON_JOURS, type ObservationDuJeton } from "./events/token.ts";
 import { masquerIdentifiants, retenirJeton } from "./identifiants.ts";
-import { jetonObserve } from "./projections/jeton.ts";
+import { jetonObserve } from "./projections/token.ts";
 import { ConfigInvalide, type Runtime } from "./runtime.ts";
 
 // La variable du service qui nomme le fichier.

@@ -1,7 +1,7 @@
 // Le grant `merge` tel que le chef le commande et le lit : l'échéance qu'il
 // tape, ce qu'un geste écrit au journal, ce qu'il reste d'un grant en cours.
 // Tout y prend l'heure en argument : rien n'attend, rien ne lit l'horloge.
-import type { ActionDeGrant, CauseDExtinction, FaitPass } from "./evenements/pass.ts";
+import type { ActionDeGrant, CauseDExtinction, FaitPass } from "./events/pass.ts";
 import type { Journal } from "./journal.ts";
 import { etatDuGrant, type Grant } from "./projections/pass.ts";
 import { sessionEnCours } from "./projections/sessions.ts";

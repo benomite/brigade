@@ -4,10 +4,10 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import type { Plafonds } from "../src/evenements/garde-fous.ts";
+import type { Plafonds } from "../src/events/guardrails.ts";
 import { brancherGardeFous, LancementRefuse, type Reglages } from "../src/garde-fous.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { cooksEnCours, etatDesGardeFous, mesuresDesCooksEnCours } from "../src/projections/garde-fous.ts";
+import { cooksEnCours, etatDesGardeFous, mesuresDesCooksEnCours } from "../src/projections/guardrails.ts";
 import { demarrer } from "../src/runtime.ts";
 import { aArreter, ENV_ENFANT, faitInconnu, FAUX_CLAUDE, jusqua, mort, repertoireTemporaire, tuerLesRelais, vivant } from "./outils.ts";
 

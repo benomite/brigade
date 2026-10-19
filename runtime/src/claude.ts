@@ -5,7 +5,7 @@
 // jeton longue durée que `claude setup-token` a créé pour elle (`jeton-claude.ts`).
 import { execFile } from "node:child_process";
 import type { Calibrage } from "./calibrage.ts";
-import type { FinDeCook } from "./evenements/station.ts";
+import type { FinDeCook } from "./events/station.ts";
 import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE } from "./livrable.ts";
 
 // Ce qu'un cook ne doit pas faire lui-même : seule la pass merge, et c'est la

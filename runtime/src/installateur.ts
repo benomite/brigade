@@ -30,7 +30,7 @@ import { dirname, join, normalize, sep } from "node:path";
 import { EFFORTS, MODELES } from "./calibrage.ts";
 import { poserDecision } from "./decisions.ts";
 import { cheminJournal, ouvrirJournal } from "./journal.ts";
-import type { AppelDInstallateur } from "./evenements/installateur.ts";
+import type { AppelDInstallateur } from "./events/installer.ts";
 import { NOM_DE_PROJET } from "./runtime.ts";
 
 // La liste fermée des sous-commandes.

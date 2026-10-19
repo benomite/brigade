@@ -2,7 +2,7 @@
 // s'est terminée. C'est ici que se lit « un runtime tournait-il, et a-t-il été
 // arrêté proprement ? ».
 import type { Base } from "../base.ts";
-import type { FaitRuntime } from "../evenements/runtime.ts";
+import type { FaitRuntime } from "../events/runtime.ts";
 import { definirProjection } from "../projection.ts";
 
 export type Session = { startedSeq: number; startedAt: string; pid: number; host: string };

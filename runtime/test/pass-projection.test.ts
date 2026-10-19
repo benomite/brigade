@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { motifDArret, motifDeRemontee } from "../src/evenements/pass.ts";
+import { motifDArret, motifDeRemontee } from "../src/events/pass.ts";
 import { direSansGrant } from "../src/attend.ts";
 import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, lirePass, mergesAVerifier, orphelines, pass, passDuTicket, renvoiEnAttente, usagesDuGrant } from "../src/projections/pass.ts";
 import { horloge, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";

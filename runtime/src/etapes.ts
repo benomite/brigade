@@ -18,7 +18,7 @@
 import { existsSync } from "node:fs";
 import { Base } from "./base.ts";
 import type { Evenement } from "./evenements.ts";
-import type { EtatDEtape } from "./evenements/installation.ts";
+import type { EtatDEtape } from "./events/installation.ts";
 import { cheminJournal, type Journal } from "./journal.ts";
 
 export type Etape = {

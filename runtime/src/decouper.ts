@@ -6,7 +6,7 @@
 import { COOKS, LABEL_COOK_DESIGN, MODELES, PROFIL_COOK_DESIGN, toucheLaVue, VUE_DE_L_APP } from "./calibrage.ts";
 import { capacite, CAPACITE, CLE_DES_CAPACITES, FORME_DE_CAPACITE } from "./capacites.ts";
 import { lignesHorsCode, reference, sansListe } from "./epique.ts";
-import type { TicketPrevu } from "./evenements/manager.ts";
+import type { TicketPrevu } from "./events/manager.ts";
 import { fiche, MARQUEUR } from "./fiche.ts";
 import { recouvrement } from "./zones.ts";
 import { COMMENTAIRES_MAX, CORPS_MAX, couper, CRITERE_DE_FORME, EFFORTS_DU_MANAGER, empreinte, objet, parmi, phrase, type IssueAJuger } from "./juger.ts";

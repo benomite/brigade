@@ -1,19 +1,19 @@
-// Le rail : les tickets du projet, chacun avec son état. C'est ici que se lit
-// « qu'y a-t-il à servir, qui tient quoi, et depuis quand ? ».
+// The rail: the project's tickets, each with its state. This is where one
+// reads "what is there to serve, who holds what, and since when?".
 //
-// Le temps n'entre jamais ici : un bail échu ne rend pas le ticket, c'est
-// l'événement `ticket.released` qui le rend. Rejouer le journal à une autre
-// heure redonne le même rail.
+// Time never enters here: an expired lease does not give the ticket back, the
+// `ticket.released` event does. Replaying the log at another time gives the
+// same rail back.
 //
-// Les dépendances non plus ne sont gardées nulle part : ce qu'un ticket attend
-// est dans sa fiche, et le sort de chaque ticket — servi, ou parti sans l'être
-// — dans une table que le journal remplit. Un ticket attendu n'a donc pas
-// besoin d'être sur le rail pour qu'on sache s'il a été servi.
+// Dependencies are not kept anywhere either: what a ticket awaits is in its
+// card, and the fate of each ticket — served, or gone without being so — in a
+// table the log fills. A ticket that is awaited therefore need not be on the
+// rail for it to be known whether it was served.
 import type { Base } from "../base.ts";
 import type { Evenement } from "../evenements.ts";
-import type { FaitGardeFous } from "../evenements/garde-fous.ts";
-import { NON_JUGEE, type FaitPass, type Finding } from "../evenements/pass.ts";
-import { ATTEND_UN_TIERS, REDECOUPE, REVENU_D_ATTENTE, SANS_STATION, type FaitRail } from "../evenements/rail.ts";
+import type { FaitGardeFous } from "../events/guardrails.ts";
+import { NON_JUGEE, type FaitPass, type Finding } from "../events/pass.ts";
+import { ATTEND_UN_TIERS, REDECOUPE, REVENU_D_ATTENTE, SANS_STATION, type FaitRail } from "../events/rail.ts";
 import type { Fiche } from "../fiche.ts";
 import { definirProjection } from "../projection.ts";
 import { recouvrement } from "../zones.ts";
@@ -21,33 +21,33 @@ import { constats } from "./pass.ts";
 
 export type Etat = "waiting" | "taken" | "pass" | "served" | "86";
 
-// Un ticket que la fiche dit d'attendre et qui n'a pas été servi. `left` : il a
-// quitté le rail sans l'être — abandonné —, pourquoi, et par quel événement.
+// A ticket the card says to await and which has not been served. `left`: it
+// left the rail without being so — dropped —, why, and by which event.
 export type Attendu = { ticket: number; left: { reason: string; seq: number } | null };
 
-// Ce qu'un ticket en WAITING attend d'un tiers : `what`, dans les mots du chef,
-// de qui (`who`), depuis quand (`since`, sa mise en attente — une mise à jour
-// ne le change pas), quand y revenir (`followUp`), et ce que « c'est arrivé »
-// fera de lui (`onArrival`, en clair).
+// What a WAITING ticket awaits from a third party: `what`, in the chef's words,
+// from whom (`who`), since when (`since`, its being put on hold — an update
+// does not change it), when to come back to it (`followUp`), and what "it has
+// arrived" will do with it (`onArrival`, in plain words).
 export type AttenteDeTiers = { what: string; who: string; since: string; followUp: string; onArrival: string };
 
-// Ce que « c'est arrivé » fait d'un ticket en WAITING : il repart en cuisine,
-// sans repasser devant le chef — sur sa livraison ouverte s'il en porte une.
+// What "it has arrived" does to a WAITING ticket: it goes back to the kitchen,
+// without going back past the chef — onto its open delivery if it carries one.
 export function direALArrivee(delivery: string | null): string {
   return delivery === "open"
     ? "il repart en cuisine, sans repasser par TODO : un cook reprend sa livraison ouverte (sa branche et sa PR)"
     : "il repart en cuisine, sans repasser par TODO : il est remis sur le rail, et un cook le prend à son tour";
 }
 
-// La même, en anglais : ce que dit `status`.
+// The same, in English: what `status` says.
 export function direALArriveeEn(delivery: string | null): string {
   return delivery === "open"
     ? "it goes back to the kitchen, without going through TODO: a cook takes up its open delivery (its branch and its PR)"
     : "it goes back to the kitchen, without going through TODO: it is put back on the rail, and a cook takes it in its turn";
 }
 
-// Un ticket parti en cuisine et pas encore servi, dont la zone recouvre celle
-// de celui-ci. `path` : le chemin par lequel elles se recouvrent.
+// A ticket gone to the kitchen and not yet served, whose zone overlaps this
+// one's. `path`: the path by which they overlap.
 export type Tenu = { ticket: number; path: string };
 
 export type TicketRail = {
@@ -57,38 +57,38 @@ export type TicketRail = {
   createdAt: string;
   url: string;
   state: Etat;
-  // Depuis quand il est dans cet état.
+  // Since when it has been in this state.
   since: string;
-  // La station qui le tient (pris) ou qui l'a cuisiné (en pass, servi).
+  // The station that holds it (taken) or that cooked it (in pass, served).
   station: string | null;
   leaseUntil: string | null;
-  // Pris : la dernière fois que sa station a vu son worktree bouger — la
-  // prise, puis chaque renouvellement du bail. Une date, jamais une durée.
+  // Taken: the last time its station saw its worktree move — the take, then
+  // each renewal of the lease. A date, never a duration.
   progressedAt: string | null;
-  // Le calibrage posé sur l'issue, dimension par dimension.
+  // The calibration set on the issue, dimension by dimension.
   model: string | null;
   effort: string | null;
-  // La fiche posée sur l'issue, ou null si elle n'en porte pas.
+  // The card set on the issue, or null if it carries none.
   card: Fiche | null;
-  // Ceux des tickets de sa fiche qui ne sont pas servis. Vide : rien ne le
-  // retient.
+  // Those of the tickets of its card that are not served. Empty: nothing
+  // holds it back.
   awaits: Attendu[];
-  // En attente : ceux qui tiennent un chemin de sa zone. Vide : sa zone est
-  // libre.
+  // Queued: those that hold a path of its zone. Empty: its zone is
+  // free.
   held: Tenu[];
-  // En attente : ceux, parmi `awaits` et `held`, qui sont gelés — 86 que la
-  // pass n'a pas pu juger, sans heure de retour : rien ne les fera repartir
-  // sans le chef. Ce ticket ne partira pas avant eux. Ne change pas ce qui le
-  // retient, seulement ce qu'on en dit.
+  // Queued: those, among `awaits` and `held`, that are frozen — 86 that the
+  // pass could not judge, with no return time: nothing will make them leave
+  // without the chef. This ticket will not leave before them. Does not change
+  // what holds it back, only what is said about it.
   frozenBy: number[];
-  // Motif et heure de retour d'un 86.
+  // Reason and return time of an 86.
   reason: string | null;
   until: string | null;
-  // En WAITING — 86 en attente d'un tiers —, ce qu'il attend. Nul sinon.
+  // In WAITING — 86 awaiting a third party —, what it awaits. Null otherwise.
   waitingFor: AttenteDeTiers | null;
-  // Revenu de WAITING vers TODO : pourquoi, en clair (« relance du 21/10 : pas
-  // de réponse », « nouveau sur l'issue », « chef »). Nul sinon, et dès que
-  // le ticket change d'état.
+  // Back from WAITING to TODO: why, in plain words ("follow-up of 21/10: no
+  // answer", "new on the issue", "chef"). Null otherwise, and as soon as
+  // the ticket changes state.
   resumedBecause: string | null;
 };
 
@@ -104,8 +104,8 @@ const ficheRienOuAbsente = (valeur: unknown) => {
   if (valeur === undefined || valeur === null) return true;
   if (typeof valeur !== "object") return false;
   const { waitsFor, zone, problems, requires } = valeur as Record<string, unknown>;
-  // `requires` : absent d'une fiche qui ne demande aucune capacité, et de
-  // toutes celles écrites avant que le rail ne les lise.
+  // `requires`: absent from a card that asks for no capability, and from
+  // all those written before the rail read them.
   return liste(waitsFor, Number.isSafeInteger) && liste(zone, texte) && liste(problems, texte) && (requires === undefined || liste(requires, texte));
 };
 
@@ -115,7 +115,7 @@ const marque = (valeur: unknown) => {
   return texte(what) && texte(who) && texte(followUp);
 };
 
-// Ce qu'un fait du rail doit porter pour être lisible.
+// What a rail fact must carry to be readable.
 const FORMES: { [T in FaitRail["type"]]: { [C in keyof Payload<T>]: (valeur: unknown) => boolean } } = {
   "ticket.arrived": { title: texte, priority: prioriteOuRien, createdAt: texte, url: texte, model: texteRienOuAbsent, effort: texteRienOuAbsent, card: ficheRienOuAbsente },
   "ticket.changed": { title: texte, priority: prioriteOuRien, model: texteRienOuAbsent, effort: texteRienOuAbsent, card: ficheRienOuAbsente },
@@ -133,10 +133,10 @@ const FORMES: { [T in FaitRail["type"]]: { [C in keyof Payload<T>]: (valeur: unk
   "rail.commons": { paths: (valeur) => liste(valeur, texte) },
 };
 
-// Le journal est en ajout seul et rejoué à chaque démarrage : un fait illisible
-// (sans ticket, ou d'une forme que cette version ne connaît pas) qui lèverait
-// ici empêcherait le runtime de redémarrer, sans qu'on puisse le retirer. Il
-// est donc ignoré — il reste au journal, sans effet sur le rail.
+// The log is append-only and replayed at every start: an unreadable fact
+// (without a ticket, or of a shape this version does not know) that threw
+// here would prevent the runtime from restarting, with no way to remove it. It
+// is therefore ignored — it stays in the log, with no effect on the rail.
 function lisible<T extends FaitRail["type"]>(type: T, effet: Effet<T>) {
   return (base: Base, evenement: Evenement<Extract<FaitRail, { type: T }>>) => {
     const payload = evenement.payload as Record<string, unknown>;
@@ -147,17 +147,17 @@ function lisible<T extends FaitRail["type"]>(type: T, effet: Effet<T>) {
   };
 }
 
-// La fiche telle que la table la garde : son JSON, champs dans un ordre fixe —
-// deux fiches égales y sont le même texte. Les capacités n'y figurent que
-// demandées : une fiche qui n'en demande aucune garde son texte d'avant.
+// The card as the table keeps it: its JSON, fields in a fixed order — two
+// equal cards are the same text there. Capabilities appear only when
+// requested: a card that requests none keeps its earlier text.
 const enTexte = (card: Fiche | null | undefined): string | null =>
   card ? JSON.stringify({ waitsFor: card.waitsFor, zone: card.zone, problems: card.problems, ...(card.requires?.length ? { requires: card.requires } : {}) }) : null;
 
 type Changement = { state: Etat; station?: string | null; leaseUntil?: string | null; progressedAt?: string | null; reason?: string | null; until?: string | null };
 
-// Fait entrer le ticket dans un état. Ce que le changement ne nomme pas est
-// effacé : un état ne garde rien du précédent — pas même son attente d'un
-// tiers, que seul `ticket.waiting` pose.
+// Makes the ticket enter a state. What the change does not name is erased: a
+// state keeps nothing of the previous one — not even its wait for a third
+// party, which only `ticket.waiting` sets.
 function passer(base: Base, ticket: number, at: string, changement: Changement): void {
   base.executer("DELETE FROM rail_waiting WHERE ticket = ?", ticket);
   base.executer("DELETE FROM rail_resumed WHERE ticket = ?", ticket);
@@ -174,9 +174,9 @@ function passer(base: Base, ticket: number, at: string, changement: Changement):
   );
 }
 
-// Le raccord avec les garde-fous : un ticket pris dont le cook est mort sans
-// rien livrer revient en attente. Aucun fait de plus — la raison est déjà au
-// journal du ticket (`guard.tripped`, `cook.exited`, `cook.interrupted`).
+// The link with the guardrails: a taken ticket whose cook died without
+// delivering anything goes back to queued. No extra fact — the reason is already
+// in the ticket's log (`guard.tripped`, `cook.exited`, `cook.interrupted`).
 function rendreApresCook(base: Base, ticket: number | null, at: string): void {
   if (ticket === null) return;
   base.executer(
@@ -187,12 +187,12 @@ function rendreApresCook(base: Base, ticket: number | null, at: string): void {
   );
 }
 
-// Les fins de cook après lesquelles le ticket n'a plus rien à attendre de sa
-// station. `ok`, `neutral` et `refused` n'en sont pas : la station dit la
-// suite (la pass, le 86, un nouvel essai ou la remontée au chef).
+// The cook endings after which the ticket has nothing left to await from its
+// station. `ok`, `neutral` and `refused` are not: the station says what comes
+// next (the pass, the 86, a new attempt or the escalation to the chef).
 const FINS_SANS_SUITE: unknown[] = ["failed", "guard", "stop"];
 
-// Servi l'emporte sur parti, dans les deux ordres, et ne se défait pas.
+// Served wins over gone, in both orders, and is not undone.
 function noterServi(base: Base, ticket: number, seq: number): void {
   base.executer(
     `INSERT INTO rail_outcomes (ticket, outcome, seq) VALUES (?, 'served', ?)
@@ -220,28 +220,28 @@ export const rail = definirProjection<
       effort      TEXT,
       card        TEXT,
       station     TEXT,
-      -- Ce que le ticket a livré : 'open', une livraison partie en pass et
-      -- pas encore sur la base ; 'merged', elle y est. Nul : rien de livré.
+      -- What the ticket delivered: 'open', a delivery sent to pass and
+      -- not yet on the base; 'merged', it is there. Null: nothing delivered.
       delivery    TEXT CHECK (delivery IN ('open', 'merged')),
       lease_until TEXT,
       progressed_at TEXT,
       reason      TEXT,
       until       TEXT
     ) STRICT;
-    -- Le sort d'un ticket, qu'il soit encore sur le rail ou non : servi, ou
-    -- parti sans l'avoir été. Servi l'emporte, et ne se défait pas.
+    -- A ticket's fate, whether it is still on the rail or not: served, or
+    -- gone without having been so. Served wins, and is not undone.
     CREATE TABLE IF NOT EXISTS rail_outcomes (
       ticket  INTEGER PRIMARY KEY,
       outcome TEXT NOT NULL CHECK (outcome IN ('served', 'left')),
       reason  TEXT,
       seq     INTEGER NOT NULL
     ) STRICT;
-    -- Les chemins du projet qui n'appartiennent à aucun ticket.
+    -- The project's paths that belong to no ticket.
     CREATE TABLE IF NOT EXISTS rail_commons (
       path TEXT PRIMARY KEY
     ) STRICT;
-    -- Les tickets en WAITING : ce qu'ils attendent d'un tiers, et l'état où
-    -- ils étaient avant d'attendre — celui où « reprendre » les remet.
+    -- The WAITING tickets: what they await from a third party, and the state
+    -- they were in before waiting — the one "resume" puts them back in.
     CREATE TABLE IF NOT EXISTS rail_waiting (
       ticket       INTEGER PRIMARY KEY,
       what         TEXT NOT NULL,
@@ -252,19 +252,19 @@ export const rail = definirProjection<
       prior_reason TEXT,
       prior_until  TEXT
     ) STRICT;
-    -- Ce que l'issue de chaque ticket dit de son attente, tel que le runtime
-    -- l'y a posé : le JSON de l'attente marquée, ou nul — marque retirée.
+    -- What each ticket's issue says about its wait, as the runtime put it
+    -- there: the JSON of the marked wait, or null — mark removed.
     CREATE TABLE IF NOT EXISTS rail_waiting_marks (
       ticket INTEGER PRIMARY KEY,
       mark   TEXT
     ) STRICT;
-    -- Combien de commentaires hors brigade l'issue portait quand son attente a
-    -- été marquée : ce qui s'y ajoute ensuite ramène le ticket.
+    -- How many non-brigade comments the issue carried when its wait was
+    -- marked: what is added afterwards brings the ticket back.
     CREATE TABLE IF NOT EXISTS rail_waiting_heard (
       ticket INTEGER PRIMARY KEY,
       heard  INTEGER NOT NULL
     ) STRICT;
-    -- Pourquoi un ticket est revenu de WAITING vers TODO.
+    -- Why a ticket came back from WAITING to TODO.
     CREATE TABLE IF NOT EXISTS rail_resumed (
       ticket INTEGER PRIMARY KEY,
       why    TEXT NOT NULL
@@ -285,7 +285,7 @@ export const rail = definirProjection<
         payload.effort ?? null,
         enTexte(payload.card),
       );
-      // Revenu sur le rail, il n'est plus abandonné — et n'attend plus personne.
+      // Back on the rail, it is no longer dropped — and no longer awaits anyone.
       base.executer("DELETE FROM rail_outcomes WHERE ticket = ? AND outcome = 'left'", ticket);
       base.executer("DELETE FROM rail_waiting WHERE ticket = ?", ticket);
     }),
@@ -312,14 +312,14 @@ export const rail = definirProjection<
       );
     }),
     "ticket.taken": lisible("ticket.taken", (base, ticket, { at, payload }) => {
-      // Un ticket repris après le merge de sa livraison en prépare une autre.
+      // A ticket taken again after the merge of its delivery prepares another one.
       base.executer("UPDATE rail SET delivery = NULL WHERE ticket = ? AND delivery = 'merged'", ticket);
-      // Un ticket qui vient d'être pris n'a encore rien à se reprocher.
+      // A ticket that has just been taken has nothing to blame itself for yet.
       passer(base, ticket, at, { state: "taken", station: payload.station, leaseUntil: payload.leaseUntil, progressedAt: at });
     }),
-    // Le bail ne se renouvelle que sur un progrès du worktree : ce fait est
-    // donc le fait de progrès. Le relevé d'un cook (`cook.progressed`) n'en
-    // est pas un — il dit ce que le cook consomme, pas qu'il avance.
+    // The lease is only renewed on worktree progress: this fact is therefore
+    // the progress fact. A cook's report (`cook.progressed`) is not one — it
+    // says what the cook consumes, not that it advances.
     "ticket.renewed": lisible("ticket.renewed", (base, ticket, { at, payload }) => {
       base.executer("UPDATE rail SET lease_until = ?, progressed_at = ? WHERE ticket = ? AND state = 'taken'", payload.leaseUntil, at, ticket);
     }),
@@ -338,8 +338,8 @@ export const rail = definirProjection<
       passer(base, ticket, at, { state: "86", reason: payload.reason, until: payload.until });
     }),
     "ticket.blocked": () => {},
-    // Seul un ticket en attente sur le rail, ou mis de côté, attend un tiers :
-    // pris, en pass ou servi, la cuisine le tient.
+    // Only a queued ticket on the rail, or one set aside, awaits a third party:
+    // taken, in pass or served, the kitchen holds it.
     "ticket.waiting": lisible("ticket.waiting", (base, ticket, { at, payload }) => {
       const [avant] = base.lire<{ state: Etat; reason: string | null; until: string | null }>("SELECT state, reason, until FROM rail WHERE ticket = ?", ticket);
       if (avant === undefined || (avant.state !== "waiting" && avant.state !== "86")) return;
@@ -361,9 +361,9 @@ export const rail = definirProjection<
         prior.prior_until,
       );
     }),
-    // Vers le chef : l'état d'avant l'attente s'il était mis de côté, sinon mis
-    // de côté pour lui. Vers la cuisine : en attente sur le rail. Un ticket
-    // revenu vers le chef repart en cuisine du même geste.
+    // Towards the chef: the state before the wait if it was set aside, otherwise
+    // set aside for him. Towards the kitchen: queued on the rail. A ticket
+    // turned back to the chef goes back to the kitchen in the same gesture.
     "ticket.resumed": lisible("ticket.resumed", (base, ticket, { at, payload }) => {
       const [sur] = base.lire<{ reason: string | null }>("SELECT reason FROM rail WHERE ticket = ? AND state = '86'", ticket);
       const attente = base.lire<{ prior_state: string; prior_reason: string | null; prior_until: string | null }>(
@@ -382,13 +382,13 @@ export const rail = definirProjection<
     }),
     "waiting.marked": lisible("waiting.marked", (base, ticket, { payload }) => {
       base.executer("INSERT OR REPLACE INTO rail_waiting_marks (ticket, mark) VALUES (?, ?)", ticket, payload.waiting === null ? null : JSON.stringify(marqueDe(payload.waiting)));
-      // Le décompte se pose à la première marque de cette attente, et ne bouge
-      // plus : une mise à jour ne fait pas oublier ce qui est arrivé entre-temps.
+      // The count is set at the first mark of this wait, and no longer moves:
+      // an update does not make one forget what arrived in the meantime.
       if (payload.waiting === null) base.executer("DELETE FROM rail_waiting_heard WHERE ticket = ?", ticket);
       else if (payload.heard !== undefined) base.executer("INSERT OR IGNORE INTO rail_waiting_heard (ticket, heard) VALUES (?, ?)", ticket, payload.heard);
     }),
     "rail.commons": (base, { payload }) => {
-      // Ce fait ne concerne aucun ticket : il ne passe pas par `lisible`.
+      // This fact concerns no ticket: it does not go through `lisible`.
       if (!FORMES["rail.commons"].paths(payload?.paths)) return;
       base.executer("DELETE FROM rail_commons");
       for (const path of new Set(payload.paths)) base.executer("INSERT INTO rail_commons (path) VALUES (?)", path);
@@ -397,10 +397,10 @@ export const rail = definirProjection<
       if (FINS_SANS_SUITE.includes(payload?.outcome)) rendreApresCook(base, ticket, at);
     },
     "cook.interrupted": (base, { ticket, at }) => rendreApresCook(base, ticket, at),
-    // Le merge d'une livraison vaut service pour qui attend ce ticket, même si
-    // le rail n'a pas pu le dire : un ticket remonté au chef (86) puis mergé
-    // par lui n'est plus en pass, et `ticket.served` ne s'écrit pas. L'état du
-    // ticket, lui, ne change pas ici.
+    // The merge of a delivery counts as service for whoever awaits this ticket,
+    // even if the rail could not say so: a ticket escalated to the chef (86)
+    // then merged by him is no longer in pass, and `ticket.served` is not
+    // written. The ticket's state, for its part, does not change here.
     "merge.done": (base, { ticket, seq }) => {
       if (ticket === null) return;
       noterServi(base, ticket, seq);
@@ -409,7 +409,7 @@ export const rail = definirProjection<
   },
 });
 
-// Une marque, champs dans un ordre fixe : deux marques égales y sont le même texte.
+// A mark, fields in a fixed order: two equal marks are the same text there.
 const marqueDe = ({ what, who, followUp }: { what: string; who: string; followUp: string }) => ({ what, who, followUp });
 
 const COLONNES = `ticket, title, priority, created_at AS createdAt, url, state, since, model, effort, card, station,
@@ -417,26 +417,26 @@ const COLONNES = `ticket, title, priority, created_at AS createdAt, url, state, 
 
 export type Sort = { outcome: "served" | "left"; reason: string | null; seq: number };
 
-// Ce que le journal sait du sort d'un ticket, ou null s'il n'a été ni servi ni
-// vu partir — sur le rail, ou jamais entré.
+// What the log knows of a ticket's fate, or null if it was neither served nor
+// seen leaving — on the rail, or never entered.
 export function sortDuTicket(base: Base, ticket: number): Sort | null {
   return base.lire<Sort>("SELECT outcome, reason, seq FROM rail_outcomes WHERE ticket = ?", ticket)[0] ?? null;
 }
 
-// Un ticket servi, tel qu'on le montre après coup : son titre et l'adresse de
-// son issue, quand il a été servi, la station qui l'a cuisiné, et la PR mergée.
-// `title` vide, `url` nulle : le journal n'a jamais vu le ticket entrer sur le
-// rail — une livraison hors du rail. `station` nulle : aucune station ne l'a
-// envoyé en pass. `pr` nulle : servi sans merge, il n'avait rien à livrer.
-// `review` : ce que le reviewer a dit de la livraison servie, mot pour mot —
-// nulle quand aucune relecture lisible ne porte sur elle.
+// A served ticket, as shown after the fact: its title and its issue's
+// address, when it was served, the station that cooked it, and the merged PR.
+// `title` empty, `url` null: the log never saw the ticket enter the rail — an
+// off-rail delivery. `station` null: no station sent it to pass. `pr` null:
+// served without a merge, it had nothing to deliver. `review`: what the
+// reviewer said of the served delivery, word for word — null when no readable
+// review concerns it.
 export type Livre = { ticket: number; title: string; url: string | null; servedAt: string; station: string | null; pr: string | null; review: Relecture | null };
-// Le résumé du reviewer et ses constats, tels qu'il les a écrits.
+// The reviewer's summary and its findings, as it wrote them.
 export type Relecture = { summary: string; findings: Finding[] };
 
 const texteDe = (valeur: unknown) => (typeof valeur === "string" && valeur !== "" ? valeur : null);
 
-// La charge du dernier fait de ce type, pour ce ticket, entre deux numéros.
+// The payload of the latest fact of this type, for this ticket, between two numbers.
 function dernierFait(base: Base, ticket: number, types: string[], apres: number, jusqua: number): Record<string, unknown> | null {
   const [ligne] = base.lire<{ payload: string }>(
     `SELECT payload FROM events WHERE ticket = ? AND seq > ? AND seq <= ? AND type IN (SELECT value FROM json_each(?)) ORDER BY seq DESC LIMIT 1`,
@@ -450,12 +450,12 @@ function dernierFait(base: Base, ticket: number, types: string[], apres: number,
   return typeof payload === "object" && payload !== null ? (payload as Record<string, unknown>) : null;
 }
 
-// La relecture de ce qui a été servi : la dernière que le reviewer a écrite
-// entre la prise du ticket et son service, si elle porte sur la livraison que
-// la pass jugeait en dernier — même run, même commit — et qu'elle se lit. Une
-// relecture d'une livraison d'avant ne dit pas ce qui a été livré : rien
-// plutôt qu'un résumé faux. Sans pass — mergé à la main, servi d'avant la
-// relecture —, il n'y en a pas.
+// The review of what was served: the latest one the reviewer wrote between
+// the ticket's take and its service, if it concerns the delivery the pass last
+// judged — same run, same commit — and it can be read. A review of an earlier
+// delivery does not say what was delivered: nothing rather than a false
+// summary. Without a pass — merged by hand, served from before the review —,
+// there is none.
 function relectureServie(base: Base, ticket: number, prise: number, service: number): Relecture | null {
   const relue = dernierFait(base, ticket, ["pass.reviewed"], prise, service);
   const jugee = dernierFait(base, ticket, ["pass.started"], prise, service);
@@ -465,15 +465,16 @@ function relectureServie(base: Base, ticket: number, prise: number, service: num
   return summary === null ? null : { summary, findings: constats(relue.findings) };
 }
 
-// Les tickets servis depuis `instant` — par le rail, ou par le merge de leur
-// livraison —, qu'ils soient encore sur le rail ou non : le plus récent
-// d'abord. Un ticket y est une fois, à son dernier service. Une issue fermée
-// sans avoir été servie n'y est pas : son sort est d'être partie.
+// The tickets served since `instant` — by the rail, or by the merge of their
+// delivery —, whether they are still on the rail or not: most recent first. A
+// ticket appears once, at its last service. An issue closed without having
+// been served is not there: its fate is to be gone.
 //
-// Le ticket a pu quitter le rail : ce qu'on en montre se relit au journal, qui
-// garde tout. La PR est celle du dernier merge du ticket avant son service, et
-// après sa dernière prise — un ticket servi sans merge n'en garde pas une d'une
-// livraison d'avant. La relecture aussi : celle de ce qui a été servi.
+// The ticket may have left the rail: what is shown of it is re-read from the
+// log, which keeps everything. The PR is that of the ticket's last merge
+// before its service, and after its last take — a ticket served without a
+// merge does not keep one from an earlier delivery. The review too: that of
+// what was served.
 export function livresDepuis(base: Base, instant: string): Livre[] {
   return base
     .lire<{ ticket: number; servedAt: string; seq: number }>(
@@ -482,7 +483,7 @@ export function livresDepuis(base: Base, instant: string): Livre[] {
       instant,
     )
     .map(({ ticket, servedAt, seq }) => {
-      // Son titre du jour : une issue renommée après son service l'est ici aussi.
+      // Its title of the day: an issue renamed after its service is renamed here too.
       const nomme = dernierFait(base, ticket, ["ticket.arrived", "ticket.changed"], 0, Number.MAX_SAFE_INTEGER);
       const entre = dernierFait(base, ticket, ["ticket.arrived"], 0, Number.MAX_SAFE_INTEGER);
       const prise = base.lire<{ seq: number | null }>("SELECT max(seq) AS seq FROM events WHERE ticket = ? AND type = 'ticket.taken' AND seq <= ?", ticket, seq)[0]?.seq ?? 0;
@@ -506,27 +507,27 @@ function attendus(base: Base, card: Fiche | null): Attendu[] {
   });
 }
 
-// Les chemins communs du projet, tels que le journal les porte.
+// The project's common paths, as the log carries them.
 export function communsDuRail(base: Base): string[] {
   return base.lire<{ path: string }>("SELECT path FROM rail_commons ORDER BY path").map(({ path }) => path);
 }
 
 const lireFiche = (card: string | null) => (card === null ? null : (JSON.parse(card) as Fiche));
 
-// Ceux qui tiennent la zone d'un ticket en attente : les tickets partis en
-// cuisine — pris, en pass, 86 — et ceux que la pass a rendus, en attente avec
-// une livraison encore ouverte (sa branche, son worktree, sa PR). Tous lâchent
-// leur zone quand leur livraison est sur la base : un ticket remonté au chef
-// puis mergé par lui reste 86, sans plus rien tenir. Un ticket que le manager a
-// redécoupé non plus, PR ouverte ou pas : ses sous-tickets recouvrent sa zone,
-// et il les retiendrait pour toujours. Ni un ticket 86 faute de station qui
-// fournisse ce qu'il demande : il n'est jamais parti, et ne partira pas avant
-// un geste du chef — sauf s'il porte une livraison ouverte. Ni, de même, un
-// ticket en WAITING ou revenu de WAITING devant le chef. Un ticket qu'il attend
-// déjà n'y figure pas : la dépendance le dit. Une fiche illisible ne tient
-// rien, sa zone ne fait pas foi. Et un ticket qui a lui-même une livraison
-// ouverte n'est pas retenu par un autre ticket en attente : deux renvois sur
-// une même zone s'attendraient l'un l'autre sans fin.
+// Those who hold the zone of a queued ticket: the tickets gone to the
+// kitchen — taken, in pass, 86 — and those the pass gave back, queued with
+// a delivery still open (its branch, its worktree, its PR). All of them release
+// their zone when their delivery is on the base: a ticket escalated to the
+// chef then merged by him stays 86, holding nothing any more. Nor does a
+// ticket the manager has re-split, PR open or not: its sub-tickets overlap its
+// zone, and it would hold them back forever. Nor a ticket 86 for lack of a
+// station that provides what it asks for: it never left, and will not leave
+// before a gesture from the chef — unless it carries an open delivery. Nor,
+// likewise, a ticket in WAITING or back from WAITING in front of the chef. A
+// ticket it already awaits does not appear: the dependency says so. An
+// unreadable card holds nothing, its zone is not authoritative. And a ticket
+// that itself has an open delivery is not held back by another queued ticket:
+// two returns on the same zone would await each other forever.
 function tenants(base: Base): (ticket: number, card: Fiche | null, delivery: string | null) => Tenu[] {
   let tenant: { ticket: number; zone: string[]; parti: boolean }[] | undefined;
   let communs: string[] = [];
@@ -550,8 +551,8 @@ function tenants(base: Base): (ticket: number, card: Fiche | null, delivery: str
           REVENU_D_ATTENTE,
         )
         .flatMap((ligne) => {
-          const fiche = lireFiche(ligne.card);
-          return fiche && fiche.problems.length === 0 && fiche.zone.length > 0 ? [{ ticket: ligne.ticket, zone: fiche.zone, parti: ligne.state !== "waiting" }] : [];
+          const parsed = lireFiche(ligne.card);
+          return parsed && parsed.problems.length === 0 && parsed.zone.length > 0 ? [{ ticket: ligne.ticket, zone: parsed.zone, parti: ligne.state !== "waiting" }] : [];
         });
     }
     return tenant.flatMap((autre) => {
@@ -562,9 +563,9 @@ function tenants(base: Base): (ticket: number, card: Fiche | null, delivery: str
   };
 }
 
-// Les tickets gelés : 86 sans heure de retour, pour une livraison que la pass
-// n'a pas pu juger et qui n'est pas sur la base. Jugé, rendu, retiré du rail
-// ou mergé, un ticket cesse de l'être.
+// The frozen tickets: 86 with no return time, for a delivery the pass could
+// not judge and which is not on the base. Judged, given back, removed from the
+// rail or merged, a ticket stops being so.
 function gelesDuRail(base: Base): Set<number> {
   return new Set(
     base
@@ -573,7 +574,7 @@ function gelesDuRail(base: Base): Set<number> {
   );
 }
 
-// Les tickets en WAITING, et ce que chacun attend.
+// The WAITING tickets, and what each one awaits.
 function attentesDeTiers(base: Base): Map<number, AttenteDeTiers> {
   return new Map(
     base
@@ -601,15 +602,15 @@ function lire(base: Base, suite: string, ...parametres: number[]): TicketRail[] 
   });
 }
 
-// Combien de commentaires hors brigade chaque attente marquée a vus à sa pose.
+// How many non-brigade comments each marked wait saw when it was set.
 export function commentairesEntendus(base: Base): Map<number, number> {
   return new Map(base.lire<{ ticket: number; heard: number }>("SELECT ticket, heard FROM rail_waiting_heard").map(({ ticket, heard }) => [ticket, heard]));
 }
 
-// Ce que l'issue de chaque ticket dit de son attente, tel que le runtime l'y a
-// posé, et ce que le rail en sait : les tickets dont l'une ou l'autre n'est pas
-// vide. `marked` : l'attente marquée sur l'issue, ou nulle ; `waiting` : celle
-// du rail, ou nulle — le ticket n'attend plus, ou n'est plus sur le rail.
+// What each ticket's issue says about its wait, as the runtime put it there,
+// and what the rail knows of it: the tickets for which either is not empty.
+// `marked`: the wait marked on the issue, or null; `waiting`: the rail's, or
+// null — the ticket no longer waits, or is no longer on the rail.
 export type MarqueDAttente = { ticket: number; marked: { what: string; who: string; followUp: string } | null; waiting: AttenteDeTiers | null };
 export function marquesDAttente(base: Base): MarqueDAttente[] {
   const tiers = attentesDeTiers(base);
@@ -624,12 +625,12 @@ export function marquesDAttente(base: Base): MarqueDAttente[] {
     .filter(({ marked, waiting }) => marked !== null || waiting !== null);
 }
 
-// Ce que la marque de l'issue doit dire, pour qu'elle soit à jour : le même
-// texte pour la même attente.
+// What the issue's mark must say, for it to be up to date: the same text for
+// the same wait.
 export const texteDeMarque = (attente: { what: string; who: string; followUp: string } | null): string | null => (attente === null ? null : JSON.stringify(marqueDe(attente)));
 
-// Le rail dans l'ordre de service : `prio:1` d'abord, les tickets sans
-// priorité en dernier ; à priorité égale, l'issue la plus ancienne.
+// The rail in service order: `prio:1` first, tickets without a priority
+// last; at equal priority, the oldest issue.
 export function lireRail(base: Base): TicketRail[] {
   return lire(base, "ORDER BY priority IS NULL, priority, created_at, ticket");
 }
@@ -638,8 +639,8 @@ export function ticketDuRail(base: Base, ticket: number): TicketRail | null {
   return lire(base, "WHERE ticket = ?", ticket)[0] ?? null;
 }
 
-// Combien de tickets la station tient : ceux qu'elle a pris et pas encore
-// rendus, envoyés en pass ni déclarés 86 — un par cook, de la prise à sa fin.
+// How many tickets the station holds: those it took and has not yet given
+// back, sent to pass or declared 86 — one per cook, from the take to its end.
 export function prisPar(base: Base, station: string): number {
   return base.lire<{ combien: number }>("SELECT count(*) AS combien FROM rail WHERE state = 'taken' AND station = ?", station)[0]?.combien ?? 0;
 }

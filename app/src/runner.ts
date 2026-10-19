@@ -29,7 +29,7 @@ import { setTimeout as attendre } from "node:timers/promises";
 import { cite, echecDe, type Servi } from "./box.ts";
 import { MOTEUR, type Projet } from "./config.ts";
 
-// --- Ce que la box répond. La forme est la sienne (`runtime/src/evenements/distante.ts`) :
+// --- Ce que la box répond. La forme est la sienne (`runtime/src/events/remote.ts`) :
 // le runner n'en lit que ce qu'il lui faut.
 
 export type Plafonds = { turns: number; durationMs: number; tokens: number; idleMs: number };

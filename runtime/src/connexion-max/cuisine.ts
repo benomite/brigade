@@ -11,7 +11,7 @@
 // - et dans l'autre sens : une station d'ici que le flux d'un cook dit
 //   déconnectée signale la perte à la veille, et les autres projets
 //   suspendent sans lancer chacun le sien.
-import { derniereReconnexion } from "../projections/renouvellement.ts";
+import { derniereReconnexion } from "../projections/renewal.ts";
 import { etatStation, stationsAnnoncees, stationsDeconnectees } from "../projections/stations.ts";
 import type { Runtime } from "../runtime.ts";
 import { PERTES_D_UN_PROJET, type ConnexionMax } from "./connexion.ts";

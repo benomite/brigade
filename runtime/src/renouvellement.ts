@@ -5,12 +5,12 @@
 // lui seul : le fichier d'identifiants n'est jamais ouvert ici, ni nulle part
 // dans le runtime — au démarrage puis à chaque tick, et écrit au journal ce
 // qui a changé. La file du chef en tire l'annonce de l'échéance
-// (`projections/renouvellement.ts`).
+// (`projections/renewal.ts`).
 import { readFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { FICHIER_DES_IDENTIFIANTS } from "./identifiants.ts";
-import { PREAVIS_PAR_DEFAUT_S, VIE_PAR_DEFAUT_S, VIVANT_MS, type EchecDeRenouvellement, type ObservationDeSession } from "./evenements/renouvellement.ts";
-import { derniereReconnexion, sessionObservee } from "./projections/renouvellement.ts";
+import { PREAVIS_PAR_DEFAUT_S, VIE_PAR_DEFAUT_S, VIVANT_MS, type EchecDeRenouvellement, type ObservationDeSession } from "./events/renewal.ts";
+import { derniereReconnexion, sessionObservee } from "./projections/renewal.ts";
 import { etatStation, stationsDeconnectees } from "./projections/stations.ts";
 import { ConfigInvalide, type Runtime } from "./runtime.ts";
 

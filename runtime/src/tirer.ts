@@ -10,7 +10,7 @@
 // règles — bornes, bail, plafonds, pass — sont appliquées par le runtime.
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import type { Demande, Reponse } from "./evenements/distante.ts";
+import type { Demande, Reponse } from "./events/remote.ts";
 import { cheminJournal, ouvrirJournal } from "./journal.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import { NOM_DE_STATION } from "./stations-declarees.ts";

@@ -9,11 +9,11 @@
 import { existsSync } from "node:fs";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
-import type { Plafonds } from "./evenements/garde-fous.ts";
+import type { Plafonds } from "./events/guardrails.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
-import { arretsRecents, cooksEnCours, etatDesGardeFous, type Arret } from "./projections/garde-fous.ts";
-import { alerteDeSession } from "./projections/renouvellement.ts";
+import { arretsRecents, cooksEnCours, etatDesGardeFous, type Arret } from "./projections/guardrails.ts";
+import { alerteDeSession } from "./projections/renewal.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import { stationsDeconnectees } from "./projections/stations.ts";
 

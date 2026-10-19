@@ -8,7 +8,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { envelopper, type Cloison } from "./cloison.ts";
-import type { Depassement, Gates } from "./evenements/pass.ts";
+import type { Depassement, Gates } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 
 export const SCRIPT_GATES = ".claude/brigade/gates.sh";

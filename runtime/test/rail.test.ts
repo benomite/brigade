@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { REDECOUPE } from "../src/evenements/rail.ts";
+import { REDECOUPE } from "../src/events/rail.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { communsDuRail, ticketDuRail } from "../src/projections/rail.ts";
 import { direRetenue, etatLu, GesteRefuse, ouvrirRail, retenue } from "../src/rail.ts";

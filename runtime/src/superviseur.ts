@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { lecteurDActivite, type Activite } from "./activite.ts";
 import type { Readable } from "node:stream";
-import type { MotifArret, Plafonds } from "./evenements/garde-fous.ts";
+import type { MotifArret, Plafonds } from "./events/guardrails.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 import { lignesMasquees } from "./lignes-masquees.ts";
 import { ecrireAtomique, type ConsigneDuRelais, type FinDuRelais } from "./relais.ts";

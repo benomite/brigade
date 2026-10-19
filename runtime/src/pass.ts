@@ -81,8 +81,8 @@ import {
   type MotifDAttente,
   type Review,
   type Verdict,
-} from "./evenements/pass.ts";
-import type { FaitStation } from "./evenements/station.ts";
+} from "./events/pass.ts";
+import type { FaitStation } from "./events/station.ts";
 import { direMasquage } from "./identifiants.ts";
 import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE, FERMETURE, OUVERTURE } from "./livrable.ts";
 import { LancementRefuse, type CookLance, type GardeFous, type Verdict as VerdictGarde } from "./garde-fous.ts";
@@ -93,7 +93,7 @@ import { constaterExtinction, direExtinction } from "./grant.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import type { GitHub, PR } from "./github.ts";
 import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
-import { etatDesGardeFous } from "./projections/garde-fous.ts";
+import { etatDesGardeFous } from "./projections/guardrails.ts";
 import { managerAllume } from "./projections/manager.ts";
 import {
   controleRetenu,

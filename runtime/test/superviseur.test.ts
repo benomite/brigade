@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import type { Plafonds } from "../src/evenements/garde-fous.ts";
+import type { Plafonds } from "../src/events/guardrails.ts";
 import { superviser, type Arret } from "../src/superviseur.ts";
 import { aArreter, ENV_ENFANT, FAUX_CLAUDE, jusqua, repertoireTemporaire, temporaireDuFichier, vivant } from "./outils.ts";
 

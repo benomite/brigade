@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { argumentsClaude } from "../src/claude.ts";
 import { decrireReleve, trancher } from "../src/mesures.ts";
-import { livraisonsMergees } from "../src/projections/mesures.ts";
+import { mergedDeliveries } from "../src/projections/measures.ts";
 import { dossierDuProjet, preparerReprise, sessionDuFlux } from "../src/reprise-de-session.ts";
 import { chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
 import { jusqua, repertoireTemporaire } from "./outils.ts";
@@ -199,7 +199,7 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
     repris.gates.regler("vert");
     await repris.jusquAu("merge.done");
 
-    const [livraison] = livraisonsMergees(repris.journal.base);
+    const [livraison] = mergedDeliveries(repris.journal.base);
     // Le premier cook part de zéro ; le premier renvoi est repris, et échoue ; le suivant repart de zéro, livre ; le second renvoi reprend.
     assert.deepEqual(
       livraison?.cooks.map(({ delivered, resumed }) => [delivered, resumed ?? false]),
@@ -210,7 +210,7 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
         [true, true],
       ],
     );
-    const [paiement] = trancher(livraisonsMergees(repris.journal.base))[0]?.paiements ?? [];
+    const [paiement] = trancher(mergedDeliveries(repris.journal.base))[0]?.paiements ?? [];
     // Les tokens du lancement repris qui n'a rien livré sont perdus, comme ceux de tout autre.
     const tokens = (livraison?.cooks ?? []).map((cook) => cook.tokens ?? 0);
     assert.deepEqual(paiement, { ticket: 17, lancements: 4, inconnus: 0, repris: 2, tokens: { utiles: (tokens[0] ?? 0) + (tokens[2] ?? 0) + (tokens[3] ?? 0), perdus: tokens[1] } });

@@ -1,7 +1,7 @@
 // Pourquoi un ticket est mis de côté (86), dit en clair : la raison que le chef
 // lit, et celle que l'app montre sous le ticket. Une cause qui se répète d'un
 // ticket à l'autre n'est pas celle d'un ticket : elle bloque le projet.
-import { ATTEND_UN_TIERS, REVENU_D_ATTENTE, STATION_ABSENTE, SANS_STATION } from "./evenements/rail.ts";
+import { ATTEND_UN_TIERS, REVENU_D_ATTENTE, STATION_ABSENTE, SANS_STATION } from "./events/rail.ts";
 
 // Les causes qui, répétées à l'identique sur le projet, le bloquent : aucune
 // ne dépend du ticket, donc les autres tickets échoueraient de la même façon.

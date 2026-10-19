@@ -1,58 +1,58 @@
-// Les stations : ce que chacune annonce, ce qui l'empêche de servir, et les
-// cooks qu'elle a lancés. C'est ici que le chef lit ce qu'il paie — chaque cook
-// avec son calibrage et ce qu'il a consommé.
+// The stations: what each announces, what keeps it from serving, and the
+// cooks it launched. This is where the chef reads what he pays — each cook
+// with its calibration and what it consumed.
 //
-// Le temps n'entre pas ici : un quota « épuisé jusqu'à 15 h » le reste dans la
-// table après 15 h, c'est le lecteur qui compare à l'heure qu'il est.
+// Time does not enter here: a quota "exhausted until 3 pm" stays so in the
+// table after 3 pm, it is the reader who compares with the current time.
 import type { Base } from "../base.ts";
 import { geste } from "../geste.ts";
-import type { FaitDistante } from "../evenements/distante.ts";
-import type { FaitGardeFous } from "../evenements/garde-fous.ts";
-import type { FaitRenouvellement } from "../evenements/renouvellement.ts";
-import type { FaitStation, Ressource, Retenue } from "../evenements/station.ts";
+import type { FaitDistante } from "../events/remote.ts";
+import type { FaitGardeFous } from "../events/guardrails.ts";
+import type { FaitRenouvellement } from "../events/renewal.ts";
+import type { FaitStation, Ressource, Retenue } from "../events/station.ts";
 import { definirProjection } from "../projection.ts";
 
 export type EtatStation = {
   station: string;
   engine: string;
   provides: string[];
-  // Le plafond de cooks que la station annonce : celui qui vaut tant que le
-  // chef n'a rien réglé.
+  // The cap on cooks the station announces: the one that holds as long as the
+  // chef has set nothing.
   maxCooks: number;
-  // Le plafond réglé par le chef — 0 : pas de limite —, ou null s'il n'a rien dit.
+  // The cap set by the chef — 0: no limit —, or null if he has said nothing.
   cap: number | null;
   announcedAt: string;
-  // Non nuls : le quota est épuisé jusqu'à cette heure, la connexion a expiré.
+  // Non-null: the quota is exhausted until that time, the connection has expired.
   quotaUntil: string | null;
   quotaReason: string | null;
   disconnectedAt: string | null;
   disconnectedReason: string | null;
-  // Non nuls : la machine n'en peut plus depuis cet instant, et de quoi elle
-  // manque (voir `station.saturated`).
+  // Non-null: the machine can take no more since that instant, and what it
+  // lacks (see `station.saturated`).
   saturatedAt: string | null;
   saturatedResource: Ressource | null;
   saturatedObserved: number | null;
   saturatedLimit: number | null;
-  // Non nuls : des tickets pourraient partir, et la station ne les prend pas
-  // depuis cet instant, pour cette raison (voir `station.held`).
+  // Non-null: tickets could leave, and the station does not take them since
+  // that instant, for that reason (see `station.held`).
   heldAt: string | null;
   heldReason: Retenue | null;
-  // Non nuls : l'arbitre entre projets est injoignable depuis cet instant, et
-  // la station ne fait tourner qu'un cook à la fois (voir `station.unarbitrated`).
+  // Non-null: the arbiter between projects has been unreachable since that
+  // instant, and the station runs only one cook at a time (see `station.unarbitrated`).
   unarbitratedAt: string | null;
   unarbitratedReason: string | null;
-  // Vrai : elle ne tourne pas sur cette machine, elle tire son travail.
+  // True: it does not run on this machine, it pulls its work.
   remote: boolean;
-  // D'une station distante : sa dernière manifestation, et depuis quand elle
-  // est présente — nul : absente, elle ne s'est pas manifestée, ou plus depuis
-  // le délai de présence (voir `station.absent`).
+  // Of a remote station: its latest sign of life, and since when it has been
+  // present — null: absent, it has shown no sign, or no longer since the
+  // presence delay (see `station.absent`).
   seenAt: string | null;
   presentSince: string | null;
-  // Vrai : distante, le chef lui fait prendre aussi les tickets ordinaires,
-  // dans le bac à sable de son poste.
+  // True: remote, the chef has it take ordinary tickets too, in its
+  // workstation's sandbox.
   ordinary: boolean;
-  // Ce qu'elle a dit de ce bac à sable, la dernière fois que ça a changé, et
-  // quand. Nul : elle n'en a jamais rien dit.
+  // What it said about this sandbox, the last time it changed, and when.
+  // Null: it never said anything about it.
   sandbox: { available: boolean; reason: string | null; version: string | null; at: string } | null;
 };
 
@@ -62,12 +62,12 @@ export type CookDeStation = {
   model: string | null;
   effort: string | null;
   branch: string | null;
-  // Relatif au répertoire d'état.
+  // Relative to the state directory.
   worktree: string | null;
   launchedAt: string;
   endedAt: string | null;
-  // La fin dite par la station (`done`, `failed`, `86`, `disconnected`, `refused`) ou, à
-  // défaut, celle que les garde-fous ont notée.
+  // The ending said by the station (`done`, `failed`, `86`, `disconnected`, `refused`) or, by
+  // default, the one the guardrails noted.
   ending: string | null;
   turns: number | null;
   tokens: number | null;
@@ -85,7 +85,7 @@ const texte = (valeur: unknown): valeur is string => typeof valeur === "string" 
 const texteOuRien = (valeur: unknown) => (texte(valeur) ? valeur : null);
 const RESSOURCES: unknown[] = ["cpu", "memory", "disk"] satisfies Ressource[];
 
-// Chaque retenue telle que le chef la lit.
+// Each hold as the chef reads it.
 const RETENUES: Record<Retenue, string> = {
   stopped: "cuisine arrêtée par le chef",
   breaker: "disjoncteur ouvert",
@@ -105,7 +105,7 @@ const RETENUES: Record<Retenue, string> = {
 
 export const direRetenueDeStation = (raison: Retenue) => RETENUES[raison];
 
-// Les mêmes, en anglais : ce que dit `status`.
+// The same, in English: what `status` says.
 const RETENUES_EN: Record<Retenue, string> = {
   stopped: "kitchen stopped by the chef",
   breaker: "breaker open",
@@ -125,32 +125,32 @@ const RETENUES_EN: Record<Retenue, string> = {
 
 export const direRetenueDeStationEn = (raison: Retenue) => RETENUES_EN[raison];
 
-// La raison d'une déconnexion constatée au démarrage : le compte du service
-// n'a jamais été connecté.
+// The reason for a disconnection observed at start: the service's account
+// was never connected.
 export const SANS_CONNEXION = "not-logged-in";
-// La connexion Max qui manque, telle que le chef la lit : absente quand le
-// démarrage ne l'a pas trouvée, expirée quand elle est tombée en route.
+// The missing Max connection, as the chef reads it: absent when the start
+// did not find it, expired when it dropped along the way.
 export const direDeconnexion = (raison: string | null) => (raison === SANS_CONNEXION || raison?.startsWith("binaire introuvable") ? "absente" : "expirée");
 export const GESTE_DE_CONNEXION = `\`claude /login\` sous le compte du service, puis \`${geste("guardrails resume")}\``;
-// Le geste d'une connexion déjà tombée : le seul, `claude /login` — la cuisine
-// reprend seule au premier passage réussi du renouvellement (`session.restored`),
-// dans la minute. « resume » reste pour les autres arrêts.
+// The gesture for an already dropped connection: the only one, `claude /login` — the kitchen
+// starts again on its own at the first successful pass of the renewal (`session.restored`),
+// within the minute. "resume" stays for the other stops.
 export const GESTE_DE_CONNEXION_TOMBEE = "`claude /login` sous le compte du service — la cuisine reprend seule dans la minute, sans « resume »";
-// Les mêmes, en anglais : ce que dit le bloc `awaiting` de `status`.
+// The same, in English: what the `awaiting` block of `status` says.
 export const direDeconnexionEn = (raison: string | null) => (direDeconnexion(raison) === "absente" ? "missing" : "expired");
 export const GESTE_DE_CONNEXION_EN = `\`claude /login\` under the service account, then \`${geste("guardrails resume")}\``;
 export const GESTE_DE_CONNEXION_TOMBEE_EN = "`claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”";
-// La connexion Max tombée, dite d'un seul endroit : `run installation` la cite
-// telle quelle (`station` la dit en anglais, ci-dessous, du même fait).
+// The dropped Max connection, said from one place: `run installation` quotes it
+// as is (`station` says it in English, below, from the same fact).
 export const direConnexionTombee = (etat: Pick<EtatStation, "disconnectedAt" | "disconnectedReason">) =>
   `EXPIRÉE depuis le ${etat.disconnectedAt} (${etat.disconnectedReason}) — plus aucun ticket n'est pris ; \`claude /login\` sous le compte du service — la cuisine reprend seule dans la minute`;
 
-// La même, en anglais : ce que dit `station`.
+// The same, in English: what `station` says.
 export const direConnexionTombeeEn = (etat: Pick<EtatStation, "disconnectedAt" | "disconnectedReason">) =>
   `EXPIRED since ${etat.disconnectedAt} (${etat.disconnectedReason}) — no ticket is taken any more; ${GESTE_DE_CONNEXION_TOMBEE_EN}`;
 
-// Une station entre dans la table au premier fait qui la nomme : un quota
-// épuisé ou une déconnexion valent même si l'annonce s'est perdue.
+// A station enters the table at the first fact that names it: an exhausted
+// quota or a disconnection holds even if the announcement was lost.
 const modifier = (base: Base, station: unknown, at: string, affectation: string, ...parametres: Array<string | number | null>) => {
   if (!texte(station)) return;
   base.executer("INSERT OR IGNORE INTO stations (station, engine, provides, max_cooks, announced_at) VALUES (?, '', '[]', 0, ?)", station, at);
@@ -247,12 +247,12 @@ export const stations = definirProjection<Ecoutes>({
       );
       if (texte(payload.station)) base.executer("DELETE FROM stations_undeclared");
     },
-    // Ce qui la retenait part avec elle ; ses cooks restent au relevé.
+    // What held it leaves with it; its cooks stay in the record.
     "station.withdrawn": (base, { payload }) => {
       if (texte(payload.station)) base.executer("DELETE FROM stations WHERE station = ?", payload.station);
     },
-    // Seule une station que le projet déclare a une présence : une demande
-    // faite sous un autre nom ne crée personne.
+    // Only a station the project declares has a presence: a request made
+    // under another name creates nobody.
     "remote.asked": (base, { at, payload }) => {
       if (texte(payload.station)) base.executer("UPDATE stations SET seen_at = ? WHERE station = ? AND remote = 1", at, payload.station);
     },
@@ -307,24 +307,24 @@ export const stations = definirProjection<Ecoutes>({
     "station.disconnected": (base, { at, payload }) => {
       modifier(base, payload.station, at, "disconnected_at = ?, disconnected_reason = ?", at, texteOuRien(payload.reason));
     },
-    // « reprendre » : le chef tient la connexion pour rétablie.
+    // "resume": the chef considers the connection restored.
     "kitchen.resumed": (base) => {
       base.executer("UPDATE stations SET disconnected_at = NULL, disconnected_reason = NULL");
     },
-    // Le renouvellement a vu la connexion revenir : la levée se fait seule.
+    // The renewal saw the connection come back: the lifting happens on its own.
     "session.restored": (base, { payload }) => {
       for (const station of payload.stations) base.executer("UPDATE stations SET disconnected_at = NULL, disconnected_reason = NULL WHERE station = ?", station);
     },
     "cook.launched": (base, evenement) => {
       const { run, station, model, effort, branch, worktree } = evenement.payload;
-      // Un cook lancé sans station n'appartient à aucune.
+      // A cook launched without a station belongs to none.
       if (!texte(run) || !texte(station)) return;
-      // Un setup d'ici vient de passer : l'échec d'avant n'est plus celui qui
-      // précède le prochain. Celui d'une station distante a tourné ailleurs.
+      // A setup from here has just passed: the earlier failure is not the one
+      // that precedes the next. A remote station's ran elsewhere.
       base.executer("UPDATE setup_du_projet SET last_why = NULL, last_hosts = NULL WHERE NOT EXISTS (SELECT 1 FROM stations WHERE station = ? AND remote = 1)", station);
-      // De même pour la cause d'une mise de côté : un cook est parti, le
-      // projet n'est plus sur la même.
-      // Et un cook parti est la cause levée : le blocage tombe avec elle.
+      // Likewise for the cause of an aside: a cook has left, the
+      // project is no longer on the same one.
+      // And a cook leaving is the cause lifted: the block falls with it.
       base.executer(
         "UPDATE mise_de_cote_du_projet SET last_reason = NULL, blocked_at = NULL, blocked_reason = NULL, blocked_base = NULL, blocked_ticket = NULL, blocked_by = NULL",
       );
@@ -360,15 +360,15 @@ export const stations = definirProjection<Ecoutes>({
     "cook.reported": (base, { payload }) => {
       base.executer("UPDATE station_cooks SET ending = ?, pr = ? WHERE run = ?", texteOuRien(payload.ending), texteOuRien(payload.pr), texteOuRien(payload.run));
     },
-    // Un signal pour le chef, lu au journal et sur l'issue : il ne change rien
-    // à ce que la station sait d'un cook.
+    // A signal for the chef, read in the log and on the issue: it changes nothing
+    // about what the station knows of a cook.
     "cook.out-of-zone": () => {},
-    // De même : `status` lit le temps sans progrès au rail.
+    // Likewise: `status` reads the time without progress on the rail.
     "cook.stalled": () => {},
-    // De même : le ticket est 86 au rail, et c'est là que `status` le lit.
+    // Likewise: the ticket is 86 on the rail, and that is where `status` reads it.
     "secrets.unavailable": () => {},
-    // L'issue le dit ; ici ne compte que la cause, celle à laquelle le
-    // prochain échec se compare.
+    // The issue says it; here only the cause counts, the one the
+    // next failure is compared with.
     "setup.failed": (base, { payload }) => {
       if (!texte(payload.why)) return;
       base.executer("INSERT OR IGNORE INTO setup_du_projet (id) VALUES (1)");
@@ -408,14 +408,14 @@ export const stations = definirProjection<Ecoutes>({
         texteOuRien(payload.station),
       );
     },
-    // `last_reason` reste celle du blocage quand c'est la base qui a bougé :
-    // la même cause, sur la nouvelle base, rebloque aussitôt. Quand la cause a
-    // changé, c'est `aside.failed` de la nouvelle qui la remplace.
+    // `last_reason` stays that of the block when it is the base that moved:
+    // the same cause, on the new base, blocks again at once. When the cause
+    // changed, it is the new one's `aside.failed` that replaces it.
     "aside.unblocked": (base) => {
       base.executer("UPDATE mise_de_cote_du_projet SET blocked_at = NULL, blocked_reason = NULL, blocked_base = NULL, blocked_ticket = NULL, blocked_by = NULL");
     },
-    // La cause reste celle du blocage : le même échec, sur la base qui a
-    // bougé, rebloque aussitôt.
+    // The cause stays that of the block: the same failure, on the base that
+    // moved, blocks again at once.
     "setup.unblocked": (base) => {
       base.executer("UPDATE setup_du_projet SET blocked_at = NULL, blocked_why = NULL, blocked_hosts = NULL, blocked_base = NULL, blocked_ticket = NULL, blocked_by = NULL");
     },
@@ -424,25 +424,25 @@ export const stations = definirProjection<Ecoutes>({
 
 const hotes = (valeur: unknown): string[] => (Array.isArray(valeur) ? valeur.filter(texte) : []);
 
-// La cause d'un échec de setup : son motif, et ce que la porte a refusé.
+// The cause of a setup failure: its reason, and what the door refused.
 export type CauseDeSetup = { why: string; hosts: string[] };
 
-// Le même échec que `avant` : même motif, et aucun hôte refusé qu'il n'ait
-// déjà nommé. Les hôtes ne s'exigent pas tous : la porte ne redit pas un hôte
-// avant dix minutes, à qui que ce soit — un essai qui suit de près se tait sur
-// celui qui l'a fait échouer.
+// The same failure as `avant`: same reason, and no refused host that it has not
+// already named. Hosts are not all required: the door does not repeat a host
+// within ten minutes, to anyone — a close follow-up attempt keeps quiet about
+// the one that made it fail.
 export const memeCause = (avant: CauseDeSetup, apres: CauseDeSetup) => avant.why === apres.why && apres.hosts.every((hote) => avant.hosts.includes(hote));
 
-// La cause du dernier échec de setup du projet, s'il n'est passé aucun setup
-// d'ici depuis : c'est à elle que le prochain échec se compare.
+// The cause of the project's latest setup failure, if no setup from here has
+// passed since: it is what the next failure is compared with.
 export function dernierEchecDeSetup(base: Base): CauseDeSetup | null {
   const ligne = base.lire<{ why: string | null; hosts: string | null }>("SELECT last_why AS why, last_hosts AS hosts FROM setup_du_projet")[0];
   return ligne?.why ? { why: ligne.why, hosts: JSON.parse(ligne.hosts ?? "[]") } : null;
 }
 
-// Le setup du projet bloqué : depuis quand, sur quelle cause, par quel ticket,
-// et la base dont le worktree était parti — tant qu'elle n'a pas bougé, aucun
-// setup n'est lancé. Null : rien ne le bloque.
+// The project's blocked setup: since when, on which cause, by which ticket,
+// and the base the worktree had left from — as long as it has not moved, no
+// setup is launched. Null: nothing blocks it.
 export type SetupBloque = CauseDeSetup & { since: string; base: string; ticket: number | null; station: string | null };
 
 export function setupBloque(base: Base): SetupBloque | null {
@@ -487,8 +487,8 @@ export function etatStation(base: Base, station: string): EtatStation | null {
   };
 }
 
-// Combien de cooks la station fait tourner à la fois, au plus : ce que le chef
-// a réglé, sinon ce qu'elle annonce. Null : pas de limite — c'est ce que dit zéro.
+// How many cooks the station runs at once, at most: what the chef set,
+// otherwise what it announces. Null: no limit — that is what zero says.
 export function plafondDeCooks(etat: Pick<EtatStation, "maxCooks" | "cap">): number | null {
   const regle = etat.cap ?? etat.maxCooks;
   return regle === 0 ? null : regle;
@@ -496,22 +496,22 @@ export function plafondDeCooks(etat: Pick<EtatStation, "maxCooks" | "cap">): num
 
 const JOUR_MS = 86_400_000;
 
-// Ce que les cooks de la station ont consommé, en tokens, sur 24 h et sur 7
-// jours glissants : ceux qui ont fini dans la fenêtre. C'est la consommation
-// des cooks de tickets, pas celle du compte.
+// What the station's cooks consumed, in tokens, over 24 h and over 7 sliding
+// days: those that finished within the window. It is the consumption of the
+// ticket cooks, not that of the account.
 export function consommationDesCooks(base: Base, station: string, maintenant: Date): { jour: number; semaine: number } {
-  const depuis = (jours: number) => new Date(maintenant.getTime() - jours * JOUR_MS).toISOString();
+  const since = (jours: number) => new Date(maintenant.getTime() - jours * JOUR_MS).toISOString();
   const ligne = base.lire<{ jour: number | null; semaine: number | null }>(
     `SELECT SUM(CASE WHEN ended_at >= ? THEN tokens END) AS jour, SUM(tokens) AS semaine
      FROM station_cooks WHERE station = ? AND ended_at >= ?`,
-    depuis(1),
+    since(1),
     station,
-    depuis(7),
+    since(7),
   )[0];
   return { jour: ligne?.jour ?? 0, semaine: ligne?.semaine ?? 0 };
 }
 
-// Les derniers cooks de la station, le plus récent d'abord.
+// The station's latest cooks, most recent first.
 export function cooksDeStation(base: Base, station: string, combien: number): CookDeStation[] {
   return base.lire<CookDeStation>(
     `SELECT run, ticket, model, effort, branch, worktree, launched_at AS launchedAt, ended_at AS endedAt, ending,
@@ -522,7 +522,7 @@ export function cooksDeStation(base: Base, station: string, combien: number): Co
   );
 }
 
-// Les cooks de la station qui tournent, le plus ancien d'abord.
+// The station's cooks that are running, oldest first.
 export function cooksEnCoursDeStation(base: Base, station: string): CookDeStation[] {
   return base.lire<CookDeStation>(
     `SELECT run, ticket, model, effort, branch, worktree, launched_at AS launchedAt, ended_at AS endedAt, ending,
@@ -532,7 +532,7 @@ export function cooksEnCoursDeStation(base: Base, station: string): CookDeStatio
   );
 }
 
-// Ce qu'un cook a coûté, par son run — ou null si aucune station ne l'a lancé.
+// What a cook cost, by its run — or null if no station launched it.
 export function cookDeRun(base: Base, run: string): CookDeStation | null {
   return (
     base.lire<CookDeStation>(
@@ -544,9 +544,9 @@ export function cookDeRun(base: Base, run: string): CookDeStation | null {
   );
 }
 
-// Combien des derniers lancements dont le run porte ce préfixe — les cooks d'un
-// ticket, les relectures d'une livraison, les jugements d'une issue — le modèle
-// a refusés d'affilée.
+// How many of the latest launches whose run carries this prefix — a ticket's
+// cooks, a delivery's reviews, an issue's judgements — the model refused in a
+// row.
 export function refusDAffilee(base: Base, prefixe: string): number {
   const fins = base.lire<{ ending: string | null }>(
     "SELECT ending FROM station_cooks WHERE substr(run, 1, length(?)) = ? ORDER BY launched_seq DESC",
@@ -557,45 +557,44 @@ export function refusDAffilee(base: Base, prefixe: string): number {
   return autre === -1 ? fins.length : autre;
 }
 
-// Les stations dont la connexion a expiré, et que le chef n'a pas fait reprendre.
+// The stations whose connection expired, and which the chef has not had resume.
 export function stationsDeconnectees(base: Base): string[] {
   return base.lire<{ station: string }>("SELECT station FROM stations WHERE disconnected_at IS NOT NULL ORDER BY station").map((ligne) => ligne.station);
 }
 
-// Ce que fournissent, à elles toutes, les stations que le projet déclare : les
-// capacités qu'un ticket peut demander sans rester sur le rail.
+// What the stations provide, all together, that the project declares: the
+// capabilities a ticket can ask for without staying on the rail.
 export function capacitesFournies(base: Base): string[] {
   return [...new Set(stationsAnnoncees(base).flatMap((station) => etatStation(base, station)?.provides ?? []))];
 }
 
-// Depuis quand le projet ne déclare aucune station, ou null s'il en déclare —
-// ou si aucun runtime n'a encore dit ce qu'il déclare.
+// Since when the project declares no station, or null if it declares one —
+// or if no runtime has yet said what it declares.
 export function sansStationDepuis(base: Base): string | null {
   return base.lire<{ since: string }>("SELECT since FROM stations_undeclared")[0]?.since ?? null;
 }
 
-// Le compte que les stations consomment est aussi celui des relectures et des
-// jugements : ils n'ont pas lieu tant qu'une station le dit déconnecté, ou
-// épuisé jusqu'à une heure qui n'est pas passée.
+// The account the stations consume is also that of reviews and judgements:
+// they do not take place as long as a station says it is disconnected, or
+// exhausted until a time that has not passed.
 export function compteRetenu(base: Base, maintenant: Date): boolean {
   return base.lire("SELECT 1 FROM stations WHERE disconnected_at IS NOT NULL OR quota_until > ? LIMIT 1", maintenant.toISOString()).length > 0;
 }
 
-// Les stations que le projet déclare, telles que le journal les connaît : une
-// station retirée n'en est plus.
+// The stations the project declares, as the log knows them: a withdrawn
+// station is no longer one.
 export function stationsAnnoncees(base: Base): string[] {
   return base.lire<{ station: string }>("SELECT station FROM stations ORDER BY station").map((ligne) => ligne.station);
 }
 
-// La cause qui a mis de côté le dernier ticket du projet, s'il n'est parti
-// aucun cook depuis : c'est à elle que la prochaine se compare.
+// The cause that set the project's latest ticket aside, if no cook has left
+// since: it is what the next one is compared with.
 export function derniereMiseDeCote(base: Base): string | null {
   return base.lire<{ reason: string | null }>("SELECT last_reason AS reason FROM mise_de_cote_du_projet")[0]?.reason ?? null;
 }
 
-// Le projet bloqué sur une cause de mise de côté qui se répète : depuis quand,
-// laquelle, par quel ticket, et la base d'où elle a été vue. Null : rien ne le
-// bloque.
+// The project blocked on an aside cause that repeats: since when, which one,
+// by which ticket, and the base it was seen from. Null: nothing blocks it.
 export type MiseDeCoteBloquee = { since: string; reason: string; base: string; ticket: number | null; station: string | null };
 
 export function miseDeCoteBloquee(base: Base): MiseDeCoteBloquee | null {

@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { brancherDerive, lireSeuils } from "../src/derive.ts";
-import type { Seuils } from "../src/evenements/derive.ts";
+import type { Seuils } from "../src/events/drift.ts";
 import { SANS_SEUIL } from "../src/mesures.ts";
 import { ConfigInvalide, demarrer } from "../src/runtime.ts";
 import { repertoireTemporaire } from "./outils.ts";

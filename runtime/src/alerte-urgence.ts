@@ -6,7 +6,7 @@
 import { direAttente, nommerAttente } from "./attend.ts";
 import { CAUSES_D_URGENCE, lireEtat } from "./etat.ts";
 import type { Journal } from "./journal.ts";
-import { alerteEnCours } from "./projections/urgence.ts";
+import { alerteEnCours } from "./projections/emergency.ts";
 import type { Runtime } from "./runtime.ts";
 import { cleDUrgence, type Urgence } from "./urgence.ts";
 
