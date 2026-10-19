@@ -2362,6 +2362,15 @@ regarde rien — son clone la met à jour. L'état et les gestes passent par le 
 `app/src/mise-a-jour/`. Pour l'essayer sans GitHub, `BRIGADE_APP_MISE_A_JOUR_SOURCE=<adresse>` la fait
 lire un serveur qui répond comme lui.
 
+**Ce que le chef en voit** (#1014). Sur « Tous les projets », une section **App** dit la version qui
+tourne (`Brigade 1.4.0`) — dans tous les états, y compris à jour, en erreur ou lancée depuis le dépôt ;
+la raison d'une erreur est au survol de la version. Quand une version plus haute est publiée, une ligne
+l'annonce (`version 1.5.0 is available`, avec la progression pendant le téléchargement) et porte deux
+gestes : **Install now** (le bouton recommandé ; l'app ferme ses terminaux et se relance sur la
+nouvelle version, ce que dit son survol) et **Later** (la ligne disparaît jusqu'au lancement suivant,
+où la version téléchargée s'installe d'elle-même). Un refus de l'installation se dit en une ligne sous
+le message. À jour et en erreur, aucun message.
+
 **Depuis le dépôt :**
 
 ```bash

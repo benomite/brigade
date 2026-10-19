@@ -62,8 +62,8 @@ test("l'accueil liste ses stations sous ses projets, une ligne chacune : sa past
   const { jouee, section } = await laHome(ACCUEIL);
   assert.deepEqual(
     jouee.element("tous").children.map(({ balise, id, textContent }) => (balise === "h2" ? textContent : id)),
-    // Puis la ligne qui ouvre le coût de tous les projets (#1022), au niveau de l'app.
-    ["Projects", "accueil-projets", "Stations", "accueil-stations", "Cost", "accueil-couts", "sante"],
+    // Puis la ligne qui ouvre le coût de tous les projets (#1022), au niveau de l'app, et la version qui tourne (#1014).
+    ["Projects", "accueil-projets", "Stations", "accueil-stations", "Cost", "accueil-couts", "App", "accueil-app", "sante"],
   );
   assert.deepEqual(lignes(section()), [
     { texte: "boxonline · 2 cooks · parade›", survol: "Linux 6.1.0 · version 1.4.0", ton: "vert" },

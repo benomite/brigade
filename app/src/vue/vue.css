@@ -108,7 +108,7 @@ pre.propos {
 }
 /* Un bouton de geste : il écrit, ou il demande — le même partout. Inactif, il est en pointillé,
    et sa raison se lit dessous. `:where` : la règle ne pèse rien, chaque bloc la précise. */
-:where(.gestes, .alerte > .ligne, #service, #retrait, #pages, #formulaire, #avis) button,
+:where(.gestes, .alerte > .ligne, #service, #retrait, #pages, #formulaire, #avis, #accueil-app) button,
 #fiche button,
 #rail .pr,
 #rail .servie button {
@@ -120,13 +120,13 @@ pre.propos {
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
 }
-:where(.gestes, .alerte > .ligne, #service, #retrait, #pages, #formulaire, #avis) button:hover:not(:disabled),
+:where(.gestes, .alerte > .ligne, #service, #retrait, #pages, #formulaire, #avis, #accueil-app) button:hover:not(:disabled),
 #fiche button:hover,
 #rail .pr:hover,
 #rail .servie button:hover:not(:disabled) {
   border-color: var(--trait-fort);
 }
-:where(.gestes, .alerte > .ligne, #service, #retrait, #pages, #formulaire, #avis) button:disabled,
+:where(.gestes, .alerte > .ligne, #service, #retrait, #pages, #formulaire, #avis, #accueil-app) button:disabled,
 #rail .servie button:disabled {
   color: var(--discret);
   background: none;
@@ -848,6 +848,28 @@ main > header,
 }
 #accueil-stations form p:empty {
   display: none;
+}
+/* L'app : sa version, discrète ; le message d'une mise à jour disponible se lit, ses deux gestes à droite. */
+#accueil-app .version {
+  margin: 0;
+  padding: 8px 12px;
+  color: var(--discret);
+}
+#accueil-app .mise-a-jour {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+}
+#accueil-app .mise-a-jour > span:not(.pastille):not(.action) {
+  flex: 1;
+  min-width: 0;
+}
+#accueil-app > p:not(.version) {
+  margin: 0;
+  padding: 0 12px 8px;
+  color: var(--jaune);
 }
 /* La ligne de santé : verte et discrète quand tout va ; quand l'un des deux cloche, elle se lit. */
 #sante {

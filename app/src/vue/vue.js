@@ -254,6 +254,15 @@ const appairageDit = document.createElement("p");
 appairageDit.ariaLive = "polite";
 formulaireDAppairage.append(codeTape, appairage, renoncerAppairage, appairageDit);
 stationsDeLAccueil.append(listeDesStations, ouvrirLAppairage, formulaireDAppairage);
+// « App », sur l'accueil : la version qui tourne, toujours dite ; et, quand une plus haute est publiée,
+// un message avec deux gestes — l'installer maintenant, ou la laisser au lancement suivant.
+const appDeLAccueil = document.createElement("section");
+appDeLAccueil.id = "accueil-app";
+appDeLAccueil.className = "liste";
+appDeLAccueil.ariaLabel = "App";
+appDeLAccueil.ariaLive = "polite";
+const titreDeLApp = bloc("h2", "App");
+titreDeLApp.hidden = true;
 const santeDeLAccueil = document.createElement("p");
 santeDeLAccueil.id = "sante";
 santeDeLAccueil.ariaLive = "polite";
@@ -682,6 +691,14 @@ let codeVu;
 let nonMisAJour = "";
 // L'app se met à jour : son bouton attend qu'elle se relance.
 let enPassage = false;
+// La mise à jour de l'app installée, telle que la dernière lecture la dit (mise-a-jour/etat.ts). Indéfini : pas encore reçue.
+/** @type {import("../mise-a-jour/etat.ts").EtatDeMiseAJour | undefined} */
+let miseAJourVue;
+// La version dont le chef a dit « later » : son message ne revient pas avant le lancement suivant.
+let miseAJourReportee = "";
+// « Install now » en cours, ou refusée : ce que l'app en dit sous le message.
+let miseAJourInstalle = false;
+let miseAJourRefusee = "";
 // Ce que la dernière lecture des stations donne à poser (stations/stations.ts). Indéfini : pas encore lues.
 /** @type {import("../stations/stations.ts").VuDesStations | undefined} */
 let stationsVues;
@@ -4285,10 +4302,65 @@ function poserAccueil() {
         ? [bloc("p", "no station yet: install one, then pair it here with “+ station”")]
         : stations.map((station) => ligneDAccueil(station.nom, station, () => ouvrirStation(station.id)))),
   );
+  poserApp();
   const sante = accueilVu?.sante ?? { ton: "gris", dit: "Max ?  ·  GitHub ?", survol: "first readings in progress" };
   santeDeLAccueil.dataset.ok = String(sante.ton === "vert");
   santeDeLAccueil.title = sante.survol;
   santeDeLAccueil.replaceChildren(pastille(sante.dit, sante.ton), bloc("span", sante.dit));
+}
+
+// La version qui tourne, et le message d'une mise à jour disponible. Rien ne s'y dit d'une mise à jour
+// à jour, ni d'une erreur — la raison de celle-ci est au survol de la version. « Later » ne retient
+// rien : la version téléchargée s'installe d'elle-même au lancement suivant.
+function poserApp() {
+  const etat = miseAJourVue;
+  titreDeLApp.hidden = etat === undefined;
+  if (etat === undefined) return appDeLAccueil.replaceChildren();
+  const version = bloc("p", `Brigade ${etat.version}`);
+  version.className = "version mono";
+  if (etat.etat === "erreur") version.title = etat.raison;
+  const lignes = [version];
+  const annoncee = etat.etat === "disponible" || etat.etat === "telechargement" || etat.etat === "prete" || etat.etat === "installation";
+  if (annoncee && etat.nouvelle !== miseAJourReportee) {
+    const phrase =
+      etat.etat === "installation" || miseAJourInstalle
+        ? `installing ${etat.nouvelle} — the app relaunches itself…`
+        : etat.etat === "telechargement"
+          ? `version ${etat.nouvelle} is available — downloading it, ${etat.taille > 0 ? Math.floor((100 * etat.recus) / etat.taille) : 0} %`
+          : `version ${etat.nouvelle} is available`;
+    const message = document.createElement("div");
+    message.className = "mise-a-jour";
+    message.append(pastille("an update is available", "jaune"), bloc("span", phrase));
+    if (etat.etat !== "installation" && !miseAJourInstalle) {
+      const nouvelle = etat.nouvelle;
+      message.append(
+        boutonAction(
+          document,
+          "Install now",
+          () => {
+            miseAJourInstalle = true;
+            miseAJourRefusee = "";
+            poserApp();
+            void brigade.installerMiseAJour().then((rendu) => {
+              if (rendu === undefined) return;
+              miseAJourInstalle = false;
+              miseAJourRefusee = rendu.refus;
+              poserApp();
+            });
+          },
+          { recommande: true, prix: "closes the app's terminals, then relaunches it on the new version" },
+        ),
+        boutonAction(document, "Later", () => {
+          miseAJourReportee = nouvelle;
+          miseAJourRefusee = "";
+          poserApp();
+        }, { prix: "installed at next launch" }),
+      );
+    }
+    lignes.push(message);
+    if (miseAJourRefusee !== "") lignes.push(bloc("p", miseAJourRefusee));
+  }
+  appDeLAccueil.replaceChildren(...lignes);
 }
 
 // La page d'une station : en tête, son nom, sa pastille et son état en une phrase — « online · 2 cooks
@@ -5097,7 +5169,7 @@ function ouvrirTous() {
   poserCode();
   poserAccueil();
   poserCout();
-  tous.replaceChildren(bloc("h2", "Projects"), projetsDeLAccueil, bloc("h2", "Stations"), stationsDeLAccueil, bloc("h2", "Cost"), coutsDeLAccueil, santeDeLAccueil);
+  tous.replaceChildren(bloc("h2", "Projects"), projetsDeLAccueil, bloc("h2", "Stations"), stationsDeLAccueil, bloc("h2", "Cost"), coutsDeLAccueil, titreDeLApp, appDeLAccueil, santeDeLAccueil);
   brigade.tous(++demande);
 }
 
@@ -5386,6 +5458,11 @@ brigade.surCode((vu) => {
   codeVu = vu;
   poserCode();
 });
+// La mise à jour de l'app : son état remplace celui d'avant ; le message de l'accueil le suit.
+brigade.surMiseAJour((vu) => {
+  miseAJourVue = vu;
+  poserApp();
+});
 // Les stations relues : ce que la page d'une station en montre suit — leurs lignes de l'accueil viennent par `surAccueil`.
 brigade.surStations((vu) => {
   stationsVues = vu;
@@ -5596,6 +5673,7 @@ codeVu ??= demarrage.code;
 stationsVues ??= demarrage.stations;
 projetsVus ??= demarrage.projetsDesStations;
 accueilVu ??= demarrage.accueil;
+miseAJourVue ??= demarrage.miseAJour;
 CALIBRAGE_DU_PROJET = demarrage.calibrage;
 let configuration = demarrage.configuration;
 // Le terminal mesure ses cases à l'ouverture : sa police, embarquée, est chargée avant qu'aucun
