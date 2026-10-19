@@ -465,3 +465,37 @@ test("un seuil de coût franchi est dans le bloc dérive de status, et ne change
   const arrets = journal.tout().filter((fait) => fait.type.startsWith("cook.") && fait.type !== "cook.launched" && (fait.payload as { run?: string }).run === "run-vivant");
   assert.deepEqual(arrets, []);
 });
+
+test("la rétro d'un ticket est comptée dans son total de tokens, et se lit à part", (t) => {
+  const { base, cuire, juger, merger } = cuisine(t);
+  cuire(17, { tours: 10, ms: 60_000 });
+  cuire(17, { tours: 3, ms: 5_000, station: "retro" });
+  juger(17, undefined);
+  merger(17);
+  cuire(18, { tours: 10, ms: 60_000 });
+  juger(18, undefined);
+  merger(18);
+  const livraisons = mergedDeliveries(base);
+
+  // Chaque lancement du faux journal coûte 1000 tokens : 1000 de cook + 1000 de rétro.
+  const [tranche] = trancher(livraisons);
+  assert.equal(livraisons[0]?.cooks.length, 1);
+  assert.equal(livraisons[0]?.retroTokens, 1000);
+  assert.equal(livraisons[1]?.retroTokens, undefined);
+  assert.deepEqual([...(tranche?.tokens ?? [])], [["sonnet/low", { mediane: 1500, tickets: 2, plusCher: { ticket: 17, tokens: 2000 } }]]);
+  assert.deepEqual(tranche?.retros, [{ ticket: 17, tokens: 1000 }]);
+  assert.deepEqual(tranche?.paiements, []);
+  const lignes = decrireReleve({ projet: "brigade", livraisons, seuils: null });
+  assert.ok(lignes.some((ligne) => ligne.startsWith("retro ")));
+  assert.ok(lignes.some((ligne) => /^1-2\s+#17\s+1,000$/.test(ligne)));
+});
+
+test("sans rétro, le relevé ne dit rien d'elle", (t) => {
+  const { base, livrer } = cuisine(t);
+  livrer(17, undefined);
+  const livraisons = mergedDeliveries(base);
+
+  assert.equal("retroTokens" in (livraisons[0] ?? {}), false);
+  assert.deepEqual(trancher(livraisons)[0]?.retros, []);
+  assert.ok(!decrireReleve({ projet: "brigade", livraisons, seuils: null }).some((ligne) => ligne.startsWith("retro ")));
+});

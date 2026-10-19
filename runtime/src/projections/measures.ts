@@ -24,7 +24,11 @@ type Ecoutes = Extract<
 // instead of starting from scratch (`resumes` at its launch) — absent otherwise.
 export type CookMesure = { calibration: string | null; turns: number | null; durationMs: number | null; tokens: number | null; delivered: boolean; resumed?: true };
 
-// A merged delivery. `measures`: what its latest gates declared.
+// A merged delivery. `retroTokens`: what the retro of its ticket used up — the
+// run launched under the `retro` station — summed, null if none of them knows
+// its tokens; absent if the ticket had no retro. It is counted in the ticket's
+// token total, and kept apart from `cooks`: a retro is not a delivery attempt.
+// `measures`: what its latest gates declared.
 // `state`: those of these measures that tell the state of the project after
 // its merge — all of them, except when its gates were run before those of a
 // delivery merged earlier: a delivery judged, put on hold, then merged by hand
@@ -40,12 +44,16 @@ export type Delivery = {
   state: Record<string, number>;
   gatesS: number | null;
   cooks: CookMesure[];
+  retroTokens?: number | null;
   overCeiling?: Depassement;
 };
 
 // The stations under which the pass and the manager launch their cooks:
 // neither a review nor a judgment cooks a ticket.
 const HORS_TICKET = ["reviewer", "manager"];
+// The station under which the retro of a ticket runs: its cost is the ticket's,
+// but it is not one of the ticket's cooks.
+const RETRO = "retro";
 
 // Each gates run of a ticket, whether or not it declared measures: the last
 // one says whether the delivery crosses its duration ceiling.
@@ -58,7 +66,7 @@ const noterGates = (base: Base, seq: number, ticket: number | null, gates: Gates
 
 export const measures = definirProjection<Ecoutes>({
   nom: "mesures",
-  tables: ["measured_gates", "measured_cooks", "measured_merges", "drift_limits", "drift_flags"],
+  tables: ["measured_gates", "measured_cooks", "measured_retros", "measured_merges", "drift_limits", "drift_flags"],
   schema: `
     CREATE TABLE IF NOT EXISTS measured_gates (
       seq      INTEGER PRIMARY KEY,
@@ -76,6 +84,12 @@ export const measures = definirProjection<Ecoutes>({
       tokens       INTEGER,
       delivered    INTEGER NOT NULL DEFAULT 0,
       resumed      INTEGER NOT NULL DEFAULT 0
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS measured_retros (
+      run          TEXT PRIMARY KEY,
+      ticket       INTEGER NOT NULL,
+      launched_seq INTEGER NOT NULL,
+      tokens       INTEGER
     ) STRICT;
     CREATE TABLE IF NOT EXISTS measured_merges (
       seq    INTEGER PRIMARY KEY,
@@ -99,6 +113,10 @@ export const measures = definirProjection<Ecoutes>({
     "cook.launched": (base, evenement) => {
       const { run, station, model, effort, resumes } = evenement.payload;
       if (evenement.ticket === null || (station !== undefined && HORS_TICKET.includes(station))) return;
+      if (station === RETRO) {
+        base.executer("INSERT INTO measured_retros (run, ticket, launched_seq) VALUES (?, ?, ?)", run, evenement.ticket, evenement.seq);
+        return;
+      }
       base.executer(
         "INSERT INTO measured_cooks (run, ticket, launched_seq, calibration, resumed) VALUES (?, ?, ?, ?, ?)",
         run,
@@ -119,6 +137,7 @@ export const measures = definirProjection<Ecoutes>({
         outcome === "ok" ? 1 : 0,
         run,
       );
+      base.executer("UPDATE measured_retros SET tokens = ? WHERE run = ?", entier(tokens), run);
     },
     "drift.configured": (base, evenement) => {
       base.executer("INSERT OR REPLACE INTO drift_limits (id, limits) VALUES (1, ?)", JSON.stringify(evenement.payload.limits));
@@ -142,6 +161,7 @@ export function mergedDeliveries(base: Base): Delivery[] {
   const cooks = base.lire<{ ticket: number; seq: number; calibration: string | null; turns: number | null; durationMs: number | null; tokens: number | null; delivered: number; resumed: number }>(
     "SELECT ticket, launched_seq AS seq, calibration, turns, duration_ms AS durationMs, tokens, delivered, resumed FROM measured_cooks ORDER BY launched_seq",
   );
+  const retros = base.lire<{ ticket: number; seq: number; tokens: number | null }>("SELECT ticket, launched_seq AS seq, tokens FROM measured_retros ORDER BY launched_seq");
   const precedents = new Map<number, number>();
   // Per measure, the most recent gates run that declared it among the
   // deliveries already merged.
@@ -152,6 +172,8 @@ export function mergedDeliveries(base: Base): Delivery[] {
     const siennes = <L extends { ticket: number; seq: number }>(lignes: L[]) =>
       lignes.filter((ligne) => ligne.ticket === merge.ticket && ligne.seq > since && ligne.seq < merge.seq);
     const jouees = siennes(gates);
+    const siennesRetros = siennes(retros);
+    const retroTokens = siennesRetros.flatMap((retro) => retro.tokens ?? []);
     const franchi = jouees.at(-1)?.franchi ?? null;
     const passages = jouees.filter((ligne) => ligne.measures !== null);
     const declarees = passages.map((ligne) => JSON.parse(ligne.measures ?? "{}") as Record<string, number>);
@@ -174,6 +196,7 @@ export function mergedDeliveries(base: Base): Delivery[] {
         delivered: delivered === 1,
         ...(resumed === 1 ? { resumed: true as const } : {}),
       })),
+      ...(siennesRetros.length === 0 ? {} : { retroTokens: retroTokens.length === 0 ? null : retroTokens.reduce((somme, tokens) => somme + tokens, 0) }),
       ...(franchi === null ? {} : { overCeiling: JSON.parse(franchi) as Depassement }),
     };
   });
