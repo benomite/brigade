@@ -233,16 +233,16 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
     return connu.reason ?? connu.ending ?? "stopped";
   };
   const ARRETS: Record<string, string> = {
-    turns: "plafond de tours dépassé",
-    tokens: "plafond de jetons dépassé",
-    duration: "plafond de durée dépassé",
-    idle: "plus rien de lui depuis le plafond d'inactivité",
-    lease: "bail tombé, faute de progrès dans son worktree",
-    stop: "arrêté — le « stop » du chef, ou son ticket a quitté ses mains",
-    interrupted: "le runtime de la box a redémarré",
-    ok: "il a déjà rendu sa livraison",
-    failed: "il a déjà été rendu, sans livraison",
-    guard: "arrêté par un garde-fou",
+    turns: "turns cap exceeded",
+    tokens: "tokens cap exceeded",
+    duration: "duration cap exceeded",
+    idle: "nothing from it since the idle cap",
+    lease: "lease expired, for lack of progress in its worktree",
+    stop: "stopped — the chef's `stop`, or its ticket left its hands",
+    interrupted: "the box's runtime restarted",
+    ok: "it has already handed back its delivery",
+    failed: "it has already been handed back, without a delivery",
+    guard: "stopped by a guardrail",
   };
 
   // La fin d'un cook distant, jugée pour les garde-fous : ce que sa livraison
@@ -470,12 +470,12 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
       const tenu = ticketDuRail(base, cook.ticket.ticket);
       if (tenu?.state === "taken" && tenu.station === station) return cook;
       cook.lance.arreter();
-      return refuser("stopped", `le ticket #${cook.ticket.ticket} n'est plus tenu par ${station} : son cook est arrêté, arrête le tien`, { stop: "stop" });
+      return refuser("stopped", `ticket #${cook.ticket.ticket} is no longer held by ${station}: its cook is stopped, stop yours`, { stop: "stop" });
     }
     if (arret !== null && (!cook || cook.station === station)) {
-      return refuser("stopped", `le cook ${run} est arrêté côté box (${ARRETS[arret] ?? arret}) : arrête le tien — rien de ce qu'il livrerait n'est plus reçu`, { stop: arret });
+      return refuser("stopped", `cook ${run} is stopped on the box (${ARRETS[arret] ?? arret}): stop yours — nothing it would deliver is received any more`, { stop: arret });
     }
-    return refuser("unknown-run", `la box ne connaît aucun cook ${run} de ${station}`);
+    return refuser("unknown-run", `the box knows no cook ${run} of ${station}`);
   };
 
   // --- Renouveler. Le bail ne se renouvelle que sur un progrès observable :
@@ -488,17 +488,17 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
     const numero = cook.ticket.ticket;
     cook.lance.mesurer({ turns: demande.turns, tokens: demande.tokens });
     const depasse = arretDe(demande.run);
-    if (depasse !== null) return refuser("stopped", `le cook ${demande.run} est arrêté côté box (${ARRETS[depasse] ?? depasse}) : arrête le tien`, { stop: depasse });
+    if (depasse !== null) return refuser("stopped", `cook ${demande.run} is stopped on the box (${ARRETS[depasse] ?? depasse}): stop yours`, { stop: depasse });
     const echeance = () => ticketDuRail(base, numero)?.leaseUntil ?? null;
     if (!texte(demande.proof)) {
-      return refuser("no-progress", "renouvellement sans preuve : le bail ne se renouvelle que sur un progrès observable — l'empreinte du worktree du cook", { leaseUntil: echeance() });
+      return refuser("no-progress", "renewal without proof: the lease is renewed only on observable progress — the fingerprint of the cook's worktree", { leaseUntil: echeance() });
     }
     if (demande.proof === cook.vue) {
-      return refuser("no-progress", "l'empreinte du worktree n'a pas changé depuis le dernier renouvellement : le bail n'est pas renouvelé", { leaseUntil: echeance() });
+      return refuser("no-progress", "the worktree fingerprint has not changed since the last renewal: the lease is not renewed", { leaseUntil: echeance() });
     }
     if (!geste(() => rail.renouveler(numero, station))) {
       cook.lance.arreter();
-      return refuser("stopped", `le ticket #${numero} n'est plus tenu par ${station} : son cook est arrêté, arrête le tien`, { stop: "stop" });
+      return refuser("stopped", `ticket #${numero} is no longer held by ${station}: its cook is stopped, stop yours`, { stop: "stop" });
     }
     cook.vue = demande.proof;
     cook.progres = maintenant().getTime();
@@ -532,15 +532,15 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
   const rendre = async (station: string, demande: Extract<Demande, { verb: "deliver" }>, refuser: Refuser): Promise<Reponse> => {
     const cook = cookDe(station, demande.run, refuser);
     if ("ok" in cook) return cook;
-    if (cook.livre) return refuser("invalid", `la livraison du cook ${demande.run} est déjà en cours de réception`);
+    if (cook.livre) return refuser("invalid", `the delivery of cook ${demande.run} is already being received`);
     cook.lance.mesurer({ turns: demande.turns, tokens: demande.tokens });
     const depasse = arretDe(demande.run);
-    if (depasse !== null) return refuser("stopped", `le cook ${demande.run} est arrêté côté box (${ARRETS[depasse] ?? depasse}) : sa livraison n'est pas reçue`, { stop: depasse });
+    if (depasse !== null) return refuser("stopped", `cook ${demande.run} is stopped on the box (${ARRETS[depasse] ?? depasse}): its delivery is not received`, { stop: depasse });
     cook.livre = true;
     const conclusion = await recevoir(cook, demande);
     // Un garde-fou a pu l'arrêter pendant la réception : c'est lui qui prime.
     const arret = arretDe(demande.run);
-    if (arret !== null) return refuser("stopped", `le cook ${demande.run} a été arrêté côté box pendant la réception de sa livraison (${ARRETS[arret] ?? arret})`, { stop: arret });
+    if (arret !== null) return refuser("stopped", `cook ${demande.run} was stopped on the box while its delivery was being received (${ARRETS[arret] ?? arret})`, { stop: arret });
     cook.rendu.conclusion = conclusion;
     cook.lance.rendre(conclusion.fin === "done" ? 0 : 1);
     return { ok: true, verb: "deliver", ending: conclusion.fin, reason: conclusion.raison };
@@ -559,21 +559,21 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
     const verb = demande.verb;
     const refuser: Refuser = (refusal, said, plus = {}) => ({ ok: false, verb, refusal, said, ...plus });
     const declaree = cuisine.stations.find((connue) => connue.nom === station);
-    const inconnue = () => ecrire(refuser("unknown-station", `le projet ne déclare aucune station ${station} : seule une station déclarée \`distante\` dans BRIGADE_STATIONS tire son travail`));
+    const inconnue = () => ecrire(refuser("unknown-station", `the project declares no station ${station}: only a station declared \`distante\` in BRIGADE_STATIONS pulls its work`));
     // Retirée par le chef pendant qu'un de ses cooks tourne, elle laisse ce
     // cook finir comme il aurait fini : il renouvelle et livre. Elle ne
     // s'annonce plus et ne prend plus rien.
     const enVol = (verb === "renew" || verb === "deliver") && [...cooks.values()].some((cook) => cook.station === station);
     if (!declaree && !enVol) return inconnue();
-    if (declaree && !declaree.distante) return ecrire(refuser("not-remote", `${station} tourne sur la box : elle prend ses tickets elle-même, rien ne se tire en son nom`));
-    if (maintenant().getTime() - Date.parse(evenement.at) > DELAI_DE_REPONSE_MS) return ecrire(refuser("late", "demande lue trop tard : plus personne ne l'attend, rien n'est fait — à refaire"));
+    if (declaree && !declaree.distante) return ecrire(refuser("not-remote", `${station} runs on the box: it takes its tickets itself, nothing is pulled in its name`));
+    if (maintenant().getTime() - Date.parse(evenement.at) > DELAI_DE_REPONSE_MS) return ecrire(refuser("late", "request read too late: nobody is waiting for it any more, nothing is done — ask again"));
     if (declaree && manifester(station)) cuisine.servir();
     switch (verb) {
       case "announce": {
         if (!declaree) return inconnue();
         entendreLeBacASable(declaree, demande.sandbox, hotesDuProjet());
         const limits = etatDesGardeFous(base).limits;
-        if (limits === null) return ecrire(refuser("invalid", "garde-fous sans plafonds au journal"));
+        if (limits === null) return ecrire(refuser("invalid", "guardrails without caps in the log"));
         return ecrire({ ok: true, verb, provides: declaree.fournit, maxCooks: declaree.cooks, presenceMs: cuisine.presenceMs, leaseMs: cuisine.dureeBailMs, limits });
       }
       case "claim": {
@@ -584,13 +584,13 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
         return ecrire(reponse, reponse.mission?.ticket ?? null);
       }
       case "renew": {
-        if (!texte(demande.run) || !compte(demande.turns) || !compte(demande.tokens)) return ecrire(refuser("invalid", "renouvellement illisible : il faut le run, et ce que le cook a consommé (tours, jetons)"));
+        if (!texte(demande.run) || !compte(demande.turns) || !compte(demande.tokens)) return ecrire(refuser("invalid", "unreadable renewal: the run is needed, and what the cook has consumed (turns, tokens)"));
         const ticket = ticketDe(demande.run);
         return ecrire(renouveler(station, demande, refuser), ticket);
       }
       case "deliver": {
         if (!texte(demande.run) || !compte(demande.turns) || !compte(demande.tokens) || !["delivered", "failed"].includes(demande.ending)) {
-          return ecrire(refuser("invalid", "livraison illisible : il faut le run, sa fin (`delivered` ou `failed`), et ce que le cook a consommé (tours, jetons)"));
+          return ecrire(refuser("invalid", "unreadable delivery: the run is needed, its end (`delivered` or `failed`), and what the cook has consumed (turns, tokens)"));
         }
         const ticket = ticketDe(demande.run);
         const reception = rendre(station, demande, refuser)
@@ -605,7 +605,7 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
         return;
       }
       default:
-        return ecrire(refuser("invalid", `demande inconnue : « ${String(verb)} »`));
+        return ecrire(refuser("invalid", `unknown request: “${String(verb)}”`));
     }
   };
 

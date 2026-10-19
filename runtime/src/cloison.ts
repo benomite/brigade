@@ -96,26 +96,26 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
   const bin = env.BRIGADE_SANDBOX_BIN;
   const brut = env.BRIGADE_SANDBOX_HIDDEN ?? "";
   if (!bin) {
-    if (brut !== "") throw new ConfigInvalide("BRIGADE_SANDBOX_HIDDEN est défini sans BRIGADE_SANDBOX_BIN : rien ne serait masqué — poser le chemin de `bwrap`, ou retirer la variable");
+    if (brut !== "") throw new ConfigInvalide("BRIGADE_SANDBOX_HIDDEN is set without BRIGADE_SANDBOX_BIN: nothing would be hidden — set the path of `bwrap`, or remove the variable");
     return null;
   }
-  if (!isAbsolute(bin) || !existsSync(bin)) throw new ConfigInvalide(`BRIGADE_SANDBOX_BIN invalide : « ${bin} » — attendu le chemin absolu de \`bwrap\` (/usr/bin/bwrap), et il doit exister`);
+  if (!isAbsolute(bin) || !existsSync(bin)) throw new ConfigInvalide(`invalid BRIGADE_SANDBOX_BIN: “${bin}” — expected the absolute path of \`bwrap\` (/usr/bin/bwrap), and it must exist`);
   const home = env.HOME;
-  if (!home) throw new ConfigInvalide("BRIGADE_SANDBOX_BIN est défini, mais pas HOME : la cloison ne sait pas où le compte garde ses identifiants");
+  if (!home) throw new ConfigInvalide("BRIGADE_SANDBOX_BIN is set, but HOME is not: the partition does not know where the account keeps its credentials");
   const masques = [...new Set(brut.split(":").filter(Boolean))];
   if (masques.length === 0) {
-    throw new ConfigInvalide("BRIGADE_SANDBOX_BIN est défini sans BRIGADE_SANDBOX_HIDDEN : la cloison ne masquerait rien — y poser les répertoires qui portent l'état et les secrets de tous les projets, séparés par « : » (/var/lib/brigade:/etc/brigade)");
+    throw new ConfigInvalide("BRIGADE_SANDBOX_BIN is set without BRIGADE_SANDBOX_HIDDEN: the partition would hide nothing — set the directories that hold the state and the secrets of all projects, separated by “:” (/var/lib/brigade:/etc/brigade)");
   }
   for (const masque of masques) {
     const refuser = (pourquoi: string): never => {
-      throw new ConfigInvalide(`BRIGADE_SANDBOX_HIDDEN invalide : « ${masque} » ${pourquoi}`);
+      throw new ConfigInvalide(`invalid BRIGADE_SANDBOX_HIDDEN: “${masque}” ${pourquoi}`);
     };
-    if (!isAbsolute(masque)) refuser("n'est pas un chemin absolu");
+    if (!isAbsolute(masque)) refuser("is not an absolute path");
     // Un répertoire vide prend sa place : un fichier ne se masque pas ainsi,
     // et `bwrap` refuserait chaque lancement.
-    if (existsSync(masque) && !statSync(masque).isDirectory()) refuser("n'est pas un répertoire — masquer celui qui le contient");
-    for (const [garde, quoi] of [[home, "le répertoire du compte : ni `claude` ni `git` n'y trouveraient plus rien"], ["/tmp", "/tmp"], ["/usr", "le système"]] as const) {
-      if (sous(masque, garde)) refuser(`masquerait ${quoi}`);
+    if (existsSync(masque) && !statSync(masque).isDirectory()) refuser("is not a directory — hide the one that contains it");
+    for (const [garde, quoi] of [[home, "the account's home directory: neither `claude` nor `git` would find anything there any more"], ["/tmp", "/tmp"], ["/usr", "the system"]] as const) {
+      if (sous(masque, garde)) refuser(`would hide ${quoi}`);
     }
   }
   const aCouvrir: Array<[string, string | undefined]> = [
@@ -127,14 +127,14 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
   ];
   for (const [variable, chemin] of aCouvrir) {
     if (chemin && !masques.some((masque) => sous(masque, chemin))) {
-      throw new ConfigInvalide(`${variable} (${chemin}) n'est sous aucun répertoire de BRIGADE_SANDBOX_HIDDEN (${masques.join(", ")}) : un cook le lirait malgré la cloison — l'y ajouter, ou le déplacer`);
+      throw new ConfigInvalide(`${variable} (${chemin}) is not under any directory of BRIGADE_SANDBOX_HIDDEN (${masques.join(", ")}): a cook would read it despite the partition — add it there, or move it`);
     }
   }
 
   const prives = [...new Set([...PRIVES_PAR_DEFAUT, ...(env.BRIGADE_SANDBOX_PRIVATE ?? "").split(":").filter(Boolean)])];
   for (const nom of prives) {
     if (nom.includes("/") || nom === "." || nom === "..") {
-      throw new ConfigInvalide(`BRIGADE_SANDBOX_PRIVATE invalide : « ${nom} » — attendu des noms d'entrées du répertoire du compte, séparés par « : » (.cargo:.gradle)`);
+      throw new ConfigInvalide(`invalid BRIGADE_SANDBOX_PRIVATE: “${nom}” — expected names of entries of the account's home directory, separated by “:” (.cargo:.gradle)`);
     }
   }
 
@@ -334,17 +334,17 @@ export function annoncerCloison(runtime: Runtime, etat: EtatDeCloison): void {
 // répète : sans elle, les projets se voient — c'est un choix, il se lit.
 export function direFichiers(sandbox: EtatDeCloison["sandbox"]): string {
   return sandbox
-    ? `chaque lancement (setup, cook, gates, reviewer, juges) part dans \`${sandbox.bin}\` — masqués : ${sandbox.hidden.join(", ")} ; machine en lecture seule ; identifiants Max en lecture seule (${sandbox.credentials})`
-    : "aucune (BRIGADE_SANDBOX_BIN n'est pas défini) : un cook lit tout ce que lit le compte du service — l'état, le clone, les worktrees et les secrets des autres projets compris";
+    ? `every launch (setup, cook, gates, reviewer, judges) runs in \`${sandbox.bin}\` — hidden: ${sandbox.hidden.join(", ")}; machine read-only; Max credentials read-only (${sandbox.credentials})`
+    : "none (BRIGADE_SANDBOX_BIN is not set): a cook reads everything the service account reads — the state, the clone, the worktrees and the secrets of the other projects included";
 }
 
 export function direReseau(proxy: EtatDeCloison["proxy"]): string {
-  if (!proxy) return "ouvert (BRIGADE_PROXY_PORT n'est pas défini) : un cook joint tout ce que joint la machine";
+  if (!proxy) return "open (BRIGADE_PROXY_PORT is not set): a cook reaches everything the machine reaches";
   const filtre =
     proxy.enforced === true
-      ? "un envoi direct est refusé par le noyau : l'unité filtre"
+      ? "a direct send is refused by the kernel: the unit filters"
       : proxy.enforced === false
-        ? "MAIS un envoi direct part : l'unité ne semble rien filtrer (IPAddressDeny), et un process qui ignore HTTPS_PROXY sortirait librement"
-        : "le filtre de l'unité n'a pas pu être éprouvé d'ici";
-  return `liste blanche, par la porte 127.0.0.1:${proxy.port} — ${filtre}`;
+        ? "BUT a direct send goes out: the unit does not seem to filter anything (IPAddressDeny), and a process that ignores HTTPS_PROXY would get out freely"
+        : "the unit's filter could not be probed from here";
+  return `allowlist, through the door 127.0.0.1:${proxy.port} — ${filtre}`;
 }

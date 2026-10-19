@@ -198,7 +198,7 @@ export function ouvrirArbitre(options: OptionsArbitre): Arbitre {
   try {
     verrou = prendreVerrou(repertoire);
   } catch (erreur) {
-    if (erreur instanceof VerrouTenu) throw new DejaEnCours(`un arbitre tient déjà ${repertoire}`);
+    if (erreur instanceof VerrouTenu) throw new DejaEnCours(`an arbiter already holds ${repertoire}`);
     throw erreur;
   }
   let reglages: Reglages;
@@ -287,14 +287,14 @@ export function ouvrirArbitre(options: OptionsArbitre): Arbitre {
 
 export type ConfigArbitre = { repertoire: string; port: number; plafond: number };
 
-const PORT = "un numéro de port, de 1 à 65535";
+const PORT = "a port number, from 1 to 65535";
 export const estUnPort = (valeur: number) => Number.isSafeInteger(valeur) && valeur >= 1 && valeur <= 65535;
 
 // La configuration de l'arbitre, lue dans l'environnement. Rien n'a de défaut :
 // le plafond du compte est le quota du chef, il ne se devine pas.
 export function configArbitre(env: NodeJS.ProcessEnv): ConfigArbitre {
   const exiger = (variable: string) => {
-    if (!env[variable]) throw new ConfigInvalide(`${variable} n'est pas défini`);
+    if (!env[variable]) throw new ConfigInvalide(`${variable} is not set`);
   };
   exiger("BRIGADE_ARBITER_STATE_DIR");
   exiger("BRIGADE_ARBITER_PORT");
@@ -302,7 +302,7 @@ export function configArbitre(env: NodeJS.ProcessEnv): ConfigArbitre {
   return {
     repertoire: env.BRIGADE_ARBITER_STATE_DIR ?? "",
     port: lire(env, "BRIGADE_ARBITER_PORT", 0, PORT, estUnPort),
-    plafond: lire(env, "BRIGADE_ARBITER_MAX_COOKS", 0, "un entier supérieur à zéro", (valeur) => Number.isSafeInteger(valeur) && valeur > 0),
+    plafond: lire(env, "BRIGADE_ARBITER_MAX_COOKS", 0, "an integer greater than zero", (valeur) => Number.isSafeInteger(valeur) && valeur > 0),
   };
 }
 
@@ -371,7 +371,7 @@ export function servirArbitre(arbitre: Arbitre, port: number): Promise<ServeurAr
       try {
         traiter(requete, corps, reponse);
       } catch (erreur) {
-        console.error(`brigade : l'arbitre a buté — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
+        console.error(`brigade : the arbiter stumbled — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
         rendre(reponse, 500, { erreur: "l'arbitre a buté" });
       }
     });

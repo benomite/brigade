@@ -28,15 +28,15 @@ export type Signaux = { arret: string | null; fin: string | null; panne: boolean
 export const SANS_SIGNAUX: Signaux = { arret: null, fin: null, panne: false, textes: [], jugement: null };
 
 export const CAUSES = [
-  { cle: "relecture", titre: "relecture bloquante" },
-  { cle: "gates-runtime", titre: "gates rouges : tests du runtime" },
-  { cle: "gates-app", titre: "gates rouges : tests de l'app" },
-  { cle: "gates-types", titre: "gates rouges : contrôle de types" },
-  { cle: "conflit", titre: "conflit avec la base" },
-  { cle: "plafond", titre: "plafond de tours ou de durée" },
-  { cle: "panne", titre: "panne de la station" },
-  { cle: "criteres", titre: "critères contradictoires ou ticket incomplet" },
-  { cle: "autre", titre: "autre" },
+  { cle: "relecture", titre: "blocking review" },
+  { cle: "gates-runtime", titre: "red gates: runtime tests" },
+  { cle: "gates-app", titre: "red gates: app tests" },
+  { cle: "gates-types", titre: "red gates: type check" },
+  { cle: "conflit", titre: "conflict with the base" },
+  { cle: "plafond", titre: "cap on turns or duration" },
+  { cle: "panne", titre: "station outage" },
+  { cle: "criteres", titre: "contradictory criteria or incomplete ticket" },
+  { cle: "autre", titre: "other" },
 ] as const;
 export type Cause = (typeof CAUSES)[number]["cle"];
 
@@ -113,9 +113,9 @@ export function mesurerCauses(parcours: readonly Parcours[]): CausesDesRatages {
 const ligne = (titre: string, valeur: string) => `${titre.padEnd(11)}${valeur}`.trimEnd();
 
 export function decrireCauses({ rates, lignes }: CausesDesRatages): string[] {
-  if (rates === 0) return [ligne("ratages", "aucun essai raté : rien à classer")];
+  if (rates === 0) return [ligne("failures", "no failed attempt: nothing to sort")];
   return [
-    ligne("ratages", `${rates} essai${rates > 1 ? "s" : ""} raté${rates > 1 ? "s" : ""} (n'ayant pas abouti au merge), chacun dans une cause`),
-    ...lignes.map((l) => ligne("", `${l.titre} : ${l.essais} (${l.pourcent} %)${l.tickets.length > 0 ? ` — ${l.tickets.map((t) => `#${t}`).join(", ")}` : ""}`)),
+    ligne("failures", `${rates} failed attempt${rates > 1 ? "s" : ""} (not ending in a merge), each under one cause`),
+    ...lignes.map((l) => ligne("", `${l.titre}: ${l.essais} (${l.pourcent}%)${l.tickets.length > 0 ? ` — ${l.tickets.map((t) => `#${t}`).join(", ")}` : ""}`)),
   ];
 }

@@ -25,9 +25,9 @@ const domaines = (origine: Origine, ...hotes: string[]): Regle[] => hotes.map((h
 export const REGLES_DE_BASE: Regle[] = [...domaines("anthropic", "anthropic.com", "claude.ai", "claude.com"), ...domaines("github", "github.com", "githubusercontent.com")];
 
 export const POURQUOI: Record<Origine, string> = {
-  anthropic: "Anthropic — le modèle, par la connexion Max",
-  github: "GitHub — le dépôt, les issues, les archives",
-  project: `déclaré par le dépôt (\`${DECLARATION_RESEAU}\`)`,
+  anthropic: "Anthropic — the model, through the Max connection",
+  github: "GitHub — the repository, the issues, the archives",
+  project: `declared by the repository (\`${DECLARATION_RESEAU}\`)`,
 };
 
 // Un nom d'hôte, un `*.` devant pour ses sous-domaines, un port derrière pour
@@ -38,8 +38,8 @@ const HOTE = /^(\*\.)?((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z](?:[a-z0-9-]*[
 
 function regleDe(ligne: string): Regle | string {
   const [, etoile, hote, port] = HOTE.exec(ligne) ?? [];
-  if (hote === undefined) return "ce n'est pas un hôte — attendu un nom (registry.npmjs.org), `*.` devant pour ses sous-domaines, `:port` derrière pour un autre port que 443 et 80 ; jamais une adresse";
-  if (port !== undefined && Number(port) > 65535) return "ce port n'existe pas";
+  if (hote === undefined) return "not a host — expected a name (registry.npmjs.org), `*.` in front for its subdomains, `:port` behind for a port other than 443 and 80; never an address";
+  if (port !== undefined && Number(port) > 65535) return "that port does not exist";
   return { hote, sousDomaines: etoile !== undefined, port: port === undefined ? null : Number(port), origine: "project" };
 }
 
@@ -52,7 +52,7 @@ export function lireDeclaration(texte: string): { hotes: string[]; problemes: st
     const ligne = brute.trim().toLowerCase();
     if (ligne === "" || ligne.startsWith("#") || hotes.includes(ligne)) return;
     const regle = regleDe(ligne);
-    if (typeof regle === "string") problemes.push(`ligne ${rang + 1} de \`${DECLARATION_RESEAU}\` (« ${brute.trim().slice(0, 80)} ») : ${regle}`);
+    if (typeof regle === "string") problemes.push(`line ${rang + 1} of \`${DECLARATION_RESEAU}\` (“${brute.trim().slice(0, 80)}”): ${regle}`);
     else hotes.push(ligne);
   });
   return { hotes, problemes };
@@ -70,12 +70,12 @@ export function autorise(regles: Regle[], hote: string, port: number): boolean {
   );
 }
 
-export const direRegle = (regle: Regle) => `${regle.hote}${regle.sousDomaines ? " et ses sous-domaines" : ""}${regle.port === null ? "" : `, port ${regle.port}`}`;
+export const direRegle = (regle: Regle) => `${regle.hote}${regle.sousDomaines ? " and its subdomains" : ""}${regle.port === null ? "" : `, port ${regle.port}`}`;
 
 // Lit `BRIGADE_PROXY_PORT` : le port de la porte du projet, sur la boucle
 // locale. Sans la variable, null : le réseau est ouvert, et le runtime le dit.
 export function configReseau(env: NodeJS.ProcessEnv): number | null {
-  const port = lire(env, "BRIGADE_PROXY_PORT", 0, "un port, de 1 à 65535", (valeur) => Number.isSafeInteger(valeur) && valeur >= 1 && valeur <= 65535);
+  const port = lire(env, "BRIGADE_PROXY_PORT", 0, "a port, from 1 to 65535", (valeur) => Number.isSafeInteger(valeur) && valeur >= 1 && valeur <= 65535);
   return port === 0 ? null : port;
 }
 
@@ -156,7 +156,7 @@ export function brancherReseau(runtime: Runtime, options: { base: string; declar
       dit = null;
     } catch (erreur) {
       const defaut = erreur instanceof Error ? erreur.message : String(erreur);
-      if (defaut !== dit) avertir(`brigade : déclaration du réseau illisible sur \`${options.base}\`, la dernière liste blanche lue tient — ${defaut}`);
+      if (defaut !== dit) avertir(`brigade : network declaration unreadable on \`${options.base}\`, the last allowlist read holds — ${defaut}`);
       dit = defaut;
     }
   };

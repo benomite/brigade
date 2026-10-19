@@ -13,7 +13,7 @@ import { parcoursDesTickets } from "./parcours-des-tickets.ts";
 import { livraisonsMergees, seuilsEnVigueur } from "./projections/mesures.ts";
 import { decrireRenvois, DERNIERS_PAR_DEFAUT, mesurerRenvois } from "./renvois.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run measures -- [--by <nombre de merges>] [--last <nombre de tickets>]";
+const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run measures -- [--by <number of merges>] [--last <number of tickets>]";
 
 function echouer(code: number, message: string): never {
   console.error(`brigade : ${message}`);
@@ -22,7 +22,7 @@ function echouer(code: number, message: string): never {
 
 const args = enAnglais("measures", process.argv.slice(2), (ligne) => console.error(ligne));
 const repertoireEtat = process.env.BRIGADE_STATE_DIR;
-if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
+if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR is not set\n${USAGE}`);
 // Chaque option une fois au plus, suivie d'un entier positif.
 const options = new Map<string, number>();
 for (let i = 0; i < args.length; i += 2) {
@@ -51,7 +51,7 @@ try {
 } catch (erreur) {
   // En lecture seule, rien ne crée les tables d'un journal écrit par un
   // runtime d'avant ce relevé.
-  if (journalPasRejoue(erreur)) echouer(1, "ce journal n'a pas encore le relevé des mesures : redémarrer le runtime, qui le recalcule");
+  if (journalPasRejoue(erreur)) echouer(1, "this log does not have the measures report yet: restart the runtime, which recomputes it");
   throw erreur;
 } finally {
   journal.fermer();

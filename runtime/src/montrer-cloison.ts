@@ -15,7 +15,7 @@ import { AUTRES_HOTES } from "./porte.ts";
 import { DECLARATION_RESEAU, direRegle, POURQUOI, reglesDuProjet } from "./reseau.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run partition -- [probe [<essais>]]";
+const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run partition -- [probe [<tries>]]";
 const REFUS_MONTRES = 10;
 const ESSAIS_PAR_DEFAUT = 20;
 // Le parallélisme que le jalon vise (#98) : le coût d'un cook s'y multiplie.
@@ -26,73 +26,73 @@ function echouer(code: number, message: string): never {
   process.exit(code);
 }
 
-const nombre = (valeur: number, decimales = 1) => valeur.toLocaleString("fr-FR", { maximumFractionDigits: decimales });
+const nombre = (valeur: number, decimales = 1) => valeur.toLocaleString("en-US", { maximumFractionDigits: decimales });
 const ligne = (titre: string, valeur: string) => console.log(`${titre.padEnd(22)}${valeur}`);
 
 function montrer(journal: Journal): void {
   const etat = journal.duType("isolation.configured", 1)[0];
   if (etat === undefined) {
-    return void console.log("brigade : ce journal ne dit rien de la cloison — le runtime n'a pas démarré depuis qu'elle existe : le redémarrer");
+    return void console.log("brigade : this log says nothing about the partition — the runtime has not started since it was introduced: restart it");
   }
   const { sandbox, proxy } = etat.payload;
-  console.log(`cloison du projet « ${etat.project} », telle que le runtime l'a trouvée le ${etat.at}\n`);
-  ligne("fichiers", sandbox ? "CLOISONNÉS" : "OUVERTS");
+  console.log(`partition of project “${etat.project}”, as the runtime found it on ${etat.at}\n`);
+  ligne("files", sandbox ? "PARTITIONED" : "OPEN");
   console.log(`  ${direFichiers(sandbox)}`);
   if (sandbox) {
-    console.log("  un lancement ne retrouve que son worktree et sa vue du `.git` du clone (les vrais objets, sa propre config, ses propres hooks) ; le répertoire du compte est en lecture seule — ce qui s'y écrit, `~/.claude` compris, est au projet ; /tmp reste en écriture");
+    console.log("  a launch finds only its worktree and its own view of the clone's `.git` (the real objects, its own config, its own hooks); the account's home directory is read-only — what is written there, `~/.claude` included, belongs to the project; /tmp stays writable");
   }
   console.log("");
-  ligne("réseau", proxy ? (proxy.enforced === false ? "LISTE BLANCHE NON TENUE" : "LISTE BLANCHE") : "OUVERT");
+  ligne("network", proxy ? (proxy.enforced === false ? "ALLOWLIST NOT ENFORCED" : "ALLOWLIST") : "OPEN");
   console.log(`  ${direReseau(proxy)}`);
   if (!proxy) return;
 
   const declare = journal.duType("network.declared", 1)[0]?.payload;
-  console.log("\nce qui passe");
-  for (const regle of reglesDuProjet(declare?.hosts ?? [])) console.log(`  ${direRegle(regle).padEnd(48)}${POURQUOI[regle.origine]}${regle.origine === "project" && declare ? `, sur \`${declare.base}\`` : ""}`);
-  for (const probleme of declare?.problems ?? []) console.log(`  N'OUVRE RIEN — ${probleme}`);
-  console.log(`tout le reste est refusé. Pour ouvrir un hôte : une ligne dans \`${DECLARATION_RESEAU}\`, mergée sur la branche d'intégration.`);
+  console.log("\nwhat gets through");
+  for (const regle of reglesDuProjet(declare?.hosts ?? [])) console.log(`  ${direRegle(regle).padEnd(48)}${POURQUOI[regle.origine]}${regle.origine === "project" && declare ? `, on \`${declare.base}\`` : ""}`);
+  for (const probleme of declare?.problems ?? []) console.log(`  OPENS NOTHING — ${probleme}`);
+  console.log(`everything else is refused. To open a host: a line in \`${DECLARATION_RESEAU}\`, merged on the integration branch.`);
 
   const refus = journal.duType("network.refused", REFUS_MONTRES);
-  console.log(`\nderniers refus${refus.length === 0 ? " : aucun" : ""}`);
+  console.log(`\nlatest refusals${refus.length === 0 ? ": none" : ""}`);
   for (const { at, payload } of refus.reverse()) {
     if (payload.host === AUTRES_HOTES) {
-      console.log(`  ${at}  ${"d'autres hôtes encore".padEnd(40)}${nombre(payload.count, 0)} tentatives  au-delà de cent hôtes refusés en dix minutes, ils ne sont plus nommés`);
+      console.log(`  ${at}  ${"other hosts still".padEnd(40)}${nombre(payload.count, 0)} attempts  past a hundred hosts refused in ten minutes, they are no longer named`);
       continue;
     }
-    console.log(`  ${at}  ${`${payload.host}:${payload.port}`.padEnd(40)}${payload.count > 1 ? `${nombre(payload.count, 0)} tentatives  ` : ""}absent de la liste blanche`);
+    console.log(`  ${at}  ${`${payload.host}:${payload.port}`.padEnd(40)}${payload.count > 1 ? `${nombre(payload.count, 0)} attempts  ` : ""}not on the allowlist`);
   }
 }
 
 async function jouerLesSondes(essais: number): Promise<number> {
   const env = process.env;
   const etat = env.BRIGADE_STATE_DIR ?? "";
-  const clone = env.BRIGADE_REPO_DIR || echouer(2, "BRIGADE_REPO_DIR n'est pas défini — lancer cette commande avec l'environnement du service");
+  const clone = env.BRIGADE_REPO_DIR || echouer(2, "BRIGADE_REPO_DIR is not set — run this command with the service's environment");
   const cloison = configCloison(env, { repertoireEtat: etat, clone });
   if (cloison === null) {
-    console.log(`brigade : rien à éprouver — ${direFichiers(null)}`);
+    console.log(`brigade : nothing to probe — ${direFichiers(null)}`);
     return 1;
   }
   const { sondes, cout } = await eprouver(cloison, { claude: env.BRIGADE_CLAUDE_BIN || "claude", env, essais });
-  for (const sonde of sondes) console.log(`  ${(sonde.tient === true ? "tient" : sonde.tient === false ? "NE TIENT PAS" : "non prouvé").padEnd(14)}${sonde.quoi} — ${sonde.detail}`);
+  for (const sonde of sondes) console.log(`  ${(sonde.tient === true ? "holds" : sonde.tient === false ? "DOES NOT HOLD" : "unproven").padEnd(14)}${sonde.quoi} — ${sonde.detail}`);
   if (cout !== null) {
     const surcoutMs = Math.max(0, cout.cloisonneMs - cout.nuMs);
-    console.log(`\ncoût d'un lancement cloisonné (médiane de ${cout.essais} lancements de \`true\`)`);
-    ligne("  temps", `${nombre(cout.cloisonneMs)} ms, contre ${nombre(cout.nuMs)} ms sans cloison : +${nombre(surcoutMs)} ms par lancement`);
-    if (cout.memoireKo === null) ligne("  mémoire", "non mesurable sur cette machine (pas de /proc)");
+    console.log(`\ncost of a partitioned launch (median of ${cout.essais} launches of \`true\`)`);
+    ligne("  time", `${nombre(cout.cloisonneMs)} ms, against ${nombre(cout.nuMs)} ms without the partition: +${nombre(surcoutMs)} ms per launch`);
+    if (cout.memoireKo === null) ligne("  memory", "not measurable on this machine (no /proc)");
     else {
       const seuil = configMachine(env).memoireMinMo;
-      ligne("  mémoire", `${nombre(cout.memoireKo / 1024)} Mo résidents tant que le lancement vit (les process \`bwrap\`)`);
-      ligne(`  à ${COOKS} cooks`, `+${nombre((cout.memoireKo * COOKS) / 1024)} Mo, +${nombre(surcoutMs * COOKS)} ms de démarrage cumulés — la station garde ${nombre(seuil, 0)} Mo libres (BRIGADE_MIN_FREE_MEMORY_MB)`);
+      ligne("  memory", `${nombre(cout.memoireKo / 1024)} MB resident while the launch lives (the \`bwrap\` processes)`);
+      ligne(`  at ${COOKS} cooks`, `+${nombre((cout.memoireKo * COOKS) / 1024)} MB, +${nombre(surcoutMs * COOKS)} ms of startup added up — the station keeps ${nombre(seuil, 0)} MB free (BRIGADE_MIN_FREE_MEMORY_MB)`);
     }
   }
   const manques = sondes.filter((sonde) => sonde.tient === false).length;
-  console.log(manques === 0 ? `\nbrigade : la cloison tient ce qu'elle annonce — le filtre du réseau, lui, se lit au démarrage du runtime (\`${geste("partition")}\`)` : `\nbrigade : ${manques} sonde${manques > 1 ? "s" : ""} en échec : la cloison ne tient pas ce qu'elle annonce`);
+  console.log(manques === 0 ? `\nbrigade : the partition holds what it announces — the network filter, for its part, is read at runtime startup (\`${geste("partition")}\`)` : `\nbrigade : ${manques} probe${manques > 1 ? "s" : ""} failed: the partition does not hold what it announces`);
   return manques === 0 ? 0 : 1;
 }
 
 const args = enAnglais("partition", process.argv.slice(2), (ligne) => console.error(ligne));
 const repertoireEtat = process.env.BRIGADE_STATE_DIR;
-if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
+if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR is not set\n${USAGE}`);
 
 if (args[0] === "probe" && args.length <= 2) {
   const essais = args[1] === undefined ? ESSAIS_PAR_DEFAUT : Number(args[1]);
@@ -105,7 +105,7 @@ if (args[0] === "probe" && args.length <= 2) {
   }
 }
 if (args.length !== 0) echouer(2, USAGE);
-if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `aucun journal dans ${repertoireEtat}`);
+if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `no log in ${repertoireEtat}`);
 const journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
 try {
   montrer(journal);

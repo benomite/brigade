@@ -42,7 +42,7 @@ export function listeDuJournal(repertoireEtat: string, options: { avertir?: (mes
 export function refusAuJournal(repertoireEtat: string, projet: string, options: { dire?: (ligne: string) => void } = {}): (hote: string, port: number) => void {
   const ecrire = options.dire ?? ((ligne: string) => console.error(ligne));
   return compterLesRefus((refus) => {
-    ecrire(`brigade : sortie refusée — ${refus.host === AUTRES_HOTES ? "d'autres hôtes encore, qui ne sont plus nommés" : `${refus.host}:${refus.port}`}${refus.count > 1 ? ` (${refus.count} tentatives)` : ""}`);
+    ecrire(`brigade : outgoing connection refused — ${refus.host === AUTRES_HOTES ? "other hosts still, no longer named" : `${refus.host}:${refus.port}`}${refus.count > 1 ? ` (${refus.count} attempts)` : ""}`);
     try {
       if (!existsSync(cheminJournal(repertoireEtat))) return;
       const journal = ouvrirJournal(repertoireEtat);
@@ -52,7 +52,7 @@ export function refusAuJournal(repertoireEtat: string, projet: string, options: 
         journal.fermer();
       }
     } catch (erreur) {
-      ecrire(`brigade : refus non journalisé — ${dire(erreur)}`);
+      ecrire(`brigade : refusal not logged — ${dire(erreur)}`);
     }
   });
 }

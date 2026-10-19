@@ -40,13 +40,13 @@ export function candidats({ textes }: Pick<Depot, "textes">): Candidat[] {
   const nomment = (nom: string) => docs.filter(({ texte }: Texte) => new RegExp(`(?<![\\w$])${nom.replaceAll("$", "\\$")}(?![\\w$])`).test(texte)).map(({ chemin }) => chemin);
   const doublons = repererDoublons(textes).map(({ lignes, passages: [premier, second] }, rang): Candidat => ({
     id: `D${rang + 1}`,
-    quoi: `${lignes} lignes de code identiques : \`${premier.chemin}:${premier.debut}-${premier.fin}\` = \`${second.chemin}:${second.debut}-${second.fin}\``,
+    quoi: `${lignes} identical lines of code: \`${premier.chemin}:${premier.debut}-${premier.fin}\` = \`${second.chemin}:${second.debut}-${second.fin}\``,
     fichiers: [...new Set([premier.chemin, second.chemin])],
     cle: cleDeDoublon(extrait(contenu.get(premier.chemin) ?? "", premier)),
   }));
   const morts = repererCodeMort(textes).map(({ chemin, ligne, nom, tests }, rang): Candidat => ({
     id: `M${rang + 1}`,
-    quoi: `export \`${nom}\` de \`${chemin}:${ligne}\` — référencé ${tests.length === 0 ? "nulle part" : `seulement par des tests (${tests.map((test) => `\`${test}\``).join(", ")})`}`,
+    quoi: `export \`${nom}\` of \`${chemin}:${ligne}\` — referenced ${tests.length === 0 ? "nowhere" : `only by tests (${tests.map((test) => `\`${test}\``).join(", ")})`}`,
     fichiers: [...new Set([chemin, ...tests, ...nomment(nom)])],
     cle: cleDeMort(chemin, nom),
   }));
@@ -64,8 +64,8 @@ export function proposer(tous: Candidat[], tenues: Vol[], max = CANDIDATS_MAX): 
   const ecartes: Laisse[] = [];
   for (const candidat of tous) {
     const tenu = candidat.fichiers.map((fichier) => ({ fichier, par: tenant(tenues, fichier) })).find(({ par }) => par !== null);
-    if (tenu?.par) ecartes.push({ id: candidat.id, what: candidat.quoi, reason: `\`${tenu.fichier}\` est tenu par le ticket #${tenu.par.ticket}${tenu.par.chemin === "*" ? "" : ` (zone \`${tenu.par.chemin}\`)`}`, before: true });
-    else if (proposes.length >= max) ecartes.push({ id: candidat.id, what: candidat.quoi, reason: `au-delà des ${max} candidats d'une passe`, before: true });
+    if (tenu?.par) ecartes.push({ id: candidat.id, what: candidat.quoi, reason: `\`${tenu.fichier}\` is held by ticket #${tenu.par.ticket}${tenu.par.chemin === "*" ? "" : ` (zone \`${tenu.par.chemin}\`)`}`, before: true });
+    else if (proposes.length >= max) ecartes.push({ id: candidat.id, what: candidat.quoi, reason: `beyond the ${max} candidates of one pass`, before: true });
     else proposes.push(candidat);
   }
   return { proposes, ecartes, zone: [...new Set(proposes.flatMap(({ fichiers }) => fichiers))].sort() };

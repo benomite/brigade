@@ -31,7 +31,7 @@ export const VERIFICATIONS = "verifications";
 export type GardeFou = { nom: string; avant: string; apres: string; verdict: "tenu" | "echec" | "inconnu"; detail: string | null };
 
 const ABSENT = "—";
-const ETATS: Record<Gates["outcome"], string> = { green: "gates vertes", red: "gates rouges", timeout: "gates arrêtées à leur plafond de durée", skipped: "gates non jouées" };
+const ETATS: Record<Gates["outcome"], string> = { green: "gates green", red: "gates red", timeout: "gates stopped at their duration cap", skipped: "gates not run" };
 
 // Les trois garde-fous, de ce que les gates ont dit avant et après la passe.
 // `sansApres`, `sansAvant` : pourquoi l'une ou l'autre manque.
@@ -39,16 +39,16 @@ export function gardeFous(avant: Gates | null, apres: Gates | null, sansAvant: s
   // Une mesure déclarée par les gates, qui ne doit pas baisser.
   const mesure = (nom: string, cle: string, unite: string): GardeFou => {
     const [a, b] = [avant?.measures?.[cle], apres?.measures?.[cle]];
-    const dire = (valeur: number | undefined) => (valeur === undefined ? ABSENT : `${valeur.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}${unite}`);
+    const dire = (valeur: number | undefined) => (valeur === undefined ? ABSENT : `${valeur.toLocaleString("en-US", { maximumFractionDigits: 2 })}${unite}`);
     const dites = { nom, avant: dire(a), apres: dire(b) };
     if (apres === null) return { ...dites, verdict: "inconnu", detail: sansApres };
-    if (b === undefined) return { ...dites, verdict: "inconnu", detail: `les gates jouées sur la PR ne déclarent pas \`MESURE ${cle}\`` };
+    if (b === undefined) return { ...dites, verdict: "inconnu", detail: `the gates run on the PR do not declare \`MESURE ${cle}\`` };
     if (avant === null) return { ...dites, verdict: "inconnu", detail: sansAvant };
-    if (a === undefined) return { ...dites, verdict: "inconnu", detail: `les gates jouées sur la base ne déclaraient pas \`MESURE ${cle}\`` };
-    return b < a ? { ...dites, verdict: "echec", detail: "en baisse" } : { ...dites, verdict: "tenu", detail: null };
+    if (a === undefined) return { ...dites, verdict: "inconnu", detail: `the gates run on the base did not declare \`MESURE ${cle}\`` };
+    return b < a ? { ...dites, verdict: "echec", detail: "down" } : { ...dites, verdict: "tenu", detail: null };
   };
   const produit: GardeFou = {
-    nom: "état du produit",
+    nom: "product state",
     avant: avant === null ? ABSENT : ETATS[avant.outcome],
     apres: apres === null ? ABSENT : ETATS[apres.outcome],
     ...(apres === null
@@ -56,10 +56,10 @@ export function gardeFous(avant: Gates | null, apres: Gates | null, sansAvant: s
       : apres.outcome === "green"
         ? { verdict: "tenu", detail: null }
         : apres.outcome === "skipped"
-          ? { verdict: "inconnu", detail: "la PR ne s'est pas fusionnée avec la base : ses gates n'ont pas été jouées" }
-          : { verdict: "echec", detail: "la suite de tests n'est pas verte" }),
+          ? { verdict: "inconnu", detail: "the PR did not merge with the base: its gates were not run" }
+          : { verdict: "echec", detail: "the test suite is not green" }),
   };
-  return [mesure("couverture de tests", COUVERTURE, " %"), mesure("vérifications des gates", VERIFICATIONS, ""), produit];
+  return [mesure("test coverage", COUVERTURE, " %"), mesure("gate checks", VERIFICATIONS, ""), produit];
 }
 
 // Une fenêtre de la pente, avant la passe et avec ce qu'elle retire — sur les
@@ -85,12 +85,12 @@ function mouvements(pente: Pente[], ajoutees: number, retirees: number): Mouveme
 // La pente de la passe, d'une phrase : celle de sa fenêtre la plus courte, le
 // chiffre que le chef suit. Immobile, la passe n'a pas servi, et c'est dit.
 function direPente([courte]: Mouvement[]): string {
-  if (courte === undefined) return "la pente n'a pas été relevée par cette passe";
-  if (courte.sens === null) return "aucun merge sur la base : la pente ne se mesure pas";
-  const sur = `sur ${pluriel(courte.fenetre, "merge")}`;
-  if (courte.sens === "immobile") return `la pente n'a pas bougé (${direRatio(courte.avant)} ${sur}) : la passe n'a pas servi`;
+  if (courte === undefined) return "the slope was not recorded by this pass";
+  if (courte.sens === null) return "no merge on the base: the slope cannot be measured";
+  const sur = `over ${pluriel(courte.fenetre, "merge")}`;
+  if (courte.sens === "immobile") return `the slope did not move (${direRatio(courte.avant)} ${sur}): the pass was of no use`;
   const mouvement = `${direRatio(courte.avant)} → ${direRatio(courte.apres)} ${sur}`;
-  return courte.sens === "monte" ? `la pente monte (${mouvement}) : la passe n'a pas servi` : `la pente descend (${mouvement})`;
+  return courte.sens === "monte" ? `the slope rises (${mouvement}): the pass was of no use` : `the slope falls (${mouvement})`;
 }
 
 // Ce que la pass a fait de la PR d'une passe livrée : le dernier jugement
@@ -127,10 +127,10 @@ export function direBilan(journal: Journal, fin: Fin, arbreDe: (commit: string) 
   const gardes = (fin.kept ?? []).filter(({ before }) => !before);
   const ecartes = (fin.kept ?? []).filter(({ before }) => before);
   const restes = [
-    ...(gardes.length === 0 ? [] : [ligne("laissé", `${nombre(gardes.length)}, faute d'être sûr`), ...colonnes(gardes.map(laisse))]),
-    ...(ecartes.length === 0 ? [] : [ligne("écarté", `${nombre(ecartes.length)}, avant la passe`), ...colonnes(ecartes.map(laisse))]),
+    ...(gardes.length === 0 ? [] : [ligne("left", `${nombre(gardes.length)}, for lack of certainty`), ...colonnes(gardes.map(laisse))]),
+    ...(ecartes.length === 0 ? [] : [ligne("set aside", `${nombre(ecartes.length)}, before the pass`), ...colonnes(ecartes.map(laisse))]),
   ];
-  if (fin.outcome !== "delivered") return [ligne("bilan", `${fin.outcome === "nothing" ? "rien n'a été retiré" : "rien n'est livré"} : la pente n'a pas bougé, la passe n'a pas servi`), ...restes];
+  if (fin.outcome !== "delivered") return [ligne("summary", `${fin.outcome === "nothing" ? "nothing was removed" : "nothing is delivered"}: the slope did not move, the pass was of no use`), ...restes];
 
   const suivi = suivre(journal, fin.run);
   const jugement = suivi?.jugement ?? null;
@@ -140,8 +140,8 @@ export function direBilan(journal: Journal, fin: Fin, arbreDe: (commit: string) 
   const gardeFousDeLaPasse = gardeFous(
     avant,
     apres,
-    sur === null ? "la pass n'a pas dit sur quelle base elle a jugé la PR" : `aucune gate au journal n'a été jouée sur la base \`${court(sur)}\` seule`,
-    suivi === null ? "le journal ne dit pas que la PR est entrée en pass" : "la pass n'a pas encore jugé la PR",
+    sur === null ? "the pass did not say on which base it judged the PR" : `no gate in the log was run on the base \`${court(sur)}\` alone`,
+    suivi === null ? "the log does not say that the PR entered the pass" : "the pass has not judged the PR yet",
   );
   const [retirees, ajoutees] = [fin.removedLines ?? 0, fin.addedLines ?? 0];
   const pente = mouvements(fin.slope ?? [], ajoutees, retirees);
@@ -154,38 +154,38 @@ export function direBilan(journal: Journal, fin: Fin, arbreDe: (commit: string) 
   const tete = [
     echecs.length === 0
       ? null
-      : `ÉCHEC — ${echecs.map(({ nom, avant: debut, apres: suite, detail }) => `${nom} : ${detail} (${debut} → ${suite})`).join(", ")}${apres?.outcome === "green" ? ", même si les gates sont vertes" : ""} — la passe a pu retirer du vivant`,
-    inconnus.length === 0 ? null : `${pluriel(inconnus.length, "garde-fou")} non établi${inconnus.length > 1 ? "s" : ""} (${inconnus.map(({ nom }) => nom).join(", ")}) : rien ne dit qu'il${inconnus.length > 1 ? "s tiennent" : " tient"}`,
+      : `FAILURE — ${echecs.map(({ nom, avant: debut, apres: suite, detail }) => `${nom} : ${detail} (${debut} → ${suite})`).join(", ")}${apres?.outcome === "green" ? ", even if the gates are green" : ""} — the pass may have removed live code`,
+    inconnus.length === 0 ? null : `${pluriel(inconnus.length, "guardrail")} not established (${inconnus.map(({ nom }) => nom).join(", ")}): nothing says ${inconnus.length > 1 ? "they hold" : "it holds"}`,
     direPente(pente),
-    echecs.length + inconnus.length === 0 ? "les trois garde-fous tiennent" : null,
+    echecs.length + inconnus.length === 0 ? "the three guardrails hold" : null,
   ].filter((dit) => dit !== null);
   const lignes = ({ ajoute, retire }: Lignes) => `+${nombre(ajoute)} / −${nombre(retire)}  ${direRatio({ ajoute, retire })}`;
 
   const retires = fin.removed;
   return [
-    ligne("bilan", tete.join(" · ")),
+    ligne("summary", tete.join(" · ")),
     ligne(
       "",
-      `${suivi === null ? fin.pr : `PR #${suivi.numero}`} — ${jugement === null ? "pas encore jugée par la pass" : `jugée ${jugement.payload.verdict === "green" ? "verte" : "rouge"} par la pass`}, ${mergee === null ? "pas mergée : la pente de la base ne bouge qu'à son merge" : `mergée le ${le(mergee.at)}`}`,
+      `${suivi === null ? fin.pr : `PR #${suivi.numero}`} — ${jugement === null ? "not yet judged by the pass" : `judged ${jugement.payload.verdict === "green" ? "green" : "red"} by the pass`}, ${mergee === null ? "not merged: the base's slope only moves at its merge" : `merged on ${le(mergee.at)}`}`,
     ),
     ligne(
-      "retiré",
-      `${retires === undefined ? "" : `${nombre(retires.length)} sur ${pluriel(retires.length + gardes.length, "candidat")} · `}${pluriel(retirees, "ligne")} retirée${retirees > 1 ? "s" : ""}${fin.addedLines === undefined ? "" : `, ${ajoutees === 0 ? "aucune" : nombre(ajoutees)} ajoutée${ajoutees > 1 ? "s" : ""}`}, dans ${(fin.files ?? []).map((fichier) => `\`${fichier}\``).join(", ")}`,
+      "removed",
+      `${retires === undefined ? "" : `${nombre(retires.length)} of ${pluriel(retires.length + gardes.length, "candidate")} · `}${pluriel(retirees, "line")} removed${fin.addedLines === undefined ? "" : `, ${ajoutees === 0 ? "none" : nombre(ajoutees)} added`}, in ${(fin.files ?? []).map((fichier) => `\`${fichier}\``).join(", ")}`,
     ),
-    ...(retires === undefined ? [ligne("", "le journal ne dit pas lesquels : cette passe a fini avant que le bilan n'existe")] : colonnes(retires.map(({ id, what }) => [id, what]))),
+    ...(retires === undefined ? [ligne("", "the log does not say which: this pass finished before the summary existed")] : colonnes(retires.map(({ id, what }) => [id, what]))),
     ...restes,
     ...(pente.length === 0
       ? []
       : [
-          ligne("pente", `ajouté / retiré sur les mêmes merges : avant la passe → avec ce qu'elle retire${mergee === null ? ", une fois sa PR mergée" : ""}`),
+          ligne("slope", `added / removed over the same merges: before the pass → with what it removes${mergee === null ? ", once its PR is merged" : ""}`),
           ...colonnes(
             pente.map(({ fenetre, merges, avant: debut, apres: suite, sens }) => [
               `${fenetre} merges`,
-              ...(sens === null ? ["aucun merge : rien à mesurer"] : [`${lignes(debut)}  →  ${lignes(suite)}`, `${sens === "immobile" ? "n'a pas bougé" : sens}${merges < fenetre ? ` — ${pluriel(merges, "merge")} seulement sur la branche` : ""}`]),
+              ...(sens === null ? ["no merge: nothing to measure"] : [`${lignes(debut)}  →  ${lignes(suite)}`, `${sens === "immobile" ? "did not move" : sens === "descend" ? "falls" : "rises"}${merges < fenetre ? ` — only ${pluriel(merges, "merge")} on the branch` : ""}`]),
             ]),
           ),
         ]),
-    ligne("garde-fous", `avant la passe → après, par les gates que la pass a jouées : sur la base${sur === null ? "" : ` \`${court(sur)}\``}, puis sur la PR fusionnée avec elle`),
-    ...colonnes(gardeFousDeLaPasse.map(({ nom, avant: debut, apres: suite, verdict, detail }) => [nom, `${debut} → ${suite}`, verdict === "tenu" ? "tenu" : `${verdict === "echec" ? "ÉCHEC" : "non établi"} — ${detail}`])),
+    ligne("guardrails", `before the pass → after, by the gates the pass ran: on the base${sur === null ? "" : ` \`${court(sur)}\``}, then on the PR merged with it`),
+    ...colonnes(gardeFousDeLaPasse.map(({ nom, avant: debut, apres: suite, verdict, detail }) => [nom, `${debut} → ${suite}`, verdict === "tenu" ? "holds" : `${verdict === "echec" ? "FAILURE" : "not established"} — ${detail}`])),
   ];
 }

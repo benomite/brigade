@@ -25,10 +25,10 @@ import type { BacASableDeLaStation, Demande } from "./evenements/distante.ts";
 import { demander, SansReponse, type OptionsDeDemande } from "./tirer.ts";
 
 const USAGE = [
-  "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run pull -- <station> announce [--sandbox <json>]",
+  "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run pull -- <station> announce [--sandbox <json>]",
   "        … pull -- <station> claim [--sandbox <json>]",
-  "        … pull -- <station> renew <run> --proof <empreinte du worktree> --turns <n> --tokens <n>",
-  "        … pull -- <station> return <run> --end livre|echec [--reason <motif>] --turns <n> --tokens <n>   (le dernier message du cook sur l'entrée standard)",
+  "        … pull -- <station> renew <run> --proof <worktree fingerprint> --turns <n> --tokens <n>",
+  "        … pull -- <station> return <run> --end livre|echec [--reason <reason>] --turns <n> --tokens <n>   (the cook's last message on standard input)",
 ].join("\n");
 
 export const SERVIE = 0;
@@ -48,7 +48,7 @@ export async function principal({ args: tapes, env, dire, redire }: Appel, entre
     throw new Sortie(code);
   }
   const repertoireEtat = env.BRIGADE_STATE_DIR;
-  if (!repertoireEtat) echouer(MAL_ECRIT, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
+  if (!repertoireEtat) echouer(MAL_ECRIT, `BRIGADE_STATE_DIR is not set\n${USAGE}`);
   const [station, geste, ...suite] = args;
   if (!station || !geste) echouer(MAL_ECRIT, USAGE);
 
@@ -63,7 +63,7 @@ export async function principal({ args: tapes, env, dire, redire }: Appel, entre
   }
   const entier = (option: string): number => {
     const brut = lues.get(option);
-    if (brut === undefined || !/^[0-9]+$/.test(brut) || !Number.isSafeInteger(Number(brut))) echouer(MAL_ECRIT, `${option} : il faut un entier, ce que le cook a consommé jusqu'ici\n${USAGE}`);
+    if (brut === undefined || !/^[0-9]+$/.test(brut) || !Number.isSafeInteger(Number(brut))) echouer(MAL_ECRIT, `${option}: an integer is needed, what the cook has consumed so far\n${USAGE}`);
     return Number(brut);
   };
   const seules = (...permises: string[]) => {
@@ -90,9 +90,9 @@ export async function principal({ args: tapes, env, dire, redire }: Appel, entre
       try {
         sandbox = JSON.parse(dit);
       } catch {
-        echouer(MAL_ECRIT, `--sandbox : un objet JSON, ce que rend la sonde du bac à sable du poste\n${USAGE}`);
+        echouer(MAL_ECRIT, `--sandbox: a JSON object, what the workstation's sandbox probe returns\n${USAGE}`);
       }
-      if (sandbox === null || typeof sandbox !== "object" || Array.isArray(sandbox)) echouer(MAL_ECRIT, `--sandbox : un objet JSON, ce que rend la sonde du bac à sable du poste\n${USAGE}`);
+      if (sandbox === null || typeof sandbox !== "object" || Array.isArray(sandbox)) echouer(MAL_ECRIT, `--sandbox: a JSON object, what the workstation's sandbox probe returns\n${USAGE}`);
       demande = { verb: geste, sandbox: sandbox as BacASableDeLaStation };
       break;
     }
@@ -105,12 +105,12 @@ export async function principal({ args: tapes, env, dire, redire }: Appel, entre
     case "return": {
       seules("--end", "--reason", "--turns", "--tokens");
       const ending = FINS[lues.get("--end") ?? ""];
-      if (ending === undefined) echouer(MAL_ECRIT, `--end : \`livre\` (la branche du cook est poussée sur l'origine) ou \`echec\`\n${USAGE}`);
+      if (ending === undefined) echouer(MAL_ECRIT, `--end: \`livre\` (the cook's branch is pushed to the origin) or \`echec\`\n${USAGE}`);
       demande = { verb: "deliver", run: run(), ending, reason: lues.get("--reason") || null, message: (await entree()) || null, turns: entier("--turns"), tokens: entier("--tokens") };
       break;
     }
     default:
-      echouer(MAL_ECRIT, `geste inconnu : « ${geste} »\n${USAGE}`);
+      echouer(MAL_ECRIT, `unknown action: “${geste}”\n${USAGE}`);
   }
 
   let reponse;

@@ -18,7 +18,7 @@ export function mesurerRatio(merges: Array<{ ajoute: number; retire: number }>, 
   });
 }
 
-// Le ratio tel qu'il se lit : `24,3:1`.
+// Le ratio tel qu'il se lit : `24.3:1`.
 export function direRatio({ ajoute, retire }: { ajoute: number; retire: number }): string {
-  return retire === 0 ? "rien de retiré" : `${(ajoute / retire).toLocaleString("fr-FR", { maximumFractionDigits: 1 })}:1`;
+  return retire === 0 ? "nothing removed" : `${(ajoute / retire).toLocaleString("en-US", { maximumFractionDigits: 1 })}:1`;
 }

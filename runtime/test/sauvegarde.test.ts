@@ -205,7 +205,7 @@ describe("la sauvegarde", { concurrency: 8 }, () => {
     sauvegarder(brigade.options());
 
     const lendemain = () => new Date("2026-10-09T03:30:00.000Z");
-    assert.throws(() => sauvegarder({ ...thermigo.options(), destination: brigade.destination, maintenant: lendemain }), /sauvegardes du projet « brigade »/);
+    assert.throws(() => sauvegarder({ ...thermigo.options(), destination: brigade.destination, maintenant: lendemain }), /backups of project "brigade"/);
 
     assert.deepEqual(brigade.datees(), ["2026-10-08T03-30-00Z"]);
   });
@@ -242,7 +242,7 @@ describe("la restauration", { concurrency: 8 }, () => {
       const cible = repertoireTemporaire(t);
       writeFileSync(join(cible, reste), "les restes d'un runtime tué");
 
-      assert.throws(() => restaurer({ sauvegarde: chemin, repertoireEtat: cible }), new RegExp(`a déjà un journal \\(${reste}\\)`));
+      assert.throws(() => restaurer({ sauvegarde: chemin, repertoireEtat: cible }), new RegExp(`already has a log \\(${reste}\\)`));
 
       assert.deepEqual(readdirSync(cible), [reste]);
     });
@@ -268,7 +268,7 @@ describe("la restauration", { concurrency: 8 }, () => {
     writeFileSync(join(chemin, "manifeste.json"), JSON.stringify({ ...manifeste, lastSeq: 99 }));
     const neuf = join(repertoireTemporaire(t), "etat");
 
-    assert.throws(() => restaurer({ sauvegarde: chemin, repertoireEtat: neuf }), /manifeste/);
+    assert.throws(() => restaurer({ sauvegarde: chemin, repertoireEtat: neuf }), /manifest/);
 
     assert.equal(existsSync(neuf), false);
   });
@@ -293,7 +293,7 @@ describe("sauvegarder et restaurer, en commandes", { concurrency: 8 }, () => {
     const { code, sortie } = await commande(t, SAUVEGARDER, { BRIGADE_STATE_DIR: etat });
 
     assert.equal(code, REFUS);
-    assert.match(sortie, /BRIGADE_BACKUP_DIR n'est pas défini/);
+    assert.match(sortie, /BRIGADE_BACKUP_DIR is not set/);
   });
 
   test("une rétention illisible est un refus, avant d'avoir rien écrit", async (t) => {
@@ -302,7 +302,7 @@ describe("sauvegarder et restaurer, en commandes", { concurrency: 8 }, () => {
     const { code, sortie } = await commande(t, SAUVEGARDER, { BRIGADE_STATE_DIR: etat, BRIGADE_BACKUP_DIR: destination, BRIGADE_BACKUP_KEEP: "beaucoup" });
 
     assert.equal(code, REFUS);
-    assert.match(sortie, /BRIGADE_BACKUP_KEEP invalide/);
+    assert.match(sortie, /BRIGADE_BACKUP_KEEP is invalid/);
     assert.deepEqual(datees(), []);
   });
 
@@ -316,7 +316,7 @@ describe("sauvegarder et restaurer, en commandes", { concurrency: 8 }, () => {
     const echec = await commande(t, SAUVEGARDER, { BRIGADE_STATE_DIR: etat, BRIGADE_BACKUP_DIR: destination });
 
     assert.deepEqual([refus.code, echec.code], [REFUS, 1]);
-    assert.match(echec.sortie, /brigade : sauvegarde en échec/);
+    assert.match(echec.sortie, /brigade : backup failed/);
   });
 
   test("une réussite non journalisée et des flux manquants se disent, sans faire échouer la commande", async (t) => {
@@ -326,14 +326,14 @@ describe("sauvegarder et restaurer, en commandes", { concurrency: 8 }, () => {
     const sauvegarde = await commande(t, SAUVEGARDER, { BRIGADE_STATE_DIR: etat, BRIGADE_BACKUP_DIR: destination });
 
     assert.equal(sauvegarde.code, 0, sauvegarde.sortie);
-    assert.match(sauvegarde.sortie, /la sauvegarde est faite, mais sa réussite n'a pas pu s'écrire au journal/);
-    const nom = /^brigade : sauvegarde (\S+) — /m.exec(sauvegarde.sortie)?.[1] ?? "";
+    assert.match(sauvegarde.sortie, /the backup is done, but its success could not be written to the log/);
+    const nom = /^brigade : backup (\S+) — /m.exec(sauvegarde.sortie)?.[1] ?? "";
     rmSync(join(destination, "runs"), { recursive: true });
 
     const restauration = await commande(t, RESTAURER, { BRIGADE_STATE_DIR: join(repertoireTemporaire(t), "etat") }, join(destination, nom));
 
     assert.equal(restauration.code, 0, restauration.sortie);
-    assert.match(restauration.sortie, /2 flux bruts annoncés par la sauvegarde n'ont pas été trouvés/);
+    assert.match(restauration.sortie, /2 raw streams announced by the backup were not found/);
   });
 
   test("restaurer réclame une sauvegarde et un répertoire d'état", async (t) => {
@@ -354,7 +354,7 @@ describe("sauvegarder et restaurer, en commandes", { concurrency: 8 }, () => {
     // La sauvegarde est prise pendant que ce runtime tourne.
     const sauvegarde = await commande(t, SAUVEGARDER, { BRIGADE_STATE_DIR: ancienne.repertoire, BRIGADE_BACKUP_DIR: destination });
     assert.equal(sauvegarde.code, 0, sauvegarde.sortie);
-    const nom = /^brigade : sauvegarde (\S+) — /m.exec(sauvegarde.sortie)?.[1] ?? "";
+    const nom = /^brigade : backup (\S+) — /m.exec(sauvegarde.sortie)?.[1] ?? "";
     assert.equal(ancienne.types().includes("backup.completed"), true);
 
     // La machine neuve : un répertoire d'état qui n'existe pas encore.

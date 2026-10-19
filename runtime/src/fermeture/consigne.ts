@@ -9,7 +9,7 @@ import type { Candidat } from "./candidats.ts";
 export const MOT_LAISSE = "LAISSÉ";
 const LIGNE_LAISSE = /^[\s>*-]*LAISS[ÉE]\s+`?([DM]\d+)`?\s*:\s*(\S.*)$/gimu;
 // Ce que la passe dit d'un candidat resté que le closer n'a pas nommé.
-export const SANS_MOTIF = "le closer n'a donné aucun motif — le candidat est toujours repéré après la passe";
+export const SANS_MOTIF = "the closer gave no reason — the candidate is still spotted after the pass";
 
 const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
 const pluriel = (combien: number, mot: string) => `${nombre(combien)} ${mot}${combien > 1 ? "s" : ""}`;
