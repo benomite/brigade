@@ -122,7 +122,7 @@ describe("l'urgence dans la bande", () => {
     // Ce qui attend, puis le geste du chef : la ligne du bloc `attend` que la box écrit, mot pour mot.
     assert.equal(premiere.releve, `#535  ${urgence.geste}`);
     assert.match(premiere.releve ?? "", /à relire et merger à la main : https:\/\/exemple\.test\/pull\/535$/);
-    assert.equal(premiere.geste, "do what #535 waits for, as the box writes it");
+    assert.equal(premiere.geste, "do what #535 waits for, as the station writes it");
     assert.deepEqual(premiere.appel, { demande: true });
     assert.match(premiere.prix, /the held tickets start again/);
     // Aucune autre ligne ne la redit.
@@ -295,7 +295,7 @@ describe("l'urgence à l'écran", () => {
       }),
       espace: () => [],
     });
-  const URGENTE: Alerte = { sujet: "urgence", verifie: true, ton: "rouge", dit: "the whole kitchen is waiting for your merge of #535 — at a standstill for 5 h 28", releve: "#535  livraison verte — à merger à la main", geste: "do what #535 waits for, as the box writes it", appel: { demande: true }, prix: "none" };
+  const URGENTE: Alerte = { sujet: "urgence", verifie: true, ton: "rouge", dit: "the whole kitchen is waiting for your merge of #535 — at a standstill for 5 h 28", releve: "#535  livraison verte — à merger à la main", geste: "do what #535 waits for, as the station writes it", appel: { demande: true }, prix: "none" };
   const ORDINAIRE: Alerte = { sujet: "cuisine", verifie: true, ton: "rouge", dit: "kitchen stopped by your “stop”: no cook goes, until “resume”", geste: "resume the kitchen", appel: { geste: "reprendre" }, prix: "—" };
 
   test("la ligne d'urgence est posée la première, marquée « URGENT », et dit ce que la box écrit", async () => {

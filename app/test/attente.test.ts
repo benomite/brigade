@@ -180,7 +180,7 @@ describe("le rail en TODO et WAITING", () => {
     // Une box qui dit WAITING sans dire ce qu'il attend : la carte l'écrit, et garde ses gestes.
     const muette = rail({ ...FAITS, rail: [ticket(8, "WAITING")] }).colonnes[4]?.cartes[0];
     assert.deepEqual([muette?.dit, muette?.gestes], [[], ["attente-reprendre", "attente-arrivee"]]);
-    assert.match(muette?.sans ?? "", /^not given — this box's runtime does not give in `facts` what it waits for/);
+    assert.match(muette?.sans ?? "", /^not given — this station's runtime does not give in `facts` what it waits for/);
   });
 
   test("« waiting for… » est sur une carte de TODO que le runtime laisse attendre — pas sur un ticket en pass, ni hors du rail, ni hors de TODO", () => {

@@ -90,10 +90,10 @@ describe("la ligne d'un projet : sa pastille, et ce qui bloque, ce qui attend le
       assert.deepEqual([ligne.ton, ligne.dit], ["rouge", dit], etat);
     }
     const injoignable = ligneDeProjet(PROJET, { a: A, injoignable: true }, undefined);
-    assert.deepEqual([injoignable.ton, injoignable.dit], ["rouge", "box unreachable"]);
+    assert.deepEqual([injoignable.ton, injoignable.dit], ["rouge", "station unreachable"]);
     // Les causes que `status` dit d'une cuisine retenue.
     assert.equal(ligneDeProjet(PROJET, lus(desFaits({ etat: "retenue" })), { texte: "cuisine    retenue — disjoncteur OUVERT après 3 échecs\nconnexion  perdue sur box : se reconnecter" }).dit, "breaker open · Max connection down");
-    assert.equal(ligneDeProjet(PROJET, lus(desFaits({ etat: "retenue" })), { texte: "kitchen    held · breaker OPEN for 1 h 00 (3 failures in a row)\nconnection Max EXPIRED for 1 h 00 on box/claude — no ticket is taken any more: `claude /login`" }).dit, "breaker open · Max connection down");
+    assert.equal(ligneDeProjet(PROJET, lus(desFaits({ etat: "retenue" })), { texte: "kitchen    held · breaker OPEN for 1 h 00 (3 failures in a row)\nconnection Max EXPIRED for 1 h 00 on station/claude — no ticket is taken any more: `claude /login`" }).dit, "breaker open · Max connection down");
   });
 
   test("dans l'ordre : ce qui bloque, ce qui attend le chef, puis ce qui cuit", () => {

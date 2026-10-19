@@ -147,7 +147,7 @@ describe("le setup du projet bloqué, dans la bande d'alertes", () => {
     const { alertes: lues, signal } = bande();
     const ligne = laLigne(lues);
     assert.equal(ligne.ton, "jaune");
-    assert.equal(ligne.dit, "project setup impossible: no worktree is set up on the box, for any ticket — only a remote station still cooks");
+    assert.equal(ligne.dit, "project setup impossible: no worktree is set up on its main station, for any ticket — only a remote station still cooks");
     assert.equal(ligne.releve, SETUP_A_CORRIGER);
     assert.deepEqual(lues.map(({ dit }) => dit), [ligne.dit]);
     assert.equal(signal?.etat, "alerte");

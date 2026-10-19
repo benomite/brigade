@@ -69,7 +69,7 @@ const SANS_STATUS = "not given by `facts`, and the `rail` line of `status` was n
 // priorité, que seule sa ligne de `status` écrit, ni sa PR, que la box ne donne que d'un ticket livré.
 const fiche = (titre: string | undefined, autre: Partial<Entete> = {}): { fiche: Entete } => ({
   fiche: {
-    titre: titre === undefined ? { sans: "not given — the box returns no title for this ticket" } : { valeur: titre },
+    titre: titre === undefined ? { sans: "not given — the station returns no title for this ticket" } : { valeur: titre },
     priorite: { sans: "not given — `facts` does not give it, and the `rail` line of `status` was not read" },
     issue: true,
     ...autre,
@@ -195,7 +195,7 @@ describe("les faits que l'app dessine", () => {
     assert.equal(de("en pass", { fait: "relecture en cours", cible: null, depuis: "2026-10-12T10:04:01.000Z" }), "relecture en cours, for 10 s");
     assert.equal(de("pris", null), ACTIVITE_NON_COMMUNIQUEE);
     assert.equal(ACTIVITE_NON_COMMUNIQUEE, "activity not given");
-    assert.equal(de("en pass"), "activity not given — this box's runtime does not give it in `facts`");
+    assert.equal(de("en pass"), "activity not given — this station's runtime does not give it in `facts`");
     // Un ticket qui n'est ni au travail ni en pass n'a pas cette ligne.
     for (const etat of ["en attente", "BLOQUÉ", "servi", "86", "au four"]) assert.equal(de(etat, null), undefined, etat);
   });
@@ -293,7 +293,7 @@ describe("les faits que l'app dessine", () => {
   test("une box qui rend autre chose que la forme : ce qu'elle a rendu est gardé mot pour mot, avec la raison", () => {
     const ancien = "projet     brigade\ncuisine    ouverte\n";
 
-    assert.deepEqual(dessiner(lue(ancien)), { projet: "brigade", demande: 4, a: "2026-10-12T10:04:12.000Z", titre: "THE BOX DID NOT RETURN THE SHAPE OF `facts`", informe: "this is not JSON", rendu: ancien });
+    assert.deepEqual(dessiner(lue(ancien)), { projet: "brigade", demande: 4, a: "2026-10-12T10:04:12.000Z", titre: "THE STATION DID NOT RETURN THE SHAPE OF `facts`", informe: "this is not JSON", rendu: ancien });
   });
 
   test("une commande en échec — un runtime d'avant `faits` — reste l'échec que la veille a rendu, sous un titre qui dit que la box a été jointe", () => {
@@ -305,10 +305,10 @@ describe("les faits que l'app dessine", () => {
   test("un refus du geste se dit comme sous `status` — le même cas, les mêmes mots : pas un runtime à mettre à jour", () => {
     const vue = readFileSync(join(RACINE, "app/src/vue/vue.js"), "utf8");
     const TITRES = {
-      "projet-inconnu": "REACHED, BUT UNKNOWN TO THE BOX",
+      "projet-inconnu": "REACHED, BUT UNKNOWN TO THE STATION",
       "sans-droit": "REACHED, BUT WITHOUT THE RIGHT TO THE ACTION",
-      "commande-manque": "REACHED, BUT A COMMAND IS MISSING ON THE BOX",
-      "node-inapte": "REACHED, BUT THE BOX'S NODE DOES NOT SUIT THE RUNTIME",
+      "commande-manque": "REACHED, BUT A COMMAND IS MISSING ON THE STATION",
+      "node-inapte": "REACHED, BUT THE STATION'S NODE DOES NOT SUIT THE RUNTIME",
     } as const;
 
     for (const [cas, titre] of Object.entries(TITRES) as [keyof typeof TITRES, string][]) {
@@ -390,7 +390,7 @@ describe("la carte de projet", () => {
     assert.ok("tableau" in recue);
     const { rail: sansEux, ...reste } = recue.tableau;
     const { rail: avecEux, ...attendu } = tableau(FAITS);
-    assert.deepEqual(reste, { ...attendu, cooks: { enCours: [], vide: "cooks running: not read — this box's runtime does not give them in `facts` yet. This is not “no cook”: `ssh <hote> brigade <nom> station` shows them" } });
+    assert.deepEqual(reste, { ...attendu, cooks: { enCours: [], vide: "cooks running: not read — this station's runtime does not give them in `facts` yet. This is not “no cook”: `ssh <hote> brigade <nom> station` shows them" } });
     // Sa carte du rail non plus ne dit pas qui le tient : c'est écrit, pas mis à « personne ».
     assert.deepEqual(rangs(sansEux), rangs(avecEux));
     assert.deepEqual(cartes(sansEux).find(({ ticket }) => ticket === 14)?.dit.map(({ libelle }) => libelle), ["right now"]);
@@ -537,7 +537,7 @@ describe("le rail en six colonnes", () => {
         attend: ["depuis 4 min  livraison verte, non mergée faute de grant `merge` — à merger à la main : https://github.com/benomite/brigade/pull/31  Ticket 12"],
         ...ATTENDUE,
         // En pass, ce que la pass en fait : un runtime d'avant ce champ ne le dit pas, et la carte l'écrit.
-        dit: [{ libelle: "right now", valeur: "activity not given — this box's runtime does not give it in `facts`" }],
+        dit: [{ libelle: "right now", valeur: "activity not given — this station's runtime does not give it in `facts`" }],
         ...fiche("Ticket 12", ATTENDU),
       });
     }
@@ -559,7 +559,7 @@ describe("le rail en six colonnes", () => {
       // Une question du manager : la carte la dit (#503).
       question: true,
       ...ATTENDUE,
-      ...fiche(undefined, { issue: { sans: "not given — the box returns no address for this issue" }, ...ATTENDU }),
+      ...fiche(undefined, { issue: { sans: "not given — the station returns no address for this issue" }, ...ATTENDU }),
     });
   });
 
@@ -742,7 +742,7 @@ describe("Livré, d'après `livres`", () => {
       ],
       sans: "not given by the queue: who cooked it — no station sent it to pass",
       // Sa fiche le dit aussi : ni titre, ni issue — et pas de PR, qu'aucun lien ne prétend ouvrir.
-      ...fiche(undefined, { issue: { sans: "not given — the box returns no address for this issue" }, pr: { valeur: "none — served without a merge" } }),
+      ...fiche(undefined, { issue: { sans: "not given — the station returns no address for this issue" }, pr: { valeur: "none — served without a merge" } }),
     });
     // Un titre vide se complète de celui du rail, une issue nulle de son adresse.
     const [duRail] = livreCol(rail({ ...FAITS, rail: [ticket(9, "servi")], livres: [livre(9, "2026-10-12T10:00:00.000Z", { titre: "", url: null })] }))?.cartes ?? [];
@@ -771,7 +771,7 @@ describe("Livré, d'après `livres`", () => {
     );
     // D'un runtime qui donne `livres` sans `relecture`, ou qui ne donne pas `livres` : la carte le dit.
     const { relecture: _relecture, ...sansRelecture } = livre(5, "2026-10-12T10:00:00.000Z");
-    const PAS_DONNEE = { sans: "what was delivered: not given — this box's runtime does not yet give the review in `facts`" };
+    const PAS_DONNEE = { sans: "what was delivered: not given — this station's runtime does not yet give the review in `facts`" };
     assert.deepEqual(cartesDe(sansRelecture), [PAS_DONNEE]);
     assert.deepEqual(
       livreCol(rail({ ...SANS_LIVRES, rail: [ticket(9, "servi")] }))?.cartes.map(({ livraison }) => livraison),

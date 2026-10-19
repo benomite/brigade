@@ -95,7 +95,7 @@ test("une box injoignable se dit en une ligne, rouge : ni `ssh`, ni code de sort
   await repos();
   const [brigade, espace] = lesLignes(projets());
   assert.equal(brigade?.children[0]?.dataset.ton, "rouge");
-  assert.equal(brigade?.children[2]?.textContent, "box unreachable");
+  assert.equal(brigade?.children[2]?.textContent, "station unreachable");
   assert.equal(espace?.children[2]?.textContent, "first read in progress…");
   for (const texte of [visible(vue.element("tous")), ...vue.element("tous").dessous("button").map(({ title }) => title)]) assert.doesNotMatch(texte, /ssh|exit code|Connection refused|port 22/);
 });
@@ -117,7 +117,7 @@ test("ce qui a quitté l'accueil n'y est plus : le code de l'app, les blocs par 
   const { vue } = await lAccueil();
   const tous = vue.element("tous");
   const texte = visible(tous);
-  for (const parti of [/commits behind/, /what the box said/, /Projects on your stations/, /add a project/, /what awaits you/, /served 24 h|at pass|awaiting you/, /read at/]) assert.doesNotMatch(texte, parti);
+  for (const parti of [/commits behind/, /what the station said/, /Projects on your stations/, /add a project/, /what awaits you/, /served 24 h|at pass|awaiting you/, /read at/]) assert.doesNotMatch(texte, parti);
   assert.deepEqual(tous.dessous("article"), []);
   assert.deepEqual(tous.dessous("pre"), []);
   assert.doesNotMatch(texte, /\b(brigade|gh|git|ssh)\s+(-|\S+\s)/);

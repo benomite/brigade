@@ -140,11 +140,11 @@ describe("la configuration de l'app", () => {
     ["un hôte qui n'est pas un texte", { projets: [{ nom: "a", dossier: "/tmp", hote: 22 }] }, /^project #1 \(a\): “hote” must be a non-empty string$/],
     ["un hôte vide", { projets: [{ nom: "a", dossier: "/tmp", hote: " " }] }, /^project #1 \(a\): “hote” must be a non-empty string$/],
     // Le fichier d'avant : il n'est ni lu comme avant, ni ignoré.
-    ["un projet qui porte encore « commande »", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "b", dossier: "/tmp", hote: "box", commande: "sudo -u brigade npm" }] }, /^project #2 \(b\): “commande” is no longer read — remove it: the app runs the box's action \(`ssh <hote> brigade b <commande>`\), “hote” is all it needs$/],
+    ["un projet qui porte encore « commande »", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "b", dossier: "/tmp", hote: "box", commande: "sudo -u brigade npm" }] }, /^project #2 \(b\): “commande” is no longer read — remove it: the app runs the station's action \(`ssh <hote> brigade b <commande>`\), “hote” is all it needs$/],
     ["une « commande » sans hôte", { projets: [{ nom: "a", dossier: "/tmp", commande: "" }] }, /^project #1 \(a\): “commande” is no longer read — remove it/],
     ["deux projets du même nom", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "a", dossier: "/var" }] }, /^two projects are named “a”$/],
     ["autre chose qu'une liste d'hôtes", { hotes: "box", projets: [] }, /^“hotes” must be a list$/],
-    ["un hôte qui n'est pas un texte", { hotes: ["box", { hote: "autre" }], projets: [] }, /^host #2: must be a non-empty string — the name your ssh uses to reach the box$/],
+    ["un hôte qui n'est pas un texte", { hotes: ["box", { hote: "autre" }], projets: [] }, /^host #2: must be a non-empty string — the name your ssh uses to reach a station$/],
     ["un hôte vide", { hotes: [" "], projets: [] }, /^host #1: must be a non-empty string/],
   ];
   for (const [quoi, contenu, refus] of REFUSES) {

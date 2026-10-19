@@ -186,7 +186,7 @@ function suiteDuRefus(code: number | null): string[] {
   if (code === 64) return ["What the station refuses is named above: it removed nothing."];
   if (code === 65) return [`The station does not know this project: there is nothing to uninstall there. If it should no longer appear in the app, that is the other action: “${RETIRER}”.`];
   if (code === 75) return ["Another installation action is running on this station: retry once it has finished."];
-  if (code === 76 || code === 77) return [`The station is not ready for this action, and the app does not prepare it: what it lacks is set up on the station itself, by someone with \`sudo\` there — ${DOC}, « Préparer la station ».`];
+  if (code === 76 || code === 77) return [`The station is not ready for this action, and the app does not prepare it: what it lacks is set up on the station itself, by someone with \`sudo\` there — ${DOC}, section 3, « Préparer ».`];
   if (code === 81) return ["The station is held back by what the uninstall would take away: it names it above. Sort it out on the station, then retry."];
   return [];
 }
@@ -198,7 +198,7 @@ function montrer({ nom, box: { hote } }: Servi, { a, rendu }: Lue, execution: bo
   const redemander = "Ask the station for its plan again: it will say what is left of the project on it.";
   const pasDit = deja ? "This project is still reported as uninstalled — it already was: what remained of it on the station is what is in doubt." : "The app does not report this project as uninstalled: what its station says about it can still be read alongside.";
   const ssh = [
-    `What each of \`ssh\`'s messages means, and the action that answers it: ${DOC}, « Joindre la station ».`,
+    `What each of \`ssh\`'s messages means, and the action that answers it: ${DOC}, section 2, « Joindre ».`,
     `If it says your key was refused (\`Permission denied\`), the station answers and it is access you lack: ${DOC}, « Ajouter un humain ».`,
   ];
   if (rendu.etat === "plan") {
@@ -263,7 +263,7 @@ function montrer({ nom, box: { hote } }: Servi, { a, rendu }: Lue, execution: bo
       obtenu,
       suite: [
         "What the station returned is above, as is. The expected case: `brigade-installer` is not installed there — or not in a version that uninstalls — or its sudoers rule does not grant it to your account.",
-        `The app does not prepare a station. This action is set up on it, once, by someone with \`sudo\` there: ${DOC}, « Préparer la station » — « Le geste d'installation ».`,
+        `The app does not prepare a station. This action is set up on it, once, by someone with \`sudo\` there: ${DOC}, section 3, « Préparer » — « Le geste d'installation ».`,
         ...(execution ? [`The app does not know what the station did. ${pasDit}`, redemander] : []),
       ],
     };
@@ -447,7 +447,7 @@ export function tenirRetraits(options: {
               ...(parti === undefined
                 ? [
                     `Nothing was sent to station “${box.hote}”: the project is still installed there, and its log was not touched.`,
-                    `Uninstalling it from the station is another action: declare it in the app again — the “+”, which will find it already installed and offer to declare it as it is — then “${DESINSTALLER}”. Or on the station, by hand (${DOC}, « Désinstaller »).`,
+                    `Uninstalling it from the station is another action: declare it in the app again — the “+” — then “${DESINSTALLER}”. Or on the station, by hand (${DOC}, « Désinstaller »).`,
                   ]
                 : [`It had been uninstalled from station “${box.hote}”: only what it said it keeps remains there.`]),
             ];

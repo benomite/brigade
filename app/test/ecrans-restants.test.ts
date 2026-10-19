@@ -79,7 +79,7 @@ describe("Cost : une lecture, des gestes en boutons, rien d'expliqué à plat", 
     const corps = vue.element("lecture-onglet");
     assert.equal(corps.dessous("pre").length, 0);
     assert.doesNotMatch(aPlat(corps), TECHNIQUE);
-    assert.equal(corps.dessous("p").find(({ className }) => className === "indisponible")?.textContent, "the box could not be reached?");
+    assert.equal(corps.dessous("p").find(({ className }) => className === "indisponible")?.textContent, "the station could not be reached?");
     assert.ok(survols(corps).some((dit) => dit.startsWith(erreur)));
   });
 });

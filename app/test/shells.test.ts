@@ -16,7 +16,7 @@ import { ouvrirTerminaux, REPRISES_MS, type Lancement, type Pty, type Terminal }
 
 const BRIGADE = { nom: "brigade", dossier: "/projets/brigade" };
 const POSTE: Cible = { lieu: "poste" };
-const BOX: Cible = { lieu: "box", nom: "parade-box", hote: "parade-box" };
+const STATION: Cible = { lieu: "box", nom: "parade-box", hote: "parade-box" };
 const STUDIO: Cible = { lieu: "station", nom: "studio", hote: "studio" };
 
 type FauxPty = Lancement & { ecrits: string[]; tue: boolean };
@@ -104,7 +104,7 @@ describe("un shell persistant, ouvert sur la machine choisie", () => {
     terminaux.espace(BRIGADE);
 
     const ici = terminaux.ouvrir(BRIGADE, POSTE);
-    const labas = terminaux.ouvrir(BRIGADE, BOX);
+    const labas = terminaux.ouvrir(BRIGADE, STATION);
     const studio = terminaux.ouvrir(BRIGADE, STUDIO);
 
     assert.deepEqual(
@@ -117,13 +117,13 @@ describe("un shell persistant, ouvert sur la machine choisie", () => {
     );
     assert.deepEqual([ici.titre, labas.titre, studio.titre], ["shell 1", "shell 2 · parade-box", "shell 3 · studio"]);
     assert.equal(ici.note, "persistent shell on this Mac, in /projets/brigade — session `brigade-brigade-1`: closing the app only detaches from it, closing this shell destroys it");
-    assert.equal(labas.note, "persistent shell on box parade-box (`ssh parade-box`, with the account your ssh gives it) — session `brigade-brigade-2`: closing the app only detaches from it, closing this shell destroys it");
+    assert.equal(labas.note, "persistent shell on main station parade-box (`ssh parade-box`, with the account your ssh gives it) — session `brigade-brigade-2`: closing the app only detaches from it, closing this shell destroys it");
     assert.deepEqual(souvenirs.tel(), {
       brigade: {
         dernier: 3,
         shells: [
           { rang: 1, session: "brigade-brigade-1", cible: POSTE },
-          { rang: 2, session: "brigade-brigade-2", cible: BOX },
+          { rang: 2, session: "brigade-brigade-2", cible: STATION },
           { rang: 3, session: "brigade-brigade-3", cible: STUDIO },
         ],
       },
@@ -151,7 +151,7 @@ describe("fermer l'app, puis la rouvrir : les shells persistants reviennent", ()
     const avant = lancement(souvenirs);
     avant.terminaux.espace(BRIGADE);
     avant.terminaux.ouvrir(BRIGADE, POSTE);
-    avant.terminaux.ouvrir(BRIGADE, BOX);
+    avant.terminaux.ouvrir(BRIGADE, STATION);
     const commandes = avant.shells().map(({ commande, args }) => [commande, ...args]);
 
     // Fermer l'app tue ses terminaux — les clients des sessions, pas les sessions —, et n'oublie rien.
@@ -191,11 +191,11 @@ describe("fermer un shell pour de bon", () => {
     const { terminaux, shells, etats } = lancement(souvenirs, detruites);
     terminaux.espace(BRIGADE);
     const garde = terminaux.ouvrir(BRIGADE, POSTE);
-    const ferme = terminaux.ouvrir(BRIGADE, BOX);
+    const ferme = terminaux.ouvrir(BRIGADE, STATION);
 
     assert.deepEqual(await terminaux.fermerShell(ferme.id), { ferme: true });
 
-    assert.deepEqual(detruites, [{ nom: "brigade-brigade-2", cible: BOX }]);
+    assert.deepEqual(detruites, [{ nom: "brigade-brigade-2", cible: STATION }]);
     assert.equal(shells()[1]?.tue, true);
     assert.deepEqual(etats.map(({ id, arrete }) => [id, arrete]), [[ferme.id, true]]);
     assert.deepEqual(terminaux.espace(BRIGADE).map(({ id }) => id).slice(1), [garde.id]);
@@ -205,17 +205,17 @@ describe("fermer un shell pour de bon", () => {
     const apres = lancement(souvenirs);
     assert.deepEqual(apres.terminaux.espace(BRIGADE).map(({ titre }) => titre), ["Second", "shell 1"]);
     // Son rang n'est pas rendu : un shell neuf ne retrouve pas sa session.
-    assert.equal(apres.terminaux.ouvrir(BRIGADE, BOX).titre, "shell 3 · parade-box");
+    assert.equal(apres.terminaux.ouvrir(BRIGADE, STATION).titre, "shell 3 · parade-box");
   });
 
   test("une session qui n'a pas pu être détruite : le shell est fermé et oublié quand même, et la raison dit où elle reste", async () => {
     const souvenirs = enMemoire();
     const { terminaux } = lancement(souvenirs, [], { erreur: "$ ssh … parade-box …\nssh: connect to host parade-box port 22: Connection refused\n→ exit code 255" });
     terminaux.espace(BRIGADE);
-    const shell = terminaux.ouvrir(BRIGADE, BOX);
+    const shell = terminaux.ouvrir(BRIGADE, STATION);
 
     assert.deepEqual(await terminaux.fermerShell(shell.id), {
-      refus: "shell 1 · parade-box is closed, but its session `brigade-brigade-1` could not be destroyed on box parade-box: it is no longer listed, and stays there until it is destroyed — $ ssh … parade-box …\nssh: connect to host parade-box port 22: Connection refused\n→ exit code 255",
+      refus: "shell 1 · parade-box is closed, but its session `brigade-brigade-1` could not be destroyed on main station parade-box: it is no longer listed, and stays there until it is destroyed — $ ssh … parade-box …\nssh: connect to host parade-box port 22: Connection refused\n→ exit code 255",
     });
     assert.deepEqual(souvenirs.tel().brigade?.shells, []);
   });
@@ -232,8 +232,8 @@ describe("fermer un shell pour de bon", () => {
     const { terminaux, shells } = lancement(souvenirs, [], { detruite: true }, { reseau: reseau(), horloge: horloge() });
     terminaux.espace(BRIGADE);
     terminaux.ouvrir(BRIGADE, POSTE);
-    terminaux.ouvrir(BRIGADE, BOX);
-    terminaux.ouvrir(BRIGADE, BOX);
+    terminaux.ouvrir(BRIGADE, STATION);
+    terminaux.ouvrir(BRIGADE, STATION);
 
     shells()[0]?.surFin(0);
     shells()[1]?.surFin(0);
@@ -252,7 +252,7 @@ describe("une machine qui n'est pas joignable : le terminal le dit, et se reconn
     const temps = horloge();
     const app = lancement(souvenirs, [], { detruite: true }, { reseau: net, horloge: temps });
     app.terminaux.espace(BRIGADE);
-    const shell = app.terminaux.ouvrir(BRIGADE, BOX);
+    const shell = app.terminaux.ouvrir(BRIGADE, STATION);
     const [premier] = app.shells();
     net.couper();
     premier?.surFin(255);
@@ -263,13 +263,13 @@ describe("une machine qui n'est pas joignable : le terminal le dit, et se reconn
   test("la connexion perdue, le shell reste dans l'espace et son terminal dit que la machine n'est pas joignable — sa session, retenue, n'est pas détruite", () => {
     const { terminaux, shell, sortie, dernier, souvenirs, temps, net } = perdu();
 
-    assert.match(sortie(shell.id), /\[brigade\] box parade-box is not reachable — session `brigade-brigade-1` stays there, and this shell reattaches to it by itself as soon as the machine answers \(a keypress tries now\)/);
+    assert.match(sortie(shell.id), /\[brigade\] main station parade-box is not reachable — session `brigade-brigade-1` stays there, and this shell reattaches to it by itself as soon as the machine answers \(a keypress tries now\)/);
     assert.deepEqual(
       terminaux.espace(BRIGADE).map(({ titre, arrete, bandeau }) => [titre, arrete, bandeau]),
-      [["Second", false, undefined], ["shell 1 · parade-box", false, "box parade-box · debian — not reachable"]],
+      [["Second", false, undefined], ["shell 1 · parade-box", false, "main station parade-box · debian — not reachable"]],
     );
     assert.equal(dernier()?.arrete, false, "la vue ne ferme pas son onglet");
-    assert.match(dernier()?.note ?? "", /^box parade-box is not reachable — its session `brigade-brigade-1` stays there: this shell reattaches to it by itself/);
+    assert.match(dernier()?.note ?? "", /^main station parade-box is not reachable — its session `brigade-brigade-1` stays there: this shell reattaches to it by itself/);
     assert.deepEqual(souvenirs.tel().brigade?.shells.map(({ session }) => session), ["brigade-brigade-1"]);
     // Rien n'est sondé tout de suite : la première reprise est prévue, au premier délai.
     assert.deepEqual(net.sondees, []);
@@ -281,9 +281,9 @@ describe("une machine qui n'est pas joignable : le terminal le dit, et se reconn
 
     temps.sonner();
     await net.repondre();
-    assert.deepEqual(net.sondees, [BOX]);
+    assert.deepEqual(net.sondees, [STATION]);
     assert.equal(shells().length, 1, "rien n'est relancé tant que la machine ne répond pas");
-    assert.match(dernier()?.note ?? "", /^box parade-box is not reachable \(attempt 1: ssh: connect to host parade-box port 22: Network is unreachable \(exit code 255\)\) — its session `brigade-brigade-1` stays there/);
+    assert.match(dernier()?.note ?? "", /^main station parade-box is not reachable \(attempt 1: ssh: connect to host parade-box port 22: Network is unreachable \(exit code 255\)\) — its session `brigade-brigade-1` stays there/);
     assert.deepEqual(temps.prevues.map(({ ms }) => ms), [REPRISES_MS[1]]);
     temps.sonner();
     await net.repondre();
@@ -297,14 +297,14 @@ describe("une machine qui n'est pas joignable : le terminal le dit, et se reconn
 
     const [, revenu] = shells();
     assert.deepEqual([revenu?.commande, revenu?.args], [premier?.commande, premier?.args], "la même commande : la même session");
-    assert.match(sortie(shell.id), /\[brigade\] box parade-box answers again — reattaching to session `brigade-brigade-1`/);
+    assert.match(sortie(shell.id), /\[brigade\] main station parade-box answers again — reattaching to session `brigade-brigade-1`/);
     assert.deepEqual(temps.prevues, []);
     assert.deepEqual(
       terminaux.espace(BRIGADE).map(({ id, bandeau }) => [id, bandeau]).slice(1),
-      [[shell.id, "box parade-box · debian"]],
+      [[shell.id, "main station parade-box · debian"]],
       "le même onglet, son bandeau d'avant",
     );
-    assert.match(dernier()?.note ?? "", /^persistent shell, reattached on box parade-box/);
+    assert.match(dernier()?.note ?? "", /^persistent shell, reattached on main station parade-box/);
 
     // Ce qu'on y tape va de nouveau à la session.
     terminaux.ecrire(shell.id, "ls\r");
@@ -320,7 +320,7 @@ describe("une machine qui n'est pas joignable : le terminal le dit, et se reconn
     assert.deepEqual(shells()[1]?.ecrits, [], "la touche ne part pas");
     assert.deepEqual(net.sondees, []);
     assert.deepEqual(temps.prevues, [], "la reprise prévue est annulée");
-    assert.match(sortie(shell.id), /trying box parade-box now — reattaching to session `brigade-brigade-1`/);
+    assert.match(sortie(shell.id), /trying main station parade-box now — reattaching to session `brigade-brigade-1`/);
 
     shells()[1]?.surFin(255);
     assert.equal(sortie(shell.id).match(/is not reachable/g)?.length, 2);
@@ -334,7 +334,7 @@ describe("une machine qui n'est pas joignable : le terminal le dit, et se reconn
     const { terminaux, shells, sortie } = lancement(souvenirs, [], { detruite: true }, { reseau: net, horloge: temps });
     terminaux.espace(BRIGADE);
     const ici = terminaux.ouvrir(BRIGADE, POSTE);
-    const box = terminaux.ouvrir(BRIGADE, BOX);
+    const box = terminaux.ouvrir(BRIGADE, STATION);
     const studio = terminaux.ouvrir(BRIGADE, STUDIO);
     net.couper();
     shells()[2]?.surFin(255);
@@ -344,8 +344,8 @@ describe("une machine qui n'est pas joignable : le terminal le dit, et se reconn
 
     assert.equal(shells()[0]?.tue, false, "le shell de ce poste tourne toujours");
     assert.equal(shells()[1]?.tue, true, "la connexion d'avant le sommeil est quittée");
-    assert.match(sortie(box.id), /\[brigade\] this Mac woke up — reattaching to session `brigade-brigade-2` on box parade-box/);
-    assert.deepEqual(net.sondees, [BOX, STUDIO], "sondées sans attendre");
+    assert.match(sortie(box.id), /\[brigade\] this Mac woke up — reattaching to session `brigade-brigade-2` on main station parade-box/);
+    assert.deepEqual(net.sondees, [STATION, STUDIO], "sondées sans attendre");
     assert.deepEqual(temps.prevues, []);
     // La fin du pty quitté ne dit rien : le shell n'est ni oublié ni dit injoignable.
     shells()[1]?.surFin(129);
@@ -365,14 +365,14 @@ describe("une machine qui n'est pas joignable : le terminal le dit, et se reconn
     const temps = horloge();
     const { terminaux, sortie, etats } = lancement(enMemoire(), [], { detruite: true }, { reseau: net, horloge: temps });
     terminaux.espace(BRIGADE);
-    const box = terminaux.ouvrir(BRIGADE, BOX);
+    const box = terminaux.ouvrir(BRIGADE, STATION);
     net.couper();
 
     terminaux.reveiller();
     await net.repondre();
 
-    assert.match(sortie(box.id), /box parade-box is not reachable — session `brigade-brigade-1` stays there/);
-    assert.equal(etats.at(-1)?.bandeau, "box parade-box · debian — not reachable");
+    assert.match(sortie(box.id), /main station parade-box is not reachable — session `brigade-brigade-1` stays there/);
+    assert.equal(etats.at(-1)?.bandeau, "main station parade-box · debian — not reachable");
     assert.deepEqual(temps.prevues.map(({ ms }) => ms), [REPRISES_MS[1]]);
   });
 
@@ -411,7 +411,7 @@ describe("le fichier des souvenirs", () => {
   test("ce qui y est écrit se relit tel quel, et le dossier est créé s'il manque", (t) => {
     const chemin = join(dossier(t), "brigade", "shells.json");
     const souvenirs = souvenirsDansFichier(chemin);
-    const rappel: Rappel = { brigade: { dernier: 4, shells: [{ rang: 2, session: "brigade-brigade-2", cible: BOX }] } };
+    const rappel: Rappel = { brigade: { dernier: 4, shells: [{ rang: 2, session: "brigade-brigade-2", cible: STATION }] } };
 
     assert.deepEqual(souvenirs.lire(), {});
     souvenirs.ecrire(rappel);
@@ -618,7 +618,7 @@ describe(`une machine qui n'est plus joignable, puis qui revient : par un faux s
 
     // Le réseau coupé : la connexion lâche, le terminal le dit, et une reprise est prévue.
     writeFileSync(coupure, "");
-    await jusqua(() => lu().includes("box fausse-box is not reachable") && temps.prevues.length === 1, lu);
+    await jusqua(() => lu().includes("main station fausse-box is not reachable") && temps.prevues.length === 1, lu);
     // La première sonde, réseau toujours coupé : rien ne revient, la suivante est prévue.
     temps.sonner();
     await jusqua(() => temps.prevues.length === 1, () => `reprises prévues : ${temps.prevues.length}`);

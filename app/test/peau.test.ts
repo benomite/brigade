@@ -304,7 +304,7 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
     // Rien de technique n'est écrit à plat : une ligne, et ce que `ssh` a rendu — mot pour mot — au survol,
     // suivi de ce que l'app en dit.
     assert.equal(vue.element("lecture").dessous("pre").length, 0);
-    assert.equal(vue.element("lecture").dessous("p").find((pose) => pose.className === "indisponible")?.textContent, "the box could not be reached?");
+    assert.equal(vue.element("lecture").dessous("p").find((pose) => pose.className === "indisponible")?.textContent, "the station could not be reached?");
     assert.ok(vue.element("lecture").dessous("button").some((pose) => pose.ariaLabel.startsWith(erreur)));
   });
 
@@ -531,10 +531,10 @@ describe("le monospace est une information, pas un style", () => {
     // Sur plusieurs lignes, les mots de l'app sont à part de ceux de la box : jamais dans un `pre` nu.
     const vue = await jouerLaVue({ ...REPONSES, demarrage: () => ({ ...demarrage(), configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }) }) });
     // Sur l'accueil, un projet sans box se dit en une ligne ; ce qu'elle suppose du fichier est au survol.
-    vue.dire("surAccueil", { projets: [{ nom: PARADE, ton: "gris", dit: "no box: nothing is read", survol: "its entry in the projects file does not say where its box is" }], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } });
+    vue.dire("surAccueil", { projets: [{ nom: PARADE, ton: "gris", dit: "no station: nothing is read", survol: "its entry in the projects file does not say where its station is" }], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } });
     const sansBox = vue.element("tous").dessous("button").find((pose) => pose.className === "ligne");
-    assert.equal(sansBox?.textContent, `${PARADE}no box: nothing is read›`);
-    assert.equal(sansBox?.title, "its entry in the projects file does not say where its box is");
+    assert.equal(sansBox?.textContent, `${PARADE}no station: nothing is read›`);
+    assert.equal(sansBox?.title, "its entry in the projects file does not say where its station is");
     assert.equal(vue.element("tous").dessous("pre").length, 0);
   });
 });

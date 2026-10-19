@@ -528,7 +528,7 @@ const LIGNES: Readonly<Record<string, (projet: Projet) => string[]>> = {
     `“Verify” runs \`${VERIFICATION}\` on the project's station, for you: everything missing, at once, each with what sets it up. It launches no cook and no setup, and can be replayed as often as you like.`,
     "What it says is missing on the station itself is announced at the top of this screen: the app cannot do it for you.",
   ],
-  stations: () => ["Choose, among the stations the station provides, those where tickets are served, and how many cooks each runs at once: the cap has no default, it is your quota."],
+  stations: () => ["Choose, among the stations its main station provides, those where tickets are served, and how many cooks each runs at once: the cap has no default, it is your quota."],
   protection: () => ["“Protect” sets on GitHub the protection the runtime expects — pull request required, zero approvals, administrators included — and turns on push protection if GitHub accepts it."],
   decisions: () => ["One decision at a time: its question, its options and what each does. The station records your answer in the project's journal — no `sudo`, no drop-in."],
   demarrage: (projet) => {
@@ -954,20 +954,20 @@ export function tenirServices(options: {
     declarerStations(projet: Projet, choix: unknown) {
       return agir(projet, "declaring the stations…", async (avec, tenu) => {
         const lu = detail(tenu, "stations")?.lu;
-        if (lu === undefined) return { refus: "Nothing was declared: the station has not said which stations it provides — read the steps again." };
+        if (lu === undefined) return { refus: "Nothing was declared: its main station has not said which stations it provides — read the steps again." };
         const voulues = Array.isArray(choix) ? (choix as unknown[]) : [];
         const entrees: string[] = [];
         for (const voulue of voulues) {
           const { nom, cooks } = (voulue ?? {}) as Lu;
           const proposee = lu.proposees.find((station) => station.nom === nom);
-          if (proposee === undefined) return { refus: `Nothing was declared: “${String(nom)}” is not a station the station provides.` };
+          if (proposee === undefined) return { refus: `Nothing was declared: “${String(nom)}” is not a station its main station provides.` };
           if (typeof cooks !== "number" || !Number.isInteger(cooks) || cooks < 1 || cooks > 99) return { refus: `Nothing was declared: how many cooks “${proposee.nom}” runs at once has no default — a whole number, 1 or more.` };
           entrees.push(`${proposee.nom}:${cooks}:${proposee.fournit.join("+")}`);
         }
         if (entrees.length === 0) return { refus: "Nothing was declared: choose at least one station — without one, no cook leaves." };
         const declaration = entrees.join(",");
-        if (!/^[A-Za-z0-9/:+,._-]+$/.test(declaration)) return { refus: "Nothing was declared: the station provides a station whose name the app does not carry safely." };
-        return ecrire(avec, `installation stations ${declaration}`, { ok: "Stations declared", non: "The station refused the stations" });
+        if (!/^[A-Za-z0-9/:+,._-]+$/.test(declaration)) return { refus: "Nothing was declared: its main station provides a station whose name the app does not carry safely." };
+        return ecrire(avec, `installation stations ${declaration}`, { ok: "Stations declared", non: "Its main station refused the stations" });
       });
     },
 

@@ -173,7 +173,7 @@ describe("ce qui n'est pas encore sur le rail, lu dans la sortie de `manager ups
     };
 
     // Un runtime d'avant `upstream` la refuse : code 2.
-    assert.match(sans(voir(echec("$ ssh box brigade parade manager upstream\nusage : …\n→ exit code 2", true))), /refused `manager upstream` \(code 2\) — .*update brigade on the box/);
+    assert.match(sans(voir(echec("$ ssh box brigade parade manager upstream\nusage : …\n→ exit code 2", true))), /refused `manager upstream` \(code 2\) — .*update brigade on the station/);
     assert.match(sans(voir(echec("$ ssh …\nbrigade : … n'a pas été lu\n→ exit code 1", true))), /read neither GitHub nor its log \(code 1\)/);
     assert.match(sans(voir(echec("$ ssh …\nssh: connect to host box port 22: Connection refused\n→ exit code 255", false, "ssh-en-echec"))), /: NOT REACHED\./);
     // Une sortie qui n'a pas la forme : ni complétée, ni comptée.
@@ -332,6 +332,6 @@ describe("dans l'espace du projet, ce qui est à venir se lit à côté du rail"
 
     assert.equal(nombre(vue).textContent, "upcoming: not read");
     nombre(vue).click();
-    assert.match(liste(vue)?.textContent ?? "", /update brigade on the box\. This is not “nothing upcoming”$/);
+    assert.match(liste(vue)?.textContent ?? "", /update brigade on the station\. This is not “nothing upcoming”$/);
   });
 });

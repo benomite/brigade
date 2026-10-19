@@ -313,7 +313,7 @@ const retraitDeStation = document.createElement("div");
 retraitDeStation.className = "retrait-de-station";
 pageDeStation.append(retourALAccueil, enTeteDeStation, versionDeStation, pannesDeStation, bloc("h3", "Projects"), listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit, retraitDeStation);
 
-// La cuisine d'un projet de l'app (#983), en tête de son espace : les stations qui la font, en une
+// La cuisine d'un projet de l'app (ticket 983), en tête de son espace : les stations qui la font, en une
 // ligne — chacune avec ce qu'elle en dit, un clic ouvre sa page —, et « + station » pour en ajouter
 // une. Tant qu'aucune ne la fait, une phrase le dit, et « entrust it to a station » ouvre le choix
 // parmi les stations appairées : c'est le seul geste qui installe un projet sur une station.
@@ -1298,7 +1298,7 @@ const commandeManque = (projet) => [
   "If it names `brigade`, the step is not installed there; if it names `sudo`, the step lacks it to run under the service account.",
   "",
   "Both are installed on the station, when preparing it:",
-  "(docs/installer.md, “Préparer la station”)",
+  "(docs/installer.md, section 3, “Préparer”)",
   "",
   `On your workstation, \`brigade\` alone does not exist, and need not: the step is typed there like this, as the app writes it — \`${geste(projet, "status")}\`, for example.`,
 ].join("\n");
@@ -1308,7 +1308,7 @@ const NODE_INAPTE = [
   "The station was reached, and its step refused to start the runtime: the station's `node` does not suit it. What it said about it is above.",
   "",
   "It is not the runtime that needs updating: the step's sentence says the remedy, and it is applied on the station:",
-  "(docs/installer.md, “Préparer la station”)",
+  "(docs/installer.md, section 3, “Préparer”)",
 ].join("\n");
 
 // Ce que l'app dit sous le message de `ssh`, quel qu'il soit : elle ne le lit
@@ -1316,7 +1316,7 @@ const NODE_INAPTE = [
 const SSH_EN_ECHEC = [
   "`ssh` did not open a session on the station, and said why: its message is above. The app does not read it.",
   "What each of its sentences means, and the step that answers it:",
-  "(docs/installer.md, “Joindre la station”)",
+  "(docs/installer.md, section 2, “Joindre”)",
   "",
   "If it says your key was refused (`Permission denied`), the station answers and it is access you lack. It is given on the station:",
   "(docs/installer.md, “Ajouter un humain”)",
@@ -1646,7 +1646,7 @@ function gesteDEtape(projet, guide, etape, action, refus) {
     const { proposees, absent, declarees } = detail.lu;
     const poses = [];
     if (declarees.length > 0) poses.push(bloc("p", `Declared now: ${declarees.map(({ nom, cooks, fournit }) => `${nom} — ${cooks} cook${cooks > 1 ? "s" : ""} at most, provides ${fournit.join(", ")}`).join(" · ")}`));
-    if (absent !== null) poses.push(refus(`The station provides no station — ${absent}`));
+    if (absent !== null) poses.push(refus(`Its main station provides no station — ${absent}`));
     /** @type {{ nom: string; coche: HTMLInputElement; cooks: HTMLInputElement }[]} */
     const choix = [];
     for (const proposee of proposees) {

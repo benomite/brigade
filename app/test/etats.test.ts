@@ -107,7 +107,7 @@ describe("les trois états de pilotage ont chacun leur forme et leur couleur", (
   test("les cas « joint mais » partagent la forme de « plus pilotable » : ni disque, ni carré", async () => {
     const inconnu = await entete({ erreur: "x", atteinte: true, cas: "projet-inconnu" });
     assert.deepEqual([inconnu.dataset.etat, inconnu.dataset.ton, inconnu.dataset.forme], ["inconnu", "jaune", "losange"]);
-    assert.match(inconnu.textContent, /^REACHED, BUT UNKNOWN TO THE BOX/);
+    assert.match(inconnu.textContent, /^REACHED, BUT UNKNOWN TO THE STATION/);
   });
 });
 

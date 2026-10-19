@@ -14,7 +14,7 @@ describe("les machines proposées par « + shell »", () => {
   test("un projet servi, avant que sa box ait dit ses stations : ce poste, et la box sous le nom que son `ssh` connaît", () => {
     assert.deepEqual(machinesDe({ box: { hote: "parade-box" } }), [
       { id: "poste", titre: "this Mac", cible: { lieu: "poste" } },
-      { id: "box", titre: "box parade-box", cible: { lieu: "box", nom: "parade-box", hote: "parade-box" } },
+      { id: "box", titre: "main station parade-box", cible: { lieu: "box", nom: "parade-box", hote: "parade-box" } },
     ]);
   });
 
@@ -28,7 +28,7 @@ describe("les machines proposées par « + shell »", () => {
     ];
     assert.deepEqual(machinesDe(PARADE, declarees), [
       { id: "poste", titre: "this Mac — station mac/claude", cible: { lieu: "poste" } },
-      { id: "box", titre: "box parade-box — station box/claude", cible: { lieu: "box", nom: "parade-box", hote: "parade-box" } },
+      { id: "box", titre: "main station parade-box — station box/claude", cible: { lieu: "box", nom: "parade-box", hote: "parade-box" } },
       // Deux stations d'une même machine n'en font qu'une.
       { id: "station:studio", titre: "station studio/claude, studio/codex", cible: { lieu: "station", nom: "studio", hote: "studio" } },
       { id: "station:atelier", titre: "station atelier/claude", cible: { lieu: "station", nom: "atelier", hote: "atelier" } },
@@ -43,7 +43,7 @@ describe("les machines proposées par « + shell »", () => {
 
   test("où est un shell, dit comme la liste le dit", () => {
     assert.equal(lieuDe({ lieu: "poste" }), "this Mac");
-    assert.equal(lieuDe({ lieu: "box", nom: "parade-box", hote: "parade-box" }), "box parade-box");
+    assert.equal(lieuDe({ lieu: "box", nom: "parade-box", hote: "parade-box" }), "main station parade-box");
     assert.equal(lieuDe({ lieu: "station", nom: "studio", hote: "studio" }), "station studio");
   });
 });

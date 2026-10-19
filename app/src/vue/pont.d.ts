@@ -184,7 +184,7 @@ export type Pont = {
   // Le parcours validé : la demande s'écrit dans le gist de chaque station choisie, et rend le nom
   // du projet — ou chaque champ qui manque, avec sa raison, ou le refus de GitHub. Rien n'est écrit alors.
   ajouterAUneStation(saisie: { depot: string; base: string; stations: string[]; principale: string; cooks: string; manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string }; ouvertLe: string }): Promise<Ajout>;
-  // Confie la cuisine d'un projet de l'app à une première station, ou à une de plus (#983) : la
+  // Confie la cuisine d'un projet de l'app à une première station, ou à une de plus (ticket 983) : la
   // demande s'écrit dans le gist de chaque station choisie, et rend le nom du projet — ou chaque champ
   // qui manque, ou le refus de GitHub. Rien n'est écrit alors.
   confierAUneStation(saisie: { nom: string; depot: string; base: string; stations: string[]; principale: string; cooks: string; manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string }; ouvertLe: string }): Promise<Ajout>;

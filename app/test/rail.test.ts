@@ -230,7 +230,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     recevoir(vue, { projet: PARADE, demande: 0, a: A, titre: "PAS JOINT", erreur: "ssh: connect to host box port 22: Connection refused", atteinte: false, cas: null });
 
     assert.equal(vue.element("rail").hidden, false);
-    assert.match(vue.element("rail").textContent, /^no reading of the rail — box unreachable since /);
+    assert.match(vue.element("rail").textContent, /^no reading of the rail — station unreachable since /);
     assert.match(vue.element("rail").textContent, /the rail is not drawn: PAS JOINT — tried at /);
     assert.deepEqual(colonnes(vue), []);
   });
@@ -892,7 +892,7 @@ describe("un clic sur une carte ouvre sa fiche par-dessus le rail (#635)", () =>
     assert.deepEqual(fiche(vue).dessous("h3"), []);
     assert.deepEqual(lignesDeFiche(vue), [
       ["priority", "not given — `facts` does not give it, and the `rail` line of `status` was not read"],
-      ["issue", "not given — the box returns no address for this issue"],
+      ["issue", "not given — the station returns no address for this issue"],
     ]);
     // Chaque ligne non communiquée se lit comme telle : ce sont les mots de l'app.
     for (const libelle of ["priority", "issue"]) assert.equal(valeurDeFiche(vue, libelle).className, "sans", libelle);

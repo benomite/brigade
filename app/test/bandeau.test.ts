@@ -5,8 +5,8 @@ import { COMPTE_INCONNU, compteDeSsh, texteBandeau } from "../src/bandeau.ts";
 import { ouvrirTerminaux } from "../src/terminaux.ts";
 
 describe("le bandeau d'un shell", () => {
-  test("une box : « box parade-box · debian »", () => {
-    assert.equal(texteBandeau({ lieu: "box", nom: "parade-box", hote: "parade-box" }, "debian"), "box parade-box · debian");
+  test("une box : « main station parade-box · debian »", () => {
+    assert.equal(texteBandeau({ lieu: "box", nom: "parade-box", hote: "parade-box" }, "debian"), "main station parade-box · debian");
   });
   test("ce poste : « this Mac · benoit »", () => {
     assert.equal(texteBandeau({ lieu: "poste" }, "benoit"), "this Mac · benoit");
@@ -31,6 +31,6 @@ describe("le bandeau d'un shell", () => {
     });
     vus.push(terminaux.ouvrir(projet, { lieu: "poste" }));
     vus.push(terminaux.ouvrir(projet, { lieu: "box", nom: "parade-box", hote: "parade-box" }));
-    assert.deepEqual(vus.map(({ bandeau }) => bandeau), ["this Mac · benoit", "box parade-box · debian"]);
+    assert.deepEqual(vus.map(({ bandeau }) => bandeau), ["this Mac · benoit", "main station parade-box · debian"]);
   });
 });

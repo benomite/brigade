@@ -269,7 +269,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     veille.regarder([BRIGADE], PROJET, 1);
     const lecture = await jusqua(() => true);
 
-    assert.match(texte(lecture), /\n→ no answer within 0\.2 s: ssh stopped, without saying whether it had reached the box$/);
+    assert.match(texte(lecture), /\n→ no answer within 0\.2 s: ssh stopped, without saying whether it had reached the station$/);
     assert.ok("erreur" in lecture && !lecture.atteinte);
     assert.equal(lecture.cas, null, "ssh n'a rien dit : c'est le délai qui l'a arrêté");
     await morts(lu("pids"));

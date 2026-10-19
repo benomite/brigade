@@ -93,7 +93,7 @@ describe("la discussion de l'issue, telle que `pass <ticket> issue` la rend", ()
 
   test("une sortie illisible n'est pas lue : la fiche dit pourquoi", () => {
     for (const sortie of ["", "pas du json", "{}", JSON.stringify({ found: true, issue: { title: "t", comments: "x" } }), JSON.stringify({ found: true, issue: { ...ISSUE.issue, comments: [{ author: 1 }] } })]) {
-      assert.deepEqual(discussionDe(lu(sortie), DELAI), { sans: "not read: the box did not return the issue in the expected shape" }, sortie);
+      assert.deepEqual(discussionDe(lu(sortie), DELAI), { sans: "not read: the station did not return the issue in the expected shape" }, sortie);
     }
   });
 });
@@ -172,7 +172,7 @@ describe("lire l'issue et commenter, sur la box du projet", () => {
       assert.ok(!rendu.poste && rendu.refus.startsWith("nothing was posted: "), JSON.stringify([ticket, texte?.slice(0, 20)]));
     }
     assert.equal(lancees(), "");
-    assert.deepEqual(await lireDiscussion(lancer, { nom: PARADE, dossier: "/tmp/parade" }, 21, DELAI), { sans: "no box for this project: the app has nothing to read" });
+    assert.deepEqual(await lireDiscussion(lancer, { nom: PARADE, dossier: "/tmp/parade" }, 21, DELAI), { sans: "no station for this project: the app has nothing to read" });
     assert.equal(lancees(), "");
   });
 });
@@ -315,11 +315,11 @@ describe("la fiche de toute carte montre l'issue et sa discussion (#684)", () =>
     assert.equal(champ(vue).disabled, true);
     assert.equal(poster(vue).disabled, true);
     assert.ok(discussion(vue).dessous("p").some((p) => p.textContent === "posting your comment on the issue…"));
-    rendre({ poste: true, prix: "a comment is posted on issue #21, under the box's own gh account" });
+    rendre({ poste: true, prix: "a comment is posted on issue #21, under the station's own gh account" });
     await repos();
     await repos();
     assert.equal(champ(vue).value, "");
-    assert.equal(discussion(vue).dessous("p").find((p) => p.className === "postee")?.textContent, "comment posted on #21 — a comment is posted on issue #21, under the box's own gh account");
+    assert.equal(discussion(vue).dessous("p").find((p) => p.className === "postee")?.textContent, "comment posted on #21 — a comment is posted on issue #21, under the station's own gh account");
     assert.deepEqual(messages(vue).at(-1), ["benomite commented2026-10-14 13:00 UTC", "Le CSV doit aussi porter le run."]);
     assert.equal(vue.appels.filter(({ geste }) => geste === "lireDiscussion").length, 2);
   });

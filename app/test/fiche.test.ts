@@ -11,7 +11,7 @@ const LIGNE = "pris  prio:1  par box/claude depuis 12 min, bail encore 27 min  L
 const TOUT: Source = { titre: RAIL.titre, url: URL_14, rail: RAIL, lignes: [LIGNE] };
 
 describe("l'en-tête de la fiche", () => {
-  test("ce que la box donne est posé tel quel : le titre entier, la priorité recopiée, l'issue qui s'ouvre", () => {
+  test("ce que la station donne est posé tel quel : le titre entier, la priorité recopiée, l'issue qui s'ouvre", () => {
     const titre = `${"Un titre très long, ".repeat(40)}jusqu'au bout`;
     assert.deepEqual(entete({ ...TOUT, titre }), {
       titre: { valeur: titre },
@@ -26,7 +26,7 @@ describe("l'en-tête de la fiche", () => {
     assert.deepEqual(entete({ ...TOUT, rail: { etat: "en attente", titre: "Un ticket" }, lignes: ["en attente  prio:3    Un ticket"] }).priorite, { valeur: "prio:3", exact: true });
   });
 
-  test("une issue qui n'est pas sur le rail : sa priorité est celle que la box donne elle-même (`manager upstream`), sans ligne de `status`", () => {
+  test("une issue qui n'est pas sur le rail : sa priorité est celle que la station donne elle-même (`manager upstream`), sans ligne de `status`", () => {
     const enAmont = (prio: number | null) => entete({ titre: "Une issue à venir", url: URL_14, prio }).priorite;
 
     assert.deepEqual(enAmont(2), { valeur: "prio:2", exact: true });
@@ -50,15 +50,15 @@ describe("l'en-tête de la fiche", () => {
 
   test("le titre, l'issue : absents ou vides, ils sont écrits non communiqués ; une adresse qui n'est pas https ne s'ouvre pas", () => {
     const { titre: _, ...sansTitre } = TOUT;
-    for (const source of [sansTitre, { ...TOUT, titre: "" }]) assert.deepEqual(entete(source).titre, { sans: "not given — the box returns no title for this ticket" });
-    for (const url of [null, undefined]) assert.deepEqual(entete({ ...TOUT, url }).issue, { sans: "not given — the box returns no address for this issue" });
-    for (const url of ["http://exemple.fr/14", "file:///etc/passwd", "pas une adresse"]) assert.deepEqual(entete({ ...TOUT, url }).issue, { sans: "the address the box returned is not https: the app does not open it" });
+    for (const source of [sansTitre, { ...TOUT, titre: "" }]) assert.deepEqual(entete(source).titre, { sans: "not given — the station returns no title for this ticket" });
+    for (const url of [null, undefined]) assert.deepEqual(entete({ ...TOUT, url }).issue, { sans: "not given — the station returns no address for this issue" });
+    for (const url of ["http://exemple.fr/14", "file:///etc/passwd", "pas une adresse"]) assert.deepEqual(entete({ ...TOUT, url }).issue, { sans: "the address the station returned is not https: the app does not open it" });
   });
 
   test("la PR : un lien quand la box en donne une, « aucune » quand le ticket a été servi sans merge, aucune ligne sinon", () => {
     assert.equal(entete({ ...TOUT, pr: "https://github.com/benomite/brigade/pull/219" }).pr, true);
     assert.deepEqual(entete({ ...TOUT, pr: null }).pr, { valeur: "none — served without a merge" });
-    assert.deepEqual(entete({ ...TOUT, pr: "http://exemple.fr/219" }).pr, { sans: "the address the box returned is not https: the app does not open it" });
+    assert.deepEqual(entete({ ...TOUT, pr: "http://exemple.fr/219" }).pr, { sans: "the address the station returned is not https: the app does not open it" });
     assert.equal("pr" in entete(TOUT), false, "pas de PR donnée : pas de ligne");
   });
 });

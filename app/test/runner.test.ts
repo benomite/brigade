@@ -22,8 +22,8 @@ import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_CLAUDE, git, jusqu
 import { lireConfiguration } from "../src/config.ts";
 import { commandeTirer, environnementCook, missionLue, ouvrirLecture, ouvrirRunner, tirer, type EtatDeStation, type Mission, type Reponse } from "../src/runner.ts";
 
-const [BOX, MAC] = ["box/claude", "mac/claude"];
-const DECLAREES = lireStations({ BRIGADE_STATIONS: `${BOX}:1:code,${MAC}:1:chrome-connecté:distante` });
+const [STATION, MAC] = ["box/claude", "mac/claude"];
+const DECLAREES = lireStations({ BRIGADE_STATIONS: `${STATION}:1:code,${MAC}:1:chrome-connecté:distante` });
 const RUNTIME = join(import.meta.dirname, "../../runtime");
 const FLUX = join(RUNTIME, "test/aides/flux");
 // Large : rien ne court contre lui, il ne tombe que si un test le règle court.
@@ -562,7 +562,7 @@ describe("le runner du poste, pièce par pièce", () => {
     assert.deepEqual(runner.etats().map(({ projet, station }) => [projet, station]), [["servi", MAC]]);
     // Refusée par la box — elle ne la déclare pas `distante` : c'est dit, et rien n'est réclamé.
     await new Promise<void>((resoudre) => {
-      const voir = setInterval(() => dits.some((etat) => etat.dit.startsWith("refused by the box")) && (clearInterval(voir), resoudre()), 5);
+      const voir = setInterval(() => dits.some((etat) => etat.dit.startsWith("refused by the main station")) && (clearInterval(voir), resoudre()), 5);
     });
     assert.deepEqual(readFileSync(appels, "utf8").split("\n").filter(Boolean), [`-o BatchMode=yes -o ConnectTimeout=10 -- box brigade servi pull ${MAC} announce`]);
     runner.servir([{ nom: "servi", dossier: racine, box }]);
