@@ -86,7 +86,7 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
   if (declares !== undefined && !Array.isArray(declares)) return refuse("“hotes” must be a list");
   const hotes: string[] = [];
   for (const [rang, hote] of (declares ?? []).entries()) {
-    if (typeof hote !== "string" || hote.trim() === "") return refuse(`host #${rang + 1}: must be a non-empty string — the name your ssh uses to reach the box`);
+    if (typeof hote !== "string" || hote.trim() === "") return refuse(`host #${rang + 1}: must be a non-empty string — the name your ssh uses to reach a station`);
     if (!hotes.includes(hote)) hotes.push(hote);
   }
 
@@ -100,7 +100,7 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
     const absolu = dossier === "~" || dossier.startsWith("~/") ? join(maison, dossier.slice(1)) : dossier;
     if (!isAbsolute(absolu)) return refuse(`${lequel}: “dossier” must be an absolute path, or start with ~/`);
     // Le fichier d'avant dictait une ligne de commande : il le dit, plutôt que d'être lu à moitié.
-    if (commande !== undefined) return refuse(`${lequel}: “commande” is no longer read — remove it: the app runs the box's action (\`ssh <hote> brigade ${nom} <commande>\`), “hote” is all it needs`);
+    if (commande !== undefined) return refuse(`${lequel}: “commande” is no longer read — remove it: the app runs the station's action (\`ssh <hote> brigade ${nom} <commande>\`), “hote” is all it needs`);
     if (hote !== undefined && (typeof hote !== "string" || hote.trim() === "")) return refuse(`${lequel}: “hote” must be a non-empty string`);
     const refus = refusDuDossier(absolu);
     const calibrage = calibrageLu((declare as { calibrage?: unknown }).calibrage);
@@ -139,12 +139,12 @@ function stationsLues(lu: unknown, servi: boolean): string[] | string | undefine
   if (!Array.isArray(lu)) return "“stations” must be a list — the stations this workstation plays for the project (mac/claude)";
   const stations: string[] = [];
   for (const nom of lu) {
-    if (typeof nom !== "string" || !NOM_DE_STATION.test(nom)) return `“stations”: “${String(nom)}” is not in the form \`<machine>/<engine>\`, in lowercase letters, digits and dashes (mac/claude) — the name under which the box declares it \`distante\``;
+    if (typeof nom !== "string" || !NOM_DE_STATION.test(nom)) return `“stations”: “${String(nom)}” is not in the form \`<machine>/<engine>\`, in lowercase letters, digits and dashes (mac/claude) — the name under which its main station declares it \`distante\``;
     if (nom.slice(nom.indexOf("/") + 1) !== MOTEUR) return `“stations”: \`${nom}\` names an engine this workstation does not run — it only runs \`${MOTEUR}\` (mac/${MOTEUR})`;
     if (stations.includes(nom)) return `“stations”: \`${nom}\` is written twice`;
     stations.push(nom);
   }
-  if (stations.length > 0 && !servi) return "“stations” without “hote”: a station pulls its work from the project's box — it needs the name your ssh uses to reach it";
+  if (stations.length > 0 && !servi) return "“stations” without “hote”: a station pulls its work from the project's main station — it needs the name your ssh uses to reach it";
   return stations.length === 0 ? undefined : stations;
 }
 

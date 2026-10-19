@@ -645,7 +645,7 @@ ipcMain.handle("lireQuestion", (_, nom: unknown, ticket: unknown) => {
   if (vise === undefined || faits.attendu(vise.nom, ticket) === undefined) return undefined;
   const adresse = faits.adresse(vise.nom, ticket);
   // Jamais posée hors des essais, comme BRIGADE_SSH_BIN.
-  return adresse === undefined ? { a: new Date().toISOString(), sans: "the box gave no https address for this issue: the app has nothing to read" } : lireQuestion(reglagesGh(), adresse).then((lue) => retenirLue(vise.nom, ticket, lue));
+  return adresse === undefined ? { a: new Date().toISOString(), sans: "the station gave no https address for this issue: the app has nothing to read" } : lireQuestion(reglagesGh(), adresse).then((lue) => retenirLue(vise.nom, ticket, lue));
 });
 // L'histoire d'un ticket et ce qu'il a coûté : `pass <ticket> --json` sur la box du projet, lu en
 // lecture seule (histoire.ts). La vue nomme le projet et le ticket ; la commande se compose ici.
@@ -653,7 +653,7 @@ ipcMain.handle("situation", (_, carte: unknown) => situationDe(carte));
 ipcMain.handle("lireHistoire", async (_, nom: unknown, ticket: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return undefined;
-  if (vise.box === undefined || typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1) return { sans: "no box for this project: the app has nothing to read" };
+  if (vise.box === undefined || typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1) return { sans: "no station for this project: the app has nothing to read" };
   const servi = { nom: vise.nom, box: vise.box };
   const rendu = await (passage.get(servi.nom) ?? Promise.resolve()).then(() => lancerGeste({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, `pass ${ticket} --json`));
   if (rendu.erreur !== null) return { sans: `not read: ${rendu.lance}\n${rendu.erreurs}${rendu.sortie}`.trim() };
@@ -704,7 +704,7 @@ ipcMain.handle("lireCapture", (_, nom: unknown, ticket: unknown, ecran: unknown,
   const vise = connu(nom);
   if (vise === undefined) return undefined;
   const adresse = faits.capture(vise.nom, ticket, ecran, moment);
-  return adresse === undefined ? { sans: "the box gave no address for this screenshot: the app has nothing to read" } : lireCapture(reglagesGh(), adresse);
+  return adresse === undefined ? { sans: "the station gave no address for this screenshot: the app has nothing to read" } : lireCapture(reglagesGh(), adresse);
 });
 // Le titre d'une issue que la box ne donne pas (hors rail) : lu par le `gh` du poste, à l'adresse que
 // la box a rendue pour ce ticket — jamais une adresse venue de la vue.
@@ -712,7 +712,7 @@ ipcMain.handle("lireTitre", (_, nom: unknown, ticket: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return undefined;
   const adresse = faits.adresse(vise.nom, ticket);
-  return adresse === undefined ? { sans: "the box gave no https address for this issue: the app has nothing to read" } : titreDe(reglagesGh(), adresse);
+  return adresse === undefined ? { sans: "the station gave no https address for this issue: the app has nothing to read" } : titreDe(reglagesGh(), adresse);
 });
 // Lever la retenue d'un ticket qui t'attend pour `blocked-on-human` : retirer le label, ou fermer
 // l'issue — un clic, par le `gh` du poste. Rien pour un ticket que le bloc `attend` ne dit pas retenu.
@@ -722,7 +722,7 @@ ipcMain.handle("leverRetenue", (_, nom: unknown, ticket: unknown, geste: unknown
   const dit = faits.attendu(vise.nom, ticket);
   if (dit === undefined || !dit.lignes.some((ligne) => ligne.includes(`\`${LABEL_RETENUE}\``))) return { fait: false, refus: `nothing was done: the \`attend\` block does not say #${String(ticket)} is held by \`${LABEL_RETENUE}\`` };
   const adresse = faits.adresse(vise.nom, ticket);
-  return adresse === undefined ? { fait: false, refus: "nothing was done: the box gave no https address for this issue" } : lever(reglagesGh(), adresse, geste);
+  return adresse === undefined ? { fait: false, refus: "nothing was done: the station gave no https address for this issue" } : lever(reglagesGh(), adresse, geste);
 });
 // La réponse du chef à cette question : un choix, par sa lettre, ou sa phrase. Elle part sur
 // l'issue, en commentaire, par le même `gh` — à son nom. L'issue est relue avant : rien ne part sur
@@ -733,7 +733,7 @@ ipcMain.handle("repondreQuestion", async (_, nom: unknown, ticket: unknown, repo
   if (vise === undefined) return { poste: false, refus: parti(nom).refus };
   if (faits.attendu(vise.nom, ticket) === undefined) return { poste: false, refus: `nothing was posted: the \`attend\` block no longer names #${String(ticket)}` };
   const adresse = faits.adresse(vise.nom, ticket);
-  if (adresse === undefined) return { poste: false, refus: "nothing was posted: the box gave no https address for this issue" };
+  if (adresse === undefined) return { poste: false, refus: "nothing was posted: the station gave no https address for this issue" };
   const rendue = await repondreQuestion(reglagesGh(), adresse, reponse);
   const question = (reponse as { question?: unknown } | null)?.question;
   if (rendue.poste && typeof question === "string") {

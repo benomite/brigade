@@ -778,10 +778,10 @@ function montrer() {
     relaye === undefined || courant === undefined || courant.desinstalle !== undefined
       ? ""
       : relaye.id === FIABILITE
-        ? `the reliability of the cooks, as the box measures it: the chef's window and thresholds from \`${geste(courant, "station")}\`, then \`${geste(courant, "measures --last <window> --by 1")}\` — both outputs are below, as the box returns them; re-read on their own every thirty seconds, while this tab is shown`
-        : `${relaye.id === "manager" ? "the manager state, then " : relaye.id === "grants" ? "the grants state, then " : ""}the output of \`${geste(courant, relaye.commande)}\`, as the box returns it${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — re-read on its own every thirty seconds, while this tab is shown`;
+        ? `the reliability of the cooks, as the station measures it: the chef's window and thresholds from \`${geste(courant, "station")}\`, then \`${geste(courant, "measures --last <window> --by 1")}\` — both outputs are below, as the station returns them; re-read on their own every thirty seconds, while this tab is shown`
+        : `${relaye.id === "manager" ? "the manager state, then " : relaye.id === "grants" ? "the grants state, then " : ""}the output of \`${geste(courant, relaye.commande)}\`, as the station returns it${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — re-read on its own every thirty seconds, while this tab is shown`;
   note.replaceChildren(
-    ...(nonEcrit !== "" ? [nonEcrit] : relaye !== undefined && courant?.desinstalle !== undefined ? ["nothing is read for this tab: this project is uninstalled from its box"] : explication === "" ? [] : [survol(document, explication)]),
+    ...(nonEcrit !== "" ? [nonEcrit] : relaye !== undefined && courant?.desinstalle !== undefined ? ["nothing is read for this tab: this project is uninstalled from its station"] : explication === "" ? [] : [survol(document, explication)]),
   );
   note.hidden = note.childElementCount === 0 && note.textContent === "";
   const parametres = rubriqueDe(visible)?.id === PARAMETRES;
@@ -946,7 +946,7 @@ async function demander(ticket) {
   if (projet.refus !== undefined) return montrer();
   try {
     const rendu = await brigade.demander(projet.nom, ticket);
-    if (rendu === undefined) nonEcritSecond = `nothing written: the last reading of the box no longer names #${ticket}`;
+    if (rendu === undefined) nonEcritSecond = `nothing written: the last reading of the station no longer names #${ticket}`;
     else if ("refus" in rendu) nonEcritSecond = rendu.refus;
     else garder(projet.nom, rendu);
   } catch (erreur) {
@@ -1261,10 +1261,10 @@ function propos(texte) {
 // Le geste que l'app nomme quand une box jointe ne lui répond pas comme elle
 // l'attend. Elle ne sait pas pourquoi : ce qu'elle a obtenu est affiché au-dessus.
 const GESTE = [
-  "The box was reached, and this command did not answer there as the app expects: from here, this project can no longer be controlled.",
+  "The station was reached, and this command did not answer there as the app expects: from here, this project can no longer be controlled.",
   "What the app got is above; it knows no more.",
   "",
-  "The step that brings a runtime up to date, on its box:",
+  "The step that brings a runtime up to date, on its station:",
   "  sudo git -C <brigade clone> pull",
   "  sudo systemctl restart brigade@<project>",
   "(docs/runtime/exploitation.md, “Piloter”, line “Mettre à jour”)",
@@ -1275,18 +1275,18 @@ const GESTE = [
 /** @param {string} nom */
 const inconnu = (nom) =>
   [
-    "The box was reached, and its step does not know this project: what it said about it is above.",
-    `The app gave it “${nom}” — the “nom” of the project in ${configuration.chemin}. The box must serve it under this name.`,
-    "If it was uninstalled from this box, this is expected: it can no longer be controlled there. “Remove this project”, in its space's panel, removes it from the app.",
+    "The station was reached, and its step does not know this project: what it said about it is above.",
+    `The app gave it “${nom}” — the “nom” of the project in ${configuration.chemin}. The station must serve it under this name.`,
+    "If it was uninstalled from this station, this is expected: it can no longer be controlled there. “Remove this project”, in its space's panel, removes it from the app.",
   ].join("\n");
 
 // Ce que l'app dit quand le geste a refusé celui qui le lance. Elle nomme où
 // est écrit le geste qui donne ce droit, et ne le rejoue pas : il se joue sur la box.
 const SANS_DROIT = [
-  "The box was reached, and its step refused the account your `ssh` reaches it with: what it said about it is above.",
+  "The station was reached, and its step refused the account your `ssh` reaches it with: what it said about it is above.",
   "This is neither a failure nor a runtime to update: it is a right this account lacks.",
   "",
-  "It is given on the box, by someone who has `sudo` there — the app does not do it for you:",
+  "It is given on the station, by someone who has `sudo` there — the app does not do it for you:",
   "(docs/installer.md, “Ajouter un humain”)",
 ].join("\n");
 
@@ -1294,31 +1294,31 @@ const SANS_DROIT = [
 // Elle ne sait pas laquelle : c'est la box qui la nomme, au-dessus.
 /** @param {Projet} projet */
 const commandeManque = (projet) => [
-  "The box was reached, and a command is missing there: what it said about it is above. The app does not know which.",
+  "The station was reached, and a command is missing there: what it said about it is above. The app does not know which.",
   "If it names `brigade`, the step is not installed there; if it names `sudo`, the step lacks it to run under the service account.",
   "",
-  "Both are installed on the box, when preparing it:",
-  "(docs/installer.md, “Préparer la box”)",
+  "Both are installed on the station, when preparing it:",
+  "(docs/installer.md, “Préparer la station”)",
   "",
   `On your workstation, \`brigade\` alone does not exist, and need not: the step is typed there like this, as the app writes it — \`${geste(projet, "status")}\`, for example.`,
 ].join("\n");
 
 // Ce que l'app dit quand le geste a refusé le `node` de la box (code 70).
 const NODE_INAPTE = [
-  "The box was reached, and its step refused to start the runtime: the box's `node` does not suit it. What it said about it is above.",
+  "The station was reached, and its step refused to start the runtime: the station's `node` does not suit it. What it said about it is above.",
   "",
-  "It is not the runtime that needs updating: the step's sentence says the remedy, and it is applied on the box:",
-  "(docs/installer.md, “Préparer la box”)",
+  "It is not the runtime that needs updating: the step's sentence says the remedy, and it is applied on the station:",
+  "(docs/installer.md, “Préparer la station”)",
 ].join("\n");
 
 // Ce que l'app dit sous le message de `ssh`, quel qu'il soit : elle ne le lit
 // pas, elle nomme où chacune de ses phrases est expliquée.
 const SSH_EN_ECHEC = [
-  "`ssh` did not open a session on the box, and said why: its message is above. The app does not read it.",
+  "`ssh` did not open a session on the station, and said why: its message is above. The app does not read it.",
   "What each of its sentences means, and the step that answers it:",
-  "(docs/installer.md, “Joindre la box”)",
+  "(docs/installer.md, “Joindre la station”)",
   "",
-  "If it says your key was refused (`Permission denied`), the box answers and it is access you lack. It is given on the box:",
+  "If it says your key was refused (`Permission denied`), the station answers and it is access you lack. It is given on the station:",
   "(docs/installer.md, “Ajouter un humain”)",
 ].join("\n");
 
@@ -1371,18 +1371,18 @@ function obtenu(projet, recue, plusPilotable) {
 function obtenuEnUneLigne(projet, recue, plusPilotable) {
   const [ligne, suite] =
     recue.cas === "projet-inconnu"
-      ? ["the box does not know this project", inconnu(recue.projet)]
+      ? ["the station does not know this project", inconnu(recue.projet)]
       : recue.cas === "sans-droit"
-        ? ["your account lacks the right to this action on the box", SANS_DROIT]
+        ? ["your account lacks the right to this action on the station", SANS_DROIT]
         : recue.cas === "commande-manque"
-          ? ["a command is missing on the box", commandeManque(projet)]
+          ? ["a command is missing on the station", commandeManque(projet)]
           : recue.cas === "node-inapte"
-            ? ["the box's node does not suit the runtime", NODE_INAPTE]
+            ? ["the station's node does not suit the runtime", NODE_INAPTE]
             : recue.atteinte
-              ? ["the box answered, but not as the app expects", plusPilotable]
+              ? ["the station answered, but not as the app expects", plusPilotable]
               : recue.cas === "ssh-en-echec"
-                ? ["the box could not be reached", SSH_EN_ECHEC]
-                : ["the box did not answer", undefined];
+                ? ["the station could not be reached", SSH_EN_ECHEC]
+                : ["the station did not answer", undefined];
   return [lectureIndisponible(document, ligne, suite === undefined ? recue.erreur : `${recue.erreur}\n\n${suite}`)];
 }
 
@@ -1403,21 +1403,21 @@ function rendre(recue, tete, corps, accueil = false) {
     if (accueil) {
       // Ce que la box a dit se lit, replié : le détail n'est pas la première chose que l'écran montre.
       const lue = document.createElement("details");
-      lue.append(bloc("summary", "what the box said"), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", commande), bloc("pre", texte)]));
+      lue.append(bloc("summary", "what the station said"), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", commande), bloc("pre", texte)]));
       corps.replaceChildren(...(mise ? [aPart(projet, recue.attend, true)] : []), lue);
     } else corps.replaceChildren(...(mise ? [aPart(projet, recue.attend)] : []), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", `${geste(projet, commande)}${commande === "status" ? sans : ""}`), bloc("pre", texte)]));
   } else if (recue.cas === "projet-inconnu") {
     tete.dataset.etat = "inconnu";
-    tete.textContent = `REACHED, BUT UNKNOWN TO THE BOX — tried at ${heure}, the next follows on its own`;
+    tete.textContent = `REACHED, BUT UNKNOWN TO THE STATION — tried at ${heure}, the next follows on its own`;
   } else if (recue.cas === "sans-droit") {
     tete.dataset.etat = "sans-droit";
     tete.textContent = `REACHED, BUT WITHOUT THE RIGHT TO THE ACTION — tried at ${heure}, the next follows on its own`;
   } else if (recue.cas === "commande-manque") {
     tete.dataset.etat = "commande-manque";
-    tete.textContent = `REACHED, BUT A COMMAND IS MISSING ON THE BOX — tried at ${heure}, the next follows on its own`;
+    tete.textContent = `REACHED, BUT A COMMAND IS MISSING ON THE STATION — tried at ${heure}, the next follows on its own`;
   } else if (recue.cas === "node-inapte") {
     tete.dataset.etat = "node-inapte";
-    tete.textContent = `REACHED, BUT THE BOX'S NODE DOES NOT SUIT THE RUNTIME — tried at ${heure}, the next follows on its own`;
+    tete.textContent = `REACHED, BUT THE STATION'S NODE DOES NOT SUIT THE RUNTIME — tried at ${heure}, the next follows on its own`;
   } else if (recue.atteinte) {
     tete.dataset.etat = "plus-pilotable";
     tete.textContent = `REACHED, BUT NO LONGER CONTROLLABLE — tried at ${heure}, the next follows on its own`;
@@ -1523,7 +1523,7 @@ function poserRate(projet, rate) {
   if (rate.etat === "en-cours") return [tete];
   if (rate.etat === "echec") return [tete, ...obtenuEnUneLigne(projet, { ...rate.echec, projet: projet.nom }, GESTE)];
   const brut = document.createElement("details");
-  brut.append(bloc("summary", "what the box said"), bloc("pre", rate.obtenu));
+  brut.append(bloc("summary", "what the station said"), bloc("pre", rate.obtenu));
   return [tete, brut, ...rate.lignes.map((ligne) => bloc("p", ligne))];
 }
 
@@ -1574,15 +1574,15 @@ function poserService(projet, guide) {
   const tete = [];
   if (guide.lecture.etat !== "lue") tete.push(...poserRate(projet, guide.lecture));
   if (guide.courante === null && guide.lecture.etat === "lue") {
-    tete.push(ditEtAide("p", "The installation is finished", "the box verified everything, the kitchen is ready to serve, and no installation step is left."));
+    tete.push(ditEtAide("p", "The installation is finished", "the station verified everything, the kitchen is ready to serve, and no installation step is left."));
     if ("commande" in guide.demarrage) tete.push(action("Write the start of the service in a shell", () => demarrerService(projet)));
   }
   if (guide.courante !== null && guide.lecture.etat === "lue") {
     const annonces = document.createElement("div");
     annonces.className = "annonces";
     annonces.append(ditEtAide("strong", "What the app cannot do for you", "said before you meet it"));
-    if (guide.annonces.etat === "en-cours") annonces.append(ditEtAide("p", "The box is being verified…", "what it lacks, that only someone with `sudo` there can set up, is announced here as soon as it answers."));
-    if (guide.annonces.etat === "pas-lues") annonces.append(refus("The verification did not return its verdict: what the box may lack is not known."));
+    if (guide.annonces.etat === "en-cours") annonces.append(ditEtAide("p", "The station is being verified…", "what it lacks, that only someone with `sudo` there can set up, is announced here as soon as it answers."));
+    if (guide.annonces.etat === "pas-lues") annonces.append(refus("The verification did not return its verdict: what the station may lack is not known."));
     for (const annonce of guide.annonces.liste) {
       const ligne = document.createElement("div");
       ligne.className = "annonce";
@@ -1597,7 +1597,7 @@ function poserService(projet, guide) {
     fait.className = "verdict";
     fait.dataset.verdict = guide.fait.ok ? "pret" : "incomplete";
     const brut = document.createElement("details");
-    brut.append(bloc("summary", "what the box said"), bloc("pre", guide.fait.obtenu));
+    brut.append(bloc("summary", "what the station said"), bloc("pre", guide.fait.obtenu));
     tete.push(fait, brut);
   }
   if (guide.lecture.etat === "lue") tete.push(action("Verify", () => brigade.verifier(projet.nom)), ...poserVerdict(projet, guide.verification, action));
@@ -1637,7 +1637,7 @@ function gesteDEtape(projet, guide, etape, action, refus) {
   if (etape.id === "init") {
     return [action("Initialize the project in the second", () => amorcerService(projet)), action("The initialization is merged onto the integration branch", () => brigade.direMerge(projet.nom, true))];
   }
-  if (etape.id === "verification") return [ditEtAide("p", "Verify again once the box is set up", "“Verify” is at the top of this screen: once what it says is missing on the box is set up, verify again.")];
+  if (etape.id === "verification") return [ditEtAide("p", "Verify again once the station is set up", "“Verify” is at the top of this screen: once what it says is missing on the station is set up, verify again.")];
   if (etape.id === "demarrage") return "refus" in guide.demarrage ? [refus(guide.demarrage.refus)] : [action("Start", () => demarrerService(projet))];
   if (detail === undefined) return [];
   if (detail.etat !== "lu") return poserRate(projet, detail);
@@ -1646,7 +1646,7 @@ function gesteDEtape(projet, guide, etape, action, refus) {
     const { proposees, absent, declarees } = detail.lu;
     const poses = [];
     if (declarees.length > 0) poses.push(bloc("p", `Declared now: ${declarees.map(({ nom, cooks, fournit }) => `${nom} — ${cooks} cook${cooks > 1 ? "s" : ""} at most, provides ${fournit.join(", ")}`).join(" · ")}`));
-    if (absent !== null) poses.push(refus(`The box provides no station — ${absent}`));
+    if (absent !== null) poses.push(refus(`The station provides no station — ${absent}`));
     /** @type {{ nom: string; coche: HTMLInputElement; cooks: HTMLInputElement }[]} */
     const choix = [];
     for (const proposee of proposees) {
@@ -2007,13 +2007,13 @@ async function desinstallerRetrait(projet) {
 /** @param {Projet} projet */
 const sansForme = (projet) => [
   "The app draws nothing of this project: no color pill, no counters, no rail. A number it has not read is not a zero.",
-  `What the box returned is above, as is. What \`${geste(projet, "status")}\` says about the project can still be read, below.`,
+  `What the station returned is above, as is. What \`${geste(projet, "status")}\` says about the project can still be read, below.`,
 ].join("\n");
 // Quand la box, jointe, n'a pas répondu à `faits` sans que son code dise pourquoi :
 // un runtime d'avant cette commande est le cas attendu.
 const SANS_REPONSE = [
-  "The box was reached, and `facts` did not answer there: what it returned is above, as is.",
-  "A runtime older than `facts` is the expected case — it is updated on its box (docs/runtime/exploitation.md, “Piloter”, line “Mettre à jour”).",
+  "The station was reached, and `facts` did not answer there: what it returned is above, as is.",
+  "A runtime older than `facts` is the expected case — it is updated on its station (docs/runtime/exploitation.md, “Piloter”, line “Mettre à jour”).",
 ].join("\n");
 // Sous toute lecture de `faits` en échec.
 /** @param {Projet} projet */
@@ -2130,7 +2130,7 @@ function poserCarte(ou, projet) {
   if (!("tableau" in tenu)) {
     const titre = bloc("p", `${tenu.titre} — tried at ${heure}, the next follows on its own`);
     titre.className = "sans-faits";
-    if ("informe" in tenu) return ou.replaceChildren(titre, lectureIndisponible(document, "the box answered with something the app does not draw", `${tenu.rendu}\n\nThis is not the shape the app draws: ${tenu.informe}.\n${sansForme(projet)}`));
+    if ("informe" in tenu) return ou.replaceChildren(titre, lectureIndisponible(document, "the station answered with something the app does not draw", `${tenu.rendu}\n\nThis is not the shape the app draws: ${tenu.informe}.\n${sansForme(projet)}`));
     // Le même cas que sous `status`, avec son renvoi : un refus du geste n'est pas un runtime à mettre à jour.
     return ou.replaceChildren(titre, ...obtenuEnUneLigne(projet, tenu, `${SANS_REPONSE}\n\n${sansDessin(projet)}`));
   }
@@ -2199,7 +2199,7 @@ function poserBon(projet, carte, tonAttend) {
     ? `open issue #${ticket} in the browser`
     : etat === undefined
       ? `this ticket is not on the rail that \`${geste(projet, "facts")}\` returns: the app does not have its address`
-      : "the address the box returned for this ticket is not https: the app does not open it";
+      : "the address the station returned for this ticket is not https: the app does not open it";
   const tete = document.createElement("div");
   tete.append(numero);
   if (etat !== undefined) {
@@ -2266,7 +2266,7 @@ function poserBon(projet, carte, tonAttend) {
     ouvre.title = `open #${ticket}'s merged PR in the browser`;
     bon.append(ouvre);
   }
-  if (pr === false) bon.append(bloc("small", "merged PR: the address the box returned is not https, the app does not open it"));
+  if (pr === false) bon.append(bloc("small", "merged PR: the address the station returned is not https, the app does not open it"));
   bon.append(...poserGestesDAttente(projet, carte));
   bon.append(...(pagesServies.get(projet.nom)?.pages ?? []).filter((page) => page.ticket === ticket).map((page) => poserServie(projet, page)));
   bon.append(...(pagesServies.get(projet.nom)?.aLancer ?? []).filter((tenue) => tenue.ticket === ticket).map((tenue) => poserALancer(projet, tenue)));
@@ -2846,7 +2846,7 @@ async function lireHistoire(projet, carte) {
   let lue;
   try {
     situations.set(cle, await brigade.situation({ ...(carte.etat === undefined ? {} : { etat: carte.etat }), attend: carte.attend, dit: carte.dit }));
-    lue = (await brigade.lireHistoire(projet.nom, ticket)) ?? { sans: "no box for this project: the app has nothing to read" };
+    lue = (await brigade.lireHistoire(projet.nom, ticket)) ?? { sans: "no station for this project: the app has nothing to read" };
   } catch (erreur) {
     lue = { sans: `not read: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
   }
@@ -2917,7 +2917,7 @@ function poserCommentaire(projet, ticket) {
   saisie.disabled = envoi;
   const poster = bouton("post this comment", () => void envoyerCommentaire(projet, ticket));
   poster.dataset.geste = "commentaire";
-  poster.title = `post what you wrote on issue #${ticket}, as a comment, under the box's GitHub account — public on GitHub, read by the manager and the next cook; nothing is spent`;
+  poster.title = `post what you wrote on issue #${ticket}, as a comment, under the station's GitHub account — public on GitHub, read by the manager and the next cook; nothing is spent`;
   poster.disabled = envoi || saisie.value.trim() === "";
   saisie.addEventListener("input", () => {
     commentaires.set(cle, saisie.value);
@@ -3020,7 +3020,7 @@ async function lireDiscussion(projet, ticket) {
   /** @type {import("../discussion.ts").Discussion} */
   let lue;
   try {
-    lue = (await brigade.lireDiscussion(projet.nom, ticket)) ?? { sans: "no box for this project: the app has nothing to read" };
+    lue = (await brigade.lireDiscussion(projet.nom, ticket)) ?? { sans: "no station for this project: the app has nothing to read" };
   } catch (erreur) {
     lue = { sans: `not read: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
   }
@@ -3320,7 +3320,7 @@ function fraicheur(a) {
   const age = Date.now() - new Date(a).getTime();
   if (!(age > LECTURE_VIEILLE_MS)) return [];
   const minutes = Math.floor(age / 60_000);
-  const dit = bloc("p", `up to date ${minutes} min ago — the box has not answered since; the commands and read times are in Settings`);
+  const dit = bloc("p", `up to date ${minutes} min ago — the station has not answered since; the commands and read times are in Settings`);
   dit.className = "fraicheur";
   return [dit];
 }
@@ -3352,12 +3352,12 @@ function chargerFeu(projet) {
 /** @param {Projet} projet @param {string | undefined} lu @param {string} depuis */
 function poserMuet(projet, lu, depuis) {
   chargerFeu(projet);
-  const mention = bloc("p", lu === undefined ? `no reading of the rail — box unreachable since ${heureDe(depuis)}` : `read at ${heureDe(lu)}, box unreachable since ${heureDe(depuis)}`);
+  const mention = bloc("p", lu === undefined ? `no reading of the rail — station unreachable since ${heureDe(depuis)}` : `read at ${heureDe(lu)}, station unreachable since ${heureDe(depuis)}`);
   mention.className = "fraicheur";
   const feu = feux.get(projet.nom);
   const bloc2 = document.createElement("div");
   bloc2.className = "feu";
-  bloc2.append(bloc("h3", "kitchen state unknown: box unreachable — the tickets labelled `fire`, as GitHub says them"));
+  bloc2.append(bloc("h3", "kitchen state unknown: station unreachable — the tickets labelled `fire`, as GitHub says them"));
   if (feu === undefined) bloc2.append(bloc("p", "reading GitHub…"));
   else if ("sans" in feu) bloc2.append(bloc("p", "GitHub did not answer either:"), bloc("pre", feu.sans));
   else if (feu.tickets.length === 0) bloc2.append(bloc("p", "no open ticket labelled `fire`"));
@@ -3937,7 +3937,7 @@ function poserProjet() {
   if (projet?.box === undefined || geste === undefined) return gestesProjet.replaceChildren();
   const verifier = bouton(geste.libelle, () => void brigade.verifier(projet.nom));
   verifier.dataset.geste = "direct";
-  verifier.title = "runs the verification on the box — its verdict is read in Settings, in one sentence";
+  verifier.title = "runs the verification on the station — its verdict is read in Settings, in one sentence";
   gestesProjet.replaceChildren(verifier);
 }
 
@@ -4762,7 +4762,7 @@ function poserAlerte(projet, alerte) {
     });
     deplier.className = "detail";
     deplier.ariaExpanded = String(deplie);
-    deplier.title = deplie ? "fold the detail" : "what the box says, as is — and why";
+    deplier.title = deplie ? "fold the detail" : "what the station says, as is — and why";
     tete.append(deplier);
   }
   const [controle, ...ouverte] = poserControle(projet, alerte, endroit);
@@ -4874,13 +4874,13 @@ function attendre(projet, tete, corps) {
     tete.textContent = `${projet.desinstalle.titre} — since ${heureDe(projet.desinstalle.a)}`;
     corps.replaceChildren(propos(projet.desinstalle.lignes.join("\n")));
   } else if (projet.box === undefined) {
-    tete.dataset.etat = "sans-box";
+    tete.dataset.etat = "sans-station";
     tete.textContent = "no read";
     corps.replaceChildren(
       lectureIndisponible(
         document,
-        `“${projet.nom}” does not say where its box is: nothing is read`,
-        `It lacks “hote”, in ${configuration.chemin}: the name your \`ssh\` reaches your box by. The app re-reads this file as soon as it changes.`,
+        `“${projet.nom}” does not say where its station is: nothing is read`,
+        `It lacks “hote”, in ${configuration.chemin}: the name your \`ssh\` reaches your station by. The app re-reads this file as soon as it changes.`,
       ),
     );
   } else {

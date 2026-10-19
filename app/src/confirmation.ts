@@ -41,13 +41,13 @@ const PLUS_SANS_TOI = "Nothing is merged without you any more: the pass stops at
 function cooksEnVol(lus: Lus): { prix: string[]; lu?: string } {
   if ("sans" in lus) return { prix: [`Cooks in flight are not read: ${lus.sans}. This is not “no cook in flight”.`] };
   const { faits, a } = lus;
-  if (faits.cooks === undefined) return { prix: ["Cooks in flight are not read: this box's runtime does not give them in `facts`. This is not “no cook in flight”."], lu: a };
+  if (faits.cooks === undefined) return { prix: ["Cooks in flight are not read: this station's runtime does not give them in `facts`. This is not “no cook in flight”."], lu: a };
   const tickets = faits.cooks.map(({ ticket }) => `#${ticket}`).join(", ");
   return {
     prix: [
       faits.cooks.length === 0
-        ? "No cook running at this reading — what they would have spent, this box's runtime does not say."
-        : `${faits.cooks.length} cook${s(faits.cooks.length)} running at this reading (${tickets}) — what they spent, this box's runtime does not say in \`facts\`.`,
+        ? "No cook running at this reading — what they would have spent, this station's runtime does not say."
+        : `${faits.cooks.length} cook${s(faits.cooks.length)} running at this reading (${tickets}) — what they spent, this station's runtime does not say in \`facts\`.`,
     ],
     lu: a,
   };

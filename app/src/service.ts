@@ -369,7 +369,7 @@ export function jugementDe(rendu: RenduDeBox, delaiMs: number): Jugee {
 // Un mot tel que le shell du poste — ou celui de la box — le rendra : entier, sans rien en exécuter.
 const mot = (texte: string) => (/^[A-Za-z0-9@._:/+,-]+$/.test(texte) ? texte : `'${texte.replaceAll("'", `'\\''`)}'`);
 
-const sansBox = (nom: string) => `“${nom}” does not say where its box is: there is nothing to install there.`;
+const sansBox = (nom: string) => `“${nom}” does not say where its station is: there is nothing to install there.`;
 
 // Ce que « Démarrer » écrit pour ce projet — ou pourquoi il n'écrit rien. C'est le geste
 // de docs/installer.md, « Servir le premier ticket », celui que la box nomme en fin
@@ -382,7 +382,7 @@ export function commandeDeDemarrage(projet: Projet): { commande: string } | { re
   if (hote.startsWith("-")) return { refus: `nothing is written: “hote” starts with a dash (${hote}), and \`ssh\` would read it as an option in the command — fix it in the projects file` };
   // L'unité porte le nom du projet : seul un nom que la box accepte en nomme une — au caractère près.
   const { nom } = projet;
-  if (nom === "" || nom !== nom.trim() || refusDeForme(nom) !== undefined) return { refus: `nothing is written: this project's “nom” is not the name of any instance on the box — expected: ${FORME_ATTENDUE}` };
+  if (nom === "" || nom !== nom.trim() || refusDeForme(nom) !== undefined) return { refus: `nothing is written: this project's “nom” is not the name of any instance on the station — expected: ${FORME_ATTENDUE}` };
   return { commande: `ssh -t ${mot(hote)} sudo systemctl enable --now brigade@${nom}.service` };
 }
 
@@ -519,24 +519,24 @@ function ligneDeManque(manque: ManqueJuge, etapes: EtapeVue[]): LigneDeManque {
   return { texte: manque.texte, acteur: "chef", qui: "you", geste };
 }
 const LIGNES: Readonly<Record<string, (projet: Projet) => string[]>> = {
-  ajout: () => ["The app marks this step done as soon as the box answers for the project: the add is what made it exist there."],
+  ajout: () => ["The app marks this step done as soon as the station answers for the project: the add is what made it exist there."],
   init: () => [
     `\`${INIT}\` is a Claude Code session, not a command: the app opens it in this space's second, in the project's folder — the conversation is yours.`,
-    "Then merge its PR on the integration branch, and say so here: the box only sees of the repository what its origin carries, and the app does not know whether it is merged.",
+    "Then merge its PR on the integration branch, and say so here: the station only sees of the repository what its origin carries, and the app does not know whether it is merged.",
   ],
   verification: () => [
-    `“Verify” runs \`${VERIFICATION}\` on the project's box, for you: everything missing, at once, each with what sets it up. It launches no cook and no setup, and can be replayed as often as you like.`,
-    "What it says is missing on the box itself is announced at the top of this screen: the app cannot do it for you.",
+    `“Verify” runs \`${VERIFICATION}\` on the project's station, for you: everything missing, at once, each with what sets it up. It launches no cook and no setup, and can be replayed as often as you like.`,
+    "What it says is missing on the station itself is announced at the top of this screen: the app cannot do it for you.",
   ],
-  stations: () => ["Choose, among the stations the box provides, those where tickets are served, and how many cooks each runs at once: the cap has no default, it is your quota."],
+  stations: () => ["Choose, among the stations the station provides, those where tickets are served, and how many cooks each runs at once: the cap has no default, it is your quota."],
   protection: () => ["“Protect” sets on GitHub the protection the runtime expects — pull request required, zero approvals, administrators included — and turns on push protection if GitHub accepts it."],
-  decisions: () => ["One decision at a time: its question, its options and what each does. The box records your answer in the project's journal — no `sudo`, no drop-in."],
+  decisions: () => ["One decision at a time: its question, its options and what each does. The station records your answer in the project's journal — no `sudo`, no drop-in."],
   demarrage: (projet) => {
     const demarrage = commandeDeDemarrage(projet);
     return [
-      "“Start” has the box verify everything one last time and, only if it is green, records the installation as finished: no step is left to do after it.",
+      "“Start” has the station verify everything one last time and, only if it is green, records the installation as finished: no step is left to do after it.",
       ...("commande" in demarrage
-        ? [`Then the app opens a shell in this space and writes there, without sending it: \`${demarrage.commande}\` — starting a service is a \`root\` action: your Enter sends it, and \`sudo\` asks for your password on the box if it wants one.`]
+        ? [`Then the app opens a shell in this space and writes there, without sending it: \`${demarrage.commande}\` — starting a service is a \`root\` action: your Enter sends it, and \`sudo\` asks for your password on the station if it wants one.`]
         : []),
     ];
   },
@@ -563,7 +563,7 @@ export function tenirServices(options: {
   function tenir(nom: string, hote: string): Tenu {
     const tenu = tenus.get(nom);
     if (tenu !== undefined && tenu.hote === hote) return tenu;
-    const neuf: Tenu = { hote, suivi: false, lecture: { etat: "en-cours", titre: "reading the installation steps on the box…" }, annoncee: false };
+    const neuf: Tenu = { hote, suivi: false, lecture: { etat: "en-cours", titre: "reading the installation steps on the station…" }, annoncee: false };
     tenus.set(nom, neuf);
     return neuf;
   }
@@ -585,10 +585,10 @@ export function tenirServices(options: {
     return {
       etat: "illisible",
       a: joue.a,
-      titre: `THE BOX DID NOT RETURN WHAT \`${commande}\` RETURNS`,
+      titre: `THE STATION DID NOT RETURN WHAT \`${commande}\` RETURNS`,
       obtenu: joue.obtenu,
       lignes: [
-        `What it returned is above, as is. The expected case: the runtime serving this project on the box predates this step — update it (${DOC}, « Mettre brigade à jour »).`,
+        `What it returned is above, as is. The expected case: the runtime serving this project on the station predates this step — update it (${DOC}, « Mettre brigade à jour »).`,
       ],
     };
   }
@@ -645,7 +645,7 @@ export function tenirServices(options: {
       return;
     }
     const commande = COMMANDES[id];
-    tenu.detail = { etat: "en-cours", titre: `reading \`${commande}\` on the box…` };
+    tenu.detail = { etat: "en-cours", titre: `reading \`${commande}\` on the station…` };
     pousser(projet, tenu);
     const joue = await jouer(projet, commande);
     const sortie = "echec" in joue || joue.code !== 0 ? undefined : joue.sortie;
@@ -747,7 +747,7 @@ export function tenirServices(options: {
       tenu.lecture.etat === "en-cours"
         ? `Installation — ${tenu.lecture.titre}`
         : tenu.lecture.etat !== "lue"
-          ? "Installation — the box did not return its steps"
+          ? "Installation — the station did not return its steps"
           : courante === undefined
             ? `Installation — finished: the ${etapes.length} steps are done`
             : `Installation — ${faites} of ${etapes.length} steps done · now: ${courante.rang}. ${courante.titre}`;
@@ -782,14 +782,14 @@ export function tenirServices(options: {
     const liste: Annonce[] = [];
     for (const etape of etapes) if (etape.geste !== null && etape.etat !== "done") liste.push({ titre: `${etape.rang}. ${etape.titre}`, texte: etape.geste, geste: null });
     for (const manque of manques) {
-      if (manque.etape !== null && SUR_LA_BOX.includes(manque.etape)) liste.push({ titre: "On the box, by someone with `sudo` there", texte: manque.texte, geste: manque.geste });
+      if (manque.etape !== null && SUR_LA_BOX.includes(manque.etape)) liste.push({ titre: "On the station, by someone with `sudo` there", texte: manque.texte, geste: manque.geste });
     }
     const demarrage = commandeDeDemarrage(projet);
     const derniere = etapes.at(-1);
     if ("commande" in demarrage && derniere !== undefined) {
       liste.push({
         titre: `${derniere.rang}. ${derniere.titre}`,
-        texte: "Starting the service is a `root` action that no gesture of the box gives without a password: the app writes it in a shell of this space, and your Enter sends it — once the box has said everything is green.",
+        texte: "Starting the service is a `root` action that no gesture of the station gives without a password: the app writes it in a shell of this space, and your Enter sends it — once the station has said everything is green.",
         geste: demarrage.commande,
       });
     }
@@ -811,11 +811,11 @@ export function tenirServices(options: {
       return {
         etat: "illisible",
         a,
-        titre: `The box did not return the verdict of \`${JUGEMENT}\`: the app cannot say whether the project is ready.`,
+        titre: `The station did not return the verdict of \`${JUGEMENT}\`: the app cannot say whether the project is ready.`,
         detail: jugee.obtenu,
         suite: [
-          `The expected case: the runtime serving this project on the box predates this verdict — update it (${DOC}, « Mettre brigade à jour »).`,
-          `Or your account on the box is locked into a forced command, which replaces the one the app sends — ${DOC}, « Ajouter un humain ».`,
+          `The expected case: the runtime serving this project on the station predates this verdict — update it (${DOC}, « Mettre brigade à jour »).`,
+          `Or your account on the station is locked into a forced command, which replaces the one the app sends — ${DOC}, « Ajouter un humain ».`,
         ],
       };
     }
@@ -933,7 +933,7 @@ export function tenirServices(options: {
     // Le chef dit le résultat de l'init mergé — ou s'en dédit : la box le note, ou le remet à faire.
     direMerge(projet: Projet, merge: boolean) {
       return agir(projet, merge ? "recording the merge of the init…" : "putting the init back to do…", (avec) =>
-        ecrire(avec, `installation etapes init ${merge ? "faite" : "a-faire"}`, merge ? { ok: `The merge of \`${INIT}\` is recorded on the box`, non: "The box did not record the merge" } : { ok: "The init is back to do", non: "The box did not put the init back to do" }),
+        ecrire(avec, `installation etapes init ${merge ? "faite" : "a-faire"}`, merge ? { ok: `The merge of \`${INIT}\` is recorded on the station`, non: "The station did not record the merge" } : { ok: "The init is back to do", non: "The station did not put the init back to do" }),
       );
     },
 
@@ -954,20 +954,20 @@ export function tenirServices(options: {
     declarerStations(projet: Projet, choix: unknown) {
       return agir(projet, "declaring the stations…", async (avec, tenu) => {
         const lu = detail(tenu, "stations")?.lu;
-        if (lu === undefined) return { refus: "Nothing was declared: the box has not said which stations it provides — read the steps again." };
+        if (lu === undefined) return { refus: "Nothing was declared: the station has not said which stations it provides — read the steps again." };
         const voulues = Array.isArray(choix) ? (choix as unknown[]) : [];
         const entrees: string[] = [];
         for (const voulue of voulues) {
           const { nom, cooks } = (voulue ?? {}) as Lu;
           const proposee = lu.proposees.find((station) => station.nom === nom);
-          if (proposee === undefined) return { refus: `Nothing was declared: “${String(nom)}” is not a station the box provides.` };
+          if (proposee === undefined) return { refus: `Nothing was declared: “${String(nom)}” is not a station the station provides.` };
           if (typeof cooks !== "number" || !Number.isInteger(cooks) || cooks < 1 || cooks > 99) return { refus: `Nothing was declared: how many cooks “${proposee.nom}” runs at once has no default — a whole number, 1 or more.` };
           entrees.push(`${proposee.nom}:${cooks}:${proposee.fournit.join("+")}`);
         }
         if (entrees.length === 0) return { refus: "Nothing was declared: choose at least one station — without one, no cook leaves." };
         const declaration = entrees.join(",");
-        if (!/^[A-Za-z0-9/:+,._-]+$/.test(declaration)) return { refus: "Nothing was declared: the box provides a station whose name the app does not carry safely." };
-        return ecrire(avec, `installation stations ${declaration}`, { ok: "Stations declared", non: "The box refused the stations" });
+        if (!/^[A-Za-z0-9/:+,._-]+$/.test(declaration)) return { refus: "Nothing was declared: the station provides a station whose name the app does not carry safely." };
+        return ecrire(avec, `installation stations ${declaration}`, { ok: "Stations declared", non: "The station refused the stations" });
       });
     },
 
@@ -980,13 +980,13 @@ export function tenirServices(options: {
     repondre(projet: Projet, valeurs: unknown) {
       return agir(projet, "recording your answer…", async (avec, tenu) => {
         const courante = detail(tenu, "decisions")?.lu.courante;
-        if (courante === undefined || courante === null) return { refus: "Nothing was answered: the box has no decision waiting — read the steps again." };
+        if (courante === undefined || courante === null) return { refus: "Nothing was answered: the station has no decision waiting — read the steps again." };
         const attendues = courante.avec === null ? 1 : 2;
         const lues = Array.isArray(valeurs) ? (valeurs as unknown[]).map((valeur) => (typeof valeur === "string" ? valeur.trim() : "")) : [];
         if (lues.length !== attendues || lues.some((valeur) => valeur === "")) return { refus: `Nothing was answered: ${courante.nom} takes ${attendues === 1 ? "one value" : `two values — its own, and ${courante.avec?.nom}'s`}.` };
         const refusee = lues.find((valeur) => !VALEUR.test(valeur));
-        if (refusee !== undefined) return { refus: `Nothing was answered: “${refusee}” is not a value the box reads — letters, digits, dots and hyphens.` };
-        return ecrire(avec, `installation decisions courante ${lues.join(" ")}`, { ok: `${courante.nom} recorded`, non: `The box refused the answer to ${courante.nom}` });
+        if (refusee !== undefined) return { refus: `Nothing was answered: “${refusee}” is not a value the station reads — letters, digits, dots and hyphens.` };
+        return ecrire(avec, `installation decisions courante ${lues.join(" ")}`, { ok: `${courante.nom} recorded`, non: `The station refused the answer to ${courante.nom}` });
       });
     },
 
@@ -996,7 +996,7 @@ export function tenirServices(options: {
         const lu = detail(tenu, "decisions");
         if (lu === undefined || tenu.etapes?.courante !== "decisions") return { refus: "Nothing to skip: the decisions step is not the current one." };
         if (!lu.passable) return { refus: "Not skipped: the start still requires a decision — answer it first." };
-        return ecrire(avec, "installation etapes decisions faite", { ok: "Decisions step done — the remaining ones are optional", non: "The box did not mark the decisions step done" });
+        return ecrire(avec, "installation etapes decisions faite", { ok: "Decisions step done — the remaining ones are optional", non: "The station did not mark the decisions step done" });
       });
     },
 
@@ -1011,13 +1011,13 @@ export function tenirServices(options: {
       if (tenu.etapes?.courante !== null) {
         if (tenu.etapes?.courante !== "demarrage") return { refus: "Nothing is written: the installation is not at its last step — finish the current one first." };
         let fini = false;
-        const refuse = await agir(projet, "the box verifies everything one last time…", async (avec) => {
+        const refuse = await agir(projet, "the station verifies everything one last time…", async (avec) => {
           const fait = await ecrire(avec, "installation etapes demarrage faite", { ok: "Installation finished — the kitchen is ready to serve", non: "The installation is not finished" });
           fini = fait.ok;
           return fait;
         });
         if (refuse !== undefined) return refuse;
-        if (!fini) return { refus: "Nothing is written: the box did not say everything is green — what is missing is in the installation, under the step to resume." };
+        if (!fini) return { refus: "Nothing is written: the station did not say everything is green — what is missing is in the installation, under the step to resume." };
       }
       return options.shell(projet, demarrage.commande);
     },

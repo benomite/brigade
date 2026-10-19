@@ -13,8 +13,8 @@ import { CONTROLE } from "./terminaux.ts";
 // Pas de contrôle de ce que la file a dit, et pas de `!` ni de `/` en tête : la phrase
 // commence par une lettre, le second ne la prend pour aucune commande.
 export const REFUS_CONTROLE = "nothing is written: what the queue says about this ticket carries a control character, and a line break would have sent the request";
-export const REFUS_CONTROLE_TICKET = "nothing is written: what the box says about this ticket carries a control character, and a line break would have sent the request";
-export const REFUS_CONTROLE_ALERTE = "nothing is written: what the box says about this alert carries a control character, and a line break would have sent the request";
+export const REFUS_CONTROLE_TICKET = "nothing is written: what the station says about this ticket carries a control character, and a line break would have sent the request";
+export const REFUS_CONTROLE_ALERTE = "nothing is written: what the station says about this alert carries a control character, and a line break would have sent the request";
 
 // Ce que la note dit quand la demande est écrite : une ligne, sans la recopier — elle est dans le
 // terminal, juste en dessous. Elle disparaît à l'Entrée du chef (terminaux.ts, `ecrire`).
@@ -50,10 +50,10 @@ export function demandeDe(projet: string, ticket: number, lignes: readonly strin
 // la phrase nomme ce que le rail en donne — son mot d'état, son titre —, et rien d'autre.
 // `etat` : absent, il n'est pas sur le rail que la box donne, et la phrase ne devine pas où il en est.
 export function demandeSurLeTicket(projet: string, ticket: number, etat?: string, titre?: string): { demande: string } | { refus: string } {
-  const ou = etat === undefined ? "il n'est pas sur le rail que la box donne" : `il est « ${etat} » sur le rail`;
+  const ou = etat === undefined ? "il n'est pas sur le rail que la station donne" : `il est « ${etat} » sur le rail`;
   const demande =
     `Le ticket #${ticket} de ${projet}${titre === undefined ? "" : ` (« ${titre} »)`} : ${ou}. ` +
-    `Lis l'issue #${ticket} et ce que \`pass ${ticket}\` en dit sur la box, puis réponds-moi court, sur un écran sans défiler : ` +
+    `Lis l'issue #${ticket} et ce que \`pass ${ticket}\` en dit sur la station, puis réponds-moi court, sur un écran sans défiler : ` +
     `1. où il en est, en deux phrases au plus, sans jargon du runtime ; ` +
     `2. ce qui pourrait le retenir, s'il y a quelque chose ; ` +
     `3. une ligne qui me dit que je peux te demander le détail. ` +
@@ -65,7 +65,7 @@ export function demandeSurLeTicket(projet: string, ticket: number, etat?: string
 // pourquoi rien n'est écrit. Ce que la box en a écrit est repris mot pour mot, ses lignes
 // mises bout à bout : un retour à la ligne y enverrait la demande.
 export function demandeDeLAlerte(projet: string, { dit, releve, pourquoi, geste, prix }: Alerte): { demande: string } | { refus: string } {
-  const ecrit = releve === undefined ? "" : ` — la box en écrit : « ${releve.split("\n").join(" ; ")} »`;
+  const ecrit = releve === undefined ? "" : ` — la station en écrit : « ${releve.split("\n").join(" ; ")} »`;
   const demande =
     `La bande d'alertes de ${projet} dit : « ${dit} »${ecrit}${pourquoi === undefined ? "" : ` (${pourquoi})`}. ` +
     `Le geste qu'elle nomme : « ${geste} » — son prix : ${prix}. ` +

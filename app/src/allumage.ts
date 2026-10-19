@@ -29,8 +29,8 @@ export const AVERTISSEMENT =
 export const ALLUMAGE = {
   geste: GESTE,
   commande: COMMANDE,
-  enCours: "this project's open issues, and those carrying `blocked-on-human`: reading from the box…",
-  parti: "the two numbers were not read: the app could not ask this project's box for them. This is not “no issue”: look at the backlog yourself before saying yes",
+  enCours: "this project's open issues, and those carrying `blocked-on-human`: reading from the station…",
+  parti: "the two numbers were not read: the app could not ask this project's station for them. This is not “no issue”: look at the backlog yourself before saying yes",
 } as const;
 
 export type Backlog = { ouvertes: number; retenues: number };
@@ -82,16 +82,16 @@ export async function compter(reglages: Reglages, servi: Servi): Promise<Compte>
   const { erreur } = rendu;
   if (erreur === null) {
     const backlog = backlogDe(rendu.sortie);
-    if ("informe" in backlog) return { projet, a, sans: `${PAS_LUS} in what the box returned: ${backlog.informe}. ${PAS_AUCUNE}`, obtenu: `${rendu.lance}\n${rendu.erreurs}${rendu.sortie}` };
+    if ("informe" in backlog) return { projet, a, sans: `${PAS_LUS} in what the station returned: ${backlog.informe}. ${PAS_AUCUNE}`, obtenu: `${rendu.lance}\n${rendu.erreurs}${rendu.sortie}` };
     return { projet, a, ...backlog, dit: dire(backlog) };
   }
   const echec = echecDe({ ...rendu, erreur }, reglages.delaiMs);
   const refusee = erreur.killed !== true && erreur.code === 2;
   const sansGitHub = erreur.killed !== true && erreur.code === 1;
   const pourquoi = refusee
-    ? "the box's runtime refused `manager backlog` (code 2) — if it is older than this app, it does not know this reading yet: update brigade on the box"
+    ? "the station's runtime refused `manager backlog` (code 2) — if it is older than this app, it does not know this reading yet: update brigade on the station"
     : sansGitHub
-      ? "the box answered, but `manager backlog` did not read GitHub (code 1) — what it says is below"
+      ? "the station answered, but `manager backlog` did not read GitHub (code 1) — what it says is below"
       : `${titreDEchec(echec, "REACHED, BUT `manager backlog` DID NOT ANSWER")} — what the app got is below`;
   return { projet, a, sans: `${PAS_LUS}: ${pourquoi}. ${PAS_AUCUNE}`, obtenu: echec.erreur };
 }

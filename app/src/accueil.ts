@@ -114,11 +114,11 @@ function cuit(faits: Faits, repare: number | undefined): string[] {
 
 export function ligneDeProjet(projet: ProjetDeLAccueil, lu: FaitsLus | undefined, status: StatusLu | undefined): LigneDeProjet {
   const { nom } = projet;
-  if (projet.desinstalle) return { nom, ton: "gris", dit: "uninstalled from its box: nothing is read", survol: "the app uninstalled it from its box — open it to remove it from the app" };
-  if (!projet.box) return { nom, ton: "gris", dit: "no box: nothing is read", survol: "its entry in the projects file does not say where its box is — open it to see what is missing" };
-  if (lu === undefined) return { nom, ton: "gris", dit: "first read in progress…", survol: "the app reads every project's box every 30 s" };
-  if ("injoignable" in lu) return { nom, ton: "rouge", dit: "box unreachable", survol: `its box did not answer at ${heure(lu.a)} — the app tries again every 30 s; open it to see why` };
-  if ("illisible" in lu) return { nom, ton: "gris", dit: "not read: its box does not answer as the app expects", survol: `tried at ${heure(lu.a)} — open it to see what its box returned` };
+  if (projet.desinstalle) return { nom, ton: "gris", dit: "uninstalled from its station: nothing is read", survol: "the app uninstalled it from its station — open it to remove it from the app" };
+  if (!projet.box) return { nom, ton: "gris", dit: "no station: nothing is read", survol: "its entry in the projects file does not say where its station is — open it to see what is missing" };
+  if (lu === undefined) return { nom, ton: "gris", dit: "first read in progress…", survol: "the app reads every project's station every 30 s" };
+  if ("injoignable" in lu) return { nom, ton: "rouge", dit: "station unreachable", survol: `its station did not answer at ${heure(lu.a)} — the app tries again every 30 s; open it to see why` };
+  if ("illisible" in lu) return { nom, ton: "gris", dit: "not read: its station does not answer as the app expects", survol: `tried at ${heure(lu.a)} — open it to see what its station returned` };
   const { faits } = lu;
   const bloquant = bloque(faits, status?.texte);
   const attendu = attend(faits, status);
@@ -233,7 +233,7 @@ export function sante(stations: VuDesStations | undefined, projets: VuDesProjets
   const etats = [["Max", deMax(stations?.stations, blocs, maintenant)], ["GitHub", deGitHub(stations, projets)]] as const;
   const dit = etats.flatMap(([nom, etat]) => ("bon" in etat ? [`${nom} ✓`] : "panne" in etat ? etat.panne : [`${nom} ?`])).join("  ·  ");
   const survol = [
-    "Max: what your online stations publish of their connection, and what your projects' boxes say of its token",
+    "Max: what your online stations publish of their connection, and what your projects' stations say of its token",
     "GitHub: your stations are read there every 30 s",
     ...etats.flatMap(([nom, etat]) => ("pas" in etat ? [`${nom} not checked: ${etat.pas}`] : [])),
   ].join("\n");

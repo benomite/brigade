@@ -38,7 +38,7 @@ export type Sources = { lignes?: readonly string[]; stations?: readonly string[]
 // Où cuit un ticket en cours : sur la box, ou sur le Mac du chef — une station distante, qui
 // tire son travail depuis son poste. C'est ce que `faits` dit de la station qui le tient
 // (`stations[].distante`), rien d'autre : une station qu'il ne donne pas n'est nulle part.
-export const SUR_LA_BOX = "box";
+export const SUR_LA_BOX = "main station";
 export const SUR_LE_MAC = "Mac";
 export const lieuDe = ({ distante }: { distante: boolean }): string => (distante ? SUR_LE_MAC : SUR_LA_BOX);
 

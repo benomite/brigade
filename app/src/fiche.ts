@@ -25,9 +25,9 @@ export type Entete = { titre: Ligne; priorite: Ligne; issue: true | Ligne; pr?: 
 // se lit dans la ligne du ticket.
 export type Source = { titre?: string; url?: string | null; pr?: string | null; rail?: { etat: string; titre: string }; lignes?: readonly string[]; prio?: number | null };
 
-const PAS_HTTPS = "the address the box returned is not https: the app does not open it";
-const SANS_TITRE: Ligne = { sans: "not given — the box returns no title for this ticket" };
-const SANS_ISSUE: Ligne = { sans: "not given — the box returns no address for this issue" };
+const PAS_HTTPS = "the address the station returned is not https: the app does not open it";
+const SANS_TITRE: Ligne = { sans: "not given — the station returns no title for this ticket" };
+const SANS_ISSUE: Ligne = { sans: "not given — the station returns no address for this issue" };
 const AUCUNE_PR: Ligne = { valeur: "none — served without a merge" };
 const AUCUNE_PRIORITE: Ligne = { valeur: "none — its issue carries no `prio:` label" };
 const PRIORITE_PAS_LUE: Ligne = { sans: "not given — `facts` does not give it, and the `rail` line of `status` was not read" };

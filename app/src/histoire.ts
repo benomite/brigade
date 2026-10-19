@@ -23,7 +23,7 @@ const texte = (valeur: unknown): valeur is string => typeof valeur === "string";
 const heure = (valeur: unknown): valeur is string => texte(valeur) && !Number.isNaN(Date.parse(valeur));
 const objet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
 
-const ILLISIBLE = "not read: the box did not return the history in the expected shape";
+const ILLISIBLE = "not read: the station did not return the history in the expected shape";
 
 function etape(brut: unknown): EtapeDite | undefined {
   if (!objet(brut) || !heure(brut.at)) return undefined;
