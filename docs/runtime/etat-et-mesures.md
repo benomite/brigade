@@ -4,7 +4,7 @@
 
 | Le mot | Ce qu'il désigne |
 |---|---|
-| **la cuisine** d'un projet | son état : `ouverte`, `retenue`, `arrêtée`, `éteinte` (plus bas, « L'état du projet »). C'est elle que `garde-fous -- stop` arrête et que `reprendre` rouvre — au journal, `kitchen.stopped` et `kitchen.resumed` |
+| **la cuisine** d'un projet | son état : `ouverte`, `retenue`, `arrêtée`, `éteinte` (plus bas, « L'état du projet »). C'est elle que `guardrails -- stop` arrête et que `resume` rouvre — au journal, `kitchen.stopped` et `kitchen.resumed` |
 | **`en cuisine`** | l'étape d'un ticket qu'un cook tient (`pris` sur le rail) : dans la liste des tickets d'une épique et dans `pass` |
 | **Tous les projets** | l'écran d'ensemble de l'app (`docs/app.md`). L'app est une fenêtre sur le Mac : la fermer n'arrête aucune cuisine, et arrêter une cuisine ne la ferme pas |
 
@@ -72,7 +72,7 @@ Dès qu'une livraison a été arrêtée faute de grant, le bloc se termine par *
 accorder** : `without a grant, N green deliveries stopped: X merged by hand, Y closed without merge — Y
 disagreements —, Z still open`. Une PR fermée sans merge est un désaccord : tu as refusé ce que
 la pass aurait mergé. La file vide, le bloc ne porte pas ce chiffre : la même ligne se lit dans
-`run pass` (en anglais, #931) et `run grant` (en français, `sans grant, …`, tant que cette commande n'est pas traduite).
+`run pass` (#931) et `run grant`, tous en anglais.
 
 **Le bloc est toujours là, et il a un bord.** Quand rien ne t'attend, il le dit au lieu de se
 taire — un silence ne se distinguerait pas d'une lecture ratée :

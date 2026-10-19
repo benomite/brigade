@@ -205,8 +205,8 @@ aurait mergé <PR> sur `<base>` au commit `<sha>`, verdict n° <n> — une fois 
 n'a pas bougé depuis ce verdict et n'est pas rouge. » —, sans rien rapatrier ni jouer. Et **le
 chiffre sur lequel accorder le grant** se lit dans `run pass`, `run grant` et — tant que la file
 n'est pas vide — le bloc `awaiting` de `status`, au journal seul : `without a grant, 3 green deliveries
-stopped: 1 merged by hand, 1 closed without merge — 1 disagreement —, 1 still open` (`run pass` et
-`status` le disent en anglais ; `run grant` le dit encore en français : `sans grant, 3 livraisons vertes arrêtées : …`). Le compte
+stopped: 1 merged by hand, 1 closed without merge — 1 disagreement —, 1 still open` (`run pass`, `run grant`
+et `status` le disent en anglais). Le compte
 suit la livraison arrêtée, par sa PR. Fermer la PR sans la merger est le désaccord — rouverte puis
 mergée, elle est mergée. Une livraison que la pass a mergée elle-même, le grant accordé depuis,
 est comptée à part (`merged by the pass`) : ce n'est pas ton geste. `review-required` et
