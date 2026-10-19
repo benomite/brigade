@@ -1139,8 +1139,35 @@ est une lecture de plus, à côté de Reliability : les deux onglets du haut res
   chiffres disent `not communicated`, et une ligne `the integration branch could not be read` porte la raison
   au survol. Une lecture ratée — une box sans journal, un runtime d'avant `closing --json` — tient en une ligne,
   `the closer could not be read`, le détail au survol.
-- **Deux places, vides pour l'instant, sont réservées sous la liste** : le lancement d'un nettoyage et l'état
-  de sa demande (`closer-lancement`, #991), puis le bilan d'une passe finie (`closer-bilan`, #992).
+- **Sous la liste, le lancement d'un nettoyage** (`closer-lancement`, #991) — voir ci-dessous. Une place reste
+  réservée, vide pour l'instant, au bilan d'une passe finie (`closer-bilan`, #992).
+
+**Lancer un nettoyage** (#991). **« Launch a cleanup… »**, le bouton recommandé — le prix au survol, d'après le
+calibrage du closer : `on your quota: sonnet / medium · 500,000 tokens at most · 500 lines removed at most`.
+**Rien ne part au clic** : l'app demande l'aperçu à la box (`closing preview --json`, qui n'écrit rien), et ouvre
+la confirmation des gestes qui coûtent — **`Launch a cleanup?`**, le prix en une ligne (`closer on sonnet /
+medium · starts under 1 cook in flight · …`), **ce que le closer va faire**, phrase par phrase, comme le runtime le
+dit, puis ce que deviendrait la demande faite maintenant (`a request would leave within the second`, ou
+`a request would wait`, la raison au survol). **« yes, launch it »** envoie la demande, une seule —
+`closing write --json --confirm` : le process principal ne la lance qu'avec le « oui » de la vue, et le runtime
+la refuse sans `--confirm` —, **« no »** referme sans rien envoyer. Une demande qui serait refusée, impossible
+ou déjà faite n'a pas de « oui » : la ligne dit pourquoi.
+
+**Où en est la demande** se lit ensuite dans la même lecture, `closing --json` (son `request`) : le geste revenu,
+l'app relit l'onglet aussitôt, et la place dit en attendant ce qui a été fait (`the cleanup is requested —
+reading where it stands…`). Puis, une ligne par état :
+
+- **en attente, et de quoi** — `Cleanup requested — waiting: start condition not met: 3 cooks in flight for a
+  threshold of 1`, la raison entière au survol —, et **« Cancel the cleanup »**, qui la retire
+  (`closing cancel --json`) : la place revient alors à « rien de demandé », le bouton de lancement seul ;
+- **en cours** — `Cleanup running — since …` : partie, elle ne s'annule plus, et ne se relance pas ;
+- **refusée, et pourquoi** — `Last cleanup refused on …: …` — puis le bouton, pour relancer ;
+- **finie** — `Last cleanup finished on …` — puis le bouton ; son bilan est pour #992.
+
+Une box qui ne répond pas, un runtime qui ne connaît pas ces gestes : une ligne (`the station could not be asked —
+not reached`), ce que l'app a obtenu au survol, et le bouton reste. Les trois gestes partent par le passage du
+projet, comme `manager backlog` (`app/src/closer-lancement.ts`) ; la place se pose dans la vue
+(`app/src/vue/closer/lancement/lancement.js`). Sans closer réglé, il n'y a ni place ni bouton.
 
 **D'où ça vient.** L'app lance `closing --json` (#988) et lit l'objet qu'il rend sur une ligne — rien n'est
 recompté, rien n'est lancé : la commande ouvre le journal en lecture seule. La vue le lit elle-même dans la

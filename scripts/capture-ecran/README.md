@@ -77,8 +77,10 @@ compare que deux captures du même navigateur.
 | `merge-accorder` | La même, l'interrupteur `merge` cliqué : la confirmation d'accorder, et son prix |
 | `cout` | L'onglet Cost de `parade` (#908) : les tokens lancés sur 5 h, 24 h et 7 j, tous projets confondus, la part de `parade` et de `cantine` sous chacun, 7 j « not communicated », la ligne du quota, et dessous la courbe par jour « not communicated » (#909) : la box ne donne pas ses jours |
 | `cout-par-jour` | Le même onglet quand la box communique ses jours (#909) — une forme que le runtime n'écrit pas encore : sous les trois chiffres, la courbe des tokens par jour, une ligne par projet, `cantine` avec un trou le 9 |
-| `closer`, `closer-trouvailles` | Settings → Closer de `parade` (#990) : les quatre chiffres de la dernière observation du closer, d'après `closing --json` — puis la même, la liste de ce qu'il a repéré dépliée |
+| `closer`, `closer-trouvailles` | Settings → Closer de `parade` (#990) : les quatre chiffres de la dernière observation du closer, d'après `closing --json`, et dessous « Launch a cleanup… » (#991) — puis la même, la liste de ce qu'il a repéré dépliée |
 | `closer-sans` | La même lecture quand aucun closer n'est réglé : le message, le modèle et l'effort à choisir, et le bouton qui règle le closer — inactif tant que les deux ne sont pas choisis |
+| `closer-lancer` | Settings → Closer de `parade`, « Launch a cleanup… » cliqué (#991) : la confirmation, d'après l'aperçu de `closing preview --json` — le prix en une ligne, ce que le closer va faire, ce que deviendrait la demande, « yes, launch it » et « no » |
+| `closer-attente`, `closer-en-cours`, `closer-refusee`, `closer-finie` | La même partie, la demande de nettoyage dans chacun de ses états (#991) : en attente — trois cooks en vol pour un seuil d'un — avec « Cancel the cleanup » ; en cours, sans bouton ; la dernière refusée, et pourquoi ; la dernière finie — chacune des deux avec le bouton qui relance |
 | `file-ou-cuit` | La file de `parade` quand la box sature : dans Taken, #14 cuit sur la box et #15 sur le Mac — « cooks on » sous « taken by » |
 
 Tous en 1440 × 900. `--liste` donne la liste à jour.

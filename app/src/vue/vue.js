@@ -97,6 +97,7 @@ import { poserPerdus } from "./cost/perdus.js";
 import { poserTete } from "./cost/tete.js";
 import { poserFiabilite } from "./fiabilite.js";
 import { lireFermeture, poserCloser } from "./closer/section.js";
+import { apresRendu, lireLancement, poserLancement, REPOS } from "./closer/lancement/lancement.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -471,6 +472,10 @@ const trouvaillesDepliees = new Set();
 // une relecture ne les lui retire pas.
 /** @type {Map<string, import("./closer/section.js").Choix>} */
 const reglagesDuCloser = new Map();
+// Le lancement d'un nettoyage en route, par projet (closer/lancement/lancement.js) : l'aperçu lu, la
+// confirmation ouverte, la demande partie et la relecture qui la montrera. Absent : rien n'est en route.
+/** @type {Map<string, import("./closer/lancement/lancement.js").Etat>} */
+const lancementsDuCloser = new Map();
 // Pourquoi le dernier bouton cliqué n'a rien fait : dit sous les onglets de pages, jusqu'au prochain geste —
 // ou, quand c'est le second qui n'a rien reçu, à droite, sous les onglets des terminaux.
 let nonEcrit = "";
@@ -3839,8 +3844,44 @@ function poserLeCloser() {
       regler: (modele, effort) => void inscrire(REGLER_LE_CLOSER, [modele, effort]),
       choix: reglagesDuCloser.get(projet.nom),
       choisir: (choix) => void reglagesDuCloser.set(projet.nom, choix),
+      lancement: poserLeLancement(projet.nom, lu),
     }),
   );
+}
+
+// La place du lancement, dans la partie closer (closer/lancement/lancement.js) : le bouton, la
+// confirmation, puis où en est la demande. Chaque geste part sur la box par le process principal
+// (closer-lancement.ts) ; le lancement, seulement au « oui » du chef. Revenu, il fait relire l'onglet :
+// la lecture suivante est la première à le montrer, et c'est elle qui ramène la place au repos.
+/** @param {string} nom @param {import("./closer/section.js").Lu | undefined} lu */
+function poserLeLancement(nom, lu) {
+  const lue = lu === undefined || "erreur" in lu ? undefined : lireLancement(lu.fermeture);
+  if (lue === undefined) return [];
+  const poser = (/** @type {import("./closer/lancement/lancement.js").Etat} */ etat) => {
+    lancementsDuCloser.set(nom, etat);
+    poserLeCloser();
+  };
+  /** @param {"apercu" | "lancer" | "annuler"} geste */
+  const agir = async (geste) => {
+    if (geste !== "apercu") poser({ etape: "envoi", geste });
+    else poser({ etape: "apercu" });
+    /** @type {import("../closer-lancement.ts").Rendu | undefined} */
+    let rendu;
+    try {
+      rendu = await (geste === "lancer" ? brigade.closer(nom, geste, true) : brigade.closer(nom, geste));
+    } catch (erreur) {
+      rendu = { refus: "nothing was sent: the app could not ask the station", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+    }
+    const suite = apresRendu(geste, rendu);
+    poser(suite);
+    if (suite.etape === "relecture" && courant?.nom === nom && ongletDemande === CLOSER) brigade.onglet(nom, CLOSER, ++demandeOnglet);
+  };
+  return poserLancement(document, lue, lancementsDuCloser.get(nom) ?? REPOS, {
+    lancer: () => void agir("apercu"),
+    confirmer: () => void agir("lancer"),
+    renoncer: () => poser(REPOS),
+    annuler: () => void agir("annuler"),
+  });
 }
 
 function poserManager() {
@@ -5221,7 +5262,11 @@ brigade.surContenu((recue, vu, desGrants, laFiabilite) => {
   poserGrants();
   fiabiliteVue = laFiabilite;
   poserLaFiabilite();
-  if (ongletDemande === CLOSER) closerLu = { projet: recue.projet, lu: lireFermeture(recue) };
+  if (ongletDemande === CLOSER) {
+    closerLu = { projet: recue.projet, lu: lireFermeture(recue) };
+    // Le geste revenu se lit désormais dans la lecture : la place revient au repos.
+    if (lancementsDuCloser.get(recue.projet)?.etape === "relecture") lancementsDuCloser.delete(recue.projet);
+  }
   poserLeCloser();
 });
 // Les clones relus : leur état remplace celui d'avant, dans Paramètres et sur la case « T ».

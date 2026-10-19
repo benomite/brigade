@@ -3211,3 +3211,116 @@ button.recommande {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/* Le lancement d'un nettoyage (#991), sous la liste de ce qui a été repéré : le bouton recommandé, son
+   prix au survol ; la confirmation, la même que celle des autres gestes, qui dit ce que le closer va
+   faire ; puis où en est la demande, en une ligne — en attente en jaune, en cours en vert, refusée en
+   rouge — et, tant qu'elle n'est pas partie, le bouton qui l'annule. */
+.closer-lancement {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  margin: 14px 0 0;
+}
+.closer-lancement:empty {
+  display: none;
+}
+.closer-lancement .action > button,
+.closer-lancement .annuler {
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+  cursor: pointer;
+}
+.closer-lancement .action > button.recommande {
+  border-color: var(--accent);
+}
+.closer-lancement .action > button:disabled {
+  color: var(--discret);
+  background: none;
+  border-color: var(--trait);
+  border-style: dashed;
+  cursor: default;
+}
+.closer-lancement .annuler {
+  color: var(--texte);
+  background: var(--bouton);
+}
+.closer-lancement .etat {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  font-size: 14px;
+  color: var(--texte);
+}
+.closer-lancement .etat.retenue {
+  padding-left: 8px;
+  border-left: 3px solid var(--jaune);
+}
+.closer-lancement .etat.cours {
+  padding-left: 8px;
+  border-left: 3px solid var(--vert);
+}
+.closer-lancement .etat.refusee {
+  padding-left: 8px;
+  border-left: 3px solid var(--rouge);
+}
+.closer-lancement .etat:is(.sans, .finie, .indisponible) {
+  color: var(--discret);
+}
+.closer-lancement .confirmation {
+  margin: 0;
+}
+.closer-lancement .confirmation .titre {
+  margin: 0;
+  font-weight: 600;
+}
+.closer-lancement .confirmation .reponses {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 0;
+}
+.closer-lancement .confirmation .reponses button {
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--texte);
+  background: var(--bouton);
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+  cursor: pointer;
+}
+.closer-lancement .confirmation .reponses button.recommande {
+  color: var(--fond);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.closer-lancement .confirmation .reponses button:disabled {
+  color: var(--discret);
+  background: none;
+  border-color: var(--trait);
+  border-style: dashed;
+  cursor: default;
+}
+.closer-lancement .confirmation .fera .quoi {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+.closer-lancement .confirmation .fera ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--texte-doux);
+}
+.closer-lancement .confirmation .maintenant {
+  margin: 0;
+  font-size: 13px;
+}
+.closer-lancement .confirmation .maintenant.ferme {
+  color: var(--rouge-clair);
+}
