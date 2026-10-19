@@ -2,7 +2,6 @@
 // Doublure de `gh api` pour le parcours « Add a project », sans réseau : la liste des dépôts du
 // compte (`/user/repos`) est le tableau JSON du fichier `depots` de `FAUX_GISTS`, servi par page ;
 // tout le reste — les gists des stations — va à la doublure des gists (../stations/faux-gh-gists.ts).
-import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -21,6 +20,6 @@ if (args[0] === "api" && chemin.startsWith("/user/repos")) {
   const tous = existsSync(join(repertoire, "depots")) ? (JSON.parse(readFileSync(join(repertoire, "depots"), "utf8")) as unknown[]) : [];
   process.stdout.write(`${JSON.stringify(tous.slice((page - 1) * parPage, page * parPage))}\n`);
 } else {
-  const rendu = spawnSync(process.execPath, [join(import.meta.dirname, "../stations/faux-gh-gists.ts"), ...args], { stdio: "inherit" });
-  process.exit(rendu.status ?? 1);
+  // Dans ce même process, avec les mêmes arguments : un second node par appel doublait le coût de chacun.
+  await import("../stations/faux-gh-gists.ts");
 }

@@ -171,7 +171,7 @@ const DEMANDE = new RegExp(
   `^-o BatchMode=yes -o ConnectTimeout=10 -- box brigade brigade pull ${MAC} (announce|claim|renew [0-9a-z-]+ (--proof [0-9a-f]{64} )?--turns [0-9]+ --tokens [0-9]+|return [0-9a-z-]+ --end (livre|echec( --reason .+)?) --turns [0-9]+ --tokens [0-9]+)$`,
 );
 
-describe("le runner du poste, contre une box de test", { concurrency: 4 }, () => {
+describe("le runner du poste, contre une box de test", { concurrency: 7 }, () => {
   test("un ticket qui demande ce que seul le poste fournit part, est cuisiné par le runner, et sa livraison passe la pass — mêmes gates, même reviewer, même chemin au journal que celle d'un cook de la box", async (t) => {
     const lieu = service(t);
     const { gh, repertoire, origine, journal, dossier, worktrees, etat, servi, gates, relectures, cooks, dernier, types } = lieu;
