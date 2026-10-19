@@ -28,8 +28,8 @@ const MAC = { id: "g2", nom: "macbook", machine: "macOS 25.0.0", etat: "en-ligne
 const ACCUEIL: Accueil = {
   projets: [],
   stations: [
-    { id: "g1", nom: "box", ton: "vert", dit: "online · idle · no project", phrase: "online · no cook running", survol: "Linux 6.1.0 · version 1.4.0" },
-    { id: "g2", nom: "macbook", ton: "vert", dit: "online · idle · no project", phrase: "online · no cook running", survol: "macOS 25.0.0 · version 1.4.0" },
+    { id: "g1", nom: "box", ton: "vert", dit: "online · idle · runs no kitchen", phrase: "online · no cook running", survol: "Linux 6.1.0 · version 1.4.0" },
+    { id: "g2", nom: "macbook", ton: "vert", dit: "online · idle · runs no kitchen", phrase: "online · no cook running", survol: "macOS 25.0.0 · version 1.4.0" },
   ],
   sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" },
 };
