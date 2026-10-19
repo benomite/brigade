@@ -1,5 +1,5 @@
 // Garde-fou (#835) : « l'app parle moins » doit tenir dans le temps. Chaque écran — l'accueil, la bande
-// d'alertes, la fiche d'une carte, Cost, Verify, Settings, le bandeau du second — est joué tel que la vue
+// d'alertes, la fiche d'une carte, la page des coûts de l'app, Verify, Settings, le bandeau du second — est joué tel que la vue
 // le pose, dans deux états : une lecture en échec, et une décision qui attend le chef. Le texte *visible
 // par défaut* (celui des éléments, sans le survol, sans un `details` replié) ne porte jamais une commande à
 // recopier, un mode d'emploi, un code de sortie, ni une phrase de prix sous un bouton ; une lecture qui
@@ -24,7 +24,7 @@ import { ligneDeProjet, tenirAccueil, type Accueil, type ProjetDeLAccueil } from
 import { tenirBandes, type Alerte } from "../src/alertes.ts";
 import type { Guide } from "../src/service.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { Faux, type Jouee, jouerLaVue, type Reponses, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
+import { Faux, type Jouee, jouerLaVue, type Reponses, ouvrirLecture, ouvrirLesCouts, repos } from "./aides/fausse-vue.ts";
 
 const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
 const A = "2026-10-16T10:00:00.000Z";
@@ -161,7 +161,7 @@ const ficheEnEchec = () =>
     lireHistoire: () => ({ sans: `not read: ${BRUT}` }) as never,
   });
 
-async function cost(): Promise<Joue> {
+async function cooks(): Promise<Joue> {
   const vue = await ouvrir();
   await ouvrirLecture(vue, "Cooks");
   const numero = (vue.dernier("onglet") as [string, string, number])[2];
@@ -180,7 +180,17 @@ async function settings(titre: "Manager" | "Grants" | "Rail"): Promise<Joue> {
   return { vue, racine: ecran(vue, ...LECTURE) };
 }
 
-// Ce que Cost et Settings posent : la lecture ouverte, l'état du projet, le manager, les grants.
+// La page des coûts de l'app (#1022), dont la box ne répond pas : ses chiffres disent ce qui n'est pas communiqué.
+async function couts(): Promise<Joue> {
+  const vue = await ouvrir({}, false);
+  const page = await ouvrirLesCouts(vue);
+  const numero = (vue.dernier("onglet") as [undefined, string, number])[2];
+  vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: BRUT, atteinte: false, cas: "ssh-en-echec" }, undefined, undefined);
+  await repos();
+  return { vue, racine: page };
+}
+
+// Ce que Settings pose : la lecture ouverte, l'état du projet, le manager, les grants.
 const LECTURE = ["lu-onglet", "gestes-onglet", "lecture-onglet", "lu", "lecture", "etat", "manager", "grants"];
 
 // Verify : la vérification d'un projet dont la box ne répond pas.
@@ -215,7 +225,8 @@ const ECRANS: Ecran[] = [
   { nom: "accueil", echec: accueil, lectures: 0 },
   { nom: "bande d'alertes", echec: alertes, lectures: 0 },
   { nom: "fiche d'une carte", echec: ficheEnEchec, lectures: 3 },
-  { nom: "Cost", echec: cost, lectures: 1 },
+  { nom: "Cost, au niveau de l'app", echec: couts, lectures: 0 },
+  { nom: "Settings · Cooks", echec: cooks, lectures: 1 },
   { nom: "Verify", echec: verify, lectures: 1 },
   { nom: "Settings · Rail", echec: () => settings("Rail"), lectures: 1 },
   { nom: "Settings · Manager", echec: () => settings("Manager"), lectures: 2 },

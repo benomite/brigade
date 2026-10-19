@@ -1,5 +1,5 @@
 // @ts-check
-// Les cinq tickets les plus chers de l'onglet Cost, sous les trois chiffres de tête (tete.js) : pour
+// Les cinq tickets les plus chers de la page des coûts (ticket 1022), sous les trois chiffres de tête (tete.js) : pour
 // chacun son numéro, son titre, ce qu'il a coûté en tokens et en essais, et un clic qui ouvre sa fiche
 // (le ticket 621). Les coûts viennent du bloc « derniers cooks » de `station`, lu sur la box de chaque projet :
 // une ligne par cook fini, « … #30  r-91c0  sonnet / medium  fini  31 tours · 412 806 tokens · 9,2 min ».
@@ -7,6 +7,8 @@
 // la somme est donc ce qu'elle en dit — un cook qui ne déclare pas ses tokens la rend « ≥ », et un
 // ticket dont aucun cook n'en déclare s'affiche « not communicated ». Son titre est celui du rail,
 // quand le rail du projet est lu ; sinon « not communicated » aussi.
+// Sur la page d'un projet, à côté de sa fiabilité (ticket 1022), le même bloc ne parle que de lui : la vue ne
+// lui passe que ce projet et sa propre lecture de `station`.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { poserAlerte, seuilsDesProjets } from "./seuils.js";

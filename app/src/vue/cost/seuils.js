@@ -1,5 +1,5 @@
 // @ts-check
-// Les seuils de coût de l'onglet Cost (le ticket 912) : celui du ticket le plus cher (`seuil-ticket`) et celui des
+// Les seuils de coût de la page des coûts (le ticket 912) — au niveau de l'app, et sur la page d'un projet (ticket 1022) : celui du ticket le plus cher (`seuil-ticket`) et celui des
 // tokens perdus (`seuil-perdus`), tels que `station` les écrit sous « décisions du chef », sur la box de
 // chaque projet : « seuil-ticket        800000 ». Un seuil que le chef n'a pas posé s'y lit « non posée — … » :
 // il n'est pas communiqué, et rien n'est inventé à sa place — le bloc dit « not communicated » au lieu d'une alerte.

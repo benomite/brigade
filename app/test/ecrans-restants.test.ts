@@ -1,4 +1,4 @@
-// Cost, Verify (la vérification d'un projet) et Settings suivent les mêmes règles que le reste de l'app :
+// Cooks, Verify (la vérification d'un projet) et Settings suivent les mêmes règles que le reste de l'app :
 // aucun mode d'emploi à plat, chaque geste un bouton, aucune commande écrite, une lecture qui manque en
 // une ligne — l'explication, la commande et le détail au survol. La vue est jouée telle qu'elle est.
 import assert from "node:assert/strict";
@@ -51,7 +51,7 @@ const survols = (ou: Faux) => ou.dessous("button").filter(({ className }) => cla
 // Le texte posé à plat : celui des éléments, sans le contenu d'un `pre` ni le nom accessible d'une aide.
 const aPlat = (ou: Faux) => ou.textContent;
 
-describe("Cost : une lecture, des gestes en boutons, rien d'expliqué à plat", () => {
+describe("Cooks, sous Settings : une lecture, des gestes en boutons, rien d'expliqué à plat", () => {
   test("la note de l'onglet n'est qu'une aide, et les gestes disent leur mot — pas leur commande", async () => {
     const vue = await ouvrir();
     await ouvrirLecture(vue, "Cooks");

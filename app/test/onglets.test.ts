@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ouvrirVeille, type Lecture } from "../src/box.ts";
-import { commandeDe, EVENEMENTS_DU_LOG, ONGLETS } from "../src/onglets.ts";
+import { COMMANDE_DES_COUTS, COUTS, commandeDe, EVENEMENTS_DU_LOG, ONGLETS, projetsLus, RUBRIQUES } from "../src/onglets.ts";
 
 describe("les onglets de contenu d'un espace", () => {
   test("ils sont sept, dans cet ordre : Rail, Cooks, Manager, Grants, Reliability, Closer, Log", () => {
@@ -24,6 +24,22 @@ describe("les onglets de contenu d'un espace", () => {
   test("la vue nomme un onglet, pas une commande : un nom qui n'est pas celui d'un onglet ne lance rien", () => {
     assert.deepEqual(ONGLETS.map(({ id }) => commandeDe(id)), ["rail", "station", "manager", "grant", "measures", "closing --json", "log --last 200"]);
     for (const autre of ["status", "start", "rail; rm -rf /", "", undefined, 3, null]) assert.equal(commandeDe(autre), undefined);
+  });
+
+  test("un onglet ne lit que la box de son projet ; la page des coûts de l'app lit chaque box qui sert encore (#1022)", () => {
+    const projets = [
+      { nom: "parade", box: { hote: "box" } },
+      { nom: "cantine", box: { hote: "box" } },
+      { nom: "local" },
+      { nom: "parti", box: { hote: "box" }, desinstalle: { titre: "uninstalled" } },
+    ];
+    for (const { id } of ONGLETS) assert.deepEqual(projetsLus(id, "parade", projets).map(({ nom }) => nom), ["parade"], id);
+    assert.deepEqual(projetsLus(COUTS, undefined, projets).map(({ nom }) => nom), ["parade", "cantine"]);
+    assert.deepEqual(projetsLus(COUTS, "parade", projets).map(({ nom }) => nom), ["parade", "cantine"]);
+    // Elle lit `station`, une commande du runtime ; elle n'est l'onglet d'aucun projet, et aucun onglet n'est Cost.
+    assert.equal(COMMANDE_DES_COUTS, commandeDe("cooks"));
+    assert.equal(commandeDe(COUTS), undefined);
+    assert.ok(!RUBRIQUES.some(({ titre, lectures }) => titre === "Cost" || lectures.includes(COUTS)));
   });
 
   test("seul l'onglet affiché est lu : un `ssh`, pour sa commande — pas un par onglet", async (t) => {

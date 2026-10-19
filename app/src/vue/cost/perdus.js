@@ -1,5 +1,5 @@
 // @ts-check
-// Les tokens perdus de l'onglet Cost, sous les trois chiffres de tête (tete.js) : ceux des essais
+// Les tokens perdus de la page des coûts (ticket 1022), sous les trois chiffres de tête (tete.js) : ceux des essais
 // rouges et des cooks interrompus, en un seul chiffre, sans phrase d'explication. Un clic sur le
 // chiffre déploie la liste derrière — un cook par ligne : son ticket, son titre, ses tokens, sa
 // cause — ; un second clic, ou le bouton de fermeture, la replie. Les cooks viennent du bloc
@@ -9,6 +9,8 @@
 // est un cook interrompu. Ses tokens sont ceux qu'il a déclarés ; un cook qui n'en déclare pas rend le
 // total « ≥ ». Une box qui ne liste pas ses cooks ne communique rien : le chiffre dit « not communicated »,
 // la liste n'est pas proposée, et rien n'est inventé.
+// Sur la page d'un projet, à côté de sa fiabilité (ticket 1022), le même bloc ne parle que de lui : la vue ne
+// lui passe que ce projet et sa propre lecture de `station`.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { FERMER_LA_LISTE, OUVRIR_LA_LISTE, poserAlerte, seuilsDesProjets } from "./seuils.js";
@@ -102,11 +104,13 @@ function cree(doc, balise, texte) {
 
 // Le bloc entier : son libellé, le chiffre — un bouton quand une liste est derrière — et, déployée,
 // la liste. `ouvert` dit si elle l'est, `bascule` la déploie ou la replie ; `titres` dit le titre
-// d'un ticket sur le rail de son projet, s'il y est.
+// d'un ticket sur le rail de son projet, s'il y est. Avec `ouvrir`, chaque ligne est un bouton qui
+// ouvre la fiche de son ticket.
 /** @param {Fabrique} doc @param {ProjetDuCout[]} projets @param {Map<string, Lecture>} lectures
  *  @param {(projet: string, ticket: number) => string | undefined} titres
- *  @param {boolean} ouvert @param {() => void} bascule */
-export function poserPerdus(doc, projets, lectures, titres, ouvert, bascule) {
+ *  @param {boolean} ouvert @param {() => void} bascule
+ *  @param {(projet: string, ticket: number, bouton: any) => void} [ouvrir] */
+export function poserPerdus(doc, projets, lectures, titres, ouvert, bascule, ouvrir) {
   const bloc = cree(doc, "div");
   bloc.className = "perdus-cout";
   const { total, minimum, partiel, lignes } = perdus(projets, lectures);
@@ -146,7 +150,16 @@ export function poserPerdus(doc, projets, lectures, titres, ouvert, bascule) {
     const pourquoi = cree(doc, "span", cause);
     pourquoi.className = "cause";
     const ligne = cree(doc, "li");
-    ligne.append(teinte, numero, intitule, cout, pourquoi);
+    if (ouvrir === undefined) ligne.append(teinte, numero, intitule, cout, pourquoi);
+    else {
+      const geste = cree(doc, "button");
+      geste.className = "ticket-perdu";
+      geste.title = `open the sheet of #${ticket} · ${projet.nom}`;
+      geste.append(teinte, numero, intitule, cout, pourquoi);
+      geste.addEventListener("click", () => ouvrir(projet.nom, ticket, geste));
+      ligne.className = "ouvrable";
+      ligne.append(geste);
+    }
     liste.append(ligne);
   }
   const fermer = cree(doc, "button", FERMER);

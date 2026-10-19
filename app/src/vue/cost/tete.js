@@ -1,12 +1,12 @@
 // @ts-check
-// La tête de l'onglet Cost : trois chiffres — les tokens que brigade a lancés sur 5 h, 24 h et
+// La tête de la page des coûts de l'app (ticket 1022) : trois chiffres — les tokens que brigade a lancés sur 5 h, 24 h et
 // 7 jours, tous projets confondus —, et sous chacun la part de chaque projet. Rien n'y est
 // expliqué : un chiffre, un libellé court, et une ligne qui renvoie le quota du compte Max à
 // `/usage`, que brigade ne connaît pas. Chaque chiffre vient du bloc `consommé` de `station`, lu sur
 // la box de chaque projet (runtime/src/montrer-station.ts) ; une fenêtre que la box ne donne pas
 // — aujourd'hui, 7 jours — s'affiche « not communicated » à la place du chiffre, comme partout dans l'app.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend
-// des éléments. Les autres blocs de l'onglet viennent à côté de lui, dans ce dossier (courbe.js).
+// des éléments. Les autres blocs de la page viennent à côté de lui, dans ce dossier (courbe.js).
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {{ sorties: { commande: string, texte: string }[] } | { erreur: string }} Lecture */
@@ -125,9 +125,9 @@ function tokensPoses(doc, tokens) {
 }
 
 // Un chiffre de tête : sa fenêtre, la somme — « ≥ » si un projet y manque —, puis une ligne par
-// projet : sa pastille, son nom, ses tokens, sa part.
-/** @param {Fabrique} doc @param {Chiffre} chiffre */
-function poserChiffre(doc, { dit, total, partiel, parts }) {
+// projet : sa pastille, son nom, ses tokens, sa part. Avec `ouvrir`, le nom est un bouton qui ouvre le projet.
+/** @param {Fabrique} doc @param {Chiffre} chiffre @param {((projet: string) => void) | undefined} ouvrir */
+function poserChiffre(doc, { dit, total, partiel, parts }, ouvrir) {
   const bloc = cree(doc, "div");
   bloc.className = "chiffre";
   const valeur = cree(doc, "p", `${partiel ? "≥ " : ""}${tokensDits(total)}`);
@@ -139,8 +139,12 @@ function poserChiffre(doc, { dit, total, partiel, parts }) {
     const teinte = cree(doc, "span");
     teinte.className = "teinte";
     if (projet.teinte !== undefined) teinte.style.setProperty("--teinte", projet.teinte);
-    const nom = cree(doc, "span", projet.nom);
+    const nom = cree(doc, ouvrir === undefined ? "span" : "button", projet.nom);
     nom.className = "projet";
+    if (ouvrir !== undefined) {
+      nom.title = `open ${projet.nom}`;
+      nom.addEventListener("click", () => ouvrir(projet.nom));
+    }
     const pourcentage = cree(doc, "span", part === undefined ? "" : `${part} %`);
     pourcentage.className = "part";
     const ligne = cree(doc, "li");
@@ -151,14 +155,15 @@ function poserChiffre(doc, { dit, total, partiel, parts }) {
   return bloc;
 }
 
-// La tête entière : son libellé, les trois chiffres côte à côte, et la ligne du quota.
-/** @param {Fabrique} doc @param {ProjetDuCout[]} projets @param {Map<string, Lecture>} lectures */
-export function poserTete(doc, projets, lectures) {
+// La tête entière : son libellé, les trois chiffres côte à côte, et la ligne du quota. `ouvrir`, s'il
+// est donné, ouvre le projet dont le nom est cliqué.
+/** @param {Fabrique} doc @param {ProjetDuCout[]} projets @param {Map<string, Lecture>} lectures @param {(projet: string) => void} [ouvrir] */
+export function poserTete(doc, projets, lectures, ouvrir) {
   const tete = cree(doc, "div");
   tete.className = "tete-cout";
   const rangee = cree(doc, "div");
   rangee.className = "chiffres";
-  rangee.append(...chiffres(projets, lectures).map((chiffre) => poserChiffre(doc, chiffre)));
+  rangee.append(...chiffres(projets, lectures).map((chiffre) => poserChiffre(doc, chiffre, ouvrir)));
   const usage = cree(doc, "span", USAGE);
   usage.className = "mono";
   const quota = cree(doc, "p", `${QUOTA}: `);

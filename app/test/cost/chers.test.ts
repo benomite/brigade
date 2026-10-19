@@ -1,4 +1,4 @@
-// Les cinq tickets les plus chers de l'onglet Cost (vue/cost/chers.js, #910) : triés du plus cher au
+// Les cinq tickets les plus chers de la page des coûts de l'app (vue/cost/chers.js, #910, #1022) : triés du plus cher au
 // moins cher, coupés à cinq, chacun avec son numéro, son titre, ses tokens et ses essais, « not
 // communicated » pour ce que la box ne dit pas, et un clic qui ouvre sa fiche. Le module est lu seul,
 // puis la vue jouée telle qu'elle est (aides/fausse-vue.ts).
@@ -18,7 +18,7 @@ import { GESTES_DU_MANAGER } from "../../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { COMBIEN, cooksDe, plusChers, poserChers } from "../../src/vue/cost/chers.js";
 import { NON_COMMUNIQUE } from "../../src/vue/cost/tete.js";
-import { Faux, type Jouee, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+import { Faux, type Jouee, jouerLaVue, ouvrirLesCouts, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const A = "2026-10-17T10:00:00.000Z";
@@ -101,10 +101,10 @@ describe("les tickets les plus chers", () => {
   });
 });
 
-describe("l'onglet Cost joué", () => {
+describe("la page des coûts de l'app jouée (#1022)", () => {
   const PROJET: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
 
-  async function ouvrirCost(): Promise<Jouee> {
+  async function ouvrirLaPage(): Promise<Jouee> {
     const vue = await jouerLaVue({
       demarrage: () => ({
         configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PROJET], hotes: ["box"] }),
@@ -120,23 +120,22 @@ describe("l'onglet Cost joué", () => {
       }),
       espace: () => [],
     });
-    (vue.element("projets").children.at(1) ?? assert.fail("pas de case parade")).click();
-    await repos();
-    (vue.element("onglets").children.find(({ textContent }) => textContent === "Cost") ?? assert.fail("pas d'onglet Cost")).click();
-    await repos();
+    await ouvrirLesCouts(vue);
     return vue;
   }
 
-  test("cliquer une ligne ouvre la fiche de son ticket, par-dessus l'onglet", async () => {
-    const vue = await ouvrirCost();
+  test("cliquer une ligne ouvre son projet, puis la fiche de son ticket, par-dessus le rail", async () => {
+    const vue = await ouvrirLaPage();
     const demande = vue.dernier("onglet")[2] as number;
     vue.dire("surContenu", { ...lu("parade", station(cook(30, "412 806"), cook(12, "9"))), demande }, undefined, undefined);
     await repos();
-    const lignes = vue.element("cout").dessous("button");
+    const lignes = vue.element("cout").dessous("button").filter(({ className }) => className.startsWith("ticket-cher"));
     assert.equal(lignes.length, 2);
     assert.equal(vue.element("fiche").hidden, true);
     lignes[0]?.click();
     await repos();
+    assert.deepEqual(vue.dernier("espace"), ["parade"]);
+    assert.equal(vue.element("espace").textContent, "parade");
     assert.equal(vue.element("fiche").hidden, false);
     assert.ok(vue.element("fiche").dessous("span").some(({ textContent }) => textContent === "#30"));
   });

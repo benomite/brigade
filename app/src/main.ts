@@ -28,7 +28,7 @@ import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterALApp, lireClone } from "./ajout.ts";
 import { COMMANDE as COMMANDE_MANAGER, GESTES_DU_MANAGER, voir as voirManager } from "./manager.ts";
 import { machineChoisie, machinesDe } from "./machines.ts";
-import { commandeDe, ONGLETS, RUBRIQUES } from "./onglets.ts";
+import { COMMANDE_DES_COUTS, COUTS, commandeDe, ONGLETS, projetsLus, RUBRIQUES } from "./onglets.ts";
 import { ouvrirTransfert, tenirPages } from "./page.ts";
 import { jouerPanne } from "./pannes/gestes.ts";
 import { gistLocal, tenirLogin } from "./pannes/login.ts";
@@ -110,6 +110,7 @@ const veille = ouvrirVeille({
 // L'onglet de contenu affiché — Rail, Cooks, Manager, Grants ou Log — a sa propre veille,
 // réglée pareil : sa commande est lue pour elle-même, et son échec se lit dans
 // l'onglet sans rien retirer à ce que `status` dit à côté. Sur un terminal, elle ne lit rien.
+// La page des coûts de l'app (#1022) est lue par elle aussi : elle prend la place d'un onglet, l'espace fermé.
 // La lecture de l'onglet Manager part avec ce qui s'y pose au-dessus du texte : l'état du
 // manager, lu dans cette sortie (manager.ts) ; celle de l'onglet Grants, avec l'état des
 // grants (grants.ts) ; celle de l'onglet Reliability, avec la fiabilité des cooks (fiabilite.ts).
@@ -841,14 +842,13 @@ ipcMain.handle("compter", (_, nom: unknown) => {
 ipcMain.on("regarder", (_, nom: unknown, demande: number) => (voir = () => regarder(projets().filter((candidat) => candidat.nom === nom), ["status"], demande, true))());
 // L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.
 // Aucun — un terminal, « Tous les projets » — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
-// Cost, lui, lit `station` sur la box de chaque projet qu'elle sert encore : ses chiffres de tête
-// sont tous projets confondus (vue/cost/tete.js). Reliability lit `station`, puis `measures` sur la
-// fenêtre que `station` dit (fiabilite.ts).
+// Reliability lit `station`, puis `measures` sur la fenêtre que `station` dit (fiabilite.ts).
+// La page des coûts de l'app (#1022), elle, n'a pas de projet : elle lit `station` sur la box de chaque
+// projet qu'elle sert encore — ses chiffres sont tous projets confondus (vue/cost/tete.js).
 ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
-  const commande = commandeDe(id);
+  const commande = id === COUTS ? COMMANDE_DES_COUTS : commandeDe(id);
   ongletLu = { id, demande };
-  const cout = RUBRIQUES.find((rubrique) => rubrique.id === "cout")?.defaut === id;
-  const lus = projets().filter((candidat) => candidat.nom === nom || (cout && candidat.desinstalle === undefined));
+  const lus = projetsLus(id, nom, projets());
   const commandes = commande === undefined ? [] : id === FIABILITE ? COMMANDES_DE_FIABILITE : [commande];
   veilleDOnglet.regarder(commande === undefined ? [] : lus, commandes, demande);
 });
