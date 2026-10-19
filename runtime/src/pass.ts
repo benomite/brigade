@@ -84,6 +84,8 @@ import {
 } from "./events/pass.ts";
 import type { FaitStation } from "./events/station.ts";
 import { direMasquage } from "./identifiants.ts";
+import { CONSIGNE_DE_RETRO } from "./apprentissage/retro.ts";
+import { enregistrerRetro } from "./apprentissage/provisoires.ts";
 import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE, FERMETURE, OUVERTURE } from "./livrable.ts";
 import { LancementRefuse, type CookLance, type GardeFous, type Verdict as VerdictGarde } from "./garde-fous.ts";
 import { REJOUER_LA_BASE } from "./dire-base.ts";
@@ -321,7 +323,7 @@ export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot
     "2. Corrige ce que la pass a trouvé, et rien d'autre. Un finding que tu tiens pour faux : ne le contourne pas, dis-le dans ton compte-rendu.",
     `3. Rejoue toi-même ce qui a échoué (les gates du dépôt), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite sur cette branche ce que tu as changé.`,
     "4. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
-    `5. Termine par ton compte-rendu, en clair : ce que tu as corrigé, ce que tu as vérifié et comment, ce qui reste. ${CONSIGNE_DU_LIVRABLE}`,
+    `5. Termine par ton compte-rendu, en clair : ce que tu as corrigé, ce que tu as vérifié et comment, ce qui reste. ${CONSIGNE_DU_LIVRABLE} ${CONSIGNE_DE_RETRO}`,
     "",
     CONSIGNE_DE_FIN_DE_TOUR,
   ].join("\n");
@@ -345,7 +347,7 @@ export function consigneDeReprise(mission: { base: string; branche: string; work
     "1. Corrige ce que la pass a trouvé, et rien d'autre. Un finding que tu tiens pour faux : ne le contourne pas, dis-le dans ton compte-rendu.",
     `2. Rejoue toi-même ce qui a échoué (les gates du dépôt), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite sur cette branche ce que tu as changé.`,
     "3. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
-    `4. Termine par ton compte-rendu, en clair : ce que tu as corrigé, ce que tu as vérifié et comment, ce qui reste. ${CONSIGNE_DU_LIVRABLE}`,
+    `4. Termine par ton compte-rendu, en clair : ce que tu as corrigé, ce que tu as vérifié et comment, ce qui reste. ${CONSIGNE_DU_LIVRABLE} ${CONSIGNE_DE_RETRO}`,
     "",
     CONSIGNE_DE_FIN_DE_TOUR,
   ].join("\n");
@@ -449,10 +451,15 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // Le ticket mergé est servi, et son issue fermée par la pass : `Closes`
   // n'agit que sur la branche par défaut du dépôt.
   // Hors du rail, il n'y a ni ticket à servir ni issue à fermer.
+  // Servi, il a sa rétro — celle du cook dont la livraison l'est —, écrite
+  // dans la même transaction : ses leçons sont lisibles dès qu'il est servi.
   const finir = async (ticket: number, horsRail = false) => {
     if (horsRail) return;
     try {
-      rail.servir(ticket);
+      base.transaction(() => {
+        rail.servir(ticket);
+        enregistrerRetro(journal, { projet, ticket, run: passDuTicket(base, ticket)?.run ?? null, auteur: AUTEUR });
+      });
     } catch (erreur) {
       // Déjà servi, ou remonté au chef (86) avant qu'il ne merge lui-même.
       if (!(erreur instanceof GesteRefuse)) throw erreur;

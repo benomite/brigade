@@ -48,6 +48,7 @@ import type { RuntimeAvecRail } from "./alimenter.ts";
 import type { Mot } from "./arbitre.ts";
 import { ArbitreInjoignable, type Arbitrage, type Reponse } from "./arbitrage.ts";
 import { complet, manquant, type Calibrage } from "./calibrage.ts";
+import { extraireRetro } from "./apprentissage/retro.ts";
 import { capturesLivrees, direCaptures, estDInterface, zoneALaPrise as zonePrise, type Captures } from "./captures.ts";
 import { absentesDuMotif, CLE_DES_CAPACITES, direManque, direStationAbsente, fournitTout, gesteDeCapacite, manque, manqueDuMotif, motifSansStation, motifStationAbsente } from "./capacites.ts";
 import { environnementClaude } from "./jeton-claude.ts";
@@ -165,6 +166,9 @@ const CLOTURE_DE_SORTIE = "```";
 const REGARDS_PAR_BAIL = 10;
 // GitHub refuse un commentaire au-delà de 65 536 caractères.
 const COMPTE_RENDU_MAX = 20_000;
+// Ce que le journal garde de la rétro d'un cook : trois leçons courtes tiennent
+// bien en deçà ; ce qui dépasse n'en est plus une.
+const RETRO_MAX = 4_000;
 // Ce que le commentaire nomme des fichiers écrits hors zone ; le journal les
 // porte tous.
 const HORS_ZONE_MAX = 20;
@@ -319,7 +323,9 @@ const replier = (titre: string, texte: string) => ["<details>", `<summary>${titr
 // son livrable — ce qu'il a délimité — en clair, et ce qui l'entoure replié,
 // là pour qui va le chercher. Un message sans délimitation est publié tel
 // quel : c'est un compte-rendu, pas un livrable.
-type Rendu = { summary: string | null; deliverable: string | null; defaut: Defaut | null; publie: string[] };
+// `retro` : sa rétro, à part du compte-rendu, pour qu'un message long ne la
+// coupe pas.
+type Rendu = { summary: string | null; deliverable: string | null; defaut: Defaut | null; retro: string | null; publie: string[] };
 function rendre(message: string | null): Rendu {
   const couper = (texte: string | null) => texte?.slice(0, COMPTE_RENDU_MAX) ?? null;
   const livrable = lireLivrable(message);
@@ -330,6 +336,7 @@ function rendre(message: string | null): Rendu {
     summary: couper(message),
     deliverable,
     defaut: livrable.defaut,
+    retro: extraireRetro(message)?.slice(0, RETRO_MAX) ?? null,
     publie: deliverable === null ? [autour ?? "_Le cook n'a laissé aucun compte-rendu._"] : [deliverable, ...(autour === null ? [] : ["", ...replier(reste, autour)])],
   };
 }
@@ -1269,7 +1276,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const rapporter = (ending: FinDeCook, reason: string | null, pr: string | null, captures: Captures | null = null) =>
       noter(station, numero, {
         type: "cook.reported",
-        payload: { run, ending, reason, summary: compteRendu, deliverable: rendu.deliverable, branch: branche, pr, ...(captures === null ? {} : { captures }), ...(ending === "done" || conserve === undefined ? {} : { kept: conserve }) },
+        payload: { run, ending, reason, summary: compteRendu, deliverable: rendu.deliverable, ...(rendu.retro === null ? {} : { retro: rendu.retro }), branch: branche, pr, ...(captures === null ? {} : { captures }), ...(ending === "done" || conserve === undefined ? {} : { kept: conserve }) },
       });
     const direConserve = (n: number) =>
       `Ce que la branche \`${branche}\` porte sur l'origine — ${pluriel(n, "commit")} en plus de \`${options.base}\` — est conservé : le cook suivant en repart, sur la box ou sur une station distante, au lieu de recommencer de zéro.`;
@@ -2033,7 +2040,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       // Le ticket a pu quitter le rail, ou le chef le rendre, pendant l'appel.
       if (!sansCompteRendu(numero) || passDuTicket(base, numero)?.run !== run) return false;
       if (!sansDiff) horsDeSaZone = signalerHorsZone(station, numero, run, branche);
-      noter(station, numero, { type: "cook.reported", payload: { run, ending: "done", reason: sansDiff ? SANS_DIFF : null, summary: compteRendu, deliverable: rendu.deliverable, branch: branche, pr, reconciled: true, ...(captures === null ? {} : { captures }) } });
+      noter(station, numero, { type: "cook.reported", payload: { run, ending: "done", reason: sansDiff ? SANS_DIFF : null, summary: compteRendu, deliverable: rendu.deliverable, ...(rendu.retro === null ? {} : { retro: rendu.retro }), branch: branche, pr, reconciled: true, ...(captures === null ? {} : { captures }) } });
       return true;
     });
     if (!raconte) return;

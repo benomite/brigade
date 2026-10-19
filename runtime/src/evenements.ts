@@ -2,6 +2,7 @@
 //
 // Un domaine (rail, garde-fous, pass…) ajoute son fichier sous evenements/ et
 // une ligne à l'union `Fait` ci-dessous — rien d'autre ici.
+import type { FaitApprentissage } from "./apprentissage/evenements.ts";
 import type { FaitCloison } from "./events/partition.ts";
 import type { FaitCorrectif } from "./correctif/evenements.ts";
 import type { FaitDecision } from "./events/decisions.ts";
@@ -25,7 +26,7 @@ import type { FaitService } from "./events/service.ts";
 import type { FaitStation } from "./events/station.ts";
 import type { FaitUrgence } from "./events/emergency.ts";
 
-export type Fait = FaitRuntime | FaitRail | FaitGardeFous | FaitStation | FaitPass | FaitPassRevolu | FaitSauvegarde | FaitManager | FaitNettoyage | FaitDerive | FaitCloison | FaitInstallateur | FaitInstallation | FaitService | FaitDistante | FaitFermeture | FaitMiseAJour | FaitDecision | FaitRenouvellement | FaitJeton | FaitUrgence | FaitCorrectif | FaitProfil;
+export type Fait = FaitRuntime | FaitRail | FaitGardeFous | FaitStation | FaitPass | FaitPassRevolu | FaitSauvegarde | FaitManager | FaitNettoyage | FaitDerive | FaitCloison | FaitInstallateur | FaitInstallation | FaitService | FaitDistante | FaitFermeture | FaitMiseAJour | FaitDecision | FaitRenouvellement | FaitJeton | FaitUrgence | FaitCorrectif | FaitProfil | FaitApprentissage;
 
 export type Enveloppe = {
   // Numéro de séquence : l'ordre de vérité du journal.

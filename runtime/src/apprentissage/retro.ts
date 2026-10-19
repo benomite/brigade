@@ -2,6 +2,8 @@
 // ce qu'elle rend (`reconfirm <id>` ou `propose <leçon>`, une entrée par ligne).
 // Le rapprochement des formulations est fait par le cook de la rétro, dans la
 // rétro : ici, l'égalité est exacte, sur l'id.
+import { blanchir } from "../livrable.ts";
+import type { Ecart, EntreeRetenue } from "./evenements.ts";
 import { LeconInconnue, proposer, reconfirmer, type Carnet, type Origine } from "./lecons.ts";
 
 export type Sortie = { genre: "reconfirm"; id: string } | { genre: "propose"; texte: string };
@@ -56,3 +58,83 @@ export function appliquerSortie(carnet: Carnet, sorties: Sortie[], origine: Orig
 }
 
 export { LeconInconnue };
+
+// La rétro du cook, à la fin de son dernier message : au plus trois leçons,
+// chacune en une ou deux phrases, pour les cooks suivants du même projet. Ce qui
+// dépasse est écarté, jamais tronqué : une leçon coupée ne dit plus ce qu'elle
+// disait.
+export const OUVERTURE_RETRO = "<retro>";
+export const FERMETURE_RETRO = "</retro>";
+export const LECONS_MAX = 3;
+export const PHRASES_MAX = 2;
+// Deux phrases tiennent en moins : au-delà, ce n'est plus une leçon courte.
+export const LECON_MAX_CARACTERES = 400;
+
+// Ce que la consigne d'un cook dit de sa rétro : la même pour un premier cook,
+// un cook qui reprend et un cook renvoyé.
+export const CONSIGNE_DE_RETRO = [
+  `Après ton livrable, hors de sa délimitation, fais ta rétro : ce que ce ticket t'a appris du projet et qui servirait au prochain cook. Écris-la entre \`${OUVERTURE_RETRO}\` et \`${FERMETURE_RETRO}\`, balises nues, une ligne par leçon :`,
+  "`propose <leçon>` pour une leçon nouvelle, ou `reconfirm <id>` si une leçon qu'on t'a donnée avec son id dit déjà la même chose.",
+  `Au plus ${LECONS_MAX} leçons, chacune en une ou deux phrases ; ce qui dépasse est écarté. Une leçon dit ce qui vaut pour les tickets suivants, pas ce que tu as fait sur celui-ci. Rien à retenir : laisse la rétro vide.`,
+  "Tes leçons servent aux cooks suivants du projet dès que le ticket est servi, sans relecture de personne.",
+].join(" ");
+
+// Le texte de la rétro d'un message : sa dernière délimitation fermée. Une
+// balise citée — entre backticks, ou dans un bloc de code — n'en est pas une.
+// Nul : rien n'est délimité, ou la délimitation est vide.
+export function extraireRetro(message: string | null): string | null {
+  if (!message) return null;
+  let ouverte: number | null = null;
+  let texte: string | null = null;
+  for (const balise of blanchir(message).matchAll(/<(\/?)retro>/gi)) {
+    if (balise[1] === "") ouverte = balise.index;
+    else if (ouverte !== null) {
+      texte = message.slice(ouverte + OUVERTURE_RETRO.length, balise.index).trim();
+      ouverte = null;
+    }
+  }
+  return texte === "" ? null : texte;
+}
+
+// Les phrases d'une leçon : ce qui finit par « . », « ! », « ? » ou « … »
+// suivi d'un blanc ou de la fin. Un point dans un mot (`v2.1`, `pass.ts`) ne
+// coupe rien.
+export const phrases = (texte: string): number => texte.split(/(?<=[.!?…])\s+/).filter((morceau) => morceau.trim() !== "").length;
+
+export type Tri = { kept: EntreeRetenue[]; dropped: { line: string; reason: Ecart }[] };
+
+// Trie la rétro d'un cook face aux leçons du projet : les lignes lisibles, dans
+// l'ordre, jusqu'à `LECONS_MAX` ; le reste est écarté, en le disant. Une ligne
+// fautive n'emporte pas les autres — c'est un cook qui l'écrit, sans relecture.
+export function trierRetro(texte: string | null, carnet: Carnet): Tri {
+  const tri: Tri = { kept: [], dropped: [] };
+  const ecarter = (line: string, reason: Ecart) => tri.dropped.push({ line, reason });
+  for (const brute of (texte ?? "").split("\n")) {
+    const line = brute.trim();
+    if (!line) continue;
+    const m = /^(?:[-*]\s+)?(reconfirm|propose)\s+(\S.*)$/.exec(line);
+    if (!m) {
+      ecarter(line, "unreadable");
+      continue;
+    }
+    const valeur = m[2]!.trim();
+    const entree: EntreeRetenue = m[1] === "propose" ? { kind: "propose", text: valeur } : { kind: "reconfirm", id: valeur };
+    if (entree.kind === "propose" && (phrases(entree.text) > PHRASES_MAX || entree.text.length > LECON_MAX_CARACTERES)) ecarter(line, "too-long");
+    else if (entree.kind === "reconfirm" && !carnet.lecons.some((l) => l.id === entree.id)) ecarter(line, "unknown-id");
+    else if (tri.kept.some((k) => (k.kind === "propose" ? entree.kind === "propose" && k.text === entree.text : entree.kind === "reconfirm" && k.id === entree.id))) ecarter(line, "duplicate");
+    else if (tri.kept.length >= LECONS_MAX) ecarter(line, "over-limit");
+    else tri.kept.push(entree);
+  }
+  return tri;
+}
+
+// Range dans le carnet ce qu'une rétro a retenu. Un id qui n'y est pas — un
+// carnet relu autrement qu'à l'écriture — est passé : tout le reste tient.
+export function appliquerRetenues(carnet: Carnet, kept: EntreeRetenue[], origine: Origine): Carnet {
+  let courant = carnet;
+  for (const entree of kept) {
+    if (entree.kind === "propose") courant = proposer(courant, entree.text, origine).carnet;
+    else if (courant.lecons.some((l) => l.id === entree.id)) courant = reconfirmer(courant, entree.id, origine);
+  }
+  return courant;
+}

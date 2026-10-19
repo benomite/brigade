@@ -6,6 +6,7 @@
 import { execFile } from "node:child_process";
 import type { Calibrage } from "./calibrage.ts";
 import type { FinDeCook } from "./events/station.ts";
+import { CONSIGNE_DE_RETRO } from "./apprentissage/retro.ts";
 import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE } from "./livrable.ts";
 
 // Ce qu'un cook ne doit pas faire lui-même : seule la pass merge, et c'est la
@@ -109,7 +110,7 @@ export function consigne(mission: { ticket: number; titre: string; depot: string
     "3. Vérifie ton travail comme le dépôt le demande (tests, gates), puis commite-le sur cette branche.",
     "4. Si le ticket porte une fiche (un commentaire « Fiche du ticket »), sa ligne `zone` nomme les fichiers et dossiers qu'il possède. N'écris ailleurs que si le ticket l'exige, et dis-le dans ton compte-rendu : tout fichier livré hors de la zone est signalé au chef. Tu ne modifies pas la fiche.",
     "5. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
-    `6. Termine par ton compte-rendu, en clair : ce que tu as fait, ce que tu as vérifié et comment, ce qui reste à faire ou ce qui t'a bloqué. ${CONSIGNE_DU_LIVRABLE}`,
+    `6. Termine par ton compte-rendu, en clair : ce que tu as fait, ce que tu as vérifié et comment, ce qui reste à faire ou ce qui t'a bloqué. ${CONSIGNE_DU_LIVRABLE} ${CONSIGNE_DE_RETRO}`,
     "",
     CONSIGNE_DE_FIN_DE_TOUR,
   ].join("\n");
@@ -131,7 +132,7 @@ export function consigneDeSuite(mission: { ticket: number; titre: string; depot:
     `3. Vérifie ton travail comme le dépôt le demande (tests, gates), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite-le sur cette branche.`,
     "4. Si le ticket porte une fiche (un commentaire « Fiche du ticket »), sa ligne `zone` nomme les fichiers et dossiers qu'il possède. N'écris ailleurs que si le ticket l'exige, et dis-le dans ton compte-rendu : tout fichier livré hors de la zone est signalé au chef. Tu ne modifies pas la fiche.",
     "5. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
-    `6. Termine par ton compte-rendu, en clair : ce que tu as repris, ce que tu as fait, ce que tu as vérifié et comment, ce qui reste à faire ou ce qui t'a bloqué. ${CONSIGNE_DU_LIVRABLE}`,
+    `6. Termine par ton compte-rendu, en clair : ce que tu as repris, ce que tu as fait, ce que tu as vérifié et comment, ce qui reste à faire ou ce qui t'a bloqué. ${CONSIGNE_DU_LIVRABLE} ${CONSIGNE_DE_RETRO}`,
     "",
     CONSIGNE_DE_FIN_DE_TOUR,
   ].join("\n");

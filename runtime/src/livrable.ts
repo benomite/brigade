@@ -31,7 +31,7 @@ export type Livrable = {
 // backticks, et un cook qui la répète (« j'ai délimité entre \`<livrable>\` et
 // \`</livrable>\` ») ne délimite rien. Ce qui est entre backticks sur une ligne,
 // ou dans un bloc de code fermé, est donc lu comme du texte.
-const blanchir = (texte: string) => texte.replace(/```[\s\S]*?```|`[^`\n]*`/g, (code) => " ".repeat(code.length));
+export const blanchir = (texte: string) => texte.replace(/```[\s\S]*?```|`[^`\n]*`/g, (code) => " ".repeat(code.length));
 
 export function lireLivrable(message: string | null): Livrable {
   const entier = message?.trim() ? message : null;

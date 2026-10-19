@@ -73,9 +73,12 @@ export type FaitStation =
   // `kept` : le cook n'a rien livré, et sa branche porte sur l'origine ce
   // nombre de commits en plus de la base — le travail conservé, d'où le cook
   // suivant repart (`travail-conserve.ts`). Absent : rien n'est conservé.
+  // `retro` : ce que le cook a délimité entre `<retro>` et `</retro>` — sa
+  // rétro, lue quand le ticket est servi (`apprentissage/provisoires.ts`). Nul
+  // ou absent : il n'en a rien écrit.
   | {
       type: "cook.reported";
-      payload: { run: string; ending: FinDeCook; reason: string | null; summary: string | null; deliverable?: string | null; branch: string; pr: string | null; reconciled?: true; captures?: Captures; kept?: number };
+      payload: { run: string; ending: FinDeCook; reason: string | null; summary: string | null; deliverable?: string | null; retro?: string | null; branch: string; pr: string | null; reconciled?: true; captures?: Captures; kept?: number };
     }
   // La livraison d'un cook, confrontée à la zone que son ticket portait quand
   // il a été pris. `files` : ce qu'elle écrit hors de cette zone, et les
