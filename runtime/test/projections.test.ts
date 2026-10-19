@@ -90,6 +90,8 @@ function raconterLaDerive(journal: Journal): void {
   const seuils = { tests: 500, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null };
   noter({ type: "cook.launched", payload: { run: "m", limits, stream: "runs/m.jsonl", station: "box/claude", model: "opus", effort: "high" } }, 40);
   noter({ type: "cook.exited", payload: { run: "m", outcome: "ok", code: 0, signal: null, turns: 31, tokens: 9000, durationMs: 216_000 } }, 40);
+  noter({ type: "cook.launched", payload: { run: "m-retro", limits, stream: "runs/m-retro.jsonl", station: "retro", model: "opus", effort: "high" } }, 40);
+  noter({ type: "cook.exited", payload: { run: "m-retro", outcome: "ok", code: 0, signal: null, turns: 2, tokens: 500, durationMs: 4000 } }, 40);
   noter({ type: "pass.replayed", payload: { sha: "sha-m", base: "base-2", gates: { outcome: "green", code: 0, failures: [], tail: "", measures: { tests: 622, gates_s: 21 } }, findings: [] } }, 40);
   noter({ type: "merge.done", payload: { pr: "https://github.com/o/r/pull/40", sha: "sha-m", by: "pass", reconciled: false } }, 40);
   noter({ type: "drift.configured", payload: { limits: seuils } });
