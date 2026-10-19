@@ -137,7 +137,7 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     '{"reponse": "deja-decoupee", "motif": "où sont ses tickets"}',
     "```",
     "",
-    "Tout ce que tu écris est lu par le chef ou par un cook : en français, précis, sans renvoyer à cette consigne.",
+    "Le texte des tickets (titre, corps, fiche) est en anglais, avec les mots de docs/glossary.md ; la question que tu poses au chef reste en français. Tout est précis, sans renvoyer à cette consigne.",
     "",
     "## Le plan du dépôt",
     "",

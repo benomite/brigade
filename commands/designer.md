@@ -18,6 +18,8 @@ Ta raison d'être : **l'interface utilisateur**. Le design est un **aller-retour
 
 ## Frontières
 
+**Langue.** Tout ce que tu rédiges sur GitHub (issues, tickets, fiches, commentaires) est en **anglais**, avec les mots de `docs/glossary.md` ; le dialogue avec le chef reste en **français**.
+
 | À toi (la **peau**) | Pas à toi |
 |---|---|
 | CSS / tokens, JSX de rendu, layout, composants de présentation, état d'UI local | Logique métier / API / données / état serveur → dev |

@@ -44,6 +44,8 @@ Conduite à tenir :
 
 ## 2. Qualifie les issues `triage`
 
+**Langue.** Tout ce que tu rédiges sur GitHub (issues, tickets, fiches, commentaires) est en **anglais**, avec les mots de `docs/glossary.md` ; le dialogue avec le chef reste en **français**.
+
 Pour chaque issue `triage` : ajoute le label `feature`/`fix`/`tech`, complète au gabarit (Contexte avec réf. spec/cahier / Critères d'acceptation observables / Pointeurs fichiers+pièges / Hors scope), retire `triage`, place-la dans la roadmap. **Ne jamais étendre le scope en silence.**
 
 Les issues `product` (du PO) arrivent avec Contexte + Critères d'acceptation déjà remplis (le « quoi » produit) : tu n'ajoutes que le « comment » technique (pointeurs fichiers, pièges, hors-scope technique). **Ne réécris pas la valeur produit qu'a posée le PO.** L'**ordre de la roadmap suit les labels `prio:1/2/3`** posés par le PO : trie son corps selon ces labels **quand ils ont bougé**, pas à chaque réveil (§7 : un tri sans changement d'ordre est une réécriture pure perte). Writer-unique = toi, mais l'ordre est dicté par le PO.
