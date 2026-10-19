@@ -499,6 +499,27 @@ J'ai ajouté `travail.txt` et vérifié qu'il se lit.
 </livrable>
 FIN
       ;;
+    # Commite son travail, délimite son livrable, puis écrit sa rétro : cinq
+    # lignes, dont une leçon de trois phrases et une de trop.
+    livre-et-retient)
+      commiter
+      assistant
+      resultat <<'FIN'
+<livrable>
+J'ai ajouté `travail.txt` et vérifié qu'il se lit.
+</livrable>
+
+Ma rétro, entre `<retro>` et `</retro>` :
+
+<retro>
+propose Lire le CLAUDE.md avant d'écrire quoi que ce soit.
+propose Les gates jouent les tests du runtime. Les lancer avant de commiter évite un renvoi.
+propose Une phrase. Puis une autre. Et une troisième de trop.
+propose Un test attend un fait, jamais une durée.
+propose Une quatrième leçon, au-delà de ce qu'une rétro peut laisser.
+</retro>
+FIN
+      ;;
     # Commite son travail, et déclare dans son livrable l'écran à regarder.
     livre-un-ecran)
       commiter
