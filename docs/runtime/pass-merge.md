@@ -22,10 +22,16 @@ npm --prefix runtime run grant -- revoke merge
   redémarrage. GitHub n'accepte le merge que si la branche est encore sur le commit jugé ; un
   merge qu'il **refuse** n'est pas retenté (`merge-refused`).
 
-- **Ce qu'aucun grant n'autorise** se lit dans `run grant`, ligne `jamais accordé` : `identifiants-max`
+- **Tout ce que `grant`, `base` et `pass` écrivent est en anglais** (mots de `docs/glossary.md`) :
+  `grant merge  ACTIVE since … (by chef)`, `latest uses`, `base never checked: …`, `nothing to
+  replay: the base is not red`. Les anciens mots (`activer`, `prolonger`, `revoquer`, `--pour`,
+  `--jusqu-a`, `--usages`, `--sans-echeance`) répondent jusqu'au 2027-01-14, en disant le nouveau ;
+  un grant, un refus ou un journal écrits avant se montrent et s'appliquent tels quels.
+
+- **Ce qu'aucun grant n'autorise** se lit dans `run grant`, ligne `never granted` : `identifiants-max`
   (lire les identifiants du compte Max) et `acces-prod` (toute action sur la production d'un projet).
-  Le demander — `activer acces-prod` — est **refusé, à toi aussi** : la commande nomme la ligne, sort
-  en 1 et écrit ta demande au journal (`grant.refused`, relue dans `derniers gestes`). La liste est
+  Le demander — `enable acces-prod` — est **refusé, à toi aussi** : la commande nomme la ligne, sort
+  en 1 et écrit ta demande au journal (`grant.refused`, relue dans `latest actions`). La liste est
   dans `runtime/src/grant.ts` et ne se change que par une livraison, qui se lit dans un diff.
 
 ⚠️ **Grant actif, du code écrit par un cook atterrit sur la branche d'intégration sans qu'aucun

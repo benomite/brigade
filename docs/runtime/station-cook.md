@@ -148,7 +148,7 @@ relève des identifiants **réécrits** après la chute (`renouvele` ou `ecrits`
 réécriture), il écrit
 `session.restored`, l'arrêt de connexion se lève, la bande d'alertes et la file ne le disent plus,
 et la sortie du runtime dit « connexion Max rétablie à HH:MM, la cuisine a repris ». Compter une
-minute. `garde-fous -- resume` reste pour les autres arrêts (« stop » du chef, disjoncteur), et
+minute. `guardrails -- resume` reste pour les autres arrêts (« stop » du chef, disjoncteur), et
 pour dater une reconnexion qu'aucun renouvellement n'a vue.
 
 Le runtime ne lit jamais les identifiants de `claude`, et **refuse de démarrer** si son
@@ -279,13 +279,13 @@ ils nomment son fichier. Elle sort quand le jeton refait porte une date neuve. S
 consommation inexpliquée. Un refus `credentials-committed` ou un masquage seuls ne sont pas une
 fuite. Dans le doute, révoque — **chez Anthropic, depuis un navigateur** connecté au compte Max :
 
-1. **Arrête de servir** : `garde-fous -- stop`.
+1. **Arrête de servir** : `guardrails -- stop`.
 2. **<https://claude.ai/settings/claude-code>** : retire **toutes** les autorisations de Claude Code.
 3. **<https://claude.ai/settings/account>** : déconnecte toutes les sessions ; change le mot de passe.
 4. **Vérifie**, sur la box : `sudo -u <compte> claude auth status` ne doit plus répondre
    `"loggedIn": true`, et `sudo -u <compte> claude -p "ok"` doit échouer en demandant `/login`. S'il
    répond encore, écris au support d'Anthropic et laisse la station suspendue.
-5. **Reconnecte** : `claude /login` sous le compte du service, puis `garde-fous -- reprendre`.
+5. **Reconnecte** : `claude /login` sous le compte du service, puis `guardrails -- resume`.
 
 `claude /logout` sur la box ne suffit pas. Si le jeton a été **poussé sur GitHub**, révoque d'abord,
 puis ferme la PR et supprime la branche.

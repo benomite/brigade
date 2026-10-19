@@ -4,7 +4,7 @@
 
 | Le mot | Ce qu'il désigne |
 |---|---|
-| **la cuisine** d'un projet | son état : `ouverte`, `retenue`, `arrêtée`, `éteinte` (plus bas, « L'état du projet »). C'est elle que `garde-fous -- stop` arrête et que `reprendre` rouvre — au journal, `kitchen.stopped` et `kitchen.resumed` |
+| **la cuisine** d'un projet | son état : `ouverte`, `retenue`, `arrêtée`, `éteinte` (plus bas, « L'état du projet »). C'est elle que `guardrails -- stop` arrête et que `resume` rouvre — au journal, `kitchen.stopped` et `kitchen.resumed` |
 | **`en cuisine`** | l'étape d'un ticket qu'un cook tient (`pris` sur le rail) : dans la liste des tickets d'une épique et dans `pass` |
 | **Tous les projets** | l'écran d'ensemble de l'app (`docs/app.md`). L'app est une fenêtre sur le Mac : la fermer n'arrête aucune cuisine, et arrêter une cuisine ne la ferme pas |
 

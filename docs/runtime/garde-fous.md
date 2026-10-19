@@ -14,7 +14,7 @@ disjoncteur ouvert et le « stop » tiennent**, redémarrage compris, jusqu'à �
 
 Le disjoncteur compte les échecs de **tous** les lancements du projet — cooks, relectures,
 jugements du manager — sur un seul compteur, **dans l'ordre des lancements** : le nombre d'échecs
-parmi les cooks lancés **après le dernier qui a réussi**, depuis ton dernier « reprendre ». La
+parmi les cooks lancés **après le dernier qui a réussi**, depuis ton dernier « resume ». La
 livraison d'une relance du manager ne vaut réussite que jugée verte. Si les trois derniers lancés
 échouent, il s'ouvre, quel que soit le nombre de réussites avant. Les plafonds restent **par cook**.
 
@@ -26,8 +26,10 @@ npm --prefix runtime run guardrails -- stop     # arrête tout
 npm --prefix runtime run guardrails -- resume   # rouvre la cuisine, referme le disjoncteur
 ```
 
-« stop » et « reprendre » s'écrivent au journal au nom du `chef` ; le runtime les voit en une
-seconde. L'état montre plafonds, cuisine, disjoncteur, cooks en cours et derniers arrêts.
+« stop » et « resume » s'écrivent au journal au nom du `chef` ; le runtime les voit en une
+seconde. L'état montre `caps per ticket`, `kitchen`, `breaker`, `cooks running` et `latest guardrail stops`.
+
+Ce que `guardrails` écrit — état, `stop`, `resume`, refus, erreurs — est **en anglais** (mots de `docs/glossary.md`) : `kitchen already stopped since …`, `nothing to resume: the kitchen is open and the breaker closed`. `reprendre` répond encore, en disant `resume` (jusqu'au 2027-01-14).
 
 **Les gestes que le runtime te cite** (la file, `status`, les refus) sont écrits
 sous la forme qui se tape là où tu les lis : sur la box, `brigade <projet> <commande> [arguments…]`,
@@ -47,7 +49,7 @@ Chaque arrêt est au journal du ticket : `npm --prefix runtime run log -- <ticke
 | `guard.tripped` | Un garde-fou l'arrête. `reason` : `turns`, `duration`, `tokens`, `idle`, `lease` ou `stop` ; `limit` et `observed` |
 | `cook.exited` | Le process est mort. `outcome` : `ok`, `failed`, `guard`, `stop`, `neutral` ou `refused` ; code de sortie, tours, tokens ; `credentialsMasked` : combien de fois la forme des identifiants de Claude a été masquée dans son flux et sa sortie d'erreur (voir « Ni publiés dans ce qu'un cook dit ») |
 | `cook.interrupted` | Le runtime s'est arrêté pendant que le cook tournait : il est mort avec lui |
-| `breaker.opened`, `kitchen.stopped`, `kitchen.resumed` | Le disjoncteur s'ouvre ; « stop », « reprendre » (hors ticket) |
+| `breaker.opened`, `kitchen.stopped`, `kitchen.resumed` | Le disjoncteur s'ouvre ; « stop », « resume » (hors ticket) |
 
 ### Ce que fait un cook en ce moment
 

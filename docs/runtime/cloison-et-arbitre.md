@@ -229,8 +229,8 @@ npm --prefix runtime run arbiter -- weight thermigo 3     # « thermigo est prio
 npm --prefix runtime run arbiter -- remove vieux-projet   # sa part n'est plus réservée
 ```
 
-Par projet : son poids, ses cooks en cours, sa **`part`**, et **`encore`** — ce qu'il pourrait
-lancer de plus à l'instant, emprunts compris ; `machine` dit `SATURÉE d'après <projets>`. **Le
+Ce que `arbiter` écrit est en anglais (`account cap`, `weight 1 · 2 running · share 5 · 3 left`, `cooks consumed`). Par projet : son poids, ses cooks en cours, sa **`part`**, et **`encore`** — ce qu'il pourrait
+lancer de plus à l'instant, emprunts compris ; `machine` dit `SATURATED according to <projets>`. **Le
 poids** est un entier, 1 par défaut, durable, sans échéance ; il ne touche à aucun plafond — ni
 celui du compte, ni celui de chaque projet (`run station -- cooks <N>`). **La consommation des
 cooks n'est pas celle du compte**, et l'arbitre ne retient rien à cause d'elle. Arbitre
