@@ -1874,6 +1874,61 @@ S'y ajoute, pour un ticket en pass ou servi, `cuisiné par` : qui l'a cuisiné n
   rail défile dans la sienne. Un projet sans `hote` n'a pas de rail — rien n'est lu de lui — et
   son terminal prend toute la hauteur.
 
+### Une correction proposée des consignes du projet (#999)
+
+Quand une même cause de ratage revient sur plusieurs tickets récents, le runtime propose de corriger
+les consignes du projet — son `CLAUDE.md`, sa doc d'équipe, ses gates (`docs/runtime/etat-et-mesures.md`,
+« Les corrections proposées »). `facts` la porte dans `corrections` ; **chaque proposition est une
+carte de la file, en tête du rail, au-dessus des colonnes**, sur le fond chaud de ce qui t'attend.
+Une carte large : le diff ne tiendrait pas dans une colonne. **Sans proposition, aucune carte**, et
+rien n'est dit à sa place.
+
+```
+A failure cause keeps coming back: accept this correction of the project's guidance?
+[correction proposed]  red gates: app tests
+failed because of it:  #3  #5  #8
+Three cooks ran the app tests against the clock; the guidance never says …
+CLAUDE.md  +3  −1
+  @@ -21,7 +21,10 @@ Conventions
+   - Type check: `npm run typecheck`.
+  -- A test may wait a few seconds for the server to start.
+  +- A test never runs against the clock: it waits for a fact — …
+this proposal cost 18,342 tokens · proposed 10/13/2026, 9:58:40 AM
+[yes, open it as a PR] ?   [no]
+```
+
+- **En tête, ce qu'on attend de toi**, en une phrase ; puis la cause (sa phrase, `titre`) et le
+  pourquoi du modèle (`motif`), quand il en a dit un.
+- **Chaque ticket que la cause a fait rater s'ouvre d'un clic** sur son issue, à l'adresse que la
+  box a donnée pour lui (`corrections[].tickets[].url`) ; sans adresse en https, son numéro est posé
+  seul.
+- **La correction est un diff, fichier par fichier** : le nom du fichier, ses lignes ajoutées
+  (`+3`, en vert) et retirées (`−1`, en rouge), puis ses lignes telles quelles, dans le monospace —
+  une ligne ajoutée en vert, une retirée en rouge, la tête d'un morceau (`@@ … @@`) en bleu, chacune
+  avec son signe : la couleur n'est pas seule à le dire. Les têtes de fichier (`diff --git`,
+  `index`, `---`, `+++`) ne sont pas répétées : le nom du fichier les dit. Une longue correction
+  défile dans sa hauteur.
+- **Ce que la proposition a coûté se lit sur la carte** (`cout.tokens`) : c'est déjà dépensé.
+- **« yes, open it as a PR »**, recommandé, et **« no »**. Le prix du « yes » est dans son survol :
+  une PR qui porte exactement ce diff passe par la pass comme une livraison — gates, relecture, CI —,
+  sur ton quota. Le geste part tout de suite : la carte entière est ce qu'il faut lire avant.
+- **Le geste part sur la box du projet**, une fois, par `ssh` (`app/src/correction.ts`) :
+  `brigade <nom> correction yes <proposition>` ou `… correction no <proposition>`, pour une
+  proposition que les derniers faits lus portent. **Écrite, la réponse fait quitter la file à la
+  carte**, et `facts` est relu tout de suite : la proposition tranchée n'y est plus. Tant que la box
+  n'a pas répondu, les deux boutons attendent (`sending your “yes”…`).
+- **Rien n'est écrit** — la box pas jointe, le runtime qui refuse (code 1, sa dernière ligne dite),
+  ou **un runtime qui ne connaît pas encore le geste** (66, ou 2 sur son usage) : la carte reste,
+  ses deux boutons aussi, et une ligne le dit (`nothing was sent: its runtime does not know this
+  gesture yet — update brigade on the station`), la commande et ce que la box a rendu au survol.
+
+**Le contrat que l'app attend du runtime** : `correction yes|no <proposition>`, où `<proposition>`
+est le `proposition` de `corrections` — le `seq` du fait `correction.proposed`. Elle sort en 0 quand
+la réponse est écrite, ou quand la proposition était déjà tranchée (`decider`,
+`runtime/src/correctif/decision.ts`, issues `tranchee` et `deja`) ; en 1 quand aucune carte ne montre
+cette proposition (`inconnue`), la raison sur sa dernière ligne. **Cette commande n'existe pas encore
+dans le runtime** : tant qu'elle manque, chaque clic dit la ligne ci-dessus, et rien ne part.
+
 ### La bannière d'arrêt
 
 Quand la box dit la cuisine `arrêtée` — ton « stop » —, l'espace du projet le dit en tête, au-dessus

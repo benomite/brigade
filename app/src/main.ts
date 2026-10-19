@@ -13,6 +13,7 @@ import { pourLaBarre } from "./barre.ts";
 import { BOUTONS, ecritPar, ecritPourLeCloser, REGLER_LE_CLOSER } from "./boutons.ts";
 import { lancerGeste, ouvrirVeille, type Servi } from "./box.ts";
 import { agirSurLeCloser } from "./closer-lancement.ts";
+import { repondreALaCorrection } from "./correction.ts";
 import { histoireDe, situationDe } from "./histoire.ts";
 import { commenter, demanderAuSecond, lireDiscussion } from "./discussion.ts";
 import { cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
@@ -887,6 +888,17 @@ ipcMain.handle("closer", (_, nom: unknown, action: unknown, oui: unknown) => {
   if (vise?.box === undefined) return undefined;
   const servi = { nom: vise.nom, box: vise.box };
   const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => agirSurLeCloser({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, action, oui));
+  passage.set(servi.nom, rendu);
+  return rendu;
+});
+// Le « yes » ou le « no » du chef sur une correction proposée (correction.ts) : lancé une fois sur la
+// box par le passage du projet, pour une proposition que ses derniers faits lus portent. La relecture
+// de `facts` qui suit le montre : tranchée, la proposition n'y est plus.
+ipcMain.handle("corriger", (_, nom: unknown, proposition: unknown, reponse: unknown) => {
+  const vise = connu(nom);
+  if (vise?.box === undefined) return undefined;
+  const servi = { nom: vise.nom, box: vise.box };
+  const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => repondreALaCorrection({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, faits.corrections(servi.nom), proposition, reponse));
   passage.set(servi.nom, rendu);
   return rendu;
 });

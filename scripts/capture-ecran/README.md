@@ -86,6 +86,8 @@ compare que deux captures du même navigateur.
 | `closer-attente`, `closer-en-cours`, `closer-refusee`, `closer-finie` | La même partie, la demande de nettoyage dans chacun de ses états (#991) : en attente — trois cooks en vol pour un seuil d'un — avec « Cancel the cleanup » ; en cours, sans bouton ; la dernière refusée, et pourquoi ; la dernière finie — chacune des deux avec le bouton qui relance |
 | `closer-derive` | La même partie, la dérive ayant franchi son seuil (#993) : la phrase qui propose un nettoyage et « Review the cleanup… », qui mène à la confirmation sans rien demander |
 | `file-ou-cuit` | La file de `parade` quand la box sature : dans Taken, #14 cuit sur la box et #15 sur le Mac — « cooks on » sous « taken by » |
+| `correction` | La file de `parade` quand une cause de ratage revient (#999) : au-dessus des colonnes, la carte d'une correction proposée de son `CLAUDE.md` — ce qu'on attend du chef, la cause, ses trois tickets, le diff, son coût, « yes, open it as a PR » et « no » |
+| `correction-oui`, `correction-sans-geste` | La même, « yes » cliqué : la réponse écrite, la carte a quitté la file — puis sur une station dont le runtime ne connaît pas encore le geste `correction` : la carte reste, et une ligne le dit, le détail au survol |
 
 Tous en 1440 × 900. `--liste` donne la liste à jour.
 

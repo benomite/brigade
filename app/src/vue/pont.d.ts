@@ -222,6 +222,11 @@ export type Pont = {
   // du chef, devant ce qu'il coûte —, ou son annulation. Rend ce que le runtime a répondu, ou pourquoi
   // rien ne l'a été. Rien, pour un projet sans box.
   closer(projet: string, action: Action, oui?: true): Promise<RenduDuCloser | undefined>;
+  // Le « yes » ou le « no » du chef sur une correction proposée des consignes du projet
+  // (correction.ts), lancé une fois sur sa box : `correction yes|no <proposition>`. La vue nomme le
+  // projet et le numéro de la proposition, que les derniers faits lus doivent porter. Rend la réponse
+  // écrite — la carte quitte la file —, ou pourquoi rien ne l'a été. Rien, pour un projet sans box.
+  corriger(projet: string, proposition: number, reponse: import("../correction.ts").Reponse): Promise<import("../correction.ts").Rendu | undefined>;
   ouvrirBilan(projet: string, url: string): Promise<boolean>;
   // Le projet dont l'espace est affiché : sa box est lue, elle seule — `status`, pour le panneau.
   // `demande` revient sur chaque lecture qui y répond.

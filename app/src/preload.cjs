@@ -72,6 +72,7 @@ const pont = {
   retirerLaStation: (id) => ipcRenderer.invoke("retirerLaStation", id),
   compter: (projet) => ipcRenderer.invoke("compter", projet),
   closer: (projet, action, oui) => ipcRenderer.invoke("closer", projet, action, oui),
+  corriger: (projet, proposition, reponse) => ipcRenderer.invoke("corriger", projet, proposition, reponse),
   ouvrirBilan: (projet, url) => ipcRenderer.invoke("ouvrirBilan", projet, url),
   regarder: (projet, demande) => ipcRenderer.send("regarder", projet, demande),
   tous: (demande) => ipcRenderer.send("tous", demande),

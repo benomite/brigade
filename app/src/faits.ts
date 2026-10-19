@@ -18,6 +18,7 @@ import { ligneAuTravail, ligneEnAttente, ligneEnWaiting, ligneLivree, ligneMiseD
 import type { StationDesFaits } from "./ordinaires.ts";
 import type { Echec, Lecture } from "./box.ts";
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues, type Moment } from "./captures.ts";
+import { carteDeCorrection, correctionsLues, estInforme, type CarteDeCorrection, type CorrectionLue } from "./correction.ts";
 import { attenduDe, decisionLue, livraisonLue, teteDe, type Decision, type Livraison as LivraisonAttendue } from "./decision.ts";
 import { entete, type Entete } from "./fiche.ts";
 import { LABEL_RETENUE } from "./question.ts";
@@ -113,6 +114,9 @@ export type Faits = {
   urgence?: Urgence | null;
   // Les stations que le projet déclare et ce qu'elles font des tickets ordinaires (ordinaires.ts) ; absent d'un runtime d'avant ce champ.
   stations?: StationDesFaits[];
+  // Les corrections proposées des consignes du projet, que le chef tranche (correction.ts) : absent
+  // quand il n'y en a aucune, et d'un runtime d'avant ce champ.
+  corrections?: CorrectionLue[];
 };
 
 // Ce que la vue dessine d'un projet, prêt à poser : elle n'y calcule rien.
@@ -155,7 +159,10 @@ export type Colonne = { nom: string; ton: string; compte: string; cartes: Carte[
 // `railLu` : celle dont viennent les lignes que les cartes portent — absente, la
 // ligne `rail` de `status` n'a pas été lue. `aucunTicket` : aucune carte, hors Livré — rien à
 // cuire, rien en cuisson, rien qui t'attende : c'est là que se dit ce qui est en amont (amont.ts).
-export type Rail = { colonnes: Colonne[]; hors: Carte[]; aucunTicket?: true; attendLu?: string; railLu?: string };
+// `corrections` : les corrections proposées des consignes du projet, chacune une carte de la file que
+// le chef tranche d'un « yes » ou d'un « no » (correction.ts), la plus ancienne d'abord — absent
+// quand il n'y en a aucune.
+export type Rail = { colonnes: Colonne[]; hors: Carte[]; aucunTicket?: true; attendLu?: string; railLu?: string; corrections?: CarteDeCorrection[] };
 // Le bloc `attend` d'un projet, tel que `status` l'a écrit, et l'heure de sa lecture.
 export type BlocLu = { bloc: string; a: string };
 // Ce que `status` a rendu pour un projet, son bloc `attend` mis à part, et l'heure de sa lecture.
@@ -304,7 +311,7 @@ function comprendreTiers(brut: unknown, lequel: string): Tiers {
 // Rien n'y est complété : un champ qui manque refuse la forme entière — sauf
 // `cooks`, `attend`, `livres`, `urgence` et l'`activite`,
 // l'`attente` et les `tiers` d'un ticket, qu'un runtime d'avant eux ne rend pas,
-// et qui manquent alors ici aussi.
+// et qui manquent alors ici aussi — et `corrections`, absent quand il n'y en a aucune.
 // Un champ de plus est laissé de côté, un mot d'état inconnu est gardé.
 export function comprendre(sortie: string): Faits | { informe: string } {
   if (sortie.trim() === "") return { informe: "the command returned nothing" };
@@ -396,9 +403,10 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...(racine.stations === undefined
         ? {}
         : { stations: (Array.isArray(racine.stations) ? racine.stations : refuser("stations", "a list")).map((station: unknown, rang) => comprendreStation(station, `stations[${rang}]`)) }),
+      ...(racine.corrections === undefined ? {} : { corrections: correctionsLues(racine.corrections) }),
     };
   } catch (erreur) {
-    if (erreur instanceof Informe) return { informe: erreur.message };
+    if (erreur instanceof Informe || estInforme(erreur)) return { informe: erreur.message };
     throw erreur;
   }
 }
@@ -783,6 +791,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
     ...(hors.length === 0 && colonnes.every(({ nom, cartes }) => nom === LIVRE || cartes.length === 0) ? { aucunTicket: true as const } : {}),
     ...(attend === undefined ? {} : { attendLu: attend.a }),
     ...(status === undefined || lignes === undefined ? {} : { railLu: status.a }),
+    ...(faits.corrections === undefined || faits.corrections.length === 0 ? {} : { corrections: faits.corrections.map(carteDeCorrection) }),
   };
 }
 
@@ -894,7 +903,8 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
       const url =
         donnes?.rail.find((candidat) => candidat.ticket === ticket)?.url ??
         donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.url ??
-        donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.url;
+        donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.url ??
+        donnes?.corrections?.flatMap(({ tickets }) => tickets).find((candidat) => candidat.ticket === ticket)?.url;
       return url != null && ouvrable(url) ? url : undefined;
     },
     // L'adresse d'une capture d'un ticket d'interface, telle que la box l'a donnée à la dernière
@@ -916,6 +926,11 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
     dernier(projet: unknown): { faits: Faits; a: string } | undefined {
       const tenu = typeof projet === "string" ? tenus.get(projet) : undefined;
       return tenu === undefined ? undefined : { faits: tenu.faits, a: tenu.lecture.a };
+    },
+    // Les corrections proposées que les derniers faits lus d'un projet portent, par leur numéro : seules
+    // celles-là se tranchent depuis l'app (correction.ts).
+    corrections(projet: unknown): number[] {
+      return (typeof projet === "string" ? tenus.get(projet)?.faits.corrections : undefined)?.map(({ proposition }) => proposition) ?? [];
     },
     // Ce que `facts` dit des stations d'un projet, à la dernière lecture — rien, s'il n'est pas lu.
     stations(projet: unknown): StationDesFaits[] | undefined {
