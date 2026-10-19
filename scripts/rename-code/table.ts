@@ -179,4 +179,10 @@ export const FIXUPS: { file: string; from: string; to: string; why: string; coun
     to: '["bac-a-sable/configuration.ts", "identifiants.ts", "partition.ts"]',
     why: "a sorted list of files: `cloison.ts` → `partition.ts` moves in the order",
   },
+  {
+    file: "runtime/test/echeance-de-session.test.ts",
+    from: "cloison\\.identifiants\\)",
+    to: "partition\\.identifiants\\)",
+    why: "the test reads `eprouver.ts`'s source, whose parameter `cloison` is now `partition`",
+  },
 ];
