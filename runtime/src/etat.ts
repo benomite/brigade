@@ -833,7 +833,7 @@ function faitsDUrgence(urgence: Urgence | null, alerte: AlerteEnCours | null, ad
   return { ...decision(premiere), depuis: urgence.depuis, retenus: urgence.retenus, autres: autres.map(decision), alerte: exposee };
 }
 
-const DEPOT_GITHUB = /^[\w.-]+\/[\w.-]+$/;
+export const DEPOT_GITHUB = /^[\w.-]+\/[\w.-]+$/;
 
 // `maintenant` : l'heure à laquelle `etat` a été lu. `depot` : `<owner>/<repo>`,
 // le dépôt GitHub que la box sert — de quoi donner l'adresse d'une issue qui
