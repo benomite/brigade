@@ -9,7 +9,7 @@
     "node": ">=26"
   },
   "scripts": {
-    "test": "NODE_COMPILE_CACHE=\"${NODE_COMPILE_CACHE:-${TMPDIR:-/tmp}/brigade-runtime-compile-cache}\" node --test --test-force-exit --test-timeout=120000 \"test/**/*.test.ts\"",
+    "test": "NODE_COMPILE_CACHE=\"${NODE_COMPILE_CACHE:-${TMPDIR:-/tmp}/brigade-runtime-compile-cache}\" node --test --test-concurrency=3 --test-force-exit --test-timeout=120000 \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "prestart": "node src/lancement.ts",
     "start": "electron .",

@@ -179,7 +179,7 @@ lancer() {
   if node -e 'process.exit(require(process.argv[1]).scripts?.typecheck ? 0 : 1)' "$PWD/$ZONE/package.json" 2>/dev/null; then
     if [ -x "$ZONE/node_modules/.bin/tsc" ]; then
       TYPES[I]="$(mktemp)"
-      npm --prefix "$ZONE" run typecheck >"${TYPES[I]}" 2>&1 &
+      npm --prefix "$ZONE" run typecheck >"${TYPES[I]}" 2>&1 9<&- &
       PID_TYPES[I]=$!
     else
       TYPES[I]="injouable"
@@ -204,7 +204,7 @@ lancer() {
   # second, qui lui survivrait en tenant un cœur. Hors du groupe du
   # terminal, lire le clavier la suspendrait : elle n'a pas d'entrée.
   set -m
-  env -u BRIGADE_STATE_DIR -u BRIGADE_PORT npm --prefix "$ZONE" test </dev/null >"${JOURNAL[I]}" 2>&1 &
+  env -u BRIGADE_STATE_DIR -u BRIGADE_PORT npm --prefix "$ZONE" test </dev/null >"${JOURNAL[I]}" 2>&1 9<&- &
   PID=$!
   set +m
   PID_TESTS[I]=$PID
@@ -223,7 +223,7 @@ lancer() {
       wait "$dort"
     done
     sleep "$DELAI" & dort=$!
-    wait "$dort" && : >"$TIREE" && kill -KILL -- "-$PID" ) >/dev/null 2>&1 &
+    wait "$dort" && : >"$TIREE" && kill -KILL -- "-$PID" ) >/dev/null 2>&1 9<&- &
   PID_GARDE[I]=$!
 }
 
@@ -319,12 +319,40 @@ abandonner() {
   exit 130
 }
 trap abandonner INT TERM
+
+# La place des gates : sur une machine, un seul passage à la fois joue ses
+# suites. Trois passages de front se partageraient le processeur jusqu'à ce que
+# chacun passe sa garde d'horloge ; l'un après l'autre, chacun joue ses suites
+# dans le temps d'un passage seul, et les autres attendent leur tour sans que
+# leur garde ne coure. Un verrou du noyau (`flock`) sur un fichier commun à tous
+# les worktrees de la machine : il tombe avec le process qui le tient, même tué.
+# Ce que les suites lancent ne le reçoit pas. `BRIGADE_GATES_PLACE` nomme ce
+# fichier ; vide, aucune place n'est prise — c'est ce que reçoivent les suites,
+# dont les tests jouent ces gates sur des projets d'essai : prendre la place que
+# leurs propres gates tiennent, ils l'attendraient sans fin.
+PLACE="${BRIGADE_GATES_PLACE-/tmp/brigade-gates.place}"
+if [ -z "$PLACE" ]; then
+  :
+elif ! command -v flock >/dev/null 2>&1; then
+  ok "place des gates : flock introuvable, les suites partent sans attendre les autres gates de la machine"
+elif ! { : >>"$PLACE" && exec 9<"$PLACE"; } 2>/dev/null; then
+  ok "place des gates : $PLACE ne s'ouvre pas, les suites partent sans attendre les autres gates de la machine"
+elif ! flock -n 9; then
+  DEBUT_ATTENTE=$SECONDS
+  echo "ok    place des gates : d'autres gates de cette machine jouent leurs suites — celles-ci attendent leur tour"
+  flock 9
+  ok "place des gates : $((SECONDS - DEBUT_ATTENTE)) s d'attente"
+fi
+export BRIGADE_GATES_PLACE=
+
 SUITE_ROUGE=0
 lancer 0 runtime du-runtime
 lancer 1 app de-l-app
 conclure 0 runtime "du runtime" "runtime absent"
 conclure 1 app "de l'app" "app absente"
 trap - INT TERM
+# La place se rend dès les suites conclues : le reste ne prend qu'un instant.
+exec 9<&-
 # Une suite rouge n'a pas de relevé : la somme des autres passerait pour le
 # total, et le relevé montrerait une chute au lieu d'une absence.
 if [ "$SUITE_ROUGE" -eq 1 ]; then NB_TESTS=""; MS_TESTS=""; fi

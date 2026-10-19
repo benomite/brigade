@@ -55,6 +55,10 @@ export function lancementsDuFauxClaude(temoin: string): LancementDuFauxClaude[] 
 export const ENV_ENFANT: Record<string, string> = {
   PATH: process.env.PATH ?? "",
   ...(process.env.NODE_COMPILE_CACHE ? { NODE_COMPILE_CACHE: process.env.NODE_COMPILE_CACHE } : {}),
+  // Les gates qu'un test joue ne prennent pas la place des gates de la machine :
+  // celles qui jouent cette suite la tiennent, et un passage de la machine qui
+  // la tient ne doit pas faire attendre un test.
+  BRIGADE_GATES_PLACE: "",
 };
 
 // La fin d'un test : ce qui doit être arrêté l'est avant que les répertoires

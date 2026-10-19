@@ -29,7 +29,8 @@ function projet(t: TestContext, app?: { manifeste: object; installe: boolean }, 
 // Les lignes des gates — leur sortie standard, puis leur sortie d'erreur — qui répondent au motif.
 function lignes(racine: string, motif: RegExp): Promise<string[]> {
   return new Promise((resoudre) => {
-    execFile("bash", [GATES, racine], (_, sortie, erreurs) => resoudre(`${sortie}\n${erreurs}`.split("\n").filter((ligne) => motif.test(ligne))));
+    // Sans prendre la place des gates de la machine : celles qui jouent cette suite la tiennent.
+    execFile("bash", [GATES, racine], { env: { ...process.env, BRIGADE_GATES_PLACE: "" } }, (_, sortie, erreurs) => resoudre(`${sortie}\n${erreurs}`.split("\n").filter((ligne) => motif.test(ligne))));
   });
 }
 const lignesDeLApp = (racine: string) => lignes(racine, /^(ok {4}|FAIL {2}).*\bapp\b/);

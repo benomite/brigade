@@ -8,18 +8,13 @@
 // demande moins de dix minutes, parcours compris ; la station en met moins
 // d'une — sa cadence est de trente secondes.
 //
-// Ce fichier dure une minute, et rien ne la raccourcit sans toucher la
+// Ce fichier dure deux minutes, et rien ne les raccourcit sans toucher la
 // station : elle n'écrit pas son gist plus d'une fois par minute
-// (`ECART_MINIMAL_MS`, appairage/presence.ts), et la recette lit deux de ses
-// écritures — la liste vide, puis le projet ajouté. Le retrait ne se lit pas
-// dans une troisième, qui coûterait une minute de plus à chaque passage des
-// gates : il se lit dans ce que la station sert, que sa présence publie à son
-// écriture suivante (`presence.test.ts`, « un changement d'état est écrit au
-// regard suivant », et « deux demandes d'écriture […] ne font pas deux
-// écritures dans la même minute »). C'est pour cela qu'il vit dans
-// `0-en-premier/` : `node --test` prend les fichiers dans l'ordre de leurs
-// chemins, et celui-ci, lancé le premier, court pendant le reste de la suite
-// au lieu de la prolonger d'une minute.
+// (`ECART_MINIMAL_MS`, appairage/presence.ts), et la recette lit trois de ses
+// écritures — la liste vide, le projet ajouté, le projet retiré. C'est pour
+// cela qu'il vit dans `0-en-premier/` : `node --test` prend les fichiers dans
+// l'ordre de leurs chemins, et celui-ci, lancé le premier, court pendant le
+// reste de la suite au lieu de la prolonger de deux minutes.
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -146,14 +141,13 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
   }
   await jusqua(() => (JSON.parse(fichier(FICHIER_SUIVI) ?? '{"projets":[]}') as { projets: Array<{ etat: string }> }).projets[0]?.etat === "servi", DIX_MINUTES);
 
-  // Retiré depuis l'app : sa ligne quitte la configuration, la station ne le sert plus — et ce
-  // qu'elle sert est ce que sa présence publie. Le temps est mesuré plus haut : un signal la
-  // fait relire sans attendre sa cadence.
+  // Retiré depuis l'app : sa ligne quitte la configuration, la station ne le sert plus. Le temps
+  // est mesuré plus haut : un signal la fait relire sans attendre sa cadence.
   demande([]);
   station.process.kill("SIGHUP");
-  await jusqua(tenue(() => !readFileSync(join(racine, "projets"), "utf8").includes("parade")), DIX_MINUTES);
+  await jusqua(tenue(() => projetsPublies()?.includes("parade") === false), DIX_MINUTES);
+  assert.doesNotMatch(readFileSync(join(racine, "projets"), "utf8"), /parade/);
   await station.attendre("parade retiré depuis l'app");
-  await station.attendre("brigade [parade] : retiré de la configuration : la station ne le sert plus");
 
   station.process.kill("SIGTERM");
   assert.equal(await station.fin, 0);
