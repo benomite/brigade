@@ -466,10 +466,10 @@ test("un seuil de coût franchi est dans le bloc dérive de status, et ne change
   assert.deepEqual(arrets, []);
 });
 
-test("la rétro d'un ticket est dans son total de tokens, une seule fois, et se lit à part", (t) => {
+test("le total d'un ticket est son coût sans rétro plus le coût de sa rétro, sans rien compter deux fois", (t) => {
   const { base, noter, cuire, juger, merger } = cuisine(t);
   // Le cook coûte 1000 tokens, rétro comprise (elle est dans son dernier message) ;
-  // le rapport du cook dit que la rétro en a coûté 150.
+  // le rapport du cook dit que la rétro en a coûté 150 : le ticket seul, 850.
   cuire(17, { tours: 10, ms: 60_000 });
   noter({ type: "cook.reported", payload: { run: "run-1", ending: "done", reason: null, summary: "fini", deliverable: "fini", retro: "propose une leçon.", retroTokens: 150, branch: "cook/17", pr: null } }, 17);
   juger(17, undefined);
@@ -483,10 +483,12 @@ test("la rétro d'un ticket est dans son total de tokens, une seule fois, et se 
   assert.equal(livraisons[0]?.retroTokens, 150);
   assert.equal(livraisons[1]?.retroTokens, undefined);
   assert.deepEqual([...(tranche?.tokens ?? [])], [["sonnet/low", { mediane: 1000, tickets: 2, plusCher: { ticket: 17, tokens: 1000 } }]]);
-  assert.deepEqual(tranche?.retros, [{ ticket: 17, tokens: 150 }]);
+  assert.deepEqual(tranche?.retros, [{ ticket: 17, total: 1000, sansRetro: 850, retro: 150 }]);
+  const cout = tranche?.retros[0];
+  assert.equal(cout?.total, (cout?.sansRetro ?? NaN) + (cout?.retro ?? NaN));
   const lignes = decrireReleve({ projet: "brigade", livraisons, seuils: null });
   assert.ok(lignes.some((ligne) => ligne.startsWith("retro ")));
-  assert.ok(lignes.some((ligne) => /^1-2\s+#17\s+150$/.test(ligne)));
+  assert.ok(lignes.some((ligne) => /^1-2\s+#17\s+1,000\s+850\s+150$/.test(ligne)));
 });
 
 test("sans rétro, le relevé ne dit rien d'elle", (t) => {
