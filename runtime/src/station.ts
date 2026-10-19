@@ -325,10 +325,15 @@ const replier = (titre: string, texte: string) => ["<details>", `<summary>${titr
 // quel : c'est un compte-rendu, pas un livrable.
 // `retro` : sa rétro, à part du compte-rendu, pour qu'un message long ne la
 // coupe pas.
-type Rendu = { summary: string | null; deliverable: string | null; defaut: Defaut | null; retro: string | null; publie: string[] };
-function rendre(message: string | null): Rendu {
+// `retroTokens` : ce que la rétro a coûté, comprise dans les tokens du cook et
+// qu'aucun lancement à part ne sépare — estimée à sa part de caractères dans le
+// message, sur les `jetons` que ce message a produits. Nul sans rétro ou sans
+// jetons connus.
+type Rendu = { summary: string | null; deliverable: string | null; defaut: Defaut | null; retro: string | null; retroTokens: number | null; publie: string[] };
+function rendre(message: string | null, jetons: number | null = null): Rendu {
   const couper = (texte: string | null) => texte?.slice(0, COMPTE_RENDU_MAX) ?? null;
   const livrable = lireLivrable(message);
+  const retro = extraireRetro(message);
   const deliverable = couper(livrable.texte);
   const autour = couper(livrable.autour);
   const reste = `Le reste du message du cook${livrable.delimitations > 1 ? ` — il a délimité ${livrable.delimitations} fois, la dernière délimitation est retenue` : ""}`;
@@ -336,7 +341,8 @@ function rendre(message: string | null): Rendu {
     summary: couper(message),
     deliverable,
     defaut: livrable.defaut,
-    retro: extraireRetro(message)?.slice(0, RETRO_MAX) ?? null,
+    retro: retro?.slice(0, RETRO_MAX) ?? null,
+    retroTokens: retro === null || jetons === null || !message ? null : Math.round((jetons * retro.length) / message.length),
     publie: deliverable === null ? [autour ?? "_Le cook n'a laissé aucun compte-rendu._"] : [deliverable, ...(autour === null ? [] : ["", ...replier(reste, autour)])],
   };
 }
@@ -1268,7 +1274,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // Le cook d'une station distante n'a rien laissé ici : ni worktree, ni
     // branche que la station d'ici aurait poussée ou retenue.
     const distante = estDistante(station);
-    const rendu = rendre(conclusion?.lecture.message ?? null);
+    const rendu = rendre(conclusion?.lecture.message ?? null, conclusion?.lecture.jetonsDuMessage ?? null);
     const compteRendu = rendu.summary;
     // Ce que sa branche porte sur l'origine, s'il n'a rien livré : le cook
     // suivant en repart (`travail-conserve.ts`).
@@ -1276,7 +1282,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const rapporter = (ending: FinDeCook, reason: string | null, pr: string | null, captures: Captures | null = null) =>
       noter(station, numero, {
         type: "cook.reported",
-        payload: { run, ending, reason, summary: compteRendu, deliverable: rendu.deliverable, ...(rendu.retro === null ? {} : { retro: rendu.retro }), branch: branche, pr, ...(captures === null ? {} : { captures }), ...(ending === "done" || conserve === undefined ? {} : { kept: conserve }) },
+        payload: { run, ending, reason, summary: compteRendu, deliverable: rendu.deliverable, ...(rendu.retro === null ? {} : { retro: rendu.retro }), ...(rendu.retroTokens === null ? {} : { retroTokens: rendu.retroTokens }), branch: branche, pr, ...(captures === null ? {} : { captures }), ...(ending === "done" || conserve === undefined ? {} : { kept: conserve }) },
       });
     const direConserve = (n: number) =>
       `Ce que la branche \`${branche}\` porte sur l'origine — ${pluriel(n, "commit")} en plus de \`${options.base}\` — est conservé : le cook suivant en repart, sur la box ou sur une station distante, au lieu de recommencer de zéro.`;
@@ -2040,7 +2046,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       // Le ticket a pu quitter le rail, ou le chef le rendre, pendant l'appel.
       if (!sansCompteRendu(numero) || passDuTicket(base, numero)?.run !== run) return false;
       if (!sansDiff) horsDeSaZone = signalerHorsZone(station, numero, run, branche);
-      noter(station, numero, { type: "cook.reported", payload: { run, ending: "done", reason: sansDiff ? SANS_DIFF : null, summary: compteRendu, deliverable: rendu.deliverable, ...(rendu.retro === null ? {} : { retro: rendu.retro }), branch: branche, pr, reconciled: true, ...(captures === null ? {} : { captures }) } });
+      noter(station, numero, { type: "cook.reported", payload: { run, ending: "done", reason: sansDiff ? SANS_DIFF : null, summary: compteRendu, deliverable: rendu.deliverable, ...(rendu.retro === null ? {} : { retro: rendu.retro }), ...(rendu.retroTokens === null ? {} : { retroTokens: rendu.retroTokens }), branch: branche, pr, reconciled: true, ...(captures === null ? {} : { captures }) } });
       return true;
     });
     if (!raconte) return;

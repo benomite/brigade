@@ -107,6 +107,15 @@ resultat() {
   IFS= read -r -d '' texte || true
   printf '{"type":"result","subtype":"success","is_error":false,"num_turns":%d,"result":%s}\n' "$tours" "$(json "${texte%$'\n'}")"
 }
+# Comme `resultat`, mais le texte est aussi celui d'un message de l'assistant, qui
+# a produit 200 tokens : de quoi lire ce que coûte une part du dernier message.
+resultat_parle() {
+  local texte=""
+  IFS= read -r -d '' texte || true
+  tours=$((tours + 1))
+  printf '{"type":"assistant","message":{"id":"msg_%d","role":"assistant","usage":{"input_tokens":3,"output_tokens":200},"content":[{"type":"text","text":%s}]}}\n' "$tours" "$(json "${texte%$'\n'}")"
+  printf '{"type":"result","subtype":"success","is_error":false,"num_turns":%d,"result":%s}\n' "$tours" "$(json "${texte%$'\n'}")"
+}
 resultat_vide() { resultat </dev/null; }
 
 # Ce que fait un cook qui travaille : un commit dans son répertoire.
@@ -504,7 +513,7 @@ FIN
     livre-et-retient)
       commiter
       assistant
-      resultat <<'FIN'
+      resultat_parle <<'FIN'
 <livrable>
 J'ai ajouté `travail.txt` et vérifié qu'il se lit.
 </livrable>

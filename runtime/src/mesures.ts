@@ -65,13 +65,28 @@ function toursDuTicket({ cooks }: Delivery): { calibrage: string; tours: number 
 }
 
 // Ce qu'un ticket a consommé de tokens : la somme de ses lancements, sous le
-// calibrage du dernier. Un lancement dont les tokens ne sont pas connus ne
-// compte pas.
+// calibrage du dernier. Sa rétro s'écrit dans le dernier message d'un cook : ses
+// tokens sont déjà dans ceux du lancement, on ne les ajoute pas. Un lancement dont les tokens ne
+// sont pas connus ne compte pas.
 function tokensDuTicket({ ticket, cooks }: Delivery): { ticket: number | null; calibrage: string; tokens: number } | null {
   const calibrage = cooks.at(-1)?.calibration ?? null;
   const comptes = cooks.flatMap((cook) => (cook.tokens === null ? [] : [cook.tokens]));
   return calibrage === null || comptes.length === 0 ? null : { ticket, calibrage, tokens: comptes.reduce((somme, tokens) => somme + tokens, 0) };
 }
+
+// Le total d'un ticket qui a eu une rétro, et ses deux parts : `ticket` ce qu'il
+// a coûté sans elle, `retro` ce qu'elle a coûté — total = ticket + retro. La
+// rétro s'écrit dans le dernier message d'un cook : le journal n'en compte
+// qu'un total, et la rétro y est déjà ; c'est le ticket sans elle qu'on en
+// retranche, pour ne rien compter deux fois.
+export type CoutAvecRetro = { ticket: number | null; total: number; sansRetro: number; retro: number };
+const retroDuTicket = (livraison: Delivery): CoutAvecRetro | null => {
+  const total = tokensDuTicket(livraison)?.tokens;
+  const { retroTokens } = livraison;
+  if (total === undefined || retroTokens === undefined) return null;
+  const retro = Math.min(retroTokens, total);
+  return { ticket: livraison.ticket, total, sansRetro: total - retro, retro };
+};
 
 // Ce qu'un ticket a été payé, lancement par lancement. `utiles` : les tokens
 // de ses lancements qui ont livré — le prix de la livraison. `perdus` : ceux
@@ -139,6 +154,9 @@ export type Tranche = {
   // Ceux de ses tickets lancés plus d'une fois, ou dont un lancement n'a rien
   // livré, dans l'ordre de leur merge.
   paiements: Paiement[];
+  // Les tickets de la tranche qui ont eu une rétro : leur total, ce qu'ils ont
+  // coûté sans elle, et ce qu'elle a coûté.
+  retros: CoutAvecRetro[];
 };
 
 export function trancher(livraisons: Delivery[], par = PAR_DEFAUT): Tranche[] {
@@ -163,6 +181,7 @@ export function trancher(livraisons: Delivery[], par = PAR_DEFAUT): Tranche[] {
         }),
       ),
       paiements: siennes.filter(({ cooks }) => payePlusieursFoisOuAPerte(cooks)).map(paiementDuTicket),
+      retros: siennes.flatMap((livraison) => retroDuTicket(livraison) ?? []),
     });
   }
   return tranches;
@@ -378,6 +397,16 @@ export function decrireReleve({ projet, livraisons, seuils }: Releve, par = PAR_
           ]),
         ])),
     "",
+    ...(tranches.some((tranche) => tranche.retros.length > 0)
+      ? [
+          ligne("retro", "tokens of a ticket = the ticket without its retro + the retro (estimated: its share of the final message, which the cook's tokens already hold)"),
+          ...tableau([
+            ["merges", "ticket", "tokens", "without retro", "retro"],
+            ...tranches.flatMap((tranche) => tranche.retros.map(({ ticket, total, sansRetro, retro }) => [rang(tranche), ticket === null ? "no ticket" : `#${ticket}`, direEn(total, 0), direEn(sansRetro, 0), direEn(retro, 0)])),
+          ]),
+          "",
+        ]
+      : []),
     ligne(
       "launches",
       payes.length === 0

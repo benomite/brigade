@@ -76,9 +76,13 @@ export type FaitStation =
   // `retro` : ce que le cook a délimité entre `<retro>` et `</retro>` — sa
   // rétro, lue quand le ticket est servi (`apprentissage/provisoires.ts`). Nul
   // ou absent : il n'en a rien écrit.
+  // `retroTokens` : ce que sa rétro a coûté, déjà compris dans les tokens du
+  // cook — estimée à la part de caractères qu'elle tient dans son dernier
+  // message, sur les tokens que ce message a produits. Absent : pas de rétro,
+  // ou un flux qui ne dit pas les tokens du message.
   | {
       type: "cook.reported";
-      payload: { run: string; ending: FinDeCook; reason: string | null; summary: string | null; deliverable?: string | null; retro?: string | null; branch: string; pr: string | null; reconciled?: true; captures?: Captures; kept?: number };
+      payload: { run: string; ending: FinDeCook; reason: string | null; summary: string | null; deliverable?: string | null; retro?: string | null; retroTokens?: number; branch: string; pr: string | null; reconciled?: true; captures?: Captures; kept?: number };
     }
   // La livraison d'un cook, confrontée à la zone que son ticket portait quand
   // il a été pris. `files` : ce qu'elle écrit hors de cette zone, et les

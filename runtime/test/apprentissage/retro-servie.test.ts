@@ -172,6 +172,11 @@ describe("le ticket servi par la pass", () => {
         ["provisoire", 17, "brigade"],
       ],
     );
+    // Le coût de la rétro se lit au rapport du cook : sa part du dernier message
+    // (200 tokens produits), déjà comprise dans les tokens du cook.
+    const rapport = journal.duTicket(17).findLast((e) => e.type === "cook.reported")?.payload as { summary: string; retro: string; retroTokens: number };
+    assert.equal(rapport.retroTokens, Math.round((200 * extraireRetro(rapport.summary)!.length) / rapport.summary.length));
+    assert.ok(rapport.retroTokens > 0 && rapport.retroTokens < 200);
     // La rétro n'est pas le livrable : le corps de la PR, qui le porte, n'en dit rien.
     assert.equal(gh.prs.length, 1);
     assert.match(gh.prs[0]?.corps ?? "", /J'ai ajouté `travail.txt`/);
