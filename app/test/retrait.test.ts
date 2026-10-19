@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { direDesinstallation, lireRetrait, type Plan } from "../../runtime/src/desinstallateur.ts";
 import { ouvrirVeille } from "../src/box.ts";
-import { boxes, type Projet } from "../src/config.ts";
+import type { Projet } from "../src/config.ts";
 import { argumentsDuRetrait, DESINSTALLER, gesteDeRetrait, lancerRetrait, PLANIFIER, RETIRER, tenirRetraits, type Demande, type Montre, type Rendu, type Retrait } from "../src/retrait.ts";
 import { suivreConfiguration } from "../src/suivi.ts";
 
@@ -84,7 +84,6 @@ function essai(t: TestContext, corps: string = BOX, contenu?: (racine: string) =
   const retraits = tenirRetraits({
     chemin,
     retirer: suivi.retirer,
-    boxes: () => boxes(suivi.configuration()),
     lancer: (servi, demande) => {
       demandes.push(demande);
       return lancerRetrait({ ssh, delaiMs: demande.plan ? delais.plan : delais.execution, connexionS: 10 }, servi, demande);
@@ -193,15 +192,6 @@ describe("retirer de l'app", () => {
     assert.equal(readFileSync(chemin, "utf8"), '{ "projets": [');
     assert.deepEqual(suivi.configuration().projets.map(({ nom }) => nom), ["calculus", "parade"]);
     assert.deepEqual(appels(), []);
-  });
-
-  test("une box que seul ce projet nommait n'est plus proposée à l'ajout : l'avis le dit", (t) => {
-    const { retraits, calculus } = essai(t, BOX, (racine) => ({ projets: [{ nom: "calculus", dossier: join(racine, "calculus"), hote: "box" }] }));
-
-    const rendu = retraits.retirerDeLApp(calculus);
-
-    assert.ok("avis" in rendu);
-    assert.match(rendu.avis.lignes.join("\n"), /Box “box” was named only by this project: it is no longer offered when adding/);
   });
 });
 
@@ -572,7 +562,6 @@ describe("ce qui est tenu d'une désinstallation", () => {
     const retraits = tenirRetraits({
       chemin: "/chef/app.json",
       retirer: () => undefined,
-      boxes: () => ["box"],
       lancer: (_, demande) => new Promise((rendre) => void demandes.push({ demande, rendre })),
       surDesinstalle: (nom) => void desinstalles.push(nom),
     });

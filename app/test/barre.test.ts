@@ -45,16 +45,11 @@ describe("la barre d'icônes", () => {
         { nom: "brigade", dossier: "/projets/brigade", box: { hote: "box" }, monogramme: "BR" },
         { nom: "brigade-site", dossier: "/absent", refus: "dossier introuvable : /absent", monogramme: "BS" },
       ],
-      boxes: ["box"],
     });
-    assert.deepEqual(pourLaBarre({ chemin: "/chef/app.json", projets: [], refus: "ce fichier n'existe pas" }), { chemin: "/chef/app.json", projets: [], refus: "ce fichier n'existe pas", boxes: [] });
+    assert.deepEqual(pourLaBarre({ chemin: "/chef/app.json", projets: [], refus: "ce fichier n'existe pas" }), { chemin: "/chef/app.json", projets: [], refus: "ce fichier n'existe pas" });
   });
 
-  test("les box que l'écran d'ajout propose passent avec : les deux que le fichier déclare, dans son ordre", () => {
-    assert.deepEqual(pourLaBarre({ chemin: "/chef/app.json", projets: [], hotes: ["box", "chef@autre-box"] }).boxes, ["box", "chef@autre-box"]);
-  });
-
-  test("un projet que l'app montre sans sa box garde son monogramme — et la box que lui seul nommait reste proposée à l'ajout", () => {
+  test("un projet que l'app montre sans sa station garde son monogramme", () => {
     const desinstalle = { hote: "box", a: "2026-10-12T10:04:12.000Z", titre: "DÉSINSTALLÉ DE LA BOX « box » — plus pilotable depuis l'app", lignes: [] };
     const configuration = { chemin: "/chef/app.json", projets: [{ nom: "brigade", dossier: "/projets/brigade", box: { hote: "box" } }, { nom: "parade", dossier: "/projets/parade" }] };
 
@@ -64,6 +59,5 @@ describe("la barre d'icônes", () => {
       { nom: "brigade", dossier: "/projets/brigade", desinstalle, monogramme: "BR" },
       { nom: "parade", dossier: "/projets/parade", monogramme: "PA" },
     ]);
-    assert.deepEqual(affichee.boxes, ["box"]);
   });
 });

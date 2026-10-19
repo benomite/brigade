@@ -7,7 +7,6 @@ import type { Montree } from "../attend.ts";
 import type { Affichee } from "../barre.ts";
 import type { Bouton } from "../boutons.ts";
 import type { Lecture } from "../box.ts";
-import type { Declare } from "../config.ts";
 import type { PALETTE, Role } from "../couleurs.ts";
 import type { GESTES_DE_LA_CUISINE } from "../cuisine.ts";
 import type { BANNIERE, Dessinable } from "../faits.ts";
@@ -16,19 +15,18 @@ import type { Confirmation } from "../confirmation.ts";
 import type { CONFIRMES, DIRECTS, GRANTS } from "../gestes.ts";
 import type { GESTES_D_ATTENTE, Saisie as SaisieDAttente } from "../attente.ts";
 import type { GESTES_DES_GRANTS, Vu as VuDesGrants } from "../grants.ts";
-import type { EFFORTS, Issue, MODELES, Saisie } from "../installation.ts";
+import type { Issue, Lu, Saisie } from "../ajout.ts";
 import type { GESTES_DU_MANAGER, Vu } from "../manager.ts";
 import type { Onglet, Rubrique } from "../onglets.ts";
 import type { Bloc } from "../ordinaires.ts";
 import type { Pages } from "../page.ts";
 import type { RenduDePanne } from "../pannes/gestes.ts";
 import type { Lue as QuestionLue, Rendue as ReponseRendue } from "../question.ts";
-import type { PropositionCalibrage, Racine } from "../proposition.ts";
 import type { Vu as VuDuCode } from "../retard.ts";
 import type { Avis, Retrait } from "../retrait.ts";
 import type { Guide } from "../service.ts";
 import type { DepotDuChef } from "../projets/github.ts";
-import type { Ajout, Retrait as RetraitDUneStation, VuDesProjets } from "../projets/projets.ts";
+import type { Ajout, EFFORTS, MODELES, Retrait as RetraitDUneStation, VuDesProjets } from "../projets/projets.ts";
 import type { Appairage, RetraitDeStation, VuDesStations } from "../stations/stations.ts";
 import type { Terminal } from "../terminaux.ts";
 
@@ -36,20 +34,11 @@ export type Pont = {
   demarrage(): Promise<{ configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations; projetsDesStations?: VuDesProjets; accueil?: Accueil }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
-  // Le dépôt GitHub du dossier choisi, lu dans son origine — ou pourquoi il reste à écrire.
-  lireDepot(dossier: string): Promise<{ depot: string } | { raison: string } | undefined>;
-  // Déclare une box, par son nom. Rend la raison, si elle ne l'a pas été. Déclarée, elle arrive par `surConfiguration`.
-  declarerBox(hote: string): Promise<string | undefined>;
-  // L'ajout : le projet est installé sur sa box, puis déclaré dans l'app — ou ce qui l'a
-  // empêché, champ par champ ou d'un bloc. Ajouté, il arrive par `surConfiguration`.
-  installer(saisie: Saisie): Promise<Issue>;
-  // Un projet que la box sert déjà, déclaré dans l'app tel qu'il y est : rien ne part vers elle.
-  // Rend la raison, s'il ne l'a pas été.
-  ajouter(projet: Declare): Promise<string | undefined>;
-  // Le calibrage que l'écran propose, et d'où il vient (proposition.ts).
-  proposerCalibrage(): Promise<PropositionCalibrage>;
-  // La racine des sauvegardes lue sur la box — rien, pour un nom qui n'est pas une box déclarée.
-  proposerRacine(hote: string): Promise<Racine | undefined>;
+  // Le dépôt GitHub et la branche d'intégration du dossier choisi, lus dans son clone — ou pourquoi ils restent à écrire.
+  lireClone(dossier: string): Promise<Lu | undefined>;
+  // L'ajout : le projet est écrit dans le fichier des projets, avec son dépôt et sa branche — ou ce
+  // qui l'a empêché, champ par champ ou d'un bloc. Rien ne part vers aucune machine. Ajouté, il arrive par `surConfiguration`.
+  ajouter(saisie: Saisie): Promise<Issue>;
   // Change la couleur d'onglet ou d'accent d'un projet, par le nom d'une couleur de la palette
   // (couleurs.ts). Rend la raison, si elle ne l'a pas été. Écrite, elle arrive par `surConfiguration`.
   colorer(projet: string, role: Role, couleur: string): Promise<string | undefined>;
@@ -60,8 +49,6 @@ export type Pont = {
   // Range un projet à la place `rang` de la barre, comptée depuis zéro parmi les projets : les autres
   // se décalent. Rend la raison, s'il ne l'a pas été. Rangé, le nouvel ordre arrive par `surConfiguration`.
   ranger(projet: string, rang: number): Promise<string | undefined>;
-  // Pourquoi la box refuserait ce nom — rien, si elle l'accepte ou s'il est vide.
-  formeDuNom(nom: string): Promise<string | undefined>;
   // L'installation guidée d'un projet (service.ts), relue sur sa box : ses étapes, leur état, la
   // courante et ce qu'elle demande — rien, pour un projet sans box ou qui a quitté le fichier.
   // Ouverte ou en cours, la vérification d'ouverture part une fois. Ce qui change ensuite arrive par `surGuide`.
@@ -197,6 +184,10 @@ export type Pont = {
   // Le parcours validé : la demande s'écrit dans le gist de chaque station choisie, et rend le nom
   // du projet — ou chaque champ qui manque, avec sa raison, ou le refus de GitHub. Rien n'est écrit alors.
   ajouterAUneStation(saisie: { depot: string; base: string; stations: string[]; principale: string; cooks: string; manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string }; ouvertLe: string }): Promise<Ajout>;
+  // Confie la cuisine d'un projet de l'app à une première station, ou à une de plus (#983) : la
+  // demande s'écrit dans le gist de chaque station choisie, et rend le nom du projet — ou chaque champ
+  // qui manque, ou le refus de GitHub. Rien n'est écrit alors.
+  confierAUneStation(saisie: { nom: string; depot: string; base: string; stations: string[]; principale: string; cooks: string; manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string }; ouvertLe: string }): Promise<Ajout>;
   // Retire le projet de la demande de chacune de ses stations : elles le retirent de leur configuration.
   retirerDUneStation(nom: string): Promise<RetraitDUneStation>;
   // Ouvre dans le navigateur une page où autoriser brigade sur GitHub — une de celles qu'une station a publiées.

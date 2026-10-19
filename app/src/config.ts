@@ -31,20 +31,21 @@ export type Desinstalle = { hote: string; a: string; titre: string; lignes: stri
 // `distante`, et qui viennent y tirer leur travail (runner.ts). Absente, il n'en joue aucune.
 // `couleurs` : celles de son onglet et de son accent, telles que le fichier les écrit — une qui
 // manque y est tirée, puis écrite (`colorerProjets`).
-export type Projet = { nom: string; dossier: string; refus?: string; box?: Box; desinstalle?: Desinstalle; calibrage?: CalibrageDuProjet; stations?: string[]; couleurs?: Couleurs; ordinaires?: boolean; limiteCooks?: number };
+// `depot`, `base` : son dépôt GitHub et sa branche d'intégration, posés à son ajout depuis l'app
+// (ajout.ts) — c'est d'eux que se confie sa cuisine à une station. Absents d'un projet écrit à la main.
+export type Projet = { nom: string; dossier: string; depot?: string; base?: string; refus?: string; box?: Box; desinstalle?: Desinstalle; calibrage?: CalibrageDuProjet; stations?: string[]; couleurs?: Couleurs; ordinaires?: boolean; limiteCooks?: number };
 // `refus` : le fichier entier n'a pas pu être lu — aucun projet, et la raison.
 // `nonRelu` : il a changé depuis, et sa relecture a été refusée — les projets
 // sont ceux d'avant, et la raison est celle du fichier tel qu'il est.
 // `hotes` : les box que le fichier déclare, dans son ordre — absente, il n'en déclare aucune.
 export type Configuration = { chemin: string; projets: Projet[]; hotes?: string[]; refus?: string; nonRelu?: string };
 // Un projet tel qu'il s'écrit dans le fichier.
-export type Declare = { nom: string; dossier: string; hote?: string; calibrage?: CalibrageDuProjet };
+export type Declare = { nom: string; dossier: string; depot?: string; base?: string; hote?: string; calibrage?: CalibrageDuProjet };
 
 // Rien ici ne se recopie tel quel : chaque valeur dit ce qui la remplace.
 export const EXEMPLE = JSON.stringify(
   {
-    hotes: ["<the name your ssh uses to reach your box — one line per box>"],
-    projets: [{ nom: "<the project's name on your box>", dossier: "<its folder on this workstation, absolute or starting with ~/>", hote: "<optional: the name your ssh uses to reach your box>" }],
+    projets: [{ nom: "<the project's name — that of its GitHub repository>", dossier: "<its folder on this workstation, absolute or starting with ~/>", depot: "<its GitHub repository, <owner>/<name>>", base: "<its integration branch>" }],
   },
   null,
   2,
@@ -109,7 +110,10 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
     if (typeof couleurs === "string") return refuse(`${lequel}: ${couleurs}`);
     const ordinaires = ordinairesLus(declare as { ordinaires?: unknown; limiteCooks?: unknown });
     if (typeof ordinaires === "string") return refuse(`${lequel}: ${ordinaires}`);
-    projets.push({ nom, dossier: absolu, ...ordinaires, ...(calibrage === undefined ? {} : { calibrage }), ...(refus === undefined ? {} : { refus }), ...(hote === undefined ? {} : { box: { hote } }), ...(stations === undefined ? {} : { stations }), ...(couleurs === undefined ? {} : { couleurs }) });
+    const { depot, base } = declare as { depot?: unknown; base?: unknown };
+    if (depot !== undefined && (typeof depot !== "string" || depot.trim() === "")) return refuse(`${lequel}: “depot” must be a non-empty string — its GitHub repository, \`<owner>/<name>\``);
+    if (base !== undefined && (typeof base !== "string" || base.trim() === "")) return refuse(`${lequel}: “base” must be a non-empty string — its integration branch`);
+    projets.push({ nom, dossier: absolu, ...(depot === undefined ? {} : { depot }), ...(base === undefined ? {} : { base }), ...ordinaires, ...(calibrage === undefined ? {} : { calibrage }), ...(refus === undefined ? {} : { refus }), ...(hote === undefined ? {} : { box: { hote } }), ...(stations === undefined ? {} : { stations }), ...(couleurs === undefined ? {} : { couleurs }) });
   }
   return { chemin, projets, ...(declares === undefined ? {} : { hotes }) };
 }
@@ -142,13 +146,6 @@ function stationsLues(lu: unknown, servi: boolean): string[] | string | undefine
   }
   if (stations.length > 0 && !servi) return "“stations” without “hote”: a station pulls its work from the project's box — it needs the name your ssh uses to reach it";
   return stations.length === 0 ? undefined : stations;
-}
-
-// Les box que l'écran d'ajout propose : celles que le fichier déclare, dans son
-// ordre, puis celles qu'il ne nomme que par un projet — un fichier d'avant la
-// liste n'a rien à y récrire.
-export function boxes(configuration: Configuration): string[] {
-  return [...new Set([...(configuration.hotes ?? []), ...configuration.projets.flatMap(({ box }) => (box === undefined ? [] : [box.hote]))])];
 }
 
 // Le fichier qui manque est créé — une liste vide, et son dossier avec. Un
@@ -210,19 +207,12 @@ function avecProjet(chemin: string, projet: Declare, maison: string): { neuf: st
   const ouvert = ouvrir(chemin, maison);
   if ("refus" in ouvert) return ouvert;
   const hote = projet.hote?.trim();
-  ouvert.contenu.projets.push({ nom: projet.nom.trim(), dossier: projet.dossier, ...(hote ? { hote } : {}), ...(projet.calibrage === undefined ? {} : { calibrage: projet.calibrage }) });
+  ouvert.contenu.projets.push({ nom: projet.nom.trim(), dossier: projet.dossier, ...(projet.depot ? { depot: projet.depot } : {}), ...(projet.base ? { base: projet.base } : {}), ...(hote ? { hote } : {}), ...(projet.calibrage === undefined ? {} : { calibrage: projet.calibrage }) });
   const neuf = ecrit(ouvert.contenu);
   const comprise = comprendre(chemin, neuf, maison);
   // Un projet qui ne s'ouvrirait pas n'est pas ajouté : le chef est là pour en choisir un autre.
   const refus = comprise.refus ?? comprise.projets.at(-1)?.refus;
   return refus === undefined ? { neuf } : { refus };
-}
-
-// Pourquoi ce projet ne serait pas ajouté — sans rien y écrire : ce qui se sait
-// d'ici se sait avant d'installer quoi que ce soit sur une box.
-export function refusDAjout(chemin: string, projet: Declare, maison = homedir()): string | undefined {
-  const avec = avecProjet(chemin, projet, maison);
-  return "refus" in avec ? avec.refus : undefined;
 }
 
 // Ajoute un projet à la suite des autres, et rend la raison s'il ne l'a pas été.
@@ -305,20 +295,6 @@ export function changerOrdinaires(chemin: string, nom: string, actif: unknown, l
   declare.ordinaires = actif;
   if (limite === null) delete declare.limiteCooks;
   else declare.limiteCooks = limite as number;
-  return reecrire(chemin, ecrit(ouvert.contenu));
-}
-
-// Déclare une box : son nom, à la suite des autres dans « hotes ». Rend la raison
-// si elle ne l'a pas été. Rien n'est joint : c'est un nom, que `ssh` lira.
-export function ajouterHote(chemin: string, hote: string, maison = homedir()): string | undefined {
-  const nom = hote.trim();
-  if (nom === "") return "the box name is missing: what you type after `ssh`";
-  if (/\s/.test(nom)) return `“${nom}” contains a space: a box is named with a single word, the one you type after \`ssh\``;
-  if (nom.startsWith("-")) return `“${nom}” starts with a dash: \`ssh\` would read it as an option`;
-  const ouvert = ouvrir(chemin, maison);
-  if ("refus" in ouvert) return ouvert.refus;
-  if (ouvert.lue.hotes?.includes(nom)) return `the box “${nom}” is already declared`;
-  ouvert.contenu.hotes = [...(ouvert.contenu.hotes ?? []), nom];
   return reecrire(chemin, ecrit(ouvert.contenu));
 }
 

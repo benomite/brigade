@@ -20,7 +20,7 @@ import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { gestesDeCarte, PRIX } from "../src/gestes-fiche.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { heureHM } from "../src/format.ts";
-import { EFFORTS, MODELES } from "../src/installation.ts";
+import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Lue } from "../src/question.ts";

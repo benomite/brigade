@@ -1,11 +1,10 @@
 // La barre d'icônes : chaque projet y est un monogramme, tiré de son nom et de
-// lui seul — rien n'y est lu de sa box. Deux projets peuvent porter le même :
+// lui seul — rien n'y est lu de sa station. Deux projets peuvent porter le même :
 // c'est le nom, dit en entier au survol et en tête de l'espace, qui les sépare.
-import { boxes, type Configuration, type Projet } from "./config.ts";
+import type { Configuration, Projet } from "./config.ts";
 import { majuscules } from "./format.ts";
 
-// `boxes` : celles que l'écran d'ajout propose (config.ts).
-export type Affichee = Omit<Configuration, "projets"> & { projets: (Projet & { monogramme: string })[]; boxes: string[] };
+export type Affichee = Omit<Configuration, "projets"> & { projets: (Projet & { monogramme: string })[] };
 
 // L'initiale des deux premiers mots du nom ; d'un seul mot, ses deux premières lettres.
 export function monogramme(nom: string): string {
@@ -15,9 +14,9 @@ export function monogramme(nom: string): string {
   return majuscules(pris.join(""));
 }
 
-// Ce que la vue reçoit du fichier des projets : le même, un monogramme par projet, et ses box.
-// `vu` : chaque projet tel que l'app le montre — sans sa box, pour celui qu'elle vient d'en
-// désinstaller (retrait.ts). Les box proposées, elles, restent celles du fichier.
+// Ce que la vue reçoit du fichier des projets : le même, et un monogramme par projet.
+// `vu` : chaque projet tel que l'app le montre — sans sa station, pour celui qu'elle vient d'en
+// désinstaller (retrait.ts).
 export function pourLaBarre(configuration: Configuration, vu: (projet: Projet) => Projet = (projet) => projet): Affichee {
-  return { ...configuration, projets: configuration.projets.map((projet) => ({ ...vu(projet), monogramme: monogramme(projet.nom) })), boxes: boxes(configuration) };
+  return { ...configuration, projets: configuration.projets.map((projet) => ({ ...vu(projet), monogramme: monogramme(projet.nom) })) };
 }

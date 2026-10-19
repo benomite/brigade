@@ -20,7 +20,7 @@ import { BANNIERE, type Dessinable } from "../src/faits.ts";
 import { entete } from "../src/fiche.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS, type Vu as VuDesGrants } from "../src/grants.ts";
-import { EFFORTS, MODELES } from "../src/installation.ts";
+import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { GESTES_DU_MANAGER, type Vu as VuDuManager } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Pages } from "../src/page.ts";
@@ -238,7 +238,6 @@ const demarrage = () => ({
 const REPONSES: Reponses & Required<Pick<Reponses, "demarrage">> = {
   demarrage,
   espace: () => [SECOND],
-  proposerCalibrage: () => ({ calibrage: { manager: { modele: "opus", effort: "high" }, reviewer: { modele: "sonnet", effort: "medium" } }, origine: "la valeur mesurée" }),
 };
 
 // Les `pre` posés sous un élément : ce que la box a rendu, et — à part — ce que l'app en dit.
@@ -307,19 +306,6 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
     assert.equal(vue.element("lecture").dessous("pre").length, 0);
     assert.equal(vue.element("lecture").dessous("p").find((pose) => pose.className === "indisponible")?.textContent, "the box could not be reached?");
     assert.ok(vue.element("lecture").dessous("button").some((pose) => pose.ariaLabel.startsWith(erreur)));
-  });
-
-  test("dans l'écran d'ajout : ce que la box a rendu à l'installation, mot pour mot", async () => {
-    const vue = await jouerLaVue({ ...REPONSES, installer: () => ({ etat: "pas-ajoute", titre: "PAS AJOUTÉ — la box a refusé", lignes: ["La box n'a rien écrit."], obtenu: RELAYE }) });
-    entree(vue, -1).click();
-    await repos();
-    assert.equal(vue.element("ajout").hidden, false);
-
-    await Promise.all(vue.element("formulaire").declencher("submit"));
-    await repos();
-
-    assert.equal(vue.dernier("installer").length, 1);
-    assert.deepEqual(textes(relayes(vue.element("issue-ajout"))), [RELAYE]);
   });
 
   test("aucune règle de la peau ne coupe, ne cache ni ne récrit un `pre` : ses blancs et ses lignes sont gardés", () => {

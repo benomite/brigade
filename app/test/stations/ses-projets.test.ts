@@ -16,10 +16,9 @@ import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
 import { BANNIERE } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
-import { EFFORTS, MODELES } from "../../src/installation.ts";
+import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { GESTES_DU_MANAGER } from "../../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
-import { proposerCalibrage } from "../../src/proposition.ts";
 import type { VuDesProjets } from "../../src/projets/projets.ts";
 import type { StationVue } from "../../src/stations/stations.ts";
 import { type Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
@@ -82,7 +81,6 @@ async function laPage(nom: string, projets: VuDesProjets | undefined = PARADE) {
   const jouee = await jouerLaVue({
     demarrage: demarrage(projets),
     depotsDuChef: () => ({ depots: [{ depot: "benomite/parade", base: "main" }] }),
-    proposerCalibrage: () => proposerCalibrage([]),
     retirerDUneStation: (projet) => ({ retire: projet }),
     espace: () => [],
   });

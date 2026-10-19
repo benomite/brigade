@@ -23,7 +23,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { Projet } from "./config.ts";
-import { depotDe } from "./installation.ts";
+import { depotDe } from "./ajout.ts";
 import { CONTROLE, type Terminal } from "./terminaux.ts";
 
 // `delaiMs` : passé ce délai, une commande de `git` est arrêtée — l'origine se joint par le

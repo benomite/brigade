@@ -23,8 +23,23 @@
 import { execFile, type ExecFileException } from "node:child_process";
 import { cite, type Reglages, type Servi } from "./box.ts";
 import type { Projet } from "./config.ts";
-import { GESTE, objetDuGeste } from "./installation.ts";
 import { nombre } from "./format.ts";
+
+// Le geste, par le chemin que sa règle sudoers nomme : `sudo` n'a pas à le chercher.
+export const GESTE = "/usr/local/bin/brigade-installer";
+
+// L'objet du geste : la dernière ligne de sa sortie standard qui en est un.
+export function objetDuGeste(sortie: string): Record<string, unknown> | undefined {
+  for (const ligne of sortie.split("\n").reverse()) {
+    try {
+      const lu: unknown = JSON.parse(ligne);
+      if (lu !== null && typeof lu === "object" && typeof (lu as { ok?: unknown }).ok === "boolean") return lu as Record<string, unknown>;
+    } catch {
+      // Pas un objet : ce que la station a écrit d'autre reste dans ce qui a été obtenu.
+    }
+  }
+  return undefined;
+}
 
 // Les deux gestes, par le libellé qui les sépare — et celui du plan, qui ne retire rien.
 export const RETIRER = "Remove from the app";
@@ -275,8 +290,6 @@ export function tenirRetraits(options: {
   chemin: string;
   // Retire le projet de ce fichier, et rien d'autre. Rend la raison, s'il ne l'a pas été.
   retirer(nom: string): string | undefined;
-  // Les box que l'écran d'ajout propose, telles que le fichier les donne maintenant.
-  boxes(): readonly string[];
   // Lance le geste de désinstallation sur la box du projet : son plan, ou l'exécution.
   lancer(servi: Servi, demande: Demande): Promise<Rendu>;
   // La box vient de dire le projet désinstallé — ou ce que l'app en disait a changé : il se
@@ -437,7 +450,6 @@ export function tenirRetraits(options: {
                     `Uninstalling it from the box is another action: declare it in the app again — the “+”, which will find it already installed and offer to declare it as it is — then “${DESINSTALLER}”. Or on the box, by hand (${DOC}, « Désinstaller »).`,
                   ]
                 : [`It had been uninstalled from box “${box.hote}”: only what it said it keeps remains there.`]),
-              ...(options.boxes().includes(box.hote) ? [] : [`Box “${box.hote}” was named only by this project: it is no longer offered when adding — it can be declared there again, in a word.`]),
             ];
       return { avis: { titre: `“${nom}” is removed from the app.`, lignes } };
     },
