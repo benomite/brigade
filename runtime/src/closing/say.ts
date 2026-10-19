@@ -52,13 +52,13 @@ export function direRefus({ reason, observed, limit, detail }: Refus): string {
 // sortie de sa commande, dans l'observation : depuis quand, et ce qui la
 // retient à la lecture. `retenue` nulle : plus rien, elle part au prochain
 // réveil du runtime.
-export function direDemande({ depuis, sansIssue }: Demande, retenue: Refus | null): string {
-  const demandee = `passe de fermeture demandée le ${depuis}`;
+export function direDemande({ since, sansIssue }: Demande, retenue: Refus | null): string {
+  const demandee = `passe de fermeture demandée le ${since}`;
   if (retenue === null) return `${demandee} : sa condition d'exécution est remplie, le runtime la fait partir à son prochain réveil, dans la seconde`;
   if (!faitAttendre(retenue)) return `${demandee} : ${direRefus(retenue)} — le runtime la refuse à son prochain réveil, rien ne part`;
   const renoncer = `y renoncer : \`${ANNULER}\``;
   if (sansIssue === null) return `${demandee}, elle attend — ${direRefus(retenue)} ; elle part seule, une fois, dès que rien ne la retient, sans que personne la relance — pour ${renoncer}`;
-  return `PASSE DE FERMETURE SANS ISSUE : demandée le ${depuis}, elle attend depuis plus de ${SANS_ISSUE_MS / 3_600_000} h — ${direRefus(retenue)} ; le rail ne se vide pas seul — à trancher : relever le seuil (\`${geste("station closer-cooks <N>")}\`), éteindre le manager le temps que le rail se vide (\`${geste(`manager off`)}\`), ou ${renoncer}`;
+  return `PASSE DE FERMETURE SANS ISSUE : demandée le ${since}, elle attend depuis plus de ${SANS_ISSUE_MS / 3_600_000} h — ${direRefus(retenue)} ; le rail ne se vide pas seul — à trancher : relever le seuil (\`${geste("station closer-cooks <N>")}\`), éteindre le manager le temps que le rail se vide (\`${geste(`manager off`)}\`), ou ${renoncer}`;
 }
 
 // Le refus et la demande, en anglais : ce que dit le bloc `awaiting` de
@@ -93,13 +93,13 @@ export function direRefusEn({ reason, observed, limit, detail }: Refus): string 
   }
 }
 
-export function direDemandeEn({ depuis, sansIssue }: Demande, retenue: Refus | null): string {
-  const demandee = `closing pass requested on ${depuis}`;
+export function direDemandeEn({ since, sansIssue }: Demande, retenue: Refus | null): string {
+  const demandee = `closing pass requested on ${since}`;
   if (retenue === null) return `${demandee}: its start condition is met, the runtime starts it at its next wake-up, within the second`;
   if (!faitAttendre(retenue)) return `${demandee}: ${direRefusEn(retenue)} — the runtime refuses it at its next wake-up, nothing leaves`;
   const renoncer = `withdraw it: \`${ANNULER}\``;
   if (sansIssue === null) return `${demandee}, it waits — ${direRefusEn(retenue)}; it leaves on its own, once, as soon as nothing holds it back, without anyone restarting it — to ${renoncer}`;
-  return `CLOSING PASS WITH NO WAY OUT: requested on ${depuis}, it has waited for more than ${SANS_ISSUE_MS / 3_600_000} h — ${direRefusEn(retenue)}; the rail does not empty on its own — to decide: raise the threshold (\`${geste("station closer-cooks <N>")}\`), turn the manager off while the rail empties (\`${geste(`manager off`)}\`), or ${renoncer}`;
+  return `CLOSING PASS WITH NO WAY OUT: requested on ${since}, it has waited for more than ${SANS_ISSUE_MS / 3_600_000} h — ${direRefusEn(retenue)}; the rail does not empty on its own — to decide: raise the threshold (\`${geste("station closer-cooks <N>")}\`), turn the manager off while the rail empties (\`${geste(`manager off`)}\`), or ${renoncer}`;
 }
 
 // Les plafonds d'une passe, tels que sa commande les annonce.

@@ -327,7 +327,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
       // Sa branche, jamais celle d'intégration ; et une PR, que rien ici ne merge.
       try {
         depot.pousser(branche);
-        const corps = corpsDeLaPR({ run, base: options.base, calibrage, proposes, laisses: livree.gardes, ecartes, retirees: livree.retirees, plafond: reglages.removedLines, fichiers: livree.fichiers, compteRendu: livree.compteRendu });
+        const corps = corpsDeLaPR({ run, base: options.base, calibration: calibrage, proposes, laisses: livree.gardes, ecartes, retirees: livree.retirees, cap: reglages.removedLines, fichiers: livree.fichiers, compteRendu: livree.compteRendu });
         const pr = await options.github.ouvrirPR({ branche, base: options.base, titre: titreDeLaPR(run), corps });
         const ouverte = await options.github.prDeBranche(branche);
         if (ouverte === null) throw new Error(`GitHub ne rend pas la PR qu'il vient d'ouvrir (${pr})`);
@@ -370,10 +370,10 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
       if (demande === null) return null;
       const motif = refus(base, reglages, false);
       if (motif === null || !faitAttendre(motif)) return { demande, motif };
-      if (demande.sansIssue === null && maintenant().getTime() - Date.parse(demande.depuis) >= SANS_ISSUE_MS) {
+      if (demande.sansIssue === null && maintenant().getTime() - Date.parse(demande.since) >= SANS_ISSUE_MS) {
         const { reason, observed, limit, detail } = motif;
-        const fait = noter({ type: "closing.stalled", payload: { requestedAt: demande.depuis, reason, observed, limit, detail } });
-        avertir(`brigade : ${direDemande({ ...demande, sansIssue: fait?.at ?? demande.depuis }, motif)}`);
+        const fait = noter({ type: "closing.stalled", payload: { requestedAt: demande.since, reason, observed, limit, detail } });
+        avertir(`brigade : ${direDemande({ ...demande, sansIssue: fait?.at ?? demande.since }, motif)}`);
       }
       return null;
     });

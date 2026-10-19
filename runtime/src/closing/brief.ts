@@ -76,7 +76,7 @@ export function corpsDeLaPR(passe: {
   return [
     `Passe de fermeture \`${passe.run}\` — lancée par le chef, hors du rail, closer en \`${passe.calibration.model}\` / \`${passe.calibration.effort}\`.`,
     "",
-    `Elle n'a rien poussé sur \`${passe.base}\` et ne merge rien : ce qu'elle retire arrive par cette PR, que la pass juge et merge comme celle d'un ticket — fusionnée avec \`${passe.base}\`, sous les gates, le reviewer, la CI et le grant \`merge\`. Rouge, aucun cook ne la reprend : elle remonte au chef. ${pluriel(passe.retirees, "ligne")} retirée${passe.retirees > 1 ? "s" : ""} pour un plafond de ${nombre(passe.plafond)}, dans ${pluriel(passe.fichiers.length, "fichier")}.`,
+    `Elle n'a rien poussé sur \`${passe.base}\` et ne merge rien : ce qu'elle retire arrive par cette PR, que la pass juge et merge comme celle d'un ticket — fusionnée avec \`${passe.base}\`, sous les gates, le reviewer, la CI et le grant \`merge\`. Rouge, aucun cook ne la reprend : elle remonte au chef. ${pluriel(passe.retirees, "ligne")} retirée${passe.retirees > 1 ? "s" : ""} pour un plafond de ${nombre(passe.cap)}, dans ${pluriel(passe.fichiers.length, "fichier")}.`,
     "",
     `## Retiré — ${retires.length} sur ${pluriel(proposes.length, "candidat")}`,
     "",

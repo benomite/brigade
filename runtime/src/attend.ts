@@ -268,7 +268,7 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
   const jeton: Attente[] = echeance === null ? [] : [{ ticket: null, title: null, quoi: "jeton", ...echeance }];
 
   const demande = demandeEnAttente(base);
-  const fermeture: Attente[] = demande === null ? [] : [{ ticket: null, title: null, since: demande.depuis, quoi: "fermeture", demande, retenue: refus(base, reglagesEnVigueur(base), false) }];
+  const fermeture: Attente[] = demande === null ? [] : [{ ticket: null, title: null, since: demande.since, quoi: "fermeture", demande, retenue: refus(base, reglagesEnVigueur(base), false) }];
 
   // Pendant sa réparation, ou sans elle — le rouge passager que la pass
   // rejoue, celui dont le ticket s'ouvre —, la base rouge n'attend personne.
