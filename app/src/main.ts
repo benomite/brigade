@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, Notification, powerMonitor, shell } from "electron";
 import { tenirAccueil, type Accueil } from "./accueil.ts";
 import { tenirBandes } from "./alertes.ts";
+import { lireFeu } from "./feu.ts";
 import { ALLUMAGE, compter } from "./allumage.ts";
 import { COMMANDE as COMMANDE_AMONT, tenirAmont } from "./amont.ts";
 import { mettreAPart } from "./attend.ts";
@@ -884,6 +885,18 @@ ipcMain.on("faits", (_, demande: number) => {
   veilleDesFaits.regarder(projets(), [COMMANDE], demande);
   veilleDuManager.regarder(projets(), [COMMANDE_MANAGER], demande);
   controlerTout();
+});
+// « réessayer maintenant » (#728) : la box est relue tout de suite, sans effacer ce qui en était tenu.
+ipcMain.on("relireBox", (_, demande: number) => {
+  veilleDesFaits.regarder(projets(), [COMMANDE], demande);
+  veilleDuManager.regarder(projets(), [COMMANDE_MANAGER], demande);
+});
+// Les tickets `fire` d'un projet, lus sur GitHub par le `gh` du poste (feu.ts) : ce que la box ne
+// disant plus rien, le rail sait encore. Jamais par la box — c'est justement elle qui ne répond pas.
+ipcMain.handle("lireFeu", (_, nom: unknown) => {
+  const vise = connu(nom);
+  // Jamais posée hors des essais, comme BRIGADE_SSH_BIN.
+  return vise === undefined ? undefined : lireFeu({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }, vise.dossier);
 });
 // Un ticket du rail s'ouvre sur son issue, dans le navigateur du poste : la vue nomme le
 // projet et le ticket, l'adresse est celle que la box a rendue (faits.ts) — ou, pour une issue

@@ -35,6 +35,8 @@ import { jouerLaVue, repos, type Reponses } from "./aides/fausse-vue.ts";
 
 const JOUR = "2026-10-13";
 const lecture = (commande: string, texte: string): Lecture => ({ projet: "parade", demande: 1, a: `${JOUR}T10:00:01.000Z`, sorties: [{ commande, texte }] });
+// La box a répondu, la commande a échoué : une lecture ratée, pas une box muette (#728).
+const RATEE: Lecture = { projet: "parade", demande: 1, a: `${JOUR}T10:00:01.000Z`, erreur: "$ ssh box brigade parade facts\nnpm error Missing script: facts\n\n→ code de sortie 1", atteinte: true, cas: null };
 const PAS_JOINT: Lecture = { projet: "parade", demande: 1, a: `${JOUR}T10:00:01.000Z`, erreur: "$ ssh box brigade parade facts\nssh: connect to host box port 22: Connection refused\n\n→ code de sortie 255", atteinte: false, cas: "ssh-en-echec" };
 
 // Une cuisine dont le test tient l'horloge, et ce que la box en rend : `faits`, `status` et
@@ -495,10 +497,10 @@ describe("la bande ne clignote pas (#721)", () => {
   test("une alerte qui tient sur deux lectures de suite s'affiche, une fois, et reste ; identique, la bande est la même", () => {
     const bandes = tenirBandes();
     bandes.ouvrir(["parade"]);
-    assert.deepEqual(bandes.faits(PAS_JOINT).alertes, []);
-    const deux = bandes.faits(PAS_JOINT);
-    assert.equal(nonVerifie(deux.alertes, "cuisine", "kitchen state").pourquoi, "`facts` was not read: not reached");
-    assert.equal(bandes.faits(PAS_JOINT), deux, "même contenu : aucun mouvement");
+    assert.deepEqual(bandes.faits(RATEE).alertes, []);
+    const deux = bandes.faits(RATEE);
+    assert.equal(nonVerifie(deux.alertes, "cuisine", "kitchen state").pourquoi, "`facts` was not read: reached, but `facts` did not answer");
+    assert.equal(bandes.faits(RATEE), deux, "même contenu : aucun mouvement");
   });
 
   test("une alerte dite reste le temps d'être lue, puis part quand l'état est levé", (t) => {
@@ -506,8 +508,8 @@ describe("la bande ne clignote pas (#721)", () => {
     const h = horloge();
     const bandes = tenirBandes({ maintenant: h.maintenant });
     bandes.ouvrir(["parade"]);
-    bandes.faits(PAS_JOINT);
-    assert.equal(bandes.faits(PAS_JOINT).alertes.length > 0, true);
+    bandes.faits(RATEE);
+    assert.equal(bandes.faits(RATEE).alertes.length > 0, true);
     h.avancer(1000);
     const levee = bandes.faits(OK(rendre));
     assert.equal(levee.alertes.some(({ verifie }) => !verifie), true, "tenue : lue trop peu de temps");

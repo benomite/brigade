@@ -151,6 +151,10 @@ export type Pont = {
   // Lever la retenue `blocked-on-human` d'un ticket qui t'attend : retirer le label (`label`) ou
   // fermer l'issue (`fermer`), par le `gh` du poste. Rien ne part pour un ticket que le bloc ne dit pas retenu.
   leverRetenue(projet: string, ticket: number, geste: "label" | "fermer"): Promise<import("../question.ts").Leve>;
+  // Les tickets `fire` du projet, lus sur GitHub par le `gh` du poste (feu.ts) : ce que le rail sait encore quand la box ne répond pas.
+  lireFeu(projet: string): Promise<import("../feu.ts").Feu | undefined>;
+  // « réessayer maintenant » : les lectures de la box repartent tout de suite, au lieu d'attendre leur tour.
+  relireBox(demande: number): void;
   // La réponse du chef à cette question — un choix par sa lettre, ou sa phrase —, postée sur
   // l'issue par le même `gh`. `question` : l'adresse de la question montrée — rien ne part sur une autre.
   // `vu` : l'adresse du dernier commentaire montré sous elle, vide s'il n'y en avait pas — rien ne part
