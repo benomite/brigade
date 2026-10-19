@@ -236,8 +236,8 @@ test("l'arbitre lit son répertoire, son port et le plafond du compte dans l'env
   for (const variable of Object.keys(env)) {
     assert.throws(() => configArbitre({ ...env, [variable]: "" }), new RegExp(`${variable} is not set`));
   }
-  assert.throws(() => configArbitre({ ...env, BRIGADE_ARBITER_PORT: "porte" }), /BRIGADE_ARBITER_PORT invalide/);
+  assert.throws(() => configArbitre({ ...env, BRIGADE_ARBITER_PORT: "porte" }), /invalid BRIGADE_ARBITER_PORT/);
   for (const illisible of ["0", "beaucoup", "2.5"]) {
-    assert.throws(() => configArbitre({ ...env, BRIGADE_ARBITER_MAX_COOKS: illisible }), /BRIGADE_ARBITER_MAX_COOKS invalide/);
+    assert.throws(() => configArbitre({ ...env, BRIGADE_ARBITER_MAX_COOKS: illisible }), /invalid BRIGADE_ARBITER_MAX_COOKS/);
   }
 });

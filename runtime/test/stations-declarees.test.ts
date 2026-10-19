@@ -24,14 +24,14 @@ test("une capacité se nomme comme la spec la nomme, accents compris", () => {
 for (const env of [{}, { BRIGADE_STATIONS: "" }, { BRIGADE_STATIONS: "  " }]) {
   test(`un projet qui ne déclare aucune station est accepté (${JSON.stringify(env)}), et le runtime dit qu'aucun cook ne partira`, () => {
     assert.deepEqual(lireStations(env), []);
-    assert.match(direStations(lireStations(env)), /^aucune \(BRIGADE_STATIONS n'est posée ni au journal\) : aucun cook ne partira/);
+    assert.match(direStations(lireStations(env)), /^none \(BRIGADE_STATIONS is set neither in the environment nor in the log\): no cook will leave/);
   });
 }
 
 test("ce que le runtime dit de ses stations au démarrage : chacune, son plafond, ce qu'elle fournit", () => {
   assert.equal(
     direStations(lireStations({ BRIGADE_STATIONS: "box/claude:30:code+raisonnement,box/playwright:1:navigateur-headless" })),
-    "box/claude (30 cooks au plus ; fournit : code, raisonnement) ; box/playwright (1 cook au plus ; fournit : navigateur-headless)",
+    "box/claude (30 cooks at most; provides: code, raisonnement) ; box/playwright (1 cook at most; provides: navigateur-headless)",
   );
 });
 
@@ -81,7 +81,7 @@ test("une station se déclare distante par un quatrième champ : elle ne tourne 
   ]);
   assert.equal(
     direStations(stations),
-    "box/claude (30 cooks au plus ; fournit : code) ; mac/claude (1 cook au plus ; fournit : chrome-connecté, code ; distante : elle tire son travail, la box ne la joint jamais)",
+    "box/claude (30 cooks at most; provides: code) ; mac/claude (1 cook at most; provides: chrome-connecté, code; remote: it pulls its work, the box never reaches it)",
   );
 });
 
@@ -106,6 +106,6 @@ test("une station distante prend aussi les tickets ordinaires quand le chef la d
     { nom: "win/claude", moteur: "claude", fournit: ["obs"], cooks: 1, distante: true },
   ]);
   assert.equal(stations.map(ecrireStation).join(","), ecrite);
-  assert.match(direStations(stations), /mac\/claude \(2 cooks au plus ; fournit : chrome-connecté ; distante : elle tire son travail, la box ne la joint jamais ; prend aussi les tickets ordinaires, dans le bac à sable de son poste\)/);
+  assert.match(direStations(stations), /mac\/claude \(2 cooks at most; provides: chrome-connecté; remote: it pulls its work, the box never reaches it; also takes ordinary tickets, in the sandbox of its workstation\)/);
   assert.doesNotMatch(direStations(stations).split(" ; win/")[1] ?? "", /ordinaires/);
 });

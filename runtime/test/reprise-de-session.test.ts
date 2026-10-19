@@ -227,9 +227,9 @@ describe("le relevé des lancements repris", () => {
       decrireReleve({ projet: "brigade", livraisons: [livraison(1, [cook(9000, true), cook(400, false, true), cook(1500, true)]), livraison(2, [cook(9000, true), cook(1500, true)])], seuils: null }),
     );
     assert.match(lignes[0] ?? "", /; resumed: the retries that continued the previous cook's session instead of starting from scratch$/);
-    assert.match(lignes[2] ?? "", /^1-2\s+#1\s+3, of which 1 resumed\s+10 900\s+10 500\s+400 \(4 %\)$/);
+    assert.match(lignes[2] ?? "", /^1-2\s+#1\s+3, of which 1 resumed\s+10,900\s+10,500\s+400 \(4%\)$/);
     // Reparti de zéro : rien de plus qu'avant.
-    assert.match(lignes[3] ?? "", /^1-2\s+#2\s+2\s+10 500\s+10 500\s+0$/);
+    assert.match(lignes[3] ?? "", /^1-2\s+#2\s+2\s+10,500\s+10,500\s+0$/);
 
     const sansReprise = lancements(decrireReleve({ projet: "brigade", livraisons: [livraison(2, [cook(9000, true), cook(1500, true)])], seuils: null }));
     assert.doesNotMatch(sansReprise[0] ?? "", /resumed/);

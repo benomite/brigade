@@ -62,13 +62,13 @@ const POSES = [
     nom: "l'arbitre",
     fichier: join(import.meta.dirname, "../src/tenir-arbitre.ts"),
     env: (repertoire: string, port: number) => ({ BRIGADE_ARBITER_STATE_DIR: repertoire, BRIGADE_ARBITER_PORT: String(port), BRIGADE_ARBITER_MAX_COOKS: "2" }),
-    ouvert: (port: number) => `arbitre ouvert — 127.0.0.1:${port}`,
+    ouvert: (port: number) => `arbiter open — 127.0.0.1:${port}`,
   },
   {
     nom: "la porte",
     fichier: join(import.meta.dirname, "../src/tenir-porte.ts"),
     env: (repertoire: string, port: number) => ({ BRIGADE_STATE_DIR: repertoire, BRIGADE_PROJECT: "brigade", BRIGADE_PROXY_PORT: String(port) }),
-    ouvert: (port: number) => `porte du projet « brigade » ouverte — 127.0.0.1:${port}`,
+    ouvert: (port: number) => `door of project “brigade” open — 127.0.0.1:${port}`,
   },
 ];
 
@@ -120,7 +120,7 @@ test("lancerSurPortPose : un process qui meurt d'autre chose que d'un port pris 
 
   await assert.rejects(
     lancerSurPortPose(t, arbitre!.fichier, { env: (port) => ({ BRIGADE_ARBITER_PORT: String(port) }), ouvert: arbitre!.ouvert, tirer: async (tirer) => (tirages++, tirer()) }),
-    /process terminé sans « arbitre ouvert[^»]*» : brigade : l'arbitre refuse de démarrer — BRIGADE_ARBITER_STATE_DIR n'est pas défini/,
+    /process terminé sans « arbiter open[^»]*» : brigade : the arbiter refuses to start — BRIGADE_ARBITER_STATE_DIR is not set/,
   );
   assert.equal(tirages, 1);
 });

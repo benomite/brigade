@@ -43,7 +43,7 @@ describe("le réseau du projet", { concurrency: 8 }, () => {
     assert.deepEqual(hotes, ["bon.exemple.test"]);
     assert.equal(problemes.length, 6);
     assert.match(problemes[0] ?? "", /^line 1 of `\.claude\/brigade\/reseau` \(“\*”\): not a host/);
-    assert.match(problemes[4] ?? "", /ce port n'existe pas/);
+    assert.match(problemes[4] ?? "", /that port does not exist/);
   });
 
   test("le port de la porte n'a pas de défaut, et ne s'écrit pas à moitié", () => {

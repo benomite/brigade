@@ -337,7 +337,7 @@ describe("la porte", { concurrency: 8 }, () => {
     // La porte n'en choisit pas : c'est le chef qui pose le port, et la porte dit celui qu'elle tient.
     const { enfant: tenue, port } = await lancerSurPortPose(t, TENIR, {
       env: (port) => ({ BRIGADE_STATE_DIR: repertoireEtat, BRIGADE_PROJECT: "brigade", BRIGADE_PROXY_PORT: String(port) }),
-      ouvert: (port) => `porte du projet « brigade » ouverte — 127.0.0.1:${port}`,
+      ouvert: (port) => `door of project “brigade” open — 127.0.0.1:${port}`,
     });
 
     assert.match((await tunnel(port, "pirate.exemple.test:443")).reponse, /^HTTP\/1\.1 403/);

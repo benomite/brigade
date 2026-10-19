@@ -27,17 +27,17 @@ describe("la cloison vue par le chef", { concurrency: 8 }, () => {
     const { commande } = projet(t);
     const { code, sortie } = await commande();
     assert.equal(code, 0);
-    assert.match(sortie, /ce journal ne dit rien de la cloison — le runtime n'a pas démarré depuis qu'elle existe/);
+    assert.match(sortie, /this log says nothing about the partition — the runtime has not started since it was introduced/);
   });
 
   test("sans cloison ni porte, le chef lit que les projets se voient et que le réseau est ouvert", async (t) => {
     const { noter, commande } = projet(t);
     noter({ type: "isolation.configured", payload: { sandbox: null, proxy: null } });
     const { sortie } = await commande();
-    assert.match(sortie, /^fichiers +OUVERTS$/m);
-    assert.match(sortie, /un cook lit tout ce que lit le compte du service — l'état, le clone, les worktrees et les secrets des autres projets compris/);
-    assert.match(sortie, /^réseau +OUVERT$/m);
-    assert.match(sortie, /un cook joint tout ce que joint la machine/);
+    assert.match(sortie, /^files +OPEN$/m);
+    assert.match(sortie, /a cook reads everything the service account reads — the state, the clone, the worktrees and the secrets of the other projects included/);
+    assert.match(sortie, /^network +OPEN$/m);
+    assert.match(sortie, /a cook reaches everything the machine reaches/);
   });
 
   test("posée, elle dit ce qui est masqué, chaque hôte qui passe avec sa raison, et chaque refus avec son motif", async (t) => {
@@ -48,25 +48,25 @@ describe("la cloison vue par le chef", { concurrency: 8 }, () => {
 
     const { code, sortie } = await commande();
     assert.equal(code, 0);
-    assert.match(sortie, /^fichiers +CLOISONNÉS$/m);
-    assert.match(sortie, /masqués : \/var\/lib\/brigade, \/etc\/brigade ; machine en lecture seule ; identifiants Max en lecture seule \(\/home\/brigade\/\.claude\/\.credentials\.json\)/);
-    assert.match(sortie, /^réseau +LISTE BLANCHE$/m);
-    assert.match(sortie, /par la porte 127\.0\.0\.1:18443 — un envoi direct est refusé par le noyau : l'unité filtre/);
-    assert.match(sortie, /anthropic\.com et ses sous-domaines +Anthropic — le modèle/);
-    assert.match(sortie, /github\.com et ses sous-domaines +GitHub —/);
-    assert.match(sortie, /registry\.npmjs\.org +déclaré par le dépôt \(`\.claude\/brigade\/reseau`\), sur `v2`/);
-    assert.match(sortie, /base\.exemple\.test, port 5432 +déclaré par le dépôt/);
-    assert.match(sortie, /N'OUVRE RIEN — ligne 3/);
-    assert.match(sortie, /pirate\.exemple\.test:443 +3 tentatives  absent de la liste blanche/);
+    assert.match(sortie, /^files +PARTITIONED$/m);
+    assert.match(sortie, /hidden: \/var\/lib\/brigade, \/etc\/brigade; machine read-only; Max credentials read-only \(\/home\/brigade\/\.claude\/\.credentials\.json\)/);
+    assert.match(sortie, /^network +ALLOWLIST$/m);
+    assert.match(sortie, /through the door 127\.0\.0\.1:18443 — a direct send is refused by the kernel: the unit filters/);
+    assert.match(sortie, /anthropic\.com and its subdomains +Anthropic — the model/);
+    assert.match(sortie, /github\.com and its subdomains +GitHub —/);
+    assert.match(sortie, /registry\.npmjs\.org +declared by the repository \(`\.claude\/brigade\/reseau`\), on `v2`/);
+    assert.match(sortie, /base\.exemple\.test, port 5432 +declared by the repository/);
+    assert.match(sortie, /OPENS NOTHING — ligne 3/);
+    assert.match(sortie, /pirate\.exemple\.test:443 +3 attempts  not on the allowlist/);
   });
 
   test("une porte que l'unité ne double pas d'un filtre se lit comme telle", async (t) => {
     const { noter, commande } = projet(t);
     noter({ type: "isolation.configured", payload: { sandbox: null, proxy: { port: 18443, enforced: false } } });
     const { sortie } = await commande();
-    assert.match(sortie, /^réseau +LISTE BLANCHE NON TENUE$/m);
-    assert.match(sortie, /MAIS un envoi direct part : l'unité ne semble rien filtrer \(IPAddressDeny\), et un process qui ignore HTTPS_PROXY sortirait librement/);
-    assert.match(sortie, /derniers refus : aucun/);
+    assert.match(sortie, /^network +ALLOWLIST NOT ENFORCED$/m);
+    assert.match(sortie, /BUT a direct send goes out: the unit does not seem to filter anything \(IPAddressDeny\), and a process that ignores HTTPS_PROXY would get out freely/);
+    assert.match(sortie, /latest refusals: none/);
   });
 
   test("éprouver lance de vraies sondes : une cloison qui ne masque rien est prise sur le fait", async (t) => {
@@ -83,30 +83,30 @@ describe("la cloison vue par le chef", { concurrency: 8 }, () => {
     });
     // La doublure ne cloisonne rien : les sondes le voient.
     assert.equal(code, 1);
-    assert.match(sortie, /tient +un lancement part dans la cloison/);
-    assert.match(sortie, new RegExp(`NE TIENT PAS +${repertoire} est masqué — \\d+ entrées y sont visibles`));
-    assert.match(sortie, /NE TIENT PAS +les identifiants Max sont en lecture seule/);
-    assert.match(sortie, /tient +les outils écrivent leur cache sous ~, au projet — ~\/\.cache, ~\/\.npm, ~\/\.local\/share, ~\/\.local\/state/);
-    assert.match(sortie, /tient +`claude` y retrouve la connexion Max — connecté/);
-    assert.match(sortie, /coût d'un lancement cloisonné \(médiane de 2 lancements de `true`\)/);
-    assert.match(sortie, /la cloison ne tient pas ce qu'elle annonce/);
+    assert.match(sortie, /holds +un lancement part dans la cloison/);
+    assert.match(sortie, new RegExp(`DOES NOT HOLD +${repertoire} est masqué — \\d+ entrées y sont visibles`));
+    assert.match(sortie, /DOES NOT HOLD +les identifiants Max sont en lecture seule/);
+    assert.match(sortie, /holds +les outils écrivent leur cache sous ~, au projet — ~\/\.cache, ~\/\.npm, ~\/\.local\/share, ~\/\.local\/state/);
+    assert.match(sortie, /holds +`claude` y retrouve la connexion Max — connecté/);
+    assert.match(sortie, /cost of a partitioned launch \(median of 2 launches of `true`\)/);
+    assert.match(sortie, /the partition does not hold what it announces/);
   });
 
   test("éprouver sans cloison posée le dit, et une cloison mal posée est refusée avec son motif", async (t) => {
     const { repertoire, commande } = projet(t);
     const sans = await commande(["probe"], { BRIGADE_REPO_DIR: join(repertoire, "depot") });
     assert.equal(sans.code, 1);
-    assert.match(sans.sortie, /rien à éprouver — aucune \(BRIGADE_SANDBOX_BIN n'est pas défini\)/);
+    assert.match(sans.sortie, /nothing to probe — none \(BRIGADE_SANDBOX_BIN is not set\)/);
 
     const malPosee = await commande(["probe"], { BRIGADE_REPO_DIR: join(repertoire, "depot"), BRIGADE_SANDBOX_BIN: FAUX_BWRAP, HOME: "/home/brigade" });
     assert.equal(malPosee.code, 2);
-    assert.match(malPosee.sortie, /la cloison ne masquerait rien/);
+    assert.match(malPosee.sortie, /the partition would hide nothing/);
   });
 
   test("une commande inconnue rend l'usage", async (t) => {
     const { commande } = projet(t);
     const { code, sortie } = await commande(["ouvrir", "exemple.test"]);
     assert.equal(code, 2);
-    assert.match(sortie, /usage : BRIGADE_STATE_DIR=/);
+    assert.match(sortie, /usage: BRIGADE_STATE_DIR=/);
   });
 });

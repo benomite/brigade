@@ -327,7 +327,7 @@ export async function portsFermesALInstant(combien: number): Promise<number[]> {
 
 // Ce que dit un process lancé sur un port qu'un autre tient : le refus de
 // l'arbitre, ou l'erreur du système telle que la porte la laisse remonter.
-const PORT_PRIS = /EADDRINUSE|est déjà pris/;
+const PORT_PRIS = /EADDRINUSE|est déjà pris|is already taken/;
 
 // Lance un process qui doit écouter sur un port posé par le chef — connu, donc,
 // avant le lancement. Le port est tiré puis fermé ; s'il a été repris entre-temps,
