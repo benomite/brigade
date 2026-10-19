@@ -28,6 +28,24 @@ que le dernier rapatriement l'a laissée — et imprime trois choses :
   ranger, ou comment elle a fini — dès qu'une a été demandée (voir « La fermeture qui écrit »),
   et le **bilan** de la dernière qui a fini la suit (voir « Le bilan d'une passe »).
 
+### La même lecture, pour l'app
+
+`npm --prefix runtime run closing -- --json` (`brigade <projet> closing --json`) rend la même
+lecture en **un objet JSON, sur une ligne** : c'est ce que l'app lit du closer d'un projet, sans
+parser de texte. Elle ne lance rien : le journal est ouvert en lecture seule, le dépôt n'est lu
+que par l'observation, et aucune demande n'est jamais écrite. Trois variables : `BRIGADE_STATE_DIR`,
+`BRIGADE_REPO_DIR`, `BRIGADE_BASE_BRANCH` ; sans journal, elle sort en 1 — rien ne dit alors si le
+closer est réglé.
+
+| Champ | Ce qu'il porte |
+|---|---|
+| `configured` | Le closer est-il réglé (`closing.configured` au journal) ? Faux : l'objet ne porte que `text`, qui le dit — ni observation, ni trouvaille, ni demande |
+| `closer` | Son calibrage et ses plafonds en vigueur |
+| `observation` | `mergesSinceCleanup` (le compteur du relevé), `ratio` (chaque fenêtre : `added`, `removed`, `ratio` — nul si rien n'est retiré —, `reads`), `duplicates`, `deadExports`. `readable` faux : la branche ne se lit pas, `error` dit pourquoi, le reste de l'objet se lit quand même |
+| `findings` | Chaque doublon et chaque export mort, sous le nom que la passe lui donne (`D1`, `M1`…) : `file`, `start`, `end` — un doublon dit aussi sa `copy` |
+| `request` | La dernière demande : `none`, `waiting` (`reason` : ce qui la retient, nul quand plus rien ; `stalledAt` : sans issue), `running`, `refused` (`reason`), `cancelled`, `done` (`outcome`, `removed`, `pr` — nul sans PR —, `kept`) ; chaque `reason` porte son motif (`code`) et sa phrase |
+| `drift` | `crossed` : une mesure du relevé franchit le seuil que le chef lui a déclaré — le même que dit le bloc `journal` ci-dessus. Aucun seuil déclaré : `declared` faux, rien n'est franchi |
+
 ## La fermeture qui écrit
 
 La fermeture qui observe ne touche à rien ; celle-ci **retire**. C'est l'agent le plus dangereux du
