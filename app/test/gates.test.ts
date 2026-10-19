@@ -29,7 +29,8 @@ function projet(t: TestContext, app?: { manifeste: object; installe: boolean }, 
 // Les lignes des gates — leur sortie standard, puis leur sortie d'erreur — qui répondent au motif.
 function lignes(racine: string, motif: RegExp): Promise<string[]> {
   return new Promise((resoudre) => {
-    execFile("bash", [GATES, racine], (_, sortie, erreurs) => resoudre(`${sortie}\n${erreurs}`.split("\n").filter((ligne) => motif.test(ligne))));
+    // Sans tour : ces gates d'essai ne font pas la queue derrière celles de la box.
+    execFile("bash", [GATES, racine], { env: { ...process.env, BRIGADE_GATES_VERROU: "aucun" } }, (_, sortie, erreurs) => resoudre(`${sortie}\n${erreurs}`.split("\n").filter((ligne) => motif.test(ligne))));
   });
 }
 const lignesDeLApp = (racine: string) => lignes(racine, /^(ok {4}|FAIL {2}).*\bapp\b/);
