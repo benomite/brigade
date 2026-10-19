@@ -98,6 +98,7 @@ import { poserPerdus } from "./cost/perdus.js";
 import { poserTete } from "./cost/tete.js";
 import { poserFiabilite } from "./fiabilite.js";
 import { lireFermeture, poserCloser } from "./closer/section.js";
+import { poserBilan } from "./closer/bilan/bilan.js";
 import { apresRendu, lireLancement, poserLancement, REPOS } from "./closer/lancement/lancement.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
@@ -3904,7 +3905,7 @@ function poserLaFiabilite() {
 // La partie « closer » du projet affiché, sous Settings → Closer (closer/section.js) : les quatre chiffres
 // de sa dernière observation, ce qu'elle a repéré derrière un bouton — ou, sans closer réglé, le geste
 // qui en règle un, écrit dans le second comme un bouton d'action. Les places du lancement et du bilan y
-// sont posées, vides.
+// sont posées ; celle du bilan se remplit quand la dernière passe a fini (closer/bilan/bilan.js).
 function poserLeCloser() {
   const projet = courant;
   closer.hidden = projet === undefined || projet.box === undefined || actif() !== CLOSER;
@@ -3923,6 +3924,7 @@ function poserLeCloser() {
       choix: reglagesDuCloser.get(projet.nom),
       choisir: (choix) => void reglagesDuCloser.set(projet.nom, choix),
       lancement: poserLeLancement(projet.nom, lu),
+      bilan: lu === undefined || "erreur" in lu || !lu.fermeture.configured ? [] : poserBilan(document, lu.fermeture.request, (url) => void brigade.ouvrirBilan(projet.nom, url)),
     }),
   );
 }

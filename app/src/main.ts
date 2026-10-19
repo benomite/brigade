@@ -850,6 +850,15 @@ ipcMain.handle("closer", (_, nom: unknown, action: unknown, oui: unknown) => {
   passage.set(servi.nom, rendu);
   return rendu;
 });
+// La PR qu'un nettoyage fini a ouverte (bilan du closer, #992) s'ouvre dans le navigateur du poste :
+// une adresse https seulement, pour un projet que l'app connaît. Rend si elle a été ouverte.
+ipcMain.handle("ouvrirBilan", (_, nom: unknown, url: unknown) => {
+  if (connu(nom) === undefined || typeof url !== "string" || !/^https:\/\/[^\s]+$/.test(url)) return false;
+  return shell.openExternal(url).then(
+    () => true,
+    () => false,
+  );
+});
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
 ipcMain.on("regarder", (_, nom: unknown, demande: number) => (voir = () => regarder(projets().filter((candidat) => candidat.nom === nom), ["status"], demande, true))());
 // L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.
