@@ -138,7 +138,12 @@ export const PATHS: Record<string, string> = {
 
 // Names that keep their French word, on purpose. Each list says why.
 export const KEPT_NAMES: { why: string; names: string[] }[] = [];
-export const KEPT_MEMBERS: { why: string; names: string[] }[] = [];
+export const KEPT_MEMBERS: { why: string; names: string[] }[] = [
+  {
+    why: "Linked by assignment — not by reference — to a member that keeps its name (a literal built in a `.map`, a value passed where a format's type is expected): the language service does not follow an assignment, renaming one side would leave the other. Found by the type check of the renamed tree.",
+    names: ["ecran", "ecrans", "mesure", "distante", "plafond", "plafonds", "plafondMs", "poids", "nonArbitres", "calibrage", "connexionS", "serveur", "faits", "fiche"],
+  },
+];
 export const KEPT_FILES: { why: string; paths: string[] }[] = [
   {
     why: "Named by a systemd unit that the box copies into /etc/systemd/system (runtime/deploy/*.service): a box that updates its clone keeps its copy, which would name a file that no longer exists. They are renamed with their units, in a delivery that also moves the copies.",

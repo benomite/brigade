@@ -332,7 +332,7 @@ function plan(): { plan: Plan; ls: ts.LanguageService; files: string[] } {
   const members: Kept[] = [];
   const seen = new Set<string>();
   const preferences: ts.UserPreferences = { providePrefixAndSuffixTextForRename: true, allowRenameOfImportPath: false };
-  const exchanged = exchangedMembers(program, ls, files.map(abs), (file) => under(rel(file), [...OWN, ...FOLLOWERS]));
+  const { exchanged, named } = exchangedMembers(program, ls, files.map(abs), (file) => under(rel(file), [...OWN, ...FOLLOWERS]));
   // A name written as a string where it is not a property access nor a type:
   // the string is data, the member keeps the name it names.
   const inString = (location: ts.RenameLocation) => {
@@ -348,6 +348,10 @@ function plan(): { plan: Plan; ls: ts.LanguageService; files: string[] } {
     const member = declared.kind === "member";
     if (member && keptMember(declared.name)) {
       members.push({ declared, to, why: "kept by the table" });
+      continue;
+    }
+    if (member && named.has(declared.name)) {
+      members.push({ declared, to, why: "named by a string type (`Pick<T, \"…\">`)" });
       continue;
     }
     if (member && CONSTANT.test(declared.name)) {
@@ -469,7 +473,10 @@ function prove(before: Resolution[], edits: Map<string, Edit[]>, renamed: Map<st
       .sort();
     const where = mapPosition(resolution.file, resolution.start);
     const got = after.get(where);
-    if (got === undefined || got.join(",") !== expected.join(",")) broken.push(`${rel(resolution.file)}@${resolution.start}: resolved to ${show(expected)}, now ${got === undefined ? "nothing" : show(got)}`);
+    // The same declarations, or some of them: a union reduced otherwise
+    // (two literal types that became one) is still the same member.
+    const same = got !== undefined && got.length > 0 && got.every((target) => expected.includes(target));
+    if (!same) broken.push(`${rel(resolution.file)}@${resolution.start}: resolved to ${show(expected)}, now ${got === undefined ? "nothing" : show(got)}`);
   }
   return broken;
 }

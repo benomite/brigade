@@ -489,5 +489,5 @@ export const NAMES: Record<string, string> = {
   "app/src/page.ts#SERVEUR": "SERVER_FR",
   "app/src/page.ts#ECRAN": "SCREEN_FR",
   "runtime/src/servir.ts#ecran": "screenToSee",
-  "runtime/src/station.ts#livrable": "readDeliverable",
+  "runtime/src/station.ts#livrable": "parsedDeliverable",
 };

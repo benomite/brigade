@@ -38,9 +38,10 @@ const leaving = (name: string, files: string[]) => LEAVING.some(([file, names]) 
 
 const isLib = (file: string) => file.includes("/node_modules/") || /\/lib\.[\w.]*\.d\.ts$/.test(file);
 
-export function exchangedMembers(program: ts.Program, ls: ts.LanguageService, files: string[], isOwn: (file: string) => boolean): Set<string> {
+export function exchangedMembers(program: ts.Program, ls: ts.LanguageService, files: string[], isOwn: (file: string) => boolean): { exchanged: Set<string>; named: Set<string> } {
   const checker = program.getTypeChecker();
   const exchanged = new Set<string>();
+  const named = new Set<string>();
   const seenTypes = new Set<ts.Type>();
   const seenParams = new Set<ts.Node>();
   const seenFunctions = new Set<ts.Node>();
@@ -203,7 +204,18 @@ export function exchangedMembers(program: ts.Program, ls: ts.LanguageService, fi
             if (property.name && (ts.isIdentifier(property.name) || ts.isPrivateIdentifier(property.name)) && checker.getPropertyOfType(context, property.name.text) === undefined) exchanged.add(keyOf(property));
           }
         }
+        // A literal given where `Record<"a" | "b", …>` is expected: the
+        // expected properties have no declaration, their names are values.
+        if (context) {
+          for (const property of node.properties) {
+            if (!property.name || !ts.isIdentifier(property.name)) continue;
+            const expected = checker.getPropertyOfType(context, property.name.text);
+            if (expected && (expected.declarations ?? []).length === 0) exchanged.add(keyOf(property));
+          }
+        }
       }
+      // `Pick<T, "journal">`: a member named by a string type.
+      if (ts.isLiteralTypeNode(node) && ts.isStringLiteral(node.literal)) named.add(node.literal.text);
       ts.forEachChild(node, visit);
     };
     visit(source);
@@ -217,7 +229,7 @@ export function exchangedMembers(program: ts.Program, ls: ts.LanguageService, fi
       });
     }
   }
-  return exchanged;
+  return { exchanged, named };
 }
 
 export function findNode(source: ts.SourceFile, position: number): ts.Node | undefined {
