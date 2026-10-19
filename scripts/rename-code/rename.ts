@@ -216,6 +216,18 @@ function settle(file: string, list: Edit[]): Edit[] {
         last.prefix = 0;
         continue;
       }
+      // `{ a }` whose member and binding get two different names: the
+      // binding's edit is `a: b` (a prefix), the member's `c: a` (a suffix);
+      // together, `c: b`.
+      const [binding, member] = (last.prefix ?? 0) > 0 ? [last, edit] : [edit, last];
+      if ((binding.prefix ?? 0) > 0 && (member.prefix ?? 0) === 0 && member.text.includes(": ")) {
+        const property = member.text.slice(0, member.text.indexOf(": "));
+        const value = binding.text.slice(binding.prefix);
+        last.text = `${property}: ${value}`;
+        last.prefix = property.length + 2;
+        last.why = `${member.why}, ${binding.why}`;
+        continue;
+      }
       throw new Error(`${rel(file)}:${edit.start}: two renames of one span: «${last.text}» (${last.why}) and «${edit.text}» (${edit.why})`);
     }
     if (last && edit.start < last.end) throw new Error(`${rel(file)}:${edit.start}: overlapping edits: «${last.text}» (${last.why}) and «${edit.text}» (${edit.why})`);
