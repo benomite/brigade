@@ -1,7 +1,7 @@
 // Les faits du correctif : une cause de ratage qui revient sur plusieurs
 // tickets récents du projet, relevée comme candidate à une correction, puis la
-// correction proposée pour elle — ou écartée. Rien ici ne l'applique : c'est le
-// « oui » du chef qui le fera.
+// correction proposée pour elle — ou écartée —, le « oui » ou le « non » du chef,
+// et ce que le « oui » en a fait : une branche, une PR, remise à la pass.
 
 // `cause` : la cause des ratages (`causes-des-ratages.ts`), `title` sa phrase.
 // `tickets` : ceux de la fenêtre où elle a fait rater au moins un essai, dans
@@ -38,10 +38,36 @@ export type PropositionDeCorrection = {
 // pas. Le diff n'est pas gardé : rien ne doit pouvoir le montrer.
 export type CorrectionEcartee = { candidate: number; cause: string; tickets: number[]; run: string; tokens: number; reason: string; files: string[] };
 
+// Le « oui » ou le « non » du chef sur une proposition (`correctif/decision.ts`).
+// `proposal` : le fait `correction.proposed` qu'il tranche, par son `seq`.
+// Sur un « non », `runs` : les essais ratés pour cette cause que le journal
+// portait à cet instant, par leur run — c'est d'eux que la même cause doit
+// s'écarter pour revenir en candidate (`correctif/detecter.ts`).
+export type DecisionSurCorrection = { proposal: number; candidate: number; cause: string };
+export type CorrectionRefusee = DecisionSurCorrection & { tickets: number[]; runs: string[] };
+
+// La livraison d'une correction acceptée (`correctif/livrer.ts`). `run` : la
+// livraison, qui nomme sa branche (`branch`) comme celle d'un cook. Partie,
+// elle finit livrée — sa PR (`pr`, `number`) et le commit poussé (`sha`) — ou
+// non livrée, et `reason` dit pourquoi ; `branch` y est nulle si elle n'a pas
+// pu naître.
+export type LivraisonDeCorrection = { proposal: number; run: string; branch: string };
+export type CorrectionLivree = LivraisonDeCorrection & { pr: string; number: number; sha: string };
+export type CorrectionNonLivree = { proposal: number; run: string; branch: string | null; reason: string };
+
 export type FaitCorrectif =
   // Écrit une fois par récurrence : un second relevé sur les mêmes tickets
   // n'écrit rien (`correctif/detecter.ts`).
   | { type: "correction.candidate"; payload: CandidatACorrection }
   // L'un ou l'autre, une fois par candidate : la même clé d'unicité les tient.
   | { type: "correction.proposed"; payload: PropositionDeCorrection }
-  | { type: "correction.discarded"; payload: CorrectionEcartee };
+  | { type: "correction.discarded"; payload: CorrectionEcartee }
+  // L'un ou l'autre, une fois par proposition : un second geste n'écrit rien.
+  | { type: "correction.accepted"; payload: DecisionSurCorrection }
+  | { type: "correction.refused"; payload: CorrectionRefusee }
+  // Chaque fois qu'une livraison part — une seconde ne part que si la
+  // précédente est morte avec le runtime sans avoir ouvert de PR.
+  | { type: "correction.started"; payload: LivraisonDeCorrection }
+  // L'un ou l'autre, une fois par proposition : une PR au plus.
+  | { type: "correction.delivered"; payload: CorrectionLivree }
+  | { type: "correction.undelivered"; payload: CorrectionNonLivree };
