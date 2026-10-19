@@ -148,7 +148,7 @@ test("deux projets dans la configuration : un seul process les sert, chacun avec
   assert.equal(espaceCloison.proxy.port, 3128);
   await station.attendre("brigade [espace] : réseau — ");
   assert.match(station.sortie(), /brigade \[brigade\] : cloison — none/);
-  assert.match(station.sortie(), new RegExp(`brigade \\[espace\\] : cloison — chaque lancement .* part dans \`${FAUX_BWRAP}\``));
+  assert.match(station.sortie(), new RegExp(`brigade \\[espace\\] : cloison — every launch .* runs in \`${FAUX_BWRAP}\``));
   // Chacun sonde son dépôt par son `gh`.
   await jusqua(() => brigade.appels().length > 0 && espace.appels().length > 0);
   assert.ok(brigade.appels().every((appel) => !appel.join(" ").includes("benomite/espace")));
