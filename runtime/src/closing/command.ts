@@ -2,6 +2,7 @@
 //   npm --prefix runtime run closing              the observation: it reads, and touches nothing
 //   npm --prefix runtime run closing -- write     the writing pass: the chef's gesture, and the only one that launches it
 //   npm --prefix runtime run closing -- cancel    withdraws the waiting request, before it leaves
+//   npm --prefix runtime run closing -- --json    what the app reads: the observation, the last request, the drift — it reads, and launches nothing (`fermeture-lecture/`)
 // and the same gestures for a program, the app (`fermeture-action/action.ts`):
 // `preview`, `write --json --confirm`, `cancel --json`.
 // The old words (`fermeture`, `ecrire`, `annuler`) still answer, saying the new
@@ -26,6 +27,7 @@ import { agir, estPourLApp } from "../fermeture-action/action.ts";
 import { annuler, demander } from "../fermeture-action/demande.ts";
 import { direDecision, direRetrait } from "../fermeture-action/dire.ts";
 import { principal as observer } from "./observer.ts";
+import { JSON_, principal as lire } from "../fermeture-lecture/commande.ts";
 
 export const ECRIRE = "write";
 export const RENONCER = "cancel";
@@ -65,7 +67,9 @@ function gerer({ args, env, dire, redire }: Appel): void {
 
 export function principal(tape: Appel): void {
   const appel = { ...tape, args: enAnglais("closing", tape.args, tape.redire) };
-  if (estPourLApp(appel.args)) agir(appel);
+  // `--json` first: the reading, which every gesture of the app writes after its own word.
+  if (appel.args[0] === JSON_) lire(appel);
+  else if (estPourLApp(appel.args)) agir(appel);
   else if (appel.args[0] === ECRIRE || appel.args[0] === RENONCER) gerer(appel);
   else observer(appel);
 }
