@@ -60,7 +60,11 @@ describe("la place des gates", { concurrency: 8, skip: sansFlock }, () => {
     await Promise.all([premier.fin, second.fin]);
     assert.ok(existsSync(join(temoins, "b-apres")), second.sortie());
     assert.match(second.sortie(), /^ok {4}place des gates : \d+ s d'attente$/m);
-    assert.doesNotMatch(premier.sortie(), /place des gates/);
+    // L'attente a sa mesure, hors de la durée des gates.
+    const attente = Number(/^MESURE {2}attente_s=(\d+)$/m.exec(second.sortie())?.[1]);
+    const duree = Number(/^MESURE {2}gates_s=(\d+)$/m.exec(second.sortie())?.[1]);
+    assert.ok(Number.isInteger(attente) && Number.isInteger(duree), second.sortie());
+    assert.doesNotMatch(premier.sortie(), /place des gates|attente_s/);
   });
 
   test("des gates tuées rendent la place : ce que leur suite a lancé, qui leur survit, ne la tient pas", async (t) => {

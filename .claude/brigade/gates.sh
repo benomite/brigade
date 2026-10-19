@@ -331,6 +331,8 @@ trap abandonner INT TERM
 # dont les tests jouent ces gates sur des projets d'essai : prendre la place que
 # leurs propres gates tiennent, ils l'attendraient sans fin.
 PLACE="${BRIGADE_GATES_PLACE-/tmp/brigade-gates.place}"
+# Vide tant que ce passage n'a pas eu à attendre.
+ATTENTE=""
 if [ -z "$PLACE" ]; then
   :
 elif ! command -v flock >/dev/null 2>&1; then
@@ -341,7 +343,8 @@ elif ! flock -n 9; then
   DEBUT_ATTENTE=$SECONDS
   echo "ok    place des gates : d'autres gates de cette machine jouent leurs suites — celles-ci attendent leur tour"
   flock 9
-  ok "place des gates : $((SECONDS - DEBUT_ATTENTE)) s d'attente"
+  ATTENTE=$((SECONDS - DEBUT_ATTENTE))
+  ok "place des gates : $ATTENTE s d'attente"
 fi
 export BRIGADE_GATES_PLACE=
 
@@ -401,7 +404,11 @@ while pile:
 print(total)
 PY
 )"
-mesure gates_s "$SECONDS"
+# L'attente de la place n'est pas la durée des gates : comptée dedans, trois
+# passages de front montreraient une dérive que rien n'a causée. Elle a sa
+# mesure, imprimée seulement quand ce passage a attendu.
+mesure gates_s "$((SECONDS - ${ATTENTE:-0}))"
+mesure attente_s "$ATTENTE"
 
 verdict "$rc"
 exit "$rc"
