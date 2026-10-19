@@ -165,8 +165,8 @@ export const NAMES: Record<string, string> = {
   ecransDuWorktree: "worktreeScreens",
   ecrirePortes: "writeDoors",
   empreinteDEpique: "epicFingerprint",
-  enCuisine: "taken",
-  enCuisineDe: "takenBy",
+  enCuisine: "cooking",
+  enCuisineDe: "cookingOn",
   epiqueDe: "epicOf",
   epiqueServie: "servedEpic",
   epiqueToutServie: "epicAllServed",
@@ -332,7 +332,7 @@ export const NAMES: Record<string, string> = {
   poseesAuJournal: "loggedSettings",
   poserAvecFiche: "setWithCard",
   poserBon: "renderSlip",
-  poserCloison: "setPartition",
+  poserCloison: "installPartition",
   poserDetailsDeFiche: "renderCardDetails",
   poserEcran: "renderScreen",
   poserFiche: "renderCard",
@@ -484,4 +484,10 @@ export const NAMES: Record<string, string> = {
   // `poste` as « posted ».
   RIEN_POSTE: "NOTHING_POSTED",
   posteSurGitHub: "postedOnGitHub",
+  // Where the English name is already taken in the file.
+  "app/src/page.ts#Serveur": "StatusServer",
+  "app/src/page.ts#SERVEUR": "SERVER_FR",
+  "app/src/page.ts#ECRAN": "SCREEN_FR",
+  "runtime/src/servir.ts#ecran": "screenToSee",
+  "runtime/src/station.ts#livrable": "readDeliverable",
 };

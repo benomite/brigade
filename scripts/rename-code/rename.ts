@@ -408,7 +408,10 @@ function plan(): { plan: Plan; ls: ts.LanguageService; files: string[] } {
 // The proof: every identifier of the code resolves, after the rename, to the
 // declaration it resolved to before — moved and renamed, but the same one.
 
-type Resolution = { file: string; start: number; target: string; shorthand: boolean };
+// What an identifier resolves to: every declaration of its symbol (a property
+// of a union has several, in an order that is not stable across programs).
+type Target = { file: string; start: number; shorthand: boolean };
+type Resolution = { file: string; start: number; targets: Target[] };
 
 function resolutions(ls: ts.LanguageService, files: string[]): Resolution[] {
   const program = ls.getProgram()!;
@@ -421,12 +424,13 @@ function resolutions(ls: ts.LanguageService, files: string[]): Resolution[] {
         const parent = node.parent;
         const symbol =
           parent && ts.isShorthandPropertyAssignment(parent) && parent.name === node ? checker.getShorthandAssignmentValueSymbol(parent) : checker.getSymbolAtLocation(node);
-        const declaration = symbol?.declarations?.[0];
-        if (declaration) {
-          const name = ts.getNameOfDeclaration(declaration) ?? declaration;
+        const targets = (symbol?.declarations ?? []).map((declaration) => ({
+          file: declaration.getSourceFile().fileName,
+          start: (ts.getNameOfDeclaration(declaration) ?? declaration).getStart(),
           // A shorthand property `{ a }` keeps its name where it was when only its value is renamed (`{ a: b }`).
-          out.push({ file: abs(file), start: node.getStart(), target: `${declaration.getSourceFile().fileName}@${name.getStart()}`, shorthand: ts.isShorthandPropertyAssignment(declaration) });
-        }
+          shorthand: ts.isShorthandPropertyAssignment(declaration),
+        }));
+        if (targets.length > 0) out.push({ file: abs(file), start: node.getStart(), targets });
       }
       ts.forEachChild(node, visit);
     };
@@ -437,7 +441,9 @@ function resolutions(ls: ts.LanguageService, files: string[]): Resolution[] {
 
 function prove(before: Resolution[], edits: Map<string, Edit[]>, renamed: Map<string, string>, files: string[]): string[] {
   const ls = service(files);
-  const after = new Map(resolutions(ls, files).map((resolution) => [`${resolution.file}@${resolution.start}`, resolution.target]));
+  const show = (targets: string[]) => targets.map((target) => rel(target)).join(" | ");
+  const positions = (targets: Target[]) => targets.map(({ file, start }) => `${file}@${start}`).sort();
+  const after = new Map(resolutions(ls, files).map((resolution) => [`${resolution.file}@${resolution.start}`, positions(resolution.targets)]));
   const mapPosition = (file: string, start: number, prefixed = true) => {
     const list = edits.get(file) ?? [];
     const edit = list.find((candidate) => candidate.start === start);
@@ -446,11 +452,12 @@ function prove(before: Resolution[], edits: Map<string, Edit[]>, renamed: Map<st
   };
   const broken: string[] = [];
   for (const resolution of before) {
-    const [file, start] = resolution.target.split("@") as [string, string];
-    const expected = file.startsWith(REPO + "/") && !file.includes("/node_modules/") ? mapPosition(file, Number(start), !resolution.shorthand) : resolution.target;
+    const expected = resolution.targets
+      .map((target) => (target.file.startsWith(REPO + "/") && !target.file.includes("/node_modules/") ? mapPosition(target.file, target.start, !target.shorthand) : `${target.file}@${target.start}`))
+      .sort();
     const where = mapPosition(resolution.file, resolution.start);
     const got = after.get(where);
-    if (got !== expected) broken.push(`${rel(resolution.file)}@${resolution.start}: resolved to ${rel(expected.split("@")[0]!)}@${expected.split("@")[1]}, now ${got === undefined ? "nothing" : rel(got.split("@")[0]!) + "@" + got.split("@")[1]}`);
+    if (got === undefined || got.join(",") !== expected.join(",")) broken.push(`${rel(resolution.file)}@${resolution.start}: resolved to ${show(expected)}, now ${got === undefined ? "nothing" : show(got)}`);
   }
   return broken;
 }
