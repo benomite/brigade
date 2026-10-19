@@ -132,6 +132,62 @@ codex/skills/$r/"*) ;; *)
   [ "$perime" -eq 0 ] && ok "miroir Codex à jour pour les rôles modifiés depuis $REF"
 fi
 
+# 6 bis. Le tour : sur une box, les suites de tests de deux passages ne courent
+# jamais en même temps — c'est ce qui fait que la garde d'horloge ne coupe plus
+# pour cause de charge (#1004). Le verrou est un répertoire (`mkdir` est
+# atomique, sur Linux comme sur macOS), partagé entre tous les worktrees de la
+# box ; il porte le pid de ce script. Un passage tué ou planté ne le libère pas
+# lui-même : le suivant voit que ce pid est mort et reprend la main.
+# L'attente n'est PAS de la durée d'exécution : la garde d'horloge ne court
+# qu'une fois le tour obtenu (elle est armée dans `suite`).
+VERROU="${BRIGADE_GATES_VERROU:-${TMPDIR:-/tmp}/brigade-gates-$(id -u).verrou}"
+VERROU="${VERROU%/}"
+TOUR=0
+rendre_le_tour() {
+  if [ "$TOUR" -eq 1 ] && [ "$(cat "$VERROU/pid" 2>/dev/null)" = "$$" ]; then
+    rm -rf "$VERROU"
+  fi
+  TOUR=0
+}
+prendre_le_tour() {
+  local PROPRIETAIRE MORT
+  while :; do
+    if mkdir "$VERROU" 2>/dev/null; then
+      echo "$$" >"$VERROU/pid"
+      TOUR=1
+      return 0
+    fi
+    PROPRIETAIRE="$(cat "$VERROU/pid" 2>/dev/null)"
+    MORT=0
+    if [ -n "$PROPRIETAIRE" ]; then
+      kill -0 "$PROPRIETAIRE" 2>/dev/null || MORT=1
+    elif [ ! -d "$VERROU" ]; then
+      continue   # rendu entre-temps
+    elif [ -n "$(find "$VERROU" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then
+      MORT=1     # créé il y a plus d'une minute et jamais signé : son passage est mort entre mkdir et écriture
+    fi
+    if [ "$MORT" -eq 1 ]; then
+      # Reprise : renommer est atomique, un seul des passages en attente
+      # emporte le verrou mort. Si ce qu'on a emporté est le verrou vivant d'un
+      # autre (repris entre-temps), on le remet.
+      if mv "$VERROU" "$VERROU.mort.$$" 2>/dev/null; then
+        if [ "$(cat "$VERROU.mort.$$/pid" 2>/dev/null)" = "$PROPRIETAIRE" ]; then
+          rm -rf "$VERROU.mort.$$"
+        else
+          mv "$VERROU.mort.$$" "$VERROU" 2>/dev/null || rm -rf "$VERROU.mort.$$"
+        fi
+      fi
+      continue
+    fi
+    sleep 0.5
+  done
+}
+# Quitter, interrompu ou non, rend le tour. (Un SIGKILL ne passe pas ici : c'est
+# la reprise du verrou mort, plus haut, qui le rend.)
+trap rendre_le_tour EXIT
+trap 'rendre_le_tour; exit 130' INT
+trap 'rendre_le_tour; exit 143' TERM
+
 # 7. Les zones à suite de tests — le runtime, puis l'app : tests, puis contrôle
 # de types. Une seule ligne FAIL par étape ; le détail part sur stderr, sans
 # préfixe FAIL. Une zone absente n'est pas un échec.
@@ -216,7 +272,8 @@ suite() {
       # leur groupe.
       trap 'kill -KILL -- "-$PID_TESTS" 2>/dev/null; kill "$PID_GARDE" 2>/dev/null; exit 130' INT TERM
       wait "$PID_TESTS" 2>/dev/null && TESTS=verts || TESTS=rouges
-      trap - INT TERM
+      trap 'rendre_le_tour; exit 130' INT
+      trap 'rendre_le_tour; exit 143' TERM
       kill "$PID_GARDE" 2>/dev/null
       wait "$PID_GARDE" 2>/dev/null
       if [ -e "$TIREE" ]; then rm -f "$TIREE"; ARRETES=1; fi
@@ -276,8 +333,15 @@ suite() {
   fi
 }
 SUITE_ROUGE=0
+DEBUT_ATTENTE=$SECONDS
+prendre_le_tour
+ATTENTE=$((SECONDS - DEBUT_ATTENTE))
+DEBUT_EXECUTION=$SECONDS
 suite runtime "du runtime" "runtime absent" du-runtime
 suite app "de l'app" "app absente" de-l-app
+EXECUTION=$((SECONDS - DEBUT_EXECUTION))
+rendre_le_tour
+ok "tour des tests : $ATTENTE s à attendre son tour, $EXECUTION s d'exécution (la garde de ${BRIGADE_GATES_DELAI_TESTS:-300} s ne compte que l'exécution)"
 # Une suite rouge n'a pas de relevé : la somme des autres passerait pour le
 # total, et le relevé montrerait une chute au lieu d'une absence.
 if [ "$SUITE_ROUGE" -eq 1 ]; then NB_TESTS=""; MS_TESTS=""; fi
@@ -326,6 +390,7 @@ while pile:
 print(total)
 PY
 )"
+mesure gates_attente_s "$ATTENTE"
 mesure gates_s "$SECONDS"
 
 verdict "$rc"
