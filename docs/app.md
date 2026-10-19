@@ -2343,8 +2343,9 @@ Deux façons : **installée**, depuis un `.dmg` pour Apple Silicon, ou **depuis 
 ouvre-la. Elle porte le runtime de sa station et le `node` qui le joue : ni clone, ni `node`, ni
 `npm` sur la machine. Elle lit `~/.config/brigade/` tel quel — tes projets et réglages sont ceux de
 l'app du dépôt —, prend le `PATH` de ton shell de connexion (pour trouver `claude` et `gh`), et ne
-se met pas à jour par `git` : une nouvelle version, c'est un nouveau `.dmg`. Elle n'est pas signée
-par un développeur identifié : copiée d'un autre Mac, macOS demande « Ouvrir quand même ». Ce
+se met pas à jour par `git` : une nouvelle version, c'est un nouveau `.dmg`. Le `.dmg` publié sur la release `app-v<version>` est signé Developer ID et notarisé par Apple : il
+s'ouvre sans alerte. Celui qu'on construit soi-même n'est signé qu'ad hoc : copié d'un autre Mac,
+macOS demande « Ouvrir quand même ». Ce
 qu'elle porte, comment elle se construit et s'éprouve : [`app/packaging/README.md`](../app/packaging/README.md).
 
 **Depuis le dépôt :**

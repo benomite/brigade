@@ -1,0 +1,96 @@
+# Publie l'app du Mac : sur un tag `app-v<version>` (ex. `app-v1.0.0`), construit sur un runner macOS
+# le .dmg arm64, le signe avec un certificat Developer ID, le fait notariser par Apple, l'agrafe,
+# vérifie le résultat, puis l'attache à la release du tag avec `latest-mac.yml` (les métadonnées
+# de l'updater). Le détail et la procédure : app/packaging/README.md.
+#
+# Secrets du dépôt requis (aucune valeur n'est dans le dépôt) :
+#   MACOS_CERTIFICATE_P12         le certificat « Developer ID Application » et sa clé, .p12 en base64
+#   MACOS_CERTIFICATE_PASSWORD    le mot de passe de ce .p12
+#   MACOS_SIGN_IDENTITY           le nom du certificat, ex. « Developer ID Application: Nom (ABCDE12345) »
+#   APPLE_ID                      l'identifiant Apple du compte développeur
+#   APPLE_APP_SPECIFIC_PASSWORD   un mot de passe d'app pour ce compte (appleid.apple.com)
+#   APPLE_TEAM_ID                 l'identifiant d'équipe (10 caractères)
+name: publier-app
+
+on:
+  push:
+    tags:
+      - "app-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publier:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - name: Installer les dépendances de l'app
+        run: npm ci --ignore-scripts --prefix app
+      - name: Poser le certificat et le profil de notarisation
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          for v in MACOS_CERTIFICATE_P12 MACOS_CERTIFICATE_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            [ -n "${!v}" ] || { echo "::error::the repository secret $v is not set"; exit 1; }
+          done
+          trousseau="$RUNNER_TEMP/brigade.keychain-db"
+          mot_de_passe="$(uuidgen)"
+          echo "$MACOS_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificat.p12"
+          security create-keychain -p "$mot_de_passe" "$trousseau"
+          security set-keychain-settings -lut 21600 "$trousseau"
+          security unlock-keychain -p "$mot_de_passe" "$trousseau"
+          security import "$RUNNER_TEMP/certificat.p12" -k "$trousseau" -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$mot_de_passe" "$trousseau"
+          security list-keychains -d user -s "$trousseau" login.keychain-db
+          rm -f "$RUNNER_TEMP/certificat.p12"
+          xcrun notarytool store-credentials brigade-notary --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --keychain "$trousseau"
+      - name: Construire, signer et notariser le .dmg
+        env:
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          [ -n "$MACOS_SIGN_IDENTITY" ] || { echo "::error::the repository secret MACOS_SIGN_IDENTITY is not set"; exit 1; }
+          npm --prefix app run dist -- --version "${TAG#app-v}" --sortie "$RUNNER_TEMP/dist" --identite "$MACOS_SIGN_IDENTITY" --notariser brigade-notary
+      - name: Vérifier la signature, la notarisation et l'agrafe
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          dmg="$RUNNER_TEMP/dist/Brigade-${TAG#app-v}-arm64.dmg"
+          test -f "$dmg"
+          test -f "$RUNNER_TEMP/dist/latest-mac.yml"
+          # Le .dmg lui-même : signé, accepté par Gatekeeper, agrafé.
+          codesign --verify --strict "$dmg"
+          spctl --assess --type open --context context:primary-signature "$dmg"
+          xcrun stapler validate "$dmg"
+          # L'app qu'il porte, telle qu'un chef la glisse dans Applications.
+          point="$RUNNER_TEMP/volume"
+          mkdir -p "$point"
+          hdiutil attach "$dmg" -mountpoint "$point" -nobrowse -readonly
+          trap 'hdiutil detach "$point" -force' EXIT
+          app="$point/Brigade.app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          spctl --assess --type execute --verbose=2 "$app"
+          xcrun stapler validate "$app"
+      - name: Joindre le .dmg et les métadonnées à la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          dmg="$RUNNER_TEMP/dist/Brigade-${TAG#app-v}-arm64.dmg"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$dmg" "$RUNNER_TEMP/dist/latest-mac.yml" --clobber
+          else
+            gh release create "$TAG" "$dmg" "$RUNNER_TEMP/dist/latest-mac.yml" --title "Brigade (Mac) ${TAG#app-v}" --notes "L'app du Mac, signée Developer ID et notarisée par Apple. Ouvrir le .dmg, glisser Brigade dans Applications."
+          fi
