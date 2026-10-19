@@ -27,7 +27,9 @@ function unFauxClaude(t: TestContext, code = 0) {
   const claude = join(dossier, "claude");
   writeFileSync(claude, `#!/bin/sh\necho "$@" >> "${dossier}/appels"\nwhile [ ! -f "${dossier}/fin" ]; do sleep 0.05; done\necho "Login failed: timed out"\nexit ${code}\n`);
   chmodSync(claude, 0o755);
-  return { claude, appels: () => (existsSync(join(dossier, "appels")) ? readFileSync(join(dossier, "appels"), "utf8").trim().split("\n") : []), finir: () => writeFileSync(join(dossier, "fin"), "") };
+  // Le shell crée le fichier avant d'y écrire la ligne : lu entre les deux, il est vide, et une
+  // ligne vide n'est pas un appel.
+  return { claude, appels: () => (existsSync(join(dossier, "appels")) ? readFileSync(join(dossier, "appels"), "utf8").split("\n").filter(Boolean) : []), finir: () => writeFileSync(join(dossier, "fin"), "") };
 }
 
 test("le bouton lance `claude auth login` une fois ; un second clic pendant qu'il attend ne lance rien de plus ; fini, la station est relue", async (t) => {
