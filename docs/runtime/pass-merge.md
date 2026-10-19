@@ -5,7 +5,7 @@ journal — : tu l'accordes, le prolonges et le révoques **sans redémarrer**, 
 chaque décision de merge**.
 
 ```bash
-npm --prefix runtime run grant                               # son état, ce qu'il en reste, ses derniers gestes et usages, le bilan des arrêts sans grant
+npm --prefix runtime run grant                               # son état, ce qu'il en reste, ses `latest actions` et `latest uses`, le bilan « without a grant, … »
 npm --prefix runtime run grant -- enable merge            # sans échéance
 npm --prefix runtime run grant -- enable merge --for 4h   # il s'éteint seul dans quatre heures
 npm --prefix runtime run grant -- enable merge --until 18h30 --uses 10
