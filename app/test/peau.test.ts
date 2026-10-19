@@ -20,7 +20,7 @@ import { BANNIERE, type Dessinable } from "../src/faits.ts";
 import { entete } from "../src/fiche.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS, type Vu as VuDesGrants } from "../src/grants.ts";
-import { EFFORTS, MODELES } from "../src/installation.ts";
+import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { GESTES_DU_MANAGER, type Vu as VuDuManager } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Pages } from "../src/page.ts";
@@ -238,7 +238,6 @@ const demarrage = () => ({
 const REPONSES: Reponses & Required<Pick<Reponses, "demarrage">> = {
   demarrage,
   espace: () => [SECOND],
-  proposerCalibrage: () => ({ calibrage: { manager: { modele: "opus", effort: "high" }, reviewer: { modele: "sonnet", effort: "medium" } }, origine: "la valeur mesurée" }),
 };
 
 // Les `pre` posés sous un élément : ce que la box a rendu, et — à part — ce que l'app en dit.
@@ -305,21 +304,8 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
     // Rien de technique n'est écrit à plat : une ligne, et ce que `ssh` a rendu — mot pour mot — au survol,
     // suivi de ce que l'app en dit.
     assert.equal(vue.element("lecture").dessous("pre").length, 0);
-    assert.equal(vue.element("lecture").dessous("p").find((pose) => pose.className === "indisponible")?.textContent, "the box could not be reached?");
+    assert.equal(vue.element("lecture").dessous("p").find((pose) => pose.className === "indisponible")?.textContent, "the station could not be reached?");
     assert.ok(vue.element("lecture").dessous("button").some((pose) => pose.ariaLabel.startsWith(erreur)));
-  });
-
-  test("dans l'écran d'ajout : ce que la box a rendu à l'installation, mot pour mot", async () => {
-    const vue = await jouerLaVue({ ...REPONSES, installer: () => ({ etat: "pas-ajoute", titre: "PAS AJOUTÉ — la box a refusé", lignes: ["La box n'a rien écrit."], obtenu: RELAYE }) });
-    entree(vue, -1).click();
-    await repos();
-    assert.equal(vue.element("ajout").hidden, false);
-
-    await Promise.all(vue.element("formulaire").declencher("submit"));
-    await repos();
-
-    assert.equal(vue.dernier("installer").length, 1);
-    assert.deepEqual(textes(relayes(vue.element("issue-ajout"))), [RELAYE]);
   });
 
   test("aucune règle de la peau ne coupe, ne cache ni ne récrit un `pre` : ses blancs et ses lignes sont gardés", () => {
@@ -545,10 +531,10 @@ describe("le monospace est une information, pas un style", () => {
     // Sur plusieurs lignes, les mots de l'app sont à part de ceux de la box : jamais dans un `pre` nu.
     const vue = await jouerLaVue({ ...REPONSES, demarrage: () => ({ ...demarrage(), configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }) }) });
     // Sur l'accueil, un projet sans box se dit en une ligne ; ce qu'elle suppose du fichier est au survol.
-    vue.dire("surAccueil", { projets: [{ nom: PARADE, ton: "gris", dit: "no box: nothing is read", survol: "its entry in the projects file does not say where its box is" }], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } });
+    vue.dire("surAccueil", { projets: [{ nom: PARADE, ton: "gris", dit: "no station: nothing is read", survol: "its entry in the projects file does not say where its station is" }], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } });
     const sansBox = vue.element("tous").dessous("button").find((pose) => pose.className === "ligne");
-    assert.equal(sansBox?.textContent, `${PARADE}no box: nothing is read›`);
-    assert.equal(sansBox?.title, "its entry in the projects file does not say where its box is");
+    assert.equal(sansBox?.textContent, `${PARADE}no station: nothing is read›`);
+    assert.equal(sansBox?.title, "its entry in the projects file does not say where its station is");
     assert.equal(vue.element("tous").dessous("pre").length, 0);
   });
 });

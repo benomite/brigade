@@ -17,7 +17,7 @@ import { BANNIERE, type Dessinable, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { gestesDeCarte } from "../src/gestes-fiche.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
-import { EFFORTS, MODELES } from "../src/installation.ts";
+import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { ligneDeProjet, tenirAccueil, type Accueil, type ProjetDeLAccueil } from "../src/accueil.ts";

@@ -15,5 +15,5 @@ export function refusDeForme(nom: string): string | undefined {
   if (saisi === "" || (FORME.test(saisi) && saisi.length <= LONGUEUR_MAX)) return undefined;
   const mauvais = [...new Set([...saisi].filter((c) => !/[a-z0-9-]/.test(c)).map((c) => (c === " " ? "space" : `“${c}”`)))].join(", ");
   const pourquoi = mauvais !== "" ? `it contains ${mauvais}` : saisi.startsWith("-") ? "it starts with a hyphen" : `it is ${saisi.length} characters long`;
-  return `The box refuses this name — ${pourquoi}. Expected: ${FORME_ATTENDUE}.`;
+  return `The station refuses this name — ${pourquoi}. Expected: ${FORME_ATTENDUE}.`;
 }

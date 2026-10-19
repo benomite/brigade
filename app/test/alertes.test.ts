@@ -28,7 +28,7 @@ import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, comprendre, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GESTES, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
-import { EFFORTS, MODELES } from "../src/installation.ts";
+import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { jouerLaVue, repos, type Reponses } from "./aides/fausse-vue.ts";
@@ -190,7 +190,7 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
     assert.equal(ligne.geste, GESTE_DE_STATION_A_CHAUD_EN);
     // Déclarer une station se joue sur la box, hors de l'app : le geste est une demande au second.
     assert.deepEqual(ligne.appel, { demande: true });
-    assert.equal(ligne.prix, "a runtime restart: what is in flight is interrupted — the box does not say what is");
+    assert.equal(ligne.prix, "a runtime restart: what is in flight is interrupted — the station does not say what is");
   });
 
   test("arrêtée par le « stop » du chef : reprendre, et ce que ça relance", (t) => {
@@ -237,7 +237,7 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
     // La première lecture est en cours : rien ne se dit avant son résultat.
     assert.deepEqual(premiere?.alertes, []);
     assert.equal(nonVerifie(bandes.faits(PAS_JOINT).alertes, "cuisine", "kitchen state").pourquoi, "`facts` was not read: not reached");
-    assert.equal(nonVerifie(bandes.faits(lecture("facts", "pas du json\n")).alertes, "cuisine", "kitchen state").pourquoi, "the box did not return the shape of `facts`: this is not JSON");
+    assert.equal(nonVerifie(bandes.faits(lecture("facts", "pas du json\n")).alertes, "cuisine", "kitchen state").pourquoi, "the station did not return the shape of `facts`: this is not JSON");
   });
 });
 
@@ -379,7 +379,7 @@ describe("la bande, à l'écran", () => {
     await repos();
     // La confirmation dit le prix du geste, en une ligne ; rien n'est encore écrit.
     const ouverte = ligne().dessous("div").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
-    assert.equal(ouverte.dessous("p").find(({ className }) => className === "prix")?.textContent, "a runtime restart: what is in flight is interrupted — the box does not say what is?");
+    assert.equal(ouverte.dessous("p").find(({ className }) => className === "prix")?.textContent, "a runtime restart: what is in flight is interrupted — the station does not say what is?");
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "demanderAlerte"), []);
     (ouverte.dessous("button").find(({ dataset }) => dataset.oui !== undefined) ?? assert.fail("pas de « oui »")).click();
     await repos();
@@ -556,8 +556,8 @@ describe("le mot du bouton d'une alerte", () => {
     assert.equal(boutonDe({ geste: "turn the manager on", appel: { geste: "manager-allumer" } }), "turn the manager on");
     assert.equal(boutonDe({ geste: "resume the kitchen, once you have read why they fail", appel: { geste: "reprendre" } }), "resume the kitchen");
     assert.equal(boutonDe({ geste: "enable `merge` again", appel: { geste: "grant-activer", grant: "merge" } }), "enable merge again");
-    assert.equal(boutonDe({ geste: "start it on the box: `systemctl start brigade@parade`", appel: { demande: true } }), "ask the second");
-    assert.equal(boutonDe({ geste: "read it: the Grants tab reads `grant` on the box", appel: { onglet: "grants" } }), "open the grants tab");
+    assert.equal(boutonDe({ geste: "start it on the station: `systemctl start brigade@parade`", appel: { demande: true } }), "ask the second");
+    assert.equal(boutonDe({ geste: "read it: the Grants tab reads `grant` on the station", appel: { onglet: "grants" } }), "open the grants tab");
     assert.equal(boutonDe({ geste: "nothing to do: this is on brigade" }), undefined);
   });
 

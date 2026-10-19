@@ -64,7 +64,7 @@ export const PRIX = {
   issue: null,
   pr: null,
   second: null,
-  merger: "the PR is merged into the integration branch, under the box's GitHub account, and the pass serves the ticket — a merge is not undone from the app",
+  merger: "the PR is merged into the integration branch, under the station's GitHub account, and the pass serves the ticket — a merge is not undone from the app",
   retirer: "the ticket leaves the rail and is not cooked; its issue stays open and loses its `fire` label — put it back to bring the ticket back on the rail. Nothing is lost, nothing is spent",
   cuisine: "a cook takes it again and spends what a cook spends; it leaves your queue",
   priorite: null,
@@ -144,10 +144,10 @@ export function jouerGesteDeFiche(
   actions: Actions = ACTIONS,
 ): { refus: string } | Promise<Terminal | { refus: string }> {
   if (typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1) return { refus: "nothing is sent: the action names no ticket" };
-  if (projet.box === undefined) return { refus: `nothing is sent: “${projet.nom}” has no box — there is no command to run` };
+  if (projet.box === undefined) return { refus: `nothing is sent: “${projet.nom}” has no station — there is no command to run` };
   if (projet.refus !== undefined) return { refus: `nothing is sent: “${projet.nom}” does not open — ${projet.refus}` };
   const action = typeof id === "string" && Object.hasOwn(actions, id) ? actions[id as IdDeFiche] : undefined;
-  if (action === undefined || !("box" in action)) return { refus: `nothing is sent: “${String(id)}” is not an action of the box that this app can run` };
+  if (action === undefined || !("box" in action)) return { refus: `nothing is sent: “${String(id)}” is not an action of the station that this app can run` };
   if (id === "priorite" && !(texte(valeur) && PRIORITES.includes(valeur))) return { refus: `nothing is sent: the priority ${JSON.stringify(valeur) ?? String(valeur)} is not one of ${PRIORITES.join(", ")}` };
   const suite = action.box(ticket, texte(valeur) ? valeur : undefined);
   if (CONTROLE.test(suite)) return { refus: "nothing is sent: the command carries a control character" };

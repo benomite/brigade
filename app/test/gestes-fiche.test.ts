@@ -146,9 +146,9 @@ describe("jouer un geste de la fiche", () => {
   test("une action qui n'est pas branchée ne part pas — ni la commande d'une file, ni un projet sans box, ni un ticket qui n'en est pas un", () => {
     const { terminaux, envoyes } = registre();
     for (const id of ["waiting", "navigateur", "issue", "file", "inconnu", "toString"]) {
-      assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, id, 21, "2"), { refus: `nothing is sent: “${id}” is not an action of the box that this app can run` }, id);
+      assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, id, 21, "2"), { refus: `nothing is sent: “${id}” is not an action of the station that this app can run` }, id);
     }
-    assert.deepEqual(jouerGesteDeFiche(terminaux, { nom: "parade", dossier: "/p" }, "retirer", 21, undefined), { refus: "nothing is sent: “parade” has no box — there is no command to run" });
+    assert.deepEqual(jouerGesteDeFiche(terminaux, { nom: "parade", dossier: "/p" }, "retirer", 21, undefined), { refus: "nothing is sent: “parade” has no station — there is no command to run" });
     assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, "retirer", "21", undefined), { refus: "nothing is sent: the action names no ticket" });
     assert.deepEqual(jouerGesteDeFiche(terminaux, { ...PARADE, refus: "illisible" }, "retirer", 21, undefined), { refus: "nothing is sent: “parade” does not open — illisible" });
     assert.deepEqual(envoyes, []);
@@ -163,7 +163,7 @@ describe("la demande au second, depuis la fiche d'un ticket qui ne t'attend pas"
     assert.match(ecrit.demande, /n'agis pas avant mon accord\.$/);
     const sansEtat = demandeSurLeTicket("parade", 14);
     assert.ok("demande" in sansEtat);
-    assert.match(sansEtat.demande, /^Le ticket #14 de parade : il n'est pas sur le rail que la box donne\./);
+    assert.match(sansEtat.demande, /^Le ticket #14 de parade : il n'est pas sur le rail que la station donne\./);
     assert.deepEqual(demandeSurLeTicket("parade", 14, "pris", "un\ntitre"), { refus: REFUS_CONTROLE_TICKET });
   });
 

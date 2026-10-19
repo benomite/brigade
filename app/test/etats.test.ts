@@ -16,7 +16,7 @@ import { BANNIERE, type Dessinable } from "../src/faits.ts";
 import { entete } from "../src/fiche.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS, type Vu as VuDesGrants } from "../src/grants.ts";
-import { EFFORTS, MODELES } from "../src/installation.ts";
+import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { GESTES_DU_MANAGER, type Vu as VuDuManager } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
@@ -107,7 +107,7 @@ describe("les trois états de pilotage ont chacun leur forme et leur couleur", (
   test("les cas « joint mais » partagent la forme de « plus pilotable » : ni disque, ni carré", async () => {
     const inconnu = await entete({ erreur: "x", atteinte: true, cas: "projet-inconnu" });
     assert.deepEqual([inconnu.dataset.etat, inconnu.dataset.ton, inconnu.dataset.forme], ["inconnu", "jaune", "losange"]);
-    assert.match(inconnu.textContent, /^REACHED, BUT UNKNOWN TO THE BOX/);
+    assert.match(inconnu.textContent, /^REACHED, BUT UNKNOWN TO THE STATION/);
   });
 });
 

@@ -34,49 +34,16 @@
           <output id="choisi"></output>
         </div>
         <p id="refus-dossier" class="refus-champ" aria-live="polite"></p>
-        <label for="nom">Its name</label>
-        <input id="nom" autocomplete="off" spellcheck="false" />
-        <small>The box serves it under this name: that of its instance, <code>brigade@&lt;nom&gt;.service</code>, and the one the app gives it (<code>ssh &lt;hote&gt; brigade &lt;nom&gt; status</code>). Lowercase letters, digits, hyphens.</small>
-        <p id="refus-nom" class="refus-champ" aria-live="polite"></p>
         <label for="depot">Its GitHub repository</label>
         <input id="depot" autocomplete="off" spellcheck="false" />
-        <small><code>&lt;owner&gt;/&lt;name&gt;</code>: this is what the box clones. The app reads it from the origin of the folder you chose; correct it if it is not the right one.</small>
+        <small><code>&lt;owner&gt;/&lt;name&gt;</code>: the app reads it from the origin of the folder you chose; correct it if it is not the right one. The project takes its name.</small>
         <p id="refus-depot" class="refus-champ" aria-live="polite"></p>
-        <label for="hote">Its box</label>
-        <select id="hote"></select>
-        <small>The one where the project is installed and served, among those you have declared. A box is only a name: the one your <code>ssh</code> reaches it by, what you type after <code>ssh</code>.</small>
-        <p id="refus-hote" class="refus-champ" aria-live="polite"></p>
-        <div>
-          <label for="box">Declare a box</label>
-          <input id="box" autocomplete="off" spellcheck="false" />
-          <button type="button" id="declarer">Declare</button>
-        </div>
-        <p id="refus-box" class="refus-champ" aria-live="polite"></p>
-        <span class="titre">The manager and reviewer calibration</span>
-        <small>The model and effort of their judgments: this is your quota. The screen suggests a value and says where it comes from; you keep it or change it.</small>
-        <div class="calibrage">
-          <label for="manager-modele">Manager</label>
-          <select id="manager-modele" aria-label="The manager model"></select>
-          <select id="manager-effort" aria-label="The manager effort"></select>
-        </div>
-        <p id="propose-manager" class="propose" aria-live="polite"></p>
-        <p id="refus-manager-modele" class="refus-champ" aria-live="polite"></p>
-        <p id="refus-manager-effort" class="refus-champ" aria-live="polite"></p>
-        <div class="calibrage">
-          <label for="reviewer-modele">Reviewer</label>
-          <select id="reviewer-modele" aria-label="The reviewer model"></select>
-          <select id="reviewer-effort" aria-label="The reviewer effort"></select>
-        </div>
-        <p id="propose-reviewer" class="propose" aria-live="polite"></p>
-        <p id="refus-reviewer-modele" class="refus-champ" aria-live="polite"></p>
-        <p id="refus-reviewer-effort" class="refus-champ" aria-live="polite"></p>
-        <label for="sauvegardes">Where its backups go</label>
-        <input id="sauvegardes" autocomplete="off" spellcheck="false" />
-        <small>A directory <strong>on the box</strong>, specific to this project, as an absolute path — under the root the box allows, outside <code>/var/lib/brigade/&lt;nom&gt;</code>. The root is the one the box accepts, read from it; the project name completes it.</small>
-        <p id="propose-sauvegardes" class="propose" aria-live="polite"></p>
-        <p id="refus-sauvegardes" class="refus-champ" aria-live="polite"></p>
-        <button type="submit" id="installer">Install on the box, and add</button>
-        <small>The app runs the box's installation step for you: no command to paste, no port to choose — the box assigns them, and the app shows them to you.</small>
+        <label for="base">Its integration branch</label>
+        <input id="base" autocomplete="off" spellcheck="false" />
+        <small>The branch the kitchen delivers to. The app reads the one the folder's origin points to; correct it if it is not the right one.</small>
+        <p id="refus-base" class="refus-champ" aria-live="polite"></p>
+        <button type="submit" id="ajouter">Add to the app</button>
+        <small>The project gets its tab, and nothing is sent anywhere. Which station cooks it is chosen afterwards, from its page — now, later, or never.</small>
         <section id="issue-ajout" aria-live="polite"></section>
       </form>
     </section>
@@ -96,6 +63,9 @@
         <!-- Le geste du projet lui-même : vérifier son installation. Les autres sont collés à l'état qu'ils changent. -->
         <div id="gestes-projet" class="gestes" hidden></div>
       </header>
+      <!-- Les stations qui font la cuisine du projet (ticket 983) : nommées en une ligne, avec de quoi en ajouter
+           une ; s'il n'en a aucune, une phrase le dit, et le geste qui la lui confie est à côté. -->
+      <section id="stations-du-projet" aria-label="Its stations" hidden></section>
       <p id="note" aria-live="polite" hidden></p>
       <!-- Le centre : le rail, la vue principale, en six colonnes. Une page ouverte se pose par-dessus,
            sans le défaire : fermée, elle rend le rail tel qu'il était. Il n'y a rien dessous. -->

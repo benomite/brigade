@@ -392,6 +392,36 @@ main > header,
   color: var(--discret);
   border-bottom: 1px solid var(--trait-doux);
 }
+/* Les stations qui font la cuisine du projet, en une ligne sous sa tête : chacune se clique, et
+   « + station » — ou, sans aucune, « entrust it to a station » — ouvre le choix dessous. */
+#stations-du-projet {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--trait-doux);
+}
+#stations-du-projet p {
+  margin: 0;
+}
+#stations-du-projet .station-du-projet {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+#stations-du-projet .ajout-de-station {
+  padding: 3px 10px;
+  color: var(--discret);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+#stations-du-projet form {
+  display: flex;
+  flex-wrap: wrap;
+  flex-basis: 100%;
+  gap: 8px;
+}
 /* Le centre : le rail, et par-dessus lui la page ouverte, qui le couvre entier. Le rail reste
    posé dessous — sa hauteur, son défilement — et revient tel quel quand la page se ferme. */
 #centre {
@@ -1061,7 +1091,6 @@ main > header,
   margin: 0;
 }
 #formulaire label,
-#formulaire .titre,
 #formulaire div {
   margin-top: 12px;
   font-weight: 600;
@@ -1118,7 +1147,7 @@ main > header,
 #formulaire .refus-champ:empty {
   display: none;
 }
-/* Ce qu'il est advenu de l'ajout : ce que la box a rendu, tel quel, puis ce que l'app en dit. */
+/* Ce qu'il est advenu de l'ajout : ce que l'app en dit. */
 #issue-ajout {
   display: flex;
   flex-direction: column;

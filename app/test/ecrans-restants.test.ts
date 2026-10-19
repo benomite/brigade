@@ -13,7 +13,7 @@ import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
-import { EFFORTS, MODELES } from "../src/installation.ts";
+import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
@@ -79,7 +79,7 @@ describe("Cost : une lecture, des gestes en boutons, rien d'expliqué à plat", 
     const corps = vue.element("lecture-onglet");
     assert.equal(corps.dessous("pre").length, 0);
     assert.doesNotMatch(aPlat(corps), TECHNIQUE);
-    assert.equal(corps.dessous("p").find(({ className }) => className === "indisponible")?.textContent, "the box could not be reached?");
+    assert.equal(corps.dessous("p").find(({ className }) => className === "indisponible")?.textContent, "the station could not be reached?");
     assert.ok(survols(corps).some((dit) => dit.startsWith(erreur)));
   });
 });

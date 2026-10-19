@@ -75,7 +75,7 @@ export function capturesDeCarte(lues: CapturesLues): CapturesDeCarte {
 export type Image = { image: string } | { sans: string };
 export async function lireCapture(reglages: Reglages, adresse: string): Promise<Image> {
   const lue = lireAdresse(adresse);
-  if (lue === undefined) return { sans: "the address the box gave for this screenshot is not a file on GitHub: the app does not read it" };
+  if (lue === undefined) return { sans: "the address the station gave for this screenshot is not a file on GitHub: the app does not read it" };
   const args = ["api", `repos/${lue.depot}/contents/${lue.chemin.split("/").map(encodeURIComponent).join("/")}?ref=${lue.sha}`, "--jq", ".content"];
   const rendu = await lancer(reglages, args);
   const { erreur } = rendu;

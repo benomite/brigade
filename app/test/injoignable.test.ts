@@ -25,7 +25,7 @@ describe("box injoignable (#728)", () => {
     assert.equal(bande.alertes.length, 1);
     const [ligne] = bande.alertes;
     assert.equal(ligne?.sujet, "injoignable");
-    assert.match(ligne?.dit ?? "", /^box unreachable for 1 min: the app knows nothing of the kitchen right now$/);
+    assert.match(ligne?.dit ?? "", /^station unreachable for 1 min: the app knows nothing of the kitchen right now$/);
     assert.match(ligne?.pourquoi ?? "", /^no answer/);
     assert.match(ligne?.geste ?? "", /try again now/);
     assert.match(ligne?.geste ?? "", /machine at its host/);
@@ -49,7 +49,7 @@ describe("box injoignable (#728)", () => {
   });
 
   test("le signal de la pastille dit « injoignable », avant tout autre", () => {
-    const signal = signalDe([{ sujet: "injoignable", verifie: true, ton: "rouge", dit: "box unreachable for 1 min", geste: "g", prix: "p" }]);
+    const signal = signalDe([{ sujet: "injoignable", verifie: true, ton: "rouge", dit: "station unreachable for 1 min", geste: "g", prix: "p" }]);
     assert.equal(signal?.etat, "injoignable");
   });
 });

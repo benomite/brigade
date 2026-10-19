@@ -433,10 +433,10 @@ export function ouvrirRunner(options: OptionsDuRunner) {
       if ("reponse" in rendue) {
         const { reponse } = rendue;
         if (reponse.ok && reponse.verb === "deliver") dire(station, `ticket #${mission.ticket} returned: ${reponse.ending}${reponse.reason === null ? "" : ` (${reponse.reason})`}`);
-        else if (!reponse.ok) dire(station, `ticket #${mission.ticket}: delivery refused by the box — ${reponse.said}`);
+        else if (!reponse.ok) dire(station, `ticket #${mission.ticket}: delivery refused by the main station — ${reponse.said}`);
         return;
       }
-      if (performance.now() >= jusqua) return dire(station, `ticket #${mission.ticket}: the box did not answer about its delivery before the end of its lease — ${rendue.muette.split("\n").at(-1) ?? ""}`);
+      if (performance.now() >= jusqua) return dire(station, `ticket #${mission.ticket}: the main station did not answer about its delivery before the end of its lease — ${rendue.muette.split("\n").at(-1) ?? ""}`);
       await pause(pas(station), station.arret.signal);
     }
   }
@@ -566,12 +566,12 @@ export function ouvrirRunner(options: OptionsDuRunner) {
       if (signal.aborted) return;
       let attente = pas(station);
       if ("muette" in rendue) {
-        dire(station, `the box did not answer — ${rendue.muette.split("\n").at(-1) ?? ""}`);
+        dire(station, `the main station did not answer — ${rendue.muette.split("\n").at(-1) ?? ""}`);
       } else if (!rendue.reponse.ok) {
         // Pas déclarée `distante` sur la box, ou plus : elle redemande, sans insister.
         station.annonce = null;
         attente *= 10;
-        dire(station, `refused by the box — ${rendue.reponse.said}`);
+        dire(station, `refused by the main station — ${rendue.reponse.said}`);
       } else if (rendue.reponse.verb === "announce") {
         const premiere = station.annonce === null;
         station.annonce = rendue.reponse;
@@ -586,7 +586,7 @@ export function ouvrirRunner(options: OptionsDuRunner) {
           continue;
         }
         if (rendue.reponse.mission !== null) dire(station, "unreadable mission: nothing is launched — the ticket's lease will lapse on its own");
-        else if (station.cooks.size === 0) dire(station, rendue.reponse.held === null ? "present — nothing to take" : `present — withheld by the box (${rendue.reponse.held})`);
+        else if (station.cooks.size === 0) dire(station, rendue.reponse.held === null ? "present — nothing to take" : `present — withheld by the main station (${rendue.reponse.held})`);
       }
       await pause(attente, signal);
     }

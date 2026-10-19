@@ -210,24 +210,6 @@ describe("le fichier des projets, suivi", () => {
     assert.deepEqual(noms(), ["a"]);
   });
 
-  test("une box déclarée depuis l'app arrive comme un changement du fichier — et reste proposée quand sa relecture est refusée", (t) => {
-    const { chemin, suivie, dits } = suivi(t, { projets: [] });
-
-    assert.equal(suivie.ajouterHote("box"), undefined);
-    assert.equal(suivie.ajouterHote("chef@autre-box"), undefined);
-
-    assert.deepEqual(dits.at(-1), { configuration: { chemin, projets: [], hotes: ["box", "chef@autre-box"] }, partis: [] });
-    assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { projets: [], hotes: ["box", "chef@autre-box"] });
-
-    writeFileSync(chemin, '{ "projets": [');
-    suivie.relire();
-
-    assert.deepEqual(suivie.configuration().hotes, ["box", "chef@autre-box"]);
-    assert.match(suivie.configuration().nonRelu ?? "", /^unreadable JSON: /);
-    assert.match(suivie.ajouterHote("troisieme") ?? "", /^the app does not write to a file it could not re-read — unreadable JSON: /);
-    assert.equal(readFileSync(chemin, "utf8"), '{ "projets": [');
-  });
-
   test("un projet retiré depuis l'app quitte la liste aussitôt, et il est dit parti — les autres non, et le fichier n'a plus sa ligne", (t) => {
     const { chemin, suivie, dits, projet, noms } = suivi(t, { projets: [] });
     writeFileSync(chemin, JSON.stringify({ hotes: ["box"], projets: [{ ...projet("a"), hote: "box" }, projet("b")] }));
@@ -277,21 +259,6 @@ describe("le fichier des projets, suivi", () => {
 
     assert.equal(readFileSync(chemin, "utf8"), '{ "projets": [');
     assert.deepEqual(noms(), ["a", "b"]);
-  });
-
-  test("ce qui refuserait un ajout se sait sans rien écrire, depuis ce que le fichier dit maintenant", (t) => {
-    const { chemin, suivie, dits, projet } = suivi(t, { projets: [] });
-    // Écrit hors de l'app, et pas encore relu : le refus part du fichier, pas de ce que la veille en a vu.
-    writeFileSync(chemin, JSON.stringify({ projets: [projet("a")] }));
-
-    assert.equal(suivie.refusDAjout(projet("a")), "two projects are named “a”");
-    assert.equal(suivie.refusDAjout(projet("b")), undefined);
-
-    assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { projets: [projet("a")] });
-    assert.deepEqual(dits.at(-1)?.configuration.projets, [projet("a")]);
-
-    rmSync(chemin);
-    assert.equal(suivie.refusDAjout(projet("b")), "the app does not write to a file it could not re-read — this file does not exist");
   });
 
   test("une création en échec garde sa raison, relecture après relecture — et réparée, elle aboutit sans relancer, veille comprise", async (t) => {

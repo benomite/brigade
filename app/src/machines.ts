@@ -37,7 +37,7 @@ export function machinesDe(projet: Pick<Projet, "box" | "stations">, declarees: 
   const et = (stations: readonly string[]) => (stations.length === 0 ? "" : ` — station ${stations.join(", ")}`);
   return [
     { id: POSTE, titre: `this Mac${et([...jouees])}`, cible: { lieu: "poste" } },
-    ...(projet.box === undefined ? [] : [{ id: BOX, titre: `box ${projet.box.hote}${et(surLaBox)}`, cible: { lieu: "box", nom: projet.box.hote, hote: projet.box.hote } as const }]),
+    ...(projet.box === undefined ? [] : [{ id: BOX, titre: `main station ${projet.box.hote}${et(surLaBox)}`, cible: { lieu: "box", nom: projet.box.hote, hote: projet.box.hote } as const }]),
     // Une station se joue auprès d'une box : sans elle, aucune n'est jointe.
     ...(projet.box === undefined ? [] : [...ailleurs].map(([machine, stations]) => ({ id: `${STATION}${machine}`, titre: `station ${stations.join(", ")}`, cible: { lieu: "station", nom: machine, hote: machine } as const }))),
   ];
@@ -48,7 +48,7 @@ export function machineChoisie(machines: readonly Machine[], id: unknown): Machi
   return machines.find((machine) => machine.id === id);
 }
 
-// Où est un shell, dit comme la liste le dit : « this Mac », « box parade-box », « station studio ».
+// Où est un shell, dit comme la liste le dit : « this Mac », « main station parade-box », « station studio ».
 export function lieuDe(cible: Cible): string {
-  return cible.lieu === "poste" ? "this Mac" : `${cible.lieu} ${cible.nom}`;
+  return cible.lieu === "poste" ? "this Mac" : `${cible.lieu === "box" ? "main station" : "station"} ${cible.nom}`;
 }

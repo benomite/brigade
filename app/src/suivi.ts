@@ -4,7 +4,7 @@
 import { realpathSync, watch, type FSWatcher } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname } from "node:path";
-import { ajouterHote, ajouterProjet, changerCouleur, changerOrdinaires, colorerProjets, creerConfiguration, lireConfiguration, rangerProjet, refusDAjout, retirerProjet, type Configuration, type Declare } from "./config.ts";
+import { ajouterProjet, changerCouleur, changerOrdinaires, colorerProjets, creerConfiguration, lireConfiguration, rangerProjet, retirerProjet, type Configuration, type Declare } from "./config.ts";
 import type { Role } from "./couleurs.ts";
 
 export function suivreConfiguration(options: {
@@ -74,13 +74,6 @@ export function suivreConfiguration(options: {
     relire,
     // Rend la raison, si le projet n'a pas été ajouté.
     ajouter: (projet: Declare) => ecrire(() => ajouterProjet(chemin, projet, maison)),
-    // La même raison, sans rien ajouter : ce qui se refuse d'ici se sait avant d'appeler une box.
-    refusDAjout(projet: Declare): string | undefined {
-      relire();
-      return tenue.nonRelu !== undefined ? nonRelu() : refusDAjout(chemin, projet, maison);
-    },
-    // Déclare une box. Rend la raison, si elle ne l'a pas été.
-    ajouterHote: (hote: string) => ecrire(() => ajouterHote(chemin, hote, maison)),
     // Tire et écrit les couleurs qui manquent aux projets du fichier — rien, s'il n'en manque
     // aucune. Rend la raison, si elles ne l'ont pas été.
     colorer: (hasard?: () => number) => ecrire(() => colorerProjets(chemin, maison, hasard)),

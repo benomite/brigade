@@ -90,8 +90,8 @@ export type LimiteDeLApp = { reprise: string | null };
 
 const s = (combien: number) => (combien > 1 ? "s" : "");
 const court = (commit: string) => commit.slice(0, 12);
-const AUCUN = "none: nothing changes on the box";
-const LIRE = "none: reading changes nothing on the box";
+const AUCUN = "none: nothing changes on the station";
+const LIRE = "none: reading changes nothing on the station";
 const RELIRE_FAITS = `wait for it to be read: \`${FAITS}\` is re-read every 30 s`;
 // Le geste d'une ligne qui demande de lire, de juger ou d'agir sur la box : une demande au second.
 const DEMANDE = { demande: true } as const;
@@ -171,7 +171,7 @@ function deLUrgence(faits: Faits | Sans): Alerte[] {
       dit: `the whole kitchen is waiting for ${attendu(urgence)} — at a standstill for ${duree(Date.parse(faits.lu) - Date.parse(urgence.depuis))}`,
       pourquoi: `${retenus.length} ticket${s(retenus.length)} held, none can cook until you act: ${retenus.map((ticket) => `#${ticket}`).join(", ")}${aussi}`,
       releve: [urgence, ...autres].map(enCause).join("\n"),
-      geste: `do what ${urgence.decision} waits for, as the box writes it`,
+      geste: `do what ${urgence.decision} waits for, as the station writes it`,
       appel: DEMANDE,
       prix: "none: nothing is cooking — once you act, the held tickets start again, on your quota",
     },
@@ -244,7 +244,7 @@ function coupee(valeur: string): { releve: string; geste?: string } {
 
 const REPRENDRE = "queued tickets start again at once, on your quota";
 // Ce que coûte le redémarrage du runtime : la box ne dit pas ce qui est en vol.
-const REDEMARRAGE = "a runtime restart: what is in flight is interrupted — the box does not say what is";
+const REDEMARRAGE = "a runtime restart: what is in flight is interrupted — the station does not say what is";
 // Le disjoncteur ouvert, tel que la ligne `cuisine` / `kitchen` de `status` le dit : en français
 // ou en anglais (#928).
 const ROUGE = /^(?:ROUGE|RED)(?![\p{L}\p{N}_])/u;
@@ -334,7 +334,7 @@ export function entreeDeSetup(texte: string): string | undefined {
 // sa file — la cause en clair, et le geste —, et sort d'elle-même quand il ne le dit plus. Une
 // station distante, qui prépare son setup sur son poste, cuisine encore : la cuisine est alors
 // ouverte, et la ligne le dit, moins grave.
-const LEVER_LE_SETUP = "clear its cause as the box says — declare the refused host in `.claude/brigade/reseau` of the project, or fix the project's setup — then merge on the integration branch";
+const LEVER_LE_SETUP = "clear its cause as the station says — declare the refused host in `.claude/brigade/reseau` of the project, or fix the project's setup — then merge on the integration branch";
 const PRIX_DU_SETUP = "no cook is interrupted: the setups resume by themselves once the integration branch moves";
 function duSetup(faits: Faits | Sans, status: string | Sans, attend: string | undefined): Alerte[] {
   const lu = statusLu(status);
@@ -347,7 +347,7 @@ function duSetup(faits: Faits | Sans, status: string | Sans, attend: string | un
       verifie: true,
       ton: ailleurs ? "jaune" : "rouge",
       dit: ailleurs
-        ? "project setup impossible: no worktree is set up on the box, for any ticket — only a remote station still cooks"
+        ? "project setup impossible: no worktree is set up on its main station, for any ticket — only a remote station still cooks"
         : "project setup impossible: no worktree is set up, no cook goes, for any ticket",
       // Sans l'entrée du bloc, la ligne de tête : elle renvoie au bloc, qui n'a pas été lu.
       ...(entree === undefined ? { pourquoi: "its cause and its action are in the `attend` block of `status`, which this reading does not carry", releve: tetesDe(lu).find(({ titre }) => titre === "setup")?.valeur ?? "" } : { releve: entree }),
@@ -371,7 +371,7 @@ function deLaCuisine(projet: string, faits: Faits | Sans, status: string | Sans)
           ton: "rouge",
           dit: "runtime stopped: nothing is running, no ticket is taken",
           pourquoi: tick(faits),
-          geste: `start it on the box: \`systemctl start brigade@${projet}\``,
+          geste: `start it on the station: \`systemctl start brigade@${projet}\``,
           appel: DEMANDE,
           prix: "no cook is interrupted: nothing is running — queued tickets start again, on your quota",
         },
@@ -428,7 +428,7 @@ export function etatDuMerge(status: string | Sans): EtatDuGrant {
 
 function duGrant(status: string | Sans): Alerte[] {
   const lu = statusLu(status);
-  const lireGrants = { geste: "read it: the Grants tab reads `grant` on the box", prix: LIRE, appel: { onglet: "grants" } };
+  const lireGrants = { geste: "read it: the Grants tab reads `grant` on the station", prix: LIRE, appel: { onglet: "grants" } };
   if (typeof lu !== "string") return [nonVerifie("grant", "grant state not verified", { pourquoi: lu.sans, ...lireGrants })];
   return tetesDe(lu)
     .filter(({ titre }) => titre === "grant")
@@ -485,10 +485,10 @@ function duGrant(status: string | Sans): Alerte[] {
 // (runtime/src/installation.ts, `jugerReglageDuGeste`), et ce que
 // leur absence empêche, en mots simples.
 const GESTES_DE_BOX = [
-  { section: "« Le geste d'installation »", nom: "install a project", empeche: "adding a project to this box from the app would be refused" },
+  { section: "« Le geste d'installation »", nom: "install a project", empeche: "installing a project on this station by its installation action would be refused" },
 ] as const;
-const SUR_LA_BOX = "the box itself: whoever has `sudo` there runs it — the app sends nothing";
-const RECONTROLE = "the alert leaves once the box says it is back: the app checks again every 5 min, and when this space opens";
+const SUR_LA_BOX = "the station itself: whoever has `sudo` there runs it — the app sends nothing";
+const RECONTROLE = "the alert leaves once the station says it is back: the app checks again every 5 min, and when this space opens";
 
 // Combien de passages de suite le renouvellement de la session Max peut rater avant que la bande
 // le dise : un seul échec peut être un accident, deux de suite sont un renouvellement qui ne se
@@ -532,7 +532,7 @@ function duRenouvellement(controle: Controle | undefined): Alerte[] {
       ton: "rouge",
       dit: `Max renewal failing: ${echec.echecs} runs in a row — the session will expire if it is not restored`,
       releve: echec.raison,
-      geste: "`journalctl -u brigade-renouvellement.service` on the box says more; fix what it names",
+      geste: "`journalctl -u brigade-renouvellement.service` on the station says more; fix what it names",
       appel: DEMANDE,
       prix: `none for the kitchen: it is done on ${SUR_LA_BOX}; ${RECONTROLE}`,
       ...(controle === undefined ? {} : verdictDe(controle)),
@@ -557,9 +557,9 @@ function desPertes(controle: Controle | undefined, status: string | Sans): Alert
         sujet: "station",
         verifie: true,
         ton: "rouge",
-        dit: `station “${nom}” missing: the box no longer provides it — no cook goes there`,
+        dit: `station “${nom}” missing: its main station no longer provides it — no cook goes there`,
         ...(releve === null ? {} : { releve }),
-        geste: introuvable?.geste ?? `put \`${moteur}\` back on the box, where the service finds it — \`installation\` on the box gives the exact command`,
+        geste: introuvable?.geste ?? `put \`${moteur}\` back on the station, where the service finds it — \`installation\` there gives the exact command`,
         appel: DEMANDE,
         prix: `none for the kitchen: it is done on ${SUR_LA_BOX}; ${RECONTROLE}`,
         ...verdictDe(controle),
@@ -576,7 +576,7 @@ function desPertes(controle: Controle | undefined, status: string | Sans): Alert
       ton: "rouge",
       dit: "no station declared any more: no cook goes, tickets wait on the rail",
       releve: sansStation.texte,
-      geste: sansStation.geste ?? "declare a station again: `installation stations` on the box lists those it provides",
+      geste: sansStation.geste ?? "declare a station again: `installation stations` on its main station lists those it provides",
       appel: DEMANDE,
       prix: `none: the declaration is read at the runtime's next wake-up, without a restart; ${RECONTROLE}`,
       ...verdictDe(controle),
@@ -589,9 +589,9 @@ function desPertes(controle: Controle | undefined, status: string | Sans): Alert
       sujet: "box",
       verifie: true,
       ton: "jaune",
-      dit: `box gesture “${nom}” missing: ${empeche}`,
+      dit: `station action “${nom}” missing: ${empeche}`,
       releve: manque.texte,
-      geste: manque.geste ?? `set it up again on the box — docs/installer.md, ${section}`,
+      geste: manque.geste ?? `set it up again on the station — docs/installer.md, ${section}`,
       appel: DEMANDE,
       prix: `none: no cook is interrupted — it is done on ${SUR_LA_BOX}; ${RECONTROLE}`,
       ...verdictDe(controle),
@@ -655,7 +655,7 @@ export const LECTURES_POUR_INJOIGNABLE = 2;
 
 // La cause d'un `ssh` pas arrivé, en mots simples — d'après ce qu'il a écrit, jamais redit tel quel.
 export function causeDuSilence(erreur: string): string {
-  if (/could not resolve hostname|name or service not known|no address associated|nodename nor servname/i.test(erreur)) return "address not found — the name your `ssh` uses for this box resolves to nothing";
+  if (/could not resolve hostname|name or service not known|no address associated|nodename nor servname/i.test(erreur)) return "address not found — the name your `ssh` uses for this station resolves to nothing";
   if (/connection refused/i.test(erreur)) return "connection refused — the machine answers, but nothing accepts `ssh` there";
   return "no answer — the machine does not reply to `ssh`";
 }
@@ -667,7 +667,7 @@ function deLaBoxMuette({ depuis, a, lectures, cause }: SansReponse): Alerte {
     sujet: "injoignable",
     verifie: true,
     ton: "rouge",
-    dit: `box unreachable for ${duree(Date.parse(a) - Date.parse(depuis))}: the app knows nothing of the kitchen right now`,
+    dit: `station unreachable for ${duree(Date.parse(a) - Date.parse(depuis))}: the app knows nothing of the kitchen right now`,
     pourquoi: `${cause} — ${lectures} readings in a row failed`,
     geste: "try again now — and if it lasts, look at the machine at its host",
     bouton: "try again now",
@@ -839,7 +839,7 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
       if ("erreur" in lecture) faits.set(lecture.projet, { sans: rate(FAITS, lecture) });
       else {
         const lu = comprendre(lecture.sorties.find(({ commande }) => commande === FAITS)?.texte ?? "");
-        faits.set(lecture.projet, "informe" in lu ? { sans: `the box did not return the shape of \`${FAITS}\`: ${lu.informe}` } : lu);
+        faits.set(lecture.projet, "informe" in lu ? { sans: `the station did not return the shape of \`${FAITS}\`: ${lu.informe}` } : lu);
       }
       return bande(lecture.projet, "faits");
     },

@@ -168,7 +168,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     const compte = await compter(reglages, SERVI);
 
     assert.ok("sans" in compte);
-    assert.equal(compte.sans, "the two numbers were not read in what the box returned: it has no `backlog` line. This is not “no issue”: look at the backlog yourself before saying yes");
+    assert.equal(compte.sans, "the two numbers were not read in what the station returned: it has no `backlog` line. This is not “no issue”: look at the backlog yourself before saying yes");
     assert.equal(compte.obtenu, `$ ${reglages.ssh} ${OPTIONS} -- box brigade parade manager backlog\nBienvenue sur la box.\n`);
   });
 
@@ -178,7 +178,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     const compte = await compter(reglages, SERVI);
 
     assert.ok("sans" in compte);
-    assert.match(compte.sans, /^the two numbers were not read: the box's runtime refused `manager backlog` \(code 2\) — if it is older than this app, it does not know this reading yet: update brigade on the box\. This is not “no issue”/);
+    assert.match(compte.sans, /^the two numbers were not read: the station's runtime refused `manager backlog` \(code 2\) — if it is older than this app, it does not know this reading yet: update brigade on the station\. This is not “no issue”/);
     assert.match(compte.obtenu, /brigade : usage : .*\n→ exit code 2$/s);
   });
 
@@ -188,13 +188,13 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     const compte = await compter(reglages, SERVI);
 
     assert.ok("sans" in compte);
-    assert.match(compte.sans, /^the two numbers were not read: the box answered, but `manager backlog` did not read GitHub \(code 1\)/);
+    assert.match(compte.sans, /^the two numbers were not read: the station answered, but `manager backlog` did not read GitHub \(code 1\)/);
     assert.match(compte.obtenu, /gh: connexion impossible/);
   });
 
   for (const [code, titre] of [
     [255, "NOT REACHED"],
-    [65, "REACHED, BUT UNKNOWN TO THE BOX"],
+    [65, "REACHED, BUT UNKNOWN TO THE STATION"],
     [68, "REACHED, BUT WITHOUT THE RIGHT TO THE ACTION"],
     [3, "REACHED, BUT `manager backlog` DID NOT ANSWER"],
   ] as const) {

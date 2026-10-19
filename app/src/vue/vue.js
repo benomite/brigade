@@ -201,17 +201,10 @@ const ajout = element("ajout");
 const formulaire = /** @type {HTMLFormElement} */ (element("formulaire"));
 const ou = element("ou");
 const choisi = element("choisi");
-const nom = /** @type {HTMLInputElement} */ (element("nom"));
 const depot = /** @type {HTMLInputElement} */ (element("depot"));
-const hote = /** @type {HTMLSelectElement} */ (element("hote"));
-const box = /** @type {HTMLInputElement} */ (element("box"));
-const sauvegardes = /** @type {HTMLInputElement} */ (element("sauvegardes"));
-const envoi = /** @type {HTMLButtonElement} */ (element("installer"));
+const base = /** @type {HTMLInputElement} */ (element("base"));
+const envoi = /** @type {HTMLButtonElement} */ (element("ajouter"));
 const issueAjout = element("issue-ajout");
-// Les quatre listes du calibrage, par le nom de leur champ.
-const CALIBRAGE = /** @type {const} */ (["manager-modele", "manager-effort", "reviewer-modele", "reviewer-effort"]);
-/** @param {typeof CALIBRAGE[number]} champ */
-const calibre = (champ) => /** @type {HTMLSelectElement} */ (element(champ));
 const relecture = element("relecture");
 // Dans Paramètres, le retard du code de l'app, et des clones de brigade — la case « T » le dit aussi, au survol.
 const code = document.createElement("section");
@@ -320,6 +313,50 @@ const retraitDeStation = document.createElement("div");
 retraitDeStation.className = "retrait-de-station";
 pageDeStation.append(retourALAccueil, enTeteDeStation, versionDeStation, pannesDeStation, bloc("h3", "Projects"), listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit, retraitDeStation);
 
+// La cuisine d'un projet de l'app (ticket 983), en tête de son espace : les stations qui la font, en une
+// ligne — chacune avec ce qu'elle en dit, un clic ouvre sa page —, et « + station » pour en ajouter
+// une. Tant qu'aucune ne la fait, une phrase le dit, et « entrust it to a station » ouvre le choix
+// parmi les stations appairées : c'est le seul geste qui installe un projet sur une station.
+const stationsDuProjet = element("stations-du-projet");
+const ligneDesStationsDuProjet = document.createElement("p");
+ligneDesStationsDuProjet.ariaLive = "polite";
+const ouvrirLaConfiance = /** @type {HTMLButtonElement} */ (bloc("button", ""));
+ouvrirLaConfiance.type = "button";
+ouvrirLaConfiance.className = "ajout-de-station";
+const formulaireDeConfiance = document.createElement("form");
+formulaireDeConfiance.hidden = true;
+const depotDeConfiance = /** @type {HTMLSelectElement} */ (document.createElement("select"));
+depotDeConfiance.ariaLabel = "repository";
+const baseDeConfiance = document.createElement("input");
+baseDeConfiance.ariaLabel = "integration branch";
+baseDeConfiance.placeholder = "integration branch";
+baseDeConfiance.spellcheck = false;
+const choixDeConfiance = document.createElement("div");
+const avertissementDeConfiance = document.createElement("p");
+avertissementDeConfiance.ariaLive = "polite";
+const cooksDeConfiance = document.createElement("input");
+cooksDeConfiance.type = "number";
+cooksDeConfiance.ariaLabel = "cooks at once";
+cooksDeConfiance.placeholder = "cooks at once, on its main station";
+/** @type {Record<"manager-modele" | "manager-effort" | "reviewer-modele" | "reviewer-effort", HTMLSelectElement>} */
+const calibrageDeConfiance = {
+  "manager-modele": /** @type {HTMLSelectElement} */ (document.createElement("select")),
+  "manager-effort": /** @type {HTMLSelectElement} */ (document.createElement("select")),
+  "reviewer-modele": /** @type {HTMLSelectElement} */ (document.createElement("select")),
+  "reviewer-effort": /** @type {HTMLSelectElement} */ (document.createElement("select")),
+};
+for (const [champ, liste] of Object.entries(calibrageDeConfiance)) liste.ariaLabel = champ.replace("-modele", " model").replace("-effort", " effort");
+const validerConfiance = /** @type {HTMLButtonElement} */ (bloc("button", "entrust"));
+validerConfiance.type = "submit";
+const annulerConfiance = /** @type {HTMLButtonElement} */ (bloc("button", "cancel"));
+annulerConfiance.type = "button";
+const confianceRefusee = document.createElement("div");
+confianceRefusee.ariaLive = "polite";
+formulaireDeConfiance.append(depotDeConfiance, baseDeConfiance, choixDeConfiance, avertissementDeConfiance, cooksDeConfiance, ...Object.values(calibrageDeConfiance), validerConfiance, annulerConfiance, confianceRefusee);
+const confianceDite = document.createElement("p");
+confianceDite.ariaLive = "polite";
+stationsDuProjet.append(ligneDesStationsDuProjet, ouvrirLaConfiance, formulaireDeConfiance, confianceDite);
+
 /** @type {Map<number, { terminal: Terminal, xterm: Xterm, ajuste: FitAddon, cadre: HTMLDivElement }>} */
 const vues = new Map();
 // La page où chaque projet a été laissé : on y revient. Aucune : le rail a le centre.
@@ -338,9 +375,8 @@ const fermes = new Set();
 /** @type {Projet | undefined} */
 let courant;
 let ajoute = false;
-// Le dossier choisi pour le projet à ajouter, et le dépôt que l'app y a lu.
+// Le dossier choisi pour le projet à ajouter.
 let dossier = "";
-let depotLu = "";
 // La dernière demande de lecture : une par écran affiché, et seules ses lectures s'affichent.
 let demande = 0;
 // L'onglet de contenu dont la commande est lue, et sa demande. Indéfini : à relire.
@@ -598,6 +634,12 @@ let projetsVus;
 // stations cochées et la principale — une relecture des stations ne les perd pas.
 /** @type {{ ouvertLe: string, depots: import("../projets/github.ts").DepotDuChef[], choisies: Set<string>, principale: string, touchee: boolean } | undefined} */
 let parcours;
+// Le choix des stations auxquelles confier la cuisine du projet affiché, tant qu'il est ouvert : le
+// même que le parcours, pour ce projet-là — une relecture des stations ne perd pas ce qui est coché.
+/** @type {{ projet: string, ouvertLe: string, depots: import("../projets/github.ts").DepotDuChef[], choisies: Set<string>, principale: string, touchee: boolean } | undefined} */
+let confiance;
+// Ce que le dernier geste de confiance a rendu, et pour quel projet : dit sous la ligne de ses stations.
+let confianceDitePour = { projet: "", dit: "" };
 // Le projet dont le retrait attend un second clic.
 /** @type {string | undefined} */
 let retraitDemande;
@@ -736,10 +778,10 @@ function montrer() {
     relaye === undefined || courant === undefined || courant.desinstalle !== undefined
       ? ""
       : relaye.id === FIABILITE
-        ? `the reliability of the cooks, as the box measures it: the chef's window and thresholds from \`${geste(courant, "station")}\`, then \`${geste(courant, "measures --last <window> --by 1")}\` — both outputs are below, as the box returns them; re-read on their own every thirty seconds, while this tab is shown`
-        : `${relaye.id === "manager" ? "the manager state, then " : relaye.id === "grants" ? "the grants state, then " : ""}the output of \`${geste(courant, relaye.commande)}\`, as the box returns it${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — re-read on its own every thirty seconds, while this tab is shown`;
+        ? `the reliability of the cooks, as the station measures it: the chef's window and thresholds from \`${geste(courant, "station")}\`, then \`${geste(courant, "measures --last <window> --by 1")}\` — both outputs are below, as the station returns them; re-read on their own every thirty seconds, while this tab is shown`
+        : `${relaye.id === "manager" ? "the manager state, then " : relaye.id === "grants" ? "the grants state, then " : ""}the output of \`${geste(courant, relaye.commande)}\`, as the station returns it${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — re-read on its own every thirty seconds, while this tab is shown`;
   note.replaceChildren(
-    ...(nonEcrit !== "" ? [nonEcrit] : relaye !== undefined && courant?.desinstalle !== undefined ? ["nothing is read for this tab: this project is uninstalled from its box"] : explication === "" ? [] : [survol(document, explication)]),
+    ...(nonEcrit !== "" ? [nonEcrit] : relaye !== undefined && courant?.desinstalle !== undefined ? ["nothing is read for this tab: this project is uninstalled from its station"] : explication === "" ? [] : [survol(document, explication)]),
   );
   note.hidden = note.childElementCount === 0 && note.textContent === "";
   const parametres = rubriqueDe(visible)?.id === PARAMETRES;
@@ -904,7 +946,7 @@ async function demander(ticket) {
   if (projet.refus !== undefined) return montrer();
   try {
     const rendu = await brigade.demander(projet.nom, ticket);
-    if (rendu === undefined) nonEcritSecond = `nothing written: the last reading of the box no longer names #${ticket}`;
+    if (rendu === undefined) nonEcritSecond = `nothing written: the last reading of the station no longer names #${ticket}`;
     else if ("refus" in rendu) nonEcritSecond = rendu.refus;
     else garder(projet.nom, rendu);
   } catch (erreur) {
@@ -1219,10 +1261,10 @@ function propos(texte) {
 // Le geste que l'app nomme quand une box jointe ne lui répond pas comme elle
 // l'attend. Elle ne sait pas pourquoi : ce qu'elle a obtenu est affiché au-dessus.
 const GESTE = [
-  "The box was reached, and this command did not answer there as the app expects: from here, this project can no longer be controlled.",
+  "The station was reached, and this command did not answer there as the app expects: from here, this project can no longer be controlled.",
   "What the app got is above; it knows no more.",
   "",
-  "The step that brings a runtime up to date, on its box:",
+  "The step that brings a runtime up to date, on its station:",
   "  sudo git -C <brigade clone> pull",
   "  sudo systemctl restart brigade@<project>",
   "(docs/runtime/exploitation.md, “Piloter”, line “Mettre à jour”)",
@@ -1233,18 +1275,18 @@ const GESTE = [
 /** @param {string} nom */
 const inconnu = (nom) =>
   [
-    "The box was reached, and its step does not know this project: what it said about it is above.",
-    `The app gave it “${nom}” — the “nom” of the project in ${configuration.chemin}. The box must serve it under this name.`,
-    "If it was uninstalled from this box, this is expected: it can no longer be controlled there. “Remove this project”, in its space's panel, removes it from the app.",
+    "The station was reached, and its step does not know this project: what it said about it is above.",
+    `The app gave it “${nom}” — the “nom” of the project in ${configuration.chemin}. The station must serve it under this name.`,
+    "If it was uninstalled from this station, this is expected: it can no longer be controlled there. “Remove this project”, in its space's panel, removes it from the app.",
   ].join("\n");
 
 // Ce que l'app dit quand le geste a refusé celui qui le lance. Elle nomme où
 // est écrit le geste qui donne ce droit, et ne le rejoue pas : il se joue sur la box.
 const SANS_DROIT = [
-  "The box was reached, and its step refused the account your `ssh` reaches it with: what it said about it is above.",
+  "The station was reached, and its step refused the account your `ssh` reaches it with: what it said about it is above.",
   "This is neither a failure nor a runtime to update: it is a right this account lacks.",
   "",
-  "It is given on the box, by someone who has `sudo` there — the app does not do it for you:",
+  "It is given on the station, by someone who has `sudo` there — the app does not do it for you:",
   "(docs/installer.md, “Ajouter un humain”)",
 ].join("\n");
 
@@ -1252,31 +1294,31 @@ const SANS_DROIT = [
 // Elle ne sait pas laquelle : c'est la box qui la nomme, au-dessus.
 /** @param {Projet} projet */
 const commandeManque = (projet) => [
-  "The box was reached, and a command is missing there: what it said about it is above. The app does not know which.",
+  "The station was reached, and a command is missing there: what it said about it is above. The app does not know which.",
   "If it names `brigade`, the step is not installed there; if it names `sudo`, the step lacks it to run under the service account.",
   "",
-  "Both are installed on the box, when preparing it:",
-  "(docs/installer.md, “Préparer la box”)",
+  "Both are installed on the station, when preparing it:",
+  "(docs/installer.md, section 3, “Préparer”)",
   "",
   `On your workstation, \`brigade\` alone does not exist, and need not: the step is typed there like this, as the app writes it — \`${geste(projet, "status")}\`, for example.`,
 ].join("\n");
 
 // Ce que l'app dit quand le geste a refusé le `node` de la box (code 70).
 const NODE_INAPTE = [
-  "The box was reached, and its step refused to start the runtime: the box's `node` does not suit it. What it said about it is above.",
+  "The station was reached, and its step refused to start the runtime: the station's `node` does not suit it. What it said about it is above.",
   "",
-  "It is not the runtime that needs updating: the step's sentence says the remedy, and it is applied on the box:",
-  "(docs/installer.md, “Préparer la box”)",
+  "It is not the runtime that needs updating: the step's sentence says the remedy, and it is applied on the station:",
+  "(docs/installer.md, section 3, “Préparer”)",
 ].join("\n");
 
 // Ce que l'app dit sous le message de `ssh`, quel qu'il soit : elle ne le lit
 // pas, elle nomme où chacune de ses phrases est expliquée.
 const SSH_EN_ECHEC = [
-  "`ssh` did not open a session on the box, and said why: its message is above. The app does not read it.",
+  "`ssh` did not open a session on the station, and said why: its message is above. The app does not read it.",
   "What each of its sentences means, and the step that answers it:",
-  "(docs/installer.md, “Joindre la box”)",
+  "(docs/installer.md, section 2, “Joindre”)",
   "",
-  "If it says your key was refused (`Permission denied`), the box answers and it is access you lack. It is given on the box:",
+  "If it says your key was refused (`Permission denied`), the station answers and it is access you lack. It is given on the station:",
   "(docs/installer.md, “Ajouter un humain”)",
 ].join("\n");
 
@@ -1329,18 +1371,18 @@ function obtenu(projet, recue, plusPilotable) {
 function obtenuEnUneLigne(projet, recue, plusPilotable) {
   const [ligne, suite] =
     recue.cas === "projet-inconnu"
-      ? ["the box does not know this project", inconnu(recue.projet)]
+      ? ["the station does not know this project", inconnu(recue.projet)]
       : recue.cas === "sans-droit"
-        ? ["your account lacks the right to this action on the box", SANS_DROIT]
+        ? ["your account lacks the right to this action on the station", SANS_DROIT]
         : recue.cas === "commande-manque"
-          ? ["a command is missing on the box", commandeManque(projet)]
+          ? ["a command is missing on the station", commandeManque(projet)]
           : recue.cas === "node-inapte"
-            ? ["the box's node does not suit the runtime", NODE_INAPTE]
+            ? ["the station's node does not suit the runtime", NODE_INAPTE]
             : recue.atteinte
-              ? ["the box answered, but not as the app expects", plusPilotable]
+              ? ["the station answered, but not as the app expects", plusPilotable]
               : recue.cas === "ssh-en-echec"
-                ? ["the box could not be reached", SSH_EN_ECHEC]
-                : ["the box did not answer", undefined];
+                ? ["the station could not be reached", SSH_EN_ECHEC]
+                : ["the station did not answer", undefined];
   return [lectureIndisponible(document, ligne, suite === undefined ? recue.erreur : `${recue.erreur}\n\n${suite}`)];
 }
 
@@ -1361,21 +1403,21 @@ function rendre(recue, tete, corps, accueil = false) {
     if (accueil) {
       // Ce que la box a dit se lit, replié : le détail n'est pas la première chose que l'écran montre.
       const lue = document.createElement("details");
-      lue.append(bloc("summary", "what the box said"), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", commande), bloc("pre", texte)]));
+      lue.append(bloc("summary", "what the station said"), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", commande), bloc("pre", texte)]));
       corps.replaceChildren(...(mise ? [aPart(projet, recue.attend, true)] : []), lue);
     } else corps.replaceChildren(...(mise ? [aPart(projet, recue.attend)] : []), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", `${geste(projet, commande)}${commande === "status" ? sans : ""}`), bloc("pre", texte)]));
   } else if (recue.cas === "projet-inconnu") {
     tete.dataset.etat = "inconnu";
-    tete.textContent = `REACHED, BUT UNKNOWN TO THE BOX — tried at ${heure}, the next follows on its own`;
+    tete.textContent = `REACHED, BUT UNKNOWN TO THE STATION — tried at ${heure}, the next follows on its own`;
   } else if (recue.cas === "sans-droit") {
     tete.dataset.etat = "sans-droit";
     tete.textContent = `REACHED, BUT WITHOUT THE RIGHT TO THE ACTION — tried at ${heure}, the next follows on its own`;
   } else if (recue.cas === "commande-manque") {
     tete.dataset.etat = "commande-manque";
-    tete.textContent = `REACHED, BUT A COMMAND IS MISSING ON THE BOX — tried at ${heure}, the next follows on its own`;
+    tete.textContent = `REACHED, BUT A COMMAND IS MISSING ON THE STATION — tried at ${heure}, the next follows on its own`;
   } else if (recue.cas === "node-inapte") {
     tete.dataset.etat = "node-inapte";
-    tete.textContent = `REACHED, BUT THE BOX'S NODE DOES NOT SUIT THE RUNTIME — tried at ${heure}, the next follows on its own`;
+    tete.textContent = `REACHED, BUT THE STATION'S NODE DOES NOT SUIT THE RUNTIME — tried at ${heure}, the next follows on its own`;
   } else if (recue.atteinte) {
     tete.dataset.etat = "plus-pilotable";
     tete.textContent = `REACHED, BUT NO LONGER CONTROLLABLE — tried at ${heure}, the next follows on its own`;
@@ -1481,7 +1523,7 @@ function poserRate(projet, rate) {
   if (rate.etat === "en-cours") return [tete];
   if (rate.etat === "echec") return [tete, ...obtenuEnUneLigne(projet, { ...rate.echec, projet: projet.nom }, GESTE)];
   const brut = document.createElement("details");
-  brut.append(bloc("summary", "what the box said"), bloc("pre", rate.obtenu));
+  brut.append(bloc("summary", "what the station said"), bloc("pre", rate.obtenu));
   return [tete, brut, ...rate.lignes.map((ligne) => bloc("p", ligne))];
 }
 
@@ -1532,15 +1574,15 @@ function poserService(projet, guide) {
   const tete = [];
   if (guide.lecture.etat !== "lue") tete.push(...poserRate(projet, guide.lecture));
   if (guide.courante === null && guide.lecture.etat === "lue") {
-    tete.push(ditEtAide("p", "The installation is finished", "the box verified everything, the kitchen is ready to serve, and no installation step is left."));
+    tete.push(ditEtAide("p", "The installation is finished", "the station verified everything, the kitchen is ready to serve, and no installation step is left."));
     if ("commande" in guide.demarrage) tete.push(action("Write the start of the service in a shell", () => demarrerService(projet)));
   }
   if (guide.courante !== null && guide.lecture.etat === "lue") {
     const annonces = document.createElement("div");
     annonces.className = "annonces";
     annonces.append(ditEtAide("strong", "What the app cannot do for you", "said before you meet it"));
-    if (guide.annonces.etat === "en-cours") annonces.append(ditEtAide("p", "The box is being verified…", "what it lacks, that only someone with `sudo` there can set up, is announced here as soon as it answers."));
-    if (guide.annonces.etat === "pas-lues") annonces.append(refus("The verification did not return its verdict: what the box may lack is not known."));
+    if (guide.annonces.etat === "en-cours") annonces.append(ditEtAide("p", "The station is being verified…", "what it lacks, that only someone with `sudo` there can set up, is announced here as soon as it answers."));
+    if (guide.annonces.etat === "pas-lues") annonces.append(refus("The verification did not return its verdict: what the station may lack is not known."));
     for (const annonce of guide.annonces.liste) {
       const ligne = document.createElement("div");
       ligne.className = "annonce";
@@ -1555,7 +1597,7 @@ function poserService(projet, guide) {
     fait.className = "verdict";
     fait.dataset.verdict = guide.fait.ok ? "pret" : "incomplete";
     const brut = document.createElement("details");
-    brut.append(bloc("summary", "what the box said"), bloc("pre", guide.fait.obtenu));
+    brut.append(bloc("summary", "what the station said"), bloc("pre", guide.fait.obtenu));
     tete.push(fait, brut);
   }
   if (guide.lecture.etat === "lue") tete.push(action("Verify", () => brigade.verifier(projet.nom)), ...poserVerdict(projet, guide.verification, action));
@@ -1595,7 +1637,7 @@ function gesteDEtape(projet, guide, etape, action, refus) {
   if (etape.id === "init") {
     return [action("Initialize the project in the second", () => amorcerService(projet)), action("The initialization is merged onto the integration branch", () => brigade.direMerge(projet.nom, true))];
   }
-  if (etape.id === "verification") return [ditEtAide("p", "Verify again once the box is set up", "“Verify” is at the top of this screen: once what it says is missing on the box is set up, verify again.")];
+  if (etape.id === "verification") return [ditEtAide("p", "Verify again once the station is set up", "“Verify” is at the top of this screen: once what it says is missing on the station is set up, verify again.")];
   if (etape.id === "demarrage") return "refus" in guide.demarrage ? [refus(guide.demarrage.refus)] : [action("Start", () => demarrerService(projet))];
   if (detail === undefined) return [];
   if (detail.etat !== "lu") return poserRate(projet, detail);
@@ -1604,7 +1646,7 @@ function gesteDEtape(projet, guide, etape, action, refus) {
     const { proposees, absent, declarees } = detail.lu;
     const poses = [];
     if (declarees.length > 0) poses.push(bloc("p", `Declared now: ${declarees.map(({ nom, cooks, fournit }) => `${nom} — ${cooks} cook${cooks > 1 ? "s" : ""} at most, provides ${fournit.join(", ")}`).join(" · ")}`));
-    if (absent !== null) poses.push(refus(`The box provides no station — ${absent}`));
+    if (absent !== null) poses.push(refus(`Its main station provides no station — ${absent}`));
     /** @type {{ nom: string; coche: HTMLInputElement; cooks: HTMLInputElement }[]} */
     const choix = [];
     for (const proposee of proposees) {
@@ -1965,13 +2007,13 @@ async function desinstallerRetrait(projet) {
 /** @param {Projet} projet */
 const sansForme = (projet) => [
   "The app draws nothing of this project: no color pill, no counters, no rail. A number it has not read is not a zero.",
-  `What the box returned is above, as is. What \`${geste(projet, "status")}\` says about the project can still be read, below.`,
+  `What the station returned is above, as is. What \`${geste(projet, "status")}\` says about the project can still be read, below.`,
 ].join("\n");
 // Quand la box, jointe, n'a pas répondu à `faits` sans que son code dise pourquoi :
 // un runtime d'avant cette commande est le cas attendu.
 const SANS_REPONSE = [
-  "The box was reached, and `facts` did not answer there: what it returned is above, as is.",
-  "A runtime older than `facts` is the expected case — it is updated on its box (docs/runtime/exploitation.md, “Piloter”, line “Mettre à jour”).",
+  "The station was reached, and `facts` did not answer there: what it returned is above, as is.",
+  "A runtime older than `facts` is the expected case — it is updated on its station (docs/runtime/exploitation.md, “Piloter”, line “Mettre à jour”).",
 ].join("\n");
 // Sous toute lecture de `faits` en échec.
 /** @param {Projet} projet */
@@ -2088,7 +2130,7 @@ function poserCarte(ou, projet) {
   if (!("tableau" in tenu)) {
     const titre = bloc("p", `${tenu.titre} — tried at ${heure}, the next follows on its own`);
     titre.className = "sans-faits";
-    if ("informe" in tenu) return ou.replaceChildren(titre, lectureIndisponible(document, "the box answered with something the app does not draw", `${tenu.rendu}\n\nThis is not the shape the app draws: ${tenu.informe}.\n${sansForme(projet)}`));
+    if ("informe" in tenu) return ou.replaceChildren(titre, lectureIndisponible(document, "the station answered with something the app does not draw", `${tenu.rendu}\n\nThis is not the shape the app draws: ${tenu.informe}.\n${sansForme(projet)}`));
     // Le même cas que sous `status`, avec son renvoi : un refus du geste n'est pas un runtime à mettre à jour.
     return ou.replaceChildren(titre, ...obtenuEnUneLigne(projet, tenu, `${SANS_REPONSE}\n\n${sansDessin(projet)}`));
   }
@@ -2157,7 +2199,7 @@ function poserBon(projet, carte, tonAttend) {
     ? `open issue #${ticket} in the browser`
     : etat === undefined
       ? `this ticket is not on the rail that \`${geste(projet, "facts")}\` returns: the app does not have its address`
-      : "the address the box returned for this ticket is not https: the app does not open it";
+      : "the address the station returned for this ticket is not https: the app does not open it";
   const tete = document.createElement("div");
   tete.append(numero);
   if (etat !== undefined) {
@@ -2224,7 +2266,7 @@ function poserBon(projet, carte, tonAttend) {
     ouvre.title = `open #${ticket}'s merged PR in the browser`;
     bon.append(ouvre);
   }
-  if (pr === false) bon.append(bloc("small", "merged PR: the address the box returned is not https, the app does not open it"));
+  if (pr === false) bon.append(bloc("small", "merged PR: the address the station returned is not https, the app does not open it"));
   bon.append(...poserGestesDAttente(projet, carte));
   bon.append(...(pagesServies.get(projet.nom)?.pages ?? []).filter((page) => page.ticket === ticket).map((page) => poserServie(projet, page)));
   bon.append(...(pagesServies.get(projet.nom)?.aLancer ?? []).filter((tenue) => tenue.ticket === ticket).map((tenue) => poserALancer(projet, tenue)));
@@ -2804,7 +2846,7 @@ async function lireHistoire(projet, carte) {
   let lue;
   try {
     situations.set(cle, await brigade.situation({ ...(carte.etat === undefined ? {} : { etat: carte.etat }), attend: carte.attend, dit: carte.dit }));
-    lue = (await brigade.lireHistoire(projet.nom, ticket)) ?? { sans: "no box for this project: the app has nothing to read" };
+    lue = (await brigade.lireHistoire(projet.nom, ticket)) ?? { sans: "no station for this project: the app has nothing to read" };
   } catch (erreur) {
     lue = { sans: `not read: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
   }
@@ -2875,7 +2917,7 @@ function poserCommentaire(projet, ticket) {
   saisie.disabled = envoi;
   const poster = bouton("post this comment", () => void envoyerCommentaire(projet, ticket));
   poster.dataset.geste = "commentaire";
-  poster.title = `post what you wrote on issue #${ticket}, as a comment, under the box's GitHub account — public on GitHub, read by the manager and the next cook; nothing is spent`;
+  poster.title = `post what you wrote on issue #${ticket}, as a comment, under the station's GitHub account — public on GitHub, read by the manager and the next cook; nothing is spent`;
   poster.disabled = envoi || saisie.value.trim() === "";
   saisie.addEventListener("input", () => {
     commentaires.set(cle, saisie.value);
@@ -2978,7 +3020,7 @@ async function lireDiscussion(projet, ticket) {
   /** @type {import("../discussion.ts").Discussion} */
   let lue;
   try {
-    lue = (await brigade.lireDiscussion(projet.nom, ticket)) ?? { sans: "no box for this project: the app has nothing to read" };
+    lue = (await brigade.lireDiscussion(projet.nom, ticket)) ?? { sans: "no station for this project: the app has nothing to read" };
   } catch (erreur) {
     lue = { sans: `not read: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
   }
@@ -3278,7 +3320,7 @@ function fraicheur(a) {
   const age = Date.now() - new Date(a).getTime();
   if (!(age > LECTURE_VIEILLE_MS)) return [];
   const minutes = Math.floor(age / 60_000);
-  const dit = bloc("p", `up to date ${minutes} min ago — the box has not answered since; the commands and read times are in Settings`);
+  const dit = bloc("p", `up to date ${minutes} min ago — the station has not answered since; the commands and read times are in Settings`);
   dit.className = "fraicheur";
   return [dit];
 }
@@ -3310,12 +3352,12 @@ function chargerFeu(projet) {
 /** @param {Projet} projet @param {string | undefined} lu @param {string} depuis */
 function poserMuet(projet, lu, depuis) {
   chargerFeu(projet);
-  const mention = bloc("p", lu === undefined ? `no reading of the rail — box unreachable since ${heureDe(depuis)}` : `read at ${heureDe(lu)}, box unreachable since ${heureDe(depuis)}`);
+  const mention = bloc("p", lu === undefined ? `no reading of the rail — station unreachable since ${heureDe(depuis)}` : `read at ${heureDe(lu)}, station unreachable since ${heureDe(depuis)}`);
   mention.className = "fraicheur";
   const feu = feux.get(projet.nom);
   const bloc2 = document.createElement("div");
   bloc2.className = "feu";
-  bloc2.append(bloc("h3", "kitchen state unknown: box unreachable — the tickets labelled `fire`, as GitHub says them"));
+  bloc2.append(bloc("h3", "kitchen state unknown: station unreachable — the tickets labelled `fire`, as GitHub says them"));
   if (feu === undefined) bloc2.append(bloc("p", "reading GitHub…"));
   else if ("sans" in feu) bloc2.append(bloc("p", "GitHub did not answer either:"), bloc("pre", feu.sans));
   else if (feu.tickets.length === 0) bloc2.append(bloc("p", "no open ticket labelled `fire`"));
@@ -3895,7 +3937,7 @@ function poserProjet() {
   if (projet?.box === undefined || geste === undefined) return gestesProjet.replaceChildren();
   const verifier = bouton(geste.libelle, () => void brigade.verifier(projet.nom));
   verifier.dataset.geste = "direct";
-  verifier.title = "runs the verification on the box — its verdict is read in Settings, in one sentence";
+  verifier.title = "runs the verification on the station — its verdict is read in Settings, in one sentence";
   gestesProjet.replaceChildren(verifier);
 }
 
@@ -4267,15 +4309,27 @@ async function retirerProjet(nom) {
 // recommande — un serveur — est proposée d'office ; choisir un ordinateur se dit tout de suite.
 function poserChoixDesStations() {
   if (parcours === undefined) return;
-  const appairees = stationsVues?.stations ?? [];
-  if (!parcours.touchee && parcours.principale === "" && projetsVus?.recommandee) {
-    parcours.principale = projetsVus.recommandee;
-    parcours.choisies.add(projetsVus.recommandee);
+  poserLesStations(parcours, choixDesStations, avertissementDeLaPrincipale, { exclues: [], principale: true, groupe: "principale", relancer: poserChoixDesStations });
+}
+
+// Une case par station appairée — sauf celles qui portent déjà le projet —, et, quand il n'a pas
+// encore la sienne, le choix de sa principale. Sans principale, celle que l'app recommande est
+// proposée d'office, tant que le chef n'a rien touché.
+/**
+ * @param {{ choisies: Set<string>, principale: string, touchee: boolean }} vise
+ * @param {HTMLElement} ou @param {HTMLElement} averti
+ * @param {{ exclues: readonly string[], principale: boolean, groupe: string, relancer: () => void }} options
+ */
+function poserLesStations(vise, ou, averti, { exclues, principale: avecPrincipale, groupe, relancer }) {
+  const appairees = (stationsVues?.stations ?? []).filter(({ id }) => !exclues.includes(id));
+  const recommandee = projetsVus?.recommandee;
+  if (avecPrincipale && !vise.touchee && vise.principale === "" && recommandee && appairees.some(({ id }) => id === recommandee)) {
+    vise.principale = recommandee;
+    vise.choisies.add(recommandee);
   }
-  const vise = parcours;
-  choixDesStations.replaceChildren(
+  ou.replaceChildren(
     ...(appairees.length === 0
-      ? [bloc("p", "no station to serve it: pair one first, with “+ station” on the home")]
+      ? [bloc("p", exclues.length === 0 ? "no station to serve it: pair one first, with “+ station” on the home" : "no other paired station: pair one first, with “+ station” on the home")]
       : appairees.map((station) => {
           const ligne = document.createElement("p");
           ligne.dataset.etat = station.etat;
@@ -4288,25 +4342,27 @@ function poserChoixDesStations() {
             if (choisie.checked) vise.choisies.add(station.id);
             else vise.choisies.delete(station.id);
             if (!choisie.checked && vise.principale === station.id) vise.principale = "";
-            poserChoixDesStations();
+            relancer();
           });
+          ligne.append(choisie, bloc("span", ` ${station.nom}${station.machine === "" ? "" : ` — ${station.machine}`}`));
+          if (!avecPrincipale) return ligne;
           const principale = document.createElement("input");
           principale.type = "radio";
-          principale.name = "principale";
+          principale.name = groupe;
           principale.ariaLabel = `${station.nom} is its main station`;
           principale.checked = vise.principale === station.id;
           principale.addEventListener("change", () => {
             vise.touchee = true;
             vise.principale = station.id;
             vise.choisies.add(station.id);
-            poserChoixDesStations();
+            relancer();
           });
-          ligne.append(choisie, bloc("span", ` ${station.nom}${station.machine === "" ? "" : ` — ${station.machine}`} · `), principale, bloc("span", station.id === projetsVus?.recommandee ? " main (recommended: always on)" : " main"));
+          ligne.append(bloc("span", " · "), principale, bloc("span", station.id === recommandee ? " main (recommended: always on)" : " main"));
           return ligne;
         })),
   );
-  avertissementDeLaPrincipale.textContent = projetsVus?.avertissements[vise.principale] ?? "";
-  avertissementDeLaPrincipale.dataset.etat = avertissementDeLaPrincipale.textContent === "" ? "" : "hors-ligne";
+  averti.textContent = avecPrincipale ? (projetsVus?.avertissements[vise.principale] ?? "") : "";
+  averti.dataset.etat = averti.textContent === "" ? "" : "hors-ligne";
 }
 
 // Ouvrir le parcours : l'heure en est gardée — c'est d'elle que se mesure le temps jusqu'au projet
@@ -4377,6 +4433,176 @@ async function ajouterProjet() {
     ajoutRefuse.replaceChildren(bloc("p", `nothing was added: ${erreur instanceof Error ? erreur.message : String(erreur)}`));
   }
   validerAjout.disabled = false;
+}
+
+// Ce qu'une station dit du projet qu'on lui a confié, en quelques mots, et le ton de sa pastille.
+/** @param {import("../projets/projets.ts").StationDuProjet["etat"]} etat */
+function etatDeLaCuisine(etat) {
+  if (etat === "servi") return { dit: "served", ton: "vert" };
+  if (etat === "a-autoriser") return { dit: "waiting for your authorization on GitHub", ton: "jaune" };
+  if (etat === "en-preparation") return { dit: "being prepared", ton: "gris" };
+  if (etat === "refuse") return { dit: "refused", ton: "rouge" };
+  if (etat === "secondaire") return { dit: "secondary", ton: "gris" };
+  return { dit: "not read yet", ton: "gris" };
+}
+
+// Les stations qui font la cuisine d'un projet de l'app : celles qui le servent — qu'il leur ait été
+// confié d'ici ou non, elles le publient (stations/document.ts) —, puis celles à qui l'app l'a demandé
+// et qui ne le servent pas encore. `demande` : l'app en a déjà demandé la cuisine — une station de plus
+// en reprend le plafond et le calibrage ; `principale` : il a déjà la sienne.
+/** @param {Projet} projet */
+function cuisineDe(projet) {
+  const demande = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
+  const servies = (stationsVues?.stations ?? []).filter(({ projets }) => projets.includes(projet.nom));
+  const stations = [
+    ...servies.map(({ id, nom }) => ({ id, nom, principale: true, ...etatDeLaCuisine("servi"), survol: `${nom} serves it: it runs its manager and its pass`, autoriser: /** @type {string[]} */ ([]) })),
+    ...(demande?.stations ?? [])
+      .filter(({ id }) => !servies.some((servie) => servie.id === id))
+      .map((station) => ({ id: station.id, nom: station.nom, principale: station.principale, ...etatDeLaCuisine(station.etat), survol: station.dit, autoriser: station.autoriser })),
+  ];
+  return { stations, demande: demande !== undefined, principale: stations.some(({ principale }) => principale) };
+}
+
+// La ligne des stations du projet affiché, en tête de son espace — et, s'il est ouvert, le choix de
+// celles à qui le confier. Aucune lecture des stations n'est encore arrivée : le vide ne se dit pas.
+function poserStationsDuProjet() {
+  const projet = courant;
+  stationsDuProjet.hidden = projet === undefined;
+  if (projet === undefined) return;
+  if (confiance !== undefined && confiance.projet !== projet.nom) fermerConfiance();
+  const { stations, demande, principale } = cuisineDe(projet);
+  const lues = stationsVues !== undefined && projetsVus !== undefined;
+  if (stations.length > 0) {
+    ligneDesStationsDuProjet.replaceChildren(
+      bloc("span", "Cooked by "),
+      ...stations.flatMap((station, rang) => {
+        const nomme = document.createElement("button");
+        nomme.type = "button";
+        nomme.className = "station-du-projet";
+        nomme.title = [station.dit, station.survol].filter((ligne) => ligne !== "").join("\n");
+        nomme.ariaLabel = `${station.nom} — ${station.principale ? "main" : "secondary"} — ${station.dit}`;
+        const appele = bloc("strong", station.nom);
+        appele.className = "mono";
+        nomme.append(pastille(station.dit, station.ton), appele, ...(station.principale ? [bloc("span", " (main)")] : []));
+        nomme.addEventListener("click", () => ouvrirStation(station.id));
+        const autoriser = station.autoriser.map((url) => {
+          const cree = bloc("button", `authorize on GitHub: ${url.replace(/^https:\/\/github\.com\/apps\/([^/]+).*$/, "$1")}`);
+          cree.addEventListener("click", () => void brigade.autoriserSurGitHub(url));
+          return cree;
+        });
+        return [...(rang === 0 ? [] : [bloc("span", " · ")]), nomme, ...autoriser];
+      }),
+    );
+  } else if (projet.box !== undefined) {
+    // Écrit à la main avec « hote » : l'app le lit là, sans qu'aucune station appairée ne le publie.
+    const appele = bloc("strong", projet.box.hote);
+    appele.className = "mono";
+    appele.title = `named by “hote” in ${configuration.chemin}: the app reads it there, and no paired station publishes it`;
+    ligneDesStationsDuProjet.replaceChildren(bloc("span", "Cooked by "), appele);
+  } else {
+    ligneDesStationsDuProjet.textContent = lues ? `No station cooks ${projet.nom} yet.` : "reading your stations on GitHub…";
+  }
+  ouvrirLaConfiance.textContent = stations.length === 0 && projet.box === undefined ? "entrust it to a station" : "+ station";
+  ouvrirLaConfiance.hidden = confiance !== undefined || !lues;
+  confianceDite.textContent = confianceDitePour.projet === projet.nom ? confianceDitePour.dit : "";
+  if (confiance === undefined) return;
+  // Un projet ajouté depuis l'app connaît son dépôt et sa branche ; un projet écrit à la main les choisit ici.
+  const connu = projet.depot !== undefined && projet.base !== undefined;
+  depotDeConfiance.hidden = baseDeConfiance.hidden = connu;
+  // Une station de plus reprend ce que l'app a déjà demandé : ni plafond, ni calibrage à redire.
+  cooksDeConfiance.hidden = demande;
+  for (const liste of Object.values(calibrageDeConfiance)) liste.hidden = demande;
+  poserLesStations(confiance, choixDeConfiance, avertissementDeConfiance, {
+    exclues: stations.map(({ id }) => id),
+    principale: !principale,
+    groupe: "principale-du-projet",
+    relancer: poserStationsDuProjet,
+  });
+}
+
+// Ouvrir le choix : l'heure en est gardée, comme pour le parcours — c'est d'elle que se mesure le temps
+// jusqu'au projet servi. Un projet écrit à la main choisit son dépôt parmi ceux du chef, lus sur GitHub.
+ouvrirLaConfiance.addEventListener("click", () => void ouvrirConfiance());
+async function ouvrirConfiance() {
+  const projet = courant;
+  if (projet === undefined) return;
+  /** @type {NonNullable<typeof confiance>} */
+  const vise = { projet: projet.nom, ouvertLe: new Date().toISOString(), depots: [], choisies: new Set(), principale: "", touchee: false };
+  confiance = vise;
+  formulaireDeConfiance.hidden = false;
+  confianceDitePour = { projet: "", dit: "" };
+  confianceRefusee.replaceChildren();
+  cooksDeConfiance.value = "";
+  baseDeConfiance.value = projet.base ?? "";
+  for (const [champ, liste] of Object.entries(calibrageDeConfiance)) proposer(liste, champ.endsWith("modele") ? CALIBRAGE_DU_PROJET.modeles : CALIBRAGE_DU_PROJET.efforts, champ.endsWith("modele") ? `— ${champ.split("-")[0]} model —` : `— ${champ.split("-")[0]} effort —`);
+  poserStationsDuProjet();
+  if (projet.depot !== undefined && projet.base !== undefined) return;
+  depotDeConfiance.replaceChildren(new Option("reading your repositories on GitHub…", ""));
+  const lus = await brigade.depotsDuChef();
+  if (confiance !== vise) return;
+  if ("refus" in lus) {
+    depotDeConfiance.replaceChildren(new Option("— repository —", ""));
+    confianceRefusee.replaceChildren(bloc("p", lus.refus));
+    return;
+  }
+  vise.depots = lus.depots;
+  proposer(depotDeConfiance, lus.depots.map(({ depot }) => depot), "— repository —");
+  if (projet.depot !== undefined) depotDeConfiance.value = projet.depot;
+}
+// Le dépôt choisi propose sa branche par défaut comme branche d'intégration.
+depotDeConfiance.addEventListener("change", () => {
+  const choisi = confiance?.depots.find(({ depot }) => depot === depotDeConfiance.value);
+  if (choisi !== undefined) baseDeConfiance.value = choisi.base;
+});
+annulerConfiance.addEventListener("click", () => {
+  fermerConfiance();
+  poserStationsDuProjet();
+});
+function fermerConfiance() {
+  confiance = undefined;
+  formulaireDeConfiance.hidden = true;
+}
+// Confier : la demande part au process principal, qui l'écrit dans le gist de chaque station choisie
+// — ou chaque champ qui manque se lit sous le choix, et rien n'est écrit.
+formulaireDeConfiance.addEventListener("submit", (evenement) => {
+  evenement.preventDefault();
+  void confier();
+});
+async function confier() {
+  const projet = courant;
+  const vise = confiance;
+  if (projet === undefined || vise === undefined || vise.projet !== projet.nom) return;
+  const connu = projet.depot !== undefined && projet.base !== undefined;
+  const noms = (stationsVues?.stations ?? []).filter(({ id }) => vise.choisies.has(id)).map(({ nom }) => nom);
+  validerConfiance.disabled = true;
+  confianceRefusee.replaceChildren(bloc("p", "writing the request on your stations' gists…"));
+  try {
+    const rendu = await brigade.confierAUneStation({
+      nom: projet.nom,
+      depot: connu ? (projet.depot ?? "") : depotDeConfiance.value,
+      base: connu ? (projet.base ?? "") : baseDeConfiance.value,
+      stations: [...vise.choisies],
+      principale: vise.principale,
+      cooks: cooksDeConfiance.value,
+      manager: { modele: calibrageDeConfiance["manager-modele"].value, effort: calibrageDeConfiance["manager-effort"].value },
+      reviewer: { modele: calibrageDeConfiance["reviewer-modele"].value, effort: calibrageDeConfiance["reviewer-effort"].value },
+      ouvertLe: vise.ouvertLe,
+    });
+    if ("signales" in rendu) confianceRefusee.replaceChildren(...Object.values(rendu.signales).map((raison) => bloc("p", raison ?? "")));
+    else if ("refus" in rendu) confianceRefusee.replaceChildren(bloc("p", rendu.refus));
+    else {
+      if (confiance === vise) fermerConfiance();
+      confianceRefusee.replaceChildren();
+      confianceDitePour = {
+        projet: projet.nom,
+        dit: `${rendu.ajoute} is asked of ${noms.join(", ")}: ${vise.principale === "" ? "each prepares it" : "its main station prepares it"} within a minute — if GitHub asks you to authorize brigade, its button appears on this line`,
+      };
+      if (courant?.nom === projet.nom) poserStationsDuProjet();
+    }
+  } catch (erreur) {
+    confianceRefusee.replaceChildren(bloc("p", `nothing was entrusted: ${erreur instanceof Error ? erreur.message : String(erreur)}`));
+  }
+  validerConfiance.disabled = false;
 }
 
 // Ce que le bouton d'une panne a rendu, par `<gist> <clé>` : redit à chaque relecture, tant que la
@@ -4536,7 +4762,7 @@ function poserAlerte(projet, alerte) {
     });
     deplier.className = "detail";
     deplier.ariaExpanded = String(deplie);
-    deplier.title = deplie ? "fold the detail" : "what the box says, as is — and why";
+    deplier.title = deplie ? "fold the detail" : "what the station says, as is — and why";
     tete.append(deplier);
   }
   const [controle, ...ouverte] = poserControle(projet, alerte, endroit);
@@ -4630,6 +4856,7 @@ function dessiner() {
   poserGrants();
   poserProjet();
   poserInterrupteur();
+  poserStationsDuProjet();
   if (courant === undefined) return;
   poserAlertes(courant);
   poserCarte(carte, courant);
@@ -4647,13 +4874,13 @@ function attendre(projet, tete, corps) {
     tete.textContent = `${projet.desinstalle.titre} — since ${heureDe(projet.desinstalle.a)}`;
     corps.replaceChildren(propos(projet.desinstalle.lignes.join("\n")));
   } else if (projet.box === undefined) {
-    tete.dataset.etat = "sans-box";
+    tete.dataset.etat = "sans-station";
     tete.textContent = "no read";
     corps.replaceChildren(
       lectureIndisponible(
         document,
-        `“${projet.nom}” does not say where its box is: nothing is read`,
-        `It lacks “hote”, in ${configuration.chemin}: the name your \`ssh\` reaches your box by. The app re-reads this file as soon as it changes.`,
+        `“${projet.nom}” does not say where its station is: nothing is read`,
+        `It lacks “hote”, in ${configuration.chemin}: the name your \`ssh\` reaches your station by. The app re-reads this file as soon as it changes.`,
       ),
     );
   } else {
@@ -4729,233 +4956,69 @@ function signaler(champ, raison = "") {
   element(champ).ariaInvalid = String(raison !== "");
 }
 
-// Ce que l'écran a proposé et que le chef n'a pas touché : le champ, et d'où vient sa valeur.
-// Un champ y entre quand l'app y pose une valeur, et en sort dès que le chef y met la main —
-// ce qui part vers la box est alors ce qu'il a choisi, plus ce qu'on lui a proposé.
-/** @type {Map<string, string>} */
-const proposes = new Map();
-// La racine des sauvegardes lue sur la box choisie — ou ce qui l'a empêché.
-let racine = "";
-let racineOrigine = "";
-let racineRaison = "";
-
-// Ce que la ligne d'un champ dit de sa valeur : proposée, avec sa provenance, tant que personne n'a choisi.
-function direPropose() {
-  /** @param {string[]} champs @param {Record<string, string>} nommes */
-  const ligne = (champs, nommes) => {
-    const restants = champs.filter((champ) => proposes.has(champ));
-    for (const champ of champs) element(champ).toggleAttribute("data-propose", proposes.has(champ));
-    const [premier] = restants;
-    if (premier === undefined) return "";
-    const quoi = restants.length === champs.length ? "Suggested, not chosen" : `${restants.map((champ) => nommes[champ]).join(" and ")}: suggested, not chosen`;
-    return `${quoi} — ${proposes.get(premier)}. Edit it to choose it; it goes as is otherwise.`;
-  };
-  const nommes = { "manager-modele": "the model", "manager-effort": "the effort", "reviewer-modele": "the model", "reviewer-effort": "the effort" };
-  element("propose-manager").textContent = ligne(["manager-modele", "manager-effort"], nommes);
-  element("propose-reviewer").textContent = ligne(["reviewer-modele", "reviewer-effort"], nommes);
-  const dite = ligne(["sauvegardes"], {});
-  element("propose-sauvegardes").textContent = dite !== "" ? dite : sauvegardes.value === "" ? racineRaison : "";
-}
-
-/** @param {string} champ @param {string} valeur @param {string} origine */
-function poserPropose(champ, valeur, origine) {
-  const cible = /** @type {HTMLInputElement | HTMLSelectElement} */ (element(champ));
-  cible.value = valeur;
-  // Une valeur que la liste ne connaît pas ne se propose pas.
-  if (cible.value !== valeur) return;
-  proposes.set(champ, origine);
-}
-
-// Le calibrage proposé : celui de tes autres projets, sinon la valeur mesurée. Un champ que
-// le chef a choisi n'est pas repris.
-async function proposerCalibrage() {
-  const { calibrage, origine } = await brigade.proposerCalibrage();
-  for (const [role, valeurs] of Object.entries(calibrage)) {
-    for (const dimension of /** @type {const} */ (["modele", "effort"])) {
-      const champ = /** @type {typeof CALIBRAGE[number]} */ (`${role}-${dimension}`);
-      if (calibre(champ).value !== "" && !proposes.has(champ)) continue;
-      poserPropose(champ, valeurs[dimension], origine);
-    }
-  }
-  direPropose();
-}
-
-// La destination proposée : la racine que la box accepte, puis le nom du projet.
-function proposerDestination() {
-  if (sauvegardes.value !== "" && !proposes.has("sauvegardes")) return;
-  const saisi = nom.value.trim();
-  if (racine === "" || saisi === "") {
-    if (proposes.delete("sauvegardes")) sauvegardes.value = "";
-  } else {
-    poserPropose("sauvegardes", `${racine}/${saisi}`, racineOrigine);
-  }
-  direPropose();
-}
-
-// La racine, lue sur la box choisie : une réponse qui arrive après un autre choix est jetée.
-async function proposerRacine() {
-  const choisie = hote.value;
-  racine = "";
-  racineRaison = "";
-  if (choisie !== "") {
-    const lue = await brigade.proposerRacine(choisie);
-    if (hote.value !== choisie) return;
-    if (lue !== undefined && "racine" in lue) [racine, racineOrigine] = [lue.racine, lue.origine];
-    else racineRaison = lue?.raison ?? "";
-  }
-  proposerDestination();
-}
-
-// Ce que le chef touche cesse d'être une proposition.
-for (const champ of /** @type {string[]} */ ([...CALIBRAGE, "sauvegardes"])) {
-  element(champ).addEventListener("input", () => {
-    proposes.delete(champ);
-    direPropose();
-  });
-}
-hote.addEventListener("change", () => void proposerRacine());
-
-// Ajouter un projet sans écrire de JSON ni coller de commande : son dossier se choisit,
-// son nom et son dépôt en viennent, sa box se prend parmi celles du fichier. Ce qui a
-// été saisi reste, d'un passage à l'autre.
+// Ajouter un projet à l'app sans écrire de JSON : son dossier se choisit, son dépôt et sa branche
+// en viennent. Aucune station n'y est demandée : sa cuisine se confie depuis sa page, quand le chef
+// le décide. Ce qui a été saisi reste, d'un passage à l'autre.
 function ouvrirAjout() {
   courant = undefined;
   ajoute = true;
   stationOuverte = undefined;
   marquer();
-  ou.textContent = `${configuration.projets.length === 0 ? "No project yet. " : ""}It is installed on its box, then written to ${configuration.chemin} — which you can also edit by hand: the app re-reads it as soon as it changes.`;
+  ou.textContent = `${configuration.projets.length === 0 ? "No project yet. " : ""}It is written to ${configuration.chemin} — which you can also edit by hand: the app re-reads it as soon as it changes.`;
   choisi.textContent = dossier === "" ? "no folder chosen" : dossier;
-  proposer(hote, configuration.boxes, configuration.boxes.length === 0 ? "no box declared — declare one, below" : "— choose —");
-  // Une seule box : il n'y a rien à choisir.
-  if (hote.value === "" && configuration.boxes.length === 1) hote.value = configuration.boxes[0] ?? "";
-  void proposerCalibrage();
-  void proposerRacine();
 }
 
+// Ce que le clone a proposé pour un champ : le chef qui l'a changé garde ce qu'il a écrit.
+/** @type {{ depot: string, base: string }} */
+const lusDuClone = { depot: "", base: "" };
 element("dossier").addEventListener("click", async () => {
   const pris = await brigade.choisirDossier();
   if (pris === undefined) return;
   dossier = pris;
   choisi.textContent = pris;
   signaler("dossier");
-  // Le nom du dossier, tant que le chef n'en a pas tapé un autre.
-  if (nom.value === "") {
-    nom.value = pris.split("/").filter(Boolean).at(-1) ?? "";
-    void direForme();
-    proposerDestination();
+  // Son dépôt et sa branche, lus dans son clone — tant que le chef n'en a pas écrit d'autres.
+  const lu = await brigade.lireClone(pris);
+  if (lu === undefined || dossier !== pris) return;
+  for (const [champ, saisi] of /** @type {const} */ ([["depot", depot], ["base", base]])) {
+    if (saisi.value !== "" && saisi.value !== lusDuClone[champ]) continue;
+    lusDuClone[champ] = lu[champ] ?? "";
+    saisi.value = lusDuClone[champ];
+    signaler(champ, lu.raisons[champ] ?? "");
   }
-  // Son dépôt, lu dans son origine — tant que le chef n'en a pas écrit un autre.
-  const lu = await brigade.lireDepot(pris);
-  if (lu === undefined || dossier !== pris || (depot.value !== "" && depot.value !== depotLu)) return;
-  depotLu = "depot" in lu ? lu.depot : "";
-  depot.value = depotLu;
-  signaler("depot", "raison" in lu ? lu.raison : "");
-});
-// La forme du nom, dite à la saisie : ce que la box refuserait est refusé ici, avant elle.
-async function direForme() {
-  const saisi = nom.value;
-  const raison = await brigade.formeDuNom(saisi);
-  if (nom.value === saisi) signaler("nom", raison);
-}
-nom.addEventListener("input", () => {
-  void direForme();
-  proposerDestination();
-});
-// Une box de plus : son nom s'écrit dans le fichier, et elle se propose aussitôt.
-element("declarer").addEventListener("click", async () => {
-  const declaree = box.value.trim();
-  const refus = await brigade.declarerBox(declaree);
-  signaler("box", refus === undefined ? "" : `Not declared — ${refus}`);
-  if (refus !== undefined) return;
-  box.value = "";
-  // La liste est déjà arrivée par `surConfiguration`.
-  hote.value = declaree;
-  signaler("hote");
-  void proposerRacine();
 });
 
-// Entrée, dans le nom d'une box, la déclare : elle n'envoie pas l'ajout.
-box.addEventListener("keydown", (frappe) => {
-  if (frappe.key !== "Enter") return;
-  frappe.preventDefault();
-  element("declarer").click();
-});
-
-// Ce qu'il est advenu de l'ajout, sous le formulaire : ce que la box a rendu, tel quel, puis ce que l'app en dit.
-/** @param {import("../installation.ts").Issue | { etat: "en-cours", titre: string }} issue */
+// Ce qu'il est advenu de l'ajout, sous le formulaire.
+/** @param {import("../ajout.ts").Issue | { etat: "en-cours", titre: string }} issue */
 function poserIssue(issue) {
   issueAjout.dataset.etat = issue.etat;
-  if (issue.etat === "champs") return issueAjout.replaceChildren(bloc("strong", "Nothing was sent to the box: what is missing is flagged under its field."));
-  issueAjout.replaceChildren(bloc("strong", issue.titre), ...("obtenu" in issue && issue.obtenu !== undefined ? [bloc("pre", issue.obtenu)] : []), ...("lignes" in issue ? issue.lignes.map((ligne) => bloc("p", ligne)) : []));
+  if (issue.etat === "champs") return issueAjout.replaceChildren(bloc("strong", "Nothing was written: what is missing is flagged under its field."));
+  if (issue.etat === "ajoute") return issueAjout.replaceChildren();
+  issueAjout.replaceChildren(bloc("strong", issue.titre));
 }
 
 formulaire.addEventListener("submit", async (soumission) => {
   soumission.preventDefault();
-  const saisie = {
-    dossier,
-    nom: nom.value,
-    depot: depot.value,
-    hote: hote.value,
-    manager: { modele: calibre("manager-modele").value, effort: calibre("manager-effort").value },
-    reviewer: { modele: calibre("reviewer-modele").value, effort: calibre("reviewer-effort").value },
-    sauvegardes: sauvegardes.value,
-  };
+  const saisie = { dossier, depot: depot.value, base: base.value };
   envoi.disabled = true;
-  poserIssue({ etat: "en-cours", titre: "Request in progress — if it goes through, the box clones the repository: this can take a few minutes." });
-  const issue = await brigade.installer(saisie).finally(() => (envoi.disabled = false));
-  for (const champ of /** @type {const} */ (["dossier", "nom", "depot", "hote", ...CALIBRAGE, "sauvegardes"])) signaler(champ, issue.etat === "champs" ? issue.champs[champ] : "");
+  const issue = await brigade.ajouter(saisie).finally(() => (envoi.disabled = false));
+  for (const champ of /** @type {const} */ (["dossier", "depot", "base"])) signaler(champ, issue.etat === "champs" ? issue.champs[champ] : "");
   poserIssue(issue);
-  if (issue.etat === "pas-ajoute" && issue.declarable) {
-    // Le projet est sur la box, pas dans l'app : c'est le chef qui demande de l'y déclarer.
-    const declarer = bouton("Declare it in the app, as it is on the box", async () => {
-      const refus = await brigade.ajouter({ nom: saisie.nom, dossier: saisie.dossier, hote: saisie.hote });
-      if (refus !== undefined) return void declarer.after(bloc("p", `Not declared — ${refus}`));
-      vider();
-      poserIssue({ etat: "en-cours", titre: `“${saisie.nom.trim()}” is declared in the app, as it is on the box “${saisie.hote}”: nothing was written there.` });
-    });
-    declarer.type = "button";
-    issueAjout.append(declarer);
-  }
-  // Ajouté : la liste est déjà arrivée par `surConfiguration`, et l'écran reste, pour ses ports
-  // — et pour ce qui reste à faire du projet.
-  if (issue.etat === "ajoute") {
-    vider();
-    poserSuite(issue.nom);
-  }
+  if (issue.etat !== "ajoute") return;
+  // Ajouté : la liste est déjà arrivée par `surConfiguration`. Sa page s'ouvre : c'est là que sa
+  // cuisine se confie à une station — tout de suite, plus tard, ou jamais.
+  vider();
+  const projet = projetDe(issue.nom);
+  if (projet !== undefined) void ouvrir(projet);
 });
 
-// Sous un ajout réussi : ce qui reste avant que le projet soit servi, et le geste qui ouvre
-// son espace, où l'installation guidée l'attend — toutes ses étapes, et la courante.
-/** @param {string} nom */
-function poserSuite(nom) {
-  // Rien, si le projet a déjà quitté le fichier.
-  if (projetDe(nom) === undefined) return;
-  const lancer = bouton(`Open the space of “${nom}” — its installation goes on there`, () => {
-    const projet = projetDe(nom);
-    if (projet === undefined) return void lancer.after(bloc("p", `Not opened — “${nom}” is no longer in ${configuration.chemin}`));
-    void ouvrir(projet);
-  });
-  lancer.type = "button";
-  issueAjout.append(
-    bloc("strong", "It is not served yet: its installation goes on in its space, step by step."),
-    bloc("p", "Every step is listed there before the first one — what it is for, what happens if you skip it —, done for you by a button or an answer, except what only you can do, which is announced first. Close the app whenever you like: the box keeps where you are."),
-    lancer,
-  );
-}
-
-// L'écran d'ajout, rendu vide : ce qui vient d'être ajouté n'y reste pas. La box choisie, si.
+// L'écran d'ajout, rendu vide : ce qui vient d'être ajouté n'y reste pas.
 function vider() {
-  const gardee = hote.value;
   formulaire.reset();
-  hote.value = gardee;
+  depot.value = base.value = "";
   dossier = "";
-  depotLu = "";
+  lusDuClone.depot = lusDuClone.base = "";
   choisi.textContent = "no folder chosen";
-  // Le calibrage du projet qui vient d'être ajouté se propose pour le suivant.
-  proposes.clear();
-  direPropose();
-  void proposerCalibrage();
-  void proposerRacine();
 }
 
 /** @param {Projet} projet */
@@ -5122,6 +5185,7 @@ brigade.surStations((vu) => {
   stationsVues = vu;
   if (stationOuverte !== undefined) poserPageDeStation();
   poserChoixDesStations();
+  poserStationsDuProjet();
 });
 // L'accueil redit : ses lignes remplacent celles d'avant, s'il est affiché — et l'en-tête de la page d'une station.
 brigade.surAccueil((vu) => {
@@ -5135,6 +5199,7 @@ brigade.surProjetsDesStations((vu) => {
   projetsVus = vu;
   poserProjets();
   poserChoixDesStations();
+  poserStationsDuProjet();
 });
 // La colonne des terminaux change de taille avec la fenêtre : le terminal montré suit.
 new ResizeObserver(() => {
@@ -5319,7 +5384,6 @@ GRANTS_NOMMES = demarrage.gestes.grants.nommes;
 GESTES_D_ATTENTE = demarrage.gestes.attente ?? [];
 DIRECTS = demarrage.gestes.directs;
 BANNIERE = demarrage.banniere;
-for (const champ of CALIBRAGE) proposer(calibre(champ), champ.endsWith("modele") ? demarrage.calibrage.modeles : demarrage.calibrage.efforts, champ.endsWith("modele") ? "— model —" : "— effort —");
 // Une lecture arrivée pendant le démarrage est plus récente que celle qu'il rend.
 codeVu ??= demarrage.code;
 stationsVues ??= demarrage.stations;

@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { FICHIER_PROJETS, FICHIER_SUIVI } from "../../src/projets/demande.ts";
 import { depotsDuChef } from "../../src/projets/github.ts";
-import { avertissement, estUnOrdinateur, lireSaisie, nomDuProjet, principaleRecommandee, refusDeSaisie, tenirProjets, type VuDesProjets } from "../../src/projets/projets.ts";
+import { avertissement, estUnOrdinateur, lireConfiance, lireSaisie, nomDuProjet, principaleRecommandee, refusDeConfiance, refusDeSaisie, tenirProjets, type VuDesProjets } from "../../src/projets/projets.ts";
 import { githubDesStations } from "../../src/stations/github.ts";
 import type { StationVue } from "../../src/stations/stations.ts";
 
@@ -179,6 +179,68 @@ test("les dépôts du chef : les plus récents d'abord, ni archivés ni forks, a
   });
   panne();
   assert.deepEqual(await projets.depots(), { refus: "your repositories could not be read on GitHub — error connecting to api.github.com" });
+});
+
+// La page d'un projet de l'app le confie à des stations (#983) : à une première, ou à une de plus.
+const CONFIANCE = { ...SAISIE, nom: "parade", stations: ["g1"] };
+const ATTENDU = { nom: "parade", depot: "benomite/parade", base: "main", cooks: 2, manager: { modele: "sonnet", effort: "medium" }, reviewer: { modele: "opus", effort: "high" }, ouvertLe: OUVERT, demandeLe: "2026-10-15T12:01:00.000Z" };
+
+test("confier un projet à sa première station : elle en devient la principale, avec le plafond et le calibrage choisis", async (t) => {
+  const { projets, demande } = unGitHub(t, [BOX, MAC]);
+  assert.deepEqual(await projets.confier(CONFIANCE), { ajoute: "parade" });
+  assert.deepEqual(demande("g1"), [{ ...ATTENDU, principale: true }]);
+  assert.equal(demande("g2"), undefined);
+});
+
+test("le nom est celui du projet dans l'app, pas celui que son dépôt donnerait", async (t) => {
+  const { projets, demande } = unGitHub(t, [BOX]);
+  assert.deepEqual(await projets.confier({ ...CONFIANCE, nom: "mon-parade" }), { ajoute: "mon-parade" });
+  assert.equal(demande("g1")?.[0]?.nom, "mon-parade");
+  assert.deepEqual(refusDeConfiance(lireConfiance({ ...CONFIANCE, nom: "Mon Parade" }), [BOX], { portee: [], principale: false }).nom, "“Mon Parade” cannot be a project's name on a station: lowercase letters, digits and dashes.");
+});
+
+test("une station de plus reprend ce que l'app a déjà demandé, sans principale : ni plafond ni calibrage à redire, et celle d'avant ne bouge pas", async (t) => {
+  const { projets, demande } = unGitHub(t, [BOX, MAC]);
+  await projets.confier(CONFIANCE);
+  const avant = demande("g1");
+  const ajout = { nom: "parade", depot: "benomite/parade", base: "main", stations: ["g2"], principale: "", cooks: "", manager: { modele: "", effort: "" }, reviewer: { modele: "", effort: "" }, ouvertLe: OUVERT };
+  assert.deepEqual(await projets.confier(ajout), { ajoute: "parade" });
+  assert.deepEqual(demande("g2"), [{ ...ATTENDU, principale: false }]);
+  assert.deepEqual(demande("g1"), avant);
+});
+
+test("une station qui porte déjà le projet ne se choisit pas une seconde fois, et un projet qui a sa principale n'en prend pas d'autre", async (t) => {
+  const { projets, demande } = unGitHub(t, [BOX, MAC]);
+  await projets.confier(CONFIANCE);
+  assert.deepEqual(await projets.confier({ ...CONFIANCE, stations: ["g1", "g2"], principale: "g2" }), {
+    signales: {
+      stations: "box already cooks it: choose another station.",
+      principale: "It already has its main station: the stations you add run neither its manager nor its pass.",
+    },
+  });
+  assert.equal(demande("g2"), undefined);
+});
+
+test("un projet qu'une station sert sans l'app a déjà sa principale : une station de plus est secondaire, et dit son plafond et son calibrage", async (t) => {
+  const SERT: StationVue = { ...BOX, projets: ["parade"] };
+  const { projets, demande } = unGitHub(t, [SERT, MAC]);
+  const ajout = { ...CONFIANCE, stations: ["g2"], principale: "" };
+  assert.deepEqual(await projets.confier({ ...ajout, cooks: "" }), { signales: { cooks: "How many cooks may the main station run at once for this project?" } });
+  assert.deepEqual(await projets.confier({ ...ajout, stations: ["g1"] }), { signales: { stations: "box already cooks it: choose another station." } });
+  assert.deepEqual(await projets.confier(ajout), { ajoute: "parade" });
+  assert.deepEqual(demande("g2"), [{ ...ATTENDU, principale: false }]);
+  assert.equal(demande("g1"), undefined);
+});
+
+test("rien de choisi, rien d'écrit ; GitHub muet, le refus le dit en une ligne", async (t) => {
+  const { projets, demande, panne } = unGitHub(t, [BOX]);
+  assert.deepEqual(await projets.confier({ ...CONFIANCE, stations: [], principale: "" }), {
+    signales: { stations: "Choose at least one station to cook parade.", principale: "Choose its main station: the one that runs its manager and its pass." },
+  });
+  assert.equal(demande("g1"), undefined);
+  panne();
+  const refuse = await projets.confier(CONFIANCE);
+  assert.ok("refus" in refuse && /^parade was not entrusted to a station: GitHub could not be read — error connecting to api\.github\.com$/.test(refuse.refus), JSON.stringify(refuse));
 });
 
 test("l'app ne joint aucune station : ce module ne parle qu'au `gh` du poste", () => {

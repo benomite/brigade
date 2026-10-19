@@ -159,7 +159,7 @@ export type Mesure = {
 export type Vu = { projet: string; demande: number; a: string } & ({ sans: string } | { pasAssez: { servis: number; retenus: number; fenetre: number } } | { mesure: Mesure });
 
 const PAS_LU = "the reliability was not read: what the app got in its place is below";
-const ANCIEN = "the reliability is not communicated: the measures of this box do not count retries yet — its runtime predates it";
+const ANCIEN = "the reliability is not communicated: the measures of this station do not count retries yet — its runtime predates it";
 
 export function voir(lecture: Lecture): Vu {
   const { projet, demande, a } = lecture;

@@ -230,12 +230,12 @@ describe("où cuit chaque ticket en cours : box ou Mac", () => {
     assert.deepEqual(carteDe(lu, 14).dit, [
       { libelle: "right now", valeur: "lit runtime/src/etat.ts, for 2 min" },
       { libelle: "taken by", valeur: "box/claude", exact: true },
-      { libelle: "cooks on", valeur: "box" },
+      { libelle: "cooks on", valeur: "main station" },
       { libelle: "since", valeur: "12 min" },
       { libelle: "lease", valeur: "no progress since 3 min, lease 27 min left" },
     ]);
     assert.equal(dits(carteDe(lu, 15))["cooks on"], "Mac");
-    assert.equal(dits(carteDe(lu, 16))["cooks on"], "box");
+    assert.equal(dits(carteDe(lu, 16))["cooks on"], "main station");
   });
 
   test("seul un ticket en cours le dit : ni celui qui attend, ni celui en pass ou servi, ni celui mis de côté", () => {
@@ -253,7 +253,7 @@ describe("où cuit chaque ticket en cours : box ou Mac", () => {
     // Le Mac n'est plus déclaré : son ticket ne se dit nulle part, celui de la box si.
     const { rail: sansMac } = dessine({ ...ETAT, stations: [station("box/claude", false)] });
     assert.equal(dits(carteDe(sansMac, 15))["cooks on"], undefined);
-    assert.equal(dits(carteDe(sansMac, 14))["cooks on"], "box");
+    assert.equal(dits(carteDe(sansMac, 14))["cooks on"], "main station");
   });
 
   test("`comprendre` lit les stations que la box rend, et refuse une forme qui n'est pas la leur", () => {

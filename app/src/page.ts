@@ -170,7 +170,7 @@ const SANS_ROUTE = `no page to open: ${STATUS} writes no screen page for this se
 // mort n'a plus personne pour dire s'il répond.
 function raisonDe({ entete }: Lus, { etat }: Serveur): string | undefined {
   if ((entete?.includes(SANS_FIN) === true || entete?.includes(SANS_FIN_FR) === true)) return `no action: ${STATUS} says these servers are “${SANS_FIN}” — their runtime stopped without shutting them down, and nothing says whether they answer`;
-  if (etat !== ECOUTE) return `no action: ${STATUS} says “${etat}”, not “${ECOUTE}” — nothing says its port answers on the box. The action comes with the read that says so`;
+  if (etat !== ECOUTE) return `no action: ${STATUS} says “${etat}”, not “${ECOUTE}” — nothing says its port answers on the station. The action comes with the read that says so`;
   return undefined;
 }
 
@@ -275,7 +275,7 @@ export async function ouvrirTransfert(reglages: Reglages, { box }: Servi, port: 
       const abandonner = () => conclure({ refus: ABANDON });
       signal?.addEventListener("abort", abandonner, { once: true });
       if (signal?.aborted === true) abandonner();
-      void fin.then((dite) => conclure({ refus: `nothing opened: the port forward to the box did not hold — \`ssh\` exited before opening it\n${obtenu(dite)}` }));
+      void fin.then((dite) => conclure({ refus: `nothing opened: the port forward to the station did not hold — \`ssh\` exited before opening it\n${obtenu(dite)}` }));
       // La prise répond-elle ? `ssh` ne l'ouvre qu'une fois la box jointe.
       const sonder = () => {
         if (conclu) return;

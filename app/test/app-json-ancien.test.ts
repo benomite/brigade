@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
-import { boxes, lireConfiguration } from "../src/config.ts";
+import { lireConfiguration } from "../src/config.ts";
 
 const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "app-json-avant-534.json");
 
@@ -36,5 +36,4 @@ test("un app.json d'avant #534 est lu avec les mêmes projets, hôtes, couleurs 
       { nom: "carnet", dossier: join(maison, "notes/carnet") },
     ],
   });
-  assert.deepEqual(boxes(lireConfiguration(chemin, maison)), ["cuisine-paris", "box-lyon"]);
 });

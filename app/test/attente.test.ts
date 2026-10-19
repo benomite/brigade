@@ -23,7 +23,7 @@ import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, comprendre, rail, tenirFaits, type Dessinable, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
-import { EFFORTS, MODELES } from "../src/installation.ts";
+import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
@@ -180,7 +180,7 @@ describe("le rail en TODO et WAITING", () => {
     // Une box qui dit WAITING sans dire ce qu'il attend : la carte l'écrit, et garde ses gestes.
     const muette = rail({ ...FAITS, rail: [ticket(8, "WAITING")] }).colonnes[4]?.cartes[0];
     assert.deepEqual([muette?.dit, muette?.gestes], [[], ["attente-reprendre", "attente-arrivee"]]);
-    assert.match(muette?.sans ?? "", /^not given — this box's runtime does not give in `facts` what it waits for/);
+    assert.match(muette?.sans ?? "", /^not given — this station's runtime does not give in `facts` what it waits for/);
   });
 
   test("« waiting for… » est sur une carte de TODO que le runtime laisse attendre — pas sur un ticket en pass, ni hors du rail, ni hors de TODO", () => {

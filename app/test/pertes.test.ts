@@ -151,7 +151,7 @@ describe("un projet installé perd une station : une alerte en bande et sur sa c
 
     const ligne = seule(bande, "station");
     assert.equal(ligne.ton, "rouge");
-    assert.match(ligne.dit, /^station “box\/claude” missing: the box no longer provides it — no cook goes there$/);
+    assert.match(ligne.dit, /^station “box\/claude” missing: its main station no longer provides it — no cook goes there$/);
     // Ce que la box en écrit, mot pour mot : son moteur, introuvable.
     assert.match(ligne.releve ?? "", /plus-de-claude` est introuvable dans le `PATH` du service/);
     assert.match(ligne.geste, /`claude`/);
@@ -163,7 +163,7 @@ describe("un projet installé perd une station : une alerte en bande et sur sa c
     assert.deepEqual(box.appels, [COMMANDES.etapes, COMMANDES.stations, JUGEMENT]);
   });
 
-  test("la vérification dit le moteur introuvable par le service : la station est perdue, et le geste est celui que la box donne, mot pour mot", async (t) => {
+  test("la vérification dit le moteur introuvable par le service : la station est perdue, et le geste est celui que la station donne, mot pour mot", async (t) => {
     const box = boxInstallee(t);
     const { controler } = app(box);
     box.reglage.constats = [VARIABLES, SANS_CLAUDE];
@@ -233,7 +233,7 @@ describe("un projet installé perd un geste de box : une alerte en bande et sur 
     ];
 
     const ligne = seule((await controler()).bande, "box");
-    assert.match(ligne.dit, /^box gesture “install a project” missing: /);
+    assert.match(ligne.dit, /^station action “install a project” missing: /);
     assert.equal(ligne.geste, "`sudo install -d /srv/sauvegardes` — docs/installer.md, « Le geste d'installation »");
   });
 

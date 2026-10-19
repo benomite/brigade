@@ -13,7 +13,7 @@ import { BOUTONS, ecritPar } from "./boutons.ts";
 import { lancerGeste, ouvrirVeille, type Servi } from "./box.ts";
 import { histoireDe, situationDe } from "./histoire.ts";
 import { commenter, demanderAuSecond, lireDiscussion } from "./discussion.ts";
-import { boxes, cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
+import { cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { confirmationDe } from "./confirmation.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
@@ -25,17 +25,15 @@ import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
 import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
 import { COMMANDES as COMMANDES_DE_FIABILITE, ONGLET as FIABILITE, voir as voirFiabilite } from "./fiabilite.ts";
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
-import { ajouterSurBox, declarerTelQuel, EFFORTS, installer, lireDepot, MODELES } from "./installation.ts";
+import { ajouterALApp, lireClone } from "./ajout.ts";
 import { COMMANDE as COMMANDE_MANAGER, GESTES_DU_MANAGER, voir as voirManager } from "./manager.ts";
 import { machineChoisie, machinesDe } from "./machines.ts";
 import { commandeDe, ONGLETS, RUBRIQUES } from "./onglets.ts";
 import { ouvrirTransfert, tenirPages } from "./page.ts";
 import { jouerPanne } from "./pannes/gestes.ts";
 import { gistLocal, tenirLogin } from "./pannes/login.ts";
-import { lireRacine, proposerCalibrage } from "./proposition.ts";
 import { depotsDuChef } from "./projets/github.ts";
-import { tenirProjets } from "./projets/projets.ts";
-import { refusDeForme } from "./nom.ts";
+import { EFFORTS, MODELES, tenirProjets } from "./projets/projets.ts";
 import { memoireDansFichier, tenirNotifications } from "./notification.ts";
 import { cuisinesIci, roleDe } from "./poste/role.ts";
 import { tenirStationLocale } from "./poste/station.ts";
@@ -316,7 +314,6 @@ const runner = ouvrirRunner({
 const retraits = tenirRetraits({
   chemin: cheminConfiguration(),
   retirer: (nom) => suivi.retirer(nom),
-  boxes: () => boxes(suivi.configuration()),
   lancer: (servi, demande) => {
     // Jamais posée hors des essais, comme pour la veille.
     const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => lancerRetrait({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: demande.plan ? DELAIS.planMs : DELAIS.executionMs, connexionS: 10 }, servi, demande));
@@ -461,35 +458,12 @@ ipcMain.handle("choisirDossier", async () => {
   const { filePaths } = await dialog.showOpenDialog(fenetre, { title: "The project folder", properties: ["openDirectory", "createDirectory"] });
   return filePaths[0];
 });
-// Le dépôt GitHub du dossier choisi, lu dans son origine — ou pourquoi il reste à écrire.
-ipcMain.handle("lireDepot", (_, dossier: unknown) => (typeof dossier === "string" && dossier !== "" ? lireDepot("git", dossier) : undefined));
-// Ce que l'écran propose plutôt que de le demander, et d'où cela vient (proposition.ts) :
-// le calibrage se lit dans le fichier ; la racine des sauvegardes, sur la box choisie.
-ipcMain.handle("proposerCalibrage", () => proposerCalibrage(suivi.configuration().projets));
-ipcMain.handle("proposerRacine", (_, hote: unknown) =>
-  typeof hote === "string" && boxes(suivi.configuration()).includes(hote)
-    ? // Jamais posée hors des essais, comme pour la veille.
-      lireRacine({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 15_000, connexionS: 10 }, hote)
-    : undefined,
-);
-// Une box de plus : son nom, dans le fichier des projets (config.ts). Rien n'est joint.
-ipcMain.handle("declarerBox", (_, hote: unknown) => suivi.ajouterHote(typeof hote === "string" ? hote : ""));
-// L'ajout : les champs, puis le geste d'installation sur la box choisie, puis le
-// fichier des projets (installation.ts). Le clone se fait sur la box, et prend
-// son temps : `ssh` n'est arrêté qu'au bout d'un quart d'heure.
-ipcMain.handle("installer", async (_, saisie: unknown) => {
-  const issue = await ajouterSurBox(saisie, {
-    boxes: boxes(suivi.configuration()),
-    refusDAjout: suivi.refusDAjout,
-    ajouter: suivi.ajouter,
-    // Jamais posée hors des essais, comme pour la veille.
-    installer: (lue) => installer({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 900_000, connexionS: 10 }, lue),
-  });
-  // Ajouté : sa mise en service est entamée, et s'ouvrira d'elle-même dans son espace.
-  const ajoute = issue.etat === "ajoute" ? connu(issue.nom) : undefined;
-  if (ajoute !== undefined) services.suivre(ajoute);
-  return issue;
-});
+// Le dépôt GitHub et la branche d'intégration du dossier choisi, lus dans son clone par le `git`
+// du poste (ajout.ts) — ou pourquoi ils restent à écrire. Rien ne part ailleurs.
+ipcMain.handle("lireClone", (_, dossier: unknown) => (typeof dossier === "string" && dossier !== "" ? lireClone("git", dossier) : undefined));
+// L'ajout : les champs, puis le fichier des projets (ajout.ts). Aucune station n'est choisie, aucune
+// machine n'est jointe : le projet a son onglet, et sa cuisine se confie depuis sa page.
+ipcMain.handle("ajouter", (_, saisie: unknown) => ajouterALApp(saisie, suivi.ajouter));
 // Les couleurs d'un projet : la vue nomme le projet, le rôle — onglet ou accent — et une couleur
 // de la palette, par son nom (couleurs.ts). Écrite, elle arrive par `surConfiguration`. Rend la
 // raison, si elle ne l'a pas été.
@@ -518,10 +492,6 @@ ipcMain.handle("ranger", (_, nom: unknown, rang: unknown) => {
   if (vise === undefined) return parti(nom).refus;
   return typeof rang === "number" ? suivi.ranger(vise.nom, rang) : `nothing was done: “${String(rang)}” is not a place in the bar`;
 });
-// Un projet que la box sert déjà : déclaré dans l'app tel qu'il y est, sans rien lui envoyer.
-ipcMain.handle("ajouter", (_, saisie: unknown) => declarerTelQuel(saisie, { boxes: boxes(suivi.configuration()), ajouter: suivi.ajouter }));
-// La forme du nom, dite à la saisie : la règle de la box, au même endroit que l'ajout (nom.ts).
-ipcMain.handle("formeDuNom", (_, nom: unknown) => (typeof nom === "string" ? refusDeForme(nom) : undefined));
 // L'installation guidée : la vue nomme le projet et le geste, ce qu'il en advient se décide
 // dans service.ts — les étapes lues sur la box, la session `/brigade:init` dans le second,
 // chaque étape faite par la commande du runtime qui la fait, et le démarrage, écrit dans un
@@ -675,7 +645,7 @@ ipcMain.handle("lireQuestion", (_, nom: unknown, ticket: unknown) => {
   if (vise === undefined || faits.attendu(vise.nom, ticket) === undefined) return undefined;
   const adresse = faits.adresse(vise.nom, ticket);
   // Jamais posée hors des essais, comme BRIGADE_SSH_BIN.
-  return adresse === undefined ? { a: new Date().toISOString(), sans: "the box gave no https address for this issue: the app has nothing to read" } : lireQuestion(reglagesGh(), adresse).then((lue) => retenirLue(vise.nom, ticket, lue));
+  return adresse === undefined ? { a: new Date().toISOString(), sans: "the station gave no https address for this issue: the app has nothing to read" } : lireQuestion(reglagesGh(), adresse).then((lue) => retenirLue(vise.nom, ticket, lue));
 });
 // L'histoire d'un ticket et ce qu'il a coûté : `pass <ticket> --json` sur la box du projet, lu en
 // lecture seule (histoire.ts). La vue nomme le projet et le ticket ; la commande se compose ici.
@@ -683,7 +653,7 @@ ipcMain.handle("situation", (_, carte: unknown) => situationDe(carte));
 ipcMain.handle("lireHistoire", async (_, nom: unknown, ticket: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return undefined;
-  if (vise.box === undefined || typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1) return { sans: "no box for this project: the app has nothing to read" };
+  if (vise.box === undefined || typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1) return { sans: "no station for this project: the app has nothing to read" };
   const servi = { nom: vise.nom, box: vise.box };
   const rendu = await (passage.get(servi.nom) ?? Promise.resolve()).then(() => lancerGeste({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, `pass ${ticket} --json`));
   if (rendu.erreur !== null) return { sans: `not read: ${rendu.lance}\n${rendu.erreurs}${rendu.sortie}`.trim() };
@@ -734,7 +704,7 @@ ipcMain.handle("lireCapture", (_, nom: unknown, ticket: unknown, ecran: unknown,
   const vise = connu(nom);
   if (vise === undefined) return undefined;
   const adresse = faits.capture(vise.nom, ticket, ecran, moment);
-  return adresse === undefined ? { sans: "the box gave no address for this screenshot: the app has nothing to read" } : lireCapture(reglagesGh(), adresse);
+  return adresse === undefined ? { sans: "the station gave no address for this screenshot: the app has nothing to read" } : lireCapture(reglagesGh(), adresse);
 });
 // Le titre d'une issue que la box ne donne pas (hors rail) : lu par le `gh` du poste, à l'adresse que
 // la box a rendue pour ce ticket — jamais une adresse venue de la vue.
@@ -742,7 +712,7 @@ ipcMain.handle("lireTitre", (_, nom: unknown, ticket: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return undefined;
   const adresse = faits.adresse(vise.nom, ticket);
-  return adresse === undefined ? { sans: "the box gave no https address for this issue: the app has nothing to read" } : titreDe(reglagesGh(), adresse);
+  return adresse === undefined ? { sans: "the station gave no https address for this issue: the app has nothing to read" } : titreDe(reglagesGh(), adresse);
 });
 // Lever la retenue d'un ticket qui t'attend pour `blocked-on-human` : retirer le label, ou fermer
 // l'issue — un clic, par le `gh` du poste. Rien pour un ticket que le bloc `attend` ne dit pas retenu.
@@ -752,7 +722,7 @@ ipcMain.handle("leverRetenue", (_, nom: unknown, ticket: unknown, geste: unknown
   const dit = faits.attendu(vise.nom, ticket);
   if (dit === undefined || !dit.lignes.some((ligne) => ligne.includes(`\`${LABEL_RETENUE}\``))) return { fait: false, refus: `nothing was done: the \`attend\` block does not say #${String(ticket)} is held by \`${LABEL_RETENUE}\`` };
   const adresse = faits.adresse(vise.nom, ticket);
-  return adresse === undefined ? { fait: false, refus: "nothing was done: the box gave no https address for this issue" } : lever(reglagesGh(), adresse, geste);
+  return adresse === undefined ? { fait: false, refus: "nothing was done: the station gave no https address for this issue" } : lever(reglagesGh(), adresse, geste);
 });
 // La réponse du chef à cette question : un choix, par sa lettre, ou sa phrase. Elle part sur
 // l'issue, en commentaire, par le même `gh` — à son nom. L'issue est relue avant : rien ne part sur
@@ -763,7 +733,7 @@ ipcMain.handle("repondreQuestion", async (_, nom: unknown, ticket: unknown, repo
   if (vise === undefined) return { poste: false, refus: parti(nom).refus };
   if (faits.attendu(vise.nom, ticket) === undefined) return { poste: false, refus: `nothing was posted: the \`attend\` block no longer names #${String(ticket)}` };
   const adresse = faits.adresse(vise.nom, ticket);
-  if (adresse === undefined) return { poste: false, refus: "nothing was posted: the box gave no https address for this issue" };
+  if (adresse === undefined) return { poste: false, refus: "nothing was posted: the station gave no https address for this issue" };
   const rendue = await repondreQuestion(reglagesGh(), adresse, reponse);
   const question = (reponse as { question?: unknown } | null)?.question;
   if (rendue.poste && typeof question === "string") {
@@ -814,6 +784,9 @@ ipcMain.handle("depotsDuChef", () => projetsDesStations.depots());
 // Le parcours validé : la demande s'écrit dans le gist de chaque station choisie — ou chaque champ
 // qui manque est signalé, et rien n'est écrit (projets/projets.ts).
 ipcMain.handle("ajouterAUneStation", (_, saisie: unknown) => projetsDesStations.ajouter(saisie));
+// La page d'un projet de l'app confie sa cuisine à une première station, ou à une de plus : c'est le
+// seul geste qui l'installe sur une station (projets/projets.ts, `confier`).
+ipcMain.handle("confierAUneStation", (_, saisie: unknown) => projetsDesStations.confier(saisie));
 // Retiré, le projet quitte la demande de chacune de ses stations : elles le retirent de leur configuration.
 ipcMain.handle("retirerDUneStation", (_, nom: unknown) => projetsDesStations.retirer(nom));
 // La page GitHub où autoriser brigade sur un dépôt : seulement une de celles qu'une station a publiées.

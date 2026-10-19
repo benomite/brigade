@@ -31,7 +31,7 @@ import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
-import { EFFORTS, MODELES } from "../src/installation.ts";
+import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { commandeDeDemarrage, COMMANDES, INIT, JUGEMENT, jugementDe, lireCourante, lireEtapes, lireJugement, lireProtection, lireStations, manquesDe, tenirServices, VERIFICATION, verdictDe, type Guide } from "../src/service.ts";
@@ -370,7 +370,7 @@ describe("ce que « Démarrer » écrit", () => {
   });
 
   test("un projet sans box n'a rien à démarrer", () => {
-    assert.match(refus(commandeDeDemarrage({ nom: "calculus", dossier: "/p" }) as { refus: string }), /does not say where its box is/);
+    assert.match(refus(commandeDeDemarrage({ nom: "calculus", dossier: "/p" }) as { refus: string }), /does not say where its station is/);
   });
 });
 
@@ -565,7 +565,7 @@ describe("l'installation guidée : toutes les étapes, d'emblée", () => {
 
     assert.equal(lu.annonces.etat, "lues");
     const geste = lu.annonces.liste.find(({ texte }) => texte === GESTE_TROP_VIEUX);
-    assert.deepEqual(geste, { titre: "On the box, by someone with `sudo` there", texte: GESTE_TROP_VIEUX, geste: GESTE_A_NIVEAU });
+    assert.deepEqual(geste, { titre: "On the station, by someone with `sudo` there", texte: GESTE_TROP_VIEUX, geste: GESTE_A_NIVEAU });
     // Le manque des stations n'est pas un geste de box : il a son étape, et son bouton.
     assert.ok(!lu.annonces.liste.some(({ texte }) => texte.startsWith("aucune station déclarée")));
     assert.equal(etats(lu).verification, "waiting");
@@ -576,7 +576,7 @@ describe("l'installation guidée : toutes les étapes, d'emblée", () => {
       lu.annonces.liste.map(({ titre, geste: commande }) => [titre, commande]),
       [
         ["2. Amorcer le dépôt", null],
-        ["On the box, by someone with `sudo` there", GESTE_A_NIVEAU],
+        ["On the station, by someone with `sudo` there", GESTE_A_NIVEAU],
         ["7. Démarrer la cuisine", "ssh -t box sudo systemctl enable --now brigade@calculus.service"],
       ],
     );
@@ -631,7 +631,7 @@ describe("chaque geste est un bouton ou une réponse", () => {
     const appels = box.appels.length;
     assert.match((await services.declarerStations(CALCULUS, [{ nom: "box/claude", cooks: 0 }]))?.refus ?? "", /has no default/);
     assert.match((await services.declarerStations(CALCULUS, []))?.refus ?? "", /at least one station/);
-    assert.match((await services.declarerStations(CALCULUS, [{ nom: "box/claude; reboot", cooks: 2 }]))?.refus ?? "", /not a station the box provides/);
+    assert.match((await services.declarerStations(CALCULUS, [{ nom: "box/claude; reboot", cooks: 2 }]))?.refus ?? "", /not a station its main station provides/);
     assert.equal(box.appels.length, appels);
 
     assert.equal(await services.declarerStations(CALCULUS, [{ nom: "box/claude", cooks: 2 }]), undefined);
@@ -682,7 +682,7 @@ describe("chaque geste est un bouton ou une réponse", () => {
     assert.equal(detail.passable, true);
     assert.match(detail.lu.courante?.question ?? "", /tokens/);
 
-    assert.match((await services.repondre(CALCULUS, ["500000; reboot"]))?.refus ?? "", /not a value the box reads/);
+    assert.match((await services.repondre(CALCULUS, ["500000; reboot"]))?.refus ?? "", /not a value the station reads/);
     assert.equal(await services.repondre(CALCULUS, ["500000"]), undefined);
     // Le démarrage ne réclamait rien : la box note l'étape faite dès la première réponse. Celles
     // qui restent se présentent encore, une à une, jusqu'à la fin de l'installation.
@@ -796,7 +796,7 @@ describe("de « Ajouter le projet » à « installation terminée »", () => {
     vert = false;
     const rendu = await services.demarrer(CALCULUS);
 
-    assert.match(refus(rendu), /^Nothing is written: the box did not say everything is green/);
+    assert.match(refus(rendu), /^Nothing is written: the station did not say everything is green/);
     assert.deepEqual(terminal(), []);
     const lu = await guide(services);
     assert.equal(lu.fait?.ok, false);
@@ -852,7 +852,7 @@ describe("ce que la box ne rend pas", () => {
     assert.deepEqual(lu.etapes, []);
     assert.ok(lu.lecture.etat === "echec");
     assert.equal(lu.lecture.titre, "NOT REACHED");
-    assert.equal(lu.titre, "Installation — the box did not return its steps");
+    assert.equal(lu.titre, "Installation — the station did not return its steps");
   });
 
   test("un runtime d'avant les étapes : ce qu'il a rendu est montré, et ce qui l'explique", async (t) => {
@@ -873,10 +873,10 @@ describe("ce que la box ne rend pas", () => {
     const sansBox: Projet = { nom: "calculus", dossier: "/projets/calculus" };
 
     assert.equal(await services.guide(sansBox), undefined);
-    assert.match((await services.direMerge(sansBox, true))?.refus ?? "", /does not say where its box is/);
-    assert.match((await services.verifier(sansBox))?.refus ?? "", /does not say where its box is/);
-    assert.match(refus(services.amorcer(sansBox)), /does not say where its box is/);
-    assert.match(refus(await services.demarrer(sansBox)), /does not say where its box is/);
+    assert.match((await services.direMerge(sansBox, true))?.refus ?? "", /does not say where its station is/);
+    assert.match((await services.verifier(sansBox))?.refus ?? "", /does not say where its station is/);
+    assert.match(refus(services.amorcer(sansBox)), /does not say where its station is/);
+    assert.match(refus(await services.demarrer(sansBox)), /does not say where its station is/);
     assert.deepEqual(box.appels, []);
     assert.deepEqual(terminal(), []);
   });

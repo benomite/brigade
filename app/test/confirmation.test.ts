@@ -60,7 +60,7 @@ describe("arrêter la cuisine dit les cooks en vol", () => {
 
     assert.equal(rendu.titre, "stop the kitchen");
     assert.match(rendu.prix[0] ?? "", /stopped within the second, and nothing is harvested/);
-    assert.ok(rendu.prix.some((ligne) => /^1 cook running at this reading \(#14\) — what they spent, this box's runtime does not say/.test(ligne)));
+    assert.ok(rendu.prix.some((ligne) => /^1 cook running at this reading \(#14\) — what they spent, this station's runtime does not say/.test(ligne)));
     assert.equal(rendu.lu, LU);
     assert.deepEqual(rendu.choix.map(({ id }) => id), ["stop"]);
   });

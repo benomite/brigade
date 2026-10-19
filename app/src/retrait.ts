@@ -23,13 +23,28 @@
 import { execFile, type ExecFileException } from "node:child_process";
 import { cite, type Reglages, type Servi } from "./box.ts";
 import type { Projet } from "./config.ts";
-import { GESTE, objetDuGeste } from "./installation.ts";
 import { nombre } from "./format.ts";
+
+// Le geste, par le chemin que sa règle sudoers nomme : `sudo` n'a pas à le chercher.
+export const GESTE = "/usr/local/bin/brigade-installer";
+
+// L'objet du geste : la dernière ligne de sa sortie standard qui en est un.
+export function objetDuGeste(sortie: string): Record<string, unknown> | undefined {
+  for (const ligne of sortie.split("\n").reverse()) {
+    try {
+      const lu: unknown = JSON.parse(ligne);
+      if (lu !== null && typeof lu === "object" && typeof (lu as { ok?: unknown }).ok === "boolean") return lu as Record<string, unknown>;
+    } catch {
+      // Pas un objet : ce que la station a écrit d'autre reste dans ce qui a été obtenu.
+    }
+  }
+  return undefined;
+}
 
 // Les deux gestes, par le libellé qui les sépare — et celui du plan, qui ne retire rien.
 export const RETIRER = "Remove from the app";
-export const DESINSTALLER = "Uninstall from the box";
-export const PLANIFIER = "See what the box would remove";
+export const DESINSTALLER = "Uninstall from the station";
+export const PLANIFIER = "See what the station would remove";
 const DOC = "docs/installer.md";
 // Ce que `ssh` a pour répondre. Le plan inventorie le clone du projet ; l'exécution
 // arrête son runtime et retire, journal compris s'il est demandé (runtime/src/desinstallateur.ts).
@@ -158,21 +173,21 @@ const inachevee = (rendu: Extract<Rendu, { etat: "refuse" }>) => rendu.code === 
 
 // Ce que la box dit du journal, redit en une phrase : avant, puis après.
 function duJournal(journal: Journal | null, fait: boolean): string {
-  if (journal === null) return "The app no longer knows where its log stands: an uninstall replayed since did not complete — the box's plan will say what is left of it.";
+  if (journal === null) return "The app no longer knows where its log stands: an uninstall replayed since did not complete — the station's plan will say what is left of it.";
   const { garde, retire } = journal;
-  if (retire !== null) return fait ? `The project's log was deleted along with its state (${retire}): this cannot be undone.` : `The log is part of what the box would remove (${retire}): deleting it cannot be undone.`;
-  if (garde !== null) return fait ? `The project's log still exists on the box: ${garde}. The uninstall did not delete it.` : `The log is not part of what the box would remove: it keeps it (${garde}).`;
-  return `The box names no log for this project: neither kept, nor ${fait ? "removed" : "to be removed"}.`;
+  if (retire !== null) return fait ? `The project's log was deleted along with its state (${retire}): this cannot be undone.` : `The log is part of what the station would remove (${retire}): deleting it cannot be undone.`;
+  if (garde !== null) return fait ? `The project's log still exists on the station: ${garde}. The uninstall did not delete it.` : `The log is not part of what the station would remove: it keeps it (${garde}).`;
+  return `The station names no log for this project: neither kept, nor ${fait ? "removed" : "to be removed"}.`;
 }
 
 // Ce que l'app dit d'un refus du geste, selon son code (runtime/deploy/brigade-installer).
 // La phrase de la box est au-dessus, mot pour mot : elle n'est pas redite.
 function suiteDuRefus(code: number | null): string[] {
-  if (code === 64) return ["What the box refuses is named above: it removed nothing."];
-  if (code === 65) return [`The box does not know this project: there is nothing to uninstall there. If it should no longer appear in the app, that is the other action: “${RETIRER}”.`];
-  if (code === 75) return ["Another installation action is running on this box: retry once it has finished."];
-  if (code === 76 || code === 77) return [`The box is not ready for this action, and the app does not prepare it: what it lacks is set up on the box itself, by someone with \`sudo\` there — ${DOC}, « Préparer la box ».`];
-  if (code === 81) return ["The box is held back by what the uninstall would take away: it names it above. Sort it out on the box, then retry."];
+  if (code === 64) return ["What the station refuses is named above: it removed nothing."];
+  if (code === 65) return [`The station does not know this project: there is nothing to uninstall there. If it should no longer appear in the app, that is the other action: “${RETIRER}”.`];
+  if (code === 75) return ["Another installation action is running on this station: retry once it has finished."];
+  if (code === 76 || code === 77) return [`The station is not ready for this action, and the app does not prepare it: what it lacks is set up on the station itself, by someone with \`sudo\` there — ${DOC}, section 3, « Préparer ».`];
+  if (code === 81) return ["The station is held back by what the uninstall would take away: it names it above. Sort it out on the station, then retry."];
   return [];
 }
 
@@ -180,31 +195,31 @@ function suiteDuRefus(code: number | null): string[] {
 // `deja` : le projet était déjà dit désinstallé — une désinstallation rejouée qui n'aboutit pas ne l'en dédit pas.
 function montrer({ nom, box: { hote } }: Servi, { a, rendu }: Lue, execution: boolean, deja: boolean): Montre {
   const { obtenu } = rendu;
-  const redemander = "Ask the box for its plan again: it will say what is left of the project on it.";
-  const pasDit = deja ? "This project is still reported as uninstalled — it already was: what remained of it on the box is what is in doubt." : "The app does not report this project as uninstalled: what its box says about it can still be read alongside.";
+  const redemander = "Ask the station for its plan again: it will say what is left of the project on it.";
+  const pasDit = deja ? "This project is still reported as uninstalled — it already was: what remained of it on the station is what is in doubt." : "The app does not report this project as uninstalled: what its station says about it can still be read alongside.";
   const ssh = [
-    `What each of \`ssh\`'s messages means, and the action that answers it: ${DOC}, « Joindre la box ».`,
-    `If it says your key was refused (\`Permission denied\`), the box answers and it is access you lack: ${DOC}, « Ajouter un humain ».`,
+    `What each of \`ssh\`'s messages means, and the action that answers it: ${DOC}, section 2, « Joindre ».`,
+    `If it says your key was refused (\`Permission denied\`), the station answers and it is access you lack: ${DOC}, « Ajouter un humain ».`,
   ];
   if (rendu.etat === "plan") {
     return {
       etat: "plan",
       a,
-      titre: `WHAT BOX “${hote}” WOULD REMOVE — nothing is removed`,
+      titre: `WHAT STATION “${hote}” WOULD REMOVE — nothing is removed`,
       obtenu,
-      suite: ["This is the box's plan, as it returned it: the app adds nothing to it and decides nothing about it.", duJournal(rendu.journal, false), `To go ahead: type the project name below, then “${DESINSTALLER}”.`],
+      suite: ["This is the station's plan, as it returned it: the app adds nothing to it and decides nothing about it.", duJournal(rendu.journal, false), `To go ahead: type the project name below, then “${DESINSTALLER}”.`],
     };
   }
   if (rendu.etat === "desinstalle") {
     return {
       etat: "desinstalle",
       a,
-      titre: `UNINSTALLED FROM BOX “${hote}”`,
+      titre: `UNINSTALLED FROM STATION “${hote}”`,
       obtenu,
       suite: [
-        "What the box removed, and what it keeps, is above, as it said it.",
+        "What the station removed, and what it keeps, is above, as it said it.",
         duJournal(rendu.journal, true),
-        `“${nom}” can no longer be driven from the app: it no longer reads its box, and writes nothing to it.`,
+        `“${nom}” can no longer be driven from the app: it no longer reads its station, and writes nothing to it.`,
         `It is still in the app: “${RETIRER}” removes it — that is the other action.`,
         ...(rendu.journal.garde === null ? [] : ["To delete its log too, replay the uninstall with the option ticked: the plan first, then the confirmation."]),
       ],
@@ -215,26 +230,26 @@ function montrer({ nom, box: { hote } }: Servi, { a, rendu }: Lue, execution: bo
       return {
         etat: "inachevee",
         a,
-        titre: `THE UNINSTALL STOPPED HALFWAY ON BOX “${hote}”`,
+        titre: `THE UNINSTALL STOPPED HALFWAY ON STATION “${hote}”`,
         obtenu,
-        suite: ["The box says above what is done, and what remains.", "The uninstall can be replayed — ask the box for its plan again: it will say what is left to remove.", pasDit],
+        suite: ["The station says above what is done, and what remains.", "The uninstall can be replayed — ask the station for its plan again: it will say what is left to remove.", pasDit],
       };
     }
-    return { etat: "refuse", a, titre: `BOX “${hote}” REFUSED (${rendu.motif}) — nothing is removed`, obtenu, suite: suiteDuRefus(rendu.code) };
+    return { etat: "refuse", a, titre: `STATION “${hote}” REFUSED (${rendu.motif}) — nothing is removed`, obtenu, suite: suiteDuRefus(rendu.code) };
   }
   if (rendu.etat === "injoignable") {
     // Un plan ne retire rien, joint ou pas. Une désinstallation, elle, a pu commencer avant que `ssh` ne perde sa session.
     if (!execution) {
-      return { etat: "injoignable", a, titre: `BOX “${hote}” COULD NOT BE REACHED — nothing is removed`, obtenu, suite: ["`ssh` did not return the box's plan, and it said why: its message is above, the app does not read it.", ...ssh] };
+      return { etat: "injoignable", a, titre: `STATION “${hote}” COULD NOT BE REACHED — nothing is removed`, obtenu, suite: ["`ssh` did not return the station's plan, and it said why: its message is above, the app does not read it.", ...ssh] };
     }
     return {
       etat: "injoignable",
       a,
-      titre: `\`ssh\` FAILED WITHOUT AN ANSWER FROM BOX “${hote}”`,
+      titre: `\`ssh\` FAILED WITHOUT AN ANSWER FROM STATION “${hote}”`,
       obtenu,
       suite: [
-        "`ssh` exited with an error, and its message is above: the app does not read it. If it never opened a session, nothing reached the box; if it lost it on the way, the uninstall may have started.",
-        `So the app does not know what the box did. ${pasDit}`,
+        "`ssh` exited with an error, and its message is above: the app does not read it. If it never opened a session, nothing reached the station; if it lost it on the way, the uninstall may have started.",
+        `So the app does not know what the station did. ${pasDit}`,
         redemander,
         ...ssh,
       ],
@@ -244,23 +259,23 @@ function montrer({ nom, box: { hote } }: Servi, { a, rendu }: Lue, execution: bo
     return {
       etat: "geste-absent",
       a,
-      titre: `BOX “${hote}” WAS REACHED, AND ITS ACTION DID NOT RETURN ${execution ? "ITS ANSWER" : "ITS PLAN"}`,
+      titre: `STATION “${hote}” WAS REACHED, AND ITS ACTION DID NOT RETURN ${execution ? "ITS ANSWER" : "ITS PLAN"}`,
       obtenu,
       suite: [
-        "What the box returned is above, as is. The expected case: `brigade-installer` is not installed there — or not in a version that uninstalls — or its sudoers rule does not grant it to your account.",
-        `The app does not prepare a box. This action is set up on it, once, by someone with \`sudo\` there: ${DOC}, « Préparer la box » — « Le geste d'installation ».`,
-        ...(execution ? [`The app does not know what the box did. ${pasDit}`, redemander] : []),
+        "What the station returned is above, as is. The expected case: `brigade-installer` is not installed there — or not in a version that uninstalls — or its sudoers rule does not grant it to your account.",
+        `The app does not prepare a station. This action is set up on it, once, by someone with \`sudo\` there: ${DOC}, section 3, « Préparer » — « Le geste d'installation ».`,
+        ...(execution ? [`The app does not know what the station did. ${pasDit}`, redemander] : []),
       ],
     };
   }
   return {
     etat: "sans-reponse",
     a,
-    titre: `BOX “${hote}” DID NOT FINISH ANSWERING`,
+    titre: `STATION “${hote}” DID NOT FINISH ANSWERING`,
     obtenu,
     suite: execution
-      ? ["`ssh` was stopped at the timeout, before the box returned its answer: the app does not know where the box stood.", pasDit, redemander]
-      : ["`ssh` was stopped at the timeout, before the box returned its plan. A plan removes nothing: ask for it again."],
+      ? ["`ssh` was stopped at the timeout, before the station returned its answer: the app does not know where the station stood.", pasDit, redemander]
+      : ["`ssh` was stopped at the timeout, before the station returned its plan. A plan removes nothing: ask for it again."],
   };
 }
 
@@ -275,8 +290,6 @@ export function tenirRetraits(options: {
   chemin: string;
   // Retire le projet de ce fichier, et rien d'autre. Rend la raison, s'il ne l'a pas été.
   retirer(nom: string): string | undefined;
-  // Les box que l'écran d'ajout propose, telles que le fichier les donne maintenant.
-  boxes(): readonly string[];
   // Lance le geste de désinstallation sur la box du projet : son plan, ou l'exécution.
   lancer(servi: Servi, demande: Demande): Promise<Rendu>;
   // La box vient de dire le projet désinstallé — ou ce que l'app en disait a changé : il se
@@ -310,8 +323,8 @@ export function tenirRetraits(options: {
     return {
       projet: nom,
       titre: "Remove this project from the app",
-      retirer: { libelle: RETIRER, lignes: [enleve(nom), "It has no box: there is nothing else to remove.", RESTE] },
-      desinstaller: { libelle: DESINSTALLER, lignes: [`“${nom}” does not say where its box is: the app has nothing to uninstall there.`] },
+      retirer: { libelle: RETIRER, lignes: [enleve(nom), "It has no station: there is nothing else to remove.", RESTE] },
+      desinstaller: { libelle: DESINSTALLER, lignes: [`“${nom}” does not say where its station is: the app has nothing to uninstall there.`] },
     };
   }
 
@@ -323,34 +336,34 @@ export function tenirRetraits(options: {
     const { hote } = box;
     const parti = tenu.desinstalle;
     const { journal, plan, planEnCours, issue, enCours } = tenu;
-    const occupee = "The uninstall is under way: the box answers on its own.";
-    const sansPlan = `No uninstall: the box has not yet said what it would remove${journal ? ", log included" : ""} — “${PLANIFIER}” asks it for its plan, and removes nothing.`;
-    const planifierRefuse = enCours !== undefined ? occupee : planEnCours !== undefined ? "The plan has been requested: the box answers on its own." : undefined;
+    const occupee = "The uninstall is under way: the station answers on its own.";
+    const sansPlan = `No uninstall: the station has not yet said what it would remove${journal ? ", log included" : ""} — “${PLANIFIER}” asks it for its plan, and removes nothing.`;
+    const planifierRefuse = enCours !== undefined ? occupee : planEnCours !== undefined ? "The plan has been requested: the station answers on its own." : undefined;
     const desinstallerRefuse = enCours !== undefined ? occupee : planEnCours !== undefined || plan?.rendu.etat !== "plan" ? sansPlan : undefined;
     const planMontre: Montre | undefined =
       planEnCours !== undefined
-        ? { etat: "en-cours", titre: `plan requested from the box… it is taking inventory of what the project has there: a few seconds, ${minutes(DELAIS.planMs)} minutes at most` }
+        ? { etat: "en-cours", titre: `plan requested from the station… it is taking inventory of what the project has there: a few seconds, ${minutes(DELAIS.planMs)} minutes at most` }
         : plan === undefined
           ? undefined
           : montrer(servi, plan, false, parti !== undefined);
     const issueMontree: Montre | undefined =
       enCours !== undefined
-        ? { etat: "en-cours", titre: `uninstall under way on the box… it stops the project's runtime, then removes what its plan said: ${minutes(DELAIS.executionMs)} minutes at most` }
+        ? { etat: "en-cours", titre: `uninstall under way on the station… it stops the project's runtime, then removes what its plan said: ${minutes(DELAIS.executionMs)} minutes at most` }
         : issue === undefined
           ? undefined
           : "pasParti" in issue
-            ? { etat: "pas-parti", titre: "NOTHING WAS SENT TO THE BOX — nothing is removed", suite: [issue.pasParti] }
+            ? { etat: "pas-parti", titre: "NOTHING WAS SENT TO THE STATION — nothing is removed", suite: [issue.pasParti] }
             : montrer(servi, issue, true, parti !== undefined);
     return {
       projet: nom,
-      titre: parti === undefined ? "Remove this project — from the app, or from its box: two actions" : "Remove this project — uninstalled from its box, still in the app",
+      titre: parti === undefined ? "Remove this project — from the app, or from its station: two actions" : "Remove this project — uninstalled from its station, still in the app",
       retirer: {
         libelle: RETIRER,
         lignes: [
           enleve(nom),
           parti === undefined
-            ? `Nothing is sent to box “${hote}”: the project stays installed there — and served, if it is — with its log intact.`
-            : `It is uninstalled from box “${hote}”: removing it from the app is what is left to do, if it should no longer appear there.`,
+            ? `Nothing is sent to station “${hote}”: the project stays installed there — and served, if it is — with its log intact.`
+            : `It is uninstalled from station “${hote}”: removing it from the app is what is left to do, if it should no longer appear there.`,
           RESTE,
         ],
       },
@@ -358,20 +371,20 @@ export function tenirRetraits(options: {
         libelle: DESINSTALLER,
         lignes: [
           parti === undefined
-            ? `“${DESINSTALLER}” removes “${nom}” from box “${hote}”, through its uninstall action (\`sudo brigade-installer uninstall ${cite(nom)}\`), which the app runs for you. What is removed is decided and reported by the box: the app has no rule about it.`
-            : `It is uninstalled from box “${hote}”: it says below what it removed. The action can be replayed — to delete its log too, if it is kept — the same way.`,
-          "In two steps: the box first states its plan, removing nothing; then nothing is removed until you confirm by typing the project name.",
+            ? `“${DESINSTALLER}” removes “${nom}” from station “${hote}”, through its uninstall action (\`sudo brigade-installer uninstall ${cite(nom)}\`), which the app runs for you. What is removed is decided and reported by the station: the app has no rule about it.`
+            : `It is uninstalled from station “${hote}”: it says below what it removed. The action can be replayed — to delete its log too, if it is kept — the same way.`,
+          "In two steps: the station first states its plan, removing nothing; then nothing is removed until you confirm by typing the project name.",
           "It stays in the app: removing it from there is the other action.",
         ],
         geste: {
           hote,
           journal: {
             coche: journal,
-            libelle: "Also delete the project's log on the box",
+            libelle: "Also delete the project's log on the station",
             avertissement: [
-              "Unticked — the default: the app does not ask for the log to be deleted, and the box's plan says where it stays.",
-              "Ticked: the app adds `--supprimer-le-journal` to the action. The log is the kitchen's history, and deleting it cannot be undone: the box's plan says what goes with it — read it again before confirming.",
-              "Changing this box drops the plan already returned: it only holds for the setting it was requested with.",
+              "Unticked — the default: the app does not ask for the log to be deleted, and the station's plan says where it stays.",
+              "Ticked: the app adds `--supprimer-le-journal` to the action. The log is the kitchen's history, and deleting it cannot be undone: the station's plan says what goes with it — read it again before confirming.",
+              "Changing this station drops the plan already returned: it only holds for the setting it was requested with.",
             ],
             ...(enCours === undefined ? {} : { refus: "The uninstall is under way: its setting can no longer change." }),
           },
@@ -401,14 +414,14 @@ export function tenirRetraits(options: {
         desinstalle: {
           hote: box.hote,
           a: parti.a,
-          titre: `UNINSTALLED FROM BOX “${box.hote}” — can no longer be driven from the app`,
+          titre: `UNINSTALLED FROM STATION “${box.hote}” — can no longer be driven from the app`,
           lignes: [
-            `The app uninstalled “${projet.nom}” from box “${box.hote}”: it can no longer be driven from here. The app no longer reads its box, and writes nothing to it.`,
+            `The app uninstalled “${projet.nom}” from station “${box.hote}”: it can no longer be driven from here. The app no longer reads its station, and writes nothing to it.`,
             duJournal(parti.journal, true),
-            "What the box removed, word for word, is in its space, under “Remove this project”.",
+            "What the station removed, word for word, is in its space, under “Remove this project”.",
             `It is still in the app: “${RETIRER}”, in the same place, removes it — that is the other action.`,
-            "To serve it again: remove it from the app, then add it — adding it installs it on its box.",
-            "None of this is kept from one launch of the app to the next: relaunched, it re-reads the box, which will itself say it no longer knows this project.",
+            "To serve it again: remove it from the app, then add it — adding it installs it on its station.",
+            "None of this is kept from one launch of the app to the next: relaunched, it re-reads the station, which will itself say it no longer knows this project.",
           ],
         },
       };
@@ -422,22 +435,21 @@ export function tenirRetraits(options: {
       // Retiré maintenant, il n'aurait plus d'espace où lire ce que la box répond de sa désinstallation.
       const tenu = tenus.get(nom);
       if (box !== undefined && tenu?.hote === box.hote && tenu.enCours !== undefined) {
-        return { refus: `Not removed — its uninstall from box “${box.hote}” is under way: wait for what the box says, then remove it from the app.` };
+        return { refus: `Not removed — its uninstall from station “${box.hote}” is under way: wait for what the station says, then remove it from the app.` };
       }
       const refus = options.retirer(nom);
       if (refus !== undefined) return { refus: `Not removed — ${refus}` };
       tenus.delete(nom);
       const lignes =
         box === undefined
-          ? ["It had no box: there was nothing else to remove."]
+          ? ["It had no station: there was nothing else to remove."]
           : [
               ...(parti === undefined
                 ? [
-                    `Nothing was sent to box “${box.hote}”: the project is still installed there, and its log was not touched.`,
-                    `Uninstalling it from the box is another action: declare it in the app again — the “+”, which will find it already installed and offer to declare it as it is — then “${DESINSTALLER}”. Or on the box, by hand (${DOC}, « Désinstaller »).`,
+                    `Nothing was sent to station “${box.hote}”: the project is still installed there, and its log was not touched.`,
+                    `Uninstalling it from the station is another action: declare it in the app again — the “+” — then “${DESINSTALLER}”. Or on the station, by hand (${DOC}, « Désinstaller »).`,
                   ]
-                : [`It had been uninstalled from box “${box.hote}”: only what it said it keeps remains there.`]),
-              ...(options.boxes().includes(box.hote) ? [] : [`Box “${box.hote}” was named only by this project: it is no longer offered when adding — it can be declared there again, in a word.`]),
+                : [`It had been uninstalled from station “${box.hote}”: only what it said it keeps remains there.`]),
             ];
       return { avis: { titre: `“${nom}” is removed from the app.`, lignes } };
     },
@@ -488,7 +500,7 @@ export function tenirRetraits(options: {
           tenu.issue = { pasParti: raison };
           return etat(projet);
         };
-        if (tenu.planEnCours !== undefined || tenu.plan?.rendu.etat !== "plan") return pasParti(`The box has not yet said what it would remove: “${PLANIFIER}” first — the uninstall does not go ahead without its plan.`);
+        if (tenu.planEnCours !== undefined || tenu.plan?.rendu.etat !== "plan") return pasParti(`The station has not yet said what it would remove: “${PLANIFIER}” first — the uninstall does not go ahead without its plan.`);
         const confirmation = texte(saisi);
         if (confirmation === "") return pasParti(`You have not typed the project name: uninstalling “${nom}” is confirmed by typing it.`);
         if (confirmation !== nom) return pasParti(`You typed “${confirmation}”, and the project is called “${nom}”: the uninstall is confirmed by its name, character for character.`);
