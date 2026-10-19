@@ -143,6 +143,10 @@ export const KEPT_MEMBERS: { why: string; names: string[] }[] = [
     why: "Linked by assignment — not by reference — to a member that keeps its name (a literal built in a `.map`, a value passed where a format's type is expected): the language service does not follow an assignment, renaming one side would leave the other. Found by the type check of the renamed tree.",
     names: ["ecran", "ecrans", "mesure", "distante", "plafond", "plafonds", "plafondMs", "poids", "nonArbitres", "calibrage", "connexionS", "serveur", "faits", "fiche"],
   },
+  {
+    why: "Read back from data the code does not type at the reading (a parsed document, a record keyed by project or by port name, the box's output): the tests that compare what is read with what is expected find the old name. Found by the test suites of the renamed tree.",
+    names: ["dureeBailMs", "connexionMax", "espace", "seuilDisjoncteur", "sauvegardes", "porte", "servis", "enAttente", "serviLe", "livraison"],
+  },
 ];
 export const KEPT_FILES: { why: string; paths: string[] }[] = [
   {
@@ -151,6 +155,28 @@ export const KEPT_FILES: { why: string; paths: string[] }[] = [
   },
 ];
 
-// Text edits the references cannot carry (a test that spells a renamed file
-// in a pattern, …), applied with the rest. Each `from` must be found once.
-export const FIXUPS: { file: string; from: string; to: string; why: string }[] = [];
+// Text edits the references cannot carry, applied last, on the renamed tree
+// (`file` is the new path). Each `from` must be found `count` times (once by
+// default): a test that names a function or a file in text, a list whose
+// sorted order the rename changes.
+export const FIXUPS: { file: string; from: string; to: string; why: string; count?: number }[] = [
+  {
+    file: "app/test/page.test.ts",
+    from: 'fonction("poserServie")',
+    to: 'fonction("renderServed")',
+    why: "the test reads the view's source for the function by its name",
+  },
+  {
+    file: "runtime/test/log-not-replayed.test.ts",
+    from: '"garde-fous-cli"',
+    to: '"guardrails-cli"',
+    why: "the test names the command file without its extension",
+    count: 2,
+  },
+  {
+    file: "runtime/test/echeance-de-session.test.ts",
+    from: '["bac-a-sable/configuration.ts", "partition.ts", "identifiants.ts"]',
+    to: '["bac-a-sable/configuration.ts", "identifiants.ts", "partition.ts"]',
+    why: "a sorted list of files: `cloison.ts` → `partition.ts` moves in the order",
+  },
+];

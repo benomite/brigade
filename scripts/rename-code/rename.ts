@@ -280,12 +280,16 @@ function pathEdits(file: string, text: string, renamed: Map<string, string>, exi
     const escaped = token.includes("\\.");
     const plain = token.replace(/\\\./g, ".").replace(/\.+$/, "");
     if (plain === "" || plain.startsWith("//")) continue;
+    // `${WT}/app/src/bon.ts`: after an interpolation, a leading slash
+    // belongs to the path, not to the root.
+    const interpolated = plain.startsWith("/") && text[found.index! - 1] === "}";
+    const path = interpolated ? plain.slice(1) : plain;
     let replacement: string | undefined;
     for (const base of bases(file)) {
-      const target = resolve(base, plain);
+      const target = resolve(base, path);
       if (!target.startsWith(REPO + "/") || !existing.has(target)) continue;
       // Rewrite the parts of the token, one by one, from where it is read.
-      const parts = plain.split("/");
+      const parts = path.split("/");
       let at = base;
       const out = parts.map((part) => {
         if (part === "" || part === "." || part === "..") {
@@ -296,9 +300,15 @@ function pathEdits(file: string, text: string, renamed: Map<string, string>, exi
         const neu = renamed.get(at);
         return neu ?? part;
       });
-      const rewritten = out.join("/");
+      const rewritten = (interpolated ? "/" : "") + out.join("/");
       if (rewritten !== plain) replacement = escaped ? rewritten.replace(/\./g, "\\.") : rewritten;
       break;
+    }
+    // A bare file name (`join(VUE, "jetons.css")`) that only one moved file
+    // bears, wherever it is read from.
+    if (replacement === undefined && !plain.includes("/")) {
+      const bearers = [...renamed].filter(([old]) => old.endsWith("/" + plain));
+      if (bearers.length === 1) replacement = escaped ? bearers[0]![1].replace(/\./g, "\\.") : bearers[0]![1];
     }
     if (replacement === undefined) continue;
     const start = found.index!;
@@ -405,12 +415,6 @@ function plan(): { plan: Plan; ls: ts.LanguageService; files: string[] } {
   }
   for (const file of textFiles()) {
     for (const edit of pathEdits(file, readFileSync(abs(file), "utf8"), renamed, existing)) addEdit(edits, abs(file), edit);
-  }
-  for (const fixup of FIXUPS) {
-    const text = readFileSync(abs(fixup.file), "utf8");
-    const start = text.indexOf(fixup.from);
-    if (start === -1 || text.indexOf(fixup.from, start + 1) !== -1) throw new Error(`fixup not found once in ${fixup.file}: ${fixup.from}`);
-    addEdit(edits, abs(fixup.file), { start, end: start + fixup.from.length, text: fixup.to, why: fixup.why });
   }
   for (const [file, list] of edits) edits.set(file, settle(file, list));
   // Two files cannot land on one path, nor on a file that stays.
@@ -547,6 +551,14 @@ function main(args: string[]): number {
   }
   const newFiles = files.map((file) => rel(moved(abs(file), computed.renamed)));
   const broken = prove(before, computed.edits, computed.renamed, newFiles);
+  // Last, the fixups, on the renamed tree: a string the references do not
+  // carry (a test that names a function or a file in text).
+  for (const fixup of FIXUPS) {
+    const text = readFileSync(abs(fixup.file), "utf8");
+    const count = text.split(fixup.from).length - 1;
+    if (count !== (fixup.count ?? 1)) throw new Error(`fixup found ${count} time(s) in ${fixup.file}, not ${fixup.count ?? 1}: ${fixup.from}`);
+    writeFileSync(abs(fixup.file), text.split(fixup.from).join(fixup.to));
+  }
   console.error(`renamed ${computed.renames.length} declarations, moved ${computed.renamed.size} files and folders, edited ${computed.edits.size} files`);
   if (broken.length > 0) {
     for (const line of broken) console.error(`changed resolution: ${line}`);
