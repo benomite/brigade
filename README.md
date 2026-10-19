@@ -19,6 +19,10 @@ Déclarer le marketplace avec `--scope project` l'écrit dans le `.claude/settin
 
 Puis, dans une session ouverte sur le projet : **`/brigade:init`**. La commande déduit ce qu'elle peut (stack, gestionnaire de paquets, commandes de test et de build, zones de fichiers), demande le reste en une passe, crée les labels et l'issue de roadmap, écrit le bloc de bindings et les deux scripts, **puis prouve leur contrat** — elle refuse de déclarer le projet initialisé si les gates ou le setup de worktree échouent. Elle est rejouable : sur un projet déjà amorcé, elle ne fait que l'écart.
 
+### L'app du Mac
+
+Pour suivre vos projets depuis un Mac Apple Silicon, l'app s'installe depuis le `.dmg` publié sur la page des releases, sans clone ni Node : voir [`docs/installation-mac.md`](docs/installation-mac.md).
+
 ### Faire descendre une mise à jour du plugin
 
 Rien ne se propage tout seul, et c'est le piège le plus coûteux : `claude plugin update` compare la **version déclarée**. À numéro égal il ne recopie rien, **même depuis un marketplace `directory`**, et `marketplace update` n'y change rien. Un projet peut donc tourner des jours sur un cache figé.
