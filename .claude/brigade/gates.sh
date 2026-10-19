@@ -132,40 +132,57 @@ codex/skills/$r/"*) ;; *)
   [ "$perime" -eq 0 ] && ok "miroir Codex à jour pour les rôles modifiés depuis $REF"
 fi
 
-# 7. Les zones à suite de tests — le runtime, puis l'app : tests, puis contrôle
-# de types. Une seule ligne FAIL par étape ; le détail part sur stderr, sans
-# préfixe FAIL. Une zone absente n'est pas un échec.
-# Usage : suite <dossier> <« du runtime »> <« runtime absent »> <du-runtime>
+# 7. Les zones à suite de tests — le runtime et l'app : tests et contrôle de
+# types. Les quatre partent ensemble : aucun ne doit rien à un autre, et la
+# suite du runtime, la plus longue, ne fait plus attendre celle de l'app
+# derrière elle. Leurs verdicts se lisent ensuite dans un ordre fixe — le
+# runtime, puis l'app ; les tests, puis le contrôle de types —, l'ordre des
+# lignes ne dépend pas de qui finit le premier. Une seule ligne FAIL par étape ;
+# le détail part sur stderr, sans préfixe FAIL. Une zone absente n'est pas un
+# échec.
 NB_TESTS=""
 MS_TESTS=""
-suite() {
-  local ZONE="$1" DE="$2" ABSENTE="$3" JOURNAL_DE="$4"
-  local TYPES PID_TYPES JOURNAUX JOURNAL DELAI ARRETES TESTS PID_TESTS APRES TIREE PID_GARDE NB MS
+# Par zone, à son indice : ce que son lancement a trouvé, ses process, ses
+# fichiers.
+ETAT=()
+TYPES=()
+PID_TYPES=()
+JOURNAL=()
+PID_TESTS=()
+PID_GARDE=()
+# Garde d'horloge : un test figé dans du code synchrone (une boucle) n'est
+# arrêté par aucun minuteur de son lanceur, et sans elle ce script ne rendrait
+# jamais la main. Le délai est large : un
+# test qui *attend* est déjà mis en échec, et nommé, par le lanceur au bout de
+# deux minutes ; la garde ne doit tomber qu'après lui. Chaque suite a la sienne,
+# qui court dès son lancement.
+DELAI="${BRIGADE_GATES_DELAI_TESTS:-300}"
+
+# Lance la suite d'une zone et son contrôle de types, sans les attendre.
+# Usage : lancer <indice> <dossier> <du-runtime>
+lancer() {
+  local I="$1" ZONE="$2" JOURNAL_DE="$3" JOURNAUX PID APRES TIREE
+  ETAT[I]=lancee
   if [ ! -f "$ZONE/package.json" ]; then
-    ok "$ABSENTE : aucun test à jouer"
+    ETAT[I]=absente
     return
   elif ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
-    SUITE_ROUGE=1
-    fail "node ou npm introuvable : tests $DE injouables"
+    ETAT[I]=sans-node
     return
   elif [ ! -d "$ZONE/node_modules" ] && node -e 'process.exit(Object.keys(require(process.argv[1]).dependencies ?? {}).length ? 0 : 1)' "$PWD/$ZONE/package.json" 2>/dev/null; then
     # Des dépendances d'exécution déclarées et jamais posées : la suite ne
     # dirait que « module introuvable », test après test.
-    SUITE_ROUGE=1
-    fail "dépendances $DE absentes : tests injouables — rejoue worktree-setup.sh"
+    ETAT[I]=sans-dependances
     return
   fi
-  # Le contrôle de types part en même temps que les tests : il ne leur doit
-  # rien. Son verdict n'est lu qu'après celui des tests — l'ordre des lignes
-  # FAIL ne dépend pas de qui finit le premier.
-  TYPES=""
+  TYPES[I]=""
   if node -e 'process.exit(require(process.argv[1]).scripts?.typecheck ? 0 : 1)' "$PWD/$ZONE/package.json" 2>/dev/null; then
     if [ -x "$ZONE/node_modules/.bin/tsc" ]; then
-      TYPES="$(mktemp)"
-      npm --prefix "$ZONE" run typecheck >"$TYPES" 2>&1 &
-      PID_TYPES=$!
+      TYPES[I]="$(mktemp)"
+      npm --prefix "$ZONE" run typecheck >"${TYPES[I]}" 2>&1 &
+      PID_TYPES[I]=$!
     else
-      TYPES="injouable"
+      TYPES[I]="injouable"
     fi
   fi
   # Les tests créent chacun leur répertoire temporaire : l'état d'un runtime
@@ -176,75 +193,90 @@ suite() {
   JOURNAUX=".brigade-state/gates"
   mkdir -p "$JOURNAUX"
   find "$JOURNAUX" -name "tests-$JOURNAL_DE.*.log" -mtime +7 -delete 2>/dev/null
-  JOURNAL="$JOURNAUX/tests-$JOURNAL_DE.$(date +%Y%m%d-%H%M%S).$$.log"
-  # Garde d'horloge : un test figé dans du code synchrone (une boucle) n'est
-  # arrêté par aucun minuteur de son lanceur, et sans elle ce script ne rendrait
-  # jamais la main. Le délai est large : un
-  # test qui *attend* est déjà mis en échec, et nommé, par le lanceur au bout de
-  # deux minutes ; la garde ne doit tomber qu'après lui.
-  DELAI="${BRIGADE_GATES_DELAI_TESTS:-300}"
-  ARRETES=0
+  JOURNAL[I]="$JOURNAUX/tests-$JOURNAL_DE.$(date +%Y%m%d-%H%M%S).$$.log"
   case "$DELAI" in
-    ""|*[!0-9]*) TESTS=illisible ;;
-    *)
-      # La suite part dans son propre groupe de process (`set -m`) : le lanceur
-      # a un process par fichier de tests, et tuer le premier ne tue pas le
-      # second, qui lui survivrait en tenant un cœur. Hors du groupe du
-      # terminal, lire le clavier la suspendrait : elle n'a pas d'entrée.
-      set -m
-      env -u BRIGADE_STATE_DIR -u BRIGADE_PORT npm --prefix "$ZONE" test </dev/null >"$JOURNAL" 2>&1 &
-      PID_TESTS=$!
-      set +m
-      # La garde ne tient aucune sortie de ce script : un `sleep` orphelin qui
-      # garderait son tube ouvert retiendrait celui qui le lit. Arrêtée, elle
-      # emporte son `sleep`.
-      # `BRIGADE_GATES_GARDE_APRES` nomme un fichier : le délai ne court qu'une
-      # fois ce fichier posé. C'est l'accroche des tests de la garde, qui la
-      # règlent court — ils attendent ainsi un fait, pas que la suite ait
-      # démarré à temps. Absent, le délai court dès le lancement.
-      APRES="${BRIGADE_GATES_GARDE_APRES:-}"
-      TIREE="$JOURNAL.garde"
-      ( trap 'kill "$dort" 2>/dev/null; exit 0' TERM
-        while [ -n "$APRES" ] && [ ! -e "$APRES" ]; do
-          sleep 0.1 & dort=$!
-          wait "$dort"
-        done
-        sleep "$DELAI" & dort=$!
-        wait "$dort" && : >"$TIREE" && kill -KILL -- "-$PID_TESTS" ) >/dev/null 2>&1 &
-      PID_GARDE=$!
-      # Interrompues, les gates n'abandonnent pas une suite qui n'est plus dans
-      # leur groupe.
-      trap 'kill -KILL -- "-$PID_TESTS" 2>/dev/null; kill "$PID_GARDE" 2>/dev/null; exit 130' INT TERM
-      wait "$PID_TESTS" 2>/dev/null && TESTS=verts || TESTS=rouges
-      trap - INT TERM
-      kill "$PID_GARDE" 2>/dev/null
-      wait "$PID_GARDE" 2>/dev/null
-      if [ -e "$TIREE" ]; then rm -f "$TIREE"; ARRETES=1; fi
-      ;;
+    ""|*[!0-9]*)
+      ETAT[I]=illisible
+      return ;;
   esac
+  # La suite part dans son propre groupe de process (`set -m`) : le lanceur
+  # a un process par fichier de tests, et tuer le premier ne tue pas le
+  # second, qui lui survivrait en tenant un cœur. Hors du groupe du
+  # terminal, lire le clavier la suspendrait : elle n'a pas d'entrée.
+  set -m
+  env -u BRIGADE_STATE_DIR -u BRIGADE_PORT npm --prefix "$ZONE" test </dev/null >"${JOURNAL[I]}" 2>&1 &
+  PID=$!
+  set +m
+  PID_TESTS[I]=$PID
+  # La garde ne tient aucune sortie de ce script : un `sleep` orphelin qui
+  # garderait son tube ouvert retiendrait celui qui le lit. Arrêtée, elle
+  # emporte son `sleep`.
+  # `BRIGADE_GATES_GARDE_APRES` nomme un fichier : le délai ne court qu'une
+  # fois ce fichier posé. C'est l'accroche des tests de la garde, qui la
+  # règlent court — ils attendent ainsi un fait, pas que la suite ait
+  # démarré à temps. Absent, le délai court dès le lancement.
+  APRES="${BRIGADE_GATES_GARDE_APRES:-}"
+  TIREE="${JOURNAL[I]}.garde"
+  ( trap 'kill "$dort" 2>/dev/null; exit 0' TERM
+    while [ -n "$APRES" ] && [ ! -e "$APRES" ]; do
+      sleep 0.1 & dort=$!
+      wait "$dort"
+    done
+    sleep "$DELAI" & dort=$!
+    wait "$dort" && : >"$TIREE" && kill -KILL -- "-$PID" ) >/dev/null 2>&1 &
+  PID_GARDE[I]=$!
+}
+
+# Attend la suite d'une zone et son contrôle de types, et dit leur verdict.
+# Usage : conclure <indice> <dossier> <« du runtime »> <« runtime absent »>
+conclure() {
+  local I="$1" ZONE="$2" DE="$3" ABSENTE="$4" JOURNAL_ZONE TESTS ARRETES NB MS
+  case "${ETAT[I]}" in
+    absente)
+      ok "$ABSENTE : aucun test à jouer"
+      return ;;
+    sans-node)
+      SUITE_ROUGE=1
+      fail "node ou npm introuvable : tests $DE injouables"
+      return ;;
+    sans-dependances)
+      SUITE_ROUGE=1
+      fail "dépendances $DE absentes : tests injouables — rejoue worktree-setup.sh"
+      return ;;
+  esac
+  JOURNAL_ZONE="${JOURNAL[I]}"
+  ARRETES=0
+  if [ "${ETAT[I]}" = illisible ]; then
+    TESTS=illisible
+  else
+    wait "${PID_TESTS[I]}" 2>/dev/null && TESTS=verts || TESTS=rouges
+    kill "${PID_GARDE[I]}" 2>/dev/null
+    wait "${PID_GARDE[I]}" 2>/dev/null
+    if [ -e "$JOURNAL_ZONE.garde" ]; then rm -f "$JOURNAL_ZONE.garde"; ARRETES=1; fi
+  fi
   [ "$TESTS" = verts ] || SUITE_ROUGE=1
   if [ "$TESTS" = illisible ]; then
     fail "délai des tests illisible : BRIGADE_GATES_DELAI_TESTS attend un nombre entier de secondes"
   elif [ "$TESTS" = verts ]; then
     # Le résumé du lanceur, avant que sa sortie ne parte : combien de tests, et
     # ce que la suite a duré. Les zones s'additionnent.
-    NB="$(sed -n 's/^ℹ tests \([0-9][0-9]*\)$/\1/p' "$JOURNAL" | tail -1)"
-    MS="$(sed -n 's/^ℹ duration_ms \([0-9][0-9.]*\)$/\1/p' "$JOURNAL" | tail -1)"
+    NB="$(sed -n 's/^ℹ tests \([0-9][0-9]*\)$/\1/p' "$JOURNAL_ZONE" | tail -1)"
+    MS="$(sed -n 's/^ℹ duration_ms \([0-9][0-9.]*\)$/\1/p' "$JOURNAL_ZONE" | tail -1)"
     [ -z "$NB" ] || NB_TESTS="$(( ${NB_TESTS:-0} + NB ))"
     [ -z "$MS" ] || MS_TESTS="$(LC_ALL=C awk -v a="${MS_TESTS:-0}" -v b="$MS" 'BEGIN { printf "%.3f", a + b }')"
-    rm -f "$JOURNAL"
+    rm -f "$JOURNAL_ZONE"
     ok "tests $DE"
   elif [ "$ARRETES" -eq 1 ]; then
     # Une suite tuée n'a ni relevé ni conclusion : la fin de sa sortie dit au
     # moins jusqu'où elle était allée.
-    tail -40 "$JOURNAL" >&2
-    echo "sortie complète des tests : $WT/$JOURNAL" >&2
+    tail -40 "$JOURNAL_ZONE" >&2
+    echo "sortie complète des tests : $WT/$JOURNAL_ZONE" >&2
     # Aucun test en échec avant la coupure : la suite n'a fait que trop durer.
     # Sur une machine saturée, c'est un rouge de charge, pas de code — la ligne
     # le dit, dans la forme que le runtime reconnaît pour rejouer ces gates
     # plus tard au lieu d'y voir un rouge. Un test en échec — `✖` du lanceur,
     # `not ok` en TAP — garde la ligne d'un rouge.
-    if grep -Eq '^[[:space:]]*(✖|not ok( |$))' "$JOURNAL"; then
+    if grep -Eq '^[[:space:]]*(✖|not ok( |$))' "$JOURNAL_ZONE"; then
       fail "tests $DE arrêtés par la garde d'horloge : plus de $DELAI s sans rendre la main, et des tests en échec avant la coupure"
     else
       fail "tests $DE arrêtés par la garde d'horloge, aucun test en échec : plus de $DELAI s sans rendre la main"
@@ -253,31 +285,46 @@ suite() {
     # Les tests en échec, par leur nom et leur erreur — sans les piles d'appels,
     # qui noient le reste. Une suite morte avant de conclure n'a pas ce relevé :
     # c'est alors la fin de sa sortie qui parle.
-    if grep -q '^✖ failing tests:' "$JOURNAL"; then
-      sed -n '/^✖ failing tests:/,$p' "$JOURNAL" | grep -v '^ *at ' | head -80 >&2
+    if grep -q '^✖ failing tests:' "$JOURNAL_ZONE"; then
+      sed -n '/^✖ failing tests:/,$p' "$JOURNAL_ZONE" | grep -v '^ *at ' | head -80 >&2
     else
-      tail -40 "$JOURNAL" >&2
+      tail -40 "$JOURNAL_ZONE" >&2
     fi
-    echo "sortie complète des tests : $WT/$JOURNAL" >&2
+    echo "sortie complète des tests : $WT/$JOURNAL_ZONE" >&2
     fail "tests $DE en échec — rejoue : npm --prefix $ZONE test"
   fi
-  if [ -z "$TYPES" ]; then
+  if [ -z "${TYPES[I]}" ]; then
     ok "$ZONE sans script typecheck : aucun contrôle de types à jouer"
-  elif [ "$TYPES" = "injouable" ]; then
+  elif [ "${TYPES[I]}" = "injouable" ]; then
     fail "contrôle de types $DE injouable : dépendances de dev absentes — rejoue worktree-setup.sh"
   else
-    if wait "$PID_TYPES"; then
+    if wait "${PID_TYPES[I]}"; then
       ok "contrôle de types $DE"
     else
-      tail -40 "$TYPES" >&2
+      tail -40 "${TYPES[I]}" >&2
       fail "contrôle de types $DE en échec — rejoue : npm --prefix $ZONE run typecheck"
     fi
-    rm -f "$TYPES"
+    rm -f "${TYPES[I]}"
   fi
 }
+
+# Interrompues, les gates n'abandonnent pas une suite qui n'est plus dans leur
+# groupe, ni sa garde.
+abandonner() {
+  local I
+  for I in 0 1; do
+    [ -z "${PID_TESTS[I]:-}" ] || kill -KILL -- "-${PID_TESTS[I]}" 2>/dev/null
+    [ -z "${PID_GARDE[I]:-}" ] || kill "${PID_GARDE[I]}" 2>/dev/null
+  done
+  exit 130
+}
+trap abandonner INT TERM
 SUITE_ROUGE=0
-suite runtime "du runtime" "runtime absent" du-runtime
-suite app "de l'app" "app absente" de-l-app
+lancer 0 runtime du-runtime
+lancer 1 app de-l-app
+conclure 0 runtime "du runtime" "runtime absent"
+conclure 1 app "de l'app" "app absente"
+trap - INT TERM
 # Une suite rouge n'a pas de relevé : la somme des autres passerait pour le
 # total, et le relevé montrerait une chute au lieu d'une absence.
 if [ "$SUITE_ROUGE" -eq 1 ]; then NB_TESTS=""; MS_TESTS=""; fi
