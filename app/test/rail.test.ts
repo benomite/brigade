@@ -395,7 +395,7 @@ describe("le clic d'une carte de T'attend (#452)", () => {
     assert.equal(vue.element("second").hidden, false);
     assert.equal(vue.element("rail").hidden, false);
     // Le centre n'a pas changé : l'onglet Cooks est toujours celui qui est ouvert.
-    assert.equal(onglet(vue, "Cost").ariaSelected, "true");
+    assert.equal(onglet(vue, "Settings").ariaSelected, "true");
     assert.equal(vue.element("contenu").hidden, false);
     assert.deepEqual(relayes(bonDe(vue, 12)), []);
   });

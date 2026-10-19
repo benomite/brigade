@@ -1,4 +1,4 @@
-// `station` parle anglais (#953) : l'onglet Cost lit ses blocs dans les deux langues — celle d'une box
+// `station` parle anglais (#953) : la page des coûts lit ses blocs dans les deux langues — celle d'une box
 // à jour et celle d'une box qui n'a pas encore le runtime du ticket.
 import assert from "node:assert/strict";
 import { test } from "node:test";

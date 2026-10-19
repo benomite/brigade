@@ -1,4 +1,4 @@
-// Les seuils de l'onglet Cost (vue/cost/seuils.js, ticket 912) : au-dessus, en dessous, absent — pour le ticket le
+// Les seuils de la page des coûts (vue/cost/seuils.js, ticket 912 ; au niveau de l'app et d'un projet, #1022) : au-dessus, en dessous, absent — pour le ticket le
 // plus cher et pour les tokens perdus. Les modules sont lus seuls, sur ce que `station` écrit mot pour mot.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";

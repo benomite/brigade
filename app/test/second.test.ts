@@ -90,8 +90,8 @@ describe("le second est une colonne à droite, pas une page", () => {
 
     assert.deepEqual(vuDuSecond(vue), { colonne: true, cadres: 1, titre: "second · claude", note: "fil repris" });
     assert.equal(vue.element("rail").hidden, false);
-    // En haut, deux onglets de pages, Coût et Paramètres : ni « Second », ni shell.
-    assert.deepEqual(titres(vue), ["Cost", "Settings"]);
+    // En haut, un onglet de pages, Paramètres : ni « Second », ni shell — ni Cost, qui vit au niveau de l'app (#1022).
+    assert.deepEqual(titres(vue), ["Settings"]);
     // À droite, le second, montré, et au même niveau, de quoi ouvrir un shell.
     assert.deepEqual(terminaux(vue), ["second · claude", "+ shell"]);
     assert.deepEqual(montre(vue), ["second · claude"]);
@@ -360,7 +360,7 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
     await cliquer(vue, vue.element("gestes-onglet"), "Set the cooks of a station…");
 
     assert.deepEqual(vue.dernier("inscrire"), ["parade", "cooks"]);
-    assert.deepEqual(selectionne(vue), ["Cost"]);
+    assert.deepEqual(selectionne(vue), ["Settings"]);
     assert.equal(vue.element("contenu").hidden, false);
     assert.equal(vue.element("rail").hidden, false);
     assert.equal(vue.element("note-second").textContent, ecrit.note);
@@ -402,13 +402,13 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
   });
 });
 
-describe("l'écran principal ne garde que la bande, le rail et les terminaux ; le reste est derrière deux onglets, en haut", () => {
+describe("l'écran principal ne garde que la bande, le rail et les terminaux ; le reste est derrière un onglet, en haut", () => {
   const RELAYE = "sauvegarde       il y a 10 h\nrail             2 tickets";
 
-  test("à l'ouverture : ni l'état du projet, ni le consommé, ni le journal ; deux onglets, et le geste du journal", async () => {
+  test("à l'ouverture : ni l'état du projet, ni le consommé, ni le journal ; un onglet, et le geste du journal", async () => {
     const vue = await ouvrir();
 
-    assert.deepEqual(titres(vue), ["Cost", "Settings"]);
+    assert.deepEqual(titres(vue), ["Settings"]);
     assert.equal(vue.element("etat").hidden, true);
     assert.equal(vue.element("contenu").hidden, true);
     assert.equal(vue.element("rail").hidden, false);
@@ -419,21 +419,22 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
     assert.equal(vue.dernier("onglet")[1], undefined);
   });
 
-  test("Coût ouvre le consommé — la lecture de `station` ; Paramètres, l'état du projet, la sauvegarde comprise", async () => {
+  test("Paramètres ouvre l'état du projet, la sauvegarde comprise ; la lecture de `station` du projet, Cooks, y est rangée", async () => {
     const vue = await ouvrir();
     vue.dire("surLecture", { projet: "parade", demande: vue.dernier("regarder")[1] as number, a: "2026-10-13T09:00:00Z", sorties: [{ commande: "status", texte: RELAYE }] } as never, { projet: "parade", pages: [], aLancer: [], illisibles: [], empeche: [] });
-
-    await cliquer(vue, vue.element("onglets"), "Cost");
-    assert.equal(vue.dernier("onglet")[1], "cooks");
-    assert.equal(vue.element("etat").hidden, true);
-    assert.deepEqual(selectionne(vue), ["Cost"]);
 
     await cliquer(vue, vue.element("onglets"), "Settings");
     assert.equal(vue.element("etat").hidden, false);
     assert.equal(vue.element("contenu").hidden, false);
     assert.deepEqual(selectionne(vue), ["Settings"]);
     assert.match(vue.element("lecture").textContent, /sauvegarde {7}il y a 10 h/);
-    assert.deepEqual(vue.element("parametres-onglets").children.map((pose) => pose.textContent), ["General", "Rail", "Manager", "Grants", "Reliability", "Closer"]);
+    assert.deepEqual(vue.element("parametres-onglets").children.map((pose) => pose.textContent), ["General", "Rail", "Cooks", "Manager", "Grants", "Reliability", "Closer"]);
+    // Cooks lit `station` sur la box de ce projet, et d'aucun autre.
+    await cliquer(vue, vue.element("parametres-onglets"), "Cooks");
+    assert.deepEqual(vue.dernier("onglet").slice(0, 2), ["parade", "cooks"]);
+    assert.equal(vue.element("etat").hidden, true);
+    assert.deepEqual(selectionne(vue), ["Settings"]);
+    await cliquer(vue, vue.element("parametres-onglets"), "General");
     // Recliqué, il se referme.
     await cliquer(vue, vue.element("onglets"), "Settings");
     assert.equal(vue.element("etat").hidden, true);
@@ -447,7 +448,7 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
     const avant = rail.textContent;
     assert.equal(rail.inert, false);
 
-    for (const page of ["Cost", "Settings"]) {
+    for (const page of ["Settings"]) {
       await cliquer(vue, vue.element("onglets"), page);
       assert.equal(vue.element("contenu").hidden, false, page);
       // Couvert, pas défait : il est encore là, et rien de lui ne se clique au travers.

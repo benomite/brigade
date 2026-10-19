@@ -1,4 +1,4 @@
-// Les tokens perdus de l'onglet Cost (vue/cost/perdus.js, #911) : le total des essais rouges et des
+// Les tokens perdus de la page des coûts de l'app (vue/cost/perdus.js, #911, #1022) : le total des essais rouges et des
 // cooks interrompus que `station` liste, la liste derrière le chiffre, et « not communicated » quand la
 // box ne dit rien. Le module est lu seul, puis la vue jouée telle qu'elle est (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
@@ -17,7 +17,7 @@ import { GESTES_DU_MANAGER } from "../../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { INTERROMPU, perdus, perdusDe, poserPerdus, ROUGE } from "../../src/vue/cost/perdus.js";
 import { NON_COMMUNIQUE } from "../../src/vue/cost/tete.js";
-import { Faux, type Jouee, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+import { Faux, type Jouee, jouerLaVue, ouvrirLesCouts, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const A = "2026-10-17T10:00:00.000Z";
@@ -126,10 +126,10 @@ describe("le bloc", () => {
   });
 });
 
-describe("l'onglet Cost joué", () => {
+describe("la page des coûts de l'app jouée (#1022)", () => {
   const PROJET: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
 
-  async function ouvrirCost(): Promise<Jouee> {
+  async function ouvrirLaPage(): Promise<Jouee> {
     const vue = await jouerLaVue({
       demarrage: () => ({
         configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PROJET], hotes: ["box"] }),
@@ -145,15 +145,12 @@ describe("l'onglet Cost joué", () => {
       }),
       espace: () => [],
     });
-    (vue.element("projets").children.at(1) ?? assert.fail("pas de case parade")).click();
-    await repos();
-    (vue.element("onglets").children.find(({ textContent }) => textContent === "Cost") ?? assert.fail("pas d'onglet Cost")).click();
-    await repos();
+    await ouvrirLesCouts(vue);
     return vue;
   }
 
   test("un clic sur le chiffre déploie la liste, un second la replie ; le bouton de fermeture aussi", async () => {
-    const vue = await ouvrirCost();
+    const vue = await ouvrirLaPage();
     const demande = vue.dernier("onglet")[2] as number;
     vue.dire("surContenu", { ...lu("parade", station(cook(7, "échoué", "641 207"), cook(14, "interrompu (runtime arrêté)", "88 530"))), demande }, undefined, undefined);
     await repos();
@@ -173,5 +170,21 @@ describe("l'onglet Cost joué", () => {
     (vue.element("cout").dessous("button").find((b: Faux) => b.className === "perdus-fermer") ?? assert.fail("pas de fermeture")).click();
     await repos();
     assert.equal(lignes().length, 0);
+  });
+
+  test("une ligne de la liste ouvre son projet, puis la fiche de son ticket", async () => {
+    const vue = await ouvrirLaPage();
+    const demande = vue.dernier("onglet")[2] as number;
+    vue.dire("surContenu", { ...lu("parade", station(cook(7, "échoué", "641 207"))), demande }, undefined, undefined);
+    await repos();
+    (vue.element("cout").dessous("button").find((b: Faux) => b.className === "perdus-total") ?? assert.fail("pas de chiffre")).click();
+    await repos();
+    const ligne = vue.element("cout").dessous("button").find((b: Faux) => b.className === "ticket-perdu") ?? assert.fail("pas de ligne cliquable");
+    assert.equal(ligne.title, "open the sheet of #7 · parade");
+    ligne.click();
+    await repos();
+    assert.deepEqual(vue.dernier("espace"), ["parade"]);
+    assert.equal(vue.element("fiche").hidden, false);
+    assert.ok(vue.element("fiche").dessous("span").some(({ textContent }) => textContent === "#7"));
   });
 });

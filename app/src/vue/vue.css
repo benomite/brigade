@@ -543,10 +543,18 @@ main > header,
   border-top: 1px solid var(--trait-doux);
   border-bottom: 1px solid var(--trait-doux);
 }
-/* La tête de Cost : trois chiffres côte à côte, la part de chaque projet sous chacun, puis la
-   ligne du quota. Elle tient sans défiler, au-dessus de la lecture de la box. */
+/* La page des coûts de tous les projets (ticket 1022), à la place de l'accueil : le retour à l'accueil, puis
+   la tête — trois chiffres côte à côte, la part de chaque projet sous chacun, la ligne du quota —, et
+   les blocs dessous. */
 #cout {
-  padding: 16px 16px 4px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#cout .retour {
+  align-self: flex-start;
+  color: var(--discret);
 }
 .tete-cout h2 {
   margin: 0 0 8px;
@@ -611,6 +619,15 @@ main > header,
   overflow-wrap: anywhere;
   color: var(--texte-doux);
 }
+/* Sur la page des coûts, le nom d'un projet l'ouvre : il se lit comme un nom, et se souligne au survol. */
+.tete-cout button.projet {
+  padding: 0;
+  text-align: left;
+}
+.tete-cout button.projet:hover {
+  color: var(--texte);
+  text-decoration: underline;
+}
 .tete-cout :is(.tokens, .part) {
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -626,7 +643,7 @@ main > header,
   font-size: 12px;
   color: var(--discret);
 }
-/* La courbe de Cost, sous la tête : les tokens de chaque jour, une ligne par projet, à la teinte de
+/* La courbe de la page des coûts, sous la tête : les tokens de chaque jour, une ligne par projet, à la teinte de
    sa pastille. Le tracé s'étire à la largeur de l'onglet ; ses jours et son plus haut sont du texte
    posé autour, qui ne s'étire pas. */
 .courbe-cout {
@@ -2805,7 +2822,7 @@ button.recommande {
   background: var(--accent);
   color: var(--fond);
 }
-/* Les cinq tickets les plus chers de Cost, sous la tête : une ligne par ticket, qui ouvre sa fiche. */
+/* Les cinq tickets les plus chers — de la page des coûts, ou du projet sous sa fiabilité : une ligne par ticket, qui ouvre sa fiche. */
 .chers-cout {
   margin: 14px 0 0;
 }
@@ -2860,7 +2877,7 @@ button.recommande {
 .chers-cout :is(.sans, .essais) {
   color: var(--discret);
 }
-/* Les tokens perdus de Cost, sous la tête : un chiffre, et derrière lui la liste des cooks perdus. */
+/* Les tokens perdus — de la page des coûts, ou du projet sous sa fiabilité : un chiffre, et derrière lui la liste des cooks perdus. */
 .perdus-cout {
   margin: 14px 0 0;
 }
@@ -2895,7 +2912,7 @@ button.recommande {
   padding: 0;
   list-style: none;
 }
-.perdus-cout .perdus li {
+.perdus-cout .perdus :is(li:not(.ouvrable), .ticket-perdu) {
   display: grid;
   grid-template-columns: 8px 4.5em minmax(0, 1fr) auto 8em;
   align-items: center;
@@ -2906,6 +2923,14 @@ button.recommande {
   background: var(--carte);
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-carte);
+}
+/* Une ligne qui ouvre la fiche de son ticket : le bouton porte la ligne entière. */
+.perdus-cout .ticket-perdu {
+  width: 100%;
+  text-align: left;
+}
+.perdus-cout .ticket-perdu:hover {
+  border-color: var(--trait-fort);
 }
 .perdus-cout .teinte {
   width: 8px;
@@ -2930,7 +2955,7 @@ button.recommande {
 .perdus-cout .perdus-fermer {
   margin: 8px 0 0;
 }
-/* Un dépassement de seuil sur Cost (#912) : le ticket le plus cher ou le chiffre perdu passe en rouge, avec sa ligne de geste dessous. */
+/* Un dépassement de seuil (#912), sur la page des coûts comme sur celle du projet : le ticket le plus cher ou le chiffre perdu passe en rouge, avec sa ligne de geste dessous. */
 .chers-cout .ticket-cher.depasse {
   color: var(--rouge-clair);
   border-color: var(--rouge);
@@ -2967,12 +2992,19 @@ button.recommande {
   cursor: pointer;
 }
 /* Reliability (#987) : la fiabilité des cooks du projet — trois chiffres face à leurs seuils, puis les
-   causes d'échec qui reviennent le plus. Un chiffre au-delà de son seuil passe en rouge, comme sur Cost. */
+   causes d'échec qui reviennent le plus. Un chiffre au-delà de son seuil passe en rouge, comme pour ses coûts. */
 #fiabilite {
   padding: 16px 16px 4px;
 }
+/* À côté de la fiabilité, ce que le projet a coûté, et lui seul (ticket 1022) : ses tokens perdus, ses tickets les plus chers. */
+.cout-du-projet {
+  margin: 18px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px dashed var(--trait);
+}
 .tete-fiabilite h2,
-.causes-fiabilite h2 {
+.causes-fiabilite h2,
+.cout-du-projet > h2 {
   margin: 0 0 8px;
   font-size: 12px;
   font-weight: 600;

@@ -39,7 +39,8 @@
 // accorder et révoquer, confirmés : chacun dit ce que le grant change avant de partir.
 // La barre est faite d'icônes : « Tous les projets » en tête — l'accueil, la vue d'ensemble de
 // brigade : une ligne par projet, une par station, et la ligne de santé, dites par le process
-// principal (accueil.ts) ; on n'y agit pas, un clic sur une ligne ouvre sa page —, un monogramme par projet, et
+// principal (accueil.ts) ; on n'y agit pas, un clic sur une ligne ouvre sa page, et « Cost » celle
+// des coûts de tous les projets (ticket 1022) —, un monogramme par projet, et
 // en pied le « + » : l'écran d'ajout, où un projet s'installe sur sa box et se déclare
 // dans l'app d'un seul geste. Ce qui manque à un champ, ce qui part vers la box et ce
 // qu'elle en a rendu se décident dans le process principal (installation.ts) : la vue
@@ -118,8 +119,8 @@ const dateHeure = (/** @type {number | string | Date} */ instant) => new Date(in
 // Ce que `onglets.ts` nomme : le journal, et l'onglet Paramètres, qui n'a pas de commande à lui.
 const JOURNAL = "log";
 const PARAMETRES = "parametres";
-// Et la lecture que l'onglet Cost ouvre : `station`, sur la box de chaque projet.
-const COUT = "cooks";
+// Et la lecture de la page des coûts de l'app (ticket 1022) : `station`, sur la box de chaque projet (onglets.ts, `COUTS`).
+const COUTS = "couts";
 // Et celle de l'onglet Reliability : la fiabilité des cooks du projet affiché (fiabilite.ts).
 const FIABILITE = "fiabilite";
 // Et celle de l'onglet Closer : `closing --json`, la partie « closer » du projet affiché (closer/section.js).
@@ -165,7 +166,6 @@ const rail = element("rail");
 const fiche = element("fiche");
 const manager = element("manager");
 const grants = element("grants");
-const cout = element("cout");
 const fiabilite = element("fiabilite");
 const closer = element("closer");
 const luOnglet = element("lu-onglet");
@@ -319,6 +319,34 @@ versionDeStation.className = "version-de-station";
 const retraitDeStation = document.createElement("div");
 retraitDeStation.className = "retrait-de-station";
 pageDeStation.append(retourALAccueil, enTeteDeStation, versionDeStation, pannesDeStation, bloc("h3", "Projects"), listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit, retraitDeStation);
+// Le coût de tous les projets (ticket 1022) : il vaut pour l'ensemble, il vit donc au niveau de l'app, pas dans
+// un projet. Sur l'accueil, une ligne « Cost » l'ouvre — sans ouvrir aucun projet. Sa page : les tokens
+// lancés sur 5 h, 24 h et 7 jours par projet, les tokens perdus, les tickets les plus chers, la courbe, et
+// le renvoi vers `/usage` (cost/). Un clic sur un projet l'ouvre ; sur un ticket, ouvre sa fiche dans son projet.
+const coutsDeLAccueil = document.createElement("section");
+coutsDeLAccueil.id = "accueil-couts";
+coutsDeLAccueil.className = "liste";
+coutsDeLAccueil.ariaLabel = "Cost";
+const ouvrirLesCouts = /** @type {HTMLButtonElement} */ (bloc("button", ""));
+ouvrirLesCouts.type = "button";
+ouvrirLesCouts.className = "ligne";
+ouvrirLesCouts.ariaLabel = "the cost of all projects";
+{
+  const suite = bloc("span", "›");
+  suite.className = "ouvrir";
+  suite.ariaHidden = "true";
+  ouvrirLesCouts.append(bloc("strong", "all projects"), bloc("span", "tokens over 5 h, 24 h and 7 d · lost tokens · most expensive tickets"), suite);
+}
+coutsDeLAccueil.append(ouvrirLesCouts);
+const pageDesCouts = document.createElement("section");
+pageDesCouts.id = "cout";
+pageDesCouts.ariaLabel = "Cost of all projects";
+const retourDesCouts = /** @type {HTMLButtonElement} */ (bloc("button", "‹ All projects"));
+retourDesCouts.type = "button";
+retourDesCouts.className = "retour";
+const corpsDesCouts = document.createElement("div");
+corpsDesCouts.ariaLive = "polite";
+pageDesCouts.append(retourDesCouts, corpsDesCouts);
 
 // La cuisine d'un projet de l'app (ticket 983), en tête de son espace : les stations qui la font, en une
 // ligne — chacune avec ce qu'elle en dit, un clic ouvre sa page —, et « + station » pour en ajouter
@@ -390,19 +418,23 @@ let demande = 0;
 /** @type {string | undefined} */
 let suivi = "";
 let demandeOnglet = 0;
-// L'onglet que cette demande lit. Celle de Cost lit la box de chaque projet.
+// L'onglet que cette demande lit. Celle de la page des coûts lit la box de chaque projet.
 /** @type {string | undefined} */
 let ongletDemande;
-// Le dernier `station` lu de chaque projet pour l'onglet Cost — ou ce qui a été obtenu à sa place.
+// Le dernier `station` lu de chaque projet pour la page des coûts — ou ce qui a été obtenu à sa place.
 /** @type {Map<string, Lecture>} */
 const coutsLus = new Map();
+// La dernière lecture de Reliability du projet affiché : son `station` dit aussi ce que ce projet a coûté,
+// posé sous sa fiabilité (ticket 1022). Indéfinie : pas encore lue depuis que la lecture est affichée.
+/** @type {Lecture | undefined} */
+let lectureDeLaFiabilite;
 // Les onglets de contenu, dits par le process principal au démarrage (onglets.ts).
 /** @type {readonly import("../onglets.ts").Onglet[]} */
 let ONGLETS = [];
 // Les couleurs qu'un projet peut prendre, dites de même (couleurs.ts) : un nom, une valeur.
 /** @type {readonly { nom: string, valeur: string }[]} */
 let PALETTE = [];
-// Les deux onglets de l'écran principal et les lectures qu'ils rangent, dits de même.
+// L'onglet de l'écran principal, Paramètres, et les lectures qu'il range, dits de même.
 /** @type {readonly import("../onglets.ts").Rubrique[]} */
 let RUBRIQUES = [];
 // L'onglet qui range ce qui est affiché : une lecture, ou Paramètres lui-même. Le journal n'en a pas.
@@ -496,6 +528,8 @@ let accueilVu;
 // La station dont la page est ouverte, par son gist. Aucune : c'est l'accueil — ou un projet.
 /** @type {string | undefined} */
 let stationOuverte;
+// La page des coûts de tous les projets est ouverte, à la place de l'accueil (ticket 1022).
+let coutsOuverts = false;
 // Ce que `faits` a rendu en dernier pour chaque projet, et la demande à laquelle il répond :
 // une par barre posée. Sans entrée, le projet n'a pas encore été lu.
 /** @type {Map<string, Dessinable>} */
@@ -747,7 +781,7 @@ function montrer() {
 
   const ouvrable = courant !== undefined && courant.refus === undefined;
   const terminaux = duCourant().map(({ terminal }) => terminal);
-  // En haut, les deux onglets de pages, Coût et Paramètres. Les terminaux n'en sont pas : ils sont à droite.
+  // En haut, l'onglet de pages, Paramètres. Les terminaux n'en sont pas : ils sont à droite.
   espace.textContent = courant?.nom ?? "";
   onglets.replaceChildren(
     ...(courant === undefined
@@ -829,7 +863,6 @@ function montrer() {
   // Au centre, seul un fichier des projets illisible a sa raison à la place de l'espace.
   message.hidden = courant !== undefined;
   poserSecond(ouvrable, droite?.terminal);
-  poserCout();
   poserLaFiabilite();
   poserLeCloser();
   poserGestes(gestesOnglet, relaye?.id);
@@ -1170,7 +1203,7 @@ function montrerADroite(id) {
   montrer();
 }
 
-// Coût ouvre sa lecture ; Paramètres, l'état du projet — par-dessus le rail. Recliqué, l'onglet ouvert se referme.
+// Paramètres ouvre l'état du projet — par-dessus le rail. Recliqué, l'onglet ouvert se referme.
 /** @param {string} id */
 function activerRubrique(id) {
   const rubrique = RUBRIQUES.find((candidate) => candidate.id === id);
@@ -1188,9 +1221,11 @@ journal.addEventListener("click", () => {
 
 // Seul l'onglet de contenu affiché est lu sur la box : en changer, passer à un
 // terminal ou quitter l'espace arrête sa lecture. Rien ne reste de l'onglet d'avant.
+// La page des coûts de l'app tient lieu d'onglet, l'espace fermé : elle lit la box de chaque projet.
 function lireOnglet() {
   const relaye = ONGLETS.find(({ id }) => id === actif());
-  const voulu = courant === undefined || relaye === undefined ? "" : JSON.stringify([courant.nom, relaye.id]);
+  const couts = courant === undefined && coutsOuverts && !ajoute;
+  const voulu = couts ? JSON.stringify(["", COUTS]) : courant === undefined || relaye === undefined ? "" : JSON.stringify([courant.nom, relaye.id]);
   if (voulu === suivi) return;
   suivi = voulu;
   // L'état du manager lu avant n'est plus celui de cette lecture : il revient avec elle.
@@ -1199,15 +1234,16 @@ function lireOnglet() {
   // Celui des grants non plus.
   grantsVus = undefined;
   poserGrants();
-  // Ni la fiabilité.
+  // Ni la fiabilité, ni ce que le projet a coûté.
   fiabiliteVue = undefined;
+  lectureDeLaFiabilite = undefined;
   poserLaFiabilite();
   // Ni le closer.
   closerLu = undefined;
   poserLeCloser();
   if (courant !== undefined && relaye !== undefined) attendre(courant, luOnglet, lectureOnglet);
-  ongletDemande = relaye?.id;
-  brigade.onglet(courant?.nom, relaye?.id, ++demandeOnglet);
+  ongletDemande = couts ? COUTS : relaye?.id;
+  brigade.onglet(courant?.nom, ongletDemande, ++demandeOnglet);
 }
 
 /** @param {Terminal} terminal */
@@ -3772,22 +3808,45 @@ function tracesDUsage({ pr, commit, verdict }) {
 // (manager.ts), dans la sortie qui se lit dessous : la vue pose. Sans état lu, elle dit pourquoi
 // — jamais « éteint » — et les gestes restent : ils n'attendent rien de la lecture. Éteindre part
 // au clic ; allumer ouvre sa confirmation, qui dit ce qu'il engage.
-// La tête de l'onglet Cost (cost/tete.js) : les tokens lancés sur 5 h, 24 h et 7 jours, tous
-// projets confondus, et la part de chacun — chaque projet qui a une box, et qu'elle sert encore.
-// Dessous, la courbe des derniers jours, une série par projet (cost/courbe.js).
-// La liste des tokens perdus (cost/perdus.js) : repliée à l'ouverture, un clic sur le chiffre la déploie.
+// La page des coûts de l'app (ticket 1022). En tête (cost/tete.js), les tokens lancés sur 5 h, 24 h et 7 jours,
+// tous projets confondus, et la part de chacun — chaque projet qui a une box, et qu'elle sert encore ;
+// un clic sur son nom l'ouvre. Puis les tokens perdus (cost/perdus.js) — leur liste repliée à
+// l'ouverture, un clic sur le chiffre la déploie —, les tickets les plus chers (cost/chers.js) — un clic
+// sur un ticket, perdu ou cher, ouvre son projet et sa fiche —, et la courbe des derniers jours, une
+// série par projet (cost/courbe.js).
 let perdusOuverts = false;
 function basculerPerdus() {
   perdusOuverts = !perdusOuverts;
   poserCout();
 }
+/** @param {{ nom: string, couleurs?: { onglet?: string, accent?: string } }} projet */
+const projetDuCout = ({ nom, couleurs }) => ({ nom, teinte: couleurs?.onglet ?? couleurs?.accent });
 function poserCout() {
-  cout.hidden = courant === undefined || actif() !== COUT;
-  if (cout.hidden) return cout.replaceChildren();
-  const projets = configuration.projets
-    .filter(({ box, desinstalle }) => box !== undefined && desinstalle === undefined)
-    .map(({ nom, couleurs }) => ({ nom, teinte: couleurs?.onglet ?? couleurs?.accent }));
-  cout.replaceChildren(poserTete(document, projets, coutsLus), poserPerdus(document, projets, coutsLus, titreSurLeRail, perdusOuverts, basculerPerdus), poserChers(document, projets, coutsLus, titreSurLeRail, ouvrirFicheDeCout), poserCourbe(document, projets, coutsLus));
+  if (!coutsOuverts) return corpsDesCouts.replaceChildren();
+  const projets = configuration.projets.filter(({ box, desinstalle }) => box !== undefined && desinstalle === undefined).map(projetDuCout);
+  corpsDesCouts.replaceChildren(
+    poserTete(document, projets, coutsLus, ouvrirDepuisLesCouts),
+    poserPerdus(document, projets, coutsLus, titreSurLeRail, perdusOuverts, basculerPerdus, ouvrirTicketDepuisLesCouts),
+    poserChers(document, projets, coutsLus, titreSurLeRail, ouvrirTicketDepuisLesCouts),
+    poserCourbe(document, projets, coutsLus),
+  );
+}
+// Un projet cliqué sur la page des coûts : son espace s'ouvre.
+/** @param {string} nom */
+function ouvrirDepuisLesCouts(nom) {
+  const projet = projetDe(nom);
+  if (projet !== undefined) void ouvrir(projet);
+}
+// Un ticket cliqué sur la page des coûts : son projet s'ouvre, puis sa fiche, par-dessus le rail. La
+// fiche refermée rend le clavier au rail : le bouton cliqué n'est plus à l'écran.
+/** @param {string} nom @param {number} ticket */
+async function ouvrirTicketDepuisLesCouts(nom, ticket) {
+  const projet = projetDe(nom);
+  if (projet === undefined) return;
+  await ouvrir(projet);
+  // Le chef a pu cliquer ailleurs pendant que l'espace s'ouvrait.
+  if (courant !== projet) return;
+  ouvrirFicheDeCout(nom, ticket, rail);
 }
 
 // La carte d'un ticket sur le rail d'un projet, si son rail est lu et qu'il y est.
@@ -3801,9 +3860,10 @@ function carteSurLeRail(nom, ticket) {
 /** @param {string} nom @param {number} ticket */
 const titreSurLeRail = (nom, ticket) => carteSurLeRail(nom, ticket)?.titre;
 
-// Un clic sur un des tickets les plus chers de Cost — ou sur un ticket d'une cause d'échec, dans
-// Reliability — ouvre sa fiche, par-dessus l'onglet. Un ticket que le rail ne porte pas (ou pas
-// encore lu) s'ouvre avec ce que l'on en sait : son numéro.
+// Un clic sur un ticket d'une cause d'échec, ou sur un des tickets perdus ou les plus chers du projet,
+// dans Reliability — ou sur la page des coûts de l'app, une fois son projet ouvert — ouvre sa fiche,
+// par-dessus l'onglet. Un ticket que le rail ne porte pas (ou pas encore lu) s'ouvre avec ce que l'on
+// en sait : son numéro.
 /** @param {string} nom @param {number} ticket @param {HTMLElement} retour */
 function ouvrirFicheDeCout(nom, ticket, retour) {
   const projet = configuration.projets.find((candidat) => candidat.nom === nom);
@@ -3815,12 +3875,30 @@ function ouvrirFicheDeCout(nom, ticket, retour) {
 
 // La fiabilité des cooks du projet affiché, en tête de l'onglet Reliability (fiabilite.js) : trois chiffres
 // face à leurs seuils, puis les causes d'échec qui reviennent le plus. Un ticket d'une cause ouvre sa fiche.
+// À côté, ce que ce projet a coûté, et lui seul (ticket 1022) : ses tokens perdus et ses tickets les plus chers,
+// lus dans le `station` de sa propre box — celui que cette lecture lance — et jugés face à ses propres
+// seuils (cost/seuils.js). Un ticket ouvre sa fiche.
+let perdusDuProjetOuverts = false;
+function basculerPerdusDuProjet() {
+  perdusDuProjetOuverts = !perdusDuProjetOuverts;
+  poserLaFiabilite();
+}
 function poserLaFiabilite() {
   const projet = courant;
   fiabilite.hidden = projet === undefined || projet.box === undefined || actif() !== FIABILITE;
   if (projet === undefined || fiabilite.hidden) return fiabilite.replaceChildren();
   const vu = fiabiliteVue?.projet === projet.nom ? fiabiliteVue : undefined;
-  fiabilite.replaceChildren(...poserFiabilite(document, vu, (ticket, retour) => ouvrirFicheDeCout(projet.nom, ticket, retour)));
+  const seul = [projetDuCout(projet)];
+  /** @type {Map<string, Lecture>} */
+  const lue = new Map(lectureDeLaFiabilite?.projet === projet.nom ? [[projet.nom, lectureDeLaFiabilite]] : []);
+  const coute = document.createElement("div");
+  coute.className = "cout-du-projet";
+  coute.append(
+    bloc("h2", "cost of this project"),
+    poserPerdus(document, seul, lue, titreSurLeRail, perdusDuProjetOuverts, basculerPerdusDuProjet, ouvrirFicheDeCout),
+    poserChers(document, seul, lue, titreSurLeRail, ouvrirFicheDeCout),
+  );
+  fiabilite.replaceChildren(...poserFiabilite(document, vu, (ticket, retour) => ouvrirFicheDeCout(projet.nom, ticket, retour)), coute);
 }
 
 // La partie « closer » du projet affiché, sous Settings → Closer (closer/section.js) : les quatre chiffres
@@ -5002,12 +5080,29 @@ function ouvrirTous() {
   courant = undefined;
   ajoute = false;
   stationOuverte = undefined;
+  coutsOuverts = false;
   marquer();
   poserCode();
   poserAccueil();
-  tous.replaceChildren(bloc("h2", "Projects"), projetsDeLAccueil, bloc("h2", "Stations"), stationsDeLAccueil, santeDeLAccueil);
+  poserCout();
+  tous.replaceChildren(bloc("h2", "Projects"), projetsDeLAccueil, bloc("h2", "Stations"), stationsDeLAccueil, bloc("h2", "Cost"), coutsDeLAccueil, santeDeLAccueil);
   brigade.tous(++demande);
 }
+
+// La page des coûts de tous les projets, à la place de l'accueil : « T » reste l'entrée affichée, et un
+// geste y ramène. Seule sa lecture part — `station` sur la box de chaque projet — tant qu'elle est affichée.
+function ouvrirCouts() {
+  courant = undefined;
+  ajoute = false;
+  stationOuverte = undefined;
+  coutsOuverts = true;
+  marquer();
+  poserCout();
+  tous.replaceChildren(pageDesCouts);
+  retourDesCouts.focus();
+}
+ouvrirLesCouts.addEventListener("click", () => ouvrirCouts());
+retourDesCouts.addEventListener("click", () => ouvrirTous());
 
 // La page d'une station, à la place de l'accueil : « T » reste l'entrée affichée, et un geste y ramène.
 /** @param {string} id */
@@ -5015,6 +5110,7 @@ function ouvrirStation(id) {
   courant = undefined;
   ajoute = false;
   stationOuverte = id;
+  coutsOuverts = false;
   retraitDeStationDemande = undefined;
   retraitDeStationRefuse = "";
   marquer();
@@ -5050,6 +5146,7 @@ function ouvrirAjout() {
   courant = undefined;
   ajoute = true;
   stationOuverte = undefined;
+  coutsOuverts = false;
   marquer();
   ou.textContent = `${configuration.projets.length === 0 ? "No project yet. " : ""}It is written to ${configuration.chemin} — which you can also edit by hand: the app re-reads it as soon as it changes.`;
   choisi.textContent = dossier === "" ? "no folder chosen" : dossier;
@@ -5112,6 +5209,7 @@ function vider() {
 async function ouvrir(projet) {
   courant = projet;
   stationOuverte = undefined;
+  coutsOuverts = false;
   if (urgenceChoisie !== projet.nom) urgenceChoisie = "";
   nonEcrit = nonEcritSecond = "";
   // Une confirmation ouverte sur un autre projet ne reste pas ouverte : rien n'en part.
@@ -5249,12 +5347,14 @@ brigade.surFaits((recue) => {
 // celle de l'onglet Closer, lue ici même dans sa sortie (closer/section.js).
 brigade.surContenu((recue, vu, desGrants, laFiabilite) => {
   if (recue.demande !== demandeOnglet) return;
-  // Cost lit `station` sur la box de chaque projet : chacune entre dans ses chiffres de tête.
-  if (ongletDemande === COUT) {
+  // La page des coûts lit `station` sur la box de chaque projet : chacune entre dans ses chiffres.
+  if (ongletDemande === COUTS) {
     coutsLus.set(recue.projet, recue);
-    poserCout();
+    return poserCout();
   }
   if (recue.projet !== courant?.nom) return;
+  // Reliability : son `station` dit aussi ce que le projet a coûté.
+  if (ongletDemande === FIABILITE) lectureDeLaFiabilite = recue;
   rendre(recue, luOnglet, lectureOnglet, true);
   managerVu = vu;
   poserManager();
@@ -5457,6 +5557,7 @@ function afficher() {
   const meme = configuration.projets.find((projet) => projet.nom === courant?.nom);
   if (meme !== undefined) void ouvrir(meme);
   else if (stationOuverte !== undefined && !ajoute) ouvrirStation(stationOuverte);
+  else if (coutsOuverts && !ajoute) ouvrirCouts();
   else if (ajoute || configuration.projets.length === 0) ouvrirAjout();
   // L'app s'ouvre sur « Tous les projets », en tête de la barre.
   else ouvrirTous();

@@ -214,7 +214,8 @@ export type Pont = {
   // « Tous les projets » est affiché : toutes les box sont lues, chacune pour elle-même.
   tous(demande: number): void;
   // L'onglet de contenu affiché : sa commande est lue, elle seule. Sans onglet
-  // — un terminal, « Tous les projets » — plus rien n'est lu pour lui.
+  // — un terminal, « Tous les projets » — plus rien n'est lu pour lui. `couts`, sans projet : la page
+  // des coûts de l'app, qui lit `station` sur la box de chaque projet (onglets.ts, `COUTS`).
   onglet(projet: string | undefined, id: string | undefined, demande: number): void;
   // La barre est posée : `faits` est lu sur la box de chaque projet, quel que soit l'écran.
   faits(demande: number): void;

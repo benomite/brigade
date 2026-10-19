@@ -7,10 +7,12 @@ tourne le second. Tu n'ouvres plus un terminal, tu ne te places plus dans un dos
 que la file dit du ticket. **À droite, les terminaux, en permanence** : le second, et à côté de
 lui, au même niveau, les shells que tu ouvres — rien de ce que tu regardes au centre ne les cache.
 **L'écran principal ne garde que trois choses : la bande d'alertes, le rail et les terminaux** ; il
-n'y a rien en bas de la fenêtre. Le reste est derrière deux onglets, en haut, à côté du nom du
-projet : **Coût** (le consommé) et **Paramètres** (l'état du projet, la sauvegarde et son
-ancienneté, les réglages, le manager, les grants) — lus pour toi, sans rien taper. Leur page
-s'ouvre **par-dessus le rail**, et le rail revient tel que tu l'avais laissé quand tu la fermes.
+n'y a rien en bas de la fenêtre. Le reste est derrière un onglet, en haut, à côté du nom du
+projet : **Paramètres** (l'état du projet, la sauvegarde et son ancienneté, les réglages, le
+manager, les grants, la fiabilité de ses cooks et ce qu'il a coûté) — lu pour toi, sans rien taper.
+Sa page s'ouvre **par-dessus le rail**, et le rail revient tel que tu l'avais laissé quand tu la fermes.
+**Le coût de tous les projets n'est pas dans un projet** (#1022) : il vaut pour l'ensemble, il vit donc
+au niveau de l'app, sur sa propre page, ouverte depuis « Tous les projets ».
 **Dans la bande d'alertes, chaque alerte tient en une ligne et un contrôle** (#907) : la ligne dit ce
 qui ne va pas en une phrase, et son seul bouton fait le geste (ou écrit la demande dans le second —
 « ask the second »). Rien d'autre n'est écrit à plat. **Le prix est dans la confirmation, au clic** :
@@ -37,7 +39,8 @@ ni l'un ni l'autre (`manager …`) et ne bascule rien ; une lecture qui échoue 
 vérifié » dans la bande. Sur la barre, la case d'un projet au manager éteint garde son signal.
 **« Tous les projets » est la vue d'ensemble de
 brigade** : une ligne par projet, une par station, chacune avec sa pastille et ce qui s'y passe en
-quelques mots, et un clic l'ouvre — on n'y agit pas, on y regarde, puis on va où ça se décide.
+quelques mots, et un clic l'ouvre — on n'y agit pas, on y regarde, puis on va où ça se décide ; une
+ligne **Cost** y ouvre le coût de tous les projets.
 **Cost, la vérification d'un projet et Settings suivent les mêmes règles** : aucun mode d'emploi à plat
 (l'explication d'un onglet, à quoi sert une étape de l'installation et ce qui arrive si on la saute vivent
 au survol d'une icône « ? »), chaque geste est un bouton qui dit son mot — un geste qui écrit le début d'une
@@ -46,7 +49,7 @@ une lecture en échec tient en une ligne (le texte de `ssh`, le renvoi et le cod
 confirmation de geste coûteux dit son prix en une ligne, le reste et sa source au survol.
 **Le journal n'est plus à l'écran** : c'est de l'outillage de panne, il s'ouvre par le geste
 « journal », en tête de l'espace. Et en tête de la barre, l'écran **Tous les projets** : tes projets et tes
-stations d'un coup d'œil, et la santé de Max et de GitHub en une ligne.
+stations d'un coup d'œil, l'entrée vers le coût de tous les projets, et la santé de Max et de GitHub en une ligne.
 
 **L'app dit aussi quand son propre code est en retard.** Elle tourne sur le code d'un clone, et un
 clone que personne ne met à jour, c'est une app qui montre moins que ce qui est livré : la case **T**
@@ -94,7 +97,7 @@ Trois mots se ressemblent, et ne disent pas la même chose :
 
 | Le mot | Ce qu'il désigne | Où il se lit |
 |---|---|---|
-| **Tous les projets** | **un écran de l'app**, l'accueil : la vue d'ensemble de brigade — tes projets, tes stations, la santé de Max et de GitHub —, en tête de la barre. Il ne lance et n'arrête rien | la case ronde **T** |
+| **Tous les projets** | **un écran de l'app**, l'accueil : la vue d'ensemble de brigade — tes projets, tes stations, l'entrée vers le coût de tous les projets, la santé de Max et de GitHub —, en tête de la barre. Il ne lance et n'arrête rien | la case ronde **T** |
 | **la cuisine** d'un projet | **un état du runtime, sur la box** : `ouverte`, `retenue`, `arrêtée`, `éteinte`. C'est elle que ton « stop » arrête, et elle seule | la pastille, la carte, la ligne `kitchen` de `status`, la bannière `CUISINE À L'ARRÊT` |
 | **`en cuisine`** | **l'étape d'un ticket** : un cook le tient, entre `en attente` et `en pass` — ce que le rail appelle `pris`. Elle parle d'un ticket, pas du projet | la liste des tickets d'une épique, et `pass` |
 
@@ -505,6 +508,9 @@ STATIONS
 ○ Mac         offline for 12 min · no project                      ›
                                                           + station
 
+COST
+  all projects  tokens over 5 h, 24 h and 7 d · lost tokens · most …  ›
+
 ● Max ✓  ·  GitHub ✓
 ```
 
@@ -526,6 +532,9 @@ STATIONS
 - **Un clic n'importe où sur une ligne l'ouvre** : l'espace du projet, ou la page de la station
   (voir « Tes stations : appairées par un code, lues sur GitHub »). **Aucune ligne ne porte de
   geste** — ni merger, ni trier, ni retirer `fire` : les décisions se prennent dans le projet.
+- **Une ligne « Cost »**, sous les stations, ouvre **le coût de tous les projets** (#1022), à la place de
+  l'accueil — sans ouvrir aucun projet (voir « Le coût de tous les projets »). Elle ne montre aucun
+  chiffre : la lecture des coûts ne part que quand sa page est ouverte.
 - **« + station »**, sous la liste des stations, ouvre le champ du code d'appairage — nulle part
   ailleurs sur l'accueil. Appairée, la station apparaît dans la liste et le champ se referme, sans
   message qui reste affiché ; « cancel » le referme, vide.
@@ -551,6 +560,53 @@ sur GitHub. Un `status` que l'accueil ne lit plus est lâché : la ligne redit c
 `status` et de `station`), le retard du code de l'app — dans les réglages de chaque projet, et au
 survol de la case **T** (voir « Le code de l'app : à jour, ou en retard ») —, la liste « Projects on
 your stations » et le parcours « add a project », sur la page d'une station.
+
+### Le coût de tous les projets
+
+*Tickets : #908 à #912, #1022.* **Sur l'accueil, la ligne « Cost » ouvre la page des coûts de tous les projets**,
+à la place de l'accueil, sans ouvrir aucun projet — la case **T** reste l'entrée affichée, et « ‹ All projects »
+ramène à l'accueil. Ce qui vaut pour l'ensemble des projets vit au niveau de l'app ; ce qui vaut pour un projet vit
+dans le projet (la règle de l'accueil, #868) : **aucun projet n'a d'onglet Cost**, et ce qu'un projet a coûté se lit
+sur sa page, à côté de sa fiabilité (voir « La lecture Reliability »). La page lit `station` (le plafond, les cooks,
+**le consommé**) **sur la box de chaque projet** qu'elle sert encore, toutes les trente secondes tant qu'elle est
+affichée — et seulement alors. **En tête,
+trois chiffres** : les tokens que brigade a lancés sur **5 h, 24 h et 7 jours, tous projets confondus**, et sous
+chacun **la part de chaque projet** — sa pastille, son nom, ses tokens, son pourcentage. Chaque chiffre est la
+somme des fenêtres que le bloc `consommé` de `station` communique, projet par projet ; **une valeur que la box ne
+communique pas s'affiche « not communicated » à la place du chiffre** — aujourd'hui 7 jours, que le runtime ne
+compte pas, et tout projet dont la box n'a pas répondu. Une somme à laquelle un projet manque se dit « ≥ » et ne
+donne pas de pourcentage. Seuls les projets qui ont une box, et qu'elle sert encore, y entrent. **Le quota du
+compte Max n'y est pas** : brigade ne le connaît pas, et une seule ligne renvoie à `/usage`. Aucune phrase
+d'explication : des libellés courts et des chiffres. **Un clic sur le nom d'un projet ouvre son espace.** Le code de
+cette tête vit dans `app/src/vue/cost/`, à côté des blocs suivants de la page. **Sous les trois chiffres, la courbe des derniers jours** (#909, `cost/courbe.js`) : les tokens lancés
+chaque jour, **une ligne par projet**, à la teinte de sa pastille, sur les 14 derniers jours au plus ; un titre
+court (« tokens per day »), le plus haut du tracé, les jours dessous, **une légende qui nomme chaque projet**, et
+ce que chacun a lancé un jour au survol de sa colonne. Chaque série vient du même bloc `consommé` de `station` :
+une ligne par jour, `AAAA-MM-JJ : … tokens` (ou `: rien`, un zéro) ; un jour qu'une série ne dit pas est un trou
+dans sa ligne, jamais un zéro. **Le runtime n'écrit pas encore ces lignes** : tant qu'aucune box ne donne sa
+série, la zone de la courbe dit **« not communicated »**, jamais un graphique vide ; un projet dont la série manque
+alors que d'autres la donnent le dit sous son nom, dans la légende. **Sous les trois chiffres, les tokens perdus** (#911, `cost/perdus.js`) : un seul chiffre, sans phrase d'explication — ceux
+des essais rouges (« échoué », « refusé par le modèle ») et des cooks interrompus (garde-fou, « stop », quota,
+connexion, runtime arrêté), lus parmi les « derniers cooks » de `station`. **Un clic sur le chiffre déploie la liste** — un
+cook par ligne : ticket, titre, tokens, cause (« red attempt » ou « interrupted ») —, **un second clic, ou « close », la replie** ;
+un clic sur une ligne ouvre la fiche de son ticket, comme pour les tickets les plus chers.
+Un cook perdu qui ne déclare pas ses tokens rend le total « ≥ » ; une box qui ne liste pas ses cooks n'ajoute rien et le rend
+« ≥ » aussi. Si aucune box ne les communique, le chiffre dit **« not communicated »** et la liste n'est pas proposée ; zéro cook
+perdu s'écrit 0, sans liste. Le runtime n'est pas touché : la somme est ce que la box en dit (dix cooks par projet au plus).
+**Puis les cinq
+tickets les plus chers** (#910, `cost/chers.js`) : une ligne par ticket — son numéro, son titre, ses tokens, ses
+essais —, **du plus cher au moins cher, cinq au plus**, tous projets confondus. Le coût d'un ticket est la somme des
+cooks que la box liste sous « derniers cooks » de `station` (dix par projet au plus : c'est ce qu'elle en dit, la
+somme est donc un minimum), et ses essais sont ces cooks ; un cook qui ne déclare pas ses tokens rend la somme « ≥ »,
+un ticket dont aucun n'en déclare passe après les autres et s'affiche « not communicated ». Le titre est celui du
+rail du projet quand il est lu, « not communicated » sinon. **Un clic sur une ligne ouvre son projet, puis la fiche du
+ticket**, par-dessus le rail — celle du rail (#621) ; si le rail ne porte pas le ticket, la fiche s'ouvre avec ce que l'on
+en sait, son numéro.
+**Un dépassement de seuil se voit d'un coup d'œil** (#912, `cost/seuils.js`) : les seuils sont ceux que `station` écrit sous
+« décisions du chef » (`seuil-ticket`, `seuil-perdus`), projet par projet. Quand le ticket le plus cher dépasse le seuil de son
+projet, ou que les tokens perdus d'un projet dépassent le leur, le bloc passe en rouge et **une ligne unique porte le geste, en bouton** (« open the sheet of #7 », « open the list ») ;
+sous le seuil, rien de plus ne s'affiche. Un seuil « non posée » n'est pas inventé : le bloc dit « ceiling: not communicated »
+à la place de l'alerte. Les mêmes seuils jugent, de la même façon, le coût d'un projet sur sa page.
 
 ### Le code de l'app : à jour, ou en retard
 
@@ -977,53 +1033,19 @@ espace (« Tous les projets », l'ajout), l'accent est celui de la peau.
   une alerte, un « non vérifié », un projet sain — ne changent pas d'un projet à l'autre, et aucune
   couleur de projet ne les remplace.
 
-### Les onglets : Coût et Paramètres, et le journal par son geste
+### L'onglet Paramètres, et le journal par son geste
 
-**Deux onglets seulement sont posés en haut, à côté du nom du projet : Coût et Paramètres.** **Coût** ouvre la lecture
-Cooks (`station` : le plafond, les cooks, **le consommé**), **lue sur la box de chaque projet** (#908). **En tête,
-trois chiffres** : les tokens que brigade a lancés sur **5 h, 24 h et 7 jours, tous projets confondus**, et sous
-chacun **la part de chaque projet** — sa pastille, son nom, ses tokens, son pourcentage. Chaque chiffre est la
-somme des fenêtres que le bloc `consommé` de `station` communique, projet par projet ; **une valeur que la box ne
-communique pas s'affiche « not communicated » à la place du chiffre** — aujourd'hui 7 jours, que le runtime ne
-compte pas, et tout projet dont la box n'a pas répondu. Une somme à laquelle un projet manque se dit « ≥ » et ne
-donne pas de pourcentage. Seuls les projets qui ont une box, et qu'elle sert encore, y entrent. **Le quota du
-compte Max n'y est pas** : brigade ne le connaît pas, et une seule ligne renvoie à `/usage`. Aucune phrase
-d'explication : des libellés courts et des chiffres. Dessous, la sortie de `station` du projet affiché, repliée
-sous « what the box said ». Le code de cette tête vit dans `app/src/vue/cost/`, où les blocs suivants de l'onglet
-s'ajoutent. **Sous les trois chiffres, la courbe des derniers jours** (#909, `cost/courbe.js`) : les tokens lancés
-chaque jour, **une ligne par projet**, à la teinte de sa pastille, sur les 14 derniers jours au plus ; un titre
-court (« tokens per day »), le plus haut du tracé, les jours dessous, **une légende qui nomme chaque projet**, et
-ce que chacun a lancé un jour au survol de sa colonne. Chaque série vient du même bloc `consommé` de `station` :
-une ligne par jour, `AAAA-MM-JJ : … tokens` (ou `: rien`, un zéro) ; un jour qu'une série ne dit pas est un trou
-dans sa ligne, jamais un zéro. **Le runtime n'écrit pas encore ces lignes** : tant qu'aucune box ne donne sa
-série, la zone de la courbe dit **« not communicated »**, jamais un graphique vide ; un projet dont la série manque
-alors que d'autres la donnent le dit sous son nom, dans la légende. **Sous les trois chiffres, les tokens perdus** (#911, `cost/perdus.js`) : un seul chiffre, sans phrase d'explication — ceux
-des essais rouges (« échoué », « refusé par le modèle ») et des cooks interrompus (garde-fou, « stop », quota,
-connexion, runtime arrêté), lus parmi les « derniers cooks » de `station`. **Un clic sur le chiffre déploie la liste** — un
-cook par ligne : ticket, titre, tokens, cause (« red attempt » ou « interrupted ») —, **un second clic, ou « close », la replie**.
-Un cook perdu qui ne déclare pas ses tokens rend le total « ≥ » ; une box qui ne liste pas ses cooks n'ajoute rien et le rend
-« ≥ » aussi. Si aucune box ne les communique, le chiffre dit **« not communicated »** et la liste n'est pas proposée ; zéro cook
-perdu s'écrit 0, sans liste. Le runtime n'est pas touché : la somme est ce que la box en dit (dix cooks par projet au plus).
-**Puis les cinq
-tickets les plus chers** (#910, `cost/chers.js`) : une ligne par ticket — son numéro, son titre, ses tokens, ses
-essais —, **du plus cher au moins cher, cinq au plus**, tous projets confondus. Le coût d'un ticket est la somme des
-cooks que la box liste sous « derniers cooks » de `station` (dix par projet au plus : c'est ce qu'elle en dit, la
-somme est donc un minimum), et ses essais sont ces cooks ; un cook qui ne déclare pas ses tokens rend la somme « ≥ »,
-un ticket dont aucun n'en déclare passe après les autres et s'affiche « not communicated ». Le titre est celui du
-rail du projet quand il est lu, « not communicated » sinon. **Un clic sur une ligne ouvre la fiche du ticket**, par-dessus
-l'onglet — celle du rail (#621) ; si le rail ne porte pas le ticket, la fiche s'ouvre avec ce que l'on en sait, son
-numéro. **Paramètres** ouvre l'état du projet —
+**Un seul onglet est posé en haut, à côté du nom du projet : Paramètres.** Le coût n'en est plus un (#1022) : celui
+de tous les projets vit au niveau de l'app (voir « Le coût de tous les projets »), celui du projet sous Reliability.
+**Paramètres** ouvre l'état du projet —
 l'installation, **la sauvegarde et son ancienneté**, les pages servies, le retrait, les couleurs du projet, et
-`status` tel que la box le rend —, avec dessous une rangée de lectures : Réglages, Rail, Manager,
-Grants, Reliability (voir « La lecture Reliability »), Closer (voir « La lecture Closer »). Une ligne de la bande d'alertes dont la cause se règle là y mène en un clic. **Le journal
+`status` tel que la box le rend —, avec dessous une rangée de lectures : Réglages, Rail, Cooks,
+Manager, Grants, Reliability (voir « La lecture Reliability »), Closer (voir « La lecture Closer »). **Cooks** relaie
+`station`, lu sur la box du seul projet affiché — avec, sous l'heure de sa lecture, le bouton « Set the cooks of a
+station… ». Une ligne de la bande d'alertes dont la cause se règle là y mène en un clic. **Le journal
 (Log) n'a pas d'onglet** : le bouton « journal », à côté des onglets, ouvre la fin du journal
-par-dessus le rail ; le recliquer le ferme. Les sept lectures ci-dessous sont celles de ces deux onglets et
-de ce geste.
-**Un dépassement de seuil se voit d'un coup d'œil** (#912, `cost/seuils.js`) : les seuils sont ceux que `station` écrit sous
-« décisions du chef » (`seuil-ticket`, `seuil-perdus`), projet par projet. Quand le ticket le plus cher dépasse le seuil de son
-projet, ou que les tokens perdus d'un projet dépassent le leur, le bloc passe en rouge et **une ligne unique porte le geste, en bouton** (« open the sheet of #7 », « open the list ») ;
-sous le seuil, rien de plus ne s'affiche. Un seuil « non posée » n'est pas inventé : le bloc dit « ceiling: not communicated »
-à la place de l'alerte.
+par-dessus le rail ; le recliquer le ferme. Les sept lectures ci-dessous sont celles de cet onglet et de ce
+geste.
 
 **Le rail dessiné n'est plus dans un onglet : il est au centre de l'espace, quel que soit celui que
 tu regardes** (voir « Le rail »). **L'espace s'ouvre sans page** : le rail a tout le centre, sur
@@ -1072,7 +1094,7 @@ des grants :
 ### La lecture Reliability
 
 *Ticket : #987.* Sous **Paramètres → Reliability**, **la fiabilité des cooks du projet, sur ses derniers
-tickets servis**. Elle n'est pas un troisième onglet en haut : ceux-là restent deux, Coût et Paramètres.
+tickets servis**, et **ce que le projet a coûté** (#1022). Elle n'est pas un onglet en haut : le seul y est Paramètres.
 
 - **En tête, trois chiffres** : la part **livrée du premier coup** (« 1 of 7 · 14% »), face à son seuil ;
   le **nombre moyen d'essais par ticket** ; les **tokens perdus en essais ratés**, face à leur plafond.
@@ -1080,8 +1102,8 @@ tickets servis**. Elle n'est pas un troisième onglet en haut : ceux-là restent
   merged, left out`.
 - **Puis les causes d'échec qui reviennent le plus, trois au plus** : chacune avec son nombre d'essais,
   sa part des essais ratés, et ses derniers tickets — trois au plus, les plus récents d'abord. **Un clic
-  sur un ticket ouvre sa fiche**, par-dessus la page, avec son histoire (comme les tickets les plus chers
-  de Coût). Sans essai raté, `no failed attempt`.
+  sur un ticket ouvre sa fiche**, par-dessus la page, avec son histoire (comme ses tickets les plus chers,
+  dessous). Sans essai raté, `no failed attempt`.
 - **Un chiffre au-delà de son seuil passe en rouge** — la part du premier coup *sous* le sien, les perdus
   *au-dessus* du leur —, comme la ligne `drift` de `status` le signale. Le nombre moyen d'essais n'a pas
   de seuil. Un seuil que le chef n'a pas posé : celui du runtime pour le premier coup, `50% (default)` ;
@@ -1089,6 +1111,15 @@ tickets servis**. Elle n'est pas un troisième onglet en haut : ceux-là restent
 - **Pas encore assez de tickets servis pour mesurer, la page le dit** —
   `not enough tickets served yet to measure: 6 of the 10 it takes`, ou `none of the last 10 tickets
   served is merged yet` —, **jamais des zéros**.
+- **À côté, ce que le projet a coûté, et lui seul** (#1022), sous « cost of this project » : **ses tokens
+  perdus** et **ses tickets les plus chers**, les mêmes blocs que sur la page des coûts de l'app (voir « Le
+  coût de tous les projets ») — un clic sur le chiffre déploie la liste des cooks perdus, un clic sur un
+  ticket ouvre sa fiche —, mais **lus dans le `station` de sa seule box** : aucun chiffre d'un autre projet
+  n'y entre. **Ses seuils y sont mis en évidence comme sur la page de l'app** : au-delà de `seuil-ticket`
+  ou de `seuil-perdus`, le bloc passe en rouge et une ligne porte le geste ; un seuil non posé se dit
+  « ceiling: not communicated ». Les tokens perdus d'ici ne sont pas ceux de la tête : ceux-là sont les
+  essais ratés des 10 derniers merges (`measures`) ; ceux-ci, les essais rouges et les cooks interrompus
+  parmi les derniers cooks que `station` liste.
 
 **D'où ça vient** (`app/src/fiabilite.ts`). L'app ne calcule rien et ne demande rien de neuf au runtime :
 elle lit ce que `measures` écrit (`docs/runtime/etat-et-mesures.md`, « Le relevé des mesures ») — les blocs
@@ -1105,6 +1136,8 @@ elle lit ce que `measures` écrit (`docs/runtime/etat-et-mesures.md`, « Le rele
   somme « ≥ ».
 - Une box dont `measures` ne compte pas encore les renvois (un runtime d'avant #946) : la page dit en une
   ligne que la fiabilité n'est pas communiquée, le détail au survol. Une lecture ratée, de même.
+- **Ce que le projet a coûté vient du même `station`**, celui que cette lecture lance d'abord : aucune
+  commande de plus ne part. Une lecture ratée le laisse « not communicated ».
 
 **Sur l'accueil, la ligne d'un projet dont la fiabilité a dérivé le dit d'un mot : `drifting`** — quand le
 `status` du projet porte une ligne `drift` sur la part du premier coup, ou sur les tokens perdus. Ce qu'elle

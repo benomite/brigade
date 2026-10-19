@@ -270,8 +270,8 @@ describe("la page Reliability, posée par la vue", () => {
   const texteDe = (poses: Faux[]) => poses.map(({ textContent }) => textContent).join("\n");
   const mesure = (vu: Vu) => ("mesure" in vu ? vu : assert.fail("pas mesurée"));
 
-  test("elle est une lecture de Settings, à côté de Rail, Manager et Grants — les deux onglets du haut restent deux", () => {
-    assert.deepEqual(RUBRIQUES.map(({ titre }) => titre), ["Cost", "Settings"]);
+  test("elle est une lecture de Settings, à côté de Rail, Cooks, Manager et Grants — le seul onglet du haut, Cost vivant au niveau de l'app (#1022)", () => {
+    assert.deepEqual(RUBRIQUES.map(({ titre }) => titre), ["Settings"]);
     assert.ok(RUBRIQUES.find(({ titre }) => titre === "Settings")?.lectures.includes("fiabilite"));
     assert.equal(ONGLETS.find(({ id }) => id === "fiabilite")?.titre, "Reliability");
   });

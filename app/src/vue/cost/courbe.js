@@ -1,5 +1,5 @@
 // @ts-check
-// La courbe de l'onglet Cost, sous les trois chiffres de tête (tete.js) : les tokens que brigade a
+// La courbe de la page des coûts de l'app (ticket 1022), sous les trois chiffres de tête (tete.js) : les tokens que brigade a
 // lancés chaque jour, sur les derniers jours, une série par projet. Un titre court, une légende qui
 // nomme chaque projet, et rien d'autre : la valeur d'un jour se lit au survol de sa colonne.
 // Chaque série vient du bloc `consommé` de `station`, lu sur la box du projet : une ligne par jour,
@@ -23,7 +23,7 @@ export const TITRE = "tokens per day";
 export const JOURS = 14;
 
 const SVG = "http://www.w3.org/2000/svg";
-// Le tracé se dessine dans ce repère, puis s'étire à la largeur de l'onglet : ses traits gardent
+// Le tracé se dessine dans ce repère, puis s'étire à la largeur de la page : ses traits gardent
 // leur épaisseur (`vector-effect`), et ses textes sont posés hors du SVG, pour ne pas s'étirer.
 const LARGEUR = 1000;
 const HAUTEUR = 100;

@@ -311,7 +311,7 @@ export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "d
       getElementById: trouver,
       querySelector: (selecteur: string) => (selecteur === "main" ? principal : null),
       createElement: (balise: string) => new Faux(balise),
-      // Le tracé de Cost (cost/courbe.js) : un élément SVG s'y pose comme un autre.
+      // Le tracé de la page des coûts (cost/courbe.js) : un élément SVG s'y pose comme un autre.
       createElementNS: (_espace: string, balise: string) => new Faux(balise),
     },
     getComputedStyle: () => ({ getPropertyValue: (nom: string) => jetons.get(nom) ?? "" }),
@@ -376,8 +376,8 @@ export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "d
 // attendre, tout est donc fait quand la file des promesses est vide — aucun délai n'est couru.
 export const repos = (): Promise<void> => new Promise((fait) => setImmediate(fait));
 
-// Ouvre une lecture comme le chef le fait depuis l'écran principal : Cooks sous l'onglet Coût ;
-// Rail, Manager et Grants sous Paramètres, par sa rangée de lectures ; Log, par le geste « journal ».
+// Ouvre une lecture comme le chef le fait depuis l'écran principal : Rail, Cooks, Manager, Grants et
+// Reliability sous Paramètres, par sa rangée de lectures ; Log, par le geste « journal ».
 // Rend l'élément cliqué en dernier.
 export async function ouvrirLecture(vue: Jouee, titre: string): Promise<Faux> {
   const cliquer = async (ou: Faux | undefined, nom: string): Promise<Faux> => {
@@ -393,7 +393,18 @@ export async function ouvrirLecture(vue: Jouee, titre: string): Promise<Faux> {
     await repos();
     return geste;
   }
-  if (titre === "Cooks") return cliquer(vue.element("onglets"), "Cost");
   await cliquer(vue.element("onglets"), "Settings");
   return cliquer(vue.element("parametres-onglets"), titre);
+}
+
+// Ouvre la page des coûts de tous les projets comme le chef le fait (#1022) : depuis l'accueil, sans
+// ouvrir aucun projet, par sa ligne « Cost ». Rend la page.
+export async function ouvrirLesCouts(vue: Jouee): Promise<Faux> {
+  vue.element("entree-tous").click();
+  await repos();
+  const ligne = vue.element("tous").dessous("button").find(({ ariaLabel }) => ariaLabel === "the cost of all projects");
+  if (ligne === undefined) throw new Error("pas de ligne « Cost » sur l'accueil");
+  ligne.click();
+  await repos();
+  return vue.element("cout");
 }

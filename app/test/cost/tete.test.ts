@@ -1,4 +1,4 @@
-// La tête de l'onglet Cost (vue/cost/tete.js, #908) : trois chiffres — les tokens que brigade a
+// La tête de la page des coûts de l'app (vue/cost/tete.js, #908, #1022) : trois chiffres — les tokens que brigade a
 // lancés sur 5 h, 24 h et 7 jours, tous projets confondus —, la part de chaque projet sous chacun,
 // « not communicated » à la place de ce que la box ne donne pas, et une seule ligne pour le quota du
 // compte Max. Le module est lu seul, puis la vue jouée telle qu'elle est (aides/fausse-vue.ts).
@@ -17,7 +17,7 @@ import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { GESTES_DU_MANAGER } from "../../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { chiffres, fenetresDe, NON_COMMUNIQUE, poserTete } from "../../src/vue/cost/tete.js";
-import { Faux, type Jouee, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+import { Faux, type Jouee, jouerLaVue, ouvrirLesCouts, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const A = "2026-10-17T10:00:00.000Z";
@@ -152,12 +152,12 @@ describe("la tête posée", () => {
   });
 });
 
-describe("l'onglet Cost, dans la vue", () => {
+describe("la page des coûts de l'app, dans la vue (#1022)", () => {
   const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" }, couleurs: { onglet: "#f2994a", accent: "#f2994a" } };
   const CANTINE: Projet = { nom: "cantine", dossier: "/tmp/cantine", box: { hote: "box" } };
   const LOCAL: Projet = { nom: "local", dossier: "/tmp/local" };
 
-  async function ouvrirCost(): Promise<Jouee> {
+  async function ouvrirLaPage(): Promise<Jouee> {
     const vue = await jouerLaVue({
       demarrage: () => ({
         configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, CANTINE, LOCAL], hotes: ["box"] }),
@@ -173,19 +173,22 @@ describe("l'onglet Cost, dans la vue", () => {
       }),
       espace: () => [],
     });
-    (vue.element("projets").children.at(1) ?? assert.fail("pas de case parade")).click();
-    await repos();
-    (vue.element("onglets").children.find(({ textContent }) => textContent === "Cost") ?? assert.fail("pas d'onglet Cost")).click();
-    await repos();
+    await ouvrirLesCouts(vue);
     return vue;
   }
 
-  test("la tête additionne `station` de chaque box — y compris celle d'un autre projet que celui affiché", async () => {
-    const vue = await ouvrirCost();
+  test("elle s'ouvre depuis l'accueil, sans ouvrir aucun projet, et sa tête additionne `station` de chaque box", async () => {
+    const vue = await ouvrirLaPage();
     const cout = vue.element("cout");
     assert.equal(cout.hidden, false);
+    // Aucun espace de projet n'est ouvert : la page est à la place de l'accueil, « T » reste l'entrée affichée.
+    assert.equal(vue.element("tous").hidden, false);
+    assert.equal(vue.element("main").hidden, true);
+    assert.equal(vue.element("entree-tous").ariaCurrent, "true");
+    assert.equal(vue.appels.filter(({ geste }) => geste === "espace").length, 0);
     const demande = vue.dernier("onglet")[2] as number;
-    assert.deepEqual(vue.dernier("onglet").slice(0, 2), ["parade", "cooks"]);
+    // Sa lecture n'est celle d'aucun projet : le process principal lit `station` sur chaque box.
+    assert.deepEqual(vue.dernier("onglet").slice(0, 2), [undefined, "couts"]);
     // Avant toute lecture, les chiffres sont en lecture.
     assert.equal(cout.dessous("p")[0]?.textContent, "reading…");
 
@@ -196,20 +199,36 @@ describe("l'onglet Cost, dans la vue", () => {
     assert.deepEqual(totaux, ["1,604,530", "4,912,044", NON_COMMUNIQUE]);
     // Un projet sans box n'a rien lancé : il n'a pas de ligne.
     assert.doesNotMatch(cout.textContent, /local/);
-    // La lecture brute du projet affiché reste dessous, repliée.
-    assert.ok(vue.element("lecture-onglet").dessous("details").length > 0);
+    // Le quota du compte renvoie à `/usage`.
+    assert.match(cout.textContent, /Max account quota: \/usage/);
   });
 
-  test("une lecture d'une demande passée n'entre pas dans les chiffres ; quitter Cost cache la tête", async () => {
-    const vue = await ouvrirCost();
+  test("un clic sur le nom d'un projet ouvre son espace", async () => {
+    const vue = await ouvrirLaPage();
+    const noms = vue.element("cout").dessous("button").filter(({ className }) => className === "projet");
+    assert.deepEqual(noms.slice(0, 2).map(({ textContent }) => textContent), ["parade", "cantine"]);
+    noms[1]?.click();
+    await repos();
+    assert.deepEqual(vue.dernier("espace"), ["cantine"]);
+    assert.equal(vue.element("espace").textContent, "cantine");
+    assert.equal(vue.element("main").hidden, false);
+    // L'espace ouvert, la page des coûts n'est plus lue : l'onglet lu est celui du projet, aucun.
+    assert.deepEqual(vue.dernier("onglet").slice(0, 2), ["cantine", undefined]);
+  });
+
+  test("une lecture d'une demande passée n'entre pas dans les chiffres ; revenir à l'accueil arrête sa lecture", async () => {
+    const vue = await ouvrirLaPage();
+    const page = vue.element("cout");
     const demande = vue.dernier("onglet")[2] as number;
     vue.dire("surContenu", { ...lu("parade", PARADE_LU), demande: demande - 1 }, undefined, undefined);
     await repos();
-    assert.equal(vue.element("cout").dessous("p")[0]?.textContent, "reading…");
+    assert.equal(page.dessous("p")[0]?.textContent, "reading…");
 
-    (vue.element("onglets").children.find(({ textContent }) => textContent === "Settings") ?? assert.fail("pas d'onglet Settings")).click();
+    (page.dessous("button").find(({ textContent }) => textContent === "‹ All projects") ?? assert.fail("pas de retour")).click();
     await repos();
-    assert.equal(vue.element("cout").hidden, true);
-    assert.equal(vue.element("cout").children.length, 0);
+    assert.ok(!vue.element("tous").children.includes(page));
+    assert.ok(vue.element("tous").children.some(({ id }) => id === "accueil-couts"));
+    assert.deepEqual(vue.dernier("onglet").slice(0, 2), [undefined, undefined]);
+    assert.equal(page.dessous("div").length, 1);
   });
 });

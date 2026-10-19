@@ -1,4 +1,4 @@
-// La courbe de l'onglet Cost (vue/cost/courbe.js, #909) : sous les trois chiffres de tête, les tokens
+// La courbe de la page des coûts de l'app (vue/cost/courbe.js, #909, #1022) : sous les trois chiffres de tête, les tokens
 // lancés chaque jour, une série par projet, une légende qui nomme chaque projet, et « not
 // communicated » à la place du tracé quand la box ne donne pas la série. Le module est lu seul,
 // puis la vue jouée telle qu'elle est (aides/fausse-vue.ts).
@@ -18,7 +18,7 @@ import { GESTES_DU_MANAGER } from "../../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { JOURS, joursDe, poserCourbe, series, TITRE } from "../../src/vue/cost/courbe.js";
 import { fenetresDe, LECTURE, NON_COMMUNIQUE } from "../../src/vue/cost/tete.js";
-import { Faux, type Jouee, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+import { Faux, type Jouee, jouerLaVue, ouvrirLesCouts, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise), createElementNS: (_espace: string, balise: string) => new Faux(balise) };
 const A = "2026-10-17T10:00:00.000Z";
@@ -163,11 +163,11 @@ describe("la courbe posée", () => {
   });
 });
 
-describe("la courbe, dans l'onglet Cost", () => {
+describe("la courbe, sur la page des coûts de l'app", () => {
   const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" }, couleurs: { onglet: "#f2994a", accent: "#f2994a" } };
   const CANTINE: Projet = { nom: "cantine", dossier: "/tmp/cantine", box: { hote: "box" } };
 
-  async function ouvrirCost(): Promise<Jouee> {
+  async function ouvrirLaPage(): Promise<Jouee> {
     const vue = await jouerLaVue({
       demarrage: () => ({
         configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, CANTINE], hotes: ["box"] }),
@@ -183,18 +183,15 @@ describe("la courbe, dans l'onglet Cost", () => {
       }),
       espace: () => [],
     });
-    (vue.element("projets").children.at(1) ?? assert.fail("pas de case parade")).click();
-    await repos();
-    (vue.element("onglets").children.find(({ textContent }) => textContent === "Cost") ?? assert.fail("pas d'onglet Cost")).click();
-    await repos();
+    await ouvrirLesCouts(vue);
     return vue;
   }
   const courbe = (vue: Jouee) => vue.element("cout").dessous("div").find(({ className }) => className === "courbe-cout") ?? assert.fail("pas de courbe");
 
   test("sous les chiffres de tête, la courbe lit `station` de chaque box ; sans jours, sa zone dit « not communicated »", async () => {
-    const vue = await ouvrirCost();
-    const cout = vue.element("cout");
-    assert.deepEqual(cout.children.map(({ className }) => className), ["tete-cout", "perdus-cout", "chers-cout", "courbe-cout"]);
+    const vue = await ouvrirLaPage();
+    const blocs = vue.element("cout").children.at(-1) ?? assert.fail("pas de blocs");
+    assert.deepEqual(blocs.children.map(({ className }) => className), ["tete-cout", "perdus-cout", "chers-cout", "courbe-cout"]);
     assert.equal(courbe(vue).dessous("p")[0]?.textContent, LECTURE);
     const demande = vue.dernier("onglet")[2] as number;
 
