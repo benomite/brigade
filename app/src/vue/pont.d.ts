@@ -208,6 +208,7 @@ export type Pont = {
   // du chef, devant ce qu'il coûte —, ou son annulation. Rend ce que le runtime a répondu, ou pourquoi
   // rien ne l'a été. Rien, pour un projet sans box.
   closer(projet: string, action: Action, oui?: true): Promise<RenduDuCloser | undefined>;
+  ouvrirBilan(projet: string, url: string): Promise<boolean>;
   // Le projet dont l'espace est affiché : sa box est lue, elle seule — `status`, pour le panneau.
   // `demande` revient sur chaque lecture qui y répond.
   regarder(projet: string, demande: number): void;

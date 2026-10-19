@@ -1139,8 +1139,8 @@ est une lecture de plus, à côté de Reliability : les deux onglets du haut res
   chiffres disent `not communicated`, et une ligne `the integration branch could not be read` porte la raison
   au survol. Une lecture ratée — une box sans journal, un runtime d'avant `closing --json` — tient en une ligne,
   `the closer could not be read`, le détail au survol.
-- **Sous la liste, le lancement d'un nettoyage** (`closer-lancement`, #991) — voir ci-dessous. Une place reste
-  réservée, vide pour l'instant, au bilan d'une passe finie (`closer-bilan`, #992).
+- **Sous la liste, le lancement d'un nettoyage** (`closer-lancement`, #991) — voir ci-dessous. Sous lui, le
+  **bilan de la dernière passe finie** (`closer-bilan`, #992) — voir ci-dessous.
 
 **Lancer un nettoyage** (#991). **« Launch a cleanup… »**, le bouton recommandé — le prix au survol, d'après le
 calibrage du closer : `on your quota: sonnet / medium · 500,000 tokens at most · 500 lines removed at most`.
@@ -1162,7 +1162,15 @@ reading where it stands…`). Puis, une ligne par état :
   (`closing cancel --json`) : la place revient alors à « rien de demandé », le bouton de lancement seul ;
 - **en cours** — `Cleanup running — since …` : partie, elle ne s'annule plus, et ne se relance pas ;
 - **refusée, et pourquoi** — `Last cleanup refused on …: …` — puis le bouton, pour relancer ;
-- **finie** — `Last cleanup finished on …` — puis le bouton ; son bilan est pour #992.
+- **finie** — `Last cleanup finished on …` — puis le bouton ; son bilan est dessous.
+
+**Le bilan d'une passe finie** (#992, `vue/closer/bilan/bilan.js`). Quand la dernière demande est `done`, la
+place du bilan montre, d'après `request` de `closing --json` (rien n'est recompté) : **ce que la passe a
+retiré** — une ligne par candidat, son nom court (`M1`, `D2`) et ce pour quoi il était proposé ; le nombre de
+lignes retirées/ajoutées au survol du titre — et **la PR ouverte**, en lien : un clic l'ouvre dans le
+navigateur du poste (`ouvrirBilan`, https seulement). Rien retiré : `nothing was removed` ; pas de PR (ou
+une adresse qui n'est pas https) : `no PR was opened`, sans lien. Une demande qui n'est pas finie n'a pas
+de bilan : la place est vide. Capture : `docs/captures/992/`.
 
 Une box qui ne répond pas, un runtime qui ne connaît pas ces gestes : une ligne (`the station could not be asked —
 not reached`), ce que l'app a obtenu au survol, et le bouton reste. Les trois gestes partent par le passage du

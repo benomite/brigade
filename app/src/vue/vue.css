@@ -3298,6 +3298,67 @@ button.recommande {
   background: var(--accent);
   border-color: var(--accent);
 }
+/* Le bilan de la dernière passe finie (ticket 992), sous le lancement : ce qu'elle a retiré, une ligne par
+   candidat, et la PR qu'elle a ouverte, en lien. Vide, la place ne prend rien. */
+.closer-bilan {
+  margin: 14px 0 0;
+}
+.closer-bilan:empty {
+  display: none;
+}
+.closer-bilan .bilan h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.closer-bilan .bilan h4 {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--texte-doux);
+}
+.closer-bilan .sans {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--discret);
+}
+.closer-bilan .retraits {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.closer-bilan .retraits li {
+  display: grid;
+  grid-template-columns: 3em minmax(0, 1fr);
+  gap: 10px;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--texte-doux);
+  background: var(--carte);
+  border-radius: var(--rayon-bouton);
+}
+.closer-bilan .retraits .nom {
+  color: var(--texte);
+}
+.closer-bilan .retraits .quoi {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.closer-bilan .bilan-pr {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--texte);
+}
+.closer-bilan .bilan-pr a {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
 .closer-lancement .confirmation .reponses button:disabled {
   color: var(--discret);
   background: none;

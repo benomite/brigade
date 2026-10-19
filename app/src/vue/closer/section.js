@@ -28,7 +28,7 @@ import { lectureIndisponible, survol } from "../briques.js";
  * @typedef {{ id: string, kind: "duplicate", file: string, start: number, end: number, lines: number, copy: { file: string, start: number, end: number } }
  *   | { id: string, kind: "dead-export", file: string, start: number, end: number, name: string, onlyTests: string[] }} Trouvaille
  * @typedef {{ configured: false, text: string }
- *   | { configured: true, closer: { model: string, effort: string }, observation: Observation, findings: Trouvaille[] }} Fermeture
+ *   | { configured: true, closer: { model: string, effort: string }, observation: Observation, findings: Trouvaille[], request: { state: string } }} Fermeture
  * @typedef {{ fermeture: Fermeture } | { erreur: string }} Lu
  * @typedef {{ modele: string, effort: string }} Choix
  */
