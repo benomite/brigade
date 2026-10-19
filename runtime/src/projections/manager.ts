@@ -82,7 +82,7 @@ const fermer = (closed: number) => (base: Base, { ticket }: { ticket: number | n
   base.executer("UPDATE manager_issues SET closed = ? WHERE ticket IS ?", closed, ticket);
 };
 
-// Les faits d'un découpage et ceux d'une réaction ont leur propre projection.
+// The events of a split and those of a reaction have their own projection.
 export const manager = definirProjection<Exclude<FaitManager, { type: `manager.split${string}` } | FaitReaction>>({
   nom: "manager",
   tables: ["manager_state", "manager_issues", "manager_returned"],
@@ -162,8 +162,8 @@ export const manager = definirProjection<Exclude<FaitManager, { type: `manager.s
     "manager.commented": (base, { ticket }) => {
       base.executer("UPDATE manager_issues SET commented = 1 WHERE ticket IS ?", ticket);
     },
-    // Rien ne reste de la décision : l'issue sera jugée comme une inconnue.
-    // Seul ce que le manager y avait posé est gardé, le temps de le retirer.
+    // Nothing remains of the decision: the issue will be judged as unknown.
+    // Only what the manager had put there is kept, until it is removed.
     "manager.handed-back": (base, { ticket, at }) => {
       if (ticket === null) return;
       const posed = base.lire<{ posed: string }>("SELECT posed FROM manager_issues WHERE ticket = ?", ticket)[0]?.posed ?? "[]";
@@ -210,13 +210,13 @@ export function issueDuManager(base: Base, ticket: number): IssueDuManager | nul
   return lire(base, "WHERE ticket = ?", ticket)[0] ?? null;
 }
 
-// Les dernières décisions, la plus récente d'abord.
+// The latest decisions, most recent first.
 export function decisionsDuManager(base: Base, combien: number): IssueDuManager[] {
   return lire(base, "ORDER BY decided_seq DESC LIMIT ?", combien);
 }
 
-// Une issue dont le manager attend le chef : écartée, ou d'un jugement
-// illisible. `closed` : elle a quitté la liste des issues ouvertes depuis.
+// An issue the manager is waiting on the chief for: set aside, or with an
+// unreadable judgment. `closed`: it has since left the list of open issues.
 export type IssueEnAttente = { ticket: number; decision: "aside" | "failed"; reason: string; at: string; closed: boolean };
 
 export function issuesEnAttente(base: Base): IssueEnAttente[] {
@@ -225,15 +225,15 @@ export function issuesEnAttente(base: Base): IssueEnAttente[] {
     .map((ligne) => ({ ...ligne, closed: ligne.closed === 1 }));
 }
 
-// L'issue a-t-elle cessé d'être une épique à découper depuis le fait `seq` :
-// une décision plus récente y dit autre chose qu'« une épique ».
+// Has the issue stopped being an epic to split since event `seq`: a more
+// recent decision says something other than "an epic".
 export function plusUneEpiqueDepuis(base: Base, ticket: number, seq: number): boolean {
-  const depuis = base.lire<{ decision: string; kind: string | null }>("SELECT decision, kind FROM manager_issues WHERE ticket = ? AND decided_seq > ?", ticket, seq)[0];
-  return depuis !== undefined && !(depuis.decision === "refused" && depuis.kind === ("epic" satisfies Nature));
+  const later = base.lire<{ decision: string; kind: string | null }>("SELECT decision, kind FROM manager_issues WHERE ticket = ? AND decided_seq > ?", ticket, seq)[0];
+  return later !== undefined && !(later.decision === "refused" && later.kind === ("epic" satisfies Nature));
 }
 
-// Une issue que le chef a rendue au manager, et qu'il n'a pas encore rejugée.
-// `labels` : ce qu'il y avait posé, tant qu'il n'en a pas retiré son calibrage.
+// An issue the chief handed back to the manager, and which it has not yet re-judged.
+// `labels`: what it had put there, as long as it has not removed its calibration.
 export type Remise = { ticket: number; at: string; labels: string[] | null };
 
 const lireRemises = (base: Base, suite: string, ...parametres: number[]): Remise[] =>
@@ -249,13 +249,13 @@ export function remisesEnAttente(base: Base): Remise[] {
   return lireRemises(base, "ORDER BY ticket");
 }
 
-// Les issues écartées, la plus récente d'abord.
+// The issues set aside, most recent first.
 export function ecarteesDuManager(base: Base, combien: number): IssueDuManager[] {
   return lire(base, "WHERE decision = 'aside' ORDER BY decided_seq DESC LIMIT ?", combien);
 }
 
-// Le numéro du fait qui porte la décision du manager sur cette issue : c'est par
-// lui qu'elle se range avant ou après ce que le rail en a fait. Nul sans décision.
+// The number of the event carrying the manager's decision on this issue: it is
+// by this that it sorts before or after what the rail did with it. Null without a decision.
 export function seqDeDecision(base: Base, ticket: number): number | null {
   return base.lire<{ seq: number }>("SELECT decided_seq AS seq FROM manager_issues WHERE ticket = ?", ticket)[0]?.seq ?? null;
 }

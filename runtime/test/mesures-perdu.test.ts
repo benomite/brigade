@@ -7,7 +7,7 @@ import type { Fait } from "../src/evenements.ts";
 import type { Issue } from "../src/events/guardrails.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { decrireReleve, trancher } from "../src/mesures.ts";
-import { livraisonsMergees, type CookMesure, type Livraison } from "../src/projections/measures.ts";
+import { mergedDeliveries, type CookMesure, type Delivery } from "../src/projections/measures.ts";
 import { horloge, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -45,14 +45,14 @@ function cuisine(t: TestContext) {
   return { base: journal.base, noter, cuire, juger, merger };
 }
 
-const releve = (livraisons: Livraison[], par?: number) => {
+const releve = (livraisons: Delivery[], par?: number) => {
   const lignes = decrireReleve({ projet: "brigade", livraisons, seuils: null }, par);
   const debut = lignes.findIndex((ligne) => ligne.startsWith("launches"));
   return lignes.slice(debut, lignes.indexOf("", debut));
 };
 
 const cook = (tokens: number | null, delivered: boolean): CookMesure => ({ calibration: "sonnet/medium", turns: 5, durationMs: 1000, tokens, delivered });
-const livraison = (ticket: number | null, cooks: CookMesure[]): Livraison => ({ ticket, at: `${JOUR_HORLOGE}T10:00:00.000Z`, measures: {}, state: {}, gatesS: null, cooks });
+const livraison = (ticket: number | null, cooks: CookMesure[]): Delivery => ({ ticket, at: `${JOUR_HORLOGE}T10:00:00.000Z`, measures: {}, state: {}, gatesS: null, cooks });
 
 test("le cas #393 : deux lancements, un seul livre — les 450 627 tokens du cook sans commit sortent en perdus, le reste en utiles", (t) => {
   const { base, cuire, juger, merger } = cuisine(t);
@@ -63,7 +63,7 @@ test("le cas #393 : deux lancements, un seul livre — les 450 627 tokens du coo
   juger(393, "393-b12c8069", "green");
   merger(393);
 
-  const livraisons = livraisonsMergees(base);
+  const livraisons = mergedDeliveries(base);
 
   assert.deepEqual(livraisons[0]?.cooks.map(({ tokens, delivered }) => ({ tokens, delivered })), [
     { tokens: 450_627, delivered: false },
@@ -87,7 +87,7 @@ test("un ticket cher dont tous les lancements ont livré affiche zéro perdu", (
   juger(401, "401-bbbbbbbb", "green");
   merger(401);
 
-  const livraisons = livraisonsMergees(base);
+  const livraisons = mergedDeliveries(base);
 
   assert.deepEqual(trancher(livraisons)[0]?.paiements, [{ ticket: 401, lancements: 2, inconnus: 0, tokens: { utiles: 650_449, perdus: 0 } }]);
   assert.deepEqual(releve(livraisons).slice(1), [
@@ -109,7 +109,7 @@ test("seule la fin `ok` d'un cook vaut livraison : arrêté, refusé, 86, ou mor
   juger(7, "7-livre", "green");
   merger(7);
 
-  assert.deepEqual(trancher(livraisonsMergees(base))[0]?.paiements, [{ ticket: 7, lancements: 6, inconnus: 1, tokens: { utiles: 1000, perdus: 365 } }]);
+  assert.deepEqual(trancher(mergedDeliveries(base))[0]?.paiements, [{ ticket: 7, lancements: 6, inconnus: 1, tokens: { utiles: 1000, perdus: 365 } }]);
 });
 
 test("le relevé ne liste que les tickets payés plus d'une fois ou à perte, tranche par tranche, et dit quand il n'y en a aucun", () => {

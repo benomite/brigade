@@ -9,7 +9,7 @@ import { Sortie } from "../appel.ts";
 import { ouvrirJournal, type Journal } from "../journal.ts";
 import { journalPasRejoue } from "../journal-pas-rejoue.ts";
 import { direJaugeEn, franchis, SANS_SEUIL } from "../mesures.ts";
-import { livraisonsMergees, seuilsEnVigueur } from "../projections/measures.ts";
+import { mergedDeliveries, seuilsEnVigueur } from "../projections/measures.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { MODULE, repererCodeMort, type Mort } from "./dead-code.ts";
 import { direBilan } from "./report.ts";
@@ -136,7 +136,7 @@ function direJournal(repertoireEtat: string | undefined, arbre: (commit: string)
     return nonLu(erreur instanceof Error ? erreur.message : String(erreur));
   }
   try {
-    const livraisons = livraisonsMergees(journal.base);
+    const livraisons = mergedDeliveries(journal.base);
     const seuils = seuilsEnVigueur(journal.base);
     const passes = franchis(livraisons, seuils ?? SANS_SEUIL);
     const constat = seuils === null ? "no threshold declared" : passes.length === 0 ? "no threshold crossed" : `${pluriel(passes.length, "threshold")} crossed, details with \`${geste(`measures`)}\``;

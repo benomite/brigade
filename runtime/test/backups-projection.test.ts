@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../src/journal.ts";
-import { derniereSauvegarde } from "../src/projections/backups.ts";
+import { lastBackup } from "../src/projections/backups.ts";
 import { horloge, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 function cuisine(t: TestContext) {
@@ -14,16 +14,16 @@ function cuisine(t: TestContext) {
 }
 
 test("un projet jamais sauvegardé n'a pas de dernière sauvegarde", (t) => {
-  assert.equal(derniereSauvegarde(cuisine(t).base), null);
+  assert.equal(lastBackup(cuisine(t).base), null);
 });
 
 test("la dernière sauvegarde se lit avec sa date, son nom et l'événement jusqu'où elle va ; la suivante la remplace", (t) => {
   const { base, sauvegarder } = cuisine(t);
   sauvegarder("2026-10-07T03-30-00Z", 3);
 
-  assert.deepEqual(derniereSauvegarde(base), { at: `${JOUR_HORLOGE}T10:00:00.000Z`, name: "2026-10-07T03-30-00Z", lastSeq: 3 });
+  assert.deepEqual(lastBackup(base), { at: `${JOUR_HORLOGE}T10:00:00.000Z`, name: "2026-10-07T03-30-00Z", lastSeq: 3 });
 
   sauvegarder(`${JOUR_HORLOGE}T03-30-00Z`, 9);
 
-  assert.deepEqual(derniereSauvegarde(base), { at: `${JOUR_HORLOGE}T10:00:01.000Z`, name: `${JOUR_HORLOGE}T03-30-00Z`, lastSeq: 9 });
+  assert.deepEqual(lastBackup(base), { at: `${JOUR_HORLOGE}T10:00:01.000Z`, name: `${JOUR_HORLOGE}T03-30-00Z`, lastSeq: 9 });
 });

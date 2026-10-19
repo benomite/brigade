@@ -10,7 +10,7 @@ import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { decrireReleve, PAR_DEFAUT } from "./mesures.ts";
 import { decrireCauses, mesurerCauses } from "./causes-des-ratages.ts";
 import { parcoursDesTickets } from "./parcours-des-tickets.ts";
-import { livraisonsMergees, seuilsEnVigueur } from "./projections/measures.ts";
+import { mergedDeliveries, seuilsEnVigueur } from "./projections/measures.ts";
 import { decrireRenvois, DERNIERS_PAR_DEFAUT, mesurerRenvois } from "./renvois.ts";
 
 const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run measures -- [--by <number of merges>] [--last <number of tickets>]";
@@ -42,7 +42,7 @@ try {
 try {
   const { base } = journal;
   const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ?? null;
-  for (const ligne of decrireReleve({ projet, livraisons: livraisonsMergees(base), seuils: seuilsEnVigueur(base) }, par)) console.log(ligne);
+  for (const ligne of decrireReleve({ projet, livraisons: mergedDeliveries(base), seuils: seuilsEnVigueur(base) }, par)) console.log(ligne);
   console.log("");
   const parcours = parcoursDesTickets(base);
   for (const ligne of decrireRenvois(mesurerRenvois(parcours, derniers))) console.log(ligne);

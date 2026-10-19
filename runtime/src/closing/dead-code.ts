@@ -1,32 +1,32 @@
-// Le code mort que la fermeture repère : un export nommé d'un module
-// TypeScript ou JavaScript que rien d'autre ne nomme. Du texte cherché dans du
-// texte, et la prudence est du côté du vivant : un nom que son propre fichier
-// réemploie, ou qu'un autre fichier écrit — fût-ce dans un commentaire —,
-// n'est pas donné pour mort. Elle repère, elle ne juge pas : un export qu'un
-// framework lit par convention n'est nommé par personne et vit pourtant.
+// The dead code the closing spots: a named export of a TypeScript or
+// JavaScript module that nothing else names. Text searched in text, and caution
+// is on the side of the living: a name its own file reuses, or another file
+// writes — even in a comment — is not declared dead. It spots, it does not
+// judge: an export a framework reads by convention is named by nobody and
+// lives all the same.
 import type { Texte } from "./reading.ts";
 
-// Les modules dont les exports sont regardés. Une déclaration d'ambiance
-// (`.d.ts`) n'exporte rien qui s'importe.
+// The modules whose exports are looked at. An ambient declaration (`.d.ts`)
+// exports nothing that can be imported.
 export const MODULE = /(?<!\.d)\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
 const TEST = /(^|\/)(tests?|__tests__|e2e)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
-// Ce qui ne fait rien vivre : être décrit n'est pas être appelé.
+// What keeps nothing alive: being described is not being called.
 const DOC = /\.(md|mdx|markdown|rst|txt)$/;
-// Un export nommé, déclaré en tête de ligne. Ni l'export par défaut, ni une
-// liste `export { … }`, ni une déstructuration : ceux-là ne sont pas jugés.
+// A named export, declared at the start of a line. Neither the default export,
+// nor an `export { … }` list, nor a destructuring: those are not judged.
 const EXPORT = /^export\s+(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(?:function\s*\*?|const\s+enum|const|let|var|class|type|interface|enum|namespace)\s+([A-Za-z_$][\w$]*)/gm;
 const NOM = /[A-Za-z_$][\w$]*/g;
 
-// `tests` : les fichiers de test qui le référencent, quand eux seuls le font —
-// vide : rien ne le référence.
+// `tests`: the test files that reference it, when only they do — empty:
+// nothing references it.
 export type Mort = { chemin: string; ligne: number; nom: string; tests: string[] };
 
-// Les exports morts, fichier par fichier.
+// The dead exports, file by file.
 export function repererCodeMort(textes: Texte[]): Mort[] {
   const exports = textes
     .filter(({ chemin }) => MODULE.test(chemin))
     .flatMap(({ chemin, texte }) => [...texte.matchAll(EXPORT)].map((trouve) => ({ chemin, nom: trouve[1] ?? "", ligne: texte.slice(0, trouve.index).split("\n").length })));
-  // Pour chaque nom exporté, combien de fois chaque fichier l'écrit.
+  // For each exported name, how many times each file writes it.
   const ecrits = new Map<string, Map<string, number>>(exports.map(({ nom }) => [nom, new Map()]));
   for (const { chemin, texte } of textes) {
     if (DOC.test(chemin)) continue;
@@ -38,11 +38,11 @@ export function repererCodeMort(textes: Texte[]): Mort[] {
   return exports
     .flatMap(({ chemin, ligne, nom }): Mort[] => {
       const fichiers = ecrits.get(nom) ?? new Map<string, number>();
-      // Sa déclaration l'écrit une fois : au-delà, son fichier s'en sert.
+      // Its declaration writes it once: beyond that, its own file uses it.
       if ((fichiers.get(chemin) ?? 0) > 1) return [];
       const ailleurs = [...fichiers.keys()].filter((autre) => autre !== chemin);
       if (ailleurs.length === 0) return [{ chemin, ligne, nom, tests: [] }];
-      // L'aide d'un test vit des tests ; le reste, non.
+      // A test helper lives off the tests; the rest does not.
       return TEST.test(chemin) || !ailleurs.every((autre) => TEST.test(autre)) ? [] : [{ chemin, ligne, nom, tests: ailleurs.sort() }];
     })
     .sort((a, b) => a.chemin.localeCompare(b.chemin) || a.ligne - b.ligne);

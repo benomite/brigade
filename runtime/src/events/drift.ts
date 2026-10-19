@@ -1,12 +1,13 @@
-// Les faits de la dérive : les seuils que le chef déclare sur les mesures du
-// projet, et ce que le runtime dit quand l'une d'elles en franchit un.
+// The drift facts: the thresholds the chef declares on the project's measures,
+// and what the runtime says when one of them crosses one.
 
-// Un seuil vaut null tant que le chef ne l'a pas déclaré : rien n'est alors
-// signalé à ce titre. `growthPercent` porte sur la pente — la croissance d'une
-// mesure d'état sur les dix derniers merges —, les autres sur sa valeur.
-// `ticketTokens` et `lostTokens` portent sur le coût, des dix derniers merges :
-// les tokens du ticket le plus cher, et la somme de ceux des lancements qui
-// n'ont rien livré. Un journal écrit avant eux ne les porte pas : lus null.
+// A threshold is null while the chef has not declared it: nothing is then
+// reported on that account. `growthPercent` applies to the slope — the growth
+// of a state measure over the last ten merges —, the others to its value.
+// `ticketTokens` and `lostTokens` apply to the cost of the last ten merges:
+// the tokens of the most expensive ticket, and the sum of those of the
+// launches that delivered nothing. A log written before them does not carry
+// them: read as null.
 export type Seuils = {
   tests: number | null;
   testsSeconds: number | null;
@@ -17,21 +18,21 @@ export type Seuils = {
   growthPercent: number | null;
   ticketTokens?: number | null;
   lostTokens?: number | null;
-  // La part de tickets livrés du premier coup (en %) sous laquelle la file le
-  // dit, et la fenêtre de tickets servis qu'elle regarde. Non déclarés : 50 et
-  // 10 (`renvois.ts`). Un journal écrit avant eux ne les porte pas.
+  // The share of tickets delivered first try (in %) below which the queue says
+  // so, and the window of served tickets it looks at. When not declared: 50 and
+  // 10 (`renvois.ts`). A log written before them does not carry them.
   firstTryPercent?: number | null;
   firstTryWindow?: number | null;
 };
 
 export type FaitDerive =
-  // Les seuils en vigueur, écrits quand ils changent : c'est ici que `status`
-  // et `mesures` les lisent.
+  // The thresholds in force, written when they change: this is where `status`
+  // and `measures` read them.
   | { type: "drift.configured"; payload: { limits: Seuils } }
-  // Une mesure vient de franchir son seuil. Écrit une fois : rien ne le répète
-  // tant qu'elle reste au-delà. `measure` : la mesure, ou `growth:<mesure>`
-  // pour sa pente ; `observed`, `limit` : dans l'unité du seuil.
+  // A measure has just crossed its threshold. Written once: nothing repeats it
+  // while it stays beyond. `measure`: the measure, or `growth:<measure>` for
+  // its slope; `observed`, `limit`: in the threshold's unit.
   | { type: "drift.crossed"; payload: { measure: string; observed: number; limit: number } }
-  // Elle est repassée sous son seuil, ou le seuil n'est plus déclaré : un
-  // nouveau franchissement sera signalé.
+  // It went back under its threshold, or the threshold is no longer declared:
+  // a new crossing will be reported.
   | { type: "drift.cleared"; payload: { measure: string } };

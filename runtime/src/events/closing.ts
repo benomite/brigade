@@ -1,90 +1,88 @@
-// Les faits de la fermeture qui écrit : la passe que le chef commande, ce qui
-// la refuse, ce qu'elle tient pendant qu'elle range, et comment elle finit.
-// La fermeture qui observe n'en écrit aucun : elle ne touche à rien.
+// The facts of the closing that writes: the pass the chef commands, what
+// refuses it, what it holds while it tidies, and how it ends. The closing that
+// observes writes none: it touches nothing.
 import type { Calibrage } from "../calibrage.ts";
 
-// Les réglages d'une passe. `calibration` nul : le projet ne règle pas le
-// closer, aucune passe ne part. `cooksBelow` : la passe part quand moins de
-// cooks que cela sont en vol. `tokens`, `removedLines` : ses plafonds — ce
-// qu'elle peut consommer, et les lignes qu'elle peut retirer.
+// The settings of a pass. `calibration` null: the project does not set the
+// closer, no pass starts. `cooksBelow`: the pass starts when fewer cooks than
+// that are in flight. `tokens`, `removedLines`: its caps — what it may
+// consume, and the lines it may remove.
 export type ReglagesDeFermeture = { calibration: Calibrage | null; cooksBelow: number; tokens: number; removedLines: number };
 
-// Pourquoi une passe demandée n'est pas partie. `unconfigured` : le closer
-// n'est pas réglé. `busy` : une passe range déjà. `stopped`, `breaker` : le
-// « stop » du chef, le disjoncteur. `deploying` : une mise en service est
-// demandée, aucun cook ne part. `cooks` : sa condition d'exécution — trop
-// de cooks en vol (`observed`) pour son seuil (`limit`), et un rail qui n'est
-// pas vide. `zoneless` : un cook en vol ne déclare aucune zone, la passe ne
-// peut pas savoir ce qu'il tient. `deploying`, `cooks` et `zoneless` ne
-// refusent pas une demande : ils la font attendre. `depot` : la base ne se lit pas. `nothing` :
-// rien de ce que l'observation repère n'est hors de ce que les cooks tiennent.
-// `restarted` : le runtime a redémarré avant de la prendre — une passe ne part
-// pas d'une demande d'une autre vie, elle se redemande.
+// Why a requested pass did not start. `unconfigured`: the closer is not set.
+// `busy`: a pass is already tidying. `stopped`, `breaker`: the chef's "stop",
+// the breaker. `deploying`: a go-live is requested, no cook starts. `cooks`:
+// its run condition — too many cooks in flight (`observed`) for its threshold
+// (`limit`), or a rail that is not empty. `zoneless`: a cook in flight
+// declares no zone, so the pass cannot know what it holds. `deploying`,
+// `cooks` and `zoneless` do not refuse a request: they make it wait. `depot`:
+// the base cannot be read. `nothing`: nothing the observation spots is outside
+// what the cooks hold. `restarted`: the runtime restarted before taking it —
+// a pass does not start from a request of another life, it is requested again.
 export type MotifDeRefus = "unconfigured" | "busy" | "stopped" | "breaker" | "deploying" | "cooks" | "zoneless" | "depot" | "nothing" | "restarted";
 
-// Ce qui retient une demande sans la refuser : elle attend que ça passe.
+// What holds a request back without refusing it: it waits for that to clear.
 export type MotifDAttente = Extract<MotifDeRefus, "deploying" | "cooks" | "zoneless">;
 export const MOTIFS_D_ATTENTE: readonly MotifDAttente[] = ["deploying", "cooks", "zoneless"];
 
-// Au-delà, une demande qui attend est dite sans issue : deux fois le plafond de
-// durée d'un cook par défaut — deux cooks entiers se sont succédé sans laisser
-// passer la passe, le rail ne se videra pas seul.
+// Beyond this, a waiting request is said to have no way out: twice the default
+// duration cap of a cook — two whole cooks followed each other without letting
+// the pass through, the rail will not empty on its own.
 export const SANS_ISSUE_MS = 2 * 60 * 60 * 1000;
 
-// Comment une passe a fini. `delivered` : ce qu'elle a retiré est dans une PR.
-// `nothing` : elle n'a rien retiré. `tokens`, `removals`, `idle`, `duration`,
-// `turns` : un garde-fou l'a arrêtée. `stop` : le chef. `breaker` : le
-// disjoncteur s'est ouvert pendant qu'elle rangeait. `zone` : elle a écrit hors
-// de ce qu'elle tenait, ou dans ce qu'un cook tient — rien n'est livré.
-// `failed` : son cook a échoué, ou sa livraison n'a pas pu partir.
-// `interrupted` : le runtime est mort pendant qu'elle rangeait.
+// How a pass ended. `delivered`: what it removed is in a PR. `nothing`: it
+// removed nothing. `tokens`, `removals`, `idle`, `duration`, `turns`: a
+// guardrail stopped it. `stop`: the chef. `breaker`: the breaker opened while
+// it was tidying. `zone`: it wrote outside what it held, or in what a cook
+// holds — nothing is delivered. `failed`: its cook failed, or its delivery
+// could not go out. `interrupted`: the runtime died while it was tidying.
 export type FinDePasse = "delivered" | "nothing" | "tokens" | "removals" | "idle" | "duration" | "turns" | "stop" | "breaker" | "zone" | "failed" | "interrupted";
 
-// Un candidat de l'observation que la passe n'a pas retiré : lequel, et
-// pourquoi. `before` : écarté avant qu'elle ne parte — un cook le tenait, ou
-// la passe en avait déjà assez ; sinon c'est le closer qui l'a laissé, faute
-// d'être sûr. `reason` nul : il n'a pas dit pourquoi.
+// A candidate from the observation that the pass did not remove: which, and
+// why. `before`: set aside before it started — a cook held it, or the pass
+// already had enough; otherwise the closer left it, for lack of certainty.
+// `reason` null: it did not say why.
 export type Laisse = { id: string; what: string; reason: string | null; before: boolean };
 
-// Un candidat que la passe a retiré : lequel, et ce que l'observation en
-// disait — où il était, et pourquoi il était à retirer.
+// A candidate the pass removed: which, and what the observation said about it
+// — where it was, and why it was to be removed.
 export type Retrait = { id: string; what: string };
 
-// Ce que les `merges` derniers merges de la base ont ajouté et retiré, dans
-// une fenêtre de `window` merges, à l'instant où la passe est partie.
+// What the last `merges` merges of the base added and removed, in a window of
+// `window` merges, at the moment the pass started.
 export type Pente = { window: number; merges: number; added: number; removed: number };
 
 export type FaitFermeture =
-  // Les réglages en vigueur, écrits quand ils changent : c'est ici que la
-  // commande du chef les lit.
+  // The settings in force, written when they change: this is where the chef's
+  // command reads them.
   | { type: "closing.configured"; payload: ReglagesDeFermeture }
-  // Le geste du chef : lui seul fait partir une passe qui écrit. Aucun autre
-  // fait ne la lance — ni un seuil franchi, ni une horloge. Elle attend que
-  // sa condition d'exécution soit remplie, et part alors, une fois.
+  // The chef's gesture: only it starts a pass that writes. No other fact
+  // launches it — neither a crossed threshold nor a clock. It waits until its
+  // run condition is met, and then starts, once.
   | { type: "closing.requested"; payload: Record<string, never> }
-  // Le chef renonce à la demande qui attend : rien n'est parti.
+  // The chef gives up the waiting request: nothing started.
   | { type: "closing.cancelled"; payload: Record<string, never> }
-  // La demande attend depuis `SANS_ISSUE_MS` : le runtime le dit, une fois,
-  // avec ce qui la retient à cet instant. Elle attend toujours.
+  // The request has been waiting for `SANS_ISSUE_MS`: the runtime says so,
+  // once, with what holds it back at that moment. It is still waiting.
   | { type: "closing.stalled"; payload: { requestedAt: string; reason: MotifDAttente; observed: number | null; limit: number | null; detail: string | null } }
-  // La passe demandée ne part pas — refusée par la commande du chef, ou par
-  // le runtime si la cuisine a changé entre-temps. `detail` : ce qui précise
-  // le motif — les tickets en cause, combien le rail en porte, ce que git a dit.
+  // The requested pass does not start — refused by the chef's command, or by
+  // the runtime if the kitchen changed in the meantime. `detail`: what
+  // specifies the reason — the tickets involved, how many the rail carries,
+  // what git said.
   | { type: "closing.refused"; payload: { reason: MotifDeRefus; observed: number | null; limit: number | null; detail: string | null } }
-  // La passe part. `base` : le commit de la branche d'intégration dont elle
-  // part. `zone` : les fichiers qu'elle tient tant qu'elle range — aucun cook
-  // ne démarre dessus, et elle n'écrit nulle part ailleurs. `held` : les
-  // chemins que des cooks tenaient, et qu'elle s'interdit. `candidates` : ce
-  // que l'observation lui propose.
+  // The pass starts. `base`: the commit of the integration branch it starts
+  // from. `zone`: the files it holds while it tidies — no cook starts on them,
+  // and it writes nowhere else. `held`: the paths that cooks held, and that it
+  // forbids itself. `candidates`: what the observation proposes to it.
   | { type: "closing.started"; payload: { run: string; base: string; zone: string[]; held: string[]; candidates: number; limits: { tokens: number; removedLines: number } } }
-  // La fin. `observed`, `limit` : la mesure et le plafond du garde-fou qui l'a
-  // arrêtée. `files` : ce qu'elle a écrit — ou, sur `zone`, ce qu'elle n'avait
-  // pas à écrire. `kept` : ce qu'elle n'a pas retiré, avec son motif.
-  // `removed` : ce qu'elle a retiré de ce qui lui était proposé. `addedLines` :
-  // les lignes qu'elle a ajoutées, en regard de `removedLines`. `slope` : la
-  // pente de la base dont elle est partie — de quoi dire, sur les mêmes
-  // merges, ce que la passe y change. Une passe finie avant que le bilan
-  // n'existe ne porte aucun des trois.
+  // The end. `observed`, `limit`: the measure and the cap of the guardrail
+  // that stopped it. `files`: what it wrote — or, on `zone`, what it should
+  // not have written. `kept`: what it did not remove, with its reason.
+  // `removed`: what it removed of what was proposed to it. `addedLines`: the
+  // lines it added, set against `removedLines`. `slope`: the slope of the base
+  // it started from — enough to say, over the same merges, what the pass
+  // changes there. A pass finished before the tally existed carries none of
+  // the three.
   | {
       type: "closing.ended";
       payload: {

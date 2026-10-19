@@ -1,39 +1,39 @@
-// Ce que le geste d'installation de la box journalise : chaque appel, accepté
-// ou refusé. Il tourne en root, hors de tout projet : son journal est à la box
-// (`installateur.ts`), pas à un projet. L'enveloppe porte qui (`author`, le
-// compte appelant), quand (`at`) et quel projet (`project`).
+// What the box's installation command logs: every call, accepted or refused.
+// It runs as root, outside any project: its log belongs to the box
+// (`installateur.ts`), not to a project. The envelope carries who (`author`,
+// the calling account), when (`at`) and which project (`project`).
 
-// Ce que l'appelant a tapé, borné : ni un contenu de fichier ni une ligne sans
-// fin n'entrent au journal en entier.
+// What the caller typed, bounded: neither a file's contents nor an endless
+// line enter the log in full.
 export type AppelDInstallateur = {
-  // La sous-commande tapée, ou null s'il n'y en avait pas.
+  // The subcommand typed, or null if there was none.
   action: string | null;
-  // Les arguments, tels que reçus — chacun coupé, et leur nombre aussi.
+  // The arguments, as received — each one cut, and their number too.
   args: string[];
 };
 
 export type FaitInstallateur =
-  // Un appel accepté, écrit avant le premier geste sur la box : ce qui suit
-  // dit ce qu'il est devenu. Sans suite, le geste a été coupé net.
+  // An accepted call, written before the first action on the box: what follows
+  // says what it became. With no follow-up, the action was cut short.
   | { type: "installer.started"; payload: AppelDInstallateur & { result: "started" } }
-  // Un plan de désinstallation, rendu : rien n'a été écrit sur la box.
+  // An uninstall plan, returned: nothing was written on the box.
   | { type: "installer.planned"; payload: AppelDInstallateur & { result: "planned" } }
-  // Il a abouti.
+  // It succeeded.
   | {
       type: "installer.used";
       payload: AppelDInstallateur &
         (
-          | // `ports` : celui qu'il a attribué à la porte du projet, et celui de
-            // l'arbitre de la box, lu — null si la box n'en a pas.
+          | // `ports`: the one it assigned to the project's door, and the one of
+            // the box's arbiter, read — null if the box has none.
             { result: "installed"; ports: { porte: number; arbitre: number | null } }
-          | // `ports` : ceux que le projet déclarait, que la box peut réattribuer.
-            // `journal` : l'état du projet, gardé ou supprimé avec lui.
+          | // `ports`: those the project declared, which the box may reassign.
+            // `journal`: the project's state, kept or deleted with it.
             { result: "uninstalled"; ports: number[]; journal: "kept" | "removed" }
         );
     }
-  // Il n'a pas abouti. Une installation — `undone` : tout ce qu'elle avait posé
-  // a été retiré. Une désinstallation — `removed` : ce qu'elle a retiré avant
-  // de s'arrêter, `left` : ce qui reste du projet sur la box.
+  // It did not succeed. An installation — `undone`: everything it had put in
+  // place was removed. An uninstall — `removed`: what it removed before
+  // stopping, `left`: what remains of the project on the box.
   | { type: "installer.failed"; payload: AppelDInstallateur & { result: "failed"; reason: string } & ({ undone: boolean } | { removed: string[]; left: string[] }) }
-  // Un appel refusé : rien n'a été écrit sur la box. `reason` : le motif.
+  // A refused call: nothing was written on the box. `reason`: the reason.
   | { type: "installer.refused"; payload: AppelDInstallateur & { result: "refused"; reason: string } };

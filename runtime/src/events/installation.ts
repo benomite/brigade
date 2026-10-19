@@ -1,8 +1,8 @@
-// Les faits de l'installation d'un projet : où en est chacune de ses étapes
-// (`etapes.ts`). `step` : l'identifiant de l'étape. `previous` : l'état que le
-// journal lui donnait avant — `todo` pour une étape jamais notée.
+// The facts of a project's installation: where each of its steps stands
+// (`etapes.ts`). `step`: the step's identifier. `previous`: the state the log
+// gave it before — `todo` for a step never noted.
 export type EtatDEtape = "todo" | "done" | "waiting";
 
 export type FaitInstallation =
-  // Une étape change d'état : faite, en attente du chef, ou de nouveau à faire.
+  // A step changes state: done, waiting on the chef, or to do again.
   { type: "installation.step"; payload: { step: string; state: EtatDEtape; previous: EtatDEtape } };

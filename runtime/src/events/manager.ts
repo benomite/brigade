@@ -1,14 +1,14 @@
-// Les faits du manager : l'interrupteur que le chef tient, et chaque décision
-// prise sur une issue — écartée par le code, jugée par le LLM —, avec son
-// motif, puis ce qui en a été posé et dit sur GitHub.
+// The manager's facts: the switch the chef holds, and each decision taken on
+// an issue — set aside by the code, judged by the LLM —, with its reason, then
+// what was put and said about it on GitHub.
 
 import { geste } from "../geste.ts";
-// Ce qu'une issue est, d'après le jugement. Seul `ticket` entre sur le rail.
-// `incomplete` : une unité de travail, mais à laquelle il manque de quoi partir.
+// What an issue is, according to the judgment. Only `ticket` goes onto the rail.
+// `incomplete`: a unit of work, but one that lacks what it needs to start.
 export const NATURES = ["ticket", "epic", "question", "decision", "incomplete"] as const;
 export type Nature = (typeof NATURES)[number];
 
-// Chaque nature telle qu'elle se dit au chef, en français : les commentaires que le manager pose sur GitHub.
+// Each nature as it is told to the chef, in French: the comments the manager puts on GitHub.
 export const NOMS_DE_NATURE: Record<Nature, string> = {
   ticket: "un ticket",
   epic: "une épique",
@@ -17,7 +17,7 @@ export const NOMS_DE_NATURE: Record<Nature, string> = {
   incomplete: "un ticket incomplet",
 };
 
-// Les mêmes, en anglais : ce que `manager` et `manager upstream` en disent.
+// The same, in English: what `manager` and `manager upstream` say of them.
 export const NOMS_DE_NATURE_EN: Record<Nature, string> = {
   ticket: "a ticket",
   epic: "an epic",
@@ -26,52 +26,53 @@ export const NOMS_DE_NATURE_EN: Record<Nature, string> = {
   incomplete: "an incomplete ticket",
 };
 
-// Pourquoi le code écarte une issue sans la faire juger. `chef-changed` : le
-// manager y a déjà posé des labels, et le chef en a retiré depuis — tout ce
-// qu'elle porte est désormais à lui.
-// `already-split` : une épique dont le corps porte déjà la liste de ses tickets,
-// sans que le journal sache l'avoir découpée — elle l'a été à la main.
+// Why the code sets an issue aside without having it judged. `chef-changed`:
+// the manager already put labels on it, and the chef has removed some since —
+// everything it carries is now his.
+// `already-split`: an epic whose body already carries the list of its tickets,
+// without the log knowing it was split — it was done by hand.
 export type Ecart = "roadmap" | "epic" | "question" | "decision" | "blocked-on-human" | "hors-cuisine" | "untrusted-author" | "chef-changed" | "already-split";
 
-// La commande par laquelle le chef rend au manager une issue écartée
-// `chef-changed`, telle qu'elle se dit sur l'issue et dans le relevé.
+// The command by which the chef hands a `chef-changed` issue back to the
+// manager, as it is told on the issue and in the report.
 export const commandeRendre = (numero: number) => geste(`manager return ${numero}`);
 
-// Un ticket tel que le découpage le prévoit, avant qu'il n'existe sur GitHub.
-// `waitsFor` : les rangs, à partir de 1, des tickets du même découpage qu'il
-// attend — toujours plus petits que le sien, c'est ce qui fait l'ordre.
+// A ticket as the split plans it, before it exists on GitHub.
+// `waitsFor`: the ranks, from 1, of the tickets of the same split that it
+// awaits — always smaller than its own, which is what makes the order.
 export type TicketPrevu = {
   title: string;
   context: string;
   criteria: string[];
   waitsFor: number[];
   zone: string[];
-  // Les capacités que le ticket demande à sa station, s'il en demande.
+  // The capabilities the ticket asks of its station, if it asks for any.
   requires?: string[];
-  // Ceux de ses `waitsFor` que le code a ajoutés au découpage : sa zone
-  // recouvrait la leur sans qu'il les attende. `path` : le chemin en commun.
+  // Those of its `waitsFor` that the code added to the split: its zone
+  // overlapped theirs without it awaiting them. `path`: the shared path.
   overlaps?: { index: number; path: string }[];
   model: string;
   effort: string;
   calibration: string;
-  // Un ticket d'interface est cuisiné par le cook design. Absent : le cook
-  // ordinaire.
+  // An interface ticket is cooked by the design cook. Absent: the ordinary
+  // cook.
   cook?: "design";
 };
 
-// Ce que le manager fait d'un ticket que la pass lui a passé. `retry` : le
-// second renvoi, au même calibrage — rien ne pouvait monter. `raise` : il monte
-// le calibrage. `split` : il le redécoupe. `escalate` : il le remonte au chef.
+// What the manager does with a ticket the pass handed to it. `retry`: the
+// second return, at the same calibration — nothing could go up. `raise`: it
+// raises the calibration. `split`: it splits it again. `escalate`: it takes it
+// up to the chef.
 export type ChoixDeReaction = "retry" | "raise" | "split" | "escalate";
 
-// La réaction du manager à un ticket rouge. L'enveloppe porte son numéro.
+// The manager's reaction to a red ticket. The envelope carries its number.
 export type FaitReaction =
-  // Le choix, et son motif : c'est ici que le chef lit « pourquoi ce ticket
-  // a-t-il été découpé ? ». `verdict` : le numéro de séquence du `pass.judged`
-  // auquel il répond — le même ne se décide pas deux fois. `returns` : les
-  // renvois déjà consommés. `run` : le jugement qui a choisi, nul quand le
-  // code a tranché seul. `from`, `to` : le calibrage, avant et après une
-  // montée. `proposal` : ce qu'il propose au chef, quand il remonte.
+  // The choice, and its reason: this is where the chef reads "why was this
+  // ticket split?". `verdict`: the sequence number of the `pass.judged` it
+  // answers — the same one is not decided twice. `returns`: the returns
+  // already consumed. `run`: the judgment that chose, null when the code
+  // decided alone. `from`, `to`: the calibration, before and after a raise.
+  // `proposal`: what it proposes to the chef, when it escalates.
   | {
       type: "manager.reacted";
       payload: {
@@ -85,27 +86,27 @@ export type FaitReaction =
         to: { model: string; effort: string } | null;
       };
     }
-  // Les labels de calibrage changés par une montée, écrit une fois GitHub
-  // servi. `added` : ceux-là sont au manager, il pourra les remplacer encore.
+  // The calibration labels changed by a raise, written once GitHub has been
+  // served. `added`: those belong to the manager, it may replace them again.
   | { type: "manager.raised"; payload: { added: string[]; removed: string[] } }
-  // La réaction est dite sur l'issue.
+  // The reaction is told on the issue.
   | { type: "manager.reaction-commented"; payload: Record<string, never> };
 
 export type FaitManager =
   | FaitReaction
-  // Les commandes du chef. Sans `manager.enabled`, le manager ne juge rien.
+  // The chef's commands. Without `manager.enabled`, the manager judges nothing.
   | { type: "manager.enabled"; payload: Record<string, never> }
   | { type: "manager.disabled"; payload: Record<string, never> }
-  // Le code a tranché, sans LLM. `fired` : l'issue porte `fire`, posé par le
-  // chef — le manager ne le retire pas, et ne la calibre pas. `lacking`, sur
-  // un `chef-changed` : ce qui manque à l'issue pour être lancée et calibrée
-  // (`fire`, `model:`, `effort:`) au moment de l'écart.
+  // The code decided, without an LLM. `fired`: the issue carries `fire`, put
+  // there by the chef — the manager does not remove it, and does not calibrate
+  // it. `lacking`, on a `chef-changed`: what the issue lacks to be launched
+  // and calibrated (`fire`, `model:`, `effort:`) at the time it was set aside.
   | { type: "manager.set-aside"; payload: { reason: Ecart; fired: boolean; lacking?: string[] } }
-  // Le LLM a jugé. `run` : le jugement, dont le calibrage et le coût sont dans
-  // son `cook.launched` et son `cook.exited`. `fingerprint` : l'empreinte de
-  // ce qui a été jugé — la même ne se rejuge pas. `reason` : le motif.
-  // `missing` : ce qui rendrait exécutable une issue refusée. `calibration` :
-  // pourquoi ce modèle et cet effort.
+  // The LLM judged. `run`: the judgment, whose calibration and cost are in its
+  // `cook.launched` and its `cook.exited`. `fingerprint`: the fingerprint of
+  // what was judged — the same one is not judged again. `reason`: the reason.
+  // `missing`: what would make a refused issue executable. `calibration`: why
+  // this model and this effort.
   | {
       type: "manager.judged";
       payload: {
@@ -120,64 +121,66 @@ export type FaitManager =
         calibration: string | null;
       };
     }
-  // Le jugement est allé à son terme, mais sa réponse ne se lit pas : rien
-  // n'est posé. Un jugement qui n'a pas abouti (panne, garde-fou) n'écrit rien
-  // ici : il est retenté.
+  // The judgment ran to its end, but its answer cannot be read: nothing is
+  // put. A judgment that did not complete (outage, guardrail) writes nothing
+  // here: it is retried.
   | { type: "manager.failed"; payload: { run: string; fingerprint: string; reason: string } }
-  // Ce que le manager a posé sur l'issue, écrit une fois GitHub servi : c'est
-  // la seule mémoire de ce qui vient de lui — tout autre label est au chef.
+  // What the manager put on the issue, written once GitHub has been served:
+  // it is the only memory of what comes from it — every other label is the
+  // chef's.
   | { type: "manager.labeled"; payload: { labels: string[] } }
-  // La décision est dite sur l'issue.
+  // The decision is told on the issue.
   | { type: "manager.commented"; payload: Record<string, never> }
-  // Le chef rend au manager une issue écartée `chef-changed` : le manager
-  // oublie ce qu'il en avait décidé et ce qu'il y avait posé, et la rejuge.
-  // Une remise vaut pour un jugement : écartée de nouveau, il en faut une autre.
+  // The chef hands a `chef-changed` issue back to the manager: the manager
+  // forgets what it had decided about it and what it had put on it, and judges
+  // it again. A handback is good for one judgment: set aside again, it takes
+  // another.
   | { type: "manager.handed-back"; payload: Record<string, never> }
-  // Les labels de calibrage que le manager avait posés sur une issue rendue,
-  // et qu'il en a retirés avant de la rejuger, écrit une fois GitHub servi.
+  // The calibration labels the manager had put on a handed-back issue, and
+  // removed before judging it again, written once GitHub has been served.
   | { type: "manager.withdrew"; payload: { labels: string[] } }
-  // Une issue dont le manager attendait le chef — écartée, jugement ou
-  // découpage illisible, question posée sur une épique — a quitté la liste des
-  // issues ouvertes : le chef a tranché en la fermant. Écrit une fois.
+  // An issue on which the manager was awaiting the chef — set aside, an
+  // unreadable judgment or split, a question asked on an epic — has left the
+  // list of open issues: the chef decided by closing it. Written once.
   | { type: "manager.closed"; payload: Record<string, never> }
-  // Elle y est revenue telle qu'elle en était partie : elle attend de nouveau.
+  // It came back as it had left: it is awaiting again.
   | { type: "manager.reopened"; payload: Record<string, never> }
-  // --- Le découpage d'une épique. Sauf mention contraire, l'enveloppe porte le
-  // numéro de l'épique.
+  // --- The split of an epic. Unless stated otherwise, the envelope carries the
+  // epic's number.
   //
-  // Le LLM a découpé : c'est l'intention, écrite avant tout appel à GitHub.
-  // `reason` : pourquoi ces tickets-là ; `order` : pourquoi cet ordre. Une
-  // épique qui porte ce fait n'est plus jamais rejugée.
+  // The LLM split: this is the intent, written before any call to GitHub.
+  // `reason`: why these tickets; `order`: why this order. An epic that carries
+  // this fact is never judged again.
   | { type: "manager.split"; payload: { run: string; fingerprint: string; reason: string; order: string; tickets: TicketPrevu[] } }
-  // Le LLM ne découpe pas ce qu'il ne comprend pas : il pose une question au
-  // chef. L'épique est relue quand elle change.
+  // The LLM does not split what it does not understand: it asks the chef a
+  // question. The epic is re-read when it changes.
   | { type: "manager.split-asked"; payload: { run: string; fingerprint: string; question: string } }
-  // Le LLM lit que l'épique liste déjà ses tickets : rien n'est créé.
+  // The LLM reads that the epic already lists its tickets: nothing is created.
   | { type: "manager.split-skipped"; payload: { run: string; fingerprint: string; reason: string } }
-  // Le découpage est allé à son terme, mais sa réponse ne se lit pas.
+  // The split ran to its end, but its answer cannot be read.
   | { type: "manager.split-failed"; payload: { run: string; fingerprint: string; reason: string } }
-  // Le ticket de rang `index` va être créé : écrit avant l'appel. Sans
-  // `split-created` derrière lui, rien ne dit si GitHub l'a créé — il se
-  // cherche avant d'être recréé.
+  // The ticket of rank `index` is about to be created: written before the
+  // call. Without `split-created` behind it, nothing says whether GitHub
+  // created it — it is looked for before being created again.
   | { type: "manager.split-creating"; payload: { index: number } }
-  // L'enveloppe porte le numéro du ticket né. `reconciled` : retrouvé sur
-  // GitHub après une création dont le fait manquait.
+  // The envelope carries the number of the ticket born. `reconciled`: found on
+  // GitHub after a creation whose fact was missing.
   | { type: "manager.split-created"; payload: { epic: number; index: number; reconciled: boolean } }
-  // Sa fiche est posée, puis `fire` : il est sur le rail. Enveloppe : le ticket.
+  // Its card is put in place, then `fire`: it is on the rail. Envelope: the ticket.
   | { type: "manager.split-fired"; payload: { epic: number; index: number } }
-  // Tous les tickets prévus existent et sont lancés.
+  // All the planned tickets exist and are launched.
   | { type: "manager.split-done"; payload: Record<string, never> }
-  // Ce que le manager avait à dire du découpage est dit sur l'épique.
+  // What the manager had to say about the split is told on the epic.
   | { type: "manager.split-commented"; payload: Record<string, never> }
-  // Un ticket que le chef a rattaché lui-même à une épique découpée, par la
-  // ligne « Épique : #N » de son corps. Enveloppe : le ticket.
+  // A ticket the chef himself attached to a split epic, by the `Épique : #N`
+  // line of its body. Envelope: the ticket.
   | { type: "manager.split-adopted"; payload: { epic: number; title: string } }
-  // Un ticket d'une épique a quitté la liste des issues ouvertes, ou y est
-  // revenu. Enveloppe : le ticket.
+  // A ticket of an epic has left the list of open issues, or come back to it.
+  // Envelope: the ticket.
   | { type: "manager.split-seen"; payload: { epic: number; open: boolean } }
-  // La liste des tickets est écrite dans le corps de l'épique. `digest` :
-  // l'empreinte de ce qui y est écrit — la même ne se réécrit pas.
+  // The list of tickets is written in the epic's body. `digest`: the
+  // fingerprint of what is written there — the same one is not rewritten.
   | { type: "manager.split-listed"; payload: { digest: string } }
-  // Tous les tickets de l'épique sont servis : elle est fermée, avec la liste
-  // de ses tickets et de leurs PR. Écrit une fois GitHub servi.
+  // All the epic's tickets are served: it is closed, with the list of its
+  // tickets and their PRs. Written once GitHub has been served.
   | { type: "manager.split-served"; payload: Record<string, never> };

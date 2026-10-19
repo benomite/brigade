@@ -1,8 +1,8 @@
-// Ce que le journal sait de la lourdeur du projet, livraison mergée par
-// livraison mergée : les mesures que ses gates ont déclarées, et ce que ses
-// cooks ont consommé. S'y ajoutent les seuils du chef et les franchissements
-// déjà signalés. Rien n'est relevé à part : tout vient des faits de la pass et
-// des garde-fous.
+// What the log knows about the weight of the project, merged delivery by
+// merged delivery: the measures its gates declared, and what its cooks used
+// up. To this are added the chief's thresholds and the crossings already
+// flagged. Nothing is recorded separately: everything comes from the events of
+// the pass and of the guardrails.
 import type { Base } from "../base.ts";
 import type { Fait } from "../evenements.ts";
 import type { Seuils } from "../events/drift.ts";
@@ -14,26 +14,26 @@ type Ecoutes = Extract<
   { type: "pass.judged" | "pass.replayed" | "merge.done" | "cook.launched" | "cook.exited" | "drift.configured" | "drift.crossed" | "drift.cleared" }
 >;
 
-// Un cook de ticket. `calibration` : `<modèle>/<effort>`, ou null pour un cook
-// lancé sans calibrage connu. `turns`, `durationMs` : nuls tant qu'il tourne,
-// ou s'il est mort avec le runtime. `tokens` : ce que ce cook a consommé, nul
-// de même. `delivered` : il a livré — son `cook.exited` dit `ok`, la fin que
-// sa station donne au cook dont elle envoie le travail en pass. Faux pour
-// toute autre fin, tant qu'il tourne, ou s'il est mort avec le runtime.
-// `resumed` : le cook d'un renvoi qui a repris la session du cook précédent
-// au lieu de repartir de zéro (`resumes` à son lancement) — absent sinon.
+// A ticket cook. `calibration`: `<model>/<effort>`, or null for a cook
+// launched without a known calibration. `turns`, `durationMs`: null while it
+// runs, or if it died with the runtime. `tokens`: what this cook used up,
+// likewise null. `delivered`: it delivered — its `cook.exited` says `ok`, the
+// ending its station gives to the cook whose work it sends to the pass. False
+// for any other ending, while it runs, or if it died with the runtime.
+// `resumed`: the cook of a send-back that resumed the previous cook's session
+// instead of starting from scratch (`resumes` at its launch) — absent otherwise.
 export type CookMesure = { calibration: string | null; turns: number | null; durationMs: number | null; tokens: number | null; delivered: boolean; resumed?: true };
 
-// Une livraison mergée. `measures` : ce que ses dernières gates ont déclaré.
-// `state` : celles de ces mesures qui disent l'état du projet après son merge —
-// toutes, sauf quand ses gates ont été jouées avant celles d'une livraison
-// mergée plus tôt : une livraison jugée, mise en attente, puis mergée à la
-// main derrière une autre ne sait rien de ce que l'autre a ajouté, et ne
-// conclut pas. `gatesS` : la durée de toutes ses gates, renvois et rejugements
-// compris, ou null si aucune ne l'a déclarée. `overCeiling` : le plafond de
-// durée que ses dernières gates ont franchi, sans que la pass le juge — absent
-// si elles ne l'ont pas franchi.
-export type Livraison = {
+// A merged delivery. `measures`: what its latest gates declared.
+// `state`: those of these measures that tell the state of the project after
+// its merge — all of them, except when its gates were run before those of a
+// delivery merged earlier: a delivery judged, put on hold, then merged by hand
+// behind another knows nothing of what the other added, and concludes
+// nothing. `gatesS`: the duration of all its gates, send-backs and re-judgments
+// included, or null if none declared it. `overCeiling`: the duration ceiling
+// its latest gates crossed, without the pass judging it — absent if they did
+// not cross it.
+export type Delivery = {
   ticket: number | null;
   at: string;
   measures: Record<string, number>;
@@ -43,12 +43,12 @@ export type Livraison = {
   overCeiling?: Depassement;
 };
 
-// Les stations sous lesquelles la pass et le manager lancent leurs cooks : ni
-// une relecture ni un jugement ne cuisine un ticket.
+// The stations under which the pass and the manager launch their cooks:
+// neither a review nor a judgment cooks a ticket.
 const HORS_TICKET = ["reviewer", "manager"];
 
-// Chaque passage de gates d'un ticket, qu'il ait déclaré des mesures ou non :
-// le dernier dit si la livraison franchit son plafond de durée.
+// Each gates run of a ticket, whether or not it declared measures: the last
+// one says whether the delivery crosses its duration ceiling.
 const noterGates = (base: Base, seq: number, ticket: number | null, gates: Gates | undefined) => {
   if (ticket === null) return;
   const { measures, overCeiling } = gates ?? {};
@@ -56,7 +56,7 @@ const noterGates = (base: Base, seq: number, ticket: number | null, gates: Gates
   base.executer("INSERT INTO measured_gates (seq, ticket, measures, over_ceiling) VALUES (?, ?, ?, ?)", seq, ticket, dire(measures), dire(overCeiling));
 };
 
-export const mesures = definirProjection<Ecoutes>({
+export const measures = definirProjection<Ecoutes>({
   nom: "mesures",
   tables: ["measured_gates", "measured_cooks", "measured_merges", "drift_limits", "drift_flags"],
   schema: `
@@ -132,10 +132,10 @@ export const mesures = definirProjection<Ecoutes>({
   },
 });
 
-// Les livraisons mergées, dans l'ordre de leur merge. À chacune reviennent les
-// gates et les cooks de son ticket depuis le merge précédent de ce même
-// ticket : un ticket servi deux fois fait deux livraisons.
-export function livraisonsMergees(base: Base): Livraison[] {
+// The merged deliveries, in merge order. Each gets the gates and cooks of its
+// ticket since the previous merge of that same ticket: a ticket served twice
+// makes two deliveries.
+export function mergedDeliveries(base: Base): Delivery[] {
   const gates = base.lire<{ seq: number; ticket: number; measures: string | null; franchi: string | null }>(
     "SELECT seq, ticket, measures, over_ceiling AS franchi FROM measured_gates ORDER BY seq",
   );
@@ -143,14 +143,14 @@ export function livraisonsMergees(base: Base): Livraison[] {
     "SELECT ticket, launched_seq AS seq, calibration, turns, duration_ms AS durationMs, tokens, delivered, resumed FROM measured_cooks ORDER BY launched_seq",
   );
   const precedents = new Map<number, number>();
-  // Par mesure, le passage de gates le plus récent qui l'a déclarée parmi les
-  // livraisons déjà mergées.
+  // Per measure, the most recent gates run that declared it among the
+  // deliveries already merged.
   const connues = new Map<string, number>();
   return base.lire<{ seq: number; ticket: number | null; at: string }>("SELECT seq, ticket, at FROM measured_merges ORDER BY seq").map((merge) => {
-    const depuis = merge.ticket === null ? 0 : (precedents.get(merge.ticket) ?? 0);
+    const since = merge.ticket === null ? 0 : (precedents.get(merge.ticket) ?? 0);
     if (merge.ticket !== null) precedents.set(merge.ticket, merge.seq);
     const siennes = <L extends { ticket: number; seq: number }>(lignes: L[]) =>
-      lignes.filter((ligne) => ligne.ticket === merge.ticket && ligne.seq > depuis && ligne.seq < merge.seq);
+      lignes.filter((ligne) => ligne.ticket === merge.ticket && ligne.seq > since && ligne.seq < merge.seq);
     const jouees = siennes(gates);
     const franchi = jouees.at(-1)?.franchi ?? null;
     const passages = jouees.filter((ligne) => ligne.measures !== null);
@@ -179,13 +179,13 @@ export function livraisonsMergees(base: Base): Livraison[] {
   });
 }
 
-// Les seuils déclarés, ou null tant qu'aucun runtime n'a démarré avec eux.
+// The declared thresholds, or null as long as no runtime has started with them.
 export function seuilsEnVigueur(base: Base): Seuils | null {
   const ligne = base.lire<{ limits: string }>("SELECT limits FROM drift_limits WHERE id = 1")[0];
   return ligne ? JSON.parse(ligne.limits) : null;
 }
 
-// Les mesures dont le franchissement a été signalé, et qui n'en sont pas revenues.
+// The measures whose crossing was flagged, and which have not come back.
 export function signalements(base: Base): string[] {
   return base.lire<{ measure: string }>("SELECT measure FROM drift_flags ORDER BY measure").map(({ measure }) => measure);
 }

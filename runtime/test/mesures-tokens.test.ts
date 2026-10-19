@@ -3,11 +3,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { decrireReleve, trancher } from "../src/mesures.ts";
-import type { CookMesure, Livraison } from "../src/projections/measures.ts";
+import type { CookMesure, Delivery } from "../src/projections/measures.ts";
 import { JOUR_HORLOGE } from "./outils.ts";
 
 const cook = (calibration: string | null, tokens: number | null): CookMesure => ({ calibration, turns: 5, durationMs: 1000, tokens, delivered: true });
-const livraison = (ticket: number | null, cooks: CookMesure[]): Livraison => ({ ticket, at: `${JOUR_HORLOGE}T10:00:00.000Z`, measures: {}, state: {}, gatesS: null, cooks });
+const livraison = (ticket: number | null, cooks: CookMesure[]): Delivery => ({ ticket, at: `${JOUR_HORLOGE}T10:00:00.000Z`, measures: {}, state: {}, gatesS: null, cooks });
 
 test("les tokens d'un ticket sont la somme de ses lancements, comptés une fois, sous son dernier calibrage", () => {
   const [tranche] = trancher([livraison(7, [cook("sonnet/low", 100), cook("sonnet/low", 250), cook("opus/high", 400)])]);

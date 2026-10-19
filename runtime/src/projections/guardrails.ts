@@ -1,30 +1,30 @@
-// L'état des garde-fous : les réglages en vigueur, les cooks en cours, le
-// disjoncteur et le « stop ». C'est ici que le lancement d'un cook lit s'il a
-// le droit de partir, et que le chef lit pourquoi un ticket s'est arrêté.
+// The guardrails state: the settings in force, the running cooks, the
+// breaker and the "stop". This is where a cook launch reads whether it may
+// start, and where the chief reads why a ticket stopped.
 import { estGeste, type Activite } from "../activite.ts";
 import type { Base } from "../base.ts";
 import type { FaitGardeFous, MotifArret, Plafonds } from "../events/guardrails.ts";
 import { definirProjection } from "../projection.ts";
 
 export type EtatGardeFous = {
-  // Inconnus tant qu'aucun runtime n'a démarré avec ses garde-fous.
+  // Unknown as long as no runtime has started with its guardrails.
   limits: Plafonds | null;
   breakerThreshold: number | null;
-  // Échecs d'affilée, comptés dans l'ordre des lancements : ceux des cooks
-  // lancés après le dernier cook qui a réussi, depuis le dernier « reprendre ».
+  // Consecutive failures, counted in launch order: those of the cooks
+  // launched after the last cook that succeeded, since the last "resume".
   failures: number;
-  // Non nuls : le disjoncteur est ouvert, la cuisine est arrêtée par le chef.
+  // Non-null: the breaker is open, the kitchen is stopped by the chief.
   breakerOpenedAt: string | null;
   stoppedAt: string | null;
 };
 
 export type CookEnCours = { run: string; ticket: number | null; launchedAt: string; limits: Plafonds; stream: string };
 
-// Le dernier relevé d'un cook : ce qu'il avait consommé à `at`.
+// A cook's last reading: what it had used up at `at`.
 export type Mesure = { run: string; at: string; turns: number; tokens: number };
 
-// Ce qu'un ensemble de lancements a consommé. `reviews`, `judgments` : parmi
-// eux, les relectures du reviewer et les jugements du manager.
+// What a set of launches used up. `reviews`, `judgments`: among them, the
+// reviewer's reviews and the manager's judgments.
 export type Consommation = { runs: number; reviews: number; judgments: number; turns: number; tokens: number };
 
 export type Arret = {
@@ -36,17 +36,17 @@ export type Arret = {
   observed: number | null;
 };
 
-// L'état tient sur une seule ligne, créée au premier fait qui la touche.
+// The state fits on a single row, created at the first event that touches it.
 const modifierEtat = (base: Base, affectation: string, ...parametres: Array<string | number | null>) => {
   base.executer("INSERT OR IGNORE INTO guard_state (id) VALUES (1)");
   base.executer(`UPDATE guard_state SET ${affectation} WHERE id = 1`, ...parametres);
 };
 
-// Ce qu'un cook dit au disjoncteur, et le compte qui en découle. À plusieurs
-// cooks les fins s'entrelacent : « d'affilée » se compte donc dans l'ordre des
-// lancements. Une réussite n'efface que les échecs des cooks lancés avant
-// elle — un vieux cook qui finit bien ne dit rien de ceux partis après lui.
-// Un échec jugé avant le dernier « reprendre » ne compte plus.
+// What a cook tells the breaker, and the count that follows. With several
+// cooks the endings interleave: "consecutive" is therefore counted in launch
+// order. A success only clears the failures of cooks launched before it — an
+// old cook that ends well says nothing about those that left after it.
+// A failure judged before the last "resume" no longer counts.
 const juger = (base: Base, run: string, verdict: "good" | "bad", seq: number) => {
   base.executer("UPDATE cook_runs SET judgment = ?, judged_seq = ? WHERE run = ?", verdict, seq, run);
   modifierEtat(
@@ -210,13 +210,13 @@ export function etatDesGardeFous(base: Base): EtatGardeFous {
   return { ...ligne, limits: ligne.limits === null ? null : JSON.parse(ligne.limits) };
 }
 
-// Un échec qui compte pour le disjoncteur : le cook, son ticket, comment il
-// a fini. `code` : celui de sa sortie, nul s'il est mort d'un signal ou d'un
-// garde-fou.
+// A failure that counts for the breaker: the cook, its ticket, how it
+// ended. `code`: that of its exit, null if it died from a signal or a
+// guardrail.
 export type EchecDuDisjoncteur = { run: string; ticket: number | null; at: string; code: number | null; turns: number | null; tokens: number | null };
 
-// Les échecs d'affilée que le disjoncteur compte, dans l'ordre des lancements :
-// la même règle que `juger`.
+// The consecutive failures the breaker counts, in launch order: the same rule
+// as `juger`.
 export function echecsDuDisjoncteur(base: Base): EchecDuDisjoncteur[] {
   return base.lire<EchecDuDisjoncteur>(
     `SELECT r.run AS run, r.ticket AS ticket, coalesce(r.ended_at, r.launched_at) AS at, r.turns AS turns, r.tokens AS tokens,
@@ -230,9 +230,9 @@ export function echecsDuDisjoncteur(base: Base): EchecDuDisjoncteur[] {
   );
 }
 
-// Les lancements sans fin au journal : les cooks qui tournent — ceux de ce
-// runtime, ou ceux d'une vie précédente que le démarrage n'a pas encore
-// repris —, ou ceux qui sont morts avec le runtime.
+// The launches with no end in the log: the cooks that are running — those of
+// this runtime, or those of a previous life that startup has not yet picked
+// up —, or those that died with the runtime.
 export function cooksEnCours(base: Base): CookEnCours[] {
   return base
     .lire<{ run: string; ticket: number | null; launchedAt: string; limits: string; stream: string }>(
@@ -264,9 +264,9 @@ export function activitesDesCooksEnCours(base: Base): Map<string, Activite> {
 // en a été écrit. `activity` : nulle quand aucun relevé n'a dit ce qu'il fait.
 export type DernierCook = { run: string; ticket: number; station: string | null; launchedAt: string; endedAt: string | null; measured: boolean; activity: Activite | null };
 
-// Le dernier cook de chaque ticket qui en a eu un.
+// The last cook of each ticket that had one.
 export function derniersCooks(base: Base): Map<number, DernierCook> {
-  // SQLite prend les colonnes nues de la ligne qui porte le max.
+  // SQLite takes the bare columns from the row holding the max.
   const lignes = base.lire<{ run: string; ticket: number; station: string | null; launchedAt: string; endedAt: string | null; measured: number; doing: string | null; target: string | null; since: string | null }>(
     `SELECT r.run, r.ticket, r.station, r.launched_at AS launchedAt, r.ended_at AS endedAt, p.run IS NOT NULL AS measured,
             a.doing, a.target, a.since, max(r.launched_seq)
@@ -303,13 +303,13 @@ export function arretsRecents(base: Base, combien: number): Arret[] {
   );
 }
 
-// Ce qu'ont consommé les cooks en cours et ceux qui ont fini depuis `depuis` —
-// ou les seuls cooks en cours, sans `depuis`. Tout lancement compte : cooks de
-// tickets, relectures, jugements. Un cook compte pour ce qu'il a consommé en
-// entier, à sa fin ; en cours ou mort avec le runtime, pour son dernier relevé.
-// `reviewer`, `manager` : les stations sous lesquelles la pass et le manager
-// lancent leurs cooks.
-export function consommation(base: Base, depuis: string | null = null): Consommation {
+// What the running cooks and those that finished since `since` used up — or
+// only the running cooks, without `since`. Every launch counts: ticket cooks,
+// reviews, judgments. A cook counts for everything it used up, at its end;
+// running or dead with the runtime, for its last reading.
+// `reviewer`, `manager`: the stations under which the pass and the manager
+// launch their cooks.
+export function consommation(base: Base, since: string | null = null): Consommation {
   const ligne = base.lire<Consommation>(
     `SELECT count(*) AS runs,
             coalesce(sum(r.station = 'reviewer'), 0) AS reviews,
@@ -318,15 +318,15 @@ export function consommation(base: Base, depuis: string | null = null): Consomma
             coalesce(sum(coalesce(r.tokens, p.tokens, 0)), 0) AS tokens
      FROM cook_runs r LEFT JOIN cook_progress p ON p.run = r.run
      WHERE r.ended_seq IS NULL OR (? IS NOT NULL AND r.ended_at >= ?)`,
-    depuis,
-    depuis,
+    since,
+    since,
   )[0];
   return ligne ?? { runs: 0, reviews: 0, judgments: 0, turns: 0, tokens: 0 };
 }
 
-// Le flux brut d'un cook, relatif au répertoire d'état, et s'il a livré — la
-// fin `ok`, que sa station donne au cook dont elle envoie le travail en pass.
-// Null si le journal ne connaît pas ce cook.
+// A cook's raw stream, relative to the state directory, and whether it
+// delivered — the `ok` ending, which its station gives to the cook whose work
+// it sends to the pass. Null if the log does not know this cook.
 export function fluxDuCook(base: Base, run: string): { stream: string; livre: boolean } | null {
   const ligne = base.lire<{ stream: string; ending: string | null }>("SELECT stream, ending FROM cook_runs WHERE run = ?", run)[0];
   return ligne ? { stream: ligne.stream, livre: ligne.ending === "ok" } : null;

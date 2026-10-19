@@ -1,22 +1,22 @@
-// Les faits de la cloison : ce qui sépare les lancements d'un projet du reste
-// de la machine, et ce que le réseau du projet laisse passer.
+// The partition facts: what separates a project's launches from the rest of
+// the machine, and what the project's network lets through.
 
-// `sandbox` : nul, aucun lancement n'est cloisonné. `proxy` : nul, le réseau
-// est ouvert. `enforced` : un envoi direct, tenté au démarrage, a été refusé
-// par le noyau (true), est parti (false) — null si rien n'a pu être éprouvé.
+// `sandbox`: null, no launch is partitioned. `proxy`: null, the network is
+// open. `enforced`: a direct send, attempted at startup, was refused by the
+// kernel (true), went through (false) — null if nothing could be tested.
 export type EtatDeCloison = {
   sandbox: { bin: string; hidden: string[]; credentials: string } | null;
   proxy: { port: number; enforced: boolean | null } | null;
 };
 
 export type FaitCloison =
-  // L'état de la cloison, écrit par le runtime au démarrage quand il change.
+  // The partition's state, written by the runtime at startup when it changes.
   | { type: "isolation.configured"; payload: EtatDeCloison }
-  // Les hôtes que le dépôt déclare sur sa branche d'intégration, écrits quand
-  // ils changent : la porte lit sa liste ici. `problems` : les lignes de la
-  // déclaration qui n'ouvrent rien.
+  // The hosts the repository declares on its integration branch, written when
+  // they change: the door reads its list here. `problems`: the lines of the
+  // declaration that open nothing.
   | { type: "network.declared"; payload: { base: string; hosts: string[]; problems: string[] } }
-  // La porte a refusé une sortie. Un événement par hôte et par dix minutes au
-  // plus, et cent hôtes par dix minutes ; `count` : les tentatives depuis le
-  // précédent. `host` « * » : les hôtes de trop, comptés ensemble.
+  // The door refused an outbound connection. At most one event per host per
+  // ten minutes, and a hundred hosts per ten minutes; `count`: the attempts
+  // since the previous one. `host` "*": the excess hosts, counted together.
   | { type: "network.refused"; payload: { host: string; port: number; count: number } };

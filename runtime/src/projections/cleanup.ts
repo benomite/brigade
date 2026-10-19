@@ -1,15 +1,15 @@
-// Le sort du worktree de chaque cook, une fois ce cook fini : rangé, ou gardé
-// — et pourquoi. C'est ici que se retrouve ce que le runtime n'a pas pu
-// ranger. Et les branches locales déjà parties, et le dernier rangement des
-// transcripts d'un projet cloisonné.
+// The fate of each cook's worktree once that cook is finished: cleaned up, or
+// kept — and why. This is where what the runtime could not clean up is found.
+// And the local branches already gone, and the last transcript cleanup of a
+// partitioned project.
 import type { Base } from "../base.ts";
 import type { FaitNettoyage, MotifDeGarde } from "../events/cleanup.ts";
 import { definirProjection } from "../projection.ts";
 
 export type WorktreeGarde = { ticket: number; worktree: string; branch: string; reason: MotifDeGarde; detail: string; since: string };
 
-// Chaque motif tel que le chef le lit. Les deux premiers sont ceux d'un
-// journal d'avant #164.
+// Each reason as the chief reads it. The first two are those of a log from
+// before #164.
 const MOTIFS: Record<MotifDeGarde, string> = { "pr-open": "PR encore ouverte", unpushed: "travail non poussé", failed: "rangement en échec" };
 
 export const direMotifDeGarde = (motif: MotifDeGarde) => MOTIFS[motif];
@@ -101,8 +101,8 @@ export function worktreesGardes(base: Base): WorktreeGarde[] {
   );
 }
 
-// Le dernier rangement des transcripts, ou null si aucun n'a eu lieu depuis
-// que le projet est cloisonné.
+// The last transcript cleanup, or null if none has taken place since the
+// project was partitioned.
 export function rangementDesTranscripts(base: Base): RangementDeTranscripts | null {
   return (
     base.lire<RangementDeTranscripts>(

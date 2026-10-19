@@ -1,9 +1,8 @@
-// Le fait que la sauvegarde journalise : elle a réussi. Écrit par la commande
-// `sauvegarder`, depuis son propre process, après l'instantané — qui ne le
-// contient donc pas.
+// The fact the backup logs: it succeeded. Written by the `backup` command,
+// from its own process, after the snapshot — which therefore does not contain it.
 export type FaitSauvegarde = {
   type: "backup.completed";
-  // `name` : le nom de la sauvegarde dans sa destination. `lastSeq`, `events` :
-  // jusqu'où va le journal qu'elle porte. `streams` : les flux bruts gardés.
+  // `name`: the backup's name in its destination. `lastSeq`, `events`: how far
+  // the log it carries goes. `streams`: the raw streams kept.
   payload: { name: string; lastSeq: number; events: number; streams: number };
 };

@@ -1,8 +1,8 @@
-// La pass : pour chaque ticket livré, où en est son jugement, et combien de
-// renvois il a consommés. Et le grant `merge` : son état, chacun de ses usages.
-// C'est ici que la pass lit ce qu'il lui reste à faire — donc ce qui était en
-// cours se retrouve après un redémarrage — et que le chef lit « pourquoi ce
-// code est-il sur la base ? ».
+// The pass: for each delivered ticket, where its judgement stands and how many
+// returns it has consumed. And the `merge` grant: its state, each of its uses.
+// This is where the pass reads what it still has to do — so what was in
+// progress is found again after a restart — and where the chef reads "why is
+// this code on the base?".
 import type { Base } from "../base.ts";
 import type { FaitGardeFous } from "../events/guardrails.ts";
 import { motifDArret, motifDeRemontee, SANS_GRANT, type ActionDeGrant, type CauseDExtinction, type FaitPass, type Finding, type Gates, type Verdict } from "../events/pass.ts";
@@ -10,13 +10,13 @@ import type { FaitRail } from "../events/rail.ts";
 import type { FaitStation } from "../events/station.ts";
 import { definirProjection } from "../projection.ts";
 
-// `cooking` : un cook travaille. `delivered` : il a livré, rien n'est jugé.
-// `judging` : gates ou CI en cours. `green` / `red` : jugé, pas encore décidé.
-// `merging` : l'intention de merger est écrite, pas son résultat. `served` :
-// verte et sans diff — servie sans merge. `deferred` : rouge, entre les mains
-// du manager. `waiting` : ni jugée ni mergée pour l'instant — `reason` dit ce
-// qu'elle attend. `closed` : sa PR a été fermée sans merge — `reason` reste
-// celui de la phase quittée.
+// `cooking`: a cook is working. `delivered`: it delivered, nothing is judged.
+// `judging`: gates or CI running. `green` / `red`: judged, not yet decided.
+// `merging`: the intent to merge is written, not its result. `served`: green
+// and without a diff — served without a merge. `deferred`: red, in the
+// manager's hands. `waiting`: neither judged nor merged for now — `reason`
+// says what it awaits. `closed`: its PR was closed without a merge — `reason`
+// stays that of the phase it left.
 export type Phase =
   | "cooking"
   | "delivered"
@@ -33,8 +33,8 @@ export type Phase =
   | "escalated"
   | "closed";
 
-// La dernière relecture du reviewer : la livraison qu'elle a lue (`cook`, le
-// run du cook, et `sha`), et ce qu'il en a dit.
+// The reviewer's latest review: the delivery it read (`cook`, the cook's run,
+// and `sha`), and what it said about it.
 export type Relue = {
   cook: string;
   sha: string;
@@ -46,12 +46,12 @@ export type Relue = {
 };
 
 export type PassDeTicket = {
-  // Le ticket — ou, hors du rail, le numéro de la PR de la livraison.
+  // The ticket — or, off the rail, the number of the delivery's PR.
   ticket: number;
-  // Une livraison que le rail ne porte pas : la PR d'une passe de fermeture.
+  // A delivery the rail does not carry: the PR of a closing pass.
   horsRail: boolean;
-  // La livraison : le dernier run, sa branche, son worktree (relatif au
-  // répertoire d'état), sa PR.
+  // The delivery: the latest run, its branch, its worktree (relative to the
+  // state directory), its PR.
   run: string;
   branch: string | null;
   worktree: string | null;
@@ -59,72 +59,72 @@ export type PassDeTicket = {
   number: number | null;
   phase: Phase;
   since: string;
-  // Depuis quand la pass juge cette livraison : c'est de là que se compte
-  // l'attente de la CI.
+  // Since when the pass has been judging this delivery: the CI wait is counted
+  // from there.
   startedAt: string | null;
-  // Le dernier verdict, et ce qu'il juge : le commit de la branche, la tête de
-  // la base avec laquelle il a été fusionné, et l'arbre obtenu.
+  // The latest verdict, and what it judges: the branch's commit, the head of
+  // the base it was merged with, and the resulting tree.
   verdict: Verdict | null;
   verdictSeq: number | null;
   sha: string | null;
   judgedBase: string | null;
   judgedTree: string | null;
   judgeModified: boolean;
-  // Les déclarations du projet (réseau, secrets) que la livraison touche.
+  // The project's declarations (network, secrets) that the delivery touches.
   declarations: string[];
-  // Le ticket n'a produit aucun diff : son verdict ne tient qu'au reviewer.
+  // The ticket produced no diff: its verdict rests on the reviewer alone.
   noDiff: boolean;
   findings: string[];
   review: Relue | null;
-  // Les renvois consommés.
+  // The returns consumed.
   returns: number;
-  // Pourquoi la pass s'est arrêtée, a remonté, ou attend — le motif, celui du
-  // geste du chef ; et `cause`, ce qui le précise sans changer le geste.
+  // Why the pass stopped, escalated, or waits — the reason, the one in the
+  // chef's gesture; and `cause`, what refines it without changing the gesture.
   reason: string | null;
   cause: string | null;
-  // Arrêtée faute de grant : l'instant où il s'était éteint seul, s'il l'était.
+  // Stopped for lack of a grant: the instant it had expired by itself, if it had.
   grantExpired: string | null;
 };
 
-// Une livraison que son ticket a laissée en quittant le rail sans qu'elle soit
-// mergée, et dont la pass n'a encore rien dit. `verdict` : celui de cette
-// livraison, nul si elle n'était pas jugée. `reason`, `seq` : le départ.
+// A delivery that its ticket left behind on leaving the rail without it being
+// merged, and about which the pass has not yet said anything. `verdict`: that
+// delivery's, null if it was not judged. `reason`, `seq`: the departure.
 export type Orpheline = { ticket: number; branch: string; pr: string | null; verdict: Verdict | null; reason: string; seq: number };
 
-// Ce que le dernier contrôle de la base a dit, et les tickets dont il
-// vérifiait le merge.
+// What the latest check of the base said, and the tickets whose merge it was
+// verifying.
 export type EtatDeLaBase = {
   sha: string;
   outcome: "green" | "red" | "skipped";
   at: string;
   tickets: number[];
-  // Rouge : depuis quand elle l'est, d'un contrôle rouge au suivant.
+  // Red: since when it has been, from one red check to the next.
   redSince: string | null;
-  // Rouge : le dernier contrôle qui n'a pas pu se jouer depuis. Il n'a rien
-  // levé — on ne revient pas d'un rouge faute d'avoir pu vérifier.
+  // Red: the latest check that could not be played since. It lifted nothing
+  // — one does not come back from red for lack of being able to verify.
   unplayed: { sha: string; at: string } | null;
-  // Pourquoi le dernier contrôle non joué — celui-ci, ou `unplayed` sous un
-  // rouge — ne l'a pas été : l'essai ne s'est pas fait. Nul : l'arbre n'a pas
-  // de gates, ou tout a été joué.
+  // Why the latest unplayed check — this one, or `unplayed` under a red — was
+  // not played: the attempt did not happen. Null: the tree has no gates, or
+  // everything was played.
   reason: string | null;
-  // Rouge : le rejeu demandé, tant qu'aucun contrôle ne l'a servi — par le
-  // chef, ou par la pass elle-même, qui rejoue seule une fois tout rouge
-  // (`by`). `heldAt` : la machine le retient depuis cet instant.
+  // Red: the requested replay, as long as no check has served it — by the
+  // chef, or by the pass itself, which replays once on its own when all is red
+  // (`by`). `heldAt`: the machine has withheld it since that instant.
   recheck: { at: string; heldAt: string | null; by: string } | null;
 };
 
-// Un rouge, compté : combien de contrôles joués l'ont constaté depuis qu'il
-// dure, si un rejeu a déjà été demandé pour lui, et le numéro du dernier
-// contrôle joué. Un rouge constaté deux fois tient : il n'était pas passager.
+// A counted red: how many played checks have observed it since it began to
+// last, whether a replay has already been requested for it, and the number of
+// the latest played check. A red observed twice stands: it was not transient.
 export type RougeCompte = { redChecks: number; replayed: boolean; checkedSeq: number };
 
-// Le ticket de réparation qu'une base rouge a fait naître. `redSince` : le
-// rouge pour lequel il est né. `failures` : ce que les gates de la base
-// disaient en échec. `etat` : `en-cours` tant qu'il n'est ni servi ni parti ;
-// `servie` une fois sa livraison mergée, tant que rien ne dit qu'elle n'a pas
-// réparé ; `echouee` s'il a quitté le rail sans être servi, s'il est remonté
-// au chef, ou si la base, contrôlée après son merge, est restée rouge —
-// `echec` dit lequel, nul tant qu'elle n'a pas échoué.
+// The repair ticket that a red base gave birth to. `redSince`: the red it was
+// born for. `failures`: what the base's gates reported as failing. `etat`:
+// `en-cours` as long as it is neither served nor gone; `servie` once its
+// delivery is merged, as long as nothing says it did not repair; `echouee` if
+// it left the rail without being served, if it escalated to the chef, or if
+// the base, checked after its merge, stayed red — `echec` says which, null as
+// long as it has not failed.
 export type ReparationDeLaBase = {
   ticket: number;
   at: string;
@@ -136,29 +136,29 @@ export type ReparationDeLaBase = {
 };
 export type EchecDeReparation = "partie" | "remontee" | "rouge-apres-merge";
 
-// Le contrôle de la base que la pass ne peut pas faire partir : la base ne se
-// rapatrie pas depuis `at`, et `reason` est ce que git en a dit.
+// The base check that the pass cannot start: the base cannot be fetched since
+// `at`, and `reason` is what git said about it.
 export type ControleRetenu = { at: string; reason: string };
 
-// Un grant tel qu'il vaut à l'heure où on le lit. `since` : depuis quand il
-// est dans cet état — accordé, révoqué, éteint. `by` : qui l'a accordé, ou
-// révoqué.
+// A grant as it stands at the time it is read. `since`: since when it has been
+// in this state — granted, revoked, expired. `by`: who granted or revoked
+// it.
 export type Grant = {
   action: string;
   active: boolean;
   since: string;
   by: string;
-  // Ses limites : l'instant où il s'éteint, les usages qui lui restent. Nulles,
-  // il n'en a pas.
+  // Its limits: the instant it expires, the uses it has left. Null, it has
+  // none.
   until: string | null;
   usesLeft: number | null;
-  // Les merges en vol : une intention écrite, pas encore de résultat. Chacun
-  // retient un des usages qui restent.
+  // The merges in flight: an intent written, no result yet. Each one holds
+  // one of the remaining uses.
   reserved: number;
-  // Inactif : le chef l'a révoqué, ou il s'est éteint seul — et pourquoi.
+  // Inactive: the chef revoked it, or it expired by itself — and why.
   ended: "revoked" | "expired" | null;
   cause: CauseDExtinction | null;
-  // Éteint à l'heure de la lecture, sans que le fait soit encore au journal.
+  // Expired at read time, without the fact yet being in the log.
   unrecorded: boolean;
 };
 
@@ -171,7 +171,7 @@ export type UsageDeGrant = {
   sha: string;
   base: string;
   verdict: number;
-  // `done`, `failed`, ou rien tant que le résultat n'est pas écrit.
+  // `done`, `failed`, or nothing as long as the result is not written.
   outcome: string | null;
 };
 
@@ -185,7 +185,7 @@ const texte = (valeur: unknown): valeur is string => typeof valeur === "string" 
 const texteOuRien = (valeur: unknown) => (texte(valeur) ? valeur : null);
 const entierOuRien = (valeur: unknown) => (Number.isSafeInteger(valeur) ? (valeur as number) : null);
 const liste = (valeur: unknown) => JSON.stringify(Array.isArray(valeur) ? valeur.filter(texte) : []);
-// Les constats d'une relecture : ce qui n'en a pas la forme n'en est pas un.
+// The findings of a review: what does not have their shape is not one.
 export const constats = (valeur: unknown): Finding[] =>
   (Array.isArray(valeur) ? valeur : []).flatMap((brut) => {
     const { severity, file, text } = (brut !== null && typeof brut === "object" ? brut : {}) as Record<string, unknown>;
@@ -200,8 +200,8 @@ const passer = (base: Base, ticket: number | null, at: string, phase: Phase, aff
 const instantOuRien = (valeur: unknown) => (texte(valeur) && !Number.isNaN(Date.parse(valeur)) ? new Date(valeur).toISOString() : null);
 const usagesOuRien = (valeur: unknown) => (Number.isSafeInteger(valeur) && (valeur as number) > 0 ? (valeur as number) : null);
 
-// Le grant accordé (`ended` nul) ou révoqué. Une limite écrite mais illisible
-// ne fait pas un grant sans fin : elle est déjà atteinte.
+// The granted (`ended` null) or revoked grant. A written but unreadable limit
+// does not make an unlimited grant: it is already reached.
 const grant = (base: Base, seq: number, at: string, by: string, ended: "revoked" | null, payload: { action?: unknown; until?: unknown; uses?: unknown }) => {
   if (!texte(payload.action)) return;
   const accorde = ended === null;
@@ -220,11 +220,11 @@ const grant = (base: Base, seq: number, at: string, by: string, ended: "revoked"
   );
 };
 
-// Le résultat d'un merge se range sur l'intention restée sans résultat. Mergée,
-// elle consomme un usage du grant sous lequel la pass l'a voulue — pas d'un
-// grant accordé depuis —, quel que soit le compte que GitHub nomme : la pass
-// avait demandé ce merge, et sa réponse a pu se perdre. Un merge que la pass
-// n'a pas voulu ne trouve pas d'intention, et ne consomme rien.
+// A merge's result is filed onto the intent left without a result. Merged,
+// it consumes a use of the grant under which the pass wanted it — not of a
+// grant granted since —, whatever the count GitHub names: the pass had asked
+// for this merge, and its answer may have been lost. A merge the pass did not
+// want finds no intent, and consumes nothing.
 const conclureUsage = (base: Base, ticket: number | null, outcome: "done" | "failed") => {
   if (outcome === "done") {
     base.executer(
@@ -345,10 +345,10 @@ export const pass = definirProjection<Ecoutes>({
   sur: {
     "grant.activated": (base, { seq, at, author, payload }) => grant(base, seq, at, author, null, payload),
     "grant.revoked": (base, { seq, at, author, payload }) => grant(base, seq, at, author, "revoked", payload),
-    // Un refus n'accorde rien : l'état des grants n'en garde rien.
+    // A refusal grants nothing: the grants state keeps nothing of it.
     "grant.refused": () => {},
-    // Une prolongation ne vaut que sur un grant actif, et n'y change que ce
-    // qu'elle nomme : `since` reste l'instant où il a été accordé.
+    // An extension only applies to an active grant, and changes only what it
+    // names: `since` stays the instant it was granted.
     "grant.extended": (base, { payload }) => {
       const { action, until, uses } = payload as { action?: unknown; until?: unknown; uses?: unknown };
       if (!texte(action)) return;
@@ -366,10 +366,10 @@ export const pass = definirProjection<Ecoutes>({
         payload.action,
       );
     },
-    // Un cook part sur le ticket. Relancé sur un renvoi — la même branche —, il
-    // laisse la phase telle quelle : s'il échoue sans livrer, le renvoi reste à
-    // faire. Sur une autre branche, c'est une livraison neuve : rien de ce qui
-    // a été jugé (PR, commit) ne la concerne, et le renvoi n'a plus d'objet.
+    // A cook leaves on the ticket. Relaunched on a return — the same branch —,
+    // it leaves the phase as is: if it fails without delivering, the return is
+    // still to be done. On another branch, it is a new delivery: nothing that
+    // was judged (PR, commit) concerns it, and the return has no object left.
     "cook.launched": (base, { ticket, at, payload }) => {
       if (ticket === null || !texte(payload.run)) return;
       base.executer(
@@ -388,7 +388,7 @@ export const pass = definirProjection<Ecoutes>({
         at,
       );
     },
-    // Hors du rail, la livraison entre déjà livrée, avec sa PR.
+    // Off the rail, the delivery enters already delivered, with its PR.
     "pass.entered": (base, { ticket, at, payload }) => {
       if (ticket === null || !texte(payload.run) || !texte(payload.branch) || !texte(payload.pr)) return;
       base.executer(
@@ -411,7 +411,7 @@ export const pass = definirProjection<Ecoutes>({
         ticket,
         at,
         "judging",
-        // Sur un autre commit, la base du dernier verdict ne dit plus rien.
+        // On another commit, the base of the last verdict says nothing any more.
         "pr = ?, number = ?, judged_base = CASE WHEN sha IS ? THEN judged_base ELSE NULL END, judged_tree = CASE WHEN sha IS ? THEN judged_tree ELSE NULL END, sha = ?, started_at = coalesce(started_at, ?)",
         texteOuRien(payload.pr),
         entierOuRien(payload.number),
@@ -421,13 +421,13 @@ export const pass = definirProjection<Ecoutes>({
         at,
       );
     },
-    // La PR se range sur la livraison, sans en changer la phase.
+    // The PR is filed onto the delivery, without changing its phase.
     "pass.pr-opened": (base, { ticket, payload }) => {
       if (ticket === null || !texte(payload.pr)) return;
       base.executer("UPDATE pass SET pr = ?, number = ? WHERE ticket = ?", payload.pr, entierOuRien(payload.number), ticket);
     },
-    // La relecture se range sur la livraison, sans en changer la phase : le
-    // verdict, lui, attend peut-être encore la CI.
+    // The review is filed onto the delivery, without changing its phase: the
+    // verdict, for its part, may still be waiting for the CI.
     "pass.reviewed": (base, { ticket, payload }) => {
       if (ticket === null || !texte(payload.run) || !texte(payload.sha) || !texte(payload.review)) return;
       const relue: Relue = {
@@ -475,26 +475,26 @@ export const pass = definirProjection<Ecoutes>({
       );
       passer(base, ticket, at, "merging");
     },
-    // Un merge que rien n'a jugé sur la base telle qu'elle était est à
-    // vérifier après coup, sur la base elle-même. C'est le fait qui le dit :
-    // un journal d'avant, rejoué, ne rend suspect aucun de ses vieux merges.
+    // A merge that nothing judged on the base as it was is to be verified
+    // afterwards, on the base itself. It is the fact that says so: a log from
+    // before, replayed, makes none of its old merges suspect.
     "merge.done": (base, { ticket, at, payload }) => {
       conclureUsage(base, ticket, "done");
       if (ticket === null) return;
       if (payload.unverified === true) base.executer("INSERT OR IGNORE INTO base_suspects (ticket) VALUES (?)", ticket);
       passer(base, ticket, at, "merged", "reason = NULL, cause = NULL");
-      // Hors du rail, aucun `ticket.left` ne viendra la retirer : mergée, la
-      // pass n'a plus rien à en suivre.
+      // Off the rail, no `ticket.left` will come to remove it: merged, the
+      // pass has nothing left to follow of it.
       base.executer("DELETE FROM pass WHERE ticket = ? AND off_rail = 1", ticket);
     },
-    // La décision est à reprendre : le verdict tient toujours.
+    // The decision is to be taken again: the verdict still stands.
     "merge.failed": (base, { ticket, at }) => {
       conclureUsage(base, ticket, "failed");
       passer(base, ticket, at, "green");
     },
     "pass.served": (base, { ticket, at }) => passer(base, ticket, at, "served", "reason = NULL, cause = NULL"),
-    // Le verdict devient rouge : la décision est à reprendre, et ce sont ces
-    // findings qui repartent.
+    // The verdict turns red: the decision is to be taken again, and these
+    // findings are the ones that go back.
     "pass.outdated": (base, { ticket, at, payload }) => passer(base, ticket, at, "red", "reason = NULL, cause = NULL, verdict = 'red', findings = ?", liste(payload.findings)),
     "pass.waiting": (base, { ticket, at, payload }) => passer(base, ticket, at, "waiting", "reason = ?, cause = NULL", texteOuRien(payload.reason)),
     "base.checked": (base, { at, seq, payload }) => {
@@ -504,12 +504,12 @@ export const pass = definirProjection<Ecoutes>({
       const rouge = base.lire<{ red_since: string | null; tickets: string; red_checks: number; replayed: number }>(
         "SELECT red_since, tickets, red_checks, replayed FROM base_checks WHERE outcome = 'red'",
       )[0];
-      // Un rouge qui reste rouge garde ses merges attribués : un rejeu sans nouveau merge ne les efface pas.
+      // A red that stays red keeps its attributed merges: a replay without a new merge does not erase them.
       const attribues: number[] = outcome === "red" && rouge ? JSON.parse(rouge.tickets) : [];
       const tickets = [...new Set([...attribues, ...verifies])];
-      // Tout contrôle sert le rejeu demandé.
+      // Any check serves the requested replay.
       if (outcome === "skipped" && rouge) {
-        // « Je n'ai pas pu vérifier » n'est pas « c'est vert » : le rouge reste.
+        // "I could not verify" is not "it is green": the red stays.
         base.executer(
           "UPDATE base_checks SET unplayed_sha = ?, unplayed_at = ?, unplayed_reason = ?, recheck_at = NULL, recheck_held_at = NULL, recheck_by = NULL",
           payload.sha,
@@ -517,7 +517,7 @@ export const pass = definirProjection<Ecoutes>({
           texteOuRien(payload.reason),
         );
       } else {
-        // Un rouge qui dure se compte ; un rouge neuf repart de un, et n'a pas encore été rejoué.
+        // A red that lasts is counted; a new red starts again at one, and has not yet been replayed.
         const suite = outcome === "red" && rouge !== undefined;
         base.executer(
           `INSERT INTO base_checks (id, sha, outcome, at, tickets, red_since, unplayed_reason, red_checks, replayed, checked_seq) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -535,21 +535,21 @@ export const pass = definirProjection<Ecoutes>({
           suite ? rouge.replayed : 0,
           seq,
         );
-        // Une création annoncée et jamais confirmée ne vaut plus pour une base verte.
+        // A creation announced and never confirmed no longer holds for a green base.
         if (outcome === "green") base.executer("DELETE FROM base_repair_opening");
       }
       for (const ticket of tickets) base.executer("DELETE FROM base_suspects WHERE ticket = ?", ticket);
     },
-    // Une demande du chef se tente aussitôt, même sur une base qui ne se
-    // rapatriait pas : si elle bute encore, c'est redit — une fois.
-    // Un rejeu demandé, par le chef ou par la pass, vaut le rejeu de ce rouge :
-    // la pass ne le redemande pas d'elle-même.
+    // A chef's request is tried at once, even on a base that could not be
+    // fetched: if it still stumbles, it is said again — once.
+    // A requested replay, by the chef or by the pass, counts as this red's
+    // replay: the pass does not ask for it again by itself.
     "base.recheck-requested": (base, { at, author }) => {
       const { changements } = base.executer("UPDATE base_checks SET recheck_at = ?, recheck_held_at = NULL, recheck_by = ?, replayed = 1 WHERE outcome = 'red'", at, author);
       if (changements > 0) base.executer("DELETE FROM base_holds");
     },
-    // La création d'un ticket de réparation est annoncée avant l'appel à
-    // GitHub, puis confirmée : un runtime tué entre les deux la retrouve.
+    // The creation of a repair ticket is announced before the call to
+    // GitHub, then confirmed: a runtime killed between the two finds it again.
     "base.repair-opening": (base, { at, payload }) => {
       if (!texte(payload.sha)) return;
       base.executer("INSERT INTO base_repair_opening (id, at, sha) VALUES (1, ?, ?) ON CONFLICT (id) DO UPDATE SET at = excluded.at, sha = excluded.sha", at, payload.sha);
@@ -570,8 +570,8 @@ export const pass = definirProjection<Ecoutes>({
     "base.recheck-held": (base, { at }) => {
       base.executer("UPDATE base_checks SET recheck_held_at = ? WHERE recheck_at IS NOT NULL", at);
     },
-    // La première panne date la retenue : une seconde, sans reprise entre les
-    // deux, ne la rajeunit pas — elle n'en change que le motif, celui qui vaut.
+    // The first failure dates the hold: a second, with no resumption between
+    // the two, does not make it younger — it only changes the reason, to the one that holds.
     "base.check-held": (base, { at, payload }) => {
       base.executer("INSERT INTO base_holds (id, at, reason) VALUES (1, ?, ?) ON CONFLICT (id) DO UPDATE SET reason = excluded.reason", at, texteOuRien(payload.reason) ?? "");
     },
@@ -590,16 +590,16 @@ export const pass = definirProjection<Ecoutes>({
       const { reason, cause } = motifDeRemontee(payload);
       passer(base, ticket, at, "escalated", "reason = ?, cause = ?", reason, cause);
     },
-    // Le motif reste : il dit ce que la livraison était quand sa PR a été fermée.
-    // Hors du rail, la pass ne la suit plus : aucun ticket ne la retirerait.
+    // The reason stays: it says what the delivery was when its PR was closed.
+    // Off the rail, the pass no longer follows it: no ticket would remove it.
     "pass.pr-closed": (base, { ticket, at, payload }) => {
       passer(base, ticket, at, "closed", "pr = coalesce(?, pr)", texteOuRien(payload.pr));
       base.executer("DELETE FROM pass WHERE ticket = ? AND off_rail = 1", ticket);
     },
-    // Le ticket quitte le rail : sa pass n'a plus d'objet. Les usages du grant,
-    // eux, restent — et sa livraison, si elle n'est pas mergée, jusqu'à ce que
-    // la pass ait dit ce qu'il en reste. Un premier cook encore en cuisine n'a
-    // rien livré : sa fin est l'affaire de la station.
+    // The ticket leaves the rail: its pass has no object left. The grant's
+    // uses, for their part, stay — and so does its delivery, if it is not
+    // merged, until the pass has said what remains of it. A first cook still
+    // taken has delivered nothing: its end is the station's business.
     "ticket.left": (base, { ticket, seq, payload }) => {
       if (ticket === null) return;
       base.executer(
@@ -612,13 +612,13 @@ export const pass = definirProjection<Ecoutes>({
         ticket,
       );
       base.executer("DELETE FROM pass WHERE ticket = ?", ticket);
-      // Parti sans livraison à lâcher, plus personne ne dira ce que devient
-      // une intention de merge restée en vol : elle rend son usage ici.
+      // Gone without a delivery to let go of, nobody will say what becomes of
+      // a merge intent left in flight: it gives its use back here.
       if (base.lire("SELECT 1 FROM pass_orphans WHERE ticket = ?", ticket).length === 0) conclureUsage(base, ticket, "failed");
     },
-    // La pass lâche la livraison d'un ticket parti : une intention de merge
-    // restée en vol y trouve sa fin — consommée si GitHub dit la PR mergée,
-    // rendue sinon. Elle ne retient plus un usage du grant.
+    // The pass lets go of the delivery of a ticket that left: a merge intent
+    // left in flight finds its end here — consumed if GitHub says the PR is
+    // merged, given back otherwise. It no longer holds a use of the grant.
     "pass.abandoned": (base, { ticket, payload }) => {
       base.executer("DELETE FROM pass_orphans WHERE branch IS ?", texteOuRien(payload.branch));
       conclureUsage(base, ticket, payload.merged === true ? "done" : "failed");
@@ -649,7 +649,7 @@ const lire = (ligne: Ligne): PassDeTicket => ({
   review: ligne.review === null ? null : JSON.parse(ligne.review),
 });
 
-// Les tickets que la pass connaît, dans l'ordre de leurs numéros.
+// The tickets the pass knows, in the order of their numbers.
 export function lirePass(base: Base): PassDeTicket[] {
   return base.lire<Ligne>(`SELECT ${COLONNES} FROM pass ORDER BY ticket`).map(lire);
 }
@@ -659,21 +659,21 @@ export function passDuTicket(base: Base, ticket: number): PassDeTicket | null {
   return ligne ? lire(ligne) : null;
 }
 
-// Le renvoi qu'un ticket attend : la pass l'a jugé rouge et rendu au rail, et
-// aucun cook n'a encore livré depuis. Sa livraison est une branche ; son
-// worktree n'est connu que si son cook a tourné sur cette machine.
+// The return a ticket awaits: the pass judged it red and gave it back to the
+// rail, and no cook has delivered since. Its delivery is a branch; its
+// worktree is only known if its cook ran on this machine.
 export function renvoiEnAttente(base: Base, ticket: number): (PassDeTicket & { branch: string }) | null {
   const connu = passDuTicket(base, ticket);
   if (!connu || connu.phase !== "returned" || connu.branch === null) return null;
   return { ...connu, branch: connu.branch };
 }
 
-// Les livraisons laissées par un ticket parti, dont la pass n'a encore rien dit.
+// The deliveries left by a ticket that went away, about which the pass has not yet said anything.
 export function orphelines(base: Base): Orpheline[] {
   return base.lire<Orpheline>("SELECT ticket, branch, pr, verdict, reason, seq FROM pass_orphans ORDER BY seq");
 }
 
-// Le dernier contrôle de la base, ou null si elle n'a jamais été contrôlée.
+// The latest check of the base, or null if it was never checked.
 export function etatDeLaBase(base: Base): EtatDeLaBase | null {
   const ligne = base.lire<{
     sha: string;
@@ -705,7 +705,7 @@ export function etatDeLaBase(base: Base): EtatDeLaBase | null {
   };
 }
 
-// Le rouge de la base, compté — null si elle n'est pas rouge.
+// The base's red, counted — null if it is not red.
 export function rougeCompte(base: Base): RougeCompte | null {
   const ligne = base.lire<{ redChecks: number; replayed: number; checkedSeq: number }>(
     "SELECT red_checks AS redChecks, replayed, checked_seq AS checkedSeq FROM base_checks WHERE outcome = 'red'",
@@ -713,8 +713,8 @@ export function rougeCompte(base: Base): RougeCompte | null {
   return ligne ? { redChecks: ligne.redChecks, replayed: ligne.replayed === 1, checkedSeq: ligne.checkedSeq } : null;
 }
 
-// Le dernier ticket de réparation de la base, et où il en est — null si
-// aucune base rouge n'en a jamais fait naître. Son sort se lit sur le rail.
+// The base's latest repair ticket, and where it stands — null if no red base
+// ever gave birth to one. Its fate is read on the rail.
 export function reparationDeLaBase(base: Base): ReparationDeLaBase | null {
   const ligne = base.lire<{
     ticket: number;
@@ -736,14 +736,14 @@ export function reparationDeLaBase(base: Base): ReparationDeLaBase | null {
   const controle = base.lire<{ redSince: string | null; checkedSeq: number }>(
     "SELECT red_since AS redSince, checked_seq AS checkedSeq FROM base_checks WHERE outcome = 'red'",
   )[0];
-  // Mergée, et la base contrôlée depuis est restée du même rouge : elle n'a pas réparé.
+  // Merged, and the base checked since stayed the same red: it did not repair.
   const rateeApresMerge = sortie === "served" && controle !== undefined && controle.redSince === redSince && controle.checkedSeq > (sortieSeq ?? 0);
   const echec: EchecDeReparation | null = sortie === "left" ? "partie" : rateeApresMerge ? "rouge-apres-merge" : sortie === null && etat === "86" && retour === null ? "remontee" : null;
   return { ticket, at, sha, redSince, failures: JSON.parse(ligne.failures), etat: echec !== null ? "echouee" : sortie === "served" ? "servie" : "en-cours", echec };
 }
 
-// Ce que les gates disaient au dernier contrôle joué de la base rouge — null
-// si elle n'est pas rouge, ou si ce contrôle ne se relit plus.
+// What the gates said at the latest played check of the red base — null if
+// it is not red, or if that check can no longer be read.
 export function gatesDuRouge(base: Base): Gates | null {
   const [controle] = base.lire<{ payload: string }>("SELECT e.payload FROM base_checks c JOIN events e ON e.seq = c.checked_seq WHERE c.outcome = 'red' AND e.type = 'base.checked'");
   if (controle === undefined) return null;
@@ -751,31 +751,31 @@ export function gatesDuRouge(base: Base): Gates | null {
   return gates !== undefined && Array.isArray(gates.failures) ? gates : null;
 }
 
-// Le ticket de réparation en cours, s'il y en a un : celui qu'une base rouge
-// laisse partir, et que la pass juge et merge malgré elle.
+// The repair ticket in progress, if there is one: the one a red base lets
+// go, and which the pass judges and merges despite it.
 export function reparationEnCours(base: Base): number | null {
   const reparation = reparationDeLaBase(base);
   return reparation?.etat === "en-cours" ? reparation.ticket : null;
 }
 
-// La création d'un ticket de réparation annoncée et pas encore confirmée.
+// The creation of a repair ticket announced and not yet confirmed.
 export function reparationAnnoncee(base: Base): { at: string; sha: string } | null {
   return base.lire<{ at: string; sha: string }>("SELECT at, sha FROM base_repair_opening")[0] ?? null;
 }
 
-// Le contrôle de la base que son rapatriement retient, ou null.
+// The base check held back by its fetch, or null.
 export function controleRetenu(base: Base): ControleRetenu | null {
   return base.lire<ControleRetenu>("SELECT at, reason FROM base_holds")[0] ?? null;
 }
 
-// Les tickets dont le merge reste à vérifier sur la base.
+// The tickets whose merge remains to be verified on the base.
 export function mergesAVerifier(base: Base): number[] {
   return base.lire<{ ticket: number }>("SELECT ticket FROM base_suspects ORDER BY ticket").map(({ ticket }) => ticket);
 }
 
-// L'état d'un grant à l'heure `maintenant`, ou null s'il n'a jamais été donné.
-// Une échéance passée l'éteint pour qui le lit, que le fait soit au journal ou
-// non : rien ne tient à ce qu'une extinction ait été écrite à temps.
+// A grant's state at time `maintenant`, or null if it was never given. A
+// passed deadline expires it for whoever reads it, whether the fact is in the
+// log or not: nothing depends on an expiry having been written in time.
 export function etatDuGrant(base: Base, action: ActionDeGrant, maintenant: Date): Grant | null {
   const ligne = base.lire<{ action: string; active: number; since: string; by: string; until: string | null; usesLeft: number | null; ended: Grant["ended"]; cause: Grant["cause"]; reserved: number }>(
     `SELECT action, active, since, by, until, uses_left AS usesLeft, ended, cause,
@@ -787,40 +787,40 @@ export function etatDuGrant(base: Base, action: ActionDeGrant, maintenant: Date)
   const grant = { ...ligne, active: ligne.active === 1, reserved: ligne.active === 1 ? ligne.reserved : 0, unrecorded: false };
   if (!grant.active) return grant;
   const eteint = (cause: CauseDExtinction, since: string): Grant => ({ ...grant, active: false, since, reserved: 0, ended: "expired", cause, unrecorded: true });
-  // Le dernier usage s'éteint dans la transaction de son merge : c'est l'heure
-  // de celui qui le constate.
+  // The last use expires in the transaction of its merge: this is the time
+  // of whoever observes it.
   if (grant.usesLeft !== null && grant.usesLeft <= 0) return eteint("uses", maintenant.toISOString());
   if (grant.until !== null && grant.until <= maintenant.toISOString()) return eteint("until", grant.until);
   return grant;
 }
 
-// Les derniers usages du grant, le plus récent d'abord.
+// The grant's latest uses, most recent first.
 export function usagesDuGrant(base: Base, combien: number): UsageDeGrant[] {
   return base.lire<UsageDeGrant>("SELECT seq, at, ticket, action, pr, sha, base, verdict, outcome FROM grant_uses ORDER BY seq DESC LIMIT ?", combien);
 }
 
-// Ce que sont devenues les livraisons vertes que la pass a arrêtées faute de
-// grant — le chiffre sur lequel le chef l'accorde. Le compte suit la livraison
-// arrêtée, par sa PR : une PR rejugée et arrêtée de nouveau ne compte qu'une
-// fois, et le merge d'une autre PR du même ticket ne dit rien d'elle.
-// `mergees` : le chef a mergé ce qu'elle aurait mergé. `parLaPass` : elle l'a
-// mergée elle-même, le grant accordé depuis — ce n'est pas le geste du chef.
-// `refusees` : il a fermé la PR sans merger — un désaccord, qu'une
-// réouverture suivie d'un merge efface. `ouvertes` : rien n'est encore dit.
-// Le reste n'est plus suivi : le ticket a quitté le rail, ou un cook est
-// reparti dessus.
+// What became of the green deliveries the pass stopped for lack of a grant —
+// the figure on which the chef grants it. The count follows the stopped
+// delivery, by its PR: a PR rejudged and stopped again counts only once, and
+// the merge of another PR of the same ticket says nothing about it.
+// `mergees`: the chef merged what it would have merged. `parLaPass`: it merged
+// it itself, the grant being granted since — that is not the chef's gesture.
+// `refusees`: it closed the PR without merging — a disagreement, which a
+// reopening followed by a merge erases. `ouvertes`: nothing is said yet.
+// The rest is no longer followed: the ticket left the rail, or a cook went
+// back onto it.
 export type SansGrant = { arretees: number; mergees: number; parLaPass: number; refusees: number; ouvertes: number };
-type Sort = "ouverte" | "chef" | "pass" | "fermee" | "lachee";
+type Sort = "open" | "chef" | "pass" | "fermee" | "lachee";
 export function bilanSansGrant(base: Base): SansGrant {
-  const faits = base.lire<{ ticket: number | null; type: string; payload: string }>(
+  const rows = base.lire<{ ticket: number | null; type: string; payload: string }>(
     `SELECT ticket, type, payload FROM events
      WHERE type IN ('pass.started', 'pass.pr-opened', 'pass.held', 'merge.done', 'pass.pr-closed', 'pass.abandoned', 'cook.launched') ORDER BY seq`,
   );
-  // La PR de la livraison en cours de chaque ticket, puis le sort de chaque PR arrêtée.
+  // The PR of each ticket's current delivery, then the fate of each stopped PR.
   const enCours = new Map<number, string>();
   const arretees = new Map<string, { ticket: number; sort: Sort }>();
-  const duTicket = (ticket: number) => [...arretees.values()].filter((arretee) => arretee.ticket === ticket && arretee.sort === "ouverte");
-  for (const { ticket, type, payload } of faits) {
+  const duTicket = (ticket: number) => [...arretees.values()].filter((arretee) => arretee.ticket === ticket && arretee.sort === "open");
+  for (const { ticket, type, payload } of rows) {
     if (ticket === null) continue;
     const dit = JSON.parse(payload) as { reason?: unknown; pr?: unknown; by?: unknown; merged?: unknown; closed?: unknown };
     const pr = typeof dit.pr === "string" ? dit.pr : null;
@@ -832,21 +832,21 @@ export function bilanSansGrant(base: Base): SansGrant {
         break;
       case "pass.held": {
         const sienne = enCours.get(ticket);
-        if (motifDArret(dit).reason === SANS_GRANT && sienne !== undefined && !arretees.has(sienne)) arretees.set(sienne, { ticket, sort: "ouverte" });
+        if (motifDArret(dit).reason === SANS_GRANT && sienne !== undefined && !arretees.has(sienne)) arretees.set(sienne, { ticket, sort: "open" });
         break;
       }
-      // Fermée puis rouverte et mergée, elle est mergée.
+      // Closed then reopened and merged, it is merged.
       case "merge.done":
         if (arretee && arretee.sort !== "chef" && arretee.sort !== "pass") arretee.sort = dit.by === "pass" ? "pass" : "chef";
         break;
       case "pass.pr-closed":
-        if (arretee?.sort === "ouverte") arretee.sort = "fermee";
+        if (arretee?.sort === "open") arretee.sort = "fermee";
         break;
-      // Le ticket a quitté le rail : ce que GitHub disait de sa PR ce jour-là.
+      // The ticket left the rail: what GitHub said of its PR that day.
       case "pass.abandoned":
         for (const laissee of duTicket(ticket)) laissee.sort = dit.merged === true ? "chef" : dit.closed === true ? "fermee" : "lachee";
         break;
-      // Un cook repart sur le ticket : la livraison arrêtée reste derrière lui.
+      // A cook goes back onto the ticket: the stopped delivery stays behind it.
       case "cook.launched":
         for (const laissee of duTicket(ticket)) laissee.sort = "lachee";
         enCours.delete(ticket);
@@ -854,5 +854,5 @@ export function bilanSansGrant(base: Base): SansGrant {
     }
   }
   const combien = (sort: Sort) => [...arretees.values()].filter((arretee) => arretee.sort === sort).length;
-  return { arretees: arretees.size, mergees: combien("chef"), parLaPass: combien("pass"), refusees: combien("fermee"), ouvertes: combien("ouverte") };
+  return { arretees: arretees.size, mergees: combien("chef"), parLaPass: combien("pass"), refusees: combien("fermee"), ouvertes: combien("open") };
 }

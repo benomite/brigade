@@ -10,7 +10,7 @@ import type { Seuils } from "../src/events/drift.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { principal as status } from "../src/status.ts";
 import { decrireReleve, direJauge, franchis, jauger, SANS_SEUIL, trancher } from "../src/mesures.ts";
-import { livraisonsMergees, seuilsEnVigueur, signalements, type Livraison } from "../src/projections/measures.ts";
+import { mergedDeliveries, seuilsEnVigueur, signalements, type Delivery } from "../src/projections/measures.ts";
 import { appeler, horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
 
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -59,7 +59,7 @@ function cuisine(t: TestContext) {
   return { repertoire, journal, base: journal.base, noter, cuire, juger, merger, livrer };
 }
 
-const livraison = (measures: Record<string, number>, reste: Partial<Livraison> = {}): Livraison => ({ ticket: 1, at: `${JOUR_HORLOGE}T10:00:00.000Z`, measures, state: measures, gatesS: null, cooks: [], ...reste });
+const livraison = (measures: Record<string, number>, reste: Partial<Delivery> = {}): Delivery => ({ ticket: 1, at: `${JOUR_HORLOGE}T10:00:00.000Z`, measures, state: measures, gatesS: null, cooks: [], ...reste });
 const seuils = (declares: Partial<Seuils>): Seuils => ({ ...SANS_SEUIL, ...declares });
 
 test("une livraison mergée porte les mesures de ses dernières gates, la durée de toutes, et ses cooks", (t) => {
@@ -70,7 +70,7 @@ test("une livraison mergée porte les mesures de ses dernières gates, la durée
   juger(17, { tests: 203, gates_s: 9 });
   merger(17);
 
-  assert.deepEqual(livraisonsMergees(base), [
+  assert.deepEqual(mergedDeliveries(base), [
     {
       ticket: 17,
       at: `${JOUR_HORLOGE}T10:00:06.000Z`,
@@ -94,7 +94,7 @@ test("ni une relecture ni un jugement ne comptent parmi les cooks d'un ticket, e
   cuire(18, { tours: 9, ms: 90_000 });
   juger(18, { tests: 210 });
 
-  assert.deepEqual(livraisonsMergees(base).map(({ ticket, cooks }) => [ticket, cooks.length]), [[17, 1]]);
+  assert.deepEqual(mergedDeliveries(base).map(({ ticket, cooks }) => [ticket, cooks.length]), [[17, 1]]);
 });
 
 test("un ticket servi deux fois fait deux livraisons, chacune avec ses gates et ses cooks", (t) => {
@@ -102,14 +102,14 @@ test("un ticket servi deux fois fait deux livraisons, chacune avec ses gates et 
   livrer(17, { tests: 203 }, { tours: 10, ms: 60_000 });
   livrer(17, { tests: 240 }, { tours: 25, ms: 90_000 });
 
-  assert.deepEqual(livraisonsMergees(base).map(({ measures, cooks }) => [measures.tests, cooks.map((cook) => cook.turns)]), [[203, [10]], [240, [25]]]);
+  assert.deepEqual(mergedDeliveries(base).map(({ measures, cooks }) => [measures.tests, cooks.map((cook) => cook.turns)]), [[203, [10]], [240, [25]]]);
 });
 
 test("des gates qui ne déclarent rien laissent une livraison sans mesure, jamais à zéro", (t) => {
   const { base, livrer } = cuisine(t);
   livrer(17, undefined);
 
-  assert.deepEqual(livraisonsMergees(base).map(({ measures, gatesS }) => ({ measures, gatesS })), [{ measures: {}, gatesS: null }]);
+  assert.deepEqual(mergedDeliveries(base).map(({ measures, gatesS }) => ({ measures, gatesS })), [{ measures: {}, gatesS: null }]);
 });
 
 test("une livraison jugée avant une autre et mergée après elle, sans rejeu, ne dit rien de l'état du projet", (t) => {
@@ -122,7 +122,7 @@ test("une livraison jugée avant une autre et mergée après elle, sans rejeu, n
   merger(18);
   merger(17);
 
-  const livraisons = livraisonsMergees(base);
+  const livraisons = mergedDeliveries(base);
 
   // Le dépôt, lui, n'a été déclaré par personne depuis : A reste ce qu'on en sait de mieux.
   assert.deepEqual(livraisons.map(({ ticket, measures, state }) => ({ ticket, tests: measures.tests, state })), [
@@ -143,7 +143,7 @@ test("rejouée sur la base qui a avancé, la même livraison dit de nouveau l'é
   noter({ type: "pass.replayed", payload: { sha: "sha-17", base: "base-2", gates: { outcome: "green", code: 0, failures: [], tail: "", measures: { tests: 946 } }, findings: [] } }, 17);
   merger(17);
 
-  assert.deepEqual(livraisonsMergees(base).map(({ state }) => state.tests), [930, 946]);
+  assert.deepEqual(mergedDeliveries(base).map(({ state }) => state.tests), [930, 946]);
 });
 
 test("les seuils déclarés et les franchissements signalés se lisent au journal ; une mesure revenue sous son seuil n'est plus signalée", (t) => {
@@ -236,7 +236,7 @@ test("le chef lit les mesures dans le temps : une ligne par tranche, la pente, l
   livrer(3, undefined, { tours: 14, ms: 100_000 });
   livrer(4, { tests: 622, tests_s: 6.2, gates_s: 21, depot_octets: 2_900_000, contexte_octets: 9400, doc_octets: 511_000 }, { tours: 58, ms: 170_000, modele: "opus", effort: "high" });
 
-  assert.deepEqual(decrireReleve({ projet: "brigade", livraisons: livraisonsMergees(base), seuils: seuils({ tests: 500, testsSeconds: 10 }) }, 2), [
+  assert.deepEqual(decrireReleve({ projet: "brigade", livraisons: mergedDeliveries(base), seuils: seuils({ tests: 500, testsSeconds: 10 }) }, 2), [
     "report     brigade — 4 merges in the log, in slices of 2",
     "           4 since the last closing (none in the log) · 4 since the last security review (none in the log)",
     "           only the deliveries the pass judged count, and the cooks in the log — not the account's consumption",
@@ -378,7 +378,7 @@ test("le plafond des gates, franchi sans être jugé, se lit au relevé : sur co
   juger(20, { tests: 204 });
   merger(20);
 
-  const livraisons = livraisonsMergees(base);
+  const livraisons = mergedDeliveries(base);
   assert.deepEqual(livraisons.map((livraison) => livraison.overCeiling?.cpuSeconds), [undefined, 233.1, 178.3, undefined]);
   // Une livraison dont les gates n'ont rien déclaré ne porte toujours aucune mesure.
   assert.deepEqual(livraisons.map((livraison) => livraison.measures), [{ tests: 200 }, {}, { tests: 203 }, { tests: 204 }]);
@@ -396,7 +396,7 @@ test("un seuil de coût se juge sur les dix derniers merges : le ticket le plus 
   cuire(1, { tours: 5, ms: 1000, outcome: "failed" });
   livrer(1, undefined);
   livrer(2, undefined);
-  const livraisons = livraisonsMergees(base);
+  const livraisons = mergedDeliveries(base);
 
   assert.deepEqual(jauger(livraisons, SANS_SEUIL), []);
   assert.deepEqual(jauger(livraisons, seuils({ ticketTokens: 3500, lostTokens: 2000 })).map(({ franchi }) => franchi), [false, false]);
@@ -409,7 +409,7 @@ test("un seuil de coût se juge sur les dix derniers merges : le ticket le plus 
   assert.deepEqual(jauger([livraison({})], seuils({ ticketTokens: 1, lostTokens: 1 })).map(({ observed }) => observed), [null, null]);
   // Un merge de plus que la fenêtre : le ticket cher en sort.
   for (let ticket = 3; ticket < 13; ticket++) livrer(ticket, undefined);
-  assert.deepEqual(franchis(livraisonsMergees(base), seuils({ ticketTokens: 2500, lostTokens: 1 })), []);
+  assert.deepEqual(franchis(mergedDeliveries(base), seuils({ ticketTokens: 2500, lostTokens: 1 })), []);
   assert.deepEqual(
     [
       { measure: "tokens_ticket", observed: 2400000, limit: 2000000 },

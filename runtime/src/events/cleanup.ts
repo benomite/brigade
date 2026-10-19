@@ -1,31 +1,32 @@
-// Les faits du nettoyage : ce que devient le worktree d'un cook une fois ce
-// cook fini, sa branche locale une fois son ticket servi ou sorti du rail, et
-// les transcripts que `claude` laisse dans le `~/.claude` d'un projet cloisonné.
+// The cleanup facts: what becomes of a cook's worktree once that cook is done,
+// of its local branch once its ticket is served or off the rail, and of the
+// transcripts `claude` leaves in the `~/.claude` of a partitioned project.
 
-// Pourquoi un worktree reste. `failed` : ce qui y traîne n'a pas pu être
-// commité, ou il n'a pas pu être retiré. `pr-open` et `unpushed` ne s'écrivent
-// plus : ce sont les motifs d'avant #164, quand un worktree attendait son
-// ticket — un journal de ce temps-là les porte encore.
+// Why a worktree stays. `failed`: what lingers in it could not be committed,
+// or it could not be removed. `pr-open` and `unpushed` are no longer written:
+// they are the reasons from before #164, when a worktree waited for its
+// ticket — a log from that time still carries them.
 export type MotifDeGarde = "pr-open" | "unpushed" | "failed";
 
 export type FaitNettoyage =
-  // Le worktree n'est plus là — rangé, ou constaté absent ; sa branche reste.
-  // `worktree` : son chemin, relatif au répertoire d'état. `harvest` : le
-  // commit de ce qui y traînait, posé sur la branche, ou null. Sans `harvest`,
-  // le fait est d'avant #164 : la branche locale est partie avec le worktree.
+  // The worktree is gone — tidied, or found missing; its branch stays.
+  // `worktree`: its path, relative to the state directory. `harvest`: the
+  // commit of what lingered in it, put on the branch, or null. Without
+  // `harvest`, the fact is from before #164: the local branch left with the
+  // worktree.
   | { type: "worktree.removed"; payload: { worktree: string; branch: string; harvest?: string | null } }
-  // Gardé, rien n'y a été touché. Écrit une fois, pas à chaque essai.
-  // `detail` : ce que git a dit.
+  // Kept, nothing in it was touched. Written once, not on every try.
+  // `detail`: what git said.
   | { type: "worktree.kept"; payload: { worktree: string; branch: string; reason: MotifDeGarde; detail: string } }
-  // La branche locale d'un cook n'est plus là : son ticket est servi ou sorti
-  // du rail, et tous ses commits sont sur l'origine.
+  // A cook's local branch is gone: its ticket is served or off the rail, and
+  // all its commits are on origin.
   | { type: "branch.removed"; payload: { branch: string } }
-  // Un passage du rangement des transcripts, sous cloison : combien sont
-  // partis et ce qu'ils pesaient, combien restent et ce qu'ils pèsent, en
-  // octets. `keepMs` : la durée de garde appliquée. Écrit à chaque passage,
-  // même s'il ne retire rien : c'est là que se lit ce qui est gardé.
+  // One pass of the transcript cleanup, under partition: how many left and
+  // what they weighed, how many remain and what they weigh, in bytes.
+  // `keepMs`: the retention applied. Written on every pass, even when it
+  // removes nothing: that is where what is kept can be read.
   | { type: "transcripts.tidied"; payload: { removed: number; freedBytes: number; kept: number; keptBytes: number; keepMs: number } }
-  // Le projet n'est plus cloisonné : plus aucun transcript n'est rangé, et le
-  // dernier passage ne dit plus rien de vrai. Écrit une fois, au démarrage qui
-  // le constate.
+  // The project is no longer partitioned: no transcript is tidied any more,
+  // and the last pass no longer says anything true. Written once, at the
+  // startup that notices it.
   | { type: "transcripts.released"; payload: Record<string, never> };

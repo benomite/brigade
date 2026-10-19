@@ -1,15 +1,14 @@
-// La dérive que la fermeture mesure : ce que les derniers merges ont ajouté,
-// rapporté à ce qu'ils ont retiré. Rien ne retire quoi que ce soit tant que ce
-// ratio ne redescend pas.
+// The drift the closing measures: what the latest merges added, relative to
+// what they removed. Nothing removes anything until this ratio comes back down.
 
-// Les fenêtres, en merges : les vingt, cinquante et cent derniers.
+// The windows, in merges: the last twenty, fifty and hundred.
 export const FENETRES = [20, 50, 100];
 
-// `merges` : ceux que la fenêtre a trouvés — moins qu'elle n'en demande quand
-// la branche n'en a pas autant.
+// `merges`: those the window found — fewer than it asks for when the branch
+// does not have that many.
 export type Fenetre = { fenetre: number; merges: number; ajoute: number; retire: number };
 
-// `merges` : le plus récent d'abord.
+// `merges`: the most recent first.
 export function mesurerRatio(merges: Array<{ ajoute: number; retire: number }>, fenetres = FENETRES): Fenetre[] {
   return fenetres.map((fenetre) => {
     const siens = merges.slice(0, fenetre);
@@ -18,7 +17,7 @@ export function mesurerRatio(merges: Array<{ ajoute: number; retire: number }>, 
   });
 }
 
-// Le ratio tel qu'il se lit : `24.3:1`.
+// The ratio as it reads: `24.3:1`.
 export function direRatio({ ajoute, retire }: { ajoute: number; retire: number }): string {
   return retire === 0 ? "nothing removed" : `${(ajoute / retire).toLocaleString("en-US", { maximumFractionDigits: 1 })}:1`;
 }

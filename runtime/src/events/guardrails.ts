@@ -1,45 +1,45 @@
-// Les faits des garde-fous : la vie d'un cook vue par celui qui le surveille,
-// et ce que le chef commande à la cuisine.
+// The guardrail facts: a cook's life seen by whoever watches it, and what the
+// chef commands to the kitchen.
 
 import type { Activite } from "../activite.ts";
 
-// Ce qu'un cook ne peut pas dépasser, quel que soit son ticket.
+// What a cook cannot exceed, whatever its ticket.
 export type Plafonds = { turns: number; durationMs: number; tokens: number; idleMs: number };
 
-// Pourquoi un garde-fou a arrêté un cook. `stop` : la commande du chef.
-// `lease` : le bail de son ticket est tombé, faute de progrès dans son
-// worktree — c'est sa station qui le dit, pas le superviseur. `removals` : la
-// passe de fermeture a retiré plus de lignes que son plafond — c'est elle qui
-// le dit.
+// Why a guardrail stopped a cook. `stop`: the chef's command. `lease`: the
+// lease on its ticket lapsed, for lack of progress in its worktree — its
+// station says so, not the supervisor. `removals`: the closing pass removed
+// more lines than its cap — the pass itself says so.
 export type MotifArret = "turns" | "duration" | "tokens" | "idle" | "lease" | "removals" | "stop";
 
-// Comment un cook s'est terminé, du point de vue du disjoncteur : `failed` et
-// `guard` sont des échecs, `ok` remet le compteur à zéro, `stop`, `neutral`
-// (le 86, que la station reconnaît) et `refused` (le modèle a refusé de
-// répondre) ne comptent ni pour ni contre.
+// How a cook ended, from the breaker's point of view: `failed` and `guard` are
+// failures, `ok` resets the counter to zero, `stop`, `neutral` (the 86, which
+// the station recognises) and `refused` (the model refused to answer) count
+// neither for nor against.
 export type Issue = "ok" | "failed" | "guard" | "stop" | "neutral" | "refused";
 
 export const RELEVE = "cook.progressed";
 
-// Ce qu'une station dit du cook qu'elle lance. Le calibrage y est : c'est par
-// lui que le chef lit, au journal, ce que chaque cook lui coûte.
-// `relaunch` : le cook d'une relance décidée par le manager, après les renvois
-// de la pass — sa livraison ne remet pas le disjoncteur à zéro, c'est le
-// verdict de la pass qui compte (`relaunch.judged`).
-// `unarbitrated` : le cook est parti pendant que l'arbitre entre projets était
-// injoignable.
-// `remote` : le cook d'une station distante — il ne tourne pas sur cette
-// machine, il n'y a ni worktree ni flux brut : sa station rapporte sa mesure.
-// `head` : la tête de sa branche quand il y est entré — un runtime qui reprend
-// ce cook lit contre elle ce qu'il a livré.
-// `sandbox` : le cook d'une station distante, lancé sur son poste dans le bac
-// à sable de Claude Code — un ticket ordinaire (`bac-a-sable/ordinaires.ts`).
-// `resumes` : le cook d'un renvoi qui reprend la session du cook dont la pass
-// a refusé la livraison (`reprise-de-session.ts`) — son run, et la session
-// reprise. Absent : il est parti de zéro, comme un premier cook.
-// `continues` : le cook qui reprend le travail conservé d'un autre — celui
-// d'une station distante disparue en pleine cuisson (`travail-conserve.ts`) :
-// le run de ce cook-là. Sa branche est la sienne.
+// What a station says about the cook it launches. The calibration is there:
+// it is how the chef reads, in the log, what each cook costs him.
+// `relaunch`: the cook of a relaunch decided by the manager, after the pass's
+// returns — its delivery does not reset the breaker to zero, the pass's
+// verdict is what counts (`relaunch.judged`).
+// `unarbitrated`: the cook started while the arbiter between projects was
+// unreachable.
+// `remote`: the cook of a remote station — it does not run on this machine,
+// there is neither a worktree nor a raw stream: its station reports its
+// measure.
+// `head`: the tip of its branch when it entered it — a runtime that resumes
+// this cook reads against it what it delivered.
+// `sandbox`: the cook of a remote station, launched on its workstation in
+// Claude Code's sandbox — an ordinary ticket (`bac-a-sable/ordinaires.ts`).
+// `resumes`: the cook of a return that resumes the session of the cook whose
+// delivery the pass refused (`reprise-de-session.ts`) — its run, and the
+// session resumed. Absent: it started from scratch, like a first cook.
+// `continues`: the cook that takes over the preserved work of another — that
+// of a remote station that vanished mid-cook (`travail-conserve.ts`): the run
+// of that cook. Its branch is its own.
 export type ContexteCook = {
   station: string;
   model: string;
@@ -56,23 +56,24 @@ export type ContexteCook = {
 };
 
 export type FaitGardeFous =
-  // Les réglages en vigueur, écrits quand ils changent : c'est ici que le chef
-  // lit les plafonds.
+  // The settings in force, written when they change: this is where the chef
+  // reads the caps.
   | { type: "guard.configured"; payload: { limits: Plafonds; breakerThreshold: number } }
-  // L'intention : écrite avant que le sous-processus existe. `stream` est le
-  // chemin du flux brut, relatif au répertoire d'état. Le reste vient de la
-  // station qui lance : son nom, le calibrage du cook, sa branche, son worktree.
+  // The intent: written before the subprocess exists. `stream` is the path of
+  // the raw stream, relative to the state directory. The rest comes from the
+  // launching station: its name, the cook's calibration, its branch, its
+  // worktree.
   | { type: "cook.launched"; payload: { run: string; limits: Plafonds; stream: string } & Partial<ContexteCook> }
-  // Le relevé d'un cook en cours, écrit à chaque tick : ce qu'il a consommé
-  // jusqu'ici, et ce qu'il fait en ce moment d'après son flux — la nature du
-  // geste et ce qu'il vise, jamais son contenu. `activity` absent : celui qui le
-  // surveille ne lit pas son flux (une station distante), ou un relevé d'avant
-  // ce champ ; nul, le cook n'a encore rien dit qui se lise.
+  // The reading of a running cook, written at every tick: what it has consumed
+  // so far, and what it is doing right now according to its stream — the kind
+  // of action and what it aims at, never its content. `activity` absent: whoever
+  // watches it does not read its stream (a remote station), or a reading from
+  // before this field; null, the cook has not said anything readable yet.
   | { type: "cook.progressed"; payload: { run: string; turns: number; tokens: number; activity?: Activite | null } }
-  // Le motif d'un arrêt, écrit avant le signal : si le runtime meurt entre les
-  // deux, le motif est déjà au journal.
+  // The reason for a stop, written before the signal: if the runtime dies
+  // between the two, the reason is already in the log.
   | { type: "guard.tripped"; payload: { run: string; reason: MotifArret; limit: number | null; observed: number | null } }
-  // La fin du process, quelle qu'en soit la cause.
+  // The end of the process, whatever the cause.
   | {
       type: "cook.exited";
       payload: {
@@ -84,28 +85,28 @@ export type FaitGardeFous =
         tokens: number;
         durationMs: number;
         error?: string;
-        // Pourquoi brigade a arrêté ce cook, quand c'est elle : `stop` (le
-        // chef) ; `update` (une mise à jour) ne se lit plus que dans les
-        // journaux d'avant la station. Absent : sa fin n'est pas de
-        // son fait, et si elle est un échec, elle compte pour le disjoncteur.
+        // Why brigade stopped this cook, when it did: `stop` (the chef);
+        // `update` (an update) is only read in logs from before the station.
+        // Absent: its end is not of brigade's doing, and if it is a failure, it
+        // counts for the breaker.
         cause?: "stop" | "update";
-        // Combien de fois ce qui a la forme d'identifiants de Claude a été
-        // masqué dans son flux brut et sa sortie d'erreur. Absent : jamais.
+        // How many times what has the shape of Claude credentials was masked
+        // in its raw stream and its error output. Absent: never.
         credentialsMasked?: number;
       };
     }
-  // Écrit au démarrage pour un lancement sans fin : le cook est mort avec le
+  // Written at startup for a launch with no end: the cook died with the
   // runtime.
   | { type: "cook.interrupted"; payload: { run: string } }
-  // Écrit au démarrage pour un lancement sans fin dont le cook vit encore —
-  // un relais le porte — ou a fini sans que personne ne le lise : le runtime
-  // qui démarre le reprend, et c'est lui qui écrira sa fin. `pid` : celui de
-  // son relais.
+  // Written at startup for a launch with no end whose cook is still alive — a
+  // relay carries it — or finished without anyone reading it: the runtime that
+  // starts takes it over, and it is the one that will write its end. `pid`:
+  // that of its relay.
   | { type: "cook.resumed"; payload: { run: string; pid: number | null } }
-  // Ce que la pass a dit de la livraison d'une relance du manager : rouge,
-  // c'est un échec de plus pour le disjoncteur ; verte, il repart de zéro.
+  // What the pass said about the delivery of a manager relaunch: red, it is one
+  // more failure for the breaker; green, it restarts from zero.
   | { type: "relaunch.judged"; payload: { run: string; verdict: "green" | "red" } }
   | { type: "breaker.opened"; payload: { failures: number; threshold: number } }
-  // Les commandes du chef : « stop » et « reprendre ».
+  // The chef's commands: "stop" and "resume".
   | { type: "kitchen.stopped"; payload: Record<string, never> }
   | { type: "kitchen.resumed"; payload: Record<string, never> };

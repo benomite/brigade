@@ -4,7 +4,7 @@
 // n'est mesuré ici ni gardé ailleurs.
 import type { Seuils } from "./events/drift.ts";
 import { geste } from "./geste.ts";
-import type { CookMesure, Livraison } from "./projections/measures.ts";
+import type { CookMesure, Delivery } from "./projections/measures.ts";
 
 // Le nombre de merges d'une tranche, faute d'option.
 export const PAR_DEFAUT = 10;
@@ -47,18 +47,18 @@ function mediane(valeurs: number[]): number | null {
 // La dernière valeur connue d'une mesure : une livraison sans diff, jugée par
 // des gates qui ne déclarent rien, ou jugée avant une livraison déjà mergée,
 // n'en dit rien.
-const derniere = (livraisons: Livraison[], nom: string): number | null => livraisons.findLast((livraison) => livraison.state[nom] !== undefined)?.state[nom] ?? null;
+const derniere = (livraisons: Delivery[], nom: string): number | null => livraisons.findLast((livraison) => livraison.state[nom] !== undefined)?.state[nom] ?? null;
 
 // La part des gates dans le temps d'une livraison : leur durée, rapportée à
 // cette durée plus celle de ses cooks. Nulle si l'une des deux manque.
-function partDesGates({ gatesS, cooks }: Livraison): number | null {
+function partDesGates({ gatesS, cooks }: Delivery): number | null {
   const cuisson = cooks.reduce((somme, cook) => somme + (cook.durationMs ?? 0), 0);
   return gatesS === null || cuisson === 0 ? null : (gatesS * 1000) / (gatesS * 1000 + cuisson);
 }
 
 // Ce qu'un ticket a demandé de tours, tous ses cooks comptés, sous le
 // calibrage du dernier — celui avec lequel il a fini par passer.
-function toursDuTicket({ cooks }: Livraison): { calibrage: string; tours: number } | null {
+function toursDuTicket({ cooks }: Delivery): { calibrage: string; tours: number } | null {
   const calibrage = cooks.at(-1)?.calibration ?? null;
   const comptes = cooks.flatMap((cook) => (cook.turns === null ? [] : [cook.turns]));
   return calibrage === null || comptes.length === 0 ? null : { calibrage, tours: comptes.reduce((somme, tours) => somme + tours, 0) };
@@ -67,7 +67,7 @@ function toursDuTicket({ cooks }: Livraison): { calibrage: string; tours: number
 // Ce qu'un ticket a consommé de tokens : la somme de ses lancements, sous le
 // calibrage du dernier. Un lancement dont les tokens ne sont pas connus ne
 // compte pas.
-function tokensDuTicket({ ticket, cooks }: Livraison): { ticket: number | null; calibrage: string; tokens: number } | null {
+function tokensDuTicket({ ticket, cooks }: Delivery): { ticket: number | null; calibrage: string; tokens: number } | null {
   const calibrage = cooks.at(-1)?.calibration ?? null;
   const comptes = cooks.flatMap((cook) => (cook.tokens === null ? [] : [cook.tokens]));
   return calibrage === null || comptes.length === 0 ? null : { ticket, calibrage, tokens: comptes.reduce((somme, tokens) => somme + tokens, 0) };
@@ -83,7 +83,7 @@ function tokensDuTicket({ ticket, cooks }: Livraison): { ticket: number | null; 
 // sommes : un lancement repris qui livre est utile, perdu sinon, comme un autre.
 export type Paiement = { ticket: number | null; lancements: number; inconnus: number; repris?: number; tokens: { utiles: number; perdus: number } | null };
 
-function paiementDuTicket({ ticket, cooks }: Livraison): Paiement {
+function paiementDuTicket({ ticket, cooks }: Delivery): Paiement {
   const somme = (livre: boolean) => cooks.reduce((total, cook) => total + (cook.delivered === livre ? (cook.tokens ?? 0) : 0), 0);
   const inconnus = cooks.filter((cook) => cook.tokens === null).length;
   const repris = cooks.filter((cook) => cook.resumed === true).length;
@@ -94,7 +94,7 @@ function paiementDuTicket({ ticket, cooks }: Livraison): Paiement {
 // journal sait de ses lancements : le nombre de passages, la part perdue,
 // les renvois repartis de zéro faute de reprise. Un ticket passé une fois
 // n'a rien d'autre à dire que sa taille d'une traite.
-export function motifDeDerive(livraison: Livraison): string {
+export function motifDeDerive(livraison: Delivery): string {
   const { cooks } = livraison;
   const { tokens } = paiementDuTicket(livraison);
   const total = cooks.reduce((somme, cook) => somme + (cook.tokens ?? 0), 0);
@@ -141,7 +141,7 @@ export type Tranche = {
   paiements: Paiement[];
 };
 
-export function trancher(livraisons: Livraison[], par = PAR_DEFAUT): Tranche[] {
+export function trancher(livraisons: Delivery[], par = PAR_DEFAUT): Tranche[] {
   const tranches: Tranche[] = [];
   for (let debut = 0; debut < livraisons.length; debut += par) {
     const siennes = livraisons.slice(debut, debut + par);
@@ -183,7 +183,7 @@ const TOKENS_PERDUS = "tokens_perdus";
 
 // Chaque seuil déclaré, avec ce que le projet en est. Un plafond est franchi
 // quand il est dépassé ; le compteur de merges, quand il est atteint.
-export function jauger(livraisons: Livraison[], seuils: Seuils): Jauge[] {
+export function jauger(livraisons: Delivery[], seuils: Seuils): Jauge[] {
   const jauges: Jauge[] = [];
   const plafond = (measure: string, observed: number | null, limit: number | null, motifs?: string[]) => {
     if (limit !== null) jauges.push({ measure, observed, limit, franchi: observed !== null && observed > limit, ...(motifs === undefined || motifs.length === 0 ? {} : { motifs }) });
@@ -212,7 +212,7 @@ export function jauger(livraisons: Livraison[], seuils: Seuils): Jauge[] {
   return jauges;
 }
 
-export function franchis(livraisons: Livraison[], seuils: Seuils): Franchi[] {
+export function franchis(livraisons: Delivery[], seuils: Seuils): Franchi[] {
   return jauger(livraisons, seuils).flatMap(({ measure, observed, limit, franchi }) => (franchi && observed !== null ? [{ measure, observed, limit }] : []));
 }
 
@@ -293,7 +293,7 @@ function pente(valeurs: Array<number | null>): string {
 // Le plafond de durée que les gates du projet se donnent : la pass ne le juge
 // pas, et ce relevé est l'endroit où ses dépassements se suivent. Rien n'est
 // dit tant qu'aucune livraison ne l'a franchi.
-function direPlafond(livraisons: Livraison[]): string[] {
+function direPlafond(livraisons: Delivery[]): string[] {
   const franchies = livraisons.filter((livraison) => livraison.overCeiling !== undefined);
   const derniere = franchies.at(-1);
   if (derniere?.overCeiling === undefined) return [];
@@ -315,7 +315,7 @@ function direProposition(jauges: Jauge[]): string[] {
   return franchies.map((jauge, i) => ligne(i === 0 ? "closing" : "", `proposed — ${direJaugeEn(jauge)} · yours to run: \`${geste(`closing`)}\` observes, nothing starts by itself`));
 }
 
-export type Releve = { projet: string | null; livraisons: Livraison[]; seuils: Seuils | null };
+export type Releve = { projet: string | null; livraisons: Delivery[]; seuils: Seuils | null };
 
 // Le relevé, ligne par ligne.
 export function decrireReleve({ projet, livraisons, seuils }: Releve, par = PAR_DEFAUT): string[] {

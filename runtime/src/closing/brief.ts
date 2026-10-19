@@ -1,14 +1,14 @@
-// Ce que la passe dit à son closer, ce qu'elle relit de lui, et ce qu'elle
-// écrit dans sa PR. Le closer retire, il ne juge pas seul : ce qu'il laisse
-// faute d'être sûr se dit, une ligne par candidat, et la PR le porte.
+// What the pass tells its closer, what it reads back from it, and what it
+// writes in its PR. The closer removes, it does not judge alone: what it leaves
+// for lack of certainty is said, one line per candidate, and the PR carries it.
 import type { Laisse } from "../events/closing.ts";
 import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE } from "../livrable.ts";
 import type { Candidat } from "./candidates.ts";
 
-// La ligne par laquelle le closer dit qu'il laisse un candidat, et pourquoi.
+// The line by which the closer says it leaves a candidate, and why.
 export const MOT_LAISSE = "LAISSÉ";
 const LIGNE_LAISSE = /^[\s>*-]*LAISS[ÉE]\s+`?([DM]\d+)`?\s*:\s*(\S.*)$/gimu;
-// Ce que la passe dit d'un candidat resté que le closer n'a pas nommé.
+// What the pass says of a remaining candidate the closer did not name.
 export const SANS_MOTIF = "the closer gave no reason — the candidate is still spotted after the pass";
 
 const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
@@ -33,17 +33,17 @@ export function consigneDuCloser(mission: { depot: string; base: string; candida
   ].join("\n");
 }
 
-// Les candidats que le closer dit laisser, chacun avec son motif. La dernière
-// ligne qui nomme un candidat l'emporte.
+// The candidates the closer says it leaves, each with its reason. The last
+// line naming a candidate wins.
 export function motifsDuCloser(message: string | null): Map<string, string> {
   const motifs = new Map<string, string>();
   for (const [, id = "", motif = ""] of (message ?? "").matchAll(LIGNE_LAISSE)) motifs.set(id.toUpperCase(), motif.trim());
   return motifs;
 }
 
-// Ce que la passe n'a pas retiré de ce qu'elle proposait : ce que sa branche
-// porte encore, et ce que le closer dit avoir laissé — l'un ou l'autre suffit,
-// rien n'est tenu pour retiré sur parole.
+// What the pass did not remove of what it proposed: what its branch still
+// carries, and what the closer says it left — either is enough, nothing is
+// taken as removed on its word.
 export function laisses(proposes: Candidat[], restes: Candidat[], motifs: Map<string, string>): Laisse[] {
   const encore = new Set(restes.map(({ id }) => id));
   return proposes
@@ -55,17 +55,17 @@ export function titreDeLaPR(run: string): string {
   return `Fermeture — passe ${run}`;
 }
 
-// Le corps de la PR d'une passe : ce qu'elle a retiré, et tout ce qu'elle n'a
-// pas retiré, avec son motif.
+// The body of a pass's PR: what it removed, and everything it did not remove,
+// with its reason.
 export function corpsDeLaPR(passe: {
   run: string;
   base: string;
-  calibrage: { model: string; effort: string };
+  calibration: { model: string; effort: string };
   proposes: Candidat[];
   laisses: Laisse[];
   ecartes: Laisse[];
   retirees: number;
-  plafond: number;
+  cap: number;
   fichiers: string[];
   compteRendu: string | null;
 }): string {
@@ -74,7 +74,7 @@ export function corpsDeLaPR(passe: {
   const retires = proposes.filter(({ id }) => !restes.has(id));
   const dire = ({ id, what, reason }: Laisse) => `- **${id}** — ${what}\n  - ${reason ?? SANS_MOTIF}`;
   return [
-    `Passe de fermeture \`${passe.run}\` — lancée par le chef, hors du rail, closer en \`${passe.calibrage.model}\` / \`${passe.calibrage.effort}\`.`,
+    `Passe de fermeture \`${passe.run}\` — lancée par le chef, hors du rail, closer en \`${passe.calibration.model}\` / \`${passe.calibration.effort}\`.`,
     "",
     `Elle n'a rien poussé sur \`${passe.base}\` et ne merge rien : ce qu'elle retire arrive par cette PR, que la pass juge et merge comme celle d'un ticket — fusionnée avec \`${passe.base}\`, sous les gates, le reviewer, la CI et le grant \`merge\`. Rouge, aucun cook ne la reprend : elle remonte au chef. ${pluriel(passe.retirees, "ligne")} retirée${passe.retirees > 1 ? "s" : ""} pour un plafond de ${nombre(passe.plafond)}, dans ${pluriel(passe.fichiers.length, "fichier")}.`,
     "",

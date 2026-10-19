@@ -1,17 +1,17 @@
-// Les faits de l'alerte d'urgence : ce que le runtime a annoncé au chef quand
-// toute la cuisine l'attend. L'urgence elle-même ne s'écrit pas (elle se relit
-// du rail) ; ces faits ne gardent que ce qui a été dit, et quand.
+// The facts of the emergency alert: what the runtime announced to the chef when
+// the whole kitchen is waiting on him. The emergency itself is not written (it
+// is re-read from the rail); these facts keep only what was said, and when.
 
 export type FaitUrgence =
-  // Écrit à l'apparition de l'urgence, ou quand sa cause change (`reminder`
-  // faux), puis une fois par espacement tant qu'elle ne bouge pas (`reminder`
-  // vrai). `key` : ce qui fait la même urgence — son début et ses décisions en
-  // cause. `label` : la ligne d'alerte. `decision`, `ticket`, `cause`, `geste` :
-  // la décision qui retient le plus de tickets, comme l'état la expose.
-  // `since` : le début de l'arrêt total.
+  // Written when the emergency appears, or when its cause changes (`reminder`
+  // false), then once per interval while it does not move (`reminder` true).
+  // `key`: what makes it the same emergency — its start and the decisions
+  // behind it. `label`: the alert line. `decision`, `ticket`, `cause`, `geste`:
+  // the decision that holds back the most tickets, as the state exposes it.
+  // `since`: the start of the total stop.
   | {
       type: "urgence.alerted";
       payload: { key: string; label: string; decision: string; ticket: number | null; cause: string; geste: string; since: string; retenus: number[]; reminder: boolean };
     }
-  // Écrit quand l'urgence annoncée est levée : le compteur repart de zéro.
+  // Written when the announced emergency is lifted: the counter restarts from zero.
   | { type: "urgence.lifted"; payload: { key: string } };

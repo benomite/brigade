@@ -1,27 +1,26 @@
-// Les doublons que la fermeture repère : des lignes de code identiques de
-// suite, à deux endroits. Du texte comparé à du texte — ni l'indentation, ni
-// les lignes vides, ni les commentaires, ni les lignes de pure ponctuation ne
-// comptent. Elle repère, elle ne juge pas : deux passages identiques ne sont
-// pas toujours à réunir.
+// The duplicates the closing spots: identical lines of code in a row, in two
+// places. Text compared to text — neither indentation, nor blank lines, nor
+// comments, nor lines of pure punctuation count. It spots, it does not judge:
+// two identical passages are not always to be merged.
 import type { Texte } from "./reading.ts";
 
-// En dessous, deux passages identiques ne sont pas un doublon.
+// Below this, two identical passages are not a duplicate.
 export const LIGNES_MIN = 8;
-// Ce qui se compare : du code, pas de la doc ni des données.
+// What is compared: code, not docs or data.
 export const CODE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py|rb|go|rs|java|kt|swift|c|h|cc|cpp|hpp|cs|php|sh|bash|sql|css|scss|html|vue|svelte)$/;
 
-// `debut`, `fin` : ses lignes dans le fichier, à partir de 1.
+// `debut`, `fin`: its lines in the file, counting from 1.
 export type Passage = { chemin: string; debut: number; fin: number };
-// `lignes` : celles de code que ses deux passages ont en commun.
+// `lignes`: the lines of code its two passages have in common.
 export type Doublon = { lignes: number; passages: [Passage, Passage] };
 
 const COMMENTAIRE = /^(\/\/|\/\*|\*( |\/|$)|#( |!|$)|-- |<!--)/;
-// Une ligne qui compte : du code, pas un commentaire ni de la ponctuation.
+// A line that counts: code, not a comment or punctuation.
 const estCode = (nette: string) => /[\p{L}\p{N}]/u.test(nette) && !COMMENTAIRE.test(nette);
 
-// Les lignes de code d'un passage, telles qu'elles se comparent : deux
-// passages qui ont le même extrait sont le même doublon, où qu'ils soient
-// rendus dans leurs fichiers.
+// The lines of code of a passage, as they are compared: two passages with the
+// same excerpt are the same duplicate, wherever they are rendered in their
+// files.
 export function extrait(texte: string, { debut, fin }: Pick<Passage, "debut" | "fin">): string {
   return texte
     .split("\n")
@@ -30,13 +29,13 @@ export function extrait(texte: string, { debut, fin }: Pick<Passage, "debut" | "
     .filter(estCode)
     .join("\n");
 }
-// Une ligne de code : son numéro dans le fichier, et celui de son texte parmi
-// tous les textes rencontrés.
+// A line of code: its number in the file, and that of its text among all the
+// texts met.
 type Ligne = { numero: number; texte: number };
-type Fichier = { chemin: string; lignes: Ligne[]; pris: Set<number> };
+type Fichier = { chemin: string; lignes: Ligne[]; covered: Set<number> };
 
-// Les doublons, les plus longs d'abord. Un passage copié trois fois en fait
-// deux : chaque copie est donnée une fois, contre la première.
+// The duplicates, the longest first. A passage copied three times makes two:
+// each copy is given once, against the first.
 export function repererDoublons(textes: Texte[], min = LIGNES_MIN): Doublon[] {
   const connus = new Map<string, number>();
   const numeroter = (texte: string) => connus.get(texte) ?? (connus.set(texte, connus.size), connus.size - 1);
@@ -48,10 +47,10 @@ export function repererDoublons(textes: Texte[], min = LIGNES_MIN): Doublon[] {
         const nette = brute.trim();
         return estCode(nette) ? [{ numero: rang + 1, texte: numeroter(nette) }] : [];
       }),
-      pris: new Set<number>(),
+      covered: new Set<number>(),
     }));
 
-  // Où commence chaque suite de `min` lignes.
+  // Where each run of `min` lines starts.
   const suite = ({ lignes }: Fichier, rang: number) => lignes.slice(rang, rang + min).map(({ texte }) => texte).join(" ");
   const suites = new Map<string, Array<{ fichier: Fichier; rang: number }>>();
   for (const fichier of fichiers) {
@@ -67,17 +66,17 @@ export function repererDoublons(textes: Texte[], min = LIGNES_MIN): Doublon[] {
   const passage = ({ chemin, lignes }: Fichier, rang: number, longueur: number): Passage => ({ chemin, debut: lignes[rang]?.numero ?? 0, fin: lignes[rang + longueur - 1]?.numero ?? 0 });
   for (const fichier of fichiers) {
     for (let rang = 0; rang + min <= fichier.lignes.length; rang++) {
-      // Déjà donné comme la copie d'un passage vu plus tôt.
-      if (fichier.pris.has(rang)) continue;
-      // Dans un même fichier, deux passages ne se recouvrent pas.
+      // Already given as the copy of a passage seen earlier.
+      if (fichier.covered.has(rang)) continue;
+      // Within one file, two passages do not overlap.
       const separes = (autre: { fichier: Fichier; rang: number }, longueur: number) => autre.fichier !== fichier || Math.abs(autre.rang - rang) >= longueur;
       const autre = suites.get(suite(fichier, rang))?.find((lieu) => separes(lieu, min));
       if (autre === undefined) continue;
       let longueur = min;
       while (separes(autre, longueur + 1) && fichier.lignes[rang + longueur] !== undefined && fichier.lignes[rang + longueur]?.texte === autre.fichier.lignes[autre.rang + longueur]?.texte) longueur++;
       for (let pas = 0; pas < longueur; pas++) {
-        fichier.pris.add(rang + pas);
-        autre.fichier.pris.add(autre.rang + pas);
+        fichier.covered.add(rang + pas);
+        autre.fichier.covered.add(autre.rang + pas);
       }
       doublons.push({ lignes: longueur, passages: [passage(fichier, rang, longueur), passage(autre.fichier, autre.rang, longueur)] });
       rang += longueur - 1;

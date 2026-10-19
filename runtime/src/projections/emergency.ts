@@ -1,12 +1,12 @@
-// L'alerte d'urgence en cours : la dernière que le runtime a émise, tant que
-// l'urgence qu'elle annonce n'est pas levée. Elle vit au journal, donc elle
-// survit à un redémarrage du runtime et se lit app fermée.
+// The emergency alert in progress: the last one the runtime issued, as long as
+// the emergency it announces is not lifted. It lives in the log, so it
+// survives a runtime restart and can be read with the app closed.
 import type { Base } from "../base.ts";
 import type { FaitUrgence } from "../events/emergency.ts";
 import { definirProjection } from "../projection.ts";
 
-// `emiseLe` : la première émission de cette urgence ; `derniereLe` : la plus
-// récente (un rappel, ou la première) ; `rappels` : combien de rappels depuis.
+// `emiseLe`: the first emission of this emergency; `derniereLe`: the most
+// recent (a reminder, or the first); `rappels`: how many reminders since.
 export type AlerteEnCours = {
   key: string;
   label: string;
@@ -14,7 +14,7 @@ export type AlerteEnCours = {
   ticket: number | null;
   cause: string;
   geste: string;
-  depuis: string;
+  since: string;
   emiseLe: string;
   derniereLe: string;
   rappels: number;
@@ -58,5 +58,5 @@ export function alerteEnCours(base: Base): AlerteEnCours | null {
   )[0];
   return lue === undefined
     ? null
-    : { key: lue.key, label: lue.label, decision: lue.decision, ticket: lue.ticket, cause: lue.cause, geste: lue.geste, depuis: lue.since, emiseLe: lue.emise_le, derniereLe: lue.derniere, rappels: lue.rappels };
+    : { key: lue.key, label: lue.label, decision: lue.decision, ticket: lue.ticket, cause: lue.cause, geste: lue.geste, since: lue.since, emiseLe: lue.emise_le, derniereLe: lue.derniere, rappels: lue.rappels };
 }

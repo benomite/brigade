@@ -1,9 +1,9 @@
-// Les réactions du manager : pour chaque ticket que la pass lui a passé, ce
-// qu'il a choisi d'en faire, et où il en est de le faire. C'est ici qu'il lit,
-// à chaque réveil, ce qui reste à poser, à dire, à rendre — il ne garde rien en
-// mémoire — et que le chef lit pourquoi.
+// The manager's reactions: for each ticket the pass handed it, what it chose
+// to do with it, and how far along it is. This is where it reads, at each
+// wake-up, what remains to be put on, to be said, to be handed back — it keeps
+// nothing in memory — and where the chief reads why.
 import type { Base } from "../base.ts";
-import type { Calibrage } from "../calibrage.ts";
+import type { Calibrage as Calibration } from "../calibrage.ts";
 import type { ChoixDeReaction, FaitReaction } from "../events/manager.ts";
 import { definirProjection } from "../projection.ts";
 
@@ -16,8 +16,8 @@ export type ReactionDeTicket = {
   reason: string;
   proposal: string | null;
   run: string | null;
-  from: Calibrage;
-  to: Calibrage | null;
+  from: Calibration;
+  to: Calibration | null;
   // L'échange de labels d'une montée est tranché. `applied` : il a eu lieu —
   // faux quand le chef avait recalibré entre le choix et l'écriture.
   raised: boolean;
@@ -28,7 +28,7 @@ export type ReactionDeTicket = {
 
 const CHOIX: readonly unknown[] = ["retry", "raise", "split", "escalate"];
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur !== "";
-const calibrage = (valeur: unknown): Calibrage | null => {
+const calibration = (valeur: unknown): Calibration | null => {
   const { model, effort } = (valeur !== null && typeof valeur === "object" ? valeur : {}) as Record<string, unknown>;
   return texte(model) && texte(effort) ? { model, effort } : null;
 };
@@ -53,7 +53,7 @@ export const reactions = definirProjection<FaitReaction>({
       decided_seq INTEGER NOT NULL,
       at          TEXT NOT NULL
     ) STRICT;
-    -- Les labels de calibrage que des montées ont posés : ils sont au manager.
+    -- Calibration labels that escalations put on: they belong to the manager.
     CREATE TABLE IF NOT EXISTS manager_reaction_labels (
       ticket INTEGER NOT NULL,
       label  TEXT NOT NULL,
@@ -64,7 +64,7 @@ export const reactions = definirProjection<FaitReaction>({
     // Une réaction remplace la précédente : ce qui a été posé et dit pour
     // l'autre ne vaut pas pour elle.
     "manager.reacted": (base, { ticket, seq, at, payload }) => {
-      const from = calibrage(payload.from);
+      const from = calibration(payload.from);
       if (ticket === null || !Number.isSafeInteger(payload.verdict) || !CHOIX.includes(payload.choice) || from === null) return;
       base.executer(
         `INSERT OR REPLACE INTO manager_reactions (ticket, verdict, returns, choice, reason, proposal, run, origin, target, decided_seq, at)
@@ -77,7 +77,7 @@ export const reactions = definirProjection<FaitReaction>({
         texte(payload.proposal) ? payload.proposal : null,
         texte(payload.run) ? payload.run : null,
         JSON.stringify(from),
-        JSON.stringify(calibrage(payload.to)),
+        JSON.stringify(calibration(payload.to)),
         seq,
         at,
       );
@@ -103,8 +103,8 @@ const lire = (base: Base, suite: string, ...parametres: number[]): ReactionDeTic
     .lire<Ligne>(`SELECT ticket, verdict, returns, choice, reason, proposal, run, origin, target, raised, applied, commented, at FROM manager_reactions ${suite}`, ...parametres)
     .map(({ origin, target, raised, applied, commented, ...ligne }) => ({
       ...ligne,
-      from: JSON.parse(origin) as Calibrage,
-      to: target === null ? null : (JSON.parse(target) as Calibrage | null),
+      from: JSON.parse(origin) as Calibration,
+      to: target === null ? null : (JSON.parse(target) as Calibration | null),
       raised: raised === 1,
       applied: applied === 1,
       commented: commented === 1,
@@ -120,7 +120,7 @@ export function reactionsDuManager(base: Base, combien: number): ReactionDeTicke
   return lire(base, "ORDER BY decided_seq DESC LIMIT ?", combien);
 }
 
-// Les labels de calibrage que des montées ont posés sur un ticket.
+// The calibration labels that escalations put on a ticket.
 export function labelsMontes(base: Base, ticket: number): string[] {
   return base.lire<{ label: string }>("SELECT label FROM manager_reaction_labels WHERE ticket = ? ORDER BY label", ticket).map(({ label }) => label);
 }

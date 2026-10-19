@@ -1,20 +1,20 @@
-// La commande de la fermeture, et ses gestes :
-//   npm --prefix runtime run closing              l'observation : elle lit, et ne touche à rien
-//   npm --prefix runtime run closing -- write     la passe qui écrit : le geste du chef, et le seul qui la lance
-//   npm --prefix runtime run closing -- cancel    renonce à la demande qui attend, avant qu'elle parte
-// Les anciens mots (`fermeture`, `ecrire`, `annuler`) répondent encore, en
-// disant le nouveau (`commandes.ts`).
-// `write` ne lance rien lui-même : il écrit la demande au journal — le runtime
-// qui tourne la voit dans la seconde, relit la condition d'exécution, et fait
-// partir la passe sous ses garde-fous. Trop de cooks en vol, la demande
-// attend : le runtime la fait partir seul, une fois, dès que la condition est
-// remplie, et dit si elle attend sans issue. Ce qui ne passe pas seul — le
-// closer non réglé, le « stop », le disjoncteur, une passe qui range déjà —
-// refuse, et dit ce qui manque.
+// The closing command, and its gestures:
+//   npm --prefix runtime run closing              the observation: it reads, and touches nothing
+//   npm --prefix runtime run closing -- write     the writing pass: the chef's gesture, and the only one that launches it
+//   npm --prefix runtime run closing -- cancel    withdraws the waiting request, before it leaves
+// The old words (`fermeture`, `ecrire`, `annuler`) still answer, saying the new
+// one (`commandes.ts`).
+// `write` launches nothing itself: it writes the request to the log — the
+// running runtime sees it within the second, rereads the start condition, and
+// starts the pass under its guardrails. With too many cooks in flight, the
+// request waits: the runtime starts it on its own, once, as soon as the
+// condition is met, and says if it waits with no way out. What does not pass
+// on its own — the closer not set, the "stop", the breaker, a pass already
+// tidying — is refused, and says what is missing.
 //
-// Codes de sortie : 0, la demande est écrite, attend déjà, ou est retirée — ou
-// il n'y avait rien à faire, et c'est dit ; 1, elle est refusée, rien n'est
-// écrit ; 2, la commande est mal écrite.
+// Exit codes: 0, the request is written, already waiting, or withdrawn — or
+// there was nothing to do, and it says so; 1, it is refused, nothing is
+// written; 2, the command is badly written.
 import { existsSync } from "node:fs";
 import { geste } from "../geste.ts";
 import { enAnglais } from "../commandes.ts";
@@ -40,37 +40,37 @@ function gerer({ args, env, dire, redire }: Appel): void {
   const repertoireEtat = env.BRIGADE_STATE_DIR;
   if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR is not set\n${USAGE}`);
   if (args.length !== 1) echouer(2, USAGE);
-  // La commande ouvre le journal en écriture : sans ce contrôle, elle en
-  // créerait un là où il n'y en a pas.
+  // The command opens the log for writing: without this check, it would
+  // create one where there is none.
   if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `no log in ${repertoireEtat}`);
 
-  const journal = ouvrirJournal(repertoireEtat);
+  const log = ouvrirJournal(repertoireEtat);
   try {
-    const { base } = journal;
+    const { base } = log;
     const projetDuJournal = () => base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
 
-    // Vérifier et écrire tiennent dans une seule transaction : un cook qui
-    // part entre les deux serait vu par le runtime, qui relit la condition.
+    // Checking and writing fit in a single transaction: a cook that leaves
+    // between the two would be seen by the runtime, which rereads the condition.
     const demander = (): { refuse: Refus } | { dit: string } => {
       const projet = projetDuJournal();
       if (!projet) echouer(1, "empty log: the runtime has never started on this state directory");
-      // Personne ne lancerait la passe : la demander serait la laisser partir
-      // plus tard, sans que le chef soit là.
+      // Nobody would launch the pass: requesting it would be letting it leave
+      // later, with the chef not there.
       if (!sessionEnCours(base)) echouer(1, "no runtime is running on this project: the closing pass is not requested — nothing would start it");
-      const reglages = reglagesEnVigueur(journal);
-      // Une seule demande à la fois : redemandée, elle garde son heure.
-      const attend = demandeEnAttente(base);
-      if (attend !== null) {
-        return { dit: `already requested, nothing is requested again — ${direDemandeEn(attend, refus(base, reglages, false))}` };
+      const reglages = reglagesEnVigueur(log);
+      // One request at a time: asked again, it keeps its time.
+      const waiting = demandeEnAttente(base);
+      if (waiting !== null) {
+        return { dit: `already requested, nothing is requested again — ${direDemandeEn(waiting, refus(base, reglages, false))}` };
       }
-      // Aucune n'attend : celle que `passeEnCours` voit range déjà.
-      const refuse = refus(base, reglages, passeEnCours(journal) !== null);
+      // None is waiting: the one `passeEnCours` sees is already tidying.
+      const refuse = refus(base, reglages, passeEnCours(log) !== null);
       if ((refuse && !faitAttendre(refuse)) || !reglages) {
         const motif = refuse ?? { reason: "unconfigured", observed: null, limit: null, detail: null };
-        journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "closing.refused", payload: motif });
+        log.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "closing.refused", payload: motif });
         return { refuse: motif };
       }
-      journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "closing.requested", payload: {} });
+      log.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "closing.requested", payload: {} });
       const plafonds = `${SUITE}${direReglagesEn(reglages)}`;
       const neMergeRien = `${SUITE}it merges nothing: what it removes arrives through a PR, with what it left for lack of certainty`;
       if (refuse) {
@@ -97,14 +97,14 @@ function gerer({ args, env, dire, redire }: Appel): void {
 
     const annuler = (): { refuse: string } | { dit: string } => {
       const projet = projetDuJournal() ?? "?";
-      const attend = demandeEnAttente(base);
-      if (attend === null) {
-        const partie = passeEnCours(journal);
+      const waiting = demandeEnAttente(base);
+      if (waiting === null) {
+        const partie = passeEnCours(log);
         if (partie !== null) return { refuse: `closing run ${partie} has left: it cannot be recalled — “stop” halts it (\`${geste(`guardrails stop`)}\`), and nothing is delivered` };
         return { dit: "no closing pass is requested: nothing to cancel" };
       }
-      journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "closing.cancelled", payload: {} });
-      return { dit: `closing pass request of ${attend.depuis} withdrawn: nothing has left, and nothing will leave without another request` };
+      log.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "closing.cancelled", payload: {} });
+      return { dit: `closing pass request of ${waiting.since} withdrawn: nothing has left, and nothing will leave without another request` };
     };
 
     const issue = base.transaction(() => (args[0] === RENONCER ? annuler() : demander()));
@@ -117,7 +117,7 @@ function gerer({ args, env, dire, redire }: Appel): void {
     if (journalPasRejoue(erreur)) echouer(1, "this log does not yet have the state of the rail and the guardrails: restart the runtime, which recomputes it");
     throw erreur;
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }
 

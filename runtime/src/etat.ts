@@ -34,12 +34,12 @@ import {
 } from "./projections/guardrails.ts";
 import { parcoursDesTickets } from "./parcours-des-tickets.ts";
 import { derivePremierCoup, direDerivePremierCoupEn, type DerivePremierCoup } from "./renvois.ts";
-import { livraisonsMergees, seuilsEnVigueur } from "./projections/measures.ts";
+import { mergedDeliveries, seuilsEnVigueur } from "./projections/measures.ts";
 import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, reparationDeLaBase, type ControleRetenu, type EtatDeLaBase, type Grant, type ReparationDeLaBase, type SansGrant } from "./projections/pass.ts";
 import { direMotifDeGardeEn, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/cleanup.ts";
 import { lireRail, livresDepuis, type Etat as EtatTicket, type Livre, type TicketRail } from "./projections/rail.ts";
 import { direCommentLeVoirEn, direEcranEn, direEtatDeServeurEn, direPageEn, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus, type Serveur, type ServiceIndisponible, type WorktreeTenu } from "./projections/service.ts";
-import { derniereSauvegarde, type Sauvegarde } from "./projections/backups.ts";
+import { lastBackup, type Backup } from "./projections/backups.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
 import { cookDeRun, cooksEnCoursDeStation, direDeconnexionEn, direRetenueDeStationEn, etatStation, GESTE_DE_CONNEXION_TOMBEE_EN, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
 import { BLOQUE, BLOQUE_EN, direRetenueEn, EN_WAITING, etatLu, etatLuEn, nomEtat, nomEtatEn } from "./rail.ts";
@@ -83,7 +83,7 @@ export type EtatCuisine = {
   tick: Tick | null;
   gardeFous: EtatGardeFous;
   // La dernière sauvegarde réussie, si le projet en a une.
-  sauvegarde: Sauvegarde | null;
+  sauvegarde: Backup | null;
   rail: TicketRail[];
   // Ce que la cuisine fait en ce moment de chaque ticket pris ou en pass — nul
   // quand le runtime ne le sait pas. Les autres tickets n'y sont pas.
@@ -178,7 +178,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     session,
     tick: session && session.endedAt === null && tick && tick.seq > session.startedSeq ? tick : null,
     gardeFous,
-    sauvegarde: derniereSauvegarde(base),
+    sauvegarde: lastBackup(base),
     base: etatDeLaBase(base),
     baseRetenue: controleRetenu(base),
     reparation: reparationDeLaBase(base),
@@ -206,7 +206,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
       enCours: consommation(base),
       fenetres: FENETRES_H.map((heures) => ({ heures, ...consommation(base, new Date(maintenant.getTime() - heures * HEURE_MS).toISOString()) })),
     },
-    derive: franchis(livraisonsMergees(base), seuilsEnVigueur(base) ?? SANS_SEUIL),
+    derive: franchis(mergedDeliveries(base), seuilsEnVigueur(base) ?? SANS_SEUIL),
     derivePremierCoup: derivePremierCoup(parcoursDesTickets(base), seuilsEnVigueur(base) ?? SANS_SEUIL),
     livres,
     evenements: journal.derniers(EVENEMENTS_MONTRES, RESUMES),

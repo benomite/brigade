@@ -1,16 +1,16 @@
-// Les réglages de la fermeture qui écrit, lus dans l'environnement du runtime.
-// Le calibrage du closer n'a pas de défaut, pas plus que celui d'un cook : sans
-// lui le projet n'a pas de passe qui écrit, et rien d'autre ne change. Ses
-// seuils et ses plafonds, eux, ont un défaut prudent que le chef ajuste.
+// The settings of the writing closing, read from the runtime's environment.
+// The closer's calibration has no default, no more than a cook's: without it
+// the project has no writing pass, and nothing else changes. Its thresholds and
+// caps, though, have a prudent default the chef adjusts.
 import { EFFORTS, MODELES } from "../calibrage.ts";
 import type { ReglagesDeFermeture } from "../events/closing.ts";
 import { lire } from "../plafonds.ts";
 import { ConfigInvalide } from "../runtime.ts";
 
-// La passe part quand moins de cooks que cela sont en vol : par défaut, aucun.
+// The pass leaves when fewer cooks than this are in flight: by default, none.
 export const COOKS_PAR_DEFAUT = 1;
 export const TOKENS_PAR_DEFAUT = 500_000;
-// Les lignes qu'une passe peut retirer.
+// The lines a pass may remove.
 export const RETRAITS_PAR_DEFAUT = 500;
 
 const ou = (valeurs: readonly string[]) => `${valeurs.slice(0, -1).join(", ")} or ${valeurs.at(-1)}`;
@@ -24,7 +24,7 @@ export function configFermeture(env: Record<string, string | undefined>): Reglag
   };
   const model = calibre("BRIGADE_CLOSING_MODEL", MODELES);
   const effort = calibre("BRIGADE_CLOSING_EFFORT", EFFORTS);
-  // L'un sans l'autre est une faute de frappe, pas un closer à moitié réglé.
+  // One without the other is a typo, not a half-set closer.
   if ((model === null) !== (effort === null)) {
     throw new ConfigInvalide(`${model === null ? "BRIGADE_CLOSING_MODEL" : "BRIGADE_CLOSING_EFFORT"} is not set — the closer is set by both, or by neither: without them, no closing pass writes`);
   }

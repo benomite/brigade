@@ -1,23 +1,21 @@
-// Ce qu'une passe qui écrit propose à son closer : les doublons et le code
-// mort que l'observation repère, chacun sous un nom court — et rien de ce
-// qu'un cook tient. Les fichiers de ses candidats sont sa zone : ce qu'elle
-// tient tant qu'elle range, et les seuls qu'elle peut écrire. Après elle, la
-// même observation dit ce qui est resté : rien n'est tenu pour retiré sur la
-// parole du closer.
+// What a writing pass proposes to its closer: the duplicates and dead code
+// the observation spots, each under a short name — and nothing a cook holds.
+// The files of its candidates are its zone: what it holds while it tidies, and
+// the only ones it may write. After it, the same observation says what is
+// left: nothing is taken as removed on the closer's word.
 import type { Laisse } from "../events/closing.ts";
 import { tenant, type Vol } from "./condition.ts";
 import { repererCodeMort } from "./dead-code.ts";
 import { extrait, repererDoublons } from "./duplicates.ts";
 import type { Depot, Texte } from "./reading.ts";
 
-// Une passe n'en propose pas davantage : sa consigne reste lisible, et ce
-// qu'elle peut retirer reste relisible.
+// A pass proposes no more than this: its brief stays readable, and what it
+// may remove stays reviewable.
 export const CANDIDATS_MAX = 40;
 
-// `id` : `D<n>` pour un doublon, `M<n>` pour un export mort. `quoi` : tel
-// qu'il se lit. `fichiers` : ceux qu'il faut écrire pour le retirer. `cle` :
-// ce qui le reconnaît dans une autre observation, où que ses lignes soient
-// rendues.
+// `id`: `D<n>` for a duplicate, `M<n>` for a dead export. `quoi`: as it
+// reads. `fichiers`: those to write in order to remove it. `cle`: what
+// recognizes it in another observation, wherever its lines are rendered.
 export type Candidat = { id: string; quoi: string; fichiers: string[]; cle: string };
 
 const DOC = /\.(md|mdx|markdown|rst|txt)$/;
@@ -32,10 +30,10 @@ function cles({ textes }: Pick<Depot, "textes">): Set<string> {
   ]);
 }
 
-// Tous les candidats de la branche, les doublons les plus longs d'abord.
+// All the candidates of the branch, the longest duplicates first.
 export function candidats({ textes }: Pick<Depot, "textes">): Candidat[] {
   const contenu = new Map(textes.map(({ chemin, texte }) => [chemin, texte]));
-  // La doc qui écrit un nom ne le fait pas vivre : elle est à reprendre avec lui.
+  // Docs that write a name do not keep it alive: they are to be taken back with it.
   const docs = textes.filter(({ chemin }) => DOC.test(chemin));
   const nomment = (nom: string) => docs.filter(({ texte }: Texte) => new RegExp(`(?<![\\w$])${nom.replaceAll("$", "\\$")}(?![\\w$])`).test(texte)).map(({ chemin }) => chemin);
   const doublons = repererDoublons(textes).map(({ lignes, passages: [premier, second] }, rang): Candidat => ({
@@ -53,12 +51,12 @@ export function candidats({ textes }: Pick<Depot, "textes">): Candidat[] {
   return [...doublons, ...morts];
 }
 
-// `proposes` : ce que la passe remet à son closer. `ecartes` : ce qu'elle
-// laisse d'emblée, et pourquoi. `zone` : les fichiers de ce qu'elle propose.
+// `proposes`: what the pass hands to its closer. `ecartes`: what it leaves
+// outright, and why. `zone`: the files of what it proposes.
 export type Proposition = { proposes: Candidat[]; ecartes: Laisse[]; zone: string[] };
 
-// Un candidat dont un seul fichier est tenu par un cook n'est pas proposé :
-// la passe ne touche pas ce qu'un cook tient.
+// A candidate with even one file held by a cook is not proposed: the pass
+// does not touch what a cook holds.
 export function proposer(tous: Candidat[], tenues: Vol[], max = CANDIDATS_MAX): Proposition {
   const proposes: Candidat[] = [];
   const ecartes: Laisse[] = [];
@@ -71,7 +69,7 @@ export function proposer(tous: Candidat[], tenues: Vol[], max = CANDIDATS_MAX): 
   return { proposes, ecartes, zone: [...new Set(proposes.flatMap(({ fichiers }) => fichiers))].sort() };
 }
 
-// Ceux des candidats proposés que la branche de la passe porte encore.
+// Those of the proposed candidates that the pass's branch still carries.
 export function restants(proposes: Candidat[], apres: Pick<Depot, "textes">): Candidat[] {
   const encore = cles(apres);
   return proposes.filter(({ cle }) => encore.has(cle));

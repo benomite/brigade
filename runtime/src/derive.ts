@@ -6,7 +6,7 @@ import { geste } from "./geste.ts";
 import type { Seuils } from "./events/drift.ts";
 import { direJauge, franchis, SANS_SEUIL } from "./mesures.ts";
 import { lire } from "./plafonds.ts";
-import { livraisonsMergees, seuilsEnVigueur, signalements } from "./projections/measures.ts";
+import { mergedDeliveries, seuilsEnVigueur, signalements } from "./projections/measures.ts";
 import type { Runtime } from "./runtime.ts";
 
 const AUTEUR = "runtime";
@@ -67,7 +67,7 @@ export function brancherDerive(runtime: Runtime, seuils: Seuils | (() => Seuils)
       const dernier = base.lire<{ seq: number | null }>("SELECT max(seq) AS seq FROM measured_merges")[0]?.seq ?? 0;
       if (dernier === regarde) return;
       base.transaction(() => {
-        const courants = franchis(livraisonsMergees(base), enVigueur);
+        const courants = franchis(mergedDeliveries(base), enVigueur);
         const signales = signalements(base);
         for (const franchi of courants) {
           if (signales.includes(franchi.measure)) continue;
