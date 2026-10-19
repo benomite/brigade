@@ -2937,3 +2937,111 @@ button.recommande {
   border-radius: var(--rayon-bouton);
   cursor: pointer;
 }
+/* Reliability (#987) : la fiabilité des cooks du projet — trois chiffres face à leurs seuils, puis les
+   causes d'échec qui reviennent le plus. Un chiffre au-delà de son seuil passe en rouge, comme sur Cost. */
+#fiabilite {
+  padding: 16px 16px 4px;
+}
+.tete-fiabilite h2,
+.causes-fiabilite h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+.tete-fiabilite .chiffres {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.tete-fiabilite .chiffre {
+  min-width: 0;
+  padding: 12px 14px;
+  background: var(--carte);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+.tete-fiabilite .chiffre h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+.tete-fiabilite .total {
+  margin: 2px 0 6px;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  color: var(--texte);
+}
+.tete-fiabilite .seuil {
+  margin: 0;
+  font-size: 12px;
+  color: var(--discret);
+}
+.tete-fiabilite .chiffre.depasse {
+  border-color: var(--rouge);
+}
+.tete-fiabilite .chiffre.depasse :is(.total, .seuil) {
+  color: var(--rouge-clair);
+}
+.tete-fiabilite .portee,
+.causes-fiabilite .portee {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--discret);
+}
+.tete-fiabilite :is(.sans, .pas-assez),
+.causes-fiabilite .sans {
+  margin: 0;
+  font-size: 14px;
+  color: var(--discret);
+}
+.causes-fiabilite {
+  margin: 14px 0 0;
+}
+.causes-fiabilite .causes {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.causes-fiabilite .causes li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7em 3.5em auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--texte-doux);
+  background: var(--carte);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+.causes-fiabilite .titre {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--texte);
+}
+.causes-fiabilite :is(.essais, .part) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.causes-fiabilite .part {
+  color: var(--discret);
+}
+.causes-fiabilite .tickets {
+  display: flex;
+  gap: 6px;
+}
+.causes-fiabilite .tickets button {
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--texte);
+  background: var(--bouton);
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+  cursor: pointer;
+}

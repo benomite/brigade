@@ -95,6 +95,7 @@ import { poserChers } from "./cost/chers.js";
 import { poserCourbe } from "./cost/courbe.js";
 import { poserPerdus } from "./cost/perdus.js";
 import { poserTete } from "./cost/tete.js";
+import { poserFiabilite } from "./fiabilite.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -111,11 +112,14 @@ const dateHeure = (/** @type {number | string | Date} */ instant) => new Date(in
 /** @typedef {import("../page.ts").Pages} Pages */
 /** @typedef {import("../manager.ts").Vu} VuDuManager */
 /** @typedef {import("../grants.ts").Vu} VuDesGrants */
+/** @typedef {import("../fiabilite.ts").Vu} VuDeLaFiabilite */
 // Ce que `onglets.ts` nomme : le journal, et l'onglet Paramètres, qui n'a pas de commande à lui.
 const JOURNAL = "log";
 const PARAMETRES = "parametres";
 // Et la lecture que l'onglet Cost ouvre : `station`, sur la box de chaque projet.
 const COUT = "cooks";
+// Et celle de l'onglet Reliability : la fiabilité des cooks du projet affiché (fiabilite.ts).
+const FIABILITE = "fiabilite";
 /** @typedef {import("../allumage.ts").Compte} Compte */
 /** @typedef {import("../confirmation.ts").Confirmation} Confirmation */
 /** @typedef {import("../service.ts").Guide} Guide */
@@ -156,6 +160,7 @@ const fiche = element("fiche");
 const manager = element("manager");
 const grants = element("grants");
 const cout = element("cout");
+const fiabilite = element("fiabilite");
 const luOnglet = element("lu-onglet");
 const lectureOnglet = element("lecture-onglet");
 const gestesOnglet = element("gestes-onglet");
@@ -409,6 +414,10 @@ let CONFIRMES = [];
 // que l'onglet est affiché — rien ne reste de ce qui s'y lisait avant, ni la durée qui restait.
 /** @type {VuDesGrants | undefined} */
 let grantsVus;
+// Ce que la dernière lecture de l'onglet Reliability donne à poser. Indéfini : pas encore lu depuis
+// que l'onglet est affiché.
+/** @type {VuDeLaFiabilite | undefined} */
+let fiabiliteVue;
 // Pourquoi le dernier bouton cliqué n'a rien fait : dit sous les onglets de pages, jusqu'au prochain geste —
 // ou, quand c'est le second qui n'a rien reçu, à droite, sous les onglets des terminaux.
 let nonEcrit = "";
@@ -726,7 +735,9 @@ function montrer() {
   const explication =
     relaye === undefined || courant === undefined || courant.desinstalle !== undefined
       ? ""
-      : `${relaye.id === "manager" ? "the manager state, then " : relaye.id === "grants" ? "the grants state, then " : ""}the output of \`${geste(courant, relaye.commande)}\`, as the box returns it${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — re-read on its own every thirty seconds, while this tab is shown`;
+      : relaye.id === FIABILITE
+        ? `the reliability of the cooks, as the box measures it: the chef's window and thresholds from \`${geste(courant, "station")}\`, then \`${geste(courant, "measures --last <window> --by 1")}\` — both outputs are below, as the box returns them; re-read on their own every thirty seconds, while this tab is shown`
+        : `${relaye.id === "manager" ? "the manager state, then " : relaye.id === "grants" ? "the grants state, then " : ""}the output of \`${geste(courant, relaye.commande)}\`, as the box returns it${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — re-read on its own every thirty seconds, while this tab is shown`;
   note.replaceChildren(
     ...(nonEcrit !== "" ? [nonEcrit] : relaye !== undefined && courant?.desinstalle !== undefined ? ["nothing is read for this tab: this project is uninstalled from its box"] : explication === "" ? [] : [survol(document, explication)]),
   );
@@ -755,6 +766,7 @@ function montrer() {
   message.hidden = courant !== undefined;
   poserSecond(ouvrable, droite?.terminal);
   poserCout();
+  poserLaFiabilite();
   poserGestes(gestesOnglet, relaye?.id);
   dessiner();
   lireOnglet();
@@ -1122,6 +1134,9 @@ function lireOnglet() {
   // Celui des grants non plus.
   grantsVus = undefined;
   poserGrants();
+  // Ni la fiabilité.
+  fiabiliteVue = undefined;
+  poserLaFiabilite();
   if (courant !== undefined && relaye !== undefined) attendre(courant, luOnglet, lectureOnglet);
   ongletDemande = relaye?.id;
   brigade.onglet(courant?.nom, relaye?.id, ++demandeOnglet);
@@ -3718,8 +3733,9 @@ function carteSurLeRail(nom, ticket) {
 /** @param {string} nom @param {number} ticket */
 const titreSurLeRail = (nom, ticket) => carteSurLeRail(nom, ticket)?.titre;
 
-// Un clic sur un des tickets les plus chers de Cost ouvre sa fiche, par-dessus l'onglet. Un ticket
-// que le rail ne porte pas (ou pas encore lu) s'ouvre avec ce que l'on en sait : son numéro.
+// Un clic sur un des tickets les plus chers de Cost — ou sur un ticket d'une cause d'échec, dans
+// Reliability — ouvre sa fiche, par-dessus l'onglet. Un ticket que le rail ne porte pas (ou pas
+// encore lu) s'ouvre avec ce que l'on en sait : son numéro.
 /** @param {string} nom @param {number} ticket @param {HTMLElement} retour */
 function ouvrirFicheDeCout(nom, ticket, retour) {
   const projet = configuration.projets.find((candidat) => candidat.nom === nom);
@@ -3727,6 +3743,16 @@ function ouvrirFicheDeCout(nom, ticket, retour) {
   const sans = { sans: "not communicated — the rail of this project is not read" };
   const carte = carteSurLeRail(nom, ticket) ?? { ticket, ouvrable: false, attendu: false, attend: [], dit: [], fiche: { titre: sans, priorite: sans, issue: sans } };
   ouvrirFiche(projet, carte, retour);
+}
+
+// La fiabilité des cooks du projet affiché, en tête de l'onglet Reliability (fiabilite.js) : trois chiffres
+// face à leurs seuils, puis les causes d'échec qui reviennent le plus. Un ticket d'une cause ouvre sa fiche.
+function poserLaFiabilite() {
+  const projet = courant;
+  fiabilite.hidden = projet === undefined || projet.box === undefined || actif() !== FIABILITE;
+  if (projet === undefined || fiabilite.hidden) return fiabilite.replaceChildren();
+  const vu = fiabiliteVue?.projet === projet.nom ? fiabiliteVue : undefined;
+  fiabilite.replaceChildren(...poserFiabilite(document, vu, (ticket, retour) => ouvrirFicheDeCout(projet.nom, ticket, retour)));
 }
 
 function poserManager() {
@@ -5069,8 +5095,8 @@ brigade.surFaits((recue) => {
 // Ce que l'onglet de contenu affiché a rendu : une lecture ratée s'y lit comme
 // dans le panneau, et n'en retire rien. Celle de l'onglet Manager vient avec l'état du
 // manager, lu dans sa sortie : il remplace celui d'avant, au-dessus du texte. Celle de
-// l'onglet Grants, de même, avec l'état des grants.
-brigade.surContenu((recue, vu, desGrants) => {
+// l'onglet Grants, de même, avec l'état des grants ; celle de l'onglet Reliability, avec la fiabilité des cooks.
+brigade.surContenu((recue, vu, desGrants, laFiabilite) => {
   if (recue.demande !== demandeOnglet) return;
   // Cost lit `station` sur la box de chaque projet : chacune entre dans ses chiffres de tête.
   if (ongletDemande === COUT) {
@@ -5083,6 +5109,8 @@ brigade.surContenu((recue, vu, desGrants) => {
   poserManager();
   grantsVus = desGrants;
   poserGrants();
+  fiabiliteVue = laFiabilite;
+  poserLaFiabilite();
 });
 // Les clones relus : leur état remplace celui d'avant, dans Paramètres et sur la case « T ».
 brigade.surCode((vu) => {

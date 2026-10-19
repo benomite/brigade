@@ -14,12 +14,14 @@ export const ONGLETS: readonly Onglet[] = [
   { id: "cooks", titre: "Cooks", commande: "station" },
   { id: "manager", titre: "Manager", commande: "manager" },
   { id: "grants", titre: "Grants", commande: "grant" },
+  // La fiabilité des cooks (fiabilite.ts) : `station` d'abord, pour les réglages du chef, puis `measures` sur leur fenêtre.
+  { id: "fiabilite", titre: "Reliability", commande: "measures" },
   { id: "log", titre: "Log", commande: `log --last ${EVENEMENTS_DU_LOG}`, precision: `the end of the log only: the latest ${EVENEMENTS_DU_LOG} events, not the whole log` },
 ];
 
 // Ce que l'écran principal montre en haut : deux onglets, Coût et Paramètres. Les lectures
 // ci-dessus y sont rangées — Cooks (la commande `station`, et son `consommé`) sous Coût ; Rail,
-// Manager et Grants sous Paramètres, à côté de l'état du projet. Log n'a pas d'onglet : le
+// Manager, Grants et la fiabilité des cooks du projet (#987) sous Paramètres, à côté de l'état du projet. Log n'a pas d'onglet : le
 // journal est de l'outillage de panne, il s'ouvre par son geste, en tête de l'espace.
 // `defaut` : la lecture que l'onglet ouvre — sans commande pour Paramètres, qui pose d'abord l'état.
 export type Rubrique = { id: string; titre: string; defaut: string; lectures: readonly string[] };
@@ -27,7 +29,7 @@ export const PARAMETRES = "parametres";
 export const JOURNAL = "log";
 export const RUBRIQUES: readonly Rubrique[] = [
   { id: "cout", titre: "Cost", defaut: "cooks", lectures: ["cooks"] },
-  { id: PARAMETRES, titre: "Settings", defaut: PARAMETRES, lectures: [PARAMETRES, "manager", "grants", "rail"] },
+  { id: PARAMETRES, titre: "Settings", defaut: PARAMETRES, lectures: [PARAMETRES, "manager", "grants", "rail", "fiabilite"] },
 ];
 
 // La vue nomme un onglet, jamais une commande : seule une commande d'ici part vers la box.

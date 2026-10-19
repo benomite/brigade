@@ -11,6 +11,7 @@ import type { Declare } from "../config.ts";
 import type { PALETTE, Role } from "../couleurs.ts";
 import type { GESTES_DE_LA_CUISINE } from "../cuisine.ts";
 import type { BANNIERE, Dessinable } from "../faits.ts";
+import type { Vu as VuDeLaFiabilite } from "../fiabilite.ts";
 import type { Confirmation } from "../confirmation.ts";
 import type { CONFIRMES, DIRECTS, GRANTS } from "../gestes.ts";
 import type { GESTES_D_ATTENTE, Saisie as SaisieDAttente } from "../attente.ts";
@@ -240,8 +241,9 @@ export type Pont = {
   surLecture(recevoir: (lecture: Montree, servies: Pages) => void): void;
   // Ce que la commande de l'onglet affiché a rendu, mot pour mot. `manager` : dans l'onglet
   // Manager, ce qui se pose au-dessus — l'état du manager, lu dans cette sortie (manager.ts).
-  // `grants` : dans l'onglet Grants, de même — l'état des grants (grants.ts).
-  surContenu(recevoir: (lecture: Lecture, manager: Vu | undefined, grants: VuDesGrants | undefined) => void): void;
+  // `grants` : dans l'onglet Grants, de même — l'état des grants (grants.ts). `fiabilite` : dans
+  // l'onglet Reliability, la fiabilité des cooks, lue dans `station` et `measures` (fiabilite.ts).
+  surContenu(recevoir: (lecture: Lecture, manager: Vu | undefined, grants: VuDesGrants | undefined, fiabilite?: VuDeLaFiabilite) => void): void;
   // Ce que `faits` a rendu pour un projet : de quoi dessiner, ou ce qui a été obtenu à la place.
   surFaits(recevoir: (recue: Dessinable) => void): void;
   // La bande d'alertes d'un projet, redessinée à chaque lecture qui la change (alertes.ts) :
