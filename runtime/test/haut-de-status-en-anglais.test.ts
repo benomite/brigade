@@ -1,6 +1,6 @@
 // Le haut de `status` est en anglais (#928) : `runtime`, `kitchen`, `connection`, `stations`, `setup`,
 // `aside`, `base`, `grant`, `backup`, la ligne d'urgence et celle qui dit que rien ne cuit. Vérifié
-// de deux façons : un état de la box écrit avant la traduction (test/fixtures/etat-d-avant-927/)
+// de deux façons : un état de la box écrit avant la traduction (test/fixtures/state-before-927/)
 // dit les mêmes états qu'avant, sans qu'on l'édite ; et un état d'exemple qui fait paraître chaque
 // ligne ne laisse passer aucun mot de la colonne « français » du glossaire. `facts` n'a pas bougé.
 import assert from "node:assert/strict";
@@ -114,7 +114,7 @@ test("un grant sans échéance, un runtime jamais démarré : `ACTIVE, no deadli
 
 // Ce qu'une ligne nomme et chiffre : tickets, commits, durées, pid, nombres. Les mots changent, pas ceux-là.
 const chiffres = (ligne: string) => (ligne.match(/#\d+|\b[0-9a-f]{7}\b(?!-)|\b\d+(?: h \d\d| min| [jd]|(?= échecs?| failures?| usages?| uses?))/g) ?? []).map((chiffre) => chiffre.replace(/ j$/, " d"));
-const FIXTURE_928 = join(import.meta.dirname, "fixtures/haut-de-status-d-avant-928");
+const FIXTURE_928 = join(import.meta.dirname, "fixtures/status-header-before-928");
 
 test("sur l'état d'exemple d'avant, chaque ligne du haut dit les mêmes tickets, commits et durées qu'avant — et la même ligne y répond, une à une", (t) => {
   const avant = teteDe(readFileSync(join(FIXTURE_928, "status-d-avant.txt"), "utf8").split("\n"));

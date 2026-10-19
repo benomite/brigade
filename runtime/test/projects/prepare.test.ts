@@ -13,7 +13,7 @@ import { depotGit, git, repertoireTemporaire, temporaireDuFichier } from "../out
 
 const rienNeReste = temporaireDuFichier();
 
-const FAUX_GH = join(import.meta.dirname, "faux-gh.ts");
+const FAUX_GH = join(import.meta.dirname, "fake-gh.ts");
 const PARADE = { nom: "parade", depot: "benomite/parade", base: "main", principale: true, cooks: 3, manager: { modele: "sonnet", effort: "medium" }, reviewer: { modele: "opus", effort: "high" }, ouvertLe: null, demandeLe: null };
 
 test("sans Apps, la station agit sous le compte de son `gh` : rien à autoriser", async () => {

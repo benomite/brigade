@@ -89,8 +89,8 @@ export function uneMachine(t: TestContext, env: Record<string, string> = {}): Ma
   const bin = join(essai, "bin");
   const publiees = join(essai, "publiees");
   for (const dossier of [join(racine, "run/systemd/system"), join(racine, "var/lib/brigade"), bin, publiees]) mkdirSync(dossier, { recursive: true });
-  executable(join(bin, "systemctl"), `#!/bin/sh\nexec "${process.execPath}" "${join(AIDES, "faux-systemctl.ts")}" "$@"\n`);
-  executable(join(bin, "apt-get"), `#!/bin/sh\nexec "${process.execPath}" "${join(AIDES, "faux-apt-get.ts")}" "$@"\n`);
+  executable(join(bin, "systemctl"), `#!/bin/sh\nexec "${process.execPath}" "${join(AIDES, "fake-systemctl.ts")}" "$@"\n`);
+  executable(join(bin, "apt-get"), `#!/bin/sh\nexec "${process.execPath}" "${join(AIDES, "fake-apt-get.ts")}" "$@"\n`);
   executable(join(bin, "dpkg-query"), `#!/bin/sh\nf="$FAUSSE_RACINE/var/lib/dpkg-faux/brigade-station"\n[ -f "$f" ] || { echo "dpkg-query: no packages found matching brigade-station" >&2; exit 1; }\nprintf 'ii %s' "$(cat "$f")"\n`);
   // Le compte brigade existe déjà.
   executable(join(bin, "getent"), "#!/bin/sh\nexit 0\n");

@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { argumentsClaude, consigne, direRefus, environnementCook, lireFlux, sessionClaude, SOURCES_DE_REGLAGES, verdict } from "../src/claude.ts";
 import { ENV_ENFANT, FAUX_CLAUDE, lancementsDuFauxClaude, repertoireTemporaire } from "./outils.ts";
 
-const flux = (nom: string) => readFileSync(join(import.meta.dirname, "aides/flux", `${nom}.jsonl`), "utf8");
+const flux = (nom: string) => readFileSync(join(import.meta.dirname, "helpers/streams", `${nom}.jsonl`), "utf8");
 const CALIBRAGE = { model: "sonnet", effort: "medium" };
 
 test("le binaire est lancé en flux JSON, avec la consigne et le calibrage du ticket", () => {

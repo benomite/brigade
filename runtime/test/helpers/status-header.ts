@@ -7,7 +7,7 @@ import type { Fait } from "../../src/evenements.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
-export const ETAT_D_AVANT = join(import.meta.dirname, "../fixtures/etat-d-avant-927");
+export const ETAT_D_AVANT = join(import.meta.dirname, "../fixtures/state-before-927");
 export const LU_LE = new Date("2026-10-12T10:04:00.000Z");
 export const STATION = "box/claude";
 

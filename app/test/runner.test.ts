@@ -17,7 +17,7 @@ import { MARQUEUR } from "../../runtime/src/fiche.ts";
 import { etatStation } from "../../runtime/src/projections/stations.ts";
 import { lireStations } from "../../runtime/src/stations-declarees.ts";
 import { superviser } from "../../runtime/src/superviseur.ts";
-import { chef, cuisine, fauxGitHub, issue, PLAFONDS, type Lieux, type Options } from "../../runtime/test/aides/cuisine.ts";
+import { chef, cuisine, fauxGitHub, issue, PLAFONDS, type Lieux, type Options } from "../../runtime/test/helpers/kitchen.ts";
 import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_CLAUDE, git, jusqua, lancementsDuFauxClaude, repertoireTemporaire, vivant } from "../../runtime/test/outils.ts";
 import { lireConfiguration } from "../src/config.ts";
 import { commandeTirer, environnementCook, missionLue, ouvrirLecture, ouvrirRunner, tirer, type EtatDeStation, type Mission, type Reponse } from "../src/runner.ts";
@@ -25,7 +25,7 @@ import { commandeTirer, environnementCook, missionLue, ouvrirLecture, ouvrirRunn
 const [BOX, MAC] = ["box/claude", "mac/claude"];
 const DECLAREES = lireStations({ BRIGADE_STATIONS: `${BOX}:1:code,${MAC}:1:chrome-connecté:distante` });
 const RUNTIME = join(import.meta.dirname, "../../runtime");
-const FLUX = join(RUNTIME, "test/aides/flux");
+const FLUX = join(RUNTIME, "test/helpers/streams");
 // Large : rien ne court contre lui, il ne tombe que si un test le règle court.
 const BAIL_MS = 600_000;
 
@@ -48,7 +48,7 @@ function service(t: TestContext, options: Options & { claude?: string; suiteDuPo
   const { origine, clone } = depotGit(t);
   // Le projet porte ses gates : la pass les joue sur toute livraison, d'où qu'elle vienne.
   mkdirSync(join(clone, ".claude/brigade"), { recursive: true });
-  symlinkSync(join(RUNTIME, "test/aides/fausses-gates.sh"), join(clone, ".claude/brigade/gates.sh"));
+  symlinkSync(join(RUNTIME, "test/helpers/fake-gates.sh"), join(clone, ".claude/brigade/gates.sh"));
   git(clone, "add", ".");
   git(clone, "commit", "-q", "-m", "les gates du projet");
   git(clone, "push", "-q", "origin", BASE);

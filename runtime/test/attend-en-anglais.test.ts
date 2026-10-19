@@ -1,6 +1,6 @@
 // Le bloc `awaiting` de `status` est en anglais (#927) : son bord, son décompte,
 // chacune de ses lignes. Vérifié de deux façons : un état de la box écrit avant
-// la traduction (test/fixtures/etat-d-avant-927/) nomme les mêmes décisions
+// la traduction (test/fixtures/state-before-927/) nomme les mêmes décisions
 // qu'avant, dans le même ordre ; et un état d'exemple qui porte chaque sorte
 // d'attente ne laisse passer aucun mot de la colonne « français » du glossaire.
 import assert from "node:assert/strict";
@@ -13,7 +13,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { motsFrancais, motsFrancaisDans, sansMotFrancais } from "./helpers/glossary.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
-const ETAT_D_AVANT = join(import.meta.dirname, "fixtures/etat-d-avant-927");
+const ETAT_D_AVANT = join(import.meta.dirname, "fixtures/state-before-927");
 // L'instant auquel `status-d-avant.txt` a été écrit.
 const LU_LE = new Date("2026-10-12T10:04:00.000Z");
 

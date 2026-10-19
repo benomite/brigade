@@ -409,8 +409,8 @@ describe("la cloison", { concurrency: 8 }, () => {
     const combien = (commande: string, ecrit: boolean) => commandes.filter((lance) => lance.commande === commande && lance.ecrit === ecrit).length;
     // Le setup du cook, puis celui des gates et les gates : trois scripts, tous en écriture.
     assert.equal(combien("bash", true), 3);
-    assert.equal(combien("faux-claude.sh", true), 1);
-    assert.equal(combien("faux-claude.sh", false), 1);
+    assert.equal(combien("fake-claude.sh", true), 1);
+    assert.equal(combien("fake-claude.sh", false), 1);
     for (const recu of cloisonnes()) assert.ok(recu.includes(repertoire) && recu[recu.indexOf(repertoire) - 1] === "--tmpfs");
   });
 

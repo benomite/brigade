@@ -1,6 +1,6 @@
 // Le bas de `status` est en anglais (#940) : `project`, `github`, `rail`, `cooks`, `consumed`, `servers`, `to launch`, `worktrees`,
 // `drift`, les transcripts et `latest events`. Vérifié de trois façons : l'état de la box écrit avant la traduction
-// (test/fixtures/etat-d-avant-927/) montre les mêmes tickets, dans les mêmes états et le même ordre, sans qu'on
+// (test/fixtures/state-before-927/) montre les mêmes tickets, dans les mêmes états et le même ordre, sans qu'on
 // l'édite ; un état d'exemple qui fait paraître chaque ligne ne laisse passer aucun mot de la colonne « français » du
 // glossaire, sur toute la sortie, et dit chaque nombre qu'il disait ; et `facts` n'a pas bougé.
 import assert from "node:assert/strict";
@@ -20,7 +20,7 @@ import { ETAT_D_AVANT, etatDAvant, LU_LE } from "./helpers/status-header.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
-const FIXTURE_940 = join(import.meta.dirname, "fixtures/bas-de-status-d-avant-940");
+const FIXTURE_940 = join(import.meta.dirname, "fixtures/status-footer-before-940");
 
 // Les états, tels que `facts` les écrit (et que l'app les lit), et tels que `status` les écrit désormais.
 const EN_ANGLAIS: Record<string, string> = { pris: "taken", "en pass": "in pass", "en attente": "queued", servi: "served", BLOQUÉ: "BLOCKED", "86": "86", WAITING: "WAITING" };

@@ -2,7 +2,7 @@
 // GitHub, les stations qui le servent et sa principale — celle qui fait
 // tourner son manager et sa pass —, et valide. L'app écrit la demande dans le
 // gist de chaque station choisie (demande.ts) ; chaque station la lit là,
-// prépare le projet et l'ajoute à sa configuration (runtime/src/projets/). La
+// prépare le projet et l'ajoute à sa configuration (runtime/src/projects/). La
 // principale recommandée est une station serveur, toujours allumée ; choisir
 // l'app d'un ordinateur se dit au moment du choix : la cuisine s'arrête quand
 // on la ferme.

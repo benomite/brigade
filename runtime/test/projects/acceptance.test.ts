@@ -20,7 +20,7 @@ import { depotGit, ENV_GIT, FAUX_CLAUDE, git, jusqua, lancer, repertoireTemporai
 const rienNeReste = temporaireDuFichier();
 
 const STATION = join(import.meta.dirname, "../../src/station/main.ts");
-const FAUX_GH = join(import.meta.dirname, "faux-gh.ts");
+const FAUX_GH = join(import.meta.dirname, "fake-gh.ts");
 const GIST = "g1appairee";
 // Le temps que la spec accorde, du parcours ouvert au projet servi.
 const DIX_MINUTES = 10 * 60_000;

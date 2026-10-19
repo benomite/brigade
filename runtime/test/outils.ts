@@ -492,13 +492,13 @@ export async function mort(pid: number): Promise<void> {
 
 // L'environnement de `git` dans les tests : ni la configuration du poste (une
 // signature de commits obligatoire ferait tout échouer), ni son identité. La
-// sienne (aides/git) ne fait qu'alléger : aucune maintenance lancée derrière un
+// sienne (helpers/git) ne fait qu'alléger : aucune maintenance lancée derrière un
 // commit ou un rapatriement, et un dépôt neuf sans les crochets d'exemple, que
 // chaque test copierait puis supprimerait.
 export const ENV_GIT = {
   ...ENV_ENFANT,
-  GIT_CONFIG_GLOBAL: join(import.meta.dirname, "aides/git/config"),
-  GIT_TEMPLATE_DIR: join(import.meta.dirname, "aides/git/modele"),
+  GIT_CONFIG_GLOBAL: join(import.meta.dirname, "helpers/git/config"),
+  GIT_TEMPLATE_DIR: join(import.meta.dirname, "helpers/git/modele"),
   GIT_CONFIG_NOSYSTEM: "1",
   GIT_AUTHOR_NAME: "cook",
   GIT_AUTHOR_EMAIL: "cook@brigade.test",

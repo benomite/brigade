@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { FICHIER_PROJETS, FICHIER_SUIVI } from "../../src/projects/request.ts";
+import { FICHIER_PROJETS, FICHIER_SUIVI } from "../../src/projets/demande.ts";
 import { depotsDuChef } from "../../src/projets/github.ts";
 import { avertissement, estUnOrdinateur, lireSaisie, nomDuProjet, principaleRecommandee, refusDeSaisie, tenirProjets, type VuDesProjets } from "../../src/projets/projets.ts";
 import { githubDesStations } from "../../src/stations/github.ts";

@@ -1,7 +1,7 @@
 // La bascule d'une machine servie à l'ancienne — une unité par projet — vers
 // la station : ce qu'elle lit, ce qu'elle refuse sans rien changer, ce qu'elle
 // écrit pour la station, ce qu'elle retire du système et ce qu'elle laisse.
-// Sur une machine d'essai posée sous une racine à part (`aides.ts`) ; systemd
+// Sur une machine d'essai posée sous une racine à part (`helpers.ts`) ; systemd
 // est une doublure qui note ses appels.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";

@@ -11,7 +11,7 @@ import { lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts"
 
 const rienNeReste = temporaireDuFichier();
 
-const FAUX_GH = join(import.meta.dirname, "faux-gh-gists.ts");
+const FAUX_GH = join(import.meta.dirname, "fake-gh-gists.ts");
 const STATION = join(import.meta.dirname, "../../src/station/main.ts");
 const SOURCES = join(import.meta.dirname, "../../src/pairing");
 

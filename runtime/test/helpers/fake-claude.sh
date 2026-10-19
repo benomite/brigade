@@ -7,7 +7,7 @@
 # En shell, parce que la suite la lance des centaines de fois et qu'un Node qui
 # démarre coûte vingt millisecondes de processeur avant sa première ligne. Les
 # scénarios qui se terminent seuls sont écrits ici ; ceux qui vivent — parler
-# sans fin, entendre un signal, attendre le test — restent à faux-claude.ts,
+# sans fin, entendre un signal, attendre le test — restent à fake-claude.ts,
 # auquel celle-ci cède sa place.
 #
 # FAUX_CLAUDE_TEMOIN : un répertoire, qui existe. Chaque lancement y dépose un
@@ -121,7 +121,7 @@ commiter() {
 # Un flux de test/helpers/streams, rejoué tel quel.
 rejouer() {
   local flux=""
-  IFS= read -r -d '' flux <"$ICI/flux/$1.jsonl" || true
+  IFS= read -r -d '' flux <"$ICI/streams/$1.jsonl" || true
   printf '%s' "$flux"
   code=$2
 }
@@ -147,7 +147,7 @@ session() {
 rester() { exec sleep 30; }
 
 # Cède la place à un scénario qui vit : même process, même sortie.
-vivre() { FAUX_CLAUDE="$1" exec node "$ICI/faux-claude.ts"; }
+vivre() { FAUX_CLAUDE="$1" exec node "$ICI/fake-claude.ts"; }
 
 code=0
 jouer() {

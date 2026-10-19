@@ -24,8 +24,8 @@ import { brancherStation } from "../../src/station.ts";
 import { ecrireStation, type StationDeclaree } from "../../src/stations-declarees.ts";
 import { aArreter as finDuTest, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, lancementsDuFauxBwrap, lancementsDuFauxClaude, repertoireTemporaire, tuerLesRelais } from "../outils.ts";
 
-const FAUSSES_GATES = join(import.meta.dirname, "fausses-gates.sh");
-const FAUX_SETUP = join(import.meta.dirname, "faux-setup.sh");
+const FAUSSES_GATES = join(import.meta.dirname, "fake-gates.sh");
+const FAUX_SETUP = join(import.meta.dirname, "fake-setup.sh");
 
 export type ScenarioSetup = "exporte" | "jeton" | "attend" | "echec" | "autre" | "refuse" | "lent" | "derive";
 
