@@ -4210,6 +4210,7 @@ function poserCode() {
   if (codeVu === undefined) {
     const tete = bloc("p", "this app's code: first read of how far it is behind origin in progress…");
     tete.dataset.etat = "en-cours";
+    code.hidden = false;
     return code.replaceChildren(tete);
   }
   const heure = heureDe(codeVu.a);
@@ -4228,6 +4229,8 @@ function poserCode() {
     }),
     ...(nonMisAJour === "" ? [] : [propos(nonMisAJour)]),
   );
+  // L'app installée n'a pas de clone (emplacements.ts) : sans rien à dire, le bloc ne laisse pas de cadre vide.
+  code.hidden = code.childElementCount === 0;
 }
 
 // L'app passe à la nouvelle version : elle se met à jour, puis se ferme et repart d'elle-même —

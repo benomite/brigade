@@ -1,5 +1,6 @@
 // L'app : une fenêtre, et le process qui tient les terminaux, la veille des
 // box et le suivi du fichier des projets.
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, Notification, powerMonitor, shell } from "electron";
 import { tenirAccueil, type Accueil } from "./accueil.ts";
@@ -27,6 +28,7 @@ import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
 import { COMMANDES as COMMANDES_DE_FIABILITE, ONGLET as FIABILITE, voir as voirFiabilite } from "./fiabilite.ts";
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterALApp, lireClone } from "./ajout.ts";
+import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
 import { COMMANDE as COMMANDE_MANAGER, GESTES_DU_MANAGER, voir as voirManager } from "./manager.ts";
 import { machineChoisie, machinesDe } from "./machines.ts";
 import { COMMANDE_DES_COUTS, COUTS, commandeDe, ONGLETS, projetsLus, RUBRIQUES } from "./onglets.ts";
@@ -54,6 +56,13 @@ import { tenirStations } from "./stations/stations.ts";
 import { versionsDansFichier } from "./stations/versions.ts";
 import { suivreConfiguration } from "./suivi.ts";
 import { ouvrirTerminaux } from "./terminaux.ts";
+
+// Où sont le runtime de la station, son `node` et le clone de l'app : dans le dépôt, ou dans le
+// paquet de l'app installée (emplacements.ts). Installée, l'app prend le PATH du shell de
+// connexion du chef avant de rien lancer : ouverte depuis le Finder, elle n'a que celui du système.
+const emplacements = emplacementsDe({ ressources: process.resourcesPath, src: import.meta.dirname, env: process.env });
+const chemin = cheminDe({ emplacements, env: process.env, maison: homedir(), duShell: () => lireCheminDuShell(process.env.SHELL || "/bin/zsh", 10_000) });
+if (chemin !== undefined) process.env.PATH = chemin;
 
 let fenetre: BrowserWindow | undefined;
 const dire = (canal: string, ...faits: unknown[]) => {
@@ -284,9 +293,9 @@ const controlerTout = () => {
 const controles = setInterval(controlerTout, CONTROLE_MS);
 
 // Ce qu'est l'app sur cette machine (poste/role.ts) : une station sur un ordinateur, le runtime
-// à côté d'elle dans son clone ; un poste sur un téléphone — il pilote, rien n'y cuit, ni sa
-// station ni celles que ses projets lui confient.
-const role = roleDe({ plateforme: process.platform, runtime: join(import.meta.dirname, "..", "..", "runtime"), env: process.env });
+// à côté d'elle dans son clone, ou dans son paquet une fois installée ; un poste sur un
+// téléphone — il pilote, rien n'y cuit, ni sa station ni celles que ses projets lui confient.
+const role = roleDe({ plateforme: process.platform, runtime: emplacements.runtime, env: process.env });
 // Le runner : ce poste joue les stations que ses projets lui confient (runner.ts) — celles
 // que leur box déclare `distante`. Il s'annonce, réclame, renouvelle et rend par le geste
 // `pull` de la box, par le passage du projet comme les veilles ; un `ssh` a quarante-cinq
@@ -377,12 +386,13 @@ const declare = (nom: unknown) => suivi.configuration().projets.find((candidat) 
 // Le code de l'app vient d'un clone, et rien d'autre ne le surveille : son retard sur son
 // origine est lu au démarrage, puis à chaque retour à la fenêtre — et celui du clone d'un
 // projet, quand ce clone est celui de brigade (retard.ts). Lire n'écrit rien dans un clone :
-// un `git` qui n'a rien rendu au bout de trente secondes est arrêté.
+// un `git` qui n'a rien rendu au bout de trente secondes est arrêté. L'app installée n'a pas
+// de clone : rien ne s'en lit.
 // Le dossier de l'app, dans son clone.
 const dossierApp = join(import.meta.dirname, "..");
 const retards = tenirRetards({
   reglages: { git: "git", delaiMs: 30_000 },
-  app: dossierApp,
+  app: emplacements.clone,
   projets,
   surLecture: (vu) => dire("code", vu),
 });
@@ -418,8 +428,8 @@ const racineDeLaStation = process.env.BRIGADE_STATION_DIR || join(dirname(chemin
 const stationLocale =
   role.role === "station"
     ? tenirStationLocale({
-        // Le `node` de `npm start` : Electron n'en est pas un.
-        node: process.env.BRIGADE_NODE_BIN || process.env.npm_node_execpath || "node",
+        // Le `node` de `npm start`, ou celui du paquet de l'app installée : Electron n'en est pas un.
+        node: emplacements.node,
         principal: role.principal,
         racine: racineDeLaStation,
         env: process.env,

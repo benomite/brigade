@@ -64,6 +64,8 @@ compare que deux captures du même navigateur.
 | Écran | Ce qu'il montre |
 |---|---|
 | `tous-les-projets` | « Tous les projets », à l'ouverture de l'app : la barre, l'état du code et des stations, une carte par projet — deux projets sur une box, `parade` au travail, `cantine` calme |
+| `tous-les-projets-installee` | Le même, l'app installée depuis le .dmg (#1011) : sans clone de l'app à lire |
+| `reglages-code`, `reglages-code-installee` | Les réglages de `parade` (Settings, sa rubrique par défaut) : en tête, l'état du code de l'app lancée depuis le dépôt — puis la même page, l'app installée depuis le .dmg (#1011), sans aucune ligne sur son code |
 | `station-hors-ligne`, `station-mise-a-jour`, `station-connexion-max` | La page d'une station en panne, ouverte d'un clic sur sa ligne : la panne en une ligne, son bouton, son explication au survol — une station par panne |
 | `espace-projet` | L'espace de `parade`, ouvert par sa case de la barre : le rail en colonnes (un ticket dans chacune, une décision qui t'attend, deux livrés), son second à droite |
 | `ajout` | « Add a project », ouvert par le `+` de la barre : le formulaire, la box déclarée choisie, le calibrage proposé |

@@ -65,7 +65,7 @@ function registre() {
 }
 
 // Les lectures dites à la vue, dans l'ordre, et la dernière.
-function tenir(reglages: Reglages, app: string, projets: () => readonly Projet[] = () => []) {
+function tenir(reglages: Reglages, app: string | undefined, projets: () => readonly Projet[] = () => []) {
   const dites: Vu[] = [];
   const retards = tenirRetards({ reglages, app, projets, surLecture: (vu) => void dites.push(vu) });
   const derniere = (): Vu => {
@@ -196,6 +196,20 @@ describe("le retard d'un clone sur son origine", () => {
 });
 
 describe("ce que l'app dit de son propre code", () => {
+  test("installée depuis le .dmg, elle n'a pas de clone : rien ne se dit de son code — ni « pas lu », ni bouton, ni alerte", async (t) => {
+    const { origine, reglages, cloner } = essai(t);
+    // Un projet sur un clone de brigade en retard : sans clone de l'app, rien ne le reconnaît comme tel.
+    const clone = cloner("clone");
+    livrer(origine, 3);
+    const { retards, derniere } = tenir(reglages, undefined, () => [PARADE(clone, "brigade")]);
+
+    await retards.relire();
+
+    assert.deepEqual(derniere().clones, []);
+    assert.equal(derniere().alerte, undefined);
+    assert.equal(retards.ecrire(registre(), "app"), undefined);
+  });
+
   test("à jour : une ligne, avec la branche suivie — et aucune commande à écrire", async (t) => {
     const { reglages, cloner } = essai(t);
     const clone = cloner("clone");
