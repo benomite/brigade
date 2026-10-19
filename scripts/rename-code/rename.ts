@@ -427,7 +427,7 @@ function plan(): { plan: Plan; ls: ts.LanguageService; files: string[] } {
 // What an identifier resolves to: every declaration of its symbol (a property
 // of a union has several, in an order that is not stable across programs).
 type Target = { file: string; start: number; shorthand: boolean };
-type Resolution = { file: string; start: number; targets: Target[] };
+type Resolution = { file: string; start: number; targets: Target[]; access: boolean };
 
 function resolutions(ls: ts.LanguageService, files: string[]): Resolution[] {
   const program = ls.getProgram()!;
@@ -446,7 +446,7 @@ function resolutions(ls: ts.LanguageService, files: string[]): Resolution[] {
           // A shorthand property `{ a }` keeps its name where it was when only its value is renamed (`{ a: b }`).
           shorthand: ts.isShorthandPropertyAssignment(declaration),
         }));
-        if (targets.length > 0) out.push({ file: abs(file), start: node.getStart(), targets });
+        if (targets.length > 0) out.push({ file: abs(file), start: node.getStart(), targets, access: parent !== undefined && ts.isPropertyAccessExpression(parent) && parent.name === node });
       }
       ts.forEachChild(node, visit);
     };
@@ -475,7 +475,11 @@ function prove(before: Resolution[], edits: Map<string, Edit[]>, renamed: Map<st
     const got = after.get(where);
     // The same declarations, or some of them: a union reduced otherwise
     // (two literal types that became one) is still the same member.
-    const same = got !== undefined && got.length > 0 && got.every((target) => expected.includes(target));
+    // A property access the rename did not touch (`station.survol`) may
+    // resolve to another literal of the same union: TypeScript reduces a
+    // union as it likes, and the property is the one it was.
+    const untouched = resolution.access && !(edits.get(resolution.file) ?? []).some((edit) => edit.start === resolution.start);
+    const same = got !== undefined && got.length > 0 && (untouched || got.every((target) => expected.includes(target)));
     if (!same) broken.push(`${rel(resolution.file)}@${resolution.start}: resolved to ${show(expected)}, now ${got === undefined ? "nothing" : show(got)}`);
   }
   return broken;
