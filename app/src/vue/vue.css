@@ -3074,3 +3074,126 @@ button.recommande {
   border-radius: var(--rayon-bouton);
   cursor: pointer;
 }
+/* Closer (#990) : quatre chiffres de la dernière observation, ce qu'elle a repéré derrière un bouton —
+   ou, sans closer réglé, le message et le geste qui en règle un. Les mêmes chiffres que Reliability. */
+#closer {
+  padding: 16px 16px 4px;
+}
+.tete-closer h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+.tete-closer .calibrage {
+  margin: 0 0 0 6px;
+  font-weight: 400;
+}
+.tete-closer .chiffres {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.tete-closer .chiffre {
+  min-width: 0;
+  padding: 12px 14px;
+  background: var(--carte);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+.tete-closer .chiffre h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+.tete-closer .total {
+  margin: 2px 0 6px;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  color: var(--texte);
+}
+.tete-closer .total.sans {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--discret);
+}
+.tete-closer .precise {
+  margin: 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--discret);
+}
+.tete-closer :is(.sans, .indisponible) {
+  margin: 8px 0 0;
+  font-size: 14px;
+}
+.tete-closer .attendu {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--texte);
+}
+.tete-closer .comment {
+  margin: 8px 0 6px;
+  font-size: 12px;
+  color: var(--discret);
+}
+.tete-closer .gestes-closer {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+}
+.tete-closer .gestes-closer code {
+  padding: 4px 10px;
+  color: var(--texte);
+  background: var(--carte);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-bouton);
+  user-select: all;
+}
+.closer-trouvailles {
+  margin: 14px 0 0;
+}
+.closer-trouvailles .deplier {
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--texte);
+  background: var(--bouton);
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+  cursor: pointer;
+}
+.closer-trouvailles .sans {
+  margin: 0;
+  font-size: 14px;
+  color: var(--discret);
+}
+.closer-trouvailles .trouvailles {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.closer-trouvailles .trouvailles li {
+  display: grid;
+  grid-template-columns: 3em minmax(0, 1fr) minmax(0, 1.4fr);
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--texte-doux);
+  background: var(--carte);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+.closer-trouvailles :is(.nom, .ou) {
+  color: var(--texte);
+}
+.closer-trouvailles :is(.ou, .quoi) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

@@ -1015,9 +1015,9 @@ l'onglet — celle du rail (#621) ; si le rail ne porte pas le ticket, la fiche 
 numéro. **Paramètres** ouvre l'état du projet —
 l'installation, **la sauvegarde et son ancienneté**, les pages servies, le retrait, les couleurs du projet, et
 `status` tel que la box le rend —, avec dessous une rangée de lectures : Réglages, Rail, Manager,
-Grants, Reliability (voir « La lecture Reliability »). Une ligne de la bande d'alertes dont la cause se règle là y mène en un clic. **Le journal
+Grants, Reliability (voir « La lecture Reliability »), Closer (voir « La lecture Closer »). Une ligne de la bande d'alertes dont la cause se règle là y mène en un clic. **Le journal
 (Log) n'a pas d'onglet** : le bouton « journal », à côté des onglets, ouvre la fin du journal
-par-dessus le rail ; le recliquer le ferme. Les six lectures ci-dessous sont celles de ces deux onglets et
+par-dessus le rail ; le recliquer le ferme. Les sept lectures ci-dessous sont celles de ces deux onglets et
 de ce geste.
 **Un dépassement de seuil se voit d'un coup d'œil** (#912, `cost/seuils.js`) : les seuils sont ceux que `station` écrit sous
 « décisions du chef » (`seuil-ticket`, `seuil-perdus`), projet par projet. Quand le ticket le plus cher dépasse le seuil de son
@@ -1032,7 +1032,7 @@ il reste posé dessous, et relu, mais rien de lui ne se clique au travers. Recli
 la page, et **le rail revient tel que tu l'avais laissé**, défilé où il l'était. La bande d'alertes,
 au-dessus, reste visible : aucune page ne la couvre, ni les terminaux, à droite.
 
-Dans ces pages, six **lectures de contenu**. Une lecture relaie **en texte, mot pour mot,** la sortie d'une commande du runtime
+Dans ces pages, sept **lectures de contenu**. Une lecture relaie **en texte, mot pour mot,** la sortie d'une commande du runtime
 (`docs/runtime/exploitation.md`, « Piloter »). **Manager** montre d'abord l'état du manager, **Grants** celui
 des grants :
 
@@ -1043,12 +1043,13 @@ des grants :
 | **Manager** | `ssh <hote> brigade <nom> manager` | **l'état du manager** (voir « L'onglet Manager ») — allumé ou éteint, depuis quand et par qui, ses dernières décisions, ce qu'il a écarté et pourquoi —, puis le texte de `manager`, qui dit aussi les épiques et ses réactions aux échecs |
 | **Grants** | `ssh <hote> brigade <nom> grant` | **l'état des grants** (voir « L'onglet Grants ») — lequel est actif, son échéance avec la durée restante en tête, ses derniers usages, ce qu'aucun grant n'autorise —, puis le texte de `grant`, qui dit aussi les derniers gestes (accordé, prolongé, révoqué, éteint seul, refusé) |
 | **Reliability** | `ssh <hote> brigade <nom> station`, puis `ssh <hote> brigade <nom> measures --last <fenêtre> --by 1` | **la fiabilité des cooks du projet** (voir « La lecture Reliability »), puis les deux textes, repliés |
+| **Closer** | `ssh <hote> brigade <nom> closing --json` | **la partie closer du projet** (voir « La lecture Closer »), puis l'objet que la box a rendu, replié |
 | **Log** | `ssh <hote> brigade <nom> log --last 200` | la fin du journal : les 200 derniers événements, pas le journal entier — la ligne sous les onglets le dit |
 
 - **Seul l'onglet affiché est lu** : sa commande part quand tu l'ouvres, puis toutes les trente
   secondes tant qu'il est à l'écran. En changer, le refermer ou quitter l'espace arrête sa
   lecture. Sans onglet de contenu ouvert, l'app ne lance donc pour ce projet que `status` ; avec
-  un, `status` et la commande de l'onglet — jamais les six (Reliability en lance deux, l'une après l'autre). S'y ajoute `faits`, lu pour
+  un, `status` et la commande de l'onglet — jamais les sept (Reliability en lance deux, l'une après l'autre). S'y ajoute `faits`, lu pour
   **tous** les projets quel que soit l'écran : c'est lui que la barre dessine.
 - **Ce qui t'attend reste sous tes yeux** : le panneau, entre le centre et le second — l'état du projet, le bloc
   `attend`, le reste de `status` — ne bouge pas quand tu changes d'onglet.
@@ -1059,7 +1060,7 @@ des grants :
 - Un runtime qui ne connaît pas encore `--last` rend son usage en erreur : il se lit dans l'onglet comme toute commande en échec.
 - Sous les onglets, la ligne dit ce que tu lis : ``la sortie de `ssh <hote> brigade <nom> rail`, telle que la box la
   rend — relue seule toutes les trente secondes, tant que cet onglet est affiché``.
-- Un projet sans `hote` a ses six onglets, et chacun dit `aucune lecture` et ce qui manque.
+- Un projet sans `hote` a ses sept onglets, et chacun dit `aucune lecture` et ce qui manque.
 - **Rien n'y est dessiné** : seuls l'état du manager et celui des grants y sont posés
   au-dessus de leur texte. Rail, Cooks et Log sont du texte que tu peux sélectionner et copier, comme le
   texte de tout onglet. Les seuls boutons sont ceux qui écrivent une commande dans le second — sur
@@ -1109,6 +1110,35 @@ elle lit ce que `measures` écrit (`docs/runtime/etat-et-mesures.md`, « Le rele
 `status` du projet porte une ligne `drift` sur la part du premier coup, ou sur les tokens perdus. Ce qu'elle
 dit est au survol ; la pastille ne change pas : rien n'attend le chef, rien ne bloque. Les autres seuils
 (tests, dépôt, ticket le plus cher) ne sont pas la fiabilité des cooks, et n'y ajoutent rien.
+
+### La lecture Closer
+
+*Ticket : #990 (épique #986).* Sous **Paramètres → Closer**, **la partie « closer » du projet** : ce que la
+dernière observation du closer a repéré (`docs/runtime/fermeture.md`, « La fermeture qui observe »). Elle
+est une lecture de plus, à côté de Reliability : les deux onglets du haut restent deux.
+
+- **En tête, quatre chiffres** : les **merges depuis le dernier nettoyage**, le rapport **ajouté / retiré**
+  (`2.5:1`, ou `nothing removed`, comme `closing` le dit — sur sa plus longue fenêtre, avec dessous
+  `+18,340 / −7,336 · last 100 merges`), les **doublons** et les **exports morts**. Le calibrage du closer
+  est dit à côté du titre (`closer sonnet / medium`).
+- **Un bouton déplie ce qui a été repéré** — `show what was found (8)` —, et le recliquer le replie ;
+  dépliée, la liste le reste aux relectures. Une ligne par trouvaille, sous le nom que la passe lui donne :
+  `D1  app/src/vue/vue.js:1405-1428  24 lines also at app/src/vue/fiabilite.js:40-63`, ou
+  `M1  runtime/src/mesures.ts:212  export ancienneJauge named by tests only`. Rien de repéré : `nothing found`.
+- **Sans closer réglé, la partie le dit** — `No closer is set on this project.` — **et donne le geste
+  exact** qui en règle un, sur la box du projet : `ssh <hote> brigade <nom> station closer-modele <model>`
+  et `… station closer-effort <effort>`, chacun sur sa ligne, à copier ; les valeurs acceptées sont au
+  survol. **Aucun chiffre.**
+- **Une branche d'intégration illisible** : les merges restent (le journal les tient seul), les trois autres
+  chiffres disent `not communicated`, et une ligne `the integration branch could not be read` porte la raison
+  au survol. Une lecture ratée — une box sans journal, un runtime d'avant `closing --json` — tient en une ligne,
+  `the closer could not be read`, le détail au survol.
+- **Deux places, vides pour l'instant, sont réservées sous la liste** : le lancement d'un nettoyage et l'état
+  de sa demande (`closer-lancement`, #991), puis le bilan d'une passe finie (`closer-bilan`, #992).
+
+**D'où ça vient.** L'app lance `closing --json` (#988) et lit l'objet qu'il rend sur une ligne — rien n'est
+recompté, rien n'est lancé : la commande ouvre le journal en lecture seule. La vue le lit elle-même dans la
+sortie de l'onglet (`app/src/vue/closer/section.js`), et ce que la box a rendu reste lisible, replié dessous.
 
 ### L'onglet Manager
 
