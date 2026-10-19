@@ -1878,8 +1878,16 @@ describe("la station", { concurrency: 8 }, () => {
     const premiere = cuisine(t, { git: true, scenario: "bavard", issues: [issue(15)] });
     await jusqua(() => premiere.lancements().length === 1);
     const run = String(premiere.dernier("cook.launched", 15)?.run);
+    const pidDe = (quoi: string) => join(premiere.repertoire, "runs", `${run}.${quoi}`);
+    await jusqua(() => existsSync(pidDe("cook.pid")));
     writeFileSync(join(premiere.lancements()[0]?.cwd ?? "", "brouillon.txt"), "à moitié écrit\n");
     premiere.runtime.arreter("test");
+    // Mort avec le runtime : son relais et lui tués. Laissé vivant, le runtime
+    // suivant le reprendrait, et n'en verrait la fin qu'au filet de trente
+    // secondes du faux `claude`.
+    const [relais, cook] = [Number(JSON.parse(readFileSync(pidDe("relais.json"), "utf8")).pid), Number(readFileSync(pidDe("cook.pid"), "utf8"))];
+    tuerLesRelais(premiere.repertoire);
+    await Promise.all([mort(relais), mort(cook)]);
 
     const { clone, repertoire, journal, types } = cuisine(t, { lieux: premiere.lieux, git: true, scenario: "bavard" });
     await jusqua(() => types(15).filter((type) => type === "cook.launched").length === 2);

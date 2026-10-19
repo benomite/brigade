@@ -159,7 +159,7 @@ disparu, il libère aussi le rail ; son label `fire` retiré, il le retient enco
 à la main dans la configuration, ou ajouté avant ce ticket, n'a pas de ticket de préparation : son
 rail est celui de toujours.
 
-La recette (`runtime/test/projets/recette.test.ts`) mesure, sur une vraie station de test, le temps
+La recette (`runtime/test/0-en-premier/recette.test.ts`) mesure, sur une vraie station de test, le temps
 entre l'ouverture du parcours et le projet publié dans la liste de la station : la spec le borne à
 dix minutes ; la station y met au plus sa cadence, trente secondes, plus le clone.
 

@@ -7,6 +7,14 @@
 // comprend la cadence réelle de la station : rien n'est accéléré. La spec
 // demande moins de dix minutes, parcours compris ; la station en met moins
 // d'une — sa cadence est de trente secondes.
+//
+// Ce fichier dure deux minutes, et rien ne les raccourcit sans toucher la
+// station : elle n'écrit pas son gist plus d'une fois par minute
+// (`ECART_MINIMAL_MS`, appairage/presence.ts), et la recette lit trois de ses
+// écritures — la liste vide, le projet ajouté, le projet retiré. C'est pour
+// cela qu'il vit dans `0-en-premier/` : `node --test` prend les fichiers dans
+// l'ordre de leurs chemins, et celui-ci, lancé le premier, court pendant le
+// reste de la suite au lieu de la prolonger de deux minutes.
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -20,7 +28,7 @@ import { depotGit, ENV_GIT, FAUX_CLAUDE, git, jusqua, lancer, repertoireTemporai
 const rienNeReste = temporaireDuFichier();
 
 const STATION = join(import.meta.dirname, "../../src/station/main.ts");
-const FAUX_GH = join(import.meta.dirname, "faux-gh.ts");
+const FAUX_GH = join(import.meta.dirname, "../projets/faux-gh.ts");
 const GIST = "g1appairee";
 // Le temps que la spec accorde, du parcours ouvert au projet servi.
 const DIX_MINUTES = 10 * 60_000;
