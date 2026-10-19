@@ -9,6 +9,7 @@ import { faits, lireEtat } from "./etat.ts";
 import { pauseDeLaStation } from "./limite-github.ts";
 import { ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
+import { cartesDeProfil } from "./profils/cartes.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run facts";
 
@@ -31,12 +32,13 @@ export function principal({ args, env, dire, redire }: Appel): void {
   try {
     const maintenant = new Date();
     const forme = faits(lireEtat(journal, maintenant), maintenant, env.BRIGADE_GITHUB_REPO, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
-    // Les corrections proposées, et ce que les acceptées ont fait de leur
-    // cause, n'y sont que s'il y en a : la forme d'une cuisine qui n'en a
-    // aucune ne change pas.
+    // Les corrections proposées, ce que les acceptées ont fait de leur
+    // cause, et les profils proposés n'y sont que s'il y en a : la forme d'une
+    // cuisine qui n'en a aucun ne change pas.
     const corrections = cartesDeCorrection(journal, env.BRIGADE_GITHUB_REPO);
     const reculs = reculDesCorrections(journal);
-    dire(JSON.stringify({ ...forme, ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }) }));
+    const profils = cartesDeProfil(journal, env.BRIGADE_GITHUB_REPO);
+    dire(JSON.stringify({ ...forme, ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }) }));
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.

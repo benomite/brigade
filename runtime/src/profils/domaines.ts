@@ -36,7 +36,7 @@ export type Domaine = { zone: string; tickets: number[]; premiers: number; reten
 export type ReleveDesDomaines = { reglages: ReglagesDesProfils; servis: number; premiers: number; retenus: number; domaines: Domaine[] };
 
 // `runtime/src/` et `runtime/src` sont la même zone.
-const normaliser = (chemin: string) =>
+export const normaliser = (chemin: string) =>
   chemin
     .split("/")
     .filter((segment) => segment !== "" && segment !== ".")

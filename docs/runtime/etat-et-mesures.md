@@ -149,6 +149,7 @@ est du texte, et peut être reformulé.
 | `stations` | Les stations que le projet déclare, dans l'ordre de leur nom, et ce qu'elles font des **tickets ordinaires** (voir « Les tickets ordinaires sur le poste du chef ») : `station`, `distante`, `plafond` (ses cooks à la fois, au plus — `null` : sans limite), `ordinaires` (le réglage du chef, `false` pour une station de la box), `bacASable` (ce que la station a dit du bac à sable de son poste : `disponible`, `raison` — `null` s'il l'est —, `version` de son `claude` — `null` s'il ne l'est pas —, `depuis` ; `null` tant qu'elle n'en a rien dit), `prendOrdinaires` (elle en prend à cet instant : toujours vrai d'une station de la box ; d'une distante, réglage et bac à sable disponible). Une liste vide quand aucune n'est déclarée |
 | `corrections` | Les corrections proposées des consignes du projet (voir « Les corrections proposées » ci-dessous), la plus ancienne d'abord : `proposition` (le `seq` du fait qui la porte), `cause` et `titre` (la cause des ratages, sa clé et sa phrase), `tickets` (ceux qu'elle a fait rater, chacun avec `ticket` et `url` — l'adresse que le dépôt de la box donne, `null` quand elle ne le connaît pas), `motif` (pourquoi cette correction, dans les mots du modèle ; `null` s'il n'en a rien dit), `diff` (un diff unifié, tel que `git apply` le prend), `fichiers` (ceux qu'il touche), `base` (le commit de la branche d'intégration sur lequel il s'applique), `cout.tokens` (ce que la proposition a coûté, comptés comme ceux d'un cook), `proposee` (l'heure de la proposition). **Absent quand il n'y en a aucune** : la forme d'une cuisine sans correction ne change pas. Une proposition écartée n'y est jamais, une proposition tranchée n'y est plus |
 | `reculs` | Ce que chaque correction acceptée a fait de sa cause (voir « Une correction mergée recule-t-elle sa cause ? » ci-dessous), la plus ancienne d'abord : `proposition` (le `seq` de la proposition acceptée), `cause` et `titre`, `pr` (la PR de la correction, `null` tant qu'elle n'est pas ouverte, ou si elle ne l'a jamais été), `etat` — `en-cours` (pas encore mergée : rien ne se mesure, ni avant ni après), `non-mergee` (elle ne le sera pas : non livrée, ou PR fermée sans merge), `rien-a-comparer` (mergée, sans ticket fini après elle) ou `mesuree`. Mergée, elle porte `mergee` (l'heure du merge) et `avant` ; mesurée, aussi `apres` et `recule` (`true` : la part a baissé ; `false` : elle est restée la même, ou a monté). `avant` et `apres` disent chacun `tickets` (les tickets finis regardés), `atteints` (ceux que la cause a fait rater au moins une fois, dans l'ordre de leur fin), `essais` (les essais qu'elle y a fait rater) et `part` (`atteints` sur `tickets`, entre 0 et 1). `avant` est `null` quand aucun ticket n'était fini avant le merge. **Absent quand aucune correction n'a été acceptée** |
+| `profils` | Les profils de cook proposés qui t'attendent (voir « Les profils proposés » ci-dessous), le plus ancien d'abord : `proposition` (le `seq` du fait qui le porte), `nom` (celui de son fichier), `domaine` (la zone de fiche relevée), `chiffres` — `tickets` (ceux de la fenêtre qui portent le domaine, chacun avec `ticket` et `url`, l'adresse que le dépôt de la box donne, `null` quand elle ne le connaît pas), `fenetre` (les tickets servis regardés), `domaine` et `projet` (leur part livrée du premier coup : `premiers` sur `retenus` mergés, et `part` entre 0 et 1), `ecart` (les points qui les séparent) et `seuils` (`fenetre`, `tickets`, `ecart` : les réglages qui l'ont fait proposer) —, `skills` (vide : c'est toi qui les écris), `perimetre` (la zone), `carnet` (les leçons de départ, chacune avec `id`, `texte` et `retros`), `proposee` (l'heure de la proposition). **Absent quand il n'y en a aucun.** Un profil tranché n'y est plus |
 
 Les heures sont en ISO 8601, UTC.
 
@@ -236,6 +237,29 @@ Une fois les vingt « après » finis, la mesure ne bouge plus. La cause **recul
 est plus basse qu'avant ; à part égale, ou plus haute, elle ne recule pas. Tant que la PR n'est pas
 mergée, rien ne se mesure (`en-cours`) ; mergée sans ticket fini après elle, il n'y a **rien à
 comparer** (`rien-a-comparer`) — et pas une part nulle.
+
+### Les profils proposés
+
+Quand une zone de fiche revient souvent sur les derniers tickets servis et y est livrée du premier
+coup nettement moins que le reste du projet (`runtime/src/profils/domaines.ts` : au moins
+`BRIGADE_PROFILE_MIN_TICKETS` tickets, 5 par défaut, sur les `BRIGADE_PROFILE_WINDOW` derniers, 20,
+et au moins `BRIGADE_PROFILE_GAP_POINTS` points sous la moyenne, 20), le runtime en fait un **profil
+de cook proposé** (`profile.proposed`, `runtime/src/profils/proposer.ts`) : un nom tiré de la zone
+(`app/src/vue` donne `app-src-vue`), les chiffres qui le justifient avec ses tickets, et ce que le
+profil contiendrait — des skills (aucune : rien de ce que le journal porte ne dit lesquelles, c'est
+toi qui les écris), son périmètre (la zone) et un carnet de départ : les leçons **promues** du carnet
+du projet dont une rétro nomme un ticket servi dans cette zone (`#12`). `profils` le porte. Une zone
+n'a qu'une proposition à la fois, et n'en a plus quand son profil existe — accepté, ou déjà défini
+dans le dépôt.
+
+**Un profil n'existe que si tu dis « oui »** (`runtime/src/profils/decision.ts`). Une proposition
+que personne ne tranche reste dans `profils`, et rien n'en naît. Tranchée, elle en sort ; elle ne se
+tranche qu'une fois, et un second geste, le même ou l'autre, n'écrit rien.
+
+| Ton geste | Ce qui se passe |
+|---|---|
+| « oui » (`profile.accepted`) | la définition du profil est écrite dans le dépôt du projet, un fichier par profil : `.claude/brigade/profils/<nom>.md` — son domaine, son périmètre, ses skills, la date du « oui », les tickets qui l'ont justifié, puis son carnet au format du carnet du projet. Une définition déjà là n'est jamais remplacée : le « oui » n'écrit rien, et la proposition attend toujours |
+| « non » (`profile.refused`) | elle quitte la file. Le « non » nomme les tickets du domaine que le journal avait servis jusque-là : **le domaine n'est proposé de nouveau que s'il franchit encore les seuils sur d'autres tickets** — la mesure est refaite comme si ceux-là ne portaient pas la zone. Les mêmes tickets, relevés à nouveau, ne le ramènent pas |
 
 ## Le relevé des mesures
 
