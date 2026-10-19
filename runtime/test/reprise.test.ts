@@ -48,6 +48,8 @@ describe("la reprise des cooks en vol", { concurrency: 4 }, () => {
 
   test("aucun cook en vol n'est interrompu pendant le remplacement : ni son processus, ni son worktree, ni sa branche — le rangement de la nouvelle vie passe sans y toucher", async (t) => {
     const { premiere, run, pid, worktree, branche } = await premiereVie(t, { git: true });
+    // `travail.txt` posé, le cook le commite encore : la tête se lit une fois son commit fait.
+    await jusqua(() => git(premiere.lieux.clone, "log", "-1", "--format=%s", branche) === "le travail du cook");
     const tete = git(premiere.lieux.clone, "rev-parse", branche);
 
     const seconde = cuisine(t, { lieux: premiere.lieux, git: true });
