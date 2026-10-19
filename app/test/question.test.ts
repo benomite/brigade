@@ -45,7 +45,17 @@ describe("la question du manager, prise sur l'issue telle qu'elle est écrite", 
 
   test("ce qui a été écrit sur l'issue depuis la question la suit : le chef voit qu'on y a déjà répondu", () => {
     const question = questionDe([commentaire(QUESTION), commentaire("b, sans hésiter", { auteur: "chef", a: "2026-10-15T09:00:00Z", url: `${ISSUE}#issuecomment-3` })]);
-    assert.deepEqual(question?.depuis, [{ auteur: "chef", a: "2026-10-15T09:00:00Z", corps: "b, sans hésiter" }]);
+    const ecrit = { auteur: "chef", a: "2026-10-15T09:00:00Z", url: `${ISSUE}#issuecomment-3`, corps: "b, sans hésiter" };
+    assert.deepEqual(question?.depuis, [ecrit]);
+    assert.deepEqual(question?.repondue, ecrit);
+  });
+
+  test("répondue : le premier commentaire écrit dessous que le manager lira comme une réponse — ni un des siens, ni celui de quelqu'un qui n'a pas la main sur le dépôt (#503)", () => {
+    const passant = commentaire("je passais", { auteur: "passant", association: "NONE", url: `${ISSUE}#issuecomment-3` });
+    const duManager = commentaire(`${MARQUEUR_MANAGER}\n**Manager — lu.**`, { auteur: "brigade-manager", url: `${ISSUE}#issuecomment-4` });
+    assert.equal(questionDe([commentaire(QUESTION), passant, duManager])?.repondue, undefined);
+    const reponse = commentaire("b", { auteur: "chef", a: "2026-10-15T09:30:00Z", url: `${ISSUE}#issuecomment-5` });
+    assert.deepEqual(questionDe([commentaire(QUESTION), passant, duManager, reponse])?.repondue, { auteur: "chef", a: "2026-10-15T09:30:00Z", url: `${ISSUE}#issuecomment-5`, corps: "b" });
   });
 
   test("sans question du manager — un autre commentaire, ou le marqueur recopié par quelqu'un qui n'a pas la main sur le dépôt —, il n'y en a pas", () => {
@@ -189,6 +199,28 @@ describe("la réponse du chef, postée sur l'issue", () => {
     assert.equal(rendue.poste, false);
     assert.ok(!rendue.poste && rendue.lue !== undefined && "question" in rendue.lue);
     assert.equal(!rendue.poste && rendue.lue !== undefined && "question" in rendue.lue ? rendue.lue.question.url : "", `${ISSUE}#issuecomment-5`);
+    assert.ok(!appels().some((appel) => appel.startsWith("issue comment")));
+  });
+
+  test("répondue ailleurs pendant que le chef lisait — sur GitHub, par le second — : rien ne part, la fiche le dit et montre la réponse (#503)", async (t) => {
+    const ailleurs = commentaire("a, sans hésiter", { auteur: "second", url: `${ISSUE}#issuecomment-3` });
+    const { reglages, appels } = essai(t, { vue: vueDe(commentaire(QUESTION), ailleurs) });
+    const rendue = await repondre(reglages, ISSUE, { question: URL_QUESTION, choix: "b" });
+    assert.equal(rendue.poste, false);
+    assert.match(!rendue.poste ? rendue.refus : "", /^nothing was posted: second answered the question on the issue since you read it/);
+    assert.ok(!rendue.poste && rendue.lue !== undefined && "question" in rendue.lue && rendue.lue.question.repondue?.url === `${ISSUE}#issuecomment-3`);
+    assert.ok(!appels().some((appel) => appel.startsWith("issue comment")));
+
+    // Ce qui était déjà écrit sous la question quand il l'a lue ne retient rien : il l'a vu.
+    const vu = await repondre(reglages, ISSUE, { question: URL_QUESTION, vu: `${ISSUE}#issuecomment-3`, choix: "b" });
+    assert.equal(vu.poste, true);
+  });
+
+  test("écrit dessous sans y répondre — un mot d'un passant — depuis la lecture : rien ne part non plus, il le lit d'abord", async (t) => {
+    const passant = commentaire("je passais", { auteur: "passant", association: "NONE", url: `${ISSUE}#issuecomment-3` });
+    const { reglages, appels } = essai(t, { vue: vueDe(commentaire(QUESTION), passant) });
+    const rendue = await repondre(reglages, ISSUE, { question: URL_QUESTION, texte: "b" });
+    assert.match(!rendue.poste ? rendue.refus : "", /^nothing was posted: something was written under the question on the issue since you read it/);
     assert.ok(!appels().some((appel) => appel.startsWith("issue comment")));
   });
 

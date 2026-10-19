@@ -10,6 +10,7 @@
 //   bloquée      ce qui la retient ; signal « blocked »
 //   mise de côté sa raison en clair ; signal « set aside »
 //   en WAITING   `waiting for <quoi> · from <qui>` ; signal si la relance est passée
+//   répondue     `answered by <qui> · the manager's turn` (#503)
 //   m'attend     ce qu'on attend du chef, en une phrase (decision.ts)
 //   livrée       `served at HH:MM · <résumé>`
 import { heureHM } from "./format.ts";
@@ -50,6 +51,9 @@ export const ligneQuiMAttend = (phrase: string | undefined): LigneDeCarte => (ph
 // En WAITING : ce qu'il attend et de qui ; la relance passée est le signal.
 export const ligneEnWaiting = (tiers: { quoi: string; qui: string } | null | undefined, relancePassee: boolean): LigneDeCarte =>
   tiers == null ? { ligne: "waits for a third party", repere: true } : { ligne: `waiting for ${tiers.quoi} · from ${tiers.qui}`, ...(relancePassee ? { signal: RELANCE_PASSEE } : {}) };
+
+// Une question du manager répondue, qui attend qu'il lise la réponse (repondues.ts) : qui y a répondu.
+export const ligneRepondue = (par: string): LigneDeCarte => ({ ligne: `answered by ${par} · the manager's turn` });
 
 // Livrée : l'heure, locale, et ce qui a été livré en une phrase — sans résumé, l'heure seule.
 export function ligneLivree(quand: string, resume: string | undefined): LigneDeCarte {

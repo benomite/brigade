@@ -24,6 +24,7 @@ import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Lue } from "../src/question.ts";
+import type { Repondue } from "../src/repondues.ts";
 import type { Terminal } from "../src/terminaux.ts";
 import { type Faux, type Jouee, jouerLaVue, type Reponses, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
 
@@ -99,8 +100,9 @@ const STATUS = [
 // Ce que le process principal envoie à la vue pour ce projet : `faits` reçus, puis `status` —
 // ou `faits` seuls, tant que `status` n'a pas été lu.
 const PAS_LU = null;
-function dessinable(faits: Faits = FAITS, status: string | typeof PAS_LU = STATUS): Dessinable {
-  const tenus = tenirFaits();
+// `repondues` : les questions répondues que le process principal tient (repondues.ts).
+function dessinable(faits: Faits = FAITS, status: string | typeof PAS_LU = STATUS, repondues: ReadonlyMap<number, Repondue> = new Map()): Dessinable {
+  const tenus = tenirFaits(() => repondues);
   const recue = tenus.recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
   if (status === PAS_LU) return recue;
   return tenus.attendre(mettreAPart({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "status", texte: status }] })) ?? assert.fail("rien à redessiner");
@@ -505,7 +507,7 @@ describe("la question qui t'attend, posée telle quelle, sans LLM (#681)", () =>
     choix(vue)[1]?.click();
     await repos();
 
-    assert.deepEqual(vue.dernier("repondreQuestion"), [PARADE, 12, { question: `${ISSUE}#issuecomment-2`, choix: "b" }]);
+    assert.deepEqual(vue.dernier("repondreQuestion"), [PARADE, 12, { question: `${ISSUE}#issuecomment-2`, vu: "", choix: "b" }]);
     assert.match(section(vue)?.dessous("p").find((pose) => pose.className === "postee")?.textContent ?? "", /^answer posted on #12, in your name: “b\) il s'ouvre par-dessus” — the manager reads it at its next tick/);
     assert.deepEqual(choix(vue), []);
     assert.deepEqual(section(vue)?.dessous("textarea"), []);
@@ -530,11 +532,11 @@ describe("la question qui t'attend, posée telle quelle, sans LLM (#681)", () =>
 
     poster(vue).click();
     await repos();
-    assert.deepEqual(vue.dernier("repondreQuestion"), [PARADE, 12, { question: `${ISSUE}#issuecomment-2`, texte: "Par-dessus." }]);
+    assert.deepEqual(vue.dernier("repondreQuestion"), [PARADE, 12, { question: `${ISSUE}#issuecomment-2`, vu: "", texte: "Par-dessus." }]);
   });
 
   test("ce qui a été écrit sur l'issue depuis la question se lit sous elle", async () => {
-    const vue = await ouvrirLaFiche({ lireQuestion: () => ({ ...QUESTION, question: { ...QUESTION.question, depuis: [{ auteur: "benomite", a: "2026-10-15T09:00:00Z", corps: "b, sans hésiter" }] } }) as Lue });
+    const vue = await ouvrirLaFiche({ lireQuestion: () => ({ ...QUESTION, question: { ...QUESTION.question, depuis: [{ auteur: "benomite", a: "2026-10-15T09:00:00Z", url: `${ISSUE}#issuecomment-3`, corps: "b, sans hésiter" }] } }) as Lue });
     const depuis = section(vue)?.dessous("ul").find((pose) => pose.className === "depuis");
     assert.equal(depuis?.children[0]?.dessous("p")[0]?.textContent, "b, sans hésiter");
   });
@@ -563,6 +565,82 @@ describe("la question qui t'attend, posée telle quelle, sans LLM (#681)", () =>
     aides(indisponible)[0]?.declencher("focus");
     assert.match(indisponible.textContent, /\$ gh issue view … → exit code 4/);
     assert.equal(demandes(pasLue).length, 1);
+  });
+});
+
+// La question qui t'attend se lit sur sa carte, et la carte quitte TODO quand la réponse est partie
+// (#503) : l'épique #60 attend une réponse à la question du manager avant d'être découpée.
+describe("une question du manager se lit sur sa carte, et la carte quitte TODO dès qu'elle est répondue (#503)", () => {
+  const ISSUE = "https://github.com/benomite/brigade/issues/60";
+  const ENTREE = "  #60  depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue";
+  const FAITS_60: Faits = { ...FAITS, attend: [...(FAITS.attend ?? []), { ticket: 60, titre: "Le popup des questions", url: ISSUE, decision: { quoi: "question", motif: null, cause: null, pr: null } }] };
+  const STATUS_60 = STATUS.replace("fin attend", `${ENTREE}\nfin attend`);
+  const QUESTION: Lue = {
+    a: "2026-10-15T10:00:00.000Z",
+    question: {
+      url: `${ISSUE}#issuecomment-2`,
+      resume: "Le popup remplace-t-il la fiche ?",
+      auteur: "brigade-manager",
+      a: "2026-10-15T08:00:00Z",
+      texte: "Le popup remplace-t-il la fiche ? (a) oui (b) non",
+      choix: [
+        { lettre: "a", texte: "oui" },
+        { lettre: "b", texte: "non" },
+      ],
+      depuis: [],
+    },
+  };
+  const REPONSE = { auteur: "benomite", a: "2026-10-15T09:00:00Z", url: `${ISSUE}#issuecomment-3`, corps: "b" };
+  const REPONDUE: Lue = { ...QUESTION, question: { ...QUESTION.question, depuis: [REPONSE], repondue: REPONSE } };
+  const colonneDe = (vue: Jouee, numero: number) => colonnes(vue).find((colonne) => bons(colonne).some((bon) => bon.children[0]?.children[0]?.textContent === `#${numero}`))?.children[0]?.children[0]?.textContent;
+  const section = (vue: Jouee) => fiche(vue).dessous("section").find((pose) => pose.className === "question");
+
+  test("dans TODO, la carte de l'épique dit la question du manager en une ligne, et qui l'a posée — sans ouvrir sa fiche ni GitHub", async () => {
+    const vue = await ouvrir({ lireQuestion: () => QUESTION });
+    recevoir(vue, dessinable(FAITS_60, STATUS_60));
+    await repos();
+
+    assert.deepEqual(vue.dernier("lireQuestion"), [PARADE, 60]);
+    assert.equal(colonneDe(vue, 60), "TODO");
+    const bon = bonDe(vue, 60);
+    assert.equal(bon.dessous("p").find((pose) => pose.className === "question-courte")?.textContent, "Le popup remplace-t-il la fiche ?");
+    assert.ok(bon.textContent.includes("asked by brigade-manager"), bon.textContent);
+    // Une livraison à merger ne porte pas de question : son issue n'est pas lue pour la carte.
+    assert.ok(!vue.appels.some(({ geste, args }) => geste === "lireQuestion" && args[1] === 12));
+  });
+
+  test("la réponse partie, la carte passe dans WAITING au redessin que le process principal envoie — la fiche ouverte garde ce qui a été posté", async () => {
+    const vue = await ouvrir({ lireQuestion: () => QUESTION, repondreQuestion: () => ({ poste: true, corps: "b) non" }) });
+    recevoir(vue, dessinable(FAITS_60, STATUS_60));
+    await repos();
+    bonDe(vue, 60).click();
+    await repos();
+    (section(vue)?.dessous("button").find((pose) => pose.textContent === "b) non") ?? assert.fail("pas de choix b")).click();
+    await repos();
+    assert.deepEqual(vue.dernier("repondreQuestion"), [PARADE, 60, { question: `${ISSUE}#issuecomment-2`, vu: "", choix: "b" }]);
+
+    recevoir(vue, dessinable(FAITS_60, STATUS_60, new Map([[60, { question: `${ISSUE}#issuecomment-2`, par: "you", a: "2026-10-15T10:05:00.000Z" }]])));
+    await repos();
+    assert.equal(colonneDe(vue, 60), "WAITING");
+    assert.match(bonDe(vue, 60).textContent, /answered by you · the manager's turn/);
+    assert.doesNotMatch(bonDe(vue, 60).textContent, /awaiting you/);
+    assert.match(section(vue)?.dessous("p").find((pose) => pose.className === "postee")?.textContent ?? "", /^answer posted on #60, in your name: “b\) non” — the manager reads it at its next tick; until then the card waits for it in WAITING\.$/);
+  });
+
+  test("répondue ailleurs — sur GitHub, par le second —, la fiche le dit, et ce que le chef poste encore dit ce qu'il a vu dessous", async () => {
+    const vue = await ouvrir({ lireQuestion: () => REPONDUE, repondreQuestion: () => ({ poste: true, corps: "et vite" }) });
+    recevoir(vue, dessinable(FAITS_60, STATUS_60));
+    await repos();
+    bonDe(vue, 60).click();
+    await repos();
+
+    assert.match(section(vue)?.dessous("p").find((pose) => pose.className === "repondue")?.textContent ?? "", /^answered on the issue by benomite, .* — the manager reads it at its next tick/);
+    const champ = section(vue)?.dessous("textarea")[0] ?? assert.fail("pas de champ");
+    champ.value = "et vite";
+    champ.declencher("input");
+    (section(vue)?.dessous("button").find((pose) => pose.textContent === "post this answer") ?? assert.fail("pas de bouton")).click();
+    await repos();
+    assert.deepEqual(vue.dernier("repondreQuestion"), [PARADE, 60, { question: `${ISSUE}#issuecomment-2`, vu: `${ISSUE}#issuecomment-3`, texte: "et vite" }]);
   });
 });
 

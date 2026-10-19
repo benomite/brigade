@@ -29,15 +29,21 @@ export type Reglages = { gh: string; delaiMs: number };
 export type Commentaire = { auteur: string; association: string; a: string; url: string; corps: string };
 // Un choix que la question propose : sa lettre, telle qu'écrite, et ce qui la suit.
 export type Choix = { lettre: string; texte: string };
+// Ce qui a été écrit sur l'issue sous la question : qui, quand, son adresse, son texte sans marqueurs.
+export type Ecrit = { auteur: string; a: string; url: string; corps: string };
 // La question : le commentaire du manager, sans ses marqueurs — rien d'autre n'en est retiré —,
-// ses choix s'il en propose, et ce qui a été écrit sur l'issue depuis.
-export type Question = { url: string; auteur: string; a: string; texte: string; resume: string; choix: Choix[]; depuis: { auteur: string; a: string; corps: string }[] };
+// ses choix s'il en propose, et ce qui a été écrit sur l'issue depuis. `repondue` : le premier de
+// ces commentaires que le manager lira comme une réponse (#503) — de quelqu'un qui a la main sur le
+// dépôt, et qui n'est pas de lui ; absente, personne n'y a encore répondu.
+export type Question = { url: string; auteur: string; a: string; texte: string; resume: string; choix: Choix[]; depuis: Ecrit[]; repondue?: Ecrit };
 // Ce que la lecture de l'issue donne. `aucune` : l'issue est lue, le manager n'y pose pas de
 // question — l'entrée garde son geste à elle. `sans` : l'issue n'a pas été lue, et pourquoi.
 export type Lue = { a: string } & ({ question: Question } | { aucune: true } | { sans: string });
 // Ce que la vue envoie : la question qu'elle montre, par son adresse, et la réponse — la lettre
 // d'un choix, ou la phrase du chef. Le texte d'un choix vient de l'issue, jamais de la vue.
-export type Reponse = { question: string } & ({ choix: string } | { texte: string });
+// `vu` : l'adresse du dernier commentaire écrit sous la question que la vue montrait — absente ou
+// vide, elle n'en montrait aucun (#503).
+export type Reponse = { question: string; vu?: string } & ({ choix: string } | { texte: string });
 // Ce qu'il en est advenu. `poste` : le commentaire est sur l'issue — `corps` : ce qui a été écrit,
 // `adresse` : la sienne, quand `gh` l'a dite. `refus` : rien n'est parti, et pourquoi ; `lue` : la
 // question telle que l'issue la porte maintenant, quand elle a changé sous les yeux du chef.
@@ -62,6 +68,10 @@ export function questionDe(commentaires: readonly Commentaire[]): Question | und
   const posee = commentaires[rang];
   if (posee === undefined) return undefined;
   const texte = sansMarqueurs(posee.corps);
+  const apres = commentaires.slice(rang + 1);
+  const depuis = apres.map(({ auteur, a, url, corps }) => ({ auteur, a, url, corps: sansMarqueurs(corps) }));
+  // Ce que le manager lit comme une réponse : un commentaire de confiance qui n'est pas de lui (runtime/src/manager.ts).
+  const repondue = depuis[apres.findIndex(({ association, corps }) => DE_CONFIANCE.includes(association) && !corps.includes(MARQUEUR_MANAGER))];
   return {
     url: posee.url,
     auteur: posee.auteur,
@@ -69,7 +79,8 @@ export function questionDe(commentaires: readonly Commentaire[]): Question | und
     texte,
     resume: resumeDe(texte),
     choix: choixDe(texte),
-    depuis: commentaires.slice(rang + 1).map(({ auteur, a, corps }) => ({ auteur, a, corps: sansMarqueurs(corps) })),
+    depuis,
+    ...(repondue === undefined ? {} : { repondue }),
   };
 }
 
@@ -196,21 +207,35 @@ export async function lireQuestion(reglages: Reglages, adresse: string, maintena
 
 // Ce que le chef répond, lu tel que la vue l'envoie — ou pourquoi rien ne part.
 function reponseDe(reponse: unknown): Reponse | { refus: string } {
-  const { question, choix, texte } = (reponse ?? {}) as Record<string, unknown>;
+  const { question, choix, texte, vu } = (reponse ?? {}) as Record<string, unknown>;
   if (typeof question !== "string" || question === "") return { refus: "nothing was posted: the view did not say which question it answers" };
-  if (typeof choix === "string" && choix !== "") return { question, choix };
-  if (typeof texte === "string") return texte.trim() === "" ? { refus: "nothing was posted: the answer is empty — choose, or write a sentence" } : { question, texte: texte.trim() };
+  const deja = typeof vu === "string" && vu !== "" ? { vu } : {};
+  if (typeof choix === "string" && choix !== "") return { question, ...deja, choix };
+  if (typeof texte === "string") return texte.trim() === "" ? { refus: "nothing was posted: the answer is empty — choose, or write a sentence" } : { question, ...deja, texte: texte.trim() };
   return { refus: "nothing was posted: the view sent neither a choice nor a sentence" };
 }
 
+// Ce qui a été écrit sous la question après ce que le chef a vu (`vu`) : tout, s'il n'a rien vu —
+// ou si ce qu'il a vu n'y est plus.
+function nouveauxDe(question: Question, vu: string | undefined): Ecrit[] {
+  const rang = vu === undefined ? -1 : question.depuis.findIndex(({ url }) => url === vu);
+  return question.depuis.slice(rang + 1);
+}
+
 // Répond à la question de l'issue à cette adresse : relue d'abord — ce qui part répond à la
-// question que le chef a lue, et à elle seule —, puis le commentaire, par `gh issue comment`.
+// question que le chef a lue, et à elle seule, telle qu'il l'a lue : rien n'a été écrit dessous
+// depuis (#503) —, puis le commentaire, par `gh issue comment`.
 export async function repondre(reglages: Reglages, adresse: string, envoyee: unknown): Promise<Rendue> {
   const reponse = reponseDe(envoyee);
   if ("refus" in reponse) return { poste: false, refus: reponse.refus };
   const lue = await lireQuestion(reglages, adresse);
   if ("sans" in lue) return { poste: false, refus: `nothing was posted: the issue was not read again before writing — ${lue.sans}`, lue };
   if (!("question" in lue) || lue.question.url !== reponse.question) return { poste: false, refus: "nothing was posted: the question on the issue is no longer the one you read — here it is as it stands", lue };
+  // Répondue ailleurs pendant que le chef lisait — sur GitHub, par le second — : il le lit avant que rien ne parte.
+  const nouveaux = nouveauxDe(lue.question, reponse.vu);
+  const repondue = lue.question.repondue;
+  if (repondue !== undefined && nouveaux.includes(repondue)) return { poste: false, refus: `nothing was posted: ${repondue.auteur} answered the question on the issue since you read it — here is what was written; post yours only if it adds something`, lue };
+  if (nouveaux.length > 0) return { poste: false, refus: "nothing was posted: something was written under the question on the issue since you read it — here it is; post again if your answer still stands", lue };
   let corps: string;
   if ("choix" in reponse) {
     const choisi = lue.question.choix.find(({ lettre }) => lettre === reponse.choix);
