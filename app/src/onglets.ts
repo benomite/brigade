@@ -16,12 +16,14 @@ export const ONGLETS: readonly Onglet[] = [
   { id: "grants", titre: "Grants", commande: "grant" },
   // La fiabilité des cooks (fiabilite.ts) : `station` d'abord, pour les réglages du chef, puis `measures` sur leur fenêtre.
   { id: "fiabilite", titre: "Reliability", commande: "measures" },
+  // Le closer (#990) : ce que sa dernière observation a repéré, lu dans l'objet de `closing --json` (vue/closer/section.js).
+  { id: "closer", titre: "Closer", commande: "closing --json" },
   { id: "log", titre: "Log", commande: `log --last ${EVENEMENTS_DU_LOG}`, precision: `the end of the log only: the latest ${EVENEMENTS_DU_LOG} events, not the whole log` },
 ];
 
 // Ce que l'écran principal montre en haut : deux onglets, Coût et Paramètres. Les lectures
 // ci-dessus y sont rangées — Cooks (la commande `station`, et son `consommé`) sous Coût ; Rail,
-// Manager, Grants et la fiabilité des cooks du projet (#987) sous Paramètres, à côté de l'état du projet. Log n'a pas d'onglet : le
+// Manager, Grants, la fiabilité des cooks du projet (#987) et son closer (#990) sous Paramètres, à côté de l'état du projet. Log n'a pas d'onglet : le
 // journal est de l'outillage de panne, il s'ouvre par son geste, en tête de l'espace.
 // `defaut` : la lecture que l'onglet ouvre — sans commande pour Paramètres, qui pose d'abord l'état.
 export type Rubrique = { id: string; titre: string; defaut: string; lectures: readonly string[] };
@@ -29,7 +31,7 @@ export const PARAMETRES = "parametres";
 export const JOURNAL = "log";
 export const RUBRIQUES: readonly Rubrique[] = [
   { id: "cout", titre: "Cost", defaut: "cooks", lectures: ["cooks"] },
-  { id: PARAMETRES, titre: "Settings", defaut: PARAMETRES, lectures: [PARAMETRES, "manager", "grants", "rail", "fiabilite"] },
+  { id: PARAMETRES, titre: "Settings", defaut: PARAMETRES, lectures: [PARAMETRES, "manager", "grants", "rail", "fiabilite", "closer"] },
 ];
 
 // La vue nomme un onglet, jamais une commande : seule une commande d'ici part vers la box.

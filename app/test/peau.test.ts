@@ -271,9 +271,9 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
     assert.deepEqual(vue.xterms.map(({ ecrits }) => ecrits), [[RELAYE, "\r\n"]]);
   });
 
-  test("dans les onglets Rail, Cooks, Manager, Grants, Reliability et Log : la sortie de leur commande, mot pour mot", async () => {
+  test("dans les onglets Rail, Cooks, Manager, Grants, Reliability, Closer et Log : la sortie de leur commande, mot pour mot", async () => {
     const vue = await ouvrirUnEspace();
-    assert.deepEqual(ONGLETS.map(({ titre }) => titre), ["Rail", "Cooks", "Manager", "Grants", "Reliability", "Log"]);
+    assert.deepEqual(ONGLETS.map(({ titre }) => titre), ["Rail", "Cooks", "Manager", "Grants", "Reliability", "Closer", "Log"]);
 
     for (const { id, titre, commande } of ONGLETS) {
       await ouvrirLecture(vue, titre);

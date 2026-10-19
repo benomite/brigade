@@ -96,6 +96,7 @@ import { poserCourbe } from "./cost/courbe.js";
 import { poserPerdus } from "./cost/perdus.js";
 import { poserTete } from "./cost/tete.js";
 import { poserFiabilite } from "./fiabilite.js";
+import { lireFermeture, poserCloser } from "./closer/section.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -120,6 +121,10 @@ const PARAMETRES = "parametres";
 const COUT = "cooks";
 // Et celle de l'onglet Reliability : la fiabilité des cooks du projet affiché (fiabilite.ts).
 const FIABILITE = "fiabilite";
+// Et celle de l'onglet Closer : `closing --json`, la partie « closer » du projet affiché (closer/section.js).
+const CLOSER = "closer";
+// Le geste qui règle le closer, son modèle et son effort ensemble (boutons.ts, `REGLER_LE_CLOSER`).
+const REGLER_LE_CLOSER = "regler-closer";
 /** @typedef {import("../allumage.ts").Compte} Compte */
 /** @typedef {import("../confirmation.ts").Confirmation} Confirmation */
 /** @typedef {import("../service.ts").Guide} Guide */
@@ -161,6 +166,7 @@ const manager = element("manager");
 const grants = element("grants");
 const cout = element("cout");
 const fiabilite = element("fiabilite");
+const closer = element("closer");
 const luOnglet = element("lu-onglet");
 const lectureOnglet = element("lecture-onglet");
 const gestesOnglet = element("gestes-onglet");
@@ -454,6 +460,17 @@ let grantsVus;
 // que l'onglet est affiché.
 /** @type {VuDeLaFiabilite | undefined} */
 let fiabiliteVue;
+// Ce que la dernière lecture de l'onglet Closer a donné, pour son projet. Indéfini : pas encore lu
+// depuis que l'onglet est affiché.
+/** @type {{ projet: string, lu: import("./closer/section.js").Lu } | undefined} */
+let closerLu;
+// Les projets dont le chef a déplié la liste de ce que le closer a repéré : une relecture ne la replie pas.
+/** @type {Set<string>} */
+const trouvaillesDepliees = new Set();
+// Le modèle et l'effort que le chef a choisis pour régler le closer d'un projet, pas encore écrits :
+// une relecture ne les lui retire pas.
+/** @type {Map<string, import("./closer/section.js").Choix>} */
+const reglagesDuCloser = new Map();
 // Pourquoi le dernier bouton cliqué n'a rien fait : dit sous les onglets de pages, jusqu'au prochain geste —
 // ou, quand c'est le second qui n'a rien reçu, à droite, sous les onglets des terminaux.
 let nonEcrit = "";
@@ -809,6 +826,7 @@ function montrer() {
   poserSecond(ouvrable, droite?.terminal);
   poserCout();
   poserLaFiabilite();
+  poserLeCloser();
   poserGestes(gestesOnglet, relaye?.id);
   dessiner();
   lireOnglet();
@@ -916,14 +934,14 @@ function poserGestes(ou, endroit) {
 // Un bouton n'agit pas : sa commande s'écrit dans le second, à droite, pour que le chef la
 // complète — c'est sa note qui dit ce qui a été écrit, et que rien n'est parti ; le centre ne change pas.
 // Un projet qui ne s'ouvre pas n'a pas de second : sa colonne dit déjà pourquoi.
-/** @param {string} id */
-async function inscrire(id) {
+/** @param {string} id @param {readonly string[]} [valeurs] ce que le geste attend de la page — le réglage du closer */
+async function inscrire(id, valeurs) {
   const projet = courant;
   if (projet === undefined) return;
   nonEcrit = nonEcritSecond = "";
   if (projet.refus !== undefined) return montrer();
   try {
-    const rendu = await brigade.inscrire(projet.nom, id);
+    const rendu = await (valeurs === undefined ? brigade.inscrire(projet.nom, id) : brigade.inscrire(projet.nom, id, valeurs));
     if (rendu === undefined) return;
     // Le chef a pu changer d'espace entre-temps : le second de ce projet le garde.
     if ("refus" in rendu) nonEcritSecond = rendu.refus;
@@ -1179,6 +1197,9 @@ function lireOnglet() {
   // Ni la fiabilité.
   fiabiliteVue = undefined;
   poserLaFiabilite();
+  // Ni le closer.
+  closerLu = undefined;
+  poserLeCloser();
   if (courant !== undefined && relaye !== undefined) attendre(courant, luOnglet, lectureOnglet);
   ongletDemande = relaye?.id;
   brigade.onglet(courant?.nom, relaye?.id, ++demandeOnglet);
@@ -3797,6 +3818,31 @@ function poserLaFiabilite() {
   fiabilite.replaceChildren(...poserFiabilite(document, vu, (ticket, retour) => ouvrirFicheDeCout(projet.nom, ticket, retour)));
 }
 
+// La partie « closer » du projet affiché, sous Settings → Closer (closer/section.js) : les quatre chiffres
+// de sa dernière observation, ce qu'elle a repéré derrière un bouton — ou, sans closer réglé, le geste
+// qui en règle un, écrit dans le second comme un bouton d'action. Les places du lancement et du bilan y
+// sont posées, vides.
+function poserLeCloser() {
+  const projet = courant;
+  closer.hidden = projet === undefined || projet.box === undefined || actif() !== CLOSER;
+  if (projet === undefined || closer.hidden) return closer.replaceChildren();
+  const lu = closerLu?.projet === projet.nom ? closerLu.lu : undefined;
+  const basculer = () => {
+    if (!trouvaillesDepliees.delete(projet.nom)) trouvaillesDepliees.add(projet.nom);
+    poserLeCloser();
+  };
+  closer.replaceChildren(
+    ...poserCloser(document, lu, {
+      ouvert: trouvaillesDepliees.has(projet.nom),
+      basculer,
+      valeurs: CALIBRAGE_DU_PROJET,
+      regler: (modele, effort) => void inscrire(REGLER_LE_CLOSER, [modele, effort]),
+      choix: reglagesDuCloser.get(projet.nom),
+      choisir: (choix) => void reglagesDuCloser.set(projet.nom, choix),
+    }),
+  );
+}
+
 function poserManager() {
   const projet = courant;
   // Sans box, rien n'est lu et rien ne s'écrit : l'onglet le dit déjà.
@@ -5158,7 +5204,8 @@ brigade.surFaits((recue) => {
 // Ce que l'onglet de contenu affiché a rendu : une lecture ratée s'y lit comme
 // dans le panneau, et n'en retire rien. Celle de l'onglet Manager vient avec l'état du
 // manager, lu dans sa sortie : il remplace celui d'avant, au-dessus du texte. Celle de
-// l'onglet Grants, de même, avec l'état des grants ; celle de l'onglet Reliability, avec la fiabilité des cooks.
+// l'onglet Grants, de même, avec l'état des grants ; celle de l'onglet Reliability, avec la fiabilité des cooks ;
+// celle de l'onglet Closer, lue ici même dans sa sortie (closer/section.js).
 brigade.surContenu((recue, vu, desGrants, laFiabilite) => {
   if (recue.demande !== demandeOnglet) return;
   // Cost lit `station` sur la box de chaque projet : chacune entre dans ses chiffres de tête.
@@ -5174,6 +5221,8 @@ brigade.surContenu((recue, vu, desGrants, laFiabilite) => {
   poserGrants();
   fiabiliteVue = laFiabilite;
   poserLaFiabilite();
+  if (ongletDemande === CLOSER) closerLu = { projet: recue.projet, lu: lireFermeture(recue) };
+  poserLeCloser();
 });
 // Les clones relus : leur état remplace celui d'avant, dans Paramètres et sur la case « T ».
 brigade.surCode((vu) => {

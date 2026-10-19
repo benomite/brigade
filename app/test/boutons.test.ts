@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { BOUTONS, ecritPar } from "../src/boutons.ts";
+import { BOUTONS, ecritPar, ecritPourLeCloser, REGLER_LE_CLOSER } from "../src/boutons.ts";
 import type { Projet } from "../src/config.ts";
 import { ONGLETS } from "../src/onglets.ts";
 
@@ -90,5 +90,30 @@ describe("les boutons d'action", () => {
     }
     // Un tiret ailleurs est un nom d'hôte comme un autre.
     assert.equal(commande("cooks", { nom: "parade", dossier: "/p", box: { hote: "ma-box" } }), "!ssh ma-box brigade parade station cooks ");
+  });
+});
+
+describe("régler le closer (#990)", () => {
+  const FERMETURE = readFileSync(join(RACINE, "docs/runtime/fermeture.md"), "utf8");
+
+  test("le modèle et l'effort s'écrivent ensemble, sur une ligne : les deux gestes de la doc, l'un après l'autre — rien ne part", () => {
+    for (const geste of ["closer-modele <modèle>", "closer-effort <effort>"]) assert.ok(FERMETURE.includes(geste), `docs/runtime/fermeture.md ne nomme plus « ${geste} »`);
+    assert.deepEqual(ecritPourLeCloser(PARADE, "sonnet", "medium"), { commande: "!ssh box brigade parade station closer-modele sonnet && ssh box brigade parade station closer-effort medium" });
+    // Il n'est pas un bouton de l'onglet : il ne s'écrit qu'avec ses deux valeurs.
+    assert.ok(!BOUTONS.some(({ id }) => id === REGLER_LE_CLOSER));
+    assert.equal(ecritPar(REGLER_LE_CLOSER, PARADE), undefined);
+  });
+
+  test("l'un sans l'autre, ou une valeur que la station n'accepte pas, n'écrit rien et dit pourquoi", () => {
+    for (const [modele, effort] of [["sonnet", undefined], [undefined, "medium"], ["sonnet", ""], ["gpt", "medium"], ["sonnet", "medium; rm -rf /"]]) {
+      const ecrit = ecritPourLeCloser(PARADE, modele, effort);
+      assert.ok(ecrit !== undefined && "refus" in ecrit && /a model .* and an effort .*, both/.test(ecrit.refus), `${modele} ${effort}`);
+    }
+  });
+
+  test("un projet sans box n'a rien à écrire ; un hôte qui commence par un tiret est refusé", () => {
+    assert.equal(ecritPourLeCloser({ nom: "parade", dossier: "/projets/parade" }, "sonnet", "medium"), undefined);
+    const tiret = ecritPourLeCloser({ ...PARADE, box: { hote: "-oProxyCommand=x" } }, "sonnet", "medium");
+    assert.ok(tiret !== undefined && "refus" in tiret);
   });
 });

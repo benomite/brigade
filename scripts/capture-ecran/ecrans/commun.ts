@@ -15,7 +15,7 @@ import { GESTES_D_ATTENTE } from "../../../app/src/attente.ts";
 import { BANNIERE, type Carte, type Faits, tenirFaits } from "../../../app/src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../../../app/src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../../app/src/grants.ts";
-import { EFFORTS, MODELES } from "../../../app/src/installation.ts";
+import { EFFORTS, MODELES } from "../../../app/src/projets/projets.ts";
 import { GESTES_DU_MANAGER } from "../../../app/src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../../../app/src/onglets.ts";
 import type { Vu as VuDuCode } from "../../../app/src/retard.ts";
@@ -56,9 +56,9 @@ export const MAINTENANT = "2026-10-13T10:04:12.000Z";
 export const configuration = (projets: Projet[], hotes: string[] = ["box"]): Configuration => ({ chemin: "/Users/chef/.config/brigade/app.json", projets, hotes });
 
 // L'état des clones, des stations et de leurs projets, tel qu'une lecture à l'heure le rend :
-// tout est à jour, une station en ligne, aucun projet sur les stations.
+// tout est à jour, une station en ligne qui sert les deux projets.
 const CODE: VuDuCode = { a: MAINTENANT, clones: [{ id: "app", etat: "a-jour", tete: "this app's code: up to date with origin/v2", lignes: [] }] };
-const STATIONS: VuDesStations = { a: MAINTENANT, stations: [{ id: "box", nom: "box", machine: "Debian 12 · 8 cores", etat: "en-ligne", ligne: "online · 2 projects: parade, cantine", pannes: [] }] };
+const STATIONS: VuDesStations = { a: MAINTENANT, stations: [{ id: "box", nom: "box", machine: "Debian 12 · 8 cores", etat: "en-ligne", ligne: "online · 2 projects: parade, cantine", pannes: [], dit: "online", version: "", projets: ["parade", "cantine"], max: null }] };
 const PROJETS_DES_STATIONS: VuDesProjets = { a: MAINTENANT, projets: [], recommandee: null, avertissements: {} };
 
 // La réponse de `demarrage`, comme main.ts la rend : les listes de l'app sont celles de son code.
