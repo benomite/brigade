@@ -133,6 +133,30 @@ brigade : passe de fermeture demandée — elle attend : condition d'exécution 
   la débloquent — relever le seuil, éteindre le manager le temps que le rail se vide, ou y
   renoncer. Elle attend toujours : la dire sans issue ne la refuse pas, et ne la fait pas partir.
 
+### Depuis l'app : l'aperçu, le « oui », le retrait
+
+L'app demande et retire la passe par les mêmes décisions que tes deux gestes — pas par d'autres :
+ce que `closing write` refuse, elle ne le demande pas. Chaque réponse est un objet JSON sur une
+ligne, avec son `outcome` et son `text` — la phrase que la commande tapée imprime.
+
+```
+brigade <projet> closing preview [--json]          # ce que coûte une passe, ce que le closer va faire — n'écrit rien
+brigade <projet> closing write --json --confirm    # la demande, une fois ton « oui » donné
+brigade <projet> closing cancel --json             # retire la demande qui attend
+```
+
+- **L'aperçu n'écrit rien** : ni demande, ni refus — il ouvre le journal en lecture seule. Il dit
+  le **coût** (`cost` : le calibrage du closer et ses plafonds, `null` sans closer réglé), **ce que
+  le closer va faire** (`does`, phrase par phrase), où en est la demande (`request` : `none`,
+  `waiting` et ce qui la retient, `running` et son run), et **ce que deviendrait une demande faite
+  maintenant** (`ifRequested` : `leaves`, `waits`, `already-requested`, `refused`, `impossible`,
+  avec son motif). Il ne rejoue pas l'observation : il dit ce que la station sait déjà.
+- **Rien ne part sans `--confirm`.** Une commande tapée est ton « oui » ; l'appel d'un programme
+  ne l'est pas. `write --json` sans `--confirm` sort en 1 (`unconfirmed`) sans ouvrir le journal.
+- Les codes de sortie sont ceux des gestes tapés : 0 demandée, déjà demandée, retirée ou rien à
+  retirer ; 1 refusée (`refused`, avec son `reason` — `unconfigured` sans closer réglé), impossible
+  ou retrait d'une passe partie (`refused`, avec son `run`) ; 2 mal écrite.
+
 ### Ce qu'elle propose, et ce qu'elle tient
 
 La passe rapatrie la base et rejoue **l'observation** : ses doublons et ses exports morts sont les
