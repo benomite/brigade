@@ -19,6 +19,7 @@ import type { StationDesFaits } from "./ordinaires.ts";
 import type { Echec, Lecture } from "./box.ts";
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues, type Moment } from "./captures.ts";
 import { carteDeCorrection, correctionsLues, estInforme, type CarteDeCorrection, type CorrectionLue } from "./correction.ts";
+import { reculDe, reculInforme, reculsLus, type Recul, type ReculLu } from "./recul.ts";
 import { attenduDe, decisionLue, livraisonLue, teteDe, type Decision, type Livraison as LivraisonAttendue } from "./decision.ts";
 import { entete, type Entete } from "./fiche.ts";
 import { LABEL_RETENUE } from "./question.ts";
@@ -117,6 +118,9 @@ export type Faits = {
   // Les corrections proposées des consignes du projet, que le chef tranche (correction.ts) : absent
   // quand il n'y en a aucune, et d'un runtime d'avant ce champ.
   corrections?: CorrectionLue[];
+  // Ce que chaque correction acceptée a fait de sa cause, avant et après son merge (recul.ts) : absent
+  // quand aucune n'a été acceptée, et d'un runtime d'avant ce champ.
+  reculs?: ReculLu[];
 };
 
 // Ce que la vue dessine d'un projet, prêt à poser : elle n'y calcule rien.
@@ -180,6 +184,9 @@ export type Tableau = {
   // en tête, mot pour mot — absente quand `status` n'est pas lu ou ne la porte pas.
   rienNeCuit?: string;
   rail: Rail;
+  // Ce que chaque correction acceptée des consignes du projet a fait de sa cause, avant et après son
+  // merge (recul.ts), la plus ancienne d'abord : la page Reliability la pose. Absent quand il n'y en a aucune.
+  reculs?: Recul[];
 };
 
 // Ce qu'une lecture de `faits` donne à la vue : le tableau ; ou, sous un `titre`
@@ -311,7 +318,7 @@ function comprendreTiers(brut: unknown, lequel: string): Tiers {
 // Rien n'y est complété : un champ qui manque refuse la forme entière — sauf
 // `cooks`, `attend`, `livres`, `urgence` et l'`activite`,
 // l'`attente` et les `tiers` d'un ticket, qu'un runtime d'avant eux ne rend pas,
-// et qui manquent alors ici aussi — et `corrections`, absent quand il n'y en a aucune.
+// et qui manquent alors ici aussi — et `corrections` et `reculs`, absents quand il n'y en a aucun.
 // Un champ de plus est laissé de côté, un mot d'état inconnu est gardé.
 export function comprendre(sortie: string): Faits | { informe: string } {
   if (sortie.trim() === "") return { informe: "the command returned nothing" };
@@ -404,9 +411,10 @@ export function comprendre(sortie: string): Faits | { informe: string } {
         ? {}
         : { stations: (Array.isArray(racine.stations) ? racine.stations : refuser("stations", "a list")).map((station: unknown, rang) => comprendreStation(station, `stations[${rang}]`)) }),
       ...(racine.corrections === undefined ? {} : { corrections: correctionsLues(racine.corrections) }),
+      ...(racine.reculs === undefined ? {} : { reculs: reculsLus(racine.reculs) }),
     };
   } catch (erreur) {
-    if (erreur instanceof Informe || estInforme(erreur)) return { informe: erreur.message };
+    if (erreur instanceof Informe || estInforme(erreur) || reculInforme(erreur)) return { informe: erreur.message };
     throw erreur;
   }
 }
@@ -826,6 +834,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     evenement: evenement(faits),
     ...rienNeCuit(status),
     rail: rail(faits, attend, status, repondues),
+    ...(faits.reculs === undefined || faits.reculs.length === 0 ? {} : { reculs: faits.reculs.map(reculDe) }),
   };
 }
 
