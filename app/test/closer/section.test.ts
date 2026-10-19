@@ -251,11 +251,11 @@ describe("la partie closer, pas encore lue ou ratée", () => {
 });
 
 describe("la partie closer, dans l'espace du projet", () => {
-  test("elle est une lecture de Settings, qui lance `closing --json` — les deux onglets du haut restent deux", () => {
+  test("elle est une lecture de Settings, qui lance `closing --json` — Settings reste le seul onglet du haut (#1022)", () => {
     assert.equal(commandeDe("closer"), "closing --json");
     assert.ok(ONGLETS.some(({ id, titre }) => id === "closer" && titre === "Closer"));
     assert.ok(RUBRIQUES.find(({ id }) => id === PARAMETRES)?.lectures.includes("closer"));
-    assert.equal(RUBRIQUES.length, 2);
+    assert.deepEqual(RUBRIQUES.map(({ id }) => id), [PARAMETRES]);
   });
 
   async function ouvrir() {
