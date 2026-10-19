@@ -147,6 +147,7 @@ est du texte, et peut être reformulé.
 | `attend` | Les tickets que le bloc `attend` de `status` nomme, un par entrée, dans l'ordre du bloc : `ticket`, `titre`, `url`. **C'est l'adresse qui ouvre l'issue** : celle du rail pour un ticket qui y est, sinon celle que **le dépôt de la box** donne (`BRIGADE_GITHUB_REPO`) — l'app n'en compose aucune. Le titre est celui du rail, **vide (`""`) pour une issue qui n'y est pas** : le journal ne le connaît pas, et rien ne va le chercher. `url` est `null` quand la box ne connaît pas son dépôt. La connexion Max, la version, la passe de fermeture demandée, la base rouge et le setup bloqué, qui ne sont à aucun ticket, n'y sont pas — `compteurs.attend` les compte. Une liste vide quand rien n'attend |
 | `livres` | Les tickets servis dans les 24 h avant `lu` — **ceux que `compteurs.livres24h` compte, un pour un** —, le plus récent d'abord : `ticket`, `titre`, `url` (son issue), `livre` (l'heure de son service), `station` (celle qui l'a cuisiné, `null` quand aucune ne l'a envoyé en pass — mergé à la main sans cook, livraison hors du rail), `pr` (la PR mergée, `null` pour un ticket servi sans merge), `relecture` (ce que le reviewer a dit de **ce qui a été servi**, mot pour mot : `resume`, son résumé ; `constats`, dans son ordre, chacun avec `gravite` — `remarque` ou `bloquant` —, `fichier` — `null` quand il n'en nomme pas — et `constat`, son texte ; une suppression qu'il demande est une `remarque` dont le texte commence par « À supprimer : »). `relecture` est `null` quand aucune relecture lisible ne porte sur la livraison servie : mergée à la main sans passer à la pass, servie sans relecture, relue sur un commit d'avant celui que la pass jugeait en dernier, ou dont la dernière relecture ne se lit pas — **rien n'est mis à sa place**, pas même une relecture d'une livraison d'avant. Une relecture rouge mergée à la main par le chef est la sienne : ses constats bloquants y sont. **Un ticket y reste après la fermeture de son issue** : il a quitté le rail, pas la liste — elle se relit au journal, titre et adresse compris. Le titre est celui du jour, vide (`""`) pour une livraison que le rail n'a jamais portée ; `url` est alors celle que le dépôt de la box donne, ou `null`. **Une issue fermée sans avoir été servie** — abandonnée, écartée — **n'y est pas**. `captures` : comme sur le rail, pour un ticket d'interface — absent pour tout autre. Une liste vide quand rien n'a été servi en 24 h |
 | `stations` | Les stations que le projet déclare, dans l'ordre de leur nom, et ce qu'elles font des **tickets ordinaires** (voir « Les tickets ordinaires sur le poste du chef ») : `station`, `distante`, `plafond` (ses cooks à la fois, au plus — `null` : sans limite), `ordinaires` (le réglage du chef, `false` pour une station de la box), `bacASable` (ce que la station a dit du bac à sable de son poste : `disponible`, `raison` — `null` s'il l'est —, `version` de son `claude` — `null` s'il ne l'est pas —, `depuis` ; `null` tant qu'elle n'en a rien dit), `prendOrdinaires` (elle en prend à cet instant : toujours vrai d'une station de la box ; d'une distante, réglage et bac à sable disponible). Une liste vide quand aucune n'est déclarée |
+| `corrections` | Les corrections proposées des consignes du projet (voir « Les corrections proposées » ci-dessous), la plus ancienne d'abord : `proposition` (le `seq` du fait qui la porte), `cause` et `titre` (la cause des ratages, sa clé et sa phrase), `tickets` (ceux qu'elle a fait rater, chacun avec `ticket` et `url` — l'adresse que le dépôt de la box donne, `null` quand elle ne le connaît pas), `motif` (pourquoi cette correction, dans les mots du modèle ; `null` s'il n'en a rien dit), `diff` (un diff unifié, tel que `git apply` le prend), `fichiers` (ceux qu'il touche), `base` (le commit de la branche d'intégration sur lequel il s'applique), `cout.tokens` (ce que la proposition a coûté, comptés comme ceux d'un cook), `proposee` (l'heure de la proposition). **Absent quand il n'y en a aucune** : la forme d'une cuisine sans correction ne change pas. Une proposition écartée n'y est jamais |
 
 Les heures sont en ISO 8601, UTC.
 
@@ -187,6 +188,26 @@ Ce que la forme ne dit pas, et pourquoi :
 La commande lit `$BRIGADE_STATE_DIR`, ne prend aucun argument, n'écrit jamais, et répond pendant
 que le runtime tourne ; sur un journal écrit par un runtime plus ancien, elle demande de le
 redémarrer (code 1).
+
+### Les corrections proposées
+
+Quand une même cause d'échec revient sur plusieurs tickets récents, le runtime la relève comme
+**candidate à une correction** (`correction.candidate`, `runtime/src/correctif/detecter.ts`). Pour
+une candidate, le modèle lit la cause, ce que les tickets ratés en disent et les consignes du projet
+telles que la base les porte, et répond par un diff (`runtime/src/correctif/proposer.ts`). Il est
+lancé comme un jugement du manager — sans outil, hors de tout dépôt, sous les garde-fous — et son
+coût est celui de ce lancement, en tokens comptés comme ceux d'un cook.
+
+**Une correction ne touche que les consignes du projet** : son `CLAUDE.md` à la racine, sa doc
+d'équipe sous `docs/`, ses gates (`.claude/brigade/gates.sh`). Ni son code, ni ses tests, ni le
+fonctionnement de brigade. La garde (`runtime/src/correctif/portee.ts`) lit le diff elle-même — elle
+refuse un fichier supprimé, renommé, un mode changé, du binaire, un chemin hors du dépôt —, puis
+demande à `git` quels fichiers il toucherait et s'il s'applique tel quel à `origin/<base>`
+(`git apply --check`, sur un index jetable : ni le clone ni son index ne bougent). Un seul fichier
+hors des consignes, ou un diff qui ne s'applique pas, et la proposition est **écartée**
+(`correction.discarded`, qui dit pourquoi et ne garde pas le diff) : `facts` ne la montre jamais.
+Sinon elle est **proposée** (`correction.proposed`), et `corrections` la porte. Une candidate n'a
+qu'une conclusion. Rien n'est appliqué : c'est ton « oui » qui le fera.
 
 ## Le relevé des mesures
 
