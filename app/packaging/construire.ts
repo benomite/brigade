@@ -6,6 +6,7 @@
 //   npm --prefix app run dist -- --version 1.2.0
 //   npm --prefix app run dist -- --electron <zip ou Electron.app> --node <binaire node>
 //   npm --prefix app run dist -- --sortie <dossier>
+//   npm --prefix app run dist -- --identite "Developer ID Application: …" --notariser <profil>
 //
 // Le .dmg s'écrit dans app/packaging/construit/ (ou `--sortie`), sous le nom
 // Brigade-<version>-arm64.dmg, et la commande dit son chemin.
@@ -24,8 +25,11 @@
 // binaire darwin-arm64 qui ne lie rien hors du système : le `node` d'Homebrew lie ses bibliothèques,
 // absentes d'un Mac sans Homebrew.
 //
-// L'app n'est pas signée par un développeur identifié : elle l'est « ad hoc » (`codesign -s -`),
-// faute de quoi Apple Silicon refuse de lancer un binaire modifié. Le .dmg se construit sur un
+// Sans `--identite`, l'app n'est pas signée par un développeur identifié : elle l'est « ad hoc »
+// (`codesign -s -`), faute de quoi Apple Silicon refuse de lancer un binaire modifié. Avec
+// `--identite` (ou BRIGADE_SIGN_IDENTITY), elle l'est par ce certificat Developer ID (runtime durci,
+// droits de droits.plist) ; avec `--notariser <profil>` (un profil de `notarytool store-credentials`),
+// l'app puis le .dmg sont notarisés par Apple et agrafés. Un `latest-mac.yml` s'écrit à côté du .dmg. Le .dmg se construit sur un
 // Mac : il faut `ditto`, `codesign`, `otool` et `hdiutil`, tous du système.
 //
 // La version vient, sans `--version`, du commit construit : sa date (UTC) et son empreinte,
@@ -35,7 +39,7 @@
 // qui n'est pas un Mac) — rien n'est écrit.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, cpSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -180,7 +184,15 @@ export type OptionsConstruction = {
   executer: Executer;
   app?: string;
   runtime?: string;
+  // Le nom d'un certificat « Developer ID Application » : l'app est alors signée par ce
+  // développeur (runtime durci, horodatage) au lieu d'être signée ad hoc.
+  identite?: string;
+  // Le profil de trousseau de `xcrun notarytool store-credentials` : l'app, puis le .dmg, sont
+  // notarisés par Apple et agrafés. Réclame `identite`.
+  profilNotarisation?: string;
 };
+
+export const DROITS = join(ICI, "droits.plist");
 
 // Pose `Brigade.app` dans `dossier`, depuis Electron, l'app, le runtime et le `node` : rend son chemin.
 export function assembler(options: Omit<OptionsConstruction, "sortie" | "atelier" | "executer">, dossier: string): string {
@@ -249,9 +261,51 @@ export function verifierNode(node: string, executer: Executer): void {
   if (ailleurs.length > 0) refuser(`the node to bundle (${node}) links libraries a bare Mac does not have (${ailleurs.join(", ")}) — use the official build from nodejs.org`);
 }
 
-// Signe l'app « ad hoc », puis écrit le .dmg : l'app, et un lien vers Applications où la glisser.
+const ENTETES_MACHO = new Set([0xfeedfacf, 0xcffaedfe, 0xcafebabe, 0xbebafeca]);
+const estMacho = (chemin: string): boolean => {
+  const fd = openSync(chemin, "r");
+  try {
+    const debut = Buffer.alloc(4);
+    return readSync(fd, debut, 0, 4, 0) === 4 && ENTETES_MACHO.has(debut.readUInt32BE(0));
+  } finally {
+    closeSync(fd);
+  }
+};
+
+// Ce qui se signe dans l'app, du plus profond au moins profond — signer un paquet scelle ce qu'il
+// contient : chaque binaire Mach-O (les liens ne sont pas suivis), puis les paquets (.framework,
+// .app), l'app elle-même en dernier.
+export function aSigner(paquet: string): string[] {
+  const binaires: string[] = [];
+  const paquets: string[] = [];
+  const parcourir = (dossier: string) => {
+    for (const entree of readdirSync(dossier, { withFileTypes: true })) {
+      const chemin = join(dossier, entree.name);
+      if (entree.isSymbolicLink()) continue;
+      if (entree.isDirectory()) {
+        parcourir(chemin);
+        if (/\.(framework|app)$/.test(entree.name)) paquets.push(chemin);
+      } else if (entree.isFile() && estMacho(chemin)) binaires.push(chemin);
+    }
+  };
+  parcourir(paquet);
+  const profondeur = (chemin: string) => chemin.split("/").length;
+  const plusProfondDabord = (a: string, b: string) => profondeur(b) - profondeur(a) || a.localeCompare(b);
+  return [...binaires.sort(plusProfondDabord), ...paquets.sort(plusProfondDabord), paquet];
+}
+
+// Soumet un fichier à Apple et attend le verdict : « Accepted », ou la construction échoue.
+function notariser(fichier: string, profil: string, executer: Executer): void {
+  const rendu = executer("xcrun", ["notarytool", "submit", fichier, "--keychain-profile", profil, "--wait"]);
+  if (rendu.status !== 0 || !/status:\s*Accepted/.test(rendu.stdout)) echouer(`Apple did not accept ${basename(fichier)} for notarization: ${dit(rendu)}`);
+}
+
+// Signe l'app — par un développeur identifié si `identite`, sinon « ad hoc » —, la notarise et
+// l'agrafe si `profilNotarisation`, puis écrit le .dmg : l'app, et un lien vers Applications où la
+// glisser. Avec une identité, le .dmg est signé à son tour, et notarisé et agrafé de même.
 export function construire(options: OptionsConstruction): string {
-  const { executer } = options;
+  const { executer, identite, profilNotarisation } = options;
+  if (profilNotarisation !== undefined && identite === undefined) refuser("notarization needs a Developer ID identity (--identite)");
   verifierNode(options.node, executer);
   const volume = join(options.atelier, "volume");
   const paquet = assembler(options, volume);
@@ -259,16 +313,56 @@ export function construire(options: OptionsConstruction): string {
     const rendu = executer(commande, args);
     if (rendu.status !== 0) echouer(`${quoi} failed (\`${commande} ${args.join(" ")}\`): ${dit(rendu)}`);
   };
-  // Ce que node-pty lance est signé à part : `--deep` ne signe que ce qui est rangé en paquet.
-  const pty = join(paquet, "Contents", "Resources", APP_DU_PAQUET, "node_modules", "node-pty", "prebuilds", `darwin-${ARCH}`);
-  for (const binaire of ["pty.node", "spawn-helper"]) if (existsSync(join(pty, binaire))) lancer("codesign", ["--force", "--sign", "-", join(pty, binaire)], `signing ${binaire}`);
-  lancer("codesign", ["--force", "--deep", "--sign", "-", paquet], "signing the app");
-  lancer("codesign", ["--verify", paquet], "checking the app's signature");
+  if (identite === undefined) {
+    // Ce que node-pty lance est signé à part : `--deep` ne signe que ce qui est rangé en paquet.
+    const pty = join(paquet, "Contents", "Resources", APP_DU_PAQUET, "node_modules", "node-pty", "prebuilds", `darwin-${ARCH}`);
+    for (const binaire of ["pty.node", "spawn-helper"]) if (existsSync(join(pty, binaire))) lancer("codesign", ["--force", "--sign", "-", join(pty, binaire)], `signing ${binaire}`);
+    lancer("codesign", ["--force", "--deep", "--sign", "-", paquet], "signing the app");
+    lancer("codesign", ["--verify", paquet], "checking the app's signature");
+  } else {
+    // Le runtime durci et l'horodatage sont ce qu'Apple exige pour notariser ; les droits
+    // laissent V8 et le `node` porté faire ce qu'ils font.
+    for (const chemin of aSigner(paquet))
+      lancer("codesign", ["--force", "--sign", identite, "--options", "runtime", "--timestamp", "--entitlements", DROITS, chemin], `signing ${relative(paquet, chemin) || basename(paquet)}`);
+    lancer("codesign", ["--verify", "--deep", "--strict", paquet], "checking the app's signature");
+    if (profilNotarisation !== undefined) {
+      const zip = join(options.atelier, `${NOM}.zip`);
+      lancer("ditto", ["-c", "-k", "--keepParent", paquet, zip], "zipping the app for notarization");
+      notariser(zip, profilNotarisation, executer);
+      lancer("xcrun", ["stapler", "staple", paquet], "stapling the app");
+    }
+  }
   symlinkSync("/Applications", join(volume, "Applications"));
   mkdirSync(options.sortie, { recursive: true });
   const dmg = join(options.sortie, `${NOM}-${options.version}-${ARCH}.dmg`);
   lancer("hdiutil", ["create", "-volname", NOM, "-srcfolder", volume, "-fs", "HFS+", "-format", "UDZO", "-ov", dmg], "writing the .dmg");
+  if (identite !== undefined) {
+    lancer("codesign", ["--force", "--sign", identite, "--timestamp", dmg], "signing the .dmg");
+    if (profilNotarisation !== undefined) {
+      notariser(dmg, profilNotarisation, executer);
+      lancer("xcrun", ["stapler", "staple", dmg], "stapling the .dmg");
+    }
+  }
   return dmg;
+}
+
+// Le fichier que lit un updater de type electron-updater (`latest-mac.yml`) : la version, et pour
+// le .dmg son nom, son empreinte sha512 (base64) et sa taille.
+export function metadonneesDeMiseAJour(version: string, dmg: string, date: string): string {
+  const contenu = readFileSync(dmg);
+  const sha512 = createHash("sha512").update(contenu).digest("base64");
+  const nom = basename(dmg);
+  return [
+    `version: ${version}`,
+    "files:",
+    `  - url: ${nom}`,
+    `    sha512: ${sha512}`,
+    `    size: ${contenu.length}`,
+    `path: ${nom}`,
+    `sha512: ${sha512}`,
+    `releaseDate: '${date}'`,
+    "",
+  ].join("\n");
 }
 
 // Electron pour darwin-arm64, de la version que l'app déclare : son zip, téléchargé et vérifié
@@ -306,11 +400,11 @@ async function nodeOfficiel(atelier: string, executer: Executer): Promise<string
 }
 
 async function principal(): Promise<void> {
-  let options: { version?: string; sortie?: string; electron?: string; node?: string };
+  let options: { version?: string; sortie?: string; electron?: string; node?: string; identite?: string; notariser?: string };
   try {
-    options = parseArgs({ options: { version: { type: "string" }, sortie: { type: "string" }, electron: { type: "string" }, node: { type: "string" } }, strict: true }).values;
+    options = parseArgs({ options: { version: { type: "string" }, sortie: { type: "string" }, electron: { type: "string" }, node: { type: "string" }, identite: { type: "string" }, notariser: { type: "string" } }, strict: true }).values;
   } catch (erreur) {
-    return refuser(`${erreur instanceof Error ? erreur.message : String(erreur)} — usage: construire.ts [--version <v>] [--sortie <folder>] [--electron <zip or Electron.app>] [--node <binary>]`);
+    return refuser(`${erreur instanceof Error ? erreur.message : String(erreur)} — usage: construire.ts [--version <v>] [--sortie <folder>] [--electron <zip or Electron.app>] [--node <binary>] [--identite <Developer ID>] [--notariser <notarytool profile>]`);
   }
   if (process.platform !== "darwin") refuser(`the .dmg is built on a Mac (\`codesign\`, \`hdiutil\`), not on ${process.platform}`);
   const executer = executerVraiment;
@@ -318,6 +412,8 @@ async function principal(): Promise<void> {
   versionCourte(version);
   const reclamee = majeureReclamee();
   if (options.node === undefined && Number(process.versions.node.split(".")[0]) < reclamee) refuser(`this node is ${process.version}, the runtime needs ${reclamee} at least — run with a newer node, or give one with --node`);
+  const identite = options.identite ?? process.env.BRIGADE_SIGN_IDENTITY;
+  if (options.notariser !== undefined && identite === undefined) refuser("--notariser needs --identite (or BRIGADE_SIGN_IDENTITY)");
   const sortie = resolve(options.sortie ?? join(ICI, "construit"));
 
   const atelier = mkdtempSync(join(tmpdir(), "brigade-dmg-"));
@@ -334,8 +430,11 @@ async function principal(): Promise<void> {
     const lu = executer(node, ["--version"]);
     const majeure = Number(/^v(\d+)\./.exec(lu.stdout)?.[1]);
     if (lu.status === 0 && Number.isFinite(majeure) && majeure < reclamee) refuser(`the node to bundle (${node}) is ${lu.stdout.trim()}, the runtime needs ${reclamee} at least`);
-    const dmg = construire({ version, electron, node, sortie, atelier: join(atelier, "arbre"), executer });
-    console.log(`brigade: app built — ${relative(process.cwd(), dmg) || dmg} (version ${version}, ${ARCH}, signed ad hoc)`);
+    const dmg = construire({ version, electron, node, sortie, atelier: join(atelier, "arbre"), executer, identite, profilNotarisation: options.notariser });
+    const yml = join(sortie, "latest-mac.yml");
+    writeFileSync(yml, metadonneesDeMiseAJour(version, dmg, new Date().toISOString()));
+    const signature = identite === undefined ? "signed ad hoc" : options.notariser === undefined ? "signed, not notarized" : "signed, notarized, stapled";
+    console.log(`brigade: app built — ${relative(process.cwd(), dmg) || dmg} (version ${version}, ${ARCH}, ${signature}; updater metadata ${relative(process.cwd(), yml) || yml})`);
   } finally {
     rmSync(atelier, { recursive: true, force: true });
   }

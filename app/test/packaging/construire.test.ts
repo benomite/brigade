@@ -10,12 +10,15 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import {
   APP,
+  aSigner,
   assembler,
   bibliothequesHorsSysteme,
   construire,
   dependancesDeProduction,
+  DROITS,
   empreinteAnnoncee,
   estMachOArm64,
+  metadonneesDeMiseAJour,
   reecrirePlist,
   versionCourte,
   versionDuCommit,
@@ -201,6 +204,52 @@ test("le .dmg : l'app signée ad hoc, puis un volume qui porte Brigade.app et le
     ["codesign", "--verify", paquet],
     ["hdiutil", "create", "-volname", "Brigade", "-srcfolder", join(racine, "atelier", "volume"), "-fs", "HFS+", "-format", "UDZO", "-ov", dmg],
   ]);
+});
+
+test("signé Developer ID et notarisé : du plus profond au paquet, l'app agrafée avant le .dmg, qui l'est à son tour", (t) => {
+  const racine = dossier(t);
+  const { executer: base, appels } = outils();
+  const executer: Executer = (commande, args) => (commande === "xcrun" && args[0] === "notarytool" ? (appels.push([commande, ...args]), { status: 0, stdout: "  status: Accepted\n", stderr: "" }) : base(commande, args));
+  const sortie = join(racine, "construit");
+  const dmg = construire({ version: "1.2.3", electron: fauxElectron(racine), node: fauxNode(racine), sortie, atelier: join(racine, "atelier"), executer, identite: "Developer ID Application: Test (ABCDE12345)", profilNotarisation: "brigade-notary" });
+  const paquet = join(racine, "atelier", "volume", "Brigade.app");
+  const signes = appels.filter((a) => a[0] === "codesign" && a.includes("--entitlements")).map((a) => a.at(-1));
+  assert.deepEqual(signes, aSigner(paquet));
+  assert.equal(signes.at(-1), paquet);
+  assert.ok(signes.some((c) => c?.endsWith("node/bin/node")), "le node porté est signé");
+  for (const a of appels.filter((a) => a[0] === "codesign" && a.includes("--entitlements")))
+    assert.deepEqual(a.slice(0, -1), ["codesign", "--force", "--sign", "Developer ID Application: Test (ABCDE12345)", "--options", "runtime", "--timestamp", "--entitlements", DROITS]);
+  const ordre = appels.map((a) => a.filter((m) => !m.startsWith("/")).join(" "));
+  const posdeApp = ordre.indexOf("codesign --verify --deep --strict");
+  assert.ok(posdeApp > 0);
+  assert.deepEqual(appels.slice(posdeApp + 1).map((a) => a.slice(0, 3).join(" ")), [
+    "ditto -c -k",
+    "xcrun notarytool submit",
+    "xcrun stapler staple",
+    "hdiutil create -volname",
+    "codesign --force --sign",
+    "xcrun notarytool submit",
+    "xcrun stapler staple",
+  ]);
+  assert.deepEqual(appels.at(-1), ["xcrun", "stapler", "staple", dmg]);
+});
+
+test("Apple qui refuse la notarisation fait échouer la construction ; notariser sans identité est refusé", (t) => {
+  const racine = dossier(t);
+  const { executer: base } = outils();
+  const refus: Executer = (commande, args) => (commande === "xcrun" && args[0] === "notarytool" ? { status: 0, stdout: "  status: Invalid\n", stderr: "" } : base(commande, args));
+  const options = { version: "1.2.3", electron: fauxElectron(racine), node: fauxNode(racine), sortie: join(racine, "construit"), atelier: join(racine, "atelier") };
+  assert.throws(() => construire({ ...options, executer: refus, identite: "id", profilNotarisation: "p" }), { code: 1, message: /Apple did not accept/ });
+  assert.throws(() => construire({ ...options, atelier: join(racine, "b"), executer: base, profilNotarisation: "p" }), { code: 2, message: /needs a Developer ID identity/ });
+});
+
+test("les métadonnées de mise à jour portent la version, la taille et l'empreinte sha512 du .dmg", (t) => {
+  const racine = dossier(t);
+  const dmg = join(racine, "Brigade-1.2.3-arm64.dmg");
+  writeFileSync(dmg, "dmg");
+  const yml = metadonneesDeMiseAJour("1.2.3", dmg, "2026-10-19T00:00:00.000Z");
+  assert.match(yml, /^version: 1\.2\.3\nfiles:\n  - url: Brigade-1\.2\.3-arm64\.dmg\n    sha512: [A-Za-z0-9+/]{86}==\n    size: 3\npath: Brigade-1\.2\.3-arm64\.dmg\nsha512: /);
+  assert.match(yml, /releaseDate: '2026-10-19T00:00:00\.000Z'\n$/);
 });
 
 test("un `node` qui n'est pas pour un Mac arm64, ou qui lie les bibliothèques d'Homebrew, n'est pas porté : rien n'est écrit", (t) => {

@@ -34,6 +34,50 @@ d'Homebrew est refusé (il lie `libuv`, `icu4c`… qu'un Mac sans Homebrew n'a p
 
 Codes de sortie : 0 construit, 1 la construction a échoué, 2 refus — rien n'est écrit.
 
+## Signer, notariser, publier
+
+Le `.dmg` que construit `npm --prefix app run dist` seul est signé ad hoc. Celui que publie le
+workflow [`publier-app`](../../.github/workflows/publier-app.yml) est signé par un certificat
+**Developer ID Application**, notarisé par Apple et agrafé : il s'ouvre sans l'alerte « développeur
+non identifié ». À la main, sur un Mac qui a le certificat et un profil de `xcrun notarytool
+store-credentials <profil> …` :
+
+```sh
+npm --prefix app run dist -- --identite "Developer ID Application: Nom (ABCDE12345)" --notariser <profil>
+```
+
+L'app est signée binaire par binaire (runtime durci, horodatage, droits de `droits.plist`), notarisée,
+agrafée ; puis le `.dmg` est signé, notarisé et agrafé à son tour. Une notarisation qu'Apple n'accepte
+pas fait échouer la construction. Avec `--identite` seul (ou `BRIGADE_SIGN_IDENTITY`), l'app est signée
+mais pas notarisée. À côté du `.dmg` s'écrit **`latest-mac.yml`** — version, nom, taille et sha512 du
+`.dmg`, le format qu'un updater de type electron-updater lit.
+
+### Secrets du dépôt
+
+À poser dans Settings → Secrets and variables → Actions (aucune valeur n'est dans le dépôt ; le
+workflow refuse de partir si l'un manque) :
+
+| Secret | Quoi |
+|---|---|
+| `MACOS_CERTIFICATE_P12` | le certificat « Developer ID Application » et sa clé, exportés en `.p12`, en base64 (`base64 -i certificat.p12`) |
+| `MACOS_CERTIFICATE_PASSWORD` | le mot de passe de ce `.p12` |
+| `MACOS_SIGN_IDENTITY` | le nom du certificat, ex. `Developer ID Application: Nom (ABCDE12345)` |
+| `APPLE_ID` | l'identifiant Apple du compte développeur |
+| `APPLE_APP_SPECIFIC_PASSWORD` | un mot de passe d'app pour ce compte (appleid.apple.com) |
+| `APPLE_TEAM_ID` | l'identifiant d'équipe, 10 caractères |
+
+### Publier une version
+
+1. Choisir la version, `<v>` (ex. `1.0.0`), et le commit de `v2` à publier.
+2. Poser le tag, puis le pousser : `git tag app-v<v> <commit> && git push origin app-v<v>`. Le préfixe
+   `app-v` laisse les tags `v*` au plugin et `station-*` à la station.
+3. Le workflow construit sur un runner macOS, signe, notarise, agrafe, puis **vérifie** : il échoue si
+   `codesign --verify --deep --strict` ou `spctl --assess --type execute` signale quoi que ce soit sur
+   l'app, ou si `xcrun stapler validate` dit que le ticket n'est pas agrafé (l'app comme le `.dmg`).
+4. Il crée la release `app-v<v>` et y attache `Brigade-<v>-arm64.dmg` et `latest-mac.yml`. Rien
+   n'est publié si une étape échoue : corriger, supprimer le tag (`git push --delete origin app-v<v>`),
+   le reposer.
+
 ## Ce qu'il porte
 
 Le `.dmg` porte `Brigade.app` et un lien vers Applications, où la glisser.
@@ -46,7 +90,7 @@ Le `.dmg` porte `Brigade.app` et un lien vers Applications, où la glisser.
 | `Resources/runtime/` | `src/` et `package.json` du runtime, à la version construite — celle que la station dit d'elle |
 | `Resources/node/bin/node` | le `node` qui joue la station |
 
-L'app est **signée ad hoc** (`codesign --sign -`), pas par un développeur identifié : Apple
+Construite sans identité, l'app est **signée ad hoc** (`codesign --sign -`), pas par un développeur identifié : Apple
 Silicon ne lance aucun binaire sans signature, et celle d'Electron ne tient plus une fois l'app
 renommée.
 
