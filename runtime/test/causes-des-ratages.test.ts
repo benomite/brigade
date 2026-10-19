@@ -76,16 +76,16 @@ test("sans essai raté, rien n'est classé et toutes les parts sont nulles", () 
   const { rates, lignes } = mesurerCauses([{ ticket: 1, takenAt: JOUR_HORLOGE, end: { kind: "merged", at: JOUR_HORLOGE }, attempts: [essai(0, SANS_SIGNAUX, { verdict: "green" })] }]);
   assert.equal(rates, 0);
   assert.ok(lignes.every((l) => l.essais === 0 && l.part === 0 && l.pourcent === 0 && l.tickets.length === 0));
-  assert.deepEqual(decrireCauses({ rates, lignes }), ["ratages    aucun essai raté : rien à classer"]);
+  assert.deepEqual(decrireCauses({ rates, lignes }), ["failures   no failed attempt: nothing to sort"]);
 });
 
 test("la sortie dit chaque cause, son nombre, sa part et ses tickets ; les parts arrondies font 100 %", () => {
   const trois = [1, 2, 3].map((t) => abandonne(t, essai(t, signaux({ arret: "turns" }))));
   const dit = decrireCauses(mesurerCauses(trois));
   assert.equal(dit.length, 1 + 9);
-  assert.equal(dit[0], "ratages    3 essais ratés (n'ayant pas abouti au merge), chacun dans une cause");
-  assert.ok(dit.includes("           plafond de tours ou de durée : 3 (100 %) — #3, #2, #1"));
-  assert.ok(dit.includes("           autre : 0 (0 %)"));
+  assert.equal(dit[0], "failures   3 failed attempts (not ending in a merge), each under one cause");
+  assert.ok(dit.includes("           cap on turns or duration: 3 (100%) — #3, #2, #1"));
+  assert.ok(dit.includes("           other: 0 (0%)"));
   const tiers = mesurerCauses([1, 2, 3].map((t) => abandonne(t, essai(t, [signaux({ arret: "turns" }), signaux({ panne: true }), SANS_SIGNAUX][t - 1]!))));
   assert.deepEqual(tiers.lignes.map((l) => l.pourcent).reduce((a, b) => a + b, 0), 100);
 });

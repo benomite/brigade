@@ -193,7 +193,7 @@ test("l'arbitre tient dans son propre process : il répond sur son port, et s'ar
   // L'arbitre n'en choisit pas : c'est le chef qui pose le port, et l'arbitre dit celui qu'il tient.
   const pose = {
     env: (port: number) => ({ BRIGADE_ARBITER_STATE_DIR: repertoire, BRIGADE_ARBITER_PORT: String(port), BRIGADE_ARBITER_MAX_COOKS: "2" }),
-    ouvert: (port: number) => `arbitre ouvert — 127.0.0.1:${port}, plafond du compte : 2 cooks, réglages dans ${repertoire}`,
+    ouvert: (port: number) => `arbiter open — 127.0.0.1:${port}, account cap: 2 cooks, settings in ${repertoire}`,
   };
   const { enfant: tenu, port } = await lancerSurPortPose(t, TENIR, pose);
   const env = pose.env(port);
@@ -210,15 +210,15 @@ test("l'arbitre tient dans son propre process : il répond sur son port, et s'ar
 
   tenu.process.kill("SIGTERM");
   assert.equal(await tenu.fin, 0);
-  assert.match(tenu.sortie(), /arbitre fermé \(SIGTERM\)/);
+  assert.match(tenu.sortie(), /arbiter closed \(SIGTERM\)/);
 
   // Revenu, il nomme ceux dont il réserve la part.
   // Sur un port tiré à neuf : celui qu'il vient de rendre a pu être repris.
   const { enfant: revenu } = await lancerSurPortPose(t, TENIR, pose);
-  await revenu.attendre("part réservée, tant qu'ils n'ont pas reparlé : brigade");
+  await revenu.attendre("share reserved, until they speak again: brigade");
 });
 
-test("sans répertoire, sans port, sans plafond, ou sur un port pris, the arbiter refuses to start et dit pourquoi", async (t) => {
+test("sans répertoire, sans port, sans plafond, ou sur un port pris, l'arbitre refuse de démarrer et dit pourquoi", async (t) => {
   const repertoire = repertoireTemporaire(t);
   const sans = async (env: Record<string, string>) => {
     const tenu = lancer(t, TENIR, [], env);
@@ -232,6 +232,6 @@ test("sans répertoire, sans port, sans plafond, ou sur un port pris, the arbite
   t.after(() => pris.close());
   assert.deepEqual(await sans({ BRIGADE_ARBITER_STATE_DIR: repertoire, BRIGADE_ARBITER_PORT: String(port), BRIGADE_ARBITER_MAX_COOKS: "2" }), {
     code: 2,
-    sortie: `brigade : the arbiter refuses to start — le port ${port} est déjà pris (BRIGADE_ARBITER_PORT)\n`,
+    sortie: `brigade : the arbiter refuses to start — port ${port} is already taken (BRIGADE_ARBITER_PORT)\n`,
   });
 });

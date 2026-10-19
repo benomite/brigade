@@ -47,7 +47,7 @@ function cuisine(t: TestContext) {
 
 const releve = (livraisons: Livraison[], par?: number) => {
   const lignes = decrireReleve({ projet: "brigade", livraisons, seuils: null }, par);
-  const debut = lignes.findIndex((ligne) => ligne.startsWith("lancements"));
+  const debut = lignes.findIndex((ligne) => ligne.startsWith("launches"));
   return lignes.slice(debut, lignes.indexOf("", debut));
 };
 
@@ -71,9 +71,9 @@ test("le cas #393 : deux lancements, un seul livre — les 450 627 tokens du coo
   ]);
   assert.deepEqual(trancher(livraisons)[0]?.paiements, [{ ticket: 393, lancements: 2, inconnus: 0, tokens: { utiles: 199_822, perdus: 450_627 } }]);
   assert.deepEqual(releve(livraisons), [
-    "lancements des tickets lancés plus d'une fois, ou dont un lancement n'a rien livré — utiles : les tokens des lancements qui ont livré ; perdus : ceux des autres",
-    "merges  ticket  lancements  tokens   utiles   perdus",
-    "1       #393    2           650\u202f449  199\u202f822  450\u202f627 (69 %)",
+    "launches   tickets launched more than once, or with a launch that delivered nothing — useful: the tokens of the launches that delivered; lost: those of the others",
+    "merges  ticket  launches  tokens   useful   lost",
+    "1       #393    2         650,449  199,822  450,627 (69%)",
   ]);
 });
 
@@ -91,8 +91,8 @@ test("un ticket cher dont tous les lancements ont livré affiche zéro perdu", (
 
   assert.deepEqual(trancher(livraisons)[0]?.paiements, [{ ticket: 401, lancements: 2, inconnus: 0, tokens: { utiles: 650_449, perdus: 0 } }]);
   assert.deepEqual(releve(livraisons).slice(1), [
-    "merges  ticket  lancements  tokens   utiles   perdus",
-    "1       #401    2           650\u202f449  650\u202f449  0",
+    "merges  ticket  launches  tokens   useful   lost",
+    "1       #401    2         650,449  650,449  0",
   ]);
 });
 
@@ -129,12 +129,12 @@ test("le relevé ne liste que les tickets payés plus d'une fois ou à perte, tr
   );
 
   assert.deepEqual(lignes.slice(1), [
-    "merges  ticket  lancements                    tokens  utiles  perdus",
-    "1-2     #2      3                             3\u202f900   3\u202f500   400 (10 %)",
-    "3-4     #3      1                             800     0       800 (100 %)",
-    "3-4     #4      2, dont 1 sans tokens connus  700     700     0",
-    "5       #5      2, dont 2 sans tokens connus  —       —       —",
+    "merges  ticket  launches                           tokens  useful  lost",
+    "1-2     #2      3                                  3,900   3,500   400 (10%)",
+    "3-4     #3      1                                  800     0       800 (100%)",
+    "3-4     #4      2, of which 1 with unknown tokens  700     700     0",
+    "5       #5      2, of which 2 with unknown tokens  —       —       —",
   ]);
 
-  assert.deepEqual(releve([livraison(1, [cook(9000, true)]), livraison(null, [])]), ["lancements aucun ticket lancé plus d'une fois, ni lancement sans livraison, derrière ces merges"]);
+  assert.deepEqual(releve([livraison(1, [cook(9000, true)]), livraison(null, [])]), ["launches   no ticket launched more than once, and no launch without a delivery, behind these merges"]);
 });

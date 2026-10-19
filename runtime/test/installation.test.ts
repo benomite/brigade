@@ -183,7 +183,7 @@ function decisionBrute(etat: string, nom: string, valeur: string): void {
 
 const manques = (constats: Constat[]) => constats.filter((constat) => constat.etat === "manque").map((constat) => constat.texte);
 // La ligne du renouvellement n'est pas de celles que ces tests regardent : elle a ses propres tests.
-const notes = (constats: Constat[]) => constats.filter((constat) => constat.etat === "note" && !constat.texte.startsWith("renouvellement")).map((constat) => constat.texte);
+const notes = (constats: Constat[]) => constats.filter((constat) => constat.etat === "note" && !constat.texte.startsWith("renewal")).map((constat) => constat.texte);
 const constates = (constats: Constat[]) => constats.filter((constat) => constat.etat === "ok").map((constat) => constat.texte);
 const sans = (env: Record<string, string>, ...variables: string[]) => Object.fromEntries(Object.entries(env).filter(([nom]) => !variables.includes(nom)));
 
@@ -220,7 +220,7 @@ describe("les variables obligatoires", () => {
 
 describe("le réglage du geste d'installation", () => {
   const sauvegardes = (racine: string) => join(racine, "sauvegardes");
-  const du_geste = (constats: Constat[]) => constats.filter((constat) => /réglage du geste|racine des sauvegardes|`sauvegardes=` de/.test(constat.texte));
+  const du_geste = (constats: Constat[]) => constats.filter((constat) => /installation gesture|backups root|réglage du geste|`sauvegardes=` /.test(constat.texte));
 
   test("une racine que root tient seul est constatée, avec ce qui a été lu", async (t) => {
     const { env, racine } = projet(t);
@@ -241,7 +241,7 @@ describe("le réglage du geste d'installation", () => {
 
     const [dit] = du_geste(constats);
     assert.equal(dit?.etat, "note");
-    assert.match(dit?.geste ?? "", /printf 'sauvegardes=<racine des sauvegardes>\\n' \| sudo tee/);
+    assert.match(dit?.geste ?? "", /printf 'sauvegardes=<backups root>\\n' \| sudo tee/);
     assert.deepEqual(manques(constats), []);
   });
 
@@ -252,8 +252,8 @@ describe("le réglage du geste d'installation", () => {
     const [dit] = du_geste(await verifier(env));
 
     assert.equal(dit?.etat, "manque");
-    assert.match(dit?.texte ?? "", new RegExp(`${sauvegardes(racine)} appartient à l'uid 1001 \\(mode 755\\)`));
-    assert.match(dit?.texte ?? "", /root n'y crée rien/);
+    assert.match(dit?.texte ?? "", new RegExp(`${sauvegardes(racine)} belongs to uid 1001 \\(mode 755\\)`));
+    assert.match(dit?.texte ?? "", /root creates nothing there/);
     assert.equal(dit?.geste?.includes(`sudo chown root:root ${sauvegardes(racine)} && sudo chmod go-w ${sauvegardes(racine)}`), true);
   });
 
@@ -264,8 +264,8 @@ describe("le réglage du geste d'installation", () => {
     const [dit] = du_geste(await verifier(env));
 
     assert.equal(dit?.etat, "manque");
-    assert.match(dit?.texte ?? "", new RegExp(`${sauvegardes(racine)} appartient à l'uid ${process.getuid?.()} \\(mode 775\\)`));
-    assert.match(dit?.texte ?? "", /root n'y crée rien/);
+    assert.match(dit?.texte ?? "", new RegExp(`${sauvegardes(racine)} belongs to uid ${process.getuid?.()} \\(mode 775\\)`));
+    assert.match(dit?.texte ?? "", /root creates nothing there/);
     assert.equal(dit?.geste?.includes(`sudo chown root:root ${sauvegardes(racine)} && sudo chmod go-w ${sauvegardes(racine)}`), true);
   });
 
@@ -280,7 +280,7 @@ describe("le réglage du geste d'installation", () => {
 
     const [dit] = du_geste(constats);
     assert.equal(dit?.etat, "manque");
-    assert.ok(dit?.texte.includes(`${sauvegardes(racine)} appartient à l'uid`), dit?.texte);
+    assert.ok(dit?.texte.includes(`${sauvegardes(racine)} belongs to uid`), dit?.texte);
     assert.ok(dit?.texte.includes("mode 775"));
   });
 
@@ -291,7 +291,7 @@ describe("le réglage du geste d'installation", () => {
     const [dit] = du_geste(await verifier(env));
 
     assert.equal(dit?.etat, "manque");
-    assert.match(dit?.texte ?? "", /n'existe pas/);
+    assert.match(dit?.texte ?? "", /does not exist/);
     assert.equal(dit?.geste?.includes(`sudo install -d ${sauvegardes(racine)}`), true);
   });
 
@@ -359,9 +359,9 @@ describe("la vérification", () => {
     const constats = await verifier({ ...env, BRIGADE_STATIONS: "box/claude:99:code", BRIGADE_DRIFT_TICKET_TOKENS: "1" });
 
     assert.deepEqual(manques(constats), []);
-    const dites = constats.filter((constat) => constat.etat === "note" && /encore dans l'environnement/.test(constat.texte));
+    const dites = constats.filter((constat) => constat.etat === "note" && /is still in the unit's environment/.test(constat.texte));
     assert.deepEqual(dites.map((constat) => constat.texte.split(" ")[0]), ["BRIGADE_STATIONS", "BRIGADE_DRIFT_TICKET_TOKENS"]);
-    assert.match(dites[0]?.geste ?? "", /`brigade \S+ station stations <valeur>`.*retirer `Environment=BRIGADE_STATIONS` du drop-in/);
+    assert.match(dites[0]?.geste ?? "", /`brigade \S+ station stations <value>`.*remove `Environment=BRIGADE_STATIONS` from the drop-in/);
   });
 
   test("toutes les variables absentes sont nommées d'un coup, pas la première", async (t) => {
@@ -380,7 +380,7 @@ describe("la vérification", () => {
 
     const constats = await verifier(env);
 
-    assert.deepEqual(manques(constats), ["aucune station déclarée (BRIGADE_STATIONS n'est posée ni au journal du projet) : le runtime démarre, mais aucun cook ne partirait — les tickets resteraient en attente"]);
+    assert.deepEqual(manques(constats), ["no station declared (BRIGADE_STATIONS is not set in the project's log): the runtime starts, but no cook would leave — tickets would stay queued"]);
     assert.match(constats.find((constat) => constat.etat === "manque")?.geste ?? "", /^déclarer une station par `brigade <projet> station stations box\/claude:30:code\+raisonnement`/);
   });
 
@@ -394,7 +394,7 @@ describe("la vérification", () => {
 
     const constats = await verifier(env);
     assert.deepEqual(manques(constats), []);
-    assert.equal(constats.some((constat) => /aucune station/.test(constat.texte)), false);
+    assert.equal(constats.some((constat) => /no station declared/.test(constat.texte)), false);
   });
 
   test("un calibrage absent manque avec l'action de l'étape qui le pose, son choix expliqué ; posé par elle, le projet est prêt", async (t) => {
@@ -403,7 +403,7 @@ describe("la vérification", () => {
 
     const avant = (await verifier(env)).filter((constat) => constat.etat === "manque");
     assert.deepEqual(avant.map((constat) => constat.texte.split(" ")[0]).sort(), ["BRIGADE_MANAGER_MODEL", "BRIGADE_REVIEWER_EFFORT"]);
-    assert.match(avant.find((constat) => constat.texte.startsWith("BRIGADE_MANAGER_MODEL"))?.geste ?? "", /^la poser par `brigade calculus installation decisions manager-modele <valeur>` — `brigade calculus installation decisions` dit la question, ses options et leur effet/);
+    assert.match(avant.find((constat) => constat.texte.startsWith("BRIGADE_MANAGER_MODEL"))?.geste ?? "", /^set it with `brigade calculus installation decisions manager-modele <value>` — `brigade calculus installation decisions` gives the question, its options and their effect/);
 
     const reponse = appeler(poserDecisions, ["manager-modele", "sonnet", "reviewer-effort", "medium"], env);
     assert.equal(await reponse.fin, 0, reponse.sortie());
@@ -430,7 +430,7 @@ describe("la vérification", () => {
 
     const dits = manques(constats).join("\n");
     assert.match(dits, /BRIGADE_MANAGER_MODEL invalid/);
-    assert.match(dits, /BRIGADE_MAX_TURNS invalide/);
+    assert.match(dits, /invalid BRIGADE_MAX_TURNS/);
     assert.match(dits, /ANTHROPIC_API_KEY est défini/);
   });
 
@@ -440,7 +440,7 @@ describe("la vérification", () => {
     const dits = manques(await verifier({ ...env, BRIGADE_PROJECT: "Calculus", FAUX_SYSTEMCTL_UNITES: "brigade@Calculus.service brigade-sauvegarde@Calculus.timer" }));
 
     assert.equal(dits.length, 1);
-    assert.match(dits[0] ?? "", /nom de projet invalide : « Calculus »/);
+    assert.match(dits[0] ?? "", /invalid project name: “Calculus”/);
   });
 
   test("ce qui manque au dépôt, à GitHub et à la machine est dit dans le même passage", async (t) => {
@@ -451,11 +451,11 @@ describe("la vérification", () => {
 
     const dits = manques(constats).join("\n");
     assert.match(dits, /\.claude\/brigade\/gates\.sh/);
-    assert.match(dits, /bloc de bindings/);
-    assert.match(dits, /labels absents.*prio:1.*model:opus.*effort:max/);
-    assert.doesNotMatch(dits, /labels absents.*fire/);
+    assert.match(dits, /bindings block/);
+    assert.match(dits, /labels missing from the repository.*prio:1.*model:opus.*effort:max/);
+    assert.doesNotMatch(dits, /labels missing from the repository.*fire/);
     assert.match(dits, new RegExp(`brigade@${PROJET}\\.service`));
-    assert.match(dits, /session Max/);
+    assert.match(dits, /Max session/);
   });
 
   test("une connexion Max que le journal dit expirée manque, avec sa date, même si `claude auth status` répond connecté", async (t) => {
@@ -466,10 +466,10 @@ describe("la vérification", () => {
 
     const constats = await verifier(env);
 
-    const dits = manques(constats).filter((texte) => /session Max/.test(texte));
+    const dits = manques(constats).filter((texte) => /Max session/.test(texte));
     assert.equal(dits.length, 1);
-    assert.match(dits[0] ?? "", /EXPIRÉE depuis le \d{4}-\d{2}-\d{2}T.*\(authentication_failed\)/);
-    assert.deepEqual(constates(constats).filter((texte) => /session Max/.test(texte)), []);
+    assert.match(dits[0] ?? "", /EXPIRED since \d{4}-\d{2}-\d{2}T.*\(authentication_failed\)/);
+    assert.deepEqual(constates(constats).filter((texte) => /Max session/.test(texte)), []);
     // `run station` dit le même fait, en anglais : la même date.
     const station = appeler(montrerStation, [], env);
     await station.fin;
@@ -488,7 +488,7 @@ describe("la vérification", () => {
     const constats = await verifier(env);
 
     assert.deepEqual(manques(constats), []);
-    assert.match(constates(constats).join("\n"), /session Max/);
+    assert.match(constates(constats).join("\n"), /Max session/);
   });
 
   test("des gates ou un setup non exécutables manquent : le runtime les exécute tels quels", async (t) => {
@@ -496,8 +496,8 @@ describe("la vérification", () => {
 
     const dits = manques(await verifier(env)).join("\n");
 
-    assert.match(dits, /gates\.sh.*pas exécutable/);
-    assert.match(dits, /worktree-setup\.sh.*pas exécutable/);
+    assert.match(dits, /gates\.sh.* is not executable/);
+    assert.match(dits, /worktree-setup\.sh.* is not executable/);
   });
 
   test("un projet sans setup est prêt, et c'est dit : un worktree neuf y part tel quel", async (t) => {
@@ -512,13 +512,13 @@ describe("la vérification", () => {
   test("la branche d'intégration des bindings et celle de la machine doivent être la même", async (t) => {
     const { env } = projet(t, { bindings: bindings(["- **Branche d'intégration** : `develop`", "- **Zones de fichiers** : `src/`", "- **Dev local** : rien", "- **Plafond des gates** : `75 s`"]) });
 
-    assert.match(manques(await verifier(env)).join("\n"), new RegExp(`les bindings disent \`develop\`.*BRIGADE_BASE_BRANCH.*\`${BASE}\``));
+    assert.match(manques(await verifier(env)).join("\n"), new RegExp(`the bindings say \`develop\`.*BRIGADE_BASE_BRANCH.*\`${BASE}\``));
   });
 
   test("des bindings sans branche d'intégration valent `main`", async (t) => {
     const { env } = projet(t, { bindings: bindings(["- **Zones de fichiers** : `src/`", "- **Dev local** : rien", "- **Plafond des gates** : `75 s`"]) });
 
-    assert.match(manques(await verifier(env)).join("\n"), /les bindings disent `main`/);
+    assert.match(manques(await verifier(env)).join("\n"), /the bindings say `main`/);
   });
 
   test("les bindings que le runtime ne lit pas sont signalés sans rien retenir", async (t) => {
@@ -536,8 +536,8 @@ describe("la vérification", () => {
 
     const constats = await verifier({ ...env, BRIGADE_BASE_BRANCH: "main" });
 
-    assert.match(manques(constats).join("\n"), /`main`.*origine/);
-    assert.match(notes(constats).join("\n"), /non vérifié/);
+    assert.match(manques(constats).join("\n"), /`main`.*origin/);
+    assert.match(notes(constats).join("\n"), /not checked/);
   });
 
   test("une origine injoignable manque, et n'est pas prise pour une branche absente", async (t) => {
@@ -546,8 +546,8 @@ describe("la vérification", () => {
 
     const dits = manques(await verifier(env)).join("\n");
 
-    assert.match(dits, /origine du clone.*ne répond pas/);
-    assert.doesNotMatch(dits, /n'existe pas sur l'origine/);
+    assert.match(dits, /origin of clone.*does not answer/);
+    assert.doesNotMatch(dits, /does not exist on the clone's origin/);
   });
 
   test("un clone réservé absent manque, avec le geste qui le pose", async (t) => {
@@ -556,7 +556,7 @@ describe("la vérification", () => {
     const constats = await verifier({ ...env, BRIGADE_REPO_DIR: join(racine, "nulle-part") });
 
     const manque = constats.find((constat) => constat.etat === "manque");
-    assert.match(manque?.texte ?? "", /clone réservé/);
+    assert.match(manque?.texte ?? "", /reserved clone/);
     assert.match(manque?.geste ?? "", /git clone/);
   });
 
@@ -613,7 +613,7 @@ describe("la vérification", () => {
     const constats = await verifier({ ...compte.env, FAUX_SYSTEMCTL_ENVIRONNEMENT: `BRIGADE_GITHUB_REPO=${DEPOT} PATH=${racine}/ailleurs:/nulle/part BRIGADE_BASE_BRANCH=${BASE}` });
 
     // Le shell le trouve : la session Max, elle, est lue.
-    assert.deepEqual(manques(constats), [`\`claude\` est introuvable dans le \`PATH\` que l'unité brigade@${PROJET}.service donnera au runtime (${racine}/ailleurs:/nulle/part) : aucun cook ne partirait — le \`PATH\` du shell qui lance cette commande ne compte pas`]);
+    assert.deepEqual(manques(constats), [`\`claude\` is not found in the \`PATH\` that the unit brigade@${PROJET}.service will give the runtime (${racine}/ailleurs:/nulle/part): no cook would leave — the \`PATH\` of the shell running this command does not count`]);
     const geste = constats.find((constat) => constat.etat === "manque")?.geste ?? "";
     assert.match(geste, new RegExp(`sudo systemctl edit brigade@${PROJET}\\.service`));
     assert.match(geste, new RegExp(`Environment=PATH=${compte.bin}:${racine}/ailleurs:/nulle/part`));
@@ -633,7 +633,7 @@ describe("la vérification", () => {
 
     const constats = await verifier({ ...env, BRIGADE_CLAUDE_BIN: "claude-que-personne-n-a-installe" });
 
-    assert.match(manques(constats).join("\n"), /introuvable dans le `PATH` que l'unité .* donnera au runtime \(\/usr\/local\/sbin:\/usr\/local\/bin:\/usr\/sbin:\/usr\/bin, le défaut de systemd : aucun `Environment=PATH=` dans ses drop-ins\)/);
+    assert.match(manques(constats).join("\n"), /is not found in the `PATH` that the unit .* will give the runtime \(\/usr\/local\/sbin:\/usr\/local\/bin:\/usr\/sbin:\/usr\/bin, systemd's default: no `Environment=PATH=` in its drop-ins\)/);
   });
 
   test("là où le shell trouve `claude` et pas le `PATH` de systemd, le geste est un lien, pas un drop-in de plus", async (t) => {
@@ -643,7 +643,7 @@ describe("la vérification", () => {
 
     const constats = await verifier(compte.env);
 
-    assert.equal(constats.find((constat) => constat.etat === "manque")?.geste, `\`sudo ln -sfn ${compte.bin}/claude-du-compte-seulement /usr/local/bin/claude-du-compte-seulement\` — l'installeur natif pose \`claude\` sous \`~/.local/bin\` du compte, que systemd ne donne pas à l'unité ; docs/installer.md, « Préparer la box »`);
+    assert.equal(constats.find((constat) => constat.etat === "manque")?.geste, `\`sudo ln -sfn ${compte.bin}/claude-du-compte-seulement /usr/local/bin/claude-du-compte-seulement\` — the native installer puts \`claude\` under the account's \`~/.local/bin\`, which systemd does not give the unit; docs/installer.md, “Préparer la box”`);
   });
 
   test("un compte sans identité git manque : un cook n'y commiterait rien", async (t) => {
@@ -654,7 +654,7 @@ describe("la vérification", () => {
     const constats = await verifier(anonyme);
 
     assert.equal(manques(constats).length, 1);
-    assert.match(manques(constats)[0] ?? "", /^ce compte n'a pas d'identité git : un cook ne pourrait rien commiter/);
+    assert.match(manques(constats)[0] ?? "", /^this account has no git identity: a cook could commit nothing/);
     assert.match(constats.find((constat) => constat.etat === "manque")?.geste ?? "", /git config --global user\.name .*git config --global user\.email/);
   });
 
@@ -664,7 +664,7 @@ describe("la vérification", () => {
     // Sans le rôle d'administrateur, la protection se lit par la branche.
     gh.repondre(`repos/${DEPOT}/branches/${BASE}`, { corps: { name: BASE, protected: true } });
 
-    assert.deepEqual(manques(await verifier(env)), [`\`gh\` lit ${DEPOT} sous ce compte, sans le droit d'y pousser : aucune livraison ne partirait, aucune PR ne serait mergée`]);
+    assert.deepEqual(manques(await verifier(env)), [`\`gh\` reads ${DEPOT} under this account, without the right to push there: no delivery would leave, no PR would be merged`]);
   });
 
   test("une push protection qui n'est pas active est dite sans rien retenir, avec ce que GitHub en rend", async (t) => {
@@ -672,14 +672,14 @@ describe("la vérification", () => {
     for (const [corps, lu] of [
       [{ ...DEPOT_LU, security_and_analysis: { secret_scanning_push_protection: { status: "disabled" } } }, "`disabled`"],
       // Ce que GitHub rend à un compte qui n'administre pas le dépôt.
-      [{ full_name: DEPOT, permissions: DEPOT_LU.permissions }, "rien, ce compte n'administre pas le dépôt"],
+      [{ full_name: DEPOT, permissions: DEPOT_LU.permissions }, "nothing, this account does not administer the repository"],
     ] as const) {
       gh.repondre(`repos/${DEPOT}`, { corps });
 
       const constats = await verifier(env);
 
       assert.deepEqual(manques(constats), []);
-      assert.deepEqual(notes(constats), [`la push protection de GitHub n'est pas constatée sur ${DEPOT} (GitHub en dit : ${lu}) : la station reste la seule barrière contre une livraison qui porterait des identifiants`]);
+      assert.deepEqual(notes(constats), [`GitHub's push protection is not observed on ${DEPOT} (GitHub says: ${lu}): the station remains the only barrier against a delivery that would carry credentials`]);
     }
   });
 
@@ -738,8 +738,8 @@ describe("la vérification", () => {
 
     const constats = await verifier(env);
 
-    assert.deepEqual(manques(constats), [`le répertoire temporaire de \`claude\` (${temporaire}) n'est pas au compte (uid ${etranger}, attendu ${uid}) : \`claude\` refuse de s'y lancer, chaque cook échouerait`]);
-    assert.match(constats.find((constat) => constat.etat === "manque")?.geste ?? "", /chown .*CLAUDE_CODE_TMPDIR.*docs\/installer\.md, « Préparer la box »$/);
+    assert.deepEqual(manques(constats), [`the temporary directory of \`claude\` (${temporaire}) does not belong to the account (uid ${etranger}, expected ${uid}): \`claude\` refuses to run there, every cook would fail`]);
+    assert.match(constats.find((constat) => constat.etat === "manque")?.geste ?? "", /chown .*CLAUDE_CODE_TMPDIR.*docs\/installer\.md, “Préparer la box”$/);
   });
 
   test("ce répertoire, sous une unité qui a son propre /tmp, ne retient que la connexion faite à la main", () => {
@@ -748,7 +748,7 @@ describe("la vérification", () => {
     assert.equal(jugerTemporaire({ ...lu, prive: false }).etat, "manque");
     const sousCloison = jugerTemporaire({ ...lu, prive: true });
     assert.equal(sousCloison.etat, "note");
-    assert.match(sousCloison.texte, /\/tmp\/claude-1001.*uid 0, attendu 1001.*`PrivateTmp`.*connexion Max/);
+    assert.match(sousCloison.texte, /\/tmp\/claude-1001.*uid 0, expected 1001.*`PrivateTmp`.*Max connection/);
   });
 
   test("une sauvegarde qui n'est pas programmée est signalée sans rien retenir", async (t) => {
@@ -758,7 +758,7 @@ describe("la vérification", () => {
 
     assert.deepEqual(manques(constats), []);
     assert.match(notes(constats).join("\n"), new RegExp(`brigade-sauvegarde@${PROJET}\\.timer`));
-    assert.equal(constats.find((constat) => constat.etat === "note" && !constat.texte.startsWith("renouvellement"))?.geste, "docs/installer.md, « Déclarer le projet »");
+    assert.equal(constats.find((constat) => constat.etat === "note" && !constat.texte.startsWith("renewal"))?.geste, "docs/installer.md, “Déclarer le projet”");
   });
 });
 
@@ -817,8 +817,8 @@ describe("« Vérifier » vert, « installation terminée »", () => {
     const commande = lancer(t, CLI, [], env);
 
     assert.equal(await commande.fin, 1, commande.sortie());
-    assert.match(commande.sortie(), /→ étape à reprendre : 4\. Déclarer les stations \(stations\)/);
-    assert.match(commande.sortie(), /: 1 manque : aucun cook ne doit être lancé tant qu'il en reste — à reprendre : 4\. Déclarer les stations$/m);
+    assert.match(commande.sortie(), /→ step to resume: 4\. Déclarer les stations \(stations\)/);
+    assert.match(commande.sortie(), /project “calculus” : 1 missing : no cook must be launched while any is left — to resume: 4\. Déclarer les stations$/m);
   });
 
   test("« installation terminée » n'est atteinte qu'avec une vérification verte : un manque la refuse, nomme son étape et la remet à faire", async (t) => {
@@ -832,7 +832,7 @@ describe("« Vérifier » vert, « installation terminée »", () => {
     assert.equal(await refus.fin, 1, refus.sortie());
     assert.match(refus.sortie(), /l'installation n'est pas terminée : « Vérifier » n'est pas vert — 1 manque/);
     assert.match(refus.sortie(), /à reprendre : 4\. Déclarer les stations \(stations\), remise à faire/);
-    assert.match(refus.sortie(), /aucune station déclarée/);
+    assert.match(refus.sortie(), /no station declared/);
     const apres = installationDe(etat);
     assert.equal(apres.courante, "stations");
     assert.equal(apres.etapes.find((lue) => lue.id === "demarrage")?.etat, "todo");
@@ -895,7 +895,7 @@ describe("« Vérifier » vert, « installation terminée »", () => {
 });
 
 describe("la mise à jour de la box", () => {
-  const MISE_A_JOUR = /docs\/installer\.md, « Mettre brigade à jour »/;
+  const MISE_A_JOUR = /docs\/installer\.md, “Mettre brigade à jour”/;
   const cloisonPosee = (unites: string) => join(unites, `brigade@${PROJET}.service.d`, "cloison.conf");
   const poserCloison = (unites: string, regler: (contenu: string) => string = (contenu) => contenu) => {
     mkdirSync(dirname(cloisonPosee(unites)), { recursive: true });
@@ -907,7 +907,7 @@ describe("la mise à jour de la box", () => {
 
     const constats = await verifier(env);
 
-    const dit = constates(constats).find((texte) => texte.startsWith("unités à jour")) ?? "";
+    const dit = constates(constats).find((texte) => texte.startsWith("units up to date")) ?? "";
     assert.match(dit, /brigade-sauvegarde@\.service, brigade-sauvegarde@\.timer, brigade@\.service/);
     assert.ok(dit.includes(unites) && dit.includes(DEPLOIEMENT));
     // Ni l'arbitre ni la porte ne sont posés sur cette box : ce n'est pas une dérive.
@@ -922,15 +922,15 @@ describe("la mise à jour de la box", () => {
 
     const constats = await verifier(env);
 
-    const perimee = constats.find((constat) => constat.texte.startsWith("unités périmées"));
+    const perimee = constats.find((constat) => constat.texte.startsWith("units out of date"));
     assert.equal(perimee?.etat, "note");
-    assert.match(perimee?.texte ?? "", /unités périmées : brigade@\.service — /);
+    assert.match(perimee?.texte ?? "", /units out of date: brigade@\.service — /);
     assert.ok(perimee?.texte.includes(unites) && perimee.texte.includes(DEPLOIEMENT));
     assert.ok(perimee?.geste?.includes(`sudo cp ${DEPLOIEMENT}/*.service ${DEPLOIEMENT}/*.timer ${unites}/`));
     assert.match(perimee?.geste ?? "", /daemon-reload/);
     assert.match(perimee?.geste ?? "", MISE_A_JOUR);
     assert.deepEqual(manques(constats), []);
-    assert.doesNotMatch(constates(constats).join("\n"), /unités à jour/);
+    assert.doesNotMatch(constates(constats).join("\n"), /units up to date/);
   });
 
   test("la cloison posée se compare aussi, réglages du chef mis à part", async (t) => {
@@ -943,13 +943,13 @@ describe("la mise à jour de la box", () => {
 
     const regles = await verifier(env);
 
-    assert.match(constates(regles).join("\n"), /unités à jour.*cloison\.conf/);
+    assert.match(constates(regles).join("\n"), /units up to date.*cloison\.conf/);
     assert.deepEqual(notes(regles), []);
 
     poserCloison(unites, (contenu) => contenu.replace("PrivateTmp=yes", "PrivateTmp=no"));
 
-    const perimee = (await verifier(env)).find((constat) => constat.texte.startsWith("unités périmées"));
-    assert.match(perimee?.texte ?? "", /unités périmées : cloison\.conf — /);
+    const perimee = (await verifier(env)).find((constat) => constat.texte.startsWith("units out of date"));
+    assert.match(perimee?.texte ?? "", /units out of date: cloison\.conf — /);
     // Sa copie porte les réglages du chef : elle ne se recopie pas à l'aveugle.
     assert.ok(perimee?.geste?.includes(cloisonPosee(unites)));
     assert.match(perimee?.geste ?? "", /BRIGADE_SANDBOX_HIDDEN.*BRIGADE_SANDBOX_PRIVATE/);
@@ -961,8 +961,8 @@ describe("la mise à jour de la box", () => {
 
     const constats = await verifier(sans(env, "FAUX_SYSTEMCTL_FRAGMENT"));
 
-    assert.match(notes(constats).join("\n"), /unités non comparées/);
-    assert.doesNotMatch(constates(constats).join("\n"), /unités à jour/);
+    assert.match(notes(constats).join("\n"), /units not compared/);
+    assert.doesNotMatch(constates(constats).join("\n"), /units up to date/);
   });
 
   test("une unité masquée n'a aucune copie à lire : « non comparées » est dit, pas « à jour »", async (t) => {
@@ -970,8 +970,8 @@ describe("la mise à jour de la box", () => {
 
     const constats = await verifier({ ...env, FAUX_SYSTEMCTL_FRAGMENT: "/dev/null" });
 
-    assert.match(notes(constats).join("\n"), /unités non comparées .*masquée/);
-    assert.doesNotMatch(constates(constats).join("\n"), /unités à jour/);
+    assert.match(notes(constats).join("\n"), /units not compared .*masked/);
+    assert.doesNotMatch(constates(constats).join("\n"), /units up to date/);
   });
 
   test("une unité que systemd dit masquée n'est pas comparée, quel que soit son fichier", async (t) => {
@@ -979,8 +979,8 @@ describe("la mise à jour de la box", () => {
 
     const constats = await verifier({ ...env, FAUX_SYSTEMCTL_CHARGE: "masked" });
 
-    assert.match(notes(constats).join("\n"), /unités non comparées .*masquée/);
-    assert.doesNotMatch(constates(constats).join("\n"), /unités à jour/);
+    assert.match(notes(constats).join("\n"), /units not compared .*masked/);
+    assert.doesNotMatch(constates(constats).join("\n"), /units up to date/);
   });
 
   test("des unités posées par lien vers les fichiers du dépôt ne sont pas comparées à elles-mêmes", async (t) => {
@@ -990,8 +990,8 @@ describe("la mise à jour de la box", () => {
 
     const constats = await verifier(env);
 
-    assert.match(notes(constats).join("\n"), /unités non comparées .*aucune copie/);
-    assert.doesNotMatch(constates(constats).join("\n"), /unités à jour/);
+    assert.match(notes(constats).join("\n"), /units not compared .*no copy is installed/);
+    assert.doesNotMatch(constates(constats).join("\n"), /units up to date/);
   });
 
   test("une unité chargée depuis le dépôt même ne le compare pas à lui-même", async (t) => {
@@ -999,8 +999,8 @@ describe("la mise à jour de la box", () => {
 
     const constats = await verifier({ ...env, FAUX_SYSTEMCTL_FRAGMENT: join(DEPLOIEMENT, "brigade@.service") });
 
-    assert.match(notes(constats).join("\n"), /unités non comparées .*depuis le dépôt lui-même/);
-    assert.doesNotMatch(constates(constats).join("\n"), /unités à jour/);
+    assert.match(notes(constats).join("\n"), /units not compared .*from the repository itself/);
+    assert.doesNotMatch(constates(constats).join("\n"), /units up to date/);
   });
 
   test("l'empreinte du code change avec un fichier de ses sources, contenu ou nom, et avec rien d'autre", (t) => {
@@ -1032,7 +1032,7 @@ describe("la mise à jour de la box", () => {
     const lu = { posees: "/etc/systemd/system", depot: "/opt/brigade/runtime/deploy", unite: "brigade@boutique.service" };
     assert.equal(jugerUnites({ ...lu, copies: [{ nom: "brigade@.service", identique: true }] }).etat, "ok");
     const perimees = jugerUnites({ ...lu, copies: [{ nom: "brigade@.service", identique: true }, { nom: "brigade-arbitre.service", identique: false }, { nom: "cloison.conf", identique: false }] });
-    assert.match(perimees.texte, /^unités périmées : brigade-arbitre\.service, cloison\.conf — /);
+    assert.match(perimees.texte, /^units out of date: brigade-arbitre\.service, cloison\.conf — /);
     assert.match(perimees.geste ?? "", /\/etc\/systemd\/system\/brigade@boutique\.service\.d\/cloison\.conf/);
 
   });
@@ -1149,7 +1149,7 @@ describe("le coût du setup", () => {
     const mesure = await mesurerSetup(env);
 
     assert.equal(mesure.pret, false);
-    assert.match(mesure.sortie, /secrets du projet indisponibles[\s\S]*BRIGADE_SECRETS_FILE n'est pas défini.*`DATABASE_URL`/);
+    assert.match(mesure.sortie, /project secrets unavailable[\s\S]*BRIGADE_SECRETS_FILE n'est pas défini.*`DATABASE_URL`/);
     assert.equal(existsSync(`${env.FAUX_SETUP}.appels`), false);
     assert.equal(existsSync(essais(etat)), false);
   });
@@ -1254,7 +1254,7 @@ describe("la désinstallation", () => {
 
     const { perdus } = desinstaller(env, { confirme: false });
 
-    const attendus = [/^commit.*travail jamais poussé/, /^commit.*essai hors branche/, /^remise.*mis de côté/, /^non commité.*clone : LISEZMOI/, /^non commité.*brouillon\.txt/, /^non commité.*worktrees\/a : travail\.txt/];
+    const attendus = [/^commit never pushed.*travail jamais poussé/, /^commit never pushed.*essai hors branche/, /^stash.*mis de côté/, /^uncommitted.*clone: LISEZMOI/, /^uncommitted.*brouillon\.txt/, /^uncommitted.*worktrees\/a: travail\.txt/];
     for (const attendu of attendus) assert.equal(perdus.filter((perdu) => attendu.test(perdu)).length, 1, `${attendu}\n${perdus.join("\n")}`);
     assert.equal(perdus.length, attendus.length, perdus.join("\n"));
     assert.throws(() => desinstaller(env, { confirme: true }), /travail jamais poussé[^]*brouillon\.txt/);
@@ -1326,7 +1326,7 @@ describe("la désinstallation", () => {
       const etat = join(clone, nom);
       mkdirSync(etat);
 
-      assert.throws(() => desinstaller({ ...env, BRIGADE_STATE_DIR: etat }, { confirme: true }), /dans le clone/);
+      assert.throws(() => desinstaller({ ...env, BRIGADE_STATE_DIR: etat }, { confirme: true }), /inside the clone/);
       assert.equal(existsSync(clone), true);
     });
   }
@@ -1338,7 +1338,7 @@ describe("la désinstallation", () => {
     const lien = join(racine, "lien-vers-le-clone");
     symlinkSync(clone, lien);
 
-    assert.throws(() => desinstaller({ ...env, BRIGADE_REPO_DIR: lien, BRIGADE_STATE_DIR: etat }, { confirme: true }), /dans le clone/);
+    assert.throws(() => desinstaller({ ...env, BRIGADE_REPO_DIR: lien, BRIGADE_STATE_DIR: etat }, { confirme: true }), /inside the clone/);
     assert.equal(existsSync(join(clone, ".git")), true);
   });
 });
@@ -1354,7 +1354,7 @@ describe("la commande du chef", () => {
 
     const { code, sortie } = await commande(t, env);
 
-    assert.match(sortie, new RegExp(`projet « ${PROJET} » : prêt`));
+    assert.match(sortie, new RegExp(`project “${PROJET}” : ready`));
     assert.doesNotMatch(sortie, /MANQUE/);
     assert.equal(code, 0);
   });
@@ -1365,8 +1365,8 @@ describe("la commande du chef", () => {
 
     const { code, sortie } = await commande(t, env);
 
-    assert.match(sortie, /à savoir +unités périmées : brigade@\.service — .*\n +→ `sudo cp /);
-    assert.match(sortie, new RegExp(`projet « ${PROJET} » : prêt`));
+    assert.match(sortie, /note +units out of date: brigade@\.service — .*\n +→ `sudo cp /);
+    assert.match(sortie, new RegExp(`project “${PROJET}” : ready`));
     assert.equal(code, 0);
   });
 
@@ -1377,11 +1377,11 @@ describe("la commande du chef", () => {
 
     const { code, sortie } = await commande(t, env);
 
-    assert.match(sortie, /MANQUE +BRIGADE_REVIEWER_MODEL n'est pas défini/);
-    assert.match(sortie, /MANQUE +`\.claude\/brigade\/gates\.sh`/);
-    assert.match(sortie, /MANQUE +labels absents/);
-    assert.match(sortie, /→ la même commande, suivie de `labels`/);
-    assert.match(sortie, /3 manques : aucun cook ne doit être lancé/);
+    assert.match(sortie, /MISSING +BRIGADE_REVIEWER_MODEL n'est pas défini/);
+    assert.match(sortie, /MISSING +`\.claude\/brigade\/gates\.sh`/);
+    assert.match(sortie, /MISSING +labels missing from the repository/);
+    assert.match(sortie, /→ the same command, followed by `labels`/);
+    assert.match(sortie, /3 missing : no cook must be launched/);
     assert.equal(code, 1);
   });
 
@@ -1392,7 +1392,7 @@ describe("la commande du chef", () => {
 
     const { code, sortie } = await commande(t, env, "labels");
 
-    assert.match(sortie, /2 labels créés sur benomite\/brigade : fire, prio:1/);
+    assert.match(sortie, /2 labels created on benomite\/brigade: fire, prio:1/);
     assert.equal(code, 0);
   });
 
@@ -1401,9 +1401,9 @@ describe("la commande du chef", () => {
 
     const { code, sortie } = await commande(t, env, "setup", "12");
 
-    assert.match(sortie, /setup joué en .* s/);
-    assert.match(sortie, /À 12 cooks/);
-    assert.match(sortie, /un worktree neuf par cook tient à 12 cooks/);
+    assert.match(sortie, /setup played in .* s/);
+    assert.match(sortie, /At 12 cooks/);
+    assert.match(sortie, /a fresh worktree per cook holds at 12 cooks/);
     assert.equal(code, 0);
   });
 
@@ -1413,7 +1413,7 @@ describe("la commande du chef", () => {
 
     const { code, sortie } = await commande(t, env, "setup");
 
-    assert.match(sortie, /setup en échec/);
+    assert.match(sortie, /setup failed/);
     assert.match(sortie, /npm ci a échoué/);
     assert.equal(code, 1);
   });
@@ -1422,14 +1422,14 @@ describe("la commande du chef", () => {
     const { env, clone } = projet(t);
 
     const blanc = await commande(t, env, "uninstall");
-    assert.match(blanc.sortie, /rien n'est retiré/);
+    assert.match(blanc.sortie, /nothing is removed/);
     assert.equal(existsSync(clone), true);
     assert.equal(blanc.code, 0);
 
     const { code, sortie } = await commande(t, env, "uninstall", "--confirm");
     assert.equal(existsSync(clone), false);
     assert.match(sortie, new RegExp(`sudo systemctl disable --now brigade@${PROJET}\\.service`));
-    assert.match(sortie, /Le dépôt reste un dépôt ordinaire/);
+    assert.match(sortie, /The repository stays an ordinary repository/);
     assert.equal(code, 0);
   });
 
@@ -1465,9 +1465,9 @@ describe("la commande du chef", () => {
     assert.equal(verdict.phrase, "pas prêt : 3 choses à faire");
     const dit = verdict.manques.map((manque) => [manque.texte, manque.acteur, manque.acteur === "chef" ? (manque.action ?? manque.commande) : null]);
     assert.deepEqual(dit, [
-      ["la décision « reviewer-modele » n'est pas prise", "chef", "decisions"],
-      ["le dépôt n'a pas ses gates : rien ne jugerait une livraison", "chef", "init"],
-      [`il manque au dépôt ${LABELS.length} des étiquettes par lesquelles tu parles à brigade`, "chef", `brigade ${PROJET} installation labels`],
+      ["the decision “reviewer-modele” has not been taken", "chef", "decisions"],
+      ["the repository has no gates: nothing would judge a delivery", "chef", "init"],
+      [`the repository lacks ${LABELS.length} of the labels through which you talk to brigade`, "chef", `brigade ${PROJET} installation labels`],
     ]);
     assert.equal(verdict.brut, texte.sortie);
     assert.equal(code, 1);
@@ -1504,7 +1504,7 @@ describe("la commande du chef", () => {
   test("une commande inconnue rappelle l'usage et sort en 2", async (t) => {
     const { code, sortie } = await commande(t, {}, "installer");
 
-    assert.match(sortie, /usage :/);
+    assert.match(sortie, /usage:/);
     assert.equal(code, 2);
   });
 });
@@ -1512,29 +1512,29 @@ describe("la commande du chef", () => {
 describe("la ligne du renouvellement", () => {
   const ligne = (etat: EtatDuRenouvellement) => jugerRenouvellement(etat);
   test("ok : l'heure du dernier passage réussi", () => {
-    assert.deepEqual(ligne({ etat: "ok", dernierReussi: "14:07", echecsConsecutifs: 0 }), { etat: "ok", texte: "renouvellement : dernier passage réussi à 14:07" });
+    assert.deepEqual(ligne({ etat: "ok", dernierReussi: "14:07", echecsConsecutifs: 0 }), { etat: "ok", texte: "renewal: last successful run at 14:07" });
   });
   test("minuteur inactif", () => {
     const dit = ligne({ etat: "minuteur-inactif", dernierReussi: null, echecsConsecutifs: 0 });
     assert.equal(dit.etat, "note");
-    assert.match(dit.texte, /renouvellement : minuteur inactif$/);
+    assert.match(dit.texte, /renewal: timer inactive$/);
   });
   test("minuteur inactif, un ancien passage gardé", () => {
-    assert.match(ligne({ etat: "minuteur-inactif", dernierReussi: "09:30", echecsConsecutifs: 0 }).texte, /minuteur inactif \(dernier passage réussi à 09:30\)/);
+    assert.match(ligne({ etat: "minuteur-inactif", dernierReussi: "09:30", echecsConsecutifs: 0 }).texte, /timer inactive \(last successful run at 09:30\)/);
   });
   test("claude introuvable", () => {
     const dit = ligne({ etat: "claude-introuvable", raison: "échec (claude-introuvable) : pas dans le PATH", dernierReussi: null, echecsConsecutifs: 1 });
-    assert.match(dit.texte, /renouvellement : `claude` introuvable — échec \(claude-introuvable\)/);
+    assert.match(dit.texte, /renewal: `claude` not found — échec \(claude-introuvable\)/);
   });
   test("échec : sa raison et le compte", () => {
     const dit = ligne({ etat: "echec", raison: "échec (réseau) : timeout", dernierReussi: "08:00", echecsConsecutifs: 3 });
-    assert.equal(dit.texte, "renouvellement : échec, 3 échecs de suite (dernier passage réussi à 08:00) — échec (réseau) : timeout");
+    assert.equal(dit.texte, "renewal: failed, 3 failures in a row (last successful run at 08:00) — échec (réseau) : timeout");
   });
   test("verifier porte une seule ligne de renouvellement, jouée par le systemd injecté", async (t) => {
     const { env } = projet(t);
     const systemd = { minuteurActif: async () => true, passages: async () => [{ at: new Date(2026, 9, 15, 14, 7), reussi: true, lignes: [] }] };
-    const lignes = (await verifier(env, systemd)).filter((constat) => constat.texte.startsWith("renouvellement"));
-    assert.deepEqual(lignes.map((constat) => constat.texte), ["renouvellement : dernier passage réussi à 14:07"]);
+    const lignes = (await verifier(env, systemd)).filter((constat) => constat.texte.startsWith("renewal"));
+    assert.deepEqual(lignes.map((constat) => constat.texte), ["renewal: last successful run at 14:07"]);
   });
 });
 

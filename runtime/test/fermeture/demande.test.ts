@@ -55,7 +55,7 @@ test("une demande qui attend se lit dans la file : depuis quand, et ce qui la re
   // Et là où le chef observe.
   const observee = appeler(principal, [], { ...ENV_GIT, BRIGADE_REPO_DIR: cuisine.clone, BRIGADE_BASE_BRANCH: BASE, BRIGADE_STATE_DIR: cuisine.repertoire });
   assert.equal(await observee.fin, 0, observee.sortie());
-  assert.match(observee.sortie(), /\npasse {6}passe de fermeture demandée le [\d\-T:.]+Z, elle attend — condition d'exécution non remplie : 1 cook en vol pour un seuil de 1 /);
+  assert.match(observee.sortie(), /\npass {7}closing pass requested on [\d\-T:.]+Z, it waits — start condition not met: 1 cook in flight for a threshold of 1 /);
 
   runtime.rail.rendre(7, "essai", STATION);
   assert.equal((await fin()).outcome, "delivered");
@@ -72,7 +72,7 @@ test("une seule demande à la fois : redemandée pendant qu'elle attend, rien n'
   assert.equal((await demander()).code, 0);
   const encore = await demander();
   assert.equal(encore.code, 0, encore.sortie);
-  assert.match(encore.sortie, /^brigade : déjà demandée, rien n'est redemandé — passe de fermeture demandée le \d{4}-\d\d-\d\dT[\d:.]+Z, elle attend — condition d'exécution non remplie : 1 cook en vol pour un seuil de 1/);
+  assert.match(encore.sortie, /^brigade : already requested, nothing is requested again — closing pass requested on \d{4}-\d\d-\d\dT[\d:.]+Z, it waits — start condition not met: 1 cook in flight for a threshold of 1/);
   assert.deepEqual(types().filter((type) => type === "closing.requested"), ["closing.requested"]);
 
   runtime.rail.rendre(7, "essai", STATION);
@@ -92,7 +92,7 @@ test("le chef renonce à la demande par le même geste : rien ne part, même qua
 
   const retiree = await annuler();
   assert.equal(retiree.code, 0, retiree.sortie);
-  assert.match(retiree.sortie, /^brigade : demande de passe de fermeture du \d{4}-\d\d-\d\dT[\d:.]+Z retirée : rien n'est parti, et rien ne partira sans une autre demande\n$/);
+  assert.match(retiree.sortie, /^brigade : closing pass request of \d{4}-\d\d-\d\dT[\d:.]+Z withdrawn: nothing has left, and nothing will leave without another request\n$/);
   assert.ok(types().includes("closing.cancelled"));
   assert.doesNotMatch(attend(cuisine), /closing/);
 
@@ -100,14 +100,14 @@ test("le chef renonce à la demande par le même geste : rien ne part, même qua
   runtime.rail.rendre(7, "essai", STATION);
   await ticks(cuisine, 10);
   rienNEstParti(cuisine);
-  assert.equal((await annuler()).sortie, "brigade : aucune passe de fermeture n'est demandée : rien à annuler\n");
+  assert.equal((await annuler()).sortie, "brigade : no closing pass is requested: nothing to cancel\n");
 
   // Redemandée, elle part ; partie, elle ne se retire plus.
   assert.equal((await demander()).code, 0);
   await jusqua(() => closer.lancements().length === 1);
   const tard = await annuler();
   assert.equal(tard.code, 1);
-  assert.match(tard.sortie, /^brigade : la passe fermeture-[0-9a-f]{8} est partie : elle ne se rappelle pas — « stop » l'arrête/);
+  assert.match(tard.sortie, /^brigade : closing run fermeture-[0-9a-f]{8} has left: it cannot be recalled — “stop” halts it/);
   closer.feu();
   assert.equal((await fin()).outcome, "delivered");
 });

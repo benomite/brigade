@@ -79,7 +79,7 @@ test("sur un historique de merges fixe, le ratio ajouté / retiré de chaque fen
   assert.match(sortie, /\nratio      added \/ removed over the latest merges, each counted against its first parent\n/);
   assert.match(sortie, /\n {11}20 merges {3}\+200 \/ −20 {5}10:1\n/);
   assert.match(sortie, /\n {11}50 merges {3}\+500 \/ −140 {4}3\.6:1\n/);
-  assert.match(sortie, /\n {11}100 merges {2}\+1 000 \/ −640 {2}1,6:1\n/);
+  assert.match(sortie, /\n {11}100 merges {2}\+1,000 \/ −640 {2}1.6:1\n/);
 });
 
 test("un merge compte pour ce qu'il apporte à la branche d'intégration : ni un commit posé droit dessus, ni ce que sa branche a écrit puis retiré, ni ce que la base a reçu pendant qu'elle était ouverte", (t) => {
@@ -215,7 +215,7 @@ test("la commande refuse ce qu'elle ne comprend pas, et dit ce qui lui manque du
 
   const sansBase = await observer(clone, { BRIGADE_BASE_BRANCH: "inconnue" });
   assert.equal(sansBase.code, 1);
-  assert.match(sansBase.sortie, /^brigade : la branche `origin\/inconnue` n'est pas dans le clone /);
+  assert.match(sansBase.sortie, /^brigade : the branch `origin\/inconnue` is not in the clone /);
 });
 
 test("`run closing` joue l'observation dans son propre process", async (t) => {

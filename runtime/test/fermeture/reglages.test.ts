@@ -21,9 +21,9 @@ test("sans calibrage, le projet n'a pas de closer : aucun défaut ne lui en donn
 });
 
 test("un closer à moitié réglé, ou un plafond illisible, est un refus de démarrer — jamais un repli silencieux", () => {
-  assert.throws(() => configFermeture({ BRIGADE_CLOSING_MODEL: "opus" }), (erreur) => erreur instanceof ConfigInvalide && /BRIGADE_CLOSING_EFFORT n'est pas défini/.test(erreur.message));
-  assert.throws(() => configFermeture({ BRIGADE_CLOSING_EFFORT: "high" }), (erreur) => erreur instanceof ConfigInvalide && /BRIGADE_CLOSING_MODEL n'est pas défini/.test(erreur.message));
-  assert.throws(() => configFermeture({ BRIGADE_CLOSING_MODEL: "gpt", BRIGADE_CLOSING_EFFORT: "high" }), /BRIGADE_CLOSING_MODEL invalide : « gpt » — attendu opus, sonnet ou haiku/);
+  assert.throws(() => configFermeture({ BRIGADE_CLOSING_MODEL: "opus" }), (erreur) => erreur instanceof ConfigInvalide && /BRIGADE_CLOSING_EFFORT is not set/.test(erreur.message));
+  assert.throws(() => configFermeture({ BRIGADE_CLOSING_EFFORT: "high" }), (erreur) => erreur instanceof ConfigInvalide && /BRIGADE_CLOSING_MODEL is not set/.test(erreur.message));
+  assert.throws(() => configFermeture({ BRIGADE_CLOSING_MODEL: "gpt", BRIGADE_CLOSING_EFFORT: "high" }), /BRIGADE_CLOSING_MODEL invalid: “gpt” — expected opus, sonnet or haiku/);
   for (const variable of ["BRIGADE_CLOSING_COOKS", "BRIGADE_CLOSING_MAX_TOKENS", "BRIGADE_CLOSING_MAX_REMOVED_LINES"]) {
     for (const valeur of ["0", "-1", "1.5", "beaucoup"]) assert.throws(() => configFermeture({ [variable]: valeur }), ConfigInvalide, `${variable}=${valeur}`);
   }
@@ -49,14 +49,14 @@ test("un candidat dont un seul fichier est tenu par un cook n'est pas proposé, 
   // Le test qui nomme `inutile` est dans la zone du ticket #4 ; le cook du #5 n'en déclare aucune.
   const tenu = proposer(tous, [{ ticket: 4, zone: ["test"] }]);
   assert.deepEqual(tenu.proposes.map(({ id }) => id), ["D1", "M2"]);
-  assert.deepEqual(tenu.ecartes.map(({ id, reason, before }) => [id, reason, before]), [["M1", "`test/outils.test.ts` est tenu par le ticket #4 (zone `test`)", true]]);
+  assert.deepEqual(tenu.ecartes.map(({ id, reason, before }) => [id, reason, before]), [["M1", "`test/outils.test.ts` is held by ticket #4 (zone `test`)", true]]);
   const tout = proposer(tous, [{ ticket: 5, zone: null }]);
   assert.deepEqual([tout.proposes, tout.zone], [[], []]);
-  assert.equal(tout.ecartes[0]?.reason, "`src/libre/a.ts` est tenu par le ticket #5");
+  assert.equal(tout.ecartes[0]?.reason, "`src/libre/a.ts` is held by ticket #5");
 
   const borne = proposer(tous, [], 1);
   assert.deepEqual(borne.proposes.map(({ id }) => id), ["D1"]);
-  assert.deepEqual(borne.ecartes.map(({ id, reason }) => [id, reason]), [["M1", "au-delà des 1 candidats d'une passe"], ["M2", "au-delà des 1 candidats d'une passe"]]);
+  assert.deepEqual(borne.ecartes.map(({ id, reason }) => [id, reason]), [["M1", "beyond the 1 candidates of one pass"], ["M2", "beyond the 1 candidates of one pass"]]);
 });
 
 test("ce qui reste se lit sur la branche de la passe, pas sur la parole du closer : un doublon déplacé de trois lignes est toujours là", () => {
@@ -83,7 +83,7 @@ test("la consigne du closer nomme ses candidats, les seuls fichiers qu'il peut �
   const { proposes, zone } = proposer(candidats(textes(PROJET)), []);
   const consigne = consigneDuCloser({ depot: "benomite/brigade", base: "v2", candidats: proposes, zone, retraits: 120 });
   assert.match(consigne, /^Tu es le closer de la brigade : tu ranges le dépôt benomite\/brigade, hors de tout ticket\./);
-  assert.match(consigne, /\n {3}- D1 — 8 lignes de code identiques : `src\/libre\/a\.ts:1-8` = `src\/libre\/b\.ts:1-8`\n {3}- M1 — export `inutile` de `src\/libre\/outils\.ts:2` — référencé nulle part\n/);
+  assert.match(consigne, /\n {3}- D1 — 8 identical lines of code: `src\/libre\/a\.ts:1-8` = `src\/libre\/b\.ts:1-8`\n {3}- M1 — export `inutile` of `src\/libre\/outils\.ts:2` — referenced nowhere\n/);
   assert.match(consigne, /\n {3}- `src\/libre\/a\.ts`\n {3}- `src\/libre\/b\.ts`\n {3}- `src\/libre\/outils\.ts`\n {3}- `src\/tenu\/outils\.ts`\n5\. Tu ne retires pas plus de 120 lignes en tout/);
   assert.match(consigne, /`LAISSÉ <nom du candidat> : <pourquoi tu n'es pas sûr>`/);
   assert.match(consigne, /Tu ne pousses rien, tu n'ouvres pas de PR et tu ne merges jamais/);

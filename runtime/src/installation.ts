@@ -544,7 +544,7 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
       accessSync(etat, constants.W_OK);
       noter("machine", "ok", `state directory: ${etat}`);
     } catch {
-      noter("machine", "manque", `the state directory ${etat} is not writable by this account`, "run this command under the service account, or give it the directory back (`chown`)", undefined, {
+      noter("machine", "manque", `the state directory ${etat} is not writable by this account`, "use the service account for this command, or give it the directory back (`chown`)", undefined, {
         simple: `brigade cannot write to its state folder (${etat})`,
         remede: parLeChef(`sudo chown -R ${compte()} ${etat}`),
       });

@@ -53,7 +53,7 @@ describe("le geste d'une station distante", { concurrency: 8 }, () => {
     // Sans preuve : la demande part, le runtime la refuse — et le refus est au journal.
     const sansPreuve = await lancer([MAC, "renew", run, "--turns", "1", "--tokens", "10"]);
     assert.deepEqual([sansPreuve.code, sansPreuve.reponse?.ok, !sansPreuve.reponse?.ok && sansPreuve.reponse?.refusal], [REFUSEE, false, "no-progress"]);
-    assert.match(sansPreuve.erreur, /^brigade : renouvellement sans preuve : le bail ne se renouvelle que sur un progrès observable/);
+    assert.match(sansPreuve.erreur, /^brigade : renewal without proof: the lease is renewed only on observable progress/);
     assert.equal(journal.tout().filter((e) => e.type === "ticket.renewed").length, 0);
 
     const renouvele = await lancer([MAC, "renew", run, "--proof", "empreinte-1", "--turns", "2", "--tokens", "20"]);
@@ -134,7 +134,7 @@ describe("le geste d'une station distante", { concurrency: 8 }, () => {
     const { lancer } = service(t);
     const inconnue = await lancer(["mac/chrome", "claim"]);
     assert.deepEqual([inconnue.code, !inconnue.reponse?.ok && inconnue.reponse?.refusal], [REFUSEE, "unknown-station"]);
-    assert.match(inconnue.erreur, /le projet ne déclare aucune station mac\/chrome/);
+    assert.match(inconnue.erreur, /the project declares no station mac\/chrome/);
     // Ce qui n'a pas la forme d'un nom de station ne part même pas.
     const informe = await lancer(["reviewer", "claim"]);
     assert.deepEqual([informe.code, informe.reponse], [SANS_REPONSE, null]);
@@ -145,7 +145,7 @@ describe("le geste d'une station distante", { concurrency: 8 }, () => {
     runtime.arreter("test");
     const rendu = await geste(repertoire, heure.maintenant, [MAC, "claim"]);
     assert.deepEqual([rendu.code, rendu.reponse], [SANS_REPONSE, null]);
-    assert.match(rendu.erreur, /aucun runtime ne tourne pour ce projet/);
+    assert.match(rendu.erreur, /no runtime is running for this project/);
     const relu = ouvrirJournal(repertoire, { lectureSeule: true });
     t.after(() => relu.fermer());
     assert.equal(relu.tout().filter((e) => e.type === "remote.asked").length, 0);
@@ -161,7 +161,7 @@ describe("le geste d'une station distante", { concurrency: 8 }, () => {
     const journal = ouvrirJournal(repertoire);
     t.after(() => journal.fermer());
     journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
-    await assert.rejects(demander(repertoire, MAC, { verb: "claim" }, { attenteMs: 30, pasMs: 2 }), (erreur) => erreur instanceof SansReponse && /n'a pas répondu à temps/.test(erreur.message));
+    await assert.rejects(demander(repertoire, MAC, { verb: "claim" }, { attenteMs: 30, pasMs: 2 }), (erreur) => erreur instanceof SansReponse && /did not answer in time/.test(erreur.message));
     // La demande, elle, est au journal : c'est ce que le runtime trouvera — trop tard.
     assert.equal(journal.tout().filter((e) => e.type === "remote.asked").length, 1);
   });
