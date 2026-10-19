@@ -216,10 +216,20 @@ describe("le rail occupe le centre de l'écran principal", () => {
 
   test("une box qui ne rend pas ses faits : le rail dit qu'il n'est pas dessiné, et ne montre aucune colonne vide à la place", async () => {
     const vue = await ouvrir();
+    recevoir(vue, { projet: PARADE, demande: 0, a: A, titre: "FACTS NOT READ", erreur: "npm error Missing script: facts", atteinte: true, cas: null });
+
+    assert.equal(vue.element("rail").hidden, false);
+    assert.match(vue.element("rail").textContent, /^the rail is not drawn: FACTS NOT READ — tried at /);
+    assert.deepEqual(colonnes(vue), []);
+  });
+
+  test("une box pas jointe (#728) : sans lecture antérieure, le rail dit depuis quand elle ne répond pas, sans colonne vide", async () => {
+    const vue = await ouvrir();
     recevoir(vue, { projet: PARADE, demande: 0, a: A, titre: "PAS JOINT", erreur: "ssh: connect to host box port 22: Connection refused", atteinte: false, cas: null });
 
     assert.equal(vue.element("rail").hidden, false);
-    assert.match(vue.element("rail").textContent, /^the rail is not drawn: PAS JOINT — tried at /);
+    assert.match(vue.element("rail").textContent, /^no reading of the rail — box unreachable since /);
+    assert.match(vue.element("rail").textContent, /the rail is not drawn: PAS JOINT — tried at /);
     assert.deepEqual(colonnes(vue), []);
   });
 });

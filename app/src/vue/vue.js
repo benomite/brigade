@@ -3264,7 +3264,8 @@ function chargerFeu(projet) {
   feuxEnRoute.add(projet.nom);
   void brigade.lireFeu(projet.nom).then((lu) => {
     feuxEnRoute.delete(projet.nom);
-    if (lu !== undefined) feux.set(projet.nom, lu);
+    // Sans réponse, la lecture est dite faite quand même : sinon le rail, redessiné, la relancerait aussitôt, sans fin.
+    feux.set(projet.nom, lu ?? { a: new Date().toISOString(), sans: "the app has no answer for this project" });
     if (courant?.nom === projet.nom && muets.has(projet.nom) && !rail.hidden) poserRail(courant);
   });
 }
@@ -3276,7 +3277,7 @@ function poserMuet(projet, lu, depuis) {
   const mention = bloc("p", lu === undefined ? `no reading of the rail — box unreachable since ${heureDe(depuis)}` : `read at ${heureDe(lu)}, box unreachable since ${heureDe(depuis)}`);
   mention.className = "fraicheur";
   const feu = feux.get(projet.nom);
-  const bloc2 = document.createElement("section");
+  const bloc2 = document.createElement("div");
   bloc2.className = "feu";
   bloc2.append(bloc("h3", "kitchen state unknown: box unreachable — the tickets labelled `fire`, as GitHub says them"));
   if (feu === undefined) bloc2.append(bloc("p", "reading GitHub…"));
