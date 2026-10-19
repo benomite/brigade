@@ -22,6 +22,7 @@ import type { Onglet, Rubrique } from "../onglets.ts";
 import type { Bloc } from "../ordinaires.ts";
 import type { Pages } from "../page.ts";
 import type { RenduDePanne } from "../pannes/gestes.ts";
+import type { EtatDeMiseAJour } from "../mise-a-jour/etat.ts";
 import type { Lue as QuestionLue, Rendue as ReponseRendue } from "../question.ts";
 import type { Vu as VuDuCode } from "../retard.ts";
 import type { Avis, Retrait } from "../retrait.ts";
@@ -32,7 +33,7 @@ import type { Appairage, RetraitDeStation, VuDesStations } from "../stations/sta
 import type { Terminal } from "../terminaux.ts";
 
 export type Pont = {
-  demarrage(): Promise<{ configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations; projetsDesStations?: VuDesProjets; accueil?: Accueil }>;
+  demarrage(): Promise<{ configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations; projetsDesStations?: VuDesProjets; accueil?: Accueil; miseAJour?: EtatDeMiseAJour }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
   // Le dépôt GitHub et la branche d'intégration du dossier choisi, lus dans son clone — ou pourquoi ils restent à écrire.
@@ -177,6 +178,19 @@ export type Pont = {
   // Le code de l'app, en retard ou à relancer : elle se met à jour et se relance sur la nouvelle
   // version — rien n'est rendu, elle se ferme —, ou dit pourquoi elle reste sur son code.
   passer(): Promise<{ refus: string } | undefined>;
+  // La mise à jour de l'app installée (mise-a-jour/etat.ts) — l'état et ses deux gestes. L'état :
+  // `inactive` (lancée depuis le dépôt, elle ne regarde rien), `verification`, `a-jour`,
+  // `disponible` (avec la `nouvelle` version), `telechargement` (`recus` sur `taille` octets),
+  // `prete` (téléchargée et vérifiée : elle s'installe au lancement suivant si rien n'est dit),
+  // `installation`, `erreur` (sa `raison` en une ligne — un flux injoignable ne retient jamais l'app).
+  // Le dernier d'avant le démarrage de la vue est dans `demarrage`, chaque changement par `surMiseAJour`.
+  miseAJour(): Promise<EtatDeMiseAJour>;
+  // Relit le flux des versions publiées, et rend l'état qui en sort ; une version plus haute part
+  // aussitôt en téléchargement. Rien n'est relu pendant un téléchargement, ni une fois prête.
+  verifierMiseAJour(): Promise<EtatDeMiseAJour>;
+  // « Installer maintenant » : télécharge la nouvelle version si ce n'est pas fait, l'installe et
+  // relance l'app sur elle — rien n'est rendu, elle se ferme —, ou dit pourquoi elle reste sur sa version.
+  installerMiseAJour(): Promise<{ refus: string } | undefined>;
   // Le code qu'une station affiche, tapé par le chef : rend le nom de la station appairée, ou le
   // refus en une ligne — code mal formé, inconnu, expiré, ou GitHub muet. Rien n'est écrit alors.
   appairer(code: string): Promise<Appairage>;
@@ -261,6 +275,9 @@ export type Pont = {
   // relus : au démarrage, au retour à la fenêtre, quand le fichier des projets change. La
   // dernière lecture d'avant le démarrage de la vue est dans `demarrage`.
   surCode(recevoir: (vu: VuDuCode) => void): void;
+  // L'état de la mise à jour de l'app installée, à chaque changement (voir `miseAJour`) : un
+  // téléchargement le dit à chaque pour-cent gagné.
+  surMiseAJour(recevoir: (etat: EtatDeMiseAJour) => void): void;
   // Les stations appairées, relues sur GitHub toutes les trente secondes, chacune en une ligne. La
   // dernière lecture d'avant le démarrage de la vue est dans `demarrage`.
   surStations(recevoir: (vu: VuDesStations) => void): void;

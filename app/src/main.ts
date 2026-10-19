@@ -29,6 +29,9 @@ import { COMMANDES as COMMANDES_DE_FIABILITE, ONGLET as FIABILITE, voir as voirF
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterALApp, lireClone } from "./ajout.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
+import { tenirMiseAJour } from "./mise-a-jour/etat.ts";
+import { fluxDe } from "./mise-a-jour/flux.ts";
+import { installabilite, lancerInstallation, paquetDe } from "./mise-a-jour/installation.ts";
 import { COMMANDE as COMMANDE_MANAGER, GESTES_DU_MANAGER, voir as voirManager } from "./manager.ts";
 import { machineChoisie, machinesDe } from "./machines.ts";
 import { COMMANDE_DES_COUTS, COUTS, commandeDe, ONGLETS, projetsLus, RUBRIQUES } from "./onglets.ts";
@@ -68,6 +71,27 @@ let fenetre: BrowserWindow | undefined;
 const dire = (canal: string, ...faits: unknown[]) => {
   if (fenetre !== undefined && !fenetre.isDestroyed()) fenetre.webContents.send(canal, ...faits);
 };
+
+// L'app installée se tient à jour sur les versions publiées (mise-a-jour/) : elle regarde au
+// lancement puis toutes les six heures, télécharge la nouvelle, et l'installe au geste du chef ou
+// à son lancement suivant. Lancée depuis le dépôt, elle ne regarde rien : son clone la met à jour.
+// Ce qu'elle télécharge vit à côté du fichier des projets, sous `mise-a-jour/`.
+const dossierDeMiseAJour = join(dirname(cheminConfiguration()), "mise-a-jour");
+const paquet = paquetDe(process.resourcesPath);
+const miseAJour = tenirMiseAJour({
+  version: app.getVersion(),
+  inactive: emplacements.facon === "installee" ? undefined : "launched from the repository, it updates through its clone",
+  flux: fluxDe(process.env.BRIGADE_APP_MISE_A_JOUR_SOURCE),
+  dossier: dossierDeMiseAJour,
+  installable: () => installabilite(paquet),
+  installer: (prete) => lancerInstallation({ pid: process.pid, dmg: prete.dmg, paquet, dossier: dossierDeMiseAJour }),
+  quitter: () => app.quit(),
+  surEtat: (etat) => dire("miseAJour", etat),
+});
+// Une version téléchargée lors d'une session précédente s'installe avant que rien ne démarre : sa
+// station n'est pas lancée, sa fenêtre ne s'ouvre pas — l'app se ferme, l'installeur la rouvre sur
+// la nouvelle version.
+const installeeAuLancement = miseAJour.auLancement();
 
 // Chaque second dit ses tours à l'app, par ses crochets, dans un fichier à lui (saisie.ts) :
 // c'est d'après eux qu'un geste direct part, ou dit qu'il ne peut pas.
@@ -426,7 +450,7 @@ const stations = tenirStations({
 // terminal qui a lancé l'app.
 const racineDeLaStation = process.env.BRIGADE_STATION_DIR || join(dirname(cheminConfiguration()), "station");
 const stationLocale =
-  role.role === "station"
+  role.role === "station" && !installeeAuLancement
     ? tenirStationLocale({
         // Le `node` de `npm start`, ou celui du paquet de l'app installée : Electron n'en est pas un.
         node: emplacements.node,
@@ -462,7 +486,7 @@ function projet(nom: unknown): Projet {
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu(), stations: stations.vu(), projetsDesStations: projetsDesStations.vu(), accueil: accueil.vu() }));
+ipcMain.handle("demarrage", () => ({ configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu(), stations: stations.vu(), projetsDesStations: projetsDesStations.vu(), accueil: accueil.vu(), miseAJour: miseAJour.vu() }));
 // Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
 // décide hors de la vue — elle reçoit ce qu'il en est advenu, et pourquoi.
 ipcMain.handle("choisirDossier", async () => {
@@ -822,6 +846,12 @@ ipcMain.handle("passer", () => {
   if (sien?.bouton === undefined) return { refus: "nothing to do: the last read did not find this app behind its origin" };
   return passer(sien.etat === "a-relancer");
 });
+// La mise à jour de l'app installée (mise-a-jour/etat.ts) : son état, la vérification que la vue
+// demande, et « installer maintenant » — l'app se ferme et rien n'est rendu, ou elle dit pourquoi
+// elle reste sur sa version. Depuis le dépôt, l'état dit qu'elle ne se met pas à jour par là.
+ipcMain.handle("miseAJour", () => miseAJour.vu());
+ipcMain.handle("verifierMiseAJour", () => miseAJour.verifier());
+ipcMain.handle("installerMiseAJour", () => miseAJour.installerMaintenant());
 // Un clone en retard : sa mise à jour — `git -C <clone> pull` — est écrite dans un shell, et
 // rien ne l'envoie. La vue nomme le clone ; ce qui s'écrit, et dans l'espace de quel projet, se
 // décide dans retard.ts — ou pourquoi rien ne l'est. Rien, pour un clone qui n'est pas en retard.
@@ -950,6 +980,7 @@ app.on("will-quit", () => {
   veilleDeLAmont.fermer();
   pages.fermer();
   retards.fermer();
+  miseAJour.fermer();
   stations.fermer();
   clearInterval(controles);
   // Les cooks du poste ne survivent pas à l'app : fermée, sa station est absente.
@@ -968,6 +999,8 @@ app.on("browser-window-focus", () => {
 // Pas d'`await` au premier niveau : Electron n'annonce « prêt » qu'une fois ce
 // module chargé en entier — l'attendre ici, c'est ne jamais démarrer.
 void app.whenReady().then(() => {
+  // L'installeur attend que l'app soit fermée pour la remplacer.
+  if (installeeAuLancement) return app.quit();
   fenetre = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -981,6 +1014,8 @@ void app.whenReady().then(() => {
   });
   // La première lecture du retard des clones : la vue la reçoit, ou la trouve à son démarrage.
   void retards.relire();
+  // La première vérification des versions publiées, puis une toutes les six heures.
+  miseAJour.demarrer();
   // Les projets déclarés avant que les couleurs existent reçoivent les leurs, une fois.
   colorer();
   // L'app est lancée : ses stations se manifestent.
