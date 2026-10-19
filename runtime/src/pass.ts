@@ -117,6 +117,7 @@ import { GesteRefuse, nomAbandon } from "./rail.ts";
 import { corpsDeReparation, echecsDesGates, LABELS_REPARATION, shaDeReparation, titreDeReparation } from "./reparation.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
 import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, debutDeRelecture, diffCoupe, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
+import { estUneLivraisonDeCorrection } from "./correctif/livrer.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { DECLARATION, lireSecrets } from "./secrets.ts";
 import type { Fin } from "./superviseur.ts";
@@ -631,6 +632,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       // ce qu'elle laisse, et le compte-rendu de son closer.
       ticket: { number: ticket, title: issue.title, body: issue.body ?? "" },
       horsRail: connu.horsRail,
+      correction: connu.horsRail && estUneLivraisonDeCorrection(connu.run),
       commentaires,
       compteRendu: sansDiff ? rapport.livrable : (rapport.livrable ?? rapport.message),
       diff,

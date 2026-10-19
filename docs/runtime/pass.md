@@ -23,7 +23,8 @@ la tête de la branche (`sha`), celle de la base fusionnée (`base`), l'arbre ob
 reviewer a relu le diff sans rien trouver de bloquant ».** Pas « un humain a relu », et jamais
 « vert sur sa branche ».
 
-Une livraison peut lui arriver **hors du rail** : la PR d'une passe de fermeture, qui n'a pas de
+Une livraison peut lui arriver **hors du rail** : la PR d'une passe de fermeture, ou celle d'une
+correction des consignes que tu as acceptée (« Les corrections proposées »), qui n'ont pas de
 ticket. Elle passe par les mêmes juges et le même grant ; ce qui tient au ticket — le renvoi à un
 cook, le service, la fermeture de l'issue — n'a pas lieu (voir « La PR passe par la pass »).
 

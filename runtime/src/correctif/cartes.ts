@@ -5,7 +5,9 @@
 //
 // Seule une `correction.proposed` en fait une, et seulement si son diff, relu
 // ici, ne touche que les consignes du projet (`portee.ts`) : une proposition
-// écartée n'a pas de carte, et n'en aura jamais.
+// écartée n'a pas de carte, et n'en aura jamais. Une proposition tranchée par
+// le chef — « oui » ou « non » (`decision.ts`) — quitte la file : la carte
+// attend un geste, et il est fait.
 import { DEPOT_GITHUB } from "../etat.ts";
 import type { Journal } from "../journal.ts";
 import { lireDiff } from "./portee.ts";
@@ -28,11 +30,12 @@ export type CarteDeCorrection = {
   proposee: string;
 };
 
-// Les corrections proposées, la plus ancienne d'abord.
+// Les corrections proposées qui attendent le chef, la plus ancienne d'abord.
 export function cartesDeCorrection(journal: Journal, depot?: string): CarteDeCorrection[] {
   const adresse = (ticket: number) => (depot !== undefined && DEPOT_GITHUB.test(depot) ? `https://github.com/${depot}/issues/${ticket}` : null);
+  const tranchees = new Set([...journal.duType("correction.accepted", Number.MAX_SAFE_INTEGER), ...journal.duType("correction.refused", Number.MAX_SAFE_INTEGER)].map(({ payload }) => payload.proposal));
   return journal.duType("correction.proposed", Number.MAX_SAFE_INTEGER).flatMap(({ seq, at, payload }) => {
-    if ("refus" in lireDiff(payload.diff)) return [];
+    if (tranchees.has(seq) || "refus" in lireDiff(payload.diff)) return [];
     return [
       {
         proposition: seq,
