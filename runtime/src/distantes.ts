@@ -160,7 +160,7 @@ const duree = (ms: number) =>
   ms >= MINUTE ? `${(ms / MINUTE).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} min` : `${(ms / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} s`;
 const compte = (valeur: unknown): valeur is number => Number.isSafeInteger(valeur) && (valeur as number) >= 0;
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur !== "";
-const LECTURE_VIDE: Lecture = { resultat: null, message: null, quota: null, deconnecte: false, refus: null };
+const LECTURE_VIDE: Lecture = { resultat: null, message: null, jetonsDuMessage: null, quota: null, deconnecte: false, refus: null };
 
 export function ouvrirDistantes(cuisine: Cuisine): Distantes {
   const { runtime, depot, maintenant, avertir, enCuisine, cuisinePar } = cuisine;

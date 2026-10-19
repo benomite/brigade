@@ -241,3 +241,17 @@ test("les deux consignes imposent de commiter avant de s'arrêter, et nomment ce
     assert.match(texte, /« j'attends la relecture » n'est jamais une raison de t'arrêter/);
   }
 });
+
+test("la lecture du flux dit les tokens produits par le message qui porte le compte-rendu, une fois par message", () => {
+  const ligne = (id: string, sorti: number, bloc: object, parent: string | null = null) =>
+    JSON.stringify({ type: "assistant", parent_tool_use_id: parent, message: { id, usage: { output_tokens: sorti }, content: [bloc] } });
+  const flux = [
+    ligne("m1", 50, { type: "text", text: "je commence" }),
+    ligne("m2", 10, { type: "tool_use", id: "x" }),
+    ligne("m2", 300, { type: "text", text: "le compte-rendu" }),
+    ligne("s1", 9999, { type: "text", text: "un sous-agent" }, "toolu_1"),
+  ].join("\n");
+
+  assert.equal(lireFlux(flux).jetonsDuMessage, 300);
+  assert.equal(lireFlux("").jetonsDuMessage, null);
+});

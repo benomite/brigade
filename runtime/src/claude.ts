@@ -143,6 +143,10 @@ export type Lecture = {
   resultat: { erreur: boolean } | null;
   // Le dernier message du cook : son compte-rendu, ou l'erreur qui l'a arrêté.
   message: string | null;
+  // Les tokens produits (`output_tokens`) par le message du fil principal qui a
+  // porté ce texte : la part du cook qu'a coûtée son dernier message, rétro
+  // comprise. Nul : le flux ne le dit pas.
+  jetonsDuMessage: number | null;
   // Non nul : le flux dit que le quota est épuisé. `retour` : l'heure à
   // laquelle il revient, si le flux la donne.
   quota: { retour: Date | null; fenetre: string | null } | null;
@@ -174,11 +178,15 @@ const texteDe = (contenu: unknown): string | null => {
 // Lit le flux brut d'un cook, ligne à ligne. Une ligne illisible est ignorée :
 // le flux d'un process tué s'arrête n'importe où.
 export function lireFlux(contenu: string): Lecture {
-  const lecture: Lecture = { resultat: null, message: null, quota: null, deconnecte: false, refus: null };
+  const lecture: Lecture = { resultat: null, message: null, jetonsDuMessage: null, quota: null, deconnecte: false, refus: null };
   let categorie: string | null = null;
   let rejete: EtatQuota | null = null;
   let dernierEtat: EtatQuota | null = null;
   let quotaDitParErreur = false;
+  // Un même message arrive en plusieurs lignes, une par bloc, qui répètent son
+  // usage : seul le dernier compte.
+  const produits = new Map<string, number>();
+  let idDuMessage: string | null = null;
   for (const ligne of contenu.split("\n")) {
     let evenement;
     try {
@@ -192,7 +200,15 @@ export function lireFlux(contenu: string): Lecture {
       if (evenement.rate_limit_info?.status === "rejected") rejete = dernierEtat;
     } else if (evenement.type === "assistant") {
       // Seul le fil principal parle au nom du cook, pas ses sous-agents.
-      if (evenement.parent_tool_use_id == null) lecture.message = texteDe(evenement.message?.content) ?? lecture.message;
+      if (evenement.parent_tool_use_id == null) {
+        const sorti = evenement.message?.usage?.output_tokens;
+        if (typeof evenement.message?.id === "string" && typeof sorti === "number") produits.set(evenement.message.id, sorti);
+        const texte = texteDe(evenement.message?.content);
+        if (texte !== null) {
+          lecture.message = texte;
+          idDuMessage = typeof evenement.message?.id === "string" ? evenement.message.id : null;
+        }
+      }
       if (evenement.error === "rate_limit") quotaDitParErreur = true;
       if (evenement.error === "authentication_failed") lecture.deconnecte = true;
       // La catégorie est celle du dernier message du fil principal : ni le
@@ -209,6 +225,7 @@ export function lireFlux(contenu: string): Lecture {
       if (typeof evenement.result === "string" && evenement.result !== "") lecture.message = evenement.result;
     }
   }
+  lecture.jetonsDuMessage = idDuMessage === null ? null : (produits.get(idDuMessage) ?? null);
   if (rejete) lecture.quota = rejete;
   else if (quotaDitParErreur) lecture.quota = dernierEtat ?? { retour: null, fenetre: null };
   return lecture;

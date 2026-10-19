@@ -65,15 +65,16 @@ function toursDuTicket({ cooks }: Delivery): { calibrage: string; tours: number 
 }
 
 // Ce qu'un ticket a consommé de tokens : la somme de ses lancements, sous le
-// calibrage du dernier, et ceux de sa rétro. Un lancement dont les tokens ne
+// calibrage du dernier. Sa rétro s'écrit dans le dernier message d'un cook : ses
+// tokens sont déjà dans ceux du lancement, on ne les ajoute pas. Un lancement dont les tokens ne
 // sont pas connus ne compte pas.
-function tokensDuTicket({ ticket, cooks, retroTokens }: Delivery): { ticket: number | null; calibrage: string; tokens: number } | null {
+function tokensDuTicket({ ticket, cooks }: Delivery): { ticket: number | null; calibrage: string; tokens: number } | null {
   const calibrage = cooks.at(-1)?.calibration ?? null;
   const comptes = cooks.flatMap((cook) => (cook.tokens === null ? [] : [cook.tokens]));
-  return calibrage === null || comptes.length === 0 ? null : { ticket, calibrage, tokens: comptes.reduce((somme, tokens) => somme + tokens, 0) + (retroTokens ?? 0) };
+  return calibrage === null || comptes.length === 0 ? null : { ticket, calibrage, tokens: comptes.reduce((somme, tokens) => somme + tokens, 0) };
 }
 
-// Ce que la rétro d'un ticket a coûté, à part : déjà comprise dans son total.
+// Ce que la rétro d'un ticket a coûté, lu à part : déjà compris dans son total.
 const retroDuTicket = ({ ticket, retroTokens }: Delivery): { ticket: number | null; tokens: number } | null => (retroTokens == null ? null : { ticket, tokens: retroTokens });
 
 // Ce qu'un ticket a été payé, lancement par lancement. `utiles` : les tokens
@@ -100,7 +101,7 @@ function paiementDuTicket({ ticket, cooks }: Delivery): Paiement {
 export function motifDeDerive(livraison: Delivery): string {
   const { cooks } = livraison;
   const { tokens } = paiementDuTicket(livraison);
-  const total = cooks.reduce((somme, cook) => somme + (cook.tokens ?? 0), 0) + (livraison.retroTokens ?? 0);
+  const total = cooks.reduce((somme, cook) => somme + (cook.tokens ?? 0), 0);
   const prefixe = livraison.ticket === null ? "no ticket" : `#${livraison.ticket}`;
   if (cooks.length <= 1) return `${prefixe}: 1 pass, ${direEn(total, 0)} tokens in one go, no retry — initial reading or work too heavy`;
   const renvois = cooks.slice(1);
@@ -387,7 +388,7 @@ export function decrireReleve({ projet, livraisons, seuils }: Releve, par = PAR_
     "",
     ...(tranches.some((tranche) => tranche.retros.length > 0)
       ? [
-          ligne("retro", "tokens spent by the retro of a ticket — already counted in the tokens of that ticket"),
+          ligne("retro", "estimated tokens of the retro of a ticket (its share of the final message) — already counted in the tokens of that ticket"),
           ...tableau([["merges", "ticket", "retro tokens"], ...tranches.flatMap((tranche) => tranche.retros.map(({ ticket, tokens }) => [rang(tranche), ticket === null ? "no ticket" : `#${ticket}`, direEn(tokens, 0)]))]),
           "",
         ]

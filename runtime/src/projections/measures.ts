@@ -11,7 +11,7 @@ import { definirProjection } from "../projection.ts";
 
 type Ecoutes = Extract<
   Fait,
-  { type: "pass.judged" | "pass.replayed" | "merge.done" | "cook.launched" | "cook.exited" | "drift.configured" | "drift.crossed" | "drift.cleared" }
+  { type: "pass.judged" | "pass.replayed" | "merge.done" | "cook.launched" | "cook.exited" | "cook.reported" | "drift.configured" | "drift.crossed" | "drift.cleared" }
 >;
 
 // A ticket cook. `calibration`: `<model>/<effort>`, or null for a cook
@@ -24,10 +24,10 @@ type Ecoutes = Extract<
 // instead of starting from scratch (`resumes` at its launch) — absent otherwise.
 export type CookMesure = { calibration: string | null; turns: number | null; durationMs: number | null; tokens: number | null; delivered: boolean; resumed?: true };
 
-// A merged delivery. `retroTokens`: what the retro of its ticket used up — the
-// run launched under the `retro` station — summed, null if none of them knows
-// its tokens; absent if the ticket had no retro. It is counted in the ticket's
-// token total, and kept apart from `cooks`: a retro is not a delivery attempt.
+// A merged delivery. `retroTokens`: what the retro of its ticket cost, summed
+// over its reports — an estimate (`cook.reported`), and already part of the
+// tokens of its cooks, which it is read apart from; absent if no report gave
+// one.
 // `measures`: what its latest gates declared.
 // `state`: those of these measures that tell the state of the project after
 // its merge — all of them, except when its gates were run before those of a
@@ -44,16 +44,14 @@ export type Delivery = {
   state: Record<string, number>;
   gatesS: number | null;
   cooks: CookMesure[];
-  retroTokens?: number | null;
+  retroTokens?: number;
   overCeiling?: Depassement;
 };
 
 // The stations under which the pass and the manager launch their cooks:
 // neither a review nor a judgment cooks a ticket.
 const HORS_TICKET = ["reviewer", "manager"];
-// The station under which the retro of a ticket runs: its cost is the ticket's,
-// but it is not one of the ticket's cooks.
-const RETRO = "retro";
+
 
 // Each gates run of a ticket, whether or not it declared measures: the last
 // one says whether the delivery crosses its duration ceiling.
@@ -113,10 +111,6 @@ export const measures = definirProjection<Ecoutes>({
     "cook.launched": (base, evenement) => {
       const { run, station, model, effort, resumes } = evenement.payload;
       if (evenement.ticket === null || (station !== undefined && HORS_TICKET.includes(station))) return;
-      if (station === RETRO) {
-        base.executer("INSERT INTO measured_retros (run, ticket, launched_seq) VALUES (?, ?, ?)", run, evenement.ticket, evenement.seq);
-        return;
-      }
       base.executer(
         "INSERT INTO measured_cooks (run, ticket, launched_seq, calibration, resumed) VALUES (?, ?, ?, ?, ?)",
         run,
@@ -137,7 +131,11 @@ export const measures = definirProjection<Ecoutes>({
         outcome === "ok" ? 1 : 0,
         run,
       );
-      base.executer("UPDATE measured_retros SET tokens = ? WHERE run = ?", entier(tokens), run);
+    },
+    "cook.reported": (base, evenement) => {
+      const { run, retroTokens } = evenement.payload;
+      if (evenement.ticket === null || !Number.isSafeInteger(retroTokens)) return;
+      base.executer("INSERT OR REPLACE INTO measured_retros (run, ticket, launched_seq, tokens) VALUES (?, ?, ?, ?)", run, evenement.ticket, evenement.seq, retroTokens as number);
     },
     "drift.configured": (base, evenement) => {
       base.executer("INSERT OR REPLACE INTO drift_limits (id, limits) VALUES (1, ?)", JSON.stringify(evenement.payload.limits));
@@ -173,7 +171,6 @@ export function mergedDeliveries(base: Base): Delivery[] {
       lignes.filter((ligne) => ligne.ticket === merge.ticket && ligne.seq > since && ligne.seq < merge.seq);
     const jouees = siennes(gates);
     const siennesRetros = siennes(retros);
-    const retroTokens = siennesRetros.flatMap((retro) => retro.tokens ?? []);
     const franchi = jouees.at(-1)?.franchi ?? null;
     const passages = jouees.filter((ligne) => ligne.measures !== null);
     const declarees = passages.map((ligne) => JSON.parse(ligne.measures ?? "{}") as Record<string, number>);
@@ -196,7 +193,7 @@ export function mergedDeliveries(base: Base): Delivery[] {
         delivered: delivered === 1,
         ...(resumed === 1 ? { resumed: true as const } : {}),
       })),
-      ...(siennesRetros.length === 0 ? {} : { retroTokens: retroTokens.length === 0 ? null : retroTokens.reduce((somme, tokens) => somme + tokens, 0) }),
+      ...(siennesRetros.length === 0 ? {} : { retroTokens: siennesRetros.reduce((somme, retro) => somme + (retro.tokens ?? 0), 0) }),
       ...(franchi === null ? {} : { overCeiling: JSON.parse(franchi) as Depassement }),
     };
   });
