@@ -11,6 +11,7 @@ import type { PALETTE, Role } from "../couleurs.ts";
 import type { GESTES_DE_LA_CUISINE } from "../cuisine.ts";
 import type { BANNIERE, Dessinable } from "../faits.ts";
 import type { Vu as VuDeLaFiabilite } from "../fiabilite.ts";
+import type { Action, Rendu as RenduDuCloser } from "../closer-lancement.ts";
 import type { Confirmation } from "../confirmation.ts";
 import type { CONFIRMES, DIRECTS, GRANTS } from "../gestes.ts";
 import type { GESTES_D_ATTENTE, Saisie as SaisieDAttente } from "../attente.ts";
@@ -202,6 +203,11 @@ export type Pont = {
   // celles qui portent `blocked-on-human` — `manager backlog`, lancée une fois sur sa box. Demandé
   // quand la confirmation d'« allumer » s'ouvre : son « oui » n'attend pas cette lecture. Rien, pour un projet sans box.
   compter(projet: string): Promise<Compte | undefined>;
+  // Un geste de la partie closer (closer-lancement.ts), lancé une fois sur la box du projet : l'aperçu
+  // d'un nettoyage, sa demande — qui ne part qu'avec `oui` à `true`, que la vue ne passe qu'au « oui »
+  // du chef, devant ce qu'il coûte —, ou son annulation. Rend ce que le runtime a répondu, ou pourquoi
+  // rien ne l'a été. Rien, pour un projet sans box.
+  closer(projet: string, action: Action, oui?: true): Promise<RenduDuCloser | undefined>;
   // Le projet dont l'espace est affiché : sa box est lue, elle seule — `status`, pour le panneau.
   // `demande` revient sur chaque lecture qui y répond.
   regarder(projet: string, demande: number): void;

@@ -11,6 +11,7 @@ import { mettreAPart } from "./attend.ts";
 import { pourLaBarre } from "./barre.ts";
 import { BOUTONS, ecritPar, ecritPourLeCloser, REGLER_LE_CLOSER } from "./boutons.ts";
 import { lancerGeste, ouvrirVeille, type Servi } from "./box.ts";
+import { agirSurLeCloser } from "./closer-lancement.ts";
 import { histoireDe, situationDe } from "./histoire.ts";
 import { commenter, demanderAuSecond, lireDiscussion } from "./discussion.ts";
 import { cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
@@ -834,6 +835,17 @@ ipcMain.handle("compter", (_, nom: unknown) => {
   const servi = { nom: vise.nom, box: vise.box };
   // Jamais posée hors des essais, comme pour la veille.
   const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => compter({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi));
+  passage.set(servi.nom, rendu);
+  return rendu;
+});
+// Lancer un nettoyage depuis la partie closer (closer-lancement.ts) : l'aperçu, la demande — au seul
+// « oui » du chef, `oui` à `true` —, son annulation, lancés une fois sur la box par le passage du
+// projet, comme `manager backlog` : la lecture de l'onglet qui suit le geste le voit.
+ipcMain.handle("closer", (_, nom: unknown, action: unknown, oui: unknown) => {
+  const vise = connu(nom);
+  if (vise?.box === undefined) return undefined;
+  const servi = { nom: vise.nom, box: vise.box };
+  const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => agirSurLeCloser({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, action, oui));
   passage.set(servi.nom, rendu);
   return rendu;
 });
