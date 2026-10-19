@@ -23,7 +23,7 @@ function projet(t: TestContext, suite: string): string {
 
 function jouer(racine: string, env: Record<string, string>): Promise<{ code: number | null; lignes: string[] }> {
   return new Promise((resoudre, rejeter) => {
-    const gates = spawn("bash", [GATES, racine], { env: { ...ENV_ENFANT, BRIGADE_GATES_VERROU: `${racine}.verrou`, ...env }, stdio: ["ignore", "pipe", "pipe"] });
+    const gates = spawn("bash", [GATES, racine], { env: { ...ENV_ENFANT, ...env }, stdio: ["ignore", "pipe", "pipe"] });
     let sortie = "";
     gates.stdout.on("data", (morceau: Buffer) => (sortie += morceau.toString()));
     gates.stderr.on("data", (morceau: Buffer) => (sortie += morceau.toString()));

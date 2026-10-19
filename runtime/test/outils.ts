@@ -56,8 +56,9 @@ export const ENV_ENFANT: Record<string, string> = {
   PATH: process.env.PATH ?? "",
   ...(process.env.NODE_COMPILE_CACHE ? { NODE_COMPILE_CACHE: process.env.NODE_COMPILE_CACHE } : {}),
   // Le tour des gates est celui de la box : un test qui les joue ne doit pas
-  // faire la queue derrière les gates réelles d'un autre worktree.
-  BRIGADE_GATES_VERROU: join(tmpdir(), `brigade-essai-verrou-${process.pid}`),
+  // faire la queue derrière les gates réelles d'un autre worktree, ni derrière
+  // ses voisins. Les tests du tour posent leur propre verrou.
+  BRIGADE_GATES_VERROU: "aucun",
 };
 
 // La fin d'un test : ce qui doit être arrêté l'est avant que les répertoires

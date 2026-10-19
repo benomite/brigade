@@ -151,6 +151,9 @@ rendre_le_tour() {
 }
 prendre_le_tour() {
   local PROPRIETAIRE MORT
+  # `BRIGADE_GATES_VERROU=aucun` : pas de tour. Pour les tests des gates, qui
+  # en jouent des dizaines de front et ne doivent pas faire la queue.
+  [ "$VERROU" = aucun ] && return 0
   while :; do
     if mkdir "$VERROU" 2>/dev/null; then
       echo "$$" >"$VERROU/pid"
@@ -390,7 +393,6 @@ while pile:
 print(total)
 PY
 )"
-mesure gates_attente_s "$ATTENTE"
 mesure gates_s "$SECONDS"
 
 verdict "$rc"
