@@ -233,9 +233,11 @@ function direProjet(racine: string, noms: readonly string[], lu: Lu): Dit {
 }
 
 // Tient ce qui se dit des clones : le code de l'app, et les clones de brigade parmi les
-// projets. `app` : le dossier de l'app, dans son clone. `relire` lit — au démarrage, au
-// retour à la fenêtre, quand les projets changent — et rien ne lit entre deux.
-export function tenirRetards(options: { reglages: Reglages; app: string; projets(): readonly Projet[]; surLecture(vu: Vu): void }) {
+// projets. `app` : le dossier de l'app, dans son clone — aucun pour l'app installée, qui n'en a
+// pas (emplacements.ts) : rien ne se dit alors de son code, ni des clones de brigade, qui se
+// reconnaissent à l'origine du sien. `relire` lit — au démarrage, au retour à la fenêtre, quand
+// les projets changent — et rien ne lit entre deux.
+export function tenirRetards(options: { reglages: Reglages; app: string | undefined; projets(): readonly Projet[]; surLecture(vu: Vu): void }) {
   const { reglages } = options;
   // Le commit sur lequel l'app a été lancée : celui de sa première lecture. `null` : il ne s'y est pas lu.
   let lance: string | null | undefined;
@@ -258,29 +260,29 @@ export function tenirRetards(options: { reglages: Reglages; app: string; projets
 
   async function lire(): Promise<void> {
     const a = new Date().toISOString();
-    const app = await lireRetard(reglages, options.app, arret.signal);
-    if (lance === undefined) lance = app.tete ?? null;
+    const app = options.app === undefined ? undefined : await lireRetard(reglages, options.app, arret.signal);
+    if (lance === undefined) lance = app?.tete ?? null;
     let relance: { lance: string; plus: number | undefined } | undefined;
-    if (typeof lance === "string" && app.racine !== undefined && app.tete !== undefined && app.tete !== lance) {
+    if (typeof lance === "string" && app?.racine !== undefined && app.tete !== undefined && app.tete !== lance) {
       const plus = await git(reglages, app.racine, ["rev-list", "--count", `${lance}..${app.tete}`], arret.signal);
       relance = { lance, plus: "dit" in plus || !/^\d+$/.test(plus.sortie) ? undefined : Number(plus.sortie) };
     }
 
     // Parmi les projets qui s'ouvrent : ceux dont le dossier est le clone de l'app, et ceux
     // dont le clone a la même origine qu'elle — un clone de brigade. Les autres ne sont pas lus.
-    const origine = app.racine === undefined ? undefined : await origineDe(app.racine);
+    const origine = app?.racine === undefined ? undefined : await origineDe(app.racine);
     const memes: string[] = [];
     const autres = new Map<string, string[]>();
     for (const projet of options.projets()) {
       if (projet.refus !== undefined) continue;
       const racine = await racineDe(projet.dossier);
       if (racine === undefined) continue;
-      if (racine === app.racine) memes.push(projet.nom);
+      if (racine === app?.racine) memes.push(projet.nom);
       else if (autres.has(racine)) autres.get(racine)?.push(projet.nom);
       else if (origine !== undefined && (await origineDe(racine)) === origine) autres.set(racine, [projet.nom]);
     }
 
-    const dits = [direApp(app, relance, memes)];
+    const dits = app === undefined ? [] : [direApp(app, relance, memes)];
     for (const [racine, noms] of autres) dits.push(direProjet(racine, noms, await lireRetard(reglages, racine, arret.signal)));
     if (ferme) return;
     const clones = dits.map(({ clone }) => clone);

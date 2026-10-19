@@ -635,6 +635,7 @@ LE CODE DE CETTE APP EST EN RETARD DE 39 COMMITS SUR origin/v2 — lu à 14:32:0
 | `LE CODE DE CETTE APP EST EN RETARD DE 39 COMMITS SUR origin/v2`, en jaune, trait plein | l'origine a 39 commits que son clone n'a pas — le même nombre que `git status` après un `git fetch` | **un bouton**, « mettre à jour et relancer l'app » — ou, si son clone a des commits à lui, la commande `git -C <son clone> pull` à écrire dans un shell |
 | `CETTE APP TOURNE SUR UN CODE PLUS ANCIEN QUE CELUI DE SON CLONE`, en jaune, trait plein | son clone n'est plus sur le commit de son lancement : il a été mis à jour pendant qu'elle tournait | **un bouton**, « relancer l'app » : elle ne change de code qu'à son lancement |
 | `le retard du code de cette app sur son origine n'a pas été lu`, en jaune, trait pointillé | l'origine n'a pas répondu, le clone n'est sur aucune branche, sa branche ne suit rien — ou l'app n'est pas lancée d'un clone | la raison, avec ce que `git` en a dit. **Pas lu n'est jamais « à jour »** |
+| rien | **l'app installée** (le `.dmg`) n'a pas de clone : rien ne se lit de son code, ni des clones de brigade parmi les projets — ils se reconnaissent à l'origine du sien | rien : une nouvelle version, c'est un nouveau `.dmg` |
 
 - **Au clic, elle se met à jour et repart.** Son clone avance jusqu'à la branche de l'origine qu'il
   suit, puis l'app se ferme et se relance d'elle-même sur la nouvelle version — par `npm start`
@@ -800,7 +801,8 @@ GitHub. Seule l'installation diffère : un paquet sur un serveur, l'app ici (`ap
   première se ferme.
 - Ce que la station dit s'écrit tel quel dans le terminal qui a lancé l'app, comme son journal de
   service sur un serveur. Elle est jouée par le `node` de `npm start` (`BRIGADE_NODE_BIN` pour en
-  donner un autre) : Electron n'en est pas un.
+  donner un autre) : Electron n'en est pas un. **L'app installée** (le `.dmg`) joue le runtime et le
+  `node` de son paquet, jamais ceux de la machine (`app/src/emplacements.ts`).
 
 **Sur un téléphone, l'app est un poste** : elle pilote, elle ne cuit pas. Sa station n'y est pas
 démarrée, et aucun projet n'y fait cuire — ni le sien, ni les stations que ses projets confient au
@@ -2334,7 +2336,18 @@ projet reprend son fil, et la ligne sous les onglets de droite te dit si c'est b
 
 ## Lancer l'app
 
-Il n'y a pas encore d'app empaquetée : elle se lance depuis un clone du dépôt.
+Deux façons : **installée**, depuis un `.dmg` pour Apple Silicon, ou **depuis un clone du dépôt**.
+
+**Installée.** `npm --prefix app run dist`, sur un Mac, écrit
+`app/packaging/construit/Brigade-<version>-arm64.dmg` ; glisse Brigade dans Applications et
+ouvre-la. Elle porte le runtime de sa station et le `node` qui le joue : ni clone, ni `node`, ni
+`npm` sur la machine. Elle lit `~/.config/brigade/` tel quel — tes projets et réglages sont ceux de
+l'app du dépôt —, prend le `PATH` de ton shell de connexion (pour trouver `claude` et `gh`), et ne
+se met pas à jour par `git` : une nouvelle version, c'est un nouveau `.dmg`. Elle n'est pas signée
+par un développeur identifié : copiée d'un autre Mac, macOS demande « Ouvrir quand même ». Ce
+qu'elle porte, comment elle se construit et s'éprouve : [`app/packaging/README.md`](../app/packaging/README.md).
+
+**Depuis le dépôt :**
 
 ```bash
 npm --prefix app start
@@ -2374,6 +2387,7 @@ accès.
 |---|---|
 | Tests | `npm --prefix app test` |
 | Contrôle de types | `npm --prefix app run typecheck` |
+| Construire le `.dmg` (sur un Mac) | `npm --prefix app run dist` → `app/packaging/construit/` ([`app/packaging/README.md`](../app/packaging/README.md)) |
 | Lancer sans consommer de quota | `BRIGADE_CLAUDE_BIN="$PWD/app/test/aides/faux-claude.sh" BRIGADE_APP_CONFIG=<fichier d'essai> npm --prefix app start` |
 | … et sans box | ajouter `BRIGADE_SSH_BIN=<un script qui imprime une sortie de status>` — et, pour voir ce qui se dessine, l'exemple de `docs/runtime/etat-et-mesures.md` quand ses arguments finissent par `faits` |
 | … et sans que ta machine devienne une station | ajouter `BRIGADE_APP_STATION=0` |
