@@ -133,7 +133,18 @@ describe("la ligne d'une station : son état, ce qu'elle fait, ses projets — s
     const ligne = ligneDeStation(station(), 2, false);
     assert.deepEqual(ligne, { id: "g1", nom: "parade-box", ton: "vert", dit: "online · 2 cooks · brigade, espace, calculus", phrase: "online · 2 cooks running", survol: "Linux 6.1.0-47-amd64 · version code 0123456789ab" });
     assert.doesNotMatch(ligne.dit, /Linux|6\.1\.0|code /);
-    assert.equal(ligneDeStation(station({ projets: [] }), 0, false).dit, "online · idle · no project");
+    assert.equal(ligneDeStation(station({ projets: [] }), 0, false).dit, "online · idle · runs no kitchen");
+  });
+
+  test("en ligne sans cuisine : elle le dit, nomme la station qui porte les cuisines de l'ordinateur, et sa page dit si c'est normal", () => {
+    const ailleurs = [{ projet: "a", station: "parade-box" }, { projet: "b", station: "parade-box" }, { projet: "c", station: "parade-box" }];
+    const ligne = ligneDeStation(station({ projets: [] }), 0, false, ailleurs);
+    assert.equal(ligne.dit, "online · idle · runs no kitchen");
+    assert.match(ligne.survol, /your 3 projects cook on parade-box$/);
+    assert.match(ligne.note ?? "", /^Normal: .*parade-box.*nothing requires it\.$/);
+    assert.match(ligneDeStation(station({ projets: [] }), 0, false).note ?? "", /^Normal: a station that runs no kitchen/);
+    assert.equal(ligneDeStation(station(), 0, false, ailleurs).note, undefined);
+    assert.doesNotMatch(ligneDeStation(station(), 0, false, ailleurs).survol, /cook on/);
   });
 
   test("hors ligne : depuis quand, en gris ; saturée ou une mise à jour ratée, jaune ; sa connexion Max perdue, rouge", () => {

@@ -4068,7 +4068,7 @@ function poserPageDeStation() {
     const details = station.etat === "illisible" ? station.ligne : (ligne?.survol ?? station.machine);
     // Hors ligne, la panne dessous le dit déjà, avec son bouton : l'en-tête ne le redit pas.
     const dejaDit = station.pannes.some(({ sujet }) => sujet === "injoignable");
-    enTeteDeStation.replaceChildren(titre, pastille(phrase, ligne?.ton), ...(dejaDit ? [] : [etatDit]), ...(details === "" ? [] : [survol(document, details)]));
+    enTeteDeStation.replaceChildren(titre, pastille(phrase, ligne?.ton), ...(dejaDit ? [] : [etatDit]), ...(details === "" ? [] : [survol(document, details)]), ...(ligne?.note === undefined ? [] : [bloc("p", ligne.note)]));
     versionDeStation.replaceChildren(...(station.versionDit ? [bloc("span", station.versionDit)] : []));
     pannesDeStation.replaceChildren(...station.pannes.map((panne) => poserPanne(station.id, panne)));
     poserRetireLaStation(station);

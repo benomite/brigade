@@ -138,7 +138,7 @@ const repondues = tenirRepondues();
 const faits = tenirFaits((projet) => repondues.de(projet));
 // L'accueil (accueil.ts) : une ligne par projet, une par station, et la ligne de santé — redessiné à
 // chaque lecture qui le change, de `faits`, de `status` ou des stations sur GitHub.
-const accueil = tenirAccueil({ projets: () => projets().map(({ nom, box, desinstalle }) => ({ nom, box: box !== undefined, desinstalle: desinstalle !== undefined })) });
+const accueil = tenirAccueil({ locale: () => (stationLocale === undefined ? null : gistLocal(racineDeLaStation)), projets: () => projets().map(({ nom, box, desinstalle }) => ({ nom, box: box !== undefined, desinstalle: desinstalle !== undefined })) });
 function direLAccueil(vu: Accueil | undefined): void {
   if (vu !== undefined) dire("accueil", vu);
 }
