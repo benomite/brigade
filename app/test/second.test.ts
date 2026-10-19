@@ -433,7 +433,7 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
     assert.equal(vue.element("contenu").hidden, false);
     assert.deepEqual(selectionne(vue), ["Settings"]);
     assert.match(vue.element("lecture").textContent, /sauvegarde {7}il y a 10 h/);
-    assert.deepEqual(vue.element("parametres-onglets").children.map((pose) => pose.textContent), ["General", "Rail", "Manager", "Grants"]);
+    assert.deepEqual(vue.element("parametres-onglets").children.map((pose) => pose.textContent), ["General", "Rail", "Manager", "Grants", "Reliability"]);
     // Recliqué, il se referme.
     await cliquer(vue, vue.element("onglets"), "Settings");
     assert.equal(vue.element("etat").hidden, true);

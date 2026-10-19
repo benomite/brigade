@@ -23,6 +23,7 @@ import { BANNIERE, COMMANDE, tenirFaits } from "./faits.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
 import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
+import { COMMANDES as COMMANDES_DE_FIABILITE, ONGLET as FIABILITE, voir as voirFiabilite } from "./fiabilite.ts";
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterSurBox, declarerTelQuel, EFFORTS, installer, lireDepot, MODELES } from "./installation.ts";
 import { COMMANDE as COMMANDE_MANAGER, GESTES_DU_MANAGER, voir as voirManager } from "./manager.ts";
@@ -113,7 +114,8 @@ const veille = ouvrirVeille({
 // l'onglet sans rien retirer à ce que `status` dit à côté. Sur un terminal, elle ne lit rien.
 // La lecture de l'onglet Manager part avec ce qui s'y pose au-dessus du texte : l'état du
 // manager, lu dans cette sortie (manager.ts) ; celle de l'onglet Grants, avec l'état des
-// grants (grants.ts). `ongletLu` : l'onglet que la veille lit, et sa demande.
+// grants (grants.ts) ; celle de l'onglet Reliability, avec la fiabilité des cooks (fiabilite.ts).
+// `ongletLu` : l'onglet que la veille lit, et sa demande.
 let ongletLu: { id: unknown; demande: number } | undefined;
 const veilleDOnglet = ouvrirVeille({
   ssh: process.env.BRIGADE_SSH_BIN || "ssh",
@@ -123,7 +125,7 @@ const veilleDOnglet = ouvrirVeille({
   passage,
   surLecture: (lecture) => {
     const lu = ongletLu?.demande === lecture.demande ? ongletLu.id : undefined;
-    dire("contenu", lecture, lu === "manager" ? voirManager(lecture) : undefined, lu === "grants" ? voirGrants(lecture) : undefined);
+    dire("contenu", lecture, lu === "manager" ? voirManager(lecture) : undefined, lu === "grants" ? voirGrants(lecture) : undefined, lu === FIABILITE ? voirFiabilite(lecture) : undefined);
     // La même lecture que celle de la veille du manager, à l'instant : la bande la reprend sans attendre la suivante.
     if (lu === "manager") direLaBande(bandes.manager(lecture));
   },
@@ -865,13 +867,15 @@ ipcMain.on("regarder", (_, nom: unknown, demande: number) => (voir = () => regar
 // L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.
 // Aucun — un terminal, « Tous les projets » — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
 // Cost, lui, lit `station` sur la box de chaque projet qu'elle sert encore : ses chiffres de tête
-// sont tous projets confondus (vue/cost/tete.js).
+// sont tous projets confondus (vue/cost/tete.js). Reliability lit `station`, puis `measures` sur la
+// fenêtre que `station` dit (fiabilite.ts).
 ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
   const commande = commandeDe(id);
   ongletLu = { id, demande };
   const cout = RUBRIQUES.find((rubrique) => rubrique.id === "cout")?.defaut === id;
   const lus = projets().filter((candidat) => candidat.nom === nom || (cout && candidat.desinstalle === undefined));
-  veilleDOnglet.regarder(commande === undefined ? [] : lus, commande === undefined ? [] : [commande], demande);
+  const commandes = commande === undefined ? [] : id === FIABILITE ? COMMANDES_DE_FIABILITE : [commande];
+  veilleDOnglet.regarder(commande === undefined ? [] : lus, commandes, demande);
 });
 // « Tous les projets » : le `status` de chacun — ce qui bloque un projet, depuis quand ses décisions
 // attendent, une station saturée : ce que l'accueil dit en une ligne et que `faits` ne porte pas.

@@ -7,7 +7,7 @@
 // Un projet : rouge quand il est bloqué — base rouge, cuisine arrêtée ou retenue, runtime éteint,
 // box injoignable ; jaune quand une décision attend le chef ; vert sinon ; gris tant que rien n'en
 // est lu. Sa phrase dit, dans cet ordre, ce qui bloque, ce qui attend le chef — combien, depuis
-// quand —, puis ce qui cuit.
+// quand —, puis ce qui cuit ; et, quand la fiabilité de ses cooks a dérivé, d'un mot : « drifting » (#987).
 // Une station : son état (« online », « offline for 12 min »), ce qu'elle fait — ses cooks, saturée,
 // une mise à jour ratée, sa connexion Max perdue —, et les projets qu'elle porte. Sa machine et sa
 // version ne se lisent qu'au survol.
@@ -19,6 +19,7 @@ import { CONNEXION, CUISINE, tetesDe } from "./alertes.ts";
 import type { Montree } from "./attend.ts";
 import type { Lecture } from "./box.ts";
 import { COMMANDE as FAITS, comprendre, type Faits } from "./faits.ts";
+import { deriveDe } from "./fiabilite.ts";
 import { heure, heureCourte } from "./format.ts";
 import type { VuDesProjets } from "./projets/projets.ts";
 import { LIMITE, type StationVue, type VuDesStations } from "./stations/stations.ts";
@@ -121,12 +122,16 @@ export function ligneDeProjet(projet: ProjetDeLAccueil, lu: FaitsLus | undefined
   const { faits } = lu;
   const bloquant = bloque(faits, status?.texte);
   const attendu = attend(faits, status);
+  // La dérive se lit dans les lignes `drift` de `status` : un mot sur la ligne, ce qu'elle dit au survol.
+  // Elle ne change pas la pastille — rien n'attend le chef, rien ne bloque.
+  const derive = status === undefined ? [] : deriveDe(status.texte);
   const parties = [...bloquant, ...attendu, ...cuit(faits, reparation(status?.texte))];
+  const dit = parties.length === 0 ? "nothing cooking, nothing waits for you" : parties.join(" · ");
   return {
     nom,
     ton: bloquant.length > 0 ? "rouge" : attendu.length > 0 ? "jaune" : "vert",
-    dit: parties.length === 0 ? "nothing cooking, nothing waits for you" : parties.join(" · "),
-    survol: `read at ${heure(lu.a)} — open it to act`,
+    dit: derive.length === 0 ? dit : `${dit} · drifting`,
+    survol: `read at ${heure(lu.a)} — ${derive.length === 0 ? "" : `reliability drifting: ${derive.join(" · ")} — `}open it to act`,
   };
 }
 

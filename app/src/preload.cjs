@@ -79,7 +79,7 @@ const pont = {
   surSortie: (recevoir) => void ipcRenderer.on("sortie", (_, id, donnees) => recevoir(id, donnees)),
   surEtat: (recevoir) => void ipcRenderer.on("etat", (_, terminal) => recevoir(terminal)),
   surLecture: (recevoir) => void ipcRenderer.on("lecture", (_, lecture, servies) => recevoir(lecture, servies)),
-  surContenu: (recevoir) => void ipcRenderer.on("contenu", (_, lecture, manager, grants) => recevoir(lecture, manager, grants)),
+  surContenu: (recevoir) => void ipcRenderer.on("contenu", (_, lecture, manager, grants, fiabilite) => recevoir(lecture, manager, grants, fiabilite)),
   surFaits: (recevoir) => void ipcRenderer.on("faits", (_, recue) => recevoir(recue)),
   surGuide: (recevoir) => void ipcRenderer.on("guide", (_, guide) => recevoir(guide)),
   surAlertes: (recevoir) => void ipcRenderer.on("alertes", (_, bande) => recevoir(bande)),

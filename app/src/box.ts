@@ -11,6 +11,9 @@ import type { Box, Projet } from "./config.ts";
 import { nombre } from "./format.ts";
 
 export type Sortie = { commande: string; texte: string };
+// Une commande à lancer : son texte, ou ce qui le compose d'après les sorties lues avant elle
+// dans la même lecture — `measures` sur la fenêtre que `station` vient de dire (fiabilite.ts).
+export type Commande = string | ((lues: readonly Sortie[]) => string);
 // `atteinte` : `ssh` a joint la box, et c'est la commande qui a échoué, ou qui
 // n'a rien rendu. Fausse : rien ne le prouve — c'est `ssh` lui-même qui a échoué
 // (code 255), qui n'a pas pu être lancé, ou qu'il a fallu arrêter sans qu'il ait
@@ -117,10 +120,10 @@ export function ouvrirVeille(options: {
   // Les commandes partent l'une après l'autre, et la première qui échoue est
   // l'erreur : un projet n'ouvre qu'une connexion à la fois, pour que tous les
   // projets d'une même box, lus de front, n'y soient pas refusés pour leur nombre.
-  async function lire(servi: Servi, commandes: readonly string[], signal: AbortSignal): Promise<{ sorties: Sortie[] } | Echec> {
+  async function lire(servi: Servi, commandes: readonly Commande[], signal: AbortSignal): Promise<{ sorties: Sortie[] } | Echec> {
     const sorties: Sortie[] = [];
-    for (const commande of commandes) {
-      const rendu = await lancer(servi, commande, signal);
+    for (const voulue of commandes) {
+      const rendu = await lancer(servi, typeof voulue === "string" ? voulue : voulue(sorties), signal);
       if ("erreur" in rendu) return rendu;
       sorties.push(rendu);
     }
@@ -128,7 +131,7 @@ export function ouvrirVeille(options: {
   }
 
   // Un projet : lu tout de suite, puis à chaque intervalle, sans rien attendre des autres.
-  async function suivre(servi: Servi, commandes: readonly string[], demande: number, signal: AbortSignal): Promise<void> {
+  async function suivre(servi: Servi, commandes: readonly Commande[], demande: number, signal: AbortSignal): Promise<void> {
     for (;;) {
       const lue = await lire(servi, commandes, signal);
       // Le chef regarde ailleurs, ou l'app ferme : cette lecture n'est plus à personne.
@@ -148,7 +151,7 @@ export function ouvrirVeille(options: {
     // à y lancer, dans l'ordre où la vue les montre. Rien d'autre n'est lu ; un
     // projet sans box ne l'est pas. Chaque lecture porte la `demande` : celle
     // d'un écran quitté peut encore être en route quand la vue en montre un autre.
-    regarder(projets: readonly Projet[], commandes: readonly string[], demande: number): void {
+    regarder(projets: readonly Projet[], commandes: readonly Commande[], demande: number): void {
       arreter();
       const { signal } = (tour = new AbortController());
       for (const { nom, box } of projets) if (box !== undefined) void suivre({ nom, box }, commandes, demande, signal);

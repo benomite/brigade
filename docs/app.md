@@ -511,7 +511,8 @@ STATIONS
 - **Une ligne par projet**, dans l'ordre du fichier : son nom, sa pastille, et une phrase courte qui
   dit ce qui s'y passe — **ce qui bloque d'abord**, puis **ce qui t'attend** (combien de décisions,
   depuis quand), puis **ce qui cuit** (les tickets de ses cooks, ou ce qui est à la pass). Rien ne
-  se passe : `nothing cooking, nothing waits for you`.
+  se passe : `nothing cooking, nothing waits for you`. Quand la fiabilité de ses cooks a dérivé, elle finit par
+  un mot, `drifting`, et son survol dit pourquoi (#987, voir « La lecture Reliability »).
 - **La pastille d'un projet** est **rouge** quand il est bloqué — base rouge, cuisine arrêtée ou
   retenue, runtime éteint, box injoignable —, **jaune** quand une décision t'attend, **verte**
   sinon. **Grise** tant que rien n'en est lu, ou quand rien ne peut l'être : un projet sans box, ou
@@ -1014,9 +1015,9 @@ l'onglet — celle du rail (#621) ; si le rail ne porte pas le ticket, la fiche 
 numéro. **Paramètres** ouvre l'état du projet —
 l'installation, **la sauvegarde et son ancienneté**, les pages servies, le retrait, les couleurs du projet, et
 `status` tel que la box le rend —, avec dessous une rangée de lectures : Réglages, Rail, Manager,
-Grants. Une ligne de la bande d'alertes dont la cause se règle là y mène en un clic. **Le journal
+Grants, Reliability (voir « La lecture Reliability »). Une ligne de la bande d'alertes dont la cause se règle là y mène en un clic. **Le journal
 (Log) n'a pas d'onglet** : le bouton « journal », à côté des onglets, ouvre la fin du journal
-par-dessus le rail ; le recliquer le ferme. Les cinq lectures ci-dessous sont celles de ces deux onglets et
+par-dessus le rail ; le recliquer le ferme. Les six lectures ci-dessous sont celles de ces deux onglets et
 de ce geste.
 **Un dépassement de seuil se voit d'un coup d'œil** (#912, `cost/seuils.js`) : les seuils sont ceux que `station` écrit sous
 « décisions du chef » (`seuil-ticket`, `seuil-perdus`), projet par projet. Quand le ticket le plus cher dépasse le seuil de son
@@ -1031,7 +1032,7 @@ il reste posé dessous, et relu, mais rien de lui ne se clique au travers. Recli
 la page, et **le rail revient tel que tu l'avais laissé**, défilé où il l'était. La bande d'alertes,
 au-dessus, reste visible : aucune page ne la couvre, ni les terminaux, à droite.
 
-Dans ces pages, cinq **lectures de contenu**. Une lecture relaie **en texte, mot pour mot,** la sortie d'une commande du runtime
+Dans ces pages, six **lectures de contenu**. Une lecture relaie **en texte, mot pour mot,** la sortie d'une commande du runtime
 (`docs/runtime/exploitation.md`, « Piloter »). **Manager** montre d'abord l'état du manager, **Grants** celui
 des grants :
 
@@ -1041,12 +1042,13 @@ des grants :
 | **Cooks** | `ssh <hote> brigade <nom> station` | la station : les cooks, la machine, le quota |
 | **Manager** | `ssh <hote> brigade <nom> manager` | **l'état du manager** (voir « L'onglet Manager ») — allumé ou éteint, depuis quand et par qui, ses dernières décisions, ce qu'il a écarté et pourquoi —, puis le texte de `manager`, qui dit aussi les épiques et ses réactions aux échecs |
 | **Grants** | `ssh <hote> brigade <nom> grant` | **l'état des grants** (voir « L'onglet Grants ») — lequel est actif, son échéance avec la durée restante en tête, ses derniers usages, ce qu'aucun grant n'autorise —, puis le texte de `grant`, qui dit aussi les derniers gestes (accordé, prolongé, révoqué, éteint seul, refusé) |
+| **Reliability** | `ssh <hote> brigade <nom> station`, puis `ssh <hote> brigade <nom> measures --last <fenêtre> --by 1` | **la fiabilité des cooks du projet** (voir « La lecture Reliability »), puis les deux textes, repliés |
 | **Log** | `ssh <hote> brigade <nom> log --last 200` | la fin du journal : les 200 derniers événements, pas le journal entier — la ligne sous les onglets le dit |
 
 - **Seul l'onglet affiché est lu** : sa commande part quand tu l'ouvres, puis toutes les trente
   secondes tant qu'il est à l'écran. En changer, le refermer ou quitter l'espace arrête sa
   lecture. Sans onglet de contenu ouvert, l'app ne lance donc pour ce projet que `status` ; avec
-  un, `status` et la commande de l'onglet — jamais les cinq. S'y ajoute `faits`, lu pour
+  un, `status` et la commande de l'onglet — jamais les six (Reliability en lance deux, l'une après l'autre). S'y ajoute `faits`, lu pour
   **tous** les projets quel que soit l'écran : c'est lui que la barre dessine.
 - **Ce qui t'attend reste sous tes yeux** : le panneau, entre le centre et le second — l'état du projet, le bloc
   `attend`, le reste de `status` — ne bouge pas quand tu changes d'onglet.
@@ -1057,7 +1059,7 @@ des grants :
 - Un runtime qui ne connaît pas encore `--last` rend son usage en erreur : il se lit dans l'onglet comme toute commande en échec.
 - Sous les onglets, la ligne dit ce que tu lis : ``la sortie de `ssh <hote> brigade <nom> rail`, telle que la box la
   rend — relue seule toutes les trente secondes, tant que cet onglet est affiché``.
-- Un projet sans `hote` a ses cinq onglets, et chacun dit `aucune lecture` et ce qui manque.
+- Un projet sans `hote` a ses six onglets, et chacun dit `aucune lecture` et ce qui manque.
 - **Rien n'y est dessiné** : seuls l'état du manager et celui des grants y sont posés
   au-dessus de leur texte. Rail, Cooks et Log sont du texte que tu peux sélectionner et copier, comme le
   texte de tout onglet. Les seuls boutons sont ceux qui écrivent une commande dans le second — sur
@@ -1065,6 +1067,48 @@ des grants :
   pas ») —, les deux gestes du manager et ceux de chaque grant, qui l'écrivent dans un shell
   (« L'onglet Manager », « L'onglet Grants »). Au-dessus, sur le rail, un numéro ouvre son issue.
 - L'espace te rend l'onglet où tu l'avais laissé, onglet de contenu compris.
+
+### La lecture Reliability
+
+*Ticket : #987.* Sous **Paramètres → Reliability**, **la fiabilité des cooks du projet, sur ses derniers
+tickets servis**. Elle n'est pas un troisième onglet en haut : ceux-là restent deux, Coût et Paramètres.
+
+- **En tête, trois chiffres** : la part **livrée du premier coup** (« 1 of 7 · 14% »), face à son seuil ;
+  le **nombre moyen d'essais par ticket** ; les **tokens perdus en essais ratés**, face à leur plafond.
+  Dessous, une ligne dit sur quels tickets ils portent : `7 merged of the last 10 tickets served — 3 not
+  merged, left out`.
+- **Puis les causes d'échec qui reviennent le plus, trois au plus** : chacune avec son nombre d'essais,
+  sa part des essais ratés, et ses derniers tickets — trois au plus, les plus récents d'abord. **Un clic
+  sur un ticket ouvre sa fiche**, par-dessus la page, avec son histoire (comme les tickets les plus chers
+  de Coût). Sans essai raté, `no failed attempt`.
+- **Un chiffre au-delà de son seuil passe en rouge** — la part du premier coup *sous* le sien, les perdus
+  *au-dessus* du leur —, comme la ligne `drift` de `status` le signale. Le nombre moyen d'essais n'a pas
+  de seuil. Un seuil que le chef n'a pas posé : celui du runtime pour le premier coup, `50% (default)` ;
+  aucun pour les perdus, `no ceiling set`, et rien n'est jugé.
+- **Pas encore assez de tickets servis pour mesurer, la page le dit** —
+  `not enough tickets served yet to measure: 6 of the 10 it takes`, ou `none of the last 10 tickets
+  served is merged yet` —, **jamais des zéros**.
+
+**D'où ça vient** (`app/src/fiabilite.ts`). L'app ne calcule rien et ne demande rien de neuf au runtime :
+elle lit ce que `measures` écrit (`docs/runtime/etat-et-mesures.md`, « Le relevé des mesures ») — les blocs
+`retries`, `failures` et `launches` —, et les réglages du chef sous « chef's decisions » de `station`.
+
+- **La fenêtre est celle de la dérive du premier coup** : `fenetre-renvois` (10 faute de réglage), son
+  seuil `seuil-renvois` (50 %). La lecture lance donc `station`, puis `measures --last <fenêtre>` : la page
+  et la ligne `drift` de `status` jugent les mêmes tickets. **Le minimum pour mesurer est celui de la
+  dérive** : la fenêtre pleine, dont au moins un ticket mergé. Les tickets servis non mergés (en cours,
+  abandonnés, servis sans diff) sont écartés, et la ligne sous les chiffres le dit.
+- **Les tokens perdus sont ceux que le runtime juge face à `seuil-perdus`** : sur les 10 derniers merges.
+  `--by 1` range chaque merge dans sa tranche, pour que chaque ligne du bloc `launches` porte son rang ;
+  l'app somme la colonne `lost` des dix derniers. Un lancement dont les tokens ne sont pas connus rend la
+  somme « ≥ ».
+- Une box dont `measures` ne compte pas encore les renvois (un runtime d'avant #946) : la page dit en une
+  ligne que la fiabilité n'est pas communiquée, le détail au survol. Une lecture ratée, de même.
+
+**Sur l'accueil, la ligne d'un projet dont la fiabilité a dérivé le dit d'un mot : `drifting`** — quand le
+`status` du projet porte une ligne `drift` sur la part du premier coup, ou sur les tokens perdus. Ce qu'elle
+dit est au survol ; la pastille ne change pas : rien n'attend le chef, rien ne bloque. Les autres seuils
+(tests, dépôt, ticket le plus cher) ne sont pas la fiabilité des cooks, et n'y ajoutent rien.
 
 ### L'onglet Manager
 
