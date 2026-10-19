@@ -1210,6 +1210,14 @@ not reached`), ce que l'app a obtenu au survol, et le bouton reste. Les trois ge
 projet, comme `manager backlog` (`app/src/closer-lancement.ts`) ; la place se pose dans la vue
 (`app/src/vue/closer/lancement/lancement.js`). Sans closer réglé, il n'y a ni place ni bouton.
 
+**Proposer un nettoyage quand la dérive franchit son seuil** (#993). Quand `closing --json` dit `drift.crossed`, la
+place du lancement porte en tête `The drift threshold is crossed — a cleanup could bring it back.`, ce qui a franchi
+son seuil au survol, et un bouton, **« Review the cleanup… »**. Il fait le geste du bouton de lancement — l'aperçu,
+puis la confirmation ci-dessus — : **la proposition ne crée aucune demande**, ni à son clic, ni au chargement ou à
+la relecture de la page ; la demande ne part qu'au « yes, launch it ». Elle s'efface quand une demande attend ou
+court, ou quand un geste est en route ; seuil non franchi (ou non déclaré), elle n'existe pas
+(`app/src/vue/closer/derive/derive.js`).
+
 **D'où ça vient.** L'app lance `closing --json` (#988) et lit l'objet qu'il rend sur une ligne — rien n'est
 recompté, rien n'est lancé : la commande ouvre le journal en lecture seule. La vue le lit elle-même dans la
 sortie de l'onglet (`app/src/vue/closer/section.js`), et ce que la box a rendu reste lisible, replié dessous.

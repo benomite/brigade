@@ -100,6 +100,7 @@ import { poserFiabilite } from "./fiabilite.js";
 import { lireFermeture, poserCloser } from "./closer/section.js";
 import { poserBilan } from "./closer/bilan/bilan.js";
 import { apresRendu, lireLancement, poserLancement, REPOS } from "./closer/lancement/lancement.js";
+import { lireDerive, poserDerive } from "./closer/derive/derive.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -3956,12 +3957,18 @@ function poserLeLancement(nom, lu) {
     poser(suite);
     if (suite.etape === "relecture" && courant?.nom === nom && ongletDemande === CLOSER) brigade.onglet(nom, CLOSER, ++demandeOnglet);
   };
-  return poserLancement(document, lue, lancementsDuCloser.get(nom) ?? REPOS, {
-    lancer: () => void agir("apercu"),
-    confirmer: () => void agir("lancer"),
-    renoncer: () => poser(REPOS),
-    annuler: () => void agir("annuler"),
-  });
+  const etat = lancementsDuCloser.get(nom) ?? REPOS;
+  // La proposition de la dérive franchie ne fait que mener au bouton de lancement : même geste, même confirmation.
+  const proposition = poserDerive(document, lireDerive(lu !== undefined && "fermeture" in lu ? lu.fermeture : undefined), lue.demande, etat, () => void agir("apercu"));
+  return [
+    ...proposition,
+    ...poserLancement(document, lue, etat, {
+      lancer: () => void agir("apercu"),
+      confirmer: () => void agir("lancer"),
+      renoncer: () => poser(REPOS),
+      annuler: () => void agir("annuler"),
+    }),
+  ];
 }
 
 function poserManager() {
