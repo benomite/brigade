@@ -1,44 +1,44 @@
-// Les lignes que l'app écrit dans la configuration de la station
-// (`station/configuration.ts`), par la station : un bloc à part, entre deux
-// commentaires, que la station réécrit seule. Ce qui est hors du bloc — les
-// lignes que le chef a écrites à la main — n'est jamais touché.
-export const DEBUT = "# — projets ajoutés depuis l'app : la station réécrit ce bloc seule, ne l'édite pas —";
-export const FIN = "# — fin des projets ajoutés depuis l'app —";
+// The lines the app writes into the station configuration
+// (`station/configuration.ts`), through the station: a separate block, between
+// two comments, that the station rewrites on its own. What is outside the
+// block — the lines the chef wrote by hand — is never touched.
+export const START = "# — projets ajoutés depuis l'app : la station réécrit ce bloc seule, ne l'édite pas —";
+export const END = "# — fin des projets ajoutés depuis l'app —";
 
-// Le texte, coupé autour du bloc. Sans bloc, il est tout entier « avant ».
-function couper(texte: string): { avant: string[]; dedans: string[]; apres: string[] } {
-  const lignes = texte.split("\n");
-  const debut = lignes.indexOf(DEBUT);
-  const fin = debut === -1 ? -1 : lignes.indexOf(FIN, debut + 1);
-  if (debut === -1) return { avant: lignes, dedans: [], apres: [] };
-  // Un bloc sans fin court jusqu'au bout du fichier.
-  const bout = fin === -1 ? lignes.length : fin;
-  return { avant: lignes.slice(0, debut), dedans: lignes.slice(debut + 1, bout), apres: fin === -1 ? [] : lignes.slice(fin + 1) };
+// The text, cut around the block. Without a block, it is all "before".
+function split(text: string): { before: string[]; inside: string[]; after: string[] } {
+  const lines = text.split("\n");
+  const start = lines.indexOf(START);
+  const end = start === -1 ? -1 : lines.indexOf(END, start + 1);
+  if (start === -1) return { before: lines, inside: [], after: [] };
+  // A block with no end runs to the end of the file.
+  const stop = end === -1 ? lines.length : end;
+  return { before: lines.slice(0, start), inside: lines.slice(start + 1, stop), after: end === -1 ? [] : lines.slice(end + 1) };
 }
 
-const utiles = (lignes: string[]) => lignes.map((ligne) => ligne.trim()).filter((ligne) => ligne !== "" && !ligne.startsWith("#"));
+const useful = (lines: string[]) => lines.map((line) => line.trim()).filter((line) => line !== "" && !line.startsWith("#"));
 
-// Les lignes du bloc.
-export const lignesDuBloc = (texte: string): string[] => utiles(couper(texte).dedans);
+// The lines of the block.
+export const blockLines = (text: string): string[] => useful(split(text).inside);
 
-// Les noms de projet que le chef a écrits hors du bloc.
-export const nomsHorsDuBloc = (texte: string): string[] => {
-  const { avant, apres } = couper(texte);
-  return utiles([...avant, ...apres]).map((ligne) => ligne.split(/\s+/)[0] ?? "");
+// The project names the chef wrote outside the block.
+export const namesOutsideBlock = (text: string): string[] => {
+  const { before, after } = split(text);
+  return useful([...before, ...after]).map((line) => line.split(/\s+/)[0] ?? "");
 };
 
-// Le texte, son bloc réécrit avec ces lignes, à sa place. Sans ligne, le bloc
-// disparaît ; sans bloc, il s'ajoute à la fin.
-export function reecrireBloc(texte: string, lignes: string[]): string {
-  const bloc = lignes.length === 0 ? [] : [DEBUT, ...lignes, FIN];
-  if (texte.split("\n").includes(DEBUT)) {
-    const { avant, apres } = couper(texte);
-    // Le blanc qui le séparait des lignes à la main part avec lui.
-    if (bloc.length === 0 && avant.at(-1) === "") avant.pop();
-    const rendu = [...avant, ...bloc, ...apres].join("\n");
-    return rendu.endsWith("\n") || rendu === "" ? rendu : `${rendu}\n`;
+// The text, its block rewritten with these lines, in place. With no lines, the
+// block disappears; with no block, it is appended at the end.
+export function rewriteBlock(text: string, lines: string[]): string {
+  const block = lines.length === 0 ? [] : [START, ...lines, END];
+  if (text.split("\n").includes(START)) {
+    const { before, after } = split(text);
+    // The blank line that separated it from the hand-written lines goes with it.
+    if (block.length === 0 && before.at(-1) === "") before.pop();
+    const result = [...before, ...block, ...after].join("\n");
+    return result.endsWith("\n") || result === "" ? result : `${result}\n`;
   }
-  if (bloc.length === 0) return texte;
-  const garde = texte.replace(/\n*$/, "");
-  return `${garde}${garde === "" ? "" : "\n\n"}${bloc.join("\n")}\n`;
+  if (block.length === 0) return text;
+  const kept = text.replace(/\n*$/, "");
+  return `${kept}${kept === "" ? "" : "\n\n"}${block.join("\n")}\n`;
 }

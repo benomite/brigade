@@ -1,214 +1,213 @@
-// Les portes d'une station : une par projet de sa configuration, et une pour
-// la station elle-même. Elles tournent dans leur propre unité
-// (`brigade-station-porte.service`), hors du filtre de celle de la station —
-// ce sont elles, la sortie —, et ne lancent rien. La station, elle, ne joint
-// que la boucle locale : ce que lance un projet sort par la porte de ce
-// projet, et n'y trouve que la liste blanche de ce projet.
+// A station's doors: one per project of its configuration, and one for the
+// station itself. They run in their own unit (`brigade-station-porte.service`),
+// outside the filter of the station's unit — they are the way out —, and
+// launch nothing. The station itself only reaches the loopback: what a project
+// launches goes out through that project's door, and finds only that project's
+// allowlist there.
 //
-// Chaque porte écoute sur un port de la boucle locale que personne ne choisit :
-// elle reprend celui qu'elle avait, ou en prend un libre. Ces ports sont
-// écrits dans un fichier (`BRIGADE_STATION_PORTES`), que la station relit pour
-// donner à chaque projet le sien. La bascule y écrit, avant le premier
-// démarrage, ceux des portes de l'ancienne installation : un cook en vol à la
-// bascule retrouve sa porte au port qu'il connaît.
+// Each door listens on a loopback port that nobody chooses: it takes back the
+// one it had, or takes a free one. Those ports are written in a file
+// (`BRIGADE_STATION_PORTES`), which the station rereads to give each project
+// its own. The switchover writes into it, before the first start, the ports of
+// the doors of the previous installation: a cook in flight at the switchover
+// finds its door again at the port it knows.
 import { chownSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
 import { AUTRES_HOTES, compterLesRefus, ouvrirPorte, type OptionsPorte, type Porte } from "../porte.ts";
 import { listeDuJournal, refusAuJournal } from "../porte-journal.ts";
 import { REGLES_DE_BASE } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
-import { CONFIGURATION, ETATS, lireFichierDeConfiguration } from "./configuration.ts";
+import { CONFIGURATION, STATES, readConfigurationFile } from "./configuration.ts";
 
-export const VARIABLE_PORTES = "BRIGADE_STATION_PORTES";
-// Où le paquet le pose, sous le répertoire de la station : c'est là que la
-// bascule écrit les ports qu'elle reprend.
-export const FICHIER_PORTES = "portes.json";
-// L'unité qui tient les portes : c'est elle que la station nomme quand une
-// porte manque.
-export const UNITE_DES_PORTES = "brigade-station-porte.service";
+export const DOORS_VARIABLE = "BRIGADE_STATION_PORTES";
+// Where the package puts it, under the station's directory: it is where the
+// switchover writes the ports it takes back.
+export const DOORS_FILE = "portes.json";
+// The unit that holds the doors: it is the one the station names when a door
+// is missing.
+export const DOORS_UNIT = "brigade-station-porte.service";
 
-// Le port de chaque porte ouverte. `station` : celle de la station elle-même.
-export type Portes = { station: number | null; projets: Record<string, number> };
+// The port of each open door. `station`: the station's own.
+export type Doors = { station: number | null; projects: Record<string, number> };
 
-const AUCUNE: Portes = { station: null, projets: {} };
+const NONE: Doors = { station: null, projects: {} };
 
-const estUnPort = (valeur: unknown): valeur is number => typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 1 && valeur <= 65535;
+const isPort = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 1 && value <= 65535;
 
-// Lit `BRIGADE_STATION_PORTES` : le fichier des ports des portes. Sans lui, la
-// station ne tient aucune porte — chaque projet a celle que sa ligne nomme,
-// ou aucune.
-export function configPortes(env: Record<string, string | undefined>): string | null {
-  const fichier = env[VARIABLE_PORTES];
-  if (fichier === undefined || fichier === "") return null;
-  if (!isAbsolute(fichier)) throw new ConfigInvalide(`${VARIABLE_PORTES} vaut « ${fichier} » — attendu un chemin absolu`);
-  return fichier;
+// Reads `BRIGADE_STATION_PORTES`: the file of the doors' ports. Without it, the
+// station holds no door — each project has the one its line names, or none.
+export function doorsConfig(env: Record<string, string | undefined>): string | null {
+  const file = env[DOORS_VARIABLE];
+  if (file === undefined || file === "") return null;
+  if (!isAbsolute(file)) throw new ConfigInvalide(`${DOORS_VARIABLE} vaut « ${file} » — attendu un chemin absolu`);
+  return file;
 }
 
-// Les ports écrits. Absent ou illisible, aucun : une porte qui n'a pas dit son
-// port n'est pas ouverte.
-export function lirePortes(fichier: string): Portes {
-  let lu: unknown;
+// The written ports. Missing or unreadable, none: a door that has not said its
+// port is not open.
+export function readDoors(file: string): Doors {
+  let read: unknown;
   try {
-    lu = JSON.parse(readFileSync(fichier, "utf8"));
+    read = JSON.parse(readFileSync(file, "utf8"));
   } catch {
-    return AUCUNE;
+    return NONE;
   }
-  if (typeof lu !== "object" || lu === null) return AUCUNE;
-  const { station, projets } = lu as { station?: unknown; projets?: unknown };
-  const lus: Record<string, number> = {};
-  if (typeof projets === "object" && projets !== null) for (const [nom, port] of Object.entries(projets)) if (estUnPort(port)) lus[nom] = port;
-  return { station: estUnPort(station) ? station : null, projets: lus };
+  if (typeof read !== "object" || read === null) return NONE;
+  const { station, projets } = read as { station?: unknown; projets?: unknown };
+  const ports: Record<string, number> = {};
+  if (typeof projets === "object" && projets !== null) for (const [name, port] of Object.entries(projets)) if (isPort(port)) ports[name] = port;
+  return { station: isPort(station) ? station : null, projects: ports };
 }
 
-export function ecrirePortes(fichier: string, portes: Portes, proprietaire?: { uid: number; gid: number }): void {
-  mkdirSync(dirname(fichier), { recursive: true });
-  const provisoire = `${fichier}.${process.pid}`;
-  writeFileSync(provisoire, `${JSON.stringify(portes)}\n`, { mode: 0o644 });
-  // La bascule l'écrit sous root ; les portes le réécriront sous le compte.
-  if (proprietaire) chownSync(provisoire, proprietaire.uid, proprietaire.gid);
-  renameSync(provisoire, fichier);
+export function writeDoors(file: string, doors: Doors, owner?: { uid: number; gid: number }): void {
+  mkdirSync(dirname(file), { recursive: true });
+  const temporary = `${file}.${process.pid}`;
+  writeFileSync(temporary, `${JSON.stringify({ station: doors.station, projets: doors.projects })}\n`, { mode: 0o644 });
+  // The switchover writes it as root; the doors will rewrite it as the account.
+  if (owner) chownSync(temporary, owner.uid, owner.gid);
+  renameSync(temporary, file);
 }
 
-export type OptionsPortes = {
-  // Le répertoire de la station (`BRIGADE_STATION_DIR`) : sa configuration, et
-  // l'état de chaque projet, où sa porte lit sa liste et écrit ses refus.
-  racine: string;
-  // Le fichier des ports (`BRIGADE_STATION_PORTES`).
-  fichier: string;
-  dire: (ligne: string) => void;
-  // Entre deux relectures de la configuration.
-  relectureMs?: number;
-  ouvrir?: (options: OptionsPorte) => Promise<Porte>;
+export type DoorsOptions = {
+  // The station's directory (`BRIGADE_STATION_DIR`): its configuration, and
+  // each project's state, where its door reads its list and writes its refusals.
+  root: string;
+  // The ports file (`BRIGADE_STATION_PORTES`).
+  file: string;
+  say: (line: string) => void;
+  // Between two rereads of the configuration.
+  rereadMs?: number;
+  open?: (options: OptionsPorte) => Promise<Porte>;
 };
 
-export type PortesTenues = {
-  // Relit la configuration, ouvre la porte d'un projet ajouté, ferme celle
-  // d'un projet retiré.
-  relire(): Promise<void>;
-  ports(): Portes;
-  // Ferme toutes les portes.
-  arreter(): Promise<void>;
+export type HeldDoors = {
+  // Rereads the configuration, opens the door of an added project, closes
+  // that of a removed project.
+  reread(): Promise<void>;
+  ports(): Doors;
+  // Closes every door.
+  stop(): Promise<void>;
 };
 
-const RELECTURE_MS = 2000;
+const REREAD_MS = 2000;
 
-const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
-const auNomDe = (projet: string, ligne: string) => `brigade [${projet}] : ${ligne.replace(/^brigade : /, "")}`;
+const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const onBehalfOf = (project: string, line: string) => `brigade [${project}] : ${line.replace(/^brigade : /, "")}`;
 
-// Ouvre les portes de la station et les tient : la sienne, puis celle de
-// chaque projet de sa configuration. Rend quand la première relecture est
-// faite, ses ports écrits.
-export async function tenirPortes(options: OptionsPortes): Promise<PortesTenues> {
-  const { racine, fichier, dire } = options;
-  const ouvrir = options.ouvrir ?? ouvrirPorte;
-  // Les ports d'avant — ceux de la dernière fois, ou ceux que la bascule a
-  // repris de l'ancienne installation : chaque porte reprend le sien.
-  const avant = lirePortes(fichier);
-  const ouvertes = new Map<string, Porte>();
+// Opens the station's doors and holds them: its own, then that of each project
+// of its configuration. Returns when the first reread is done, its ports
+// written.
+export async function holdDoors(options: DoorsOptions): Promise<HeldDoors> {
+  const { root, file, say } = options;
+  const open = options.open ?? ouvrirPorte;
+  // The previous ports — those of last time, or those the switchover took back
+  // from the previous installation: each door takes back its own.
+  const before = readDoors(file);
+  const opened = new Map<string, Porte>();
   let station: Porte | null = null;
-  let arretee = false;
-  // Les échecs déjà dits : une porte qui ne s'ouvre pas ne se répète pas à
-  // chaque relecture.
-  const dits = new Map<string, string>();
+  let stopped = false;
+  // The failures already said: a door that does not open is not repeated at
+  // every reread.
+  const said = new Map<string, string>();
 
-  const ouvrirSur = async (nom: string, voulu: number | null, regles: OptionsPorte["regles"], surRefus: OptionsPorte["surRefus"], dit: (ligne: string) => void): Promise<Porte> => {
-    if (voulu !== null) {
+  const openOn = async (name: string, wanted: number | null, rules: OptionsPorte["regles"], onRefusal: OptionsPorte["surRefus"], tell: (line: string) => void): Promise<Porte> => {
+    if (wanted !== null) {
       try {
-        return await ouvrir({ port: voulu, projet: nom, regles, surRefus });
-      } catch (erreur) {
-        const code = (erreur as NodeJS.ErrnoException).code;
-        if (code !== "EADDRINUSE" && code !== "EACCES") throw erreur;
-        dit(`le port ${voulu} de sa porte est pris (${code}) : elle en prend un autre`);
+        return await open({ port: wanted, projet: name, regles: rules, surRefus: onRefusal });
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== "EADDRINUSE" && code !== "EACCES") throw error;
+        tell(`le port ${wanted} de sa porte est pris (${code}) : elle en prend un autre`);
       }
     }
-    return ouvrir({ port: 0, projet: nom, regles, surRefus });
+    return open({ port: 0, projet: name, regles: rules, surRefus: onRefusal });
   };
 
-  const ports = (): Portes => ({
+  const ports = (): Doors => ({
     station: station?.port ?? null,
-    projets: Object.fromEntries([...ouvertes].sort(([a], [b]) => a.localeCompare(b)).map(([nom, porte]) => [nom, porte.port])),
+    projects: Object.fromEntries([...opened].sort(([a], [b]) => a.localeCompare(b)).map(([name, door]) => [name, door.port])),
   });
 
-  const unTour = async () => {
-    if (arretee) return;
-    let change = false;
+  const oneRound = async () => {
+    if (stopped) return;
+    let changed = false;
     if (station === null) {
-      const surRefus = compterLesRefus((refus) =>
-        dire(`brigade : sortie de la station refusée — ${refus.host === AUTRES_HOTES ? "d'autres hôtes encore" : `${refus.host}:${refus.port}`}${refus.count > 1 ? ` (${refus.count} tentatives)` : ""}`),
+      const onRefusal = compterLesRefus((refusal) =>
+        say(`brigade : sortie de la station refusée — ${refusal.host === AUTRES_HOTES ? "d'autres hôtes encore" : `${refusal.host}:${refusal.port}`}${refusal.count > 1 ? ` (${refusal.count} tentatives)` : ""}`),
       );
-      station = await ouvrirSur("la station", avant.station, () => REGLES_DE_BASE, surRefus, dire);
-      change = true;
-      dire(`brigade : porte de la station ouverte — 127.0.0.1:${station.port} (Anthropic et GitHub seulement)`);
+      station = await openOn("la station", before.station, () => REGLES_DE_BASE, onRefusal, say);
+      changed = true;
+      say(`brigade : porte de la station ouverte — 127.0.0.1:${station.port} (Anthropic et GitHub seulement)`);
     }
-    const { projets } = lireFichierDeConfiguration(join(racine, CONFIGURATION));
-    const voulus = new Set(projets.map((projet) => projet.nom));
-    for (const [nom, porte] of [...ouvertes]) {
-      if (voulus.has(nom)) continue;
-      ouvertes.delete(nom);
-      await porte.fermer();
-      change = true;
-      dire(auNomDe(nom, "retiré de la configuration : sa porte est fermée"));
+    const { projects } = readConfigurationFile(join(root, CONFIGURATION));
+    const wanted = new Set(projects.map((project) => project.name));
+    for (const [name, door] of [...opened]) {
+      if (wanted.has(name)) continue;
+      opened.delete(name);
+      await door.fermer();
+      changed = true;
+      say(onBehalfOf(name, "retiré de la configuration : sa porte est fermée"));
     }
-    for (const nom of [...dits.keys()]) if (!voulus.has(nom)) dits.delete(nom);
-    for (const { nom } of projets) {
-      if (ouvertes.has(nom) || arretee) continue;
-      const dit = (ligne: string) => dire(auNomDe(nom, ligne));
-      const etat = join(racine, ETATS, nom);
+    for (const name of [...said.keys()]) if (!wanted.has(name)) said.delete(name);
+    for (const { name } of projects) {
+      if (opened.has(name) || stopped) continue;
+      const tell = (line: string) => say(onBehalfOf(name, line));
+      const state = join(root, STATES, name);
       try {
-        const porte = await ouvrirSur(nom, avant.projets[nom] ?? null, listeDuJournal(etat, { avertir: dit }), refusAuJournal(etat, nom, { dire: dit }), dit);
-        ouvertes.set(nom, porte);
-        dits.delete(nom);
-        change = true;
-        dit(`porte ouverte — 127.0.0.1:${porte.port}, liste blanche lue dans ${etat}`);
-      } catch (erreur) {
-        const pourquoi = message(erreur);
-        if (dits.get(nom) !== pourquoi) dit(`sa porte ne s'ouvre pas, ses cooks ne partiront pas — ${pourquoi}`);
-        dits.set(nom, pourquoi);
+        const door = await openOn(name, before.projects[name] ?? null, listeDuJournal(state, { avertir: tell }), refusAuJournal(state, name, { dire: tell }), tell);
+        opened.set(name, door);
+        said.delete(name);
+        changed = true;
+        tell(`porte ouverte — 127.0.0.1:${door.port}, liste blanche lue dans ${state}`);
+      } catch (error) {
+        const why = messageOf(error);
+        if (said.get(name) !== why) tell(`sa porte ne s'ouvre pas, ses cooks ne partiront pas — ${why}`);
+        said.set(name, why);
       }
     }
-    if (change && !arretee) ecrirePortes(fichier, ports());
+    if (changed && !stopped) writeDoors(file, ports());
   };
 
-  // Un tour à la fois : deux relectures qui se chevauchent ouvriraient deux
-  // portes au même projet.
-  let file: Promise<void> = Promise.resolve();
-  const relire = () => {
-    file = file.then(unTour).catch((erreur) => dire(`brigade : portes de la station — relecture en échec : ${message(erreur)}`));
-    return file;
+  // One round at a time: two overlapping rereads would open two doors for the
+  // same project.
+  let queue: Promise<void> = Promise.resolve();
+  const reread = () => {
+    queue = queue.then(oneRound).catch((error) => say(`brigade : portes de la station — relecture en échec : ${messageOf(error)}`));
+    return queue;
   };
 
-  await file.then(unTour);
-  const veille = setInterval(() => void relire(), options.relectureMs ?? RELECTURE_MS);
+  await queue.then(oneRound);
+  const watch = setInterval(() => void reread(), options.rereadMs ?? REREAD_MS);
 
   return {
-    relire,
+    reread,
     ports,
-    async arreter() {
-      if (arretee) return;
-      arretee = true;
-      clearInterval(veille);
-      await file;
-      const toutes = [...ouvertes.values(), ...(station ? [station] : [])];
-      ouvertes.clear();
+    async stop() {
+      if (stopped) return;
+      stopped = true;
+      clearInterval(watch);
+      await queue;
+      const all = [...opened.values(), ...(station ? [station] : [])];
+      opened.clear();
       station = null;
-      await Promise.all(toutes.map((porte) => porte.fermer()));
+      await Promise.all(all.map((door) => door.fermer()));
     },
   };
 }
 
-// La porte de la station, attendue : elle ne joint rien sans elle. Rend son
-// port dès que le fichier le porte.
-export async function attendrePorteDeLaStation(fichier: string, options: { dire: (ligne: string) => void; pasMs?: number; patienceMs?: number }): Promise<number> {
-  const pas = options.pasMs ?? 200;
-  const debut = Date.now();
-  let dit = false;
+// The station's door, awaited: it reaches nothing without it. Returns its
+// port as soon as the file carries it.
+export async function awaitStationDoor(file: string, options: { say: (line: string) => void; stepMs?: number; patienceMs?: number }): Promise<number> {
+  const step = options.stepMs ?? 200;
+  const start = Date.now();
+  let said = false;
   for (;;) {
-    const { station } = lirePortes(fichier);
+    const { station } = readDoors(file);
     if (station !== null) return station;
-    if (!dit && Date.now() - debut >= (options.patienceMs ?? 3000)) {
-      options.dire(`brigade : la station attend sa porte — ${UNITE_DES_PORTES} n'a pas encore écrit son port dans ${fichier} (journalctl -u ${UNITE_DES_PORTES})`);
-      dit = true;
+    if (!said && Date.now() - start >= (options.patienceMs ?? 3000)) {
+      options.say(`brigade : la station attend sa porte — ${DOORS_UNIT} n'a pas encore écrit son port dans ${file} (journalctl -u ${DOORS_UNIT})`);
+      said = true;
     }
-    await new Promise((resoudre) => setTimeout(resoudre, pas));
+    await new Promise((resolve) => setTimeout(resolve, step));
   }
 }

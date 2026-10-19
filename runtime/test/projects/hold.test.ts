@@ -83,7 +83,7 @@ function uneStation(t: TestContext, options: { appairee?: boolean } = {}) {
     ouvrirLaPreparation: async (projet, repertoireEtat, clone) => {
       if (preparation !== null) throw preparation;
       preparations.push(`${projet.depot} ${projet.base} → ${repertoireEtat} ${clone}`);
-      return { ticket: 7, ouvert: preparations.length === 1 };
+      return { ticket: 7, opened: preparations.length === 1 };
     },
   });
   aArreter(t, () => projets.arreter());

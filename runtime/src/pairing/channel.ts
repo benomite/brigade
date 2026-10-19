@@ -1,92 +1,92 @@
-// Le seul canal de la station vers l'app : un gist secret du compte GitHub de
-// la machine, lu et écrit par `gh api` — celui de la machine, qui
-// s'authentifie seul. La station n'ouvre aucun port et ne joint aucune autre
-// machine : ce qu'elle a à dire, elle l'écrit là.
+// The station's only channel to the app: a secret gist of the machine's GitHub
+// account, read and written by `gh api` — the machine's own, which
+// authenticates by itself. The station opens no port and reaches no other
+// machine: what it has to say, it writes there.
 import { execFile } from "node:child_process";
 import { decouper } from "../github.ts";
 import { constaterLimite, limiteDuProcess, refusPourLimite, type Limite, type ReponseHttp } from "../limite-github.ts";
 
-export type Fichiers = Record<string, string>;
+export type Files = Record<string, string>;
 
-export type Canal = {
-  // Un gist secret neuf : rend son identifiant.
-  creer(description: string, fichiers: Fichiers): Promise<string>;
-  // Réécrit ces fichiers du gist, sans toucher aux autres. `absent` : le gist
-  // n'existe plus — le chef l'a supprimé.
-  ecrire(id: string, fichiers: Fichiers): Promise<"ecrit" | "absent">;
-  // Les fichiers du gist, ou null s'il n'existe plus.
-  lire(id: string): Promise<Fichiers | null>;
+export type Channel = {
+  // A new secret gist: returns its identifier.
+  create(description: string, files: Files): Promise<string>;
+  // Rewrites these files of the gist, without touching the others. `missing`:
+  // the gist no longer exists — the chief deleted it.
+  write(id: string, files: Files): Promise<"written" | "missing">;
+  // The gist's files, or null if it no longer exists.
+  read(id: string): Promise<Files | null>;
 };
 
-// `limite` : le budget d'appels que prend chaque `gh api` — par défaut, celui
-// du process (`limite-github.ts`).
-export type OptionsCanal = { gh: string; delaiMs?: number; limite?: Limite; maintenant?: () => number };
+// `limite`: the budget of calls that each `gh api` takes — by default, the
+// process's (`limite-github.ts`).
+export type ChannelOptions = { gh: string; timeoutMs?: number; limite?: Limite; now?: () => number };
 
-// `gh` sort en erreur sur toute réponse qui n'est pas un succès, et le dit sur
-// sa sortie d'erreur : « gh: Not Found (HTTP 404) ».
-const ABSENT = /\(HTTP 404\)/;
+// `gh` exits with an error on any response that is not a success, and says so
+// on its error output: « gh: Not Found (HTTP 404) ».
+const MISSING = /\(HTTP 404\)/;
 
-class Absent extends Error {}
+class Missing extends Error {}
 
-export function canalGitHub(options: OptionsCanal): Canal {
+export function gitHubChannel(options: ChannelOptions): Channel {
   const env = { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" };
-  const appeler = (args: string[], entree?: unknown): Promise<string> =>
-    new Promise((resoudre, rejeter) => {
-      // Au-delà du budget, l'appel ne part pas.
+  const call = (args: string[], input?: unknown): Promise<string> =>
+    new Promise((resolve, reject) => {
+      // Beyond the budget, the call does not go out.
       const limite = options.limite ?? limiteDuProcess();
       try {
         limite.prendre();
-      } catch (erreur) {
-        return rejeter(erreur);
+      } catch (error) {
+        return reject(error);
       }
-      const enfant = execFile(
+      const child = execFile(
         options.gh,
-        // `-i` : les en-têtes disent, à une limite atteinte, quand la fenêtre se ferme.
+        // `-i`: the headers say, when a limit is hit, when the window closes.
         ["api", "-i", ...args],
-        { timeout: options.delaiMs ?? 30_000, maxBuffer: 16 * 1024 * 1024, env },
-        (erreur, sortie, erreurs) => {
-          const reponse = decouper(sortie);
-          if (erreur === null) return resoudre(reponse?.corps ?? sortie);
-          // Sans en-têtes lisibles, le statut de la sortie d'erreur de `gh` suffit à reconnaître la limite.
-          const statut = reponse?.statut ?? Number(/\(HTTP (\d{3})\)/.exec(erreurs)?.[1] ?? 0);
-          const refus: ReponseHttp = { statut, entetes: reponse?.entetes ?? new Map(), corps: reponse?.corps || erreurs };
-          if (refusPourLimite(refus)) return void constaterLimite(limite, refus, { gh: options.gh, env, maintenant: options.maintenant }).then(rejeter, rejeter);
-          if (ABSENT.test(erreurs)) return rejeter(new Absent());
-          const dit = erreurs.trim().split("\n").at(-1) ?? "";
-          rejeter(new Error(`gh api ${args.filter((arg) => arg.startsWith("/")).join(" ")} : ${dit || erreur.message}`));
+        { timeout: options.timeoutMs ?? 30_000, maxBuffer: 16 * 1024 * 1024, env },
+        (error, stdout, stderr) => {
+          const response = decouper(stdout);
+          if (error === null) return resolve(response?.corps ?? stdout);
+          // Without readable headers, the status on `gh`'s error output is enough to recognize the limit.
+          const status = response?.statut ?? Number(/\(HTTP (\d{3})\)/.exec(stderr)?.[1] ?? 0);
+          const refusal: ReponseHttp = { statut: status, entetes: response?.entetes ?? new Map(), corps: response?.corps || stderr };
+          if (refusPourLimite(refusal)) return void constaterLimite(limite, refusal, { gh: options.gh, env, maintenant: options.now }).then(reject, reject);
+          if (MISSING.test(stderr)) return reject(new Missing());
+          const said = stderr.trim().split("\n").at(-1) ?? "";
+          reject(new Error(`gh api ${args.filter((arg) => arg.startsWith("/")).join(" ")} : ${said || error.message}`));
         },
       );
-      // Un `gh` absent ferme son entrée avant qu'on y écrive : l'erreur est celle de son lancement.
-      enfant.stdin?.on("error", () => {});
-      enfant.stdin?.end(entree === undefined ? "" : JSON.stringify(entree));
+      // A missing `gh` closes its input before we write to it: the error is that of its launch.
+      child.stdin?.on("error", () => {});
+      child.stdin?.end(input === undefined ? "" : JSON.stringify(input));
     });
-  const contenus = (fichiers: Fichiers) => Object.fromEntries(Object.entries(fichiers).map(([nom, content]) => [nom, { content }]));
+  const contents = (files: Files) => Object.fromEntries(Object.entries(files).map(([name, content]) => [name, { content }]));
 
   return {
-    async creer(description, fichiers) {
-      const rendu = JSON.parse(await appeler(["-X", "POST", "/gists", "--input", "-"], { description, public: false, files: contenus(fichiers) })) as { id?: unknown };
-      if (typeof rendu.id !== "string" || rendu.id === "") throw new Error("gh api /gists : la création n'a pas rendu d'identifiant");
-      return rendu.id;
+    async create(description, files) {
+      const created = JSON.parse(await call(["-X", "POST", "/gists", "--input", "-"], { description, public: false, files: contents(files) })) as { id?: unknown };
+      if (typeof created.id !== "string" || created.id === "") throw new Error("gh api /gists : la création n'a pas rendu d'identifiant");
+      return created.id;
     },
-    async ecrire(id, fichiers) {
+    async write(id, files) {
       try {
-        await appeler(["-X", "PATCH", `/gists/${encodeURIComponent(id)}`, "--input", "-"], { files: contenus(fichiers) });
-        return "ecrit";
-      } catch (erreur) {
-        if (erreur instanceof Absent) return "absent";
-        throw erreur;
+        await call(["-X", "PATCH", `/gists/${encodeURIComponent(id)}`, "--input", "-"], { files: contents(files) });
+        return "written";
+      } catch (error) {
+        if (error instanceof Missing) return "missing";
+        throw error;
       }
     },
-    async lire(id) {
-      let sortie: string;
+    async read(id) {
+      let stdout: string;
       try {
-        sortie = await appeler([`/gists/${encodeURIComponent(id)}`]);
-      } catch (erreur) {
-        if (erreur instanceof Absent) return null;
-        throw erreur;
+        stdout = await call([`/gists/${encodeURIComponent(id)}`]);
+      } catch (error) {
+        if (error instanceof Missing) return null;
+        throw error;
       }
-      const files = (JSON.parse(sortie) as { files?: Record<string, { content?: unknown } | null> }).files ?? {};
-      return Object.fromEntries(Object.entries(files).flatMap(([nom, fichier]) => (typeof fichier?.content === "string" ? [[nom, fichier.content]] : [])));
+      const files = (JSON.parse(stdout) as { files?: Record<string, { content?: unknown } | null> }).files ?? {};
+      return Object.fromEntries(Object.entries(files).flatMap(([name, file]) => (typeof file?.content === "string" ? [[name, file.content]] : [])));
     },
   };
 }

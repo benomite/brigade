@@ -1,103 +1,103 @@
-// La configuration d'une station : les projets qu'elle sert, une ligne
-// chacun. C'est le seul fichier qu'ajouter ou retirer un projet touche — ni
-// unité, ni drop-in, ni règle du système.
+// A station's configuration: the projects it serves, one line each. It is the
+// only file that adding or removing a project touches — no unit, no drop-in,
+// no system rule.
 //
-// Une ligne : le nom du projet, son dépôt GitHub, sa branche d'intégration,
-// puis, au besoin, des réglages `BRIGADE_…=valeur` propres à ce projet.
+// One line: the project's name, its GitHub repo, its integration branch, then,
+// if needed, `BRIGADE_…=value` settings specific to that project.
 //
-//   # projet  dépôt              branche  réglages
+//   # project  repo                branch   settings
 //   brigade   benomite/brigade   v2
-//   espace    benomite/espace    main     BRIGADE_SECRETS_FILE=/srv/secrets/espace.env
+//   calculus  benomite/calculus  main     BRIGADE_SECRETS_FILE=/srv/secrets/calculus.env
 //
-// Tout le reste vient de la station : son environnement, que chaque projet
-// hérite, et ses répertoires, où chaque projet a sa place.
+// Everything else comes from the station: its environment, which every project
+// inherits, and its directories, where every project has its place.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DECISIONS } from "../decisions.ts";
 import { NOM_DE_PROJET } from "../runtime.ts";
 
-// Ce que la station porte sous son répertoire (`BRIGADE_STATION_DIR`).
+// What the station carries under its directory (`BRIGADE_STATION_DIR`).
 export const CONFIGURATION = "projets";
-// L'état de chaque projet : son journal, son verrou, ses runs, ses worktrees.
-export const ETATS = "etat";
-// Le clone de chaque projet, quand sa ligne n'en nomme pas un autre.
+// Each project's state: its log, its lock, its runs, its worktrees.
+export const STATES = "etat";
+// Each project's clone, when its line does not name another one.
 export const CLONES = "clones";
 
-export type ProjetConfigure = {
-  nom: string;
-  depot: string;
+export type ConfiguredProject = {
+  name: string;
+  repo: string;
   base: string;
-  // Les réglages propres au projet, tels que sa ligne les écrit.
-  reglages: Record<string, string>;
-  // La ligne, ses blancs ramenés à un : deux lectures qui rendent la même
-  // n'ont rien changé au projet.
-  ligne: string;
+  // The project's own settings, as its line writes them.
+  settings: Record<string, string>;
+  // The line, its whitespace collapsed to one: two reads that return the same
+  // one changed nothing for the project.
+  line: string;
 };
 
-export type Configuration = { projets: ProjetConfigure[]; problemes: string[] };
+export type Configuration = { projects: ConfiguredProject[]; problems: string[] };
 
-const REGLAGE = /^(BRIGADE_[A-Z0-9_]+)=(.*)$/;
+const SETTING = /^(BRIGADE_[A-Z0-9_]+)=(.*)$/;
 
-// Ce qu'une ligne ne règle pas : ses trois premiers champs, et ce que la
-// station tient elle-même.
-const TENUS: Record<string, string> = {
+// What a line does not set: its first three fields, and what the station
+// holds itself.
+const HELD: Record<string, string> = {
   BRIGADE_PROJECT: "c'est le premier champ de la ligne",
   BRIGADE_GITHUB_REPO: "c'est le deuxième champ de la ligne",
   BRIGADE_BASE_BRANCH: "c'est le troisième champ de la ligne",
-  BRIGADE_STATE_DIR: `la station range l'état de chaque projet sous \`${ETATS}/\``,
+  BRIGADE_STATE_DIR: `la station range l'état de chaque projet sous \`${STATES}/\``,
   BRIGADE_STATION_DIR: "c'est le répertoire de la station, pas d'un projet",
 };
 
-// Lit le texte de la configuration. Une ligne illisible n'est que la sienne :
-// elle est dite, et les autres projets sont servis.
-export function lireConfiguration(texte: string): Configuration {
-  const projets: ProjetConfigure[] = [];
-  const problemes: string[] = [];
-  texte.split("\n").forEach((brute, rang) => {
-    const champs = brute.trim().split(/\s+/).filter(Boolean);
-    if (champs.length === 0 || champs[0]?.startsWith("#")) return;
-    const refuser = (pourquoi: string) => void problemes.push(`ligne ${rang + 1} de la configuration (« ${brute.trim().slice(0, 80)} ») : ${pourquoi}`);
-    const [nom = "", depot, base, ...suite] = champs;
-    if (depot === undefined || base === undefined) return refuser("attendu le nom du projet, son dépôt GitHub (<owner>/<repo>) et sa branche d'intégration");
-    if (!NOM_DE_PROJET.test(nom)) return refuser(`nom de projet invalide — attendu un identifiant court en minuscules, chiffres et tirets (brigade, thermigo)`);
-    if (projets.some((projet) => projet.nom === nom)) return refuser(`le projet « ${nom} » a déjà sa ligne`);
-    const reglages: Record<string, string> = {};
-    for (const champ of suite) {
-      const [, cle, valeur] = REGLAGE.exec(champ) ?? [];
-      if (cle === undefined || valeur === undefined) return refuser(`« ${champ.slice(0, 40)} » n'est pas un réglage — attendu BRIGADE_…=valeur`);
-      if (cle in TENUS) return refuser(`${cle} ne se règle pas sur la ligne : ${TENUS[cle]}`);
-      if ((DECISIONS as readonly string[]).includes(cle)) return refuser(`${cle} est une décision du chef : elle vit au journal du projet, pas dans la configuration`);
-      if (cle in reglages) return refuser(`${cle} est réglé deux fois`);
-      reglages[cle] = valeur;
+// Reads the configuration text. An unreadable line only affects itself: it is
+// reported, and the other projects are served.
+export function readConfiguration(text: string): Configuration {
+  const projects: ConfiguredProject[] = [];
+  const problems: string[] = [];
+  text.split("\n").forEach((raw, index) => {
+    const fields = raw.trim().split(/\s+/).filter(Boolean);
+    if (fields.length === 0 || fields[0]?.startsWith("#")) return;
+    const refuse = (why: string) => void problems.push(`ligne ${index + 1} de la configuration (« ${raw.trim().slice(0, 80)} ») : ${why}`);
+    const [name = "", repo, base, ...rest] = fields;
+    if (repo === undefined || base === undefined) return refuse("attendu le nom du projet, son dépôt GitHub (<owner>/<repo>) et sa branche d'intégration");
+    if (!NOM_DE_PROJET.test(name)) return refuse(`nom de projet invalide — attendu un identifiant court en minuscules, chiffres et tirets (brigade, thermigo)`);
+    if (projects.some((project) => project.name === name)) return refuse(`le projet « ${name} » a déjà sa ligne`);
+    const settings: Record<string, string> = {};
+    for (const field of rest) {
+      const [, key, value] = SETTING.exec(field) ?? [];
+      if (key === undefined || value === undefined) return refuse(`« ${field.slice(0, 40)} » n'est pas un réglage — attendu BRIGADE_…=valeur`);
+      if (key in HELD) return refuse(`${key} ne se règle pas sur la ligne : ${HELD[key]}`);
+      if ((DECISIONS as readonly string[]).includes(key)) return refuse(`${key} est une décision du chef : elle vit au journal du projet, pas dans la configuration`);
+      if (key in settings) return refuse(`${key} est réglé deux fois`);
+      settings[key] = value;
     }
-    projets.push({ nom, depot, base, reglages, ligne: champs.join(" ") });
+    projects.push({ name, repo, base, settings, line: fields.join(" ") });
   });
-  return { projets, problemes };
+  return { projects, problems };
 }
 
-// Lit le fichier de configuration. Absent, la station ne sert aucun projet :
-// elle est installée, ses projets viendront.
-export function lireFichierDeConfiguration(fichier: string): Configuration {
-  let texte: string;
+// Reads the configuration file. Missing, the station serves no project: it is
+// installed, its projects will come.
+export function readConfigurationFile(file: string): Configuration {
+  let text: string;
   try {
-    texte = readFileSync(fichier, "utf8");
-  } catch (erreur) {
-    if ((erreur as NodeJS.ErrnoException).code === "ENOENT") return { projets: [], problemes: [] };
-    return { projets: [], problemes: [`configuration illisible (${fichier}) — ${erreur instanceof Error ? erreur.message : String(erreur)}`] };
+    text = readFileSync(file, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { projects: [], problems: [] };
+    return { projects: [], problems: [`configuration illisible (${file}) — ${error instanceof Error ? error.message : String(error)}`] };
   }
-  return lireConfiguration(texte);
+  return readConfiguration(text);
 }
 
-// L'environnement d'un projet : celui de la station, ses lieux, puis les
-// réglages de sa ligne. C'est celui qu'un runtime de projet lisait seul.
-export function environnementDuProjet(racine: string, projet: ProjetConfigure, env: Record<string, string | undefined>): Record<string, string | undefined> {
+// A project's environment: the station's, its locations, then the settings of
+// its line. It is the one a project runtime used to read on its own.
+export function projectEnvironment(root: string, project: ConfiguredProject, env: Record<string, string | undefined>): Record<string, string | undefined> {
   return {
     ...env,
-    BRIGADE_REPO_DIR: join(racine, CLONES, projet.nom),
-    ...projet.reglages,
-    BRIGADE_PROJECT: projet.nom,
-    BRIGADE_GITHUB_REPO: projet.depot,
-    BRIGADE_BASE_BRANCH: projet.base,
-    BRIGADE_STATE_DIR: join(racine, ETATS, projet.nom),
+    BRIGADE_REPO_DIR: join(root, CLONES, project.name),
+    ...project.settings,
+    BRIGADE_PROJECT: project.name,
+    BRIGADE_GITHUB_REPO: project.repo,
+    BRIGADE_BASE_BRANCH: project.base,
+    BRIGADE_STATE_DIR: join(root, STATES, project.name),
   };
 }

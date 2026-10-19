@@ -1,108 +1,109 @@
-// Ce que la station fait d'un projet que l'app lui demande, avant de lui écrire
-// sa ligne : vérifier que ses Apps GitHub sont autorisées sur le dépôt, le
-// cloner à sa place, et poser au journal du projet les décisions que le chef a
-// prises dans le parcours. Rien de cela ne demande de commande au chef.
+// What the station does with a project the app asks for, before writing its
+// line: check that its GitHub Apps are authorized on the repo, clone it in its
+// place, and record in the project's log the decisions the chef made in the
+// walkthrough. None of this asks the chef for a command.
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { decisionsPosees, poserDecision } from "../decisions.ts";
 import { configIdentites, ouvrirIdentites, ROLES } from "../identites.ts";
 import { ouvrirJournal } from "../journal.ts";
-import type { ProjetDemande } from "./request.ts";
+import type { RequestedProject } from "./request.ts";
 
-// Ce que la station déclare de son moteur : `claude` code et raisonne
+// What the station declares about its engine: `claude` codes and reasons
 // (`declarer-stations.ts`).
-export const FOURNIT = "code+raisonnement";
+export const PROVIDES = "code+raisonnement";
 
-// La page GitHub où le chef installe une App sur ses dépôts, en un clic.
-export const pageDInstallation = (slug: string) => `https://github.com/apps/${encodeURIComponent(slug)}/installations/new`;
+// The GitHub page where the chef installs an App on their repos, in one click.
+export const installationPage = (slug: string) => `https://github.com/apps/${encodeURIComponent(slug)}/installations/new`;
 
-// Ce que GitHub dit des Apps de la station sur ce dépôt.
-export type Autorisation = { autorisee: true } | { autorisee: false; pages: string[] } | { panne: string };
+// What GitHub says about the station's Apps on this repo.
+export type Authorization = { authorized: true } | { authorized: false; pages: string[] } | { outage: string };
 
-const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
+const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-// Sans Apps (`BRIGADE_GITHUB_APPS_DIR`), la station agit sous le compte de son
-// `gh`, celui du chef : rien à autoriser. Avec, chaque rôle doit avoir son App
-// installée sur le dépôt — sinon, la page où l'installer.
-export async function verifierAutorisation(env: Record<string, string | undefined>, depot: string): Promise<Autorisation> {
+// Without Apps (`BRIGADE_GITHUB_APPS_DIR`), the station acts under the account
+// of its `gh`, the chef's: nothing to authorize. With them, each role must have
+// its App installed on the repo — otherwise, the page to install it.
+export async function checkAuthorization(env: Record<string, string | undefined>, repo: string): Promise<Authorization> {
   let apps;
   try {
     apps = configIdentites(env);
-  } catch (erreur) {
-    return { panne: message(erreur) };
+  } catch (error) {
+    return { outage: message(error) };
   }
-  if (apps === null) return { autorisee: true };
-  const identites = ouvrirIdentites({ ...apps, depot, avertir: () => {} });
+  if (apps === null) return { authorized: true };
+  const identities = ouvrirIdentites({ ...apps, depot: repo, avertir: () => {} });
   try {
     const pages: string[] = [];
     for (const role of ROLES) {
       try {
-        await identites.jeton(role).frais();
-      } catch (erreur) {
-        if (!/n'est pas installée sur/.test(message(erreur))) return { panne: message(erreur) };
-        pages.push(pageDInstallation((await identites.login(role)).replace(/\[bot\]$/, "")));
+        await identities.jeton(role).frais();
+      } catch (error) {
+        if (!/n'est pas installée sur/.test(message(error))) return { outage: message(error) };
+        pages.push(installationPage((await identities.login(role)).replace(/\[bot\]$/, "")));
       }
     }
-    return pages.length === 0 ? { autorisee: true } : { autorisee: false, pages: [...new Set(pages)] };
-  } catch (erreur) {
-    return { panne: message(erreur) };
+    return pages.length === 0 ? { authorized: true } : { authorized: false, pages: [...new Set(pages)] };
+  } catch (error) {
+    return { outage: message(error) };
   } finally {
-    identites.fermer();
+    identities.fermer();
   }
 }
 
-// Clone le dépôt à sa place, par le `gh` de la machine — qui s'authentifie
-// seul. Un clone interrompu ne laisse rien à sa place : il se fait à côté.
-export function cloner(options: { gh: string; depot: string; clone: string; delaiMs?: number }): Promise<void> {
+// Clones the repo in its place, through the machine's `gh` — which
+// authenticates on its own. An interrupted clone leaves nothing in place: it is
+// made on the side.
+export function cloneRepo(options: { gh: string; depot: string; clone: string; timeoutMs?: number }): Promise<void> {
   const { gh, depot, clone } = options;
   if (existsSync(join(clone, ".git"))) return Promise.resolve();
-  const aCote = `${clone}.clonage`;
-  rmSync(aCote, { recursive: true, force: true });
+  const aside = `${clone}.clonage`;
+  rmSync(aside, { recursive: true, force: true });
   mkdirSync(dirname(clone), { recursive: true });
-  return new Promise((resoudre, rejeter) => {
-    execFile(gh, ["repo", "clone", depot, aCote, "--", "--quiet"], { timeout: options.delaiMs ?? 15 * 60_000, env: { ...process.env, GH_PROMPT_DISABLED: "1", GIT_TERMINAL_PROMPT: "0", NO_COLOR: "1" } }, (erreur, _, erreurs) => {
-      if (erreur !== null) {
-        rmSync(aCote, { recursive: true, force: true });
-        return rejeter(new Error(`clone de ${depot} en échec — ${erreurs.trim().split("\n").at(-1) || erreur.message}`));
+  return new Promise((resolve, reject) => {
+    execFile(gh, ["repo", "clone", depot, aside, "--", "--quiet"], { timeout: options.timeoutMs ?? 15 * 60_000, env: { ...process.env, GH_PROMPT_DISABLED: "1", GIT_TERMINAL_PROMPT: "0", NO_COLOR: "1" } }, (error, _, stderr) => {
+      if (error !== null) {
+        rmSync(aside, { recursive: true, force: true });
+        return reject(new Error(`clone de ${depot} en échec — ${stderr.trim().split("\n").at(-1) || error.message}`));
       }
       try {
-        renameSync(aCote, clone);
-        resoudre();
-      } catch (erreur) {
-        rejeter(erreur instanceof Error ? erreur : new Error(String(erreur)));
+        renameSync(aside, clone);
+        resolve();
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error(String(error)));
       }
     });
   });
 }
 
-// Le nom de la station, tel qu'une station déclarée le porte : minuscules,
-// chiffres et tirets (`stations-declarees.ts`).
-export const machineDe = (station: string) => station.toLowerCase().replace(/[^\p{Ll}\p{N}-]+/gu, "-").replace(/^-+|-+$/g, "") || "station";
+// The station name, as a declared station carries it: lowercase letters,
+// digits and dashes (`stations-declarees.ts`).
+export const machineName = (station: string) => station.toLowerCase().replace(/[^\p{Ll}\p{N}-]+/gu, "-").replace(/^-+|-+$/g, "") || "station";
 
-// Les décisions que le chef a prises dans le parcours, telles que le runtime
-// les lit : la station déclarée — celle-ci —, le calibrage du manager et du
+// The decisions the chef made in the walkthrough, as the runtime reads them:
+// the declared station — this one —, the calibration of the manager and of the
 // reviewer.
-export function decisionsDe(projet: ProjetDemande, station: string): Record<string, string> {
+export function decisionsFor(project: RequestedProject, station: string): Record<string, string> {
   return {
-    BRIGADE_STATIONS: `${machineDe(station)}/claude:${projet.cooks}:${FOURNIT}`,
-    BRIGADE_MANAGER_MODEL: projet.manager.modele,
-    BRIGADE_MANAGER_EFFORT: projet.manager.effort,
-    BRIGADE_REVIEWER_MODEL: projet.reviewer.modele,
-    BRIGADE_REVIEWER_EFFORT: projet.reviewer.effort,
+    BRIGADE_STATIONS: `${machineName(station)}/claude:${project.cooks}:${PROVIDES}`,
+    BRIGADE_MANAGER_MODEL: project.manager.modele,
+    BRIGADE_MANAGER_EFFORT: project.manager.effort,
+    BRIGADE_REVIEWER_MODEL: project.reviewer.modele,
+    BRIGADE_REVIEWER_EFFORT: project.reviewer.effort,
   };
 }
 
-// Pose au journal du projet celles qui n'y sont pas encore : une décision que
-// le chef a changée depuis n'est pas écrasée par celle du parcours. Rend les
-// noms posés.
-export function poserLesDecisions(repertoireEtat: string, projet: string, decisions: Record<string, string>): string[] {
-  mkdirSync(repertoireEtat, { recursive: true });
-  const journal = ouvrirJournal(repertoireEtat);
+// Records in the project's log those that are not there yet: a decision the
+// chef has since changed is not overwritten by the walkthrough's. Returns the
+// names recorded.
+export function recordDecisions(stateDir: string, project: string, decisions: Record<string, string>): string[] {
+  mkdirSync(stateDir, { recursive: true });
+  const log = ouvrirJournal(stateDir);
   try {
-    const posees = decisionsPosees(journal.base);
-    return Object.entries(decisions).flatMap(([nom, valeur]) => (nom in posees ? [] : poserDecision(journal, { projet, nom, valeur, auteur: "chef" }) === null ? [] : [nom]));
+    const recorded = decisionsPosees(log.base);
+    return Object.entries(decisions).flatMap(([name, value]) => (name in recorded ? [] : poserDecision(log, { projet: project, nom: name, valeur: value, auteur: "chef" }) === null ? [] : [name]));
   } finally {
-    journal.fermer();
+    log.fermer();
   }
 }

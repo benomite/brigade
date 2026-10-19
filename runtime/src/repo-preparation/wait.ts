@@ -1,54 +1,55 @@
-// La cuisine d'un projet dont la station a ouvert le ticket de préparation du
-// dépôt : tant qu'il n'est pas servi, il est le seul à pouvoir partir — aucun
-// autre ticket ne se cuirait sans gates qui le jugent, ni setup qui prépare
-// son worktree. Servi, le rail est rendu entier, sans geste du chef.
+// The kitchen of a project whose preparation ticket the station opened: as
+// long as it is not served, it is the only one that can leave — no other
+// ticket would be cooked without gates to judge it, nor a setup to prepare
+// its worktree. Served, the rail is handed back whole, without the chef lifting
+// a finger.
 //
-// C'est le rail que lisent les stations, d'ici comme distantes, qui est
-// retenu : la même restriction que celle d'une base rouge, qui ne laisse
-// partir que sa réparation (`seul`). Une réparation en cours passe devant.
+// It is the rail the stations read, local and remote alike, that is held
+// back: the same restriction as a red base, which lets only its repair leave
+// (`seul`). A repair in progress goes first.
 import type { RuntimeAvecRail } from "../alimenter.ts";
 import { sortDuTicket } from "../projections/rail.ts";
 import type { Rail } from "../rail.ts";
-import { lirePreparation } from "./open.ts";
+import { readPreparation } from "./open.ts";
 
-// Les départs du rail qui libèrent la cuisine sans service : l'issue fermée par
-// le chef — il renonce à la préparation, ou l'a mergée à la main —, ou
-// disparue. Un label `fire` retiré, lui, ne fait que la suspendre : le rail
-// reste retenu.
-const LIBERENT = ["closed", "gone"];
+// The rail departures that free the kitchen without it being served: the
+// issue closed by the chef — he gives up on the preparation, or merged it by
+// hand —, or gone. A removed `fire` label, on the other hand, only suspends
+// it: the rail stays held back.
+const RELEASING = ["closed", "gone"];
 
-export type OptionsAttente = {
-  repertoireEtat: string;
-  // Une ligne du journal de service de la station.
-  dire: (ligne: string) => void;
+export type WaitOptions = {
+  stateDir: string;
+  // A line of the station's service log.
+  say: (line: string) => void;
 };
 
-export function attendreLaPreparation<R extends RuntimeAvecRail>(runtime: R, options: OptionsAttente): R {
-  const preparation = lirePreparation(options.repertoireEtat);
+export function awaitPreparation<R extends RuntimeAvecRail>(runtime: R, options: WaitOptions): R {
+  const preparation = readPreparation(options.stateDir);
   if (preparation === null) return runtime;
   const { ticket } = preparation;
   const { base } = runtime.journal;
-  // Ce qui a été dit en dernier : un changement se dit une fois, pas à chaque prise.
-  let dit: "retenu" | "libre" | null = null;
-  // Le ticket qui seul peut partir, ou undefined : le rail est entier.
-  const seulAPartir = (): number | undefined => {
-    const sort = sortDuTicket(base, ticket);
-    const libre = sort !== null && (sort.outcome === "served" || LIBERENT.includes(sort.reason ?? ""));
-    if (libre && dit === "retenu") {
-      options.dire(
-        sort.outcome === "served"
+  // What was said last: a change is announced once, not on every take.
+  let said: "held" | "free" | null = null;
+  // The ticket that alone may leave, or undefined: the rail is whole.
+  const onlyToLeave = (): number | undefined => {
+    const fate = sortDuTicket(base, ticket);
+    const free = fate !== null && (fate.outcome === "served" || RELEASING.includes(fate.reason ?? ""));
+    if (free && said === "held") {
+      options.say(
+        fate.outcome === "served"
           ? `brigade : #${ticket} (préparer le dépôt) est servi — le rail démarre`
-          : `brigade : #${ticket} (préparer le dépôt) a quitté le rail sans être servi (${sort.reason}) — le rail n'attend plus`,
+          : `brigade : #${ticket} (préparer le dépôt) a quitté le rail sans être servi (${fate.reason}) — le rail n'attend plus`,
       );
     }
-    if (!libre && dit !== "retenu") options.dire(`brigade : le rail attend #${ticket} (préparer le dépôt) — aucun autre ticket ne part avant son merge`);
-    dit = libre ? "libre" : "retenu";
-    return libre ? undefined : ticket;
+    if (!free && said !== "held") options.say(`brigade : le rail attend #${ticket} (préparer le dépôt) — aucun autre ticket ne part avant son merge`);
+    said = free ? "free" : "held";
+    return free ? undefined : ticket;
   };
   const rail: Rail = {
     ...runtime.rail,
-    prendre: (qui, enCuisine, seul) => runtime.rail.prendre(qui, enCuisine, seul ?? seulAPartir()),
-    servables: (enCuisine, preneuses, seul) => runtime.rail.servables(enCuisine, preneuses, seul ?? seulAPartir()),
+    prendre: (who, inKitchen, only) => runtime.rail.prendre(who, inKitchen, only ?? onlyToLeave()),
+    servables: (inKitchen, takers, only) => runtime.rail.servables(inKitchen, takers, only ?? onlyToLeave()),
   };
   return { ...runtime, rail };
 }

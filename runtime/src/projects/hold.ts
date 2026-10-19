@@ -18,7 +18,7 @@ import { join } from "node:path";
 import { FICHIER_LOCAL } from "../pairing/presence.ts";
 import type { Canal } from "../pairing/channel.ts";
 import { ouvrirGitHub } from "../github.ts";
-import { ouvrirLaPreparation } from "../repo-preparation/open.ts";
+import { openPreparation } from "../repo-preparation/open.ts";
 import { CLONES, CONFIGURATION, ETATS } from "../station/configuration.ts";
 import { lignesDuBloc, nomsHorsDuBloc, reecrireBloc } from "./block.ts";
 import { documentDeSuivi, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, type ProjetDemande, type SuiviDuProjet } from "./request.ts";
@@ -51,7 +51,7 @@ export type OptionsProjets = {
   cloner?: (depot: string, clone: string) => Promise<void>;
   // Ouvre le ticket qui prépare le dépôt, une fois (`repo-preparation/`) ;
   // rend son numéro, et s'il vient d'être ouvert.
-  ouvrirLaPreparation?: (projet: ProjetDemande, repertoireEtat: string, clone: string) => Promise<{ ticket: number; ouvert: boolean }>;
+  ouvrirLaPreparation?: (projet: ProjetDemande, repertoireEtat: string, clone: string) => Promise<{ ticket: number; opened: boolean }>;
 };
 
 export type ProjetsDeLApp = {
@@ -94,7 +94,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     (async (projet: ProjetDemande, repertoireEtat: string, clone: string) => {
       const github = ouvrirGitHub({ depot: projet.depot, bin: gh });
       try {
-        return await ouvrirLaPreparation({ repertoireEtat, projet: projet.nom, depot: projet.depot, base: projet.base, clone, github });
+        return await openPreparation({ stateDir: repertoireEtat, project: projet.nom, repo: projet.depot, base: projet.base, clone, github });
       } finally {
         github.fermer();
       }
@@ -142,8 +142,8 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     // Le premier ticket de sa cuisine, ouvert avant sa ligne : la cuisine qui
     // s'ouvre ensuite n'en laisse partir aucun autre avant lui.
     try {
-      const { ticket, ouvert } = await ouvrirLe(projet, join(racine, ETATS, projet.nom), join(racine, CLONES, projet.nom));
-      if (ouvert) dire(`brigade : station — ${projet.nom} : ticket #${ticket} ouvert sur ${projet.depot} pour préparer le dépôt (gates, setup de worktree, sites autorisés) — le rail n'en sert aucun autre avant son merge`);
+      const { ticket, opened } = await ouvrirLe(projet, join(racine, ETATS, projet.nom), join(racine, CLONES, projet.nom));
+      if (opened) dire(`brigade : station — ${projet.nom} : ticket #${ticket} ouvert sur ${projet.depot} pour préparer le dépôt (gates, setup de worktree, sites autorisés) — le rail n'en sert aucun autre avant son merge`);
     } catch (erreur) {
       const dit = message(erreur);
       direUneFois(`preparation ${projet.nom} ${dit}`, `brigade : station — ${projet.nom} : le ticket qui prépare son dépôt n'est pas ouvert sur GitHub, la station réessaie : ${dit}`);
