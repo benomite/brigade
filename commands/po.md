@@ -72,6 +72,7 @@ Termine cette première réponse par une seule ligne d'offre, puis attends : *«
 
 ## 3. Écris les issues `product`
 
+**Langue.** Tout ce que tu rédiges sur GitHub (issues, tickets, fiches, commentaires) est en **anglais**, avec les mots de `docs/glossary.md` ; le dialogue avec le chef reste en **français**.
 Pour chaque besoin produit, `gh issue create` avec les labels **`product` + `triage`** (et un label de priorité, §4). Remplis **uniquement le quoi produit** :
 
 - **Contexte** — le besoin, le retour utilisateur, la réf. cahier des charges §x ou la spec produit datée.

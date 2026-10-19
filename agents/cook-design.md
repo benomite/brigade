@@ -45,3 +45,5 @@ Chaque règle se vérifie en regardant l'écran. Aucune n'est optionnelle (règl
 ## Vérifier et livrer
 
 Joue les gates du dépôt (`npm --prefix app test`, `npm --prefix app run typecheck`) : aucun test ne lance Electron, la vue reste mince. Mets à jour la doc vivante sous `docs/` si le comportement visible change. Ton compte-rendu dit l'écran changé, ce qu'il faut y regarder, et joint les deux captures.
+
+- **Langue** : tout texte que tu écris sur GitHub (corps de PR, issue `triage`, commentaire) est en anglais, avec les mots de `docs/glossary.md` ; le dialogue avec le chef reste en français. Les signaux normalisés (`prêt #N`, `hors-scope #N`, …) restent tels quels.

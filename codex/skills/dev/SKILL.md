@@ -16,5 +16,6 @@ description: Endosser le rôle de développeur pour implémenter une issue GitHu
    - attendre ou reprendre sur instruction du parent — mais **ne jamais rester inactif pendant un gate** : relire son propre diff, écrire le corps de la PR, synchroniser la doc vivante, comme l'exige le workflow partagé.
 6. En mode autonome, communiquer directement avec l’utilisateur comme prévu par le workflow.
 7. **Gestes prévus et refus du mode auto** : le workflow liste les gestes du rôle (worktree, gates, push de sa branche, PR). Si le bac à sable ou le mode d’approbation refuse l’un d’eux, le dire (au parent, ou à l’utilisateur en mode autonome) en **une phrase** — ce qu’on voulait faire, pourquoi c’est bloqué, le geste à faire (commande à lancer lui-même, ou approbation) —, jamais un refus muet, et jamais le même geste par un autre chemin.
+8. **Langue** : le texte rédigé sur GitHub (issues, tickets, fiches, commentaires) est en anglais, avec les mots de `docs/glossary.md` ; le dialogue avec le chef reste en français.
 
 Ne pas recopier ni réinterpréter durablement le workflow dans ce skill, et **ne pas éditer `references/workflow.md`** : c’est une copie, régénérée par `/brigade:sync`. Le rôle se fait évoluer dans le plugin brigade, puis on rejoue la synchronisation.

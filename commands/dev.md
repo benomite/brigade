@@ -56,6 +56,7 @@ Utilise ces variables pour **toutes** tes commandes (la base est dédiée à ton
 
 ## 4. Pendant (toujours dans `$WT`)
 
+- **Langue** : tout texte que tu écris sur GitHub (issue `triage`, commentaire, PR) est en anglais, avec les mots de `docs/glossary.md` ; le dialogue avec le chef reste en français.
 - Respecte les **skills en boucle** déclarées pour le rôle dev (typiquement TDD) et les conventions du `CLAUDE.md`.
 - Code auto-documenté.
 - **Découverte hors scope** → `gh issue create --label triage` (Contexte brut + ce que tu as rencontré), puis **continue ta tâche**. Signale-le par `hors-scope #$ARGUMENTS : issue triage #M créée`. Tu n'étends jamais ton scope toi-même ; l'orchestrateur qualifiera.
