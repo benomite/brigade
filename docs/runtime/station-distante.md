@@ -209,16 +209,18 @@ la configuration du bac à sable ne tient pas sur ce Mac — /Users/chef/.config
 **La vérification à la main**, sur le Mac, ce que les tests ne peuvent pas faire (ni macOS, ni vrai
 `claude`, ni réseau) : `--settings` rend la configuration d'un `claude` lancé dans un répertoire,
 la liste réseau étant les hôtes donnés ; lancé avec, `claude` doit refuser ce qu'un cook ne fait pas.
+Le répertoire d'essai est sous le compte, comme un worktree de la station : `/tmp` n'est, sous macOS,
+qu'un lien vers `/private/tmp`, et la configuration nomme les chemins tels quels.
 
 ```bash
-mkdir -p /tmp/essai-wt && cd /tmp/essai-wt
-claude -p 'Lance ces commandes une à une avec Bash et rends leur sortie brute : touch ~/brigade-essai ; touch /tmp/essai-wt/ok ; ls ~/.ssh ; cat ~/.claude/.credentials.json ; curl -sS -o /dev/null -w "%{http_code}" https://example.com ; curl -sS -o /dev/null -w "%{http_code}" https://registry.npmjs.org' \
+mkdir -p "$HOME/brigade-essai-wt" && cd "$HOME/brigade-essai-wt"
+claude -p 'Lance ces commandes une à une avec Bash et rends leur sortie brute : touch ~/brigade-essai ; touch ~/brigade-essai-wt/ok ; ls ~/.ssh ; cat ~/.claude/.credentials.json ; curl -sS -o /dev/null -w "%{http_code}" https://example.com ; curl -sS -o /dev/null -w "%{http_code}" https://registry.npmjs.org' \
   --permission-mode dontAsk --setting-sources '' \
-  --settings "$(node <dépôt>/runtime/src/bac-a-sable/verifier.ts --settings /tmp/essai-wt registry.npmjs.org)"
+  --settings "$(node <dépôt>/runtime/src/bac-a-sable/verifier.ts --settings "$HOME/brigade-essai-wt" registry.npmjs.org)"
 ```
 
 Attendu : `touch ~/brigade-essai` échoue (`Operation not permitted`) et le fichier n'existe pas ;
-`/tmp/essai-wt/ok` est créé ; `ls ~/.ssh` et `cat ~/.claude/.credentials.json` échouent
+`~/brigade-essai-wt/ok` est créé ; `ls ~/.ssh` et `cat ~/.claude/.credentials.json` échouent
 (`Operation not permitted`) ; `example.com`, hors de la liste, est refusé (connexion refusée par le
 proxy du bac à sable, aucun code `200`) ; `registry.npmjs.org`, sur la liste, répond `200`.
 
