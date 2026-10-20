@@ -10,6 +10,8 @@ import { CARNET_PATH, readCarnet, type Lesson } from "../carnet/carnet.ts";
 import { DEPOT_GITHUB } from "../etat.ts";
 import type { Journal } from "../journal.ts";
 import { parseDefinition, PROFILS_DIR } from "../profils/definition.ts";
+import { parcoursDesTickets } from "../parcours-des-tickets.ts";
+import { avantApres, type AvantApres } from "./progres.ts";
 import { leconsProvisoires, retrosDuProjet } from "./provisoires.ts";
 
 // Le fait qui dit qu'un cook a reçu des leçons à son lancement : `run` (le cook)
@@ -27,6 +29,8 @@ export type LeconAffichee = {
   tickets: number[];
   // Les cooks qui l'ont reçue.
   cooks: number;
+  // La livraison des tickets pris avant et après sa date.
+  progres: AvantApres;
   // Une promue seulement : sa ligne dans le carnet du projet, sur GitHub.
   url?: string;
 };
@@ -37,6 +41,8 @@ export type ProfilAffiche = {
   // Son carnet : ses leçons, promues ou sorties.
   carnet: Array<{ id: string; texte: string; etat: string }>;
   tickets: number[];
+  // La livraison des tickets pris avant et après son acceptation.
+  progres: AvantApres;
 };
 
 export type Apprentissage = { lecons: LeconAffichee[]; profils: ProfilAffiche[] };
@@ -77,6 +83,7 @@ function ligneDeLaLecon(fichier: string, id: string): number | null {
 
 export function apprentissageDuProjet({ journal, projet, repoDir, depot, branche }: Source): Apprentissage {
   const cooks = cooksParLecon(journal.base, projet);
+  const parcours = parcoursDesTickets(journal.base);
   const retros = retrosDuProjet(journal.base, projet);
   const ticketDe = (ref: string) => {
     const dieze = /^#([1-9]\d*)$/.exec(ref)?.[1];
@@ -90,6 +97,7 @@ export function apprentissageDuProjet({ journal, projet, repoDir, depot, branche
     date: lecon.at.slice(0, 10),
     tickets: unique(lecon.entrees.map((entree) => entree.ticket)),
     cooks: cooks.get(lecon.id) ?? 0,
+    progres: avantApres(parcours, lecon.at.slice(0, 10)),
   }));
 
   const adresse = depot !== undefined && DEPOT_GITHUB.test(depot) && branche ? `https://github.com/${depot}/blob/${branche}/${CARNET_PATH}` : null;
@@ -108,6 +116,7 @@ export function apprentissageDuProjet({ journal, projet, repoDir, depot, branche
               date: lecon.entered,
               tickets: unique(lecon.retros.flatMap((ref) => ticketDe(ref) ?? [])),
               cooks: cooks.get(lecon.id) ?? 0,
+              progres: avantApres(parcours, lecon.entered),
               ...(adresse !== null && ligne !== null ? { url: `${adresse}#L${ligne}` } : {}),
             };
           });
@@ -125,6 +134,7 @@ export function apprentissageDuProjet({ journal, projet, repoDir, depot, branche
             domaine: profil.zone,
             carnet: profil.notebook.lessons.map((lecon) => ({ id: lecon.id, texte: lecon.text, etat: lecon.state })),
             tickets: profil.tickets,
+            progres: avantApres(parcours, profil.accepted),
           }));
 
   return { lecons: [...provisoires, ...promues], profils };
