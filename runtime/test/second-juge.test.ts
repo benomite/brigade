@@ -3,7 +3,7 @@
 // qu'on lit de sa réponse.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { calibrageDuSecondJuge, consigneDuSecondJuge, lireSecondJugement } from "../src/second-juge.ts";
+import { calibrageDuSecondJuge, carteDuSecondJuge, consigneDuSecondJuge, lireSecondJugement } from "../src/second-juge.ts";
 
 test("le second juge est plus fort que le reviewer : opus, un cran d'effort au-dessus — et personne n'est au-dessus d'un reviewer en opus / max", () => {
   assert.deepEqual(calibrageDuSecondJuge({ model: "haiku", effort: "medium" }), { model: "opus", effort: "high" });
@@ -58,4 +58,29 @@ test("sa réponse se lit en l'un des trois verdicts, avec sa raison ; le reste e
   assert.deepEqual(lireSecondJugement("Ça me va."), { illisible: "aucun objet JSON dans la réponse" });
   assert.deepEqual(lireSecondJugement('{"verdict":"vert","raison":"ok"}'), { illisible: 'verdict inconnu : "vert" — attendu not weakened, weakened, cannot establish' });
   assert.deepEqual(lireSecondJugement('{"verdict":"weakened"}'), { illisible: "raison absente" });
+});
+
+test("la carte du second juge : trois lignes — ce qui est affaibli, où, le geste —, portées bout à bout sur une seule", () => {
+  const carte = carteDuSecondJuge({
+    verdict: "weakened",
+    raison: "Les tests ne font plus échouer\n les gates.",
+    juges: [
+      { file: ".claude/brigade/gates.sh", added: 1, removed: 3 },
+      { file: ".github/workflows/ci.yml", added: 2, removed: 0 },
+    ],
+    pr: "https://github.com/o/r/pull/9",
+  });
+  assert.deepEqual(carte.lignes, [
+    "Weakened, says the second judge: Les tests ne font plus échouer les gates.",
+    "Where: `.claude/brigade/gates.sh` (+1 / -3), `.github/workflows/ci.yml` (+2 / -0) — https://github.com/o/r/pull/9",
+    "To decide: review https://github.com/o/r/pull/9; merge it by hand to accept what it changes in its judges, or close it.",
+  ]);
+  assert.equal(carte.enonce, carte.lignes.join(" — "));
+  assert.ok(!/\n/.test(carte.enonce));
+  // Sans juges comptés ni PR connue, elle le dit sans rien inventer.
+  assert.deepEqual(carteDuSecondJuge({ verdict: "cannot-establish", raison: "Rien ne se lit.", juges: [], pr: null }).lignes, [
+    "Cannot establish that the check is not weakened, says the second judge: Rien ne se lit.",
+    "Where: its judges",
+    "To decide: review the PR; merge it by hand to accept what it changes in its judges, or close it.",
+  ]);
 });

@@ -141,3 +141,26 @@ export function lireSecondJugement(message: string | null): { verdict: VerdictDu
   if (raison === "") return { illisible: "raison absente" };
   return { verdict, raison };
 }
+
+// La carte `gesture` d'une livraison que le second juge n'a pas établie non
+// affaiblie : ce qui l'est — ou ce qui ne s'établit pas —, où, et le geste
+// attendu du chef. Trois lignes, que le commentaire de l'issue montre telles
+// quelles ; la carte, que la porte de TODO ne prend que sur une ligne, les
+// porte bout à bout. En anglais : c'est ce que dit la file du chef.
+export function carteDuSecondJuge(mission: {
+  verdict: Exclude<VerdictDuSecondJuge, "not-weakened">;
+  raison: string;
+  juges: Array<{ file: string; added: number; removed: number }>;
+  pr: string | null;
+}): { lignes: [string, string, string]; enonce: string } {
+  const { verdict, raison, juges, pr } = mission;
+  const surUneLigne = (texte: string) => texte.replace(/\s+/g, " ").trim();
+  const ou = juges.length === 0 ? "its judges" : juges.map(({ file, added, removed }) => `\`${file}\` (+${added} / -${removed})`).join(", ");
+  const laPr = pr ?? "the PR";
+  const lignes: [string, string, string] = [
+    `${verdict === "weakened" ? "Weakened" : "Cannot establish that the check is not weakened"}, says the second judge: ${surUneLigne(raison)}`,
+    `Where: ${ou}${pr === null ? "" : ` — ${pr}`}`,
+    `To decide: review ${laPr}; merge it by hand to accept what it changes in its judges, or close it.`,
+  ];
+  return { lignes, enonce: lignes.join(" — ") };
+}
