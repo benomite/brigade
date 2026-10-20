@@ -3,9 +3,15 @@
 Une fenêtre sur le Mac : tes projets dans une barre d'icônes, et dans chacun un vrai terminal où
 tourne le second. Tu n'ouvres plus un terminal, tu ne te places plus dans un dossier.
 
-**Au centre de l'espace, le rail** : c'est la vue principale — cinq colonnes, et sur chaque carte ce
-que la file dit du ticket. **À droite, les terminaux, en permanence** : le second, et à côté de
-lui, au même niveau, les shells que tu ouvres — rien de ce que tu regardes au centre ne les cache.
+**Au centre de l'espace, deux onglets, Rail et Cooks** (#1184), à côté du nom du projet, un seul montré à la
+fois : **Rail** dit où en est le projet et ce que tu as à décider — ce qui t'attend et son geste, les tickets du
+rail dans leur ordre, TODO, WAITING et ce qui est servi, sans rien d'exécution ; **Cooks** dit ce qui tourne — la
+carte du projet et ses cooks en cours, Taken et Pass (les gates), les serveurs de livraison avec leur worktree et
+leur port, les stations du projet, et la lecture de `station` (le plafond de cooks, la machine et sa saturation,
+le quota). Un clic passe de l'un à l'autre ; **l'app rouvre chaque projet sur le dernier onglet que tu y as
+ouvert**, même après l'avoir quittée — un projet jamais ouvert s'ouvre sur Rail. **À droite, les terminaux, en
+permanence** : le second, et à côté de lui, au même niveau, les shells que tu ouvres — rien de ce que tu regardes
+au centre ne les cache, et changer d'onglet ne coupe ni ne vide la conversation.
 **L'écran principal ne garde que trois choses : la bande d'alertes, le rail et les terminaux** ; il
 n'y a rien en bas de la fenêtre. Le reste est derrière un onglet, en haut, à côté du nom du
 projet : **Paramètres** (l'état du projet, la sauvegarde et son ancienneté, les réglages, le
@@ -1155,16 +1161,17 @@ de tous les projets vit au niveau de l'app (voir « Le coût de tous les projets
 **Paramètres** ouvre l'état du projet —
 l'installation, **la sauvegarde et son ancienneté**, les pages servies, le retrait, les couleurs du projet, et
 `status` tel que la box le rend —, avec dessous une rangée de lectures : Réglages, Rail, Cooks,
-Manager, Grants, Reliability (voir « La lecture Reliability »), Closer (voir « La lecture Closer »). **Cooks** relaie
-`station`, lu sur la box du seul projet affiché — avec, sous l'heure de sa lecture, le bouton « Set the cooks of a
-station… ». Une ligne de la bande d'alertes dont la cause se règle là y mène en un clic. **Le journal
+Manager, Grants, Reliability (voir « La lecture Reliability »), Closer (voir « La lecture Closer »). **Cooks** n'y
+est plus (#1184) : c'est l'onglet Cooks de l'espace, qui relaie `station`, lu sur la box du seul projet affiché, sous
+ses colonnes — déplié, avec, sous l'heure de sa lecture, le bouton « Set the cooks of a station… » ; il n'est lu que
+tant que l'onglet est montré. Une ligne de la bande d'alertes dont la cause se règle là y mène en un clic. **Le journal
 (Log) n'a pas d'onglet** : le bouton « journal », à côté des onglets, ouvre la fin du journal
 par-dessus le rail ; le recliquer le ferme. Les sept lectures ci-dessous sont celles de cet onglet et de ce
 geste.
 
-**Le rail dessiné n'est plus dans un onglet : il est au centre de l'espace, quel que soit celui que
-tu regardes** (voir « Le rail »). **L'espace s'ouvre sans page** : le rail a tout le centre, sur
-toute la hauteur. **Une page s'ouvre par-dessus le rail** : elle le couvre entier, sans le défaire —
+**Le rail dessiné est au centre de l'espace, partagé entre ses deux onglets** (voir « Le rail ») : On the
+rail, TODO, WAITING et Served sur Rail ; Taken et Pass sur Cooks. **L'espace s'ouvre sans page** : l'onglet
+montré a tout le centre, sur toute la hauteur. **Une page s'ouvre par-dessus le rail** : elle le couvre entier, sans le défaire —
 il reste posé dessous, et relu, mais rien de lui ne se clique au travers. Recliquer l'onglet referme
 la page, et **le rail revient tel que tu l'avais laissé**, défilé où il l'était. La bande d'alertes,
 au-dessus, reste visible : aucune page ne la couvre, ni les terminaux, à droite.
@@ -1176,7 +1183,7 @@ des grants :
 | Onglet | La commande que l'app lance sur la box | Ce que tu y lis |
 |---|---|---|
 | **Rail** | `ssh <hote> brigade <nom> rail` | le texte de `rail`, tel que la box le rend : chaque ticket sur sa ligne, sa fiche dessous — le rail dessiné, lui, est au centre, sous la page |
-| **Cooks** | `ssh <hote> brigade <nom> station` | la station : les cooks, la machine, le quota |
+| **Cooks** | `ssh <hote> brigade <nom> station` | la station : les cooks, la machine, le quota — sur l'onglet Cooks, pas sous Paramètres |
 | **Manager** | `ssh <hote> brigade <nom> manager` | **l'état du manager** (voir « L'onglet Manager ») — allumé ou éteint, depuis quand et par qui, ses dernières décisions, ce qu'il a écarté et pourquoi —, puis le texte de `manager`, qui dit aussi les épiques et ses réactions aux échecs |
 | **Grants** | `ssh <hote> brigade <nom> grant` | **l'état des grants** (voir « L'onglet Grants ») — lequel est actif, son échéance avec la durée restante en tête, ses derniers usages, ce qu'aucun grant n'autorise —, puis le texte de `grant`, qui dit aussi les derniers gestes (accordé, prolongé, révoqué, éteint seul, refusé) |
 | **Reliability** | `ssh <hote> brigade <nom> station`, puis `ssh <hote> brigade <nom> measures --last <fenêtre> --by 1` | **la fiabilité des cooks du projet** (voir « La lecture Reliability »), puis les deux textes, repliés |
@@ -1700,7 +1707,9 @@ depuis le rail.
 **C'est la vue principale de l'espace : au centre de l'écran, sous le nom du projet, quel que soit
 l'onglet affiché dessous** — le second, un shell, la sortie d'une commande. **Cinq colonnes**, un
 ticket par carte : ce qui va se passer (Sur le rail), ce qui se passe (Au travail, Pass), ce que tu
-dois faire (T'attend), ce qui est fini (Livré). La spec est
+dois faire (T'attend), ce qui est fini (Livré). **Les colonnes sont partagées entre les deux onglets du projet**
+(#1184) : ce qui se passe (Taken, Pass) est sur Cooks, le reste sur Rail ; sur Rail, la carte d'une page servie
+n'en porte que l'écran et son geste, son worktree et son port sont sur Cooks. La spec est
 `docs/superpowers/specs/2026-10-13-app-poste-de-travail-design.md` ; la langue visuelle reste celle
 de `docs/maquettes/app/Brigade.dc.html`.
 

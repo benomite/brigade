@@ -167,7 +167,8 @@ async function cooks(): Promise<Joue> {
   const numero = (vue.dernier("onglet") as [string, string, number])[2];
   vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: BRUT, atteinte: false, cas: "ssh-en-echec" }, undefined, undefined);
   await repos();
-  return { vue, racine: ecran(vue, ...LECTURE) };
+  // L'onglet Cooks (#1184) : sa lecture de `station` est posée au centre, sous ses colonnes.
+  return { vue, racine: ecran(vue, "rail", ...LECTURE) };
 }
 
 async function settings(titre: "Manager" | "Grants" | "Rail"): Promise<Joue> {
@@ -226,7 +227,7 @@ const ECRANS: Ecran[] = [
   { nom: "bande d'alertes", echec: alertes, lectures: 0 },
   { nom: "fiche d'une carte", echec: ficheEnEchec, lectures: 3 },
   { nom: "Cost, au niveau de l'app", echec: couts, lectures: 0 },
-  { nom: "Settings · Cooks", echec: cooks, lectures: 1 },
+  { nom: "Cooks", echec: cooks, lectures: 1 },
   { nom: "Verify", echec: verify, lectures: 1 },
   { nom: "Settings · Rail", echec: () => settings("Rail"), lectures: 1 },
   { nom: "Settings · Manager", echec: () => settings("Manager"), lectures: 2 },

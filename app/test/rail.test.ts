@@ -26,7 +26,7 @@ import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Lue } from "../src/question.ts";
 import type { Repondue } from "../src/repondues.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { type Faux, type Jouee, jouerLaVue, type Reponses, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
+import { carteDuTicket, type Faux, type Jouee, jouerLaVue, type Reponses, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
 
 const VUE = join(import.meta.dirname, "../src/vue");
 const A = "2026-10-13T10:04:12.000Z";
@@ -111,7 +111,9 @@ const recevoir = (vue: Jouee, recue: Dessinable = dessinable()) => vue.dire("sur
 
 const colonnes = (vue: Jouee) => vue.element("rail").dessous("section");
 const bons = (ou: Faux) => ou.dessous("li").filter((li) => li.className === "bon");
-const bonDe = (vue: Jouee, numero: number): Faux => bons(vue.element("rail")).find((bon) => bon.children[0]?.children[0]?.textContent === `#${numero}`) ?? assert.fail(`pas de bon #${numero}`);
+// Les colonnes sont partagées entre les deux onglets du projet (#1184) : Taken et Pass sur Cooks, les autres sur Rail.
+const montrerOnglet = (vue: Jouee, titre: "Rail" | "Cooks") => (vue.element("onglets-du-projet").children.find((pose) => pose.textContent === titre) ?? assert.fail(`pas d'onglet ${titre}`)).click();
+const bonDe = (vue: Jouee, numero: number): Faux => carteDuTicket(vue, numero) ?? assert.fail(`pas de bon #${numero}`);
 // Ce qu'un bon dit de la file : chaque fait, son libellé puis sa valeur.
 const portes = (bon: Faux) => bon.dessous("ul").flatMap((liste) => liste.children.map((fait) => fait.children.map((pose) => pose.textContent)));
 // Ce que la file ne dit pas — pas ce qu'une carte de Livré dit de sa relecture, qui a ses classes.
@@ -177,7 +179,8 @@ describe("le rail occupe le centre de l'écran principal", () => {
     const vue = await ouvrir();
     recevoir(vue);
     const cinq = () => colonnes(vue).map((colonne) => colonne.children[0]?.children.map((pose) => pose.textContent));
-    const ATTENDU = [["On the rail", "2"], ["Taken", "1"], ["Pass", "1"], ["TODO", "1"], ["WAITING", "0"], ["Served", "1"]];
+    // Sur l'onglet Rail, où l'espace s'ouvre (#1184) : Taken et Pass sont sur Cooks.
+    const ATTENDU = [["On the rail", "2"], ["TODO", "1"], ["WAITING", "0"], ["Served", "1"]];
 
     // L'espace s'ouvre sans page : le rail est seul au centre, le second à droite.
     assert.equal(vue.element("contenu").hidden, true);
@@ -185,7 +188,8 @@ describe("le rail occupe le centre de l'écran principal", () => {
     assert.equal(vue.element("rail").hidden, false);
     assert.deepEqual(cinq(), ATTENDU);
 
-    for (const { titre } of ONGLETS) {
+    // Une page par-dessus : toutes, sauf Cooks, qui est un onglet et non plus une page.
+    for (const { titre } of ONGLETS.filter(({ id }) => id !== "cooks")) {
       await ouvrirLecture(vue, titre);
       assert.equal(vue.element("contenu").hidden, false, titre);
       assert.equal(vue.element("rail").hidden, false, titre);
@@ -201,7 +205,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     assert.deepEqual(cinq(), ATTENDU);
     // Aucun onglet ne lui est plus nécessaire : une lecture de `faits` le redessine où que l'on soit.
     recevoir(vue, dessinable({ ...FAITS, rail: [], attend: [], cooks: [] }, PAS_LU));
-    assert.deepEqual(cinq(), [["On the rail", "0"], ["Taken", "0"], ["Pass", "0"], ["TODO", "0"], ["WAITING", "0"], ["Served", "0"]]);
+    assert.deepEqual(cinq(), [["On the rail", "0"], ["TODO", "0"], ["WAITING", "0"], ["Served", "0"]]);
   });
 
   test("avant la première lecture il le dit ; un projet sans box n'en a pas — rien n'est lu de lui", async () => {
@@ -226,7 +230,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     recevoir(ici);
     assert.deepEqual(
       colonnes(ici).map((colonne) => colonne.children[0]?.children[0]?.textContent),
-      ["On the rail", "Taken", "Pass", "TODO", "WAITING", "Served"],
+      ["On the rail", "TODO", "WAITING", "Served"],
     );
   });
 
@@ -259,14 +263,14 @@ describe("une box pas jointe, après une lecture (#1078)", () => {
     recevoir(vue, { projet: PARADE, demande: 0, a: A, titre: "PAS JOINT", erreur: "ssh: connect to host box port 22: Connection refused", atteinte: false, cas: null });
 
     const rail = vue.element("rail");
-    assert.deepEqual(comptes(vue), ["?", "?", "?", "?", "?", "?"]);
+    assert.deepEqual(comptes(vue), ["?", "?", "?", "?"]);
     assert.match(rail.textContent, /not known while the station is unreachable/);
     assert.doesNotMatch(rail.textContent, /upcoming|unreachable since|kitchen state unknown/);
     assert.equal(rail.dessous("details").length, 1);
 
     recevoir(vue);
     assert.doesNotMatch(vue.element("rail").textContent, /not known while the station is unreachable/);
-    assert.notDeepEqual(comptes(vue), ["?", "?", "?", "?", "?", "?"]);
+    assert.notDeepEqual(comptes(vue), ["?", "?", "?", "?"]);
   });
 });
 
@@ -417,7 +421,7 @@ describe("le clic d'une carte de T'attend (#452)", () => {
     assert.deepEqual(autres, []);
     assert.equal(demander?.dataset.geste, "demande");
     fermer(vue);
-    await ouvrirLecture(vue, "Cooks");
+    await ouvrirLecture(vue, "Grants");
     // Un clic sur la carte, un clic sur le geste : la même demande qu'avant.
     bonDe(vue, 12).click();
     await repos();
@@ -428,7 +432,7 @@ describe("le clic d'une carte de T'attend (#452)", () => {
     assert.equal(vue.element("note-second").textContent, "demande écrite dans le second, sans Entrée");
     assert.equal(vue.element("second").hidden, false);
     assert.equal(vue.element("rail").hidden, false);
-    // Le centre n'a pas changé : l'onglet Cooks est toujours celui qui est ouvert.
+    // Le centre n'a pas changé : la page Grants est toujours celle qui est ouverte.
     assert.equal(onglet(vue, "Settings").ariaSelected, "true");
     assert.equal(vue.element("contenu").hidden, false);
     assert.deepEqual(relayes(bonDe(vue, 12)), []);
@@ -778,7 +782,7 @@ describe("Livré garde ce que la cuisine a servi", () => {
   test("longue, elle défile dans sa hauteur : elle ne pousse rien sous la grille, et les autres colonnes restent en vue", async () => {
     const vue = await ouvrir();
     recevoir(vue, dessinable({ ...FAITS, livres: LIVRES }, PAS_LU));
-    assert.deepEqual(colonnes(vue).map((colonne) => "defile" in colonne.dataset), [false, false, false, false, false, true]);
+    assert.deepEqual(colonnes(vue).map((colonne) => "defile" in colonne.dataset), [false, false, false, true]);
 
     const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
     const corps = /(?:^|})\s*#rail \.colonne\[data-defile\] > ol\s*\{([^}]*)\}/.exec(css)?.[1] ?? assert.fail("pas de règle pour la colonne qui défile");
@@ -1058,6 +1062,8 @@ describe("la fiche propose les gestes possibles à cet instant, et seulement ceu
     assert.equal(vue.appels.filter(({ geste }) => geste === "gestesDeFiche").length, lectures + 1);
     assert.deepEqual(gestesDeLaFicheOuverte(vue).map(([id]) => id), ["issue", "second", "priorite"]);
     assert.equal(valeurDeFiche(vue, "priority").textContent, "prio:2");
+    // Pris, il est sur l'onglet Cooks (#1184).
+    montrerOnglet(vue, "Cooks");
     assert.ok(colonnes(vue).find((colonne) => colonne.textContent.startsWith("Taken"))?.textContent.includes("#21"));
   });
 

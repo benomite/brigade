@@ -133,6 +133,17 @@ const FIABILITE = "fiabilite";
 const CLOSER = "closer";
 // Le geste qui règle le closer, son modèle et son effort ensemble (boutons.ts, `REGLER_LE_CLOSER`).
 const REGLER_LE_CLOSER = "regler-closer";
+// Les deux onglets de la page d'un projet (ticket 1184), et la lecture que Cooks suit : `station`, celle que `onglets.ts`
+// nomme « cooks » — le plafond de cooks, la machine et sa saturation, le quota.
+const RAIL = "rail";
+const CUISINE = "cooks";
+const ONGLETS_DU_PROJET = [
+  { id: RAIL, titre: "Rail" },
+  { id: CUISINE, titre: "Cooks" },
+];
+// Les colonnes du rail qui disent ce qui tourne : les cooks au travail, et les gates de la pass. Elles sont sur Cooks ;
+// les autres — On the rail, TODO, WAITING, Served — sont sur Rail.
+const COLONNES_DE_LA_CUISINE = ["Taken", "Pass"];
 /** @typedef {import("../allumage.ts").Compte} Compte */
 /** @typedef {import("../confirmation.ts").Confirmation} Confirmation */
 /** @typedef {import("../service.ts").Guide} Guide */
@@ -174,6 +185,7 @@ const principal = /** @type {HTMLElement} */ (document.querySelector("main"));
 const bande = element("alertes");
 const arret = element("arret");
 const espace = element("espace");
+const ongletsDuProjet = element("onglets-du-projet");
 const onglets = element("onglets");
 const contenu = element("contenu");
 const rail = element("rail");
@@ -191,7 +203,13 @@ const interrupteurMerge = element("interrupteur-merge");
 const provenance = /** @type {HTMLDetailsElement} */ (element("provenance"));
 const provenanceLignes = element("provenance-lignes");
 const arreterCuisine = element("arreter-cuisine");
-const pages = element("pages");
+// Les serveurs de livraison du projet — ce que `status` en montre — sont sur l'onglet Cooks (ticket 1184), sous ses
+// colonnes : poserRail les y pose.
+const pages = document.createElement("section");
+pages.id = "pages";
+pages.ariaLabel = "The pages served";
+pages.ariaLive = "polite";
+pages.hidden = true;
 const note = element("note");
 const ongletsTerminaux = element("terminaux");
 const fermerShell = element("fermer-shell");
@@ -215,7 +233,12 @@ const retraitGestes = element("retrait-gestes");
 const couleurs = element("couleurs");
 const ordinaires = element("ordinaires");
 const avis = element("avis");
-const carte = element("carte");
+// La carte du projet — son état, ses compteurs, ses cooks en cours et leur station, le dernier événement — est
+// sur l'onglet Cooks (ticket 1184) : poserRail l'y pose, en tête.
+const carte = document.createElement("section");
+carte.id = "carte";
+carte.className = "carte";
+carte.hidden = true;
 const lu = element("lu");
 const lecture = element("lecture");
 const ajout = element("ajout");
@@ -504,11 +527,59 @@ parcoursDuProjet.className = "parcours-du-projet";
 parcoursDuProjet.ariaLive = "polite";
 stationsDuProjet.append(ligneDesStationsDuProjet, ouvrirLeDemenagement, ouvrirLaConfiance, choixDuDemenagement, formulaireDeConfiance, demenagementDit, confianceDite, parcoursDuProjet);
 
+// La lecture de `station` sur l'onglet Cooks (ticket 1184), sous ses colonnes : le plafond de cooks, la machine — saturée
+// ou non —, le quota, et le bouton qui écrit le réglage du plafond dans le second. Elle était sous Settings → Cooks ;
+// elle se lit de même, seule, toutes les trente secondes tant que l'onglet est montré.
+const lectureDeLaCuisine = document.createElement("section");
+lectureDeLaCuisine.className = "lecture-de-la-cuisine";
+lectureDeLaCuisine.ariaLabel = "The station";
+const luCuisine = document.createElement("p");
+luCuisine.id = "lu-cuisine";
+luCuisine.ariaLive = "polite";
+const gestesCuisine = document.createElement("p");
+gestesCuisine.id = "gestes-cuisine";
+gestesCuisine.className = "gestes";
+const lectureCuisine = document.createElement("div");
+lectureCuisine.id = "lecture-cuisine";
+// Ce que `station` a dit y est déplié — le plafond, la machine, le quota s'y lisent sans un clic ; replié par le chef,
+// il le reste d'une relecture à l'autre.
+let cuisineRepliee = false;
+// Ce qu'elle est, en une ligne ; la commande lue et sa cadence, au survol.
+const teteDeLaCuisine = document.createElement("h3");
+lectureDeLaCuisine.append(teteDeLaCuisine, luCuisine, gestesCuisine, lectureCuisine);
+
 /** @type {Map<number, { terminal: Terminal, xterm: Xterm, ajuste: FitAddon, cadre: HTMLDivElement }>} */
 const vues = new Map();
 // La page où chaque projet a été laissé : on y revient. Aucune : le rail a le centre.
 /** @type {Map<string, string>} */
 const laisse = new Map();
+// L'onglet que chaque projet montre sous ses pages, Rail ou Cooks (ticket 1184) : le dernier que le chef y a ouvert, retenu
+// d'une ouverture de l'app à l'autre dans le stockage de la vue. Un projet jamais ouvert s'ouvre sur Rail.
+const CLE_DES_ONGLETS = "brigade.onglets-des-projets";
+/** @type {Map<string, string> | undefined} */
+let ongletsRetenus;
+function retenus() {
+  if (ongletsRetenus !== undefined) return ongletsRetenus;
+  ongletsRetenus = new Map();
+  try {
+    const lus = JSON.parse(window.localStorage?.getItem(CLE_DES_ONGLETS) ?? "{}");
+    for (const [nom, id] of Object.entries(lus ?? {})) if (id === RAIL || id === CUISINE) ongletsRetenus.set(nom, id);
+  } catch {
+    // Illisible : chaque projet s'ouvre sur Rail, et le prochain choix le réécrit.
+  }
+  return ongletsRetenus;
+}
+/** @param {Projet} projet */
+const ongletDe = (projet) => retenus().get(projet.nom) ?? RAIL;
+/** @param {string} nom @param {string} id */
+function retenir(nom, id) {
+  retenus().set(nom, id);
+  try {
+    window.localStorage?.setItem(CLE_DES_ONGLETS, JSON.stringify(Object.fromEntries(retenus())));
+  } catch {
+    // Sans stockage, l'onglet se retient le temps de la session.
+  }
+}
 // Le shell que chaque projet montre à droite, à la place du second. Aucun : c'est le second.
 /** @type {Map<string, number>} */
 const aDroite = new Map();
@@ -908,6 +979,10 @@ function vue(id) {
 
 const duCourant = () => [...vues.values()].filter(({ terminal }) => terminal.projet === courant?.nom);
 const actif = () => (courant === undefined ? undefined : laisse.get(courant.nom));
+// La lecture suivie : celle de la page ouverte par-dessus ; sans page, sur l'onglet Cooks, `station` (ticket 1184).
+const lue = () => actif() ?? (courant !== undefined && ongletDe(courant) === CUISINE ? CUISINE : undefined);
+// L'onglet Cooks est montré : aucune page ne le couvre.
+const cuisineMontree = () => courant !== undefined && actif() === undefined && ongletDe(courant) === CUISINE;
 const secondDuCourant = () => duCourant().find(({ terminal }) => terminal.genre === "second");
 // Le terminal montré à droite : le shell que le chef y a laissé, sinon le second.
 const montreADroite = () => {
@@ -927,6 +1002,19 @@ function montrer() {
   const terminaux = duCourant().map(({ terminal }) => terminal);
   // En haut, l'onglet de pages, Paramètres. Les terminaux n'en sont pas : ils sont à droite.
   espace.textContent = courant?.nom ?? "";
+  // Rail et Cooks, à côté du nom (ticket 1184) : celui qui est montré est marqué — aucun quand une page le couvre.
+  const ouvert = courant;
+  ongletsDuProjet.hidden = ouvert === undefined;
+  ongletsDuProjet.replaceChildren(
+    ...(ouvert === undefined
+      ? []
+      : ONGLETS_DU_PROJET.map(({ id, titre }) => {
+          const cree = bouton(titre, () => choisirOnglet(id));
+          cree.role = "tab";
+          cree.ariaSelected = String(visible === undefined && ongletDe(ouvert) === id);
+          return cree;
+        })),
+  );
   onglets.replaceChildren(
     ...(courant === undefined
       ? []
@@ -973,15 +1061,19 @@ function montrer() {
       : [bloc("span", "open a shell on"), ...choix.machines.map(({ id, titre }) => bouton(titre, () => void ouvrirSur(choix.projet, id))), bouton("cancel", () => void ((choixDeMachine = undefined), montrer()))]),
   );
 
-  // L'explication d'un onglet relayé n'est pas écrite à plat : une icône d'aide la porte.
+  // L'explication d'un onglet relayé n'est pas écrite à plat : une icône d'aide la porte. Celle de Cooks aussi.
+  const suivie = ONGLETS.find(({ id }) => id === lue());
   const explication =
-    relaye === undefined || courant === undefined || courant.desinstalle !== undefined
+    suivie === undefined || courant === undefined || courant.desinstalle !== undefined
       ? ""
-      : relaye.id === FIABILITE
+      : suivie.id === FIABILITE
         ? `the reliability of the cooks, as the station measures it: the chef's window and thresholds from \`${geste(courant, "station")}\`, then \`${geste(courant, "measures --last <window> --by 1")}\` — both outputs are below, as the station returns them; re-read on their own every thirty seconds, while this tab is shown`
-        : `${relaye.id === "manager" ? "the manager state, then " : relaye.id === "grants" ? "the grants state, then " : ""}the output of \`${geste(courant, relaye.commande)}\`, as the station returns it${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — re-read on its own every thirty seconds, while this tab is shown`;
+        : `${suivie.id === "manager" ? "the manager state, then " : suivie.id === "grants" ? "the grants state, then " : ""}the output of \`${geste(courant, suivie.commande)}\`, as the station returns it${suivie.precision === undefined ? "" : ` (${suivie.precision})`} — re-read on its own every thirty seconds, while this tab is shown`;
+  // Sur Cooks, elle est en tête de sa lecture, sous les colonnes : la ligne du haut n'a rien à dire.
+  const surCuisine = cuisineMontree();
+  teteDeLaCuisine.replaceChildren(...(surCuisine ? ["the station: its cap of cooks, its machine, its quota", ...(explication === "" ? [] : [survol(document, explication)])] : []));
   note.replaceChildren(
-    ...(nonEcrit !== "" ? [nonEcrit] : relaye !== undefined && courant?.desinstalle !== undefined ? ["nothing is read for this tab: this project is uninstalled from its station"] : explication === "" ? [] : [survol(document, explication)]),
+    ...(nonEcrit !== "" ? [nonEcrit] : suivie !== undefined && courant?.desinstalle !== undefined ? ["nothing is read for this tab: this project is uninstalled from its station"] : explication === "" || surCuisine ? [] : [survol(document, explication)]),
   );
   note.hidden = note.childElementCount === 0 && note.textContent === "";
   const parametres = rubriqueDe(visible)?.id === PARAMETRES;
@@ -994,7 +1086,8 @@ function montrer() {
   parametresOnglets.hidden = !parametres;
   if (parametres) {
     parametresOnglets.replaceChildren(
-      ...[[PARAMETRES, "General"], ...ONGLETS.filter(({ id }) => rubriqueDe(id)?.id === PARAMETRES).map(({ id, titre }) => [id, titre])].map(([id, titre]) => {
+      // La lecture de `station` n'y est plus : elle est l'onglet Cooks (ticket 1184).
+      ...[[PARAMETRES, "General"], ...ONGLETS.filter(({ id }) => id !== CUISINE && rubriqueDe(id)?.id === PARAMETRES).map(({ id, titre }) => [id, titre])].map(([id, titre]) => {
         const cree = bouton(/** @type {string} */ (titre), () => void (laisse.set(/** @type {Projet} */ (courant).nom, /** @type {string} */ (id)), nonEcrit = "", montrer()));
         cree.ariaPressed = String(id === visible);
         return cree;
@@ -1010,6 +1103,7 @@ function montrer() {
   poserLaFiabilite();
   poserLeCloser();
   poserGestes(gestesOnglet, relaye?.id);
+  poserGestes(gestesCuisine, cuisineMontree() ? CUISINE : undefined);
   dessiner();
   lireOnglet();
   droite?.ajuste.fit();
@@ -1347,6 +1441,18 @@ function montrerADroite(id) {
   montrer();
 }
 
+// Rail ou Cooks (ticket 1184) : l'onglet choisi est montré, et retenu pour ce projet. Une page ouverte par-dessus se
+// referme, la fiche aussi ; le second, à droite, ne bouge pas.
+/** @param {string} id */
+function choisirOnglet(id) {
+  if (courant === undefined) return;
+  retenir(courant.nom, id);
+  laisse.delete(courant.nom);
+  nonEcrit = "";
+  if (ouverte !== undefined) fermerFiche();
+  montrer();
+}
+
 // Paramètres ouvre l'état du projet — par-dessus le rail. Recliqué, l'onglet ouvert se referme.
 /** @param {string} id */
 function activerRubrique(id) {
@@ -1367,7 +1473,7 @@ journal.addEventListener("click", () => {
 // terminal ou quitter l'espace arrête sa lecture. Rien ne reste de l'onglet d'avant.
 // La page des coûts de l'app tient lieu d'onglet, l'espace fermé : elle lit la box de chaque projet.
 function lireOnglet() {
-  const relaye = ONGLETS.find(({ id }) => id === actif());
+  const relaye = ONGLETS.find(({ id }) => id === lue());
   const couts = courant === undefined && coutsOuverts && !ajoute;
   const voulu = couts ? JSON.stringify(["", COUTS]) : courant === undefined || relaye === undefined ? "" : JSON.stringify([courant.nom, relaye.id]);
   if (voulu === suivi) return;
@@ -1385,7 +1491,10 @@ function lireOnglet() {
   // Ni le closer.
   closerLu = undefined;
   poserLeCloser();
-  if (courant !== undefined && relaye !== undefined) attendre(courant, luOnglet, lectureOnglet);
+  if (courant !== undefined && relaye !== undefined) {
+    if (actif() === undefined) attendre(courant, luCuisine, lectureCuisine);
+    else attendre(courant, luOnglet, lectureOnglet);
+  }
   ongletDemande = couts ? COUTS : relaye?.id;
   brigade.onglet(courant?.nom, ongletDemande, ++demandeOnglet);
 }
@@ -1595,8 +1704,11 @@ function obtenuEnUneLigne(projet, recue, plusPilotable) {
 // Ce qu'une lecture donne à voir, dans le panneau de l'espace, à côté du terminal et dans
 // un onglet de contenu : un des sept états, dit en toutes lettres, et dessous ce
 // que l'app a obtenu. Celle d'un onglet n'a rien de mis à part : ce n'est pas `status`.
-/** @param {Montree | Lecture} recue @param {HTMLElement} tete @param {HTMLElement} corps @param {boolean} [accueil] vrai : le détail est replié ou au survol, aucune commande n'est écrite */
-function rendre(recue, tete, corps, accueil = false) {
+/**
+ * @param {Montree | Lecture} recue @param {HTMLElement} tete @param {HTMLElement} corps @param {boolean} [accueil] vrai : le détail est replié ou au survol, aucune commande n'est écrite
+ * @param {{ ouvert: boolean, basculer: (ouvert: boolean) => void }} [deplie] le détail est déplié tant que le chef ne l'a pas replié — sur Cooks
+ */
+function rendre(recue, tete, corps, accueil = false, deplie = undefined) {
   // Le projet a pu quitter le fichier depuis la demande : il n'y a plus rien à lui écrire.
   const projet = projetDe(recue.projet);
   if (projet === undefined) return;
@@ -1609,6 +1721,10 @@ function rendre(recue, tete, corps, accueil = false) {
     if (accueil) {
       // Ce que la box a dit se lit, replié : le détail n'est pas la première chose que l'écran montre.
       const lue = document.createElement("details");
+      if (deplie !== undefined) {
+        lue.open = deplie.ouvert;
+        lue.addEventListener("toggle", () => deplie.basculer(lue.open));
+      }
       lue.append(bloc("summary", "what the station said"), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", commande), bloc("pre", texte)]));
       corps.replaceChildren(...(mise ? [aPart(projet, recue.attend, true)] : []), lue);
     } else corps.replaceChildren(...(mise ? [aPart(projet, recue.attend)] : []), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", `${geste(projet, commande)}${commande === "status" ? sans : ""}`), bloc("pre", texte)]));
@@ -2380,8 +2496,8 @@ function poserCarte(ou, projet) {
 // page du ticket, quand `status` en montre une servie, avec son geste direct.
 // Tout est déjà rangé par le process principal (faits.ts, bon.ts, page.ts) : la vue pose. Le
 // numéro s'ouvre sur l'issue : l'adresse reste au process principal, la vue nomme le ticket.
-/** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {string | undefined} [tonAttend] le ton de T'attend, quand le bon y est posé */
-function poserBon(projet, carte, tonAttend) {
+/** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {string | undefined} [tonAttend] le ton de T'attend, quand le bon y est posé @param {boolean} [execution] sa page servie dit son worktree et son port — sur Cooks ; sur Rail, seulement l'écran et son geste (ticket 1184) */
+function poserBon(projet, carte, tonAttend, execution = true) {
   const { ticket, etat, ton, titre, ouvrable, attendu, attend, pr } = carte;
   const bon = document.createElement("li");
   bon.className = "bon";
@@ -2474,8 +2590,8 @@ function poserBon(projet, carte, tonAttend) {
   }
   if (pr === false) bon.append(bloc("small", "merged PR: the address the station returned is not https, the app does not open it"));
   bon.append(...poserGestesDAttente(projet, carte));
-  bon.append(...(pagesServies.get(projet.nom)?.pages ?? []).filter((page) => page.ticket === ticket).map((page) => poserServie(projet, page)));
-  bon.append(...(pagesServies.get(projet.nom)?.aLancer ?? []).filter((tenue) => tenue.ticket === ticket).map((tenue) => poserALancer(projet, tenue)));
+  bon.append(...(pagesServies.get(projet.nom)?.pages ?? []).filter((page) => page.ticket === ticket).map((page) => poserServie(projet, page, false, execution)));
+  bon.append(...(pagesServies.get(projet.nom)?.aLancer ?? []).filter((tenue) => tenue.ticket === ticket).map((tenue) => poserALancer(projet, tenue, false, execution)));
   return bon;
 }
 
@@ -3723,31 +3839,46 @@ const STATION_ARRETEE = "this computer's station is not running";
 
 // Le rail en six colonnes — Sur le rail, Au travail, Pass, TODO, WAITING, Livré —,
 // tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
-// colonne. C'est la vue principale de l'espace : il est posé au centre, quel que soit
-// l'onglet affiché dessous. Un projet sans box n'en a pas : rien n'est lu de lui. Sans
-// faits, il dit pourquoi il n'est pas dessiné : la carte du panneau dit ce qui a été obtenu.
+// colonne, au centre de l'espace, partagé entre ses deux onglets (ticket 1184). Rail : ce qui t'attend
+// — la file, ce qui est en amont —, puis On the rail, TODO, WAITING et Served, sans rien
+// d'exécution sur leurs cartes. Cooks : la carte du projet et ses cooks en cours, Taken et Pass, les
+// pages servies — leur worktree, leur port —, et la lecture de `station`. Un projet sans box n'en a
+// pas : rien n'est lu de lui. Sans faits, il dit pourquoi il n'est pas dessiné : la carte du panneau
+// dit ce qui a été obtenu.
 /** @param {Projet} projet */
 function poserRail(projet) {
   const tenu = tenus.get(projet.nom);
   rail.hidden = (!seLit(projet) && projet.sansStation !== true) || projet.desinstalle !== undefined;
+  const cuisine = ongletDe(projet) === CUISINE;
+  rail.dataset.onglet = cuisine ? CUISINE : RAIL;
+  rail.ariaLabel = cuisine ? "The cooks" : "The rail";
   provenance.hidden = arreterCuisine.hidden = true;
   // Plus de rail, plus de fiche par-dessus.
   if (rail.hidden && ouverte !== undefined) fermerFiche();
   if (rail.hidden) return rail.replaceChildren();
-  // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne.
+  // Sur Cooks, la carte du projet en tête ; en bas, ses serveurs de livraison et la lecture de `station`, quoi qu'il y
+  // ait entre eux.
+  /** @param {(HTMLElement | string)[]} poses */
+  const poser = (...poses) => rail.replaceChildren(...(cuisine ? [carte] : []), ...poses, ...(cuisine ? [pages, lectureDeLaCuisine] : []));
+  // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
+  // l'autre onglet.
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
   const muet = muets.get(projet.nom);
-  if (tenu === undefined && muet === undefined) return rail.replaceChildren(bloc("h3", `the rail: first read of \`${geste(projet, "facts")}\` in progress…`));
+  // Ce que dit le rail qui n'est pas lu : la carte du projet le dit déjà, sur Cooks.
+  if (tenu === undefined && muet === undefined) return poser(...(cuisine ? [] : [bloc("h3", `the rail: first read of \`${geste(projet, "facts")}\` in progress…`)]));
   // La box ne répond pas : rien de ce que dit le rail n'est lu à neuf. Il garde sa dernière lecture,
   // marquée, et les tickets `fire` que GitHub dit encore passent au-dessus (feu.ts).
-  const marque = muet === undefined ? [] : poserMuet(projet);
+  const marque = muet === undefined || cuisine ? [] : poserMuet(projet);
   if (tenu === undefined || !("tableau" in tenu)) {
-    const sans = tenu === undefined ? "" : `the rail is not drawn: ${tenu.titre} — tried at ${heureDe(tenu.a)}. What the app got is in the panel, on the right`;
-    return rail.replaceChildren(...marque, ...(sans === "" ? [] : [bloc("h3", sans)]));
+    const sans = tenu === undefined || cuisine ? "" : `the rail is not drawn: ${tenu.titre} — tried at ${heureDe(tenu.a)}. What the app got is in the panel, on the right`;
+    return poser(...marque, ...(sans === "" ? [] : [bloc("h3", sans)]));
   }
   const { colonnes: lues, hors, attendLu, railLu } = tenu.tableau.rail;
   // La box ne répond pas : ce que ses colonnes contenaient n'est plus lu. Elles le disent, au lieu de montrer des « 0 ».
-  const colonnes = muet === undefined ? lues : lues.map((colonne) => ({ ...colonne, compte: "?", cartes: [], vide: "not known while the station is unreachable" }));
+  const toutes = muet === undefined ? lues : lues.map((colonne) => ({ ...colonne, compte: "?", cartes: [], vide: "not known while the station is unreachable" }));
+  const colonnes = toutes.filter(({ nom }) => COLONNES_DE_LA_CUISINE.includes(nom) === cuisine);
+  // Toutes les cartes lues, quel que soit l'onglet : la fiche ouverte et ce qui est en amont les suivent.
+  const lesCartes = [...toutes.flatMap(({ cartes: siennes }) => siennes), ...hors];
   const heure = heureDe(tenu.a);
   // Le bon posé pour chaque carte : celui de la fiche ouverte y reprend le clavier.
   /** @type {Map<import("../faits.ts").Carte, HTMLElement>} */
@@ -3757,7 +3888,7 @@ function poserRail(projet) {
     const liste = document.createElement("ol");
     liste.append(
       ...cartes.map((carte) => {
-        const bon = poserBon(projet, carte, ton);
+        const bon = poserBon(projet, carte, ton, cuisine);
         posees.set(carte, bon);
         return bon;
       }),
@@ -3782,17 +3913,20 @@ function poserRail(projet) {
     }),
   );
   // Rien d'autre n'est lu à neuf : ni ce qui est en amont, ni les corrections, ni les pages servies.
-  if (muet !== undefined) return rail.replaceChildren(...marque, grille);
+  if (muet !== undefined) return poser(...marque, grille);
   // D'où vient ce qui se lit n'est pas en tête du rail : cela ne change rien à ce que fait le chef.
   // C'est dans Paramètres, pour le jour d'une panne ; en tête, seule une lecture vieille se dit.
   poserProvenance(projet, heure, attendLu, railLu);
   poserArreter(projet, tenu.tableau.arretee);
-  // Une page servie dont le ticket n'a pas de carte se pose à part, sous le rail : son geste n'est pas perdu.
-  const cartes = new Set([...colonnes.flatMap(({ cartes: siennes }) => siennes), ...hors].map(({ ticket }) => ticket));
-  const sansCarte = [
-    ...(pagesServies.get(projet.nom)?.pages ?? []).filter(({ ticket }) => !cartes.has(ticket)).map((page) => () => poserServie(projet, page, true)),
-    ...(pagesServies.get(projet.nom)?.aLancer ?? []).filter(({ ticket }) => !cartes.has(ticket)).map((tenue) => () => poserALancer(projet, tenue, true)),
-  ];
+  // Les serveurs sont sur Cooks : la page dont le ticket n'y a pas de carte — il est sur Rail, ou nulle part — se pose
+  // à part, sous les colonnes, son worktree et son port compris. Sur Rail, sa carte n'en porte que l'écran et le geste.
+  const cartes = new Set(colonnes.flatMap(({ cartes: siennes }) => siennes).map(({ ticket }) => ticket));
+  const sansCarte = !cuisine
+    ? []
+    : [
+        ...(pagesServies.get(projet.nom)?.pages ?? []).filter(({ ticket }) => !cartes.has(ticket)).map((page) => () => poserServie(projet, page, true)),
+        ...(pagesServies.get(projet.nom)?.aLancer ?? []).filter(({ ticket }) => !cartes.has(ticket)).map((tenue) => () => poserALancer(projet, tenue, true)),
+      ];
   /** @param {(() => HTMLElement)[]} poses */
   const servis = (poses) => {
     const liste = document.createElement("ol");
@@ -3807,24 +3941,28 @@ function poserRail(projet) {
     return liste;
   };
   // La fiche ouverte suit la lecture : elle dit ce que la dernière dit de son ticket.
-  if (ouverte !== undefined) suivreFiche([...colonnes.flatMap(({ cartes: siennes }) => siennes), ...hors], posees);
+  if (ouverte !== undefined) suivreFiche(lesCartes, posees);
   // Un formulaire « waiting for… » dont le ticket n'est plus dans TODO se referme : il n'a plus de carte où se poser.
   for (const cle of formulairesDAttente.keys()) {
     const [nom, numero] = cle.split("#");
-    if (nom === projet.nom && !colonnes.some(({ cartes: siennes }) => siennes.some(({ ticket, gestes }) => String(ticket) === numero && gestes?.includes("attente-poser")))) formulairesDAttente.delete(cle);
+    if (nom === projet.nom && !toutes.some(({ cartes: siennes }) => siennes.some(({ ticket, gestes }) => String(ticket) === numero && gestes?.includes("attente-poser")))) formulairesDAttente.delete(cle);
   }
   // Le champ où le chef tapait garde le clavier : le rail redessiné le lui rend.
   const tape = /** @type {HTMLInputElement | null | undefined} */ (document.activeElement);
   const reprise = tape?.dataset?.cle === undefined ? undefined : { cle: tape.dataset.cle, champ: tape.dataset.champ };
-  rail.replaceChildren(
-    ...(muet === undefined ? fraicheur(tenu.a) : marque),
-    ...teteDuRail(projet),
-    ...poserAmont(projet, tenu.tableau.rail, [...colonnes.flatMap(({ cartes: siennes }) => siennes), ...hors]),
-    ...poserLesCorrections(projet, tenu.tableau.rail.corrections),
-    ...poserLesProfils(projet, tenu.tableau.rail.profils),
+  poser(
+    ...fraicheur(tenu.a),
+    ...(cuisine
+      ? []
+      : [
+          ...teteDuRail(projet),
+          ...poserAmont(projet, tenu.tableau.rail, lesCartes),
+          ...poserLesCorrections(projet, tenu.tableau.rail.corrections),
+          ...poserLesProfils(projet, tenu.tableau.rail.profils),
+        ]),
     grille,
-    ...(hors.length === 0 ? [] : [bloc("h3", `outside the six columns — their state is none of them, and nothing says they await you: the Rail read, in Settings, relays what \`${geste(projet, "rail")}\` says`), bons(hors)]),
-    ...(sansCarte.length === 0 ? [] : [bloc("h3", `served, without a card on the rail — \`${geste(projet, "status")}\` shows their server`), servis(sansCarte)]),
+    ...(cuisine || hors.length === 0 ? [] : [bloc("h3", `outside the columns — their state is none of the six, and nothing says they await you: the Rail read, in Settings, relays what \`${geste(projet, "rail")}\` says`), bons(hors)]),
+    ...(sansCarte.length === 0 ? [] : [bloc("h3", `served, without a card here — \`${geste(projet, "status")}\` shows their server`), servis(sansCarte)]),
   );
   if (reprise !== undefined) [...rail.querySelectorAll("input")].find(({ dataset }) => dataset.cle === reprise.cle && dataset.champ === reprise.champ)?.focus();
 }
@@ -3904,17 +4042,18 @@ function poserEcran(ecran) {
 // Une page servie : le worktree, son port, l'état de son serveur, l'écran à regarder, et son geste —
 // un seul, direct, qui ouvre l'écran dans le navigateur du poste. Sans page à voir, pas de geste :
 // ce que `status` écrit à sa place se lit dessous. Un geste qui n'est pas posé dit pourquoi, dessous.
-// Elle se pose sur la carte de son ticket ; `ticket` : sans carte, elle le nomme elle-même. Tout est
-// déjà décidé dans le process principal (page.ts) : la vue pose.
-/** @param {Projet} projet @param {import("../page.ts").Page} page @param {boolean} [ticket] */
-function poserServie(projet, { ticket: numero, worktree, port, etat, route, sansPage, ecran, raison, enCours, dit }, ticket = false) {
+// Elle se pose sur la carte de son ticket ; `ticket` : sans carte, elle le nomme elle-même. `execution` faux —
+// sur l'onglet Rail (ticket 1184) — : ni worktree, ni port, ni état du serveur, seulement le geste et l'écran. Tout
+// est déjà décidé dans le process principal (page.ts) : la vue pose.
+/** @param {Projet} projet @param {import("../page.ts").Page} page @param {boolean} [ticket] @param {boolean} [execution] */
+function poserServie(projet, { ticket: numero, worktree, port, etat, route, sansPage, ecran, raison, enCours, dit }, ticket = false, execution = true) {
   const page = document.createElement("div");
   page.className = "servie";
   const tete = document.createElement("div");
   // Le worktree et son port se recopient : eux seuls sont en monospace, la phrase reste la même.
   const servi = document.createElement("span");
   servi.append(exact("span", worktree), " · port ", exact("span", String(port)), ` · ${etat}`);
-  tete.append(...(ticket ? [exact("strong", `#${numero}`)] : []), servi);
+  tete.append(...(ticket ? [exact("strong", `#${numero}`)] : []), ...(execution ? [servi] : []));
   if (route !== null) {
     const ouvre = bouton(enCours ? "opening…" : "see it in my browser", () => {
       ouvre.disabled = true;
@@ -3938,15 +4077,15 @@ function poserServie(projet, { ticket: numero, worktree, port, etat, route, sans
 
 // Une livraison d'une app qui ne s'ouvre pas dans un navigateur : son worktree, l'écran à regarder,
 // et comment le voir, tel que `status` le dit — aucun geste, aucune page. Elle se pose sur la carte
-// de son ticket ; `ticket` : sans carte, elle le nomme elle-même.
-/** @param {Projet} projet @param {import("../page.ts").ALancer} tenue @param {boolean} [ticket] */
-function poserALancer(projet, { ticket: numero, worktree, commentLeVoir, ecran }, ticket = false) {
+// de son ticket ; `ticket` : sans carte, elle le nomme elle-même. `execution` faux — sur Rail — : sans son worktree.
+/** @param {Projet} projet @param {import("../page.ts").ALancer} tenue @param {boolean} [ticket] @param {boolean} [execution] */
+function poserALancer(projet, { ticket: numero, worktree, commentLeVoir, ecran }, ticket = false, execution = true) {
   const tenue = document.createElement("div");
   tenue.className = "servie";
   const tete = document.createElement("div");
   const tenu = document.createElement("span");
   tenu.append(exact("span", worktree), " · no page in a browser");
-  tete.append(...(ticket ? [exact("strong", `#${numero}`)] : []), tenu);
+  tete.append(...(ticket ? [exact("strong", `#${numero}`)] : []), ...(execution ? [tenu] : []));
   const comment = document.createElement("p");
   comment.className = "comment";
   comment.append("how to see it: ", commentLeVoir);
@@ -3954,9 +4093,9 @@ function poserALancer(projet, { ticket: numero, worktree, commentLeVoir, ecran }
   return tenue;
 }
 
-// Les pages servies du projet affiché, sous l'état : ce que `status` montre de ses serveurs — ou
+// Les pages servies du projet affiché, sur l'onglet Cooks : ce que `status` montre de ses serveurs — ou
 // ce qui se lit à sa place. Le geste de chaque page n'est pas ici : il est sur la carte de son
-// ticket, sur le rail. Tout est déjà décidé dans le process principal (page.ts) : la vue pose.
+// ticket. Tout est déjà décidé dans le process principal (page.ts) : la vue pose.
 /** @param {Projet} projet @param {Pages | undefined} servies */
 function poserPages(projet, servies) {
   pages.hidden = servies === undefined;
@@ -3971,7 +4110,7 @@ function poserPages(projet, servies) {
   pages.replaceChildren(
     ditEtAide("h3", "look at a delivery in your browser", `the servers \`${geste(projet, "status")}\` shows`),
     ...(servies.refus === undefined ? [] : [alerte(servies.refus)]),
-    ...(n === 0 ? [] : [ditEtAide("p", `${n} page${n > 1 ? "s" : ""} served (${servies.pages.map(({ ticket }) => `#${ticket}`).join(", ")})`, "each opens from its ticket's card, on the rail")]),
+    ...(n === 0 ? [] : [ditEtAide("p", `${n} page${n > 1 ? "s" : ""} served (${servies.pages.map(({ ticket }) => `#${ticket}`).join(", ")})`, "each opens from its ticket's card")]),
     ...(servies.aLancer.length === 0
       ? []
       : [ditEtAide("p", `${servies.aLancer.length} deliver${servies.aLancer.length > 1 ? "ies" : "y"} of an app that does not open in a browser (${servies.aLancer.map(({ ticket }) => `#${ticket}`).join(", ")})`, "its ticket's card says how to see it")]),
@@ -5212,6 +5351,10 @@ function poserStationsDuProjet() {
   const annonceTenue = onboarding === null && Date.now() - confianceDitePour.a < 60_000;
   confianceDite.textContent = confianceDitePour.projet === projet.nom && annonceTenue ? confianceDitePour.dit : "";
   poserLeParcours(projet.nom, onboarding);
+  // Les stations sont de l'onglet Cooks (ticket 1184). Sur Rail, elles restent en vue tant qu'elles sont ce qui
+  // t'attend : le projet ne cuit nulle part, son parcours est à suivre, ou un choix de machine est ouvert.
+  stationsDuProjet.hidden =
+    ongletDe(projet) !== CUISINE && seLit(projet) && parcoursDuProjet.hidden && confiance === undefined && demenagement?.projet !== projet.nom;
   if (confiance === undefined) return;
   poserLaConfiance(confiance, projet, { exclues: stations.map(({ id }) => id), demande, principale });
 }
@@ -6074,7 +6217,9 @@ brigade.surContenu((recue, vu, desGrants, laFiabilite) => {
   if (recue.projet !== courant?.nom || courant.sansStation === true) return;
   // Reliability : son `station` dit aussi ce que le projet a coûté.
   if (ongletDemande === FIABILITE) lectureDeLaFiabilite = recue;
-  rendre(recue, luOnglet, lectureOnglet, true);
+  // Sans page par-dessus, c'est la lecture de l'onglet Cooks : elle se pose sur lui (ticket 1184).
+  if (actif() === undefined) rendre(recue, luCuisine, lectureCuisine, true, { ouvert: !cuisineRepliee, basculer: (ouvert) => void (cuisineRepliee = !ouvert) });
+  else rendre(recue, luOnglet, lectureOnglet, true);
   managerVu = vu;
   poserManager();
   grantsVus = desGrants;

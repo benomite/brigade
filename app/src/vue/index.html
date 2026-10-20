@@ -53,6 +53,9 @@
       <section id="arret" aria-live="polite" hidden></section>
       <header>
         <strong id="espace" class="mono"></strong>
+        <!-- Les deux onglets du projet (ticket 1184) : Rail — ce qui t'attend, le rail et son ordre — et Cooks — ce qui
+             tourne. Un seul est montré au centre ; le second, à droite, ne change pas de l'un à l'autre. -->
+        <div id="onglets-du-projet" role="tablist" aria-label="Rail or cooks" hidden></div>
         <!-- Les onglets de pages : en haut, à côté du nom du projet. Leur page s'ouvre par-dessus le rail. -->
         <div id="onglets" role="tablist" aria-label="Pages"></div>
         <!-- Les interrupteurs de l'espace : le manager, le grant `merge` — allumé ou éteint, toujours en vue ; un clic le bascule. -->
@@ -64,13 +67,15 @@
         <div id="gestes-projet" class="gestes" hidden></div>
       </header>
       <!-- Les stations qui font la cuisine du projet (ticket 983) : nommées en une ligne, avec de quoi en ajouter
-           une ; s'il n'en a aucune, une phrase le dit, et le geste qui la lui confie est à côté. -->
+           une ; s'il n'en a aucune, une phrase le dit, et le geste qui la lui confie est à côté. Elles sont de
+           l'onglet Cooks (ticket 1184) — sauf tant que le projet ne cuit nulle part : elles sont alors ce qui t'attend. -->
       <section id="stations-du-projet" aria-label="Its stations" hidden></section>
       <p id="note" aria-live="polite" hidden></p>
-      <!-- Le centre : le rail, la vue principale, en six colonnes. Une page ouverte se pose par-dessus,
-           sans le défaire : fermée, elle rend le rail tel qu'il était. Il n'y a rien dessous. -->
+      <!-- Le centre : l'onglet montré (ticket 1184). Rail : ce qui t'attend, puis On the rail, TODO, WAITING, Served ;
+           Cooks : l'état du projet et ses cooks, Taken et Pass, les pages servies, la lecture de `station`. Une page
+           ouverte se pose par-dessus, sans le défaire : fermée, elle rend l'onglet tel qu'il était. -->
       <div id="centre">
-      <section id="rail" aria-label="The rail" hidden></section>
+      <section id="rail" role="tabpanel" aria-label="The rail" hidden></section>
       <!-- La fiche d'un ticket : un clic sur sa carte l'ouvre par-dessus le rail, sans le défaire ; fermée — son
            bouton, ou Échap —, elle rend le rail tel qu'il était. Une page ouverte se pose par-dessus elle aussi. -->
       <section id="fiche" role="dialog" aria-label="The ticket's sheet" tabindex="-1" hidden></section>
@@ -93,7 +98,6 @@
           <section id="couleurs" aria-label="The project colors" hidden></section>
           <!-- Les tickets ordinaires du Mac : l'option et sa limite de cooks, pour un projet dont ce Mac joue une station. -->
           <section id="ordinaires" aria-label="Ordinary tickets on this Mac" hidden></section>
-          <section id="carte" class="carte" hidden></section>
           <!-- D'où viennent les lectures du rail : pour le jour d'une panne, pas en tête de l'écran. -->
           <details id="provenance" hidden>
             <summary>where the rail's data comes from</summary>
@@ -102,7 +106,6 @@
           <!-- Le geste rare et lourd, rangé ici : arrêter la cuisine. -->
           <section id="arreter-cuisine" class="gestes" aria-label="Stop the kitchen" hidden></section>
           <p id="lu" aria-live="polite"></p>
-          <section id="pages" aria-label="The pages served" aria-live="polite" hidden></section>
           <div id="lecture"></div>
         </section>
         <section id="manager" aria-label="The manager" hidden></section>

@@ -25,7 +25,7 @@ import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { jouerLaVue, repos } from "./aides/fausse-vue.ts";
+import { jouerLaVue, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
 
 const PARADE = "parade";
 const HEURE_MS = 3_600_000;
@@ -106,6 +106,8 @@ describe("rien ne cuit : base rouge, réparation en cours", () => {
     (vue.element("projets").children.at(1) ?? assert.fail("pas de case pour parade")).click();
     await repos();
     vue.dire("surFaits", { ...dessinable, demande: vue.dernier("faits")[0] as number });
+    // La carte du projet est sur l'onglet Cooks (#1184).
+    await ouvrirOnglet(vue, "Cooks");
     const posees = vue.element("carte").dessous("p").filter((p) => p.textContent === LIGNE);
     assert.equal(posees.length, 1);
     assert.ok(!posees[0]?.textContent.includes("\n"));

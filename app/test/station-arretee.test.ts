@@ -18,7 +18,7 @@ import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { type Jouee, jouerLaVue, repos } from "./aides/fausse-vue.ts";
+import { type Jouee, jouerLaVue, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
 
 const LIGNE = "this computer's station is not running";
 const CONFIGURATION = { chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }, { nom: "cantine", dossier: "/tmp/cantine", box: { hote: "box" } }], hotes: ["box"] };
@@ -67,8 +67,12 @@ describe("la page d'un projet qui cuit ici, station arrêtée", () => {
     assert.equal(centre(vue).hidden, false);
     assert.equal(centre(vue).textContent, LIGNE);
     assert.equal(centre(vue).children.length, 1);
-    assert.equal(vue.element("carte").hidden, true);
+    assert.ok(!vue.poses().some(({ id }) => id === "carte"));
     assert.equal(vue.element("lu").textContent, "");
+    // Sur l'onglet Cooks (#1184), la même ligne, seule : ni la carte du projet, ni la lecture de `station`.
+    await ouvrirOnglet(vue, "Cooks");
+    assert.equal(centre(vue).textContent, LIGNE);
+    assert.equal(centre(vue).children.length, 1);
   });
 
   test("une lecture qui arrive quand même ne remplace pas la ligne", async () => {
