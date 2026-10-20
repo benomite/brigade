@@ -1,0 +1,26 @@
+// Le projet Gradle de l'enveloppe Android (le gabarit de Capacitor 8.5.3). Les versions y sont
+// épinglées : Android Gradle Plugin ici, Gradle dans gradle/wrapper/, les SDK et AndroidX dans
+// variables.gradle, Capacitor dans ../package.json et son verrou.
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.13.0'
+    }
+}
+
+apply from: "variables.gradle"
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+tasks.register('clean', Delete) {
+    delete rootProject.layout.buildDirectory
+}

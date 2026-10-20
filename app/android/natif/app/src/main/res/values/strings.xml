@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- Le nom de l'app : le même que `appName` de ../../../../../../capacitor.config.json. -->
+    <string name="app_name">Brigade</string>
+    <string name="title_activity_main">Brigade</string>
+    <string name="package_name">com.github.benomite.brigade</string>
+    <string name="custom_url_scheme">com.github.benomite.brigade</string>
+</resources>

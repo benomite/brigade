@@ -1,0 +1,17 @@
+{
+  "name": "brigade-android",
+  "version": "0.0.0",
+  "private": true,
+  "description": "L'enveloppe Android de l'app de brigade V2 : Capacitor, autour de la même vue que l'app desktop (app/src/vue/)",
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}
