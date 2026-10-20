@@ -54,10 +54,13 @@ renvoyer.
 | `mac/chrome`, `chrome-connecté`, `revue-humaine`, `accès-prod`, « depuis ton Mac » | **au parking** : le runner Mac est sorti du jalon 6, aucun ticket ne le réclame |
 | « en preprod », « à recetter en preprod » | **n'existe pas** : le runtime n'a aucune notion de preprod |
 | un grant « toutes les brigades » (`npm install`) | **abandonné** : un grant est un fait au journal, et il y a un journal par projet. Retiré de la spec le 2026-10-10 |
-| les **cook profiles** et leurs statistiques, le **carnet** et ses leçons | **jalon 8**, pas écrit. Rien à construire tant qu'il ne l'est pas. |
 | toute **jauge chiffrée** de quota ou de machine, une heure de reset, un total de semaine | **indélivrable, et c'est acté** : le runtime ne connaît pas la consommation du compte Max et ne doit pas prétendre la connaître (`/usage` reste la vérité). Il dit `disponible`, `tient`, ou `SATURÉE` et sa charge. Les jauges **par cook** (tours, durée, tokens, inactivité) sont justes : ce sont les plafonds des garde-fous, que le runtime mesure. |
 | le bouton rouge « Écrire « stop » dans le terminal » de `Main.dc.html` | **il arrêterait tout** : sa commande boucle sur tous les projets (`for p in … ; do brigade $p garde-fous -- stop; done`), et son libellé ne le dit pas. L'app livrée n'a d'arrêt que par projet, dans le panneau du projet, et sa commande le nomme. S'il est construit un jour, son libellé dit « tous les projets » |
 | une échéance de connexion (« expire dans 2 j ») | le runtime dit `connexion Max tenue pour bonne` — aucune date |
+
+Les **cook profiles** et le **carnet** de leurs leçons, longtemps au parking (jalon 8), se construisent
+depuis l'épique #1033 : la carte d'un profil proposé, dans la file du projet (#1053), est la première.
+La maquette ne les dessine pas : leur carte reprend celle d'une correction proposée.
 
 ## Ce que la maquette ne fixe pas
 

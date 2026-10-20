@@ -183,13 +183,27 @@ const derniere = (sortie: string) => sortie.split("\n").map((ligne) => ligne.tri
 //   1  le runtime a refusé — sa dernière ligne le dit
 //   2, 66  le runtime de la station ne connaît pas ce geste
 // Jamais d'exception.
-export async function repondreALaCorrection(reglages: Reglages, servi: Servi, connues: readonly number[], proposition: unknown, reponse: unknown): Promise<Rendu> {
+export function repondreALaCorrection(reglages: Reglages, servi: Servi, connues: readonly number[], proposition: unknown, reponse: unknown): Promise<Rendu> {
+  return trancherSurLaBox(reglages, servi, connues, proposition, reponse, {
+    commande: commandeDe,
+    yes: "your “yes” is recorded: the correction leaves as a PR, through the pass",
+    no: "your “no” is recorded: the correction leaves the queue",
+  });
+}
+
+// Ce qu'une proposition de la file fait trancher sur la box : la commande du runtime, et ce que la carte
+// dit de chaque réponse écrite. Le profil proposé (profil.ts) se tranche par le même chemin.
+export type Geste = { commande: (reponse: Reponse, proposition: number) => string } & Record<Reponse, string>;
+
+// Le « yes » ou le « no » du chef sur une proposition de la file, sur la box du projet — les codes,
+// comme ci-dessus. Jamais d'exception.
+export async function trancherSurLaBox(reglages: Reglages, servi: Servi, connues: readonly number[], proposition: unknown, reponse: unknown, geste: Geste): Promise<Rendu> {
   if (reponse !== OUI && reponse !== NON) return { refus: PAS_COMPRIS, detail: "" };
   if (typeof proposition !== "number" || !connues.includes(proposition)) return { refus: INCONNUE, detail: "" };
-  const commande = commandeDe(reponse, proposition);
+  const commande = geste.commande(reponse, proposition);
   const rendu = await lancerGeste(reglages, servi, commande);
   const { erreur } = rendu;
-  if (erreur === null) return { tranchee: reponse, dit: reponse === OUI ? "your “yes” is recorded: the correction leaves as a PR, through the pass" : "your “no” is recorded: the correction leaves the queue" };
+  if (erreur === null) return { tranchee: reponse, dit: geste[reponse] };
   const echec = echecDe({ ...rendu, erreur }, reglages.delaiMs);
   if (erreur.killed !== true && erreur.code === 1) {
     const dit = derniere(rendu.sortie) || derniere(rendu.erreurs);

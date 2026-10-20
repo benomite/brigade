@@ -38,6 +38,7 @@ export const COMMANDES: readonly DeLaBox[] = [
     description: "Tickets waiting on a third party: set <ticket> --what <…> --from <who> [--remind <when>], resume <ticket>, arrived <ticket>",
     mots: { poser: "set", reprendre: "resume", arrive: "arrived", "--quoi": "--what", "--de": "--from", "--relance": "--remind" },
   },
+  { nom: "profile", description: "The cook profiles proposed: yes <proposal> writes its definition in the project's repository, no <proposal> declines it" },
   { nom: "guardrails", ancien: "garde-fous", description: "Show the caps and the breaker; stop or resume the kitchen", mots: { reprendre: "resume" } },
   { nom: "base", description: "Show the integration base; replay its gates when red", mots: { rejouer: "replay" } },
   { nom: "installation", description: "Check that a project is ready to be served (--json: the verdict for a program); labels, setup, uninstall [--confirm]", mots: { desinstaller: "uninstall", "--confirmer": "--confirm" } },

@@ -103,6 +103,7 @@ import { poserBilan } from "./closer/bilan/bilan.js";
 import { apresRendu, lireLancement, poserLancement, REPOS } from "./closer/lancement/lancement.js";
 import { lireDerive, poserDerive } from "./closer/derive/derive.js";
 import { apresRendu as apresLaCorrection, poserCorrections, REPOS as CORRECTION_AU_REPOS } from "./correction/carte.js";
+import { poserProfils } from "./profil/carte.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -526,6 +527,9 @@ const lancementsDuCloser = new Map();
 // proposition — tranchée, la carte reste hors de la file jusqu'à la lecture qui ne la porte plus.
 /** @type {Map<string, import("./correction/carte.js").Etat>} */
 const reponsesAuxCorrections = new Map();
+// La réponse du chef en route sur un profil de cook proposé (profil/carte.js), tenue de même.
+/** @type {Map<string, import("./correction/carte.js").Etat>} */
+const reponsesAuxProfils = new Map();
 // Pourquoi le dernier bouton cliqué n'a rien fait : dit sous les onglets de pages, jusqu'au prochain geste —
 // ou, quand c'est le second qui n'a rien reçu, à droite, sous les onglets des terminaux.
 let nonEcrit = "";
@@ -3698,6 +3702,7 @@ function poserRail(projet) {
     ...teteDuRail(projet),
     ...poserAmont(projet, tenu.tableau.rail, [...colonnes.flatMap(({ cartes: siennes }) => siennes), ...hors]),
     ...poserLesCorrections(projet, tenu.tableau.rail.corrections),
+    ...poserLesProfils(projet, tenu.tableau.rail.profils),
     grille,
     ...(hors.length === 0 ? [] : [bloc("h3", `outside the six columns — their state is none of them, and nothing says they await you: the Rail read, in Settings, relays what \`${geste(projet, "rail")}\` says`), bons(hors)]),
     ...(sansCarte.length === 0 ? [] : [bloc("h3", `served, without a card on the rail — \`${geste(projet, "status")}\` shows their server`), servis(sansCarte)]),
@@ -3711,29 +3716,54 @@ function poserRail(projet) {
 // file, et `facts` est relu tout de suite. Une réponse que les faits lus ne portent plus est oubliée.
 /** @param {Projet} projet @param {import("../correction.ts").CarteDeCorrection[] | undefined} corrections */
 function poserLesCorrections(projet, corrections) {
-  const portees = new Set((corrections ?? []).map(({ proposition }) => `${projet.nom}#${proposition}`));
-  for (const cle of reponsesAuxCorrections.keys()) if (cle.startsWith(`${projet.nom}#`) && !portees.has(cle)) reponsesAuxCorrections.delete(cle);
+  const { etatDe, gestes } = gestesDeLaFile(projet, corrections, reponsesAuxCorrections, (proposition, reponse) => brigade.corriger(projet.nom, proposition, reponse));
+  return poserCorrections(document, corrections, etatDe, gestes);
+}
+
+// Les profils de cook proposés (ticket 1053), chacun une carte de la file, sous les corrections : le même
+// geste, par le même chemin (profil.ts) — le « yes » écrit la définition du profil dans le dépôt du projet.
+/** @param {Projet} projet @param {import("../profil.ts").CarteDeProfil[] | undefined} profils */
+function poserLesProfils(projet, profils) {
+  const { etatDe, gestes } = gestesDeLaFile(projet, profils, reponsesAuxProfils, (proposition, reponse) => brigade.trancherLeProfil(projet.nom, proposition, reponse));
+  return poserProfils(document, profils, etatDe, gestes);
+}
+
+// Ce qu'une carte de la file que le chef tranche d'un « yes » ou d'un « no » reçoit : l'état de son geste,
+// tenu dans `reponses` par projet et proposition, et ce que ses boutons appellent — `trancher`, le geste
+// sur la box. Une réponse que les faits lus ne portent plus est oubliée.
+/**
+ * @param {Projet} projet
+ * @param {{ proposition: number }[] | undefined} cartes
+ * @param {Map<string, import("./correction/carte.js").Etat>} reponses
+ * @param {(proposition: number, reponse: import("../correction.ts").Reponse) => Promise<import("../correction.ts").Rendu | undefined>} trancher
+ */
+function gestesDeLaFile(projet, cartes, reponses, trancher) {
+  const portees = new Set((cartes ?? []).map(({ proposition }) => `${projet.nom}#${proposition}`));
+  for (const cle of reponses.keys()) if (cle.startsWith(`${projet.nom}#`) && !portees.has(cle)) reponses.delete(cle);
   /** @param {number} proposition @param {import("./correction/carte.js").Etat} etat */
   const poser = (proposition, etat) => {
-    reponsesAuxCorrections.set(`${projet.nom}#${proposition}`, etat);
+    reponses.set(`${projet.nom}#${proposition}`, etat);
     if (courant?.nom === projet.nom) poserRail(projet);
   };
-  return poserCorrections(document, corrections, (proposition) => reponsesAuxCorrections.get(`${projet.nom}#${proposition}`) ?? CORRECTION_AU_REPOS, {
-    ouvrir: (ticket) => void ouvrirIssue(projet, ticket),
-    repondre: async (proposition, reponse) => {
-      poser(proposition, { etape: "envoi", reponse });
-      /** @type {import("../correction.ts").Rendu | undefined} */
-      let rendu;
-      try {
-        rendu = await brigade.corriger(projet.nom, proposition, reponse);
-      } catch (erreur) {
-        rendu = { refus: "nothing was sent: the app could not ask the station", detail: erreur instanceof Error ? erreur.message : String(erreur) };
-      }
-      const suite = apresLaCorrection(reponse, rendu);
-      poser(proposition, suite);
-      if (suite.etape === "tranchee") brigade.relireBox(demandeFaits);
+  return {
+    etatDe: (/** @type {number} */ proposition) => reponses.get(`${projet.nom}#${proposition}`) ?? CORRECTION_AU_REPOS,
+    gestes: {
+      ouvrir: (/** @type {number} */ ticket) => void ouvrirIssue(projet, ticket),
+      repondre: async (/** @type {number} */ proposition, /** @type {import("../correction.ts").Reponse} */ reponse) => {
+        poser(proposition, { etape: "envoi", reponse });
+        /** @type {import("../correction.ts").Rendu | undefined} */
+        let rendu;
+        try {
+          rendu = await trancher(proposition, reponse);
+        } catch (erreur) {
+          rendu = { refus: "nothing was sent: the app could not ask the station", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+        }
+        const suite = apresLaCorrection(reponse, rendu);
+        poser(proposition, suite);
+        if (suite.etape === "tranchee") brigade.relireBox(demandeFaits);
+      },
     },
-  });
+  };
 }
 
 // L'écran à regarder d'une livraison, tel que `status` le dit : l'écran, la phrase du cook — celle

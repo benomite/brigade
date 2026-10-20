@@ -215,6 +215,20 @@ qu'une conclusion. Rien n'est appliqué : c'est ton « oui » qui le fera.
 personne ne tranche reste dans `corrections`, et rien n'en naît — ni branche, ni PR. Tranchée, elle
 en sort ; elle ne se tranche qu'une fois, et un second geste, le même ou l'autre, n'écrit rien.
 
+Le geste est `profile` — sur la box, `brigade <projet> profile yes|no <proposition>`, et c'est lui que
+lancent les deux boutons de la carte, dans l'app :
+
+```sh
+npm --prefix runtime run profile                       # les profils proposés qui t'attendent, par numéro
+npm --prefix runtime run profile -- yes <proposition>  # « oui » : la définition s'écrit dans BRIGADE_REPO_DIR
+npm --prefix runtime run profile -- no <proposition>   # « non » : la proposition quitte la file
+```
+
+`<proposition>` est le `proposition` de `profils`. Il sort en `0` quand la réponse est écrite, ou que
+la proposition l'était déjà (il le dit, `already answered`) ; en `1` quand rien ne l'est — aucune
+proposition sous ce numéro, ou une définition déjà là —, la raison sur sa dernière ligne ; en `2` sur
+un appel qui ne se lit pas.
+
 | Ton geste | Ce qui se passe |
 |---|---|
 | « oui » (`correction.accepted`) | le runtime prépare une branche comme celle d'un cook, y commite **le diff proposé et lui seul**, posé sur le commit où la garde l'a vérifié (`base`), la pousse et ouvre une PR vers la branche d'intégration (`correction.started`, puis `correction.delivered`, `runtime/src/correctif/livrer.ts`). La PR entre **en pass hors du rail**, comme celle d'une passe de fermeture : fusion avec la base, gates, reviewer, CI, grant `merge` (voir « La pass »). Le reviewer la lit comme une correction des consignes ; rouge, aucun cook ne la reprend, elle te remonte (`still-red`, cause `off-rail`). Une correction qui touche les gates n'est jamais mergée par la pass (`review-required`, cause `judge-modified`). Une PR au plus : une livraison morte avec le runtime reprend au démarrage la PR que GitHub porte pour sa branche, ou en ouvre une si elle n'en avait pas. Un diff qui ne se commite plus, une branche qui ne se pousse pas, une PR que GitHub refuse : `correction.undelivered`, qui dit pourquoi, et rien n'est retenté |
