@@ -37,6 +37,7 @@ import { issueDuManager, issuesEnAttente, managerAllume, remiseDe, remisesEnAtte
 import { labelsMontes } from "./projections/reactions.ts";
 import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./projections/stations.ts";
 import { ouvrirReaction } from "./reaction.ts";
+import { ouvrirSansCapacite } from "./sans-capacite.ts";
 import { configPlafond, type Plafond } from "./reagir.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
@@ -526,6 +527,20 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     signature,
   });
 
+  const sansCapacite = ouvrirSansCapacite({
+    journal,
+    projet,
+    rail,
+    github,
+    noter,
+    redecouper: decoupage.redecouper,
+    peutJuger,
+    arrete: () => arrete,
+    eteint: () => !managerAllume(base),
+    avertir,
+    signature,
+  });
+
   // Une issue rendue par le chef repart à neuf : le calibrage que le manager y
   // avait posé, et qu'elle porte encore, s'en va avant le jugement — sans quoi
   // il resterait, le manager ne réécrivant pas une dimension qui porte un
@@ -580,6 +595,9 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     if (!managerAllume(base)) return;
     // Avant le sondage : une pass rouge ne modifie aucune issue.
     await reaction.traiter();
+    if (arrete || !managerAllume(base)) return;
+    // Un ticket sans station est repris avant d'atteindre le chef.
+    await sansCapacite.traiter();
     if (arrete || !managerAllume(base)) return;
     // De même : l'état d'un ticket change sans qu'aucune issue bouge.
     await decoupage.suivre();

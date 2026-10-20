@@ -88,9 +88,10 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     await jusqua(() => c.etat(501) === "taken" && c.etat(502) === "86" && c.etat(503) === "taken");
     assert.equal(c.journal.duTicket(501).find((e) => e.type === "ticket.taken")?.author, "station:box/playwright");
     assert.equal(c.journal.duTicket(503).find((e) => e.type === "ticket.taken")?.author, "station:box/claude");
-    assert.deepEqual(c.dernier("ticket.86", 502), { reason: "no-station: chrome-connecté", until: null });
+    // La station l'écarte ; le manager le reprend ensuite avant le chef (sans-capacite.test.ts).
+    assert.deepEqual(c.journal.duTicket(502).find((e) => e.type === "ticket.86")?.payload, { reason: "no-station: chrome-connecté", until: null });
     // L'épique le dit dans la liste de ses tickets.
-    await jusqua(() => /86 \(no-station: chrome-connecté\)/.test(c.liste(30)));
+    await jusqua(() => /86 \((no-station: chrome-connecté|manager:split)\)/.test(c.liste(30)));
   });
 
   test("un ticket d'interface sort du découpage désigné pour le cook design — label, corps, commentaire — et les autres non, au même calibrage", async (t) => {

@@ -94,6 +94,13 @@ export type FaitReaction =
 
 export type FaitManager =
   | FaitReaction
+  // A ticket asks for a capability no station provides: the manager sends it
+  // back before it reaches the chef. `resplit`: it was rewritten or split
+  // again, and the ticket left the rail. `gestured`: it could not be, and a
+  // `gesture` card in TODO names the access to give. `missing`: the
+  // capabilities no station provides, `reason`: why the rewrite is impossible.
+  | { type: "manager.capability-resplit"; payload: { missing: string[]; run: string | null } }
+  | { type: "manager.capability-gestured"; payload: { missing: string[]; reason: string } }
   // The chef's commands. Without `manager.enabled`, the manager judges nothing.
   | { type: "manager.enabled"; payload: Record<string, never> }
   | { type: "manager.disabled"; payload: Record<string, never> }
