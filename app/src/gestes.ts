@@ -1,6 +1,7 @@
 // Les gestes du chef : ceux qu'il répète. Chacun est une commande de
 // docs/runtime/exploitation.md — « Piloter » —, reprise mot pour mot dans sa forme de poste
-// (`ssh <hote> brigade <nom> <commande>`). Chacun part dans le second : préfixée du `!`
+// (`ssh <hote> brigade <nom> <commande>`) — ou, pour un projet qui cuit sur cet ordinateur, lancée
+// par le geste de sa station, ici, sans `ssh` (`enPoste`). Chacun part dans le second : préfixée du `!`
 // qui la lance sur le Mac depuis la session `claude`, la commande y est écrite puis
 // envoyée par `envoyer` (terminaux.ts), et sa sortie se lit dans son fil. Elle ne part
 // que d'un second dit libre : sinon rien n'est écrit, et le refus dit pourquoi.
@@ -17,7 +18,7 @@
 // Ce qui se joue sur la box à côté du runtime (`systemctl`, `claude /login`)
 // n'est pas un geste de l'app : rien de tel n'est ici — l'app n'a ni shell sur
 // la box, ni `sudo`.
-import { cite } from "./box.ts";
+import { cite, GESTE, mots, type Cuisine, type Locale } from "./box.ts";
 import type { Projet } from "./config.ts";
 import { CONTROLE, SANS_ECRIRE, type Terminal } from "./terminaux.ts";
 
@@ -54,23 +55,38 @@ export const mot = (texte: string) => (/^[A-Za-z0-9@._:-]+$/.test(texte) ? texte
 
 // Ce que le geste écrit pour ce projet — ou pourquoi il n'écrit rien. La vue
 // nomme un geste, et son grant s'il en a un, jamais une commande ; un projet
-// sans box n'a rien à écrire. Le nom passe deux shells — celui du Mac, puis
-// celui de la box : un nom que le geste de box accepte part tel quel.
-export function commandeDuGeste(id: unknown, projet: Projet, grant?: unknown): { commande: string } | { refus: string } | undefined {
+// dont la cuisine n'est nulle part n'a rien à écrire. Le nom passe deux shells — celui du Mac, puis
+// celui de la box : un nom que le geste de box accepte part tel quel. `cuisine` : là où elle
+// tourne à cet instant (poste/cuisine-ici.ts) — sa box, faute de mieux.
+export function commandeDuGeste(id: unknown, projet: Projet, grant?: unknown, cuisine: Cuisine | undefined = projet.box): { commande: string } | { refus: string } | undefined {
   const geste = GESTES.find((candidat) => candidat.id === id);
-  if (geste === undefined || projet.box === undefined) return undefined;
+  if (geste === undefined || cuisine === undefined) return undefined;
   const nomme = typeof grant === "string" && GRANTS.includes(grant) ? grant : undefined;
   if (geste.parGrant && nomme === undefined) return { refus: `nothing is written: this action applies to a grant, to be named among those in the docs (${GRANTS.join(", ")})` };
-  return enPoste(projet.box, projet.nom, `${geste.commande}${geste.parGrant ? ` ${nomme}` : ""}`);
+  return enPoste(cuisine, projet.nom, `${geste.commande}${geste.parGrant ? ` ${nomme}` : ""}`);
 }
 
 // Une commande du runtime dans sa forme de poste, pour ce projet : `suite` est ce qui suit
 // `brigade <nom>`, ses mots déjà cités pour les deux shells — ou pourquoi rien n'est écrit.
-export function enPoste({ hote }: { hote: string }, nom: string, suite: string): { commande: string } | { refus: string } {
+// Sa cuisine tourne sur cet ordinateur : la même commande part au geste de sa station, ici.
+export function enPoste(cuisine: Cuisine, nom: string, suite: string): { commande: string } | { refus: string } {
+  if ("locale" in cuisine) return enLocal(cuisine.locale, nom, suite);
+  const { hote } = cuisine;
   // La forme de la doc ne met pas de `--` devant l'hôte : un tiret en tête y serait une option.
   if (hote.startsWith("-")) return { refus: `nothing is written: “hote” starts with a dash (${hote}), and \`ssh\` would read it as an option in the command — fix it in the projects file` };
   const commande = `ssh ${mot(hote)} brigade ${mot(cite(nom))} ${suite}`;
   // Le registre la refuserait aussi : le refus tombe avant, et le dit pour le projet.
+  return CONTROLE.test(commande) ? { refus: SANS_ECRIRE } : { commande };
+}
+
+// La même commande, sur cet ordinateur, sans `ssh` : le geste de sa station, depuis le dossier du
+// runtime et avec le répertoire de la station — ce que `brigade <nom> <suite>` lance sur une box,
+// et ce que la veille lance ici (box.ts, `lancerIci`). Dans un sous-shell : le second garde son
+// dossier. Ici, un seul shell la lit : `suite` est relue comme `ssh` l'aurait remise à la box,
+// mot à mot, puis chaque mot recité pour ce seul shell.
+function enLocal(locale: Locale, nom: string, suite: string): { commande: string } | { refus: string } {
+  const args = mots(mots(suite).join(" ")).map(mot);
+  const commande = `(cd ${mot(locale.runtime)} && BRIGADE_STATION_DIR=${mot(locale.racine)} ${mot(locale.node)} ${GESTE} ${mot(nom)}${args.map((arg) => ` ${arg}`).join("")})`;
   return CONTROLE.test(commande) ? { refus: SANS_ECRIRE } : { commande };
 }
 
@@ -79,8 +95,8 @@ export function enPoste({ hote }: { hote: string }, nom: string, suite: string):
 // l'est : un second qui n'est pas dit libre, ou un geste confirmé nommé sans `oui`. Seul
 // `true` vaut « oui » : rien d'autre venu de la vue ne fait partir un geste confirmé.
 type Registre = { envoyer(projet: Projet, commande: string): Promise<Terminal | { refus: string }> };
-export function ecrireGeste(terminaux: Registre, id: unknown, projet: Projet, grant?: unknown, oui?: unknown): { refus: string } | undefined | Promise<Terminal | { refus: string }> {
-  const ecrit = commandeDuGeste(id, projet, grant);
+export function ecrireGeste(terminaux: Registre, id: unknown, projet: Projet, grant?: unknown, oui?: unknown, cuisine: Cuisine | undefined = projet.box): { refus: string } | undefined | Promise<Terminal | { refus: string }> {
+  const ecrit = commandeDuGeste(id, projet, grant, cuisine);
   if (ecrit === undefined || "refus" in ecrit) return ecrit;
   if (projet.refus !== undefined) return { refus: `nothing is written: “${projet.nom}” does not open — ${projet.refus}` };
   if (CONFIRMES.includes(String(id)) && oui !== true) return { refus: SANS_OUI };

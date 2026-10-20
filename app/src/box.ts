@@ -125,6 +125,17 @@ export function echecIci({ lance, erreur, sortie, erreurs }: Rendu & { erreur: E
   };
 }
 
+// Une commande du geste, lancée une fois là où la cuisine du projet tourne : sur sa box par `ssh`,
+// ou ici, par la station de cet ordinateur, sans `ssh`. Jamais d'exception, comme les deux.
+export function lancerLa(reglages: Reglages, { nom, cuisine }: Lu, commande: string, signal?: AbortSignal): Promise<Rendu> {
+  return "locale" in cuisine ? lancerIci(cuisine.locale, nom, commande, reglages.delaiMs, signal) : lancerGeste(reglages, { nom, box: cuisine }, commande, signal);
+}
+
+// Ce qu'une commande lancée là prouve en échouant : ce qu'en dit `ssh`, ou la station d'ici.
+export function echecLa(cuisine: Cuisine, rendu: Rendu & { erreur: ExecFileException }, delaiMs: number): Echec {
+  return "locale" in cuisine ? echecIci(rendu, delaiMs) : echecDe(rendu, delaiMs);
+}
+
 // Ce qu'un `ssh` en échec prouve, et ce qu'il a rendu.
 export function echecDe({ lance, erreur, sortie, erreurs }: Rendu & { erreur: ExecFileException }, delaiMs: number): Echec {
   // Arrêté par le délai, un `ssh` connecté attrape le signal et sort de lui-même en 255.
@@ -179,12 +190,11 @@ export function ouvrirVeille(options: {
     return rendu;
   }
 
-  async function joindre({ nom, cuisine }: Lu, commande: string, signal: AbortSignal): Promise<Sortie | Echec> {
-    const ici = "locale" in cuisine;
-    const rendu = ici ? await lancerIci(cuisine.locale, nom, commande, options.delaiMs, signal) : await lancerGeste(options, { nom, box: cuisine }, commande, signal);
+  async function joindre(lu: Lu, commande: string, signal: AbortSignal): Promise<Sortie | Echec> {
+    const rendu = await lancerLa(options, lu, commande, signal);
     const { erreur } = rendu;
     if (erreur === null) return { commande, texte: rendu.sortie };
-    return ici ? echecIci({ ...rendu, erreur }, options.delaiMs) : echecDe({ ...rendu, erreur }, options.delaiMs);
+    return echecLa(lu.cuisine, { ...rendu, erreur }, options.delaiMs);
   }
 
   // Les commandes partent l'une après l'autre, et la première qui échoue est

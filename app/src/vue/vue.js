@@ -4307,13 +4307,13 @@ async function ouvrirPr(projet, ticket) {
 }
 
 // Le geste du projet lui-même, en tête de son espace, à côté de son nom : vérifier son
-// installation — il ne fait que lire, et son verdict se lit dans Paramètres. Un projet sans
-// box n'a pas de commande à envoyer.
+// installation — il ne fait que lire, et son verdict se lit dans Paramètres. Un projet qui ne se
+// lit nulle part — ni box, ni cuisine sur cet ordinateur — n'a pas de commande à envoyer.
 function poserProjet() {
   const projet = courant;
   const geste = GESTES_DE_LA_CUISINE.find(({ id }) => id === "installation");
-  gestesProjet.hidden = projet?.box === undefined || geste === undefined;
-  if (projet?.box === undefined || geste === undefined) return gestesProjet.replaceChildren();
+  gestesProjet.hidden = projet === undefined || !seLit(projet) || geste === undefined;
+  if (projet === undefined || gestesProjet.hidden || geste === undefined) return gestesProjet.replaceChildren();
   const verifier = bouton(geste.libelle, () => void brigade.verifier(projet.nom));
   verifier.dataset.geste = "direct";
   verifier.title = "runs the verification on the station — its verdict is read in Settings, in one sentence";
@@ -4354,7 +4354,7 @@ function interrupteur(nom, allume, { pourquoi, eteindre, allumer, marque = false
 // de lui-même — son échéance passée —, il le marque.
 function poserInterrupteur() {
   const projet = courant;
-  const cache = projet === undefined || projet.box === undefined || projet.desinstalle !== undefined;
+  const cache = projet === undefined || !seLit(projet) || projet.desinstalle !== undefined;
   interrupteurManager.hidden = interrupteurMerge.hidden = cache;
   if (projet === undefined || cache) {
     interrupteurManager.replaceChildren();

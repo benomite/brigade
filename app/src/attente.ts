@@ -10,8 +10,10 @@
 //     il repart en cuisine sans repasser par TODO.
 // Les trois sont directs : ils ne détruisent rien, et le formulaire validé est le geste du chef.
 // Ce que le chef tape passe deux shells — celui du Mac, puis celui de la box, que `ssh` lui
-// donne : chaque champ est cité pour l'un puis pour l'autre, et rien n'y est exécuté. Ce module
+// donne : chaque champ est cité pour l'un puis pour l'autre, et rien n'y est exécuté — sur cet
+// ordinateur, où la cuisine du projet tourne sans `ssh`, `enPoste` le recite pour le seul shell du Mac. Ce module
 // ne lance rien : il n'a que l'`envoyer` du registre pour toucher au monde.
+import type { Cuisine } from "./box.ts";
 import type { Projet } from "./config.ts";
 import { enPoste, mot } from "./gestes.ts";
 import { CONTROLE, type Terminal } from "./terminaux.ts";
@@ -55,12 +57,13 @@ function relanceDe(valeur: string, aujourdhui: Date): string | { refus: string }
 
 // Ce que le geste écrit pour ce ticket de ce projet — ou pourquoi il n'écrit rien. La vue nomme
 // le geste et le ticket, et donne ce que le chef a rempli ; rien d'autre ne s'écrit. Un projet
-// sans box n'a rien à écrire. `aujourdhui` : le jour du poste, qui borne la relance.
-export function commandeDAttente(id: unknown, projet: Projet, ticket: unknown, saisie?: unknown, aujourdhui = new Date()): { commande: string } | { refus: string } | undefined {
+// dont la cuisine n'est nulle part n'a rien à écrire. `aujourdhui` : le jour du poste, qui borne la
+// relance. `cuisine` : là où elle tourne à cet instant — sa box, faute de mieux.
+export function commandeDAttente(id: unknown, projet: Projet, ticket: unknown, saisie?: unknown, aujourdhui = new Date(), cuisine: Cuisine | undefined = projet.box): { commande: string } | { refus: string } | undefined {
   const geste = GESTES_D_ATTENTE.find((candidat) => candidat.id === id);
-  if (geste === undefined || projet.box === undefined) return undefined;
+  if (geste === undefined || cuisine === undefined) return undefined;
   if (typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1) return { refus: "nothing is written: the action names no ticket" };
-  if (geste.id !== "attente-poser") return enPoste(projet.box, projet.nom, `${geste.commande} ${ticket}`);
+  if (geste.id !== "attente-poser") return enPoste(cuisine, projet.nom, `${geste.commande} ${ticket}`);
   const champs = typeof saisie === "object" && saisie !== null ? (saisie as Record<string, unknown>) : {};
   const [quoi, qui, relance] = [champs.quoi, champs.qui, champs.relance].map((valeur) => (typeof valeur === "string" ? valeur.trim() : ""));
   if (quoi === "") return { refus: "nothing is written: say what it waits for, in your words" };
@@ -68,14 +71,14 @@ export function commandeDAttente(id: unknown, projet: Projet, ticket: unknown, s
   if ([quoi, qui, relance].some((valeur) => CONTROLE.test(valeur ?? ""))) return { refus: SANS_CONTROLE };
   const jour = relanceDe(relance ?? "", aujourdhui);
   if (typeof jour !== "string") return jour;
-  return enPoste(projet.box, projet.nom, `${geste.commande} ${ticket} --what ${mot(libre(quoi ?? ""))} --from ${mot(libre(qui ?? ""))} --remind ${jour}`);
+  return enPoste(cuisine, projet.nom, `${geste.commande} ${ticket} --what ${mot(libre(quoi ?? ""))} --from ${mot(libre(qui ?? ""))} --remind ${jour}`);
 }
 
 // Envoie le geste dans le second du projet — ou dit pourquoi rien n'est parti : un projet qui
 // ne s'ouvre pas, un second qui n'est pas dit libre (terminaux.ts), un formulaire incomplet.
 type Registre = { envoyer(projet: Projet, commande: string): Promise<Terminal | { refus: string }> };
-export function ecrireAttente(terminaux: Registre, id: unknown, projet: Projet, ticket: unknown, saisie?: unknown, aujourdhui = new Date()): { refus: string } | undefined | Promise<Terminal | { refus: string }> {
-  const ecrit = commandeDAttente(id, projet, ticket, saisie, aujourdhui);
+export function ecrireAttente(terminaux: Registre, id: unknown, projet: Projet, ticket: unknown, saisie?: unknown, aujourdhui = new Date(), cuisine: Cuisine | undefined = projet.box): { refus: string } | undefined | Promise<Terminal | { refus: string }> {
+  const ecrit = commandeDAttente(id, projet, ticket, saisie, aujourdhui, cuisine);
   if (ecrit === undefined || "refus" in ecrit) return ecrit;
   if (projet.refus !== undefined) return { refus: `nothing is written: “${projet.nom}” does not open — ${projet.refus}` };
   return terminaux.envoyer(projet, `!${ecrit.commande}`);

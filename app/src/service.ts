@@ -33,7 +33,7 @@
 // ses stations (`installation stations --json`) et ce que la vérification dit manquer, relus
 // sans rien noter au journal — une étape remise à faire rouvrirait l'écran. Ce qu'il a perdu
 // se dit dans la bande d'alertes, avec son geste (alertes.ts, « Ce qu'un projet installé a perdu »).
-import { echecDe, type Echec, type Rendu as RenduDeBox, type Servi } from "./box.ts";
+import { echecDe, echecLa, type Cuisine, type Echec, type Lu as ProjetLu, type Rendu as RenduDeBox } from "./box.ts";
 import type { Projet } from "./config.ts";
 import { titreDEchec } from "./faits.ts";
 import { FORME_ATTENDUE, refusDeForme } from "./nom.ts";
@@ -355,11 +355,12 @@ export function verdictDe(rendu: RenduDeBox, nom: string, delaiMs: number): Veri
 // vérification à la place de son objet, et le code de sortie.
 export type Jugee = { a: string } & ({ etat: "jugee"; jugement: Jugement; obtenu: string } | { etat: "illisible"; obtenu: string } | ({ etat: "sans-verdict" } & Echec));
 
-export function jugementDe(rendu: RenduDeBox, delaiMs: number): Jugee {
+// `cuisine` : là où elle a été lancée — sur cet ordinateur, aucun `ssh` n'a pu échouer.
+export function jugementDe(rendu: RenduDeBox, delaiMs: number, cuisine?: Cuisine): Jugee {
   const a = new Date().toISOString();
   const { erreur } = rendu;
   const code = erreur === null ? 0 : erreur.killed !== true && (erreur.code === 1 || erreur.code === 2) ? erreur.code : undefined;
-  if (erreur !== null && code === undefined) return { a, etat: "sans-verdict", ...echecDe({ ...rendu, erreur }, delaiMs) };
+  if (erreur !== null && code === undefined) return { a, etat: "sans-verdict", ...(cuisine === undefined ? echecDe({ ...rendu, erreur }, delaiMs) : echecLa(cuisine, { ...rendu, erreur }, delaiMs)) };
   const jugement = lireJugement(rendu.sortie);
   // Son code est celui du verdict : 0 prêt, 1 sinon (runtime/src/installation-cli.ts, `juger`).
   if (jugement === undefined || code !== (jugement.verdict === "pret" ? 0 : 1)) return { a, etat: "illisible", obtenu: `${rendu.lance}\n${rendu.erreurs}${rendu.sortie}\n→ exit code ${code}` };
@@ -374,7 +375,9 @@ const sansBox = (nom: string) => `“${nom}” does not say where its station is
 // Ce que « Démarrer » écrit pour ce projet — ou pourquoi il n'écrit rien. C'est le geste
 // de docs/installer.md, « Servir le premier ticket », celui que la box nomme en fin
 // d'installation ; `ssh -t` lui donne un terminal, où `sudo` demande son mot de passe.
-export function commandeDeDemarrage(projet: Projet): { commande: string } | { refus: string } {
+// `ici` : sa cuisine tourne sur cet ordinateur — sa station tourne avec l'app, aucun service n'y est à démarrer.
+export function commandeDeDemarrage(projet: Projet, ici = false): { commande: string } | { refus: string } {
+  if (ici) return { refus: "nothing is written: this computer's station runs with the app — there is no service to start" };
   if (projet.box === undefined) return { refus: sansBox(projet.nom) };
   const { hote } = projet.box;
   // Un retour à la ligne enverrait la commande ; et dans cette forme, un tiret en tête est une option de `ssh`.
@@ -472,7 +475,8 @@ export type Guide = {
 type Joue = { a: string; code: number; sortie: string; obtenu: string } | { a: string; echec: Echec };
 
 type Tenu = {
-  hote: string;
+  // Là où l'installation a été lue : l'hôte de sa box, ou cet ordinateur (`ICI`).
+  lieu: string;
   suivi: boolean;
   lecture: Guide["lecture"];
   etapes?: EtapesLues;
@@ -493,6 +497,11 @@ type Tenu = {
 };
 
 export type Services = ReturnType<typeof tenirServices>;
+
+// Le lieu d'une installation lue sur cet ordinateur : aucun hôte ne s'écrit avec un blanc.
+const ICI = "this computer";
+// Un projet, avec là où sa cuisine tourne : c'est là que ses commandes partent.
+type Avec = Projet & { cuisine: Cuisine };
 
 const OCCUPE = "Another installation action is running: it answers by itself, then this one can go.";
 
@@ -518,7 +527,7 @@ function ligneDeManque(manque: ManqueJuge, etapes: EtapeVue[]): LigneDeManque {
           : null;
   return { texte: manque.texte, acteur: "chef", qui: "you", geste };
 }
-const LIGNES: Readonly<Record<string, (projet: Projet) => string[]>> = {
+const LIGNES: Readonly<Record<string, (projet: Projet, ici: boolean) => string[]>> = {
   ajout: () => ["The app marks this step done as soon as the station answers for the project: the add is what made it exist there."],
   init: () => [
     `\`${INIT}\` is a Claude Code session, not a command: the app opens it in this space's second, in the project's folder — the conversation is yours.`,
@@ -531,8 +540,8 @@ const LIGNES: Readonly<Record<string, (projet: Projet) => string[]>> = {
   stations: () => ["Choose, among the stations its main station provides, those where tickets are served, and how many cooks each runs at once: the cap has no default, it is your quota."],
   protection: () => ["“Protect” sets on GitHub the protection the runtime expects — pull request required, zero approvals, administrators included — and turns on push protection if GitHub accepts it."],
   decisions: () => ["One decision at a time: its question, its options and what each does. The station records your answer in the project's journal — no `sudo`, no drop-in."],
-  demarrage: (projet) => {
-    const demarrage = commandeDeDemarrage(projet);
+  demarrage: (projet, ici) => {
+    const demarrage = commandeDeDemarrage(projet, ici);
     return [
       "“Start” has the station verify everything one last time and, only if it is green, records the installation as finished: no step is left to do after it.",
       ...("commande" in demarrage
@@ -546,10 +555,13 @@ const LIGNES: Readonly<Record<string, (projet: Projet) => string[]>> = {
 // Rien n'y fait foi — la box redit tout à la lecture suivante. Ce par quoi elles passent
 // leur est donné : la box, par le passage du projet, et les deux terminaux — le second, où
 // s'ouvre la session d'init, et un shell, où s'écrit le démarrage. `surGuide` reçoit chaque
-// installation qui change.
+// installation qui change. `cuisine` : là où celle d'un projet tourne, demandé à chaque geste —
+// sa box, ou cet ordinateur, où ses commandes partent sans `ssh` (poste/cuisine-ici.ts). Absent,
+// c'est sa box.
 export function tenirServices(options: {
   delaiMs: number;
-  lancer(servi: Servi, commande: string): Promise<RenduDeBox>;
+  lancer(lu: ProjetLu, commande: string): Promise<RenduDeBox>;
+  cuisine?: (projet: Projet) => Cuisine | undefined;
   session(projet: Projet, commande: string): Terminal;
   shell(projet: Projet, ecrit: string): Terminal;
   surGuide(guide: Guide): void;
@@ -558,24 +570,31 @@ export function tenirServices(options: {
   controleMs?: number;
 }) {
   const tenus = new Map<string, Tenu>();
+  const cuisineDe = options.cuisine ?? ((projet: Projet) => projet.box);
+  // Le projet, avec là où sa cuisine tourne à cet instant — rien, si elle n'est nulle part.
+  const avecSaCuisine = (projet: Projet): Avec | undefined => {
+    const cuisine = cuisineDe(projet);
+    return cuisine === undefined ? undefined : { ...projet, cuisine };
+  };
 
-  // L'installation d'un projet sur sa box d'aujourd'hui : ce qui a été lu d'une autre ne vaut rien ici.
-  function tenir(nom: string, hote: string): Tenu {
+  // L'installation d'un projet là où sa cuisine tourne aujourd'hui : ce qui a été lu ailleurs ne vaut rien ici.
+  function tenir({ nom, cuisine }: Avec): Tenu {
+    const lieu = "locale" in cuisine ? ICI : cuisine.hote;
     const tenu = tenus.get(nom);
-    if (tenu !== undefined && tenu.hote === hote) return tenu;
-    const neuf: Tenu = { hote, suivi: false, lecture: { etat: "en-cours", titre: "reading the installation steps on the station…" }, annoncee: false };
+    if (tenu !== undefined && tenu.lieu === lieu) return tenu;
+    const neuf: Tenu = { lieu, suivi: false, lecture: { etat: "en-cours", titre: "reading the installation steps on the station…" }, annoncee: false };
     tenus.set(nom, neuf);
     return neuf;
   }
 
-  const servi = (projet: Projet & { box: NonNullable<Projet["box"]> }): Servi => ({ nom: projet.nom, box: projet.box });
+  const ouLire = ({ nom, cuisine }: Avec): ProjetLu => ({ nom, cuisine });
 
-  async function jouer(projet: Projet & { box: NonNullable<Projet["box"]> }, commande: string): Promise<Joue> {
-    const rendu = await options.lancer(servi(projet), commande);
+  async function jouer(projet: Avec, commande: string): Promise<Joue> {
+    const rendu = await options.lancer(ouLire(projet), commande);
     const a = new Date().toISOString();
     const { erreur } = rendu;
     const code = erreur === null ? 0 : erreur.killed !== true && (erreur.code === 1 || erreur.code === 2) ? erreur.code : undefined;
-    if (code === undefined) return { a, echec: echecDe({ ...rendu, erreur: erreur as NonNullable<typeof erreur> }, options.delaiMs) };
+    if (code === undefined) return { a, echec: echecLa(projet.cuisine, { ...rendu, erreur: erreur as NonNullable<typeof erreur> }, options.delaiMs) };
     return { a, code, sortie: rendu.sortie, obtenu: `${rendu.lance}\n${rendu.erreurs}${rendu.sortie}\n→ exit code ${code}` };
   }
 
@@ -600,7 +619,7 @@ export function tenirServices(options: {
 
   // Les étapes, relues ; puis ce que l'étape courante demande, et — l'écran ouvert sur une
   // installation pas finie — la vérification d'ouverture, une fois.
-  async function relire(projet: Projet & { box: NonNullable<Projet["box"]> }, tenu: Tenu, ajoutNote = false): Promise<void> {
+  async function relire(projet: Avec, tenu: Tenu, ajoutNote = false): Promise<void> {
     const joue = await jouer(projet, COMMANDES.etapes);
     const lues = "echec" in joue || joue.code !== 0 ? undefined : lireEtapes(joue.sortie);
     if (lues === undefined) {
@@ -638,7 +657,7 @@ export function tenirServices(options: {
   }
 
   // Ce que la box dit de l'étape qui a un geste à choisir.
-  async function lireDetail(projet: Projet & { box: NonNullable<Projet["box"]> }, tenu: Tenu): Promise<void> {
+  async function lireDetail(projet: Avec, tenu: Tenu): Promise<void> {
     const id = cible(tenu);
     if (id === undefined) {
       tenu.detail = undefined;
@@ -668,11 +687,11 @@ export function tenirServices(options: {
   // `installation --json`, lancée ; l'étape « verification » notée d'après ce qu'elle dit de la
   // box : faite si rien n'y manque, en attente du chef sinon. Plantée, elle n'a rien constaté :
   // rien n'est noté.
-  function verifierPour(projet: Projet & { box: NonNullable<Projet["box"]> }, tenu: Tenu): Promise<void> {
+  function verifierPour(projet: Avec, tenu: Tenu): Promise<void> {
     if (tenu.verifiant !== undefined) return tenu.verifiant;
     tenu.verification = undefined;
     tenu.verifiant = (async () => {
-      const jugee = jugementDe(await options.lancer(servi(projet), JUGEMENT), options.delaiMs);
+      const jugee = jugementDe(await options.lancer(ouLire(projet), JUGEMENT), options.delaiMs, projet.cuisine);
       tenu.verification = jugee;
       tenu.verifiant = undefined;
       pousser(projet, tenu);
@@ -689,7 +708,7 @@ export function tenirServices(options: {
 
   // Le contrôle d'un projet installé : ses stations, puis la vérification entière — rien n'est
   // noté au journal. Une lecture qui ne rend pas sa forme laisse ce que la précédente avait dit.
-  function controler(projet: Projet & { box: NonNullable<Projet["box"]> }, tenu: Tenu, expres = false): Promise<void> {
+  function controler(projet: Avec, tenu: Tenu, expres = false): Promise<void> {
     if (tenu.controlant !== undefined) return tenu.controlant;
     const dernier = tenu.controle === undefined ? undefined : Date.parse(tenu.controle.a);
     if (!expres && dernier !== undefined && Date.now() - dernier < (options.controleMs ?? 0)) return Promise.resolve();
@@ -697,7 +716,7 @@ export function tenirServices(options: {
       try {
         const joue = await jouer(projet, COMMANDES.stations);
         const stations = "echec" in joue || joue.code !== 0 ? undefined : lireStations(joue.sortie);
-        const jugee = jugementDe(await options.lancer(servi(projet), JUGEMENT), options.delaiMs);
+        const jugee = jugementDe(await options.lancer(ouLire(projet), JUGEMENT), options.delaiMs, projet.cuisine);
         const lu = jugee.etat === "jugee" && jugee.jugement.verdict !== "plantee" ? jugee.jugement : undefined;
         const manques = lu === undefined ? undefined : manquesDuJugement(lu);
         const avant = tenu.controle;
@@ -736,13 +755,13 @@ export function tenirServices(options: {
         rang: rang + 1,
         courante,
         manques: manques.filter((manque) => manque.etape === etape.id),
-        lignes: courante ? (LIGNES[etape.id]?.(projet) ?? []) : [],
+        lignes: courante ? (LIGNES[etape.id]?.(projet, tenu.lieu === ICI) ?? []) : [],
         ...(etape.id === cible(tenu) && tenu.detail !== undefined ? { detail: tenu.detail } : {}),
       };
     });
     const faites = etapes.filter(({ etat }) => etat === "done").length;
     const courante = etapes.find((etape) => etape.courante);
-    const demarrage = commandeDeDemarrage(projet);
+    const demarrage = commandeDeDemarrage(projet, tenu.lieu === ICI);
     const titre =
       tenu.lecture.etat === "en-cours"
         ? `Installation — ${tenu.lecture.titre}`
@@ -784,7 +803,7 @@ export function tenirServices(options: {
     for (const manque of manques) {
       if (manque.etape !== null && SUR_LA_BOX.includes(manque.etape)) liste.push({ titre: "On the station, by someone with `sudo` there", texte: manque.texte, geste: manque.geste });
     }
-    const demarrage = commandeDeDemarrage(projet);
+    const demarrage = commandeDeDemarrage(projet, tenu.lieu === ICI);
     const derniere = etapes.at(-1);
     if ("commande" in demarrage && derniere !== undefined) {
       liste.push({
@@ -830,15 +849,14 @@ export function tenirServices(options: {
   }
 
   // Ce qui réclame un terminal : la raison, pour un projet qui n'en a pas.
-  const sansTerminal = (projet: Projet) => (projet.box === undefined ? sansBox(projet.nom) : projet.refus === undefined ? undefined : `“${projet.nom}” does not open: ${projet.refus}`);
+  const sansTerminal = (projet: Projet) => (cuisineDe(projet) === undefined ? sansBox(projet.nom) : projet.refus === undefined ? undefined : `“${projet.nom}” does not open: ${projet.refus}`);
 
   // Une action de l'écran sur la box : une à la fois par projet. Ce que la box en dit est
   // gardé tel quel, puis tout est relu — c'est elle qui dit où en est l'installation.
-  async function agir(projet: Projet, quoi: string, faire: (projet: Projet & { box: NonNullable<Projet["box"]> }, tenu: Tenu) => Promise<Fait | { refus: string }>): Promise<{ refus: string } | undefined> {
-    const { box } = projet;
-    if (box === undefined) return { refus: sansBox(projet.nom) };
-    const avec = { ...projet, box };
-    const tenu = tenir(projet.nom, box.hote);
+  async function agir(projet: Projet, quoi: string, faire: (projet: Avec, tenu: Tenu) => Promise<Fait | { refus: string }>): Promise<{ refus: string } | undefined> {
+    const avec = avecSaCuisine(projet);
+    if (avec === undefined) return { refus: sansBox(projet.nom) };
+    const tenu = tenir(avec);
     if (tenu.action !== undefined || tenu.verifiant !== undefined) return { refus: OCCUPE };
     tenu.suivi = true;
     tenu.action = quoi;
@@ -856,7 +874,7 @@ export function tenirServices(options: {
   }
 
   // Une commande du runtime qui écrit, et ce qu'elle en a dit.
-  async function ecrire(projet: Projet & { box: NonNullable<Projet["box"]> }, commande: string, titres: { ok: string; non: string }): Promise<Fait> {
+  async function ecrire(projet: Avec, commande: string, titres: { ok: string; non: string }): Promise<Fait> {
     const joue = await jouer(projet, commande);
     if ("echec" in joue) return { a: joue.a, ok: false, titre: `${titres.non} — ${titreDEchec(joue.echec, `REACHED, BUT \`${commande}\` DID NOT ANSWER`)}`, obtenu: joue.echec.erreur };
     return { a: joue.a, ok: joue.code === 0, titre: joue.code === 0 ? titres.ok : titres.non, obtenu: joue.obtenu };
@@ -875,10 +893,11 @@ export function tenirServices(options: {
   // ou en cours, ce que son étape courante demande est lu aussi, et la vérification
   // d'ouverture part une fois : ce qui sera au chef est annoncé sans qu'il ait rien pressé.
   async function guide(projet: Projet): Promise<Guide | undefined> {
-    if (projet.box === undefined) return undefined;
-    const tenu = tenir(projet.nom, projet.box.hote);
+    const avec = avecSaCuisine(projet);
+    if (avec === undefined) return undefined;
+    const tenu = tenir(avec);
     pousser(projet, tenu);
-    await relire({ ...projet, box: projet.box }, tenu);
+    await relire(avec, tenu);
     return vue(projet, tenu);
   }
 
@@ -891,9 +910,9 @@ export function tenirServices(options: {
     // `expres` : demandé par le chef, l'écart minimal ne le retient pas.
     // Rend le contrôle tel qu'il en sort — rien, pour un projet sans box ou pas installé.
     async controler(projet: Projet, expres = false): Promise<Controle | undefined> {
-      if (projet.box === undefined) return undefined;
-      const avec = { ...projet, box: projet.box };
-      const tenu = tenir(projet.nom, projet.box.hote);
+      const avec = avecSaCuisine(projet);
+      if (avec === undefined) return undefined;
+      const tenu = tenir(avec);
       if (tenu.fini !== true) {
         // Terminée depuis la dernière lecture — ailleurs que dans l'app : l'écran l'apprend aussi.
         const joue = await jouer(avec, COMMANDES.etapes);
@@ -912,21 +931,24 @@ export function tenirServices(options: {
 
     // Le chef ouvre l'écran replié, ou le projet vient d'être ajouté par l'écran d'ajout.
     deplier(projet: Projet): Promise<Guide | undefined> {
-      if (projet.box !== undefined) tenir(projet.nom, projet.box.hote).suivi = true;
+      const avec = avecSaCuisine(projet);
+      if (avec !== undefined) tenir(avec).suivi = true;
       return guide(projet);
     },
 
     // Le projet vient d'être ajouté par l'écran : son installation s'ouvre d'elle-même dans son espace.
     suivre(projet: Projet): void {
-      if (projet.box !== undefined) tenir(projet.nom, projet.box.hote).suivi = true;
+      const avec = avecSaCuisine(projet);
+      if (avec !== undefined) tenir(avec).suivi = true;
     },
 
     // La session `/brigade:init`, dans le second du projet. Rien n'en est déduit : qu'elle ait
     // abouti, et que son résultat soit mergé, c'est le chef qui le dit.
     amorcer(projet: Projet): Terminal | { refus: string } {
       const refus = sansTerminal(projet);
-      if (refus !== undefined || projet.box === undefined) return { refus: refus ?? sansBox(projet.nom) };
-      tenir(projet.nom, projet.box.hote).suivi = true;
+      const avec = avecSaCuisine(projet);
+      if (refus !== undefined || avec === undefined) return { refus: refus ?? sansBox(projet.nom) };
+      tenir(avec).suivi = true;
       return options.session(projet, INIT);
     },
 
@@ -940,12 +962,13 @@ export function tenirServices(options: {
     // Lance `installation`, et rend l'installation telle qu'elle en sort : son verdict, et
     // l'étape « verification » notée d'après lui. Une vérification en route ne se double pas.
     async verifier(projet: Projet): Promise<{ refus: string } | undefined> {
-      if (projet.box === undefined) return { refus: sansBox(projet.nom) };
-      const tenu = tenir(projet.nom, projet.box.hote);
+      const avec = avecSaCuisine(projet);
+      if (avec === undefined) return { refus: sansBox(projet.nom) };
+      const tenu = tenir(avec);
       if (tenu.action !== undefined) return { refus: OCCUPE };
       tenu.suivi = true;
       tenu.annoncee = true;
-      await verifierPour({ ...projet, box: projet.box }, tenu);
+      await verifierPour(avec, tenu);
       return undefined;
     },
 
@@ -1004,10 +1027,11 @@ export function tenirServices(options: {
     // seulement, le démarrage du service est écrit dans un shell de l'espace, sans l'envoyer.
     async demarrer(projet: Projet): Promise<Terminal | { refus: string }> {
       const refus = sansTerminal(projet);
-      if (refus !== undefined || projet.box === undefined) return { refus: refus ?? sansBox(projet.nom) };
-      const demarrage = commandeDeDemarrage(projet);
+      const avec = avecSaCuisine(projet);
+      if (refus !== undefined || avec === undefined) return { refus: refus ?? sansBox(projet.nom) };
+      const demarrage = commandeDeDemarrage(projet, "locale" in avec.cuisine);
       if ("refus" in demarrage) return demarrage;
-      const tenu = tenir(projet.nom, projet.box.hote);
+      const tenu = tenir(avec);
       if (tenu.etapes?.courante !== null) {
         if (tenu.etapes?.courante !== "demarrage") return { refus: "Nothing is written: the installation is not at its last step — finish the current one first." };
         let fini = false;

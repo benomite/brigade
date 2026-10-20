@@ -545,7 +545,7 @@ describe("l'onglet Grants et les deux gestes de chaque grant", () => {
     const geste = principalDeLApp.slice(principalDeLApp.indexOf('ipcMain.handle("geste"'), principalDeLApp.indexOf('ipcMain.on("regarder"'));
 
     assert.doesNotMatch(vue, /\b(confirm|alert|prompt)\s*\(/);
-    assert.match(geste, /ecrireGeste\(terminaux, id, vise, grant, oui\)/);
+    assert.match(geste, /ecrireGeste\(terminaux, id, vise, grant, oui, cuisines\.cuisineDe\(vise\)\)/);
     assert.doesNotMatch(geste, /dialog\.|showMessageBox/);
     for (const source of ["app/src/grants.ts", "app/src/gestes.ts", "app/src/confirmation.ts"]) assert.doesNotMatch(readFileSync(join(RACINE, source), "utf8"), /dialog|showMessageBox|\bconfirm\(/);
   });
