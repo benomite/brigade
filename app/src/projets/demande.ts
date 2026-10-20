@@ -7,7 +7,8 @@
 //   - `brigade-projets-suivi.json`, écrit par la station seule : où en est
 //     chacun — servi, à autoriser sur GitHub (avec les pages où le faire), en
 //     préparation, refusé (et pourquoi), ou secondaire — et où il cuit (`cuitSur`, `ici`), et où en
-//     est son déménagement (`bascule`).
+//     est son déménagement (`bascule`) ; et, pour chaque projet dont elle est la principale, où en
+//     est son onboarding (`onboarding`, #1110).
 // Un déménagement de sa cuisine (runtime/src/demenagement/) ajoute à la demande `remise`, sur la
 // station qu'il quitte, et `reprise`, sur celle qui le reprend : l'app les relit et les réécrit tels
 // quels — sans eux, le déménagement en cours ne serait plus qu'un changement de principale.
@@ -119,6 +120,67 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
     });
   } catch {
     return [];
+  }
+}
+
+// Où en est un projet neuf, de son ajout à son premier ticket (#1110, runtime/src/onboarding/etat.ts,
+// `Onboarding`) : la station principale l'écrit dans son suivi, sous `onboarding`, par nom de projet.
+// Quatre étapes dans l'ordre, chacune faite, courante ou à venir, avec sa phrase et, courante, le
+// geste attendu du chef ; le ticket qui prépare le dépôt, son état, et, en échec, pourquoi et quand
+// il repart. L'app n'en ouvre que des pages de GitHub.
+export type EtatDEtape = "faite" | "courante" | "a-venir";
+export type GesteDOnboarding = { quoi: string; ou: string; liens: string[] };
+export type EtapeDOnboarding = { etape: string; titre: string; etat: EtatDEtape; dit: string; geste: GesteDOnboarding | null };
+export type EtatDePreparation = "en-cours" | "en-echec" | "a-relire" | "suspendu" | "faite" | "abandonne";
+export type PreparationDuDepot = { ticket: number; url: string; etat: EtatDePreparation; raison: string | null; prochainEssai: string | null; pr: string | null };
+export type Onboarding = { etat: "en-cours" | "pret"; termine: boolean; courante: string | null; etapes: EtapeDOnboarding[]; preparation: PreparationDuDepot | null; sansBacASable: boolean | null };
+
+const ETATS_D_ETAPE: readonly string[] = ["faite", "courante", "a-venir"];
+const ETATS_DE_PREPARATION: readonly string[] = ["en-cours", "en-echec", "a-relire", "suspendu", "faite", "abandonne"];
+const pageGitHub = (valeur: unknown): valeur is string => texte(valeur) && /^https:\/\/github\.com\//.test(valeur);
+
+function lireGeste(lu: unknown): GesteDOnboarding | null {
+  if (lu === null || typeof lu !== "object") return null;
+  const { quoi, ou, liens } = lu as Record<string, unknown>;
+  if (!texte(quoi) || quoi.trim() === "") return null;
+  return { quoi, ou: texte(ou) ? ou : "", liens: Array.isArray(liens) ? liens.filter(pageGitHub) : [] };
+}
+
+function lirePreparation(lue: unknown): PreparationDuDepot | null {
+  if (lue === null || typeof lue !== "object") return null;
+  const { ticket, url, etat, raison, prochainEssai, pr } = lue as Record<string, unknown>;
+  if (typeof ticket !== "number" || !Number.isInteger(ticket) || ticket <= 0 || !pageGitHub(url) || !texte(etat) || !ETATS_DE_PREPARATION.includes(etat)) return null;
+  return { ticket, url, etat: etat as EtatDePreparation, raison: texte(raison) && raison !== "" ? raison : null, prochainEssai: date(prochainEssai), pr: pageGitHub(pr) ? pr : null };
+}
+
+function lireUnOnboarding(lu: unknown): Onboarding | null {
+  if (lu === null || typeof lu !== "object") return null;
+  const { etat, termine, courante, etapes, preparation, sansBacASable } = lu as Record<string, unknown>;
+  if ((etat !== "en-cours" && etat !== "pret") || !Array.isArray(etapes)) return null;
+  const lues = etapes.flatMap((brute): EtapeDOnboarding[] => {
+    const { etape, titre, etat: sien, dit, geste } = (brute ?? {}) as Record<string, unknown>;
+    if (!texte(etape) || !texte(titre) || !texte(sien) || !ETATS_D_ETAPE.includes(sien)) return [];
+    return [{ etape, titre, etat: sien as EtatDEtape, dit: texte(dit) ? dit : "", geste: lireGeste(geste) }];
+  });
+  if (lues.length === 0) return null;
+  return { etat: etat as Onboarding["etat"], termine: termine === true, courante: texte(courante) ? courante : null, etapes: lues, preparation: lirePreparation(preparation), sansBacASable: typeof sansBacASable === "boolean" ? sansBacASable : null };
+}
+
+// L'onboarding de chaque projet dont la station est la principale, par son nom. Absent, illisible,
+// ou d'une station d'avant #1110 : rien.
+export function lireOnboarding(brut: string | undefined): Record<string, Onboarding> {
+  if (brut === undefined) return {};
+  try {
+    const lu = JSON.parse(brut) as { brigade?: unknown; onboarding?: unknown };
+    if (lu?.brigade !== "projets-suivi" || lu.onboarding === null || typeof lu.onboarding !== "object" || Array.isArray(lu.onboarding)) return {};
+    return Object.fromEntries(
+      Object.entries(lu.onboarding as Record<string, unknown>).flatMap(([nom, un]): [string, Onboarding][] => {
+        const onboarding = lireUnOnboarding(un);
+        return onboarding === null ? [] : [[nom, onboarding]];
+      }),
+    );
+  } catch {
+    return {};
   }
 }
 

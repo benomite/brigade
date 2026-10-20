@@ -172,6 +172,41 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
     assert.deepEqual(projets.pages(), []);
   });
 
+  test("l'onboarding que la principale publie se lit sous le projet (#1111), et ses pages de GitHub s'ouvrent ; celui d'une secondaire, jamais", async (t) => {
+    const { projets, gist, repertoire } = unGitHub(t);
+    await projets.ajouter(SAISIE);
+    const issue = "https://github.com/benomite/parade/issues/7";
+    const pr = "https://github.com/benomite/parade/pull/8";
+    const onboarding = {
+      etat: "en-cours",
+      termine: false,
+      courante: "preparation",
+      etapes: [
+        { etape: "depot", titre: "Repository", etat: "faite", dit: "benomite/parade is authorized and cloned on box.", geste: null },
+        { etape: "machine", titre: "Cooking machine", etat: "faite", dit: "box cooks parade.", geste: null },
+        { etape: "preparation", titre: "Repository preparation", etat: "courante", dit: "The preparation PR awaits you: no other ticket leaves before its merge.", geste: { quoi: "Review and merge the preparation PR.", ou: "On GitHub.", liens: [pr, "https://ailleurs.example/piege"] } },
+        { etape: "premier-ticket", titre: "First ticket", etat: "a-venir", dit: "Once benomite/parade is prepared, post your first ticket with the `fire` label.", geste: null },
+      ],
+      preparation: { ticket: 7, url: issue, etat: "a-relire", raison: null, prochainEssai: null, pr },
+      sansBacASable: false,
+    };
+    // Ce que la station écrit (runtime/src/projets/demande.ts, `documentDeSuivi`) : l'onboarding à côté de la liste.
+    const ecrire = (id: string, contenu: object) => {
+      const lu = gist(id);
+      lu.files[FICHIER_SUIVI] = { filename: FICHIER_SUIVI, content: JSON.stringify({ brigade: "projets-suivi", format: 1, a: "2026-10-15T12:02:00Z", projets: [{ nom: "parade", etat: "servi", dit: "served", autoriser: [], serviLe: null }], ...contenu }) };
+      writeFileSync(join(repertoire, `${id}.gist.json`), JSON.stringify(lu));
+    };
+    ecrire("g2", { onboarding: { parade: { ...onboarding, etat: "pret", termine: true } } });
+    assert.equal((await projets.relire()).projets[0]?.onboarding, undefined, "une secondaire n'en dit rien qui compte");
+    ecrire("g1", { onboarding: { parade: onboarding } });
+    const lu = (await projets.relire()).projets[0]?.onboarding;
+    assert.equal(lu?.courante, "preparation");
+    assert.deepEqual(lu?.etapes.map(({ etat }) => etat), ["faite", "faite", "courante", "a-venir"]);
+    assert.deepEqual(lu?.etapes[2]?.geste, { quoi: "Review and merge the preparation PR.", ou: "On GitHub.", liens: [pr] });
+    assert.deepEqual(lu?.preparation, { ticket: 7, url: issue, etat: "a-relire", raison: null, prochainEssai: null, pr });
+    assert.deepEqual(projets.pages().sort(), [issue, pr].sort());
+  });
+
   test("retiré : le projet quitte la demande de chacune de ses stations, les autres projets restent", async (t) => {
     const { projets, demande } = unGitHub(t);
     await projets.ajouter(SAISIE);

@@ -208,7 +208,8 @@ export type Pont = {
   retirerDUneStation(nom: string): Promise<RetraitDUneStation>;
   // Déménage la cuisine d'un projet vers une station appairée — son gist (projets/demenagement.ts).
   demenagerLaCuisine(nom: string, vers: string): Promise<Demenagement>;
-  // Ouvre dans le navigateur une page où autoriser brigade sur GitHub — une de celles qu'une station a publiées.
+  // Ouvre dans le navigateur une page où autoriser brigade sur GitHub — une de celles qu'une station a publiées —,
+  // ou une page que le parcours d'un projet neuf montre (ticket 1111) : son geste, son ticket de préparation, sa PR.
   autoriserSurGitHub(url: string): Promise<boolean>;
   // Le bouton d'une panne, sur la ligne d'une station (pannes/gestes.ts) : relire GitHub, écarter la
   // ligne, lancer le login. Rend ce qu'il a fait, ou pourquoi rien, en une ligne.

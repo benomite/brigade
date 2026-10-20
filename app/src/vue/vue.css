@@ -472,6 +472,107 @@ main > header,
 #stations-du-projet .demenagement-dit.refus {
   color: var(--rouge-clair);
 }
+/* Le parcours d'un projet neuf (ticket 1111), sous la ligne : en tête ce qu'on attend du chef, puis
+   ses quatre étapes, une par ligne, chacune avec son état — la courante sous un trait de l'accent,
+   comme dans l'installation guidée, celles à venir plus discrètes.
+   En échec, la préparation dit sa raison et son prochain essai en rouge clair, à la place du vide. */
+#stations-du-projet .parcours-du-projet {
+  flex-basis: 100%;
+}
+#stations-du-projet .parcours {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 640px;
+  margin: 6px 0 10px;
+  padding: 16px 20px;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+}
+#stations-du-projet .parcours .attendu {
+  font-size: 15px;
+  font-weight: 700;
+}
+#stations-du-projet .parcours .etapes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#stations-du-projet .parcours .etape {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+#stations-du-projet .parcours .etape.courante {
+  margin-left: -12px;
+  padding-left: 8px;
+  border-left: 4px solid var(--accent);
+}
+#stations-du-projet .parcours .etape[data-etat="faite"] .titre .etat {
+  color: var(--vert);
+}
+#stations-du-projet .parcours .etape[data-etat="courante"] .titre .etat {
+  color: var(--texte);
+}
+#stations-du-projet .parcours .corps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+#stations-du-projet .parcours .titre {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+#stations-du-projet .parcours .titre .etat,
+#stations-du-projet .parcours .geste .ou {
+  color: var(--discret);
+}
+#stations-du-projet .parcours .dit {
+  color: var(--texte-doux);
+  overflow-wrap: anywhere;
+}
+#stations-du-projet .parcours .etape[data-etat="a-venir"] .titre,
+#stations-du-projet .parcours .etape[data-etat="a-venir"] .dit {
+  color: var(--discret);
+}
+#stations-du-projet .parcours .geste,
+#stations-du-projet .parcours .ticket,
+#stations-du-projet .parcours .gestes-du-parcours {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+#stations-du-projet .parcours button:not(.recommande) {
+  padding: 3px 10px;
+  font-weight: 600;
+  background: var(--bouton);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+#stations-du-projet .parcours button.recommande {
+  padding: 3px 10px;
+  font-weight: 600;
+  border: 1px solid var(--accent);
+  border-radius: var(--rayon-bouton);
+}
+#stations-du-projet .parcours .etat-de-preparation {
+  color: var(--texte-doux);
+}
+#stations-du-projet .parcours .echec {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  color: var(--rouge-clair);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
 /* Le choix de la cuisine (ticket 1107) : une carte, comme dans la maquette. Sa phrase en tête, puis
    chaque partie sous son petit titre — la machine principale, les renforts, les cooks, les réglages
    avancés —, une machine par ligne, entière, cliquable d'un bout à l'autre. Aucun libellé n'est
