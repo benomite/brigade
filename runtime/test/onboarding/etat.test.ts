@@ -53,6 +53,15 @@ test("aucune station choisie : le dépôt est ajouté, la machine est l'étape c
   assert.equal(onboarding.sansBacASable, null);
 });
 
+test("l'accès au dépôt bloqué, le clone fait : le dépôt reste l'étape courante, sa raison et son geste sur la station ; la machine attend sans le redire", () => {
+  const acces = { bloque: "fetch" as const, raison: "macbook cannot fetch from BOBL-tech/mirrorlab: git has no credentials for https://github.com and no credential helper to ask for them (git: could not read Username).", geste: "Run `gh auth setup-git` on macbook, under the account that runs it: git then takes its credentials from gh." };
+  const onboarding = etatDOnboarding({ ...servi, suivi: { etat: "refuse", dit: `${acces.raison} ${acces.geste}`, autoriser: [], acces }, clone: true });
+  assert.equal(onboarding.courante, "depot");
+  assert.equal(etape(onboarding, "depot")?.dit, acces.raison);
+  assert.deepEqual(etape(onboarding, "depot")?.geste, { quoi: acces.geste, ou: "On macbook, under the account that runs it.", liens: [] });
+  assert.equal(etape(onboarding, "machine")?.dit, "macbook opens the kitchen of mirrorlab once it may fetch from and push to its repository.");
+});
+
 test("les Apps de brigade à autoriser : le dépôt est l'étape courante, le geste porte les pages GitHub où les autoriser", () => {
   const pages = ["https://github.com/apps/brigade-cook/installations/new"];
   const onboarding = etatDOnboarding({ ...servi, suivi: { etat: "a-autoriser", dit: "authorize brigade", autoriser: pages }, clone: false });

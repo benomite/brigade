@@ -56,6 +56,8 @@ function uneStation(t: TestContext) {
     maintenant: () => Date.parse("2026-10-20T10:02:00Z"),
     autoriser: async (depot) => autorisations.get(depot) ?? { autorisee: true },
     cloner: async (_depot, clone) => void mkdirSync(join(clone, ".git"), { recursive: true }),
+    // Le clone doublé n'a pas de remote : son accès au dépôt se prouve dans `../projets/acces.test.ts`.
+    verifierAcces: async () => ({ etat: "libre" }),
     // Le ticket ouvert est noté comme la station le note.
     ouvrirLaPreparation: async (_projet, repertoireEtat) => {
       mkdirSync(repertoireEtat, { recursive: true });

@@ -1,6 +1,7 @@
 // Où en est un projet neuf, entre « projet ajouté » et « premier ticket
 // servi » : l'onboarding, en quatre étapes, dans l'ordre —
-//   1. `depot`          les Apps de brigade autorisées sur le dépôt, et son clone ;
+//   1. `depot`          les Apps de brigade autorisées sur le dépôt, son clone,
+//                       et l'accès de la station au dépôt, en lecture et en écriture ;
 //   2. `machine`        la station qui le cuit, sa cuisine ouverte ;
 //   3. `preparation`    le ticket qui prépare le dépôt (`preparation-depot/`), mergé ;
 //   4. `premier-ticket` le premier ticket du chef, posé avec le label `fire`.
@@ -92,7 +93,7 @@ export type Entrees = {
   // La station principale du projet — celle qui le cuit —, ou null : aucune n'est choisie.
   station: string | null;
   // Ce que cette station dit du projet dans son suivi ; null : rien encore.
-  suivi: Pick<SuiviDuProjet, "etat" | "dit" | "autoriser"> | null;
+  suivi: Pick<SuiviDuProjet, "etat" | "dit" | "autoriser" | "acces"> | null;
   // Le dépôt est cloné sur la station.
   clone: boolean;
   sansBacASable: boolean | null;
@@ -157,6 +158,10 @@ function etapeDepot({ depot, station, suivi, clone }: Entrees): Vue {
       geste: { quoi: `Authorize brigade's GitHub Apps on ${depot}.`, ou: "On GitHub, one click per page.", liens: suivi.autoriser },
     };
   }
+  // Le clone ne peut pas récupérer le dépôt, ou y pousser : le geste est sur la station.
+  if (suivi?.acces !== undefined) {
+    return { faite: false, dit: suivi.acces.raison, geste: { quoi: suivi.acces.geste, ou: `On ${station}, under the account that runs it.`, liens: [] } };
+  }
   if (!clone) {
     const dit = suivi === null || suivi.etat === "servi" || suivi.dit === "" ? `${station} checks that it may act on ${depot}, then clones it.` : phrase(suivi.dit);
     return { faite: false, dit, geste: null };
@@ -174,6 +179,8 @@ function etapeMachine(entrees: Entrees): Vue {
     };
   }
   const sansBac = sansBacASable === true ? `: its cooks run without a sandbox, they read everything the station's account reads` : "";
+  // Un accès refusé est dit par l'étape du dépôt : la cuisine attend qu'il soit levé.
+  if (suivi?.acces !== undefined) return { faite: false, dit: `${station} opens the kitchen of ${projet} once it may fetch from and push to its repository.`, geste: null };
   if (suivi?.etat === "refuse") return { faite: false, dit: phrase(suivi.dit), geste: null };
   if (decisionAttendue(entrees)) {
     return {

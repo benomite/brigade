@@ -106,6 +106,8 @@ function uneStation(t: TestContext, leCompte: Compte, nom: string, options: { lo
     maintenant: () => Date.parse(AUJOURDHUI),
     autoriser: async () => ({ autorisee: true }),
     cloner: async (_depot, clone) => void mkdirSync(join(clone, ".git"), { recursive: true }),
+    // Le clone doublé n'a pas de remote : son accès au dépôt se prouve dans `../projets/acces.test.ts`.
+    verifierAcces: async () => ({ etat: "libre" }),
     ouvrirLaPreparation: async (_projet, repertoireEtat) => {
       const fichier = join(repertoireEtat, "preparation-depot.json");
       if (existsSync(fichier)) return { ticket: 7, ouvert: false };

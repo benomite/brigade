@@ -1,5 +1,7 @@
 // Les projets que le chef ajoute depuis l'app, tels que la station les tient :
-// contre un gist en mémoire, une autorisation et un clone doublés. La station
+// contre un gist en mémoire, une autorisation et un clone doublés — sauf pour
+// l'accès au dépôt, où le clone est un vrai clone, et l'accès vérifié par un
+// vrai git. La station
 // elle-même, son vrai `gh` et son vrai clone se prouvent dans `../0-en-premier/recette.test.ts`.
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -11,9 +13,11 @@ import { decisionsPosees } from "../../src/decisions.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { DEBUT, FIN } from "../../src/projets/bloc.ts";
 import { FICHIER_PROJETS, FICHIER_SUIVI, type SuiviDuProjet } from "../../src/projets/demande.ts";
+import type { Onboarding } from "../../src/onboarding/etat.ts";
 import type { Autorisation } from "../../src/projets/preparer.ts";
 import { tenirProjetsDeLApp } from "../../src/projets/tenir.ts";
-import { aArreter, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { depotQuiRefuse } from "../aides/depot-qui-refuse.ts";
+import { aArreter, BASE, depotGit, ENV_GIT, git, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -30,7 +34,10 @@ const PARADE = {
   demandeLe: "2026-10-15T12:01:00.000Z",
 };
 
-function uneStation(t: TestContext, options: { appairee?: boolean } = {}) {
+// `remote` : le clone est un vrai clone d'une origine nue, et ce rappel en
+// règle le remote ; l'accès est alors vérifié par un vrai git — sans
+// configuration globale, donc sans credential helper.
+function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clone: string) => void } = {}) {
   const racine = repertoireTemporaire(t);
   writeFileSync(join(racine, FICHIER_LOCAL), JSON.stringify({ gist: GIST, appairee: options.appairee ?? true, code: null, expireLe: null, echus: [] }));
   const fichiers: Fichiers = {};
@@ -60,6 +67,8 @@ function uneStation(t: TestContext, options: { appairee?: boolean } = {}) {
   const autorisations = new Map<string, Autorisation>();
   const clones: string[] = [];
   let clonage: Error | null = null;
+  const { remote } = options;
+  const origine = remote === undefined ? null : depotGit(t).origine;
   // Le ticket qui prépare le dépôt : ce que la station en a demandé, et la panne de GitHub.
   const preparations: string[] = [];
   let preparation: Error | null = null;
@@ -67,7 +76,7 @@ function uneStation(t: TestContext, options: { appairee?: boolean } = {}) {
     racine,
     canal,
     station: "box",
-    env: {},
+    env: remote === undefined ? {} : { ...ENV_GIT, HOME: repertoireTemporaire(t), GIT_SSL_NO_VERIFY: "1" },
     servis: { projets: servis, refus: (nom) => refuses.get(nom) ?? null },
     apresEcriture: () => void relectures++,
     dire: (ligne) => lignes.push(ligne),
@@ -78,8 +87,13 @@ function uneStation(t: TestContext, options: { appairee?: boolean } = {}) {
     cloner: async (depot, clone) => {
       if (clonage !== null) throw clonage;
       clones.push(`${depot} → ${clone}`);
-      mkdirSync(join(clone, ".git"), { recursive: true });
+      if (origine === null || remote === undefined) return void mkdirSync(join(clone, ".git"), { recursive: true });
+      if (existsSync(join(clone, ".git"))) return;
+      git(racine, "clone", "-q", origine, clone);
+      remote(clone);
     },
+    // Le clone doublé n'a pas de remote : rien à vérifier.
+    ...(remote === undefined ? { verifierAcces: async () => ({ etat: "libre" as const }) } : {}),
     ouvrirLaPreparation: async (projet, repertoireEtat, clone) => {
       if (preparation !== null) throw preparation;
       preparations.push(`${projet.depot} ${projet.base} → ${repertoireEtat} ${clone}`);
@@ -90,9 +104,10 @@ function uneStation(t: TestContext, options: { appairee?: boolean } = {}) {
   // Ce que l'app écrit : les projets que le chef demande à cette station.
   const demander = (...demandes: object[]) => void (fichiers[FICHIER_PROJETS] = JSON.stringify({ brigade: "projets", format: 1, projets: demandes }));
   const suivi = () => (JSON.parse(fichiers[FICHIER_SUIVI] ?? "null") as { projets: SuiviDuProjet[] } | null)?.projets;
+  const onboarding = () => (JSON.parse(fichiers[FICHIER_SUIVI] ?? "null") as { onboarding?: Record<string, Onboarding> } | null)?.onboarding;
   const configuration = () => (existsSync(join(racine, "projets")) ? readFileSync(join(racine, "projets"), "utf8") : "");
   const ecrireTelQuel = (texte: string) => void (fichiers[FICHIER_PROJETS] = texte);
-  return { racine, projets, demander, ecrireTelQuel, suivi, configuration, lignes, ecritures, autorisations, clones, refuses, relectures: () => relectures, echouerLeClone: (erreur: Error | null) => (clonage = erreur), preparations, echouerLaPreparation: (erreur: Error | null) => (preparation = erreur) };
+  return { racine, origine, projets, demander, ecrireTelQuel, suivi, onboarding, configuration, lignes, ecritures, autorisations, clones, refuses, relectures: () => relectures, echouerLeClone: (erreur: Error | null) => (clonage = erreur), preparations, echouerLaPreparation: (erreur: Error | null) => (preparation = erreur) };
 }
 
 test("un projet dont la station est la principale : cloné, ses décisions posées, sa ligne écrite — il est servi, et le suivi le dit", async (t) => {
@@ -225,6 +240,87 @@ test("refusé par la station, le suivi dit pourquoi", async (t) => {
   station.demander(PARADE);
   await station.projets.relire();
   assert.deepEqual(station.suivi()?.[0], { nom: "parade", etat: "refuse", dit: "the station refuses to serve it — le clone du projet n'existe pas", autoriser: [], serviLe: null, cuitSur: null, ici: false, bascule: null });
+});
+
+// L'accès au dépôt, vérifié sur le remote du clone avant que rien ne soit
+// préparé. Le dépôt de PARADE est sur `main`, l'origine du test sur `v2`.
+const SUR_BASE = { ...PARADE, base: BASE };
+function uneSeulePhrase(texte: string) {
+  assert.match(texte, /^[A-Za-z0-9][^\n]*\.$/);
+  assert.doesNotMatch(texte.slice(0, -1), /[.!?] [A-Z]/);
+}
+
+test("un dépôt qui refuse la récupération : l'accès est bloqué, en une phrase — rien n'est préparé ; le geste fait, le projet est servi à la cadence suivante", async (t) => {
+  const distant = await depotQuiRefuse(t, { statut: 403 });
+  const station = uneStation(t, { remote: (clone) => git(clone, "remote", "set-url", "origin", distant.url) });
+  station.demander(SUR_BASE);
+  await station.projets.relire();
+
+  const [suivi] = station.suivi() ?? [];
+  assert.equal(suivi?.etat, "refuse");
+  assert.equal(suivi?.acces?.bloque, "fetch");
+  uneSeulePhrase(suivi?.acces?.raison ?? "");
+  assert.match(suivi?.acces?.raison ?? "", /^box cannot fetch from benomite\/parade: /);
+  assert.equal(suivi?.dit, `${suivi?.acces?.raison} ${suivi?.acces?.geste}`);
+  // Ni décisions, ni ticket de préparation, ni ligne : la préparation n'est pas tentée.
+  assert.deepEqual(station.preparations, []);
+  assert.equal(station.configuration(), "");
+  assert.equal(existsSync(join(station.racine, "etat/parade")), false);
+  // L'onboarding le dit à l'étape du dépôt, avec le geste, sur la station.
+  const depot = station.onboarding()?.parade?.etapes.find(({ etape }) => etape === "depot");
+  assert.equal(depot?.etat, "courante");
+  assert.equal(depot?.dit, suivi?.acces?.raison);
+  assert.deepEqual(depot?.geste, { quoi: suivi?.acces?.geste, ou: "On box, under the account that runs it.", liens: [] });
+  assert.equal(station.lignes.filter((ligne) => ligne.startsWith("brigade : station — parade n'est pas servi, son dépôt refuse le fetch : ")).length, 1);
+  // Revérifié à la cadence suivante, toujours refusé : dit une fois.
+  await station.projets.relire();
+  assert.equal(station.lignes.filter((ligne) => ligne.includes("son dépôt refuse le fetch")).length, 1);
+
+  // Le geste fait — le remote joint le dépôt —, la station le sert seule.
+  git(join(station.racine, "clones/parade"), "remote", "set-url", "origin", station.origine ?? "");
+  await station.projets.relire();
+  assert.equal(station.suivi()?.[0]?.etat, "servi");
+  assert.equal(station.suivi()?.[0]?.acces, undefined);
+  assert.equal(station.preparations.length, 1);
+});
+
+test("un dépôt en https sans credential helper : l'accès bloqué nomme `gh auth setup-git` comme geste", async (t) => {
+  const distant = await depotQuiRefuse(t, { statut: 401, tls: true });
+  const station = uneStation(t, { remote: (clone) => git(clone, "remote", "set-url", "origin", distant.url) });
+  station.demander(SUR_BASE);
+  await station.projets.relire();
+
+  const [suivi] = station.suivi() ?? [];
+  assert.equal(suivi?.acces?.bloque, "fetch");
+  assert.match(suivi?.acces?.raison ?? "", /no credential helper/);
+  assert.match(suivi?.acces?.geste ?? "", /^Run `gh auth setup-git` on box, under the account that runs it/);
+  assert.match(suivi?.dit ?? "", /`gh auth setup-git`/);
+  assert.equal(station.configuration(), "");
+});
+
+test("un dépôt qui laisse récupérer mais refuse de pousser : l'accès est bloqué, avec une raison propre au push", async (t) => {
+  const distant = await depotQuiRefuse(t, { statut: 403 });
+  const station = uneStation(t, { remote: (clone) => git(clone, "remote", "set-url", "--push", "origin", distant.url) });
+  station.demander(SUR_BASE);
+  await station.projets.relire();
+
+  const [suivi] = station.suivi() ?? [];
+  assert.equal(suivi?.etat, "refuse");
+  assert.equal(suivi?.acces?.bloque, "push");
+  uneSeulePhrase(suivi?.acces?.raison ?? "");
+  assert.match(suivi?.acces?.raison ?? "", /^box can fetch from benomite\/parade but cannot push to it: its GitHub account has no write access to it/);
+  assert.deepEqual(station.preparations, []);
+  assert.equal(station.configuration(), "");
+});
+
+test("un dépôt joignable, où la station peut pousser : servi comme avant, sans accès bloqué", async (t) => {
+  const station = uneStation(t, { remote: () => {} });
+  station.demander(SUR_BASE);
+  await station.projets.relire();
+
+  assert.deepEqual(station.suivi(), [{ nom: "parade", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null }]);
+  assert.equal(station.configuration(), `${DEBUT}\nparade benomite/parade ${BASE}\n${FIN}\n`);
+  assert.equal(station.preparations.length, 1);
 });
 
 test("une demande illisible ne fait rien retirer ; une station pas encore appairée ne lit rien", async (t) => {
