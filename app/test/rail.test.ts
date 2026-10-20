@@ -225,14 +225,34 @@ describe("le rail occupe le centre de l'écran principal", () => {
     assert.deepEqual(colonnes(vue), []);
   });
 
-  test("une box pas jointe (#728) : sans lecture antérieure, le rail dit depuis quand elle ne répond pas, sans colonne vide", async () => {
+  test("une box pas jointe (#728) : sans lecture antérieure, le rail ne montre que les tickets lus sur GitHub, sans colonne vide", async () => {
     const vue = await ouvrir();
     recevoir(vue, { projet: PARADE, demande: 0, a: A, titre: "PAS JOINT", erreur: "ssh: connect to host box port 22: Connection refused", atteinte: false, cas: null });
 
     assert.equal(vue.element("rail").hidden, false);
-    assert.match(vue.element("rail").textContent, /^no reading of the rail — station unreachable since /);
+    assert.match(vue.element("rail").textContent, /^the tickets in the kitchen according to GitHub/);
     assert.match(vue.element("rail").textContent, /the rail is not drawn: PAS JOINT — tried at /);
     assert.deepEqual(colonnes(vue), []);
+  });
+});
+
+const comptes = (vue: Jouee) => colonnes(vue).map((colonne) => colonne.children[0]?.children[1]?.textContent);
+
+describe("une box pas jointe, après une lecture (#1078)", () => {
+  test("les colonnes disent qu'elles ne sont pas connues, au lieu de « 0 » ; la liste de GitHub est repliée ; la box revenue, tout redevient normal", async () => {
+    const vue = await ouvrir();
+    recevoir(vue);
+    recevoir(vue, { projet: PARADE, demande: 0, a: A, titre: "PAS JOINT", erreur: "ssh: connect to host box port 22: Connection refused", atteinte: false, cas: null });
+
+    const rail = vue.element("rail");
+    assert.deepEqual(comptes(vue), ["?", "?", "?", "?", "?", "?"]);
+    assert.match(rail.textContent, /not known while the station is unreachable/);
+    assert.doesNotMatch(rail.textContent, /upcoming|unreachable since|kitchen state unknown/);
+    assert.equal(rail.dessous("details").length, 1);
+
+    recevoir(vue);
+    assert.doesNotMatch(vue.element("rail").textContent, /not known while the station is unreachable/);
+    assert.notDeepEqual(comptes(vue), ["?", "?", "?", "?", "?", "?"]);
   });
 });
 

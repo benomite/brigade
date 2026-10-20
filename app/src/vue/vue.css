@@ -1819,6 +1819,39 @@ main > header,
   font-size: 12px;
   color: var(--jaune);
 }
+/* Les tickets `fire` que GitHub dit encore, quand la station ne répond pas : repliés, puis lisibles comme le reste. */
+#rail .feu {
+  padding: 8px 16px 0;
+}
+#rail .feu summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--texte-doux);
+}
+#rail .feu ol {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+#rail .feu li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 2px 0;
+}
+#rail .feu li button {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 0;
+  font-weight: 600;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+#rail .feu li small {
+  font-size: 11px;
+  color: var(--discret);
+}
 /* En tête du rail, ce qui n'est pas encore dessus : un nombre, en bouton, qui déplie la liste ; et,
    quand aucun ticket n'est sur le rail, ce qui est en amont, dit en clair — un rail vide n'est pas
    un projet fini. */
@@ -2899,6 +2932,11 @@ main > header,
 #alertes .alerte > .detail pre {
   margin: 0 0 4px;
   overflow-x: auto;
+}
+#alertes .alerte > .consignes {
+  margin: 0;
+  padding: 0 16px 8px 34px;
+  color: var(--texte-doux);
 }
 #alertes .alerte > .confirmation {
   margin: 0 16px 8px;

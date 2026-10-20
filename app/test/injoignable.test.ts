@@ -25,9 +25,10 @@ describe("box injoignable (#728)", () => {
     assert.equal(bande.alertes.length, 1);
     const [ligne] = bande.alertes;
     assert.equal(ligne?.sujet, "injoignable");
-    assert.match(ligne?.dit ?? "", /^station unreachable for 1 min: the app knows nothing of the kitchen right now$/);
+    assert.match(ligne?.dit ?? "", /^station unreachable since \d\d:\d\d, 1 min ago — the state of the kitchen has been unknown since then$/);
     assert.match(ligne?.pourquoi ?? "", /^no answer/);
-    assert.match(ligne?.geste ?? "", /try again now/);
+    assert.deepEqual(ligne?.consignes, ["check that the machine is on and reachable", "restart it if it no longer answers", "then try again"]);
+    assert.match(ligne?.geste ?? "", /try again/);
     assert.match(ligne?.geste ?? "", /machine at its host/);
     assert.deepEqual(ligne?.appel, { relire: true });
     assert.equal(bande.signal?.etat, "injoignable");

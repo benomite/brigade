@@ -57,7 +57,7 @@ export type Appel = { geste: string; grant?: string } | { demande: true } | { on
 // `bouton` : ce que dit le bouton du geste, en quelques mots — jamais une commande ni une phrase de
 // mode d'emploi : celles-là (`geste`, `pourquoi`, `releve`, `prix`) se lisent au survol. Absent, la
 // ligne n'a pas de geste à faire depuis l'app.
-export type Alerte = { sujet: Sujet; verifie: boolean; ton: string; dit: string; pourquoi?: string; releve?: string; geste: string; bouton?: string; appel?: Appel; prix: string; verification?: Verification };
+export type Alerte = { sujet: Sujet; verifie: boolean; ton: string; dit: string; pourquoi?: string; consignes?: string[]; releve?: string; geste: string; bouton?: string; appel?: Appel; prix: string; verification?: Verification };
 // La bande d'un projet : vide, les quatre états ont été lus, et vont bien.
 // Ce que la bande d'un projet dit de lui sur sa case de la barre : toute la cuisine qui l'attend, une
 // chose à faire, ou rien de vérifié. Une bande vide n'a pas de signal — c'est que les quatre états
@@ -667,10 +667,11 @@ function deLaBoxMuette({ depuis, a, lectures, cause }: SansReponse): Alerte {
     sujet: "injoignable",
     verifie: true,
     ton: "rouge",
-    dit: `station unreachable for ${duree(Date.parse(a) - Date.parse(depuis))}: the app knows nothing of the kitchen right now`,
+    dit: `station unreachable since ${heureHM(depuis)}, ${duree(Date.parse(a) - Date.parse(depuis))} ago — the state of the kitchen has been unknown since then`,
+    consignes: ["check that the machine is on and reachable", "restart it if it no longer answers", "then try again"],
     pourquoi: `${cause} — ${lectures} readings in a row failed`,
-    geste: "try again now — and if it lasts, look at the machine at its host",
-    bouton: "try again now",
+    geste: "try again — and if it lasts, look at the machine at its host",
+    bouton: "try again",
     appel: { relire: true },
     prix: LIRE,
   };
