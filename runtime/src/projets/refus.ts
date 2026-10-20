@@ -34,17 +34,17 @@ export type Cause = { message: string; action: string };
 // Une phrase pour le chef, sans chemin ni terme de code ; l'action est ce
 // qu'il fait pour lever le refus.
 export const CAUSES: Record<CodeDeRefus, Cause> = {
-  "sandbox-unusable": { message: "This computer cannot run the project's cooks in Claude Code's sandbox.", action: "Install or repair the sandbox on this computer, then wait: the station tries again by itself." },
-  "configuration-invalid": { message: "The station's settings for this project are incomplete or wrong.", action: "Remove the project and add it again from the app; if it persists, ask for help with the station's log." },
-  "clone-missing": { message: "The station has no copy of this project's repository to work from.", action: "Wait a minute for the station to fetch it again, or remove the project and add it again." },
+  "sandbox-unusable": { message: "This computer cannot run the project's cooks in Claude Code's sandbox.", action: "Update Claude Code from the app; if the sandbox is still unusable, the reason is shown." },
+  "configuration-invalid": { message: "The station's settings for this project are incomplete or wrong.", action: "Let the station write its settings for this project again, from the app." },
+  "clone-missing": { message: "The station has no copy of this project's repository to work from.", action: "Fetch the repository again from the app." },
   "already-served": { message: "Another brigade process on this machine is already serving this project.", action: "Stop the other process, then wait: the station takes the project over by itself." },
   "door-not-open": { message: "The station's network door for this project is not open yet.", action: "Check that the station's door service is running on this machine; the station opens the project as soon as it is." },
-  "proxy-port-set": { message: "This project's settings choose a network port that the station reserves for itself.", action: "Remove the port setting from the project's line in the station's configuration." },
+  "proxy-port-set": { message: "This project's settings choose a network port that the station reserves for itself.", action: "Remove the port setting from the app." },
   "clone-failed": { message: "The station could not fetch a copy of this project's repository.", action: "Check that the repository exists and that the station's GitHub account can see it; the station retries by itself." },
   "fetch-blocked": { message: "The repository refuses to let the station read it.", action: "Give the station's GitHub account read access to the repository, then wait for the next check." },
   "push-blocked": { message: "The repository refuses to let the station write to it.", action: "Give the station's GitHub account write access to the repository, then wait for the next check." },
   "decisions-not-written": { message: "The station could not save the choices you made for this project.", action: "Check that the station's disk is not full or read-only, then wait: the station tries again." },
-  "hand-written-line": { message: "This project is already set up by hand on the station, which blocks the app's setup.", action: "Remove the hand-written line for this project from the station's configuration." },
+  "hand-written-line": { message: "This project is already set up by hand on the station, which blocks the app's setup.", action: "Remove the hand-written line from the app; the station then writes its own." },
   "handed-over-elsewhere": { message: "This project was moved to another station and cooks there.", action: "Move it back to this station from the app if you want it to cook here." },
   unexpected: { message: "The station could not open this project for a reason it does not recognise.", action: "Ask for help with the station's log; the station does not retry until the project's settings change." },
 };
