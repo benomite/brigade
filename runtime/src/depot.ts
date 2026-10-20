@@ -31,8 +31,10 @@ export type Depot = {
   // Commite sur sa branche ce qui traîne dans le worktree d'un cook : fichiers
   // suivis modifiés, fichiers neufs que le projet n'ignore pas. Rend ce
   // commit, ou null s'il n'y avait rien. Lève si le worktree n'est plus sur sa
-  // branche : le commit n'irait nulle part. Rien n'est poussé.
-  recolter(worktree: string, branche: string): string | null;
+  // branche : le commit n'irait nulle part. Rien n'est poussé. `sujet` : le
+  // message du commit, quand ce n'est pas une récolte — le renommage du code
+  // commite ainsi ce que son outil a écrit.
+  recolter(worktree: string, branche: string, sujet?: string): string | null;
   // Vrai si le worktree est encore sur sa branche : ce que le cook y a commité
   // est alors sur elle. Faux en tête détachée, ou sur une autre branche.
   surSaBranche(worktree: string, branche: string): boolean;
@@ -386,7 +388,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
       return false;
     }
   };
-  const recolter = (worktree: string, branche: string): string | null => {
+  const recolter = (worktree: string, branche: string, sujet = SUJET_DE_RECOLTE): string | null => {
     if (!surSaBranche(worktree, branche)) throw new Error(`« ${worktree} » n'est plus sur sa branche \`${branche}\` : ce qui y traîne ne peut pas y être commité`);
     const dans = gitDans(worktree, { env: ENV_DE_RECOLTE, maxBuffer: Infinity });
     try {
@@ -399,7 +401,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
       dans("add", "--all", "--", ":/", ...sousModules);
       // Ce que l'index porte de plus que le dernier commit.
       if (dans("diff", "--cached", "--name-only", "--no-renames", "--ignore-submodules=none") === "") return null;
-      dans(...IDENTITE, "commit", "--quiet", "--no-verify", "-m", SUJET_DE_RECOLTE);
+      dans(...IDENTITE, "commit", "--quiet", "--no-verify", "-m", sujet);
     } catch (erreur) {
       throw motif("récolte du worktree", erreur);
     }

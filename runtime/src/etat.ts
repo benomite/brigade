@@ -820,6 +820,7 @@ export const CAUSES_D_URGENCE = {
   disjoncteur: "disjoncteur",
   carte: "carte",
   pause: "pause du renommage",
+  renommage: "renommage échoué",
 } as const satisfies Record<Attente["quoi"], string>;
 export type CauseDUrgence = (typeof CAUSES_D_URGENCE)[keyof typeof CAUSES_D_URGENCE];
 

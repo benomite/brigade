@@ -99,7 +99,7 @@ import { constaterExtinction, direExtinction } from "./grant.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import type { GitHub, PR } from "./github.ts";
 import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
-import { mergeRetenu } from "./pause/pause.ts";
+import { mergeRetenu, RENOMMAGE_ABANDONNE, renommageEcarte } from "./pause/pause.ts";
 import { etatDesGardeFous } from "./projections/guardrails.ts";
 import { managerAllume } from "./projections/manager.ts";
 import {
@@ -1180,6 +1180,20 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
             `**Pass — verte, non mergée (\`${A_RELIRE}\`).** ${livraison}`,
             "",
             `Cette livraison touche à ce qui la juge (${JUGES.map((juge) => `\`${juge}\``).join(", ")}) : la pass ne la merge pas sur son seul verdict, grant ou pas. ${SECOND_JUGE_APPELE} ${SECOND_JUGE_PUIS} Mergée à la main d'ici là, ${vuDeLaPass(connu.horsRail)}.`,
+          ].join("\n"),
+        };
+      }
+      // La PR d'un renommage du code abandonné — échoué, hors délai, ou le
+      // « oui » du chef retiré — n'est jamais mergée, pause levée ou non : elle
+      // remonte au chef, sans merge, et n'est plus suivie que pour un merge à
+      // la main.
+      if (renommageEcarte(base, ticket)) {
+        noter(ticket, { type: "pass.escalated", payload: { reason: NON_JUGEE, cause: RENOMMAGE_ABANDONNE } });
+        return {
+          commentaire: [
+            `**Pass — verte, non mergée : renommage abandonné.** ${livraison}`,
+            "",
+            `Ce renommage du code a été abandonné pendant sa pause — échoué, hors délai, ou le « oui » du chef retiré : la pass ne le merge pas, et la carte de la file dit pourquoi. Cette PR reste ouverte, sans merge : à fermer. ${SUITE_HORS_RAIL}`,
           ].join("\n"),
         };
       }

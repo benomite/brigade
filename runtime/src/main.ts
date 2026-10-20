@@ -18,6 +18,7 @@ import { brancherManager, configManager } from "./manager.ts";
 import { brancherPass, configPass } from "./pass.ts";
 import { CARNET_PATH } from "./carnet/carnet.ts";
 import { brancherCarnet } from "./promotion/livrer.ts";
+import { brancherRenommage } from "./pause/renommage.ts";
 import { lireSeuils as lireSeuilsDesLecons } from "./seuils/seuils.ts";
 import { lirePlafondDesLecons } from "./apprentissage/injection.ts";
 import { brancherSession, configSession, type ConfigSession } from "./renouvellement.ts";
@@ -142,7 +143,10 @@ try {
   const fermee = brancherFermeture(pass, { reglages: decisions.fermeture, repertoireEtat, depot, clone: station.clone, base: station.base, github: githubs.station, depotGitHub: rail.depot, bin: station.bin, env, cloison });
   // Le carnet des leçons après la pass, à qui il remet ses PR : elles n'attendent pas le chef.
   const apprise = brancherCarnet(fermee, { depot, github: githubs.station, base: station.base, seuils: seuilsDesLecons, carnetALaBase: () => lireALaBase(station, CARNET_PATH), env });
-  const servie = brancherStation(apprise, {
+  // Le renommage du code après la pass, à qui il remet sa PR : il ne part que
+  // sur le « oui » du chef à la pause, et la lève lui-même à sa fin.
+  const renommee = brancherRenommage(apprise, { depot, github: githubs.station, base: station.base, env, cloison });
+  const servie = brancherStation(renommee, {
     stations,
     decisions,
     repertoireEtat,

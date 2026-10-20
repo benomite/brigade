@@ -3,7 +3,8 @@
 //   npm --prefix runtime run guardrails -- stop      arrête tous les cooks ; plus aucun n'est lancé
 //   npm --prefix runtime run guardrails -- resume    rouvre la cuisine et referme le disjoncteur
 //   npm --prefix runtime run guardrails -- pause yes  « oui » à la carte du renommage du code : la pause tient
-//   npm --prefix runtime run guardrails -- pause no   « non » : la carte quitte la file — ou, la pause acceptée, elle est levée
+//   npm --prefix runtime run guardrails -- pause no   « non » : la carte quitte la file — ou, la pause acceptée, elle est levée ;
+//                                                     ou la carte d'un renommage échoué, lue, quitte la file
 // Les anciens mots (`garde-fous`, `reprendre`) répondent encore, en disant le
 // nouveau (`commandes.ts`).
 // Une commande s'écrit dans le journal ; le runtime qui tourne la voit dans la
@@ -14,7 +15,7 @@ import { enAnglais } from "./commandes.ts";
 import type { Plafonds } from "./events/guardrails.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
-import { EN_PAUSE_POUR_LE_RENOMMAGE, NON, OUI, pauseEnCours, repondre, type Reponse } from "./pause/pause.ts";
+import { echecDuRenommage, EN_PAUSE_POUR_LE_RENOMMAGE, LIMITE_DU_RENOMMAGE_MS, NON, OUI, pauseEnCours, repondre, type Reponse } from "./pause/pause.ts";
 import { arretsRecents, cooksEnCours, etatDesGardeFous, type Arret } from "./projections/guardrails.ts";
 import { alerteDeSession } from "./projections/renewal.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
@@ -82,6 +83,8 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
           : "open",
     );
     if (pause !== null && pause.agreedAt === null) ligne("code rename", `asks to pause the kitchen for about ${pause.minutes} min since ${pause.since} — \`pause yes\` to agree, \`pause no\` to decline`);
+    const echec = pause === null ? echecDuRenommage(base) : null;
+    if (echec !== null) ligne("code rename", `FAILED on ${echec.at}: ${echec.why} — nothing was merged; \`pause no\` once read`);
     ligne(
       "breaker",
       etat.breakerOpenedAt === null
@@ -146,7 +149,9 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
       case "rien":
         echouer(1, "no code rename asks for a pause: nothing is written");
       case "acceptee":
-        return `“yes”: ${EN_PAUSE_POUR_LE_RENOMMAGE} — no other merge, no new cook, for about ${pause?.minutes ?? "?"} min; the cooks in flight finish their work, their deliveries wait${absent}`;
+        return `“yes”: ${EN_PAUSE_POUR_LE_RENOMMAGE} — no other merge, no new cook, for about ${pause?.minutes ?? "?"} min; the cooks in flight finish their work, their deliveries wait; the rename runs on the latest base, goes through the gates and the pass, and is abandoned past ${LIMITE_DU_RENOMMAGE_MS / 60_000} min${absent}`;
+      case "otee":
+        return `“no”: the card of the failed code rename leaves the queue — nothing else is written`;
       case "refusee":
         return `“no”: the code rename's card leaves the queue — nothing changed in the kitchen`;
       case "levee":
