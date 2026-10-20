@@ -3435,32 +3435,42 @@ function chargerFeu(projet) {
     if (courant?.nom === projet.nom && muets.has(projet.nom) && !rail.hidden) poserRail(courant);
   });
 }
-// La marque d'un rail muet : sa dernière lecture, depuis quand la box ne répond pas, et les tickets
-// `fire` lus sur GitHub — sans leur état en cuisine, que seule la box dit.
-/** @param {Projet} projet @param {string | undefined} lu @param {string} depuis */
-function poserMuet(projet, lu, depuis) {
+// La liste des tickets `fire` lus sur GitHub, d'un projet muet : repliée, sous ce qu'elle est. Dépliée, des
+// lignes comme celles du reste de la page — un numéro qui ouvre l'issue, son titre, sa priorité.
+// Ce que le chef a déplié le reste d'un redessin à l'autre.
+/** @type {Set<string>} */
+const feuxDeplies = new Set();
+/** @param {Projet} projet */
+function poserMuet(projet) {
   chargerFeu(projet);
-  const mention = bloc("p", lu === undefined ? `no reading of the rail — station unreachable since ${heureDe(depuis)}` : `read at ${heureDe(lu)}, station unreachable since ${heureDe(depuis)}`);
-  mention.className = "fraicheur";
   const feu = feux.get(projet.nom);
-  const bloc2 = document.createElement("div");
-  bloc2.className = "feu";
-  bloc2.append(bloc("h3", "kitchen state unknown: station unreachable — the tickets labelled `fire`, as GitHub says them"));
-  if (feu === undefined) bloc2.append(bloc("p", "reading GitHub…"));
-  else if ("sans" in feu) bloc2.append(bloc("p", "GitHub did not answer either:"), bloc("pre", feu.sans));
-  else if (feu.tickets.length === 0) bloc2.append(bloc("p", "no open ticket labelled `fire`"));
+  const liste = document.createElement("details");
+  liste.className = "feu";
+  liste.open = feuxDeplies.has(projet.nom);
+  liste.addEventListener("toggle", () => {
+    if (liste.open) feuxDeplies.add(projet.nom);
+    else feuxDeplies.delete(projet.nom);
+  });
+  const nombreDit = feu === undefined || "sans" in feu ? "" : `, ${feu.tickets.length}`;
+  liste.append(bloc("summary", feu === undefined ? "the tickets in the kitchen according to GitHub — reading…" : `the tickets in the kitchen according to GitHub${nombreDit}`));
+  if (feu === undefined) return [liste];
+  if ("sans" in feu) liste.append(bloc("p", "GitHub did not answer either:"), bloc("pre", feu.sans));
+  else if (feu.tickets.length === 0) liste.append(bloc("p", "no open ticket labelled `fire`"));
   else {
-    const liste = document.createElement("ol");
-    liste.append(
+    const lignes = document.createElement("ol");
+    lignes.append(
       ...feu.tickets.map(({ ticket, titre, prio }) => {
         const ligne = document.createElement("li");
-        ligne.append(exact("span", `#${ticket}`), bloc("span", ` ${titre}`), ...(prio === undefined ? [] : [bloc("small", ` — ${prio}`)]));
+        const ouvrir = bouton("", () => void ouvrirIssue(projet, ticket));
+        ouvrir.title = `open #${ticket} on GitHub`;
+        ouvrir.append(exact("span", `#${ticket}`), bloc("span", titre));
+        ligne.append(ouvrir, ...(prio === undefined ? [] : [bloc("small", prio)]));
         return ligne;
       }),
     );
-    bloc2.append(liste);
+    liste.append(lignes);
   }
-  return [mention, bloc2];
+  return [liste];
 }
 
 // Le rail vieillit sans qu'aucune lecture n'arrive : sa mention se repose d'elle-même.
@@ -3607,13 +3617,15 @@ function poserRail(projet) {
   if (tenu === undefined && muet === undefined) return rail.replaceChildren(bloc("h3", `the rail: first read of \`${geste(projet, "facts")}\` in progress…`));
   // La box ne répond pas : rien de ce que dit le rail n'est lu à neuf. Il garde sa dernière lecture,
   // marquée, et les tickets `fire` que GitHub dit encore passent au-dessus (feu.ts).
-  const marque = muet === undefined ? [] : poserMuet(projet, tenu !== undefined && "tableau" in tenu ? tenu.a : undefined, muet);
+  const marque = muet === undefined ? [] : poserMuet(projet);
   if (tenu === undefined || !("tableau" in tenu)) {
     const sans = tenu === undefined ? "" : `the rail is not drawn: ${tenu.titre} — tried at ${heureDe(tenu.a)}. What the app got is in the panel, on the right`;
     return rail.replaceChildren(...marque, ...(sans === "" ? [] : [bloc("h3", sans)]));
   }
+  const { colonnes: lues, hors, attendLu, railLu } = tenu.tableau.rail;
+  // La box ne répond pas : ce que ses colonnes contenaient n'est plus lu. Elles le disent, au lieu de montrer des « 0 ».
+  const colonnes = muet === undefined ? lues : lues.map((colonne) => ({ ...colonne, compte: "?", cartes: [], vide: "not known while the station is unreachable" }));
   const heure = heureDe(tenu.a);
-  const { colonnes, hors, attendLu, railLu } = tenu.tableau.rail;
   // Le bon posé pour chaque carte : celui de la fiche ouverte y reprend le clavier.
   /** @type {Map<import("../faits.ts").Carte, HTMLElement>} */
   const posees = new Map();
@@ -3646,6 +3658,8 @@ function poserRail(projet) {
       return colonne;
     }),
   );
+  // Rien d'autre n'est lu à neuf : ni ce qui est en amont, ni les corrections, ni les pages servies.
+  if (muet !== undefined) return rail.replaceChildren(...marque, grille);
   // D'où vient ce qui se lit n'est pas en tête du rail : cela ne change rien à ce que fait le chef.
   // C'est dans Paramètres, pour le jour d'une panne ; en tête, seule une lecture vieille se dit.
   poserProvenance(projet, heure, attendLu, railLu);
@@ -4747,10 +4761,12 @@ function etatDeLaCuisine(etat) {
 // en reprend le plafond et le calibrage ; `principale` : il a déjà la sienne.
 /** @param {Projet} projet */
 function cuisineDe(projet) {
+  // La box du projet ne répond pas : celles qui le servent sont dites injoignables, pas servies.
+  const muette = muets.has(projet.nom);
   const demande = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
   const servies = (stationsVues?.stations ?? []).filter(({ projets }) => projets.includes(projet.nom));
   const stations = [
-    ...servies.map(({ id, nom }) => ({ id, nom, principale: true, ...etatDeLaCuisine("servi"), survol: `${nom} serves it: it runs its manager and its pass`, autoriser: /** @type {string[]} */ ([]) })),
+    ...servies.map(({ id, nom }) => ({ id, nom, principale: true, ...(muette ? { dit: "unreachable", ton: "rouge" } : etatDeLaCuisine("servi")), survol: muette ? `${nom} does not answer: the app knows nothing of the kitchen right now` : `${nom} serves it: it runs its manager and its pass`, autoriser: /** @type {string[]} */ ([]) })),
     ...(demande?.stations ?? [])
       .filter(({ id }) => !servies.some((servie) => servie.id === id))
       .map((station) => ({ id: station.id, nom: station.nom, principale: station.principale, ...etatDeLaCuisine(station.etat), survol: station.dit, autoriser: station.autoriser })),
@@ -5063,6 +5079,13 @@ function poserAlerte(projet, alerte) {
   const [controle, ...ouverte] = poserControle(projet, alerte, endroit);
   if (controle !== undefined) tete.append(controle);
   ligne.append(tete);
+  // Ce que le chef peut y faire, en clair sous la ligne : pas replié derrière « detail ».
+  if (alerte.consignes !== undefined && alerte.consignes.length > 0) {
+    const consignes = document.createElement("ul");
+    consignes.className = "consignes";
+    consignes.append(...alerte.consignes.map((consigne) => bloc("li", consigne)));
+    ligne.append(consignes);
+  }
   if (deplie && detail.length > 0) {
     const deplies = document.createElement("div");
     deplies.className = "detail";

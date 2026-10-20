@@ -1998,21 +1998,24 @@ le grant. L'app n'en fait pas quatre alertes « non vérifié », chacune avec u
 rien : **passé deux lectures de `faits` ratées de suite** (`LECTURES_POUR_INJOIGNABLE`) — la box
 pas jointe, pas la commande qui échoue —, **la bande ne dit plus qu'une ligne** :
 
-> box unreachable for 3 min: the app knows nothing of the kitchen right now
+> station unreachable since 03:27, 4 h 45 ago — the state of the kitchen has been unknown since then
 
-avec la cause en mots simples (pas de réponse, connexion refusée, adresse introuvable — dite d'après
-ce que `ssh` a écrit), et un geste, « try again now — and if it lasts, look at the machine at its
-host » : son bouton relit la box tout de suite. La ligne sort dès qu'une lecture aboutit. Une
-seule lecture ratée ne la pose pas.
+**La page du projet le dit une seule fois (#1078)**, en haut, avec ce que le chef peut y faire, en
+clair sous la ligne : vérifier que la machine est allumée et joignable, la redémarrer si elle ne
+répond plus, puis « try again » (son bouton relit la box tout de suite). La cause en mots simples
+(pas de réponse, connexion refusée, adresse introuvable — dite d'après ce que `ssh` a écrit) est
+derrière « detail ». La ligne sort dès qu'une lecture aboutit, sans relancer l'app. Une seule
+lecture ratée ne la pose pas.
 
 - **La pastille du projet** dit la même chose en un mot, `unreachable`, et la case de la barre porte un `×`.
-- **Le rail garde sa dernière lecture**, marquée « read at <heure>, box unreachable since <heure> »,
-  au lieu de laisser place à « non joint ». Une box jointe qui ne rend pas la forme de `faits` n'est
-  pas ce cas : le rail ne se dessine pas, comme ci-dessus.
-- **Les tickets `fire` se lisent sur GitHub** (`feu.ts`) : titre, numéro, priorité, avec la mention
-  « kitchen state unknown: box unreachable ». C'est le `gh` du poste, lancé dans le dossier du projet —
-  jamais la box. Jamais un rail vide quand GitHub répond ; quand il ne répond pas non plus, la ligne
-  de `gh` est dite.
+  La station du projet (« Cooked by ») n'est plus verte : elle est rouge, `unreachable`.
+- **Les colonnes du rail** ne montrent pas de « 0 » : chacune porte `?` et dit « not known while the
+  station is unreachable ». Rien d'autre du rail n'est posé (ni amont, ni corrections). Une box jointe qui ne
+  rend pas la forme de `faits` n'est pas ce cas : le rail ne se dessine pas, comme ci-dessus.
+- **Les tickets `fire` se lisent sur GitHub** (`feu.ts`) : c'est le `gh` du poste, lancé dans le dossier
+  du projet — jamais la box. Ils sont **repliés** sous « the tickets in the kitchen according to GitHub, N » ;
+  dépliés, ce sont des lignes comme le reste de la page, chaque numéro ouvrant l'issue (l'adresse vient de `gh`).
+  Quand GitHub ne répond pas non plus, la ligne de `gh` est dite.
 
 ### Ce qui n'est pas dessiné, et ne le sera pas ici
 

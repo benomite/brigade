@@ -8,11 +8,11 @@ import { nombre } from "./format.ts";
 
 export type Reglages = { gh: string; delaiMs: number };
 // `prio` : le mot du label `prio:<mot>`, tel qu'écrit — absent, le ticket n'en porte pas.
-export type TicketDeFeu = { ticket: number; titre: string; prio?: string };
+export type TicketDeFeu = { ticket: number; titre: string; prio?: string; url?: string };
 // `sans` : GitHub n'a pas répondu, et pourquoi — jamais un rail vide.
 export type Feu = { a: string } & ({ tickets: TicketDeFeu[] } | { sans: string });
 
-const ARGS = ["issue", "list", "--label", "fire", "--state", "open", "--limit", "100", "--json", "number,title,labels"];
+const ARGS = ["issue", "list", "--label", "fire", "--state", "open", "--limit", "100", "--json", "number,title,labels,url"];
 
 // La sortie de `gh`, ou en quoi elle n'a pas la forme.
 export function ticketsDe(sortie: string): TicketDeFeu[] | string {
@@ -25,11 +25,11 @@ export function ticketsDe(sortie: string): TicketDeFeu[] | string {
   if (!Array.isArray(lu)) return "its output is not a list";
   const tickets: TicketDeFeu[] = [];
   for (const brut of lu as unknown[]) {
-    const { number: numero, title, labels } = (brut ?? {}) as Record<string, unknown>;
+    const { number: numero, title, labels, url } = (brut ?? {}) as Record<string, unknown>;
     if (typeof numero !== "number" || typeof title !== "string") return "an issue lacks its `number` or its `title`";
     const noms = Array.isArray(labels) ? (labels as unknown[]).map((label) => (label as { name?: unknown } | null)?.name).filter((nom): nom is string => typeof nom === "string") : [];
     const prio = noms.find((nom) => nom.startsWith("prio:"))?.slice("prio:".length);
-    tickets.push({ ticket: numero, titre: title, ...(prio === undefined || prio === "" ? {} : { prio }) });
+    tickets.push({ ticket: numero, titre: title, ...(prio === undefined || prio === "" ? {} : { prio }), ...(typeof url === "string" && URL.parse(url)?.protocol === "https:" ? { url } : {}) });
   }
   // Les plus prioritaires d'abord (`prio:p0` avant `prio:p1`), puis par numéro.
   return tickets.sort((a, b) => Number(a.prio === undefined) - Number(b.prio === undefined) || (a.prio ?? "").localeCompare(b.prio ?? "") || a.ticket - b.ticket);

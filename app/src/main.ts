@@ -945,16 +945,21 @@ ipcMain.on("relireBox", (_, demande: number) => {
 });
 // Les tickets `fire` d'un projet, lus sur GitHub par le `gh` du poste (feu.ts) : ce que la box ne
 // disant plus rien, le rail sait encore. Jamais par la box — c'est justement elle qui ne répond pas.
-ipcMain.handle("lireFeu", (_, nom: unknown) => {
+// Les adresses que GitHub a rendues pour ces tickets : un numéro de la liste s'ouvre par elles, la box ne les dit plus.
+const adressesDeFeu = new Map<string, Map<number, string>>();
+ipcMain.handle("lireFeu", async (_, nom: unknown) => {
   const vise = connu(nom);
+  if (vise === undefined) return undefined;
   // Jamais posée hors des essais, comme BRIGADE_SSH_BIN.
-  return vise === undefined ? undefined : lireFeu({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }, vise.dossier);
+  const feu = await lireFeu({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }, vise.dossier);
+  if ("tickets" in feu) adressesDeFeu.set(String(nom), new Map(feu.tickets.flatMap(({ ticket, url }) => (url === undefined ? [] : [[ticket, url] as const]))));
+  return feu;
 });
 // Un ticket du rail s'ouvre sur son issue, dans le navigateur du poste : la vue nomme le
 // projet et le ticket, l'adresse est celle que la box a rendue (faits.ts) — ou, pour une issue
 // qui n'est pas encore sur le rail, celle que `manager upstream` a donnée (amont.ts). Rend si elle a été ouverte.
 ipcMain.handle("ouvrirIssue", (_, nom: unknown, ticket: unknown) => {
-  const adresse = faits.adresse(nom, ticket) ?? amonts.adresse(nom, ticket);
+  const adresse = faits.adresse(nom, ticket) ?? amonts.adresse(nom, ticket) ?? (typeof ticket === "number" ? adressesDeFeu.get(String(nom))?.get(ticket) : undefined);
   return adresse === undefined ? false : shell.openExternal(adresse).then(
     () => true,
     () => false,
