@@ -156,11 +156,18 @@ npm --prefix runtime run waiting -- arrived 8   # « c'est arrivé, on repart »
   date et une heure (`2026-10-21T09:00`) ou une durée (`7j`, `36h`) ; **sans elle, dans sept
   jours**. Redit sur un ticket qui attend déjà, il met à jour ce qu'il attend sans changer depuis
   quand.
-- **Le second le lance sur demande du chef** (« mets #8 en attente du client jusqu'au 21 ») : il
-  extrait ce qu'on attend, de qui et la relance, demande ce qui manque avant d'agir, puis lance ce
-  même geste par la box (`brigade <nom> waiting set 8 --what … --from … --remind 2026-10-21`) —
-  jamais un label ni un commentaire posé à la main. Le mode auto le juge : aucune règle étroite
-  ne nomme des arguments libres. Cas d'éval : `evals/second-met-en-attente`.
+- **Le second le lance, seul ou sur demande du chef.** Seul : à la lecture de la file, toute carte de
+  TODO dont le texte nomme le tiers attendu (le client, une personne, une date, un événement
+  extérieur) passe en WAITING par ce geste, avec une relance — la date de la carte, sinon sept jours.
+  Il le dit dans sa première réponse, une ligne par carte (quoi, de qui, relance, pourquoi), et le
+  chef annule en un mot (« reprends #N » : `resume`). Qui est attendu n'est pas clair : il ne
+  déplace rien et pose une question d'une ligne. Une carte qui attend le chef (décision produit,
+  design, geste) reste dans TODO. Un refus du geste (ticket en cuisine, en pass, servi) est relayé
+  tel quel. Sur demande (« mets #8 en attente du client jusqu'au 21 »), il extrait ce qu'on attend,
+  de qui et la relance, demande ce qui manque avant d'agir, puis lance ce même geste par la box
+  (`brigade <nom> waiting set 8 --what … --from … --remind 2026-10-21`) — jamais un label ni un
+  commentaire posé à la main. Le mode auto le juge : aucune règle étroite ne nomme des arguments
+  libres. Cas d'éval : `evals/second-met-en-attente`, `evals/second-met-en-attente-seul`.
 - **La cuisine ne prend jamais un ticket WAITING** : c'est un 86 sans heure de retour (le socle du
   ticket gelé), au motif `third-party`. Le relevé ne le rend pas ; il ne tient sa zone que s'il
   porte une livraison ouverte.

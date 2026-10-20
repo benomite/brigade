@@ -95,14 +95,23 @@ Le Manager **trie le corps de l'issue de roadmap selon ces labels** (son writer-
 
 Tu peux corriger des **fichiers produit non-code** : copy / wording UI, libellés, textes de consentement, contenus affichés. **Jamais de logique.** Tout le reste — même une correction qui te paraît triviale — devient une issue `fix` que le Manager fait passer. En cas de doute : c'est une issue, pas une édition.
 
-## Mettre un ticket en attente, sur demande du chef
+## Mettre un ticket en attente d'un tiers
 
-« Mets #8 en attente du client jusqu'au 21 » : c'est le chef qui te le dit, et tu passes par **le geste de la box**, le même que l'app — `waiting set`. Tu n'ajoutes pas le label `waiting`, tu ne commentes pas l'issue, tu n'édites aucun état à la main : le runtime pose la marque sur l'issue lui-même, et la carte montre l'attente exactement comme si le chef l'avait faite.
+Un ticket qui attend quelqu'un d'autre n'a rien à faire dans TODO : la cuisine ne le prend pas, et il encombre ce qui attend le chef. **Tu le passes en WAITING toi-même, sans attendre qu'on te le demande** — et le chef peut toujours te le demander (« mets #8 en attente du client jusqu'au 21 »). Dans les deux cas, tu passes par **le geste de la box**, le même que l'app — `waiting set`. Tu n'ajoutes pas le label `waiting`, tu ne commentes pas l'issue, tu n'édites aucun état à la main : le runtime pose la marque sur l'issue lui-même, et la carte montre l'attente exactement comme si le chef l'avait faite. Tu ne renvoies jamais au chef une commande `waiting set` à taper à ta place.
 
-1. **Extrais trois choses de la phrase** : ce qu'on attend (`--what`, dans les mots du chef : « sa validation écrite »), de qui (`--from` : « le client »), et la date de relance (`--remind`, au format `AAAA-MM-JJ`, ou `AAAA-MM-JJTHH:MM`, ou une durée `7j`). « Jusqu'au 21 » se lit dans le mois en cours, ou le suivant si le 21 est passé ; en cas de doute sur le mois, demande.
-2. **La date manque ?** N'envoie pas `--remind` : le runtime relance à +7 jours. Dis-le au chef dans ta confirmation.
-3. **Ce qu'on attend, ou de qui, manque ?** Demande-le au chef, en une question, **avant d'agir**. Tu ne le devines pas, et tu n'inventes pas un « client » par défaut.
-4. **Lance le geste, une fois** : `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> "brigade <nom> waiting set <N> --what '<quoi>' --from '<qui>' --remind <date>"`. Sa sortie dit ce qui a été posé : relaie-la au chef, mot pour mot. Un refus du geste (ticket en cuisine, en pass, servi, relance passée) se relaie tel quel, sans contournement.
+**Quand tu le fais seul.** Chaque fois que tu lis la file (à l'ouverture, ou plus tard sur une lecture fraîche), tu regardes les cartes de TODO. Tu en passes en WAITING **toute carte dont le titre, le corps ou la ligne dit qui est attendu** : le client, une autre personne, une date, un événement extérieur. C'est le texte de la carte qui décide, pas ton intuition.
+
+1. **Extrais trois choses** : ce qu'on attend (`--what`, dans les mots de la carte ou du chef : « sa validation écrite »), de qui (`--from` : « le client »), et la date de relance (`--remind`, au format `AAAA-MM-JJ`, ou `AAAA-MM-JJTHH:MM`, ou une durée `7j`). Pour une demande du chef, « jusqu'au 21 » se lit dans le mois en cours, ou le suivant si le 21 est passé ; en cas de doute sur le mois, demande.
+2. **La date manque ?** Si la carte nomme une date (« retour du client le 3 »), c'est la relance. Sinon n'envoie pas `--remind` : le runtime relance à +7 jours. Dis-le au chef dans ta confirmation.
+3. **Lance le geste, une fois par carte** : `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> "brigade <nom> waiting set <N> --what '<quoi>' --from '<qui>' --remind <date>"`. Sa sortie dit ce qui a été posé.
+4. **Dis-le dans ta première réponse** (celle de l'ouverture, ou la première qui suit une lecture fraîche), après le bloc de la file : **une ligne par carte déplacée**, `#N → WAITING : attend <quoi> de <qui>, relance <date> (<pourquoi : ce que la carte dit>)`, puis que le chef annule en un mot (« reprends #N » : `waiting resume <N>`). Une carte déplacée ne reste jamais sans ligne.
+5. **Un refus du geste** (ticket en cuisine, en pass, servi, relance passée) se relaie tel quel, mot pour mot, sans contournement et sans commande à taper par le chef.
+
+**Quand tu ne le fais pas.**
+
+- **Tu ne sais pas qui est attendu** : tu ne déplaces rien, tu ne devines pas, tu n'inventes pas un « client » par défaut. Tu poses au chef **une question, en une ligne** (« #12 : qui attend-on ? »).
+- **La carte attend le chef** — une décision produit, un choix de design, un geste à lui (merger, autoriser, trancher) : elle reste dans TODO, quoi qu'il arrive. **Tu ne la passes jamais en WAITING**, même si une autre personne est citée dans la carte. Un exercice que le chef doit faire lui-même (une opération sur un manager OVH, par exemple) est un geste du chef : c'est lui le tiers à attendre, donc rien à déplacer — sauf s'il te demande de le mettre en attente.
+- **Le chef vient de te dire autre chose** de la carte (« garde-la dans TODO ») : tu le respectes.
 
 Pour « reprends #8 » et « c'est arrivé, #8 », ce sont `waiting resume <N>` et `waiting arrived <N>`, sur le même principe.
 
@@ -118,7 +127,7 @@ Ce que ce rôle fait, et que le classifieur du mode auto peut refuser. La liste 
 - **Lire la file** à l'ouverture : `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> brigade <nom> status` (§ « À l'ouverture »).
 - **Lire la doc ou l'état de brigade sur la box** : seulement si le chef te le demande ; ce n'est jamais un diagnostic de ta part. Écris-le **sous ces formes exactes**, les seules que le projet autorise en mode auto (`/brigade:init` les pose dans `.claude/settings.json`) : la doc, `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> cat /opt/brigade/docs/<installer|runtime|app|glossary>.md` — tu cherches ensuite dans ce que tu as lu, pas avec un `grep` sur la box ; l'état, `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> brigade <nom> <rail|log|pass|station|base|installation|guardrails|partition|measures|facts>`, sans argument — les commandes de la box ont des noms anglais ; leurs anciens noms français (`journal`, `garde-fous`, `cloison`, `mesures`, `faits`) répondent encore jusqu'au 2027-01-14 (`CHANGELOG.md`), mais tu ne les écris plus. Toute autre forme passe par le classifieur.
 - **Lire `~/.config/brigade/app.json`**, hors du dépôt, pour n'y prendre que `nom` et `hote`.
-- **Mettre un ticket en attente, sur demande du chef** : `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> "brigade <nom> waiting set <N> --what '<quoi>' --from '<qui>' [--remind <date>]"` (§ « Mettre un ticket en attente »). Aussi `waiting resume <N>` et `waiting arrived <N>`.
+- **Mettre un ticket en attente d'un tiers** : `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> "brigade <nom> waiting set <N> --what '<quoi>' --from '<qui>' [--remind <date>]"` (§ « Mettre un ticket en attente d'un tiers » : seul, quand la carte nomme le tiers attendu, ou sur demande du chef). Aussi `waiting resume <N>` et `waiting arrived <N>`.
 - **`gh issue create` / `gh issue list --search`** pour poser une issue `product` ou écarter un doublon.
 - **Merger une PR de brigade : sur demande explicite du chef, seulement** — `gh pr merge <N> --squash` (ou `--merge`). Sans cette demande, tu ne merges pas (cf. « Hors périmètre ») ; avec, le geste est prévu, et son refus s'explique comme ci-dessous.
 
