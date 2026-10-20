@@ -44,6 +44,7 @@ import { gistLocal, tenirLogin } from "./pannes/login.ts";
 import { depotsDuChef } from "./projets/github.ts";
 import { EFFORTS, MODELES, tenirProjets } from "./projets/projets.ts";
 import { memoireDansFichier, tenirNotifications } from "./notification.ts";
+import { tenirCuisinesIci } from "./poste/cuisine-ici.ts";
 import { cuisinesIci, roleDe } from "./poste/role.ts";
 import { tenirStationLocale } from "./poste/station.ts";
 import { ouvrirPty } from "./pty.ts";
@@ -69,6 +70,26 @@ import { ouvrirTerminaux } from "./terminaux.ts";
 const emplacements = emplacementsDe({ ressources: process.resourcesPath, src: import.meta.dirname, env: process.env });
 const chemin = cheminDe({ emplacements, env: process.env, maison: homedir(), duShell: () => lireCheminDuShell(process.env.SHELL || "/bin/zsh", 10_000) });
 if (chemin !== undefined) process.env.PATH = chemin;
+
+// Ce qu'est l'app sur cette machine (poste/role.ts) : une station sur un ordinateur, le runtime
+// à côté d'elle dans son clone, ou dans son paquet une fois installée ; un poste sur un
+// téléphone — il pilote, rien n'y cuit, ni sa station ni celles que ses projets lui confient.
+const role = roleDe({ plateforme: process.platform, runtime: emplacements.runtime, env: process.env });
+// Le répertoire de la station de cet ordinateur : `station/`, à côté du fichier des projets.
+const racineDeLaStation = process.env.BRIGADE_STATION_DIR || join(dirname(cheminConfiguration()), "station");
+// Où cuit chaque projet (poste/cuisine-ici.ts) : un projet que la station de cet ordinateur sert
+// se lit ici, par son geste, sans `ssh` — même s'il déclare un `hote` ; les autres, sur leur box.
+// C'est relu à chaque lecture : une cuisine qui change de place est lue à la nouvelle dès la
+// suivante, et la vue le sait aussitôt.
+const cuisines = tenirCuisinesIci({
+  locale: role.role === "station" ? { node: emplacements.node, runtime: emplacements.runtime, racine: racineDeLaStation, env: process.env } : undefined,
+  surChangement: () => {
+    dire("configuration", affichee(), []);
+    direLAccueil(accueil.relire());
+  },
+});
+// Un projet dont quelque chose se lit — sa box, ou cet ordinateur —, et qui n'est pas désinstallé.
+const lisible = ({ nom, box, desinstalle }: Projet) => desinstalle === undefined && (box !== undefined || cuisines.ici(nom));
 
 let fenetre: BrowserWindow | undefined;
 const dire = (canal: string, ...faits: unknown[]) => {
@@ -128,6 +149,7 @@ const veille = ouvrirVeille({
   delaiMs: 30_000,
   connexionS: 10,
   passage,
+  cuisine: cuisines.cuisineDe,
   surLecture: (lecture) => {
     const montree = mettreAPart(lecture);
     // Les serveurs que ce `status` montre : un transfert dont le serveur n'y est plus est fermé.
@@ -159,6 +181,7 @@ const veilleDOnglet = ouvrirVeille({
   delaiMs: 30_000,
   connexionS: 10,
   passage,
+  cuisine: cuisines.cuisineDe,
   surLecture: (lecture) => {
     const lu = ongletLu?.demande === lecture.demande ? ongletLu.id : undefined;
     dire("contenu", lecture, lu === "manager" ? voirManager(lecture) : undefined, lu === "grants" ? voirGrants(lecture) : undefined, lu === FIABILITE ? voirFiabilite(lecture) : undefined);
@@ -176,7 +199,7 @@ const repondues = tenirRepondues();
 const faits = tenirFaits((projet) => repondues.de(projet));
 // L'accueil (accueil.ts) : une ligne par projet, une par station, et la ligne de santé — redessiné à
 // chaque lecture qui le change, de `faits`, de `status` ou des stations sur GitHub.
-const accueil = tenirAccueil({ locale: () => (stationLocale === undefined ? null : gistLocal(racineDeLaStation)), projets: () => projets().map(({ nom, box, desinstalle }) => ({ nom, box: box !== undefined, desinstalle: desinstalle !== undefined })) });
+const accueil = tenirAccueil({ locale: () => (stationLocale === undefined ? null : gistLocal(racineDeLaStation)), projets: () => projets().map((projet) => ({ nom: projet.nom, box: lisible(projet), desinstalle: projet.desinstalle !== undefined })) });
 function direLAccueil(vu: Accueil | undefined): void {
   if (vu !== undefined) dire("accueil", vu);
 }
@@ -221,6 +244,7 @@ const veilleDesFaits = ouvrirVeille({
   delaiMs: 30_000,
   connexionS: 10,
   passage,
+  cuisine: cuisines.cuisineDe,
   surLecture: (lecture) => {
     dire("faits", faits.recevoir(lecture));
     direLaBande(bandes.faits(lecture));
@@ -240,6 +264,7 @@ const veilleDuManager = ouvrirVeille({
   delaiMs: 30_000,
   connexionS: 10,
   passage,
+  cuisine: cuisines.cuisineDe,
   surLecture: (lecture) => {
     direLaBande(bandes.manager(lecture));
     // Ce qui est en amont du rail dit aussi si le manager le lit : sa phrase suit son état.
@@ -258,6 +283,7 @@ const veilleDeLAmont = ouvrirVeille({
   delaiMs: 30_000,
   connexionS: 10,
   passage,
+  cuisine: cuisines.cuisineDe,
   surLecture: (lecture) => dire("amont", amonts.recevoir(lecture)),
 });
 
@@ -283,7 +309,7 @@ function regarder(vus: Parameters<typeof veille.regarder>[0], commandes: readonl
   veilleDeLAmont.regarder(amont, [COMMANDE_AMONT], demande);
   amonts.veiller(amont.map(({ nom }) => nom));
   for (const redessine of faits.veiller(vus.map(({ nom }) => nom))) dire("faits", redessine);
-  for (const bande of bandes.veiller(vus.filter(({ box }) => box !== undefined).map(({ nom }) => nom))) { dernieresBandes.set(bande.projet, bande); dire("alertes", bande); }
+  for (const bande of bandes.veiller(vus.filter(lisible).map(({ nom }) => nom))) { dernieresBandes.set(bande.projet, bande); dire("alertes", bande); }
   direLAccueil(accueil.veiller(vus.map(({ nom }) => nom)));
 }
 
@@ -319,10 +345,6 @@ const controlerTout = () => {
 };
 const controles = setInterval(controlerTout, CONTROLE_MS);
 
-// Ce qu'est l'app sur cette machine (poste/role.ts) : une station sur un ordinateur, le runtime
-// à côté d'elle dans son clone, ou dans son paquet une fois installée ; un poste sur un
-// téléphone — il pilote, rien n'y cuit, ni sa station ni celles que ses projets lui confient.
-const role = roleDe({ plateforme: process.platform, runtime: emplacements.runtime, env: process.env });
 // Le runner : ce poste joue les stations que ses projets lui confient (runner.ts) — celles
 // que leur box déclare `distante`. Il s'annonce, réclame, renouvelle et rend par le geste
 // `pull` de la box, par le passage du projet comme les veilles ; un `ssh` a quarante-cinq
@@ -404,7 +426,7 @@ function colorer(): void {
 // Les projets tels que l'app les montre, et les lit : celui qu'elle a désinstallé de sa
 // box n'en a plus (retrait.ts) — ni veille, ni bouton, ni mise en service ne l'y cherchent.
 const projets = () => suivi.configuration().projets.map(retraits.vu);
-const affichee = () => pourLaBarre(suivi.configuration(), retraits.vu);
+const affichee = () => pourLaBarre(suivi.configuration(), retraits.vu, cuisines.ici);
 // Un projet du fichier, qu'il s'ouvre ou non : sa box se lit, et se vérifie, sans son dossier.
 const connu = (nom: unknown) => projets().find((candidat) => candidat.nom === nom);
 // Le même, tel que le fichier le déclare : c'est avec sa box qu'il se retire, et se désinstalle.
@@ -451,7 +473,6 @@ const stations = tenirStations({
 // que celle d'un serveur —, sous `station/` à côté du fichier des projets, et l'appaire seule,
 // par le geste du champ de la home (poste/station.ts). Ce que la station dit s'écrit dans le
 // terminal qui a lancé l'app.
-const racineDeLaStation = process.env.BRIGADE_STATION_DIR || join(dirname(cheminConfiguration()), "station");
 const stationLocale =
   role.role === "station" && !installeeAuLancement
     ? tenirStationLocale({
@@ -947,7 +968,7 @@ ipcMain.on("regarder", (_, nom: unknown, demande: number) => (voir = () => regar
 ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
   const commande = id === COUTS ? COMMANDE_DES_COUTS : commandeDe(id);
   ongletLu = { id, demande };
-  const lus = projetsLus(id, nom, projets());
+  const lus = projetsLus(id, nom, affichee().projets);
   const commandes = commande === undefined ? [] : id === FIABILITE ? COMMANDES_DE_FIABILITE : [commande];
   veilleDOnglet.regarder(commande === undefined ? [] : lus, commandes, demande);
 });
@@ -958,8 +979,8 @@ ipcMain.on("tous", (_, demande: number) => (voir = () => regarder(projets(), ["s
 ipcMain.on("faits", (_, demande: number) => {
   faits.oublier();
   direLAccueil(accueil.oublier());
-  // Chaque projet qui a une box a sa bande dès maintenant : rien n'y est encore vérifié.
-  for (const bande of bandes.ouvrir(projets().filter(({ box }) => box !== undefined).map(({ nom }) => nom))) { dernieresBandes.set(bande.projet, bande); dire("alertes", bande); }
+  // Chaque projet qui se lit — sur sa box ou ici — a sa bande dès maintenant : rien n'y est encore vérifié.
+  for (const bande of bandes.ouvrir(projets().filter(lisible).map(({ nom }) => nom))) { dernieresBandes.set(bande.projet, bande); dire("alertes", bande); }
   veilleDesFaits.regarder(projets(), [COMMANDE], demande);
   veilleDuManager.regarder(projets(), [COMMANDE_MANAGER], demande);
   controlerTout();

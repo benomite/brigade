@@ -1,11 +1,13 @@
 // La veille des box : ce que l'app sait d'un projet, elle l'a lu en lançant
-// à la place du chef les commandes qui existent, par `ssh`. Elle rend leur
+// à la place du chef les commandes qui existent, par `ssh` — ou ici, sans `ssh`, quand
+// c'est la station de cet ordinateur qui fait tourner sa cuisine. Elle rend leur
 // sortie mot pour mot — rien n'y est cherché, découpé ni redit — et n'ajoute
 // que deux faits, les siens : l'heure de la lecture et, quand elle a échoué,
 // si c'est la box qui n'a pas été atteinte ou la commande qui n'a pas répondu.
 // Elle rend alors ce qu'elle a obtenu, à la place de l'état : rien n'est gardé
 // de la lecture d'avant.
 import { execFile, type ExecFileException } from "node:child_process";
+import { join } from "node:path";
 import { setTimeout as attendre } from "node:timers/promises";
 import type { Box, Projet } from "./config.ts";
 import { nombre } from "./format.ts";
@@ -35,6 +37,15 @@ export type Lecture = { projet: string; demande: number; a: string } & ({ sortie
 // Un projet qui a une box : son nom est celui que le geste reçoit.
 export type Servi = { nom: string; box: Box };
 
+// La station de cet ordinateur, telle que son geste s'y lance sans `ssh` : le `node` qui le joue,
+// le dossier du runtime et le répertoire de la station (`BRIGADE_STATION_DIR`) — ceux avec
+// lesquels l'app la lance (poste/station.ts).
+export type Locale = { node: string; runtime: string; racine: string; env: Record<string, string | undefined> };
+// Où se lit la cuisine d'un projet : sa box, jointe par `ssh`, ou la station de cet ordinateur.
+export type Cuisine = Box | { locale: Locale };
+// Un projet tel qu'il se lit : son nom, et là où sa cuisine tourne à cet instant.
+export type Lu = { nom: string; cuisine: Cuisine };
+
 // Ce qui règle un `ssh` : son binaire, le délai passé lequel il est arrêté, et ce
 // qu'il s'accorde pour joindre la box, en secondes.
 export type Reglages = { ssh: string; delaiMs: number; connexionS: number };
@@ -60,6 +71,58 @@ export function lancerGeste(reglages: Reglages, { nom, box }: Servi, commande: s
   return new Promise((resoudre) => {
     execFile(reglages.ssh, args, { signal, timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024 }, (erreur, sortie, erreurs) => resoudre({ lance: `$ ${reglages.ssh} ${args.join(" ")}`, erreur, sortie, erreurs }));
   });
+}
+
+// Le point d'entrée du geste d'une station, dans le dossier du runtime : celui que `brigade`
+// lance sur une box (runtime/src/station/geste.ts).
+export const GESTE = join("src", "station", "geste.ts");
+
+// Les mots d'une commande, tels qu'un shell les donnerait au geste : séparés par des blancs, un
+// passage entre apostrophes reste entier — la forme que `cite` écrit.
+export function mots(commande: string): string[] {
+  const rendus: string[] = [];
+  let mot: string | undefined;
+  for (let rang = 0; rang < commande.length; rang++) {
+    const lettre = commande[rang] as string;
+    if (/\s/.test(lettre)) {
+      if (mot !== undefined) rendus.push(mot);
+      mot = undefined;
+    } else if (lettre === "'") {
+      const fin = commande.indexOf("'", rang + 1);
+      const jusqua = fin === -1 ? commande.length : fin;
+      mot = (mot ?? "") + commande.slice(rang + 1, jusqua);
+      rang = jusqua;
+    } else if (lettre === "\\" && rang + 1 < commande.length) {
+      mot = (mot ?? "") + commande[++rang];
+    } else mot = (mot ?? "") + lettre;
+  }
+  if (mot !== undefined) rendus.push(mot);
+  return rendus;
+}
+
+// Une commande du geste, lancée une fois par la station de cet ordinateur, sans `ssh` : son
+// geste, dans le dossier du runtime, avec le répertoire de la station — ce que `brigade <nom>
+// <commande>` lance sur une box. Jamais d'exception, comme `lancerGeste`.
+export function lancerIci(locale: Locale, nom: string, commande: string, delaiMs: number, signal?: AbortSignal): Promise<Rendu> {
+  const args = [join(locale.runtime, GESTE), nom, ...mots(commande)];
+  return new Promise((resoudre) => {
+    execFile(locale.node, args, { cwd: locale.runtime, env: { ...locale.env, BRIGADE_STATION_DIR: locale.racine }, signal, timeout: delaiMs, maxBuffer: 16 * 1024 * 1024 }, (erreur, sortie, erreurs) =>
+      resoudre({ lance: `$ ${locale.node} ${args.join(" ")}`, erreur, sortie, erreurs }),
+    );
+  });
+}
+
+// Ce qu'une commande lancée ici, sans `ssh`, prouve en échouant. La station est sur cet
+// ordinateur : elle est atteinte, sauf quand son `node` n'a pas pu être lancé. Son code dit le
+// cas du geste, comme sur une box — 255 n'y est celui d'aucun `ssh`.
+export function echecIci({ lance, erreur, sortie, erreurs }: Rendu & { erreur: ExecFileException }, delaiMs: number): Echec {
+  const suite = erreur.killed === true ? `no answer within ${nombre(delaiMs / 1000)} s: the command was stopped` : typeof erreur.code === "number" ? `exit code ${erreur.code}` : erreur.message;
+  const code = erreur.killed !== true && typeof erreur.code === "number" ? erreur.code : undefined;
+  return {
+    erreur: `${lance}\n${erreurs}${sortie}\n→ ${suite}`,
+    atteinte: erreur.killed === true || typeof erreur.code === "number" || erreur.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
+    cas: (code !== undefined && code !== 255 && CAS[code]) || null,
+  };
 }
 
 // Ce qu'un `ssh` en échec prouve, et ce qu'il a rendu.
@@ -99,44 +162,55 @@ export function ouvrirVeille(options: {
   // veilles qui se le partagent n'ouvrent, à elles toutes, qu'une connexion à la
   // fois par projet. Absent, la veille a le sien.
   passage?: Map<string, Promise<unknown>>;
+  // Où la cuisine d'un projet tourne, demandé à chaque lecture : un projet dont la cuisine passe
+  // de sa box à cet ordinateur, ou l'inverse, est lu à sa nouvelle place dès la lecture suivante.
+  // Absent, c'est sa box. Rien : rien n'est lu de lui, cette fois.
+  cuisine?: (projet: Projet) => Cuisine | undefined;
   surLecture(lecture: Lecture): void;
 }) {
   let tour: AbortController | undefined;
   const passage = options.passage ?? new Map<string, Promise<unknown>>();
+  const cuisineDe = options.cuisine ?? (({ box }: Projet) => box);
 
   // Chacune attend que la précédente du même projet ait fini, de quelque veille qu'elle soit.
-  function lancer(servi: Servi, commande: string, signal: AbortSignal): Promise<Sortie | Echec> {
-    const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => joindre(servi, commande, signal));
-    passage.set(servi.nom, rendu);
+  function lancer(lu: Lu, commande: string, signal: AbortSignal): Promise<Sortie | Echec> {
+    const rendu = (passage.get(lu.nom) ?? Promise.resolve()).then(() => joindre(lu, commande, signal));
+    passage.set(lu.nom, rendu);
     return rendu;
   }
 
-  async function joindre(servi: Servi, commande: string, signal: AbortSignal): Promise<Sortie | Echec> {
-    const rendu = await lancerGeste(options, servi, commande, signal);
+  async function joindre({ nom, cuisine }: Lu, commande: string, signal: AbortSignal): Promise<Sortie | Echec> {
+    const ici = "locale" in cuisine;
+    const rendu = ici ? await lancerIci(cuisine.locale, nom, commande, options.delaiMs, signal) : await lancerGeste(options, { nom, box: cuisine }, commande, signal);
     const { erreur } = rendu;
-    return erreur === null ? { commande, texte: rendu.sortie } : echecDe({ ...rendu, erreur }, options.delaiMs);
+    if (erreur === null) return { commande, texte: rendu.sortie };
+    return ici ? echecIci({ ...rendu, erreur }, options.delaiMs) : echecDe({ ...rendu, erreur }, options.delaiMs);
   }
 
   // Les commandes partent l'une après l'autre, et la première qui échoue est
   // l'erreur : un projet n'ouvre qu'une connexion à la fois, pour que tous les
   // projets d'une même box, lus de front, n'y soient pas refusés pour leur nombre.
-  async function lire(servi: Servi, commandes: readonly Commande[], signal: AbortSignal): Promise<{ sorties: Sortie[] } | Echec> {
+  async function lire(lu: Lu, commandes: readonly Commande[], signal: AbortSignal): Promise<{ sorties: Sortie[] } | Echec> {
     const sorties: Sortie[] = [];
     for (const voulue of commandes) {
-      const rendu = await lancer(servi, typeof voulue === "string" ? voulue : voulue(sorties), signal);
+      const rendu = await lancer(lu, typeof voulue === "string" ? voulue : voulue(sorties), signal);
       if ("erreur" in rendu) return rendu;
       sorties.push(rendu);
     }
     return { sorties };
   }
 
-  // Un projet : lu tout de suite, puis à chaque intervalle, sans rien attendre des autres.
-  async function suivre(servi: Servi, commandes: readonly Commande[], demande: number, signal: AbortSignal): Promise<void> {
+  // Un projet : lu tout de suite, puis à chaque intervalle, sans rien attendre des autres — là où
+  // sa cuisine tourne au moment de chaque lecture.
+  async function suivre(projet: Projet, commandes: readonly Commande[], demande: number, signal: AbortSignal): Promise<void> {
     for (;;) {
-      const lue = await lire(servi, commandes, signal);
-      // Le chef regarde ailleurs, ou l'app ferme : cette lecture n'est plus à personne.
-      if (signal.aborted) return;
-      options.surLecture({ projet: servi.nom, demande, a: new Date().toISOString(), ...lue });
+      const cuisine = cuisineDe(projet);
+      if (cuisine !== undefined) {
+        const lue = await lire({ nom: projet.nom, cuisine }, commandes, signal);
+        // Le chef regarde ailleurs, ou l'app ferme : cette lecture n'est plus à personne.
+        if (signal.aborted) return;
+        options.surLecture({ projet: projet.nom, demande, a: new Date().toISOString(), ...lue });
+      }
       await attendre(options.intervalleMs, undefined, { signal }).catch(() => {});
       if (signal.aborted) return;
     }
@@ -149,12 +223,13 @@ export function ouvrirVeille(options: {
   return {
     // Ce qui est affiché — un projet, ou chacun dans « Tous les projets » — et les commandes
     // à y lancer, dans l'ordre où la vue les montre. Rien d'autre n'est lu ; un
-    // projet sans box ne l'est pas. Chaque lecture porte la `demande` : celle
+    // projet dont la cuisine n'est nulle part — sans box, et pas sur cet ordinateur — ne
+    // l'est pas, tant qu'elle n'y est pas. Chaque lecture porte la `demande` : celle
     // d'un écran quitté peut encore être en route quand la vue en montre un autre.
     regarder(projets: readonly Projet[], commandes: readonly Commande[], demande: number): void {
       arreter();
       const { signal } = (tour = new AbortController());
-      for (const { nom, box } of projets) if (box !== undefined) void suivre({ nom, box }, commandes, demande, signal);
+      for (const projet of projets) void suivre(projet, commandes, demande, signal);
     },
 
     fermer: arreter,
