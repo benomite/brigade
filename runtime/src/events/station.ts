@@ -159,6 +159,10 @@ export type FaitStation =
   // La cause a changé, ou la branche d'intégration a bougé : les prises
   // reprennent. `base` : là où elle est. `why` : `base` ou `cause`.
   | { type: "aside.unblocked"; payload: { station: string; base: string; why: "base" | "cause" } }
+  // Un worktree se prépare de nouveau, après un échec (`ticket.86`,
+  // `worktree-failed`) : l'échec n'est plus à dire (`echec-du-worktree.ts`).
+  // Écrit une fois par reprise, pas à chaque worktree préparé.
+  | { type: "worktree.prepared"; payload: { station: string } }
   // Le quota du compte est épuisé : la station ne prend plus rien avant `until`.
   | { type: "station.86"; payload: { station: string; reason: string; until: string; window: string | null } }
   // La connexion Max a expiré : la station ne prend plus rien avant le

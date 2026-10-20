@@ -290,6 +290,8 @@ export function fauxDepot(racine: string, gates: boolean, setup = false, declara
   };
   const de = (worktree: string) => [...vivants].find(([, vivant]) => vivant === worktree)?.[0];
   return {
+    // Sans git, pas d'origine : rien ne la refuse.
+    acces: async () => ({ etat: "libre" }),
     async preparer(run) {
       const worktree = equiper(join(racine, run));
       vivants.set(`cook/${run}`, worktree);

@@ -2,7 +2,7 @@
 // et le faire avancer jusqu'au service. Chaque geste vérifie puis écrit dans
 // une seule transaction d'écriture : deux gestes concurrents se suivent, ils ne
 // se croisent pas.
-import { BAIL_ECHU, FIN_DE_86, motifDeRelance, type FaitRail } from "./events/rail.ts";
+import { BAIL_ECHU, FIN_DE_86, motifDeRelance, type AccesRefuse, type FaitRail } from "./events/rail.ts";
 import { fournitTout } from "./capacites.ts";
 import { illisible, requises } from "./fiche.ts";
 import type { Journal } from "./journal.ts";
@@ -65,8 +65,10 @@ export type Rail = {
   envoyerEnPass(ticket: number, station: string): void;
   servir(ticket: number): void;
   // `retour` : l'heure à laquelle le ticket redeviendra servable, si elle est
-  // connue. Sans elle, il reste 86 jusqu'à ce qu'on le rende.
-  quatreVingtSix(ticket: number, raison: { motif: string; retour?: Date; station?: string }): void;
+  // connue. Sans elle, il reste 86 jusqu'à ce qu'on le rende. `pourquoi` et
+  // `acces` : ce qui l'a fait échouer, dans les mots de l'outil, et l'accès au
+  // dépôt refusé, s'il l'est.
+  quatreVingtSix(ticket: number, raison: { motif: string; retour?: Date; station?: string; pourquoi?: string; acces?: AccesRefuse }): void;
   // Rend les tickets dont le bail est échu et ceux dont le 86 est passé. Rend
   // le nombre de tickets remis en attente. Un ticket dont le cook tourne
   // encore n'en est pas : c'est à sa station de l'arrêter et de récolter ce
@@ -306,13 +308,13 @@ export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
         noter(ticket, undefined, { type: "ticket.served", payload: {} });
       });
     },
-    quatreVingtSix(ticket, { motif, retour, station }) {
+    quatreVingtSix(ticket, { motif, retour, station, pourquoi, acces }) {
       exigerMotif(motif);
       base.transaction(() => {
         // Une station ne déclare 86 que le ticket qu'elle tient. Le runtime, lui,
         // peut aussi le dire d'un ticket en pass : elle remonte au chef.
         exiger(ticket, station === undefined ? ["waiting", "taken", "pass"] : ["taken"], station);
-        noter(ticket, station, { type: "ticket.86", payload: { reason: motif, until: retour?.toISOString() ?? null } });
+        noter(ticket, station, { type: "ticket.86", payload: { reason: motif, until: retour?.toISOString() ?? null, ...(pourquoi === undefined ? {} : { why: pourquoi }), ...(acces === undefined ? {} : { access: acces }) } });
       });
     },
   };

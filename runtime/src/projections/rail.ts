@@ -125,7 +125,7 @@ const FORMES: { [T in FaitRail["type"]]: { [C in keyof Payload<T>]: (valeur: unk
   "ticket.released": { reason: texte, station: texteOuRien },
   "ticket.passing": { station: texte },
   "ticket.served": {},
-  "ticket.86": { reason: texte, until: texteOuRien },
+  "ticket.86": { reason: texte, until: texteOuRien, why: (valeur) => valeur === undefined || typeof valeur === "string", access: (valeur) => valeur === undefined || (typeof valeur === "object" && valeur !== null) },
   "ticket.blocked": { by: Number.isSafeInteger, reason: texte },
   "ticket.waiting": { what: texte, who: texte, followUp: texte },
   "ticket.resumed": { to: (valeur) => valeur === "todo" || valeur === "kitchen", why: texte },

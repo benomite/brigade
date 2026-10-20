@@ -136,7 +136,9 @@ de chaque station qu'il a choisie, et la station l'y lit — toujours sans liais
      home (« 1 project »).
 - **Ce qu'elle en dit** : `brigade-projets-suivi.json`, réécrit quand il change — par projet, `servi`
   (et depuis quand), `a-autoriser` (avec ses pages), `en-preparation`, `refuse` (et pourquoi : clone
-  raté, accès au dépôt refusé, ligne à la main, refus de la station) ou `secondaire` ; et, à côté de la liste, l'**onboarding**
+  raté, accès au dépôt refusé, ligne à la main, refus de la station) ou `secondaire` — un projet
+  `servi` dont la cuisine ne prépare plus de worktree porte en plus `worktree` (voir « Le worktree
+  qui ne se prépare pas » plus bas) ; et, à côté de la liste, l'**onboarding**
   de chaque projet dont elle est la principale — voir plus bas.
 - **Retiré depuis l'app**, le projet quitte la demande : la station retire sa ligne du bloc et ne le
   sert plus. Son état et son clone restent sur la machine.
@@ -178,6 +180,33 @@ Le geste dépend de ce que git a dit :
 Le journal de service le dit une fois (`brigade : station — <projet> n'est pas servi, son dépôt
 refuse le fetch : … Geste : …`), et l'**onboarding** le montre à l'étape `depot`, courante, avec le
 geste « On <station>, under the account that runs it. ».
+
+### Le worktree qui ne se prépare pas
+
+*Ticket #1118.* L'accès vérifié avant de servir un projet peut tomber ensuite — un credential
+helper retiré, un droit révoqué —, et un worktree peut ne pas se préparer pour une autre raison
+(disque, conflit). Le ticket est alors 86 (`worktree-failed`) et reproposé dix minutes plus tard ;
+la ligne du projet, toujours `servi`, porte le dernier échec, lu dans le journal de sa cuisine
+(`runtime/src/echec-du-worktree.ts`) — absent tant qu'aucun n'échoue :
+
+```json
+"worktree": {
+  "ticket": 433,
+  "raison": "git fetch : fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+  "prochainEssai": "2026-10-20T10:59:00.000Z",
+  "acces": { "bloque": "fetch", "raison": "box cannot fetch from …", "geste": "Run `gh auth setup-git` on box, …" }
+}
+```
+
+- `raison` : l'erreur de git, telle qu'il l'a dite — ou, quand l'essai a buté sur l'accès revérifié
+  avant de rien rapatrier, la raison du refus ;
+- `prochainEssai` : l'heure du prochain essai (ISO) ;
+- `acces` : présent quand la station ne peut pas récupérer le dépôt ou y pousser — la même forme que
+  l'accès bloqué ci-dessus, avec son geste.
+
+Il tient jusqu'à l'essai suivant : raté, celui-ci le remplace, avec sa nouvelle heure ; réussi, il
+disparaît. Chaque essai revérifie l'accès d'abord : le geste fait, la station repart seule à son
+prochain essai, sans redémarrage de l'app.
 
 ### Le premier ticket : préparer le dépôt
 

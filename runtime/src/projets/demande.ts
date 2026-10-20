@@ -38,6 +38,13 @@
 //     une phrase, et `geste`, ce que le chef fait pour le lever (par exemple
 //     `gh auth setup-git`) ; l'état est alors `refuse`, et `dit` les porte
 //     tous deux.
+//     `worktree` (absent tant qu'aucun n'échoue) : la cuisine du projet n'a pas
+//     pu préparer le worktree d'un ticket (`echec-du-worktree.ts`) — `ticket`,
+//     `raison` (l'erreur de git), `prochainEssai` (ISO, l'heure où elle
+//     réessaie) et, si elle ne peut pas récupérer le dépôt ou y pousser,
+//     `acces` (comme ci-dessus : `bloque`, `raison`, `geste`). Il tient
+//     jusqu'à l'essai suivant, qui le remplace s'il échoue à son tour, et
+//     disparaît dès qu'un worktree se prépare.
 //     `station.locale` : cette station est celle de l'ordinateur du chef (une
 //     cuisine locale, sous macOS). `cuitSur` : la station où le projet cuit, telle
 //     que celle-ci la connaît — nul si elle n'en sait rien ; `ici` : il cuit sur
@@ -48,6 +55,7 @@
 //     ticket de préparation (`onboarding/etat.ts`, `Onboarding`).
 import { EFFORTS, MODELES } from "../calibrage.ts";
 import type { Onboarding } from "../onboarding/etat.ts";
+import type { EchecDuWorktree } from "../echec-du-worktree.ts";
 import type { AccesBloque } from "./acces.ts";
 import { NOM_DE_PROJET } from "../runtime.ts";
 
@@ -115,6 +123,7 @@ export type SuiviDuProjet = {
   ici?: boolean;
   bascule?: Bascule | null;
   acces?: AccesBloque;
+  worktree?: EchecDuWorktree;
 };
 
 const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];

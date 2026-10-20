@@ -10,6 +10,7 @@ import { test, type TestContext } from "node:test";
 import type { Canal, Fichiers } from "../../src/appairage/canal.ts";
 import { FICHIER_LOCAL } from "../../src/appairage/presence.ts";
 import { decisionsPosees } from "../../src/decisions.ts";
+import type { Fait } from "../../src/evenements.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { DEBUT, FIN } from "../../src/projets/bloc.ts";
 import { FICHIER_PROJETS, FICHIER_SUIVI, type SuiviDuProjet } from "../../src/projets/demande.ts";
@@ -321,6 +322,42 @@ test("un dépôt joignable, où la station peut pousser : servi comme avant, san
   assert.deepEqual(station.suivi(), [{ nom: "parade", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null }]);
   assert.equal(station.configuration(), `${DEBUT}\nparade benomite/parade ${BASE}\n${FIN}\n`);
   assert.equal(station.preparations.length, 1);
+});
+
+test("un worktree que la cuisine d'un projet servi n'a pas pu préparer : le suivi porte sa raison, l'heure du prochain essai et le geste, jusqu'à ce qu'un worktree se prépare", async (t) => {
+  const station = uneStation(t);
+  station.demander(PARADE);
+  await station.projets.relire();
+  const servi = { nom: "parade", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null };
+  assert.deepEqual(station.suivi(), [servi]);
+  // Ce que la cuisine du projet écrit à son journal (`station.ts`).
+  const noter = (fait: Fait) => {
+    const journal = ouvrirJournal(join(station.racine, "etat/parade"));
+    try {
+      journal.ajouter({ project: "parade", ticket: 433, author: "station:box/claude", ...fait });
+    } finally {
+      journal.fermer();
+    }
+  };
+  const why = "git fetch : fatal: could not read Username for 'https://github.com': terminal prompts disabled";
+  const access = { blocked: "fetch" as const, reason: "box cannot fetch from benomite/parade: git has no credentials for https://github.com and no credential helper to ask for them (git: could not read Username for 'https://github.com': terminal prompts disabled).", gesture: "Run `gh auth setup-git` on box, under the account that runs it: git then takes its credentials from gh." };
+  noter({ type: "ticket.86", payload: { reason: "worktree-failed", until: "2026-10-15T12:12:00.000Z", why, access } });
+  await station.projets.relire();
+  const acces = { bloque: "fetch", raison: access.reason, geste: access.gesture };
+  assert.deepEqual(station.suivi(), [{ ...servi, worktree: { ticket: 433, raison: why, prochainEssai: "2026-10-15T12:12:00.000Z", acces } }]);
+
+  // Un autre essai raté : son heure remplace la précédente.
+  noter({ type: "ticket.86", payload: { reason: "worktree-failed", until: "2026-10-15T12:22:00.000Z", why: access.reason, access } });
+  await station.projets.relire();
+  assert.deepEqual(station.suivi()?.[0]?.worktree, { ticket: 433, raison: access.reason, prochainEssai: "2026-10-15T12:22:00.000Z", acces });
+
+  // Un ticket mis de côté pour une autre cause ne le lève pas ; un worktree préparé, si.
+  noter({ type: "ticket.86", payload: { reason: "no-calibration", until: null } });
+  await station.projets.relire();
+  assert.equal(station.suivi()?.[0]?.worktree?.prochainEssai, "2026-10-15T12:22:00.000Z");
+  noter({ type: "worktree.prepared", payload: { station: "box/claude" } });
+  await station.projets.relire();
+  assert.deepEqual(station.suivi(), [servi]);
 });
 
 test("une demande illisible ne fait rien retirer ; une station pas encore appairée ne lit rien", async (t) => {

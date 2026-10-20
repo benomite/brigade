@@ -400,6 +400,8 @@ export const stations = definirProjection<Ecoutes>({
     "cook.stalled": () => {},
     // Likewise: the ticket is 86 on the rail, and that is where `status` reads it.
     "secrets.unavailable": () => {},
+    // Likewise: the failure it ends is read from the log (`echec-du-worktree.ts`).
+    "worktree.prepared": () => {},
     // The issue says it; here only the cause counts, the one the
     // next failure is compared with.
     "setup.failed": (base, { payload }) => {

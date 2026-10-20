@@ -5,6 +5,7 @@ import { execFile, execFileSync } from "./sans-invite.ts";
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
+import { verifierAcces, type Acces } from "./projets/acces.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
 export type Depot = {
@@ -101,6 +102,13 @@ export type Depot = {
   fichiers(): string[];
   // Rapatrie la base depuis l'origine ; rend son commit de tête.
   rapatrier(): Promise<string>;
+  // La station peut-elle récupérer la base sur l'origine, et y pousser ? La
+  // vérification d'accès d'un projet (`projets/acces.ts`), sous
+  // l'environnement de `rapatrier` et `pousser` — le jeton de l'identité cook,
+  // s'il y en a un. `qui` : la machine et le dépôt, tels que la raison et le
+  // geste les nomment. Ne lève pas : un jeton qui ne vient pas laisse le dépôt
+  // injoignable.
+  acces(qui: { station: string; depot: string }): Promise<Acces>;
   // Le commit de tête de la base telle que le dernier rapatriement l'a vue,
   // sans rien rapatrier — celle dont vient de partir un worktree préparé.
   vue(): string;
@@ -389,6 +397,15 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         return git("rev-parse", `origin/${base}`);
       }),
     vue: () => git("rev-parse", `origin/${base}`),
+    async acces({ station, depot }) {
+      let env: NodeJS.ProcessEnv;
+      try {
+        env = (await reseau()) ?? process.env;
+      } catch (erreur) {
+        return { etat: "injoignable", dit: `the identity token for git did not come — ${erreur instanceof Error ? erreur.message : String(erreur)}` };
+      }
+      return verifierAcces({ station, depot, base, clone, env });
+    },
     avance: (depuis) => Number(git("rev-list", "--count", `${depuis}..origin/${base}`)),
     essayer: (nom) =>
       aSonTour(async () => {
