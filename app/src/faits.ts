@@ -24,6 +24,7 @@ import { apprentissageDe, apprentissageInforme, apprentissageLu, ligneOuvrable, 
 import { carteDeProfil, profilInforme, profilsLus, type CarteDeProfil, type ProfilLu } from "./profil.ts";
 import { attenduDe, decisionLue, livraisonLue, teteDe, type Decision, type Livraison as LivraisonAttendue } from "./decision.ts";
 import { entete, type Entete } from "./fiche.ts";
+import { cuissonDe, type CuissonDuProjet } from "./cuisson.ts";
 import { LABEL_RETENUE } from "./question.ts";
 import type { Repondue } from "./repondues.ts";
 
@@ -194,6 +195,9 @@ export type Tableau = {
   // en tête, mot pour mot — absente quand `status` n'est pas lu ou ne la porte pas.
   rienNeCuit?: string;
   rail: Rail;
+  // Ce que chaque station du projet en fait, ses cooks et son geste, et la ligne d'alerte de l'onglet Rail
+  // (cuisson.ts) — absent d'un runtime qui ne donne pas les stations.
+  stations?: CuissonDuProjet;
   // Ce que chaque correction acceptée des consignes du projet a fait de sa cause, avant et après son
   // merge (recul.ts), la plus ancienne d'abord : la page Reliability la pose. Absent quand il n'y en a aucune.
   reculs?: Recul[];
@@ -238,6 +242,26 @@ function comprendreStation(valeur: unknown, champ: string): StationDesFaits {
       };
     }),
     prendOrdinaires: booleen(lu.prendOrdinaires, `${champ}.prendOrdinaires`),
+    // Ce que la station fait du projet (#1183) : absent d'un runtime d'avant ce champ.
+    ...(lu.cuisson === undefined ? {} : { cuisson: texte(lu.cuisson, `${champ}.cuisson`) }),
+    ...(lu.arreteeDepuis === undefined ? {} : { arreteeDepuis: ouRien(lu.arreteeDepuis, `${champ}.arreteeDepuis`, heure) }),
+    ...(lu.refus === undefined
+      ? {}
+      : {
+          refus: ouRien(lu.refus, `${champ}.refus`, (refus, lequel) => {
+            const dit = objet(refus, lequel);
+            return { code: texte(dit.code, `${lequel}.code`), message: texte(dit.message, `${lequel}.message`), action: texte(dit.action, `${lequel}.action`) };
+          }),
+        }),
+    ...(lu.cooks === undefined
+      ? {}
+      : {
+          cooks: (Array.isArray(lu.cooks) ? lu.cooks : refuser(`${champ}.cooks`, "a list")).map((cook: unknown, rang) => {
+            const lequel = `${champ}.cooks[${rang}]`;
+            const dit = objet(cook, lequel);
+            return { ticket: entier(dit.ticket, `${lequel}.ticket`), titre: texte(dit.titre, `${lequel}.titre`), station: texte(dit.station, `${lequel}.station`) };
+          }),
+        }),
   };
 }
 
@@ -851,6 +875,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     evenement: evenement(faits),
     ...rienNeCuit(status),
     rail: rail(faits, attend, status, repondues),
+    ...(faits.stations === undefined ? {} : { stations: cuissonDe(faits.stations, faits.cooks, faits.lu) }),
     ...(faits.reculs === undefined || faits.reculs.length === 0 ? {} : { reculs: faits.reculs.map(reculDe) }),
     apprentissage: apprentissageDe(faits.apprentissage),
   };

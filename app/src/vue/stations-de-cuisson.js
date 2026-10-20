@@ -1,0 +1,151 @@
+// @ts-check
+// Les stations du projet sur l'onglet Cooks (ticket 1185) : une ligne par station — son nom, son mot (cooking,
+// stopped, saturated, refused) et ce qu'il veut dire, ses cooks en cours, et un seul bouton, qui arrête ou
+// relance la cuisine du projet sur elle, la box comme le Mac ou un autre ordinateur. Le clic part par le process
+// principal (cuisson.ts) ; tant qu'il n'a pas répondu, le bouton dit qu'il s'y met. Ce qu'il a fait se dit en une
+// ligne sous la station, ce que le runtime a répondu au survol — jusqu'à ce que la lecture suivante la montre
+// dans son état neuf.
+// Et, sur l'onglet Rail, la ligne qui dit ce qui, du côté des cooks, demande un geste au chef — une station
+// saturée, un projet refusé, l'accès au dépôt bloqué — avec de quoi ouvrir Cooks, où ce geste se fait. Une seule
+// ligne, quel que soit le nombre de causes ; aucune quand rien ne le demande.
+// Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
+
+import { boutonAction } from "./briques.js";
+
+/** @typedef {import("./briques.js").Fabrique} Fabrique */
+/** @typedef {import("../cuisson.ts").LigneDeStation} Ligne */
+/** @typedef {import("../cuisson.ts").GesteDeCuisson} Geste */
+/** @typedef {import("../projets/demande.ts").AccesBloque} Acces */
+/** @typedef {import("../projets/demande.ts").Refus} Refus */
+// Ce qu'un clic a rendu pour une station : la phrase, refusée ou non, le détail au survol, et le mot de la
+// station au moment du clic — elle s'efface quand la station en a changé.
+/** @typedef {{ dit: string, refus: boolean, detail: string, etat: string }} Dit */
+
+export const TITRE = "Its stations";
+export const AUCUN_COOK = "no cook running";
+export const OUVRIR_COOKS = "open Cooks";
+
+// Ce que chaque bouton dit, ce qu'il dit tant que le clic attend sa réponse, ce qu'il fait — au survol du bouton —,
+// et son prix, nul quand il ne coûte rien : arrêter ne coupe rien et ne perd rien ; relancer remet ses cooks au
+// travail, sur le quota du chef. Le prix passe en survol, jamais sous le bouton.
+/** @type {Readonly<Record<Geste, { libelle: string, enCours: string, fait: string, prix: string | null }>>} */
+export const BOUTONS = {
+  stop: { libelle: "stop cooking", enCours: "stopping…", fait: "it takes no more tickets of this project; its running cooks finish — delivered, or their ticket goes back to the rail", prix: null },
+  start: { libelle: "start cooking", enCours: "starting…", fait: "it takes the project's tickets again", prix: "its cooks spend what cooks spend, on your quota" },
+};
+
+/** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
+function cree(doc, balise, texte) {
+  const pose = doc.createElement(balise);
+  if (texte !== undefined) pose.textContent = texte;
+  return pose;
+}
+
+// La section des stations, ou null : `facts` ne les donne pas. `enCours` : les stations dont un clic attend sa
+// réponse, et lequel ; `dits` : ce que le dernier clic de chacune a rendu. `pastille` : celle de la vue.
+/**
+ * @param {Fabrique} doc
+ * @param {{ lignes: readonly Ligne[] | undefined, enCours: ReadonlyMap<string, Geste>, dits: ReadonlyMap<string, Dit>, jouer: (station: string, geste: Geste) => void, pastille: (mot: string, ton: string | undefined) => any }} options
+ */
+export function poserLesStations(doc, { lignes, enCours, dits, jouer, pastille }) {
+  if (lignes === undefined) return null;
+  const section = cree(doc, "section");
+  section.className = "stations-de-cuisson";
+  section.ariaLabel = TITRE;
+  const liste = cree(doc, "ol");
+  liste.append(
+    ...lignes.map((ligne) => {
+      const pose = cree(doc, "li");
+      pose.className = "station-de-cuisson";
+      pose.dataset.station = ligne.station;
+      // Son nom, et où elle tourne.
+      const nom = cree(doc, "span");
+      nom.className = "nom";
+      const appele = cree(doc, "strong", ligne.station);
+      appele.className = "mono";
+      nom.append(appele, ...(ligne.distante ? [cree(doc, "small", "remote")] : []));
+      // Son mot, ce qu'il veut dire en quelques mots, et le reste au survol.
+      const etat = cree(doc, "span");
+      etat.className = "etat";
+      const pilule = cree(doc, "span");
+      pilule.className = "pilule";
+      if (ligne.ton !== undefined) pilule.dataset.ton = ligne.ton;
+      pilule.append(pastille(ligne.etat, ligne.ton), cree(doc, "strong", ligne.etat));
+      pilule.title = ligne.survol;
+      etat.append(pilule, ...(ligne.dit === "" ? [] : [cree(doc, "small", ligne.dit)]));
+      // Ses cooks en cours : arrêtée, ce sont ceux qui finissent.
+      const cooks = cree(doc, "ul");
+      cooks.className = "cooks";
+      cooks.append(
+        ...(ligne.cooks.length === 0
+          ? [cree(doc, "li", AUCUN_COOK)]
+          : ligne.cooks.map(({ ticket, titre }) => {
+              const cook = cree(doc, "li");
+              const numero = cree(doc, "strong", `#${ticket}`);
+              numero.className = "mono";
+              const dit = cree(doc, "span", titre);
+              dit.title = titre;
+              cook.append(numero, dit);
+              return cook;
+            })),
+      );
+      if (ligne.cooks.length === 0) cooks.className = "cooks vide";
+      pose.append(nom, etat, cooks);
+      // Le geste : un seul bouton, et seulement quand c'est d'elle que l'arrêt vient ou s'en va.
+      if (ligne.geste !== null) {
+        const geste = ligne.geste;
+        const attendu = enCours.get(ligne.station);
+        const bouton = boutonAction(doc, attendu === undefined ? BOUTONS[geste].libelle : BOUTONS[attendu].enCours, () => jouer(ligne.station, geste), { prix: BOUTONS[geste].prix });
+        bouton.className = "action geste-de-cuisson";
+        const clic = bouton.children[0];
+        if (clic !== undefined) {
+          clic.ariaLabel = `${BOUTONS[geste].libelle} on ${ligne.station}`;
+          clic.title = BOUTONS[geste].fait;
+          clic.disabled = attendu !== undefined;
+        }
+        pose.append(bouton);
+      }
+      // Ce que le dernier clic a rendu, tant que la station n'a pas changé de mot.
+      const rendu = dits.get(ligne.station);
+      if (rendu !== undefined && rendu.etat === ligne.etat) {
+        const dit = cree(doc, "p", rendu.dit);
+        dit.className = rendu.refus ? "dit refus" : "dit";
+        if (rendu.detail !== "") dit.title = rendu.detail;
+        pose.append(dit);
+      }
+      return pose;
+    }),
+  );
+  section.append(cree(doc, "h3", TITRE), liste);
+  return section;
+}
+
+// Le détail de git, que la raison d'un accès bloqué porte entre parenthèses à sa fin : au survol (depot-retenu.js).
+const DETAIL_DE_GIT = /\s*\(git: ([^)]*)\)\.?$/;
+
+// La ligne d'alerte de l'onglet Rail, ou null : rien, du côté des cooks, ne demande un geste au chef.
+// `alerte` : ce que les stations en disent (cuisson.ts) ; `refusee` : l'une d'elles y dit déjà un refus ;
+// `acces`, `refus` : ce que la station du projet publie de l'accès au dépôt et de son refus (projets/demande.ts).
+// Plusieurs causes tiennent sur la même ligne, la plus urgente d'abord : l'accès, que seul le chef lève.
+/**
+ * @param {Fabrique} doc
+ * @param {{ alerte: string | null, refusee: boolean, acces: Acces | null, refus: Refus | null, ouvrir: () => void }} options
+ */
+export function ligneDAlerte(doc, { alerte, refusee, acces, refus, ouvrir }) {
+  const causes = [
+    ...(acces === null ? [] : [acces.raison.replace(DETAIL_DE_GIT, "").replace(/\.$/, "")]),
+    ...(alerte === null ? [] : [alerte]),
+    ...(refus === null || refusee ? [] : [refus.message.replace(/\.$/, "")]),
+  ];
+  if (causes.length === 0) return null;
+  const pose = cree(doc, "p");
+  pose.className = "alerte-de-cuisine";
+  pose.role = "alert";
+  const dit = cree(doc, "span", `${causes.join(" · ")}.`);
+  const lien = cree(doc, "button", OUVRIR_COOKS);
+  lien.type = "button";
+  lien.className = "lien";
+  lien.addEventListener("click", ouvrir);
+  pose.append(dit, lien);
+  return pose;
+}

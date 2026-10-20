@@ -12,6 +12,20 @@ le quota). Un clic passe de l'un à l'autre ; **l'app rouvre chaque projet sur l
 ouvert**, même après l'avoir quittée — un projet jamais ouvert s'ouvre sur Rail. **À droite, les terminaux, en
 permanence** : le second, et à côté de lui, au même niveau, les shells que tu ouvres — rien de ce que tu regardes
 au centre ne les cache, et changer d'onglet ne coupe ni ne vide la conversation.
+**Sur Cooks, une ligne par station du projet** (#1185), sous la carte du projet, où qu'elle tourne — la box, le Mac,
+un autre ordinateur (`remote`) : son état, un mot de `facts` (`cooking`, `stopped`, `saturated`, `refused`, #1183)
+et ce qu'il veut dire (`by you, for 3 min · 1 cook finishing`, `its machine has no room`, la raison d'un refus),
+ses cooks en cours, et **un seul bouton** : `stop cooking` quand elle cuit (saturée comprise), `start cooking`
+quand tu l'as arrêtée. Il joue `station stop|start <station>` là où la cuisine du projet tourne — sa box par
+`ssh`, ou ce Mac —, dit `stopping…` tant que le runtime n'a pas répondu, puis relit la box : la ligne prend
+l'état neuf sans recharger la page. Arrêter ne coupe rien : le cook en cours finit — livré, ou son ticket revient
+au rail — et la ligne reste à `stopped`. Ce qu'il fait est au survol du bouton ; relancer dit son prix au survol,
+arrêter n'en a pas. Refusé par le runtime, une ligne le dit sous la station, sa sortie au survol. Une station
+arrêtée par ton « stop » de toute la cuisine, ou qui refuse le projet, n'a pas de bouton : la reprise est sur la
+bannière, le geste d'un refus dans le bloc sous la ligne des stations. **Sur Rail, une seule ligne en tête** dit
+ce qui, du côté des cooks, demande ton geste — une station saturée, une station qui refuse le projet, l'accès au
+dépôt bloqué —, toutes les causes sur la même ligne, avec `open Cooks`, qui ouvre l'onglet Cooks ; rien ne la
+montre quand rien ne le demande. Les modules sont `app/src/cuisson.ts` et `app/src/vue/stations-de-cuisson.js`.
 **L'écran principal ne garde que trois choses : la bande d'alertes, le rail et les terminaux** ; il
 n'y a rien en bas de la fenêtre. Le reste est derrière un onglet, en haut, à côté du nom du
 projet : **Paramètres** (l'état du projet, la sauvegarde et son ancienneté, les réglages, le
@@ -905,7 +919,7 @@ sur le rail). Les pages qu'il ouvre sont celles que la station a publiées, et a
 **Ce qui retient la cuisine** (#1119) : sa principale publie, dans la ligne du projet de son suivi, `acces`
 (l'accès au dépôt refusé, #1117 : la raison et le geste) et `worktree` (un worktree impossible à préparer,
 #1118 : le ticket, la raison, l'heure du prochain essai, et `acces` quand c'est l'accès qui refuse).
-Sous la ligne des stations — et sur l'onglet Rail comme sur Cooks, puisque c'est ce qui t'attend —, un bloc
+Sous la ligne des stations — sur Cooks ; sur Rail, la ligne d'alerte le dit en une ligne et ouvre Cooks (#1185) —, un bloc
 rouge dit en une phrase la raison puis le geste (`parade-box cannot fetch from benomite/parade: … Run
 gh auth setup-git on parade-box, under the account that runs it.`, la commande en code, le détail de git au
 survol), et un bouton recommandé « copy the command » qui copie la commande seule — le geste se fait sur la

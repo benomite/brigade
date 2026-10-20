@@ -106,6 +106,7 @@ import { lireDerive, poserDerive } from "./closer/derive/derive.js";
 import { apresRendu as apresLaCorrection, poserCorrections, REPOS as CORRECTION_AU_REPOS } from "./correction/carte.js";
 import { poserProfils } from "./profil/carte.js";
 import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
+import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
 import { apresLaDecision, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
@@ -241,6 +242,14 @@ const carte = document.createElement("section");
 carte.id = "carte";
 carte.className = "carte";
 carte.hidden = true;
+// Les stations du projet, sous sa carte (ticket 1185) : une ligne chacune, son état, ses cooks, son bouton qui la
+// lance ou l'arrête ; et, en tête de l'onglet Rail, la ligne qui dit ce qui, du côté des cooks, demande un geste —
+// avec de quoi ouvrir Cooks. poserCuisson les remplit ; poserRail les pose.
+const cuissonDuProjet = document.createElement("div");
+cuissonDuProjet.id = "cuisson-du-projet";
+cuissonDuProjet.ariaLive = "polite";
+const alerteDeCuisine = document.createElement("div");
+alerteDeCuisine.id = "alerte-de-cuisine";
 const lu = element("lu");
 const lecture = element("lecture");
 const ajout = element("ajout");
@@ -732,6 +741,13 @@ let coutsOuverts = false;
 /** @type {Map<string, Dessinable>} */
 const tenus = new Map();
 let demandeFaits = 0;
+// Les clics sur le bouton d'une station qui attendent leur réponse, et ce que le dernier de chacune a rendu
+// (ticket 1185) — par projet et station.
+/** @type {Map<string, import("../cuisson.ts").GesteDeCuisson>} */
+const cuissonsEnCours = new Map();
+/** @type {Map<string, import("./stations-de-cuisson.js").Dit>} */
+const cuissonsDites = new Map();
+const cleDeCuisson = (/** @type {string} */ projet, /** @type {string} */ station) => `${projet}\u0000${station}`;
 // La dernière bande d'alertes de chaque projet, telle que le process principal l'a dite (alertes.ts).
 /** @type {Map<string, Alerte[]>} */
 const bandes = new Map();
@@ -3843,6 +3859,58 @@ function listeAmont(projet, vu, cartes) {
 // Ce que dit la page d'un projet qui cuit sur cet ordinateur quand la station de cet ordinateur ne tourne pas.
 const STATION_ARRETEE = "this computer's station is not running";
 
+// Les stations du projet sur Cooks, et la ligne d'alerte de Rail (ticket 1185), d'après ses derniers faits — rien
+// tant que sa box ne répond pas : ce qu'ils en disaient n'est plus lu — et, pour l'alerte, ce que la station du
+// projet publie de l'accès à son dépôt et de son refus (projets/demande.ts), que le bloc de ses stations détaille.
+/** @param {Projet} projet */
+function poserCuisson(projet) {
+  const tenu = tenus.get(projet.nom);
+  const stations = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.stations : undefined;
+  const siens = (/** @type {Map<string, any>} */ ou) => new Map([...ou].flatMap(([cle, valeur]) => (cle.startsWith(cleDeCuisson(projet.nom, "")) ? [[cle.slice(cleDeCuisson(projet.nom, "").length), valeur]] : [])));
+  const pose = stationsDeCuisson(document, {
+    lignes: stations?.lignes,
+    enCours: siens(cuissonsEnCours),
+    dits: siens(cuissonsDites),
+    jouer: (station, geste) => void cuire(projet.nom, station, geste),
+    pastille,
+  });
+  cuissonDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
+  const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
+  const alerte = ligneDAlerte(document, {
+    alerte: stations?.alerte ?? null,
+    refusee: stations?.lignes.some(({ etat }) => etat === "refused") ?? false,
+    acces: vu?.acces ?? vu?.worktree?.acces ?? null,
+    refus: vu?.refus ?? null,
+    ouvrir: () => choisirOnglet(CUISINE),
+  });
+  alerteDeCuisine.hidden = alerte === null;
+  alerteDeCuisine.replaceChildren(...(alerte === null ? [] : [alerte]));
+}
+
+// Le bouton d'une station : le geste part par le process principal (cuisson.ts), et le bouton dit qu'il s'y met.
+// Fait, la box est relue tout de suite : la ligne prend l'état neuf de la station sans attendre la lecture suivante.
+/** @param {string} projet @param {string} station @param {import("../cuisson.ts").GesteDeCuisson} geste */
+async function cuire(projet, station, geste) {
+  const cle = cleDeCuisson(projet, station);
+  if (cuissonsEnCours.has(cle)) return;
+  const tenu = tenus.get(projet);
+  const etat = (tenu !== undefined && "tableau" in tenu ? tenu.tableau.stations?.lignes.find((ligne) => ligne.station === station)?.etat : undefined) ?? "";
+  cuissonsEnCours.set(cle, geste);
+  cuissonsDites.delete(cle);
+  if (courant?.nom === projet) poserCuisson(courant);
+  /** @type {import("../cuisson.ts").RenduDeCuisson} */
+  let rendu;
+  try {
+    rendu = await brigade.cuireSurLaStation(projet, station, geste);
+  } catch (erreur) {
+    rendu = { refus: `${station}: nothing was sent — nothing was changed`, detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  cuissonsEnCours.delete(cle);
+  cuissonsDites.set(cle, { dit: "fait" in rendu ? rendu.fait : rendu.refus, refus: !("fait" in rendu), detail: rendu.detail ?? "", etat });
+  if ("fait" in rendu) brigade.relireBox(demandeFaits);
+  if (courant?.nom === projet) poserCuisson(courant);
+}
+
 // Le rail en six colonnes — Sur le rail, Au travail, Pass, TODO, WAITING, Livré —,
 // tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
 // colonne, au centre de l'espace, partagé entre ses deux onglets (ticket 1184). Rail : ce qui t'attend
@@ -3864,8 +3932,10 @@ function poserRail(projet) {
   if (rail.hidden) return rail.replaceChildren();
   // Sur Cooks, la carte du projet en tête ; en bas, ses serveurs de livraison et la lecture de `station`, quoi qu'il y
   // ait entre eux.
+  // Sur Cooks, ses stations sous la carte ; sur Rail, en tête, la ligne qui dit ce qui y demande un geste (ticket 1185).
+  poserCuisson(projet);
   /** @param {(HTMLElement | string)[]} poses */
-  const poser = (...poses) => rail.replaceChildren(...(cuisine ? [carte] : []), ...poses, ...(cuisine ? [pages, lectureDeLaCuisine] : []));
+  const poser = (...poses) => rail.replaceChildren(...(cuisine ? [carte, cuissonDuProjet] : alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses, ...(cuisine ? [pages, lectureDeLaCuisine] : []));
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
   // l'autre onglet.
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
@@ -5372,9 +5442,11 @@ function poserStationsDuProjet() {
   poserLeParcours(projet.nom, onboarding);
   // Les stations sont de l'onglet Cooks (ticket 1184). Sur Rail, elles restent en vue tant qu'elles sont ce qui
   // t'attend : le projet ne cuit nulle part, son parcours est à suivre, un choix de machine est ouvert, ou
-  // sa cuisine est retenue — l'accès au dépôt refusé, un worktree qui ne se prépare pas (ticket 1119).
+  // sa cuisine est retenue — un worktree qui ne se prépare pas (ticket 1119). L'accès au dépôt refusé et le refus de
+  // la station, eux, sont dits sur Rail par la ligne d'alerte, qui ouvre Cooks : une seule ligne (ticket 1185).
+  const ditParLAlerte = (vu?.acces ?? vu?.worktree?.acces ?? vu?.refus ?? null) !== null;
   stationsDuProjet.hidden =
-    ongletDe(projet) !== CUISINE && seLit(projet) && parcoursDuProjet.hidden && depotRetenu.hidden && confiance === undefined && demenagement?.projet !== projet.nom;
+    ongletDe(projet) !== CUISINE && seLit(projet) && parcoursDuProjet.hidden && (depotRetenu.hidden || ditParLAlerte) && confiance === undefined && demenagement?.projet !== projet.nom;
   if (confiance === undefined) return;
   poserLaConfiance(confiance, projet, { exclues: stations.map(({ id }) => id), demande, principale });
 }
@@ -6283,6 +6355,13 @@ brigade.surProjetsDesStations((vu) => {
   poserProjets();
   poserChoixDesStations();
   poserStationsDuProjet();
+  // L'accès au dépôt et le refus de la station : la ligne d'alerte de Rail les dit (ticket 1185). Apparue ou partie,
+  // le rail se repose : elle n'y est que quand elle dit quelque chose.
+  if (courant !== undefined) {
+    const avant = alerteDeCuisine.hidden;
+    poserCuisson(courant);
+    if (avant !== alerteDeCuisine.hidden) poserRail(courant);
+  }
 });
 // La colonne des terminaux change de taille avec la fenêtre : le terminal montré suit.
 new ResizeObserver(() => {
