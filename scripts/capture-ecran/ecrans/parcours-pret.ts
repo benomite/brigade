@@ -16,6 +16,7 @@ const PRET: Onboarding = {
   ],
   preparation: { ticket: 433, url: "https://github.com/benomite/parade/issues/433", etat: "faite", raison: null, prochainEssai: null, pr: null },
   sansBacASable: false,
+  decisionAttendue: false,
 };
 
 export const ecran: Ecran = {

@@ -18,6 +18,7 @@ export const EN_ECHEC: Onboarding = {
   ],
   preparation: { ticket: 433, url: TICKET, etat: "en-echec", raison: "The worktree setup of the project fails.", prochainEssai: "2026-10-13T10:14:00.000Z", pr: null },
   sansBacASable: false,
+  decisionAttendue: false,
 };
 
 export const ecran: Ecran = {

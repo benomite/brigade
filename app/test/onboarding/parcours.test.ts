@@ -45,6 +45,7 @@ const EN_COURS: DuRuntime = {
   etapes: [...AVANT, { etape: "preparation", titre: "Repository preparation", etat: "courante", dit: `A cook on box prepares ${DEPOT} (#433).`, geste: null }, A_VENIR],
   preparation: { ticket: 433, url: TICKET, etat: "en-cours", raison: null, prochainEssai: null, pr: null },
   sansBacASable: false,
+  decisionAttendue: false,
 };
 const EN_ECHEC: DuRuntime = {
   ...EN_COURS,
@@ -75,6 +76,7 @@ const PRET: DuRuntime = {
   ],
   preparation: { ticket: 433, url: TICKET, etat: "faite", raison: null, prochainEssai: null, pr: PR },
   sansBacASable: false,
+  decisionAttendue: false,
 };
 
 // L'onboarding tel que l'app le lit dans le suivi que la station écrit (runtime/src/projets/demande.ts).

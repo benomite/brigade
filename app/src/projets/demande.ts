@@ -133,7 +133,7 @@ export type GesteDOnboarding = { quoi: string; ou: string; liens: string[] };
 export type EtapeDOnboarding = { etape: string; titre: string; etat: EtatDEtape; dit: string; geste: GesteDOnboarding | null };
 export type EtatDePreparation = "en-cours" | "en-echec" | "a-relire" | "suspendu" | "faite" | "abandonne";
 export type PreparationDuDepot = { ticket: number; url: string; etat: EtatDePreparation; raison: string | null; prochainEssai: string | null; pr: string | null };
-export type Onboarding = { etat: "en-cours" | "pret"; termine: boolean; courante: string | null; etapes: EtapeDOnboarding[]; preparation: PreparationDuDepot | null; sansBacASable: boolean | null };
+export type Onboarding = { etat: "en-cours" | "pret"; termine: boolean; courante: string | null; etapes: EtapeDOnboarding[]; preparation: PreparationDuDepot | null; sansBacASable: boolean | null; decisionAttendue: boolean };
 
 const ETATS_D_ETAPE: readonly string[] = ["faite", "courante", "a-venir"];
 const ETATS_DE_PREPARATION: readonly string[] = ["en-cours", "en-echec", "a-relire", "suspendu", "faite", "abandonne"];
@@ -155,7 +155,7 @@ function lirePreparation(lue: unknown): PreparationDuDepot | null {
 
 function lireUnOnboarding(lu: unknown): Onboarding | null {
   if (lu === null || typeof lu !== "object") return null;
-  const { etat, termine, courante, etapes, preparation, sansBacASable } = lu as Record<string, unknown>;
+  const { etat, termine, courante, etapes, preparation, sansBacASable, decisionAttendue } = lu as Record<string, unknown>;
   if ((etat !== "en-cours" && etat !== "pret") || !Array.isArray(etapes)) return null;
   const lues = etapes.flatMap((brute): EtapeDOnboarding[] => {
     const { etape, titre, etat: sien, dit, geste } = (brute ?? {}) as Record<string, unknown>;
@@ -163,7 +163,7 @@ function lireUnOnboarding(lu: unknown): Onboarding | null {
     return [{ etape, titre, etat: sien as EtatDEtape, dit: texte(dit) ? dit : "", geste: lireGeste(geste) }];
   });
   if (lues.length === 0) return null;
-  return { etat: etat as Onboarding["etat"], termine: termine === true, courante: texte(courante) ? courante : null, etapes: lues, preparation: lirePreparation(preparation), sansBacASable: typeof sansBacASable === "boolean" ? sansBacASable : null };
+  return { etat: etat as Onboarding["etat"], termine: termine === true, courante: texte(courante) ? courante : null, etapes: lues, preparation: lirePreparation(preparation), sansBacASable: typeof sansBacASable === "boolean" ? sansBacASable : null, decisionAttendue: decisionAttendue === true };
 }
 
 // L'onboarding de chaque projet dont la station est la principale, par son nom. Absent, illisible,
