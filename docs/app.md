@@ -433,7 +433,7 @@ Le fichier reste le tien, et tu peux tout y faire :
   « couleurs » : « onglet » doit être une couleur écrite `#rrggbb` — « rouge » n'en est pas une`).
 - `hote` est facultatif, et c'est tout ce qu'un projet dit de sa box : le nom par lequel **ton**
   `ssh` la joint. Ce qui est écrit entre `< >` ci-dessus est à remplacer — voir « Ce que la box dit
-  du projet ». Un projet écrit à la main sans `hote` a son terminal, et l'app ne lit rien de sa box.
+  du projet ». Un projet écrit à la main sans `hote` a son terminal, et l'app ne lit rien de sa box : elle n'en lit une que si `hote` la nomme. Un projet qui cuit sur ce poste, lui, est lu et piloté en local, sans `ssh` ni `hote` (voir « Où cuit un projet »).
 - **`nom` est aussi le nom du projet sur la box** : c'est lui que l'app donne au geste de la box
   (le geste de la box : `ssh <hote> brigade <nom> status` depuis ton poste), donc celui de l'instance `brigade@<nom>.service`. Il n'y a pas de
   second nom à déclarer : un projet servi s'appelle dans l'app comme sur sa box.
@@ -890,6 +890,12 @@ les cooks et le calibrage déjà demandés.
   `Cooks on parade-box` pour un projet sur sa box ; **`Cooks on this Mac · its kitchen stops when you
   close the app`** pour un projet que la station de cet ordinateur sert — la phrase n'est jamais
   dite d'une autre station. Le nom de la station est au survol de « this Mac ».
+- **Lu et piloté ici, sans `ssh` ni `hote`.** Un projet qui cuit sur cet ordinateur est lu et piloté
+  par la station de ce poste : son rail, sa file et ses cartes viennent d'elle, pas d'une box, et
+  l'app ne lance aucun `ssh` pour lui. Il n'a donc pas besoin de `hote` : un projet écrit à la main
+  sans `hote` se lit ici dès que sa cuisine tourne sur ce Mac. La source suit la cuisine : quand
+  elle déménage — vers ce Mac, ou hors de lui —, la lecture change de source avec elle, sans
+  relancer l'app, et la ligne dit toujours où le projet cuit à cet instant.
 - **Station de cet ordinateur arrêtée : une ligne, pas une page vide** (#1124). Un projet qui cuit
   ici n'a rien à lire tant que la station de cet ordinateur ne tourne pas (refusée, arrêtée, entre
   sa mort et sa relance) : **`this computer's station is not running`** prend la place du rail, de
