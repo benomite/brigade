@@ -13,6 +13,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { configPass, consigneDeRenvoi, plafondADire } from "../src/pass.ts";
 import { bilanSansGrant, etatDuGrant, passDuTicket, usagesDuGrant } from "../src/projections/pass.ts";
 import { CONSIGNE_MAX } from "../src/reviewer.ts";
+import { cartesEnTodo } from "../src/carte-todo.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { sortDuTicket } from "../src/projections/rail.ts";
@@ -782,7 +783,7 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusqua(() => etat(17) === undefined);
   });
 
-  test("une livraison qui touche à ses propres juges n'est jamais mergée par la pass, même sous grant", async (t) => {
+  test("une livraison qui touche à ses propres juges n'est pas mergée sur le seul verdict de la pass, même sous grant", async (t) => {
     const { gh, dernier, pass, jusquAu, journal } = service(t, {
       grant: true,
       depot: (depot) => ({
@@ -805,8 +806,8 @@ describe("la pass", { concurrency: 8 }, () => {
   });
 
   // Une livraison qui touche à ses gates, sous grant : ce qui la fait passer devant le second juge.
-  const toucheSesGates = (relectures: string[]) => ({
-    grant: true,
+  const toucheSesGates = (relectures: string[], grant = true) => ({
+    grant,
     reviewer: { suite: relectures },
     depot: (depot: Depot): Depot => ({
       ...depot,
@@ -878,6 +879,69 @@ describe("la pass", { concurrency: 8 }, () => {
       assert.match(String(dernier("pass.second-judged", 17)?.reason), raison);
       const dit = { "not-weakened": "not weakened", "cannot-establish": "cannot establish" }[verdict];
       await jusqua(() => gh.commentaires.some(([numero, corps]) => numero === 101 && corps.startsWith(`**Second juge — \`${dit}\`.**`)));
+    });
+  }
+
+  test("établie non affaiblie par le second juge, sous grant : la pass la merge comme une livraison ordinaire, sans carte, et le journal dit le merge", async (t) => {
+    const { gh, journal, histoire, dernier, compter, jusquAu, laisserTourner } = service(t, toucheSesGates(["relit-vert", "juge-non-affaibli"]));
+    await jusquAu("ticket.served");
+    await jusqua(() => gh.fermetures.length === 1);
+    await laisserTourner();
+
+    const verdict = journal.duTicket(17).find((e) => e.type === "pass.judged");
+    assert.deepEqual(histoire().slice(0, 8), ["pass.started", "pass.reviewed", "pass.judged", "pass.held", "pass.second-judged", "grant.used", "merge.done", "ticket.served"]);
+    assert.deepEqual(gh.merges, [[101, verdict?.payload.sha]]);
+    assert.deepEqual(dernier("merge.done", 17), { pr: PR, sha: verdict?.payload.sha, by: "pass", reconciled: false, unverified: false });
+    // Aucune carte : rien n'est au chef.
+    assert.deepEqual([compter("todo.entered"), compter("todo.refused"), cartesEnTodo(journal.base).length], [0, 0, 0]);
+    await jusqua(() => gh.commentaires.some(([, corps]) => /mergée sur `v2` sous le grant `merge`/.test(corps)));
+    assert.ok(!gh.commentaires.some(([, corps]) => corps.startsWith("**Pass — verte, non mergée : le second juge")));
+  });
+
+  test("établie non affaiblie par le second juge, sans grant : elle n'est pas mergée, comme une livraison ordinaire — arrêtée `no-grant`, sans carte", async (t) => {
+    const { gh, journal, histoire, pass, compter, jusquAu, laisserTourner } = service(t, toucheSesGates(["relit-vert", "juge-non-affaibli"], false));
+    await jusquAu("pass.held", 2);
+    await laisserTourner();
+
+    assert.deepEqual(histoire(), ["pass.started", "pass.reviewed", "pass.judged", "pass.held", "pass.second-judged", "pass.held"]);
+    assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause], ["held", "no-grant", null]);
+    assert.deepEqual(gh.merges, []);
+    assert.deepEqual([compter("grant.used"), compter("merge.done"), compter("todo.entered"), cartesEnTodo(journal.base).length], [0, 0, 0, 0]);
+    await jusqua(() => gh.commentaires.some(([numero, corps]) => numero === 17 && /verte, non mergée \(`no-grant`\)[\s\S]*grant `merge` n'est pas actif/.test(corps)));
+    // Le second juge ne repart pas : il a jugé cette livraison.
+    assert.equal(compter("pass.second-judged"), 1);
+  });
+
+  for (const [scenario, verdict, dit, quoi] of [
+    ["juge-affaibli", "weakened", "weakened", /^Weakened, says the second judge: `\.claude\/brigade\/gates\.sh` ne fait plus échouer les tests du runtime/],
+    ["juge-incertain", "cannot-establish", "cannot establish", /^Cannot establish that the check is not weakened, says the second judge: Le workflow appelle un script/],
+  ] as const) {
+    test(`le second juge qui répond « ${dit} », sous grant : rien n'est mergé, et une carte \`gesture\` dit au chef en trois lignes ce qui est affaibli, et où`, async (t) => {
+      const { gh, journal, pass, dernier, compter, jusquAu, laisserTourner } = service(t, toucheSesGates(["relit-vert", scenario]));
+      await jusquAu("todo.entered");
+      await laisserTourner();
+
+      assert.equal(dernier("pass.second-judged", 17)?.verdict, verdict);
+      assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause], ["held", "review-required", "judge-modified"]);
+      assert.deepEqual(gh.merges, []);
+      assert.deepEqual([compter("grant.used"), compter("merge.done")], [0, 0]);
+      // Sur l'issue, trois lignes : ce qui est affaibli, où, et le geste attendu.
+      await jusqua(() => gh.commentaires.some(([numero, corps]) => numero === 17 && corps.startsWith(`**Pass — verte, non mergée : le second juge dit \`${dit}\`.`)));
+      const corps = gh.commentaires.find(([numero, texte]) => numero === 17 && texte.startsWith("**Pass — verte, non mergée : le second juge"))?.[1] ?? "";
+      const lignes = corps.split("\n").filter((ligne) => ligne.startsWith("- ")).map((ligne) => ligne.slice(2));
+      assert.equal(lignes.length, 3);
+      assert.match(lignes[0] ?? "", quoi);
+      assert.equal(lignes[1], `Where: \`.claude/brigade/gates.sh\` (+5 / -2) — ${PR}`);
+      assert.equal(lignes[2], `To decide: review ${PR}; merge it by hand to accept what it changes in its judges, or close it.`);
+      // La carte : posée par la pass, de type `gesture` — les mêmes trois lignes, bout à bout, la porte de TODO n'en prenant qu'une.
+      const cartes = cartesEnTodo(journal.base);
+      assert.deepEqual(
+        cartes.map(({ ticket, type, enonce, capture }) => [ticket, type, enonce, capture]),
+        [[17, "gesture", lignes.join(" — "), null]],
+      );
+      assert.equal(journal.tout().find((e) => e.type === "todo.entered")?.author, "pass");
+      // Une seule carte, même quand la pass repasse.
+      assert.equal(compter("todo.entered"), 1);
     });
   }
 

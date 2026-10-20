@@ -121,7 +121,8 @@ import { GesteRefuse, nomAbandon } from "./rail.ts";
 import { corpsDeReparation, echecsDesGates, LABELS_REPARATION, shaDeReparation, titreDeReparation } from "./reparation.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
 import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, debutDeRelecture, diffCoupe, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
-import { calibrageDuSecondJuge, consigneDuSecondJuge, debutDuSecondJugement, DIRE_VERDICT, lireSecondJugement, SECOND_JUGE } from "./second-juge.ts";
+import { calibrageDuSecondJuge, carteDuSecondJuge, consigneDuSecondJuge, debutDuSecondJugement, DIRE_VERDICT, lireSecondJugement, SECOND_JUGE } from "./second-juge.ts";
+import { entrerDansTodo, sortirDeTodo } from "./carte-todo.ts";
 import { estUneLivraisonDeCorrection } from "./correctif/livrer.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { DECLARATION, lireSecrets } from "./secrets.ts";
@@ -145,7 +146,9 @@ const DECLARATIONS: Record<string, string> = {
 };
 const WORKFLOWS = ".github/workflows";
 // Ce que l'arrêt d'une livraison qui touche à ses juges dit de son second juge.
-const SECOND_JUGE_APPELE = "Un second juge, distinct du reviewer et plus fort que lui, va dire si elle affaiblit le contrôle : son verdict s'écrira sur la PR.";
+const SECOND_JUGE_APPELE = "Un second juge, distinct du reviewer et plus fort que lui, va dire si elle affaiblit le contrôle : son verdict s'écrira sur la PR. Ne l'établit-il pas non affaiblie, une carte `gesture` est posée devant le chef.";
+// Et ce qu'elle devient s'il l'établit, quand rien d'autre ne la retient.
+const SECOND_JUGE_PUIS = "S'il établit qu'elle ne l'affaiblit pas, elle suit le chemin d'une livraison ordinaire : mergée par la pass sous le grant `merge`, arrêtée sans lui.";
 // Un quota épuisé qui ne dit pas quand il revient est retenté une heure après.
 const REPLI_QUOTA_MS = 3_600_000;
 
@@ -457,13 +460,26 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // merge. Les gates de sa fusion avec la base disent si elle la répare.
   const estLaReparation = (ticket: number) => reparationEnCours(base) === ticket;
 
+  // La carte `gesture` qu'un second juge a posée sort de TODO : le chef a
+  // tranché, en mergeant ou en fermant la PR. Seulement la sienne — la carte
+  // en TODO est la dernière entrée, et c'est la pass qui l'a posée.
+  const oterLaCarte = (ticket: number, pourquoi: string) => {
+    const entree = journal.duTicket(ticket).findLast((evenement) => evenement.type === "todo.entered");
+    if (entree?.author === AUTEUR) sortirDeTodo(journal, projet, ticket, pourquoi, AUTEUR);
+  };
+
   // Le ticket mergé est servi, et son issue fermée par la pass : `Closes`
   // n'agit que sur la branche par défaut du dépôt.
   // Hors du rail, il n'y a ni ticket à servir ni issue à fermer.
   // Servi, il a sa rétro — celle du cook dont la livraison l'est —, écrite
   // dans la même transaction : ses leçons sont lisibles dès qu'il est servi.
   const finir = async (ticket: number, horsRail = false) => {
-    if (horsRail) return;
+    // Hors du rail, aucun service n'ôte la carte que son second juge a posée :
+    // la PR mergée, elle n'est plus au chef.
+    if (horsRail) {
+      oterLaCarte(ticket, "its PR is merged");
+      return;
+    }
     try {
       base.transaction(() => {
         rail.servir(ticket);
@@ -524,6 +540,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const actuel = passDuTicket(base, ticket);
     if (actuel?.branch !== connu.branch || actuel.phase !== connu.phase) return;
     noter(ticket, { type: "pass.pr-closed", payload: { pr: pr.url } });
+    oterLaCarte(ticket, "its PR is closed without merge");
     gatesJouees.delete(ticket);
     avertir(`brigade : la PR ${connu.horsRail ? `#${ticket}, hors du rail,` : `du ticket #${ticket}`} a été fermée sans merge (${pr.url}) — la pass ne suit plus cette livraison`);
     // Rendu au rail par le chef, le ticket garde la phase de sa pass jusqu'au
@@ -811,24 +828,45 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   const secondJugement = (ticket: number, run: string, sha: string) =>
     journal.duTicket(ticket).findLast((evenement) => evenement.type === "pass.second-judged" && evenement.payload.run === run && evenement.payload.sha === sha) ?? null;
 
+  // La livraison touche à ses juges, et son second juge l'a établie non
+  // affaiblie : il ne la retient plus.
+  const nonAffaiblie = (connu: PassDeTicket) => {
+    const jugement = connu.judgeModified && connu.sha !== null ? secondJugement(connu.ticket, connu.run, connu.sha) : null;
+    return jugement?.type === "pass.second-judged" && jugement.payload.verdict === "not-weakened";
+  };
+  // Arrêtée pour ses seuls juges, que son second juge a établie non affaiblie :
+  // elle reprend le chemin d'une livraison ordinaire.
+  const aReprendre = (connu: PassDeTicket | null) =>
+    connu !== null && connu.phase === "held" && connu.reason === A_RELIRE && connu.cause === JUGES_MODIFIES && connu.verdict === "green" && nonAffaiblie(connu);
+
   // Une livraison verte qui touche à ses juges, arrêtée pour cela, est jugée
   // une seconde fois — une seule par livraison : par un autre juge que le
   // reviewer, plus fort que lui, qui ne lit ni sa relecture ni son verdict, et
   // à qui l'on ne demande qu'une chose : le contrôle est-il affaibli ? Son
-  // verdict et sa raison s'écrivent au journal et sur la PR. Rien d'autre ne
-  // change : la livraison reste arrêtée, à merger à la main.
+  // verdict et sa raison s'écrivent au journal et sur la PR. `not weakened` :
+  // elle reprend le chemin d'une livraison ordinaire (`aReprendre`). Sinon,
+  // elle reste arrêtée, et une carte `gesture` dit au chef ce qui est
+  // affaibli, et où.
   const jugerUneSecondeFois = async (connu: PassDeTicket): Promise<void> => {
     const { ticket, run, sha, number, pr, judgedBase } = connu;
     if (connu.phase !== "held" || connu.reason !== A_RELIRE || !connu.judgeModified || sha === null || number === null) return;
     if (!enPass(ticket) || secondJugement(ticket, run, sha) !== null || !peutRelire()) return;
     const reviewer = options.decisions?.reviewer() ?? options.reviewer.calibrage;
     const review = connu.review?.cook === run && connu.review.sha === sha ? connu.review.run : null;
+    const verdictDeLaPass = journal.duTicket(ticket).findLast((evenement) => evenement.type === "pass.judged" && evenement.payload.run === run && evenement.payload.sha === sha);
+    const juges = verdictDeLaPass?.type === "pass.judged" ? (verdictDeLaPass.payload.judges ?? []) : [];
 
     const rendre = async (verdict: VerdictDuSecondJuge, reason: string, lance: { judge: string; model: string; effort: string } | null, masques = 0) => {
       // Le ticket a pu quitter le rail, ou la livraison changer, pendant qu'il jugeait.
       const actuel = passDuTicket(base, ticket);
       if (arrete || !enPass(ticket) || actuel?.run !== run || actuel.sha !== sha || actuel.phase !== "held" || secondJugement(ticket, run, sha) !== null) return;
-      noter(ticket, { type: "pass.second-judged", payload: { run, sha, judge: lance?.judge ?? null, model: lance?.model ?? null, effort: lance?.effort ?? null, reviewer, review, verdict, reason } });
+      // Le verdict et sa carte s'écrivent ensemble : aucun verdict qui retient
+      // la livraison sans que le chef en soit saisi.
+      const carte = verdict === "not-weakened" ? null : carteDuSecondJuge({ verdict, raison: reason, juges, pr });
+      const posee = base.transaction(() => {
+        noter(ticket, { type: "pass.second-judged", payload: { run, sha, judge: lance?.judge ?? null, model: lance?.model ?? null, effort: lance?.effort ?? null, reviewer, review, verdict, reason } });
+        return carte !== null && entrerDansTodo(journal, projet, ticket, { type: "gesture", enonce: carte.enonce }, AUTEUR).admise;
+      });
       avertir(`brigade : second juge sur ${connu.horsRail ? `la PR #${ticket}, hors du rail,` : `le ticket #${ticket}`}, qui touche à ses juges — ${DIRE_VERDICT[verdict]}${lance ? ` (\`${lance.model}\` / \`${lance.effort}\`)` : ", sans avoir été lancé"}`);
       const qui = lance
         ? `_Jugé par le second juge en \`${lance.model}\` / \`${lance.effort}\` (run \`${lance.judge}\`) : un autre process que le reviewer, qui relit en \`${reviewer.model}\` / \`${reviewer.effort}\`, plus fort que lui, et qui n'a lu ni sa relecture ni son verdict. Sa seule question : le contrôle est-il affaibli ?_`
@@ -844,6 +882,16 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           ...(masques > 0 ? ["", direMasquage(masques, "ce que le second juge a dit — son flux brut, d'où vient ce verdict")] : []),
         ].join("\n"),
       );
+      if (carte !== null && posee) {
+        await commenter(
+          ticket,
+          [
+            `**Pass — verte, non mergée : le second juge dit \`${DIRE_VERDICT[verdict]}\`. Une carte \`gesture\` est posée devant le chef.**${pr ? ` ${pr}` : ""}`,
+            "",
+            ...carte.lignes.map((ligne) => `- ${ligne}`),
+          ].join("\n"),
+        );
+      }
     };
 
     const calibrage = calibrageDuSecondJuge(reviewer);
@@ -853,8 +901,6 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const issue = await github.issue(ticket);
     if (arrete || !issue) return;
     const ref = connu.branch === null ? null : depot.livree(connu.branch);
-    const verdictDeLaPass = journal.duTicket(ticket).findLast((evenement) => evenement.type === "pass.judged" && evenement.payload.run === run && evenement.payload.sha === sha);
-    const juges = verdictDeLaPass?.type === "pass.judged" ? (verdictDeLaPass.payload.judges ?? []) : [];
 
     const nom = essaiDuSecondJuge(ticket);
     let worktree: string | null = null;
@@ -1026,7 +1072,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const suite = base.transaction((): Suite => {
       const connu = passDuTicket(base, ticket);
       if (!connu || !enPass(ticket)) return null;
-      const verte = VERTES.includes(connu.phase);
+      // Arrêtée pour ses juges, que son second juge a établie non affaiblie, elle
+      // est verte comme au premier jour.
+      const verte = VERTES.includes(connu.phase) || aReprendre(connu);
       if (!verte && connu.phase !== "red" && connu.phase !== "deferred") return null;
       const { pr, number, sha } = connu;
       const fusion = connu.judgedBase === null ? "" : ` fusionné avec \`${options.base}\` (\`${court(connu.judgedBase)}\`)`;
@@ -1114,7 +1162,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           ].join("\n"),
         };
       }
-      if (connu.judgeModified) {
+      // Une livraison qui touche à ses juges ne se merge pas sur le seul verdict
+      // de la pass : son second juge doit l'avoir établie non affaiblie.
+      if (connu.judgeModified && !nonAffaiblie(connu)) {
         noter(ticket, { type: "pass.held", payload: { reason: A_RELIRE, cause: JUGES_MODIFIES } });
         // Son second juge part dès la passe qui suit.
         aRefaire = true;
@@ -1122,7 +1172,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           commentaire: [
             `**Pass — verte, non mergée (\`${A_RELIRE}\`).** ${livraison}`,
             "",
-            `Cette livraison touche à ce qui la juge (${JUGES.map((juge) => `\`${juge}\``).join(", ")}) : la pass ne la merge jamais elle-même, grant ou pas. ${SECOND_JUGE_APPELE} À relire et merger à la main — ${vuDeLaPass(connu.horsRail)}.`,
+            `Cette livraison touche à ce qui la juge (${JUGES.map((juge) => `\`${juge}\``).join(", ")}) : la pass ne la merge pas sur son seul verdict, grant ou pas. ${SECOND_JUGE_APPELE} ${SECOND_JUGE_PUIS} Mergée à la main d'ici là, ${vuDeLaPass(connu.horsRail)}.`,
           ].join("\n"),
         };
       }
@@ -1671,6 +1721,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       case "held":
         if (tick && (await surveiller(connu))) return;
         await jugerUneSecondeFois(connu);
+        // Établie non affaiblie, elle est décidée comme une livraison verte.
+        if (aReprendre(passDuTicket(base, connu.ticket))) await decider(connu.ticket);
         return;
       case "escalated":
       case "closed":

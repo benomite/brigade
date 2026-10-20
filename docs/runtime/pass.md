@@ -119,7 +119,22 @@ Il répond `not weakened`, `weakened` ou `cannot establish`, avec sa raison — 
 `cannot establish`. Une réponse qui ne se lit pas, ou un refus du modèle, vaut `cannot establish`.
 Le verdict est au journal (`pass.second-judged` : son run, son calibrage, celui du reviewer et le
 run de sa relecture, le verdict, la raison) et **en commentaire sur la PR** (« Second juge — … »).
-Il ne change rien d'autre : la livraison reste arrêtée, à merger à la main. Comme une relecture,
+Puis :
+
+- **`not weakened`** : la livraison reprend le chemin d'une livraison ordinaire — sous le grant
+  `merge`, la pass la merge elle-même (`grant.used`, `merge.done`), sans carte ; sans grant, elle
+  s'arrête `no-grant`, comme une autre ;
+- **`weakened` ou `cannot establish`** : elle reste arrêtée, et une **carte `gesture`** est posée
+  devant le chef (`todo.entered`, auteur `pass`), écrite avec le verdict. Elle dit en trois lignes
+  ce qui est affaibli (la raison du second juge), où (les fichiers de ses juges, avec leurs lignes,
+  et la PR), et le geste attendu : relire la PR, la merger à la main pour accepter ce qu'elle change
+  à ses juges, ou la fermer. Le commentaire de l'issue montre ces trois lignes ; la carte, que la
+  porte de TODO ne prend que sur une ligne, les porte bout à bout. Elle sort de TODO quand le chef
+  tranche : PR mergée (ticket servi) ou fermée.
+
+Le verdict vaut pour la livraison — son run, son commit — : rejugée par la pass parce que la base a
+bougé, elle ne repasse pas devant le second juge. Une livraison qui touche aussi `reseau` ou `secrets` reste
+arrêtée quel que soit le verdict (ci-dessous) ; sa carte est posée de même. Comme une relecture,
 il ne part pas sous « stop », disjoncteur ouvert, quota épuisé ou connexion expirée ; non abouti,
 il repart au réveil suivant.
 
@@ -148,7 +163,7 @@ connue : un cook qui conclut sans commiter sur un ticket qui demandait du code p
 |---|---|---|
 | vert | **actif** | le runtime vérifie que **la base est encore celle du verdict** — sinon il rejuge —, puis **merge lui-même** la PR ; le ticket est **servi**, son issue fermée |
 | vert | absent, révoqué ou éteint | la PR reste ouverte et **la pass s'arrête là** (`pass.held`, `no-grant`) |
-| vert, mais la livraison touche `.claude/brigade/` ou `.github/workflows/` — ses juges | peu importe | **jamais mergée par la pass** (`review-required`, cause `judge-modified`) : un cook qui modifie ses juges peut se rendre vert seul. Elle passe devant **le second juge** (ci-dessus), dont le verdict s'écrit sur la PR |
+| vert, mais la livraison touche `.claude/brigade/` ou `.github/workflows/` — ses juges | peu importe | **pas mergée sur le seul verdict de la pass** (`review-required`, cause `judge-modified`) : un cook qui modifie ses juges peut se rendre vert seul. Elle passe devant **le second juge** (ci-dessus) : `not weakened`, elle suit la ligne d'une livraison verte ordinaire, grant compris ; sinon, elle reste arrêtée et une carte `gesture` est posée devant le chef |
 | vert, mais la livraison touche `.claude/brigade/reseau` ou `.claude/brigade/secrets` — ajout, modification ou suppression | peu importe | **jamais mergée par la pass** (`review-required`, cause `declaration-modified: <fichiers>`) : mergée, la déclaration ouvre un hôte, ou remet un secret de la machine, aux cooks suivants. Le commentaire d'issue dit quoi y relire |
 | vert, ticket sans diff | peu importe | **servi sans merge**, issue fermée |
 | aucun, **base rouge** | peu importe | la livraison **attend** (`pass.waiting`, `base-red`) et repart seule quand la base est réparée — ou rejouée verte (`run base -- replay`). Seul le ticket de réparation de ce rouge est jugé et mergé malgré lui |
