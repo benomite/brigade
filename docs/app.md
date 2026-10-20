@@ -882,6 +882,20 @@ Une fois confiée, la page dit **où il cuit** — `Cooks on <station>`, ses ren
 backup machine to <projet>'s kitchen.`, `Add <station> to the kitchen`) : la station de plus reprend
 les cooks et le calibrage déjà demandés.
 
+**Le parcours d'un projet neuf** (#1111), sous cette ligne, à la place du vide : les quatre étapes
+que sa principale publie dans son suivi (`onboarding`, #1110) — *Repository*, *Cooking machine*,
+*Repository preparation*, *First ticket* —, chacune `done`, `now` ou `to come`, avec sa phrase. En
+tête, ce qu'on attend du chef : le geste de l'étape courante, un bouton qui ouvre sa page de GitHub
+(où le faire est écrit à côté), ou « Nothing to do… step N of 4 ». L'étape de préparation montre son
+ticket (`#433`, un bouton qui l'ouvre) et son état — `in progress`, `failed`, `to review` ; en échec,
+la raison en une phrase et l'heure du prochain essai (`Next retry at 10:14 AM, in 10 min.`, puis
+`Its retry is due now.` une fois l'heure passée). Le « within a minute » de la confiance ne se dit plus
+passé la minute, ni dès que le parcours est publié. Prêt, il ne reste que `<projet> is ready: post
+your first ticket with the fire label`, « post the first ticket » et « dismiss » : écarté, ou la page
+quittée, il ne revient pas (jusqu'au prochain lancement de l'app, et jamais une fois le premier ticket
+sur le rail). Les pages qu'il ouvre sont celles que la station a publiées, et aucune autre
+(`autoriserSurGitHub`). Le module est `app/src/vue/onboarding/parcours.js`.
+
 ### Où cuit un projet, et le déménager d'un geste (#1095)
 
 - **La ligne dit où il cuit**, tel que ses stations le publient (`cuitSur` dans leur suivi,

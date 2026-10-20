@@ -104,6 +104,7 @@ import { apresRendu, lireLancement, poserLancement, REPOS } from "./closer/lance
 import { lireDerive, poserDerive } from "./closer/derive/derive.js";
 import { apresRendu as apresLaCorrection, poserCorrections, REPOS as CORRECTION_AU_REPOS } from "./correction/carte.js";
 import { poserProfils } from "./profil/carte.js";
+import { poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -496,7 +497,12 @@ choixDuDemenagement.hidden = true;
 const demenagementDit = document.createElement("p");
 demenagementDit.className = "demenagement-dit";
 demenagementDit.ariaLive = "polite";
-stationsDuProjet.append(ligneDesStationsDuProjet, ouvrirLeDemenagement, ouvrirLaConfiance, choixDuDemenagement, formulaireDeConfiance, demenagementDit, confianceDite);
+// Le parcours d'un projet neuf (ticket 1111) : de sa station choisie à son premier ticket, en quatre
+// étapes, telles que sa principale les publie — à la place du vide sous la ligne (onboarding/parcours.js).
+const parcoursDuProjet = document.createElement("div");
+parcoursDuProjet.className = "parcours-du-projet";
+parcoursDuProjet.ariaLive = "polite";
+stationsDuProjet.append(ligneDesStationsDuProjet, ouvrirLeDemenagement, ouvrirLaConfiance, choixDuDemenagement, formulaireDeConfiance, demenagementDit, confianceDite, parcoursDuProjet);
 
 /** @type {Map<number, { terminal: Terminal, xterm: Xterm, ajuste: FitAddon, cadre: HTMLDivElement }>} */
 const vues = new Map();
@@ -819,7 +825,15 @@ let parcours;
 /** @type {{ projet: string, ouvertLe: string, depots: import("../projets/github.ts").DepotDuChef[], renforts: Set<string>, principale: string, touchee: boolean, cooksTouches: boolean, calibrageTouche: boolean } | undefined} */
 let confiance;
 // Ce que le dernier geste de confiance a rendu, et pour quel projet : dit sous la ligne de ses stations.
-let confianceDitePour = { projet: "", dit: "" };
+// `a` : quand (`Date.now()`). Ce qu'il annonce « within a minute » ne se dit plus passé la minute, ni
+// une fois le parcours du projet publié : c'est lui qui dit où il en est (ticket 1111).
+let confianceDitePour = { projet: "", dit: "", a: 0 };
+// Le parcours prêt d'un projet (ticket 1111) : celui dont la page le montre, et ceux où le chef l'a
+// écarté ou déjà vu — il ne revient pas à la visite suivante.
+/** @type {string | undefined} */
+let pretMontre;
+/** @type {Set<string>} */
+const parcoursRanges = new Set();
 // Le déménagement dont le choix est ouvert — pour quel projet —, et s'il part.
 /** @type {{ projet: string, part: boolean } | undefined} */
 let demenagement;
@@ -5139,6 +5153,11 @@ async function demenager(projet, vers, { nomme, depuis, garder }) {
 // celles à qui le confier. Aucune lecture des stations n'est encore arrivée : le vide ne se dit pas.
 function poserStationsDuProjet() {
   const projet = courant;
+  // Le parcours prêt, montré puis quitté : il ne se remontre pas à la visite suivante.
+  if (pretMontre !== undefined && pretMontre !== projet?.nom) {
+    parcoursRanges.add(pretMontre);
+    pretMontre = undefined;
+  }
   stationsDuProjet.hidden = projet === undefined;
   if (projet === undefined) return;
   if (confiance !== undefined && confiance.projet !== projet.nom) fermerConfiance();
@@ -5170,9 +5189,36 @@ function poserStationsDuProjet() {
   poserLeDemenagement(projet, ou, enCours, lues);
   ouvrirLaConfiance.textContent = stations.length === 0 && !seLit(projet) && projet.sansStation !== true ? "choose its machine" : "+ station";
   ouvrirLaConfiance.hidden = confiance !== undefined || demenagement !== undefined || !lues;
-  confianceDite.textContent = confianceDitePour.projet === projet.nom ? confianceDitePour.dit : "";
+  const onboarding = projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.onboarding ?? null;
+  const annonceTenue = onboarding === null && Date.now() - confianceDitePour.a < 60_000;
+  confianceDite.textContent = confianceDitePour.projet === projet.nom && annonceTenue ? confianceDitePour.dit : "";
+  poserLeParcours(projet.nom, onboarding);
   if (confiance === undefined) return;
   poserLaConfiance(confiance, projet, { exclues: stations.map(({ id }) => id), demande, principale });
+}
+
+// Le parcours du projet affiché, sous la ligne de ses stations (ticket 1111) : ses quatre étapes tant
+// qu'il se prépare ; prêt, la phrase qui invite à poser le premier ticket, jusqu'à ce que le chef
+// l'écarte ou quitte la page. Chaque page qu'il ouvre est une de celles que la station a publiées.
+/** @param {string} nom @param {import("../projets/demande.ts").Onboarding | null} onboarding */
+function poserLeParcours(nom, onboarding) {
+  const range = onboarding !== null && onboarding.termine && parcoursRanges.has(nom);
+  const pose = range
+    ? null
+    : parcoursDOnboarding(document, {
+        projet: nom,
+        onboarding,
+        maintenant: Date.now(),
+        ouvrir: (url) => void brigade.autoriserSurGitHub(url),
+        ecarter: () => {
+          parcoursRanges.add(nom);
+          pretMontre = undefined;
+          poserStationsDuProjet();
+        },
+      });
+  if (pose !== null && onboarding?.termine === true) pretMontre = nom;
+  parcoursDuProjet.hidden = pose === null;
+  parcoursDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
 }
 
 // Le choix ouvert, posé de nouveau à chaque relecture des stations et des projets : ce que le chef a
@@ -5314,7 +5360,7 @@ async function ouvrirConfiance() {
   confiance = vise;
   formulaireDeConfiance.hidden = false;
   reglagesAvances.open = false;
-  confianceDitePour = { projet: "", dit: "" };
+  confianceDitePour = { projet: "", dit: "", a: 0 };
   confianceRefusee.replaceChildren();
   baseDeConfiance.value = projet.base ?? "";
   for (const [champ, liste] of Object.entries(calibrageDeConfiance)) proposer(liste, champ.endsWith("modele") ? CALIBRAGE_DU_PROJET.modeles : CALIBRAGE_DU_PROJET.efforts, champ.endsWith("modele") ? "— model —" : "— effort —");
@@ -5395,6 +5441,7 @@ async function confier() {
       confianceDitePour = {
         projet: projet.nom,
         dit: `${rendu.ajoute} is asked of ${noms.join(", ")}: ${vise.principale === "" ? "each prepares it" : "its main station prepares it"} within a minute — if GitHub asks you to authorize brigade, its button appears on this line`,
+        a: Date.now(),
       };
       if (courant?.nom === projet.nom) poserStationsDuProjet();
     }

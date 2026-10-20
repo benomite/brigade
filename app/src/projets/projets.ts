@@ -23,7 +23,7 @@
 // demande : une station qui refuse de le reprendre le laisse cuire là où il cuisait.
 import type { GitHubDesStations } from "../stations/github.ts";
 import type { StationVue } from "../stations/stations.ts";
-import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireSuivi, type Bascule, type Calibre, type EtatDuProjet, type ProjetDemande, type SuiviDuProjet } from "./demande.ts";
+import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireOnboarding, lireSuivi, type Bascule, type Calibre, type EtatDuProjet, type Onboarding, type ProjetDemande, type SuiviDuProjet } from "./demande.ts";
 import type { Demenagement, Demenageur } from "./demenagement.ts";
 import type { DepotDuChef } from "./github.ts";
 
@@ -64,6 +64,9 @@ export type ProjetVu = {
   cuitSur?: CuitSur | null;
   // Son déménagement, tant qu'il n'est pas fini.
   demenagement?: DemenagementEnCours | null;
+  // Où il en est de son ajout à son premier ticket, tel que sa principale le publie (#1110) ; nul
+  // tant qu'elle n'en dit rien.
+  onboarding?: Onboarding | null;
 };
 // Ce que l'app propose pour une station choisie comme principale (#1107) : ce que ce choix implique —
 // toujours allumée, ou arrêtée avec l'app de son ordinateur —, et le nombre de cooks à la fois que
@@ -345,7 +348,7 @@ export function tenirProjets(options: OptionsProjets): Projets {
     Promise.all(
       appairees().map(async (station) => {
         const fichiers = await github.lire(station.id);
-        return { station, demande: lireDemande(fichiers?.[FICHIER_PROJETS]), suivi: lireSuivi(fichiers?.[FICHIER_SUIVI]) };
+        return { station, demande: lireDemande(fichiers?.[FICHIER_PROJETS]), suivi: lireSuivi(fichiers?.[FICHIER_SUIVI]), onboarding: lireOnboarding(fichiers?.[FICHIER_SUIVI]) };
       }),
     );
 
@@ -369,10 +372,13 @@ export function tenirProjets(options: OptionsProjets): Projets {
       const projets = new Map<string, ProjetVu>();
       const dits = new Map<string, Dit[]>();
       for (const { station, suivi } of lus) for (const un of suivi) dits.set(un.nom, [...(dits.get(un.nom) ?? []), { station, suivi: un }]);
-      for (const { station, demande, suivi } of lus) {
+      for (const { station, demande, suivi, onboarding } of lus) {
         for (const projet of demande ?? []) {
           const siens = dits.get(projet.nom) ?? [];
-          const vu = projets.get(projet.nom) ?? { nom: projet.nom, depot: projet.depot, base: projet.base, stations: [], servi: null, cuitSur: cuitSurDe(siens, ici), demenagement: demenagementDe(siens) };
+          const vu: ProjetVu = projets.get(projet.nom) ?? { nom: projet.nom, depot: projet.depot, base: projet.base, stations: [], servi: null, cuitSur: cuitSurDe(siens, ici), demenagement: demenagementDe(siens) };
+          // L'onboarding, seule la principale le publie.
+          const sien = projet.principale ? onboarding[projet.nom] : undefined;
+          if (sien !== undefined) vu.onboarding = sien;
           const dit = suivi.find(({ nom }) => nom === projet.nom);
           vu.stations.push({ id: station.id, nom: station.nom, principale: projet.principale, etat: dit?.etat ?? "attendu", dit: dit?.dit ?? `${station.nom} has not read it yet: it reads what the app asks every 30 s`, autoriser: dit?.autoriser ?? [] });
           if (projet.principale && dit?.etat === "servi" && dit.serviLe !== null) {
@@ -531,6 +537,12 @@ export function tenirProjets(options: OptionsProjets): Projets {
     ajouter,
     confier,
     retirer,
-    pages: () => [...new Set((vu?.projets ?? []).flatMap(({ stations }) => stations.flatMap(({ autoriser }) => autoriser)))],
+    // Et celles que son onboarding montre : le geste attendu, le ticket de préparation, sa PR.
+    pages: () =>
+      [...new Set((vu?.projets ?? []).flatMap(({ stations, onboarding }) => [
+        ...stations.flatMap(({ autoriser }) => autoriser),
+        ...(onboarding?.etapes ?? []).flatMap(({ geste }) => geste?.liens ?? []),
+        ...(onboarding?.preparation === null || onboarding?.preparation === undefined ? [] : [onboarding.preparation.url, ...(onboarding.preparation.pr === null ? [] : [onboarding.preparation.pr])]),
+      ]))],
   };
 }
