@@ -15,6 +15,8 @@ import { sessionClaude } from "../claude.ts";
 import { brancherJeton, configJeton, direJeton, environnementClaude } from "../jeton-claude.ts";
 import { brancherConnexionMax } from "../connexion-max/cuisine.ts";
 import type { VeilleConnexionMax } from "../connexion-max/veille.ts";
+import { configBacASableLocal, direBacASable, lireCaches } from "../bac-a-sable/local.ts";
+import { sondesDeLaMachine, type Sondes } from "../bac-a-sable/detection.ts";
 import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison } from "../cloison.ts";
 import { noterCodeEnService } from "../code.ts";
 import { decisionsAuDemarrage, decisionsDansLEnvironnement, direDecisionIgnoree, environnementDecide, suivreDecisions, supportDesDecisions } from "../decisions.ts";
@@ -29,7 +31,7 @@ import { brancherMiseAJour } from "../mise-a-jour/relais.ts";
 import { brancherPass, configPass } from "../pass.ts";
 import { attendreLaPreparation } from "../preparation-depot/attendre.ts";
 import { brancherSession, configSession } from "../renouvellement.ts";
-import { brancherReseau, configReseau, DECLARATION_RESEAU, sonderLeFiltre, variablesDeRelais } from "../reseau.ts";
+import { brancherReseau, configReseau, DECLARATION_RESEAU, lireDeclaration, reglesDuProjet, REGLES_DE_BASE, sonderLeFiltre, variablesDeRelais } from "../reseau.ts";
 import { configReviewer } from "../reviewer.ts";
 import { ConfigInvalide, demarrer, type Runtime } from "../runtime.ts";
 import { configSecrets, DECLARATION } from "../secrets.ts";
@@ -50,6 +52,9 @@ export type OptionsCuisine = {
   // La connexion Max de la machine, que la station veille pour tous ses
   // projets : perdue, la cuisine suspend ; rétablie, elle reprend.
   connexion?: VeilleConnexionMax;
+  // Ce que la cuisine regarde de la machine pour savoir si elle est locale et
+  // si le bac à sable y est : de quoi la simuler dans un test.
+  sondes?: Sondes;
 };
 
 // Ouvre la cuisine d'un projet. Toute sa configuration est lue avant de rien
@@ -87,6 +92,18 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   const secrets = configSecrets(envProjet, { repertoireEtat, clone: station.clone });
   const jeton = configJeton(envProjet, { repertoireEtat, clone: station.clone });
   const cloison: Cloison | null = configCloison(envProjet, { repertoireEtat, clone: station.clone });
+  // Sur le Mac du chef, chaque `claude` de la cuisine part dans le bac à sable
+  // de Claude Code ; s'il n'y est pas, elle ne s'ouvre pas. Sa liste réseau est
+  // celle que la branche d'intégration déclare, relue à chaque lancement ;
+  // illisible, le socle seul.
+  const hotes = () => {
+    try {
+      return reglesDuProjet(lireDeclaration(lireALaBase(station, DECLARATION_RESEAU) ?? "").hotes);
+    } catch {
+      return REGLES_DE_BASE;
+    }
+  };
+  const bacASable = configBacASableLocal(options.sondes ?? sondesDeLaMachine(station.bin), { home: envProjet.HOME, worktrees: join(repertoireEtat, "worktrees"), caches: lireCaches(envProjet) }, hotes);
   const session = configSession(envProjet, repertoireEtat);
   const apps = configIdentites(envProjet);
 
@@ -125,8 +142,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // partir tant qu'il n'est pas servi — sous la passe de fermeture, qui ne
     // transmet pas la restriction d'une prise.
     const garde = attendreLaPreparation(brancherGardeFous(reglages, avecRail(socle, { ...rail, github: githubs.rail })), { repertoireEtat, dire });
-    const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison, sansIdentite: identites !== null, base: station.base, reviewer, decisions, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils });
-    const fermee = brancherFermeture(pass, { reglages: decisions.fermeture, repertoireEtat, depot, clone: station.clone, base: station.base, github: githubs.station, depotGitHub: rail.depot, bin: station.bin, env, cloison });
+    const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison, bacASable, sansIdentite: identites !== null, base: station.base, reviewer, decisions, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils });
+    const fermee = brancherFermeture(pass, { reglages: decisions.fermeture, repertoireEtat, depot, clone: station.clone, base: station.base, github: githubs.station, depotGitHub: rail.depot, bin: station.bin, env, cloison, bacASable });
     const servie = brancherStation(fermee, {
       stations,
       decisions,
@@ -139,6 +156,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       env,
       secrets,
       cloison,
+      bacASable,
       sansIdentite: identites !== null,
       session: () => sessionClaude(station.bin, environnementClaude(envProjet, envProjet)),
       dureeBailMs: rail.dureeBailMs,
@@ -150,7 +168,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       arbitre: arbitre === null ? null : joindreArbitre(arbitre),
     });
     brancherDerive(socle, decisions.seuils, dire);
-    const dirige = brancherManager(servie, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
+    const dirige = brancherManager(servie, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
     // Ce que la mise à jour de la station a donné, recopié au journal du
     // projet : la file le dit.
     const suivie = brancherMiseAJour(brancherAlerteUrgence(brancherJeton(brancherSession(dirige, session, undefined, jeton), jeton)), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire);
@@ -177,6 +195,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       : `secrets du projet — aucun (BRIGADE_SECRETS_FILE n'est pas défini) : un dépôt qui en déclare (\`${DECLARATION}\`) ne verra partir aucun cook`,
   );
   dire(direJeton(jeton, envProjet));
+  if (bacASable !== null) dire(direBacASable(bacASable));
   dire(
     arbitre === null
       ? "arbitre — aucun (BRIGADE_ARBITER_PORT n'est pas défini) : ce projet se tient pour seul sur la machine et sur le compte"

@@ -89,6 +89,7 @@ import { enregistrerRetro } from "./apprentissage/provisoires.ts";
 import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE, FERMETURE, OUVERTURE } from "./livrable.ts";
 import { LancementRefuse, type CookLance, type GardeFous, type Verdict as VerdictGarde } from "./garde-fous.ts";
 import { REJOUER_LA_BASE } from "./dire-base.ts";
+import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
 import { aDesGates, jouerGates, SCRIPT_GATES, type DemandeScript } from "./gates.ts";
 import { constaterExtinction, direExtinction } from "./grant.ts";
@@ -192,6 +193,9 @@ export type OptionsPass = ConfigPass & {
   sansIdentite?: boolean;
   // La cloison dans laquelle partent les gates et le reviewer.
   cloison?: Cloison | null;
+  // Le bac à sable d'une cuisine locale, sur le Mac du chef : le reviewer y
+  // part. Absent : il part sans.
+  bacASable?: BacASableLocal | null;
   depot: Depot;
   github: GitHub;
   // La branche d'intégration : la seule base sur laquelle la pass merge.
@@ -691,7 +695,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         run: review,
         contexte: { station: REVIEWER, ...calibrage },
         // Il relit : le worktree et le dépôt lui sont rendus en lecture seule.
-        ...envelopper(options.cloison, { commande: options.bin, args: argumentsReviewer(consigne, calibrage) }, { cwd: worktree, depot: "lecture" }),
+        ...envelopper(options.cloison, { commande: options.bin, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(consigne, calibrage), worktree) }, { cwd: worktree, depot: "lecture" }),
         cwd: worktree,
         env: environnementClaude(envGates, options.env ?? process.env),
         // Il ne reçoit aucun secret, mais il lit un worktree où les gates

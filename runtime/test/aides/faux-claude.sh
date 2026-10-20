@@ -2,7 +2,7 @@
 # Doublure de `claude` : rejoue un flux `stream-json` choisi par la variable
 # FAUX_CLAUDE, sans réseau ni quota. Exécutable, pour servir tel quel de
 # BRIGADE_CLAUDE_BIN. Ses arguments ne changent pas ce qu'elle joue, sauf
-# `auth status`.
+# `auth status` et `--version`.
 #
 # En shell, parce que la suite la lance des centaines de fois et qu'un Node qui
 # démarre coûte vingt millisecondes de processeur avant sa première ligne. Les
@@ -24,6 +24,13 @@
 # n'y a aucun verrou qu'un cook tué en plein geste laisserait fermé.
 set -u
 ICI="${BASH_SOURCE[0]%/*}"
+
+# `claude --version` : une version qui lit toute la configuration du bac à
+# sable — une cuisine ouverte sur un Mac l'éprouve avant de s'ouvrir.
+if [ "${1:-}" = --version ]; then
+  echo "2.1.300 (Claude Code)"
+  exit 0
+fi
 
 # `claude auth status` : la session de la machine, sans appel au modèle. Un
 # jeton longue durée dans CLAUDE_CODE_OAUTH_TOKEN connecte, session ou non.

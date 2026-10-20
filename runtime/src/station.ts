@@ -62,6 +62,7 @@ import type { ContexteCook } from "./events/guardrails.ts";
 import { IDENTIFIANTS_LIVRES, PART_SANS_PROGRES, SANS_DIFF, SANS_LIVRABLE, type FaitStation, type FinDeCook, type Ressource, type Retenue } from "./events/station.ts";
 import { illisible, MARQUEUR, requises } from "./fiche.ts";
 import { direMasquage, FICHIER_DES_IDENTIFIANTS, identifiantsLivres, LONGUEUR_MIN_DU_JETON, type SigneDIdentifiants } from "./identifiants.ts";
+import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
 import { jouerSetup, SCRIPT_SETUP } from "./gates.ts";
 import { CAUSES_DU_PROJET } from "./mise-de-cote.ts";
@@ -248,6 +249,9 @@ export type OptionsStation = {
   // La cloison dans laquelle partent le setup et le cook. Absente : ils
   // tournent sous le compte du runtime, sans rien autour.
   cloison?: Cloison | null;
+  // Le bac à sable d'une cuisine locale, sur le Mac du chef : le cook y part.
+  // Absent : il part sans.
+  bacASable?: BacASableLocal | null;
   // Sous cloison, la durée de garde des transcripts du projet. Absente :
   // celle par défaut.
   gardeTranscriptsMs?: number;
@@ -1769,16 +1773,20 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             options.cloison,
             {
               commande: options.bin,
-              args: argumentsClaude(
-                reprise !== null && repris !== null
-                  ? consigneDeReprise({ base: options.base, branche, worktree, n: repris.returns, findings: repris.findings })
-                  : repris
-                    ? consigneDeRenvoi({ ...mission, branche, n: repris.returns, findings: repris.findings })
-                    : suite
-                      ? consigneDeSuite({ ...mission, branche })
-                      : consigne(mission),
-                calibrage,
-                reprise?.session,
+              args: dansLeBacASableLocal(
+                options.bacASable,
+                argumentsClaude(
+                  reprise !== null && repris !== null
+                    ? consigneDeReprise({ base: options.base, branche, worktree, n: repris.returns, findings: repris.findings })
+                    : repris
+                      ? consigneDeRenvoi({ ...mission, branche, n: repris.returns, findings: repris.findings })
+                      : suite
+                        ? consigneDeSuite({ ...mission, branche })
+                        : consigne(mission),
+                  calibrage,
+                  reprise?.session,
+                ),
+                worktree,
               ),
             },
             { cwd: worktree, depot: "ecriture", lit: remis === undefined ? [] : [remis] },

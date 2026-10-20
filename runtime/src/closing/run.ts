@@ -30,6 +30,7 @@ import { join, relative } from "node:path";
 import type { RuntimeAvecRail } from "../alimenter.ts";
 import { argumentsClaude, environnementCook, lireFlux, verdict } from "../claude.ts";
 import { environnementClaude } from "../jeton-claude.ts";
+import { dansLeBacASableLocal, type BacASableLocal } from "../bac-a-sable/local.ts";
 import { envelopper, type Cloison } from "../cloison.ts";
 import type { Depot as DepotDeStation } from "../depot.ts";
 import { SANS_ISSUE_MS, type FaitFermeture, type FinDePasse, type Laisse, type Pente, type ReglagesDeFermeture, type Retrait } from "../events/closing.ts";
@@ -75,6 +76,9 @@ export type OptionsFermeture = {
   // L'environnement dont part celui du closer. Par défaut, celui du runtime.
   env?: NodeJS.ProcessEnv;
   cloison?: Cloison | null;
+  // Le bac à sable d'une cuisine locale, sur le Mac du chef : le closer y
+  // part. Absent : il part sans.
+  bacASable?: BacASableLocal | null;
   // Où va ce que la passe a à dire hors du journal (journald).
   avertir?: (message: string) => void;
   // L'heure à laquelle se compte l'attente d'une demande. Par défaut, l'horloge.
@@ -294,7 +298,10 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
         plafonds: { tokens: reglages.tokens },
         ...envelopper(
           options.cloison,
-          { commande: options.bin, args: argumentsClaude(consigneDuCloser({ depot: options.depotGitHub, base: options.base, candidats: proposes, zone, retraits: reglages.removedLines }), calibrage) },
+          {
+            commande: options.bin,
+            args: dansLeBacASableLocal(options.bacASable, argumentsClaude(consigneDuCloser({ depot: options.depotGitHub, base: options.base, candidats: proposes, zone, retraits: reglages.removedLines }), calibrage), worktree),
+          },
           { cwd: worktree, depot: "ecriture" },
         ),
         cwd: worktree,
