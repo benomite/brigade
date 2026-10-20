@@ -9,6 +9,7 @@ import { faits, lireEtat } from "./etat.ts";
 import { pauseDeLaStation } from "./limite-github.ts";
 import { ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
+import { apprentissageDuProjet } from "./apprentissage/projet.ts";
 import { cartesDeProfil } from "./profils/cartes.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run facts";
@@ -38,7 +39,17 @@ export function principal({ args, env, dire, redire }: Appel): void {
     const corrections = cartesDeCorrection(journal, env.BRIGADE_GITHUB_REPO);
     const reculs = reculDesCorrections(journal);
     const profils = cartesDeProfil(journal, env.BRIGADE_GITHUB_REPO);
-    dire(JSON.stringify({ ...forme, ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }) }));
+    // Ce que les cooks ont appris : absent quand le projet n'a ni leçon ni profil, ou quand son
+    // carnet ou une définition est illisible — un fichier du dépôt ne fait pas taire les faits.
+    const projet = env.BRIGADE_PROJECT;
+    let apprentissage;
+    try {
+      apprentissage = projet ? apprentissageDuProjet({ journal, projet, repoDir: env.BRIGADE_REPO_DIR, depot: env.BRIGADE_GITHUB_REPO, branche: env.BRIGADE_BASE_BRANCH }) : undefined;
+    } catch {
+      apprentissage = undefined;
+    }
+    const appris = apprentissage !== undefined && (apprentissage.lecons.length > 0 || apprentissage.profils.length > 0);
+    dire(JSON.stringify({ ...forme, ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) }));
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.
