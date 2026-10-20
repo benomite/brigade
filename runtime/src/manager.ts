@@ -17,6 +17,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DE_CONFIANCE, priorite, type RuntimeAvecRail } from "./alimenter.ts";
 import { calibrage as calibragePose, complet, EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
+import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { direRefus, environnementCook, lireFlux, REFUS_MAX, verdict, type Lecture } from "./claude.ts";
@@ -102,6 +103,9 @@ export type OptionsManager = ConfigManager & {
   env?: NodeJS.ProcessEnv;
   // La cloison dans laquelle partent les jugements.
   cloison?: Cloison | null;
+  // Le bac à sable d'une cuisine locale, sur le Mac du chef : les jugements y
+  // partent. Absent : ils partent sans.
+  bacASable?: BacASableLocal | null;
   maintenant?: () => Date;
   // Où va ce que le manager a à dire hors du journal (journald).
   avertir?: (message: string) => void;
@@ -422,7 +426,7 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
         run,
         contexte: { station: MANAGER, ...calibrage },
         // Hors de tout dépôt : un jugement ne lit que sa consigne.
-        ...envelopper(options.cloison, { commande: options.bin, args: argumentsJuge(consigne, calibrage) }, { cwd: tmpdir(), depot: null }),
+        ...envelopper(options.cloison, { commande: options.bin, args: dansLeBacASableLocal(options.bacASable, argumentsJuge(consigne, calibrage), tmpdir()) }, { cwd: tmpdir(), depot: null }),
         cwd: tmpdir(),
         env: environnementClaude(envJuge, options.env ?? process.env),
         juger: conclure,

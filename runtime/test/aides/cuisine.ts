@@ -10,6 +10,7 @@ import type { Session } from "../../src/claude.ts";
 import { ouvrirDepot, type Depot } from "../../src/depot.ts";
 import type { Plafonds } from "../../src/events/guardrails.ts";
 import type { Check } from "../../src/events/pass.ts";
+import type { BacASableLocal } from "../../src/bac-a-sable/local.ts";
 import { configCloison } from "../../src/cloison.ts";
 import { poserDecision, suivreDecisions } from "../../src/decisions.ts";
 import { brancherGardeFous, type Reglages } from "../../src/garde-fous.ts";
@@ -437,6 +438,9 @@ export type Options = {
   secrets?: { declares: string; valeurs: string | null };
   // Chaque lancement part dans une cloison — la doublure de `bwrap`.
   cloison?: boolean;
+  // Le bac à sable d'une cuisine locale, sur le Mac du chef : chaque `claude`
+  // — cook, reviewer, jugement — y part.
+  bacASable?: BacASableLocal;
   // `claude` range ses sessions dans un répertoire de configuration à lui
   // (`CLAUDE_CONFIG_DIR`) : celui du projet sous cloison, un répertoire du
   // test sinon. Sans, les lancements n'ont ni ce répertoire ni `HOME` : aucun
@@ -568,6 +572,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
         sansIdentite: options.sansIdentite,
         secrets: secretsDeLaMachine,
         cloison,
+        bacASable: options.bacASable,
         delaiGatesMs: 60_000,
         attenteCiMs: 1_800_000,
         ...(options.pass === true ? {} : options.pass),
@@ -589,6 +594,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
     sansIdentite: options.sansIdentite,
     secrets: secretsDeLaMachine,
     cloison,
+    bacASable: options.bacASable,
     session: async () => options.session ?? "connectee",
     dureeBailMs: bailMs,
     stations,
@@ -613,6 +619,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
         bin: FAUX_CLAUDE,
         fichiers: depot.fichiers,
         cloison,
+        bacASable: options.bacASable,
         // Les jugements ont leur scénario : ils ne consomment pas celui des cooks.
         env: { ...env, FAUX_CLAUDE: options.manager.jugement ?? "juge-ticket", FAUX_CLAUDE_SUITE: suiteDuJuge },
         maintenant: heure.maintenant,

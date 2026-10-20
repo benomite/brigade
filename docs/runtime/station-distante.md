@@ -158,6 +158,70 @@ dit : `pris quand la box sature, chaque cook dans le bac à sable…`.
 L'état se lit aussi dans `facts`, champ `stations` (voir « Les faits, pour un programme ») : c'est
 lui que l'app affiche.
 
+#### Une cuisine locale : tous ses cooks dans le bac à sable
+
+Les tickets prêtés par la box ne sont pas les seuls à passer par le bac à sable de macOS. **Un projet
+dont la cuisine tourne sur le Mac du chef** — dans la station que son app lance
+(`runtime/src/station/cuisine.ts`) — **y lance tous ses cooks, sans exception** : chaque `claude`
+que sa cuisine lance part dans le bac à sable de Claude Code — le **cook** d'un ticket, le
+**closer** de la passe de fermeture, le **reviewer de la pass**, le **jugement du manager**
+(`runtime/src/bac-a-sable/local.ts`). Une cuisine est locale quand sa station tourne sous macOS : la
+box n'en est jamais une, et sa cloison (`bwrap`) la garde.
+
+- **La même politique que pour un ticket prêté**, pas une autre : la configuration de
+  `runtime/src/bac-a-sable/configuration.ts`, écrite pour le répertoire où le lancement travaille —
+  son worktree pour un cook, un closer ou un reviewer, le répertoire temporaire pour un jugement. Il
+  n'écrit que là et dans les caches du projet, ne lit ni `~/.ssh` ni les identifiants du chef, ne
+  joint que les hôtes de la liste réseau du projet (`.claude/brigade/reseau` de sa branche
+  d'intégration, relue à chaque lancement ; illisible, le socle seul : Anthropic et GitHub). Le
+  `--permission-mode bypassPermissions` d'un cook cède la place à `--permission-mode dontAsk
+  --settings <la configuration>` ; le reviewer et le jugement, qui n'avaient pas de mode, les
+  reçoivent devant `--setting-sources`.
+- **Les caches du projet** se nomment dans `BRIGADE_SANDBOX_CACHES` (chemins absolus séparés par
+  `:`, sur la ligne du projet ou dans l'environnement de la station) ; aucun par défaut.
+- **Sans bac à sable, la cuisine ne s'ouvre pas** : aucun cook n'y part à nu. La station refuse le
+  projet, et le motif nomme ce qui manque, en une phrase :
+  `sur ce Mac, chaque cook part dans le bac à sable, et il n'est pas utilisable — <raison>`. Corrigé
+  (un `claude update`, par exemple), le projet se rouvre au redémarrage de la station, ou quand sa
+  ligne change. Ouverte, la cuisine le dit dans le journal de service :
+  `bac à sable — chaque \`claude\` de la cuisine (cook, closer, reviewer, manager) part dans celui de Claude Code (claude 2.1.300) : …`.
+- **Ce qu'il ne garde pas** : ce que le runtime lance lui-même hors de `claude` — le setup du
+  worktree, les gates, les serveurs d'une livraison. Ce sont les scripts du dépôt, pas le modèle.
+
+**Le bac à sable est-il utilisable sur ce Mac ?** La vérification le dit, avant d'y faire cuire un
+projet :
+
+```bash
+BRIGADE_STATION_DIR=<répertoire de la station> node runtime/src/bac-a-sable/verifier.ts
+```
+
+Elle écrit `ok` (code 0), ou ce qui manque en une phrase (code 1) — pas macOS, pas de Seatbelt
+(`/usr/bin/sandbox-exec`), un `claude` trop ancien ou muet, `HOME` absent, un cache relatif, ou des
+worktrees là où un cook ne doit rien lire ; 2, elle est mal appelée. Le `claude` éprouvé est celui
+que la station lance (`BRIGADE_CLAUDE_BIN`, sinon `claude`). Elle éprouve les lieux de la station :
+**une station posée sous `~/.config/brigade`** — le répertoire par défaut de l'app — **ne tient
+pas**, car un cook n'y lit rien, et ses worktrees y seraient :
+
+```
+la configuration du bac à sable ne tient pas sur ce Mac — /Users/chef/.config/brigade/station/etat/essai : un cook n'y écrirait pas sans toucher à /Users/chef/.config/brigade, qu'il ne doit pas même lire
+```
+
+**La vérification à la main**, sur le Mac, ce que les tests ne peuvent pas faire (ni macOS, ni vrai
+`claude`, ni réseau) : `--settings` rend la configuration d'un `claude` lancé dans un répertoire,
+la liste réseau étant les hôtes donnés ; lancé avec, `claude` doit refuser ce qu'un cook ne fait pas.
+
+```bash
+mkdir -p /tmp/essai-wt && cd /tmp/essai-wt
+claude -p 'Lance ces commandes une à une avec Bash et rends leur sortie brute : touch ~/brigade-essai ; touch /tmp/essai-wt/ok ; ls ~/.ssh ; cat ~/.claude/.credentials.json ; curl -sS -o /dev/null -w "%{http_code}" https://example.com ; curl -sS -o /dev/null -w "%{http_code}" https://registry.npmjs.org' \
+  --permission-mode dontAsk --setting-sources '' \
+  --settings "$(node <dépôt>/runtime/src/bac-a-sable/verifier.ts --settings /tmp/essai-wt registry.npmjs.org)"
+```
+
+Attendu : `touch ~/brigade-essai` échoue (`Operation not permitted`) et le fichier n'existe pas ;
+`/tmp/essai-wt/ok` est créé ; `ls ~/.ssh` et `cat ~/.claude/.credentials.json` échouent
+(`Operation not permitted`) ; `example.com`, hors de la liste, est refusé (connexion refusée par le
+proxy du bac à sable, aucun code `200`) ; `registry.npmjs.org`, sur la liste, répond `200`.
+
 **La seule direction est station → box, et c'est gardé.** Une déclaration ne porte aucune adresse ;
 dans `runtime/src`, sept modules seulement touchent au réseau, aucun vers une station (l'arbitre et
 le serveur d'une livraison sur `127.0.0.1`, la porte et sa sonde, l'API de GitHub) ; aucun programme
