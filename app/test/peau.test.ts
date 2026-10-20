@@ -359,6 +359,7 @@ const FAITS: Dessinable = {
     etat: "ouverte",
     ton: "vert",
     arretee: false,
+    apprentissage: { lecons: [], profils: [] },
     tick: "dernier tick il y a 12 s",
     compteurs: [
       { libelle: "rail", nombre: 9 },

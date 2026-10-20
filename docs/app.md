@@ -1259,6 +1259,23 @@ tickets servis**, et **ce que le projet a coûté** (#1022). Elle n'est pas un o
   de `facts` (`reculs`, `docs/runtime/etat-et-mesures.md`, « Une correction mergée recule-t-elle sa cause ? »),
   lu à côté (`app/src/recul.ts`) : l'app ne juge rien, « recule » est le verdict du runtime ; une box pas
   jointe garde la dernière lecture.
+- **Puis ce que les cooks ont appris au projet** (#1058, épique #1034), sous « what the cooks learned ». **Ses
+  leçons**, provisoires puis promues dans l'ordre de `facts`, une ligne chacune : le statut en pastille
+  (`provisional`, `promoted` dans le ton de l'accent ; son sens au survol de la pastille), l'identifiant en
+  monospace et le texte, puis le jour de son entrée (`since 10/1/2026`), **les tickets qui l'ont proposée** —
+  un clic ouvre la fiche — et **le nombre de cooks qui l'ont reçue** (`received by 14 cooks`, ou `received by
+  no cook yet`). **Une promue porte « open in the notebook »** : le bouton ouvre, dans le navigateur, sa ligne
+  du carnet du projet sur GitHub — l'adresse que `facts` a donnée pour cette leçon, et aucune autre (la vue
+  nomme la leçon, le process principal tient l'adresse) —, **sans rien créer : ni branche, ni PR** ; pour la
+  retirer, le chef ouvre lui-même sa PR. Sans adresse (la box ne connaît pas le dépôt), le bouton est inactif,
+  et son survol le dit. Une provisoire n'a pas de lien. **Ses profils** : le nom, le domaine (`for
+  app/src/vue`), le carnet — chaque leçon par son identifiant et son texte, son état quand elle n'est plus
+  promue (`retired`, `expired`), ou `empty` — et **les tickets qu'il a cuisinés** (`cooked #29 #36`, ou `none
+  yet`). Une partie vide se dit en une ligne (`no profile yet`). **Tant que le projet n'a ni leçon ni profil,
+  la section dit une seule phrase** — `The cooks have learned nothing on this project yet: no lesson, no
+  profile.` —, **et aucune liste**. Elle vient de `facts` (`apprentissage`, `docs/runtime/etat-et-mesures.md`),
+  lu par `app/src/apprentissage.ts` ; un runtime d'avant ce champ ne le rend pas non plus, et la page dit la
+  même phrase. Tant que les faits du projet ne sont pas lus, la section n'est pas posée.
 - **À côté, ce que le projet a coûté, et lui seul** (#1022), sous « cost of this project » : **ses tokens
   perdus** et **ses tickets les plus chers**, les mêmes blocs que sur la page des coûts de l'app (voir « Le
   coût de tous les projets ») — un clic sur le chiffre déploie la liste des cooks perdus, un clic sur un

@@ -98,6 +98,7 @@ import { poserPerdus } from "./cost/perdus.js";
 import { poserTete } from "./cost/tete.js";
 import { poserFiabilite } from "./fiabilite.js";
 import { poserReculs } from "./recul.js";
+import { poserApprentissage } from "./apprentissage.js";
 import { lireFermeture, poserCloser } from "./closer/section.js";
 import { poserBilan } from "./closer/bilan/bilan.js";
 import { apresRendu, lireLancement, poserLancement, REPOS } from "./closer/lancement/lancement.js";
@@ -4240,7 +4241,8 @@ function ouvrirFicheDeCout(nom, ticket, retour) {
 
 // La fiabilité des cooks du projet affiché, en tête de l'onglet Reliability (fiabilite.js) : trois chiffres
 // face à leurs seuils, puis les causes d'échec qui reviennent le plus. Un ticket d'une cause ouvre sa fiche.
-// Dessous, chaque cause qu'une correction acceptée des consignes visait, avant et après son merge (ticket 1001).
+// Dessous, chaque cause qu'une correction acceptée des consignes visait, avant et après son merge (ticket 1001),
+// puis ce que les cooks ont appris au projet : ses leçons et ses profils (ticket 1058).
 // À côté, ce que ce projet a coûté, et lui seul (ticket 1022) : ses tokens perdus et ses tickets les plus chers,
 // lus dans le `station` de sa propre box — celui que cette lecture lance — et jugés face à ses propres
 // seuils (cost/seuils.js). Un ticket ouvre sa fiche.
@@ -4270,7 +4272,11 @@ function poserLaFiabilite() {
   // dans `facts`, pas dans cette lecture — une box pas jointe garde la dernière.
   const tenu = tenus.get(projet.nom);
   const reculs = tenu !== undefined && "tableau" in tenu ? tenu.tableau.reculs : undefined;
-  fiabilite.replaceChildren(...poserFiabilite(document, vu, ouvrir), ...poserReculs(document, reculs, ouvrir), coute);
+  // Ses leçons et ses profils (apprentissage.js), lus dans `facts` de même : une leçon promue ouvre sa ligne
+  // du carnet par le process principal, qui en tient l'adresse — rien n'est créé.
+  const appris = tenu !== undefined && "tableau" in tenu ? tenu.tableau.apprentissage : undefined;
+  const ouvrirLaLigne = (/** @type {string} */ id) => void brigade.ouvrirLecon(projet.nom, id);
+  fiabilite.replaceChildren(...poserFiabilite(document, vu, ouvrir), ...poserReculs(document, reculs, ouvrir), ...poserApprentissage(document, appris, { ouvrir, ouvrirLaLigne }), coute);
 }
 
 // La partie « closer » du projet affiché, sous Settings → Closer (closer/section.js) : les quatre chiffres

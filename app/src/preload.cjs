@@ -78,6 +78,7 @@ const pont = {
   corriger: (projet, proposition, reponse) => ipcRenderer.invoke("corriger", projet, proposition, reponse),
   trancherLeProfil: (projet, proposition, reponse) => ipcRenderer.invoke("trancherLeProfil", projet, proposition, reponse),
   ouvrirBilan: (projet, url) => ipcRenderer.invoke("ouvrirBilan", projet, url),
+  ouvrirLecon: (projet, id) => ipcRenderer.invoke("ouvrirLecon", projet, id),
   regarder: (projet, demande) => ipcRenderer.send("regarder", projet, demande),
   tous: (demande) => ipcRenderer.send("tous", demande),
   onglet: (projet, id, demande) => ipcRenderer.send("onglet", projet, id, demande),

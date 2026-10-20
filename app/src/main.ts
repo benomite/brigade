@@ -983,6 +983,16 @@ ipcMain.handle("ouvrirBilan", (_, nom: unknown, url: unknown) => {
     () => false,
   );
 });
+// La ligne d'une leçon promue dans le carnet du projet (#1058) : l'adresse que ses derniers faits lus
+// donnent pour cette leçon, et aucune autre. Elle s'ouvre dans le navigateur, rien n'est créé.
+ipcMain.handle("ouvrirLecon", (_, nom: unknown, id: unknown) => {
+  const url = faits.lecon(nom, id);
+  if (url === undefined) return false;
+  return shell.openExternal(url).then(
+    () => true,
+    () => false,
+  );
+});
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
 ipcMain.on("regarder", (_, nom: unknown, demande: number) => (voir = () => regarder(projets().filter((candidat) => candidat.nom === nom), ["status"], demande, true))());
 // L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.

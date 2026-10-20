@@ -241,6 +241,10 @@ export type Pont = {
   // du projet. Rend la réponse écrite — la carte quitte la file —, ou pourquoi rien ne l'a été.
   trancherLeProfil(projet: string, proposition: number, reponse: import("../correction.ts").Reponse): Promise<import("../correction.ts").Rendu | undefined>;
   ouvrirBilan(projet: string, url: string): Promise<boolean>;
+  // La ligne d'une leçon promue dans le carnet du projet, sur GitHub, ouverte dans le navigateur du poste
+  // (apprentissage.ts) : la vue nomme le projet et la leçon, l'adresse est celle que ses derniers faits lus
+  // portent. Rien n'est créé — ni branche, ni PR. Rend si elle a été ouverte.
+  ouvrirLecon(projet: string, id: string): Promise<boolean>;
   // Le projet dont l'espace est affiché : sa box est lue, elle seule — `status`, pour le panneau.
   // `demande` revient sur chaque lecture qui y répond.
   regarder(projet: string, demande: number): void;

@@ -20,6 +20,7 @@ import type { Echec, Lecture } from "./box.ts";
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues, type Moment } from "./captures.ts";
 import { carteDeCorrection, correctionsLues, estInforme, type CarteDeCorrection, type CorrectionLue } from "./correction.ts";
 import { reculDe, reculInforme, reculsLus, type Recul, type ReculLu } from "./recul.ts";
+import { apprentissageDe, apprentissageInforme, apprentissageLu, ligneOuvrable, type Apprentissage, type ApprentissageLu } from "./apprentissage.ts";
 import { carteDeProfil, profilInforme, profilsLus, type CarteDeProfil, type ProfilLu } from "./profil.ts";
 import { attenduDe, decisionLue, livraisonLue, teteDe, type Decision, type Livraison as LivraisonAttendue } from "./decision.ts";
 import { entete, type Entete } from "./fiche.ts";
@@ -125,6 +126,9 @@ export type Faits = {
   // Les profils de cook proposés, que le chef tranche (profil.ts) : absent quand il n'y en a aucun, et
   // d'un runtime d'avant ce champ.
   profils?: ProfilLu[];
+  // Ce que les cooks ont appris au projet, ses leçons et ses profils (apprentissage.ts) : absent quand il
+  // n'a ni leçon ni profil, et d'un runtime d'avant ce champ.
+  apprentissage?: ApprentissageLu;
 };
 
 // Ce que la vue dessine d'un projet, prêt à poser : elle n'y calcule rien.
@@ -193,6 +197,9 @@ export type Tableau = {
   // Ce que chaque correction acceptée des consignes du projet a fait de sa cause, avant et après son
   // merge (recul.ts), la plus ancienne d'abord : la page Reliability la pose. Absent quand il n'y en a aucune.
   reculs?: Recul[];
+  // Ce que les cooks ont appris au projet (apprentissage.ts) : ses leçons et ses profils, que la page
+  // Reliability pose sous les causes corrigées — vides, elle le dit en une phrase.
+  apprentissage: Apprentissage;
 };
 
 // Ce qu'une lecture de `faits` donne à la vue : le tableau ; ou, sous un `titre`
@@ -324,7 +331,8 @@ function comprendreTiers(brut: unknown, lequel: string): Tiers {
 // Rien n'y est complété : un champ qui manque refuse la forme entière — sauf
 // `cooks`, `attend`, `livres`, `urgence` et l'`activite`,
 // l'`attente` et les `tiers` d'un ticket, qu'un runtime d'avant eux ne rend pas,
-// et qui manquent alors ici aussi — et `corrections`, `reculs` et `profils`, absents quand il n'y en a aucun.
+// et qui manquent alors ici aussi — et `corrections`, `reculs` et `profils`, absents quand il n'y en a aucun,
+// comme `apprentissage` quand le projet n'a ni leçon ni profil.
 // Un champ de plus est laissé de côté, un mot d'état inconnu est gardé.
 export function comprendre(sortie: string): Faits | { informe: string } {
   if (sortie.trim() === "") return { informe: "the command returned nothing" };
@@ -419,9 +427,10 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...(racine.corrections === undefined ? {} : { corrections: correctionsLues(racine.corrections) }),
       ...(racine.reculs === undefined ? {} : { reculs: reculsLus(racine.reculs) }),
       ...(racine.profils === undefined ? {} : { profils: profilsLus(racine.profils) }),
+      ...(racine.apprentissage === undefined ? {} : { apprentissage: apprentissageLu(racine.apprentissage) }),
     };
   } catch (erreur) {
-    if (erreur instanceof Informe || estInforme(erreur) || reculInforme(erreur) || profilInforme(erreur)) return { informe: erreur.message };
+    if (erreur instanceof Informe || estInforme(erreur) || reculInforme(erreur) || profilInforme(erreur) || apprentissageInforme(erreur)) return { informe: erreur.message };
     throw erreur;
   }
 }
@@ -843,6 +852,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...rienNeCuit(status),
     rail: rail(faits, attend, status, repondues),
     ...(faits.reculs === undefined || faits.reculs.length === 0 ? {} : { reculs: faits.reculs.map(reculDe) }),
+    apprentissage: apprentissageDe(faits.apprentissage),
   };
 }
 
@@ -932,6 +942,13 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
       if (moment !== "avant" && moment !== "apres") return undefined;
       const captures = donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.captures ?? donnes?.rail.find((candidat) => candidat.ticket === ticket)?.captures;
       return captures?.ecrans.find((candidat) => candidat.ecran === ecran)?.[moment as Moment] ?? undefined;
+    },
+    // La ligne du carnet d'une leçon promue, telle que la box l'a donnée à la dernière lecture : la seule
+    // adresse que son lien ouvre (apprentissage.ts). Rien pour une leçon provisoire, ou qu'elle ne porte pas.
+    lecon(projet: unknown, id: unknown): string | undefined {
+      const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;
+      const url = donnes?.apprentissage?.lecons.find((candidate) => candidate.statut === "promue" && candidate.id === id)?.url;
+      return ligneOuvrable(url) ? url : undefined;
     },
     // La PR mergée d'un ticket livré, telle que la box l'a donnée à la dernière lecture.
     pr(projet: unknown, ticket: unknown): string | undefined {

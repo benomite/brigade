@@ -55,6 +55,7 @@ const faits = (etat: string, ton: string | undefined, arretee = false): Dessinab
     etat,
     ...(ton === undefined ? {} : { ton }),
     arretee,
+    apprentissage: { lecons: [], profils: [] },
     tick: "dernier tick il y a 12 s",
     compteurs: [{ libelle: "rail", nombre: 1 }],
     cooks: { enCours: [], vide: "aucun cook en cours" },
