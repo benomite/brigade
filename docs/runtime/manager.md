@@ -233,7 +233,7 @@ body, between two markers:
 
 ```markdown
 <!-- brigade:tickets -->
-## The epic's tickets
+## Tickets de l'épique
 
 **1/3 servi.**
 
@@ -246,6 +246,8 @@ body, between two markers:
 _Liste tenue par le manager : ce qui est entre ses deux marqueurs est réécrit, le reste de l'épique est à toi. Pour y faire entrer un ticket que tu ajoutes, écris `Épique : #78` dans son corps._
 <!-- /brigade:tickets -->
 ```
+
+This block is quoted literally from what the runtime writes today (`runtime/src/epique.ts`): it stays in French until the runtime itself is translated.
 
 **This is the only place in the body that it rewrites.** A marker only counts **alone on its line,
 outside a code block**; without an end marker, it only replaces the start one. The states follow
