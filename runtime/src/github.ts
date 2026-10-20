@@ -4,7 +4,7 @@
 // nées d'un découpage, corps d'une épique, PR, CI, merge. Seul module qui lance `gh`. Sous l'identité unique de la
 // machine, c'est `gh` qui porte l'authentification ; sous une identité de rôle,
 // le jeton lui est remis à chaque appel (voir `identites.ts`).
-import { execFile } from "node:child_process";
+import { execFile } from "./sans-invite.ts";
 import type { Check } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 import { constaterLimite, limiteDuProcess, refusPourLimite, type Limite } from "./limite-github.ts";

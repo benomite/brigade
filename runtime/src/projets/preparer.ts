@@ -2,7 +2,7 @@
 // sa ligne : vérifier que ses Apps GitHub sont autorisées sur le dépôt, le
 // cloner à sa place, et poser au journal du projet les décisions que le chef a
 // prises dans le parcours. Rien de cela ne demande de commande au chef.
-import { execFile } from "node:child_process";
+import { execFile } from "../sans-invite.ts";
 import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { decisionsPosees, poserDecision } from "../decisions.ts";

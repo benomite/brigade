@@ -4,7 +4,7 @@
 // the only `git` commands run here read, and `GIT_OPTIONAL_LOCKS=0` forbids
 // them even refreshing the index. A cook that commits or a pass that merges
 // never waits for it.
-import { execFileSync } from "node:child_process";
+import { execFileSync } from "../sans-invite.ts";
 import { ConfigInvalide } from "../runtime.ts";
 
 // The only `git` commands of the closing: none writes.

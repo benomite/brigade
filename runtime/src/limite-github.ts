@@ -18,7 +18,7 @@
 //
 // Hors de toute station (le poste de dev, un test), le process compte seul,
 // en mémoire, sous le même budget.
-import { execFile } from "node:child_process";
+import { execFile } from "./sans-invite.ts";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Base } from "./base.ts";

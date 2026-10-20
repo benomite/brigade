@@ -2,7 +2,7 @@
 // la machine, lu et écrit par `gh api` — celui de la machine, qui
 // s'authentifie seul. La station n'ouvre aucun port et ne joint aucune autre
 // machine : ce qu'elle a à dire, elle l'écrit là.
-import { execFile } from "node:child_process";
+import { execFile } from "../sans-invite.ts";
 import { decouper } from "../github.ts";
 import { constaterLimite, limiteDuProcess, refusPourLimite, type Limite, type ReponseHttp } from "../limite-github.ts";
 

@@ -16,7 +16,7 @@
 //
 // `node relais.ts <run>` : le nom du run est sur la ligne de commande, pour
 // qu'un runtime qui le retrouve sache que ce pid est bien ce relais-là.
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, type ChildProcess } from "./sans-invite.ts";
 import { createWriteStream, renameSync, writeFileSync, type WriteStream } from "node:fs";
 import type { Readable } from "node:stream";
 import { masquerIdentifiants, retenirJeton } from "./identifiants.ts";

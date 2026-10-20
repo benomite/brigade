@@ -7,7 +7,7 @@
 //
 // Les appels à systemd passent par `Systemd`, injectable : les tests en jouent
 // un faux, sans systemd. `systemdReel` est celui de la box.
-import { execFile } from "node:child_process";
+import { execFile } from "./sans-invite.ts";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);

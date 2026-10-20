@@ -11,7 +11,7 @@
 // l'ancienne installation avait posé dans le système part : unités, drop-ins,
 // gestes, règles sudoers. La station qui démarre ensuite reprend chaque projet
 // et ses cooks en vol, comme après une mise à jour.
-import { spawnSync } from "node:child_process";
+import { spawnSync } from "../sans-invite.ts";
 import { chownSync, existsSync, lchownSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { lireEnService } from "../mise-a-jour/en-service.ts";

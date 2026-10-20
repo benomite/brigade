@@ -18,7 +18,7 @@
 // aucune page n'est dite. Le worktree de sa livraison est tenu tout de même,
 // comme sous un serveur, pour qu'on y lance l'app ; le journal dit comment
 // voir son écran.
-import { spawn } from "node:child_process";
+import { spawn } from "./sans-invite.ts";
 import { existsSync } from "node:fs";
 import { connect } from "node:net";
 import { envelopper, type Cloison } from "./cloison.ts";

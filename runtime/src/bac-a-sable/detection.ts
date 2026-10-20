@@ -11,7 +11,7 @@
 // point n'est pas un confort : lancé avec `-p`, `claude` ignore sans rien dire
 // des réglages qu'il ne sait pas valider — et le cook partirait sans bac à
 // sable.
-import { execFileSync } from "node:child_process";
+import { execFileSync } from "../sans-invite.ts";
 import { existsSync } from "node:fs";
 
 export type Detection = { disponible: true; version: string } | { disponible: false; raison: string };

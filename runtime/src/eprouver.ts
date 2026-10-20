@@ -1,7 +1,7 @@
 // La cloison éprouvée pour de vrai : des sondes lancées dedans, qui disent ce
 // qu'un cook y verrait, et la mesure de ce qu'elle coûte par lancement. Aucun
 // cook, aucun quota. Ce que cela prouve vaut pour la machine où c'est lancé.
-import { spawn, spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "./sans-invite.ts";
 import { existsSync, readFileSync } from "node:fs";
 import type { Cloison, Lancement } from "./cloison.ts";
 
