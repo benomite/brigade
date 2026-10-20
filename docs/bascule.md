@@ -1,30 +1,31 @@
-# La bascule : la box passe à la station, une fois
+# The switchover: the box moves to the station, once
 
-La box servait ses trois projets (`brigade`, `espace`, `calculus-workspace`) chacun par son unité
-`brigade@<projet>.service` et sa porte `brigade-porte@<projet>.service`, avec leurs drop-ins, ses
-gestes et leurs règles sudoers. **Installer le paquet de la station les reprend** : journal,
-décisions et tickets en cours restent où ils sont, la porte de chaque projet est reprise par celles
-de la station — même port, même liste blanche —, la cuisine s'arrête quelques minutes, et ce que
-l'ancienne installation avait posé dans le système part. C'est un geste du chef, une fois, après le merge — jamais rejoué par un cook sur la box.
+The box served its three projects (`brigade`, `espace`, `calculus-workspace`) each through its
+unit `brigade@<project>.service` and its door `brigade-porte@<project>.service`, with their
+drop-ins, its command and their sudoers rules. **Installing the station package takes them
+over**: log, decisions and tickets in flight stay where they are, each project's door is taken
+over by the station's — same port, same allowlist —, the kitchen stops for a few minutes, and
+what the old installation had put in the system goes away. It is a chef's action, once, after the
+merge — never replayed by a cook on the box.
 
-## Le geste du chef : la commande, le code
+## The chef's action: the command, the code
 
-1. **La commande**, sur la box — celle de [`installation-station.md`](installation-station.md),
-   « 1. La commande » :
+1. **The command**, on the box — the one from [`installation-station.md`](installation-station.md),
+   "1. The command":
 
    ```sh
    curl -fsSL https://github.com/benomite/brigade/releases/latest/download/installer-station.sh | sudo sh
    ```
 
-   Le paquet joue la bascule avant de démarrer la station (`runtime/paquet/debian/postinst`,
-   `runtime/src/bascule/`). Le compte `brigade` et sa connexion Max sont gardés : la commande ne
-   redemande pas de login.
-2. **Le code** : la station démarrée l'affiche dans son journal de service
+   The package plays the switchover before starting the station (`runtime/paquet/debian/postinst`,
+   `runtime/src/bascule/`). The `brigade` account and its Max connection are kept: the command
+   does not ask for a login again.
+2. **The code**: the started station shows it in its service log
    (`journalctl -u brigade-station`) — `brigade : station à appairer — tape ce code dans l'app :
-   7KQ2-M9XD …` —, et tu le tapes dans l'app, sur « Tous les projets » ([`runtime/`](runtime/station-machine.md),
-   « Une station par machine »).
+   7KQ2-M9XD …` —, and you type it in the app, on "All projects" ([`runtime/`](runtime/station-machine.md),
+   "Une station par machine").
 
-Ce que la commande dit pendant la bascule :
+What the command says during the switchover:
 
 ```
 bascule : arrêt des anciennes unités — brigade@brigade.service, … ; leurs cooks en vol continuent, la station les reprendra
@@ -37,52 +38,54 @@ bascule : /usr/local/bin/brigade pointe sur le geste du paquet (/usr/lib/brigade
 bascule : cuisine reprise par la station — brigade, calculus-workspace, espace ; arrêtée 1 min 12 s, de 08:00:03 à 08:01:15
 ```
 
-**La dernière ligne mesure l'interruption**, et `/var/lib/brigade-station/bascule.json` la garde
-(`arretee`, `reprise`). Si la station ne sert pas tous les projets repris au bout de trois minutes,
-la ligne dit lesquels et renvoie à `journalctl -u brigade-station` ; l'installation, elle, est faite.
+**The last line measures the interruption**, and `/var/lib/brigade-station/bascule.json` keeps it
+(`arretee`, `reprise`). If the station does not serve every taken-over project after three
+minutes, the line says which ones and points to `journalctl -u brigade-station`; the installation
+itself is done.
 
-**Bascule refusée** (`bascule refusée — rien n'a changé : …`) : un projet que la station ne saurait
-pas reprendre — la ligne dit lequel et pourquoi. Les anciennes unités servent toujours ; une fois
-réglé, relance la même commande. **En échec** en cours de route (`bascule en échec — …`) : relancer
-la même commande la reprend où elle s'est arrêtée.
+**Switchover refused** (`bascule refusée — rien n'a changé : …`): a project the station could not
+take over — the line says which and why. The old units still serve; once it is sorted out, rerun
+the same command. **Failed** along the way (`bascule en échec — …`): rerunning the same command
+resumes where it stopped.
 
-## Ce qui est vérifié ensuite
+## What is checked afterwards
 
-- **Plus rien de l'ancienne installation** : aucune unité `brigade@<projet>` ni
-  `brigade-porte@<projet>`, aucun drop-in, aucun ancien geste ni sa règle sudoers —
-  `systemctl list-unit-files 'brigade@*' 'brigade-porte@*'` ne rend rien.
-- **Chaque projet sort par sa porte, et elle seule** : au démarrage de la station, chaque projet dit
-  `réseau — liste blanche, par la porte 127.0.0.1:<port> — un envoi direct est refusé par le noyau :
-  l'unité filtre` (`journalctl -u brigade-station`), chacun avec le port que
-  `/var/lib/brigade/portes.json` lui donne — celui de son ancienne porte. Un hôte hors de sa liste
-  reçoit un `403`, et son refus est au journal du projet ([`runtime/paquet/README.md`](../runtime/paquet/README.md),
-  « La porte réseau »).
-- **Trois versions de suite passent seules**, dont une qui change une unité de service, sans aucun
-  geste du chef : la file de chaque projet le dit, une ligne par version — `passée en version … à …`
-  ([`installation-station.md`](installation-station.md), « 6. La mise à jour, seule »).
-- **Un quatrième projet s'ajoute en moins de 10 minutes**, depuis l'app, sans terminal
-  ([`runtime/`](runtime/station-machine.md), « Ajouter un projet à une station depuis l'app, sans terminal »).
+- **Nothing left of the old installation**: no `brigade@<project>` or
+  `brigade-porte@<project>` unit, no drop-in, no old command or its sudoers rule —
+  `systemctl list-unit-files 'brigade@*' 'brigade-porte@*'` returns nothing.
+- **Each project goes out through its door, and only that**: when the station starts, each project
+  says `réseau — liste blanche, par la porte 127.0.0.1:<port> — un envoi direct est refusé par le noyau :
+  l'unité filtre` (`journalctl -u brigade-station`), each with the port that
+  `/var/lib/brigade/portes.json` gives it — that of its old door. A host outside its list
+  gets a `403`, and the refusal is in the project's log ([`runtime/paquet/README.md`](../runtime/paquet/README.md),
+  "La porte réseau").
+- **Three versions in a row go through on their own**, one of which changes a service unit, with
+  no chef action: each project's queue says so, one line per version — `passée en version … à …`
+  ([`installation-station.md`](installation-station.md), "6. Updating, on its own").
+- **A fourth project is added in under 10 minutes**, from the app, without a terminal
+  ([`runtime/`](runtime/station-machine.md), "Ajouter un projet à une station depuis l'app, sans terminal").
 
-La reprise s'éprouve, avant le merge, sur une installation de test — jamais sur la box : trois
-projets servis à l'ancienne, un cook en vol, le vrai paquet installé, journal, décisions et tickets
-comparés avant et après (`runtime/test/bascule/machine.test.ts`).
+The takeover is tested, before the merge, on a test installation — never on the box: three
+projects served the old way, a cook in flight, the real package installed, log, decisions and
+tickets compared before and after (`runtime/test/bascule/machine.test.ts`).
 
-## Le geste brigade
+## The brigade command
 
-`/usr/local/bin/brigade` reste : c'est par lui que l'app lit et pilote les projets de la box, par
-`ssh` — `brigade <projet> <commande> [arguments…]`, comme avant. La bascule le fait pointer sur le
-geste du paquet, `/usr/lib/brigade-station/brigade`, et garde la règle sudoers qui le donne aux
-humains ([`installer.md`](installer.md), « Ajouter un humain »). Il lance la commande sous le compte
-et dans l'environnement de `brigade-station.service`, avec ce que la station donne au projet.
+`/usr/local/bin/brigade` stays: it is how the app reads and drives the box's projects, over
+`ssh` — `brigade <project> <command> [arguments…]`, as before. The switchover points it at the
+package's command, `/usr/lib/brigade-station/brigade`, and keeps the sudoers rule that gives it
+to humans ([`installer.md`](installer.md), "Ajouter un humain"). It runs the command under the
+account and in the environment of `brigade-station.service`, with what the station gives the
+project.
 
-| Code | Ce qu'il dit | Le geste |
+| Code | What it says | The action |
 |---|---|---|
-| 64 | il manque le projet ou la commande | `brigade <projet> help` |
-| 65 | projet inconnu sur cette station | le projet n'a pas de ligne dans `/var/lib/brigade/projets` |
-| 66 | la commande n'est pas une commande du runtime | le refus nomme celles de la station |
-| 67 | systemd n'a pas répondu pour l'unité de la station | `systemctl status brigade-station` |
-| 68 | celui qui lance n'a pas le droit du geste | sa règle sudoers — « Ajouter un humain » |
-| 69 | `sudo` manque sur la machine | `apt install sudo` |
-| 70 | le `node` ou le runtime du paquet manque, ou ne démarre pas | ce que la ligne dit : `sudo apt install libatomic1`, ou `sudo apt install --reinstall brigade-station` |
+| 64 | the project or the command is missing | `brigade <project> help` |
+| 65 | unknown project on this station | the project has no line in `/var/lib/brigade/projets` |
+| 66 | the command is not a runtime command | the refusal names the station's commands |
+| 67 | systemd did not answer for the station's unit | `systemctl status brigade-station` |
+| 68 | whoever runs it does not have the right to the command | their sudoers rule — "Ajouter un humain" |
+| 69 | `sudo` is missing on the machine | `apt install sudo` |
+| 70 | the package's `node` or runtime is missing, or does not start | what the line says: `sudo apt install libatomic1`, or `sudo apt install --reinstall brigade-station` |
 
-Tout autre code est celui de la commande.
+Any other code is the command's own.

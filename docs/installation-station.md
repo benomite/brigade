@@ -1,49 +1,49 @@
-# Installer une station brigade sur un serveur
+# Installing a brigade station on a server
 
-**Une station s'installe une fois par machine, puis on lui ajoute des projets.** Ce guide installe
-la station d'un serveur, de la commande à la station qui tourne. Il ne parle d'aucun projet : un
-projet n'est pas une installation, c'est une ligne de la configuration d'une station, et il
-s'ajoute plus tard, depuis l'app.
+**A station is installed once per machine, then projects are added to it.** This guide installs a
+server's station, from the command to the running station. It talks about no project: a
+project is not an installation, it is a line in a station's configuration, and it is added
+later, from the app.
 
-Sur un ordinateur (Mac, Windows, Linux de bureau), la station, c'est l'app : ce guide n'est pas
-pour lui.
+On a computer (Mac, Windows, desktop Linux), the station is the app: this guide is not
+for it.
 
-**Tu peux te faire accompagner.** Colle ce guide à un assistant (Claude, par exemple) et
-demande-lui de te guider pas à pas : tout ce qu'il faut savoir est ici, et il n'y a qu'une
-commande à taper.
+**You can get help.** Paste this guide into an assistant (Claude, for example) and
+ask it to walk you through step by step: everything it needs to know is here, and there is only
+one command to type.
 
-## Ce qu'il te faut
+## What you need
 
 | | |
 |---|---|
-| **Un serveur Debian** | Debian 12 ou plus récent (ou un dérivé, Ubuntu compris), en `amd64` ou `arm64`, avec systemd — pas un conteneur. Il est allumé en permanence : c'est lui qui fera travailler les cooks. |
-| **Un accès root, une fois** | `sudo`, ou une session root. C'est pour l'installation seulement : la vie de la station n'en demandera plus jamais. |
-| **Le réseau** | le serveur joint GitHub et les dépôts de paquets de sa distribution. |
-| **Un disque local** | `/var/lib` n'est ni sur `nfs` ni sur `cifs` (`df -T /var/lib`) : le verrou de chaque projet en dépend. |
+| **A Debian server** | Debian 12 or newer (or a derivative, Ubuntu included), on `amd64` or `arm64`, with systemd — not a container. It is always on: it is what will make the cooks work. |
+| **Root access, once** | `sudo`, or a root session. It is for the installation only: the station's day-to-day life will never need it again. |
+| **The network** | the server reaches GitHub and its distribution's package repositories. |
+| **A local disk** | `/var/lib` is neither on `nfs` nor on `cifs` (`df -T /var/lib`): each project's lock depends on it. |
 
-| **Ton abonnement Claude Max** | pour la connexion Max, à la fin de la commande, une seule fois : un lien à ouvrir dans ton navigateur, un code à recopier. |
+| **Your Claude Max subscription** | for the Max connection, at the end of the command, only once: a link to open in your browser, a code to copy back. |
 
-Ton compte GitHub servira aux étapes suivantes, pas à celle-ci.
+Your GitHub account will serve in the following steps, not in this one.
 
-## 1. La commande
+## 1. The command
 
-Sur le serveur, colle :
+On the server, paste:
 
 ```sh
 curl -fsSL https://github.com/benomite/brigade/releases/latest/download/installer-station.sh | sudo sh
 ```
 
-C'est tout. Sans `sudo` sur le serveur, la même dans une session root, sans `sudo` à la fin. Sans
-`curl`, la même avec `wget -qO-` à la place de `curl -fsSL`.
+That is all. Without `sudo` on the server, run the same one in a root session, without the
+final `sudo`. Without `curl`, the same with `wget -qO-` in place of `curl -fsSL`.
 
-La commande télécharge le paquet `brigade-station` de la dernière version publiée, le remet à
-`apt` — qui pose ce dont il dépend (`git`, `gh`, `bubblewrap`…) —, attend que la station
-démarre, puis fait la **connexion Max** (étape 2). Compte une à deux minutes, plus le temps de te
-connecter.
+The command downloads the `brigade-station` package of the latest published version, hands it to
+`apt` — which installs what it depends on (`git`, `gh`, `bubblewrap`…) —, waits for the station
+to start, then does the **Max connection** (step 2). Allow one to two minutes, plus the time to
+log in.
 
-## 2. Ce que tu dois voir
+## 2. What you should see
 
-La commande montre l'état du service, puis deux lignes :
+The command shows the service's state, then two lines:
 
 ```
 ● brigade-station.service - brigade — la station de cette machine (tous ses projets)
@@ -56,13 +56,13 @@ brigade : station installée et active — <version>
 brigade : tout ce qu'elle demande au système vient avec son paquet : sa vie courante ne demande aucune commande root
 ```
 
-**`active (running)` et `aucun projet servi` : la station est installée.** Elle tourne, elle
-redémarrera avec la machine, et elle attend ses projets.
+**`active (running)` and `aucun projet servi`: the station is installed.** It is running, it will
+restart with the machine, and it waits for its projects.
 
-### La connexion Max
+### The Max connection
 
-La commande enchaîne sur la connexion de la station à ton abonnement Claude Max — le seul
-moment où elle te demande quelque chose, et il ne revient pas :
+The command goes on to connect the station to your Claude Max subscription — the only
+time it asks you for anything, and it does not come back:
 
 ```
 brigade : la connexion Max du compte brigade — le seul moment où elle te demande quelque chose
@@ -72,135 +72,136 @@ connexion Max faite : le jeton est rangé, lisible du seul compte de la station,
 brigade : la suite : l'appairage avec l'app (…)
 ```
 
-1. `claude` affiche un lien : ouvre-le dans ton navigateur, sur n'importe quelle machine.
-2. Connecte-toi avec le compte de ton abonnement Max, et autorise Claude Code.
-3. La page te donne un code : colle-le dans le terminal du serveur.
+1. `claude` shows a link: open it in your browser, on any machine.
+2. Log in with your Max subscription account, and authorize Claude Code.
+3. The page gives you a code: paste it into the server's terminal.
 
-L'étape montre l'interface de `claude setup-token` à mesure, mais **jamais le jeton** : il est
-masqué à l'écran (`sk-ant-…`) et n'est écrit dans aucun journal. Si `setup-token` ne montre
-rien pendant trois minutes, l'étape l'arrête et le dit en une ligne (`connexion Max non faite —
-… relance l'étape pour réessayer`) : relance-la seule, elle refait le même parcours.
+The step shows the `claude setup-token` interface as it goes, but **never the token**: it is
+masked on screen (`sk-ant-…`) and written in no log. If `setup-token` shows
+nothing for three minutes, the step stops it and says so in one line (`connexion Max non faite —
+… relance l'étape pour réessayer`): rerun it alone, it redoes the same course.
 
-La connexion passe par **le binaire `claude` officiel**, sous le compte `brigade` : s'il n'est pas
-sur le serveur, la commande le pose d'abord, par l'installeur d'Anthropic. `claude setup-token`
-crée un **jeton longue durée** ; la commande le range sans jamais l'afficher, puis relance la
-station pour qu'elle le lise. Ton quota Max ne sera jamais consommé autrement que par `claude`.
+The connection goes through **the official `claude` binary**, under the `brigade` account: if it
+is not on the server, the command installs it first, through Anthropic's installer. `claude
+setup-token` creates a **long-lived token**; the command stores it without ever displaying it,
+then restarts the station so it reads it. Your Max quota will never be consumed other than by
+`claude`.
 
-**Où est le jeton, et comment vérifier ses droits :**
+**Where the token is, and how to check its permissions:**
 
 | | |
 |---|---|
-| `/etc/brigade/claude-token` | le jeton, seul dans le fichier — `600`, au compte `brigade` |
-| `/etc/brigade/claude-token.cree` | la date de sa création (sans le jeton), qui servira à t'avertir de son échéance |
-| `/etc/brigade/jeton.env` | une ligne, qui dit à l'unité de la station où lire le jeton |
+| `/etc/brigade/claude-token` | the token, alone in the file — `600`, owned by the `brigade` account |
+| `/etc/brigade/claude-token.cree` | its creation date (without the token), which will serve to warn you of its expiry |
+| `/etc/brigade/jeton.env` | one line, which tells the station's unit where to read the token |
 
 ```sh
-stat -c '%a %U' /etc/brigade/claude-token     # attendu : 600 brigade
+stat -c '%a %U' /etc/brigade/claude-token     # expected: 600 brigade
 ```
 
-**Si la connexion échoue** (`brigade : connexion Max non faite — …`), la ligne dit pourquoi :
-relance la même commande. Elle ne réinstalle rien, et ne refait pas un jeton déjà rangé.
-**Si la commande n'avait pas de terminal** (lancée depuis un script), elle le dit, et s'arrête
-avant la connexion : relance-la depuis un terminal du serveur.
+**If the connection fails** (`brigade : connexion Max non faite — …`), the line says why:
+rerun the same command. It reinstalls nothing, and does not redo a token already stored.
+**If the command had no terminal** (run from a script), it says so, and stops
+before the connection: rerun it from a terminal on the server.
 
-Si la commande s'arrête sur `brigade : installation refusée — …`, la ligne dit pourquoi : la
-machine n'est pas un Debian, son architecture n'a pas de paquet, le téléchargement a échoué, ou
-`apt` a refusé (sa sortie est juste au-dessus). Rien n'est à moitié installé que `apt` ne sache
-reprendre : corrige ce qu'elle dit, et relance la même commande.
+If the command stops on `brigade : installation refusée — …`, the line says why: the
+machine is not a Debian, its architecture has no package, the download failed, or
+`apt` refused (its output is just above). Nothing is left half-installed that `apt` cannot
+resume: fix what it says, and rerun the same command.
 
-## 3. Ce que l'installation a posé
+## 3. What the installation put in place
 
-- **Le service `brigade-station`** : un seul pour toute la machine, quel que soit le nombre de
-  projets. Ajouter ou retirer un projet ne touchera à aucun fichier du système.
-- **Le compte `brigade`**, sous lequel tournent la station et ses cooks. C'est lui qui a fait la
-  connexion Max, et lui seul lit le jeton.
-- **Le jeton de la connexion Max** et sa date de création, dans `/etc/brigade` (étape 2).
-- **`/var/lib/brigade`**, où la station gardera la configuration, le journal et le clone de
-  chacun de ses projets.
-- **Sa mise à jour**, deux minutes après chaque démarrage de la station puis toutes les dix
-  minutes : voir « 6. La mise à jour, seule ».
-- **Ses portes** (`brigade-station-porte`), la seule sortie réseau de la station et de ses cooks.
-  La station ne joint que la machine elle-même ; ce qu'un projet lance sort par la porte de ce
-  projet, qui ne laisse passer qu'Anthropic, GitHub et ce que le dépôt du projet déclare dans
-  `.claude/brigade/reseau`. Ce qu'un projet ouvre ne l'est pas pour un autre. Chaque porte prend
-  son port seule : il n'y a rien à régler.
+- **The `brigade-station` service**: a single one for the whole machine, whatever the number of
+  projects. Adding or removing a project will touch no system file.
+- **The `brigade` account**, under which the station and its cooks run. It is the one that did the
+  Max connection, and the only one that reads the token.
+- **The Max connection token** and its creation date, in `/etc/brigade` (step 2).
+- **`/var/lib/brigade`**, where the station will keep the configuration, the log and the clone of
+  each of its projects.
+- **Its update**, two minutes after each station start then every ten
+  minutes: see "6. Updating, on its own".
+- **Its doors** (`brigade-station-porte`), the only network exit of the station and its cooks.
+  The station reaches only the machine itself; what a project launches goes out through that
+  project's door, which lets through only Anthropic, GitHub and what the project's repo declares in
+  `.claude/brigade/reseau`. What one project opens is not open for another. Each door takes
+  its port by itself: there is nothing to set.
 
-Et rien d'autre : aucune règle `sudo`, et dans `/etc` que les trois fichiers du jeton. Tout vient du paquet, et le
-suit : quand la station passe à une nouvelle version, ses unités, ses droits et son minuteur y
-passent avec elle. Rien de ce que la station demande au système n'attend donc un geste root de
-ta part.
+And nothing else: no `sudo` rule, and in `/etc` only the token's three files. Everything comes from the package, and
+follows it: when the station moves to a new version, its units, its rights and its timer
+move with it. Nothing the station asks of the system therefore waits for a root action from
+you.
 
-## 4. Revoir la station, plus tard
+## 4. Reviewing the station, later
 
-Sans root, depuis n'importe quel compte du serveur :
+Without root, from any account on the server:
 
 ```sh
 systemctl status brigade-station
 ```
 
-`active (running)`, c'est qu'elle tourne. Les dernières lignes de son journal n'y apparaissent que
-si ton compte lit le journal du système ; sinon, c'est l'app qui te les montrera.
+`active (running)` means it is running. The last lines of its log only appear there
+if your account reads the system journal; otherwise, the app will show them to you.
 
-## 5. Le jeton de la connexion Max
+## 5. The Max connection token
 
-Le jeton est créé une fois, à l'installation, et la station ne te demande plus rien ensuite :
-rien à rafraîchir. **Il vit un an** : trente jours avant son échéance, la file de la station
-l'annonce (`jeton de la connexion Max près de son échéance`), avec le seul geste à faire —
-le refaire, comme ci-dessous. Elle le dit aussi si la date de sa création
-(`/etc/brigade/claude-token.cree`) manque ou ne se lit pas.
+The token is created once, at installation, and the station asks you for nothing after that:
+nothing to refresh. **It lives a year**: thirty days before its expiry, the station's queue
+announces it (`jeton de la connexion Max près de son échéance`), with the only action to take —
+redo it, as below. It also says so if its creation date
+(`/etc/brigade/claude-token.cree`) is missing or cannot be read.
 
-**Si la box est compromise, révoque le jeton depuis ton compte Claude (claude.ai, dans les
-paramètres, parmi les sessions et applications connectées de Claude Code), puis supprime
-`/etc/brigade/claude-token` : un jeton qu'on t'a pris ne sert plus à rien.**
+**If the box is compromised, revoke the token from your Claude account (claude.ai, in
+settings, among the connected sessions and apps of Claude Code), then delete
+`/etc/brigade/claude-token`: a token taken from you is of no use any more.**
 
-Pour en créer un neuf (après une révocation, ou pour le remplacer), supprime ce fichier et relance
-la commande de l'étape 1 : elle refait seulement la connexion Max — le lien, le code.
+To create a new one (after a revocation, or to replace it), delete that file and rerun
+the step 1 command: it only redoes the Max connection — the link, the code.
 
-## 6. La mise à jour, seule
+## 6. Updating, on its own
 
-Quand une version de la station est publiée, la station y passe seule, comme un navigateur — tu
-n'as rien à faire. Toutes les dix minutes, sa mise à jour (`brigade-station-mise-a-jour`, livrée
-par le paquet, la seule part de la station qui tourne sous root) regarde les versions publiées ;
-s'il y en a une plus récente, elle la remet à `apt`. Le paquet pose le nouveau code et ses unités,
-puis relance la station — son seul process : **les cooks en cours finissent leur travail**, et la
-station qui repart les reprend.
+When a station version is published, the station moves to it on its own, like a browser — you
+have nothing to do. Every ten minutes, its updater (`brigade-station-mise-a-jour`, delivered
+by the package, the only part of the station that runs as root) looks at the published versions;
+if there is a newer one, it hands it to `apt`. The package puts in the new code and its units,
+then restarts the station — its only process: **the cooks in flight finish their work**, and the
+station that comes back up takes them over.
 
-La nouvelle version est gardée quand la station s'y dit démarrée et sert tous les projets qu'elle
-servait avant. Sinon, **elle revient seule à la version d'avant**, dont elle a gardé le paquet. Une
-version ratée n'est pas réessayée ; la suivante le sera. Dans les deux cas, la file de chaque
-projet le dit en une ligne, le jour même :
+The new version is kept when the station says it has started on it and serves all the projects it
+served before. Otherwise, **it goes back on its own to the previous version**, whose package it
+kept. A failed version is not retried; the next one will be. In both cases, each project's queue
+says so in one line, the same day:
 
 ```
   passée en version 0.20261016.091500+g1a2b3c4 à 09 h 17
   mise à jour vers la version 0.20261016.120000+g5d6e7f8 ratée à 12 h 03 : la station s'est arrêtée en échec en 0.20261016.120000+g5d6e7f8 (systemd : failed) — revenue en version 0.20261016.091500+g1a2b3c4 ; 0.20261016.120000+g5d6e7f8 n'est pas réessayée, la suivante le sera
 ```
 
-**Geler la version.** Pour qu'aucune nouvelle version ne soit installée, la station lit un réglage
-dans `/var/lib/brigade/reglages` :
+**Freezing the version.** So that no new version is installed, the station reads a setting
+in `/var/lib/brigade/reglages`:
 
 ```
 gel=oui
 ```
 
-`gel=non`, ou le fichier retiré, lève le gel : la version qui attend est installée au passage
-suivant. L'app le réglera d'un bouton ; d'ici là, c'est ce fichier. Un gel mal écrit gèle, dans le
-doute.
+`gel=non`, or the file removed, lifts the freeze: the waiting version is installed on the next
+pass. The app will set it with a button; until then, it is this file. A badly written freeze
+freezes, when in doubt.
 
-**Où en est la mise à jour** : `/var/lib/brigade-station/etat.json` — la version installée, la plus
-récente publiée, le gel, ce qui retient la suivante et ce qu'a donné la dernière mise à jour. Le
-même état, en clair, sans root :
+**Where the update stands**: `/var/lib/brigade-station/etat.json` — the installed version, the
+latest published one, the freeze, what holds back the next one and what the last update gave. The
+same state, in plain text, without root:
 
 ```sh
 cd /usr/lib/brigade-station/runtime && BRIGADE_STATION_DIR=/var/lib/brigade BRIGADE_MISE_A_JOUR_DIR=/var/lib/brigade-station /usr/lib/brigade-station/node/bin/node src/mise-a-jour/main.ts etat
 ```
 
-## 7. La suite — pas encore dans ce guide
+## 7. What comes next — not yet in this guide
 
-Deux étapes amènent ensuite la station jusqu'à toi. Elles ne sont pas encore écrites ici : ce
-guide les gagnera à mesure qu'elles arrivent.
+Two steps then bring the station to you. They are not yet written here: this
+guide will gain them as they arrive.
 
-1. **L'appairage avec l'app** — le serveur affiche un code, tu le tapes dans l'app, et la station
-   apparaît sur sa home : « en ligne · version X · aucun projet ». L'app y montrera aussi l'état
-   de sa mise à jour, et le bouton qui gèle sa version.
-2. **Ajouter un projet** — depuis l'app : le dépôt GitHub, ses stations, sa principale. Sans
+1. **Pairing with the app** — the server shows a code, you type it in the app, and the station
+   appears on its home: "en ligne · version X · aucun projet". The app will also show there the
+   state of its update, and the button that freezes its version.
+2. **Adding a project** — from the app: the GitHub repo, its stations, its primary. Without a
    terminal.

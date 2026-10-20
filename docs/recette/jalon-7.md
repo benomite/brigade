@@ -1,3 +1,3 @@
-# Recette du jalon 7
+# Milestone 7 acceptance
 
-Note écrite le 2026-10-09, depuis la machine `parade-box`, où Node v26.11.1 est installé.
+Note written on 2026-10-09, from the machine `parade-box`, where Node v26.11.1 is installed.
