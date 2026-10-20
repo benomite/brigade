@@ -41,6 +41,7 @@ import { COMMANDE_DES_COUTS, COUTS, commandeDe, ONGLETS, projetsLus, RUBRIQUES }
 import { ouvrirTransfert, tenirPages } from "./page.ts";
 import { jouerPanne } from "./pannes/gestes.ts";
 import { gistLocal, tenirLogin } from "./pannes/login.ts";
+import { demenageurDuRuntime } from "./projets/demenagement.ts";
 import { depotsDuChef } from "./projets/github.ts";
 import { EFFORTS, MODELES, tenirProjets } from "./projets/projets.ts";
 import { memoireDansFichier, tenirNotifications } from "./notification.ts";
@@ -451,6 +452,11 @@ const projetsDesStations = tenirProjets({
   github: githubDesStations({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }),
   stations: () => stations.vu()?.stations,
   depots: depotsDuChef({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }),
+  // La station de cet ordinateur : c'est elle que la page d'un projet appelle « this Mac ».
+  locale: () => (role.role === "station" ? gistLocal(racineDeLaStation) : null),
+  // Déménager une cuisine, c'est l'opération du runtime, lancée ici avec le répertoire de la station
+  // de cet ordinateur (projets/demenagement.ts) : un téléphone, qui n'a pas de runtime, n'en lance aucune.
+  ...(role.role === "station" ? { demenager: demenageurDuRuntime({ node: emplacements.node, runtime: emplacements.runtime, racine: racineDeLaStation, env: process.env, delaiMs: 60_000 }) } : {}),
   surLecture: (vu) => {
     dire("projetsDesStations", vu);
     direLAccueil(accueil.projetsDesStations(vu));
@@ -851,6 +857,9 @@ ipcMain.handle("ajouterAUneStation", (_, saisie: unknown) => projetsDesStations.
 ipcMain.handle("confierAUneStation", (_, saisie: unknown) => projetsDesStations.confier(saisie));
 // Retiré, le projet quitte la demande de chacune de ses stations : elles le retirent de leur configuration.
 ipcMain.handle("retirerDUneStation", (_, nom: unknown) => projetsDesStations.retirer(nom));
+// La page d'un projet déménage sa cuisine, d'un geste, vers une autre station appairée — cet
+// ordinateur, sa box, une autre : l'opération du runtime l'écrit, ou dit en une phrase pourquoi non.
+ipcMain.handle("demenagerLaCuisine", (_, nom: unknown, vers: unknown) => projetsDesStations.demenager(nom, vers));
 // La page GitHub où autoriser brigade sur un dépôt : seulement une de celles qu'une station a publiées.
 ipcMain.handle("autoriserSurGitHub", (_, url: unknown) => {
   if (typeof url !== "string" || !projetsDesStations.pages().includes(url)) return false;

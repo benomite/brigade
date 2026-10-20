@@ -417,6 +417,61 @@ main > header,
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
 }
+#stations-du-projet .station-et-gestes {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+/* Un projet qui cuit sur ce Mac (ticket 1095) : ce que ça implique, à côté de « this Mac », plus
+   discret que le nom ; un déménagement en route, de même. */
+#stations-du-projet .s-arrete,
+#stations-du-projet .en-mouvement {
+  color: var(--discret);
+}
+/* Le choix d'un déménagement : une carte sous la ligne, sa phrase, les machines — chacune un bouton,
+   la recommandée se distingue — et son prix en une ligne. */
+#stations-du-projet .demenagement {
+  display: flex;
+  flex-direction: column;
+  flex-basis: 100%;
+  gap: 10px;
+  max-width: 640px;
+  margin: 6px 0 10px;
+  padding: 14px 18px;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+  background: var(--carte);
+}
+#stations-du-projet .demenagement .titre {
+  font-weight: 700;
+}
+#stations-du-projet .demenagement .machines-du-demenagement {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+#stations-du-projet .demenagement .machines-du-demenagement button {
+  padding: 4px 12px;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+#stations-du-projet .demenagement .machines-du-demenagement button.recommande {
+  border-color: var(--accent);
+}
+#stations-du-projet .demenagement .prix {
+  color: var(--discret);
+}
+#stations-du-projet .demenagement-dit {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--texte-doux);
+}
+#stations-du-projet .demenagement-dit.refus {
+  color: var(--rouge-clair);
+}
 /* Le choix de la cuisine (ticket 1107) : une carte, comme dans la maquette. Sa phrase en tête, puis
    chaque partie sous son petit titre — la machine principale, les renforts, les cooks, les réglages
    avancés —, une machine par ligne, entière, cliquable d'un bout à l'autre. Aucun libellé n'est

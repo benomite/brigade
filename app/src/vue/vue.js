@@ -479,7 +479,22 @@ gestesDeConfiance.append(validerConfiance, annulerConfiance);
 formulaireDeConfiance.append(titreDeConfiance, sensDeConfiance, champDuDepot, champDeLaBase, principaleDeConfiance, renfortsDeConfiance, champDesCooks, reglagesAvances, confianceRefusee, gestesDeConfiance);
 const confianceDite = document.createElement("p");
 confianceDite.ariaLive = "polite";
-stationsDuProjet.append(ligneDesStationsDuProjet, ouvrirLaConfiance, formulaireDeConfiance, confianceDite);
+// Déménager sa cuisine (ticket 1095), d'un seul geste : « move the kitchen » ouvre, sous la ligne, le
+// choix de la machine où l'emmener — cet ordinateur, sa box, une autre —, et ce que ça coûte, en une
+// ligne. Un clic sur une machine la déménage, sans retrait ni rajout. Refusé, la raison se dit en une
+// phrase sous la ligne, et la ligne ne change pas : il cuit toujours là où il cuisait.
+const ouvrirLeDemenagement = /** @type {HTMLButtonElement} */ (bloc("button", "move the kitchen"));
+ouvrirLeDemenagement.type = "button";
+ouvrirLeDemenagement.className = "ajout-de-station";
+ouvrirLeDemenagement.dataset.geste = "demenager";
+const choixDuDemenagement = document.createElement("section");
+choixDuDemenagement.className = "demenagement";
+choixDuDemenagement.ariaLabel = "Move the kitchen";
+choixDuDemenagement.hidden = true;
+const demenagementDit = document.createElement("p");
+demenagementDit.className = "demenagement-dit";
+demenagementDit.ariaLive = "polite";
+stationsDuProjet.append(ligneDesStationsDuProjet, ouvrirLeDemenagement, ouvrirLaConfiance, choixDuDemenagement, formulaireDeConfiance, demenagementDit, confianceDite);
 
 /** @type {Map<number, { terminal: Terminal, xterm: Xterm, ajuste: FitAddon, cadre: HTMLDivElement }>} */
 const vues = new Map();
@@ -803,6 +818,12 @@ let parcours;
 let confiance;
 // Ce que le dernier geste de confiance a rendu, et pour quel projet : dit sous la ligne de ses stations.
 let confianceDitePour = { projet: "", dit: "" };
+// Le déménagement dont le choix est ouvert — pour quel projet —, et s'il part.
+/** @type {{ projet: string, part: boolean } | undefined} */
+let demenagement;
+// Ce que le dernier déménagement a rendu, et pour quel projet : dit sous la ligne de ses stations —
+// refusé, sa raison, et son détail au survol.
+let demenagementDitPour = { projet: "", dit: "", refus: false, detail: "" };
 // Le projet dont le retrait attend un second clic.
 /** @type {string | undefined} */
 let retraitDemande;
@@ -4943,6 +4964,170 @@ function cuisineDe(projet) {
   return { stations, demande: demande !== undefined, principale: stations.some(({ principale }) => principale) };
 }
 
+// Où cuit un projet de l'app : la station que ses stations disent le servir (projets.ts, `cuitSur`) —
+// pas celle que la demande nomme : un déménagement refusé le laisse cuire là où il cuisait —, à
+// défaut sa principale ; ou la station de cet ordinateur, qui le sert sans l'app (ticket 1122). `ici` : c'est
+// cet ordinateur. Aucune : on ne sait pas encore où il cuit.
+/** @param {Projet} projet @param {ReturnType<typeof cuisineDe>["stations"]} stations @returns {{ id: string | null, nom: string, ici: boolean } | undefined} */
+function ouCuit(projet, stations) {
+  const locale = projetsVus?.locale ?? null;
+  const dit = projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.cuitSur;
+  if (dit !== undefined && dit !== null) return { ...dit, ici: dit.ici || (dit.id !== null && dit.id === locale) };
+  const principale = stations.find((station) => station.principale);
+  if (principale !== undefined) return { id: principale.id, nom: principale.nom, ici: principale.id === locale || projet.ici === true };
+  if (projet.ici === true) return { id: null, nom: "", ici: true };
+  return undefined;
+}
+
+// Le nom d'une station tel que la page d'un projet le dit : « this Mac » pour celle de cet ordinateur.
+/** @param {string} nom */
+function nomDit(nom) {
+  const locale = projetsVus?.locale ?? null;
+  const sienne = (stationsVues?.stations ?? []).find(({ id }) => id === locale);
+  return sienne !== undefined && sienne.nom === nom ? "this Mac" : nom;
+}
+
+// Une station du projet, sur sa ligne : sa pastille et son nom — « this Mac » pour cet ordinateur —,
+// ce qu'elle en dit au survol ; un clic ouvre sa page. `renfort` : nommée après celle où il cuit.
+/** @param {ReturnType<typeof cuisineDe>["stations"][number]} station @param {boolean} ici @param {boolean} [renfort] */
+function stationNommee(station, ici, renfort = false) {
+  const nomme = document.createElement("button");
+  nomme.type = "button";
+  nomme.className = "station-du-projet";
+  nomme.title = [ici && station.nom !== "" ? `${station.nom}, this computer's station` : "", station.dit, station.survol].filter((ligne) => ligne !== "").join("\n");
+  const appele = bloc("strong", ici ? "this Mac" : station.nom);
+  appele.className = ici ? "" : "mono";
+  nomme.ariaLabel = `${ici ? "this Mac" : station.nom} — ${station.principale ? "main" : "secondary"} — ${station.dit}`;
+  nomme.append(pastille(station.dit, station.ton), appele, ...(renfort && !station.principale ? [bloc("span", " (backup)")] : []));
+  if (station.id !== "") nomme.addEventListener("click", () => ouvrirStation(station.id));
+  else nomme.disabled = true;
+  const autoriser = station.autoriser.map((url) => {
+    const cree = bloc("button", `authorize on GitHub: ${url.replace(/^https:\/\/github\.com\/apps\/([^/]+).*$/, "$1")}`);
+    cree.addEventListener("click", () => void brigade.autoriserSurGitHub(url));
+    return cree;
+  });
+  const pose = document.createElement("span");
+  pose.className = "station-et-gestes";
+  pose.append(nomme, ...autoriser);
+  return pose;
+}
+
+// Un projet qui cuit sur cet ordinateur s'arrête avec l'app : ça se dit à côté de « this Mac ».
+function sArrete() {
+  const dit = bloc("span", " · its kitchen stops when you close the app");
+  dit.className = "s-arrete";
+  return dit;
+}
+
+// Un déménagement en route, après la station où il cuit encore : vers où, et où il en est au survol.
+/** @param {import("../projets/projets.ts").DemenagementEnCours} enCours */
+function enMouvement(enCours) {
+  const etape = enCours.etape === "demandee" ? "asked: it cooks here until the other is ready" : enCours.etape === "acceptee" ? "accepted: its kitchen is closing here" : "handed over: it opens there in a moment";
+  const dit = bloc("span", ` · moving to ${nomDit(enCours.vers)}…`);
+  dit.className = "en-mouvement";
+  dit.title = [`moving ${etape}`, enCours.dit].filter((ligne) => ligne !== "").join("\n");
+  return dit;
+}
+
+// Le geste qui déménage la cuisine du projet affiché, et ce qu'il a rendu. Il n'est offert que pour un
+// projet que l'app a confié à une station, et qui cuit sur l'une d'elles : c'est de là qu'il part. Un
+// déménagement accepté va à son terme : rien d'autre ne se demande avant. Demandé ou refusé, il se
+// reprend : la machine où il cuit encore est offerte, pour l'y garder.
+/**
+ * @param {Projet} projet @param {ReturnType<typeof ouCuit>} ou
+ * @param {import("../projets/projets.ts").DemenagementEnCours | null} enCours @param {boolean} lues
+ */
+function poserLeDemenagement(projet, ou, enCours, lues) {
+  if (demenagement !== undefined && demenagement.projet !== projet.nom) fermerDemenagement();
+  const confie = projetsVus?.projets.some(({ nom, stations }) => nom === projet.nom && stations.some(({ principale }) => principale)) ?? false;
+  const fige = enCours !== null && (enCours.etape === "acceptee" || enCours.etape === "remise");
+  const repris = enCours !== null && !fige;
+  const appairees = (stationsVues?.stations ?? []).filter(({ etat }) => etat !== "illisible");
+  const destinations = appairees.filter(({ id }) => id !== ou?.id || repris);
+  const offert = lues && confie && ou !== undefined && ou.id !== null && !fige && destinations.length > 0;
+  ouvrirLeDemenagement.hidden = !offert || demenagement !== undefined || confiance !== undefined;
+  if (!offert) fermerDemenagement();
+
+  // Ce que le dernier déménagement a rendu ; à défaut, un refus de la station visée.
+  const deLui = demenagementDitPour.projet === projet.nom && demenagementDitPour.dit !== "";
+  const refusParElle = enCours !== null && enCours.etape === "refusee" ? `${projet.nom} stays on ${nomDit(enCours.de)}: ${nomDit(enCours.vers)} refused to take it over — ${enCours.dit}` : "";
+  const dit = deLui ? demenagementDitPour.dit : refusParElle;
+  const refus = deLui ? demenagementDitPour.refus : refusParElle !== "";
+  demenagementDit.classList.toggle("refus", refus);
+  demenagementDit.replaceChildren(...(dit === "" ? [] : [bloc("span", dit)]), ...(deLui && demenagementDitPour.detail !== "" ? [survol(document, demenagementDitPour.detail)] : []));
+  demenagementDit.hidden = dit === "";
+
+  if (demenagement === undefined || ou === undefined) return;
+  const depuis = ou.ici ? "this Mac" : ou.nom;
+  const recommandee = projetsVus?.recommandee ?? null;
+  const vise = demenagement;
+  // Chaque machine est un bouton ; celle que l'app recommande — toujours allumée — se distingue. Ce que
+  // la choisir implique est au survol.
+  const machines = destinations.map((station) => {
+    const garder = station.id === ou.id;
+    const nomme = station.id === projetsVus?.locale ? "this Mac" : station.nom;
+    const bouton = /** @type {HTMLButtonElement} */ (bloc("button", garder ? `keep it on ${nomme}` : nomme));
+    bouton.type = "button";
+    bouton.className = !garder && station.id === recommandee ? "recommande" : "";
+    bouton.disabled = vise.part;
+    bouton.dataset.vers = station.id;
+    bouton.title = [projetsVus?.machines[station.id]?.implique ?? "", station.etat === "en-ligne" ? "" : station.dit].filter((ligne) => ligne !== "").join(" · ");
+    bouton.addEventListener("click", () => void demenager(projet, station.id, { nomme, depuis, garder }));
+    return bouton;
+  });
+  const titre = bloc("p", `Move ${projet.nom}'s kitchen from ${depuis} to:`);
+  titre.className = "titre";
+  const lesMachines = document.createElement("div");
+  lesMachines.className = "machines-du-demenagement";
+  lesMachines.append(...machines);
+  const prix = bloc("p", "Its cooks in flight stop and their tickets go back to the rail; its whole journal follows it.");
+  prix.className = "prix";
+  const annuler = /** @type {HTMLButtonElement} */ (bloc("button", "cancel"));
+  annuler.type = "button";
+  annuler.disabled = vise.part;
+  annuler.addEventListener("click", () => {
+    fermerDemenagement();
+    poserStationsDuProjet();
+  });
+  lesMachines.append(annuler);
+  choixDuDemenagement.replaceChildren(titre, lesMachines, prix);
+  choixDuDemenagement.hidden = false;
+}
+ouvrirLeDemenagement.addEventListener("click", () => {
+  if (courant === undefined) return;
+  demenagement = { projet: courant.nom, part: false };
+  demenagementDitPour = { projet: "", dit: "", refus: false, detail: "" };
+  poserStationsDuProjet();
+});
+function fermerDemenagement() {
+  demenagement = undefined;
+  choixDuDemenagement.hidden = true;
+  choixDuDemenagement.replaceChildren();
+}
+// Déménager : l'opération du runtime part, par le process principal. Ce qu'elle rend se dit sous la
+// ligne ; la ligne, elle, ne dit que ce que les stations publient — où il cuit vraiment.
+/** @param {Projet} projet @param {string} vers @param {{ nomme: string, depuis: string, garder: boolean }} dits */
+async function demenager(projet, vers, { nomme, depuis, garder }) {
+  if (demenagement === undefined || demenagement.projet !== projet.nom) return;
+  const vise = demenagement;
+  vise.part = true;
+  demenagementDitPour = { projet: projet.nom, dit: `asking your stations to move ${projet.nom}'s kitchen…`, refus: false, detail: "" };
+  poserStationsDuProjet();
+  try {
+    const rendu = await brigade.demenagerLaCuisine(projet.nom, vers);
+    demenagementDitPour =
+      "refus" in rendu
+        ? { projet: projet.nom, dit: `${projet.nom} stays on ${depuis}: ${rendu.refus}`, refus: true, detail: rendu.detail ?? "" }
+        : garder
+          ? { projet: projet.nom, dit: `${projet.nom} keeps cooking on ${nomme}: the move is called off`, refus: false, detail: "" }
+          : { projet: projet.nom, dit: `${projet.nom}'s kitchen moves to ${nomme}: ${depuis} hands it over as soon as ${nomme} is ready — until then it cooks on ${depuis}`, refus: false, detail: "" };
+  } catch (erreur) {
+    demenagementDitPour = { projet: projet.nom, dit: `${projet.nom} stays on ${depuis}: nothing was sent`, refus: true, detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  if (demenagement === vise) fermerDemenagement();
+  if (courant?.nom === projet.nom) poserStationsDuProjet();
+}
+
 // La ligne des stations du projet affiché, en tête de son espace — et, s'il est ouvert, le choix de
 // celles à qui le confier. Aucune lecture des stations n'est encore arrivée : le vide ne se dit pas.
 function poserStationsDuProjet() {
@@ -4952,43 +5137,32 @@ function poserStationsDuProjet() {
   if (confiance !== undefined && confiance.projet !== projet.nom) fermerConfiance();
   const { stations, demande, principale } = cuisineDe(projet);
   const lues = stationsVues !== undefined && projetsVus !== undefined;
-  if (stations.length > 0) {
+  const ou = ouCuit(projet, stations);
+  const enCours = projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.demenagement ?? null;
+  if (stations.length > 0 || ou !== undefined) {
+    // Où il cuit, d'abord — « this Mac » pour la station de cet ordinateur —, puis ses renforts.
+    const sienne = stations.find(({ id }) => id === ou?.id);
+    const autres = stations.filter((station) => station !== sienne && !(enCours !== null && enCours.etape !== "refusee" && station.nom === enCours.vers));
+    const tete = ou === undefined ? [] : [stationNommee(sienne ?? { id: ou.id ?? "", nom: ou.nom, principale: true, dit: "served", ton: "vert", survol: "", autoriser: [] }, ou.ici)];
     ligneDesStationsDuProjet.replaceChildren(
-      bloc("span", "Cooked by "),
-      ...stations.flatMap((station, rang) => {
-        const nomme = document.createElement("button");
-        nomme.type = "button";
-        nomme.className = "station-du-projet";
-        nomme.title = [station.dit, station.survol].filter((ligne) => ligne !== "").join("\n");
-        nomme.ariaLabel = `${station.nom} — ${station.principale ? "main" : "secondary"} — ${station.dit}`;
-        const appele = bloc("strong", station.nom);
-        appele.className = "mono";
-        nomme.append(pastille(station.dit, station.ton), appele, ...(station.principale ? [bloc("span", " (main)")] : []));
-        nomme.addEventListener("click", () => ouvrirStation(station.id));
-        const autoriser = station.autoriser.map((url) => {
-          const cree = bloc("button", `authorize on GitHub: ${url.replace(/^https:\/\/github\.com\/apps\/([^/]+).*$/, "$1")}`);
-          cree.addEventListener("click", () => void brigade.autoriserSurGitHub(url));
-          return cree;
-        });
-        return [...(rang === 0 ? [] : [bloc("span", " · ")]), nomme, ...autoriser];
-      }),
+      bloc("span", ou === undefined ? "Cooked by " : "Cooks on "),
+      ...tete,
+      ...(ou?.ici === true ? [sArrete()] : []),
+      ...(enCours !== null && enCours.etape !== "refusee" ? [enMouvement(enCours)] : []),
+      ...autres.flatMap((station, rang) => [...(rang === 0 && tete.length === 0 ? [] : [bloc("span", " · ")]), stationNommee(station, false, ou !== undefined)]),
     );
-  } else if (projet.ici === true) {
-    // La station de cet ordinateur le sert : l'app le lit ici, sans `ssh` — son « hote », s'il en a un, n'y change rien.
-    const appele = bloc("strong", "this computer");
-    appele.title = "this computer's station serves it: the app reads it here, without ssh";
-    ligneDesStationsDuProjet.replaceChildren(bloc("span", "Cooked by "), appele);
   } else if (projet.box !== undefined) {
     // Écrit à la main avec « hote » : l'app le lit là, sans qu'aucune station appairée ne le publie.
     const appele = bloc("strong", projet.box.hote);
     appele.className = "mono";
     appele.title = `named by “hote” in ${configuration.chemin}: the app reads it there, and no paired station publishes it`;
-    ligneDesStationsDuProjet.replaceChildren(bloc("span", "Cooked by "), appele);
+    ligneDesStationsDuProjet.replaceChildren(bloc("span", "Cooks on "), appele);
   } else {
     ligneDesStationsDuProjet.textContent = lues ? `No station cooks ${projet.nom} yet.` : "reading your stations on GitHub…";
   }
+  poserLeDemenagement(projet, ou, enCours, lues);
   ouvrirLaConfiance.textContent = stations.length === 0 && !seLit(projet) ? "choose its machine" : "+ station";
-  ouvrirLaConfiance.hidden = confiance !== undefined || !lues;
+  ouvrirLaConfiance.hidden = confiance !== undefined || demenagement !== undefined || !lues;
   confianceDite.textContent = confianceDitePour.projet === projet.nom ? confianceDitePour.dit : "";
   if (confiance === undefined) return;
   poserLaConfiance(confiance, projet, { exclues: stations.map(({ id }) => id), demande, principale });

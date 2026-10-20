@@ -6,7 +6,11 @@
 //     tourner son manager et sa pass ;
 //   - `brigade-projets-suivi.json`, écrit par la station seule : où en est
 //     chacun — servi, à autoriser sur GitHub (avec les pages où le faire), en
-//     préparation, refusé (et pourquoi), ou secondaire.
+//     préparation, refusé (et pourquoi), ou secondaire — et où il cuit (`cuitSur`, `ici`), et où en
+//     est son déménagement (`bascule`).
+// Un déménagement de sa cuisine (runtime/src/demenagement/) ajoute à la demande `remise`, sur la
+// station qu'il quitte, et `reprise`, sur celle qui le reprend : l'app les relit et les réécrit tels
+// quels — sans eux, le déménagement en cours ne serait plus qu'un changement de principale.
 // Aucune liaison directe entre l'app et la station : c'est tout ce qu'elles se disent.
 
 export const FICHIER_PROJETS = "brigade-projets.json";
@@ -26,14 +30,27 @@ export type ProjetDemande = {
   // Quand le chef a ouvert le parcours, et quand il l'a validé.
   ouvertLe: string | null;
   demandeLe: string | null;
+  // Le déménagement en cours, vu de la station qu'il quitte (`remise`) ou de celle qui le reprend
+  // (`reprise`) : l'autre station, son gist, l'instant de la demande. Écrits par le runtime seul.
+  remise?: { vers: string; gist: string; demandeLe: string };
+  reprise?: { de: string; gist: string; demandeLe: string };
 };
 
 export type EtatDuProjet = "servi" | "a-autoriser" | "en-preparation" | "refuse" | "secondaire";
-export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null };
+// Où en est un déménagement, vu d'une station (runtime/src/projets/demande.ts) : demandé, accepté
+// par celle qui le reprend, refusé par elle, remis par celle qu'il quitte, reçu — fini.
+export type EtapeDeBascule = "demandee" | "acceptee" | "refusee" | "remise" | "recue";
+export type Bascule = { de: string; vers: string; demandeLe: string; etape: EtapeDeBascule };
+// `cuitSur` : la station où il cuit, telle que celle-ci la connaît ; `ici` : il cuit sur celle-ci, et
+// c'est l'ordinateur du chef. Une station d'avant le déménagement (#1094) n'en dit rien.
+export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null };
 
 const ETATS: readonly string[] = ["servi", "a-autoriser", "en-preparation", "refuse", "secondaire"];
+const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string";
 const date = (valeur: unknown): string | null => (texte(valeur) && !Number.isNaN(Date.parse(valeur)) ? valeur : null);
+const nomDeStation = (valeur: unknown): valeur is string => texte(valeur) && valeur.trim() !== "" && valeur.length <= 100;
+const gist = (valeur: unknown): valeur is string => texte(valeur) && /^[A-Za-z0-9]{1,64}$/.test(valeur);
 const calibre = (lu: unknown): Calibre => {
   const { modele, effort } = (lu ?? {}) as Record<string, unknown>;
   return { modele: texte(modele) ? modele : "", effort: texte(effort) ? effort : "" };
@@ -56,9 +73,25 @@ export function lireDemande(brut: string | undefined): ProjetDemande[] | null {
   }
   if (lu === null || typeof lu !== "object" || lu.brigade !== "projets" || !Array.isArray(lu.projets)) return null;
   return (lu.projets as unknown[]).flatMap((brut) => {
-    const { nom, depot, base, principale, cooks, manager, reviewer, ouvertLe, demandeLe } = (brut ?? {}) as Record<string, unknown>;
+    const { nom, depot, base, principale, cooks, manager, reviewer, ouvertLe, demandeLe, remise, reprise } = (brut ?? {}) as Record<string, unknown>;
     if (!texte(nom) || !texte(depot) || !texte(base)) return [];
-    return [{ nom, depot, base, principale: principale === true, cooks: typeof cooks === "number" ? cooks : 0, manager: calibre(manager), reviewer: calibre(reviewer), ouvertLe: date(ouvertLe), demandeLe: date(demandeLe) }];
+    const laRemise = (remise ?? {}) as Record<string, unknown>;
+    const laReprise = (reprise ?? {}) as Record<string, unknown>;
+    return [
+      {
+        nom,
+        depot,
+        base,
+        principale: principale === true,
+        cooks: typeof cooks === "number" ? cooks : 0,
+        manager: calibre(manager),
+        reviewer: calibre(reviewer),
+        ouvertLe: date(ouvertLe),
+        demandeLe: date(demandeLe),
+        ...(nomDeStation(laRemise.vers) && gist(laRemise.gist) && date(laRemise.demandeLe) !== null ? { remise: { vers: laRemise.vers, gist: laRemise.gist, demandeLe: laRemise.demandeLe as string } } : {}),
+        ...(nomDeStation(laReprise.de) && gist(laReprise.gist) && date(laReprise.demandeLe) !== null ? { reprise: { de: laReprise.de, gist: laReprise.gist, demandeLe: laReprise.demandeLe as string } } : {}),
+      },
+    ];
   });
 }
 
@@ -69,11 +102,28 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
     const lu = JSON.parse(brut) as { brigade?: unknown; projets?: unknown };
     if (lu?.brigade !== "projets-suivi" || !Array.isArray(lu.projets)) return [];
     return (lu.projets as unknown[]).flatMap((brut) => {
-      const { nom, etat, dit, autoriser, serviLe } = (brut ?? {}) as Record<string, unknown>;
+      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule } = (brut ?? {}) as Record<string, unknown>;
       if (!texte(nom) || !texte(etat) || !ETATS.includes(etat)) return [];
-      return [{ nom, etat: etat as EtatDuProjet, dit: texte(dit) ? dit : "", autoriser: Array.isArray(autoriser) ? autoriser.filter((url): url is string => texte(url) && /^https:\/\/github\.com\//.test(url)) : [], serviLe: date(serviLe) }];
+      return [
+        {
+          nom,
+          etat: etat as EtatDuProjet,
+          dit: texte(dit) ? dit : "",
+          autoriser: Array.isArray(autoriser) ? autoriser.filter((url): url is string => texte(url) && /^https:\/\/github\.com\//.test(url)) : [],
+          serviLe: date(serviLe),
+          cuitSur: nomDeStation(cuitSur) ? cuitSur : null,
+          ici: ici === true,
+          bascule: lireBascule(bascule),
+        },
+      ];
     });
   } catch {
     return [];
   }
+}
+
+// Ce qu'une station dit d'un déménagement, ou null.
+export function lireBascule(lue: unknown): Bascule | null {
+  const { de, vers, demandeLe, etape } = (lue ?? {}) as Record<string, unknown>;
+  return nomDeStation(de) && nomDeStation(vers) && date(demandeLe) !== null && texte(etape) && ETAPES.includes(etape) ? { de, vers, demandeLe: demandeLe as string, etape: etape as EtapeDeBascule } : null;
 }
