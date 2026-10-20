@@ -20,11 +20,11 @@ const cite = (servi: number, ticket: number, genre: Citation["genre"] = "reconfi
 });
 const jour = (servi: number) => new Date(Date.UTC(2026, 0, 1) + servi * 86_400_000).toISOString().slice(0, 10);
 
-const lecon = (id: string, ...citations: Citation[]): LeconHistoire => ({ id, texte: `La leçon ${id}.`, citations });
+const lecon = (id: string, ...citations: Citation[]): LeconHistoire => ({ id, texte: `La leçon ${id}.`, citations, origin: { kind: "retro" } });
 
 const juger = (histoire: LeconHistoire[], servis: number, carnet: Carnet = VIDE, seuils = SEUILS) => decider({ histoire, carnet, seuils, servis, aujourdhui: AUJOURDHUI });
 
-const promue = (id: string, entered: string, retros: string[]): Lesson => ({ id, text: `La leçon ${id}.`, state: "promoted", entered, retros });
+const promue = (id: string, entered: string, retros: string[]): Lesson => ({ id, text: `La leçon ${id}.`, state: "promoted", entered, retros, origin: { kind: "retro" } });
 
 test("trois rétros de trois tickets différents promeuvent la leçon ; trois rétros de deux tickets, non", () => {
   const trois = juger([lecon("L1", cite(1, 101, "propose"), cite(2, 102), cite(3, 103))], 3);
@@ -86,8 +86,23 @@ test("une leçon provisoire jamais promue disparaît 20 tickets servis après sa
   const supprimee = juger(histoire, 26);
   assert.deepEqual(supprimee.decisions, [{ kind: "delete", lesson: "L1", retros: ["retro-6"] }]);
   assert.deepEqual(supprimee.carnet.lessons, [
-    { id: "L1", text: "La leçon L1.", state: "expired", entered: jour(4), retros: ["retro-4", "retro-6"], exit: { date: AUJOURDHUI, reason: "expiry" } },
+    { id: "L1", text: "La leçon L1.", state: "expired", entered: jour(4), retros: ["retro-4", "retro-6"], origin: { kind: "retro" }, exit: { date: AUJOURDHUI, reason: "expiry" } },
   ]);
+});
+
+test("une leçon garde son origine au carnet, promue puis expirée ; celle que le carnet a écrite prime", () => {
+  const renvoi = { kind: "pass-send-back", ticket: 77 } as const;
+  const histoire = [{ ...lecon("L1", cite(1, 101, "propose"), cite(2, 102), cite(3, 103)), origin: renvoi }];
+  const promu = juger(histoire, 3).carnet;
+  assert.deepEqual(promu.lessons.map((l) => l.origin), [renvoi]);
+  assert.match(writeCarnet(promu), /- origine: pass-send-back #77\n/);
+  const supprimee = juger(histoire, 43, promu).carnet;
+  assert.deepEqual(supprimee.lessons.map((l) => [l.state, l.origin]), [["expired", renvoi]]);
+
+  const correction = { kind: "chef-correction", ticket: 5 } as const;
+  const retiree: Lesson = { ...promue("L1", jour(3), ["retro-1"]), origin: correction, state: "retired", exit: { date: jour(3), reason: "manual" } };
+  const repromue = juger([{ ...lecon("L1", cite(1, 101, "propose"), cite(7, 107), cite(8, 108), cite(9, 109)), origin: renvoi }], 9, { lessons: [retiree] });
+  assert.deepEqual(repromue.carnet.lessons.map((l) => [l.state, l.origin]), [["promoted", correction]]);
 });
 
 test("une leçon promue que rien ne reconfirme depuis 40 tickets est rétrogradée puis supprimée d'un même jugement", () => {
@@ -165,11 +180,12 @@ test("l'histoire se tire des rétros du journal : rang de service, jour, ticket 
     {
       id: "L1",
       texte: "Lire le CLAUDE.md.",
+      origin: { kind: "retro" },
       citations: [
         { genre: "propose", retro: "retro-10", ticket: 101, servi: 1, date: "2026-10-01" },
         { genre: "reconfirme", retro: "retro-20", ticket: 103, servi: 3, date: "2026-10-03" },
       ],
     },
-    { id: "L2", texte: "Commiter avant de s'arrêter.", citations: [{ genre: "propose", retro: "retro-20", ticket: 103, servi: 3, date: "2026-10-03" }] },
+    { id: "L2", texte: "Commiter avant de s'arrêter.", origin: { kind: "retro" }, citations: [{ genre: "propose", retro: "retro-20", ticket: 103, servi: 3, date: "2026-10-03" }] },
   ]);
 });

@@ -55,13 +55,18 @@ Lisible à la main, un bloc par leçon, triés par id :
 - texte: Relire la fiche avant d'écrire.
 - entrée: 2026-10-02
 - rétros: retro-13
+- origine: pass-send-back #13
 - sortie: 2026-12-01
 - raison: expiry
 ```
 
 `état` vaut `promoted`, `expired` (sortie `raison: expiry`) ou `retired` (sortie `raison: manual`).
 `entrée` est le jour de sa promotion, `rétros` celles qui l'ont proposée ou reconfirmée (la
-référence d'une rétro au journal). **Une leçon sortie n'est jamais effacée du fichier** : elle garde
+référence d'une rétro au journal). `origine` dit d'où la leçon est née : `pass-send-back #N` (un
+renvoi de la pass sur le ticket N) ou `chef-correction #N` (un renvoi ou une correction du chef sur
+le ticket N). **Sans ligne `origine`, la leçon est née d'une rétro** : c'est le cas de toutes celles
+d'un carnet écrit avant ce champ, qui se lit et se réécrit à l'identique. Une leçon garde son
+origine de provisoire à promue, et à sa sortie. `faits` la montre pour chaque leçon (`origine`). **Une leçon sortie n'est jamais effacée du fichier** : elle garde
 son id, sa date et sa raison de sortie. Le format est dans `runtime/src/carnet/carnet.ts` ; un
 fichier qu'il ne comprend pas n'est pas réécrit (voir plus bas).
 

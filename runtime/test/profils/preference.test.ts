@@ -22,7 +22,7 @@ import { demander } from "../../src/tirer.ts";
 import { PLAFONDS, cuisine, issue, type Lieux, type Options } from "../aides/cuisine.ts";
 import { jusqua, repertoireTemporaire } from "../outils.ts";
 
-const lecon = (id: string, text: string, reste: Partial<Lesson> = {}): Lesson => ({ id, text, state: "promoted", entered: "2026-10-01", retros: ["#3"], ...reste });
+const lecon = (id: string, text: string, reste: Partial<Lesson> = {}): Lesson => ({ id, text, state: "promoted", entered: "2026-10-01", retros: ["#3"], origin: { kind: "retro" }, ...reste });
 
 // Le profil du domaine `zone`, avec son carnet.
 const profil = (name: string, zone: string, lessons: Lesson[] = []): DefinitionDeProfil => ({

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { carnetVide, ecrireCarnet, type Entree, LeconInconnue, lireCarnet, memeTicket, proposer, reconfirmer } from "../../src/apprentissage/lecons.ts";
@@ -63,6 +64,26 @@ describe("sortie d'une rétro", () => {
 
   test("une ligne illisible est refusée", () => {
     assert.throws(() => lireSortie("bof", base), RetroInvalide);
+  });
+});
+
+describe("origine", () => {
+  test("une leçon naît d'une rétro, sauf mention contraire ; reconfirmée, elle garde son origine, et le carnet relu aussi", (t) => {
+    let c = proposer(carnetVide(), "a", o("r1", 1)).carnet;
+    c = proposer(c, "b", o("r2", 2), { kind: "pass-send-back", ticket: 2 }).carnet;
+    c = proposer(c, "c", o("r3", 3), { kind: "chef-correction", ticket: 3 }).carnet;
+    c = reconfirmer(c, "L2", o("r4", 4));
+    const attendu = [{ kind: "retro" }, { kind: "pass-send-back", ticket: 2 }, { kind: "chef-correction", ticket: 3 }];
+    assert.deepEqual(c.lecons.map((l) => l.origin), attendu);
+    const f = join(repertoireTemporaire(t), "lecons.json");
+    ecrireCarnet(f, c);
+    assert.deepEqual(lireCarnet(f).lecons.map((l) => l.origin), attendu);
+  });
+
+  test("un carnet de leçons écrit avant l'origine se lit, chaque leçon née d'une rétro", (t) => {
+    const f = join(repertoireTemporaire(t), "lecons.json");
+    writeFileSync(f, JSON.stringify({ suivant: 2, lecons: [{ id: "L1", texte: "a", statut: "provisoire", entrees: [{ genre: "propose", retro: "r1", ticket: 1 }] }] }));
+    assert.deepEqual(lireCarnet(f).lecons.map((l) => l.origin), [{ kind: "retro" }]);
   });
 });
 

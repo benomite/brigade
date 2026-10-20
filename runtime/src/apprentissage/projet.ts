@@ -6,7 +6,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Base } from "../base.ts";
-import { CARNET_PATH, readCarnet, type Lesson } from "../carnet/carnet.ts";
+import { CARNET_PATH, readCarnet, type Lesson, type LessonOrigin } from "../carnet/carnet.ts";
 import { DEPOT_GITHUB } from "../etat.ts";
 import type { Journal } from "../journal.ts";
 import { parseDefinition, PROFILS_DIR } from "../profils/definition.ts";
@@ -22,6 +22,9 @@ export type LeconAffichee = {
   date: string;
   // Les tickets dont la rétro l'a proposée ou reconfirmée, croissants.
   tickets: number[];
+  // D'où elle est née : une rétro, un renvoi de la pass ou une correction du
+  // chef, ces deux-là avec leur ticket (`carnet/carnet.ts`).
+  origine: LessonOrigin;
   // Les cooks qui l'ont reçue.
   cooks: number;
   // La livraison des tickets pris avant et après sa date.
@@ -34,7 +37,7 @@ export type ProfilAffiche = {
   nom: string;
   domaine: string;
   // Son carnet : ses leçons, promues ou sorties.
-  carnet: Array<{ id: string; texte: string; etat: string }>;
+  carnet: Array<{ id: string; texte: string; etat: string; origine: LessonOrigin }>;
   tickets: number[];
   // La livraison des tickets pris avant et après son acceptation.
   progres: AvantApres;
@@ -92,6 +95,7 @@ export function apprentissageDuProjet({ journal, projet, repoDir, depot, branche
     statut: "provisoire",
     date: lecon.at.slice(0, 10),
     tickets: unique(lecon.entrees.map((entree) => entree.ticket)),
+    origine: lecon.origin,
     cooks: cooks.get(lecon.id) ?? 0,
     progres: avantApres(parcours, lecon.at.slice(0, 10)),
   }));
@@ -111,6 +115,7 @@ export function apprentissageDuProjet({ journal, projet, repoDir, depot, branche
               statut: "promue" as const,
               date: lecon.entered,
               tickets: unique(lecon.retros.flatMap((ref) => ticketDe(ref) ?? [])),
+              origine: lecon.origin,
               cooks: cooks.get(lecon.id) ?? 0,
               progres: avantApres(parcours, lecon.entered),
               ...(adresse !== null && ligne !== null ? { url: `${adresse}#L${ligne}` } : {}),
@@ -128,7 +133,7 @@ export function apprentissageDuProjet({ journal, projet, repoDir, depot, branche
           .map((profil) => ({
             nom: profil.name,
             domaine: profil.zone,
-            carnet: profil.notebook.lessons.map((lecon) => ({ id: lecon.id, texte: lecon.text, etat: lecon.state })),
+            carnet: profil.notebook.lessons.map((lecon) => ({ id: lecon.id, texte: lecon.text, etat: lecon.state, origine: lecon.origin })),
             tickets: profil.tickets,
             progres: avantApres(parcours, profil.accepted),
           }));

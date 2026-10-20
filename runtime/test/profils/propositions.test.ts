@@ -25,7 +25,7 @@ const DEPOT = "benomite/brigade";
 // `app/src/vue` en porte cinq, 3 du premier coup : 60 %, 20 points dessous.
 const VINGT_POINTS = [...tickets(1, 5, 3, VUE), ...tickets(6, 15, 13, RUNTIME)];
 
-const lecon = (id: string, retros: string[], reste: Partial<Lesson> = {}): Lesson => ({ id, text: `La leçon ${id}.`, state: "promoted", entered: "2026-10-01", retros, ...reste });
+const lecon = (id: string, retros: string[], reste: Partial<Lesson> = {}): Lesson => ({ id, text: `La leçon ${id}.`, state: "promoted", entered: "2026-10-01", retros, origin: { kind: "retro" }, ...reste });
 
 // Le dépôt du projet, avec son carnet.
 function depot(t: TestContext, lecons: Lesson[] = []): string {
@@ -148,6 +148,36 @@ test("« oui » écrit la définition du profil sous .claude/brigade/profils/ du
   assert.equal(encore.issue, "deja");
   assert.ok("fait" in encore && encore.fait.seq === decision.fait.seq);
   assert.deepEqual(decider(options, 999_999, OUI), { issue: "inconnue" });
+});
+
+test("« oui » sur une proposition écrite avant l'origine des leçons écrit leur carnet en leçons nées d'une rétro", (t) => {
+  const { journal, repoDir, options } = cuisine(t, VINGT_POINTS);
+  const { origin: _origin, ...sansOrigine } = lecon("L-001", ["#2"]);
+  const ancienne = journal.ajouter({
+    project: PROJET,
+    ticket: null,
+    author: "runtime",
+    type: "profile.proposed",
+    payload: {
+      name: "app-src-vue",
+      zone: "app/src/vue",
+      tickets: [1, 2, 3, 4, 5],
+      window: 20,
+      zoneFirstTry: { first: 3, merged: 5 },
+      projectFirstTry: { first: 16, merged: 20 },
+      gap: 20,
+      settings: { window: REGLAGES.fenetre, minTickets: REGLAGES.tickets, gapPoints: REGLAGES.ecart },
+      skills: [],
+      perimeter: ["app/src/vue"],
+      notebook: [sansOrigine],
+    },
+    dedupKey: "profile.proposed:app/src/vue",
+  } as unknown as Parameters<Journal["ajouter"]>[0]);
+  assert.ok(ancienne);
+
+  assert.equal(decider(options, ancienne.seq, OUI).issue, "tranchee");
+  const texte = readFileSync(join(repoDir, ".claude/brigade/profils/app-src-vue.md"), "utf8");
+  assert.deepEqual(parseDefinition(texte).notebook, { lessons: [lecon("L-001", ["#2"])] });
 });
 
 test("« non » retire la proposition de la file, et le relevé refait sur les mêmes tickets ne la ramène pas", (t) => {

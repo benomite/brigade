@@ -19,11 +19,18 @@
 //   - texte: ...
 //   - entrée: 2026-10-02
 //   - rétros: #13
+//   - origine: pass-send-back #13
 //   - sortie: 2026-12-01
 //   - raison: expiry
 //
 // Une leçon retirée ou expirée garde son identifiant et sa trace : elle n'est
 // jamais effacée du fichier.
+//
+// L'origine dit d'où une leçon est née : la rétro d'un cook (`retro`), un
+// renvoi de la pass (`pass-send-back #N`) ou un renvoi ou une correction du
+// chef (`chef-correction #N`), N le ticket. Une leçon née d'une rétro n'écrit
+// pas la ligne : un carnet d'avant l'origine se lit tel quel, toutes ses
+// leçons nées d'une rétro, et se réécrit à l'identique.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
@@ -35,6 +42,11 @@ export type LessonState = "promoted" | "retired" | "expired";
 // (retrait à la main).
 export type ExitReason = "expiry" | "manual";
 
+// D'où une leçon est née. Les deux renvois portent le ticket renvoyé ou corrigé.
+export type LessonOrigin = { kind: "retro" } | { kind: "pass-send-back"; ticket: number } | { kind: "chef-correction"; ticket: number };
+
+export const RETRO_ORIGIN: LessonOrigin = { kind: "retro" };
+
 export type Lesson = {
   id: string;
   text: string;
@@ -43,6 +55,7 @@ export type Lesson = {
   entered: string;
   // Les rétros qui l'ont proposée ou reconfirmée (« #12 », « retro-3 »…).
   retros: string[];
+  origin: LessonOrigin;
   // La sortie : présente si et seulement si la leçon n'est plus promue.
   exit?: { date: string; reason: ExitReason };
 };
@@ -71,7 +84,9 @@ const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const RETRO = /^[^\s,]+$/;
 const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-const CLES = ["état", "texte", "entrée", "rétros", "sortie", "raison"] as const;
+const ORIGINE = /^(pass-send-back|chef-correction) #([1-9]\d*)$/;
+
+const CLES = ["état", "texte", "entrée", "rétros", "origine", "sortie", "raison"] as const;
 type Cle = (typeof CLES)[number];
 
 function dateValide(valeur: string): boolean {
@@ -80,6 +95,23 @@ function dateValide(valeur: string): boolean {
   const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
   return d.toISOString().slice(0, 10) === valeur;
 }
+
+// L'origine telle que le fichier l'écrit : `retro`, ou le renvoi et son ticket.
+export function originText(origin: LessonOrigin): string {
+  return origin.kind === "retro" ? "retro" : `${origin.kind} #${origin.ticket}`;
+}
+
+// Lit une origine écrite ; null si elle n'en est pas une.
+export function parseOrigin(texte: string): LessonOrigin | null {
+  if (texte === "retro") return { kind: "retro" };
+  const m = ORIGINE.exec(texte);
+  if (!m) return null;
+  const ticket = Number(m[2]);
+  if (!Number.isSafeInteger(ticket)) return null;
+  return { kind: m[1] as "pass-send-back" | "chef-correction", ticket };
+}
+
+const origineValide = (o: LessonOrigin | undefined): boolean => o != null && parseOrigin(originText(o)) !== null;
 
 // L'ordre du fichier : par identifiant, les nombres comparés comme des nombres
 // (L-2 avant L-10), puis, à égalité, par le texte brut — total et stable.
@@ -99,6 +131,7 @@ function fautes(l: Lesson): string[] {
   if (!dateValide(l.entered)) f.push(`date d'entrée « ${l.entered} » invalide (AAAA-MM-JJ)`);
   if (l.retros.length === 0) f.push("au moins une rétro la propose");
   for (const r of l.retros) if (!RETRO.test(r)) f.push(`rétro « ${r} » invalide (ni espace ni virgule)`);
+  if (!origineValide(l.origin)) f.push("origine invalide (retro, ou pass-send-back ou chef-correction avec le numéro de son ticket)");
   if (l.state === "promoted") {
     if (l.exit) f.push("une leçon promue n'a ni date ni raison de sortie");
   } else if (ETATS.includes(l.state)) {
@@ -128,6 +161,7 @@ export function writeCarnet(carnet: Carnet): string {
   for (const l of [...carnet.lessons].sort((a, b) => comparer(a.id, b.id))) {
     lignes.push("", `## ${l.id}`, `- état: ${l.state}`, `- texte: ${l.text}`, `- entrée: ${l.entered}`);
     lignes.push(`- rétros: ${[...new Set(l.retros)].sort(comparer).join(", ")}`);
+    if (l.origin.kind !== "retro") lignes.push(`- origine: ${originText(l.origin)}`);
     if (l.exit) lignes.push(`- sortie: ${l.exit.date}`, `- raison: ${l.exit.reason}`);
   }
   return `${lignes.join("\n")}\n`;
@@ -176,7 +210,10 @@ export function parseCarnet(text: string): Carnet {
     const retros = dit("rétros");
     const liste = retros.v.split(", ");
     for (const r of liste) if (!RETRO.test(r)) throw new CarnetError(`rétro « ${r} » invalide`, retros.ligne);
-    const lesson: Lesson = { id: b.id, text: dit("texte").v, state: etat.v as LessonState, entered: entree.v, retros: liste };
+    const origine = b.valeurs["origine"];
+    const origin = origine === undefined ? RETRO_ORIGIN : parseOrigin(origine.v);
+    if (origin === null) throw new CarnetError(`origine « ${origine!.v} » inconnue (retro, pass-send-back #N ou chef-correction #N)`, origine!.ligne);
+    const lesson: Lesson = { id: b.id, text: dit("texte").v, state: etat.v as LessonState, entered: entree.v, retros: liste, origin: { ...origin } };
     const sortie = b.valeurs["sortie"];
     const raison = b.valeurs["raison"];
     if (lesson.state === "promoted") {
