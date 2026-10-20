@@ -48,6 +48,7 @@ import { CONFIGURATION, ETATS, lieuxDuProjet } from "../station/configuration.ts
 import { lignesDuBloc, nomsHorsDuBloc, reecrireBloc } from "./bloc.ts";
 import { documentDeSuivi, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, suiviDe, type Bascule, type ProjetDemande, type SuiviDuProjet } from "./demande.ts";
 import { verifierAcces, type Acces } from "./acces.ts";
+import { refus as refusDe, type CodeDeRefus } from "./refus.ts";
 import { cloner, decisionsDe, poserLesDecisions, verifierAutorisation, type Autorisation } from "./preparer.ts";
 
 // Entre deux lectures de ce que l'app demande.
@@ -58,6 +59,8 @@ export type ServiParLaStation = {
   projets(): string[];
   // Pourquoi la station refuse ce projet, ou null.
   refus(nom: string): string | null;
+  // La cause de ce refus (`refus.ts`) ; absente, « unexpected ».
+  cause?(nom: string): CodeDeRefus | null;
 };
 
 export type OptionsProjets = {
@@ -157,13 +160,13 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   // Le clone d'un projet, dans l'atelier de la station : là où ses cooks le
   // liront (`station/configuration.ts`).
   const cloneDe = (nom: string) => lieuxDuProjet(racine, nom, env.HOME).clone;
-  const suiviDu = (projet: ProjetDemande, etat: SuiviDuProjet["etat"], dit: string, autoriser: string[] = []): SuiviDuProjet => ({ nom: projet.nom, etat, dit, autoriser, serviLe: null, cuitSur: null, ici: false, bascule: null });
+  const suiviDu = (projet: ProjetDemande, etat: SuiviDuProjet["etat"], dit: string, autoriser: string[] = [], cause?: CodeDeRefus): SuiviDuProjet => ({ nom: projet.nom, etat, dit, autoriser, serviLe: null, cuitSur: null, ici: false, bascule: null, ...(cause === undefined ? {} : { refus: refusDe(cause) }) });
 
   // Ce qu'il faut pour servir un projet avant d'y rien écrire : ses Apps
   // autorisées sur le dépôt, son clone, et l'accès de son clone au dépôt — en
   // lecture et en écriture. Rend null s'il l'est, ou ce qu'il en est.
   const accueillir = async (projet: ProjetDemande): Promise<SuiviDuProjet | null> => {
-    const suivi = (etat: SuiviDuProjet["etat"], dit: string, autoriser: string[] = []) => suiviDu(projet, etat, dit, autoriser);
+    const suivi = (etat: SuiviDuProjet["etat"], dit: string, autoriser: string[] = [], cause?: CodeDeRefus) => suiviDu(projet, etat, dit, autoriser, cause);
     if (!autorises.has(projet.depot)) {
       const autorisation = await autoriser(projet.depot);
       if ("panne" in autorisation) return suivi("en-preparation", `GitHub could not tell whether the station may act on ${projet.depot}; retried every ${Math.round((options.cadenceMs ?? CADENCE_MS) / 1000)} s — ${autorisation.panne}`);
@@ -178,7 +181,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     } catch (erreur) {
       const dit = message(erreur);
       direUneFois(`clone ${projet.nom} ${dit}`, `brigade : station — ${projet.nom} n'est pas cloné, la station réessaie : ${dit}`);
-      return suivi("refuse", `the station could not clone ${projet.depot}; it retries — ${dit}`);
+      return suivi("refuse", `the station could not clone ${projet.depot}; it retries — ${dit}`, [], "clone-failed");
     }
     // Un accès refusé ne se lève que par un geste du chef : rien n'est préparé
     // d'ici là — ni décisions, ni ticket de préparation, ni ligne. La station
@@ -188,7 +191,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     if (acces.etat === "bloque") {
       const { bloque, raison, geste } = acces;
       direUneFois(`acces ${projet.nom} ${raison} ${geste}`, `brigade : station — ${projet.nom} n'est pas servi, son dépôt refuse le ${bloque} : ${raison} Geste : ${geste}`);
-      return { ...suivi("refuse", `${raison} ${geste}`), acces: { bloque, raison, geste } };
+      return { ...suivi("refuse", `${raison} ${geste}`, [], bloque === "fetch" ? "fetch-blocked" : "push-blocked"), acces: { bloque, raison, geste } };
     }
     return null;
   };
@@ -197,14 +200,14 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   // peut être servi, ou ce qu'il en est. `recu` : son état vient d'une autre
   // station, qui le servait — son dépôt est déjà préparé, son rail tourne.
   const preparer = async (projet: ProjetDemande, recu = false): Promise<{ ligne: string } | SuiviDuProjet> => {
-    const suivi = (etat: SuiviDuProjet["etat"], dit: string) => suiviDu(projet, etat, dit);
+    const suivi = (etat: SuiviDuProjet["etat"], dit: string, cause?: CodeDeRefus) => suiviDu(projet, etat, dit, [], cause);
     const accueil = await accueillir(projet);
     if (accueil !== null) return accueil;
     try {
       const posees = poserLesDecisions(join(racine, ETATS, projet.nom), projet.nom, decisionsDe(projet, station));
       if (posees.length > 0) dire(`brigade : station — ${projet.nom} : décisions du parcours posées au journal (${posees.join(", ")})`);
     } catch (erreur) {
-      return suivi("refuse", `the chef's choices could not be written to its log — ${message(erreur)}`);
+      return suivi("refuse", `the chef's choices could not be written to its log — ${message(erreur)}`, "decisions-not-written");
     }
     if (recu) return { ligne: ligneDe(projet) };
     // Le premier ticket de sa cuisine, ouvert avant sa ligne : la cuisine qui
@@ -286,7 +289,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
         continue;
       }
       if (aLaMain.has(projet.nom)) {
-        suivis.set(projet.nom, suiviDu(projet, "refuse", `the station's configuration already has a line for ${projet.nom}, written by hand: remove it, and the station takes this one`));
+        suivis.set(projet.nom, suiviDu(projet, "refuse", `the station's configuration already has a line for ${projet.nom}, written by hand: remove it, and the station takes this one`, [], "hand-written-line"));
         continue;
       }
       // Déjà dans le bloc, tel quel : rien à préparer.
@@ -308,7 +311,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
           const bac = options.verifierBacASable?.();
           if (bac !== undefined && !bac.ok) {
             direUneFois(`bac ${projet.nom} ${reprise.demandeLe} ${bac.raison}`, `brigade : station — ${projet.nom} n'est pas repris de ${reprise.de} : ${bac.raison}`);
-            suivis.set(projet.nom, deLa("refuse", bac.raison, "refusee"));
+            suivis.set(projet.nom, { ...deLa("refuse", bac.raison, "refusee"), refus: refusDe("sandbox-unusable") });
             continue;
           }
           const accueil = await accueillir(projet);
@@ -342,7 +345,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
         // la serviraient ensemble.
         const ailleurs = remisAilleurs(etatDe(projet.nom), station);
         if (ailleurs !== null) {
-          suivis.set(projet.nom, { ...suiviDu(projet, "refuse", `it was handed over to ${ailleurs.to} (move asked on ${ailleurs.askedAt}) and cooks there: move it back to bring it here`), cuitSur: ailleurs.to });
+          suivis.set(projet.nom, { ...suiviDu(projet, "refuse", `it was handed over to ${ailleurs.to} (move asked on ${ailleurs.askedAt}) and cooks there: move it back to bring it here`, [], "handed-over-elsewhere"), cuitSur: ailleurs.to });
           continue;
         }
       }
@@ -413,7 +416,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       const refus = servis.refus(projet.nom);
       return refus === null
         ? { ...suiviDu(projet, "en-preparation", "its line is written: the station is opening it"), bascule }
-        : { ...suiviDu(projet, "refuse", `the station refuses to serve it — ${refus}`), bascule };
+        : { ...suiviDu(projet, "refuse", `the station refuses to serve it — ${refus}`, [], servis.cause?.(projet.nom) ?? "unexpected"), bascule };
     });
     for (const nom of [...serviLe.keys()]) if (!servisMaintenant.has(nom)) serviLe.delete(nom);
     // Où en est chaque projet dont elle est la principale, de son ajout à son

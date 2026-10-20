@@ -4,6 +4,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { hostname } from "node:os";
 import type { Fait } from "./evenements.ts";
+import type { CodeDeRefus } from "./projets/refus.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import { prendreVerrou, VerrouTenu } from "./verrou.ts";
@@ -15,8 +16,11 @@ const AUTEUR = "runtime";
 export const NOM_DE_PROJET = /^[a-z0-9][a-z0-9-]*$/;
 
 export class ConfigInvalide extends Error {
-  constructor(message: string) {
+  // La cause du refus pour le chef (`projets/refus.ts`), quand elle est connue.
+  readonly code: CodeDeRefus | undefined;
+  constructor(message: string, code?: CodeDeRefus) {
     super(message);
+    this.code = code;
     this.name = "ConfigInvalide";
   }
 }

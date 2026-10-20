@@ -74,7 +74,7 @@ export function verifier(sondes: Sondes, lieux: Lieux, hotes: Regle[] = REGLES_D
 export function configBacASableLocal(sondes: Sondes, lieux: Lieux, hotes: () => Regle[]): BacASableLocal | null {
   if (sondes.plateforme !== PLATEFORME_LOCALE) return null;
   const verification = verifier(sondes, lieux);
-  if (!verification.ok) throw new ConfigInvalide(`sur ce Mac, chaque cook part dans le bac à sable, et il n'est pas utilisable — ${verification.raison}`);
+  if (!verification.ok) throw new ConfigInvalide(`sur ce Mac, chaque cook part dans le bac à sable, et il n'est pas utilisable — ${verification.raison}`, "sandbox-unusable");
   return { version: verification.version, home: lieux.home as string, caches: lieux.caches, hotes };
 }
 
