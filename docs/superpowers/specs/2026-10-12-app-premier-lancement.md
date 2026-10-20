@@ -1,54 +1,55 @@
-# Ouvrir l'app la première fois : un geste, et pas de JSON — spec (#313)
+# Opening the app for the first time: one gesture, and no JSON — spec (#313)
 
-**Date** : 2026-10-12
-**Statut** : décidé par le dev, **à contester en review** — l'issue fixait les critères, les
-pointeurs et les pièges ; ce qui restait, la forme de l'ajout et le sort d'un projet qui quitte
-le fichier, a été tranché sans `question-spec`.
-**Issue** : #313.
+**Date**: 2026-10-12
+**Status**: decided by the dev, **to be challenged in review** — the issue fixed the criteria,
+the pointers and the traps; what remained, the shape of the add and the fate of a project that
+leaves the file, was settled without a `question-spec`.
+**Issue**: #313.
 
-Le comportement, tel que le chef le vit, est dans `docs/app.md` (« Dire où sont tes projets »,
-« Quand le fichier change », « Lancer l'app ») : ce document ne le recopie pas.
+The behavior, as the chef lives it, is in `docs/app.md` ("Dire où sont tes projets", "Quand le
+fichier change", "Lancer l'app"): this document does not copy it.
 
-## Ce que le dev a tranché
+## What the dev decided
 
-1. **Le seul geste est `npm --prefix app start`.** Son `prestart` (`src/lancement.ts`, joué par
-   Node seul) pose les dépendances si elles manquent — ou si le verrou est plus récent que la
-   trace que npm laisse dans `node_modules` — puis le binaire d'Electron, et dit chaque pose en
-   une ligne. Rien à poser : rien de dit. Une pose en échec arrête le lancement.
-2. **Le fichier qui manque est créé au lancement**, vide. Une liste vide n'est donc plus un
-   refus : c'est « aucun projet encore », et l'app s'ouvre sur l'ajout.
-3. **L'ajout est un écran, pas des réglages** : le dossier se choisit dans le sélecteur du Mac,
-   le nom en est proposé, la box est facultative. L'entrée `+ projet` reste en pied de barre.
-   Après l'ajout, la kitchen — pas l'espace du projet : y entrer lance un `claude`, et ce geste
-   reste un clic du chef.
-4. **Les règles de l'ajout sont celles de la lecture**, sans copie : le fichier candidat est
-   passé au même lecteur avant d'être écrit. Un projet qui ne s'ouvrirait pas (dossier
-   introuvable) n'est pas ajouté.
-5. **L'app n'écrit que si elle avait compris le fichier**, et y laisse ce qu'elle n'y lit pas
-   (clés inconnues). Elle le réécrit en entier, indenté de deux espaces : la mise en page à la
-   main n'est pas gardée. Elle écrit en place, sans fichier temporaire renommé — un renommage
-   remplacerait un lien symbolique (un `app.json` tenu dans des dotfiles) par un fichier.
-6. **La relecture est une veille du dossier** (`fs.watch`), pas une horloge : un éditeur qui
-   remplace le fichier reste suivi. Revenir à la fenêtre relit aussi — la veille n'est pas seule.
-7. **Une relecture refusée ne retire rien** : les projets d'avant restent, leurs terminaux
-   tournent, et un bandeau dit le chemin et la raison. Seul un fichier refusé *au lancement*
-   donne l'écran sans projet d'aujourd'hui.
-   Tant qu'il n'est pas relu, **l'ajout n'y écrit pas** : recréer un fichier supprimé pour y
-   poser un seul projet ferait partir tous les autres, terminaux compris (review, renvoi 1).
-   Une création refusée au lancement garde sa raison et se retente à chaque relecture.
-8. **Un projet qui quitte la liste perd ses terminaux** — retiré, renommé, ou déplacé de
-   dossier. Les garder serait laisser tourner un `claude` que plus rien n'affiche ; la
-   conversation, elle, reste à `claude`. C'est le point le plus contestable : un renommage tue
-   un second en cours.
-9. **Retirer ou renommer depuis l'app est hors scope** (issue) : cela se fait dans le fichier.
+1. **The only gesture is `npm --prefix app start`.** Its `prestart` (`src/lancement.ts`, run by
+   Node alone) installs the dependencies if they are missing — or if the lockfile is newer than
+   the trace npm leaves in `node_modules` — then Electron's binary, and says each install in one
+   line. Nothing to install: nothing said. A failed install stops the launch.
+2. **The missing file is created at launch**, empty. An empty list is therefore no longer a
+   refusal: it is "no project yet", and the app opens on the add screen.
+3. **The add is a screen, not settings**: the folder is picked in the Mac's picker, the name is
+   proposed, the box is optional. The `+ projet` entry stays at the foot of the bar. After the
+   add, the kitchen — not the project's space: entering it launches a `claude`, and that gesture
+   stays a click of the chef.
+4. **The rules of the add are those of the read**, with no copy: the candidate file is passed to
+   the same reader before it is written. A project that would not open (folder not found) is not
+   added.
+5. **The app writes only if it had understood the file**, and leaves in it what it does not read
+   (unknown keys). It rewrites it whole, indented by two spaces: hand-made layout is not kept. It
+   writes in place, with no renamed temporary file — a rename would replace a symbolic link (an
+   `app.json` kept in dotfiles) with a file.
+6. **The re-read is a watch on the folder** (`fs.watch`), not a clock: an editor that replaces
+   the file stays followed. Returning to the window also re-reads — the watch is not alone.
+7. **A refused re-read removes nothing**: the earlier projects stay, their terminals keep
+   running, and a banner gives the path and the reason. Only a file refused *at launch* gives
+   today's screen with no project.
+   As long as it has not been re-read, **the add does not write to it**: recreating a deleted
+   file to put a single project in it would make all the others leave, terminals included
+   (review, referral 1). A creation refused at launch keeps its reason and is retried at each
+   re-read.
+8. **A project that leaves the list loses its terminals** — removed, renamed, or moved to another
+   folder. Keeping them would leave running a `claude` that nothing displays any more; the
+   conversation, for its part, stays with `claude`. This is the most contestable point: a rename
+   kills a second in progress.
+9. **Removing or renaming from the app is out of scope** (issue): it is done in the file.
 
 ## Plan
 
-1. `app/test/config.test.ts`, `app/src/config.ts` : créer, ajouter, liste vide.
-2. `app/test/suivi.test.ts`, `app/src/suivi.ts` : relire au changement, garder sur un refus, dire
-   les projets partis — sur de vrais fichiers, en attendant un fait.
-3. `app/test/terminaux.test.ts`, `app/src/terminaux.ts` : `quitter(projet)`.
-4. `app/test/lancement.test.ts`, `app/src/lancement.ts`, `package.json` : le geste unique.
-5. `main.ts`, `preload.cjs`, `pont.d.ts`, la vue : le branchement, vérifié en lançant l'app
-   (faux `claude`, fichier d'essai) et en lisant ses écrans par le port de débogage.
+1. `app/test/config.test.ts`, `app/src/config.ts`: create, add, empty list.
+2. `app/test/suivi.test.ts`, `app/src/suivi.ts`: re-read on change, keep on a refusal, say the
+   projects that left — on real files, waiting for a fact.
+3. `app/test/terminaux.test.ts`, `app/src/terminaux.ts`: `quitter(projet)`.
+4. `app/test/lancement.test.ts`, `app/src/lancement.ts`, `package.json`: the single gesture.
+5. `main.ts`, `preload.cjs`, `pont.d.ts`, the view: the wiring, checked by launching the app
+   (fake `claude`, trial file) and by reading its screens through the debug port.
 6. `docs/app.md`.

@@ -1,140 +1,140 @@
-# Les stations sont au chef : une app installée est une station, un projet choisit les siennes
+# Stations belong to the chef: an installed app is a station, a project chooses its own
 
-*Spec produit, 2026-10-15. Dessinée avec le chef en session (le second). Elle dit le **quoi** ; le
-**comment** est au manager.*
+*Product spec, 2026-10-15. Drawn up with the chef in session (the second). It says the **what**;
+the **how** is the manager's.*
 
-## Pourquoi
+## Why
 
-Le chef, le 2026-10-15 :
+The chef, on 2026-10-15:
 
-> il manque un endroit pour gérer les stations (la home de l'app). Je me dis qu'on pourrait
-> globaliser le système de station. L'app installée sur le Mac = 1 station, l'app installée sur mon
-> ordi Windows = 1 autre station, l'app installée sur mon serveur = 1 station, sur mon tel = 1
-> station. Chaque projet déclare quelles stations il utilise et sur quelle station le manager est
-> installé.
+> there is no place to manage the stations (the app's home). I figure we could globalize the
+> station system. The app installed on the Mac = 1 station, the app installed on my Windows
+> computer = 1 other station, the app installed on my server = 1 station, on my phone = 1
+> station. Each project declares which stations it uses and on which station the manager is
+> installed.
 
-Deux usages concrets le motivent :
+Two concrete uses motivate it:
 
-1. **`espace` a besoin d'un Windows de test**, sur lequel tourne un faux live OBS. Les tickets qui
-   touchent à OBS ne peuvent pas être cuits sur la box.
-2. **Brigade sans serveur** : un utilisateur qui n'a que son ordi installe l'app, déclare son ordi
-   station principale du projet, et la cuisine démarre.
+1. **`espace` needs a Windows test machine**, on which a fake OBS live runs. Tickets that touch
+   OBS cannot be cooked on the box.
+2. **Brigade without a server**: a user who only has their computer installs the app, declares
+   their computer the project's main station, and the kitchen starts.
 
-Et un constat de la veille : installer la box et un projet a demandé des dizaines de lignes
-recopiées, et l'installation n'était « jamais finie » (#542). Une station qui se présente d'elle-même
-et que le chef accepte d'un clic remplace ce parcours.
+And an observation from the day before: installing the box and a project took dozens of copied
+lines, and the installation was "never finished" (#542). A station that introduces itself and that
+the chef accepts with one click replaces that path.
 
-### Ce qui existe déjà (#399)
+### What already exists (#399)
 
-Un projet déclare ses stations dans `BRIGADE_STATIONS`
-(`<machine>/<moteur>:<plafond de cooks>:<capacités>`), chacune annonce des **capacités**, et un
-ticket peut **exiger** une capacité (`requiert`, sur sa fiche) : il ne part que dans une station qui
-la fournit, sinon il est mis de côté (`no-station: <capacité>`). Cette spec garde ce modèle. Ce qui
-change : **d'où viennent les stations** (l'app, plus un drop-in), **à qui elles sont** (au chef,
-plus à un projet), et **qui fait tourner le manager** (une station principale, éventuellement un
-ordi de bureau).
+A project declares its stations in `BRIGADE_STATIONS`
+(`<machine>/<engine>:<cook cap>:<capabilities>`), each announces **capabilities**, and a ticket can
+**require** a capability (`requires`, on its card): it only goes to a station that provides it,
+otherwise it is set aside (`no-station: <capability>`). This spec keeps that model. What changes:
+**where stations come from** (the app, no longer a drop-in), **whose they are** (the chef's, no
+longer a project's), and **who runs the manager** (a main station, possibly a desktop computer).
 
-## Vocabulaire
+## Vocabulary
 
-| Mot | Ce que c'est |
+| Word | What it is |
 |---|---|
-| **station** | une machine où l'app brigade est installée et qui **cuit** : elle peut dépiler des tickets |
-| **poste** | une app qui **pilote** sans cuire : voir la file, trancher ce qui attend, parler au second. Le téléphone est un poste ; le Mac peut être station et poste à la fois |
-| **station principale** d'un projet | la station qui fait tourner son **runtime** : le manager, le rail, la pass. Une par projet |
-| **capacité** | ce qu'une station sait faire au-delà du code : `obs`, `windows`, `acces-box-du-chef`… (#399) |
+| **station** | a machine where the brigade app is installed and which **cooks**: it can pick up tickets |
+| **workstation** | an app that **steers** without cooking: see the queue, rule on what awaits, talk to the second. The phone is a workstation; the Mac can be a station and a workstation at once |
+| a project's **main station** | the station that runs its **runtime**: the manager, the rail, the pass. One per project |
+| **capability** | what a station can do beyond code: `obs`, `windows`, `chef-box-access`… (#399) |
 
-## Ce que le chef vit
+## What the chef lives
 
-### La home : ses stations
+### The home: their stations
 
-- **La home de l'app liste ses stations et ses postes** : chacun avec son nom, sa machine, s'il est
-  joignable, ses capacités, s'il est cloisonné, et les projets qui l'utilisent.
-- **Il y ajoute une station** :
-  - **un ordi de bureau** (Mac, Windows) : il installe l'app dessus et y ajoute le projet par son
-    dépôt git. La machine **se présente** ;
-  - **un serveur sans écran** : la home lui donne **une seule commande** à lancer sur le serveur ;
-    elle installe brigade et affiche **un code**, qu'il entre dans sa home. Le second peut lancer
-    cette commande pour lui par `ssh`, mais c'est un raccourci, pas le chemin normal.
-- **Une machine qui se présente apparaît « en attente » dans la home**, et le chef l'**accepte** d'un
-  clic, avec ses capacités. Sans cette acceptation, elle ne cuit rien : avoir accès au dépôt ne
-  suffit pas pour brancher une machine sur sa cuisine.
-- **Il retire une station** de la home : elle ne prend plus aucun ticket, et les projets qui
-  l'utilisaient le disent.
+- **The app's home lists its stations and its workstations**: each with its name, its machine,
+  whether it is reachable, its capabilities, whether it is partitioned, and the projects that use
+  it.
+- **They add a station there**:
+  - **a desktop computer** (Mac, Windows): they install the app on it and add the project to it by
+    its git repository. The machine **introduces itself**;
+  - **a headless server**: the home gives them **a single command** to run on the server; it
+    installs brigade and shows **a code**, which they enter in their home. The second can run that
+    command for them over `ssh`, but it is a shortcut, not the normal path.
+- **A machine that introduces itself appears "pending" in the home**, and the chef **accepts** it
+  with one click, with its capabilities. Without that acceptance, it cooks nothing: having access
+  to the repository is not enough to plug a machine into one's kitchen.
+- **They remove a station** from the home: it takes no more tickets, and the projects that used it
+  say so.
 
-### Un projet choisit ses stations
+### A project chooses its stations
 
-- Dans les réglages du projet, le chef **coche les stations** que ce projet utilise, et **désigne sa
-  station principale**.
-- Plus aucune déclaration à la main : `BRIGADE_STATIONS` et le drop-in disparaissent du chemin
-  normal.
+- In the project's settings, the chef **ticks the stations** this project uses, and **designates
+  its main station**.
+- No more manual declaration: `BRIGADE_STATIONS` and the drop-in disappear from the normal path.
 
-### La station principale, et le mode mono-station
+### The main station, and single-station mode
 
-- **La station principale fait tourner le runtime du projet.** Quand elle est éteinte, **la cuisine
-  du projet s'arrête** jusqu'à son retour. C'est le principe, assumé.
-- **Mono-station** : un projet dont la seule station est l'ordi du chef. Brigade marche avec l'app
-  seule, sans serveur.
-- **L'app pousse vers une station toujours allumée** : tant que la principale d'un projet est un
-  ordi de bureau, l'espace du projet le dit, en une ligne et avec un geste, par exemple « ta cuisine
-  s'arrête quand ce Mac dort : ajoute un serveur pour qu'elle tourne en continu ».
+- **The main station runs the project's runtime.** When it is off, **the project's kitchen
+  stops** until it returns. That is the principle, accepted.
+- **Single-station**: a project whose only station is the chef's computer. Brigade works with the
+  app alone, without a server.
+- **The app pushes toward an always-on station**: as long as a project's main station is a desktop
+  computer, the project's space says so, in one line and with one action, for example "your
+  kitchen stops when this Mac sleeps: add a server so it runs continuously".
 
-### Toute station dépile, tout poste pilote
+### Every station picks up, every workstation steers
 
-- **Toute station peut dépiler des tickets** des projets qui l'utilisent, dans la limite de ses
-  capacités et de son plafond de cooks.
-- **Toute station et tout poste peuvent ouvrir un second** sur un projet.
-- **Le téléphone est un poste** : file, décisions, second. Il ne cuit pas.
+- **Any station can pick up tickets** from the projects that use it, within the limit of its
+  capabilities and its cook cap.
+- **Any station and any workstation can open a second** on a project.
+- **The phone is a workstation**: queue, decisions, second. It does not cook.
 
-### Les protections d'une station de bureau
+### The protections of a desktop station
 
-Sur la box, un cook tourne dans une cloison (réseau en liste blanche, identifiants Max en lecture
-seule, rien d'autre que son worktree). Sur un ordi de bureau, cette cloison n'existe pas d'office.
+On the box, a cook runs in a partition (allow-listed network, Max credentials read-only, nothing
+but its worktree). On a desktop computer, that partition does not exist by default.
 
-- **Une station sans cloison ne prend que les tickets qui exigent une de ses capacités** (la station
-  Windows ne prend que les tickets `obs`). Le code ordinaire cuit sur une station cloisonnée.
-- **Exception : la station principale d'un projet mono-station** cuit tout, puisqu'elle est seule.
-- **Dans les deux cas, l'app le dit à l'acceptation de la station**, et dans la home : « sans
-  cloison : les cooks de cette machine voient tout ce que ton compte voit ». C'est au chef de
-  choisir ce qu'il y met (par exemple un compte Windows dédié aux tests).
+- **A station without a partition only takes tickets that require one of its capabilities** (the
+  Windows station only takes `obs` tickets). Ordinary code cooks on a partitioned station.
+- **Exception: the main station of a single-station project** cooks everything, since it is alone.
+- **In both cases, the app says so when the station is accepted**, and in the home: "no partition:
+  this machine's cooks see everything your account sees". It is up to the chef to choose what they
+  put there (for example a Windows account dedicated to tests).
 
-## Le cas d'`espace`
+## The `espace` case
 
-1. Le chef installe l'app sur son Windows de test, et y ajoute `espace` par son dépôt.
-2. Le Windows apparaît « en attente » dans sa home. Il l'accepte, avec la capacité `obs`.
-3. Dans les réglages d'`espace`, il coche la station Windows. La box reste la principale.
-4. Un ticket qui touche à OBS porte `requiert : obs` : il part sur le Windows. Les autres tickets
-   cuisent sur la box, cloisonnés.
-5. Le Windows éteint, les tickets `obs` attendent, et le disent ; le reste du rail avance.
+1. The chef installs the app on their Windows test machine, and adds `espace` to it by its
+   repository.
+2. The Windows machine appears "pending" in their home. They accept it, with the capability `obs`.
+3. In `espace`'s settings, they tick the Windows station. The box stays the main one.
+4. A ticket that touches OBS carries `requires: obs`: it goes to the Windows machine. The other
+   tickets cook on the box, partitioned.
+5. With the Windows machine off, the `obs` tickets wait, and say so; the rest of the rail moves.
 
-## Critères de sortie
+## Exit criteria
 
-- **Le cas d'`espace` est joué de bout en bout** sur le vrai Windows du chef : un ticket `obs` est
-  cuit sur le Windows, livré, et mergé.
-- **Un projet mono-station** démarre sur un Mac neuf avec l'app seule, sans aucune ligne recopiée,
-  et livre un premier ticket.
-- **Un serveur s'ajoute par une commande et un code**, sans autre geste, et peut être désigné
-  principal.
-- **Aucune station n'est déclarée à la main** dans un drop-in.
+- **The `espace` case is played end to end** on the chef's real Windows machine: an `obs` ticket
+  is cooked on the Windows machine, delivered, and merged.
+- **A single-station project** starts on a new Mac with the app alone, without a single copied
+  line, and delivers a first ticket.
+- **A server is added with a command and a code**, with no other action, and can be designated
+  main.
+- **No station is declared by hand** in a drop-in.
 
-## Hors-scope
+## Out of scope
 
-- **Le téléphone qui cuit.**
-- **Une cloison sur macOS ou Windows** : une station de bureau reste sans cloison, et le dit.
-- **Une station principale qui passe la main** à une autre quand elle s'éteint : la cuisine
-  s'arrête, c'est le principe.
-- **Les stations partagées entre plusieurs humains** : une station est à un chef.
+- **The phone that cooks.**
+- **A partition on macOS or Windows**: a desktop station stays without a partition, and says so.
+- **A main station that hands over** to another when it goes off: the kitchen stops, that is the
+  principle.
+- **Stations shared between several humans**: a station belongs to one chef.
 
-## Ce qui ne doit pas régresser
+## What must not regress
 
-- **La cloison de la box** : un cook sur une station serveur reste cloisonné comme aujourd'hui.
-- **Les capacités et `requiert`** (#399) : un ticket qui exige une capacité absente est mis de côté
-  et le dit, sans tourner en boucle (#640).
-- **Les projets déjà servis par la box** passent au nouveau modèle sans rien recopier : leurs
-  stations actuelles deviennent des stations de la home, et la box reste leur principale.
+- **The box's partition**: a cook on a server station stays partitioned as today.
+- **Capabilities and `requires`** (#399): a ticket that requires a missing capability is set aside
+  and says so, without looping (#640).
+- **Projects already served by the box** move to the new model without copying anything: their
+  current stations become stations of the home, and the box stays their main one.
 
-## Liens
+## Links
 
-- #399 — les stations et leurs capacités.
-- #542, #676 — l'installation qui doit avoir une fin, et son UX.
-- #640 — un ticket mis de côté ne tourne pas en boucle.
-- #700 — les terminaux sur n'importe quelle machine.
+- #399 — stations and their capabilities.
+- #542, #676 — the installation that must have an end, and its UX.
+- #640 — a ticket set aside does not loop.
+- #700 — terminals on any machine.

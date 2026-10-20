@@ -1,200 +1,199 @@
-# L'app comme poste de travail : le rail au centre, le second à droite, des alertes qui se taisent
+# The app as a workstation: the rail at the center, the second on the right, alerts that go quiet
 
-**2026-10-13.** Dessinée avec le chef, en session. Elle ne remplace pas la maquette
-(`docs/maquettes/app/`) : elle en garde **toute la langue visuelle** — palette, Archivo +
-JetBrains Mono, formes d'état, posées par #470, #471, #472 — et elle en change **la structure**.
+**2026-10-13.** Drawn with the chef, in session. It does not replace the mockup
+(`docs/maquettes/app/`): it keeps **all of its visual language** — palette, Archivo +
+JetBrains Mono, state shapes, laid down by #470, #471, #472 — and it changes **its structure**.
 
-## Ce qui a motivé cette spec
+## What motivated this spec
 
-Cinq phrases du chef dans une seule journée :
+Five sentences from the chef in a single day:
 
-| Ce qu'il a dit | Ce qu'il demandait |
+| What he said | What he was asking |
 |---|---|
-| « le rail est vide, je vois rien » | *qu'est-ce qui se passe ?* |
-| « à quoi sert la colonne de droite ? » | *pourquoi tu me montres ça ?* |
-| « une card m'attend, qu'est-ce que je dois faire ? » | *que dois-je faire maintenant ?* |
-| « je sais toujours pas comment lancer/arrêter le manager » | *où est le bouton ?* |
-| « toujours en attente d'un truc, c'est relou » | *pourquoi je suis le goulot ?* |
+| "the rail is empty, I see nothing" | *what is going on?* |
+| "what is the right-hand column for?" | *why are you showing me this?* |
+| "a card is awaiting me, what do I have to do?" | *what must I do now?* |
+| "I still don't know how to start/stop the manager" | *where is the button?* |
+| "always waiting on something, it's a pain" | *why am I the bottleneck?* |
 
-**Cinq questions, une seule forme : « et maintenant ? »** L'app répond chaque fois par un **état**,
-jamais par un **geste**.
+**Five questions, one shape: "and now?"** Each time the app answers with a **state**, never with a
+**gesture**.
 
-La cause : **l'app est rangée comme la machine** — rail, cooks, consommé, journal, gestes en
-panneau. Ce sont les concepts du runtime. Le chef, lui, fait trois choses : **décider**,
-**regarder ce qu'il construit**, **surveiller ce que ça coûte**. Aucune des trois n'avait d'écran.
+The cause: **the app is laid out like the machine** — rail, cooks, consumed, log, gestures in a
+panel. Those are the runtime's concepts. The chef does three things: **decide**, **look at what he
+is building**, **watch what it costs**. None of the three had a screen.
 
-Et quatre pannes silencieuses le même jour, toutes de la même forme — *le rail avait l'air normal
-et ne tournait pas* :
+And four silent breakdowns the same day, all of the same shape — *the rail looked normal and was
+not running*:
 
-- le **manager éteint** : le chef a demandé deux fois comment l'allumer ;
-- la **version** du runtime 26 merges en arrière, qui se déclarait à jour (elle se comparait à son
-  propre clone, que personne n'avait rafraîchi) ;
-- la **cuisine gelée** après une mise en service, faute de station déclarée ;
-- le **grant** éteint seul la veille, deux livraisons vertes restées en plan.
+- the **manager off**: the chef asked twice how to turn it on;
+- the runtime **version** 26 merges behind, which declared itself up to date (it compared itself
+  with its own clone, which nobody had refreshed);
+- the **kitchen frozen** after a deploy, for lack of a declared station;
+- the **grant** that lapsed the day before, two green deliveries left stranded.
 
-## Le modèle, en quatre règles
+## The model, in four rules
 
-1. **Un seul écran, trois zones.** Une bande d'alertes en haut, le rail au centre, le second à
-   droite. On ne change jamais d'écran, donc on ne perd jamais le contexte.
-2. **Un clic appelle un LLM, ou il n'en appelle pas.** S'il faut lire, juger, rédiger ou arbitrer :
-   un **prompt rempli** dans le second, **qui ne part pas** — le chef fait Entrée. Sinon : la
-   commande **part** (`!`), et sa sortie se lit dans le même fil.
-3. **Un geste destructif ou lourd demande « oui » avant** — une confirmation, **pas** un LLM. Et
-   elle dit **ce qu'elle va faire**, pas « es-tu sûr ? » : la convention est déjà celle du geste de
-   désinstallation (#394).
-4. **Les alertes se taisent.** En marche normale, la bande est vide. Ce qui n'a rien à dire ne
-   prend pas de place — c'est déjà la convention de la file (`dérive`, `worktrees`, `stations`,
-   `connexion`, `grant` : *« absents quand il n'y a rien à dire »*).
+1. **One screen, three zones.** An alert band at the top, the rail at the center, the second on
+   the right. We never change screens, so we never lose context.
+2. **A click calls an LLM, or it does not.** If something has to be read, judged, drafted or
+   arbitrated: a **filled-in prompt** in the second, **which does not go out** — the chef presses
+   Enter. Otherwise: the command **goes out** (`!`), and its output is read in the same thread.
+3. **A destructive or heavy gesture asks for a "yes" first** — a confirmation, **not** an LLM. And
+   it says **what it is going to do**, not "are you sure?": the convention is already that of the
+   uninstall gesture (#394).
+4. **Alerts go quiet.** In normal running, the band is empty. What has nothing to say takes no
+   room — this is already the convention of the facts (`drift`, `worktrees`, `stations`,
+   `connection`, `grant`: *"absent when there is nothing to say"*).
 
-## Les trois zones
+## The three zones
 
-### La bande d'alertes
+### The alert band
 
-Elle répond à une seule question : **est-ce que ça peut tourner ?** Son test d'admission :
+It answers a single question: **can it run?** Its admission test:
 
-> **Ce qui décide si — et comment — ça tourne sans le chef.**
+> **What decides whether — and how — it runs without the chef.**
 
-Quatre choses y entrent, et ce sont les quatre pannes du jour : **le manager** (éteint, rien
-n'avance), **la version en service** (périmée, on regarde le produit d'hier), **la cuisine**
-(arrêtée ou sans station, le rail est un décor), **le grant** (actif, ça merge sans lui ; éteint,
-tout s'arrête en pass).
+Four things get in, and they are the day's four breakdowns: **the manager** (off, nothing
+advances), **the version in service** (stale, we are looking at yesterday's product), **the
+kitchen** (stopped or without a station, the rail is scenery), **the grant** (active, it merges
+without him; lapsed, everything stops at pass).
 
-C'est **par projet**, pas par app : un manager par projet, une version par projet. Une bande d'app
-mentirait dès le deuxième projet déclaré.
+It is **per project**, not per app: one manager per project, one version per project. An app-wide
+band would lie from the second declared project on.
 
-Chaque alerte porte **son geste** et, quand il en a un, **son prix** : « mettre en service — 1 cook
-en vol sera interrompu, son ticket repart de zéro ».
+Each alert carries **its gesture** and, when it has one, **its price**: "put into service — 1 cook
+in flight will be interrupted, its ticket restarts from zero".
 
-**La discipline, sans laquelle la bande meurt :**
+**The discipline, without which the band dies:**
 
-> **Une alerte est une chose à faire, jamais une chose à savoir.**
-> Le test : *est-ce que ça change ce que je fais dans les cinq minutes ?*
+> **An alert is something to do, never something to know.**
+> The test: *does it change what I do in the next five minutes?*
 
-`aucune station déclarée` → oui, rien ne part. `une version attend depuis 5 h` → oui.
-`sauvegarde il y a 10 h` → non, c'est Paramètres. `transcripts : 162 gardés, 60 Mo` → non.
+`no station declared` → yes, nothing goes out. `a version has been waiting for 5 h` → yes.
+`backup 10 h ago` → no, that is Settings. `transcripts: 162 kept, 60 MB` → no.
 
-**Et le silence doit être prouvé, jamais supposé.** C'est la condition de tout le reste :
+**And silence must be proven, never assumed.** This is the condition for everything else:
 
-| Ce qui doit alerter | La file sait-elle le dire ? |
+| What must alert | Can the facts say it? |
 |---|---|
-| La version périmée | **oui** — bloc `version`, comparé contre l'origine (#476). Et `null` n'y vaut pas « à jour » : il vaut « rien n'a été comparé » |
-| Le grant éteint | **oui** — absent tant qu'aucun grant ne vaut ni ne s'est éteint seul |
-| La cuisine arrêtée, sans station | **oui** |
-| **Le manager éteint** | **non. Aucun bloc `manager` dans la file.** Son état vit dans `run manager`, à part |
+| The stale version | **yes** — `version` block, compared against the origin (#476). And `null` does not mean "up to date" there: it means "nothing was compared" |
+| The lapsed grant | **yes** — absent as long as no grant is in force or has lapsed |
+| The stopped kitchen, without a station | **yes** |
+| **The manager off** | **no. No `manager` block in the facts.** Its state lives in `run manager`, apart |
 
-Le dernier est le trou, et c'est le plus gros : **#438** le porte déjà.
+The last one is the hole, and the biggest: **#438** already carries it.
 
-### Le rail, au centre
+### The rail, at the center
 
-**C'est la vue principale.** Elle montre ce qui se passe, ce qui va se passer, ce que le chef doit
-faire, et ce qui est fini — ses cinq colonnes existent : **Sur le rail · Au travail · T'attend ·
-Pass · Livré**.
+**It is the main view.** It shows what is happening, what is going to happen, what the chef must
+do, and what is done — its five columns exist: **On the rail · Taken · Awaiting you ·
+Pass · Served**.
 
-Une carte porte ce que la file dit déjà : qui la tient, depuis quand, le bail, **ce qu'elle brûle
-en direct**, et en clair ce qui la bloque (« zone tenue par #465 »). Son geste est un **prompt** :
-« explique-moi ce ticket », déjà livré pour `T'attend` par #452.
+A card carries what the facts already say: who holds it, since when, the lease, **what it burns
+live**, and in plain words what blocks it ("zone held by #465"). Its gesture is a **prompt**:
+"explain this ticket to me", already delivered for `Awaiting you` by #452.
 
-**`T'attend` remplace tout bloc séparé de ce qui attend** — mais la colonne a deux limites, que le
-code dit lui-même : elle ne dit jamais « rien ne t'attend », et **une carte est un ticket**. Une
-ligne du bloc `attend` sans numéro n'a aucune carte possible. Il en existe déjà une : la **version
-qui attend**. Elle va donc dans la bande d'alertes, pas dans une colonne.
+**`Awaiting you` replaces any separate block of what is awaiting** — but the column has two
+limits, which the code itself states: it never says "nothing awaits you", and **a card is a
+ticket**. A line of the `awaiting` block without a number can have no card. There is already one:
+the **version that is waiting**. It therefore goes in the alert band, not in a column.
 
-**Un seuil de coût franchi entre dans `T'attend`** : ce n'est pas une mesure à consulter, c'est une
-proposition de fermeture, donc une décision — le mécanisme est livré (#464).
+**A crossed cost threshold enters `Awaiting you`**: it is not a measure to consult, it is a closing
+proposal, hence a decision — the mechanism is delivered (#464).
 
-### Le second, à droite, en permanence
+### The second, on the right, permanently
 
-Il n'est plus un onglet. Raison : **c'est le seul agent du système qui parle au chef.** Le manager
-écrit des issues, les cooks du code, le reviewer des remarques — aucun ne lui adresse la parole.
-Ranger son interlocuteur dans un tiroir qu'il faut aller chercher, c'est perdre le fil à chaque
-geste.
+It is no longer a tab. Reason: **it is the only agent in the system that talks to the chef.** The
+manager writes issues, the cooks write code, the reviewer writes remarks — none of them addresses
+him. Putting his interlocutor in a drawer he has to go and fetch means losing the thread at every
+gesture.
 
-**Ce qu'on gagne à passer par lui, c'est le jugement, pas la frappe.** Exemple vécu le 2026-10-13 :
-pour mettre le runtime en service, le second a lu l'état, **attendu que le rail soit calme**,
-basculé, vérifié, puis rendu compte. Un shell aurait exécuté la ligne et tué deux cooks (456 075
-tokens en vol).
+**What we gain by going through it is judgment, not typing.** An example from 2026-10-13: to put
+the runtime into service, the second read the state, **waited for the rail to be calm**, switched,
+checked, then reported. A shell would have run the line and killed two cooks (456,075 tokens in
+flight).
 
-**Une action directe rend compte à gauche ou par sa propre sortie — jamais par le récit du second.**
-Sinon il raconte ce qu'il n'a pas fait, et le fil se remplit de bruit machine.
+**A direct action reports on the left or through its own output — never through the second's
+narration.** Otherwise it recounts what it did not do, and the thread fills with machine noise.
 
-### Deux onglets
+### Two tabs
 
-**Coût** — le relevé, les tokens par ticket, les tickets payés plusieurs fois, les seuils, le
-calibrage. De la consultation : un seuil *franchi*, lui, est une alerte.
+**Cost** — the statement, tokens per ticket, tickets paid for several times, thresholds,
+calibration. Consultation: a *crossed* threshold, on the other hand, is an alert.
 
-**Paramètres** — l'intendance (installation, sauvegarde, transcripts), les stations, les grants
-(révoquer, modifier), le projet. **On règle ici, on voit là-haut** : le grant se règle en
-Paramètres et son état s'affiche dans la bande.
+**Settings** — housekeeping (installation, backup, transcripts), stations, grants (revoke,
+modify), the project. **You set it here, you see it up there**: the grant is set in Settings and
+its state shows in the band.
 
-## Ce qu'un clic fait, geste par geste
+## What a click does, gesture by gesture
 
-| Geste | Ce qui part |
+| Gesture | What goes out |
 |---|---|
-| allumer / éteindre le manager | **direct** |
-| vérifier l'installation | **direct** |
-| ouvrir une livraison d'interface dans le navigateur | **direct** |
-| mettre le code de l'app à jour | **direct** |
-| poser un seuil, changer le calibrage | **direct** |
-| `stop` / reprendre la cuisine | **confirmé** — dit les cooks en vol et leurs tokens |
-| activer / révoquer le grant `merge` | **confirmé** — dit « une pass verte sera mergée sans toi » |
-| mettre en service | **confirmé** — dit ce qu'il interrompt |
-| « cette carte m'attend, explique et débloque » | **prompt** |
-| répondre à une question du manager sur une issue | **prompt** |
-| transformer un retour terrain en ticket | **prompt** |
+| turn the manager on / off | **direct** |
+| check the installation | **direct** |
+| open an interface delivery in the browser | **direct** |
+| update the app's code | **direct** |
+| set a threshold, change the calibration | **direct** |
+| `stop` / resume the kitchen | **confirmed** — says the cooks in flight and their tokens |
+| enable / revoke the `merge` grant | **confirmed** — says "a green pass will be merged without you" |
+| put into service | **confirmed** — says what it interrupts |
+| "this card is awaiting me, explain and unblock" | **prompt** |
+| answer a manager question on an issue | **prompt** |
+| turn field feedback into a ticket | **prompt** |
 
-**Une action directe qui rencontre une condition s'arrête et demande** — elle ne choisit pas à la
-place du chef. La mise en service est directe, sauf s'il y a des cooks en vol : alors elle dit ce
-qu'elle tuerait et attend son mot. C'est #477.
+**A direct action that meets a condition stops and asks** — it does not choose in the chef's
+place. Putting into service is direct, unless there are cooks in flight: then it says what it
+would kill and waits for his word. That is #477.
 
-## Entre projets
+## Between projects
 
-Une alerte sur un projet que le chef ne regarde pas se signale **sur sa case de la barre
-d'icônes**, et mène à **« Tous les projets »** (`#tous`, livré par #364) pour le contexte global.
+An alert on a project the chef is not looking at is signaled **on its slot in the icon bar**, and
+leads to **"All projects"** (`#tous`, delivered by #364) for the global context.
 
-Conséquence assumée : **l'app interroge toutes les box déclarées**, pas seulement celle du projet
-ouvert.
+An assumed consequence: **the app queries all declared boxes**, not only the one of the open
+project.
 
-## Ce que cette spec ne fait pas
+## What this spec does not do
 
-- **Elle ne demande aucun fait nouveau au runtime**, sauf l'état du manager dans la file (#438). Si
-  un état ne peut pas être montré parce que la box ne le dit pas, c'est un ticket pour le runtime —
-  jamais une déduction de l'app.
-- **Elle n'envoie jamais un prompt à la place du chef.** Un clic avec jugement remplit et s'arrête.
-- **Elle ne met pas le journal à l'écran** : c'est de l'outillage de panne, il vit derrière un
-  geste.
-- **Elle ne crée pas de boîte de réception.** Le chef n'est pas une machine qui tire du travail :
-  ce qui l'attend est déjà sa file.
-- **Elle ne touche pas au thème** : la maquette est sombre, un choix de thème est un autre sujet.
-- **Elle ne rend rien moins lisible qu'avant.** Le relais mot pour mot de la box n'est ni tronqué
-  ni reformaté : c'est le seul endroit où une « jolie » mise en forme serait une régression.
+- **It asks the runtime for no new fact**, except the manager's state in the facts (#438). If a
+  state cannot be shown because the box does not say it, that is a ticket for the runtime —
+  never a deduction by the app.
+- **It never sends a prompt in the chef's place.** A click with judgment fills in and stops.
+- **It does not put the log on screen**: it is breakdown tooling, it lives behind a gesture.
+- **It does not create an inbox.** The chef is not a machine that pulls work: what awaits him is
+  already his queue.
+- **It does not touch the theme**: the mockup is dark, a theme choice is another subject.
+- **It makes nothing less readable than before.** The word-for-word relay of the box is neither
+  truncated nor reformatted: it is the only place where "pretty" formatting would be a regression.
 
-## Ce dont elle dépend
+## What it depends on
 
 | | |
 |---|---|
-| **#438** | l'état du manager et des grants dans l'app — **le trou de la bande d'alertes** |
-| **#475 → #479** | le geste de mise en service, nommé, sans `sudo`, avec son avertissement |
-| **#483** | les décisions du chef posées par un geste, pas par un `sudo` dans un drop-in |
-| **#404**, #406 | regarder une livraison d'interface avant qu'elle soit mergée |
-| #452, #464, #476, #364 | livrés : le clic d'une carte, la proposition de fermeture, le bloc `version`, l'écran de tous les projets |
+| **#438** | the manager's and grants' state in the app — **the hole in the alert band** |
+| **#475 → #479** | the put-into-service gesture, named, without `sudo`, with its warning |
+| **#483** | the chef's decisions set by a gesture, not by a `sudo` in a drop-in |
+| **#404**, #406 | looking at an interface delivery before it is merged |
+| #452, #464, #476, #364 | delivered: the click on a card, the closing proposal, the `version` block, the screen of all projects |
 
-## Ce qu'il reste à éprouver avant de dessiner
+## What remains to be tested before drawing
 
-**Une seule chose, et elle décide si « ça part » est une promesse ou un espoir.**
+**One thing only, and it decides whether "it goes out" is a promise or a hope.**
 
-Aujourd'hui l'app n'envoie **jamais** — parce qu'elle écrit dans un pty à l'aveugle et ne sait pas
-ce qu'il affiche. Son propre code l'avoue : *« devant un dialogue ou en mode vim, ce qui est écrit
-est pris pour des touches ; la note ne promet donc pas que rien n'est parti. »*
+Today the app **never** sends — because it writes into a pty blindly and does not know what it
+displays. Its own code admits it: *"in front of a dialog or in vim mode, what is written is taken
+for keystrokes; the note therefore does not promise that nothing went out."*
 
-Cette spec demande l'inverse pour les gestes directs. **Personne ne sait ce que devient un `!`
-envoyé dans la saisie d'un second occupé** — mis en file, ou avalé. À éprouver avant de dessiner,
-et deux conséquences possibles :
+This spec asks the opposite for direct gestures. **Nobody knows what becomes of a `!` sent into
+the input of a busy second** — queued, or swallowed. To be tested before drawing, and two possible
+consequences:
 
-- l'app doit porter un **vrai champ de saisie** pour le second, qu'elle contrôle, plutôt que
-  d'écrire en aveugle dans un terminal ;
-- ou le geste direct doit savoir si le second est libre, et le dire quand il ne l'est pas.
+- the app must carry a **real input field** for the second, which it controls, rather than
+  writing blindly into a terminal;
+- or the direct gesture must know whether the second is free, and say so when it is not.
 
-**Et un critère produit qui en découle : les gestes directs doivent sortir court.** La sortie d'un
-`!` entre dans le contexte du second — c'est voulu, c'est ce qui lui permet de savoir ce que le
-chef a fait sans qu'on le lui dise — mais chaque tour suivant la paye en entrée. Un `!` qui crache
-quinze événements et leurs JSON coûte pour le reste de la session.
+**And a product criterion that follows: direct gestures must output briefly.** The output of a `!`
+enters the second's context — that is intended, it is what lets it know what the chef did without
+being told — but every following turn pays for it as input. A `!` that spits out fifteen events
+and their JSON costs for the rest of the session.

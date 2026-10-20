@@ -1,725 +1,724 @@
 # brigade V2 — design
 
-**Date** : 2026-10-08
-**Statut** : brainstorm consolidé, à valider avant plan d'implémentation
-**Portée** : refonte complète — brigade passe d'un plugin Claude Code à une application : un runtime
-sur la parade-box et une app desktop sur le Mac (terminal intégré, runner local, tableau de bord)
+**Date**: 2026-10-08
+**Status**: consolidated brainstorm, to be validated before the implementation plan
+**Scope**: complete overhaul — brigade goes from a Claude Code plugin to an application: a runtime
+on the parade-box and a desktop app on the Mac (embedded terminal, local runner, dashboard)
 
 ---
 
-## Le problème
+## The problem
 
-La V1 a prouvé le principe : un humain qui débat produit, des agents qui livrent, toute la
-coordination dans des artefacts durables. Elle bute sur cinq limites, toutes vécues :
+V1 proved the principle: a human who debates product, agents who deliver, all coordination in
+durable artifacts. It runs into six limits, all of them lived:
 
-1. **Le Manager demande trop.** Validations, merges que le mode auto refuse, questions qu'il
-   pourrait trancher : il faut être connecté en permanence pour qu'il avance. Et changer ses
-   permissions sur la box est pénible (fichiers de settings, redémarrage de session).
-2. **Le Designer est le mauvais découpage.** Le vrai besoin n'est pas « un designer », c'est :
-   certains travaux ont besoin d'un humain, d'autres ont besoin d'outils que seul le Mac a
-   (Chrome connecté, accès prod, gcloud, az).
-3. **Un Manager, un petit pool.** Le Manager est un process parent qui spawne des teammates :
-   pool limité, tout meurt avec lui, agent teams expérimental, session interactive obligatoire.
-4. **Claude seulement.** Un sous-agent ne peut pas être un Codex, un Mistral ou un openweight.
-   (La V2 reste sur Claude, mais lève ce verrou d'architecture pour la suite.)
-5. **Des devs interchangeables qui n'apprennent rien.** Même prompt, même modèle, aucune mémoire
-   d'un ticket à l'autre.
-6. **Un dev parqué ne se signale pas.** Mesuré le 2026-10-08 : deux devs inertes **65 minutes**,
-   l'un avec son correctif **committé mais jamais poussé** — un travail fini, invisible. Le Manager
-   l'a découvert en comparant l'heure et la date du dernier commit, et s'en est excusé : *« j'avais
-   prévu de nudger au bout de 15-20 min et je ne l'ai pas fait »*. Coût en quota : zéro, d'où
-   l'absence d'alerte.
+1. **The Manager asks too much.** Approvals, merges that auto mode refuses, questions it could
+   settle itself: you have to be connected all the time for it to move. And changing its
+   permissions on the box is painful (settings files, session restart).
+2. **The Designer is the wrong split.** The real need is not "a designer", it is: some work needs
+   a human, other work needs tools that only the Mac has (connected Chrome, prod access, gcloud,
+   az).
+3. **One Manager, a small pool.** The Manager is a parent process that spawns teammates: limited
+   pool, everything dies with it, agent teams are experimental, an interactive session is
+   mandatory.
+4. **Claude only.** A subagent cannot be a Codex, a Mistral or an openweight. (V2 stays on
+   Claude, but lifts this architectural lock for later.)
+5. **Interchangeable devs who learn nothing.** Same prompt, same model, no memory from one
+   ticket to the next.
+6. **A parked dev does not report itself.** Measured on 2026-10-08: two devs inert for **65
+   minutes**, one with its fix **committed but never pushed** — finished work, invisible. The
+   Manager found out by comparing the time and the date of the last commit, and apologized for
+   it: *"I had planned to nudge after 15-20 min and I didn't"*. Quota cost: zero, hence no
+   alert.
 
-Causes racines : le Manager est à la fois **process parent** (d'où 3 et 4) et **agent qui juge
-tout** (d'où 1 et son coût en contexte), et le système n'a **aucune notion de capacité** (d'où 2).
-La limite 6 en ajoute deux, du même genre : **la livraison dépend d'un dernier geste de l'agent**
-(pousser), et **la surveillance repose sur la mémoire d'un agent** — or un LLM ne tient pas un
-timer. Ce qui dépend d'un dernier geste sera parfois oublié.
+Root causes: the Manager is both **parent process** (hence 3 and 4) and **the agent that judges
+everything** (hence 1 and its context cost), and the system has **no notion of capability**
+(hence 2). Limit 6 adds two of the same kind: **delivery depends on a last gesture by the
+agent** (pushing), and **monitoring rests on an agent's memory** — and an LLM does not hold a
+timer. What depends on a last gesture will sometimes be forgotten.
 
-## Contraintes
+## Constraints
 
-- **Abonnements, pas d'API.** On utilise le compte Max via la CLI officielle `claude`, pas l'API
-  facturée au token. Le facteur limitant devient **le quota** (fenêtres glissantes, plafonds
-  hebdomadaires partagés entre toutes les sessions du compte), plus l'argent.
-- **Claude d'abord.** La V2 ne cible que Claude. Codex, Mistral et les openweights viennent après
-  (voir Au parking) ; l'architecture garde la porte ouverte via les adaptateurs moteurs.
-- **Conditions d'usage Max** (vérifiées le 2026-10-08, doc « Legal and compliance » de Claude
-  Code) : se connecter avec son propre abonnement dans le binaire `claude` officiel non modifié
-  est permis, y compris sur une machine hébergée. Interdit : utiliser ces identifiants hors de
-  Claude Code / Claude.ai (Agent SDK, outils tiers), ou faire passer l'usage d'autres personnes.
-  Point de vigilance : les limites Max supposent un usage « ordinaire et individuel » ; un
-  parallélisme élevé et continu s'en éloigne, Anthropic se réserve d'agir sans préavis. D'où :
-  - les adaptateurs pilotent **uniquement le binaire `claude` officiel**, jamais le token extrait ;
-  - **pas d'Agent SDK** (il exige une clé API) ;
-  - le scheduler plafonne le parallélisme sur le compte Max ;
-  - en V2.5, chaque humain se connecte avec **son propre compte**.
-- **La parade-box (Kimsufi) n'aura jamais d'accès prod.** Les accès sensibles (serveurs de prod,
-  gcloud, az) vivent sur le Mac et y restent.
-- **Plusieurs projets en parallèle**, comme aujourd'hui, sans qu'ils se marchent dessus.
-- **Visibilité** : savoir à tout moment ce qui tourne, qui coince, comment ça va.
+- **Subscriptions, no API.** We use the Max account through the official `claude` CLI, not the
+  API billed per token. The limiting factor becomes **the quota** (rolling windows, weekly caps
+  shared among all the account's sessions), more than money.
+- **Claude first.** V2 targets only Claude. Codex, Mistral and the openweights come after (see
+  Parking lot); the architecture keeps the door open through the engine adapters.
+- **Max terms of use** (checked on 2026-10-08, Claude Code's "Legal and compliance" doc): logging
+  in with your own subscription in the unmodified official `claude` binary is allowed, including
+  on a hosted machine. Forbidden: using these credentials outside Claude Code / Claude.ai (Agent
+  SDK, third-party tools), or passing other people's usage through. Point of vigilance: the Max
+  limits assume "ordinary, individual" usage; high, continuous parallelism moves away from it,
+  and Anthropic reserves the right to act without notice. Hence:
+  - the adapters drive **only the official `claude` binary**, never the extracted token;
+  - **no Agent SDK** (it requires an API key);
+  - the scheduler caps parallelism on the Max account;
+  - in V2.5, each human logs in with **their own account**.
+- **The parade-box (Kimsufi) will never have prod access.** Sensitive access (prod servers,
+  gcloud, az) lives on the Mac and stays there.
+- **Several projects in parallel**, as today, without stepping on each other.
+- **Visibility**: know at any moment what is running, who is stuck, how it is going.
 
-## Vocabulaire
+## Vocabulary
 
-Les noms sont en anglais, empruntés aux cuisines. On sépare strictement ce qui raisonne (agents)
-de ce qui est du code (outils).
+Names are in English, borrowed from kitchens. We strictly separate what reasons (agents) from
+what is code (tools).
 
-### Les agents — ceux qui raisonnent avec un LLM
+### The agents — those who reason with an LLM
 
-| Nom | Rôle | Moteur | Remplace |
+| Name | Role | Engine | Replaces |
 |---|---|---|---|
-| **second** | L'interlocuteur du chef : débat produit, écrit tickets et critères, fixe les priorités, sert les questions | Claude, session dans le terminal de l'app | PO |
-| **manager** | Pilote un projet : découpe, ordonne, arbitre, réagit aux échecs. Sa boucle est du code ; il n'appelle un LLM que pour juger | Hybride : code + LLM ponctuel | Manager |
-| **cook** | Exécute **un** ticket | Claude en V2 (autres moteurs plus tard) | Dev |
-| **reviewer** | Relit le diff pour la passe | Claude en V2 | Revue du Manager |
-| **closer** | Range la cuisine : mesure la dérive, puis élague, simplifie, dédoublonne. Hors du rail | Claude | — (personne) |
+| **second** | The chef's counterpart: product debate, writes tickets and criteria, sets priorities, serves the questions | Claude, session in the app's terminal | PO |
+| **manager** | Drives a project: splits, orders, arbitrates, reacts to failures. Its loop is code; it calls an LLM only to judge | Hybrid: code + occasional LLM | Manager |
+| **cook** | Executes **one** ticket | Claude in V2 (other engines later) | Dev |
+| **reviewer** | Reads the diff for the pass | Claude in V2 | Manager's review |
+| **closer** | Tidies up the kitchen: measures drift, then prunes, simplifies, deduplicates. Off the rail | Claude | — (nobody) |
 
-### Les outils et l'infra — du code, sans LLM
+### The tools and the infra — code, no LLM
 
-| Nom | Ce que c'est |
+| Name | What it is |
 |---|---|
-| **rail** | La file de tickets d'un projet |
-| **ticket** | Une unité de travail (une issue GitHub) |
-| **pass** | L'étape avant de servir : gates, CI, appel au reviewer, merge |
-| **station** | Machine + moteur où tourne un cook, avec les capacités qu'elle fournit |
-| **scheduler** | Répartit quotas, stations et charge machine entre projets |
-| **tous les projets** | L'écran global de l'app, tous projets confondus. Il s'appelait « kitchen » jusqu'au 2026-10-12 (#364), et les specs datées d'avant le disent encore |
-| **cuisine** | L'état d'un projet sur sa box (`ouverte`, `retenue`, `arrêtée`, `éteinte`) : ce que le « stop » du chef arrête. Au journal, `kitchen.stopped` et `kitchen.resumed`. Ni un écran, ni l'étape `en cuisine` d'un ticket pris |
-| **log** | Le journal d'événements dont tout dérive |
-| **grants** | Les autorisations données à chaud par le chef |
+| **rail** | A project's ticket queue |
+| **ticket** | A unit of work (a GitHub issue) |
+| **pass** | The step before serving: gates, CI, call to the reviewer, merge |
+| **station** | Machine + engine where a cook runs, with the capabilities it provides |
+| **scheduler** | Shares quotas, stations and machine load among projects |
+| **All projects** | The app's global screen, all projects together. It was called "kitchen" until 2026-10-12 (#364), and the dated specs from before still say so |
+| **kitchen** | The state of a project on its box (`open`, `held`, `stopped`, `off`): what the chef's `stop` stops. In the log, `kitchen.stopped` and `kitchen.resumed`. Neither a screen, nor the `taken` step of a ticket |
+| **log** | The event log everything derives from |
+| **grants** | The authorizations the chef gives on the fly |
 
-### Les concepts
+### The concepts
 
-| Nom | Sens |
+| Name | Meaning |
 |---|---|
-| **chef** | L'humain. Fixe le menu et les priorités, a le dernier mot |
-| **project** | Un dépôt git |
-| **brigade** | L'équipe d'agents qui travaille sur un projet |
-| **cook profile** | Moteur + outils + skills + carnet de leçons, plus un **défaut** et un **plafond** de calibrage. Propre au projet, défini dans son dépôt |
-| **calibrage** | Modèle + effort d'un cook. Décidé **par ticket**, jamais figé dans le profil |
-| **spécialité** | Domaine d'un profil (sécu, rédaction, BDD…) : une préférence de routage, jamais une contrainte |
-| **fermeture** | Le *closing* : le moment où l'on range la cuisine. Hors du rail, déclenché par la mesure, jamais par une priorité |
+| **chef** | The human. Sets the menu and the priorities, has the last word |
+| **project** | A git repository |
+| **brigade** | The team of agents working on a project |
+| **cook profile** | Engine + tools + skills + notebook of lessons, plus a **default** and a **cap** of calibration. Specific to the project, defined in its repository |
+| **calibration** | Model + effort of a cook. Decided **per ticket**, never frozen in the profile |
+| **specialty** | A profile's domain (security, writing, DB…): a routing preference, never a constraint |
+| **closing** | The moment when the kitchen is tidied up. Off the rail, triggered by measurement, never by a priority |
 
-Jargon de service réutilisable pour les statuts : **fire** (lancer un ticket), **86** (plus
-disponible : quota épuisé, station absente), **behind** (en retard).
+Reusable service jargon for statuses: **fire** (launch a ticket), **86** (no longer available:
+quota exhausted, station absent), **behind** (late).
 
-## Principes
+## Principles
 
-1. **Le manager ne spawne plus.** Il pose des tickets sur le rail ; des stations viennent les
-   prendre. Plus de process parent, donc plus de limite de pool, plus de mort collective,
-   n'importe quel moteur.
-2. **Le manager est surtout du code.** La boucle (rail, baux, matching, retries, pass) est
-   déterministe et ne coûte aucun quota. Un LLM n'est appelé que pour juger : qualifier,
-   découper, arbitrer un conflit.
-3. **Capacités, pas rôles.** Un ticket déclare ce qu'il **requiert** (`chrome-connecté`,
-   `accès-prod`, `revue-humaine`, `gpu`…), une station déclare ce qu'elle **fournit**.
-4. **Un cook = un ticket.** La leçon du dev-employé-permanent tient toujours, et pèse plus lourd
-   en quota qu'en euros.
-5. **Les artefacts durables restent la vérité.** GitHub porte tickets, PR, décisions ; l'état de
-   runtime (baux, quotas, runs, carnets) vit dans une base locale. Tout se reconstruit après un
-   crash.
-6. **Ne jamais bloquer sur le chef.** Ce qui l'attend s'empile ; tout le reste avance.
-7. **Le runtime récolte, il n'attend pas qu'on le serve.** Un cook n'a aucun geste de livraison à
-   accomplir — ni pousser, ni ouvrir une PR, ni annoncer qu'il a fini. Le runtime observe son
-   worktree et prend ce qui est prêt. Et aucun garde-fou ne repose sur la mémoire d'un agent : il
-   n'existe pas de « nudge » dont quelqu'un doive se souvenir.
+1. **The manager no longer spawns.** It puts tickets on the rail; stations come and take them.
+   No more parent process, hence no more pool limit, no more collective death, any engine.
+2. **The manager is mostly code.** The loop (rail, leases, matching, retries, pass) is
+   deterministic and costs no quota. An LLM is called only to judge: qualify, split, arbitrate a
+   conflict.
+3. **Capabilities, not roles.** A ticket declares what it **requires** (`chrome-connecté`,
+   `accès-prod`, `revue-humaine`, `gpu`…), a station declares what it **provides**.
+4. **One cook = one ticket.** The lesson of the permanent employee-dev still holds, and weighs
+   more in quota than in euros.
+5. **Durable artifacts remain the truth.** GitHub carries tickets, PRs, decisions; the runtime
+   state (leases, quotas, runs, notebooks) lives in a local database. Everything is rebuilt after
+   a crash.
+6. **Never block on the chef.** What waits for them piles up; everything else moves on.
+7. **The runtime harvests, it does not wait to be served.** A cook has no delivery gesture to
+   perform — no pushing, no opening a PR, no announcing it is done. The runtime observes its
+   worktree and takes what is ready. And no guardrail rests on an agent's memory: there is no
+   "nudge" that someone has to remember.
 
 ## Architecture
 
 ```
 ┌──────────────────────── parade-box (Kimsufi) ─────────────────────────┐
 │                                                                        │
-│  arbitre de quota ── plafond du compte Max, poids des projets         │
+│  quota arbiter ── Max account cap, project weights                    │
 │      ▲                                                                 │
-│      ├── brigade@A : journal · rail · pass · cooks (conteneur A)      │
-│      ├── brigade@B : journal · rail · pass · cooks (conteneur B)      │
-│      └── …  une instance de runtime par projet, mise à jour à part    │
+│      ├── brigade@A : log · rail · pass · cooks (container A)          │
+│      ├── brigade@B : log · rail · pass · cooks (container B)          │
+│      └── …  one runtime instance per project, updated separately     │
 │                                                                        │
-│  un journal (SQLite) PAR PROJET — lu par les commandes du runtime     │
-│  Adaptateur moteur : claude -p (autres moteurs plus tard)       │
+│  one log (SQLite) PER PROJECT — read by the runtime's commands        │
+│  Engine adapter: claude -p (other engines later)                │
 │                                                                        │
-│  AUCUN accès prod.                                                     │
+│  NO prod access.                                                       │
 └───────────────────────────────▲────────────────────────────────────────┘
-                                │ SSH, par clé
-                                │ (le Mac se connecte, jamais l'inverse)
-┌───────────────────────────────┴──────── Mac : app brigade ─────────────┐
-│  Un espace par projet :                                                │
-│    · terminal intégré — le second (claude) + des shells, en local      │
-│    · rail, cooks, grants, log du projet                                │
-│  Tous les projets : la vue d'ensemble                                  │
+                                │ SSH, by key
+                                │ (the Mac connects, never the reverse)
+┌───────────────────────────────┴──────── Mac: brigade app ──────────────┐
+│  One space per project:                                                │
+│    · embedded terminal — the second (claude) + shells, local           │
+│    · the project's rail, cooks, grants, log                            │
+│  All projects: the overview                                            │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-### L'app desktop
+### The desktop app
 
-**La maquette fait foi pour ce qui est montré** : [`docs/maquettes/app/`](../../maquettes/app/) —
-quatre écrans, dessinés le 2026-10-08, à jour du 2026-10-12. Son `README` dit aussi ce qui y est
-dessiné **sans** être la cible de la V2 (le direct d'un cook, les autres moteurs, le runner Mac,
-la preprod, les profils et carnets, toute jauge chiffrée de quota). Ce qui suit dit l'intention ;
-la maquette dit la forme.
+**The mockup is authoritative for what is shown**: [`docs/maquettes/app/`](../../maquettes/app/) —
+four screens, drawn on 2026-10-08, updated on 2026-10-12. Its `README` also says what is drawn
+there **without** being the V2 target (a cook's live feed, the other engines, the Mac runner,
+preprod, profiles and notebooks, any numeric quota gauge). What follows states the intent; the
+mockup gives the form.
 
-- App desktop sur le Mac — **Electron, xterm.js et node-pty**, tranché au jalon 6. Elle embarque
-  de **vrais terminaux** (comme VS Code) : on ne quitte pas l'app pour travailler en local.
-- **Elle n'ajoute rien au runtime.** Pas d'API, pas de port, pas de couche d'authentification :
-  elle lance par `ssh` les commandes qui existent et **affiche leur sortie telle quelle**. La clé
-  du lecteur est l'authentification. Trois conséquences voulues : **un seul rendu** d'un même fait,
-  **aucun bouton qui double un geste** du terminal, et **aucune déduction** — ce qu'elle montre,
-  elle l'a obtenu.
-- **Le terminal reste l'usage par défaut** (décision du chef, 2026-10-11). L'app ne devient jamais
-  un passage obligé : cassée, la cuisine se pilote comme avant. Ce qu'elle supprime n'est pas le
-  terminal, c'est d'avoir à en ouvrir un ailleurs et de s'y reconnecter à la main.
-- **Un espace par projet**, choisi dans une barre latérale (façon Slack/Discord). Un espace a ses
-  onglets : Second (le terminal), Rail, Cooks, Grants, Log.
-- **Tous les projets** : l'écran global en tête de barre, vue partagée de tous les projets.
-- **Elle parle à un parc hétérogène en permanence**, pas seulement pendant une mise à jour : les
-  runtimes de projet se mettent à jour un par un. Un projet s'y présente dans **un de trois états
-  qui ne se ressemblent pas** : pilotable, joignable mais plus pilotable (avec le geste qui le
-  remet à niveau), ou pas joignable. Elle ne suppose jamais que tous les projets répondent pareil.
-  **Elle ne lit pas un numéro de version** : elle apprend en essayant, et rapporte ce qu'elle a
-  obtenu — un numéro serait un intermédiaire vers un fait qu'elle tient directement.
-- Un accès web en lecture seule au tableau de bord (téléphone) reste possible côté box.
+- Desktop app on the Mac — **Electron, xterm.js and node-pty**, settled at milestone 6. It
+  embeds **real terminals** (like VS Code): you do not leave the app to work locally.
+- **It adds nothing to the runtime.** No API, no port, no authentication layer: it launches the
+  existing commands through `ssh` and **displays their output as is**. The reader's key is the
+  authentication. Three intended consequences: **a single rendering** of a given fact, **no
+  button that duplicates a terminal gesture**, and **no deduction** — what it shows, it obtained.
+- **The terminal remains the default usage** (chef's decision, 2026-10-11). The app never
+  becomes a mandatory passage: broken, the kitchen is driven as before. What it removes is not
+  the terminal, it is having to open one elsewhere and reconnect to it by hand.
+- **One space per project**, chosen in a sidebar (Slack/Discord style). A space has its tabs:
+  Second (the terminal), Rail, Cooks, Grants, Log.
+- **All projects**: the global screen at the head of the bar, a shared view of all projects.
+- **It talks to a heterogeneous fleet permanently**, not only during an update: project runtimes
+  are updated one by one. A project presents itself in **one of three states that do not look
+  alike**: drivable, reachable but no longer drivable (with the gesture that brings it up to
+  date), or unreachable. It never assumes that all projects answer alike. **It does not read a
+  version number**: it learns by trying, and reports what it obtained — a number would be an
+  intermediary to a fact it holds directly.
+- A read-only web access to the dashboard (phone) remains possible on the box side.
 
-### Le second
+### The second
 
-- Une **vraie session Claude Code** lancée par l'app dans le terminal intégré, dans le dossier du
-  projet : on garde tout (`!`, slash commands, historique) sans reconstruire de chat.
-- Les `!` s'exécutent **sur le Mac**, avec les accès prod du chef.
-- Plugin brigade léger. Écrire et modifier épiques et tickets, fixer les priorités, lire l'état,
-  répondre aux questions, donner ou retirer des grants : **tout cela existe déjà** par `gh` et par
-  les commandes du runtime (`status`, `rail`, `grant`). Le **MCP n'est pas de la V2** : il
-  re-exposerait en outils ce qui est là, avec son transport et son authentification. Sa seule
-  raison d'être est l'accès d'autres humains — donc la V2.5 (§Au parking).
-- **À l'ouverture**, un hook sert la file : questions en attente, livraisons, ce qui est en
-  preprod à recetter, alertes.
-- App fermée : rien ne se perd, les questions s'empilent côté runtime.
-- Prévu pour V2.5 : accès d'autres humains (associés, clients), et c'est là que le MCP et son
-  authentification prennent leur sens.
+- A **real Claude Code session** launched by the app in the embedded terminal, in the project's
+  folder: we keep everything (`!`, slash commands, history) without rebuilding a chat.
+- The `!` run **on the Mac**, with the chef's prod access.
+- Light brigade plugin. Writing and editing epics and tickets, setting priorities, reading the
+  state, answering questions, giving or removing grants: **all of this already exists** through
+  `gh` and the runtime's commands (`status`, `rail`, `grant`). **MCP is not part of V2**: it
+  would re-expose as tools what is already there, with its transport and its authentication. Its
+  only reason to exist is access for other humans — hence V2.5 (§Parking lot).
+- **On opening**, a hook serves the queue: pending questions, deliveries, what is in preprod to
+  accept, alerts.
+- App closed: nothing is lost, questions pile up on the runtime side.
+- Planned for V2.5: access for other humans (partners, clients), and that is where MCP and its
+  authentication make sense.
 
-### Le manager
+### The manager
 
-- Un par projet. Process du runtime, réveillé par événement (webhook GitHub, fin de ticket,
-  signal de cook, tick périodique), sans état en mémoire.
-- Découpe les épiques en tickets avec **dépendances** (B attend A), partitionne par zone de
-  fichiers (règle V1 conservée : un fichier, un propriétaire entre tickets concurrents).
-- Ordonne **dans** les priorités produit fixées par le second. Peut prioriser seul ce qui
-  arrive en cours de route (bugs, hors-scope) selon la charte.
-- Réagit aux échecs : redécoupe, change de cook profile, remonte au second.
-- Verrou par projet : jamais deux managers sur un même dépôt. Autant de managers que de projets.
+- One per project. A runtime process, woken by an event (GitHub webhook, end of ticket, cook
+  signal, periodic tick), with no in-memory state.
+- Splits epics into tickets with **dependencies** (B awaits A), partitions by file zone (V1 rule
+  kept: one file, one owner among concurrent tickets).
+- Orders **within** the product priorities set by the second. Can prioritize on its own what
+  arrives along the way (bugs, out-of-scope) according to the charter.
+- Reacts to failures: re-splits, changes cook profile, escalates to the second.
+- Per-project lock: never two managers on the same repository. As many managers as projects.
 
-#### Le bail se renouvelle par la preuve de travail
+#### The lease is renewed by proof of work
 
-Un ticket pris est tenu par un **bail**, et ce bail ne se renouvelle **que** sur une preuve de
-travail observable de l'extérieur : un commit, un fichier touché dans le worktree. Jamais sur la
-présence du cook, ni sur ce qu'il dit faire.
+A taken ticket is held by a **lease**, and this lease is renewed **only** on proof of work
+observable from the outside: a commit, a file touched in the worktree. Never on the cook's
+presence, nor on what it says it is doing.
 
-C'est une **échelle plus longue** que le garde-fou d'inactivité (§Garde-fous), qui surveille la
-vivacité sur le flux de sortie. Les deux coexistent : un cook peut être bien vivant et ne pas
-progresser, et c'est alors le bail qui tranche, pas l'inactivité.
+This is a **longer scale** than the idle guardrail (§Guardrails), which watches liveness on the
+output stream. The two coexist: a cook can be very much alive and not progressing, and then the
+lease decides, not the idleness.
 
-Conséquence voulue : **l'état « vivant mais parqué » n'existe pas.** Un cook inerte perd son ticket
-exactement comme un cook mort, sans que personne ait à s'en apercevoir ni à le relancer.
+Intended consequence: **the "alive but parked" state does not exist.** An inert cook loses its
+ticket exactly like a dead cook, without anyone having to notice or relaunch it.
 
-Et avant de rendre un ticket au rail, le runtime **récolte ce qui existe** : si le worktree porte
-un travail complet, il part en pass au lieu d'être jeté. Un cook qui a committé puis s'est arrêté
-est traité comme un cook qui a fini, pas comme un cook en panne. Un travail fait ne doit jamais
-être perdu parce que personne ne l'a réclamé (limite 6).
+And before returning a ticket to the rail, the runtime **harvests what exists**: if the worktree
+holds complete work, it goes into pass instead of being thrown away. A cook that committed then
+stopped is treated as a cook that finished, not as a failed cook. Work done must never be lost
+because nobody claimed it (limit 6).
 
-### Stations et cooks
+### Stations and cooks
 
-Une **station** = machine + adaptateur moteur + capacités. Exemples :
+A **station** = machine + engine adapter + capabilities. Examples:
 
-| Station | Fournit |
+| Station | Provides |
 |---|---|
-| `box/claude` | code, raisonnement — le **calibrage** se règle par ticket, pas par station |
-| `box/playwright` | navigateur headless (couvre la plupart des besoins « navigateur ») |
+| `box/claude` | code, reasoning — the **calibration** is set per ticket, not per station |
+| `box/playwright` | headless browser (covers most "browser" needs) |
 | `mac/claude-chrome` | `chrome-connecté` |
-| `mac/accès-prod` | `accès-prod` — toujours avec validation du chef |
-| `chef` | `revue-humaine`, décisions |
+| `mac/accès-prod` | `accès-prod` — always with the chef's validation |
+| `chef` | `revue-humaine`, decisions |
 
-Un **cook profile** = moteur, modèle, outils, skills, et un **carnet** de leçons. Les evals
-servent de garde-fou de non-régression des profils.
+A **cook profile** = engine, model, tools, skills, and a **notebook** of lessons. The evals serve
+as a non-regression guardrail for the profiles.
 
-#### Les profils sont propres au projet
+#### Profiles are specific to the project
 
-Un profil « expert sécu » n'a pas le même sens sur un projet d'infra et sur un site vitrine ; un
-profil « rédacteur » n'en a aucun sur un projet d'infra. La V2 ne livre donc **aucun catalogue de
-profils** : elle livre la capacité d'en fabriquer, et ils appartiennent au projet.
+A "security expert" profile does not mean the same on an infra project and on a showcase site; a
+"writer" profile means nothing on an infra project. V2 therefore ships **no catalogue of
+profiles**: it ships the ability to make them, and they belong to the project.
 
-Leur **définition** (moteur, modèle, skills, périmètre) vit **dans le dépôt**, versionnée : c'est
-de la configuration qu'on relit et qui voyage avec le projet — la V1 fait déjà exactement ça avec
-ses rôles en markdown. Seul le carnet mute à chaque ticket (voir plus bas).
+Their **definition** (engine, model, skills, scope) lives **in the repository**, versioned: it is
+configuration that is re-read and travels with the project — V1 already does exactly that with
+its roles in markdown. Only the notebook mutates at each ticket (see below).
 
-**Par défaut, pas de profil.** Un ticket peut charger des skills ponctuellement (« utilise la
-skill copywriting ») sans qu'aucun profil existe : ça ne coûte rien à construire et ça couvre la
-majorité des besoins. Un profil n'ajoute que deux choses — la **capitalisation** d'un carnet et la
-**mesure** dans le temps — et il ne vaut que s'il a le volume de tickets pour les remplir. En
-dessous du volume, un profil n'est qu'un généraliste avec des skills, et autant l'assumer : quinze
-profils ayant vu deux tickets chacun donnent quinze carnets vides et une mesure sans
-signification.
+**By default, no profile.** A ticket can load skills ad hoc ("use the copywriting skill") without
+any profile existing: it costs nothing to build and covers the majority of needs. A profile adds
+only two things — the **capitalization** of a notebook and the **measurement** over time — and it
+is only worth it if it has the ticket volume to fill them. Below that volume, a profile is just a
+generalist with skills, and we might as well own it: fifteen profiles that have each seen two
+tickets give fifteen empty notebooks and a meaningless measurement.
 
-#### Spécialité n'est pas capacité
+#### Specialty is not capability
 
-Les deux se ressemblent et ne se comportent pas pareil :
+The two look alike and do not behave alike:
 
-| | Nature | Effet sur le matching |
+| | Nature | Effect on matching |
 |---|---|---|
-| **capacité** (`chrome-connecté`, `accès-prod`, `gpu`) | dure, binaire, vérifiable | **filtre** : sans elle, le ticket est impossible |
-| **spécialité** (sécu, rédaction, BDD) | souple, graduelle, non vérifiable | **préférence** : un généraliste reste capable |
+| **capability** (`chrome-connecté`, `accès-prod`, `gpu`) | hard, binary, verifiable | **filter**: without it, the ticket is impossible |
+| **specialty** (security, writing, DB) | soft, graded, not verifiable | **preference**: a generalist remains capable |
 
-Les confondre construirait un goulot d'étranglement : un ticket `requires: sécu` attendrait que
-« l'expert soit libre » alors qu'un profil n'est pas une ressource rare — on en instancie autant
-qu'on veut, ce n'est qu'une configuration. Ce qui est rare, c'est le **quota**, le **plafond de
-parallélisme** et la **partition par zone de fichiers**.
+Confusing them would build a bottleneck: a ticket `requires: security` would wait for "the expert
+to be free" whereas a profile is not a scarce resource — you instantiate as many as you want, it
+is only configuration. What is scarce is the **quota**, the **parallelism cap** and the
+**partition by file zone**.
 
-Le coût d'un spécialiste n'est donc pas une attente mais un prix : il voudra souvent un modèle
-plus cher et plus de tours (lire le code autour, vérifier les dépendances). L'arbitrage réel est
-« un ticket sécu sur Opus, ou trois tickets courants sur Sonnet ? », et il se règle par un
-**budget ou un poids par domaine** côté scheduler — pas par un délai d'attente.
+The cost of a specialist is therefore not a wait but a price: it will often want a more expensive
+model and more turns (reading the surrounding code, checking dependencies). The real trade-off is
+"one security ticket on Opus, or three ordinary tickets on Sonnet?", and it is set by a **budget
+or a weight per domain** on the scheduler side — not by a waiting time.
 
-#### Le calibrage se décide par ticket, pas par profil ni par station
+#### Calibration is decided per ticket, not per profile or per station
 
-Le **modèle** et l'**effort** ne sont ni une propriété de la machine, ni une propriété durable du
-domaine. Un modèle est un paramètre d'invocation du même binaire `claude` sur la même machine :
-en faire une dimension de station multiplierait les stations pour rien (trois modèles × deux
-machines = six stations pour une seule capacité réelle). D'où une seule station `box/claude`.
+The **model** and the **effort** are neither a property of the machine, nor a durable property of
+the domain. A model is an invocation parameter of the same `claude` binary on the same machine:
+making it a station dimension would multiply stations for nothing (three models × two machines =
+six stations for a single real capability). Hence a single `box/claude` station.
 
-La V1 fait pourtant du calibrage une donnée du profil, et avec raison dans son cadre : elle expose
-le même dev sous trois calibrages portés par le frontmatter de chaque agent, et « choisir l'agent,
-c'est trancher l'effort ». Ça tient parce qu'elle n'a qu'un domaine, le dev générique. Dès qu'on
-ajoute sécu, rédaction, BDD, le même choix donne un **produit cartésien** — trois domaines × trois
-calibrages = neuf profils, dont sept au carnet vide. C'est précisément le travers décrit plus haut.
+V1 nevertheless makes calibration a datum of the profile, and rightly so within its frame: it
+exposes the same dev under three calibrations carried by each agent's frontmatter, and "choosing
+the agent is settling the effort". It holds because it has only one domain, the generic dev. As
+soon as you add security, writing, DB, the same choice gives a **cartesian product** — three
+domains × three calibrations = nine profiles, seven of them with an empty notebook. That is
+precisely the flaw described above.
 
-Les deux axes se séparent donc :
+The two axes are therefore separated:
 
-| Axe | Ce qu'il porte | Durée de vie |
+| Axis | What it carries | Lifetime |
 |---|---|---|
-| **profil** | skills, carnet, périmètre du domaine | durable, versionné dans le dépôt |
-| **calibrage** | modèle + effort | décidé à chaque ticket |
+| **profile** | skills, notebook, domain scope | durable, versioned in the repository |
+| **calibration** | model + effort | decided at each ticket |
 
-Et la décision suit le même patron que la spécialité — **le profil demande, le scheduler dispose** :
+And the decision follows the same pattern as specialty — **the profile asks, the scheduler
+disposes**:
 
-- le **profil** porte un **défaut** et un **plafond** (un profil sécu ne descend pas sous
-  `medium` ; un profil de formatage ne monte pas au-dessus de `low`) ;
-- le **ticket** porte la valeur, décidée par le manager sur sa table type de ticket → calibrage —
-  c'est déjà son travail en V1 ;
-- le **scheduler** arbitre sous contrainte de quota : il peut dégrader ou faire attendre, jamais
-  dépasser le plafond du profil ;
-- le **chef** plafonne par budget de domaine.
+- the **profile** carries a **default** and a **cap** (a security profile does not go below
+  `medium`; a formatting profile does not go above `low`);
+- the **ticket** carries the value, decided by the manager on its ticket type → calibration table
+  — that is already its job in V1;
+- the **scheduler** arbitrates under quota constraint: it can degrade or make wait, never exceed
+  the profile's cap;
+- the **chef** caps by domain budget.
 
-**Le défaut est un plafond, pas un point de départ.** Mesuré en V1 : *32 teammates spawnés
-d'affilée, 31 en `effort: high`* faute d'avoir tranché au spawn, alors que les tokens de
-raisonnement sont facturés en output. En V2 ce biais serait pire et non meilleur — le manager est
-du code, il lance sans surveillance, et plus aucun humain ne voit passer la facture. D'où deux
-exigences : **aucun cook n'est lancé sans calibrage explicite** (garde-fou, voir plus bas), et le
-**log porte le calibrage de chaque cook** — l'équivalent V2 du « l'humain doit voir ce qu'il paie »
-de la V1.
+**The default is a cap, not a starting point.** Measured in V1: *32 teammates spawned in a row,
+31 at `effort: high`* for lack of a decision at spawn, whereas reasoning tokens are billed as
+output. In V2 this bias would be worse, not better — the manager is code, it launches unattended,
+and no human sees the bill go by anymore. Hence two requirements: **no cook is launched without
+an explicit calibration** (guardrail, see below), and the **log carries each cook's
+calibration** — the V2 equivalent of V1's "the human must see what they pay".
 
-#### Le carnet a deux étages
+#### The notebook has two tiers
 
-Après chaque ticket, une rétro courte propose des leçons. Elles n'attendent personne :
+After each ticket, a short retro proposes lessons. They wait for nobody:
 
-| | Où | Quand ça s'applique | Qui valide |
+| | Where | When it applies | Who validates |
 |---|---|---|---|
-| **leçon provisoire** | base du runtime | immédiatement | personne |
-| **leçon promue** | carnet versionné dans le dépôt | à la promotion | la pass, sous grant |
+| **provisional lesson** | the runtime's database | immediately | nobody |
+| **promoted lesson** | notebook versioned in the repository | at promotion | the pass, under grant |
 
-Le cook suivant bénéficie tout de suite des leçons provisoires. Le dépôt, lui, ne reçoit que ce
-qui a fait ses preuves et reste lisible.
+The next cook benefits immediately from the provisional lessons. The repository, for its part,
+receives only what has proven itself and stays readable.
 
-**Critère de promotion : la répétition entre rétros indépendantes.** Si plusieurs cooks, sur des
-tickets différents et sans se voir, proposent la même leçon, elle est vraie. C'est mesurable sans
-rien instrumenter — il suffit de comparer des rétros, là où « cette leçon a-t-elle été appliquée ? »
-ne se mesure pas. Conséquence heureuse : **plus on parallélise, plus la promotion est fiable**,
-alors que des rétros concurrentes ressemblaient d'abord à un défaut. Le seuil — combien de rétros
-concordantes — est arbitraire au départ et se règle par la mesure.
+**Promotion criterion: repetition across independent retros.** If several cooks, on different
+tickets and without seeing each other, propose the same lesson, it is true. It is measurable
+without instrumenting anything — you only have to compare retros, whereas "was this lesson
+applied?" cannot be measured. Happy consequence: **the more you parallelize, the more reliable
+the promotion**, whereas concurrent retros first looked like a flaw. The threshold — how many
+concordant retros — is arbitrary at the start and is tuned by measurement.
 
-Ça supprime une corvée au passage : le tri du carnet n'est plus un geste du manager, c'est la
-promotion qui filtre. Un carnet ne grossit plus sans tri.
+That removes a chore along the way: sorting the notebook is no longer a manager gesture, it is
+the promotion that filters. A notebook no longer grows without sorting.
 
-Et le chef n'est jamais sur le chemin critique : la PR de promotion est mergée par la pass sous
-grant, comme n'importe quelle livraison. Il relit **après coup** — le `git log` du carnet dit
-quand chaque leçon est entrée et sur quelles rétros — et retire une leçon par une PR, comme
-n'importe quel revert. Une promotion en attente ne bloque jamais un déploiement ; l'inverse serait
-pire, car un carnet qui attend est un carnet qui ne sert pas.
+And the chef is never on the critical path: the promotion PR is merged by the pass under grant,
+like any delivery. They review **after the fact** — the notebook's `git log` says when each
+lesson entered and on which retros — and remove a lesson through a PR, like any revert. A pending
+promotion never blocks a deployment; the reverse would be worse, because a notebook that waits is
+a notebook that serves no purpose.
 
-En V2, un seul adaptateur : `claude`. Un **adaptateur moteur** sait : lancer la CLI en headless avec la bonne config, lire son flux
-(JSON streamé), détecter la fin, l'échec, et l'épuisement de quota.
+In V2, a single adapter: `claude`. An **engine adapter** knows how to: launch the CLI headless
+with the right config, read its stream (streamed JSON), detect the end, the failure, and quota
+exhaustion.
 
-### La pass
+### The pass
 
-- Outil du runtime, plus le travail du manager : gates du projet (`gates.sh`, contrat V1
-  conservé), lecture de la CI, appel au **reviewer** cadré sur le diff. Le reviewer passe **après
-  des gates vertes**, et un de ses constats **bloquants** rend la pass rouge, gates vertes ou non.
-- Verte → merge automatique si le grant `merge` est actif. Rouge → findings renvoyés au cook,
-  **deux renvois max** (règle V1), puis issue de suite ou remontée.
-- Les **deux renvois ne sont pas deux tentatives identiques** : le premier corrige au même
-  calibrage, le second **monte** (modèle ou effort) dans la limite du plafond du profil. Et un cook
-  qui découvre en cours de route que son ticket dépasse son calibrage **rend la main en demandant
-  la montée**, plutôt que d'échouer ou de livrer mal — ce que la V1 ne permet pas, son effort étant
-  figé dans le frontmatter de l'agent.
-- Un lot de tickets sur zones disjointes se merge d'un bloc (règle V1).
-- Après merge : la CI du projet déploie en preprod ; le second résume ce qui est à recetter.
-  Rien ne bloque sur la recette.
-- **Tout cook commente son ticket** en fin de course, qu'il ait produit du code ou non. Le
-  compte-rendu devient un artefact durable sur GitHub, lisible sans ouvrir l'app — et c'est là que
-  le second lit ce qu'il y a à recetter.
+- A runtime tool, no longer the manager's work: the project's gates (`gates.sh`, V1 contract
+  kept), reading the CI, call to the **reviewer** framed on the diff. The reviewer goes **after
+  green gates**, and one of its **blocking** findings turns the pass red, gates green or not.
+- Green → automatic merge if the `merge` grant is active. Red → findings sent back to the cook,
+  **two send-backs max** (V1 rule), then follow-up issue or escalation.
+- The **two send-backs are not two identical attempts**: the first fixes at the same calibration,
+  the second **goes up** (model or effort) within the profile's cap. And a cook that discovers
+  along the way that its ticket exceeds its calibration **hands back asking for the step up**,
+  rather than failing or delivering badly — which V1 does not allow, its effort being frozen in
+  the agent's frontmatter.
+- A batch of tickets on disjoint zones is merged in one block (V1 rule).
+- After merge: the project's CI deploys to preprod; the second summarizes what is to be
+  accepted. Nothing blocks on acceptance.
+- **Every cook comments on its ticket** at the end of its run, whether it produced code or not.
+  The report becomes a durable artifact on GitHub, readable without opening the app — and that is
+  where the second reads what there is to accept.
 
-#### Les tickets sans diff
+#### Tickets with no diff
 
-Certains tickets ne produisent aucun diff : un audit, une comparaison d'approches, une analyse
-(« pourquoi la CI est-elle lente ? »), ou le livrable d'un cook non-code. Un cook non-code n'est
-pas un cas particulier du modèle — c'est un cook dont le diff est vide.
+Some tickets produce no diff: an audit, a comparison of approaches, an analysis ("why is the CI
+slow?"), or the deliverable of a non-code cook. A non-code cook is not a special case of the
+model — it is a cook whose diff is empty.
 
-- Gates et CI sont **muettes** sur ce genre de livrable, et il n'y a rien à merger. Un tel ticket
-  est **servi dès que son livrable a été relu** : son verdict est celui du reviewer, et de lui
-  seul (principe 6 : rien n'attend le chef ; la recette reste informelle, comme en V1). Rien à
-  merger, donc aucun grant à consulter.
-- Sur du code, les gates attrapent le pire même sans relecture ; ici, rien ne l'attraperait. Un
-  cook qui dérape produirait un rapport faux marqué « servi », et personne ne le saurait avant de
-  l'avoir lu.
-- D'où : **le reviewer est obligatoire sur un ticket sans diff** — c'est le seul juge disponible —,
-  alors qu'il **complète** les gates sur du code. Un livrable non-code ne passe jamais à « servi »
-  sans avoir été relu (décision du 2026-10-08, PR #44, livrée par #72).
-- Ça rend faisable une classe de tickets que le modèle ne savait pas terminer : audits, analyses,
-  recommandations.
+- Gates and CI are **silent** on this kind of deliverable, and there is nothing to merge. Such a
+  ticket is **served as soon as its deliverable has been reviewed**: its verdict is the
+  reviewer's, and the reviewer's alone (principle 6: nothing waits for the chef; acceptance
+  remains informal, as in V1). Nothing to merge, hence no grant to consult.
+- On code, the gates catch the worst even without review; here, nothing would catch it. A cook
+  that goes off the rails would produce a false report marked "served", and nobody would know
+  before reading it.
+- Hence: **the reviewer is mandatory on a ticket with no diff** — it is the only judge available
+  —, whereas it **complements** the gates on code. A non-code deliverable never goes to "served"
+  without having been reviewed (decision of 2026-10-08, PR #44, delivered by #72).
+- That makes feasible a class of tickets the model did not know how to finish: audits, analyses,
+  recommendations.
 
-## Les grants, et pas de charte à côté
+## Grants, and no charter alongside
 
-C'est la pièce qui règle le problème n°1.
+This is the piece that settles problem no. 1.
 
-**Décidé le 2026-10-10 par le chef : la charte est vide au départ — et ce n'est pas un objet de
-plus.** Une ligne n'a de sens que là où une action est **irréversible ou sort du dépôt** : merger,
-pousser, publier, fermer, dépenser. Tout ce qui est réversible — découper, ordonner, calibrer,
-lancer, relancer — n'est pas une autorisation : c'est ce que la brigade *est*. On ne demande pas la
-permission d'exister.
+**Decided on 2026-10-10 by the chef: the charter is empty at the start — and it is not one more
+object.** A line only makes sense where an action is **irreversible or leaves the repository**:
+merging, pushing, publishing, closing, spending. Everything reversible — splitting, ordering,
+calibrating, launching, relaunching — is not an authorization: it is what the brigade *is*. You
+do not ask permission to exist.
 
-Reste une liste d'actions irréversibles, éteintes au départ, chacune levée par un grant. **C'est la
-liste des grants elle-même** : rien à lire à côté. Ce qu'aucun grant ne lève se lit au même endroit.
+What remains is a list of irreversible actions, off at the start, each lifted by a grant. **It is
+the list of grants itself**: nothing to read alongside. What no grant lifts is read in the same
+place.
 
-Les grants sont des objets du runtime, pas des fichiers :
+Grants are runtime objects, not files:
 
-- Donnés en une phrase au second : « tu peux merger à partir de maintenant », « autorise
-  `gh release` sur thermigo jusqu'à vendredi ».
-- Une action, et une échéance : permanente, jusqu'à une date, ou N usages. **Pas de portée
-  « tous les projets »** : un grant est un fait au journal, et il y a un journal par projet.
-- **Effet immédiat** : la pass et le manager consultent les grants à chaque décision ; chaque cook
-  est lancé avec des settings **générés** à partir des grants du moment. Rien à éditer, rien à
-  redémarrer.
-- Visibles et révocables dans l'app. Chaque usage est journalisé.
-- Plafond dur : aucun grant ne peut donner `accès-prod` à une station de la box, ni lever la règle
-  qui interdit au runtime de lire les identifiants du compte Max.
+- Given in one sentence to the second: "you can merge from now on", "authorize `gh release` on
+  thermigo until Friday".
+- One action, and an expiry: permanent, until a date, or N uses. **No "all projects" scope**: a
+  grant is a fact in the log, and there is one log per project.
+- **Immediate effect**: the pass and the manager consult the grants at each decision; each cook
+  is launched with settings **generated** from the grants of the moment. Nothing to edit, nothing
+  to restart.
+- Visible and revocable in the app. Each use is logged.
+- Hard cap: no grant can give `accès-prod` to a station of the box, nor lift the rule that
+  forbids the runtime from reading the Max account's credentials.
 
-## Scheduler, quota et moteurs
+## Scheduler, quota and engines
 
-Le mot « scheduler » couvre deux responsabilités qu'il faut séparer, parce qu'elles n'ont pas la
-même portée (voir §Mises à jour) :
+The word "scheduler" covers two responsibilities that must be separated, because they do not have
+the same scope (see §Updates):
 
-| | Portée | Ce qu'il décide |
+| | Scope | What it decides |
 |---|---|---|
-| **arbitre de quota** | **globale, unique** | plafond de parallélisme du compte, poids entre projets, fenêtre et réinitialisation |
-| **runtime de projet** | une instance par projet | rail, baux, calibrage du ticket, pass, garde-fous |
+| **quota arbiter** | **global, single** | the account's parallelism cap, weights between projects, window and reset |
+| **project runtime** | one instance per project | rail, leases, the ticket's calibration, pass, guardrails |
 
-- L'arbitre connaît, par compte : consommation estimée (depuis les flux JSON des cooks),
-  fenêtre en cours, prochaine réinitialisation. Et par machine : CPU/RAM disponibles.
-- Il **arbitre le calibrage** demandé par le ticket sous contrainte de quota : il peut dégrader
-  (Sonnet au lieu d'Opus, effort plus bas) ou faire attendre, jamais dépasser le plafond du profil.
-- Il arbitre les **spécialités** par un budget ou un poids par domaine — « un ticket sécu sur Opus
-  contre trois tickets courants sur Sonnet » — jamais par une file d'attente : un profil n'est pas
-  une ressource rare.
-- Il plafonne le nombre de cooks simultanés sur le compte Max.
-- « Quota épuisé » est un état normal (**86**) : le ticket retourne sur le rail, la brigade
-  ralentit.
-- **Arbitre injoignable : le projet lance quand même** (décision du chef, 2026-10-08). Geler tous
-  les projets parce que l'arbitre est tombé serait la panne la plus coûteuse du système, et elle
-  est évitable : la consommation étant journalisée par projet, l'arbitre **se reconstruit** depuis
-  les journaux à son retour (principe 5). Le mode dégradé doit être plus prudent que le mode
-  normal, d'où ses bordures :
-  - un runtime sans arbitre lance **au plus un cook à la fois**, quel que soit l'état de son rail ;
-  - chaque lancement non arbitré est journalisé comme tel ;
-  - l'interface signale les projets qui tournent en mode dégradé ;
-  - au retour, l'arbitre rattrape sa comptabilité depuis les journaux **avant** de rouvrir les
-    vannes.
-- Poids entre projets réglables (« thermigo prioritaire cette semaine »).
-- Pur code, aucun LLM.
+- The arbiter knows, per account: estimated consumption (from the cooks' JSON streams), the
+  current window, the next reset. And per machine: available CPU/RAM.
+- It **arbitrates the calibration** requested by the ticket under quota constraint: it can
+  degrade (Sonnet instead of Opus, lower effort) or make wait, never exceed the profile's cap.
+- It arbitrates **specialties** by a budget or a weight per domain — "one security ticket on Opus
+  against three ordinary tickets on Sonnet" — never by a waiting queue: a profile is not a scarce
+  resource.
+- It caps the number of simultaneous cooks on the Max account.
+- "Quota exhausted" is a normal state (**86**): the ticket goes back on the rail, the brigade
+  slows down.
+- **Arbiter unreachable: the project launches anyway** (chef's decision, 2026-10-08). Freezing
+  all projects because the arbiter went down would be the system's costliest outage, and it is
+  avoidable: consumption being logged per project, the arbiter **rebuilds itself** from the logs
+  on its return (principle 5). The degraded mode must be more cautious than the normal mode,
+  hence its bounds:
+  - a runtime without an arbiter launches **at most one cook at a time**, whatever the state of
+    its rail;
+  - each unarbitrated launch is logged as such;
+  - the interface flags the projects running in degraded mode;
+  - on return, the arbiter catches up its accounting from the logs **before** reopening the
+    floodgates.
+- Weights between projects are adjustable ("thermigo prioritized this week").
+- Pure code, no LLM.
 
-## Garde-fous
+## Guardrails
 
-Mécanique du runtime, pas jugement d'agent :
+Runtime mechanics, not agent judgment:
 
-- Plafond par ticket : tours, durée, tokens.
-- **Aucun cook lancé sans calibrage explicite** : un ticket sans calibrage est refusé, pas lancé
-  au maximum.
-- Détection de boucle et d'inactivité, sur **deux signaux à deux échelles** — complémentaires et
-  non substituables :
-  - le **flux de sortie** dit que le cook est **vivant**. Seuil court : un cook qui n'écrit plus
-    rien est bloqué ou mort. C'est ce que mesure le garde-fou d'inactivité.
-  - le **worktree** dit que le cook **progresse**. Seuil long, porté par le bail (§Le manager) :
-    un cook peut bavarder sans avancer.
+- Cap per ticket: turns, duration, tokens.
+- **No cook launched without an explicit calibration**: a ticket without a calibration is
+  refused, not launched at maximum.
+- Loop and idleness detection, on **two signals at two scales** — complementary and not
+  substitutable:
+  - the **output stream** says the cook is **alive**. Short threshold: a cook that writes nothing
+    anymore is stuck or dead. That is what the idle guardrail measures.
+  - the **worktree** says the cook is **progressing**. Long threshold, carried by the lease
+    (§The manager): a cook can chatter without advancing.
 
-  Aucun des deux ne suffit seul : surveiller le seul worktree tuerait un cook qui lit longuement du
-  code avant d'écrire une ligne ; surveiller le seul flux laisserait passer un cook qui raisonne en
-  boucle. L'un mesure la vie, l'autre l'avancement.
-- **Âge de bail sans progrès**, plafonné à part des budgets. Un cook parqué ne consomme ni tour,
-  ni token, ni durée d'exécution : aucun plafond de budget ne le rattrape, seul le temps de mur le
-  trahit (limite 6).
-- Disjoncteur par projet après N échecs d'affilée.
-- **Bouton « stop »** global et par projet. Il arrête la cuisine, pas l'app, et il dit laquelle :
-  celle de ce projet, ou celle de tous.
+  Neither suffices alone: watching only the worktree would kill a cook that reads code at length
+  before writing a line; watching only the stream would let through a cook that reasons in a
+  loop. One measures life, the other progress.
+- **Lease age without progress**, capped separately from the budgets. A parked cook consumes
+  neither turn, nor token, nor run time: no budget cap catches it, only wall time betrays it
+  (limit 6).
+- Breaker per project after N failures in a row.
+- Global and per-project **"stop" button**. It stops the kitchen, not the app, and it says which
+  one: that of this project, or that of all.
 
 ## Monitoring
 
-Tout passe par le **log** : ticket pris, cook lancé **et son calibrage**, signal, question posée,
-pass verte/rouge, montée de calibrage au renvoi, merge, quota épuisé, grant donné/utilisé. Tout le
-reste en dérive.
+Everything goes through the **log**: ticket taken, cook launched **and its calibration**, signal,
+question asked, pass green/red, calibration step-up at send-back, merge, quota exhausted, grant
+given/used. Everything else derives from it.
 
-- **Tous les projets** : chaque projet, questions en attente, jauges de quota et de machine, log en
-  direct.
-- **Espace projet** : rail par état, cooks actifs, questions, grants.
-- **Direct d'un cook** : son flux retransmis, son budget, son ticket, son profil, son calibrage.
-- **Détection de « qui coince »** automatique : inactivité, trop de tours, deuxième renvoi,
-  quota bloquant → alerte dans l'app et au second.
-- Pour chaque ticket pris, l'écran « Tous les projets » montre **depuis combien de temps il n'a pas progressé**, pas
-  seulement depuis quand il est pris : des deux durées, c'est la seule qui révèle un blocage. Elle
-  est lue, jamais déduite — personne ne doit comparer une heure courante à la date d'un commit pour
-  savoir si ça avance.
-- Le second répond à « comment ça va sur X ? » en lisant le même log.
+- **All projects**: each project, pending questions, quota and machine gauges, live log.
+- **Project space**: rail by state, active cooks, questions, grants.
+- **A cook's live feed**: its stream relayed, its budget, its ticket, its profile, its
+  calibration.
+- Automatic **"who is stuck" detection**: idleness, too many turns, second send-back, blocking
+  quota → alert in the app and to the second.
+- For each taken ticket, the "All projects" screen shows **how long it has not progressed**, not
+  only since when it was taken: of the two durations, it is the only one that reveals a block. It
+  is read, never deduced — nobody should compare a current time to a commit's date to know
+  whether it is moving.
+- The second answers "how is it going on X?" by reading the same log.
 
-## La fermeture
+## The closing
 
-En cuisine, la **fermeture** — le *closing* — est un rituel de métier : on nettoie, on jette ce qui
-est périmé, on range, on prépare le service suivant. Personne ne la met au menu ; elle a lieu.
+In a kitchen, the **closing** is a trade ritual: you clean, throw out what is expired, tidy up,
+prepare the next service. Nobody puts it on the menu; it happens.
 
-### Le problème qu'elle résout
+### The problem it solves
 
-Constat du chef sur les projets conduits en V1 : **ils dérivent.** Les devs prennent de plus en plus
-de temps, le manager aussi, et personne ne cherche à l'éviter. Ce n'est pas un défaut d'attention,
-c'est une conséquence du design : **rien, dans la V2, ne retire quoi que ce soit.**
+The chef's observation on projects run in V1: **they drift.** Devs take more and more time, the
+manager too, and nobody tries to prevent it. It is not a lapse of attention, it is a consequence
+of the design: **nothing, in V2, removes anything.**
 
-| Ce qui grossit | Qui l'élague aujourd'hui |
+| What grows | Who prunes it today |
 |---|---|
-| la doc | personne — la règle dit « toute livraison met à jour la doc » : elle ajoute |
-| les tests | personne — mesuré le 2026-10-08 : 203 → 622 tests en un seul jalon |
-| le code | personne : pas de refactor sans ticket, et le hors-scope devient une issue |
-| les carnets | la promotion filtre l'entrée ; rien ne retire une leçon devenue fausse |
-| le `CLAUDE.md` et les conventions | personne |
-| la dette de sécurité | personne, et les gates ne la voient pas |
+| the docs | nobody — the rule says "every delivery updates the docs": it adds |
+| the tests | nobody — measured on 2026-10-08: 203 → 622 tests in a single milestone |
+| the code | nobody: no refactor without a ticket, and out-of-scope becomes an issue |
+| the notebooks | promotion filters the entry; nothing removes a lesson that has become false |
+| `CLAUDE.md` and the conventions | nobody |
+| security debt | nobody, and the gates do not see it |
 
-Trois causes, toutes structurelles :
+Three causes, all structural:
 
-1. **un cook = un ticket** — il ne peut pas remarquer en passant que trois fonctions font la même
-   chose, et s'il le remarque, la règle en fait une issue, pas un commit ;
-2. **le manager ordonne *dans* les priorités du second** — il ne crée pas de travail de fond, et le
-   second priorise la valeur produit : **l'entropie n'est jamais la valeur produit, donc elle ne
-   monte jamais** ;
-3. **les gates vérifient la non-régression, pas la non-dérive** — elles disent « ça marche », jamais
-   « ça devient lourd ».
+1. **one cook = one ticket** — it cannot notice in passing that three functions do the same
+   thing, and if it does notice, the rule makes it an issue, not a commit;
+2. **the manager orders *within* the second's priorities** — it does not create background work,
+   and the second prioritizes product value: **entropy is never product value, so it never
+   rises**;
+3. **the gates check non-regression, not non-drift** — they say "it works", never "it is getting
+   heavy".
 
-### Le closer est hors du rail
+### The closer is off the rail
 
-**Décision du chef (2026-10-09) : la fermeture ne suit pas les règles de priorité.** Un ticket de
-rangement posé en `prio:3` ne passerait jamais — il y aura toujours quelque chose de plus utile, et
-c'est précisément ce qui produit la dérive en V1. **L'entropie n'a pas besoin d'une priorité, elle
-a besoin d'un budget.**
+**Chef's decision (2026-10-09): the closing does not follow the priority rules.** A tidying
+ticket put at `prio:3` would never pass — there will always be something more useful, and that is
+precisely what produces drift in V1. **Entropy does not need a priority, it needs a budget.**
 
-Le **closer** n'est donc pas un cook et ne prend pas de ticket : il travaille hors du rail, en
-parallèle des cooks ou quand le service se calme.
+The **closer** is therefore not a cook and takes no ticket: it works off the rail, in parallel
+with the cooks or when service calms down.
 
-Mais il garde **tous les garde-fous** : plafonds par passe, détection d'inactivité, « stop »,
-disjoncteur, et les **zones de fichiers dans les deux sens** — il ne touche pas ce qu'un cook
-tient, et pendant qu'il range il en tient beaucoup. Sortir du rail ne veut pas dire sortir des
-garde-fous, et pour une raison précise : **c'est l'agent le plus dangereux du système.** Un cook qui
-se trompe ajoute du mauvais code, et la pass l'attrape ; un closer qui se trompe **efface du bon
-code**, et les gates diront « ça marche toujours » — puisque ce qui a disparu n'était testé par rien.
+But it keeps **all the guardrails**: caps per pass, idleness detection, "stop", breaker, and the
+**file zones in both directions** — it does not touch what a cook holds, and while it tidies it
+holds a lot. Leaving the rail does not mean leaving the guardrails, and for a precise reason:
+**it is the most dangerous agent in the system.** A cook that errs adds bad code, and the pass
+catches it; a closer that errs **erases good code**, and the gates will say "it still works" —
+since what disappeared was tested by nothing.
 
-### Observer et écrire ne se font pas dans la même fenêtre
+### Observing and writing are not done in the same window
 
-| | Ce qu'elle fait | Non bloquante ? |
+| | What it does | Non-blocking? |
 |---|---|---|
-| **fermeture qui observe** | mesure, compte, repère doublons et code mort, constate la dérive | **oui** : elle ne touche à rien, elle peut tourner en continu |
-| **fermeture qui écrit** | supprime, simplifie, range, dédoublonne | **non** : elle doit merger, donc elle déplace la branche d'intégration sous les cooks en vol |
+| **observing closing** | measures, counts, spots duplicates and dead code, notes the drift | **yes**: it touches nothing, it can run continuously |
+| **writing closing** | deletes, simplifies, tidies, deduplicates | **no**: it must merge, so it moves the integration branch under the cooks in flight |
 
-Une passe qui écrit pendant que trente cooks travaillent, c'est la rencontre de deux livraisons
-(§La pass) multipliée par trente — et c'est le closer qui déclenche la collision. « Quand ça se
-calme » n'est donc pas une préférence d'ordonnancement mais une **condition d'exécution**,
-mesurable : le rail est vide, ou le nombre de cooks en vol est sous un seuil.
+A pass that writes while thirty cooks work is the meeting of two deliveries (§The pass)
+multiplied by thirty — and it is the closer that triggers the collision. "When it calms down" is
+therefore not a scheduling preference but an **execution condition**, measurable: the rail is
+empty, or the number of cooks in flight is under a threshold.
 
-### Elle se déclenche par la mesure, pas par l'horloge
+### It is triggered by measurement, not by the clock
 
-Un balayage nocturne est arbitraire : il passe quand rien ne le justifie, et après la panne quand
-quelque chose la justifiait. Les déclencheurs sont des **compteurs**, et le journal les porte déjà :
+A nightly sweep is arbitrary: it runs when nothing justifies it, and after the outage when
+something did. The triggers are **counters**, and the log already carries them:
 
-- N merges depuis la dernière fermeture — « quatre-vingts merges d'affilée, c'est beaucoup » ;
-- la suite de tests a dépassé le plafond déclaré par le projet ;
-- la doc a grossi de X % sans qu'un seul fichier ait été supprimé ;
-- N merges depuis le dernier regard sécurité — un domaine où les gates ne voient rien.
+- N merges since the last closing — "eighty merges in a row is a lot";
+- the test suite exceeded the cap declared by the project;
+- the docs grew by X% without a single file being deleted;
+- N merges since the last security look — a domain where the gates see nothing.
 
-### Ses KPI, et ce qui les empêche de tricher
+### Its KPIs, and what stops them from cheating
 
-**On ne mesure jamais une réduction sans mesurer ce qu'elle ne doit pas casser.** Un agent mesuré
-sur le nombre de tests supprimera des tests ; sur la taille du dépôt, du code utile ; sur le temps
-des gates, des vérifications. Chacune de ces tricheries améliore le KPI et dégrade le projet.
+**A reduction is never measured without measuring what it must not break.** An agent measured on
+the number of tests will delete tests; on the size of the repository, useful code; on the gates'
+time, checks. Each of these cheats improves the KPI and degrades the project.
 
-| KPI | Nature | Son garde-fou |
+| KPI | Nature | Its guardrail |
 |---|---|---|
-| nombre et durée des tests | symptôme | la couverture ne baisse pas |
-| temps moyen des gates | symptôme | les gates vérifient toujours autant de choses |
-| temps d'un cook à livrer | symptôme | normalisé par taille de ticket — sinon un gros ticket ressemble à une dérive |
-| taille du contexte chargé (`CLAUDE.md`, doc lue) | symptôme | — |
-| taille du dépôt | symptôme | le produit marche toujours |
-| doublons et code mort retirés | **effet** | rien de vivant n'a disparu |
+| number and duration of tests | symptom | coverage does not drop |
+| average gates time | symptom | the gates still check as many things |
+| a cook's time to deliver | symptom | normalized by ticket size — otherwise a big ticket looks like drift |
+| size of the loaded context (`CLAUDE.md`, docs read) | symptom | — |
+| size of the repository | symptom | the product still works |
+| duplicates and dead code removed | **effect** | nothing alive has disappeared |
 
-Les **symptômes** déclenchent, les **effets** font le bilan. Et les symptômes se mesurent **dès
-aujourd'hui, sans closer** : le journal porte les tours, les tokens et la durée de chaque cook, les
-gates connaissent leur temps, le dépôt se mesure avec `git`. **Le tableau de ces mesures vient donc
-avant le closer** — sans lui, il rangerait à l'aveugle et personne ne saurait s'il sert.
+The **symptoms** trigger, the **effects** take stock. And the symptoms can be measured **today,
+without a closer**: the log carries each cook's turns, tokens and duration, the gates know their
+time, the repository is measured with `git`. **The table of these measures therefore comes before
+the closer** — without it, it would tidy blindly and nobody would know whether it helps.
 
-Le cas le plus délicat est le **temps d'un cook à livrer** : le plus proche de la dérive vécue, et
-le plus trompeur. Il mêle la taille des tickets, la lourdeur du projet et l'encombrement du
-contexte. Mieux vaut suivre la **part du temps passée dans les gates** et le **nombre de tours pour
-un ticket de taille comparable** que le total brut.
+The most delicate case is the **cook's time to deliver**: the closest to the drift as lived, and
+the most misleading. It mixes the size of the tickets, the heaviness of the project and the
+clutter of the context. Better to track the **share of time spent in the gates** and the **number
+of turns for a ticket of comparable size** than the raw total.
 
-### La mémoire se périme aussi
+### Memory goes stale too
 
-Les carnets ont une entrée — la promotion par répétition entre rétros indépendantes (§Stations et
-cooks) — et n'avaient pas de sortie. Une leçon devenue fausse est pire que pas de leçon : un carnet
-qui dit « toujours faire X » alors que X a été remplacé fait du mal à chaque cook qui le charge.
+Notebooks have an entry — promotion by repetition across independent retros (§Stations and cooks)
+— and had no exit. A lesson that has become false is worse than no lesson: a notebook that says
+"always do X" when X has been replaced harms every cook that loads it.
 
-**Promotion par répétition, péremption par silence** : une leçon qu'aucune rétro n'a reconfirmée
-depuis N tickets redescend en provisoire, puis disparaît.
+**Promotion by repetition, expiry by silence**: a lesson that no retro has reconfirmed in N
+tickets falls back to provisional, then disappears.
 
-Et pour la mémoire du projet — `CLAUDE.md`, doc, conventions — l'argument n'est pas l'hygiène mais
-l'économie : **elle est payée à chaque cook.** Ce qui est chargé dans chaque session coûte du
-contexte pour toujours ; une convention périmée est une taxe permanente.
+And for the project's memory — `CLAUDE.md`, docs, conventions — the argument is not hygiene but
+economy: **it is paid at every cook.** What is loaded in every session costs context forever; a
+stale convention is a permanent tax.
 
-### Ce qui se range sans attendre la fermeture
+### What gets tidied without waiting for the closing
 
-Tout n'a pas besoin d'une passe. Le nettoyage des ressources a un **moment naturel** — la fin d'un
-cook, un merge — et l'y faire vaut mieux qu'un balayage : à trente cooks le disque se remplit dans
-la journée, et un balai de nuit passe après la panne.
+Not everything needs a pass. Cleaning up resources has a **natural moment** — the end of a cook,
+a merge — and doing it there beats a sweep: at thirty cooks the disk fills within the day, and a
+night broom comes after the outage.
 
-| Objet | Quand il part | Pourquoi |
+| Object | When it goes | Why |
 |---|---|---|
-| **worktree** | à la fin du cook, succès ou échec | après avoir **commité ce qui traîne** sur sa branche : rien n'est perdu, et c'est le worktree qui pèse, pas la branche |
-| **branche** | au merge ; sinon après N jours si abandonnée | légère, et c'est elle qui porte la trace |
-| **flux brut** (`runs/*.jsonl`) | compressé, puis purgé après un délai | le gros volume, et du détail : le journal garde le compte-rendu |
-| **journal** (`log.db`) | jamais | c'est la vérité, tout en dérive |
+| **worktree** | at the end of the cook, success or failure | after **committing what is left lying around** on its branch: nothing is lost, and it is the worktree that weighs, not the branch |
+| **branch** | at merge; otherwise after N days if abandoned | light, and it is what carries the trace |
+| **raw stream** (`runs/*.jsonl`) | compressed, then purged after a delay | the big volume, and detail: the log keeps the report |
+| **log** (`log.db`) | never | it is the truth, everything derives from it |
 
-Décision du chef (2026-10-09) : **personne ne retourne dans le worktree d'un échec.** Il peut donc
-partir tout de suite, à condition que le travail non commité y soit commité d'abord.
+Chef's decision (2026-10-09): **nobody goes back into a failure's worktree.** It can therefore go
+right away, provided the uncommitted work in it is committed first.
 
-S'y ajoute une **borne de disque** qui ne dépend d'aucune horloge : au-delà d'un seuil, les plus
-vieux partent maintenant.
+On top of this comes a **disk bound** that depends on no clock: past a threshold, the oldest go
+now.
 
-## Isolation et secrets
+## Isolation and secrets
 
-- **Un conteneur par projet, un worktree par cook** (comme aujourd'hui).
-- Réseau des conteneurs en liste blanche : Anthropic, GitHub, registres de paquets.
-- **Compte Max** : connexion par SSH sur la box (comme aujourd'hui), identifiants
-  montés en lecture seule dans les conteneurs. L'app signale une connexion expirée.
-- **GitHub** : une GitHub App par dépôt, tokens courts limités au dépôt. Les cooks poussent des
-  branches, ne mergent pas (protection de branche) ; seule la pass merge.
-- **Secrets de dev** : un fichier par projet, monté uniquement dans son conteneur. Jamais de prod.
+- **One container per project, one worktree per cook** (as today).
+- Container network on an allowlist: Anthropic, GitHub, package registries.
+- **Max account**: connection over SSH on the box (as today), credentials mounted read-only in
+  the containers. The app flags an expired connection.
+- **GitHub**: one GitHub App per repository, short tokens limited to the repository. Cooks push
+  branches, do not merge (branch protection); only the pass merges.
+- **Dev secrets**: one file per project, mounted only in its container. Never prod.
 
 ## Migration
 
-- Conventions GitHub (labels, issues, PR, `gates.sh`, `worktree-setup.sh`) conservées autant que
-  possible pour basculer projet par projet.
-- Construire la V2 avec la V1.
+- GitHub conventions (labels, issues, PRs, `gates.sh`, `worktree-setup.sh`) kept as far as
+  possible to switch over project by project.
+- Build V2 with V1.
 
-## Mises à jour
+## Updates
 
-Brigade se maintient avec brigade : les mises à jour seront fréquentes, surtout au début. Aucune
-ne doit coûter une session, ni du temps sur les autres projets. L'essentiel est déjà acquis — le
-runtime n'a pas d'état en mémoire, les cooks sont jetables, et tout dérive d'un journal en ajout
-seul.
+Brigade maintains itself with brigade: updates will be frequent, especially at the start. None
+must cost a session, nor time on the other projects. The essentials are already in place — the
+runtime has no in-memory state, cooks are disposable, and everything derives from an append-only
+log.
 
-### Une instance de runtime par projet
+### One runtime instance per project
 
-Le runtime livré par #13 est **par projet** : unité systemd templatée `brigade@<projet>.service`,
-un répertoire d'état, un verrou et un journal par projet. `systemctl restart brigade@espace` ne
-touche pas `brigade@brigade`.
+The runtime delivered by #13 is **per project**: templated systemd unit
+`brigade@<project>.service`, one state directory, one lock and one log per project.
+`systemctl restart brigade@espace` does not touch `brigade@brigade`.
 
-- **La mise à jour se fait projet par projet** : c'est de l'exploitation, il n'y a rien à
-  construire.
-- **Brigade est son propre canari** : on bascule `brigade@brigade` d'abord et les autres projets
-  restent sur la version précédente le temps qu'elle tourne. Si elle casse, on perd l'outil qui
-  construit brigade — pas les autres projets.
-- **Plus de point unique de défaillance** : un runtime qui plante ne coûte qu'un projet.
-- L'isolation par conteneur est déjà payée : un runtime unique devrait traverser N frontières
-  d'isolation pour piloter ses cooks, un runtime par projet n'a rien à traverser.
+- **The update is done project by project**: it is operations, there is nothing to build.
+- **Brigade is its own canary**: `brigade@brigade` is switched first and the other projects stay
+  on the previous version while it runs. If it breaks, we lose the tool that builds brigade — not
+  the other projects.
+- **No more single point of failure**: a runtime that crashes costs only one project.
+- Container isolation is already paid for: a single runtime would have to cross N isolation
+  boundaries to drive its cooks, a runtime per project has nothing to cross.
 
-### Les règles qui rendent un redémarrage indolore
+### The rules that make a restart painless
 
-- **Un cook survit au redémarrage de son runtime.** Il est détaché, jamais un processus enfant
-  qu'une mise à jour tuerait. Le principe 7 le rattrape : au réveil, le runtime observe le
-  worktree et récolte ce qui est prêt, sans dépendre d'un message du cook.
-- **Le journal est une API entre versions.** En ajout seul, il ne se migre pas : il se relit.
-  Chaque version doit savoir lire tous les événements passés.
-- **Contrat de version entre l'interface et les runtimes** : **N et N-1 pilotables**, au-delà
-  visible mais non pilotable (voir §L'app desktop).
-- **Un mode « drain », frère doux du « stop »** : cesser de *fire* de nouveaux tickets et
-  laisser finir les cooks en vol. Quelques minutes de débit en moins, zéro perte. Le stop reste
-  l'arrêt immédiat.
-- **Rollback automatique** : une version qui ne démarre pas, ou qui échoue ses contrôles de
-  démarrage, revient seule à la précédente. `brigade@.service` en porte déjà la moitié —
-  `RestartPreventExitStatus=2` empêche un refus de démarrer de boucler.
+- **A cook survives its runtime's restart.** It is detached, never a child process that an update
+  would kill. Principle 7 catches it: on waking, the runtime observes the worktree and harvests
+  what is ready, without depending on a message from the cook.
+- **The log is an API between versions.** Append-only, it is not migrated: it is re-read. Each
+  version must know how to read all past events.
+- **Version contract between the interface and the runtimes**: **N and N-1 drivable**, beyond
+  that visible but not drivable (see §The desktop app).
+- **A "drain" mode, gentle sibling of "stop"**: stop *firing* new tickets and let the cooks in
+  flight finish. A few minutes less throughput, zero loss. The stop remains the immediate halt.
+- **Automatic rollback**: a version that does not start, or fails its startup checks, goes back
+  by itself to the previous one. `brigade@.service` already carries half of it —
+  `RestartPreventExitStatus=2` prevents a refusal to start from looping.
 
-### Le serpent qui se mord la queue
+### The snake that bites its tail
 
-Un cook modifie le runtime qui l'exécute, la pass merge sous grant, le runtime redémarre sur une
-version cassée — et ce qui permettrait de réparer ne tourne plus. Deux garde-fous :
+A cook modifies the runtime that executes it, the pass merges under grant, the runtime restarts
+on a broken version — and what would allow repairing no longer runs. Two guardrails:
 
-- **les gates ne suffisent pas** : un runtime peut passer ses tests et refuser de démarrer sur la
-  box. Le contrôle qui compte est un démarrage réel ;
-- **déployer à côté, basculer après un démarrage réussi**, revenir seul en cas d'échec.
+- **the gates are not enough**: a runtime can pass its tests and refuse to start on the box. The
+  check that counts is a real start;
+- **deploy alongside, switch after a successful start**, and go back by itself on failure.
 
-Le cloisonnement par projet contient le reste : seule l'instance `brigade@brigade` bascule.
+Per-project partitioning contains the rest: only the `brigade@brigade` instance switches.
 
-### Ce qui coûte encore une session
+### What still costs a session
 
-Le **second** est une session Claude Code : son prompt est chargé au démarrage, et une mise à jour
-du plugin ne change rien à une session en cours — limite V1, inchangée. D'où une règle d'arbitrage
-permanente : **minimum dans le prompt, maximum dans le runtime.** Un comportement placé dans le
-markdown d'un rôle exigera un redémarrage de session ; placé côté runtime, non.
+The **second** is a Claude Code session: its prompt is loaded at startup, and a plugin update
+changes nothing for a session in progress — V1 limit, unchanged. Hence a permanent arbitration
+rule: **minimum in the prompt, maximum in the runtime.** A behavior placed in a role's markdown
+will require a session restart; placed on the runtime side, it will not.
 
-## Au parking
+## Parking lot
 
-- **Autres moteurs** (Codex via abonnement ChatGPT, Mistral, openweights via opencode/ollama).
-  Conditions d'usage ChatGPT pour `codex exec` à vérifier le moment venu. Un reviewer d'un autre
-  moteur que le cook deviendra alors possible.
-- **Apprentissage des cooks par la mesure** (taux de renvoi, quota par ticket, durée par profil
-  → routage et carnets pilotés par les données). Potentiellement le vrai différenciateur à moyen
-  terme ; mérite son propre brainstorm.
-- **Création de profils proposée par la mesure** : « sept des douze derniers tickets touchaient la
-  BDD, quatre ont été renvoyés deux fois — un profil BDD ? ». Le chef ne sait pas à l'avance quels
-  profils son projet mérite, et c'est précisément ce que la mesure peut lui dire. Prolongement
-  direct du point ci-dessus.
-- **Accès multi-humains au second** : V2.5 — avec le **MCP** et sa couche d'authentification.
-- **Le runner Mac** : la station qui fournirait `chrome-connecté`, `accès-prod`, `revue-humaine`.
-  Sorti du jalon 6 : aucun ticket ne la réclame. Elle viendra avec le premier qui la réclamera.
-- **Le direct d'un cook** : retransmettre son flux. Le log dit déjà qui coince et les garde-fous
-  l'arrêtent — ce serait un second lecteur du même fait.
-- **Ressources machine** fines (au-delà d'un plafond de cooks simultanés) : plus tard.
-- **Messagerie** (Telegram, Slack) pour le second : pas dans l'immédiat.
+- **Other engines** (Codex via ChatGPT subscription, Mistral, openweights via opencode/ollama).
+  ChatGPT terms of use for `codex exec` to be checked when the time comes. A reviewer from an
+  engine other than the cook's will then become possible.
+- **Cook learning by measurement** (send-back rate, quota per ticket, duration per profile →
+  routing and notebooks driven by data). Potentially the real differentiator in the medium term;
+  deserves its own brainstorm.
+- **Profile creation proposed by measurement**: "seven of the last twelve tickets touched the DB,
+  four were sent back twice — a DB profile?". The chef does not know in advance which profiles
+  their project deserves, and that is precisely what measurement can tell them. Direct extension
+  of the point above.
+- **Multi-human access to the second**: V2.5 — with **MCP** and its authentication layer.
+- **The Mac runner**: the station that would provide `chrome-connecté`, `accès-prod`,
+  `revue-humaine`. Taken out of milestone 6: no ticket asks for it. It will come with the first
+  one that does.
+- **A cook's live feed**: relaying its stream. The log already says who is stuck and the
+  guardrails stop it — it would be a second reader of the same fact.
+- Fine-grained **machine resources** (beyond a cap on simultaneous cooks): later.
+- **Messaging** (Telegram, Slack) for the second: not in the immediate term.
 
-## Questions ouvertes
+## Open questions
 
-1. ~~Stack du runtime (langage, file d'événements, déploiement sur la box)~~ — **résolue le
-   2026-10-08** : voir [`2026-10-08-runtime-stack.md`](2026-10-08-runtime-stack.md).
-   ~~**Reste ouverte** : la stack de l'app~~ — **résolue au jalon 6** : Electron, xterm.js,
-   node-pty. Tauri aurait ajouté Rust, donc une seconde chaîne d'outils et un second jeu de gates,
-   pour une interface qui est du TypeScript dans les deux cas.
-2. ~~Format exact du ticket (dans le corps de l'issue GitHub ? frontmatter ? labels de capacités ?)~~
-   — **résolue le 2026-10-08** (#68) : une **fiche en commentaire** de l'issue, ni dans le corps ni
-   en labels. Voir [`2026-10-08-fiche-du-ticket.md`](2026-10-08-fiche-du-ticket.md), et
-   « La fiche d'un ticket » dans [`docs/runtime/station.md`](../../runtime/station.md#la-fiche-dun-ticket).
-   **Reste au jalon 4** : les capacités requises, le domaine et le budget, qui s'y ajoutent comme
-   des lignes de plus.
-3. ~~Comment le runner Mac matérialise la validation du chef pour `accès-prod`~~ — **sans objet
-   tant que le runner est au parking.** Reviendra avec lui.
-4. ~~Le direct d'un cook : flux brut ou résumé vivant ?~~ — **sans objet** : au parking, pour la
-   même raison.
-5. **Comment une machine joint une box, et comment on en ajoute une.** Un VPN ne peut pas être
-   supposé : sur un poste administré, les extensions réseau sont interdites. Et sur une box dont
-   les comptes d'équipe sont enfermés dans une session par `ForceCommand`, **le compte qui donne un
-   shell à un humain n'est pas celui qui peut lancer une commande pour l'app**. Les deux accès se
-   donnent séparément.
+1. ~~Runtime stack (language, event queue, deployment on the box)~~ — **resolved on
+   2026-10-08**: see [`2026-10-08-runtime-stack.md`](2026-10-08-runtime-stack.md).
+   ~~**Still open**: the app's stack~~ — **resolved at milestone 6**: Electron, xterm.js,
+   node-pty. Tauri would have added Rust, hence a second toolchain and a second set of gates, for
+   an interface that is TypeScript either way.
+2. ~~Exact format of the ticket (in the GitHub issue body? frontmatter? capability labels?)~~
+   — **resolved on 2026-10-08** (#68): a **card in a comment** on the issue, neither in the body
+   nor in labels. See [`2026-10-08-fiche-du-ticket.md`](2026-10-08-fiche-du-ticket.md), and
+   "La fiche d'un ticket" in [`docs/runtime/station.md`](../../runtime/station.md#la-fiche-dun-ticket).
+   **Left for milestone 4**: the required capabilities, the domain and the budget, which are
+   added to it as extra lines.
+3. ~~How the Mac runner materializes the chef's validation for `accès-prod`~~ — **moot while the
+   runner is in the parking lot.** Will come back with it.
+4. ~~A cook's live feed: raw stream or live summary?~~ — **moot**: in the parking lot, for the
+   same reason.
+5. **How a machine reaches a box, and how one is added.** A VPN cannot be assumed: on a managed
+   workstation, network extensions are forbidden. And on a box whose team accounts are locked
+   into a session by `ForceCommand`, **the account that gives a human a shell is not the one that
+   can launch a command for the app**. The two accesses are given separately.

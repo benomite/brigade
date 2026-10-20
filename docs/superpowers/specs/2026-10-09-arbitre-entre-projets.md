@@ -1,133 +1,135 @@
-# L'arbitre entre projets (#178)
+# The arbiter between projects (#178)
 
-Jalon 7 de l'épique #179. Spec mère : `2026-10-08-brigade-v2-design.md`, §Scheduler et §Mises à
-jour. Décisions produit tranchées par le Manager le 2026-10-09, consignées sur l'issue.
+Milestone 7 of epic #179. Parent spec: `2026-10-08-brigade-v2-design.md`, §Scheduler and §Updates.
+Product decisions settled by the Manager on 2026-10-09, recorded on the issue.
 
-## Le problème
+## The problem
 
-Dès qu'un second projet tourne sur la machine, deux ressources sont partagées et aucune n'est
-arbitrée : le **compte Max** (chaque projet a son plafond de cooks, rien ne les additionne) et la
-**machine** (un projet qui lance tout ce qu'il peut affame l'autre). Chaque runtime ne voit que son
-rail.
+As soon as a second project runs on the machine, two resources are shared and neither is
+arbitrated: the **Max account** (each project has its cap on cooks, nothing adds them up) and the
+**machine** (a project that launches everything it can starves the other). Each runtime sees only
+its own rail.
 
-## Ce qui est livré
+## What is delivered
 
-Un **arbitre**, un seul par machine, au-dessus des runtimes de projet. Il ne décide rien du
-travail : il répond à une seule question — « ce projet peut-il lancer un cook de plus ? » — en
-tenant compte de tous les projets. Du code, sans LLM.
+An **arbiter**, one per machine, above the project runtimes. It decides nothing about the work: it
+answers a single question — "can this project launch one more cook?" — taking all projects into
+account. Code, no LLM.
 
-| Critère de l'issue | Où |
+| Criterion of the issue | Where |
 |---|---|
-| Un arbitre unique, consulté avant chaque lancement | `arbitre.ts` (le process), `arbitrage.ts` (ce que la station lui demande), `station.ts` |
-| Des poids entre projets, sans toucher aux plafonds de chacun | `run arbitre -- poids <projet> <n>` |
-| Un projet n'affame pas les autres | la règle de partage, ci-dessous |
-| Arbitre injoignable : au plus un cook, journalisé et signalé | `station.unarbitrated`, `cook.launched` marqué, `status`, `journalctl` |
-| Il ne prétend pas connaître la consommation du compte | « consommation des cooks », totalisée depuis ce que les runtimes disent |
-| Lisible : par projet, ce qui tourne et ce qui est encore autorisé | `run arbitre` |
+| A single arbiter, consulted before every launch | `arbitre.ts` (the process), `arbitrage.ts` (what the station asks it), `station.ts` |
+| Weights between projects, without touching each one's caps | `run arbiter -- weight <project> <n>` |
+| A project does not starve the others | the sharing rule, below |
+| Arbiter unreachable: at most one cook, logged and flagged | `station.unarbitrated`, marked `cook.launched`, `status`, `journalctl` |
+| It does not claim to know the account's consumption | "cook consumption", totaled from what the runtimes say |
+| Readable: per project, what is running and what is still allowed | `run arbiter` |
 
-## Ce que l'arbitre sait, et d'où
+## What the arbiter knows, and from where
 
-**Rien de ce qu'il compte n'est à lui.** Chaque runtime lui **redit** son état à chaque échange :
-ses cooks de tickets en cours, s'il a des tickets qui attendent, s'il se retient parce que la
-machine sature, et ce que ses cooks ont consommé. L'arbitre garde le dernier mot de chacun en
-mémoire, jamais sur disque : un arbitre qui redémarre repart vide et se remplit de ce qu'on lui
-redit.
+**Nothing it counts is its own.** Each runtime **restates** its state at every exchange: its
+ticket cooks in flight, whether it has queued tickets, whether it is withholding because the
+machine is saturated, and what its cooks have consumed. The arbiter keeps each one's last word in
+memory, never on disk: an arbiter that restarts starts empty and fills up with what it is told
+again.
 
-Ce qu'il garde sur disque (`arbitre.db`, dans `BRIGADE_ARBITER_STATE_DIR`) tient aux **réglages** :
-les projets connus, leur poids, et ceux qui sont partis proprement. C'est là que la commande du
-chef écrit ; l'arbitre le relit à chaque décision, rien n'est à redémarrer.
+What it keeps on disk (`arbitre.db`, in `BRIGADE_ARBITER_STATE_DIR`) belongs to the **settings**:
+the known projects, their weight, and those that left cleanly. That is where the chef's command
+writes; the arbiter rereads it at every decision, nothing needs restarting.
 
-Un runtime parle : à chaque demande de lancement, à chaque passage de sa station dont l'état a
-changé (une fin de cook, une retenue), à chaque tick (c'est ce qui remplit un arbitre revenu), et à
-son arrêt propre (il rend sa part).
+A runtime speaks: at every launch request, at every pass of its station whose state has changed
+(a cook ending, a withholding), at every tick (this is what fills a returned arbiter), and at its
+clean stop (it hands back its share).
 
-## La règle de partage
+## The sharing rule
 
-`P` : le plafond du compte, réglé par le chef (`BRIGADE_ARBITER_MAX_COOKS`, **sans défaut**).
-`T` : les cooks en cours, tous projets entendus. Un projet est **actif** s'il a des cooks, de la
-demande, ou s'il est connu et n'a pas reparlé.
+`P`: the account cap, set by the chef (`BRIGADE_ARBITER_MAX_COOKS`, **no default**).
+`T`: the cooks in flight, all projects heard. A project is **active** if it has cooks, demand, or
+if it is known and has not spoken again.
 
-- **Part.** Chaque projet actif reçoit `max(1, ⌊E × poids / somme des poids actifs⌋)`, où `E` est
-  le plafond effectif. Jamais moins d'une place.
-- **Marche normale** (`E = P`). Un projet sous sa part passe, tant que `T < P`. Au-delà de sa
-  part, il **emprunte** : il passe si les places libres dépassent ce qui reste dû aux autres
-  projets qui demandent (ou qui n'ont pas reparlé). Les places de qui ne demande rien se prêtent.
-- **Machine saturée.** Dès qu'un runtime dit se retenir pour « machine saturée » alors que des
-  tickets attendent, `E` devient `T` — le nombre de cooks en cours — et les parts se calculent
-  dessus. Plus d'emprunt : seul un projet sous sa part effective passe. Celui qui a pris la
-  machine ne relance pas ; celui qui attend passe à la prochaine fin de cook, quand sa propre
-  station voit la machine respirer. L'arbitre ne lit pas la machine : chaque station le fait déjà,
-  et c'est elle qui retient un lancement que la machine ne porterait pas.
-- **Sans préemption.** L'arbitre ne tue jamais un cook : il retient le suivant.
-- **Un projet ne demande que ce qu'il pourrait lancer** : retenu par une borne que l'arbitre ne
-  lève pas (« stop », disjoncteur, base rouge, connexion, quota, son propre plafond de cooks), ses
-  tickets qui attendent ne réservent rien chez les autres.
-- **Un projet connu qui n'a pas reparlé** depuis le démarrage de l'arbitre garde sa part
-  **réservée**, et tant qu'il y en a un, **personne n'emprunte** : ses cooks sont inconnus. `run arbitre` le nomme, et dit depuis quand. Sa part se
-  libère quand il reparle, quand son runtime s'arrête proprement, ou quand le chef le retire
-  (`run arbitre -- retirer <projet>`).
+- **Share.** Each active project receives `max(1, ⌊E × weight / sum of the active weights⌋)`,
+  where `E` is the effective cap. Never less than one slot.
+- **Normal running** (`E = P`). A project under its share passes, as long as `T < P`. Beyond its
+  share, it **borrows**: it passes if the free slots exceed what is still owed to the other
+  projects that are asking (or have not spoken again). The slots of whoever asks for nothing are
+  lent.
+- **Machine saturated.** As soon as a runtime says it is withholding for "machine saturated" while
+  tickets are queued, `E` becomes `T` — the number of cooks in flight — and the shares are
+  computed on it. No more borrowing: only a project under its effective share passes. The one
+  that took the machine does not launch again; the one that waits passes at the next cook end,
+  when its own station sees the machine breathe. The arbiter does not read the machine: each
+  station already does, and it is the station that holds back a launch the machine would not
+  carry.
+- **No preemption.** The arbiter never kills a cook: it holds back the next one.
+- **A project asks only for what it could launch**: held by a limit the arbiter does not lift
+  ("stop", breaker, red base, connection, quota, its own cap on cooks), its queued tickets reserve
+  nothing at the others.
+- **A known project that has not spoken again** since the arbiter started keeps its share
+  **reserved**, and as long as there is one, **nobody borrows**: its cooks are unknown.
+  `run arbiter` names it, and says since when. Its share is freed when it speaks again, when its
+  runtime stops cleanly, or when the chef removes it (`run arbiter -- remove <project>`).
 
-L'arbitre compte les cooks de **tickets** seulement, comme le plafond de la station : un jugement
-du manager ou une relecture du reviewer ne retient rien.
+The arbiter counts **ticket** cooks only, like the station's cap: a manager's judgment or a
+reviewer's reading holds nothing back.
 
-## Côté runtime
+## Runtime side
 
-`BRIGADE_ARBITER_PORT`, **facultative**, désigne l'arbitre (boucle locale). Elle est la même pour
-l'arbitre et pour les runtimes.
+`BRIGADE_ARBITER_PORT`, **optional**, designates the arbiter (loopback). It is the same for the
+arbiter and for the runtimes.
 
-- **Absente** : le runtime tourne comme avant. Ni mode dégradé, ni avertissement.
-- **Posée** : la station consulte l'arbitre en dernier — après ses propres bornes — pour chaque
-  ticket qu'elle s'apprête à prendre. Refusée, elle se retient (`arbiter`) et redemande au réveil
-  suivant.
-- **Posée, et l'arbitre ne répond pas** — connexion refusée, réponse illisible ; un délai de dix
-  secondes n'est qu'une garde : **mode dégradé**. Le projet lance quand même, **au plus un cook de
-  ticket à la fois**. C'est écrit une fois à l'entrée (`station.unarbitrated`, une ligne dans
-  `journalctl`), une fois au retour (`station.arbitrated`) ; chaque cook parti ainsi porte
-  `unarbitrated: true` dans son `cook.launched` ; `status` et `station` le montrent tant que ça
-  dure. Les cooks déjà partis finissent. Au retour, l'arbitre recompte depuis ce que les runtimes
-  lui redisent, cooks non arbitrés compris.
+- **Absent**: the runtime runs as before. No degraded mode, no warning.
+- **Set**: the station consults the arbiter last — after its own limits — for each ticket it is
+  about to take. Refused, it withholds (`arbiter`) and asks again at the next wake-up.
+- **Set, and the arbiter does not answer** — connection refused, unreadable answer; a ten-second
+  timeout is only a guard: **degraded mode**. The project launches anyway, **at most one ticket
+  cook at a time**. This is written once at entry (`station.unarbitrated`, a line in
+  `journalctl`), once at return (`station.arbitrated`); each cook that left this way carries
+  `unarbitrated: true` in its `cook.launched`; `status` and `station` show it as long as it lasts.
+  The cooks already gone finish. On return, the arbiter recounts from what the runtimes tell it
+  again, unarbitrated cooks included.
 
-## Ce que le chef lit et règle
+## What the chef reads and sets
 
-`npm --prefix runtime run arbitre` :
+`npm --prefix runtime run arbiter`:
 
-- le plafond du compte, les cooks en cours, et si la machine est dite saturée (par qui) ;
-- par projet : poids, cooks en cours (dont ceux partis sans arbitre), part, ce que l'arbitre
-  autorise **encore**, s'il a de la demande, et la **consommation des cooks** sur 24 h et sur 7
-  jours glissants — ce que les cooks de tickets finis dans la fenêtre ont consommé, pas la
-  consommation du compte (#63) ;
-- les projets qui tiennent une part sans avoir reparlé, et depuis quand.
+- the account cap, the cooks in flight, and whether the machine is said to be saturated (by whom);
+- per project: weight, cooks in flight (including those that left without an arbiter), share, what
+  the arbiter **still** allows, whether it has demand, and the **cook consumption** over a sliding
+  24 h and 7 days — what the ticket cooks finished in the window consumed, not the account's
+  consumption (#63);
+- the projects that hold a share without having spoken again, and since when.
 
-`-- poids <projet> <n>` (entier ≥ 1, défaut 1, durable, sans expiration) et `-- retirer <projet>`.
-Arbitre injoignable, la commande le dit, rappelle le mode dégradé, et montre les réglages.
+`-- weight <project> <n>` (integer ≥ 1, default 1, durable, no expiry) and
+`-- remove <project>`. Arbiter unreachable, the command says so, recalls the degraded mode, and
+shows the settings.
 
-## Décisions techniques
+## Technical decisions
 
-- Un process (`tenir-arbitre.ts`), une unité `brigade-arbitre.service`, un verrou sur son
-  répertoire d'état. HTTP sur `127.0.0.1`, port lu dans l'environnement ; port 0 dans les tests,
-  un arbitre par test.
-- Le runtime joint l'arbitre sans passer par la porte du projet : la boucle locale reste ouverte
-  sous cloison.
-- Les réglages s'écrivent dans la base de l'arbitre, pas par HTTP : un cook, qui joint la boucle
-  locale, ne règle pas les poids. **Limite dite** : un cook peut parler à l'arbitre au nom d'un
-  projet ; il fausserait un compte que le runtime redit à l'échange suivant.
-- La décision est une fonction pure (`decider`), éprouvée seule ; « ce qui est encore autorisé »
-  se calcule en la rejouant.
-- **Limite dite** : un runtime mort sans le dire laisse son dernier mot à l'arbitre jusqu'à ce
-  qu'il reparle (systemd le relance) ou que le chef le retire. Aucune échéance ne le périme :
-  rien ici ne court contre l'horloge.
-- Un projet refusé redemande à son réveil suivant — le tick au plus tard (une minute).
+- One process (`tenir-arbitre.ts`), one `brigade-arbitre.service` unit, a lock on its state
+  directory. HTTP on `127.0.0.1`, port read from the environment; port 0 in the tests, one arbiter
+  per test.
+- The runtime reaches the arbiter without going through the project's door: the loopback stays
+  open under partition.
+- The settings are written into the arbiter's database, not over HTTP: a cook, which reaches the
+  loopback, does not set the weights. **Stated limit**: a cook can speak to the arbiter on behalf
+  of a project; it would skew a count that the runtime restates at the next exchange.
+- The decision is a pure function (`decider`), tested alone; "what is still allowed" is computed
+  by replaying it.
+- **Stated limit**: a runtime that died without saying so leaves its last word with the arbiter
+  until it speaks again (systemd restarts it) or the chef removes it. No deadline expires it:
+  nothing here runs against the clock.
+- A refused project asks again at its next wake-up — the tick at the latest (one minute).
 
-## Hors scope
+## Out of scope
 
-Le conteneur (#176) ; les capacités et le runner Mac (jalon 6) ; les budgets par domaine et toute
-décision fondée sur la consommation (jalon 8) — le total est ici **informatif**.
+The container (#176); the capabilities and the Mac runner (milestone 6); the budgets per domain
+and any decision based on consumption (milestone 8) — the total is **informative** here.
 
 ## Plan
 
-1. `decider` et les parts, à nu.
-2. L'arbitre : réglages durables, dernier mot de chaque projet, HTTP.
-3. `arbitrage.ts` : la configuration et l'échange côté runtime.
-4. La station : consultation, retenue `arbiter`, mode dégradé, ce qu'elle redit.
-5. La cuisine à deux projets : la machine saturée par le premier, le second finit par partir.
-6. `run arbitre`, `tenir-arbitre.ts`, l'unité, `status` / `station`, la doc vivante.
+1. `decider` and the shares, bare.
+2. The arbiter: durable settings, each project's last word, HTTP.
+3. `arbitrage.ts`: the configuration and the exchange on the runtime side.
+4. The station: consultation, `arbiter` withholding, degraded mode, what it restates.
+5. The kitchen with two projects: the machine saturated by the first, the second ends up leaving.
+6. `run arbiter`, `tenir-arbitre.ts`, the unit, `status` / `station`, the living doc.

@@ -1,256 +1,255 @@
-# La station `box/claude` — spec et plan (#15)
+# The `box/claude` station — spec and plan (#15)
 
-**Date** : 2026-10-08
-**Statut** : validé le 2026-10-08 — (a) aux sept questions de fin de document ; complété le même jour par les deux critères de récolte ajoutés à l'issue
-**Issue** : #15 « Une station claude prend un ticket et rend une branche »
-**S'appuie sur** : `2026-10-08-runtime-stack.md` (§4 piloter `claude`), `2026-10-08-runtime-rail.md`
-(prêter, rendre, 86), `2026-10-08-garde-fous.md` (lancement gardé, `juger`), et
-`2026-10-08-brigade-v2-design.md` (§Contraintes, §Stations et cooks)
+**Date**: 2026-10-08
+**Status**: approved on 2026-10-08 — (a) on the seven questions at the end of the document; completed the same day by the two harvest criteria added after the issue was written
+**Issue**: #15 "A claude station takes a ticket and hands back a branch"
+**Builds on**: `2026-10-08-runtime-stack.md` (§4 driving `claude`), `2026-10-08-runtime-rail.md`
+(lend, return, 86), `2026-10-08-garde-fous.md` (guarded launch, `juger`), and
+`2026-10-08-brigade-v2-design.md` (§Constraints, §Stations and cooks)
 
 ---
 
-## Ce que #15 livre
+## What #15 delivers
 
-La pièce qui manquait entre le rail et les garde-fous : quelque chose qui **vient prendre** un
-ticket. Le runtime gagne une station, `box/claude`, qui à chaque réveil regarde si elle peut
-servir, prend le premier ticket en attente, lui fabrique un worktree, y lance un cook sous
-garde-fous, lit comment il finit, et rend au rail ce que cette fin veut dire.
+The piece that was missing between the rail and the guardrails: something that **comes and takes**
+a ticket. The runtime gains a station, `box/claude`, which on every wake-up checks whether it can
+serve, takes the first queued ticket, builds a worktree for it, launches a cook under guardrails,
+reads how it ends, and hands back to the rail what that ending means.
 
-| Critère de l'issue | Ce qui le porte |
+| Issue criterion | What carries it |
 |---|---|
-| La station s'annonce, le chef la voit | Fait `station.announced` au démarrage ; projection `stations` ; commande `npm run station` |
-| Aucun cook sans calibrage | Le calibrage (modèle + effort) est lu sur le ticket ; absent ou ambigu, le ticket est refusé (question 2), jamais lancé avec un défaut |
-| Le cook n'a aucun geste de livraison ; un cook qui a commité puis s'est arrêté a fini | La station **récolte** : ce qui est commité est poussé et part en pass, quelle que soit la façon dont le process s'est arrêté (voir « Récolte ») |
-| Le log porte le calibrage | `cook.launched` gagne `model`, `effort`, `station`, `branch` |
-| Worktree propre, branche poussée, arbre principal intact | `git worktree add` depuis `origin/<base>` dans `<état>/worktrees/<run>` ; jamais de checkout dans le clone |
-| Branche depuis `v2`, PR vers `v2` | `BRIGADE_BASE_BRANCH`, sans défaut ; la PR est ouverte avec `--base` |
-| Binaire officiel seul, jamais le token | L'adaptateur ne lance que `claude` ; le runtime **refuse de démarrer** si son environnement porte `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` ou `CLAUDE_CODE_OAUTH_TOKEN` ; aucun fichier d'identifiants n'est ouvert |
-| Trois fins | `fini`, `échoué`, `86` — plus la connexion expirée, qui n'est aucune des trois |
-| 86 : retour en attente, rien de perdu, heure de retour | `ticket.86` avec `until` (le rail le rend seul, #14) et `station.86` : la station ne prend plus rien jusque-là |
-| Plafond de cooks simultanés = 1 | La station ne prend un ticket que si aucun cook ne tourne ; le plafond est écrit dans `station.announced` |
-| Relire ce que le cook a fait | Flux brut `runs/<run>.jsonl` (déjà #16), et le compte-rendu au journal (`cook.reported`) |
-| Le cook commente son ticket | Commentaire GitHub en fin de course (question 4) |
-| Connexion expirée détectée et signalée | `station.disconnected` (question 6), au démarrage (`claude auth status`) et dans le flux d'un cook |
-| Un cook ne merge jamais | Consigne du cook, outils de merge interdits au lancement (question 3) ; la garantie dure reste la protection de branche (#17) |
+| The station announces itself, the chef sees it | Fact `station.announced` at startup; `stations` projection; command `npm run station` |
+| No cook without calibration | The calibration (model + effort) is read from the ticket; missing or ambiguous, the ticket is refused (question 2), never launched with a default |
+| The cook has no delivery gesture; a cook that committed then stopped is done | The station **harvests**: what is committed is pushed and goes to pass, however the process stopped (see "Harvest") |
+| The log carries the calibration | `cook.launched` gains `model`, `effort`, `station`, `branch` |
+| Clean worktree, pushed branch, main tree intact | `git worktree add` from `origin/<base>` in `<state>/worktrees/<run>`; never a checkout in the clone |
+| Branch from `v2`, PR to `v2` | `BRIGADE_BASE_BRANCH`, no default; the PR is opened with `--base` |
+| Official binary only, never the token | The adapter only launches `claude`; the runtime **refuses to start** if its environment carries `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` or `CLAUDE_CODE_OAUTH_TOKEN`; no credentials file is opened |
+| Three endings | `done`, `failed`, `86` — plus the expired connection, which is none of the three |
+| 86: back to queued, nothing lost, return time | `ticket.86` with `until` (the rail renders it by itself, #14) and `station.86`: the station takes nothing until then |
+| Cap of simultaneous cooks = 1 | The station only takes a ticket if no cook is running; the cap is written in `station.announced` |
+| Re-read what the cook did | Raw stream `runs/<run>.jsonl` (already #16), and the report in the log (`cook.reported`) |
+| The cook comments on its ticket | GitHub comment at the end of the run (question 4) |
+| Expired connection detected and reported | `station.disconnected` (question 6), at startup (`claude auth status`) and in a cook's stream |
+| A cook never merges | The cook's instruction, merge tools forbidden at launch (question 3); the hard guarantee remains branch protection (#17) |
 
-## Ce qui a été éprouvé avant d'écrire
+## What was tested before writing
 
-Mesuré le 2026-10-08 sur le Mac (`claude` 2.1.285). **Quota consommé : un seul appel réel**, une
-réponse d'un mot en `haiku` / `low` (107 tokens de sortie). Le reste n'a rien coûté.
+Measured on 2026-10-08 on the Mac (`claude` 2.1.285). **Quota consumed: a single real call**, a
+one-word answer in `haiku` / `low` (107 output tokens). The rest cost nothing.
 
-- **Le calibrage est deux options du binaire** : `--model <alias>` et
+- **The calibration is two options of the binary**: `--model <alias>` and
   `--effort <low|medium|high|xhigh|max>`.
-- **Flux normal** : `system/init`, lignes `assistant` (un même message en plusieurs lignes),
-  `rate_limit_event`, puis `result` — `subtype: "success"`, `is_error: false`,
-  `terminal_reason: "completed"`, `result: "<dernier message>"`, code de sortie 0.
-- **`rate_limit_event`** : `rate_limit_info.status` (`allowed` observé), `rateLimitType`
-  (`five_hour`), `resetsAt` en **secondes** depuis l'époque, et `unifiedWindows` (taux des fenêtres
-  de 5 h et de 7 jours).
-- **Session non connectée** — provoquée sans quota, par un répertoire de configuration vide
-  (`CLAUDE_CONFIG_DIR`) : une ligne `assistant` synthétique portant
-  `error: "authentication_failed"` et `is_api_error_message: true`, puis un `result` avec
-  `is_error: true` et `terminal_reason: "api_error"`, **code de sortie 1**. À noter :
-  `subtype` y vaut quand même `"success"` — il ne dit donc rien de la réussite.
-- **`claude auth status`** répond en JSON (`loggedIn`, `authMethod`), code 1 si non connecté, sans
-  aucun appel au modèle.
+- **Normal stream**: `system/init`, `assistant` lines (one message spread over several lines),
+  `rate_limit_event`, then `result` — `subtype: "success"`, `is_error: false`,
+  `terminal_reason: "completed"`, `result: "<last message>"`, exit code 0.
+- **`rate_limit_event`**: `rate_limit_info.status` (`allowed` observed), `rateLimitType`
+  (`five_hour`), `resetsAt` in **seconds** since the epoch, and `unifiedWindows` (rate of the 5 h
+  and 7 day windows).
+- **Logged-out session** — provoked without quota, through an empty configuration directory
+  (`CLAUDE_CONFIG_DIR`): a synthetic `assistant` line carrying
+  `error: "authentication_failed"` and `is_api_error_message: true`, then a `result` with
+  `is_error: true` and `terminal_reason: "api_error"`, **exit code 1**. Note that
+  `subtype` is still `"success"` there — so it says nothing about success.
+- **`claude auth status`** answers in JSON (`loggedIn`, `authMethod`), code 1 if logged out, with
+  no call to the model at all.
 
-**Essai de bout en bout**, après le code : un cook réel (`haiku` / `low`) lancé par la station sur
-un dépôt local jetable, avec un faux `gh`. Il a commité en `bypassPermissions`, la station a poussé
-sa branche et l'a mise en pass — 14 tours, 25 000 tokens, une minute. Deuxième et dernier appel
-réel. Il a aussi montré qu'un cook charge les plugins et les hooks du compte (issue #41).
+**End-to-end trial**, after the code: a real cook (`haiku` / `low`) launched by the station on a
+disposable local repository, with a fake `gh`. It committed in `bypassPermissions`, the station
+pushed its branch and put it in pass — 14 turns, 25,000 tokens, one minute. Second and last real
+call. It also showed that a cook loads the account's plugins and hooks (issue #41).
 
-**Non éprouvé, et dit comme tel** : le flux d'un quota **réellement** épuisé. Le provoquer, c'est
-brûler le quota du chef ; je ne l'ai pas fait. La détection s'appuie sur la forme observée pour
-l'échec d'authentification, transposée : une ligne `assistant` portant `error: "rate_limit"`, ou un
-`rate_limit_event` dont le `status` est `rejected` — les valeurs que documente le type du flux. Le
-faux `claude` rejoue cette forme **reconstruite**, pas enregistrée. Le premier vrai 86 laissera son
-flux dans `runs/` : c'est lui qu'il faudra comparer, et la recette le dit.
+**Not tested, and said so**: the stream of a **really** exhausted quota. Provoking it means
+burning the chef's quota; I did not. The detection relies on the shape observed for the
+authentication failure, transposed: an `assistant` line carrying `error: "rate_limit"`, or a
+`rate_limit_event` whose `status` is `rejected` — the values documented by the stream's type. The
+fake `claude` replays this **reconstructed** shape, not a recorded one. The first real 86 will leave
+its stream in `runs/`: that is the one to compare against, and the recipe says so.
 
-De même, la connexion **expirée** n'a pas été provoquée (il faudrait attendre l'expiration) : le
-flux enregistré est celui d'une session **non connectée**, qui emprunte le même chemin d'erreur.
+Likewise, the **expired** connection was not provoked (we would have to wait for the expiry): the
+recorded stream is that of a **logged-out** session, which takes the same error path.
 
 ## Modules
 
-| Fichier | Rôle |
+| File | Role |
 |---|---|
-| `src/evenements/station.ts` | Les faits de la station |
-| `src/projections/stations.ts` | L'état de la station : annonce, connexion, 86 |
-| `src/calibrage.ts` | Lire modèle et effort sur les labels d'une issue |
-| `src/claude.ts` | L'adaptateur moteur : arguments du binaire, consigne du cook, lecture du flux brut, verdict |
-| `src/depot.ts` | Les gestes git : worktree du cook, commits à pousser, push. Injecté dans la station : la plupart de ses tests en donnent un faux, et `depot.test.ts` éprouve le vrai sur des dépôts locaux |
-| `src/station.ts` | La boucle : pouvoir servir, prendre, lancer, conclure |
-| `src/montrer-station.ts` | `npm run station`, en lecture seule |
+| `src/evenements/station.ts` | The station's facts |
+| `src/projections/stations.ts` | The station's state: announcement, connection, 86 |
+| `src/calibrage.ts` | Read model and effort from an issue's labels |
+| `src/claude.ts` | The engine adapter: the binary's arguments, the cook's instruction, reading the raw stream, verdict |
+| `src/depot.ts` | The git gestures: the cook's worktree, commits to push, push. Injected into the station: most of its tests give it a fake, and `depot.test.ts` tests the real one on local repositories |
+| `src/station.ts` | The loop: be able to serve, take, launch, conclude |
+| `src/montrer-station.ts` | `npm run station`, read-only |
 
-Touchés : `evenements/garde-fous.ts` et sa projection (`cook.launched` enrichi),
-`evenements/rail.ts`, `alimenter.ts` et la projection du rail (calibrage du ticket ; retour en
-attente sur `cook.exited` et `cook.interrupted`), `github.ts` (commenter, ouvrir une PR), `main.ts`,
-l'unité systemd, `docs/runtime.md`.
+Touched: `evenements/garde-fous.ts` and its projection (`cook.launched` enriched),
+`evenements/rail.ts`, `alimenter.ts` and the rail projection (the ticket's calibration; back to
+queued on `cook.exited` and `cook.interrupted`), `github.ts` (comment, open a PR), `main.ts`,
+the systemd unit, `docs/runtime.md`.
 
-## Faits journalisés
+## Logged facts
 
-| Fait | Ticket | Charge utile | Auteur |
+| Fact | Ticket | Payload | Author |
 |---|---|---|---|
 | `station.announced` | — | `station`, `engine`, `provides`, `maxCooks` | `station:box/claude` |
-| `ticket.86` (existant) | oui | `reason: "no-calibration"` : le refus d'un ticket non calibré | `station:box/claude` |
-| `cook.launched` (enrichi) | oui | + `station`, `model`, `effort`, `branch`, `worktree` | `runtime` |
-| `cook.reported` | oui | `run`, `ending` (`done`, `failed`, `86`, `disconnected`), `reason`, `summary`, `branch`, `pr` | `station:box/claude` |
+| `ticket.86` (existing) | yes | `reason: "no-calibration"`: the refusal of an uncalibrated ticket | `station:box/claude` |
+| `cook.launched` (enriched) | yes | + `station`, `model`, `effort`, `branch`, `worktree` | `runtime` |
+| `cook.reported` | yes | `run`, `ending` (`done`, `failed`, `86`, `disconnected`), `reason`, `summary`, `branch`, `pr` | `station:box/claude` |
 | `station.86` | — | `reason`, `until`, `window` (`five_hour`, `seven_day`) | `station:box/claude` |
-| `station.disconnected` | — ou oui | `reason`, `run` | `station:box/claude` |
+| `station.disconnected` | — or yes | `reason`, `run` | `station:box/claude` |
 
-`ticket.arrived` et `ticket.changed` gagnent `model` et `effort` (nuls quand le ticket n'est pas
-calibré). Un fait écrit avant #15 ne les porte pas : il se lit comme non calibré.
+`ticket.arrived` and `ticket.changed` gain `model` and `effort` (null when the ticket is not
+calibrated). A fact written before #15 does not carry them: it reads as uncalibrated.
 
-## La boucle de la station
+## The station's loop
 
-À chaque réveil du runtime, et dès qu'un cook se termine :
+At every wake-up of the runtime, and as soon as a cook ends:
 
-1. **Peut-elle servir ?** Non si un cook tourne (plafond 1), si la cuisine est arrêtée ou le
-   disjoncteur ouvert (#16), si le quota est épuisé et son heure de retour pas encore passée, si la
-   connexion est tenue pour expirée.
-2. **Prendre** : `rail.prendre("box/claude")`. Le bail est renouvelé tant que le cook vit.
-3. **Calibrage** : lu sur le ticket. Absent → refus (question 2), et on recommence en 2.
-4. **Worktree** : `git fetch origin <base>`, puis
-   `git worktree add -b cook/<ticket>-<run> <état>/worktrees/<run> origin/<base>`.
-5. **Lancer**, par le lancement gardé de #16 :
-   `claude -p <consigne> --output-format stream-json --verbose --model <m> --effort <e>` (plus les
-   options de permission, question 3), dans le worktree.
-6. **Conclure**, selon la fin lue dans le flux brut et le code de sortie :
+1. **Can it serve?** No if a cook is running (cap 1), if the kitchen is stopped or the breaker
+   open (#16), if the quota is exhausted and its return time has not passed, if the connection is
+   held to be expired.
+2. **Take**: `rail.prendre("box/claude")`. The lease is renewed as long as the cook lives.
+3. **Calibration**: read from the ticket. Missing → refusal (question 2), and start again at 2.
+4. **Worktree**: `git fetch origin <base>`, then
+   `git worktree add -b cook/<ticket>-<run> <state>/worktrees/<run> origin/<base>`.
+5. **Launch**, through the guarded launch of #16:
+   `claude -p <instruction> --output-format stream-json --verbose --model <m> --effort <e>` (plus
+   the permission options, question 3), in the worktree.
+6. **Conclude**, according to the ending read in the raw stream and the exit code:
 
-| Fin | Reconnue à | Disjoncteur | Rail |
+| Ending | Recognized by | Breaker | Rail |
 |---|---|---|---|
-| **fini** | au moins un commit sur la branche, et la branche poussée — que le cook ait conclu (code 0, `result` sans erreur), soit sorti en erreur, ou ait été arrêté par un garde-fou | réussite | PR ouverte, `ticket.passing` |
-| **échoué** | aucun commit (même si le cook dit avoir fini), ou un push impossible | échec | retour en attente (question 5) |
-| **86** | `error: "rate_limit"` ou `rate_limit_event` rejeté, et le cook n'a pas conclu | neutre | `ticket.86` jusqu'à `resetsAt`, `station.86` |
-| connexion expirée | `error: "authentication_failed"` | neutre | retour en attente, `station.disconnected` |
-| « stop » du chef | déjà #16 | neutre | retour en attente, rien n'est récolté |
+| **done** | at least one commit on the branch, and the branch pushed — whether the cook concluded (code 0, `result` without error), exited with an error, or was stopped by a guardrail | success | PR opened, `ticket.passing` |
+| **failed** | no commit (even if the cook says it finished), or a push that is impossible | failure | back to queued (question 5) |
+| **86** | `error: "rate_limit"` or a rejected `rate_limit_event`, and the cook did not conclude | neutral | `ticket.86` until `resetsAt`, `station.86` |
+| expired connection | `error: "authentication_failed"` | neutral | back to queued, `station.disconnected` |
+| the chef's "stop" | already #16 | neutral | back to queued, nothing is harvested |
 
-Un quota épuisé **sans** heure de retour dans le flux : la station s'en donne une, une heure plus
-tard, plutôt que de rester 86 jusqu'à ce qu'on la relève à la main.
+An exhausted quota **without** a return time in the stream: the station gives itself one, an hour
+later, rather than stay 86 until someone lifts it by hand.
 
-### Récolte
+### Harvest
 
-Deux critères ajoutés à l'issue pendant le développement (retour terrain « idle post-commit ») :
-le cook n'a aucun geste de livraison à accomplir, et un cook qui a commité puis s'est arrêté a fini.
-La station ne se fie donc pas à ce que le cook annonce : **le worktree fait foi**.
+Two criteria added to the issue during development (field feedback "idle post-commit"):
+the cook has no delivery gesture to perform, and a cook that committed then stopped is done.
+So the station does not trust what the cook announces: **the worktree is the authority**.
 
-- Des commits, quelle que soit la fin du process — sortie en erreur, flux sans `result`, arrêt par
-  inactivité ou par plafond : poussés, et le ticket part en pass. La raison reste lisible
-  (`cook.reported.reason` vaut `harvested:<pourquoi>`, et `guard.tripped` est au journal).
-- Pour cela `juger` est désormais consulté aussi quand un garde-fou a arrêté le cook : s'il dit
-  « ok », la fin est une réussite ; sinon elle reste un arrêt par garde-fou, comme avant.
-- **Deux fins ne se récoltent pas.** Le « stop » du chef : il a demandé que tout s'arrête, pas
-  qu'une PR s'ouvre. Et le quota épuisé : le critère de l'issue veut que le ticket retourne en
-  attente à l'heure du retour du quota.
+- Commits, whatever the end of the process — exit with an error, stream without `result`, stop
+  by inactivity or by a cap: pushed, and the ticket goes to pass. The reason stays readable
+  (`cook.reported.reason` is `harvested:<why>`, and `guard.tripped` is in the log).
+- For this, `juger` is now consulted also when a guardrail stopped the cook: if it says
+  "ok", the ending is a success; otherwise it stays a guardrail stop, as before.
+- **Two endings are not harvested.** The chef's "stop": they asked for everything to stop, not
+  for a PR to be opened. And the exhausted quota: the issue's criterion wants the ticket to go back
+  to queued at the time the quota returns.
 
-C'est la pass (#17) qui juge si le travail récolté est complet : la station ne sait que constater
-qu'il existe.
+It is the pass (#17) that judges whether the harvested work is complete: the station can only note
+that it exists.
 
-**Ce que ce ticket ne fait pas** de la spec de design mise à jour (PR #28) : le bail s'y renouvelle
-sur une preuve de travail, l'inactivité s'y mesure sur le worktree. Ici le bail se renouvelle tant
-que le cook vit, et l'inactivité reste celle de #16, mesurée sur le flux. C'est l'issue #35.
+**What this ticket does not do** from the updated design spec (PR #28): there, the lease is renewed
+on proof of work, and inactivity is measured on the worktree. Here the lease is renewed as long as
+the cook lives, and inactivity stays that of #16, measured on the stream. That is issue #35.
 
-**Le raccord laissé par #14 et #16.** `cook.exited` — quand l'issue est `failed`, `guard` ou `stop`
-— et `cook.interrupted` remettent le ticket pris en attente **dans la projection du rail**, sans fait de
-plus : la raison est déjà au journal du ticket (`guard.tripped`, puis `cook.exited`).
+**The join left by #14 and #16.** `cook.exited` — when the outcome is `failed`, `guard` or `stop`
+— and `cook.interrupted` put the taken ticket back to queued **in the rail projection**, with no
+extra fact: the reason is already in the ticket's log (`guard.tripped`, then `cook.exited`).
 
-**Le worktree reste** après la fin du cook, quelle qu'elle soit : c'est là que la pass (#17) jouera
-les gates, et là que le chef regarde quand un cook échoue. Le ménage n'est pas dans ce ticket.
+**The worktree stays** after the cook ends, whatever the ending: that is where the pass (#17) will
+play the gates, and where the chef looks when a cook fails. The cleanup is not in this ticket.
 
-**Une panne entre deux écritures** : chaque étape écrit son résultat avant la suivante. Un runtime
-tué après `cook.exited` mais avant `ticket.passing` laisse un ticket pris, sans cook : son bail
-échoit, il revient en attente — le rail de #14 fait déjà ce travail.
+**A crash between two writes**: each step writes its result before the next. A runtime
+killed after `cook.exited` but before `ticket.passing` leaves a taken ticket, without a cook: its
+lease expires, it goes back to queued — the rail of #14 already does this work.
 
 ## Configuration
 
-| Variable | Défaut | Rôle |
+| Variable | Default | Role |
 |---|---|---|
-| `BRIGADE_REPO_DIR` | aucun — refus de démarrer | Un clone du dépôt du projet, réservé à la station. Elle n'y fait que `fetch` et `worktree add` : son arbre de travail n'est jamais modifié |
-| `BRIGADE_BASE_BRANCH` | aucun — refus de démarrer | La branche d'intégration : d'où part le worktree, où vise la PR (`v2` pour le pilote) |
-| `BRIGADE_CLAUDE_BIN` | `claude` | Le binaire. Sert aux tests ; **jamais posé sur la box** |
+| `BRIGADE_REPO_DIR` | none — refuses to start | A clone of the project's repository, reserved for the station. It only does `fetch` and `worktree add` there: its working tree is never modified |
+| `BRIGADE_BASE_BRANCH` | none — refuses to start | The integration branch: where the worktree starts from, where the PR aims (`v2` for the pilot) |
+| `BRIGADE_CLAUDE_BIN` | `claude` | The binary. Used by the tests; **never set on the box** |
 
-## Frontières avec les tickets voisins
+## Boundaries with neighbouring tickets
 
-- **#17 (pass)** part de `ticket.passing` et de la PR ouverte. Elle seule merge.
-- **#18 (CLI d'état)** lit les mêmes projections. `npm run station` est le minimum pour que le
-  critère « le chef la voit » ne dépende pas d'elle ; elle pourra l'absorber.
-- **Jalon 2** : le manager posera le calibrage. **Jalon 4** : plafond réglable, arbitrage.
+- **#17 (pass)** starts from `ticket.passing` and the opened PR. It alone merges.
+- **#18 (state CLI)** reads the same projections. `npm run station` is the minimum so that the
+  criterion "the chef sees it" does not depend on it; it may absorb it.
+- **Milestone 2**: the manager will set the calibration. **Milestone 4**: adjustable cap, arbitration.
 
 ## Plan
 
-Chaque étape : le test d'abord, rouge, puis le code.
+Each step: the test first, red, then the code.
 
-1. Calibrage : lecture des labels ; `ticket.arrived` / `ticket.changed` le portent ; rejeu.
-2. Faits et projection de la station ; rail remis en attente sur `cook.exited` / `cook.interrupted`.
-3. Adaptateur `claude` : arguments, verdict sur les flux enregistrés (fini, échec, 86, non connecté).
-4. Gestes git : worktree depuis la base, arbre principal intact, push.
-5. La station : boucle, plafond 1, refus sans calibrage, les fins, bail renouvelé, redémarrage.
-6. GitHub : commentaire et PR par le faux `gh`.
-7. `main.ts`, refus de démarrer, unité systemd, `npm run station`.
-8. `docs/runtime.md` : la station, la recette du premier cook.
+1. Calibration: reading the labels; `ticket.arrived` / `ticket.changed` carry it; replay.
+2. The station's facts and projection; rail put back to queued on `cook.exited` / `cook.interrupted`.
+3. `claude` adapter: arguments, verdict on the recorded streams (done, failure, 86, logged out).
+4. Git gestures: worktree from the base, main tree intact, push.
+5. The station: loop, cap 1, refusal without calibration, the endings, lease renewed, restart.
+6. GitHub: comment and PR through the fake `gh`.
+7. `main.ts`, refusal to start, systemd unit, `npm run station`.
+8. `docs/runtime.md`: the station, the recipe for the first cook.
 
-## Questions tranchées — (a) aux sept, le 2026-10-08
+## Questions settled — (a) on all seven, on 2026-10-08
 
-Par le chef : 1, 2, 3 et 6. Par le Manager : 4 (c'est un critère de l'issue), 5 et 7.
+By the chef: 1, 2, 3 and 6. By the Manager: 4 (it is a criterion of the issue), 5 and 7.
 
-**1. Où le chef pose-t-il le calibrage sur le ticket ?**
-L'issue dit « posé à la main sur le ticket » ; #19 (question 6) demande de ne pas inventer de
-format de ticket avant le jalon 2.
-- **(a) Deux labels, `model:<opus|sonnet|haiku>` et `effort:<low|medium|high|xhigh|max>`.** Même
-  famille que `prio:N`, que le rail lit déjà. Ce sont des valeurs fermées et peu nombreuses — ce
-  qu'un label porte bien, l'argument retenu pour l'étiquette de domaine. Deux labels `model:` sur
-  un même ticket : ambigu, donc refusé.
-- (b) Une ligne balisée dans le corps de l'issue : c'est le format que #19 demande de ne pas
-  improviser.
-- (c) Une commande du chef qui écrit le calibrage dans le journal : invisible sur GitHub.
+**1. Where does the chef set the calibration on the ticket?**
+The issue says "set by hand on the ticket"; #19 (question 6) asks not to invent a ticket format
+before milestone 2.
+- **(a) Two labels, `model:<opus|sonnet|haiku>` and `effort:<low|medium|high|xhigh|max>`.** Same
+  family as `prio:N`, which the rail already reads. They are closed, few values — what a label
+  carries well, the argument kept for the domain label. Two `model:` labels on the same ticket:
+  ambiguous, hence refused.
+- (b) A marked line in the issue body: that is the format #19 asks not to improvise.
+- (c) A chef command that writes the calibration into the log: invisible on GitHub.
 
-**2. Que devient un ticket sans calibrage ?**
-- **(a) Il passe 86, motif `no-calibration`, sans heure de retour**, avec un commentaire sur
-  l'issue qui dit quoi poser. Le chef le voit dans le rail ; dès que les deux labels sont là, il
-  revient en attente tout seul.
-- (b) Il reste en attente et la station le saute : rien ne dit au chef pourquoi il ne part pas, et
-  le ticket bloque visuellement la tête du rail.
+**2. What becomes of a ticket without calibration?**
+- **(a) It goes 86, reason `no-calibration`, with no return time**, with a comment on the
+  issue saying what to set. The chef sees it in the rail; as soon as both labels are there, it
+  comes back to queued by itself.
+- (b) It stays queued and the station skips it: nothing tells the chef why it does not leave, and
+  the ticket visually blocks the head of the rail.
 
-**3. Quelles permissions pour un cook sans personne devant ?**
-`claude -p` ne peut répondre à aucune demande de permission : sans réglage, il ne peut ni éditer ni
-lancer une commande. Les grants générés sont au jalon 3.
-- **(a) `--permission-mode bypassPermissions`, avec une liste d'outils interdits** :
-  `gh pr merge`, `git push`, `git merge` vers la base. Le cook édite, teste et commite librement
-  dans son worktree ; c'est la station qui pousse (question 4). À savoir : la liste est un
-  garde-fou de bonne foi, pas une clôture — un cook décidé la contourne. La clôture, c'est la
-  protection de branche (#17) aujourd'hui et le conteneur au jalon 7. La box n'a aucun accès prod.
-- (b) `acceptEdits` et une liste blanche de commandes : chaque projet a les siennes (`npm`,
-  `pytest`…), et un cook bloqué sur une commande non prévue échoue en silence.
-- (c) Les seuls réglages du dépôt (`.claude/settings.json`) : reporte le problème sur chaque projet.
+**3. What permissions for a cook with nobody in front of it?**
+`claude -p` cannot answer any permission request: without a setting, it can neither edit nor
+run a command. The generated grants are in milestone 3.
+- **(a) `--permission-mode bypassPermissions`, with a list of forbidden tools**:
+  `gh pr merge`, `git push`, `git merge` towards the base. The cook edits, tests and commits freely
+  in its worktree; the station pushes (question 4). Worth knowing: the list is a
+  good-faith guardrail, not a fence — a determined cook gets around it. The fence is
+  branch protection (#17) today and the container in milestone 7. The box has no prod access.
+- (b) `acceptEdits` and a whitelist of commands: each project has its own (`npm`,
+  `pytest`…), and a cook blocked on an unforeseen command fails silently.
+- (c) Only the repository's settings (`.claude/settings.json`): shifts the problem onto each project.
 
-**4. Qui pousse la branche, ouvre la PR et commente le ticket ?**
-- **(a) La station, en code.** Le cook commite et termine par son compte-rendu. La station vérifie
-  qu'il y a des commits, pousse `cook/<ticket>-<run>`, ouvre la PR vers la base, et poste en
-  commentaire le dernier message du cook sous un en-tête : fin, calibrage, tours, tokens, durée,
-  branche, PR. Garanti même si le cook oublie — et le commentaire part aussi quand le cook
-  **échoue** (avec le motif), pas quand il est 86 (état normal : il se lit dans le rail, un
-  commentaire par fenêtre de quota serait du bruit).
-- (b) Le cook le fait lui-même, sur consigne : un compte-rendu plus libre, mais rien ne garantit
-  qu'il existe, et le cook doit alors avoir le droit de pousser.
+**4. Who pushes the branch, opens the PR and comments on the ticket?**
+- **(a) The station, in code.** The cook commits and ends with its report. The station checks
+  that there are commits, pushes `cook/<ticket>-<run>`, opens the PR to the base, and posts as a
+  comment the cook's last message under a header: ending, calibration, turns, tokens, duration,
+  branch, PR. Guaranteed even if the cook forgets — and the comment also goes out when the cook
+  **fails** (with the reason), not when it is 86 (normal state: it reads in the rail, a
+  comment per quota window would be noise).
+- (b) The cook does it itself, on instruction: a freer report, but nothing guarantees that it
+  exists, and the cook must then have the right to push.
 
-**5. Un ticket dont le cook échoue est-il repris tout de suite ?**
-- **(a) Oui.** Il revient en attente (c'est le raccord demandé par la qualification), la station le
-  reprend avec un cook neuf, et le disjoncteur de #16 borne la série : trois échecs d'affilée, plus
-  rien ne part avant « reprendre ». Coût maximal d'un ticket infaisable : trois cooks.
-- (b) Il passe 86 jusqu'à ce que le chef le rende : un seul cook perdu, mais une cuisine qui
-  s'arrête au premier échec, y compris passager.
+**5. Is a ticket whose cook fails taken up again right away?**
+- **(a) Yes.** It goes back to queued (that is the join asked for by the qualification), the station
+  takes it up with a fresh cook, and the breaker of #16 bounds the series: three failures in a row,
+  nothing leaves before "resume". Maximum cost of an infeasible ticket: three cooks.
+- (b) It goes 86 until the chef returns it: only one cook lost, but a kitchen that
+  stops at the first failure, including a transient one.
 
-**6. Connexion Max expirée : comment le chef l'apprend-il, et comment la station repart-elle ?**
-- **(a) Signalée à trois endroits, reprise par « reprendre ».** `station.disconnected` au journal,
-  l'état dans `npm run station`, et un commentaire sur le ticket qui l'a subie — le seul canal
-  visible hors de la box au jalon 1. Le ticket revient en attente, rien n'est compté au
-  disjoncteur, la station ne prend plus rien. Après son `claude /login`, le chef dit « reprendre »
-  (la commande de #16). Au démarrage, la station joue aussi `claude auth status` : non connectée,
-  elle le dit tout de suite au lieu d'attendre le premier cook.
-- (b) Reprise automatique dès que `claude auth status` répond connecté : cette commande ne voit pas
-  toujours une session expirée, la station relancerait alors un cook par minute pour rien.
+**6. Expired Max connection: how does the chef learn of it, and how does the station restart?**
+- **(a) Reported in three places, resumed by "resume".** `station.disconnected` in the log,
+  the state in `npm run station`, and a comment on the ticket that suffered it — the only
+  channel visible outside the box in milestone 1. The ticket goes back to queued, nothing is counted
+  against the breaker, the station takes nothing more. After their `claude /login`, the chef says "resume"
+  (the command of #16). At startup, the station also runs `claude auth status`: logged out,
+  it says so immediately instead of waiting for the first cook.
+- (b) Automatic resume as soon as `claude auth status` answers logged in: this command does not
+  always see an expired session, so the station would relaunch a cook every minute for nothing.
 
-**7. Le calibrage accepte-t-il d'autres modèles que les trois alias ?**
-- **(a) Non : `opus`, `sonnet`, `haiku`, les trois que nomme la spec.** Une valeur hors liste est
-  un ticket non calibré (question 2). Un alias inconnu passé au binaire donnerait un cook en échec,
-  compté au disjoncteur.
-- (b) Toute valeur est passée telle quelle à `--model`.
+**7. Does the calibration accept other models than the three aliases?**
+- **(a) No: `opus`, `sonnet`, `haiku`, the three the spec names.** A value outside the list is
+  an uncalibrated ticket (question 2). An unknown alias passed to the binary would give a failed
+  cook, counted against the breaker.
+- (b) Any value is passed as is to `--model`.

@@ -1,85 +1,87 @@
-# Installer brigade dans un projet — spec et plan (#173)
+# Installing brigade in a project — spec and plan (#173)
 
-**Date** : 2026-10-09
-**Statut** : livré côté dev ; trois critères restent à la recette du jalon 7, sur la box
-**Issue** : #173 « Installer brigade dans un projet : un parcours court, vérifié, et réversible »
-**S'appuie sur** : `2026-10-08-brigade-v2-design.md` (§Migration : conventions V1 conservées),
-`2026-10-08-station-claude.md` (le clone réservé, le setup avant le cook),
-`2026-10-08-pass-et-grant-merge.md` (les gates, le grant absent par défaut).
+**Date**: 2026-10-09
+**Status**: delivered on the dev side; three criteria remain for milestone 7's acceptance test,
+on the box
+**Issue**: #173 "Installer brigade dans un projet : un parcours court, vérifié, et réversible"
+**Builds on**: `2026-10-08-brigade-v2-design.md` (§Migration: V1 conventions kept),
+`2026-10-08-station-claude.md` (the reserved clone, the setup before the cook),
+`2026-10-08-pass-et-grant-merge.md` (the gates, the grant absent by default).
 
-Le parcours, tel que le chef le vit, est dans `docs/installer.md` : c'est la doc vivante, ce
-document ne la recopie pas.
+The path, as the chef lives it, is in `docs/installer.md`: it is the living doc, and this
+document does not copy it.
 
 ---
 
-## Ce qui était vrai avant de coder
+## What was true before coding
 
-- Ce qu'un dépôt doit porter se lisait en six endroits du code (`SCRIPT_GATES`, `SCRIPT_SETUP`,
-  `LABEL`, `calibrage.ts`, `prio:` dans `alimenter.ts`, les lecteurs de configuration) et nulle
-  part d'un seul tenant.
-- Chaque lecteur de configuration refuse au **premier** défaut, et le runtime au premier lecteur :
-  un projet mal installé se découvrait un manque par redémarrage, puis au premier cook.
-- Le runtime ne lit pas les bindings : la branche d'intégration est écrite deux fois, sans que
-  rien ne les compare.
-- `CLAUDE.md` disait « cinq variables », `docs/runtime.md` « neuf » : le code en exige neuf.
-- `/brigade:init` pose bindings, scripts et labels V1 — pas `fire`, `model:`, `effort:`.
+- What a repository must carry could be read in six places in the code (`SCRIPT_GATES`,
+  `SCRIPT_SETUP`, `LABEL`, `calibrage.ts`, `prio:` in `alimenter.ts`, the configuration readers)
+  and nowhere in one piece.
+- Each configuration reader refuses at the **first** gap, and the runtime at the first reader: a
+  badly installed project discovered one missing thing per restart, then at the first cook.
+- The runtime does not read the bindings: the integration branch is written twice, with nothing
+  comparing them.
+- `CLAUDE.md` said "five variables", `docs/runtime.md` "nine": the code requires nine.
+- `/brigade:init` sets V1 bindings, scripts and labels — not `fire`, `model:`, `effort:`.
 
-## Ce qui est livré
+## What is delivered
 
-Une commande du chef, `npm --prefix runtime run installation`, et quatre gestes :
+One chef command, `npm --prefix runtime run installation`, and four gestures:
 
-| Geste | Effet | Écrit quelque chose ? |
+| Gesture | Effect | Writes anything? |
 |---|---|---|
-| *(aucun argument)* | vérifie la machine, le dépôt et GitHub ; nomme **tout** ce qui manque ; sort en 1 s'il manque quelque chose | non |
-| `labels` | crée les labels du rail absents du dépôt | sur GitHub, ce qui manque seulement |
-| `setup [<cooks>]` | joue le setup à blanc dans un worktree de sonde, le mesure, dit s'il tient à `<cooks>` cooks | un worktree jetable, retiré |
-| `desinstaller [--confirmer]` | retire le clone réservé et les worktrees | seulement avec `--confirmer` |
+| *(no argument)* | checks the machine, the repository and GitHub; names **everything** that is missing; exits 1 if something is missing | no |
+| `labels` | creates the rail labels absent from the repository | on GitHub, only what is missing |
+| `setup [<cooks>]` | plays the setup dry in a probe worktree, measures it, says whether it holds at `<cooks>` cooks | a throwaway worktree, removed |
+| `uninstall [--confirm]` | removes the reserved clone and the worktrees | only with `--confirm` |
 
-Aucun ne lance de cook, aucun n'ouvre le journal.
+None launches a cook, none opens the log.
 
-## Ce que le dev a tranché — contestable en review
+## What the dev decided — contestable in review
 
-1. **Un parcours, pas un installeur.** L'installation reste une suite de gestes écrits, dont la
-   commande vérifie le résultat. Les gestes côté machine demandent `sudo` et un éditeur ; les
-   gestes côté dépôt sont ceux de `/brigade:init`. Un script qui ferait tout aurait à connaître la
-   machine — ce que brigade refuse de faire pour un projet.
-2. **`/brigade:init` n'est pas modifié.** Les labels V2 sont créés par la commande du runtime, qui
-   a déjà `gh` et le nom du dépôt ; `init` reste le chemin V1, et le miroir Codex n'est pas touché.
-3. **Trois marques** : `ok`, `MANQUE` (retient : code 1), `à savoir` (ne retient pas). Un setup
-   absent est un « à savoir » — le runtime le tolère ; des gates absentes sont un manque — la pass
-   remonterait toute livraison.
-4. **Les labels créés sont ceux que l'issue nomme** (`fire`, `prio:1`-`3`, `model:`, `effort:`).
-   `epic`, `question`, `decision`, `blocked-on-human` ne sont que lus par le manager : ils restent
-   au chef.
-5. **La désinstallation garde le journal** et ne touche à rien du dépôt ni de GitHub. Elle retire
-   ce que l'issue nomme — le clone réservé, les worktrees — et imprime les gestes `sudo` du
-   service, qu'un process sous le compte du service ne peut pas faire. Elle demande
-   `--confirmer` : c'est le seul geste destructif de la CLI. Confirmée, elle refuse tant que le clone
-   porte un commit, une remise ou un fichier que l'origine n'a pas (renvoi 1 de la PR #188).
-6. **« Tient à 30 cooks »** = le setup finit sous la moitié du bail **et** trente worktrees
-   tiennent sur le disque, réserve déduite. Le temps d'entrée est montré, pas jugé : un ticket qui
-   attend n'échoue pas. Aucun cache partagé n'est construit (hors scope de l'issue).
-7. **`BRIGADE_SYSTEMCTL_BIN`**, sur le modèle de `BRIGADE_GH_BIN` : les gates tournent aussi sur
-   la box, où un vrai `systemctl` répondrait aux tests.
-8. **`installation.ts` lance `git` et `gh` lui-même**, en lecture, alors que `depot.ts` et
-   `github.ts` s'en disent seuls lanceurs : `github.ts` est fermé à ce ticket (#174 y travaille),
-   et `Depot` ne sait ni lire un fichier de la base ni son mode. À replier dans ces deux modules
-   une fois #174 mergé, si la review le veut.
-9. **La constante `PART_DU_SETUP`** (la moitié du bail) est redite dans `installation.ts` :
-   celle de `station.ts` n'est pas exportée, et `station.ts` est fermé à ce ticket.
+1. **A path, not an installer.** The installation stays a series of written gestures, whose
+   result the command checks. The machine-side gestures need `sudo` and an editor; the
+   repository-side gestures are those of `/brigade:init`. A script that did everything would have
+   to know the machine — which brigade refuses to do for a project.
+2. **`/brigade:init` is not modified.** The V2 labels are created by the runtime command, which
+   already has `gh` and the repository name; `init` stays the V1 path, and the Codex mirror is
+   not touched.
+3. **Three marks**: `ok`, `MISSING` (holds back: code 1), `note` (does not hold back). An absent
+   setup is a "note" — the runtime tolerates it; absent gates are a missing item — the pass would
+   escalate every delivery.
+4. **The labels created are those the issue names** (`fire`, `prio:1`-`3`, `model:`, `effort:`).
+   `epic`, `question`, `decision`, `blocked-on-human` are only read by the manager: they stay with
+   the chef.
+5. **The uninstall keeps the log** and touches nothing of the repository or of GitHub. It removes
+   what the issue names — the reserved clone, the worktrees — and prints the service's `sudo`
+   gestures, which a process under the service's account cannot do. It asks for `--confirm`: it
+   is the only destructive gesture of the CLI. Once confirmed, it refuses as long as the clone
+   carries a commit, a stash or a file that the origin does not have (referral 1 of PR #188).
+6. **"Holds at 30 cooks"** = the setup finishes under half the lease **and** thirty worktrees fit
+   on the disk, reserve deducted. The entry time is shown, not judged: a queued ticket does not
+   fail. No shared cache is built (out of scope of the issue).
+7. **`BRIGADE_SYSTEMCTL_BIN`**, modeled on `BRIGADE_GH_BIN`: the gates also run on the box, where
+   a real `systemctl` would answer the tests.
+8. **`installation.ts` launches `git` and `gh` itself**, read-only, whereas `depot.ts` and
+   `github.ts` call themselves the only launchers: `github.ts` is closed to this ticket (#174 is
+   working on it), and `Depot` can read neither a file of the base nor its mode. To be folded into
+   those two modules once #174 is merged, if the review wants it.
+9. **The `PART_DU_SETUP` constant** (half the lease) is restated in `installation.ts`: the one in
+   `station.ts` is not exported, and `station.ts` is closed to this ticket.
 
-## Ce qui n'est pas tenu ici
+## What is not held here
 
-- Le parcours joué **de bout en bout sur `calculus`**, « rien dans le code de brigade n'a eu à
-  changer », et le premier ticket servi sans grant : recette du jalon 7, par le chef, sur la box
-  (`docs/installer.md`, « Recette du jalon 7 »).
-- Le coût du setup **de `calculus`** : la commande le mesure, le chiffre se prend sur la box.
-- La forme `env $(systemctl show …)` par laquelle la commande reçoit l'environnement du service
-  n'a pas pu être éprouvée depuis un poste sans systemd.
+- The path played **end to end on `calculus`**, "nothing in brigade's code had to change", and
+  the first ticket served without a grant: milestone 7's acceptance test, by the chef, on the box
+  (`docs/installer.md`, "Recette du jalon 7").
+- The cost of **`calculus`'s** setup: the command measures it, the figure is taken on the box.
+- The `env $(systemctl show …)` form by which the command receives the service's environment
+  could not be tried from a workstation without systemd.
 
-## Plan suivi
+## Plan followed
 
-1. Tests de la vérification (`runtime/test/installation.test.ts`), rouges ; puis `verifier`.
-2. Tests des labels, de la mesure, de la désinstallation, de la CLI, rouges ; puis le reste de
-   `runtime/src/installation.ts` et `installation-cli.ts`.
-3. `docs/installer.md`, raccords dans `docs/runtime.md`, « neuf variables » dans `CLAUDE.md`.
+1. Tests of the check (`runtime/test/installation.test.ts`), red; then `verifier`.
+2. Tests of the labels, the measure, the uninstall, the CLI, red; then the rest of
+   `runtime/src/installation.ts` and `installation-cli.ts`.
+3. `docs/installer.md`, joins in `docs/runtime.md`, "nine variables" in `CLAUDE.md`.

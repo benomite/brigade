@@ -1,64 +1,63 @@
-# `status` montre l'âge de la dernière sauvegarde, et le marque — spec et plan (#76)
+# `status` shows the age of the last backup, and flags it — spec and plan (#76)
 
-**Date** : 2026-10-08
-**Statut** : validé le 2026-10-08 — les quatre recommandations sont retenues telles quelles par le Manager
-**Issue** : #76 « Rien ne montre l'âge de la dernière sauvegarde, ni n'alerte quand elle vieillit »
-**S'appuie sur** : `2026-10-08-sauvegarde-etat-runtime.md` (#62 : `backup.completed`),
-`2026-10-08-runtime-status.md` (`status`, « tout l'affichage dérive du log »),
-`2026-10-08-age-de-bail-sans-progres.md` (une date dans la projection, une durée à l'affichage)
+**Date**: 2026-10-08
+**Status**: validated on 2026-10-08 — the four recommendations were accepted as they stood by the Manager
+**Issue**: #76 "Nothing shows the age of the last backup, nor alerts when it gets old"
+**Builds on**: `2026-10-08-sauvegarde-etat-runtime.md` (#62: `backup.completed`),
+`2026-10-08-runtime-status.md` (`status`, "the whole display derives from the log"),
+`2026-10-08-age-de-bail-sans-progres.md` (a date in the projection, a duration at display time)
 
 ---
 
-## Ce qui manque
+## What is missing
 
-Depuis #62, chaque sauvegarde réussie écrit `backup.completed` au journal. Un échec n'y écrit
-rien : un timer jamais activé, une destination pleine ou un drop-in perdu restent invisibles tant
-que personne ne cherche le dernier fait à la main. Une sauvegarde qui échoue en silence n'en est
-pas une.
+Since #62, every successful backup writes `backup.completed` to the log. A failure writes
+nothing there: a timer that was never enabled, a full destination or a lost drop-in stay invisible
+until someone looks for the last fact by hand. A backup that fails silently is not a backup.
 
-## La dernière sauvegarde est une projection
+## The last backup is a projection
 
-Aucun fait nouveau. Une projection `sauvegardes` écoute `backup.completed` et garde une seule
-ligne (`backup_last`) : la date du fait, le nom de la sauvegarde, et `lastSeq`. Chaque réussite
-remplace la précédente. Le temps n'entre pas dans la projection : elle porte une date, l'âge se
-compte à l'affichage.
+No new fact. A `sauvegardes` projection listens to `backup.completed` and keeps a single
+row (`backup_last`): the date of the fact, the name of the backup, and `lastSeq`. Each success
+replaces the previous one. Time does not enter the projection: it carries a date, and the age is
+counted at display time.
 
-**Journal existant** : la table n'existe qu'après un rejeu. `status` sur un journal pas encore
-rejoué répond déjà « redémarrer le runtime » ; rien à ajouter.
+**Existing log**: the table only exists after a replay. `status` on a log that has not been
+replayed yet already answers "restart the runtime"; nothing to add.
 
-**Après une restauration** : l'instantané est pris avant que le fait ne s'écrive, donc une
-sauvegarde ne contient pas sa propre réussite. Le journal restauré montre la sauvegarde
-précédente, ou aucune. C'est dit dans la doc, pas corrigé.
+**After a restore**: the snapshot is taken before the fact is written, so a backup does not
+contain its own success. The restored log shows the previous backup, or none. This is stated in
+the doc, not fixed.
 
-## L'âge déclaré
+## The declared age
 
-| Question | Décision |
+| Question | Decision |
 |---|---|
-| Où se déclare l'âge maximal ? | `BRIGADE_BACKUP_MAX_AGE_HOURS`, lue par `status`. `backup.completed` ne porte pas sa cadence, et celle-ci vit dans le timer systemd, que la commande ne connaît pas. Une valeur invalide est un refus (code 2) |
-| Quel défaut ? | 48 h : deux cadences du timer livré. Une nuit manquée est rattrapée au démarrage suivant sans alarme ; deux marquent. C'est un réglage, pas une variable obligatoire |
-| « Jamais faite » est-elle marquée dès le premier jour ? | Oui, poste de dev compris : un état sans sauvegarde est exactement le cas que l'issue vise |
-| Le code de sortie de `status` change-t-il ? | Non, il reste 0 : `status` est une photo. Un canal d'alerte hors de `status` est hors scope |
+| Where is the maximum age declared? | `BRIGADE_BACKUP_MAX_AGE_HOURS`, read by `status`. `backup.completed` does not carry its cadence, and the cadence lives in the systemd timer, which the command does not know. An invalid value is a refusal (code 2) |
+| Which default? | 48 h: two cadences of the shipped timer. A missed night is caught up at the next start without an alarm; two are flagged. It is a setting, not a mandatory variable |
+| Is "never done" flagged from day one? | Yes, dev workstation included: a state with no backup is exactly the case the issue targets |
+| Does the exit code of `status` change? | No, it stays 0: `status` is a photo. An alert channel outside `status` is out of scope |
 
-L'âge est marqué quand il **dépasse** le plafond ; égal, il ne l'est pas encore.
+The age is flagged when it **exceeds** the cap; equal, it is not flagged yet.
 
-## L'affichage
+## The display
 
-Une ligne `sauvegarde` dans l'en-tête, après `cuisine` :
+A `backup` line in the header, after `kitchen`:
 
 ```
-sauvegarde il y a 7 h 12 (2026-10-08T03-30-00Z, jusqu'à l'événement 412)
-sauvegarde TROP VIEILLE : il y a 3 j (2026-10-05T03-30-00Z, jusqu'à l'événement 398) — plus de 2 j : systemctl status brigade-sauvegarde@brigade
-sauvegarde JAMAIS FAITE — le timer brigade-sauvegarde@brigade tourne-t-il ?
+backup 7 h 12 ago (2026-10-08T03-30-00Z, up to event 412)
+backup TOO OLD: 3 d ago (2026-10-05T03-30-00Z, up to event 398) — more than 2 d: systemctl status brigade-sauvegarde@brigade
+backup NEVER DONE — is the timer brigade-sauvegarde@brigade running?
 ```
 
-Le nom de l'unité porte le projet lu au journal ; sur un journal vide, `<projet>`.
+The unit name carries the project read from the log; on an empty log, `<projet>`.
 
 ## Plan
 
-1. `runtime/src/projections/sauvegardes.ts` et son inscription au registre ; test de la projection,
-   et deux sauvegardes dans l'histoire du test de rejeu.
-2. `runtime/src/etat.ts` : `EtatCuisine.sauvegarde`, la ligne, le plafond par défaut ; tests des
-   trois rendus et du plafond réglé.
-3. `runtime/src/status.ts` : lecture et contrôle de la variable ; tests de la commande.
-4. `docs/runtime.md` : le bloc `sauvegarde` de `status`, la variable, la section sauvegarde qui
-   disait « rien n'alerte », la restauration.
+1. `runtime/src/projections/sauvegardes.ts` and its registration in the registry; a test of the
+   projection, and two backups in the history of the replay test.
+2. `runtime/src/etat.ts`: `EtatCuisine.sauvegarde`, the line, the default cap; tests of the
+   three renderings and of the configured cap.
+3. `runtime/src/status.ts`: reading and checking the variable; tests of the command.
+4. `docs/runtime.md`: the `backup` block of `status`, the variable, the backup section that
+   said "nothing alerts", the restore.

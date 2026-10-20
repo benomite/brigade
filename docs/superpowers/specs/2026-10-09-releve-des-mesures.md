@@ -1,141 +1,141 @@
-# Le relevé des mesures — spec (#163)
+# The measures report — spec (#163)
 
-**Date** : 2026-10-09
-**Statut** : validé le 2026-10-09 — les six questions de fin de document sont tranchées, réponses
-consignées sur l'issue. Deux écarts à la proposition, dits là où ils jouent : le signal (question 3)
-et l'origine des mesures du dépôt (`depot.ts` appartient à #164).
-**Issue** : #163 « Voir la dérive avant qu'elle fasse mal : le relevé des mesures »
-**S'appuie sur** : `2026-10-08-brigade-v2-design.md` (§La fermeture, principe 5),
-`2026-10-08-runtime-status.md` (la commande de lecture dont celle-ci reprend la forme),
-`2026-10-08-garde-fous.md` (les mesures d'un cook, les réglages écrits au journal). Ce document ne
-redécide rien de ce qui y figure.
+**Date**: 2026-10-09
+**Status**: approved on 2026-10-09 — the six questions at the end of the document are settled, answers
+recorded on the issue. Two departures from the proposal, stated where they apply: the signal (question 3)
+and where the repo measures come from (`depot.ts` belongs to #164).
+**Issue**: #163 "See drift before it hurts: the measures report"
+**Builds on**: `2026-10-08-brigade-v2-design.md` (§The closing, principle 5),
+`2026-10-08-runtime-status.md` (the read command whose shape this one takes over),
+`2026-10-08-garde-fous.md` (a cook's measures, the settings written to the log). This document
+re-decides nothing that appears there.
 
 ---
 
-## Ce que #163 livre
+## What #163 delivers
 
-Une commande de lecture, `npm --prefix runtime run mesures`, qui met côte à côte dans le temps ce
-que le journal sait de la lourdeur du projet, et une ligne dans `status` quand une mesure a franchi
-un seuil déclaré. Elle ne range rien : le closer est hors scope.
+A read command, `npm --prefix runtime run measures`, that lines up over time what the log knows
+about how heavy the project is, and a line in `status` when a measure has crossed a declared
+threshold. It tidies nothing: the closer is out of scope.
 
-| Critère de l'issue | Ce qui le porte |
+| Issue criterion | What carries it |
 |---|---|
-| Les mesures **dans le temps** | Une ligne par **tranche de merges**, la plus récente en bas, et une ligne de pente (de la première tranche montrée à la dernière) |
-| Dérivées du journal ou du dépôt, jamais stockées en double | Tout est lu dans `log.db`. Ce que le journal ne disait pas encore y entre comme **champs de faits existants** (ci-dessous), pas dans une table de relevés écrite à part |
-| Lisible sans outil | `run mesures`, en lecture seule, sur le modèle de `run status` |
-| Un seuil franchi est signalé sans qu'on le demande | Le runtime l'écrit au journal et sur sa sortie d'erreur au merge qui le franchit, une fois ; un bloc `dérive` dans `status` le rappelle, absent quand il n'y a rien à dire |
-| Le temps d'un cook présenté avec prudence | Pas de « temps moyen à livrer » : la **part des gates** dans le temps d'une livraison, et les **tours médians par calibrage** |
-| N'estime pas ce qu'il ne sait pas | Seuls les cooks du journal sont comptés ; une mesure absente s'affiche `—`, jamais zéro ; rien sur le compte Max |
+| Measures **over time** | One row per **slice of merges**, the most recent at the bottom, and a slope row (from the first slice shown to the last) |
+| Derived from the log or the repo, never stored twice | Everything is read from `log.db`. What the log did not yet say enters it as **fields of existing facts** (below), not in a report table written separately |
+| Readable without tooling | `run measures`, read-only, modelled on `run status` |
+| A crossed threshold is flagged without being asked | The runtime writes it to the log and to its error output at the merge that crosses it, once; a `drift` block in `status` recalls it, absent when there is nothing to say |
+| A cook's time shown with caution | No "average time to deliver": the **share of gates** in a delivery's time, and the **median turns per calibration** |
+| Does not estimate what it does not know | Only the cooks in the log are counted; a missing measure displays `—`, never zero; nothing on the Max account |
 
-## Ce que le journal sait déjà, et ce qui lui manque
+## What the log already knows, and what it lacks
 
-| Mesure | Au journal aujourd'hui ? | Ce que #163 ajoute |
+| Measure | In the log today? | What #163 adds |
 |---|---|---|
-| tours, tokens, durée d'un cook | oui — `cook.exited` (`turns`, `tokens`, `durationMs`), calibrage dans `cook.launched` | rien |
-| merges | oui — `merge.done` | rien |
-| temps des gates | **non** — `gates.sh` l'imprime, `Gates` ne garde que verdict, lignes `FAIL` et fin de sortie | `Gates.measures` : ce que les gates **déclarent** (contrat ci-dessous) |
-| nombre et durée de la suite de tests | **non** — la sortie des tests est jetée quand ils sont verts | idem |
-| taille du dépôt, taille du contexte | **non** | idem |
+| turns, tokens, duration of a cook | yes — `cook.exited` (`turns`, `tokens`, `durationMs`), calibration in `cook.launched` | nothing |
+| merges | yes — `merge.done` | nothing |
+| gates time | **no** — `gates.sh` prints it, `Gates` keeps only the verdict, `FAIL` lines and the end of the output | `Gates.measures`: what the gates **declare** (contract below) |
+| number and duration of the test suite | **no** — the test output is thrown away when green | same |
+| repo size, context size | **no** | same |
 
-Un seul ajout, donc : un champ **facultatif** de `Gates`, que portent déjà `pass.judged`,
-`pass.replayed` et `base.checked`. Un journal d'avant #163 se relit tel quel, et ses livraisons
-affichent `—`. La pass n'est pas modifiée.
+A single addition, then: an **optional** field of `Gates`, which `pass.judged`, `pass.replayed`
+and `base.checked` already carry. A log from before #163 is read back as is, and its deliveries
+display `—`. The pass is not modified.
 
-La proposition faisait mesurer le dépôt par le runtime, dans `depot.ts` — seul module qui lance
-`git`, et réservé à #164 pendant ce ticket. Tout passe donc par le contrat : c'est le projet qui
-déclare ce qu'il pèse, comme il déclare ses tests.
+The proposal had the runtime measure the repo, in `depot.ts` — the only module that runs `git`,
+and reserved to #164 during this ticket. So everything goes through the contract: the project
+declares what it weighs, as it declares its tests.
 
-### Le contrat des mesures de gates
+### The gates measures contract
 
-Le runtime ne sait pas ce qu'est un test : c'est le projet qui le sait. Les gates peuvent donc
-imprimer, sur leur sortie, des lignes
+The runtime does not know what a test is: the project does. The gates may therefore print, on
+their output, lines
 
 ```
 MESURE  <nom>=<nombre>
 ```
 
-que `jouerGates` relève comme il relève déjà les lignes `FAIL`. Six noms sont connus du relevé :
-`tests`, `tests_s`, `gates_s`, `depot_octets`, `contexte_octets`, `doc_octets`. Tout autre nom est
-gardé au journal et ignoré du relevé. Des gates qui n'impriment rien restent valides : la colonne
-affiche `—`.
+which `jouerGates` picks up as it already picks up the `FAIL` lines. Six names are known to the
+report: `tests`, `tests_s`, `gates_s`, `depot_octets`, `contexte_octets`, `doc_octets`. Any other
+name is kept in the log and ignored by the report. Gates that print nothing remain valid: the
+column displays `—`.
 
-`.claude/brigade/gates.sh` de ce dépôt déclare les six : les tests et leur durée tirés du résumé de
-`node --test` (`ℹ tests`, `ℹ duration_ms`), sa propre durée d'horloge, et les trois poids. Ni son
-plafond ni ses vérifications ne changent.
+This repo's `.claude/brigade/gates.sh` declares all six: the tests and their duration taken from
+the `node --test` summary (`ℹ tests`, `ℹ duration_ms`), its own wall-clock duration, and the three
+sizes. Neither its cap nor its checks change.
 
-### La taille du contexte chargé — définition proposée
+### The size of the loaded context — proposed definition
 
-Le PO l'a laissée « à définir ». Ce qu'un cook charge **à coup sûr** est écrit dans
-`docs/runtime.md` (« Ce qu'un cook charge ») : sa consigne, et le `CLAUDE.md` du dépôt qu'elle
-l'envoie lire. Le reste — la doc qu'il choisit d'ouvrir — n'est pas connu sans dépouiller son flux.
+The PO left it "to be defined". What a cook loads **for certain** is written in
+`docs/runtime.md` ("What a cook loads"): its instruction, and the repo's `CLAUDE.md` that the
+instruction sends it to read. The rest — the docs it chooses to open — is not known without going
+through its stream.
 
-Deux mesures distinctes, donc, plutôt qu'une estimation :
+Two distinct measures, then, rather than one estimate:
 
-- **`contexte`** : octets du `CLAUDE.md` à la racine du dépôt servi, plus ceux des fichiers qu'il
-  importe par `@chemin`, transitivement. C'est la taxe certaine, payée à chaque cook.
-- **`doc`** : octets des fichiers `*.md` suivis par git, `CLAUDE.md` compris. C'est ce qu'un cook
-  **peut** être amené à lire, et c'est la mesure du déclencheur « la doc a grossi de X % » de la
-  spec. Elle n'est pas présentée comme lue.
+- **`contexte`**: bytes of the `CLAUDE.md` at the root of the served repo, plus those of the files
+  it imports by `@path`, transitively. This is the certain tax, paid at every cook.
+- **`doc`**: bytes of the `*.md` files tracked by git, `CLAUDE.md` included. This is what a cook
+  **may** end up reading, and it is the measure for the spec's trigger "the docs grew by X %". It
+  is not presented as read.
 
-En octets, pas en tokens : le runtime ne sait pas compter des tokens sans appeler un modèle.
+In bytes, not tokens: the runtime cannot count tokens without calling a model.
 
-**`dépôt`** : octets de ce qui est commité (`git ls-tree -r -l HEAD`), donc sans dépendances ni
-builds.
+**`depot`** (repo): bytes of what is committed (`git ls-tree -r -l HEAD`), so without dependencies
+or builds.
 
-## Ce que la commande montre
+## What the command shows
 
-L'exemple de sortie et la lecture de chaque colonne sont dans `docs/runtime.md`, « Le relevé des
-mesures ».
+The example output and the reading of each column are in `docs/runtime.md`, "The measures report".
 
-- **Une tranche** vaut ce que portait la **dernière** livraison mergée de la tranche (tests, suite,
-  dépôt, contexte, doc : des états), et la **médiane** de ses livraisons pour ce qui se répète
-  (gates, part gates, tours). Entre parenthèses, le nombre de cooks derrière une médiane : une
-  médiane sur un cook n'en est pas une, et le chef doit le voir.
-- **L'ordre des merges n'est pas celui des jugements** : une livraison jugée, mise en attente, puis
-  mergée sans rejeu derrière une autre porte des mesures plus anciennes que l'état du projet. Elle
-  ne conclut pas — une mesure d'état ne vaut que si ses gates sont postérieures à celles de toute
-  livraison déjà mergée qui l'a déclarée.
-- **Part gates** : durée des gates d'une livraison, rejeux compris, rapportée à cette durée plus
-  celle de ses cooks. C'est le remplaçant du « temps à livrer » brut.
-- **Tours** : ceux de tous les cooks du ticket, sous le calibrage du dernier — celui avec lequel il
-  a fini par passer. Entre parenthèses, le nombre de tickets derrière la médiane.
-- **Calibrage** : `model/effort` du `cook.launched`. C'est la seule taille de ticket que le journal
-  porte — le manager calibre selon ce qu'il juge du ticket.
-- **Fermeture, regard sécurité** : aucun fait ne les porte encore ; les deux compteurs partent du
-  début du journal, et le disent. Ils se recaleront quand le closer écrira le sien.
-- `-- --par <n>` règle la taille d'une tranche (10 par défaut). Au-delà de douze tranches, seules
-  les dernières sont montrées.
+- A **slice** is worth what the **last** merged delivery of the slice carried (tests, suite,
+  repo, context, doc: states), and the **median** of its deliveries for what repeats (gates, gates
+  share, turns). In parentheses, the number of cooks behind a median: a median over one cook is
+  not one, and the chef must see it.
+- **The order of merges is not the order of judgments**: a delivery judged, put on hold, then
+  merged without a replay behind another one carries measures older than the project's state. It
+  does not conclude — a state measure only counts if its gates are later than those of any
+  already merged delivery that declared it.
+- **Gates share**: the duration of a delivery's gates, replays included, divided by that duration
+  plus that of its cooks. It replaces the raw "time to deliver".
+- **Turns**: those of all the ticket's cooks, under the calibration of the last one — the one with
+  which it finally went through. In parentheses, the number of tickets behind the median.
+- **Calibration**: `model/effort` from `cook.launched`. It is the only ticket size the log
+  carries — the manager calibrates according to what it judges of the ticket.
+- **Closing, security look**: no fact carries them yet; both counters start from the beginning of
+  the log, and say so. They will recalibrate when the closer writes its own.
+- `-- --par <n>` sets the size of a slice (10 by default). Beyond twelve slices, only the last
+  ones are shown.
 
-Erreurs, comme `status` : `BRIGADE_STATE_DIR` absent ou argument inconnu → code 2 et l'usage ;
-journal absent ou d'avant ces projections → code 1 et le motif.
+Errors, like `status`: `BRIGADE_STATE_DIR` missing or unknown argument → code 2 and the usage;
+log missing or from before these projections → code 1 and the reason.
 
-## Les seuils
+## The thresholds
 
-Déclarés dans l'environnement du runtime, comme les plafonds des garde-fous, et écrits au journal
-quand ils changent (`drift.configured`) : `status` et `mesures` les lisent là, sans variable à
-repasser à chaque appel. **Aucun défaut** : un seuil non déclaré ne signale rien.
+Declared in the runtime's environment, like the guardrails' caps, and written to the log when they
+change (`drift.configured`): `status` and `measures` read them there, with no variable to pass
+again on each call. **No default**: an undeclared threshold flags nothing.
 
-| Variable | Seuil sur |
+| Variable | Threshold on |
 |---|---|
-| `BRIGADE_DRIFT_TESTS` | le nombre de tests |
-| `BRIGADE_DRIFT_TESTS_SECONDS` | la durée de la suite |
-| `BRIGADE_DRIFT_GATES_SECONDS` | la durée des gates |
-| `BRIGADE_DRIFT_CONTEXT_KB` | la taille du contexte |
-| `BRIGADE_DRIFT_REPO_MB` | la taille du dépôt |
-| `BRIGADE_DRIFT_MERGES` | les merges depuis la dernière fermeture |
-| `BRIGADE_DRIFT_GROWTH_PERCENT` | la croissance de **toute** mesure d'état sur les 10 derniers merges — la pente, pas le point |
-| `BRIGADE_DRIFT_TICKET_TOKENS` | les tokens du ticket le plus cher des 10 derniers merges |
-| `BRIGADE_DRIFT_LOST_TOKENS` | les tokens des lancements sans livraison, sur les 10 derniers merges |
+| `BRIGADE_DRIFT_TESTS` | the number of tests |
+| `BRIGADE_DRIFT_TESTS_SECONDS` | the duration of the suite |
+| `BRIGADE_DRIFT_GATES_SECONDS` | the duration of the gates |
+| `BRIGADE_DRIFT_CONTEXT_KB` | the size of the context |
+| `BRIGADE_DRIFT_REPO_MB` | the size of the repo |
+| `BRIGADE_DRIFT_MERGES` | the merges since the last closing |
+| `BRIGADE_DRIFT_GROWTH_PERCENT` | the growth of **any** state measure over the last 10 merges — the slope, not the point |
+| `BRIGADE_DRIFT_TICKET_TOKENS` | the tokens of the most expensive ticket of the last 10 merges |
+| `BRIGADE_DRIFT_LOST_TOKENS` | the tokens of launches with no delivery, over the last 10 merges |
 
-Un plafond est franchi quand il est **dépassé** ; le compteur de merges, quand il est **atteint**.
-La pente compare une mesure d'état à ce qu'elle valait dix merges plus tôt, et ne dit rien avant.
+A cap is crossed when it is **exceeded**; the merge counter, when it is **reached**. The slope
+compares a state measure to what it was ten merges earlier, and says nothing before that.
 
-**Le signal** — tranché par le chef : `status` seul ne tient pas « sans qu'on la demande ». Au
-merge qui fait franchir un seuil, le runtime écrit `drift.crossed` et une ligne sur sa sortie
-d'erreur. **Une fois** : les franchissements signalés sont une projection du journal, donc tiennent
-après un redémarrage. Revenue sous son seuil, ou le seuil retiré, la mesure reçoit `drift.cleared`
-et pourra être signalée de nouveau. Aucune issue n'est ouverte. `status` gagne le bloc `dérive`,
-déduit à la lecture des livraisons et des seuils.
+**The signal** — settled by the chef: `status` alone does not meet "without being asked". At the
+merge that crosses a threshold, the runtime writes `drift.crossed` and a line on its error
+output. **Once**: the crossings already signalled are a projection of the log, so they hold after
+a restart. Once back under its threshold, or the threshold removed, the measure gets
+`drift.cleared` and can be signalled again. No issue is opened. `status` gains the `drift` block,
+deduced on reading from the deliveries and the thresholds.
 
 ## Modules
 
@@ -143,37 +143,35 @@ déduit à la lecture des livraisons et des seuils.
 runtime/src/
   evenements/pass.ts          Gates + measures?
   evenements/derive.ts        drift.configured, drift.crossed, drift.cleared
-  gates.ts                    relève les lignes MESURE
-  projections/mesures.ts      gates, cooks et merges d'un ticket ; seuils en vigueur ; franchissements signalés
-  mesures.ts                  tranches, médianes, pentes, jauges — fonctions sans effet
-  derive.ts                   lit les seuils de l'environnement, les écrit quand ils changent, signale au merge
-  montrer-mesures.ts          `npm run mesures` : arguments, affichage
-  etat.ts                     + le bloc `dérive`
-  main.ts                     branche la dérive
-.claude/brigade/gates.sh      déclare ses six mesures
-docs/runtime.md               + « Le relevé des mesures », le bloc `dérive` de `status`, les variables
+  gates.ts                    picks up the MESURE lines
+  projections/mesures.ts      a ticket's gates, cooks and merges; thresholds in force; signalled crossings
+  mesures.ts                  slices, medians, slopes, gauges — side-effect-free functions
+  derive.ts                   reads the thresholds from the environment, writes them when they change, signals at merge
+  montrer-mesures.ts          `npm run measures`: arguments, display
+  etat.ts                     + the `drift` block
+  main.ts                     wires up drift
+.claude/brigade/gates.sh      declares its six measures
+docs/runtime.md               + "The measures report", the `drift` block of `status`, the variables
 ```
 
-`station.ts`, `nettoyage.ts`, `depot.ts` et `pass.ts` ne sont pas touchés.
+`station.ts`, `nettoyage.ts`, `depot.ts` and `pass.ts` are not touched.
 
-## Frontières
+## Boundaries
 
-- **Les gates jouées hors du runtime** — par un dev de la V1, par le hook d'arrêt — n'écrivent pas
-  au journal : le relevé ne voit que les livraisons que la pass a jugées. La dérive de ce dépôt-ci
-  (203 → 622 tests) s'est produite sous la V1 : le relevé ne l'aurait montrée que servie par le
-  runtime.
-- **Hors scope**, comme le dit l'issue : le closer, les effets d'une fermeture, la couverture (le
-  garde-fou des KPI du closer), la consommation du compte Max (#63).
-- **Tests** : sur un journal écrit à la main, sans cuisine. Un seul joue le vrai `gates.sh`, sur un
-  projet d'essai — les gates sont à 50 s de processeur sur 75.
+- **Gates played outside the runtime** — by a V1 dev, by the stop hook — do not write to the log:
+  the report only sees the deliveries the pass judged. This repo's drift (203 → 622 tests)
+  happened under V1: the report would only have shown it when served by the runtime.
+- **Out of scope**, as the issue says: the closer, the effects of a closing, coverage (the closer's
+  KPI guardrail), the Max account's consumption (#63).
+- **Tests**: on a hand-written log, with no kitchen. Only one plays the real `gates.sh`, on a
+  trial project — the gates are at 50 s of processor out of 75.
 
-## Ce que le chef a tranché (2026-10-09)
+## What the chef settled (2026-10-09)
 
-1. **L'axe du temps** : des tranches de merges, 10 par défaut, `--par <n>`.
-2. **La taille du contexte** : deux mesures en octets, `contexte` et `doc`.
-3. **Où tombe le signal** : le bloc `dérive` de `status` **et** un avertissement du runtime au
-   franchissement, non répété tant que le seuil reste franchi. Pas d'issue ouverte par le runtime.
-4. **Seuils** : absolus et pente, dans l'environnement, écrits au journal, sans défaut.
-5. **Ticket de taille comparable** : même calibrage ; la médiane, et sur combien.
-6. **Le contrat `MESURE`** : adopté dans `.claude/brigade/gates.sh`, plafond et vérifications
-   inchangés.
+1. **The time axis**: slices of merges, 10 by default, `--par <n>`.
+2. **The context size**: two measures in bytes, `contexte` and `doc`.
+3. **Where the signal lands**: the `drift` block of `status` **and** a runtime warning at the
+   crossing, not repeated while the threshold remains crossed. No issue opened by the runtime.
+4. **Thresholds**: absolute and slope, in the environment, written to the log, no default.
+5. **Ticket of comparable size**: same calibration; the median, and over how many.
+6. **The `MESURE` contract**: adopted in `.claude/brigade/gates.sh`, cap and checks unchanged.

@@ -1,118 +1,118 @@
-# Le bail d'un ticket ne se renouvelle que sur un progrès observable — spec et plan (#47)
+# A ticket's lease only renews on observable progress — spec and plan (#47)
 
-**Date** : 2026-10-08
-**Statut** : validé le 2026-10-08 — le chef a retenu la recommandation aux trois questions de fin de document
-**Issue** : #47 « Le bail d'un ticket ne se renouvelle que sur un progrès observable »
-**S'appuie sur** : `2026-10-08-brigade-v2-design.md` (§« Le bail se renouvelle par la preuve de
-travail »), `2026-10-08-runtime-rail.md` (le bail, `renouveler`, `relever`),
-`2026-10-08-station-claude.md` (§Récolte), `2026-10-08-garde-fous.md` (l'inactivité, `juger`)
+**Date**: 2026-10-08
+**Status**: approved on 2026-10-08 — the chef took the recommendation on the three questions at the end of the document
+**Issue**: #47 "A ticket's lease only renews on observable progress"
+**Builds on**: `2026-10-08-brigade-v2-design.md` (§"The lease renews on proof of
+work"), `2026-10-08-runtime-rail.md` (the lease, `renouveler`, `relever`),
+`2026-10-08-station-claude.md` (§Harvest), `2026-10-08-garde-fous.md` (idleness, `juger`)
 
 ---
 
-## Ce que #47 livre
+## What #47 delivers
 
-Aujourd'hui la station renouvelle le bail de son ticket sur une minuterie : tant que le process du
-cook existe, le ticket est tenu. Un cook vivant qui ne produit rien garde donc son ticket jusqu'au
-plafond de durée. #47 fait le raccord laissé par #15 : **le bail ne se renouvelle plus que si le
-worktree a bougé**, et un bail qui tombe passe par la récolte.
+Today the station renews its ticket's lease on a timer: as long as the cook's process exists, the
+ticket is held. A live cook that produces nothing therefore keeps its ticket until the duration
+cap. #47 makes the connection left open by #15: **the lease only renews if the worktree
+moved**, and a lease that lapses goes through harvest.
 
-| Critère de l'issue | Ce qui le porte |
+| Issue criterion | What carries it |
 |---|---|
-| Ce qui renouvelle le bail est un progrès observable, jamais la présence du cook ni ce qu'il dit | La station compare l'**empreinte** du worktree d'une observation à la suivante ; `rail.renouveler` n'est appelé que si elle a changé. Le flux de sortie n'est pas lu |
-| Le bail joue à une échelle plus longue que l'inactivité de #16 ; les deux coexistent | Bail par défaut porté de 10 à 30 min (question 1) ; l'inactivité (10 min, sur le flux) n'est pas touchée. Un cook bavard et immobile tombe au bail ; un cook muet tombe à l'inactivité |
-| Piège : l'expiration passe par la récolte | C'est la station qui arrête le cook quand le bail tombe, par un arrêt **jugé** (motif `lease`) : `juger` récolte ce qui est commité avant que le ticket ne soit rendu |
-| Piège : ni `node_modules` ni `.git`, pas de log | L'empreinte est ce que git voit du worktree : les fichiers ignorés n'y entrent pas (question 2) |
-| Piège : tests à l'horloge simulée | L'observation se joue au tick du runtime et lit l'heure par `maintenant` : le test avance la montre, aucun délai réel |
+| What renews the lease is observable progress, never the cook's presence or what it says | The station compares the worktree's **fingerprint** from one observation to the next; `rail.renouveler` is only called if it changed. The output stream is not read |
+| The lease plays on a longer scale than #16's idleness; the two coexist | Default lease raised from 10 to 30 min (question 1); idleness (10 min, on the stream) is not touched. A chatty, motionless cook drops at the lease; a silent cook drops at idleness |
+| Trap: expiry goes through harvest | The station is the one that stops the cook when the lease lapses, by a **judged** stop (reason `lease`): `juger` harvests what is committed before the ticket is returned |
+| Trap: neither `node_modules` nor `.git`, no log | The fingerprint is what git sees of the worktree: ignored files do not enter it (question 2) |
+| Trap: tests on a simulated clock | The observation is played at the runtime's tick and reads the time through `maintenant`: the test advances the clock, no real delay |
 
-**Hors scope** : le plafond d'âge de bail sans progrès et son affichage dans `status` (#45).
+**Out of scope**: the cap on the age of a lease with no progress and its display in `status` (#45).
 
-## L'empreinte du worktree
+## The worktree fingerprint
 
-`Depot` gagne un geste, `empreinte(worktree): string` — une chaîne opaque, qui ne change que si le
-worktree a progressé :
+`Depot` gains a gesture, `empreinte(worktree): string` — an opaque string that changes only if the
+worktree progressed:
 
-- la tête (`git rev-parse HEAD`) : un commit, un amend, un rebase la changent ;
-- `git status --porcelain -z --untracked-files=all` : fichiers suivis modifiés, ajoutés, supprimés,
-  et fichiers non suivis **non ignorés** ;
-- pour chaque chemin que ce statut cite, sa taille et sa date de modification : réécrire un fichier
-  déjà modifié est un progrès, alors que sa ligne de statut ne change pas.
+- the head (`git rev-parse HEAD`): a commit, an amend, a rebase change it;
+- `git status --porcelain -z --untracked-files=all`: tracked files modified, added, deleted,
+  and untracked files that are **not ignored**;
+- for each path this status cites, its size and modification date: rewriting a file that is
+  already modified is progress, whereas its status line does not change.
 
-Git fait la frontière : ce que `.gitignore` écarte n'apparaît pas, et `.git` n'est jamais parcouru.
-Le coût est celui d'un `git status`, payé par observation et non par tick (voir plus bas).
+Git draws the boundary: what `.gitignore` excludes does not appear, and `.git` is never walked.
+The cost is that of a `git status`, paid per observation and not per tick (see below).
 
-`git` est lancé avec `--no-optional-locks` : un `status` ordinaire rafraîchit l'index et prend
-`index.lock`, ce qui ferait échouer un `git commit` du cook tombé au même instant.
+`git` is launched with `--no-optional-locks`: an ordinary `status` refreshes the index and takes
+`index.lock`, which would make a cook's `git commit` fail if it fell at the same instant.
 
-Une empreinte qui ne peut pas être lue (worktree supprimé, git en échec) ne vaut pas progrès : la
-station l'avertit sur journald et garde la précédente. Elle ne vaut pas non plus absence de
-progrès : à l'échéance, la station relit à chaque tick, et n'arrête le cook que si le worktree reste
-illisible un dixième de bail passé l'échéance. La sortie de `git status` est lue sans plafond de
-taille : un worktree chargé de fichiers neufs est celui d'un cook qui écrit.
+A fingerprint that cannot be read (worktree deleted, git failing) does not count as progress: the
+station warns on journald and keeps the previous one. Nor does it count as an absence of
+progress: at the deadline, the station rereads at every tick, and only stops the cook if the
+worktree stays unreadable a tenth of a lease past the deadline. The output of `git status` is read with no cap on
+size: a worktree loaded with new files is that of a cook that is writing.
 
-## La station observe, puis renouvelle ou arrête
+## The station observes, then renews or stops
 
-La minuterie de renouvellement disparaît. À la place, la station regarde le worktree de son cook
-**au tick du runtime**, au plus une fois par dixième de bail (3 min pour un bail de 30) — et à chaque tick, sans toucher au worktree, elle vérifie qu'elle tient toujours le ticket :
+The renewal timer goes away. In its place, the station looks at its cook's worktree
+**at the runtime's tick**, at most once per tenth of a lease (3 min for a 30 min lease) — and at every tick, without touching the worktree, it checks that it still holds the ticket:
 
-1. empreinte de départ prise au lancement du cook ;
-2. à l'observation, si l'empreinte a changé : `rail.renouveler` — l'échéance repart de maintenant.
-   Refusé, le ticket a quitté le rail : le cook est arrêté (« stop », comportement actuel) ;
-3. si elle n'a pas changé et que l'échéance est passée : la station arrête le cook avec le motif
+1. starting fingerprint taken when the cook is launched;
+2. at the observation, if the fingerprint changed: `rail.renouveler` — the deadline restarts from now.
+   If refused, the ticket has left the rail: the cook is stopped ("stop", current behaviour);
+3. if it did not change and the deadline has passed: the station stops the cook with the reason
    `lease`.
 
-Le motif `lease` rejoint `MotifArret`. C'est un arrêt de garde-fou comme un autre : `guard.tripped`
-l'écrit au journal avant le signal (`limit` = la durée du bail, `observed` = le temps écoulé depuis
-le dernier progrès), et la fin est **jugée**, donc récoltée par le code de #15 sans rien y changer :
+The reason `lease` joins `MotifArret`. It is a guardrail stop like any other: `guard.tripped`
+writes it to the log before the signal (`limit` = the duration of the lease, `observed` = the time elapsed since
+the last progress), and the end is **judged**, so harvested by #15's code with nothing changed in it:
 
-| Le worktree à l'échéance | Fin | Ticket |
+| The worktree at the deadline | End | Ticket |
 |---|---|---|
-| porte des commits | `ok` — `cook.reported` `done`, raison `harvested:guard:lease` ; branche poussée, PR | en pass |
-| n'en porte pas | `guard` — `cook.reported` `failed`, raison `guard:lease` ; commentaire sur le ticket | de retour en attente |
+| carries commits | `ok` — `cook.reported` `done`, reason `harvested:guard:lease`; branch pushed, PR | in pass |
+| carries none | `guard` — `cook.reported` `failed`, reason `guard:lease`; comment on the ticket | back to queued |
 
-`CookLance.arreter` et `Supervise.arreter` prennent pour cela un motif optionnel ; sans lui, c'est
-toujours le « stop ».
+`CookLance.arreter` and `Supervise.arreter` take an optional reason for this; without it, it is
+always the "stop".
 
-### Le rail ne rend pas un ticket dont le cook tourne
+### The rail does not return a ticket whose cook is running
 
-`relever` rend aujourd'hui tout ticket pris dont l'échéance est passée. Il tourne à chaque réveil :
-il passerait donc **avant** la station, le ticket reviendrait en attente, et la récolte arriverait
-trop tard pour l'envoyer en pass — un travail commité serait refait par le cook suivant.
+`relever` today returns any taken ticket whose deadline has passed. It runs at every wake-up: it
+would therefore go **before** the station, the ticket would go back to queued, and the harvest would arrive
+too late to send it to pass — committed work would be redone by the next cook.
 
-`relever` laisse donc de côté un ticket dont un cook est en cours (projection `cook_runs`) : c'est
-à sa station de l'arrêter, de récolter, et de dire la suite. Le filet reste entier — un cook finit
-toujours (plafond de durée), et toute fin sans suite remet déjà le ticket en attente dans la
-projection du rail (#15). `lease-expired` ne s'écrit plus que pour un ticket pris sans cook : une
-station morte entre le prêt et le lancement.
+`relever` therefore leaves aside a ticket whose cook is in progress (projection `cook_runs`): it is
+up to its station to stop it, to harvest, and to say what comes next. The safety net stays whole — a cook
+always ends (duration cap), and any end with no follow-up already puts the ticket back to queued in the
+rail's projection (#15). `lease-expired` is now only written for a taken ticket with no cook: a
+station that died between the loan and the launch.
 
-## Ce qui ne change pas
+## What does not change
 
-- L'inactivité de #16, ses plafonds, le disjoncteur.
-- La récolte de #15 : seul ce qui est **commité** part en pass. Un travail écrit mais non commité
-  renouvelle le bail tant qu'il avance ; s'il s'arrête là, il reste sur la station, sur sa branche.
-- `BRIGADE_LEASE_SECONDS` reste le seul réglage ; seul son défaut change.
+- #16's idleness, its caps, the breaker.
+- #15's harvest: only what is **committed** goes to pass. Work written but not committed
+  renews the lease as long as it advances; if it stops there, it stays on the station, on its branch.
+- `BRIGADE_LEASE_SECONDS` remains the only setting; only its default changes.
 
 ## Plan
 
-1. `depot.ts` — `empreinte`, testée sur un vrai dépôt : stable sans changement ; change sur commit,
-   modification d'un fichier suivi, réécriture d'un fichier déjà modifié, fichier non suivi ; ne
-   change pas pour un fichier ignoré.
-2. `superviseur.ts`, `garde-fous.ts`, `evenements/garde-fous.ts` — motif `lease`, `arreter(motif?)`.
-3. `rail.ts` — `relever` épargne un ticket dont le cook tourne.
-4. `station.ts` — observation au tick, renouvellement sur progrès, arrêt à l'échéance. Tests à la
-   montre : cook bavard immobile → arrêté, ticket en attente, aucun `ticket.renewed` ; fichier
-   touché → renouvelé ; fichier ignoré → non ; commit puis immobile → récolté, en pass.
-5. `alimenter.ts` — défaut du bail ; `docs/runtime.md` — le bail, la table des réglages, les faits.
+1. `depot.ts` — `empreinte`, tested on a real repo: stable with no change; changes on commit,
+   modification of a tracked file, rewrite of an already modified file, untracked file; does not
+   change for an ignored file.
+2. `superviseur.ts`, `garde-fous.ts`, `evenements/garde-fous.ts` — reason `lease`, `arreter(motif?)`.
+3. `rail.ts` — `relever` spares a ticket whose cook is running.
+4. `station.ts` — observation at the tick, renewal on progress, stop at the deadline. Clock-driven tests:
+   chatty motionless cook → stopped, ticket queued, no `ticket.renewed`; file
+   touched → renewed; ignored file → not; commit then motionless → harvested, in pass.
+5. `alimenter.ts` — default of the lease; `docs/runtime.md` — the lease, the settings table, the facts.
 
-## Questions tranchées
+## Questions settled
 
-**1. La durée du bail.** Recommandé : **30 min** par défaut (trois fois l'inactivité, la moitié du
-plafond de durée), réglable par `BRIGADE_LEASE_SECONDS`. Un cook qui lit vingt minutes avant
-d'écrire garde son ticket.
+**1. The duration of the lease.** Recommended: **30 min** by default (three times idleness, half the
+duration cap), adjustable through `BRIGADE_LEASE_SECONDS`. A cook that reads for twenty minutes before
+writing keeps its ticket.
 
-**2. La frontière de « un fichier touché ».** Recommandé : **ce que git verrait** — commit, fichier
-suivi modifié ou supprimé, fichier non suivi et non ignoré. Un log non ignoré compte : c'est au
-`.gitignore` du projet de le dire. Un cook qui réécrit le même fichier en boucle garde son ticket
-jusqu'au plafond de durée ; #45 le bornera.
+**2. The boundary of "a touched file".** Recommended: **what git would see** — commit, tracked
+file modified or deleted, untracked and non-ignored file. A non-ignored log counts: it is up to the
+project's `.gitignore` to say so. A cook that rewrites the same file in a loop keeps its ticket
+until the duration cap; #45 will bound it.
 
-**3. La fin d'un cook dont le bail tombe.** Recommandé : récolté s'il a commité ; sinon échec, qui
-**compte au disjoncteur** comme un arrêt par inactivité, et commentaire sur le ticket.
+**3. The end of a cook whose lease lapses.** Recommended: harvested if it committed; otherwise a failure, which
+**counts toward the breaker** like an idleness stop, and a comment on the ticket.
