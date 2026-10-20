@@ -182,7 +182,7 @@ test("une machine saturée se voit, avec ce qui manque", async (t) => {
   noter({ type: "station.held", payload: { station: STATION, reason: "machine" } });
 
   assert.match((await montrer()).sortie, new RegExp(String.raw`withholding\s+since ${JOUR_HORLOGE}T10:00:02.000Z — machine saturated: the servable tickets wait`));
-  assert.match((await montrer()).sortie, new RegExp(String.raw`machine\s+SATURATED since ${JOUR_HORLOGE}T10:00:01.000Z — 2,048 MB of disk free for at least 5,120; no ticket is taken`));
+  assert.match((await montrer()).sortie, new RegExp(String.raw`machine\s+SATURATED since ${JOUR_HORLOGE}T10:00:01.000Z on disk — 2,048 MB of disk free for at least 5,120 MB; no ticket is taken`));
 });
 
 test("un plafond qui n'est pas un nombre, ou réglé avant toute station, est refusé sans rien écrire", async (t) => {

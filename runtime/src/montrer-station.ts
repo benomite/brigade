@@ -30,7 +30,7 @@ import { reglagesEnVigueur } from "./closing/condition.ts";
 import { direReglagesEn } from "./closing/say.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direConsommationEn, NOTE_CONSOMMATION_EN } from "./etat.ts";
-import { direSaturationEn } from "./machine.ts";
+import { direSaturationsEn } from "./machine.ts";
 import { consommation } from "./projections/guardrails.ts";
 import { direCommentLeVoirEn, direEtatDeServeurEn, direPageEn, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus } from "./projections/service.ts";
 import { ConfigInvalide } from "./runtime.ts";
@@ -208,7 +208,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     if (!etat) return;
     ligne("station", `${etat.station} — engine ${etat.engine}, provides: ${etat.provides.join(", ")}`);
     ligne("simultaneous cooks", decrirePlafond(etat));
-    const { saturatedAt, saturatedResource: resource, saturatedObserved: observed, saturatedLimit: limit } = etat;
+    const { saturatedAt, saturatedCauses } = etat;
     // Une station distante ne tourne pas sur cette machine : ce qui se lit
     // d'elle, c'est si elle s'est manifestée.
     if (etat.remote) {
@@ -220,11 +220,12 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
       );
       ligne("ordinary tickets", direOrdinairesEn(etat));
     } else {
+      const saturee = direSaturationsEn(saturatedCauses);
       ligne(
         "machine",
-        saturatedAt === null || resource === null || observed === null || limit === null
+        saturatedAt === null || saturatedCauses.length === 0
           ? "holds"
-          : `SATURATED since ${saturatedAt} — ${direSaturationEn({ resource, observed, limit })}; no ticket is taken while it lasts, the running cooks carry on`,
+          : `SATURATED since ${saturatedAt} on ${saturee.ressources} — ${saturee.detail}; no ticket is taken while it lasts, the running cooks carry on`,
       );
     }
     ligne(

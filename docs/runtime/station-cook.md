@@ -315,7 +315,7 @@ session, reste la mesure de vérité du compte ; le runtime ne la remplace pas.
 | `station.withdrawn` | Le projet ne déclare plus cette station : elle sort de `status` et de `station` (hors ticket) |
 | `stations.undeclared` | Le projet ne déclare aucune station : aucun cook ne part. Écrit une fois, par le runtime ; la première annonce l'efface (hors ticket) |
 | `station.capped` | Le chef a réglé le plafond de cooks : `maxCooks`, `0` pour aucune limite, `null` quand il retire son réglage (`cooks auto`) (hors ticket) |
-| `station.saturated`, `station.relieved` | La machine n'en peut plus (`resource` : `cpu`, `memory`, `disk` ; `observed`, `limit`), puis respire (hors ticket) |
+| `station.saturated`, `station.relieved` | La machine n'en peut plus (`resource` : `cpu`, `memory`, `disk` ; `observed`, `limit` ; pour la mémoire, `limitFrom` : `{ totalMb }` quand le seuil dérive de la mémoire totale, `env` quand `BRIGADE_MIN_FREE_MEMORY_MB` le règle ; `also` : les autres ressources en cause, de la même forme), puis respire (hors ticket) |
 | `station.held`, `station.released` | Un ticket pourrait partir et n'est pas pris (`reason`, voir « Plusieurs cooks à la fois ») ; plus rien ne retient (hors ticket) |
 | `station.unarbitrated`, `station.arbitrated` | L'arbitre ne répond plus : mode dégradé, un cook à la fois, chaque `cook.launched` porte `unarbitrated: true` ; puis il répond de nouveau (hors ticket) |
 | `station.86` | Le quota est épuisé jusqu'à `until` (hors ticket) |

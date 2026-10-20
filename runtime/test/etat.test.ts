@@ -334,8 +334,27 @@ test("le chef lit le plafond qu'il a réglé, et une machine saturée avec ce qu
 
   assert.deepEqual(lignes.slice(lignes.indexOf("cooks      none running — box/claude: no limit — set by you, replaces 3 (8 cores)")).slice(0, 2), [
     "cooks      none running — box/claude: no limit — set by you, replaces 3 (8 cores)",
-    "           MACHINE SATURATED for 3 min — load of 16.2 for at most 15: box/claude takes no more tickets as long as it lasts",
+    "           MACHINE SATURATED for 3 min on CPU — load of 16.2 for at most 15: box/claude takes no more tickets as long as it lasts",
   ]);
+});
+
+test("une machine saturée de mémoire et de processeur : `status` nomme les deux, chacune avec ce qu'elle a, son seuil, et d'où vient celui de la mémoire", (t) => {
+  const { journal, noter } = cuisine(t);
+  noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } }); // 10:00:00
+  noter({ type: "station.announced", payload: { station: "box/claude", engine: "claude", provides: ["code"], maxCooks: 30, cores: 8 } });
+  noter({
+    type: "station.saturated",
+    payload: { station: "box/claude", resource: "cpu", observed: 18.44, limit: 12, also: [{ resource: "memory", observed: 812, limit: 3205, limitFrom: { totalMb: 32050 } }] },
+  }); // 10:00:02
+  const saturee = () => decrire(journal, `${JOUR_HORLOGE}T10:03:02.000Z`).filter((ligne) => /MACHINE SATURATED/.test(ligne));
+
+  assert.deepEqual(saturee(), [
+    "           MACHINE SATURATED for 3 min on CPU and memory — load of 18.4 for at most 12 · 812 MB of memory available for at least 3,205 MB (default: 10% of the machine's 32,050 MB): box/claude takes no more tickets as long as it lasts",
+  ]);
+
+  // Le chef a réglé le seuil : c'est lui que la ligne nomme.
+  noter({ type: "station.saturated", payload: { station: "box/claude", resource: "memory", observed: 812, limit: 2000, limitFrom: "env" } });
+  assert.match(saturee()[0] ?? "", / on memory — 812 MB of memory available for at least 2,000 MB \(set by BRIGADE_MIN_FREE_MEMORY_MB\): box\/claude takes/);
 });
 
 test("le plafond d'une station se lit avec ce qui le donne : ses cœurs, le réglage du chef et ce qu'il remplace, puis de nouveau ses cœurs une fois le réglage retiré", (t) => {

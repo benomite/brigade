@@ -462,7 +462,7 @@ export type Options = {
   decisions?: boolean;
 };
 
-export const MACHINE_CALME: Machine = { charge: 0, coeurs: 8, memoireDisponible: 64 * 1024 ** 3, disqueLibre: 512 * 1024 ** 3 };
+export const MACHINE_CALME: Machine = { charge: 0, coeurs: 8, memoireDisponible: 64 * 1024 ** 3, memoireTotale: 64 * 1024 ** 3, disqueLibre: 512 * 1024 ** 3 };
 // La même, avec assez de cœurs pour que leur plafond par défaut (31) ne retienne
 // pas un test qui veut plus de trois cooks de front : sur huit cœurs, une
 // station n'en fait tourner que trois, quoi qu'elle déclare.

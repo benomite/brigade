@@ -49,6 +49,7 @@ test("une station annoncée se lit avec son moteur, ce qu'elle fournit et son pl
     saturatedResource: null,
     saturatedObserved: null,
     saturatedLimit: null,
+    saturatedCauses: [],
     heldAt: null,
     heldReason: null,
     unarbitratedAt: null,
@@ -208,8 +209,24 @@ test("une machine saturée se lit sur la station, avec ce qui manque, jusqu'à c
     [`${JOUR_HORLOGE}T10:00:01.000Z`, "cpu", 16.2, 15],
   );
 
+  assert.deepEqual(etat?.saturatedCauses, [{ resource: "cpu", observed: 16.2, limit: 15 }]);
+
   noter({ type: "station.relieved", payload: { station: STATION } });
-  assert.deepEqual([etatStation(base, STATION)?.saturatedAt, etatStation(base, STATION)?.saturatedResource], [null, null]);
+  assert.deepEqual([etatStation(base, STATION)?.saturatedAt, etatStation(base, STATION)?.saturatedResource, etatStation(base, STATION)?.saturatedCauses], [null, null, []]);
+});
+
+test("une machine qui manque de plusieurs ressources se lit avec chacune, dans l'ordre, et d'où vient le seuil de la mémoire ; ce qui est illisible est écarté", (t) => {
+  const { base, noter } = cuisine(t);
+  noter({ type: "station.announced", payload: ANNONCE });
+  const memoire = { resource: "memory", observed: 812, limit: 3205, limitFrom: { totalMb: 32050 } } as const;
+  noter({ type: "station.saturated", payload: { station: STATION, resource: "cpu", observed: 18.4, limit: 12, also: [memoire] } });
+
+  assert.deepEqual(etatStation(base, STATION)?.saturatedCauses, [{ resource: "cpu", observed: 18.4, limit: 12 }, memoire]);
+  assert.equal(etatStation(base, STATION)?.saturatedResource, "cpu");
+
+  const illisibles = [{ resource: "swap", observed: 1, limit: 2 }, { resource: "disk", observed: "beaucoup", limit: 2 }] as never[];
+  noter({ type: "station.saturated", payload: { station: STATION, resource: "memory", observed: 812, limit: 2000, limitFrom: "env", also: illisibles } });
+  assert.deepEqual(etatStation(base, STATION)?.saturatedCauses, [{ resource: "memory", observed: 812, limit: 2000, limitFrom: "env" }]);
 });
 
 test("un quota épuisé se lit sur la station, avec son heure de retour", (t) => {

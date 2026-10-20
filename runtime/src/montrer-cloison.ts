@@ -10,7 +10,7 @@ import { enAnglais } from "./commandes.ts";
 import { configCloison, direFichiers, direReseau } from "./cloison.ts";
 import { eprouver } from "./eprouver.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
-import { configMachine } from "./machine.ts";
+import { configMachine, lireMemoireTotale, PART_MEMOIRE, seuilMemoire } from "./machine.ts";
 import { AUTRES_HOTES } from "./porte.ts";
 import { DECLARATION_RESEAU, direRegle, POURQUOI, reglesDuProjet } from "./reseau.ts";
 import { ConfigInvalide } from "./runtime.ts";
@@ -80,9 +80,10 @@ async function jouerLesSondes(essais: number): Promise<number> {
     ligne("  time", `${nombre(cout.cloisonneMs)} ms, against ${nombre(cout.nuMs)} ms without the partition: +${nombre(surcoutMs)} ms per launch`);
     if (cout.memoireKo === null) ligne("  memory", "not measurable on this machine (no /proc)");
     else {
-      const seuil = configMachine(env).memoireMinMo;
+      const seuil = seuilMemoire({ memoireTotale: lireMemoireTotale() }, configMachine(env));
+      const origine = seuil.origine === "env" ? "BRIGADE_MIN_FREE_MEMORY_MB" : `default: ${PART_MEMOIRE * 100}% of the machine's ${nombre(seuil.origine.totalMb, 0)} MB, BRIGADE_MIN_FREE_MEMORY_MB to set it`;
       ligne("  memory", `${nombre(cout.memoireKo / 1024)} MB resident while the launch lives (the \`bwrap\` processes)`);
-      ligne(`  at ${COOKS} cooks`, `+${nombre((cout.memoireKo * COOKS) / 1024)} MB, +${nombre(surcoutMs * COOKS)} ms of startup added up — the station keeps ${nombre(seuil, 0)} MB free (BRIGADE_MIN_FREE_MEMORY_MB)`);
+      ligne(`  at ${COOKS} cooks`, `+${nombre((cout.memoireKo * COOKS) / 1024)} MB, +${nombre(surcoutMs * COOKS)} ms of startup added up — the station keeps ${nombre(seuil.mo, 0)} MB free (${origine})`);
     }
   }
   const manques = sondes.filter((sonde) => sonde.tient === false).length;

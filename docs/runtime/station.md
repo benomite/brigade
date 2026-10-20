@@ -99,12 +99,33 @@ attente, son bail ne court pas.
 | Ressource | Elle se retient quand | Variable | Défaut |
 |---|---|---|---|
 | processeur | la charge moyenne sur une minute, par cœur, dépasse ce seuil | `BRIGADE_MAX_LOAD_PER_CORE` | `1.5` |
-| mémoire | il reste moins que ce nombre de Mo de mémoire **disponible** | `BRIGADE_MIN_FREE_MEMORY_MB` | `1024` |
+| mémoire | il reste moins que ce nombre de Mo de mémoire **disponible** | `BRIGADE_MIN_FREE_MEMORY_MB` | un dixième de la mémoire totale, `1024` au moins |
 | disque | il reste moins que ce nombre de Mo libres sur le disque de `BRIGADE_STATE_DIR` | `BRIGADE_MIN_FREE_DISK_MB` | `5120` |
 
+**La garde de la mémoire** (#1080). Sans `BRIGADE_MIN_FREE_MEMORY_MB`, son minimum dérive de la
+mémoire totale de la machine — celle du cgroup du service s'il en a moins : un dixième, un Go au
+moins — `3277` Mo sur 32 Go, `1638` sur 16, `1024` sur 8 et moins. La mémoire disponible
+(`MemAvailable` sous Linux) est ce que le noyau peut encore rendre : son tueur de mémoire n'agit
+qu'une fois presque tout pris. La station cesse de prendre bien avant, et ce qui reste tient `sshd`,
+le runtime qui continue de publier son état — `run status` se lit pendant toute la retenue —, et
+les cooks en cours le temps qu'ils grossissent. C'est la panne du 20 octobre 2026 qu'elle évite :
+32 Go, 512 Mo de swap, des process tués par le noyau et la box sans `ssh` pendant quatre heures. Une
+valeur dans `BRIGADE_MIN_FREE_MEMORY_MB` l'emporte, comme les autres garde-fous : lue au démarrage
+du runtime, `0` pour ne jamais retenir.
+
 Saturée, elle le dit : `station.saturated` puis `station.relieved`, `MACHINE SATURATED` dans `run
-status` (`MACHINE SATURÉE` avant #940) et `run station`. **Les cooks en cours continuent.** La saturation se lève avec dix pour
-cent de marge ; `0` pour la mémoire ou le disque : jamais retenu. **Un rail plein ne part pas d'un
+status` (`MACHINE SATURÉE` avant #940) et `run station`. Le fait nomme la première ressource en cause
+et, dans `also`, les autres ; il se réécrit quand l'une s'ajoute ou se lève, pas quand une valeur
+bouge. `run status` nomme chaque ressource en cause — la mémoire, le processeur, les deux —, avec ce
+qu'elle a, son seuil, et d'où vient celui de la mémoire :
+
+```
+MACHINE SATURATED for 3 min on CPU and memory — load of 18.4 for at most 12 · 812 MB of memory available for at least 3,205 MB (default: 10% of the machine's 32,050 MB): box/claude takes no more tickets as long as it lasts
+MACHINE SATURATED for 1 min on memory — 812 MB of memory available for at least 2,000 MB (set by BRIGADE_MIN_FREE_MEMORY_MB): box/claude takes no more tickets as long as it lasts
+```
+
+**Les cooks en cours continuent**, et la station reprend seule quand la machine respire. La saturation se lève avec dix pour
+cent de marge, ressource par ressource ; `0` pour la mémoire ou le disque : jamais retenu. **Un rail plein ne part pas d'un
 bloc** : pendant sa première minute, chaque cook lancé — et chaque ticket en entrée — pèse d'avance
 une unité de charge et 512 Mo. Les gates que la pass joue chargent la machine elles aussi.
 

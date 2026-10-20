@@ -212,6 +212,7 @@ const station = (nom: string, remote: boolean): EtatStation => ({
   saturatedResource: null,
   saturatedObserved: null,
   saturatedLimit: null,
+  saturatedCauses: [],
   heldAt: null,
   heldReason: null,
   unarbitratedAt: null,

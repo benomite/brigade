@@ -18,7 +18,7 @@ import { requises } from "./fiche.ts";
 import { ACTIONS, bientotEteint, direExtinctionEn, direResteEn } from "./grant.ts";
 import type { Journal } from "./journal.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
-import { direSaturationEn } from "./machine.ts";
+import { direSaturationsEn } from "./machine.ts";
 import { direLaLimite } from "./limite-github.ts";
 import { direJaugeEn, franchis, SANS_SEUIL, type Franchi } from "./mesures.ts";
 import {
@@ -472,12 +472,14 @@ function decrireCooks({ cooks, session, stations }: EtatCuisine, coinces: number
 }
 
 // La station qui se retient parce que la machine n'en peut plus : c'est le
-// vrai plafond, et il ne se voit nulle part ailleurs.
+// vrai plafond, et il ne se voit nulle part ailleurs. Chaque ressource en
+// cause est nommée — la mémoire, le processeur, les deux —, avec ce qu'elle a
+// et ce qu'elle doit avoir, et d'où vient le minimum de mémoire.
 function decrireSaturations({ stations }: EtatCuisine, depuis: Depuis): string[] {
   return stations.flatMap((station) => {
-    const { saturatedAt, saturatedResource: resource, saturatedObserved: observed, saturatedLimit: limit } = station;
-    if (saturatedAt === null || resource === null || observed === null || limit === null) return [];
-    return [ligne("", `MACHINE SATURATED for ${depuis(saturatedAt)} — ${direSaturationEn({ resource, observed, limit })}: ${station.station} takes no more tickets as long as it lasts`)];
+    if (station.saturatedAt === null || station.saturatedCauses.length === 0) return [];
+    const { ressources, detail } = direSaturationsEn(station.saturatedCauses);
+    return [ligne("", `MACHINE SATURATED for ${depuis(station.saturatedAt)} on ${ressources} — ${detail}: ${station.station} takes no more tickets as long as it lasts`)];
   });
 }
 
