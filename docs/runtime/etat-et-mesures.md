@@ -280,6 +280,28 @@ tranche qu'une fois, et un second geste, le même ou l'autre, n'écrit rien.
 | « oui » (`profile.accepted`) | la définition du profil est écrite dans le dépôt du projet, un fichier par profil : `.claude/brigade/profils/<nom>.md` — son domaine, son périmètre, ses skills, la date du « oui », les tickets qui l'ont justifié, puis son carnet au format du carnet du projet. Une définition déjà là n'est jamais remplacée : le « oui » n'écrit rien, et la proposition attend toujours |
 | « non » (`profile.refused`) | elle quitte la file. Le « non » nomme les tickets du domaine que le journal avait servis jusque-là : **le domaine n'est proposé de nouveau que s'il franchit encore les seuils sur d'autres tickets** — la mesure est refaite comme si ceux-là ne portaient pas la zone. Les mêmes tickets, relevés à nouveau, ne le ramènent pas |
 
+### Un profil au dispatch
+
+Un profil est une **préférence, jamais une contrainte** (`runtime/src/profils/preference.ts`). Au
+lancement du cook d'un ticket — d'ici ou d'une station distante, premier cook, reprise ou renvoi —,
+le runtime relit les définitions de `.claude/brigade/profils/` dans le dépôt du projet et cherche
+celles dont le domaine touche la zone de la fiche (l'un possède l'autre, comme pour les zones) : la
+plus précise d'abord (le plus de segments), puis par nom. La première **dont le cook est libre**
+l'emporte : le cook part sous ce profil et reçoit, après les leçons du projet, le carnet du profil —
+son nom, son fichier, et ses leçons **promues**, chacune avec son id ; une leçon sortie n'est pas
+donnée.
+
+Le cook d'un profil est **un seul à la fois** : il est occupé tant qu'un cook lancé sous lui tourne
+pour ce projet. Occupé, ou si aucun profil ne touche la zone, **le ticket ne l'attend pas** : il part
+aussitôt avec un généraliste, sans carnet, et sa consigne est celle d'avant. Le profil ne choisit
+ni ne retient aucune station : seule la capacité le fait. Une définition illisible est écartée, et
+le runtime la nomme sur sa sortie d'erreur.
+
+Le journal le dit au lancement : `profile.notebook-given`, au nom de la station, avec `run` (le
+cook), `name` et `zone` (le profil et son domaine), `file` (sa définition, relative au dépôt) et
+`lessons` (les ids des leçons du carnet données — `[]` pour un carnet encore vide). Un généraliste
+n'en a pas.
+
 ## Le relevé des mesures
 
 Les gates disent « ça marche », jamais « ça devient lourd ». Le relevé met côte à côte, **dans le

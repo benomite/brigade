@@ -87,6 +87,7 @@ import {
 import type { FaitStation } from "./events/station.ts";
 import { direMasquage } from "./identifiants.ts";
 import { blocDesLecons, type LeconRecue } from "./apprentissage/injection.ts";
+import { blocDuCarnet, type CarnetRecu } from "./profils/preference.ts";
 import { CONSIGNE_DE_RETRO } from "./apprentissage/retro.ts";
 import { enregistrerRetro } from "./apprentissage/provisoires.ts";
 import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE, FERMETURE, OUVERTURE } from "./livrable.ts";
@@ -327,7 +328,7 @@ const nomDuRenvoi = (n: number) => (n <= RENVOIS_MAX ? `le renvoi ${n} sur ${REN
 
 // La consigne d'un cook relancé sur un ticket que la pass a jugé rouge : il
 // retrouve le travail, pas la conversation.
-export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot: string; base: string; branche: string; n: number; findings: string[]; remis?: string; lecons?: LeconRecue[] }): string {
+export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot: string; base: string; branche: string; n: number; findings: string[]; remis?: string; lecons?: LeconRecue[]; carnet?: CarnetRecu | null }): string {
   const { ticket, titre, depot, base, branche, n, findings } = mission;
   return [
     `Tu es un cook de la brigade : tu reprends un seul ticket, le ticket #${ticket} du dépôt ${depot} — « ${titre} ».`,
@@ -338,6 +339,7 @@ export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot
     "",
     ...findings.flatMap((finding) => [finding, ""]),
     ...blocDesLecons(mission.lecons),
+    ...blocDuCarnet(mission.carnet),
     `1. Relis le ticket : ${lectureDuTicket(mission)}, et ce qui est déjà commité : \`git log origin/${base}..HEAD\`. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le.`,
     "2. Corrige ce que la pass a trouvé, et rien d'autre. Un finding que tu tiens pour faux : ne le contourne pas, dis-le dans ton compte-rendu.",
     `3. Rejoue toi-même ce qui a échoué (les gates du dépôt), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite sur cette branche ce que tu as changé.`,
@@ -353,7 +355,7 @@ export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot
 // code, et ses règles sont dans sa conversation. Il ne reçoit que ce qui a
 // changé — le refus, ce que la pass a trouvé, le worktree où il est désormais.
 // Rien de ce qu'elle exige ne change : mêmes gates, même relecture.
-export function consigneDeReprise(mission: { base: string; branche: string; worktree: string; n: number; findings: string[]; lecons?: LeconRecue[] }): string {
+export function consigneDeReprise(mission: { base: string; branche: string; worktree: string; n: number; findings: string[]; lecons?: LeconRecue[]; carnet?: CarnetRecu | null }): string {
   const { base, branche, worktree, n, findings } = mission;
   return [
     `La pass — les gates du dépôt, sa CI et la relecture du reviewer — a refusé ta livraison : c'est ${nomDuRenvoi(n)}. Ce qu'elle juge n'est pas la branche seule, mais sa fusion avec \`origin/${base}\` telle qu'elle est au moment du jugement : c'est ce résultat qui doit être vert.`,
@@ -364,6 +366,7 @@ export function consigneDeReprise(mission: { base: string; branche: string; work
     "",
     ...findings.flatMap((finding) => [finding, ""]),
     ...blocDesLecons(mission.lecons),
+    ...blocDuCarnet(mission.carnet),
     "1. Corrige ce que la pass a trouvé, et rien d'autre. Un finding que tu tiens pour faux : ne le contourne pas, dis-le dans ton compte-rendu.",
     `2. Rejoue toi-même ce qui a échoué (les gates du dépôt), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite sur cette branche ce que tu as changé.`,
     "3. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",

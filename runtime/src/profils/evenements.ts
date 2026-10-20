@@ -40,10 +40,20 @@ export type ProfilAccepte = { proposal: number; name: string; zone: string; file
 // les seuils pour être proposé encore.
 export type ProfilRefuse = { proposal: number; name: string; zone: string; tickets: number[] };
 
+// Le carnet d'un profil donné au cook d'un ticket de son domaine
+// (`profils/preference.ts`), à son lancement. `run` : ce cook. `name` et
+// `zone` : le profil, et son domaine. `lessons` : les ids des leçons du carnet
+// qu'il a reçues — vide, un carnet qui n'en a encore aucune. Le cook d'un
+// généraliste n'en a pas.
+export type CarnetDonne = { run: string; name: string; zone: string; file: string; lessons: string[] };
+
 export type FaitProfil =
   // Une fois par domaine tant qu'elle attend, et une fois après chaque « non »
   // dépassé : la clé d'unicité porte la zone et le dernier « non ».
   | { type: "profile.proposed"; payload: PropositionDeProfil }
   // L'un ou l'autre, une fois par proposition : un second geste n'écrit rien.
   | { type: "profile.accepted"; payload: ProfilAccepte }
-  | { type: "profile.refused"; payload: ProfilRefuse };
+  | { type: "profile.refused"; payload: ProfilRefuse }
+  // Une fois par lancement d'un cook sous un profil : c'est aussi ce qui dit,
+  // tant que ce cook tourne, que le cook du profil est occupé.
+  | { type: "profile.notebook-given"; payload: CarnetDonne };

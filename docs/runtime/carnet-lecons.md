@@ -34,6 +34,9 @@ la variable ; `seuils-cli.ts` le montre avec les seuils.
 Le journal dit ce qu'il a reçu : `lessons` de son `cook.launched`, les ids, dans l'ordre de sa
 consigne — `[]` s'il n'en a reçu aucune. Sans leçon, sa consigne est celle d'avant.
 
+Un cook lancé sous un **profil de cook** reçoit en plus, après elles, le carnet de ce profil — ses
+seules leçons promues : voir [`etat-et-mesures.md`](etat-et-mesures.md), « Un profil au dispatch ».
+
 ### Le format du carnet
 
 Lisible à la main, un bloc par leçon, triés par id :
