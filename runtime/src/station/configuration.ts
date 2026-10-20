@@ -12,7 +12,8 @@
 // Tout le reste vient de la station : son environnement, que chaque projet
 // hérite, et ses répertoires, où chaque projet a sa place.
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
+import { LECTURES_INTERDITES } from "../bac-a-sable/configuration.ts";
 import { DECISIONS } from "../decisions.ts";
 import { NOM_DE_PROJET } from "../runtime.ts";
 
@@ -22,6 +23,50 @@ export const CONFIGURATION = "projets";
 export const ETATS = "etat";
 // Le clone de chaque projet, quand sa ligne n'en nomme pas un autre.
 export const CLONES = "clones";
+// Les worktrees des cooks d'un projet, sous son état — ou sous l'atelier.
+export const WORKTREES = "worktrees";
+
+// L'atelier de la station : là où vit le git de ses projets — le clone de
+// chacun et les worktrees de ses cooks. Sur un serveur, c'est le répertoire de
+// la station lui-même : le clone sous `clones/`, les worktrees sous l'état du
+// projet. Sur l'ordinateur du chef, l'app pose la station sous
+// `~/.config/brigade`, qu'aucun cook du bac à sable ne lit ni n'écrit
+// (`bac-a-sable/configuration.ts`) : un cook n'y écrirait pas dans son
+// worktree, et son `git` n'y lirait pas le clone. L'atelier vit alors hors de
+// tout ce qu'un cook ne lit pas, sous le compte — seul son propre worktree y
+// est ouvert à l'écriture —, et l'état du projet (journal, décisions, verrou)
+// reste sous la station, hors de sa portée. Aucun réglage : la place se
+// déduit de celle de la station.
+export const ATELIER_SOUS_LE_COMPTE = join(".local", "share", "brigade", "station");
+
+// Vrai si `enfant` est `parent` ou se trouve sous lui.
+const sous = (parent: string, enfant: string) => enfant === parent || enfant.startsWith(`${parent}/`);
+
+export function atelierDeLaStation(racine: string, home: string | undefined): string {
+  const station = resolve(racine);
+  if (home === undefined || !isAbsolute(home)) return station;
+  return LECTURES_INTERDITES.some((relatif) => sous(join(home, relatif), station)) ? join(home, ATELIER_SOUS_LE_COMPTE) : station;
+}
+
+// Où vivent le clone d'un projet et les worktrees de ses cooks.
+export type LieuxDuProjet = { clone: string; worktrees: string };
+
+// Les lieux d'un projet dans le répertoire de la station : ceux d'avant
+// l'atelier, et ceux d'un serveur.
+export const lieuxSousLaStation = (racine: string, nom: string): LieuxDuProjet => ({ clone: join(racine, CLONES, nom), worktrees: join(racine, ETATS, nom, WORKTREES) });
+
+export function lieuxDuProjet(racine: string, nom: string, home: string | undefined): LieuxDuProjet {
+  const atelier = atelierDeLaStation(racine, home);
+  return atelier === resolve(racine) ? lieuxSousLaStation(racine, nom) : { clone: join(atelier, CLONES, nom), worktrees: join(atelier, WORKTREES, nom) };
+}
+
+// Le répertoire sous lequel vivent les worktrees de tous les projets de la
+// station, chacun sous un nom : c'est là que le bac à sable s'éprouve, pour un
+// cook d'essai.
+export function worktreesDeLaStation(racine: string, home: string | undefined): string {
+  const atelier = atelierDeLaStation(racine, home);
+  return atelier === resolve(racine) ? join(atelier, ETATS) : join(atelier, WORKTREES);
+}
 
 export type ProjetConfigure = {
   nom: string;
@@ -45,6 +90,7 @@ const TENUS: Record<string, string> = {
   BRIGADE_GITHUB_REPO: "c'est le deuxième champ de la ligne",
   BRIGADE_BASE_BRANCH: "c'est le troisième champ de la ligne",
   BRIGADE_STATE_DIR: `la station range l'état de chaque projet sous \`${ETATS}/\``,
+  BRIGADE_WORKTREES_DIR: "la station range les worktrees de chaque projet dans son atelier",
   BRIGADE_STATION_DIR: "c'est le répertoire de la station, pas d'un projet",
 };
 
@@ -91,13 +137,15 @@ export function lireFichierDeConfiguration(fichier: string): Configuration {
 // L'environnement d'un projet : celui de la station, ses lieux, puis les
 // réglages de sa ligne. C'est celui qu'un runtime de projet lisait seul.
 export function environnementDuProjet(racine: string, projet: ProjetConfigure, env: Record<string, string | undefined>): Record<string, string | undefined> {
+  const { clone, worktrees } = lieuxDuProjet(racine, projet.nom, env.HOME);
   return {
     ...env,
-    BRIGADE_REPO_DIR: join(racine, CLONES, projet.nom),
+    BRIGADE_REPO_DIR: clone,
     ...projet.reglages,
     BRIGADE_PROJECT: projet.nom,
     BRIGADE_GITHUB_REPO: projet.depot,
     BRIGADE_BASE_BRANCH: projet.base,
     BRIGADE_STATE_DIR: join(racine, ETATS, projet.nom),
+    BRIGADE_WORKTREES_DIR: worktrees,
   };
 }

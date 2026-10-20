@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { environnementDuProjet, lireConfiguration, lireFichierDeConfiguration } from "../../src/station/configuration.ts";
+import { LECTURES_INTERDITES } from "../../src/bac-a-sable/configuration.ts";
+import { atelierDeLaStation, environnementDuProjet, lieuxDuProjet, lireConfiguration, lireFichierDeConfiguration, worktreesDeLaStation } from "../../src/station/configuration.ts";
 import { repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
@@ -57,7 +58,7 @@ test("une ligne illisible n'est que la sienne : elle est dite, numéro et motif,
 });
 
 test("le dépôt, la branche et le nom ne se règlent que par leurs champs", () => {
-  for (const cle of ["BRIGADE_PROJECT", "BRIGADE_GITHUB_REPO", "BRIGADE_BASE_BRANCH", "BRIGADE_STATION_DIR"]) {
+  for (const cle of ["BRIGADE_PROJECT", "BRIGADE_GITHUB_REPO", "BRIGADE_BASE_BRANCH", "BRIGADE_STATION_DIR", "BRIGADE_WORKTREES_DIR"]) {
     const { projets, problemes } = lireConfiguration(`brigade benomite/brigade v2 ${cle}=autre`);
     assert.deepEqual(projets, []);
     assert.match(problemes[0] ?? "", new RegExp(`${cle} ne se règle pas sur la ligne`));
@@ -78,11 +79,45 @@ test("l'environnement d'un projet : celui de la station, ses lieux sous la stati
     BRIGADE_GITHUB_REPO: "benomite/espace",
     BRIGADE_BASE_BRANCH: "main",
     BRIGADE_STATE_DIR: "/srv/brigade/etat/espace",
+    BRIGADE_WORKTREES_DIR: "/srv/brigade/etat/espace/worktrees",
   });
   // Un clone rangé ailleurs se nomme sur la ligne.
   const [ailleurs] = lireConfiguration("espace benomite/espace main BRIGADE_REPO_DIR=/srv/depots/espace").projets;
   assert.ok(ailleurs);
   assert.equal(environnementDuProjet(racine, ailleurs, station).BRIGADE_REPO_DIR, "/srv/depots/espace");
+});
+
+test("sur le Mac du chef, la station vit sous `~/.config/brigade`, qu'aucun cook ne lit : le clone et les worktrees d'un projet vivent dans l'atelier, hors de tout ce que le bac à sable interdit", () => {
+  const home = "/Users/chef";
+  const racine = "/Users/chef/.config/brigade/station";
+  const [projet] = lireConfiguration("mirrorlab benomite/mirrorlab main").projets;
+  assert.ok(projet);
+  assert.equal(atelierDeLaStation(racine, home), "/Users/chef/.local/share/brigade/station");
+  const env = environnementDuProjet(racine, projet, { HOME: home });
+  assert.deepEqual([env.BRIGADE_REPO_DIR, env.BRIGADE_WORKTREES_DIR], ["/Users/chef/.local/share/brigade/station/clones/mirrorlab", "/Users/chef/.local/share/brigade/station/worktrees/mirrorlab"]);
+  // L'état du projet — journal, décisions, verrou — reste sous la station.
+  assert.equal(env.BRIGADE_STATE_DIR, "/Users/chef/.config/brigade/station/etat/mirrorlab");
+  for (const lieu of [env.BRIGADE_REPO_DIR, env.BRIGADE_WORKTREES_DIR, atelierDeLaStation(racine, home)]) {
+    for (const interdit of LECTURES_INTERDITES.map((relatif) => join(home, relatif))) assert.ok(!(lieu ?? "").startsWith(`${interdit}/`) && lieu !== interdit, `${lieu} est sous ${interdit}`);
+  }
+  assert.equal(worktreesDeLaStation(racine, home), "/Users/chef/.local/share/brigade/station/worktrees");
+  // Le clone que la ligne nomme reste le sien ; les worktrees vont à l'atelier.
+  const [ailleurs] = lireConfiguration("mirrorlab benomite/mirrorlab main BRIGADE_REPO_DIR=/Users/chef/code/mirrorlab").projets;
+  assert.ok(ailleurs);
+  const sien = environnementDuProjet(racine, ailleurs, { HOME: home });
+  assert.deepEqual([sien.BRIGADE_REPO_DIR, sien.BRIGADE_WORKTREES_DIR], ["/Users/chef/code/mirrorlab", "/Users/chef/.local/share/brigade/station/worktrees/mirrorlab"]);
+});
+
+test("une station posée ailleurs que sous ce qu'un cook ne lit pas garde tout sous son répertoire, comme sur un serveur", () => {
+  for (const [racine, home] of [
+    ["/srv/brigade", "/var/lib/brigade"],
+    ["/Users/chef/brigade-station", "/Users/chef"],
+    ["/Users/chef/.config/brigade/station", undefined],
+  ] as const) {
+    assert.equal(atelierDeLaStation(racine, home), racine);
+    assert.deepEqual(lieuxDuProjet(racine, "espace", home), { clone: join(racine, "clones/espace"), worktrees: join(racine, "etat/espace/worktrees") });
+    assert.equal(worktreesDeLaStation(racine, home), join(racine, "etat"));
+  }
 });
 
 test("sans fichier de configuration, la station ne sert aucun projet, sans rien en dire ; illisible, elle le dit", (t) => {

@@ -156,11 +156,11 @@ test("la commande de vérification dit `ok`, ou la raison en une phrase et le co
   assert.equal(await sansSeatbelt.fin, 1);
   assert.match(sansSeatbelt.sortie(), /^Seatbelt est introuvable : `\/usr\/bin\/sandbox-exec` n'existe pas sur ce Mac\n$/);
 
-  // La station de l'app, sous `~/.config/brigade` : ses worktrees y seraient.
+  // La station de l'app, sous `~/.config/brigade` : ses worktrees n'y sont
+  // pas, ils vivent dans l'atelier, hors de ce qu'un cook ne lit pas.
   const sousLaConfig = appeler((appel) => verifierEnCommande(appel, MAC, HOME), [], { BRIGADE_STATION_DIR: "/Users/chef/.config/brigade/station" });
-  assert.equal(await sousLaConfig.fin, 1);
-  assert.match(sousLaConfig.sortie(), /^la configuration du bac à sable ne tient pas sur ce Mac — .*\.config\/brigade/);
-  unePhrase(sousLaConfig.sortie().trimEnd());
+  assert.equal(await sousLaConfig.fin, 0);
+  assert.equal(sousLaConfig.sortie(), "ok\n");
 
   for (const [args, avec] of [
     [[], {}],

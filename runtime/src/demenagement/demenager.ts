@@ -28,7 +28,7 @@ import { sondesDeLaMachine } from "../bac-a-sable/detection.ts";
 import { lireCaches, verifier, type Verification } from "../bac-a-sable/local.ts";
 import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, suiviDe, type ProjetDemande } from "../projets/demande.ts";
 import { NOM_DE_PROJET } from "../runtime.ts";
-import { ETATS } from "../station/configuration.ts";
+import { worktreesDeLaStation } from "../station/configuration.ts";
 
 const USAGE = "usage : node runtime/src/demenagement/demenager.ts <projet> <gist de la station visée> <gist>…";
 
@@ -121,7 +121,7 @@ export function dependancesDuProcess(env: Record<string, string | undefined>): D
     gistLocal: gistDeLaStation(env),
     verifierBacASable: () =>
       racine
-        ? verifier(sondesDeLaMachine(env.BRIGADE_CLAUDE_BIN || "claude"), { home: env.HOME ?? homedir(), worktrees: join(resolve(racine), ETATS), caches: lireCaches(env) })
+        ? verifier(sondesDeLaMachine(env.BRIGADE_CLAUDE_BIN || "claude"), { home: env.HOME ?? homedir(), worktrees: worktreesDeLaStation(resolve(racine), env.HOME ?? homedir()), caches: lireCaches(env) })
         : { ok: false, raison: "BRIGADE_STATION_DIR n'est pas défini : la vérification éprouve les lieux de la station de cette machine" },
   };
 }

@@ -20,7 +20,7 @@ import { sondesDeLaMachine, type Sondes } from "../bac-a-sable/detection.ts";
 import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison } from "../cloison.ts";
 import { noterCodeEnService } from "../code.ts";
 import { decisionsAuDemarrage, decisionsDansLEnvironnement, direDecisionIgnoree, environnementDecide, suivreDecisions, supportDesDecisions } from "../decisions.ts";
-import { lireALaBase, ouvrirDepot } from "../depot.ts";
+import { lireALaBase, ouvrirDepot, worktreesDuProjet } from "../depot.ts";
 import { brancherDerive, lireSeuils } from "../derive.ts";
 import { brancherFermeture } from "../closing/run.ts";
 import { configFermeture } from "../closing/settings.ts";
@@ -71,6 +71,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   };
   const repertoireEtat = exiger("BRIGADE_STATE_DIR");
   const projet = exiger("BRIGADE_PROJECT");
+  // Où ses cooks travaillent : l'atelier de la station, hors de l'état.
+  const worktrees = worktreesDuProjet(envDuProjet, repertoireEtat);
 
   // La porte du projet, seule sortie de ce qu'il lance : son environnement la
   // porte, celui du process de la station n'en change pas — les autres
@@ -105,7 +107,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       return REGLES_DE_BASE;
     }
   };
-  const bacASable = configBacASableLocal(options.sondes ?? sondesDeLaMachine(station.bin), { home: envProjet.HOME, worktrees: join(repertoireEtat, "worktrees"), caches: lireCaches(envProjet) }, hotes);
+  const bacASable = configBacASableLocal(options.sondes ?? sondesDeLaMachine(station.bin), { home: envProjet.HOME, worktrees, caches: lireCaches(envProjet) }, hotes);
   const session = configSession(envProjet, repertoireEtat);
   const apps = configIdentites(envProjet);
 
@@ -120,7 +122,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     const depot = ouvrirDepot({
       clone: station.clone,
       base: station.base,
-      worktrees: join(repertoireEtat, "worktrees"),
+      worktrees,
       env: envProjet,
       jeton: identites?.jeton("cook"),
       apresRapatriement: () => republierReseau(),
@@ -152,6 +154,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       stations,
       decisions,
       repertoireEtat,
+      worktrees,
       depot,
       github: githubs.station,
       depotGitHub: rail.depot,

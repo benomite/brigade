@@ -179,6 +179,27 @@ box n'en est jamais une, et sa cloison (`bwrap`) la garde.
   reçoivent devant `--setting-sources`.
 - **Les caches du projet** se nomment dans `BRIGADE_SANDBOX_CACHES` (chemins absolus séparés par
   `:`, sur la ligne du projet ou dans l'environnement de la station) ; aucun par défaut.
+- **Où travaillent ses cooks : l'atelier de la station** (*ticket #1176*). L'app pose la station
+  sous `~/.config/brigade/station`, qu'aucun cook ne lit ni n'écrit : son journal, ses décisions,
+  son verrou y restent, hors de sa portée. Le git du projet — **son clone et les worktrees de ses
+  cooks** — vit donc ailleurs, dans l'atelier : `~/.local/share/brigade/station/clones/<projet>` et
+  `~/.local/share/brigade/station/worktrees/<projet>/<run>` (`runtime/src/station/configuration.ts`,
+  `atelierDeLaStation`). Le cook n'écrit que dans **son** worktree ; il ne lit ni n'écrit `~/.ssh`,
+  `~/.config/brigade` ni les identifiants du chef. **Aucun réglage** : l'atelier se déduit de la
+  place de la station — posée hors de tout ce qu'un cook ne lit pas, ou sur un serveur, la station
+  garde tout sous son répertoire, comme avant (`clones/<projet>`, `etat/<projet>/worktrees`). La
+  station le donne à chaque projet (`BRIGADE_REPO_DIR`, `BRIGADE_WORKTREES_DIR`) ; une ligne ne règle
+  pas `BRIGADE_WORKTREES_DIR`, et le clone qu'une ligne nomme (`BRIGADE_REPO_DIR=…`) reste le sien.
+- **Un projet servi avant l'atelier y déménage seul**, avant que sa cuisine ne s'ouvre
+  (`runtime/src/station/atelier.ts`) : son clone et ses worktrees sont **renommés tels quels** —
+  branches, commits et fichiers non commités compris —, puis `git worktree repair` y raccroche
+  chaque worktree à son clone. Rien n'est copié, rien n'est retiré, sous le verrou du projet. Le
+  journal de service le dit, une ligne par chose déplacée :
+  `déménagé dans l'atelier de la station — clone : <ancienne place> → <atelier>`. Le worktree d'un
+  cook d'une vie précédente est ensuite rangé comme toujours : ce qui y traînait est commité sur sa
+  branche, puis il est retiré. Ce qui ne se déménage pas — un autre clone déjà dans l'atelier, un
+  autre volume, un worktree dont le fichier `.git` ne désigne pas le clone — **reste où il est**, et
+  se dit (`pas déménagé dans l'atelier de la station — …`) ; la cuisine s'ouvre quand même.
 - **Sans bac à sable, la cuisine ne s'ouvre pas** : aucun cook n'y part à nu. La station refuse le
   projet, et le motif nomme ce qui manque, en une phrase :
   `sur ce Mac, chaque cook part dans le bac à sable, et il n'est pas utilisable — <raison>`. Corrigé
@@ -198,9 +219,10 @@ BRIGADE_STATION_DIR=<répertoire de la station> node runtime/src/bac-a-sable/ver
 Elle écrit `ok` (code 0), ou ce qui manque en une phrase (code 1) — pas macOS, pas de Seatbelt
 (`/usr/bin/sandbox-exec`), un `claude` trop ancien ou muet, `HOME` absent, un cache relatif, ou des
 worktrees là où un cook ne doit rien lire ; 2, elle est mal appelée. Le `claude` éprouvé est celui
-que la station lance (`BRIGADE_CLAUDE_BIN`, sinon `claude`). Elle éprouve les lieux de la station :
-**une station posée sous `~/.config/brigade`** — le répertoire par défaut de l'app — **ne tient
-pas**, car un cook n'y lit rien, et ses worktrees y seraient :
+que la station lance (`BRIGADE_CLAUDE_BIN`, sinon `claude`). Elle éprouve les lieux de la station —
+un cook d'essai dans son atelier : **une station posée sous `~/.config/brigade`** — le répertoire
+par défaut de l'app — **tient**, ses worktrees vivant sous `~/.local/share/brigade/station`. Avant
+l'atelier (#1176), elle ne tenait pas, et chaque projet était refusé :
 
 ```
 la configuration du bac à sable ne tient pas sur ce Mac — /Users/chef/.config/brigade/station/etat/essai : un cook n'y écrirait pas sans toucher à /Users/chef/.config/brigade, qu'il ne doit pas même lire

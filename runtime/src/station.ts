@@ -54,7 +54,7 @@ import { absentesDuMotif, CLE_DES_CAPACITES, direManque, direStationAbsente, fou
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsClaude, consigne, consigneDeSuite, direRefus, environnementCook, lireFlux, REFUS_MAX, ticketRemis, verdict, VARIABLES_DE_CLE, VARIABLES_DE_JETON, type Lecture, type Session } from "./claude.ts";
 import type { Decisions } from "./decisions.ts";
-import { ouvrirDepot, type Depot, type OptionsDepot } from "./depot.ts";
+import { ouvrirDepot, worktreeAuJournal, worktreeDuJournal, type Depot, type OptionsDepot } from "./depot.ts";
 import { configPresence, ouvrirDistantes, PRESENCE_PAR_DEFAUT_MIN, type Conclusion } from "./distantes.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
 import { STATION_ABSENTE, type AccesRefuse } from "./events/rail.ts";
@@ -244,6 +244,9 @@ export type OptionsStation = {
   // réveil — le chef a pu les changer sans redémarrer.
   decisions?: Pick<Decisions, "stations">;
   repertoireEtat: string;
+  // Le répertoire où le dépôt pose les worktrees des cooks : celui où le
+  // journal les nomme `worktrees/<run>`. Par défaut, sous l'état.
+  worktrees?: string;
   depot: Depot;
   github: GitHub;
   // `<owner>/<repo>`, pour la consigne du cook.
@@ -536,6 +539,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     journal,
     projet,
     repertoireEtat: options.repertoireEtat,
+    worktrees: options.worktrees,
     depot,
     avertir,
     arrete: () => arrete,
@@ -1795,7 +1799,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             station,
             ...calibrage,
             branch: branche,
-            worktree: join("worktrees", run),
+            worktree: worktreeAuJournal(run),
             // Passé les renvois de la pass, c'est une relance du manager : sa
             // livraison ne vaudra réussite que jugée verte.
             ...(renvoi !== null && renvoi.returns > RENVOIS_MAX ? { relaunch: true } : {}),
@@ -2050,13 +2054,13 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     let servi = false;
     try {
       await conclure(station, ticket, calibrage, lance.run, branche, fin, conclusion, repris && { n: repris.returns, pr: repris.pr });
-      if (!arrete) servi = servirLaLivraison(station, { ticket: numero, run, worktree, relatif: join("worktrees", run), branche, env: envDuCook, masquer }, fin, conclusion);
+      if (!arrete) servi = servirLaLivraison(station, { ticket: numero, run, worktree, relatif: worktreeAuJournal(run), branche, env: envDuCook, masquer }, fin, conclusion);
       options.apresCook?.();
     } finally {
       // Réussi ou non, le cook est fini : son worktree part, ce qui y traîne
       // commité sur sa branche — sauf celui d'une livraison servie, qui part
       // avec son serveur.
-      if (!arrete && !servi) await nettoyage.ranger(numero, join("worktrees", run), branche);
+      if (!arrete && !servi) await nettoyage.ranger(numero, worktreeAuJournal(run), branche);
       if (!arrete) oublierLeSetup(run);
     }
   };
@@ -2159,7 +2163,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const lancement = lancementDe(numero, run);
     const { branch: branche, worktree: relatif, head: entree, model, effort } = lancement ?? {};
     if (typeof branche !== "string" || typeof relatif !== "string" || typeof entree !== "string" || typeof model !== "string" || typeof effort !== "string") return false;
-    const worktree = join(options.repertoireEtat, relatif);
+    const worktree = worktreeDuJournal({ repertoireEtat: options.repertoireEtat, worktrees: options.worktrees ?? join(options.repertoireEtat, "worktrees") }, relatif);
     const lus = lireSecrets(worktree, options.secrets ?? null);
     if (!lus.pret) avertir(`brigade : secrets du projet illisibles à la reprise du cook ${run} (ticket #${numero}) — rien ne sera poussé de sa livraison : ${lus.problemes.join(" ; ")}`);
     const secrets = lus.pret ? { env: lus.env, fuites: lus.fuites } : { env: {}, fuites: null };

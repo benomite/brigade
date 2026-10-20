@@ -12,10 +12,10 @@
 // réseau du projet étant ces hôtes —, de quoi éprouver le bac à sable à la
 // main (docs/runtime/station-distante.md).
 import { homedir } from "node:os";
-import { isAbsolute, join, resolve } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 import { enProcess, Sortie, type Appel } from "../appel.ts";
 import { reglesDuProjet } from "../reseau.ts";
-import { ETATS } from "../station/configuration.ts";
+import { worktreesDeLaStation } from "../station/configuration.ts";
 import { configurer } from "./configuration.ts";
 import { sondesDeLaMachine, type Sondes } from "./detection.ts";
 import { lireCaches, verifier } from "./local.ts";
@@ -39,7 +39,7 @@ export function principal({ args, env, dire, redire }: Appel, sondes?: Sondes, h
   if (args.length > 0) mal(`« ${args[0]} » n'est pas une option`);
   const station = env.BRIGADE_STATION_DIR;
   if (!station) mal("BRIGADE_STATION_DIR n'est pas défini : la vérification éprouve les lieux de la station de cette machine");
-  const verification = verifier(sondes ?? sondesDeLaMachine(env.BRIGADE_CLAUDE_BIN || "claude"), { home, worktrees: join(resolve(station as string), ETATS), caches });
+  const verification = verifier(sondes ?? sondesDeLaMachine(env.BRIGADE_CLAUDE_BIN || "claude"), { home, worktrees: worktreesDeLaStation(resolve(station as string), home), caches });
   dire(verification.ok ? "ok" : verification.raison);
   if (!verification.ok) throw new Sortie(1);
 }

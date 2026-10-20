@@ -26,13 +26,13 @@
 // franchi, un fichier écrit hors de ce qu'elle tenait : rien n'est poussé.
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 import type { RuntimeAvecRail } from "../alimenter.ts";
 import { argumentsClaude, environnementCook, lireFlux, verdict } from "../claude.ts";
 import { environnementClaude } from "../jeton-claude.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "../bac-a-sable/local.ts";
 import { envelopper, type Cloison } from "../cloison.ts";
-import type { Depot as DepotDeStation } from "../depot.ts";
+import { worktreeAuJournal, type Depot as DepotDeStation } from "../depot.ts";
 import { SANS_ISSUE_MS, type FaitFermeture, type FinDePasse, type Laisse, type Pente, type ReglagesDeFermeture, type Retrait } from "../events/closing.ts";
 import { LancementRefuse, type CookLance, type GardeFous, type Verdict } from "../garde-fous.ts";
 import type { GitHub } from "../github.ts";
@@ -293,7 +293,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
       lance = runtime.lancer({
         ticket: null,
         run,
-        contexte: { station: STATION, ...calibrage, branch: branche, worktree: relative(options.repertoireEtat, worktree) },
+        contexte: { station: STATION, ...calibrage, branch: branche, worktree: worktreeAuJournal(run) },
         // Son plafond de tokens est le sien, par passe.
         plafonds: { tokens: reglages.tokens },
         ...envelopper(

@@ -168,6 +168,26 @@ export function environnementReseau(env: NodeJS.ProcessEnv, jeton: string): Node
   return { ...env, GIT_TERMINAL_PROMPT: "0", GIT_CONFIG_COUNT: String(deja + reglages.length), ...Object.fromEntries(poses) };
 }
 
+// Le répertoire des worktrees des cooks d'un projet : celui que la station
+// lui donne (`BRIGADE_WORKTREES_DIR`, son atelier), sinon `worktrees/` sous
+// son état — là où ils vivaient tous avant que la station d'un Mac ne les
+// pose hors de son répertoire.
+export function worktreesDuProjet(env: NodeJS.ProcessEnv, repertoireEtat: string): string {
+  return env.BRIGADE_WORKTREES_DIR || join(repertoireEtat, "worktrees");
+}
+
+// Le journal nomme le worktree d'un cook `worktrees/<run>`, relatif au
+// répertoire d'état. Ce nom vaut `<run>` dans le répertoire des worktrees du
+// projet, où qu'il soit : un journal écrit quand ils vivaient sous l'état se
+// relit tel quel une fois qu'ils sont dans l'atelier. Tout autre chemin se lit
+// relatif au répertoire d'état.
+export const worktreeAuJournal = (run: string) => join("worktrees", run);
+export function worktreeDuJournal(lieux: { repertoireEtat: string; worktrees: string }, auJournal: string): string {
+  const [premier, ...suite] = auJournal.split("/");
+  if (premier === "worktrees" && suite.length > 0) return join(lieux.worktrees, ...suite);
+  return resolve(lieux.repertoireEtat, auJournal);
+}
+
 const DELAI_MS = 120_000;
 // Où vivent les worktrees jetables, sous celui des cooks : un nom qu'aucun run
 // ne porte.
