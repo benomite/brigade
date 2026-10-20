@@ -890,6 +890,11 @@ les cooks et le calibrage déjà demandés.
   `Cooks on parade-box` pour un projet sur sa box ; **`Cooks on this Mac · its kitchen stops when you
   close the app`** pour un projet que la station de cet ordinateur sert — la phrase n'est jamais
   dite d'une autre station. Le nom de la station est au survol de « this Mac ».
+- **Station de cet ordinateur arrêtée : une ligne, pas une page vide** (#1124). Un projet qui cuit
+  ici n'a rien à lire tant que la station de cet ordinateur ne tourne pas (refusée, arrêtée, entre
+  sa mort et sa relance) : **`this computer's station is not running`** prend la place du rail, de
+  la file et des cartes, et c'est tout. Dès que la station tourne, la ligne cède la place au rail à
+  la lecture suivante, sans relancer l'app. Un projet servi par une box ne la porte jamais.
 - **« move the kitchen »**, à côté de « + station », est le seul geste : il ouvre sous la ligne le
   choix de la machine où l'emmener — `Move <projet>'s kitchen from <station> to:` —, un bouton par
   autre station appairée (`this Mac` pour la station de cet ordinateur), celle que l'app recommande

@@ -71,6 +71,7 @@ compare que deux captures du même navigateur.
 | `station-plafond`, `station-plafond-chef`, `station-retenue` | La page d'une station en ligne et son plafond de cooks (#1081) : celui que la box dérive de ses cœurs, celui que le chef a réglé et ce qu'il remplace (avec « back to the default »), puis la station saturée et ce qui retient les tickets |
 | `espace-projet` | L'espace de `parade`, ouvert par sa case de la barre : le rail en colonnes (un ticket dans chacune, une décision qui t'attend, deux livrés), son second à droite |
 | `espace-projet-ici` | L'espace de `parade` quand sa cuisine tourne sur ce Mac, sans `hote` dans le fichier des projets (#1122) : lu ici, sans `ssh`, son rail, sa file et ses cartes comme pour une box |
+| `espace-projet-station-arretee` | L'espace de `parade`, cuisant sur ce Mac, la station de ce Mac arrêtée (#1124) : une seule ligne, `this computer's station is not running`, à la place du rail |
 | `demenager-choix` | L'espace de `parade`, qui cuit sur sa box (#1095) : `Cooks on box`, « move the kitchen » cliqué — le choix de la machine où l'emmener (ce Mac) et son prix en une ligne |
 | `demenager-sur-ce-mac` | Le même, `parade` cuisant sur ce Mac : `Cooks on this Mac`, sa cuisine qui s'arrête avec l'app, et le choix ouvert — la box, recommandée, pour l'y ramener |
 | `demenager-refuse` | Le même, sur la box, le déménagement vers ce Mac refusé par le runtime (pas de bac à sable) : la raison en une phrase sous la ligne, qui dit toujours `Cooks on box` |
