@@ -224,6 +224,83 @@ Attendu : `touch ~/brigade-essai` échoue (`Operation not permitted`) et le fich
 (`Operation not permitted`) ; `example.com`, hors de la liste, est refusé (connexion refusée par le
 proxy du bac à sable, aucun code `200`) ; `registry.npmjs.org`, sur la liste, répond `200`.
 
+#### Déménager la cuisine d'un projet, quand on veut
+
+La station principale d'un projet — celle qui fait tourner sa cuisine, son manager et sa pass — se
+choisit à son ajout (« Ajouter un projet à une station depuis l'app ») ; **ce choix n'engage à
+rien** : la cuisine se déménage ensuite vers cet ordinateur, vers sa box ou vers une autre station,
+sans retirer ni rajouter le projet, et un projet ajouté demain se déménage de la même façon. L'app
+lance l'opération sur l'ordinateur du chef (`runtime/src/demenagement/demenager.ts`) :
+
+```bash
+BRIGADE_STATION_DIR=<répertoire de la station de ce Mac> \
+  node runtime/src/demenagement/demenager.ts <projet> <gist de la station visée> <gist>…
+```
+
+Les gists sont ceux des stations du chef. Elle rend une ligne JSON —
+`{"moved":true,"project":"parade","from":"box","to":"mac","askedAt":"…"}` (code 0), ou
+`{"moved":false,"said":"<une phrase>"}` (code 1), et rien n'a changé ; 2, elle est mal appelée ;
+3, GitHub n'a pu être lu ni écrit. Elle n'écrit que deux demandes (`brigade-projets.json`) :
+`remise` sur la station que la cuisine quitte, `reprise` sur celle qui la reprend — l'app doit les
+garder telles quelles quand elle réécrit ces demandes, sans quoi le déménagement en cours devient un
+changement de principale ordinaire. Le reste se fait entre les deux, **par leurs gists** — aucune
+ne joint l'autre —, en trois temps (`runtime/src/projets/tenir.ts`) :
+
+1. **La station visée se dit prête**, ou dit pourquoi elle ne le peut pas. Prête : ses Apps
+   autorisées sur le dépôt, le dépôt cloné — et, sur cet ordinateur, le bac à sable utilisable.
+   Son suivi le dit (`bascule.etape` : `acceptee`, ou `refusee` et la raison) ; rien d'autre ne
+   s'ouvre chez elle.
+2. **La station qu'elle quitte, seulement alors, s'arrête** : elle retire la ligne du projet — sa
+   cuisine se ferme, **plus aucun cook n'en part** —, prouve par son verrou qu'aucune cuisine ne le
+   tient plus, arrête chaque cook encore en vol et attend sa mort, puis publie son état dans son
+   gist (`brigade-remise-<projet>.json` et ses parts) : `remise`. Tant que l'autre n'est pas prête,
+   elle le sert comme avant — `served by box; moving to mac is asked…`.
+3. **La station visée pose cet état, puis l'ouvre** : sa cuisine démarre sur le journal reçu
+   (`recue`). Un état qu'elle gardait d'une fois précédente est mis de côté
+   (`etat/.<projet>.avant-<heure>`), jamais écrasé ; le ticket qui avait préparé le dépôt la suit, et
+   aucun ne se rouvre.
+
+**Ce qui suit le projet : tout son journal** — ses tickets et leur rail, ses grants, les décisions
+du chef (stations déclarées, calibrage, plafonds), son histoire. Les mêmes, à l'identique : le
+déménagement n'y ajoute qu'un fait, `kitchen.moved`. **Un ticket en cours n'est pas perdu** : son
+cook est arrêté par le déménagement (`cook.exited`, `outcome: stop`, `cause: move`) — ni échec, ni
+panne, rien pour le disjoncteur —, le ticket revient au rail, et la station qui reprend le projet le
+reprend comme un autre.
+
+**Jamais deux cuisines à la fois.** La remise attend que la cuisine soit fermée (son verrou libre)
+et ses cooks morts ; la station visée n'ouvre la sienne qu'une fois la remise publiée. Une station
+qui a remis un projet ne le rouvre pas d'elle-même, même si sa demande lui en redonne la principale :
+elle le refuse (`it was handed over to mac … move it back to bring it here`) — il ne revient que par
+un déménagement en sens inverse.
+
+**Vers cet ordinateur, pas sans bac à sable** (« Une cuisine locale », plus haut). La commande joue
+d'abord la vérification de `bac-a-sable/verifier.ts` : indisponible, elle refuse avec sa raison, en
+une phrase, et n'écrit rien. La station de l'ordinateur la rejoue avant de se dire prête : une
+demande qui lui arriverait autrement est refusée de même (`refusee`), et la station qu'il devait
+quitter le sert toujours. Refusé, ou pas encore accepté, un déménagement se reprend : déménager le
+projet vers la station qui le sert encore efface la demande. Une fois accepté, il va à son terme :
+la commande refuse un autre déménagement du même projet tant que la station visée ne le sert pas.
+
+**Où cuit chaque projet** se lit dans le suivi de chaque station (`brigade-projets-suivi.json`,
+celui que l'app lit déjà) : `station` (`nom`, `locale` : la station de l'ordinateur du chef), et par
+projet `cuitSur` — la station où il cuit, telle qu'elle la connaît — et `ici` — il cuit sur
+celle-ci, et c'est cet ordinateur.
+
+**Ce qui n'est pas garanti.** Ce qui ne voyage pas : les flux bruts des cooks (`runs/`), les
+worktrees, le clone (la station visée clone le dépôt). Un cook arrêté en vol repart donc de la
+base — ou de sa branche sur l'origine si une station distante l'y avait poussée
+(`travail-conserve.ts`) : ce qu'un cook de la box avait commité sans le pousser reste dans le clone
+de la box, branche `cook/<run>`. Le journal voyage compressé, en parts, par le gist : au-delà de
+10 Mo compressés, la remise est refusée et la cuisine reste fermée sur la station qu'elle quittait
+— la remise se réessaie à chaque lecture. Un cook d'une station distante en vol n'est pas joint :
+il est arrêté au journal, et sa station l'apprend à sa demande suivante, si une cuisine y répond.
+Après le déménagement, l'état gardé sur l'ancienne station est figé : une commande tapée là
+(`brigade <projet> …` sur la box) n'atteint plus la cuisine. Les stations déclarées voyagent
+telles quelles, comme les autres décisions : la station posée à l'ajout garde le nom de la machine
+d'alors (`box/claude`) et ses cooks partent de la station qui sert le projet, sous ce nom ; une
+station marquée `distante` qui devient la principale reste marquée ainsi — le chef les
+redéclare (`brigade <projet> station stations …`, « Déclarer les stations », `station.md`).
+
 **La seule direction est station → box, et c'est gardé.** Une déclaration ne porte aucune adresse ;
 dans `runtime/src`, sept modules seulement touchent au réseau, aucun vers une station (l'arbitre et
 le serveur d'une livraison sur `127.0.0.1`, la porte et sa sonde, l'API de GitHub) ; aucun programme
@@ -247,4 +324,6 @@ l'issue dit de la supprimer.
 | `station.present`, `station.absent` | Une station distante s'est manifestée après une absence ; elle ne s'est plus manifestée depuis `presenceMs` (`lastSeen`). Hors ticket |
 | `station.sandbox` | Ce qu'une station distante dit du bac à sable de son poste, quand ça change : `available`, `reason` (pourquoi il ne l'est pas, `null` s'il l'est), `version` (son `claude`, `null` s'il ne l'est pas). Hors ticket |
 | `ticket.86` | Motif `station-absent: <station>` : seule une station distante absente peut cuisiner ce ticket. Sans heure de retour ; `ticket.released`, motif `station-present`, quand elle revient |
+| `kitchen.moved` | La cuisine du projet déménage : `from`, `to` (les stations), `askedAt` (l'instant de la demande, qui le fait reconnaître), `cooks` (les runs arrêtés en vol). Écrit par la station qu'elle quitte, dernier fait de l'état remis. Hors ticket |
+| `cook.exited` | Avec `cause: move` : le cook a été arrêté par un déménagement, `outcome: stop` — son ticket revient au rail, sans échec |
 

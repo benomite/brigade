@@ -17,11 +17,25 @@
 //     le parcours : la station les pose au journal du projet, sans défaut.
 //     `ouvertLe` : quand le chef a ouvert le parcours — d'où se mesure le temps
 //     qu'il a fallu pour que le projet soit servi.
+//     Un déménagement de sa cuisine (`demenagement/`) ajoute, sur la station
+//     qu'il quitte, `"remise": { "vers": "<station>", "gist": "<son gist>",
+//     "demandeLe": "<ISO>" }` (avec `principale: false`), et sur celle qui le
+//     reprend `"reprise": { "de": "<station>", "gist": "<son gist>",
+//     "demandeLe": "<ISO>" }` (avec `principale: true`). L'app doit les garder
+//     tels quels quand elle réécrit la demande : sans eux, le déménagement en
+//     cours n'est plus qu'un changement de principale.
 //   - `brigade-projets-suivi.json`, écrit par la station seule — où en est
-//     chaque projet demandé :
-//       { "brigade": "projets-suivi", "format": 1, "a": "<ISO>", "projets": [
+//     chaque projet demandé, et où il cuit :
+//       { "brigade": "projets-suivi", "format": 1, "a": "<ISO>",
+//         "station": { "nom": "mac", "locale": true }, "projets": [
 //         { "nom": "parade", "etat": "servi", "dit": "…", "autoriser": [],
-//           "serviLe": "<ISO>" | null } ] }
+//           "serviLe": "<ISO>" | null, "cuitSur": "mac" | null, "ici": true,
+//           "bascule": null | { "de": "box", "vers": "mac", "demandeLe": "<ISO>",
+//             "etape": "demandee" | "acceptee" | "refusee" | "remise" | "recue" } } ] }
+//     `station.locale` : cette station est celle de l'ordinateur du chef (une
+//     cuisine locale, sous macOS). `cuitSur` : la station où le projet cuit, telle
+//     que celle-ci la connaît — nul si elle n'en sait rien ; `ici` : il cuit sur
+//     celle-ci, et c'est l'ordinateur du chef.
 import { EFFORTS, MODELES } from "../calibrage.ts";
 import { NOM_DE_PROJET } from "../runtime.ts";
 
@@ -36,6 +50,12 @@ const BRANCHE = /^[A-Za-z0-9._/-]{1,200}$/;
 
 export type Calibre = { modele: string; effort: string };
 
+// Un déménagement, vu de la station que la cuisine quitte (`remise`) ou de
+// celle qui la reprend (`reprise`) : l'autre station, son gist — par où elles
+// se répondent —, et l'instant de la demande, qui le fait reconnaître.
+export type Remise = { vers: string; gist: string; demandeLe: string };
+export type Reprise = { de: string; gist: string; demandeLe: string };
+
 export type ProjetDemande = {
   nom: string;
   depot: string;
@@ -46,6 +66,8 @@ export type ProjetDemande = {
   reviewer: Calibre;
   ouvertLe: string | null;
   demandeLe: string | null;
+  remise?: Remise | null;
+  reprise?: Reprise | null;
 };
 
 export type Demande = { projets: ProjetDemande[]; problemes: string[] };
@@ -59,10 +81,44 @@ export type Demande = { projets: ProjetDemande[]; problemes: string[] };
 //   tourner ni manager ni pass.
 export type EtatDuProjet = "servi" | "a-autoriser" | "en-preparation" | "refuse" | "secondaire";
 
-export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null };
+// Où en est un déménagement, vu de cette station :
+// - `demandee` : elle sert encore le projet, la station qui doit le reprendre
+//   ne s'est pas dite prête ;
+// - `acceptee` : elle est prête à le reprendre, et attend que l'autre le lui remette ;
+// - `refusee` : elle ne peut pas le reprendre — `dit` dit pourquoi, et rien ne
+//   bouge : l'autre le sert toujours ;
+// - `remise` : la station qu'il quitte a fermé sa cuisine et publié son état ;
+// - `recue` : celle qui le reprend a posé cet état, et le sert.
+export type EtapeDeBascule = "demandee" | "acceptee" | "refusee" | "remise" | "recue";
+export type Bascule = { de: string; vers: string; demandeLe: string; etape: EtapeDeBascule };
+
+export type SuiviDuProjet = {
+  nom: string;
+  etat: EtatDuProjet;
+  dit: string;
+  autoriser: string[];
+  serviLe: string | null;
+  cuitSur?: string | null;
+  ici?: boolean;
+  bascule?: Bascule | null;
+};
+
+const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];
 
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string";
 const date = (valeur: unknown): string | null => (texte(valeur) && !Number.isNaN(Date.parse(valeur)) ? valeur : null);
+const nomDeStation = (valeur: unknown): valeur is string => texte(valeur) && valeur.trim() !== "" && valeur.length <= 100;
+const gist = (valeur: unknown): valeur is string => texte(valeur) && /^[A-Za-z0-9]{1,64}$/.test(valeur);
+
+function remiseLue(lue: unknown): Remise | null {
+  const { vers, gist: sien, demandeLe } = (lue ?? {}) as Record<string, unknown>;
+  return nomDeStation(vers) && gist(sien) && date(demandeLe) !== null ? { vers, gist: sien, demandeLe: demandeLe as string } : null;
+}
+
+function repriseLue(lue: unknown): Reprise | null {
+  const { de, gist: sien, demandeLe } = (lue ?? {}) as Record<string, unknown>;
+  return nomDeStation(de) && gist(sien) && date(demandeLe) !== null ? { de, gist: sien, demandeLe: demandeLe as string } : null;
+}
 
 function calibre(lu: unknown): Calibre | null {
   const { modele, effort } = (lu ?? {}) as Record<string, unknown>;
@@ -83,7 +139,7 @@ export function lireDemande(brut: string): Demande | null {
   const projets: ProjetDemande[] = [];
   const problemes: string[] = [];
   for (const brut of lu.projets as unknown[]) {
-    const { nom, depot, base, principale, cooks, manager, reviewer, ouvertLe, demandeLe } = (brut ?? {}) as Record<string, unknown>;
+    const { nom, depot, base, principale, cooks, manager, reviewer, ouvertLe, demandeLe, remise, reprise } = (brut ?? {}) as Record<string, unknown>;
     const dit = texte(nom) ? `« ${nom.slice(0, 40)} »` : "sans nom";
     const refuser = (pourquoi: string) => void problemes.push(`projet ${dit} demandé par l'app : ${pourquoi}`);
     if (!texte(nom) || !NOM_DE_PROJET.test(nom)) refuser("nom de projet invalide — attendu un identifiant court en minuscules, chiffres et tirets");
@@ -95,13 +151,61 @@ export function lireDemande(brut: string): Demande | null {
     else {
       const [pourManager, pourReviewer] = [calibre(manager), calibre(reviewer)];
       if (pourManager === null || pourReviewer === null) refuser(`calibrage du ${pourManager === null ? "manager" : "reviewer"} invalide — attendu un modèle (${MODELES.join(", ")}) et un effort (${EFFORTS.join(", ")})`);
-      else projets.push({ nom, depot, base, principale, cooks, manager: pourManager, reviewer: pourReviewer, ouvertLe: date(ouvertLe), demandeLe: date(demandeLe) });
+      else {
+        // Un déménagement illisible n'est qu'ignoré, et dit : le projet reste
+        // demandé tel que le reste de sa ligne le dit.
+        const [laRemise, laReprise] = [remise === undefined || remise === null ? null : remiseLue(remise), reprise === undefined || reprise === null ? null : repriseLue(reprise)];
+        if (remise !== undefined && remise !== null && laRemise === null) problemes.push(`projet ${dit} demandé par l'app : son déménagement (remise) est illisible — attendu la station qui le reprend, son gist et l'instant de la demande ; il est ignoré`);
+        if (reprise !== undefined && reprise !== null && laReprise === null) problemes.push(`projet ${dit} demandé par l'app : son déménagement (reprise) est illisible — attendu la station qu'il quitte, son gist et l'instant de la demande ; il est ignoré`);
+        projets.push({
+          nom,
+          depot,
+          base,
+          principale,
+          cooks,
+          manager: pourManager,
+          reviewer: pourReviewer,
+          ouvertLe: date(ouvertLe),
+          demandeLe: date(demandeLe),
+          // Une remise ne se fait que depuis une station qui n'en est plus la
+          // principale ; une reprise, que vers celle qui l'est.
+          ...(laRemise !== null && !principale ? { remise: laRemise } : {}),
+          ...(laReprise !== null && principale ? { reprise: laReprise } : {}),
+        });
+      }
     }
   }
   return { projets, problemes };
 }
 
-// Ce que la station écrit de ses projets demandés.
-export function documentDeSuivi(projets: SuiviDuProjet[], instant: number): string {
-  return `${JSON.stringify({ brigade: "projets-suivi", format: FORMAT, a: new Date(instant).toISOString(), projets }, null, 2)}\n`;
+// Le fichier que l'app écrit dans le gist d'une station — et le déménagement,
+// pour elle (`demenagement/demenager.ts`).
+export function documentDeDemande(projets: readonly ProjetDemande[]): string {
+  return `${JSON.stringify({ brigade: "projets", format: FORMAT, projets }, null, 2)}\n`;
+}
+
+// Ce que la station dit d'un déménagement, relu dans le suivi d'une autre.
+export function lireBascule(lue: unknown): Bascule | null {
+  const { de, vers, demandeLe, etape } = (lue ?? {}) as Record<string, unknown>;
+  return nomDeStation(de) && nomDeStation(vers) && date(demandeLe) !== null && texte(etape) && ETAPES.includes(etape) ? { de, vers, demandeLe: demandeLe as string, etape: etape as EtapeDeBascule } : null;
+}
+
+// Ce qu'une autre station a écrit de ce projet dans son suivi, ou null.
+export function suiviDe(brut: string | undefined, nom: string): (Pick<SuiviDuProjet, "etat" | "dit"> & { bascule: Bascule | null }) | null {
+  if (brut === undefined) return null;
+  try {
+    const lu = JSON.parse(brut) as { brigade?: unknown; projets?: unknown };
+    if (lu?.brigade !== "projets-suivi" || !Array.isArray(lu.projets)) return null;
+    const projet = (lu.projets as unknown[]).find((brut) => (brut as Record<string, unknown> | null)?.nom === nom) as Record<string, unknown> | undefined;
+    if (projet === undefined || !texte(projet.etat)) return null;
+    return { etat: projet.etat as EtatDuProjet, dit: texte(projet.dit) ? projet.dit : "", bascule: lireBascule(projet.bascule) };
+  } catch {
+    return null;
+  }
+}
+
+// Ce que la station écrit de ses projets demandés. `station` : son nom, et si
+// elle est celle de l'ordinateur du chef.
+export function documentDeSuivi(projets: SuiviDuProjet[], instant: number, station?: { nom: string; locale: boolean }): string {
+  return `${JSON.stringify({ brigade: "projets-suivi", format: FORMAT, a: new Date(instant).toISOString(), ...(station === undefined ? {} : { station }), projets }, null, 2)}\n`;
 }
