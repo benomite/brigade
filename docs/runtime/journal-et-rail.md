@@ -132,6 +132,24 @@ compte du service (`BRIGADE_GITHUB_REPO` est requis), écrit au journal le fait 
 aurait écrit — le rail et la fiche le lisent aussitôt —, et dit son prix (`— cost: …`) : sur la
 sortie standard s'il est accompli, sur la sortie d'erreur avec sa raison, en code 1, s'il est refusé.
 
+### Renvoyer une livraison à un cook, dire pourquoi tu l'as corrigée
+
+```bash
+npm --prefix runtime run rail -- send-back <ticket> [raison…]
+npm --prefix runtime run rail -- correct <ticket> <raison…>
+```
+
+La raison se tape en mots, sans guillemets, en une ligne de 400 caractères au plus. `send-back`
+renvoie à un cook la livraison d'un ticket que la file dit t'attendre — verte et non mergée, ou
+remontée avec sa PR —, comme la pass renvoie une livraison rouge : `pass.returned` (au nom de
+`chef`, ta raison pour finding) puis `ticket.released` (motif `chef-sent-back`) ; le cook repart sur
+sa branche, sa PR reste ouverte, et le renvoi compte parmi ceux du ticket. Sans raison, le cook lit
+qu'il doit relire l'issue et la PR. `correct` ne touche à rien : tu as corrigé toi-même la
+livraison d'un ticket livré au moins une fois — sur sa branche ou après son merge — et tu dis
+pourquoi ; sans raison, il est refusé. Ni l'un ni l'autre ne parle à GitHub. Avec une raison,
+chacun en fait une **leçon candidate** du projet, d'origine `chef-correction #<ticket>` (voir
+[`carnet-lecons.md`](carnet-lecons.md), « Une leçon née d'un renvoi »).
+
 Les faits du rail : `ticket.arrived`, `ticket.changed`, `ticket.left` (au nom de `github` ; aussi
 pour une issue attendue, fermée sans être entrée sur le rail), `ticket.taken`, `ticket.renewed`,
 `ticket.released`, `ticket.passing`, `ticket.served`, `ticket.86`, `ticket.blocked`,

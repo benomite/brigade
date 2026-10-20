@@ -17,6 +17,30 @@ Le carnet a donc deux étages :
 Une leçon qui n'est pas dans le carnet est provisoire. Ce que le projet a appris — provisoire et
 promu — se lit dans `faits` (`apprentissage`, voir [`etat-et-mesures.md`](etat-et-mesures.md)).
 
+### Une leçon née d'un renvoi
+
+Un renvoi est une preuve plus forte que ce qu'un cook dit de lui-même. Sa raison entre au projet
+comme une **leçon candidate**, provisoire, par le même chemin qu'une leçon de rétro — même suite
+d'ids, mêmes seuils de promotion et de péremption —, avec son origine :
+
+| Le renvoi | Ce qui devient leçon | Origine |
+|---|---|---|
+| La pass renvoie un ticket rouge, ou le manager relance un rouge de la pass | chaque finding du renvoi, au plus trois | `pass-send-back #N` |
+| Tu renvoies une livraison à un cook (`rail send-back <N> <raison…>`) | ta raison | `chef-correction #N` |
+| Tu dis pourquoi tu as corrigé une livraison (`rail correct <N> <raison…>`) | ta raison | `chef-correction #N` |
+
+Au journal : `lesson.candidate` (`origin`, `text`), un fait par leçon, écrit avec le renvoi — le
+cook du renvoi la reçoit déjà. **Un renvoi sans raison n'en fait naître aucune.** Une leçon tient
+sur une ligne : la raison y est mise d'une ligne, sans la fin de sortie des gates ni son bloc de
+code ; celle de la pass, plus longue que 400 caractères, est coupée au dernier mot qui tient
+(`…`) ; la tienne est refusée plutôt que coupée. Une candidate qui dit mot pour mot ce que dit déjà
+une leçon du projet la **reconfirme** au lieu d'en faire naître une autre ; une rétro peut
+reconfirmer une candidate par son id, comme toute leçon. Sa référence, dans `rétros:` au carnet,
+est `pass-send-back-<seq>` ou `chef-correction-<seq>`. Le temps ne se compte qu'en tickets servis :
+une candidate compte au rang du ticket servi suivant — comme la rétro du ticket qu'elle suit —, et
+tant qu'aucun ne l'a été, elle n'est pas encore comptée. Le module est
+`runtime/src/apprentissage/renvoi.ts`.
+
 ### Ce que reçoit un cook
 
 Le cook lancé sur un ticket — premier cook, reprise d'un travail conservé, renvoi de la pass, d'ici
