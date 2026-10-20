@@ -24,7 +24,7 @@ import type { Panne } from "../../src/pannes/pannes.ts";
 import { lireSuivi } from "../../src/projets/demande.ts";
 import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type ProjetVu, type VuDesProjets } from "../../src/projets/projets.ts";
 import type { VuDesStations } from "../../src/stations/stations.ts";
-import { COPIEE, COPIER, poserDepotRetenu } from "../../src/vue/onboarding/depot-retenu.js";
+import { CONFIRMER_RETRAIT, COPIEE, COPIER, poserDepotRetenu, RAMENER, RETIRER, VERIFIER } from "../../src/vue/onboarding/depot-retenu.js";
 import { Faux as Fabrique, type Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-19T12:00:00.000Z";
@@ -53,6 +53,7 @@ const vue = (en: object | null): VuDesProjets => {
     stations: [{ id: "g1", nom: "parade-box", principale: true, etat: lu?.etat ?? "servi", dit: "", autoriser: [] }],
     servi: null,
     acces: lu?.acces ?? null,
+    refus: lu?.refus ?? null,
     worktree: lu?.worktree ?? null,
   };
   return { a: A, projets: [projet], recommandee: "g1", avertissements: {}, machines: { g1: machineProposee(BOX) }, calibrage: calibrageRecommande([]) };
@@ -169,4 +170,61 @@ test("lireSuivi ne croit que ce qui a la forme : un accès sans geste, un échec
   const [bon] = lireSuivi(suivi({ acces: ACCES, worktree: { ...ECHEC, acces: ACCES } }));
   assert.deepEqual(bon?.acces, ACCES);
   assert.deepEqual(bon?.worktree, { ...ECHEC, acces: ACCES });
+});
+
+// Ce que le runtime publie (runtime/src/projets/refus.ts), mot pour mot.
+const REFUS = {
+  status: "refused",
+  code: "proxy-port-set",
+  message: "This project's settings choose a network port that the station reserves for itself.",
+  action: "Remove the port setting from the project's line in the station's configuration.",
+};
+
+test("un projet refusé par la station : la page dit pourquoi et ce que le chef fait, sans le texte brut ni chemin", async () => {
+  const brut = "BRIGADE_PROXY_PORT is set in /etc/brigade/en-service: refused";
+  const { bloc } = await laPage(vue({ etat: "refuse", dit: brut, refus: REFUS }));
+  const lignes = dit(bloc);
+  assert.ok(lignes.includes(REFUS.message), lignes.join(" | "));
+  assert.ok(lignes.includes(REFUS.action), lignes.join(" | "));
+  assert.doesNotMatch(bloc.textContent, /en-service|\/etc\//);
+  assert.doesNotMatch(bloc.textContent, /within a minute/);
+  // Le geste attendu est un bouton : celui-ci lance la vérification de l'installation.
+  const boutons = bloc.dessous("button").filter((b) => b.textContent === VERIFIER);
+  assert.equal(boutons.length, 1, "un bouton « check the installation »");
+  assert.equal(boutons[0]?.className, "recommande");
+});
+
+test("le geste d'un refus est un bouton : retirer le projet (en deux clics), le ramener ici, ou vérifier l'installation", async () => {
+  const doc = { createElement: (balise: string) => new Fabrique(balise) };
+  const pose = (code: string, plus: object = {}) => poserDepotRetenu(doc, { refus: { ...REFUS, code }, maintenant: 0, copier: () => {}, ...plus }) as unknown as Faux;
+  const retires: string[] = [];
+  const retirer = pose("clone-missing", { retirer: async () => (retires.push("x"), "parade is removed") });
+  const bouton = retirer.dessous("button")[0] ?? assert.fail("pas de bouton");
+  assert.equal(bouton.textContent, RETIRER);
+  bouton.click();
+  assert.equal(bouton.textContent, CONFIRMER_RETRAIT);
+  assert.deepEqual(retires, [], "le premier clic ne retire rien");
+  bouton.click();
+  await repos();
+  assert.deepEqual(retires, ["x"]);
+  assert.match(retirer.textContent, /parade is removed/);
+  let ramene = 0;
+  const ramener = pose("handed-over-elsewhere", { ramener: () => ramene++ }).dessous("button")[0] ?? assert.fail("pas de bouton");
+  assert.equal(ramener.textContent, RAMENER);
+  ramener.click();
+  assert.equal(ramene, 1);
+  let verifiees = 0;
+  const verifie = pose("proxy-port-set", { verifier: () => verifiees++ }).dessous("button")[0] ?? assert.fail("pas de bouton");
+  assert.equal(verifie.textContent, VERIFIER);
+  verifie.click();
+  assert.equal(verifiees, 1);
+});
+
+test("sans refus, la page est inchangée ; un refus sans phrase ou sans action ne dit rien", async () => {
+  const { bloc } = await laPage(vue(null));
+  assert.equal(bloc.dessous("div").some((d) => d.className === "depot-retenu"), false);
+  const [lu] = lireSuivi(suivi({ refus: { ...REFUS, action: "" } }));
+  assert.equal(lu?.refus, null);
+  const [bon] = lireSuivi(suivi({ refus: REFUS }));
+  assert.equal(bon?.refus?.message, REFUS.message);
 });
