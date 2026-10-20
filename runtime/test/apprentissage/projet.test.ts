@@ -39,11 +39,21 @@ describe("l'apprentissage d'un projet", () => {
 
     const [provisoire, promue] = lecons;
     assert.equal(lecons.length, 2);
-    assert.deepEqual({ ...provisoire, date: provisoire?.date.length }, { id: "L1", texte: "lancer les tests avant de commiter", statut: "provisoire", date: 10, tickets: [21], cooks: 2 });
+    assert.deepEqual({ ...provisoire, date: provisoire?.date.length }, { id: "L1", texte: "lancer les tests avant de commiter", statut: "provisoire", date: 10, tickets: [21], cooks: 2, progres: { avant: null, apres: null } });
     assert.equal("url" in (provisoire ?? {}), false);
     // Le carnet : titre, blanc, « ## L-001 », état, texte → la ligne du texte est la 6e.
-    assert.deepEqual(promue, { id: "L-001", texte: "lire le CLAUDE.md d'abord", statut: "promue", date: "2026-10-01", tickets: [12, 15], cooks: 1, url: `https://github.com/benomite/brigade/blob/v2/${CARNET_PATH}#L5` });
-    assert.deepEqual(profils, [{ nom: "app-src-vue", domaine: "app/src/vue", carnet: [{ id: "L-001", texte: "peau mince", etat: "promoted" }], tickets: [3, 4] }]);
+    assert.deepEqual(promue, { id: "L-001", texte: "lire le CLAUDE.md d'abord", statut: "promue", date: "2026-10-01", tickets: [12, 15], cooks: 1, progres: { avant: null, apres: null }, url: `https://github.com/benomite/brigade/blob/v2/${CARNET_PATH}#L5` });
+    assert.deepEqual(profils, [{ nom: "app-src-vue", domaine: "app/src/vue", carnet: [{ id: "L-001", texte: "peau mince", etat: "promoted" }], tickets: [3, 4], progres: { avant: null, apres: null } }]);
+  });
+
+  test("la livraison des tickets mergés se lit du journal, avant et après la date d'entrée de la promue", (t) => {
+    const { journal, depot } = projet(t);
+    const noter = (ticket: number, fait: object) => journal.ajouter({ project: "p", ticket, author: "runtime", ...fait } as never);
+    noter(30, { type: "ticket.taken", payload: { station: "box/claude", leaseUntil: "2099-01-01T00:00:00.000Z" } });
+    noter(30, { type: "cook.launched", payload: { run: "r30", limits: {}, stream: "runs/r30.jsonl", station: "box/claude" } });
+    noter(30, { type: "merge.done", payload: {} });
+    const promue = apprentissageDuProjet({ journal, projet: "p", repoDir: depot }).lecons[1];
+    assert.deepEqual(promue?.progres, { avant: null, apres: { retenus: 1, premiers: 1, premierCoup: 1, essaisMoyens: 1 } });
   });
 
   test("sans dépôt connu, la promue n'a pas d'adresse", (t) => {
