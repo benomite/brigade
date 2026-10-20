@@ -242,7 +242,19 @@ relit le projet et rend l'issue :
 
 Une demande de plus de dix minutes n'est pas jouée ; une demande déjà répondue ne se rejoue pas, même
 après un redémarrage de la station. L'app retire sa demande une fois la réponse lue, et la réponse
-quitte le gist à la cadence suivante. Les remèdes concrets viennent avec #1204.
+quitte le gist à la cadence suivante.
+
+**Le catalogue des remèdes** (#1204, `runtime/src/remedes/catalogue/`) : un fichier par geste.
+- `proxy-port-set` → `remove-port-setting` (destructif) : retire `BRIGADE_PROXY_PORT` de la ligne du projet.
+- `hand-written-line` → `remove-hand-written-line` (destructif) : retire la ligne écrite à la main, jamais celle du bloc de l'app.
+- `configuration-invalid` → `rewrite-project-line` (destructif) : efface la ligne que l'app a écrite ; la station la réécrit à neuf.
+- `clone-missing` → `clone-repository-again` : reclone le dépôt par le `gh` de la machine.
+- `sandbox-unusable` → `update-claude` : `claude update` ; si le bac à sable reste inutilisable, le refus tient, avec sa raison.
+
+Les autres refus (`already-served`, `door-not-open`, `clone-failed`, `fetch-blocked`, `push-blocked`,
+`decisions-not-written`, `handed-over-elsewhere`, `unexpected`) n'ont pas de bouton : chacun porte
+`noRemedy` (`SANS_REMEDE`). `clone-missing` et `sandbox-unusable` sont rejoués par la station à chaque
+relecture, leur remède n'agissant pas sur la configuration.
 
 ### Le premier ticket : préparer le dépôt
 

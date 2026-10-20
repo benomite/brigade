@@ -14,8 +14,8 @@
 // remède lève ce refus.
 //
 // Ce que le payload porte est en anglais : c'est l'app qui le montre.
-// Des types seuls : `refus.ts` importe ce module, pour porter le remède dans le refus.
 import type { CodeDeRefus } from "../projets/refus.ts";
+import { remedesDuCatalogue } from "./catalogue/index.ts";
 
 // Ce que la station donne au remède qu'elle joue.
 export type ContexteDuRemede = {
@@ -107,8 +107,8 @@ export const SANS_REMEDE: Record<CodeDeRefus, string> = {
   unexpected: "The station does not know what went wrong, so no action can be offered.",
 };
 
-// Les remèdes de la station. Les gestes concrets s'y ajoutent (#1204).
-export const REMEDES: Registre = creerRegistre();
+// Les remèdes de la station : ceux du catalogue (`catalogue/`).
+export const REMEDES: Registre = creerRegistre(remedesDuCatalogue());
 
 // Ce que le refus de ce code porte de son remède : son descripteur, ou
 // pourquoi il n'y en a pas.

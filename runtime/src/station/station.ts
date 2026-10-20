@@ -59,6 +59,10 @@ export const projetEnCours = (): string | null => enCours.getStore() ?? null;
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
+// Les refus que rien dans la configuration ne change : leur remède agit ailleurs
+// (un clone refait, un `claude` mis à jour), la station les rejoue donc à chaque relecture.
+const CAUSES_A_REESSAYER: ReadonlySet<CodeDeRefus> = new Set(["clone-missing", "sandbox-unusable"]);
+
 // Ce qui, dans une erreur d'ouverture, dit pourquoi le projet est refusé.
 const causeDe = (erreur: unknown): CodeDeRefus => {
   if (erreur instanceof DejaEnCours) return "already-served";
@@ -128,7 +132,7 @@ export function ouvrirStation(options: OptionsStation): Station {
     } catch (erreur) {
       const motif = message(erreur);
       const avant = refuses.get(projet.nom);
-      refuses.set(projet.nom, { cle, motif, cause: causeDe(erreur), reessayer: erreur instanceof DejaEnCours });
+      refuses.set(projet.nom, { cle, motif, cause: causeDe(erreur), reessayer: erreur instanceof DejaEnCours || CAUSES_A_REESSAYER.has(causeDe(erreur)) });
       if (avant?.motif !== motif || avant.cle !== cle) dit(`refusé par la station, les autres projets restent servis — ${motif}`);
     }
   };
