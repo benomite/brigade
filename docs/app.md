@@ -221,7 +221,7 @@ pourrait pas déclarer.
 Installé, un projet n'est pas encore servi. Quatre gestes restent, **dans cet ordre**, et l'app n'en
 saute aucun. Ils sont dans l'espace du projet, en tête du panneau, sous **Mise en
 service** — dépliée d'elle-même pour un projet que tu viens d'ajouter, repliée sur une ligne pour
-les autres. Un projet sans `hote` n'en a pas.
+les autres. Un projet sans `hote` et sans cuisine sur ce poste n'en a pas.
 
 | | Le geste | Ce que l'app fait | Ce qui reste à toi |
 |---|---|---|---|
@@ -452,7 +452,7 @@ Le fichier reste le tien, et tu peux tout y faire :
   ouverte dans le `dossier` d'un projet y prend `nom` et `hote`, et lance à l'ouverture, une fois, le même geste que l'app :
   `ssh … <hote> brigade <nom> status`. Elle relaie ce qui t'attend, mot pour mot. Un `nom` que la
   box ne connaît pas, c'est le geste qui le refuse, et le second le dit en une ligne ; un projet
-  sans `hote` n'a pas de file à lire, et il le dit de même. Il n'y a pas d'autre endroit où
+  sans `hote` et sans cuisine sur ce poste n'a pas de file à lire, et il le dit de même. Il n'y a pas d'autre endroit où
   déclarer la box.
 
 Si le fichier est refusé au lancement, l'app n'affiche aucun projet : elle montre le
@@ -962,7 +962,7 @@ En tête du panneau de l'espace d'un projet, la lecture de sa box est dans **un 
   lirait « pas joint ».
 - **Un projet muet ne retient pas les autres** : chaque projet est lu pour lui-même, toutes les
   trente secondes, et porte sa propre heure.
-- Un projet sans `hote` a son panneau aussi : `aucune lecture`, et ce qui lui manque — `hote`, le nom
+- Un projet sans `hote` et sans cuisine sur ce poste a son panneau aussi : `aucune lecture`, et ce qui lui manque — `hote`, le nom
   par lequel ton `ssh` joint ta box. Aucun bloc à coller.
 - Les commandes d'une lecture partent **l'une après l'autre**, et la première qui échoue est
   l'erreur affichée : chaque écran dit ce que *ses* commandes ont rendu.
@@ -993,7 +993,7 @@ En tête du panneau de l'espace d'un projet, la lecture de sa box est dans **un 
 - **Une pastille sans couleur n'est pas un état** : vide, c'est un mot que l'app ne connaît pas
   (il se lit au survol, tel quel) ; un `!`, l'app
   n'a lu aucun fait de ce projet, et le survol dit pourquoi (`aucun fait lu — PAS JOINT`). Un
-  projet sans `hote` n'a pas de pastille.
+  projet sans `hote` et sans cuisine sur ce poste n'a pas de pastille.
 - **Pas de compteur dans la barre** : les nombres sont dans la carte du projet.
 - **Les cases se rangent en les glissant.** Prends la case d'un projet, glisse-la dans la barre :
   elle s'efface à demi, et **un trait d'accent dit où elle atterrira** — avant la case survolée si
@@ -1172,7 +1172,7 @@ des grants :
 - Un runtime qui ne connaît pas encore `--last` rend son usage en erreur : il se lit dans l'onglet comme toute commande en échec.
 - Sous les onglets, la ligne dit ce que tu lis : ``la sortie de `ssh <hote> brigade <nom> rail`, telle que la box la
   rend — relue seule toutes les trente secondes, tant que cet onglet est affiché``.
-- Un projet sans `hote` a ses sept onglets, et chacun dit `aucune lecture` et ce qui manque.
+- Un projet sans `hote` et sans cuisine sur ce poste a ses sept onglets, et chacun dit `aucune lecture` et ce qui manque.
 - **Rien n'y est dessiné** : seuls l'état du manager et celui des grants y sont posés
   au-dessus de leur texte. Rail, Cooks et Log sont du texte que tu peux sélectionner et copier, comme le
   texte de tout onglet. Les seuls boutons sont ceux qui écrivent une commande dans le second — sur
@@ -1389,7 +1389,7 @@ d'autre :
   droit — elle ne fait que lire. Il lui faut seulement un runtime qui la connaît.
 - Les deux gestes sont offerts quel que soit l'état lu — et même sans lui : ils n'attendent rien
   de la lecture, et le runtime répond `déjà allumé` ou `rien à éteindre` s'il n'y a rien à faire.
-  Un projet **sans `hote`** n'en a pas ; un `hote` qui commence par un tiret, ou un projet dont le
+  Un projet **sans `hote`** et sans cuisine sur ce poste n'en a pas ; un `hote` qui commence par un tiret, ou un projet dont le
   dossier n'est pas là, n'a rien d'écrit — aucun shell n'est ouvert, et la ligne sous les onglets
   de droite dit pourquoi.
 
@@ -1443,7 +1443,7 @@ cette sortie**, et rien d'autre — un bloc par grant :
   grant est accordé **sans échéance**. Envoyée, reviens sur **Grants** : l'état est relu.
 - Les deux gestes sont offerts quel que soit l'état lu — et même sans lui : ils n'attendent rien
   de la lecture, et le runtime répond `déjà actif` ou `rien à révoquer` s'il n'y a rien à faire. Ils
-  ne sont offerts que pour un grant que la doc nomme (`merge`). Un projet **sans `hote`** n'en a
+  ne sont offerts que pour un grant que la doc nomme (`merge`). Un projet **sans `hote`** et sans cuisine sur ce poste n'en a
   pas ; un `hote` qui commence par un tiret, ou un projet dont le dossier n'est pas là, n'a rien
   d'écrit — aucun shell n'est ouvert, et la ligne sous les onglets de droite dit pourquoi.
 - **Les boutons d'avant sont toujours là**, sous l'heure de la lecture : `grant activer merge`,
@@ -1504,7 +1504,7 @@ a aucun.
   dit pourquoi — la lecture de la box, elle, n'en souffre pas.
 - **Un bouton qui n'a rien pu écrire le dit** sous les onglets de droite : `rien n'est écrit : …`
   — par exemple quand le projet vient de quitter le fichier.
-- Un projet **sans `hote`** n'a aucun bouton : il n'y a pas de commande à écrire. Un projet dont le
+- Un projet **sans `hote`** et sans cuisine sur ce poste n'a aucun bouton : il n'y a pas de commande à écrire. Un projet dont le
   dossier n'est pas là n'a pas de second : sa colonne dit pourquoi (`dossier introuvable : …`).
 - **Seuls ces six boutons existent**, chacun là où se lit ce qu'il change — et, à part, les deux
   gestes du manager : `allumer`, qui écrit dans un shell, et `éteindre`, qui part (« L'onglet Manager »). Le
@@ -1544,7 +1544,7 @@ envoyer dans le second — part aussitôt, s'il est libre :  [vérifier l'instal
 - **Arrêter la cuisine est dangereux** : tous les cooks en cours sont arrêtés, et plus aucun n'est
   lancé jusqu'à « reprendre ». **L'app n'ajoute aucune confirmation** : la commande se lit, et se
   corrige, dans le shell avant Entrée.
-- Offerts quel que soit l'état lu. Un projet **sans `hote`** n'en a pas ; un `hote` qui commence par
+- Offerts quel que soit l'état lu. Un projet **sans `hote`** et sans cuisine sur ce poste n'en a pas ; un `hote` qui commence par
   un tiret, ou un projet dont le dossier n'est pas là, n'a rien d'écrit — la ligne sous les onglets
   de droite dit pourquoi. Les deux boutons du panneau d'état (`garde-fous stop`, `garde-fous reprendre`) et
   celui de la bannière d'arrêt restent : eux écrivent dans le second.
@@ -1972,7 +1972,7 @@ S'y ajoute, pour un ticket en pass ou servi, `cuisiné par` : qui l'a cuisiné n
   la liste dépliée dit pourquoi, et ce n'est pas « rien à venir ».
 - **Les colonnes tiennent dans la fenêtre à sa taille d'ouverture** ; plus étroite, elles défilent.
   Le rail et ce que l'onglet affiché montre dessous se partagent la hauteur, moitié-moitié ; le
-  rail défile dans la sienne. Un projet sans `hote` n'a pas de rail — rien n'est lu de lui — et
+  rail défile dans la sienne. Un projet sans `hote` et sans cuisine sur ce poste n'a pas de rail — rien n'est lu de lui — et
   son terminal prend toute la hauteur.
 
 ### Une correction proposée des consignes du projet (#999)
@@ -2269,7 +2269,7 @@ L'app lance `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> 'brigade <nom> 
 clé, ta configuration ssh, aucun port ni API. `BatchMode` : `ssh` ne peut rien te demander depuis
 l'app — une clé qui réclame sa phrase de passe doit être dans ton agent. `ConnectTimeout` : une
 box muette, c'est `ssh` qui le dit au bout de dix secondes, avec ses mots. Un projet sans `hote`
-n'est pas lu, et l'app le dit à la place de l'état.
+et sans cuisine sur ce poste n'est pas lu, et l'app le dit à la place de l'état.
 
 **Ça se rafraîchit seul**, toutes les trente secondes, pour ce qui est affiché et rien d'autre —
 le projet, ou chacun dans « Tous les projets » ; changer de projet lit le nouveau tout de suite. **Une lecture
