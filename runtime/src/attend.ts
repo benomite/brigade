@@ -33,6 +33,8 @@
 // Un ticket en WAITING n'y est pas : il attend un tiers, pas le chef. Repris
 // par le chef, il y revient — avec l'entrée qu'il avait avant d'attendre, ou,
 // s'il n'en avait pas, une à lui : ce qu'il attendait, et les gestes.
+// Une carte typée qui a passé la porte de TODO (carte-todo.ts) y est, avec son
+// type et son énoncé, tant qu'elle n'en est pas sortie.
 import type { Base } from "./base.ts";
 import { geste } from "./geste.ts";
 import { absentesDuMotif, direManque, direManqueEn, direStationAbsente, direStationAbsenteEn, GESTE_DE_PRESENCE, GESTE_DE_PRESENCE_EN, gesteDeCapacite, gesteDeCapaciteEn, manqueDuMotif, type Manque } from "./capacites.ts";
@@ -56,6 +58,7 @@ import { DECLARATION_RESEAU } from "./reseau.ts";
 import { SCRIPT_SETUP } from "./gates.ts";
 import { CAUSES_DU_PROJET } from "./mise-de-cote.ts";
 import { REVENU_D_ATTENTE } from "./events/rail.ts";
+import { cartesEnTodo, direCarte, direCarteEn, type CarteDeTodo } from "./carte-todo.ts";
 
 // Ce que le chef lit de la livraison qui l'attend, tel que la pass l'a consigné :
 // `resume`, celui de la relecture ; `constat`, le premier constat bloquant (celui
@@ -110,6 +113,9 @@ type AttenteDeTicket = { ticket: number; title: string | null; since: string } &
   // d'attendre. `attendait` : ce qu'il attendait, et de qui — nul si le journal
   // ne le dit plus.
   | { quoi: "repris"; attendait: { what: string; who: string } | null }
+  // Une carte typée entrée par la porte de TODO : son type, son énoncé, sa
+  // capture (carte-todo.ts).
+  | { quoi: "carte"; carte: CarteDeTodo }
 );
 
 // La dernière version passée en service par la mise à jour de la station, et
@@ -293,9 +299,11 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
   const disjoncteur: Attente[] =
     garde.breakerOpenedAt === null ? [] : [{ ticket: null, title: null, since: garde.breakerOpenedAt, quoi: "disjoncteur", echecs: echecsDuDisjoncteur(base), seuil: garde.breakerThreshold }];
 
+  const cartes = cartesEnTodo(base).map(({ ticket, since, ...carte }): AttenteDeTicket => ({ ticket, title: tickets.get(ticket)?.title ?? null, since, quoi: "carte", carte }));
+
   // Ce qui attend un tiers n'attend pas le chef, quoi qu'il attendait avant.
   const enWaiting = (attente: Attente) => attente.ticket !== null && tickets.get(attente.ticket)?.waitingFor != null;
-  return [...disjoncteur, ...baseRouge, ...setup, ...aside, ...connexions, ...session, ...jeton, ...fermeture, ...livraisons, ...bloques, ...repris, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets)]
+  return [...disjoncteur, ...baseRouge, ...setup, ...aside, ...connexions, ...session, ...jeton, ...fermeture, ...livraisons, ...bloques, ...repris, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets), ...cartes]
     .filter((attente) => !enWaiting(attente))
     .sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
 }
@@ -433,6 +441,8 @@ export function direAttenteEn(attente: Attente): string {
       const attendait = attente.attendait === null ? "" : ` (it was waiting for ${attente.attendait.who}: “${attente.attendait.what}”)`;
       return `back from WAITING, picked up again by the chef${attendait} — to decide: \`${geste(`waiting arrived ${attente.ticket}`)}\` sends it back to the kitchen; \`${geste(`waiting set ${attente.ticket} --what <what it waits for> --from <who>`)}\` puts it back in WAITING; or remove \`fire\``;
     }
+    case "carte":
+      return direCarteEn(attente.carte);
     case "fermeture":
       return direDemandeDeFermetureEn(attente.demande, attente.retenue);
     case "connexion":
@@ -456,7 +466,9 @@ export function direAttenteEn(attente: Attente): string {
 // l'attente — son mot ici, `merge`, `remontee`, `86`… ; `motif`, le sien quand la sorte en a un
 // (`no-grant`, `still-red`, `refused`, `question`…) ; `cause`, ce qui le précise sans changer le
 // geste ; `pr`, la PR de la livraison, nulle sans elle. Ce que la ligne du bloc dit en mots, ceci
-// le dit en champs : le lecteur choisit ses mots, et les gestes qu'il pose.
+// le dit en champs : le lecteur choisit ses mots, et les gestes qu'il pose. Une
+// carte typée : `carte`, son type pour motif (`product`, `design`, `gesture`),
+// son énoncé pour ce qui le précise.
 export type Decision = { quoi: AttenteDeTicket["quoi"]; motif: string | null; cause: string | null; pr: string | null };
 
 export function decisionDe(attente: AttenteDeTicket): Decision {
@@ -471,6 +483,8 @@ export function decisionDe(attente: AttenteDeTicket): Decision {
       return { quoi, motif: attente.reason, cause: null, pr: null };
     case "illisible":
       return { quoi, motif: attente.epique ? "epic" : "issue", cause: null, pr: null };
+    case "carte":
+      return { quoi, motif: attente.carte.type, cause: attente.carte.enonce, pr: null };
     default:
       return { quoi, motif: null, cause: null, pr: null };
   }
@@ -710,6 +724,8 @@ export function direAttente(attente: Attente): string {
       const attendait = attente.attendait === null ? "" : ` (il attendait ${attente.attendait.who} : « ${attente.attendait.what} »)`;
       return `revenu de WAITING, repris par le chef${attendait} — à trancher : \`${geste(`waiting arrived ${attente.ticket}`)}\` le renvoie en cuisine ; \`${geste(`waiting set ${attente.ticket} --what <ce qu'il attend> --from <qui>`)}\` le remet en attente ; ou retirer \`fire\``;
     }
+    case "carte":
+      return direCarte(attente.carte);
     case "fermeture":
       return direDemandeDeFermeture(attente.demande, attente.retenue);
     case "connexion":
