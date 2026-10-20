@@ -900,8 +900,11 @@ sur le rail). Les pages qu'il ouvre sont celles que la station a publiées, et a
 l'étape *Cooking machine* pose la phrase du runtime en avertissement — les cooks de cette machine
 tournent sans bac à sable, rien ne part avant le choix du chef — et deux boutons : « choose another
 station » (recommandé : il ouvre le choix des machines du déménagement) et « continue without sandbox »
-(`continuerSansBacASable` du pont, dont la réponse se dit sous la ligne des stations). L'avertissement
-s'en va, et le parcours passe à la préparation, dès que la station publie l'état suivant. Capture :
+(`continuerSansBacASable` du pont, dont la réponse se dit sous la ligne des stations). Le choix note la
+décision par `accepterSansBacASable` du runtime, dans l'état du projet sur cet ordinateur, pour la station
+qui le cuit — la seule que l'app atteigne : si la principale est une autre station, l'app refuse en une
+phrase et rien n'est noté. L'avertissement s'en va, et la préparation devient la courante, aussitôt la
+décision notée ; la station republie ensuite l'état qui le dit pour de bon. Capture :
 `docs/captures/1113/`.
 
 ### Où cuit un projet, et le déménager d'un geste (#1095)

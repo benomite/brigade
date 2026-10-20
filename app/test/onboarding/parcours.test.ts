@@ -259,8 +259,8 @@ const demarrage = (projetsDesStations: VuDesProjets) => ({
   projetsDesStations,
 });
 
-async function laPage(onboarding: DuRuntime | null) {
-  const jouee = await jouerLaVue({ demarrage: () => demarrage(vuAvec(onboarding)), espace: () => [], autoriserSurGitHub: () => true, confierAUneStation: () => ({ ajoute: "mirrorlab" }) });
+async function laPage(onboarding: DuRuntime | null, reponses: Record<string, () => unknown> = {}) {
+  const jouee = await jouerLaVue({ ...reponses, demarrage: () => demarrage(vuAvec(onboarding)), espace: () => [], autoriserSurGitHub: () => true, confierAUneStation: () => ({ ajoute: "mirrorlab" }) });
   const ouvrir = async (rang: number) => {
     (jouee.element("projets").children.at(rang) ?? assert.fail(`pas de case n° ${rang}`)).click();
     await repos();
@@ -294,12 +294,32 @@ describe("la décision devant une station sans bac à sable", () => {
     assert.equal((section as Faux).dessous("button").length, 0);
   });
 
-  test("sur la page : « continue without sandbox » part au process principal, « choose another station » ouvre le choix des machines", async () => {
-    const { jouee, bloc, parcours } = await laPage(SANS_BAC);
+  test("sur la page : « continue without sandbox » part au process principal, puis l'avertissement et les boutons s'en vont et la préparation devient la courante", async () => {
+    const { jouee, bloc, parcours } = await laPage(SANS_BAC, { continuerSansBacASable: () => ({ fait: "continuing without a sandbox on box: mirrorlab starts on its next turn" }) });
     assert.equal(classe(parcours() ?? assert.fail(), "avertissement").length, 1);
     bouton(bloc, CONTINUER_SANS_BAC).click();
     await repos();
     assert.deepEqual(jouee.dernier("continuerSansBacASable"), ["mirrorlab"]);
+    const section = parcours() ?? assert.fail();
+    assert.equal(classe(section, "avertissement").length, 0);
+    assert.equal(section.dessous("button").some((b) => [AUTRE_STATION, CONTINUER_SANS_BAC].includes(b.textContent)), false);
+    assert.equal(une(section, "courante").dataset.etape, "preparation");
+    assert.equal(section.dessous("li").find((li) => li.dataset.etape === "machine")?.dataset.etat, "faite");
+    assert.match(bloc.textContent, /continuing without a sandbox on box/);
+  });
+
+  test("sur la page : refusé, l'avertissement et les deux boutons restent, et la raison se lit sous la ligne", async () => {
+    const { bloc, parcours } = await laPage(SANS_BAC, { continuerSansBacASable: () => ({ refus: "the choice could not be recorded: nothing was changed" }) });
+    bouton(bloc, CONTINUER_SANS_BAC).click();
+    await repos();
+    const section = parcours() ?? assert.fail();
+    assert.equal(classe(section, "avertissement").length, 1);
+    assert.equal(une(section, "courante").dataset.etape, "machine");
+    assert.match(bloc.textContent, /nothing was changed/);
+  });
+
+  test("sur la page : « choose another station » ouvre le choix des machines", async () => {
+    const { bloc } = await laPage(SANS_BAC);
     bouton(bloc, AUTRE_STATION).click();
     await repos();
     assert.equal(bloc.dessous("button").some((b) => b.textContent === "cancel"), true);

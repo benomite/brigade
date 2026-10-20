@@ -104,7 +104,7 @@ import { apresRendu, lireLancement, poserLancement, REPOS } from "./closer/lance
 import { lireDerive, poserDerive } from "./closer/derive/derive.js";
 import { apresRendu as apresLaCorrection, poserCorrections, REPOS as CORRECTION_AU_REPOS } from "./correction/carte.js";
 import { poserProfils } from "./profil/carte.js";
-import { poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
+import { apresLaDecision, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -5123,12 +5123,16 @@ function ouvrirLeChoixDeMachine() {
 ouvrirLeDemenagement.addEventListener("click", ouvrirLeChoixDeMachine);
 // « Continue without sandbox » : le chef décide pour la station du projet. Ce que le runtime a répondu se dit sous
 // la ligne ; l'avertissement, lui, s'en va quand la station publie l'état suivant.
+// Les projets dont le chef a décidé de continuer sans bac à sable : le parcours le montre sans attendre la station.
+/** @type {Set<string>} */
+const decisionsPrises = new Set();
 /** @param {string} nom */
 async function continuerSansBac(nom) {
   demenagementDitPour = { projet: nom, dit: "telling the station to continue without a sandbox…", refus: false, detail: "" };
   poserStationsDuProjet();
   try {
     const rendu = await brigade.continuerSansBacASable(nom);
+    if ("fait" in rendu) decisionsPrises.add(nom);
     demenagementDitPour = "fait" in rendu ? { projet: nom, dit: rendu.fait, refus: false, detail: "" } : { projet: nom, dit: rendu.refus, refus: true, detail: rendu.detail ?? "" };
   } catch (erreur) {
     demenagementDitPour = { projet: nom, dit: "the choice could not be recorded: nothing was changed", refus: true, detail: erreur instanceof Error ? erreur.message : String(erreur) };
@@ -5217,6 +5221,8 @@ function poserStationsDuProjet() {
 // l'écarte ou quitte la page. Chaque page qu'il ouvre est une de celles que la station a publiées.
 /** @param {string} nom @param {import("../projets/demande.ts").Onboarding | null} onboarding */
 function poserLeParcours(nom, onboarding) {
+  if (onboarding?.decisionAttendue !== true) decisionsPrises.delete(nom);
+  else if (decisionsPrises.has(nom)) onboarding = apresLaDecision(onboarding);
   const range = onboarding !== null && onboarding.termine && parcoursRanges.has(nom);
   const pose = range
     ? null

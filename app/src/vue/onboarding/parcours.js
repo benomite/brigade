@@ -133,6 +133,25 @@ function poserPreparation(doc, preparation, maintenant, ouvrir, dejaOuverte) {
   return poses;
 }
 
+// Le chef vient de continuer sans bac à sable : la machine est faite, la préparation est la courante, sans
+// avertissement — jusqu'à ce que la station publie l'état qui le dit pour de bon.
+/** @param {Onboarding} onboarding @returns {Onboarding} */
+export function apresLaDecision(onboarding) {
+  let suivante = false;
+  const etapes = onboarding.etapes.map((etape) => {
+    if (etape.etape === "machine" && etape.etat === "courante") {
+      suivante = true;
+      return { ...etape, etat: /** @type {const} */ ("faite"), dit: "You decided to continue without a sandbox: the station starts on its next turn.", geste: null };
+    }
+    if (suivante && etape.etat === "a-venir") {
+      suivante = false;
+      return { ...etape, etat: /** @type {const} */ ("courante") };
+    }
+    return etape;
+  });
+  return { ...onboarding, etapes, courante: etapes.find(({ etat }) => etat === "courante")?.etape ?? onboarding.courante, decisionAttendue: false };
+}
+
 // Le parcours de `projet`, ou rien : sans onboarding publié, ou prêt et son premier ticket déjà posé.
 // `ouvrir` : ouvre une page de GitHub ; `ecarter` : le chef range le parcours prêt ; `continuerSansBac` et
 // `autreStation` : les deux choix devant une station sans bac à sable.
