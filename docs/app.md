@@ -1983,9 +1983,10 @@ proposed 10/13/2026, 9:41:05 AM
 le `proposition` de `profils` — le `seq` du fait `profile.proposed`. Elle sort en 0 quand la réponse
 est écrite, ou quand la proposition était déjà tranchée (`decider`, `runtime/src/profils/decision.ts`,
 issues `tranchee` et `deja`) ; en 1 sur `inconnue` ou `existe` (un « yes » sur un profil que le dépôt
-définit déjà), la raison sur sa dernière ligne. **Cette commande n'existe pas encore dans le
-runtime** : tant qu'elle manque, chaque clic dit `nothing was sent: this station cannot take your
-answer yet`, et rien ne part.
+définit déjà), la raison sur sa dernière ligne (`runtime/src/profil-cli.ts`,
+`docs/runtime/etat-et-mesures.md`, « Les profils proposés »). Une station dont le runtime est d'avant
+cette commande la refuse (66) : le clic dit `nothing was sent: this station cannot take your answer
+yet`, et rien ne part.
 
 ### La bannière d'arrêt
 
