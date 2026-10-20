@@ -24,7 +24,8 @@ import type { Panne } from "../../src/pannes/pannes.ts";
 import { lireSuivi } from "../../src/projets/demande.ts";
 import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type ProjetVu, type VuDesProjets } from "../../src/projets/projets.ts";
 import type { VuDesStations } from "../../src/stations/stations.ts";
-import { type Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+import { COPIEE, COPIER, poserDepotRetenu } from "../../src/vue/onboarding/depot-retenu.js";
+import { Faux as Fabrique, type Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-19T12:00:00.000Z";
 const BOX = { id: "g1", nom: "parade-box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [] as Panne[], dit: "online", version: "1.4.0", projets: [] as string[], max: null } as const;
@@ -103,6 +104,24 @@ test("l'accès au dépôt refusé : une phrase donne la raison et le geste, sans
   assert.equal(bloc.dessous("p").find((p) => /cannot fetch/.test(p.textContent))?.title, "git: fatal: could not read Username for 'https://github.com'");
   assert.doesNotMatch(bloc.textContent, /within a minute/);
   assert.equal(jouee.appels.some(({ geste }) => geste === "confierAUneStation"), false);
+  // Le geste se fait sur la machine de la station : l'écran offre un bouton, recommandé, qui en copie la commande.
+  const boutons = bloc.dessous("button").filter((b) => b.textContent === COPIER);
+  assert.equal(boutons.length, 1, "un bouton « copy the command »");
+  assert.equal(boutons[0]?.className, "recommande");
+});
+
+test("« copy the command » copie la commande du geste seule, et le dit", () => {
+  const copiees: string[] = [];
+  const doc = { createElement: (balise: string) => new Fabrique(balise) };
+  const pose = poserDepotRetenu(doc, { acces: ACCES, maintenant: 0, copier: (commande) => copiees.push(commande) }) as unknown as Faux;
+  const bouton = pose.dessous("button")[0] ?? assert.fail("pas de bouton");
+  assert.equal(bouton.textContent, COPIER);
+  bouton.click();
+  assert.deepEqual(copiees, ["gh auth setup-git"]);
+  assert.equal(bouton.textContent, COPIEE);
+  // Un échec sans accès refusé n'a pas de commande à copier : pas de bouton.
+  const sans = poserDepotRetenu(doc, { worktree: { ...ECHEC, acces: null }, maintenant: 0, copier: () => assert.fail() }) as unknown as Faux;
+  assert.equal(sans.dessous("button").length, 0);
 });
 
 test("un worktree impossible à préparer : la raison de l'échec et l'heure du prochain essai", async () => {
