@@ -12,6 +12,10 @@ Une seule commande pour savoir où en est le projet, sans ouvrir la base :
 `npm --prefix runtime run status` — suivie de `-- --follow [<ticket>]`, elle reste ouverte et
 ajoute une ligne par événement.
 
+La dernière ligne avant le suivi, `todo`, compte les cartes entrées dans TODO sur une période, par
+type (`product`, `design`, `gesture`) : `-- --days <N>` la règle, 7 jours par défaut. Une carte
+refusée à la porte (`todo.refused`) ne compte nulle part ; sans entrée, chaque type dit 0.
+
 ```
 awaiting   2 decisions await the chef — the oldest for 2 d
   #12  for 2 d  green delivery, not merged for lack of a `merge` grant — merge by hand: https://github.com/benomite/brigade/pull/31 — or enable the grant, for the next ones: `brigade brigade grant enable merge`  Le journal en ajout seul

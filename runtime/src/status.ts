@@ -1,11 +1,14 @@
 // L'état de la cuisine, en lecture seule :
 //   npm --prefix runtime run status                          la photo : runtime, ce qui attend le chef, rail, cooks, serveurs, derniers événements
 //   npm --prefix runtime run status -- --follow [<ticket>]   la photo, puis le journal en direct, jusqu'à Ctrl-C
+// `--days <N>` : la période des cartes entrées dans TODO, par type — product,
+// design, gesture —, comptée en jours jusqu'à maintenant (7 par défaut).
 // L'ancien mot `--suivre` répond encore, en disant le nouveau (`commandes.ts`).
 // BRIGADE_BACKUP_MAX_AGE_HOURS règle l'âge au-delà duquel la dernière sauvegarde
 // est marquée (48 par défaut).
 // La commande n'écrit jamais, et répond pendant que le runtime et ses cooks
 // tournent.
+import { direEntreesEn, entreesParType } from "./carte-todo.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
 import { AGE_MAX_SAUVEGARDE_MS, decrireEtat, lireEtat, suivre } from "./etat.ts";
@@ -13,13 +16,26 @@ import { ouvrirJournal } from "./journal.ts";
 import { pauseDeLaStation } from "./limite-github.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--follow [<numéro de ticket>]]";
+const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>]]";
+
+const JOURS_DE_TODO = 7;
 
 export function principal({ args: tapes, env, dire, redire }: Appel): void {
-  const args = enAnglais("status", tapes, redire);
+  const brut = enAnglais("status", tapes, redire);
   function echouer(code: number, message: string): never {
     redire(`brigade : ${message}`);
     throw new Sortie(code);
+  }
+
+  // `--days <N>` se retire des arguments avant le reste.
+  let jours = JOURS_DE_TODO;
+  const args = [...brut];
+  const rangDays = args.indexOf("--days");
+  if (rangDays !== -1) {
+    const dit = args[rangDays + 1];
+    if (dit === undefined || !/^[1-9][0-9]{0,3}$/.test(dit)) echouer(2, `--days attend un nombre de jours, 1 au moins\n${USAGE}`);
+    jours = Number(dit);
+    args.splice(rangDays, 2);
   }
 
   const repertoireEtat = env.BRIGADE_STATE_DIR;
@@ -54,6 +70,9 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     throw erreur;
   }
   for (const ligne of decrireEtat(etat, new Date(), ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, Date.now()))) dire(ligne);
+  const maintenant = new Date();
+  dire("");
+  dire(direEntreesEn(entreesParType(journal.base, new Date(maintenant.getTime() - jours * 86_400_000), maintenant), jours));
 
   if (option === undefined) {
     journal.fermer();
