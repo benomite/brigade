@@ -95,6 +95,7 @@ compare que deux captures du même navigateur.
 | `correction` | La file de `parade` quand une cause de ratage revient (#999) : au-dessus des colonnes, la carte d'une correction proposée de son `CLAUDE.md` — ce qu'on attend du chef, la cause, ses trois tickets, le diff, son coût, « yes, open it as a PR » et « no » |
 | `correction-oui`, `correction-sans-geste` | La même, « yes » cliqué : la réponse écrite, la carte a quitté la file — puis sur une station dont le runtime ne connaît pas encore le geste `correction` : la carte reste, et une ligne le dit, le détail au survol |
 | `fiabilite` | Settings → Reliability de `parade` (#987) : la fiabilité de ses cooks — trois chiffres, les causes d'échec — et ce qu'il a coûté ; aucune correction acceptée de ses consignes, la page n'en dit rien (#1001) |
+| `fiabilite-apprentissage` | La même page quand ses cooks ont appris (#1058) : sous les causes, ses quatre leçons — deux provisoires, deux promues avec « open in the notebook » — et ses deux profils, leur domaine, leur carnet et leurs tickets. Sans `apprentissage` dans `facts`, `fiabilite` montre la phrase qui le dit |
 | `fiabilite-recul` | La même page quand quatre corrections de ses consignes ont été acceptées (#1001) : sous les causes, chaque cause corrigée avant et après le merge — elle recule, elle ne recule pas, rien à comparer encore, pas encore mergée |
 
 Tous en 1440 × 900. `--liste` donne la liste à jour.

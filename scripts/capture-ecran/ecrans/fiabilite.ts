@@ -47,7 +47,7 @@ export const ecran: Ecran = {
   dit: "Settings → Reliability de « parade » : la fiabilité de ses cooks et ce qu'il a coûté, sans correction acceptée de ses consignes",
   largeur: 1440,
   hauteur: 1400,
-  etapes: [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets > button:first-child" }, { cliquer: "#parametres-onglets > button:nth-child(6)" }],
+  etapes: [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets > button:first-child" }, { cliquer: "#parametres-onglets > button:nth-child(5)" }],
   donnees: () => ({
     maintenant: MAINTENANT,
     reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [] },

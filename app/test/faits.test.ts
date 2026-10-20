@@ -209,6 +209,8 @@ describe("les faits que l'app dessine", () => {
         etat: "ouverte",
         ton: "vert",
         arretee: false,
+        // Ni leçon ni profil : `facts` ne porte pas `apprentissage`, la page le dira en une phrase.
+        apprentissage: { lecons: [], profils: [] },
         tick: "last tick 9 s before the reading",
         compteurs: [
           { libelle: "rail", nombre: 2 },

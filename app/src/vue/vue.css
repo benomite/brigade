@@ -3861,6 +3861,165 @@ button.recommande {
   gap: 6px;
   margin: 8px 0 0;
 }
+/* Sous les causes corrigées, ce que les cooks ont appris au projet (ticket 1058) : ses leçons, une ligne
+   chacune — son statut en pastille, promue dans le ton de l'accent, son texte, puis sa date, ses tickets, ses
+   cooks et, promue, le lien vers sa ligne du carnet —, et ses profils, leur domaine, leur carnet et leurs
+   tickets. Sans rien d'appris, une phrase discrète. */
+.apprentissage-fiabilite {
+  margin: 14px 0 0;
+}
+.apprentissage-fiabilite h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+.apprentissage-fiabilite .rien-appris {
+  margin: 0;
+  font-size: 14px;
+  color: var(--discret);
+}
+.apprentissage-fiabilite .partie + .partie {
+  margin: 12px 0 0;
+}
+.apprentissage-fiabilite h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--texte-doux);
+}
+.apprentissage-fiabilite .sans {
+  margin: 0;
+  font-size: 12px;
+  color: var(--discret);
+}
+.apprentissage-fiabilite ol {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.apprentissage-fiabilite :is(.lecon, .profil-appris) {
+  padding: 10px 14px;
+  background: var(--carte);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+.apprentissage-fiabilite .tete-lecon {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.apprentissage-fiabilite .tete-lecon > .survol {
+  flex: none;
+}
+.apprentissage-fiabilite .statut {
+  padding: 1px 8px;
+  cursor: help;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+}
+.apprentissage-fiabilite .lecon.promue .statut {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.apprentissage-fiabilite .id {
+  flex: none;
+  font-size: 12px;
+  color: var(--discret);
+}
+.apprentissage-fiabilite .texte {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  color: var(--texte);
+}
+.apprentissage-fiabilite .nom {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--texte);
+}
+.apprentissage-fiabilite .domaine {
+  font-size: 12px;
+  color: var(--discret);
+}
+.apprentissage-fiabilite .domaine code {
+  color: var(--texte-doux);
+}
+.apprentissage-fiabilite .details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--discret);
+}
+.apprentissage-fiabilite .tickets {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.apprentissage-fiabilite .tickets button {
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--texte);
+  background: var(--bouton);
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+  cursor: pointer;
+}
+.apprentissage-fiabilite .lien {
+  margin-left: auto;
+  padding: 2px 10px;
+  font-size: 12px;
+  color: var(--texte);
+  background: var(--bouton);
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+  cursor: pointer;
+}
+.apprentissage-fiabilite .lien:disabled {
+  color: var(--discret);
+  cursor: default;
+}
+.apprentissage-fiabilite .carnet {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--discret);
+}
+.apprentissage-fiabilite .carnet .libelle {
+  margin-right: 6px;
+}
+.apprentissage-fiabilite .carnet ul {
+  display: grid;
+  gap: 2px;
+  margin: 4px 0 0;
+  padding: 0 0 0 12px;
+  list-style: none;
+  border-left: 2px solid var(--trait);
+}
+.apprentissage-fiabilite .carnet li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--texte-doux);
+}
+.apprentissage-fiabilite .carnet li.sortie {
+  color: var(--discret);
+}
+.apprentissage-fiabilite .carnet .etat {
+  font-style: italic;
+}
+.apprentissage-fiabilite .aucun {
+  color: var(--discret);
+}
 /* Closer (#990) : quatre chiffres de la dernière observation, ce qu'elle a repéré derrière un bouton —
    ou, sans closer réglé, le message, et le modèle et l'effort à choisir devant le bouton qui les écrit.
    Les mêmes chiffres que Reliability. */
