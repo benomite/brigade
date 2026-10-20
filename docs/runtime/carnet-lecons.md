@@ -1,145 +1,142 @@
-## Le carnet des leçons
+## The lessons notebook
 
-Après chaque **ticket servi**, le cook qui l'a livré laisse sa **rétro** : au plus trois leçons,
-chacune proposée (`propose <leçon>`) ou reconfirmée par son id (`reconfirm L4`). Le **journal** du
-projet les garde toutes — ce sont les **leçons provisoires**, que rien ne valide. Celles qui ont
-fait leurs preuves entrent dans le dépôt du projet, dans le **carnet** ; celles qui ne sont plus
-vraies en sortent. Le runtime le décide seul, de l'histoire des rétros, et le livre par une PR qui
-passe par **la pass** comme une **livraison** : **elle ne t'attend pas.**
+After each **served ticket**, the cook that delivered it leaves its **retro**: at most three lessons,
+each one proposed (`propose <lesson>`) or reconfirmed by its id (`reconfirm L4`). The project's
+**log** keeps all of them — these are the **provisional lessons**, which nothing validates. The ones
+that have proved themselves enter the project's repository, in the **notebook**; the ones that are no
+longer true leave it. The runtime decides this on its own, from the history of the retros, and
+delivers it through a PR that goes through **the pass** like a **delivery**: **it does not wait for you.**
 
-Le carnet a donc deux étages :
+The notebook therefore has two tiers:
 
-| Étage | Où | Ce qu'il tient |
+| Tier | Where | What it holds |
 |---|---|---|
-| provisoire | le journal du runtime (`retro.recorded`) | toutes les leçons des rétros, avec leur id (`L1`, `L2`…) — stable : le journal n'est qu'en ajout |
-| carnet | `.claude/brigade/carnet.md`, dans le dépôt du projet, sur la branche d'intégration | les leçons **promues**, et la trace de celles qui sont **sorties** (expirées ou retirées) |
+| provisional | the runtime's log (`retro.recorded`) | all the lessons from the retros, with their id (`L1`, `L2`…) — stable: the log is append-only |
+| notebook | `.claude/brigade/carnet.md`, in the project's repository, on the integration branch | the **promoted** lessons, and the trace of those that have **left** (expired or retired) |
 
-Une leçon qui n'est pas dans le carnet est provisoire. Ce que le projet a appris — provisoire et
-promu — se lit dans `faits` (`apprentissage`, voir [`etat-et-mesures.md`](etat-et-mesures.md)).
+A lesson that is not in the notebook is provisional. What the project has learned — provisional and
+promoted — can be read in `facts` (`apprentissage`, see [`etat-et-mesures.md`](etat-et-mesures.md)).
 
-### Ce que reçoit un cook
+### What a cook receives
 
-Le cook lancé sur un ticket — premier cook, reprise d'un travail conservé, renvoi de la pass, d'ici
-ou d'une station distante — reçoit dans sa consigne les **leçons provisoires de son projet**, et
-d'aucun autre : chacune avec son id, la plus récente d'abord (récente par la rétro qui l'a
-proposée). Une leçon que le carnet de la branche d'intégration tient — promue, ou sortie — n'est
-plus provisoire : elle n'est pas reçue. Un carnet illisible n'en retire aucune. Le module est
+The cook launched on a ticket — first cook, resumption of preserved work, return from the pass, from
+here or from a remote station — receives in its instruction the **provisional lessons of its
+project**, and of no other: each with its id, the most recent first (recent by the retro that
+proposed it). A lesson that the integration branch's notebook holds — promoted, or left — is no
+longer provisional: it is not received. An unreadable notebook removes none. The module is
 `runtime/src/apprentissage/injection.ts`.
 
-Il en reçoit **au plus 20**, les plus récentes : un réglage du projet, pour que le contexte de
-chaque cook ne grossisse pas sans fin. `BRIGADE_INJECTED_LESSONS` dans le drop-in de son unité,
-comme les seuils plus bas ; `0` les coupe. Un entier mal écrit fait refuser le démarrage en nommant
-la variable ; `seuils-cli.ts` le montre avec les seuils.
+It receives **at most 20**, the most recent: a project setting, so that each cook's context does not
+grow without end. `BRIGADE_INJECTED_LESSONS` in its unit's drop-in, like the thresholds below; `0`
+turns them off. A badly written integer makes startup refuse, naming the variable; `seuils-cli.ts`
+shows it with the thresholds.
 
-Le journal dit ce qu'il a reçu : `lessons` de son `cook.launched`, les ids, dans l'ordre de sa
-consigne — `[]` s'il n'en a reçu aucune. Sans leçon, sa consigne est celle d'avant.
+The log says what it received: `lessons` in its `cook.launched`, the ids, in the order of its
+instruction — `[]` if it received none. Without lessons, its instruction is the one from before.
 
-### Le format du carnet
+### The notebook format
 
-Lisible à la main, un bloc par leçon, triés par id :
+Readable by hand, one block per lesson, sorted by id:
 
 ```
 # Carnet des leçons
 
 ## L1
 - état: promoted
-- texte: Lancer les tests du runtime avant de commiter.
+- texte: Run the runtime tests before committing.
 - entrée: 2026-10-01
 - rétros: retro-12, retro-15, retro-19
 
 ## L2
 - état: expired
-- texte: Relire la fiche avant d'écrire.
+- texte: Reread the card before writing.
 - entrée: 2026-10-02
 - rétros: retro-13
 - sortie: 2026-12-01
 - raison: expiry
 ```
 
-`état` vaut `promoted`, `expired` (sortie `raison: expiry`) ou `retired` (sortie `raison: manual`).
-`entrée` est le jour de sa promotion, `rétros` celles qui l'ont proposée ou reconfirmée (la
-référence d'une rétro au journal). **Une leçon sortie n'est jamais effacée du fichier** : elle garde
-son id, sa date et sa raison de sortie. Le format est dans `runtime/src/carnet/carnet.ts` ; un
-fichier qu'il ne comprend pas n'est pas réécrit (voir plus bas).
+`état` is `promoted`, `expired` (exit `raison: expiry`) or `retired` (exit `raison: manual`).
+`entrée` is the day of its promotion, `rétros` the ones that proposed or reconfirmed it (a retro's
+reference in the log). **A lesson that has left is never erased from the file**: it keeps its id, its
+date and its reason for leaving. The format is in `runtime/src/carnet/carnet.ts`; a file it does not
+understand is not rewritten (see below).
 
-### Les trois seuils
+### The three thresholds
 
-Le temps se compte en **tickets servis**, pas en jours : chaque ticket servi écrit une rétro, vide
-ou non.
+Time is counted in **served tickets**, not in days: each served ticket writes a retro, empty or not.
 
-| Seuil | Défaut | Variable |
+| Threshold | Default | Variable |
 |---|---|---|
-| **Promotion** : une leçon provisoire entre au carnet quand autant de rétros, de **tickets différents**, la citent — la proposer compte. Deux rétros d'un même ticket comptent pour une | **3** rétros | `BRIGADE_PROMOTION_RETROS` |
-| **Rétrogradation** : une leçon promue qu'aucune rétro ne reconfirme pendant autant de tickets servis redevient provisoire. Ses citations d'avant ne comptent plus pour la repromouvoir | **20** tickets servis | `BRIGADE_PROMOTED_EXPIRY_TICKETS` |
-| **Disparition** : une leçon provisoire qu'aucune rétro ne reconfirme pendant autant de tickets servis — depuis sa dernière citation, ou depuis sa rétrogradation — disparaît. Si elle avait été promue, sa sortie entre au carnet, `état: expired` | **20** tickets servis | `BRIGADE_PROVISIONAL_EXPIRY_TICKETS` |
+| **Promotion**: a provisional lesson enters the notebook when that many retros, from **different tickets**, cite it — proposing it counts. Two retros of the same ticket count as one | **3** retros | `BRIGADE_PROMOTION_RETROS` |
+| **Demotion**: a promoted lesson that no retro reconfirms for that many served tickets becomes provisional again. Its earlier citations no longer count toward promoting it again | **20** served tickets | `BRIGADE_PROMOTED_EXPIRY_TICKETS` |
+| **Disappearance**: a provisional lesson that no retro reconfirms for that many served tickets — since its last citation, or since its demotion — disappears. If it had been promoted, its exit enters the notebook, `état: expired` | **20** served tickets | `BRIGADE_PROVISIONAL_EXPIRY_TICKETS` |
 
-**Les changer, pour un projet** : ce sont des variables de l'unité du projet, dans le drop-in de
-son instance (`/etc/systemd/system/brigade@<projet>.service.d/projet.conf`, voir
-[`installer.md`](../installer.md)) — chaque projet a donc les siens :
+**Changing them, for one project**: they are variables of the project's unit, in its instance's
+drop-in (`/etc/systemd/system/brigade@<project>.service.d/projet.conf`, see
+[`installer.md`](../installer.md)) — so each project has its own:
 
 ```
 [Service]
 Environment=BRIGADE_PROMOTION_RETROS=4
 ```
 
-puis `sudo systemctl daemon-reload && sudo systemctl restart brigade@<projet>`. Lus au démarrage :
-un entier mal écrit, ou zéro, fait refuser le démarrage en nommant la variable, jamais un repli sur
-le défaut. Pour lire ceux qui sont en vigueur, avec l'environnement de l'unité :
+then `sudo systemctl daemon-reload && sudo systemctl restart brigade@<project>`. Read at startup: a
+badly written integer, or zero, makes startup refuse, naming the variable, never a fallback to the
+default. To read the ones in force, with the unit's environment:
 `node runtime/src/seuils/seuils-cli.ts`.
 
-### La promotion et la péremption, livrées par une PR
+### Promotion and expiry, delivered by a PR
 
-Le module est `runtime/src/promotion/` ; la décision elle-même, `runtime/src/peremption/`.
+The module is `runtime/src/promotion/`; the decision itself, `runtime/src/peremption/`.
 
-1. **Quand.** À chaque ticket servi de plus, et à chaque PR du carnet conclue (mergée ou fermée),
-   le runtime rejuge l'histoire des rétros. Rien d'autre ne change une décision.
-2. **Sur quoi.** Sur le carnet de la branche d'intégration, d'abord tel que le clone de la station
-   le porte ; s'il trouve un changement, il prépare une branche comme celle d'un cook — la base
-   rapatriée — et rejuge sur le carnet de cette base. **Sans décision, rien ne part** : ni branche,
-   ni PR.
-3. **Une PR du carnet à la fois.** Tant que la dernière n'est ni mergée ni fermée, aucune autre ne
-   part : le carnet de la base ne dit pas encore ce qu'elle décide.
-4. **La PR.** Une branche qui ne porte **que** `.claude/brigade/carnet.md`, une PR vers la branche
-   d'intégration, titrée `Carnet des leçons — promue L4 ; expirée L2`. Son corps dit chaque
-   décision et **les rétros qui la justifient** — pour une promotion, celles qui l'ont proposée ou
-   reconfirmée, avec leur ticket. Au journal : `carnet.started`, puis `carnet.delivered` (la PR, ses
-   décisions, les leçons qu'elle change) ou `carnet.undelivered` (pourquoi elle n'est pas partie).
-5. **La pass.** La PR entre en pass **hors du rail**, du même geste que son ouverture
-   (`pass.entered`), comme une passe de fermeture ou une correction acceptée : fusion avec la base,
-   gates, reviewer — qui la relit comme un changement du carnet —, CI, grant `merge`. **Aucun geste
-   de toi n'est attendu.** Le carnet est sous `.claude/brigade/`, avec ce qui juge les livraisons :
-   la pass appelle donc aussi son **second juge** (voir [`pass-merge.md`](pass-merge.md)) ; établie
-   non affaiblie, elle est mergée sous le grant `merge`, arrêtée sans lui. Rouge, aucun cook ne la
-   reprend : elle te remonte, comme toute livraison hors du rail.
+1. **When.** With each additional served ticket, and with each notebook PR concluded (merged or
+   closed), the runtime rejudges the history of the retros. Nothing else changes a decision.
+2. **On what.** On the integration branch's notebook, first as the station's clone carries it; if it
+   finds a change, it prepares a branch like a cook's — the base fetched — and rejudges on that
+   base's notebook. **Without a decision, nothing goes out**: no branch, no PR.
+3. **One notebook PR at a time.** As long as the last one is neither merged nor closed, no other goes
+   out: the base's notebook does not yet say what it decides.
+4. **The PR.** A branch that carries **only** `.claude/brigade/carnet.md`, a PR to the integration
+   branch, titled `Carnet des leçons — promue L4 ; expirée L2`. Its body states each decision and
+   **the retros that justify it** — for a promotion, the ones that proposed or reconfirmed it, with
+   their ticket. In the log: `carnet.started`, then `carnet.delivered` (the PR, its decisions, the
+   lessons it changes) or `carnet.undelivered` (why it did not go out).
+5. **The pass.** The PR enters the pass **off the rail**, in the same motion as its opening
+   (`pass.entered`), like a closing pass or an accepted correction: merge with the base, gates,
+   reviewer — which rereads it as a change to the notebook —, CI, `merge` grant. **No action from you
+   is expected.** The notebook is under `.claude/brigade/`, with what judges deliveries: the pass
+   therefore also calls its **second judge** (see [`pass-merge.md`](pass-merge.md)); established as
+   not weakened, it is merged under the `merge` grant, stopped without it. Red, no cook picks it up:
+   it comes back up to you, like any delivery off the rail.
 
-Un carnet de la base illisible n'est jamais réécrit : rien ne part, `carnet.undelivered` dit la
-ligne fautive, et le jugement repart au ticket servi suivant — corrige le fichier par une PR.
-Une livraison morte avec le runtime reprend, au réveil suivant, la PR que GitHub porte pour sa
-branche ; sans PR, elle est dite non livrée et le jugement suivant la refait.
+A base notebook that is unreadable is never rewritten: nothing goes out, `carnet.undelivered` gives
+the faulty line, and the judgment starts again at the next served ticket — fix the file through a PR.
+A delivery that died with the runtime picks up, at the next wake-up, the PR GitHub holds for its
+branch; without a PR, it is reported as undelivered and the next judgment redoes it.
 
-### Retirer une leçon promue
+### Retiring a promoted lesson
 
-Une leçon promue que tu ne veux plus voir se retire **par une PR**, comme toute livraison. Deux
-façons, au choix :
+A promoted lesson you no longer want to see is retired **through a PR**, like any delivery. Two ways,
+your choice:
 
-**Par un revert** — la leçon est entrée seule, ou tu retires tout ce que sa PR a promu :
+**By a revert** — the lesson came in alone, or you are removing everything its PR promoted:
 
-1. Sur GitHub, ouvre la PR `Carnet des leçons — promue …` qui l'a promue, et clique **Revert**.
-2. Merge la PR de revert sur la branche d'intégration.
-3. Au ticket servi suivant, le runtime constate qu'une leçon qu'il avait promue n'est plus dans le
-   carnet de la base : il ouvre une PR `Carnet des leçons — retirée L4`, qui l'y inscrit
-   `état: retired`, `raison: manual`, datée du jour où il le constate. Elle passe par la pass comme
-   les autres.
+1. On GitHub, open the `Carnet des leçons — promue …` PR that promoted it, and click **Revert**.
+2. Merge the revert PR into the integration branch.
+3. At the next served ticket, the runtime notes that a lesson it had promoted is no longer in the
+   base's notebook: it opens a `Carnet des leçons — retirée L4` PR, which records it there as
+   `état: retired`, `raison: manual`, dated the day it notes it. It goes through the pass like the
+   others.
 
-**Par une édition** — pour retirer une leçon parmi d'autres, ou tout de suite :
+**By an edit** — to retire one lesson among others, or right away:
 
-1. Sur une branche, dans `.claude/brigade/carnet.md`, change le bloc de la leçon :
-   `- état: promoted` devient `- état: retired`, et ajoute sous ses rétros
-   `- sortie: <AAAA-MM-JJ>` (le jour du retrait) puis `- raison: manual`. Ne retire pas le bloc.
-2. Ouvre la PR vers la branche d'intégration, et merge-la.
+1. On a branch, in `.claude/brigade/carnet.md`, change the lesson's block:
+   `- état: promoted` becomes `- état: retired`, and add under its retros
+   `- sortie: <YYYY-MM-DD>` (the day of the retirement) then `- raison: manual`. Do not remove the block.
+2. Open the PR to the integration branch, and merge it.
 
-Dans les deux cas, la leçon **garde son id**, et le runtime ne compte plus que les rétros écrites
-**après** le jour de sa sortie — une rétro du jour même est tenue pour antérieure. Les
-reconfirmations d'avant ne la ramènent pas ; il faut que **trois nouvelles rétros** (le seuil de
-promotion), de tickets différents, la citent pour qu'une nouvelle PR la repromeuve. Une leçon
-expirée revient de la même façon.
+In both cases, the lesson **keeps its id**, and the runtime only counts the retros written **after**
+the day it left — a retro from the same day is held to be earlier. Reconfirmations from before do not
+bring it back; **three new retros** (the promotion threshold), from different tickets, have to cite
+it for a new PR to promote it again. An expired lesson comes back the same way.

@@ -1,44 +1,44 @@
-## Regarder une livraison d'interface dans mon navigateur
+## Viewing an interface delivery in my browser
 
-Une livraison qui touche l'interface d'un projet peut être regardée dans le navigateur du poste
-avant de dire oui ou non. Le parcours tient en quatre gestes et un arrêt : déclarer, servir, ouvrir,
-dire, et le serveur s'arrête tout seul. Il ne sert qu'à regarder : **le verdict se donne sur
-l'issue du ticket, et ce parcours ne bloque pas le merge** (voir #399, T3).
+A delivery that touches a project's interface can be viewed in the workstation's browser
+before saying yes or no. The path takes four gestures and a stop: declare, serve, open,
+say, and the server stops by itself. It is only for looking: **the verdict is given on
+the ticket's issue, and this path does not block the merge** (see #399, T3).
 
-### Déclarer comment le projet se sert
+### Declaring how the project is served
 
-Le dépôt du projet porte, à côté de son `worktree-setup.sh`, un fichier `.claude/brigade/service`
-(`runtime/src/service.ts`). Des lignes « clé : valeur » ; une ligne vide ou qui commence par `#` ne
-compte pas, toute autre ligne est un problème dit :
+Next to its `worktree-setup.sh`, the project's repo carries a `.claude/brigade/service` file
+(`runtime/src/service.ts`). "key: value" lines; an empty line or one starting with `#` does not
+count, any other line is a stated problem:
 
 ```
 commande : python3 -m http.server "$BRIGADE_PORT" --bind 127.0.0.1 --directory app
 interface : app/src/vue
 ```
 
-- **`commande`** — une seule. Une ligne de shell, lancée à la racine du worktree, dans
-  l'environnement que rend le setup. Elle écoute sur `$BRIGADE_PORT` et sur la boucle locale, et
-  tourne jusqu'à ce qu'on l'arrête. Aucun port ne s'écrit dans le fichier.
-- **`interface`** — une ligne par chemin du dépôt, relatif à sa racine : un fichier, ou un dossier et
-  tout ce qu'il contient. Pas de motif (`*`, `?`). Une livraison dont le diff touche l'un de ces
-  chemins touche l'interface : c'est elle qu'on sert. `.` n'est pas un chemin d'interface.
+- **`commande`**: only one. A shell line, launched at the worktree root, in the
+  environment the setup returns. It listens on `$BRIGADE_PORT` and on the loopback, and
+  runs until stopped. No port is written in the file.
+- **`interface`**: one line per repo path, relative to its root: a file, or a folder and
+  everything in it. No pattern (`*`, `?`). A delivery whose diff touches one of these
+  paths touches the interface: that is what gets served. `.` is not an interface path.
 
-Sans ce fichier, le runtime le dit — « ce projet ne déclare pas comment il est servi » — et ne sert
-rien : aucune commande n'est devinée. Un projet qui ne déclare rien n'a rien de cassé ; le motif se
-lit dans `station` et `status`.
+Without this file, the runtime says so ("this project does not declare how it is served") and serves
+nothing: no command is guessed. A project that declares nothing has nothing broken; the reason is
+read in `station` and `status`.
 
-### Servir
+### Serving
 
-Quand un cook livre un commit poussé qui touche un chemin `interface`, le runtime lance la commande
-**dans le worktree de ce cook**, sur **le port de ce worktree** : `BRIGADE_PORT`, que le setup pose
-à `20000 + <n° d'issue>`. Deux worktrees ont deux ports et ne se croisent pas ; le runtime n'en
-choisit jamais un autre. La commande part dans la même cloison que le cook, et dans son propre
-groupe de process.
+When a cook delivers a pushed commit that touches an `interface` path, the runtime launches the command
+**in that cook's worktree**, on **that worktree's port**: `BRIGADE_PORT`, which the setup sets
+to `20000 + <issue number>`. Two worktrees have two ports and do not cross; the runtime never
+picks another. The command starts in the same partition as the cook, and in its own
+process group.
 
-- `station` et `status` listent chaque serveur : son ticket, son worktree, son port, `starting`
-  (le port ne répond pas encore) ou `listening`, et la page de l'écran à regarder —
-  `http://127.0.0.1:<port><route>`, jamais la racine — ou pourquoi il n'y en a aucune.
-- Sous chaque serveur, plus en retrait, `status` dit l'écran et qui l'a dit, puis la phrase du cook :
+- `station` and `status` list each server: its ticket, its worktree, its port, `starting`
+  (the port does not answer yet) or `listening`, and the page of the screen to look at:
+  `http://127.0.0.1:<port><route>`, never the root, or why there is none.
+- Under each server, further indented, `status` gives the screen and who said it, then the cook's sentence:
 
   ```
     #591  worktrees/591-ab12cd34  port 20591  listening since 3 min  cook/591-ab12cd34  http://127.0.0.1:20591/rail
@@ -46,67 +46,66 @@ groupe de process.
       to look at: #591 : le rail a maintenant deux colonnes, TODO et WAITING
   ```
 
-  Un écran que le cook n'a pas déclaré, déduit des fichiers touchés, le dit :
-  `screen: /rail (screen deduced from the touched files, not declared by the cook)`. Sans écran, rien
-  dessous. Les livraisons d'une app qui ne s'ouvre pas dans un navigateur, sous `to launch`, portent
-  les mêmes lignes. (`status` les écrit en anglais depuis #940 — `écran :`, `à regarder :`, `à lancer`
-  avant ; `station` les écrit encore en français.)
-- Une livraison sans interface ne lance rien. Ce qui empêche de servir — projet non déclaré,
-  worktree sans port, déclaration illisible — est dit à la place, une fois, et se lit dans les
-  mêmes deux commandes.
+  A screen the cook did not declare, deduced from the touched files, says so:
+  `screen: /rail (screen deduced from the touched files, not declared by the cook)`. With no screen, nothing
+  below. Deliveries of an app that does not open in a browser, under `to launch`, carry
+  the same lines. (`status` has written them in English since #940: `écran :`, `à regarder :`, `à lancer`
+  before; `station` still writes them in French.)
+- A delivery without interface launches nothing. What prevents serving (undeclared project,
+  worktree without a port, unreadable declaration) is stated instead, once, and is read in the
+  same two commands.
 
-### Ouvrir
+### Opening
 
-Sur la carte du ticket, l'app pose ce que `status` dit de sa livraison : l'écran à regarder, la
-phrase du cook — c'est elle qu'on te montre —, et, quand l'écran est déduit, la mention « écran
-déduit des fichiers touchés, pas déclaré par le cook ». Jamais une liste de fichiers. Puis un geste,
-**seulement s'il y a une page à voir** et que le serveur **écoute** : **see it in my browser**. L'app
-ouvre un transfert de port vers ta box par le `ssh` qu'elle a déjà (`ssh -N -L`, vers le même hôte,
-sans aucune commande après l'hôte), puis ouvre, avec la commande d'ouverture du poste, l'adresse
-locale suivie de la route de l'écran — **jamais la racine du worktree**, qu'un serveur de fichiers
-rend en liste de dossier. Rien n'est lancé sur la box pour cela : le serveur tourne déjà depuis le
+On the ticket's card, the app puts what `status` says about its delivery: the screen to look at, the
+cook's sentence (it is what you are shown), and, when the screen is deduced, the mention "screen
+deduced from the touched files, not declared by the cook". Never a list of files. Then one gesture,
+**only if there is a page to see** and the server is **listening**: **see it in my browser**. The app
+opens a port forward to your box through the `ssh` it already has (`ssh -N -L`, to the same host,
+with no command after the host), then opens, with the workstation's open command, the local address
+followed by the screen's route, **never the worktree root**, which a file server
+renders as a folder listing. Nothing is launched on the box for this: the server already runs from the
 worktree.
 
-Sans écran, ou sans page pour lui (un écran qui n'est pas une route, une ligne qui n'écrit que la
-racine ou rien) : pas de bouton du tout, et ce que `status` écrit à sa place se lit sur la carte.
-Pour une app qui ne s'ouvre pas dans un navigateur (`lancement`, comme `brigade`) : pas de bouton,
-et la carte dit comment voir l'écran — la commande qui lance l'app sur le worktree de la livraison,
-et l'écran à y ouvrir. Sans serveur, projet non déclaré, serveur qui démarre, runtime mort ou
-`status` non lu : pas de geste, et la raison est écrite à sa place. Le transfert se ferme dès qu'une lecture de `status` ne
-montre plus son serveur, quand son projet quitte l'app, et quand l'app se ferme.
+Without a screen, or without a page for it (a screen that is not a route, a line that writes only the
+root or nothing): no button at all, and what `status` writes in its place is read on the card.
+For an app that does not open in a browser (`lancement`, like `brigade`): no button,
+and the card says how to see the screen: the command that launches the app on the delivery's worktree,
+and the screen to open in it. Without a server, undeclared project, server starting, dead runtime or
+unread `status`: no gesture, and the reason is written in its place. The forward closes as soon as a read of `status` no longer
+shows its server, when its project leaves the app, and when the app closes.
 
-L'app rappelle, à côté du geste : elle ouvre la page, elle ne la montre pas et ne recueille aucun
-avis. **Ton oui ou ton non se dit sur l'issue du ticket** — son numéro l'ouvre, sur le rail.
+Next to the gesture, the app reminds you: it opens the page, it does not show it and collects no
+opinion. **Your yes or no is said on the ticket's issue**; its number opens it, on the rail.
 
-### Dire
+### Saying
 
-Le verdict est posé sur l'issue du ticket, et c'est elle qui fait foi, pas le navigateur. Ni l'app
-ni le runtime n'enregistrent de oui ou de non pour cette page : ne pas attendre d'un geste de l'app
-qu'il valide ou refuse la livraison.
+The verdict is placed on the ticket's issue, and it is the issue that counts, not the browser. Neither the app
+nor the runtime records a yes or a no for this page: do not expect an app gesture
+to validate or refuse the delivery.
 
-### Arrêter
+### Stopping
 
-Personne n'a à arrêter le serveur. Il s'arrête seul, et son worktree se range avec lui, dès que :
+Nobody has to stop the server. It stops by itself, and its worktree is cleaned up with it, as soon as:
 
-- le ticket est **servi**, ou a **quitté le rail** ;
-- un cook **reprend** le ticket, dans un worktree neuf (le serveur de l'ancien s'arrête d'abord) ;
-- son worktree se range par ailleurs, ou n'existe plus ;
-- sa commande **sort d'elle-même** (un port pris, une commande qui ne sert rien) : le journal garde
-  ce qu'elle a dit ;
-- le runtime s'en va : aucun serveur ne survit à son runtime, et une vie qui commence n'en hérite
-  d'aucun.
+- the ticket is **served**, or has **left the rail**;
+- a cook **takes back** the ticket, in a fresh worktree (the old one's server stops first);
+- its worktree is cleaned up otherwise, or no longer exists;
+- its command **exits by itself** (a taken port, a command that serves nothing): the log keeps
+  what it said;
+- the runtime goes away: no server outlives its runtime, and a life that begins inherits none.
 
-Un serveur qui tient son worktree empêche de le ranger : il ne se range qu'une fois arrêté. Chaque
-arrêt s'écrit au journal, avec sa raison (`service.stopped`).
+A server that holds its worktree prevents it from being cleaned up: it is cleaned up only once stopped. Each
+stop is written to the log, with its reason (`service.stopped`).
 
-### Ce que ce parcours ne fait pas
+### What this path does not do
 
-Trois exclusions, à ne pas attendre de lui :
+Three exclusions, not to be expected from it:
 
-- **Ce n'est pas une préproduction.** Rien n'est déployé : le serveur est celui d'un worktree, lancé
-  depuis la livraison, et il s'arrête avec elle.
-- **Le cook ne pilote pas de navigateur connecté.** Il ne regarde pas la page et n'en fait aucune
-  capture : c'est toi qui regardes.
-- **Aucune validation ne se fait dans l'app.** Ni bouton oui ou non, ni verdict enregistré : le
-  verdict se dit sur l'issue.
+- **It is not a staging environment.** Nothing is deployed: the server is a worktree's, launched
+  from the delivery, and it stops with it.
+- **The cook does not drive a connected browser.** It does not look at the page and takes no
+  screenshot of it: you are the one who looks.
+- **No validation is done in the app.** No yes or no button, no recorded verdict: the
+  verdict is said on the issue.
 

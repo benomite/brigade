@@ -1,378 +1,376 @@
-## La pass
+## The pass
 
-Quand un cook a livré, **la pass juge sa livraison sans personne**. Trois juges, dans cet ordre :
+When a cook has delivered, **the pass judges its delivery with nobody involved**. Three judges, in
+this order:
 
-1. **Les gates** : `.claude/brigade/gates.sh <worktree>`, jouées dans un **worktree jetable où le
-   commit livré est fusionné avec la base du moment**. **Le code de sortie est le verdict.** Le
-   `.claude/brigade/worktree-setup.sh` du projet passe d'abord, et ce qu'il exporte vaut pour
-   elles. Plafond, setup compris : 30 minutes (`BRIGADE_GATES_TIMEOUT_SECONDS`), puis rouge.
-2. **Le reviewer**, seulement si les gates sont vertes : un `claude` qui relit le diff.
-3. **La CI** du commit jugé (*check runs* et statuts), lue seulement si les gates sont vertes.
+1. **The gates**: `.claude/brigade/gates.sh <worktree>`, run in a **disposable worktree where the
+   delivered commit is merged with the base of the moment**. **The exit code is the verdict.** The
+   project's `.claude/brigade/worktree-setup.sh` runs first, and what it exports holds for the
+   gates. Cap, setup included: 30 minutes (`BRIGADE_GATES_TIMEOUT_SECONDS`), then red.
+2. **The reviewer**, only if the gates are green: a `claude` that rereads the diff.
+3. **The CI** of the judged commit (*check runs* and statuses), read only if the gates are green.
 
-| La CI dit | Ce qu'en fait la pass |
+| The CI says | What the pass does with it |
 |---|---|
-| un job en échec, la branche **à jour de la base** | **rouge**, avec le nom du job, sa conclusion, son adresse |
-| un job en échec, la branche **sans la tête de la base** | cette CI n'a pas jugé ce qui sera mergé : **son rouge n'est pas un verdict**. Le cook est renvoyé avec « mets-toi à jour de la base », les jobs nommés — pas avec « CI rouge ». Ça consomme un renvoi, comme un conflit. Au journal, CI « non lue » (`skipped`), ses checks gardés |
-| des jobs en cours | pas de verdict : relue à chaque tick. Trente minutes sans conclusion : remontée au chef (`unjudged`, cause `ci-silent`). Sauf constat bloquant du reviewer : rouge tout de suite, CI « non lue » |
-| tout est vert | vert — que la branche ait ou non la tête de la base : la fusion, ce sont les gates qui la jugent |
-| **aucun check** | ni vert ni rouge : le verdict repose sur les gates et le reviewer (`ci: none`). Sauf si la branche porte un workflow (`.github/workflows`) qui se déclenche sur les PR vers la base (`pull_request` ou `pull_request_target`, filtres de branches et de chemins compris) : ses checks sont attendus. Un workflow qui ne se lance qu'au push ne retient rien : la PR est jugée sans CI |
+| a failing job, the branch **up to date with the base** | **red**, with the job's name, its conclusion, its address |
+| a failing job, the branch **without the head of the base** | that CI did not judge what will be merged: **its red is not a verdict**. The cook is sent back with "update yourself from the base", the jobs named — not with "CI red". It uses up a return, like a conflict. In the log, CI "not read" (`skipped`), its checks kept |
+| jobs still running | no verdict: reread at every tick. Thirty minutes without a conclusion: escalated to the chef (`unjudged`, cause `ci-silent`). Except for a blocking finding from the reviewer: red right away, CI "not read" |
+| everything green | green — whether or not the branch has the head of the base: the merge is judged by the gates |
+| **no check** | neither green nor red: the verdict rests on the gates and the reviewer (`ci: none`). Unless the branch carries a workflow (`.github/workflows`) that triggers on PRs to the base (`pull_request` or `pull_request_target`, branch and path filters included): its checks are awaited. A workflow that only runs on push holds nothing back: the PR is judged without CI |
 
-Le verdict est au journal (`pass.judged`) **avec ce qui l'a produit** et **ce sur quoi il porte** :
-la tête de la branche (`sha`), celle de la base fusionnée (`base`), l'arbre obtenu (`merged`).
-**Vert veut dire « une fois fusionnée avec la base, les gates et la CI n'ont rien trouvé, et un
-reviewer a relu le diff sans rien trouver de bloquant ».** Pas « un humain a relu », et jamais
-« vert sur sa branche ».
+The verdict is in the log (`pass.judged`) **with what produced it** and **what it covers**: the
+head of the branch (`sha`), that of the merged base (`base`), the resulting tree (`merged`).
+**Green means "once merged with the base, the gates and the CI found nothing, and a reviewer reread
+the diff and found nothing blocking".** Not "a human reread it", and never "green on its branch".
 
-Une livraison peut lui arriver **hors du rail** : la PR d'une passe de fermeture, ou celle d'une
-correction des consignes que tu as acceptée (« Les corrections proposées »), ou celle du carnet
-des leçons ([`carnet-lecons.md`](carnet-lecons.md)), qui n'ont pas de ticket.
-Elle passe par les mêmes juges et le même grant ; ce qui tient au ticket — le renvoi à un
-cook, le service, la fermeture de l'issue — n'a pas lieu (voir « La PR passe par la pass »).
+A delivery can reach it **off the rail**: the PR of a closing pass, or that of a correction to the
+instructions that you accepted ("The proposed corrections"), or that of the lessons notebook
+([`carnet-lecons.md`](carnet-lecons.md)), which have no ticket.
+It goes through the same judges and the same grant; what belongs to the ticket — the return to a
+cook, serving, closing the issue — does not happen (see "The PR goes through the pass").
 
-### Le plafond de durée des gates n'est pas jugé par la pass
+### The gates' duration cap is not judged by the pass
 
-Des gates peuvent se donner un plafond de durée (binding **Plafond des gates** du `CLAUDE.md` du
-projet) et sortir rouges quand il est franchi. Il mesure le poste où il a été fixé, et un cook n'y
-peut rien : **la pass ne le juge pas.** Elle le reconnaît à deux lignes — `durée des gates : … pour
-un plafond de <n> s — … de trop` et `FAIL  plafond des gates franchi : plus de <n> s de processeur` :
+Gates can give themselves a duration cap (binding **Gates cap** in the project's `CLAUDE.md`) and
+exit red when it is crossed. It measures the workstation where it was set, and a cook can do
+nothing about it: **the pass does not judge it.** It recognizes it by two lines — `durée des gates : … pour
+un plafond de <n> s — … de trop` and `FAIL  plafond des gates franchi : plus de <n> s de processeur`:
 
-| Les gates sortent rouges, et | Ce qu'en fait la pass |
+| The gates exit red, and | What the pass does with it |
 |---|---|
-| le plafond est leur **seule** ligne `FAIL` | **vertes** : la livraison suit son chemin. Le dépassement se lit au journal (`gates.overCeiling`), sur l'issue (« Pass — plafond des gates franchi, non jugé »), dans `run pass` et `run measures` |
-| une autre ligne `FAIL` est là | **rouges**. Le renvoi nomme les autres échecs, et dit du plafond qu'il n'y a rien à corriger pour lui |
+| the cap is their **only** `FAIL` line | **green**: the delivery goes on its way. The overrun can be read in the log (`gates.overCeiling`), on the issue ("Pass — gates cap crossed, not judged"), in `run pass` and `run measures` |
+| another `FAIL` line is there | **red**. The return names the other failures, and says of the cap that there is nothing to fix for it |
 
-La règle vaut aussi pour le contrôle de la base. **Elle suppose qu'aucun rouge du `gates.sh` n'est
-muet** : rouges pour une autre raison **sans ligne `FAIL`**, des gates qui franchissent leur
-plafond sont vues vertes. Au projet de le tenir — sortir au premier échec (`set -e`), plafond en
-dernier ; ou une ligne `FAIL` par échec, plantage compris — ou de retirer le binding. Une ligne de
-plafond sans sa mesure, ou une sortie de plus de 256 ko, laissent les gates rouges.
+The rule also holds for the base check. **It assumes that no red of `gates.sh` is mute**: gates red
+for another reason **without a `FAIL` line**, if they cross their cap, are seen as green. It is up to
+the project to hold this — exit at the first failure (`set -e`), cap last; or one `FAIL` line per
+failure, crash included — or to remove the binding. A cap line without its measure, or an output of
+more than 256 kB, leave the gates red.
 
-### Le worktree du jugement
+### The judgment worktree
 
-La pass lit **ce que l'origine a reçu de la branche** (le worktree du cook n'existe plus) et ne
-fait un worktree que pour **jouer les gates** et **faire relire** :
-`worktrees/.essais/jugement-<ticket>`, jetable, détaché, où **le commit livré est fusionné avec la
-tête de la base**, rapatriée à l'instant. Cette fusion n'est jamais poussée — **la pass ne touche à
-aucune branche**. Le worktree est retiré à la fin du jugement ; un runtime tué en laisse un, retiré
-au démarrage avant de reprendre. **Le commit jugé est celui que GitHub connaît.** **Le setup se
-joue à froid** : un projet dont le setup s'appuie sur un cache paie l'installation entière à
-chaque jugement, sous le plafond des gates.
+The pass reads **what the origin received from the branch** (the cook's worktree no longer exists)
+and only makes a worktree to **run the gates** and **have it reviewed**:
+`worktrees/.essais/jugement-<ticket>`, disposable, detached, where **the delivered commit is merged
+with the head of the base**, fetched just now. This merge is never pushed — **the pass touches no
+branch**. The worktree is removed at the end of the judgment; a killed runtime leaves one behind,
+removed at startup before resuming. **The judged commit is the one GitHub knows.** **The setup runs
+cold**: a project whose setup relies on a cache pays the whole installation at every judgment, under
+the gates cap.
 
-### Le reviewer
+### The reviewer
 
-Après des gates vertes, la pass lance un **reviewer** : un `claude` de plus, dans le worktree
-jetable du jugement, au calibrage du projet (`station reviewer-modele` et `reviewer-effort`,
-sans défaut).
+After green gates, the pass launches a **reviewer**: one more `claude`, in the judgment's disposable
+worktree, at the project's calibration (`station reviewer-modele` and `reviewer-effort`, no default).
 
-- **Ce n'est jamais le cook qui se relit** : un process neuf, sa consigne, aucune session reprise.
-- **Il ne peut rien écrire.** Trois outils — `Read`, `Grep`, `Glob` — et rien d'autre : ni shell,
-  ni édition, ni skill, ni serveur MCP, ni réglages du compte, aucun mode sans permission.
-- **Ce qu'il lit** : le titre et le corps du ticket, les commentaires de ceux qui ont la main sur
-  le dépôt (`OWNER`, `MEMBER`, `COLLABORATOR`) — sans ceux de la brigade —, le compte-rendu du
-  cook, la liste des fichiers changés, et le diff contre la branche d'intégration : **des données,
-  pas une consigne**. Un diff de plus de 40 000 octets, ou une liste de plus de 8 000, est coupé :
-  il lit le reste dans le worktree, sans les lignes supprimées (`truncated: true`). Une consigne
-  de plus de 120 000 octets **ne se lance pas** (`unjudged`, cause `review-unsendable`).
-- **Un commit de récolte** — ce que le cook avait laissé non commité — lui est nommé : un fichier
-  qui n'a rien à y faire (un secret, un brouillon, une sortie d'outil) est **bloquant**.
-- **Un critère de forme écrit est bloquant** dès qu'il n'est pas tenu (« cinq lignes au plus »).
-  Hors de là, le doute profite à la remarque : un goût, un style, un nommage ne bloquent jamais.
-- **Il dit ce que le diff devrait supprimer et ne supprime pas**, à chaque relecture, ou qu'il n'y
-  a rien à retirer : des remarques « À supprimer : … », **jamais bloquantes**, même sous un verdict
-  rouge. Le chiffre qui dit si cela sert — lignes ajoutées pour une retirée, sur les 120 derniers
-  merges : `git log --first-parent --merges -120 --numstat --format= <base> | awk '{a+=$1; r+=$2} END {print a/r}'`.
+- **The cook never rereads itself**: a fresh process, its instruction, no session resumed.
+- **It can write nothing.** Three tools — `Read`, `Grep`, `Glob` — and nothing else: no shell, no
+  editing, no skill, no MCP server, no account settings, no mode without permissions.
+- **What it reads**: the ticket's title and body, the comments of those who have a hand on the
+  repository (`OWNER`, `MEMBER`, `COLLABORATOR`) — without the brigade's —, the cook's report, the
+  list of changed files, and the diff against the integration branch: **data, not an instruction**.
+  A diff of more than 40,000 bytes, or a list of more than 8,000, is cut: it reads the rest in the
+  worktree, without the deleted lines (`truncated: true`). An instruction of more than 120,000
+  bytes **is not launched** (`unjudged`, cause `review-unsendable`).
+- **A harvest commit** — what the cook had left uncommitted — is named to it: a file that has no
+  business there (a secret, a draft, a tool output) is **blocking**.
+- **A written form criterion is blocking** as soon as it is not met ("five lines at most").
+  Outside that, the doubt favors the remark: a taste, a style, a naming never block.
+- **It says what the diff should remove and does not remove**, at every review, or that there is
+  nothing to remove: "To remove: …" remarks, **never blocking**, even under a red verdict. The
+  figure that says whether this helps — lines added per line removed, over the last 120 merges:
+  `git log --first-parent --merges -120 --numstat --format= <base> | awk '{a+=$1; r+=$2} END {print a/r}'`.
 
-| Le reviewer dit | Ce qu'en fait la pass |
+| The reviewer says | What the pass does with it |
 |---|---|
-| aucun constat bloquant | rien n'est retenu. Les remarques sont sur l'issue ; elles ne repartent pas au cook |
-| **un constat bloquant** | **rouge** : le constat repart à un cook, et consomme un renvoi |
-| une réponse qui ne se lit pas | **ni verte ni rouge**, et aucun cook n'y peut rien : la relecture est **redemandée au reviewer**, sur le même commit, **deux fois au plus**, sans relancer de cook. Lisible, elle est jugée comme une autre ; illisible trois fois, la livraison est remontée (`unjudged`, cause `review-unreadable`), sans renvoi ni merge |
+| no blocking finding | nothing is held back. The remarks are on the issue; they do not go back to the cook |
+| **a blocking finding** | **red**: the finding goes back to a cook, and uses up a return |
+| an answer that cannot be read | **neither green nor red**, and no cook can do anything about it: the review is **asked again of the reviewer**, on the same commit, **twice at most**, without relaunching a cook. Readable, it is judged like any other; unreadable three times, the delivery is escalated (`unjudged`, cause `review-unreadable`), with no return or merge |
 
-Chaque relecture laisse sur l'issue un commentaire « Reviewer — … ». **Une livraison lue n'est
-pas relue** (`pass.reviewed`) : seule une relecture illisible se redemande, et le journal porte
-alors plusieurs `pass.reviewed` sur le même `sha` ; un renvoi est une autre livraison. **Un reviewer vert ne lève
-aucune autre règle** : ni l'arrêt sans grant, ni `review-required`.
+Each review leaves a "Reviewer — …" comment on the issue. **A delivery that has been read is not
+reread** (`pass.reviewed`): only an unreadable review is asked again, and the log then carries
+several `pass.reviewed` on the same `sha`; a return is another delivery. **A green reviewer lifts no
+other rule**: neither the stop without a grant, nor `review-required`.
 
-Une relecture est au journal **comme un cook** (station `reviewer`, run `review-<ticket>-…`) et
-passe par les garde-fous : **rien n'est relu** sous « stop », disjoncteur ouvert, quota épuisé ou
-connexion expirée — la livraison attend, sa redemande aussi. Non aboutie, elle est **un échec**
-pour le disjoncteur, et retentée ; illisible, elle n'en est un que si elle laisse la livraison non
-jugée — redemandée, elle ne compte ni pour ni contre ; **refusée par le modèle**, elle est retentée sans
-compter, puis remontée au troisième refus d'affilée (`unjudged`, cause `review-refused` ; voir
-« Quand le modèle refuse »). Elle ne retient pas la station.
+A review is in the log **like a cook** (station `reviewer`, run `review-<ticket>-…`) and goes
+through the guardrails: **nothing is reviewed** under "stop", breaker open, quota exhausted or
+connection expired — the delivery waits, and so does its re-asking. Not completed, it is **a failure**
+for the breaker, and retried; unreadable, it is one only if it leaves the delivery unjudged —
+asked again, it counts neither for nor against; **refused by the model**, it is retried without
+counting, then escalated at the third refusal in a row (`unjudged`, cause `review-refused`; see
+"When the model refuses"). It does not withhold the station.
 
-### Le second juge
+### The second judge
 
-Une livraison verte qui touche à **ses juges** — `.claude/brigade/` (gates, setup, réglages de
-la pass) ou `.github/workflows/` — est arrêtée (`review-required`, cause `judge-modified`), puis
-**jugée une seconde fois**, une seule par livraison, par un juge **indépendant du reviewer** :
+A green delivery that touches **its judges** — `.claude/brigade/` (gates, setup, pass settings) or
+`.github/workflows/` — is stopped (`review-required`, cause `judge-modified`), then **judged a second
+time**, once per delivery, by a judge **independent of the reviewer**:
 
-- **un autre run**, au journal sous la station `second-judge` (run `second-judge-<ticket>-…`), qui
-  ne lit **ni la relecture ni le verdict** du reviewer ;
-- **plus fort que lui** : `opus`, et l'effort un cran au-dessus de celui du reviewer (`max` au
-  plus). Un reviewer déjà en `opus` / `max` n'a personne au-dessus : le second juge n'est pas
-  lancé, et le verdict est `cannot establish` ;
-- **une seule question** : le contrôle est-il affaibli — test retiré ou assoupli, garde
-  contournée, seuil relâché, vérification sautée ? Les mêmes outils de lecture que le reviewer,
-  dans un worktree jetable où la livraison est fusionnée avec la base de son verdict.
+- **another run**, in the log under station `second-judge` (run `second-judge-<ticket>-…`), which
+  reads **neither the review nor the verdict** of the reviewer;
+- **stronger than it**: `opus`, and the effort one notch above the reviewer's (`max` at most). A
+  reviewer already at `opus` / `max` has nobody above: the second judge is not launched, and the
+  verdict is `cannot establish`;
+- **a single question**: is the control weakened — test removed or loosened, guard bypassed,
+  threshold relaxed, check skipped? The same reading tools as the reviewer, in a disposable worktree
+  where the delivery is merged with the base of its verdict.
 
-Il répond `not weakened`, `weakened` ou `cannot establish`, avec sa raison — dans le doute,
-`cannot establish`. Une réponse qui ne se lit pas, ou un refus du modèle, vaut `cannot establish`.
-Le verdict est au journal (`pass.second-judged` : son run, son calibrage, celui du reviewer et le
-run de sa relecture, le verdict, la raison) et **en commentaire sur la PR** (« Second juge — … »).
-Puis :
+It answers `not weakened`, `weakened` or `cannot establish`, with its reason — when in doubt,
+`cannot establish`. An answer that cannot be read, or a refusal by the model, counts as `cannot
+establish`. The verdict is in the log (`pass.second-judged`: its run, its calibration, the
+reviewer's and the run of its review, the verdict, the reason) and **as a comment on the PR**
+("Second judge — …"). Then:
 
-- **`not weakened`** : la livraison reprend le chemin d'une livraison ordinaire — sous le grant
-  `merge`, la pass la merge elle-même (`grant.used`, `merge.done`), sans carte ; sans grant, elle
-  s'arrête `no-grant`, comme une autre ;
-- **`weakened` ou `cannot establish`** : elle reste arrêtée, et une **carte `gesture`** est posée
-  devant le chef (`todo.entered`, auteur `pass`), écrite avec le verdict. Elle dit en trois lignes
-  ce qui est affaibli (la raison du second juge), où (les fichiers de ses juges, avec leurs lignes,
-  et la PR), et le geste attendu : relire la PR, la merger à la main pour accepter ce qu'elle change
-  à ses juges, ou la fermer. Le commentaire de l'issue montre ces trois lignes ; la carte, que la
-  porte de TODO ne prend que sur une ligne, les porte bout à bout. Elle sort de TODO quand le chef
-  tranche : PR mergée (ticket servi) ou fermée.
+- **`not weakened`**: the delivery goes back to the path of an ordinary delivery — under the `merge`
+  grant, the pass merges it itself (`grant.used`, `merge.done`), with no card; without a grant, it
+  stops `no-grant`, like any other;
+- **`weakened` or `cannot establish`**: it stays stopped, and a **`gesture` card** is put before the
+  chef (`todo.entered`, author `pass`), written with the verdict. It says in three lines what is
+  weakened (the second judge's reason), where (the files of its judges, with their lines, and the
+  PR), and the expected action: reread the PR, merge it by hand to accept what it changes in its
+  judges, or close it. The issue's comment shows these three lines; the card, which the TODO door
+  takes on only one line, carries them end to end. It leaves TODO when the chef decides: PR merged
+  (ticket served) or closed.
 
-Le verdict vaut pour la livraison — son run, son commit — : rejugée par la pass parce que la base a
-bougé, elle ne repasse pas devant le second juge. Une livraison qui touche aussi `reseau` ou `secrets` reste
-arrêtée quel que soit le verdict (ci-dessous) ; sa carte est posée de même. Comme une relecture,
-il ne part pas sous « stop », disjoncteur ouvert, quota épuisé ou connexion expirée ; non abouti,
-il repart au réveil suivant.
+The verdict holds for the delivery — its run, its commit: rejudged by the pass because the base
+moved, it does not go before the second judge again. A delivery that also touches `reseau` or
+`secrets` stays stopped whatever the verdict (below); its card is put the same way. Like a review,
+it does not go out under "stop", breaker open, quota exhausted or connection expired; not completed,
+it goes out again at the next wake-up.
 
-### Les tickets sans diff
+### Tickets without a diff
 
-Un audit, une analyse : le cook conclut sans rien commiter, et **ce qu'il a délimité dans son
-dernier message est le livrable** (voir « Le livrable se délimite »). **Le reviewer est alors le
-seul juge, et il est obligatoire** : il relit le livrable délimité — lui seul — contre le ticket.
+An audit, an analysis: the cook concludes without committing anything, and **what it delimited in
+its last message is the deliverable** (see "The deliverable is delimited"). **The reviewer is then
+the only judge, and it is mandatory**: it rereads the delimited deliverable — that alone — against
+the ticket.
 
-| Le reviewer dit | Ce qui se passe |
+| The reviewer says | What happens |
 |---|---|
-| rien de bloquant | le ticket est **servi sans merge** (`pass.served`) et son issue fermée — **sans grant**. Le livrable reste sur l'issue, dans le commentaire du cook |
-| un constat bloquant | rouge : il repart à un cook, sur la même branche, dans la limite des deux renvois |
-| illisible | redemandée au reviewer, deux fois au plus ; toujours illisible, remontée au chef (`unjudged`, cause `review-unreadable`) |
-| rien — « stop », disjoncteur, quota, connexion | le ticket **attend en pass** |
+| nothing blocking | the ticket is **served without a merge** (`pass.served`) and its issue closed — **without a grant**. The deliverable stays on the issue, in the cook's comment |
+| a blocking finding | red: it goes back to a cook, on the same branch, within the limit of the two returns |
+| unreadable | asked again of the reviewer, twice at most; still unreadable, escalated to the chef (`unjudged`, cause `review-unreadable`) |
+| nothing — "stop", breaker, quota, connection | the ticket **waits in pass** |
 
-Un cook sans commit **et** sans livrable délimité n'a rien livré — `no-commit` s'il n'a rien dit
-ou a écrit des fichiers sans les commiter (ils sont commités sur sa branche locale),
-`no-deliverable` s'il n'a rien délimité : un échec de la station, renvoi non consommé. Limite
-connue : un cook qui conclut sans commiter sur un ticket qui demandait du code part en pass comme
-« sans diff » — c'est au reviewer de le dire.
+A cook with no commit **and** no delimited deliverable has delivered nothing — `no-commit` if it said
+nothing or wrote files without committing them (they are committed on its local branch),
+`no-deliverable` if it delimited nothing: a station failure, return not used up. Known limit: a cook
+that concludes without committing on a ticket that asked for code goes to pass as "without a diff" —
+it is up to the reviewer to say so.
 
-### Ce que la pass décide
+### What the pass decides
 
-| Verdict | Grant `merge` | Ce qui se passe |
+| Verdict | `merge` grant | What happens |
 |---|---|---|
-| vert | **actif** | le runtime vérifie que **la base est encore celle du verdict** — sinon il rejuge —, puis **merge lui-même** la PR ; le ticket est **servi**, son issue fermée |
-| vert | absent, révoqué ou éteint | la PR reste ouverte et **la pass s'arrête là** (`pass.held`, `no-grant`) |
-| vert, mais la livraison touche `.claude/brigade/` ou `.github/workflows/` — ses juges | peu importe | **pas mergée sur le seul verdict de la pass** (`review-required`, cause `judge-modified`) : un cook qui modifie ses juges peut se rendre vert seul. Elle passe devant **le second juge** (ci-dessus) : `not weakened`, elle suit la ligne d'une livraison verte ordinaire, grant compris ; sinon, elle reste arrêtée et une carte `gesture` est posée devant le chef |
-| vert, mais la livraison touche `.claude/brigade/reseau` ou `.claude/brigade/secrets` — ajout, modification ou suppression | peu importe | **jamais mergée par la pass** (`review-required`, cause `declaration-modified: <fichiers>`) : mergée, la déclaration ouvre un hôte, ou remet un secret de la machine, aux cooks suivants. Le commentaire d'issue dit quoi y relire |
-| vert, ticket sans diff | peu importe | **servi sans merge**, issue fermée |
-| aucun, **base rouge** | peu importe | la livraison **attend** (`pass.waiting`, `base-red`) et repart seule quand la base est réparée — ou rejouée verte (`run base -- replay`). Seul le ticket de réparation de ce rouge est jugé et mergé malgré lui |
-| rouge — gates sur la fusion, conflit, CI, ou constat bloquant | — | les **findings repartent à un cook**, sur la même branche. Rien n'est mergé |
-| rouge une seconde fois, **manager allumé** | — | la pass **passe la main au manager** (`pass.deferred` ; voir « Il réagit à un échec ») |
-| rouge une troisième fois, manager éteint | — | deux renvois sont consommés : la pass **te remonte le ticket** (`still-red`). Il passe **86** |
+| green | **active** | the runtime checks that **the base is still the one of the verdict** — otherwise it rejudges —, then **merges the PR itself**; the ticket is **served**, its issue closed |
+| green | absent, revoked or off | the PR stays open and **the pass stops there** (`pass.held`, `no-grant`) |
+| green, but the delivery touches `.claude/brigade/` or `.github/workflows/` — its judges | does not matter | **not merged on the pass's verdict alone** (`review-required`, cause `judge-modified`): a cook that modifies its judges can make itself green on its own. It goes before **the second judge** (above): `not weakened`, it follows the line of an ordinary green delivery, grant included; otherwise, it stays stopped and a `gesture` card is put before the chef |
+| green, but the delivery touches `.claude/brigade/reseau` or `.claude/brigade/secrets` — addition, modification or deletion | does not matter | **never merged by the pass** (`review-required`, cause `declaration-modified: <files>`): merged, the declaration opens a host, or hands a machine secret, to the following cooks. The issue comment says what to reread in it |
+| green, ticket without a diff | does not matter | **served without a merge**, issue closed |
+| none, **base red** | does not matter | the delivery **waits** (`pass.waiting`, `base-red`) and starts again on its own when the base is repaired — or replayed green (`run base -- replay`). Only the repair ticket for that red is judged and merged in spite of it |
+| red — gates on the merge, conflict, CI, or blocking finding | — | the **findings go back to a cook**, on the same branch. Nothing is merged |
+| red a second time, **manager on** | — | the pass **hands over to the manager** (`pass.deferred`; see "It reacts to a failure") |
+| red a third time, manager off | — | two returns are used up: the pass **escalates the ticket to you** (`still-red`). It goes **86** |
 
-Seul un verdict rouge consomme un renvoi. Un cook de renvoi qui échoue sans rien livrer n'en
-consomme pas : c'est le disjoncteur qui borne. Chaque décision est commentée sur l'issue, et dit
-sur quoi portait le verdict — `` `8c1d2e0` fusionné avec `v2` (`4be1f07`) ``.
+Only a red verdict uses up a return. A return cook that fails without delivering anything does not
+use one up: it is the breaker that bounds. Each decision is commented on the issue, and says what
+the verdict covered — `` `8c1d2e0` merged with `v2` (`4be1f07`) ``.
 
-#### Le cook d'un renvoi reprend la session du précédent
+#### A return's cook resumes the previous one's session
 
-Un renvoi ne repart pas de zéro : le cook du renvoi **reprend la conversation du cook dont la pass
-a refusé la livraison** — ce qu'il a lu du ticket, du `CLAUDE.md` et du code, ce qu'il a fait — et
-ne reçoit en plus que **le refus et ce que la pass a trouvé**. Sans reprise, un cook neuf relisait
-tout pour une correction de quelques lignes.
+A return does not start from zero: the return's cook **resumes the conversation of the cook whose
+delivery the pass refused** — what it read of the ticket, the `CLAUDE.md` and the code, what it did
+— and receives in addition only **the refusal and what the pass found**. Without resumption, a fresh
+cook reread everything for a fix of a few lines.
 
-| Étape | Ce que fait la station |
+| Step | What the station does |
 |---|---|
-| la session | elle la lit dans le flux brut du cook précédent (`runs/<run>.jsonl`, le `session_id` de `stream-json`) |
-| le transcript | elle le cherche sous `projects/` du répertoire de configuration de `claude` — `<état>/claude` sous cloison, `CLAUDE_CONFIG_DIR` ou `~/.claude` du compte sinon —, et le copie dans le répertoire du projet du **worktree neuf** du renvoi : c'est là que `claude --resume` le cherche |
-| le lancement | `claude --resume <session> --fork-session` : la session est bifurquée, le cook du renvoi écrit la sienne sous un identifiant neuf, et celle du précédent reste telle quelle |
-| la consigne | le refus (`renvoi n sur 2`), les findings, et le worktree neuf — l'ancien n'existe plus, ses chemins se relisent sous le nouveau. Ni le ticket ni le `CLAUDE.md` à relire : ils sont dans la conversation |
-| au journal | `cook.launched` porte `resumes` : le run repris et sa session |
+| the session | it reads it in the previous cook's raw stream (`runs/<run>.jsonl`, the `session_id` of `stream-json`) |
+| the transcript | it looks for it under `projects/` of `claude`'s configuration directory — `<state>/claude` under partition, `CLAUDE_CONFIG_DIR` or the account's `~/.claude` otherwise —, and copies it into the project directory of the return's **fresh worktree**: that is where `claude --resume` looks for it |
+| the launch | `claude --resume <session> --fork-session`: the session is forked, the return's cook writes its own under a fresh identifier, and the previous one's stays as it is |
+| the instruction | the refusal (`return n of 2`), the findings, and the fresh worktree — the old one no longer exists, its paths are reread under the new one. Neither the ticket nor the `CLAUDE.md` to reread: they are in the conversation |
+| in the log | `cook.launched` carries `resumes`: the resumed run and its session |
 
-**La pass ne change rien pour lui.** Sa livraison passe par les mêmes gates, sur la même fusion
-avec la base, la même CI, la même relecture, le même grant qu'un premier passage — rien n'est
-sauté, rien n'est assoupli. La reprise n'économise que la lecture.
+**The pass changes nothing for it.** Its delivery goes through the same gates, on the same merge
+with the base, the same CI, the same review, the same grant as a first pass — nothing is skipped,
+nothing is loosened. The resumption only saves the reading.
 
-**Le repli : un cook neuf, comme avant.** Le renvoi part de zéro, avec la consigne complète
-(relire le ticket, le `CLAUDE.md`, ce qui est commité), et sans rien écrire d'autre, quand :
+**The fallback: a fresh cook, as before.** The return starts from zero, with the full instruction
+(reread the ticket, the `CLAUDE.md`, what is committed), and writes nothing else, when:
 
-- le dernier cook lancé sur le ticket **n'a pas livré** — un cook de renvoi repris qui échoue a pu
-  buter sur la reprise elle-même : le suivant repart de zéro ;
-- son flux brut est parti, ou ne dit **aucune session** ;
-- son **transcript n'est plus là** — rangé passé la durée de garde (« Les transcripts du projet
-  sont rangés »), ou jamais écrit ;
-- le répertoire de configuration de `claude` n'est pas connu (ni cloison, ni `CLAUDE_CONFIG_DIR`,
-  ni `HOME`), ou le chemin du worktree est trop long pour que `claude` y retrouve la session ;
-- c'est une **relance du manager**, décidée quand les renvois sont épuisés : elle repart d'un
-  regard neuf ;
-- c'est une **station distante** : le transcript est sur son poste, pas sur la box.
+- the last cook launched on the ticket **did not deliver** — a resumed return cook that fails may
+  have stumbled on the resumption itself: the next one starts from zero;
+- its raw stream is gone, or says **no session**;
+- its **transcript is no longer there** — tidied past the retention period ("The project's
+  transcripts are tidied"), or never written;
+- `claude`'s configuration directory is not known (no partition, no `CLAUDE_CONFIG_DIR`, no
+  `HOME`), or the worktree's path is too long for `claude` to find the session there;
+- it is a **manager relaunch**, decided when the returns are used up: it starts from fresh eyes;
+- it is a **remote station**: the transcript is on its workstation, not on the box.
 
-Le relevé des mesures dit quels lancements ont été repris (« Le relevé des mesures »).
+The measures report says which launches were resumed ("The measures report").
 
-#### Les motifs, et le geste de chacun
+#### The reasons, and the action for each
 
-Un motif par geste du chef — pas plus de noms que de gestes. Ce qui précise un motif sans changer
-le geste est sa `cause` ; `run pass` montre les deux, `(unjudged : ci-silent)`, et la file de
-`status` écrit le geste sur chaque ligne.
+One reason per chef action — no more names than actions. What refines a reason without changing the
+action is its `cause`; `run pass` shows both, `(unjudged : ci-silent)`, and the queue in `status`
+writes the action on each line.
 
-| Fait | Motif | Ce que c'est | Ton geste |
+| Fact | Reason | What it is | Your action |
 |---|---|---|---|
-| `pass.held` | `no-grant` | verte, pas de grant actif (`expired` : il s'était éteint seul à cet instant) | merger la PR à la main ; ou, pour les suivantes, `npm --prefix runtime run grant -- enable merge` |
-| `pass.held` | `review-required` | verte, mais elle touche à ses juges (cause `judge-modified`) ou à ce que le projet s'ouvre (cause `declaration-modified: <fichiers>`). Aucun grant ne la fait merger | la relire, puis la merger à la main |
-| `pass.held` | `merge-refused` | verte, et GitHub a refusé le merge (cause : ce qu'il a dit). Non retenté | lever ce qu'il refuse, puis merger à la main |
-| `pass.escalated` | `still-red` | rouge, et plus personne ne la corrigera : renvois épuisés (cause `returns-exhausted`), le manager remonte (cause `manager-escalated`), ou c'est la PR d'une passe de fermeture, hors du rail, que personne ne reprend (cause `off-rail`) | trancher : merger la PR à la main, ou retirer `fire` — sans PR, retirer `fire` ou fermer l'issue |
-| `pass.escalated` | `unjudged` | la pass n'a pas pu juger ; la cause dit ce qui l'en a empêchée | lever ce que dit l'issue, puis retirer et reposer `fire` ; ou merger à la main ; ou retirer `fire` |
-| `pass.escalated` | `manager-split` | le manager a redécoupé le ticket : ses sous-tickets portent le travail | aucun |
+| `pass.held` | `no-grant` | green, no active grant (`expired`: it had lapsed on its own at that moment) | merge the PR by hand; or, for the following ones, `npm --prefix runtime run grant -- enable merge` |
+| `pass.held` | `review-required` | green, but it touches its judges (cause `judge-modified`) or what the project opens up to itself (cause `declaration-modified: <files>`). No grant makes it merge | reread it, then merge it by hand |
+| `pass.held` | `merge-refused` | green, and GitHub refused the merge (cause: what it said). Not retried | lift what it refuses, then merge by hand |
+| `pass.escalated` | `still-red` | red, and nobody will fix it any more: returns used up (cause `returns-exhausted`), the manager escalates (cause `manager-escalated`), or it is the PR of a closing pass, off the rail, that nobody picks up (cause `off-rail`) | decide: merge the PR by hand, or remove `fire` — without a PR, remove `fire` or close the issue |
+| `pass.escalated` | `unjudged` | the pass could not judge; the cause says what prevented it | lift what the issue says, then remove and put back `fire`; or merge by hand; or remove `fire` |
+| `pass.escalated` | `manager-split` | the manager split the ticket again: its sub-tickets carry the work | none |
 
-Les causes d'un `unjudged` — aucune ne consomme de renvoi, un cook n'y peut rien :
+The causes of an `unjudged` — none uses up a return, a cook can do nothing about it:
 
-| Cause | Ce qui a empêché le jugement |
+| Cause | What prevented the judgment |
 |---|---|
-| `wrong-base` | la PR ne vise pas la branche d'intégration (une PR vers `main` quand la base est `v2`) |
-| `no-gates` | le projet n'a pas de `gates.sh` une fois la branche fusionnée : sans gates, « vert » voudrait dire que personne n'a regardé |
-| `worktree-lost` | le clone de la station ne connaît plus la branche, ou la fusion échoue sans que ce soit un conflit (git en panne). La pass ne recrée pas la branche ; ce que le cook a poussé reste sur l'origine |
-| `ci-silent` | trente minutes de CI sans conclusion |
-| `review-unreadable`, `review-unsendable`, `review-refused` | la relecture ne se lit pas, redemandée deux fois au reviewer ; sa consigne ne tient pas dans une commande ; le modèle l'a refusée trois fois d'affilée |
-| `secrets-unavailable` | les gates n'ont pas pu recevoir les secrets du projet, et n'ont pas été jouées (voir « Les secrets du projet ») |
+| `wrong-base` | the PR does not target the integration branch (a PR to `main` when the base is `v2`) |
+| `no-gates` | the project has no `gates.sh` once the branch is merged: without gates, "green" would mean nobody looked |
+| `worktree-lost` | the station's clone no longer knows the branch, or the merge fails without being a conflict (git down). The pass does not recreate the branch; what the cook pushed stays on the origin |
+| `ci-silent` | thirty minutes of CI without a conclusion |
+| `review-unreadable`, `review-unsendable`, `review-refused` | the review cannot be read, asked again twice of the reviewer; its instruction does not fit in a command; the model refused it three times in a row |
+| `secrets-unavailable` | the gates could not receive the project's secrets, and were not run (see "The project's secrets") |
 
-Un ticket remonté passe **86**, motif du rail `pass:still-red` ou `pass:unjudged`. Un journal
-d'avant ce regroupement se relit : l'ancien nom (`judge-modified`, `ci-silent`…) devient la cause.
+An escalated ticket goes **86**, rail reason `pass:still-red` or `pass:unjudged`. A log from before
+this regrouping can still be read: the old name (`judge-modified`, `ci-silent`…) becomes the cause.
 
-**Sans grant, le commentaire d'arrêt dit ce que la pass aurait fait** — « Sous grant, la pass
-aurait mergé <PR> sur `<base>` au commit `<sha>`, verdict n° <n> — une fois vérifié que `<base>`
-n'a pas bougé depuis ce verdict et n'est pas rouge. » —, sans rien rapatrier ni jouer. Et **le
-chiffre sur lequel accorder le grant** se lit dans `run pass`, `run grant` et — tant que la file
-n'est pas vide — le bloc `awaiting` de `status`, au journal seul : `without a grant, 3 green deliveries
+**Without a grant, the stop comment says what the pass would have done** — "Under a grant, the pass
+would have merged <PR> on `<base>` at commit `<sha>`, verdict no. <n> — once checked that `<base>`
+has not moved since that verdict and is not red." —, without fetching or running anything. And **the
+figure on which to enable the grant** can be read in `run pass`, `run grant` and — as long as the
+queue is not empty — the `awaiting` block of `status`, from the log alone: `without a grant, 3 green deliveries
 stopped: 1 merged by hand, 1 closed without merge — 1 disagreement —, 1 still open` (`run pass`, `run grant`
-et `status` le disent en anglais). Le compte
-suit la livraison arrêtée, par sa PR. Fermer la PR sans la merger est le désaccord — rouverte puis
-mergée, elle est mergée. Une livraison que la pass a mergée elle-même, le grant accordé depuis,
-est comptée à part (`merged by the pass`) : ce n'est pas ton geste. `review-required` et
-`merge-refused` n'y comptent pas.
+and `status` say it in English). The count
+follows the stopped delivery, by its PR. Closing the PR without merging it is the disagreement —
+reopened then merged, it is merged. A delivery that the pass merged itself, the grant having been
+enabled since, is counted apart (`merged by the pass`): it is not your action. `review-required` and
+`merge-refused` do not count there.
 
-#### Sortir un ticket arrêté ou remonté
+#### Getting a stopped or escalated ticket out
 
-**Merge sa PR à la main** : la pass relit GitHub à chaque tick, le voit, sert le ticket et ferme
-l'issue. Ou **retire `fire`** : il quitte le rail.
+**Merge its PR by hand**: the pass rereads GitHub at every tick, sees it, serves the ticket and
+closes the issue. Or **remove `fire`**: it leaves the rail.
 
-**Fermer une PR sans la merger, c'est refuser la livraison** : au tick suivant la pass l'écrit
-(`pass.pr-closed`), le dit une fois sur l'issue, et ne juge, ne renvoie ni ne merge plus rien
-dessus (`PR FERMÉE SANS MERGE` dans `run pass`). **Le ticket ne bouge pas** : il tient sa place —
-et sa zone — sur le rail ; retire `fire` ou ferme l'issue pour l'en sortir. Rouverte puis mergée,
-la pass le voit ; rouverte sans être mergée, elle n'est pas rejugée.
+**Closing a PR without merging it is refusing the delivery**: at the next tick the pass writes it
+(`pass.pr-closed`), says so once on the issue, and judges, returns or merges nothing more on it
+(`PR CLOSED WITHOUT MERGE` in `run pass`). **The ticket does not move**: it keeps its place — and its
+zone — on the rail; remove `fire` or close the issue to take it off. Reopened then merged, the pass
+sees it; reopened without being merged, it is not rejudged.
 
-**Quand un ticket quitte le rail sous la pass** — issue fermée ou `fire` retiré, livraison non
-mergée —, la pass **lâche la livraison** : relecture arrêtée, aucun cook relancé. Elle ne ferme
-**ni la PR ni la branche** ; PR encore ouverte, elle le dit **une fois** (`pass.abandoned`, et sur
-l'issue, avec où en était le jugement) : **à toi de la merger ou de la fermer**. Remis sur le
-rail, le ticket repart de la base, sans cette PR. **Si tu avais mergé la PR avant que le ticket
-parte**, ce n'est pas un abandon : le merge est constaté (`merge.done`, `by: outside`), le ticket
-**servi** pour qui l'attendait, la base contrôlée.
+**When a ticket leaves the rail under the pass** — issue closed or `fire` removed, delivery not
+merged —, the pass **lets go of the delivery**: review stopped, no cook relaunched. It closes
+**neither the PR nor the branch**; PR still open, it says so **once** (`pass.abandoned`, and on the
+issue, with where the judgment stood): **it is up to you to merge or close it**. Put back on the
+rail, the ticket starts again from the base, without that PR. **If you had merged the PR before the
+ticket left**, it is not an abandonment: the merge is noted (`merge.done`, `by: outside`), the ticket
+**served** for whoever was waiting for it, the base checked.
 
-### Vert veut dire vert une fois fusionné
+### Green means green once merged
 
-**Une livraison est jugée sur la fusion de sa branche avec la base du moment — toujours.** À chaque
-jugement, la pass rapatrie la base, fusionne le commit livré avec sa tête dans le worktree jetable,
-et y joue les gates.
+**A delivery is judged on the merge of its branch with the base of the moment — always.** At each
+judgment, the pass fetches the base, merges the delivered commit with its head in the disposable
+worktree, and runs the gates there.
 
-| Ce qui arrive | Ce que fait la pass |
+| What happens | What the pass does |
 |---|---|
-| **la fusion ne se fait pas** (conflit) | ni gates ni relecture. Le cook est renvoyé avec une seule consigne — **« mets-toi à jour de la base »** (`git fetch`, rebase, résoudre). Ça consomme un renvoi |
-| gates rouges sur la fusion, **et la base est rouge seule** | ce rouge n'est celui d'aucun cook : **ni verdict ni renvoi**, la livraison attend (`base-red`) |
-| gates rouges sur la fusion, la base verte seule | **rouge** : c'est au cook. Le finding dit sur quelle fusion les gates ont été jouées |
-| **la base a bougé entre le verdict et le merge** | la livraison est **rejugée**, fusionnée avec la base devenue : gates rejouées, reviewer et CI non (ils portent sur le commit). C'est le verdict neuf qui autorise le merge. Une livraison qui attend sa CI conclut d'abord sur la base où elle a commencé |
-| la fusion échoue sans conflit (git en panne) | aucun cook n'est renvoyé : remontée (`unjudged`, cause `worktree-lost`), avec ce que git en a dit |
-| gates rouges sur la fusion, et **la base ne peut pas être jouée seule** | « pas pu vérifier » n'est pas « c'est vert » : ni verdict ni renvoi, le jugement reste en cours jusqu'à ce que la base soit jugée — ou bouge |
+| **the merge does not go through** (conflict) | neither gates nor review. The cook is sent back with a single instruction — **"update yourself from the base"** (`git fetch`, rebase, resolve). It uses up a return |
+| gates red on the merge, **and the base is red alone** | that red is no cook's: **neither verdict nor return**, the delivery waits (`base-red`) |
+| gates red on the merge, the base green alone | **red**: it is the cook's. The finding says on which merge the gates were run |
+| **the base moved between the verdict and the merge** | the delivery is **rejudged**, merged with the base it has become: gates replayed, reviewer and CI not (they cover the commit). It is the new verdict that authorizes the merge. A delivery waiting for its CI first concludes on the base where it started |
+| the merge fails without a conflict (git down) | no cook is sent back: escalated (`unjudged`, cause `worktree-lost`), with what git said about it |
+| gates red on the merge, and **the base cannot be run alone** | "could not check" is not "it's green": neither verdict nor return, the judgment stays in progress until the base is judged — or moves |
 
-Rejuger ne coûte pas de cook, mais **consomme la machine** : saturée (les seuils de « Plusieurs
-cooks à la fois »), la livraison à rejuger **attend** (`pass.waiting`, `machine-saturated`) et
-repart seule.
+Rejudging costs no cook, but **consumes the machine**: saturated (the thresholds of "Several cooks
+at once"), the delivery to rejudge **waits** (`pass.waiting`, `machine-saturated`) and starts again
+on its own.
 
-#### Des gates coupées par leur garde d'horloge sur une machine saturée ne sont pas un rouge
+#### Gates cut by their clock guard on a saturated machine are not a red
 
-Sur une machine saturée, une suite saine peut mettre plus de temps que la garde d'horloge des gates
-ne lui en laisse : coupée, elle est rouge **sans qu'aucun test n'ait échoué**. Ce rouge vient de la
-charge, pas du code. Le compter comme un vrai rouge renverrait le ticket à un cook, puis à un autre,
-puis au manager, et pourrait rougir la base. **La pass le reconnaît à une ligne** du `gates.sh` :
-une ligne `FAIL` qui contient `garde d'horloge, aucun test en échec`. Celle de ce dépôt :
+On a saturated machine, a healthy suite can take longer than the gates' clock guard leaves it: cut,
+it is red **without any test having failed**. That red comes from the load, not the code. Counting
+it as a real red would send the ticket back to a cook, then to another, then to the manager, and
+could turn the base red. **The pass recognizes it by one line** of `gates.sh`: a `FAIL` line that
+contains `garde d'horloge, aucun test en échec`. This repository's:
 `FAIL  tests du runtime arrêtés par la garde d'horloge, aucun test en échec : plus de 300 s sans
-rendre la main`. Avec un test en échec avant la coupure, `gates.sh` écrit une autre ligne, et c'est
-un rouge comme avant. **La pass ne prend la coupure pour un rouge de charge que si cette ligne est
-la seule ligne `FAIL`** (`gates.clockGuardCut`), et que la sortie a été gardée entière.
+rendre la main`. With a failing test before the cut, `gates.sh` writes another line, and it is a red
+as before. **The pass takes the cut for a load red only if that line is the only `FAIL` line**
+(`gates.clockGuardCut`), and the output was kept whole.
 
-| Les gates sont coupées sans test en échec, et | Ce que fait la pass |
+| The gates are cut with no failing test, and | What the pass does |
 |---|---|
-| la machine est **saturée** (seuils de « Plusieurs cooks à la fois »), au départ des gates ou à l'arrivée | **ce n'est pas un rouge** : pas de verdict, pas de renvoi au cook, la base n'est pas jugée, rien ne compte au disjoncteur. La livraison **attend** (`pass.waiting`, `gates-cut-saturated`, avec le `sha`) et ses gates **sont rejouées seules** dès que la machine n'est plus saturée |
-| elles l'ont **déjà été une fois** sur ce commit, puis rejouées sur une machine calme | **rouge** : ce n'est plus la charge, c'est un test bloqué ou une suite devenue trop lente. Le renvoi le dit |
-| la machine est **calme** | **rouge**, dès la première fois, pour la même raison |
+| the machine is **saturated** (thresholds of "Several cooks at once"), at the start of the gates or at the end | **it is not a red**: no verdict, no return to the cook, the base is not judged, nothing counts for the breaker. The delivery **waits** (`pass.waiting`, `gates-cut-saturated`, with the `sha`) and its gates **are replayed on their own** as soon as the machine is no longer saturated |
+| they **already were once** on this commit, then replayed on a calm machine | **red**: it is no longer the load, it is a blocked test or a suite that has become too slow. The return says so |
+| the machine is **calm** | **red**, the first time, for the same reason |
 
-**La file et la carte le disent en une ligne** pendant l'attente : `gates rejouées plus tard :
-machine saturée, aucun test en échec`. On la lit au bout de la ligne du ticket dans le rail de
-`run status`, dans l'activité de `faits` (`rail[].activite.fait`), donc sur la carte de l'app, et
-dans `run pass`. L'issue reçoit un commentaire (« Pass — en attente (`gates-cut-saturated`) »)
-avec la ligne des gates et la charge relevée, et journald une ligne.
+**The queue and the card say it in one line** while waiting: `gates rejouées plus tard :
+machine saturée, aucun test en échec`. It is read at the end of the ticket's line in the rail of
+`run status`, in the activity of `facts` (`rail[].activite.fait`), hence on the app's card, and
+in `run pass`. The issue gets a comment ("Pass — waiting (`gates-cut-saturated`)")
+with the gates line and the load recorded, and journald a line.
 
-**La règle vaut pour la base jugée seule.** Ses gates ne partent que sur une machine calme. Si elles
-sont coupées sans test en échec et que la machine est saturée à l'arrivée, **aucun contrôle n'est
-écrit** : la base n'est pas vue rouge, et journald le dit. Ce qui demandait le contrôle (un merge à
-vérifier, un rejeu, une livraison rouge) le redemande, et il se rejoue seul une fois la machine
-calme. Coupées à nouveau sur cette tête, ses gates la rougissent. Cette mémoire de la base ne survit
-pas à un redémarrage du runtime : il lui accorde au plus un rejeu de plus.
+**The rule holds for the base judged alone.** Its gates only start on a calm machine. If they are
+cut with no failing test and the machine is saturated at the end, **no check is written**: the base
+is not seen as red, and journald says so. What needed the check (a merge to verify, a replay, a red
+delivery) asks for it again, and it replays on its own once the machine is calm. Cut again on that
+head, its gates turn it red. This memory of the base does not survive a runtime restart: it grants
+it at most one more replay.
 
-#### La base est jugée seule
+#### The base is judged alone
 
-Les gates sont jouées **sur la base elle-même**, dans un worktree jetable, **hors ticket** (le
-setup y reçoit le numéro `0`), et le résultat écrit au journal (`base.checked`) : après **un merge
-fait hors du runtime** (`merge.done`, `unverified`) ; devant **une livraison rouge une fois
-fusionnée**, si la base n'a pas été jugée sur cette tête ; et **tant qu'elle est rouge**, dès
-qu'elle bouge — ou à ta demande. Un merge fait par la pass n'en déclenche aucun.
+The gates are run **on the base itself**, in a disposable worktree, **outside any ticket** (the
+setup receives the number `0` there), and the result written to the log (`base.checked`): after **a
+merge made outside the runtime** (`merge.done`, `unverified`); in front of **a delivery that is red
+once merged**, if the base was not judged on that head; and **as long as it is red**, as soon as it
+moves — or at your request. A merge made by the pass triggers none.
 
-**Rouge**, c'est dit dans journald, dans `run status` sans qu'on le demande (`base  RED since …`,
-avec le geste qui fait rejouer), en tête de `run pass`, et sur chaque ticket dont le merge était à
-vérifier. **Plus rien n'est jugé ni mergé** — chaque livraison **attend** (`base-red`), sans
-verdict ni renvoi — et **la station cesse de prendre des tickets** (`station.held`, motif `base`),
-cooks de renvoi compris. Les cooks en cours continuent ; jugements du manager et relectures aussi.
+**Red**, it is said in journald, in `run status` without being asked (`base  RED since …`, with the
+action that makes it replay), at the top of `run pass`, and on each ticket whose merge was to be
+verified. **Nothing is judged or merged any more** — each delivery **waits** (`base-red`), with no
+verdict or return — and **the station stops taking tickets** (`station.held`, reason `base`), return
+cooks included. Cooks in progress continue; the manager's judgments and the reviews too.
 
-**La cuisine traite le rouge seule.** La pass **rejoue d'abord ses gates une fois**, aussitôt et
-sans commit (`base.recheck-requested`, écrit par `pass`) : un rouge passager — un test instable,
-un délai dépassé — tombe ainsi sans rien ouvrir. **Si le rouge tient** — un second contrôle joué
-le constate, rejeu ou base qui a bougé —, elle **ouvre un ticket de réparation** sur GitHub
-(`base.repair-opening` puis `base.repair-opened`, sous son numéro) : son titre et son corps
-nomment la base, le commit et ce qui échoue (les lignes `FAIL` des gates, et leur fin de sortie).
-Il porte `fire`, `model:opus`, `effort:high` et **`prio:0`, qui passe devant tout le rail**. **Il
-est le seul ticket qui part d'une base rouge** : la station qui peut le prendre n'est pas retenue
-par elle, et ne prend que lui ; la pass le juge fusionné avec la base rouge, et le merge sous
-grant — ses gates vertes disent qu'il la répare. Mergé, la base bouge, ses gates sont rejouées,
-et au vert tout repart seul. **Un seul à la fois** : aucun second n'est ouvert tant que le premier
-est en cours, ni plus d'un par rouge. Une création dont la réponse se perd est retrouvée par la
-marque de son issue (`<!-- brigade:reparation-base <sha> -->`), pas recréée. La réparation se lit
-`en-cours`, `servie` ou `echouee` (partie du rail sans service, remontée au chef, ou base encore
-rouge après son merge) — `reparationDeLaBase`, que lisent la file et la carte. **Tant qu'elle
-travaille, la base rouge n'entre pas dans le bloc `attend`** : rien ne t'attend. **Échouée, elle y
-entre**, sur une ligne `base` (« Ce qui attend le chef », ci-dessous), et **en sort d'elle-même au
-retour au vert** — la cuisine, elle, repart sans geste.
+**The kitchen deals with the red on its own.** The pass **first replays its gates once**, at once and
+without a commit (`base.recheck-requested`, written by `pass`): a passing red — an unstable test, a
+timeout — thus falls away without opening anything. **If the red holds** — a second check, run
+as a replay or because the base moved, notes it —, it **opens a repair ticket** on GitHub
+(`base.repair-opening` then `base.repair-opened`, under its number): its title and body name the
+base, the commit and what fails (the gates' `FAIL` lines, and the end of their output). It carries
+`fire`, `model:opus`, `effort:high` and **`prio:0`, which goes ahead of the whole rail**. **It is the
+only ticket that starts from a red base**: the station that can take it is not withheld by the red,
+and takes only it; the pass judges it merged with the red base, and merges it under a grant — its
+green gates say that it repairs it. Merged, the base moves, its gates are replayed, and at green
+everything starts again on its own. **One at a time**: no second is opened while the first is in
+progress, nor more than one per red. A creation whose response is lost is found again by its issue's
+mark (`<!-- brigade:reparation-base <sha> -->`), not recreated. The repair reads
+`en-cours`, `servie` or `echouee` (part of the rail without serving, escalated to the chef, or base
+still red after its merge) — `reparationDeLaBase`, which the queue and the card read. **As long as it
+is working, the red base does not enter the `awaiting` block**: nothing awaits you. **Failed, it
+enters it**, on a `base` line ("What awaits the chef", below), and **leaves it on its own when green
+returns** — the kitchen, for its part, starts again without any action.
 
-Tu peux toujours pousser le correctif toi-même, ou merger une livraison en attente à la main.
+You can always push the fix yourself, or merge a waiting delivery by hand.
 
-**Un rouge qui ne tient pas au code se rejoue aussi sans commit à ta demande** :
-`npm --prefix runtime run base` dit ce que le dernier contrôle a dit,
-`npm --prefix runtime run base -- replay` fait rejouer les gates d'une base rouge sur la même
-tête (`base.recheck-requested`, lu aussitôt par la pass qui tourne). **Vertes**, la retenue
-tombe ; **rouges**, elle reste. Machine saturée, le rejeu attend (`base.recheck-held`).
+**A red that is not due to the code can also be replayed without a commit at your request**:
+`npm --prefix runtime run base` says what the last check said,
+`npm --prefix runtime run base -- replay` has the gates of a red base replayed on the same head
+(`base.recheck-requested`, read at once by the running pass). **Green**, the hold falls; **red**, it
+stays. Machine saturated, the replay waits (`base.recheck-held`).
 
-**Une base qui ne se rapatrie pas retient son contrôle** (origine injoignable, jeton refusé) : ni
-rouge ni contrôle non joué. La pass l'écrit et le dit **une fois par cause** (`base.check-held`),
-puis retente au tick ; `run status`, `run pass` et `run base` disent le motif courant et depuis
-quand. **Un rouge constaté reste rouge**, ta demande reste due. Le rapatriement revenu
-(`base.check-resumed`), le contrôle dû se joue aussitôt.
+**A base that cannot be fetched holds back its check** (origin unreachable, token refused): neither
+red nor an unrun check. The pass writes it and says so **once per cause** (`base.check-held`), then
+retries at the tick; `run status`, `run pass` and `run base` say the current reason and since when.
+**A red that was noted stays red**, your request remains due. Once the fetch is back
+(`base.check-resumed`), the due check is run at once.
 
-**« Je n'ai pas pu vérifier » n'est pas « c'est vert ».** Un contrôle **non joué**
-(`outcome: skipped`) — pas de gates, ou **l'essai ne s'est pas fait** (le worktree jetable ne se
-crée pas ; `reason` : ce que git en a dit) — ne retient rien sur une base jamais vue rouge, et
-**laisse rouge une base vue rouge** (`red` : le commit du rouge qui reste). Seul un contrôle
-**joué et vert** lève le rouge. Un contrôle non joué n'est pas retenté à chaque tick, et il
-**clôt** un rejeu demandé : `run status`, `run pass` et `run base` en montrent le motif —
-**réparer le dépôt est à toi**, puis `base -- rejouer`.
-
+**"I could not check" is not "it's green".** A check that was **not run**
+(`outcome: skipped`) — no gates, or **the attempt did not happen** (the disposable worktree cannot
+be created; `reason`: what git said) — holds nothing back on a base never seen red, and
+**leaves a base seen red as red** (`red`: the commit of the red that remains). Only a check
+**run and green** lifts the red. A check that was not run is not retried at every tick, and it
+**closes** a requested replay: `run status`, `run pass` and `run base` show the reason —
+**repairing the repository is up to you**, then `base -- replay`.

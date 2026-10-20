@@ -1,229 +1,228 @@
-## Une identité GitHub par rôle
+## One GitHub identity per role
 
-Par défaut, tout ce que le runtime fait sur GitHub part sous **un seul compte**, celui du `gh` et
-du `git` de la machine : une protection de branche ne peut alors pas laisser merger la pass sans
-laisser merger tout le reste. Sur un dépôt partagé, tu donnes au runtime **trois GitHub Apps**,
-chacune une identité (`<nom>[bot]`) que les règles de branche savent nommer.
+By default, everything the runtime does on GitHub goes out under **a single account**, that of the machine's `gh` and
+`git`: a branch protection then cannot let the pass merge
+without letting everything else merge. On a shared repository, you give the runtime **three GitHub Apps**,
+each an identity (`<name>[bot]`) that branch rules can name.
 
-| Identité | Ce qui agit sous elle | Ce que vaut son jeton, sur le dépôt du projet seul |
+| Identity | What acts under it | What its token is worth, on the project's repository only |
 |---|---|---|
-| **cook** | la station, **pour le compte** du cook : rapatrier la base, pousser `cook/<run>`, ouvrir la PR | `contents: write`, `pull_requests: write` |
-| **pass** | la pass : lire les PR et la CI, merger, fermer l'issue, y publier son verdict et la relecture du reviewer | `contents: write`, `pull_requests: write`, `issues: write`, `checks: read`, `statuses: read` |
-| **manager** | le manager et le rail : sonder les issues, poser les labels, commenter, créer les tickets d'une épique — et ce que la station dit sur l'issue | `issues: write` |
+| **cook** | the station, **on behalf of** the cook: fetch the base, push `cook/<run>`, open the PR | `contents: write`, `pull_requests: write` |
+| **pass** | the pass: read PRs and CI, merge, close the issue, publish its verdict and the reviewer's review there | `contents: write`, `pull_requests: write`, `issues: write`, `checks: read`, `statuses: read` |
+| **manager** | the manager and the rail: poll issues, set labels, comment, create an epic's tickets — and what the station says on the issue | `issues: write` |
 
-Le **reviewer n'a aucun geste GitHub** : c'est un `claude` lancé sans jeton dans un worktree
-jetable ; sa relecture est un fait du journal, que la pass publie.
+The **reviewer has no GitHub action**: it is a `claude` launched without a token in a disposable
+worktree; its review is a log fact, which the pass publishes.
 
-### Le cook n'a aucun jeton
+### The cook has no token
 
-L'identité « cook » est celle sous laquelle la **station** livre. Le process du cook ne reçoit
-**rien** : ni jeton d'écriture, ni jeton de lecture.
+The "cook" identity is the one under which the **station** delivers. The cook's process receives
+**nothing**: no write token, no read token.
 
-- Son environnement — et celui des gates, du reviewer et des juges du manager — perd `GH_TOKEN`,
-  `GITHUB_TOKEN` et leurs variantes d'entreprise, y compris ceux qu'un setup de worktree
-  exporterait. `GH_CONFIG_DIR` y pointe sur un répertoire vide (`gh-sans-compte/`, dans l'état) ;
+- Its environment — and that of the gates, the reviewer and the manager's judges — loses `GH_TOKEN`,
+  `GITHUB_TOKEN` and their enterprise variants, including those a worktree setup
+  would export. `GH_CONFIG_DIR` points there to an empty directory (`gh-sans-compte/`, in the state);
   `GIT_TERMINAL_PROMPT=0`.
-- **Il ne lit pas son ticket par `gh`** : la station le lui remet en fichier,
-  `runs/<run>.ticket.md` — titre, corps, commentaires avec leur auteur, tels qu'au lancement —,
-  hors du worktree. Illisible à ce moment-là : **aucun cook n'est lancé**, le ticket passe **86**
-  dix minutes (`ticket-unreadable`), puis revient en attente.
-- Ce que la station écrit sur l'issue part sous l'identité **manager** : commenter réclame
-  `issues: write`, qui permet aussi de fermer et de labelliser — l'identité cook ne le peut pas.
+- **It does not read its ticket through `gh`**: the station hands it over as a file,
+  `runs/<run>.ticket.md` — title, body, comments with their author, as at launch —,
+  outside the worktree. Unreadable at that moment: **no cook is launched**, the ticket goes **86**
+  for ten minutes (`ticket-unreadable`), then goes back to queued.
+- What the station writes on the issue goes out under the **manager** identity: commenting requires
+  `issues: write`, which also allows closing and labelling — the cook identity cannot.
 
-### Des jetons d'une heure, réduits, jamais écrits
+### One-hour tokens, narrowed, never written
 
-- Pour chaque geste, un jeton d'**installation** de l'App du rôle, demandé avec le **seul dépôt**
-  du projet et les droits du tableau — même si l'App est installée plus large. Il **expire en une
-  heure** et vit **en mémoire**, renouvelé à chaque tick avant sa fin. GitHub injoignable : dit une
-  fois dans journald, retenté à chaque tick ; les gestes qui en dépendent échouent comme une panne.
-- Il n'atteint `gh` et `git` que par l'**environnement du process lancé pour ce geste** — jamais
-  par un argument, un fichier, un événement du journal, un flux de cook, un commentaire ou un
-  message d'erreur. L'aide aux identifiants du compte est coupée pour ces gestes, un clone en SSH
-  repasse en HTTPS, et l'échange va directement à l'API de GitHub.
-- Aucun process long ne reçoit de jeton : ni cook, ni gates, ni reviewer, ni juge.
+- For each action, an **installation** token of the role's App, requested with the project's
+  **sole repository** and the rights in the table — even if the App is installed more widely. It **expires in one
+  hour** and lives **in memory**, renewed at each tick before it ends. GitHub unreachable: said
+  once in journald, retried at each tick; the actions that depend on it fail like an outage.
+- It reaches `gh` and `git` only through the **environment of the process launched for that action** — never
+  through an argument, a file, a log event, a cook stream, a comment or an error
+  message. The account credential helper is cut for these actions, an SSH clone
+  goes back to HTTPS, and the exchange goes directly to GitHub's API.
+- No long-running process receives a token: not the cook, not the gates, not the reviewer, not a judge.
 
-### Le merge dit qui l'a fait
+### The merge says who did it
 
-`merge.done` porte `actor`, le compte GitHub qui a mergé ; `npm run pass -- <ticket>` l'affiche.
-Quand la pass **constate** un merge (à la main, ou retrouvé au redémarrage), `by` est **ce que
-GitHub nomme** : `pass` si c'est son identité, `outside` sinon — et la base est alors contrôlée.
-Sous l'identité unique, `by` reste ce que le runtime suppose.
+`merge.done` carries `actor`, the GitHub account that merged; `npm run pass -- <ticket>` shows it.
+When the pass **notices** a merge (by hand, or found again at restart), `by` is **what
+GitHub names**: `pass` if it is its identity, `outside` otherwise — and the base is then checked.
+Under the single identity, `by` stays what the runtime assumes.
 
-### Ce que tu crées chez GitHub
+### What you create at GitHub
 
-Une fois par projet, par quelqu'un qui administre l'organisation. **Ce parcours n'a pas pu être
-joué depuis une session de dev** : c'est la recette.
+Once per project, by someone who administers the organization. **This path could not be
+played from a dev session**: it is the recipe.
 
-1. **Trois GitHub Apps**, créées sur l'**organisation** (*Settings → Developer settings → GitHub
-   Apps*), nommées `<projet>-cook`, `<projet>-pass`, `<projet>-manager`. Pas de webhook, pas de
-   droit d'organisation ni de compte, *Only on this account*. Droits de dépôt — cook : *Contents*
-   et *Pull requests* en lecture et écriture ; pass : les mêmes, plus *Issues* en lecture et
-   écriture, *Checks* et *Commit statuses* en lecture ; manager : *Issues* en lecture et écriture.
-   **Pas de droit *Workflows*** pour l'App cook : un ticket qui touche `.github/workflows/` ne se
-   pousse pas, et son échec le dit. Donner moins fait refuser le jeton (`jeton refusé`, journald).
-2. **Installe chacune sur le seul dépôt du projet** (*Only select repositories*), et relève pour
-   chacune sa **clé privée** (`.pem`, donnée une seule fois) et son *App ID*.
-3. **Sur la box**, un répertoire que seul le compte du service lit :
+1. **Three GitHub Apps**, created on the **organization** (*Settings → Developer settings → GitHub
+   Apps*), named `<project>-cook`, `<project>-pass`, `<project>-manager`. No webhook, no
+   organization or account right, *Only on this account*. Repository rights — cook: *Contents*
+   and *Pull requests* read and write; pass: the same, plus *Issues* read and
+   write, *Checks* and *Commit statuses* read; manager: *Issues* read and write.
+   **No *Workflows* right** for the cook App: a ticket that touches `.github/workflows/` cannot be
+   pushed, and its failure says so. Giving less makes the token be refused (`token refused`, journald).
+2. **Install each on the project's repository only** (*Only select repositories*), and note down for
+   each its **private key** (`.pem`, given only once) and its *App ID*.
+3. **On the box**, a directory that only the service account reads:
 
    ```bash
-   sudo install -d -m 700 -o <compte> /etc/brigade/<projet>/apps
-   # Pour chacun des trois rôles : cook, pass, manager
-   echo <App ID> | sudo -u <compte> tee /etc/brigade/<projet>/apps/<rôle>.id
-   sudo install -m 600 -o <compte> <la clé téléchargée>.pem /etc/brigade/<projet>/apps/<rôle>.pem
+   sudo install -d -m 700 -o <account> /etc/brigade/<project>/apps
+   # For each of the three roles: cook, pass, manager
+   echo <App ID> | sudo -u <account> tee /etc/brigade/<project>/apps/<role>.id
+   sudo install -m 600 -o <account> <the downloaded key>.pem /etc/brigade/<project>/apps/<role>.pem
    ```
 
-   puis, dans le drop-in : `Environment=BRIGADE_GITHUB_APPS_DIR=/etc/brigade/<projet>/apps`. Un
-   fichier manquant, une clé lisible par d'autres que le compte, un fichier qui n'est pas une clé,
-   ou deux rôles sous la même App : le runtime **refuse de démarrer** et nomme le fichier. Ces clés
-   ne se copient ni dans le drop-in, ni dans une sauvegarde lisible, ni dans le dépôt.
-4. **Retire le compte GitHub de la machine** : `sudo -u <compte> gh auth logout`, aucune clé SSH du
-   compte chez GitHub, pas de `GH_TOKEN` dans le drop-in. Sur un dépôt privé, le premier clone se
-   fait avec un jeton à toi, que tu ne laisses pas dans l'adresse de `origin`.
-5. **La règle de branche qui réserve le merge** — ajoute une règle, n'en retire pas. Un *ruleset*
-   actif sur la branche d'intégration (*Settings → Rules → Rulesets*, ou `gh api -X POST
-   repos/<owner>/<repo>/rulesets`), avec **Restrict updates**, **Restrict deletions** et **Block
-   force pushes** (`update`, `deletion`, `non_fast_forward`) ; dans *Bypass list*, l'App **pass**
-   (`Integration`, *Always*) et les humains qui mergent. Ni l'App cook ni l'App manager n'y figurent.
+   then, in the drop-in: `Environment=BRIGADE_GITHUB_APPS_DIR=/etc/brigade/<project>/apps`. A missing
+   file, a key readable by others than the account, a file that is not a key,
+   or two roles under the same App: the runtime **refuses to start** and names the file. These keys
+   are copied neither into the drop-in, nor into a readable backup, nor into the repository.
+4. **Remove the GitHub account from the machine**: `sudo -u <account> gh auth logout`, no SSH key of the
+   account at GitHub, no `GH_TOKEN` in the drop-in. On a private repository, the first clone is
+   made with a token of yours, which you do not leave in the `origin` address.
+5. **The branch rule that reserves the merge** — add a rule, do not remove any. An active *ruleset*
+   on the integration branch (*Settings → Rules → Rulesets*, or `gh api -X POST
+   repos/<owner>/<repo>/rulesets`), with **Restrict updates**, **Restrict deletions** and **Block
+   force pushes** (`update`, `deletion`, `non_fast_forward`); in the *Bypass list*, the **pass** App
+   (`Integration`, *Always*) and the humans who merge. Neither the cook App nor the manager App appears there.
 
-Au démarrage, le runtime dit son mode : `GitHub — une identité par rôle (cook, pass, manager) …`
-ou `GitHub — identité unique … rien ne réserve le merge à la pass`. Une App mal installée ne fait
-pas refuser le démarrage : elle se dit dans journald dès le premier tick (`identité « pass » : son
-App (…) n'est pas installée sur <owner>/<repo>`), et rien ne part sous ce rôle d'ici là. Ce qui
-reste non garanti : voir « Ce que la pass ne garantit pas ».
+At start, the runtime states its mode: `GitHub — one identity per role (cook, pass, manager) …`
+or `GitHub — single identity … nothing reserves the merge to the pass`. A badly installed App does not
+make the start be refused: it is stated in journald from the first tick (`identity "pass": its
+App (…) is not installed on <owner>/<repo>`), and nothing goes out under that role until then. What
+remains unguaranteed: see "What the pass does not guarantee".
 
-## Les secrets du projet
+## The project's secrets
 
-Les secrets de dev du projet ont leur chemin, **séparé de l'environnement du runtime** : la règle
-qui écarte du cook l'état du runtime, les clés Anthropic et les jetons GitHub ne bouge pas.
+The project's dev secrets have their own path, **separate from the runtime's environment**: the rule
+that keeps the runtime's state, the Anthropic keys and the GitHub tokens away from the cook does not move.
 
-- **La déclaration** : `.claude/brigade/secrets`, dans le dépôt, versionné — des **noms** de
-  variables, un par ligne ; `#` commente.
-- **Les valeurs** : le fichier que nomme `BRIGADE_SECRETS_FILE`, sur la machine
-  (`/etc/brigade/<projet>/secrets.env`) — `NOM=valeur`, une par ligne.
+- **The declaration**: `.claude/brigade/secrets`, in the repository, versioned — variable
+  **names**, one per line; `#` comments.
+- **The values**: the file named by `BRIGADE_SECRETS_FILE`, on the machine
+  (`/etc/brigade/<project>/secrets.env`) — `NAME=value`, one per line.
 
-**Un cook reçoit l'intersection** : les variables que son dépôt déclare, avec la valeur que la
-machine détient. La déclaration se lit dans le worktree du cook, sur sa branche. Une livraison qui
-y touche n'est jamais mergée par la pass : elle attend ta relecture (`review-required`, cause
-`declaration-modified: …` — voir « Ce que la pass décide »).
+**A cook receives the intersection**: the variables its repository declares, with the value the
+machine holds. The declaration is read in the cook's worktree, on its branch. A delivery that
+touches it is never merged by the pass: it waits for your review (`review-required`, cause
+`declaration-modified: …` — see "What the pass decides").
 
-Le fichier de valeurs : un chemin absolu, **hors de `BRIGADE_STATE_DIR` et de `BRIGADE_REPO_DIR`**,
-en `chmod 600` — sinon le runtime refuse de démarrer. Une valeur va jusqu'à la fin de sa ligne ; un
-`export ` devant et une paire de guillemets autour sont retirés ; rien n'est interpolé. **Il est
-relu à chaque lancement** : une valeur se remplace en éditant le fichier, sans rien redémarrer.
+The values file: an absolute path, **outside `BRIGADE_STATE_DIR` and `BRIGADE_REPO_DIR`**,
+`chmod 600` — otherwise the runtime refuses to start. A value runs to the end of its line; a
+leading `export ` and a pair of surrounding quotes are removed; nothing is interpolated. **It is
+reread at every launch**: a value is replaced by editing the file, without restarting anything.
 
-### Qui les reçoit
+### Who receives them
 
-Le setup du worktree, le cook, et les gates que la pass joue (sur la livraison, sur la base) :
-**oui**. Le reviewer et les jugements du manager : **non** — ils n'exécutent rien du projet.
+The worktree setup, the cook, and the gates the pass plays (on the delivery, on the base):
+**yes**. The reviewer and the manager's judgments: **no** — they run nothing of the project.
 
-### Ce qui ne se déclare pas
+### What cannot be declared
 
-- Les noms par lesquels le runtime pilote ses cooks : `BRIGADE_*`, `ANTHROPIC_*`, `CLAUDE_*`,
+- The names by which the runtime drives its cooks: `BRIGADE_*`, `ANTHROPIC_*`, `CLAUDE_*`,
   `GH_*`, `GITHUB_*`, `GIT_*`, `PATH`, `HOME`.
-- **Rien de production** — aucun grant n'y touche. Le runtime ne sait pas ce qu'une valeur ouvre ;
-  il refuse ce qui se reconnaît : un **nom** dont un mot est `PROD`, `PRODUCTION` ou `LIVE`, une
-  **valeur** qui commence par `sk_live_` ou `rk_live_`. Le reste tient à ce que tu poses.
-- **Une valeur de moins de 8 caractères** : ce n'est pas un secret mais une configuration, qui
-  s'exporte depuis `.claude/brigade/worktree-setup.sh`.
+- **Nothing of production** — no grant touches it. The runtime does not know what a value opens;
+  it refuses what can be recognized: a **name** of which a word is `PROD`, `PRODUCTION` or `LIVE`, a
+  **value** that starts with `sk_live_` or `rk_live_`. The rest depends on what you put there.
+- **A value of fewer than 8 characters**: it is not a secret but a configuration, which is
+  exported from `.claude/brigade/worktree-setup.sh`.
 
-### Quand il en manque un
+### When one is missing
 
-Au moindre problème — un nom déclaré sans valeur, pas de `BRIGADE_SECRETS_FILE` alors que le dépôt
-déclare, un fichier absent ou lisible par d'autres, une ligne mal écrite, un nom réservé, une
-valeur trop courte, une marque de production — **rien n'est lancé** : le ticket passe **86** dix
-minutes (`secrets-unavailable`) puis est reproposé, sans rien consommer ni compter au disjoncteur ;
-**l'issue le dit, une fois**, en nommant chaque variable et le fichier — jamais une valeur. Ce qui
-manque posé, le cook part à l'essai suivant. `npm run installation -- setup` joue le même contrôle
-à blanc. Côté pass, des gates qui ne peuvent pas recevoir leurs secrets **ne sont pas jouées** —
-jamais rouges pour cela : la livraison t'est remontée (`unjudged`, cause `secrets-unavailable`) et
-n'est pas rejugée seule — les valeurs posées, retirer puis reposer `fire`. Un contrôle de la base
-est « non joué », avec son motif.
+At the slightest problem — a name declared without a value, no `BRIGADE_SECRETS_FILE` while the repository
+declares, a missing file or one readable by others, a badly written line, a reserved name, a
+too-short value, a production mark — **nothing is launched**: the ticket goes **86** for ten
+minutes (`secrets-unavailable`) then is offered again, consuming nothing and counting nothing at the breaker;
+**the issue says so, once**, naming each variable and the file — never a value. Once what
+was missing is in place, the cook leaves at the next attempt. `npm run installation -- setup` plays the same check
+as a dry run. On the pass side, gates that cannot receive their secrets **are not played** —
+never red for that reason: the delivery is escalated to you (`unjudged`, cause `secrets-unavailable`) and
+is not rejudged on its own — once the values are in place, remove then put back `fire`. A check of the base
+is "not played", with its reason.
 
-### Aucune valeur ne se lit nulle part
+### No value is read anywhere
 
-Chaque valeur — exacte, ou sous sa forme dans un flux JSON — est remplacée par `[secret:NOM]`
-partout où le runtime garde ou publie un texte venu d'un process qui a reçu les secrets :
+Each value — exact, or in its form inside a JSON stream — is replaced by `[secret:NAME]`
+everywhere the runtime keeps or publishes a text coming from a process that received the secrets:
 
-le flux brut du cook (`runs/<run>.jsonl` et `.stderr`), masqué **à l'écriture**, ligne à ligne —
-donc son compte-rendu (`cook.reported`), le commentaire de l'issue, le corps de la PR, la consigne
-d'un renvoi ; la sortie du setup (journald) et des gates (`failures`, `tail`, commentaire de la
-pass) ; et la relecture du reviewer, qui ne reçoit aucun secret mais lit un worktree où les gates
-ont tourné avec eux.
+the cook's raw stream (`runs/<run>.jsonl` and `.stderr`), masked **at write time**, line by line —
+hence its report (`cook.reported`), the issue comment, the PR body, the instruction
+of a return; the output of the setup (journald) and of the gates (`failures`, `tail`, the pass's
+comment); and the reviewer's review, which receives no secret but reads a worktree where the gates
+ran with them.
 
-**Une livraison qui porte un secret n'est pas poussée.** Avant le push, la station cherche les
-valeurs dans tout ce que la branche ajoute — chaque patch, chaque message de commit, ce qu'elle a
-récolté elle-même ; un binaire s'y lit comme du texte, un commit de merge montre ce qu'il change à
-chacun de ses parents. Ce que l'origine a déjà reçu n'est pas relu. Trouvée : le cook est en échec
-(``secret-committed: `NOM` ``), rien ne part, le ticket revient en attente — un **premier cook**
-repart de la base sur une branche neuve ; un **renvoi de la pass** reprend la même branche, que la
-station **ramène à la livraison refusée** (ce que le cook fautif y avait ajouté est perdu, et
-l'issue le dit).
+**A delivery that carries a secret is not pushed.** Before the push, the station looks for the
+values in everything the branch adds — each patch, each commit message, what it harvested itself;
+a binary is read there as text, a merge commit shows what it changes against
+each of its parents. What origin has already received is not reread. Found: the cook fails
+(``secret-committed: `NAME` ``), nothing goes out, the ticket goes back to queued — a **first cook**
+starts again from the base on a fresh branch; a **return from the pass** resumes the same branch, which the
+station **brings back to the refused delivery** (what the faulty cook had added there is lost, and
+the issue says so).
 
-### Les identifiants de Claude ne sont pas poussés non plus
+### Claude's credentials are not pushed either
 
-Le runtime **n'ouvre jamais** les identifiants du compte Max : le même contrôle, avant le push, les
-reconnaît **à leur nom et à leur forme**, pour tout projet — avec ou sans secrets, avec ou sans
-cloison — dans **ce que la branche ajoute** (lignes ajoutées de chaque commit, messages). Un jeton
-écrit puis retiré deux commits plus loin est reconnu ; un jeton que la base portait déjà, non.
+The runtime **never opens** the Max account credentials: the same check, before the push, recognizes
+them **by their name and their shape**, for any project — with or without secrets, with or without
+a partition — in **what the branch adds** (added lines of each commit, messages). A token
+written then removed two commits later is recognized; a token that the base already carried, not.
 
-| Signe | Ce qui le déclenche |
+| Sign | What triggers it |
 |---|---|
-| `name` | un commit **crée un fichier nommé `.credentials.json`**, où que ce soit, quel que soit son contenu. Le modifier ou le supprimer ne déclenche rien |
-| `shape` | **un jeton de Claude** : `sk-ant-`, un type et deux chiffres, un tiret, puis au moins 40 caractères (`A`–`Z`, `a`–`z`, chiffres, `_`, `-`) — `oat01`, `ort01`, `api03` |
-| `shape` | **la structure du fichier d'identifiants** : la clé `claudeAiOauth`, puis un `accessToken` ou un `refreshToken` d'au moins 20 caractères, guillemets échappés compris |
+| `name` | a commit **creates a file named `.credentials.json`**, anywhere, whatever its content. Modifying or deleting it triggers nothing |
+| `shape` | **a Claude token**: `sk-ant-`, a type and two digits, a dash, then at least 40 characters (`A`–`Z`, `a`–`z`, digits, `_`, `-`) — `oat01`, `ort01`, `api03` |
+| `shape` | **the structure of the credentials file**: the key `claudeAiOauth`, then an `accessToken` or a `refreshToken` of at least 20 characters, escaped quotes included |
 
-Reconnu : le cook est en échec (`credentials-committed: name`, `shape`, ou les deux), **rien n'est
-poussé**, et le ticket revient en attente comme pour un secret. Le motif, le journal et l'issue
-disent **le signe, jamais le chemin ni le contenu**. Pour voir, sur la station :
-`git -C "$BRIGADE_REPO_DIR" log -p origin/<base>..<la branche que le commentaire nomme>`.
+Recognized: the cook fails (`credentials-committed: name`, `shape`, or both), **nothing is
+pushed**, and the ticket goes back to queued as for a secret. The reason, the log and the issue
+state **the sign, never the path nor the content**. To see, on the station:
+`git -C "$BRIGADE_REPO_DIR" log -p origin/<base>..<the branch the comment names>`.
 
-**Refusé à tort** (le commentaire de l'issue le dit au cook suivant) : un `.credentials.json`
-propre au projet se commite par toi — un cook ne peut ni le créer ni renommer un fichier vers ce
-nom, mais le modifie une fois sur la base ; un exemple de jeton s'écrit **tronqué** (moins de 40
-caractères après `sk-ant-<type>-`) ou s'**assemble à l'exécution** ; un jeton entier que la base
-porte déjà et qu'un cook rajoute ailleurs (ligne déplacée, fichier copié, base mergée) se tronque
-sur la base, une fois pour toutes.
+**Refused wrongly** (the issue comment says so to the next cook): a `.credentials.json`
+belonging to the project is committed by you — a cook can neither create it nor rename a file to that
+name, but modifies it once it is on the base; an example token is written **truncated** (fewer than 40
+characters after `sk-ant-<type>-`) or is **assembled at run time**; a whole token that the base
+already carries and that a cook adds elsewhere (moved line, copied file, merged base) is truncated
+on the base, once and for all.
 
-**Ce qu'il n'arrête pas** : une copie **transformée** — base64, chiffrée, découpée. C'est une
-reconnaissance de forme, contre l'accident et l'injection par le ticket ou le diff. Trois choses
-bornent le dégât : le réseau en liste blanche (« La cloison »), la **push protection de GitHub** —
-à activer sur le dépôt par le chef (`installer.md`, « Protéger la branche d'intégration ») —, et la
-révocabilité (« Révoquer la connexion Max »).
+**What it does not stop**: a **transformed** copy — base64, encrypted, split. It is
+a shape recognition, against accident and injection through the ticket or the diff. Three things
+bound the damage: the allowlisted network ("The partition"), **GitHub's push protection** —
+to be enabled on the repository by the chef (`installer.md`, "Protecting the integration branch") —, and
+revocability ("Revoking the Max connection").
 
-### Ni publiés dans ce qu'un cook dit
+### Nor published in what a cook says
 
-Le même reconnaisseur passe sur **tout texte qu'un process lancé par le runtime dit, avant qu'il ne
-soit écrit** — pour tout projet, avec ou sans secrets, avec ou sans cloison : un jeton de Claude
-(la forme ci-dessus), et dans la structure `claudeAiOauth` la valeur de `accessToken` et de
-`refreshToken` dès 20 caractères, y laissent leur place à `[jeton Claude masqué]`. **Seul le jeton
-part** : le texte autour reste, rien n'est refusé ni retenu.
+The same recognizer runs over **any text that a process launched by the runtime says, before it is
+written** — for any project, with or without secrets, with or without a partition: a Claude token
+(the shape above), and inside the `claudeAiOauth` structure the value of `accessToken` and of
+`refreshToken` from 20 characters, give up their place there to `[Claude token masked]`. **Only the token
+goes**: the surrounding text stays, nothing is refused or held back.
 
-- **Où** : le flux brut de chaque `claude` lancé — cook, reviewer, jugements et découpages du
-  manager —, masqué **à l'écriture**, après les secrets du projet, et donc tout ce qui s'y lit
-  (compte-rendu, commentaire, corps de PR, relecture, consigne d'un renvoi, décision d'un juge) ;
-  la sortie du setup et des gates, avant d'être gardée. Le flux **quitte la machine** avec
-  `sauvegarder` : c'est pourquoi il est masqué à la source.
-- **Ligne à ligne** : une valeur livrée en deux morceaux est masquée quand même. Ce qui n'a pas
-  son saut de ligne attend, jusqu'à **1 Mio** par sortie ; au-delà, c'est masqué et écrit sans lui,
-  et la coupe ne tombe jamais dans ce qui peut être un jeton `sk-ant-…`.
-- **Un masquage se lit, sans rien de la valeur** : `credentialsMasked` (combien de fois) dans
-  `cook.exited` et dans `gates` de `pass.judged` et `base.checked` ; sur l'issue, `Masqué N fois :
-  ce qui a la forme d'identifiants de Claude`. Le compte porte sur **tout le flux** : un process a
-  lu la connexion du compte. Si ce sont de vrais identifiants : « Révoquer la connexion Max ».
+- **Where**: the raw stream of each `claude` launched — cook, reviewer, the manager's judgments and
+  splits —, masked **at write time**, after the project's secrets, and thus everything read from it
+  (report, comment, PR body, review, instruction of a return, a judge's decision);
+  the output of the setup and of the gates, before it is kept. The stream **leaves the machine** with
+  `backup`: this is why it is masked at the source.
+- **Line by line**: a value delivered in two pieces is masked all the same. What does not have
+  its newline yet waits, up to **1 MiB** per output; beyond that, it is masked and written without it,
+  and the cut never falls inside what could be an `sk-ant-…` token.
+- **A masking is readable, with nothing of the value**: `credentialsMasked` (how many times) in
+  `cook.exited` and in `gates` of `pass.judged` and `base.checked`; on the issue, `Masked N times:
+  what has the shape of Claude credentials`. The count covers the **whole stream**: a process
+  read the account's connection. If they are real credentials: "Revoking the Max connection".
 
-### Ce qui n'est pas garanti
+### What is not guaranteed
 
-- **Une valeur transformée passe** — base64, chiffrée, découpée, à cheval sur deux lignes : le
-  masquage est un filet contre l'accident, pas une clôture. La structure du fichier d'identifiants
-  ne se reconnaît que **sur une ligne**.
-- **Sur une ligne de plus de 1 Mio, seul le jeton `sk-ant-…` est tenu** : un secret du projet ou la
-  structure du fichier d'identifiants, à cheval sur deux tranches, n'y sont pas reconnus.
-- **Sans cloison, le cloisonnement entre projets tient aux droits de fichiers** : un cook tourne
-  sous le compte du runtime et peut lire le fichier de secrets de son projet en entier, et celui
-  d'un autre. **Avec la cloison, ni l'un ni l'autre** : seules les valeurs déclarées lui
-  parviennent, par son environnement.
-- Ne sont pas masqués : le **transcript de session** de `claude` (`~/.claude/projects`, qui reste
-  sur la machine et garde les identifiants Max s'ils y sont passés) ; ce que les gates du projet
-  écrivent elles-mêmes sur le disque ; un commentaire qu'un cook poste lui-même sur GitHub — sous
-  une identité par rôle, il n'en a aucune.
-
+- **A transformed value gets through** — base64, encrypted, split, straddling two lines: the
+  masking is a safety net against accident, not a fence. The structure of the credentials file
+  is recognized only **on one line**.
+- **On a line of more than 1 MiB, only the `sk-ant-…` token is held**: a project secret or the
+  structure of the credentials file, straddling two slices, are not recognized there.
+- **Without a partition, partitioning between projects rests on file permissions**: a cook runs
+  under the runtime's account and can read its project's whole secrets file, and that
+  of another. **With the partition, neither**: only the declared values
+  reach it, through its environment.
+- Not masked: `claude`'s **session transcript** (`~/.claude/projects`, which stays
+  on the machine and keeps the Max credentials if they got in there); what the project's gates
+  write to disk themselves; a comment that a cook posts itself on GitHub — under
+  one identity per role, it has none.
