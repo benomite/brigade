@@ -327,12 +327,28 @@ formulaireDAjout.append(
 const retourALAccueil = /** @type {HTMLButtonElement} */ (bloc("button", "‹ All projects"));
 retourALAccueil.type = "button";
 retourALAccueil.className = "retour";
+// Le plafond de cooks, sous l'en-tête : ce que `status` en dit, ce qui retient la station, et de quoi le régler.
+const plafondDeStation = document.createElement("div");
+plafondDeStation.className = "plafond-de-station";
+plafondDeStation.ariaLive = "polite";
+// Le champ vit d'un rendu à l'autre : une page redessinée par une lecture ne lui reprend pas ce que le chef tape.
+const plafondChoisi = /** @type {HTMLInputElement} */ (document.createElement("input"));
+plafondChoisi.type = "number";
+plafondChoisi.min = "0";
+plafondChoisi.step = "1";
+plafondChoisi.ariaLabel = "cooks at once, at most";
+plafondChoisi.placeholder = "cooks at once";
+// La station dont le champ porte une saisie, et ce que le dernier réglage a rendu pour elle.
+/** @type {string | undefined} */
+let plafondSaisiPour;
+/** @type {Map<string, { refus: string, detail?: string }>} */
+const plafondsRefuses = new Map();
 // La ligne de mise à jour, sous l'en-tête ; et, au bas de la page, « remove the station » et sa confirmation.
 const versionDeStation = document.createElement("p");
 versionDeStation.className = "version-de-station";
 const retraitDeStation = document.createElement("div");
 retraitDeStation.className = "retrait-de-station";
-pageDeStation.append(retourALAccueil, enTeteDeStation, versionDeStation, pannesDeStation, bloc("h3", "Projects"), listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit, retraitDeStation);
+pageDeStation.append(retourALAccueil, enTeteDeStation, plafondDeStation, versionDeStation, pannesDeStation, bloc("h3", "Projects"), listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit, retraitDeStation);
 // Le coût de tous les projets (ticket 1022) : il vaut pour l'ensemble, il vit donc au niveau de l'app, pas dans
 // un projet. Sur l'accueil, une ligne « Cost » l'ouvre — sans ouvrir aucun projet. Sa page : les tokens
 // lancés sur 5 h, 24 h et 7 jours par projet, les tokens perdus, les tickets les plus chers, la courbe, et
@@ -4518,6 +4534,7 @@ function poserPageDeStation() {
   if (station === undefined) {
     enTeteDeStation.replaceChildren(bloc("p", stationsVues === undefined ? "reading your stations on GitHub…" : "this station is no longer paired with this app"));
     pannesDeStation.replaceChildren();
+    plafondDeStation.replaceChildren();
     versionDeStation.replaceChildren();
     retraitDeStation.replaceChildren();
   } else {
@@ -4531,11 +4548,72 @@ function poserPageDeStation() {
     // Hors ligne, la panne dessous le dit déjà, avec son bouton : l'en-tête ne le redit pas.
     const dejaDit = station.pannes.some(({ sujet }) => sujet === "injoignable");
     enTeteDeStation.replaceChildren(titre, pastille(phrase, ligne?.ton), ...(dejaDit ? [] : [etatDit]), ...(details === "" ? [] : [survol(document, details)]), ...(ligne?.note === undefined ? [] : [bloc("p", ligne.note)]));
+    poserPlafond(station.nom, ligne);
     versionDeStation.replaceChildren(...(station.versionDit ? [bloc("span", station.versionDit)] : []));
     pannesDeStation.replaceChildren(...station.pannes.map((panne) => poserPanne(station.id, panne)));
     poserRetireLaStation(station);
   }
   poserProjets();
+}
+
+// Le plafond de cooks de la station, comme sa box le dit — `3 at most — 8 cores`, ou `5 at most — set by you,
+// replaces 3 (8 cores)` — ; quand elle retient des tickets, ce qui la retient, avec ce que chaque ressource a et ce
+// qu'il lui faut ; et le réglage : un nombre, ou « default » pour que le plafond des cœurs revienne. Le plafond
+// neuf se lit au rendu suivant, quand la box a répondu. Une station dont aucun projet lu ne dit le plafond n'a rien de tout cela.
+/** @param {string} nom @param {import("../accueil.ts").LigneDeStation | undefined} ligne */
+function poserPlafond(nom, ligne) {
+  if (ligne?.plafond === undefined) return plafondDeStation.replaceChildren();
+  if (plafondSaisiPour !== nom) {
+    plafondSaisiPour = nom;
+    plafondChoisi.value = "";
+  }
+  const { plafond, retenue } = ligne;
+  const lignes = [];
+  const dit = bloc("p", `Cooks at once: ${plafond.dit}`);
+  dit.className = "plafond";
+  lignes.push(dit);
+  if (retenue !== undefined) {
+    const retient = bloc("p", `Holding tickets — ${retenue.ressources}: ${retenue.detail}`);
+    retient.className = "retenue";
+    retient.append(survol(document, `no ticket is taken for ${retenue.depuis}, as long as it lasts; the running cooks carry on`));
+    lignes.push(retient);
+  }
+  const regle = document.createElement("p");
+  regle.className = "regle-le-plafond";
+  const regler = /** @type {HTMLButtonElement[]} */ ([]);
+  /** @param {string} libelle @param {() => string} valeur @param {boolean} recommande @param {string} prix */
+  const geste = (libelle, valeur, recommande, prix) => {
+    const groupe = boutonAction(document, libelle, () => void reglerLePlafond(nom, valeur(), regler), { recommande, prix });
+    regler.push(groupe.querySelector("button"));
+    return groupe;
+  };
+  regle.append(
+    plafondChoisi,
+    geste("set the cap", () => plafondChoisi.value.trim(), true, "no running cook is stopped; the station launches no more while it is above — 0 lifts the limit"),
+    ...(plafond.parLeChef ? [geste("back to the default", () => "auto", false, "withdraws your cap: the one derived from the machine's cores returns")] : []),
+  );
+  lignes.push(regle);
+  const refus = plafondsRefuses.get(nom);
+  if (refus !== undefined) lignes.push(lectureIndisponible(document, refus.refus, refus.detail ?? ""));
+  plafondDeStation.replaceChildren(...lignes);
+}
+
+/** @param {string} nom @param {string} valeur @param {HTMLButtonElement[]} boutons */
+async function reglerLePlafond(nom, valeur, boutons) {
+  for (const bouton of boutons) bouton.disabled = true;
+  /** @type {{ fait: string } | { refus: string, detail?: string }} */
+  let rendu;
+  try {
+    rendu = await brigade.reglerLePlafond(nom, valeur);
+  } catch (erreur) {
+    rendu = { refus: "the cap was not changed", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  if ("refus" in rendu) plafondsRefuses.set(nom, rendu);
+  else {
+    plafondsRefuses.delete(nom);
+    plafondChoisi.value = "";
+  }
+  poserPageDeStation();
 }
 
 // La station dont « remove the station » demande confirmation, par son gist.

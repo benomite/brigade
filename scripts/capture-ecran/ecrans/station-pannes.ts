@@ -1,7 +1,7 @@
 // La page d'une station en panne, ouverte d'un clic sur sa ligne de l'accueil : ce que la station
 // publie sur GitHub (un document figé) passe par les modules de l'app (stations.ts, pannes.ts,
 // accueil.ts) — la vue reçoit ce qu'elle recevrait, la panne et ses mots sont ceux du code.
-import { type Accueil, ligneDeStation } from "../../../app/src/accueil.ts";
+import { type Accueil, type LigneDeStation, ligneDeStation } from "../../../app/src/accueil.ts";
 import { pannesDe } from "../../../app/src/pannes/pannes.ts";
 import type { DocumentStation } from "../../../app/src/stations/document.ts";
 import { etatDe, ligneDe, ligneDeVersion, type StationVue } from "../../../app/src/stations/stations.ts";
@@ -33,7 +33,8 @@ export const DOCUMENTS = {
   "connexion-max": { ...EN_LIGNE, connexionMax: { etat: "perdue", depuis: il_y_a(12) } },
 } satisfies Record<string, DocumentStation>;
 
-export function pageDeStation(panne: keyof typeof DOCUMENTS, dit: string, etapes: Etape[] = []): Ecran {
+// `plus` : ce que le `status` d'un projet ajoute à la ligne de la station (son plafond de cooks, ce qui la retient).
+export function pageDeStation(panne: keyof typeof DOCUMENTS, dit: string, etapes: Etape[] = [], plus: Partial<LigneDeStation> = {}): Ecran {
   const document = DOCUMENTS[panne];
   const station: StationVue = {
     id: "box",
@@ -49,7 +50,7 @@ export function pageDeStation(panne: keyof typeof DOCUMENTS, dit: string, etapes
   };
   const accueil: Accueil = {
     projets: [],
-    stations: [ligneDeStation(station, 0, false)],
+    stations: [{ ...ligneDeStation(station, 0, false), ...plus }],
     sante: { ton: "gris", dit: "Max ✓  ·  GitHub ✓", survol: "" },
   };
   return {

@@ -9,6 +9,7 @@ import { lireFeu } from "./feu.ts";
 import { ALLUMAGE, compter } from "./allumage.ts";
 import { COMMANDE as COMMANDE_AMONT, tenirAmont } from "./amont.ts";
 import { mettreAPart } from "./attend.ts";
+import { reglerLePlafond } from "./plafond.ts";
 import { pourLaBarre } from "./barre.ts";
 import { BOUTONS, ecritPar, ecritPourLeCloser, REGLER_LE_CLOSER } from "./boutons.ts";
 import { lancerGeste, ouvrirVeille, type Servi } from "./box.ts";
@@ -839,6 +840,20 @@ ipcMain.handle("autoriserSurGitHub", (_, url: unknown) => {
 });
 // « Retirer la station » : son appairage quitte son gist, elle disparaît de l'accueil.
 ipcMain.handle("retirerLaStation", (_, id: unknown) => stations.retirer(id));
+// Le plafond de cooks d'une station, réglé depuis sa page : la vue nomme la station et la valeur — un nombre,
+// 0 ou `auto` —, la commande `station cooks <valeur>` part sur la box de chaque projet dont le `status` lu
+// nomme cette station (plafond.ts). Réglé, ce `status` est relu aussitôt : la page dit le plafond neuf, et ce qu'il remplace.
+ipcMain.handle("reglerLePlafond", async (_, station: unknown, valeur: unknown) => {
+  const cibles = typeof station === "string" ? accueil.projetsDe(station).flatMap((nom) => { const vise = connu(nom); return vise?.box === undefined ? [] : [{ nom: vise.nom, box: vise.box }]; }) : [];
+  const rendu = await reglerLePlafond(cibles, valeur, lancerSurLaBox);
+  if ("fait" in rendu) {
+    for (const servi of cibles) {
+      const lu = await lancerSurLaBox(servi, "status");
+      if (lu.erreur === null) direLAccueil(accueil.status(mettreAPart({ projet: servi.nom, demande: 0, a: new Date().toISOString(), sorties: [{ commande: "status", texte: lu.sortie }] })));
+    }
+  }
+  return rendu;
+});
 // Le bouton d'une panne, sur la ligne d'une station : rend ce qu'il a fait, ou pourquoi rien.
 ipcMain.handle("panne", (_, id: unknown, cle: unknown) => jouerPanne(gestesDesPannes, id, cle));
 // Le code de l'app, en retard ou à relancer : le clic la met à jour et la relance — rien n'est
