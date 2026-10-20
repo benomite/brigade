@@ -208,6 +208,9 @@ export type Pont = {
   retirerDUneStation(nom: string): Promise<RetraitDUneStation>;
   // Déménage la cuisine d'un projet vers une station appairée — son gist (projets/demenagement.ts).
   demenagerLaCuisine(nom: string, vers: string): Promise<Demenagement>;
+  // « Continue without sandbox », devant une station sans bac à sable (ticket 1113) : le chef décide pour la
+  // station du projet, et la retenue du rail se lève (runtime/src/onboarding/attente.ts). Rend ce qui est fait, ou pourquoi rien.
+  continuerSansBacASable(nom: string): Promise<{ fait: string } | { refus: string; detail?: string }>;
   // Ouvre dans le navigateur une page où autoriser brigade sur GitHub — une de celles qu'une station a publiées —,
   // ou une page que le parcours d'un projet neuf montre (ticket 1111) : son geste, son ticket de préparation, sa PR.
   autoriserSurGitHub(url: string): Promise<boolean>;

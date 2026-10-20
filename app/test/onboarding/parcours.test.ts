@@ -22,7 +22,7 @@ import type { Panne } from "../../src/pannes/pannes.ts";
 import { lireOnboarding, type Onboarding } from "../../src/projets/demande.ts";
 import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type VuDesProjets } from "../../src/projets/projets.ts";
 import type { VuDesStations } from "../../src/stations/stations.ts";
-import { ECARTER, ETATS_DE_PREPARATION, OUVRIR_LA_PR, POSER_LE_PREMIER, poserParcours, prochainEssaiDit } from "../../src/vue/onboarding/parcours.js";
+import { AUTRE_STATION, CONTINUER_SANS_BAC, ECARTER, ETATS_DE_PREPARATION, OUVRIR_LA_PR, POSER_LE_PREMIER, poserParcours, prochainEssaiDit } from "../../src/vue/onboarding/parcours.js";
 import { Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -77,6 +77,22 @@ const PRET: DuRuntime = {
   preparation: { ticket: 433, url: TICKET, etat: "faite", raison: null, prochainEssai: null, pr: PR },
   sansBacASable: false,
   decisionAttendue: false,
+};
+
+// La machine sans bac à sable : le runtime attend le chef (runtime/src/onboarding/etat.ts, `etapeMachine`).
+const SANS_BAC: DuRuntime = {
+  etat: "en-cours",
+  termine: false,
+  courante: "machine",
+  etapes: [
+    AVANT[0] as DuRuntime["etapes"][number],
+    { etape: "machine", titre: "Cooking machine", etat: "courante", dit: "box has no sandbox: its cooks would read everything the station's account reads. Nothing is launched for mirrorlab until you choose.", geste: { quoi: "Continue without a sandbox on box, or choose another station for mirrorlab.", ou: "In the app, on the project's page.", liens: [] } },
+    { etape: "preparation", titre: "Repository preparation", etat: "a-venir", dit: `box opens the ticket that prepares ${DEPOT}.`, geste: null },
+    A_VENIR,
+  ],
+  preparation: null,
+  sansBacASable: true,
+  decisionAttendue: true,
 };
 
 // L'onboarding tel que l'app le lit dans le suivi que la station écrit (runtime/src/projets/demande.ts).
@@ -255,6 +271,49 @@ async function laPage(onboarding: DuRuntime | null) {
   const parcours = () => classe(bloc, "parcours").filter((section) => !(section.parentElement?.hidden ?? false))[0];
   return { jouee, bloc, parcours, ouvrir };
 }
+
+describe("la décision devant une station sans bac à sable", () => {
+  test("l'avertissement dit que les cooks tournent sans bac à sable et que rien ne part avant le choix ; deux boutons, chacun son geste", () => {
+    let continues = 0;
+    let autres = 0;
+    const section = poserParcours(doc, { projet: "mirrorlab", onboarding: lu(SANS_BAC), maintenant: MAINTENANT, ouvrir: () => {}, ecarter: () => {}, continuerSansBac: () => continues++, autreStation: () => autres++ }) as Faux;
+    assert.match(une(section, "avertissement").textContent, /no sandbox.*Nothing is launched for mirrorlab until you choose/);
+    assert.equal(une(section, "avertissement").role, "alert");
+    assert.match(une(section, "attendu").textContent, /Continue without a sandbox on box, or choose another station/);
+    assert.deepEqual(section.dessous("button").map((b) => b.textContent), [AUTRE_STATION, CONTINUER_SANS_BAC]);
+    assert.ok(bouton(section, AUTRE_STATION).className.split(" ").includes("recommande"));
+    bouton(section, CONTINUER_SANS_BAC).click();
+    assert.deepEqual([continues, autres], [1, 0]);
+    bouton(section, AUTRE_STATION).click();
+    assert.deepEqual([continues, autres], [1, 1]);
+  });
+
+  test("sans décision attendue, ni avertissement ni ces boutons", () => {
+    const { section } = pose(lu({ ...SANS_BAC, decisionAttendue: false }));
+    assert.equal(classe(section ?? assert.fail(), "avertissement").length, 0);
+    assert.equal((section as Faux).dessous("button").length, 0);
+  });
+
+  test("sur la page : « continue without sandbox » part au process principal, « choose another station » ouvre le choix des machines", async () => {
+    const { jouee, bloc, parcours } = await laPage(SANS_BAC);
+    assert.equal(classe(parcours() ?? assert.fail(), "avertissement").length, 1);
+    bouton(bloc, CONTINUER_SANS_BAC).click();
+    await repos();
+    assert.deepEqual(jouee.dernier("continuerSansBacASable"), ["mirrorlab"]);
+    bouton(bloc, AUTRE_STATION).click();
+    await repos();
+    assert.equal(bloc.dessous("button").some((b) => b.textContent === "cancel"), true);
+  });
+
+  test("la station publie la décision prise : l'avertissement s'en va et le parcours passe à la préparation", async () => {
+    const { jouee, parcours } = await laPage(SANS_BAC);
+    jouee.dire("surProjetsDesStations", vuAvec(EN_COURS));
+    await repos();
+    const section = parcours() ?? assert.fail();
+    assert.equal(classe(section, "avertissement").length, 0);
+    assert.equal(une(section, "courante").dataset.etape, "preparation");
+  });
+});
 
 describe("le parcours, sur la page du projet", () => {
   test("il remplace le vide sous la ligne de ses stations : ses étapes, et le ticket de préparation s'ouvre sur GitHub", async () => {

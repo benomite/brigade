@@ -863,6 +863,10 @@ ipcMain.handle("confierAUneStation", (_, saisie: unknown) => projetsDesStations.
 ipcMain.handle("retirerDUneStation", (_, nom: unknown) => projetsDesStations.retirer(nom));
 // La page d'un projet déménage sa cuisine, d'un geste, vers une autre station appairée — cet
 // ordinateur, sa box, une autre : l'opération du runtime l'écrit, ou dit en une phrase pourquoi non.
+// « Continue without sandbox » (#1113) : le runtime n'offre pas encore de commande qui note la décision du chef
+// (`accepterSansBacASable`, runtime/src/onboarding/attente.ts, n'est qu'une fonction) ; l'app n'en écrit pas une
+// seconde. Le refus se dit en une ligne, et rien n'est changé.
+ipcMain.handle("continuerSansBacASable", async (): Promise<{ refus: string }> => ({ refus: "the runtime has no command yet to record this choice: nothing was changed" }));
 ipcMain.handle("demenagerLaCuisine", (_, nom: unknown, vers: unknown) => projetsDesStations.demenager(nom, vers));
 // La page GitHub où autoriser brigade sur un dépôt : seulement une de celles qu'une station a publiées.
 ipcMain.handle("autoriserSurGitHub", (_, url: unknown) => {

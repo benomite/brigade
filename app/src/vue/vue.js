@@ -5114,12 +5114,27 @@ function poserLeDemenagement(projet, ou, enCours, lues) {
   choixDuDemenagement.replaceChildren(titre, lesMachines, prix);
   choixDuDemenagement.hidden = false;
 }
-ouvrirLeDemenagement.addEventListener("click", () => {
+function ouvrirLeChoixDeMachine() {
   if (courant === undefined) return;
   demenagement = { projet: courant.nom, part: false };
   demenagementDitPour = { projet: "", dit: "", refus: false, detail: "" };
   poserStationsDuProjet();
-});
+}
+ouvrirLeDemenagement.addEventListener("click", ouvrirLeChoixDeMachine);
+// « Continue without sandbox » : le chef décide pour la station du projet. Ce que le runtime a répondu se dit sous
+// la ligne ; l'avertissement, lui, s'en va quand la station publie l'état suivant.
+/** @param {string} nom */
+async function continuerSansBac(nom) {
+  demenagementDitPour = { projet: nom, dit: "telling the station to continue without a sandbox…", refus: false, detail: "" };
+  poserStationsDuProjet();
+  try {
+    const rendu = await brigade.continuerSansBacASable(nom);
+    demenagementDitPour = "fait" in rendu ? { projet: nom, dit: rendu.fait, refus: false, detail: "" } : { projet: nom, dit: rendu.refus, refus: true, detail: rendu.detail ?? "" };
+  } catch (erreur) {
+    demenagementDitPour = { projet: nom, dit: "the choice could not be recorded: nothing was changed", refus: true, detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  poserStationsDuProjet();
+}
 function fermerDemenagement() {
   demenagement = undefined;
   choixDuDemenagement.hidden = true;
@@ -5210,6 +5225,8 @@ function poserLeParcours(nom, onboarding) {
         onboarding,
         maintenant: Date.now(),
         ouvrir: (url) => void brigade.autoriserSurGitHub(url),
+        continuerSansBac: () => void continuerSansBac(nom),
+        autreStation: ouvrirLeChoixDeMachine,
         ecarter: () => {
           parcoursRanges.add(nom);
           pretMontre = undefined;
