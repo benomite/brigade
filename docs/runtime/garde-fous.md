@@ -31,6 +31,33 @@ seconde. L'état montre `caps per ticket`, `kitchen`, `breaker`, `cooks running`
 
 Ce que `guardrails` écrit — état, `stop`, `resume`, refus, erreurs — est **en anglais** (mots de `docs/glossary.md`) : `kitchen already stopped since …`, `nothing to resume: the kitchen is open and the breaker closed`. `reprendre` répond encore, en disant `resume` (jusqu'au 2027-01-14).
 
+### La pause du renommage du code
+
+Avant de partir, un renommage du code demande ton accord par **une carte de ta file**
+(`runtime/src/pause/pause.ts`, `demanderPause`) : combien de temps la cuisine sera en pause, et
+quels tickets en vol elle retiendra — pris (son cook finit son travail, puis sa livraison attend)
+ou en pass (son merge attend).
+
+```bash
+npm --prefix runtime run guardrails -- pause yes   # « oui » : la pause tient
+npm --prefix runtime run guardrails -- pause no    # « non » : la carte quitte la file ; la pause acceptée, elle est levée
+```
+
+- **Sans ton « oui », rien ne change** : la pass merge, les stations prennent.
+- **Après ton « oui »**, et jusqu'à la fin de la pause : la pass juge encore, mais une livraison
+  verte **attend** au lieu d'être mergée (`pass.waiting`, motif `paused`) ; `rail merge` est
+  refusé ; les stations ne prennent plus de ticket (`station.held`, motif `paused`). Seul le ticket
+  du renommage, s'il en a un, part en cuisine et se merge. Un merge déjà parti vers GitHub avant
+  le « oui » n'est pas rattrapé.
+- **La file le dit en une ligne**, sous la tête du bloc `awaiting`, sans compter pour une
+  décision : `paused for the code rename — for …, expected about … min — finishing their work: #12 · held: #14`.
+  `status` dit `kitchen PAUSED for the code rename`.
+- **La pause finit** quand le renommage la lève (`leverPause`), ou sur ton « non ». La cuisine
+  repart seule : chaque livraison retenue est reprise par la pass, rejugée si la base a bougé.
+
+Au journal, hors ticket : `pause.requested` (`ticket` du renommage ou nul, `minutes`, `inFlight`),
+`pause.agreed`, `pause.declined`, `pause.released` (`why`) — chacun nomme sa demande (`request`).
+
 **Les gestes que le runtime te cite** (la file, `status`, les refus) sont écrits
 sous la forme qui se tape là où tu les lis : sur la box, `brigade <projet> <commande> [arguments…]`,
 avec le nom du projet du service (`BRIGADE_PROJECT`) — jamais `run <commande>`, que le geste de box

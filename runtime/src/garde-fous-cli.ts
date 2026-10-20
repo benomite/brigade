@@ -2,6 +2,8 @@
 //   npm --prefix runtime run guardrails              l'état : plafonds, cooks, disjoncteur, derniers arrêts
 //   npm --prefix runtime run guardrails -- stop      arrête tous les cooks ; plus aucun n'est lancé
 //   npm --prefix runtime run guardrails -- resume    rouvre la cuisine et referme le disjoncteur
+//   npm --prefix runtime run guardrails -- pause yes  « oui » à la carte du renommage du code : la pause tient
+//   npm --prefix runtime run guardrails -- pause no   « non » : la carte quitte la file — ou, la pause acceptée, elle est levée
 // Les anciens mots (`garde-fous`, `reprendre`) répondent encore, en disant le
 // nouveau (`commandes.ts`).
 // Une commande s'écrit dans le journal ; le runtime qui tourne la voit dans la
@@ -12,12 +14,13 @@ import { enAnglais } from "./commandes.ts";
 import type { Plafonds } from "./events/guardrails.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
+import { EN_PAUSE_POUR_LE_RENOMMAGE, NON, OUI, pauseEnCours, repondre, type Reponse } from "./pause/pause.ts";
 import { arretsRecents, cooksEnCours, etatDesGardeFous, type Arret } from "./projections/guardrails.ts";
 import { alerteDeSession } from "./projections/renewal.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import { stationsDeconnectees } from "./projections/stations.ts";
 
-const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run guardrails -- [stop | resume]";
+const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run guardrails -- [stop | resume | pause yes | pause no]";
 const AUTEUR = "chef";
 const ARRETS_MONTRES = 10;
 
@@ -69,7 +72,16 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     const { base } = journal;
     const etat = etatDesGardeFous(base);
     ligne("caps per ticket", etat.limits ? decrirePlafonds(etat.limits) : "unknown — the runtime has not started with its guardrails yet");
-    ligne("kitchen", etat.stoppedAt === null ? "open" : `STOPPED by the chef on ${etat.stoppedAt} — \`resume\` to restart`);
+    const pause = pauseEnCours(base);
+    ligne(
+      "kitchen",
+      etat.stoppedAt !== null
+        ? `STOPPED by the chef on ${etat.stoppedAt} — \`resume\` to restart`
+        : pause?.agreedAt
+          ? `PAUSED for the code rename since ${pause.agreedAt} — no other merge, no new cook; \`pause no\` to end it now`
+          : "open",
+    );
+    if (pause !== null && pause.agreedAt === null) ligne("code rename", `asks to pause the kitchen for about ${pause.minutes} min since ${pause.since} — \`pause yes\` to agree, \`pause no\` to decline`);
     ligne(
       "breaker",
       etat.breakerOpenedAt === null
@@ -123,10 +135,32 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     });
   }
 
+  // Le « oui » ou le « non » du chef à la pause du renommage du code
+  // (pause/pause.ts), et ce qu'il en est.
+  function repondreALaPause(journal: Journal, reponse: Reponse): string {
+    const projet = journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
+    if (!projet) echouer(1, "empty log: the runtime has never started on this state directory");
+    const { suite, pause } = repondre(journal, projet, reponse, AUTEUR);
+    const absent = sessionEnCours(journal.base) ? "" : " (no runtime is running: the answer will apply at its next start)";
+    switch (suite) {
+      case "rien":
+        echouer(1, "no code rename asks for a pause: nothing is written");
+      case "acceptee":
+        return `“yes”: ${EN_PAUSE_POUR_LE_RENOMMAGE} — no other merge, no new cook, for about ${pause?.minutes ?? "?"} min; the cooks in flight finish their work, their deliveries wait${absent}`;
+      case "refusee":
+        return `“no”: the code rename's card leaves the queue — nothing changed in the kitchen`;
+      case "levee":
+        return `“no”: the pause for the code rename is over — the kitchen goes on by itself, held deliveries are taken up again${absent}`;
+      case "deja":
+        return `already ${EN_PAUSE_POUR_LE_RENOMMAGE} since ${pause?.agreedAt ?? "?"}: nothing is written`;
+    }
+  }
+
   const repertoireEtat = env.BRIGADE_STATE_DIR;
   if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR is not set\n${USAGE}`);
-  const [commande] = args;
-  if (args.length > 1 || (commande !== undefined && commande !== "stop" && commande !== "resume")) echouer(2, USAGE);
+  const [commande, reponse] = args;
+  const enPause = commande === "pause";
+  if (enPause ? args.length !== 2 || (reponse !== OUI && reponse !== NON) : args.length > 1 || (commande !== undefined && commande !== "stop" && commande !== "resume")) echouer(2, USAGE);
   // Une commande ouvre le journal en écriture : sans ce contrôle, elle en
   // créerait un là où il n'y en a pas.
   if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `no log in ${repertoireEtat}`);
@@ -134,7 +168,8 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
   const journal = ouvrirJournal(repertoireEtat, { lectureSeule: commande === undefined });
   try {
     if (commande === undefined) montrer(journal);
-    else dire(`brigade : ${commander(journal, commande)}`);
+    else if (commande === "pause") dire(`brigade : ${repondreALaPause(journal, reponse as Reponse)}`);
+    else dire(`brigade : ${commander(journal, commande as "stop" | "resume")}`);
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant les garde-fous.

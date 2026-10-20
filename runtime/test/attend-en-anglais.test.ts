@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { decrireAttentes, type Attente } from "../src/attend.ts";
+import { decrireAttentes, REFUSER_LA_PAUSE, type Attente } from "../src/attend.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { motsFrancais, motsFrancaisDans, sansMotFrancais } from "./aides/glossaire.ts";
@@ -195,6 +195,10 @@ const EXEMPLES = {
     { ...horsTicket, quoi: "disjoncteur", echecs: [{ run: "45-aa", ticket: 45, at: DEPUIS, code: 1, turns: 4, tokens: 1000 }], seuil: null },
     { ...horsTicket, quoi: "disjoncteur", echecs: [], seuil: 3 },
   ],
+  pause: [
+    { ...horsTicket, quoi: "pause", minutes: 45, enVol: [{ ticket: 12, state: "taken" }, { ticket: 14, state: "pass" }], renommage: 9 },
+    { ...horsTicket, quoi: "pause", minutes: 30, enVol: [], renommage: null },
+  ],
 } satisfies { [Q in Attente["quoi"]]: Array<Extract<Attente, { quoi: Q }>> };
 
 const TOUTES: Attente[] = Object.values(EXEMPLES).flat();
@@ -220,7 +224,23 @@ test("sur un état qui porte chaque sorte d'attente, le bloc `awaiting` n'a aucu
   sansMotFrancais(vide);
   // Les entrées hors ticket se nomment en anglais.
   const noms = decrireAttentes(TOUTES, () => "3 d").flatMap((ligne) => /^ {2}(\S+) {2}for /.exec(ligne)?.slice(1) ?? []);
-  assert.deepEqual([...new Set(noms.filter((nom) => !nom.startsWith("#")))], ["box/claude", "mac/claude", "session", "token", "closing", "base", "setup", "aside", "breaker"]);
+  assert.deepEqual([...new Set(noms.filter((nom) => !nom.startsWith("#")))], ["box/claude", "mac/claude", "session", "token", "closing", "base", "setup", "aside", "breaker", "pause"]);
+});
+
+test("la pause du renommage acceptée se dit en anglais, sur une seule ligne sous la tête, qui ne compte pas pour une décision", () => {
+  const pause = { since: DEPUIS, minutes: 45, renommage: 9, finissent: [12], retenus: [14, 15] };
+  const seule = decrireAttentes([], () => "3 min", null, null, pause);
+  assert.deepEqual(seule, [
+    "awaiting   nothing awaits the chef",
+    `  paused for the code rename — for 3 min, expected about 45 min — finishing their work: #12 · held: #14, #15 — to end it now: \`${REFUSER_LA_PAUSE}\``,
+    "end awaiting",
+    "",
+  ]);
+  sansMotFrancais(seule);
+  const avec = decrireAttentes(TOUTES.slice(0, 1), () => "3 min", null, null, { ...pause, finissent: [], retenus: [] });
+  assert.equal(avec[0], "awaiting   1 decision awaits the chef — for 3 min");
+  assert.match(avec[1] ?? "", /^ {2}paused for the code rename — .* finishing their work: none · held: none — /);
+  sansMotFrancais(avec);
 });
 
 test("le test de glossaire cite le mot français et sa ligne, et ne lit pas ce qui est entre backticks", () => {
