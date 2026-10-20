@@ -1,175 +1,179 @@
-# brigade — travail multi-agents orchestré
+# brigade — orchestrated multi-agent work
 
-Quatre rôles, quatre sessions indépendantes, un backlog GitHub. Le **PO** (`/brigade:po`) — que la V2 appelle **le second** : même rôle, même commande — alimente le backlog en issues produit priorisées ; le **Designer** (`/brigade:designer`) traite l'interface ; l'**orchestrateur** (`/brigade:manager`) qualifie, spawne et intègre ; les **dev-teammates** (`/brigade:dev`) implémentent. Isolation : **un worktree git par issue**, que le dev ou le designer crée et gère lui-même, hors du répertoire racine du dépôt.
+Four roles, four independent sessions, one GitHub backlog. The **PO** (`/brigade:po`) — which V2 calls **the second**: same role, same command — feeds the backlog with prioritized product issues; the **Designer** (`/brigade:designer`) handles the interface; the **orchestrator** (`/brigade:manager`) qualifies, spawns and integrates; the **dev-teammates** (`/brigade:dev`) implement. Isolation: **one git worktree per issue**, which the dev or the designer creates and manages themself, outside the repo's root directory.
 
-> Toute la coordination vit dans des **artefacts durables** — issues, labels, branches, PR, issue de roadmap — jamais dans la mémoire d'une session. C'est ce qui rend le système résilient : même si l'orchestrateur meurt en emportant ses teammates, le travail commité et poussé survit, et une nouvelle session reconstruit l'état.
+> All coordination lives in **durable artifacts** — issues, labels, branches, PRs, the roadmap issue — never in a session's memory. That is what makes the system resilient: even if the orchestrator dies and takes its teammates with it, the committed and pushed work survives, and a new session rebuilds the state.
 
-Le plugin ne sait rien de votre projet. Ce qu'il ne peut pas déduire, il le lit dans un **bloc de bindings** que `/brigade:init` écrit dans votre `CLAUDE.md` ; ce qui est procédural vit dans **deux scripts** dont le plugin ne connaît que le contrat. Voir « Ce que le plugin attend du projet ».
+The plugin knows nothing about your project. What it cannot deduce, it reads in a **bindings block** that `/brigade:init` writes into your `CLAUDE.md`; what is procedural lives in **two scripts** of which the plugin knows only the contract. See "What the plugin expects from the project".
+
+## Language
+
+The code, the docs and the issues are in English. The dialogue with the agents stays in French. `docs/glossary.md` gives the English word for each object of the product.
 
 ## Installation
 
 ```bash
 claude plugin marketplace add benomite/brigade
-cd <votre projet> && claude plugin install brigade@brigade --scope project
+cd <your project> && claude plugin install brigade@brigade --scope project
 ```
 
-Le dépôt est **public** : `marketplace add` le clone en HTTPS, sans authentification ni clé SSH. Le clone atterrit dans `~/.claude/plugins/marketplaces/brigade/` — c'est **lui** que `plugin install` et `plugin update` lisent, jamais le dépôt distant directement. Retenez son existence : son état face à `origin` est l'une des trois versions que les rôles comparent, et un clone périmé est ce qui fait passer pour « à jour » une installation qui ne l'est pas.
+The repo is **public**: `marketplace add` clones it over HTTPS, with no authentication or SSH key. The clone lands in `~/.claude/plugins/marketplaces/brigade/` — **that** is what `plugin install` and `plugin update` read, never the remote repo directly. Remember it exists: its state against `origin` is one of the three versions the roles compare, and a stale clone is what makes an out-of-date installation pass for "up to date".
 
-Déclarer le marketplace avec `--scope project` l'écrit dans le `.claude/settings.json` du projet, à côté de `enabledPlugins` et du réglage d'équipe : le dépôt porte alors tout ce qu'il faut, et un `git clone` sur une autre machine amène la déclaration complète.
+Declaring the marketplace with `--scope project` writes it into the project's `.claude/settings.json`, next to `enabledPlugins` and the team setting: the repo then carries everything needed, and a `git clone` on another machine brings the complete declaration.
 
-Puis, dans une session ouverte sur le projet : **`/brigade:init`**. La commande déduit ce qu'elle peut (stack, gestionnaire de paquets, commandes de test et de build, zones de fichiers), demande le reste en une passe, crée les labels et l'issue de roadmap, écrit le bloc de bindings et les deux scripts, **puis prouve leur contrat** — elle refuse de déclarer le projet initialisé si les gates ou le setup de worktree échouent. Elle est rejouable : sur un projet déjà amorcé, elle ne fait que l'écart.
+Then, in a session opened on the project: **`/brigade:init`**. The command deduces what it can (stack, package manager, test and build commands, file zones), asks for the rest in one pass, creates the labels and the roadmap issue, writes the bindings block and the two scripts, **then proves their contract** — it refuses to declare the project initialized if the gates or the worktree setup fail. It can be replayed: on an already bootstrapped project, it only does the difference.
 
-### L'app du Mac
+### The Mac app
 
-Pour suivre vos projets depuis un Mac Apple Silicon, l'app s'installe depuis le `.dmg` publié sur la page des releases, sans clone ni Node : voir [`docs/installation-mac.md`](docs/installation-mac.md).
+To follow your projects from an Apple Silicon Mac, the app installs from the `.dmg` published on the releases page, with no clone and no Node: see [`docs/installation-mac.md`](docs/installation-mac.md).
 
-### Faire descendre une mise à jour du plugin
+### Rolling out a plugin update
 
-Rien ne se propage tout seul, et c'est le piège le plus coûteux : `claude plugin update` compare la **version déclarée**. À numéro égal il ne recopie rien, **même depuis un marketplace `directory`**, et `marketplace update` n'y change rien. Un projet peut donc tourner des jours sur un cache figé.
+Nothing propagates by itself, and this is the costliest trap: `claude plugin update` compares the **declared version**. With an equal number it copies nothing, **even from a `directory` marketplace**, and `marketplace update` changes nothing about it. A project can therefore run for days on a frozen cache.
 
 ```bash
-# 1. bumper "version" dans .claude-plugin/plugin.json du plugin, puis
+# 1. bump "version" in the plugin's .claude-plugin/plugin.json, then
 claude plugin marketplace update brigade
-cd <votre projet> && claude plugin update brigade@brigade --scope project
-# 2. si le projet a un miroir Codex :
+cd <your project> && claude plugin update brigade@brigade --scope project
+# 2. if the project has a Codex mirror:
 #    /brigade:sync
 ```
 
-**Les rôles le détectent désormais eux-mêmes.** `/brigade:manager` compare, à son premier point de situation, la version installée sur le projet, celle du marketplace cloné sur le poste et l'état de ce clone face au dépôt distant ; `/brigade:init` fait le même contrôle avant d'écrire quoi que ce soit. Il fallait les trois valeurs : un clone périmé fait passer pour « à jour » une installation qui a deux versions de retard. Ce qui a rendu ce contrôle nécessaire : sur un même poste, le même jour, trois projets tournaient en `0.7.0`, `0.8.0` et `0.9.0`, et c'est le plus ancien qui a produit la panne du dev-employé-permanent — deux versions après le correctif qui l'aurait évitée.
+**The roles now detect it themselves.** At its first status report, `/brigade:manager` compares the version installed on the project, the one of the marketplace cloned on the workstation, and the state of that clone against the remote repo; `/brigade:init` runs the same check before writing anything. All three values were needed: a stale clone makes an installation two versions behind pass for "up to date". What made this check necessary: on one workstation, the same day, three projects ran `0.7.0`, `0.8.0` and `0.9.0`, and the oldest one produced the permanent-dev-employee failure — two versions after the fix that would have prevented it.
 
-Le contrôle **signale et s'arrête ; il ne met pas à jour tout seul**, pour deux raisons. Les rôles sont chargés au démarrage de la session : jouer la mise à jour au milieu d'une conversation ne change rien à celle-ci, seulement à la suivante — c'est le genre de fausse victoire qui fait croire un correctif descendu. Et un lot de devs en vol ne doit pas voir ses règles changer en cours de route. La mise à jour se fait donc **à froid**, puis on redémarre la session.
+The check **reports and stops; it does not update by itself**, for two reasons. Roles are loaded at session start: playing the update in the middle of a conversation changes nothing for that one, only for the next — the kind of false victory that makes a fix look rolled out. And a batch of devs in flight must not see its rules change along the way. The update is therefore done **cold**, then the session is restarted.
 
-### Une release, une commande : `scripts/update-partout.sh`
+### One release, one command: `scripts/update-partout.sh`
 
-Faire le tour des projets à la main ne tient pas : `claude plugin update` prend **un seul scope à la fois**, n'a pas de `--all`, et son scope par défaut est `user` — donc oublier `--scope` sur un projet installé en `project` ne met rien à jour et ne dit rien. Pire, `claude plugin list` affiche toutes les installations du poste **sans dire à quel projet chacune appartient** : trois `brigade@brigade` en `0.7.0`, `0.8.0` et `0.9.0` s'y ressemblent, et rien n'indique laquelle est celle du projet ouvert.
+Going around the projects by hand does not hold up: `claude plugin update` takes **one scope at a time**, has no `--all`, and its default scope is `user` — so forgetting `--scope` on a project installed in `project` updates nothing and says nothing. Worse, `claude plugin list` shows every installation of the workstation **without saying which project each belongs to**: three `brigade@brigade` at `0.7.0`, `0.8.0` and `0.9.0` look alike, and nothing says which one is the open project's.
 
 ```bash
-scripts/update-partout.sh    # depuis n'importe où, une fois par release
+scripts/update-partout.sh    # from anywhere, once per release
 ```
 
-Le script prend ses ordres dans `~/.claude/plugins/installed_plugins.json`, le seul fichier qui porte le couple (projet, scope) : il met à jour le marketplace, puis chaque installation là où elle vit, saute celles déjà à la bonne version, et signale les projets disparus. Aucun projet oublié parce que personne ne s'en souvenait.
+The script takes its orders from `~/.claude/plugins/installed_plugins.json`, the only file that carries the (project, scope) pair: it updates the marketplace, then each installation where it lives, skips those already at the right version, and reports vanished projects. No project forgotten because nobody remembered it.
 
-**L'alternative, si ce tour de piste vous pèse : installer en scope `user`** (`claude plugin update brigade@brigade` sans `--scope`, une seule fois pour tout le poste). Le prix est celui que le scope `project` achetait : le dépôt ne porte plus son installation, donc un `git clone` sur une autre machine — ou un collègue — n'amène plus le plugin, seulement sa déclaration. Arbitrage réel entre « une commande par release » et « le dépôt est autonome » ; le scope `project` reste le défaut recommandé, le script en absorbe le coût.
+**The alternative, if this round of the projects weighs on you: install in `user` scope** (`claude plugin update brigade@brigade` with no `--scope`, once for the whole workstation). The price is what the `project` scope bought: the repo no longer carries its installation, so a `git clone` on another machine — or a colleague — no longer brings the plugin, only its declaration. A real trade-off between "one command per release" and "the repo is self-contained"; the `project` scope stays the recommended default, the script absorbs its cost.
 
-Dans tous les cas, **redémarrer la session** : le CLI le dit lui-même, `restart required to apply`.
+In every case, **restart the session**: the CLI says so itself, `restart required to apply`.
 
-## Prérequis et limites
+## Prerequisites and limits
 
-- **Agent teams** (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) — **prérequis dur de l'orchestrateur**, expérimental et désactivé par défaut. L'orchestrateur spawne ses devs en donnant un `name` à l'outil `Agent`, et ce paramètre n'existe pas sans ce réglage : sans lui, aucun teammate n'est créé, aucun signal ne revient. `/brigade:init` le pose dans le `.claude/settings.json` **du projet** — précédence supérieure au settings utilisateur, et versionné, donc le prérequis suit le dépôt au lieu de dépendre du poste. `/brigade:manager` le vérifie avant son premier spawn et s'arrête net s'il manque.
-  Ne le vérifiez pas avec `echo $CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` : le harness exporte les `env` du settings dans le process, la variable paraît donc toujours active. Lisez les fichiers, et respectez leur précédence — `managed > local > project > user`, un export shell en dernier.
-- **Session interactive obligatoire** pour l'orchestrateur : en mode non interactif (`-p`, SDK), aucun teammate n'est spawné, réglage actif ou pas. Il n'y a donc pas d'orchestration en cron ni en CI. Les autres rôles, eux, s'utilisent normalement.
-- **`/resume` ne restaure pas les teammates.** C'est ce qui rend la reprise après crash de l'orchestrateur nécessaire, et non défensive : au redémarrage, il reconstruit l'état depuis les artefacts et re-spawne les devs inachevés.
-  Un teammate n'est pourtant **pas** un thread de l'orchestrateur : c'est un process `claude` séparé, avec son propre groupe de process et son propre `--agent-id`. C'est son **cycle de vie** qui est lié au parent, pas son espace mémoire — et aucun mode d'exécution n'y change rien. Mesuré le 2026-10-05 : avec `teammateMode: "tmux"` et tmux installé, **aucune session tmux n'est créée** (2 min 30 de scrutation), et le teammate meurt avec son parent exactement comme avant. Inutile de chercher la survie de ce côté — c'est la reprise depuis les artefacts qui la fournit.
-- **Pas d'équipe imbriquée** : un teammate ne peut pas spawner de teammate. La règle « seul l'orchestrateur spawne » est une contrainte de plateforme avant d'être un choix de gouvernance.
-- **Coût.** Une équipe d'agents consomme plusieurs fois une session simple, et les tokens de raisonnement sont facturés en sortie. Deux réglages et une règle décident de l'ordre de grandeur :
-  - `subagentPromptCacheTtl: "1h"` — les requêtes d'un teammate sortent du bucket de cache de la conversation principale et retombent à 5 minutes de TTL. Un dev attend beaucoup (tests, CI, réponse de l'orchestrateur), donc son préfixe expire entre deux tours et se réécrit. `/brigade:init` pose le réglage dans le `.claude/settings.json` du projet ; les écritures 1 h sont plus chères à l'unité, et rentables dès la dizaine de tours.
-  - `model` et `effort` **au spawn**, par le choix de l'agent — l'outil `Agent` n'a pas de paramètre `effort`, il vient du frontmatter de l'agent spawné. Le plugin expose donc le même dev sous trois calibrages : `brigade:dev-teammate-low` (`sonnet`, `low`) pour le mécanique, `brigade:dev-teammate-medium` pour le `fix`/`tech` non mécanique, `brigade:dev-teammate` (défauts de session) pour les features et le cœur du produit. Le défaut de session est un plafond, pas un point de départ : sans arbitrage explicite, tout un lot hérite du niveau du rôle le plus exigeant.
-  - **Un teammate = une issue.** C'est la règle qui pèse le plus lourd, et la seule contre-intuitive : voir la panne du dev-employé-permanent ci-dessous.
+- **Agent teams** (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) — **a hard prerequisite of the orchestrator**, experimental and off by default. The orchestrator spawns its devs by giving a `name` to the `Agent` tool, and that parameter does not exist without this setting: without it, no teammate is created, no signal comes back. `/brigade:init` sets it in the **project's** `.claude/settings.json` — higher precedence than the user settings, and versioned, so the prerequisite follows the repo instead of depending on the workstation. `/brigade:manager` checks it before its first spawn and stops dead if it is missing.
+  Do not check it with `echo $CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`: the harness exports the settings' `env` into the process, so the variable always looks active. Read the files, and respect their precedence — `managed > local > project > user`, a shell export last.
+- **Interactive session required** for the orchestrator: in non-interactive mode (`-p`, SDK), no teammate is spawned, setting on or not. So there is no orchestration in cron or in CI. The other roles are used normally.
+- **`/resume` does not restore teammates.** That is what makes recovery after an orchestrator crash necessary rather than defensive: on restart, it rebuilds the state from the artifacts and re-spawns the unfinished devs.
+  A teammate is nonetheless **not** a thread of the orchestrator: it is a separate `claude` process, with its own process group and its own `--agent-id`. It is its **lifecycle** that is tied to the parent, not its memory space — and no execution mode changes that. Measured on 2026-10-05: with `teammateMode: "tmux"` and tmux installed, **no tmux session is created** (2 min 30 of polling), and the teammate dies with its parent exactly as before. No use looking for survival on that side — it is recovery from the artifacts that provides it.
+- **No nested teams**: a teammate cannot spawn a teammate. The rule "only the orchestrator spawns" is a platform constraint before it is a governance choice.
+- **Cost.** A team of agents consumes several times a simple session, and reasoning tokens are billed as output. Two settings and one rule decide the order of magnitude:
+  - `subagentPromptCacheTtl: "1h"` — a teammate's requests leave the main conversation's cache bucket and fall back to a 5-minute TTL. A dev waits a lot (tests, CI, the orchestrator's reply), so its prefix expires between two turns and is rewritten. `/brigade:init` sets the setting in the project's `.claude/settings.json`; 1 h writes cost more each, and pay off from about ten turns.
+  - `model` and `effort` **at spawn**, through the choice of agent — the `Agent` tool has no `effort` parameter, it comes from the frontmatter of the spawned agent. The plugin therefore exposes the same dev under three calibrations: `brigade:dev-teammate-low` (`sonnet`, `low`) for mechanical work, `brigade:dev-teammate-medium` for non-mechanical `fix`/`tech`, `brigade:dev-teammate` (session defaults) for features and the core of the product. The session default is a ceiling, not a starting point: without an explicit decision, a whole batch inherits the level of the most demanding role.
+  - **One teammate = one issue.** This is the rule that weighs the most, and the only counter-intuitive one: see the permanent-dev-employee failure below.
 
-## Rôles
+## Roles
 
-| Rôle | Activation | Fait | Ne fait PAS |
+| Role | Activation | Does | Does NOT do |
 |---|---|---|---|
-| **PO** — « le second » | `/brigade:po` (une session) | **Lit la file du projet à l'ouverture** (ce qui attend le chef, et le geste qui le débloque), brainstorme le produit, digère les retours de tests utilisateurs, **écrit les issues `product`** (Contexte + Critères d'acceptation observables), **priorise** (labels `prio:`), tient la doc produit | N'écrit aucun code applicatif (sauf copy/wording UI), ne touche pas à la roadmap, ne qualifie pas techniquement, ne merge pas, ne spawne pas |
-| **Designer** | `/brigade:designer` (une session) | Traite l'**interface** : boucle avec l'outil de design déclaré, implémente la **peau** (CSS, composants de rendu, layout, état d'UI local), **fait tester** activement à l'humain, livre 1 PR | Ne touche pas à la logique métier ni à l'API (→ dev), ne merge pas (→ Manager), ne touche pas à la roadmap, n'est jamais spawné par le Manager |
-| **Orchestrateur** | `/brigade:manager` (une session) | Qualifie et priorise (**applique l'ordre `prio:` du PO**), **writer unique de la roadmap**, **spawne les dev-teammates**, supervise (idle + `SendMessage`), relaie les questions de spec, **intègre full-auto** (gates → merge → push → close) — PR des devs **et** du Designer | Ne code aucune feature lui-même ; **ne spawne jamais de dev sur une issue `design`** |
-| **Dev-teammate** | `/brigade:dev <n°>` | Implémente UNE issue dans SON worktree, communique par signaux normalisés, ouvre 1 PR | Ne touche jamais la branche d'intégration ni la roadmap, ne merge pas, n'appelle jamais `AskUserQuestion` |
+| **PO** — "the second" | `/brigade:po` (one session) | **Reads the project's queue on opening** (what awaits the chef, and the action that unblocks it), brainstorms the product, digests user-test feedback, **writes the `product` issues** (Context + observable Acceptance criteria), **prioritizes** (`prio:` labels), keeps the product doc | Writes no application code (except UI copy/wording), does not touch the roadmap, does not qualify technically, does not merge, does not spawn |
+| **Designer** | `/brigade:designer` (one session) | Handles the **interface**: loops with the declared design tool, implements the **skin** (CSS, rendering components, layout, local UI state), actively **has the human test**, delivers 1 PR | Does not touch business logic or the API (→ dev), does not merge (→ Manager), does not touch the roadmap, is never spawned by the Manager |
+| **Orchestrator** | `/brigade:manager` (one session) | Qualifies and prioritizes (**applies the PO's `prio:` order**), **sole writer of the roadmap**, **spawns the dev-teammates**, supervises (idle + `SendMessage`), relays spec questions, **integrates full-auto** (gates → merge → push → close) — PRs from devs **and** from the Designer | Codes no feature itself; **never spawns a dev on a `design` issue** |
+| **Dev-teammate** | `/brigade:dev <n>` | Implements ONE issue in ITS worktree, communicates through normalized signals, opens 1 PR | Never touches the integration branch or the roadmap, does not merge, never calls `AskUserQuestion` |
 
-**PO et « second » : un seul rôle, deux noms.** La V1 dit « PO » ; la V2 — l'onglet de l'app, [`docs/app.md`](docs/app.md), [`docs/runtime/`](docs/runtime/README.md), la spec — dit « le second ». C'est la même session, lancée par la même commande, `/brigade:po` : il n'y a rien à quitter pour « passer au second », et aucune commande nouvelle à apprendre. Ce que la V2 a changé tient en une ligne : ce n'est pas un rôle neuf, c'est le même, qui lit désormais la file du projet à l'ouverture. Le Manager n'est pas dans ce cas — en V1 une session que vous pilotez, en V2 un process du runtime : là, ce sont bien deux choses.
+**PO and "second": one role, two names.** V1 says "PO"; V2 — the app's tab, [`docs/app.md`](docs/app.md), [`docs/runtime/`](docs/runtime/README.md), the spec — says "the second". It is the same session, launched by the same command, `/brigade:po`: there is nothing to leave to "switch to the second", and no new command to learn. What V2 changed fits in one line: it is not a new role, it is the same one, which now reads the project's queue on opening. The Manager is not in this case — in V1 a session you drive, in V2 a process of the runtime: there, they really are two things.
 
-**La cuisine et l'app : deux choses.** Ce qui travaille est sur la box, projet par projet, et tourne sans l'app et sans vous : c'est **la cuisine** du projet, que `garde-fous stop` arrête — celle de ce projet, et elle seule.
-L'app est la fenêtre du Mac : elle lit, elle affiche, elle écrit des commandes dans un terminal — la fermer n'arrête rien sur la box. Son écran d'ensemble s'appelle **Tous les projets** ; `en cuisine`, lui, est l'étape d'un ticket qu'un cook tient ([`docs/app.md`](docs/app.md), « L'app n'est pas la cuisine »).
+**The kitchen and the app: two things.** What works lives on the box, project by project, and runs without the app and without you: it is the project's **kitchen**, which `guardrails stop` stops — that project's, and only that one.
+The app is the Mac's window: it reads, it displays, it writes commands into a terminal — closing it stops nothing on the box. Its overview screen is called **All projects**; `taken`, for its part, is the step of a ticket that a cook holds ([`docs/app.md`](docs/app.md), "The app is not the kitchen").
 
-Le flux va dans un sens : **PO → backlog → Manager → devs/designer → merge**. Le PO alimente l'amont (le « quoi » produit) ; le Designer prend les issues `design` en parallèle des devs ; l'orchestrateur n'est pas un process figé, il **draine en boucle event-driven** — les notifications *idle* et les signaux des devs le réveillent — tant qu'il a du travail non bloqué. Le rôle dev est à **double usage** : spawné comme teammate par l'orchestrateur, ou lancé à la main par un humain (mode autonome, qui sert de repli). Le Designer, lui, est **toujours** humain-piloté.
+The flow goes one way: **PO → backlog → Manager → devs/designer → merge**. The PO feeds the upstream (the product "what"); the Designer takes the `design` issues in parallel with the devs; the orchestrator is not a frozen process, it **drains in an event-driven loop** — the *idle* notifications and the devs' signals wake it — as long as it has unblocked work. The dev role has **dual use**: spawned as a teammate by the orchestrator, or launched by hand by a human (autonomous mode, which serves as a fallback). The Designer is **always** human-driven.
 
-## Les deux handoffs
+## The two handoffs
 
-Les sessions sont indépendantes : elles ne se parlent **que par des artefacts GitHub**.
+Sessions are independent: they talk to each other **only through GitHub artifacts**.
 
-**PO → Manager.** Le label **`product`** signifie « née du PO, à qualifier en priorité » (distinct du `triage` « hors-scope » créé par un dev) : le PO pose `product` + `triage`, le Manager qualifie et retire `triage`. Les labels **`prio:1/2/3`** portent l'ordre voulu par le PO ; le Manager **trie la roadmap selon ces labels** à chaque réveil. La roadmap garde un **writer unique — le Manager** — mais son **ordre est dicté par le PO**. Frontière d'écriture : le PO remplit le **quoi** (Contexte + Critères d'acceptation observables), le Manager ajoute le **comment** (pointeurs fichiers, pièges, qualification, place dans la roadmap). Le PO ne touche jamais à la roadmap.
+**PO → Manager.** The **`product`** label means "born from the PO, to qualify first" (distinct from the `triage` "out of scope" created by a dev): the PO sets `product` + `triage`, the Manager qualifies and removes `triage`. The **`prio:1/2/3`** labels carry the order the PO wants; the Manager **sorts the roadmap by these labels** at every wake-up. The roadmap keeps a **single writer — the Manager** — but its **order is dictated by the PO**. Write boundary: the PO fills in the **what** (Context + observable Acceptance criteria), the Manager adds the **how** (file pointers, pitfalls, qualification, place in the roadmap). The PO never touches the roadmap.
 
-**Designer ↔ Manager.** Le label **`design`** signifie « forte composante visuelle, chasse gardée du Designer » : le Manager **ne spawne jamais de dev dessus**. Le Designer peut créer des issues `design` ; PO et Manager taggent `design` ce qui relève du visuel. Le périmètre est variable — « pure peau » (Designer seul) ou « peau + logique » (Designer pour le visuel **plus** un dev pour la logique, **séquencés** sur des zones de fichiers disjointes, le Manager partitionne). Le Designer ouvre une PR `Closes #N` que le Manager **découvre à son point de situation** (`gh pr list`) et intègre avec les mêmes gates qu'une PR de dev. Le Designer **fait tester à l'humain avant de signaler `prêt`**.
+**Designer ↔ Manager.** The **`design`** label means "strong visual component, the Designer's reserved ground": the Manager **never spawns a dev on it**. The Designer may create `design` issues; PO and Manager tag `design` whatever is visual. The scope varies — "pure skin" (Designer alone) or "skin + logic" (Designer for the visuals **plus** a dev for the logic, **sequenced** on disjoint file zones, the Manager partitions). The Designer opens a `Closes #N` PR that the Manager **discovers at its status report** (`gh pr list`) and integrates with the same gates as a dev PR. The Designer **has the human test before signaling `prêt`**.
 
-**Runtime → PO.** Sur un projet servi par un runtime, le PO ne reconstruit pas l'état du projet depuis GitHub : **à l'ouverture de sa session, avec ou sans argument, il lit la file** — le geste de la box, `brigade <projet> status` (depuis le poste : `ssh <hote> brigade <nom> status` — voir [`docs/runtime/`](docs/runtime/exploitation.md), « Piloter »), lancé une fois par `ssh` sur l'`hote` que `~/.config/brigade/app.json` déclare pour ce dossier, avec le `nom` du projet (le fichier de l'app, voir [`docs/app.md`](docs/app.md)). Il relaie le bloc `attend` mot pour mot, pris par son bord, geste compris ; sans argument, la sortie entière. Rien n'attend : c'est le bloc qui le dit, le PO ne l'écrit jamais lui-même. Une sortie sans bord — une box pas encore à jour — se dit comme telle et suit entière : ce n'est pas une file vide. File non lue — aucun runtime déclaré, box pas jointe, projet que la box ne connaît pas, commande en échec — : une ligne, chacune la sienne, sans diagnostic, et le topo retombe sur GitHub en le disant. Plus tard dans la session, il ne dit l'état du projet que sur une lecture fraîche.
+**Runtime → PO.** On a project served by a runtime, the PO does not rebuild the project's state from GitHub: **when its session opens, with or without an argument, it reads the queue** — the box's action, `brigade <project> status` (from the workstation: `ssh <host> brigade <name> status` — see [`docs/runtime/`](docs/runtime/exploitation.md)), run once over `ssh` on the `hote` that `~/.config/brigade/app.json` declares for this folder, with the project's `nom` (the app's file, see [`docs/app.md`](docs/app.md)). It relays the `awaiting` block word for word, taken by its edge, action included; with no argument, the whole output. Nothing awaits: it is the block that says so, the PO never writes it itself. An output with no edge — a box not yet up to date — is reported as such and follows whole: it is not an empty queue. Queue not read — no runtime declared, box not reached, project the box does not know, command failing —: one line, each its own, with no diagnosis, and the briefing falls back to GitHub, saying so. Later in the session, it states the project's state only on a fresh read.
 
-## Le cycle d'une issue
+## The life of an issue
 
-1. **Qualification** (Orchestrateur) — issue `triage` → label `feature`/`fix`/`tech` (+ `design` si visuel, donc pas de dev) + critères + pointeurs + place dans la roadmap, dont l'ordre suit les labels `prio:`.
-2. **Assignation** (Orchestrateur) — forme le lot, **partitionne par zone de fichiers**, **spawne les `dev-<N>` du lot parallèle en un seul message** (pool de 2-3 en pratique).
-3. **Implémentation** (Dev-teammate) — crée son worktree isolé, le rend exécutable par le script de setup, applique les skills en boucle du projet. Une issue `feature` remonte ses questions de spec **groupées** par un signal, jamais une devinette produit.
-4. **Livraison** (Dev-teammate) — commit et push tôt, 1 PR, signal `prêt #N (PR <url>)`.
-5. **Intégration** (Orchestrateur) — gates du projet + revue de code **cadrée sur le diff de la PR**. **Vert → merge, push, close, clôture consignée en commentaire de roadmap, en full-auto.** Rouge → findings renvoyés au dev. Un périmètre voisin devient une **issue neuve**, jamais une réouverture chez un dev qui a livré. Puis spawn de l'issue prête suivante.
+1. **Qualification** (Orchestrator) — `triage` issue → `feature`/`fix`/`tech` label (+ `design` if visual, hence no dev) + criteria + pointers + place in the roadmap, whose order follows the `prio:` labels.
+2. **Assignment** (Orchestrator) — forms the batch, **partitions by file zone**, **spawns the `dev-<N>` of the parallel batch in a single message** (a pool of 2-3 in practice).
+3. **Implementation** (Dev-teammate) — creates its isolated worktree, makes it runnable with the setup script, applies the project's loop skills. A `feature` issue sends its spec questions up **grouped** in one signal, never a product guess.
+4. **Delivery** (Dev-teammate) — commits and pushes early, 1 PR, signal `prêt #N (PR <url>)`.
+5. **Integration** (Orchestrator) — project gates + code review **scoped to the PR's diff**. **Green → merge, push, close, closing recorded as a roadmap comment, in full-auto.** Red → findings sent back to the dev. A neighboring scope becomes a **new issue**, never a reopening on a dev who has delivered. Then spawn of the next ready issue.
 
-## Communication et drainage autonome
+## Communication and autonomous draining
 
-- Le **texte brut d'un teammate est invisible** pour son parent : toute remontée passe par `SendMessage`. Signaux normalisés : `question-spec #N`, `prêt #N (PR …)`, `bloqué #N`, `hors-scope #N`, et trois refus qui protègent le contexte du dev — `refus-réassignation #M`, `refus-lot #N (+#M…)`, `refus-extension #N`.
-- **Les questions de spec ne bloquent pas le pipeline** : elles sont déposées en commentaire d'issue avec le label `blocked-on-human`, et l'orchestrateur **continue de drainer le reste**. Il ne sollicite l'utilisateur — questions groupées — que s'il n'a plus aucun travail non bloqué.
-- **Boucle de drainage** : à chaque *idle* ou signal, l'orchestrateur intègre puis spawne l'issue prête suivante, jusqu'à backlog vide ou tout bloqué.
-- **Résilience** : les teammates sont éphémères, mais worktrees, branches, commits, PR, issues et roadmap survivent. Après un crash, un nouveau `/brigade:manager` reconstruit l'état et re-spawne les devs inachevés.
+- A **teammate's plain text is invisible** to its parent: every report goes through `SendMessage`. Normalized signals: `question-spec #N`, `prêt #N (PR …)`, `bloqué #N`, `hors-scope #N`, and three refusals that protect the dev's context — `refus-réassignation #M`, `refus-lot #N (+#M…)`, `refus-extension #N`.
+- **Spec questions do not block the pipeline**: they are left as an issue comment with the `blocked-on-human` label, and the orchestrator **keeps draining the rest**. It asks the user — grouped questions — only when it has no unblocked work left.
+- **Drain loop**: at every *idle* or signal, the orchestrator integrates then spawns the next ready issue, until the backlog is empty or everything is blocked.
+- **Resilience**: teammates are ephemeral, but worktrees, branches, commits, PRs, issues and roadmap survive. After a crash, a new `/brigade:manager` rebuilds the state and re-spawns the unfinished devs.
 
-## Règles non négociables (apprises à la dure)
+## Non-negotiable rules (learned the hard way)
 
-- **Un fichier, un seul propriétaire** entre worktrees concurrents. L'orchestrateur partitionne par **zone touchée**, pas par indépendance logique — deux issues logiquement indépendantes qui éditent le même fichier doivent être séquencées.
-- **La roadmap a un writer unique : l'orchestrateur.** Deux écrivains, c'est une divergence garantie.
-- **Le corps de la roadmap porte l'ordre, ses commentaires portent le journal.** Une clôture se consigne en commentaire ; le corps ne se réécrit que quand l'ordre change. Un historique daté accumulé dans le corps se fait réémettre à chaque merge, en tokens d'*output*, et son coût ne fait que croître avec le projet — mesuré à 72 861 caractères, dont 17 122 de seul historique, accumulés en quatre semaines de projet.
-- **Un dev-teammate ne merge jamais et n'appelle jamais `AskUserQuestion`** : il signale, l'orchestrateur arbitre.
-- **Discipline de synchronisation** : le dev rebase sur la branche d'intégration **au début ET avant d'ouvrir sa PR**. L'orchestrateur **pousse aussitôt après chaque merge** — ne jamais laisser la branche locale dériver de son `origin`.
-- **Merge en ordre de dépendance. Un lot parallèle se draine d'un bloc** — ses zones de fichiers étant disjointes par construction, ses PR ne peuvent pas se conflituer : on les merge à la suite, puis on joue les gates une fois sur la branche d'intégration. On ne sérialise que deux PR qui se chevauchent vraiment. Mesuré : 20 PR sur 25 attendaient qu'une autre soit intégrée, et une PR en concurrence attendait **43 min** de médiane contre **11 min** seule en lice.
-- **Gates de merge** : les gates du projet **plus** la revue de code, verts. Pas de merge sur la foi d'une affirmation : **preuve par sortie de commande**. Et le verdict se prend **là où il est le moins cher** — une CI qui joue ces mêmes gates a déjà tourné sur le SHA de la PR : on la lit (`gh pr checks`) au lieu de la rejouer. Un gate que la CI ne couvre pas est une issue à ouvrir sur la CI, pas un travail à refaire à la main à chaque merge.
-- **On ne laisse jamais l'humain attendre en silence.** Questions groupées déposées, ou backlog entièrement bloqué : l'orchestrateur **notifie**. Les plus longues queues mesurées du protocole n'étaient pas du calcul, mais une réponse qui attendait d'être remarquée.
-- **Découverte hors scope** → le dev crée une issue `triage` brute, signale `hors-scope`, et **continue** sa tâche. Jamais d'extension silencieuse du scope.
-- **Un teammate vit pour une seule issue.** Une issue neuve se donne par un `Agent` neuf, jamais par `SendMessage` à un dev vivant. Un dev qui a livré ne reçoit plus que les findings de **sa** PR, puis plus rien. Il refuse toute réassignation par le signal `refus-réassignation`.
-- **Deux renvois maximum par PR.** Au troisième aller-retour, ce n'est plus le code qui résiste : on merge avec une issue de suite, ou on remonte à l'humain.
+- **One file, one owner** between concurrent worktrees. The orchestrator partitions by **zone touched**, not by logical independence — two logically independent issues that edit the same file must be sequenced.
+- **The roadmap has a single writer: the orchestrator.** Two writers means guaranteed divergence.
+- **The roadmap body carries the order, its comments carry the log.** A closing is recorded as a comment; the body is rewritten only when the order changes. A dated history accumulated in the body gets re-emitted at every merge, in *output* tokens, and its cost only grows with the project — measured at 72,861 characters, of which 17,122 were history alone, accumulated over four weeks of project.
+- **A dev-teammate never merges and never calls `AskUserQuestion`**: it signals, the orchestrator arbitrates.
+- **Sync discipline**: the dev rebases on the integration branch **at the start AND before opening its PR**. The orchestrator **pushes right after every merge** — never let the local branch drift from its `origin`.
+- **Merge in dependency order. A parallel batch drains in one go** — its file zones being disjoint by construction, its PRs cannot conflict: they are merged one after another, then the gates are played once on the integration branch. Only two PRs that really overlap are serialized. Measured: 20 PRs out of 25 were waiting for another to be integrated, and a PR competing waited a median **43 min** against **11 min** when alone.
+- **Merge gates**: the project's gates **plus** the code review, green. No merge on the strength of a claim: **proof by command output**. And the verdict is taken **where it is cheapest** — a CI that plays these same gates has already run on the PR's SHA: read it (`gh pr checks`) instead of replaying it. A gate the CI does not cover is an issue to open on the CI, not work to redo by hand at every merge.
+- **Never let the human wait in silence.** Grouped questions left, or backlog entirely blocked: the orchestrator **notifies**. The longest tails measured in the protocol were not computation, but an answer waiting to be noticed.
+- **Out-of-scope discovery** → the dev creates a raw `triage` issue, signals `hors-scope`, and **continues** its task. Never a silent scope extension.
+- **A teammate lives for a single issue.** A new issue is given through a fresh `Agent`, never through `SendMessage` to a living dev. A dev who has delivered receives only the findings of **its** PR, then nothing more. It refuses any reassignment with the `refus-réassignation` signal.
+- **Two sends back at most per PR.** At the third round trip, it is no longer the code that resists: merge with a follow-up issue, or escalate to the human.
 
-### Quatre pannes réelles que ce protocole prévient
+### Four real failures this protocol prevents
 
-Elles viennent d'un projet réel, et chacune a produit une des règles ci-dessus.
+They come from a real project, and each produced one of the rules above.
 
-- **Doublon** — deux worktrees ont implémenté la même issue en parallèle. D'où : assignation explicite par l'orchestrateur, et un fichier / un propriétaire.
-- **Dérive** — la branche locale a avancé de six commits jamais poussés, et l'orchestrateur a continué à raisonner sur un état que personne d'autre ne voyait. D'où : push immédiat après chaque merge.
-- **Phagocytose** — deux devs ont travaillé dans le **même répertoire racine** ; leurs commits se sont mélangés sur une seule branche, la spec et le plan de l'un ont atterri sur la branche de l'autre, dont la branche est restée vide. D'où : **un worktree isolé par issue, créé par le dev lui-même**, jamais le répertoire racine ni celui d'un autre — et `git status` avant chaque commit, qui ne doit montrer que les fichiers de son issue.
-- **Dev-employé-permanent** — l'orchestrateur a gardé trois devs vivants vingt heures en leur confiant issue après issue par `SendMessage` : 7 spawns pour 49 messages, jusqu'à 721 requêtes et ~250 k de contexte par requête pour un seul dev. Ce dev a lu **177 M de tokens de cache**, contre **6,8 M** pour un dev mono-issue comparable — facteur 26, pour le même travail livré. Le contexte hérité est repayé à chaque tour de chaque issue suivante, et il franchit le seuil des 200 k, ce qui fait basculer toutes les requêtes du dev au tarif long-contexte. Le nom de l'agent finissait par mentir : un teammate nommé `dev-117` livrait l'issue #58. D'où : **un teammate = une issue**, un dev neuf par issue, et deux renvois maximum par PR. Réutiliser un dev vivant paraît économique — le contexte d'un teammate n'est pas un actif que l'on capitalise, c'est un loyer que l'on paie à chaque tour.
+- **Duplicate** — two worktrees implemented the same issue in parallel. Hence: explicit assignment by the orchestrator, and one file / one owner.
+- **Drift** — the local branch moved ahead by six commits never pushed, and the orchestrator kept reasoning on a state nobody else saw. Hence: immediate push after every merge.
+- **Phagocytosis** — two devs worked in the **same root directory**; their commits got mixed on a single branch, one's spec and plan landed on the other's branch, whose own branch stayed empty. Hence: **one isolated worktree per issue, created by the dev itself**, never the root directory nor another's — and `git status` before each commit, which must show only the files of its issue.
+- **Permanent dev employee** — the orchestrator kept three devs alive for twenty hours by handing them issue after issue through `SendMessage`: 7 spawns for 49 messages, up to 721 requests and ~250 k of context per request for a single dev. That dev read **177 M cache tokens**, against **6.8 M** for a comparable single-issue dev — a factor of 26, for the same work delivered. The inherited context is repaid at every turn of every following issue, and it crosses the 200 k threshold, which flips all the dev's requests to the long-context rate. The agent's name ended up lying: a teammate named `dev-117` was delivering issue #58. Hence: **one teammate = one issue**, a fresh dev per issue, and two sends back at most per PR. Reusing a living dev looks economical — a teammate's context is not an asset you capitalize, it is a rent you pay at every turn.
 
-## Ce que le plugin attend du projet
+## What the plugin expects from the project
 
-Trois étages de couplage, et c'est ce découpage qui rend le protocole transportable.
+Three levels of coupling, and it is this split that makes the protocol portable.
 
-**Ce qui se déduit** — dépôt, racine, gestionnaire de paquets, branche par défaut — est calculé par les rôles. Rien de tout cela ne s'écrit nulle part.
+**What is deduced** — repo, root, package manager, default branch — is computed by the roles. None of it is written anywhere.
 
-**Ce qui se déclare** vit dans la section `## Équipe multi-agents` de votre `CLAUDE.md`, en fin de fichier. Ce fichier étant déjà injecté dans chaque session, un rôle lit ses bindings **sans aucun appel d'outil**. On y trouve les rôles actifs, l'issue de roadmap, l'emplacement des worktrees, la **branche d'intégration** — celle d'où partent les worktrees et que ciblent les PR ; non déclarée, c'est `main`, et une PR qui en vise une autre n'est pas mergée —, le **plafond des gates** s'il y en a un (voir plus bas), les zones de fichiers (et laquelle est la peau du Designer), la doc vivante à synchroniser en livrant, les chemins de specs et de doc produit, les skills en boucle par rôle, et les pièges du projet qui ne se déduisent d'aucun code.
+**What is declared** lives in the `## Équipe multi-agents` section of your `CLAUDE.md` (the title stays in French: the roles look it up by that exact name), at the end of the file. As this file is already injected into every session, a role reads its bindings **with no tool call**. It holds the active roles, the roadmap issue, the worktrees location, the **integration branch** — the one worktrees start from and PRs target; if not declared, it is `main`, and a PR aiming at another one is not merged —, the **gates cap** if there is one (see below), the file zones (and which one is the Designer's skin), the living doc to sync on delivery, the spec and product-doc paths, the loop skills per role, and the project's pitfalls that no code lets you deduce.
 
-**Ce qui est procédural** vit dans deux scripts du projet, dont le plugin ne connaît que le contrat :
+**What is procedural** lives in two scripts of the project, of which the plugin knows only the contract:
 
-- **`gates.sh [<worktree>]`** — le **verdict**. Son code de sortie *est* le verdict : `0` = vert. Il ne met rien en route ; il juge.
-  Il juge aussi **sa propre durée**, si le projet déclare un plafond : ``- **Plafond des gates** : `<n> s` de processeur`` dans les bindings. Le plafond est à vous — dix secondes pour une suite légère, des minutes pour une suite lourde — et rien n'est plafonné tant que la ligne manque. Il se compte en **temps processeur**, pas à l'horloge : plusieurs devs jouent leurs gates en même temps, et un plafond à l'horloge rougirait d'abord de l'encombrement de la machine. Le temps processeur est la grandeur que la charge déforme le moins — pas une grandeur qu'elle épargne. Mesuré sur le dépôt du plugin (dix cœurs, même arbre, un passage à la fois) : 84 à 85 s de processeur poste calme, 95 à 103 s poste occupé, 121 à 141 s poste saturé, quand l'horloge passe de 16 à 132 s. **Fixez donc votre chiffre sur une mesure au calme, plus un quart.** Sous forte charge il peut rougir seul, sans qu'aucun test n'ait été ajouté : la ligne `durée des gates :` porte, à côté du total, le partage utilisateur / système, l'horloge et la charge du poste — de quoi reconnaître ce rouge-là, qui se rejoue au calme avant de toucher à la suite ou au chiffre. Un `gates.sh` posé par une version antérieure du plugin n'imprime que le total : rejouez `/brigade:init`, qui propose de remplacer ce bloc seul et laisse le reste du script et votre chiffre. Franchi, les gates sortent rouges et disent de combien.
-- **`worktree-setup.sh <n> <worktree>`** — la **mise en route**. Il rend un worktree utilisable (dépendances, secrets non versionnés, base de test dédiée à l'issue, ports) et n'imprime **sur stdout que des lignes `export`**, tout le bruit allant sur stderr. Son code de sortie dit si le worktree est utilisable.
+- **`gates.sh [<worktree>]`** — the **verdict**. Its exit code *is* the verdict: `0` = green. It starts nothing; it judges.
+  It also judges **its own duration**, if the project declares a cap: ``- **Plafond des gates** : `<n> s` de processeur`` in the bindings (the line stays in French: the script reads it). The cap is yours — ten seconds for a light suite, minutes for a heavy one — and nothing is capped as long as the line is missing. It is counted in **processor time**, not wall clock: several devs play their gates at the same time, and a wall-clock cap would first turn red from the machine's congestion. Processor time is the quantity that load deforms least — not one it spares. Measured on the plugin's repo (ten cores, same tree, one run at a time): 84 to 85 s of processor on a calm workstation, 95 to 103 s busy, 121 to 141 s saturated, while the wall clock goes from 16 to 132 s. **So set your figure on a measure taken when calm, plus a quarter.** Under heavy load it can turn red by itself, with no test added: the `durée des gates :` line carries, next to the total, the user / system split, the wall clock and the workstation's load — enough to recognize that red, which is replayed when calm before touching the suite or the figure. A `gates.sh` set by an earlier version of the plugin prints only the total: replay `/brigade:init`, which offers to replace that block alone and leaves the rest of the script and your figure. When crossed, the gates exit red and say by how much.
+- **`worktree-setup.sh <n> <worktree>`** — the **bring-up**. It makes a worktree usable (dependencies, unversioned secrets, test database dedicated to the issue, ports) and prints **only `export` lines on stdout**, all noise going to stderr. Its exit code says whether the worktree is usable.
 
-Garder ces deux responsabilités séparées est le point qui compte : un script qui met en route et juge à la fois rend un verdict non reproductible. Corollaire pour l'appelant — **capturez avant d'évaluer** :
+Keeping these two responsibilities separate is the point that matters: a script that brings up and judges at once gives a non-reproducible verdict. Corollary for the caller — **capture before evaluating**:
 
 ```bash
-SETUP="$(worktree-setup.sh "$N" "$WT")" || { echo "setup échoué" >&2; exit 1; }
+SETUP="$(worktree-setup.sh "$N" "$WT")" || { echo "setup failed" >&2; exit 1; }
 eval "$SETUP"
 ```
 
-Dans la forme `eval "$(script)"`, `$?` est celui de l'`eval` : un setup qui échoue sans rien imprimer passerait pour un succès, et le dev partirait coder dans le vide.
+In the form `eval "$(script)"`, `$?` is the `eval`'s: a setup that fails while printing nothing would pass for a success, and the dev would go coding in the void.
 
-## Miroir Codex
+## Codex mirror
 
-Un projet qui travaille aussi avec Codex tient un miroir dans `.agents/`, alimenté par **`/brigade:sync`**. Les rôles ont **une seule définition** — les commandes de ce plugin ; le miroir n'en est qu'une projection.
+A project that also works with Codex keeps a mirror in `.agents/`, fed by **`/brigade:sync`**. The roles have **a single definition** — this plugin's commands; the mirror is only a projection of it.
 
-- `.agents/skills/<rôle>/references/workflow.md` est une **copie** de la commande du rôle. Pas un symlink : le chemin du cache du plugin porte son numéro de version, et un lien casserait à la première mise à jour, silencieusement.
-- `.agents/skills/<rôle>/SKILL.md` est une fine couche d'adaptation — lire le workflow partagé, traduire les primitives propres à Claude Code. **Aucune règle métier n'y est recopiée** : ce serait une seconde vérité, qui divergerait à la première évolution.
-- `AGENTS.md` est un symlink vers `CLAUDE.md` : même dépôt, aucune version dans le chemin, donc le lien est ici le bon outil.
+- `.agents/skills/<role>/references/workflow.md` is a **copy** of the role's command. Not a symlink: the plugin cache path carries its version number, and a link would break at the first update, silently.
+- `.agents/skills/<role>/SKILL.md` is a thin adaptation layer — read the shared workflow, translate the primitives specific to Claude Code. **No business rule is copied into it**: that would be a second truth, which would diverge at the first change.
+- `AGENTS.md` is a symlink to `CLAUDE.md`: same repo, no version in the path, so the link is the right tool here.
 
-La contrepartie de la copie est qu'elle doit être resynchronisée : **rejouez `/brigade:sync` après chaque mise à jour du plugin.** Un miroir périmé ne se signale par aucune erreur — Codex tiendrait simplement le protocole d'hier.
+The counterpart of the copy is that it must be resynchronized: **replay `/brigade:sync` after every plugin update.** A stale mirror signals itself by no error — Codex would simply hold yesterday's protocol.
 
 ## Conventions
 
-- **Branches** : `feat/<n>-slug`, `fix/<n>-slug`, `tech/<n>-slug`, `design/<n>-slug`, où `<n>` est le numéro d'issue — c'est ce qui permet à l'orchestrateur de relier branche, issue et PR.
-- **PR** : corps qui référence `Closes #<n>`.
-- **Labels** : `feature` / `fix` / `tech` (type, posé par le Manager) ; `triage` (brute, à qualifier) ; `product` (née du PO) ; `design` (composante visuelle, jamais de dev) ; `prio:1` / `prio:2` / `prio:3` (priorité produit, posée par le PO) ; `blocked-on-human` (question de spec en attente).
-- Le reste des conventions de code appartient à votre `CLAUDE.md`.
+- **Branches**: `feat/<n>-slug`, `fix/<n>-slug`, `tech/<n>-slug`, `design/<n>-slug`, where `<n>` is the issue number — that is what lets the orchestrator link branch, issue and PR.
+- **PR**: body referencing `Closes #<n>`.
+- **Labels**: `feature` / `fix` / `tech` (type, set by the Manager); `triage` (raw, to qualify); `product` (born from the PO); `design` (visual component, never a dev); `prio:1` / `prio:2` / `prio:3` (product priority, set by the PO); `blocked-on-human` (spec question pending).
+- The rest of the code conventions belongs to your `CLAUDE.md`.
 
-## Licence
+## License
 
 [MIT](LICENSE).
