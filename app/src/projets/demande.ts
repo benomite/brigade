@@ -50,7 +50,10 @@ export type Bascule = { de: string; vers: string; demandeLe: string; etape: Etap
 // Absents quand la station n'en dit rien.
 export type AccesBloque = { bloque: "fetch" | "push"; raison: string; geste: string };
 export type EchecDuWorktree = { ticket: number; raison: string; prochainEssai: string | null; acces: AccesBloque | null };
-export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; worktree: EchecDuWorktree | null };
+// `refus` : pourquoi la station ne sert pas le projet, pour le chef (#1177, runtime/src/projets/refus.ts) —
+// un code stable, une phrase, et ce que le chef fait. Absent quand rien n'est refusé.
+export type Refus = { code: string; message: string; action: string };
+export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; refus: Refus | null; worktree: EchecDuWorktree | null };
 
 const ETATS: readonly string[] = ["servi", "a-autoriser", "en-preparation", "refuse", "secondaire"];
 const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];
@@ -61,6 +64,10 @@ const gist = (valeur: unknown): valeur is string => texte(valeur) && /^[A-Za-z0-
 const lireAcces = (lu: unknown): AccesBloque | null => {
   const { bloque, raison, geste } = (lu ?? {}) as Record<string, unknown>;
   return (bloque === "fetch" || bloque === "push") && texte(raison) && raison.trim() !== "" && texte(geste) && geste.trim() !== "" ? { bloque, raison, geste } : null;
+};
+const lireRefus = (lu: unknown): Refus | null => {
+  const { code, message, action } = (lu ?? {}) as Record<string, unknown>;
+  return texte(code) && texte(message) && message.trim() !== "" && texte(action) && action.trim() !== "" ? { code, message, action } : null;
 };
 const lireEchec = (lu: unknown): EchecDuWorktree | null => {
   const { ticket, raison, prochainEssai, acces } = (lu ?? {}) as Record<string, unknown>;
@@ -118,7 +125,7 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
     const lu = JSON.parse(brut) as { brigade?: unknown; projets?: unknown };
     if (lu?.brigade !== "projets-suivi" || !Array.isArray(lu.projets)) return [];
     return (lu.projets as unknown[]).flatMap((brut) => {
-      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule, acces, worktree } = (brut ?? {}) as Record<string, unknown>;
+      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule, acces, refus, worktree } = (brut ?? {}) as Record<string, unknown>;
       if (!texte(nom) || !texte(etat) || !ETATS.includes(etat)) return [];
       return [
         {
@@ -131,6 +138,7 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
           ici: ici === true,
           bascule: lireBascule(bascule),
           acces: lireAcces(acces),
+          refus: lireRefus(refus),
           worktree: lireEchec(worktree),
         },
       ];

@@ -53,6 +53,7 @@ const vue = (en: object | null): VuDesProjets => {
     stations: [{ id: "g1", nom: "parade-box", principale: true, etat: lu?.etat ?? "servi", dit: "", autoriser: [] }],
     servi: null,
     acces: lu?.acces ?? null,
+    refus: lu?.refus ?? null,
     worktree: lu?.worktree ?? null,
   };
   return { a: A, projets: [projet], recommandee: "g1", avertissements: {}, machines: { g1: machineProposee(BOX) }, calibrage: calibrageRecommande([]) };
@@ -169,4 +170,31 @@ test("lireSuivi ne croit que ce qui a la forme : un accès sans geste, un échec
   const [bon] = lireSuivi(suivi({ acces: ACCES, worktree: { ...ECHEC, acces: ACCES } }));
   assert.deepEqual(bon?.acces, ACCES);
   assert.deepEqual(bon?.worktree, { ...ECHEC, acces: ACCES });
+});
+
+// Ce que le runtime publie (runtime/src/projets/refus.ts), mot pour mot.
+const REFUS = {
+  status: "refused",
+  code: "proxy-port-set",
+  message: "This project's settings choose a network port that the station reserves for itself.",
+  action: "Remove the port setting from the project's line in the station's configuration.",
+};
+
+test("un projet refusé par la station : la page dit pourquoi et ce que le chef fait, sans le texte brut ni chemin", async () => {
+  const brut = "BRIGADE_PROXY_PORT is set in /etc/brigade/en-service: refused";
+  const { bloc } = await laPage(vue({ etat: "refuse", dit: brut, refus: REFUS }));
+  const lignes = dit(bloc);
+  assert.ok(lignes.includes(REFUS.message), lignes.join(" | "));
+  assert.ok(lignes.includes(REFUS.action), lignes.join(" | "));
+  assert.doesNotMatch(bloc.textContent, /en-service|\/etc\//);
+  assert.doesNotMatch(bloc.textContent, /within a minute/);
+});
+
+test("sans refus, la page est inchangée ; un refus sans phrase ou sans action ne dit rien", async () => {
+  const { bloc } = await laPage(vue(null));
+  assert.equal(bloc.dessous("div").some((d) => d.className === "depot-retenu"), false);
+  const [lu] = lireSuivi(suivi({ refus: { ...REFUS, action: "" } }));
+  assert.equal(lu?.refus, null);
+  const [bon] = lireSuivi(suivi({ refus: REFUS }));
+  assert.equal(bon?.refus?.message, REFUS.message);
 });

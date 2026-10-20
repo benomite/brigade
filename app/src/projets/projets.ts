@@ -23,7 +23,7 @@
 // demande : une station qui refuse de le reprendre le laisse cuire là où il cuisait.
 import type { GitHubDesStations } from "../stations/github.ts";
 import type { StationVue } from "../stations/stations.ts";
-import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireOnboarding, lireSuivi, type AccesBloque, type Bascule, type Calibre, type EchecDuWorktree, type EtatDuProjet, type Onboarding, type ProjetDemande, type SuiviDuProjet } from "./demande.ts";
+import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireOnboarding, lireSuivi, type AccesBloque, type Bascule, type Calibre, type EchecDuWorktree, type EtatDuProjet, type Onboarding, type ProjetDemande, type Refus, type SuiviDuProjet } from "./demande.ts";
 import type { Demenagement, Demenageur } from "./demenagement.ts";
 import type { DepotDuChef } from "./github.ts";
 
@@ -71,6 +71,8 @@ export type ProjetVu = {
   // avec son geste ; un worktree impossible à préparer, avec sa raison et l'heure du prochain essai.
   // Nuls (ou absents) quand rien ne retient.
   acces?: AccesBloque | null;
+  // Pourquoi la station refuse de le servir, en une phrase, et ce que le chef fait (#1178).
+  refus?: Refus | null;
   worktree?: EchecDuWorktree | null;
 };
 // Ce que l'app propose pour une station choisie comme principale (#1107) : ce que ce choix implique —
@@ -394,6 +396,7 @@ export function tenirProjets(options: OptionsProjets): Projets {
           // Ce qui retient la cuisine, seule la principale le dit ; relu à chaque lecture, il s'efface quand elle ne le dit plus.
           if (projet.principale) {
             vu.acces = dit?.acces ?? null;
+            vu.refus = dit?.refus ?? null;
             vu.worktree = dit?.worktree ?? null;
           }
           vu.stations.push({ id: station.id, nom: station.nom, principale: projet.principale, etat: dit?.etat ?? "attendu", dit: dit?.dit ?? `${station.nom} has not read it yet: it reads what the app asks every 30 s`, autoriser: dit?.autoriser ?? [] });

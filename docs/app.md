@@ -911,7 +911,11 @@ gh auth setup-git on parade-box, under the account that runs it.`, la commande e
 survol), et un bouton recommandé « copy the command » qui copie la commande seule — le geste se fait sur la
 machine de la station, que l'app ne pilote pas), ou, pour un worktree, `The worktree of #433 could not be prepared: <raison>` et
 `Next retry at 10:14 AM, in 10 min.`. Tant qu'il tient, la phrase « prepares it within a minute » ne se dit
-plus. Sans l'un ni l'autre, rien ne change. La station l'efface quand le geste est fait : la page relue
+plus. Sans l'un ni l'autre, rien ne change. **Le refus de la station** (#1178) : quand elle refuse de servir le
+projet sans accès refusé à dire, son suivi porte `refus` (#1177 : un code stable, une phrase, l'action du
+chef) ; le même bloc pose la phrase (`This project's settings choose a network port that the station reserves
+for itself.`, le code au survol) puis l'action en dessous — jamais le texte brut du fichier `en-service`, ni un
+chemin. L'accès refusé, plus précis, prime sur lui. Captures : `docs/captures/1178/`. La station l'efface quand le geste est fait : la page relue
 (chaque lecture des stations) revient à son message, sans recharger l'app. Le module est
 `app/src/vue/onboarding/depot-retenu.js`.
 
