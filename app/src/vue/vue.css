@@ -1964,7 +1964,8 @@ main > header,
    sur la carte chaude de « ce qui t'attend ». Ce qu'on attend du chef en tête, la cause, les tickets
    qu'elle a fait rater, la correction en diff — une ligne ajoutée en vert, une retirée en rouge, chacune
    avec son signe —, ce qu'elle a coûté, puis « yes » et « no ». */
-#rail .correction {
+#rail .correction,
+#rail .profil {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1975,25 +1976,29 @@ main > header,
   border-radius: var(--rayon-carte);
   overflow-wrap: anywhere;
 }
-#rail .correction .attendu {
+#rail .correction .attendu,
+#rail .profil .attendu {
   font-size: 14px;
   font-weight: 600;
   color: var(--texte);
 }
-#rail .correction .tete-correction {
+#rail .correction .tete-correction,
+#rail .profil .tete-profil {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px 10px;
 }
-#rail .correction .pilule {
+#rail .correction .pilule,
+#rail .profil .pilule {
   padding: 1px 8px;
   font-size: 11px;
   color: var(--rouge-clair);
   border: 1px solid var(--rouge);
   border-radius: var(--rayon-bouton);
 }
-#rail .correction .tickets {
+#rail .correction .tickets,
+#rail .profil .tickets {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -2001,7 +2006,8 @@ main > header,
   font-size: 12px;
   color: var(--discret);
 }
-#rail .correction .tickets .ticket {
+#rail .correction .tickets .ticket,
+#rail .profil .tickets .ticket {
   color: var(--texte);
 }
 #rail .correction .motif {
@@ -2038,36 +2044,111 @@ main > header,
   font-size: 12px;
   color: var(--discret);
 }
-#rail .correction .reponses {
+#rail .correction .reponses,
+#rail .profil .reponses {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
-#rail .correction .action > button {
+#rail .correction .action > button,
+#rail .profil .action > button {
   padding: 3px 12px;
   font-size: 12px;
   font-weight: 600;
   border: 1px solid var(--trait-fort);
   border-radius: var(--rayon-bouton);
 }
-#rail .correction .action > button:disabled {
+#rail .correction .action > button:disabled,
+#rail .profil .action > button:disabled {
   color: var(--discret);
   background: none;
   border-color: var(--trait);
   border-style: dashed;
   cursor: default;
 }
-#rail .correction .en-route {
+#rail .correction .en-route,
+#rail .profil .en-route {
   font-size: 12px;
   color: var(--discret);
 }
-#rail .correction .refus {
+#rail .correction .refus,
+#rail .profil .refus {
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 12px;
   color: var(--jaune);
+}
+/* Un profil de cook proposé (#1053) : la même carte de la file, sous les corrections. Sa pilule est
+   bleue — rien n'a raté, c'est une proposition —, ses chiffres et ce qu'il contiendrait se lisent en
+   lignes courtes, chaque chemin et chaque leçon en monospace. */
+#rail .profil .pilule {
+  color: var(--bleu);
+  border-color: var(--bleu);
+}
+#rail .profil .domaine,
+#rail .profil .chiffres,
+#rail .profil .quand {
+  font-size: 12px;
+  color: var(--discret);
+}
+#rail .profil .chiffres {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  color: var(--texte-doux);
+}
+#rail .profil .domaine .mono,
+#rail .profil .contenu .mono {
+  color: var(--texte);
+}
+#rail .profil .contenu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background: var(--fond);
+  border: 1px solid var(--attend-trait-doux);
+  border-radius: var(--rayon-bouton);
+  font-size: 12px;
+}
+#rail .profil .titre-contenu {
+  font-weight: 600;
+  color: var(--texte);
+}
+#rail .profil .ligne-contenu {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  color: var(--texte-doux);
+}
+#rail .profil .libelle {
+  min-width: 72px;
+  color: var(--discret);
+}
+#rail .profil .aucune {
+  color: var(--discret);
+}
+#rail .profil .carnet {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 0 82px;
+  padding: 0;
+  list-style: none;
+  color: var(--texte-doux);
+}
+#rail .profil .carnet li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+#rail .profil .carnet .de {
+  color: var(--discret);
 }
 #rail .colonnes {
   display: grid;

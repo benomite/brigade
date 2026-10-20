@@ -595,14 +595,15 @@ describe("la carte d'un ticket servi : l'écran à regarder, sa phrase, la menti
 });
 
 describe("rien de ce qui est au parking n'apparaît", () => {
-  // docs/maquettes/app/README.md, « Ce qui est dessiné mais ne doit pas être construit ».
-  const PARKING = /codex|openweight|preprod|mac\/chrome|chrome-connect|revue-humaine|accès-prod|depuis ton mac|cook profiles?|carnet|toutes les brigades|expire dans|<progress|<meter|progressbar|jauge|\bcommis\b|thème clair|prefers-color-scheme|light-dark\(/i;
+  // docs/maquettes/app/README.md, « Ce qui est dessiné mais ne doit pas être construit ». Les cook
+  // profiles et le carnet en sont sortis avec l'épique #1033, qui les construit.
+  const PARKING = /codex|openweight|preprod|mac\/chrome|chrome-connect|revue-humaine|accès-prod|depuis ton mac|toutes les brigades|expire dans|<progress|<meter|progressbar|jauge|\bcommis\b|thème clair|prefers-color-scheme|light-dark\(/i;
 
   test("ni dans les fichiers de la vue, ni dans ce qu'elle pose", async () => {
     for (const fichier of fichiers) assert.doesNotMatch(lire(fichier), PARKING, fichier);
     // Le README nomme bien ce que ce test cherche : la liste n'est pas la sienne propre.
     const parking = readFileSync(join(MAQUETTES, "README.md"), "utf8");
-    for (const dessine of ["box/codex", "mac/chrome", "chrome-connecté", "revue-humaine", "accès-prod", "depuis ton Mac", "en preprod", "toutes les brigades", "cook profiles", "carnet", "jauge chiffrée", "expire dans 2 j"]) assert.ok(parking.includes(dessine), `le README des maquettes ne nomme plus « ${dessine} »`);
+    for (const dessine of ["box/codex", "mac/chrome", "chrome-connecté", "revue-humaine", "accès-prod", "depuis ton Mac", "en preprod", "toutes les brigades", "jauge chiffrée", "expire dans 2 j"]) assert.ok(parking.includes(dessine), `le README des maquettes ne nomme plus « ${dessine} »`);
 
     const vue = await ouvrirUnEspace();
     vue.dire("surFaits", { ...FAITS, demande: vue.dernier("faits")[0] as number });

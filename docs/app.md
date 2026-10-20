@@ -1942,6 +1942,51 @@ la réponse est écrite, ou quand la proposition était déjà tranchée (`decid
 cette proposition (`inconnue`), la raison sur sa dernière ligne. **Cette commande n'existe pas encore
 dans le runtime** : tant qu'elle manque, chaque clic dit la ligne ci-dessus, et rien ne part.
 
+### Un profil de cook proposé (#1053, épique #1033)
+
+Quand une zone du code revient sur assez de tickets récents et qu'elle est livrée du premier coup bien
+moins souvent que le reste du projet, le runtime propose d'en faire un profil de cook
+(`runtime/src/profils/`). `facts` le porte dans `profils` ; **chaque proposition est une carte de la
+file, sous celles des corrections, au-dessus des colonnes** — la même carte large, sur le même fond.
+**Sans proposition, aucune carte**, et rien n'est dit à sa place.
+
+```
+One part of the code keeps needing more than one try: give it a cook profile of its own?
+[profile proposed]  app-src-vue  for app/src/vue
+6 of the last 20 tickets served touch it
+delivered on the first try: 33% here (2 of 6), against 75% for the whole project (15 of 20) — 42 points below ?
+its tickets:  #4  #7  #9  #11  #14  #17
+what the profile would hold
+  skills     none proposed ?
+  perimeter  app/src/vue
+  notebook   starts with 2 lessons of the project, born of this domain's tickets
+             L-007  A view change is judged on a screenshot, before and after …   from #9
+proposed 10/13/2026, 9:41:05 AM
+[yes, create the profile] ?   [no] ?
+```
+
+- **En tête, ce qu'on attend de toi**, en une phrase ; puis le nom du profil et son domaine.
+- **Les chiffres qui le justifient**, chacun en une phrase (`app/src/profil.ts`, `carteDeProfil`) :
+  combien des derniers tickets servis touchent le domaine, et sa part livrée du premier coup contre
+  celle du projet. Les seuils qui ont fait la proposition sont au survol.
+- **Chaque ticket du domaine s'ouvre d'un clic** sur son issue, à l'adresse que la box a donnée
+  (`profils[].chiffres.tickets[].url`) ; sans adresse en https, son numéro est posé seul.
+- **Ce que le profil contiendrait** : ses skills (la mesure n'en propose aucun — dit, avec le pourquoi
+  au survol), son périmètre, et son carnet de départ, leçon par leçon avec les rétros qui la portent.
+- **« yes, create the profile »**, recommandé, et **« no »** ; ce que chacun fait est dans son survol.
+  Le geste part comme celui d'une correction (`trancherSurLaBox`, `app/src/correction.ts`) :
+  `brigade <nom> profile yes <proposition>` ou `… profile no <proposition>`, une fois, sur la box du
+  projet. Écrite, la réponse fait quitter la file à la carte et `facts` est relu ; rien d'écrit, la
+  carte reste et une ligne le dit, la commande et ce que la box a rendu au survol.
+
+**Le contrat que l'app attend du runtime** : `profile yes|no <proposition>`, où `<proposition>` est
+le `proposition` de `profils` — le `seq` du fait `profile.proposed`. Elle sort en 0 quand la réponse
+est écrite, ou quand la proposition était déjà tranchée (`decider`, `runtime/src/profils/decision.ts`,
+issues `tranchee` et `deja`) ; en 1 sur `inconnue` ou `existe` (un « yes » sur un profil que le dépôt
+définit déjà), la raison sur sa dernière ligne. **Cette commande n'existe pas encore dans le
+runtime** : tant qu'elle manque, chaque clic dit `nothing was sent: this station cannot take your
+answer yet`, et rien ne part.
+
 ### La bannière d'arrêt
 
 Quand la box dit la cuisine `arrêtée` — ton « stop » —, l'espace du projet le dit en tête, au-dessus

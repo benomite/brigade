@@ -227,6 +227,10 @@ export type Pont = {
   // projet et le numéro de la proposition, que les derniers faits lus doivent porter. Rend la réponse
   // écrite — la carte quitte la file —, ou pourquoi rien ne l'a été. Rien, pour un projet sans box.
   corriger(projet: string, proposition: number, reponse: import("../correction.ts").Reponse): Promise<import("../correction.ts").Rendu | undefined>;
+  // Le « yes » ou le « no » du chef sur un profil de cook proposé (profil.ts), par le même chemin :
+  // `profile yes|no <proposition>` sur sa box. Le « yes » y écrit la définition du profil dans le dépôt
+  // du projet. Rend la réponse écrite — la carte quitte la file —, ou pourquoi rien ne l'a été.
+  trancherLeProfil(projet: string, proposition: number, reponse: import("../correction.ts").Reponse): Promise<import("../correction.ts").Rendu | undefined>;
   ouvrirBilan(projet: string, url: string): Promise<boolean>;
   // Le projet dont l'espace est affiché : sa box est lue, elle seule — `status`, pour le panneau.
   // `demande` revient sur chaque lecture qui y répond.

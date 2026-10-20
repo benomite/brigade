@@ -14,6 +14,7 @@ import { BOUTONS, ecritPar, ecritPourLeCloser, REGLER_LE_CLOSER } from "./bouton
 import { lancerGeste, ouvrirVeille, type Servi } from "./box.ts";
 import { agirSurLeCloser } from "./closer-lancement.ts";
 import { repondreALaCorrection } from "./correction.ts";
+import { repondreAuProfil } from "./profil.ts";
 import { histoireDe, situationDe } from "./histoire.ts";
 import { commenter, demanderAuSecond, lireDiscussion } from "./discussion.ts";
 import { cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
@@ -899,6 +900,16 @@ ipcMain.handle("corriger", (_, nom: unknown, proposition: unknown, reponse: unkn
   if (vise?.box === undefined) return undefined;
   const servi = { nom: vise.nom, box: vise.box };
   const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => repondreALaCorrection({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, faits.corrections(servi.nom), proposition, reponse));
+  passage.set(servi.nom, rendu);
+  return rendu;
+});
+// Le « yes » ou le « no » du chef sur un profil de cook proposé (profil.ts), par le même chemin : lancé une
+// fois sur la box par le passage du projet, pour une proposition que ses derniers faits lus portent.
+ipcMain.handle("trancherLeProfil", (_, nom: unknown, proposition: unknown, reponse: unknown) => {
+  const vise = connu(nom);
+  if (vise?.box === undefined) return undefined;
+  const servi = { nom: vise.nom, box: vise.box };
+  const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => repondreAuProfil({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, faits.profils(servi.nom), proposition, reponse));
   passage.set(servi.nom, rendu);
   return rendu;
 });

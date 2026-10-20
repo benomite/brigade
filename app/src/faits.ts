@@ -20,6 +20,7 @@ import type { Echec, Lecture } from "./box.ts";
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues, type Moment } from "./captures.ts";
 import { carteDeCorrection, correctionsLues, estInforme, type CarteDeCorrection, type CorrectionLue } from "./correction.ts";
 import { reculDe, reculInforme, reculsLus, type Recul, type ReculLu } from "./recul.ts";
+import { carteDeProfil, profilInforme, profilsLus, type CarteDeProfil, type ProfilLu } from "./profil.ts";
 import { attenduDe, decisionLue, livraisonLue, teteDe, type Decision, type Livraison as LivraisonAttendue } from "./decision.ts";
 import { entete, type Entete } from "./fiche.ts";
 import { LABEL_RETENUE } from "./question.ts";
@@ -121,6 +122,9 @@ export type Faits = {
   // Ce que chaque correction acceptée a fait de sa cause, avant et après son merge (recul.ts) : absent
   // quand aucune n'a été acceptée, et d'un runtime d'avant ce champ.
   reculs?: ReculLu[];
+  // Les profils de cook proposés, que le chef tranche (profil.ts) : absent quand il n'y en a aucun, et
+  // d'un runtime d'avant ce champ.
+  profils?: ProfilLu[];
 };
 
 // Ce que la vue dessine d'un projet, prêt à poser : elle n'y calcule rien.
@@ -166,7 +170,9 @@ export type Colonne = { nom: string; ton: string; compte: string; cartes: Carte[
 // `corrections` : les corrections proposées des consignes du projet, chacune une carte de la file que
 // le chef tranche d'un « yes » ou d'un « no » (correction.ts), la plus ancienne d'abord — absent
 // quand il n'y en a aucune.
-export type Rail = { colonnes: Colonne[]; hors: Carte[]; aucunTicket?: true; attendLu?: string; railLu?: string; corrections?: CarteDeCorrection[] };
+// `profils` : les profils de cook proposés, chacun une carte de la file que le chef tranche de même
+// (profil.ts), le plus ancien d'abord — absent quand il n'y en a aucun.
+export type Rail = { colonnes: Colonne[]; hors: Carte[]; aucunTicket?: true; attendLu?: string; railLu?: string; corrections?: CarteDeCorrection[]; profils?: CarteDeProfil[] };
 // Le bloc `attend` d'un projet, tel que `status` l'a écrit, et l'heure de sa lecture.
 export type BlocLu = { bloc: string; a: string };
 // Ce que `status` a rendu pour un projet, son bloc `attend` mis à part, et l'heure de sa lecture.
@@ -318,7 +324,7 @@ function comprendreTiers(brut: unknown, lequel: string): Tiers {
 // Rien n'y est complété : un champ qui manque refuse la forme entière — sauf
 // `cooks`, `attend`, `livres`, `urgence` et l'`activite`,
 // l'`attente` et les `tiers` d'un ticket, qu'un runtime d'avant eux ne rend pas,
-// et qui manquent alors ici aussi — et `corrections` et `reculs`, absents quand il n'y en a aucun.
+// et qui manquent alors ici aussi — et `corrections`, `reculs` et `profils`, absents quand il n'y en a aucun.
 // Un champ de plus est laissé de côté, un mot d'état inconnu est gardé.
 export function comprendre(sortie: string): Faits | { informe: string } {
   if (sortie.trim() === "") return { informe: "the command returned nothing" };
@@ -412,9 +418,10 @@ export function comprendre(sortie: string): Faits | { informe: string } {
         : { stations: (Array.isArray(racine.stations) ? racine.stations : refuser("stations", "a list")).map((station: unknown, rang) => comprendreStation(station, `stations[${rang}]`)) }),
       ...(racine.corrections === undefined ? {} : { corrections: correctionsLues(racine.corrections) }),
       ...(racine.reculs === undefined ? {} : { reculs: reculsLus(racine.reculs) }),
+      ...(racine.profils === undefined ? {} : { profils: profilsLus(racine.profils) }),
     };
   } catch (erreur) {
-    if (erreur instanceof Informe || estInforme(erreur) || reculInforme(erreur)) return { informe: erreur.message };
+    if (erreur instanceof Informe || estInforme(erreur) || reculInforme(erreur) || profilInforme(erreur)) return { informe: erreur.message };
     throw erreur;
   }
 }
@@ -800,6 +807,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
     ...(attend === undefined ? {} : { attendLu: attend.a }),
     ...(status === undefined || lignes === undefined ? {} : { railLu: status.a }),
     ...(faits.corrections === undefined || faits.corrections.length === 0 ? {} : { corrections: faits.corrections.map(carteDeCorrection) }),
+    ...(faits.profils === undefined || faits.profils.length === 0 ? {} : { profils: faits.profils.map(carteDeProfil) }),
   };
 }
 
@@ -913,7 +921,8 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
         donnes?.rail.find((candidat) => candidat.ticket === ticket)?.url ??
         donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.url ??
         donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.url ??
-        donnes?.corrections?.flatMap(({ tickets }) => tickets).find((candidat) => candidat.ticket === ticket)?.url;
+        donnes?.corrections?.flatMap(({ tickets }) => tickets).find((candidat) => candidat.ticket === ticket)?.url ??
+        donnes?.profils?.flatMap(({ chiffres }) => chiffres.tickets).find((candidat) => candidat.ticket === ticket)?.url;
       return url != null && ouvrable(url) ? url : undefined;
     },
     // L'adresse d'une capture d'un ticket d'interface, telle que la box l'a donnée à la dernière
@@ -940,6 +949,11 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
     // celles-là se tranchent depuis l'app (correction.ts).
     corrections(projet: unknown): number[] {
       return (typeof projet === "string" ? tenus.get(projet)?.faits.corrections : undefined)?.map(({ proposition }) => proposition) ?? [];
+    },
+    // Les profils proposés que les derniers faits lus d'un projet portent, par leur numéro : seuls
+    // ceux-là se tranchent depuis l'app (profil.ts).
+    profils(projet: unknown): number[] {
+      return (typeof projet === "string" ? tenus.get(projet)?.faits.profils : undefined)?.map(({ proposition }) => proposition) ?? [];
     },
     // Ce que `facts` dit des stations d'un projet, à la dernière lecture — rien, s'il n'est pas lu.
     stations(projet: unknown): StationDesFaits[] | undefined {
