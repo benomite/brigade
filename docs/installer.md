@@ -472,11 +472,11 @@ The **five variables** without which the runtime refuses to start, and where eac
 — on another disk if the machine has one. It has no default: the backup does not pick a disk
 on its own. If missed (machine off at 03:30), it is played at the next startup; for a
 different schedule, a timer drop-in with an empty `OnCalendar=` and then yours. Restoring is in
-`docs/runtime/exploitation.md`, "Back up and restore".
+`docs/runtime/exploitation.md`, "Sauvegarder et restaurer".
 
 Nothing else is needed to serve a project. What is **optional** is set later
 in the same drop-in, and read in `docs/runtime/` (`exploitation.md`, `identites-et-secrets.md`) when you need it: the settings
-("Five variables, no default"), the project's dev secrets ("The project's secrets"), one
+("Cinq variables, aucun défaut"), the project's dev secrets ("The project's secrets"), one
 GitHub identity per role for a shared repository ("What you create at GitHub").
 
 ### Protect the integration branch
@@ -514,7 +514,7 @@ Enterprise plans, of an organization) — without it there is only one barrier, 
 sees only what passes through it. **Even when active**, it recognizes only the forms in its list (Anthropic
 API keys, **not the login token of a Max subscription**), does not see a transformed copy, and anyone who writes to the repository can bypass it from the site — a cook cannot,
 it has neither account nor browser. The day you believe the Max connection has leaked: `docs/runtime/station-cook.md`,
-"Revoke the Max connection".
+"Révoquer la connexion Max".
 
 ## 5. Check that the project is ready
 
@@ -709,22 +709,22 @@ yourself.
 
 What the process prints is read with `journalctl -u brigade@<project> -f`; a refusal to start
 (code 2) is not retried, and `systemctl status brigade@<project>` gives the reason. All the
-step's commands, and updating brigade, are in `docs/runtime/exploitation.md`, "Drive".
+step's commands, and updating brigade, are in `docs/runtime/exploitation.md`, "Piloter".
 
 **Enable the grant only after rereading at least one delivery from this project** — one command, no
 restart (`brigade <project> grant enable merge`), preferably with an expiry (`--for 4h`,
-`--uses 10`): it then switches off on its own, see "The `merge` grant" in [`runtime/`](runtime/pass-merge.md).
+`--uses 10`): it then switches off on its own, see "Le grant `merge`" in [`runtime/`](runtime/pass-merge.md).
 
 **Before granting, read the tally of stops for lack of a grant.** Each green delivery stopped says
 on its issue what the pass would have merged; `pass` and `grant` count what you did with them —
 merged, closed without merge (the disagreements), still open. That is the figure on
-which to grant (`docs/runtime/pass.md`, "The reasons, and the step for each").
+which to grant (`docs/runtime/pass.md`).
 
 ## A second project on the box
 
 A second project replays steps 1 and 6 to 10 — nothing from "Prepare the box". **Two more things
 are then laid down, for all the projects on the box**; their units are already copied. What
-they do is in `docs/runtime/cloison-et-arbitre.md`, "The partition" and "The arbiter between projects".
+they do is in `docs/runtime/cloison-et-arbitre.md`, "La cloison" and "L'arbitre entre projets".
 
 ### The partition
 
@@ -833,7 +833,7 @@ with the step itself (step 5). Add a human rewrites no rule and
 touches no project.
 
 **What you give them, spelled out.** The group's right is the `brigade` step, whole:
-**all its commands (`docs/runtime/exploitation.md`, "Drive"), for all the box's projects** — reading `status`, but
+**all its commands (`docs/runtime/exploitation.md`, "Piloter"), for all the box's projects** — reading `status`, but
 also granting the `merge` grant, saying "stop", uninstalling a project. **Reading and acting are not
 separated**: dosing rights per human does not exist yet (V2.5). It is of the same order as giving
 them a shell on the box, and they have one, under their account. What they do not have: a shell under the

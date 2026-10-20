@@ -17,7 +17,7 @@ of a project on its box, the one a "stop" stops (`docs/app.md`, "The app is not 
 **Its content has changed since** (#870): it is no longer a tile per project, but brigade's
 overview — one line per project, one per station, each with its pill and what is going on in it,
 which a click opens, and the health line for Max and GitHub. The agreed mockup is in the ticket,
-and the screen as delivered in `docs/app.md`, "Tous les projets, d'un coup". The five counters,
+and the screen as delivered in `docs/app.md`, "All projects at a glance". The five counters,
 the cooks in flight and the latest event live in the project's space.
 
 ## The four screens

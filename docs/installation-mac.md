@@ -40,5 +40,5 @@ update, download the new `.dmg` and drag it into Applications, replacing the old
 ## Going further
 
 The full tour of the app (the spaces, the home screen, the stations, adding a project) is in
-[`app.md`](app.md), "Lancer l'app". The detail of what the `.dmg` carries and how it is built is
+[`app.md`](app.md), "Launching the app". The detail of what the `.dmg` carries and how it is built is
 in [`app/packaging/README.md`](../app/packaging/README.md).

@@ -172,7 +172,7 @@ A file written before this list has nothing to rewrite in it: the box your proje
 can empty it: `Install on the box, and add` with an empty calibration or destination
 reaches no one, the field is flagged, with its reason (`The manager's model has no default:
 it is your quota, choose it.`), and the screen says `Nothing went to the box`. **The runtime, for its part,
-always refuses to start without its five variables** (`docs/runtime/exploitation.md`, "Five variables, no default"): the proposed value is
+always refuses to start without its five variables** (`docs/runtime/exploitation.md`, "Cinq variables, aucun défaut"): the proposed value is
 written in the drop-in as a chosen value.
 
 **The name is that of the instance** (`brigade@<name>.service`), and the screen refuses it **as the box
@@ -727,7 +727,7 @@ and the version of its machine are not written on the page: they are read on hov
 saturated station takes no ticket while that lasts: its sentence says only that.
 
 - **The app reaches no station.** Each station writes its state to a secret gist in your
-  GitHub account ([docs/runtime/](runtime/station-machine.md), "A station per machine"), and the app reads it
+  GitHub account ([docs/runtime/](runtime/station-machine.md), "Une station par machine"), and the app reads it
   there, through your own `gh`, every thirty seconds (`app/src/stations/`). The tracking is therefore
   accurate to the minute, not to the second.
 - **A station that is off stays in the list**, offline, with how long ago: right
@@ -772,8 +772,8 @@ sign of life) is stated only once: the page header does not repeat the state whe
   which opens the login page in your browser; the station sees the connection restored within
   the minute, and the kitchen resumes on its own. **Only the station of this computer** reconnects
   this way: the login of a server station does not yet start from the app, and the button says so.
-- What the app knows about it, the station publishes in its gist ([docs/runtime/](runtime/station-machine.md), "A
-  station per machine"): versions and dates, no reason and no command. An offline station
+- What the app knows about it, the station publishes in its gist ([docs/runtime/](runtime/station-machine.md), "Une
+  station par machine"): versions and dates, no reason and no command. An offline station
   no longer states its connection — what it published before going silent is no longer reliable.
 
 **Its update line and its removal** (#880). Under the page header, a single line says
@@ -858,7 +858,7 @@ none.
   is written.
 - **Once confirmed**, the app writes the request in the gist of each chosen station (`app/src/projets/`); the
   main station reads it within half a minute, prepares it and adds it to its configuration
-  ([docs/runtime/](runtime/station-machine.md), "Add a project to a station from the app"). If its GitHub
+  ([docs/runtime/](runtime/station-machine.md), "Ajouter un projet à une station depuis l'app, sans terminal"). If its GitHub
   Apps must be authorized on the repository, one **"authorize on GitHub"** button per App opens
   GitHub's page: one click, and the station carries on on its own.
 - **"remove"**, under a project added from the app, then a second click to confirm, removes the project from the request of each of
@@ -945,7 +945,7 @@ decision is recorded; the station then republishes the state that says it for go
 ### Where a project cooks, and moving it in one gesture (#1095)
 
 - **The line says where it cooks**, as its stations publish it (`cuitSur` in their tracking,
-  [docs/runtime/](runtime/station-distante.md), "Move a project's kitchen") — not what the
+  [docs/runtime/](runtime/station-distante.md), "Déménager la cuisine d'un projet, quand on veut") — not what the
   app asked for: a refused move leaves it cooking where it was cooking, and so does the line.
   `Cooks on parade-box` for a project on its box; **`Cooks on this Mac · its kitchen stops when you
   close the app`** for a project that this computer's station serves — the sentence is never
@@ -996,7 +996,7 @@ At the top of a project's space panel, the reading of its box is in **one of sev
 | On screen | What the app got | What it shows below |
 |---|---|---|
 | `drivable — read at 14:32:07` | the commands succeeded | their outputs. **A project where nothing is happening is here**: a quiet `status`, not an error |
-| `REACHED, BUT NO LONGER DRIVABLE — attempt at …`, in yellow, dotted line | `ssh` reached the box, and a command failed there (a code other than 255) or returned nothing within thirty seconds (`ssh`, connected, stopped at the timeout) | the command that ran, what it wrote, its code — then **the action**: update the runtime on its box (`docs/runtime/exploitation.md`, "Driving") |
+| `REACHED, BUT NO LONGER DRIVABLE — attempt at …`, in yellow, dotted line | `ssh` reached the box, and a command failed there (a code other than 255) or returned nothing within thirty seconds (`ssh`, connected, stopped at the timeout) | the command that ran, what it wrote, its code — then **the action**: update the runtime on its box (`docs/runtime/exploitation.md`, "Piloter") |
 | `REACHED, BUT UNKNOWN TO THE BOX — attempt at …`, in yellow, solid line | `ssh` reached the box, and its action refused the project (code 65): it serves no project under that name | **what the action said about it**, as is — then the name the app gave it, and where it comes from (`nom`, in `app.json`) |
 | `REACHED, BUT WITHOUT THE ACTION'S RIGHT — attempt at …`, in yellow, solid line | `ssh` reached the box, and its action refused your account (code 68): it is not among those who may run it | **what the action said about it**, as is — then where the action that grants this right is written, on the box (`docs/installer.md`, "Add a human") |
 | `REACHED, BUT A COMMAND IS MISSING ON THE BOX — attempt at …`, in yellow, solid line | `ssh` reached the box, and a command was not found there: the box's shell says so (code 127), or the action, for `sudo` (code 69) | **what the box said about it**, as is — then where these commands go (`docs/installer.md`, "Prepare the box") |
@@ -1205,7 +1205,7 @@ the page, and **the rail comes back as you left it**, scrolled where it was. The
 above, stays visible: no page covers it, nor do the terminals, on the right.
 
 In these pages, seven **content readings**. A reading relays **as text, word for word,** the output of a runtime command
-(`docs/runtime/exploitation.md`, "Driving"). **Manager** first shows the manager's state, **Grants** that
+(`docs/runtime/exploitation.md`, "Piloter"). **Manager** first shows the manager's state, **Grants** that
 of the grants:
 
 | Tab | The command the app runs on the box | What you read there |
@@ -1271,7 +1271,7 @@ served tickets**, and **what the project cost** (#1022). It is not a tab at the 
   figure**: not merged yet (`not merged yet`, with no before or after), merged with no ticket finished since
   (`nothing to compare yet` — the before, and `not yet` in place of the after), or that will not be (`not
   merged`). **With no accepted correction, the section is not laid**, and nothing is said in its place. It comes
-  from `facts` (`reculs`, `docs/runtime/etat-et-mesures.md`, "Does a merged correction make its cause recede?"),
+  from `facts` (`reculs`, `docs/runtime/etat-et-mesures.md`, "Une correction mergée recule-t-elle sa cause ?"),
   read alongside (`app/src/recul.ts`): the app judges nothing, "recedes" is the runtime's verdict; a box not
   reached keeps the last reading.
 - **Then what the cooks taught the project** (#1058, epic #1034), under "what the cooks learned". **Its
@@ -1305,7 +1305,7 @@ served tickets**, and **what the project cost** (#1022). It is not a tab at the 
   among the latest cooks that `station` lists.
 
 **Where it comes from** (`app/src/fiabilite.ts`). The app computes nothing and asks the runtime for nothing new:
-it reads what `measures` writes (`docs/runtime/etat-et-mesures.md`, "The measures report") — the blocks
+it reads what `measures` writes (`docs/runtime/etat-et-mesures.md`, "Le relevé des mesures") — the blocks
 `retries`, `failures` and `launches` —, and the chef's settings under "chef's decisions" of `station`.
 
 - **The window is that of the first-time drift**: `fenetre-renvois` (10 absent a setting), its
@@ -1330,7 +1330,7 @@ says is on hover; the dot does not change: nothing awaits the chef, nothing bloc
 ### The Closer reading
 
 *Ticket: #990 (epic #986).* Under **Settings → Closer**, **the project's "closer" part**: what the
-closer's last observation spotted (`docs/runtime/fermeture.md`, "The closing that observes"). It
+closer's last observation spotted (`docs/runtime/fermeture.md`, "La fermeture qui observe"). It
 is one more reading, next to Reliability: the two top tabs stay two.
 
 - **At the top, four figures**: the **merges since the last cleanup**, the **added / removed**
@@ -1426,7 +1426,7 @@ else:
 - **What else the output says is read below**: the epics, the reactions to failures. The app does
   not set them apart. A command the runtime cites in a reason (`npm --prefix runtime run
   manager -- return 77`) is the box's: from your workstation, it is `ssh <host> brigade <name>
-  manager return 77` (`docs/runtime/exploitation.md`, "Driving").
+  manager return 77` (`docs/runtime/exploitation.md`, "Piloter").
 - **Read as long as the tab is shown**, like the others: on opening, then every thirty
   seconds. Coming back to the tab reads it again at once — nothing stays from the previous read.
 - **Two actions, next to the state: `on`, `off`** — each under what its click does.
@@ -1441,11 +1441,11 @@ else:
   | `on` | writes: `ssh <host> brigade <name> manager on` |
   | `off` | sends: `!ssh <host> brigade <name> manager off` |
 
-  It is the command of `docs/runtime/exploitation.md`, "Driving", in its workstation form, word for word: it
+  It is the command of `docs/runtime/exploitation.md`, "Piloter", in its workstation form, word for word: it
   stays in the shell's history and can be replayed by hand identically. The line under the
   right-hand tabs says what was written (``written in this shell, without Enter: `ssh box brigade parade manager on` — yours is the one that sends it…``).
   **Turning on commits**: once on, the manager judges the whole open backlog, and what it judges
-  executable goes straight to the kitchen (`docs/runtime/manager.md`, "The manager") — that is why the command
+  executable goes straight to the kitchen (`docs/runtime/manager.md`, "Le manager") — that is why the command
   is written and read before it goes. Once sent, come back to **Manager**: the state is read again.
 - **With "on", the app says what it commits — and the figure.** From the click, **above the
   shell** where the command waits, the warning of `docs/runtime/manager.md` is set, word for word
@@ -1456,7 +1456,7 @@ else:
 
   | What you read | Where it comes from |
   |---|---|
-  | the warning | the text of `docs/runtime/manager.md`, "The manager" — it is there from the click, before any read |
+  | the warning | the text of `docs/runtime/manager.md`, "Le manager" — it is there from the click, before any read |
   | the two numbers | the `backlog` line of `ssh <host> brigade <name> manager backlog`, which the app runs **for you, once, after** writing the action: the box counts on GitHub the repository's open issues (PRs set aside) and those carrying `blocked-on-human`, at that moment. The time of the read and the command are said below |
   | why they are missing | the box not reached, GitHub not read by it, a runtime from before this read ("update brigade on the box"), or an output without its `backlog` line: the app says so, shows what it got instead, and **never writes "0"** — that is not "no issue" |
 
@@ -1477,7 +1477,7 @@ else:
 
 **Is a grant active, and until when?** It is the heaviest authorization in the system —
 under a `merge` grant, code written by a cook lands on the integration branch without you
-(`docs/runtime/pass-merge.md`, "The `merge` grant") —, and this is where it is read, per project. At the top of
+(`docs/runtime/pass-merge.md`, "Le grant `merge`") —, and this is where it is read, per project. At the top of
 the tab, above the text of `ssh <host> brigade <name> grant`, the app puts what it read **in
 that output**, and nothing else — one block per grant:
 
@@ -1515,7 +1515,7 @@ that output**, and nothing else — one block per grant:
   | `enable merge` | `ssh <host> brigade <name> grant enable merge` |
   | `revoke merge` | `ssh <host> brigade <name> grant revoke merge` |
 
-  It is the command of `docs/runtime/exploitation.md`, "Driving", in its workstation form, word for word: it
+  It is the command of `docs/runtime/exploitation.md`, "Piloter", in its workstation form, word for word: it
   stays in the shell's history and can be replayed by hand identically. **`merge` is the heaviest
   grant, and it is written like the others**: no confirmation box opens. What protects
   you is that the command **is read and corrected before it goes** — you can add an
@@ -1552,7 +1552,7 @@ none.
 | | `grant revoke merge` | `!ssh <host> brigade <name> grant revoke merge` |
 | the **Cooks** tab | `station cooks …` | `!ssh <host> brigade <name> station cooks ` — the number is left to type |
 
-- **It is the doc's command, word for word**: the form of `docs/runtime/exploitation.md`, "Driving",
+- **It is the doc's command, word for word**: the form of `docs/runtime/exploitation.md`, "Piloter",
   from your workstation (`ssh <box> brigade <project> <command>`), with your `host` and your `name`. The `!`
   in front is the one that runs a command on the Mac from a `claude` session. It stays in the
   second's history, and can be replayed by hand identically.
@@ -1714,7 +1714,7 @@ why — always followed by ``— the command did not go out, and nothing is writ
 Four things, and only them, because they are a **table of states**: the bar's pill,
 the project tile, the rail, the stop banner. The app draws them from no sentence: it
 runs `ssh <host> brigade <name> facts`, the command by which the runtime gives its facts as facts
-(`docs/runtime/etat-et-mesures.md`, "The facts, for a program") — a state is **a word read**, a counter **a
+(`docs/runtime/etat-et-mesures.md`, "Les faits, pour un programme") — a state is **a word read**, a counter **a
 number read**. For all projects that have a `host`, every thirty seconds, whatever the
 screen.
 
@@ -1794,7 +1794,7 @@ blocks it, `right now` — is in **the card sheet**, which a click on the card o
 Settings. The screenshots of a served interface ticket stay on the card.
 
 **The sheet carries what the queue says about the ticket** (`app/src/bon.ts`) — five things, in this order,
-with `right now` (what the kitchen is doing with it, `rail[].activite`, see "What a cook is doing right now"
+with `right now` (what the kitchen is doing with it, `rail[].activite`, see "Ce que fait un cook en ce moment"
 in `docs/runtime/garde-fous.md`) first:
 
 | On the sheet | What it is | Where it comes from |
@@ -2031,7 +2031,7 @@ For a ticket in pass or served, `cooked by` is added: who cooked it is not who h
 - **What is not on the rail yet** (`app/src/amont.ts`, #697). An empty rail does not
   mean a finished project: at the head of the rail, a number — `23 upcoming` — counts the open issues of the
   repository that the rail does not carry. It comes from `ssh <host> brigade <name> manager upstream`
-  (`docs/runtime/manager.md`, "Upstream of the rail"), read **for the displayed project only**, once a
+  (`docs/runtime/manager.md`, "En amont du rail"), read **for the displayed project only**, once a
   minute: the box reads GitHub each time. A click expands the list, **grouped by what is
   happening to them**, in the box's words:
   - `not yet read by the manager`; `epic, not yet split`; `awaiting your answer — it is also in
@@ -2153,7 +2153,7 @@ the `proposition` of `profils` — the `seq` of the `profile.proposed` fact. It 
 is written, or when the proposal was already settled (`decider`, `runtime/src/profils/decision.ts`,
 outcomes `tranchee` and `deja`); 1 on `inconnue` or `existe` (a "yes" on a profile that the repository
 already defines), the reason on its last line (`runtime/src/profil-cli.ts`,
-`docs/runtime/etat-et-mesures.md`, "The proposed profiles"). A station whose runtime is from before
+`docs/runtime/etat-et-mesures.md`, "Les profils proposés"). A station whose runtime is from before
 this command refuses it (66): the click says `nothing was sent: this station cannot take your answer
 yet`, and nothing goes out.
 
@@ -2175,7 +2175,7 @@ write the restart in the second, without sending:  [guardrails resume]
 - **It leaves by itself** at the first reading that no longer says `stopped`: thirty seconds at
   most after your "resume".
 - **`off` has no banner**: a stopped runtime is not restarted by an action of
-  "Operate" (`sudo systemctl start brigade@<project>`, on the box). Its pill is red, and
+  "Piloter" (`sudo systemctl start brigade@<project>`, on the box). Its pill is red, and
   `status` says the rest.
 
 ### A word the app does not know
@@ -2198,7 +2198,7 @@ therefore receives at most one connection per project it serves, not two.
 
 | On screen | What the app obtained | What it shows below |
 |---|---|---|
-| ``REACHED, BUT `facts` DID NOT ANSWER — tried …`` | `ssh` reached the box, and the command failed there without its code saying a case. **A runtime from before `facts` is the expected case** | the command launched, what it wrote, its code — then the action: update the runtime on its box (`docs/runtime/exploitation.md`, "Operate") |
+| ``REACHED, BUT `facts` DID NOT ANSWER — tried …`` | `ssh` reached the box, and the command failed there without its code saying a case. **A runtime from before `facts` is the expected case** | the command launched, what it wrote, its code — then the action: update the runtime on its box (`docs/runtime/exploitation.md`, "Piloter") |
 | `REACHED, BUT UNKNOWN TO THE BOX`, `… WITHOUT THE RIGHT TO THE ACTION`, `… A COMMAND IS MISSING ON THE BOX`, `… THE BOX'S NODE DOES NOT SUIT THE RUNTIME` | the box's action refused (codes 65, 68, 69 or 127, 70): **the same case as under `status`**, with the same words | what the box said of it, as is — then **the pointer for that case**, the one from the table of "A box reading: seven states". No runtime update: it is not the runtime that is old |
 | ``THE BOX DID NOT RETURN THE SHAPE OF `facts` — tried …`` | the command succeeded, and its output is not the shape: not JSON, a missing field, a counter that is not a whole number | **the output, word for word**, then what is not the shape (`"compteurs.rail" is not a positive whole number`) |
 | `NOT REACHED — tried …` | nothing that proves the box was reached | the message from `ssh`, as is — the same as under `status`, where its pointers are given |
@@ -2268,8 +2268,8 @@ end awaiting
   `nothing awaits the chef` on the first, `end awaiting` on the second. The app does not write
   that sentence and writes no other: if the runtime changes it, it changes here.
 - **To set it apart, the app reads only the edge**: the only line of the output that starts with
-  `awaiting`, the only one that equals `end awaiting` (`docs/runtime/etat-et-mesures.md`, "What
-  awaits the chef"). Nothing the block carries is counted or reworded. So it does not know *whether*
+  `awaiting`, the only one that equals `end awaiting` (`docs/runtime/etat-et-mesures.md`, "Ce qui
+  attend le chef"). Nothing the block carries is counted or reworded. So it does not know *whether*
   anything awaits you: the full block and the empty block have the same background, no alert
   color, no counter in the bar.
 - **The number it reads there** — to sort the rail ("The rail", Awaiting you column) — is all it
@@ -2294,7 +2294,7 @@ end awaiting
   ```
 
   The expected case is a runtime from before this edge — the action is then to update it on its box
-  (`docs/runtime/exploitation.md`, "Driving") — but the app does not guess: it says what it did
+  (`docs/runtime/exploitation.md`, "Piloter") — but the app does not guess: it says what it did
   not find. The project stays `pilotable`: `status` answered.
 - A failed read has nothing to set apart: the error takes all the room, as before.
 
@@ -2323,13 +2323,13 @@ The head lines of `status` that the app reads (`kitchen`, `connection`, `setup`,
 title, a panel, what the buttons write — is the *workstation action*,
 `ssh <hote> brigade <nom> <command>`, with your `hote` and the project's `nom`: it is what you type
 on your Mac. `brigade <nom> <command>` alone is the *box action*, the one of the box itself
-(`docs/runtime/exploitation.md`, "Driving"): typed on the Mac, it returns `command not found`, and
+(`docs/runtime/exploitation.md`, "Piloter"): typed on the Mac, it returns `command not found`, and
 the app puts nothing on your workstation to avoid that. Under the project name, `<hote>` and `<nom>`
 are to be replaced by the two fields of your file.
 
 You no longer dictate any command. The app runs **the box action**, reached by `ssh`: `ssh <hote>
 brigade <nom> status` — and, for the content tab displayed, `ssh <hote> brigade <nom> rail`,
-`station`, `grant` or `log` (`docs/runtime/exploitation.md`, "Driving"): the account, the
+`station`, `grant` or `log` (`docs/runtime/exploitation.md`, "Piloter"): the account, the
 installation and the environment are read on the box, in the project's unit. The action must
 therefore be placed there, and allowed to your account without a password (`docs/installer.md`,
 "Prepare the box").
@@ -2458,8 +2458,8 @@ The app has one visual language, and only one: the mockup's (`docs/maquettes/app
 
 A ticket can ask for a capability the box does not have — `chrome-connecté`, your browser, with
 your sessions. The project then declares on its box a station that provides it and that **does not
-run on the box**: `mac/claude:1:chrome-connecté:distante` (`docs/runtime/station-distante.md`, "A
-remote station pulls its work"). **The app plays it**, for the projects that ask it to:
+run on the box**: `mac/claude:1:chrome-connecté:distante` (`docs/runtime/station-distante.md`, "Une
+station distante tire son travail"). **The app plays it**, for the projects that ask it to:
 
 ```json
 { "nom": "brigade", "dossier": "~/Dev/brigade", "hote": "ma-box", "stations": ["mac/claude"] }
@@ -2499,7 +2499,7 @@ sandbox, with writing limited to their worktree and network limited to the proje
 values are written in the projects file (`"ordinaires": true`, `"limiteCooks": 2`) and re-read at
 each opening; a value badly written by hand makes the file refused. **Outside a Mac, or with no
 station played, the block does not exist.** The sandbox state is read in `facts` (`stations` field,
-[docs/runtime/](runtime/station-distante.md), "Ordinary tickets on the chef's workstation"): when the
+[docs/runtime/](runtime/station-distante.md), "Les tickets ordinaires sur le poste du chef"): when the
 station says it is unavailable, the block writes it beside the option, with the reason the station
 gives, and specifies that the Mac takes no ordinary ticket. As long as it has said nothing, the app
 guesses nothing. The block sets what the app keeps; the box's `distante+ordinaires` declaration
@@ -2892,7 +2892,7 @@ cache (`~/Library/Caches/electron`) weighs 129 MB, once.
 - Show the manager's state outside its tab — in the bar, the tile or "All projects": it is read in
   the **Manager** tab, as long as it is displayed.
 - Say, when turning the manager on, how many open issues it is going to judge: the action writes the
-  command, and `docs/runtime/manager.md`, "The manager", says what it commits.
+  command, and `docs/runtime/manager.md`, "Le manager", says what it commits.
 - Follow the log live outside a terminal: the **Log** tab reads its end again, every thirty
   seconds.
 - Read what the second displays: the app does not read the terminal. A button writes after your

@@ -3,7 +3,7 @@
 Step-by-step scenario, to be played by the chef on a box where a first project is already served.
 No terminal is opened by hand, except the cases called "terminal" below. The step and button names
 are the ones the app displays (in English for the buttons, like the app); the doc is
-`docs/installer.md`, "Par projet : le parcours par l'app".
+`docs/installer.md`, "Per project: the path through the app".
 
 **Prerequisites**: the box has an up-to-date installation command and service start command, a
 logged-in `claude` account, `gh` logged in under your account; your workstation has the brigade
