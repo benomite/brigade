@@ -66,6 +66,23 @@ seul :
    sous grant dans la même pause. C'est la seule PR que la pause laisse passer.
 3. Mergée, la pause est levée et la cuisine repart.
 
+**Après le merge, la cuisine reprend seule** (`runtime/src/pause/reprise.ts`) : la pass merge à
+nouveau, les stations prennent à nouveau. Les tickets que la pause a retenus nomment encore les
+chemins d'avant le renommage ; ils sont repris sur le nouvel arbre, par les déplacements que
+l'outil a dits (ses lignes `move`, gardées au journal) :
+
+- **Leur zone** se lit sur les nouveaux chemins, comme celle de tout ticket du rail : la levée la
+  réécrit au journal, et chaque relecture d'une fiche la traduit de même. La fiche de l'issue reste
+  telle que tu l'as écrite.
+- **Leur branche** est portée sur le nouvel arbre par la pass, avant de la juger : un commit de plus,
+  qui fusionne `v2` renommée et y déplace ce que la livraison avait écrit. Il est poussé, puis jugé
+  comme toute livraison, et l'issue le dit. Il en va de même pour un cook parti avant la pause et
+  qui livre après.
+- **Une livraison qui ne touchait aucun fichier déplacé** est jugée telle quelle.
+- **Une livraison qui ne se porte pas** (ce qu'elle change entre en conflit avec ce que le renommage
+  a écrit) n'est pas mergée. Elle est remontée (`pass.escalated`, cause `rename-conflict`), et ta
+  file la nomme : `held by the code rename and not resumed on the renamed tree: … conflict on …`.
+
 En cas d'échec, **rien n'est mergé**, et la pause est levée sans geste de ta part. Les échecs
 possibles : l'outil, le setup, des gates rouges, un conflit avec `v2`, une pass qui ne juge pas
 ou s'arrête avant le merge, une PR fermée. La file garde alors une carte, `rename`, qui dit
@@ -82,8 +99,9 @@ la pause levée : elle remonte sans merge (`pass.escalated`, cause `rename-aband
 Au journal, hors ticket : `pause.requested` (`ticket` du renommage ou nul, `minutes`, `inFlight`),
 `pause.agreed`, `pause.declined`, `pause.released` (`why` ; et, levée par le renommage, `outcome`
 — `merged` ou `failed` — avec la `cause` d'un échec), `pause.dismissed`, `rename.started`
-(`run`, `branch`, `base`, `deadline`) et `rename.delivered` (`pr`, `number`, `sha`). Chacun nomme
-sa demande (`request`).
+(`run`, `branch`, `base`, `deadline`) et `rename.delivered` (`pr`, `number`, `sha`, `moves`). Sur le
+ticket d'une livraison retenue : `rename.carried` (`branch`, `from`, `to`, `base`, `paths`) ou
+`rename.stranded` (`branch`, `sha`, `why`, `paths`). Chacun nomme sa demande (`request`).
 
 **Les gestes que le runtime te cite** (la file, `status`, les refus) sont écrits
 sous la forme qui se tape là où tu les lis : sur la box, `brigade <projet> <commande> [arguments…]`,

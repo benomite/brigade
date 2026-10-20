@@ -89,11 +89,15 @@ export type Setup =
 export const aDesGates = (worktree: string) => existsSync(join(worktree, SCRIPT_GATES));
 
 // `coupee` : la sortie ne tenait pas dans ce qui en est gardé, son début manque.
-type Passage = { code: number | null; depasse: boolean; sortie: string; coupee: boolean; masques: number; canal: string };
+// `retenues` : les lignes de sa sortie standard que `retenir` a reconnues,
+// toutes, coupée ou non.
+type Passage = { code: number | null; depasse: boolean; sortie: string; coupee: boolean; masques: number; canal: string; retenues: string[] };
 
 // Joue un script du projet dans le worktree, sous son plafond. Ne lève pas : un
 // script impossible à lancer est un script en échec, et sa sortie dit pourquoi.
-function jouer(script: string, args: string[], demande: DemandeScript): Promise<Passage> {
+// `retenir` : les lignes de sa sortie standard à garder entières, hors de ce
+// que le plafond de sortie laisse.
+function jouer(script: string, args: string[], demande: DemandeScript, retenir?: RegExp): Promise<Passage> {
   return new Promise((resoudre) => {
     // Son propre groupe de process : au plafond, le script meurt avec tout ce
     // qu'il a lancé.
@@ -111,7 +115,17 @@ function jouer(script: string, args: string[], demande: DemandeScript): Promise<
       coupee ||= entiere.length > SORTIE_MAX;
       sortie = entiere.slice(-SORTIE_MAX);
     };
-    enfant.stdout?.on("data", noter);
+    const retenues: string[] = [];
+    let entamee = "";
+    const trier = (morceau: string) => {
+      const lignes = (entamee + morceau).split("\n");
+      entamee = lignes.pop() ?? "";
+      for (const ligne of lignes) if (retenir?.test(ligne)) retenues.push(ligne);
+    };
+    enfant.stdout?.on("data", (morceau: Buffer) => {
+      noter(morceau);
+      if (retenir) trier(morceau.toString());
+    });
     enfant.stderr?.on("data", noter);
     const canal: Buffer[] = [];
     enfant.stdio[CANAL]?.on("data", (morceau: Buffer) => canal.push(morceau));
@@ -136,12 +150,13 @@ function jouer(script: string, args: string[], demande: DemandeScript): Promise<
       rendu = true;
       clearTimeout(plafond);
       demande.signal?.removeEventListener("abort", tuer);
+      if (entamee !== "") trier("\n");
       const dite = erreur ? `${sortie}\n${erreur}` : sortie;
       const masquee = masquerIdentifiants(demande.masquer?.(dite) ?? dite);
       // Arrêté au plafond : le plafond est échu, et le script en est mort. Sorti
       // de lui-même, il a un code, et c'est lui qui le juge — même si le plafond
       // est tombé avant que le runtime, en retard, ait traité sa fin.
-      resoudre({ code, depasse: echu && code === null, sortie: masquee.texte, coupee, masques: masquee.masques, canal: Buffer.concat(canal).toString() });
+      resoudre({ code, depasse: echu && code === null, sortie: masquee.texte, coupee, masques: masquee.masques, canal: Buffer.concat(canal).toString(), retenues });
     };
     enfant.on("error", (erreur) => rendre(null, erreur.message));
     // Le verdict est le code de sortie du script, connu dès sa fin — pas la
@@ -180,11 +195,13 @@ export async function jouerSetup(demande: DemandeScript): Promise<Setup> {
 // renommage du code (`pause/renommage.ts`) : son propre groupe de process, son
 // plafond, l'abandon. Rend son code de sortie (null : arrêté, au plafond ou
 // abandonné), s'il est tombé sur son plafond, et la fin de sa sortie. Ne lève
-// pas : un outil impossible à lancer est un outil en échec.
-export async function jouerOutil(commande: string, args: string[], demande: DemandeScript): Promise<{ code: number | null; depasse: boolean; fin: string }> {
-  const { code, depasse, sortie } = await jouer(OUTIL, [commande, ...args], demande);
+// pas : un outil impossible à lancer est un outil en échec. `retenir` : les
+// lignes de sa sortie standard rendues entières (`retenues`) — les
+// déplacements que dit l'outil de renommage.
+export async function jouerOutil(commande: string, args: string[], demande: DemandeScript, retenir?: RegExp): Promise<{ code: number | null; depasse: boolean; fin: string; retenues: string[] }> {
+  const { code, depasse, sortie, retenues } = await jouer(OUTIL, [commande, ...args], demande, retenir);
   const lignes = sortie.split("\n").filter((ligne) => ligne.trim() !== "");
-  return { code, depasse, fin: lignes.slice(-LIGNES_DE_FIN).join("\n").slice(-FIN_MAX) };
+  return { code, depasse, fin: lignes.slice(-LIGNES_DE_FIN).join("\n").slice(-FIN_MAX), retenues };
 }
 
 // Le plafond que nomme une ligne FAIL de plafond franchi.

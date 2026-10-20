@@ -68,6 +68,7 @@ import { REVENU_D_ATTENTE } from "./events/rail.ts";
 import { cartesEnTodo, direCarte, direCarteEn, type CarteDeTodo } from "./carte-todo.ts";
 import type { EnVol } from "./pause/evenements.ts";
 import { echecDuRenommage, EN_PAUSE_POUR_LE_RENOMMAGE, NON, OUI, pauseAccordee, pauseEnCours, ticketsEnVol } from "./pause/pause.ts";
+import { INTRANSPOSABLE, pourquoiIntransposable } from "./pause/reprise.ts";
 
 // Ce que le chef lit de la livraison qui l'attend, tel que la pass l'a consigné :
 // `resume`, celui de la relecture ; `constat`, le premier constat bloquant (celui
@@ -98,7 +99,9 @@ type AttenteDeTicket = { ticket: number; title: string | null; since: string } &
   // s'était éteint seul à cet instant.
   | { quoi: "merge"; reason: string; cause: string | null; pr: string | null; expired: string | null; livraison?: Livraison }
   // Un ticket que la pass ou le manager a remonté : il est 86, sans retour.
-  | { quoi: "remontee"; reason: string; cause: string | null; pr: string | null; livraison?: Livraison }
+  // `why` : pourquoi sa livraison ne se porte pas sur l'arbre d'un renommage
+  // du code mergé, quand c'est ce qui l'a remonté (pause/reprise.ts).
+  | { quoi: "remontee"; reason: string; cause: string | null; pr: string | null; livraison?: Livraison; why?: string }
   // Une livraison dont la PR a été fermée sans merge : son ticket tient encore
   // sa place sur le rail. `reason` : ce qu'elle était — arrêtée, remontée.
   | { quoi: "fermee"; reason: string; cause: string | null; pr: string | null; livraison?: Livraison }
@@ -243,7 +246,11 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
     // Rendu au rail par le chef, le ticket n'est plus 86 : sa pass garde sa
     // phase jusqu'au cook suivant, mais plus rien n'attend. Redécoupé, il
     // n'attend personne : ses sous-tickets portent le travail.
-    if (pass.phase === "escalated" && ticket.state === "86" && pass.reason !== REDECOUPE) return pass.cause === DU_MANAGER && avecCarte.has(pass.ticket) ? [] : [{ ...commun, quoi: "remontee" }];
+    if (pass.phase === "escalated" && ticket.state === "86" && pass.reason !== REDECOUPE) {
+      if (pass.cause === DU_MANAGER && avecCarte.has(pass.ticket)) return [];
+      const why = pass.cause === INTRANSPOSABLE ? pourquoiIntransposable(base, pass.ticket) : null;
+      return [{ ...commun, quoi: "remontee", ...(why === null ? {} : { why }) }];
+    }
     // De même rendu au rail, il n'attend plus ; et fermer la PR d'un ticket
     // redécoupé n'appelle rien d'autre.
     if (pass.phase === "closed" && (ticket.state === "pass" || ticket.state === "86") && pass.reason !== REDECOUPE) return [{ ...commun, quoi: "fermee" }];
@@ -502,6 +509,7 @@ export function direAttenteEn(attente: Attente): string {
       const voir = `\`${geste(`pass ${attente.ticket}`)}\``;
       const sortir = attente.pr === null ? "remove `fire`, or close the issue" : `merge ${attente.pr} by hand, or remove \`fire\``;
       const precise = attente.cause === null ? "" : `: ${attente.cause}`;
+      if (attente.why !== undefined) return `held by the code rename and not resumed on the renamed tree: ${attente.why} — to decide: carry it by hand onto the renamed base and push its branch, then remove and set \`fire\` again; or ${sortir} — ${voir}`;
       switch (attente.reason) {
         case ENCORE_ROUGE:
           return `${attente.cause === DU_MANAGER ? "escalated by the manager, red" : `escalated by the pass, red (${ENCORE_ROUGE}${precise})`} — to decide: ${sortir} — ${voir}`;
@@ -793,6 +801,7 @@ export function direAttente(attente: Attente): string {
       const voir = `\`${geste(`pass ${attente.ticket}`)}\``;
       const sortir = attente.pr === null ? "retirer `fire`, ou fermer l'issue" : `merger ${attente.pr} à la main, ou retirer \`fire\``;
       const precise = attente.cause === null ? "" : ` : ${attente.cause}`;
+      if (attente.why !== undefined) return `retenu par le renommage du code, et non repris sur l'arbre renommé : ${attente.why} — à trancher : la porter à la main sur la base et pousser sa branche, puis retirer et reposer \`fire\` ; ou ${sortir} — ${voir}`;
       switch (attente.reason) {
         case ENCORE_ROUGE:
           return `${attente.cause === DU_MANAGER ? "remontée par le manager, rouge" : `remontée par la pass, rouge (${ENCORE_ROUGE}${precise})`} — à trancher : ${sortir} — ${voir}`;

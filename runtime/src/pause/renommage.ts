@@ -10,7 +10,8 @@
 //
 // La pause est levée par le renommage lui-même, sans geste du chef :
 //
-// - mergé : la pause est levée, la cuisine repart ;
+// - mergé : la pause est levée, la cuisine repart, et les zones du rail se
+//   lisent sur les nouveaux chemins (`reprise.ts`) ;
 // - échoué — l'outil, les gates rouges, un conflit avec la base, la pass qui ne
 //   juge pas ou s'arrête avant le merge, sa PR fermée — : rien n'est mergé, la
 //   pause est levée, et la carte de la file dit pourquoi ;
@@ -38,6 +39,7 @@ import { etatDuGrant } from "../projections/pass.ts";
 import type { Runtime } from "../runtime.ts";
 import type { CauseDEchec, FaitPause } from "./evenements.ts";
 import { LIMITE_DU_RENOMMAGE_MS, pauseAccordee, pauseEnCours, type PauseAccordee } from "./pause.ts";
+import { deplacementsDeLOutil, LIGNE_DE_DEPLACEMENT, reprendreLesZones } from "./reprise.ts";
 
 const AUTEUR = "rename";
 // Le run d'un renommage : c'est lui qui nomme sa branche, comme celle d'un cook.
@@ -122,6 +124,7 @@ export function renommeur(runtime: Runtime & Pick<Pass, "prendreHorsRail">, opti
     const leve = base.transaction(() => {
       if (pauseEnCours(base)?.request !== request) return false;
       noter({ type: "pause.released", payload: { request, why: `the code rename is merged: ${pr}`, outcome: "merged" } });
+      reprendreLesZones(journal, projet, AUTEUR);
       return true;
     });
     if (leve) avertir(`brigade : le renommage du code est mergé (${pr}) — la pause est levée, la cuisine repart`);
@@ -205,7 +208,7 @@ export function renommeur(runtime: Runtime & Pick<Pass, "prendreHorsRail">, opti
       const fin = setup.sortie.trim().split("\n").at(-1) ?? "";
       return echouer(request, "setup", `the worktree's setup failed (\`${SCRIPT_SETUP}\`, ${setup.depasse ? "stopped at its time limit" : `exit code ${setup.code ?? "?"}`})${fin === "" ? "" : `: ${enLigne(fin)}`}`);
     }
-    const joue = await jouerOutil(outil.commande, outil.args, { ...demande, env: setup.env, delaiMs: reste() });
+    const joue = await jouerOutil(outil.commande, outil.args, { ...demande, env: setup.env, delaiMs: reste() }, LIGNE_DE_DEPLACEMENT);
     if (abandonne()) return retirer();
     if (joue.depasse) {
       retirer();
@@ -228,6 +231,9 @@ export function renommeur(runtime: Runtime & Pick<Pass, "prendreHorsRail">, opti
       return echouer(request, "tool", "the rename tool renamed nothing");
     }
     const sha = commit;
+    // Ce que l'outil a déplacé : ce par quoi les livraisons retenues seront
+    // portées sur le nouvel arbre, une fois le renommage mergé.
+    const moves = deplacementsDeLOutil(joue.retenues);
 
     // Sa branche, jamais celle d'intégration ; et une PR, que rien ici ne merge.
     const ranger = () => depot.ranger(worktree, branche).catch((erreur) => avertir(`brigade : worktree du renommage ${run} non rangé — ${message(erreur)}`));
@@ -247,7 +253,7 @@ export function renommeur(runtime: Runtime & Pick<Pass, "prendreHorsRail">, opti
     // encore : levée entre-temps, la PR reste ouverte, et personne ne la suit.
     const remise = base.transaction(() => {
       if (arrete || pauseAccordee(base)?.request !== request) return false;
-      noter({ type: "rename.delivered", payload: { request, run, pr, number: numero, sha } });
+      noter({ type: "rename.delivered", payload: { request, run, pr, number: numero, sha, moves } });
       runtime.prendreHorsRail({ run, branche, pr, numero });
       return true;
     });

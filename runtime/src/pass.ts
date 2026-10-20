@@ -99,7 +99,9 @@ import { constaterExtinction, direExtinction } from "./grant.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import type { GitHub, PR } from "./github.ts";
 import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
+import type { FaitPause } from "./pause/evenements.ts";
 import { mergeRetenu, RENOMMAGE_ABANDONNE, renommageEcarte } from "./pause/pause.ts";
+import { INTRANSPOSABLE, renommagesMerges, traduireChemin } from "./pause/reprise.ts";
 import { etatDesGardeFous } from "./projections/guardrails.ts";
 import { managerAllume } from "./projections/manager.ts";
 import {
@@ -451,6 +453,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   const fermees = new Set<number>();
   // Les livraisons vertes qu'un merge en vol retient : dit une fois chacune.
   const retenus = new Set<number>();
+  // Cache, pas état : les commits livrés qu'un renommage mergé n'a pas à
+  // porter sur son arbre (`porterSurLeRenommage`), avec ce renommage.
+  const sansRenommageAPorter = new Set<string>();
 
   const commenter = async (ticket: number, corps: string) => {
     try {
@@ -1322,6 +1327,55 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     await commenter(ticket, [`**Pass — verte, mergée sur \`${options.base}\` sous le grant \`merge\`.** \`${court(sha)}\` · ${pr}`, "", `Jugée fusionnée avec \`${options.base}\` telle qu'elle était au moment de merger (\`${court(jugee)}\`).`].join("\n"));
   };
 
+  // Une livraison née avant un renommage du code mergé — celle qu'une pause a
+  // retenue, ou celle d'un cook parti avant elle — est portée sur l'arbre
+  // renommé avant d'être jugée (pause/reprise.ts) : un commit de plus sur sa
+  // branche, poussé, où ce qu'elle change suit les déplacements de l'outil.
+  // Elle ne touchait aucun fichier déplacé : elle se juge telle quelle. Elle
+  // ne se porte pas — un conflit avec le renommage — : elle est remontée au
+  // chef, et la file la nomme avec la raison. Rend vrai si le jugement suit.
+  const porterSurLeRenommage = async (connu: PassDeTicket, branch: string): Promise<boolean> => {
+    const { ticket } = connu;
+    const noterReprise = (fait: FaitPause) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
+    for (const { request, sha: commit, moves } of renommagesMerges(base)) {
+      const vu = `${depot.tete(depot.livree(branch))}@${commit}`;
+      if (sansRenommageAPorter.has(vu)) continue;
+      const portee = await depot.transposer(essaiDeJugement(ticket), branch, { commit, traduire: (chemin) => traduireChemin(chemin, moves) });
+      if (arrete) return false;
+      if (portee.issue === "deja" || portee.issue === "intacte") {
+        sansRenommageAPorter.add(vu);
+        continue;
+      }
+      if (portee.issue === "conflit") {
+        const chemins = portee.chemins.map((chemin) => `\`${chemin}\``).join(", ");
+        const why = `it was born before the code rename (${court(commit)}) and does not carry onto the renamed tree: conflict on ${chemins}`;
+        noterReprise({ type: "rename.stranded", payload: { request, branch, sha: portee.de, why, paths: portee.chemins } });
+        await remonter(
+          connu,
+          INTRANSPOSABLE,
+          `Cette livraison est née avant le renommage du code (\`${court(commit)}\`, mergé sur \`${options.base}\`), et ce qu'elle change ne se porte pas sur l'arbre renommé : conflit sur ${chemins}. Sa branche \`${branch}\` n'a pas bougé.`,
+        );
+        return false;
+      }
+      depot.pousser(branch);
+      noterReprise({ type: "rename.carried", payload: { request, branch, from: portee.de, to: portee.vers, base: portee.base, paths: portee.chemins } });
+      avertir(`brigade : la livraison du ticket #${ticket} est portée sur l'arbre du renommage du code (${court(portee.de)} → ${court(portee.vers)})`);
+      await commenter(
+        ticket,
+        [
+          `**Pass — livraison portée sur l'arbre du renommage du code.** \`${court(portee.de)}\` → \`${court(portee.vers)}\` · branche \`${branch}\``,
+          "",
+          `Née avant le renommage du code (\`${court(commit)}\`, mergé sur \`${options.base}\`), elle touchait des fichiers qu'il a déplacés. Un commit de plus sur sa branche fusionne \`${options.base}\` renommée et y déplace ce qu'elle avait écrit :`,
+          "",
+          ...portee.chemins.map(([ancien, nouveau]) => `- \`${ancien}\` → \`${nouveau}\``),
+          "",
+          "Sa zone se lit de même sur les nouveaux chemins. Elle est jugée ainsi, comme toute livraison.",
+        ].join("\n"),
+      );
+    }
+    return true;
+  };
+
   // Juge une livraison. Tant qu'un juge n'a pas conclu (CI en cours, GitHub
   // injoignable), rien n'est écrit : le réveil suivant y revient.
   const juger = async (connu: PassDeTicket) => {
@@ -1407,6 +1461,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     if (pr.base !== options.base) {
       return remonter({ ...connu, pr: pr.url }, "wrong-base", `La PR ${pr.url} vise \`${pr.base}\` : la pass ne juge et ne merge que vers \`${options.base}\`.`);
     }
+
+    if (!(await porterSurLeRenommage({ ...connu, pr: pr.url }, branch))) return;
 
     // Ce qui est jugé est ce qui sera sur la base : le commit que l'origine a
     // reçu — celui que la CI connaît et que GitHub mergera, sans la récolte

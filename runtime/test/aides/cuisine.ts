@@ -369,6 +369,9 @@ export function fauxDepot(racine: string, gates: boolean, setup = false, declara
     // change que si l'un des deux change.
     fusionner: async (nom, tete, sha) => ({ worktree: equiper(join(racine, ".essais", nom)), arbre: `arbre(${tete}+${sha})` }),
     jeter: (nom) => rmSync(join(racine, ".essais", nom ?? ""), { recursive: true, force: true }),
+    // Sans git, aucune livraison ne naît avant un renommage : il n'y a rien à
+    // porter sur son arbre.
+    transposer: async () => ({ issue: "deja" }),
     empreinte: (worktree) =>
       readdirSync(worktree)
         .filter((nom) => nom !== ".claude")
