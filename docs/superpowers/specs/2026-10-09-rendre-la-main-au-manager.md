@@ -1,89 +1,89 @@
-# Rendre la main au manager sur un ticket écarté — spec et plan (#109)
+# Handing back to the manager on a set-aside ticket — spec and plan (#109)
 
-**Date** : 2026-10-09
-**Statut** : décidé — les cinq décisions produit ci-dessous sont celles de l'orchestrateur
-(réponse du 2026-10-09 au `question-spec #109`) ; « Ce que le dev a tranché » est contestable en
+**Date**: 2026-10-09
+**Status**: decided — the five product decisions below are the orchestrator's
+(answer of 2026-10-09 to `question-spec #109`); "What the dev settled" can be contested in
 review
-**Issue** : #109 « Rien ne rend la main au manager sur un ticket qu'il a écarté »
-**S'appuie sur** : `2026-10-08-manager-qualifie-et-calibre.md` (le tri, `chef-changed`, « le geste
-du chef est toujours plus fort »). Ce document en referme un point : « plus jamais ».
+**Issue**: #109 "Nothing hands back to the manager on a ticket it set aside"
+**Builds on**: `2026-10-08-manager-qualifie-et-calibre.md` (the triage, `chef-changed`, "the
+chef's gesture is always stronger"). This document closes one point of it: "never again".
 
-Le comportement, tel que le chef le vit, est dans `docs/runtime.md`, « Lui rendre la main » : c'est
-la doc vivante, ce document ne la recopie pas.
+The behaviour, as the chef lives it, is in `docs/runtime.md`, "Lui rendre la main": it is
+the living doc, this document does not copy it.
 
 ---
 
-## Ce qui était vrai avant de coder
+## What was true before coding
 
-Établi à la lecture de `trier` (`runtime/src/manager.ts`), et figé par un test :
+Established by reading `trier` (`runtime/src/manager.ts`), and fixed by a test:
 
-- `chef-changed` n'arrive que si le manager a posé quelque chose sur l'issue **et** qu'il lui manque
-  `fire`, `model:` ou `effort:`. Une issue lancée et calibrée rend « rien » avant ce test.
-- Poser, retirer ou corriger `prio:`, `question`, `decision`, `blocked-on-human` ne fait donc
-  **jamais** un `chef-changed` — ni sur une issue que le manager n'a pas labellisée, ni sur un
-  ticket qu'il a lancé.
-- Les écarts par label se lèvent déjà seuls : label retiré, l'issue est jugée au tour suivant.
+- `chef-changed` only occurs if the manager placed something on the issue **and** it lacks
+  `fire`, `model:` or `effort:`. An issue that is launched and calibrated returns "nothing" before this test.
+- Placing, removing or correcting `prio:`, `question`, `decision`, `blocked-on-human` therefore
+  **never** makes a `chef-changed` — neither on an issue the manager did not label, nor on a
+  ticket it launched.
+- Set-asides by label already lift by themselves: label removed, the issue is judged on the next turn.
 
-Le critère « distinguer deux gestes » était tenu par le code ; il lui manquait un test et la doc. Le
-trou réel : `chef-changed` n'avait aucun retour, et rien ne le disait là où il se produit.
+The criterion "distinguish two gestures" was held by the code; it lacked a test and the doc. The
+real hole: `chef-changed` had no way back, and nothing said so where it happens.
 
-## Les cinq décisions
+## The five decisions
 
-1. **Le geste** : `npm --prefix runtime run manager -- rendre <n°>`, qui écrit
-   `manager.handed-back` au journal, au nom du chef. Pas de nouveau label de protocole.
-2. **Un geste par motif.** `rendre` ne lève que `chef-changed`. Pour `blocked-on-human`,
-   `question`, `decision`, `already-split`, la commande ne force rien et dit le geste qui lève
-   l'écart ; `roadmap` et `untrusted-author` : refus expliqué.
-3. **À neuf pour de bon.** À la remise, le manager retire les labels de calibrage qu'il avait posés
-   lui-même et qui restent, puis pose ceux du nouveau jugement. Un label du chef n'est jamais
-   touché.
-4. **Visible là où ça se voit.** Le commentaire « ticket mis sur le rail » avertit, avant le geste ;
-   l'écart `chef-changed` est commenté une fois sur l'issue, avec la commande.
-5. **Le relevé** porte une section « écartées », bornée, avec le motif en clair et le geste.
+1. **The gesture**: `npm --prefix runtime run manager -- return <n°>`, which writes
+   `manager.handed-back` to the log, in the chef's name. No new protocol label.
+2. **One gesture per reason.** `return` lifts only `chef-changed`. For `blocked-on-human`,
+   `question`, `decision`, `already-split`, the command forces nothing and says the gesture that lifts
+   the set-aside; `roadmap` and `untrusted-author`: explained refusal.
+3. **Truly afresh.** On the hand-back, the manager removes the calibration labels it had placed
+   itself and that remain, then places those of the new judgment. A chef's label is never
+   touched.
+4. **Visible where it shows.** The "ticket put on the rail" comment warns, before the gesture;
+   the `chef-changed` set-aside is commented once on the issue, with the command.
+5. **The report** carries a "set aside" section ("écartées"), bounded, with the reason in plain words and the gesture.
 
-| Critère de l'issue | Ce qui le porte |
+| Issue criterion | What carries it |
 |---|---|
-| Un moyen de rendre la main, quel que soit le motif | `rendre` pour `chef-changed` ; le retrait du label ou de la liste pour les autres — la commande et le relevé disent lequel |
-| Visible là où le problème se voit | Le commentaire d'écart `chef-changed` sur l'issue ; la section « écartées » |
-| Le chef sait avant | L'avertissement du commentaire « ticket mis sur le rail » |
-| Deux gestes distingués | Le tri, inchangé ; un test (`ranger son backlog n'écarte rien`) ; la doc |
-| Jugé à neuf | `manager.handed-back` efface la ligne de l'issue ; `manager.withdrew` retire son ancien calibrage |
-| Le relevé montre ce qui est écarté et pourquoi | `run manager`, « écartées » |
+| A way to hand back, whatever the reason | `return` for `chef-changed`; removing the label or the list for the others — the command and the report say which |
+| Visible where the problem shows | The `chef-changed` set-aside comment on the issue; the "set aside" section |
+| The chef knows beforehand | The warning in the "ticket put on the rail" comment |
+| Two gestures distinguished | The triage, unchanged; a test (`ranger son backlog n'écarte rien`); the doc |
+| Judged afresh | `manager.handed-back` erases the issue's line; `manager.withdrew` removes its former calibration |
+| The report shows what is set aside and why | `run manager`, "set aside" |
 
-## Ce que le dev a tranché
+## What the dev settled
 
-- **Une remise n'est pas une décision.** `manager.handed-back` supprime la ligne de l'issue dans
-  `manager_issues` : elle redevient une inconnue, et tout le tri existant vaut pour elle sans un
-  cas de plus. Ce que le manager y avait posé passe dans `manager_returned`, le temps du retrait ;
-  la ligne y reste jusqu'à la décision suivante — c'est elle qui dit « rendue, pas encore rejugée ».
-- **Rendre une issue ne la modifie pas sur GitHub** : le sondage répond « inchangé ». Le manager
-  garde donc la liste du dernier sondage confirmé, à côté de l'ETag qui la désigne, et la retrie
-  tant qu'une remise attend. Aucune requête de plus, `github.ts` n'est pas touché.
-- **Une remise sans objet** — le chef a tout reposé lui-même entre-temps, ou l'issue est fermée —
-  cesse de faire retrier la liste après un tour complet (mémoire du process, recalculée au
-  redémarrage). Le relevé continue de la dire « rendue » : aucun fait ne la solde. Défaut mineur,
-  connu.
-- **`fire` posé par le manager et encore là n'est pas retiré** à la remise : la décision 3 parle du
-  calibrage. Si le nouveau jugement refuse l'issue, `fire` reste, et le commentaire de refus le dit
-  comme pour un `fire` du chef.
-- **L'écart dit ce qui manque, pas ce qui a été retiré.** `manager.set-aside` (`chef-changed`)
-  porte `lacking` — `fire`, `model:`, `effort:` absents au moment de l'écart. Après une montée ou un
-  calibrage remplacé par le chef, le journal ne sait plus lequel de ses labels était encore là. Ce
-  champ sert aussi de frontière : un `chef-changed` écrit avant lui n'est pas commenté après coup,
-  et un écart déjà dit ne l'est pas de nouveau quand seul `fire` y bouge.
-- **Rendue, puis relancée et calibrée par le chef** avant que le manager y revienne : rien n'est
-  retiré, rien n'est rejugé.
-- **Les labels posés par une montée** (`manager.raised`) sont au manager : ils sont retirés comme
-  ceux de `manager.labeled`.
-- **Code de sortie de `rendre`** : 0 si la remise est au journal ou y était déjà, 1 si rien n'est
-  rendu (le message dit pourquoi), 2 sur un usage invalide.
-- **`already-split`** : rendre la main, c'est retirer la liste du corps — l'épique est alors
-  découpée. La commande ne redécoupe pas par-dessus une liste écrite à la main (tickets en double).
+- **A hand-back is not a decision.** `manager.handed-back` deletes the issue's line in
+  `manager_issues`: it becomes an unknown again, and all the existing triage applies to it without one more
+  case. What the manager had placed on it goes into `manager_returned`, for the time of the removal;
+  the line stays there until the next decision — it is what says "handed back, not yet rejudged".
+- **Handing back an issue does not modify it on GitHub**: the poll answers "unchanged". The manager
+  therefore keeps the list from the last confirmed poll, next to the ETag that designates it, and re-triages it
+  as long as a hand-back is waiting. No extra request, `github.ts` is not touched.
+- **A hand-back with no object** — the chef redid everything itself in the meantime, or the issue is closed —
+  stops making the list re-triaged after a full turn (process memory, recomputed on
+  restart). The report keeps saying it "handed back": no fact settles it. Minor defect,
+  known.
+- **A `fire` placed by the manager and still there is not removed** on the hand-back: decision 3 speaks of
+  calibration. If the new judgment refuses the issue, `fire` stays, and the refusal comment says so
+  as for a chef's `fire`.
+- **The set-aside says what is lacking, not what was removed.** `manager.set-aside` (`chef-changed`)
+  carries `lacking` — `fire`, `model:`, `effort:` absent at the time of the set-aside. After a raise or a
+  calibration replaced by the chef, the log no longer knows which of its labels was still there. This
+  field also serves as a boundary: a `chef-changed` written before it is not commented after the fact,
+  and a set-aside already said is not said again when only `fire` moves in it.
+- **Handed back, then relaunched and calibrated by the chef** before the manager comes back to it: nothing is
+  removed, nothing is rejudged.
+- **The labels placed by a raise** (`manager.raised`) belong to the manager: they are removed
+  like those of `manager.labeled`.
+- **Exit code of `return`**: 0 if the hand-back is in the log or already was, 1 if nothing is
+  handed back (the message says why), 2 on an invalid usage.
+- **`already-split`**: handing back means removing the list from the body — the epic is then
+  split. The command does not re-split over a hand-written list (duplicate tickets).
 
 ## Plan
 
-1. Faits `manager.handed-back`, `manager.withdrew` ; projection (`manager_returned`,
+1. Facts `manager.handed-back`, `manager.withdrew`; projection (`manager_returned`,
    `ecarteesDuManager`).
-2. Boucle du manager : retrait du calibrage, retri de la liste confirmée, commentaires.
-3. CLI : `rendre`, section « écartées ».
-4. Doc vivante.
+2. Manager loop: calibration removal, re-triage of the confirmed list, comments.
+3. CLI: `return`, "set aside" section.
+4. Living doc.

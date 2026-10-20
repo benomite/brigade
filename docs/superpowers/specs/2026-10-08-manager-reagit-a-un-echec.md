@@ -1,88 +1,87 @@
-# Le manager réagit à un échec au lieu de le remonter
+# The manager reacts to a failure instead of escalating it
 
-Issue #74 — épique #75 (jalon 2). Spec de référence : `2026-10-08-brigade-v2-design.md`, §Le
-manager (« réagit aux échecs : redécoupe, change de cook profile, remonte au second ») et §La pass
-(« les deux renvois ne sont pas deux tentatives identiques »).
+Issue #74 — epic #75 (milestone 2). Reference spec: `2026-10-08-brigade-v2-design.md`, §The
+manager ("reacts to failures: re-splits, changes cook profile, escalates to the second") and §The
+pass ("the two returns are not two identical attempts").
 
-## Le problème
+## The problem
 
-La pass renvoie deux fois les findings à un cook, au même calibrage, puis remonte au chef
-(`returns-exhausted`). Personne ne décide rien : un manager qui ne sait que remonter est un
-aiguillage.
+The pass sends the findings back twice to a cook, at the same calibration, then escalates to the
+chef (`returns-exhausted`). Nobody decides anything: a manager that only knows how to escalate is
+a switch.
 
-## Décisions (validées le 2026-10-08)
+## Decisions (validated on 2026-10-08)
 
-1. **Un jugement LLM choisit**, le code tient les invariants. Passé les deux renvois, le manager
-   demande à son LLM — un appel, au calibrage `BRIGADE_MANAGER_*`, sans outil — de choisir entre
-   **monter** le calibrage, **redécouper** le ticket, ou **remonter** au chef. Une réponse
-   illisible, ou un choix impossible (monter au plafond, redécouper un ticket déjà né d'un
-   redécoupage), vaut remontée.
-2. **Le plafond de calibrage** est une configuration du projet : `BRIGADE_CEILING_MODEL` et
-   `BRIGADE_CEILING_EFFORT`, facultatives, **sans défaut**. Une dimension sans plafond ne monte
-   jamais ; le manager le dit.
-3. **Monter d'un cran** : l'effort d'abord (`low < medium < high < xhigh < max`), puis le modèle
-   (`haiku < sonnet < opus`) en gardant l'effort atteint. Le plafond du chef fait foi, `xhigh` et
-   `max` compris.
-4. **Le geste du chef est plus fort.** Le manager ne remplace qu'un label de calibrage qu'il a posé
-   lui-même (qualification, découpage, ou montée précédente) : il retire le sien et pose le
-   suivant. Une dimension posée par le chef n'est jamais touchée.
-5. **Manager éteint** : la pass se comporte comme avant — deux renvois au même calibrage, puis
+1. **An LLM judgment chooses**, the code holds the invariants. Past the two returns, the manager
+   asks its LLM — one call, at the `BRIGADE_MANAGER_*` calibration, no tools — to choose between
+   **raising** the calibration, **re-splitting** the ticket, or **escalating** to the chef. An
+   unreadable answer, or an impossible choice (raising at the ceiling, re-splitting a ticket
+   already born of a re-split), counts as an escalation.
+2. **The calibration ceiling** is a project setting: `BRIGADE_CEILING_MODEL` and
+   `BRIGADE_CEILING_EFFORT`, optional, **with no default**. A dimension with no ceiling never
+   goes up; the manager says so.
+3. **Raise by one notch**: effort first (`low < medium < high < xhigh < max`), then the model
+   (`haiku < sonnet < opus`) keeping the effort reached. The chef's ceiling is authoritative,
+   `xhigh` and `max` included.
+4. **The chef's gesture is stronger.** The manager only replaces a calibration label that it
+   placed itself (qualification, split, or earlier raise): it removes its own and places the
+   next. A dimension placed by the chef is never touched.
+5. **Manager off**: the pass behaves as before — two returns at the same calibration, then
    `returns-exhausted`.
-6. **Redécouper** : le ticket devient l'épique de ses sous-tickets (machinerie du découpage
-   réutilisée). Il passe 86 (`manager:split`), sa PR reste ouverte, et **il ne tient plus de
-   zone** : ses sous-tickets, qui la recouvrent, partent. Un ticket né d'un tel redécoupage ne se
-   redécoupe pas (profondeur 1).
-7. **Le disjoncteur garde le dernier mot.** Une livraison jugée rouge, quand elle vient d'une
-   relance décidée par le manager, compte comme un échec ; le cook qui l'a livrée ne remet pas le
-   compteur à zéro. Disjoncteur ouvert, le manager ne relance plus rien : il remonte. Pas de
-   compteur de réactions par ticket — plafond et profondeur 1 rendent la suite finie.
+6. **Re-split**: the ticket becomes the epic of its sub-tickets (split machinery reused). It goes
+   86 (`manager:split`), its PR stays open, and **it no longer holds a zone**: its sub-tickets,
+   which cover it, leave. A ticket born of such a re-split is not re-split (depth 1).
+7. **The breaker has the last word.** A delivery judged red, when it comes from a relaunch
+   decided by the manager, counts as a failure; the cook that delivered it does not reset the
+   counter. Breaker open, the manager relaunches nothing more: it escalates. No per-ticket
+   counter of reactions — the ceiling and depth 1 make the sequence finite.
 
-## Le parcours d'un ticket rouge, manager allumé
+## The path of a red ticket, manager on
 
-| Pass rouge n° | Ce qui se passe | Qui |
+| Red pass no. | What happens | Who |
 |---|---|---|
-| 1 | renvoi 1/2, même calibrage | la pass, comme avant |
-| 2 | la pass **passe la main** (`pass.deferred`) ; le manager monte d'un cran s'il le peut, puis renvoie 2/2 — sinon renvoie au même calibrage en disant pourquoi | code, sans LLM |
-| 3 et suivantes | la pass passe la main ; le manager **choisit** : monter, redécouper, remonter | un jugement LLM |
+| 1 | return 1/2, same calibration | the pass, as before |
+| 2 | the pass **hands over** (`pass.deferred`); the manager raises by one notch if it can, then returns 2/2 — otherwise returns at the same calibration, saying why | code, no LLM |
+| 3 and following | the pass hands over; the manager **chooses**: raise, re-split, escalate | an LLM judgment |
 
-La pass ne rend plus le ticket au rail elle-même à partir du second rouge : la station le
-reprendrait avant que le calibrage ait changé. Le manager change les labels, **attend que le rail
-ait lu le nouveau calibrage**, puis rend le ticket (`pass.returned`). Un ticket ne repart donc
-jamais à l'identique : soit son calibrage a changé, soit il est redécoupé, soit il est remonté. La
-seule exception est le second renvoi quand rien ne peut monter — c'est la règle des deux renvois,
-et elle est dite.
+The pass no longer gives the ticket back to the rail itself from the second red on: the station
+would take it again before the calibration had changed. The manager changes the labels, **waits
+for the rail to have read the new calibration**, then gives the ticket back (`pass.returned`). A
+ticket therefore never leaves identically: either its calibration has changed, or it is
+re-split, or it is escalated. The only exception is the second return when nothing can go up —
+that is the two-returns rule, and it is said.
 
-## Faits au journal
+## Facts in the log
 
-- `pass.deferred` — la pass passe la main au manager (phase `deferred`).
+- `pass.deferred` — the pass hands over to the manager (phase `deferred`).
 - `manager.reacted` — `{ verdict, returns, choice: retry | raise | split | escalate, reason,
-  proposal, run, from, to }`. C'est par lui que le chef lit « pourquoi ce ticket a-t-il été
-  découpé ? ». `run` : le jugement, nul quand le code a tranché seul.
-- `manager.raised` — `{ added, removed }` : les labels changés, écrit une fois GitHub servi.
-- `manager.reaction-commented` — la réaction est dite sur l'issue.
-- `pass.escalated` gagne deux motifs : `manager-split`, `manager-escalated`.
-- `relaunch.judged` — `{ run, verdict }` : le verdict de la pass sur une relance du manager, lu par
-  le disjoncteur. `cook.launched` porte `relaunch: true` pour un tel cook.
+  proposal, run, from, to }`. It is through this that the chef reads "why was this ticket
+  split?". `run`: the judgment, null when the code decided alone.
+- `manager.raised` — `{ added, removed }`: the labels changed, written once GitHub is served.
+- `manager.reaction-commented` — the reaction is said on the issue.
+- `pass.escalated` gains two reasons: `manager-split`, `manager-escalated`.
+- `relaunch.judged` — `{ run, verdict }`: the pass's verdict on a manager relaunch, read by the
+  breaker. `cook.launched` carries `relaunch: true` for such a cook.
 
-## Ce que le chef reçoit quand le manager remonte
+## What the chef receives when the manager escalates
 
-Un commentaire sur l'issue : chaque tentative (calibrage, ce que la pass a trouvé), ce qui a échoué
-en dernier, et ce que le manager propose.
+A comment on the issue: each attempt (calibration, what the pass found), what failed
+last, and what the manager proposes.
 
 ## Plan
 
-1. `reagir.ts` (pur) — échelles, plafond, `monter`, consigne et lecture de la réaction.
-2. Garde-fous — `relaunch` sur `cook.launched`, `relaunch.judged`, `jugerRelance`.
-3. Rail — un 86 `manager:split` ne tient pas de zone.
-4. Projections — phase `deferred` de la pass ; `reactions`.
-5. Pass — passe la main au manager allumé ; station : marque les relances.
-6. GitHub — retirer un label.
-7. `reaction.ts` — la boucle de réaction, branchée dans le manager ; `redecouper` dans le découpage.
+1. `reagir.ts` (pure) — scales, ceiling, `monter`, instruction and reading of the reaction.
+2. Guardrails — `relaunch` on `cook.launched`, `relaunch.judged`, `jugerRelance`.
+3. Rail — an 86 `manager:split` holds no zone.
+4. Projections — `deferred` phase of the pass; `reactions`.
+5. Pass — hands over to the manager when on; station: marks the relaunches.
+6. GitHub — remove a label.
+7. `reaction.ts` — the reaction loop, wired into the manager; `redecouper` in the split.
 8. `main.ts`, `docs/runtime.md`.
 
-Chaque étape : le test d'abord, vu rouge, puis le code.
+Each step: the test first, seen red, then the code.
 
-## Hors scope
+## Out of scope
 
-Les cook profiles (jalon 8) : « changer de profil » se réduit ici à changer de calibrage. Le cook
-qui rend la main en demandant lui-même la montée (§La pass) n'est pas traité ici.
+The cook profiles (milestone 8): "changing profile" comes down here to changing calibration. The
+cook that hands back control by itself asking for the raise (§The pass) is not handled here.

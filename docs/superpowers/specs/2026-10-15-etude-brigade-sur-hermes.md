@@ -1,167 +1,165 @@
-# Étude : brigade peut-il être une couche sur Hermes Agent ?
+# Study: can brigade be a layer on Hermes Agent?
 
-*Étude, 2026-10-15 (#739). Elle éclaire une décision du chef : garder notre runtime, ou faire de
-brigade une couche sur [Hermes Agent](https://github.com/NousResearch/hermes-agent) (Nous
-Research). Hermes est lu dans les sources de sa doc et de son code, commit `ecac27c` du
-2026-10-15, version v0.22.2 ; brigade, dans `v2` du même jour. Les sources sont en fin de
-document.*
+*Study, 2026-10-15 (#739). It informs a decision for the chef: keep our runtime, or make brigade
+a layer on [Hermes Agent](https://github.com/NousResearch/hermes-agent) (Nous Research). Hermes
+is read from the sources of its docs and code, commit `ecac27c` of 2026-10-15, version v0.22.2;
+brigade, from `v2` of the same day. Sources are at the end of the document.*
 
-## En une minute
+## In one minute
 
-**Recommandation : garder notre runtime.** Ni migration, ni hybride bâti sur Hermes.
+**Recommendation: keep our runtime.** No migration, and no hybrid built on Hermes.
 
-1. **Hermes ne fait pas tourner `claude` sur le forfait Max.** Il emprunte le jeton OAuth de
-   Claude Code et appelle l'API d'Anthropic depuis sa propre boucle, en se faisant passer pour
-   Claude Code. Sa doc le dit : ce chemin **ne consomme que les crédits d'usage supplémentaire
-   achetés en plus de Max** ; le forfait inclus n'est jamais touché. C'est aussi le cas que les
-   conditions d'Anthropic interdisent : des identifiants Max utilisés hors du binaire `claude`
-   officiel. Notre V2 s'est construite sur la contrainte inverse (spec V2, « Contraintes »).
-2. **Ses workers ne peuvent pas être `claude`.** Brancher Claude Code comme worker du tableau est
-   « *not yet a paved path* » : c'est un plugin Python à écrire, et la PR qui l'avait tenté pour
-   Codex est fermée sans merge.
-3. **Son tableau ne tourne que sur une machine**, de son propre aveu (« *deliberately
-   single-host* »). Les stations, et donc l'épique #702, n'y ont pas de place.
-4. **Ce qu'il fait bien, c'est justement la tuyauterie qui nous coûte** : installation, service,
-   mise à jour avec retour arrière, tableau de bord, notifications vers le téléphone. Mais cette
-   tuyauterie est soudée à sa boucle d'agent : on ne peut pas la prendre sans prendre le reste.
+1. **Hermes does not run `claude` on the Max plan.** It borrows Claude Code's OAuth token and
+   calls Anthropic's API from its own loop, posing as Claude Code. Its docs say so: this path
+   **only consumes the extra usage credits bought on top of Max**; the included plan allowance
+   is never touched. This is also the case Anthropic's terms forbid: Max credentials used outside
+   the official `claude` binary. Our V2 was built on the opposite constraint (V2 spec,
+   "Constraints").
+2. **Its workers cannot be `claude`.** Plugging Claude Code in as a board worker is "*not yet a
+   paved path*": it is a Python plugin to write, and the PR that tried it for Codex is closed
+   without merge.
+3. **Its board only runs on one machine**, by its own admission ("*deliberately single-host*").
+   Stations, and therefore epic #702, have no place there.
+4. **What it does well is exactly the plumbing that costs us**: installation, service, update
+   with rollback, dashboard, notifications to the phone. But this plumbing is welded to its agent
+   loop: you cannot take it without taking the rest.
 
-**La leçon à garder** : le chef a raison sur le diagnostic, pas sur le remède. La tuyauterie
-générique est ce qui coûte le plus (l'installation est la brique la plus retouchée depuis le
-10 octobre : 62 commits, contre 28 pour les cooks). Elle s'achète **pièce par pièce**, en outils
-standard. Elle ne s'achète pas en bloc avec un autre runtime d'agents.
+**The lesson to keep**: the chef is right about the diagnosis, not about the remedy. Generic
+plumbing is what costs the most (installation is the most reworked piece since October 10: 62
+commits, against 28 for the cooks). It is bought **piece by piece**, with standard tools. It is
+not bought wholesale along with another agent runtime.
 
-## Brique par brique
+## Piece by piece
 
-| Brique de brigade | Hermes | Ce qu'il fournit | Ce qui manque pour nous |
+| Brigade piece | Hermes | What it provides | What is missing for us |
 |---|---|---|---|
-| **Rail** (issues GitHub `fire`, `prio:`, `attend`, épiques) | **en partie** | Un tableau durable mais local (SQLite, `~/.hermes/kanban.db`), avec des priorités, des dépendances parent → enfant, un refus des cycles, et une saisie par CLI, par chat ou par REST | **Aucune synchronisation avec les issues GitHub** : c'est une demande ouverte, #31992. Pas d'épique, pas de « servi = mergé », pas de WAITING |
-| **Cooks** (un `claude` par ticket, worktree, bail, récolte) | **en partie** | Un process par tâche, `--workspace worktree`, un bail de 15 min prolongé tant que le pid vit, un battement de cœur, un disjoncteur, un modèle par tâche | **Le worker est la boucle Hermes, pas `claude`.** Pas d'effort par tâche. Pas de bail tenu par le progrès du worktree. Pas de « le cook ne livre pas, la station récolte » |
-| **Manager** (qualifier, calibrer, découper, réagir) | **en partie** | Un découpage automatique des tâches en `triage` en graphe de tâches, des profils orchestrateurs, `specify` | Pas de calibrage modèle/effort par ticket. Pas de réaction à un rouge (rehausse, redécoupe). Pas de « ton geste est plus fort que le sien » |
-| **Pass** (gates, reviewer, CI, verdict, merge sous grant) | **en partie** | Une voie de relecture par un LLM (skill `sdlc-review`, approuver ou renvoyer), et un contrat de fin qui attend les checks *requis* de la PR | **Pas de gates déterministes**, pas de jugement « fusionné avec la base », **pas de merge, pas de grant**, pas de base rouge ni de ticket de réparation. Le contrat CI n'écrit rien chez GitHub, de son propre aveu |
-| **Zones** (un fichier, un propriétaire) | **non** | De simples conventions : commentaires `hotspot:`, carte de réconciliation des conflits | Tout |
-| **Stations** (plusieurs machines, capacités, `requiert`) | **non** | Des *backends* de terminal (`ssh`, `docker`, `modal`…) qui déplacent **les commandes**, pas le worker. Un tableau à deux hôtes n'est « *not supported* » | Tout. C'est le cœur de #702 (le Windows d'`espace`, le mono-station) |
-| **Mise à jour, installation, service** | **oui** | `install.sh` en une ligne, `hermes gateway install` (systemd ou launchd), `hermes update` avec canaux et retour arrière automatique | L'amorçage d'**un dépôt** : labels, branche protégée, secrets, identités GitHub par rôle, cloison |
-| **App** | **oui, la sienne** | Un tableau de bord web, une app desktop (kanban, terminaux, revue git), une TUI | « Ce qui t'attend », les boutons qui écrivent sans envoyer, le second dans son terminal, nos six colonnes |
-| **Notifications** | **oui, et mieux que nous** | Telegram, Signal, Discord, ntfy, e-mail… ; abonnement aux fins, blocages et relectures ; réponse depuis le téléphone (`/kanban unblock`, `comment`) | Rien de propre à brigade. **Chez nous, aucun canal téléphone** : une notification native de l'app, et rien si l'app est fermée |
-| *(socle)* Quota Max, garde-fous | **non — bloquant** | Des plafonds de concurrence ; « *budgets, governance gates … remain user-space* » | **Le forfait Max lui-même** (voir plus haut), nos plafonds tours/jetons/durée/inactivité, l'arbitre entre projets |
+| **Rail** (GitHub issues `fire`, `prio:`, `awaiting`, epics) | **partly** | A durable but local board (SQLite, `~/.hermes/kanban.db`), with priorities, parent → child dependencies, cycle rejection, and entry by CLI, chat or REST | **No synchronization with GitHub issues**: it is an open request, #31992. No epic, no "served = merged", no WAITING |
+| **Cooks** (one `claude` per ticket, worktree, lease, harvest) | **partly** | One process per task, `--workspace worktree`, a 15-minute lease extended while the pid lives, a heartbeat, a breaker, a model per task | **The worker is the Hermes loop, not `claude`.** No effort per task. No lease held by worktree progress. No "the cook does not deliver, the station harvests" |
+| **Manager** (qualify, calibrate, split, react) | **partly** | Automatic splitting of `triage` tasks into a task graph, orchestrator profiles, `specify` | No model/effort calibration per ticket. No reaction to a red (raise, re-split). No "your action outranks its own" |
+| **Pass** (gates, reviewer, CI, verdict, merge under grant) | **partly** | A review lane by an LLM (skill `sdlc-review`, approve or send back), and a completion contract that waits for the PR's *required* checks | **No deterministic gates**, no "merged with the base" judgment, **no merge, no grant**, no red base or repair ticket. The CI contract writes nothing to GitHub, by its own admission |
+| **Zones** (one file, one owner) | **no** | Plain conventions: `hotspot:` comments, a conflict reconciliation map | Everything |
+| **Stations** (several machines, capacities, `requiert`) | **no** | Terminal *backends* (`ssh`, `docker`, `modal`…) that move **the commands**, not the worker. A two-host board is "*not supported*" | Everything. It is the heart of #702 (the Windows `space`, the single station) |
+| **Update, installation, service** | **yes** | One-line `install.sh`, `hermes gateway install` (systemd or launchd), `hermes update` with channels and automatic rollback | Bootstrapping **a repository**: labels, protected branch, secrets, per-role GitHub identities, partition |
+| **App** | **yes, its own** | A web dashboard, a desktop app (kanban, terminals, git review), a TUI | "What awaits you", buttons that write without sending, the second in its terminal, our six columns |
+| **Notifications** | **yes, and better than ours** | Telegram, Signal, Discord, ntfy, e-mail…; subscription to completions, blocks and reviews; reply from the phone (`/kanban unblock`, `comment`) | Nothing specific to brigade. **We have no phone channel**: a native app notification, and nothing if the app is closed |
+| *(base)* Max quota, guardrails | **no — blocking** | Concurrency caps; "*budgets, governance gates … remain user-space*" | **The Max plan itself** (see above), our turns/tokens/duration/idle caps, the arbiter between projects |
 
-Hermes est par ailleurs **jeune et mouvant** : 41 versions en sept mois, le passage de dates à
-semver en septembre, 1 333 tickets kanban ouverts dont 15 en deux jours (worker mort sur une
-erreur RPC, kill d'un pid réutilisé…). Une couche posée dessus suivrait un sol qui bouge chaque
-semaine.
+Hermes is also **young and moving**: 41 releases in seven months, the switch from dates to semver
+in September, 1,333 open kanban tickets, 15 of them in two days (worker dead on an RPC error,
+kill of a reused pid…). A layer on top of it would follow ground that shifts every week.
 
-## Ce qu'une migration supprimerait, et ce qu'elle ferait perdre
+## What a migration would remove, and what it would lose
 
-**Supprimé de notre code** (près de 10 000 lignes, hors tests) :
+**Removed from our code** (nearly 10,000 lines, tests excluded):
 
-| Quoi | Lignes |
+| What | Lines |
 |---|---|
-| Installation, service, mise à jour (`installation`, `installateur`, `desinstallateur`, `mettre-en-service`, `version`, `etapes`, `mode-auto`…) | 5 327 |
-| `runtime/deploy` (bascule, unités systemd, règles sudoers, geste `brigade`) | 1 783 |
-| App : installation, ajout et retrait d'un projet, retard de version | 2 469 |
-| Notifications (urgence, alerte) | 383 |
+| Installation, service, update (`installation`, `installateur`, `desinstallateur`, `mettre-en-service`, `version`, `etapes`, `mode-auto`…) | 5,327 |
+| `runtime/deploy` (switchover, systemd units, sudoers rules, `brigade` command) | 1,783 |
+| App: installation, adding and removing a project, version lag | 2,469 |
+| Notifications (urgency, alert) | 383 |
 
-S'y ajouteraient le rail, les cooks, la pass et le manager, mais **pour être réécrits** en plugins
-Python : ce sont des lignes déplacées, pas économisées.
+To these would be added the rail, the cooks, the pass and the manager, but **to be rewritten** as
+Python plugins: these are lines moved, not saved.
 
-**Perdu** :
+**Lost**:
 
-- **Le forfait Max.** Tout passerait en usage supplémentaire ou en clé API, payé au jeton. À
-  défaut, le jeton de Claude Code serait emprunté, ce que les conditions d'Anthropic interdisent
-  et qu'Anthropic bloque côté serveur depuis 2026 (presse en fin de document). C'est la perte qui
-  tranche à elle seule.
-- **La pass telle qu'on l'a voulue** : « vert veut dire vert une fois fusionné », le grant
-  `merge` à échéance, les lignes jamais accordées (`acces-prod`, `identifiants-max`), le refus du
-  merge automatique sur `.claude/brigade/` et `.github/workflows/`, la base rouge qui retient les
-  livraisons. Hermes n'a aucun merge, et ses crochets sur le kanban ne font qu'observer.
-- **Les zones, les stations et leurs capacités.** Il faudrait les rebâtir, et les stations sont
-  impossibles sur un tableau à un seul hôte.
-- **Le journal en ajout seul**, et tout ce qui s'en déduit : `rail`, `pass -- <n>`, « pourquoi ce
-  code est-il sur `v2` ? », la reprise après un crash.
-- **La sécurité de la box** : la cloison `bwrap`, la porte comme seule sortie, des jetons GitHub
-  d'une heure qu'aucun cook ne reçoit. Le modèle de Hermes est celui d'un « utilisateur local de
-  confiance », et ses routes de tableau de bord ne sont pas authentifiées.
+- **The Max plan.** Everything would go through extra usage or an API key, paid per token.
+  Otherwise, Claude Code's token would be borrowed, which Anthropic's terms forbid and which
+  Anthropic has blocked server-side since 2026 (press at the end of the document). This loss
+  alone settles it.
+- **The pass as we wanted it**: "green means green once merged", the `merge` grant with an
+  expiry, the never-granted lines (`acces-prod`, `identifiants-max`), the refusal of automatic
+  merge on `.claude/brigade/` and `.github/workflows/`, the red base that holds deliveries back.
+  Hermes has no merge, and its hooks on the kanban only observe.
+- **The zones, the stations and their capacities.** They would have to be rebuilt, and stations
+  are impossible on a single-host board.
+- **The append-only log**, and everything derived from it: `rail`, `pass -- <n>`, "why is this
+  code on `v2`?", recovery after a crash.
+- **The box's security**: the `bwrap` partition, the door as the only way out, one-hour GitHub
+  tokens that no cook receives. Hermes' model is that of a "trusted local user", and its
+  dashboard routes are not authenticated.
 
-## Recommandation : garder, et acheter la tuyauterie pièce par pièce
+## Recommendation: keep, and buy the plumbing piece by piece
 
-**Garder le runtime.** Ce qui est propre à brigade (rail sur GitHub, pass, grant, zones,
-stations, quota Max par le binaire officiel) est précisément ce que Hermes n'a pas. Ce qu'il a, il
-le tient à sa boucle d'agent et à un fournisseur de modèle qui n'est pas notre forfait.
+**Keep the runtime.** What is specific to brigade (rail on GitHub, pass, grant, zones, stations,
+Max quota through the official binary) is precisely what Hermes lacks. What it has, it ties to its
+agent loop and to a model provider that is not our plan.
 
-**L'hybride sur Hermes est écarté** : y prendre seulement les notifications ou le tableau de
-bord ferait tourner un second runtime d'agents, avec sa propre connexion à un modèle, pour un rôle
-de facteur.
+**The hybrid on Hermes is ruled out**: taking only the notifications or the dashboard from it
+would run a second agent runtime, with its own connection to a model, for the role of a
+postman.
 
-**Ce que l'étude change pour la suite.** Le constat du chef tient : la tuyauterie nous coûte, et
-nous l'écrivons à la main. Avant chaque ticket de tuyauterie, se demander d'abord : *quel outil
-standard le fait déjà ?* Pistes à instruire, pas encore éprouvées :
+**What the study changes going forward.** The chef's observation holds: plumbing costs us, and we
+write it by hand. Before each plumbing ticket, ask first: *which standard tool already does
+this?* Leads to investigate, not yet tested:
 
-- **Notifications vers le téléphone** : un service de push existant (ntfy ou un équivalent),
-  appelé depuis le fait d'urgence que le runtime écrit déjà, plutôt qu'un canal à nous. C'est la
-  seule brique où Hermes nous dépasse nettement.
-- **Joindre une machine** (#702, enrôlement par commande et code) : un réseau maillé du marché
-  (Tailscale ou un équivalent) donne déjà « une machine se présente, le chef l'accepte » et le
-  `ssh` qui va avec. Notre code n'aurait plus qu'à déclarer la station et ses capacités.
-- **Installation et mise à jour** : un paquet ou un installeur standard, plutôt que de faire
-  grossir la bascule par projet et ses règles sudoers.
+- **Notifications to the phone**: an existing push service (ntfy or an equivalent), called from
+  the urgency fact the runtime already writes, rather than a channel of our own. It is the only
+  piece where Hermes clearly outdoes us.
+- **Joining a machine** (#702, enrollment by command and code): a market mesh network (Tailscale
+  or an equivalent) already gives "a machine presents itself, the chef accepts it" and the `ssh`
+  that goes with it. Our code would only have to declare the station and its capacities.
+- **Installation and update**: a standard package or installer, rather than growing the
+  per-project switchover and its sudoers rules.
 
-**Coût d'une migration**, si le chef la voulait malgré tout :
+**Cost of a migration**, if the chef wanted it anyway:
 
-- **en argent** : tout le travail des cooks, du manager et du reviewer, payé au jeton, en plus de
-  l'abonnement ;
-- **en travail** : réécrire en Python, comme plugins, le worker `claude` (chemin non tracé chez
-  Hermes), le pont avec les issues GitHub, la pass et le grant (par un crochet `pre_tool_call` qui
-  bloque `kanban_complete`), puis les zones. L'ordre de grandeur est celui de la V2 elle-même :
-  environ 365 commits du runtime en huit jours, refaits sur un sol qui change chaque semaine ;
-- **et l'épique #702 ne s'y fait pas du tout.**
+- **in money**: all the work of the cooks, the manager and the reviewer, paid per token, on top
+  of the subscription;
+- **in work**: rewrite in Python, as plugins, the `claude` worker (an unpaved path at Hermes), the
+  bridge with GitHub issues, the pass and the grant (through a `pre_tool_call` hook that blocks
+  `kanban_complete`), then the zones. The order of magnitude is that of V2 itself: about 365
+  runtime commits in eight days, redone on ground that changes every week;
+- **and epic #702 cannot be done there at all.**
 
-**Ce qui ferait rouvrir la question** : un worker `claude` officiel chez Hermes (son ticket #19931)
-et un tableau à plusieurs hôtes. Même alors, le quota resterait celui de `claude` : c'est la
-condition qui ne dépend pas de Hermes.
+**What would reopen the question**: an official `claude` worker at Hermes (its ticket #19931) and
+a multi-host board. Even then, the quota would remain that of `claude`: it is the condition that
+does not depend on Hermes.
 
-## Pour #702
+## For #702
 
-Tant que l'étude n'est pas tranchée, l'épique n'avance pas au-delà de sa spec. Si le chef retient
-« garder », #702 repart, et c'est son premier client : avant #712 et #713 (registre, enrôlement),
-regarder si un réseau maillé du marché ne rend pas la moitié de l'épique sans code à nous. C'est
-au chef de le décider ; l'étude ne modifie ni l'épique ni ses tickets.
+Until the study is settled, the epic does not move beyond its spec. If the chef chooses "keep",
+#702 restarts, and it is this study's first client: before #712 and #713 (registry, enrollment),
+check whether a market mesh network does not deliver half the epic without code of our own. It is
+for the chef to decide; the study changes neither the epic nor its tickets.
 
-## Une décision que l'étude ne peut pas prendre
+## A decision the study cannot make
 
-Le ticket dit que Hermes « fait tourner `claude` sur un abonnement Max (confirmé par le chef) ».
-D'après sa doc, c'est vrai au sens où la connexion Max fonctionne, mais **sur les crédits d'usage
-supplémentaire**, pas sur le forfait. Si le chef l'a vu tourner, sa console Anthropic doit montrer
-cette consommation en plus. Il faudrait le vérifier avant de tenir la conclusion pour acquise :
-si son essai consommait bien le forfait inclus, c'était par la skill `claude-code`, où un agent
-Hermes lance le binaire, ce qui demande encore un autre modèle pour la boucle de Hermes.
+The ticket says Hermes "runs `claude` on a Max subscription (confirmed by the chef)". According
+to its docs, this is true in the sense that the Max connection works, but **on extra usage
+credits**, not on the plan. If the chef saw it run, his Anthropic console should show this
+consumption in addition. It should be checked before taking the conclusion for granted: if his
+trial did consume the included plan, it was through the `claude-code` skill, where a Hermes agent
+launches the binary, which still requires another model for Hermes' loop.
 
 ## Sources
 
-Hermes, dans son dépôt (`https://github.com/NousResearch/hermes-agent/blob/main/<chemin>`,
-commit `ecac27c`). Le site de sa doc est construit depuis `website/docs/`.
+Hermes, in its repository (`https://github.com/NousResearch/hermes-agent/blob/main/<path>`,
+commit `ecac27c`). The site of its docs is built from `website/docs/`.
 
-- `website/docs/integrations/providers.md` : « *only works if you're on a Claude Max plan and
-  have purchased extra usage credits … The base Max plan allowance … is not consumed by Hermes* »
-- `agent/anthropic_adapter.py` : en-têtes `claude-code/<version>`, préfixe « *You are Claude Code,
-  Anthropic's official CLI for Claude.* », outils renommés pour éviter « *Third-party apps now
-  draw from extra usage* »
-- `website/docs/user-guide/security.md` : `auth.adopt_external_logins`, vrai par défaut, emprunte
+- `website/docs/integrations/providers.md`: "*only works if you're on a Claude Max plan and
+  have purchased extra usage credits … The base Max plan allowance … is not consumed by Hermes*"
+- `agent/anthropic_adapter.py`: `claude-code/<version>` headers, prefix "*You are Claude Code,
+  Anthropic's official CLI for Claude.*", tools renamed to avoid "*Third-party apps now
+  draw from extra usage*"
+- `website/docs/user-guide/security.md`: `auth.adopt_external_logins`, true by default, borrows
   `~/.claude/.credentials.json`
-- `website/docs/user-guide/features/kanban-worker-lanes.md` : worker Claude Code « *not yet a
-  paved path* », #19931, PR #19924 fermée
-- `website/docs/user-guide/features/kanban.md` : « *Kanban is deliberately single-host* »,
-  contrat de fin « *no remote writes* », « *Collision hotspots* »
+- `website/docs/user-guide/features/kanban-worker-lanes.md`: Claude Code worker "*not yet a
+  paved path*", #19931, PR #19924 closed
+- `website/docs/user-guide/features/kanban.md`: "*Kanban is deliberately single-host*",
+  completion contract "*no remote writes*", "*Collision hotspots*"
 - `website/docs/getting-started/installation.md`, `updating.md`, `user-guide/desktop.md`,
   `user-guide/features/hooks.md`
-- l'API GitHub : versions publiées, tickets ouverts (`kanban`), demande de synchronisation #31992
+- the GitHub API: published releases, open tickets (`kanban`), sync request #31992
 
-Anthropic : [Legal and compliance de Claude Code](https://code.claude.com/docs/en/legal-and-compliance)
-(« *developers may not … intermediate Claude.ai credentials* » ; le binaire `claude` non modifié,
-avec son propre abonnement, est permis). La presse sur le blocage des harnais tiers en 2026
-(janvier, février, avril) : [alternativeto.net](https://alternativeto.net/news/2026/2/anthropic-officially-bans-using-subscription-authentication-for-third-party-claude-use),
+Anthropic: [Claude Code Legal and compliance](https://code.claude.com/docs/en/legal-and-compliance)
+("*developers may not … intermediate Claude.ai credentials*"; the unmodified `claude` binary,
+with its own subscription, is allowed). Press on the blocking of third-party harnesses in 2026
+(January, February, April): [alternativeto.net](https://alternativeto.net/news/2026/2/anthropic-officially-bans-using-subscription-authentication-for-third-party-claude-use),
 [implicator.ai](https://www.implicator.ai/anthropic-cuts-openclaw-from-claude-subscriptions-citing-unsustainable-compute-costs/).
-Aucun de ces articles ne nomme Hermes.
+None of these articles names Hermes.
 
-brigade : `wc -l` sur `runtime/src`, `runtime/deploy` et `app/src`, et `git log` sur `v2`, le
-2026-10-15. Les lignes par brique viennent d'un classement de chacun des 166 fichiers de
-`runtime/src` dans une seule brique.
+brigade: `wc -l` on `runtime/src`, `runtime/deploy` and `app/src`, and `git log` on `v2`, on
+2026-10-15. The lines per piece come from a ranking of each of the 166 files of `runtime/src`
+into a single piece.

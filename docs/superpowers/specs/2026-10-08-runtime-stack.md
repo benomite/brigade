@@ -1,287 +1,285 @@
-# brigade V2 — stack du runtime
+# brigade V2 — runtime stack
 
-**Date** : 2026-10-08
-**Statut** : décidé (issue #21) — résout, pour le runtime, la question ouverte n°1 de
+**Date**: 2026-10-08
+**Status**: decided (issue #21) — resolves, for the runtime, open question no. 1 of
 `2026-10-08-brigade-v2-design.md`
-**Portée** : le runtime qui tourne sur la parade-box. La stack de l'**app desktop** n'est pas
-tranchée ici ; elle attend le jalon 6.
+**Scope**: the runtime that runs on the parade-box. The stack of the **desktop app** is not
+settled here; it waits for milestone 6.
 
 ---
 
-## La décision
+## The decision
 
-| Sujet | Décision |
+| Subject | Decision |
 |---|---|
-| **Langage** | TypeScript exécuté **directement par Node 26** (suppression des types native) : pas de build, pas de bundler |
-| **Dépendances** | **Zéro dépendance d'exécution** au jalon 1 : `node:sqlite`, `node:test`, `node:child_process`. Deux dépendances de dev seulement (`typescript`, `@types/node`), pour le contrôle de types |
-| **File d'événements** | **Pas de broker.** La file, c'est le log : un événement est une ligne ajoutée, un consommateur est un curseur dans le log |
-| **Réveil** | Réveil direct en process pour ce que le runtime produit lui-même ; surveillance du log à 1 s pour ce qu'un autre process y écrit ; tick périodique pour GitHub |
-| **GitHub** | **Sondage** (`gh api`, requêtes conditionnelles) au jalon 1. Le webhook viendra comme un producteur de plus, sans rien changer aux consommateurs |
-| **Stockage du log** | **SQLite confirmé**, un fichier par projet, mode WAL, table d'événements en ajout seul |
-| **Verrou par projet** | Une transaction d'écriture tenue sur un fichier SQLite dédié : le noyau la relâche à la mort du process |
-| **Pilotage de `claude`** | Sous-processus, **flux JSON sur des tubes, sans pty**, dans son propre groupe de process |
-| **Déploiement** | Une unité **systemd** par projet (`brigade@<projet>.service`), code déployé par `git`, état dans un répertoire unique |
-| **Poste de dev** | macOS : on y écrit et on y joue les tests. Aucun démon n'y tourne |
+| **Language** | TypeScript run **directly by Node 26** (native type stripping): no build, no bundler |
+| **Dependencies** | **Zero runtime dependencies** at milestone 1: `node:sqlite`, `node:test`, `node:child_process`. Only two dev dependencies (`typescript`, `@types/node`), for type checking |
+| **Event queue** | **No broker.** The queue is the log: an event is an appended line, a consumer is a cursor in the log |
+| **Wake-up** | Direct in-process wake-up for what the runtime produces itself; a 1 s watch of the log for what another process writes in it; a periodic tick for GitHub |
+| **GitHub** | **Polling** (`gh api`, conditional requests) at milestone 1. The webhook will come as one more producer, changing nothing for the consumers |
+| **Log storage** | **SQLite confirmed**, one file per project, WAL mode, append-only events table |
+| **Per-project lock** | A write transaction held on a dedicated SQLite file: the kernel releases it when the process dies |
+| **Driving `claude`** | Subprocess, **JSON stream over pipes, no pty**, in its own process group |
+| **Deployment** | One **systemd** unit per project (`brigade@<project>.service`), code deployed by `git`, state in a single directory |
+| **Dev workstation** | macOS: code is written there and tests are run there. No daemon runs on it |
 
-## Ce qui a été éprouvé avant d'écrire
+## What was tried out before writing
 
-Mesuré le 2026-10-08 sur le Mac (Node 26.8.1, `claude` 2.1.285), par de petits scripts jetables —
-aucun n'est versionné, la PR ne contient que ce document.
+Measured on 2026-10-08 on the Mac (Node 26.8.1, `claude` 2.1.285), with small throwaway scripts —
+none is versioned, the PR contains only this document.
 
-- `node fichier.ts` et `node --test` exécutent du TypeScript sans option ni build ; un test
-  SQLite complet passe en 53 ms.
-- `node:sqlite` (SQLite 3.53.4 embarqué) : mode WAL, table `STRICT`, déclencheurs qui refusent
-  `UPDATE` et `DELETE`, et un second process qui lit pendant qu'une écriture est en cours. Aucun
-  avertissement « expérimental ».
-- **Verrou** : un process tient `BEGIN IMMEDIATE` sur un fichier ; le second reçoit
-  `database is locked` sur-le-champ ; après un `kill -9` du premier, le verrou se reprend sans
-  aucun nettoyage.
-- **`claude` sur des tubes** : `claude -p … --output-format stream-json --verbose`, entrée
-  fermée, sortie lue ligne à ligne — pas besoin de pty. Le flux se termine par un événement
-  `result` (`subtype`, `is_error`, `terminal_reason`, `num_turns`, `usage`), code de sortie 0.
-- **Le flux porte l'état du quota** : un `rate_limit_event` donne `status`, `rateLimitType`,
-  `resetsAt` et le taux d'utilisation des fenêtres de 5 heures et de 7 jours.
-- **Arrêt forcé** : un enfant lancé `detached` est chef de son groupe ; `SIGTERM` puis `SIGKILL`
-  sur le groupe tue aussi un petit-enfant qui ignore `SIGTERM`.
+- `node file.ts` and `node --test` run TypeScript with no option or build; a complete SQLite
+  test passes in 53 ms.
+- `node:sqlite` (embedded SQLite 3.53.4): WAL mode, `STRICT` table, triggers that refuse
+  `UPDATE` and `DELETE`, and a second process that reads while a write is in progress. No
+  "experimental" warning.
+- **Lock**: one process holds `BEGIN IMMEDIATE` on a file; the second gets
+  `database is locked` immediately; after a `kill -9` of the first, the lock is taken again with
+  no cleanup at all.
+- **`claude` over pipes**: `claude -p … --output-format stream-json --verbose`, input
+  closed, output read line by line — no pty needed. The stream ends with a `result` event
+  (`subtype`, `is_error`, `terminal_reason`, `num_turns`, `usage`), exit code 0.
+- **The stream carries the quota state**: a `rate_limit_event` gives `status`, `rateLimitType`,
+  `resetsAt` and the utilization rate of the 5-hour and 7-day windows.
+- **Forced stop**: a child launched `detached` leads its own group; `SIGTERM` then `SIGKILL`
+  on the group also kills a grandchild that ignores `SIGTERM`.
 
-**Non éprouvé**, faute d'accès à la box depuis cette session : son système, la présence de
-systemd, la version de Node qui y est installée. Voir « À vérifier ».
+**Not tried out**, for lack of access to the box from this session: its system, the presence of
+systemd, the Node version installed there. See "To verify".
 
-## 1. Langage : TypeScript sur Node 26, sans build
+## 1. Language: TypeScript on Node 26, with no build
 
-Le runtime fait quatre choses : tenir un journal, superviser des sous-processus longs, lire du
-JSON en flux, parler à GitHub. Node fait les quatre avec sa bibliothèque standard, et depuis que
-`node:sqlite` et la suppression des types sont intégrés, il les fait **sans une seule dépendance
-installée** — ce qui compte ici plus qu'ailleurs : un worktree par cook, des gates rejouées à
-chaque arrêt, un conteneur par projet à venir.
+The runtime does four things: keep a log, supervise long subprocesses, read JSON as a stream,
+talk to GitHub. Node does all four with its standard library, and since `node:sqlite` and type
+stripping are built in, it does them **without a single installed dependency** — which matters
+here more than elsewhere: one worktree per cook, gates replayed at every stop, a container per
+project to come.
 
-Trois raisons de préférer TypeScript à un langage à binaire statique :
+Three reasons to prefer TypeScript over a statically-linked-binary language:
 
-1. **Les types d'événements sont le contrat du système.** « Tout se reconstruit du log » repose
-   sur des fonctions qui replient la suite d'événements ; une union discriminée, vérifiée
-   exhaustivement, fait d'un type d'événement oublié une erreur de compilation plutôt qu'un état
-   faux au redémarrage.
-2. **Ces types serviront deux fois encore.** L'endpoint MCP du second (jalon 5) et l'interface
-   du tableau de bord (jalon 6) manipulent les mêmes événements. Quelle que soit l'enveloppe
-   desktop retenue plus tard, son interface sera du web et son terminal sera xterm.js : du
-   TypeScript dans tous les cas. Ce constat ne tranche pas l'enveloppe.
-3. **Le flux de `claude` est du JSON ligne à ligne** : c'est le terrain natal de Node.
+1. **The event types are the system's contract.** "Everything is rebuilt from the log" rests on
+   functions that fold the sequence of events; a discriminated union, checked exhaustively, turns
+   a forgotten event type into a compile error rather than a wrong state at restart.
+2. **These types will be used twice more.** The second's MCP endpoint (milestone 5) and the
+   dashboard interface (milestone 6) handle the same events. Whatever desktop shell is chosen
+   later, its interface will be web and its terminal will be xterm.js: TypeScript in every case.
+   This observation does not settle the shell.
+3. **The `claude` stream is line-by-line JSON**: Node's home ground.
 
-**Règles qui en découlent**
+**Rules that follow**
 
-- Syntaxe **effaçable uniquement** (pas d'`enum`, pas de propriétés de paramètre, imports avec
-  l'extension `.ts`) : c'est la condition pour que Node exécute les sources telles quelles.
-- `tsc --noEmit` sert de contrôle de types dans les gates et ne produit rien. Sa configuration
-  est à poser par #13 ; elle n'a pas été éprouvée ici.
-- Toute dépendance d'exécution ajoutée plus tard se justifie dans sa PR. Les modules natifs à
-  compiler sont à éviter : ils compliquent le conteneur et le setup de worktree.
-- Version : **Node 26**, celle du poste de dev, qui passe en LTS fin octobre 2026 selon le
-  calendrier de Node. `engines` l'exige, la box l'installe.
+- **Erasable-only** syntax (no `enum`, no parameter properties, imports with the `.ts`
+  extension): this is the condition for Node to run the sources as they are.
+- `tsc --noEmit` serves as the type check in the gates and produces nothing. Its configuration
+  is to be set by #13; it was not tried out here.
+- Any runtime dependency added later is justified in its PR. Native modules that need compiling
+  are to be avoided: they complicate the container and the worktree setup.
+- Version: **Node 26**, the dev workstation's, which becomes LTS at the end of October 2026
+  according to Node's schedule. `engines` requires it, the box installs it.
 
-## 2. File d'événements et réveil : le log est la file
+## 2. Event queue and wake-up: the log is the queue
 
-Un broker (Redis, NATS, RabbitMQ) serait un second démon à exploiter et, surtout, un **second
-endroit où vit l'état** — l'inverse exact de « sans état en mémoire ». Le log existe déjà et il
-est transactionnel : il suffit.
+A broker (Redis, NATS, RabbitMQ) would be a second daemon to operate and, above all, a **second
+place where state lives** — the exact opposite of "no in-memory state". The log already exists
+and is transactional: it is enough.
 
-- **Produire** un événement = ajouter une ligne au log.
-- **Consommer** = lire le log à partir d'un **curseur** (le numéro du dernier événement traité),
-  lui-même stocké dans la base. Un consommateur avance son curseur **dans la même transaction**
-  que les événements qu'il produit en réaction : un crash au milieu ne perd rien et ne rejoue
-  rien à moitié.
-- **Les effets sur le monde** (lancer un cook, merger) ne sont pas transactionnels. Ils
-  s'écrivent en deux temps — l'intention, puis le résultat. Au redémarrage, une intention sans
-  résultat est à réconcilier. C'est ce qui rend vrai « ce qui était en cours se retrouve ».
+- **Producing** an event = appending a line to the log.
+- **Consuming** = reading the log from a **cursor** (the number of the last event processed),
+  itself stored in the database. A consumer advances its cursor **in the same transaction**
+  as the events it produces in reaction: a crash in the middle loses nothing and replays
+  nothing by halves.
+- **Effects on the world** (launching a cook, merging) are not transactional. They are written
+  in two steps — the intent, then the result. At restart, an intent with no result is to be
+  reconciled. This is what makes "what was in progress is found again" true.
 
-**D'où vient chaque réveil**
+**Where each wake-up comes from**
 
-| Événement | Producteur | Réveil |
+| Event | Producer | Wake-up |
 |---|---|---|
-| Fin de ticket, signal de cook, épuisement de quota | L'adaptateur moteur, dans le runtime | Immédiat, appel direct en process |
-| Commande du chef (`stop`, plus tard les grants) | La CLI `brigade`, autre process, écrit dans le même log | Le runtime surveille `PRAGMA data_version` chaque seconde : latence ≤ 1 s |
-| Activité GitHub (ticket posé, CI terminée, PR mergée) | Sondage `gh api` sur le tick, 60 s par défaut | Au tick |
-| Tick | Une minuterie du runtime | — |
+| Ticket end, cook signal, quota exhaustion | The engine adapter, in the runtime | Immediate, direct in-process call |
+| Chef command (`stop`, later the grants) | The `brigade` CLI, another process, writes into the same log | The runtime watches `PRAGMA data_version` every second: latency ≤ 1 s |
+| GitHub activity (ticket posted, CI finished, PR merged) | `gh api` polling on the tick, 60 s by default | On the tick |
+| Tick | A runtime timer | — |
 
-**GitHub : sondage d'abord, webhook ensuite.** Un webhook exige une entrée HTTP publique sur la
-box, avec TLS et vérification de signature : une surface d'attaque que rien d'autre ne demande
-au jalon 1. Avec un seul projet et un seul cook, une minute de latence ne coûte rien,
-et les requêtes conditionnelles qui répondent « inchangé » ne consomment pas le quota de l'API.
-Chaque événement GitHub entre dans le log sous une **clé unique** (son identifiant GitHub) : le
-récepteur de webhook, quand il viendra — naturellement avec la GitHub App du jalon 7 —, écrira
-les mêmes lignes ; les doublons seront refusés par la base et les consommateurs ne changeront
-pas. Le tick reste alors comme filet de rattrapage.
+**GitHub: polling first, webhook after.** A webhook requires a public HTTP entry point on the
+box, with TLS and signature verification: an attack surface that nothing else asks for at
+milestone 1. With a single project and a single cook, a minute of latency costs nothing,
+and conditional requests that answer "unchanged" do not consume the API quota.
+Each GitHub event enters the log under a **unique key** (its GitHub identifier): the
+webhook receiver, when it comes — naturally with the milestone 7 GitHub App —, will write
+the same lines; duplicates will be refused by the database and the consumers will not
+change. The tick then remains as a catch-up net.
 
-**Aucune écoute réseau au jalon 1.** Ni port ni socket : la CLI lit et écrit directement dans la
-base. Le premier port arrive avec l'API de l'app et le MCP (jalons 5 et 6).
+**No network listening at milestone 1.** No port, no socket: the CLI reads and writes directly in
+the database. The first port arrives with the app's API and the MCP (milestones 5 and 6).
 
-## 3. Stockage du log : SQLite, confirmé
+## 3. Log storage: SQLite, confirmed
 
-- **Un fichier par projet** : `<répertoire d'état>/log.db`. Le répertoire d'état d'un projet est
-  ainsi une unité autonome, montable telle quelle dans son conteneur (jalon 7). Le scheduler
-  (jalon 4) et la kitchen (jalon 6) liront plusieurs fichiers ; la forme du stockage global leur
-  appartient.
-- **Ajout seul.** Une table `events` : numéro de séquence, horodatage, projet, ticket, type,
-  auteur, charge utile JSON. Des déclencheurs refusent `UPDATE` et `DELETE`. Le numéro de
-  séquence est l'ordre de vérité.
-- **Tout état dérivé se recalcule.** Rail, baux, état des cooks sont des projections du log :
-  soit repliées au démarrage, soit matérialisées dans des tables écrites dans la même
-  transaction que l'événement. Dans les deux cas, les effacer et rejouer le log doit redonner
-  le même état — c'est un test que #13 doit porter.
-- **« Ne prêter qu'une fois » (#14)** tient à la sérialisation des écritures : vérifier et
-  ajouter dans une seule transaction `BEGIN IMMEDIATE`.
-- **Mode WAL, `synchronous = FULL`** : les lecteurs (la CLI) ne bloquent pas l'écrivain, et un
-  événement validé survit à une coupure de courant. Le volume ne justifie pas de troquer la
-  durabilité contre du débit.
-- **Le flux brut d'un cook ne va pas dans la base.** Il s'écrit en `runs/<run>.jsonl` dans le
-  répertoire d'état ; le log garde les faits (lancé, fini, échoué, 86, arrêté par garde-fou) et
-  le chemin du fichier. Rien de ce qui sert à reconstruire l'état ne vit dans ces fichiers.
+- **One file per project**: `<state directory>/log.db`. A project's state directory is
+  thus a self-contained unit, mountable as is in its container (milestone 7). The scheduler
+  (milestone 4) and the kitchen (milestone 6) will read several files; the shape of the global
+  storage is theirs to decide.
+- **Append-only.** An `events` table: sequence number, timestamp, project, ticket, type,
+  author, JSON payload. Triggers refuse `UPDATE` and `DELETE`. The sequence number is the
+  order of truth.
+- **All derived state is recomputed.** Rail, leases, cook state are projections of the log:
+  either folded at startup, or materialized in tables written in the same
+  transaction as the event. In both cases, erasing them and replaying the log must give back
+  the same state — this is a test that #13 must carry.
+- **"Lend only once" (#14)** rests on the serialization of writes: check and
+  append in a single `BEGIN IMMEDIATE` transaction.
+- **WAL mode, `synchronous = FULL`**: readers (the CLI) do not block the writer, and a
+  committed event survives a power cut. The volume does not justify trading
+  durability for throughput.
+- **A cook's raw stream does not go into the database.** It is written to `runs/<run>.jsonl` in
+  the state directory; the log keeps the facts (launched, finished, failed, 86, stopped by a
+  guardrail) and the file's path. Nothing needed to rebuild state lives in those files.
 
-**Verrou par projet.** Node n'a pas de `flock` dans sa bibliothèque standard. Le verrou est donc
-une transaction d'écriture **tenue pendant toute la vie du process** sur un fichier SQLite dédié,
-`lock.db`, distinct du log pour ne pas bloquer la CLI. Le second runtime échoue immédiatement
-et dit qui tient le verrou — il le lit dans le dernier événement de démarrage du log. Comme le
-verrou appartient au noyau, un crash ou un `kill -9` le libère : jamais de verrou orphelin à
-nettoyer à la main. Condition : le répertoire d'état est sur un **disque local**, pas sur un
-montage réseau.
+**Per-project lock.** Node has no `flock` in its standard library. The lock is therefore a write
+transaction **held for the whole life of the process** on a dedicated SQLite file,
+`lock.db`, separate from the log so as not to block the CLI. The second runtime fails immediately
+and says who holds the lock — it reads this in the last startup event of the log. Since the
+lock belongs to the kernel, a crash or a `kill -9` releases it: never an orphan lock to
+clean up by hand. Condition: the state directory is on a **local disk**, not on a network
+mount.
 
-## 4. Piloter `claude`
+## 4. Driving `claude`
 
-L'adaptateur lance le **binaire `claude` officiel**, trouvé dans le `PATH`, authentifié par la
-connexion Max déjà faite sur la machine. Pas d'Agent SDK, pas d'API, aucune lecture des
-identifiants.
+The adapter launches the **official `claude` binary**, found in the `PATH`, authenticated by the
+Max connection already made on the machine. No Agent SDK, no API, no reading of the
+credentials.
 
-- **Lancement** : `claude -p --output-format stream-json --verbose`, dans le worktree du cook,
-  entrée fermée, sortie et erreurs sur des tubes, `detached` pour en faire un groupe de process.
-- **Lecture** : une ligne = un événement JSON. Chaque ligne remet à zéro la minuterie
-  d'**inactivité** (#16).
-- **Arrêt** : `SIGTERM` au groupe, puis `SIGKILL` après un délai de grâce. C'est le même geste
-  pour un plafond dépassé, l'inactivité, et la commande `stop`.
-- **Les trois fins (#15)** se lisent sur trois signaux : le code de sortie, l'événement `result`
-  final (`subtype`, `is_error`, `terminal_reason`) et les `rate_limit_event`. Ces derniers
-  donnent `resetsAt`, donc le « moment où le quota revient » que #15 veut montrer.
-- **Plafonds (#16)** : tours et tokens se comptent dans le flux (`num_turns`, `usage`) ; la
-  durée est une minuterie du runtime.
+- **Launch**: `claude -p --output-format stream-json --verbose`, in the cook's worktree,
+  input closed, output and errors on pipes, `detached` to make it a process group.
+- **Reading**: one line = one JSON event. Each line resets the **idle** timer (#16).
+- **Stop**: `SIGTERM` to the group, then `SIGKILL` after a grace delay. It is the same gesture
+  for an exceeded cap, idleness, and the `stop` command.
+- **The three endings (#15)** are read from three signals: the exit code, the final `result`
+  event (`subtype`, `is_error`, `terminal_reason`) and the `rate_limit_event`s. The latter
+  give `resetsAt`, hence the "moment the quota returns" that #15 wants to show.
+- **Caps (#16)**: turns and tokens are counted in the stream (`num_turns`, `usage`); the
+  duration is a runtime timer.
 
-Reste à établir par #15, parce que cela ne s'observe qu'en le provoquant : la forme exacte du
-flux quand le quota est **effectivement** épuisé, et quand la connexion Max a expiré.
+Left to be established by #15, because it can only be observed by provoking it: the exact shape
+of the stream when the quota is **actually** exhausted, and when the Max connection has expired.
 
-**Un cook meurt avec le runtime.** Les cooks sont des enfants du runtime ; arrêter le service
-les arrête. Au redémarrage, un lancement sans fin dans le log est journalisé « interrompu » et
-le ticket retourne en attente. Ce que le cook avait commité dans son worktree reste. Faire
-survivre un cook au redémarrage du runtime coûterait un superviseur de plus, pour un gain que le
-jalon 1 ne demande pas.
+**A cook dies with the runtime.** Cooks are children of the runtime; stopping the service
+stops them. At restart, a launch with no end in the log is logged as "interrupted" and
+the ticket goes back to queued. What the cook had committed in its worktree stays. Making a cook
+survive a runtime restart would cost one more supervisor, for a gain that milestone 1 does not
+ask for.
 
-**Doublure de test.** Le chemin du binaire se surcharge par `BRIGADE_CLAUDE_BIN`. Les tests
-pointent vers un faux `claude` qui rejoue un flux enregistré : les gates ne consomment
-**aucun quota** et couvrent les fins qu'on ne peut pas provoquer à la demande (86, connexion
-expirée, cook muet). Cette variable n'est jamais posée sur la box.
+**Test double.** The binary's path is overridden by `BRIGADE_CLAUDE_BIN`. Tests
+point to a fake `claude` that replays a recorded stream: the gates consume
+**no quota** and cover the endings that cannot be provoked on demand (86, expired
+connection, silent cook). This variable is never set on the box.
 
-## 5. Dev local, tests, isolation — ce dont #22 a besoin
+## 5. Local dev, tests, isolation — what #22 needs
 
-Emplacement proposé du code : `runtime/` à la racine, avec son `package.json`. C'est à #22 de
-déclarer la zone.
+Proposed location of the code: `runtime/` at the root, with its `package.json`. It is for #22 to
+declare the zone.
 
-| Besoin | Commande |
+| Need | Command |
 |---|---|
-| Préparer un worktree | `npm ci --prefix runtime` (deux dépendances de dev, rien d'autre) |
-| **Jouer les tests** | `npm --prefix runtime test` → `node --test` |
-| Contrôler les types | `npm --prefix runtime run typecheck` → `tsc --noEmit` |
-| Lancer le runtime en local | `npm --prefix runtime start` |
+| Prepare a worktree | `npm ci --prefix runtime` (two dev dependencies, nothing else) |
+| **Run the tests** | `npm --prefix runtime test` → `node --test` |
+| Check the types | `npm --prefix runtime run typecheck` → `tsc --noEmit` |
+| Run the runtime locally | `npm --prefix runtime start` |
 
-Les tests ne dépendent d'aucun paquet installé : `node --test` passe sur un clone nu. Seul le
-contrôle de types réclame le `npm ci`.
+Tests depend on no installed package: `node --test` passes on a bare clone. Only the type check
+needs the `npm ci`.
 
-**Isolation de l'état : une seule variable.** `BRIGADE_STATE_DIR` désigne le répertoire qui
-contient tout — `log.db`, `lock.db`, `runs/`.
+**State isolation: a single variable.** `BRIGADE_STATE_DIR` designates the directory that
+contains everything — `log.db`, `lock.db`, `runs/`.
 
-- Sur la box : `/var/lib/brigade/<projet>`.
-- Dans un worktree de dev : `<WT>/.brigade-state`, exporté par `worktree-setup.sh` et ignoré
-  par git. Deux worktrees ont deux répertoires, donc deux bases et deux verrous.
-- **Dans les tests : jamais la variable.** Chaque test crée son propre répertoire temporaire.
-  Deux tests d'un même worktree ne se croisent pas non plus, et une suite ne peut pas abîmer
-  l'état d'un runtime lancé à la main.
+- On the box: `/var/lib/brigade/<project>`.
+- In a dev worktree: `<WT>/.brigade-state`, exported by `worktree-setup.sh` and ignored
+  by git. Two worktrees have two directories, hence two databases and two locks.
+- **In tests: never the variable.** Each test creates its own temporary directory.
+  Two tests of the same worktree do not cross each other either, and a suite cannot damage
+  the state of a runtime started by hand.
 
-**Ports : aucun au jalon 1.** Rien à attribuer, rien à faire entrer en collision. Quand un port
-arrivera, la règle est déjà fixée : `BRIGADE_PORT`, dérivé du numéro d'issue par
-`worktree-setup.sh`, et les tests écoutent toujours sur le port 0, attribué par le système.
+**Ports: none at milestone 1.** Nothing to assign, nothing to make collide. When a port
+arrives, the rule is already set: `BRIGADE_PORT`, derived from the issue number by
+`worktree-setup.sh`, and tests always listen on port 0, assigned by the system.
 
-**Durée des gates** : de l'ordre de la seconde tant que la suite reste sans réseau ni vrai
-`claude`. C'est une contrainte à tenir, pas un hasard : le hook `Stop` rejoue les gates à chaque
-arrêt.
+**Gate duration**: on the order of a second as long as the suite stays free of network and real
+`claude`. This is a constraint to hold, not a coincidence: the `Stop` hook replays the gates at
+every stop.
 
-## 6. Déploiement sur la parade-box
+## 6. Deployment on the parade-box
 
-Une unité systemd **système**, à gabarit, une instance par projet : `brigade@<projet>.service`.
-Le fichier d'unité est versionné avec le runtime.
+One **system** systemd unit, templated, one instance per project: `brigade@<project>.service`.
+The unit file is versioned with the runtime.
 
-- **Compte** : `User=` le compte Unix qui a fait la connexion Max. Le runtime lit ainsi les
-  identifiants là où `claude` les attend, sans les copier.
-- **État** : `StateDirectory=brigade/%i` crée `/var/lib/brigade/<projet>` au bon propriétaire ;
-  `Environment=BRIGADE_STATE_DIR=…` le désigne.
-- **Code** : un clone du dépôt sur une référence publiée. Sans dépendance d'exécution ni build,
-  mettre à jour revient à `git fetch`, `git checkout <tag>`, puis redémarrer le service.
+- **Account**: `User=` the Unix account that made the Max connection. The runtime thus reads the
+  credentials where `claude` expects them, without copying them.
+- **State**: `StateDirectory=brigade/%i` creates `/var/lib/brigade/<project>` with the right
+  owner; `Environment=BRIGADE_STATE_DIR=…` designates it.
+- **Code**: a clone of the repository on a published ref. With no runtime dependency or build,
+  updating comes down to `git fetch`, `git checkout <tag>`, then restarting the service.
 
-| Geste | Commande |
+| Gesture | Command |
 |---|---|
-| Lancer | `systemctl start brigade@<projet>` |
-| Arrêter | `systemctl stop brigade@<projet>` — arrête aussi les cooks (même cgroup) : c'est le « stop » de dernier recours, qui marche même si le runtime ne répond plus |
-| Surveiller | `systemctl status brigade@<projet>` ; `journalctl -u brigade@<projet> -f` pour la sortie du process ; `brigade status` (#18) pour l'état métier, lu dans le log |
-| Redémarrer après un crash | `Restart=on-failure`, avec un délai de relance |
-| Redémarrer après un reboot | `systemctl enable brigade@<projet>` (`WantedBy=multi-user.target`) |
+| Start | `systemctl start brigade@<project>` |
+| Stop | `systemctl stop brigade@<project>` — also stops the cooks (same cgroup): this is the last-resort "stop", which works even if the runtime no longer answers |
+| Monitor | `systemctl status brigade@<project>`; `journalctl -u brigade@<project> -f` for the process output; `brigade status` (#18) for the business state, read from the log |
+| Restart after a crash | `Restart=on-failure`, with a restart delay |
+| Restart after a reboot | `systemctl enable brigade@<project>` (`WantedBy=multi-user.target`) |
 
-Deux journaux, deux usages : **journald** garde ce que le process imprime (démarrage, erreurs,
-traces) ; **le log** garde ce qui s'est passé dans la cuisine. On ne reconstruit rien depuis
+Two logs, two uses: **journald** keeps what the process prints (startup, errors,
+traces); **the log** keeps what happened in the kitchen. Nothing is rebuilt from
 journald.
 
-**Aucun accès prod** : l'unité ne monte aucun secret de prod et le runtime n'en connaît aucun.
+**No prod access**: the unit mounts no prod secret and the runtime knows none.
 
-**Le conteneur par projet (jalon 7) reste ouvert.** Rien ne l'interdit : aucun module natif,
-tout l'état dans un répertoire qui devient un volume, aucun port imposé, et un verrou par
-fichier qui reste valable entre l'hôte et un conteneur du même noyau. Que le runtime tourne
-dans le conteneur ou le pilote de l'extérieur est une décision du jalon 7.
+**The container per project (milestone 7) stays open.** Nothing forbids it: no native module,
+all state in a directory that becomes a volume, no imposed port, and a file lock
+that stays valid between the host and a container of the same kernel. Whether the runtime runs
+in the container or is driven from outside is a milestone 7 decision.
 
-## 7. Ce qui tourne où
+## 7. What runs where
 
-| | Mac (poste de dev) | parade-box |
+| | Mac (dev workstation) | parade-box |
 |---|---|---|
-| Écrire le code, jouer les gates | oui | non |
-| Tests du runtime | oui, faux `claude` | non |
-| Runtime en service | non — lancé à la main pour essayer, état dans le worktree | oui, sous systemd |
-| Cooks réels | à la main seulement | oui |
-| systemd | absent | oui |
+| Write the code, run the gates | yes | no |
+| Runtime tests | yes, fake `claude` | no |
+| Runtime as a service | no — started by hand to try, state in the worktree | yes, under systemd |
+| Real cooks | by hand only | yes |
+| systemd | absent | yes |
 
-Conséquence pour le code : rien de propre à Linux hors du fichier d'unité. Groupes de process,
-signaux, SQLite et tubes se comportent pareil sur les deux systèmes ; c'est ce qui permet aux
-gates jouées sur le Mac de valoir pour la box.
+Consequence for the code: nothing Linux-specific outside the unit file. Process groups,
+signals, SQLite and pipes behave the same on both systems; this is what lets the
+gates run on the Mac hold for the box.
 
-## Écarté, et pourquoi
+## Ruled out, and why
 
-| Option | Motif |
+| Option | Reason |
 |---|---|
-| **Go** | Le meilleur déploiement (un binaire) et un `flock` natif. Mais SQLite y demande un module tiers, la chaîne d'outils est à installer sur le Mac et dans chaque worktree, et les types d'événements seraient à réécrire pour le MCP et l'interface |
-| **Python** | La bibliothèque standard suffirait (`sqlite3`, `flock`, `subprocess`). Mais le Python du Mac est un 3.9.6 système, le typage sérieux réclame un outil de plus, et rien ne se partage avec la suite |
-| **Bun, Deno** | SQLite et TypeScript intégrés aussi. Un runtime de plus à installer sur deux machines, pour rien que Node 26 n'apporte déjà |
-| **Rust** | Itération trop lente pour un système dont la forme se cherche encore, sans gain mesurable ici |
-| **TypeScript compilé** (`tsc`, bundler) | Une étape de build à chaque worktree et à chaque déploiement, devenue inutile |
-| **JavaScript sans types** | Perd la vérification exhaustive des événements, qui est la raison du choix |
-| **Agent SDK** | Interdit par la spec : il exige une clé API |
-| **pty** (`node-pty`) | Module natif à compiler, et inutile : `claude -p` parle sur des tubes. Le pty reviendra avec le terminal de l'app, qui n'est pas le runtime |
-| **Broker** (Redis, NATS, RabbitMQ) | Un démon et un état de plus, alors que le log fait déjà file |
-| **Webhook GitHub dès le jalon 1** | Une entrée publique sur la box pour gagner une minute de latence |
-| **Postgres** | Un serveur à exploiter, une base à créer par worktree, pour un écrivain unique et un volume minuscule |
-| **Fichiers JSONL comme log** | Ni transaction ni contrainte d'unicité : « ne prêter qu'une fois » ne s'y garantit pas |
-| **`better-sqlite3`** | Module natif, à côté d'un équivalent intégré. Reste le repli si `node:sqlite` se révélait insuffisant : l'API est proche, à condition d'isoler l'accès à la base dans un seul module |
-| **Verrou par fichier PID** | Un PID se réutilise : verrou orphelin ou faux positif après un crash |
-| **Cooks en unités systemd séparées** | Les ferait survivre au runtime, au prix d'un mécanisme propre à Linux, donc impossible à tester sur le Mac |
-| **Service systemd utilisateur** (`--user` et `linger`) | Fonctionne, mais le démarrage au boot dépend d'un réglage de session facile à oublier |
-| **Watchdog systemd** (`WatchdogSec`) | Node ne sait pas écrire sur la socket de notification sans dépendance. Un runtime figé se voit à l'âge de son dernier tick dans `brigade status` |
+| **Go** | The best deployment (one binary) and a native `flock`. But SQLite needs a third-party module there, the toolchain has to be installed on the Mac and in every worktree, and the event types would have to be rewritten for the MCP and the interface |
+| **Python** | The standard library would suffice (`sqlite3`, `flock`, `subprocess`). But the Mac's Python is a system 3.9.6, serious typing needs one more tool, and nothing is shared with the rest |
+| **Bun, Deno** | SQLite and TypeScript built in too. One more runtime to install on two machines, for nothing Node 26 does not already bring |
+| **Rust** | Iteration too slow for a system whose shape is still being sought, with no measurable gain here |
+| **Compiled TypeScript** (`tsc`, bundler) | A build step in every worktree and every deployment, now useless |
+| **Untyped JavaScript** | Loses the exhaustive checking of events, which is the reason for the choice |
+| **Agent SDK** | Forbidden by the spec: it requires an API key |
+| **pty** (`node-pty`) | Native module to compile, and useless: `claude -p` speaks over pipes. The pty will come back with the app's terminal, which is not the runtime |
+| **Broker** (Redis, NATS, RabbitMQ) | One more daemon and one more state, when the log already acts as a queue |
+| **GitHub webhook from milestone 1** | A public entry point on the box to gain a minute of latency |
+| **Postgres** | A server to operate, a database to create per worktree, for a single writer and a tiny volume |
+| **JSONL files as the log** | Neither transaction nor uniqueness constraint: "lend only once" cannot be guaranteed there |
+| **`better-sqlite3`** | Native module, next to a built-in equivalent. Remains the fallback if `node:sqlite` proved insufficient: the API is close, provided database access is isolated in a single module |
+| **PID file lock** | A PID gets reused: orphan lock or false positive after a crash |
+| **Cooks as separate systemd units** | Would make them survive the runtime, at the cost of a Linux-specific mechanism, hence impossible to test on the Mac |
+| **User systemd service** (`--user` and `linger`) | Works, but boot-time startup depends on a session setting that is easy to forget |
+| **systemd watchdog** (`WatchdogSec`) | Node cannot write to the notification socket without a dependency. A frozen runtime shows in the age of its last tick in `brigade status` |
 
-## À vérifier à la première ligne de #13
+## To verify at the first line of #13
 
-Ces points n'ont pas pu être contrôlés depuis cette session ; aucun ne remet la décision en
-cause, mais chacun peut coûter une heure s'il est découvert tard.
+These points could not be checked from this session; none calls the decision into
+question, but each can cost an hour if discovered late.
 
-1. La box tourne bien sous Linux avec systemd.
-2. Node 26 y est installé, ou installable sans toucher au reste.
-3. `claude` y est le binaire officiel, connecté, et lancé par le compte que `User=` désignera.
-4. `/var/lib` est sur un disque local.
+1. The box does run Linux with systemd.
+2. Node 26 is installed there, or installable without touching the rest.
+3. `claude` there is the official binary, connected, and launched by the account that `User=` will designate.
+4. `/var/lib` is on a local disk.

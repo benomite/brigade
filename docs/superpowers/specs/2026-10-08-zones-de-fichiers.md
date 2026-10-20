@@ -1,109 +1,109 @@
-# Les zones de fichiers — spec et plan (#73)
+# File zones — spec and plan (#73)
 
-**Date** : 2026-10-08
-**Statut** : décidé — les cinq décisions produit ci-dessous sont celles de l'orchestrateur
-(réponses du 2026-10-08 au `question-spec #73`) ; « Ce que le dev a tranché » est contestable en
+**Date**: 2026-10-08
+**Status**: decided — the five product decisions below are the orchestrator's
+(answers of 2026-10-08 to `question-spec #73`); "What the dev settled" can be contested in
 review
-**Issue** : #73 « Deux tickets concurrents ne possèdent pas le même fichier »
-**S'appuie sur** : `2026-10-08-fiche-du-ticket.md` (la fiche porte la zone, #68),
-`2026-10-08-decoupage-epique.md` (le découpage l'attribue, #71), `2026-10-08-runtime-rail.md`
-(l'ordre de service, les dépendances de #70). Ce document ne redécide rien de ce qui y figure, sauf
-le point 7 de la fiche (« `zone` : des chaînes, portées telles quelles »), qu'il referme.
+**Issue**: #73 "Two concurrent tickets do not own the same file"
+**Builds on**: `2026-10-08-fiche-du-ticket.md` (the card carries the zone, #68),
+`2026-10-08-decoupage-epique.md` (the split assigns it, #71), `2026-10-08-runtime-rail.md`
+(the service order, the dependencies of #70). This document redecides nothing of what appears there, except
+point 7 of the card ("`zone`: strings, carried as they are"), which it closes.
 
 ---
 
-## La règle
+## The rule
 
-`2026-10-08-brigade-v2-design.md`, § Le manager : « partitionne par zone de fichiers (règle V1
-conservée : un fichier, un propriétaire entre tickets concurrents) ». Au jalon 2 un seul cook
-tourne : ce que la règle protège aujourd'hui, c'est **la découpe**, et l'intervalle entre une
-livraison et son merge. Le parallélisme est au jalon 4.
+`2026-10-08-brigade-v2-design.md`, § The manager: "partitions by file zone (V1 rule
+kept: one file, one owner between concurrent tickets)". At milestone 2 a single cook
+runs: what the rule protects today is **the cut**, and the interval between a
+delivery and its merge. Parallelism is at milestone 4.
 
-Le comportement, tel que le chef le vit, est dans `docs/runtime.md`, « Les zones de fichiers » :
-c'est la doc vivante, ce document ne la recopie pas.
+The behaviour, as the chef lives it, is in `docs/runtime.md`, "Les zones de fichiers":
+it is the living doc, this document does not copy it.
 
-| Critère de l'issue | Ce qui le porte |
+| Issue criterion | What carries it |
 |---|---|
-| Le découpage attribue une zone ; deux tickets servables en même temps ne se recouvrent pas | La consigne de découpage (« un fichier, un propriétaire »), puis `separer` : du code, sur la réponse lue |
-| Recouvrement inévitable → une dépendance, pas un conflit | `separer` ajoute le rang du premier au `waitsFor` du second ; la fiche née la porte ; le commentaire de découpage le dit |
-| Le rail montre la zone | `run rail` : la ligne de fiche (déjà là depuis #68), `zone tenue par #N (chemin)` sur un ticket retenu, et les chemins communs en tête |
-| Un cook qui écrit hors de sa zone est signalé, jamais silencieux | `cook.out-of-zone` au journal, lignes « Hors zone » dans le commentaire de fin de cook ; la pass juge comme avant |
-| La règle vaut dès maintenant, avec un seul cook | La retenue du rail ne dépend pas de `maxCooks` : un ticket en pass tient sa zone |
+| The split assigns a zone; two tickets that can be served at the same time do not overlap | The split instruction ("one file, one owner"), then `separer`: code, on the answer read |
+| Unavoidable overlap → a dependency, not a conflict | `separer` adds the rank of the first to the `waitsFor` of the second; the card born from it carries it; the split comment says so |
+| The rail shows the zone | `run rail`: the card line (there since #68), `zone held by #N (path)` on a held ticket, and the common paths at the top |
+| A cook that writes outside its zone is flagged, never silent | `cook.out-of-zone` in the log, "Out of zone" lines in the end-of-cook comment; the pass judges as before |
+| The rule holds from now on, with a single cook | The rail's hold does not depend on `maxCooks`: a ticket in pass holds its zone |
 
-## Décisions produit
+## Product decisions
 
-1. **Chemins communs par projet.** `BRIGADE_COMMON_PATHS`, facultative, vide par défaut. Un chemin
-   commun n'appartient à personne : il ne fait pas se recouvrir deux zones, le découpage est prévenu,
-   y écrire n'est pas hors zone. C'est la réponse au piège « `docs/runtime.md` est touché par
-   presque tout ticket » — une règle stricte ferait du jalon une seule file.
-2. **Au découpage, le code pose la dépendance** et le dit sur l'épique. Pas de second jugement
-   payé, pas de découpage refusé.
-3. **Sur le rail, le second est retenu** tant que le premier n'est pas servi ; `run rail` dit
-   pourquoi ; la retenue tombe si le premier quitte le rail.
-4. **Hors zone** : un fait au journal et une ligne dans le commentaire de fin de cook. Un ticket
-   sans fiche ou sans zone n'est jamais signalé. Rien dans `status`.
-5. **La zone qui juge est celle de la prise.** Une fiche modifiée pendant la cuisson est montrée,
-   pas jugée — c'est la limite laissée par #68 : le cook tourne sous le compte du service et peut
-   éditer la fiche de son propre ticket.
+1. **Common paths per project.** `BRIGADE_COMMON_PATHS`, optional, empty by default. A common path
+   belongs to nobody: it does not make two zones overlap, the split is warned,
+   writing there is not out of zone. This is the answer to the trap "`docs/runtime.md` is touched by
+   almost every ticket" — a strict rule would make the milestone a single queue.
+2. **At the split, the code lays down the dependency** and says so on the epic. No second paid
+   judgment, no split refused.
+3. **On the rail, the second is held** until the first is served; `run rail` says
+   why; the hold falls if the first leaves the rail.
+4. **Out of zone**: a fact in the log and a line in the end-of-cook comment. A ticket
+   with no card or no zone is never flagged. Nothing in `status`.
+5. **The zone that judges is the zone at the take.** A card modified during the cook is shown,
+   not judged — this is the limit left by #68: the cook runs under the service account and can
+   edit the card of its own ticket.
 
-## Ce que le dev a tranché
+## What the dev settled
 
-Chacun a un test.
+Each has a test.
 
-1. **La notation.** Une zone est une liste de chemins ; un chemin possède le fichier qu'il nomme et
-   tout ce qui est dessous, par segments entiers. `./`, la barre finale et `.` (la racine) sont
-   tolérés. Rien n'est lu sur le disque.
-2. **Un motif est un problème de fiche** — `*` et `?` seulement. Les crochets n'en sont pas :
-   `app/[id]/page.tsx` est un chemin (routes Next.js). Conséquence : une fiche qui portait `*.md`,
-   lue « telle quelle » depuis #68, devient illisible, et son ticket 86 au prochain passage.
-3. **« Concurrents » au découpage** : deux tickets dont aucun n'attend l'autre, même indirectement.
-   `separer` parcourt les rangs du plus proche au plus lointain : trois tickets sur un même fichier
-   font une file (3 attend 2, 2 attend 1), pas un éventail.
-4. **« Le premier » sur le rail est celui qui est parti** — pris, en pass, 86 —, pas le premier
-   dans l'ordre de service. Tant qu'aucun des deux n'est parti, rien ne retient personne : l'ordre
-   de service décide, et dès que l'un est pris l'autre est retenu. Raison : retenir derrière un
-   ticket *en attente* ouvre des interblocages (A retenu par la zone de B, B attend C, C retenu par
-   la zone de A) ; derrière un ticket parti, aucun — il n'attend plus rien du rail.
-5. **Un 86 tient sa zone** (un ticket remonté au chef en pass a une PR ouverte), y compris refusé
-   avant tout cook ; il la lâche quand sa livraison est mergée (`merge.done`), même s'il reste 86.
-   **Une fiche illisible ne tient rien** : sa zone ne fait pas foi.
-   **Un ticket rendu par la pass tient sa zone** (revue de la PR) : en attente, mais avec une
-   livraison ouverte — `delivery` sur la ligne du rail, `open` de `ticket.passing` à `merge.done`.
-   Un ticket qui a lui-même une livraison ouverte n'est pas retenu par un autre ticket en attente :
-   deux renvois sur une même zone s'attendraient sans fin. Le merge ne lâche la zone que de cette
-   livraison-là : repris ou rouvert, le ticket la tient de nouveau.
-6. **La retenue ne s'écrit pas** : elle se recalcule à la lecture du rail (`TicketRail.held`), comme
-   `awaits`. Un ticket que la fiche dit déjà d'attendre n'y figure pas.
-7. **Les chemins communs entrent au journal** (`rail.commons`, au démarrage, quand ils changent) :
-   le rail se relit du journal seul, et `run rail`, le manager et la station les lisent là — la CLI
-   n'a pas besoin de la variable, et un rejeu redonne le même rail.
-8. **La zone de la prise se relit du journal** (la dernière fiche avant le dernier `ticket.taken`),
-   pas d'une mémoire de la station : une livraison reprise après un redémarrage est confrontée à la
-   même zone. Un renvoi de la pass est une nouvelle prise.
-9. **Une fiche qui a changé pendant la cuisson est montrée même sans fichier hors zone**
+1. **The notation.** A zone is a list of paths; a path owns the file it names and
+   everything below it, by whole segments. `./`, the trailing slash and `.` (the root) are
+   tolerated. Nothing is read from disk.
+2. **A pattern is a card problem** — `*` and `?` only. Brackets are not one:
+   `app/[id]/page.tsx` is a path (Next.js routes). Consequence: a card that carried `*.md`,
+   read "as is" since #68, becomes unreadable, and its ticket is 86'd at the next pass.
+3. **"Concurrent" at the split**: two tickets neither of which awaits the other, even indirectly.
+   `separer` walks the ranks from nearest to farthest: three tickets on one
+   file make a queue (3 awaits 2, 2 awaits 1), not a fan.
+4. **"The first" on the rail is the one that has left** — taken, in pass, 86 — not the first
+   in the service order. As long as neither of the two has left, nothing holds anyone: the service
+   order decides, and as soon as one is taken the other is held. Reason: holding behind a
+   *queued* ticket opens deadlocks (A held by B's zone, B awaits C, C held by
+   A's zone); behind a ticket that has left, none — it awaits nothing from the rail any more.
+5. **An 86 holds its zone** (a ticket escalated to the chef in pass has an open PR), including when refused
+   before any cook; it lets go when its delivery is merged (`merge.done`), even if it stays 86.
+   **An unreadable card holds nothing**: its zone is not authoritative.
+   **A ticket sent back by the pass holds its zone** (PR review): queued, but with an open
+   delivery — `delivery` on the rail line, `open` from `ticket.passing` to `merge.done`.
+   A ticket that itself has an open delivery is not held by another queued ticket:
+   two send-backs on the same zone would await each other forever. The merge lets go of the zone only for that
+   delivery: taken back or reopened, the ticket holds it again.
+6. **The hold is not written**: it is recomputed when the rail is read (`TicketRail.held`), like
+   `awaits`. A ticket that the card already says awaits does not appear in it.
+7. **Common paths enter the log** (`rail.commons`, at startup, when they change):
+   the rail can be reread from the log alone, and `run rail`, the manager and the station read them there — the CLI
+   does not need the variable, and a replay gives back the same rail.
+8. **The zone at the take is reread from the log** (the last card before the last `ticket.taken`),
+   not from a station's memory: a delivery taken back after a restart is checked against the
+   same zone. A send-back from the pass is a new take.
+9. **A card that changed during the cook is shown even with no file out of zone**
    (`cardChanged: true`, `files: []`).
-10. **La consigne du cook nomme la fiche** : sa zone, ne pas écrire ailleurs sans nécessité, ne pas
-    la modifier. Un cook qui ne sait pas qu'il a une zone ne peut pas la tenir.
-11. **Le propriétaire d'un fichier hors zone est nommé** quand un ticket du rail le possède
-    (« dans la zone de #N »).
+10. **The cook's instruction names the card**: its zone, not to write elsewhere without need, not to
+    modify it. A cook that does not know it has a zone cannot hold to it.
+11. **The owner of a file out of zone is named** when a ticket on the rail owns it
+    ("in the zone of #N").
 
 ## Plan
 
-| Module | Ce qui change |
+| Module | What changes |
 |---|---|
-| `src/zones.ts` (neuf) | Pur, sans E/S : `possede`, `recouvrement`, `horsZone`, `refus` |
-| `src/fiche.ts` | Un motif dans `zone` est un problème |
-| `src/evenements/rail.ts`, `src/projections/rail.ts` | `rail.commons` et sa table ; `TicketRail.held` |
-| `src/rail.ts` | `servable` exige une zone libre ; `retenue` rend `zone` ; `direRetenue` le dit |
-| `src/alimenter.ts` | `BRIGADE_COMMON_PATHS` dans `configRail` ; `rail.commons` écrit au branchement |
-| `src/decouper.ts`, `src/decoupage.ts` | La consigne ; `separer` ; `TicketPrevu.overlaps` ; le commentaire de découpage |
-| `src/evenements/station.ts`, `src/station.ts` | `cook.out-of-zone` ; `signalerHorsZone` à la récolte et à la reprise |
-| `src/claude.ts` | La consigne du cook |
-| `src/montrer-rail.ts` | Les chemins communs en tête |
+| `src/zones.ts` (new) | Pure, no I/O: `possede`, `recouvrement`, `horsZone`, `refus` |
+| `src/fiche.ts` | A pattern in `zone` is a problem |
+| `src/evenements/rail.ts`, `src/projections/rail.ts` | `rail.commons` and its table; `TicketRail.held` |
+| `src/rail.ts` | `servable` requires a free zone; `retenue` returns `zone`; `direRetenue` says it |
+| `src/alimenter.ts` | `BRIGADE_COMMON_PATHS` in `configRail`; `rail.commons` written at wiring |
+| `src/decouper.ts`, `src/decoupage.ts` | The instruction; `separer`; `TicketPrevu.overlaps`; the split comment |
+| `src/evenements/station.ts`, `src/station.ts` | `cook.out-of-zone`; `signalerHorsZone` at harvest and at resumption |
+| `src/claude.ts` | The cook's instruction |
+| `src/montrer-rail.ts` | The common paths at the top |
 
-## Hors scope
+## Out of scope
 
-- Plusieurs cooks en parallèle (`maxCooks` reste à 1) : jalon 4.
-- Le lot de tickets sur zones disjointes mergé d'un bloc : jalon 3.
-- Savoir **qui** a édité une fiche (GraphQL `editor`) : écarté, décision 5.
-- Vérifier qu'une zone est *la bonne* avant le cook : c'est le signal hors zone qui le dit, après.
+- Several cooks in parallel (`maxCooks` stays at 1): milestone 4.
+- The batch of tickets on disjoint zones merged in one go: milestone 3.
+- Knowing **who** edited a card (GraphQL `editor`): dismissed, decision 5.
+- Checking that a zone is *the right one* before the cook: it is the out-of-zone signal that says so, afterwards.

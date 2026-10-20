@@ -1,170 +1,170 @@
-# Runtime et journal — spec et plan (#13)
+# Runtime and log — spec and plan (#13)
 
-**Date** : 2026-10-08
-**Statut** : validé le 2026-10-08 — le chef a tranché (a) et (a) aux deux questions de fin de document
-**Issue** : #13 « Le runtime tourne sur la box et tient son journal »
-**S'appuie sur** : `2026-10-08-runtime-stack.md` (§1, §2, §3, §6), qui a déjà tranché la stack.
-Ce document ne redécide rien de ce qui y figure ; il dit ce que #13 pose, et où.
+**Date**: 2026-10-08
+**Status**: validated on 2026-10-08 — the chef settled (a) and (a) on the two questions at the end of the document
+**Issue**: #13 "The runtime runs on the box and keeps its log"
+**Builds on**: `2026-10-08-runtime-stack.md` (§1, §2, §3, §6), which already settled the stack.
+This document redecides nothing of what appears there; it says what #13 lays down, and where.
 
 ---
 
-## Ce que #13 livre
+## What #13 delivers
 
-Le socle sur lequel #14, #16 et #18 s'appuient : un process qui démarre, tient un verrou, écrit
-dans un journal en ajout seul et s'arrête proprement. **Aucun rail, aucun cook, aucun appel à
-`claude`** — donc aucun quota consommé, par construction : le code de #13 ne lance aucun
-sous-processus.
+The base that #14, #16 and #18 rest on: a process that starts, holds a lock, writes to an
+append-only log and stops cleanly. **No rail, no cook, no call to
+`claude`** — so no quota consumed, by construction: #13's code launches no
+subprocess.
 
-| Critère de l'issue | Ce qui le porte |
+| Issue criterion | What carries it |
 |---|---|
-| Démarrer, arrêter, redémarrer sans perdre l'état | `log.db` durable (WAL, `synchronous = FULL`) ; projections recalculables ; réconciliation au démarrage |
-| Chaque événement porte horodatage, projet, ticket, type, auteur | Colonnes `NOT NULL` de la table `events` (sauf `ticket`, nul pour un événement qui ne concerne aucun ticket) |
-| Relire le journal complet d'un ticket, dans l'ordre | Lecture par ticket, triée par numéro de séquence — surface pour le chef : **question 1** |
-| Deux runtimes sur un projet : le second refuse et dit pourquoi | `lock.db`, transaction d'écriture tenue toute la vie du process |
-| Aucun quota consommé | Aucun sous-processus, aucun réseau dans ce chemin |
+| Start, stop, restart without losing state | durable `log.db` (WAL, `synchronous = FULL`); recomputable projections; reconciliation at startup |
+| Every event carries timestamp, project, ticket, type, author | `NOT NULL` columns of the `events` table (except `ticket`, null for an event that concerns no ticket) |
+| Reread a ticket's complete log, in order | Read by ticket, sorted by sequence number — surface for the chef: **question 1** |
+| Two runtimes on one project: the second refuses and says why | `lock.db`, a write transaction held for the whole life of the process |
+| No quota consumed | No subprocess, no network on this path |
 
 ## Modules
 
-Un module par responsabilité, pour que #14, #16 et #18 avancent en parallèle sans se disputer
-un fichier.
+One module per responsibility, so that #14, #16 and #18 move forward in parallel without fighting
+over a file.
 
 ```
 runtime/
-  package.json          scripts test / typecheck / start, engines Node 26, zéro dépendance d'exécution
-  package-lock.json     deux dépendances de dev : typescript, @types/node
-  tsconfig.json         tsc --noEmit, syntaxe effaçable uniquement
+  package.json          scripts test / typecheck / start, engines Node 26, zero runtime dependencies
+  package-lock.json     two dev dependencies: typescript, @types/node
+  tsconfig.json         tsc --noEmit, erasable syntax only
   src/
-    base.ts             SEUL module qui importe node:sqlite — ouverture, pragmas, schéma, transactions
-    evenements.ts       l'union discriminée des événements, assemblée depuis evenements/
+    base.ts             ONLY module that imports node:sqlite — opening, pragmas, schema, transactions
+    evenements.ts       the discriminated union of events, assembled from evenements/
     evenements/
-      runtime.ts        les événements que #13 produit
-    journal.ts          ajouter un événement, lire (par ticket, depuis un curseur), rejouer
-    projection.ts       ce qu'est une projection, et de quoi en définir une
-    projections.ts      registre des projections
+      runtime.ts        the events that #13 produces
+    journal.ts          append an event, read (by ticket, from a cursor), replay
+    projection.ts       what a projection is, and what it takes to define one
+    projections.ts      registry of projections
     projections/
-      sessions.ts       la projection que #13 porte : les vies successives du runtime
+      sessions.ts       the projection that #13 carries: the runtime's successive lives
     verrou.ts           lock.db
-    runtime.ts          démarrer / arrêter : verrou, réconciliation, boucle de réveil
-    main.ts             point d'entrée de `npm start` : environnement, signaux, code de sortie
-    relire.ts           `npm run journal` : relecture du journal, en lecture seule
-  test/                 node --test, un répertoire temporaire par test
+    runtime.ts          start / stop: lock, reconciliation, wake-up loop
+    main.ts             entry point of `npm start`: environment, signals, exit code
+    relire.ts           `npm run log`: rereading the log, read-only
+  test/                 node --test, one temporary directory per test
   deploy/
-    brigade@.service    unité systemd à gabarit
-docs/runtime.md         doc vivante : lancer en local, déployer sur la box, recette du chef
+    brigade@.service    templated systemd unit
+docs/runtime.md         living doc: run locally, deploy on the box, the chef's acceptance recipe
 ```
 
-**Règle d'extension** (ce que les tickets suivants font, et rien d'autre) : un domaine ajoute
-`evenements/<domaine>.ts` et `projections/<domaine>.ts`, puis **une ligne** dans `evenements.ts`
-et dans le registre de `projections.ts`. Une projection déclare les faits qu'elle écoute et doit
-en traiter chaque type : en oublier un est une erreur de `tsc`.
+**Extension rule** (what the following tickets do, and nothing else): a domain adds
+`evenements/<domaine>.ts` and `projections/<domaine>.ts`, then **one line** in `evenements.ts`
+and in the registry of `projections.ts`. A projection declares the facts it listens to and must
+handle every type of them: forgetting one is a `tsc` error.
 
-## Le journal
+## The log
 
-Table `events`, `STRICT`, en ajout seul (déclencheurs qui refusent `UPDATE` et `DELETE`) :
+`events` table, `STRICT`, append-only (triggers that refuse `UPDATE` and `DELETE`):
 
-| Colonne | Sens |
+| Column | Meaning |
 |---|---|
-| `seq` | numéro de séquence, clé primaire croissante — **l'ordre de vérité** |
-| `at` | horodatage ISO 8601 UTC, posé par le runtime à l'écriture |
-| `project` | le projet |
-| `ticket` | numéro du ticket, ou `NULL` |
-| `type` | type d'événement (`runtime.started`…) |
-| `author` | qui l'a écrit : `runtime`, `chef`, plus tard `station:<nom>`, `cook:<run>` |
-| `payload` | charge utile JSON |
-| `dedup_key` | clé d'unicité facultative (`UNIQUE`) — pour les producteurs externes (#14 : identifiant GitHub). Un doublon est refusé sans erreur |
+| `seq` | sequence number, increasing primary key — **the order of truth** |
+| `at` | ISO 8601 UTC timestamp, set by the runtime at write time |
+| `project` | the project |
+| `ticket` | the ticket's number, or `NULL` |
+| `type` | event type (`runtime.started`…) |
+| `author` | who wrote it: `runtime`, `chef`, later `station:<name>`, `cook:<run>` |
+| `payload` | JSON payload |
+| `dedup_key` | optional uniqueness key (`UNIQUE`) — for external producers (#14: GitHub identifier). A duplicate is refused without error |
 
-Les noms de colonnes et de types d'événements sont en anglais, comme le vocabulaire de la spec
-V2 (rail, ticket, pass, cook) ; le code et ses commentaires restent en français.
+The names of columns and event types are in English, like the vocabulary of the V2 spec
+(rail, ticket, pass, cook); the code and its comments stay in French.
 
-**Événements de #13** : `runtime.started` (pid, hôte, version de Node), `runtime.stopped`
-(arrêt demandé : signal reçu), `runtime.interrupted` (écrit au démarrage suivant quand la vie
-précédente n'a pas de `stopped` : crash, `kill -9`, coupure).
+**Events of #13**: `runtime.started` (pid, host, Node version), `runtime.stopped`
+(requested stop: signal received), `runtime.interrupted` (written at the next startup when the
+previous life has no `stopped`: crash, `kill -9`, power cut).
 
-**Curseurs** : table `cursors` (consommateur → dernier `seq` traité), avancée dans la même
-transaction que les événements produits en réaction (§2 de la stack). #13 pose la table et la
-primitive ; ses premiers consommateurs arrivent avec #14.
+**Cursors**: `cursors` table (consumer → last `seq` handled), advanced in the same
+transaction as the events produced in reaction (§2 of the stack). #13 lays down the table and the
+primitive; its first consumers arrive with #14.
 
-## Projections et rejeu
+## Projections and replay
 
-Une projection = un nom, les tables qu'elle possède, et une fonction `appliquer(événement)`
-appelée **dans la transaction qui ajoute l'événement**. `reconstruire()` vide toutes les tables
-de projection et rejoue le log depuis `seq = 1`. Le runtime le fait **à chaque démarrage** : une
-projection ajoutée par un ticket suivant se remplit ainsi de tout ce qui a été écrit avant elle,
-sans migration.
+A projection = a name, the tables it owns, and an `appliquer(événement)` function
+called **in the transaction that appends the event**. `reconstruire()` empties all the projection
+tables and replays the log from `seq = 1`. The runtime does it **at every startup**: a
+projection added by a later ticket thus fills itself with everything written before it,
+with no migration.
 
-Tests que #13 porte :
+Tests that #13 carries:
 
-- **Rejeu** : après une suite d'événements, l'état des projections est photographié ; on
-  reconstruit ; l'état est identique. Le test parcourt **le registre**, donc toute projection
-  ajoutée par un ticket suivant y entre sans y penser.
-- **Redémarrage** : un runtime démarre, écrit, est tué (`kill -9` sur un vrai process enfant) ;
-  le suivant retrouve le journal intact, journalise `runtime.interrupted`, et repart.
-- **Verrou** : un second runtime sur le même répertoire d'état échoue immédiatement, code de
-  sortie non nul, avec un message qui nomme le détenteur (pid, hôte, heure de démarrage, lus
-  dans le dernier `runtime.started`).
+- **Replay**: after a series of events, the state of the projections is photographed; we
+  rebuild; the state is identical. The test walks **the registry**, so any projection
+  added by a later ticket enters it without thinking about it.
+- **Restart**: a runtime starts, writes, is killed (`kill -9` on a real child process);
+  the next one finds the log intact, logs `runtime.interrupted`, and starts again.
+- **Lock**: a second runtime on the same state directory fails immediately, non-zero exit
+  code, with a message that names the holder (pid, host, start time, read from
+  the last `runtime.started`).
 
 ## Runtime
 
-- **Environnement** : `BRIGADE_STATE_DIR` (obligatoire, jamais de défaut : pas de chemin en
-  dur) et `BRIGADE_PROJECT` (obligatoire). Absents → refus de démarrer, message clair.
-- **Démarrage** : verrou → ouverture du log → rejeu des projections → réconciliation (`interrupted` si besoin) →
-  `runtime.started` → boucle.
-- **Boucle de réveil** : surveillance de `PRAGMA data_version` chaque seconde (ce qu'un autre
-  process écrit) et tick à 60 s. Au jalon de #13 personne n'écoute encore : la boucle livre le
-  mécanisme d'abonnement que #14 et #16 brancheront. Les intervalles sont injectables, pour que
-  les tests ne dorment pas.
-- **Arrêt** : `SIGTERM` / `SIGINT` → `runtime.stopped` → fermeture → code 0. systemd envoie
-  `SIGTERM` sur `systemctl stop`.
-- **Sortie du process** : quelques lignes sur stdout (démarré, arrêté, refus) — c'est journald
-  qui les garde sur la box. Rien de ce qui sert à reconstruire l'état n'y passe.
+- **Environment**: `BRIGADE_STATE_DIR` (mandatory, never a default: no hard-coded path) and
+  `BRIGADE_PROJECT` (mandatory). Absent → refuses to start, clear message.
+- **Startup**: lock → opening the log → replaying projections → reconciliation (`interrupted` if needed) →
+  `runtime.started` → loop.
+- **Wake-up loop**: watching `PRAGMA data_version` every second (what another
+  process writes) and a tick every 60 s. At #13's milestone nobody listens yet: the loop delivers the
+  subscription mechanism that #14 and #16 will plug into. The intervals are injectable, so that
+  tests do not sleep.
+- **Stop**: `SIGTERM` / `SIGINT` → `runtime.stopped` → closing → exit code 0. systemd sends
+  `SIGTERM` on `systemctl stop`.
+- **Process output**: a few lines on stdout (started, stopped, refusal) — it is journald
+  that keeps them on the box. Nothing that serves to rebuild the state goes through there.
 
-**Laissé à #18** : l'« âge du dernier tick » qui révèle un runtime figé. Le tick n'est pas
-journalisé par #13 — 1 440 lignes par jour qui ne racontent rien de la cuisine ; la façon de le
-rendre visible appartient au ticket qui l'affiche.
+**Left to #18**: the "age of the last tick" that reveals a frozen runtime. The tick is not
+logged by #13 — 1,440 lines a day that say nothing about the kitchen; how to make it
+visible belongs to the ticket that displays it.
 
-## Déploiement
+## Deployment
 
-`runtime/deploy/brigade@.service`, conforme au §6 de la stack : `User=`, `StateDirectory=brigade/%i`,
+`runtime/deploy/brigade@.service`, compliant with §6 of the stack: `User=`, `StateDirectory=brigade/%i`,
 `Environment=BRIGADE_STATE_DIR=/var/lib/brigade/%i`, `Environment=BRIGADE_PROJECT=%i`,
-`Restart=on-failure` avec délai, `WantedBy=multi-user.target`. `docs/runtime.md` donne la
-procédure d'installation et la **recette du chef** — le critère « le chef démarre le runtime sur
-la box » ne se prouve que là-bas ; la session de dev n'y a pas accès. Les quatre points « à
-vérifier » de la stack (Linux + systemd, Node 26, `claude` connecté sous `User=`, `/var/lib`
-local) ouvrent cette recette.
+`Restart=on-failure` with a delay, `WantedBy=multi-user.target`. `docs/runtime.md` gives the
+installation procedure and the **chef's acceptance recipe** — the criterion "the chef starts the runtime on
+the box" can only be proved there; the dev session has no access to it. The four "to
+verify" points of the stack (Linux + systemd, Node 26, `claude` logged in under `User=`, local
+`/var/lib`) open this recipe.
 
 ## Plan
 
-1. `package.json`, `tsconfig.json`, `package-lock.json` — `npm test` et `typecheck` verts à vide.
-2. `base.ts` + `journal.ts` : schéma, ajout seul prouvé (un `UPDATE` et un `DELETE` refusés),
-   champs obligatoires, lecture par ticket dans l'ordre, clé d'unicité.
-3. `projections.ts` + `projections/sessions.ts` + test de rejeu.
-4. `verrou.ts` : second preneur refusé ; verrou repris après `kill -9`.
-5. `runtime.ts` + `main.ts` : démarrage, arrêt propre, interruption réconciliée, refus du second
-   avec son motif — tests sur de vrais process enfants.
-6. Surface de relecture du journal (selon la réponse à la question 1).
-7. Unité systemd, `docs/runtime.md`.
+1. `package.json`, `tsconfig.json`, `package-lock.json` — `npm test` and `typecheck` green when empty.
+2. `base.ts` + `journal.ts`: schema, append-only proved (an `UPDATE` and a `DELETE` refused),
+   mandatory fields, read by ticket in order, uniqueness key.
+3. `projections.ts` + `projections/sessions.ts` + replay test.
+4. `verrou.ts`: second taker refused; lock taken back after `kill -9`.
+5. `runtime.ts` + `main.ts`: startup, clean stop, reconciled interruption, refusal of the second
+   with its reason — tests on real child processes.
+6. Surface for rereading the log (according to the answer to question 1).
+7. systemd unit, `docs/runtime.md`.
 
-Chaque étape en TDD (`superpowers:test-driven-development`). La suite reste de l'ordre de la
-seconde.
+Each step in TDD (`superpowers:test-driven-development`). The suite stays on the order of a
+second.
 
-## Questions tranchées — (a) et (a), par le chef, le 2026-10-08
+## Questions settled — (a) and (a), by the chef, on 2026-10-08
 
-**1. Par où le chef relit-il le journal d'un ticket, tant que #18 n'est pas livrée ?**
-Le critère dit « le chef peut relire le journal complet d'un ticket » ; la qualification met la
-CLI d'état hors scope (#18).
+**1. Where does the chef reread a ticket's log, as long as #18 is not delivered?**
+The criterion says "the chef can reread a ticket's complete log"; the qualification puts the
+status CLI out of scope (#18).
 
-- **(a) — recommandé** : #13 livre une commande minimale en lecture seule,
-  `npm --prefix runtime run journal -- <ticket>` (une ligne par événement : `seq`, heure, type,
-  auteur, charge utile ; sans argument, tout le journal). #18 la reprendra dans `brigade status`
-  et y ajoutera états, cooks et suivi en direct. Le critère de #13 est ainsi tenu par #13.
-- (b) : #13 ne livre que la fonction de lecture, prouvée par test ; le chef attend #18 pour s'en
-  servir, et le critère n'est recetté qu'à ce moment-là.
+- **(a) — recommended**: #13 delivers a minimal read-only command,
+  `npm --prefix runtime run log -- <ticket>` (one line per event: `seq`, time, type,
+  author, payload; with no argument, the whole log). #18 will take it over into `brigade status`
+  and add states, cooks and live following. #13's criterion is thus met by #13.
+- (b): #13 delivers only the read function, proved by test; the chef waits for #18 to use
+  it, and the criterion is only accepted at that point.
 
-**2. Qu'est-ce que le nom de projet ?** Il s'écrit dans chaque événement, dans le nom de l'unité
-systemd (`brigade@<projet>`) et dans le chemin d'état (`/var/lib/brigade/<projet>`).
+**2. What is the project name?** It is written in every event, in the name of the systemd
+unit (`brigade@<project>`) and in the state path (`/var/lib/brigade/<project>`).
 
-- **(a) — recommandé** : un identifiant court choisi par le chef (`brigade`, `thermigo`),
-  limité à `[a-z0-9-]`. Le lien vers le dépôt GitHub (`owner/repo`) est une configuration que
-  #14 posera quand le rail en aura besoin.
-- (b) : `owner/repo` directement — sans ambiguïté, mais la barre oblique doit être échappée
-  dans le nom d'unité systemd et dans le chemin d'état.
+- **(a) — recommended**: a short identifier chosen by the chef (`brigade`, `thermigo`),
+  limited to `[a-z0-9-]`. The link to the GitHub repository (`owner/repo`) is a setting that
+  #14 will lay down when the rail needs it.
+- (b): `owner/repo` directly — unambiguous, but the slash must be escaped
+  in the systemd unit name and in the state path.

@@ -1,109 +1,109 @@
-# L'âge d'un bail sans progrès est plafonné, et visible — spec et plan (#45)
+# The age of a lease with no progress is capped, and visible — spec and plan (#45)
 
-**Date** : 2026-10-08
-**Statut** : validé le 2026-10-08 — les trois recommandations de fin de document sont retenues (1 et 2 par le chef, 3 par le Manager)
-**Issue** : #45 « L'âge d'un bail sans progrès est plafonné, et visible »
-**S'appuie sur** : `2026-10-08-brigade-v2-design.md` (§Garde-fous, §Monitoring),
-`2026-10-08-bail-progres-observable.md` (#47 : le bail ne se renouvelle que sur un progrès),
-`2026-10-08-runtime-status.md` (`status`, « tout l'affichage dérive du log »)
+**Date**: 2026-10-08
+**Status**: validated on 2026-10-08 — the three recommendations at the end of the document are kept (1 and 2 by the chef, 3 by the Manager)
+**Issue**: #45 "The age of a lease with no progress is capped, and visible"
+**Builds on**: `2026-10-08-brigade-v2-design.md` (§Guardrails, §Monitoring),
+`2026-10-08-bail-progres-observable.md` (#47: the lease only renews on progress),
+`2026-10-08-runtime-status.md` (`status`, "all display derives from the log")
 
 ---
 
-## Ce que #47 a déjà posé, et ce qui reste
+## What #47 already set down, and what remains
 
-#45 a été écrite avant que #47 ne soit conçue. Depuis #47, le bail ne se renouvelle que si le
-worktree a bougé, et un bail qui tombe arrête le cook (`guard.tripped`, motif `lease`). Trois des
-cinq critères de #45 s'en trouvent portés, en tout ou en partie :
+#45 was written before #47 was designed. Since #47, the lease only renews if the
+worktree moved, and a lease that falls stops the cook (`guard.tripped`, reason `lease`). Three of
+#45's five criteria are thereby carried, in whole or in part:
 
-| Critère de l'issue | État après #47 | Ce que #45 ajoute |
+| Issue criterion | State after #47 | What #45 adds |
 |---|---|---|
-| Un plafond d'âge de bail sans progrès, distinct des budgets | **Porté** : c'est la durée du bail (`BRIGADE_LEASE_SECONDS`, 30 min), hors de `Plafonds` — ni tours, ni durée, ni tokens | Rien, si la question 1 retient la recommandation |
-| Dépassement journalisé avec son motif, distinct de l'inactivité | **Porté** : `guard.tripped`, `reason: "lease"` (≠ `idle`), `limit` = le bail, `observed` = le temps sans progrès | Rien |
-| `status` montre, par ticket pris, depuis quand il n'a pas progressé | Absent | La projection du rail porte la **date du dernier progrès** ; `status` et `rail` l'affichent |
-| Lue, jamais déduite | Absent : la date ne vit que dans la mémoire de la station | Elle entre dans la projection, depuis les faits du journal |
-| Signalé comme coinçant sans qu'on le demande | **En partie** : à la chute du bail, la station commente déjà l'issue (« Aucun progrès dans son worktree depuis … ») | Selon la question 2 |
+| A cap on the age of a lease with no progress, distinct from the budgets | **Carried**: it is the lease duration (`BRIGADE_LEASE_SECONDS`, 30 min), outside `Plafonds` — neither turns, nor duration, nor tokens | Nothing, if question 1 keeps the recommendation |
+| Overrun logged with its reason, distinct from inactivity | **Carried**: `guard.tripped`, `reason: "lease"` (≠ `idle`), `limit` = the lease, `observed` = the time with no progress | Nothing |
+| `status` shows, per taken ticket, since when it has not progressed | Absent | The rail projection carries the **date of the last progress**; `status` and `rail` display it |
+| Read, never deduced | Absent: the date only lives in the station's memory | It enters the projection, from the log's facts |
+| Reported as stuck without being asked | **In part**: when the lease falls, the station already comments on the issue ("No progress in its worktree since …") | Depends on question 2 |
 
-## La date du dernier progrès est un fait du journal
+## The date of the last progress is a log fact
 
-Aucun fait nouveau. Depuis #47, `ticket.renewed` ne s'écrit **que** quand la station a vu le
-worktree changer : c'est le fait de progrès. `cook.progressed` (#18) n'en est pas un — il relève
-des tours et des tokens à chaque tick, que le cook avance ou non — et la projection ne l'écoute pas.
+No new fact. Since #47, `ticket.renewed` is written **only** when the station saw the
+worktree change: it is the progress fact. `cook.progressed` (#18) is not one — it records
+turns and tokens at every tick, whether or not the cook advances — and the projection does not listen to it.
 
-La projection du rail gagne une colonne, `progressed_at` (`progressedAt` dans `TicketRail`) :
+The rail projection gains a column, `progressed_at` (`progressedAt` in `TicketRail`):
 
-| Fait | Effet |
+| Fact | Effect |
 |---|---|
-| `ticket.taken` | `progressed_at` = l'heure de la prise : un ticket qui vient d'être pris n'a encore rien à se reprocher |
-| `ticket.renewed` | `progressed_at` = l'heure du fait |
-| tout fait qui sort le ticket de l'état « pris » | `progressed_at` effacé, comme le bail |
+| `ticket.taken` | `progressed_at` = the time of the take: a ticket just taken has nothing to be blamed for yet |
+| `ticket.renewed` | `progressed_at` = the time of the fact |
+| any fact that takes the ticket out of the "taken" state | `progressed_at` erased, like the lease |
 
-Le temps n'entre toujours pas dans la projection : elle porte une date, pas une durée. La durée se
-compte à l'affichage, de cette date à maintenant — comme « depuis 4 min » aujourd'hui. Personne ne
-regarde un worktree ni un commit pour l'obtenir.
+Time still does not enter the projection: it carries a date, not a duration. The duration is
+counted at display time, from that date to now — like "since 4 min" today. Nobody looks at a worktree
+or a commit to get it.
 
-**Précision** : la station regarde le worktree au plus une fois par dixième de bail. La date est
-celle où le progrès a été **vu**, donc en retard de trois minutes au plus sur le progrès lui-même
-(pour un bail de 30). C'est dit dans la doc, pas corrigé.
+**Precision**: the station looks at the worktree at most once per tenth of a lease. The date is
+the one at which the progress was **seen**, hence at most three minutes behind the progress itself
+(for a 30-minute lease). This is said in the doc, not corrected.
 
-**Journal existant** : la table `rail` change de forme. Le runtime rejoue ses projections au
-démarrage ; `status` sur un journal pas encore rejoué répond déjà « redémarrer le runtime ».
-L'erreur d'une colonne absente (`no such column`) prend le même chemin que celle d'une table
-absente.
+**Existing log**: the `rail` table changes shape. The runtime replays its projections at
+startup; `status` on a log not yet replayed already answers "restart the runtime".
+The error of a missing column (`no such column`) takes the same path as that of a missing
+table.
 
-## L'affichage
+## The display
 
-`status`, ligne d'un ticket pris — la seconde durée à côté de la première :
-
-```
-  #14  pris  prio:1  par box/claude depuis 42 min, sans progrès depuis 12 min, bail encore 18 min  Le rail porte les tickets
-```
-
-Un ticket dont le bail est échu et qui est encore pris a dépassé le plafond (worktree illisible en
-sursis, runtime figé, station morte) : `status` le marque en capitales, comme le disjoncteur ouvert.
+`status`, line of a taken ticket — the second duration next to the first:
 
 ```
-  #14  pris  prio:1  par box/claude depuis 1 h 05, COINCE : sans progrès depuis 34 min, bail échu depuis 4 min  …
+  #14  taken  prio:1  by box/claude since 42 min, no progress since 12 min, lease 18 min left  The rail carries the tickets
 ```
 
-`rail` (les dates brutes) gagne `dernier progrès <date>` sur la même ligne.
+A ticket whose lease has expired and which is still taken has gone past the cap (unreadable worktree
+in grace, frozen runtime, dead station): `status` marks it in capitals, like the open breaker.
+
+```
+  #14  taken  prio:1  by box/claude since 1 h 05, STUCK: no progress since 34 min, lease expired since 4 min  …
+```
+
+`rail` (the raw dates) gains `last progress <date>` on the same line.
 
 ## Plan
 
-1. `projections/rail.ts` — colonne `progressed_at`, posée par `ticket.taken` et `ticket.renewed`,
-   effacée ailleurs. Tests de projection : prise, renouvellement, sortie de l'état « pris », rejeu
-   identique ; `cook.progressed` n'y touche pas.
-2. `etat.ts` — la durée sans progrès dans `detail`, la marque `COINCE` quand le bail est échu.
-   Tests sur `decrireEtat` à l'heure fournie.
-3. `montrer-rail.ts` — la date du dernier progrès.
-4. `status.ts` — une colonne absente dit « redémarrer le runtime », comme une table absente.
-5. `docs/runtime.md` — le rail, l'exemple de `status`, la table des blocs.
+1. `projections/rail.ts` — column `progressed_at`, set by `ticket.taken` and `ticket.renewed`,
+   erased elsewhere. Projection tests: take, renewal, exit from the "taken" state, identical
+   replay; `cook.progressed` does not touch it.
+2. `etat.ts` — the duration with no progress in `detail`, the `STUCK` mark when the lease has expired.
+   Tests on `decrireEtat` at a supplied time.
+3. `montrer-rail.ts` — the date of the last progress.
+4. `status.ts` — a missing column says "restart the runtime", like a missing table.
+5. `docs/runtime.md` — the rail, the `status` example, the table of blocks.
 
-## Questions tranchées
+## Questions settled
 
-**1. Le plafond est-il le bail lui-même ?** Recommandé : **oui**. La spec V2 décrit le même
-mécanisme à deux endroits (§Le manager : « le bail tranche » ; §Garde-fous : « âge de bail sans
-progrès, plafonné à part des budgets »), et #47 l'a livré : un cook sans progrès perd son ticket à
-30 min, motif `lease`, récolte comprise. #45 n'ajoute alors **aucun** réglage ni aucun fait, et se
-réduit à rendre la durée lisible. L'autre lecture — un second plafond, plus long, sur l'âge total
-du bail — existe déjà aussi : c'est le plafond de durée du cook (60 min).
+**1. Is the cap the lease itself?** Recommended: **yes**. The V2 spec describes the same
+mechanism in two places (§The manager: "the lease decides"; §Guardrails: "age of lease with no
+progress, capped apart from the budgets"), and #47 delivered it: a cook with no progress loses its ticket at
+30 min, reason `lease`, harvest included. #45 then adds **no** setting and no fact, and
+comes down to making the duration readable. The other reading — a second, longer cap on the total age
+of the lease — already exists too: it is the cook's duration cap (60 min).
 
-Conséquence à acter : la spec de #47 disait d'un cook qui réécrit le même fichier en boucle que
-« #45 le bornera ». Avec cette lecture, #45 ne le borne pas — réécrire un fichier est un progrès au
-sens de l'empreinte, et c'est le plafond de durée qui l'arrête.
+Consequence to record: #47's spec said of a cook that rewrites the same file in a loop that
+"#45 will bound it". With this reading, #45 does not bound it — rewriting a file is progress in
+the sense of the fingerprint, and it is the duration cap that stops it.
 
-**2. Faut-il un signal avant que le bail tombe ?** Recommandé : **non au jalon 1**. Le signal
-« sans qu'on le demande » est alors celui qui existe : le commentaire de la station sur l'issue
-quand le bail tombe (le seul canal poussé du jalon 1 — ni second ni app), plus la marque `COINCE`
-dans `status` pour le cas résiduel d'un bail échu encore tenu. Un seuil d'alerte plus court (15 min,
-moitié du bail) sonnerait sur un cook qui lit avant d'écrire — le cas même pour lequel le bail a été
-porté à 30 min — et chaque alerte serait un commentaire GitHub. Les alertes poussées sont aux jalons
-5 et 6 (hors scope de l'issue).
+**2. Is a signal needed before the lease falls?** Recommended: **no at milestone 1**. The "without
+being asked" signal is then the one that exists: the station's comment on the issue
+when the lease falls (the only pushed channel of milestone 1 — neither second nor app), plus the `STUCK` mark
+in `status` for the residual case of an expired lease still held. A shorter alert threshold (15 min,
+half the lease) would ring on a cook that reads before writing — the very case for which the lease was
+raised to 30 min — and every alert would be a GitHub comment. Pushed alerts belong to milestones
+5 and 6 (out of the issue's scope).
 
-Si le chef le veut quand même : un réglage `BRIGADE_STALL_SECONDS` (défaut : la moitié du bail,
-refusé s'il le dépasse), un fait `ticket.stalled` écrit une fois par épisode par la station, la
-marque `COINCE` dans `status` dès ce seuil, et un commentaire sur l'issue. Le cook n'est pas arrêté :
-c'est le bail qui arrête.
+If the chef wants it anyway: a setting `BRIGADE_STALL_SECONDS` (default: half the lease, refused
+if it exceeds it), a fact `ticket.stalled` written once per episode by the station, the
+`STUCK` mark in `status` from that threshold, and a comment on the issue. The cook is not stopped:
+it is the lease that stops.
 
-**3. Où va la durée dans `status` ?** Recommandé : sur la **ligne du ticket**, dans le bloc `rail`
-(c'est une propriété du ticket pris, et elle se lit à côté de « depuis » et du bail), pas sur la
-ligne du cook, qui porte les budgets.
+**3. Where does the duration go in `status`?** Recommended: on the **ticket's line**, in the `rail` block
+(it is a property of the taken ticket, and it reads next to "since" and the lease), not on the
+cook's line, which carries the budgets.

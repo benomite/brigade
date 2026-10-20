@@ -1,41 +1,42 @@
-# Un lecteur sans accès à la box le lit comme tel — spec (#319)
+# A reader without access to the box reads it as such — spec (#319)
 
-**Date** : 2026-10-12
-**Statut** : arbitré par le Manager sur `question-spec` (commentaire de l'issue, 2026-10-12).
-**Issue** : #319 (épique #294), suite de #314.
+**Date**: 2026-10-12
+**Status**: settled by the Manager on `question-spec` (issue comment, 2026-10-12).
+**Issue**: #319 (epic #294), follow-up to #314.
 
-Le comportement, tel que le lecteur le vit, est dans `docs/app.md` (« La kitchen », « Ce que la
-box dit du projet ») : ce document ne le recopie pas.
+The behavior, as the reader experiences it, is in `docs/app.md` ("The kitchen", "What the box
+says about the project"): this document does not copy it.
 
-## Ce qui a été arbitré
+## What was settled
 
-1. **Clé refusée : pas de nouvel état.** `ssh` sort en 255 pour une clé refusée comme pour un hôte
-   introuvable, une connexion refusée ou une clé d'hôte inconnue ; seul son texte les sépare, et
-   l'app ne déduit rien d'un texte. L'en-tête reste `PAS JOINT`. Sous le message de `ssh`, un texte
-   fixe — le même pour tout 255 que `ssh` a rendu de lui-même — nomme où ses phrases sont
-   expliquées (`docs/installer.md`, « Joindre la box ») et où se donne l'accès (« Ajouter un
-   humain »). Ni sonde du port, ni lecture de `stderr`.
-2. **Sans le droit du geste : un état à lui**, sur le code 68, seul opposable — `JOINT, MAIS SANS
-   LE DROIT DU GESTE`, renvoi à « Ajouter un humain ».
-3. **127 : un état à lui, qui dit ce que le code prouve** — `JOINT, MAIS UNE COMMANDE MANQUE SUR
-   LA BOX`. 127 est le code du shell pour toute commande introuvable ; l'app ne dit donc pas « le
-   geste reste à installer », elle renvoie à « Préparer la box » et laisse la box nommer la commande.
-4. **69 (`sudo` absent) partage cet état et ce renvoi.** 67 ne bouge pas.
-5. **Le conseil de mise à jour** (`git pull`, `restart`) ne reste que sous `PLUS PILOTABLE`.
+1. **Key refused: no new state.** `ssh` exits with 255 for a refused key as for an unknown host, a
+   refused connection or an unknown host key; only its text tells them apart, and the app deduces
+   nothing from a text. The header stays `UNREACHABLE`. Under `ssh`'s message, a fixed text — the
+   same for any 255 that `ssh` returned by itself — names where its phrases are explained
+   (`docs/installer.md`, "Reaching the box") and where access is given ("Adding a human"). No
+   port probe, no reading of `stderr`.
+2. **Without the right to the action: a state of its own**, on code 68, the only one that can be
+   relied on — `REACHED, BUT WITHOUT THE RIGHT TO THE ACTION`, pointing to "Adding a human".
+3. **127: a state of its own, that says what the code proves** — `REACHED, BUT A COMMAND IS
+   MISSING ON THE BOX`. 127 is the shell's code for any command not found; the app therefore does
+   not say "the action remains to be installed", it points to "Preparing the box" and lets the box
+   name the command.
+4. **69 (`sudo` missing) shares this state and this pointer.** 67 does not move.
+5. **The update advice** (`git pull`, `restart`) only stays under `NO LONGER DRIVABLE`.
 
-## Ce que le dev a tranché
+## What the dev settled
 
-- **Un seul champ, `cas`, remplace `inconnu`** dans `Echec` : ce que le code de sortie prouve à
-  lui seul (`ssh-en-echec`, `projet-inconnu`, `sans-droit`, `commande-manque`), ou `null`.
-  `atteinte` reste ce qu'il était.
-- **Un 255 dû au délai n'est pas un `ssh-en-echec`** : arrêté, `ssh` n'a rien écrit qui se lise
-  dans la doc. Pas de renvoi non plus quand `ssh` n'a pas pu être lancé.
-- **Les titres visés dans `docs/installer.md` sont ceux d'après #315** (« Préparer la box »).
+- **A single field, `cas`, replaces `inconnu`** in `Echec`: what the exit code proves by itself
+  (`ssh-en-echec`, `projet-inconnu`, `sans-droit`, `commande-manque`), or `null`. `atteinte` stays
+  what it was.
+- **A 255 caused by the timeout is not an `ssh-en-echec`**: once stopped, `ssh` wrote nothing that
+  can be read in the doc. No pointer either when `ssh` could not be launched.
+- **The titles targeted in `docs/installer.md` are those from after #315** ("Preparing the box").
 
 ## Plan
 
-1. `app/test/box.test.ts` : 68, 127 et 69, les codes qui ne sont d'aucun cas, et le 255 de `ssh`
-   séparé de celui du délai.
-2. `app/src/box.ts` : `cas`.
-3. `app/src/vue/vue.js`, `vue.css` : deux états, trois textes.
+1. `app/test/box.test.ts`: 68, 127 and 69, the codes that belong to no case, and `ssh`'s 255
+   separated from the timeout's.
+2. `app/src/box.ts`: `cas`.
+3. `app/src/vue/vue.js`, `vue.css`: two states, three texts.
 4. `docs/app.md`.

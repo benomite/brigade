@@ -1,49 +1,49 @@
-# Base d'intégration rouge : la station se retient — spec et plan (#143)
+# Red integration base: the station withholds — spec and plan (#143)
 
-**Date** : 2026-10-09
-**Statut** : décidé — les critères sont ceux de la qualification du Manager (commentaire du
-2026-10-09 sur l'issue) ; « Ce que le dev a tranché » est contestable en review
-**Issue** : #143 « Base d'intégration rouge : la station lance encore des cooks dessus » — épique
-#101, jalon 4
-**S'appuie sur** : `2026-10-09-rencontre-des-livraisons.md` (#99, qui pose `base.checked` et
-renvoyait ce point ici) et `2026-10-09-garde-fous-a-plusieurs-cooks.md` (#100, qui pose
-`station.held` / `station.released`). Ce document ne redécide rien de ce qui y figure.
+**Date**: 2026-10-09
+**Status**: decided — the criteria are those of the Manager's qualification (comment of
+2026-10-09 on the issue); "What the dev settled" can be contested in review
+**Issue**: #143 "Red integration base: the station still launches cooks on it" — epic
+#101, milestone 4
+**Builds on**: `2026-10-09-rencontre-des-livraisons.md` (#99, which introduces `base.checked` and
+deferred this point to here) and `2026-10-09-garde-fous-a-plusieurs-cooks.md` (#100, which introduces
+`station.held` / `station.released`). This document redecides nothing of what appears in them.
 
-Le comportement, tel que le chef le vit, est dans `docs/runtime.md` (« Plusieurs cooks à la fois »,
-« La base est contrôlée après merge ») : c'est la doc vivante, ce document ne la recopie pas.
+The behaviour, as the chef lives it, is in `docs/runtime.md` ("Plusieurs cooks à la fois",
+"La base est contrôlée après merge"): it is the living doc, this document does not copy it.
 
 ---
 
-## Critères, et ce qui les porte
+## Criteria, and what carries them
 
-| Critère | Ce qui le porte |
+| Criterion | What carries it |
 |---|---|
-| Base rouge : la station ne lance aucun cook neuf | `ceQuiRetient` (`runtime/src/station.ts`) lit `etatDeLaBase` et rend la retenue `base` |
-| Elle le dit comme toute autre retenue (`status`, `station`, ligne du ticket) | `base` entre dans `Retenue` et dans `RETENUES` : `station.held`, la projection des stations, `run status` et `run station` la prennent sans autre changement |
-| Les cooks en cours ne sont pas arrêtés | la retenue ne porte que sur la prise ; rien ne touche aux cooks lancés |
-| Elle repart seule au vert | l'état de la base est relu à chaque prise : dès que `base.checked` n'est plus `red`, la prise suivante passe |
+| Red base: the station launches no new cook | `ceQuiRetient` (`runtime/src/station.ts`) reads `etatDeLaBase` and returns the `base` hold |
+| It says so like any other hold (`status`, `station`, the ticket line) | `base` enters `Retenue` and `RETENUES`: `station.held`, the stations projection, `run status` and `run station` pick it up with no other change |
+| Cooks in flight are not stopped | the hold applies only to the take; nothing touches cooks already launched |
+| It restarts on its own when green | the base state is re-read at every take: as soon as `base.checked` is no longer `red`, the next take goes through |
 
-## Ce que le dev a tranché
+## What the dev settled
 
-- **Toute prise est retenue, renvois compris.** Un ticket rendu par la pass repart dans son
-  worktree, mais ses gates se rejouent contre la base : sur une base rouge, il consommerait un
-  renvoi pour rien — exactement ce que l'issue veut éviter.
-- **Jugements du manager et relectures du reviewer ne sont pas retenus.** Ils ne passent pas par la
-  prise, ne partent pas de la base, et les autres retenues ne les arrêtent pas davantage.
-- **`skipped` n'est pas un rouge.** Des gates de base qui n'ont pas pu se jouer ne retiennent rien,
-  comme elles ne suspendent pas les merges (#99).
-- **Rang de la retenue** : après le « stop » et le disjoncteur, avant la connexion, le quota et les
-  plafonds. Quand plusieurs bornes tiennent, la station nomme ce que le chef doit lever d'abord ;
-  la machine reste lue quoi qu'il arrive.
-- **Pas de réveil dédié.** La pass écrit `base.checked` dans le process du runtime ; la station le
-  relit au réveil suivant (tick ou sondage — une minute au plus). La pass ne relit elle-même une
-  base rouge qu'au tick : un fil de plus entre les deux n'aurait rien fait gagner.
-- **Pas de ligne journald de plus.** La pass annonce déjà la base rouge ; la retenue, elle, se lit
-  au journal et dans `status`, comme les autres.
+- **Every take is held, sent-back tickets included.** A ticket returned by the pass restarts in its
+  worktree, but its gates are replayed against the base: on a red base, it would burn a
+  send-back for nothing — exactly what the issue wants to avoid.
+- **The manager's judgments and the reviewer's reviews are not held.** They do not go through the
+  take, do not start from the base, and the other holds do not stop them either.
+- **`skipped` is not a red.** Base gates that could not be played hold nothing back,
+  just as they do not suspend merges (#99).
+- **Rank of the hold**: after the "stop" and the breaker, before the connection, the quota and the
+  caps. When several bounds hold, the station names what the chef must lift first;
+  the machine is read regardless.
+- **No dedicated wake-up.** The pass writes `base.checked` in the runtime's process; the station
+  re-reads it at the next wake-up (tick or poll — one minute at most). The pass itself only
+  re-reads a red base at the tick: one more thread between the two would gain nothing.
+- **No extra journald line.** The pass already announces the red base; the hold, for its part, is
+  read in the log and in `status`, like the others.
 
 ## Plan
 
-1. Tests rouges : la station (retenue, cooks en cours intacts, reprise au vert, `skipped`, rang),
-   la projection des stations, `status`, `run station`.
-2. `Retenue` et `RETENUES` gagnent `base` ; `ceQuiRetient` lit `etatDeLaBase`.
-3. Doc vivante : `docs/runtime.md`.
+1. Red tests: the station (hold, cooks in flight intact, resume on green, `skipped`, rank),
+   the stations projection, `status`, `run station`.
+2. `Retenue` and `RETENUES` gain `base`; `ceQuiRetient` reads `etatDeLaBase`.
+3. Living doc: `docs/runtime.md`.
