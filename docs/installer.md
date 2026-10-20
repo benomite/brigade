@@ -222,7 +222,7 @@ or a name from your `~/.ssh/config`. It is the only thing that designates the bo
 is the project's `hote` field in the app ([`app.md`](app.md)).
 
 **Box command, workstation command** (the convention is stated once, in
-[`runtime/`](runtime/exploitation.md), "Driving"). In this document, a `brigade <project> …`
+[`runtime/`](runtime/exploitation.md), "Piloter"). In this document, a `brigade <project> …`
 without `ssh` is typed **on the box**; from your machine, the same command is `ssh <box> brigade
 <project> …`. Bare on your machine, `brigade` returns `command not found` — nothing is broken,
 there is nothing to install there.

@@ -84,7 +84,7 @@ project.
 | 65 | unknown project on this station | the project has no line in `/var/lib/brigade/projets` |
 | 66 | the command is not a runtime command | the refusal names the station's commands |
 | 67 | systemd did not answer for the station's unit | `systemctl status brigade-station` |
-| 68 | whoever runs it does not have the right to the command | their sudoers rule — "Ajouter un humain" |
+| 68 | whoever runs it does not have the right to the command | their sudoers rule — "Add a human" |
 | 69 | `sudo` is missing on the machine | `apt install sudo` |
 | 70 | the package's `node` or runtime is missing, or does not start | what the line says: `sudo apt install libatomic1`, or `sudo apt install --reinstall brigade-station` |
 

@@ -1588,7 +1588,7 @@ none.
   folder is not there has no second: its column says why (`folder not found: …`).
 - **Only these six buttons exist**, each where what it changes is read — and, apart, the two
   manager actions: `on`, which writes into a shell, and `off`, which goes out ("The Manager tab"). The
-  rest of "Driving" (`manager return`, `base replay`…) is typed. "All projects" has
+  rest of "Piloter" (`manager return`, `base replay`…) is typed. "All projects" has
   none. Going live with a project just added has its own, apart: `installation`
   is run for you there, and `Start` writes into a shell.
 - **The stop banner carries `guardrails resume`**: the same button, the same written command,
@@ -2770,10 +2770,10 @@ standard output — `{"ok":true,"action":"uninstall","fait":"plan","projet":"<no
   changed one by one; in the played view, the tinted tile, the space's accent, the choice under
   Settings; none is a state color), `onglets.ts` (the five content tabs: each relays a script that
   exists in `runtime/package.json`, and only what is displayed is read), `boutons.ts` (what each
-  button writes, compared with "Driving" in `docs/runtime/exploitation.md` — and, in the registry
+  button writes, compared with "Piloter" in `docs/runtime/exploitation.md` — and, in the registry
   and on the real pty, that nothing is sent), `gestes.ts` (the actions that are written into a shell
   of the space, and the two that go into the second: each command compared, character for
-  character, with "Driving", that nothing sends a written action, and that no action exposes a
+  character, with "Piloter", that nothing sends a written action, and that no action exposes a
   shell, a `sudo` or a free command), `manager.ts` (the manager's state read in the output of
   `manager`: on, off, never on, no decision, with its decisions and its set-asides — on outputs the
   test has `runtime/src/manager-cli.ts` itself write, on a real log; what does not have the shape is
