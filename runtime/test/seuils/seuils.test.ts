@@ -45,10 +45,19 @@ test("la commande imprime les seuils courants du projet", () => {
     "promotion (retros)            3   (BRIGADE_PROMOTION_RETROS)",
     "promoted expiry (tickets)     20  (BRIGADE_PROMOTED_EXPIRY_TICKETS)",
     "provisional expiry (tickets)  20  (BRIGADE_PROVISIONAL_EXPIRY_TICKETS)",
+    "lessons per cook              20  (BRIGADE_INJECTED_LESSONS)",
   ]);
   sansMotFrancais(defaut.sortie);
-  const regle = jouer({ [VARIABLES.promotion]: "4" });
+  const regle = jouer({ [VARIABLES.promotion]: "4", BRIGADE_INJECTED_LESSONS: "0" });
   assert.match(regle.sortie[0] ?? "", /promotion \(retros\)\s+4\s/);
+  assert.match(regle.sortie[3] ?? "", /lessons per cook\s+0\s/);
+});
+
+test("la commande refuse un plafond de leçons illisible en nommant la variable, code 1", () => {
+  const { erreurs, code, sortie } = jouer({ BRIGADE_INJECTED_LESSONS: "-1" });
+  assert.equal(code, 1);
+  assert.deepEqual(sortie, []);
+  assert.match(erreurs.join("\n"), /BRIGADE_INJECTED_LESSONS/);
 });
 
 test("la commande refuse une valeur invalide en nommant le réglage, code 1", () => {

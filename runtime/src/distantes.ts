@@ -63,6 +63,7 @@ import { ticketDuRail, type TicketRail } from "./projections/rail.ts";
 import { etatStation } from "./projections/stations.ts";
 import { GesteRefuse } from "./rail.ts";
 import { DECLARATION_RESEAU, lireDeclaration, reglesDuProjet, type Regle } from "./reseau.ts";
+import type { LeconRecue } from "./apprentissage/injection.ts";
 import type { StationDeclaree } from "./stations-declarees.ts";
 
 // Passé ce délai sans s'être manifestée, une station distante est absente.
@@ -105,6 +106,9 @@ export type Cuisine = {
   maintenant: () => Date;
   avertir: (message: string) => void;
   arrete: () => boolean;
+  // Les leçons provisoires du projet que reçoit le cook d'un ticket, lues à
+  // son lancement (`apprentissage/injection.ts`).
+  leconsDuCook: () => LeconRecue[];
   // Les tickets dont la cuisine n'est pas finie, avec leur zone, et la station
   // de chacun : celles d'ici et celles-ci s'y comptent ensemble.
   enCuisine: Map<number, string[]>;
@@ -395,6 +399,8 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
       const rendu: EnCours["rendu"] = { conclusion: null };
       enCuisine.set(numero, ticket.card?.zone ?? []);
       cuisinePar.set(numero, nom);
+      // Les leçons provisoires du projet qu'il reçoit, et que son lancement dit.
+      const lecons = cuisine.leconsDuCook();
       let lance: CookDistant;
       try {
         lance = runtime.lancerDistant({
@@ -410,6 +416,7 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
             // livraison ne vaudra réussite que jugée verte.
             ...(renvoi !== null && renvoi.returns > RENVOIS_MAX ? { relaunch: true } : {}),
             ...(suite !== null ? { continues: suite.run } : {}),
+            lessons: lecons.map((lecon) => lecon.id),
           },
           juger: jugerPour(rendu),
         });
@@ -425,7 +432,7 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
       cooks.set(run, cook);
       void cuisine.liberer(numero);
       void finir(run, cook);
-      const mission = { ticket: numero, titre: ticket.title, depot: cuisine.depotGitHub, base: cuisine.base };
+      const mission = { ticket: numero, titre: ticket.title, depot: cuisine.depotGitHub, base: cuisine.base, lecons };
       const prompt = repris
         ? consigneDeRenvoi({ ...mission, branche, n: repris.returns, findings: repris.findings })
         : suite

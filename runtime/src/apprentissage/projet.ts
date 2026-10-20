@@ -14,11 +14,6 @@ import { parcoursDesTickets } from "../parcours-des-tickets.ts";
 import { avantApres, type AvantApres } from "./progres.ts";
 import { leconsProvisoires, retrosDuProjet } from "./provisoires.ts";
 
-// Le fait qui dit qu'un cook a reçu des leçons à son lancement : `run` (le cook)
-// et `lessons` (les ids des leçons reçues). Posé par l'injection (#1037) ; tant
-// qu'il n'a jamais été écrit, chaque leçon compte zéro cook.
-export const LECONS_INJECTEES = "lessons.injected";
-
 export type LeconAffichee = {
   id: string;
   texte: string;
@@ -59,10 +54,11 @@ export type Source = {
 
 const unique = (numeros: number[]) => [...new Set(numeros)].sort((a, b) => a - b);
 
-// Combien de cooks ont reçu chaque leçon, par son id.
+// Combien de cooks ont reçu chaque leçon, par son id : ce que dit le lancement
+// de chacun (`lessons` de `cook.launched`, `apprentissage/injection.ts`).
 function cooksParLecon(base: Base, projet: string): Map<string, number> {
   const recus = new Map<string, Set<string>>();
-  const lignes = base.lire<{ seq: number; payload: string }>("SELECT seq, payload FROM events WHERE type = ? AND project = ? ORDER BY seq", LECONS_INJECTEES, projet);
+  const lignes = base.lire<{ seq: number; payload: string }>("SELECT seq, payload FROM events WHERE type = 'cook.launched' AND project = ? ORDER BY seq", projet);
   for (const { seq, payload } of lignes) {
     const { run, lessons } = JSON.parse(payload) as { run?: unknown; lessons?: unknown };
     if (!Array.isArray(lessons)) continue;

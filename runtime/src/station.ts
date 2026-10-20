@@ -48,7 +48,9 @@ import type { RuntimeAvecRail } from "./alimenter.ts";
 import type { Mot } from "./arbitre.ts";
 import { ArbitreInjoignable, type Arbitrage, type Reponse } from "./arbitrage.ts";
 import { complet, manquant, type Calibrage } from "./calibrage.ts";
+import { LECONS_INJECTEES_PAR_DEFAUT, leconsAInjecter } from "./apprentissage/injection.ts";
 import { extraireRetro } from "./apprentissage/retro.ts";
+import { CARNET_PATH } from "./carnet/carnet.ts";
 import { capturesLivrees, direCaptures, estDInterface, zoneALaPrise as zonePrise, type Captures } from "./captures.ts";
 import { absentesDuMotif, CLE_DES_CAPACITES, direManque, direStationAbsente, fournitTout, gesteDeCapacite, manque, manqueDuMotif, motifSansStation, motifStationAbsente } from "./capacites.ts";
 import { environnementClaude } from "./jeton-claude.ts";
@@ -290,6 +292,9 @@ export type OptionsStation = {
   // L'arbitre entre projets, consulté avant chaque lancement. Absent : le
   // projet se tient pour seul sur la machine.
   arbitre?: Arbitrage | null;
+  // Combien de leçons provisoires du projet reçoit, au plus, le cook d'un
+  // ticket (`BRIGADE_INJECTED_LESSONS`). Par défaut, vingt.
+  leconsInjectees?: number;
 };
 
 // Ouvre le dépôt de la station là où le runtime le range : les worktrees des
@@ -430,6 +435,18 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   const seuils = options.seuils ?? configMachine({});
   const machine = options.machine ?? (() => lireMachine(options.repertoireEtat));
   const noter = (station: string, ticket: number | null, fait: FaitStation) => journal.ajouter({ project: projet, ticket, author: auteurDe(station), ...fait });
+  // Les leçons provisoires du projet que reçoit le cook d'un ticket, d'ici ou
+  // d'une station distante : lues à son lancement, contre le carnet de la base
+  // tel que le clone le porte. Illisible, il n'en retire aucune.
+  const plafondDesLecons = options.leconsInjectees ?? LECONS_INJECTEES_PAR_DEFAUT;
+  const carnetALaBase = () => {
+    try {
+      return depot.lire(`origin/${options.base}`, CARNET_PATH);
+    } catch {
+      return null;
+    }
+  };
+  const leconsDuCook = () => leconsAInjecter(base, projet, { plafond: plafondDesLecons, carnet: plafondDesLecons > 0 ? carnetALaBase() : null });
   // Ce qui vaut pour toutes les stations d'ici s'écrit pour chacune : chacune
   // se lit seule, dans `status` comme dans `station`.
   const noterPourChacune = (fait: (station: string) => FaitStation, celles: string[] = noms) => {
@@ -1562,6 +1579,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     conclure,
     servir: () => servir(),
     apresCook: options.apresCook,
+    leconsDuCook,
   });
 
   // Ce que le setup d'un worktree a exporté au cook, au-delà de ce que le
@@ -1781,7 +1799,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       if (tenu?.state !== "taken" || tenu.station !== station) return retirerLeNeuf();
     }
 
-    const mission = { ticket: numero, titre: ticket.title, depot: options.depotGitHub, base: options.base, ...(remis === undefined ? {} : { remis }) };
+    // Les leçons provisoires du projet qu'il reçoit, et que son lancement dit.
+    const lecons = leconsDuCook();
+    const mission = { ticket: numero, titre: ticket.title, depot: options.depotGitHub, base: options.base, lecons, ...(remis === undefined ? {} : { remis }) };
     // Un renvoi de la pass reprend la session du cook dont elle a refusé la
     // livraison : il a déjà lu le ticket, le `CLAUDE.md` et le code, et ne
     // reçoit que ce qu'elle a trouvé. Les gates et la relecture qui jugeront
@@ -1813,6 +1833,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             // La tête de la branche à l'entrée : un runtime qui reprend ce cook
             // lit contre elle ce qu'il a livré.
             head: entree,
+            lessons: lecons.map((lecon) => lecon.id),
           },
           // Le ticket remis vit dans l'état, que la cloison masque : il est
           // rendu au cook, en lecture seule.
@@ -1824,7 +1845,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
                 options.bacASable,
                 argumentsClaude(
                   reprise !== null && repris !== null
-                    ? consigneDeReprise({ base: options.base, branche, worktree, n: repris.returns, findings: repris.findings })
+                    ? consigneDeReprise({ base: options.base, branche, worktree, n: repris.returns, findings: repris.findings, lecons })
                     : repris
                       ? consigneDeRenvoi({ ...mission, branche, n: repris.returns, findings: repris.findings })
                       : suite

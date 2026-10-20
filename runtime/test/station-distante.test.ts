@@ -93,6 +93,21 @@ describe("une station distante tire son travail", { concurrency: 8 }, () => {
     assert.equal(lancements().length, 1);
   });
 
+  test("son cook reçoit les leçons provisoires du projet, comme un cook de la box, et son lancement dit lesquelles", async (t) => {
+    const { gh, journal, etat, tirer, reclamer, dernier } = service(t);
+    journal.ajouter({ project: "brigade", ticket: 9, author: "pass", type: "retro.recorded", payload: { run: null, text: null, kept: [{ kind: "propose", text: "Lire la fiche avant d'écrire." }], dropped: [] } });
+    journal.ajouter({ project: "autre", ticket: 9, author: "pass", type: "retro.recorded", payload: { run: null, text: null, kept: [{ kind: "propose", text: "Une leçon d'un autre projet." }], dropped: [] } });
+    poser(gh, 16, "- requiert : chrome-connecté");
+    await jusqua(() => etat(16) === "86");
+    await tirer({ verb: "announce" });
+    await jusqua(() => etat(16) === "waiting");
+
+    const mission = await reclamer();
+    assert.ok(mission.prompt.includes("- L1 : Lire la fiche avant d'écrire."));
+    assert.doesNotMatch(mission.prompt, /autre projet/);
+    assert.deepEqual(dernier("cook.launched", 16)?.lessons, ["L1"]);
+  });
+
   test("seule une station que le projet déclare distante tire son travail : un nom inconnu ou une station de la box sont refusés, et rien n'est prêté", async (t) => {
     const { gh, journal, etat, tirer } = service(t);
     poser(gh, 16, "- requiert : chrome-connecté");
