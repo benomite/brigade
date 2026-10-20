@@ -16,12 +16,13 @@ import type { GistDeStation, GitHubDesStations } from "./github.ts";
 
 export type EtatDeStation = "en-ligne" | "hors-ligne" | "illisible";
 // Une station telle que la home la montre. `id` : son gist. `pannes` : chacune en une ligne, avec
-// son bouton (pannes/pannes.ts) — sans celles que le chef a écartées. Et, pour la liste de
-// l'accueil (accueil.ts), ce que la ligne dit déjà, en morceaux : `dit`, son état en quelques mots
+// son bouton (pannes/pannes.ts) — sans celles que le chef a écartées. `coeurs` : ceux de sa machine,
+// quand elle les publie. Et, pour la liste de l'accueil (accueil.ts), ce que la ligne dit déjà, en
+// morceaux : `dit`, son état en quelques mots
 // (« online », « offline for 12 min ») ; sa `version` ; les `projets` qu'elle porte ; sa connexion Max
 // telle qu'elle la publie — nulle quand elle n'en dit rien, ou qu'elle se tait ; `versionDit`, sa ligne de
 // mise à jour (`ligneDeVersion`), vide quand il n'y a rien à en dire.
-export type StationVue = { id: string; nom: string; machine: string; etat: EtatDeStation; ligne: string; pannes: Panne[]; dit: string; version: string; projets: string[]; max: ConnexionPubliee["etat"] | null; versionDit?: string };
+export type StationVue = { id: string; nom: string; machine: string; coeurs?: number; etat: EtatDeStation; ligne: string; pannes: Panne[]; dit: string; version: string; projets: string[]; max: ConnexionPubliee["etat"] | null; versionDit?: string };
 // `sans` : pourquoi la dernière lecture n'a pas abouti — la liste est alors celle d'avant.
 // `limite` : c'est GitHub qui limite les appels du compte, et `reprise`, l'heure où il les rend —
 // nulle quand il ne l'a pas dite.
@@ -121,6 +122,7 @@ export function tenirStations(options: OptionsStations): Stations {
             id,
             nom: document.nom,
             machine: document.machine,
+            ...(document.coeurs === undefined ? {} : { coeurs: document.coeurs }),
             ...ligneDe(document, instant),
             pannes: pannesDe(document, instant).filter(({ cle }) => !ecartees.has(`${id} ${cle}`)),
             dit: etatDe(document, instant).dit,

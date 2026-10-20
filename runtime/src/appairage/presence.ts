@@ -19,7 +19,7 @@
 // est dans `<BRIGADE_STATION_DIR>/appairage.json`. Un gist supprimé sur GitHub
 // la remet à zéro : un gist neuf, un code neuf, un appairage à refaire.
 import { readFileSync, writeFileSync } from "node:fs";
-import { hostname, release, type } from "node:os";
+import { availableParallelism, hostname, release, type } from "node:os";
 import { join } from "node:path";
 import { empreinteDuCode } from "../code.ts";
 import { LimiteGitHubAtteinte } from "../limite-github.ts";
@@ -38,7 +38,9 @@ export const ECART_MINIMAL_MS = 60_000;
 // de 5 min tient dans cette fenêtre : 2 × 285 s + 30 s = 600 s.
 export const CADENCE_MS = 285_000;
 
-export type Identite = { nom: string; machine: string; version: string };
+// `coeurs` : ceux de la machine, d'où l'app tire le nombre de cooks qu'elle
+// propose quand le chef lui confie un projet — absent, elle n'en dit rien.
+export type Identite = { nom: string; machine: string; version: string; coeurs?: number };
 
 export type OptionsPresence = {
   // Le répertoire de la station (`BRIGADE_STATION_DIR`).
@@ -83,11 +85,11 @@ const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message :
 const heure = (instant: number) => new Date(instant).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
 // Ce que la station dit d'elle : son nom, celui de sa machine — ou celui que
-// sa configuration lui donne —, ce qu'est la machine, et sa version.
+// sa configuration lui donne —, ce qu'est la machine, ses cœurs, et sa version.
 export function identiteDeLaStation(env: Record<string, string | undefined>): Identite {
   const nom = env.BRIGADE_STATION_NOM || hostname().split(".")[0]?.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || "station";
   const systeme = type() === "Darwin" ? "macOS" : type() === "Windows_NT" ? "Windows" : type();
-  return { nom, machine: `${systeme} ${release()}`, version: env.BRIGADE_STATION_VERSION || `code ${empreinteDuCode().slice(0, 12)}` };
+  return { nom, machine: `${systeme} ${release()}`, coeurs: availableParallelism(), version: env.BRIGADE_STATION_VERSION || `code ${empreinteDuCode().slice(0, 12)}` };
 }
 
 // Lit l'état gardé. Illisible, la station repart de zéro : un gist neuf, un

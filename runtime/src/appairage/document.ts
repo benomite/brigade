@@ -7,7 +7,7 @@
 // Le gist porte deux fichiers :
 //   - `brigade-station.json`, écrit par la station seule, à chaque signe de vie :
 //       { "brigade": "station", "format": 1, "nom": "box", "machine": "Linux 6.1.0",
-//         "version": "…", "projets": ["brigade"], "signeDeVie": "<ISO>",
+//         "coeurs": 8, "version": "…", "projets": ["brigade"], "signeDeVie": "<ISO>",
 //         "cadenceMs": 60000, "arreteeLe": null | "<ISO>",
 //         "appairage": null | { "empreinte": "<sha256>", "expireLe": "<ISO>" },
 //         "echus": ["<sha256>", …],
@@ -17,6 +17,9 @@
 //     (app/src/pannes/) : la dernière mise à jour quand elle a raté et que la
 //     station est revenue en arrière, et la connexion Max de la machine. Des
 //     versions et des dates, jamais le motif d'un échec ni une commande.
+//     `coeurs`, ceux de la machine : l'app en tire le nombre de cooks qu'elle
+//     propose quand le chef confie un projet à cette station (#1107) — le
+//     plafond même que la station en dérive (`plafondDesCoeurs`, #1079).
 //   - `brigade-appairage.json`, écrit par l'app seule, quand le chef a tapé le
 //     bon code : { "appaireeLe": "<ISO>", "empreinte": "<sha256>" }.
 //
@@ -53,6 +56,7 @@ export type DocumentStation = {
   format: number;
   nom: string;
   machine: string;
+  coeurs?: number;
   version: string;
   projets: string[];
   signeDeVie: string;

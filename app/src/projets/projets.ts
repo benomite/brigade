@@ -10,8 +10,10 @@
 // un projet à l'app ne passe pas par ici (ajout.ts) : c'est ce geste-ci, et lui seul, qui l'installe
 // sur une station.
 //
-// Rien ici n'a de défaut que le chef n'ait vu : le calibrage et le plafond de cooks sont ses
-// décisions, et ce qui manque est signalé champ par champ, sans rien écrire. Une station de plus
+// Le calibrage et le plafond de cooks sont les décisions du chef, mais elles ne commencent pas vides
+// (#425, #1107) : l'app propose le nombre de cooks que les cœurs de la principale permettent, et le
+// calibrage qui tourne déjà sur ses autres projets — ou la valeur de départ mesurée —, chacun avec
+// d'où il vient. Ce qui manque est signalé champ par champ, sans rien écrire. Une station de plus
 // reprend ce que l'app a déjà demandé pour le projet. Retirer le projet le retire de la demande de
 // chaque station : elle le retire de sa configuration.
 import type { GitHubDesStations } from "../stations/github.ts";
@@ -48,9 +50,24 @@ export type ProjetVu = {
   // Du parcours ouvert au projet servi par sa principale — la mesure que la spec borne à dix minutes.
   servi: string | null;
 };
+// Ce que l'app propose pour une station choisie comme principale (#1107) : ce que ce choix implique —
+// toujours allumée, ou arrêtée avec l'app de son ordinateur —, et le nombre de cooks à la fois que
+// ses cœurs permettent, avec d'où il vient.
+export type MachineProposee = { toujoursAllumee: boolean; implique: string; cooks: number; cooksDit: string };
+// Le calibrage que l'app propose pour un projet qui prend sa première station, et d'où il vient.
+export type CalibrageRecommande = { manager: Calibre; reviewer: Calibre; dit: string };
 // `recommandee` : la principale que l'app propose d'office — une station serveur ; `avertissements` :
-// ce qui se dit quand le chef choisit telle station pour principale.
-export type VuDesProjets = { a: string; projets: ProjetVu[]; recommandee: string | null; avertissements: Record<string, string>; sans?: string };
+// ce qui se dit quand le chef choisit telle station pour principale ; `machines` : ce que l'écran de
+// confiance dit de chaque station, et `calibrage`, ce qu'il propose.
+export type VuDesProjets = {
+  a: string;
+  projets: ProjetVu[];
+  recommandee: string | null;
+  avertissements: Record<string, string>;
+  machines: Record<string, MachineProposee>;
+  calibrage: CalibrageRecommande;
+  sans?: string;
+};
 export type Ajout = { ajoute: string } | { signales: Signales } | { refus: string };
 export type Retrait = { retire: string } | { refus: string };
 
@@ -97,6 +114,43 @@ export function principaleRecommandee(stations: readonly StationVue[]): string |
   return (serveurs.find((station) => station.etat === "en-ligne") ?? serveurs[0])?.id;
 }
 
+// Le nombre de cooks que les cœurs d'une machine permettent : celui même que la station en dérive
+// (runtime/src/projections/stations.ts, `plafondDesCoeurs`, #1079) — deux cœurs gardés pour le
+// runtime, la pass et ses gates, puis environ deux par cook. 8 cœurs : 3.
+export const cooksDesCoeurs = (coeurs: number): number => Math.max(1, Math.floor((coeurs - 2) / 2));
+// Une station qui ne publie pas encore ses cœurs : un départ prudent.
+export const COOKS_SANS_COEURS = 2;
+
+// Ce que choisir cette station pour principale implique, et ses cooks.
+export function machineProposee(station: Pick<StationVue, "nom" | "machine" | "coeurs">): MachineProposee {
+  const toujoursAllumee = !estUnOrdinateur(station);
+  const { coeurs } = station;
+  return {
+    toujoursAllumee,
+    implique: toujoursAllumee ? "always on: it keeps cooking while your computer sleeps" : "stops when you close the app on this computer",
+    cooks: coeurs === undefined ? COOKS_SANS_COEURS : cooksDesCoeurs(coeurs),
+    cooksDit:
+      coeurs === undefined
+        ? `${station.nom} does not publish its cores yet: ${COOKS_SANS_COEURS}, a careful start`
+        : `from ${station.nom}'s ${coeurs} cores: two are kept for the kitchen itself, then about two per cook`,
+  };
+}
+
+// La valeur de départ mesurée (#425) : celle sur laquelle la box de brigade tourne, qui a jugé,
+// découpé et relu sans un désaccord.
+export const CALIBRAGE_MESURE: Calibre = { modele: "sonnet", effort: "medium" };
+
+// Le calibrage que l'app propose : celui du projet confié le plus récemment à une station — ce sur
+// quoi les autres projets du chef tournent —, ou, à défaut, la valeur de départ mesurée.
+export function calibrageRecommande(demandes: readonly ProjetDemande[]): CalibrageRecommande {
+  const valide = ({ modele, effort }: Calibre) => (MODELES as readonly string[]).includes(modele) && (EFFORTS as readonly string[]).includes(effort);
+  const dernier = demandes
+    .filter(({ manager, reviewer }) => valide(manager) && valide(reviewer))
+    .reduce<ProjetDemande | undefined>((retenu, projet) => (retenu === undefined || (projet.demandeLe ?? "") > (retenu.demandeLe ?? "") ? projet : retenu), undefined);
+  if (dernier !== undefined) return { manager: dernier.manager, reviewer: dernier.reviewer, dit: `what ${dernier.nom} runs on, your project most recently given to a station` };
+  return { manager: CALIBRAGE_MESURE, reviewer: CALIBRAGE_MESURE, dit: "the starting value measured on brigade's own box, for lack of another project on your stations" };
+}
+
 // Ce que l'app dit au moment où le chef choisit cette principale.
 export function avertissement(station: Pick<StationVue, "nom" | "machine"> | undefined): string | undefined {
   if (station === undefined || !estUnOrdinateur(station)) return undefined;
@@ -129,7 +183,7 @@ export function refusDeSaisie(saisie: SaisieDuProjet, stations: readonly Station
   return { ...signales, ...refusDesDecisions(saisie) };
 }
 
-// Le plafond de cooks et le calibrage : les décisions du chef, sans défaut.
+// Le plafond de cooks et le calibrage : les décisions du chef — proposées, mais jamais vides.
 function refusDesDecisions(saisie: Pick<SaisieDuProjet, "cooks" | "manager" | "reviewer">): Signales {
   const signales: Signales = {};
   const signaler = (champ: Champ, raison: string | undefined) => {
@@ -246,6 +300,7 @@ export function tenirProjets(options: OptionsProjets): Projets {
         const dit = avertissement(station);
         return dit === undefined ? [] : [[station.id, dit]];
       })),
+      machines: Object.fromEntries(stations.filter(({ etat }) => etat !== "illisible").map((station) => [station.id, machineProposee(station)])),
     };
   };
 
@@ -267,9 +322,10 @@ export function tenirProjets(options: OptionsProjets): Projets {
         }
       }
       for (const projet of projets.values()) projet.stations.sort((a, b) => Number(b.principale) - Number(a.principale) || a.nom.localeCompare(b.nom));
-      vu = { a: new Date(instant).toISOString(), projets: [...projets.values()].sort((a, b) => a.nom.localeCompare(b.nom)), ...choix() };
+      const calibrage = calibrageRecommande(lus.flatMap(({ demande }) => demande ?? []));
+      vu = { a: new Date(instant).toISOString(), projets: [...projets.values()].sort((a, b) => a.nom.localeCompare(b.nom)), ...choix(), calibrage };
     } catch (erreur) {
-      vu = { a: new Date(instant).toISOString(), projets: vu?.projets ?? [], ...choix(), sans: `the projects on your stations could not be read on GitHub — ${message(erreur)}` };
+      vu = { a: new Date(instant).toISOString(), projets: vu?.projets ?? [], ...choix(), calibrage: vu?.calibrage ?? calibrageRecommande([]), sans: `the projects on your stations could not be read on GitHub — ${message(erreur)}` };
     }
     options.surLecture(vu);
     return vu;

@@ -101,7 +101,8 @@ pre.propos {
 #grants,
 #code,
 #tous .liste,
-#formulaire {
+#formulaire,
+#stations-du-projet .confiance {
   background: var(--carte);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-carte);
@@ -393,7 +394,7 @@ main > header,
   border-bottom: 1px solid var(--trait-doux);
 }
 /* Les stations qui font la cuisine du projet, en une ligne sous sa tête : chacune se clique, et
-   « + station » — ou, sans aucune, « entrust it to a station » — ouvre le choix dessous. */
+   « + station » — ou, sans aucune, « choose its machine » — ouvre le choix dessous. */
 #stations-du-projet {
   display: flex;
   flex-wrap: wrap;
@@ -416,11 +417,190 @@ main > header,
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
 }
-#stations-du-projet form {
+/* Le choix de la cuisine (ticket 1107) : une carte, comme dans la maquette. Sa phrase en tête, puis
+   chaque partie sous son petit titre — la machine principale, les renforts, les cooks, les réglages
+   avancés —, une machine par ligne, entière, cliquable d'un bout à l'autre. Aucun libellé n'est
+   coupé : un libellé est au-dessus de son champ, et une ligne trop longue passe à la suivante. */
+#stations-du-projet .confiance {
+  display: flex;
+  flex-direction: column;
+  flex-basis: 100%;
+  gap: 18px;
+  max-width: 640px;
+  margin: 6px 0 10px;
+  padding: 20px 22px;
+}
+.confiance h3 {
+  font-size: 18px;
+  font-weight: 700;
+}
+#stations-du-projet .confiance > .aide {
+  margin-top: -12px;
+  color: var(--texte-doux);
+}
+.confiance fieldset .aide {
+  color: var(--discret);
+}
+.confiance fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.confiance legend {
+  margin-bottom: 8px;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--texte);
+}
+.confiance .machines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.confiance .machine {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 2px 12px;
+  padding: 10px 14px;
+  background: var(--case);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+  cursor: pointer;
+}
+.confiance .machine:hover {
+  border-color: var(--trait-fort);
+}
+.confiance .machine[data-choisie="true"] {
+  border-color: var(--accent);
+}
+.confiance .machine input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+.confiance .machine small {
+  grid-column: 2;
+  color: var(--discret);
+  overflow-wrap: anywhere;
+}
+.confiance .nom-de-machine {
   display: flex;
   flex-wrap: wrap;
-  flex-basis: 100%;
+  align-items: center;
   gap: 8px;
+  font-size: 14px;
+}
+.confiance .nom-de-machine .pilule {
+  padding: 1px 8px;
+  font-size: 12px;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.confiance .champ {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.confiance .champ label,
+.confiance .calibre span {
+  font-weight: 600;
+}
+.confiance small,
+.confiance .avances p {
+  color: var(--discret);
+}
+.confiance input:not([type="radio"], [type="checkbox"]),
+.confiance select {
+  padding: 7px 10px;
+  font: inherit;
+  color: var(--texte);
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+.confiance input[type="number"] {
+  width: 8ch;
+}
+.confiance select {
+  background: var(--bouton);
+}
+.confiance .champ select,
+.confiance .champ input:not([type="number"]) {
+  width: 100%;
+}
+.confiance .avances {
+  border-top: 1px dashed var(--trait);
+  padding-top: 14px;
+}
+.confiance summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+.confiance summary .valeurs {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--discret);
+}
+.confiance .avances[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.confiance .avances p {
+  margin: 0;
+}
+.confiance .calibre {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.confiance .refus p {
+  color: var(--rouge-clair);
+}
+.confiance .refus:empty {
+  display: none;
+}
+.confiance .lancer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.confiance .lancer button {
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--texte);
+  background: var(--bouton);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+.confiance .lancer button[type="submit"] {
+  border-color: var(--accent);
+}
+.confiance .lancer button:hover:not(:disabled) {
+  border-color: var(--trait-fort);
+}
+.confiance .lancer button[type="submit"]:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.confiance .lancer button:disabled {
+  border-style: dashed;
+  cursor: default;
 }
 /* Le centre : le rail, et par-dessus lui la page ouverte, qui le couvre entier. Le rail reste
    posé dessous — sa hauteur, son défilement — et revient tel quel quand la page se ferme. */

@@ -7,7 +7,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, type DocumentStation } from "../../src/stations/document.ts";
+import { empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, lireDocument, type DocumentStation } from "../../src/stations/document.ts";
 import { githubDesStations } from "../../src/stations/github.ts";
 import { versionsDansFichier } from "../../src/stations/versions.ts";
 import { ghDuRepertoire } from "../aides/gh-du-repertoire.ts";
@@ -78,6 +78,15 @@ test("arrêtée proprement, elle est hors ligne tout de suite ; redémarrée, de
   assert.deepEqual(ligneDe(arretee, MAINTENANT), { etat: "hors-ligne", ligne: "offline for less than a minute · version 1.4.0 · no project" });
   // Un signe de vie postérieur à l'arrêt : elle est repartie.
   assert.equal(ligneDe({ ...arretee, signeDeVie: new Date(MAINTENANT).toISOString(), arreteeLe: null }, MAINTENANT).etat, "en-ligne");
+});
+
+test("les cœurs que la station publie se lisent ; absents ou mal formés, l'app n'en dit rien", () => {
+  const lu = (coeurs: unknown) => {
+    const document = lireDocument(JSON.stringify({ ...publie(), coeurs }));
+    return "illisible" in document ? assert.fail(document.illisible) : document.coeurs;
+  };
+  assert.equal(lu(8), 8);
+  for (const mal of [undefined, 0, -2, 2.5, "8", null]) assert.equal(lu(mal), undefined, String(mal));
 });
 
 test("les durées se disent à la minute", () => {

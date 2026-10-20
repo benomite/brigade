@@ -14,7 +14,7 @@ import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
 import { BANNIERE } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
-import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
+import { calibrageRecommande, EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { GESTES_DU_MANAGER } from "../../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { Panne } from "../../src/pannes/pannes.ts";
@@ -35,7 +35,7 @@ const ACCUEIL: Accueil = {
 };
 const STATIONS: VuDesStations = { a: A, stations: [BOX, MAC] };
 const AVERTI = "macbook is a computer's app: this project's kitchen stops whenever you close the app there. A server station, always on, is recommended.";
-const SANS_PROJET: VuDesProjets = { a: A, projets: [], recommandee: "g1", avertissements: { g2: AVERTI } };
+const SANS_PROJET: VuDesProjets = { a: A, projets: [], recommandee: "g1", avertissements: { g2: AVERTI }, machines: {}, calibrage: calibrageRecommande([]) };
 const PARADE: VuDesProjets = {
   ...SANS_PROJET,
   projets: [
