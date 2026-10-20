@@ -11,7 +11,14 @@ import type { Runtime } from "./runtime.ts";
 
 const AUTEUR = "runtime";
 
-// Un seuil non déclaré ne signale rien : aucun n'a de défaut. Mal écrit, c'est
+// Le seuil de durée des gates (`gates_s`, en secondes d'exécution — l'attente
+// du tour n'y compte pas) quand le chef n'en déclare pas : juste au-dessus des
+// 90 s que les gates tiennent sur une box au calme. C'est le seul seuil qui a
+// un défaut — la durée des gates ne doit pas remonter sans bruit. Une valeur
+// déclarée (`BRIGADE_DRIFT_GATES_SECONDS`) la remplace.
+export const SEUIL_DUREE_GATES_PAR_DEFAUT = 100;
+
+// Un seuil non déclaré ne signale rien : aucun n'a de défaut, sauf la durée des gates. Mal écrit, c'est
 // un refus de démarrer — un seuil ne se désarme pas par une faute de frappe.
 export function lireSeuils(env: NodeJS.ProcessEnv): Seuils {
   const seuil = (variable: string, entier = false) => {
@@ -22,7 +29,7 @@ export function lireSeuils(env: NodeJS.ProcessEnv): Seuils {
   return {
     tests: seuil("BRIGADE_DRIFT_TESTS", true),
     testsSeconds: seuil("BRIGADE_DRIFT_TESTS_SECONDS"),
-    gatesSeconds: seuil("BRIGADE_DRIFT_GATES_SECONDS"),
+    gatesSeconds: seuil("BRIGADE_DRIFT_GATES_SECONDS") ?? SEUIL_DUREE_GATES_PAR_DEFAUT,
     contextKb: seuil("BRIGADE_DRIFT_CONTEXT_KB"),
     repoMb: seuil("BRIGADE_DRIFT_REPO_MB"),
     merges: seuil("BRIGADE_DRIFT_MERGES", true),

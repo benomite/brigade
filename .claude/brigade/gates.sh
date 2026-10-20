@@ -393,7 +393,8 @@ while pile:
 print(total)
 PY
 )"
-mesure gates_s "$SECONDS"
+# La durée d'exécution : l'attente du tour n'est pas une dérive des gates.
+mesure gates_s "$((SECONDS - ATTENTE))"
 
 verdict "$rc"
 exit "$rc"

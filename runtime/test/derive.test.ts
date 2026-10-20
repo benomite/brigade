@@ -2,7 +2,7 @@
 // et un franchissement est signalé une fois, sans qu'on le demande.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { brancherDerive, lireSeuils } from "../src/derive.ts";
+import { brancherDerive, lireSeuils, SEUIL_DUREE_GATES_PAR_DEFAUT } from "../src/derive.ts";
 import type { Seuils } from "../src/events/drift.ts";
 import { SANS_SEUIL } from "../src/mesures.ts";
 import { ConfigInvalide, demarrer } from "../src/runtime.ts";
@@ -19,7 +19,7 @@ function cuisine(t: TestContext, repertoire = repertoireTemporaire(t)) {
     for (const ecouter of reveils) ecouter();
   };
   // Une livraison mergée dont les gates ont compté `tests` tests, puis le réveil.
-  const merger = (ticket: number, tests: number) => {
+  const merger = (ticket: number, tests: number, autres: Record<string, number> = {}) => {
     const noter = runtime.journal.ajouter.bind(runtime.journal);
     const pr = { pr: `https://exemple.test/pull/${ticket}`, sha: `sha-${ticket}` };
     noter({
@@ -32,7 +32,7 @@ function cuisine(t: TestContext, repertoire = repertoireTemporaire(t)) {
         run: `run-${ticket}`,
         number: ticket,
         verdict: "green",
-        gates: { outcome: "green", code: 0, failures: [], tail: "", measures: { tests } },
+        gates: { outcome: "green", code: 0, failures: [], tail: "", measures: { tests, ...autres } },
         ci: { outcome: "none", checks: [] },
         review: { outcome: "skipped", run: null, summary: null, findings: [] },
         findings: [],
@@ -47,8 +47,8 @@ function cuisine(t: TestContext, repertoire = repertoireTemporaire(t)) {
   return { repertoire, runtime, brancher, merger, reveiller, derive, avertissements };
 }
 
-test("un seuil non déclaré vaut null, et aucun n'a de défaut", () => {
-  assert.deepEqual(lireSeuils({}), SANS_SEUIL);
+test("un seuil non déclaré vaut null, et seule la durée des gates a un défaut", () => {
+  assert.deepEqual(lireSeuils({}), { ...SANS_SEUIL, gatesSeconds: SEUIL_DUREE_GATES_PAR_DEFAUT });
   assert.deepEqual(
     lireSeuils({ BRIGADE_DRIFT_TESTS: "500", BRIGADE_DRIFT_TESTS_SECONDS: "7.5", BRIGADE_DRIFT_GATES_SECONDS: "60", BRIGADE_DRIFT_CONTEXT_KB: "8", BRIGADE_DRIFT_REPO_MB: "2.5", BRIGADE_DRIFT_MERGES: "80", BRIGADE_DRIFT_GROWTH_PERCENT: "30", BRIGADE_DRIFT_TICKET_TOKENS: "2000000", BRIGADE_DRIFT_LOST_TOKENS: "500000", BRIGADE_DRIFT_FIRST_TRY_PERCENT: "60", BRIGADE_DRIFT_FIRST_TRY_WINDOW: "8" }),
     { tests: 500, testsSeconds: 7.5, gatesSeconds: 60, contextKb: 8, repoMb: 2.5, merges: 80, growthPercent: 30, ticketTokens: 2_000_000, lostTokens: 500_000, firstTryPercent: 60, firstTryWindow: 8 },
@@ -94,6 +94,22 @@ test("un franchissement est signalé au merge qui le produit, une seule fois tan
     ["drift.cleared", { measure: "tests" }],
     ["drift.crossed", { measure: "tests", observed: 501, limit: 500 }],
   ]);
+});
+
+test("la durée des gates au-delà de son seuil par défaut est signalée comme les autres dérives, et rien en dessous", (t) => {
+  const { brancher, merger, derive, avertissements } = cuisine(t);
+  brancher(lireSeuils({}));
+
+  merger(1, 480, { gates_s: SEUIL_DUREE_GATES_PAR_DEFAUT });
+  assert.deepEqual(derive().slice(1), []);
+  assert.deepEqual(avertissements, []);
+
+  merger(2, 480, { gates_s: SEUIL_DUREE_GATES_PAR_DEFAUT + 1 });
+  assert.deepEqual(derive().slice(1), [["drift.crossed", { measure: "gates_s", observed: SEUIL_DUREE_GATES_PAR_DEFAUT + 1, limit: SEUIL_DUREE_GATES_PAR_DEFAUT }]]);
+  assert.deepEqual(avertissements, [`brigade : dérive du projet « brigade » — gates 101 s pour un seuil de 100 s — voir : brigade <projet> measures`]);
+
+  merger(3, 480, { gates_s: 85 });
+  assert.deepEqual(derive().slice(2), [["drift.cleared", { measure: "gates_s" }]]);
 });
 
 test("une livraison jugée avant le franchissement et mergée après, sans rejeu, ne le lève pas", (t) => {
