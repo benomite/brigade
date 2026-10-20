@@ -13,6 +13,9 @@ export const FICHIER_APPAIRAGE = "brigade-appairage.json";
 export type DocumentStation = {
   nom: string;
   machine: string;
+  // Les cœurs de sa machine : l'app en tire le nombre de cooks qu'elle propose (projets/projets.ts).
+  // Absents d'une station qui ne les publie pas encore.
+  coeurs?: number;
   version: string;
   projets: string[];
   // Le dernier signe de vie, et la cadence à laquelle la station en donne.
@@ -57,13 +60,14 @@ export function lireDocument(brut: string): DocumentStation | { illisible: strin
     return { illisible: "its state on GitHub is not JSON" };
   }
   if (lu === null || typeof lu !== "object" || lu.brigade !== "station") return { illisible: "its state on GitHub is not a brigade station's" };
-  const { nom, machine, version, projets, signeDeVie, cadenceMs, arreteeLe, appairage, echus } = lu;
+  const { nom, machine, coeurs, version, projets, signeDeVie, cadenceMs, arreteeLe, appairage, echus } = lu;
   if (!texte(nom) || !texte(machine) || !texte(version) || !date(signeDeVie)) return { illisible: "its state on GitHub lacks its name, version or last sign of life" };
   if (!Array.isArray(projets) || !projets.every(texte)) return { illisible: "its state on GitHub does not list its projects" };
   const code = appairage as { empreinte?: unknown; expireLe?: unknown } | null | undefined;
   return {
     nom,
     machine,
+    ...(typeof coeurs === "number" && Number.isSafeInteger(coeurs) && coeurs > 0 ? { coeurs } : {}),
     version,
     projets,
     signeDeVie,

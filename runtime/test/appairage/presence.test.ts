@@ -3,12 +3,13 @@
 // l'appairage que l'app écrit. Le vrai `gh` se prouve dans `canal.test.ts`.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { availableParallelism } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Canal, Fichiers } from "../../src/appairage/canal.ts";
 import { empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, normaliser, tirerCode, type DocumentStation, type EtatsPublies } from "../../src/appairage/document.ts";
 import { etatsPublies } from "../../src/appairage/etats.ts";
-import { BATTEMENT_MS, CADENCE_MS, codeAffiche, ECART_MINIMAL_MS, FICHIER_LOCAL, REGARD_MS, tenirPresence } from "../../src/appairage/presence.ts";
+import { BATTEMENT_MS, CADENCE_MS, codeAffiche, ECART_MINIMAL_MS, FICHIER_LOCAL, identiteDeLaStation, REGARD_MS, tenirPresence } from "../../src/appairage/presence.ts";
 import type { ConnexionMax } from "../../src/connexion-max/connexion.ts";
 import type { EtatMiseAJour } from "../../src/mise-a-jour/etat.ts";
 import { aArreter, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
@@ -137,6 +138,18 @@ test("une station neuve crée son gist, y publie son état et l'empreinte de son
   await avancer(60_000);
   assert.equal(github.gists.size, 1);
   assert.equal(lignes.filter((ligne) => ligne.includes(code)).length, 1);
+});
+
+test("la station dit les cœurs de sa machine : l'app en tire le nombre de cooks qu'elle propose (#1107)", async (t) => {
+  const identite = identiteDeLaStation({ BRIGADE_STATION_NOM: "box", BRIGADE_STATION_VERSION: "1.4.0" });
+  assert.equal(identite.coeurs, availableParallelism());
+  const github = fauxGists();
+  const horloge = faussesHorloges(Date.parse("2026-10-15T12:00:00Z"));
+  const presence = tenirPresence({ racine: repertoireTemporaire(t), canal: github.canal, identite: { ...identite, coeurs: 8 }, projets: () => [], dire: () => {}, apres: horloge.apres, maintenant: horloge.maintenant });
+  aArreter(t, () => presence.arreter());
+  await presence.publier();
+  const [id] = [...github.gists.keys()];
+  assert.equal(github.document(id ?? "").coeurs, 8);
 });
 
 test("l'état publié dit les projets servis et rafraîchit le signe de vie à chaque publication", async (t) => {

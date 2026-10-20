@@ -9,7 +9,9 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { FICHIER_PROJETS, FICHIER_SUIVI } from "../../src/projets/demande.ts";
 import { depotsDuChef } from "../../src/projets/github.ts";
-import { avertissement, estUnOrdinateur, lireConfiance, lireSaisie, nomDuProjet, principaleRecommandee, refusDeConfiance, refusDeSaisie, tenirProjets, type VuDesProjets } from "../../src/projets/projets.ts";
+import { plafondDesCoeurs } from "../../../runtime/src/projections/stations.ts";
+import type { ProjetDemande } from "../../src/projets/demande.ts";
+import { avertissement, CALIBRAGE_MESURE, calibrageRecommande, cooksDesCoeurs, estUnOrdinateur, lireConfiance, lireSaisie, machineProposee, nomDuProjet, principaleRecommandee, refusDeConfiance, refusDeSaisie, tenirProjets, type VuDesProjets } from "../../src/projets/projets.ts";
 import { githubDesStations } from "../../src/stations/github.ts";
 import type { StationVue } from "../../src/stations/stations.ts";
 import { ghDuRepertoire } from "../aides/gh-du-repertoire.ts";
@@ -69,6 +71,26 @@ test("la principale recommandée est une station serveur, en ligne d'abord ; un 
   assert.equal(estUnOrdinateur({ machine: "Windows 10.0.26100" }), true);
   assert.equal(avertissement(BOX), undefined);
   assert.equal(avertissement(MAC), "macbook is a computer's app: this project's kitchen stops whenever you close the app there. A server station, always on, is recommended.");
+});
+
+test("les cooks proposés sont ceux que les cœurs de la machine permettent — le plafond même que la station en dérive", () => {
+  for (let coeurs = 1; coeurs <= 64; coeurs++) assert.equal(cooksDesCoeurs(coeurs), plafondDesCoeurs(coeurs), `${coeurs} cœurs`);
+  assert.deepEqual(machineProposee({ ...BOX, coeurs: 8 }), { toujoursAllumee: true, implique: "always on: it keeps cooking while your computer sleeps", cooks: 3, cooksDit: "from box's 8 cores: two are kept for the kitchen itself, then about two per cook" });
+  assert.deepEqual(machineProposee({ ...MAC, coeurs: 12 }), { toujoursAllumee: false, implique: "stops when you close the app on this computer", cooks: 5, cooksDit: "from macbook's 12 cores: two are kept for the kitchen itself, then about two per cook" });
+  // Une station qui ne publie pas encore ses cœurs : un départ prudent, dit comme tel.
+  assert.deepEqual([machineProposee(BOX).cooks, machineProposee(BOX).cooksDit], [2, "box does not publish its cores yet: 2, a careful start"]);
+});
+
+test("le calibrage proposé est celui du projet confié le plus récemment ; sans autre projet, la valeur de départ mesurée", () => {
+  const demande = (nom: string, demandeLe: string | null, manager: { modele: string; effort: string }): ProjetDemande => ({ nom, depot: `benomite/${nom}`, base: "main", principale: true, cooks: 2, manager, reviewer: { modele: "opus", effort: "high" }, ouvertLe: null, demandeLe });
+  assert.deepEqual(calibrageRecommande([]), { manager: CALIBRAGE_MESURE, reviewer: CALIBRAGE_MESURE, dit: "the starting value measured on brigade's own box, for lack of another project on your stations" });
+  assert.deepEqual(CALIBRAGE_MESURE, { modele: "sonnet", effort: "medium" });
+  assert.deepEqual(
+    calibrageRecommande([demande("ancien", "2026-10-01T00:00:00.000Z", { modele: "haiku", effort: "low" }), demande("cantine", "2026-10-12T00:00:00.000Z", { modele: "opus", effort: "medium" }), demande("vieux", null, { modele: "sonnet", effort: "max" })]),
+    { manager: { modele: "opus", effort: "medium" }, reviewer: { modele: "opus", effort: "high" }, dit: "what cantine runs on, your project most recently given to a station" },
+  );
+  // Un calibrage que la station n'accepterait pas ne se propose pas.
+  assert.equal(calibrageRecommande([demande("bizarre", "2026-10-19T00:00:00.000Z", { modele: "gpt", effort: "medium" })]).dit, calibrageRecommande([]).dit);
 });
 
 test("le nom du projet vient de son dépôt ; ce qui manque est signalé champ par champ", () => {
@@ -131,6 +153,9 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
     );
     assert.equal(avant.recommandee, "g1");
     assert.deepEqual(Object.keys(avant.avertissements), ["g2"]);
+    // Ce que l'écran de confiance propose : chaque station lisible, et le calibrage de parade, confié à l'instant.
+    assert.deepEqual(Object.keys(avant.machines), ["g1", "g2"]);
+    assert.deepEqual(avant.calibrage, { manager: SAISIE.manager, reviewer: SAISIE.reviewer, dit: "what parade runs on, your project most recently given to a station" });
 
     const pages = ["https://github.com/apps/brigade-cook/installations/new"];
     suivre("g1", [{ nom: "parade", etat: "a-autoriser", dit: "authorize brigade on benomite/parade, on GitHub: one click per page", autoriser: [...pages, "https://ailleurs.example/piege"], serviLe: null }]);

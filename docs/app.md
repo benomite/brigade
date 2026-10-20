@@ -842,6 +842,41 @@ vraiment aucun.
 - **« remove »**, sous un projet ajouté depuis l'app, puis un second clic pour confirmer, retire le projet de la demande de chacune de
   ses stations : elles le retirent de leur configuration. Son état et son clone restent sur la machine.
 
+**Depuis la page d'un projet** (#983), quand aucune station ne fait encore sa cuisine, `No station
+cooks <projet> yet.` est suivi de **« choose its machine »**. Le choix s'ouvre dessous, en une carte
+(#1107) :
+
+- **En tête, une phrase dit ce que tu fais** : `Choose the machine that runs <projet>'s kitchen.`,
+  puis ce que fait cette machine — elle fait tourner le manager et la pass, et elle cuit — et que
+  tout est déjà réglé sur ce qui est recommandé : tu changes ce que tu veux, ou tu lances tel quel.
+- **La machine principale d'abord**, un choix simple entre tes stations appairées. Chacune dit ce
+  que la choisir implique : `always on: it keeps cooking while your computer sleeps` pour un
+  serveur, `stops when you close the app on this computer` pour l'app d'un Mac ou d'un PC. **La
+  station serveur est choisie d'office**, marquée `recommended` ; sans serveur, la première machine
+  lisible.
+- **Les renforts ensuite, facultatifs** (`Backup machines · optional`) : une case par autre station,
+  et à quoi sert un renfort — il cuit les tickets que la principale n'a pas la place de prendre, sans
+  manager ni pass.
+- **Les cooks à la fois arrivent posés**, tirés des cœurs de la principale — ceux que la station
+  publie dans son gist (`coeurs`, [docs/runtime/](runtime/station-machine.md)) —, par la règle même
+  que la station applique : `max(1, ⌊(cœurs − 2) / 2⌋)`, 3 pour 8 cœurs. Dessous :
+  `recommended — from <station>'s 8 cores: …`. Une station qui ne publie pas encore ses cœurs : 2,
+  et la ligne le dit. Choisir une autre principale fait suivre le nombre, tant que tu ne l'as pas tapé.
+- **Le calibrage du manager et du reviewer est replié sous « Advanced settings »**, avec ce qu'il
+  règle : le modèle et l'effort qui jugent, découpent et relisent — et donc ce qu'ils prennent de ton
+  quota. Replié, la ligne dit ce qui partira (`manager sonnet / medium · reviewer sonnet / medium`).
+  Il reprend **celui du projet confié le plus récemment à une station** depuis l'app
+  (`recommended — what <projet> runs on, …`), ou à défaut **la valeur de départ mesurée**,
+  `sonnet` / `medium` (#425).
+- **Une valeur proposée se voit comme telle** : sa ligne `recommended — …` disparaît dès que tu la
+  changes, et ce que tu as changé reste le tien quand les stations se relisent.
+- **Le bouton dit ce qu'il fait** : `Start the kitchen on <station>`. Rien ne part avec un champ
+  vide : ce qui manque se lit au-dessus du bouton, et la carte reste ouverte.
+
+Une fois confiée, la page dit `Cooked by <station> (main)`, et **« + station »** ouvre la même
+carte réduite aux renforts (`Add a backup machine to <projet>'s kitchen.`, `Add <station> to the
+kitchen`) : la station de plus reprend les cooks et le calibrage déjà demandés.
+
 ## Une lecture de box : sept états
 
 En tête du panneau de l'espace d'un projet, la lecture de sa box est dans **un de sept états**, qui ne se ressemblent pas :

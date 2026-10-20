@@ -17,13 +17,17 @@ jamais. Tout passe par **GitHub**, où elle écrit son état — dans un **gist 
   gist qui publie cette empreinte et y écrit `brigade-appairage.json`. La station l'y lit à son
   signe de vie suivant, et n'affiche plus de code (`brigade : station appairée à l'app`).
 - **Chaque minute**, elle regarde si son état a changé (sans appel GitHub), et ne réécrit
-  `brigade-station.json` — son nom, sa machine, sa version, les projets qu'elle sert, son dernier
-  signe de vie — que sur changement, ou en battement toutes les 5 minutes. Deux écritures, y
+  `brigade-station.json` — son nom, sa machine et ses cœurs, sa version, les projets qu'elle sert,
+  son dernier signe de vie — que sur changement, ou en battement toutes les 5 minutes. Deux écritures, y
   compris celle que la station demande après l'écriture d'un projet, sont distantes d'au moins
   60 s : une demande trop proche est retenue, puis écrite à l'échéance. **Arrêtée** (SIGTERM), elle
   y écrit tout de suite l'heure de son arrêt — la seule écriture que l'écart de 60 s ne retient
   pas : l'état final ne se perd pas. Elle publie `cadenceMs` = 285 s ; l'app la dit hors ligne
   après 2 × `cadenceMs` + 30 s, soit 10 min au plus (`app/src/stations/stations.ts`).
+- **Ses cœurs** (`coeurs`, ceux que voit `os.availableParallelism()`) : l'app en tire le nombre de
+  cooks qu'elle propose quand le chef confie un projet à cette station (#1107) — la règle même du
+  plafond par défaut, `max(1, ⌊(cœurs − 2) / 2⌋)` (#1079, [« Plusieurs cooks à la fois »](station.md)). Une
+  station plus ancienne ne les publie pas : l'app propose alors 2, et le dit.
 - **Ses pannes y vont aussi** (`appairage/etats.ts`, #798) : `miseAJour`, sa dernière mise à jour
   quand elle a raté et qu'elle est revenue en arrière (version visée, version restaurée, l'heure,
   et si le retour a raté lui aussi — lue dans `BRIGADE_MISE_A_JOUR_DIR`), et `connexionMax`,
