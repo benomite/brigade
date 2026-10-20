@@ -1159,7 +1159,7 @@ main > header,
   gap: 8px;
 }
 #station .plafond-de-station input[type="number"] {
-  width: 96px;
+  width: 128px;
 }
 #station .plafond-de-station:empty {
   display: none;
