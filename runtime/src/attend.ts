@@ -188,6 +188,8 @@ const ecartQuiAttend = (motif: string): motif is EcartQuiAttend => Object.hasOwn
 // questions qu'il pose sur une épique. Une issue fermée n'attend plus ; une
 // issue sur le rail est lancée, et ce qui l'y retient se lit du rail.
 function attentesDuManager(base: Base, tickets: Map<number, TicketRail>): AttenteDeTicket[] {
+  // Une issue retenue dont la carte parle au chef : l'écart nu ferait doublon.
+  const avecCarte = new Set(cartesEnTodo(base).map((carte) => carte.ticket));
   const parIssue = new Map<number, AttenteDeTicket>();
   for (const { epic, state, at, seq, closed } of epiquesEnAttente(base)) {
     // Découpée à la main, retirée au manager, rejugée autrement qu'en épique :
@@ -198,7 +200,7 @@ function attentesDuManager(base: Base, tickets: Map<number, TicketRail>): Attent
   for (const { ticket, decision, reason, at, closed } of issuesEnAttente(base)) {
     if (closed) continue;
     if (decision === "failed") parIssue.set(ticket, { ticket, title: null, since: at, quoi: "illisible", epique: false });
-    else if (ecartQuiAttend(reason)) parIssue.set(ticket, { ticket, title: null, since: at, quoi: "ecartee", reason });
+    else if (ecartQuiAttend(reason) && !avecCarte.has(ticket)) parIssue.set(ticket, { ticket, title: null, since: at, quoi: "ecartee", reason });
   }
   return [...parIssue.values()].filter(({ ticket }) => !tickets.has(ticket));
 }

@@ -396,6 +396,24 @@ FIN
 {"nature":"incomplete","motif":"Rien ne dit comment vérifier que c'est fait.","manque":"Un critère d'acceptation."}
 FIN
       ;;
+    requalifie-carte)
+      assistant
+      resultat <<'FIN'
+{"issue":"carte","motif":"Deux voies s'opposent, rien ne dit laquelle.","type":"product","enonce":"Choisir entre l'export CSV et l'export JSON.","capture":null}
+FIN
+      ;;
+    requalifie-reprise)
+      assistant
+      resultat <<'FIN'
+{"issue":"reprise","motif":"Aucun choix ni geste n'attend le chef.","type":null,"enonce":null,"capture":null}
+FIN
+      ;;
+    requalifie-enoncee)
+      assistant
+      resultat <<'FIN'
+{"issue":"enoncee","motif":"Le corps dit qu'il faut choisir le fournisseur."}
+FIN
+      ;;
     juge-illisible)
       assistant
       resultat <<'FIN'

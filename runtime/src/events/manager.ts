@@ -105,6 +105,15 @@ export type FaitManager =
   // capabilities no station provides, `reason`: why the rewrite is impossible.
   | { type: "manager.capability-resplit"; payload: { missing: string[]; run: string | null } }
   | { type: "manager.capability-gestured"; payload: { missing: string[]; reason: string } }
+  // An issue held by `blocked-on-human` was re-read for the decision it awaits.
+  // `outcome`: `stated` (the decision is written: nothing changes), `card` (a
+  // typed TODO card was derived: `card` holds it), `taken-back` (the label was
+  // removed, the kitchen judges the issue), `unreadable` (no usable answer: it
+  // stays held). `fingerprint`: what was read — the same one is not read twice.
+  | {
+      type: "manager.requalified";
+      payload: { run: string; fingerprint: string; outcome: "stated" | "card" | "taken-back" | "unreadable"; reason: string; card?: { kind: string; statement: string } };
+    }
   // The chef's commands. Without `manager.enabled`, the manager judges nothing.
   | { type: "manager.enabled"; payload: Record<string, never> }
   | { type: "manager.disabled"; payload: Record<string, never> }

@@ -94,7 +94,8 @@ son propre ETag — et la trie sans rien dépenser :
 | est la roadmap (`BRIGADE_ROADMAP_ISSUE`) | Rien | `manager.set-aside` (`roadmap`) |
 | est une épique déjà découpée par lui, ou un ticket né d'un de ses découpages | Rien : c'est fait, et ce qu'ils portent depuis est à toi | — |
 | porte `hors-cuisine` — même avec `fire`, un calibrage complet ou le grant `merge` | Rien : le ticket ne se sert pas sur cette box. Il n'entre pas sur le rail, ne figure pas dans `attend`, et le manager le dit une fois s'il porte `fire` | `manager.set-aside` (`hors-cuisine`) |
-| porte `blocked-on-human`, `question` ou `decision` | Rien | `manager.set-aside` (le label) |
+| porte `blocked-on-human` | **Relue** par le LLM, une fois par état, pour la décision qu'elle attend. Écrite dans l'issue : rien, elle reste retenue. Absente, mais une vraie question s'en dérive : une carte `product`, `design` ou `gesture` entre dans TODO (l'énoncé est la question), l'issue reste retenue et la carte sort quand le label part. Absente, sans question : la cuisine reprend le ticket, le label est retiré et l'issue jugée au même tour. Le commentaire dit laquelle des deux | `manager.requalified` (`stated`, `card`, `taken-back` ou `unreadable`), puis `manager.set-aside` sauf reprise |
+| porte `question` ou `decision` | Rien | `manager.set-aside` (le label) |
 | porte déjà, dans son corps, la liste de tickets d'une épique, sans qu'il l'ait découpée | Rien : elle a été découpée à la main | `manager.set-aside` (`already-split`) |
 | porte `epic` | **Découpée** par le LLM, une fois | `manager.split`, ou une question |
 | toute autre | **Jugée** par le LLM, une fois par état | `manager.judged`, ou `manager.failed` |
