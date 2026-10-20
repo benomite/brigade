@@ -47,7 +47,7 @@ function cree(doc, balise, texte) {
 
 // Une phrase du runtime, ses mots entre accents graves — un label, `fire` — posés en code.
 /** @param {Fabrique} doc @param {string} balise @param {string} texte */
-function phrase(doc, balise, texte) {
+export function phrase(doc, balise, texte) {
   const pose = doc.createElement(balise);
   texte.split("`").forEach((morceau, rang) => {
     if (morceau === "") return;

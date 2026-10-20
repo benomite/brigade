@@ -583,6 +583,7 @@ main > header,
 #stations-du-projet .parcours .etat-de-preparation {
   color: var(--texte-doux);
 }
+#stations-du-projet .depot-retenu,
 #stations-du-projet .parcours .echec {
   display: flex;
   flex-direction: column;
