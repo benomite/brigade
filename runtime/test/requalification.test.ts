@@ -41,7 +41,7 @@ describe("un ticket blocked-on-human", { concurrency: 8 }, () => {
   test("la carte sort de TODO quand le chef retire le label", async (t) => {
     const c = brigade(t, "requalifie-carte");
     await jusqua(() => cartesEnTodo(c.journal.base).length === 1);
-    c.gh.decrire(40, { labels: [] });
+    await c.gh.github.delabelliser(40, "blocked-on-human");
     await jusqua(() => cartesEnTodo(c.journal.base).length === 0);
   });
 
