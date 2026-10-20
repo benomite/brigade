@@ -106,6 +106,23 @@ export function cartesEnTodo(base: Base): CarteEnTodo[] {
   return [...cartes.values()];
 }
 
+// Combien de cartes sont entrées dans TODO entre `depuis` (compris) et `jusqua`
+// (exclu), par type. Chaque entrée compte, une carte qui en remplace une autre
+// aussi ; une carte refusée (`todo.refused`) ne compte nulle part. Les trois
+// types y sont toujours, à zéro quand rien n'est entré.
+export function entreesParType(base: Base, depuis: Date, jusqua: Date): Record<TypeDeCarte, number> {
+  const comptes: Record<TypeDeCarte, number> = { product: 0, design: 0, gesture: 0 };
+  const lignes = base.lire<{ payload: string }>("SELECT payload FROM events WHERE type = 'todo.entered' AND at >= ? AND at < ?", depuis.toISOString(), jusqua.toISOString());
+  for (const { payload } of lignes) comptes[(JSON.parse(payload) as { kind: TypeDeCarte }).kind]++;
+  return comptes;
+}
+
+// La ligne de `status` : les entrées de la période, par type.
+export function direEntreesEn(comptes: Record<TypeDeCarte, number>, jours: number): string {
+  const total = TYPES_DE_CARTE.reduce((somme, type) => somme + comptes[type], 0);
+  return `todo       last ${jours} d: ${total} entered — ${TYPES_DE_CARTE.map((type) => `${type} ${comptes[type]}`).join(" · ")}`;
+}
+
 // Ce que la carte dit dans la file du chef, sur une ligne : son type, son
 // énoncé, et sa capture si elle en a une. En anglais : la ligne du bloc
 // `awaiting`.

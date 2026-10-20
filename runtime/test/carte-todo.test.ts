@@ -5,12 +5,13 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { attentesDuChef } from "../src/attend.ts";
-import { cartesEnTodo, entrerDansTodo, jugerCarte, sortirDeTodo } from "../src/carte-todo.ts";
+import { cartesEnTodo, entreesParType, entrerDansTodo, jugerCarte, sortirDeTodo } from "../src/carte-todo.ts";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { lireRail } from "../src/projections/rail.ts";
-import { JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
+import { principal as status } from "../src/status.ts";
+import { appeler, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const PROJET = "brigade";
 const MAINTENANT = new Date(`${JOUR_HORLOGE}T12:00:00.000Z`);
@@ -165,3 +166,60 @@ test("la carte d'un ticket qui attend un tiers n'est pas dans TODO", (t) => {
   noter({ type: "ticket.waiting", payload: { what: "the client's answer", who: "the client", followUp: "2026-12-01T00:00:00.000Z" } }, 10, "chef");
   assert.deepEqual(todo(), []);
 });
+
+// Un journal où des cartes entrent à des jours différents.
+function entreesAuFil(t: TestContext) {
+  const repertoire = repertoireTemporaire(t);
+  const poser = (jour: string, ticket: number, proposition: Parameters<typeof entrerDansTodo>[3]) => {
+    const journal = ouvrirJournal(repertoire, { maintenant: () => new Date(`${jour}T10:00:00.000Z`) });
+    entrerDansTodo(journal, PROJET, ticket, proposition, "manager");
+    journal.fermer();
+  };
+  poser("2026-10-01", 1, { type: "product", enonce: "too old" });
+  poser("2026-10-15", 2, { type: "product", enonce: "one list or several?" });
+  poser("2026-10-16", 3, { type: "design", enonce: "validate the screen", capture: "a.png" });
+  poser("2026-10-17", 4, { type: "gesture", enonce: "give access" });
+  poser("2026-10-17", 5, { type: "gesture", enonce: "give another access" });
+  poser("2026-10-17", 6, { type: "design", enonce: "no capture" });
+  poser("2026-10-17", 7, { type: "mystery", enonce: "unknown type" });
+  return repertoire;
+}
+
+test("les entrées de la période se comptent par type : hors période et refusées, nulle part", (t) => {
+  const journal = ouvrirJournal(entreesAuFil(t));
+  t.after(() => journal.fermer());
+  const jour = (j: string) => new Date(`${j}T00:00:00.000Z`);
+
+  assert.deepEqual(entreesParType(journal.base, jour("2026-10-14"), jour("2026-10-20")), { product: 1, design: 1, gesture: 2 });
+  assert.deepEqual(entreesParType(journal.base, jour("2026-10-01"), jour("2026-10-20")), { product: 2, design: 1, gesture: 2 });
+  assert.deepEqual(entreesParType(journal.base, jour("2026-10-16"), jour("2026-10-17")), { product: 0, design: 1, gesture: 0 });
+  assert.deepEqual(entreesParType(journal.base, jour("2026-10-18"), jour("2026-10-20")), { product: 0, design: 0, gesture: 0 });
+});
+
+test("`status` dit les cartes entrées dans TODO sur la période, par type, 7 jours par défaut, et zéro de chaque sans entrée", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const vide = appeler(status, [], { BRIGADE_STATE_DIR: ouvrirEtFermer(repertoire) });
+  assert.equal(await vide.fin, 0);
+  assert.match(vide.sortie(), /^todo       last 7 d: 0 entered — product 0 · design 0 · gesture 0$/m);
+
+  const ancien = Math.ceil((Date.now() - Date.parse("2026-10-01T10:00:00Z")) / 86_400_000);
+  const plein = entreesAuFil(t);
+  const jours = Math.ceil((Date.now() - Date.parse("2026-10-17T00:00:00Z")) / 86_400_000) + 1;
+  const long = appeler(status, ["--days", String(ancien + 1)], { BRIGADE_STATE_DIR: plein });
+  assert.equal(await long.fin, 0);
+  assert.match(long.sortie(), new RegExp(`^todo       last ${ancien + 1} d: 5 entered — product 2 · design 1 · gesture 2$`, "m"));
+  const court = appeler(status, ["--days", String(jours)], { BRIGADE_STATE_DIR: plein });
+  assert.equal(await court.fin, 0);
+  assert.match(court.sortie(), new RegExp(`^todo       last ${jours} d: \\d+ entered`, "m"));
+
+  for (const mauvais of [["--days"], ["--days", "0"], ["--days", "beaucoup"]]) {
+    const commande = appeler(status, mauvais, { BRIGADE_STATE_DIR: plein });
+    assert.equal(await commande.fin, 2);
+    assert.match(commande.sortie(), /usage/);
+  }
+});
+
+function ouvrirEtFermer(repertoire: string): string {
+  ouvrirJournal(repertoire).fermer();
+  return repertoire;
+}
