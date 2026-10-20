@@ -13,7 +13,7 @@ import { ONGLETS } from "../src/onglets.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
 const doc = docRuntime(RACINE);
-const PILOTER = doc.slice(doc.indexOf("### Piloter"), doc.indexOf("### Recette du chef"));
+const PILOTER = doc.slice(doc.indexOf("### Driving"), doc.indexOf("### Chef's acceptance test"));
 const PARADE = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
 
 // La commande écrite : le test échoue net si le bouton a refusé d'écrire.
@@ -97,7 +97,7 @@ describe("régler le closer (#990)", () => {
   const FERMETURE = readFileSync(join(RACINE, "docs/runtime/fermeture.md"), "utf8");
 
   test("le modèle et l'effort s'écrivent ensemble, sur une ligne : les deux gestes de la doc, l'un après l'autre — rien ne part", () => {
-    for (const geste of ["closer-modele <modèle>", "closer-effort <effort>"]) assert.ok(FERMETURE.includes(geste), `docs/runtime/fermeture.md ne nomme plus « ${geste} »`);
+    for (const geste of ["closer-modele <model>", "closer-effort <effort>"]) assert.ok(FERMETURE.includes(geste), `docs/runtime/fermeture.md ne nomme plus « ${geste} »`);
     assert.deepEqual(ecritPourLeCloser(PARADE, "sonnet", "medium"), { commande: "!ssh box brigade parade station closer-modele sonnet && ssh box brigade parade station closer-effort medium" });
     // Il n'est pas un bouton de l'onglet : il ne s'écrit qu'avec ses deux valeurs.
     assert.ok(!BOUTONS.some(({ id }) => id === REGLER_LE_CLOSER));

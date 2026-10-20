@@ -233,7 +233,7 @@ body, between two markers:
 
 ```markdown
 <!-- brigade:tickets -->
-## Tickets de l'épique
+## The epic's tickets
 
 **1/3 servi.**
 

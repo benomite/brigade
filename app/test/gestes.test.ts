@@ -29,12 +29,12 @@ import { type Faux, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.
 const RACINE = join(import.meta.dirname, "../..");
 const SOURCE = SOURCE_DOC;
 const doc = docRuntime(RACINE);
-const PILOTER = doc.slice(doc.indexOf("### Piloter"), doc.indexOf("### Recette du chef"));
+const PILOTER = doc.slice(doc.indexOf("### Driving"), doc.indexOf("### Chef's acceptance test"));
 const PARADE = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
 
 // Les deux écritures que « Piloter » tient séparées : sur la box, et depuis le poste.
-const DE_BOX = "brigade <projet> <commande>";
-const DE_POSTE = "ssh <hote> brigade <nom> <commande>";
+const DE_BOX = "brigade <projet> <command>";
+const DE_POSTE = "ssh <host> brigade <name> <command>";
 
 // Ce qu'une ligne de « Piloter » cite : entre crochets c'est facultatif, et `|` y sépare les choix.
 function formes(usage: string): string[] {
@@ -159,17 +159,17 @@ describe("les gestes du chef", () => {
   test(`${SOURCE}, « Piloter », donne les deux écritures d'un geste : \`${DE_BOX}\` sur la box, \`${DE_POSTE}\` depuis le poste — c'est la seconde que l'app écrit`, () => {
     // La doc se replie où elle veut : seuls ses mots comptent.
     const mots = PILOTER.replace(/\s+/g, " ");
-    assert.ok(mots.includes(`Le *geste de box* est \`${DE_BOX}\``), "« Piloter » ne donne plus cette forme sur la box");
-    assert.ok(mots.includes(`Le *geste de poste* est \`${DE_POSTE}\``), "« Piloter » ne donne plus cette forme depuis le poste");
+    assert.ok(mots.includes(`The *box gesture* is \`${DE_BOX}\``), "« Piloter » ne donne plus cette forme sur la box");
+    assert.ok(mots.includes(`The *workstation gesture* is \`${DE_POSTE}\``), "« Piloter » ne donne plus cette forme depuis le poste");
   });
 
   for (const [id, grant, citee, ecrite, section] of GESTES_DE_LA_DOC) {
     test(`« ${id} » écrit \`${ecrite}\` — caractère pour caractère la commande de ${SOURCE}, « ${section} » : \`${citee}\`, dans sa forme de poste`, () => {
       assert.ok(SECTIONS[section].has(citee), `${SOURCE}, « ${section} », ne cite plus \`${citee}\``);
       // La forme de poste de la doc, avec l'hôte et le nom de ce projet : rien d'autre n'y est changé.
-      const mots = citee.slice(DE_BOX.indexOf("<commande>"));
-      assert.equal(DE_BOX.replace("<commande>", mots), citee);
-      const attendu = DE_POSTE.replace("<hote>", "box").replace("<nom>", "parade").replace("<commande>", mots);
+      const mots = citee.slice(DE_BOX.indexOf("<command>"));
+      assert.equal(DE_BOX.replace("<command>", mots), citee);
+      const attendu = DE_POSTE.replace("<host>", "box").replace("<name>", "parade").replace("<command>", mots);
 
       assert.deepEqual(commandeDuGeste(id, PARADE, grant), { commande: attendu });
       assert.equal(attendu, ecrite);

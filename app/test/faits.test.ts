@@ -22,7 +22,7 @@ import { commandeDuGeste, CONFIRMES } from "../src/gestes.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
 const doc = docRuntime(RACINE);
-const SECTION = doc.slice(doc.indexOf("### Les faits, pour un programme"));
+const SECTION = doc.slice(doc.indexOf("### The facts, for a program"));
 // L'exemple de la doc : la seule ligne de son bloc `json`.
 const EXEMPLE = SECTION.slice(SECTION.indexOf("```json\n") + 8, SECTION.indexOf("\n```", SECTION.indexOf("```json\n")));
 
@@ -339,8 +339,8 @@ const tonDeTicket = (etat: string) => cartes(rail({ ...FAITS, rail: [{ ticket: 1
 describe("une couleur sur un mot de la liste fermée", () => {
   test("les quatre états d'un projet ont la leur — ceux de docs/runtime/, pas un de plus", () => {
     assert.deepEqual(["ouverte", "retenue", "arrêtée", "éteinte"].map(tonDeProjet), ["vert", "jaune", "rouge", "rouge"]);
-    const table = SECTION.slice(SECTION.indexOf("| Mot | Quand |"), SECTION.indexOf("**L'état d'un ticket**"));
-    assert.deepEqual([...table.matchAll(/^\| `([^`]+)` \|/gm)].map(([, mot]) => mot).sort(), ["arrêtée", "ouverte", "retenue", "éteinte"].sort());
+    const table = SECTION.slice(SECTION.indexOf("| Word | When |"), SECTION.indexOf("**A ticket's state**"));
+    assert.deepEqual([...table.matchAll(/^\| `([^`]+)`(?: \([a-z]+\))? \|/gm)].map(([, mot]) => mot).sort(), ["arrêtée", "ouverte", "retenue", "éteinte"].sort());
   });
 
   test("les six états d'un ticket ont la leur — ceux que la doc énumère", () => {
@@ -922,8 +922,8 @@ describe("la bannière d'arrêt", () => {
   });
 
   test("ce qu'elle dit de l'arrêt est ce que docs/runtime/ en dit", () => {
-    assert.ok(doc.includes("| « stop » | Tous les cooks en cours sont arrêtés dans la seconde, et plus aucun n'est lancé |"));
-    assert.ok(doc.includes("**Le\ndisjoncteur ouvert et le « stop » tiennent**, redémarrage compris, jusqu'à « reprendre »."));
+    assert.ok(doc.includes("| \"stop\" | All running cooks are stopped within the second, and none is launched any more |"));
+    assert.ok(doc.includes("**An open\nbreaker and the \"stop\" hold**, restarts included, until \"resume\"."));
     assert.deepEqual(BANNIERE.texte, [
       "KITCHEN STOPPED — your “stop” holds",
       "All running cooks have been stopped, and none is launched any more — runtime restarts included, until “resume”.",
