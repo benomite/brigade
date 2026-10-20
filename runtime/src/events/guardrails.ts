@@ -40,6 +40,10 @@ export const RELEVE = "cook.progressed";
 // `continues`: the cook that takes over the preserved work of another — that
 // of a remote station that vanished mid-cook (`travail-conserve.ts`): the run
 // of that cook. Its branch is its own.
+// `lessons`: the ids of the project's provisional lessons the cook of a ticket
+// received in its prompt, most recent first (`apprentissage/injection.ts`) —
+// empty, it received none. Absent: a cook that serves no ticket (a manager
+// judgement, the closing pass), or one launched before lessons were injected.
 export type ContexteCook = {
   station: string;
   model: string;
@@ -53,6 +57,7 @@ export type ContexteCook = {
   sandbox?: boolean;
   resumes?: { run: string; session: string };
   continues?: string;
+  lessons?: string[];
 };
 
 export type FaitGardeFous =

@@ -19,6 +19,7 @@ import { brancherPass, configPass } from "./pass.ts";
 import { CARNET_PATH } from "./carnet/carnet.ts";
 import { brancherCarnet } from "./promotion/livrer.ts";
 import { lireSeuils as lireSeuilsDesLecons } from "./seuils/seuils.ts";
+import { lirePlafondDesLecons } from "./apprentissage/injection.ts";
 import { brancherSession, configSession, type ConfigSession } from "./renouvellement.ts";
 import { brancherReseau, configReseau, DECLARATION_RESEAU, passerParLaPorte, sonderLeFiltre } from "./reseau.ts";
 import { configReviewer } from "./reviewer.ts";
@@ -96,6 +97,9 @@ try {
   lireSeuils(decide);
   // Les seuils des leçons : un réglage de l'unité du projet, lu une fois.
   const seuilsDesLecons = lireSeuilsDesLecons(process.env);
+  // Combien de leçons provisoires reçoit le cook d'un ticket : un réglage de
+  // l'unité du projet, lu une fois.
+  const leconsInjectees = lirePlafondDesLecons(process.env);
   configFermeture(decide);
   arbitre = configArbitrage(process.env);
   secrets = configSecrets(process.env, { repertoireEtat, clone: station.clone });
@@ -159,6 +163,7 @@ try {
     gardeTranscriptsMs: station.gardeTranscriptsMs,
     apresCook: pass.reveillerPass,
     arbitre: arbitre === null ? null : joindreArbitre(arbitre),
+    leconsInjectees,
   });
   // Le manager en dernier : il ne lance que des jugements et des découpages,
   // et rien ne dépend de lui pour servir ce qui est déjà sur le rail.

@@ -5,12 +5,12 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { enregistrerRetro } from "../../src/apprentissage/provisoires.ts";
-import { apprentissageDuProjet, LECONS_INJECTEES } from "../../src/apprentissage/projet.ts";
+import { apprentissageDuProjet } from "../../src/apprentissage/projet.ts";
 import { CARNET_PATH, saveCarnet } from "../../src/carnet/carnet.ts";
 import { principal as faits } from "../../src/faits.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { saveDefinition } from "../../src/profils/definition.ts";
-import { appeler, faitInconnu, repertoireTemporaire } from "../outils.ts";
+import { appeler, repertoireTemporaire } from "../outils.ts";
 
 // Un projet : une leçon provisoire (L1, proposée par le ticket 21), une promue (L-001, du carnet), un profil.
 function projet(t: TestContext, { garni = true } = {}) {
@@ -26,8 +26,8 @@ function projet(t: TestContext, { garni = true } = {}) {
       { id: "L-002", text: "sortie", state: "retired", entered: "2026-10-01", retros: ["#13"], exit: { date: "2026-10-05", reason: "manual" } },
     ] });
     saveDefinition(depot, { name: "app-src-vue", zone: "app/src/vue", perimeter: ["app/src/vue"], skills: [], accepted: "2026-10-19", tickets: [3, 4], notebook: { lessons: [{ id: "L-001", text: "peau mince", state: "promoted", entered: "2026-10-02", retros: ["#3"] }] } });
-    // Deux cooks ont reçu la leçon provisoire, un seul (deux fois) la promue.
-    for (const [run, lessons] of [["a", ["L1", "L-001"]], ["b", ["L1"]], ["a", ["L-001"]]] as const) journal.ajouter({ project: "p", ticket: null, author: "station", ...faitInconnu(LECONS_INJECTEES, { run, lessons }) });
+    // Deux cooks ont reçu la leçon provisoire, un seul la promue ; un troisième n'en a reçu aucune.
+    for (const [run, lessons] of [["a", ["L1", "L-001"]], ["b", ["L1"]], ["c", []]] as const) journal.ajouter({ project: "p", ticket: null, author: "station", type: "cook.launched", payload: { run, limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/${run}.jsonl`, lessons: [...lessons] } });
   }
   return { etat, depot, journal };
 }

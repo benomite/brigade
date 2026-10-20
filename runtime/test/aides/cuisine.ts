@@ -463,6 +463,8 @@ export type Options = {
   avertir?: (message: string) => void;
   // Le délai de présence d'une station distante.
   presenceMs?: number;
+  // Combien de leçons provisoires du projet reçoit le cook d'un ticket.
+  leconsInjectees?: number;
   // Les décisions du chef sont relues au journal : stations, calibrage du
   // reviewer et du manager — celles du test, tant qu'il n'en pose pas d'autres.
   decisions?: boolean;
@@ -608,6 +610,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
     apresCook: jugee?.reveillerPass,
     arbitre: options.arbitre,
     presenceMs: options.presenceMs,
+    leconsInjectees: options.leconsInjectees,
   });
   const runtime = options.manager
     ? brancherManager(servie, {

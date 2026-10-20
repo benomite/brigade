@@ -17,6 +17,23 @@ Le carnet a donc deux étages :
 Une leçon qui n'est pas dans le carnet est provisoire. Ce que le projet a appris — provisoire et
 promu — se lit dans `faits` (`apprentissage`, voir [`etat-et-mesures.md`](etat-et-mesures.md)).
 
+### Ce que reçoit un cook
+
+Le cook lancé sur un ticket — premier cook, reprise d'un travail conservé, renvoi de la pass, d'ici
+ou d'une station distante — reçoit dans sa consigne les **leçons provisoires de son projet**, et
+d'aucun autre : chacune avec son id, la plus récente d'abord (récente par la rétro qui l'a
+proposée). Une leçon que le carnet de la branche d'intégration tient — promue, ou sortie — n'est
+plus provisoire : elle n'est pas reçue. Un carnet illisible n'en retire aucune. Le module est
+`runtime/src/apprentissage/injection.ts`.
+
+Il en reçoit **au plus 20**, les plus récentes : un réglage du projet, pour que le contexte de
+chaque cook ne grossisse pas sans fin. `BRIGADE_INJECTED_LESSONS` dans le drop-in de son unité,
+comme les seuils plus bas ; `0` les coupe. Un entier mal écrit fait refuser le démarrage en nommant
+la variable ; `seuils-cli.ts` le montre avec les seuils.
+
+Le journal dit ce qu'il a reçu : `lessons` de son `cook.launched`, les ids, dans l'ordre de sa
+consigne — `[]` s'il n'en a reçu aucune. Sans leçon, sa consigne est celle d'avant.
+
 ### Le format du carnet
 
 Lisible à la main, un bloc par leçon, triés par id :

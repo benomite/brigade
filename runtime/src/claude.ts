@@ -6,6 +6,7 @@
 import { execFile } from "./sans-invite.ts";
 import type { Calibrage } from "./calibrage.ts";
 import type { FinDeCook } from "./events/station.ts";
+import { blocDesLecons, type LeconRecue } from "./apprentissage/injection.ts";
 import { CONSIGNE_DE_RETRO } from "./apprentissage/retro.ts";
 import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE } from "./livrable.ts";
 
@@ -99,12 +100,14 @@ export function ticketRemis(ticket: { number: number; title: string; body: strin
   ].join("\n");
 }
 
-// Le profil du cook, en dur au jalon 1.
-export function consigne(mission: { ticket: number; titre: string; depot: string; base: string; remis?: string }): string {
+// Le profil du cook, en dur au jalon 1. `lecons` : celles du projet qu'il
+// reçoit (`apprentissage/injection.ts`).
+export function consigne(mission: { ticket: number; titre: string; depot: string; base: string; remis?: string; lecons?: LeconRecue[] }): string {
   const { ticket, titre, depot, base } = mission;
   return [
     `Tu es un cook de la brigade : tu exécutes un seul ticket, le ticket #${ticket} du dépôt ${depot} — « ${titre} ».`,
     "",
+    ...blocDesLecons(mission.lecons),
     `1. Lis le ticket en entier : ${lectureDuTicket(mission)}.`,
     `2. Tu es dans un worktree qui t'est propre, sur une branche neuve partie de \`${base}\`. Travaille ici et nulle part ailleurs. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le.`,
     "3. Vérifie ton travail comme le dépôt le demande (tests, gates), puis commite-le sur cette branche.",
@@ -120,13 +123,14 @@ export function consigne(mission: { ticket: number; titre: string; depot: string
 // d'une station distante disparue en pleine cuisson — poste fermé, en veille —
 // dont la branche était poussée (`travail-conserve.ts`). Il ne repart pas de
 // zéro : il finit ce qui est commencé, sous les mêmes règles qu'un premier cook.
-export function consigneDeSuite(mission: { ticket: number; titre: string; depot: string; base: string; branche: string; remis?: string }): string {
+export function consigneDeSuite(mission: { ticket: number; titre: string; depot: string; base: string; branche: string; remis?: string; lecons?: LeconRecue[] }): string {
   const { ticket, titre, depot, base, branche } = mission;
   return [
     `Tu es un cook de la brigade : tu reprends un seul ticket, le ticket #${ticket} du dépôt ${depot} — « ${titre} ».`,
     "",
     `Un cook a commencé ce ticket sur la branche \`${branche}\`, partie de \`${base}\`, et sa station a disparu avant qu'il ne livre — son poste fermé, ou en veille. Ce qu'il avait poussé est conservé : tu es dans un worktree qui t'est propre, sur cette branche, avec ses commits. Ne repars pas de zéro : finis son travail.`,
     "",
+    ...blocDesLecons(mission.lecons),
     `1. Lis le ticket en entier : ${lectureDuTicket(mission)} ; puis ce qui est déjà fait : \`git log origin/${base}..HEAD\` et \`git diff origin/${base}...HEAD\`. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le.`,
     "2. Juge ce qui est fait et ce qui reste, puis finis le ticket sur cette branche. Ce qui est commité est un point de départ, pas une preuve : ce qui ne tient pas, corrige-le. Travaille ici et nulle part ailleurs.",
     `3. Vérifie ton travail comme le dépôt le demande (tests, gates), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite-le sur cette branche.`,
