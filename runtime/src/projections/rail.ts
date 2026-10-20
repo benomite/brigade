@@ -15,9 +15,11 @@ import type { FaitGardeFous } from "../events/guardrails.ts";
 import { NON_JUGEE, type FaitPass, type Finding } from "../events/pass.ts";
 import { ATTEND_UN_TIERS, REDECOUPE, REVENU_D_ATTENTE, SANS_STATION, type FaitRail } from "../events/rail.ts";
 import type { Fiche } from "../fiche.ts";
+import { bilanDEpique } from "../bilan-epique.ts";
 import { definirProjection } from "../projection.ts";
 import { recouvrement } from "../zones.ts";
 import { constats } from "./pass.ts";
+import { decoupageDe } from "./splits.ts";
 
 export type Etat = "waiting" | "taken" | "pass" | "served" | "86";
 
@@ -503,6 +505,14 @@ function attendus(base: Base, card: Fiche | null): Attendu[] {
   return (card?.waitsFor ?? []).flatMap((ticket) => {
     const sort = sortDuTicket(base, ticket);
     if (sort?.outcome === "served") return [];
+    // Un ticket redécoupé qui a quitté le rail n'est pas abandonné : ses
+    // morceaux le servent. Tous servis, il est livré ; sinon ils sont en route,
+    // et seul un morceau perdu le laisse bloquer ceux qui l'attendent.
+    if (sort?.outcome === "left" && decoupageDe(base, ticket)?.state === "split") {
+      const bilan = bilanDEpique(base, ticket);
+      if (bilan.toutServi) return [];
+      if (bilan.manquants.length === 0) return [{ ticket, left: null }];
+    }
     return [{ ticket, left: sort ? { reason: sort.reason ?? "", seq: sort.seq } : null }];
   });
 }

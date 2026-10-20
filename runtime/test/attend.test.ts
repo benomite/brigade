@@ -5,6 +5,8 @@ import { test, type TestContext } from "node:test";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
+import { lireRail } from "../src/projections/rail.ts";
+import { retenue } from "../src/rail.ts";
 import { JOUR_HORLOGE, jourDecale, repertoireTemporaire } from "./outils.ts";
 
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -332,6 +334,28 @@ test("un ticket bloqué quitte la file quand sa dépendance revient sur le rail 
   noter({ type: "ticket.changed", payload: { title: "Ticket 17", priority: null, card: { waitsFor: [], zone: [], problems: [] } } }, 17, "github");
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`), RIEN);
+});
+
+const prevu = (title: string) => ({ title, context: "", criteria: ["Un critère."], waitsFor: [], zone: ["docs/"], model: "haiku", effort: "low", calibration: "Doc." });
+
+test("un ticket redécoupé, sorti du rail, livre ceux qui l'attendent quand tous ses morceaux sont servis — et d'ici là ils attendent sans carte", (t) => {
+  const { journal, a, arriver, noter, bloc } = cuisine(t);
+  arriver(1159);
+  arriver(1161, [1159]);
+  noter({ type: "manager.split", payload: { run: "d", fingerprint: "e", reason: "Deux livrables.", order: "Dans l'ordre.", tickets: [prevu("A"), prevu("B")] } }, 1159, "manager");
+  noter({ type: "manager.split-created", payload: { epic: 1159, index: 1, reconciled: false } }, 1167, "manager");
+  noter({ type: "manager.split-created", payload: { epic: 1159, index: 2, reconciled: false } }, 1168, "manager");
+  noter({ type: "ticket.left", payload: { reason: "closed" } }, 1159, "github");
+  noter({ type: "ticket.served", payload: {} }, 1167);
+  a(`${JOUR_HORLOGE}T11:00:00.000Z`);
+
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`), RIEN);
+  const attend = () => lireRail(journal.base).find((ticket) => ticket.ticket === 1161);
+  assert.deepEqual(attend()?.awaits, [{ ticket: 1159, left: null }]);
+
+  noter({ type: "ticket.served", payload: {} }, 1168);
+  assert.deepEqual(attend()?.awaits, []);
+  assert.equal(retenue(attend() as never), null);
 });
 
 test("la file ne garde rien : relue d'un journal rouvert en lecture seule, elle dit la même chose", (t) => {
