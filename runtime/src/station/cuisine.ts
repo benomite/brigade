@@ -84,7 +84,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   for (const nom of decisionsDansLEnvironnement(envProjet)) dire(direDecisionIgnoree(nom, projet));
   const decide = environnementDecide(envProjet, decisionsAuDemarrage(repertoireEtat));
   const station = configStation(decide);
-  if (!existsSync(station.clone)) throw new ConfigInvalide(`le clone du projet (${station.clone}) n'existe pas`);
+  if (!existsSync(station.clone)) throw new ConfigInvalide(`le clone du projet (${station.clone}) n'existe pas`, "clone-missing");
   supportDesDecisions({ repertoireEtat, clone: station.clone });
   const { stations } = station;
   const delais = configPass(envProjet);

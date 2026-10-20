@@ -211,6 +211,12 @@ Il tient jusqu'à l'essai suivant : raté, celui-ci le remplace, avec sa nouvell
 disparaît. Chaque essai revérifie l'accès d'abord : le geste fait, la station repart seule à son
 prochain essai, sans redémarrage de l'app.
 
+**Le refus, dit au chef** (#1177) : quelle qu'en soit la cause, un projet `refuse` porte aussi `refus` —
+`{ status: "refused", code, message, action }`. `code` est stable (`sandbox-unusable`, `door-not-open`,
+`clone-failed`, `fetch-blocked`, `push-blocked`, `already-served`… ; la liste fait foi dans
+`runtime/src/projets/refus.ts`), `message` une phrase pour le chef, `action` ce qu'il peut faire. Le
+champ disparaît dès que le projet est servi. Le fichier `en-service` garde le texte brut de l'erreur.
+
 ### Le premier ticket : préparer le dépôt
 
 *Ticket #796.* Avant d'écrire la ligne d'un projet ajouté depuis l'app, la station ouvre sur son

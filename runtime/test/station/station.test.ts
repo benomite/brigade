@@ -174,6 +174,7 @@ test("un projet dont la porte n'a pas encore dit son port attend, en le disant ;
   assert.ok(portes);
   assert.deepEqual(servie.projets(), []);
   assert.match(servie.refus("espace") ?? "", /sa porte n'est pas ouverte — brigade-station-porte\.service n'a pas écrit son port dans .*portes\.json/);
+  assert.equal(servie.cause("espace"), "door-not-open");
   // Relire sans port ne le redit pas.
   const dits = lignes.length;
   servie.relire();
@@ -212,5 +213,18 @@ test("sous les portes de la station, une ligne qui nomme sa propre porte est ref
   ecrirePortes(portes, { station: 41000, projets: { brigade: 41001, espace: 41002 } });
   servie.relire();
   assert.deepEqual(servie.projets(), ["espace"]);
+  assert.equal(servie.cause("brigade"), "proxy-port-set");
   assert.match(servie.refus("brigade") ?? "", /BRIGADE_PROXY_PORT ne se règle pas sur sa ligne : la station donne à chaque projet sa porte \(brigade-station-porte\.service\)/);
+});
+
+test("chaque refus d'ouverture a sa cause — et le texte brut du refus reste celui de l'erreur", (t) => {
+  const { ecrire, refus, servie } = station(t, "");
+  refus.set("a", new DejaEnCours("un autre runtime le tient"));
+  refus.set("b", new ConfigInvalide("sans cause"));
+  refus.set("c", new ConfigInvalide("bac à sable inutilisable", "sandbox-unusable"));
+  refus.set("d", new Error("imprévu"));
+  ecrire("a benomite/a v2\nb benomite/b v2\nc benomite/c v2\nd benomite/d v2\ne benomite/e v2\n");
+  servie.relire();
+  assert.deepEqual([servie.cause("a"), servie.cause("b"), servie.cause("c"), servie.cause("d"), servie.cause("e")], ["already-served", "configuration-invalid", "sandbox-unusable", "unexpected", null]);
+  assert.deepEqual(servie.refuses(), { a: "un autre runtime le tient", b: "sans cause", c: "bac à sable inutilisable", d: "imprévu" });
 });

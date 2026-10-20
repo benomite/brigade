@@ -5,8 +5,9 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { join } from "node:path";
 import type { VeilleConnexionMax } from "../connexion-max/veille.ts";
-import { DejaEnCours } from "../runtime.ts";
+import { ConfigInvalide, DejaEnCours } from "../runtime.ts";
 import { CONFIGURATION, environnementDuProjet, lireFichierDeConfiguration, type ProjetConfigure } from "./configuration.ts";
+import type { CodeDeRefus } from "../projets/refus.ts";
 import { demenagerVersLAtelier } from "./atelier.ts";
 import { ouvrirCuisine, type Cuisine, type OptionsCuisine } from "./cuisine.ts";
 import { lirePortes, UNITE_DES_PORTES, type Portes } from "./portes.ts";
@@ -41,6 +42,8 @@ export type Station = {
   refuses(): Record<string, string>;
   // Pourquoi la station refuse ce projet de sa configuration, ou null.
   refus(nom: string): string | null;
+  // La cause de ce refus, pour le chef (`projets/refus.ts`), ou null.
+  cause(nom: string): CodeDeRefus | null;
   // Arrête chaque projet, comme un signal arrêtait son runtime.
   arreter(signal: string): void;
 };
@@ -56,6 +59,13 @@ export const projetEnCours = (): string | null => enCours.getStore() ?? null;
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
+// Ce qui, dans une erreur d'ouverture, dit pourquoi le projet est refusé.
+const causeDe = (erreur: unknown): CodeDeRefus => {
+  if (erreur instanceof DejaEnCours) return "already-served";
+  if (erreur instanceof ConfigInvalide) return erreur.code ?? "configuration-invalid";
+  return "unexpected";
+};
+
 // Ce que la station dit au nom d'un projet : la ligne porte son nom.
 export const nommer = (projet: string, ligne: string) => `brigade [${projet}] : ${ligne.replace(/^brigade : /, "")}`;
 const auNomDe = (dire: (ligne: string) => void, projet: string) => (ligne: string) => dire(nommer(projet, ligne));
@@ -69,7 +79,7 @@ export function ouvrirStation(options: OptionsStation): Station {
   const ouvertes = new Map<string, { cle: string; cuisine: Cuisine }>();
   // Un projet refusé ne se réessaie que si sa ligne ou sa porte change — sauf
   // celui qu'un autre runtime tient encore : il est repris dès qu'il est libre.
-  const refuses = new Map<string, { cle: string; motif: string; reessayer: boolean }>();
+  const refuses = new Map<string, { cle: string; motif: string; cause: CodeDeRefus; reessayer: boolean }>();
   let ditsProblemes = "";
   let arretee = false;
 
@@ -92,9 +102,9 @@ export function ouvrirStation(options: OptionsStation): Station {
   const environnement = (projet: ProjetConfigure, lus: Portes | null) => {
     const sien = environnementDuProjet(racine, projet, env);
     if (lus === null) return sien;
-    if ("BRIGADE_PROXY_PORT" in projet.reglages) throw new Error(`BRIGADE_PROXY_PORT ne se règle pas sur sa ligne : la station donne à chaque projet sa porte (${UNITE_DES_PORTES})`);
+    if ("BRIGADE_PROXY_PORT" in projet.reglages) throw new ConfigInvalide(`BRIGADE_PROXY_PORT ne se règle pas sur sa ligne : la station donne à chaque projet sa porte (${UNITE_DES_PORTES})`, "proxy-port-set");
     const port = portDe(projet, lus);
-    if (port === null) throw new Error(`sa porte n'est pas ouverte — ${UNITE_DES_PORTES} n'a pas écrit son port dans ${portes} (journalctl -u ${UNITE_DES_PORTES}) ; la station l'ouvre dès qu'elle l'est`);
+    if (port === null) throw new ConfigInvalide(`sa porte n'est pas ouverte — ${UNITE_DES_PORTES} n'a pas écrit son port dans ${portes} (journalctl -u ${UNITE_DES_PORTES}) ; la station l'ouvre dès qu'elle l'est`, "door-not-open");
     return { ...sien, BRIGADE_PROXY_PORT: String(port) };
   };
 
@@ -118,7 +128,7 @@ export function ouvrirStation(options: OptionsStation): Station {
     } catch (erreur) {
       const motif = message(erreur);
       const avant = refuses.get(projet.nom);
-      refuses.set(projet.nom, { cle, motif, reessayer: erreur instanceof DejaEnCours });
+      refuses.set(projet.nom, { cle, motif, cause: causeDe(erreur), reessayer: erreur instanceof DejaEnCours });
       if (avant?.motif !== motif || avant.cle !== cle) dit(`refusé par la station, les autres projets restent servis — ${motif}`);
     }
   };
@@ -157,6 +167,7 @@ export function ouvrirStation(options: OptionsStation): Station {
     projets: () => [...ouvertes.keys()],
     refuses: () => Object.fromEntries([...refuses].map(([nom, { motif }]) => [nom, motif])),
     refus: (nom) => refuses.get(nom)?.motif ?? null,
+    cause: (nom) => refuses.get(nom)?.cause ?? null,
     arreter(signal) {
       if (arretee) return;
       arretee = true;

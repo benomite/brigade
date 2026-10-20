@@ -38,6 +38,11 @@
 //     une phrase, et `geste`, ce que le chef fait pour le lever (par exemple
 //     `gh auth setup-git`) ; l'état est alors `refuse`, et `dit` les porte
 //     tous deux.
+//     `refus` (absent tant que rien n'est refusé) : pourquoi la station ne sert
+//     pas ce projet, pour le chef (`refus.ts`) — `status` (toujours
+//     « refused »), `code` (stable), `message` (une phrase) et `action` (ce que
+//     le chef fait). Il accompagne l'état `refuse`, et disparaît dès que le
+//     projet est servi.
 //     `worktree` (absent tant qu'aucun n'échoue) : la cuisine du projet n'a pas
 //     pu préparer le worktree d'un ticket (`echec-du-worktree.ts`) — `ticket`,
 //     `raison` (l'erreur de git), `prochainEssai` (ISO, l'heure où elle
@@ -57,6 +62,7 @@ import { EFFORTS, MODELES } from "../calibrage.ts";
 import type { Onboarding } from "../onboarding/etat.ts";
 import type { EchecDuWorktree } from "../echec-du-worktree.ts";
 import type { AccesBloque } from "./acces.ts";
+import type { Refus } from "./refus.ts";
 import { NOM_DE_PROJET } from "../runtime.ts";
 
 export const FICHIER_PROJETS = "brigade-projets.json";
@@ -123,6 +129,7 @@ export type SuiviDuProjet = {
   ici?: boolean;
   bascule?: Bascule | null;
   acces?: AccesBloque;
+  refus?: Refus;
   worktree?: EchecDuWorktree;
 };
 

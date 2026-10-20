@@ -16,6 +16,7 @@ import { DEBUT, FIN } from "../../src/projets/bloc.ts";
 import { FICHIER_PROJETS, FICHIER_SUIVI, type SuiviDuProjet } from "../../src/projets/demande.ts";
 import type { Onboarding } from "../../src/onboarding/etat.ts";
 import type { Autorisation } from "../../src/projets/preparer.ts";
+import { refus } from "../../src/projets/refus.ts";
 import { tenirProjetsDeLApp } from "../../src/projets/tenir.ts";
 import { depotQuiRefuse } from "../aides/depot-qui-refuse.ts";
 import { aArreter, BASE, depotGit, ENV_GIT, git, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
@@ -211,7 +212,7 @@ test("GitHub muet sur l'autorisation, ou clone en échec : le projet attend, la 
   station.autorisations.delete("benomite/parade");
   station.echouerLeClone(new Error("clone de benomite/parade en échec — Repository not found"));
   await station.projets.relire();
-  assert.deepEqual(station.suivi()?.[0], { nom: "parade", etat: "refuse", dit: "the station could not clone benomite/parade; it retries — clone de benomite/parade en échec — Repository not found", autoriser: [], serviLe: null, cuitSur: null, ici: false, bascule: null });
+  assert.deepEqual(station.suivi()?.[0], { nom: "parade", etat: "refuse", dit: "the station could not clone benomite/parade; it retries — clone de benomite/parade en échec — Repository not found", autoriser: [], serviLe: null, cuitSur: null, ici: false, bascule: null, refus: refus("clone-failed") });
   assert.equal(station.configuration(), "");
 
   station.echouerLeClone(null);
@@ -240,7 +241,33 @@ test("refusé par la station, le suivi dit pourquoi", async (t) => {
   station.refuses.set("parade", "le clone du projet n'existe pas");
   station.demander(PARADE);
   await station.projets.relire();
-  assert.deepEqual(station.suivi()?.[0], { nom: "parade", etat: "refuse", dit: "the station refuses to serve it — le clone du projet n'existe pas", autoriser: [], serviLe: null, cuitSur: null, ici: false, bascule: null });
+  assert.deepEqual(station.suivi()?.[0], { nom: "parade", etat: "refuse", dit: "the station refuses to serve it — le clone du projet n'existe pas", autoriser: [], serviLe: null, cuitSur: null, ici: false, bascule: null, refus: refus("unexpected") });
+});
+
+test("un projet refusé porte un refus structuré — statut, code, phrase, action — que le projet servi ne porte plus", async (t) => {
+  const station = uneStation(t);
+  station.refuses.set("parade", "le clone du projet n'existe pas");
+  station.demander(PARADE);
+  await station.projets.relire();
+  const refuse = station.suivi()?.[0];
+  assert.equal(refuse?.etat, "refuse");
+  assert.deepEqual(refuse?.refus, refus("unexpected"));
+  assert.equal(refuse?.refus?.status, "refused");
+  // La station le sert enfin : le refus est effacé du suivi.
+  station.refuses.delete("parade");
+  await station.projets.relire();
+  const servi = station.suivi()?.[0];
+  assert.equal(servi?.etat, "servi");
+  assert.equal("refus" in (servi ?? {}), false);
+  assert.equal("refus" in (JSON.parse(JSON.stringify(servi)) as object), false);
+});
+
+test("un projet écrit à la main dans la configuration : son refus dit pourquoi", async (t) => {
+  const station = uneStation(t);
+  writeFileSync(join(station.racine, "projets"), "parade benomite/parade main\n");
+  station.demander(PARADE);
+  await station.projets.relire();
+  assert.deepEqual(station.suivi()?.[0]?.refus, refus("hand-written-line"));
 });
 
 // L'accès au dépôt, vérifié sur le remote du clone avant que rien ne soit
