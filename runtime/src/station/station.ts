@@ -7,6 +7,7 @@ import { join } from "node:path";
 import type { VeilleConnexionMax } from "../connexion-max/veille.ts";
 import { DejaEnCours } from "../runtime.ts";
 import { CONFIGURATION, environnementDuProjet, lireFichierDeConfiguration, type ProjetConfigure } from "./configuration.ts";
+import { demenagerVersLAtelier } from "./atelier.ts";
 import { ouvrirCuisine, type Cuisine, type OptionsCuisine } from "./cuisine.ts";
 import { lirePortes, UNITE_DES_PORTES, type Portes } from "./portes.ts";
 
@@ -101,7 +102,16 @@ export function ouvrirStation(options: OptionsStation): Station {
     const dit = auNomDe(dire, projet.nom);
     const cle = cleDe(projet, lus);
     try {
-      const cuisine = enCours.run(projet.nom, () => ouvrir(environnement(projet, lus), { dire: dit, connexion: options.connexion }));
+      const sien = environnement(projet, lus);
+      // Un projet servi avant l'atelier y déménage avant que sa cuisine ne
+      // s'ouvre : son clone et ses worktrees, tels quels.
+      const { BRIGADE_REPO_DIR: clone, BRIGADE_WORKTREES_DIR: worktrees } = sien;
+      if (clone && worktrees) {
+        const demenagement = demenagerVersLAtelier(racine, projet.nom, { clone, worktrees }, { cloneDeLaStation: !("BRIGADE_REPO_DIR" in projet.reglages), env: { ...process.env, ...sien } });
+        for (const ligne of demenagement.deplaces) dit(`déménagé dans l'atelier de la station — ${ligne}`);
+        for (const ligne of demenagement.restes) dit(`pas déménagé dans l'atelier de la station — ${ligne}`);
+      }
+      const cuisine = enCours.run(projet.nom, () => ouvrir(sien, { dire: dit, connexion: options.connexion }));
       ouvertes.set(projet.nom, { cle, cuisine });
       refuses.delete(projet.nom);
       dit(`servi par la station — ${projet.depot}, branche ${projet.base}, état dans ${cuisine.repertoireEtat}`);

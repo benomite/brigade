@@ -14,8 +14,8 @@
 // `claude` y laisse partent une fois passée leur durée de garde. Sans cloison,
 // ils vont sous le `~/.claude` du compte, qui n'est pas au runtime : rien n'y
 // est touché.
-import { resolve } from "node:path";
-import type { Depot } from "./depot.ts";
+import { join } from "node:path";
+import { worktreeDuJournal, type Depot } from "./depot.ts";
 import type { FaitNettoyage } from "./events/cleanup.ts";
 import type { Journal } from "./journal.ts";
 import { lire } from "./plafonds.ts";
@@ -43,6 +43,9 @@ export type OptionsNettoyage = {
   projet: string;
   // Les worktrees se lisent au journal relatifs à ce répertoire.
   repertoireEtat: string;
+  // Le répertoire des worktrees du projet, où le journal les nomme
+  // `worktrees/<run>` (`worktreeDuJournal`). Par défaut, sous l'état.
+  worktrees?: string;
   depot: Pick<Depot, "ranger" | "elaguer">;
   avertir: (message: string) => void;
   // Vrai dès que le runtime s'arrête : le nettoyage ne commence plus rien.
@@ -89,7 +92,7 @@ export function ouvrirNettoyage(options: OptionsNettoyage): Nettoyage {
     let harvest: string | null;
     try {
       await options.avant?.(worktree);
-      harvest = await depot.ranger(resolve(options.repertoireEtat, worktree), branch);
+      harvest = await depot.ranger(worktreeDuJournal({ repertoireEtat: options.repertoireEtat, worktrees: options.worktrees ?? join(options.repertoireEtat, "worktrees") }, worktree), branch);
     } catch (erreur) {
       // Le journal ne répète pas : un worktree déjà gardé l'est encore.
       if (garde(worktree)) return;

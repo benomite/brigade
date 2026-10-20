@@ -18,7 +18,7 @@ import { lireEtatMiseAJour } from "../mise-a-jour/etat.ts";
 import { tenirProjetsDeLApp } from "../projets/tenir.ts";
 import { configReseau, passerParLaPorte } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
-import { CONFIGURATION, ETATS } from "./configuration.ts";
+import { CONFIGURATION, worktreesDeLaStation } from "./configuration.ts";
 import { attendrePorteDeLaStation, configPortes, lirePortes, VARIABLE_PORTES } from "./portes.ts";
 import { nommer, ouvrirStation, projetEnCours } from "./station.ts";
 
@@ -118,7 +118,7 @@ const projetsDeLApp = tenirProjetsDeLApp({
   station: identite.nom,
   env: process.env,
   locale,
-  ...(locale ? { verifierBacASable: () => verifier(sondesDeLaMachine(process.env.BRIGADE_CLAUDE_BIN || "claude"), { home: process.env.HOME ?? homedir(), worktrees: join(racine, ETATS), caches: lireCaches(process.env) }) } : {}),
+  ...(locale ? { verifierBacASable: () => verifier(sondesDeLaMachine(process.env.BRIGADE_CLAUDE_BIN || "claude"), { home: process.env.HOME ?? homedir(), worktrees: worktreesDeLaStation(racine, process.env.HOME ?? homedir()), caches: lireCaches(process.env) }) } : {}),
   servis: station,
   apresEcriture: () => {
     station.relire();

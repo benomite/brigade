@@ -120,8 +120,9 @@ porte se relit.
 
 ### Ce qui reste après un cook
 
-Chaque cook a son worktree (`worktrees/<run>`) et sa branche locale (`cook/<run>`) dans le clone de
-la station. Tu n'as rien à faire.
+Chaque cook a son worktree (`worktrees/<run>`, sous l'état du projet — ou, sur l'ordinateur du chef,
+`~/.local/share/brigade/station/worktrees/<projet>/<run>`) et sa branche locale (`cook/<run>`) dans le
+clone de la station. Le journal le nomme `worktrees/<run>` dans les deux cas. Tu n'as rien à faire.
 
 | Ce qui reste | Quand il part |
 |---|---|

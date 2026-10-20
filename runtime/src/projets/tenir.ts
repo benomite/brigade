@@ -44,7 +44,7 @@ import { ouvrirGitHub } from "../github.ts";
 import { lireEchecDuWorktree } from "../echec-du-worktree.ts";
 import { lireOnboarding } from "../onboarding/lire.ts";
 import { ouvrirLaPreparation } from "../preparation-depot/ouvrir.ts";
-import { CLONES, CONFIGURATION, ETATS } from "../station/configuration.ts";
+import { CONFIGURATION, ETATS, lieuxDuProjet } from "../station/configuration.ts";
 import { lignesDuBloc, nomsHorsDuBloc, reecrireBloc } from "./bloc.ts";
 import { documentDeSuivi, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, suiviDe, type Bascule, type ProjetDemande, type SuiviDuProjet } from "./demande.ts";
 import { verifierAcces, type Acces } from "./acces.ts";
@@ -154,6 +154,9 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
 
   const locale = options.locale ?? false;
   const etatDe = (nom: string) => join(racine, ETATS, nom);
+  // Le clone d'un projet, dans l'atelier de la station : là où ses cooks le
+  // liront (`station/configuration.ts`).
+  const cloneDe = (nom: string) => lieuxDuProjet(racine, nom, env.HOME).clone;
   const suiviDu = (projet: ProjetDemande, etat: SuiviDuProjet["etat"], dit: string, autoriser: string[] = []): SuiviDuProjet => ({ nom: projet.nom, etat, dit, autoriser, serviLe: null, cuitSur: null, ici: false, bascule: null });
 
   // Ce qu'il faut pour servir un projet avant d'y rien écrire : ses Apps
@@ -171,7 +174,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       autorises.add(projet.depot);
     }
     try {
-      await clonerLe(projet.depot, join(racine, CLONES, projet.nom));
+      await clonerLe(projet.depot, cloneDe(projet.nom));
     } catch (erreur) {
       const dit = message(erreur);
       direUneFois(`clone ${projet.nom} ${dit}`, `brigade : station — ${projet.nom} n'est pas cloné, la station réessaie : ${dit}`);
@@ -180,7 +183,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     // Un accès refusé ne se lève que par un geste du chef : rien n'est préparé
     // d'ici là — ni décisions, ni ticket de préparation, ni ligne. La station
     // revérifie à chaque cadence, et le sert dès que le geste est fait.
-    const acces = await verifierLAcces(projet, join(racine, CLONES, projet.nom));
+    const acces = await verifierLAcces(projet, cloneDe(projet.nom));
     if (acces.etat === "injoignable") return suivi("en-preparation", `the station could not check that it may fetch and push on ${projet.depot}; it retries every ${Math.round((options.cadenceMs ?? CADENCE_MS) / 1000)} s — ${acces.dit}`);
     if (acces.etat === "bloque") {
       const { bloque, raison, geste } = acces;
@@ -207,7 +210,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     // Le premier ticket de sa cuisine, ouvert avant sa ligne : la cuisine qui
     // s'ouvre ensuite n'en laisse partir aucun autre avant lui.
     try {
-      const { ticket, ouvert } = await ouvrirLe(projet, join(racine, ETATS, projet.nom), join(racine, CLONES, projet.nom));
+      const { ticket, ouvert } = await ouvrirLe(projet, join(racine, ETATS, projet.nom), cloneDe(projet.nom));
       if (ouvert) dire(`brigade : station — ${projet.nom} : ticket #${ticket} ouvert sur ${projet.depot} pour préparer le dépôt (gates, setup de worktree, sites autorisés) — le rail n'en sert aucun autre avant son merge`);
     } catch (erreur) {
       const dit = message(erreur);
@@ -421,7 +424,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
         if (!projet.principale || (projet.reprise ?? null) !== null) return [];
         const dit = suivi.find(({ nom }) => nom === projet.nom) ?? null;
         const repertoireEtat = etatDe(projet.nom);
-        return [[projet.nom, lireOnboarding({ repertoireEtat, projet: projet.nom, depot: projet.depot, station, suivi: dit, clone: existsSync(join(racine, CLONES, projet.nom)) })]];
+        return [[projet.nom, lireOnboarding({ repertoireEtat, projet: projet.nom, depot: projet.depot, station, suivi: dit, clone: existsSync(cloneDe(projet.nom)) })]];
       }),
     );
     // Le suivi ne se réécrit que s'il a changé : un gist n'est pas un journal.

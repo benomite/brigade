@@ -21,7 +21,7 @@ import { environnementCook, sessionClaude } from "./claude.ts";
 import { configJeton, environnementClaude } from "./jeton-claude.ts";
 import { configCloison } from "./cloison.ts";
 import { SOURCES } from "./code.ts";
-import { ouvrirDepot } from "./depot.ts";
+import { ouvrirDepot, worktreesDuProjet } from "./depot.ts";
 import { cheminJournal, ouvrirJournal } from "./journal.ts";
 import { lireSeuils } from "./derive.ts";
 import { lireReglages } from "./garde-fous.ts";
@@ -923,7 +923,7 @@ export async function mesurerSetup(env: NodeJS.ProcessEnv): Promise<MesureSetup>
   if (!etat) throw new ConfigInvalide("BRIGADE_STATE_DIR n'est pas défini");
   const { clone, base } = configStation(env);
   const { dureeBailMs } = configRail(env);
-  const depot = ouvrirDepot({ clone, base, worktrees: join(etat, "worktrees"), env });
+  const depot = ouvrirDepot({ clone, base, worktrees: worktreesDuProjet(env, etat), env });
   const sha = await depot.rapatrier();
   // Ce qu'une sonde tuée en plein setup aurait laissé.
   depot.jeter(SONDE);
@@ -1005,7 +1005,7 @@ export function desinstaller(env: NodeJS.ProcessEnv, { confirme }: { confirme: b
   const clone = env.BRIGADE_REPO_DIR;
   if (!etat) throw new ConfigInvalide("BRIGADE_STATE_DIR n'est pas défini");
   if (!clone) throw new ConfigInvalide("BRIGADE_REPO_DIR n'est pas défini");
-  const worktrees = join(etat, "worktrees");
+  const worktrees = worktreesDuProjet(env, etat);
   const accroches = existsSync(worktrees) ? readdirSync(worktrees).filter((nom) => !nom.startsWith(".")).length : 0;
 
   // Le verrou du runtime, tenu le temps du geste : aucun ne démarre pendant

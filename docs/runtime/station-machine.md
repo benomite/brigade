@@ -113,7 +113,10 @@ de chaque station qu'il a choisie, et la station l'y lit — toujours sans liais
      dépôt ; sinon elle publie, pour chaque App, la page où le chef l'installe en un clic
      (`https://github.com/apps/<app>/installations/new`), et attend. Sans Apps, elle agit sous le
      compte de son `gh` : rien à autoriser ;
-  2. elle **clone** le dépôt par son `gh` (`gh repo clone`) dans `<BRIGADE_STATION_DIR>/clones/<projet>` ;
+  2. elle **clone** le dépôt par son `gh` (`gh repo clone`) dans l'atelier de la station :
+     `<BRIGADE_STATION_DIR>/clones/<projet>` sur un serveur, `~/.local/share/brigade/station/clones/<projet>`
+     sur l'ordinateur du chef, dont la station vit sous `~/.config/brigade`, qu'aucun cook ne lit
+     (« Une cuisine locale », [`station-distante.md`](station-distante.md)) ;
   3. elle **vérifie qu'elle peut récupérer le dépôt et y pousser**, par le git de la machine, sur le
      remote `origin` de son clone — celui que ses worktrees et ses cooks utiliseront : `git ls-remote`
      de la branche d'intégration, puis `git push --dry-run`, qui s'authentifie comme un vrai push
