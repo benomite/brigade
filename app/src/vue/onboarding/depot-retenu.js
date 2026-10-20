@@ -52,22 +52,58 @@ function accesDit(doc, acces, copier) {
 
 // Le refus de la station (ticket 1178), tel qu'elle le publie : la phrase qui dit pourquoi, puis ce que
 // le chef fait. Jamais le texte brut du fichier `en-service`, ni un chemin : le code n'est qu'au survol.
-/** @param {Fabrique} doc @param {Refus} refus */
-function refusDit(doc, refus) {
+// Le geste attendu est un bouton (règle 830) : là où l'app sait le faire — retirer le projet, le ramener sur
+// cette station —, il le fait ; sinon le geste est de la machine de la station, que l'app ne pilote pas, et le
+// bouton copie l'action. Le runtime ne publie que du texte : le geste se choisit ici, d'après le code.
+export const RETIRER = "remove the project";
+export const CONFIRMER_RETRAIT = "confirm: remove it from its stations";
+export const RAMENER = "move the kitchen back";
+export const COPIER_L_ACTION = "copy the action";
+const RETIRABLES = ["configuration-invalid", "clone-missing"];
+
+/** @param {Fabrique} doc @param {Refus} refus @param {{ retirer: () => Promise<string>, ramener: () => void, copier: (texte: string) => void }} gestes */
+function refusDit(doc, refus, { retirer, ramener, copier }) {
   const pose = cree(doc, "div");
   const pourquoi = cree(doc, "p", refus.message);
   pourquoi.title = refus.code;
   const action = cree(doc, "p", refus.action);
   action.className = "refus-action";
-  pose.append(pourquoi, action);
+  const dit = cree(doc, "p");
+  dit.hidden = true;
+  /** @type {any} */
+  let geste;
+  if (RETIRABLES.includes(refus.code)) {
+    let demande = false;
+    geste = boutonAction(doc, RETIRER, async () => {
+      const bouton = geste.children[0];
+      if (!demande) {
+        demande = true;
+        if (bouton !== undefined) bouton.textContent = CONFIRMER_RETRAIT;
+        return;
+      }
+      demande = false;
+      if (bouton !== undefined) bouton.textContent = RETIRER;
+      dit.textContent = await retirer();
+      dit.hidden = false;
+    }, { recommande: true });
+  } else if (refus.code === "handed-over-elsewhere") {
+    geste = boutonAction(doc, RAMENER, ramener, { recommande: true });
+  } else {
+    geste = boutonAction(doc, COPIER_L_ACTION, () => {
+      copier(refus.action);
+      const bouton = geste.children[0];
+      if (bouton !== undefined) bouton.textContent = COPIEE;
+    }, { recommande: true });
+  }
+  pose.append(pourquoi, action, geste, dit);
   return pose;
 }
 
 // Le bloc à poser sous la ligne des stations, ou null : rien ne retient la cuisine. L'accès refusé
 // prime sur l'échec du worktree — c'est lui que le geste lève — mais l'heure du prochain essai se dit
 // avec, quand le worktree en a une.
-/** @param {Fabrique} doc @param {{ acces?: Acces | null, refus?: Refus | null, worktree?: Echec | null, maintenant: number, copier: (commande: string) => void }} retenu */
-export function poserDepotRetenu(doc, { acces, refus, worktree, maintenant, copier }) {
+/** @param {Fabrique} doc @param {{ acces?: Acces | null, refus?: Refus | null, worktree?: Echec | null, maintenant: number, copier: (commande: string) => void, retirer?: () => Promise<string>, ramener?: () => void }} retenu */
+export function poserDepotRetenu(doc, { acces, refus, worktree, maintenant, copier, retirer = async () => "", ramener = () => {} }) {
   const bloque = acces ?? worktree?.acces ?? null;
   const refuse = bloque === null && refus !== null && refus !== undefined ? refus : null;
   if (bloque === null && refuse === null && (worktree === null || worktree === undefined)) return null;
@@ -78,7 +114,7 @@ export function poserDepotRetenu(doc, { acces, refus, worktree, maintenant, copi
     pose.append(accesDit(doc, bloque, copier));
     if (worktree !== null && worktree !== undefined) pose.append(cree(doc, "p", prochainEssaiDit(worktree.prochainEssai, maintenant)));
   } else if (refuse !== null) {
-    pose.append(refusDit(doc, refuse));
+    pose.append(refusDit(doc, refuse, { retirer, ramener, copier }));
   } else if (worktree !== null && worktree !== undefined) {
     const raison = cree(doc, "p", `The worktree of #${worktree.ticket} could not be prepared: ${worktree.raison}`);
     raison.title = worktree.raison;
