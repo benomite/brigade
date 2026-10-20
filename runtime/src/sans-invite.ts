@@ -8,6 +8,7 @@
 // ajoutent l'environnement de `envSansInvite` à chaque lancement. Aucun autre
 // module de `runtime/src` n'importe `node:child_process` (voir
 // `test/sans-invite.test.ts`).
+import { promisify } from "node:util";
 import { type ChildProcess, execFile as lancerEtAttendre, execFileSync as lancerEtAttendreSync, spawn as lancer, spawnSync as lancerSync } from "node:child_process";
 
 // Ce que l'outil ne doit pas demander. Une valeur déjà posée par l'appelant
@@ -38,6 +39,8 @@ const avecEnvSansInvite = (args: unknown[]): unknown[] => {
 };
 
 export const execFile = ((...args: unknown[]) => (lancerEtAttendre as (...a: unknown[]) => unknown)(...avecEnvSansInvite(args))) as typeof lancerEtAttendre;
+// `promisify(execFile)` rend `{ stdout, stderr }` grâce à ce symbole : sans lui, il rendrait la seule sortie.
+Object.defineProperty(execFile, promisify.custom, { value: (...args: unknown[]) => (promisify(lancerEtAttendre) as (...a: unknown[]) => unknown)(...avecEnvSansInvite(args)) });
 export const execFileSync = ((...args: unknown[]) => (lancerEtAttendreSync as (...a: unknown[]) => unknown)(...avecEnvSansInvite(args))) as typeof lancerEtAttendreSync;
 export const spawn = ((...args: unknown[]) => (lancer as (...a: unknown[]) => unknown)(...avecEnvSansInvite(args))) as typeof lancer;
 export const spawnSync = ((...args: unknown[]) => (lancerSync as (...a: unknown[]) => unknown)(...avecEnvSansInvite(args))) as typeof lancerSync;

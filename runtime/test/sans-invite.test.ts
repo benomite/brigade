@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import { promisify } from "node:util";
 import { execFile, envSansInvite } from "../src/sans-invite.ts";
 
 const SRC = join(import.meta.dirname, "..", "src");
@@ -55,4 +56,10 @@ test("`runtime/src` : aucun lancement de process ne contourne l'environnement sa
     assert.doesNotMatch(code, /require\(\s*["'](node:)?child_process["']\s*\)|import\(\s*["'](node:)?child_process["']\s*\)/, nom);
     assert.doesNotMatch(code, /process\.binding\(/, nom);
   }
+});
+
+test("`promisify(execFile)` sur la version du module rend `{ stdout, stderr }`, comme celle de Node — et lance sans invite", async () => {
+  const { stdout, stderr } = await promisify(execFile)(process.execPath, ["-p", "process.env.GIT_TERMINAL_PROMPT"]);
+  assert.equal(stdout.trim(), "0");
+  assert.equal(stderr, "");
 });
