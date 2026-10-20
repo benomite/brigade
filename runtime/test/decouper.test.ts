@@ -53,6 +53,13 @@ test("la consigne nomme les chemins communs du projet : ils n'entrent dans aucun
   assert.match(consigne, /n'appartiennent à aucun ticket.*`docs\/runtime\.md`, `CHANGELOG\.md`/);
 });
 
+test("la consigne ne laisse au chef que les choix de produit : le reste, le manager le tranche et le dit", () => {
+  const consigne = consigneDeDecoupage({ depot: "benomite/brigade", issue: EPIQUE, commentaires: [], fichiers: [] });
+  assert.match(consigne, /ne poses au chef que ce qui est un choix de produit/);
+  assert.match(consigne, /tu la tranches seul, et tu \*\*écris sur l'issue ce que tu as décidé et pourquoi\*\*/);
+  assert.match(consigne, /choix entre des voies/);
+});
+
 test("la consigne du découpage porte la même règle de forme que celle du jugement, sous la même table", () => {
   const consigne = consigneDeDecoupage({ depot: "benomite/brigade", issue: EPIQUE, commentaires: [], fichiers: [] });
 

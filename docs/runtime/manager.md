@@ -158,8 +158,12 @@ les chemins communs du projet n'entrent dans aucune. Il rend l'une de trois rép
 | Réponse | Ce que le manager fait | Au journal |
 |---|---|---|
 | un découpage, douze tickets au plus | Crée les tickets, les lance, le dit sur l'épique | `manager.split`, puis un fait par pas |
-| **une question** : l'épique est ambiguë | La pose en commentaire, ne crée rien | `manager.split-asked` |
+| **une question** : l'épique est ambiguë sur un choix de produit | La pose en commentaire, ne crée rien | `manager.split-asked` |
 | « déjà découpée » : l'épique nomme déjà ses tickets | Ne crée rien, le dit une fois | `manager.split-skipped` |
+
+La question est réservée au **choix de produit**, posée comme un choix entre des voies (ce que
+l'utilisateur en retrouve). Une ambiguïté technique — où vit le code, l'ordre, le mécanisme — est
+tranchée par le manager, qui écrit sur l'issue ce qu'il a décidé et pourquoi (le `motif` du découpage).
 
 Une réponse que le code ne sait pas lire — un ticket sans critère, sans zone, qui attend un ticket
 placé après lui, un calibrage hors table, plus de douze tickets — ne crée **aucun** ticket
