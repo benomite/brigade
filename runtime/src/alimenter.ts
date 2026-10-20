@@ -14,6 +14,7 @@ import { communsDuRail, lireRail, sortDuTicket, ticketDuRail } from "./projectio
 import { ouvrirRail, type Rail } from "./rail.ts";
 import { ConfigInvalide, type Runtime } from "./runtime.ts";
 import { refusEn } from "./zones.ts";
+import { ficheSurLeNouvelArbre, renommagesMerges } from "./pause/reprise.ts";
 
 const AUTEUR = "github";
 
@@ -170,6 +171,9 @@ export async function alimenter(
 
   const ecrits = journal.base.transaction(() => {
     let nombre = 0;
+    // Après un renommage du code mergé, une zone se lit sur les nouveaux
+    // chemins : la fiche de l'issue garde ceux que le chef a écrits.
+    const renommages = renommagesMerges(journal.base);
     for (const issue of servables) {
       if (!lisible(issue)) {
         console.error(`brigade : issue GitHub illisible, écartée du rail — ${JSON.stringify(issue)}`);
@@ -179,7 +183,7 @@ export async function alimenter(
       const { title } = issue;
       const priority = priorite(issue.labels);
       const { model, effort } = calibrage(issue.labels);
-      const lue = fiches.get(issue.number)?.fiche ?? null;
+      const lue = ficheSurLeNouvelArbre(fiches.get(issue.number)?.fiche ?? null, renommages);
       const cycle = enCycle.get(issue.number);
       const card = lue && cycle ? { ...lue, problems: [...lue.problems, direCycle(cycle)] } : lue;
       if (!connu) {

@@ -3,7 +3,7 @@
 // n'y change de branche ni n'y écrit un fichier. Seul module qui lance `git`.
 import { execFile, execFileSync } from "./sans-invite.ts";
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { verifierAcces, type Acces } from "./projets/acces.ts";
 import { ConfigInvalide } from "./runtime.ts";
@@ -129,7 +129,30 @@ export type Depot = {
   // Retire un worktree jetable — tous, sans nom : ceux qu'un runtime tué a
   // laissés. Absent, il n'y a rien à faire.
   jeter(nom?: string): void;
+  // Porte sur l'arbre d'un renommage du code mergé (`pause/reprise.ts`) ce
+  // que l'origine a reçu de la branche d'une livraison née avant lui :
+  // `commit`, celui du renommage, que la base porte ; `traduire`, un chemin
+  // d'avant sur l'arbre renommé. Ce que la livraison change depuis son point
+  // de départ est déplacé selon `traduire`, puis fusionné avec la base telle
+  // que le clone la connaît, dans un worktree jetable nommé `nom` — retiré
+  // ensuite. Réussi, un commit de plus sur la branche (locale), dont les
+  // parents sont la livraison et la base : la branche n'est pas réécrite, et
+  // rien n'est poussé. Ce que la branche locale portait de plus que
+  // l'origine (une récolte) reste sous `refs/brigade/avant-renommage/`.
+  transposer(nom: string, branche: string, renommage: { commit: string; traduire: (chemin: string) => string }): Promise<Transposition>;
 };
+
+// Ce qu'une livraison devient sur l'arbre d'un renommage. `deja` : elle part
+// d'une base qui le porte déjà. `intacte` : elle ne touche aucun fichier
+// qu'il déplace — elle se juge telle quelle. `portee` : la branche passe de
+// `de` à `vers`, fusionnée avec `base` ; `chemins`, les fichiers déplacés,
+// ancien et nouveau chemin. `conflit` : ce qu'elle change ne se pose pas sur
+// l'arbre renommé — `chemins`, ceux en conflit ; la branche n'a pas bougé.
+export type Transposition =
+  | { issue: "deja" }
+  | { issue: "intacte" }
+  | { issue: "portee"; de: string; vers: string; base: string; chemins: Array<[string, string]> }
+  | { issue: "conflit"; de: string; chemins: string[] };
 
 export type OptionsDepot = {
   // Le clone du dépôt du projet, réservé à la station.
@@ -204,6 +227,7 @@ const IDENTITE = ["-c", "user.name=brigade", "-c", "user.email=brigade@localhost
 // passe par les deux.
 const COURRIEL = "brigade@localhost";
 const SUJET_DE_RECOLTE = "brigade : récolte — ce que le cook avait laissé non commité dans son worktree";
+const SUJET_DE_TRANSPOSITION = "brigade : la livraison portée sur l'arbre du renommage du code";
 const ENV_DE_RECOLTE = { GIT_AUTHOR_NAME: "brigade", GIT_AUTHOR_EMAIL: COURRIEL, GIT_COMMITTER_NAME: "brigade", GIT_COMMITTER_EMAIL: COURRIEL };
 // Ce qu'un `git` lancé dans le worktree d'un cook ne fait jamais, quoi qu'en
 // dise la configuration : ni guetteur de fichiers, ni hook, ni descente dans
@@ -368,6 +392,38 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     }
   };
   const essais = join(worktrees, ESSAIS);
+  const livree = (branche: string) => (git("for-each-ref", "--format=%(refname:short)", `refs/remotes/origin/${branche}`) === "" ? branche : `origin/${branche}`);
+  const ancetre = (avant: string, apres: string) => {
+    try {
+      git("merge-base", "--is-ancestor", avant, apres);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  // Un arbre, ses chemins traduits : lu dans un index à part, réécrit dans un
+  // autre, sans worktree. Rend l'arbre obtenu.
+  const arbreTraduit = (revision: string, traduire: (chemin: string) => string, index: string): string => {
+    const sous = (fichier: string, args: string[], input?: string) =>
+      execFileSync("git", args, { ...reglages, env: { ...(options.env ?? process.env), GIT_INDEX_FILE: fichier }, input, maxBuffer: Infinity, stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"] });
+    const [lu, ecrit] = [`${index}.lu`, `${index}.ecrit`];
+    try {
+      sous(lu, ["read-tree", revision]);
+      const entrees = sous(lu, ["ls-files", "--stage", "-z"])
+        .split("\0")
+        .filter(Boolean)
+        .map((entree) => {
+          const tab = entree.indexOf("\t");
+          return `${entree.slice(0, tab)}\t${traduire(entree.slice(tab + 1))}`;
+        });
+      sous(ecrit, ["read-tree", "--empty"]);
+      if (entrees.length > 0) sous(ecrit, ["update-index", "-z", "--index-info"], `${entrees.join("\0")}\0`);
+      return sous(ecrit, ["write-tree"]).trim();
+    } finally {
+      rmSync(lu, { force: true });
+      rmSync(ecrit, { force: true });
+    }
+  };
   const jeter = (nom: string) => {
     const essai = join(essais, nom);
     try {
@@ -453,6 +509,52 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
           return null;
         }
         return { worktree: essai, arbre: git("-C", essai, "rev-parse", "HEAD^{tree}") };
+      }),
+    transposer: (nom, branche, { commit, traduire }) =>
+      aSonTour(async () => {
+        const de = git("rev-parse", "--verify", `${livree(branche)}^{commit}`);
+        if (ancetre(commit, de)) return { issue: "deja" as const };
+        // La base qui porte le renommage : celle que la pass vient de rapatrier.
+        if (!ancetre(commit, `origin/${base}`)) await rapatrier();
+        const tete = git("rev-parse", `origin/${base}`);
+        if (!ancetre(commit, tete)) throw new Error(`la base \`${base}\` ne porte pas le renommage ${commit.slice(0, 12)} : rien n'est porté`);
+        // Ce que la livraison change depuis son point de départ, à son ancien chemin.
+        const depart = git("merge-base", de, tete);
+        const changes = git("diff", "--name-only", "--no-renames", "-z", depart, de).split("\0").filter(Boolean);
+        const chemins = changes.flatMap((chemin): Array<[string, string]> => {
+          const nouveau = traduire(chemin);
+          return nouveau === chemin ? [] : [[chemin, nouveau]];
+        });
+        if (chemins.length === 0) return { issue: "intacte" as const };
+        // Le départ et la livraison, chemins traduits : deux commits hors de
+        // toute branche, dont le second se rejoue sur la base renommée — la
+        // fusion à trois de ce que la livraison change avec ce que le
+        // renommage a écrit.
+        mkdirSync(essais, { recursive: true });
+        const index = join(essais, `${nom}.index`);
+        const commitTree = (arbre: string, ...args: string[]) => execFileSync("git", [...IDENTITE, "commit-tree", arbre, ...args], { ...reglages, env: { ...(options.env ?? process.env), ...ENV_DE_RECOLTE }, stdio: ["ignore", "pipe", "pipe"] }).trim();
+        const departTraduit = commitTree(arbreTraduit(depart, traduire, index), "-m", "départ traduit");
+        const livraisonTraduite = commitTree(arbreTraduit(de, traduire, index), "-p", departTraduit, "-m", "livraison traduite");
+        jeter(nom);
+        const essai = join(essais, nom);
+        await gitAsync("worktree", "add", "--quiet", "--detach", essai, tete);
+        try {
+          try {
+            await gitAsync(...IDENTITE, "-C", essai, "cherry-pick", "--no-commit", livraisonTraduite);
+          } catch (erreur) {
+            const disputes = git("-C", essai, "diff", "--name-only", "--diff-filter=U", "-z").split("\0").filter(Boolean);
+            if (disputes.length === 0) throw erreur;
+            return { issue: "conflit" as const, de, chemins: disputes };
+          }
+          const arbre = git("-C", essai, "write-tree");
+          const vers = commitTree(arbre, "-p", de, "-p", tete, "-m", `${SUJET_DE_TRANSPOSITION} (${commit.slice(0, 12)})\n\n${chemins.map(([ancien, nouveau]) => `${ancien} → ${nouveau}`).join("\n")}`);
+          const locale = git("for-each-ref", "--format=%(objectname)", `refs/heads/${branche}`);
+          if (locale !== "" && locale !== de) git("update-ref", `refs/brigade/avant-renommage/${branche}`, locale);
+          git("update-ref", `refs/heads/${branche}`, vers);
+          return { issue: "portee" as const, de, vers, base: tete, chemins };
+        } finally {
+          jeter(nom);
+        }
       }),
     jeter(nom) {
       if (nom !== undefined) return jeter(nom);
@@ -593,7 +695,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         throw motif("git push", erreur);
       }
     },
-    livree: (branche) => (git("for-each-ref", "--format=%(refname:short)", `refs/remotes/origin/${branche}`) === "" ? branche : `origin/${branche}`),
+    livree,
     tete: (branche) => git("rev-parse", "--verify", `${branche}^{commit}`),
     intact: (worktree) => statutDe(worktree, "normal") === "",
     // Sans détection des renommages : un fichier déplacé doit se lire aussi à
