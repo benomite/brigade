@@ -18,7 +18,10 @@
 // la station où il cuit, et si c'est l'ordinateur du chef ; pour ceux qu'elle
 // sert, le worktree que leur cuisine n'a pas pu préparer — pourquoi, et quand
 // elle réessaie (`echec-du-worktree.ts`) ; pour ceux dont elle est la
-// principale, où en est leur onboarding (`onboarding/`).
+// principale, où en est leur onboarding (`onboarding/`). Le refus d'un projet
+// porte le remède qui le lève, ou pourquoi il n'y en a pas : l'app le demande
+// dans le même gist, la station le joue, réévalue le refus et répond
+// (`remedes/`).
 //
 // La cuisine d'un projet déménage d'une station à une autre sans qu'il soit
 // retiré ni rajouté (`demenagement/`) : l'app demande à celle qu'il quitte de
@@ -37,7 +40,7 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { FICHIER_LOCAL } from "../appairage/presence.ts";
-import type { Canal } from "../appairage/canal.ts";
+import type { Canal, Fichiers } from "../appairage/canal.ts";
 import type { Verification } from "../bac-a-sable/local.ts";
 import { dejaDemenage, lireRemise, recevoir, remettre, remisAilleurs } from "../demenagement/remise.ts";
 import { ouvrirGitHub } from "../github.ts";
@@ -50,6 +53,9 @@ import { documentDeSuivi, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, suiviDe, 
 import { verifierAcces, type Acces } from "./acces.ts";
 import { refus as refusDe, type CodeDeRefus } from "./refus.ts";
 import { cloner, decisionsDe, poserLesDecisions, verifierAutorisation, type Autorisation } from "./preparer.ts";
+import { repondeurDeRemedes } from "../remedes/distant.ts";
+import { executerRemede, type StationDesRemedes } from "../remedes/executer.ts";
+import { REMEDES, type Registre } from "../remedes/registre.ts";
 
 // Entre deux lectures de ce que l'app demande.
 export const CADENCE_MS = 30_000;
@@ -92,6 +98,9 @@ export type OptionsProjets = {
   verifierBacASable?: () => Verification;
   // Combien de temps la remise attend qu'un cook arrêté soit mort.
   attenteDesCooksMs?: number;
+  // Les remèdes que ses refus offrent, et qu'elle joue quand l'app les lui
+  // demande (`remedes/`) — par défaut, ceux du runtime.
+  remedes?: Registre;
 };
 
 export type ProjetsDeLApp = {
@@ -153,6 +162,9 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   // Quand chaque projet a été servi pour la première fois.
   const serviLe = new Map<string, string>();
   let dernierSuivi = "";
+  // La dernière lecture du gist, et le dernier suivi : ce que les remèdes en lisent.
+  let derniersLus: Fichiers | null = null;
+  let derniersSuivis: SuiviDuProjet[] = [];
   let arrete = false;
 
   const locale = options.locale ?? false;
@@ -160,7 +172,8 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   // Le clone d'un projet, dans l'atelier de la station : là où ses cooks le
   // liront (`station/configuration.ts`).
   const cloneDe = (nom: string) => lieuxDuProjet(racine, nom, env.HOME).clone;
-  const suiviDu = (projet: ProjetDemande, etat: SuiviDuProjet["etat"], dit: string, autoriser: string[] = [], cause?: CodeDeRefus): SuiviDuProjet => ({ nom: projet.nom, etat, dit, autoriser, serviLe: null, cuitSur: null, ici: false, bascule: null, ...(cause === undefined ? {} : { refus: refusDe(cause) }) });
+  const remedes = options.remedes ?? REMEDES;
+  const suiviDu = (projet: ProjetDemande, etat: SuiviDuProjet["etat"], dit: string, autoriser: string[] = [], cause?: CodeDeRefus): SuiviDuProjet => ({ nom: projet.nom, etat, dit, autoriser, serviLe: null, cuitSur: null, ici: false, bascule: null, ...(cause === undefined ? {} : { refus: refusDe(cause, remedes) }) });
 
   // Ce qu'il faut pour servir un projet avant d'y rien écrire : ses Apps
   // autorisées sur le dépôt, son clone, et l'accès de son clone au dépôt — en
@@ -228,6 +241,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     if (gist === null) return;
     const lus = await canal.lire(gist);
     if (lus === null || arrete) return;
+    derniersLus = lus;
     const brut = lus[FICHIER_PROJETS];
     const demande = brut === undefined ? { projets: [], problemes: [] } : lireDemande(brut);
     if (demande === null) {
@@ -311,7 +325,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
           const bac = options.verifierBacASable?.();
           if (bac !== undefined && !bac.ok) {
             direUneFois(`bac ${projet.nom} ${reprise.demandeLe} ${bac.raison}`, `brigade : station — ${projet.nom} n'est pas repris de ${reprise.de} : ${bac.raison}`);
-            suivis.set(projet.nom, { ...deLa("refuse", bac.raison, "refusee"), refus: refusDe("sandbox-unusable") });
+            suivis.set(projet.nom, { ...deLa("refuse", bac.raison, "refusee"), refus: refusDe("sandbox-unusable", remedes) });
             continue;
           }
           const accueil = await accueillir(projet);
@@ -430,11 +444,35 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
         return [[projet.nom, lireOnboarding({ repertoireEtat, projet: projet.nom, depot: projet.depot, station, suivi: dit, clone: existsSync(cloneDe(projet.nom)) })]];
       }),
     );
+    derniersSuivis = suivi;
     // Le suivi ne se réécrit que s'il a changé : un gist n'est pas un journal.
     const compare = JSON.stringify({ suivi, onboarding });
     if (compare === dernierSuivi && lus[FICHIER_SUIVI] !== undefined) return;
     await canal.ecrire(gist, { [FICHIER_SUIVI]: documentDeSuivi(suivi, instant, { nom: station, locale }, onboarding) });
     dernierSuivi = compare;
+  };
+
+  // Les remèdes que l'app demande, par le même gist (`remedes/distant.ts`) :
+  // joués après la lecture, par le point d'entrée (`remedes/executer.ts`), qui
+  // fait réévaluer le refus par une lecture de plus — le refus qu'elle sert
+  // est alors celui de son nouveau suivi.
+  const refusServi = (projet: string) => derniersSuivis.find(({ nom }) => nom === projet)?.refus ?? null;
+  const ici: StationDesRemedes = {
+    refusDe: refusServi,
+    reevaluer: async (projet) => {
+      await cycle();
+      return refusServi(projet);
+    },
+    contexte: (projet) => ({ projet, racine, env, dire, relireLaConfiguration: options.apresEcriture }),
+  };
+  const repondeur = repondeurDeRemedes({ executer: (demande) => executerRemede(demande, ici, remedes), maintenant });
+  const servirLesRemedes = async () => {
+    const lus = derniersLus;
+    const gist = gistAppaire(racine);
+    derniersLus = null;
+    if (lus === null || gist === null || arrete) return;
+    const fichiers = await repondeur.repondre(lus);
+    if (fichiers !== null && !arrete) await canal.ecrire(gist, fichiers);
   };
 
   let panne: string | null = null;
@@ -446,6 +484,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       enCours = true;
       try {
         await cycle();
+        await servirLesRemedes();
         if (panne !== null) dire("brigade : station — GitHub répond de nouveau : elle relit les projets que l'app lui demande");
         panne = null;
       } catch (erreur) {

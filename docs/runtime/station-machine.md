@@ -217,6 +217,33 @@ prochain essai, sans redémarrage de l'app.
 `runtime/src/projets/refus.ts`), `message` une phrase pour le chef, `action` ce qu'il peut faire. Le
 champ disparaît dès que le projet est servi. Le fichier `en-service` garde le texte brut de l'erreur.
 
+**Le remède du refus** (#1203) : chaque refus porte aussi soit `remedy` — `{ id, description,
+destructive }`, le geste qu'un bouton de l'app fait faire à la station : ce qu'il fera, en une phrase,
+et s'il retire ou efface quelque chose (l'app demande alors confirmation) —, soit `noRemedy`, en une
+phrase, pourquoi il n'y a pas de bouton. Les remèdes s'inscrivent dans un registre
+(`runtime/src/remedes/registre.ts`), avec les codes qu'ils lèvent : un remède inscrit paraît dans le
+refus, sans rien retoucher d'autre. Tant qu'aucun ne lève un code, sa raison sans bouton
+(`SANS_REMEDE`) le remplace.
+
+L'app demande un remède par le gist de la station, qu'elle soit l'ordinateur du chef ou une station
+distante (`runtime/src/remedes/distant.ts`). Elle écrit `brigade-remedes.json` —
+`{ "brigade": "remedies", "format": 1, "requests": [{ "id", "askedAt", "project", "refusal", "remedy" }] }`
+—, la station le lit à sa cadence, joue chaque demande une fois par le point d'entrée
+(`runtime/src/remedes/executer.ts`), et répond dans `brigade-remedes-suivi.json` —
+`{ "brigade": "remedies-answers", "format": 1, "a", "answers": [{ "id", "answeredAt", "outcome", … }] }`.
+Le point d'entrée vérifie que le refus tient toujours et qu'il offre bien ce remède, le joue, puis
+relit le projet et rend l'issue :
+
+- `lifted` : le refus a disparu ;
+- `holds` : il tient — `reason`, en une phrase, dit pourquoi (le geste a échoué, ou la station refuse
+  encore, pour la même cause ou une autre), et `refusal` est le refus tel qu'il est maintenant ;
+- `error` : rien n'a été joué — remède inconnu, refus qui n'offre pas ce remède, refus levé ou changé
+  depuis. `error` dit lequel.
+
+Une demande de plus de dix minutes n'est pas jouée ; une demande déjà répondue ne se rejoue pas, même
+après un redémarrage de la station. L'app retire sa demande une fois la réponse lue, et la réponse
+quitte le gist à la cadence suivante. Les remèdes concrets viennent avec #1204.
+
 ### Le premier ticket : préparer le dépôt
 
 *Ticket #796.* Avant d'écrire la ligne d'un projet ajouté depuis l'app, la station ouvre sur son
