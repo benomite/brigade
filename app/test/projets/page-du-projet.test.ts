@@ -284,7 +284,7 @@ test("ce qui manque se lit sous le choix, et rien ne se ferme", async () => {
 test("confiée, la page nomme les stations qui font sa cuisine, et « + station » n'offre que des renforts, sans principale ni calibrage à redire", async () => {
   const { jouee, bloc } = await laPage(CONFIE);
   const ligne = bloc.children[0] ?? assert.fail("pas de ligne");
-  assert.equal(ligne.textContent, "Cooked by parade-box (main)");
+  assert.equal(ligne.textContent, "Cooks on parade-box");
   const station = ligne.dessous("button")[0] ?? assert.fail("la station ne s'ouvre pas");
   assert.equal(station.ariaLabel, "parade-box — main — being prepared");
   assert.match(station.title, /cloning benomite\/parade/);
@@ -324,7 +324,7 @@ test("une station qui sert le projet sans l'app le fait aussi : la page la nomme
   });
   (jouee.element("projets").children.at(1) ?? assert.fail("pas de case « parade »")).click();
   await repos();
-  assert.equal(jouee.element("stations-du-projet").children[0]?.textContent, "Cooked by parade-box (main)");
+  assert.equal(jouee.element("stations-du-projet").children[0]?.textContent, "Cooks on parade-box");
   assert.doesNotMatch(jouee.element("stations-du-projet").textContent, /No station/);
 });
 

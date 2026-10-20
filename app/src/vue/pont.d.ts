@@ -28,7 +28,7 @@ import type { Vu as VuDuCode } from "../retard.ts";
 import type { Avis, Retrait } from "../retrait.ts";
 import type { Guide } from "../service.ts";
 import type { DepotDuChef } from "../projets/github.ts";
-import type { Ajout, EFFORTS, MODELES, Retrait as RetraitDUneStation, VuDesProjets } from "../projets/projets.ts";
+import type { Ajout, Demenagement, EFFORTS, MODELES, Retrait as RetraitDUneStation, VuDesProjets } from "../projets/projets.ts";
 import type { Appairage, RetraitDeStation, VuDesStations } from "../stations/stations.ts";
 import type { Terminal } from "../terminaux.ts";
 
@@ -206,6 +206,8 @@ export type Pont = {
   confierAUneStation(saisie: { nom: string; depot: string; base: string; stations: string[]; principale: string; cooks: string; manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string }; ouvertLe: string }): Promise<Ajout>;
   // Retire le projet de la demande de chacune de ses stations : elles le retirent de leur configuration.
   retirerDUneStation(nom: string): Promise<RetraitDUneStation>;
+  // Déménage la cuisine d'un projet vers une station appairée — son gist (projets/demenagement.ts).
+  demenagerLaCuisine(nom: string, vers: string): Promise<Demenagement>;
   // Ouvre dans le navigateur une page où autoriser brigade sur GitHub — une de celles qu'une station a publiées.
   autoriserSurGitHub(url: string): Promise<boolean>;
   // Le bouton d'une panne, sur la ligne d'une station (pannes/gestes.ts) : relire GitHub, écarter la

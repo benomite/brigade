@@ -877,9 +877,47 @@ cooks <projet> yet.` est suivi de **« choose its machine »**. Le choix s'ouvre
 - **Le bouton dit ce qu'il fait** : `Start the kitchen on <station>`. Rien ne part avec un champ
   vide : ce qui manque se lit au-dessus du bouton, et la carte reste ouverte.
 
-Une fois confiée, la page dit `Cooked by <station> (main)`, et **« + station »** ouvre la même
-carte réduite aux renforts (`Add a backup machine to <projet>'s kitchen.`, `Add <station> to the
-kitchen`) : la station de plus reprend les cooks et le calibrage déjà demandés.
+Une fois confiée, la page dit **où il cuit** — `Cooks on <station>`, ses renforts après lui
+(`· macbook (backup)`) —, et **« + station »** ouvre la même carte réduite aux renforts (`Add a
+backup machine to <projet>'s kitchen.`, `Add <station> to the kitchen`) : la station de plus reprend
+les cooks et le calibrage déjà demandés.
+
+### Où cuit un projet, et le déménager d'un geste (#1095)
+
+- **La ligne dit où il cuit**, tel que ses stations le publient (`cuitSur` dans leur suivi,
+  [docs/runtime/](runtime/station-distante.md), « Déménager la cuisine d'un projet ») — pas ce que
+  l'app a demandé : un déménagement refusé le laisse cuire là où il cuisait, et la ligne aussi.
+  `Cooks on parade-box` pour un projet sur sa box ; **`Cooks on this Mac · its kitchen stops when you
+  close the app`** pour un projet que la station de cet ordinateur sert — la phrase n'est jamais
+  dite d'une autre station. Le nom de la station est au survol de « this Mac ».
+- **« move the kitchen »**, à côté de « + station », est le seul geste : il ouvre sous la ligne le
+  choix de la machine où l'emmener — `Move <projet>'s kitchen from <station> to:` —, un bouton par
+  autre station appairée (`this Mac` pour la station de cet ordinateur), celle que l'app recommande
+  (toujours allumée) distinguée, ce que chacune implique au survol, et **le prix en une ligne** :
+  `Its cooks in flight stop and their tickets go back to the rail; its whole journal follows it.`
+  Un clic sur une machine déménage la cuisine — vers ce Mac, vers sa box, vers une autre station —,
+  **sans retrait ni rajout**. L'app lance l'opération du runtime sur cet ordinateur
+  (`runtime/src/demenagement/demenager.ts`, avec le répertoire de sa station et les gists de tes
+  stations) : elle écrit les deux demandes, et le reste se fait entre les deux stations.
+- **Lancé**, la ligne dessous le dit (`<projet>'s kitchen moves to this Mac: parade-box hands it over
+  as soon as this Mac is ready — until then it cooks on parade-box`) ; tant qu'il est en route, la
+  ligne dit `· moving to this Mac…`, son étape au survol, et aucun autre déménagement ne se demande
+  une fois que la station visée l'a accepté.
+- **Refusé, la raison se lit en une phrase sous la ligne, en rouge**, et la ligne ne change pas :
+  `parade stays on parade-box: <la raison du runtime>` — vers ce Mac sans bac à sable, ce qui lui
+  manque (`la configuration du bac à sable ne tient pas sur ce Mac — …`). Un refus de la station
+  visée, après coup, se dit de même (`… : this Mac refused to take it over — …`) ; le choix offre
+  alors `keep it on parade-box`, qui reprend la demande. GitHub injoignable, ou un runtime qui ne se
+  lance pas, se disent en une ligne, leur détail au survol : rien n'échoue en silence.
+- **Le geste n'est offert que pour un projet confié depuis l'app**, qui cuit sur une de tes stations
+  appairées : c'est la demande de l'app que l'opération réécrit. Un projet écrit à la main avec
+  `hote`, ou servi par une station sans que l'app le lui ait demandé, n'en a pas — l'opération le
+  refuserait (`add it rather than move it`). Une app sans runtime à côté d'elle (un téléphone) n'en
+  lance aucune, et le dit.
+- **Ce qu'elle garde du runtime** : un déménagement en cours est écrit dans la demande de chaque
+  station (`remise`, `reprise`) ; l'app les relit et les réécrit tels quels quand elle réécrit ces
+  demandes (confier, retirer un autre projet), sans quoi il ne serait plus qu'un changement de
+  principale.
 
 ## Une lecture de box : sept états
 
@@ -2093,7 +2131,7 @@ derrière « detail ». La ligne sort dès qu'une lecture aboutit, sans relancer
 lecture ratée ne la pose pas.
 
 - **La pastille du projet** dit la même chose en un mot, `unreachable`, et la case de la barre porte un `×`.
-  La station du projet (« Cooked by ») n'est plus verte : elle est rouge, `unreachable`.
+  La station du projet (« Cooks on ») n'est plus verte : elle est rouge, `unreachable`.
 - **Les colonnes du rail** ne montrent pas de « 0 » : chacune porte `?` et dit « not known while the
   station is unreachable ». Rien d'autre du rail n'est posé (ni amont, ni corrections). Une box jointe qui ne
   rend pas la forme de `faits` n'est pas ce cas : le rail ne se dessine pas, comme ci-dessus.

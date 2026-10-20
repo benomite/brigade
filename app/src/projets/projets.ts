@@ -16,9 +16,15 @@
 // d'où il vient. Ce qui manque est signalé champ par champ, sans rien écrire. Une station de plus
 // reprend ce que l'app a déjà demandé pour le projet. Retirer le projet le retire de la demande de
 // chaque station : elle le retire de sa configuration.
+//
+// Une fois confiée, sa cuisine déménage d'un geste (#1095, `demenager`) : vers cet ordinateur, vers
+// sa box, vers une autre station, sans retrait ni rajout — c'est l'opération du runtime qui l'écrit
+// (demenagement.ts). Où il cuit se lit dans le suivi de chaque station (`cuitSur`), pas dans la
+// demande : une station qui refuse de le reprendre le laisse cuire là où il cuisait.
 import type { GitHubDesStations } from "../stations/github.ts";
 import type { StationVue } from "../stations/stations.ts";
-import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireSuivi, type Calibre, type EtatDuProjet, type ProjetDemande } from "./demande.ts";
+import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireSuivi, type Bascule, type Calibre, type EtatDuProjet, type ProjetDemande, type SuiviDuProjet } from "./demande.ts";
+import type { Demenagement, Demenageur } from "./demenagement.ts";
 import type { DepotDuChef } from "./github.ts";
 
 // Le calibrage que la station accepte : ses deux listes fermées (runtime/src/calibrage.ts).
@@ -42,6 +48,11 @@ export type Signales = Partial<Record<Champ, string>>;
 
 // Une station d'un projet, telle que la home la montre.
 export type StationDuProjet = { id: string; nom: string; principale: boolean; etat: EtatDuProjet | "attendu"; dit: string; autoriser: string[] };
+// Où cuit un projet : la station qui le sert — son gist quand elle est appairée —, et si c'est
+// celle de cet ordinateur.
+export type CuitSur = { id: string | null; nom: string; ici: boolean };
+// Un déménagement en cours : d'où, vers où, son étape — `dit`, pourquoi il est refusé.
+export type DemenagementEnCours = Bascule & { dit: string };
 export type ProjetVu = {
   nom: string;
   depot: string;
@@ -49,6 +60,10 @@ export type ProjetVu = {
   stations: StationDuProjet[];
   // Du parcours ouvert au projet servi par sa principale — la mesure que la spec borne à dix minutes.
   servi: string | null;
+  // Où il cuit, tel que ses stations le disent ; nul tant qu'aucune ne le dit.
+  cuitSur?: CuitSur | null;
+  // Son déménagement, tant qu'il n'est pas fini.
+  demenagement?: DemenagementEnCours | null;
 };
 // Ce que l'app propose pour une station choisie comme principale (#1107) : ce que ce choix implique —
 // toujours allumée, ou arrêtée avec l'app de son ordinateur —, et le nombre de cooks à la fois que
@@ -59,9 +74,11 @@ export type CalibrageRecommande = { manager: Calibre; reviewer: Calibre; dit: st
 // `recommandee` : la principale que l'app propose d'office — une station serveur ; `avertissements` :
 // ce qui se dit quand le chef choisit telle station pour principale ; `machines` : ce que l'écran de
 // confiance dit de chaque station, et `calibrage`, ce qu'il propose.
+// `locale` : le gist de la station de cet ordinateur, nul quand l'app n'en a pas.
 export type VuDesProjets = {
   a: string;
   projets: ProjetVu[];
+  locale?: string | null;
   recommandee: string | null;
   avertissements: Record<string, string>;
   machines: Record<string, MachineProposee>;
@@ -70,6 +87,7 @@ export type VuDesProjets = {
 };
 export type Ajout = { ajoute: string } | { signales: Signales } | { refus: string };
 export type Retrait = { retire: string } | { refus: string };
+export type { Demenagement } from "./demenagement.ts";
 
 // Un dépôt GitHub : `<owner>/<repo>`.
 const DEPOT = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?\/[A-Za-z0-9_.-]{1,100}$/;
@@ -240,6 +258,37 @@ export function refusDeConfiance(saisie: SaisieDeConfiance, stations: readonly S
   return tenu.demande === undefined ? { ...signales, ...refusDesDecisions(saisie) } : signales;
 }
 
+// Ce qu'une station dit d'un projet, avec elle.
+type Dit = { station: StationVue; suivi: SuiviDuProjet };
+const ORDRE_DES_ETAPES: readonly Bascule["etape"][] = ["demandee", "acceptee", "remise", "refusee"];
+
+// Où cuit un projet, d'après ce que ses stations en disent : celle qui le sert ; entre deux — celle
+// qu'il quitte a fermé sa cuisine, l'autre ne l'a pas encore ouverte —, celle qu'elles nomment.
+export function cuitSurDe(dits: readonly Dit[], locale: string | null): CuitSur | null {
+  const servi = dits.find(({ suivi }) => suivi.etat === "servi");
+  if (servi !== undefined) return { id: servi.station.id, nom: servi.station.nom, ici: servi.suivi.ici || servi.station.id === locale };
+  const nomme = dits.find(({ suivi }) => suivi.cuitSur !== null)?.suivi.cuitSur;
+  if (nomme === undefined || nomme === null) return null;
+  const station = dits.find(({ station: candidate }) => candidate.nom === nomme)?.station;
+  return { id: station?.id ?? null, nom: nomme, ici: station !== undefined && station.id === locale };
+}
+
+// Le déménagement en cours d'un projet, d'après ses stations : le plus récent, à son étape la plus
+// avancée. Reçu par celle qui le reprend, il est fini : rien. Refusé, `dit` dit pourquoi — ce que
+// la station visée en a écrit.
+export function demenagementDe(dits: readonly Dit[]): DemenagementEnCours | null {
+  const bascules = dits.flatMap(({ station, suivi }) => (suivi.bascule === null ? [] : [{ station, suivi, bascule: suivi.bascule }]));
+  const derniere = bascules.reduce<string | undefined>((retenue, { bascule }) => (retenue === undefined || bascule.demandeLe > retenue ? bascule.demandeLe : retenue), undefined);
+  const siennes = bascules.filter(({ bascule }) => bascule.demandeLe === derniere);
+  if (siennes.length === 0 || siennes.some(({ bascule }) => bascule.etape === "recue")) return null;
+  const rang = (etape: Bascule["etape"]) => ORDRE_DES_ETAPES.indexOf(etape);
+  const retenue = siennes.reduce((plus, une) => (rang(une.bascule.etape) > rang(plus.bascule.etape) ? une : plus));
+  const { de, vers, demandeLe, etape } = retenue.bascule;
+  const visee = siennes.find(({ station }) => station.nom === vers);
+  const dit = etape === "refusee" ? (visee?.suivi.etat === "refuse" ? visee.suivi.dit : retenue.suivi.dit) : (visee ?? retenue).suivi.dit;
+  return { de, vers, demandeLe, etape, dit };
+}
+
 // Une durée, telle que la home la dit.
 function duree(ms: number): string {
   const secondes = Math.max(0, Math.round(ms / 1000));
@@ -255,6 +304,11 @@ export type OptionsProjets = {
   depots: () => Promise<DepotDuChef[]>;
   surLecture: (vu: VuDesProjets) => void;
   maintenant?: () => number;
+  // Le gist de la station de cet ordinateur, nul quand l'app n'en a pas.
+  locale?: () => string | null;
+  // L'opération du runtime qui déménage une cuisine (demenagement.ts). Absente, l'app n'a pas de
+  // runtime à côté d'elle : rien ne se déménage d'ici.
+  demenager?: Demenageur;
 };
 
 export type Projets = {
@@ -265,6 +319,8 @@ export type Projets = {
   // Confie la cuisine d'un projet de l'app à une première station, ou à une de plus.
   confier(recu: unknown): Promise<Ajout>;
   retirer(nom: unknown): Promise<Retrait>;
+  // Déménage la cuisine d'un projet vers une station appairée — son gist.
+  demenager(nom: unknown, vers: unknown): Promise<Demenagement>;
   // Les pages GitHub où autoriser brigade, telles que les stations les ont publiées.
   pages(): string[];
 };
@@ -272,6 +328,7 @@ export type Projets = {
 export function tenirProjets(options: OptionsProjets): Projets {
   const { github } = options;
   const maintenant = options.maintenant ?? Date.now;
+  const locale = options.locale ?? (() => null);
   let vu: VuDesProjets | undefined;
   let enCours: Promise<VuDesProjets> | undefined;
   // Les écritures se suivent : deux gestes du chef ne réécrivent pas la même demande en même temps.
@@ -308,10 +365,14 @@ export function tenirProjets(options: OptionsProjets): Projets {
     const instant = maintenant();
     try {
       const lus = await lireTout();
+      const ici = locale();
       const projets = new Map<string, ProjetVu>();
+      const dits = new Map<string, Dit[]>();
+      for (const { station, suivi } of lus) for (const un of suivi) dits.set(un.nom, [...(dits.get(un.nom) ?? []), { station, suivi: un }]);
       for (const { station, demande, suivi } of lus) {
         for (const projet of demande ?? []) {
-          const vu = projets.get(projet.nom) ?? { nom: projet.nom, depot: projet.depot, base: projet.base, stations: [], servi: null };
+          const siens = dits.get(projet.nom) ?? [];
+          const vu = projets.get(projet.nom) ?? { nom: projet.nom, depot: projet.depot, base: projet.base, stations: [], servi: null, cuitSur: cuitSurDe(siens, ici), demenagement: demenagementDe(siens) };
           const dit = suivi.find(({ nom }) => nom === projet.nom);
           vu.stations.push({ id: station.id, nom: station.nom, principale: projet.principale, etat: dit?.etat ?? "attendu", dit: dit?.dit ?? `${station.nom} has not read it yet: it reads what the app asks every 30 s`, autoriser: dit?.autoriser ?? [] });
           if (projet.principale && dit?.etat === "servi" && dit.serviLe !== null) {
@@ -323,9 +384,9 @@ export function tenirProjets(options: OptionsProjets): Projets {
       }
       for (const projet of projets.values()) projet.stations.sort((a, b) => Number(b.principale) - Number(a.principale) || a.nom.localeCompare(b.nom));
       const calibrage = calibrageRecommande(lus.flatMap(({ demande }) => demande ?? []));
-      vu = { a: new Date(instant).toISOString(), projets: [...projets.values()].sort((a, b) => a.nom.localeCompare(b.nom)), ...choix(), calibrage };
+      vu = { a: new Date(instant).toISOString(), projets: [...projets.values()].sort((a, b) => a.nom.localeCompare(b.nom)), locale: ici, ...choix(), calibrage };
     } catch (erreur) {
-      vu = { a: new Date(instant).toISOString(), projets: vu?.projets ?? [], ...choix(), calibrage: vu?.calibrage ?? calibrageRecommande([]), sans: `the projects on your stations could not be read on GitHub — ${message(erreur)}` };
+      vu = { a: new Date(instant).toISOString(), projets: vu?.projets ?? [], locale: locale(), ...choix(), calibrage: vu?.calibrage ?? calibrageRecommande([]), sans: `the projects on your stations could not be read on GitHub — ${message(erreur)}` };
     }
     options.surLecture(vu);
     return vu;
@@ -440,9 +501,26 @@ export function tenirProjets(options: OptionsProjets): Projets {
       return { retire: nom };
     });
 
+  // Déménager : vers une station appairée, et par l'opération du runtime seule — elle lit et écrit
+  // les demandes elle-même ; l'app relit ensuite ce qu'elle a écrit. À la suite des autres écritures.
+  const demenager = (recuNom: unknown, recuVers: unknown): Promise<Demenagement> =>
+    enFile(async () => {
+      const nom = texte(recuNom);
+      const vers = texte(recuVers);
+      if (nom === "") return { refus: "which project? none was named" };
+      const stations = appairees();
+      const visee = stations.find(({ id }) => id === vers);
+      if (visee === undefined) return { refus: "that station is no longer paired with this app: nothing was changed" };
+      if (options.demenager === undefined) return { refus: "this app has no runtime beside it to move a kitchen: nothing was changed" };
+      const rendu = await options.demenager(nom, visee.id, stations.map(({ id }) => id));
+      await relire();
+      return rendu;
+    });
+
   return {
     vu: () => vu,
     relire,
+    demenager,
     async depots() {
       try {
         return { depots: await options.depots() };
