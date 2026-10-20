@@ -1,0 +1,108 @@
+# Construit l'APK Android et le passe à l'essai sur un émulateur. Sur une PR qui touche app/ (ou ce
+# fichier), et à la demande : le job `apk` lance la commande que documente app/packaging/README.md
+# (« L'APK Android ») et dépose l'APK en artefact ; le job `fumee` l'installe sur un émulateur, le
+# lance, et vérifie que, quelques secondes après, le process vit, que MainActivity est au premier
+# plan, et que logcat ne porte aucune exception fatale pour l'app.
+# Rien du build desktop n'y est joué.
+name: android
+
+on:
+  pull_request:
+    paths:
+      - "app/**"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  APP_ID: com.github.benomite.brigade
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Construire l'APK
+        # Le SDK Android est préinstallé sur le runner (ANDROID_HOME) ; setup-java pose JAVA_HOME.
+        run: node app/packaging/android.ts
+      - name: Retrouver l'APK
+        id: apk
+        run: |
+          set -eu
+          ls -l app/packaging/construit
+          apk="$(ls app/packaging/construit/Brigade-*.apk | head -n 1)"
+          cp "$apk" "$RUNNER_TEMP/brigade.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: brigade-apk
+          path: ${{ runner.temp }}/brigade.apk
+          if-no-files-found: error
+
+  fumee:
+    needs: apk
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: brigade-apk
+          path: apk
+      - name: Activer KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Écrire le script d'essai
+        run: |
+          cat > "$RUNNER_TEMP/fumee.sh" <<'SCRIPT'
+          set -u
+          apk="$GITHUB_WORKSPACE/apk/brigade.apk"
+          activite="$APP_ID/.MainActivity"
+          adb install -r "$apk" || { echo "::error::adb install a échoué"; exit 1; }
+          adb logcat -c
+          adb shell am start -W -n "$activite" || { echo "::error::l'app ne se lance pas"; exit 1; }
+          sleep 15
+          adb logcat -d > "$GITHUB_WORKSPACE/logcat.txt"
+          echo "--- process"
+          pid="$(adb shell pidof "$APP_ID" | tr -d '\r')"
+          if [ -z "$pid" ]; then echo "::error::le process $APP_ID est mort"; exit 1; fi
+          echo "--- premier plan"
+          adb shell dumpsys activity activities | grep -E 'topResumedActivity|mResumedActivity|ResumedActivity' | tee "$GITHUB_WORKSPACE/premier-plan.txt"
+          if ! grep -q "$activite" "$GITHUB_WORKSPACE/premier-plan.txt"; then echo "::error::$activite n'est pas au premier plan"; exit 1; fi
+          echo "--- logcat"
+          if grep -E "FATAL EXCEPTION|Process: $APP_ID|ANR in $APP_ID" "$GITHUB_WORKSPACE/logcat.txt"; then echo "::error::logcat porte un crash de $APP_ID"; exit 1; fi
+          echo "L'app tient : process $pid, $activite au premier plan, aucun crash."
+          SCRIPT
+      - name: Installer, lancer, vérifier
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          disable-animations: true
+          script: bash ${{ runner.temp }}/fumee.sh
+      - name: Garder logcat
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fumee-logcat
+          path: |
+            logcat.txt
+            premier-plan.txt
+          if-no-files-found: ignore
