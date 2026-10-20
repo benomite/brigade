@@ -144,6 +144,17 @@ const ONGLETS_DU_PROJET = [
   { id: RAIL, titre: "Rail" },
   { id: CUISINE, titre: "Cooks" },
 ];
+// Sur un écran étroit — le téléphone (ticket 1186) —, trois colonnes ne tiennent pas : la conversation avec le second
+// est un troisième onglet, à la place du panneau de droite. Et Cooks y est en lecture seule : les lignes des
+// stations, leur état, leurs cooks, et le seul bouton qui lance ou arrête chacune — aucun réglage (stations, plafond,
+// bac à sable) : les cooks se règlent là où il y a un ordinateur. Sur un écran large, rien ne change.
+const CONVERSATION = "second";
+const ONGLETS_DU_PROJET_ETROIT = [...ONGLETS_DU_PROJET, { id: CONVERSATION, titre: "Second" }];
+const ECRAN_ETROIT = "(max-width: 720px)";
+const ecranEtroit = window.matchMedia?.(ECRAN_ETROIT);
+const etroit = () => ecranEtroit?.matches === true;
+// La fenêtre passe d'une largeur à l'autre — un téléphone qu'on tourne, une fenêtre qu'on rétrécit : la page se repose.
+ecranEtroit?.addEventListener?.("change", () => montrer());
 // Les colonnes du rail qui disent ce qui tourne : les cooks au travail, et les gates de la pass. Elles sont sur Cooks ;
 // les autres — On the rail, TODO, WAITING, Served — sont sur Rail.
 const COLONNES_DE_LA_CUISINE = ["Taken", "Pass"];
@@ -191,6 +202,7 @@ const espace = element("espace");
 const ongletsDuProjet = element("onglets-du-projet");
 const onglets = element("onglets");
 const contenu = element("contenu");
+const centre = element("centre");
 const rail = element("rail");
 const fiche = element("fiche");
 const manager = element("manager");
@@ -578,14 +590,18 @@ function retenus() {
   ongletsRetenus = new Map();
   try {
     const lus = JSON.parse(window.localStorage?.getItem(CLE_DES_ONGLETS) ?? "{}");
-    for (const [nom, id] of Object.entries(lus ?? {})) if (id === RAIL || id === CUISINE) ongletsRetenus.set(nom, id);
+    for (const [nom, id] of Object.entries(lus ?? {})) if (id === RAIL || id === CUISINE || id === CONVERSATION) ongletsRetenus.set(nom, id);
   } catch {
     // Illisible : chaque projet s'ouvre sur Rail, et le prochain choix le réécrit.
   }
   return ongletsRetenus;
 }
+// La conversation n'est un onglet que sur un écran étroit : retenue, elle s'ouvre sur Rail sur un écran large.
 /** @param {Projet} projet */
-const ongletDe = (projet) => retenus().get(projet.nom) ?? RAIL;
+const ongletDe = (projet) => {
+  const retenu = retenus().get(projet.nom) ?? RAIL;
+  return retenu === CONVERSATION && !etroit() ? RAIL : retenu;
+};
 /** @param {string} nom @param {string} id */
 function retenir(nom, id) {
   retenus().set(nom, id);
@@ -1002,9 +1018,13 @@ function vue(id) {
 const duCourant = () => [...vues.values()].filter(({ terminal }) => terminal.projet === courant?.nom);
 const actif = () => (courant === undefined ? undefined : laisse.get(courant.nom));
 // La lecture suivie : celle de la page ouverte par-dessus ; sans page, sur l'onglet Cooks, `station` (ticket 1184).
-const lue = () => actif() ?? (courant !== undefined && ongletDe(courant) === CUISINE ? CUISINE : undefined);
-// L'onglet Cooks est montré : aucune page ne le couvre.
-const cuisineMontree = () => courant !== undefined && actif() === undefined && ongletDe(courant) === CUISINE;
+// Sur un écran étroit, Cooks ne la suit pas : le plafond et le quota sont des réglages (ticket 1186).
+const lue = () => actif() ?? (courant !== undefined && ongletDe(courant) === CUISINE && !etroit() ? CUISINE : undefined);
+// L'onglet Cooks est montré, avec la lecture de `station` : aucune page ne le couvre, et l'écran est large.
+const cuisineMontree = () => courant !== undefined && actif() === undefined && ongletDe(courant) === CUISINE && !etroit();
+// L'onglet de la conversation est montré (écran étroit) : le second prend la place du centre. Une page ouverte
+// par-dessus — Settings, le journal — le couvre, comme elle couvre Rail.
+const conversationMontree = () => courant !== undefined && actif() === undefined && ongletDe(courant) === CONVERSATION;
 const secondDuCourant = () => duCourant().find(({ terminal }) => terminal.genre === "second");
 // Le terminal montré à droite : le shell que le chef y a laissé, sinon le second.
 const montreADroite = () => {
@@ -1030,7 +1050,7 @@ function montrer() {
   ongletsDuProjet.replaceChildren(
     ...(ouvert === undefined
       ? []
-      : ONGLETS_DU_PROJET.map(({ id, titre }) => {
+      : (etroit() ? ONGLETS_DU_PROJET_ETROIT : ONGLETS_DU_PROJET).map(({ id, titre }) => {
           const cree = bouton(titre, () => choisirOnglet(id));
           cree.role = "tab";
           cree.ariaSelected = String(visible === undefined && ongletDe(ouvert) === id);
@@ -1097,7 +1117,7 @@ function montrer() {
   note.replaceChildren(
     ...(nonEcrit !== "" ? [nonEcrit] : suivie !== undefined && courant?.desinstalle !== undefined ? ["nothing is read for this tab: this project is uninstalled from its station"] : explication === "" || surCuisine ? [] : [survol(document, explication)]),
   );
-  note.hidden = note.childElementCount === 0 && note.textContent === "";
+  note.hidden = (note.childElementCount === 0 && note.textContent === "") || conversationMontree();
   const parametres = rubriqueDe(visible)?.id === PARAMETRES;
   // Une page se pose par-dessus le rail : il reste dessous, tel quel, et rien de lui ne se clique au travers.
   contenu.hidden = relaye === undefined && visible !== PARAMETRES;
@@ -1139,7 +1159,12 @@ function montrer() {
 // second : la colonne dit pourquoi, à sa place — sa box, elle, se lit au centre et dans le panneau.
 /** @param {boolean} ouvrable @param {Terminal | undefined} montre */
 function poserSecond(ouvrable, montre) {
-  colonneSecond.hidden = courant === undefined;
+  // Sur un écran étroit, la colonne n'est montrée que par son onglet, à la place du centre (ticket 1186) : cachée, elle
+  // garde ses terminaux et ce qu'ils avaient reçu.
+  const conversation = conversationMontree();
+  colonneSecond.hidden = courant === undefined || (etroit() && !conversation);
+  centre.hidden = conversation;
+  principal.toggleAttribute("data-conversation", conversation);
   noteSecond.textContent =
     courant !== undefined && courant.refus !== undefined
       ? `“${courant.nom}” does not open: ${courant.refus} — it has no second`
@@ -3911,6 +3936,24 @@ async function cuire(projet, station, geste) {
   if (courant?.nom === projet) poserCuisson(courant);
 }
 
+// L'onglet Cooks d'un écran étroit (ticket 1186), en lecture seule : les lignes des stations — leur état, leurs cooks —
+// et, sur chacune, son seul bouton, qui la lance ou l'arrête. Ni la carte du projet, ni Taken et Pass — leurs fiches ont
+// leurs gestes —, ni les serveurs de livraison, ni la lecture de `station` et son plafond. Sans lignes, une phrase dit
+// pourquoi.
+/** @param {Projet} projet @param {Dessinable | undefined} tenu */
+function poserCuisineEtroite(projet, tenu) {
+  if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
+  if (cuissonDuProjet.childElementCount > 0) return rail.replaceChildren(cuissonDuProjet);
+  const pourquoi = muets.has(projet.nom)
+    ? "its stations: not known while the station is unreachable"
+    : tenu === undefined
+      ? "its stations: first read in progress…"
+      : "tableau" in tenu
+        ? "its stations: this station's runtime does not give them yet — update it to see them here"
+        : `its stations are not read: ${tenu.titre}`;
+  rail.replaceChildren(bloc("h3", pourquoi));
+}
+
 // Le rail en six colonnes — Sur le rail, Au travail, Pass, TODO, WAITING, Livré —,
 // tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
 // colonne, au centre de l'espace, partagé entre ses deux onglets (ticket 1184). Rail : ce qui t'attend
@@ -3934,6 +3977,7 @@ function poserRail(projet) {
   // ait entre eux.
   // Sur Cooks, ses stations sous la carte ; sur Rail, en tête, la ligne qui dit ce qui y demande un geste (ticket 1185).
   poserCuisson(projet);
+  if (cuisine && etroit()) return poserCuisineEtroite(projet, tenu);
   /** @param {(HTMLElement | string)[]} poses */
   const poser = (...poses) => rail.replaceChildren(...(cuisine ? [carte, cuissonDuProjet] : alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses, ...(cuisine ? [pages, lectureDeLaCuisine] : []));
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
@@ -5445,8 +5489,12 @@ function poserStationsDuProjet() {
   // sa cuisine est retenue — un worktree qui ne se prépare pas (ticket 1119). L'accès au dépôt refusé et le refus de
   // la station, eux, sont dits sur Rail par la ligne d'alerte, qui ouvre Cooks : une seule ligne (ticket 1185).
   const ditParLAlerte = (vu?.acces ?? vu?.worktree?.acces ?? vu?.refus ?? null) !== null;
+  // Sur un écran étroit, elles ne sont ni sur Cooks — ce sont des réglages : en ajouter, déménager, le bac à sable —, ni
+  // sur la conversation (ticket 1186). Sur Rail, comme sur un écran large.
+  const rangees = etroit() && ongletDe(projet) !== RAIL;
   stationsDuProjet.hidden =
-    ongletDe(projet) !== CUISINE && seLit(projet) && parcoursDuProjet.hidden && (depotRetenu.hidden || ditParLAlerte) && confiance === undefined && demenagement?.projet !== projet.nom;
+    rangees ||
+    (ongletDe(projet) !== CUISINE && seLit(projet) && parcoursDuProjet.hidden && (depotRetenu.hidden || ditParLAlerte) && confiance === undefined && demenagement?.projet !== projet.nom);
   if (confiance === undefined) return;
   poserLaConfiance(confiance, projet, { exclues: stations.map(({ id }) => id), demande, principale });
 }

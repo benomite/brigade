@@ -26,6 +26,15 @@ banner, the action for a refusal in the block under the stations line. **On Rail
 what, on the cooks' side, asks for your action — a saturated station, a station that refuses the project, repository access
 blocked —, all the causes on the same line, with `open Cooks`, which opens the Cooks tab; nothing shows it
 when nothing asks for it. The modules are `app/src/cuisson.ts` and `app/src/vue/stations-de-cuisson.js`.
+**On a narrow screen — the phone (#1151), or a window under 720 px —, three tabs** (#1186): Rail, Cooks and
+**Second**, the conversation with the second, which takes the place of the middle instead of sitting on the right; one
+tap switches from one to the other, and switching tabs neither cuts nor empties the conversation. The projects bar
+moves to the top. **Cooks is read-only there**: the stations' lines, their state and their cooks, and on each one its
+only button, `stop cooking` or `start cooking` — no project tile, no Taken and Pass, no delivery servers, no stations
+line to set up (`+ station`, `move the kitchen`, the sandbox), no reading of `station` and its cap: cooks are set up
+where there is a computer. Rail is the same as on a wide screen, `open Cooks` line included, and the last tab opened is
+remembered; remembered on a wide screen, the conversation reopens the project on Rail. On a wide screen, nothing
+changes. The threshold is `ECRAN_ETROIT` in `app/src/vue/vue.js`, and the same one in `vue.css`.
 **The main screen keeps only three things: the alert band, the rail and the terminals**; there is
 nothing at the bottom of the window. The rest is behind a tab, at the top, next to the name of the
 project: **Settings** (the state of the project, the backup and its age, the settings, the

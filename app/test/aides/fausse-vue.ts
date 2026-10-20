@@ -136,6 +136,9 @@ export class Faux {
   getAttribute(nom: string): string | null {
     return this.#valeurs.get(nom) ?? null;
   }
+  hasAttribute(nom: string): boolean {
+    return this.#attributs.has(nom);
+  }
   toggleAttribute(nom: string, voulu = !this.#attributs.has(nom)): void {
     if (voulu) this.#attributs.add(nom);
     else this.#attributs.delete(nom);
@@ -279,8 +282,27 @@ export class FauxStockage {
   }
 }
 
-// Charge une vue neuve — son module entier, jusqu'à son premier affichage. Sans stockage, la vue n'en a pas.
-export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "demarrage">>, { stockage }: { stockage?: FauxStockage } = {}): Promise<Jouee> {
+// La largeur de l'écran, telle que la vue la demande (`window.matchMedia`, #1186) : étroit ou non, et la requête posée.
+// `changer` fait comme un téléphone qu'on tourne : la requête change de réponse, et la vue en est avertie.
+export class FauxEcran {
+  matches: boolean;
+  readonly requetes: string[] = [];
+  readonly #ecoutes: (() => void)[] = [];
+  constructor(etroit: boolean) {
+    this.matches = etroit;
+  }
+  addEventListener(_type: string, ecoute: () => void): void {
+    this.#ecoutes.push(ecoute);
+  }
+  changer(etroit: boolean): void {
+    this.matches = etroit;
+    for (const ecoute of this.#ecoutes) ecoute();
+  }
+}
+
+// Charge une vue neuve — son module entier, jusqu'à son premier affichage. Sans stockage, la vue n'en a pas ; sans
+// écran, elle n'a pas de `matchMedia` : elle est large.
+export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "demarrage">>, { stockage, ecran }: { stockage?: FauxStockage; ecran?: FauxEcran } = {}): Promise<Jouee> {
   const html = readFileSync(join(VUE, "index.html"), "utf8");
   const jetons = jetonsDe(readFileSync(join(VUE, "jetons.css"), "utf8"));
 
@@ -323,7 +345,11 @@ export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "d
   );
 
   Object.assign(globalThis, {
-    window: { brigade: pont, ...(stockage === undefined ? {} : { localStorage: stockage }) },
+    window: {
+      brigade: pont,
+      ...(stockage === undefined ? {} : { localStorage: stockage }),
+      ...(ecran === undefined ? {} : { matchMedia: (requete: string) => (ecran.requetes.push(requete), ecran) }),
+    },
     document: {
       documentElement: new Faux("html"),
       fonts: { load: (police: string) => (polices.push(police), Promise.resolve([])) },
