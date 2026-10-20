@@ -217,6 +217,9 @@ export type Pont = {
   // Le bouton d'une panne, sur la ligne d'une station (pannes/gestes.ts) : relire GitHub, écarter la
   // ligne, lancer le login. Rend ce qu'il a fait, ou pourquoi rien, en une ligne.
   panne(id: string, cle: string): Promise<RenduDePanne>;
+  // Le bouton d'une station du projet, sur l'onglet Cooks (ticket 1185) : arrête ou relance la cuisine du projet sur
+  // cette station (cuisson.ts). Rend ce qui est fait, ou pourquoi rien — ce que le runtime a dit, en `detail`.
+  cuireSurLaStation(projet: string, station: string, geste: import("../cuisson.ts").GesteDeCuisson): Promise<import("../cuisson.ts").RenduDeCuisson>;
   // Le plafond de cooks d'une station, réglé depuis sa page : un nombre (0 : sans limite) ou « auto » (le plafond de
   // ses cœurs revient). Part sur la box de chaque projet qui nomme la station (plafond.ts) ; le plafond neuf arrive par `surAccueil`.
   reglerLePlafond(station: string, valeur: string): Promise<{ fait: string } | { refus: string; detail?: string }>;

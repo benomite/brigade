@@ -10,6 +10,10 @@ export const PLATEFORME = "darwin";
 
 // Ce que `facts` dit d'une station (runtime/src/etat.ts, `stations`) — ce que l'app en lit.
 // `bacASable` : nul, la station n'en a rien dit.
+// `cuisson` : ce que la station fait du projet — `cooking`, `stopped`, `saturated`, `refused` (#1183) ;
+// `arreteeDepuis` : le chef l'a arrêtée, depuis quand — nul, ce n'est pas lui, ou elle cuit ; `refus` : pourquoi
+// la station de la machine refuse le projet ; `cooks` : ses cooks en cours. Les quatre sont absents d'un
+// runtime d'avant ce champ (cuisson.ts).
 export type StationDesFaits = {
   station: string;
   distante: boolean;
@@ -17,6 +21,10 @@ export type StationDesFaits = {
   ordinaires: boolean;
   bacASable: { disponible: boolean; raison: string | null; version: string | null; depuis: string } | null;
   prendOrdinaires: boolean;
+  cuisson?: string;
+  arreteeDepuis?: string | null;
+  refus?: { code: string; message: string; action: string } | null;
+  cooks?: { ticket: number; titre: string; station: string }[];
 };
 
 export const EXPLICATION = "The Mac's cooks run in Claude Code's sandbox: they write only in their own worktree, and reach only the network hosts on the project's list.";

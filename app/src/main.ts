@@ -13,7 +13,7 @@ import { mettreAPart } from "./attend.ts";
 import { reglerLePlafond } from "./plafond.ts";
 import { pourLaBarre } from "./barre.ts";
 import { BOUTONS, ecritPar, ecritPourLeCloser, REGLER_LE_CLOSER } from "./boutons.ts";
-import { lancerGeste, lancerLa, ouvrirVeille, type Servi } from "./box.ts";
+import { lancerGeste, lancerLa, ouvrirVeille, type Lu, type Servi } from "./box.ts";
 import { agirSurLeCloser } from "./closer-lancement.ts";
 import { repondreALaCorrection } from "./correction.ts";
 import { repondreAuProfil } from "./profil.ts";
@@ -21,6 +21,7 @@ import { histoireDe, situationDe } from "./histoire.ts";
 import { commenter, demanderAuSecond, lireDiscussion } from "./discussion.ts";
 import { cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { confirmationDe } from "./confirmation.ts";
+import { cuireSurLaStation } from "./cuisson.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
 import { ecrireAttente, GESTES_D_ATTENTE } from "./attente.ts";
@@ -902,6 +903,21 @@ ipcMain.handle("reglerLePlafond", async (_, station: unknown, valeur: unknown) =
 });
 // Le bouton d'une panne, sur la ligne d'une station : rend ce qu'il a fait, ou pourquoi rien.
 ipcMain.handle("panne", (_, id: unknown, cle: unknown) => jouerPanne(gestesDesPannes, id, cle));
+// Le bouton d'une station sur l'onglet Cooks (#1185) : `station stop|start <station>` part là où la cuisine du projet
+// tourne — sa box, ou cet ordinateur —, par le passage du projet comme les veilles. La station doit être l'une de celles
+// que ses derniers `facts` donnent (cuisson.ts). La vue relit la box quand il est fait : la ligne dit son état neuf.
+ipcMain.handle("cuireSurLaStation", (_, nom: unknown, station: unknown, geste: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return parti(nom);
+  const cuisine = cuisines.cuisineDe(vise);
+  const lancer = (lu: Lu, commande: string) => {
+    // Jamais posée hors des essais, comme pour la veille.
+    const rendu = (passage.get(lu.nom) ?? Promise.resolve()).then(() => lancerLa({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, lu, commande));
+    passage.set(lu.nom, rendu);
+    return rendu;
+  };
+  return cuireSurLaStation(vise.nom, cuisine === undefined ? undefined : { nom: vise.nom, cuisine }, faits.stations(vise.nom), station, geste, lancer);
+});
 // Le code de l'app, en retard ou à relancer : le clic la met à jour et la relance — rien n'est
 // rendu, elle se ferme — ou dit pourquoi elle reste sur son code (rattrapage.ts).
 ipcMain.handle("passer", () => {

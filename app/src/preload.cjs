@@ -71,6 +71,7 @@ const pont = {
   demenagerLaCuisine: (nom, vers) => ipcRenderer.invoke("demenagerLaCuisine", nom, vers),
   autoriserSurGitHub: (url) => ipcRenderer.invoke("autoriserSurGitHub", url),
   panne: (id, cle) => ipcRenderer.invoke("panne", id, cle),
+  cuireSurLaStation: (projet, station, geste) => ipcRenderer.invoke("cuireSurLaStation", projet, station, geste),
   reglerLePlafond: (station, valeur) => ipcRenderer.invoke("reglerLePlafond", station, valeur),
   retirerLaStation: (id) => ipcRenderer.invoke("retirerLaStation", id),
   compter: (projet) => ipcRenderer.invoke("compter", projet),
