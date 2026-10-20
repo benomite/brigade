@@ -126,7 +126,8 @@ de chaque station qu'il a choisie, et la station l'y lit — toujours sans liais
      home (« 1 project »).
 - **Ce qu'elle en dit** : `brigade-projets-suivi.json`, réécrit quand il change — par projet, `servi`
   (et depuis quand), `a-autoriser` (avec ses pages), `en-preparation`, `refuse` (et pourquoi : clone
-  raté, ligne à la main, refus de la station) ou `secondaire`.
+  raté, ligne à la main, refus de la station) ou `secondaire` ; et, à côté de la liste, l'**onboarding**
+  de chaque projet dont elle est la principale — voir plus bas.
 - **Retiré depuis l'app**, le projet quitte la demande : la station retire sa ligne du bloc et ne le
   sert plus. Son état et son clone restent sur la machine.
 - **Une station qui n'est pas la principale** d'un projet ne lui écrit aucune ligne et le dit
@@ -167,3 +168,35 @@ La recette (`runtime/test/0-en-premier/recette.test.ts`) mesure, sur une vraie s
 entre l'ouverture du parcours et le projet publié dans la liste de la station : la spec le borne à
 dix minutes ; la station y met au plus sa cadence, trente secondes, plus le clone.
 
+### L'onboarding : où en est un projet neuf
+
+*Ticket #1110.* Entre « projet ajouté » et « premier ticket servi », la station calcule où en est
+chaque projet dont elle est la principale (`runtime/src/onboarding/`), et le publie dans son suivi,
+sous `onboarding`, par nom de projet — c'est là que l'app le lit. Un projet repris d'une autre
+station (`reprise`) n'en a pas : il n'est pas neuf. L'état se calcule de ce que la station sait
+déjà — son suivi du projet, son clone, le ticket de préparation noté — et du journal du projet, lu
+en lecture seule ; rien n'est écrit pour lui.
+
+- **Quatre étapes, dans l'ordre** (`etapes`) : `depot` (les Apps de brigade autorisées sur le
+  dépôt, et son clone), `machine` (la station qui le cuit, sa cuisine ouverte), `preparation` (le
+  ticket « Préparer le dépôt », mergé), `premier-ticket` (un ticket du chef sur le rail). Chacune
+  porte son `titre`, son `etat` — `faite`, `courante` ou `a-venir` —, une phrase en anglais
+  (`dit`), et, si elle est la courante et attend le chef, son `geste` : `quoi`, `ou`, et les
+  `liens` où le faire (les pages d'autorisation des Apps, la PR de préparation, la page d'une
+  nouvelle issue). `courante` nomme la première qui n'est pas faite.
+- **La préparation** (`preparation`) : le numéro du ticket, son lien, et son `etat` — `en-cours`
+  (sur le rail, ou entre les mains d'un cook), `en-echec` (mis de côté : `raison`, en une phrase,
+  et `prochainEssai`, l'heure à laquelle il repart seul, nulle s'il ne repart pas seul), `a-relire`
+  (à la pass, avec sa `pr` ; arrêtée faute de grant ou remontée au chef, le geste est de la relire
+  et la merger), `suspendu` (son label `fire` retiré), `faite`, ou `abandonne` (fermé sans merge :
+  le rail ne l'attend plus). Nulle tant que le ticket n'est pas ouvert.
+- **Sans bac à sable** (`sansBacASable`) : vrai si la cuisine du projet a noté au journal que ses
+  cooks tournent sans bac à sable (`isolation.configured`, `sandbox: null`) ; nul tant qu'elle
+  n'a rien noté.
+- **Prêt** : les trois premières étapes faites, le premier ticket peut être posé — `etat` vaut
+  `pret`, et `termine` est vrai : l'onboarding est fini. Un projet qui servait déjà des tickets
+  avant que le ticket de préparation existe est prêt d'emblée.
+
+Le cas « aucune station choisie » se calcule aussi (l'étape `machine` courante, le geste de choisir
+une station dans l'app) ; mais une station ne publie que les projets qu'on lui demande : ce cas-là,
+seule l'app le voit.

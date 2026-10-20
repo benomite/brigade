@@ -36,7 +36,12 @@
 //     cuisine locale, sous macOS). `cuitSur` : la station où le projet cuit, telle
 //     que celle-ci la connaît — nul si elle n'en sait rien ; `ici` : il cuit sur
 //     celle-ci, et c'est l'ordinateur du chef.
+//     `onboarding` (absent s'il est vide) : pour chaque projet dont la station
+//     est la principale, par son nom, où il en est de son ajout à son premier
+//     ticket — ses quatre étapes, la courante, le geste attendu du chef, le
+//     ticket de préparation (`onboarding/etat.ts`, `Onboarding`).
 import { EFFORTS, MODELES } from "../calibrage.ts";
+import type { Onboarding } from "../onboarding/etat.ts";
 import { NOM_DE_PROJET } from "../runtime.ts";
 
 export const FICHIER_PROJETS = "brigade-projets.json";
@@ -205,7 +210,10 @@ export function suiviDe(brut: string | undefined, nom: string): (Pick<SuiviDuPro
 }
 
 // Ce que la station écrit de ses projets demandés. `station` : son nom, et si
-// elle est celle de l'ordinateur du chef.
-export function documentDeSuivi(projets: SuiviDuProjet[], instant: number, station?: { nom: string; locale: boolean }): string {
-  return `${JSON.stringify({ brigade: "projets-suivi", format: FORMAT, a: new Date(instant).toISOString(), ...(station === undefined ? {} : { station }), projets }, null, 2)}\n`;
+// elle est celle de l'ordinateur du chef. `onboarding` : où en est chaque
+// projet dont elle est la principale, de son ajout à son premier ticket
+// (`onboarding/`), par son nom — absent s'il n'y en a aucun.
+export function documentDeSuivi(projets: SuiviDuProjet[], instant: number, station?: { nom: string; locale: boolean }, onboarding: Record<string, Onboarding> = {}): string {
+  const avecOnboarding = Object.keys(onboarding).length === 0 ? {} : { onboarding };
+  return `${JSON.stringify({ brigade: "projets-suivi", format: FORMAT, a: new Date(instant).toISOString(), ...(station === undefined ? {} : { station }), projets, ...avecOnboarding }, null, 2)}\n`;
 }

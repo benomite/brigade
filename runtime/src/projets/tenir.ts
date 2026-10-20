@@ -13,7 +13,8 @@
 //
 // Ce qu'elle en dit, projet par projet, elle l'écrit dans le même gist
 // (`brigade-projets-suivi.json`) : l'app le montre au chef — et, pour chacun,
-// la station où il cuit, et si c'est l'ordinateur du chef.
+// la station où il cuit, et si c'est l'ordinateur du chef ; pour ceux dont
+// elle est la principale, où en est leur onboarding (`onboarding/`).
 //
 // La cuisine d'un projet déménage d'une station à une autre sans qu'il soit
 // retiré ni rajouté (`demenagement/`) : l'app demande à celle qu'il quitte de
@@ -29,13 +30,14 @@
 //      état dans son gist (`remise`) ;
 //   3. celle qui le reprend le pose, puis écrit sa ligne : sa cuisine s'ouvre
 //      sur le journal reçu, et reprend les tickets où ils en étaient (`recue`).
-import { readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { FICHIER_LOCAL } from "../appairage/presence.ts";
 import type { Canal } from "../appairage/canal.ts";
 import type { Verification } from "../bac-a-sable/local.ts";
 import { dejaDemenage, lireRemise, recevoir, remettre, remisAilleurs } from "../demenagement/remise.ts";
 import { ouvrirGitHub } from "../github.ts";
+import { lireOnboarding } from "../onboarding/lire.ts";
 import { ouvrirLaPreparation } from "../preparation-depot/ouvrir.ts";
 import { CLONES, CONFIGURATION, ETATS } from "../station/configuration.ts";
 import { lignesDuBloc, nomsHorsDuBloc, reecrireBloc } from "./bloc.ts";
@@ -378,10 +380,21 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
         : { ...suiviDu(projet, "refuse", `the station refuses to serve it — ${refus}`), bascule };
     });
     for (const nom of [...serviLe.keys()]) if (!servisMaintenant.has(nom)) serviLe.delete(nom);
+    // Où en est chaque projet dont elle est la principale, de son ajout à son
+    // premier ticket. Un projet qu'elle reprend d'une autre station n'est pas
+    // neuf : il n'en a pas.
+    const onboarding = Object.fromEntries(
+      demande.projets.flatMap((projet) => {
+        if (!projet.principale || (projet.reprise ?? null) !== null) return [];
+        const dit = suivi.find(({ nom }) => nom === projet.nom) ?? null;
+        const repertoireEtat = etatDe(projet.nom);
+        return [[projet.nom, lireOnboarding({ repertoireEtat, projet: projet.nom, depot: projet.depot, station, suivi: dit, clone: existsSync(join(racine, CLONES, projet.nom)) })]];
+      }),
+    );
     // Le suivi ne se réécrit que s'il a changé : un gist n'est pas un journal.
-    const compare = JSON.stringify(suivi);
+    const compare = JSON.stringify({ suivi, onboarding });
     if (compare === dernierSuivi && lus[FICHIER_SUIVI] !== undefined) return;
-    await canal.ecrire(gist, { [FICHIER_SUIVI]: documentDeSuivi(suivi, instant, { nom: station, locale }) });
+    await canal.ecrire(gist, { [FICHIER_SUIVI]: documentDeSuivi(suivi, instant, { nom: station, locale }, onboarding) });
     dernierSuivi = compare;
   };
 
