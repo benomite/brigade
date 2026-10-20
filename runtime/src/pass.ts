@@ -124,6 +124,7 @@ import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, de
 import { calibrageDuSecondJuge, carteDuSecondJuge, consigneDuSecondJuge, debutDuSecondJugement, DIRE_VERDICT, lireSecondJugement, SECOND_JUGE } from "./second-juge.ts";
 import { entrerDansTodo, sortirDeTodo } from "./carte-todo.ts";
 import { estUneLivraisonDeCorrection } from "./correctif/livrer.ts";
+import { estUneLivraisonDuCarnet } from "./promotion/livrer.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { DECLARATION, lireSecrets } from "./secrets.ts";
 import type { Fin } from "./superviseur.ts";
@@ -684,6 +685,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       ticket: { number: ticket, title: issue.title, body: issue.body ?? "" },
       horsRail: connu.horsRail,
       correction: connu.horsRail && estUneLivraisonDeCorrection(connu.run),
+      carnet: connu.horsRail && estUneLivraisonDuCarnet(connu.run),
       commentaires,
       compteRendu: sansDiff ? rapport.livrable : (rapport.livrable ?? rapport.message),
       diff,

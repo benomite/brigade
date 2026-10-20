@@ -16,6 +16,9 @@ import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "./identites.ts";
 import { brancherManager, configManager } from "./manager.ts";
 import { brancherPass, configPass } from "./pass.ts";
+import { CARNET_PATH } from "./carnet/carnet.ts";
+import { brancherCarnet } from "./promotion/livrer.ts";
+import { lireSeuils as lireSeuilsDesLecons } from "./seuils/seuils.ts";
 import { brancherSession, configSession, type ConfigSession } from "./renouvellement.ts";
 import { brancherReseau, configReseau, DECLARATION_RESEAU, passerParLaPorte, sonderLeFiltre } from "./reseau.ts";
 import { configReviewer } from "./reviewer.ts";
@@ -91,6 +94,8 @@ try {
   // Lus ici pour qu'un seuil mal écrit refuse le démarrage ; la dérive les
   // relit ensuite à chaque réveil.
   lireSeuils(decide);
+  // Les seuils des leçons : un réglage de l'unité du projet, lu une fois.
+  const seuilsDesLecons = lireSeuilsDesLecons(process.env);
   configFermeture(decide);
   arbitre = configArbitrage(process.env);
   secrets = configSecrets(process.env, { repertoireEtat, clone: station.clone });
@@ -131,7 +136,9 @@ try {
   // La fermeture avant la station : c'est par son rail que la station se voit
   // refuser ce qu'une passe tient. Elle ne lance rien sans la commande du chef.
   const fermee = brancherFermeture(pass, { reglages: decisions.fermeture, repertoireEtat, depot, clone: station.clone, base: station.base, github: githubs.station, depotGitHub: rail.depot, bin: station.bin, env, cloison });
-  const servie = brancherStation(fermee, {
+  // Le carnet des leçons après la pass, à qui il remet ses PR : elles n'attendent pas le chef.
+  const apprise = brancherCarnet(fermee, { depot, github: githubs.station, base: station.base, seuils: seuilsDesLecons, carnetALaBase: () => lireALaBase(station, CARNET_PATH), env });
+  const servie = brancherStation(apprise, {
     stations,
     decisions,
     repertoireEtat,
