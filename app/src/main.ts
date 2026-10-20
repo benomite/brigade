@@ -12,7 +12,7 @@ import { mettreAPart } from "./attend.ts";
 import { reglerLePlafond } from "./plafond.ts";
 import { pourLaBarre } from "./barre.ts";
 import { BOUTONS, ecritPar, ecritPourLeCloser, REGLER_LE_CLOSER } from "./boutons.ts";
-import { lancerGeste, ouvrirVeille, type Servi } from "./box.ts";
+import { lancerGeste, lancerLa, ouvrirVeille, type Servi } from "./box.ts";
 import { agirSurLeCloser } from "./closer-lancement.ts";
 import { repondreALaCorrection } from "./correction.ts";
 import { repondreAuProfil } from "./profil.ts";
@@ -316,19 +316,21 @@ function regarder(vus: Parameters<typeof veille.regarder>[0], commandes: readonl
 
 // L'installation guidée d'un projet (service.ts) : ses étapes, lues et faites par les
 // commandes `installation` du runtime de sa box, lancées une à une par le passage du projet
-// comme les veilles. Chacune a deux minutes : la vérification joint l'origine du dépôt et
+// comme les veilles — ou par la station de cet ordinateur, sans `ssh`, quand c'est elle qui fait
+// tourner sa cuisine. Chacune a deux minutes : la vérification joint l'origine du dépôt et
 // GitHub, la protection aussi. Sa session s'ouvre dans le second, son démarrage s'écrit dans
 // un shell. Chaque installation qui change est poussée à la vue — et à la bande d'alertes du
 // projet : installé, ce que son contrôle dit qu'il a perdu y entre (alertes.ts), jamais l'écran
 // d'installation. Le contrôle d'un projet installé ne se refait pas plus d'une fois par minute.
 const services = tenirServices({
   delaiMs: 120_000,
-  lancer: (servi, commande) => {
+  lancer: (lu, commande) => {
     // Jamais posée hors des essais, comme pour la veille.
-    const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => lancerGeste({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 120_000, connexionS: 10 }, servi, commande));
-    passage.set(servi.nom, rendu);
+    const rendu = (passage.get(lu.nom) ?? Promise.resolve()).then(() => lancerLa({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 120_000, connexionS: 10 }, lu, commande));
+    passage.set(lu.nom, rendu);
     return rendu;
   },
+  cuisine: cuisines.cuisineDe,
   session: terminaux.session,
   shell: terminaux.shell,
   surGuide: (guide) => {
@@ -342,7 +344,7 @@ const services = tenirServices({
 // dès que la barre est posée ; un contrôle en route ne se double pas.
 const CONTROLE_MS = 5 * 60_000;
 const controlerTout = () => {
-  for (const projet of projets()) if (projet.box !== undefined) void services.controler(projet);
+  for (const projet of projets()) if (cuisines.cuisineDe(projet) !== undefined) void services.controler(projet);
 };
 const controles = setInterval(controlerTout, CONTROLE_MS);
 
@@ -683,7 +685,7 @@ ipcMain.handle("gestesDeFiche", (_, carte: unknown) => gestesDeCarte(carte));
 // compose ici, jamais dans la vue.
 ipcMain.handle("gesteDeFiche", (_, nom: unknown, id: unknown, ticket: unknown, valeur: unknown) => {
   const vise = connu(nom);
-  return vise === undefined ? parti(nom) : jouerGesteDeFiche(terminaux, vise, id, ticket, valeur);
+  return vise === undefined ? parti(nom) : jouerGesteDeFiche(terminaux, vise, id, ticket, valeur, undefined, cuisines.cuisineDe(vise));
 });
 // La question qu'une carte de T'attend pose, telle qu'elle est écrite sur son issue (question.ts) :
 // l'issue est lue par le `gh` du poste — celui du chef —, à l'ouverture de sa fiche. La vue nomme le
@@ -827,14 +829,14 @@ ipcMain.handle("demanderAlerte", (_, nom: unknown, sujet: unknown, dit: unknown)
 // vue ne passe qu'une fois sa confirmation montrée : sans lui, rien n'est écrit.
 ipcMain.handle("geste", (_, nom: unknown, id: unknown, grant: unknown, oui: unknown) => {
   const vise = connu(nom);
-  return vise === undefined ? parti(nom) : ecrireGeste(terminaux, id, vise, grant, oui);
+  return vise === undefined ? parti(nom) : ecrireGeste(terminaux, id, vise, grant, oui, cuisines.cuisineDe(vise));
 });
 // Un geste de WAITING, sur une carte du rail : sa commande part dans le second du projet, comme un
 // geste du socle. La vue nomme le geste et le ticket, et donne ce que le chef a rempli ; ce qui
 // part se décide dans attente.ts.
 ipcMain.handle("attente", (_, nom: unknown, id: unknown, ticket: unknown, saisie: unknown) => {
   const vise = connu(nom);
-  return vise === undefined ? parti(nom) : ecrireAttente(terminaux, id, vise, ticket, saisie);
+  return vise === undefined ? parti(nom) : ecrireAttente(terminaux, id, vise, ticket, saisie, undefined, cuisines.cuisineDe(vise));
 });
 // Ce qu'un geste confirmé coûte, dit avant son « oui » (confirmation.ts) : tiré des derniers faits
 // lus du projet — les cooks en cours, le rail. Rien ne part, rien
@@ -842,7 +844,7 @@ ipcMain.handle("attente", (_, nom: unknown, id: unknown, ticket: unknown, saisie
 ipcMain.handle("confirmer", (_, nom: unknown, id: unknown, grant: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
-  return confirmationDe(id, vise, faits.dernier(vise.nom) ?? { sans: "`facts` has not been read yet for this project, or its last read did not return the expected shape" }, grant);
+  return confirmationDe(id, vise, faits.dernier(vise.nom) ?? { sans: "`facts` has not been read yet for this project, or its last read did not return the expected shape" }, grant, cuisines.cuisineDe(vise));
 });
 // Le code qu'une station affiche, tapé par le chef : la station qui le publie sur GitHub est
 // appairée — ou le refus dit en une ligne pourquoi rien ne l'est (stations/stations.ts).

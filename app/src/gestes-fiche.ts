@@ -15,6 +15,7 @@
 // « mettre en WAITING » (#588) et « voir dans le navigateur » (#620) — leur épique n'est pas
 // livrée ; elle se branche ici à sa livraison, d'une ligne, sans rien toucher d'autre.
 // Ce module ne lance rien : il dit ce qui se propose, et compose ce qui part.
+import type { Cuisine } from "./box.ts";
 import type { Projet } from "./config.ts";
 import { attenduDe, decisionLue, type Decision } from "./decision.ts";
 import { enPoste } from "./gestes.ts";
@@ -133,7 +134,8 @@ export function gestesDeCarte(carte: unknown, actions: Actions = ACTIONS): Propo
 
 // Ce que joue un geste de la fiche que l'app ne joue pas dans la vue — une commande de la box —, ou
 // pourquoi rien ne part. Elle part au clic — confirmé d'abord s'il coûte —, comme un geste direct
-// du socle (gestes.ts), et sa sortie se lit dans le second.
+// du socle (gestes.ts), et sa sortie se lit dans le second. `cuisine` : là où celle du projet
+// tourne à cet instant — sa box, ou cet ordinateur, où elle part sans `ssh`.
 type Registre = { envoyer(projet: Projet, commande: string): Promise<Terminal | { refus: string }> };
 export function jouerGesteDeFiche(
   terminaux: Registre,
@@ -142,15 +144,16 @@ export function jouerGesteDeFiche(
   ticket: unknown,
   valeur: unknown,
   actions: Actions = ACTIONS,
+  cuisine: Cuisine | undefined = projet.box,
 ): { refus: string } | Promise<Terminal | { refus: string }> {
   if (typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1) return { refus: "nothing is sent: the action names no ticket" };
-  if (projet.box === undefined) return { refus: `nothing is sent: “${projet.nom}” has no station — there is no command to run` };
+  if (cuisine === undefined) return { refus: `nothing is sent: “${projet.nom}” has no station — there is no command to run` };
   if (projet.refus !== undefined) return { refus: `nothing is sent: “${projet.nom}” does not open — ${projet.refus}` };
   const action = typeof id === "string" && Object.hasOwn(actions, id) ? actions[id as IdDeFiche] : undefined;
   if (action === undefined || !("box" in action)) return { refus: `nothing is sent: “${String(id)}” is not an action of the station that this app can run` };
   if (id === "priorite" && !(texte(valeur) && PRIORITES.includes(valeur))) return { refus: `nothing is sent: the priority ${JSON.stringify(valeur) ?? String(valeur)} is not one of ${PRIORITES.join(", ")}` };
   const suite = action.box(ticket, texte(valeur) ? valeur : undefined);
   if (CONTROLE.test(suite)) return { refus: "nothing is sent: the command carries a control character" };
-  const ecrit = enPoste(projet.box, projet.nom, suite);
+  const ecrit = enPoste(cuisine, projet.nom, suite);
   return "refus" in ecrit ? ecrit : terminaux.envoyer(projet, `!${ecrit.commande}`);
 }
