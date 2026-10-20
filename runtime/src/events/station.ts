@@ -26,7 +26,9 @@ export type OrigineDuSeuil = { totalMb: number } | "env";
 // la machine a un arbitre entre projets : son refus, ou son absence — sans
 // lui, la station ne fait tourner qu'un cook à la fois. `paused` : la cuisine
 // est en pause pour le renommage du code, sur le « oui » du chef.
-export type Retenue = "stopped" | "breaker" | "paused" | "deploy" | "base" | "disconnected" | "quota" | "cap" | "setups" | "setup" | "aside" | "machine" | "ramp" | "arbiter" | "unarbitrated";
+// `station-stopped` : le chef a arrêté la cuisine du projet sur cette station
+// seule (`station.stopped`) ; ses cooks en cours finissent.
+export type Retenue = "stopped" | "station-stopped" | "breaker" | "paused" | "deploy" | "base" | "disconnected" | "quota" | "cap" | "setups" | "setup" | "aside" | "machine" | "ramp" | "arbiter" | "unarbitrated";
 
 // Un cook est signalé quand cette part du bail de son ticket est passée sans
 // progrès : assez tôt pour que le chef le voie avant que le bail ne tombe.
@@ -105,6 +107,13 @@ export type FaitStation =
   // tourne ou non. `maxCooks: 0` : pas de limite. Il l'emporte sur l'annonce.
   // `maxCooks: null` : le chef retire son réglage, le plafond par défaut revient.
   | { type: "station.capped"; payload: { station: string; maxCooks: number | null } }
+  // Le chef arrête la cuisine du projet sur cette station : elle ne prend plus
+  // aucun ticket, qu'elle tourne ici ou qu'elle tire son travail. Rien n'est
+  // arrêté : ses cooks en cours finissent et livrent, ou rendent leur ticket au
+  // rail, comme toujours. Tient après un redémarrage, jusqu'à `station.started`.
+  | { type: "station.stopped"; payload: { station: string } }
+  // Le chef relance la cuisine du projet sur cette station : elle reprend.
+  | { type: "station.started"; payload: { station: string } }
   // La machine n'en peut plus : la station ne prend plus de ticket tant que ça
   // dure. La première ressource en cause, et `also` les autres, s'il y en a
   // (`Manque`). Écrit quand les ressources en cause changent, pas à chaque

@@ -8,12 +8,15 @@
 // suffit pas — il faut que la station l'ait dit.
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { CODES_DE_REFUS, refus, type CodeDeRefus, type Refus } from "../projets/refus.ts";
 
 export const EN_SERVICE = "en-service";
 
 // `refuses` : les projets de la configuration que la station n'a pas pu
-// ouvrir, et pourquoi.
-export type EnService = { version: string; pid: number; depuis: string; servis: string[]; refuses: Record<string, string> };
+// ouvrir, et pourquoi. `causes` : la cause de chacun pour le chef
+// (`projets/refus.ts`) — absent quand aucun n'est refusé, et d'une station
+// d'avant ce champ.
+export type EnService = { version: string; pid: number; depuis: string; servis: string[]; refuses: Record<string, string>; causes?: Record<string, CodeDeRefus> };
 
 // La version du runtime qui tourne : celle que la construction du paquet
 // écrit dans son package.json. Hors du paquet — un clone, le poste de dev —,
@@ -34,16 +37,28 @@ export function lireEnService(racine: string): EnService | null {
     const lu = JSON.parse(readFileSync(join(racine, EN_SERVICE), "utf8")) as Partial<EnService>;
     if (typeof lu.version !== "string" || typeof lu.pid !== "number" || typeof lu.depuis !== "string" || !Array.isArray(lu.servis)) return null;
     const refuses = typeof lu.refuses === "object" && lu.refuses !== null ? lu.refuses : {};
+    const causes = typeof lu.causes === "object" && lu.causes !== null ? Object.entries(lu.causes).filter(([, code]) => (CODES_DE_REFUS as readonly unknown[]).includes(code)) : [];
     return {
       version: lu.version.slice(0, 100),
       pid: lu.pid,
       depuis: lu.depuis,
       servis: lu.servis.filter((nom): nom is string => typeof nom === "string"),
       refuses: Object.fromEntries(Object.entries(refuses).flatMap(([nom, motif]) => (typeof motif === "string" ? [[nom, motif.slice(0, MOTIF_MAX)]] : []))),
+      ...(causes.length === 0 ? {} : { causes: Object.fromEntries(causes) }),
     };
   } catch {
     return null;
   }
+}
+
+// Pourquoi la station de cette machine refuse ce projet, pour le chef — ou
+// null : elle le sert, ou rien ne se lit. Une station d'avant `causes` n'en dit
+// pas la cause : `unexpected`.
+export function refusDuProjet(racine: string | undefined, projet: string | undefined): Refus | null {
+  if (!racine || !projet) return null;
+  const lu = lireEnService(racine);
+  if (lu === null || !Object.hasOwn(lu.refuses, projet) || lu.servis.includes(projet)) return null;
+  return refus(lu.causes?.[projet] ?? "unexpected");
 }
 
 // La station annonce qu'elle est en service, puis réannonce dès que ce qu'elle
@@ -51,7 +66,7 @@ export function lireEnService(racine: string): EnService | null {
 // N'empêche jamais le process de sortir.
 export function annoncerEnService(
   racine: string,
-  lire: () => { servis: string[]; refuses: Record<string, string> },
+  lire: () => { servis: string[]; refuses: Record<string, string>; causes?: Record<string, CodeDeRefus> },
   options: { version?: string; pid?: number; maintenant?: () => Date; intervalleMs?: number; dire?: (ligne: string) => void } = {},
 ): () => void {
   const version = options.version ?? versionDuRuntime();
@@ -61,8 +76,8 @@ export function annoncerEnService(
   let ecrit = "";
   let ditEchec = false;
   const annoncer = () => {
-    const { servis, refuses } = lire();
-    const texte = `${JSON.stringify({ version, pid, depuis, servis: [...servis].sort(), refuses } satisfies EnService)}\n`;
+    const { servis, refuses, causes = {} } = lire();
+    const texte = `${JSON.stringify({ version, pid, depuis, servis: [...servis].sort(), refuses, ...(Object.keys(causes).length === 0 ? {} : { causes }) } satisfies EnService)}\n`;
     if (texte === ecrit) return;
     try {
       writeFileSync(`${fichier}.${pid}`, texte);

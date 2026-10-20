@@ -138,6 +138,7 @@ sur la ligne du ticket (`withheld by <station> (…)`).
 | `ramp`, `machine` | la montée progressive (les cooks tout juste partis pèsent d'avance) ; la machine saturée |
 | `cap`, `setups` | le plafond de cooks, le plafond de setups atteint |
 | `stopped`, `breaker` | ton « stop », le disjoncteur ouvert |
+| `station-stopped` | tu as arrêté la cuisine du projet sur cette station seule (voir « Lancer et arrêter la cuisine, station par station ») |
 | `deploy` | une mise en service demandée — ne se lit plus que dans les journaux d'avant la station, qui ne demande plus de mise en service |
 | `base` | la branche d'intégration est rouge (voir « La base est jugée seule ») |
 | `setup` | le setup du projet est bloqué : il a échoué deux fois de suite à l'identique (voir « Le setup du worktree passe avant le cook ») |
@@ -150,6 +151,40 @@ quand plus rien ne retient. **Deux tickets dont les zones se recouvrent ne parte
 repris qu'une fois ce cook arrêté, et sa zone reste tenue d'ici là. Limites : un ticket qui échoue
 en boucle accumule des **branches locales** dans le clone ; **aucune jauge de quota** (#63) — monte
 le plafond par paliers.
+
+### Lancer et arrêter la cuisine, station par station
+
+*Ticket #1183.* Le « stop » des garde-fous arrête toute la cuisine et coupe ses cooks dans la
+seconde. Pour retirer le projet d'**une** station sans rien couper — ton Mac qui doit servir à
+autre chose, une station distante à libérer —, le geste est par station, le même pour une station
+d'ici et pour une distante, sans rien taper ailleurs :
+
+```bash
+brigade <projet> station stop mac/claude     # elle ne prend plus aucun ticket du projet
+brigade <projet> station start mac/claude    # elle reprend
+```
+
+- **Arrêter est un arrêt en douceur.** La station ne prend plus rien (`station.held`, raison
+  `station-stopped` ; une distante qui réclame reçoit `mission: null, held: "station-stopped"`).
+  **Ses cooks en cours ne sont pas touchés** : un cook d'ici finit, une distante continue de
+  renouveler son bail et rend comme avant. Ce qu'il livre va en pass ; s'il ne livre rien, son
+  ticket revient au rail, comme toujours — rien n'est perdu. La station arrêtée ne le reprend pas :
+  une autre station qui peut le cuisiner le prend, sinon il attend qu'on la relance.
+- **Une station de la box arrêtée n'a pas de place** : quand toutes les stations de la box sont
+  arrêtées ou saturées, une station distante qui prend les tickets ordinaires les reçoit (voir
+  « Les tickets ordinaires sur le poste du chef »).
+- **L'arrêt tient** après un redémarrage, et même si la station est retirée puis redéclarée,
+  jusqu'au `start`. Au journal : `station.stopped` et `station.started`, au nom du `chef`.
+- Le geste dit ce qu'il a fait et combien de cooks finissent ; répété, il ne réécrit rien
+  (`already stopped`, `already cooking`) ; une station que le projet ne déclare pas est refusée
+  (code 1) en nommant les siennes. `run station` le montre sur la ligne `cooking` de chaque station.
+
+**Ce que chaque station fait du projet** se lit dans `facts`, champ `stations` (voir « Les faits,
+pour un programme ») : `cuisson` vaut `refused` (la station de la machine refuse le projet, `refus`
+dit pourquoi — d'une station d'ici seulement), `stopped` (ton arrêt de cette station,
+`arreteeDepuis` ; ou ton « stop » de toute la cuisine, `arreteeDepuis` nul), `saturated` (sa
+machine n'en peut plus — d'une station d'ici seulement) ou `cooking`, dans cet ordre ; `cooks`
+porte ses cooks en cours — arrêtée, ceux qui finissent —, chacun avec le nom de sa station.
 
 ### Le setup du worktree passe avant le cook
 

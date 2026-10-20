@@ -7,6 +7,10 @@
 //   npm --prefix runtime run station -- cooks <N>    règle le plafond de cooks simultanés ; 0 : pas de limite ;
 //                                                    `auto` : retire le réglage, le plafond par défaut revient —
 //                                                    celui des cœurs de la machine
+//   npm --prefix runtime run station -- stop <station>
+//                                                    arrête la cuisine du projet sur cette station, d'ici ou
+//                                                    distante : elle ne prend plus de ticket, ses cooks en
+//                                                    cours finissent ; `start <station>` la relance
 //   npm --prefix runtime run station -- <geste> <valeur>
 //                                                    pose une décision du chef (`decisions.ts`) — un geste par
 //                                                    décision, listés par `station -- help` : les stations, les deux
@@ -31,13 +35,14 @@ import { direReglagesEn } from "./closing/say.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direConsommationEn, NOTE_CONSOMMATION_EN } from "./etat.ts";
 import { direSaturationsEn } from "./machine.ts";
-import { consommation } from "./projections/guardrails.ts";
+import { consommation, etatDesGardeFous } from "./projections/guardrails.ts";
 import { direCommentLeVoirEn, direEtatDeServeurEn, direPageEn, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus } from "./projections/service.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { FORME, GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { direOrdinairesEn } from "./bac-a-sable/ordinaires.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import {
+  arreteeDepuis,
   cooksDeStation,
   cooksEnCoursDeStation,
   direConnexionTombeeEn,
@@ -76,9 +81,11 @@ const LU = "read by the runtime at its next read, without a restart; no running 
 
 const geste = (nom: string) => `${nom} ${GESTES[nom]?.valeur ?? ""}`;
 const USAGE = [
-  "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run station -- [cooks <N> | cooks auto | <geste> <valeur> | remove <geste> | help]",
+  "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run station -- [cooks <N> | cooks auto | stop <station> | start <station> | <geste> <valeur> | remove <geste> | help]",
   `  ${"cooks <N>".padEnd(26)}the cap of simultaneous cooks of every station — a number, 0 for no limit`,
   `  ${"cooks auto".padEnd(26)}withdraws your cap: each station comes back to its default — derived from its machine's cores, its declared cap if lower`,
+  `  ${"stop <station>".padEnd(26)}stops the project's cooking on that station, here or remote: it takes no more tickets, its running cooks finish`,
+  `  ${"start <station>".padEnd(26)}starts the project's cooking on that station again`,
   ...Object.entries(GESTES).map(([nom, { quoi, attendu }]) => `  ${geste(nom).padEnd(26)}${quoi} — ${attendu}`),
   `  ${"remove <geste>".padEnd(26)}withdraws a decision: it is no longer decided, and the runtime keeps to what it read`,
   "A decision is written to the log in the chef's name: the runtime reads it at its next read, without a restart, and no cook is stopped.",
@@ -154,6 +161,30 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     });
   }
 
+  // Arrête ou relance la cuisine du projet sur une station — d'ici ou distante,
+  // le même geste. Arrêter n'arrête aucun cook : ceux qui tournent finissent,
+  // livrent ou rendent leur ticket au rail ; la station n'en prend plus. Vérifier
+  // et écrire tiennent dans une seule transaction.
+  function arreterOuLancer(journal: Journal, station: string, arreter: boolean): string {
+    const { base } = journal;
+    return base.transaction(() => {
+      const projet = projetDuJournal(journal);
+      const stations = stationsAnnoncees(base);
+      if (!stations.includes(station)) {
+        echouer(1, stations.length === 0 ? `unknown station: “${station}” — the project declares none: ${GESTE_DE_STATION_A_CHAUD_EN}` : `unknown station: “${station}” — the project's stations: ${stations.join(", ")}`);
+      }
+      const depuis = arreteeDepuis(base, station);
+      const cuisineArretee = etatDesGardeFous(base).stoppedAt !== null ? "; the whole kitchen is stopped too: `guardrails -- resume` to reopen it" : "";
+      if (arreter && depuis !== null) return `${station}: already stopped since ${depuis} — nothing is written`;
+      if (!arreter && depuis === null) return `${station}: already cooking — nothing is written${cuisineArretee}`;
+      journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: arreter ? "station.stopped" : "station.started", payload: { station } });
+      if (!arreter) return `${station}: cooking — it takes the project's tickets again at the runtime's next read${cuisineArretee}${sansRuntime(journal)}`;
+      const enCours = cooksEnCoursDeStation(base, station).length;
+      const finissent = enCours === 0 ? "no cook is running there" : `its ${pluriel(enCours, "running cook")} finish${enCours > 1 ? "" : "es"}: delivered, or the ticket goes back to the rail`;
+      return `${station}: stopped — it takes no more tickets of this project, ${finissent}; \`station -- start ${station}\` to start it again${sansRuntime(journal)}`;
+    });
+  }
+
   const projetDuJournal = (journal: Journal): string =>
     journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ??
     (env.BRIGADE_PROJECT || undefined) ??
@@ -208,6 +239,13 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     if (!etat) return;
     ligne("station", `${etat.station} — engine ${etat.engine}, provides: ${etat.provides.join(", ")}`);
     ligne("simultaneous cooks", decrirePlafond(etat));
+    const arretee = arreteeDepuis(base, station);
+    ligne(
+      "cooking",
+      arretee === null
+        ? `on — \`station -- stop ${station}\` to stop the project's cooking here, its running cooks finish`
+        : `STOPPED by you since ${arretee} — it takes no more tickets of this project, its running cooks finish; \`station -- start ${station}\` to start it again`,
+    );
     const { saturatedAt, saturatedCauses } = etat;
     // Une station distante ne tourne pas sur cette machine : ce qui se lit
     // d'elle, c'est si elle s'est manifestée.
@@ -286,10 +324,12 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
   const plafond = commande === "cooks";
   const decision = commande !== undefined && Object.hasOwn(GESTES, commande);
   const retrait = commande === "remove";
+  const cuisson = commande === "stop" || commande === "start";
   if (decision && args.length !== 2) echouer(2, `${commande} expects one value, and only one — \`station -- ${geste(commande)}\`: ${GESTES[commande]?.attendu}`);
   if (retrait && (args.length !== 2 || !Object.hasOwn(GESTES, valeur ?? ""))) echouer(2, `remove expects a decision setting — ${Object.keys(GESTES).join(", ")}`);
-  if (plafond ? args.length !== 2 || !/^(0|[1-9][0-9]{0,5}|auto)$/.test(valeur ?? "") : !decision && !retrait && args.length > 0) echouer(2, USAGE);
-  const regler = plafond || decision || retrait;
+  if (cuisson && (args.length !== 2 || !valeur)) echouer(2, `${commande} expects one station, and only one, among those \`station\` lists — usage: \`station -- ${commande} <station>\``);
+  if (plafond ? args.length !== 2 || !/^(0|[1-9][0-9]{0,5}|auto)$/.test(valeur ?? "") : !decision && !retrait && !cuisson && args.length > 0) echouer(2, USAGE);
+  const regler = plafond || decision || retrait || cuisson;
   // Un réglage ouvre le journal en écriture : sans ce contrôle, il en créerait
   // un là où il n'y en a pas. Une décision est la seule à le faire : un projet
   // neuf n'a pas démarré, et son runtime ne démarre qu'avec elles — le journal
@@ -309,6 +349,8 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
       dire(`brigade : ${decider(journal, commande, valeur ?? "")}`);
     } else if (retrait) {
       dire(`brigade : ${retirer(journal, valeur ?? "")}`);
+    } else if (cuisson) {
+      dire(`brigade : ${arreterOuLancer(journal, valeur ?? "", commande === "stop")}`);
     } else {
       const stations = stationsAnnoncees(journal.base);
       if (stations.length === 0) {

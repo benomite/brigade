@@ -42,13 +42,14 @@ import { lireRail, livresDepuis, type Etat as EtatTicket, type Livre, type Ticke
 import { direCommentLeVoirEn, direEcranEn, direEtatDeServeurEn, direPageEn, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus, type Serveur, type ServiceIndisponible, type WorktreeTenu } from "./projections/service.ts";
 import { lastBackup, type Backup } from "./projections/backups.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
-import { cookDeRun, cooksEnCoursDeStation, direDeconnexionEn, direPlafondEn, direRetenueDeStationEn, etatStation, GESTE_DE_CONNEXION_TOMBEE_EN, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
+import { arreteeDepuis, cookDeRun, cooksEnCoursDeStation, direDeconnexionEn, direPlafondEn, direRetenueDeStationEn, etatStation, GESTE_DE_CONNEXION_TOMBEE_EN, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
 import { BLOQUE, BLOQUE_EN, direRetenueEn, EN_WAITING, etatLu, etatLuEn, nomEtat, nomEtatEn } from "./rail.ts";
 import { PAR_LE_CHEF } from "./events/rail.ts";
 import { direAttenteDeTiersEn } from "./attente.ts";
 import { direMiseDeCote } from "./mise-de-cote.ts";
 import { GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
+import type { Refus } from "./projets/refus.ts";
 import { alerteEnCours, type AlerteEnCours } from "./projections/emergency.ts";
 import { cleDUrgence, urgenceDuChef, type Urgence } from "./urgence.ts";
 
@@ -135,6 +136,8 @@ export type EtatCuisine = {
   // Les cooks en cours tels que `station` les montre : station par station, le
   // plus ancien d'abord.
   auxFourneaux: Array<{ station: string; ticket: number | null }>;
+  // Les stations où le chef a arrêté la cuisine du projet, et depuis quand.
+  arretees: Map<string, string>;
   // Les serveurs qui tournent : une livraison d'interface, servie depuis son
   // worktree sur le port de ce worktree.
   serveurs: Serveur[];
@@ -201,6 +204,10 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     miseDeCote: miseDeCoteBloquee(base),
     cooks: cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null, station: cookDeRun(base, cook.run), activite: activites.get(cook.run) ?? null })),
     auxFourneaux: annoncees.flatMap((station) => cooksEnCoursDeStation(base, station).map(({ ticket }) => ({ station, ticket }))),
+    arretees: new Map(annoncees.flatMap((station) => {
+      const depuis = arreteeDepuis(base, station);
+      return depuis === null ? [] : [[station, depuis] as const];
+    })),
     serveurs: serveursEnCours(base),
     aLancer: worktreesTenus(base),
     sansService: servicesIndisponibles(base),
@@ -775,6 +782,12 @@ export type Faits = {
   // qu'elle n'en a rien dit. `prendOrdinaires` : elle en prend, à cet instant —
   // toujours vrai d'une station d'ici ; d'une distante, réglage et bac à sable,
   // et elle n'en reçoit que quand la box sature.
+  // `cuisson` : ce que la station fait du projet, un mot de `CUISSONS` —
+  // `refused` (la station de la machine refuse le projet : `refus` dit
+  // pourquoi), `stopped` (le chef l'a arrêtée — `arreteeDepuis` —, ou il a
+  // arrêté toute la cuisine), `saturated` (sa machine n'en peut plus), sinon
+  // `cooking`. `cooks` : ses cooks en cours, le plus ancien d'abord — arrêtée,
+  // ce sont ceux qui finissent.
   stations: Array<{
     station: string;
     distante: boolean;
@@ -782,8 +795,17 @@ export type Faits = {
     ordinaires: boolean;
     bacASable: { disponible: boolean; raison: string | null; version: string | null; depuis: string } | null;
     prendOrdinaires: boolean;
+    cuisson: Cuisson;
+    arreteeDepuis: string | null;
+    refus: Refus | null;
+    cooks: Array<{ ticket: number; titre: string; station: string }>;
   }>;
 };
+
+// Ce qu'une station fait du projet, pour qui pose un mot dessus. La liste est
+// fermée, et peut gagner un mot.
+export const CUISSONS = ["cooking", "stopped", "saturated", "refused"] as const;
+export type Cuisson = (typeof CUISSONS)[number];
 
 // L'alerte émise pour l'urgence : sa ligne, sa première émission, la dernière
 // (rappel compris), et le nombre de rappels. Le début de l'arrêt est le `depuis`
@@ -850,8 +872,9 @@ export const DEPOT_GITHUB = /^[\w.-]+\/[\w.-]+$/;
 
 // `maintenant` : l'heure à laquelle `etat` a été lu. `depot` : `<owner>/<repo>`,
 // le dépôt GitHub que la box sert — de quoi donner l'adresse d'une issue qui
-// n'est pas sur le rail.
-export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limiteGithub: number | null = null): Faits {
+// n'est pas sur le rail. `refusDeLaMachine` : pourquoi la station de cette
+// machine refuse le projet — ses stations d'ici sont alors `refused` —, ou null.
+export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limiteGithub: number | null = null, refusDeLaMachine: Refus | null = null): Faits {
   const adresse = (ticket: number) =>
     etat.rail.find((surLeRail) => surLeRail.ticket === ticket)?.url ?? (depot !== undefined && DEPOT_GITHUB.test(depot) ? `https://github.com/${depot}/issues/${ticket}` : null);
   const attendus = new Set<number>();
@@ -861,6 +884,13 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
   const captures = (ticket: number) => {
     const siennes = depot !== undefined && DEPOT_GITHUB.test(depot) ? etat.captures?.get(ticket) : undefined;
     return siennes === undefined ? {} : { captures: capturesVues(depot as string, siennes) };
+  };
+  const titreDe = (ticket: number) => etat.rail.find((surLeRail) => surLeRail.ticket === ticket)?.title ?? "";
+  const cuisson = (station: EtatStation): Cuisson => {
+    if (!station.remote && refusDeLaMachine !== null) return "refused";
+    if (etat.arretees.has(station.station) || etat.gardeFous.stoppedAt !== null) return "stopped";
+    if (!station.remote && station.saturatedCauses.length > 0) return "saturated";
+    return "cooking";
   };
   return {
     etat: etatDuProjet(etat),
@@ -888,7 +918,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
     })),
     // Une station ne lance un cook que pour un ticket.
     cooks: etat.auxFourneaux.flatMap(({ station, ticket }) =>
-      ticket === null ? [] : [{ ticket, titre: etat.rail.find((surLeRail) => surLeRail.ticket === ticket)?.title ?? "", station }],
+      ticket === null ? [] : [{ ticket, titre: titreDe(ticket), station }],
     ),
     attend: etat.attend.flatMap((attente) => {
       if (attente.ticket === null || attendus.has(attente.ticket)) return [];
@@ -905,6 +935,12 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
       ordinaires: station.remote && station.ordinary,
       bacASable: station.sandbox && { disponible: station.sandbox.available, raison: station.sandbox.reason, version: station.sandbox.version, depuis: station.sandbox.at },
       prendOrdinaires: prendLesOrdinaires({ distante: station.remote, ordinaires: station.ordinary }, station.sandbox),
+      cuisson: cuisson(station),
+      arreteeDepuis: etat.arretees.get(station.station) ?? null,
+      refus: station.remote ? null : refusDeLaMachine,
+      cooks: etat.auxFourneaux.flatMap(({ station: sienne, ticket }) =>
+        sienne !== station.station || ticket === null ? [] : [{ ticket, titre: titreDe(ticket), station: sienne }],
+      ),
     })),
   };
 }

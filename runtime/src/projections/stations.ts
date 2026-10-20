@@ -105,6 +105,7 @@ function manque(valeur: unknown): Manque | null {
 // Each hold as the chef reads it.
 const RETENUES: Record<Retenue, string> = {
   stopped: "cuisine arrêtée par le chef",
+  "station-stopped": "cuisine du projet arrêtée par le chef sur cette station, ses cooks en cours finissent",
   breaker: "disjoncteur ouvert",
   paused: "cuisine en pause pour le renommage du code",
   deploy: "mise en service demandée, la cuisine se vide avant le redémarrage",
@@ -126,6 +127,7 @@ export const direRetenueDeStation = (raison: Retenue) => RETENUES[raison];
 // The same, in English: what `status` says.
 const RETENUES_EN: Record<Retenue, string> = {
   stopped: "kitchen stopped by the chef",
+  "station-stopped": "the project's cooking stopped by the chef on this station, its running cooks finish",
   breaker: "breaker open",
   paused: "kitchen paused for the code rename",
   deploy: "deploy requested, the kitchen empties before the restart",
@@ -178,7 +180,7 @@ const modifier = (base: Base, station: unknown, at: string, affectation: string,
 
 export const stations = definirProjection<Ecoutes>({
   nom: "stations",
-  tables: ["stations", "station_cooks", "stations_undeclared", "setup_du_projet", "mise_de_cote_du_projet"],
+  tables: ["stations", "station_cooks", "stations_undeclared", "setup_du_projet", "mise_de_cote_du_projet", "stations_arretees"],
   schema: `
     CREATE TABLE IF NOT EXISTS stations (
       station             TEXT PRIMARY KEY,
@@ -233,6 +235,10 @@ export const stations = definirProjection<Ecoutes>({
       blocked_base   TEXT,
       blocked_ticket INTEGER,
       blocked_by     TEXT
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS stations_arretees (
+      station TEXT PRIMARY KEY,
+      since   TEXT NOT NULL
     ) STRICT;
     CREATE TABLE IF NOT EXISTS station_cooks (
       run          TEXT PRIMARY KEY,
@@ -303,6 +309,14 @@ export const stations = definirProjection<Ecoutes>({
     "station.capped": (base, { at, payload }) => {
       if (payload.maxCooks === null) modifier(base, payload.station, at, "cap = NULL");
       else if (Number.isSafeInteger(payload.maxCooks) && payload.maxCooks >= 0) modifier(base, payload.station, at, "cap = ?", payload.maxCooks);
+    },
+    // Outside the stations table: a stop falls neither with an announcement nor
+    // with a withdrawal — the station declared again stays stopped.
+    "station.stopped": (base, { at, payload }) => {
+      if (texte(payload.station)) base.executer("INSERT OR IGNORE INTO stations_arretees (station, since) VALUES (?, ?)", payload.station, at);
+    },
+    "station.started": (base, { payload }) => {
+      if (texte(payload.station)) base.executer("DELETE FROM stations_arretees WHERE station = ?", payload.station);
     },
     "station.saturated": (base, { at, payload }) => {
       const premier = manque(payload);
@@ -647,6 +661,12 @@ export function sansStationDepuis(base: Base): string | null {
 // exhausted until a time that has not passed.
 export function compteRetenu(base: Base, maintenant: Date): boolean {
   return base.lire("SELECT 1 FROM stations WHERE disconnected_at IS NOT NULL OR quota_until > ? LIMIT 1", maintenant.toISOString()).length > 0;
+}
+
+// Since when the chef has stopped the project's cooking on this station, or
+// null if it cooks (see `station.stopped`).
+export function arreteeDepuis(base: Base, station: string): string | null {
+  return base.lire<{ since: string }>("SELECT since FROM stations_arretees WHERE station = ?", station)[0]?.since ?? null;
 }
 
 // The stations the project declares, as the log knows them: a withdrawn

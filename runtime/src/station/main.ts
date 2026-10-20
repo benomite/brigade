@@ -145,8 +145,16 @@ process.on("SIGHUP", () => {
 });
 
 // Ce que la station dit d'elle-même — sa version, son pid, ce qu'elle sert :
-// c'est ce qu'une mise à jour attend pour garder sa version.
-annoncerEnService(racine, () => ({ servis: station.projets(), refuses: station.refuses() }), { dire });
+// c'est ce qu'une mise à jour attend pour garder sa version. La cause de chaque
+// refus y est aussi : `facts` d'un projet refusé la lit (`refusDuProjet`).
+annoncerEnService(
+  racine,
+  () => {
+    const refuses = station.refuses();
+    return { servis: station.projets(), refuses, causes: Object.fromEntries(Object.keys(refuses).map((nom) => [nom, station.cause(nom) ?? "unexpected"])) };
+  },
+  { dire },
+);
 
 const servis = station.projets();
 console.log(

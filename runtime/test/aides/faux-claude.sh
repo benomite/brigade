@@ -323,6 +323,9 @@ FIN
       commiter
       vivre attend
       ;;
+    # Ne commite rien, et ne conclut que quand le test le lui dit : un cook
+    # qui finit sans livrer, au moment que le test choisit.
+    attend) vivre attend ;;
     # Commite, puis bute sur le quota.
     commite-puis-quota)
       commiter

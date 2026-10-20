@@ -251,6 +251,11 @@ function raconterLaStation(journal: Journal): void {
   noter({ type: "station.disconnected", payload: { station, reason: "authentication_failed", run: "f" } }, 3);
   // Le rejeu se prouve table par table : celle-ci aussi doit porter une ligne.
   noter({ type: "stations.undeclared", payload: {} }, null, "runtime");
+  // Le chef arrête la cuisine du projet sur une station, la relance, puis
+  // l'arrête de nouveau : l'arrêt tient au rejeu, avec son heure.
+  noter({ type: "station.stopped", payload: { station } }, null, "chef");
+  noter({ type: "station.started", payload: { station } }, null, "chef");
+  noter({ type: "station.stopped", payload: { station } }, null, "chef");
   // Deux setups qui échouent pareil bloquent le projet ; la base bouge, et le
   // même échec le rebloque.
   noter({ type: "setup.failed", payload: { station, why: "code de sortie 1", hosts: ["registry.npmjs.org:443"] } }, 4);
