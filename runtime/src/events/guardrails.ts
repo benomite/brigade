@@ -86,10 +86,12 @@ export type FaitGardeFous =
         durationMs: number;
         error?: string;
         // Why brigade stopped this cook, when it did: `stop` (the chef);
+        // `move` (the project's kitchen moved to another station: its ticket
+        // goes back to the rail, to be taken again there — `kitchen.moved`);
         // `update` (an update) is only read in logs from before the station.
         // Absent: its end is not of brigade's doing, and if it is a failure, it
         // counts for the breaker.
-        cause?: "stop" | "update";
+        cause?: "stop" | "update" | "move";
         // How many times what has the shape of Claude credentials was masked
         // in its raw stream and its error output. Absent: never.
         credentialsMasked?: number;

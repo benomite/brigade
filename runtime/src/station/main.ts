@@ -3,8 +3,11 @@
 // ligne chacun). Ajouter ou retirer un projet n'écrit que cette ligne : la
 // station la relit seule, sans redémarrer.
 import { mkdirSync } from "node:fs";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { canalGitHub } from "../appairage/canal.ts";
+import { sondesDeLaMachine } from "../bac-a-sable/detection.ts";
+import { lireCaches, PLATEFORME_LOCALE, verifier } from "../bac-a-sable/local.ts";
 import { etatsPublies } from "../appairage/etats.ts";
 import { identiteDeLaStation, tenirPresence } from "../appairage/presence.ts";
 import { configVeille, veillerConnexionMax, type VeilleConnexionMax } from "../connexion-max/veille.ts";
@@ -15,7 +18,7 @@ import { lireEtatMiseAJour } from "../mise-a-jour/etat.ts";
 import { tenirProjetsDeLApp } from "../projets/tenir.ts";
 import { configReseau, passerParLaPorte } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
-import { CONFIGURATION } from "./configuration.ts";
+import { CONFIGURATION, ETATS } from "./configuration.ts";
 import { attendrePorteDeLaStation, configPortes, lirePortes, VARIABLE_PORTES } from "./portes.ts";
 import { nommer, ouvrirStation, projetEnCours } from "./station.ts";
 
@@ -104,12 +107,18 @@ const presence = tenirPresence({
   dire,
 });
 // Les projets que le chef lui ajoute depuis l'app, par le même gist : la
-// station les prépare et leur écrit leur ligne (projets/tenir.ts).
+// station les prépare et leur écrit leur ligne (projets/tenir.ts) — et les
+// déménage, d'elle vers une autre ou d'une autre vers elle. Sur l'ordinateur du
+// chef, elle ne reprend aucun projet sans bac à sable : la vérification est
+// celle de `bac-a-sable/verifier.ts`.
+const locale = process.platform === PLATEFORME_LOCALE;
 const projetsDeLApp = tenirProjetsDeLApp({
   racine,
   canal,
   station: identite.nom,
   env: process.env,
+  locale,
+  ...(locale ? { verifierBacASable: () => verifier(sondesDeLaMachine(process.env.BRIGADE_CLAUDE_BIN || "claude"), { home: process.env.HOME ?? homedir(), worktrees: join(racine, ETATS), caches: lireCaches(process.env) }) } : {}),
   servis: station,
   apresEcriture: () => {
     station.relire();

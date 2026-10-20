@@ -116,7 +116,7 @@ test("un projet dont la station est la principale : cloné, ses décisions posé
   } finally {
     journal.fermer();
   }
-  assert.deepEqual(station.suivi(), [{ nom: "parade", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z" }]);
+  assert.deepEqual(station.suivi(), [{ nom: "parade", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null }]);
   assert.ok(station.lignes.includes("brigade : station — parade ajouté depuis l'app : sa ligne est écrite dans la configuration"));
 
   // Relu sans changement : ni clone, ni ligne, ni suivi réécrit.
@@ -175,7 +175,7 @@ test("Apps non autorisées sur le dépôt : rien n'est cloné ni écrit, le suiv
   await station.projets.relire();
   assert.deepEqual(station.clones, []);
   assert.equal(station.configuration(), "");
-  assert.deepEqual(station.suivi(), [{ nom: "parade", etat: "a-autoriser", dit: "authorize brigade on benomite/parade, on GitHub: one click per page", autoriser: pages, serviLe: null }]);
+  assert.deepEqual(station.suivi(), [{ nom: "parade", etat: "a-autoriser", dit: "authorize brigade on benomite/parade, on GitHub: one click per page", autoriser: pages, serviLe: null, cuitSur: null, ici: false, bascule: null }]);
   await station.projets.relire();
   assert.equal(station.lignes.filter((ligne) => ligne.includes("attend que le chef autorise")).length, 1);
 
@@ -195,7 +195,7 @@ test("GitHub muet sur l'autorisation, ou clone en échec : le projet attend, la 
   station.autorisations.delete("benomite/parade");
   station.echouerLeClone(new Error("clone de benomite/parade en échec — Repository not found"));
   await station.projets.relire();
-  assert.deepEqual(station.suivi()?.[0], { nom: "parade", etat: "refuse", dit: "the station could not clone benomite/parade; it retries — clone de benomite/parade en échec — Repository not found", autoriser: [], serviLe: null });
+  assert.deepEqual(station.suivi()?.[0], { nom: "parade", etat: "refuse", dit: "the station could not clone benomite/parade; it retries — clone de benomite/parade en échec — Repository not found", autoriser: [], serviLe: null, cuitSur: null, ici: false, bascule: null });
   assert.equal(station.configuration(), "");
 
   station.echouerLeClone(null);
@@ -224,7 +224,7 @@ test("refusé par la station, le suivi dit pourquoi", async (t) => {
   station.refuses.set("parade", "le clone du projet n'existe pas");
   station.demander(PARADE);
   await station.projets.relire();
-  assert.deepEqual(station.suivi()?.[0], { nom: "parade", etat: "refuse", dit: "the station refuses to serve it — le clone du projet n'existe pas", autoriser: [], serviLe: null });
+  assert.deepEqual(station.suivi()?.[0], { nom: "parade", etat: "refuse", dit: "the station refuses to serve it — le clone du projet n'existe pas", autoriser: [], serviLe: null, cuitSur: null, ici: false, bascule: null });
 });
 
 test("une demande illisible ne fait rien retirer ; une station pas encore appairée ne lit rien", async (t) => {

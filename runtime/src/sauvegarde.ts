@@ -74,7 +74,7 @@ export function prendreInstantane(repertoireEtat: string, cible: string): void {
 }
 
 // Ce qu'un instantané porte — après avoir vérifié qu'il se lit en entier.
-function controler(chemin: string): { projet: string | null; evenements: number; dernierSeq: number } {
+export function controler(chemin: string): { projet: string | null; evenements: number; dernierSeq: number } {
   const base = new Base(chemin, { lectureSeule: true });
   try {
     const verdict = base.lire<{ integrity_check: string }>("PRAGMA integrity_check")[0]?.integrity_check;
