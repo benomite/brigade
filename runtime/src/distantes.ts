@@ -64,6 +64,7 @@ import { etatStation } from "./projections/stations.ts";
 import { GesteRefuse } from "./rail.ts";
 import { DECLARATION_RESEAU, lireDeclaration, reglesDuProjet, type Regle } from "./reseau.ts";
 import type { LeconRecue } from "./apprentissage/injection.ts";
+import type { CarnetRecu } from "./profils/preference.ts";
 import type { StationDeclaree } from "./stations-declarees.ts";
 
 // Passé ce délai sans s'être manifestée, une station distante est absente.
@@ -109,6 +110,11 @@ export type Cuisine = {
   // Les leçons provisoires du projet que reçoit le cook d'un ticket, lues à
   // son lancement (`apprentissage/injection.ts`).
   leconsDuCook: () => LeconRecue[];
+  // Le profil sous lequel part le cook d'un ticket de cette zone, et son
+  // carnet — null : un généraliste —, choisi à son lancement ; puis ce que le
+  // journal en dit, une fois lancé (`profils/preference.ts`).
+  carnetDuCook: (zone: string[]) => CarnetRecu | null;
+  direLeCarnet: (station: string, ticket: number, run: string, carnet: CarnetRecu | null) => void;
   // Les tickets dont la cuisine n'est pas finie, avec leur zone, et la station
   // de chacun : celles d'ici et celles-ci s'y comptent ensemble.
   enCuisine: Map<number, string[]>;
@@ -401,6 +407,9 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
       cuisinePar.set(numero, nom);
       // Les leçons provisoires du projet qu'il reçoit, et que son lancement dit.
       const lecons = cuisine.leconsDuCook();
+      // Le profil sous lequel il part, s'il en a un : son carnet s'ajoute aux
+      // leçons du projet.
+      const carnet = cuisine.carnetDuCook(ticket.card?.zone ?? []);
       let lance: CookDistant;
       try {
         lance = runtime.lancerDistant({
@@ -428,11 +437,12 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
         geste(() => rail.rendre(numero, `launch-refused:${erreur.motif}`, nom));
         return rien(erreur.motif);
       }
+      cuisine.direLeCarnet(nom, numero, run, carnet);
       const cook: EnCours = { station: nom, ticket, calibrage, lance, branche, reprise: repris && { n: repris.returns, pr: repris.pr }, vue: null, progres: maintenant().getTime(), signale: false, livre: false, rendu };
       cooks.set(run, cook);
       void cuisine.liberer(numero);
       void finir(run, cook);
-      const mission = { ticket: numero, titre: ticket.title, depot: cuisine.depotGitHub, base: cuisine.base, lecons };
+      const mission = { ticket: numero, titre: ticket.title, depot: cuisine.depotGitHub, base: cuisine.base, lecons, carnet };
       const prompt = repris
         ? consigneDeRenvoi({ ...mission, branche, n: repris.returns, findings: repris.findings })
         : suite

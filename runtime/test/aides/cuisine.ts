@@ -19,6 +19,7 @@ import type { Commentaire, GitHub, Issue, PR } from "../../src/github.ts";
 import type { Machine } from "../../src/machine.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { brancherPass, type ConfigPass } from "../../src/pass.ts";
+import type { DefinitionDeProfil } from "../../src/profils/definition.ts";
 import type { Plafond } from "../../src/reagir.ts";
 import { demarrer } from "../../src/runtime.ts";
 import { brancherStation } from "../../src/station.ts";
@@ -468,6 +469,8 @@ export type Options = {
   presenceMs?: number;
   // Combien de leçons provisoires du projet reçoit le cook d'un ticket.
   leconsInjectees?: number;
+  // Les profils de cook que le projet définit, relus à chaque lancement.
+  profils?: () => DefinitionDeProfil[];
   // Les décisions du chef sont relues au journal : stations, calibrage du
   // reviewer et du manager — celles du test, tant qu'il n'en pose pas d'autres.
   decisions?: boolean;
@@ -614,6 +617,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
     arbitre: options.arbitre,
     presenceMs: options.presenceMs,
     leconsInjectees: options.leconsInjectees,
+    profils: options.profils,
   });
   const runtime = options.manager
     ? brancherManager(servie, {

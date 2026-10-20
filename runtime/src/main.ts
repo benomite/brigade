@@ -28,6 +28,7 @@ import { configSecrets, DECLARATION } from "./secrets.ts";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { ConfigInvalide, DejaEnCours, demarrer } from "./runtime.ts";
+import { lireLesProfils } from "./profils/preference.ts";
 import { brancherStation, configStation, depotDeStation } from "./station.ts";
 import { direStations, type StationDeclaree } from "./stations-declarees.ts";
 
@@ -168,6 +169,8 @@ try {
     apresCook: pass.reveillerPass,
     arbitre: arbitre === null ? null : joindreArbitre(arbitre),
     leconsInjectees,
+    // Là où le « oui » du chef les écrit : le clone du projet.
+    profils: () => lireLesProfils(station.clone, (texte) => console.error(texte)),
   });
   // Le manager en dernier : il ne lance que des jugements et des découpages,
   // et rien ne dépend de lui pour servir ce qui est déjà sur le rail.

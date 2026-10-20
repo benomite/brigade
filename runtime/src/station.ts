@@ -49,6 +49,8 @@ import type { Mot } from "./arbitre.ts";
 import { ArbitreInjoignable, type Arbitrage, type Reponse } from "./arbitrage.ts";
 import { complet, manquant, type Calibrage } from "./calibrage.ts";
 import { LECONS_INJECTEES_PAR_DEFAUT, leconsAInjecter } from "./apprentissage/injection.ts";
+import type { DefinitionDeProfil } from "./profils/definition.ts";
+import { carnetDonne, carnetDuProfil, profilPrefere, profilsOccupes, type CarnetRecu } from "./profils/preference.ts";
 import { extraireRetro } from "./apprentissage/retro.ts";
 import { CARNET_PATH } from "./carnet/carnet.ts";
 import { capturesLivrees, direCaptures, estDInterface, zoneALaPrise as zonePrise, type Captures } from "./captures.ts";
@@ -296,6 +298,10 @@ export type OptionsStation = {
   // Combien de leçons provisoires du projet reçoit, au plus, le cook d'un
   // ticket (`BRIGADE_INJECTED_LESSONS`). Par défaut, vingt.
   leconsInjectees?: number;
+  // Les profils de cook que le projet définit, relus à chaque lancement
+  // (`profils/preference.ts`). Absent : le projet n'en a aucun, et chaque
+  // ticket part avec un généraliste.
+  profils?: () => DefinitionDeProfil[];
 };
 
 // Ouvre le dépôt de la station là où le runtime le range : les worktrees des
@@ -448,6 +454,28 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     }
   };
   const leconsDuCook = () => leconsAInjecter(base, projet, { plafond: plafondDesLecons, carnet: plafondDesLecons > 0 ? carnetALaBase() : null });
+  // Le profil sous lequel part le cook d'un ticket de zone `zone`, d'ici ou
+  // d'une station distante, et le carnet qu'il en reçoit : le plus précis des
+  // profils dont le domaine touche la zone et dont le cook est libre. Null :
+  // aucun, ou tous occupés — un généraliste le cuisine, sans carnet, et sans
+  // attendre. Choisi juste avant le lancement, et dit au journal juste après
+  // (`direLeCarnet`), dans le même tour : deux tickets du domaine ne prennent
+  // pas le même cook de profil. Des profils illisibles n'arrêtent aucun cook.
+  const carnetDuCook = (zone: string[]): CarnetRecu | null => {
+    if (options.profils === undefined) return null;
+    try {
+      const profil = profilPrefere(options.profils(), zone, profilsOccupes(base, projet));
+      return profil === null ? null : carnetDuProfil(profil);
+    } catch (erreur) {
+      avertir(`brigade : profils de cook illisibles, le cook part en généraliste — ${message(erreur)}`);
+      return null;
+    }
+  };
+  // Le carnet donné au cook `run`, au journal : c'est aussi ce qui dit, tant
+  // qu'il tourne, que le cook du profil est occupé.
+  const direLeCarnet = (station: string, numero: number, run: string, carnet: CarnetRecu | null) => {
+    if (carnet !== null) journal.ajouter({ project: projet, ticket: numero, author: auteurDe(station), type: "profile.notebook-given", payload: carnetDonne(run, carnet) });
+  };
   // Ce qui vaut pour toutes les stations d'ici s'écrit pour chacune : chacune
   // se lit seule, dans `status` comme dans `station`.
   const noterPourChacune = (fait: (station: string) => FaitStation, celles: string[] = noms) => {
@@ -1593,6 +1621,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     servir: () => servir(),
     apresCook: options.apresCook,
     leconsDuCook,
+    carnetDuCook,
+    direLeCarnet,
   });
 
   // Ce que le setup d'un worktree a exporté au cook, au-delà de ce que le
@@ -1823,6 +1853,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // Le lancement. Refusé — « stop » ou disjoncteur arrivés entre le prêt et
     // le lancement —, le ticket est rendu et le worktree neuf retiré.
     const lancer = (juger: (fin: Fin) => Verdict): CookLance | null => {
+      // Le profil sous lequel il part, s'il en a un : son carnet s'ajoute aux
+      // leçons du projet.
+      const carnet = carnetDuCook(ticket.card?.zone ?? []);
       let lance: CookLance;
       try {
         lance = runtime.lancer({
@@ -1858,12 +1891,12 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
                 options.bacASable,
                 argumentsClaude(
                   reprise !== null && repris !== null
-                    ? consigneDeReprise({ base: options.base, branche, worktree, n: repris.returns, findings: repris.findings, lecons })
+                    ? consigneDeReprise({ base: options.base, branche, worktree, n: repris.returns, findings: repris.findings, lecons, carnet })
                     : repris
-                      ? consigneDeRenvoi({ ...mission, branche, n: repris.returns, findings: repris.findings })
+                      ? consigneDeRenvoi({ ...mission, branche, n: repris.returns, findings: repris.findings, carnet })
                       : suite
-                        ? consigneDeSuite({ ...mission, branche })
-                        : consigne(mission),
+                        ? consigneDeSuite({ ...mission, branche, carnet })
+                        : consigne({ ...mission, carnet }),
                   calibrage,
                   reprise?.session,
                 ),
@@ -1890,6 +1923,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         retirerLeNeuf();
         return null;
       }
+      direLeCarnet(station, numero, run, carnet);
       parti();
       return lance;
     };
