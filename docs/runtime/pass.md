@@ -100,6 +100,29 @@ jugée — redemandée, elle ne compte ni pour ni contre ; **refusée par le mod
 compter, puis remontée au troisième refus d'affilée (`unjudged`, cause `review-refused` ; voir
 « Quand le modèle refuse »). Elle ne retient pas la station.
 
+### Le second juge
+
+Une livraison verte qui touche à **ses juges** — `.claude/brigade/` (gates, setup, réglages de
+la pass) ou `.github/workflows/` — est arrêtée (`review-required`, cause `judge-modified`), puis
+**jugée une seconde fois**, une seule par livraison, par un juge **indépendant du reviewer** :
+
+- **un autre run**, au journal sous la station `second-judge` (run `second-judge-<ticket>-…`), qui
+  ne lit **ni la relecture ni le verdict** du reviewer ;
+- **plus fort que lui** : `opus`, et l'effort un cran au-dessus de celui du reviewer (`max` au
+  plus). Un reviewer déjà en `opus` / `max` n'a personne au-dessus : le second juge n'est pas
+  lancé, et le verdict est `cannot establish` ;
+- **une seule question** : le contrôle est-il affaibli — test retiré ou assoupli, garde
+  contournée, seuil relâché, vérification sautée ? Les mêmes outils de lecture que le reviewer,
+  dans un worktree jetable où la livraison est fusionnée avec la base de son verdict.
+
+Il répond `not weakened`, `weakened` ou `cannot establish`, avec sa raison — dans le doute,
+`cannot establish`. Une réponse qui ne se lit pas, ou un refus du modèle, vaut `cannot establish`.
+Le verdict est au journal (`pass.second-judged` : son run, son calibrage, celui du reviewer et le
+run de sa relecture, le verdict, la raison) et **en commentaire sur la PR** (« Second juge — … »).
+Il ne change rien d'autre : la livraison reste arrêtée, à merger à la main. Comme une relecture,
+il ne part pas sous « stop », disjoncteur ouvert, quota épuisé ou connexion expirée ; non abouti,
+il repart au réveil suivant.
+
 ### Les tickets sans diff
 
 Un audit, une analyse : le cook conclut sans rien commiter, et **ce qu'il a délimité dans son
@@ -125,7 +148,7 @@ connue : un cook qui conclut sans commiter sur un ticket qui demandait du code p
 |---|---|---|
 | vert | **actif** | le runtime vérifie que **la base est encore celle du verdict** — sinon il rejuge —, puis **merge lui-même** la PR ; le ticket est **servi**, son issue fermée |
 | vert | absent, révoqué ou éteint | la PR reste ouverte et **la pass s'arrête là** (`pass.held`, `no-grant`) |
-| vert, mais la livraison touche `.claude/brigade/` ou `.github/workflows/` — ses juges | peu importe | **jamais mergée par la pass** (`review-required`, cause `judge-modified`) : un cook qui modifie ses juges peut se rendre vert seul |
+| vert, mais la livraison touche `.claude/brigade/` ou `.github/workflows/` — ses juges | peu importe | **jamais mergée par la pass** (`review-required`, cause `judge-modified`) : un cook qui modifie ses juges peut se rendre vert seul. Elle passe devant **le second juge** (ci-dessus), dont le verdict s'écrit sur la PR |
 | vert, mais la livraison touche `.claude/brigade/reseau` ou `.claude/brigade/secrets` — ajout, modification ou suppression | peu importe | **jamais mergée par la pass** (`review-required`, cause `declaration-modified: <fichiers>`) : mergée, la déclaration ouvre un hôte, ou remet un secret de la machine, aux cooks suivants. Le commentaire d'issue dit quoi y relire |
 | vert, ticket sans diff | peu importe | **servi sans merge**, issue fermée |
 | aucun, **base rouge** | peu importe | la livraison **attend** (`pass.waiting`, `base-red`) et repart seule quand la base est réparée — ou rejouée verte (`run base -- replay`). Seul le ticket de réparation de ce rouge est jugé et mergé malgré lui |

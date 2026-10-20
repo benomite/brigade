@@ -104,6 +104,7 @@ commandes n'écrivent jamais, et répondent pendant que le runtime tourne.
 | `merge.done` | Mergée. `by` : `pass` ou `outside` ; `actor` : le compte GitHub ; `reconciled` : constaté après un redémarrage ; `unverified` : fait hors du runtime, la base est à contrôler |
 | `merge.failed` | Le merge n'a pas abouti : `interrupted`, ou le refus de GitHub |
 | `pass.held` | Verte, non mergée : `reason` (`no-grant`, `review-required`, `merge-refused`), `cause`, `expired` |
+| `pass.second-judged` | Arrêtée parce qu'elle touche à ses juges, la livraison du `run`, sur ce `sha`, a été jugée par le second juge — une fois : `verdict` (`not-weakened`, `weakened`, `cannot-establish`), `reason` ; `judge`, `model`, `effort` — son run et son calibrage, nuls s'il n'a pas été lancé ; `reviewer` et `review` — le calibrage du reviewer et le run de sa relecture |
 | `pass.waiting` | Ni jugée ni mergée pour l'instant : `base-red`, `machine-saturated`, `gates-cut-saturated` (avec le `sha` dont les gates ont été coupées). Elle repart seule |
 | `pass.returned`, `pass.deferred`, `pass.outdated` | Rouge : renvoi `n` sur 2, avec les findings ; la main passe au manager ; GitHub exigeait une branche à jour et a refusé le merge, `findings` repart au cook |
 | `pass.escalated` | Remontée au chef : `reason` (`still-red`, `unjudged`, `manager-split`), `cause` |

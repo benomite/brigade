@@ -24,9 +24,9 @@ export const debutDeRelecture = (ticket: number) => `review-${ticket}-`;
 
 // Ce que la brigade écrit elle-même sur une issue — le compte-rendu d'un cook,
 // les décisions de la pass, de la station et du manager, une relecture
-// précédente : le reviewer n'en relit rien. Le compte-rendu lui est donné à
-// part, et il ne se lit pas lui-même.
-export const DE_LA_BRIGADE = /^(<!-- brigade:manager -->|\*\*(Cook|Station) `|\*\*(Pass|Reviewer) — )/;
+// précédente, un second jugement : le reviewer n'en relit rien. Le
+// compte-rendu lui est donné à part, et il ne se lit pas lui-même.
+export const DE_LA_BRIGADE = /^(<!-- brigade:manager -->|\*\*(Cook|Station) `|\*\*(Pass|Reviewer|Second juge) — )/;
 
 // Ce que le reviewer peut faire dans le worktree : lire. Ni shell, ni écriture.
 const OUTILS = ["Read", "Grep", "Glob"];

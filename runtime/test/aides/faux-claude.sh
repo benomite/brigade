@@ -635,6 +635,26 @@ FIN
 {"verdict":"vert","resume":"Tout va bien.","constats":[{"gravite":"bloquant","fichier":null,"constat":"Sauf ceci."}]}
 FIN
       ;;
+    # Le second juge d'une livraison qui touche à ses juges : sa seule question,
+    # le contrôle est-il affaibli ?
+    juge-non-affaibli)
+      assistant
+      resultat <<'FIN'
+{"verdict":"not weakened","raison":"Les gates gagnent une étape ; aucune n'est retirée ni assouplie."}
+FIN
+      ;;
+    juge-affaibli)
+      assistant
+      resultat <<'FIN'
+{"verdict":"weakened","raison":"`.claude/brigade/gates.sh` ne fait plus échouer les tests du runtime : leur code de sortie est avalé par `|| true`."}
+FIN
+      ;;
+    juge-incertain)
+      assistant
+      resultat <<'FIN'
+{"verdict":"cannot establish","raison":"Le workflow appelle un script qui n'est pas dans le dépôt : ce qu'il vérifie ne se lit pas."}
+FIN
+      ;;
     # Les mêmes, qui prennent leur temps : le chef a le temps d'agir avant la
     # décision, le découpage, la relecture.
     juge-ticket-lent | decoupe-tickets-lent | relit-vert-lent)
