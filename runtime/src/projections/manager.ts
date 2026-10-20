@@ -123,6 +123,7 @@ export const manager = definirProjection<Exclude<FaitManager, { type: `manager.s
     // Au journal pour être lus (`duTicket`) : aucune table n'en dépend.
     "manager.capability-resplit": () => {},
     "manager.capability-gestured": () => {},
+    "manager.requalified": () => {},
     "manager.enabled": (base, { at, author }) => basculer(base, 1, at, author),
     "manager.disabled": (base, { at, author }) => basculer(base, 0, at, author),
     "manager.set-aside": (base, { ticket, seq, at, payload }) => {

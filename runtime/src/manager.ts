@@ -37,6 +37,7 @@ import { issueDuManager, issuesEnAttente, managerAllume, remiseDe, remisesEnAtte
 import { labelsMontes } from "./projections/reactions.ts";
 import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./projections/stations.ts";
 import { ouvrirReaction } from "./reaction.ts";
+import { ouvrirRequalification } from "./requalifier.ts";
 import { ouvrirSansCapacite } from "./sans-capacite.ts";
 import { configPlafond, type Plafond } from "./reagir.ts";
 import { ConfigInvalide } from "./runtime.ts";
@@ -528,6 +529,19 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     signature,
   });
 
+  const requalification = ouvrirRequalification({
+    journal,
+    projet,
+    github,
+    depotGitHub: options.depotGitHub,
+    noter,
+    demander,
+    peutJuger,
+    arrete: () => arrete,
+    avertir,
+    signature,
+  });
+
   const sansCapacite = ouvrirSansCapacite({
     journal,
     projet,
@@ -609,6 +623,7 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     if (sondage.inchange && (confirmees === null || remisesEnAttente(base).every((remise) => sansObjet.has(cle(remise))))) return;
     const issues = sondage.inchange ? (confirmees ?? []) : sondage.issues;
     const presentes = new Set(issues.map((issue) => issue.number));
+    requalification.suivre(issues);
     for (const numero of [...lus.keys()]) if (!presentes.has(numero)) lus.delete(numero);
     decoupage.observer(issues.filter(lisible));
     constater(presentes);
@@ -633,7 +648,20 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
         issue = { ...issue, labels };
       }
       const connue = issueDuManager(base, issue.number);
-      const tri = trier(issue, connue);
+      let tri = trier(issue, connue);
+      // Retenue sans dire ce qu'elle attend : une carte, ou la cuisine la reprend.
+      if (tri.quoi === "ecart" && tri.raison === RETENUE && decoupageDe(base, issue.number)?.state !== "split") {
+        const { corps } = await lire(issue);
+        const suite = await requalification.traiter(issue, corps);
+        if (suite === "attente") {
+          complet = false;
+          continue;
+        }
+        if (suite === "reprise") {
+          issue = { ...issue, labels: issue.labels.filter((label) => label !== RETENUE) };
+          tri = trier(issue, connue);
+        }
+      }
       let epique = tri.quoi === "decouper";
       if (tri.quoi === "fini") continue;
       if (tri.quoi === "ecart") ecarter(issue, tri, connue);
