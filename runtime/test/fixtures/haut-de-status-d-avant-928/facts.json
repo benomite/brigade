@@ -183,7 +183,11 @@
       "plafond": 2,
       "ordinaires": false,
       "bacASable": null,
-      "prendOrdinaires": true
+      "prendOrdinaires": true,
+      "cuisson": "cooking",
+      "arreteeDepuis": null,
+      "refus": null,
+      "cooks": []
     }
   ]
 }

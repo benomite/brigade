@@ -309,7 +309,22 @@
       "plafond": 2,
       "ordinaires": false,
       "bacASable": null,
-      "prendOrdinaires": true
+      "prendOrdinaires": true,
+      "cuisson": "saturated",
+      "arreteeDepuis": null,
+      "refus": null,
+      "cooks": [
+        {
+          "ticket": 31,
+          "titre": "Holds the zone",
+          "station": "box/claude"
+        },
+        {
+          "ticket": 23,
+          "titre": "Ticket 23",
+          "station": "box/claude"
+        }
+      ]
     }
   ]
 }

@@ -112,6 +112,10 @@ describe("une station distante et les tickets ordinaires", { concurrency: 4 }, (
       ordinaires: false,
       bacASable: { disponible: true, raison: null, version: "2.1.250", depuis: ordinaires()?.bacASable?.depuis },
       prendOrdinaires: false,
+      cuisson: "cooking",
+      arreteeDepuis: null,
+      refus: null,
+      cooks: [{ ticket: 16, titre: "Ticket 16", station: MAC }],
     });
     assert.match(await station(), /ordinary tickets +not taken — it only takes the tickets that ask for one of its capabilities/);
   });
@@ -188,6 +192,10 @@ describe("une station distante et les tickets ordinaires", { concurrency: 4 }, (
       ordinaires: true,
       bacASable: { disponible: false, raison: RAISON, version: null, depuis: ordinaires()?.bacASable?.depuis },
       prendOrdinaires: false,
+      cuisson: "cooking",
+      arreteeDepuis: null,
+      refus: null,
+      cooks: [{ ticket: 16, titre: "Ticket 16", station: MAC }],
     });
     assert.ok(avertissements.some((message) => message.includes(`la station ${MAC} ne prend aucun ticket ordinaire — bac à sable indisponible : ${RAISON}`)));
     assert.match(await station(), new RegExp(`ordinary tickets +NONE TAKEN — sandbox unavailable since .+: ${RAISON.replace(/[.*+?^${}()|[\]\\/`]/g, "\\$&")}`));

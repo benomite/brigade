@@ -83,7 +83,7 @@ import { etatDesGardeFous, fluxDuCook } from "./projections/guardrails.ts";
 import { etatDeLaBase, passDuTicket, renvoiEnAttente, reparationEnCours } from "./projections/pass.ts";
 import { pauseAccordee } from "./pause/pause.ts";
 import { communsDuRail, lireRail, prisPar, ticketDuRail, type TicketRail } from "./projections/rail.ts";
-import { consommationDesCooks, derniereMiseDeCote, dernierEchecDeSetup, etatStation, miseDeCoteBloquee, memeCause, plafondDeCooks, refusDAffilee, SANS_CONNEXION, sansStationDepuis, setupBloque, stationsAnnoncees } from "./projections/stations.ts";
+import { arreteeDepuis, consommationDesCooks, derniereMiseDeCote, dernierEchecDeSetup, etatStation, miseDeCoteBloquee, memeCause, plafondDeCooks, refusDAffilee, SANS_CONNEXION, sansStationDepuis, setupBloque, stationsAnnoncees } from "./projections/stations.ts";
 import { GesteRefuse, type Preneuse } from "./rail.ts";
 import { AUTRES_HOTES } from "./porte.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
@@ -696,11 +696,13 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   const cooksDe = (station: string) => Math.max(prisPar(base, station), enCuisineDe(station));
 
   // Les bornes qu'une station lit avant de prendre un ticket, qu'elle tourne
-  // ici ou qu'elle tire son travail : le « stop » du chef, le disjoncteur, la
-  // pause du renommage, la base rouge, sa connexion, son quota, son
-  // plafond de cooks.
+  // ici ou qu'elle tire son travail : le « stop » du chef, son arrêt de cette
+  // station, le disjoncteur, la pause du renommage, la base rouge, sa
+  // connexion, son quota, son plafond de cooks. L'arrêt d'une station ne
+  // retient que ses prises : ses cooks en cours finissent.
   const borneDe = ({ nom, cooks }: StationDeclaree, etat: ReturnType<typeof etatStation>, garde: ReturnType<typeof etatDesGardeFous>, rouge: boolean, instant: string, enPause: boolean): Retenue | null => {
     if (garde.stoppedAt !== null) return "stopped";
+    if (arreteeDepuis(base, nom) !== null) return "station-stopped";
     if (garde.breakerOpenedAt !== null) return "breaker";
     if (enPause) return "paused";
     if (rouge) return "base";
@@ -778,12 +780,13 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // quota, sa connexion, un setup —, elle ne sature pas : ce qui la retient
   // retient aussi la distante, ou se lève sans qu'un ticket change de
   // machine. Sans station d'ici, personne d'autre ne cuirait un ticket
-  // ordinaire.
+  // ordinaire. Une station d'ici que le chef a arrêtée n'a pas de place : la
+  // cuisine du projet n'y prend plus rien, elle va où il la laisse.
   const boxSaturee = (): boolean => {
     const retenues = ceQuiRetient();
     return declarees.every((declaree) => {
       const retenue = retenues.get(declaree.nom);
-      return retenue === "cap" || retenue === "machine" || (etatStation(base, declaree.nom)?.saturatedCauses.length ?? 0) > 0;
+      return retenue === "cap" || retenue === "machine" || retenue === "station-stopped" || (etatStation(base, declaree.nom)?.saturatedCauses.length ?? 0) > 0;
     });
   };
 
