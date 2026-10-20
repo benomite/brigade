@@ -7,6 +7,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../../src/journal.ts";
+import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { FICHIER } from "../../src/preparation-depot/ouvrir.ts";
 import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_CLAUDE, fauxGh, issueGitHub, jusqua, lancer, repertoireTemporaire, temporaireDuFichier, tuerLesRelais } from "../outils.ts";
 
@@ -41,6 +42,8 @@ function uneStation(t: TestContext, preparation: "ouverte" | "servie") {
     noter("ticket.served", {});
   }
   journal.fermer();
+  // Ces cuisines tournent sans bac à sable : le chef a décidé de continuer ainsi.
+  accepterSansBacASable({ repertoireEtat: etat, station: "box" });
   writeFileSync(join(etat, FICHIER), JSON.stringify({ ticket: PREPARATION, ouvertLe: "2026-10-15T00:00:00.000Z" }));
 
   const { clone } = depotGit(t);
@@ -63,6 +66,7 @@ function uneStation(t: TestContext, preparation: "ouverte" | "servie") {
     FAUX_GISTS: gists,
     HOME: compte,
     BRIGADE_STATION_DIR: racine,
+    BRIGADE_STATION_NOM: "box",
     BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
     FAUX_CLAUDE_SUITE: suite,
     BRIGADE_MAX_LOAD_PER_CORE: "1000000",

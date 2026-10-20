@@ -22,6 +22,7 @@ import { test } from "node:test";
 import { FICHIER_APPAIRAGE, FICHIER_STATION } from "../../src/appairage/document.ts";
 import { FICHIER_LOCAL } from "../../src/appairage/presence.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
+import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { FICHIER_PROJETS, FICHIER_SUIVI } from "../../src/projets/demande.ts";
 import { depotGit, ENV_GIT, FAUX_CLAUDE, git, jusqua, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
@@ -132,6 +133,9 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
   assert.match(ticket?.body ?? "", /## Éprouver sur la station, pas en local/);
   assert.deepEqual(JSON.parse(readFileSync(join(racine, "etat/parade/preparation-depot.json"), "utf8")).ticket, 1);
   await station.attendre("brigade [parade] : servi par la station");
+  // La machine n'a pas de bac à sable : rien ne part avant que le chef ait choisi — pas même la préparation.
+  await station.attendre("brigade [parade] : box cuit sans bac à sable — aucun cook ne part avant que le chef ait choisi");
+  accepterSansBacASable({ repertoireEtat: join(racine, "etat/parade"), station: "box" });
   await station.attendre("brigade [parade] : le rail attend #1 (préparer le dépôt) — aucun autre ticket ne part avant son merge");
   const journal = ouvrirJournal(join(racine, "etat/parade"), { lectureSeule: true });
   try {
