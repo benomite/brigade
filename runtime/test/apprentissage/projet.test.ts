@@ -22,10 +22,10 @@ function projet(t: TestContext, { garni = true } = {}) {
     journal.ajouter({ project: "p", ticket: 21, author: "station", type: "cook.reported", payload: { run: "r21", ending: "done", reason: null, summary: "", deliverable: "", retro: "<retro>\npropose lancer les tests avant de commiter\n</retro>", branch: "cook/21", pr: null } });
     enregistrerRetro(journal, { projet: "p", ticket: 21, run: "r21", auteur: "pass" });
     saveCarnet(depot, { lessons: [
-      { id: "L-001", text: "lire le CLAUDE.md d'abord", state: "promoted", entered: "2026-10-01", retros: ["#12", "#15"] },
-      { id: "L-002", text: "sortie", state: "retired", entered: "2026-10-01", retros: ["#13"], exit: { date: "2026-10-05", reason: "manual" } },
+      { id: "L-001", text: "lire le CLAUDE.md d'abord", state: "promoted", entered: "2026-10-01", retros: ["#12", "#15"], origin: { kind: "pass-send-back", ticket: 12 } },
+      { id: "L-002", text: "sortie", state: "retired", entered: "2026-10-01", retros: ["#13"], origin: { kind: "retro" }, exit: { date: "2026-10-05", reason: "manual" } },
     ] });
-    saveDefinition(depot, { name: "app-src-vue", zone: "app/src/vue", perimeter: ["app/src/vue"], skills: [], accepted: "2026-10-19", tickets: [3, 4], notebook: { lessons: [{ id: "L-001", text: "peau mince", state: "promoted", entered: "2026-10-02", retros: ["#3"] }] } });
+    saveDefinition(depot, { name: "app-src-vue", zone: "app/src/vue", perimeter: ["app/src/vue"], skills: [], accepted: "2026-10-19", tickets: [3, 4], notebook: { lessons: [{ id: "L-001", text: "peau mince", state: "promoted", entered: "2026-10-02", retros: ["#3"], origin: { kind: "chef-correction", ticket: 3 } }] } });
     // Deux cooks ont reçu la leçon provisoire, un seul la promue ; un troisième n'en a reçu aucune.
     for (const [run, lessons] of [["a", ["L1", "L-001"]], ["b", ["L1"]], ["c", []]] as const) journal.ajouter({ project: "p", ticket: null, author: "station", type: "cook.launched", payload: { run, limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/${run}.jsonl`, lessons: [...lessons] } });
   }
@@ -39,11 +39,11 @@ describe("l'apprentissage d'un projet", () => {
 
     const [provisoire, promue] = lecons;
     assert.equal(lecons.length, 2);
-    assert.deepEqual({ ...provisoire, date: provisoire?.date.length }, { id: "L1", texte: "lancer les tests avant de commiter", statut: "provisoire", date: 10, tickets: [21], cooks: 2, progres: { avant: null, apres: null } });
+    assert.deepEqual({ ...provisoire, date: provisoire?.date.length }, { id: "L1", texte: "lancer les tests avant de commiter", statut: "provisoire", date: 10, tickets: [21], origine: { kind: "retro" }, cooks: 2, progres: { avant: null, apres: null } });
     assert.equal("url" in (provisoire ?? {}), false);
     // Le carnet : titre, blanc, « ## L-001 », état, texte → la ligne du texte est la 6e.
-    assert.deepEqual(promue, { id: "L-001", texte: "lire le CLAUDE.md d'abord", statut: "promue", date: "2026-10-01", tickets: [12, 15], cooks: 1, progres: { avant: null, apres: null }, url: `https://github.com/benomite/brigade/blob/v2/${CARNET_PATH}#L5` });
-    assert.deepEqual(profils, [{ nom: "app-src-vue", domaine: "app/src/vue", carnet: [{ id: "L-001", texte: "peau mince", etat: "promoted" }], tickets: [3, 4], progres: { avant: null, apres: null } }]);
+    assert.deepEqual(promue, { id: "L-001", texte: "lire le CLAUDE.md d'abord", statut: "promue", date: "2026-10-01", tickets: [12, 15], origine: { kind: "pass-send-back", ticket: 12 }, cooks: 1, progres: { avant: null, apres: null }, url: `https://github.com/benomite/brigade/blob/v2/${CARNET_PATH}#L5` });
+    assert.deepEqual(profils, [{ nom: "app-src-vue", domaine: "app/src/vue", carnet: [{ id: "L-001", texte: "peau mince", etat: "promoted", origine: { kind: "chef-correction", ticket: 3 } }], tickets: [3, 4], progres: { avant: null, apres: null } }]);
   });
 
   test("la livraison des tickets mergés se lit du journal, avant et après la date d'entrée de la promue", (t) => {
@@ -83,6 +83,9 @@ describe("par `facts`, le canal du runtime vers l'app", () => {
     const forme = JSON.parse(lancee.sortie().split("\n")[0] ?? "");
     assert.deepEqual(forme.apprentissage.lecons.map((l: { id: string }) => l.id), ["L1", "L-001"]);
     assert.equal(forme.apprentissage.lecons[1].url, `https://github.com/benomite/brigade/blob/v2/${CARNET_PATH}#L5`);
+    // Chaque leçon dit d'où elle est née.
+    assert.deepEqual(forme.apprentissage.lecons.map((l: { origine: unknown }) => l.origine), [{ kind: "retro" }, { kind: "pass-send-back", ticket: 12 }]);
+    assert.deepEqual(forme.apprentissage.profils[0].carnet[0].origine, { kind: "chef-correction", ticket: 3 });
     assert.equal(forme.apprentissage.profils[0].domaine, "app/src/vue");
 
     const vide = projet(t, { garni: false });

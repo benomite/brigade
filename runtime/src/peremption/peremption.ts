@@ -33,7 +33,7 @@
 //
 // Une sortie est datée au jour (`AAAA-MM-JJ`) : une citation du jour même
 // d'un retrait est tenue pour antérieure — le doute va au retrait du chef.
-import type { Carnet, Lesson } from "../carnet/carnet.ts";
+import { RETRO_ORIGIN, type Carnet, type Lesson, type LessonOrigin } from "../carnet/carnet.ts";
 import type { Seuils } from "../seuils/seuils.ts";
 import type { Retro } from "../apprentissage/provisoires.ts";
 import { carnetVide } from "../apprentissage/lecons.ts";
@@ -51,7 +51,8 @@ export type Citation = {
   date: string;
 };
 
-export type LeconHistoire = { id: string; texte: string; citations: Citation[] };
+// `origin` : d'où elle est née ; c'est celle qu'elle porte au carnet.
+export type LeconHistoire = { id: string; texte: string; citations: Citation[]; origin: LessonOrigin };
 
 export type Decision =
   // La leçon entre au carnet, promue : `retros`, les citations qui l'y portent.
@@ -173,13 +174,17 @@ export function decider(entree: Entree): Resultat {
   const refs = (citations: Citation[]) => unique(citations.map((c) => c.retro));
   const toutes = (id: string, l: LeconHistoire | undefined) => unique([...(carnet.get(id)?.retros ?? []), ...(l?.citations ?? []).map((c) => c.retro)]);
 
+  // L'origine qu'elle porte : celle que le carnet a déjà écrite, sinon celle
+  // de sa naissance.
+  const origine = (id: string, l: LeconHistoire | undefined): LessonOrigin => ({ ...(carnet.get(id)?.origin ?? l?.origin ?? RETRO_ORIGIN) });
+
   const promouvoir = (id: string, l: LeconHistoire, vie: Vie) => {
     decisions.push({ kind: "promote", lesson: id, retros: refs(vie.comptees) });
-    resultat.set(id, { id, text: l.texte, state: "promoted", entered: vie.entree, retros: toutes(id, l) });
+    resultat.set(id, { id, text: l.texte, state: "promoted", entered: vie.entree, retros: toutes(id, l), origin: origine(id, l) });
   };
   const supprimer = (id: string, texte: string, entree: string, derniere: Citation | null, l: LeconHistoire | undefined) => {
     decisions.push({ kind: "delete", lesson: id, retros: derniere ? [derniere.retro] : [] });
-    resultat.set(id, { id, text: texte, state: "expired", entered: entree, retros: toutes(id, l), exit: { date: aujourdhui, reason: "expiry" } });
+    resultat.set(id, { id, text: texte, state: "expired", entered: entree, retros: toutes(id, l), origin: origine(id, l), exit: { date: aujourdhui, reason: "expiry" } });
   };
 
   for (const id of ids) {
@@ -226,6 +231,7 @@ export function histoireDesRetros(retros: Retro[]): LeconHistoire[] {
   return lecons.map((l) => ({
     id: l.id,
     texte: l.texte,
+    origin: l.origin,
     citations: l.entrees.map((e) => ({ genre: e.genre, retro: e.retro, ticket: e.ticket, ...rang.get(e.retro)! })),
   }));
 }

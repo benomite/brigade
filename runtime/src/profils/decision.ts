@@ -12,6 +12,7 @@
 //
 // Une proposition se tranche une fois : un second geste, le même ou l'autre,
 // n'écrit rien et rend le premier.
+import { RETRO_ORIGIN } from "../carnet/carnet.ts";
 import type { Evenement } from "../evenements.ts";
 import type { Journal } from "../journal.ts";
 import { definitionExiste, fichierDuProfil, saveDefinition } from "./definition.ts";
@@ -71,7 +72,10 @@ export function decider({ journal, projet, repoDir }: OptionsDeDecision, proposi
             payload: { proposal: proposition, name, zone, tickets: ticketsDuDomaine(ticketsServis(journal.base), zone) },
           });
     if (fait === null) throw new Error(`le profil proposé ${proposition} est tranché sans que le journal le dise`);
-    if (fait.type === "profile.accepted") saveDefinition(repoDir, { name, zone, perimeter, skills, accepted: fait.at.slice(0, 10), tickets, notebook: { lessons: notebook } });
+    // Une proposition d'avant l'origine des leçons ne l'écrivait pas : elles
+    // étaient nées d'une rétro.
+    const lessons = notebook.map((lecon) => ({ ...lecon, origin: lecon.origin ?? RETRO_ORIGIN }));
+    if (fait.type === "profile.accepted") saveDefinition(repoDir, { name, zone, perimeter, skills, accepted: fait.at.slice(0, 10), tickets, notebook: { lessons } });
     return { issue: "tranchee", fait: fait as Acceptee | Refusee };
   });
 }

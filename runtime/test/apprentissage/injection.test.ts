@@ -56,8 +56,8 @@ describe("les leçons qu'un cook reçoit", () => {
     garnir(journal, "a", 4);
     const carnet = writeCarnet({
       lessons: [
-        { id: "L1", text: "Leçon 1 de a.", state: "promoted", entered: "2026-10-01", retros: ["retro-1"] },
-        { id: "L3", text: "Leçon 3 de a.", state: "retired", entered: "2026-10-01", retros: ["retro-3"], exit: { date: "2026-10-02", reason: "manual" } },
+        { id: "L1", text: "Leçon 1 de a.", state: "promoted", entered: "2026-10-01", retros: ["retro-1"], origin: { kind: "retro" } },
+        { id: "L3", text: "Leçon 3 de a.", state: "retired", entered: "2026-10-01", retros: ["retro-3"], origin: { kind: "retro" }, exit: { date: "2026-10-02", reason: "manual" } },
       ],
     });
 

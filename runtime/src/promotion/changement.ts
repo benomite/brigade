@@ -60,7 +60,8 @@ export function retireesParRevert(carnet: Carnet, fusionnees: Fusionnee[], aujou
   for (const [id, { pr, after }] of [...derniere].sort(([a], [b]) => ordre(a, b))) {
     if (after?.state !== "promoted" || presentes.has(id)) continue;
     decisions.push({ kind: "retire", lesson: id, retros: after.retros, pr });
-    lessons.push({ ...after, state: "retired", exit: { date: aujourdhui, reason: "manual" } });
+    // Une livraison d'avant l'origine ne l'écrivait pas : la leçon était née d'une rétro.
+    lessons.push({ ...after, origin: after.origin ?? { kind: "retro" }, state: "retired", exit: { date: aujourdhui, reason: "manual" } });
   }
   return { decisions, carnet: { lessons } };
 }

@@ -25,7 +25,7 @@ const DEPOT = "benomite/brigade";
 // `app/src/vue` en porte cinq, 3 du premier coup : 60 %, 20 points dessous.
 const VINGT_POINTS = [...tickets(1, 5, 3, VUE), ...tickets(6, 15, 13, RUNTIME)];
 
-const lecon = (id: string, retros: string[], reste: Partial<Lesson> = {}): Lesson => ({ id, text: `La leçon ${id}.`, state: "promoted", entered: "2026-10-01", retros, ...reste });
+const lecon = (id: string, retros: string[], reste: Partial<Lesson> = {}): Lesson => ({ id, text: `La leçon ${id}.`, state: "promoted", entered: "2026-10-01", retros, origin: { kind: "retro" }, ...reste });
 
 // Le dépôt du projet, avec son carnet.
 function depot(t: TestContext, lecons: Lesson[] = []): string {

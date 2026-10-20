@@ -34,17 +34,17 @@ const PROGRES = { avant: { retenus: 10, premiers: 6, premierCoup: 0.6, essaisMoy
 const SANS_APRES = { avant: PROGRES.avant, apres: null };
 const GARNI: ApprentissageDuRuntime = {
   lecons: [
-    { id: "L4", texte: "run the app tests before touching the view", statut: "provisoire", date: "2026-10-17", tickets: [29, 33], cooks: 3, progres: PROGRES },
-    { id: "L-001", texte: "read CLAUDE.md first", statut: "promue", date: "2026-10-01", tickets: [12, 15], cooks: 14, url: LIGNE, progres: PROGRES },
-    { id: "L-002", texte: "a test waits for a fact", statut: "promue", date: "2026-10-08", tickets: [18], cooks: 1, progres: PROGRES },
+    { id: "L4", texte: "run the app tests before touching the view", statut: "provisoire", date: "2026-10-17", tickets: [29, 33], origine: { kind: "retro" }, cooks: 3, progres: PROGRES },
+    { id: "L-001", texte: "read CLAUDE.md first", statut: "promue", date: "2026-10-01", tickets: [12, 15], origine: { kind: "pass-send-back", ticket: 12 }, cooks: 14, url: LIGNE, progres: PROGRES },
+    { id: "L-002", texte: "a test waits for a fact", statut: "promue", date: "2026-10-08", tickets: [18], origine: { kind: "retro" }, cooks: 1, progres: PROGRES },
   ],
   profils: [
     {
       nom: "app-src-vue",
       domaine: "app/src/vue",
       carnet: [
-        { id: "L-001", texte: "keep the view thin", etat: "promoted" },
-        { id: "L-002", texte: "every gesture is a button", etat: "retired" },
+        { id: "L-001", texte: "keep the view thin", etat: "promoted", origine: { kind: "retro" } },
+        { id: "L-002", texte: "every gesture is a button", etat: "retired", origine: { kind: "chef-correction", ticket: 29 } },
       ],
       tickets: [29, 36],
       progres: PROGRES,
@@ -52,8 +52,9 @@ const GARNI: ApprentissageDuRuntime = {
     { nom: "runtime-src-correctif", domaine: "runtime/src/correctif", carnet: [], tickets: [], progres: { avant: null, apres: null } },
   ],
 };
-// Ce que l'app en lit : la même chose.
-const LU = { lecons: GARNI.lecons, profils: GARNI.profils };
+// Ce que l'app en lit : la même chose, moins l'origine de chaque leçon, qu'elle ne lit pas encore (#1089).
+const sansOrigine = <T extends { origine: unknown }>({ origine: _origine, ...reste }: T) => reste;
+const LU = { lecons: GARNI.lecons.map(sansOrigine), profils: GARNI.profils.map((profil) => ({ ...profil, carnet: profil.carnet.map(sansOrigine) })) };
 
 const FAITS = { etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [] };
 const lus = (apprentissage: unknown) => comprendre(JSON.stringify({ ...FAITS, apprentissage }));

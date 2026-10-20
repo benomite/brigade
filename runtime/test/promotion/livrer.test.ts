@@ -167,7 +167,7 @@ test("une promotion fait une PR, une seule, qui ne touche que le carnet et nomme
     assert.match(pr.corps, new RegExp(`\`${ref}\` — ticket #${ticket}, qui l'a ${genre}`));
   }
   assert.match(pr.corps, new RegExp(TEXTE));
-  assert.deepEqual(c.carnetDe(pr.branche).lessons, [{ id: "L1", text: TEXTE, state: "promoted", entered: "2026-10-01", retros: ["retro-1", "retro-2", "retro-3"] }]);
+  assert.deepEqual(c.carnetDe(pr.branche).lessons, [{ id: "L1", text: TEXTE, state: "promoted", entered: "2026-10-01", retros: ["retro-1", "retro-2", "retro-3"], origin: { kind: "retro" } }]);
   assert.deepEqual(c.poussees, [pr.branche]);
 
   // Le changement s'écrit au journal avec sa PR.
@@ -264,7 +264,7 @@ test("une leçon promue que rien ne reconfirme redescend, puis disparaît : la P
   assert.equal(expiree.titre, "Carnet des leçons — expirée L1");
   assert.deepEqual(c.fichiersDe(expiree), [CARNET_PATH]);
   assert.deepEqual(c.carnetDe(expiree.branche).lessons, [
-    { id: "L1", text: TEXTE, state: "expired", entered: "2026-10-01", retros: ["retro-1", "retro-2", "retro-3"], exit: { date: "2026-12-01", reason: "expiry" } },
+    { id: "L1", text: TEXTE, state: "expired", entered: "2026-10-01", retros: ["retro-1", "retro-2", "retro-3"], origin: { kind: "retro" }, exit: { date: "2026-12-01", reason: "expiry" } },
   ]);
   assert.match(git(c.origine, "show", `${expiree.branche}:${CARNET_PATH}`), /- état: expired\n[^]*- sortie: 2026-12-01\n- raison: expiry$/);
   assert.match(expiree.corps, /sa sortie reste au carnet/);
@@ -329,7 +329,7 @@ test("retirée par le revert de sa PR de promotion, la leçon est inscrite `reti
   assert.deepEqual(c.journal.duType("carnet.delivered", 1)[0]?.payload.decisions.map((d) => d.kind), ["retire"]);
   assert.deepEqual(c.fichiersDe(retrait), [CARNET_PATH]);
   assert.deepEqual(c.carnetDe(retrait.branche).lessons, [
-    { id: "L1", text: TEXTE, state: "retired", entered: "2026-10-01", retros: ["retro-1", "retro-2", "retro-3"], exit: { date: "2026-10-05", reason: "manual" } },
+    { id: "L1", text: TEXTE, state: "retired", entered: "2026-10-01", retros: ["retro-1", "retro-2", "retro-3"], origin: { kind: "retro" }, exit: { date: "2026-10-05", reason: "manual" } },
   ]);
   assert.match(retrait.corps, new RegExp(`Promue par ${c.prs[0]?.url}`));
   c.fusionner(retrait);
