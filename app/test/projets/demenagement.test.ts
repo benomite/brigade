@@ -7,7 +7,8 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test, type TestContext } from "node:test";
+import { describe, test, type TestContext } from "node:test";
+import { accepterSansBacASable, decisionAttendue, lireDecisionSansBacASable } from "../../../runtime/src/onboarding/attente.ts";
 import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, type ProjetDemande } from "../../src/projets/demande.ts";
 import { DEMENAGER, demenageurDuRuntime, lireRendu, type Demenageur } from "../../src/projets/demenagement.ts";
 import { tenirProjets, type VuDesProjets } from "../../src/projets/projets.ts";
@@ -162,4 +163,50 @@ test("un déménagement en cours, écrit par le runtime dans la demande, survit 
   assert.deepEqual(await projets.retirer("cantine"), { retire: "cantine" });
   assert.deepEqual(lireDemande(gists.gbox?.[FICHIER_PROJETS]), [{ ...PARADE, principale: false, remise }]);
   assert.deepEqual(lireDemande(gists.gmac?.[FICHIER_PROJETS]), [{ ...PARADE, reprise }]);
+});
+
+// « Continue without sandbox » (#1113) : la décision se note par la fonction du runtime, dans l'état du
+// projet sur cet ordinateur — pour la station qui le cuit, la seule que l'app atteigne.
+describe("continuer sans bac à sable", () => {
+  const gistsDeParade = (principaleSur: "gbox" | "gmac") => ({
+    gbox: { [FICHIER_PROJETS]: documentDeDemande([{ ...PARADE, principale: principaleSur === "gbox" }]), [FICHIER_SUIVI]: suivi({ nom: "parade-box", locale: false }, [unSuivi({})]) },
+    gmac: { [FICHIER_PROJETS]: documentDeDemande([{ ...PARADE, principale: principaleSur === "gmac" }]), [FICHIER_SUIVI]: suivi({ nom: "macbook", locale: true }, [unSuivi({})]) },
+  });
+  const lesProjetsSansBac = (principaleSur: "gbox" | "gmac", accepterSansBac?: (projet: string, station: string) => Promise<void>) => {
+    const projets = tenirProjets({ github: unGitHub(gistsDeParade(principaleSur)), stations: () => [BOX, MAC], depots: async () => [], surLecture: () => {}, locale: () => "gmac", ...(accepterSansBac === undefined ? {} : { accepterSansBac }) });
+    return projets;
+  };
+
+  test("la principale est cet ordinateur : la décision est notée pour elle, avec le nom que la station se donne — et la retenue du runtime se lève", async () => {
+    const etat = mkdtempSync(join(tmpdir(), "sans-bac-"));
+    const appels: Array<[string, string]> = [];
+    const projets = lesProjetsSansBac("gmac", async (projet, station) => {
+      appels.push([projet, station]);
+      accepterSansBacASable({ repertoireEtat: etat, station });
+    });
+    await projets.relire();
+    const faits = { station: "macbook", sansBacASable: true, decision: lireDecisionSansBacASable(etat) };
+    assert.equal(decisionAttendue(faits), true);
+    const rendu = await projets.continuerSansBac("parade");
+    assert.deepEqual(appels, [["parade", "macbook"]]);
+    assert.ok("fait" in rendu);
+    assert.equal(decisionAttendue({ ...faits, decision: lireDecisionSansBacASable(etat) }), false);
+  });
+
+  test("la principale est ailleurs, le runtime absent ou en échec : un refus en une phrase, rien n'est noté", async () => {
+    let notes = 0;
+    const ailleurs = lesProjetsSansBac("gbox", async () => void notes++);
+    await ailleurs.relire();
+    assert.match(((await ailleurs.continuerSansBac("parade")) as { refus: string }).refus, /parade-box cooks parade, not this computer/);
+    assert.equal(notes, 0);
+    const sans = lesProjetsSansBac("gmac");
+    await sans.relire();
+    assert.match(((await sans.continuerSansBac("parade")) as { refus: string }).refus, /no runtime beside it/);
+    const casse = lesProjetsSansBac("gmac", async () => {
+      throw new Error("disk full");
+    });
+    await casse.relire();
+    assert.deepEqual(await casse.continuerSansBac("parade"), { refus: "the choice could not be recorded: nothing was changed", detail: "disk full" });
+    assert.deepEqual(await casse.continuerSansBac(""), { refus: "which project? none was named" });
+  });
 });

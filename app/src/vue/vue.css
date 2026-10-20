@@ -561,6 +561,10 @@ main > header,
   border: 1px solid var(--accent);
   border-radius: var(--rayon-bouton);
 }
+#stations-du-projet .parcours .dit.avertissement {
+  color: var(--texte);
+  font-weight: 600;
+}
 #stations-du-projet .parcours .etat-de-preparation {
   color: var(--texte-doux);
 }

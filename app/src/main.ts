@@ -2,6 +2,7 @@
 // box et le suivi du fichier des projets.
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, Notification, powerMonitor, shell } from "electron";
 import { tenirAccueil, type Accueil } from "./accueil.ts";
 import { tenirBandes } from "./alertes.ts";
@@ -458,6 +459,14 @@ const projetsDesStations = tenirProjets({
   locale: () => (role.role === "station" ? gistLocal(racineDeLaStation) : null),
   // Déménager une cuisine, c'est l'opération du runtime, lancée ici avec le répertoire de la station
   // de cet ordinateur (projets/demenagement.ts) : un téléphone, qui n'a pas de runtime, n'en lance aucune.
+  ...(role.role === "station"
+    ? {
+        accepterSansBac: async (projet: string, station: string) => {
+          const { accepterSansBacASable } = (await import(pathToFileURL(join(emplacements.runtime, "src", "onboarding", "attente.ts")).href)) as typeof import("../../runtime/src/onboarding/attente.ts");
+          accepterSansBacASable({ repertoireEtat: join(racineDeLaStation, "etat", projet), station });
+        },
+      }
+    : {}),
   ...(role.role === "station" ? { demenager: demenageurDuRuntime({ node: emplacements.node, runtime: emplacements.runtime, racine: racineDeLaStation, env: process.env, delaiMs: 60_000 }) } : {}),
   surLecture: (vu) => {
     dire("projetsDesStations", vu);
@@ -863,6 +872,9 @@ ipcMain.handle("confierAUneStation", (_, saisie: unknown) => projetsDesStations.
 ipcMain.handle("retirerDUneStation", (_, nom: unknown) => projetsDesStations.retirer(nom));
 // La page d'un projet déménage sa cuisine, d'un geste, vers une autre station appairée — cet
 // ordinateur, sa box, une autre : l'opération du runtime l'écrit, ou dit en une phrase pourquoi non.
+// « Continue without sandbox » (#1113) : la décision du chef se note par la fonction du runtime, dans l'état
+// du projet sur la station de cet ordinateur.
+ipcMain.handle("continuerSansBacASable", (_, nom: unknown) => projetsDesStations.continuerSansBac(nom));
 ipcMain.handle("demenagerLaCuisine", (_, nom: unknown, vers: unknown) => projetsDesStations.demenager(nom, vers));
 // La page GitHub où autoriser brigade sur un dépôt : seulement une de celles qu'une station a publiées.
 ipcMain.handle("autoriserSurGitHub", (_, url: unknown) => {

@@ -8,6 +8,10 @@
 // L'étape de préparation montre son ticket — un bouton qui l'ouvre —, son état — en cours, en échec,
 // à relire —, et, en échec, la raison en une phrase et l'heure du prochain essai. Aucun délai
 // annoncé ne survit à son heure : passée, la ligne dit que l'essai est dû, pas « dans une minute ».
+// Sur l'étape de la machine, quand le runtime attend une décision (une station sans bac à sable), la
+// phrase du runtime se pose en avertissement — ses cooks tournent sans bac à sable, rien ne part
+// avant le choix du chef — et les deux gestes sont des boutons : continuer sans bac à sable, ou
+// choisir une autre station. Choisi, l'avertissement s'en va dès que la station publie l'état suivant.
 // Prêt, le parcours dit que le premier ticket peut être posé, et se range d'un geste.
 // Tout est lu par le process principal (projets/demande.ts, `lireOnboarding`) : la vue pose.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
@@ -26,6 +30,8 @@ export const ETATS_DE_PREPARATION = { "en-cours": "in progress", "en-echec": "fa
 export const ECARTER = "dismiss";
 export const POSER_LE_PREMIER = "post the first ticket";
 export const OUVRIR_LA_PR = "open the PR";
+export const CONTINUER_SANS_BAC = "continue without sandbox";
+export const AUTRE_STATION = "choose another station";
 
 /** @param {string} projet */
 export const pret = (projet) => `${projet} is ready: post your first ticket with the \`fire\` label`;
@@ -127,13 +133,33 @@ function poserPreparation(doc, preparation, maintenant, ouvrir, dejaOuverte) {
   return poses;
 }
 
+// Le chef vient de continuer sans bac à sable : la machine est faite, la préparation est la courante, sans
+// avertissement — jusqu'à ce que la station publie l'état qui le dit pour de bon.
+/** @param {Onboarding} onboarding @returns {Onboarding} */
+export function apresLaDecision(onboarding) {
+  let suivante = false;
+  const etapes = onboarding.etapes.map((etape) => {
+    if (etape.etape === "machine" && etape.etat === "courante") {
+      suivante = true;
+      return { ...etape, etat: /** @type {const} */ ("faite"), dit: "You decided to continue without a sandbox: the station starts on its next turn.", geste: null };
+    }
+    if (suivante && etape.etat === "a-venir") {
+      suivante = false;
+      return { ...etape, etat: /** @type {const} */ ("courante") };
+    }
+    return etape;
+  });
+  return { ...onboarding, etapes, courante: etapes.find(({ etat }) => etat === "courante")?.etape ?? onboarding.courante, decisionAttendue: false };
+}
+
 // Le parcours de `projet`, ou rien : sans onboarding publié, ou prêt et son premier ticket déjà posé.
-// `ouvrir` : ouvre une page de GitHub ; `ecarter` : le chef range le parcours prêt.
+// `ouvrir` : ouvre une page de GitHub ; `ecarter` : le chef range le parcours prêt ; `continuerSansBac` et
+// `autreStation` : les deux choix devant une station sans bac à sable.
 /**
  * @param {Fabrique} doc
- * @param {{ projet: string, onboarding: Onboarding | null | undefined, maintenant: number, ouvrir: (url: string) => void, ecarter: () => void }} donnees
+ * @param {{ projet: string, onboarding: Onboarding | null | undefined, maintenant: number, ouvrir: (url: string) => void, ecarter: () => void, continuerSansBac?: () => void, autreStation?: () => void }} donnees
  */
-export function poserParcours(doc, { projet, onboarding, maintenant, ouvrir, ecarter }) {
+export function poserParcours(doc, { projet, onboarding, maintenant, ouvrir, ecarter, continuerSansBac = () => {}, autreStation = () => {} }) {
   if (onboarding === null || onboarding === undefined) return null;
   const racine = cree(doc, "section");
   racine.ariaLabel = `Getting ${projet} ready`;
@@ -173,13 +199,24 @@ export function poserParcours(doc, { projet, onboarding, maintenant, ouvrir, eca
     corps.append(titre);
     // En échec, l'échec dit lui-même ce qui se passe : sa phrase ne se redit pas au-dessus.
     const enEchec = etape.etape === "preparation" && onboarding.preparation?.etat === "en-echec";
+    // Une décision attendue sur la machine : sa phrase est un avertissement, ses gestes deux boutons.
+    const decision = etape.etape === "machine" && etape.etat === "courante" && onboarding.decisionAttendue;
     if (!enEchec) {
       const dit = phrase(doc, "p", etape.dit);
       dit.className = "dit";
+      if (decision) {
+        dit.className = "dit avertissement";
+        dit.role = "alert";
+      }
       corps.append(dit);
     }
     const geste = etape.etat === "courante" ? etape.geste : null;
-    if (geste !== null) corps.append(poserGeste(doc, geste, ouvrir));
+    if (decision) {
+      const choix = cree(doc, "div");
+      choix.className = "geste";
+      choix.append(bouton(doc, AUTRE_STATION, autreStation, true), bouton(doc, CONTINUER_SANS_BAC, continuerSansBac, false));
+      corps.append(choix);
+    } else if (geste !== null) corps.append(poserGeste(doc, geste, ouvrir));
     if (etape.etape === "preparation" && etape.etat !== "a-venir" && onboarding.preparation !== null) corps.append(...poserPreparation(doc, onboarding.preparation, maintenant, ouvrir, geste?.liens ?? []));
     pose.append(corps);
     liste.append(pose);

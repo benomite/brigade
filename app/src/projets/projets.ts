@@ -312,7 +312,11 @@ export type OptionsProjets = {
   // L'opération du runtime qui déménage une cuisine (demenagement.ts). Absente, l'app n'a pas de
   // runtime à côté d'elle : rien ne se déménage d'ici.
   demenager?: Demenageur;
+  // Note la décision du chef de cuire sans bac à sable pour `station`, dans l'état de `projet` sur cet
+  // ordinateur (runtime/src/onboarding/attente.ts, `accepterSansBacASable`). Absente, l'app n'a pas de runtime à côté d'elle.
+  accepterSansBac?: (projet: string, station: string) => Promise<void>;
 };
+export type DecisionSansBac = { fait: string } | { refus: string; detail?: string };
 
 export type Projets = {
   vu(): VuDesProjets | undefined;
@@ -324,6 +328,8 @@ export type Projets = {
   retirer(nom: unknown): Promise<Retrait>;
   // Déménage la cuisine d'un projet vers une station appairée — son gist.
   demenager(nom: unknown, vers: unknown): Promise<Demenagement>;
+  // Le chef continue sans bac à sable sur la station du projet : sa décision est notée, la retenue du rail se lève.
+  continuerSansBac(nom: unknown): Promise<DecisionSansBac>;
   // Les pages GitHub où autoriser brigade, telles que les stations les ont publiées.
   pages(): string[];
 };
@@ -523,10 +529,28 @@ export function tenirProjets(options: OptionsProjets): Projets {
       return rendu;
     });
 
+  // Continuer sans bac à sable : la décision s'écrit dans l'état du projet, sur la station de cet
+  // ordinateur — la seule que l'app atteigne ; une principale ailleurs dit qui peut la prendre.
+  const continuerSansBac = async (recuNom: unknown): Promise<DecisionSansBac> => {
+    const nom = texte(recuNom);
+    if (nom === "") return { refus: "which project? none was named" };
+    const principale = vu?.projets.find((projet) => projet.nom === nom)?.stations.find(({ principale: oui }) => oui);
+    if (principale === undefined) return { refus: `${nom} cooks on none of your stations: nothing was changed` };
+    if (options.accepterSansBac === undefined || locale() === null) return { refus: "this app has no runtime beside it to record this choice: nothing was changed" };
+    if (principale.id !== locale()) return { refus: `${principale.nom} cooks ${nom}, not this computer: the choice can only be recorded from ${principale.nom}'s own computer — or choose another station: nothing was changed` };
+    try {
+      await options.accepterSansBac(nom, principale.nom);
+    } catch (erreur) {
+      return { refus: "the choice could not be recorded: nothing was changed", detail: message(erreur) };
+    }
+    return { fait: `continuing without a sandbox on ${principale.nom}: ${nom} starts on its next turn` };
+  };
+
   return {
     vu: () => vu,
     relire,
     demenager,
+    continuerSansBac,
     async depots() {
       try {
         return { depots: await options.depots() };
