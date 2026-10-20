@@ -216,7 +216,14 @@ export class FauxXterm {
   }
   loadAddon(): void {}
   open(): void {}
-  onData(): void {}
+  // Ce que la vue fait d'une frappe : un test tape, comme le chef au clavier.
+  private saisie: ((donnees: string) => void) | undefined;
+  onData(ecoute: (donnees: string) => void): void {
+    this.saisie = ecoute;
+  }
+  taper(donnees: string): void {
+    this.saisie?.(donnees);
+  }
   // Le filtre de touches que la vue y a posé : rend faux quand la touche n'est pas à xterm.
   filtre: ((touche: { key: string; type: string; shiftKey: boolean; altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean }) => boolean) | undefined;
   attachCustomKeyEventHandler(filtre: NonNullable<FauxXterm["filtre"]>): void {
@@ -260,8 +267,20 @@ export type Jouee = {
 
 let jouees = 0;
 
-// Charge une vue neuve — son module entier, jusqu'à son premier affichage.
-export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "demarrage">>): Promise<Jouee> {
+// Le stockage de la vue (`window.localStorage`) : ce qu'elle y a écrit, par clé. Un test le passe à deux vues
+// jouées l'une après l'autre — l'app fermée puis rouverte.
+export class FauxStockage {
+  readonly valeurs = new Map<string, string>();
+  getItem(cle: string): string | null {
+    return this.valeurs.get(cle) ?? null;
+  }
+  setItem(cle: string, valeur: string): void {
+    this.valeurs.set(cle, valeur);
+  }
+}
+
+// Charge une vue neuve — son module entier, jusqu'à son premier affichage. Sans stockage, la vue n'en a pas.
+export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "demarrage">>, { stockage }: { stockage?: FauxStockage } = {}): Promise<Jouee> {
   const html = readFileSync(join(VUE, "index.html"), "utf8");
   const jetons = jetonsDe(readFileSync(join(VUE, "jetons.css"), "utf8"));
 
@@ -304,7 +323,7 @@ export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "d
   );
 
   Object.assign(globalThis, {
-    window: { brigade: pont },
+    window: { brigade: pont, ...(stockage === undefined ? {} : { localStorage: stockage }) },
     document: {
       documentElement: new Faux("html"),
       fonts: { load: (police: string) => (polices.push(police), Promise.resolve([])) },
@@ -376,9 +395,30 @@ export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "d
 // attendre, tout est donc fait quand la file des promesses est vide — aucun délai n'est couru.
 export const repos = (): Promise<void> => new Promise((fait) => setImmediate(fait));
 
-// Ouvre une lecture comme le chef le fait depuis l'écran principal : Rail, Cooks, Manager, Grants et
-// Reliability sous Paramètres, par sa rangée de lectures ; Log, par le geste « journal ».
-// Rend l'élément cliqué en dernier.
+// Montre un des deux onglets du projet, Rail ou Cooks (#1184), comme le chef : d'un clic, à côté de son nom.
+// Rend l'onglet cliqué.
+export async function ouvrirOnglet(vue: Jouee, titre: "Rail" | "Cooks"): Promise<Faux> {
+  const onglet = vue.element("onglets-du-projet").children.find((candidat) => candidat.textContent === titre);
+  if (onglet === undefined) throw new Error(`pas d'onglet « ${titre} »`);
+  onglet.click();
+  await repos();
+  return onglet;
+}
+
+// La carte d'un ticket sur l'onglet qui la porte (#1184) — Taken et Pass sur Cooks, les autres colonnes sur Rail :
+// cherchée sur l'onglet montré, puis sur l'autre, montré d'un clic comme le chef le ferait.
+export function carteDuTicket(vue: Jouee, numero: number): Faux | undefined {
+  const trouve = () => vue.element("rail").dessous("li").find((li) => li.className === "bon" && li.children[0]?.children[0]?.textContent === `#${numero}`);
+  const ici = trouve();
+  if (ici !== undefined) return ici;
+  const autre = vue.element("rail").dataset.onglet === "cooks" ? "Rail" : "Cooks";
+  vue.element("onglets-du-projet").children.find((onglet) => onglet.textContent === autre)?.click();
+  return trouve();
+}
+
+// Ouvre une lecture comme le chef le fait depuis l'écran principal : Rail, Manager, Grants et
+// Reliability sous Paramètres, par sa rangée de lectures ; Cooks — `station` —, par l'onglet Cooks ;
+// Log, par le geste « journal ». Rend l'élément cliqué en dernier.
 export async function ouvrirLecture(vue: Jouee, titre: string): Promise<Faux> {
   const cliquer = async (ou: Faux | undefined, nom: string): Promise<Faux> => {
     const pose = ou?.children.find((candidat) => candidat.textContent === nom) ?? ou?.dessous("button").find((candidat) => candidat.textContent === nom);
@@ -387,6 +427,7 @@ export async function ouvrirLecture(vue: Jouee, titre: string): Promise<Faux> {
     await repos();
     return pose;
   };
+  if (titre === "Cooks") return ouvrirOnglet(vue, "Cooks");
   if (titre === "Log") {
     const geste = vue.element("journal");
     geste.click();

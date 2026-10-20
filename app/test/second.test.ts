@@ -114,9 +114,10 @@ describe("le second est une colonne à droite, pas une page", () => {
       assert.deepEqual(terminal?.ecrits, ["> une conversation en cours\r\n"]);
     };
 
+    // Cooks est un onglet du projet (#1184), pas une page : rien ne se pose par-dessus le centre.
     for (const { titre } of ONGLETS) {
       await ouvrirLecture(vue, titre);
-      assert.equal(vue.element("contenu").hidden, false, titre);
+      assert.equal(vue.element("contenu").hidden, titre === "Cooks", titre);
       tenu();
     }
     // Un shell s'ouvre à droite, à côté du second : il a son cadre à lui, montré à la place de
@@ -335,7 +336,7 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
     await cliquer(vue, vue.element("terminaux"), "+ shell");
     assert.deepEqual(montre(vue), ["shell 1"]);
 
-    await cliquer(vue, vue.element("gestes-onglet"), "Set the cooks of a station…");
+    await cliquer(vue, vue.element("gestes-cuisine"), "Set the cooks of a station…");
 
     assert.deepEqual(montre(vue), ["second · claude"]);
     assert.equal(vue.element("note-second").textContent, ecrit.note);
@@ -357,17 +358,19 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
     const vue = await ouvrir({ inscrire: () => ecrit });
     await ouvrirLecture(vue, "Cooks");
 
-    await cliquer(vue, vue.element("gestes-onglet"), "Set the cooks of a station…");
+    await cliquer(vue, vue.element("gestes-cuisine"), "Set the cooks of a station…");
 
     assert.deepEqual(vue.dernier("inscrire"), ["parade", "cooks"]);
-    assert.deepEqual(selectionne(vue), ["Settings"]);
-    assert.equal(vue.element("contenu").hidden, false);
+    // L'onglet Cooks (#1184) reste montré : aucune page ne s'est ouverte par-dessus.
+    assert.deepEqual(vue.element("onglets-du-projet").children.filter((pose) => pose.ariaSelected === "true").map((pose) => pose.textContent), ["Cooks"]);
+    assert.deepEqual(selectionne(vue), []);
+    assert.equal(vue.element("contenu").hidden, true);
     assert.equal(vue.element("rail").hidden, false);
     assert.equal(vue.element("note-second").textContent, ecrit.note);
-    // La note du centre reste celle de l'onglet ouvert.
-    // Son explication n'est pas écrite à plat : elle est au survol.
-    assert.equal(vue.element("note").textContent, "?");
-    assert.match(vue.element("note").dessous("button")[0]?.ariaLabel ?? "", /^the output of `ssh box brigade parade station`/);
+    // L'explication de la lecture n'est pas écrite à plat : elle est au survol de sa tête, sur l'onglet.
+    assert.equal(vue.element("note").textContent, "");
+    const tete = vue.element("rail").dessous("h3").find(({ textContent }) => textContent.startsWith("the station:")) ?? assert.fail("pas de tête de la lecture");
+    assert.match(tete.dessous("button")[0]?.ariaLabel ?? "", /^the output of `ssh box brigade parade station`/);
   });
 
   test("un geste confirmé ouvre sa confirmation sur place, et ne part qu'à son « oui » — dans le second, sans que le centre change", async () => {
@@ -419,7 +422,7 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
     assert.equal(vue.dernier("onglet")[1], undefined);
   });
 
-  test("Paramètres ouvre l'état du projet, la sauvegarde comprise ; la lecture de `station` du projet, Cooks, y est rangée", async () => {
+  test("Paramètres ouvre l'état du projet, la sauvegarde comprise ; la lecture de `station` n'y est plus — elle est l'onglet Cooks (#1184)", async () => {
     const vue = await ouvrir();
     vue.dire("surLecture", { projet: "parade", demande: vue.dernier("regarder")[1] as number, a: "2026-10-13T09:00:00Z", sorties: [{ commande: "status", texte: RELAYE }] } as never, { projet: "parade", pages: [], aLancer: [], illisibles: [], empeche: [] });
 
@@ -428,10 +431,8 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
     assert.equal(vue.element("contenu").hidden, false);
     assert.deepEqual(selectionne(vue), ["Settings"]);
     assert.match(vue.element("lecture").textContent, /sauvegarde {7}il y a 10 h/);
-    assert.deepEqual(vue.element("parametres-onglets").children.map((pose) => pose.textContent), ["General", "Rail", "Cooks", "Manager", "Grants", "Reliability", "Closer"]);
-    // Cooks lit `station` sur la box de ce projet, et d'aucun autre.
-    await cliquer(vue, vue.element("parametres-onglets"), "Cooks");
-    assert.deepEqual(vue.dernier("onglet").slice(0, 2), ["parade", "cooks"]);
+    assert.deepEqual(vue.element("parametres-onglets").children.map((pose) => pose.textContent), ["General", "Rail", "Manager", "Grants", "Reliability", "Closer"]);
+    await cliquer(vue, vue.element("parametres-onglets"), "Manager");
     assert.equal(vue.element("etat").hidden, true);
     assert.deepEqual(selectionne(vue), ["Settings"]);
     await cliquer(vue, vue.element("parametres-onglets"), "General");

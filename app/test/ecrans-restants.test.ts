@@ -51,7 +51,7 @@ const survols = (ou: Faux) => ou.dessous("button").filter(({ className }) => cla
 // Le texte posé à plat : celui des éléments, sans le contenu d'un `pre` ni le nom accessible d'une aide.
 const aPlat = (ou: Faux) => ou.textContent;
 
-describe("Cooks, sous Settings : une lecture, des gestes en boutons, rien d'expliqué à plat", () => {
+describe("l'onglet Cooks (#1184) : la lecture de `station`, des gestes en boutons, rien d'expliqué à plat", () => {
   test("la note de l'onglet n'est qu'une aide, et les gestes disent leur mot — pas leur commande", async () => {
     const vue = await ouvrir();
     await ouvrirLecture(vue, "Cooks");
@@ -59,13 +59,16 @@ describe("Cooks, sous Settings : une lecture, des gestes en boutons, rien d'expl
     vue.dire("surContenu", { projet: "parade", demande: numero, a: A, sorties: [{ commande: "station", texte: "cooks 2" }] }, undefined, undefined);
     await repos();
 
-    assert.equal(vue.element("note").textContent, "?");
-    assert.match(survols(vue.element("note"))[0] ?? "", /^the output of `ssh box brigade parade station`/);
-    const gestes = vue.element("gestes-onglet");
+    // L'explication n'est pas dans la ligne du haut : elle est au survol de la tête de la lecture, sous les colonnes.
+    assert.equal(vue.element("note").textContent, "");
+    const tete = vue.element("rail").dessous("h3").find(({ textContent }) => textContent.startsWith("the station:")) ?? assert.fail("pas de tête de la lecture");
+    assert.equal(tete.textContent, "the station: its cap of cooks, its machine, its quota?");
+    assert.match(survols(tete)[0] ?? "", /^the output of `ssh box brigade parade station`/);
+    const gestes = vue.element("gestes-cuisine");
     assert.equal(gestes.hidden, false);
     assert.deepEqual(gestes.dessous("button").filter(({ className }) => className !== "aide").map(({ textContent }) => textContent), ["Set the cooks of a station…"]);
     assert.doesNotMatch(aPlat(gestes), TECHNIQUE);
-    assert.doesNotMatch(aPlat(vue.element("lu-onglet")), /ssh|usage|exit/);
+    assert.doesNotMatch(aPlat(vue.element("lu-cuisine")), /ssh|usage|exit/);
   });
 
   test("une lecture en échec tient en une ligne : ni `ssh`, ni `usage`, ni code de sortie à plat — le détail est au survol", async () => {
@@ -76,7 +79,7 @@ describe("Cooks, sous Settings : une lecture, des gestes en boutons, rien d'expl
     vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur, atteinte: false, cas: "ssh-en-echec" }, undefined, undefined);
     await repos();
 
-    const corps = vue.element("lecture-onglet");
+    const corps = vue.element("lecture-cuisine");
     assert.equal(corps.dessous("pre").length, 0);
     assert.doesNotMatch(aPlat(corps), TECHNIQUE);
     assert.equal(corps.dessous("p").find(({ className }) => className === "indisponible")?.textContent, "the station could not be reached?");

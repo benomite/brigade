@@ -20,7 +20,7 @@ import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { GESTES_DU_MANAGER, type Vu as VuDuManager } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { type Faux, jouerLaVue, type Reponses, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
+import { type Faux, jouerLaVue, type Reponses, ouvrirLecture, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
 
 const VUE = join(import.meta.dirname, "../src/vue");
 const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -112,8 +112,10 @@ describe("les trois états de pilotage ont chacun leur forme et leur couleur", (
 });
 
 describe("la cuisine, le grant, le manager : une pastille à forme, et son libellé", () => {
+  // La carte du projet est sur l'onglet Cooks (#1184).
   test("cuisine ouverte : disque vert ; arrêtée : carré rouge — le mot est dans la pilule", async () => {
     const vue = await ouvrir();
+    await ouvrirOnglet(vue, "Cooks");
     const numero = () => vue.dernier("faits")[0] as number;
     vue.dire("surFaits", { ...faits("ouverte", "vert"), demande: numero() });
     const pilule = (vue.element("carte").dessous("span").find((s) => s.className === "pilule") ?? assert.fail("pas de pilule")) as Faux;
@@ -132,6 +134,7 @@ describe("la cuisine, le grant, le manager : une pastille à forme, et son libel
 
   test("un mot hors des listes fermées garde la pastille vide : ni ton, ni forme, et le texte nu", async () => {
     const vue = await ouvrir();
+    await ouvrirOnglet(vue, "Cooks");
     vue.dire("surFaits", { ...faits("un mot inconnu", undefined), demande: vue.dernier("faits")[0] as number });
     const pilule = vue.element("carte").dessous("span").find((s) => s.className === "pilule") ?? assert.fail("pas de pilule");
     assert.equal(pilule.textContent, "un mot inconnu");

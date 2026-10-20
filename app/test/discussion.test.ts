@@ -26,7 +26,7 @@ import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Lue } from "../src/question.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
+import { carteDuTicket, type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
 const PARADE = "parade";
 const PROJET = { nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } };
@@ -219,7 +219,7 @@ async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {
 }
 const fiche = (vue: Jouee) => vue.element("fiche");
 const ouvrirFiche = async (vue: Jouee, numero: number) => {
-  const bon = vue.element("rail").dessous("li").find((li) => li.className === "bon" && li.children[0]?.children[0]?.textContent === `#${numero}`) ?? assert.fail(`pas de bon #${numero}`);
+  const bon = carteDuTicket(vue, numero) ?? assert.fail(`pas de bon #${numero}`);
   bon.click();
   await repos();
 };

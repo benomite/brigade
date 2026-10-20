@@ -348,6 +348,17 @@ main > header,
 }
 /* Les onglets de pages : en haut, dans le bandeau, à droite du nom du projet. Trop nombreux pour
    la largeur, ils défilent. */
+/* Les deux onglets du projet (ticket 1184), Rail et Cooks, entre son nom et Settings : les mêmes onglets, soulignés de
+   son accent quand ils sont montrés. Un trait les sépare de Settings, qui s'ouvre par-dessus. */
+#onglets-du-projet {
+  flex: none;
+  align-self: stretch;
+  display: flex;
+  gap: 2px;
+  margin-right: 8px;
+  padding-right: 8px;
+  border-right: 1px solid var(--trait);
+}
 #onglets {
   flex: 0 1 auto;
   align-self: stretch;
@@ -365,6 +376,7 @@ main > header,
   min-width: 0;
   overflow-x: auto;
 }
+#onglets-du-projet button,
 #onglets button,
 #terminaux button {
   padding: 10px 14px;
@@ -373,14 +385,17 @@ main > header,
   white-space: nowrap;
   border-bottom: 2px solid transparent;
 }
+#onglets-du-projet button:hover,
 #onglets button:hover,
 #terminaux button:hover {
   color: var(--texte-doux);
 }
+#onglets-du-projet button:focus-visible,
 #onglets button:focus-visible,
 #terminaux button:focus-visible {
   outline-offset: -2px;
 }
+#onglets-du-projet button[aria-selected="true"],
 #onglets button[aria-selected="true"],
 #terminaux button[aria-selected="true"] {
   color: var(--texte);
@@ -871,7 +886,8 @@ main > header,
   margin: 12px 16px 0;
 }
 #lu,
-#lu-onglet {
+#lu-onglet,
+#lu-cuisine {
   position: sticky;
   top: 0;
   z-index: 1;
@@ -1087,7 +1103,8 @@ main > header,
 }
 /* Ce qui se lit : une commande, puis ce qu'elle a rendu — l'une sous l'autre. */
 #lecture,
-#lecture-onglet {
+#lecture-onglet,
+#lecture-cuisine {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1095,6 +1112,7 @@ main > header,
 }
 #lecture h3,
 #lecture-onglet h3,
+#lecture-cuisine h3,
 #tous h3 {
   margin-top: 6px;
   font-size: 12px;
@@ -1345,7 +1363,8 @@ main > header,
   border-left: 4px solid transparent;
 }
 #lu[data-etat],
-#lu-onglet[data-etat] {
+#lu-onglet[data-etat],
+#lu-cuisine[data-etat] {
   padding-left: 12px;
 }
 /* Les trois états de pilotage portent chacun leur forme, avant leur couleur : pilotable, un
@@ -1353,7 +1372,8 @@ main > header,
    pas joint, un carré. Ton et forme sont posés par la vue (data-ton, data-forme) ; le mot reste
    le texte de la ligne. */
 #lu[data-forme]::before,
-#lu-onglet[data-forme]::before {
+#lu-onglet[data-forme]::before,
+#lu-cuisine[data-forme]::before {
   content: "";
   display: inline-block;
   width: 10px;
@@ -1363,15 +1383,18 @@ main > header,
   border: 1px solid var(--ton);
 }
 #lu[data-forme="disque"]::before,
-#lu-onglet[data-forme="disque"]::before {
+#lu-onglet[data-forme="disque"]::before,
+#lu-cuisine[data-forme="disque"]::before {
   border-radius: 50%;
 }
 #lu[data-forme="carre"]::before,
-#lu-onglet[data-forme="carre"]::before {
+#lu-onglet[data-forme="carre"]::before,
+#lu-cuisine[data-forme="carre"]::before {
   border-radius: 1px;
 }
 #lu[data-forme="losange"]::before,
-#lu-onglet[data-forme="losange"]::before {
+#lu-onglet[data-forme="losange"]::before,
+#lu-cuisine[data-forme="losange"]::before {
   border-radius: 1px;
   transform: rotate(45deg) scale(0.85);
 }
@@ -2516,6 +2539,21 @@ main > header,
   gap: 8px;
   padding: 8px 16px 16px;
   overflow-x: auto;
+}
+/* Partagées entre les deux onglets (ticket 1184) : Rail en a quatre — On the rail, TODO, WAITING, Served —, Cooks deux —
+   Taken, Pass —, chacune de la largeur que lui donnaient les six. */
+#rail[data-onglet="rail"] .colonnes {
+  grid-template-columns: minmax(104px, 1fr) minmax(160px, 1.6fr) minmax(136px, 1.3fr) minmax(104px, 1fr);
+}
+#rail[data-onglet="cooks"] .colonnes {
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+}
+/* Sur Cooks : la carte du projet en tête, la lecture de `station` sous les colonnes. */
+#rail > .carte {
+  margin: 12px 16px 0;
+}
+#rail #lecture-cuisine h3 {
+  padding: 0;
 }
 #rail .colonne {
   min-width: 0;
