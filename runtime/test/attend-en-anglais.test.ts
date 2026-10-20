@@ -131,6 +131,11 @@ const EXEMPLES = {
     { ...ticket(28), quoi: "repris", attendait: { what: "the design review", who: "the designer" } },
     { ...ticket(29), quoi: "repris", attendait: null },
   ],
+  carte: [
+    { ...ticket(46), quoi: "carte", carte: { type: "product", enonce: "one list per project, or one for all projects?", capture: null } },
+    { ...ticket(47), quoi: "carte", carte: { type: "design", enonce: "validate the empty rail screen", capture: "docs/captures/47/rail-vide-apres.png" } },
+    { ...ticket(48), quoi: "carte", carte: { type: "gesture", enonce: "give the service account read access to the repository", capture: null } },
+  ],
   connexion: [
     { ...horsTicket, quoi: "connexion", station: "box/claude", reason: "not-logged-in" },
     { ...horsTicket, quoi: "connexion", station: "mac/claude", reason: null },

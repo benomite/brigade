@@ -5,6 +5,7 @@
 import { direActiviteEn, type Activite } from "./activite.ts";
 import { activitesDuRail, type ActiviteDeTicket } from "./activites.ts";
 import { DIRE_GATES_COUPEES, DIRE_GATES_COUPEES_EN } from "./events/pass.ts";
+import type { CarteDeTodo } from "./carte-todo.ts";
 import { attentesDuChef, decisionDe, type Livraison, decrireAttentes, direAttente, direAttenteEn, nommerAttente, nommerEn, passageEnService, type Attente, type Decision, type Passage } from "./attend.ts";
 import { geste } from "./geste.ts";
 import { fournitTout } from "./capacites.ts";
@@ -735,8 +736,11 @@ export type Faits = {
   // `Decision`) — celle de la première ligne du ticket, s'il en a plusieurs.
   // `livraison` : pour une livraison qui attend, ce que la pass en a consigné — le
   // résumé de sa relecture, son premier constat bloquant, les fichiers de ses juges
-  // qu'elle change ; absente quand la pass n'a rien consigné.
-  attend: Array<{ ticket: number; titre: string; url: string | null; decision: Decision; livraison?: Livraison }>;
+  // qu'elle change ; absente quand la pass n'a rien consigné. `carte` : pour une
+  // carte typée entrée par la porte de TODO (carte-todo.ts), son `type`
+  // (`product`, `design`, `gesture`), son `enonce` en une ligne et sa `capture`,
+  // nulle sans elle ; absente pour toute autre entrée.
+  attend: Array<{ ticket: number; titre: string; url: string | null; decision: Decision; livraison?: Livraison; carte?: CarteDeTodo }>;
   // Les tickets servis dans les 24 h avant `lu`, le plus récent d'abord — ceux
   // que `compteurs.livres24h` compte, un pour un, encore sur le rail ou non.
   // `livre` : l'heure de son service. `station` : celle qui l'a cuisiné, nulle
@@ -811,6 +815,7 @@ export const CAUSES_D_URGENCE = {
   setup: "setup",
   aside: "mis de côté",
   disjoncteur: "disjoncteur",
+  carte: "carte",
 } as const satisfies Record<Attente["quoi"], string>;
 export type CauseDUrgence = (typeof CAUSES_D_URGENCE)[keyof typeof CAUSES_D_URGENCE];
 
@@ -884,7 +889,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
       if (attente.ticket === null || attendus.has(attente.ticket)) return [];
       const { ticket, title } = attente;
       attendus.add(ticket);
-      return [{ ticket, titre: title ?? "", url: adresse(ticket), decision: decisionDe(attente), ...("livraison" in attente && attente.livraison !== undefined ? { livraison: attente.livraison } : {}) }];
+      return [{ ticket, titre: title ?? "", url: adresse(ticket), decision: decisionDe(attente), ...("livraison" in attente && attente.livraison !== undefined ? { livraison: attente.livraison } : {}), ...(attente.quoi === "carte" ? { carte: attente.carte } : {}) }];
     }),
     livres: etat.livres.map(({ ticket, title, url, servedAt, station, pr, review }) => ({ ticket, titre: title, url: url ?? adresse(ticket), livre: servedAt, station, pr, relecture: relectureLivree(review), ...captures(ticket) })),
     urgence: faitsDUrgence(etat.urgence, etat.alerteUrgence, adresse),
