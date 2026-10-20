@@ -13,6 +13,7 @@
 // GitHub, chaque pas y est noté une fois fait, et ce qui échoue se reprend au
 // réveil suivant sans rejuger.
 import { DE_CONFIANCE } from "./alimenter.ts";
+import { noterLeRenvoi } from "./apprentissage/renvoi.ts";
 import { cartesEnTodo, entrerDansTodo, sortirDeTodo } from "./carte-todo.ts";
 import { geste } from "./geste.ts";
 import { calibrage as calibragePose, complet, type Calibrage, type CalibragePose } from "./calibrage.ts";
@@ -264,6 +265,8 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
     base.transaction(() => {
       if (!tenu(connu)) return;
       noter(connu.ticket, { type: "pass.returned", payload: { n: connu.returns + 1, findings: connu.findings } });
+      // Le rouge de la pass qu'il relance : sa raison devient une leçon candidate.
+      noterLeRenvoi(journal, { projet: atelier.projet, ticket: connu.ticket, auteur: "manager", origine: "pass-send-back", raisons: connu.findings });
       rail.rendre(connu.ticket, PASS_ROUGE);
     });
   };

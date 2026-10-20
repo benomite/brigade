@@ -12,7 +12,7 @@ import type { Journal } from "../journal.ts";
 import { parseDefinition, PROFILS_DIR } from "../profils/definition.ts";
 import { parcoursDesTickets } from "../parcours-des-tickets.ts";
 import { avantApres, type AvantApres } from "./progres.ts";
-import { leconsProvisoires, retrosDuProjet } from "./provisoires.ts";
+import { leconsProvisoires, sourcesDuProjet } from "./provisoires.ts";
 
 export type LeconAffichee = {
   id: string;
@@ -83,10 +83,10 @@ function ligneDeLaLecon(fichier: string, id: string): number | null {
 export function apprentissageDuProjet({ journal, projet, repoDir, depot, branche }: Source): Apprentissage {
   const cooks = cooksParLecon(journal.base, projet);
   const parcours = parcoursDesTickets(journal.base);
-  const retros = retrosDuProjet(journal.base, projet);
+  const sources = sourcesDuProjet(journal.base, projet);
   const ticketDe = (ref: string) => {
     const dieze = /^#([1-9]\d*)$/.exec(ref)?.[1];
-    return dieze !== undefined ? Number(dieze) : retros.find((retro) => retro.ref === ref)?.ticket;
+    return dieze !== undefined ? Number(dieze) : sources.find((source) => source.ref === ref)?.ticket;
   };
 
   const provisoires: LeconAffichee[] = leconsProvisoires(journal.base, projet).map((lecon) => ({

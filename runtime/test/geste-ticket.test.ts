@@ -1,8 +1,11 @@
 // Retirer un ticket du rail, changer sa priorité, merger la livraison qui attend
-// le chef : les cas acceptés, les cas refusés, et ce que chaque geste dit de son prix.
+// le chef, la renvoyer à un cook, dire pourquoi il l'a corrigée : les cas
+// acceptés, les cas refusés, et ce que chaque geste dit de son prix.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { changerPriorite, mergerLaLivraison, retirerDuRail } from "../src/geste-ticket.ts";
+import { carnetDuProjet } from "../src/apprentissage/provisoires.ts";
+import { changerPriorite, corrigerLaLivraison, mergerLaLivraison, renvoyerLaLivraison, RENVOI_DU_CHEF, RENVOI_SANS_RAISON, retirerDuRail } from "../src/geste-ticket.ts";
+import { renvoiEnAttente } from "../src/projections/pass.ts";
 import type { GitHub, Issue, Merge, PR } from "../src/github.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { lireRail, sortDuTicket, ticketDuRail } from "../src/projections/rail.ts";
@@ -211,4 +214,89 @@ test("merger est refusé sans rien toucher : pas de livraison qui attend le chef
   assert.equal(refus.done, false);
   assert.match((refus as { reason: string }).reason, /GitHub refused the merge of .*pull\/108: HTTP 405 — Pull Request is not mergeable/);
   assert.match(refus.price, /nothing was changed/);
+});
+
+const candidates = (journal: ReturnType<typeof ouvrirJournal>, ticket: number) => journal.duTicket(ticket).filter((e) => e.type === "lesson.candidate").map((e) => [e.author, e.payload]);
+
+test("renvoyer la livraison qui attend le chef la rend à un cook, sa raison en finding, et fait de la raison une leçon candidate « chef-correction »", async (t) => {
+  const { journal, ecrits, livrer, arreter, remonter } = cuisine(t, issue(7, ["fire"]), issue(8, ["fire"]));
+  livrer(7);
+  arreter(7);
+  const r = renvoyerLaLivraison(journal, PROJET, 7, "  Le test   ne prouve rien :\n il ne rougit pas sans le correctif. ");
+  assert.equal(r.done, true);
+  assert.match(r.price, /a cook is launched again on cook\/7-aa.*pull\/107 stays open.*Your reason becomes a candidate lesson/);
+  const raison = "Le test ne prouve rien : il ne rougit pas sans le correctif.";
+  // Le ticket revient en attente sur le rail, et la station reprendra sa branche, la raison en finding.
+  assert.equal(ticketDuRail(journal.base, 7)?.state, "waiting");
+  assert.deepEqual(journal.duTicket(7).filter((e) => e.type === "ticket.released").map((e) => [e.author, e.payload.reason]), [["chef", RENVOI_DU_CHEF]]);
+  const renvoi = renvoiEnAttente(journal.base, 7);
+  assert.deepEqual([renvoi?.branch, renvoi?.returns, renvoi?.findings], ["cook/7-aa", 1, [`Le chef a renvoyé cette livraison : ${raison}`]]);
+  assert.deepEqual(candidates(journal, 7), [["chef", { origin: "chef-correction", text: raison }]]);
+  const [lecon] = carnetDuProjet(journal.base, PROJET).lecons;
+  assert.deepEqual([lecon?.texte, lecon?.statut, lecon?.origin], [raison, "provisoire", { kind: "chef-correction", ticket: 7 }]);
+  // Remontée rouge, ses renvois épuisés : le chef lui en accorde un de plus.
+  livrer(8);
+  remonter(8);
+  assert.equal(renvoyerLaLivraison(journal, PROJET, 8, "Couvrir le cas d'erreur.").done, true);
+  assert.equal(ticketDuRail(journal.base, 8)?.state, "waiting");
+  assert.deepEqual(carnetDuProjet(journal.base, PROJET).lecons.map((l) => l.origin), [{ kind: "chef-correction", ticket: 7 }, { kind: "chef-correction", ticket: 8 }]);
+  assert.deepEqual(ecrits, []);
+});
+
+test("renvoyer sans raison rend la livraison à un cook, mais ne fait naître aucune leçon", async (t) => {
+  const { journal, livrer, arreter } = cuisine(t, issue(7, ["fire"]));
+  livrer(7);
+  arreter(7);
+  const r = renvoyerLaLivraison(journal, PROJET, 7, "   ");
+  assert.equal(r.done, true);
+  assert.match(r.price, /No reason given: no lesson is drawn from it/);
+  assert.deepEqual(renvoiEnAttente(journal.base, 7)?.findings, [RENVOI_SANS_RAISON]);
+  assert.deepEqual(candidates(journal, 7), []);
+  assert.deepEqual(carnetDuProjet(journal.base, PROJET).lecons, []);
+});
+
+test("renvoyer est refusé sans rien écrire : pas de livraison qui attend le chef, une livraison que la pass juge, une raison trop longue", async (t) => {
+  const { journal, livrer, arreter } = cuisine(t, issue(7, ["fire"]));
+  // Refusé, le geste n'écrit rien au journal.
+  const refuse = (ticket: number, raison: string) => {
+    const avant = journal.tout().length;
+    const r = renvoyerLaLivraison(journal, PROJET, ticket, raison);
+    assert.equal(journal.tout().length, avant);
+    assert.equal(r.done, false);
+    return (r as { reason: string }).reason;
+  };
+  assert.equal(refuse(7, "Une raison."), "#7 has no delivery waiting for you: only a delivery the pass holds for you — green and not merged, or escalated — is sent back");
+  assert.equal(refuse(9, "Une raison."), "#9 is not on the rail");
+  // En pass, la pass la juge : ce n'est pas au chef de la renvoyer.
+  livrer(7);
+  assert.match(refuse(7, "Une raison."), /has no delivery waiting for you/);
+  arreter(7);
+  assert.match(refuse(7, "mot ".repeat(120)), /the reason is 479 characters long: a lesson holds at most 400 — say it shorter/);
+  assert.equal(ticketDuRail(journal.base, 7)?.state, "pass");
+});
+
+test("dire pourquoi le chef a corrigé une livraison en fait une leçon candidate « chef-correction », sans rien toucher d'autre — même servie", async (t) => {
+  const { journal, ecrits, livrer, arreter } = cuisine(t, issue(7, ["fire"]));
+  livrer(7);
+  arreter(7);
+  journal.ajouter({ project: PROJET, ticket: 7, author: "pass", type: "merge.done", payload: { pr: prDe(7), sha: "sha-7", by: "outside", reconciled: false } });
+  journal.ajouter({ project: PROJET, ticket: 7, author: "pass", type: "ticket.served", payload: {} });
+  const rail = () => JSON.stringify(ticketDuRail(journal.base, 7));
+  const avant = rail();
+  const r = corrigerLaLivraison(journal, PROJET, 7, "Une migration se rejoue : elle doit tenir deux passages.");
+  assert.equal(r.done, true);
+  assert.match(r.price, /candidate lesson of the project.*no cook is launched/);
+  assert.equal(rail(), avant);
+  assert.deepEqual(candidates(journal, 7), [["chef", { origin: "chef-correction", text: "Une migration se rejoue : elle doit tenir deux passages." }]]);
+  const [lecon] = carnetDuProjet(journal.base, PROJET).lecons;
+  assert.deepEqual([lecon?.texte, lecon?.origin, lecon?.entrees.map((e) => [e.genre, e.ticket])], ["Une migration se rejoue : elle doit tenir deux passages.", { kind: "chef-correction", ticket: 7 }, [["propose", 7]]]);
+  assert.deepEqual(ecrits, []);
+});
+
+test("une correction sans raison, ou d'un ticket jamais livré, est refusée : aucune leçon", async (t) => {
+  const { journal, livrer } = cuisine(t, issue(7, ["fire"]), issue(8, ["fire"]));
+  livrer(7);
+  assert.match((corrigerLaLivraison(journal, PROJET, 7, " \n ") as { reason: string }).reason, /a correction says what was wrong: give its reason/);
+  assert.match((corrigerLaLivraison(journal, PROJET, 8, "Une raison.") as { reason: string }).reason, /#8 has never been delivered/);
+  assert.deepEqual([...candidates(journal, 7), ...candidates(journal, 8)], []);
 });

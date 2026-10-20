@@ -35,9 +35,8 @@
 // d'un retrait est tenue pour antérieure — le doute va au retrait du chef.
 import { RETRO_ORIGIN, type Carnet, type Lesson, type LessonOrigin } from "../carnet/carnet.ts";
 import type { Seuils } from "../seuils/seuils.ts";
-import type { Retro } from "../apprentissage/provisoires.ts";
+import { appliquerSource, entrelacer, type LeconCandidate, type Retro } from "../apprentissage/provisoires.ts";
 import { carnetVide } from "../apprentissage/lecons.ts";
-import { appliquerRetenues } from "../apprentissage/retro.ts";
 
 // Une rétro qui cite une leçon : elle la propose ou la reconfirme.
 export type Citation = {
@@ -225,13 +224,28 @@ export function decider(entree: Entree): Resultat {
 // journal (`retrosDuProjet`) : chaque ticket servi écrit la sienne, la n-ième
 // rétro est donc celle du n-ième ticket servi. Les ids sont ceux que le
 // journal leur a donnés (`carnetDuProjet`).
-export function histoireDesRetros(retros: Retro[]): LeconHistoire[] {
+//
+// Les leçons candidates — nées d'un renvoi ou d'une correction
+// (`candidatesDuProjet`) — y entrent à leur rang dans le journal, comme une
+// rétro, mais ne sont pas des tickets servis : le temps ne se compte qu'en
+// rétros. Une candidate écrite pendant le n-ième ticket servi — après la rétro
+// du précédent — compte à ce rang n, comme la rétro du ticket qu'elle suit
+// fait partie de ce ticket. Tant qu'aucun ticket n'a été servi depuis, elle
+// n'est pas encore comptée : sa leçon existe, provisoire, sans citation.
+export function histoireDesRetros(retros: Retro[], candidates: LeconCandidate[] = []): LeconHistoire[] {
   const rang = new Map(retros.map((r, i) => [r.ref, { servi: i + 1, date: r.at.slice(0, 10) }]));
-  const lecons = retros.reduce((carnet, r) => appliquerRetenues(carnet, r.kept, { retro: r.ref, ticket: r.ticket }), carnetVide()).lecons;
+  for (const c of candidates) {
+    const servi = retros.filter((r) => r.seq < c.seq).length + 1;
+    if (servi <= retros.length) rang.set(c.ref, { servi, date: c.at.slice(0, 10) });
+  }
+  const lecons = entrelacer(retros, candidates).reduce(appliquerSource, carnetVide()).lecons;
   return lecons.map((l) => ({
     id: l.id,
     texte: l.texte,
     origin: l.origin,
-    citations: l.entrees.map((e) => ({ genre: e.genre, retro: e.retro, ticket: e.ticket, ...rang.get(e.retro)! })),
+    citations: l.entrees.flatMap((e) => {
+      const r = rang.get(e.retro);
+      return r === undefined ? [] : [{ genre: e.genre, retro: e.retro, ticket: e.ticket, ...r }];
+    }),
   }));
 }

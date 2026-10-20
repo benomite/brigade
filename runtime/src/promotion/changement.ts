@@ -12,7 +12,7 @@
 // sortie au jour où le runtime le constate. La péremption ne compte ensuite
 // que les citations d'après.
 import { CARNET_PATH, writeCarnet, type Carnet, type Lesson } from "../carnet/carnet.ts";
-import type { Retro } from "../apprentissage/provisoires.ts";
+import type { LeconCandidate, Retro } from "../apprentissage/provisoires.ts";
 import { decider, histoireDesRetros, type Decision, type LeconHistoire } from "../peremption/peremption.ts";
 import type { Seuils } from "../seuils/seuils.ts";
 import type { LeconChangee } from "./evenements.ts";
@@ -29,6 +29,9 @@ export type Fusionnee = { pr: string; lessons: LeconChangee[] };
 export type Entree = {
   carnet: Carnet;
   retros: Retro[];
+  // Les leçons nées d'un renvoi ou d'une correction, dans l'ordre du journal
+  // (`candidatesDuProjet`) : elles citent leur leçon comme une rétro.
+  candidates?: LeconCandidate[];
   seuils: Seuils;
   // Le jour du changement, AAAA-MM-JJ : celui des sorties qu'il écrit.
   aujourdhui: string;
@@ -69,9 +72,9 @@ export function retireesParRevert(carnet: Carnet, fusionnees: Fusionnee[], aujou
 // Le changement à livrer, ou null : aucune décision, ou un carnet qui ne
 // bouge pas.
 export function changementDuCarnet(entree: Entree): ChangementDuCarnet | null {
-  const { carnet, retros, seuils, aujourdhui, fusionnees } = entree;
+  const { carnet, retros, candidates = [], seuils, aujourdhui, fusionnees } = entree;
   const retraits = retireesParRevert(carnet, fusionnees, aujourdhui);
-  const histoire = histoireDesRetros(retros);
+  const histoire = histoireDesRetros(retros, candidates);
   const jugement = decider({ histoire, carnet: retraits.carnet, seuils, servis: retros.length, aujourdhui });
   const decisions = [...retraits.decisions, ...jugement.decisions];
   const texte = writeCarnet(jugement.carnet);
@@ -86,7 +89,7 @@ export function changementDuCarnet(entree: Entree): ChangementDuCarnet | null {
       const b = apres.get(id) ?? null;
       return a !== undefined && b !== null && writeCarnet({ lessons: [a] }) === writeCarnet({ lessons: [b] }) ? [] : [{ id, after: b }];
     });
-  return { decisions, carnet: jugement.carnet, lessons, texte, titre: titreDeLaPR(decisions), corps: corpsDeLaPR({ decisions, histoire, retros, seuils, carnet, resultat: jugement.carnet }) };
+  return { decisions, carnet: jugement.carnet, lessons, texte, titre: titreDeLaPR(decisions), corps: corpsDeLaPR({ decisions, histoire, retros, candidates, seuils, carnet, resultat: jugement.carnet }) };
 }
 
 const DIT: Record<Changement["kind"], string> = { promote: "promue", demote: "rétrogradée", delete: "expirée", retire: "retirée" };
@@ -102,9 +105,10 @@ const pluriel = (n: number, mot: string) => `${n} ${n > 1 ? mot.replace(/(\S)(?=
 // Le corps de la PR : c'est lui que le reviewer lit à la place d'un ticket.
 // Chaque décision y nomme ses rétros — le ticket qu'elles suivent, et si
 // elles ont proposé ou reconfirmé la leçon.
-function corpsDeLaPR(contexte: { decisions: Changement[]; histoire: LeconHistoire[]; retros: Retro[]; seuils: Seuils; carnet: Carnet; resultat: Carnet }): string {
-  const { decisions, histoire, retros, seuils } = contexte;
-  const ticketDe = new Map(retros.map((r) => [r.ref, r.ticket]));
+function corpsDeLaPR(contexte: { decisions: Changement[]; histoire: LeconHistoire[]; retros: Retro[]; candidates: LeconCandidate[]; seuils: Seuils; carnet: Carnet; resultat: Carnet }): string {
+  const { decisions, histoire, retros, candidates, seuils } = contexte;
+  const ticketDe = new Map([...retros, ...candidates].map((r) => [r.ref, r.ticket]));
+  const renvoiDe = new Map(candidates.map((c) => [c.ref, c.origin.kind === "pass-send-back" ? "renvoi de la pass" : "correction du chef"]));
   const rangDe = new Map(retros.map((r, i) => [r.ref, i + 1]));
   const textes = new Map([...contexte.carnet.lessons, ...contexte.resultat.lessons].map((l) => [l.id, l.text]));
   for (const l of histoire) textes.set(l.id, l.texte);
@@ -112,7 +116,8 @@ function corpsDeLaPR(contexte: { decisions: Changement[]; histoire: LeconHistoir
   const retro = (lecon: string, ref: string) => {
     const ticket = ticketDe.get(ref);
     const genre = genreDe(lecon, ref);
-    return `- \`${ref}\`${ticket === undefined ? "" : ` — ticket #${ticket}`}${genre === undefined ? "" : genre === "propose" ? ", qui l'a proposée" : ", qui l'a reconfirmée"}`;
+    const renvoi = renvoiDe.get(ref);
+    return `- \`${ref}\`${renvoi === undefined ? "" : ` (${renvoi})`}${ticket === undefined ? "" : ` — ticket #${ticket}`}${genre === undefined ? "" : genre === "propose" ? ", qui l'a proposée" : ", qui l'a reconfirmée"}`;
   };
   const depuis = (ref: string | undefined) => {
     const rang = ref === undefined ? undefined : rangDe.get(ref);
