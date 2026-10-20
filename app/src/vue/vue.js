@@ -155,8 +155,10 @@ const cite = (nom) => (/^[a-z0-9-]+$/.test(nom) ? nom : `'${nom.replaceAll("'", 
 const geste = (projet, commande) => `${projet.ici === true ? "" : `ssh ${projet.box === undefined ? "<hote>" : mot(projet.box.hote)} `}brigade ${mot(cite(projet.nom))} ${commande}`;
 // Ce qui se lit d'un projet : sa box, jointe par `ssh` — ou cet ordinateur, quand c'est sa station
 // qui fait tourner sa cuisine (`ici`, poste/cuisine-ici.ts) : il se lit alors sans `ssh` ni `hote`.
+// Tant que la station de cet ordinateur ne tourne pas (`sansStation`), rien n'en est lu : la page
+// ne dit que cela, en une ligne (attendre).
 /** @param {Projet} projet */
-const seLit = (projet) => projet.box !== undefined || projet.ici === true;
+const seLit = (projet) => (projet.box !== undefined || projet.ici === true) && projet.sansStation !== true;
 // Le geste que faits.ts écrit, n'ayant pas le projet : la vue le pose sur le sien.
 /** @param {Projet} projet @param {string} texte */
 const surMesure = (projet, texte) => texte.replaceAll("ssh <hote> brigade <nom> ", `${geste(projet, "")}`);
@@ -3702,6 +3704,9 @@ function listeAmont(projet, vu, cartes) {
   return liste;
 }
 
+// Ce que dit la page d'un projet qui cuit sur cet ordinateur quand la station de cet ordinateur ne tourne pas.
+const STATION_ARRETEE = "this computer's station is not running";
+
 // Le rail en six colonnes — Sur le rail, Au travail, Pass, TODO, WAITING, Livré —,
 // tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
 // colonne. C'est la vue principale de l'espace : il est posé au centre, quel que soit
@@ -3710,11 +3715,13 @@ function listeAmont(projet, vu, cartes) {
 /** @param {Projet} projet */
 function poserRail(projet) {
   const tenu = tenus.get(projet.nom);
-  rail.hidden = !seLit(projet) || projet.desinstalle !== undefined;
+  rail.hidden = (!seLit(projet) && projet.sansStation !== true) || projet.desinstalle !== undefined;
   provenance.hidden = arreterCuisine.hidden = true;
   // Plus de rail, plus de fiche par-dessus.
   if (rail.hidden && ouverte !== undefined) fermerFiche();
   if (rail.hidden) return rail.replaceChildren();
+  // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne.
+  if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
   const muet = muets.get(projet.nom);
   if (tenu === undefined && muet === undefined) return rail.replaceChildren(bloc("h3", `the rail: first read of \`${geste(projet, "facts")}\` in progress…`));
   // La box ne répond pas : rien de ce que dit le rail n'est lu à neuf. Il garde sa dernière lecture,
@@ -5161,7 +5168,7 @@ function poserStationsDuProjet() {
     ligneDesStationsDuProjet.textContent = lues ? `No station cooks ${projet.nom} yet.` : "reading your stations on GitHub…";
   }
   poserLeDemenagement(projet, ou, enCours, lues);
-  ouvrirLaConfiance.textContent = stations.length === 0 && !seLit(projet) ? "choose its machine" : "+ station";
+  ouvrirLaConfiance.textContent = stations.length === 0 && !seLit(projet) && projet.sansStation !== true ? "choose its machine" : "+ station";
   ouvrirLaConfiance.hidden = confiance !== undefined || demenagement !== undefined || !lues;
   confianceDite.textContent = confianceDitePour.projet === projet.nom ? confianceDitePour.dit : "";
   if (confiance === undefined) return;
@@ -5672,6 +5679,12 @@ function attendre(projet, tete, corps) {
     tete.dataset.etat = "desinstalle";
     tete.textContent = `${projet.desinstalle.titre} — since ${heureDe(projet.desinstalle.a)}`;
     corps.replaceChildren(propos(projet.desinstalle.lignes.join("\n")));
+  } else if (projet.sansStation === true) {
+    // Station arrêtée : rien n'est lu. La ligne est celle du rail (poserRail), qui cède la place au
+    // rail, à la file et aux cartes dès que la station tourne (la configuration est reposée).
+    tete.dataset.etat = "sans-station";
+    tete.textContent = "";
+    corps.replaceChildren();
   } else if (!seLit(projet)) {
     tete.dataset.etat = "sans-station";
     tete.textContent = "no read";
@@ -5908,7 +5921,7 @@ brigade.surEtat((terminal) => {
 brigade.surLecture((recue, servies) => {
   // Demandée par un écran quitté depuis, elle était déjà en route : elle n'est pas pour celui-ci.
   if (recue.demande !== demande) return;
-  if (recue.projet === courant?.nom) {
+  if (recue.projet === courant?.nom && courant.sansStation !== true) {
     rendre(recue, lu, lecture, true);
     servir(courant, servies);
   }
@@ -5988,7 +6001,7 @@ brigade.surContenu((recue, vu, desGrants, laFiabilite) => {
     coutsLus.set(recue.projet, recue);
     return poserCout();
   }
-  if (recue.projet !== courant?.nom) return;
+  if (recue.projet !== courant?.nom || courant.sansStation === true) return;
   // Reliability : son `station` dit aussi ce que le projet a coûté.
   if (ongletDemande === FIABILITE) lectureDeLaFiabilite = recue;
   rendre(recue, luOnglet, lectureOnglet, true);

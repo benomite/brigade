@@ -429,7 +429,7 @@ function colorer(): void {
 // Les projets tels que l'app les montre, et les lit : celui qu'elle a désinstallé de sa
 // box n'en a plus (retrait.ts) — ni veille, ni bouton, ni mise en service ne l'y cherchent.
 const projets = () => suivi.configuration().projets.map(retraits.vu);
-const affichee = () => pourLaBarre(suivi.configuration(), retraits.vu, cuisines.ici);
+const affichee = () => pourLaBarre(suivi.configuration(), retraits.vu, cuisines.ici, () => stationLocale?.tourne() === true);
 // Un projet du fichier, qu'il s'ouvre ou non : sa box se lit, et se vérifie, sans son dossier.
 const connu = (nom: unknown) => projets().find((candidat) => candidat.nom === nom);
 // Le même, tel que le fichier le déclare : c'est avec sa box qu'il se retire, et se désinstalle.
@@ -491,6 +491,8 @@ const stationLocale =
         env: process.env,
         dire: (ligne) => console.error(ligne),
         appairer: (code) => stations.appairer(code),
+        // Lancée ou arrêtée : la page d'un projet qui cuit ici le dit, ou cesse de le dire.
+        surChangement: () => dire("configuration", affichee(), []),
       })
     : undefined;
 // Les pannes d'une station, sur sa ligne de la home : chacune a son bouton (pannes/gestes.ts). Le

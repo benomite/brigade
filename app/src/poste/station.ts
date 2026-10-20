@@ -49,10 +49,15 @@ export type OptionsStationLocale = {
   reessaiMs?: number;
   // Le temps laissé à la station pour s'arrêter, avant qu'elle soit tuée.
   gardeMs?: number;
+  // La station vient de se lancer, ou de s'arrêter : `tourne()` a changé.
+  surChangement?: () => void;
 };
 
 export type StationLocale = {
   etat(): EtatStationLocale;
+  // Un process de station tourne-t-il pour cet ordinateur ? Pas entre sa mort et sa relance, ni
+  // refusée ou arrêtée ; tenue par une autre app, oui : c'est elle qui la fait tourner.
+  tourne(): boolean;
   // Ferme son entrée et attend qu'elle se soit arrêtée.
   arreter(): Promise<void>;
 };
@@ -124,6 +129,17 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
     }
   };
 
+  const tourne = () => enfant !== undefined || etat === "tenue-ailleurs";
+  let dit = false;
+  // Dit le changement de `tourne()`, une seule fois par changement.
+  const signaler = () => {
+    const maintenant = tourne();
+    if (maintenant === dit) return;
+    dit = maintenant;
+    // Après la lecture en cours : `tenirStationLocale` lance la station avant de rendre la main.
+    if (options.surChangement !== undefined) queueMicrotask(options.surChangement);
+  };
+
   const plusTard = (faire: () => void, ms: number) => {
     clearTimeout(minuteur);
     minuteur = setTimeout(faire, ms);
@@ -153,12 +169,14 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
     } catch (erreur) {
       // Un répertoire qu'on ne peut pas écrire : l'app s'ouvre quand même, sans sa station.
       etat = "refusee";
+      signaler();
       return dire(`brigade: this computer's station is not launched — its directory ${racine} cannot be written: ${message(erreur)}`);
     }
     if (autre !== undefined) {
       if (tenant !== autre) dire(`brigade: this computer's station is run by another app (pid ${autre}) — this one takes it over when that one closes`);
       tenant = autre;
       etat = "tenue-ailleurs";
+      signaler();
       return plusTard(lancer, reessaiMs);
     }
     tenant = undefined;
@@ -170,6 +188,7 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
     });
     enfant = lance;
     etat = lances++ === 0 ? "demarree" : "relancee";
+    signaler();
     for (const flux of [lance.stdout, lance.stderr]) {
       createInterface({ input: flux }).on("line", (ligne) => {
         dire(ligne);
@@ -186,6 +205,7 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
         fini = true;
         enfant = undefined;
         code = null;
+        signaler();
         resoudre();
         if (arretee) return;
         if (dit !== undefined) dire(dit);
@@ -205,6 +225,7 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
 
   return {
     etat: () => etat,
+    tourne,
     async arreter() {
       if (arretee) return fin;
       arretee = true;
@@ -218,6 +239,7 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
         clearTimeout(garde);
       }
       etat = "arretee";
+      signaler();
       rendre();
     },
   };

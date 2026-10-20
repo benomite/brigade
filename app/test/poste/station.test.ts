@@ -222,6 +222,25 @@ test("le code refusé — GitHub ne montre pas encore la station — est retapé
   await station.arreter();
 });
 
+test("la station dit si elle tourne, et le dit à l'app à chaque changement : lancée, arrêtée — rien entre deux", async (t) => {
+  const racine = join(repertoireTemporaire(t), "station");
+  const changements: boolean[] = [];
+  const { station, dit } = tenir(t, {
+    node: process.execPath,
+    principal: unPrincipal(t, `console.log("lancée");\n${ATTENDRE_SIGTERM}`),
+    racine,
+    env: {},
+    appairer: () => assert.fail(),
+    surChangement: () => changements.push(station.tourne()),
+  });
+  assert.equal(station.tourne(), true);
+  await jusqua(() => dit().includes("lancée"));
+  await station.arreter();
+  assert.equal(station.tourne(), false);
+  await jusqua(() => changements.length === 2);
+  assert.deepEqual(changements, [true, false]);
+});
+
 test("une deuxième app ouverte ne lance pas une deuxième station : elle le dit, et la reprend quand la première se ferme", async (t) => {
   const racine = join(repertoireTemporaire(t), "station");
   mkdirSync(racine, { recursive: true });
