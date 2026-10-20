@@ -9,6 +9,7 @@
 // la demande. Chaque « oui » est un geste du socle, qui part dans le second. Ce module ne lance
 // rien, n'écrit dans aucun terminal, et ne fait rien partir : il dit.
 import { AVERTISSEMENT as ALLUMER } from "./allumage.ts";
+import type { Cuisine } from "./box.ts";
 import type { Projet } from "./config.ts";
 import type { Faits } from "./faits.ts";
 import { commandeDuGeste, CONFIRMES } from "./gestes.ts";
@@ -57,11 +58,12 @@ function cooksEnVol(lus: Lus): { prix: string[]; lu?: string } {
 const surLeRail = (lus: Lus): string[] => ("sans" in lus ? [] : [`${nombre(lus.faits.compteurs.rail)} ticket${s(lus.faits.compteurs.rail)} on the rail at this reading.`]);
 
 // Ce que ce geste confirmé dira avant de partir, pour ce projet — ou pourquoi il ne s'offre
-// pas. Rien pour un geste qui ne se confirme pas, ou que le socle ne connaît pas.
-export function confirmationDe(id: unknown, projet: Projet, lus: Lus, grant?: unknown): Confirmation | { refus: string } | undefined {
+// pas. Rien pour un geste qui ne se confirme pas, ou que le socle ne connaît pas. `cuisine` : là
+// où celle du projet tourne à cet instant — sa box, ou cet ordinateur, où le geste part sans `ssh`.
+export function confirmationDe(id: unknown, projet: Projet, lus: Lus, grant?: unknown, cuisine: Cuisine | undefined = projet.box): Confirmation | { refus: string } | undefined {
   if (typeof id !== "string" || !CONFIRMES.includes(id)) return undefined;
   // Un geste qui n'écrirait rien n'a rien à confirmer : son refus se dit à la place.
-  const ecrit = commandeDuGeste(id, projet, grant);
+  const ecrit = commandeDuGeste(id, projet, grant, cuisine);
   if (ecrit === undefined || "refus" in ecrit) return ecrit;
   const nomme = String(grant);
   switch (id) {

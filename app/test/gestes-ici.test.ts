@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { verdictDeLaPanne } from "../../runtime/src/verdict.ts";
 import { commandeDAttente, ecrireAttente } from "../src/attente.ts";
+import { confirmationDe } from "../src/confirmation.ts";
 import { GESTE, lancerLa, ouvrirVeille, type Cuisine, type Lecture, type Locale } from "../src/box.ts";
 import type { Projet } from "../src/config.ts";
 import { jouerGesteDeFiche } from "../src/gestes-fiche.ts";
@@ -139,6 +140,18 @@ describe("les gestes d'un projet qui cuit sur cet ordinateur partent ici, sans s
       [recu(essai, "guardrails", "stop"), recu(essai, "guardrails", "resume")],
     );
     assert.equal(essai.lu("ssh-lance"), "", "aucun `ssh` n'a été lancé");
+  });
+
+  test("un geste confirmé s'offre à confirmer pour un projet sans « hote » servi ici : arrêter, reprendre, accorder et révoquer `merge`, allumer le manager", (t) => {
+    const essai = poste(t);
+    for (const [id, grant] of [["stop"], ["reprendre"], ["grant-activer", "merge"], ["grant-revoquer", "merge"], ["manager-allumer"]] as const) {
+      const offerte = confirmationDe(id, PARADE, { sans: "pas lus" }, grant, essai.ici);
+      assert.ok(offerte !== undefined && !("refus" in offerte), `${id} : ${JSON.stringify(offerte)}`);
+      // Son « oui » est celui du geste qu'elle confirme : c'est lui que la vue renvoie.
+      assert.deepEqual(offerte.choix.map(({ id }) => id), [id]);
+    }
+    // Sans dire où la cuisine tourne, un projet sans « hote » n'aurait rien à confirmer — ni à arrêter.
+    assert.equal(confirmationDe("stop", PARADE, { sans: "pas lus" }), undefined);
   });
 
   test("accorder, révoquer le grant `merge` et merger une livraison : ici aussi, et un projet qui garde son « hote » n'y va pas", async (t) => {
