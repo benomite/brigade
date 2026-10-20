@@ -1,235 +1,235 @@
-## Le manager
+## The manager
 
-Le manager décide **ce qui entre sur le rail, et le calibre**. Allumé, le chef pose une issue en
-langage produit, sans aucun label : le manager pose `fire`, `model:` et `effort:` et dit pourquoi —
-ou dit, en commentaire, pourquoi ce n'est pas un ticket exécutable. Une **épique**, il la
-**découpe** (voir « Il découpe les épiques ») ; un ticket qui **échoue en pass**, il en fait quelque
-chose plutôt que de te le remonter tel quel (voir « Il réagit à un échec »).
+The manager decides **what goes onto the rail, and at what calibration**. Once on, the chef drops an issue in
+product language, with no label at all: the manager sets `fire`, `model:` and `effort:` and says why —
+or says, in a comment, why it is not an executable ticket. An **epic** it
+**splits** (see "It splits epics"); a ticket that **fails in pass** it does something about
+rather than escalating it to you as is (see "It reacts to a failure").
 
-**Il est éteint tant que tu ne l'as pas allumé**, et s'allume sans redémarrer (des faits au
-journal). Éteint pendant un jugement, il le laisse finir mais ne pose rien : la décision se pose
-sans rejuger quand tu le rallumes.
+**It is off until you turn it on**, and turns on without a restart (facts in the
+log). Turned off during a judgment, it lets the judgment finish but posts nothing: the decision is posted
+without re-judging when you turn it back on.
 
-Ce que `manager` écrit — sorties, refus, erreurs — est **en anglais** (mots de `docs/glossary.md` : `ON` / `OFF`, `latest decisions`, `set aside`, `epics`, `reactions`). Les clés du JSON d'`upstream` ne changent pas, seul le texte de `dit` passe en anglais.
+What `manager` writes — outputs, refusals, errors — is **in English** (words from `docs/glossary.md`: `ON` / `OFF`, `latest decisions`, `set aside`, `epics`, `reactions`). The keys of `upstream`'s JSON do not change, only the `dit` text is in English.
 
 ```bash
-npm --prefix runtime run manager                # l'interrupteur, ses quinze dernières décisions, ce qu'il a écarté, les épiques, ses réactions aux échecs
+npm --prefix runtime run manager                # the switch, its latest fifteen decisions, what it set aside, the epics, its reactions to failures
 npm --prefix runtime run manager -- on
 npm --prefix runtime run manager -- off
-npm --prefix runtime run manager -- return 77   # lui rendre une issue qu'il a écartée parce que tu y as retiré un de ses labels
-npm --prefix runtime run manager -- backlog     # ce qu'allumer engage : combien d'issues sont ouvertes, et combien portent blocked-on-human
-npm --prefix runtime run manager -- upstream    # ce qui n'est pas encore sur le rail : chaque issue ouverte qu'il ne porte pas, et ce qui lui arrive — pour l'app
+npm --prefix runtime run manager -- return 77   # hand back an issue it set aside because you removed one of its labels from it
+npm --prefix runtime run manager -- backlog     # what turning on commits to: how many issues are open, and how many carry blocked-on-human
+npm --prefix runtime run manager -- upstream    # what is not on the rail yet: each open issue it does not carry, and what is happening to it — for the app
 ```
 
-⚠️ **Allumé, il juge tout le backlog ouvert**, et ce qu'il juge exécutable part aussitôt en cuisine.
-Avant d'allumer, pose `blocked-on-human` sur ce qui ne doit pas partir : une issue qui le porte
-n'est jamais jugée, **une épique qui le porte n'est jamais découpée**. Entre deux issues que tu as
-écrites toi-même, il ne pose pas de dépendances : elles partent dans l'ordre de service, sauf si tu
-écris `attend` dans la fiche de l'une. Entre les tickets d'une épique qu'il découpe, il les pose.
+⚠️ **Once on, it judges the whole open backlog**, and whatever it judges executable goes straight to the kitchen.
+Before turning it on, set `blocked-on-human` on whatever must not go out: an issue that carries it
+is never judged, **an epic that carries it is never split**. Between two issues you wrote
+yourself, it sets no dependencies: they go out in serving order, unless you
+write `awaiting` in the card of one of them. Between the tickets of an epic it splits, it does set them.
 
-**Avant d'allumer, compte.** `manager -- backlog` dit en une ligne ce que l'allumage engage :
+**Count before turning on.** `manager -- backlog` says in one line what turning on commits to:
 
 ```
 backlog               12 open issues, of which 3 carry `blocked-on-human` — read just now on GitHub (benomite/brigade)
 ```
 
-C'est **une lecture, et rien d'autre** : un `GET` sur la liste des issues ouvertes du dépôt — celle
-que le manager sonde, PR écartées —, sous le `gh` du compte du service, comme `installation`. Elle
-ne pose aucun label, n'écrit rien au journal et ne le lit pas : elle répond que le manager soit
-allumé ou non, que le runtime tourne ou non. Le second nombre compte les issues qui portent
-`blocked-on-human` : celles-là ne seront jamais jugées. Le premier n'est pas « ce qui partira » —
-une issue déjà lancée, une `question`, la roadmap sont ouvertes aussi, et le manager n'en fait rien
-(le tableau ci-dessous) : c'est ce qu'il **regardera**. Les deux nombres sont écrits en chiffres
-nus, en tête de leur mot : l'app les lit là, au geste « allumer » (`docs/app.md`, « L'onglet
-Manager »). GitHub pas joint, la commande sort en `1` et le dit, sans aucun nombre — ce n'est pas
-« aucune issue ».
+It is **a read, and nothing else**: a `GET` on the list of the repository's open issues — the one
+the manager polls, PRs left out —, under the service account's `gh`, like `installation`. It
+sets no label, writes nothing to the log and does not read it: it answers whether the manager is
+on or not, whether the runtime is running or not. The second number counts the issues that carry
+`blocked-on-human`: those will never be judged. The first is not "what will go out" —
+an issue already launched, a `question`, the roadmap are open too, and the manager does nothing with them
+(the table below): it is what it will **look at**. Both numbers are written as bare digits,
+ahead of their word: the app reads them there, on the "on" action (`docs/app.md`, "The
+Manager tab"). If GitHub cannot be reached, the command exits with `1` and says so, with no number — it is not
+"no issues".
 
-### En amont du rail
+### Upstream of the rail
 
-**Un rail vide ne veut pas dire un projet fini.** Le rail ne porte que ce qui a `fire` ; en amont,
-il y a les issues que le manager n'a pas encore lues, les épiques pas encore découpées, celles qu'il
-a écartées, celles qui attendent ta réponse, celles qui ont quitté le rail. `manager -- upstream`
-les liste toutes, pour un programme — l'app en tire le nombre « N upcoming » posé à côté du rail
-(`docs/app.md`, « Ce qui n'est pas encore sur le rail ») :
+**An empty rail does not mean a finished project.** The rail only carries what has `fire`; upstream,
+there are the issues the manager has not read yet, the epics not yet split, those it
+set aside, those awaiting your answer, those that left the rail. `manager -- upstream`
+lists them all, for a program — the app derives from it the "N upcoming" number set beside the rail
+(`docs/app.md`, "What is not on the rail yet"):
 
 ```json
 {"lu":"2026-10-15T09:12:03.000Z","depot":"benomite/brigade","issues":[{"ticket":16,"titre":"…","url":"https://github.com/benomite/brigade/issues/16","priorite":1,"etat":"epique","dit":"it carries `epic`: not split yet"}]}
 ```
 
-Un seul objet JSON, sur une ligne. `lu` : l'heure de la lecture, à l'horloge de la box. `issues` :
-**chaque issue ouverte du dépôt que le rail ne porte pas**, PR écartées — la liste que le manager
-sonde, lue à l'instant sous le `gh` du compte du service, comme `backlog` —, dans l'ordre où il les
-lit : `prio:1` d'abord, sans `prio:` en dernier, la plus ancienne d'abord à priorité égale.
-`priorite` : celle de son label `prio:`, `null` sans. `dit` : ce que la box en dit, en une ligne.
-`etat` : ce qui lui arrive, un mot d'une liste fermée — le premier qui vaut, dans cet ordre :
+A single JSON object, on one line. `lu`: the time of the read, on the box's clock. `issues`:
+**every open issue of the repository that the rail does not carry**, PRs left out — the list the manager
+polls, read just now under the service account's `gh`, like `backlog` —, in the order in which it
+reads them: `prio:1` first, without `prio:` last, the oldest first at equal priority.
+`priorite`: that of its `prio:` label, `null` without one. `dit`: what the box says about it, in one line.
+`etat`: what is happening to it, one word from a closed list — the first that applies, in this order:
 
-| `etat` | L'issue… | D'après |
+| `etat` | The issue… | According to |
 |---|---|---|
-| `attend` | attend ta réponse : elle est dans le bloc `attend` de `status`, comme dans T'attend | les attentes du manager |
-| `en-route` | va entrer sur le rail : elle porte `fire`, le manager l'y a mise sans que `fire` y soit encore, ou elle est née d'un découpage | ses labels, le journal |
-| `sortie` | a quitté le rail sans être servie (`fire` retiré, `hors-cuisine` posé), et rien ne s'est décidé d'elle depuis | le journal |
-| `servie` | a été servie, et son issue est encore ouverte | le journal |
-| `decoupee` | est une épique découpée : ses tickets portent le travail — `dit` dit combien sont servis, et nomme ceux qui ne le seront pas sans le chef (« #876 closed without delivery », « #877 left the rail (…) »). Une épique dont **tous** les tickets sont servis n'est plus listée : le manager la ferme lui-même, avec un commentaire qui liste ses tickets et leurs PR (une fois ; une épique que le chef a déjà fermée n'est pas commentée). Une épique avec un ticket manquant reste ouverte | les découpages |
-| `epique` | est une épique pas encore découpée — jugée telle, ou qui porte `epic` —, ou dont le découpage est en cours | le journal, ses labels |
-| `ecartee` | a été écartée par le manager — refusée, ou retenue par un label —, avec sa raison en une ligne | les décisions du manager |
-| `non-lue` | n'a pas encore été jugée, ou lui a été rendue et n'a pas été rejugée | le journal |
+| `attend` | awaits your answer: it is in the `awaiting` block of `status`, as in Awaiting you | the manager's awaited items |
+| `en-route` | is about to enter the rail: it carries `fire`, the manager put it there without `fire` being on it yet, or it was born of a split | its labels, the log |
+| `sortie` | left the rail without being served (`fire` removed, `served-elsewhere` set), and nothing has been decided about it since | the log |
+| `servie` | has been served, and its issue is still open | the log |
+| `decoupee` | is a split epic: its tickets carry the work — `dit` says how many are served, and names those that will not be without the chef ("#876 closed without delivery", "#877 left the rail (…)"). An epic whose **every** ticket is served is no longer listed: the manager closes it itself, with a comment that lists its tickets and their PRs (once; an epic the chef already closed is not commented on). An epic with a missing ticket stays open | the splits |
+| `epique` | is an epic not yet split — judged as such, or carrying `epic` —, or whose split is under way | the log, its labels |
+| `ecartee` | was set aside by the manager — refused, or withheld by a label —, with its reason in one line | the manager's decisions |
+| `non-lue` | has not been judged yet, or was handed back to it and has not been re-judged | the log |
 
-Ce que le rail a fait d'une issue (sortie, servie) ne vaut que s'il est plus récent que ce que le
-manager en a décidé. **Rien d'autre n'y est déduit** : ni le corps de l'issue, ni ses
-commentaires. C'est **une lecture** : un `GET` sur GitHub, puis le journal ouvert en lecture seule ;
-rien n'y est écrit, aucun label n'est posé. Elle répond que le manager soit allumé ou non. GitHub
-pas joint, ou un journal qui n'a pas encore l'état du manager, elle sort en `1` et le dit, sans
-rien lister — ce n'est pas « rien en amont ».
+What the rail did with an issue (left, served) only counts if it is more recent than what the
+manager decided about it. **Nothing else is deduced from it**: neither the issue's body, nor its
+comments. It is **a read**: a `GET` on GitHub, then the log opened read-only;
+nothing is written to it, no label is set. It answers whether the manager is on or not. If GitHub
+cannot be reached, or the log does not have the manager's state yet, it exits with `1` and says so, without
+listing anything — it is not "nothing upstream".
 
-### Ce que le code tranche, et ce que le LLM juge
+### What the code settles, and what the LLM judges
 
-Sa boucle est du code. À chaque réveil il relit **une** liste — les issues ouvertes du dépôt, sous
-son propre ETag — et la trie sans rien dépenser :
+Its loop is code. On each wake-up it re-reads **one** list — the repository's open issues, under
+its own ETag — and sorts it without spending anything:
 
-| L'issue… | Ce que le manager en fait | Au journal |
+| The issue… | What the manager does with it | In the log |
 |---|---|---|
-| porte `fire` et un calibrage complet | Rien : elle est lancée, par toi ou par lui | — |
-| a reçu des labels du manager, et il lui manque depuis `fire`, `model:` ou `effort:` | Rien, **jusqu'à ce que tu la lui rendes**. Il le dit une fois sur l'issue, avec la commande (voir « Lui rendre la main ») | `manager.set-aside` (`chef-changed`) |
-| est écrite par quelqu'un qui n'a pas la main sur le dépôt | Rien, sans commentaire | `manager.set-aside` (`untrusted-author`) |
-| est la roadmap (`BRIGADE_ROADMAP_ISSUE`) | Rien | `manager.set-aside` (`roadmap`) |
-| est une épique déjà découpée par lui, ou un ticket né d'un de ses découpages | Rien : c'est fait, et ce qu'ils portent depuis est à toi | — |
-| porte `hors-cuisine` — même avec `fire`, un calibrage complet ou le grant `merge` | Rien : le ticket ne se sert pas sur cette box. Il n'entre pas sur le rail, ne figure pas dans `attend`, et le manager le dit une fois s'il porte `fire` | `manager.set-aside` (`hors-cuisine`) |
-| porte `blocked-on-human` | **Relue** par le LLM, une fois par état, pour la décision qu'elle attend. Écrite dans l'issue : rien, elle reste retenue. Absente, mais une vraie question s'en dérive : une carte `product`, `design` ou `gesture` entre dans TODO (l'énoncé est la question), l'issue reste retenue et la carte sort quand le label part. Absente, sans question : la cuisine reprend le ticket, le label est retiré et l'issue jugée au même tour. Le commentaire dit laquelle des deux | `manager.requalified` (`stated`, `card`, `taken-back` ou `unreadable`), puis `manager.set-aside` sauf reprise |
-| porte `question` ou `decision` | Rien | `manager.set-aside` (le label) |
-| porte déjà, dans son corps, la liste de tickets d'une épique, sans qu'il l'ait découpée | Rien : elle a été découpée à la main | `manager.set-aside` (`already-split`) |
-| porte `epic` | **Découpée** par le LLM, une fois | `manager.split`, ou une question |
-| toute autre | **Jugée** par le LLM, une fois par état | `manager.judged`, ou `manager.failed` |
+| carries `fire` and a complete calibration | Nothing: it is launched, by you or by it | — |
+| received labels from the manager, and has since lacked `fire`, `model:` or `effort:` | Nothing, **until you hand it back**. It says so once on the issue, with the command (see "Handing it back") | `manager.set-aside` (`chef-changed`) |
+| is written by someone who has no write access to the repository | Nothing, without a comment | `manager.set-aside` (`untrusted-author`) |
+| is the roadmap (`BRIGADE_ROADMAP_ISSUE`) | Nothing | `manager.set-aside` (`roadmap`) |
+| is an epic it already split, or a ticket born of one of its splits | Nothing: it is done, and what they carry from then on is yours | — |
+| carries `served-elsewhere` — even with `fire`, a complete calibration or the `merge` grant | Nothing: the ticket is not served on this box. It does not enter the rail, does not appear in `awaiting`, and the manager says so once if it carries `fire` | `manager.set-aside` (`hors-cuisine`) |
+| carries `blocked-on-human` | **Re-read** by the LLM, once per state, for the decision it awaits. Written in the issue: nothing, it stays withheld. Absent, but a real question derives from it: a `product`, `design` or `gesture` card enters TODO (the statement is the question), the issue stays withheld and the card leaves when the label goes. Absent, with no question: the kitchen takes the ticket back, the label is removed and the issue judged in the same turn. The comment says which of the two | `manager.requalified` (`stated`, `card`, `taken-back` or `unreadable`), then `manager.set-aside` unless taken back |
+| carries `question` or `decision` | Nothing | `manager.set-aside` (the label) |
+| already carries, in its body, an epic's list of tickets, without it having split it | Nothing: it was split by hand | `manager.set-aside` (`already-split`) |
+| carries `epic` | **Split** by the LLM, once | `manager.split`, or a question |
+| any other | **Judged** by the LLM, once per state | `manager.judged`, or `manager.failed` |
 
-Aucun de ces labels n'est exigé : une épique sans `epic` va au LLM, qui la reconnaît — au prix
-d'un jugement de plus.
+None of these labels is required: an epic without `epic` goes to the LLM, which recognizes it — at the cost
+of one more judgment.
 
-**Le jugement** est un appel à `claude` sans outil, hors de tout worktree, au calibrage du manager
-(`station manager-modele` / `manager-effort`). Il lit le titre, le corps, les labels et les
-commentaires de ceux qui ont la main sur le dépôt (propriétaire, membres, collaborateurs — la règle
-de la fiche), et répond l'une de cinq natures : `ticket`, `epic`, `question`, `decision`,
-`incomplete`. Seul `ticket` entre sur le rail, calibré selon cette table ; `epic` part au
-découpage, les trois autres sont refusées :
+**The judgment** is a call to `claude` with no tool, outside any worktree, at the manager's calibration
+(`station manager-modele` / `manager-effort`). It reads the title, the body, the labels and the
+comments of those who have write access to the repository (owner, members, collaborators — the card's
+rule), and answers one of five kinds: `ticket`, `epic`, `question`, `decision`,
+`incomplete`. Only `ticket` enters the rail, calibrated according to this table; `epic` goes to
+the split, the other three are refused:
 
-| Ticket | Calibrage |
+| Ticket | Calibration |
 |---|---|
-| doc, renommage, correctif dont le test est déjà écrit | `haiku` / `low` |
-| `fix`/`tech` mécanique sur un module connu | `sonnet` / `low` |
-| `fix`/`tech` non mécanique, ou toute issue à critères d'acceptation précis | `sonnet` / `medium` |
-| `feature`, refactor transverse, cœur du produit | `opus` / `high` |
+| doc, rename, fix whose test is already written | `haiku` / `low` |
+| mechanical `fix`/`tech` on a known module | `sonnet` / `low` |
+| non-mechanical `fix`/`tech`, or any issue with precise acceptance criteria | `sonnet` / `medium` |
+| `feature`, cross-cutting refactor, core of the product | `opus` / `high` |
 
-**Un critère de forme écrit vaut un cran de plus** : dès qu'un critère d'acceptation impose une
-forme (« cinq lignes », « sans préambule »), le ticket part au moins en `sonnet` / `low` —
-**écris-le dans les critères d'acceptation**, il ne le devine pas. Il ne pose jamais `xhigh` ni
-`max` : ils sont à toi seul.
+**A written form criterion is worth one notch more**: as soon as an acceptance criterion imposes a
+form ("five lines", "no preamble"), the ticket goes out at least as `sonnet` / `low` —
+**write it in the acceptance criteria**, it does not guess it. It never sets `xhigh` or
+`max`: they are yours alone.
 
-### Lui rendre la main
+### Handing it back
 
-**Chaque écart a son geste, et `run manager` le dit** (section `set aside`, les dix plus récentes).
+**Each deviation has its gesture, and `run manager` says it** (`set aside` section, the ten most recent).
 
-| Écartée parce que… | Ce qui la rend au manager |
+| Set aside because… | What hands it back to the manager |
 |---|---|
-| tu y as retiré `fire`, `model:` ou `effort:` qu'il avait posé (`chef-changed`) | `npm --prefix runtime run manager -- return <n°>` |
-| elle porte `blocked-on-human`, `question` ou `decision` | Retirer le label : elle est jugée au réveil suivant |
-| son corps liste déjà les tickets d'une épique (`already-split`) | Retirer la liste du corps : l'épique est découpée au réveil suivant |
-| elle porte `hors-cuisine` | Rien à rendre : elle est servie ailleurs. Retire le label si la box doit la prendre ; le pourquoi est sur l'issue, écrit par qui l'a posé |
-| c'est la roadmap, ou son auteur n'a pas la main sur le dépôt | Rien |
+| you removed `fire`, `model:` or `effort:` that it had set (`chef-changed`) | `npm --prefix runtime run manager -- return <n°>` |
+| it carries `blocked-on-human`, `question` or `decision` | Remove the label: it is judged at the next wake-up |
+| its body already lists an epic's tickets (`already-split`) | Remove the list from the body: the epic is split at the next wake-up |
+| it carries `served-elsewhere` | Nothing to hand back: it is served elsewhere. Remove the label if the box should take it; the why is on the issue, written by whoever set it |
+| it is the roadmap, or its author has no write access to the repository | Nothing |
 
-`rendre` ne force aucun autre écart que `chef-changed` : sur une issue retenue par un label, la
-commande répond le geste qui la concerne, n'écrit rien et sort en 1 — `blocked-on-human` reste ta
-protection. **Retirer `fire` ou un calibrage qu'il a posé, sans le remplacer**, c'est reprendre
-l'exécution : il s'écarte, et le dit une fois sur l'issue avec la commande qui la lui rend.
-Remplacer un `model:` par un autre, ou ranger ton backlog (`prio:`, `question`, `decision`,
-`blocked-on-human`), ne fait jamais un `chef-changed`.
+`return` forces no deviation other than `chef-changed`: on an issue withheld by a label, the
+command answers with the gesture that concerns it, writes nothing and exits with 1 — `blocked-on-human` remains your
+protection. **Removing `fire` or a calibration it set, without replacing it**, is taking back
+execution: it sets itself aside, and says so once on the issue with the command that hands it back.
+Replacing a `model:` with another, or tidying your backlog (`prio:`, `question`, `decision`,
+`blocked-on-human`), never makes a `chef-changed`.
 
-**Rendue, l'issue est jugée à neuf** (`manager.handed-back`), au réveil suivant : il **retire les
-labels de calibrage qu'il avait posés lui-même** (`manager.withdrew` — jamais les tiens ; relancée
-et calibrée par toi entre-temps, elle n'est pas rejugée), puis la rejuge. **Une remise vaut pour un
-jugement.**
+**Handed back, the issue is judged anew** (`manager.handed-back`), at the next wake-up: it **removes the
+calibration labels it had set itself** (`manager.withdrew` — never yours; relaunched
+and calibrated by you in the meantime, it is not re-judged), then re-judges it. **A handing back is worth one
+judgment.**
 
-### Il découpe les épiques
+### It splits epics
 
-Tu poses une **épique** en langage produit et tu retrouves des tickets : chacun avec ses critères
-d'acceptation **observables**, ses dépendances, sa zone de fichiers et son calibrage, déjà lancés.
+You drop an **epic** in product language and you get tickets back: each with its **observable**
+acceptance criteria, its dependencies, its file zone and its calibration, already launched.
 
-**Le découpage** est un second appel à `claude`, comme le jugement (`run` en `decoupe-<n°>-…`). Il
-lit l'épique, les commentaires de confiance, et **le plan du dépôt** — ses dossiers sur deux
-niveaux, au dernier rapatriement du clone de la station — dont il tire la zone de chaque ticket ;
-les chemins communs du projet n'entrent dans aucune. Il rend l'une de trois réponses :
+**The split** is a second call to `claude`, like the judgment (`run` as `decoupe-<n°>-…`). It
+reads the epic, the trusted comments, and **the repository's layout** — its folders two
+levels deep, as of the last fetch of the station's clone — from which it derives each ticket's zone;
+the project's common paths enter none. It returns one of three answers:
 
-| Réponse | Ce que le manager fait | Au journal |
+| Answer | What the manager does | In the log |
 |---|---|---|
-| un découpage, douze tickets au plus | Crée les tickets, les lance, le dit sur l'épique | `manager.split`, puis un fait par pas |
-| **une question** : l'épique est ambiguë sur un choix de produit | La pose en commentaire, ne crée rien | `manager.split-asked` |
-| « déjà découpée » : l'épique nomme déjà ses tickets | Ne crée rien, le dit une fois | `manager.split-skipped` |
+| a split, twelve tickets at most | Creates the tickets, launches them, says so on the epic | `manager.split`, then one fact per step |
+| **a question**: the epic is ambiguous on a product choice | Posts it as a comment, creates nothing | `manager.split-asked` |
+| "already split": the epic already names its tickets | Creates nothing, says so once | `manager.split-skipped` |
 
-La question est réservée au **choix de produit**, posée comme un choix entre des voies (ce que
-l'utilisateur en retrouve). Une ambiguïté technique — où vit le code, l'ordre, le mécanisme — est
-tranchée par le manager, qui écrit sur l'issue ce qu'il a décidé et pourquoi (le `motif` du découpage).
+The question is reserved for **product choice**, posed as a choice between paths (what the
+user will find). A technical ambiguity — where the code lives, the order, the mechanism — is
+settled by the manager, who writes on the issue what it decided and why (the split's `motif`).
 
-Une réponse que le code ne sait pas lire — un ticket sans critère, sans zone, qui attend un ticket
-placé après lui, un calibrage hors table, plus de douze tickets — ne crée **aucun** ticket
+An answer the code cannot read — a ticket with no criterion, no zone, that awaits a ticket
+placed after it, a calibration outside the table, more than twelve tickets — creates **no** ticket
 (`manager.split-failed`).
 
-**La question ne retient rien** : le rail avance. Elle se lit dans `run manager` (« QUESTION
-POSÉE »). Réponds en commentaire ou édite l'épique : elle est relue, **avec la question**.
+**The question holds nothing back**: the rail moves on. It is read in `run manager` ("QUESTION
+ASKED"). Answer in a comment or edit the epic: it is re-read, **with the question**.
 
-**Un ticket né d'un découpage** porte : un corps qui commence par `Épique : #N`, puis le contexte,
-les critères et **pourquoi ce calibrage** ; `model:`, `effort:`, et le `prio:` de l'épique ; sa
-**fiche** (`attend`, `zone`, et `requiert` s'il demande une capacité) en commentaire ; et `fire`, posé **en dernier**. Il ne repasse pas par
-le jugement, et attend ceux dont il dépend (voir « La fiche d'un ticket »).
+**A ticket born of a split** carries: a body that begins with `Épique : #N`, then the context,
+the criteria and **why this calibration**; `model:`, `effort:`, and the epic's `prio:`; its
+**card** (`awaiting`, `zone`, and `requiert` if it requires a capability) as a comment; and `fire`, set **last**. It does not go through
+judgment again, and awaits those it depends on (see "A ticket's card").
 
-**Un ticket d'interface est désigné pour le cook design** (`agents/cook-design.md`). Le manager le
-reconnaît au découpage : sa zone touche la vue de l'app (`app/src/vue/`, un fichier dessous, ou un
-dossier qui la contient comme `app/src`) — le code le désigne alors de toute façon —, ou le
-découpage le dit (`"cook": "design"`), ce qu'il ne propose que dans un dépôt qui définit le cook
-design. Un ticket du runtime, de la doc ou des scripts ne l'est pas. Le ticket désigné porte le
-label `cook:design` à côté de `model:` et `effort:`, un paragraphe « Cook design » en tête de son
-corps — c'est là que le cook apprend qu'il l'est, et où lire son profil —, et `· cook design` dans
-la colonne « Calibrage » du commentaire de découpage. Le calibrage ne change pas : modèle et effort
-se posent comme pour tout ticket, jamais `xhigh` ni `max`.
+**An interface ticket is designated for the design cook** (`agents/cook-design.md`). The manager
+recognizes it at the split: its zone touches the app's view (`app/src/vue/`, a file under it, or a
+folder that contains it like `app/src`) — the code then designates it regardless —, or the
+split says so (`"cook": "design"`), which it only proposes in a repository that defines the design
+cook. A runtime, doc or scripts ticket is not one. The designated ticket carries the
+label `cook:design` beside `model:` and `effort:`, a "Cook design" paragraph at the top of its
+body — that is where the cook learns it is one, and where to read its profile —, and `· cook design` in
+the "Calibration" column of the split comment. The calibration does not change: model and effort
+are set as for any ticket, never `xhigh` or `max`.
 
-**La livraison d'un ticket d'interface montre l'écran avant et après** (`runtime/src/captures.ts`).
-Un ticket est d'interface quand sa zone, à la prise, touche la vue de l'app, ou que son issue porte
-`cook:design` — relu à la livraison, le rail ne garde pas les labels. Le cook design prend ses
-captures avec `scripts/capture-ecran/` et les commite sur sa branche, une paire par écran changé :
+**An interface ticket's delivery shows the screen before and after** (`runtime/src/captures.ts`).
+A ticket is an interface ticket when its zone, at the time it is taken, touches the app's view, or its issue carries
+`cook:design` — re-read at delivery, the rail does not keep the labels. The design cook takes its
+captures with `scripts/capture-ecran/` and commits them on its branch, one pair per changed screen:
 
 ```
-docs/captures/<ticket>/<écran>-avant.png
-docs/captures/<ticket>/<écran>-apres.png
+docs/captures/<ticket>/<screen>-before.png
+docs/captures/<ticket>/<screen>-after.png
 ```
 
-`<écran>` apparie les deux (`fiche`, `rail-vide`) ; `avant` et `apres` se lisent sans égard à la
-casse ni aux accents. À la livraison poussée, la station les lit dans les fichiers que la branche
-change, et les montre **sous la ligne de tête de la PR** et sur le ticket : une section « Captures »,
-chaque écran en tableau `Avant | Après`, les deux images côte à côte et légendées (`fiche — avant`),
-chargées au commit poussé (`https://github.com/<dépôt>/blob/<sha>/<chemin>?raw=true`, que GitHub
-montre aussi dans un dépôt privé). **Une livraison d'interface sans ses captures** — aucune, ou un
-écran qui n'en a qu'une — y est dite **incomplète** : `Livraison incomplète : captures manquantes —
-<ce qui manque>`, et où les poser. Rien n'est arrêté à la livraison : c'est la relecture qui juge (plus bas). Les captures
-vont au journal avec le compte-rendu (`cook.reported`, `captures` : le commit et chaque écran), d'où
-`facts` les donne à la carte du ticket. **Un ticket qui n'est pas d'interface n'en dit rien** — ni
-section sur la PR, ni champ au journal, ni dans `facts`. Un renvoi livre sur la PR déjà ouverte : son
-corps garde les captures de la première livraison, le commentaire du renvoi et `facts` montrent les
-nouvelles.
+`<screen>` pairs the two (`card`, `empty-rail`); `before` and `after` are read regardless of
+case or accents. On a pushed delivery, the station reads them among the files the branch
+changes, and shows them **under the PR's header line** and on the ticket: a "Captures" section,
+each screen as a `Before | After` table, the two images side by side and captioned (`card — before`),
+loaded at the pushed commit (`https://github.com/<repository>/blob/<sha>/<path>?raw=true`, which GitHub
+also shows in a private repository). **An interface delivery without its captures** — none, or a
+screen that has only one — is said there to be **incomplete**: `Livraison incomplète : captures manquantes —
+<what is missing>`, and where to put them. Nothing is stopped at delivery: the review judges (below). The captures
+go to the log with the report (`cook.reported`, `captures`: the commit and each screen), from where
+`facts` gives them to the ticket's card. **A ticket that is not an interface ticket says nothing of it** — no
+section on the PR, no field in the log, none in `facts`. A send-back delivers on the PR already open: its
+body keeps the captures of the first delivery, the send-back's comment and `facts` show the
+new ones.
 
-**La relecture juge aussi les captures** (`runtime/src/reviewer.ts`, #843). Pour un ticket d'interface,
-la consigne du reviewer ajoute une section « Les captures » : les captures livrées (qu'il ouvre avec
-`Read`) et les trois violations des règles de #830, cherchées sur chaque capture « après » — `geste-non-bouton`
-(un geste attendu qui n'est qu'une commande à recopier), `mode-d-emploi` (un paragraphe d'explication
-en clair), `erreur-brute` (une erreur technique affichée telle quelle). **Elle ne juge que la partie de l'écran
-que le ticket ajoute ou change** (#895) : ce qui se retrouve à l'identique sur la capture « avant » existait
-déjà et ne bloque jamais. Une violation dans la zone du ticket est un constat **bloquant**, qui porte `regle`
-et cite en `fichier` la capture « après » concernée ; une violation préexistante, hors de cette zone, est une
-**remarque** (même `regle`, même `fichier`), qui propose un ticket à part si aucun ticket ouvert ne la couvre.
-Un constat de ce type qui ne cite pas une capture livrée, ou qui est `a_supprimer`, rend la relecture
-illisible (elle est redemandée). Une
-capture qui respecte les règles ne produit aucun constat de ce type. **Une livraison d'interface sans aucune
-capture est bloquante** : la station ajoute elle-même le constat (`fichier` : `docs/captures/<ticket>/`)
-si le reviewer ne l'a pas dit. Un écran qui n'a qu'une de ses deux captures reste une remarque. Un ticket
-qui n'est pas d'interface ne change pas. Le cas attendu est dans `evals/relecture-captures-830/`.
+**The review also judges the captures** (`runtime/src/reviewer.ts`, #843). For an interface ticket,
+the reviewer's instruction adds a "The captures" section: the delivered captures (which it opens with
+`Read`) and the three violations of the rules of #830, looked for on each "after" capture — `geste-non-bouton`
+(an expected gesture that is only a command to copy), `mode-d-emploi` (a paragraph of plain-text
+explanation), `erreur-brute` (a technical error displayed as is). **It judges only the part of the screen
+that the ticket adds or changes** (#895): what is found identical on the "before" capture already existed
+and never blocks. A violation in the ticket's zone is a **blocking** finding, which carries `regle`
+and cites as `fichier` the "after" capture concerned; a pre-existing violation, outside that zone, is a
+**remark** (same `regle`, same `fichier`), which proposes a separate ticket if no open ticket covers it.
+A finding of this type that does not cite a delivered capture, or that is `a_supprimer`, makes the review
+unreadable (it is asked for again). A
+capture that respects the rules produces no finding of this type. **An interface delivery without any
+capture is blocking**: the station adds the finding itself (`fichier`: `docs/captures/<ticket>/`)
+if the reviewer did not say it. A screen that has only one of its two captures remains a remark. A ticket
+that is not an interface ticket does not change. The expected case is in `evals/relecture-captures-830/`.
 
-**L'épique liste ses tickets, avec leur état**, dans un bloc que le manager écrit à la fin de son
-corps, entre deux marqueurs :
+**The epic lists its tickets, with their state**, in a block that the manager writes at the end of its
+body, between two markers:
 
 ```markdown
 <!-- brigade:tickets -->
@@ -247,124 +247,125 @@ _Liste tenue par le manager : ce qui est entre ses deux marqueurs est réécrit,
 <!-- /brigade:tickets -->
 ```
 
-**C'est le seul endroit du corps qu'il réécrit.** Un marqueur ne compte que **seul sur sa ligne,
-hors bloc de code** ; sans marqueur de fin, il ne remplace que celui de début. Les états suivent
-le rail : `pas sur le rail`, `en attente`, `attend #N`, `en cuisine`, `en pass`, `servi`,
-`86 (motif)`, `bloqué — #N abandonné (…)`, `abandonné (…)`, `fermé`. **`en cuisine` est l'étape
-d'un ticket** — celui que le rail dit `pris`, un cook le tient — et ne dit rien de l'état du projet
-(« L'état de la cuisine »). Éteint, le manager ne tient
-plus la liste ; rallumé, il la rattrape.
+This block is quoted literally from what the runtime writes today (`runtime/src/epique.ts`): it stays in French until the runtime itself is translated.
 
-**Ton découpage est plus fort que le sien.** Une épique n'est découpée **qu'une fois**. Après quoi :
+**This is the only place in the body that it rewrites.** A marker only counts **alone on its line,
+outside a code block**; without an end marker, it only replaces the start one. The states follow
+the rail: `off the rail`, `queued`, `awaiting #N`, `taken`, `in pass`, `served`,
+`86 (reason)`, `blocked — #N dropped (…)`, `dropped (…)`, `closed`. **`taken` is the step
+of a ticket** — the one the rail says is `taken`, a cook holds it — and says nothing of the project's state
+("The kitchen's state"). Off, the manager no longer
+keeps the list; turned back on, it catches up.
 
-- tu **fermes** un ticket : il ne renaît pas ; la liste le dit `abandonné`, et `bloqué` ceux qui
-  l'attendaient — à toi de retirer la ligne `attend` de leur fiche ;
-- tu **ajoutes** un ticket : écris `Épique : #N` dans son corps, il entre dans la liste, jugé et
-  calibré comme toute issue ;
-- tu **changes** un critère, une fiche, un calibrage, tu retires `fire` : rien n'est réécrit ;
-- tu **retiens** l'épique (`blocked-on-human`) : les créations en cours attendent.
+**Your split is stronger than its own.** An epic is split **only once**. After which:
 
-**Une épique déjà découpée à la main : colle `<!-- brigade:tickets -->` dans son corps** (même
-seul) avant d'allumer — le code le reconnaît sans LLM (`already-split`). Une épique **fermée**
-n'est jamais découpée.
+- you **close** a ticket: it is not reborn; the list says `dropped`, and `blocked` for those that
+  awaited it — it is up to you to remove the `awaiting` line from their card;
+- you **add** a ticket: write `Épique : #N` in its body, it enters the list, judged and
+  calibrated like any issue;
+- you **change** a criterion, a card, a calibration, you remove `fire`: nothing is rewritten;
+- you **withhold** the epic (`blocked-on-human`): creations under way wait.
 
-**Créer N issues n'est pas atomique** : le découpage est au journal **avant** le premier appel à
-GitHub, et après une panne le réveil suivant reprend au premier ticket qui manque, **sans
-rejuger**. Une création restée sans suite est d'abord **cherchée** par la marque que chaque ticket
-porte dans son corps (`<!-- brigade:decoupage #N.k -->`), et reprise (`reconciled: true`). La
-marque — comme une fiche — ne vaut que venant de **quelqu'un qui a la main sur le dépôt**.
+**An epic already split by hand: paste `<!-- brigade:tickets -->` into its body** (even
+alone) before turning on — the code recognizes it without an LLM (`already-split`). A **closed** epic
+is never split.
 
-Limites : le code vérifie que deux tickets concurrents ne partagent aucun chemin de zone (voir
-« Les zones de fichiers »), pas que la zone est la bonne ; et fermer l'épique servie est ton geste.
+**Creating N issues is not atomic**: the split is in the log **before** the first call to
+GitHub, and after an outage the next wake-up resumes at the first missing ticket, **without
+re-judging**. A creation left without follow-up is first **searched for** by the mark that each ticket
+carries in its body (`<!-- brigade:decoupage #N.k -->`), and resumed (`reconciled: true`). The
+mark — like a card — only counts coming from **someone who has write access to the repository**.
 
-### Il réagit à un échec
+Limits: the code checks that two concurrent tickets share no zone path (see
+"The file zones"), not that the zone is the right one; and closing the served epic is your gesture.
 
-Éteint, rien ne change : la pass renvoie deux fois au même calibrage, puis te remonte le ticket.
-**Allumé, la pass lui passe la main dès le second rouge** (`pass.deferred`) : le ticket reste en
-pass, aucun cook ne repart avant qu'il ait décidé.
+### It reacts to a failure
 
-| Pass rouge n° | Ce qui se passe | Coût |
+Off, nothing changes: the pass sends back twice at the same calibration, then escalates the ticket to you.
+**On, the pass hands it over from the second red** (`pass.deferred`): the ticket stays in
+pass, no cook restarts before it has decided.
+
+| Red pass no. | What happens | Cost |
 |---|---|---|
-| 1 | renvoi 1/2 au même calibrage — c'est la pass | — |
-| 2 | le manager **monte le calibrage d'un cran** s'il le peut, puis renvoie 2/2. Sinon le renvoi part au même calibrage, et il dit pourquoi | aucun : c'est du code |
-| 3 et suivantes | le manager **choisit** : monter encore, **redécouper** le ticket, ou te le **remonter** — et dit lequel et pourquoi, sur l'issue | un jugement |
+| 1 | send-back 1/2 at the same calibration — this is the pass | — |
+| 2 | the manager **raises the calibration one notch** if it can, then sends back 2/2. Otherwise the send-back goes at the same calibration, and it says why | none: it is code |
+| 3 and following | the manager **chooses**: raise again, **re-split** the ticket, or **escalate** it to you — and says which and why, on the issue | one judgment |
 
-**Monter d'un cran**, c'est l'effort d'abord (`low` → `medium` → `high` → `xhigh` → `max`), puis le
-modèle (`haiku` → `sonnet` → `opus`) en gardant l'effort atteint — **dans la limite du plafond du
-projet**, `BRIGADE_CEILING_MODEL` et `BRIGADE_CEILING_EFFORT`, **sans défaut** : une dimension sans
-plafond ne monte jamais, et sans aucune des deux il lui reste redécouper ou remonter. **Il ne
-remplace que ses propres labels** : une dimension que tu as calibrée n'est jamais touchée. **Un
-ticket qui a échoué deux fois ne repart jamais à l'identique** : si rien ne change, il remonte.
+**Raising one notch** is effort first (`low` → `medium` → `high` → `xhigh` → `max`), then the
+model (`haiku` → `sonnet` → `opus`) keeping the effort reached — **within the project's cap**,
+`BRIGADE_CEILING_MODEL` and `BRIGADE_CEILING_EFFORT`, **with no default**: a dimension with no
+cap never goes up, and with neither of the two it is left to re-split or escalate. **It only
+replaces its own labels**: a dimension you calibrated is never touched. **A
+ticket that failed twice never restarts identically**: if nothing changes, it is escalated.
 
-| Son choix | Ce qui se passe |
+| Its choice | What happens |
 |---|---|
-| **monter** | le label change, le ticket repart en attente : un cook le reprend sur la même branche, sur la même PR. Rouge encore, le manager choisit de nouveau |
-| **redécouper** | le ticket devient **l'épique de ses sous-tickets** : ils naissent calibrés, ordonnés et lancés, et repartent de la base. Lui passe **86** (`manager:split`, pass `manager-split`) ; sa PR reste ouverte, comme référence, et **il ne tient plus sa zone**. Un ticket né d'un tel redécoupage ne se redécoupe pas |
-| **remonter** | le ticket passe **86** (`manager:escalated`, pass `still-red`, cause `manager-escalated`), et tu reçois de quoi trancher : chaque tentative avec son calibrage et ce que la pass y a trouvé, pourquoi il remonte, et **ce qu'il propose** |
+| **raise** | the label changes, the ticket goes back to queued: a cook picks it up on the same branch, on the same PR. Red again, the manager chooses anew |
+| **re-split** | the ticket becomes **the epic of its sub-tickets**: they are born calibrated, ordered and launched, and restart from the base. It goes **86** (`manager:split`, pass `manager-split`); its PR stays open, as a reference, and **it no longer holds its zone**. A ticket born of such a re-split is not re-split |
+| **escalate** | the ticket goes **86** (`manager:escalated`, pass `still-red`, cause `manager-escalated`), and you receive what you need to decide: each attempt with its calibration and what the pass found in it, why it is escalated, and **what it proposes** |
 
-Une carte n'entre dans TODO que si la cause du rouge est un **choix de produit** (`product`) ou un **geste** que toi seul peux faire (`gesture`) : le manager la pose avec la remontée, en une ligne (`todo.entered`), et elle remplace la remontée nue dans `attend`. Un rouge qui ne cache ni l'un ni l'autre est remonté **sans carte** — l'issue le dit —, et aucune carte n'est jamais posée pour lui. La carte sort de TODO dès que le ticket n'est plus 86 `manager:escalated`.
+A card only enters TODO if the cause of the red is a **product choice** (`product`) or a **gesture** that only you can make (`gesture`): the manager sets it with the escalation, in one line (`todo.entered`), and it replaces the bare escalation in `awaiting`. A red that hides neither is escalated **without a card** — the issue says so —, and no card is ever set for it. The card leaves TODO as soon as the ticket is no longer 86 `manager:escalated`.
 
-Une réponse illisible, un choix qui n'était pas offert (monter au plafond, redécouper un
-sous-ticket) ou un redécoupage impossible vaut **remontée**. **Le disjoncteur garde le dernier
-mot** : au seuil, le manager remonte sans plus rien relancer ni juger. Chaque réaction est au
-journal (`manager.reacted`, `manager.raised`) ; `run manager` montre les dix dernières.
+An unreadable answer, a choice that was not offered (raising at the cap, re-splitting a
+sub-ticket) or an impossible re-split counts as **escalation**. **The breaker has the last
+word**: at the threshold, the manager escalates without relaunching or judging anything. Each reaction is in the
+log (`manager.reacted`, `manager.raised`); `run manager` shows the last ten.
 
-**À savoir.** Un ticket dont tu changes le calibrage pendant que le manager le tient repart au
-tien. Si tu reposes l'ancien label à la place du sien, le ticket attend, « rouge, au manager »
-dans `run pass` : remplace le label, ou éteins le manager — la pass reprend sa règle d'avant.
+**Worth knowing.** A ticket whose calibration you change while the manager holds it restarts at
+yours. If you put the old label back in place of its own, the ticket waits, "red, to the manager"
+in `run pass`: replace the label, or turn the manager off — the pass goes back to its earlier rule.
 
-### Ce qu'il laisse sur l'issue
+### What it leaves on the issue
 
-- **Exécutable** : les labels, puis un commentaire — pourquoi, **pourquoi ce calibrage**, ce qui
-  était déjà posé, le coût du jugement. **Refusée** : aucun label, et sa nature, le motif, ce qui
-  la rendrait exécutable.
-- **Épique découpée** : pourquoi ces tickets, cet ordre, leur tableau, le coût — et la liste dans
-  son corps. **Question**, **déjà découpée**, **illisible** : un commentaire qui le dit.
+- **Executable**: the labels, then a comment — why, **why this calibration**, what
+  was already set, the cost of the judgment. **Refused**: no label, and its kind, the reason, what would
+  make it executable.
+- **Epic split**: why these tickets, this order, their table, the cost — and the list in
+  its body. **Question**, **already split**, **unreadable**: a comment that says so.
 
-Une issue ne se juge **qu'une fois par état** — titre, corps, commentaires de confiance : tu
-édites le corps ou tu commentes, elle est rejugée (au prix d'un jugement) ; tes labels, et ce que
-le manager a écrit, ne la font pas rejuger. Un jugement illisible n'est pas retenté sur le même
-état ; un jugement **qui n'a pas abouti** (panne, garde-fou) n'écrit rien et repart au réveil
-suivant, borné par le disjoncteur.
+An issue is judged **only once per state** — title, body, trusted comments: you
+edit the body or you comment, it is re-judged (at the cost of a judgment); your labels, and what
+the manager wrote, do not make it re-judge. An unreadable judgment is not retried on the same
+state; a judgment **that did not complete** (outage, guardrail) writes nothing and restarts at the next wake-up,
+bounded by the breaker.
 
-### Ton geste est plus fort que le sien
+### Your gesture is stronger than its own
 
-- **Il ne retire jamais un label que tu as posé.** Les seuls qu'il retire sont les siens : un
-  calibrage qu'il monte, ou qu'il avait posé sur une issue que tu lui rends.
-- **Il ne pose jamais dans une dimension qui porte déjà un label**, et **ne pose qu'une fois par
-  issue** : après quoi tout ce qu'elle porte est à toi, tant que tu ne la lui rends pas. « Posé
-  par le manager » est ce que le journal dit (`manager.labeled`), pas l'auteur vu par GitHub.
-- **Il relit les labels juste avant de poser** : retenue entre-temps, rien n'est posé.
-- **`fire` posé par toi sur ce que le code écarte** (la roadmap, un label `question`…) : il ne
-  retire rien, ne calibre pas, et le dit une fois. Si tu calibres toi-même, le cook part.
+- **It never removes a label you set.** The only ones it removes are its own: a
+  calibration it raises, or one it had set on an issue you hand back to it.
+- **It never sets in a dimension that already carries a label**, and **sets only once per
+  issue**: after which everything it carries is yours, until you hand it back. "Set
+  by the manager" is what the log says (`manager.labeled`), not the author as seen by GitHub.
+- **It re-reads the labels just before setting**: withheld in the meantime, nothing is set.
+- **`fire` set by you on what the code sets aside** (the roadmap, a `question` label…): it removes
+  nothing, does not calibrate, and says so once. If you calibrate yourself, the cook goes out.
 
-Limite connue : si le runtime meurt entre la pose des labels et l'écriture de `manager.labeled`,
-ils sont tenus pour les tiens.
+Known limit: if the runtime dies between setting the labels and writing `manager.labeled`,
+they are taken to be yours.
 
-### Ce qu'il coûte
+### What it costs
 
-**Il ne consomme du quota que pour juger et pour découper** (une épique sans label : deux appels).
-Chaque jugement est au journal **comme un cook** (`cook.launched`, station `manager`, hors ticket ;
-`cook.exited` ; flux dans `runs/`) et passe par les garde-fous : **rien n'est jugé** sous « stop »,
-disjoncteur ouvert, quota épuisé ou connexion expirée — c'est jugé à la reprise. Pour le
-disjoncteur, un jugement illisible ou non abouti est **un échec**, un jugement réussi ne compte ni
-pour ni contre ; un jugement **que le modèle refuse** est retenté, et s'épingle au troisième refus
-d'affilée (voir « Quand le modèle refuse »). Il ne retient pas la station. Compter jusqu'à une
-minute entre la décision et le départ du cook.
+**It only consumes quota to judge and to split** (an epic without a label: two calls).
+Each judgment is in the log **like a cook** (`cook.launched`, station `manager`, off ticket;
+`cook.exited`; stream in `runs/`) and goes through the guardrails: **nothing is judged** under "stop",
+breaker open, quota exhausted or connection expired — it is judged on resumption. For the
+breaker, an unreadable or incomplete judgment counts as **a failure**, a successful judgment counts neither
+for nor against; a judgment **that the model refuses** is retried, and pinned at the third refusal
+in a row (see "When the model refuses"). It does not withhold the station. Count up to one
+minute between the decision and the cook's start.
 
-| Événement | Sens |
+| Event | Meaning |
 |---|---|
-| `manager.enabled`, `manager.disabled` | Le chef allume, éteint (hors ticket) |
-| `manager.set-aside` | Le code a écarté l'issue, sans jugement : `reason` ; `fired` : elle porte un `fire` laissé ; `lacking`, sur un `chef-changed` : ce qui lui manque |
-| `manager.judged` | Le LLM a jugé : `verdict` (`fire`, `refused`), `kind`, `reason`, `missing`, `model`, `effort`, `calibration`, `run`, `fingerprint` (l'état jugé) |
-| `manager.failed` | Le jugement est allé à son terme, mais ne se lit pas — ou le modèle l'a refusé trois fois d'affilée |
-| `manager.labeled`, `manager.commented` | Les labels qu'il a posés, une fois GitHub servi ; la décision est dite sur l'issue |
-| `manager.handed-back`, `manager.withdrew` | Le chef rend une issue écartée `chef-changed` ; les labels de calibrage du manager en sont retirés (`labels`) |
-| `manager.closed`, `manager.reopened` | Une issue dont le manager attendait le chef a quitté les issues ouvertes (elle sort de la file du chef), ou y est revenue |
-| `manager.reacted`, `manager.raised` | Sa réaction à un échec en pass ; les labels qu'une montée a changés |
-| `manager.split` | L'intention du découpage, écrite avant toute création : `reason`, `order`, `tickets` (titre, contexte, critères, `waitsFor`, zone, calibrage, `overlaps` — les attentes que le code a ajoutées pour des zones qui se recouvrent), `run`, `fingerprint` |
-| `manager.split-asked`, `-skipped`, `-failed` | Une question au chef ; l'épique liste déjà ses tickets ; la réponse ne se lit pas |
-| `manager.split-creating`, `-created`, `-fired` | Le ticket de rang `index` va être créé ; il existe (fait porté par le ticket né, `reconciled` s'il a été retrouvé) ; sa fiche et `fire` sont posés |
-| `manager.split-done`, `-commented` | Tous les tickets existent et sont lancés ; le découpage est dit sur l'épique |
-| `manager.split-adopted`, `-seen`, `-listed` | Un ticket du chef se réclame de l'épique ; un ticket d'épique a quitté les issues ouvertes ou y est revenu ; la liste est écrite dans le corps (`digest`) |
-
+| `manager.enabled`, `manager.disabled` | The chef turns on, turns off (off ticket) |
+| `manager.set-aside` | The code set the issue aside, without judgment: `reason`; `fired`: it carries a `fire` left in place; `lacking`, on a `chef-changed`: what it lacks |
+| `manager.judged` | The LLM judged: `verdict` (`fire`, `refused`), `kind`, `reason`, `missing`, `model`, `effort`, `calibration`, `run`, `fingerprint` (the judged state) |
+| `manager.failed` | The judgment ran to completion, but cannot be read — or the model refused it three times in a row |
+| `manager.labeled`, `manager.commented` | The labels it set, once GitHub served; the decision is said on the issue |
+| `manager.handed-back`, `manager.withdrew` | The chef hands back an issue set aside as `chef-changed`; the manager's calibration labels are removed from it (`labels`) |
+| `manager.closed`, `manager.reopened` | An issue the manager awaited the chef on left the open issues (it leaves the chef's queue), or came back to them |
+| `manager.reacted`, `manager.raised` | Its reaction to a failure in pass; the labels that a raise changed |
+| `manager.split` | The split's intent, written before any creation: `reason`, `order`, `tickets` (title, context, criteria, `waitsFor`, zone, calibration, `overlaps` — the waits the code added for overlapping zones), `run`, `fingerprint` |
+| `manager.split-asked`, `-skipped`, `-failed` | A question to the chef; the epic already lists its tickets; the answer cannot be read |
+| `manager.split-creating`, `-created`, `-fired` | The ticket of rank `index` is about to be created; it exists (fact carried by the born ticket, `reconciled` if it was found again); its card and `fire` are set |
+| `manager.split-done`, `-commented` | All the tickets exist and are launched; the split is said on the epic |
+| `manager.split-adopted`, `-seen`, `-listed` | A chef's ticket claims the epic; an epic ticket left the open issues or came back to them; the list is written in the body (`digest`) |
