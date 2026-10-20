@@ -203,6 +203,16 @@ cause se présente, `aside.unblocked` (`why: cause`) et c'est elle qui compte ; 
 d'intégration bouge, `aside.unblocked` (`why: base`) et les tickets 86 pour cette cause reviennent
 sans attendre. Le setup garde son blocage propre, ci-dessus, inchangé.
 
+**Un worktree qui ne se prépare pas se dit au projet, pas seulement à journald** (*ticket #1118*).
+Son `ticket.86` porte la raison dans les mots de git (`why`) et, si la station ne peut pas
+récupérer le dépôt ou y pousser, l'accès refusé et son geste (`access` : `blocked`, `reason`,
+`gesture` — la vérification de `projets/acces.ts`, faite après l'échec, sous l'environnement de
+ses fetchs). Tant qu'un échec tient, **chaque essai revérifie l'accès d'abord** : refusé, il
+échoue aussitôt, sans rien rapatrier, et repousse l'heure du suivant de dix minutes ; le geste fait
+(`gh auth setup-git`, par exemple), l'essai suivant prépare son worktree dans le même process,
+sans redémarrage, et `worktree.prepared` clôt l'échec. La station publie l'échec en cours dans le
+suivi du projet (`worktree`, voir [`station-machine.md`](station-machine.md)), jusqu'à cet essai.
+
 **Le blocage entre dans ta file.** Tant qu'il tient, le bloc `attend` porte une entrée `setup`, une
 seule pour le projet quel que soit le nombre de tickets retenus, avec la cause en clair et le geste :
 ``setup impossible : la porte refuse `cdn.sheetjs.com` (…) — à déclarer dans `.claude/brigade/reseau`

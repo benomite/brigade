@@ -28,8 +28,11 @@ export type FaitRail =
   | { type: "ticket.passing"; payload: { station: string } }
   | { type: "ticket.served"; payload: Record<string, never> }
   // Pas servable pour l'instant. `until` : l'heure à laquelle il le redevient,
-  // quand elle est connue.
-  | { type: "ticket.86"; payload: { reason: string; until: string | null } }
+  // quand elle est connue. `why` : ce qui l'a fait échouer, dans les mots de
+  // l'outil — l'erreur de git d'un worktree impossible à préparer ; `access` :
+  // l'accès de la station au dépôt, quand il est refusé (`projets/acces.ts`),
+  // et le geste qui le lève. Absents pour tout autre motif.
+  | { type: "ticket.86"; payload: { reason: string; until: string | null; why?: string; access?: AccesRefuse } }
   // Le ticket attend `by`, qui a quitté le rail sans avoir été servi : personne
   // ne le prendra tant que ça dure. Ce fait ne change pas le rail — le blocage
   // s'y lit déjà —, il retient que le chef en a été averti.
@@ -59,6 +62,10 @@ export type FaitRail =
   | { type: "rail.commons"; payload: { paths: string[] } };
 
 export type MotifDepart = "closed" | "unfired" | "gone" | "hors-cuisine";
+
+// Un accès refusé au dépôt, tel que le journal le porte : ce qui est refusé
+// (`fetch` ou `push`), pourquoi en une phrase, et le geste du chef.
+export type AccesRefuse = { blocked: "fetch" | "push"; reason: string; gesture: string };
 
 // Motifs de retour en attente que le runtime écrit de lui-même.
 export const BAIL_ECHU = "lease-expired";

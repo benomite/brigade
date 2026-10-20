@@ -57,7 +57,9 @@ import type { Decisions } from "./decisions.ts";
 import { ouvrirDepot, type Depot, type OptionsDepot } from "./depot.ts";
 import { configPresence, ouvrirDistantes, PRESENCE_PAR_DEFAUT_MIN, type Conclusion } from "./distantes.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
-import { STATION_ABSENTE } from "./events/rail.ts";
+import { STATION_ABSENTE, type AccesRefuse } from "./events/rail.ts";
+import { echecDuWorktree, WORKTREE_IMPOSSIBLE } from "./echec-du-worktree.ts";
+import type { AccesBloque } from "./projets/acces.ts";
 import type { ContexteCook } from "./events/guardrails.ts";
 import { IDENTIFIANTS_LIVRES, PART_SANS_PROGRES, SANS_DIFF, SANS_LIVRABLE, type FaitStation, type FinDeCook, type Ressource, type Retenue } from "./events/station.ts";
 import { illisible, MARQUEUR, requises } from "./fiche.ts";
@@ -123,8 +125,8 @@ const SETUP_DEBLOQUE = "setup-unblocked";
 const MISE_DE_COTE_LEVEE = "aside-unblocked";
 // Le ticket n'a pas pu être lu sur GitHub pour être remis au cook.
 const TICKET_ILLISIBLE = "ticket-unreadable";
-// Le worktree du ticket n'a pas pu être préparé.
-const WORKTREE_IMPOSSIBLE = "worktree-failed";
+// Le worktree du ticket n'a pas pu être préparé : `WORKTREE_IMPOSSIBLE`
+// (`echec-du-worktree.ts`).
 // Les secrets que le dépôt déclare ne peuvent pas être donnés au cook.
 export const SECRETS_INDISPONIBLES = "secrets-unavailable";
 // Ce que le cook a commité porte la valeur d'un secret : rien n'est poussé.
@@ -155,6 +157,19 @@ const REPLI_QUOTA_MS = HEURE;
 // Un worktree impossible à préparer (origine injoignable) : le ticket est
 // reproposé dix minutes plus tard, sans cook perdu.
 const REPLI_WORKTREE_MS = 600_000;
+// Ce que le journal garde de l'erreur d'un worktree impossible à préparer.
+const RAISON_DU_WORKTREE_MAX = 2000;
+// L'accès au dépôt, revérifié avant de préparer un worktree, est refusé.
+class AccesDuDepotRefuse extends Error {
+  readonly acces: AccesBloque;
+  constructor(acces: AccesBloque) {
+    super(acces.raison);
+    this.acces = acces;
+  }
+}
+// La machine d'une station déclarée (`box/claude`) : c'est elle que la raison
+// et le geste d'un accès refusé nomment.
+const machineDe = (station: string) => station.split("/")[0] ?? station;
 // Le setup du projet tient dans la moitié du bail du ticket : le cook part
 // avant qu'il ne tombe.
 const PART_DU_SETUP = 0.5;
@@ -1005,9 +1020,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Le blocage tombe seul : un cook part (la cause est levée), une autre
   // cause se présente (c'est elle qui compte), ou la branche d'intégration
   // bouge. Rend faux si le ticket n'est plus à la station.
-  const ecarter = (station: string, numero: number, motif: string, retour?: Date): boolean =>
+  // `echec` : ce qui l'a fait échouer, dans les mots de l'outil, et l'accès au
+  // dépôt refusé, s'il l'est — le journal les porte avec le 86.
+  const ecarter = (station: string, numero: number, motif: string, retour?: Date, echec: { pourquoi?: string; acces?: AccesRefuse } = {}): boolean =>
     base.transaction(() => {
-      if (!geste(() => rail.quatreVingtSix(numero, { motif, retour, station }))) return false;
+      if (!geste(() => rail.quatreVingtSix(numero, { motif, retour, station, ...echec }))) return false;
       const cause = CAUSES_DU_PROJET[motif];
       if (cause === undefined) return true;
       const precedente = derniereMiseDeCote(base);
@@ -1633,7 +1650,27 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // La base d'où le worktree vient d'être préparé : c'est contre elle qu'un
     // setup bloqué attend qu'elle bouge.
     let vue: string;
+    // Le dernier worktree n'a pas pu être préparé : avant de rien rapatrier, la
+    // station revérifie qu'elle peut récupérer le dépôt et y pousser — refusé,
+    // l'essai échoue aussitôt, avec le geste qui lève le refus ; le geste fait,
+    // l'essai suivant passe, sans rien redémarrer. Un essai qui échoue sans
+    // vérification préalable la fait après coup : son échec porte le geste.
+    const enEchec = echecDuWorktree(base) !== null;
+    let verifie = false;
+    const accesRefuse = async (): Promise<AccesBloque | null> => {
+      verifie = true;
+      try {
+        const acces = await depot.acces({ station: machineDe(station), depot: options.depotGitHub });
+        return acces.etat === "bloque" ? { bloque: acces.bloque, raison: acces.raison, geste: acces.geste } : null;
+      } catch {
+        return null;
+      }
+    };
     try {
+      if (enEchec) {
+        const refuse = await accesRefuse();
+        if (refuse !== null) throw new AccesDuDepotRefuse(refuse);
+      }
       repris = renvoi !== null && depot.connait(renvoi.branch) ? renvoi : null;
       if (laisse !== null) {
         await depot.recevoir(laisse.branch);
@@ -1649,11 +1686,17 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       entree = depot.tete(branche);
     } catch (erreur) {
       if (arrete) return;
-      avertir(`brigade : worktree impossible à préparer pour le ticket #${numero} — ${message(erreur)}`);
-      ecarter(station, numero, WORKTREE_IMPOSSIBLE, new Date(maintenant().getTime() + REPLI_WORKTREE_MS));
+      const refuse = erreur instanceof AccesDuDepotRefuse ? erreur.acces : verifie ? null : await accesRefuse();
+      if (arrete) return;
+      const pourquoi = (erreur instanceof AccesDuDepotRefuse ? erreur.acces.raison : message(erreur)).slice(0, RAISON_DU_WORKTREE_MAX);
+      avertir(`brigade : worktree impossible à préparer pour le ticket #${numero} — ${pourquoi}${refuse === null ? "" : ` Geste : ${refuse.geste}`}`);
+      const acces = refuse === null ? undefined : { blocked: refuse.bloque, reason: refuse.raison, gesture: refuse.geste };
+      ecarter(station, numero, WORKTREE_IMPOSSIBLE, new Date(maintenant().getTime() + REPLI_WORKTREE_MS), { pourquoi, acces });
       return;
     }
     if (arrete) return;
+    // Le worktree se prépare de nouveau : l'échec n'est plus à dire.
+    if (enEchec && echecDuWorktree(base) !== null) noter(station, numero, { type: "worktree.prepared", payload: { station } });
 
     // Un worktree neuf n'est pas exécutable. Un setup en échec ne lance aucun
     // cook — donc ne consomme rien, et ne compte pas pour le disjoncteur : le

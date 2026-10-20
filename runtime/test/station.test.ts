@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, test } from "node:test";
+import { describe, test, type TestContext } from "node:test";
 import { attentesDuChef } from "../src/attend.ts";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import { VARIABLES_DE_JETON } from "../src/claude.ts";
@@ -15,10 +15,12 @@ import type { Machine } from "../src/machine.ts";
 import { cooksEnCours, etatDesGardeFous } from "../src/projections/guardrails.ts";
 import { worktreesGardes } from "../src/projections/cleanup.ts";
 import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
-import { etatStation } from "../src/projections/stations.ts";
+import { etatStation, miseDeCoteBloquee } from "../src/projections/stations.ts";
+import { echecDuWorktree } from "../src/echec-du-worktree.ts";
 import { configStation } from "../src/station.ts";
-import { BAIL_MS, CALIBRE, chef, controlerBase, cuisine, issue, MACHINE_CALME, MACHINE_VASTE, PLAFONDS, plafonner, STATION } from "./aides/cuisine.ts";
-import { BASE, commiter, DEPOT, git, jusqua, mort, tuerLesRelais } from "./outils.ts";
+import { BAIL_MS, CALIBRE, chef, controlerBase, cuisine, fauxGitHub, issue, MACHINE_CALME, MACHINE_VASTE, montre, PLAFONDS, plafonner, STATION } from "./aides/cuisine.ts";
+import { depotQuiRefuse } from "./aides/depot-qui-refuse.ts";
+import { BASE, commiter, DEPOT, depotGit, git, jusqua, mort, repertoireTemporaire, tuerLesRelais } from "./outils.ts";
 
 // Une base que le test fait bouger — un correctif mergé —, et le compte des
 // fois où la station l'a rapatriée.
@@ -1395,7 +1397,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(gh.prs.length, 1);
   });
 
-  test("un worktree impossible à préparer met le ticket 86 dix minutes, sans lancer de cook", async (t) => {
+  test("un worktree impossible à préparer met le ticket 86 dix minutes, avec sa raison, sans lancer de cook", async (t) => {
     const preparer = async () => {
       throw new Error("git fetch : fatal: unable to access origin");
     };
@@ -1403,9 +1405,79 @@ describe("la station", { concurrency: 8 }, () => {
 
     await jusqua(() => etat(15) === "86");
 
-    assert.deepEqual(dernier("ticket.86", 15), { reason: "worktree-failed", until: "2026-10-08T10:10:00.000Z" });
+    // La raison est au journal, dans les mots de git.
+    assert.deepEqual(dernier("ticket.86", 15), { reason: "worktree-failed", until: "2026-10-08T10:10:00.000Z", why: "git fetch : fatal: unable to access origin" });
     assert.equal(types().includes("cook.launched"), false);
     assert.match(avertissements[0] ?? "", /worktree.*#15.*git fetch/s);
+  });
+
+  describe("un worktree impossible à préparer est dit au projet, avec sa raison et son prochain essai", () => {
+    // Le vrai git de la station, contre un dépôt sur 127.0.0.1 qui demande des
+    // identifiants qu'elle n'a pas — sans credential helper, comme le Mac du
+    // chef le 20 oct. 2026 (#1115). Le clone le vise avant que la cuisine ne s'ouvre.
+    const refusee = async (t: TestContext) => {
+      const distant = await depotQuiRefuse(t, { statut: 401 });
+      const lieux = { repertoire: repertoireTemporaire(t), ...depotGit(t), gh: fauxGitHub(issue(15)), heure: montre() };
+      git(lieux.clone, "remote", "set-url", "origin", distant.url);
+      const cuisinee = cuisine(t, { git: true, lieux });
+      const essais = () => cuisinee.journal.tout().flatMap((evenement) => (evenement.ticket === 15 && evenement.type === "ticket.86" ? [evenement.payload] : []));
+      return { ...cuisinee, distant, essais };
+    };
+
+    test("l'échec porte l'erreur de git, l'heure du prochain essai et le geste, et tient jusqu'à l'essai suivant ; refusé de nouveau, chaque essai repousse cette heure sans lancer de cook", async (t) => {
+      const { journal, heure, essais, etat, types, avertissements } = await refusee(t);
+      await jusqua(() => etat(15) === "86");
+
+      const premier = essais()[0];
+      assert.equal(premier?.reason, "worktree-failed");
+      assert.equal(premier?.until, "2026-10-08T10:10:00.000Z");
+      assert.match(String(premier?.why), /^git fetch : .*could not read Username for 'http:\/\/127\.0\.0\.1:\d+': terminal prompts disabled/s);
+      assert.equal(premier?.access?.blocked, "fetch");
+      assert.match(String(premier?.access?.gesture), /`gh auth setup-git` on box/);
+      assert.match(avertissements.join("\n"), /worktree impossible à préparer pour le ticket #15 — git fetch : .*Geste : Run `gh auth setup-git`/s);
+      // Ce que la station publie du projet à l'app : lu tant que l'essai suivant n'a pas eu lieu.
+      const echec = echecDuWorktree(journal.base);
+      assert.equal(echec?.ticket, 15);
+      assert.equal(echec?.raison, premier?.why);
+      assert.equal(echec?.prochainEssai, "2026-10-08T10:10:00.000Z");
+      assert.match(String(echec?.acces?.geste), /`gh auth setup-git`/);
+      heure.avancer(300_000);
+      assert.equal(echecDuWorktree(journal.base)?.prochainEssai, "2026-10-08T10:10:00.000Z");
+
+      // L'essai suivant revérifie l'accès d'abord : toujours refusé, il échoue
+      // aussitôt, avec la raison du refus, et dit l'heure du suivant.
+      heure.avancer(300_000);
+      await jusqua(() => essais().length === 2);
+      const second = essais()[1];
+      assert.equal(second?.until, "2026-10-08T10:20:00.000Z");
+      assert.match(String(second?.why), /^box cannot fetch from benomite\/brigade: git has no credentials for http:\/\/127\.0\.0\.1:\d+ and no credential helper/);
+      assert.equal(echecDuWorktree(journal.base)?.prochainEssai, "2026-10-08T10:20:00.000Z");
+      heure.avancer(600_000);
+      await jusqua(() => essais().length === 3);
+      assert.equal(essais()[2]?.until, "2026-10-08T10:30:00.000Z");
+      assert.equal(echecDuWorktree(journal.base)?.prochainEssai, "2026-10-08T10:30:00.000Z");
+      assert.equal(types().includes("cook.launched"), false);
+      assert.equal(types().includes("worktree.prepared"), false);
+    });
+
+    test("l'accès rétabli, l'essai suivant passe dans le même process, sans redémarrage : le cook part, l'échec et le blocage du projet tombent", async (t) => {
+      const { journal, heure, essais, origine, clone, etat, types } = await refusee(t);
+      await jusqua(() => etat(15) === "86");
+      heure.avancer(600_000);
+      await jusqua(() => types().includes("aside.blocked"));
+      assert.notEqual(miseDeCoteBloquee(journal.base), null);
+      assert.notEqual(echecDuWorktree(journal.base), null);
+
+      // Le geste du chef : git récupère et pousse de nouveau.
+      git(clone, "remote", "set-url", "origin", origine);
+      heure.avancer(600_000);
+      await jusqua(() => types().includes("cook.launched"));
+
+      assert.equal(essais().length, 2);
+      assert.deepEqual(types().filter((type) => type === "worktree.prepared"), ["worktree.prepared"]);
+      assert.equal(echecDuWorktree(journal.base), null);
+      assert.equal(miseDeCoteBloquee(journal.base), null);
+    });
   });
 
   describe("une cause de mise de côté qui se répète sur le projet", () => {

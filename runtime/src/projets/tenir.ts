@@ -15,8 +15,10 @@
 //
 // Ce qu'elle en dit, projet par projet, elle l'écrit dans le même gist
 // (`brigade-projets-suivi.json`) : l'app le montre au chef — et, pour chacun,
-// la station où il cuit, et si c'est l'ordinateur du chef ; pour ceux dont
-// elle est la principale, où en est leur onboarding (`onboarding/`).
+// la station où il cuit, et si c'est l'ordinateur du chef ; pour ceux qu'elle
+// sert, le worktree que leur cuisine n'a pas pu préparer — pourquoi, et quand
+// elle réessaie (`echec-du-worktree.ts`) ; pour ceux dont elle est la
+// principale, où en est leur onboarding (`onboarding/`).
 //
 // La cuisine d'un projet déménage d'une station à une autre sans qu'il soit
 // retiré ni rajouté (`demenagement/`) : l'app demande à celle qu'il quitte de
@@ -39,6 +41,7 @@ import type { Canal } from "../appairage/canal.ts";
 import type { Verification } from "../bac-a-sable/local.ts";
 import { dejaDemenage, lireRemise, recevoir, remettre, remisAilleurs } from "../demenagement/remise.ts";
 import { ouvrirGitHub } from "../github.ts";
+import { lireEchecDuWorktree } from "../echec-du-worktree.ts";
 import { lireOnboarding } from "../onboarding/lire.ts";
 import { ouvrirLaPreparation } from "../preparation-depot/ouvrir.ts";
 import { CLONES, CONFIGURATION, ETATS } from "../station/configuration.ts";
@@ -389,7 +392,20 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       const motif = motifs.get(projet.nom);
       if (servisMaintenant.has(projet.nom)) {
         if (!serviLe.has(projet.nom)) serviLe.set(projet.nom, new Date(instant).toISOString());
-        return { nom: projet.nom, etat: "servi", dit: motif === undefined ? `served by ${station}` : `served by ${station}; ${motif}`, autoriser: [], serviLe: serviLe.get(projet.nom) ?? null, cuitSur: station, ici: locale, bascule };
+        // Un worktree que sa cuisine n'a pas pu préparer : la raison et l'heure
+        // du prochain essai, lues dans son journal, jusqu'à ce qu'il se prépare.
+        const echec = lireEchecDuWorktree(etatDe(projet.nom));
+        return {
+          nom: projet.nom,
+          etat: "servi",
+          dit: motif === undefined ? `served by ${station}` : `served by ${station}; ${motif}`,
+          autoriser: [],
+          serviLe: serviLe.get(projet.nom) ?? null,
+          cuitSur: station,
+          ici: locale,
+          bascule,
+          ...(echec === null ? {} : { worktree: echec }),
+        };
       }
       const refus = servis.refus(projet.nom);
       return refus === null
