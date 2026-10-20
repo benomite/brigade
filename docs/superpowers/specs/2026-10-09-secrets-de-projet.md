@@ -1,156 +1,155 @@
-# Les secrets d'un projet parviennent à ses cooks, et à eux seuls (#175)
+# A project's secrets reach its cooks, and only them (#175)
 
-Jalon 7 de la V2 (épique #179). Spec V2, §Isolation et secrets : « **Secrets de dev** : un fichier
-par projet, monté uniquement dans son conteneur. Jamais de prod. »
+Milestone 7 of V2 (epic #179). V2 spec, §Isolation and secrets: "**Dev secrets**: one file
+per project, mounted only in its container. Never prod."
 
-## Le problème
+## The problem
 
-`brigade` n'a aucun secret ; un vrai projet n'avance pas sans — une base de test, un service tiers
-en bac à sable, une clé d'API de développement. Aujourd'hui, la seule façon de donner une valeur à
-un cook est de la faire exporter par `worktree-setup.sh`, qui est **versionné** : une valeur secrète
-n'y a pas sa place. Reste l'environnement du runtime, que le cook hérite en vrac — c'est-à-dire
-poser les secrets du projet dans l'unité systemd, à côté de ce que le runtime garde pour lui, sans
-rien qui dise ce qui est attendu, ce qui manque, ni ce qui doit être caché.
+`brigade` has no secrets; a real project does not get far without — a test database, a
+sandboxed third-party service, a development API key. Today, the only way to give a value to
+a cook is to have `worktree-setup.sh` export it, and that file is **versioned**: a secret value
+has no place in it. What remains is the runtime's environment, which the cook inherits wholesale — that is,
+putting the project's secrets in the systemd unit, next to what the runtime keeps for itself, with
+nothing saying what is expected, what is missing, or what must be hidden.
 
-## Ce qui est tranché
+## What is settled
 
-### Deux ensembles : des noms dans le dépôt, des valeurs sur la machine
+### Two sets: names in the repository, values on the machine
 
-| | Où | Ce qu'il porte |
+| | Where | What it carries |
 |---|---|---|
-| **La déclaration** | `.claude/brigade/secrets`, dans le dépôt du projet, versionné | des **noms** de variables, un par ligne (`#` commente) |
-| **Les valeurs** | le fichier que nomme `BRIGADE_SECRETS_FILE`, sur la machine, hors dépôt | `NOM=valeur`, une par ligne |
+| **The declaration** | `.claude/brigade/secrets`, in the project's repository, versioned | variable **names**, one per line (`#` comments) |
+| **The values** | the file named by `BRIGADE_SECRETS_FILE`, on the machine, outside the repository | `NAME=value`, one per line |
 
-Un cook reçoit **l'intersection** : les variables que son dépôt déclare, avec la valeur que la
-machine détient. Une valeur que le dépôt ne déclare pas n'est donnée à personne ; un nom déclaré
-sans valeur est un secret qui manque (voir plus bas).
+A cook receives **the intersection**: the variables its repository declares, with the value the
+machine holds. A value the repository does not declare is given to no one; a name declared
+without a value is a missing secret (see below).
 
-La déclaration se lit **dans le worktree du cook**, comme le setup : c'est la branche qui dit ce
-dont elle a besoin. Un cook qui ajoute un nom à la déclaration ne gagne rien de plus que ce que le
-chef a posé dans le fichier de **ce** projet.
+The declaration is read **in the cook's worktree**, like the setup: it is the branch that says what
+it needs. A cook that adds a name to the declaration gains nothing more than what the
+chef put in **this** project's file.
 
-Le fichier de valeurs :
+The values file:
 
-- **facultatif** (`BRIGADE_SECRETS_FILE` absente : le projet n'a pas de secret, rien ne change) ;
-- un chemin absolu, **hors de `BRIGADE_STATE_DIR` et hors de `BRIGADE_REPO_DIR`** — donc hors de ce
-  que `sauvegarder` emporte et hors de tout worktree — sinon refus de démarrer ;
-- `0600` exigé (`chmod 600`), au démarrage **et à chaque lecture** ;
-- relu **à chaque lancement** (cook, setup, gates) : une valeur se remplace sans redémarrer.
-- Format : `NOM=valeur`, la valeur va jusqu'à la fin de la ligne ; un `export ` devant et une paire
-  de guillemets autour sont retirés ; `#` commente ; pas de valeur sur plusieurs lignes, aucune
-  interpolation.
+- **optional** (`BRIGADE_SECRETS_FILE` absent: the project has no secrets, nothing changes);
+- an absolute path, **outside `BRIGADE_STATE_DIR` and outside `BRIGADE_REPO_DIR`** — so outside
+  what `backup` takes along and outside any worktree — otherwise startup is refused;
+- `0600` required (`chmod 600`), at startup **and at every read**;
+- re-read **at every launch** (cook, setup, gates): a value is replaced without restarting.
+- Format: `NAME=value`, the value runs to the end of the line; a leading `export ` and a surrounding
+  pair of quotes are removed; `#` comments; no multi-line values, no interpolation.
 
-### Le chemin des secrets n'est pas celui de l'environnement du runtime
+### The secrets path is not the runtime environment's path
 
-La règle du jalon 1 reste entière : l'environnement du cook est celui du runtime moins `BRIGADE_*`
-et moins ce qui détournerait `claude` de la connexion Max, et un setup n'y fait entrer ni clé
-Anthropic ni (sous une identité par rôle) jeton GitHub. Les secrets du projet n'y passent pas : ils
-sont **ajoutés** par le runtime, nommément, au moment du lancement.
+The milestone 1 rule stands whole: the cook's environment is the runtime's minus `BRIGADE_*`
+and minus what would divert `claude` from the Max connection, and a setup brings in neither an Anthropic
+key nor (under a per-role identity) a GitHub token. The project's secrets do not travel through it: they are
+**added** by the runtime, by name, at launch time.
 
-Les noms que le runtime se réserve ne peuvent pas être déclarés : `BRIGADE_*`, `ANTHROPIC_*`,
-`CLAUDE_*`, `GH_*`, `GITHUB_*`, `GIT_*`, `PATH`, `HOME`. Un projet ne peut donc pas, par ce chemin,
-donner à un cook une clé de modèle ni un jeton GitHub — c'est l'affaire de #174.
+The names the runtime reserves for itself cannot be declared: `BRIGADE_*`, `ANTHROPIC_*`,
+`CLAUDE_*`, `GH_*`, `GITHUB_*`, `GIT_*`, `PATH`, `HOME`. A project therefore cannot, through this path,
+give a cook a model key or a GitHub token — that is #174's business.
 
-### Qui les reçoit
+### Who receives them
 
-| Process | Reçoit les secrets ? | Pourquoi |
+| Process | Receives the secrets? | Why |
 |---|---|---|
-| le setup du worktree | oui | c'est lui qui prépare la base de test |
-| le cook | oui | c'est l'objet |
-| les gates (pass : livraison, rencontre, contrôle de la base) | oui | elles jouent les tests du projet, qui ont besoin de la même base ; même projet, même code |
-| le reviewer | **non** | il lit un diff, il n'exécute rien du projet |
-| les juges du manager | **non** | ils lisent des tickets |
+| the worktree setup | yes | it prepares the test database |
+| the cook | yes | that is the point |
+| the gates (pass: delivery, meeting, base check) | yes | they run the project's tests, which need the same database; same project, same code |
+| the reviewer | **no** | it reads a diff, it runs nothing of the project |
+| the manager's judges | **no** | they read tickets |
 
-### Un secret qui manque arrête avant le lancement
+### A missing secret stops things before launch
 
-Avant le setup et avant le cook, la station lit déclaration et valeurs. Au moindre problème,
-**aucun cook n'est lancé** : le ticket passe 86 dix minutes (motif `secrets-unavailable`), puis
-revient seul — comme un setup en échec, rien n'est consommé et le disjoncteur ne compte rien. Le
-problème est écrit au journal (`secrets.unavailable`, des noms, jamais une valeur) et **commenté
-sur l'issue, une fois** : le commentaire n'est reposé que si la liste des problèmes change.
+Before the setup and before the cook, the station reads the declaration and the values. At the
+slightest problem, **no cook is launched**: the ticket goes 86 for ten minutes (reason `secrets-unavailable`), then
+comes back by itself — like a failed setup, nothing is consumed and the breaker counts nothing. The
+problem is written to the log (`secrets.unavailable`, names, never a value) and **commented
+on the issue, once**: the comment is only posted again if the list of problems changes.
 
-Ce qui est un problème : un nom déclaré absent du fichier, `BRIGADE_SECRETS_FILE` non défini alors
-que le dépôt déclare, fichier absent / lisible par d'autres / ligne mal écrite, nom mal écrit ou
-réservé, valeur trop courte, marque de production.
+What counts as a problem: a declared name absent from the file, `BRIGADE_SECRETS_FILE` undefined
+while the repository declares, a missing file / readable by others / badly written line, a badly
+written or reserved name, a too-short value, a production mark.
 
-Côté pass, des gates qui ne peuvent pas recevoir leurs secrets ne sont **pas jouées** — jamais
-rouges pour cela, un renvoi au cook n'y changerait rien : la livraison est remontée au chef
-(`secrets-unavailable` ; elle n'est pas rejugée seule — reposer `fire` relance un cook), une rencontre remonte `replay-failed`, un contrôle de base est « non
-joué » avec son motif.
+On the pass side, gates that cannot receive their secrets are **not run** — never red for that
+reason, a send-back to the cook would change nothing: the delivery is escalated to the chef
+(`secrets-unavailable`; it is not re-judged alone — putting `fire` back relaunches a cook), a meeting escalates `replay-failed`, a base check is "not
+run" with its reason.
 
-### Le masquage
+### The masking
 
-Partout où un texte venu d'un process qui a reçu les secrets est gardé ou publié, chaque valeur
-est remplacée par `[secret:NOM]` :
+Everywhere a text from a process that received the secrets is kept or published, each value
+is replaced by `[secret:NAME]`:
 
-- le flux brut du cook (`runs/<run>.jsonl`, `.stderr`), **à l'écriture** — tout ce qui en découle
-  (compte-rendu, `cook.reported`, commentaire d'issue, corps de PR, consigne de renvoi) est donc
-  déjà masqué ;
-- la sortie du setup et des gates que le runtime garde (journald, `failures` et `tail` au journal,
-  commentaire de la pass, consigne de renvoi) ;
-- le flux du reviewer : il ne reçoit aucun secret, mais il lit un worktree où les gates viennent
-  de tourner avec eux.
+- the cook's raw stream (`runs/<run>.jsonl`, `.stderr`), **at write time** — everything derived from it
+  (report, `cook.reported`, issue comment, PR body, send-back instruction) is therefore
+  already masked;
+- the output of the setup and of the gates that the runtime keeps (journald, `failures` and `tail` in the log,
+  the pass's comment, send-back instruction);
+- the reviewer's stream: it receives no secret, but it reads a worktree where the gates have just
+  run with them.
 
-Sont masquées la valeur exacte et sa forme échappée en JSON (celle qu'elle prend dans le flux).
+Both the exact value and its JSON-escaped form (the one it takes in the stream) are masked.
 
-**La règle des valeurs courtes : moins de 8 caractères, ce n'est pas un secret, et le runtime la
-refuse.** Masquer `test` ou `1234` rongerait la moitié d'un compte-rendu ; ne pas les masquer
-ferait deux sortes de secrets. Une valeur courte ou banale est une configuration : elle va dans les
-exports de `worktree-setup.sh`. Tout ce que porte le fichier de secrets est masqué, sans exception.
+**The short-values rule: under 8 characters, it is not a secret, and the runtime refuses it.**
+Masking `test` or `1234` would eat half a report; not masking them
+would make two kinds of secrets. A short or trivial value is configuration: it goes in the
+exports of `worktree-setup.sh`. Everything the secrets file carries is masked, without exception.
 
-**Une livraison qui porte un secret n'est pas poussée.** Avant le push, la station cherche les
-valeurs dans tout ce que la branche ajoute (patchs et messages de commit, récolte comprise — un
-`.env` écrit par le cook serait sinon récolté et poussé). Trouvée : le cook est en échec
-(`secret-committed`), rien ne part, le ticket revient en attente, et le commentaire nomme la
+**A delivery that carries a secret is not pushed.** Before the push, the station looks for the
+values in everything the branch adds (patches and commit messages, harvest included — a
+`.env` written by the cook would otherwise be harvested and pushed). If found: the cook has failed
+(`secret-committed`), nothing leaves, the ticket goes back to queued, and the comment names the
 variable.
 
-- Lu en entier : un fichier binaire comme du texte (quoi qu'en dise un `.gitattributes` du cook),
-  un merge contre chacun de ses parents. Ce que l'origine a déjà reçu de la branche n'est pas relu.
-- **Sur un renvoi**, le cook suivant reprend la même branche : la station la ramène à la livraison
-  refusée (ce que le cook fautif y avait ajouté est perdu), sinon tout cook suivant échouerait
-  jusqu'au disjoncteur. Sur un premier cook, le suivant repart de la base.
+- Read in full: a binary file as text (whatever a cook's `.gitattributes` says),
+  a merge against each of its parents. What the origin has already received from the branch is not re-read.
+- **On a send-back**, the next cook resumes the same branch: the station brings it back to the
+  refused delivery (what the faulty cook added there is lost), otherwise every following cook would fail
+  until the breaker. On a first cook, the next one starts again from the base.
 
-### « Jamais de prod » : ce que le runtime refuse, et rien de plus
+### "Never prod": what the runtime refuses, and nothing more
 
-Le runtime ne sait pas ce qu'une valeur ouvre. Il refuse ce qui se reconnaît :
+The runtime does not know what a value opens. It refuses what can be recognized:
 
-- un **nom** qui dit la production (`PROD`, `PRODUCTION`, `LIVE` comme mot du nom) ;
-- une **valeur** qui porte une marque connue de clé de production (`sk_live_`, `rk_live_`).
+- a **name** that says production (`PROD`, `PRODUCTION`, `LIVE` as a word of the name);
+- a **value** that carries a known production-key mark (`sk_live_`, `rk_live_`).
 
-Le reste tient à ce que le chef pose dans le fichier. Aucun grant n'y touche : les secrets ne
-passent par aucun grant, et aucune action de grant ne les élargit.
+The rest depends on what the chef puts in the file. No grant touches it: secrets
+go through no grant, and no grant action widens them.
 
-## Ce qui reste non garanti (à écrire dans la doc)
+## What remains unguaranteed (to write in the docs)
 
-- **Le cloisonnement entre projets tient aux droits de fichiers** tant que le conteneur (#176)
-  n'existe pas. Un cook tourne sous le compte Unix du runtime : il peut lire le fichier de son
-  projet en entier (pas seulement ce qui est déclaré), et celui d'un autre projet servi sous le
-  même compte. D'ici #176 : un compte Unix par projet, ou rien de sensible.
-- **Le masquage est un filet contre l'accident, pas une clôture contre un cook qui veut sortir une
-  valeur** : transformée (base64, coupée en deux, un fragment d'URL), elle passe. La clôture est que
-  ce sont des secrets de dev, et le réseau en liste blanche de #176.
-- Le transcript de session que `claude` écrit sous `~/.claude/projects` n'est pas masqué : il reste
-  sur la machine, sous le compte.
-- Ce que les gates du projet écrivent elles-mêmes sur le disque (`.brigade-state/gates/` chez
-  brigade) est au projet.
-- Un secret remplacé pendant qu'un cook tourne ne l'atteint pas : il vaut pour le lancement suivant.
+- **Isolation between projects rests on file permissions** as long as the container (#176)
+  does not exist. A cook runs under the runtime's Unix account: it can read its project's file
+  in full (not only what is declared), and that of another project served under the
+  same account. Until #176: one Unix account per project, or nothing sensitive.
+- **Masking is a net against accident, not a fence against a cook that wants to get a value
+  out**: transformed (base64, split in two, a URL fragment), it gets through. The fence is that
+  these are dev secrets, and #176's allow-listed network.
+- The session transcript that `claude` writes under `~/.claude/projects` is not masked: it stays
+  on the machine, under the account.
+- What the project's gates themselves write to disk (`.brigade-state/gates/` in
+  brigade) is the project's business.
+- A secret replaced while a cook is running does not reach it: it applies to the next launch.
 
-## Hors scope
+## Out of scope
 
-Le conteneur et le réseau (#176) ; le jeton GitHub des rôles (#174) ; une commande pour poser un
-secret (le fichier s'édite) ; le chiffrement au repos.
+The container and the network (#176); the roles' GitHub token (#174); a command to set a
+secret (the file is edited); encryption at rest.
 
 ## Plan
 
-1. `secrets.ts` : configuration (`BRIGADE_SECRETS_FILE`), lecture de la déclaration et des valeurs,
-   problèmes, masque, recherche de fuite — tests unitaires.
-2. `superviseur.ts` / `garde-fous.ts` : flux brut masqué à l'écriture, ligne à ligne.
-3. `gates.ts` : sortie du setup et des gates masquée.
-4. `depot.ts` : ce que la branche ajoute (patchs et messages).
-5. `station.ts` : lecture avant setup, refus avant lancement (86, journal, commentaire unique),
-   environnement, masque, refus de pousser un secret.
-6. `pass.ts` : secrets des gates, remontée quand ils manquent.
-7. `main.ts` : câblage, annonce au démarrage.
-8. `installation.ts` : le vérificateur lit `BRIGADE_SECRETS_FILE`, le setup à blanc reçoit les secrets.
-9. `docs/runtime.md` : section « Les secrets du projet », setup, « Ce qu'un cook charge », variables,
-   « Ce que la pass ne garantit pas ».
+1. `secrets.ts`: configuration (`BRIGADE_SECRETS_FILE`), reading the declaration and the values,
+   problems, mask, leak search — unit tests.
+2. `superviseur.ts` / `garde-fous.ts`: raw stream masked at write time, line by line.
+3. `gates.ts`: output of the setup and of the gates masked.
+4. `depot.ts`: what the branch adds (patches and messages).
+5. `station.ts`: read before setup, refusal before launch (86, log, single comment),
+   environment, mask, refusal to push a secret.
+6. `pass.ts`: the gates' secrets, escalation when they are missing.
+7. `main.ts`: wiring, announcement at startup.
+8. `installation.ts`: the checker reads `BRIGADE_SECRETS_FILE`, the dry-run setup receives the secrets.
+9. `docs/runtime.md`: section "Les secrets du projet", setup, "Ce qu'un cook charge", variables,
+   "Ce que la pass ne garantit pas".

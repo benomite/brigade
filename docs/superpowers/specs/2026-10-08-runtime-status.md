@@ -1,128 +1,128 @@
-# L'état de la cuisine — spec et plan (#18)
+# The kitchen's state — spec and plan (#18)
 
-**Date** : 2026-10-08
-**Statut** : validé le 2026-10-08 — le chef a tranché (a) aux questions 1 et 2, masquage des ticks compris, et accepté la forme de la question 3
-**Issue** : #18 « Le chef voit l'état de la cuisine sans ouvrir la base »
-**S'appuie sur** : `2026-10-08-runtime-stack.md` (§2 réveil, §3 projections, §6 `brigade status`),
-`2026-10-08-runtime-journal.md` (règle d'extension), `2026-10-08-runtime-rail.md` et
-`2026-10-08-garde-fous.md`. Ce document ne redécide rien de ce qui y figure.
+**Date**: 2026-10-08
+**Status**: validated on 2026-10-08 — the chef settled (a) on questions 1 and 2, tick masking included, and accepted the form of question 3
+**Issue**: #18 "The chef sees the kitchen's state without opening the database"
+**Builds on**: `2026-10-08-runtime-stack.md` (§2 wake-up, §3 projections, §6 `brigade status`),
+`2026-10-08-runtime-journal.md` (extension rule), `2026-10-08-runtime-rail.md` and
+`2026-10-08-garde-fous.md`. This document redecides nothing of what appears there.
 
 ---
 
-## Ce que #18 livre
+## What #18 delivers
 
-Une commande de lecture, pour un projet — c'est-à-dire pour un répertoire d'état. Juste assez pour
-piloter le jalon 1 : pas un tableau de bord.
+A read command, for one project — that is, for one state directory. Just enough to
+steer milestone 1: not a dashboard.
 
-| Critère de l'issue | Ce qui le porte |
+| Issue criterion | What carries it |
 |---|---|
-| Les tickets par état, les cooks actifs avec leur ticket et leur budget consommé, les derniers événements | `npm --prefix runtime run status` : une photo, lue dans les projections du rail, des garde-fous et des sessions, et dans la table des événements |
-| Elle répond tout de suite, même pendant que des cooks tournent | Journal ouvert en lecture seule : en mode WAL un lecteur n'attend jamais l'écrivain, et ne le bloque pas |
-| Le chef peut suivre le log en direct, du rail au verdict | `status -- --suivre [<ticket>]` : la photo, puis chaque événement à mesure qu'il s'écrit, vu par `PRAGMA data_version` |
-| Tout l'affichage dérive du log | Aucune table d'affichage, aucun fichier lu hors `log.db`. Ce que le journal ne disait pas encore — le tick, la consommation d'un cook en cours — y entre comme **faits** : `runtime.ticked` et `cook.progressed` |
+| Tickets by state, active cooks with their ticket and their consumed budget, the latest events | `npm --prefix runtime run status`: a photo, read from the rail, guardrails and sessions projections, and from the events table |
+| It answers immediately, even while cooks run | Log opened read-only: in WAL mode a reader never waits for the writer, and does not block it |
+| The chef can follow the log live, from the rail to the verdict | `status -- --follow [<ticket>]`: the photo, then each event as it is written, seen through `PRAGMA data_version` |
+| All the display derives from the log | No display table, no file read outside `log.db`. What the log did not yet say — the tick, the consumption of a running cook — enters it as **facts**: `runtime.ticked` and `cook.progressed` |
 
-## Ce que la commande montre
+## What the command shows
 
-L'exemple de sortie et la lecture de chaque bloc sont dans `docs/runtime.md`, « L'état de la cuisine ».
+The example output and the reading of each block are in `docs/runtime.md`, "L'état de la cuisine".
 
-- **Runtime** : en marche (session sans fin au journal), arrêté (`runtime.stopped`) ou jamais
-  démarré. La ligne du tick est **toujours** affichée quand une session est ouverte : c'est elle
-  qui révèle un runtime figé ou mort sans préavis. La commande montre l'âge et la cadence
-  attendue ; elle ne conclut pas — « qui coince » est au jalon 6.
-- **Rail** : le décompte par état, puis les tickets dans l'ordre de service. Les durées sont
-  relatives à l'heure de la commande ; l'horodatage exact reste dans `run rail`.
-- **Cooks** : un par lancement sans fin, avec son ticket et sa consommation face à ses plafonds.
-- **Derniers événements** : les 15 derniers, dans l'ordre du journal — le plus récent en bas, là où
-  le suivi enchaîne —, au format de `run journal` (le formateur est partagé, pas recopié). Ni les
-  ticks ni les relevés des cooks n'y figurent : l'en-tête et la ligne de chaque cook les résument,
-  et un par minute noierait le reste.
+- **Runtime**: running (session with no end in the log), stopped (`runtime.stopped`) or never
+  started. The tick line is **always** displayed when a session is open: it is what
+  reveals a runtime that is frozen or dead without warning. The command shows the age and the expected
+  rate; it does not conclude — "who is stuck" is milestone 6.
+- **Rail**: the count by state, then the tickets in service order. Durations are
+  relative to the time of the command; the exact timestamp stays in `run rail`.
+- **Cooks**: one per launch with no end, with its ticket and its consumption against its caps.
+- **Latest events**: the last 15, in log order — the most recent at the bottom, where
+  following continues —, in the format of `run log` (the formatter is shared, not copied). Neither
+  ticks nor the cooks' readings appear there: the header and each cook's line summarize them,
+  and one per minute would drown the rest.
 
-`--suivre` affiche la photo, puis ajoute une ligne par événement nouveau, dans l'ordre du journal,
-jusqu'à Ctrl-C. Avec un numéro de ticket, seuls les événements de ce ticket défilent. Les relevés
-des cooks défilent (c'est le signe de vie d'un cook qu'on suit), les ticks non. La veille est celle
-du runtime, en plus serré : `PRAGMA data_version` quatre fois par seconde, puis lecture des
-événements postérieurs au dernier numéro de séquence lu — rien n'est sauté.
+`--follow` displays the photo, then adds one line per new event, in log order,
+until Ctrl-C. With a ticket number, only that ticket's events scroll by. The cooks' readings
+scroll by (it is the sign of life of a cook being followed), ticks do not. The watch is that
+of the runtime, tighter: `PRAGMA data_version` four times a second, then reading the
+events after the last sequence number read — nothing is skipped.
 
-Erreurs, comme les autres commandes : `BRIGADE_STATE_DIR` absent ou argument inconnu → code 2 et
-l'usage ; pas de journal, ou journal d'un runtime d'avant ces projections → code 1 et le motif.
+Errors, like the other commands: `BRIGADE_STATE_DIR` absent or unknown argument → code 2 and
+the usage; no log, or log of a runtime from before these projections → code 1 and the reason.
 
 ## Modules
 
 ```
 runtime/src/
-  evenements/runtime.ts       + runtime.ticked (`intervalMs` : la cadence attendue)
+  evenements/runtime.ts       + runtime.ticked (`intervalMs`: the expected rate)
   evenements/garde-fous.ts    + cook.progressed (`run`, `turns`, `tokens`)
-  projections/sessions.ts     + table runtime_tick : le dernier tick
-  projections/garde-fous.ts   + table cook_progress : le dernier relevé de chaque cook
-  journal.ts                  + les N derniers événements, le dernier numéro de séquence
-  relire.ts                   masque les ticks sans argument ; `--ticks` les montre
-  runtime.ts                  le tick s'écrit au journal avant de réveiller les écouteurs
-  superviseur.ts              + mesure() : tours et tokens comptés jusqu'ici
-  garde-fous.ts               au tick, une mesure par cook en cours
-  ligne-evenement.ts          le formateur d'une ligne d'événement, sorti de relire.ts
-  etat.ts                     lit l'état dans les projections, le décrit ligne par ligne (heure injectée), suit le journal
-  status.ts                   `npm run status` : arguments, affichage, signaux
+  projections/sessions.ts     + runtime_tick table: the last tick
+  projections/garde-fous.ts   + cook_progress table: the last reading of each cook
+  journal.ts                  + the last N events, the last sequence number
+  relire.ts                   masks ticks without argument; `--ticks` shows them
+  runtime.ts                  the tick is written to the log before waking the listeners
+  superviseur.ts              + mesure(): turns and tokens counted so far
+  garde-fous.ts               at the tick, one measure per running cook
+  ligne-evenement.ts          the formatter of an event line, pulled out of relire.ts
+  etat.ts                     reads the state from the projections, describes it line by line (time injected), follows the log
+  status.ts                   `npm run status`: arguments, display, signals
 ```
 
-Les deux tables nouvelles appartiennent aux projections existantes et se recalculent du journal
-comme le reste. Des tables plutôt que des colonnes : `CREATE TABLE IF NOT EXISTS` les pose sur un
-journal déjà en service, là où une colonne ajoutée ne le serait pas.
+The two new tables belong to the existing projections and are recomputed from the log
+like the rest. Tables rather than columns: `CREATE TABLE IF NOT EXISTS` lays them on a log
+already in service, where an added column would not be.
 
-## Frontières
+## Boundaries
 
-- **#15 (station claude)** : `status` n'a pas besoin qu'un vrai cook existe ; les tests passent par
-  le lancement gardé et le faux `claude`. Fichiers partagés attendus : `package.json` (une ligne de
-  script) et `docs/runtime.md` (une section). #18 touche aussi `superviseur.ts` et `garde-fous.ts`
-  — la méthode `mesure()` et le relevé au tick, rien d'autre, sans changer ce que #15 appelle.
-- **Hors scope**, comme le dit l'issue : multi-projets, direct d'un cook, accès web, détection de
-  « qui coince » et alertes.
+- **#15 (claude station)**: `status` does not need a real cook to exist; the tests go through
+  the guarded launch and the fake `claude`. Shared files expected: `package.json` (one line of
+  script) and `docs/runtime.md` (one section). #18 also touches `superviseur.ts` and `garde-fous.ts`
+  — the `mesure()` method and the reading at the tick, nothing else, without changing what #15 calls.
+- **Out of scope**, as the issue says: multi-project, live view of a cook, web access, detection of
+  "who is stuck" and alerts.
 
 ## Plan
 
-TDD, un test rouge avant chaque pas.
+TDD, a red test before each step.
 
-1. `ligne-evenement.ts` extrait de `relire.ts`, sans changer une sortie.
-2. Le tick au journal et dans la projection des sessions (selon question 1).
-3. La mesure d'un cook en cours au journal et dans la projection des garde-fous (selon question 2).
-4. `etat.ts` : la photo, testée sur des journaux construits à la main.
-5. `status.ts` : photo, puis `--suivre`, testés dans un vrai process pendant qu'un autre écrit.
-6. `docs/runtime.md` : la commande, sa lecture, deux lignes de recette.
+1. `ligne-evenement.ts` extracted from `relire.ts`, without changing any output.
+2. The tick in the log and in the sessions projection (according to question 1).
+3. The measure of a running cook in the log and in the guardrails projection (according to question 2).
+4. `etat.ts`: the photo, tested on hand-built logs.
+5. `status.ts`: photo, then `--follow`, tested in a real process while another writes.
+6. `docs/runtime.md`: the command, how to read it, two lines of acceptance recipe.
 
-## Questions tranchées — (a), (a), forme acceptée, le 2026-10-08
+## Questions settled — (a), (a), form accepted, on 2026-10-08
 
-### 1. D'où vient l'âge du dernier tick ?
+### 1. Where does the age of the last tick come from?
 
-Aujourd'hui le tick réveille le runtime mais **n'écrit rien** : le journal ne peut pas dire quand
-il a eu lieu.
+Today the tick wakes the runtime but **writes nothing**: the log cannot say when
+it happened.
 
-- **(a) Un fait `runtime.ticked` par tick** — recommandé. Seule option où l'âge dérive vraiment
-  du log. Coût : une ligne par minute, soit 1 440 par jour et de l'ordre de 50 Mo par an et par
-  projet dans un journal qui ne s'efface pas, rejouées à chaque démarrage. `run journal` sans
-  argument les afficherait.
-- **(b) Un battement hors journal** : une ligne unique, réécrite à chaque tick, dans `log.db`.
-  Aucun volume, mais c'est un état qui ne dérive pas du log — l'exception que l'issue interdit.
-- **(c) Un tick journalisé toutes les N minutes** (5 ?) : cinq fois moins de lignes, un runtime
-  figé vu cinq fois plus tard.
+- **(a) A `runtime.ticked` fact per tick** — recommended. The only option where the age
+  truly derives from the log. Cost: one line per minute, that is 1,440 per day and around 50 MB per year and per
+  project in a log that is never erased, replayed at every startup. `run log` with no
+  argument would display them.
+- **(b) A heartbeat outside the log**: a single line, rewritten at each tick, in `log.db`.
+  No volume, but it is a state that does not derive from the log — the exception the issue forbids.
+- **(c) A tick logged every N minutes** (5?): five times fewer lines, a frozen
+  runtime seen five times later.
 
-Sous-question tranchée : `run journal` sans argument masque les ticks ; `--ticks` les montre.
+Sub-question settled: `run log` with no argument masks ticks; `--ticks` shows them.
 
-### 2. Que vaut « budget consommé » pour un cook encore en cours ?
+### 2. What is "consumed budget" worth for a cook still running?
 
-Le journal ne connaît tours et tokens qu'à la fin (`cook.exited`). Pendant le cook, seule la
-**durée** se déduit (heure − `cook.launched`) ; le compte vit dans la mémoire du superviseur.
+The log knows turns and tokens only at the end (`cook.exited`). During the cook, only the
+**duration** can be deduced (time − `cook.launched`); the count lives in the supervisor's memory.
 
-- **(a) Un fait `cook.progressed` par cook en cours, à chaque tick** (`run`, `turns`, `tokens`) —
-  recommandé. Le chef voit tours et tokens avec une minute de retard au plus, et l'âge du relevé
-  est affiché. Coût : une ligne par minute et par cook actif ; touche `superviseur.ts` et
-  `garde-fous.ts`, voisins de #15.
-- **(b) La durée seule** au jalon 1, face aux trois plafonds ; tours et tokens n'apparaissent qu'à
-  la fin. Rien à écrire de plus, mais un cook qui brûle ses tokens ne se voit pas avant son arrêt.
-- **(c) Lire `runs/<run>.jsonl`** pour recompter en direct : exact à la seconde, mais c'est
-  calculer ailleurs que dans le log — écarté par l'issue.
+- **(a) A `cook.progressed` fact per running cook, at every tick** (`run`, `turns`, `tokens`) —
+  recommended. The chef sees turns and tokens at most a minute late, and the age of the reading is
+  displayed. Cost: one line per minute and per active cook; touches `superviseur.ts` and
+  `garde-fous.ts`, neighbours of #15.
+- **(b) The duration alone** at milestone 1, against the three caps; turns and tokens appear only at
+  the end. Nothing more to write, but a cook that burns its tokens cannot be seen before it stops.
+- **(c) Read `runs/<run>.jsonl`** to recount live: exact to the second, but it is
+  computing elsewhere than in the log — dismissed by the issue.
 
-### 3. Forme de la commande
+### 3. Form of the command
 
-Retenu : `npm --prefix runtime run status`, et
-`… run status -- --suivre [<ticket>]`, dans la lignée de `journal`, `rail` et `garde-fous`. La spec
-de stack parle de `brigade status` : un vrai binaire `brigade` qui regrouperait les quatre
-commandes serait un autre ticket.
+Retained: `npm --prefix runtime run status`, and
+`… run status -- --follow [<ticket>]`, in the line of `log`, `rail` and `guardrails`. The stack
+spec speaks of `brigade status`: a real `brigade` binary that would group the four
+commands would be another ticket.

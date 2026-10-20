@@ -1,52 +1,52 @@
-# La kitchen : tous les projets, et ceux qu'on ne pilote plus — spec (#297)
+# The kitchen: all projects, and those we no longer drive — spec (#297)
 
-**Date** : 2026-10-11
-**Statut** : décidé par le dev, **à contester en review** — l'issue, le commentaire du PO (pas de
-numéro de version) et la qualification du Manager fixaient les moyens, les trois états et les
-pièges ; ce qui restait a été tranché sans `question-spec`.
-**Issue** : #297 (jalon 6, épique #294)
+**Date**: 2026-10-11
+**Status**: decided by the dev, **to be contested in review** — the issue, the PO's comment (no
+version number) and the Manager's qualification fixed the means, the three states and the
+pitfalls; what remained was settled without `question-spec`.
+**Issue**: #297 (milestone 6, epic #294)
 
-Le comportement, tel que le chef le vit, est dans `docs/app.md` (« La kitchen ») : ce document ne
-le recopie pas.
+The behaviour, as the chef lives it, is in `docs/app.md` ("La kitchen"): this document does not
+copy it.
 
-## Ce qui a été éprouvé avant de coder
+## What was tested before coding
 
-Contre un vrai OpenSSH (client du Mac, `sshd` jetable sur `127.0.0.1`), lancé par `execFile` avec
-un délai de 3 s :
+Against a real OpenSSH (the Mac's client, a throwaway `sshd` on `127.0.0.1`), launched by `execFile`
+with a 3 s timeout:
 
-| Cas | Ce que Node rend |
+| Case | What Node returns |
 |---|---|
-| Commande distante qui pend (`sleep 60`), `ssh` connecté | `killed: true`, **`code: 255`**, pas de signal |
-| Hôte muet (`10.255.255.1`), sans `ConnectTimeout` | `killed: true`, `code: null`, `SIGTERM` |
-| Hôte muet, `ConnectTimeout=1` | `killed: false`, `code: 255`, `ssh: connect to host … Operation timed out` |
+| Remote command that hangs (`sleep 60`), `ssh` connected | `killed: true`, **`code: 255`**, no signal |
+| Silent host (`10.255.255.1`), without `ConnectTimeout` | `killed: true`, `code: null`, `SIGTERM` |
+| Silent host, `ConnectTimeout=1` | `killed: false`, `code: 255`, `ssh: connect to host … Operation timed out` |
 
-Le finding de revue de #296 est donc **vrai** : connecté, `ssh` attrape le signal du délai et sort
-de lui-même en 255. `killed && code === null` ratait ce cas, qui se lisait « code de sortie 255 ».
+The review finding of #296 is therefore **true**: once connected, `ssh` catches the timeout's signal
+and exits on its own with 255. `killed && code === null` missed this case, which read as "exit code 255".
 
-## Ce que le dev a tranché
+## What the dev settled
 
-1. **Le délai se reconnaît à `killed`, quel que soit le code**, et `ssh` reçoit
-   `ConnectTimeout=10` (le délai est de 30 s). Une box muette est alors dite par `ssh` lui-même,
-   en 255 et avec son message ; un `ssh` encore là au délai avait joint la sienne. Le délai se
-   range donc dans « joint, mais plus pilotable ».
-2. **Les trois états se lisent du seul code** : abouti → pilotable ; 255, ou `ssh` impossible à
-   lancer → pas joint ; tout autre code, ou le délai → joint, mais plus pilotable.
-3. **Les jauges sont les lignes `quota` et `machine` de `run station`.** C'est la seule commande
-   qui dit les deux à chaque fois, et que la `commande` du chef sait lancer. `arbitre` réclame
-   l'environnement de son unité (`BRIGADE_ARBITER_PORT`) et ne parle pas du quota ; `status` ne
-   dit la machine que saturée. Aucune commande n'imprime la charge mesurée hors saturation : la
-   kitchen montre un état (`tient` / `SATURÉE … charge de X pour Y`), pas un niveau.
-4. **La kitchen lance `status` puis `station`** ; l'espace d'un projet garde `status` puis `grant`
-   (#296). Conséquence assumée : un runtime sans `station` est pilotable dans son espace et « plus
-   pilotable » dans la kitchen — chaque écran rapporte ce que ses commandes ont rendu.
-5. **Les commandes d'un projet partent l'une après l'autre**, plus de front : la kitchen lit tous
-   les projets à la fois, et `sshd` refuse au hasard les connexions non encore authentifiées
-   au-delà de dix (`MaxStartups`) — ce qui se lirait « pas joint », à tort.
-6. **Le bloc d'un projet est la sortie entière de `status`**, pas un résumé (qualification :
-   « pas un second résumé »). Le coup d'œil tient à l'en-tête d'état et à ce que `status` met en
-   tête ; pour deux à cinq projets, la page défile.
-7. **Le geste nommé** est la mise à jour du runtime (`docs/runtime.md`, « Piloter »), toujours le
-   même : l'app ne choisit pas un geste selon une cause qu'elle ne connaît pas.
-8. **L'app s'ouvre sur la kitchen**, à la place de « Choisis un projet dans la barre ».
-9. **L'en-tête du panneau d'un projet dit les mêmes trois états** que la kitchen : une seule
-   fonction de rendu pour les deux.
+1. **The timeout is recognised by `killed`, whatever the code**, and `ssh` receives
+   `ConnectTimeout=10` (the timeout is 30 s). A silent box is then reported by `ssh` itself,
+   with 255 and its message; an `ssh` still there at the timeout had reached its box. The timeout is
+   therefore filed under "reached, but no longer drivable".
+2. **The three states are read from the code alone**: succeeded → drivable; 255, or `ssh` impossible to
+   launch → not reached; any other code, or the timeout → reached, but no longer drivable.
+3. **The gauges are the `quota` and `machine` lines of `run station`.** It is the only
+   command that reports both every time, and that the chef's `commande` can launch. `arbiter` requires
+   its unit's environment (`BRIGADE_ARBITER_PORT`) and does not talk about the quota; `status` only
+   reports the machine when saturated. No command prints the measured load outside saturation: the
+   kitchen shows a state (`holds` / `SATURATED … load of X for Y`), not a level.
+4. **The kitchen launches `status` then `station`**; a project's space keeps `status` then `grant`
+   (#296). Accepted consequence: a runtime without `station` is drivable in its space and "no longer
+   drivable" in the kitchen — each screen reports what its commands returned.
+5. **A project's commands go one after the other**, no longer in parallel: the kitchen reads all
+   projects at once, and `sshd` randomly refuses connections not yet authenticated
+   beyond ten (`MaxStartups`) — which would read "not reached", wrongly.
+6. **A project's block is the entire output of `status`**, not a summary (qualification:
+   "not a second summary"). The glance comes down to the state header and what `status` puts
+   first; for two to five projects, the page scrolls.
+7. **The named action** is the runtime update (`docs/runtime.md`, "Piloter"), always the
+   same: the app does not choose an action according to a cause it does not know.
+8. **The app opens on the kitchen**, in place of "Choisis un projet dans la barre".
+9. **The header of a project's panel says the same three states** as the kitchen: a single
+   rendering function for both.

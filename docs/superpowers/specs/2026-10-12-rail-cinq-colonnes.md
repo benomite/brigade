@@ -1,51 +1,51 @@
-# Le rail de l'app en cinq colonnes — spec (#370)
+# The app's rail in five columns — spec (#370)
 
-**Date** : 2026-10-12
-**Statut** : décidé par le dev sur les critères de l'issue et la décision du PO en commentaire de
-#360, **à contester en review** — aucune décision produit n'est restée ouverte.
-**Issue** : #370 (suite de #360, épique #294 ; écran `docs/maquettes/app/Brigade.dc.html`)
+**Date**: 2026-10-12
+**Status**: decided by the dev on the issue's criteria and the PO's decision in a comment on
+#360, **to be contested in review** — no product decision was left open.
+**Issue**: #370 (follow-up to #360, epic #294; screen `docs/maquettes/app/Brigade.dc.html`)
 
-Le comportement, tel que le chef le vit, est dans `docs/app.md` (« Le rail », « Le numéro qu'elle y
-lit ») : ce document ne le recopie pas.
+The behaviour, as the chef lives it, is in `docs/app.md` ("Le rail", "Le numéro qu'elle y
+lit"): this document does not copy it.
 
-## Ce que le dev a tranché
+## What the dev settled
 
-1. **Le contrat de plus tient en une forme** : deux espaces, `#`, des chiffres, deux espaces ou la
-   fin de la ligne. Rien d'autre n'est lu d'une ligne du bloc — ni `depuis`, ni le motif, ni le
-   titre. Le reste de la ligne est posé sur la carte, mot pour mot.
-2. **Le test qui le tient fait écrire le bloc par le runtime** : `app/test/attend.test.ts` appelle
-   `decrireAttentes` (`runtime/src/attend.ts`) avec une attente de chaque sorte. Un test de l'app
-   importe donc un module du runtime — rien ne s'ajoute au runtime, et un changement de la tête
-   d'une entrée rougit les gates de celui qui le fait.
-3. **Une ligne sans numéro n'est dans aucune colonne** (la station sans connexion Max, le bilan
-   faute de grant) : elle reste dans le bloc mis à part, à droite.
-4. **Un ticket que le bloc nomme et que `faits` ne rend pas** (issue écartée, épique en question)
-   a sa carte dans T'attend : numéro et ligne, sans titre ni état, et sans lien — `faits` ne donne
-   pas son adresse, et l'app n'en compose aucune.
-5. **Un `86` qui ne t'attend pas, et un mot d'état inconnu, se lisent sous les colonnes**, sous
-   `hors des cinq colonnes` : aucun ticket que `faits` rend ne disparaît du dessin.
-6. **T'attend dit quand elle n'est pas lue** (`?`) : `faits` et `status` sont deux lectures, et la
-   seconde peut manquer. Les tickets restent alors dans la colonne de leur mot d'état. Une lecture
-   de `status` ratée ou sans bord retire le bloc d'avant.
-7. **Le rangement se fait dans le process principal** (`faits.ts`, `rail`), qui tient le dernier
-   bloc de chaque projet à côté de ses faits et renvoie le tableau à la vue quand l'un des deux
-   change : la vue pose, elle ne range rien.
+1. **The extra contract comes down to one form**: two spaces, `#`, digits, two spaces or the
+   end of the line. Nothing else is read from a line of the block — neither `depuis`, nor the reason, nor the
+   title. The rest of the line is placed on the card, word for word.
+2. **The test that holds it has the runtime write the block**: `app/test/attend.test.ts` calls
+   `decrireAttentes` (`runtime/src/attend.ts`) with one wait of each kind. An app test
+   therefore imports a runtime module — nothing is added to the runtime, and a change to the head
+   of an entry turns the gates red for whoever makes it.
+3. **A line without a number is in no column** (the station without a Max connection, the bilan
+   for want of a grant): it stays in the separate block, on the right.
+4. **A ticket that the block names and that `faits` does not return** (dropped issue, epic in question)
+   has its card in Awaiting you: number and line, without title or state, and without a link — `faits` does not give
+   its address, and the app composes none.
+5. **An `86` that is not awaiting you, and an unknown state word, are read under the columns**, under
+   `hors des cinq colonnes`: no ticket that `faits` returns disappears from the drawing.
+6. **Awaiting you says when it is not read** (`?`): `faits` and `status` are two readings, and the
+   second may be missing. The tickets then stay in the column of their state word. A reading
+   of `status` that failed or has no edge removes the previous block.
+7. **The sorting is done in the main process** (`faits.ts`, `rail`), which holds the last block of
+   each project next to its facts and returns the board to the view when either
+   changes: the view places, it sorts nothing.
 
-## Comparé à l'écran dessiné
+## Compared to the drawn screen
 
-| Dessiné | Livré |
+| Drawn | Delivered |
 |---|---|
-| cinq colonnes, leur nom, un point de couleur, un compte | de même ; le compte est celui des cartes |
-| une carte : numéro, méta, titre, tags, pied | numéro, mot d'état à la place du méta, titre ; le pied n'existe que dans T'attend (la ligne du bloc) ; **pas de tags** (décision du PO) |
-| la carte entière est un lien, vers le direct du cook | seul le numéro ouvre, sur l'issue : le direct d'un cook est au parking |
-| couleurs des colonnes (vert pour Au travail, bleu pour Pass, orange pour T'attend) | celles des mots d'état déjà posées par #346 (bleu, jaune ; rouge pour T'attend) : un thème est hors scope |
-| colonnes de 200 px au moins, la zone défile | 104 px au moins (160 pour T'attend) : les cinq tiennent à côté du panneau de droite à la taille d'ouverture |
-| cartes claires sur fond sombre | la peau actuelle de l'app |
-| à droite : questions avec boutons, grants, poids ; au-dessus : épiques | hors scope |
+| five columns, their name, a coloured dot, a count | the same; the count is that of the cards |
+| a card: number, meta, title, tags, footer | number, state word in place of the meta, title; the footer exists only in Awaiting you (the block's line); **no tags** (PO's decision) |
+| the whole card is a link, to the cook's live view | only the number opens, on the issue: a cook's live view is in the parking |
+| column colours (green for Taken, blue for Pass, orange for Awaiting you) | those of the state words already set by #346 (blue, yellow; red for Awaiting you): a theme is out of scope |
+| columns of at least 200 px, the area scrolls | at least 104 px (160 for Awaiting you): the five fit next to the right-hand panel at the opening size |
+| light cards on a dark background | the app's current skin |
+| on the right: questions with buttons, grants, weights; above: epics | out of scope |
 
-## Ce qui a été éprouvé
+## What was tested
 
 - `npm --prefix app test`, `npm --prefix app run typecheck`.
-- L'app lancée avec un faux `claude` et un faux `ssh` qui rend un `faits` et un `status` : l'onglet
-  Rail relevé (texte et capture) — cinq colonnes, #21 et #12 passés dans T'attend, #30 sans lien,
-  #40 (`86`) sous les colonnes, la ligne `claude` dans le seul bloc de droite.
+- The app launched with a fake `claude` and a fake `ssh` that returns a `faits` and a `status`: the Rail
+  tab inspected (text and screenshot) — five columns, #21 and #12 moved into Awaiting you, #30 without a link,
+  #40 (`86`) under the columns, the `claude` line in the right-hand block alone.

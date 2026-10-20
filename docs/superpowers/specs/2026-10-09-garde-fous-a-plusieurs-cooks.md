@@ -1,86 +1,86 @@
-# Les garde-fous et l'état de la cuisine à plusieurs cooks — spec et plan (#100)
+# The guardrails and the kitchen state with several cooks — spec and plan (#100)
 
-**Date** : 2026-10-09
-**Statut** : décidé — les décisions produit ci-dessous sont celles de l'orchestrateur (réponse du
-2026-10-09 au `question-spec #100`) ; « Ce que le dev a tranché » est contestable en review
-**Issue** : #100 « Les garde-fous et l'état de la cuisine tiennent à plusieurs cooks » — épique
-#101, jalon 4 ; plus le critère ajouté en commentaire, tiré de #98
-**S'appuie sur** : `2026-10-08-garde-fous.md`, `2026-10-08-runtime-status.md`,
-`2026-10-08-bail-progres-observable.md`, `2026-10-09-plusieurs-cooks.md`. Ce document ne redécide
-rien de ce qui y figure.
+**Date**: 2026-10-09
+**Status**: decided — the product decisions below are the orchestrator's (answer of
+2026-10-09 to `question-spec #100`); "What the dev settled" can be contested in review
+**Issue**: #100 "The guardrails and the kitchen state hold with several cooks" — epic
+#101, milestone 4; plus the criterion added in a comment, taken from #98
+**Builds on**: `2026-10-08-garde-fous.md`, `2026-10-08-runtime-status.md`,
+`2026-10-08-bail-progres-observable.md`, `2026-10-09-plusieurs-cooks.md`. This document redecides
+nothing of what appears in them.
 
-Le comportement, tel que le chef le vit, est dans `docs/runtime.md` (« D'affilée, à plusieurs
-cooks », « Plusieurs cooks à la fois », « Voir la station », « L'état de la cuisine ») : c'est la
-doc vivante, ce document ne la recopie pas.
+The behaviour, as the chef lives it, is in `docs/runtime.md` ("D'affilée, à plusieurs
+cooks", "Plusieurs cooks à la fois", "Voir la station", "L'état de la cuisine"): it is the
+living doc, this document does not copy it.
 
 ---
 
-## Décisions produit
+## Product decisions
 
-1. **« D'affilée » se compte dans l'ordre des lancements.** Une réussite n'efface que les échecs
-   des cooks lancés avant elle. Seuil inchangé (3), indépendant du nombre de cooks. Jugements et
-   relectures comptent au même compteur ; l'exception de la relance du manager (jugée par la pass)
-   est conservée. Conséquence assumée, écrite dans la doc : sur trente, les trois derniers lancés
-   qui échouent ouvrent le disjoncteur.
-2. **« Coince » dès la moitié du bail sans progrès** : nommé sur la ligne `cooks` de `status`,
-   lignes triées le pire en tête, `cook.stalled` une fois par épisode. Rien n'est arrêté plus tôt.
-   Pas de réglage, pas de repli des lignes.
-3. **Une ligne `consommé`**, dans `status` et dans `run station` : les cooks en cours, les 5
-   dernières heures glissantes (la fenêtre du quota Max), les 24 dernières. Jugements et relectures
-   compris, avec leur nombre.
+1. **"In a row" is counted in launch order.** A success only erases the failures
+   of the cooks launched before it. Threshold unchanged (3), independent of the number of cooks. Judgments
+   and reviews count in the same counter; the exception for the manager's relaunch (judged by the pass)
+   is kept. Consequence accepted, written in the doc: out of thirty, the last three launched
+   that fail open the breaker.
+2. **"Stuck" from half the lease without progress**: named on the `cooks` line of `status`,
+   lines sorted worst first, `cook.stalled` once per episode. Nothing is stopped earlier.
+   No setting, no folding of the lines.
+3. **A `consumed` line**, in `status` and in `run station`: the cooks in flight, the last 5
+   rolling hours (the Max quota window), the last 24. Judgments and reviews
+   included, with their count.
 
-## Critères, et ce qui les porte
+## Criteria, and what carries them
 
-| Critère | Ce qui le porte |
+| Criterion | What carries it |
 |---|---|
-| Le disjoncteur compte les échecs de tous les cooks | `cook_runs.judgment` / `judged_seq`, `guard_state.resumed_seq` ; `failures` recalculé à chaque verdict : les échecs jugés depuis le dernier « reprendre », parmi les cooks lancés après le dernier lancement réussi |
-| Le « stop » arrête tous les cooks, aucun ne repart | déjà là (`kitchen.stopped` consommé au réveil, refus au lancement) ; éprouvé à quatre cooks, et la station dit `stopped` pour le ticket rendu |
-| `status` lisible à N, le chef voit lequel coince | `coince` (mi-bail, lu au rail), l'alerte de la ligne `cooks`, `trierCooks` |
-| Temps sans progrès par cook, signalé sans qu'on le demande | déjà par cook dans `status` ; `cook.stalled` écrit par le regard de la station, et une ligne `journalctl` |
-| Relevé de consommation agrégé | `consommation(base, depuis)` sur `cook_runs` (qui garde désormais station, tours et tokens de fin) et `cook_progress` |
-| Plafonds par cook, non partagés | déjà là : un superviseur par cook (test « un cook qui dépasse un plafond n'emporte pas les autres », #98) |
-| Un ticket retenu par la station se lit, avec la raison (#98) | `station.held` / `station.released` ; `heldAt`, `heldReason` dans la projection des stations ; `rail.servables` |
+| The breaker counts the failures of all cooks | `cook_runs.judgment` / `judged_seq`, `guard_state.resumed_seq`; `failures` recomputed at every verdict: the failures judged since the last "resume", among the cooks launched after the last successful launch |
+| The "stop" stops all cooks, none restarts | already there (`kitchen.stopped` consumed at wake-up, refusal at launch); tested at four cooks, and the station says `stopped` for the returned ticket |
+| `status` readable at N, the chef sees which is stuck | `coince` (half-lease, read at the rail), the alert of the `cooks` line, `trierCooks` |
+| Time without progress per cook, reported without being asked | already per cook in `status`; `cook.stalled` written by the station's watch, and a `journalctl` line |
+| Aggregated consumption report | `consommation(base, depuis)` on `cook_runs` (which now keeps station, turns and tokens at the end) and `cook_progress` |
+| Caps per cook, not shared | already there: one supervisor per cook (test "a cook that exceeds a cap does not take the others with it", #98) |
+| A ticket withheld by the station reads, with the reason (#98) | `station.held` / `station.released`; `heldAt`, `heldReason` in the stations projection; `rail.servables` |
 
-## Ce que le dev a tranché
+## What the dev settled
 
-- **Le verdict d'un cook est daté de son lancement, sa prise en compte de son jugement.** Un échec
-  jugé avant le dernier « reprendre » ne compte plus ; un cook lancé avant et qui échoue après
-  compte — le chef a repris, et cet échec-là est neuf.
-- **`status` ne lit pas `cook.stalled`** : il calcule le milieu du bail au rail (`leaseUntil` et
-  `progressedAt`), donc à la seconde et sans dépendre du tick. Le fait, lui, part au regard suivant
-  de la station — un dixième de bail plus tard au plus. Les deux partagent `PART_SANS_PROGRES`.
-- **La retenue s'écrit sur ses transitions, et seulement si un ticket attend.** `rail.servables`
-  compte ce que `prendre` donnerait : sans lui, une station au plafond devant un rail vide écrirait
-  une retenue qui ne retient personne. Toutes les raisons y passent, pas seulement les quatre du
-  critère : « stop », disjoncteur, quota et connexion retiennent aussi un ticket.
-- **Une fenêtre du relevé compte les cooks finis dedans, en entier.** Répartir la consommation d'un
-  cook sur sa durée demanderait de garder chaque relevé ; le chef compare un ordre de grandeur à
-  `/usage`, pas une facture.
-- **`consommé` vit dans la projection des garde-fous**, pas dans celle des sessions que pointait
-  l'issue : c'est `cook_runs` qui connaît tous les lancements, jugements et relectures compris.
+- **A cook's verdict is dated from its launch, its being taken into account from its judgment.** A failure
+  judged before the last "resume" no longer counts; a cook launched before and failing after
+  counts — the chef resumed, and that failure is new.
+- **`status` does not read `cook.stalled`**: it computes the middle of the lease at the rail (`leaseUntil` and
+  `progressedAt`), so to the second and without depending on the tick. The fact itself goes out at the station's next
+  watch — one tenth of a lease later at most. The two share `PART_SANS_PROGRES`.
+- **The hold is written on its transitions, and only if a ticket waits.** `rail.servables`
+  counts what `prendre` would give: without it, a station at the cap facing an empty rail would write
+  a hold that holds nobody. All the reasons go through it, not only the four of the
+  criterion: "stop", breaker, quota and connection also hold a ticket.
+- **A report window counts the cooks finished within it, in full.** Spreading a cook's consumption
+  over its duration would require keeping each reading; the chef compares an order of magnitude to
+  `/usage`, not an invoice.
+- **`consumed` lives in the guardrails projection**, not in the sessions one that the issue pointed to:
+  `cook_runs` is what knows all launches, judgments and reviews included.
 
-## Ce que la revue a fait changer (renvoi 1, 2026-10-09)
+## What the review changed (return 1, 2026-10-09)
 
-- **Aucun index dans le schéma de la projection.** `ouvrirJournal` joue le schéma avant que le
-  runtime ne rejoue le journal : sur un `log.db` existant, `CREATE TABLE IF NOT EXISTS` laissait
-  `cook_runs` à son ancienne forme et l'index sur `judgment` faisait échouer le démarrage. Les deux
-  index sont retirés — la table se parcourt en millisecondes —, et un test ouvre un journal à
-  l'ancienne forme.
-- **La retenue est levée à l'arrêt du runtime** (`station.released`) : `status` n'affiche plus la
-  retenue d'une station qui n'est plus là.
+- **No index in the projection's schema.** `ouvrirJournal` plays the schema before the
+  runtime replays the log: on an existing `log.db`, `CREATE TABLE IF NOT EXISTS` left
+  `cook_runs` in its old shape and the index on `judgment` made startup fail. Both
+  indexes are removed — the table scans in milliseconds —, and a test opens a log in the old
+  shape.
+- **The hold is lifted when the runtime stops** (`station.released`): `status` no longer shows
+  the hold of a station that is no longer there.
 
-## Hors périmètre
+## Out of scope
 
-Alerte hors du Mac (#67). Plafond de cooks et son réglage (#98). Intégration de livraisons
-concurrentes (#99). Jauge de quota (#63).
+Alert outside the Mac (#67). Cooks cap and its setting (#98). Integration of concurrent
+deliveries (#99). Quota gauge (#63).
 
 ## Plan
 
-1. Projection des garde-fous : verdicts datés, compte dans l'ordre des lancements, `consommation`.
-2. Faits de station : `station.held`, `station.released`, `cook.stalled` ; projection des stations.
-3. Rail : `servables`. Station : `ceQuiRetient`, transitions de retenue, signal de mi-bail.
-4. `status` : `COINCE` à mi-bail, alerte et tri des cooks, retenues, `consommé`. `run station` :
-   `retenue`, `consommé`.
-5. Tests : projections et rendu sans sous-process ; pour la station, des assertions ajoutées aux
-   tests existants plutôt que des cuisines de plus — les gates ont un plafond de processeur.
-6. Doc vivante : `docs/runtime.md`.
+1. Guardrails projection: dated verdicts, count in launch order, `consommation`.
+2. Station facts: `station.held`, `station.released`, `cook.stalled`; stations projection.
+3. Rail: `servables`. Station: `ceQuiRetient`, hold transitions, half-lease signal.
+4. `status`: `STUCK` at half-lease, alert and sorting of cooks, holds, `consumed`. `run station`:
+   `withholding`, `consumed`.
+5. Tests: projections and rendering without a subprocess; for the station, assertions added to the existing
+   tests rather than more kitchens — the gates have a processor cap.
+6. Living doc: `docs/runtime.md`.

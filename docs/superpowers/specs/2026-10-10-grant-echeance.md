@@ -1,130 +1,131 @@
-# Un grant porte une échéance, et s'éteint seul — spec (#256)
+# A grant carries an expiry, and lapses on its own — spec (#256)
 
-**Date** : 2026-10-10
-**Statut** : décidé par le Manager, **à valider par le PO après coup** — les six décisions produit
-ci-dessous sont les recommandations du dev (`question-spec #256` du 2026-10-10), retenues telles
-quelles par l'orchestrateur le même jour, sans le PO ; « Ce que le dev a tranché » est contestable
-en review
-**Issue** : #256 « Un grant porte une échéance, et s'éteint seul » (jalon 3, épique #254)
-**S'appuie sur** : `2026-10-08-pass-et-grant-merge.md` (le grant comme faits au journal, l'intention
-`grant.used` écrite avant le merge, la réconciliation au réveil).
+**Date**: 2026-10-10
+**Status**: decided by the Manager, **to be validated by the PO after the fact** — the six product
+decisions below are the dev's recommendations (`question-spec #256` of 2026-10-10), adopted as
+they stood by the orchestrator the same day, without the PO; "What the dev settled" can be
+challenged in review
+**Issue**: #256 "A grant carries an expiry, and lapses on its own" (milestone 3, epic #254)
+**Builds on**: `2026-10-08-pass-et-grant-merge.md` (the grant as facts in the log, the `grant.used`
+intent written before the merge, reconciliation on wake-up).
 
-Le comportement, tel que le chef le vit, est dans `docs/runtime.md`, « Le grant `merge` » et le bloc
-`grant` de `status` : c'est la doc vivante, ce document ne la recopie pas.
+The behavior, as the chef experiences it, is in `docs/runtime.md`, "The `merge` grant" and the
+`grant` block of `status`: that is the living doc, this document does not copy it.
 
 ---
 
-## Ce qui était vrai avant de coder
+## What was true before coding
 
-Établi à la lecture de `runtime/src/grant-cli.ts`, `pass.ts` (`decider`) et `projections/pass.ts` :
+Established by reading `runtime/src/grant-cli.ts`, `pass.ts` (`decider`) and
+`projections/pass.ts`:
 
-- Le grant est une ligne de la table `grants` (`action`, `active`, `since`, `by`), projetée de deux
-  faits : `grant.activated` et `grant.revoked`. Rien n'y porte de fin.
-- La pass lit `grantActif` **dans la transaction** qui écrit l'intention de merger (`grant.used`),
-  et une seconde fois au retour de la rencontre avec la base (`decider` se rappelle lui-même) :
-  « à la décision suivante » est donc déjà le seul endroit où le grant compte.
-- `grant.used` est l'**intention**, pas l'usage : le résultat s'écrit ensuite (`merge.done`,
-  `merge.failed`) et se range sur la ligne de `grant_uses` restée sans `outcome`.
-- La pass reçoit son horloge (`options.maintenant`), le journal la sienne : aucun test n'a besoin
-  d'attendre.
-- `grant` et `status` ouvrent le journal **en lecture seule** : ils ne peuvent rien y écrire, et ne
-  doivent pas le pouvoir.
-- `status` ne dit rien du grant aujourd'hui.
+- The grant is a row of the `grants` table (`action`, `active`, `since`, `by`), projected from two
+  facts: `grant.activated` and `grant.revoked`. Nothing in it carries an end.
+- The pass reads `grantActif` **inside the transaction** that writes the intent to merge
+  (`grant.used`), and a second time when it comes back from the meeting with the base (`decider`
+  calls itself again): "at the next decision" is therefore already the only place where the grant
+  counts.
+- `grant.used` is the **intent**, not the use: the result is written afterwards (`merge.done`,
+  `merge.failed`) and is filed on the `grant_uses` row left without an `outcome`.
+- The pass receives its clock (`options.maintenant`), the log has its own: no test needs to wait.
+- `grant` and `status` open the log **read-only**: they cannot write anything to it, and must not
+  be able to.
+- `status` says nothing about the grant today.
 
-## Décisions prises sans le PO
+## Decisions made without the PO
 
-Les six sont à relire d'un bloc par le PO : aucune n'était écrite dans l'issue.
+The six are to be reviewed as a whole by the PO: none was written in the issue.
 
-1. **La forme de l'échéance.** Trois options, sur `activer` comme sur `prolonger` :
-   `--jusqu-a <date ou heure>` (`2026-10-12T18:00`, `2026-10-12` = fin de cette journée, `18h30` =
-   aujourd'hui, heure locale de la machine), `--pour <durée>` (`4h`, `2j`, `30min` — traduite en
-   date à l'écriture), `--usages <n>`. Une heure déjà passée aujourd'hui est **refusée**, pas
-   reportée au lendemain. Sans option : sans échéance, comme aujourd'hui.
-2. **Date et usages ensemble** : permis. Le premier atteint éteint, et le fait d'extinction dit
-   lequel.
-3. **`prolonger`** ne vaut que sur un grant actif. `--jusqu-a` / `--pour` posent une nouvelle
-   échéance (`--pour 2h` : deux heures à partir de maintenant) ; `--usages N` ajoute N aux usages
-   restants ; `--sans-echeance` la lève. Une date plus proche que l'actuelle est refusée :
-   raccourcir, c'est révoquer. `activer` sur un grant déjà actif n'écrit rien et renvoie à
-   `prolonger`.
-4. **Le décompte.** Une intention de merge sans résultat **réserve** un usage ; refusée par GitHub,
-   elle le rend ; mergée, elle le consomme. Un merge fait à la main par le chef ne consomme rien ;
-   un merge de la pass réconcilié après un arrêt consomme. **Précisé en revue de la PR #274** :
-   ce qui consomme est une intention de la pass conclue par un merge, quel que soit le compte que
-   GitHub nomme — une PR trouvée mergée alors qu'une intention était en vol consomme, même si le
-   merge se lit `outside`. « À la main » s'entend donc : sans intention de la pass.
-5. **Après l'extinction.** `status` garde une ligne tant que l'état du grant est « éteint seul », et
-   se tait pour un grant absent ou révoqué. Une livraison verte arrivée après garde le motif
-   `no-grant` au journal ; son commentaire d'issue et sa ligne de file disent que le grant s'est
-   éteint, et quand.
-6. **« Bientôt éteint ».** À moins d'une heure de l'échéance, ou quand il ne reste qu'un usage.
+1. **The shape of the expiry.** Three options, on `enable` as on `extend`:
+   `--until <date or time>` (`2026-10-12T18:00`, `2026-10-12` = the end of that day, `18h30` =
+   today, local time of the machine), `--for <duration>` (`4h`, `2d`, `30min` — translated into a
+   date at write time), `--uses <n>`. A time already past today is **refused**, not pushed to the
+   next day. With no option: no expiry, as today.
+2. **Date and uses together**: allowed. Whichever is reached first lapses the grant, and the
+   lapse fact says which.
+3. **`extend`** only applies to an active grant. `--until` / `--for` set a new expiry (`--for 2h`:
+   two hours from now); `--uses N` adds N to the remaining uses; `--no-expiry` lifts it. A date
+   closer than the current one is refused: shortening is revoking. `enable` on an already active
+   grant writes nothing and points to `extend`.
+4. **The count.** A merge intent without a result **reserves** a use; refused by GitHub, it gives
+   it back; merged, it consumes it. A merge done by hand by the chef consumes nothing; a pass
+   merge reconciled after a stop consumes. **Clarified in review of PR #274**: what consumes is a
+   pass intent concluded by a merge, whichever account GitHub names — a PR found merged while an
+   intent was in flight consumes, even if the merge reads `outside`. "By hand" therefore means:
+   without a pass intent.
+5. **After the lapse.** `status` keeps a line as long as the grant's state is "lapsed", and stays
+   silent for an absent or revoked grant. A green delivery arriving afterwards keeps the
+   `no-grant` reason in the log; its issue comment and its queue line say the grant lapsed, and
+   when.
+6. **"Expiring soon".** Less than an hour from the expiry, or when only one use is left.
 
-| Critère de l'issue | Ce qui le porte |
+| Issue criterion | What carries it |
 |---|---|
-| Accorder avec une échéance ; sans échéance reste possible | `activer merge [--jusqu-a … \| --pour …] [--usages n]` ; `grant.activated` porte `until` et `uses` |
-| S'éteint seul, à la décision suivante | L'état effectif se calcule à l'heure de la lecture ; la pass le lit dans sa transaction de décision |
-| Extinction écrite, distincte d'une révocation | `grant.expired`, avec sa cause ; `ÉTEINT SEUL` contre `RÉVOQUÉ` |
-| `grant` affiche ce qu'il reste | `direGrant`, sur l'état effectif : le temps, les usages, ou « sans échéance » |
-| Décompte sur l'usage | Les usages restants se comptent sur le `merge.done` de la pass, pas sur `grant.used` |
-| Prolonger sans révoquer, l'historique le dit | `grant.extended` ; « derniers gestes » de `grant` |
-| `status` le dit sans qu'on le demande | Le bloc `grant` de l'en-tête ; `BIENTÔT ÉTEINT` à moins d'une heure ou au dernier usage |
-| Expiré runtime arrêté : expiré au redémarrage | L'état effectif ne dépend pas d'un fait écrit ; la pass écrit `grant.expired` avant toute décision |
+| Grant with an expiry; no expiry stays possible | `enable merge [--until … \| --for …] [--uses n]`; `grant.activated` carries `until` and `uses` |
+| Lapses on its own, at the next decision | The effective state is computed at read time; the pass reads it in its decision transaction |
+| Lapse written, distinct from a revocation | `grant.expired`, with its cause; `LAPSED` versus `REVOKED` |
+| `grant` shows what is left | `direGrant`, on the effective state: the time, the uses, or "no expiry" |
+| Count on use | Remaining uses are counted on the pass's `merge.done`, not on `grant.used` |
+| Extend without revoking, the history says so | `grant.extended`; "latest actions" of `grant` |
+| `status` says it without being asked | The `grant` block of the header; `EXPIRING SOON` within an hour or at the last use |
+| Expired with the runtime stopped: expired at restart | The effective state does not depend on a written fact; the pass writes `grant.expired` before any decision |
 
-## Ce que le dev a tranché
+## What the dev settled
 
-- **Trois faits, aucun état à côté.**
-  - `grant.activated` : `{ action, until?, uses? }` — un fait d'avant ce ticket, sans ces champs,
-    se lit « sans échéance ». Une limite écrite mais illisible ne fait pas un grant sans fin : elle
-    est déjà atteinte.
-  - `grant.extended` : `{ action, until?: string | null, uses?: number | null }` — `uses` est ce
-    qui **s'ajoute** ; nuls, la limite est levée ; absents, elle ne change pas. Sans effet sur un
-    grant qui n'est pas actif.
-  - `grant.expired` : `{ action, cause: "until" | "uses", since }` — `since` est l'échéance réelle,
-    pas l'heure où quelqu'un l'a constatée ; pour un grant à usages, l'instant du dernier merge.
-- **L'extinction est un état calculé avant d'être un fait écrit.** `etatDuGrant(base, action,
-  maintenant)` rend l'état **effectif**, et prend l'heure en argument obligatoire : aucun lecteur
-  ne peut l'oublier. Un grant dont l'échéance est passée est éteint pour tous, que `grant.expired`
-  soit au journal ou non (`unrecorded`). La sûreté ne tient donc à aucune écriture.
-- **Qui écrit `grant.expired`.** La pass, en tête de chaque passage (donc au démarrage, avant toute
-  décision, et au plus tard au tick) et dans la transaction qui écrit un `merge.done`. Le fait rend
-  le grant inactif : le constat suivant ne trouve plus rien, il ne s'écrit qu'une fois. `grant` nu
-  et `status` ouvrent le journal en lecture seule et n'écrivent jamais. **Écart avec ce que j'avais
-  annoncé au `question-spec`** (« seul le runtime l'écrit ») : les commandes du chef qui écrivent
-  déjà (`activer`, `prolonger`, `revoquer`) l'écrivent aussi, dans leur propre transaction, avant
-  leur fait — sans quoi un `activer` tapé entre l'échéance et le tick recouvrirait l'extinction, et
-  l'histoire ne la dirait jamais. Ce fait-là porte l'auteur `runtime`, pas `chef` : ce n'est pas
-  son geste.
-- **Les usages.** `uses_left` est une colonne de `grants`, décrémentée par la projection quand un
-  merge conclut une intention restée sans résultat, **née sous le grant en cours** (`granted_seq`) :
-  un merge voulu sous un grant révoqué depuis ne prend rien à celui qui l'a remplacé. Le champ `by`
-  du merge n'y entre pas : sans identité propre, la pass ne sait pas toujours se reconnaître. Les
-  réservations ne sont pas stockées : ce sont les lignes de `grant_uses` sans résultat, comptées à
-  la lecture.
-- **Une intention se conclut toujours** (revue de la PR #274). `merge.done` la consomme,
-  `merge.failed` la rend ; un ticket parti du rail la conclut quand la pass lâche sa livraison
-  (`pass.abandoned`, qui porte `merged` quand GitHub dit la PR mergée), ou au départ même s'il n'y
-  a rien à lâcher ; une PR que GitHub ne connaît plus est traitée comme non mergée. Un refus de
-  GitHub sur une PR trouvée mergée n'écrit plus `merge.failed` avant `merge.done` : l'intention se
-  conclut sur le merge.
-- **Tous les usages restants retenus par des merges en vol** : la décision n'écrit rien — ni fait,
-  ni commentaire ; journald le dit une fois par livraison — et se reprend au réveil suivant, la livraison restant verte. Pas de nouveau
-  motif d'attente : l'état dure le temps d'une réconciliation, un tick au plus.
-- **Le motif d'arrêt ne change pas** (`no-grant`) : `pass.held` porte en plus `expired`, l'instant
-  de l'extinction, rangé dans une colonne de la pass (`grant_expired`). C'est lui que lisent le
-  commentaire d'issue, la file de `status` et `pass -- <ticket>`. Réaccorder le grant ne réécrit
-  pas ces lignes : elles disent ce qui était vrai à l'arrêt.
-- **Les dates se lisent en ISO 8601 UTC**, comme partout ailleurs dans le runtime, avec la durée
-  restante à côté. Ce que le chef tape (`18h`) est à l'heure de la machine ; ce qu'il relit est
-  l'instant UTC et « encore 3 h 31 ». C'est le point le plus discutable du rendu : une heure locale
-  à l'affichage serait plus douce, mais ce serait la seule du runtime.
-- **`src/grant.ts`** porte tout ce qui se teste en processus avec une heure donnée (l'analyse de
-  l'échéance, les gestes, les formulations) ; `src/grant-cli.ts` n'est plus qu'une façade.
-- **Les tests** : en processus pour la projection, l'échéance tapée, les gestes, la file et
-  `status` ; quatre sur la pass avec sa cuisine ; trois sur la CLI dans un vrai Node (ses
-  arguments, ses codes de sortie, sa lecture seule).
+- **Three facts, no state on the side.**
+  - `grant.activated`: `{ action, until?, uses? }` — a fact from before this ticket, without these
+    fields, reads as "no expiry". A limit that is written but unreadable does not make a grant
+    without end: it is already reached.
+  - `grant.extended`: `{ action, until?: string | null, uses?: number | null }` — `uses` is what
+    is **added**; null, the limit is lifted; absent, it does not change. No effect on a grant that
+    is not active.
+  - `grant.expired`: `{ action, cause: "until" | "uses", since }` — `since` is the real expiry,
+    not the time someone noticed it; for a grant with uses, the instant of the last merge.
+- **The lapse is a computed state before it is a written fact.** `etatDuGrant(base, action,
+  maintenant)` returns the **effective** state, and takes the time as a mandatory argument: no
+  reader can forget it. A grant whose expiry has passed is lapsed for everyone, whether
+  `grant.expired` is in the log or not (`unrecorded`). Safety therefore rests on no write.
+- **Who writes `grant.expired`.** The pass, at the head of each run (so at startup, before any
+  decision, and at the latest at the tick) and in the transaction that writes a `merge.done`. The
+  fact makes the grant inactive: the next check finds nothing, so it is written only once. Bare
+  `grant` and `status` open the log read-only and never write. **A departure from what I had
+  announced at the `question-spec`** ("only the runtime writes it"): the chef's commands that
+  already write (`enable`, `extend`, `revoke`) write it too, in their own transaction, before
+  their own fact — otherwise an `enable` typed between the expiry and the tick would overwrite the
+  lapse, and the history would never say it. That fact carries the author `runtime`, not `chef`:
+  it is not his action.
+- **The uses.** `uses_left` is a column of `grants`, decremented by the projection when a merge
+  concludes an intent left without a result, **born under the current grant** (`granted_seq`): a
+  merge intended under a since-revoked grant takes nothing from the one that replaced it. The
+  merge's `by` field does not enter into it: without an identity of its own, the pass cannot
+  always recognize itself. Reservations are not stored: they are the `grant_uses` rows without a
+  result, counted at read time.
+- **An intent is always concluded** (review of PR #274). `merge.done` consumes it, `merge.failed`
+  gives it back; a ticket that left the rail concludes it when the pass drops its delivery
+  (`pass.abandoned`, which carries `merged` when GitHub says the PR is merged), or at departure
+  itself if there is nothing to drop; a PR that GitHub no longer knows is treated as not merged. A
+  GitHub refusal on a PR found merged no longer writes `merge.failed` before `merge.done`: the
+  intent concludes on the merge.
+- **All remaining uses held by in-flight merges**: the decision writes nothing — no fact, no
+  comment; journald says it once per delivery — and resumes at the next wake-up, the delivery
+  staying green. No new waiting reason: the state lasts the time of one reconciliation, one tick
+  at most.
+- **The stop reason does not change** (`no-grant`): `pass.held` additionally carries `expired`,
+  the instant of the lapse, filed in a column of the pass (`grant_expired`). It is what the issue
+  comment, the `status` queue and `pass -- <ticket>` read. Re-granting does not rewrite those
+  lines: they say what was true at the stop.
+- **Dates are read in ISO 8601 UTC**, as everywhere else in the runtime, with the remaining
+  duration beside them. What the chef types (`18h`) is in the machine's time; what he rereads is
+  the UTC instant and "3 h 31 left". This is the most debatable point of the rendering: a local
+  time on display would be gentler, but it would be the only one in the runtime.
+- **`src/grant.ts`** carries everything that is testable in-process with a given time (expiry
+  parsing, actions, wordings); `src/grant-cli.ts` is now only a facade.
+- **The tests**: in-process for the projection, the typed expiry, the actions, the queue and
+  `status`; four on the pass with its kitchen; three on the CLI in a real Node (its arguments, its
+  exit codes, its read-only mode).
 
-## Hors scope
+## Out of scope
 
-La portée « tous les projets », de nouvelles actions, la charte (#255), l'essai à blanc (#258), les
-plafonds durs (#259), la durée par défaut d'un `merge` (question ouverte n° 3 de l'épique : le
-défaut reste « sans échéance »).
+The "all projects" scope, new actions, the charter (#255), the dry run (#258), hard caps (#259),
+the default duration of a `merge` (open question no. 3 of the epic: the default stays "no
+expiry").

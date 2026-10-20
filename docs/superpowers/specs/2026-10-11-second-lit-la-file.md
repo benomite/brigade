@@ -1,76 +1,76 @@
-# À l'ouverture, le second lit la file du projet — spec (#309)
+# On opening, the second reads the project's queue — spec (#309)
 
-**Date** : 2026-10-11
-**Statut** : décidé — trois décisions produit tranchées par `question-spec` (réponses ci-dessous),
-le reste par le dev, **à contester en review**.
-**Issue** : #309 (jalon 6, épique #294)
+**Date**: 2026-10-11
+**Status**: decided — three product decisions settled by `question-spec` (answers below),
+the rest by the dev, **to be contested in review**.
+**Issue**: #309 (milestone 6, epic #294)
 
-Le comportement, tel que le chef le vit, est dans `README.md` (« Runtime → PO ») et dans le rôle
-lui-même (`commands/po.md`, « À l'ouverture : la file du projet ») : ce document ne le recopie pas.
+The behaviour, as the chef lives it, is in `README.md` ("Runtime → PO") and in the role
+itself (`commands/po.md`, "À l'ouverture : la file du projet"): this document does not copy it.
 
-## Où ça vit
+## Where it lives
 
-« Le second », dans ce dépôt, est le rôle **PO** du plugin. Le ticket est en **zone plugin V1** :
-`commands/po.md`, son miroir `codex/skills/po/`, un cas sous `evals/`. Rien sous `runtime/` ni
-`app/` : la file existe (#191), le second ne faisait que ne pas la lire.
+"The second", in this repository, is the plugin's **PO** role. The ticket is in **plugin V1 zone**:
+`commands/po.md`, its mirror `codex/skills/po/`, a case under `evals/`. Nothing under `runtime/` or
+`app/`: the queue exists (#191), the second just did not read it.
 
-## Ce qui a été tranché par `question-spec`
+## What was settled by `question-spec`
 
-1. **La file est lue dans les deux modes**, un seul appel à l'ouverture. Le mode réflexe garde
-   « pas d'état des lieux préalable », la file exceptée.
-2. **Le bloc `attend` est relayé tel quel** ; en mode topo, **la sortie entière de `status`
-   remplace** les deux `gh issue list` et la lecture de la roadmap. « Rien ne t'attend » ne se dit
-   que commande aboutie et bloc absent.
-3. **Toute affirmation ultérieure sur l'état du projet se fait sur une lecture fraîche** : une
-   ligne dans le rôle, pas plus.
+1. **The queue is read in both modes**, a single call on opening. Reflex mode keeps
+   "no prior state of play", the queue excepted.
+2. **The `awaiting` block is relayed as is**; in topo mode, **the whole output of `status`
+   replaces** the two `gh issue list` calls and the reading of the roadmap. "Nothing awaits you" is only
+   said once the command succeeded and the block is absent.
+3. **Any later claim about the project's state is made on a fresh read**: one
+   line in the role, no more.
 
-## Ce que le dev a tranché
+## What the dev settled
 
-1. **Une seule source : `~/.config/brigade/app.json`**, le fichier de l'app (#295, #296). Le projet
-   est celui dont `dossier` est le dépôt de la session. Pas de binding de plus dans le `CLAUDE.md`.
-   `BRIGADE_APP_CONFIG`, qui sert à essayer l'app, n'est pas repris par le rôle.
-2. **La même commande que l'app** : `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote>
-   '<commande> run status'`, avec un délai de 30 s. Le second n'a donc rien à apprendre que l'app
-   ne sache déjà, et ce que l'un lit, l'autre le lit.
-3. **Les trois issues de `ssh` sont celles de #297**, lues du seul code : 255 → pas jointe ; un
-   autre code → jointe, mais `run status` a échoué ; 0 → lue. Le délai se dit seul (`aucune
-   réponse en 30 s`) : le second ne sait pas si `ssh` avait joint la box, et ne le devine pas. Une ligne chacune, puis
-   ce que la commande a écrit. Ni second essai, ni diagnostic.
-4. **« File non lue » et « file vide » ne se disent pas pareil.** Trois lignes commencent par
-   `file non lue :` ; `rien ne t'attend` est réservée au code 0 sans bloc `attend`.
-5. **File non lue en mode topo : le topo d'aujourd'hui, sur GitHub, en disant que c'en est un.**
-   C'est vrai d'un projet sans runtime comme d'une box qui ne répond pas : le second continue.
-6. **Pas de hook `SessionStart`** : il se jouerait pour chaque session de chaque rôle, devs
-   compris. La spec dit « un hook » ; ce qui est livré est une consigne du rôle, lue à son
-   chargement.
-7. **Le miroir Codex ne recopie pas la règle** : il dit seulement ce qu'un bac à sable qui refuse
-   la lecture hors dépôt ou le réseau doit en conclure — une file non lue.
+1. **A single source: `~/.config/brigade/app.json`**, the app's file (#295, #296). The project
+   is the one whose `dossier` is the session's repository. No extra binding in the `CLAUDE.md`.
+   `BRIGADE_APP_CONFIG`, which serves to try the app, is not taken up by the role.
+2. **The same command as the app**: `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <host>
+   '<command> run status'`, with a 30 s timeout. The second therefore has nothing to learn that the app
+   does not already know, and what one reads, the other reads.
+3. **The three outcomes of `ssh` are those of #297**, read from the code alone: 255 → not reached; any
+   other code → reached, but `run status` failed; 0 → read. The timeout says itself (`no
+   answer in 30 s`): the second does not know whether `ssh` had reached the box, and does not guess. One line each, then
+   what the command wrote. No second try, no diagnosis.
+4. **"Queue not read" and "queue empty" are not said the same way.** Three lines begin with
+   `queue not read:`; `nothing awaits you` is reserved for code 0 with no `awaiting` block.
+5. **Queue not read in topo mode: today's topo, on GitHub, saying that it is one.**
+   This holds for a project with no runtime as for a box that does not answer: the second carries on.
+6. **No `SessionStart` hook**: it would play for every session of every role, devs
+   included. The spec says "a hook"; what is delivered is a role instruction, read when it is
+   loaded.
+7. **The Codex mirror does not copy the rule**: it only says what a sandbox that refuses
+   reading outside the repository or the network must conclude from it — a queue not read.
 
-## Ce qui a été éprouvé
+## What was tried
 
-Le rôle modifié, tenu par un sous-agent neuf (`sonnet`) dans un environnement décrit, sans rien
-lancer ; un témoin sur le rôle d'avant.
+The modified role, held by a fresh sub-agent (`sonnet`) in a described environment, running nothing;
+a control on the previous role.
 
-| Cas | Ce que le rôle a fait |
+| Case | What the role did |
 |---|---|
-| Témoin, rôle d'avant, sans argument, runtime déclaré | deux `gh issue list` et la roadmap ; aucun `ssh` — l'état du projet est reconstruit |
-| Mode réflexe, pressé, bloc `attend` de deux lignes | lecture de `app.json`, un `ssh … run status`, le bloc mot pour mot en tête, puis l'issue posée ; aucun `gh issue list` complet |
-| Mode réflexe, file vide, puis « toujours rien qui m'attend ? » quarante minutes après | `rien ne t'attend`, puis la commande relancée et le bloc neuf relayé |
-| Mode topo, `ssh` en 255 | `file non lue : box pas jointe` et la ligne de `ssh` ; ni `ssh -v` ni `ping` ; topo GitHub, dit comme tel |
-| Mode topo, projet sans `hote` (un autre projet du fichier en a un) | aucun `ssh` ; `file non lue : aucun runtime déclaré…` ; topo GitHub, dit comme tel |
-| Mode topo, `run status` en code 1 | `file non lue : box jointe, mais run status a échoué (code 1)` et le message de la commande ; ni `systemctl` ni `journalctl` ; topo GitHub |
+| Control, previous role, no argument, runtime declared | two `gh issue list` and the roadmap; no `ssh` — the project's state is rebuilt |
+| Reflex mode, in a hurry, `awaiting` block of two lines | reading of `app.json`, one `ssh … run status`, the block word for word at the top, then the issue laid out; no full `gh issue list` |
+| Reflex mode, empty queue, then "still nothing awaiting me?" forty minutes later | `nothing awaits you`, then the command rerun and the fresh block relayed |
+| Topo mode, `ssh` at 255 | `queue not read: box not reached` and the `ssh` line; neither `ssh -v` nor `ping`; GitHub topo, said as such |
+| Topo mode, project with no `hote` (another project of the file has one) | no `ssh`; `queue not read: no runtime declared…`; GitHub topo, said as such |
+| Topo mode, `run status` at code 1 | `queue not read: box reached, but run status failed (code 1)` and the command's message; neither `systemctl` nor `journalctl`; GitHub topo |
 
-La suite d'evals (`claude plugin eval`) n'a pas été jouée : elle se joue avant une release
-(`evals/README.md`), et le cas `po-lit-la-file` y est ajouté.
+The evals suite (`claude plugin eval`) was not played: it is played before a release
+(`evals/README.md`), and the `po-lit-la-file` case is added to it.
 
-## Ce qui n'est pas tenu
+## What is not held
 
-- **« Ce qui attend le manager »** (premier critère de l'issue) n'est servi que par ce que
-  `status` imprime : le bloc `attend` porte ce que le manager attend **du chef**. Ce que le manager
-  du runtime n'a pas encore jugé n'a pas de ligne dans `status`, et le second ne le reconstitue pas.
-- **Rien ne force la lecture** : c'est une consigne de rôle, pas du code. Un cas d'eval la garde,
-  rien d'autre.
-- **Le rôle modifié n'est vécu qu'après publication du plugin** (`v2` porte `0.16.0`) : hors de ce
-  ticket.
-- **Une session ouverte dans un worktree** du projet, dont le dossier n'est pas celui de
-  `app.json`, ne trouve pas son projet : file non lue.
+- **"What awaits the manager"** (first criterion of the issue) is only served by what
+  `status` prints: the `awaiting` block carries what the manager awaits **from the chef**. What the runtime's
+  manager has not yet judged has no line in `status`, and the second does not reconstruct it.
+- **Nothing forces the reading**: it is a role instruction, not code. An eval case guards it,
+  nothing else.
+- **The modified role is only lived after the plugin is published** (`v2` carries `0.16.0`): outside
+  this ticket.
+- **A session opened in a worktree** of the project, whose folder is not that of
+  `app.json`, does not find its project: queue not read.

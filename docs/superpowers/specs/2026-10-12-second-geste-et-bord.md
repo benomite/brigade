@@ -1,64 +1,64 @@
-# Le second lit la file par le geste de la box, et par le bord de `status` — spec (#317)
+# The second reads the queue through the box's gesture, and through the edge of `status` — spec (#317)
 
-**Date** : 2026-10-12
-**Statut** : décidé par le dev sur les critères de l'issue, **à contester en review** — aucune
-décision produit n'est restée ouverte.
-**Issue** : #317 (suite de #311 et de #312 ; prolonge `2026-10-11-second-lit-la-file.md`)
+**Date**: 2026-10-12
+**Status**: decided by the dev on the issue's criteria, **to be contested in review** — no
+product decision was left open.
+**Issue**: #317 (follows #311 and #312; extends `2026-10-11-second-lit-la-file.md`)
 
-Le comportement, tel que le chef le vit, est dans `README.md` (« Runtime → PO ») et dans le rôle
-lui-même (`commands/po.md`, « À l'ouverture : la file du projet ») : ce document ne le recopie pas.
+The behaviour, as the chef lives it, is in `README.md` ("Runtime → PO") and in the role
+itself (`commands/po.md`, "À l'ouverture : la file du projet"): this document does not copy it.
 
-## Ce qui a bougé sous le second
+## What moved under the second
 
-- **#312** : la box a un geste, `brigade <projet> <commande>`, et cinq refus à lui (64 à 68 ; le 68 est venu de #314).
-- **#311** : le bloc `attend` de `status` est toujours là, entre deux lignes qui font son bord, et
-  il dit lui-même quand rien n'attend.
+- **#312**: the box has a gesture, `brigade <project> <command>`, and five refusals of its own (64 to 68; 68 came from #314).
+- **#311**: the `awaiting` block of `status` is always there, between two lines that make its edge, and
+  it says itself when nothing is awaiting.
 
-## Ce que le dev a tranché
+## What the dev settled
 
-1. **Le nom passé au geste est le `nom` du projet dans `app.json`.** Le critère du PO dans #312 —
-   « je déclare l'hôte, et c'est tout » — ne laisse la place à aucun champ de plus. Un `nom` que la
-   box ne connaît pas se lit donc au refus du geste (code 65), pas dans le fichier. **#316 (l'app),
-   mergée entre-temps, a tranché pareil : les deux lancent `brigade <nom> status`.**
-2. **`commande` n'est plus lu, sans être refusé.** L'app, elle, refuse le fichier qui le porte
-   encore (#316) et dit de le retirer ; le second n'en prend que `nom` et `hote`, et lit la file.
-3. **Les cinq refus du geste ont une ligne à eux**, la même pour 64 à 68 : `box jointe, mais son
-   geste a refusé (code <N>)`, suivie de la phrase du geste. C'est elle qui nomme le projet
-   inconnu, ou le compte sans droit ; le second ne la traduit pas.
-4. **Tout autre code** : `box jointe, mais la commande a échoué (code <N>)`. Une box d'avant #312
-   y tombe (`brigade: command not found`, 127) : le second montre ce qu'il a obtenu, il ne dit pas
-   que la box est en retard.
-5. **Le bloc est relayé bornes comprises**, la ligne `fin attend` avec : mot pour mot veut dire
-   sans rien retirer. Le second ne compose plus aucune phrase quand rien n'attend.
-6. **Un code 0 sans bord est une file lue, pas une file vide ni une file non lue** : une ligne le
-   dit, et la sortie entière suit, mot pour mot. Le topo ne retombe donc pas sur GitHub : `status`
-   a répondu. C'est ce que #318 demande à l'app pour le même cas.
-7. **Le miroir Codex ne recopie toujours pas la règle** ; sa ligne sur le bac à sable suit le
-   fichier lu et la commande lancée.
+1. **The name passed to the gesture is the project's `nom` in `app.json`.** The PO's criterion in #312 —
+   "I declare the host, and that's all" — leaves no room for an extra field. A `nom` that the
+   box does not know is therefore read in the gesture's refusal (code 65), not in the file. **#316 (the app),
+   merged in the meantime, settled the same: both run `brigade <nom> status`.**
+2. **`commande` is no longer read, without being refused.** The app, for its part, refuses the file that still
+   carries it (#316) and says to remove it; the second takes only `nom` and `hote` from it, and reads the queue.
+3. **The gesture's five refusals have a line of their own**, the same for 64 to 68: `box reached, but its
+   gesture refused (code <N>)`, followed by the gesture's sentence. It is what names the unknown
+   project, or the account without rights; the second does not translate it.
+4. **Any other code**: `box reached, but the command failed (code <N>)`. A box from before #312
+   falls into it (`brigade: command not found`, 127): the second shows what it got, it does not say
+   that the box is behind.
+5. **The block is relayed edges included**, the `end awaiting` line with it: word for word means
+   removing nothing. The second no longer composes any sentence when nothing is awaiting.
+6. **A code 0 with no edge is a queue read, neither an empty queue nor a queue not read**: a line says
+   so, and the whole output follows, word for word. The topo therefore does not fall back on GitHub: `status`
+   answered. This is what #318 asks of the app for the same case.
+7. **The Codex mirror still does not copy the rule**; its line on the sandbox follows the
+   file read and the command run.
 
-## Ce qui a été éprouvé
+## What was tried
 
-Le rôle tenu par un sous-agent neuf (`sonnet`) dans un environnement décrit, sans rien lancer :
-`app.json` ne porte que `nom` et `hote`, la réponse de la box est donnée. Un passage par cas.
+The role held by a fresh sub-agent (`sonnet`) in a described environment, running nothing:
+`app.json` carries only `nom` and `hote`, the box's answer is given. One pass per case.
 
-| Cas | Ce que le rôle a fait |
+| Case | What the role did |
 |---|---|
-| Témoin, rôle d'avant (deux passages) | aucun `ssh` : `file non lue : aucun runtime déclaré…` — sans `commande`, il ne lit plus rien |
-| Mode réflexe, code 0, le bloc dit que rien n'attend | `ssh … -- box brigade parade status` ; les deux lignes du bloc, mot pour mot, et aucune phrase à lui |
-| Mode réflexe, pressé, code 0, bloc de deux entrées | le bloc de `attend` à `fin attend`, bornes comprises, rien du reste de `status` |
-| Mode réflexe, code 0, sortie sans bord | `file lue, mais sans bord : …`, puis la sortie entière ; pas de « rien ne t'attend » |
-| Mode topo, code 65 | `file non lue : box jointe, mais son geste a refusé (code 65)` et la phrase du geste ; topo GitHub, dit comme tel |
-| Mode topo, code 127 (`brigade: command not found`) | `file non lue : box jointe, mais la commande a échoué (code 127)` et la ligne du shell ; rien sur l'âge de la box ; topo GitHub |
+| Control, previous role (two passes) | no `ssh`: `queue not read: no runtime declared…` — without `commande`, it no longer reads anything |
+| Reflex mode, code 0, the block says nothing awaits | `ssh … -- box brigade parade status`; the block's two lines, word for word, and no sentence of its own |
+| Reflex mode, in a hurry, code 0, block of two entries | the block from `awaiting` to `end awaiting`, edges included, nothing of the rest of `status` |
+| Reflex mode, code 0, output with no edge | `queue read, but with no edge: …`, then the whole output; no "nothing awaits you" |
+| Topo mode, code 65 | `queue not read: box reached, but its gesture refused (code 65)` and the gesture's sentence; GitHub topo, said as such |
+| Topo mode, code 127 (`brigade: command not found`) | `queue not read: box reached, but the command failed (code 127)` and the shell's line; nothing about the box's age; GitHub topo |
 
-La suite d'evals (`claude plugin eval`) n'a pas été jouée : elle se joue avant une release
-(`evals/README.md`). Le cas `po-lit-la-file` y joue la forme nouvelle.
+The evals suite (`claude plugin eval`) was not played: it is played before a release
+(`evals/README.md`). The `po-lit-la-file` case plays the new form there.
 
-## Ce qui n'est pas tenu
+## What is not held
 
-- **Le rôle modifié n'est vécu qu'après publication du plugin** : `v2` porte `0.16.0`, `main`
-  `0.16.1`. Le bump et `scripts/update-partout.sh` sont au chef.
-- **Un `nom` qui porte un espace** part tel quel vers la box, dont le shell le découpe — l'app,
-  elle, le cite (#316). Dans les deux cas le geste le refuse, et c'est sa phrase qui le dit ; elle
-  ne sera pas la même.
-- Ce que la spec du 2026-10-11 ne tenait pas ne l'est pas davantage (session ouverte dans un
-  worktree, rien ne force la lecture).
+- **The modified role is only lived after the plugin is published**: `v2` carries
+  `0.16.0`, `main` `0.16.1`. The bump and `scripts/update-partout.sh` are the chef's.
+- **A `nom` that carries a space** goes as is to the box, whose shell splits it — the app,
+  for its part, quotes it (#316). In both cases the gesture refuses it, and it is its sentence that says so; it
+  will not be the same.
+- What the spec of 2026-10-11 did not hold is not held any more (session opened in a
+  worktree, nothing forces the reading).

@@ -1,245 +1,245 @@
-# Un conteneur par projet, et un réseau en liste blanche (#176)
+# One container per project, and an allowlisted network (#176)
 
-Jalon 7 de la V2 (épique #179). Spec V2, §Isolation et secrets : « **Un conteneur par projet, un
-worktree par cook** », « réseau des conteneurs en liste blanche : Anthropic, GitHub, registres de
-paquets », « identifiants montés en lecture seule ».
+Milestone 7 of V2 (epic #179). V2 spec, §Isolation and secrets: "**One container per project, one
+worktree per cook**", "container network on an allowlist: Anthropic, GitHub, package registries",
+"credentials mounted read-only".
 
-## Le problème
+## The problem
 
-Tout ce que le runtime lance — setup, cook, gates, reviewer, juges — tourne sous le compte Unix du
-service, sans rien autour. Un cook lit donc ce que ce compte lit : l'état, le clone, les worktrees
-et le fichier de secrets des **autres** projets, le fichier de secrets du sien **en entier**, les
-clés des GitHub Apps, l'environnement des autres cooks (`/proc/<pid>/environ`). Et il parle à tout
-Internet. #174 et #175 ont nommé ces trous et renvoyé leur clôture ici.
+Everything the runtime launches — setup, cook, gates, reviewer, judges — runs under the service's
+Unix account, with nothing around it. A cook therefore reads whatever that account reads: the state,
+the clone, the worktrees and the secrets file of the **other** projects, the secrets file of its own
+**in full**, the GitHub Apps' keys, the environment of the other cooks (`/proc/<pid>/environ`). And
+it talks to the whole Internet. #174 and #175 named these holes and referred their resolution here.
 
-## Ce qui est tranché
+## What is settled
 
-### Pas d'image, pas de démon : deux mailles, deux mécanismes
+### No image, no daemon: two grains, two mechanisms
 
-La box est un Linux à systemd sans rien d'installé pour cela. Un moteur de conteneurs (Docker,
-Podman) y ajouterait un démon ou un magasin d'images à tenir à jour, une image par projet à
-construire avec la chaîne d'outils de chacun, et le montage un par un de ce dont `claude`, `git` et
-`gh` ont besoin — pour un cloisonnement que le noyau donne déjà. Le « conteneur » est ici ce dont
-un conteneur est fait, sans image :
+The box is a systemd Linux with nothing installed for this. A container engine (Docker, Podman)
+would add a daemon or an image store to keep up to date, one image per project to build with
+everyone's toolchain, and the mounting, one by one, of what `claude`, `git` and `gh` need — for a
+partition the kernel already provides. The "container" here is what a container is made of, without
+the image:
 
-| Ce qui est cloisonné | Maille | Mécanisme | Coût par cook |
+| What is partitioned | Grain | Mechanism | Cost per cook |
 |---|---|---|---|
-| **Les fichiers et les process** | **chaque lancement** (setup, cook, gates, reviewer, juge) | `bwrap` (bubblewrap) : un espace de montage et un espace de process par lancement, sans privilège | un `bwrap` qui reste le temps du lancement — chiffré plus bas |
-| **Le réseau** | **le projet** | l'unité systemd `brigade@<projet>` ne joint que la boucle locale (`IPAddressDeny=any`, `IPAddressAllow=localhost`) ; sa seule sortie est **la porte**, `brigade-porte@<projet>`, un relais HTTP qui tient la liste blanche | rien : une porte par projet, pas par cook |
+| **Files and processes** | **each launch** (setup, cook, gates, reviewer, judge) | `bwrap` (bubblewrap): one mount namespace and one process namespace per launch, unprivileged | one `bwrap` that stays for the duration of the launch — measured below |
+| **The network** | **the project** | the systemd unit `brigade@<project>` reaches only the loopback (`IPAddressDeny=any`, `IPAddressAllow=localhost`); its only way out is **the door**, `brigade-porte@<project>`, an HTTP relay that holds the allowlist | nothing: one door per project, not per cook |
 
-**Pourquoi le lancement et pas le runtime entier, pour les fichiers.** Envelopper le runtime du
-projet ne coûterait rien par cook, mais laisserait le cook du même côté que le runtime : il lirait
-encore les clés des Apps et le fichier de secrets en entier — précisément ce que #174 et #175
-attendent d'ici. La frontière passe donc entre le runtime et ce qu'il lance.
+**Why the launch and not the whole runtime, for files.** Wrapping the project's runtime would cost
+nothing per cook, but would leave the cook on the same side as the runtime: it would still read the
+Apps' keys and the secrets file in full — precisely what #174 and #175 expect from here. The
+boundary therefore runs between the runtime and what it launches.
 
-**Pourquoi le projet et pas le lancement, pour le réseau.** Un espace réseau par lancement
-couperait la boucle locale de la machine : la base de test que le setup prépare sur `localhost`
-ne répondrait plus. Le filtre de l'unité, lui, laisse la boucle locale intacte — les ports que le
-setup exporte restent joignables à l'identique — et ne demande aucun privilège au runtime.
+**Why the project and not the launch, for the network.** A network namespace per launch would cut
+the machine's loopback: the test database that the setup prepares on `localhost` would no longer
+answer. The unit's filter leaves the loopback intact — the ports the setup exports stay reachable
+as before — and asks no privilege of the runtime.
 
-### Ce qu'un lancement cloisonné voit
+### What a partitioned launch sees
 
-Posée par `BRIGADE_SANDBOX_BIN` (le binaire `bwrap`, chemin absolu) et `BRIGADE_SANDBOX_HIDDEN`
-(les répertoires masqués, séparés par `:` — sur la box `/var/lib/brigade:/etc/brigade`).
+Set by `BRIGADE_SANDBOX_BIN` (the `bwrap` binary, absolute path) and `BRIGADE_SANDBOX_HIDDEN`
+(the hidden directories, separated by `:` — on the box `/var/lib/brigade:/etc/brigade`).
 
 | | |
 |---|---|
-| **Masqué** (un répertoire vide à la place) | chaque racine de `BRIGADE_SANDBOX_HIDDEN` : l'état, le clone, les worktrees, les secrets et les clés de **tous** les projets, le sien compris |
-| **Rendu, en écriture** | son worktree ; **sa vue du `.git` du clone** — les vrais objets, références et worktrees, mais une `config` et des `hooks` à lui |
-| **Rendu, en lecture seule** | le worktree et la vue du `.git` pour le reviewer ; le ticket remis au cook (#174) |
-| **Lecture seule** | toute la machine, **et le répertoire personnel du compte** (`.gitconfig`, chaînes d'outils, binaire `claude`) |
-| **Au projet, en écriture** | ce qui s'écrit sous `~` : `.cache`, `.npm`, `.claude.json`, toute entrée que le compte n'a pas, et ce que nomme `BRIGADE_SANDBOX_PRIVATE` — dans `<état>/compte` |
-| **En écriture, tel quel** | `/tmp` |
-| **Remplacé** | `~/.claude` : celui du projet (`<état>/claude`) — ni les transcripts ni la mémoire d'un autre projet |
-| **Identifiants Max** | `~/.claude/.credentials.json`, monté par-dessus **en lecture seule** |
-| **Process** | les siens seulement : ni `ps` ni `/proc/<pid>/environ` ne montrent un autre cook |
+| **Hidden** (an empty directory in its place) | each root of `BRIGADE_SANDBOX_HIDDEN`: the state, the clone, the worktrees, the secrets and the keys of **all** projects, its own included |
+| **Given back, writable** | its worktree; **its view of the clone's `.git`** — the real objects, references and worktrees, but a `config` and `hooks` of its own |
+| **Given back, read-only** | the worktree and the view of the `.git` for the reviewer; the ticket handed to the cook (#174) |
+| **Read-only** | the whole machine, **and the account's home directory** (`.gitconfig`, toolchains, the `claude` binary) |
+| **Project-owned, writable** | what is written under `~`: `.cache`, `.npm`, `.claude.json`, any entry the account does not have, and what `BRIGADE_SANDBOX_PRIVATE` names — in `<state>/compte` |
+| **Writable, as is** | `/tmp` |
+| **Replaced** | `~/.claude`: the project's (`<state>/claude`) — neither the transcripts nor the memory of another project |
+| **Max credentials** | `~/.claude/.credentials.json`, mounted over it **read-only** |
+| **Processes** | its own only: neither `ps` nor `/proc/<pid>/environ` shows another cook |
 
-Le runtime refuse de démarrer si `BRIGADE_STATE_DIR`, `BRIGADE_REPO_DIR`, `BRIGADE_SECRETS_FILE` ou
-`BRIGADE_GITHUB_APPS_DIR` n'est pas sous une racine masquée : une cloison qui laisse dehors ce
-qu'elle doit cacher n'en est pas une. Un masque qui est un fichier est refusé aussi.
+The runtime refuses to start if `BRIGADE_STATE_DIR`, `BRIGADE_REPO_DIR`, `BRIGADE_SECRETS_FILE` or
+`BRIGADE_GITHUB_APPS_DIR` is not under a hidden root: a partition that leaves outside what it should
+hide is not one. A mask that is a file is refused too.
 
-Les juges du manager partent de `/tmp`, sans dépôt. Le `claude auth status` du démarrage et tout ce
-que le runtime fait lui-même (`git`, `gh`) ne sont pas cloisonnés : c'est lui la frontière.
+The manager's judges start from `/tmp`, with no repository. The startup `claude auth status` and
+everything the runtime does itself (`git`, `gh`) are not partitioned: the runtime is the boundary.
 
-**Rien de ce qu'un cook écrit n'est lu comme configuration ni exécuté par le runtime** (renvoi 1 de
-la revue). Le `git`, le `gh` et le `claude` du runtime tournent hors cloison, sous le même compte et
-dans le même clone : un `~/.gitconfig`, un `.git/config`, un hook ou un binaire sous `~` qu'un cook
-pourrait écrire seraient exécutés par le runtime, pour tous les projets. D'où deux doublures, plutôt
-que deux fichiers montés en lecture seule — un fichier monté ne se remplace pas, et `git` écrit sa
-config en la remplaçant (`EBUSY`) :
+**Nothing a cook writes is read as configuration or executed by the runtime** (review point 1). The
+runtime's `git`, `gh` and `claude` run outside the partition, under the same account and in the same
+clone: a `~/.gitconfig`, a `.git/config`, a hook or a binary under `~` that a cook could write would
+be executed by the runtime, for all projects. Hence two stand-ins, rather than two files mounted
+read-only — a mounted file cannot be replaced, and `git` writes its config by replacing it
+(`EBUSY`):
 
-- **Le compte** : à sa place, le répertoire du projet (`<état>/compte`), inscriptible, et
-  par-dessus chaque entrée du vrai, en lecture seule. Les caches sont ceux du projet, froids au
-  premier lancement. `.claude.json` est copié une fois, puis vit sa vie.
-- **Le `.git`** : à sa place, une vue par worktree (`<état>/vues-git/…`, masquée, donc atteinte
-  seulement montée) dont la `config` est une copie de la vraie et les `hooks` un répertoire vide ;
-  par-dessus, chaque répertoire du vrai `.git`. `git config`, `remote add`, `switch --track`, un
-  sous-module, husky y écrivent ; cela tient du setup au cook et part avec le worktree. Les
-  fichiers du vrai `.git` (`HEAD`, `packed-refs`, créé s'il manque) sont en lecture seule : `git
-  gc` n'y range plus les références — né dans la vue, `packed-refs` aurait emporté la branche du
-  cook. Pour la même raison, le clone servi ne range jamais ses références seul (`gc.auto=0`,
-  `maintenance.auto=false`, posés dans sa config) : le `git fetch` du runtime ne déplace pas la
-  branche d'un cook vivant. Avant chaque lancement, le runtime retire de la vue ce qu'un cook y aurait laissé à la
-  place d'un point de montage.
+- **The account**: in its place, the project's directory (`<state>/compte`), writable, and over it,
+  each entry of the real one, read-only. The caches are the project's, cold on the first launch.
+  `.claude.json` is copied once, then lives its own life.
+- **The `.git`**: in its place, one view per worktree (`<state>/vues-git/…`, hidden, so reached only
+  when mounted) whose `config` is a copy of the real one and whose `hooks` an empty directory; over
+  it, each directory of the real `.git`. `git config`, `remote add`, `switch --track`, a submodule,
+  husky write there; this holds from the setup to the cook and leaves with the worktree. The files
+  of the real `.git` (`HEAD`, `packed-refs`, created if missing) are read-only: `git gc` no longer
+  packs the references there — born in the view, `packed-refs` would have carried off the cook's
+  branch. For the same reason, the served clone never packs its references on its own
+  (`gc.auto=0`, `maintenance.auto=false`, set in its config): the runtime's `git fetch` does not
+  move the branch of a live cook. Before each launch, the runtime removes from the view whatever a
+  cook left there in place of a mount point.
 
-**Le `git` du runtime dans un worktree de cook : un dépôt imposé, pas une cloison de plus**
-(#213). Le runtime lance `git` dans le worktree d'un cook hors cloison — statut de chaque tick,
-récolte, retour d'une branche. Or un worktree désigne lui-même son dépôt, par des fichiers que le
-cook écrit : son fichier `.git`, le `commondir` de `<clone>/.git/worktrees/<id>/`, le `.git` d'un
-sous-module. Deux pistes :
+**The runtime's `git` in a cook's worktree: an imposed repository, not one more partition** (#213).
+The runtime runs `git` in a cook's worktree outside the partition — status at each tick, harvest,
+return of a branch. Yet a worktree itself designates its repository, through files the cook
+writes: its `.git` file, the `commondir` of `<clone>/.git/worktrees/<id>/`, a submodule's `.git`.
+Two leads:
 
-- *Lancer ce `git` cloisonné, en lecture seule.* Écarté : la récolte **écrit** (index, commit,
-  référence), donc il faudrait une cloison en écriture, et la commande du cook y tournerait quand
-  même — contenue, mais lancée, avec le `.git` du clone sous la main. Cela coûte un `bwrap` par
-  tick et par cook. Et cela ne vaut rien sans cloison.
-- *Imposer le dépôt et neutraliser.* **Retenu**, parce qu'il vaut avec et sans cloison et ne coûte
-  aucun process : `--git-dir` et `--work-tree` imposés, `GIT_COMMON_DIR` posé sur le `.git` du
-  clone, `core.fsmonitor=false`, `core.hooksPath=/dev/null`, `submodule.recurse=false`, et les
-  sous-modules laissés hors du statut (`--ignore-submodules=all`) comme de la récolte (exclus du
-  `git add`, un par un).
+- *Run that `git` partitioned, read-only.* Set aside: the harvest **writes** (index, commit,
+  reference), so a writable partition would be needed, and the cook's command would run there all
+  the same — contained, but launched, with the clone's `.git` within reach. It costs one `bwrap`
+  per tick and per cook. And it is worth nothing without a partition.
+- *Impose the repository and neutralize.* **Chosen**, because it holds with and without a partition
+  and costs no process: `--git-dir` and `--work-tree` imposed, `GIT_COMMON_DIR` set to the clone's
+  `.git`, `core.fsmonitor=false`, `core.hooksPath=/dev/null`, `submodule.recurse=false`, and
+  submodules left out of the status (`--ignore-submodules=all`) as of the harvest (excluded from
+  `git add`, one by one).
 
-Trois choses mesurées (git 2.50), qui font la forme du code :
+Three things measured (git 2.50), which shape the code:
 
-- **`GIT_COMMON_DIR` n'impose pas les références.** Configuration et objets viennent bien du
-  répertoire imposé, mais `git` cherche encore les références par le fichier `commondir` : avec
-  un `commondir` réécrit, la récolte était commitée sur une branche du dépôt du cook, et la
-  station poussait l'ancienne — sans rien dire. Le runtime lit donc `commondir` lui-même et
-  **refuse** s'il ne mène pas au clone. Le fichier `.git`, pareil : il doit nommer un répertoire
-  de `<clone>/.git/worktrees/`, sans lien.
-- **`-c core.fsmonitor=false` suit `git` dans un sous-module, pas le reste** : un filtre `clean`
-  de la configuration du sous-module y est lancé quand même. Il ne suffit pas de neutraliser, il
-  faut ne pas descendre.
-- **`git add --all` descend dans un sous-module suivi**, même sous `diff.ignoreSubmodules=all`,
-  et n'a pas d'option pour s'en abstenir : la récolte les exclut par chemin, d'après l'index.
+- **`GIT_COMMON_DIR` does not impose the references.** Configuration and objects do come from the
+  imposed directory, but `git` still looks for references through the `commondir` file: with a
+  rewritten `commondir`, the harvest was committed on a branch of the cook's repository, and the
+  station pushed the old one — silently. The runtime therefore reads `commondir` itself and
+  **refuses** if it does not lead to the clone. The `.git` file likewise: it must name a directory
+  of `<clone>/.git/worktrees/`, without a link.
+- **`-c core.fsmonitor=false` follows `git` into a submodule, but not the rest**: a `clean` filter
+  from the submodule's configuration is launched there all the same. Neutralizing is not enough;
+  one must not descend.
+- **`git add --all` descends into a tracked submodule**, even under `diff.ignoreSubmodules=all`,
+  and has no option to refrain: the harvest excludes them by path, from the index.
 
-Un fichier détourné est un **refus qui se lit**, pas un silence : worktree illisible au tick,
-livraison échouée et worktree gardé à la fin du cook.
+A diverted file is a **refusal that can be read**, not a silence: unreadable worktree at the tick,
+failed delivery and worktree kept at the end of the cook.
 
-Ce que ce choix laisse ouvert : un sous-module n'est ni regardé ni récolté ; un clone où
-`extensions.worktreeConfig` est activé fait lire un `config.worktree` que le cook écrit (il ne
-peut pas l'activer sous cloison) ; entre la lecture de `commondir` par le runtime et celle de
-`git`, un cook vivant peut le réécrire — la configuration reste celle du clone, seule l'empreinte
-d'un tick peut en être faussée ; les répertoires d'administration étant partagés, un cook peut
-faire refuser la livraison d'un voisin ; sans cloison, la `config` du clone reste au cook. Les
-worktrees jetables de la pass ne sont pas concernés : le runtime n'y lance `git` (le merge)
-qu'avant d'y faire tourner quoi que ce soit, et ne fait ensuite que les retirer — ce qui ne lit
-aucune configuration du worktree, mesuré aussi.
+What this choice leaves open: a submodule is neither watched nor harvested; a clone where
+`extensions.worktreeConfig` is enabled makes `git` read a `config.worktree` that the cook writes
+(it cannot enable it under the partition); between the runtime's reading of `commondir` and
+`git`'s, a live cook can rewrite it — the configuration stays the clone's, only a tick's
+fingerprint can be skewed; the administration directories being shared, a cook can get a
+neighbour's delivery refused; without a partition, the clone's `config` stays with the cook. The
+pass's disposable worktrees are not concerned: the runtime runs `git` there (the merge) only before
+running anything in them, and then only removes them — which reads no configuration of the
+worktree, also measured.
 
-**Le signal d'arrêt traverse.** Le superviseur envoie SIGTERM au groupe puis SIGKILL après la
-grâce. `bwrap` ne relaie aucun signal et mourrait du SIGTERM en emportant le cook : il est lancé
-sourd à SIGTERM, et la commande retrouve le sien (`env --default-signal=TERM`). Éprouvé sous Linux.
+**The stop signal gets through.** The supervisor sends SIGTERM to the group, then SIGKILL after the
+grace. `bwrap` relays no signal and would die of SIGTERM, taking the cook with it: it is launched
+deaf to SIGTERM, and the command gets its own back (`env --default-signal=TERM`). Tried under
+Linux.
 
-### La liste blanche
+### The allowlist
 
-| Hôte | Pourquoi |
+| Host | Why |
 |---|---|
-| `anthropic.com`, `claude.ai`, `claude.com` et leurs sous-domaines | le modèle, par la connexion Max |
-| `github.com`, `githubusercontent.com` et leurs sous-domaines | le dépôt, les issues, les archives |
-| ce que le dépôt déclare dans `.claude/brigade/reseau` | **ses registres de paquets** et le reste |
+| `anthropic.com`, `claude.ai`, `claude.com` and their subdomains | the model, through the Max connection |
+| `github.com`, `githubusercontent.com` and their subdomains | the repository, the issues, the archives |
+| what the repository declares in `.claude/brigade/reseau` | **its package registries** and the rest |
 
-Aucun registre n'est ouvert d'office : « les registres du projet » sont ceux qu'il nomme. Un hôte
-par ligne, `#` commente ; `*.exemple.org` ouvre les sous-domaines ; `hôte:port` ouvre un autre port
-que 443 et 80. Ni adresse IP, ni `*` seul, ni `*.com`.
+No registry is opened by default: "the project's registries" are the ones it names. One host per
+line, `#` comments; `*.example.org` opens the subdomains; `host:port` opens a port other than 443
+and 80. No IP address, no bare `*`, no `*.com`.
 
-La déclaration se lit **sur la branche d'intégration du clone**, pas dans le worktree du cook — à
-l'inverse des secrets : un cook qui ajoute un nom de secret ne gagne rien, un cook qui ajouterait
-un hôte s'ouvrirait la porte. Le runtime la relit à chaque tick et écrit au journal ce qui change
-(`network.declared`) ; la porte lit sa liste là.
+The declaration is read **on the clone's integration branch**, not in the cook's worktree — the
+reverse of secrets: a cook that adds a secret's name gains nothing, a cook that added a host would
+open the door for itself. The runtime rereads it at each tick and writes to the log what changes
+(`network.declared`); the door reads its list there.
 
-**Un refus se lit.** Par la porte : `403`, sur-le-champ, avec l'hôte et le geste qui l'ouvre ; et
-un événement `network.refused` au journal (hôte, port, nombre de tentatives — un par hôte et par
-dix minutes au plus). Par la porte, jamais un délai d'attente. Ce qui la contourne exprès n'aboutit
-pas ; une connexion TCP dont le noyau jette les paquets attend sans doute le délai de son client —
-non observé.
+**A refusal can be read.** Through the door: `403`, on the spot, with the host and the action that
+opens it; and a `network.refused` event in the log (host, port, number of attempts — at most one per
+host and per ten minutes). Through the door, never a timeout. Whatever bypasses it on purpose does
+not get through; a TCP connection whose packets the kernel drops probably waits out its client's
+timeout — not observed.
 
-**Le runtime passe par la porte aussi** (`BRIGADE_PROXY_PORT`) : il pose `HTTPS_PROXY`,
-`HTTP_PROXY` et `NO_PROXY` pour lui-même et pour tout ce qu'il lance. Au démarrage, il sonde le
-filtre par un datagramme vers une adresse que personne ne porte : le filtre de l'unité jette les
-paquets à la sortie et le noyau rend ce refus à qui envoie (`EPERM`), alors qu'une connexion TCP
-attendrait dans les deux cas. Refusé, le filtre tient ; parti, il **dit** que la porte n'est qu'une
-politesse ; sans réponse, il ne conclut rien. **Ce verdict n'a jamais vu un vrai filtre** : c'est un
-indice, que la recette confirme.
+**The runtime goes through the door too** (`BRIGADE_PROXY_PORT`): it sets `HTTPS_PROXY`,
+`HTTP_PROXY` and `NO_PROXY` for itself and for everything it launches. At startup, it probes the
+filter with a datagram to an address nobody carries: the unit's filter drops the packets on the way
+out and the kernel returns that refusal to the sender (`EPERM`), whereas a TCP connection would wait
+in both cases. Refused, the filter holds; gone through, it **says** that the door is only a
+courtesy; with no answer, it concludes nothing. **This verdict has never seen a real filter**: it is
+a hint, which the acceptance run confirms.
 
-### Sans cloison, il le dit
+### Without a partition, it says so
 
-Les deux moitiés sont facultatives et indépendantes. Absentes, le runtime tourne comme hier et
-l'annonce au démarrage : les projets servis sous ce compte se voient, et les cooks joignent tout.
-L'état de la cloison entre au journal (`isolation.configured`, quand il change).
+The two halves are optional and independent. Absent, the runtime runs as yesterday and announces it
+at startup: the projects served under this account can see each other, and the cooks reach
+everything. The partition's state enters the log (`isolation.configured`, when it changes).
 
-### Ce que le chef lit
+### What the chef reads
 
-`npm --prefix runtime run cloison` : ce qui est masqué, ce qui est en lecture seule, la liste
-blanche avec l'origine de chaque hôte, et les derniers refus avec leur motif — du journal, sans
-variable d'environnement autre que `BRIGADE_STATE_DIR`.
+`npm --prefix runtime run partition`: what is hidden, what is read-only, the allowlist with the
+origin of each host, and the latest refusals with their reason — from the log, with no environment
+variable other than `BRIGADE_STATE_DIR`.
 
-`npm --prefix runtime run cloison -- eprouver [<essais>]`, avec l'environnement du service :
-lance de vraies sondes dans la cloison (racines masquées vides, identifiants non inscriptibles,
-process des autres invisibles, `claude` qui répond), et **mesure le coût** d'un lancement cloisonné
-— temps et mémoire résidente —, multiplié par le plafond de cooks.
+`npm --prefix runtime run partition -- probe [<tries>]`, with the service's environment: runs real
+probes in the partition (hidden roots empty, credentials not writable, other people's processes
+invisible, `claude` that answers), and **measures the cost** of a partitioned launch — time and
+resident memory — multiplied by the cap on cooks.
 
-## Ce que ça coûte par cook
+## What it costs per cook
 
-Mesuré le 2026-10-09 dans un Linux (noyau 6.x, bubblewrap 0.8.0, Node 26) sur le poste de dev, par
-`cloison -- eprouver` — à refaire sur la box, c'est la recette :
+Measured on 2026-10-09 in a Linux (kernel 6.x, bubblewrap 0.8.0, Node 26) on the dev workstation,
+by `partition -- probe` — to be redone on the box, that is the acceptance run:
 
-| | Sans cloison | Avec | Par lancement | À 30 cooks |
+| | Without a partition | With | Per launch | At 30 cooks |
 |---|---|---|---|---|
-| Temps de démarrage (médiane de 50 `true`) | 0,4 ms | 1,8 ms | **+1,4 ms** (jusqu'à +7 ms poste chargé) | +40 ms cumulés |
-| Mémoire résidente tant que le lancement vit (les deux process `bwrap`) | — | 3,1 Mo | **+3,1 Mo** | **+94 Mo** |
+| Startup time (median of 50 `true`) | 0.4 ms | 1.8 ms | **+1.4 ms** (up to +7 ms on a loaded workstation) | +40 ms cumulative |
+| Resident memory while the launch lives (the two `bwrap` processes) | — | 3.1 MB | **+3.1 MB** | **+94 MB** |
 
-La garde machine (#98) exige 1 024 Mo libres par défaut et réserve 512 Mo à un cook qui vient de
-partir : la cloison pèse moins d'un centième d'un cook. La mémoire est comptée large — résidente,
-pages partagées comprises. La porte est un process Node par projet, pas par cook.
+The machine guard (#98) requires 1,024 MB free by default and reserves 512 MB for a cook that has
+just left: the partition weighs less than a hundredth of a cook. Memory is counted generously —
+resident, shared pages included. The door is one Node process per project, not per cook.
 
-Éprouvé au même endroit avec le vrai `bwrap` : les racines masquées sont vides, le fichier de
-secrets et le journal du projet introuvables, un commit passe dans le worktree, la vraie `config` et
-les vrais `hooks` du clone restent intacts, les identifiants se lisent et ne se réécrivent ni ne se
-retirent, `~/.claude` est celui du projet, `~/.gitconfig` et un binaire sous `~` ne s'écrivent pas,
-le cache s'écrit dans le compte du projet, `git config`, `remote add`, `switch --track`, un
-sous-module et un hook husky passent sans toucher la vraie config, les process de l'hôte sont
-invisibles, un port de la boucle locale de l'hôte se joint, le setup rend ses exports par le canal,
-SIGTERM laisse sa grâce au cook et rend son code, SIGKILL ne laisse aucun survivant. Et la porte,
-avec le vrai réseau : `curl`, `git`, `npm` et le `fetch` du runtime passent vers GitHub et un
-registre déclaré, et sont refusés en 13 ms ailleurs.
+Tried in the same place with the real `bwrap`: the hidden roots are empty, the secrets file and the
+project's log are not found, a commit goes through in the worktree, the clone's real `config` and
+real `hooks` stay intact, the credentials can be read and can neither be rewritten nor removed,
+`~/.claude` is the project's, `~/.gitconfig` and a binary under `~` cannot be written, the cache is
+written into the project's account, `git config`, `remote add`, `switch --track`, a submodule and a
+husky hook go through without touching the real config, the host's processes are invisible, a port
+of the host's loopback can be reached, the setup returns its exports through the channel, SIGTERM
+leaves the cook its grace and returns its code, SIGKILL leaves no survivor. And the door, with the
+real network: `curl`, `git`, `npm` and the runtime's `fetch` go through to GitHub and a declared
+registry, and are refused in 13 ms elsewhere.
 
-## Ce qui reste non garanti (à écrire dans la doc)
+## What remains unguaranteed (to be written in the docs)
 
-- **Rien de tout cela n'a tourné sur la box.** La mécanique est testée derrière un faux `bwrap`,
-  et la vraie est éprouvée dans un Linux du poste de dev. Le filtre de l'unité (`IPAddressDeny`)
-  et `claude` sous cloison ne se prouvent que là-bas.
-- **Le jeton Max se renouvelle peut-être mal en lecture seule** : si `claude` veut réécrire ses
-  identifiants depuis un cook, il ne le peut pas. À regarder sur la box sur la durée d'un jeton.
-- **Les identifiants Max restent lisibles du cook** — `claude` les lit. « Non copiables » tient à
-  ceci : aucune sortie que la liste blanche, et aucun montage inscriptible partagé hors du projet.
-  Reste **la branche poussée** : un cook qui commite le fichier le fait pousser. Le runtime n'ouvre
-  jamais ce fichier, donc ne le cherche pas dans une livraison.
-- **Le répertoire personnel reste lisible de tous les projets** (en lecture seule), et **la boucle
-  locale est commune** : un service qui écoute sur `localhost` est joignable de tous. La porte d'un
-  autre projet aussi.
-- **Un sous-module n'est ni regardé ni récolté**, et **un clone où `extensions.worktreeConfig`
-  est activé** fait lire au `git` du runtime un fichier du cook — ce que laisse le choix de #213,
-  voir plus haut.
-- **`git gc` et `git pack-refs` échouent sous cloison**, et le cache du compte n'est plus partagé
-  entre projets.
-- **La résolution de noms reste ouverte** (le résolveur local) : un tunnel DNS sort.
-- **`github.com` est en liste blanche** : sous l'identité unique, le cook y écrit avec le compte de
-  la machine. La clôture est une identité par rôle (#174).
-- **Un hôte s'ouvre par un merge** : une livraison qui touche `.claude/brigade/reseau` et que la
-  pass merge sous grant ouvre l'hôte au cook suivant. Le journal le dit ; rien ne l'arrête.
-- **`git` en SSH ne passe pas** : l'origine du clone doit être en `https`.
+- **None of this has run on the box.** The mechanics are tested behind a fake `bwrap`, and the real
+  one is tried in a Linux on the dev workstation. The unit's filter (`IPAddressDeny`) and `claude`
+  under the partition can only be proved there.
+- **The Max token perhaps renews badly read-only**: if `claude` wants to rewrite its credentials
+  from a cook, it cannot. To watch on the box over the life of a token.
+- **The Max credentials remain readable by the cook** — `claude` reads them. "Not copyable" rests on
+  this: no exit other than the allowlist, and no writable mount shared outside the project. What
+  remains is **the pushed branch**: a cook that commits the file gets it pushed. The runtime never
+  opens that file, so does not look for it in a delivery.
+- **The home directory remains readable by all projects** (read-only), and **the loopback is
+  shared**: a service listening on `localhost` can be reached by all. Another project's door too.
+- **A submodule is neither watched nor harvested**, and **a clone where `extensions.worktreeConfig`
+  is enabled** makes the runtime's `git` read a file of the cook's — what the choice of #213
+  leaves, see above.
+- **`git gc` and `git pack-refs` fail under the partition**, and the account's cache is no longer
+  shared between projects.
+- **Name resolution remains open** (the local resolver): a DNS tunnel gets out.
+- **`github.com` is allowlisted**: under the single identity, the cook writes there with the
+  machine's account. The fix is one identity per role (#174).
+- **A host opens through a merge**: a delivery that touches `.claude/brigade/reseau` and that the
+  pass merges under a grant opens the host to the next cook. The log says so; nothing stops it.
+- **`git` over SSH does not get through**: the clone's origin must be `https`.
 
-## Hors scope
+## Out of scope
 
-L'accès prod ; le runner Mac ; l'arbitre entre projets (#178) ; un espace réseau par cook ; l'arrêt
-de la pass sur une livraison qui touche la déclaration du réseau.
+Production access; the Mac runner; the arbiter between projects (#178); a network namespace per
+cook; stopping the pass on a delivery that touches the network declaration.
 
 ## Plan
 
-1. `cloison.ts` : configuration, enveloppe `bwrap` — tests unitaires derrière un faux.
-2. `gates.ts`, `station.ts`, `pass.ts`, `manager.ts`, `installation.ts` : chaque lancement passe par
-   la cloison.
-3. `reseau.ts` : règles, déclaration, variables de relais, publication au journal.
-4. `porte.ts`, `tenir-porte.ts` : le relais, ses refus, son journal.
-5. `montrer-cloison.ts`, `eprouver.ts` : ce que le chef lit, les sondes, la mesure.
-6. `main.ts` : câblage, annonces. `deploy/` : `brigade-porte@.service`, `cloison.conf`.
+1. `cloison.ts`: configuration, `bwrap` wrapper — unit tests behind a fake.
+2. `gates.ts`, `station.ts`, `pass.ts`, `manager.ts`, `installation.ts`: each launch goes through
+   the partition.
+3. `reseau.ts`: rules, declaration, relay variables, publication to the log.
+4. `porte.ts`, `tenir-porte.ts`: the relay, its refusals, its log.
+5. `montrer-cloison.ts`, `eprouver.ts`: what the chef reads, the probes, the measurement.
+6. `main.ts`: wiring, announcements. `deploy/`: `brigade-porte@.service`, `cloison.conf`.
 7. `docs/runtime.md`, `docs/installer.md`.

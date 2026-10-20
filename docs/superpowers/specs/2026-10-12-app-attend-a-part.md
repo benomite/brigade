@@ -1,44 +1,44 @@
-# L'app met à part ce qui attend le chef — spec (#318)
+# The app sets apart what awaits the chef — spec (#318)
 
-**Date** : 2026-10-12
-**Statut** : décidé par le dev, **à contester en review** — l'issue fixait les critères, le bord
-(#311) et les pièges ; ce qui restait, la forme à l'écran, a été tranché sans `question-spec`.
-**Issue** : #318 (épique #294). Tient le premier critère de #296.
+**Date**: 2026-10-12
+**Status**: decided by the dev, **to be contested in review** — the issue fixed the criteria, the edge
+(#311) and the traps; what remained, the form on screen, was settled without `question-spec`.
+**Issue**: #318 (epic #294). Meets the first criterion of #296.
 
-Le comportement, tel que le chef le vit, est dans `docs/app.md` (« Ce qui t'attend, mis à part ») :
-ce document ne le recopie pas.
+The behaviour, as the chef lives it, is in `docs/app.md` ("Ce qui t'attend, mis à part"):
+this document does not copy it.
 
-## Ce que le dev a tranché
+## What the dev settled
 
-1. **Le bloc est montré tel quel, bornes comprises** — sa ligne `attend`, sa ligne `fin attend`.
-   Retirer les bornes obligerait à couper la ligne de tête, qui porte aussi le décompte ou la
-   phrase : ce serait lire le bloc.
-2. **Le bloc sort de la sortie de `status`**, il n'y est pas montré une seconde fois. Le reste —
-   ce qui le précède, puis ce qui le suit, ligne vide comprise — reste mot pour mot, et son titre
-   dit ce qui lui manque.
-3. **Plein ou vide, le bloc a la même allure.** Une couleur quand quelque chose attend
-   demanderait de savoir s'il est vide : compter ses lignes ou reconnaître la phrase. L'app ne
-   sait pas ce que le bloc dit. (Le compteur dans la barre est hors scope, pour la même raison.)
-4. **Dans la kitchen, un bloc par projet**, en tête du sien — pas une pile commune en tête de la
-   page, qui demanderait de dire de quel projet vient chaque ligne.
-5. **Le bord est celui de `docs/runtime.md`, à la lettre** : exactement une ligne qui commence
-   par `attend`, exactement une qui vaut `fin attend`, la seconde après la première. Tout autre
-   cas — aucune borne, une seule, deux — est « sans bord » : la sortie reste entière, et l'app dit
-   qu'elle n'a rien mis à part, sans dire que rien n'attend. Elle ne nomme pas de cause (runtime
-   d'avant #311 : le cas attendu, dit dans la doc).
-6. **Seule la sortie de `status` est découpée** ; `grant` et `station` passent telles quelles.
-7. **Une sortie sans bord laisse le projet `pilotable`** : `status` a répondu. Ce n'est pas un
-   quatrième état.
-8. **La veille (`box.ts`) ne change pas** : elle rend toujours les sorties mot pour mot. Le
-   découpage vit dans `attend.ts`, appliqué par `main.ts` à chaque lecture avant la vue — la vue
-   ne peut pas importer de TypeScript, et reste mince : elle pose en tête ce qu'elle reçoit.
+1. **The block is shown as it is, boundaries included** — its `awaiting` line, its `end awaiting` line.
+   Removing the boundaries would force cutting the head line, which also carries the count or
+   the sentence: that would be reading the block.
+2. **The block comes out of the `status` output**, it is not shown a second time in it. The rest —
+   what precedes it, then what follows it, blank line included — stays word for word, and its title
+   says what it lacks.
+3. **Full or empty, the block looks the same.** A colour when something is awaiting
+   would require knowing whether it is empty: counting its lines or recognizing the sentence. The app does not
+   know what the block says. (The counter in the bar is out of scope, for the same reason.)
+4. **In the kitchen, one block per project**, at the head of its own — not a common stack at the top
+   of the page, which would require saying which project each line comes from.
+5. **The edge is that of `docs/runtime.md`, to the letter**: exactly one line that begins
+   with `awaiting`, exactly one that equals `end awaiting`, the second after the first. Any other
+   case — no boundary, only one, two — is "no edge": the output stays whole, and the app says
+   it set nothing apart, without saying that nothing is awaiting. It names no cause (runtime
+   from before #311: the expected case, stated in the doc).
+6. **Only the `status` output is cut**; `grant` and `station` pass through as they are.
+7. **An output with no edge leaves the project `pilotable`**: `status` answered. It is not a
+   fourth state.
+8. **The watch (`box.ts`) does not change**: it still returns the outputs word for word. The
+   cutting lives in `attend.ts`, applied by `main.ts` at each read before the view — the view
+   cannot import TypeScript, and stays thin: it places at the head what it receives.
 
 ## Plan
 
-1. `app/test/attend.test.ts` : le bloc pris par son bord sur des sorties recopiées du runtime ;
-   file vide ; contenu quelconque entre les bornes ; sorties sans bord ou au bord faux ; autre
-   commande ; lecture ratée.
-2. `app/src/attend.ts` : `mettreAPart(lecture)`.
-3. `main.ts`, `pont.d.ts`, `vue.js`, `vue.css` : le branchement et la présentation, vérifiés en
-   lançant l'app (faux `claude`, faux `ssh`).
+1. `app/test/attend.test.ts`: the block taken by its edge on outputs copied from the runtime;
+   empty queue; any content between the boundaries; outputs with no edge or a wrong edge; other
+   command; failed read.
+2. `app/src/attend.ts`: `mettreAPart(lecture)`.
+3. `main.ts`, `pont.d.ts`, `vue.js`, `vue.css`: the wiring and the presentation, verified by
+   launching the app (fake `claude`, fake `ssh`).
 4. `docs/app.md`.

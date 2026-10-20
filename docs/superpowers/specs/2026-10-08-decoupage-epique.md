@@ -1,86 +1,86 @@
-# Le manager découpe une épique en tickets exécutables — spec et plan (#71)
+# The manager splits an epic into executable tickets — spec and plan (#71)
 
-**Date** : 2026-10-08
-**Statut** : décidé — les cinq décisions produit ci-dessous, posées en `question-spec #71`, ont été
-confirmées telles quelles par le Manager le 2026-10-08, avec un ajout à la deuxième : une épique
-fermée n'est jamais découpée. Les choix de « Ce que le dev a tranché » restent contestables en
-review ; la borne de douze tickets et la réconciliation par marque sont acceptées.
-**Issue** : #71 « Le manager découpe une épique en tickets exécutables » (épique #75, jalon 2)
-**S'appuie sur** : `2026-10-08-brigade-v2-design.md` (§Le manager, principes 2 et 6),
-`2026-10-08-manager-qualifie-et-calibre.md` (le jugement, l'empreinte, « une fois par état », le
-geste du chef plus fort que celui du manager), `2026-10-08-fiche-du-ticket.md` (la fiche, qui fait
-foi sur une issue), `2026-10-08-pass-et-grant-merge.md` (l'intention avant l'effet, la
-réconciliation — précédent imité).
+**Date**: 2026-10-08
+**Status**: decided — the five product decisions below, put in `question-spec #71`, were
+confirmed as they stood by the Manager on 2026-10-08, with one addition to the second: a closed
+epic is never split. The choices in "What the dev decided" remain contestable in
+review; the bound of twelve tickets and the reconciliation by marker are accepted.
+**Issue**: #71 "The manager splits an epic into executable tickets" (epic #75, milestone 2)
+**Builds on**: `2026-10-08-brigade-v2-design.md` (§The manager, principles 2 and 6),
+`2026-10-08-manager-qualifie-et-calibre.md` (the judgment, the fingerprint, "once per state", the
+chef's action stronger than the manager's), `2026-10-08-fiche-du-ticket.md` (the card, which is
+authoritative on an issue), `2026-10-08-pass-et-grant-merge.md` (intent before effect, the
+reconciliation — precedent imitated).
 
 ---
 
-## Les décisions produit
+## The product decisions
 
-| # | Question | Décision | Ce que coûterait l'autre choix |
+| # | Question | Decision | What the other choice would cost |
 |---|---|---|---|
-| 1 | Qu'est-ce qui déclenche un découpage ? | Toute issue ouverte, d'auteur de confiance, qui porte `epic` **ou** que le jugement de #69 dit `epic` — le critère de sortie du jalon dit « ne pose aucun label ». `blocked-on-human` la retient toujours. Le label `epic` ne veut donc plus dire « écartée sans LLM » (décision 2 de #69) mais « à découper ». | Découpage sur demande seulement : une ligne dans `trier` (`manager.ts`). |
-| 2 | Les épiques déjà découpées à la main (#75) ? | Deux étages. En code : une issue dont le corps porte le bloc `<!-- brigade:tickets -->` sans que le journal l'ait découpée est écartée (`already-split`), sans LLM. C'est la garantie, et le geste à faire avant d'allumer. En code aussi : une épique fermée n'est jamais découpée, l'état étant relu juste avant de créer. Au LLM, en filet : une troisième réponse, « déjà découpée ». | Le second étage est faillible — c'est un LLM qui lit. Un opt-in par épique serait sûr, et contredit « aucun label ». |
-| 3 | Les tickets naissent-ils lancés ? | Oui : `model:`/`effort:` à la création, la fiche ensuite, `fire` en dernier. Ils ne repassent pas par le jugement de #69. | Nés sans `fire` : retirer l'appel à `labelliser` dans `creer` (`decoupage.ts`) — le jalon ne « traverse » alors plus la cuisine seul. |
-| 4 | La question au chef ? | Un commentaire sur l'épique, aucun label ; relue quand elle change, comme un refus de #69. Lisible dans `run manager`. L'épique n'est pas sur le rail : `run rail` n'en dit rien. | Poser aussi `blocked-on-human` : le chef devrait le retirer en répondant. |
-| 5 | La liste dans l'épique ? | Un bloc en fin de corps, entre deux marqueurs, seul endroit que le runtime réécrit. Un ticket du chef y entre par la ligne `Épique : #N` de son corps. Le manager ne ferme pas l'épique. | — |
+| 1 | What triggers a split? | Any open issue, by a trusted author, that carries `epic` **or** that #69's judgment calls `epic` — the milestone's exit criterion says "sets no label". `blocked-on-human` always holds it back. The `epic` label therefore no longer means "set aside without an LLM" (decision 2 of #69) but "to be split". | Split on request only: one line in `trier` (`manager.ts`). |
+| 2 | Epics already split by hand (#75)? | Two tiers. In code: an issue whose body carries the `<!-- brigade:tickets -->` block without the log having split it is set aside (`already-split`), without an LLM. That is the guarantee, and the action to take before turning on. Also in code: a closed epic is never split, the state being reread just before creating. At the LLM, as a safety net: a third answer, "already split". | The second tier is fallible — an LLM is reading. An opt-in per epic would be safe, and contradicts "no label". |
+| 3 | Are tickets born fired? | Yes: `model:`/`effort:` at creation, the card afterwards, `fire` last. They do not go back through #69's judgment. | Born without `fire`: remove the call to `labelliser` in `creer` (`decoupage.ts`) — the milestone then no longer "crosses" the kitchen on its own. |
+| 4 | The question to the chef? | A comment on the epic, no label; reread when it changes, like a refusal from #69. Readable in `run manager`. The epic is not on the rail: `run rail` says nothing about it. | Also set `blocked-on-human`: the chef would have to remove it when answering. |
+| 5 | The list in the epic? | A block at the end of the body, between two markers, the only place the runtime rewrites. A chef's ticket enters it through the `Épique : #N` line of its body. The manager does not close the epic. | — |
 
-## Ce que le dev a tranché
+## What the dev decided
 
-- **Le découpage est un second jugement**, par le même chemin que le premier : `lancer` des
-  garde-fous, sans outil, hors worktree, au journal comme un cook, neutre pour le disjoncteur s'il
-  se lit et en échec sinon. `manager.ts` porte désormais un `demander` générique, que le jugement
-  et le découpage partagent.
-- **Une épique sans label coûte deux appels** : le jugement de #69 la reconnaît, le découpage la
-  découpe. Son refus n'est alors pas commenté — c'est le découpage qui parle.
-- **Le LLM reçoit le plan du dépôt** — ses dossiers sur deux niveaux, lus dans le clone de la
-  station (`Depot.fichiers`). Sans cela il attribuerait des zones à l'aveugle : il n'a aucun outil.
-- **Les dépendances sont des rangs**, pas des numéros : un ticket n'attend que des tickets placés
-  avant lui dans la liste. L'ordre est donc celui de la liste, et un cycle est impossible par
-  construction. Les numéros d'issue n'existent qu'à la création, et la fiche les porte.
-- **Tout ou rien à la lecture.** Un seul ticket illisible (sans critère, sans zone, zone que la
-  fiche refuserait, calibrage hors table) et le découpage entier est refusé. La zone est vérifiée
-  en relisant, par `fiche()`, la fiche qui en sortirait : le manager ne poste jamais une fiche que
-  le rail ne saurait pas lire.
-- **Douze tickets au plus.** Au-delà, la réponse est illisible — la consigne demande alors au LLM
-  d'en faire une question.
-- **Jamais deux découpages.** `manager.split` porte tout le plan et s'écrit avant le premier appel
-  à GitHub ; la projection refuse de le remplacer. Chaque création est annoncée
-  (`manager.split-creating`) puis constatée (`manager.split-created`). Une annonce sans constat se
-  réconcilie : le ticket est cherché parmi les issues modifiées depuis le découpage, par la marque
-  `<!-- brigade:decoupage #N.k -->` de son corps.
-- **La confiance vaut aussi à la reprise.** La marque n'est reconnue que sur une issue d'auteur de
-  confiance, et seule une fiche de confiance dispense de poser celle du manager : sur un dépôt
-  public, n'importe qui peut écrire l'une ou l'autre.
-- **Les marqueurs ne comptent que seuls sur leur ligne, hors bloc de code** — la règle de la fiche.
-  Le marqueur de début seul suffit à dire « déjà découpée ».
-- **La question du manager est relue par le découpage suivant**, sans entrer dans l'empreinte :
-  elle ne le réveille pas, mais la réponse du chef se lit avec elle (`<!-- brigade:question -->`).
-- **La fiche puis `fire`** ne sont pas annoncés : poser `fire` est idempotent, et la fiche se
-  cherche dans les commentaires d'un ticket repris avant d'être reposée.
-- **L'empreinte d'une épique ignore le bloc** que le runtime y écrit : il ne se réveille pas
-  lui-même. Et une épique découpée sort du tri avant tout le reste : le jugement de #69 ne la revoit
-  jamais, quoi que devienne son corps.
-- **La liste se calcule sur le journal seul**, avant le sondage : l'état d'un ticket change sans
-  qu'aucune issue ne bouge. Elle ne porte aucune date, son empreinte est au journal
-  (`manager.split-listed`), et GitHub n'est appelé que si elle a changé.
-- **Un ticket du chef est adopté, pas jugé autrement** : `Épique : #N` le fait entrer dans la liste
-  (`manager.split-adopted`), et il suit le chemin ordinaire de #69. Seuls les auteurs de confiance
-  peuvent en rattacher un.
-- **Retenue en cours de route** : `blocked-on-human` posé sur une épique dont les tickets se créent
-  suspend les créations.
+- **The split is a second judgment**, through the same path as the first: the guardrails'
+  `lancer`, without a tool, outside a worktree, in the log like a cook, neutral for the breaker if
+  it is readable and failed otherwise. `manager.ts` now carries a generic `demander`, which the
+  judgment and the split share.
+- **An epic without a label costs two calls**: #69's judgment recognizes it, the split splits it.
+  Its refusal is then not commented — the split speaks.
+- **The LLM receives the repository's plan** — its folders on two levels, read in the station's
+  clone (`Depot.fichiers`). Without it, it would assign zones blindly: it has no tool.
+- **Dependencies are ranks**, not numbers: a ticket only awaits tickets placed before it in the
+  list. The order is therefore the list's, and a cycle is impossible by construction. Issue numbers
+  only exist at creation, and the card carries them.
+- **All or nothing at reading.** A single unreadable ticket (no criterion, no zone, a zone that the
+  card would refuse, calibration outside the table) and the whole split is refused. The zone is
+  checked by rereading, through `fiche()`, the card that would come out of it: the manager never
+  posts a card that the rail would not know how to read.
+- **Twelve tickets at most.** Beyond that, the answer is unreadable — the instruction then asks the
+  LLM to turn it into a question.
+- **Never two splits.** `manager.split` carries the whole plan and is written before the first call
+  to GitHub; the projection refuses to replace it. Each creation is announced
+  (`manager.split-creating`) then recorded (`manager.split-created`). An announcement without a
+  record is reconciled: the ticket is looked for among the issues modified since the split, by the
+  `<!-- brigade:decoupage #N.k -->` marker in its body.
+- **Trust also applies at resumption.** The marker is only recognized on an issue by a trusted
+  author, and only a trusted card exempts from setting the manager's own: on a public repository,
+  anyone can write either.
+- **Markers only count alone on their line, outside a code block** — the card's rule. The start
+  marker alone is enough to say "already split".
+- **The manager's question is reread by the next split**, without entering the fingerprint:
+  it does not wake it up, but the chef's answer is read with it (`<!-- brigade:question -->`).
+- **The card then `fire`** are not announced: setting `fire` is idempotent, and the card is
+  looked for in the comments of a resumed ticket before being set again.
+- **An epic's fingerprint ignores the block** the runtime writes in it: it does not wake itself up.
+  And a split epic leaves the sort before anything else: #69's judgment never sees it again,
+  whatever becomes of its body.
+- **The list is computed on the log alone**, before the poll: a ticket's state changes without
+  any issue moving. It carries no date, its fingerprint is in the log
+  (`manager.split-listed`), and GitHub is only called if it has changed.
+- **A chef's ticket is adopted, not otherwise judged**: `Épique : #N` makes it enter the list
+  (`manager.split-adopted`), and it follows #69's ordinary path. Only trusted authors can attach
+  one.
+- **Held back along the way**: `blocked-on-human` set on an epic whose tickets are being created
+  suspends the creations.
 
-## Hors scope, laissé tel quel
+## Out of scope, left as it is
 
-Vérifier que deux zones ne se recouvrent pas (#73) · réagir à l'échec d'un ticket né d'un découpage
-(#74) · fermer l'épique quand tout est servi · le budget d'une épique (jalon 3).
+Checking that two zones do not overlap (#73) · reacting to the failure of a ticket born of a split
+(#74) · closing the epic when everything is served · an epic's budget (milestone 3).
 
 ## Plan
 
-1. `evenements/manager.ts`, `projections/decoupages.ts` : les faits du découpage, l'état de chaque
-   épique et de ses tickets.
-2. `github.ts` : `creerIssue`, `ecrireCorps`, `issuesDepuis` ; `depot.ts` : `fichiers`.
-3. `epique.ts` : le bloc délimité, la ligne `Épique : #N`.
-4. `decouper.ts` : la consigne, la lecture de la réponse, le corps et la fiche d'un ticket.
-5. `decoupage.ts` : juger, créer, reprendre, dire, adopter, tenir la liste.
-6. `manager.ts` : le tri (`decouper`, `fini`), `demander` partagé ; `manager-cli.ts` : les épiques.
+1. `evenements/manager.ts`, `projections/decoupages.ts`: the split's facts, the state of each
+   epic and of its tickets.
+2. `github.ts`: `creerIssue`, `ecrireCorps`, `issuesDepuis`; `depot.ts`: `fichiers`.
+3. `epique.ts`: the delimited block, the `Épique : #N` line.
+4. `decouper.ts`: the instruction, the reading of the answer, a ticket's body and card.
+5. `decoupage.ts`: judge, create, resume, say, adopt, keep the list.
+6. `manager.ts`: the sort (`decouper`, `fini`), shared `demander`; `manager-cli.ts`: the epics.
 7. `docs/runtime.md`.

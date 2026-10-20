@@ -1,32 +1,32 @@
-# Relève du Manager — design
+# Manager handover — design
 
-**Date** : 2026-09-11
-**Statut** : validé, prêt pour plan d'implémentation
-**Portée** : `commands/manager.md`, `README.md`, miroir Codex, version du plugin
+**Date**: 2026-09-11
+**Status**: validated, ready for an implementation plan
+**Scope**: `commands/manager.md`, `README.md`, Codex mirror, plugin version
 
 ---
 
-## Le problème
+## The problem
 
-Le protocole brigade sait qu'un contexte hérité est un loyer, pas un actif. Il le dit pour les
-dev-teammates — « un teammate = une issue », « on ne le prolonge pas, on le remplace » — et la
-panne du dev-employé-permanent (2026-08-27) en donne le chiffrage : facteur 26 en tokens de cache
-pour le même travail livré.
+The brigade protocol knows that an inherited context is a rent, not an asset. It says so for
+dev-teammates — "one teammate = one issue", "we don't extend it, we replace it" — and the
+permanent-dev-employee outage (2026-08-27) puts a number on it: a factor of 26 in cache tokens for
+the same delivered work.
 
-**Le Manager remplit exactement la même condition, et n'a aucune règle.** Il draine en boucle
-event-driven pendant des heures, intègre PR après PR, et son contexte ne redescend jamais. Son
-état vit pourtant intégralement dans les artefacts — c'est le principe fondateur du protocole —
-donc rien ne justifie qu'il le porte en mémoire.
+**The Manager meets exactly the same condition, and has no rule.** It drains in an event-driven
+loop for hours, integrates PR after PR, and its context never goes back down. Yet its state lives
+entirely in the artifacts — that is the protocol's founding principle — so nothing justifies it
+carrying that state in memory.
 
-## Ce que mesurent les transcripts
+## What the transcripts measure
 
-Mesure sur **22 sessions Manager** (2 projets, 5 586 requêtes, 1 087 Mtok d'entrée), extraites des
-transcripts `~/.claude/projects/*/*.jsonl`.
+Measured on **22 Manager sessions** (2 projects, 5,586 requests, 1,087 Mtok of input), extracted
+from the `~/.claude/projects/*/*.jsonl` transcripts.
 
-### Le Manager vit au-dessus du seuil de long contexte
+### The Manager lives above the long-context threshold
 
 ```
-contexte moyen par requête : 195k
+mean context per request: 195k
   0-100k     958 req  17.2%    72 Mtok   6.6%
   100-150k  1211 req  21.7%   151 Mtok  13.9%
   150-200k  1119 req  20.1%   196 Mtok  18.1%
@@ -35,225 +35,222 @@ contexte moyen par requête : 195k
   260-400k   965 req  17.3%   308 Mtok  28.4%
   >400k      269 req   4.8%   122 Mtok  11.2%
 
-41 % des requêtes dépassent 200k — et pèsent 61,4 % de ses tokens.
-Session la plus longue : 965 tours, 24 merges, pic à 517k.
+41% of requests exceed 200k — and account for 61.4% of its tokens.
+Longest session: 965 turns, 24 merges, peak at 517k.
 ```
 
-Un seul compactage automatique sur 5 586 tours : rien ne vient freiner la croissance.
+A single automatic compaction in 5,586 turns: nothing slows the growth.
 
-### La croissance est linéaire et indexée sur les merges
+### Growth is linear and indexed on merges
 
 ```
-contexte médian au N-ième merge de la session
+median context at the Nth merge of the session
   merge 1 → 126k      merge 5 → 234k
   merge 2 → 159k      merge 7 → 319k
   merge 3 → 190k      merge 8 → 375k
-  merge 4 → 210k  ← franchissement du seuil
+  merge 4 → 210k  ← threshold crossed
 ```
 
-**+30k par issue intégrée.** Le déclencheur n'a donc pas besoin d'une mesure de tokens que le
-Manager ne sait pas lire : compter ses merges suffit, et il tient déjà cet historique dans la
+**+30k per integrated issue.** The trigger therefore does not need a token measurement that the
+Manager cannot read: counting its merges is enough, and it already keeps that history in the
 roadmap.
 
-### Le point mort existe
+### The dead point exists
 
-Point mort = aucun dev en vol, après le 3ᵉ merge.
-
-```
-se produit dans 13 des 15 sessions qui atteignent 3 merges (87 %)
-contexte médian au premier point mort : 190k   (min 134k, max 346k)
-médiane de 3 points morts par session
-2 sessions atteignent 3 merges sans jamais de point mort
-```
-
-Le point mort tombe naturellement **juste sous le seuil**, sans réglage. Mais il tarde dans 3
-sessions sur 22 — et ce sont les plus longues, donc les plus chères.
-
-### Gain simulé
-
-Simulation par rejeu des traces : à chaque relève, le contexte repart du démarrage mesuré (43k)
-augmenté d'un coût de point de situation, et suit ensuite la même pente qu'observée.
+Dead point = no dev in flight, after the 3rd merge.
 
 ```
-recap    seuil    entrée simulée    gain    relèves
-15k      3            630 Mtok      42 %       25
-30k      3            666 Mtok      39 %       25
-50k      3            714 Mtok      34 %       25
-80k      3            786 Mtok      28 %       25
-
-30k      2            620 Mtok      43 %       40
-30k      3            666 Mtok      39 %       25
-30k      4            708 Mtok      35 %       20
-30k      5            751 Mtok      31 %       14
+occurs in 13 of the 15 sessions that reach 3 merges (87%)
+median context at the first dead point: 190k   (min 134k, max 346k)
+median of 3 dead points per session
+2 sessions reach 3 merges without ever a dead point
 ```
 
-**Gain retenu : ~39 % de l'entrée du Manager**, et la part des tokens en tarif long-contexte
-tombe de 61 % à 15 %. Le résultat tient même sous une hypothèse de recap volontairement
-pessimiste (80k, soit près du double du contexte de démarrage) : 28 %.
+The dead point falls naturally **just under the threshold**, with no tuning. But it is late in 3
+sessions out of 22 — and those are the longest, hence the most expensive.
 
-Le seuil de 3 est le compromis retenu — un seuil de 2 gagne 4 points de plus au prix de 60 %
-de relèves supplémentaires, donc d'autant de perturbations du drainage.
+### Simulated gain
 
-**Point de comparaison** : la compression de sortie de commandes (type rtk), évaluée sur les
-mêmes données, plafonne à 2,1 % sans dégrader les preuves du protocole. Deux ordres de grandeur
-séparent les deux leviers. C'est ce qui a écarté la piste outillage au profit de la piste
-protocole.
+Simulation by trace replay: at each handover, the context restarts from the measured startup (43k)
+plus the cost of a situation report, then follows the same slope as observed.
+
+```
+recap    threshold    simulated input    gain    handovers
+15k      3            630 Mtok      42%       25
+30k      3            666 Mtok      39%       25
+50k      3            714 Mtok      34%       25
+80k      3            786 Mtok      28%       25
+
+30k      2            620 Mtok      43%       40
+30k      3            666 Mtok      39%       25
+30k      4            708 Mtok      35%       20
+30k      5            751 Mtok      31%       14
+```
+
+**Gain retained: ~39% of the Manager's input**, and the share of tokens at long-context pricing
+falls from 61% to 15%. The result holds even under a deliberately pessimistic recap hypothesis
+(80k, nearly double the startup context): 28%.
+
+The threshold of 3 is the compromise retained — a threshold of 2 gains 4 more points at the price
+of 60% more handovers, hence as many disruptions to the draining.
+
+**Point of comparison**: command-output compression (rtk type), evaluated on the same data, caps
+at 2.1% without degrading the protocol's evidence. Two orders of magnitude separate the two
+levers. That is what ruled out the tooling track in favor of the protocol track.
 
 ---
 
 ## Design
 
-### 1. La règle de relève
+### 1. The handover rule
 
-Ajoutée aux règles non négociables du rôle Manager :
+Added to the non-negotiable rules of the Manager role:
 
-> **Tu te relèves toi-même.** Dès que tu as intégré **3 issues** et qu'**aucun dev-teammate n'est
-> en vol**, tu passes la main : un Manager neuf reprend la boucle. Si tu atteins **5 intégrations**
-> sans que ce point mort se présente, **arrête de spawner** — draine ce qui est en vol, et
-> relève-toi dès que le dernier dev a livré.
+> **You hand yourself over.** As soon as you have integrated **3 issues** and **no dev-teammate is
+> in flight**, you hand over: a fresh Manager takes the loop back. If you reach **5 integrations**
+> without that dead point showing up, **stop spawning** — drain what is in flight, and hand over
+> as soon as the last dev has delivered.
 
-Deux définitions, à fixer sans ambiguïté dans le rôle :
+Two definitions, to be fixed without ambiguity in the role:
 
-- **« intégrée »** = toute PR que tu as mergée, qu'elle vienne d'un dev-teammate ou du Designer.
-  C'est le merge qui fait grossir ton contexte — gates, revue de diff, clôture — pas l'origine de
-  la PR.
-- **« en vol »** = un dev-teammate que **tu** as spawné et qui n'a pas encore vu sa PR mergée. Le
-  Designer n'est **jamais** en vol à ton sens : c'est une session humaine indépendante que tu ne
-  spawnes pas et dont tu ne contrôles pas le rythme. Attendre le Designer pour te relever
-  reviendrait à ne jamais te relever.
+- **"integrated"** = any PR you merged, whether it comes from a dev-teammate or from the Designer.
+  The merge is what makes your context grow — gates, diff review, close-out — not the origin of the
+  PR.
+- **"in flight"** = a dev-teammate that **you** spawned and whose PR has not yet been merged. The
+  Designer is **never** in flight in your sense: it is an independent human session that you do not
+  spawn and whose pace you do not control. Waiting for the Designer before handing over would mean
+  never handing over.
 
-Deux seuils, deux rôles distincts :
+Two thresholds, two distinct roles:
 
-- **3 merges + aucun dev en vol** — le régime normal. Relève opportuniste, sans perte : aucun
-  teammate n'est tué, aucun travail non poussé n'est perdu, aucun creux de débit.
-- **5 merges sans point mort** — le filet. Le Manager cesse de spawner ; le point mort se produit
-  alors mécaniquement en un ou deux cycles. Ne s'active que dans les cas résiduels (3 sessions sur
-  22 mesurées), donc le débit normal n'est jamais entamé.
+- **3 merges + no dev in flight** — the normal regime. Opportunistic handover, lossless: no
+  teammate is killed, no unpushed work is lost, no throughput dip.
+- **5 merges without a dead point** — the safety net. The Manager stops spawning; the dead point
+  then occurs mechanically within one or two cycles. Only kicks in for the residual cases (3
+  sessions out of the 22 measured), so normal throughput is never dented.
 
-Le compteur ne vit pas en mémoire : il se recompte depuis l'historique daté des clôtures que le
-Manager tient déjà dans la roadmap (§7 du rôle). Un compteur en mémoire serait une seconde
-vérité, et disparaîtrait au premier crash.
+The counter does not live in memory: it is recounted from the dated history of close-outs that the
+Manager already keeps in the roadmap (§7 of the role). A counter in memory would be a second truth,
+and would disappear at the first crash.
 
-### 2. La passation ne transmet rien
+### 2. The handover transmits nothing
 
-**Le Manager sortant n'écrit aucun document de passation.** C'est délibéré, et c'est la
-conséquence directe du principe fondateur : toute la coordination vit dans des artefacts durables,
-jamais dans la mémoire d'une session. Un document de passation serait précisément le genre de
-mémoire que le protocole refuse — et une seconde source de vérité à côté de la roadmap.
+**The outgoing Manager writes no handover document.** This is deliberate, and it is the direct
+consequence of the founding principle: all coordination lives in durable artifacts, never in the
+memory of a session. A handover document would be precisely the kind of memory the protocol
+refuses — and a second source of truth next to the roadmap.
 
-La relève est donc un **point de contrôle**, pas un transfert. Avant de partir, le sortant vérifie
-ce qu'il devait déjà tenir à jour :
+The handover is therefore a **checkpoint**, not a transfer. Before leaving, the outgoing Manager
+checks what it was already supposed to keep up to date:
 
-- `main` poussé, aucune avance locale non publiée ;
-- roadmap à jour (ordre + historique des clôtures) ;
-- aucun worktree orphelin ;
-- issues en attente étiquetées `blocked-on-human`.
+- `main` pushed, no unpublished local lead;
+- roadmap up to date (order + history of close-outs);
+- no orphan worktree;
+- waiting issues labeled `blocked-on-human`.
 
-S'il ne peut pas cocher ces cases, **il n'a pas le droit de se relever** : il les met à jour
-d'abord. Cette contrainte est un bénéfice secondaire du design — un Manager incapable de passer la
-main est un Manager qui a laissé dériver ses artefacts, et la relève le révèle à intervalle
-régulier au lieu de le laisser découvrir au prochain crash.
+If it cannot tick these boxes, **it is not allowed to hand over**: it updates them first. This
+constraint is a secondary benefit of the design — a Manager unable to hand over is a Manager that
+let its artifacts drift, and the handover reveals it at regular intervals instead of letting it be
+discovered at the next crash.
 
-### 3. « Reprise après crash » devient « Relève et reprise »
+### 3. "Crash recovery" becomes "Handover and recovery"
 
-La §6 du rôle Manager contient déjà toute la procédure de reconstruction : point de situation,
-re-spawn d'un dev neuf par issue inachevée reprenant le worktree existant, retour à la boucle de
-drainage. **Aucune ligne de cette procédure ne change.**
+§6 of the Manager role already contains the whole reconstruction procedure: situation report,
+re-spawn of a fresh dev for each unfinished issue picking up the existing worktree, return to the
+draining loop. **Not a single line of this procedure changes.**
 
-Seul son statut change : de plan de secours réservé à l'accident, elle devient le régime normal
-avec deux déclencheurs — la relève volontaire et le crash. Le titre et la phrase d'introduction
-sont réécrits en conséquence.
+Only its status changes: from a contingency plan reserved for the accident, it becomes the normal
+regime with two triggers — the voluntary handover and the crash. The title and the introductory
+sentence are rewritten accordingly.
 
-### 4. La relance vit hors du plugin
+### 4. The relaunch lives outside the plugin
 
-Un Manager ne peut pas se relancer lui-même : il est la session principale, et l'orchestration
-exige une session interactive. La relance est donc le fait d'un superviseur externe.
+A Manager cannot relaunch itself: it is the main session, and orchestration requires an
+interactive session. The relaunch is therefore the job of an external supervisor.
 
-**brigade n'impose rien et ne dépend de rien** — cohérent avec son traitement de `gates.sh`, dont
-il ne connaît que le contrat. Le README documente le comportement (le Manager s'arrête de
-lui-même, proprement, après avoir passé son point de contrôle) et donne le motif de relance à
-titre d'exemple, sans l'exiger :
+**brigade imposes nothing and depends on nothing** — consistent with its treatment of `gates.sh`,
+of which it only knows the contract. The README documents the behavior (the Manager stops by
+itself, cleanly, after passing its checkpoint) and gives the relaunch pattern as an example,
+without requiring it:
 
 ```bash
 while true; do claude "/brigade:manager"; sleep 5; done
 ```
 
-Le mode de permission de cette boucle relève de l'environnement qui l'héberge, pas du protocole :
-une relance non surveillée suppose des choix que brigade n'a pas à prendre pour son utilisateur.
+The permission mode of this loop is up to the environment that hosts it, not the protocol: an
+unattended relaunch presupposes choices that brigade has no business making for its user.
 
-Sans superviseur, la relève reste utile : le Manager s'arrête proprement et l'humain relance quand
-il repasse. Avec superviseur, la boucle de drainage devient continue tout en gardant un contexte
-borné.
+Without a supervisor, the handover is still useful: the Manager stops cleanly and the human
+relaunches when they next come by. With a supervisor, the draining loop becomes continuous while
+keeping a bounded context.
 
 ---
 
-## Fichiers touchés
+## Files touched
 
-| Fichier | Changement |
+| File | Change |
 |---|---|
-| `commands/manager.md` | La règle de relève dans les règles non négociables ; §6 renommée « Relève et reprise » avec ses deux déclencheurs ; le point de contrôle avant passation |
-| `README.md` | Section « Coût » : la relève comme troisième levier, avec les chiffres mesurés ; mention de la relance externe dans les prérequis et limites |
-| `.claude-plugin/plugin.json` | Bump de version (la règle doit descendre dans les projets) |
-| miroir Codex | Aucune édition directe — `/brigade:sync` à rejouer après la mise à jour du plugin |
+| `commands/manager.md` | The handover rule in the non-negotiable rules; §6 renamed "Handover and recovery" with its two triggers; the checkpoint before handing over |
+| `README.md` | "Cost" section: the handover as a third lever, with the measured figures; mention of the external relaunch in the prerequisites and limits |
+| `.claude-plugin/plugin.json` | Version bump (the rule has to flow down into the projects) |
+| Codex mirror | No direct edit — `/brigade:sync` to be replayed after the plugin update |
 
-## Ce qui ne change pas
+## What does not change
 
-Explicitement hors périmètre, pour éviter toute dérive à l'implémentation :
+Explicitly out of scope, to avoid any drift during implementation:
 
-- La procédure de reconstruction d'état (§6) — réutilisée telle quelle.
-- Les règles de spawn, de partitionnement par zone de fichiers, de gates et de merge.
-- Le rôle dev, le rôle PO, le rôle Designer.
-- `gates.sh` et `worktree-setup.sh` — aucun troisième script de contrat n'est introduit.
-- La verbosité des sorties de commandes : mesurée, jugée non rentable, écartée.
+- The state reconstruction procedure (§6) — reused as is.
+- The rules for spawning, partitioning by file zone, gates and merge.
+- The dev role, the PO role, the Designer role.
+- `gates.sh` and `worktree-setup.sh` — no third contract script is introduced.
+- The verbosity of command outputs: measured, judged unprofitable, set aside.
 
-## Risques et limites
+## Risks and limits
 
-- **Le successeur peut repayer du travail** (re-qualification, relecture d'artefacts). C'est ce que
-  couvre l'hypothèse de recap ; le gain tient jusqu'à 80k, soit près du double du contexte de
-  démarrage mesuré.
-- **La règle est du prompt, donc faillible.** Un Manager peut oublier de compter. Le fait que le
-  compteur soit recalculable depuis la roadmap limite la casse, sans l'éliminer.
-- **Effet sur les dev-teammates non mesuré.** Aucun teammate n'apparaît dans les transcripts
-  (`isSidechain` toujours faux, `userType=external` partout) malgré 115 spawns. Une relève au point
-  mort n'en tue aucun par construction, donc l'effet attendu est nul — mais ce n'est pas prouvé par
-  les données.
-- **Les mesures viennent d'un protocole en 0.6.0**, quatre versions avant la version courante,
-  donc avant que « un teammate = une issue » n'entre en vigueur (0.10.0). Deux conséquences
-  distinctes. La croissance du contexte du Manager n'est pas affectée : elle vient de ce qu'il
-  intègre — gates, revue de diff, clôture —, pas de la façon dont il gère ses devs. En revanche
-  l'estimateur de « dev en vol » suppose qu'un dev meurt au merge de sa PR, ce qui était faux
-  quand les devs étaient réutilisés par `SendMessage` (87 spawns pour 114 merges). Le nombre de
-  points morts est donc vraisemblablement **sous-estimé** : sous 0.10 et au-delà, un dev meurt
-  bien après sa PR, donc la règle devrait se déclencher plus souvent, pas moins. C'est un
-  raisonnement, pas une mesure — à confirmer une fois la version courante déployée.
-- **Le gain est simulé, pas constaté.** La simulation rejoue les traces réelles sous un modèle de
-  croissance linéaire, validé par l'observation (+30k/merge). Elle reste un modèle.
-- **Tokens estimés** : les chiffres de contexte viennent des champs `usage` des transcripts, donc
-  du décompte réel du fournisseur. Aucune estimation `bytes/4` n'intervient dans les chiffres de
-  ce document.
+- **The successor may repay work** (re-qualification, re-reading artifacts). This is what the recap
+  hypothesis covers; the gain holds up to 80k, nearly double the measured startup context.
+- **The rule is prompt, hence fallible.** A Manager may forget to count. The fact that the counter
+  can be recomputed from the roadmap limits the damage, without eliminating it.
+- **Effect on dev-teammates not measured.** No teammate appears in the transcripts
+  (`isSidechain` always false, `userType=external` everywhere) despite 115 spawns. A handover at the
+  dead point kills none by construction, so the expected effect is nil — but the data does not
+  prove it.
+- **The measures come from a protocol at 0.6.0**, four versions before the current one, hence
+  before "one teammate = one issue" came into force (0.10.0). Two distinct consequences. The
+  growth of the Manager's context is not affected: it comes from what it integrates — gates, diff
+  review, close-out —, not from how it manages its devs. On the other hand the "dev in flight"
+  estimator assumes that a dev dies at the merge of its PR, which was false when devs were reused
+  via `SendMessage` (87 spawns for 114 merges). The number of dead points is therefore probably
+  **underestimated**: under 0.10 and beyond, a dev dies well after its PR, so the rule should fire
+  more often, not less. This is reasoning, not a measurement — to be confirmed once the current
+  version is deployed.
+- **The gain is simulated, not observed.** The simulation replays the real traces under a linear
+  growth model, validated by observation (+30k/merge). It remains a model.
+- **Estimated tokens**: the context figures come from the `usage` fields of the transcripts, hence
+  from the provider's actual count. No `bytes/4` estimate enters the figures of this document.
 
-## Critères de succès
+## Success criteria
 
-Vérifiables en rejouant la même mesure après quelques semaines d'usage, **sur la version courante
-du protocole** — la mesure de référence ci-dessus datant de 0.6.0, la comparaison n'est valable
-qu'entre deux relevés postérieurs au déploiement :
+Verifiable by replaying the same measurement after a few weeks of use, **on the current version of
+the protocol** — the reference measurement above dating from 0.6.0, the comparison is only valid
+between two readings taken after the deployment:
 
-1. Le contexte médian par requête du Manager passe **sous 200k** (mesuré : 195k de moyenne, avec
-   41 % des requêtes au-dessus).
-2. La part des tokens d'entrée en tarif long-contexte tombe **sous 30 %** (mesuré : 61,4 %).
-3. Aucune session Manager ne dépasse **8 merges** sans relève (mesuré : jusqu'à 24).
-4. Aucune régression de débit : le nombre d'issues intégrées par jour ne baisse pas.
+1. The Manager's median context per request goes **under 200k** (measured: 195k mean, with 41% of
+   requests above).
+2. The share of input tokens at long-context pricing falls **under 30%** (measured: 61.4%).
+3. No Manager session exceeds **8 merges** without a handover (measured: up to 24).
+4. No throughput regression: the number of issues integrated per day does not drop.
 
-Le critère 4 est le garde-fou du design. Si la relève fait chuter le débit, c'est le seuil de
-vidange qui est en cause, et c'est lui qu'il faut desserrer — pas la règle.
+Criterion 4 is the design's safeguard. If the handover makes throughput drop, it is the draining
+threshold that is at fault, and that is what needs loosening — not the rule.
 
-## Méthode de mesure
+## Measurement method
 
-Les chiffres de ce document viennent d'un script d'analyse des transcripts qui, pour chaque
-session identifiée comme Manager (par occurrence dominante de `brigade:<rôle>`), extrait par
-requête assistant la somme `cache_read + cache_creation + input` du champ `usage`, et corrèle
-cette série avec les événements `Agent` (spawn) et `gh pr merge` (intégration).
+The figures in this document come from a transcript analysis script which, for each session
+identified as a Manager (by dominant occurrence of `brigade:<role>`), extracts for each assistant
+request the sum `cache_read + cache_creation + input` of the `usage` field, and correlates this
+series with the `Agent` (spawn) and `gh pr merge` (integration) events.
 
-Le script n'est pas versionné à ce stade. Le plan d'implémentation décidera s'il rejoint
-`scripts/`, ce qui rendrait les critères de succès rejouables par n'importe qui — à mettre en
-balance avec le fait qu'il lit des transcripts, donc des données de session.
+The script is not versioned at this stage. The implementation plan will decide whether it joins
+`scripts/`, which would make the success criteria replayable by anyone — to be weighed against the
+fact that it reads transcripts, hence session data.

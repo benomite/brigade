@@ -1,94 +1,94 @@
-# Plusieurs cooks à la fois — spec et plan (#98)
+# Several cooks at once — spec and plan (#98)
 
-**Date** : 2026-10-09
-**Statut** : décidé — les décisions produit ci-dessous sont celles de l'orchestrateur (réponse du
-2026-10-09 au `question-spec #98`) ; « Ce que le dev a tranché » est contestable en review
-**Issue** : #98 « Plusieurs cooks travaillent en même temps » — épique #101, jalon 4
-**S'appuie sur** : `2026-10-08-brigade-v2-design.md` (§ Scheduler, § Contraintes),
+**Date**: 2026-10-09
+**Status**: decided — the product decisions below are the orchestrator's (answer of
+2026-10-09 to `question-spec #98`); "What the dev settled" can be contested in review
+**Issue**: #98 "Several cooks work at the same time" — epic #101, milestone 4
+**Builds on**: `2026-10-08-brigade-v2-design.md` (§ Scheduler, § Constraints),
 `2026-10-08-station-claude.md`, `2026-10-08-zones-de-fichiers.md`, `2026-10-08-garde-fous.md`,
-`2026-10-08-bail-progres-observable.md`. Ce document ne redécide rien de ce qui y figure.
+`2026-10-08-bail-progres-observable.md`. This document redecides nothing of what appears in them.
 
-Le comportement, tel que le chef le vit, est dans `docs/runtime.md`, « Plusieurs cooks à la fois » :
-c'est la doc vivante, ce document ne la recopie pas.
+The behaviour, as the chef lives it, is in `docs/runtime.md`, "Plusieurs cooks à la fois":
+it is the living doc, this document does not copy it.
 
 ---
 
-## Décisions produit
+## Product decisions
 
-1. **Le plafond se règle par une commande du chef**, qui écrit un fait au journal :
-   `run station -- cooks <N>`. `0` : pas de limite. **30** tant que le chef n'a rien dit. Lu à
-   chaque prise ; affiché dans `station` et `status`.
-2. **Le plafond ne compte que les cooks de tickets.** Jugements du manager et relectures du
-   reviewer ne retiennent plus la prise : à un plafond de N, il peut tourner N cooks, un jugement et
-   les relectures en cours.
-3. **La garde machine est dans ce ticket** : processeur, mémoire, disque ; seuils réglables par
-   l'environnement (`1.5` de charge par cœur, 1 Go de mémoire disponible, 5 Go de disque) ; lue par
-   une fonction injectable.
-4. **Le nettoyage des worktrees et des branches n'y est pas** : #139.
-5. **Le coût d'entrée est borné par un plafond de setups simultanés**, 4 par défaut.
-6. **`status`** : une ligne par cook, sans tri ni repli — la lisibilité à trente est #100.
+1. **The cap is set by a chef command**, which writes a fact to the log:
+   `run station -- cooks <N>`. `0`: no limit. **30** as long as the chef has said nothing. Read at
+   every take; shown in `station` and `status`.
+2. **The cap only counts ticket cooks.** The manager's judgments and the reviewer's reviews no
+   longer hold up the take: at a cap of N, N cooks, one judgment and the reviews in progress
+   can run.
+3. **The machine guard is in this ticket**: processor, memory, disk; thresholds adjustable through
+   the environment (`1.5` of load per core, 1 GB of available memory, 5 GB of disk); read by
+   an injectable function.
+4. **Cleanup of worktrees and branches is not in it**: #139.
+5. **The entry cost is bounded by a cap on simultaneous setups**, 4 by default.
+6. **`status`**: one line per cook, with no sorting or folding — readability at thirty is #100.
 
-## Critères, et ce qui les porte
+## Criteria, and what carries them
 
-| Critère | Ce qui le porte |
+| Criterion | What carries it |
 |---|---|
-| Le plafond est réglable, et le chef voit sa valeur | `station.capped` (auteur `chef`), colonne `cap` de la projection des stations, `plafondDeCooks` ; `run station` et la ligne `cooks` de `status` |
-| À N, N cooks tournent vraiment en même temps | `servir` ne fait plus attendre la fin d'un cook : il prend tant que `peutServir`, et chaque ticket part dans sa propre `cuisiner` |
-| Jamais au-dessus du plafond | `prisPar` : le compte se lit au rail, dans la boucle synchrone qui prend — rien ne s'intercale entre le compte et la prise |
-| Deux zones qui se recouvrent ne partent pas ensemble | `rail.prendre` est une transaction, et `tenants` compte un ticket pris : la zone du premier est tenue avant le choix du second. Rien à écrire, sinon le test |
-| Un cook qui tombe n'emporte pas les autres | un superviseur par cook (déjà là) ; un regard par cook (`regards`, à la place de l'unique `observer`) ; une `cuisiner` qui bute est rattrapée ticket par ticket |
-| Journal et `status` distinguent les cooks | `cook.launched` porte déjà station, calibrage, branche, worktree ; `status` les lit par `cookDeRun`, et le temps sans progrès au rail |
-| Baisser le plafond ne tue personne | le plafond n'est lu qu'à la prise |
-| La station cesse de lancer quand la machine n'en peut plus, et le dit | `machine.ts` ; `station.saturated` / `station.relieved` ; `journalctl` ; `status`, `station` |
-| Le coût d'entrée est mesuré et borné | `entrees` : les tickets pris dont le cook n'est pas lancé, au plus `BRIGADE_MAX_SETUPS` |
+| The cap is adjustable, and the chef sees its value | `station.capped` (author `chef`), column `cap` of the stations projection, `plafondDeCooks`; `run station` and the `cooks` line of `status` |
+| At N, N cooks really run at the same time | `servir` no longer waits for a cook to end: it takes as long as `peutServir`, and each ticket leaves in its own `cuisiner` |
+| Never above the cap | `prisPar`: the count is read at the rail, in the synchronous loop that takes — nothing slips in between the count and the take |
+| Two overlapping zones do not leave together | `rail.prendre` is a transaction, and `tenants` counts a taken ticket: the first's zone is held before the second is chosen. Nothing to write, except the test |
+| A cook that falls does not take the others with it | one supervisor per cook (already there); one watch per cook (`regards`, in place of the single `observer`); a `cuisiner` that stumbles is caught ticket by ticket |
+| The log and `status` tell the cooks apart | `cook.launched` already carries station, calibration, branch, worktree; `status` reads them through `cookDeRun`, and the time without progress at the rail |
+| Lowering the cap kills nobody | the cap is only read at the take |
+| The station stops launching when the machine can't take it, and says so | `machine.ts`; `station.saturated` / `station.relieved`; `journalctl`; `status`, `station` |
+| The entry cost is measured and bounded | `entrees`: the taken tickets whose cook is not launched, at most `BRIGADE_MAX_SETUPS` |
 
-## Ce que le dev a tranché
+## What the dev settled
 
-- **Le compte des cooks est celui des tickets tenus** (`rail` : état `taken`, station `box/claude`),
-  pas celui des process : un ticket compte dès sa prise, pendant son worktree et son setup. Compter
-  les process laisserait partir trente setups avant le premier `cook.launched`.
-- **L'entrée borne la prise, elle ne fait pas la queue.** Un ticket n'est pris que s'il a une place
-  en entrée : il reste en attente sur le rail, son bail ne court pas, et la borne couvre aussi
+- **The count of cooks is that of held tickets** (`rail`: state `taken`, station `box/claude`),
+  not that of processes: a ticket counts from its take, during its worktree and its setup. Counting
+  processes would let thirty setups leave before the first `cook.launched`.
+- **The entry bounds the take, it does not queue.** A ticket is only taken if it has a place
+  at the entry: it stays queued on the rail, its lease does not run, and the bound also covers
   `git worktree add`.
-- **Les préparations de worktree passent une par une** dans `depot.ts` : un seul clone, et deux
-  `git fetch` de la même branche s'y disputent `refs/remotes/origin/<base>`.
-- **Un ticket rendu n'est repris qu'une fois sa cuisine défaite** (`rail.prendre(station, sauf)`).
-  Sans cela — vu en test dès que la prise n'a plus été sérialisée — un ticket rendu pendant son
-  setup était repris aussitôt, et la première cuisine, voyant « son » ticket à nouveau tenu par la
-  station, lançait un second cook dessus.
-- **La garde machine écrit ses transitions, pas ses regards**, avec dix pour cent de marge pour se
-  lever. Une machine illisible ne retient rien.
-- **La mémoire lue est `process.availableMemory()`**, pas `os.freemem()` : mesuré sur le poste de
-  dev (macOS) le 2026-10-09, la seconde rend 0,4 Go quand la première en rend 6,8.
-- **L'annonce porte le plafond par défaut, le réglage du chef vit à part** : une annonce réécrite au
-  redémarrage ne défait pas ce que le chef a réglé.
+- **Worktree preparations go one by one** in `depot.ts`: a single clone, and two
+  `git fetch` of the same branch fight over `refs/remotes/origin/<base>` there.
+- **A returned ticket is only taken up again once its kitchen is undone** (`rail.prendre(station, sauf)`).
+  Without this — seen in test as soon as the take was no longer serialized — a ticket returned during its
+  setup was taken up again at once, and the first kitchen, seeing "its" ticket held again
+  by the station, launched a second cook on it.
+- **The machine guard writes its transitions, not its looks**, with ten percent of margin to
+  lift. An unreadable machine holds nothing back.
+- **The memory read is `process.availableMemory()`**, not `os.freemem()`: measured on the dev
+  workstation (macOS) on 2026-10-09, the second returns 0.4 GB when the first returns 6.8.
+- **The announcement carries the default cap, the chef's setting lives apart**: an announcement rewritten at
+  restart does not undo what the chef set.
 
-## Ce que la revue a fait changer (renvoi 1, 2026-10-09)
+## What the review changed (return 1, 2026-10-09)
 
-- **Montée progressive.** La garde ne lisait la machine qu'à la prise, et la charge retarde d'une
-  minute : un rail de trente partait d'un bloc. Chaque cook de moins d'une minute, et chaque ticket
-  en entrée, pèse d'avance une unité de charge et 512 Mo (`reserver`). Retenu par cette réserve, la
-  station n'écrit rien : la machine ne sature pas.
-- **La machine se lit d'abord**, avant le « stop », le quota ou le plafond : `station.saturated` et
-  `station.relieved` ne dépendent plus d'une autre borne. Illisible, elle ne lève plus une
-  saturation : la station s'en tient à ce qu'elle savait.
-- **Le plafond compte `max(tickets tenus, cuisines pas défaites)`**, et `rail.prendre` reçoit la
-  zone de chaque ticket encore en cuisine : rendu ou retiré pendant que son cook tourne, un ticket
-  ne fait ni une place ni une zone libre.
+- **Gradual ramp-up.** The guard only read the machine at the take, and the load lags by
+  a minute: a rail of thirty left in one block. Each cook under a minute old, and each ticket
+  at the entry, weighs one unit of load and 512 MB in advance (`reserver`). Held back by this reserve, the
+  station writes nothing: the machine does not saturate.
+- **The machine is read first**, before the "stop", the quota or the cap: `station.saturated` and
+  `station.relieved` no longer depend on another bound. Unreadable, it no longer lifts a
+  saturation: the station sticks to what it knew.
+- **The cap counts `max(held tickets, kitchens not undone)`**, and `rail.prendre` receives the
+  zone of each ticket still in the kitchen: returned or removed while its cook runs, a ticket
+  frees neither a place nor a zone.
 
-## Hors périmètre
+## Out of scope
 
-Nettoyage des worktrees et des branches (#139). Intégration de deux livraisons concurrentes (#99).
-Disjoncteur, « stop » et lisibilité de `status` à N (#100). Arbitre de quota (#63).
+Cleanup of worktrees and branches (#139). Integration of two concurrent deliveries (#99).
+Breaker, "stop" and readability of `status` at N (#100). Quota arbiter (#63).
 
 ## Plan
 
-1. Faits et projection : `station.capped`, `station.saturated`, `station.relieved` ; `cap`, la
-   saturation et le worktree du cook dans la projection des stations ; `prisPar` au rail.
-2. `machine.ts` : lecture, seuils, saturation — et leurs tests, sans la machine réelle.
-3. La station : prise non sérialisée, les trois bornes, un regard par cook, `sauf` à la prise ;
-   préparations sérialisées dans le dépôt.
-4. Ce que le chef lit et règle : `run station -- cooks <N>`, `run station`, `run status`.
-5. Tests de la station à plusieurs cooks (faux `claude`, un cas sur un vrai dépôt git), et la suite
-   du faux `claude` consommée sous verrou — plusieurs cooks la lisent de front.
-6. Doc vivante : `docs/runtime.md`.
+1. Facts and projection: `station.capped`, `station.saturated`, `station.relieved`; `cap`, the
+   saturation and the cook's worktree in the stations projection; `prisPar` at the rail.
+2. `machine.ts`: reading, thresholds, saturation — and their tests, without the real machine.
+3. The station: non-serialized take, the three bounds, one watch per cook, `sauf` at the take;
+   preparations serialized in the repository.
+4. What the chef reads and sets: `run station -- cooks <N>`, `run station`, `run status`.
+5. Tests of the station with several cooks (fake `claude`, one case on a real git repository), and the
+   fake `claude`'s suite consumed under lock — several cooks read it side by side.
+6. Living doc: `docs/runtime.md`.

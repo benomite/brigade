@@ -1,95 +1,96 @@
-# Le worktree part à la fin du cook — spec et plan (#164)
+# The worktree leaves at the end of the cook — spec and plan (#164)
 
-**Date** : 2026-10-09
-**Statut** : décidé — les quatre décisions produit ci-dessous sont celles de l'orchestrateur
-(réponse du 2026-10-09 au `question-spec #164`, consignée en commentaire de l'issue) ; « Ce que le
-dev a tranché » est contestable en review
-**Issue** : #164 « Le worktree part à la fin du cook, après avoir commité ce qui traîne »
-**Remplace** : la règle de `2026-10-09-nettoyage-des-worktrees.md` (#139) — « un travail non poussé
-est gardé », « rien n'est retiré tant que le ticket est sur le rail ». La décision du chef
-(`2026-10-08-brigade-v2-design.md`, § Ce qui se range sans attendre la fermeture) l'emporte :
-**personne ne retourne dans le worktree d'un échec.**
+**Date**: 2026-10-09
+**Status**: decided — the four product decisions below are the orchestrator's (answer of
+2026-10-09 to `question-spec #164`, recorded as a comment on the issue); "What the dev decided" can
+be contested in review
+**Issue**: #164 "The worktree leaves at the end of the cook, after committing what is lying around"
+**Replaces**: the rule of `2026-10-09-nettoyage-des-worktrees.md` (#139) — "unpushed work is kept",
+"nothing is removed while the ticket is on the rail". The chef's decision
+(`2026-10-08-brigade-v2-design.md`, § What is tidied without waiting for the closing) prevails:
+**nobody goes back into a failure's worktree.**
 
-Le comportement, tel que le chef le vit, est dans `docs/runtime.md`, « Ce qui reste après un
-cook » : c'est la doc vivante, ce document ne la recopie pas.
+The behavior, as the chef lives it, is in `docs/runtime.md`, "What remains after a cook": that is
+the living doc, this document does not copy it.
 
 ---
 
-## Ce qui était vrai avant de coder
+## What was true before coding
 
-- La pass faisait tout dans le worktree du cook : gates, reviewer (son `cwd`), lecture du commit,
-  de sa propreté, du diff — et, avant de merger, la rencontre avec la base, qui peut tomber des
-  jours après le verdict (sans grant, CI lente, base rouge).
-- Un renvoi reprenait le worktree de la livraison refusée.
-- Le nettoyage (#139) ne passait qu'une fois le ticket servi ou sorti du rail, et gardait tout
-  worktree portant un travail absent de l'origine (`unpushed`) ou une PR ouverte (`pr-open`).
-- La pass rougissait une livraison dont le worktree portait des modifications non commitées.
+- The pass did everything in the cook's worktree: gates, reviewer (its `cwd`), reading the commit,
+  its cleanliness, the diff — and, before merging, the meeting with the base, which can happen
+  days after the verdict (no grant, slow CI, red base).
+- A send-back resumed the worktree of the refused delivery.
+- The cleanup (#139) only ran once the ticket was served or off the rail, and kept any worktree
+  carrying work absent from the origin (`unpushed`) or an open PR (`pr-open`).
+- The pass turned a delivery red when its worktree carried uncommitted changes.
 
-## Les quatre décisions
+## The four decisions
 
-1. **Le moment : la fin du cook, au sens strict.** Le worktree part dès que la station a raconté
-   la fin du cook. La pass se donne un worktree jetable sur le commit livré, comme elle le fait
-   déjà pour la rencontre ; tout le reste se lit depuis la branche, dans le clone.
-2. **Dans une livraison, ce qui traîne est commité avant le push.** Le commit de récolte fait
-   partie de la livraison : le commit jugé est celui de la branche. Il est signalé au reviewer
-   comme non écrit par le cook. Risque assumé, et dit dans la doc : un fichier neuf que le projet
-   n'ignore pas part dans la PR.
-3. **La récolte ne fait pas une livraison d'un échec.** La fin du cook se lit sur ce qu'il a
-   commité lui-même. Ce qui traîne après un échec est commité sur sa branche **locale**, jamais
-   poussée.
-4. **Le nettoyage devient le rattrapage de la même règle.** Tout worktree que le journal raconte
-   et que plus aucun cook n'occupe est commité puis retiré — ceux des cooks interrompus, et le
-   stock gardé sous l'ancienne règle. Seul motif de garde restant : `failed`. Une branche locale
-   part comme avant (ticket servi ou sorti du rail, tout sur l'origine) ; une branche qui porte
-   des commits absents de l'origine reste, sans être listée — son sort est un autre ticket.
+1. **The moment: the end of the cook, in the strict sense.** The worktree leaves as soon as the
+   station has recounted the end of the cook. The pass gives itself a throwaway worktree on the
+   delivered commit, as it already does for the meeting; everything else is read from the branch,
+   in the clone.
+2. **In a delivery, what is lying around is committed before the push.** The harvest commit is
+   part of the delivery: the judged commit is the branch's. It is flagged to the reviewer as not
+   written by the cook. Accepted risk, and stated in the doc: a new file the project does not
+   ignore goes into the PR.
+3. **The harvest does not make a delivery out of a failure.** The end of the cook is read from
+   what it committed itself. What is lying around after a failure is committed on its **local**
+   branch, never pushed.
+4. **The cleanup becomes the catch-up of the same rule.** Every worktree that the log recounts and
+   that no cook occupies any more is committed then removed — those of interrupted cooks, and the
+   stock kept under the old rule. The only remaining reason to keep one: `failed`. A local branch
+   leaves as before (ticket served or off the rail, everything on the origin); a branch carrying
+   commits absent from the origin stays, without being listed — its fate is another ticket.
 
-## Ce que le dev a tranché
+## What the dev decided
 
-- **Le dépôt lit des branches, plus des worktrees.** `commits`, `tete`, `changes`, `diff`,
-  `retard` prennent la branche du cook et se jouent dans le clone. C'est aussi ce que `pousser`
-  pousse : un cook qui aurait détaché sa tête n'a jamais livré que sa branche.
-- **Un worktree qui n'est plus sur sa branche n'est pas récolté** (tête détachée, rebase en
-  cours) : le commit irait nulle part. Il est gardé, motif `failed`, et dit.
-- **`worktree.removed` change de sens** : le worktree est parti, la branche reste. Il porte
-  `harvest`, le commit de récolte ou `null`. Un fait d'avant #164, sans `harvest`, dit encore que
-  la branche est partie avec. La branche locale a son fait : `branch.removed`.
-- **Le rattrapage vit dans la station**, plus dans la pass : c'est elle qui range ses worktrees,
-  et la pass n'en lit plus aucun. Il passe au démarrage — avant la première prise, pour qu'un
-  renvoi trouve sa branche libre — puis au tick. Dans la vie en cours, il ne touche que ce que
-  la station a déjà échoué à ranger.
-- **Le renvoi** se donne un worktree neuf (`worktrees/<run>`) accroché à la branche de la
-  livraison refusée. Il se reconnaît à ce que le clone connaît encore cette branche.
-- **« A livré »** se lit contre la tête de la branche à l'entrée du cook, plus contre le commit
-  jugé : un cook raté entre deux renvois a pu y laisser un commit de récolte.
-- **Un ticket qui part en pass avec des commits est toujours poussé**, même si son cook de renvoi
-  n'a rien ajouté : la branche locale peut porter la récolte d'un cook raté d'avant, et la pass
-  juge la branche.
-- **La pass juge ce que l'origine a reçu de la branche**, pas la branche locale (renvoi 1 de la
-  review) : une récolte posée au rangement après la livraison n'est jamais poussée, et GitHub ne
-  connaît ni sa CI ni son commit. Elle reste locale, pour le cook de renvoi.
-- **Un worktree qui n'est plus sur sa branche à la fin du cook est un échec** (`off-branch`), avant
-  toute autre lecture : compter sur la branche d'un cook qui l'a quittée ferait d'un travail commité
-  ailleurs un ticket sans diff.
-- **Une branche locale restée est regardée une fois par vie du runtime** : sans cela, chaque cook
-  raté coûterait deux `git` par tick, sans borne.
-- **`no-commit` sur un renvoi** ne vaut que pour le renvoi d'un ticket sans diff. Sur une branche
-  qui porte déjà une livraison, un cook de renvoi qui conclut en laissant des fichiers non commités
-  livre : récolte, push, pass.
-- **`worktree-lost` reste**, pour le seul cas où le clone ne connaît plus la branche (une
-  restauration sur un clone neuf). Recréer la branche depuis l'origine est hors de ce ticket.
-- **Les gates et les workflows d'une livraison se lisent dans la branche** (`git ls-tree`), pas
-  dans un worktree : la pass ne pose son worktree jetable que pour jouer les gates ou faire
-  relire, pas à chaque réveil d'une CI qui tarde.
+- **The repository reads branches, no longer worktrees.** `commits`, `tete`, `changes`, `diff`,
+  `retard` take the cook's branch and are played in the clone. It is also what `pousser` pushes: a
+  cook that detached its head only ever delivered its branch.
+- **A worktree that is no longer on its branch is not harvested** (detached head, rebase in
+  progress): the commit would go nowhere. It is kept, reason `failed`, and reported.
+- **`worktree.removed` changes meaning**: the worktree is gone, the branch stays. It carries
+  `harvest`, the harvest commit or `null`. A fact from before #164, without `harvest`, still says
+  the branch left with it. The local branch has its own fact: `branch.removed`.
+- **The catch-up lives in the station**, no longer in the pass: it is the station that tidies its
+  worktrees, and the pass no longer reads any. It runs at startup — before the first take, so that
+  a send-back finds its branch free — then at the tick. In running life, it only touches what the
+  station has already failed to tidy.
+- **The send-back** gets a new worktree (`worktrees/<run>`) attached to the branch of the refused
+  delivery. It is recognized by the clone still knowing that branch.
+- **"Has delivered"** is read against the branch head at the cook's entry, no longer against the
+  judged commit: a failed cook between two send-backs may have left a harvest commit there.
+- **A ticket that goes to pass with commits is always pushed**, even if its send-back cook added
+  nothing: the local branch may carry the harvest of an earlier failed cook, and the pass judges
+  the branch.
+- **The pass judges what the origin received of the branch**, not the local branch (send-back 1 of
+  the review): a harvest laid down at tidy-up after the delivery is never pushed, and GitHub knows
+  neither its CI nor its commit. It stays local, for the send-back cook.
+- **A worktree that is no longer on its branch at the end of the cook is a failure**
+  (`off-branch`), before any other reading: relying on the branch of a cook that left it would
+  turn work committed elsewhere into a ticket with no diff.
+- **A remaining local branch is looked at once per runtime life**: without that, each failed cook
+  would cost two `git` calls per tick, unbounded.
+- **`no-commit` on a send-back** only applies to the send-back of a ticket with no diff. On a
+  branch that already carries a delivery, a send-back cook that concludes leaving uncommitted
+  files delivers: harvest, push, pass.
+- **`worktree-lost` stays**, for the single case where the clone no longer knows the branch (a
+  restore onto a new clone). Recreating the branch from the origin is outside this ticket.
+- **A delivery's gates and workflows are read in the branch** (`git ls-tree`), not in a worktree:
+  the pass only lays down its throwaway worktree to play the gates or to have a review done, not
+  at every wake-up of a CI that is late.
 
 ## Plan
 
-1. `depot.ts` : `recolter`, `ranger`, `elaguer`, `reprendre`, `poser`, `connait`, `liste`,
-   `recoltes` ; les lectures par branche ; `liberer`, `present`, `propre` disparaissent.
-2. Faits et projection du nettoyage : `harvest`, `branch.removed`.
-3. `nettoyage.ts` : `ranger` (un worktree, à la fin de son cook) et `rattraper` (le stock, les
+1. `depot.ts`: `recolter`, `ranger`, `elaguer`, `reprendre`, `poser`, `connait`, `liste`,
+   `recoltes`; reads by branch; `liberer`, `present`, `propre` disappear.
+2. Cleanup facts and projection: `harvest`, `branch.removed`.
+3. `nettoyage.ts`: `ranger` (one worktree, at the end of its cook) and `rattraper` (the stock, the
    branches).
-4. `station.ts` : récolte avant le push, rangement après la fin racontée, renvoi sur worktree
-   neuf, reprise après redémarrage lue dans la branche.
-5. `pass.ts` : worktree jetable du jugement, lectures par branche, fin des findings « worktree
-   sale ». `reviewer.ts` : le commit de récolte signalé.
-6. `docs/runtime.md`, avec le coût mesuré du setup à froid par jugement.
+4. `station.ts`: harvest before the push, tidy-up after the end is recounted, send-back on a new
+   worktree, resumption after restart read in the branch.
+5. `pass.ts`: throwaway judging worktree, reads by branch, end of the "dirty worktree" findings.
+   `reviewer.ts`: the harvest commit flagged.
+6. `docs/runtime.md`, with the measured cost of the cold setup per judging.

@@ -1,96 +1,97 @@
-# Deux livraisons vertes séparément ne cassent pas l'intégration ensemble — spec et plan (#99)
+# Two deliveries green separately do not break the integration together — spec and plan (#99)
 
-**Date** : 2026-10-09
-**Statut** : décidé — les décisions produit ci-dessous sont celles de l'orchestrateur (réponse du
-2026-10-09 au `question-spec #99`) ; « Ce que le dev a tranché » est contestable en review
-**Issue** : #99 — épique #101, jalon 4
-**S'appuie sur** : `2026-10-08-brigade-v2-design.md` (§ La pass), `2026-10-08-pass-et-grant-merge.md`,
-`2026-10-08-zones-de-fichiers.md`, `2026-10-09-plusieurs-cooks.md` (la garde machine). Ce document
-ne redécide rien de ce qui y figure.
+**Date**: 2026-10-09
+**Status**: decided — the product decisions below are the orchestrator's (answer of 2026-10-09 to
+`question-spec #99`); "What the dev decided" is contestable in review
+**Issue**: #99 — epic #101, milestone 4
+**Builds on**: `2026-10-08-brigade-v2-design.md` (§ The pass), `2026-10-08-pass-et-grant-merge.md`,
+`2026-10-08-zones-de-fichiers.md`, `2026-10-09-plusieurs-cooks.md` (the machine guard). This
+document redecides nothing of what appears there.
 
-Le comportement, tel que le chef le vit, est dans `docs/runtime.md`, « Quand la base a avancé sous
-une livraison » et « Ce que la pass ne garantit pas » : c'est la doc vivante, ce document ne la
-recopie pas.
+The behavior, as the chef lives it, is in `docs/runtime.md`, "Quand la base a avancé sous une
+livraison" and "Ce que la pass ne garantit pas": that is the living doc, this document does not
+copy it.
 
 ---
 
-## Le trou
+## The gap
 
-La pass traite les livraisons une par une : les merges sont déjà en série. Le trou est entre « jugée
-verte » et « mergée » : la base a pu avancer depuis le départ de la branche, et GitHub ne conditionne
-le merge qu'à la tête de la PR.
+The pass handles deliveries one by one: the merges are already serial. The gap is between "judged
+green" and "merged": the base may have moved since the branch left, and GitHub conditions the
+merge only on the head of the PR.
 
-## Décisions produit
+## Product decisions
 
-1. **Le mécanisme est une combinaison**, pas « branche à jour exigée » (un cook de rebase par merge
-   d'un voisin : du quota, en N²) :
-   - base inchangée : merge ;
-   - base avancée, fichiers disjoints : merge sans rejeu, dit au journal et sur l'issue, puis gates
-     sur la base elle-même, hors ticket ;
-   - base avancée, fichiers en commun, sans conflit : gates rejouées sur le résultat du merge, dans
-     un worktree jetable — aucune branche touchée, aucun modèle appelé.
-   **Pas de lot à attendre.**
-2. **Base rouge après merge** : alerte (journal, journald, commentaire sur les tickets dont le merge
-   était à vérifier), et **merges sous grant suspendus** — les livraisons vertes attendent,
-   visiblement, et repartent seules au vert. **C'est le chef qui répare.** Arrêter aussi la prise de
-   tickets est hors scope : #143 (livré depuis, voir `2026-10-09-base-rouge-station-retenue.md`).
-3. **Gates rouges sur le résultat du merge** : un finding renvoyé au cook, consigne de rebase, et ça
-   **consomme un renvoi** — comme un conflit.
-4. **Un recouvrement limité aux chemins communs ne déclenche pas de rejeu.**
-5. **Aucune protection de branche de plus n'est supposée.** Si « branche à jour exigée » est
-   activée, le refus de GitHub repart au cook pour rebase.
-6. **Un rejeu de gates passe par la garde machine de #98.**
-7. **Le worktree jetable est retiré dans tous les cas** — vert, rouge, runtime tué puis redémarré.
+1. **The mechanism is a combination**, not "branch up to date required" (a rebase cook for each
+   neighbor's merge: quota, in N²):
+   - base unchanged: merge;
+   - base moved, disjoint files: merge without replay, said in the log and on the issue, then
+     gates on the base itself, outside any ticket;
+   - base moved, files in common, no conflict: gates replayed on the result of the merge, in a
+     throwaway worktree — no branch touched, no model called.
+   **No batch to wait for.**
+2. **Base red after a merge**: alert (log, journald, comment on the tickets whose merge was to be
+   verified), and **merges under grant suspended** — the green deliveries wait, visibly, and leave
+   again on their own when it goes green. **The chef repairs.** Also stopping the taking of
+   tickets is out of scope: #143 (delivered since, see `2026-10-09-base-rouge-station-retenue.md`).
+3. **Gates red on the result of the merge**: a finding sent back to the cook, a rebase
+   instruction, and it **consumes a referral** — like a conflict.
+4. **An overlap limited to common paths does not trigger a replay.**
+5. **No further branch protection is assumed.** If "branch up to date required" is enabled,
+   GitHub's refusal goes back to the cook for a rebase.
+6. **A gates replay goes through #98's machine guard.**
+7. **The throwaway worktree is removed in every case** — green, red, runtime killed then
+   restarted.
 
-## Critères, et ce qui les porte
+## Criteria, and what carries them
 
-| Critère | Ce qui le porte |
+| Criterion | What carries it |
 |---|---|
-| Deux livraisons vertes ne cassent pas la base sans que personne le sache | `rencontrer`, appelée par `decider` avant d'écrire `grant.used` ; `controlerBase`, à la fin de chaque passe |
-| Les zones disjointes ne se paient pas une vérification inutile | fichiers livrés (`depot.changes`) ∩ fichiers reçus par la base (`depot.arrives`), communs écartés par `possede` : vide, pas de rejeu. Les merges sans rejeu d'une même passe partagent **un** contrôle de base |
-| Le chef voit ce qui s'est passé quand la base a bougé | `pass.base-moved` (`replay`), `pass.replayed`, la note du commentaire de merge, `pass -- <ticket>` |
-| Cassé malgré tout : détecté après merge, et remonté | `base_suspects` (projection) → `controlerBase` → `base.checked` ; journald, commentaire par ticket, tête de `npm run pass` |
-| Rien n'est sérialisé au-delà d'un rejeu | pas de lot ; un rejeu est borné par `delaiGatesMs` et se lit (phase `replaying`) |
-| « Ce que la pass ne garantit pas » est à jour | `docs/runtime.md` |
-| Runtime tué entre deux merges : rien deux fois | l'intention de merger reste `grant.used` → réconciliation existante ; un merge réconcilié sans rejeu reste à vérifier (`unverified` vit dans la projection) ; `depot.jeter()` au démarrage |
+| Two green deliveries do not break the base without anyone knowing | `rencontrer`, called by `decider` before writing `grant.used`; `controlerBase`, at the end of each pass |
+| Disjoint zones do not pay for a useless check | delivered files (`depot.changes`) ∩ files received by the base (`depot.arrives`), common ones set aside by `possede`: empty, no replay. The merges without replay of a single pass share **one** base check |
+| The chef sees what happened when the base moved | `pass.base-moved` (`replay`), `pass.replayed`, the note of the merge comment, `pass -- <ticket>` |
+| Broken all the same: detected after the merge, and surfaced | `base_suspects` (projection) → `controlerBase` → `base.checked`; journald, comment per ticket, head of `npm run pass` |
+| Nothing is serialized beyond a replay | no batch; a replay is bounded by `delaiGatesMs` and can be read (phase `replaying`) |
+| "What the pass does not guarantee" is up to date | `docs/runtime.md` |
+| Runtime killed between two merges: nothing twice | the intent to merge stays `grant.used` → existing reconciliation; a reconciled merge without replay stays to be verified (`unverified` lives in the projection); `depot.jeter()` at startup |
 
-## Ce que le dev a tranché
+## What the dev decided
 
-- **Fichiers réels, pas zones déclarées.** Le critère dit « les zones disjointes de #73 » ; ce qui
-  est comparé est le diff de la livraison contre ce que la base a reçu — une livraison peut déborder
-  sa zone, et un ticket sans fiche n'en a pas. Les chemins communs de #73, eux, sont repris tels
-  quels (`possede`).
-- **Tout merge hors du runtime est à vérifier**, pas seulement ceux de la pass : une PR mergée à la
-  main atterrit sur une base que personne n'a regardée. Coût : une suite sur la base par merge
-  manuel. C'est le fait `merge.done` qui le porte (`unverified`), pas la projection qui le déduit :
-  un journal d'avant ce ticket, rejoué au démarrage, ne rend suspect aucun de ses vieux merges.
-- **Un rejeu qui ne peut pas se faire remonte au chef** (`replay-failed`) : seul un merge qui laisse
-  des chemins non fusionnés est un conflit. Le commit d'essai se fait sans signature ni hook.
-- **Une livraison rougie par sa rencontre est une tentative** pour le manager (`pass.replayed` non
-  vert, `pass.outdated`), au même titre qu'un `pass.judged` rouge.
-- **Un merge à la main se constate aussi sur une livraison en attente** — au tick, et au refus de
-  GitHub si la pass tente de merger une PR déjà mergée.
-- **Le point de comparaison d'un second regard est le dernier rejeu vert**, pas le départ de la
-  branche : ce que la base a reçu avant a déjà été rejoué avec la livraison.
-- **Le contrôle de la base ne retient pas les merges** tant qu'il n'a pas conclu : seule une base
-  **rouge** suspend. Entre le merge et son verdict, la base peut être rouge sans être sue — c'est
-  dit dans la doc.
-- **Une base rouge n'est rejouée que si elle bouge** (lu au tick). Pas de commande pour forcer un
-  rejeu : un merge à la main en déclenche un.
-- **« Branche en retard » se lit sur la fiche de la PR** (`mergeable_state: "behind"`), relue après
-  le refus — pas dans la phrase du refus, que rien ne garantit.
-- **La garde machine ne couvre que les rejeux** (rencontre, base), pas les gates du jugement, qui ne
-  l'ont jamais eue.
-- **Un worktree jetable disparu sous les gates** (retiré à la main) donne des gates rouges, donc un
-  renvoi : pas de cas à part.
+- **Real files, not declared zones.** The criterion says "the disjoint zones of #73"; what is
+  compared is the delivery's diff against what the base received — a delivery may overflow its
+  zone, and a ticket without a card has none. #73's common paths, for their part, are taken as
+  they are (`possede`).
+- **Every merge outside the runtime is to be verified**, not only the pass's: a PR merged by hand
+  lands on a base nobody looked at. Cost: one suite on the base per manual merge. It is the
+  `merge.done` fact that carries it (`unverified`), not the projection deducing it: a log from
+  before this ticket, replayed at startup, makes none of its old merges suspect.
+- **A replay that cannot be done is surfaced to the chef** (`replay-failed`): only a merge that
+  leaves unmerged paths is a conflict. The trial commit is made without signature or hook.
+- **A delivery turned red by its meeting is an attempt** for the manager (`pass.replayed` not
+  green, `pass.outdated`), just like a red `pass.judged`.
+- **A manual merge is also noted on a queued delivery** — at the tick, and at GitHub's refusal if
+  the pass tries to merge an already merged PR.
+- **A second look's comparison point is the last green replay**, not the branch's start: what the
+  base received before has already been replayed with the delivery.
+- **The base check does not hold merges back** until it has concluded: only a **red** base
+  suspends. Between the merge and its verdict, the base may be red without being known — the doc
+  says so.
+- **A red base is replayed only if it moves** (read at the tick). No command to force a replay: a
+  manual merge triggers one.
+- **"Branch behind" is read on the PR's card** (`mergeable_state: "behind"`), reread after the
+  refusal — not in the refusal's sentence, which nothing guarantees.
+- **The machine guard covers only the replays** (meeting, base), not the judgment's gates, which
+  never had it.
+- **A throwaway worktree that vanished under the gates** (removed by hand) gives red gates, hence
+  a referral: no special case.
 
 ## Plan
 
-1. `depot.ts` : `rapatrier`, `retard`, `arrives`, `essayer`, `jeter` — testés sur un vrai dépôt.
-2. `evenements/pass.ts` et `projections/pass.ts` : `pass.base-moved`, `pass.replayed`,
-   `pass.outdated`, `pass.waiting`, `base.checked` ; phases `replaying` et `waiting` ; tables
-   `base_checks` et `base_suspects`.
-3. `github.ts` : `PR.enRetard`.
-4. `pass.ts` : `rencontrer`, `controlerBase`, le refus « branche en retard », la garde machine.
-5. `montrer-pass.ts` : l'histoire et l'état de la base.
+1. `depot.ts`: `rapatrier`, `retard`, `arrives`, `essayer`, `jeter` — tested on a real repository.
+2. `evenements/pass.ts` and `projections/pass.ts`: `pass.base-moved`, `pass.replayed`,
+   `pass.outdated`, `pass.waiting`, `base.checked`; phases `replaying` and `waiting`; tables
+   `base_checks` and `base_suspects`.
+3. `github.ts`: `PR.enRetard`.
+4. `pass.ts`: `rencontrer`, `controlerBase`, the "branch behind" refusal, the machine guard.
+5. `montrer-pass.ts`: the history and the state of the base.
 6. `docs/runtime.md`.
