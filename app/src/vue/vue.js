@@ -5360,7 +5360,7 @@ function poserStationsDuProjet() {
   ouvrirLaConfiance.hidden = confiance !== undefined || demenagement !== undefined || !lues;
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
   const onboarding = vu?.onboarding ?? null;
-  const retenu = poserDepotRetenu(document, { acces: vu?.acces ?? null, refus: vu?.refus ?? null, worktree: vu?.worktree ?? null, maintenant: Date.now(), copier: (commande) => void navigator.clipboard.writeText(commande), ramener: ouvrirLeChoixDeMachine, retirer: async () => {
+  const retenu = poserDepotRetenu(document, { acces: vu?.acces ?? null, refus: vu?.refus ?? null, worktree: vu?.worktree ?? null, maintenant: Date.now(), copier: (commande) => void navigator.clipboard.writeText(commande), ramener: ouvrirLeChoixDeMachine, verifier: () => void brigade.verifier(projet.nom), retirer: async () => {
     const rendu = await brigade.retirerDUneStation(projet.nom);
     return "refus" in rendu ? rendu.refus : `${rendu.retire} is removed: each of its stations takes it out of its configuration within a minute`;
   } });

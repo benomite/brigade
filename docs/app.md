@@ -915,7 +915,7 @@ plus. Sans l'un ni l'autre, rien ne change. **Le refus de la station** (#1178) :
 projet sans accès refusé à dire, son suivi porte `refus` (#1177 : un code stable, une phrase, l'action du
 chef) ; le même bloc pose la phrase (`This project's settings choose a network port that the station reserves
 for itself.`, le code au survol) puis l'action en dessous — jamais le texte brut du fichier `en-service`, ni un
-chemin. L'action est suivie d'un bouton recommandé : « remove the project » (en deux clics) pour `configuration-invalid` et `clone-missing`, « move the kitchen back » pour `handed-over-elsewhere`, sinon « copy the action » — le geste se fait sur la machine de la station. L'accès refusé, plus précis, prime sur lui. Captures : `docs/captures/1178/`. La station l'efface quand le geste est fait : la page relue
+chemin. L'action est suivie d'un bouton recommandé : « remove the project » (en deux clics) pour `configuration-invalid` et `clone-missing`, « move the kitchen back » pour `handed-over-elsewhere`, sinon « check the installation », qui lance la vérification sur la station (son verdict se lit dans Settings) — le geste lui-même se fait sur la machine de la station. L'accès refusé, plus précis, prime sur lui. Captures : `docs/captures/1178/`. La station l'efface quand le geste est fait : la page relue
 (chaque lecture des stations) revient à son message, sans recharger l'app. Le module est
 `app/src/vue/onboarding/depot-retenu.js`.
 

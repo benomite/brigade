@@ -24,7 +24,7 @@ import type { Panne } from "../../src/pannes/pannes.ts";
 import { lireSuivi } from "../../src/projets/demande.ts";
 import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type ProjetVu, type VuDesProjets } from "../../src/projets/projets.ts";
 import type { VuDesStations } from "../../src/stations/stations.ts";
-import { CONFIRMER_RETRAIT, COPIEE, COPIER, COPIER_L_ACTION, poserDepotRetenu, RAMENER, RETIRER } from "../../src/vue/onboarding/depot-retenu.js";
+import { CONFIRMER_RETRAIT, COPIEE, COPIER, poserDepotRetenu, RAMENER, RETIRER, VERIFIER } from "../../src/vue/onboarding/depot-retenu.js";
 import { Faux as Fabrique, type Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-19T12:00:00.000Z";
@@ -188,13 +188,13 @@ test("un projet refusé par la station : la page dit pourquoi et ce que le chef 
   assert.ok(lignes.includes(REFUS.action), lignes.join(" | "));
   assert.doesNotMatch(bloc.textContent, /en-service|\/etc\//);
   assert.doesNotMatch(bloc.textContent, /within a minute/);
-  // Le geste attendu est un bouton : celui-ci, sans levier dans l'app, copie l'action.
-  const boutons = bloc.dessous("button").filter((b) => b.textContent === COPIER_L_ACTION);
-  assert.equal(boutons.length, 1, "un bouton « copy the action »");
+  // Le geste attendu est un bouton : celui-ci lance la vérification de l'installation.
+  const boutons = bloc.dessous("button").filter((b) => b.textContent === VERIFIER);
+  assert.equal(boutons.length, 1, "un bouton « check the installation »");
   assert.equal(boutons[0]?.className, "recommande");
 });
 
-test("le geste d'un refus est un bouton : retirer le projet (en deux clics), le ramener ici, ou copier l'action", async () => {
+test("le geste d'un refus est un bouton : retirer le projet (en deux clics), le ramener ici, ou vérifier l'installation", async () => {
   const doc = { createElement: (balise: string) => new Fabrique(balise) };
   const pose = (code: string, plus: object = {}) => poserDepotRetenu(doc, { refus: { ...REFUS, code }, maintenant: 0, copier: () => {}, ...plus }) as unknown as Faux;
   const retires: string[] = [];
@@ -213,11 +213,11 @@ test("le geste d'un refus est un bouton : retirer le projet (en deux clics), le 
   assert.equal(ramener.textContent, RAMENER);
   ramener.click();
   assert.equal(ramene, 1);
-  const copiees: string[] = [];
-  const copie = pose("proxy-port-set", { copier: (texte: string) => copiees.push(texte) }).dessous("button")[0] ?? assert.fail("pas de bouton");
-  copie.click();
-  assert.deepEqual(copiees, [REFUS.action]);
-  assert.equal(copie.textContent, COPIEE);
+  let verifiees = 0;
+  const verifie = pose("proxy-port-set", { verifier: () => verifiees++ }).dessous("button")[0] ?? assert.fail("pas de bouton");
+  assert.equal(verifie.textContent, VERIFIER);
+  verifie.click();
+  assert.equal(verifiees, 1);
 });
 
 test("sans refus, la page est inchangée ; un refus sans phrase ou sans action ne dit rien", async () => {
