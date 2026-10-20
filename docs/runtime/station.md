@@ -287,7 +287,14 @@ la main comme le reste. La plupart des tickets n'en demandent aucune.
   ensemble), sans heure de retour. **Aucun cook n'est lancé**, aucun worktree préparé ; les autres
   tickets partent, et lui ne tient pas sa zone. Son issue reçoit un commentaire qui nomme ce qui
   manque et les stations déclarées.
-- **`status` dit ce qui manque et le geste qui le fournirait**, dans le bloc `attend` :
+- **Le manager le reprend avant le chef** (manager allumé). Il réécrit ou redécoupe le ticket pour
+  qu'il n'ait plus besoin de la capacité : `manager.capability-resplit` au journal, le ticket sort du
+  rail (86 `manager:split`), ses sous-tickets naissent comme ceux d'une épique, et rien n'arrive en
+  TODO. Un ticket né d'une telle réécriture ne se réécrit pas deux fois. Si la réécriture est
+  impossible, le manager pose une carte `gesture` (`manager.capability-gestured`) qui nomme l'accès à
+  donner et pourquoi le ticket ne s'en passe pas ; le ticket reste 86, et la carte sort de TODO dès
+  qu'il n'est plus dans ce cas. Manager éteint, rien ne le reprend : le bloc ci-dessous le montre tel quel.
+- **`status` dit ce qui manque et le geste qui le fournirait**, dans le bloc `attend` (manager éteint) :
 
   ```
   #14  depuis 3 min  aucune station ne fournit `chrome-connecté` — à fournir : déclarer une station qui la fournit par `brigade <projet> station stations <machine>/<moteur>:<plafond de cooks>:chrome-connecté`, ou retirer `chrome-connecté` de la ligne `requiert` de sa fiche — il repart seul

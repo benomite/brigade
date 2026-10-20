@@ -44,7 +44,7 @@ import { demandeEnAttente, refus, reglagesEnVigueur, type Demande as DemandeDeFe
 import { direDemande as direDemandeDeFermeture, direDemandeEn as direDemandeDeFermetureEn } from "./closing/say.ts";
 import type { Ecart } from "./events/manager.ts";
 import { epiquesEnAttente } from "./projections/splits.ts";
-import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
+import { issuesEnAttente, managerAllume, plusUneEpiqueDepuis } from "./projections/manager.ts";
 import { miseAJourDuJour } from "./mise-a-jour/relais.ts";
 import { etatDeLaBase, gatesDuRouge, lirePass, reparationDeLaBase, type EchecDeReparation, type PassDeTicket, type SansGrant } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
@@ -248,8 +248,12 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
 
   // Le motif du 86 porte ce qui manquait quand la station l'a écarté : c'est
   // elle qui le relit, à chaque service, et rend le ticket dès que ça suffit.
+  // Le manager le reprend avant le chef (sans-capacite.ts) : il le réécrit, ou
+  // pose une carte `gesture`. Le chef ne le voit tel quel que si le manager est
+  // éteint — personne d'autre ne le reprendrait.
+  const manager = managerAllume(base);
   const sansStation = rail.flatMap((ticket): AttenteDeTicket[] => {
-    const manque = ticket.state === "86" && ticket.until === null ? manqueDuMotif(ticket.reason) : null;
+    const manque = !manager && ticket.state === "86" && ticket.until === null ? manqueDuMotif(ticket.reason) : null;
     return manque === null ? [] : [{ ticket: ticket.ticket, title: ticket.title, since: ticket.since, quoi: "capacite", manque }];
   });
 
