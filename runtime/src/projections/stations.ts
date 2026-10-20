@@ -9,7 +9,7 @@ import { geste } from "../geste.ts";
 import type { FaitDistante } from "../events/remote.ts";
 import type { FaitGardeFous } from "../events/guardrails.ts";
 import type { FaitRenouvellement } from "../events/renewal.ts";
-import type { FaitStation, Ressource, Retenue } from "../events/station.ts";
+import type { FaitStation, Manque, Ressource, Retenue } from "../events/station.ts";
 import { definirProjection } from "../projection.ts";
 
 export type EtatStation = {
@@ -31,11 +31,14 @@ export type EtatStation = {
   disconnectedAt: string | null;
   disconnectedReason: string | null;
   // Non-null: the machine can take no more since that instant, and what it
-  // lacks (see `station.saturated`).
+  // lacks first (see `station.saturated`).
   saturatedAt: string | null;
   saturatedResource: Ressource | null;
   saturatedObserved: number | null;
   saturatedLimit: number | null;
+  // Every resource it lacks, the first one included, in order — empty while
+  // it holds.
+  saturatedCauses: Manque[];
   // Non-null: tickets could leave, and the station does not take them since
   // that instant, for that reason (see `station.held`).
   heldAt: string | null;
@@ -87,6 +90,17 @@ type Ecoutes =
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur !== "";
 const texteOuRien = (valeur: unknown) => (texte(valeur) ? valeur : null);
 const RESSOURCES: unknown[] = ["cpu", "memory", "disk"] satisfies Ressource[];
+
+// A lacking resource as a fact says it, or null if it is unreadable. Where its
+// minimum comes from is kept only when it reads.
+function manque(valeur: unknown): Manque | null {
+  if (typeof valeur !== "object" || valeur === null) return null;
+  const { resource, observed, limit, limitFrom } = valeur as Record<string, unknown>;
+  if (!RESSOURCES.includes(resource) || !Number.isFinite(observed) || !Number.isFinite(limit)) return null;
+  const total = typeof limitFrom === "object" && limitFrom !== null ? (limitFrom as Record<string, unknown>).totalMb : undefined;
+  const origine = limitFrom === "env" ? { limitFrom: "env" as const } : Number.isFinite(total) ? { limitFrom: { totalMb: Number(total) } } : {};
+  return { resource: resource as Ressource, observed: Number(observed), limit: Number(limit), ...origine };
+}
 
 // Each hold as the chef reads it.
 const RETENUES: Record<Retenue, string> = {
@@ -180,7 +194,8 @@ export const stations = definirProjection<Ecoutes>({
       saturated_resource  TEXT,
       saturated_observed  REAL,
       saturated_limit     REAL,
-      held_at             TEXT,
+      saturated_causes    TEXT,
+      held_at            TEXT,
       held_reason         TEXT,
       unarbitrated_at     TEXT,
       unarbitrated_reason TEXT,
@@ -288,12 +303,24 @@ export const stations = definirProjection<Ecoutes>({
       else if (Number.isSafeInteger(payload.maxCooks) && payload.maxCooks >= 0) modifier(base, payload.station, at, "cap = ?", payload.maxCooks);
     },
     "station.saturated": (base, { at, payload }) => {
-      const { resource, observed, limit } = payload;
-      if (!RESSOURCES.includes(resource) || !Number.isFinite(observed) || !Number.isFinite(limit)) return;
-      modifier(base, payload.station, at, "saturated_at = ?, saturated_resource = ?, saturated_observed = ?, saturated_limit = ?", at, resource, observed, limit);
+      const premier = manque(payload);
+      if (premier === null) return;
+      const autres = Array.isArray(payload.also) ? payload.also.map(manque).filter((autre) => autre !== null) : [];
+      const { resource, observed, limit } = premier;
+      modifier(
+        base,
+        payload.station,
+        at,
+        "saturated_at = ?, saturated_resource = ?, saturated_observed = ?, saturated_limit = ?, saturated_causes = ?",
+        at,
+        resource,
+        observed,
+        limit,
+        JSON.stringify([premier, ...autres]),
+      );
     },
     "station.relieved": (base, { at, payload }) => {
-      modifier(base, payload.station, at, "saturated_at = NULL, saturated_resource = NULL, saturated_observed = NULL, saturated_limit = NULL");
+      modifier(base, payload.station, at, "saturated_at = NULL, saturated_resource = NULL, saturated_observed = NULL, saturated_limit = NULL, saturated_causes = NULL");
     },
     "station.held": (base, { at, payload }) => {
       if (Object.hasOwn(RETENUES, payload.reason)) modifier(base, payload.station, at, "held_at = ?, held_reason = ?", at, payload.reason);
@@ -458,8 +485,9 @@ export function setupBloque(base: Base): SetupBloque | null {
   return ligne?.since ? { ...ligne, since: ligne.since, hosts: JSON.parse(ligne.hosts) } : null;
 }
 
-type LigneDeStation = Omit<EtatStation, "provides" | "remote" | "ordinary" | "sandbox"> & {
+type LigneDeStation = Omit<EtatStation, "provides" | "remote" | "ordinary" | "sandbox" | "saturatedCauses"> & {
   provides: string;
+  saturatedCauses: string | null;
   remote: number;
   ordinary: number;
   sandboxAvailable: number | null;
@@ -474,7 +502,7 @@ export function etatStation(base: Base, station: string): EtatStation | null {
             quota_until AS quotaUntil, quota_reason AS quotaReason,
             disconnected_at AS disconnectedAt, disconnected_reason AS disconnectedReason,
             saturated_at AS saturatedAt, saturated_resource AS saturatedResource,
-            saturated_observed AS saturatedObserved, saturated_limit AS saturatedLimit,
+            saturated_observed AS saturatedObserved, saturated_limit AS saturatedLimit, saturated_causes AS saturatedCauses,
             held_at AS heldAt, held_reason AS heldReason,
             unarbitrated_at AS unarbitratedAt, unarbitrated_reason AS unarbitratedReason,
             remote, seen_at AS seenAt, present_since AS presentSince, ordinary,
@@ -483,9 +511,10 @@ export function etatStation(base: Base, station: string): EtatStation | null {
     station,
   )[0];
   if (!ligne) return null;
-  const { sandboxAvailable, sandboxReason, sandboxVersion, sandboxAt, ...reste } = ligne;
+  const { sandboxAvailable, sandboxReason, sandboxVersion, sandboxAt, saturatedCauses, ...reste } = ligne;
   return {
     ...reste,
+    saturatedCauses: saturatedCauses === null ? [] : JSON.parse(saturatedCauses),
     provides: JSON.parse(ligne.provides),
     remote: ligne.remote === 1,
     ordinary: ligne.ordinary === 1,

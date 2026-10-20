@@ -5,7 +5,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { attentesDuChef } from "../src/attend.ts";
-import { faits, lireEtat } from "../src/etat.ts";
+import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import { VARIABLES_DE_JETON } from "../src/claude.ts";
 import type { Depot } from "../src/depot.ts";
 import type { GitHub } from "../src/github.ts";
@@ -517,6 +517,59 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(types(15).some((type) => type === "guard.tripped" || type === "cook.exited"), false);
   });
 
+  test("une machine de 32 Go à qui il reste 2 Go : la station ne prend plus rien, `status` dit la mémoire avec son seuil et d'où il vient, puis les deux ressources ; elle reprend seule quand la mémoire revient", async (t) => {
+    const GO = 1024 ** 3;
+    let machine: Machine = { ...MACHINE_CALME, memoireTotale: 32 * GO, memoireDisponible: 2 * GO };
+    const { journal, heure, etat, dernier, types, lancements, avertissements } = cuisine(t, { cooks: 3, scenario: "muet", machine: () => machine, issues: [issue(15)] });
+    await jusqua(() => types().includes("station.saturated"));
+    await jusqua(() => dernier("station.held") !== undefined);
+    await new Promise((resoudre) => setTimeout(resoudre, 80));
+
+    assert.deepEqual([etat(15), lancements().length], ["waiting", 0]);
+    // Rien de réglé : le seuil est le dixième des 32 Go de la machine.
+    assert.deepEqual(dernier("station.saturated"), { station: STATION, resource: "memory", observed: 2048, limit: 3277, limitFrom: { totalMb: 32768 } });
+    assert.deepEqual(dernier("station.held"), { station: STATION, reason: "machine" });
+    assert.match(avertissements.join("\n"), /la machine n'en peut plus — 2\s048 Mo de mémoire disponible pour 3\s277 au moins \(par défaut : 10 % des 32\s768 Mo de la machine\)/);
+    const status = () => decrireEtat(lireEtat(journal, heure.maintenant()), heure.maintenant());
+    assert.equal(
+      status().some((ligne) =>
+        /MACHINE SATURATED for .+ on memory — 2,048 MB of memory available for at least 3,277 MB \(default: 10% of the machine's 32,768 MB\): box\/claude takes no more tickets/.test(ligne),
+      ),
+      true,
+    );
+
+    // La retenue n'arrête pas la station : elle lit encore la machine, et dit
+    // ce qui change — le processeur s'ajoute, `status` nomme les deux.
+    machine = { ...machine, charge: 16.2 };
+    await jusqua(() => dernier("station.saturated")?.also !== undefined);
+    assert.deepEqual(dernier("station.saturated"), {
+      station: STATION,
+      resource: "cpu",
+      observed: 16.2,
+      limit: 12,
+      also: [{ resource: "memory", observed: 2048, limit: 3277, limitFrom: { totalMb: 32768 } }],
+    });
+    assert.equal(
+      status().some((ligne) => /MACHINE SATURATED for .+ on CPU and memory — load of 16\.2 for at most 12 · 2,048 MB of memory available for at least 3,277 MB .*: box\/claude takes no more tickets/.test(ligne)),
+      true,
+    );
+    assert.deepEqual([etat(15), lancements().length], ["waiting", 0]);
+
+    // La mémoire revient au-dessus du seuil, marge comprise : le ticket part, sans geste du chef.
+    machine = { ...MACHINE_CALME, memoireTotale: 32 * GO, memoireDisponible: 8 * GO };
+    await jusqua(() => lancements().length === 1);
+    assert.deepEqual([types().includes("station.relieved"), etatStation(journal.base, STATION)?.saturatedCauses], [true, []]);
+    assert.equal(status().some((ligne) => /MACHINE SATURATED/.test(ligne)), false);
+  });
+
+  test("le même reste de mémoire ne retient pas une machine de 16 Go : son seuil, dérivé de sa mémoire totale, est plus bas", async (t) => {
+    const GO = 1024 ** 3;
+    const { types, lancements } = cuisine(t, { scenario: "muet", machine: () => ({ ...MACHINE_CALME, memoireTotale: 16 * GO, memoireDisponible: 2 * GO }), issues: [issue(15)] });
+    await jusqua(() => lancements().length === 1);
+
+    assert.equal(types().includes("station.saturated"), false);
+  });
+
   test("une base d'intégration rouge : la station ne lance plus aucun cook et le dit, sans toucher à ceux qui tournent ; elle repart seule au vert", async (t) => {
     const { repertoire, gh, journal, etat, dernier, types, lancements } = cuisine(t, { cooks: 3, scenario: "muet", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
@@ -685,7 +738,9 @@ describe("la station", { concurrency: 8 }, () => {
   test("les bornes de l'entrée et de la machine se règlent par l'environnement ; une valeur illisible est un refus de démarrer", () => {
     const env = { BRIGADE_REPO_DIR: "/clone", BRIGADE_BASE_BRANCH: "v2" };
     const { entreesMax, seuils } = configStation(env);
-    assert.deepEqual([entreesMax, seuils], [4, { chargeParCoeur: 1.5, memoireMinMo: 1024, disqueMinMo: 5120 }]);
+    // Rien de réglé, le minimum de mémoire dérive de la machine qui la lit.
+    assert.deepEqual([entreesMax, seuils], [4, { chargeParCoeur: 1.5, memoireMinMo: null, disqueMinMo: 5120 }]);
+    assert.equal(configStation({ ...env, BRIGADE_MIN_FREE_MEMORY_MB: "2048" }).seuils.memoireMinMo, 2048);
     assert.equal(configStation({ ...env, BRIGADE_MAX_SETUPS: "8" }).entreesMax, 8);
     assert.throws(() => configStation({ ...env, BRIGADE_MAX_SETUPS: "0" }), /invalid BRIGADE_MAX_SETUPS/);
     assert.throws(() => configStation({ ...env, BRIGADE_MAX_LOAD_PER_CORE: "zéro" }), /invalid BRIGADE_MAX_LOAD_PER_CORE/);

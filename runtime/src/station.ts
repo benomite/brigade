@@ -59,7 +59,7 @@ import { configPresence, ouvrirDistantes, PRESENCE_PAR_DEFAUT_MIN, type Conclusi
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
 import { STATION_ABSENTE } from "./events/rail.ts";
 import type { ContexteCook } from "./events/guardrails.ts";
-import { IDENTIFIANTS_LIVRES, PART_SANS_PROGRES, SANS_DIFF, SANS_LIVRABLE, type FaitStation, type FinDeCook, type Retenue } from "./events/station.ts";
+import { IDENTIFIANTS_LIVRES, PART_SANS_PROGRES, SANS_DIFF, SANS_LIVRABLE, type FaitStation, type FinDeCook, type Ressource, type Retenue } from "./events/station.ts";
 import { illisible, MARQUEUR, requises } from "./fiche.ts";
 import { direMasquage, FICHIER_DES_IDENTIFIANTS, identifiantsLivres, LONGUEUR_MIN_DU_JETON, type SigneDIdentifiants } from "./identifiants.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
@@ -70,7 +70,7 @@ import { LancementRefuse, nomDeRun, type CookLance, type FinDeCook as FinGardee,
 import type { GitHub } from "./github.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import { configTranscripts, ouvrirNettoyage } from "./nettoyage.ts";
-import { configMachine, direSaturation, JEUNE_MS, lireMachine, reserver, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
+import { configMachine, direSaturations, JEUNE_MS, lireMachine, reserver, saturation, saturations, type Machine, type Saturation, type Seuils } from "./machine.ts";
 import { consigneDeRenvoi, consigneDeReprise, RENVOIS_MAX } from "./pass.ts";
 import { commitsConserves, travailLaisse, type TravailLaisse } from "./travail-conserve.ts";
 import { lire } from "./plafonds.ts";
@@ -614,10 +614,12 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // paliers.
   //
   // La machine est celle de toutes les stations d'ici : `tenues`, ce que
-  // chacune sait déjà d'une saturation, et chacune apprend ce qui change.
+  // chacune sait déjà d'une saturation — les ressources en cause —, et chacune
+  // apprend ce qui change : une ressource de plus ou de moins se redit, une
+  // valeur qui bouge non.
   let machineIllisible = false;
-  const machineRetient = (tenues: Map<string, Saturation["resource"] | null>): Extract<Retenue, "machine" | "ramp"> | null => {
-    const tenue = [...tenues.values()].find((ressource) => ressource !== null) ?? null;
+  const machineRetient = (tenues: Map<string, Ressource[]>): Extract<Retenue, "machine" | "ramp"> | null => {
+    const tenue = [...new Set([...tenues.values()].flat())];
     let lue: Machine;
     try {
       lue = machine();
@@ -625,23 +627,25 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     } catch (erreur) {
       if (!machineIllisible) avertir(`brigade : machine illisible, ${noms.length > 1 ? "les stations s'en tiennent à ce qu'elles savaient" : "la station s'en tient à ce qu'elle savait"} — ${message(erreur)}`);
       machineIllisible = true;
-      return tenue === null ? null : "machine";
+      return tenue.length === 0 ? null : "machine";
     }
-    const sature = saturation(lue, seuils, tenue);
-    if (sature === null) {
+    const manques = saturations(lue, seuils, tenue);
+    if (manques.length === 0) {
       noterPourChacune(
         (station) => ({ type: "station.relieved", payload: { station } }),
-        noms.filter((station) => tenues.get(station) != null),
+        noms.filter((station) => (tenues.get(station) ?? []).length > 0),
       );
       const instant = maintenant().getTime();
       departs = departs.filter((depart) => instant - depart < JEUNE_MS);
       return saturation(reserver(lue, entrees + departs.length), seuils) === null ? null : "ramp";
     }
+    const memes = (ressources: readonly Ressource[]) => [...ressources].sort().join() === manques.map(({ resource }) => resource).sort().join();
+    const [premier, ...autres] = manques as [Saturation, ...Saturation[]];
     noterPourChacune(
-      (station) => ({ type: "station.saturated", payload: { station, ...sature } }),
-      noms.filter((station) => tenues.get(station) !== sature.resource),
+      (station) => ({ type: "station.saturated", payload: { station, ...premier, ...(autres.length > 0 ? { also: autres } : {}) } }),
+      noms.filter((station) => !memes(tenues.get(station) ?? [])),
     );
-    if (sature.resource !== tenue) avertir(`brigade : ${lesStations("ne prend plus de ticket", "ne prennent plus de ticket")}, la machine n'en peut plus — ${direSaturation(sature)}`);
+    if (!memes(tenue)) avertir(`brigade : ${lesStations("ne prend plus de ticket", "ne prennent plus de ticket")}, la machine n'en peut plus — ${direSaturations(manques)}`);
     return "machine";
   };
 
@@ -682,7 +686,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const etats = new Map(declarees.map((declaree) => [declaree.nom, etatStation(base, declaree.nom)]));
     // La machine se lit d'abord, quoi qu'il arrive ensuite : ce que `status`
     // en dit ne doit pas dépendre d'une autre borne.
-    const machine = machineRetient(new Map([...etats].map(([station, etat]) => [station, etat?.saturatedResource ?? null])));
+    const machine = machineRetient(new Map([...etats].map(([station, etat]) => [station, etat?.saturatedCauses.map(({ resource }) => resource) ?? []])));
     const garde = etatDesGardeFous(base);
     // Un cook parti d'une base rouge livrerait des gates rouges pour une raison
     // qui n'est pas la sienne : ses renvois se consommeraient pour rien. La
@@ -729,7 +733,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const retenues = ceQuiRetient();
     return declarees.every((declaree) => {
       const retenue = retenues.get(declaree.nom);
-      return retenue === "cap" || retenue === "machine" || etatStation(base, declaree.nom)?.saturatedResource != null;
+      return retenue === "cap" || retenue === "machine" || (etatStation(base, declaree.nom)?.saturatedCauses.length ?? 0) > 0;
     });
   };
 

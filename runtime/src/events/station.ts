@@ -11,6 +11,14 @@ export type FinDeCook = "done" | "failed" | "86" | "disconnected" | "refused";
 // Ce dont la machine peut manquer : du processeur, de la mémoire, du disque.
 export type Ressource = "cpu" | "memory" | "disk";
 
+// Une ressource qui manque. `observed`, `limit` : la charge et son plafond
+// (cpu), ou ce qui reste et le minimum exigé, en Mo (memory, disk).
+// `limitFrom`, de la mémoire seulement : d'où vient son minimum — dérivé de la
+// mémoire totale de la machine, en Mo, ou réglé par `BRIGADE_MIN_FREE_MEMORY_MB`
+// (`env`). Absent d'un fait écrit avant qu'il existe.
+export type Manque = { resource: Ressource; observed: number; limit: number; limitFrom?: OrigineDuSeuil };
+export type OrigineDuSeuil = { totalMb: number } | "env";
+
 // Ce qui retient une station de prendre un ticket qui pourrait partir : le
 // « stop » du chef, le disjoncteur, la base d'intégration rouge, la connexion,
 // le quota, le plafond de cooks, celui des setups, le setup du projet bloqué
@@ -97,10 +105,10 @@ export type FaitStation =
   // `maxCooks: null` : le chef retire son réglage, le plafond par défaut revient.
   | { type: "station.capped"; payload: { station: string; maxCooks: number | null } }
   // La machine n'en peut plus : la station ne prend plus de ticket tant que ça
-  // dure. `observed`, `limit` : la charge et son plafond (cpu), ou ce qui reste
-  // et le minimum exigé, en Mo (memory, disk). Écrit quand la ressource en
-  // cause change, pas à chaque regard.
-  | { type: "station.saturated"; payload: { station: string; resource: Ressource; observed: number; limit: number } }
+  // dure. La première ressource en cause, et `also` les autres, s'il y en a
+  // (`Manque`). Écrit quand les ressources en cause changent, pas à chaque
+  // regard.
+  | { type: "station.saturated"; payload: { station: string; also?: Manque[] } & Manque }
   // La machine respire à nouveau : la station reprend.
   | { type: "station.relieved"; payload: { station: string } }
   // Un ticket pourrait partir et la station ne le prend pas : pourquoi. Écrit

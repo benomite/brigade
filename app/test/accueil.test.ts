@@ -187,6 +187,7 @@ describe("la ligne d'une station : son état, ce qu'elle fait, ses projets — s
         station: nom, engine: "claude", provides: ["code"], maxCooks: 2, cores: null, cap: null, announcedAt: "2026-10-16T08:00:00.000Z",
         quotaUntil: null, quotaReason: null, disconnectedAt: null, disconnectedReason: null,
         saturatedAt, saturatedResource: saturatedAt === null ? null : "memory", saturatedObserved: saturatedAt === null ? null : 812, saturatedLimit: saturatedAt === null ? null : 1024,
+        saturatedCauses: saturatedAt === null ? [] : [{ resource: "memory", observed: 812, limit: 1024 }],
         heldAt: null, heldReason: null, unarbitratedAt: null, unarbitratedReason: null,
         remote: false, seenAt: null, presentSince: null, ordinary: false, sandbox: null,
       });

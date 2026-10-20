@@ -97,7 +97,7 @@ test("l'état d'exemple fait paraître chaque ligne du bas de `status`, et aucun
     "  #41  served  -  since 2 min, cooked by box/claude  Served",
     "",
     "cooks      3 running — box/claude: 2 at most — declared — 1 STUCK: #23",
-    "           MACHINE SATURATED for 2 min — load of 16.2 for at most 15: box/claude takes no more tickets as long as it lasts",
+    "           MACHINE SATURATED for 2 min on CPU — load of 16.2 for at most 15: box/claude takes no more tickets as long as it lasts",
     "           box/claude WITHHOLDING for 2 min — gradual ramp-up, cooks that have just left weigh in advance: the servable tickets wait",
     "           ARBITER UNREACHABLE for 2 min — connection refused: box/claude launches only one cook at a time, with no arbitration, until it is back",
     "  #23  STUCK  23-bb  sonnet / medium  2 min of 1 h 00 · turns and tokens: no reading yet · no progress since 5 min",
@@ -195,8 +195,8 @@ test("comment voir l'écran d'une app à lancer : la phrase du journal, en fran�
 
 test("une saturation et une dérive se disent en anglais, nombres compris", () => {
   assert.equal(direSaturationEn({ resource: "cpu", observed: 16.24, limit: 15 }), "load of 16.2 for at most 15");
-  assert.equal(direSaturationEn({ resource: "memory", observed: 1234.5, limit: 2000 }), "1,234.5 MB of memory available for at least 2,000");
-  assert.equal(direSaturationEn({ resource: "disk", observed: 800, limit: 1000 }), "800 MB of disk free for at least 1,000");
+  assert.equal(direSaturationEn({ resource: "memory", observed: 1234.5, limit: 2000 }), "1,234.5 MB of memory available for at least 2,000 MB");
+  assert.equal(direSaturationEn({ resource: "disk", observed: 800, limit: 1000 }), "800 MB of disk free for at least 1,000 MB");
   assert.equal(direJaugeEn({ measure: "tests", observed: 622, limit: 500 }), "tests 622 for a threshold of 500");
   assert.equal(direJaugeEn({ measure: "merges", observed: 12, limit: 10 }), "12 merges since the last closing for a threshold of 10");
   assert.equal(direJaugeEn({ measure: "growth:depot_octets", observed: 25.4, limit: 20 }), "repo +25% over 10 merges for a threshold of 20%");
