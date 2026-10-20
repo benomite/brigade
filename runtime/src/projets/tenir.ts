@@ -4,7 +4,9 @@
 // (`demande.ts`). La station le relit à chaque cadence ; pour chaque projet
 // dont elle est la principale, elle vérifie que ses Apps GitHub sont
 // autorisées sur le dépôt — sinon, elle publie la page où le chef les
-// autorise, en un clic —, clone le dépôt, pose les décisions du parcours au
+// autorise, en un clic —, clone le dépôt, vérifie qu'elle peut le récupérer
+// et y pousser — sinon, elle publie pourquoi, et le geste qui le lève
+// (`acces.ts`) —, pose les décisions du parcours au
 // journal du projet, ouvre le ticket qui prépare son dépôt
 // (`preparation-depot/`), puis lui écrit sa ligne dans sa configuration, dans le
 // bloc qu'elle tient seule (`bloc.ts`). La station l'ouvre aussitôt : il est
@@ -42,6 +44,7 @@ import { ouvrirLaPreparation } from "../preparation-depot/ouvrir.ts";
 import { CLONES, CONFIGURATION, ETATS } from "../station/configuration.ts";
 import { lignesDuBloc, nomsHorsDuBloc, reecrireBloc } from "./bloc.ts";
 import { documentDeSuivi, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, suiviDe, type Bascule, type ProjetDemande, type SuiviDuProjet } from "./demande.ts";
+import { verifierAcces, type Acces } from "./acces.ts";
 import { cloner, decisionsDe, poserLesDecisions, verifierAutorisation, type Autorisation } from "./preparer.ts";
 
 // Entre deux lectures de ce que l'app demande.
@@ -69,6 +72,8 @@ export type OptionsProjets = {
   // Surchargés par les tests.
   autoriser?: (depot: string) => Promise<Autorisation>;
   cloner?: (depot: string, clone: string) => Promise<void>;
+  // Peut-elle récupérer le dépôt et y pousser, depuis son clone (`acces.ts`) ?
+  verifierAcces?: (projet: ProjetDemande, clone: string) => Promise<Acces>;
   // Ouvre le ticket qui prépare le dépôt, une fois (`preparation-depot/`) ;
   // rend son numéro, et s'il vient d'être ouvert.
   ouvrirLaPreparation?: (projet: ProjetDemande, repertoireEtat: string, clone: string) => Promise<{ ticket: number; ouvert: boolean }>;
@@ -119,6 +124,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   const gh = env.BRIGADE_GH_BIN || "gh";
   const autoriser = options.autoriser ?? ((depot: string) => verifierAutorisation(env, depot));
   const clonerLe = options.cloner ?? ((depot: string, clone: string) => cloner({ gh, depot, clone }));
+  const verifierLAcces = options.verifierAcces ?? ((projet: ProjetDemande, clone: string) => verifierAcces({ station, depot: projet.depot, base: projet.base, clone, env: { ...process.env, ...env } }));
   const ouvrirLe =
     options.ouvrirLaPreparation ??
     (async (projet: ProjetDemande, repertoireEtat: string, clone: string) => {
@@ -148,7 +154,8 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   const suiviDu = (projet: ProjetDemande, etat: SuiviDuProjet["etat"], dit: string, autoriser: string[] = []): SuiviDuProjet => ({ nom: projet.nom, etat, dit, autoriser, serviLe: null, cuitSur: null, ici: false, bascule: null });
 
   // Ce qu'il faut pour servir un projet avant d'y rien écrire : ses Apps
-  // autorisées sur le dépôt, et son clone. Rend null s'il l'est, ou ce qu'il en est.
+  // autorisées sur le dépôt, son clone, et l'accès de son clone au dépôt — en
+  // lecture et en écriture. Rend null s'il l'est, ou ce qu'il en est.
   const accueillir = async (projet: ProjetDemande): Promise<SuiviDuProjet | null> => {
     const suivi = (etat: SuiviDuProjet["etat"], dit: string, autoriser: string[] = []) => suiviDu(projet, etat, dit, autoriser);
     if (!autorises.has(projet.depot)) {
@@ -166,6 +173,16 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       const dit = message(erreur);
       direUneFois(`clone ${projet.nom} ${dit}`, `brigade : station — ${projet.nom} n'est pas cloné, la station réessaie : ${dit}`);
       return suivi("refuse", `the station could not clone ${projet.depot}; it retries — ${dit}`);
+    }
+    // Un accès refusé ne se lève que par un geste du chef : rien n'est préparé
+    // d'ici là — ni décisions, ni ticket de préparation, ni ligne. La station
+    // revérifie à chaque cadence, et le sert dès que le geste est fait.
+    const acces = await verifierLAcces(projet, join(racine, CLONES, projet.nom));
+    if (acces.etat === "injoignable") return suivi("en-preparation", `the station could not check that it may fetch and push on ${projet.depot}; it retries every ${Math.round((options.cadenceMs ?? CADENCE_MS) / 1000)} s — ${acces.dit}`);
+    if (acces.etat === "bloque") {
+      const { bloque, raison, geste } = acces;
+      direUneFois(`acces ${projet.nom} ${raison} ${geste}`, `brigade : station — ${projet.nom} n'est pas servi, son dépôt refuse le ${bloque} : ${raison} Geste : ${geste}`);
+      return { ...suivi("refuse", `${raison} ${geste}`), acces: { bloque, raison, geste } };
     }
     return null;
   };

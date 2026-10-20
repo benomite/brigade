@@ -32,6 +32,12 @@
 //           "serviLe": "<ISO>" | null, "cuitSur": "mac" | null, "ici": true,
 //           "bascule": null | { "de": "box", "vers": "mac", "demandeLe": "<ISO>",
 //             "etape": "demandee" | "acceptee" | "refusee" | "remise" | "recue" } } ] }
+//     `acces` (absent tant que rien n'est refusé) : la station ne peut pas
+//     récupérer le dépôt (`bloque: "fetch"`) ou y pousser (`"push"`), vérifié
+//     sur le remote de son clone avant de le servir (`acces.ts`) — `raison`, en
+//     une phrase, et `geste`, ce que le chef fait pour le lever (par exemple
+//     `gh auth setup-git`) ; l'état est alors `refuse`, et `dit` les porte
+//     tous deux.
 //     `station.locale` : cette station est celle de l'ordinateur du chef (une
 //     cuisine locale, sous macOS). `cuitSur` : la station où le projet cuit, telle
 //     que celle-ci la connaît — nul si elle n'en sait rien ; `ici` : il cuit sur
@@ -42,6 +48,7 @@
 //     ticket de préparation (`onboarding/etat.ts`, `Onboarding`).
 import { EFFORTS, MODELES } from "../calibrage.ts";
 import type { Onboarding } from "../onboarding/etat.ts";
+import type { AccesBloque } from "./acces.ts";
 import { NOM_DE_PROJET } from "../runtime.ts";
 
 export const FICHIER_PROJETS = "brigade-projets.json";
@@ -81,7 +88,8 @@ export type Demande = { projets: ProjetDemande[]; problemes: string[] };
 // - `a-autoriser` : les Apps de la station ne sont pas installées sur le
 //   dépôt — `autoriser` porte les pages GitHub où le chef les autorise ;
 // - `en-preparation` : la station clone le dépôt et pose ses décisions ;
-// - `refuse` : la station ne peut pas le servir, `dit` dit pourquoi ;
+// - `refuse` : la station ne peut pas le servir, `dit` dit pourquoi — et
+//   `acces`, quand c'est qu'elle ne peut pas récupérer son dépôt ou y pousser ;
 // - `secondaire` : la station n'en est pas la principale — elle ne lui fait
 //   tourner ni manager ni pass.
 export type EtatDuProjet = "servi" | "a-autoriser" | "en-preparation" | "refuse" | "secondaire";
@@ -106,6 +114,7 @@ export type SuiviDuProjet = {
   cuitSur?: string | null;
   ici?: boolean;
   bascule?: Bascule | null;
+  acces?: AccesBloque;
 };
 
 const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];

@@ -114,24 +114,70 @@ de chaque station qu'il a choisie, et la station l'y lit — toujours sans liais
      (`https://github.com/apps/<app>/installations/new`), et attend. Sans Apps, elle agit sous le
      compte de son `gh` : rien à autoriser ;
   2. elle **clone** le dépôt par son `gh` (`gh repo clone`) dans `<BRIGADE_STATION_DIR>/clones/<projet>` ;
-  3. elle **pose au journal du projet** les décisions du parcours, sous le nom du chef —
+  3. elle **vérifie qu'elle peut récupérer le dépôt et y pousser**, par le git de la machine, sur le
+     remote `origin` de son clone — celui que ses worktrees et ses cooks utiliseront : `git ls-remote`
+     de la branche d'intégration, puis `git push --dry-run`, qui s'authentifie comme un vrai push
+     sans rien envoyer (`runtime/src/projets/acces.ts`, *ticket #1117*). `gh repo clone` peut
+     réussir là où git échouera ensuite : gh prête ses identifiants au clone, pas aux fetch qui
+     suivent. **Refusé**, le projet n'est pas préparé — ni décisions, ni ticket de préparation, ni
+     ligne — et le suivi porte l'accès bloqué : ce qui est refusé, pourquoi en une phrase, et le geste
+     qui le lève (voir « L'accès bloqué » plus bas). **Injoignable** (réseau, aucune réponse en
+     soixante secondes), ce n'est pas un refus : le suivi dit `en-preparation`. Dans les deux cas, la
+     station revérifie à chaque cadence et sert le projet dès que l'accès passe, sans redémarrage ;
+  4. elle **pose au journal du projet** les décisions du parcours, sous le nom du chef —
      `BRIGADE_STATIONS` (`<station>/claude:<cooks>:code+raisonnement`), le calibrage du manager et
      du reviewer —, seulement celles qui n'y sont pas déjà : une décision changée depuis n'est pas
      écrasée ;
-  4. elle **ouvre sur GitHub le premier ticket du projet**, « Préparer le dépôt » — voir plus bas ;
-  5. elle écrit sa **ligne** (`<projet> <dépôt> <branche>`) dans sa configuration, dans un bloc
+  5. elle **ouvre sur GitHub le premier ticket du projet**, « Préparer le dépôt » — voir plus bas ;
+  6. elle écrit sa **ligne** (`<projet> <dépôt> <branche>`) dans sa configuration, dans un bloc
      qu'elle tient seule, entre deux commentaires — les lignes écrites à la main, hors du bloc, ne
      sont jamais touchées ; un projet qui y a déjà une ligne à la main la garde, et le suivi le dit.
      Elle relit aussitôt sa configuration et publie sa présence : le projet est dans sa liste sur la
      home (« 1 project »).
 - **Ce qu'elle en dit** : `brigade-projets-suivi.json`, réécrit quand il change — par projet, `servi`
   (et depuis quand), `a-autoriser` (avec ses pages), `en-preparation`, `refuse` (et pourquoi : clone
-  raté, ligne à la main, refus de la station) ou `secondaire` ; et, à côté de la liste, l'**onboarding**
+  raté, accès au dépôt refusé, ligne à la main, refus de la station) ou `secondaire` ; et, à côté de la liste, l'**onboarding**
   de chaque projet dont elle est la principale — voir plus bas.
 - **Retiré depuis l'app**, le projet quitte la demande : la station retire sa ligne du bloc et ne le
   sert plus. Son état et son clone restent sur la machine.
 - **Une station qui n'est pas la principale** d'un projet ne lui écrit aucune ligne et le dit
   `secondaire` : faire cuire une station secondaire viendra avec la station de bureau (#797).
+
+### L'accès bloqué
+
+*Ticket #1117.* Quand la vérification de l'étape 3 est refusée, la ligne du projet dans
+`brigade-projets-suivi.json` dit `refuse` et porte un champ de plus, `acces` — absent tant que rien
+n'est refusé :
+
+```json
+"acces": {
+  "bloque": "fetch",
+  "raison": "box cannot fetch from benomite/parade: git has no credentials for https://github.com and no credential helper to ask for them (git: could not read Username for 'https://github.com': terminal prompts disabled).",
+  "geste": "Run `gh auth setup-git` on box, under the account that runs it: git then takes its credentials from gh."
+}
+```
+
+- `bloque` : `fetch` (la station ne peut pas récupérer le dépôt) ou `push` (elle le récupère, mais
+  ne peut pas y pousser — la raison le dit : « can fetch from … but cannot push to it ») ;
+- `raison` : une phrase, en anglais — c'est l'app qui la montre —, qui finit par la ligne de git ;
+- `geste` : ce que le chef fait pour lever le refus, en une phrase. `dit` porte les deux, la raison
+  puis le geste.
+
+Le geste dépend de ce que git a dit :
+
+| git dit | geste |
+|---|---|
+| il n'a pas d'identifiants, sur un remote https sans credential helper | `gh auth setup-git` |
+| il n'a pas d'identifiants, alors qu'un credential helper est réglé | `gh auth login`, puis `gh auth setup-git` |
+| `403`, `Permission to … denied`, clé en lecture seule | donner au compte de la station l'accès en lecture (`fetch`) ou en écriture (`push`), sur `https://github.com/<dépôt>/settings/access` |
+| `Repository not found`, dépôt absent | `gh repo view <dépôt>` sous le compte de la station, et lui donner l'accès |
+| `Permission denied (publickey)` | ajouter la clé ssh du compte à GitHub (`gh ssh-key add <clé>.pub`) |
+| `Host key verification failed` | `ssh -T <hôte>` une fois, et accepter sa clé d'hôte |
+| autre chose | la commande git à relancer sur la station pour voir ce qu'elle dit |
+
+Le journal de service le dit une fois (`brigade : station — <projet> n'est pas servi, son dépôt
+refuse le fetch : … Geste : …`), et l'**onboarding** le montre à l'étape `depot`, courante, avec le
+geste « On <station>, under the account that runs it. ».
 
 ### Le premier ticket : préparer le dépôt
 
@@ -178,7 +224,8 @@ déjà — son suivi du projet, son clone, le ticket de préparation noté — e
 en lecture seule ; rien n'est écrit pour lui.
 
 - **Quatre étapes, dans l'ordre** (`etapes`) : `depot` (les Apps de brigade autorisées sur le
-  dépôt, et son clone), `machine` (la station qui le cuit, sa cuisine ouverte), `preparation` (le
+  dépôt, son clone, et l'accès de la station au dépôt en lecture et en écriture — refusé, son geste
+  est celui de l'accès bloqué), `machine` (la station qui le cuit, sa cuisine ouverte), `preparation` (le
   ticket « Préparer le dépôt », mergé), `premier-ticket` (un ticket du chef sur le rail). Chacune
   porte son `titre`, son `etat` — `faite`, `courante` ou `a-venir` —, une phrase en anglais
   (`dit`), et, si elle est la courante et attend le chef, son `geste` : `quoi`, `ou`, et les
