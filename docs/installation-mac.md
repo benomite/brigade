@@ -1,47 +1,44 @@
-# Installer l'app brigade sur votre Mac
+# Installing the brigade app on your Mac
 
-L'app brigade est une fenêtre pour votre Mac : vos projets dans une barre d'icônes, et dans chacun
-un terminal. Elle s'installe comme n'importe quelle app, sans cloner le dépôt et sans `node` ni
-`npm`.
+The brigade app is a window for your Mac: your projects in an icon bar, and a terminal in each.
+It installs like any other app, without cloning the repo and without `node` or `npm`.
 
-## Ce qu'il vous faut
+## What you need
 
-- Un Mac **Apple Silicon** (puce M1 ou plus récente). Les Mac Intel ne sont pas couverts pour
-  l'instant.
-- Les outils que l'app appelle sur le Mac : `claude` (Claude Code) et `gh` (GitHub CLI), installés
-  et connectés comme d'habitude. L'app les trouve par le `PATH` de votre shell de connexion.
+- An **Apple Silicon** Mac (M1 chip or newer). Intel Macs are not covered for now.
+- The tools the app calls on the Mac: `claude` (Claude Code) and `gh` (GitHub CLI), installed
+  and logged in as usual. The app finds them through the `PATH` of your login shell.
 
-Windows, mobile et Mac Intel ne sont pas encore couverts.
+Windows, mobile and Intel Macs are not covered yet.
 
-## Où la télécharger
+## Where to download it
 
-Sur la page des releases du dépôt, **<https://github.com/benomite/brigade/releases>**. Prenez la
-dernière release **« Brigade (Mac) »** et téléchargez le fichier **`Brigade-<version>-arm64.dmg`**
-qui lui est attaché.
+On the repo's releases page, **<https://github.com/benomite/brigade/releases>**. Take the latest
+**"Brigade (Mac)"** release and download the **`Brigade-<version>-arm64.dmg`** file attached to
+it.
 
-## Installer
+## Install
 
-1. Ouvrez le `.dmg` téléchargé.
-2. Glissez **Brigade** dans le dossier **Applications**.
-3. Ouvrez Brigade depuis Applications.
+1. Open the downloaded `.dmg`.
+2. Drag **Brigade** into the **Applications** folder.
+3. Open Brigade from Applications.
 
-L'app est signée par un développeur identifié et notarisée par Apple : elle s'ouvre sans
-l'alerte « développeur non identifié ».
+The app is signed by an identified developer and notarized by Apple: it opens without the
+"unidentified developer" alert.
 
-## Vos projets et réglages
+## Your projects and settings
 
-L'app lit **`~/.config/brigade/`** tel quel : les projets et les réglages que vous avez déjà,
-avec l'app lancée depuis le dépôt, apparaissent à l'identique. Rien n'y est déplacé, rien n'y
-est réécrit.
+The app reads **`~/.config/brigade/`** as is: the projects and settings you already have, with
+the app launched from the repo, show up identically. Nothing in it is moved, nothing is
+rewritten.
 
-## Mises à jour
+## Updates
 
-L'app installée ne se met pas à jour toute seule. Une nouvelle version est publiée comme une
-nouvelle release : pour passer à jour, téléchargez le nouveau `.dmg` et glissez-le dans
-Applications, en remplaçant l'ancien.
+The installed app does not update itself. A new version is published as a new release: to
+update, download the new `.dmg` and drag it into Applications, replacing the old one.
 
-## Pour aller plus loin
+## Going further
 
-Le parcours complet de l'app (les espaces, l'accueil, les stations, l'ajout d'un projet) est
-dans [`app.md`](app.md), « Lancer l'app ». Le détail de ce que le `.dmg` porte et de sa
-construction est dans [`app/packaging/README.md`](../app/packaging/README.md).
+The full tour of the app (the spaces, the home screen, the stations, adding a project) is in
+[`app.md`](app.md), "Launching the app". The detail of what the `.dmg` carries and how it is built is
+in [`app/packaging/README.md`](../app/packaging/README.md).

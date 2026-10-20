@@ -1,293 +1,292 @@
-# L'app
+# The app
 
-Une fenêtre sur le Mac : tes projets dans une barre d'icônes, et dans chacun un vrai terminal où
-tourne le second. Tu n'ouvres plus un terminal, tu ne te places plus dans un dossier.
+A window on the Mac: your projects in an icon bar, and in each one a real terminal where the
+second runs. You no longer open a terminal, you no longer move into a folder.
 
-**Au centre de l'espace, deux onglets, Rail et Cooks** (#1184), à côté du nom du projet, un seul montré à la
-fois : **Rail** dit où en est le projet et ce que tu as à décider — ce qui t'attend et son geste, les tickets du
-rail dans leur ordre, TODO, WAITING et ce qui est servi, sans rien d'exécution ; **Cooks** dit ce qui tourne — la
-carte du projet et ses cooks en cours, Taken et Pass (les gates), les serveurs de livraison avec leur worktree et
-leur port, les stations du projet, et la lecture de `station` (le plafond de cooks, la machine et sa saturation,
-le quota). Un clic passe de l'un à l'autre ; **l'app rouvre chaque projet sur le dernier onglet que tu y as
-ouvert**, même après l'avoir quittée — un projet jamais ouvert s'ouvre sur Rail. **À droite, les terminaux, en
-permanence** : le second, et à côté de lui, au même niveau, les shells que tu ouvres — rien de ce que tu regardes
-au centre ne les cache, et changer d'onglet ne coupe ni ne vide la conversation.
-**Sur Cooks, une ligne par station du projet** (#1185), sous la carte du projet, où qu'elle tourne — la box, le Mac,
-un autre ordinateur (`remote`) : son état, un mot de `facts` (`cooking`, `stopped`, `saturated`, `refused`, #1183)
-et ce qu'il veut dire (`by you, for 3 min · 1 cook finishing`, `its machine has no room`, la raison d'un refus),
-ses cooks en cours, et **un seul bouton** : `stop cooking` quand elle cuit (saturée comprise), `start cooking`
-quand tu l'as arrêtée. Il joue `station stop|start <station>` là où la cuisine du projet tourne — sa box par
-`ssh`, ou ce Mac —, dit `stopping…` tant que le runtime n'a pas répondu, puis relit la box : la ligne prend
-l'état neuf sans recharger la page. Arrêter ne coupe rien : le cook en cours finit — livré, ou son ticket revient
-au rail — et la ligne reste à `stopped`. Ce qu'il fait est au survol du bouton ; relancer dit son prix au survol,
-arrêter n'en a pas. Refusé par le runtime, une ligne le dit sous la station, sa sortie au survol. Une station
-arrêtée par ton « stop » de toute la cuisine, ou qui refuse le projet, n'a pas de bouton : la reprise est sur la
-bannière, le geste d'un refus dans le bloc sous la ligne des stations. **Sur Rail, une seule ligne en tête** dit
-ce qui, du côté des cooks, demande ton geste — une station saturée, une station qui refuse le projet, l'accès au
-dépôt bloqué —, toutes les causes sur la même ligne, avec `open Cooks`, qui ouvre l'onglet Cooks ; rien ne la
-montre quand rien ne le demande. Les modules sont `app/src/cuisson.ts` et `app/src/vue/stations-de-cuisson.js`.
-**L'écran principal ne garde que trois choses : la bande d'alertes, le rail et les terminaux** ; il
-n'y a rien en bas de la fenêtre. Le reste est derrière un onglet, en haut, à côté du nom du
-projet : **Paramètres** (l'état du projet, la sauvegarde et son ancienneté, les réglages, le
-manager, les grants, la fiabilité de ses cooks et ce qu'il a coûté) — lu pour toi, sans rien taper.
-Sa page s'ouvre **par-dessus le rail**, et le rail revient tel que tu l'avais laissé quand tu la fermes.
-**Le coût de tous les projets n'est pas dans un projet** (#1022) : il vaut pour l'ensemble, il vit donc
-au niveau de l'app, sur sa propre page, ouverte depuis « Tous les projets ».
-**Dans la bande d'alertes, chaque alerte tient en une ligne et un contrôle** (#907) : la ligne dit ce
-qui ne va pas en une phrase, et son seul bouton fait le geste (ou écrit la demande dans le second —
-« ask the second »). Rien d'autre n'est écrit à plat. **Le prix est dans la confirmation, au clic** :
-un geste qui coûte ouvre sous la ligne sa confirmation, qui dit son prix en une ligne — une demande au
-second aussi (`ask the second…` : « ask the second to lift it », ce que coûtera le lever, et `yes, write
-the request`, qui l'écrit sans l'envoyer) ; un geste sans prix part au clic. **Ce que la box en dit mot
-pour mot** et la raison **sont derrière « detail »**, au bout de la ligne : un clic les déplie dessous,
-un second les replie, et une relecture de la bande ne les replie pas. Le geste, lui, n'y est jamais
-écrit — ni commande à recopier ni mode d'emploi : le seul geste montré est le bouton de la ligne.
-**Le grant `merge` est un interrupteur** (#907), à côté de celui du manager et du même rendu — `merge
-on` ou `merge off` —, lu dans les lignes de tête de `status` : un clic ouvre la confirmation d'accorder,
-ou de révoquer, qui dit ce que ça change. Éteint de lui-même (son échéance passée), il est cerné de
-jaune, sa ligne de `status` au survol, et la bande n'en fait plus de ligne ; « bientôt éteint » reste
-une ligne, à prolonger. **Le manager n'est pas une ligne de la bande :
-c'est un interrupteur** (#906), en tête de l'espace, à droite des onglets — `manager on`, glissière verte
-à droite, ou `manager off`, grise à gauche —, toujours en vue, et un clic le bascule : éteindre part
-dans le second ; allumer ouvre sa confirmation dessous, qui dit son prix en une phrase avec le nombre
-réel d'issues (`it will judge the 23 open issues`, ou `it will judge 21 of the 23 open issues — 2 carry
-blocked-on-human`), ce qu'il engage au survol. Éteint, **la tête du rail est marquée à l'arrêt** — une
-barre hachurée, `manager off — nothing new comes in` — : ce qui est déjà sur le rail continue, rien de
-neuf n'y entre. La ligne `manager` de la box (`OFF since … (by chef) — …`) n'est plus qu'au survol
-de l'interrupteur, et en entier dans l'onglet Manager. Pas encore lu, ou pas lu, l'interrupteur ne dit
-ni l'un ni l'autre (`manager …`) et ne bascule rien ; une lecture qui échoue fait sa ligne « non
-vérifié » dans la bande. Sur la barre, la case d'un projet au manager éteint garde son signal.
-**« Tous les projets » est la vue d'ensemble de
-brigade** : une ligne par projet, une par station, chacune avec sa pastille et ce qui s'y passe en
-quelques mots, et un clic l'ouvre — on n'y agit pas, on y regarde, puis on va où ça se décide ; une
-ligne **Cost** y ouvre le coût de tous les projets.
-**Cost, la vérification d'un projet et Settings suivent les mêmes règles** : aucun mode d'emploi à plat
-(l'explication d'un onglet, à quoi sert une étape de l'installation et ce qui arrive si on la saute vivent
-au survol d'une icône « ? »), chaque geste est un bouton qui dit son mot — un geste qui écrit le début d'une
-commande dans le second se nomme (« Set the cooks of a station… »), la commande n'est écrite nulle part —,
-une lecture en échec tient en une ligne (le texte de `ssh`, le renvoi et le code de sortie au survol), et une
-confirmation de geste coûteux dit son prix en une ligne, le reste et sa source au survol.
-**Le journal n'est plus à l'écran** : c'est de l'outillage de panne, il s'ouvre par le geste
-« journal », en tête de l'espace. Et en tête de la barre, l'écran **Tous les projets** : tes projets et tes
-stations d'un coup d'œil, l'entrée vers le coût de tous les projets, et la santé de Max et de GitHub en une ligne.
+**In the middle of the space, two tabs, Rail and Cooks** (#1184), next to the project name, only one shown at a
+time: **Rail** says where the project stands and what you have to decide — what awaits you and its action, the
+tickets of the rail in their order, TODO, WAITING and what is served, with nothing about execution; **Cooks** says
+what is running — the project tile and its cooks in flight, Taken and Pass (the gates), the delivery servers with
+their worktree and their port, the project's stations, and the reading of `station` (the cap on cooks, the machine
+and its saturation, the quota). One click switches from one to the other; **the app reopens each project on the
+last tab you opened in it**, even after you quit it — a project never opened opens on Rail. **On the right, the
+terminals, permanently**: the second, and beside it, at the same level, the shells you open — nothing you look at
+in the middle hides them, and switching tabs neither cuts nor empties the conversation.
+**On Cooks, one line per station of the project** (#1185), under the project's tile, wherever it runs — the box, the Mac,
+another computer (`remote`): its state, a word of `facts` (`cooking`, `stopped`, `saturated`, `refused`, #1183)
+and what it means (`by you, for 3 min · 1 cook finishing`, `its machine has no room`, the reason for a refusal),
+its cooks in flight, and **a single button**: `stop cooking` when it cooks (saturated included), `start cooking`
+when you have stopped it. It plays `station stop|start <station>` where the project's kitchen runs — its box by
+`ssh`, or this Mac —, says `stopping…` until the runtime has answered, then rereads the box: the line takes
+the new state without reloading the page. Stopping cuts nothing: the cook in flight finishes — served, or its ticket goes
+back to the rail — and the line stays at `stopped`. What it does is on hover over the button; restarting says its price
+on hover, stopping has none. Refused by the runtime, a line says so under the station, its output on hover. A station
+stopped by your "stop" of the whole kitchen, or that refuses the project, has no button: the resume is on the
+banner, the action for a refusal in the block under the stations line. **On Rail, a single line at the top** says
+what, on the cooks' side, asks for your action — a saturated station, a station that refuses the project, repository access
+blocked —, all the causes on the same line, with `open Cooks`, which opens the Cooks tab; nothing shows it
+when nothing asks for it. The modules are `app/src/cuisson.ts` and `app/src/vue/stations-de-cuisson.js`.
+**The main screen keeps only three things: the alert band, the rail and the terminals**; there is
+nothing at the bottom of the window. The rest is behind a tab, at the top, next to the name of the
+project: **Settings** (the state of the project, the backup and its age, the settings, the
+manager, the grants, the reliability of its cooks and what it cost) — read for you, with nothing to type.
+Its page opens **over the rail**, and the rail comes back as you left it when you close it.
+**The cost of all projects is not in a project** (#1022): it applies to the whole, so it lives
+at the app level, on its own page, opened from "All projects".
+**In the alert band, each alert is one line and one control** (#907): the line says what
+is wrong in one sentence, and its only button does the action (or writes the request into the second —
+"ask the second"). Nothing else is written flat. **The price is in the confirmation, on click**:
+an action that costs opens its confirmation under the line, which says its price in one line — a request to the
+second too (`ask the second…`: "ask the second to lift it", what lifting will cost, and `yes, write
+the request`, which writes it without sending it); an action without a price goes on click. **What the box says about it word
+for word** and the reason **are behind "detail"**, at the end of the line: one click unfolds them below,
+a second folds them back, and a re-read of the band does not fold them. The action itself is never
+written there — no command to copy and no instructions: the only action shown is the button of the line.
+**The `merge` grant is a switch** (#907), next to the manager's and rendered the same way — `merge
+on` or `merge off` —, read from the head lines of `status`: one click opens the confirmation to enable,
+or to revoke, which says what it changes. Off by itself (its expiry passed), it is outlined
+in yellow, its `status` line on hover, and the band no longer makes a line of it; "expiring soon" remains
+a line, to extend. **The manager is not a line of the band:
+it is a switch** (#906), at the head of the space, to the right of the tabs — `manager on`, green slider
+on the right, or `manager off`, grey on the left —, always in view, and one click toggles it: turning off goes
+to the second; turning on opens its confirmation below, which says its price in one sentence with the real number
+of issues (`it will judge the 23 open issues`, or `it will judge 21 of the 23 open issues — 2 carry
+blocked-on-human`), what it commits to on hover. Off, **the head of the rail is marked as stopped** — a
+hatched bar, `manager off — nothing new comes in` —: what is already on the rail continues, nothing
+new enters. The `manager` line of the box (`OFF since … (by chef) — …`) is now only on hover
+of the switch, and in full in the Manager tab. Not yet read, or not read, the switch says
+neither (`manager …`) and toggles nothing; a read that fails makes its "unchecked" line in the
+band. On the bar, the tile of a project with the manager off keeps its signal.
+**"All projects" is the overview of
+brigade**: one line per project, one per station, each with its pill and what is going on there in
+a few words, and one click opens it — you do not act there, you look, then go where it is decided; a
+**Cost** line there opens the cost of all projects.
+**Cost, the check of a project and Settings follow the same rules**: no flat instructions
+(the explanation of a tab, what a step of the installation is for and what happens if you skip it live
+on hover of a "?" icon), each action is a button that says its word — an action that writes the start of a
+command into the second is named ("Set the cooks of a station…"), the command is written nowhere —,
+a read that fails fits on one line (the `ssh` text, the retry and the exit code on hover), and a
+confirmation of a costly action says its price in one line, the rest and its source on hover.
+**The log is no longer on screen**: it is breakdown tooling, opened by the
+"log" action, at the head of the space. And at the head of the bar, the **All projects** screen: your projects and your
+stations at a glance, the entry to the cost of all projects, and the health of Max and GitHub in one line.
 
-**L'app dit aussi quand son propre code est en retard.** Elle tourne sur le code d'un clone, et un
-clone que personne ne met à jour, c'est une app qui montre moins que ce qui est livré : la case **T**
-passe en jaune, son survol et les réglages de chaque projet disent de combien de commits son clone est
-en retard sur son origine (voir
-« Le code de l'app : à jour, ou en retard »). Et elle passe à la nouvelle version d'elle-même : à
-sa prochaine ouverture, ou tout de suite d'un clic — sans terminal, sans commande à recopier.
+**The app also says when its own code is behind.** It runs on the code of a clone, and a
+clone nobody updates is an app that shows less than what is delivered: the **T** tile
+turns yellow, its hover and the settings of each project say by how many commits its clone is
+behind its origin (see
+"The app's code: up to date, or behind"). And it moves to the new version of itself: at
+its next opening, or right away with one click — with no terminal, no command to copy.
 
-Ce qui est **un tableau à états est dessiné** : une pastille par projet dans la barre, une carte
-de cinq compteurs avec ses cooks en cours, le rail en cinq colonnes, et une bannière quand la cuisine est à l'arrêt. Le
-reste — le journal, les grants, la station — reste du texte (voir « Ce qui est dessiné ») ; l'état
-du manager et celui des grants sont lus dans ce texte, et posés au-dessus de lui.
+What is **a table of states is drawn**: a pill per project in the bar, a card
+of five counters with its cooks in flight, the rail in five columns, and a banner when the kitchen is stopped. The
+rest — the log, the grants, the station — stays text (see "What is drawn"); the state
+of the manager and that of the grants are read from this text, and laid over it.
 
-L'app **n'ajoute rien au runtime** et ne double aucun geste : ce qui s'accorde, se règle ou se
-relance se fait dans son terminal. Ses boutons **écrivent** la commande dans le second, et ne
-l'envoient pas : c'est toi qui fais Entrée (voir « Les boutons écrivent, ils n'envoient pas »). Ce
-qu'elle montre de la box, elle l'a lu en lançant à ta place les commandes qui existent.
+The app **adds nothing to the runtime** and doubles no action: what is granted, set or
+relaunched is done in its terminal. Its buttons **write** the command into the second, and do not
+send it: you are the one who hits Enter (see "Buttons write, they do not send"). What
+it shows of the box, it read by running for you the commands that exist.
 
-**Deux gestes font exception, parce qu'ils n'engagent rien : éteindre le manager, vérifier
-l'installation.** Ceux-là **partent** : leur commande est envoyée dans le second, et sa sortie se
-lit dans son fil, sans que tu recopies rien. Et quand le second n'est pas libre, ils ne partent
-pas en silence : l'app dit pourquoi, et que rien n'est parti (voir « Un geste direct part
-vraiment — ou dit pourquoi il ne part pas »).
+**Two actions are the exception, because they commit nothing: turning off the manager, checking
+the installation.** Those **go**: their command is sent into the second, and its output is
+read in its thread, without you copying anything. And when the second is not free, they do not go
+silently: the app says why, and that nothing went (see "A direct action really goes out — or says why it does not").
 
-**Une seule chose part de l'app vers la box sans passer par ton terminal : ajouter un projet.**
-L'écran d'ajout lance le geste d'installation de la box à ta place — aucune commande à coller,
-aucun port à choisir (voir « Depuis l'app »). Ce qui reste ensuite — amorcer le dépôt, merger,
-vérifier, démarrer — se suit dans l'espace du projet : l'app y ouvre la session, vérifie à ta
-place, et **n'écrit le démarrage que si la box dit le projet prêt** (voir « Après l'ajout : la mise
-en service »).
+**Only one thing goes from the app to the box without passing through your terminal: adding a project.**
+The add screen runs the box's installation action for you — no command to paste,
+no port to choose (see "From the app"). What remains afterwards — priming the repo, merging,
+checking, starting — is followed in the project's space: the app opens the session there, checks for
+you, and **writes the start only if the box says the project is ready** (see "After the add: the
+commissioning").
 
-## L'app n'est pas la cuisine
+## The app is not the kitchen
 
-**Ce qui travaille est sur la box**, projet par projet, et tourne sans l'app et sans toi.
-**L'app est la fenêtre du Mac** : elle lit, elle affiche, elle écrit des commandes dans un
-terminal. La fermer n'arrête rien sur la box, et arrêter la cuisine d'un projet ne ferme pas l'app.
+**What works is on the box**, project by project, and runs without the app and without you.
+**The app is the window on the Mac**: it reads, it displays, it writes commands into a
+terminal. Closing it stops nothing on the box, and stopping a project's kitchen does not close the app.
 
-**Une exception, et tu la déclares : les stations que ton poste joue.** Un ticket peut demander ce
-que seul ton Mac fournit — ton Chrome connecté. La cuisine reste sur la box, avec son rail, ses
-garde-fous et sa pass ; mais le cook de ce ticket-là tourne chez toi, lancé par l'app, tant qu'elle
-est ouverte (voir « Le poste est une station »). Un projet qui ne déclare aucune station ne lance
-rien sur ton poste.
+**One exception, and you declare it: the stations your workstation plays.** A ticket may ask for what
+only your Mac provides — your signed-in Chrome. The kitchen stays on the box, with its rail, its
+guardrails and its pass; but the cook of that ticket runs at your place, launched by the app, as long as it
+is open (see "The workstation is a station"). A project that declares no station launches
+nothing on your workstation.
 
-Trois mots se ressemblent, et ne disent pas la même chose :
+Three words look alike, and do not mean the same thing:
 
-| Le mot | Ce qu'il désigne | Où il se lit |
+| The word | What it designates | Where it is read |
 |---|---|---|
-| **Tous les projets** | **un écran de l'app**, l'accueil : la vue d'ensemble de brigade — tes projets, tes stations, l'entrée vers le coût de tous les projets, la santé de Max et de GitHub —, en tête de la barre. Il ne lance et n'arrête rien | la case ronde **T** |
-| **la cuisine** d'un projet | **un état du runtime, sur la box** : `ouverte`, `retenue`, `arrêtée`, `éteinte`. C'est elle que ton « stop » arrête, et elle seule | la pastille, la carte, la ligne `kitchen` de `status`, la bannière `CUISINE À L'ARRÊT` |
-| **`en cuisine`** | **l'étape d'un ticket** : un cook le tient, entre `en attente` et `en pass` — ce que le rail appelle `pris`. Elle parle d'un ticket, pas du projet | la liste des tickets d'une épique, et `pass` |
+| **All projects** | **a screen of the app**, the home: the overview of brigade — your projects, your stations, the entry to the cost of all projects, the health of Max and GitHub —, at the head of the bar. It launches and stops nothing | the round **T** tile |
+| a project's **kitchen** | **a state of the runtime, on the box**: `open`, `held`, `stopped`, `off`. It is what your "stop" stops, and it alone | the pill, the card, the `kitchen` line of `status`, the `KITCHEN STOPPED` banner |
+| **`taken`** | **the step of a ticket**: a cook holds it, between `queued` and `in pass` — what the rail calls `taken`. It speaks of a ticket, not of the project | the ticket list of an epic, and `pass` |
 
-Le journal dit `kitchen.stopped` et `kitchen.resumed` pour ton « stop » et ton « reprendre » :
-c'est la cuisine du projet, l'état — pas l'écran.
+The log says `kitchen.stopped` and `kitchen.resumed` for your "stop" and your "resume":
+that is the project's kitchen, the state — not the screen.
 
-## Dire où sont tes projets
+## Telling where your projects are
 
-Un seul fichier, hors du dépôt : `~/.config/brigade/app.json`. Tes box, déclarées une fois, et un
-nom et un dossier par projet — avec, pour un projet servi par une box, laquelle. **Tu n'as pas à
-l'écrire pour commencer** : l'app le crée, et tu y déclares une box et y ajoutes un projet depuis
-l'app.
+A single file, outside the repo: `~/.config/brigade/app.json`. Your boxes, declared once, and a
+name and a folder per project — with, for a project served by a box, which one. **You do not have to
+write it to begin**: the app creates it, and you declare a box and add a project in it from
+the app.
 
-### Depuis l'app
+### From the app
 
-Au premier lancement le fichier n'existe pas : l'app le crée, vide (`{ "projets": [] }`), et
-s'ouvre sur **Ajouter un projet**. Ensuite, c'est le **+**, en pied de la barre.
+On first launch the file does not exist: the app creates it, empty (`{ "projets": [] }`), and
+opens on **Add a project**. After that, it is the **+**, at the foot of the bar.
 
-**Ajouter un projet, c'est l'installer sur sa box** — un seul écran, sur une box déjà préparée :
+**Adding a project is installing it on its box** — a single screen, on a box already prepared:
 
-| Ce que tu donnes | Comment |
+| What you give | How |
 |---|---|
-| **Son dossier sur ce poste** | `Choisir…` ouvre le sélecteur de dossiers du Mac : il ne se tape pas |
-| **Son nom** | proposé d'après le dossier, tant que tu n'en as pas tapé un autre. C'est aussi celui de son instance sur la box (voir plus bas) |
-| **Son dépôt GitHub** | `<propriétaire>/<nom>` : c'est lui que la box clone. L'app le lit dans l'origine du dossier choisi (`git remote get-url origin`) et le propose ; corrige-le si ce n'est pas lui. Sans origine github.com lisible, le champ te le dit et reste à écrire |
-| **Sa box** | à choisir parmi celles que tu as déclarées. Une seule déclarée : elle est déjà choisie |
-| **Le calibrage du manager et du reviewer** | un modèle (`opus`, `sonnet`, `haiku`) et un effort (`low`, `medium`, `high`, `xhigh`, `max`) pour chacun : c'est ton quota. **Une valeur de départ est proposée**, avec sa provenance — tu la gardes ou tu la changes |
-| **La destination de ses sauvegardes** | un répertoire **de la box**, propre à ce projet, en chemin absolu — sous la racine que la box autorise. **Proposée : `<racine>/<nom>`**, la racine étant celle que la box accepte |
+| **Its folder on this workstation** | `Choose…` opens the Mac's folder picker: it is not typed |
+| **Its name** | proposed from the folder, as long as you have not typed another. It is also that of its instance on the box (see below) |
+| **Its GitHub repository** | `<owner>/<name>`: it is the one the box clones. The app reads it from the origin of the chosen folder (`git remote get-url origin`) and proposes it; correct it if it is not the right one. With no readable github.com origin, the field tells you so and stays to be written |
+| **Its box** | to choose among those you declared. Only one declared: it is already chosen |
+| **The manager and reviewer calibration** | a model (`opus`, `sonnet`, `haiku`) and an effort (`low`, `medium`, `high`, `xhigh`, `max`) for each: it is your quota. **A starting value is proposed**, with its provenance — you keep it or you change it |
+| **Where its backups go** | a directory **on the box**, specific to this project, as an absolute path — under the root the box allows. **Proposed: `<root>/<name>`**, the root being the one the box accepts |
 
-**Ce qui est proposé se voit comme tel, et dit d'où il vient.** Un champ prérempli porte, sous
-lui, `Proposé, pas choisi — <provenance>` ; la ligne disparaît dès que tu touches le champ — ce
-qui part vers la box est alors ce que tu as choisi.
+**What is proposed is seen as such, and says where it comes from.** A prefilled field carries, under
+it, `Proposed, not chosen — <provenance>`; the line disappears as soon as you touch the field — what
+goes to the box is then what you chose.
 
-| Champ | Valeur proposée | Provenance dite à l'écran |
+| Field | Proposed value | Provenance said on screen |
 |---|---|---|
-| Calibrage | celui du dernier projet que tu as ajouté depuis l'app (l'app le garde, avec le projet, dans `calibrage`) | `ce sur quoi « <projet> » tourne, le dernier projet que tu as ajouté ici` |
-| Calibrage, faute d'un tel projet | `sonnet/medium`, la valeur mesurée sur la box de brigade | `la valeur mesurée sur la box de brigade, faute d'un autre projet ajouté ici…` |
-| Sauvegardes | `<racine>/<nom>`, qui suit le nom tant que tu n'as pas touché le champ | `la racine que « <box> » accepte (<racine>, lue dans /etc/brigade-installer.conf), puis le nom du projet` |
+| Calibration | that of the last project you added from the app (the app keeps it, with the project, in `calibrage`) | `what "<project>" runs on, the last project you added here` |
+| Calibration, lacking such a project | `sonnet/medium`, the value measured on brigade's box | `the value measured on brigade's box, lacking another project added here…` |
+| Backups | `<root>/<name>`, which follows the name as long as you have not touched the field | `the root that "<box>" accepts (<root>, read from /etc/brigade-installer.conf), then the project name` |
 
-**La racine n'est pas devinée : elle est lue.** Quand une box est choisie, l'app lit
-`/etc/brigade-installer.conf` sur elle, par `ssh` (`cat`, ce fichier est lisible de tous) et en
-prend la ligne `sauvegardes=`. Box pas jointe, ou réglage sans racine : le champ reste vide, et
-dit pourquoi. **La racine, elle, garde son absence de défaut** : elle se pose une fois sur la box,
-et l'app ne choisit jamais un disque.
+**The root is not guessed: it is read.** When a box is chosen, the app reads
+`/etc/brigade-installer.conf` on it, through `ssh` (`cat`, this file is readable by all) and
+takes the `sauvegardes=` line from it. Box not reached, or setting without a root: the field stays empty, and
+says why. **The root keeps its absence of a default**: it is set once on the box,
+and the app never chooses a disk.
 
-**Une box se déclare une fois, pas par projet.** Sous la liste, `Déclarer une box` prend un nom —
-celui par lequel ton `ssh` la joint, ce que tu tapes après `ssh` — et l'écrit dans `hotes`. Rien
-n'est joint à ce moment : c'est un nom. Une deuxième box ne demande rien de plus qu'un deuxième nom.
-Un fichier écrit avant cette liste n'a rien à y récrire : la box que tes projets nomment déjà
-(`hote`) se propose aussi.
+**A box is declared once, not per project.** Under the list, `Declare a box` takes a name —
+the one by which your `ssh` reaches it, what you type after `ssh` — and writes it into `hotes`. Nothing
+is reached at that moment: it is a name. A second box asks for nothing more than a second name.
+A file written before this list has nothing to rewrite in it: the box your projects already name
+(`hote`) is proposed too.
 
-**Rien ne part tant qu'un champ manque.** Un champ qui se déduit ne commence pas vide, mais tu
-peux le vider : `Installer sur la box, et ajouter` avec un calibrage ou une destination vide ne
-joint personne, le champ est signalé, avec sa raison (`Le modèle du manager n'a pas de défaut :
-c'est ton quota, choisis-le.`), et l'écran dit `Rien n'est parti vers la box`. **Le runtime, lui,
-refuse toujours de démarrer sans ses cinq variables** (`docs/runtime/exploitation.md`, « Cinq variables, aucun défaut ») : la valeur proposée est
-écrite dans le drop-in comme une valeur choisie.
+**Nothing goes while a field is missing.** A field that can be deduced does not start empty, but you
+can empty it: `Install on the box, and add` with an empty calibration or destination
+reaches no one, the field is flagged, with its reason (`The manager's model has no default:
+it is your quota, choose it.`), and the screen says `Nothing went to the box`. **The runtime, for its part,
+always refuses to start without its five variables** (`docs/runtime/exploitation.md`, "Cinq variables, aucun défaut"): the proposed value is
+written in the drop-in as a chosen value.
 
-**Le nom est celui de l'instance** (`brigade@<nom>.service`), et l'écran le refuse **comme la box
-le refuserait, avant de l'appeler** : minuscules, chiffres et tirets, sans tiret en tête, 63
-caractères au plus. Le champ le dit à la saisie, avec la raison (`La box refuse ce nom — il
-contient « C »…`). L'app ne corrige rien : tu choisis un autre nom.
+**The name is that of the instance** (`brigade@<name>.service`), and the screen refuses it **as the box
+would refuse it, before calling it**: lowercase letters, digits and hyphens, no leading hyphen, 63
+characters at most. The field says so as you type, with the reason (`The box refuses this name — it
+contains "C"…`). The app corrects nothing: you choose another name.
 
-**Ce qui part vers la box** — et tu n'as rien à coller : l'app lance, par `ssh`, le geste
-d'installation (`docs/installer.md`, « Le geste d'installation ») :
+**What goes to the box** — and you have nothing to paste: the app runs, through `ssh`, the
+installation action (`docs/installer.md`, "The installer command"):
 
 ```
 ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> sudo -n /usr/local/bin/brigade-installer install <nom> --depot <propriétaire>/<nom> --sauvegardes <chemin> --manager-modele <modèle> --manager-effort <effort> --reviewer-modele <modèle> --reviewer-effort <effort>
 ```
 
-**Aucun port n'est demandé ni envoyé** : la box attribue celui de la porte du projet, lit celui de
-son arbitre, et les rend. La branche d'intégration n'est pas demandée non plus : la box prend la
-branche par défaut de l'origine, et l'écran dit laquelle. Le clone se fait sur la box et peut
-prendre quelques minutes ; l'app attend jusqu'à un quart d'heure.
+**No port is asked or sent**: the box assigns that of the project's door, reads that of
+its arbiter, and returns them. The integration branch is not asked either: the box takes the
+default branch of the origin, and the screen says which. The clone happens on the box and can
+take a few minutes; the app waits up to a quarter of an hour.
 
-**Installé, le projet est déclaré dans l'app** avec son `hote`, à la suite des autres, et l'écran
-reste pour te montrer ce que la box a rendu :
+**Installed, the project is declared in the app** with its `hote`, after the
+others, and the screen stays to show you what the box returned:
 
 ```
-« calculus » est installé sur la box « box », et déclaré dans l'app.
-Ports attribués par la box — porte : 3129 · arbitre : 4100.
-Branche d'intégration : `main`, lue par la box sur l'origine du dépôt.
-Sauvegardes : /srv/sauvegardes/calculus, sur la box.
-La box dit : le runtime du projet n'est pas démarré : vérifier d'abord (`brigade calculus installation`), puis `sudo systemctl enable --now brigade@calculus.service`
+"calculus" is installed on the box "box", and declared in the app.
+Ports assigned by the box — door: 3129 · arbiter: 4100.
+Integration branch: `main`, read by the box from the repo's origin.
+Backups: /srv/sauvegardes/calculus, on the box.
+The box says: the project's runtime is not started: check first (`brigade calculus installation`), then `sudo systemctl enable --now brigade@calculus.service`
 ```
 
-L'installation ne démarre pas le runtime. Sous ce que la box a rendu, l'écran dit ce qui reste —
-amorcer le dépôt, merger, vérifier, démarrer — et porte le geste qui ouvre la suite : `Ouvrir
-l'espace de « calculus » et y lancer /brigade:init` (voir « Après l'ajout : la mise en service »).
+The installation does not start the runtime. Under what the box returned, the screen says what remains —
+priming the repo, merging, checking, starting — and carries the action that opens the next step: `Open
+the space of "calculus" and run /brigade:init there` (see "After the add: the commissioning").
 
-**Tant que la box n'a pas installé le projet, rien n'est déclaré dans l'app.** Ce que l'app a
-obtenu est montré tel quel — la ligne lancée, ce que la box a écrit, le code de sortie — et dessous
-ce qu'il y a à faire :
+**As long as the box has not installed the project, nothing is declared in the app.** What the app
+got is shown as is — the line launched, what the box wrote, the exit code — and below it
+what there is to do:
 
-| Ce que l'écran dit | Ce qui s'est passé | Quoi faire, et où |
+| What the screen says | What happened | What to do, and where |
 |---|---|---|
-| `La box « … » n'a pas été jointe` | `ssh` n'a pas ouvert de session (code 255), ou n'a pas pu être lancé | `docs/installer.md`, « Joindre la box » — et « Ajouter un humain » si ta clé est refusée |
-| `… a été jointe, et le geste d'installation n'y a pas répondu` | la box répond, mais `brigade-installer` n'y est pas posé — une box préparée avant lui —, ou sa règle sudoers ne le donne pas à ton compte | **l'app ne prépare pas une box** : `docs/installer.md`, « Préparer la box » — « Le geste d'installation », sur la box, par quelqu'un qui y a `sudo` |
-| `… a refusé d'installer « … » (<motif>)` | le geste a répondu, et dit non : sa phrase est montrée mot pour mot — une destination hors de la racine autorisée, un réglage qui manque à la box, une installation commencée et défaite | ce que sa phrase nomme ; quand c'est la box qui n'est pas prête, « Préparer la box » |
-| `« … » est déjà installé sur la box « … »` | la box n'a rien changé : ni calibrage, ni sauvegardes | s'il manque seulement à l'app, le bouton `Le déclarer dans l'app, tel qu'il est sur la box` l'écrit dans le fichier — **un second geste, le tien**, qui n'envoie rien à la box |
-| `… n'a pas fini de répondre` | `ssh` a été arrêté au bout du quart d'heure : l'app ne sait pas où la box en était | rejouer l'ajout — une box qui avait fini dira le projet déjà installé, sans rien y changer |
+| `The box "…" was not reached` | `ssh` opened no session (code 255), or could not be launched | `docs/installer.md`, "Reach the box" — and "Add a human" if your key is refused |
+| `… was reached, and the installation action did not answer there` | the box answers, but `brigade-installer` is not in place there — a box prepared before it —, or its sudoers rule does not give it to your account | **the app does not prepare a box**: `docs/installer.md`, "Prepare the box" — "The installer command", on the box, by someone who has `sudo` there |
+| `… refused to install "…" (<reason>)` | the action answered, and says no: its sentence is shown word for word — a destination outside the allowed root, a setting missing from the box, an installation begun and undone | what its sentence names; when it is the box that is not ready, "Prepare the box" |
+| `"…" is already installed on the box "…"` | the box changed nothing: neither calibration nor backups | if it is only missing from the app, the button `Declare it in the app, as it is on the box` writes it into the file — **a second action, yours**, which sends nothing to the box |
+| `… did not finish answering` | `ssh` was stopped at the end of the quarter hour: the app does not know where the box was | replay the add — a box that had finished will say the project is already installed, changing nothing there |
 
-Ce que tu as saisi reste à l'écran après un refus : tu rejoues l'ajout sans rien retaper.
+What you entered stays on screen after a refusal: you replay the add without retyping anything.
 
-Un projet que le fichier refuserait — `Pas ajouté — deux projets s'appellent « brigade »`, `dossier
-introuvable : …` — est refusé **avant** la box : rien n'y est installé pour un projet que l'app ne
-pourrait pas déclarer.
+A project the file would refuse — `Not added — two projects are called "brigade"`, `folder
+not found: …` — is refused **before** the box: nothing is installed there for a project the app could not
+declare.
 
-- **L'app n'écrit que le projet ajouté** — puis ses deux couleurs, tirées pour lui (voir « Les
-  couleurs d'un projet »). Ce que tu as mis d'autre dans le fichier y reste — mais
-  il est réécrit en entier, indenté de deux espaces : une mise en page à toi n'y survit pas.
-- **Elle n'écrit pas dans un fichier qu'elle n'a pas compris** : `Pas ajouté — l'app n'écrit pas
-  dans un fichier qu'elle n'a pas compris — JSON illisible : …`. Celui-là se répare à la main.
-- **Renommer un projet se fait dans le fichier**, pas dans l'app. Le retirer se fait depuis
-  l'app, et ce sont deux gestes : « Retirer un projet : de l'app, ou de sa box », plus bas. Le
-  retirer du fichier à la main ne retire rien de la box non plus.
-- **Un projet sans box ne s'ajoute pas depuis l'écran** : il s'écrit à la main, sans `hote`.
+- **The app writes only the project added** — then its two colors, drawn for it (see "The
+  colors of a project"). What else you put in the file stays there — but
+  it is rewritten in full, indented by two spaces: a layout of your own does not survive it.
+- **It does not write into a file it did not understand**: `Not added — the app does not write
+  into a file it did not understand — unreadable JSON: …`. That one is repaired by hand.
+- **Renaming a project is done in the file**, not in the app. Removing it is done from
+  the app, and it is two actions: "Removing a project: from the app, or from its box", further down. Removing
+  it from the file by hand removes nothing from the box either.
+- **A project without a box is not added from the screen**: it is written by hand, without `hote`.
 
-### Après l'ajout : la mise en service
+### After the add: the commissioning
 
-Installé, un projet n'est pas encore servi. Quatre gestes restent, **dans cet ordre**, et l'app n'en
-saute aucun. Ils sont dans l'espace du projet, en tête du panneau, sous **Mise en
-service** — dépliée d'elle-même pour un projet que tu viens d'ajouter, repliée sur une ligne pour
-les autres. Un projet sans `hote` et sans cuisine sur ce poste n'en a pas.
+Installed, a project is not yet served. Four actions remain, **in this order**, and the app skips
+none. They are in the project's space, at the head of the panel, under **Commissioning** —
+unfolded by itself for a project you have just added, folded to one line for
+the others. A project without `hote` and without a kitchen on this workstation has none.
 
-| | Le geste | Ce que l'app fait | Ce qui reste à toi |
+| | The action | What the app does | What stays with you |
 |---|---|---|---|
-| 1 | **Amorcer le dépôt** — `Lancer /brigade:init dans le second` | ouvre le second de l'espace sur la session : `claude /brigade:init`, une conversation neuve dans le dossier du projet | la session elle-même : c'est une conversation Claude Code, pas une commande, l'app ne la joue pas à ta place |
-| 2 | **Merger** — la case `Le résultat de /brigade:init est mergé sur la branche d'intégration` | le dit, en toutes lettres : `Le résultat de /brigade:init doit être mergé sur la branche d'intégration avant de continuer` | merger, puis cocher : **l'app ne sait pas si c'est fait, c'est toi qui le dis** |
-| 3 | **Vérifier** | lance `installation` sur la box du projet, à ta place, et affiche **tout** ce qu'elle a rendu | régler ce qu'elle nomme, et vérifier de nouveau |
-| 4 | **Démarrer** | ouvre un shell dans l'espace et y **écrit** le démarrage, sans l'envoyer | ton Entrée — et ton mot de passe, si `sudo` en veut un |
+| 1 | **Prime the repo** — `Run /brigade:init in the second` | opens the space's second on the session: `claude /brigade:init`, a fresh conversation in the project folder | the session itself: it is a Claude Code conversation, not a command, the app does not play it for you |
+| 2 | **Merge** — the box `The result of /brigade:init is merged on the integration branch` | says it, in so many words: `The result of /brigade:init must be merged on the integration branch before going on` | merge, then tick: **the app does not know whether it is done, you are the one who says so** |
+| 3 | **Check** | runs `installation` on the project's box, for you, and displays **everything** it returned | settle what it names, and check again |
+| 4 | **Start** | opens a shell in the space and **writes** the start there, without sending it | your Enter — and your password, if `sudo` wants one |
 
-**Trois états, et le démarrage n'est possible que dans le dernier :**
+**Three states, and starting is possible only in the last:**
 
-| L'état | Ce qui se voit | `Vérifier` | `Démarrer` |
+| The state | What is seen | `Check` | `Start` |
 |---|---|---|---|
-| **l'init n'est pas dit mergé** — le départ, toujours | la case n'est pas cochée | inactif : `Pas de vérification : le résultat de /brigade:init n'est pas dit mergé…` | inactif : `Pas de démarrage : le résultat de /brigade:init n'est pas dit mergé.` |
-| **la vérification est incomplète** — dit mergé, et `installation` ne dit pas, ou pas encore, le projet prêt | `PAS PRÊT`, ou rien encore, ou ce que l'app a obtenu à la place | actif | inactif, avec sa raison : `la box n'a pas encore vérifié ce projet`, `la vérification est en cours`, `installation ne dit pas le projet prêt — ce qui manque est nommé ci-dessus…`, `installation n'a pas rendu son verdict…` |
-| **tout est prêt** — `installation` est sortie en `0` | `PRÊT — vérifié à 14:32:07` | actif | **actif** |
+| **init is not said merged** — the start, always | the box is not ticked | inactive: `No check: the result of /brigade:init is not said merged…` | inactive: `No start: the result of /brigade:init is not said merged.` |
+| **the check is incomplete** — said merged, and `installation` does not say, or not yet, the project ready | `NOT READY`, or nothing yet, or what the app got instead | active | inactive, with its reason: `the box has not yet checked this project`, `the check is running`, `installation does not say the project ready — what is missing is named above…`, `installation did not return its verdict…` |
+| **everything is ready** — `installation` exited with `0` | `READY — checked at 14:32:07` | active | **active** |
 
-Un bouton inactif a sa raison écrite dessous. Et ce n'est pas qu'un bouton grisé : le process
-principal refuse de même — rien ne part vers la box tant que la case n'est pas cochée, et rien n'est
-écrit dans aucun terminal tant qu'`installation` n'a pas dit le projet prêt.
+An inactive button has its reason written below. And it is not just a greyed-out button: the main
+process refuses likewise — nothing goes to the box while the box is not ticked, and nothing is
+written in any terminal until `installation` has said the project ready.
 
-**`/brigade:init` — l'app t'y met.** Si le second de l'espace ne tourne pas, il est lancé sur la
-session, et la ligne sous les onglets de droite le dit (``session lancée sur `/brigade:init` : `claude
-/brigade:init`, une conversation neuve dans ce dossier``). S'il tourne déjà — tu avais ouvert
-l'espace —, il n'est pas remplacé : `/brigade:init` y est écrit, sans Entrée, comme par un bouton.
-La session se rejoue sans dégât. Il faut le plugin brigade sur ton poste : sans lui, c'est `claude`
-qui dit ne pas connaître la commande, dans le terminal.
+**`/brigade:init` — the app puts you there.** If the space's second is not running, it is launched on the
+session, and the line under the right-hand tabs says so (``session launched on `/brigade:init`: `claude
+/brigade:init`, a fresh conversation in this folder``). If it is already running — you had opened
+the space —, it is not replaced: `/brigade:init` is written there, without Enter, as by a button.
+The session can be replayed without harm. The brigade plugin is needed on your workstation: without it, it is `claude`
+that says it does not know the command, in the terminal.
 
-**Merger, c'est toi.** La box ne voit du dépôt que ce que son origine porte : tant que le résultat
-de l'init n'est pas sur la branche d'intégration, elle ne peut rien servir. Un dépôt **déjà amorcé
-et mergé** n'a pas à rejouer la session : coche la case, et vérifie. Décocher la case ramène au
-départ, et lâche le verdict d'avant. **Cocher sans avoir mergé ne démarre rien** : c'est
-`installation` qui lit la branche d'intégration sur l'origine, et elle le dira (`MANQUE`, « Dans le
-dépôt »).
+**Merging is you.** The box sees of the repo only what its origin carries: as long as the result
+of init is not on the integration branch, it can serve nothing. A repo **already primed
+and merged** does not have to replay the session: tick the box, and check. Unticking the box takes you back to the
+start, and drops the previous verdict. **Ticking without having merged starts nothing**: it is
+`installation` that reads the integration branch on the origin, and it will say so (`MISSING`, "In the
+repo").
 
-**Vérifier lance la commande qui existe**, la même que la veille lance pour `status` :
+**Check runs the command that exists**, the same one the bar runs for `status`:
 
 ```
 ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> brigade <nom> installation
 ```
 
-Elle ne lance ni cook ni setup, ne consomme aucun quota, et se rejoue autant qu'on veut
-(`docs/installer.md`, « Vérifier que le projet est prêt »). L'app attend sa réponse deux minutes au
-plus, et affiche **tout ce qu'elle a rendu, mot pour mot** — la ligne lancée, la sortie, le code :
+It launches neither a cook nor a setup, consumes no quota, and can be replayed as often as you like
+(`docs/installer.md`, "Check that the project is ready"). The app waits for its answer two minutes at
+most, and displays **everything it returned, word for word** — the line launched, the output, the code:
 
 ```
-PAS PRÊT — vérifié à 14:32:07
+NOT READY — checked at 14:32:07
 $ ssh -o BatchMode=yes -o ConnectTimeout=10 -- box brigade calculus installation
 
 Dans le dépôt
@@ -300,137 +299,137 @@ Sur GitHub
 
 brigade : projet « calculus » : 2 manques : aucun cook ne doit être lancé tant qu'il en reste
 
-→ code de sortie 1
+→ exit code 1
 ```
 
-**Chaque point qui n'est pas prêt est une ligne `MANQUE`, et la flèche dessous dit ce qui reste à
-faire pour lui** : c'est `installation` qui les nomme, l'app n'en traduit ni n'en retire aucun. Elle
-ajoute dessous ce que la box ne peut pas dire d'ici — comment « la même commande » se tape depuis
-ton poste (`ssh box brigade calculus installation`, suivie de ce que la flèche nomme), et qu'un
-manque « Dans le dépôt » est un résultat d'init qui n'est pas, ou pas en entier, sur la branche
-d'intégration. Une ligne `à savoir` ne retient rien.
+**Each point that is not ready is a `MANQUE` line, and the arrow below says what remains to be
+done for it**: it is `installation` that names them, the app translates none of them and removes none. It
+adds below what the box cannot say from here — how "the same command" is typed from
+your workstation (`ssh box brigade calculus installation`, followed by what the arrow names), and that a
+missing item "In the repo" is a result of init that is not, or not entirely, on the integration
+branch. A `to know` line holds nothing back.
 
-| Ce que l'app dit | Ce qui s'est passé | `Démarrer` |
+| What the app says | What happened | `Start` |
 |---|---|---|
-| `PRÊT` | `installation` est sortie en `0`, avec sa ligne de verdict (`brigade : projet « <nom> » : prêt…`) | actif |
-| `PAS PRÊT` | elle a été lancée, et il manque quelque chose (code `1`), ou elle a refusé son environnement (code `2`) : sa sortie le nomme | inactif |
-| `PAS DE VERDICT` | un code `0` **sans** la ligne de verdict : ce n'est pas `installation` qui a répondu — un compte enfermé dans une commande forcée, par exemple | inactif |
-| `PAS JOINT`, `JOINT, MAIS INCONNU DE LA BOX`, `JOINT, MAIS SANS LE DROIT DU GESTE`… | la commande n'a pas rendu son verdict : les mêmes cas, les mêmes mots et les mêmes renvois que sous `status` (« Ce que la box dit du projet ») | inactif |
+| `READY` | `installation` exited with `0`, with its verdict line (`brigade : projet « <nom> » : prêt…`) | active |
+| `NOT READY` | it was run, and something is missing (code `1`), or it refused its environment (code `2`): its output names it | inactive |
+| `NO VERDICT` | a code `0` **without** the verdict line: it is not `installation` that answered — an account locked into a forced command, for example | inactive |
+| `NOT REACHED`, `REACHED, BUT UNKNOWN TO THE BOX`, `REACHED, BUT WITHOUT THE RIGHT TO THE ACTION`… | the command did not return its verdict: the same cases, the same words and the same pointers as under `status` ("What the box says of the project") | inactive |
 
-Une vérification rejouée **retire le « prêt » d'avant** tant qu'elle n'a pas répondu : rien ne
-démarre sur un verdict qu'on est en train de refaire.
+A check replayed **removes the earlier "ready"** until it has answered: nothing
+starts on a verdict that is being redone.
 
-**Démarrer écrit, il n'envoie pas** — comme les boutons, mais **dans un shell**, pas dans le second :
+**Start writes, it does not send** — like the buttons, but **in a shell**, not in the second:
 
 ```
 ssh -t <hote> sudo systemctl enable --now brigade@<nom>.service
 ```
 
-C'est le geste de `docs/installer.md`, « Servir le premier ticket », celui que la box nomme en fin
-d'installation. **Démarrer un service est un geste `root`**, et aucun des deux gestes de la box ne
-le donne sans mot de passe : l'app ne le lance donc pas. Elle ouvre un shell de plus dans l'espace
-(`shell 1`), y écrit la commande, et te le montre, à droite ; la ligne sous les onglets de droite dit ``écrit dans ce
-shell, sans Entrée : `ssh -t box sudo systemctl enable --now brigade@calculus.service` — c'est la
-tienne qui l'envoie…``. Un shell est un vrai terminal : `ssh -t` y porte le mot de passe que
-`sudo` te demande sur la box — ce que le `!` du second ne ferait pas. Ensuite, le premier ticket se
-sert sans grant `merge`, et la première sauvegarde se lance à la main : c'est toujours
-`docs/installer.md`, « Servir le premier ticket ».
+It is the action of `docs/installer.md`, "Serve the first ticket", the one the box names at the end
+of the installation. **Starting a service is a `root` action**, and neither of the box's two actions
+gives it without a password: the app therefore does not run it. It opens one more shell in the space
+(`shell 1`), writes the command there, and shows it to you, on the right; the line under the right-hand tabs says ``written in this
+shell, without Enter: `ssh -t box sudo systemctl enable --now brigade@calculus.service` — yours is
+the one that sends it…``. A shell is a real terminal: `ssh -t` carries there the password that
+`sudo` asks you for on the box — which the second's `!` would not do. After that, the first ticket is
+served without a `merge` grant, and the first backup is launched by hand: it is still
+`docs/installer.md`, "Serve the first ticket".
 
-- **Rien n'est écrit pour un `nom` qui n'est celui d'aucune instance, ni pour un `hote` qui commence
-  par un tiret ou porte un caractère de contrôle** : le bouton reste inactif, et dit pourquoi.
-- **Un projet dont le dossier n'est pas là** n'a ni second ni shell : sa box se vérifie quand même,
-  et le démarrage dit `« … » ne s'ouvre pas : dossier introuvable : …`.
-- **La mise en service n'est gardée que tant que l'app est ouverte.** Relancée, l'app la reprend au
-  départ, repliée : déplie-la, recoche la case, vérifie — la box redit tout. Un projet qui change
-  de `hote`, ou qui quitte le fichier, repart de même : son « prêt » était celui d'une autre box.
-- **L'app ne sait pas si le runtime a démarré** : c'est ton Entrée. La pastille du projet le dira à
-  la lecture suivante — `éteinte` tant qu'il ne tourne pas.
+- **Nothing is written for a `nom` that is the name of no instance, nor for a `hote` that starts
+  with a hyphen or carries a control character**: the button stays inactive, and says why.
+- **A project whose folder is not there** has neither a second nor a shell: its box is checked all the same,
+  and the start says `"…" does not open: folder not found: …`.
+- **The commissioning is kept only while the app is open.** Relaunched, the app takes it back at the
+  start, folded: unfold it, tick the box again, check — the box says everything again. A project that changes
+  `hote`, or that leaves the file, starts over likewise: its "ready" was that of another box.
+- **The app does not know whether the runtime started**: that is your Enter. The project's pill will say so at
+  the next read — `off` as long as it is not running.
+### Removing a project: from the app, or from its box
 
-### Retirer un projet : de l'app, ou de sa box
+**Two actions, and they are never mixed up.** They are in the project's space, in the right-hand
+panel, under **Remove this project** — a collapsed line, below the commissioning: a project is not
+removed by a stray click. Unfolded, it shows two blocks, each under its own label.
 
-**Deux gestes, et ils ne se confondent jamais.** Ils sont dans l'espace du projet, dans le panneau
-de droite, sous **Retirer ce projet** — une ligne repliée, sous la mise en service : un projet ne
-se retire pas d'un clic perdu. Dépliée, elle montre deux blocs, chacun sous son libellé.
-
-| | **Retirer de l'app** | **Désinstaller de la box** |
+| | **Remove from the app** | **Uninstall from the box** |
 |---|---|---|
-| Ce qui change | la ligne du projet quitte la barre et `app.json` — rien d'autre | ce que la box dit retirer : ses instances, leurs drop-ins, son clone réservé, ses worktrees |
-| Ce qui part vers la box | **rien** — aucun `ssh` n'est lancé | son geste de désinstallation, `sudo brigade-installer uninstall <nom>`, lancé à ta place |
-| Le journal du projet | intact : la box n'en sait rien | **gardé**, sauf si tu coches l'option qui le supprime |
-| Après | le projet est toujours installé, et servi s'il l'était | le projet est toujours dans l'app, et n'y est plus pilotable |
+| What changes | the project's row leaves the bar and `app.json` — nothing else | what the box says it removes: its instances, their drop-ins, its reserved clone, its worktrees |
+| What goes to the box | **nothing** — no `ssh` is run | its uninstall action, `sudo brigade-installer uninstall <name>`, run for you |
+| The project's log | untouched: the box knows nothing about it | **kept**, unless you tick the option that deletes it |
+| Afterwards | the project is still installed, and served if it was | the project is still in the app, and can no longer be driven from it |
 
-**Retirer de l'app** tient en un clic. Les terminaux ouverts du projet sont arrêtés, son dossier
-n'est pas touché, et un avis le redit par-dessus l'écran : `« calculus » est retiré de l'app.` —
-`Rien n'a été envoyé à la box « box » : le projet y est toujours installé, et son journal n'a pas
-été touché.` Pour le désinstaller ensuite, il faut le déclarer de nouveau (le **+** le trouve déjà
-installé, et propose de le déclarer tel qu'il est), ou le faire sur la box, à la main.
+**Remove from the app** takes a single click. The project's open terminals are stopped, its folder
+is not touched, and a notice says so again over the screen: `"calculus" is removed from the app.` —
+`Nothing was sent to the box "box": the project is still installed there, and its log was not
+touched.` To uninstall it afterwards, you have to declare it again (the **+** already finds it
+installed, and offers to declare it as it is), or do it on the box, by hand.
 
-**Désinstaller de la box** se fait en deux temps, et l'app n'en saute aucun :
+**Uninstall from the box** takes two steps, and the app skips neither:
 
-1. **`Voir ce que la box retirerait`** lance `uninstall <nom> --plan`. La box répond, et **ne
-   retire rien**. Ce qu'elle a écrit est affiché tel quel — `désinstaller « calculus » retirerait
-   de cette box :`, puis une ligne par chose retirée, puis `Gardé :`. **L'app n'a aucune règle de
-   suppression** : elle n'ajoute rien à ce plan et n'en retire rien. Dessous, une seule phrase est
-   la sienne, lue dans l'objet du geste : où est le journal — gardé, ou dans ce qui serait retiré.
-2. **Tu écris le nom du projet**, puis `Désinstaller de la box`. Le bouton reste inactif tant que
-   la box n'a pas rendu son plan, et dit pourquoi. Un nom absent, incomplet ou d'une autre casse :
-   `RIEN N'EST PARTI VERS LA BOX`, avec ce que tu as écrit et ce qui était attendu. Le bon nom :
-   l'app lance `uninstall <nom> --confirmer <nom>`, et affiche ce que la box dit avoir retiré.
+1. **`See what the box would remove`** runs `uninstall <name> --plan`. The box answers, and
+   **removes nothing**. What it wrote is shown as is — `uninstalling "calculus" would remove
+   from this box:`, then one line per thing removed, then `Kept:`. **The app has no deletion
+   rule of its own**: it adds nothing to this plan and removes nothing from it. Below, a single
+   sentence is its own, read from the object of the action: where the log is — kept, or among what
+   would be removed.
+2. **You type the project's name**, then `Uninstall from the box`. The button stays inactive until
+   the box has returned its plan, and says why. A name that is missing, incomplete or in another
+   case: `NOTHING WAS SENT TO THE BOX`, with what you typed and what was expected. The right name:
+   the app runs `uninstall <name> --confirm <name>`, and shows what the box says it removed.
 
-**Le journal survit, sauf demande.** La case `Supprimer aussi le journal du projet sur la box` est
-**décochée** d'office, et son avertissement est écrit dessous avant qu'on y touche : cochée,
-l'app ajoute `--supprimer-le-journal` au geste, et c'est sans retour. Sans elle, l'option n'est
-jamais envoyée, et l'écran le dit après coup : `Le journal du projet existe encore sur la box :
-/var/lib/brigade/calculus.` **Le plan ne vaut que pour le réglage avec lequel il a été demandé** :
-cocher ou décocher la case le lâche, et la désinstallation redevient inactive jusqu'au plan
-suivant — tu ne confirmes jamais un plan qui ne dit pas ce qui va partir. **Le nom que tu as écrit
-ne vaut, lui aussi, que devant le plan affiché** : un plan redemandé, ou lâché, vide le champ.
-Et **un plan ne sert qu'une fois** : dès que la box a pu changer — elle a retiré, commencé, ou
-n'a pas répondu —, la désinstallation suivante en redemande un. Seul un refus d'avant son premier
-geste le laisse valoir.
+**The log survives, unless you ask.** The box `Also delete the project's log on the box` is
+**unticked** by default, and its warning is written below it before anyone touches it: ticked,
+the app adds `--delete-the-log` to the action, and there is no way back. Without it, the option is
+never sent, and the screen says so afterwards: `The project's log still exists on the box:
+/var/lib/brigade/calculus.` **The plan is only valid for the setting it was requested with**:
+ticking or unticking the box drops it, and the uninstall becomes inactive again until the next
+plan — you never confirm a plan that does not say what is going to go. **The name you typed is
+likewise only valid in front of the plan on display**: a plan requested again, or dropped, empties
+the field. And **a plan is good for one use only**: as soon as the box may have changed — it
+removed, started, or did not answer —, the next uninstall asks for a new one. Only a refusal that
+comes before its first action lets it stand.
 
-| Ce que l'écran dit | Ce qui s'est passé | Quoi faire |
+| What the screen says | What happened | What to do |
 |---|---|---|
-| `CE QUE LA BOX « box » RETIRERAIT — rien n'est retiré` | la box a rendu son plan | le lire, puis écrire le nom du projet |
-| `DÉSINSTALLÉ DE LA BOX « box »` | la box a retiré ce qu'elle liste | rien — ou le retirer de l'app, par l'autre geste |
-| `LA BOX « box » A REFUSÉ (…) — rien n'est retiré` | le geste a dit non avant d'avoir rien retiré : un clone qui porte ce que l'origine n'a pas, un projet qu'elle ne connaît pas, un autre geste en cours | sa phrase est au-dessus, mot pour mot ; la régler, puis rejouer |
-| `LA DÉSINSTALLATION S'EST ARRÊTÉE EN CHEMIN…` | elle avait commencé : la box dit ce qui est fait et ce qui reste | redemander le plan — il dit ce qui reste à retirer |
-| `LA BOX « box » N'A PAS ÉTÉ JOINTE — rien n'est retiré` | au plan, `ssh` est sorti en erreur : un plan ne retire rien, jointe ou pas | `docs/installer.md`, « Joindre la box » |
-| `` `ssh` A ÉCHOUÉ SANS LA RÉPONSE DE LA BOX « box » `` | à la désinstallation, `ssh` est sorti en erreur : session jamais ouverte, ou perdue en route — son code ne les sépare pas, et la box a pu commencer | redemander le plan : l'app ne dit ni « rien n'est retiré », ni « désinstallé » |
-| `… SON GESTE N'A PAS RENDU SON PLAN` | la box répond, pas le geste : il n'y est pas posé, ou pas dans une version qui désinstalle | `docs/installer.md`, « Préparer la box » — « Le geste d'installation » |
-| `LA BOX « box » N'A PAS FINI DE RÉPONDRE` | `ssh` a été arrêté au délai (trois minutes pour le plan, un quart d'heure pour le reste) | redemander le plan : l'app ne dit pas désinstallé un projet dont la box n'a pas répondu |
+| `WHAT THE BOX "box" WOULD REMOVE — nothing is removed` | the box returned its plan | read it, then type the project's name |
+| `UNINSTALLED FROM THE BOX "box"` | the box removed what it lists | nothing — or remove it from the app, with the other action |
+| `THE BOX "box" REFUSED (…) — nothing is removed` | the action said no before removing anything: a clone that carries what the origin does not have, a project it does not know, another action in progress | its sentence is above, word for word; sort it out, then replay |
+| `THE UNINSTALL STOPPED HALFWAY…` | it had started: the box says what is done and what remains | ask for the plan again — it says what is left to remove |
+| `THE BOX "box" COULD NOT BE REACHED — nothing is removed` | at the plan, `ssh` exited with an error: a plan removes nothing, reached or not | `docs/installer.md`, "Reach the box" |
+| `` `ssh` FAILED WITHOUT THE ANSWER OF THE BOX "box" `` | at the uninstall, `ssh` exited with an error: session never opened, or lost on the way — its code does not tell them apart, and the box may have started | ask for the plan again: the app says neither "nothing is removed" nor "uninstalled" |
+| `… ITS ACTION DID NOT RETURN ITS PLAN` | the box answers, the action does not: it is not installed there, or not in a version that uninstalls | `docs/installer.md`, "Prepare the box" — "The installer command" |
+| `THE BOX "box" DID NOT FINISH ANSWERING` | `ssh` was stopped at the time limit (three minutes for the plan, a quarter of an hour for the rest) | ask for the plan again: the app does not call a project uninstalled when its box has not answered |
 
-**Désinstallé, le projet n'est plus pilotable depuis l'app, et elle le dit.** Il reste dans la
-barre, sans pastille et en pointillé ; sa ligne de « Tous les projets » le dit grisée
-(`uninstalled from its box: nothing is read`), et son panneau et ses onglets affichent `DÉSINSTALLÉ DE LA BOX « box » — plus pilotable depuis l'app`, à la place de ce
-que la box disait de lui. **L'app ne lit plus sa box** — ni `status`, ni `faits`, ni onglet —, ses
-boutons et sa mise en service ne sont plus proposés : ce n'est pas `JOINT, MAIS PLUS PILOTABLE`,
-qui dirait un runtime à remettre à niveau. Son second et ses shells, eux, restent : ils tournent sur
-ton poste.
+**Once uninstalled, the project can no longer be driven from the app, and the app says so.** It
+stays in the bar, with no dot and dashed; its row in "All projects" says so greyed out
+(`uninstalled from its box: nothing is read`), and its panel and tabs show `UNINSTALLED FROM THE BOX "box" — can no longer be driven from the app`, in place of
+what the box said about it. **The app no longer reads its box** — no `status`, no `facts`, no tab —,
+its buttons and its commissioning are no longer offered: this is not `REACHED, BUT CAN NO LONGER BE DRIVEN`,
+which would mean a runtime to upgrade. Its second and its shells, on the other hand, stay: they run on
+your workstation.
 
-- **Un projet désinstallé reste dans l'app** tant que tu ne l'en retires pas : c'est l'autre geste.
-- **Tant que la box n'a pas répondu d'une désinstallation en cours**, « Retirer de l'app » refuse :
-  retiré, le projet n'aurait plus d'espace où lire ce qu'elle répond.
-- **La désinstallation se rejoue** : journal gardé, tu peux cocher l'option et recommencer — le
-  plan, puis la confirmation. Si cette seconde fois n'aboutit pas, le projet reste dit désinstallé,
-  et l'app dit ne plus savoir où en est son journal : le plan de la box le redira.
-- **Rien n'est gardé d'un lancement de l'app à l'autre.** Relancée, l'app relit la box, qui répond
-  elle-même `projet inconnu sur cette box` : le panneau dit alors `JOINT, MAIS INCONNU DE LA BOX`,
-  et rappelle que c'est ce qu'on attend d'un projet désinstallé.
-- **Un projet sans box** n'a que le premier geste : il n'y a rien à désinstaller, et le bloc le dit.
+- **An uninstalled project stays in the app** until you remove it from it: that is the other action.
+- **As long as the box has not answered about an uninstall in progress**, "Remove from the app"
+  refuses: once removed, the project would have no space left in which to read what it answers.
+- **The uninstall can be replayed**: log kept, you can tick the option and start again — the
+  plan, then the confirmation. If this second time does not succeed, the project is still said to be
+  uninstalled, and the app says it no longer knows where its log stands: the box's plan will tell.
+- **Nothing is kept from one launch of the app to the next.** Relaunched, the app reads the box
+  again, which itself answers `project unknown on this box`: the panel then says `REACHED, BUT UNKNOWN TO THE BOX`,
+  and reminds you that this is what to expect of an uninstalled project.
+- **A project without a box** has only the first action: there is nothing to uninstall, and the block says so.
 
-### À la main
+### By hand
 
-Le fichier reste le tien, et tu peux tout y faire :
+The file stays yours, and you can do anything in it:
 
 ```json
 {
-  "hotes": ["<le nom par lequel ton ssh joint ta box>"],
+  "hotes": ["<the name by which your ssh reaches your box>"],
   "projets": [
     {
       "nom": "brigade",
       "dossier": "~/Dev/brigade",
-      "hote": "<le nom par lequel ton ssh joint ta box>",
+      "hote": "<the name by which your ssh reaches your box>",
       "stations": ["mac/claude"]
     },
     { "nom": "parade", "dossier": "/Users/chef/Dev/parade", "couleurs": { "onglet": "#a98cf2", "accent": "#4fc7b5" } }
@@ -438,84 +437,84 @@ Le fichier reste le tien, et tu peux tout y faire :
 }
 ```
 
-- `hotes` est la liste de tes box, et **chacune n'est qu'un nom** : celui par lequel **ton** `ssh`
-  la joint. C'est elle que l'écran d'ajout propose ; une box de plus est un nom de plus. Elle est
-  facultative : un fichier qui ne la porte pas est lu comme avant, et les box que ses projets
-  nomment se proposent quand même. Un nom écrit deux fois n'en fait qu'une ; autre chose qu'une
-  liste de textes non vides refuse le fichier (`« hotes » doit être une liste`, `hôte n° 2 : doit
-  être un texte non vide…`).
-- `dossier` est un chemin absolu, ou commence par `~/`.
-- `couleurs` : **la couleur d'onglet et la couleur d'accent du projet** (voir « Les couleurs d'un
-  projet »), chacune écrite `#rrggbb`. Tu n'as pas à l'écrire : **l'app la tire et l'écrit elle-même**
-  pour un projet qui n'en a pas — à l'ajout, au lancement pour un projet déclaré avant qu'elles
-  existent, ou dès qu'un projet écrit à la main entre dans le fichier. Une seule des deux écrite :
-  l'autre est tirée. Autre chose qu'une couleur `#rrggbb` refuse le fichier (`projet n° 1 (parade) :
-  « couleurs » : « onglet » doit être une couleur écrite `#rrggbb` — « rouge » n'en est pas une`).
-- `hote` est facultatif, et c'est tout ce qu'un projet dit de sa box : le nom par lequel **ton**
-  `ssh` la joint. Ce qui est écrit entre `< >` ci-dessus est à remplacer — voir « Ce que la box dit
-  du projet ». Un projet écrit à la main sans `hote` a son terminal, et l'app ne lit rien de sa box : elle n'en lit une que si `hote` la nomme. Un projet qui cuit sur ce poste, lui, est lu et piloté en local, sans `ssh` ni `hote` (voir « Où cuit un projet »).
-- **`nom` est aussi le nom du projet sur la box** : c'est lui que l'app donne au geste de la box
-  (le geste de la box : `ssh <hote> brigade <nom> status` depuis ton poste), donc celui de l'instance `brigade@<nom>.service`. Il n'y a pas de
-  second nom à déclarer : un projet servi s'appelle dans l'app comme sur sa box.
-- `stations` est facultatif : **les stations que ce poste joue pour le projet**, sous le nom que sa
-  box leur donne dans ses stations (`station stations`), où elles sont déclarées `distante` (voir « Le poste est
-  une station »). Sans elle, l'app ne lance aucun cook. Une station se joue auprès d'une box
-  (`« stations » sans « hote »` refuse le fichier), s'écrit `<machine>/<moteur>`, et le poste ne
-  lance qu'un moteur : `mac/codex` est refusé (`il ne lance que `claude``).
-- **`commande` n'est plus lu.** Un fichier qui le porte encore est refusé, en le disant :
-  `projet n° 1 (brigade) : « commande » n'est plus lu — retire-le : …`.
-- La barre suit l'ordre du fichier. **Ranger les cases dans la barre** (voir « La barre d'icônes ») y
-  change l'ordre des lignes de `projets`, et rien d'autre : un projet ajouté ensuite arrive à la fin.
-- **L'app relit ce fichier dès qu'il change** — et chaque fois que tu reviens à sa fenêtre. La
-  barre et « Tous les projets » suivent ; rien n'est à relancer (voir « Quand le fichier change »).
-- **Le second lit le même fichier.** Le second, c'est le rôle PO : une session `/brigade:po`
-  ouverte dans le `dossier` d'un projet y prend `nom` et `hote`, et lance à l'ouverture, une fois, le même geste que l'app :
-  `ssh … <hote> brigade <nom> status`. Elle relaie ce qui t'attend, mot pour mot. Un `nom` que la
-  box ne connaît pas, c'est le geste qui le refuse, et le second le dit en une ligne ; un projet
-  sans `hote` et sans cuisine sur ce poste n'a pas de file à lire, et il le dit de même. Il n'y a pas d'autre endroit où
-  déclarer la box.
+- `hotes` is the list of your boxes, and **each one is only a name**: the one by which **your**
+  `ssh` reaches it. It is what the add screen offers; one more box is one more name. It is
+  optional: a file that does not carry it is read as before, and the boxes its projects
+  name are offered all the same. A name written twice counts once; anything other than a
+  list of non-empty strings refuses the file (`"hotes" must be a list`, `host no. 2: must
+  be a non-empty string…`).
+- `dossier` is an absolute path, or starts with `~/`.
+- `couleurs`: **the project's tab color and accent color** (see "A project's colors"), each
+  written `#rrggbb`. You do not have to write it: **the app draws it and writes it itself**
+  for a project that has none — when added, at launch for a project declared before they
+  existed, or as soon as a project written by hand enters the file. If only one of the two is written,
+  the other is drawn. Anything other than a `#rrggbb` color refuses the file (`project no. 1 (parade):
+  "couleurs": "onglet" must be a color written `#rrggbb` — "rouge" is not one`).
+- `hote` is optional, and it is all a project says about its box: the name by which **your**
+  `ssh` reaches it. What is written between `< >` above is to be replaced — see "What the box says
+  about the project". A project written by hand without `hote` has its terminal, and the app reads nothing of its box: it reads one only if `hote` names it. A project that cooks on this workstation, on the other hand, is read and driven locally, with no `ssh` and no `hote` (see "Where a project cooks").
+- **`nom` is also the project's name on the box**: it is what the app gives to the box's action
+  (the box's action: `ssh <hote> brigade <nom> status` from your workstation), hence the name of the instance `brigade@<nom>.service`. There is no
+  second name to declare: a served project is called the same in the app and on its box.
+- `stations` is optional: **the stations this workstation plays for the project**, under the name its
+  box gives them in its stations (`station stations`), where they are declared `remote` (see "The workstation is
+  a station"). Without it, the app launches no cook. A station is played against a box
+  (`"stations" without "hote"` refuses the file), is written `<machine>/<engine>`, and the workstation
+  launches only one engine: `mac/codex` is refused (`it launches only `claude``).
+- **`commande` is no longer read.** A file that still carries it is refused, saying so:
+  `project no. 1 (brigade): "commande" is no longer read — remove it: …`.
+- The bar follows the file's order. **Rearranging the icons in the bar** (see "The icon bar") changes
+  the order of the `projets` rows there, and nothing else: a project added afterwards arrives at the end.
+- **The app rereads this file as soon as it changes** — and every time you come back to its window. The
+  bar and "All projects" follow; nothing has to be relaunched (see "When the file changes").
+- **The second reads the same file.** The second is the PO role: a `/brigade:po` session
+  opened in a project's `dossier` takes `nom` and `hote` from it, and runs once on opening the same action as the app:
+  `ssh … <hote> brigade <nom> status`. It relays what awaits you, word for word. A `nom` the
+  box does not know is refused by the action, and the second says so in one line; a project
+  with no `hote` and no kitchen on this workstation has no queue to read, and it says so the same way. There is no other place to
+  declare the box.
 
-Si le fichier est refusé au lancement, l'app n'affiche aucun projet : elle montre le
-chemin du fichier, la raison (`JSON illisible`, `projet n° 2 (parade) : « dossier » manque`,
-`deux projets s'appellent « brigade »`…) et la forme du fichier, où chaque valeur à remplacer est écrite entre `< >`. Un fichier refusé l'est en
-entier, et **l'app n'y touche pas** : il n'y a pas d'ajout possible depuis l'app tant qu'il n'est
-pas réparé. Répare-le, elle suit sans être relancée. Pareil pour un fichier qu'elle n'a pas pu
-créer (`ce fichier n'a pas pu être créé : …`).
+If the file is refused at launch, the app shows no project: it shows the
+file's path, the reason (`unreadable JSON`, `project no. 2 (parade): "dossier" missing`,
+`two projects are called "brigade"`…) and the shape of the file, where each value to replace is written between `< >`. A refused file is refused
+as a whole, and **the app does not touch it**: nothing can be added from the app until it is
+repaired. Repair it, and the app follows without being relaunched. Same for a file it could not
+create (`this file could not be created: …`).
 
-### Quand le fichier change
+### When the file changes
 
-| Ce qui a changé | Ce que l'app fait |
+| What changed | What the app does |
 |---|---|
-| Un projet de plus, un `hote` ajouté ou retiré, une box de plus dans `hotes`, l'ordre | La barre et « Tous les projets » suivent. Les terminaux ouverts ne sont pas touchés ; l'écran affiché reste le même, sa lecture de box repart |
-| Une station ajoutée à `stations`, ou retirée ; le `hote` ou le `dossier` d'un projet qui en joue | Une station de plus se manifeste auprès de la box, dans la minute. **Une station retirée est quittée, et son cook en cours est tué** : rien n'est rendu, son bail tombe de lui-même sur la box (voir « Le poste est une station ») |
-| Un projet retiré, renommé, ou dont le `dossier` a changé | **Ses terminaux sont arrêtés** — second et shells : ils tournaient dans un dossier qui n'est plus le sien. La conversation reste à `claude` : au premier clic, le second reprend le fil du nouveau dossier. Si c'était l'écran affiché et que le projet n'est plus là, tu reviens à « Tous les projets » |
-| Le fichier n'est plus lisible — un éditeur à mi-écriture, une virgule en trop, le fichier supprimé | **Rien ne disparaît** : les projets d'avant restent, leurs terminaux tournent. Un bandeau, en bas de la fenêtre, dit le chemin et la raison ; il s'en va à la première relecture réussie |
+| One more project, a `hote` added or removed, one more box in `hotes`, the order | The bar and "All projects" follow. Open terminals are not touched; the screen on display stays the same, its box reading starts over |
+| A station added to `stations`, or removed; the `hote` or the `dossier` of a project that plays one | One more station announces itself to the box, within the minute. **A removed station is left, and its cook in progress is killed**: nothing is returned, its lease expires by itself on the box (see "The workstation is a station") |
+| A project removed, renamed, or whose `dossier` changed | **Its terminals are stopped** — second and shells: they were running in a folder that is no longer its own. The conversation stays with `claude`: on the first click, the second picks the thread up in the new folder. If it was the screen on display and the project is gone, you return to "All projects" |
+| The file is no longer readable — an editor mid-write, an extra comma, the file deleted | **Nothing disappears**: the earlier projects stay, their terminals run. A banner, at the bottom of the window, gives the path and the reason; it goes away at the first successful reread |
 
 ```
-/Users/chef/.config/brigade/app.json a changé, et n'a pas pu être relu :
-  → JSON illisible : Unexpected end of JSON input
-Tes projets sont ceux d'avant, et rien n'est fermé. L'app le relit dès qu'il change.
+/Users/chef/.config/brigade/app.json changed, and could not be reread:
+  → unreadable JSON: Unexpected end of JSON input
+Your projects are the earlier ones, and nothing is closed. The app rereads it as soon as it changes.
 ```
 
-Tant que le bandeau est là, **le `+` n'écrit rien, et n'installe rien** — ni projet, ni box : `Pas
-ajouté — l'app n'écrit pas dans un fichier qu'elle n'a pas pu relire — …`. Écrire par-dessus, ce serait y perdre les projets qu'elle
-affiche encore. Un fichier supprimé pendant que l'app est ouverte n'est donc pas recréé dans ton
-dos : remets-le, ou relance l'app, qui le crée vide.
+As long as the banner is there, **the `+` writes nothing, and installs nothing** — no project, no box: `Not
+added — the app does not write into a file it could not reread — …`. Writing over it would lose the projects it
+still displays. A file deleted while the app is open is therefore not recreated behind your
+back: put it back, or relaunch the app, which creates it empty.
 
-Un fichier que l'app **n'a pas pu créer** au lancement (un dossier sans droits, un lien qui ne mène
-nulle part) garde sa raison à l'écran, et l'app retente chaque fois que tu reviens à sa fenêtre :
-réparer suffit, sans la relancer.
+A file the app **could not create** at launch (a folder without permissions, a link that leads
+nowhere) keeps its reason on screen, and the app retries every time you come back to its window:
+repairing is enough, no relaunch.
 
-Un projet dont le dossier n'est pas là (disque débranché, dossier déplacé) **reste dans la
-barre**, grisé, sa case en pointillé : au clic, l'app dit `dossier introuvable : …` au lieu d'ouvrir
-un terminal. Sa box, elle, se lit : le panneau et les onglets de contenu répondent. Les autres
-projets ne sont pas touchés.
+A project whose folder is not there (disk unplugged, folder moved) **stays in the
+bar**, greyed out, its icon dashed: on click, the app says `folder not found: …` instead of opening
+a terminal. Its box, on the other hand, is read: the panel and the content tabs answer. The other
+projects are not affected.
 
-## Tous les projets, d'un coup
+## All projects at a glance
 
-*Ticket : #870.* L'app s'ouvre dessus, et la case ronde **T**, en tête de la barre, y ramène. C'est
-**la vue d'ensemble de brigade** : ce qui est transverse, et rien d'autre. Ce qui tient à un projet —
-une information, un réglage, un geste — est dans son espace ; ce qui tient à une station, sur sa page.
+*Ticket: #870.* The app opens on it, and the round **T** icon, at the head of the bar, brings you back to it. It is
+**the overview of brigade**: what is cross-cutting, and nothing else. What belongs to a project —
+a piece of information, a setting, an action — is in its space; what belongs to a station, on its page.
 
 ```
 PROJECTS
@@ -534,189 +533,188 @@ COST
 ● Max ✓  ·  GitHub ✓
 ```
 
-- **Une ligne par projet**, dans l'ordre du fichier : son nom, sa pastille, et une phrase courte qui
-  dit ce qui s'y passe — **ce qui bloque d'abord**, puis **ce qui t'attend** (combien de décisions,
-  depuis quand), puis **ce qui cuit** (les tickets de ses cooks, ou ce qui est à la pass). Rien ne
-  se passe : `nothing cooking, nothing waits for you`. Quand la fiabilité de ses cooks a dérivé, elle finit par
-  un mot, `drifting`, et son survol dit pourquoi (#987, voir « La lecture Reliability »).
-- **La pastille d'un projet** est **rouge** quand il est bloqué — base rouge, cuisine arrêtée ou
-  retenue, runtime éteint, box injoignable —, **jaune** quand une décision t'attend, **verte**
-  sinon. **Grise** tant que rien n'en est lu, ou quand rien ne peut l'être : un projet sans box, ou
-  désinstallé de la sienne. Pas lu n'est jamais vert.
-- **Une ligne par station appairée** : son nom, sa pastille, son état (`online`, ou
-  `offline for 12 min`), ce qu'elle fait — ses cooks en cours, `saturated`, `update failed`,
-  `Max connection lost`, ou `idle` — et les projets qu'elle porte. Sa machine (système, noyau) et sa
-  version ne se lisent qu'**au survol**. Pastille **rouge** quand sa connexion Max est perdue,
-  **jaune** quand elle est saturée ou qu'une mise à jour a raté, **verte** en ligne, **grise** hors
-  ligne ou illisible.
-- **Un clic n'importe où sur une ligne l'ouvre** : l'espace du projet, ou la page de la station
-  (voir « Tes stations : appairées par un code, lues sur GitHub »). **Aucune ligne ne porte de
-  geste** — ni merger, ni trier, ni retirer `fire` : les décisions se prennent dans le projet.
-- **Une ligne « Cost »**, sous les stations, ouvre **le coût de tous les projets** (#1022), à la place de
-  l'accueil — sans ouvrir aucun projet (voir « Le coût de tous les projets »). Elle ne montre aucun
-  chiffre : la lecture des coûts ne part que quand sa page est ouverte.
-- **« + station »**, sous la liste des stations, ouvre le champ du code d'appairage — nulle part
-  ailleurs sur l'accueil. Appairée, la station apparaît dans la liste et le champ se referme, sans
-  message qui reste affiché ; « cancel » le referme, vide.
-- **La ligne de santé**, en bas, résume la connexion Max et l'accès à GitHub. Tout va bien : verte
-  et discrète, `Max ✓ · GitHub ✓`. Quand l'un des deux cloche, elle dit en une phrase ce qui ne va
-  pas : `Max: token to redo within 20 d`, `Max: connection lost on Mac`,
-  `GitHub limits calls, back around 3:16 PM`, `GitHub: this computer is not signed in`. Pas encore
-  lu : `Max ?`, `GitHub ?`, et le survol dit pourquoi. Elle ne montre **aucune jauge de
-  consommation** du compte (voir la maquette, `docs/maquettes/app/README.md`).
-- **Aucune commande** (`brigade …`, `gh …`) **ni aucun texte brut d'erreur** ne s'y affiche : ce
-  qu'une ligne tait — l'heure de la lecture, pourquoi une box n'a pas répondu —, son survol le dit
-  dans les mots de l'app, et l'espace du projet le montre en entier.
+- **One row per project**, in the file's order: its name, its dot, and a short sentence that
+  says what is going on — **what blocks first**, then **what awaits you** (how many decisions,
+  since when), then **what is cooking** (its cooks' tickets, or what is at the pass). Nothing
+  going on: `nothing cooking, nothing waits for you`. When the reliability of its cooks has drifted, it ends
+  with one word, `drifting`, and hovering says why (#987, see "The Reliability reading").
+- **A project's dot** is **red** when it is blocked — base red, kitchen stopped or
+  held, runtime off, box unreachable —, **yellow** when a decision awaits you, **green**
+  otherwise. **Grey** as long as nothing is read from it, or when nothing can be: a project without a box, or
+  uninstalled from its own. Not read is never green.
+- **One row per paired station**: its name, its dot, its state (`online`, or
+  `offline for 12 min`), what it is doing — its cooks in progress, `saturated`, `update failed`,
+  `Max connection lost`, or `idle` — and the projects it carries. Its machine (system, kernel) and its
+  version can only be read **on hover**. Dot **red** when its Max connection is lost,
+  **yellow** when it is saturated or an update failed, **green** online, **grey** offline
+  or unreadable.
+- **A click anywhere on a row opens it**: the project's space, or the station's page
+  (see "Your stations: paired by a code, read on GitHub"). **No row carries any
+  action** — no merge, no triage, no removing `fire`: decisions are taken in the project.
+- **A "Cost" row**, under the stations, opens **the cost of all projects** (#1022), in place of
+  the home — without opening any project (see "The cost of all projects"). It shows no
+  figure: the cost reading only starts when its page is open.
+- **"+ station"**, under the list of stations, opens the pairing code field — nowhere
+  else on the home. Once paired, the station appears in the list and the field closes, with no
+  message left on display; "cancel" closes it, empty.
+- **The health row**, at the bottom, sums up the Max connection and the access to GitHub. All is well: green
+  and discreet, `Max ✓ · GitHub ✓`. When one of the two is off, it says in one sentence what is
+  wrong: `Max: token to redo within 20 d`, `Max: connection lost on Mac`,
+  `GitHub limits calls, back around 3:16 PM`, `GitHub: this computer is not signed in`. Not yet
+  read: `Max ?`, `GitHub ?`, and hovering says why. It shows **no gauge of
+  the account's consumption** (see the mockup, `docs/maquettes/app/README.md`).
+- **No command** (`brigade …`, `gh …`) **and no raw error text** is displayed there: what
+  a row leaves out — the time of the reading, why a box did not answer —, its hover says
+  in the app's own words, and the project's space shows it in full.
 
-**D'où ça vient** (`app/src/accueil.ts`). L'accueil ne demande rien de neuf à personne : il se dessine
-de ce que l'app lit déjà. `faits` de chaque projet, toutes les trente secondes et quel que soit
-l'écran, donne l'état de sa cuisine, ses décisions en attente et ses cooks ; `status`, lu pour chaque
-projet tant que l'accueil est affiché, ajoute ce que `faits` ne porte pas — une base rouge et le
-ticket qui la répare, la cause d'une cuisine retenue, depuis quand la plus ancienne décision attend, une
-station saturée, l'échéance du jeton Max. Les stations et leur connexion Max viennent de leurs gists,
-sur GitHub. Un `status` que l'accueil ne lit plus est lâché : la ligne redit ce que `faits` seul en dit.
+**Where it comes from** (`app/src/accueil.ts`). The home asks nothing new of anyone: it is drawn
+from what the app already reads. `facts` of each project, every thirty seconds and whatever the
+screen, gives the state of its kitchen, its pending decisions and its cooks; `status`, read for each
+project while the home is displayed, adds what `facts` does not carry — a red base and the
+ticket that repairs it, the cause of a held kitchen, since when the oldest decision has been waiting, a
+saturated station, the expiry of the Max token. The stations and their Max connection come from their gists,
+on GitHub. A `status` that the home no longer reads is dropped: the row says again what `facts` alone says of it.
 
-**Ce qui a quitté l'accueil** : les blocs par projet (leur carte, le dernier événement, la sortie de
-`status` et de `station`), le retard du code de l'app — dans les réglages de chaque projet, et au
-survol de la case **T** (voir « Le code de l'app : à jour, ou en retard ») —, la liste « Projects on
-your stations » et le parcours « add a project », sur la page d'une station.
+**What left the home**: the per-project blocks (their card, the latest event, the output of
+`status` and `station`), the lag of the app's code — in each project's settings, and on
+hover of the **T** icon (see "The app's code: up to date, or behind") —, the "Projects on
+your stations" list and the "add a project" path, on a station's page.
 
-### Le coût de tous les projets
+### The cost of all projects
 
-*Tickets : #908 à #912, #1022.* **Sur l'accueil, la ligne « Cost » ouvre la page des coûts de tous les projets**,
-à la place de l'accueil, sans ouvrir aucun projet — la case **T** reste l'entrée affichée, et « ‹ All projects »
-ramène à l'accueil. Ce qui vaut pour l'ensemble des projets vit au niveau de l'app ; ce qui vaut pour un projet vit
-dans le projet (la règle de l'accueil, #868) : **aucun projet n'a d'onglet Cost**, et ce qu'un projet a coûté se lit
-sur sa page, à côté de sa fiabilité (voir « La lecture Reliability »). La page lit `station` (le plafond, les cooks,
-**le consommé**) **sur la box de chaque projet** qu'elle sert encore, toutes les trente secondes tant qu'elle est
-affichée — et seulement alors. **En tête,
-trois chiffres** : les tokens que brigade a lancés sur **5 h, 24 h et 7 jours, tous projets confondus**, et sous
-chacun **la part de chaque projet** — sa pastille, son nom, ses tokens, son pourcentage. Chaque chiffre est la
-somme des fenêtres que le bloc `consommé` de `station` communique, projet par projet ; **une valeur que la box ne
-communique pas s'affiche « not communicated » à la place du chiffre** — aujourd'hui 7 jours, que le runtime ne
-compte pas, et tout projet dont la box n'a pas répondu. Une somme à laquelle un projet manque se dit « ≥ » et ne
-donne pas de pourcentage. Seuls les projets qui ont une box, et qu'elle sert encore, y entrent. **Le quota du
-compte Max n'y est pas** : brigade ne le connaît pas, et une seule ligne renvoie à `/usage`. Aucune phrase
-d'explication : des libellés courts et des chiffres. **Un clic sur le nom d'un projet ouvre son espace.** Le code de
-cette tête vit dans `app/src/vue/cost/`, à côté des blocs suivants de la page. **Sous les trois chiffres, la courbe des derniers jours** (#909, `cost/courbe.js`) : les tokens lancés
-chaque jour, **une ligne par projet**, à la teinte de sa pastille, sur les 14 derniers jours au plus ; un titre
-court (« tokens per day »), le plus haut du tracé, les jours dessous, **une légende qui nomme chaque projet**, et
-ce que chacun a lancé un jour au survol de sa colonne. Chaque série vient du même bloc `consommé` de `station` :
-une ligne par jour, `AAAA-MM-JJ : … tokens` (ou `: rien`, un zéro) ; un jour qu'une série ne dit pas est un trou
-dans sa ligne, jamais un zéro. **Le runtime n'écrit pas encore ces lignes** : tant qu'aucune box ne donne sa
-série, la zone de la courbe dit **« not communicated »**, jamais un graphique vide ; un projet dont la série manque
-alors que d'autres la donnent le dit sous son nom, dans la légende. **Sous les trois chiffres, les tokens perdus** (#911, `cost/perdus.js`) : un seul chiffre, sans phrase d'explication — ceux
-des essais rouges (« échoué », « refusé par le modèle ») et des cooks interrompus (garde-fou, « stop », quota,
-connexion, runtime arrêté), lus parmi les « derniers cooks » de `station`. **Un clic sur le chiffre déploie la liste** — un
-cook par ligne : ticket, titre, tokens, cause (« red attempt » ou « interrupted ») —, **un second clic, ou « close », la replie** ;
-un clic sur une ligne ouvre la fiche de son ticket, comme pour les tickets les plus chers.
-Un cook perdu qui ne déclare pas ses tokens rend le total « ≥ » ; une box qui ne liste pas ses cooks n'ajoute rien et le rend
-« ≥ » aussi. Si aucune box ne les communique, le chiffre dit **« not communicated »** et la liste n'est pas proposée ; zéro cook
-perdu s'écrit 0, sans liste. Le runtime n'est pas touché : la somme est ce que la box en dit (dix cooks par projet au plus).
-**Puis les cinq
-tickets les plus chers** (#910, `cost/chers.js`) : une ligne par ticket — son numéro, son titre, ses tokens, ses
-essais —, **du plus cher au moins cher, cinq au plus**, tous projets confondus. Le coût d'un ticket est la somme des
-cooks que la box liste sous « derniers cooks » de `station` (dix par projet au plus : c'est ce qu'elle en dit, la
-somme est donc un minimum), et ses essais sont ces cooks ; un cook qui ne déclare pas ses tokens rend la somme « ≥ »,
-un ticket dont aucun n'en déclare passe après les autres et s'affiche « not communicated ». Le titre est celui du
-rail du projet quand il est lu, « not communicated » sinon. **Un clic sur une ligne ouvre son projet, puis la fiche du
-ticket**, par-dessus le rail — celle du rail (#621) ; si le rail ne porte pas le ticket, la fiche s'ouvre avec ce que l'on
-en sait, son numéro.
-**Un dépassement de seuil se voit d'un coup d'œil** (#912, `cost/seuils.js`) : les seuils sont ceux que `station` écrit sous
-« décisions du chef » (`seuil-ticket`, `seuil-perdus`), projet par projet. Quand le ticket le plus cher dépasse le seuil de son
-projet, ou que les tokens perdus d'un projet dépassent le leur, le bloc passe en rouge et **une ligne unique porte le geste, en bouton** (« open the sheet of #7 », « open the list ») ;
-sous le seuil, rien de plus ne s'affiche. Un seuil « non posée » n'est pas inventé : le bloc dit « ceiling: not communicated »
-à la place de l'alerte. Les mêmes seuils jugent, de la même façon, le coût d'un projet sur sa page.
+*Tickets: #908 to #912, #1022.* **On the home, the "Cost" row opens the cost page of all projects**,
+in place of the home, without opening any project — the **T** icon remains the entry shown, and "‹ All projects"
+brings you back to the home. What holds for all projects together lives at the app level; what holds for one project lives
+in the project (the home's rule, #868): **no project has a Cost tab**, and what a project has cost is read
+on its page, next to its reliability (see "The Reliability reading"). The page reads `station` (the cap, the cooks,
+**the consumed**) **on the box of each project** it still serves, every thirty seconds while it is
+displayed — and only then. **At the top,
+three figures**: the tokens brigade has launched over **5 h, 24 h and 7 days, all projects together**, and under
+each one **each project's share** — its dot, its name, its tokens, its percentage. Each figure is the
+sum of the windows that the `consumed` block of `station` communicates, project by project; **a value the box does not
+communicate is shown as "not communicated" in place of the figure** — today 7 days, which the runtime does not
+count, and any project whose box did not answer. A sum with a project missing is marked "≥" and gives
+no percentage. Only projects that have a box, and that it still serves, enter it. **The Max account's quota is
+not there**: brigade does not know it, and a single line points to `/usage`. No explanatory
+sentence: short labels and figures. **A click on a project's name opens its space.** The code of
+this head lives in `app/src/vue/cost/`, next to the page's following blocks. **Under the three figures, the curve of the latest days** (#909, `cost/courbe.js`): the tokens launched
+each day, **one line per project**, in the shade of its dot, over the last 14 days at most; a short
+title ("tokens per day"), the top of the plot, the days below, **a legend that names each project**, and
+what each launched on a given day on hovering its column. Each series comes from the same `consumed` block of `station`:
+one line per day, `YYYY-MM-DD: … tokens` (or `: nothing`, a zero); a day a series does not give is a gap
+in its line, never a zero. **The runtime does not write these lines yet**: as long as no box gives its
+series, the curve area says **"not communicated"**, never an empty chart; a project whose series is missing
+while others give theirs says so under its name, in the legend. **Under the three figures, the lost tokens** (#911, `cost/perdus.js`): a single figure, with no explanatory sentence — those
+of red attempts ("failed", "refused by the model") and of interrupted cooks (guardrail, "stop", quota,
+connection, runtime stopped), read among the "latest cooks" of `station`. **A click on the figure unfolds the list** — one
+cook per row: ticket, title, tokens, cause ("red attempt" or "interrupted") —, **a second click, or "close", folds it back**;
+a click on a row opens its ticket's card, as for the most expensive tickets.
+A lost cook that does not declare its tokens makes the total "≥"; a box that does not list its cooks adds nothing and makes it
+"≥" too. If no box communicates them, the figure says **"not communicated"** and the list is not offered; zero lost
+cooks is written 0, with no list. The runtime is not touched: the sum is what the box says of it (ten cooks per project at most).
+**Then the five
+most expensive tickets** (#910, `cost/chers.js`): one row per ticket — its number, its title, its tokens, its
+attempts —, **from most to least expensive, five at most**, all projects together. A ticket's cost is the sum of the
+cooks the box lists under "latest cooks" of `station` (ten per project at most: that is what it says of them, the
+sum is therefore a minimum), and its attempts are those cooks; a cook that does not declare its tokens makes the sum "≥",
+a ticket none of whose cooks declare any comes after the others and is shown as "not communicated". The title is that of the
+project's rail when it is read, "not communicated" otherwise. **A click on a row opens its project, then the ticket's
+card**, over the rail — the rail's one (#621); if the rail does not carry the ticket, the card opens with what is
+known of it, its number.
+**An overrun of a threshold is seen at a glance** (#912, `cost/seuils.js`): the thresholds are those `station` writes under
+"chef's decisions" (`seuil-ticket`, `seuil-perdus`), project by project. When the most expensive ticket exceeds its
+project's threshold, or a project's lost tokens exceed theirs, the block turns red and **a single line carries the action, as a button** ("open the card of #7", "open the list");
+under the threshold, nothing more is shown. A threshold "not set" is not invented: the block says "ceiling: not communicated"
+in place of the alert. The same thresholds judge, the same way, a project's cost on its page.
 
-### Le code de l'app : à jour, ou en retard
+### The app's code: up to date, or behind
 
-**En tête des réglages de chaque projet** (Paramètres, dans son espace) — et en une ligne, **au
-survol de la case T** —, une ligne dit où en est le code sur lequel l'app tourne — celui du clone d'où tu l'as lancée —, avec l'heure de sa lecture :
-
-```
-le code de cette app est à jour avec origin/v2 — lu à 14:32:07, relu quand tu reviens à la fenêtre
-```
-
-Quand son clone est en retard sur la branche de l'origine qu'il suit, elle le dit en alerte, avec
-le nombre de commits, et ce que cela veut dire :
+**At the head of each project's settings** (Settings, in its space) — and in one line, **on
+hover of the T icon** —, a line says where the code the app runs on stands — that of the clone you launched it from —, with the time of its reading:
 
 ```
-LE CODE DE CETTE APP EST EN RETARD DE 39 COMMITS SUR origin/v2 — lu à 14:32:07, relu quand tu reviens à la fenêtre
-  Ce que cette app montre peut être périmé : ce qui a été livré depuis n'y est pas — un écran, un geste, une lecture.
-  Son clone : /Users/chef/dev/brigade, sur la branche v2.
-  Un clic la met à jour et la relance sur la nouvelle version — sans terminal, rien à recopier. Sans clic, elle passe à la nouvelle version à sa prochaine ouverture.
-  C'est aussi le clone du projet « brigade » : son second y lit le même code.
-[mettre à jour et relancer l'app]
+this app's code is up to date with origin/v2 — read at 14:32:07, reread when you come back to the window
 ```
 
-| À l'écran | Ce que l'app a lu | Ce qu'elle offre |
+When its clone is behind the origin branch it follows, it says so as an alert, with
+the number of commits, and what that means:
+
+```
+THIS APP'S CODE IS 39 COMMITS BEHIND origin/v2 — read at 14:32:07, reread when you come back to the window
+  What this app shows may be out of date: what has been delivered since is not in it — a screen, an action, a reading.
+  Its clone: /Users/chef/dev/brigade, on branch v2.
+  One click updates it and relaunches it on the new version — no terminal, nothing to copy. Without a click, it moves to the new version at its next opening.
+  It is also the clone of the project "brigade": its second reads the same code there.
+[update and relaunch the app]
+```
+
+| On screen | What the app read | What it offers |
 |---|---|---|
-| `le code de cette app est à jour avec origin/v2`, discret | son clone a tous les commits de la branche qu'il suit | rien |
-| `LE CODE DE CETTE APP EST EN RETARD DE 39 COMMITS SUR origin/v2`, en jaune, trait plein | l'origine a 39 commits que son clone n'a pas — le même nombre que `git status` après un `git fetch` | **un bouton**, « mettre à jour et relancer l'app » — ou, si son clone a des commits à lui, la commande `git -C <son clone> pull` à écrire dans un shell |
-| `CETTE APP TOURNE SUR UN CODE PLUS ANCIEN QUE CELUI DE SON CLONE`, en jaune, trait plein | son clone n'est plus sur le commit de son lancement : il a été mis à jour pendant qu'elle tournait | **un bouton**, « relancer l'app » : elle ne change de code qu'à son lancement |
-| `le retard du code de cette app sur son origine n'a pas été lu`, en jaune, trait pointillé | l'origine n'a pas répondu, le clone n'est sur aucune branche, sa branche ne suit rien — ou l'app n'est pas lancée d'un clone | la raison, avec ce que `git` en a dit. **Pas lu n'est jamais « à jour »** |
-| rien | **l'app installée** (le `.dmg`) n'a pas de clone : rien ne se lit de son code, ni des clones de brigade parmi les projets — ils se reconnaissent à l'origine du sien | rien ici : elle se met à jour d'elle-même sur les versions publiées (« Lancer l'app », *Sa mise à jour*) |
+| `this app's code is up to date with origin/v2`, discreet | its clone has all the commits of the branch it follows | nothing |
+| `THIS APP'S CODE IS 39 COMMITS BEHIND origin/v2`, in yellow, solid line | the origin has 39 commits its clone does not — the same number as `git status` after a `git fetch` | **a button**, "update and relaunch the app" — or, if its clone has commits of its own, the command `git -C <its clone> pull` to write in a shell |
+| `THIS APP IS RUNNING ON OLDER CODE THAN ITS CLONE'S`, in yellow, solid line | its clone is no longer on the commit of its launch: it was updated while it was running | **a button**, "relaunch the app": it only changes code at its launch |
+| `the lag of this app's code behind its origin was not read`, in yellow, dashed line | the origin did not answer, the clone is on no branch, its branch follows nothing — or the app is not launched from a clone | the reason, with what `git` said about it. **Not read is never "up to date"** |
+| nothing | **the installed app** (the `.dmg`) has no clone: nothing is read of its code, nor of the brigade clones among the projects — they are recognized by the origin of its own | nothing here: it updates itself on published versions ("Launching the app", *Its update*) |
 
-- **Au clic, elle se met à jour et repart.** Son clone avance jusqu'à la branche de l'origine qu'il
-  suit, puis l'app se ferme et se relance d'elle-même sur la nouvelle version — par `npm start`
-  quand c'est par là qu'elle est partie, pour que son lancement repose les dépendances si la
-  nouvelle version les change (voir « Lancer l'app »). Comme quitter, se relancer arrête les
-  terminaux de l'app. Pendant la mise à jour, le bouton dit `updating — the app relaunches itself…`.
-- **Sans clic, à sa prochaine ouverture.** `npm --prefix app start` fait la même mise à jour avant
-  d'ouvrir l'app, et le dit dans le terminal (voir « Lancer l'app »).
-- **Rien que de l'avance rapide** (`git merge --ff-only`). Un clone qui a des commits que l'origine
-  n'a pas, ou des changements que la nouvelle version écraserait, ne bouge pas : fusionner est ton
-  geste. L'app dit pourquoi elle reste sur son code, sous la ligne ; un clone qui a des commits à lui
-  n'a d'ailleurs pas de bouton, mais la commande `git -C <clone> pull`, **écrite** dans un shell sans
-  être envoyée — la règle de tous les boutons. Un shell de l'app vit dans l'espace d'un projet :
-  celui dont ce clone est le dossier, sinon le premier qui s'ouvre. Sans aucun projet qui s'ouvre,
-  rien n'est écrit et la commande se recopie.
-- **Le clone d'un projet, l'app ne le met pas à jour** : son bouton écrit `git -C <clone> pull`
-  dans un shell, comme ci-dessus. Le clone de l'app, quand c'est aussi le dossier d'un projet, se
-  met à jour avec elle : son second lit le nouveau code.
-- **Elle le dit aussi pour le clone d'un projet, quand ce clone est celui de brigade** — un projet
-  dont le dossier est un clone de la même origine que celui de l'app. Si c'est le même clone, il
-  est nommé sous la ligne de l'app (`C'est aussi le clone du projet « brigade »`) ; si c'en est un
-  autre, il a sa propre ligne, son nombre et son bouton : `LE CLONE DE « brigade » EST EN RETARD DE
-  12 COMMITS SUR origin/v2`. Les clones des autres projets ne sont pas lus : leur retard est
-  l'affaire de leur dépôt.
-- **La case T de la barre passe en jaune** tant qu'un de ces clones est en retard ou que l'app est
-  à relancer : quel que soit l'écran affiché, son survol dit quoi (`Tous les projets — le code de
-  cette app est en retard de 39 commits sur origin/v2`).
-- **Rien n'est veillé en continu** : une lecture au lancement, une à chaque fois que tu reviens à la
-  fenêtre, une quand le fichier des projets change. Entre deux, l'heure affichée est celle de la
-  dernière lecture — une app restée au premier plan toute une heure ne relit pas.
-- **Lire n'écrit rien dans ton clone** — seule la mise à jour y écrit. L'app demande à l'origine le commit de la branche suivie
-  (`git ls-remote`). Si ton clone ne l'a pas, elle rapatrie les commits qui manquent **dans un
-  dossier jetable, hors du clone**, les compte, et le supprime : ni objet, ni branche suivie, ni
-  `FETCH_HEAD` n'est posé chez toi — `git status` y dit après ce qu'il disait avant, et ton
-  prochain `git fetch` rapatrie tout comme si l'app n'avait rien lu.
-- **Elle ne demande jamais rien** : ni mot de passe au terminal, ni fenêtre. Ce que ton trousseau
-  ou ton agent `ssh` savent déjà sert tel quel ; une origine qui réclame une saisie est une origine
-  qui n'a pas répondu, et `git` est arrêté au bout de trente secondes. L'adresse de l'origine n'est
-  jamais affichée : elle peut porter un jeton.
-- **Ce que le nombre ne dit pas** : ce que ces commits changent. Trente-neuf commits de doc et un
-  commit qui ajoute un onglet se lisent pareil — c'est `git log` qui le dit.
+- **On click, it updates and restarts.** Its clone advances to the origin branch it
+  follows, then the app closes and relaunches itself on the new version — through `npm start`
+  when that is how it started, so that its launch lays down the dependencies again if the
+  new version changes them (see "Launching the app"). Like quitting, relaunching stops the app's
+  terminals. During the update, the button says `updating — the app relaunches itself…`.
+- **Without a click, at its next opening.** `npm --prefix app start` does the same update before
+  opening the app, and says so in the terminal (see "Launching the app").
+- **Fast-forward only** (`git merge --ff-only`). A clone that has commits the origin
+  does not have, or changes the new version would overwrite, does not move: merging is your
+  action. The app says why it stays on its code, under the line; a clone that has commits of its own
+  has no button, by the way, but the command `git -C <clone> pull`, **written** into a shell without
+  being sent — the rule of all buttons. An app shell lives in a project's space:
+  the one whose folder this clone is, otherwise the first that opens. With no project that opens,
+  nothing is written and the command is copied by hand.
+- **A project's clone, the app does not update**: its button writes `git -C <clone> pull`
+  in a shell, as above. The app's clone, when it is also a project's folder, is
+  updated with it: its second reads the new code.
+- **It says so for a project's clone too, when that clone is brigade's** — a project
+  whose folder is a clone of the same origin as the app's. If it is the same clone, it
+  is named under the app's line (`It is also the clone of the project "brigade"`); if it is
+  another, it has its own line, its number and its button: `THE CLONE OF "brigade" IS 12 COMMITS
+  BEHIND origin/v2`. The other projects' clones are not read: their lag is
+  the business of their repository.
+- **The bar's T icon turns yellow** as long as one of these clones is behind or the app is
+  to be relaunched: whatever the screen on display, its hover says what (`All projects — this app's code
+  is 39 commits behind origin/v2`).
+- **Nothing is watched continuously**: one reading at launch, one each time you come back to the
+  window, one when the projects file changes. In between, the time shown is that of the
+  last reading — an app left in the foreground for a whole hour does not reread.
+- **Reading writes nothing in your clone** — only the update writes there. The app asks the origin for the commit of the followed branch
+  (`git ls-remote`). If your clone does not have it, it fetches the missing commits **into a
+  throwaway folder, outside the clone**, counts them, and deletes it: no object, no followed branch, no
+  `FETCH_HEAD` is laid down in yours — `git status` says afterwards what it said before, and your
+  next `git fetch` fetches everything as if the app had read nothing.
+- **It never asks for anything**: no password at the terminal, no window. What your keychain
+  or your `ssh` agent already know is used as is; an origin that demands input is an origin
+  that did not answer, and `git` is stopped after thirty seconds. The origin's address is
+  never displayed: it may carry a token.
+- **What the number does not say**: what these commits change. Thirty-nine doc commits and one
+  commit that adds a tab read the same — `git log` is what says.
+### Your stations: paired with a code, read on GitHub
 
-### Tes stations : appairées par un code, lues sur GitHub
-
-**Sur l'accueil**, la liste « Stations » montre celles que tu as appairées, une ligne chacune —
-son nom, son état, ce qu'elle fait et les projets qu'elle porte ; sa machine et sa version au survol
-(voir « Tous les projets, d'un coup ») :
+**On the home screen**, the "Stations" list shows the ones you have paired, one line each —
+its name, its state, what it is doing and the projects it carries; its machine and version on hover
+(see "All projects at a glance"):
 
 ```
 ● box  online · idle · no project                         ›
 ○ box  offline for 4 min · brigade                        ›
 ```
 
-**Un clic sur sa ligne ouvre la page de la station** : en tête, son nom, sa pastille et son état en
-une phrase (#877) ; dessous, ses pannes avec leur bouton, les projets que l'app lui a ajoutés et le
-parcours « add a project » (voir « Ajouter un projet à tes stations, sans terminal »).
-Sous l'en-tête (#1081) : le plafond de cooks de la station et d'où il vient (`3 at most — 8 cores`, lu dans
-`status`), ce qui retient les tickets quand elle est saturée (mémoire, processeur, valeur et seuil), un champ
-et « set the cap » pour le régler, « back to the default » pour le retirer. Le réglage lance `station cooks <N|0|auto>`
-sur la box de chaque projet qui nomme la station — il vaut pour toutes les stations de ces projets.
-« ‹ All projects » ramène à l'accueil, comme la case **T**.
+**A click on its line opens the station's page**: at the top, its name, its dot and its state in
+one sentence (#877); below, its faults with their button, the projects the app added to it and the
+"add a project" flow (see "Add a project to your stations, without a terminal").
+Under the header (#1081): the station's cap on cooks and where it comes from (`3 at most — 8 cores`, read from
+`status`), what holds tickets back when it is saturated (memory, processor, value and threshold), a field
+and "set the cap" to set it, "back to the default" to remove it. The setting runs `station cooks <N|0|auto>`
+on the box of every project that names the station — it applies to all the stations of those projects.
+"‹ All projects" takes you back to the home screen, like the **T** square.
 
 ```
 box      ●  online · 2 cooks running   ?
@@ -724,33 +722,33 @@ atelier  ◆  saturated                  ?
 mac      ○  offline for 12 min         ?
 ```
 
-La phrase ne dit ni ses projets ni ce qui casse — ses pannes sont dessous —, et le système, le noyau
-et la version de sa machine ne sont pas écrits dans la page : ils se lisent au survol du « ? ». Une
-station saturée ne prend plus de ticket tant que ça dure : sa phrase ne dit que ça.
+The sentence says neither its projects nor what is broken — its faults are below —, and the system, the kernel
+and the version of its machine are not written on the page: they are read on hover over the "?". A
+saturated station takes no ticket while that lasts: its sentence says only that.
 
-- **L'app ne joint aucune station.** Chaque station écrit son état dans un gist secret de ton
-  compte GitHub ([docs/runtime/](runtime/station-machine.md), « Une station par machine »), et l'app le lit
-  là, par ton propre `gh`, toutes les trente secondes (`app/src/stations/`). Le suivi se relève
-  donc à la minute près, pas à la seconde.
-- **Une station éteinte reste dans la liste**, hors ligne, avec depuis combien de temps : tout de
-  suite quand elle s'est arrêtée proprement, après deux signes de vie manqués (un peu plus de
-  deux minutes) quand elle s'est éteinte d'un coup. Une lecture de GitHub ratée garde la liste
-  d'avant, et la ligne de santé le dit en une phrase (`GitHub could not be read`,
-  `GitHub limits calls, back around 3:16 PM` — l'heure où GitHub rend les appels du compte se lit
-  sans en dépenser un).
-- **Appairer une station neuve** : « + station », sous la liste, ouvre le champ ; tapes-y le code
-  qu'elle affiche (huit signes, comme `7KQ2-M9XD` — minuscules, blancs et tirets n'y font rien),
-  puis « pair ». L'app cherche le gist qui publie ce code, y écrit l'appairage, le champ se referme
-  et la station apparaît dans la liste. Un code mal formé, inconnu ou expiré est refusé en une ligne
-  sous le champ, et rien n'est écrit ; quand c'est GitHub qui a manqué, ce qu'il a répondu se lit au
-  survol de cette ligne.
+- **The app reaches no station.** Each station writes its state to a secret gist in your
+  GitHub account ([docs/runtime/](runtime/station-machine.md), "Une station par machine"), and the app reads it
+  there, through your own `gh`, every thirty seconds (`app/src/stations/`). The tracking is therefore
+  accurate to the minute, not to the second.
+- **A station that is off stays in the list**, offline, with how long ago: right
+  away when it stopped cleanly, after two missed signs of life (a little over
+  two minutes) when it went off abruptly. A failed GitHub read keeps the previous list,
+  and the health line says so in one sentence (`GitHub could not be read`,
+  `GitHub limits calls, back around 3:16 PM` — the time GitHub gives the account's calls back is read
+  without spending one).
+- **Pairing a new station**: "+ station", under the list, opens the field; type in it the code
+  it displays (eight characters, like `7KQ2-M9XD` — lowercase, spaces and dashes make no difference),
+  then "pair". The app looks for the gist that publishes this code, writes the pairing there, the field closes
+  and the station appears in the list. A malformed, unknown or expired code is refused in one line
+  under the field, and nothing is written; when GitHub is what failed, what it answered is read on
+  hover over that line.
 
-**Quand ça casse**, sa ligne de l'accueil le dit en un mot (`update failed`, `Max connection lost`),
-et la panne est dite sur la page de la station, en une ligne, avec un bouton — jamais une commande à
-taper (`app/src/pannes/`, #798) :
+**When it breaks**, its line on the home screen says so in one word (`update failed`, `Max connection lost`),
+and the fault is stated on the station's page, in one line, with a button — never a command to
+type (`app/src/pannes/`, #798):
 
 ```
-box   ·  (en-tête : nom, pastille — l'état n'y est pas redit)
+box   ·  (header: name, dot — the state is not repeated there)
   offline for 12 min  [check again] ?
 
 box   online · no cook running
@@ -758,1316 +756,1314 @@ box   online · no cook running
   Max connection lost 12 min ago  [log in] ?
 ```
 
-Chaque panne est **une seule ligne** et **un seul bouton** ; l'explication (« box has given no sign
-of life… », « nothing cooks on box until you log in »), puis ce que le bouton a rendu une fois
-cliqué, ne se lisent qu'au survol du « ? ». Une panne que deux causes décrivent (hors ligne et plus
-de signe de vie) ne se dit qu'une fois : l'en-tête de la page ne redit pas l'état quand la ligne
-« offline for … » est dessous.
+Each fault is **a single line** and **a single button**; the explanation ("box has given no sign
+of life…", "nothing cooks on box until you log in"), then what the button returned once
+clicked, are read only on hover over the "?". A fault that two causes describe (offline and no more
+sign of life) is stated only once: the page header does not repeat the state when the
+"offline for …" line is below it.
 
-- **Station injoignable** : plus aucun signe de vie depuis dix minutes (un redémarrage, une mise à
-  jour, tient en dessous). « check again » relit GitHub tout de suite : l'app ne joint pas la
-  station, elle regarde si elle a reparlé.
-- **Mise à jour ratée et revenue en arrière** : la version visée n'a pas démarré, la station est
-  restée sur la sienne ; la suivante sera essayée seule. « dismiss » écarte la ligne, tant que
-  l'app est ouverte. Le motif de l'échec n'est pas dit ici : il est dans la file des projets.
-- **Connexion Max perdue** : plus rien ne cuit sur la station. « log in » lance `claude auth login`,
-  qui ouvre la page de connexion dans ton navigateur ; la station voit la connexion rétablie dans
-  la minute, et la cuisine reprend seule. **Seule la station de cet ordinateur** se reconnecte
-  ainsi : le login d'une station serveur ne part pas encore de l'app, et le bouton le dit.
-- Ce que l'app en sait, la station le publie dans son gist ([docs/runtime/](runtime/station-machine.md), « Une
-  station par machine ») : des versions et des dates, ni motif ni commande. Une station hors ligne
-  ne dit plus sa connexion — ce qu'elle en a publié avant de se taire n'est plus sûr.
+- **Station unreachable**: no sign of life for ten minutes (a restart or an update
+  fits within that). "check again" re-reads GitHub right away: the app does not reach the
+  station, it checks whether it has spoken again.
+- **Update failed and rolled back**: the target version did not start, the station
+  stayed on its own; the next one will be tried alone. "dismiss" clears the line, as long as
+  the app is open. The reason for the failure is not stated here: it is in the projects' queue.
+- **Max connection lost**: nothing cooks on the station any more. "log in" runs `claude auth login`,
+  which opens the login page in your browser; the station sees the connection restored within
+  the minute, and the kitchen resumes on its own. **Only the station of this computer** reconnects
+  this way: the login of a server station does not yet start from the app, and the button says so.
+- What the app knows about it, the station publishes in its gist ([docs/runtime/](runtime/station-machine.md), "Une
+  station par machine"): versions and dates, no reason and no command. An offline station
+  no longer states its connection — what it published before going silent is no longer reliable.
 
-**Sa ligne de mise à jour et son retrait** (#880). Sous l'en-tête de la page, une ligne unique dit
-où en est la station : `up to date · on this version for 3 days`. Une station hors ligne n'est dite
-à jour de rien : pas de ligne. Une mise à jour ratée est déjà dite par sa panne : la ligne ne la
-répète pas et ne dit pas « up to date » par-dessus, elle ne garde que `on this version for 3 days`.
-Le « depuis quand » n'est pas publié par la station : l'app le déduit du moment où elle l'a vue
-passer à sa version, et le garde dans `versions-vues.json`, à côté de `app.json`. Elle ne sait pas
-depuis quand une station est sur sa version à la première fois qu'elle la lit : la ligne dit alors
-`up to date` et rien de plus, jusqu'à ce qu'elle voie la version changer. Une station mise à jour
-pendant que l'app était fermée est datée de la première lecture qui suit.
+**Its update line and its removal** (#880). Under the page header, a single line says
+where the station stands: `up to date · on this version for 3 days`. An offline station is not said
+to be up to date with anything: no line. A failed update is already stated by its fault: the line does not
+repeat it and does not say "up to date" on top of it, it keeps only `on this version for 3 days`.
+The "since when" is not published by the station: the app deduces it from the moment it saw the station
+move to its version, and keeps it in `versions-vues.json`, next to `app.json`. It does not know
+since when a station has been on its version the first time it reads it: the line then says
+`up to date` and nothing more, until it sees the version change. A station updated
+while the app was closed is dated from the first read that follows.
 
-En bas de la page, **« remove the station »** ouvre une confirmation dans l'app, en une ligne de prix :
-la station quitte l'accueil et n'est plus lue, elle continue de tourner, et un code neuf l'appaire de
-nouveau. « cancel » la referme et laisse la station en place ; « remove » ôte son appairage de son
-gist (`brigade-appairage.json`, le seul fichier que l'app y écrit), ramène à l'accueil, et la station
-n'est plus dans sa liste. Si GitHub ne peut pas être écrit, la station reste, et la page le dit en
-une ligne.
+At the bottom of the page, **"remove the station"** opens a confirmation in the app, with a one-line price:
+the station leaves the home screen and is no longer read, it keeps running, and a new code pairs it
+again. "cancel" closes it and leaves the station in place; "remove" takes its pairing out of its
+gist (`brigade-appairage.json`, the only file the app writes there), takes you back to the home screen, and the station
+is no longer in its list. If GitHub cannot be written to, the station stays, and the page says so in
+one line.
 
-### Cet ordinateur est une station ; un téléphone est un poste
+### This computer is a station; a phone is a workstation
 
-*Spec : [la station refaite de zéro](superpowers/specs/2026-10-15-station-refonte-design.md) (#797).*
+*Spec: [the station rebuilt from scratch](superpowers/specs/2026-10-15-station-refonte-design.md) (#797).*
 
-**Sur un ordinateur — Mac, Windows, Linux de bureau —, l'app installée est une station.** Ouverte,
-elle lance la station de la machine : **la même que celle d'un serveur**, le même point d'entrée
-(`runtime/src/station/main.ts`, celui que lance le service du paquet Debian), le même répertoire
-tenu, la même configuration des projets (une ligne chacun, dans `projets`), la même présence sur
-GitHub. Seule l'installation diffère : un paquet sur un serveur, l'app ici (`app/src/poste/`).
+**On a computer — Mac, Windows, desktop Linux —, the installed app is a station.** Once open,
+it starts the machine's station: **the same as a server's**, the same entry point
+(`runtime/src/station/main.ts`, the one the Debian package's service starts), the same held directory,
+the same project configuration (one line each, in `projets`), the same presence on
+GitHub. Only the installation differs: a package on a server, the app here (`app/src/poste/`).
 
-- **Son répertoire** est `station/`, à côté du fichier des projets (`~/.config/brigade/station`) —
-  ou `BRIGADE_STATION_DIR`, s'il est posé. Elle tourne sous ton compte, avec ton `gh` et ton
+- **Its directory** is `station/`, next to the projects file (`~/.config/brigade/station`) —
+  or `BRIGADE_STATION_DIR`, if it is set. It runs under your account, with your `gh` and your
   `claude`.
-- **Elle s'appaire seule.** Comme sur un serveur, elle affiche son code dans son journal ; l'app le
-  lit et le tape à ta place, par le même geste que « + station » sur l'accueil. La machine apparaît
-  dans « Stations », comme les autres : `macbook  online · idle · no project`, sa machine et sa
-  version (`code 1a2b3c4d5e6f`) au survol. GitHub qui ne montre pas encore son gist : le code est retapé toutes les trente
-  secondes, et le refus dit une fois.
-- **Un projet dont elle est la principale y cuit**, exactement comme sur un serveur : sa ligne
-  dans `projets`, son état sous `etat/`, ses cooks lancés par la station.
-- **Elle vit avec l'app.** Fermée — ou tuée net —, l'app ferme l'entrée de sa station, qui
-  s'arrête comme sur un SIGTERM : ses projets s'arrêtent, et GitHub porte l'heure de son arrêt —
-  l'accueil la dit hors ligne. **La cuisine des projets dont elle est la principale s'arrête donc
-  avec l'app.** Morte d'elle-même, elle est relancée cinq secondes plus tard ; refusant de démarrer
-  (code 2), elle ne l'est pas, et l'app dit pourquoi.
-- **Une seule par machine et par compte.** Une deuxième app ouverte ne lance pas une deuxième
-  station (`station/app.pid` nomme l'app qui la tient) : elle le dit, et la reprend quand la
-  première se ferme.
-- Ce que la station dit s'écrit tel quel dans le terminal qui a lancé l'app, comme son journal de
-  service sur un serveur. Elle est jouée par le `node` de `npm start` (`BRIGADE_NODE_BIN` pour en
-  donner un autre) : Electron n'en est pas un. **L'app installée** (le `.dmg`) joue le runtime et le
-  `node` de son paquet, jamais ceux de la machine (`app/src/emplacements.ts`).
+- **It pairs itself.** As on a server, it displays its code in its log; the app
+  reads it and types it for you, through the same gesture as "+ station" on the home screen. The machine appears
+  in "Stations", like the others: `macbook  online · idle · no project`, its machine and its
+  version (`code 1a2b3c4d5e6f`) on hover. If GitHub does not show its gist yet: the code is retyped every thirty
+  seconds, and the refusal is stated once.
+- **A project it is the main station of cooks there**, exactly as on a server: its line
+  in `projets`, its state under `etat/`, its cooks started by the station.
+- **It lives with the app.** Closed — or killed outright —, the app closes its station's entry, and the station
+  stops as on a SIGTERM: its projects stop, and GitHub carries the time it stopped —
+  the home screen says it is offline. **The kitchen of the projects it is the main station of therefore stops
+  with the app.** Dead on its own, it is restarted five seconds later; refusing to start
+  (code 2), it is not, and the app says why.
+- **Only one per machine and per account.** A second open app does not start a second
+  station (`station/app.pid` names the app that holds it): it says so, and takes over when the
+  first one closes.
+- What the station says is written as is in the terminal that started the app, like its service log
+  on a server. It is run by the `node` of `npm start` (`BRIGADE_NODE_BIN` to give
+  another): Electron is not one. **The installed app** (the `.dmg`) runs the runtime and the
+  `node` of its package, never those of the machine (`app/src/emplacements.ts`).
 
-**Sur un téléphone, l'app est un poste** : elle pilote, elle ne cuit pas. Sa station n'y est pas
-démarrée, et aucun projet n'y fait cuire — ni le sien, ni les stations que ses projets confient au
-poste (« Le poste est une station »). C'est le seul endroit où la plateforme compte
-(`app/src/poste/role.ts`) ; tout le reste est le même code. L'app d'un ordinateur est aussi un
-poste, et le dit au lancement, quand le runtime n'est pas à côté d'elle, ou avec
+**On a phone, the app is a workstation**: it drives, it does not cook. Its station is not started there,
+and no project cooks there — neither its own, nor the stations its projects hand to the
+workstation ("The workstation is a station"). This is the only place where the platform matters
+(`app/src/poste/role.ts`); everything else is the same code. The app of a computer is also a
+workstation, and says so at launch, when the runtime is not next to it, or with
 `BRIGADE_APP_STATION=0`.
 
-### Ajouter un projet à tes stations, sans terminal
+### Add a project to your stations, without a terminal
 
-**Sur la page d'une station**, « Projects » liste **tous** les projets qu'elle porte, une ligne
-chacun : ceux que sa configuration sert — ajoutés depuis l'app ou écrits à la main dans `projets`,
-elle les publie tous dans son gist —, puis ceux que l'app lui demande et qu'elle ne sert pas encore.
-Chaque ligne porte sa marque : **`main`** quand la station fait tourner son manager et sa pass (elle
-sert le projet), **`secondary`** sinon — et elle dit alors sur quelle station ils tournent. Puis ce
-que la station en dit : `served`, `waiting for your authorization on GitHub`, `being prepared`,
-`refused`. Au survol : son dépôt et sa branche, le motif d'un refus et, une fois servi, en combien
-de temps depuis que tu as ouvert le parcours (`served by box 1 min 12 s after “add a project” was
-opened`) — ou, pour un projet écrit à la main, `installed on this station outside the app`. **Un clic
-ouvre le projet** : son espace s'il est dans ton fichier des projets, sinon « Add a project », où
-tu le déclares. « no project on this station yet » ne se lit que sur une station qui n'en porte
-vraiment aucun.
+**On a station's page**, "Projects" lists **all** the projects it carries, one line
+each: those its configuration serves — added from the app or written by hand in `projets`,
+it publishes them all in its gist —, then those the app asks of it and that it does not serve yet.
+Each line carries its mark: **`main`** when the station runs its manager and its pass (it
+serves the project), **`secondary`** otherwise — and it then says which station they run on. Then what
+the station says about it: `served`, `waiting for your authorization on GitHub`, `being prepared`,
+`refused`. On hover: its repository and its branch, the reason for a refusal and, once served, how long it took
+since you opened the flow (`served by box 1 min 12 s after “add a project” was
+opened`) — or, for a project written by hand, `installed on this station outside the app`. **A click
+opens the project**: its space if it is in your projects file, otherwise "Add a project", where
+you declare it. "no project on this station yet" is read only on a station that truly carries
+none.
 
-- **« + add a project »**, sur cette même page, ouvre le parcours : le **dépôt**, choisi parmi ceux que ton
-  `gh` lit (les plus récents d'abord ; sa branche par défaut est proposée comme branche
-  d'intégration) ; les **stations** qui le servent, et sa **principale** — celle de son manager et
-  de sa pass. L'app propose d'office une **station serveur**, toujours allumée ; choisir l'app d'un
-  ordinateur (Mac, Windows) dit tout de suite que la cuisine du projet s'arrête quand on ferme l'app.
-  Puis le nombre de **cooks** à la fois et le **calibrage** du manager et du reviewer : rien n'y est
-  choisi d'avance, ce sont tes décisions. « add » : ce qui manque est dit sous le formulaire, et rien
-  n'est écrit.
-- **Validé**, l'app écrit la demande dans le gist de chaque station choisie (`app/src/projets/`) ; la
-  principale la lit dans la demi-minute, le prépare et l'ajoute à sa configuration
-  ([docs/runtime/](runtime/station-machine.md), « Ajouter un projet à une station depuis l'app »). Si ses Apps
-  GitHub doivent être autorisées sur le dépôt, un bouton **« authorize on GitHub »** par App ouvre
-  la page de GitHub : un clic, et la station poursuit seule.
-- **« remove »**, sous un projet ajouté depuis l'app, puis un second clic pour confirmer, retire le projet de la demande de chacune de
-  ses stations : elles le retirent de leur configuration. Son état et son clone restent sur la machine.
+- **"+ add a project"**, on that same page, opens the flow: the **repository**, chosen among those your
+  `gh` reads (most recent first; its default branch is offered as the integration
+  branch); the **stations** that serve it, and its **main** station — the one for its manager and
+  its pass. The app offers a **server station** by default, always on; choosing the app of a
+  computer (Mac, Windows) says right away that the project's kitchen stops when the app is closed.
+  Then the number of **cooks** at a time and the **calibration** of the manager and the reviewer: nothing there is
+  chosen in advance, these are your decisions. "add": what is missing is stated under the form, and nothing
+  is written.
+- **Once confirmed**, the app writes the request in the gist of each chosen station (`app/src/projets/`); the
+  main station reads it within half a minute, prepares it and adds it to its configuration
+  ([docs/runtime/](runtime/station-machine.md), "Ajouter un projet à une station depuis l'app, sans terminal"). If its GitHub
+  Apps must be authorized on the repository, one **"authorize on GitHub"** button per App opens
+  GitHub's page: one click, and the station carries on on its own.
+- **"remove"**, under a project added from the app, then a second click to confirm, removes the project from the request of each of
+  its stations: they remove it from their configuration. Its state and its clone stay on the machine.
 
-**Depuis la page d'un projet** (#983), quand aucune station ne fait encore sa cuisine, `No station
-cooks <projet> yet.` est suivi de **« choose its machine »**. Le choix s'ouvre dessous, en une carte
-(#1107) :
+**From a project's page** (#983), when no station is cooking for it yet, `No station
+cooks <projet> yet.` is followed by **"choose its machine"**. The choice opens below, in one card
+(#1107):
 
-- **En tête, une phrase dit ce que tu fais** : `Choose the machine that runs <projet>'s kitchen.`,
-  puis ce que fait cette machine — elle fait tourner le manager et la pass, et elle cuit — et que
-  tout est déjà réglé sur ce qui est recommandé : tu changes ce que tu veux, ou tu lances tel quel.
-- **La machine principale d'abord**, un choix simple entre tes stations appairées. Chacune dit ce
-  que la choisir implique : `always on: it keeps cooking while your computer sleeps` pour un
-  serveur, `stops when you close the app on this computer` pour l'app d'un Mac ou d'un PC. **La
-  station serveur est choisie d'office**, marquée `recommended` ; sans serveur, la première machine
-  lisible.
-- **Les renforts ensuite, facultatifs** (`Backup machines · optional`) : une case par autre station,
-  et à quoi sert un renfort — il cuit les tickets que la principale n'a pas la place de prendre, sans
-  manager ni pass.
-- **Les cooks à la fois arrivent posés**, tirés des cœurs de la principale — ceux que la station
-  publie dans son gist (`coeurs`, [docs/runtime/](runtime/station-machine.md)) —, par la règle même
-  que la station applique : `max(1, ⌊(cœurs − 2) / 2⌋)`, 3 pour 8 cœurs. Dessous :
-  `recommended — from <station>'s 8 cores: …`. Une station qui ne publie pas encore ses cœurs : 2,
-  et la ligne le dit. Choisir une autre principale fait suivre le nombre, tant que tu ne l'as pas tapé.
-- **Le calibrage du manager et du reviewer est replié sous « Advanced settings »**, avec ce qu'il
-  règle : le modèle et l'effort qui jugent, découpent et relisent — et donc ce qu'ils prennent de ton
-  quota. Replié, la ligne dit ce qui partira (`manager sonnet / medium · reviewer sonnet / medium`).
-  Il reprend **celui du projet confié le plus récemment à une station** depuis l'app
-  (`recommended — what <projet> runs on, …`), ou à défaut **la valeur de départ mesurée**,
+- **At the top, a sentence says what you are doing**: `Choose the machine that runs <projet>'s kitchen.`,
+  then what that machine does — it runs the manager and the pass, and it cooks — and that
+  everything is already set to what is recommended: you change what you want, or you launch as is.
+- **The main machine first**, a simple choice among your paired stations. Each says what
+  choosing it implies: `always on: it keeps cooking while your computer sleeps` for a
+  server, `stops when you close the app on this computer` for the app on a Mac or a PC. **The
+  server station is chosen by default**, marked `recommended`; with no server, the first readable
+  machine.
+- **Then the backups, optional** (`Backup machines · optional`): one checkbox per other station,
+  and what a backup is for — it cooks the tickets the main station has no room to take, without
+  manager or pass.
+- **The number of cooks at a time comes preset**, drawn from the main station's cores — those the station
+  publishes in its gist (`coeurs`, [docs/runtime/](runtime/station-machine.md)) —, by the very rule
+  the station applies: `max(1, ⌊(cores − 2) / 2⌋)`, 3 for 8 cores. Below:
+  `recommended — from <station>'s 8 cores: …`. A station that does not publish its cores yet: 2,
+  and the line says so. Choosing another main station makes the number follow, as long as you have not typed it.
+- **The calibration of the manager and the reviewer is folded under "Advanced settings"**, with what it
+  sets: the model and the effort that judge, split and review — and therefore what they take from your
+  quota. Folded, the line says what will go out (`manager sonnet / medium · reviewer sonnet / medium`).
+  It takes up **that of the project most recently handed to a station** from the app
+  (`recommended — what <projet> runs on, …`), or failing that **the measured starting value**,
   `sonnet` / `medium` (#425).
-- **Une valeur proposée se voit comme telle** : sa ligne `recommended — …` disparaît dès que tu la
-  changes, et ce que tu as changé reste le tien quand les stations se relisent.
-- **Le bouton dit ce qu'il fait** : `Start the kitchen on <station>`. Rien ne part avec un champ
-  vide : ce qui manque se lit au-dessus du bouton, et la carte reste ouverte.
+- **A proposed value is visible as such**: its `recommended — …` line disappears as soon as you
+  change it, and what you changed stays yours when the stations are re-read.
+- **The button says what it does**: `Start the kitchen on <station>`. Nothing goes out with an empty
+  field: what is missing is read above the button, and the card stays open.
 
-Une fois confiée, la page dit **où il cuit** — `Cooks on <station>`, ses renforts après lui
-(`· macbook (backup)`) —, et **« + station »** ouvre la même carte réduite aux renforts (`Add a
-backup machine to <projet>'s kitchen.`, `Add <station> to the kitchen`) : la station de plus reprend
-les cooks et le calibrage déjà demandés.
+Once handed over, the page says **where it cooks** — `Cooks on <station>`, its backups after it
+(`· macbook (backup)`) —, and **"+ station"** opens the same card reduced to backups (`Add a
+backup machine to <projet>'s kitchen.`, `Add <station> to the kitchen`): the extra station takes up
+the cooks and calibration already requested.
 
-**Le parcours d'un projet neuf** (#1111), sous cette ligne, à la place du vide : les quatre étapes
-que sa principale publie dans son suivi (`onboarding`, #1110) — *Repository*, *Cooking machine*,
-*Repository preparation*, *First ticket* —, chacune `done`, `now` ou `to come`, avec sa phrase. En
-tête, ce qu'on attend du chef : le geste de l'étape courante, un bouton qui ouvre sa page de GitHub
-(où le faire est écrit à côté), ou « Nothing to do… step N of 4 ». L'étape de préparation montre son
-ticket (`#433`, un bouton qui l'ouvre) et son état — `in progress`, `failed`, `to review` ; en échec,
-la raison en une phrase et l'heure du prochain essai (`Next retry at 10:14 AM, in 10 min.`, puis
-`Its retry is due now.` une fois l'heure passée). Le « within a minute » de la confiance ne se dit plus
-passé la minute, ni dès que le parcours est publié. Prêt, il ne reste que `<projet> is ready: post
-your first ticket with the fire label`, « post the first ticket » et « dismiss » : écarté, ou la page
-quittée, il ne revient pas (jusqu'au prochain lancement de l'app, et jamais une fois le premier ticket
-sur le rail). Les pages qu'il ouvre sont celles que la station a publiées, et aucune autre
-(`autoriserSurGitHub`). Le module est `app/src/vue/onboarding/parcours.js`.
+**The flow of a new project** (#1111), under that line, in place of the empty space: the four steps
+its main station publishes in its tracking (`onboarding`, #1110) — *Repository*, *Cooking machine*,
+*Repository preparation*, *First ticket* —, each `done`, `now` or `to come`, with its sentence. At the
+top, what is expected of the chef: the gesture of the current step, a button that opens its GitHub page
+(where how to do it is written alongside), or "Nothing to do… step N of 4". The preparation step shows its
+ticket (`#433`, a button that opens it) and its state — `in progress`, `failed`, `to review`; on failure,
+the reason in one sentence and the time of the next attempt (`Next retry at 10:14 AM, in 10 min.`, then
+`Its retry is due now.` once the time has passed). The "within a minute" of the trust is no longer stated
+past the minute, nor once the flow is published. When ready, only `<projet> is ready: post
+your first ticket with the fire label`, "post the first ticket" and "dismiss" remain: once dismissed, or the page
+left, it does not come back (until the next app launch, and never once the first ticket is
+on the rail). The pages it opens are those the station published, and no others
+(`autoriserSurGitHub`). The module is `app/src/vue/onboarding/parcours.js`.
 
-**Ce qui retient la cuisine** (#1119) : sa principale publie, dans la ligne du projet de son suivi, `acces`
-(l'accès au dépôt refusé, #1117 : la raison et le geste) et `worktree` (un worktree impossible à préparer,
-#1118 : le ticket, la raison, l'heure du prochain essai, et `acces` quand c'est l'accès qui refuse).
-Sous la ligne des stations — sur Cooks ; sur Rail, la ligne d'alerte le dit en une ligne et ouvre Cooks (#1185) —, un bloc
-rouge dit en une phrase la raison puis le geste (`parade-box cannot fetch from benomite/parade: … Run
-gh auth setup-git on parade-box, under the account that runs it.`, la commande en code, le détail de git au
-survol), et un bouton recommandé « copy the command » qui copie la commande seule — le geste se fait sur la
-machine de la station, que l'app ne pilote pas), ou, pour un worktree, `The worktree of #433 could not be prepared: <raison>` et
-`Next retry at 10:14 AM, in 10 min.`. Tant qu'il tient, la phrase « prepares it within a minute » ne se dit
-plus. Sans l'un ni l'autre, rien ne change. **Le refus de la station** (#1178) : quand elle refuse de servir le
-projet sans accès refusé à dire, son suivi porte `refus` (#1177 : un code stable, une phrase, l'action du
-chef) ; le même bloc pose la phrase (`This project's settings choose a network port that the station reserves
-for itself.`, le code au survol) puis l'action en dessous — jamais le texte brut du fichier `en-service`, ni un
-chemin. L'action est suivie d'un bouton recommandé : « remove the project » (en deux clics) pour `configuration-invalid` et `clone-missing`, « move the kitchen back » pour `handed-over-elsewhere`, sinon « check the installation », qui lance la vérification sur la station (son verdict se lit dans Settings) — le geste lui-même se fait sur la machine de la station. L'accès refusé, plus précis, prime sur lui. Captures : `docs/captures/1178/`. La station l'efface quand le geste est fait : la page relue
-(chaque lecture des stations) revient à son message, sans recharger l'app. Le module est
+**What holds the kitchen back** (#1119): its main station publishes, in the project's line of its tracking, `acces`
+(repository access refused, #1117: the reason and the gesture) and `worktree` (a worktree that cannot be prepared,
+#1118: the ticket, the reason, the time of the next attempt, and `acces` when access is what refuses).
+Under the stations line — on Cooks; on Rail, the alert line says it in one line and opens Cooks (#1185) —, a red
+block states in one sentence the reason then the gesture (`parade-box cannot fetch from benomite/parade: … Run
+gh auth setup-git on parade-box, under the account that runs it.`, the command in code, git's detail on
+hover), and a recommended "copy the command" button that copies the command alone — the gesture is made on the
+station's machine, which the app does not drive), or, for a worktree, `The worktree of #433 could not be prepared: <reason>` and
+`Next retry at 10:14 AM, in 10 min.`. While it holds, the sentence "prepares it within a minute" is no
+longer stated. With neither, nothing changes. **The station's refusal** (#1178): when it refuses to serve the
+project with no refused access to state, its tracking carries `refus` (#1177: a stable code, a sentence, the
+chef's action); the same block puts down the sentence (`This project's settings choose a network port that the station reserves
+for itself.`, the code on hover) then the action below — never the raw text of the `en-service` file, nor a
+path. The action is followed by a recommended button: "remove the project" (in two clicks) for `configuration-invalid` and `clone-missing`, "move the kitchen back" for `handed-over-elsewhere`, otherwise "check the installation", which runs the check on the station (its verdict is read in Settings) — the gesture itself is made on the station's machine. The refused access, being more precise, takes precedence over it. Screenshots: `docs/captures/1178/`. The station clears it when the gesture is done: the page re-read
+(each read of the stations) goes back to its message, without reloading the app. The module is
 `app/src/vue/onboarding/depot-retenu.js`.
 
-**La décision devant une station sans bac à sable** (#1113) : quand l'état publié dit `decisionAttendue`,
-l'étape *Cooking machine* pose la phrase du runtime en avertissement — les cooks de cette machine
-tournent sans bac à sable, rien ne part avant le choix du chef — et deux boutons : « choose another
-station » (recommandé : il ouvre le choix des machines du déménagement) et « continue without sandbox »
-(`continuerSansBacASable` du pont, dont la réponse se dit sous la ligne des stations). Le choix note la
-décision par `accepterSansBacASable` du runtime, dans l'état du projet sur cet ordinateur, pour la station
-qui le cuit — la seule que l'app atteigne : si la principale est une autre station, l'app refuse en une
-phrase et rien n'est noté. L'avertissement s'en va, et la préparation devient la courante, aussitôt la
-décision notée ; la station republie ensuite l'état qui le dit pour de bon. Capture :
+**The decision facing a station with no sandbox** (#1113): when the published state says `decisionAttendue`,
+the *Cooking machine* step puts the runtime's sentence up as a warning — the cooks of this machine
+run without a sandbox, nothing goes out before the chef's choice — and two buttons: "choose another
+station" (recommended: it opens the choice of machines for the move) and "continue without sandbox"
+(`continuerSansBacASable` of the bridge, whose answer is stated under the stations line). The choice records the
+decision through the runtime's `accepterSansBacASable`, in the project's state on this computer, for the station
+that cooks it — the only one the app reaches: if the main station is another station, the app refuses in one
+sentence and nothing is recorded. The warning goes away, and the preparation becomes the current step, as soon as the
+decision is recorded; the station then republishes the state that says it for good. Screenshot:
 `docs/captures/1113/`.
 
-### Où cuit un projet, et le déménager d'un geste (#1095)
+### Where a project cooks, and moving it in one gesture (#1095)
 
-- **La ligne dit où il cuit**, tel que ses stations le publient (`cuitSur` dans leur suivi,
-  [docs/runtime/](runtime/station-distante.md), « Déménager la cuisine d'un projet ») — pas ce que
-  l'app a demandé : un déménagement refusé le laisse cuire là où il cuisait, et la ligne aussi.
-  `Cooks on parade-box` pour un projet sur sa box ; **`Cooks on this Mac · its kitchen stops when you
-  close the app`** pour un projet que la station de cet ordinateur sert — la phrase n'est jamais
-  dite d'une autre station. Le nom de la station est au survol de « this Mac ».
-- **Lu et piloté ici, sans `ssh` ni `hote`.** Un projet qui cuit sur cet ordinateur est lu et piloté
-  par la station de ce poste : son rail, sa file et ses cartes viennent d'elle, pas d'une box, et
-  l'app ne lance aucun `ssh` pour lui. Il n'a donc pas besoin de `hote` : un projet écrit à la main
-  sans `hote` se lit ici dès que sa cuisine tourne sur ce Mac. La source suit la cuisine : quand
-  elle déménage — vers ce Mac, ou hors de lui —, la lecture change de source avec elle, sans
-  relancer l'app, et la ligne dit toujours où le projet cuit à cet instant.
-- **Station de cet ordinateur arrêtée : une ligne, pas une page vide** (#1124). Un projet qui cuit
-  ici n'a rien à lire tant que la station de cet ordinateur ne tourne pas (refusée, arrêtée, entre
-  sa mort et sa relance) : **`this computer's station is not running`** prend la place du rail, de
-  la file et des cartes, et c'est tout. Dès que la station tourne, la ligne cède la place au rail à
-  la lecture suivante, sans relancer l'app. Un projet servi par une box ne la porte jamais.
-- **« move the kitchen »**, à côté de « + station », est le seul geste : il ouvre sous la ligne le
-  choix de la machine où l'emmener — `Move <projet>'s kitchen from <station> to:` —, un bouton par
-  autre station appairée (`this Mac` pour la station de cet ordinateur), celle que l'app recommande
-  (toujours allumée) distinguée, ce que chacune implique au survol, et **le prix en une ligne** :
-  `Its cooks in flight stop and their tickets go back to the rail; its whole journal follows it.`
-  Un clic sur une machine déménage la cuisine — vers ce Mac, vers sa box, vers une autre station —,
-  **sans retrait ni rajout**. L'app lance l'opération du runtime sur cet ordinateur
-  (`runtime/src/demenagement/demenager.ts`, avec le répertoire de sa station et les gists de tes
-  stations) : elle écrit les deux demandes, et le reste se fait entre les deux stations.
-- **Lancé**, la ligne dessous le dit (`<projet>'s kitchen moves to this Mac: parade-box hands it over
-  as soon as this Mac is ready — until then it cooks on parade-box`) ; tant qu'il est en route, la
-  ligne dit `· moving to this Mac…`, son étape au survol, et aucun autre déménagement ne se demande
-  une fois que la station visée l'a accepté.
-- **Refusé, la raison se lit en une phrase sous la ligne, en rouge**, et la ligne ne change pas :
-  `parade stays on parade-box: <la raison du runtime>` — vers ce Mac sans bac à sable, ce qui lui
-  manque (`la configuration du bac à sable ne tient pas sur ce Mac — …`). Un refus de la station
-  visée, après coup, se dit de même (`… : this Mac refused to take it over — …`) ; le choix offre
-  alors `keep it on parade-box`, qui reprend la demande. GitHub injoignable, ou un runtime qui ne se
-  lance pas, se disent en une ligne, leur détail au survol : rien n'échoue en silence.
-- **Le geste n'est offert que pour un projet confié depuis l'app**, qui cuit sur une de tes stations
-  appairées : c'est la demande de l'app que l'opération réécrit. Un projet écrit à la main avec
-  `hote`, ou servi par une station sans que l'app le lui ait demandé, n'en a pas — l'opération le
-  refuserait (`add it rather than move it`). Une app sans runtime à côté d'elle (un téléphone) n'en
-  lance aucune, et le dit.
-- **Ce qu'elle garde du runtime** : un déménagement en cours est écrit dans la demande de chaque
-  station (`remise`, `reprise`) ; l'app les relit et les réécrit tels quels quand elle réécrit ces
-  demandes (confier, retirer un autre projet), sans quoi il ne serait plus qu'un changement de
-  principale.
+- **The line says where it cooks**, as its stations publish it (`cuitSur` in their tracking,
+  [docs/runtime/](runtime/station-distante.md), "Déménager la cuisine d'un projet, quand on veut") — not what the
+  app asked for: a refused move leaves it cooking where it was cooking, and so does the line.
+  `Cooks on parade-box` for a project on its box; **`Cooks on this Mac · its kitchen stops when you
+  close the app`** for a project that this computer's station serves — the sentence is never
+  said of another station. The station's name is on hover over "this Mac".
+- **Read and driven here, with no `ssh` and no `hote`.** A project that cooks on this computer is read and driven
+  by this workstation's station: its rail, its queue and its cards come from it, not from a box, and
+  the app launches no `ssh` for it. It therefore needs no `hote`: a project written by hand
+  without `hote` is read here as soon as its kitchen runs on this Mac. The source follows the kitchen: when
+  it moves — to this Mac, or off it —, the reading changes source with it, without
+  restarting the app, and the line always says where the project cooks at that moment.
+- **This computer's station stopped: a line, not an empty page** (#1124). A project that cooks
+  here has nothing to read while this computer's station is not running (refused, stopped, between
+  its death and its restart): **`this computer's station is not running`** takes the place of the rail, the
+  queue and the cards, and that is all. As soon as the station runs, the line gives way to the rail at
+  the next read, without restarting the app. A project served by a box never carries it.
+- **"move the kitchen"**, next to "+ station", is the only gesture: it opens under the line the
+  choice of the machine to take it to — `Move <projet>'s kitchen from <station> to:` —, one button per
+  other paired station (`this Mac` for this computer's station), the one the app recommends
+  (always on) set apart, what each implies on hover, and **the price in one line**:
+  `Its cooks in flight stop and their tickets go back to the rail; its whole log follows it.`
+  A click on a machine moves the kitchen — to this Mac, to its box, to another station —,
+  **without removal or re-adding**. The app runs the runtime's operation on this computer
+  (`runtime/src/demenagement/demenager.ts`, with its station's directory and your
+  stations' gists): it writes the two requests, and the rest happens between the two stations.
+- **Once launched**, the line below says so (`<projet>'s kitchen moves to this Mac: parade-box hands it over
+  as soon as this Mac is ready — until then it cooks on parade-box`); while it is under way, the
+  line says `· moving to this Mac…`, its step on hover, and no other move can be requested
+  once the target station has accepted it.
+- **Refused, the reason is read in one sentence under the line, in red**, and the line does not change:
+  `parade stays on parade-box: <the runtime's reason>` — to this Mac without a sandbox, what it
+  lacks (`la configuration du bac à sable ne tient pas sur ce Mac — …`). A refusal from the target
+  station, after the fact, is stated the same way (`… : this Mac refused to take it over — …`); the choice then offers
+  `keep it on parade-box`, which takes the request back. GitHub unreachable, or a runtime that does not
+  start, are stated in one line, their detail on hover: nothing fails silently.
+- **The gesture is offered only for a project handed over from the app**, that cooks on one of your paired
+  stations: it is the app's request that the operation rewrites. A project written by hand with
+  `hote`, or served by a station without the app having asked it, has none — the operation would
+  refuse it (`add it rather than move it`). An app with no runtime next to it (a phone) launches
+  none, and says so.
+- **What it keeps from the runtime**: a move in progress is written in each station's request
+  (`remise`, `reprise`); the app re-reads them and rewrites them as they are when it rewrites those
+  requests (handing over, removing another project), otherwise it would be no more than a change of
+  main station.
+## A box reading: seven states
 
-## Une lecture de box : sept états
+At the top of a project's space panel, the reading of its box is in **one of seven states**, which do not look alike:
 
-En tête du panneau de l'espace d'un projet, la lecture de sa box est dans **un de sept états**, qui ne se ressemblent pas :
-
-| À l'écran | Ce que l'app a obtenu | Ce qu'elle montre dessous |
+| On screen | What the app got | What it shows below |
 |---|---|---|
-| `pilotable — lu à 14:32:07` | les commandes ont abouti | leurs sorties. **Un projet où rien ne se passe est ici** : un `status` calme, pas une erreur |
-| `JOINT, MAIS PLUS PILOTABLE — essai de …`, en jaune, trait pointillé | `ssh` a joint la box, et une commande y a échoué (un code autre que 255) ou n'a rien rendu en trente secondes (`ssh`, connecté, arrêté au délai) | la commande lancée, ce qu'elle a écrit, son code — puis **le geste** : mettre le runtime à jour sur sa box (`docs/runtime/exploitation.md`, « Piloter ») |
-| `JOINT, MAIS INCONNU DE LA BOX — essai de …`, en jaune, trait plein | `ssh` a joint la box, et son geste a refusé le projet (code 65) : elle ne sert aucun projet sous ce nom | **ce que le geste en a dit**, tel quel — puis le nom que l'app lui a donné, et d'où il vient (`nom`, dans `app.json`) |
-| `JOINT, MAIS SANS LE DROIT DU GESTE — essai de …`, en jaune, trait plein | `ssh` a joint la box, et son geste a refusé ton compte (code 68) : il n'est pas de ceux qui peuvent le lancer | **ce que le geste en a dit**, tel quel — puis où est écrit le geste qui donne ce droit, sur la box (`docs/installer.md`, « Ajouter un humain ») |
-| `JOINT, MAIS UNE COMMANDE MANQUE SUR LA BOX — essai de …`, en jaune, trait plein | `ssh` a joint la box, et une commande n'y a pas été trouvée : le shell de la box le dit (code 127), ou le geste, pour `sudo` (code 69) | **ce que la box en a dit**, tel quel — puis où ces commandes se posent (`docs/installer.md`, « Préparer la box ») |
-| `JOINT, MAIS LE NODE DE LA BOX NE CONVIENT PAS AU RUNTIME — essai de …`, en jaune, trait plein | `ssh` a joint la box, et son geste a refusé de lancer le runtime (code 70) : `node` n'y démarre pas dans l'environnement de l'unité, ou n'est pas la version réclamée | **ce que le geste en a dit**, tel quel — puis où se pose `node` (`docs/installer.md`, « Préparer la box »). Pas de mise à jour du runtime : ce n'est pas lui qui est vieux |
-| `PAS JOINT — essai de …`, en rouge, trait plein | rien qui prouve que la box a été jointe : `ssh` lui-même a échoué (code 255), n'a pas pu être lancé, ou a été arrêté au délai sans avoir dit jusqu'où il était allé | **le message de `ssh`**, tel quel, et son code — puis où ses phrases sont expliquées (`docs/installer.md`, « Joindre la box »), et où se donne l'accès quand c'est ta clé qu'il refuse (« Ajouter un humain »). Ou le délai, dit par l'app, sans renvoi |
+| `drivable — read at 14:32:07` | the commands succeeded | their outputs. **A project where nothing is happening is here**: a quiet `status`, not an error |
+| `REACHED, BUT NO LONGER DRIVABLE — attempt at …`, in yellow, dotted line | `ssh` reached the box, and a command failed there (a code other than 255) or returned nothing within thirty seconds (`ssh`, connected, stopped at the timeout) | the command that ran, what it wrote, its code — then **the action**: update the runtime on its box (`docs/runtime/exploitation.md`, "Piloter") |
+| `REACHED, BUT UNKNOWN TO THE BOX — attempt at …`, in yellow, solid line | `ssh` reached the box, and its action refused the project (code 65): it serves no project under that name | **what the action said about it**, as is — then the name the app gave it, and where it comes from (`nom`, in `app.json`) |
+| `REACHED, BUT WITHOUT THE ACTION'S RIGHT — attempt at …`, in yellow, solid line | `ssh` reached the box, and its action refused your account (code 68): it is not among those who may run it | **what the action said about it**, as is — then where the action that grants this right is written, on the box (`docs/installer.md`, "Add a human") |
+| `REACHED, BUT A COMMAND IS MISSING ON THE BOX — attempt at …`, in yellow, solid line | `ssh` reached the box, and a command was not found there: the box's shell says so (code 127), or the action, for `sudo` (code 69) | **what the box said about it**, as is — then where these commands go (`docs/installer.md`, "Prepare the box") |
+| `REACHED, BUT THE BOX'S NODE DOES NOT SUIT THE RUNTIME — attempt at …`, in yellow, solid line | `ssh` reached the box, and its action refused to start the runtime (code 70): `node` does not start there in the unit's environment, or is not the required version | **what the action said about it**, as is — then where `node` goes (`docs/installer.md`, "Prepare the box"). No runtime update: it is not the runtime that is old |
+| `NOT REACHED — attempt at …`, in red, solid line | nothing proves the box was reached: `ssh` itself failed (code 255), could not be launched, or was stopped at the timeout without saying how far it had gone | **`ssh`'s message**, as is, and its code — then where its sentences are explained (`docs/installer.md`, "Reach the box"), and where access is given when it is your key it refuses ("Add a human"). Or the timeout, stated by the app, with no pointer |
 
-- **L'app rapporte, elle ne devine pas.** « Plus pilotable » ne dit pas *pourquoi* la commande a
-  échoué : un runtime trop vieux pour ce qu'elle lui demande est le cas attendu, et le conseil de
-  mise à jour n'est donné que là. Ce qu'elle a obtenu est sous tes yeux. **Le code de sortie ne
-  choisit que l'en-tête et le renvoi** : 65, le projet est inconnu de la box ; 68, le droit du
-  geste te manque ; 69 ou 127, une commande manque à la box ; 70, le `node` de la box ne convient pas au runtime ; tout autre code qui en vient, plus
-  pilotable. Le texte dessous n'est jamais traduit.
-- **Un lecteur sans accès le lit comme tel**, sous deux formes que l'app ne confond pas avec une
-  panne. *Joint, sans le droit du geste* : un état à lui (68). *Clé refusée* : `ssh` sort en 255,
-  comme pour une box introuvable, et **seul son message les sépare** — l'app ne le lit pas. Elle
-  reste donc à `PAS JOINT`, montre ce que `ssh` a écrit, et nomme où le lire. Dans les deux cas
-  elle dit où est écrit le geste qui donne l'accès, et ne le rejoue pas : il se joue sur la box.
-- **« Une commande manque » ne dit pas laquelle.** 127 est le code du shell de la box pour toute
-  commande introuvable : le geste pas posé (`brigade: command not found`) est le cas attendu, et
-  c'est la box qui le nomme, au-dessus.
-- **Le code 255 est celui de `ssh`.** Une commande distante qui sortirait elle-même en 255 se
-  lirait « pas joint ».
-- **Un projet muet ne retient pas les autres** : chaque projet est lu pour lui-même, toutes les
-  trente secondes, et porte sa propre heure.
-- Un projet sans `hote` et sans cuisine sur ce poste a son panneau aussi : `aucune lecture`, et ce qui lui manque — `hote`, le nom
-  par lequel ton `ssh` joint ta box. Aucun bloc à coller.
-- Les commandes d'une lecture partent **l'une après l'autre**, et la première qui échoue est
-  l'erreur affichée : chaque écran dit ce que *ses* commandes ont rendu.
+- **The app reports, it does not guess.** "No longer drivable" does not say *why* the command
+  failed: a runtime too old for what it is asked is the expected case, and the update advice is
+  given only there. What it got is in front of you. **The exit code only picks the header and the
+  pointer**: 65, the project is unknown to the box; 68, you lack the action's right; 69 or 127, a
+  command is missing on the box; 70, the box's `node` does not suit the runtime; any other code that comes from it, no longer
+  drivable. The text below is never translated.
+- **A reader without access reads it as such**, in two forms the app does not mistake for an
+  outage. *Reached, without the action's right*: a state of its own (68). *Key refused*: `ssh` exits
+  with 255, as for a box that cannot be found, and **only its message tells them apart** — the app
+  does not read it. So it stays at `NOT REACHED`, shows what `ssh` wrote, and names where to read
+  it. In both cases it says where the action that gives access is written, and does not replay it:
+  it is played on the box.
+- **"A command is missing" does not say which.** 127 is the box shell's code for any command not
+  found: the action not installed (`brigade: command not found`) is the expected case, and
+  it is the box that names it, above.
+- **Code 255 is `ssh`'s.** A remote command that itself exited with 255 would be read as "not
+  reached".
+- **A silent project does not hold back the others**: each project is read for itself, every
+  thirty seconds, and carries its own time.
+- A project with no `hote` and no kitchen on this workstation has its panel too: `no reading`, and what it lacks — `hote`, the name
+  by which your `ssh` reaches your box. No block to paste.
+- A reading's commands go out **one after the other**, and the first one that fails is the
+  error shown: each screen says what *its* commands returned.
 
-## La barre d'icônes
+## The icon bar
 
-À gauche, une colonne de cases, façon Slack ou Discord :
+On the left, a column of tiles, Slack or Discord style:
 
-| Case | Ce que c'est |
+| Tile | What it is |
 |---|---|
-| **T**, ronde, en tête | l'écran « Tous les projets ». **En jaune** : le code de l'app, ou un clone de brigade parmi tes projets, est en retard sur son origine — le survol dit lequel, et de combien |
-| un **monogramme** par projet, dans l'ordre du fichier | son espace. Deux caractères tirés du `nom` : l'initiale de ses deux premiers mots (`brigade-site` → `BS`), ou ses deux premières lettres s'il n'en a qu'un (`brigade` → `BR`) |
-| **+**, en pointillé, en pied | ajouter un projet |
+| **T**, round, at the top | the "All projects" screen. **In yellow**: the app's code, or a brigade clone among your projects, is behind its origin — hovering says which, and by how much |
+| one **monogram** per project, in the file's order | its space. Two characters drawn from the `nom`: the initials of its first two words (`brigade-site` → `BS`), or its first two letters if it has only one (`brigade` → `BR`) |
+| **+**, dotted, at the bottom | add a project |
 
-- **Le nom entier se lit au survol** de la case, et **en tête de l'espace** une fois dedans, à
-  gauche des onglets.
-- **Deux projets peuvent porter le même monogramme** (`parade`, `partage` : `PA`). L'app ne les
-  départage pas : c'est le nom qui le fait, et l'ordre de la barre, qui est celui de ton fichier.
-- **Au coin de chaque case, une pastille : l'état de la cuisine du projet, lu sur sa box** — pas
-  déduit. Verte, `ouverte` ; jaune, `retenue` ; rouge, `arrêtée` ou `éteinte`. Le mot se lit au
-  survol, après le nom (`parade — arrêtée`). Elle est relue toutes les trente secondes, pour tous
-  les projets, quel que soit l'écran.
-- **La forme dit l'état avant la couleur** : une pastille a la forme de son ton — disque plein,
-  vert ; losange, jaune ; carré, rouge ; triangle, bleu ; anneau creux, gris. Même chose pour la
-  ligne de pilotage (`pilotable` disque, `joint mais plus pilotable` losange, `pas joint` carré),
-  la pilule de la cuisine, les grants, le manager, et la pilule `t'attend` des bons de T'attend.
-  Le libellé de chaque état reste du texte ; rien n'est lu en plus de ce que la box dit.
-- **Une pastille sans couleur n'est pas un état** : vide, c'est un mot que l'app ne connaît pas
-  (il se lit au survol, tel quel) ; un `!`, l'app
-  n'a lu aucun fait de ce projet, et le survol dit pourquoi (`aucun fait lu — PAS JOINT`). Un
-  projet sans `hote` et sans cuisine sur ce poste n'a pas de pastille.
-- **Pas de compteur dans la barre** : les nombres sont dans la carte du projet.
-- **Les cases se rangent en les glissant.** Prends la case d'un projet, glisse-la dans la barre :
-  elle s'efface à demi, et **un trait d'accent dit où elle atterrira** — avant la case survolée si
-  tu montes, après si tu descends ; rien sur sa propre case. Lâchée, elle prend cette place et les
-  autres se décalent ; lâchée hors de la barre, elle reprend la sienne. Le nouvel ordre est écrit
-  dans `app.json` — l'ordre des lignes de `projets`, rien d'autre — : tu le retrouves en rouvrant
-  l'app, et **« Tous les projets » le suit**. Un projet ajouté ensuite arrive en fin de barre. Si
-  le fichier ne peut pas être écrit (il ne se relit pas, il n'est pas inscriptible), la barre garde
-  son ordre et la raison s'affiche par-dessus l'écran. Les cases **T** et **+** ne bougent pas.
-- **Un clic reste un clic** : le glisser ne part qu'au-delà du seuil du système, et une case lâchée
-  sur elle-même ouvre son projet, comme un clic.
-- **Chaque case porte la couleur d'onglet de son projet** : sa lettre et son trait, et son fond
-  quand c'est l'espace affiché (voir « Les couleurs d'un projet »). Un projet sans couleur — un
-  fichier que l'app ne peut pas écrire — garde la case de la peau.
-- Une case en pointillé est un projet dont le dossier n'est pas là — un fait de ce poste, pas de la
+- **The full name is read on hover** over the tile, and **at the top of the space** once inside, to
+  the left of the tabs.
+- **Two projects can carry the same monogram** (`parade`, `partage`: `PA`). The app does not
+  tell them apart: the name does, and the bar's order, which is your file's.
+- **At each tile's corner, a dot: the project's kitchen state, read on its box** — not
+  deduced. Green, `open`; yellow, `held`; red, `stopped` or `off`. The word is read on
+  hover, after the name (`parade — stopped`). It is re-read every thirty seconds, for all
+  projects, whatever the screen.
+- **The shape tells the state before the color**: a dot has the shape of its tone — solid disc,
+  green; diamond, yellow; square, red; triangle, blue; hollow ring, gray. The same goes for the
+  driving line (`drivable` disc, `reached but no longer drivable` diamond, `not reached` square),
+  the kitchen pill, the grants, the manager, and the `awaiting you` pill of the slips in Awaiting you.
+  Each state's label stays text; nothing is read beyond what the box says.
+- **A dot without a color is not a state**: empty, it is a word the app does not know
+  (read on hover, as is); a `!`, the app
+  read no fact from this project, and hovering says why (`no fact read — NOT REACHED`). A
+  project with no `hote` and no kitchen on this workstation has no dot.
+- **No counter in the bar**: the numbers are in the project's tile.
+- **Tiles are rearranged by dragging them.** Take a project's tile and drag it in the bar:
+  it fades by half, and **an accent line says where it will land** — before the hovered tile if
+  you go up, after it if you go down; nothing over its own tile. Dropped, it takes that place and the
+  others shift; dropped outside the bar, it goes back to its own. The new order is written
+  in `app.json` — the order of the `projets` rows, nothing else — : you find it again on reopening
+  the app, and **"All projects" follows it**. A project added afterwards arrives at the end of the bar. If
+  the file cannot be written (it cannot be re-read, it is not writable), the bar keeps
+  its order and the reason is shown over the screen. The **T** and **+** tiles do not move.
+- **A click stays a click**: dragging starts only past the system's threshold, and a tile dropped
+  on itself opens its project, like a click.
+- **Each tile carries its project's tab color**: its letter and its line, and its background
+  when it is the space shown (see "A project's colors"). A project with no color — a
+  file the app cannot write — keeps the skin's tile.
+- A dotted tile is a project whose folder is not there — a fact about this workstation, not about the
   box.
 
-## Un espace par projet
+## One space per project
 
-Clique un projet : tu es dans son **second** — `claude`, lancé dans le dossier du projet avec le
-rôle déjà actif, sur un vrai terminal. C'est une vraie session Claude Code : ton historique, tes
-slash commands, et un `!` s'exécute sur le Mac, avec tes accès.
+Click a project: you are in its **second** — `claude`, launched in the project's folder with the
+role already active, on a real terminal. It is a real Claude Code session: your history, your
+slash commands, and a `!` runs on the Mac, with your access.
 
-**Le second n'est pas un rôle neuf : c'est le PO, et l'app l'invoque pour toi.** Elle lance
-`claude --continue /brigade:po` (ou `claude /brigade:po` quand il n'y a rien à reprendre) : tu
-n'as rien à taper, et le second lit la file du projet dès l'ouverture — ce qui attend, et le geste
-qui le débloque. Tu gardes la main : sors du rôle, ouvre des shells, fais ce que tu veux de la session.
+**The second is not a new role: it is the PO, and the app invokes it for you.** It runs
+`claude --continue /brigade:po` (or `claude /brigade:po` when there is nothing to resume): you
+have nothing to type, and the second reads the project's queue as soon as it opens — what is waiting, and the action
+that unblocks it. You keep control: leave the role, open shells, do what you want with the session.
 
-**Chaque projet a son second, et les questions produit d'un projet se posent à *son* second.**
-Trier les issues de `calculus` se demande dans l'espace de `calculus`, pas dans celui de `brigade` :
-un second ne connaît que le produit de son dossier.
+**Each project has its second, and a project's product questions go to *its* second.**
+Triaging `calculus`'s issues is asked in `calculus`'s space, not in `brigade`'s:
+a second only knows the product of its folder.
 
-**Le second est à droite, en permanence — ce n'est pas une page.** C'est le seul agent du système
-qui te parle : il a sa colonne, au bord droit de la fenêtre, sur toute sa hauteur — **l'espace des
-terminaux**. En tête, une rangée d'onglets, au même niveau : le second, tes shells, et `+ shell` ;
-dessous, une ligne qui dit ce qui vient d'être écrit dans le terminal montré, et ce terminal.
-Changer de page au centre, ouvrir un shell, en refermer un : **le second ne se ferme ni ne se
-vide**, c'est le même terminal, avec sa conversation. Et un clic à gauche — une carte du rail, un
-bouton, un geste — écrit dans lui **sans que le centre change** : la page que tu regardais reste
-ouverte, le rail reste où il est ; si un shell était montré à droite, le second reprend sa place,
-pour que tu voies ce qui y a été écrit.
+**The second is on the right, permanently — it is not a page.** It is the only agent in the system
+that talks to you: it has its column, at the window's right edge, over its full height — **the
+terminals space**. At the top, a row of tabs, on one level: the second, your shells, and `+ shell`;
+below, a line that says what was just written in the terminal shown, and which terminal.
+Changing page in the center, opening a shell, closing one: **the second neither closes nor
+empties**, it is the same terminal, with its conversation. And a click on the left — a rail card, a
+button, an action — writes into it **without the center changing**: the page you were looking at stays
+open, the rail stays where it is; if a shell was shown on the right, the second takes its place back,
+so that you see what was written there.
 
-**Chaque shell porte un bandeau, en haut de son terminal : où il est, avec quel compte** —
-`box parade-box · debian`, `this Mac · benoit`. Pour une machine distante, le compte est celui que
-ton `ssh` donne à son nom (`ssh -G`, rien n'est joint) ; s'il ne le dit pas, le bandeau écrit
-`account set by ssh`. Sa couleur est celle de l'onglet du projet : changer d'espace la change.
+**Each shell carries a banner, at the top of its terminal: where it is, with which account** —
+`box parade-box · debian`, `this Mac · benoit`. For a remote machine, the account is the one
+your `ssh` gives its name (`ssh -G`, nothing is reached); if it does not say, the banner writes
+`account set by ssh`. Its color is the project's tab color: changing space changes it.
 
-**Une session qui n'a pas le rôle ne s'appelle pas Second.** Quand l'app ouvre une session sur une
-autre commande (`/brigade:init`, pour amorcer le dépôt), l'onglet du second s'appelle **Claude** ;
-il redevient **Second** si tu le relances d'une touche, ce qui invoque `/brigade:po`.
+**A session that does not have the role is not called Second.** When the app opens a session on
+another command (`/brigade:init`, to prime the repo), the second's tab is called **Claude**;
+it becomes **Second** again if you relaunch it with one key, which invokes `/brigade:po`.
 
-- **`+ shell`** te demande **sur quelle machine** ouvrir un shell : **ce poste** (`this Mac`), **la
-  box** du projet (`box <hote>`), et **chaque station que sa box déclare** (`station studio/claude`).
-  Une station que la box fait tourner chez elle est sur la box, celle que ton poste joue est ton
-  poste : elles sont nommées sur la ligne de leur machine. Les autres — des stations `distante`
-  jouées par une autre machine — sont jointes par `ssh <machine>`, la machine étant ce qui précède
-  la barre de leur nom : c'est sous ce nom que ton `ssh` doit la connaître. Les stations sont celles
-  du dernier contrôle de la box (toutes les cinq minutes) : avant lui, seuls ce poste et la box
-  sont proposés. Un projet sans box n'a que ce poste : rien n'est à choisir, le shell s'y ouvre.
-- Ce shell est **persistant** : il vit dans une session `tmux` (ou `screen`, là où `tmux` manque)
-  sur la machine choisie, sous ton compte — sur une machine distante, celui que ton `ssh` lui
-  donne. Il s'ouvre **à droite, à côté du second** : il a son onglet (`shell 1`, `shell 2 ·
-  parade-box`…) et se montre à la place du second, qui ne s'arrête pas pour autant. **Un shell ne
-  remplace jamais le second** : un clic sur l'onglet du second le rend, avec sa conversation ; un
-  clic sur celui d'un shell le remontre, tel que tu l'as laissé. Le terminal montré prend le
-  clavier. Autant de shells que tu veux.
-- **Fermer l'app ne ferme pas tes shells** : elle s'en détache. À la réouverture, le premier clic
-  sur le projet les ramène, rattachés à leur session — la commande que tu y avais lancée tourne
-  toujours, et ce qu'elle avait affiché est là. L'app s'en souvient dans `shells.json`, à côté du
-  fichier des projets.
-- **`close shell 1`**, au bout de la rangée, ferme le shell montré **pour de bon** : son onglet s'en
-  va, sa session est détruite sur sa machine, et il ne revient plus. Si la machine ne répond pas,
-  le shell est fermé quand même, et la ligne sous les onglets dit que sa session y reste. Un shell
-  dont tu sors (`exit`) ferme lui aussi son onglet, et le second reprend sa place.
-- **Une machine qui n'est plus joignable ne fait pas disparaître son shell.** Réseau perdu,
-  machine éteinte, poste endormi : quand la connexion lâche — `ssh` laisse une machine qui ne
-  répond pas à l'ouverture au bout de dix secondes, et une connexion établie qui ne répond plus au
-  bout de trente —, le shell reste à sa place, et son terminal le dit, en jaune :
+- **`+ shell`** asks you **on which machine** to open a shell: **this workstation** (`this Mac`), the project's
+  **box** (`box <hote>`), and **each station its box declares** (`station studio/claude`).
+  A station the box runs at home is on the box, one your workstation plays is your
+  workstation: they are named on their machine's line. The others — `remote` stations
+  played by another machine — are reached by `ssh <machine>`, the machine being what precedes
+  the slash in their name: it is under this name that your `ssh` must know it. The stations are those
+  of the box's last check (every five minutes): before it, only this workstation and the box
+  are offered. A project with no box has only this workstation: nothing to choose, the shell opens there.
+- This shell is **persistent**: it lives in a `tmux` session (or `screen`, where `tmux` is missing)
+  on the chosen machine, under your account — on a remote machine, the one your `ssh` gives
+  it. It opens **on the right, next to the second**: it has its tab (`shell 1`, `shell 2 ·
+  parade-box`…) and is shown in place of the second, which does not stop for all that. **A shell never
+  replaces the second**: a click on the second's tab brings it back, with its conversation; a
+  click on a shell's tab shows it again, as you left it. The terminal shown takes the
+  keyboard. As many shells as you want.
+- **Closing the app does not close your shells**: it detaches from them. On reopening, the first click
+  on the project brings them back, reattached to their session — the command you had launched there is
+  still running, and what it had displayed is there. The app remembers them in `shells.json`, next to the
+  projects file.
+- **`close shell 1`**, at the end of the row, closes the shown shell **for good**: its tab
+  goes away, its session is destroyed on its machine, and it does not come back. If the machine does not answer,
+  the shell is closed anyway, and the line under the tabs says its session stays there. A shell
+  you leave (`exit`) also closes its tab, and the second takes its place back.
+- **A machine that is no longer reachable does not make its shell disappear.** Network lost,
+  machine off, workstation asleep: when the connection drops — `ssh` gives up on a machine that does not
+  answer at opening after ten seconds, and on an established connection that stops answering
+  after thirty —, the shell stays in place, and its terminal says so, in yellow:
   ``[brigade] box parade-box is not reachable — session `brigade-parade-1` stays there, and this
-  shell reattaches to it by itself as soon as the machine answers (a keypress tries now)``. Son
-  bandeau le dit aussi (`box parade-box · debian — not reachable`). **Sa session tient, là-bas** :
-  l'app ne la détruit pas, et s'en souvient.
-  - **Il se reconnecte seul.** L'app demande à la machine si elle répond — `ssh -o BatchMode=yes
-    -o ConnectTimeout=10 -- <hote> true`, qui ne lance rien et ne demande rien —, au bout de 2 s,
-    puis 5, 10, 20, et toutes les 30 s tant qu'elle ne répond pas ; la ligne sous les onglets dit
-    où elle en est, avec ce que `ssh` a répondu (`attempt 3: ssh: connect to host parade-box port
-    22: Network is unreachable`). Dès qu'elle répond, le shell se rattache à sa session (`answers
-    again — reattaching…`) : la commande que tu y avais lancée tourne toujours, et ce qu'elle
-    affichait est là.
-  - **Une touche essaie tout de suite**, sans attendre la prochaine sonde : c'est le rattachement
-    lui-même, dans le terminal — un `ssh` qui veut un mot de passe te le demande là. La touche
-    elle-même ne part pas. Toujours injoignable, le terminal le redit, et l'app reprend ses sondes.
-  - **Au réveil du poste**, chaque shell distant se rattache aussitôt à sa session (`this Mac woke
-    up — reattaching…`), sans attendre que `ssh` découvre que la connexion d'avant le sommeil est
-    morte. Si le réseau n'est pas encore revenu, le terminal dit la machine injoignable, et la
-    reconnexion se fait seule quand il revient.
-  - Une machine qui a redémarré n'a plus la session : le rattachement en ouvre une neuve, vide.
-    Les shells de ce poste et le second n'ont pas de connexion à perdre : rien de tout cela ne les
-    touche.
-- Le shell qu'un geste ouvre pour y écrire sa commande (un `sudo systemctl …`, un `git pull`) est,
-  lui, un shell de connexion de ce poste, dans le dossier du projet : il finit avec l'app.
-- **Changer de projet n'interrompt rien.** Chaque espace garde ses terminaux, leur contenu, la
-  page et le terminal où tu l'avais laissé : les terminaux appartiennent à l'app, pas à ce qui est
-  affiché. Revenir sur un projet te rend son second — ou le shell que tu regardais —, tel qu'il était.
-- Le second d'un projet ne démarre qu'au premier clic sur ce projet.
-- Un projet dont le dossier n'est pas là n'a pas de second : sa colonne dit pourquoi, à sa place.
+  shell reattaches to it by itself as soon as the machine answers (a keypress tries now)``. Its
+  banner says so too (`box parade-box · debian — not reachable`). **Its session holds, over there**:
+  the app does not destroy it, and remembers it.
+  - **It reconnects by itself.** The app asks the machine whether it answers — `ssh -o BatchMode=yes
+    -o ConnectTimeout=10 -- <hote> true`, which launches nothing and asks nothing —, after 2 s,
+    then 5, 10, 20, and every 30 s as long as it does not answer; the line under the tabs says
+    where it stands, with what `ssh` answered (`attempt 3: ssh: connect to host parade-box port
+    22: Network is unreachable`). As soon as it answers, the shell reattaches to its session (`answers
+    again — reattaching…`): the command you had launched there is still running, and what it
+    displayed is there.
+  - **A keypress tries right away**, without waiting for the next probe: it is the reattachment
+    itself, in the terminal — an `ssh` that wants a password asks you for it there. The keypress
+    itself is not sent. Still unreachable, the terminal says so again, and the app resumes its probes.
+  - **When the workstation wakes**, each remote shell reattaches to its session at once (`this Mac woke
+    up — reattaching…`), without waiting for `ssh` to find out that the connection from before the sleep is
+    dead. If the network has not come back yet, the terminal says the machine is unreachable, and the
+    reconnection happens by itself when it returns.
+  - A machine that rebooted no longer has the session: the reattachment opens a new, empty one.
+    This workstation's shells and the second have no connection to lose: none of this touches them.
+- The shell that an action opens to write its command in (a `sudo systemctl …`, a `git pull`) is,
+  for its part, a login shell of this workstation, in the project's folder: it ends with the app.
+- **Changing project interrupts nothing.** Each space keeps its terminals, their content, the
+  page and the terminal where you left it: the terminals belong to the app, not to what is
+  displayed. Coming back to a project gives you back its second — or the shell you were looking at — as it was.
+- A project's second starts only at the first click on that project.
+- A project whose folder is not there has no second: its column says why, in its place.
 
-### Les couleurs d'un projet
+### A project's colors
 
-**Chaque projet a deux couleurs, pour que tu le reconnaisses sans lire son nom** : sa **couleur
-d'onglet**, que porte sa case dans la barre, et sa **couleur d'accent**, que porte son espace — un
-trait en tête de l'écran et du second, son nom, l'onglet ouvert, ce qui a le clavier. Hors d'un
-espace (« Tous les projets », l'ajout), l'accent est celui de la peau.
+**Each project has two colors, so that you recognize it without reading its name**: its **tab
+color**, carried by its tile in the bar, and its **accent color**, carried by its space — a
+line at the top of the screen and of the second, its name, the open tab, what has the keyboard. Outside
+a space ("All projects", the add form), the accent is the skin's.
 
-- **Elles sont tirées pour toi** quand le projet entre dans le fichier des projets — ajouté depuis
-  l'app, écrit à la main, ou déclaré avant que les couleurs existent (il reçoit les siennes au
-  lancement suivant). Chacune est tirée parmi celles qu'**aucun autre projet ne porte dans le même
-  rôle** : deux projets n'ont la même couleur d'onglet, ou d'accent, que quand la palette est
-  épuisée. Elles sont **écrites dans `app.json`** (`couleurs`) : fermer et rouvrir l'app ne les
-  change pas.
-- **Tu les changes sous Paramètres → Réglages**, bloc « Couleurs » : une rangée pour l'onglet, une
-  pour l'accent, une pastille par couleur de la palette, celle que porte le projet cerclée. Un clic
-  l'écrit dans `app.json`, et **la barre et l'espace la prennent aussitôt**. Une couleur que tu as
-  écrite à la main hors de la palette se montre au bout de sa rangée, cerclée.
-- **La palette** : orange, violet, turquoise, rose, sable, indigo, orchidée (`app/src/couleurs.ts`).
-  **Aucune n'est une couleur d'état** : le vert, le jaune, le rouge, le bleu et le gris de la peau —
-  une alerte, un « non vérifié », un projet sain — ne changent pas d'un projet à l'autre, et aucune
-  couleur de projet ne les remplace.
+- **They are drawn for you** when the project enters the projects file — added from the
+  app, written by hand, or declared before colors existed (it gets its own at the next
+  launch). Each is drawn from among those that **no other project carries in the same
+  role**: two projects share a tab color, or an accent, only when the palette is
+  exhausted. They are **written in `app.json`** (`couleurs`): closing and reopening the app does not
+  change them.
+- **You change them under Settings → Preferences**, "Colors" block: a row for the tab, one
+  for the accent, one dot per palette color, the one the project carries circled. A click
+  writes it to `app.json`, and **the bar and the space take it at once**. A color you wrote
+  by hand outside the palette shows at the end of its row, circled.
+- **The palette**: orange, violet, turquoise, pink, sand, indigo, orchid (`app/src/couleurs.ts`).
+  **None is a state color**: the skin's green, yellow, red, blue and gray —
+  an alert, a "not verified", a healthy project — do not change from one project to another, and no
+  project color replaces them.
 
-### L'onglet Paramètres, et le journal par son geste
+### The Settings tab, and the log by its action
 
-**Un seul onglet est posé en haut, à côté du nom du projet : Paramètres.** Le coût n'en est plus un (#1022) : celui
-de tous les projets vit au niveau de l'app (voir « Le coût de tous les projets »), celui du projet sous Reliability.
-**Paramètres** ouvre l'état du projet —
-l'installation, **la sauvegarde et son ancienneté**, les pages servies, le retrait, les couleurs du projet, et
-`status` tel que la box le rend —, avec dessous une rangée de lectures : Réglages, Rail, Cooks,
-Manager, Grants, Reliability (voir « La lecture Reliability »), Closer (voir « La lecture Closer »). **Cooks** n'y
-est plus (#1184) : c'est l'onglet Cooks de l'espace, qui relaie `station`, lu sur la box du seul projet affiché, sous
-ses colonnes — déplié, avec, sous l'heure de sa lecture, le bouton « Set the cooks of a station… » ; il n'est lu que
-tant que l'onglet est montré. Une ligne de la bande d'alertes dont la cause se règle là y mène en un clic. **Le journal
-(Log) n'a pas d'onglet** : le bouton « journal », à côté des onglets, ouvre la fin du journal
-par-dessus le rail ; le recliquer le ferme. Les sept lectures ci-dessous sont celles de cet onglet et de ce
-geste.
+**Only one tab is set at the top, next to the project's name: Settings.** Cost is no longer one (#1022): that
+of all projects lives at the app level (see "The cost of all projects"), the project's under Reliability.
+**Settings** opens the project's state —
+the installation, **the backup and its age**, the pages served, the removal, the project's colors, and
+`status` as the box renders it —, with below it a row of readings: Preferences, Rail, Cooks,
+Manager, Grants, Reliability (see "The Reliability reading"), Closer (see "The Closer reading"). **Cooks** is
+no longer there (#1184): it is the space's Cooks tab, which relays `station`, read on the box of the single project shown, under
+its columns — unfolded, with, under the time of its reading, the "Set the cooks of a station…" button; it is read only
+while the tab is shown. An alert-band line whose cause is fixed there leads to it in one click. **The log
+(Log) has no tab**: the "log" button, next to the tabs, opens the end of the log
+over the rail; clicking it again closes it. The seven readings below are those of this tab and of this
+action.
 
-**Le rail dessiné est au centre de l'espace, partagé entre ses deux onglets** (voir « Le rail ») : On the
-rail, TODO, WAITING et Served sur Rail ; Taken et Pass sur Cooks. **L'espace s'ouvre sans page** : l'onglet
-montré a tout le centre, sur toute la hauteur. **Une page s'ouvre par-dessus le rail** : elle le couvre entier, sans le défaire —
-il reste posé dessous, et relu, mais rien de lui ne se clique au travers. Recliquer l'onglet referme
-la page, et **le rail revient tel que tu l'avais laissé**, défilé où il l'était. La bande d'alertes,
-au-dessus, reste visible : aucune page ne la couvre, ni les terminaux, à droite.
+**The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): On the
+rail, TODO, WAITING and Served on Rail; Taken and Pass on Cooks. **The space opens with no page**: the shown
+tab has the whole center, over its full height. **A page opens over the rail**: it covers it entirely, without undoing it —
+it stays laid underneath, and re-read, but nothing of it can be clicked through. Clicking the tab again closes
+the page, and **the rail comes back as you left it**, scrolled where it was. The alert band,
+above, stays visible: no page covers it, nor do the terminals, on the right.
 
-Dans ces pages, sept **lectures de contenu**. Une lecture relaie **en texte, mot pour mot,** la sortie d'une commande du runtime
-(`docs/runtime/exploitation.md`, « Piloter »). **Manager** montre d'abord l'état du manager, **Grants** celui
-des grants :
+In these pages, seven **content readings**. A reading relays **as text, word for word,** the output of a runtime command
+(`docs/runtime/exploitation.md`, "Piloter"). **Manager** first shows the manager's state, **Grants** that
+of the grants:
 
-| Onglet | La commande que l'app lance sur la box | Ce que tu y lis |
+| Tab | The command the app runs on the box | What you read there |
 |---|---|---|
-| **Rail** | `ssh <hote> brigade <nom> rail` | le texte de `rail`, tel que la box le rend : chaque ticket sur sa ligne, sa fiche dessous — le rail dessiné, lui, est au centre, sous la page |
-| **Cooks** | `ssh <hote> brigade <nom> station` | la station : les cooks, la machine, le quota — sur l'onglet Cooks, pas sous Paramètres |
-| **Manager** | `ssh <hote> brigade <nom> manager` | **l'état du manager** (voir « L'onglet Manager ») — allumé ou éteint, depuis quand et par qui, ses dernières décisions, ce qu'il a écarté et pourquoi —, puis le texte de `manager`, qui dit aussi les épiques et ses réactions aux échecs |
-| **Grants** | `ssh <hote> brigade <nom> grant` | **l'état des grants** (voir « L'onglet Grants ») — lequel est actif, son échéance avec la durée restante en tête, ses derniers usages, ce qu'aucun grant n'autorise —, puis le texte de `grant`, qui dit aussi les derniers gestes (accordé, prolongé, révoqué, éteint seul, refusé) |
-| **Reliability** | `ssh <hote> brigade <nom> station`, puis `ssh <hote> brigade <nom> measures --last <fenêtre> --by 1` | **la fiabilité des cooks du projet** (voir « La lecture Reliability »), puis les deux textes, repliés |
-| **Closer** | `ssh <hote> brigade <nom> closing --json` | **la partie closer du projet** (voir « La lecture Closer »), puis l'objet que la box a rendu, replié |
-| **Log** | `ssh <hote> brigade <nom> log --last 200` | la fin du journal : les 200 derniers événements, pas le journal entier — la ligne sous les onglets le dit |
+| **Rail** | `ssh <hote> brigade <nom> rail` | the text of `rail`, as the box renders it: each ticket on its line, its card below — the drawn rail, for its part, is at the center, under the page |
+| **Cooks** | `ssh <hote> brigade <nom> station` | the station: the cooks, the machine, the quota — on the Cooks tab, not under Settings |
+| **Manager** | `ssh <hote> brigade <nom> manager` | **the manager's state** (see "The Manager tab") — on or off, since when and by whom, its latest decisions, what it set aside and why —, then the text of `manager`, which also tells the epics and its reactions to failures |
+| **Grants** | `ssh <hote> brigade <nom> grant` | **the grants' state** (see "The Grants tab") — which is active, its expiry with the remaining duration first, its latest uses, what no grant authorizes —, then the text of `grant`, which also tells the latest actions (enabled, extended, revoked, lapsed, refused) |
+| **Reliability** | `ssh <hote> brigade <nom> station`, then `ssh <hote> brigade <nom> measures --last <window> --by 1` | **the reliability of the project's cooks** (see "The Reliability reading"), then the two texts, folded |
+| **Closer** | `ssh <hote> brigade <nom> closing --json` | **the project's closer part** (see "The Closer reading"), then the object the box returned, folded |
+| **Log** | `ssh <hote> brigade <nom> log --last 200` | the end of the log: the last 200 events, not the whole log — the line under the tabs says so |
 
-- **Seul l'onglet affiché est lu** : sa commande part quand tu l'ouvres, puis toutes les trente
-  secondes tant qu'il est à l'écran. En changer, le refermer ou quitter l'espace arrête sa
-  lecture. Sans onglet de contenu ouvert, l'app ne lance donc pour ce projet que `status` ; avec
-  un, `status` et la commande de l'onglet — jamais les sept (Reliability en lance deux, l'une après l'autre). S'y ajoute `faits`, lu pour
-  **tous** les projets quel que soit l'écran : c'est lui que la barre dessine.
-- **Ce qui t'attend reste sous tes yeux** : le panneau, entre le centre et le second — l'état du projet, le bloc
-  `attend`, le reste de `status` — ne bouge pas quand tu changes d'onglet.
-- **Un onglet a sa propre lecture**, avec son heure (`lu à 14:32:07`) et, si elle rate, son erreur :
-  les mêmes en-têtes que le panneau (`PAS JOINT — …`, `JOINT, MAIS PLUS PILOTABLE — …`), et dessous
-  ce que l'app a obtenu, tel quel. **Une commande qui échoue dans un onglet ne retire rien au
-  panneau** — un runtime trop vieux pour `journal` laisse `status` lisible à côté — et l'inverse.
-- Un runtime qui ne connaît pas encore `--last` rend son usage en erreur : il se lit dans l'onglet comme toute commande en échec.
-- Sous les onglets, la ligne dit ce que tu lis : ``la sortie de `ssh <hote> brigade <nom> rail`, telle que la box la
-  rend — relue seule toutes les trente secondes, tant que cet onglet est affiché``.
-- Un projet sans `hote` et sans cuisine sur ce poste a ses sept onglets, et chacun dit `aucune lecture` et ce qui manque.
-- **Rien n'y est dessiné** : seuls l'état du manager et celui des grants y sont posés
-  au-dessus de leur texte. Rail, Cooks et Log sont du texte que tu peux sélectionner et copier, comme le
-  texte de tout onglet. Les seuls boutons sont ceux qui écrivent une commande dans le second — sur
-  **Grants** et **Cooks**, sous l'heure de la lecture (« Les boutons écrivent, ils n'envoient
-  pas ») —, les deux gestes du manager et ceux de chaque grant, qui l'écrivent dans un shell
-  (« L'onglet Manager », « L'onglet Grants »). Au-dessus, sur le rail, un numéro ouvre son issue.
-- L'espace te rend l'onglet où tu l'avais laissé, onglet de contenu compris.
+- **Only the displayed tab is read**: its command goes out when you open it, then every thirty
+  seconds as long as it is on screen. Changing it, closing it or leaving the space stops its
+  reading. With no content tab open, the app therefore runs only `status` for this project; with
+  one, `status` and the tab's command — never all seven (Reliability runs two, one after the other). Added to this is `facts`, read for
+  **all** projects whatever the screen: it is what the bar draws.
+- **What awaits you stays in front of you**: the panel, between the center and the second — the project's state, the
+  `awaiting` block, the rest of `status` — does not move when you change tab.
+- **A tab has its own reading**, with its time (`read at 14:32:07`) and, if it fails, its error:
+  the same headers as the panel (`NOT REACHED — …`, `REACHED, BUT NO LONGER DRIVABLE — …`), and below
+  what the app got, as is. **A command that fails in a tab takes nothing away from the
+  panel** — a runtime too old for `log` leaves `status` readable beside it — and the reverse.
+- A runtime that does not yet know `--last` returns its usage as an error: it is read in the tab like any failing command.
+- Under the tabs, the line says what you are reading: ``the output of `ssh <hote> brigade <nom> rail`, as the box
+  renders it — re-read alone every thirty seconds, as long as this tab is displayed``.
+- A project with no `hote` and no kitchen on this workstation has its seven tabs, and each says `no reading` and what is missing.
+- **Nothing is drawn there**: only the manager's state and the grants' are laid
+  above their text. Rail, Cooks and Log are text you can select and copy, like the
+  text of any tab. The only buttons are those that write a command in the second — on
+  **Grants** and **Cooks**, under the reading's time ("Buttons write, they do not send") —,
+  the manager's two actions and those of each grant, which write it in a shell
+  ("The Manager tab", "The Grants tab"). Above, on the rail, a number opens its issue.
+- The space gives you back the tab where you left it, content tab included.
 
-### La lecture Reliability
+### The Reliability reading
 
-*Ticket : #987.* Sous **Paramètres → Reliability**, **la fiabilité des cooks du projet, sur ses derniers
-tickets servis**, et **ce que le projet a coûté** (#1022). Elle n'est pas un onglet en haut : le seul y est Paramètres.
+*Ticket: #987.* Under **Settings → Reliability**, **the reliability of the project's cooks, over its latest
+served tickets**, and **what the project cost** (#1022). It is not a tab at the top: the only one there is Settings.
 
-- **En tête, trois chiffres** : la part **livrée du premier coup** (« 1 of 7 · 14% »), face à son seuil ;
-  le **nombre moyen d'essais par ticket** ; les **tokens perdus en essais ratés**, face à leur plafond.
-  Dessous, une ligne dit sur quels tickets ils portent : `7 merged of the last 10 tickets served — 3 not
+- **At the top, three figures**: the share **delivered first time** ("1 of 7 · 14%"), against its threshold;
+  the **average number of attempts per ticket**; the **tokens lost on failed attempts**, against their cap.
+  Below, a line says over which tickets they are taken: `7 merged of the last 10 tickets served — 3 not
   merged, left out`.
-- **Puis les causes d'échec qui reviennent le plus, trois au plus** : chacune avec son nombre d'essais,
-  sa part des essais ratés, et ses derniers tickets — trois au plus, les plus récents d'abord. **Un clic
-  sur un ticket ouvre sa fiche**, par-dessus la page, avec son histoire (comme ses tickets les plus chers,
-  dessous). Sans essai raté, `no failed attempt`.
-- **Un chiffre au-delà de son seuil passe en rouge** — la part du premier coup *sous* le sien, les perdus
-  *au-dessus* du leur —, comme la ligne `drift` de `status` le signale. Le nombre moyen d'essais n'a pas
-  de seuil. Un seuil que le chef n'a pas posé : celui du runtime pour le premier coup, `50% (default)` ;
-  aucun pour les perdus, `no ceiling set`, et rien n'est jugé.
-- **Pas encore assez de tickets servis pour mesurer, la page le dit** —
-  `not enough tickets served yet to measure: 6 of the 10 it takes`, ou `none of the last 10 tickets
-  served is merged yet` —, **jamais des zéros**.
-- **Dessous, les causes qu'une correction des consignes visait** (#1001, épique #994), sous « corrected causes:
-  before and after the merge » — **une carte par correction acceptée** (voir « Une correction proposée des
-  consignes du projet »), la plus ancienne d'abord : la cause, **le mot du runtime en tête** — `recedes` en
-  vert, `does not recede` en rouge —, la PR de la correction et le jour de son merge, puis **côte à côte la part
-  des tickets que la cause a fait rater avant le merge, et après** (`30%`, `6 of 20 tickets failed because of
-  it`), chacune avec ses trois derniers tickets atteints, dont un clic ouvre la fiche. Ce que chaque côté
-  regarde est au survol de son nom. **Tant qu'il n'y a rien à comparer, la carte le dit en mots, jamais par un
-  chiffre** : pas encore mergée (`not merged yet`, sans avant ni après), mergée sans ticket fini depuis
-  (`nothing to compare yet` — l'avant, et `not yet` à la place de l'après), ou qui ne le sera pas (`not
-  merged`). **Sans correction acceptée, la section n'est pas posée**, et rien n'est dit à sa place. Elle vient
-  de `facts` (`reculs`, `docs/runtime/etat-et-mesures.md`, « Une correction mergée recule-t-elle sa cause ? »),
-  lu à côté (`app/src/recul.ts`) : l'app ne juge rien, « recule » est le verdict du runtime ; une box pas
-  jointe garde la dernière lecture.
-- **Puis ce que les cooks ont appris au projet** (#1058, épique #1034), sous « what the cooks learned ». **Ses
-  leçons**, provisoires puis promues dans l'ordre de `facts`, une ligne chacune : le statut en pastille
-  (`provisional`, `promoted` dans le ton de l'accent ; son sens au survol de la pastille), l'identifiant en
-  monospace et le texte, puis le jour de son entrée (`since 10/1/2026`), **les tickets qui l'ont proposée** —
-  un clic ouvre la fiche — et **le nombre de cooks qui l'ont reçue** (`received by 14 cooks`, ou `received by
-  no cook yet`). **Une promue porte « open in the notebook »** : le bouton ouvre, dans le navigateur, sa ligne
-  du carnet du projet sur GitHub — l'adresse que `facts` a donnée pour cette leçon, et aucune autre (la vue
-  nomme la leçon, le process principal tient l'adresse) —, **sans rien créer : ni branche, ni PR** ; pour la
-  retirer, le chef ouvre lui-même sa PR. Sans adresse (la box ne connaît pas le dépôt), le bouton est inactif,
-  et son survol le dit. Une provisoire n'a pas de lien. **Ses profils** : le nom, le domaine (`for
-  app/src/vue`), le carnet — chaque leçon par son identifiant et son texte, son état quand elle n'est plus
-  promue (`retired`, `expired`), ou `empty` — et **les tickets qu'il a cuisinés** (`cooked #29 #36`, ou `none
-  yet`). **Chaque leçon et chaque profil montre aussi son progrès** (#1059) : sous sa ligne, la part livrée du
-  premier coup (`60% (6 of 10)`) et les essais moyens par ticket (`1.5 on average`), **avant puis après son
-  entrée** — les chiffres de `progres` dans `facts`. Un côté sans ticket mergé se dit en mots, `not enough
-  tickets yet`, jamais par 0 ni NaN. Une partie vide se dit en une ligne (`no profile yet`). **Tant que le projet n'a ni leçon ni profil,
-  la section dit une seule phrase** — `The cooks have learned nothing on this project yet: no lesson, no
-  profile.` —, **et aucune liste**. Elle vient de `facts` (`apprentissage`, `docs/runtime/etat-et-mesures.md`),
-  lu par `app/src/apprentissage.ts` ; un runtime d'avant ce champ ne le rend pas non plus, et la page dit la
-  même phrase. Tant que les faits du projet ne sont pas lus, la section n'est pas posée.
-- **À côté, ce que le projet a coûté, et lui seul** (#1022), sous « cost of this project » : **ses tokens
-  perdus** et **ses tickets les plus chers**, les mêmes blocs que sur la page des coûts de l'app (voir « Le
-  coût de tous les projets ») — un clic sur le chiffre déploie la liste des cooks perdus, un clic sur un
-  ticket ouvre sa fiche —, mais **lus dans le `station` de sa seule box** : aucun chiffre d'un autre projet
-  n'y entre. **Ses seuils y sont mis en évidence comme sur la page de l'app** : au-delà de `seuil-ticket`
-  ou de `seuil-perdus`, le bloc passe en rouge et une ligne porte le geste ; un seuil non posé se dit
-  « ceiling: not communicated ». Les tokens perdus d'ici ne sont pas ceux de la tête : ceux-là sont les
-  essais ratés des 10 derniers merges (`measures`) ; ceux-ci, les essais rouges et les cooks interrompus
-  parmi les derniers cooks que `station` liste.
+- **Then the failure causes that come back most, three at most**: each with its number of attempts,
+  its share of the failed attempts, and its latest tickets — three at most, most recent first. **A click
+  on a ticket opens its card**, over the page, with its history (like its most expensive tickets,
+  below). With no failed attempt, `no failed attempt`.
+- **A figure past its threshold turns red** — the first-time share *below* its own, the lost tokens
+  *above* theirs —, as the `drift` line of `status` flags it. The average number of attempts has
+  no threshold. A threshold the chef has not set: the runtime's for first time, `50% (default)`;
+  none for the lost tokens, `no ceiling set`, and nothing is judged.
+- **Not enough served tickets yet to measure, the page says so** —
+  `not enough tickets served yet to measure: 6 of the 10 it takes`, or `none of the last 10 tickets
+  served is merged yet` —, **never zeros**.
+- **Below, the causes a correction of the guidelines aimed at** (#1001, epic #994), under "corrected causes:
+  before and after the merge" — **one panel per accepted correction** (see "A proposed correction to the
+  project's guidelines"), oldest first: the cause, **the runtime's word at the top** — `recedes` in
+  green, `does not recede` in red —, the correction's PR and the day of its merge, then **side by side the share
+  of tickets the cause made fail before the merge, and after** (`30%`, `6 of 20 tickets failed because of
+  it`), each with its three latest tickets hit, a click on which opens the card. What each side
+  looks at is on hover over its name. **While there is nothing to compare, the panel says so in words, never by a
+  figure**: not merged yet (`not merged yet`, with no before or after), merged with no ticket finished since
+  (`nothing to compare yet` — the before, and `not yet` in place of the after), or that will not be (`not
+  merged`). **With no accepted correction, the section is not laid**, and nothing is said in its place. It comes
+  from `facts` (`reculs`, `docs/runtime/etat-et-mesures.md`, "Une correction mergée recule-t-elle sa cause ?"),
+  read alongside (`app/src/recul.ts`): the app judges nothing, "recedes" is the runtime's verdict; a box not
+  reached keeps the last reading.
+- **Then what the cooks taught the project** (#1058, epic #1034), under "what the cooks learned". **Its
+  lessons**, provisional then promoted in `facts` order, one line each: the status as a dot
+  (`provisional`, `promoted` in the accent's tone; its meaning on hovering the dot), the identifier in
+  monospace and the text, then the day of its entry (`since 10/1/2026`), **the tickets that proposed it** —
+  a click opens the card — and **the number of cooks that received it** (`received by 14 cooks`, or `received by
+  no cook yet`). **A promoted one carries "open in the notebook"**: the button opens, in the browser, its line
+  of the project's notebook on GitHub — the address `facts` gave for this lesson, and no other (the view
+  names the lesson, the main process holds the address) —, **creating nothing: no branch, no PR**; to
+  remove it, the chef opens their own PR. With no address (the box does not know the repo), the button is inactive,
+  and hovering says so. A provisional one has no link. **Its profiles**: the name, the domain (`for
+  app/src/vue`), the notebook — each lesson by its identifier and its text, its state when it is no longer
+  promoted (`retired`, `expired`), or `empty` — and **the tickets it cooked** (`cooked #29 #36`, or `none
+  yet`). **Each lesson and each profile also shows its progress** (#1059): under its line, the share delivered
+  first time (`60% (6 of 10)`) and the average attempts per ticket (`1.5 on average`), **before then after its
+  entry** — the figures of `progres` in `facts`. A side with no merged ticket is said in words, `not enough
+  tickets yet`, never by 0 or NaN. An empty part is said in one line (`no profile yet`). **While the project has neither lesson nor profile,
+  the section says a single sentence** — `The cooks have learned nothing on this project yet: no lesson, no
+  profile.` —, **and no list**. It comes from `facts` (`apprentissage`, `docs/runtime/etat-et-mesures.md`),
+  read by `app/src/apprentissage.ts`; a runtime from before this field does not return it either, and the page says the
+  same sentence. While the project's facts are not read, the section is not laid.
+- **Alongside, what the project cost, and it alone** (#1022), under "cost of this project": **its lost
+  tokens** and **its most expensive tickets**, the same blocks as on the app's cost page (see "The
+  cost of all projects") — a click on the figure unfolds the list of lost cooks, a click on a
+  ticket opens its card —, but **read in the `station` of its own box only**: no figure from another project
+  enters. **Its thresholds are highlighted there as on the app's page**: past `seuil-ticket`
+  or `seuil-perdus`, the block turns red and a line carries the action; a threshold not set is said
+  "ceiling: not communicated". The lost tokens here are not those of the top: those are the
+  failed attempts of the last 10 merges (`measures`); these, the red attempts and the interrupted cooks
+  among the latest cooks that `station` lists.
 
-**D'où ça vient** (`app/src/fiabilite.ts`). L'app ne calcule rien et ne demande rien de neuf au runtime :
-elle lit ce que `measures` écrit (`docs/runtime/etat-et-mesures.md`, « Le relevé des mesures ») — les blocs
-`retries`, `failures` et `launches` —, et les réglages du chef sous « chef's decisions » de `station`.
+**Where it comes from** (`app/src/fiabilite.ts`). The app computes nothing and asks the runtime for nothing new:
+it reads what `measures` writes (`docs/runtime/etat-et-mesures.md`, "Le relevé des mesures") — the blocks
+`retries`, `failures` and `launches` —, and the chef's settings under "chef's decisions" of `station`.
 
-- **La fenêtre est celle de la dérive du premier coup** : `fenetre-renvois` (10 faute de réglage), son
-  seuil `seuil-renvois` (50 %). La lecture lance donc `station`, puis `measures --last <fenêtre>` : la page
-  et la ligne `drift` de `status` jugent les mêmes tickets. **Le minimum pour mesurer est celui de la
-  dérive** : la fenêtre pleine, dont au moins un ticket mergé. Les tickets servis non mergés (en cours,
-  abandonnés, servis sans diff) sont écartés, et la ligne sous les chiffres le dit.
-- **Les tokens perdus sont ceux que le runtime juge face à `seuil-perdus`** : sur les 10 derniers merges.
-  `--by 1` range chaque merge dans sa tranche, pour que chaque ligne du bloc `launches` porte son rang ;
-  l'app somme la colonne `lost` des dix derniers. Un lancement dont les tokens ne sont pas connus rend la
-  somme « ≥ ».
-- Une box dont `measures` ne compte pas encore les renvois (un runtime d'avant #946) : la page dit en une
-  ligne que la fiabilité n'est pas communiquée, le détail au survol. Une lecture ratée, de même.
-- **Ce que le projet a coûté vient du même `station`**, celui que cette lecture lance d'abord : aucune
-  commande de plus ne part. Une lecture ratée le laisse « not communicated ».
+- **The window is that of the first-time drift**: `fenetre-renvois` (10 absent a setting), its
+  threshold `seuil-renvois` (50%). The reading therefore runs `station`, then `measures --last <window>`: the page
+  and the `drift` line of `status` judge the same tickets. **The minimum to measure is the drift's**:
+  the full window, of which at least one merged ticket. Served tickets that are not merged (in progress,
+  dropped, served with no diff) are set aside, and the line under the figures says so.
+- **The lost tokens are those the runtime judges against `seuil-perdus`**: over the last 10 merges.
+  `--by 1` puts each merge in its own slice, so that each row of the `launches` block carries its rank;
+  the app sums the `lost` column of the last ten. A launch whose tokens are not known makes the
+  sum "≥".
+- A box whose `measures` does not yet count returns (a runtime from before #946): the page says in one
+  line that reliability is not communicated, the detail on hover. A failed reading, likewise.
+- **What the project cost comes from the same `station`**, the one this reading runs first: no
+  extra command goes out. A failed reading leaves it "not communicated".
 
-**Sur l'accueil, la ligne d'un projet dont la fiabilité a dérivé le dit d'un mot : `drifting`** — quand le
-`status` du projet porte une ligne `drift` sur la part du premier coup, ou sur les tokens perdus. Ce qu'elle
-dit est au survol ; la pastille ne change pas : rien n'attend le chef, rien ne bloque. Les autres seuils
-(tests, dépôt, ticket le plus cher) ne sont pas la fiabilité des cooks, et n'y ajoutent rien.
+**On the home screen, the line of a project whose reliability has drifted says so in one word: `drifting`** — when the
+project's `status` carries a `drift` line on the first-time share, or on the lost tokens. What it
+says is on hover; the dot does not change: nothing awaits the chef, nothing blocks. The other thresholds
+(tests, repo, most expensive ticket) are not the cooks' reliability, and add nothing to it.
 
-### La lecture Closer
+### The Closer reading
 
-*Ticket : #990 (épique #986).* Sous **Paramètres → Closer**, **la partie « closer » du projet** : ce que la
-dernière observation du closer a repéré (`docs/runtime/fermeture.md`, « La fermeture qui observe »). Elle
-est une lecture de plus, à côté de Reliability : les deux onglets du haut restent deux.
+*Ticket: #990 (epic #986).* Under **Settings → Closer**, **the project's "closer" part**: what the
+closer's last observation spotted (`docs/runtime/fermeture.md`, "La fermeture qui observe"). It
+is one more reading, next to Reliability: the two top tabs stay two.
 
-- **En tête, quatre chiffres** : les **merges depuis le dernier nettoyage**, le rapport **ajouté / retiré**
-  (`2.5:1`, ou `nothing removed`, comme `closing` le dit — sur sa plus longue fenêtre, avec dessous
-  `+18,340 / −7,336 · last 100 merges`), les **doublons** et les **exports morts**. Le calibrage du closer
-  est dit à côté du titre (`closer sonnet / medium`).
-- **Un bouton déplie ce qui a été repéré** — `show what was found (8)` —, et le recliquer le replie ;
-  dépliée, la liste le reste aux relectures. Une ligne par trouvaille, sous le nom que la passe lui donne :
-  `D1  app/src/vue/vue.js:1405-1428  24 lines also at app/src/vue/fiabilite.js:40-63`, ou
-  `M1  runtime/src/mesures.ts:212  export ancienneJauge named by tests only`. Rien de repéré : `nothing found`.
-- **Sans closer réglé, la partie le dit** — `No closer is set on this project.` — **et donne le geste
-  qui en règle un, en bouton** : le modèle et l'effort se choisissent ensemble, dans deux listes fermées
-  (celles que la station accepte), et **« Set the closer… »**, le bouton recommandé, n'agit qu'une fois les
-  deux choisis — l'un sans l'autre fait refuser le démarrage (`docs/runtime/fermeture.md`). Comme les
-  boutons d'action (« Les boutons écrivent, ils n'envoient pas »), il **écrit dans le second, sans
-  l'envoyer**, les deux gestes de la doc sur une ligne — `!ssh <hote> brigade <nom> station closer-modele
-  <modèle> && ssh <hote> brigade <nom> station closer-effort <effort>` — : le chef fait Entrée. Ce qu'il
-  écrit, et les valeurs acceptées, sont au survol ; aucune commande n'est affichée. Le choix tient aux
-  relectures. Ce qui s'écrit se compose dans le process principal (`app/src/boutons.ts`, `ecritPourLeCloser`),
-  qui refuse une valeur hors des listes. **Aucun chiffre.**
-- **Une branche d'intégration illisible** : les merges restent (le journal les tient seul), les trois autres
-  chiffres disent `not communicated`, et une ligne `the integration branch could not be read` porte la raison
-  au survol. Une lecture ratée — une box sans journal, un runtime d'avant `closing --json` — tient en une ligne,
-  `the closer could not be read`, le détail au survol.
-- **Sous la liste, le lancement d'un nettoyage** (`closer-lancement`, #991) — voir ci-dessous. Sous lui, le
-  **bilan de la dernière passe finie** (`closer-bilan`, #992) — voir ci-dessous.
+- **At the top, four figures**: the **merges since the last cleanup**, the **added / removed**
+  ratio (`2.5:1`, or `nothing removed`, as `closing` says it — over its longest window, with below it
+  `+18,340 / −7,336 · last 100 merges`), the **duplicates** and the **dead exports**. The closer's calibration
+  is stated next to the title (`closer sonnet / medium`).
+- **A button unfolds what was spotted** — `show what was found (8)` —, and clicking it again folds it;
+  once unfolded, the list stays so across re-readings. One line per finding, under the name the pass gives it:
+  `D1  app/src/vue/vue.js:1405-1428  24 lines also at app/src/vue/fiabilite.js:40-63`, or
+  `M1  runtime/src/mesures.ts:212  export ancienneJauge named by tests only`. Nothing spotted: `nothing found`.
+- **With no closer set, the part says so** — `No closer is set on this project.` — **and gives the action
+  that sets one, as a button**: the model and the effort are chosen together, in two closed lists
+  (those the station accepts), and **"Set the closer…"**, the recommended button, acts only once both are
+  chosen — one without the other makes the start be refused (`docs/runtime/fermeture.md`). Like the
+  action buttons ("Buttons write, they do not send"), it **writes into the second, without
+  sending**, the doc's two actions on one line — `!ssh <hote> brigade <nom> station closer-modele
+  <model> && ssh <hote> brigade <nom> station closer-effort <effort>` — : the chef hits Enter. What it
+  writes, and the accepted values, are on hover; no command is displayed. The choice holds across
+  re-readings. What is written is composed in the main process (`app/src/boutons.ts`, `ecritPourLeCloser`),
+  which refuses a value outside the lists. **No figure.**
+- **An unreadable integration branch**: the merges remain (the log holds them alone), the other three
+  figures say `not communicated`, and a line `the integration branch could not be read` carries the reason
+  on hover. A failed reading — a box with no log, a runtime from before `closing --json` — fits in one line,
+  `the closer could not be read`, the detail on hover.
+- **Under the list, the launch of a cleanup** (`closer-lancement`, #991) — see below. Under it, the
+  **summary of the last finished pass** (`closer-bilan`, #992) — see below.
 
-**Lancer un nettoyage** (#991). **« Launch a cleanup… »**, le bouton recommandé — le prix au survol, d'après le
-calibrage du closer : `on your quota: sonnet / medium · 500,000 tokens at most · 500 lines removed at most`.
-**Rien ne part au clic** : l'app demande l'aperçu à la box (`closing preview --json`, qui n'écrit rien), et ouvre
-la confirmation des gestes qui coûtent — **`Launch a cleanup?`**, le prix en une ligne (`closer on sonnet /
-medium · starts under 1 cook in flight · …`), **ce que le closer va faire**, phrase par phrase, comme le runtime le
-dit, puis ce que deviendrait la demande faite maintenant (`a request would leave within the second`, ou
-`a request would wait`, la raison au survol). **« yes, launch it »** envoie la demande, une seule —
-`closing write --json --confirm` : le process principal ne la lance qu'avec le « oui » de la vue, et le runtime
-la refuse sans `--confirm` —, **« no »** referme sans rien envoyer. Une demande qui serait refusée, impossible
-ou déjà faite n'a pas de « oui » : la ligne dit pourquoi.
+**Launching a cleanup** (#991). **"Launch a cleanup…"**, the recommended button — the price on hover, from the
+closer's calibration: `on your quota: sonnet / medium · 500,000 tokens at most · 500 lines removed at most`.
+**Nothing goes out on click**: the app asks the box for the preview (`closing preview --json`, which writes nothing), and opens
+the confirmation of actions that cost — **`Launch a cleanup?`**, the price in one line (`closer on sonnet /
+medium · starts under 1 cook in flight · …`), **what the closer will do**, sentence by sentence, as the runtime
+says it, then what the request made now would become (`a request would leave within the second`, or
+`a request would wait`, the reason on hover). **"yes, launch it"** sends the request, a single one —
+`closing write --json --confirm`: the main process launches it only with the view's "yes", and the runtime
+refuses it without `--confirm` —, **"no"** closes without sending anything. A request that would be refused, impossible
+or already made has no "yes": the line says why.
 
-**Où en est la demande** se lit ensuite dans la même lecture, `closing --json` (son `request`) : le geste revenu,
-l'app relit l'onglet aussitôt, et la place dit en attendant ce qui a été fait (`the cleanup is requested —
-reading where it stands…`). Puis, une ligne par état :
+**Where the request stands** is then read in the same reading, `closing --json` (its `request`): the action having come back,
+the app re-reads the tab at once, and the place says meanwhile what was done (`the cleanup is requested —
+reading where it stands…`). Then, one line per state:
 
-- **en attente, et de quoi** — `Cleanup requested — waiting: start condition not met: 3 cooks in flight for a
-  threshold of 1`, la raison entière au survol —, et **« Cancel the cleanup »**, qui la retire
-  (`closing cancel --json`) : la place revient alors à « rien de demandé », le bouton de lancement seul ;
-- **en cours** — `Cleanup running — since …` : partie, elle ne s'annule plus, et ne se relance pas ;
-- **refusée, et pourquoi** — `Last cleanup refused on …: …` — puis le bouton, pour relancer ;
-- **finie** — `Last cleanup finished on …` — puis le bouton ; son bilan est dessous.
+- **waiting, and for what** — `Cleanup requested — waiting: start condition not met: 3 cooks in flight for a
+  threshold of 1`, the whole reason on hover —, and **"Cancel the cleanup"**, which withdraws it
+  (`closing cancel --json`): the place then goes back to "nothing requested", the launch button alone;
+- **running** — `Cleanup running — since …`: started, it can no longer be cancelled, and is not relaunched;
+- **refused, and why** — `Last cleanup refused on …: …` — then the button, to relaunch;
+- **finished** — `Last cleanup finished on …` — then the button; its summary is below.
 
-**Le bilan d'une passe finie** (#992, `vue/closer/bilan/bilan.js`). Quand la dernière demande est `done`, la
-place du bilan montre, d'après `request` de `closing --json` (rien n'est recompté) : **ce que la passe a
-retiré** — une ligne par candidat, son nom court (`M1`, `D2`) et ce pour quoi il était proposé ; le nombre de
-lignes retirées/ajoutées au survol du titre — et **la PR ouverte**, en lien : un clic l'ouvre dans le
-navigateur du poste (`ouvrirBilan`, https seulement). Rien retiré : `nothing was removed` ; pas de PR (ou
-une adresse qui n'est pas https) : `no PR was opened`, sans lien. Une demande qui n'est pas finie n'a pas
-de bilan : la place est vide. Capture : `docs/captures/992/`.
+**The summary of a finished pass** (#992, `vue/closer/bilan/bilan.js`). When the last request is `done`, the
+summary place shows, from `request` of `closing --json` (nothing is recounted): **what the pass
+removed** — one line per candidate, its short name (`M1`, `D2`) and what it was proposed for; the number of
+lines removed/added on hovering the title — and **the PR opened**, as a link: a click opens it in the
+workstation's browser (`ouvrirBilan`, https only). Nothing removed: `nothing was removed`; no PR (or
+an address that is not https): `no PR was opened`, with no link. A request that is not finished has
+no summary: the place is empty. Capture: `docs/captures/992/`.
 
-Une box qui ne répond pas, un runtime qui ne connaît pas ces gestes : une ligne (`the station could not be asked —
-not reached`), ce que l'app a obtenu au survol, et le bouton reste. Les trois gestes partent par le passage du
-projet, comme `manager backlog` (`app/src/closer-lancement.ts`) ; la place se pose dans la vue
-(`app/src/vue/closer/lancement/lancement.js`). Sans closer réglé, il n'y a ni place ni bouton.
+A box that does not answer, a runtime that does not know these actions: one line (`the station could not be asked —
+not reached`), what the app got on hover, and the button stays. The three actions go out through the
+project's passage, like `manager backlog` (`app/src/closer-lancement.ts`); the place is laid in the view
+(`app/src/vue/closer/lancement/lancement.js`). With no closer set, there is neither place nor button.
 
-**Proposer un nettoyage quand la dérive franchit son seuil** (#993). Quand `closing --json` dit `drift.crossed`, la
-place du lancement porte en tête `The drift threshold is crossed — a cleanup could bring it back.`, ce qui a franchi
-son seuil au survol, et un bouton, **« Review the cleanup… »**. Il fait le geste du bouton de lancement — l'aperçu,
-puis la confirmation ci-dessus — : **la proposition ne crée aucune demande**, ni à son clic, ni au chargement ou à
-la relecture de la page ; la demande ne part qu'au « yes, launch it ». Elle s'efface quand une demande attend ou
-court, ou quand un geste est en route ; seuil non franchi (ou non déclaré), elle n'existe pas
+**Proposing a cleanup when the drift crosses its threshold** (#993). When `closing --json` says `drift.crossed`, the
+launch place carries at the top `The drift threshold is crossed — a cleanup could bring it back.`, what crossed
+its threshold on hover, and a button, **"Review the cleanup…"**. It does the launch button's action — the preview,
+then the confirmation above —: **the proposal creates no request**, neither at its click, nor on loading or
+re-reading the page; the request goes out only at "yes, launch it". It disappears when a request is waiting or
+running, or when an action is on its way; threshold not crossed (or not declared), it does not exist
 (`app/src/vue/closer/derive/derive.js`).
 
-**D'où ça vient.** L'app lance `closing --json` (#988) et lit l'objet qu'il rend sur une ligne — rien n'est
-recompté, rien n'est lancé : la commande ouvre le journal en lecture seule. La vue le lit elle-même dans la
-sortie de l'onglet (`app/src/vue/closer/section.js`), et ce que la box a rendu reste lisible, replié dessous.
+**Where it comes from.** The app runs `closing --json` (#988) and reads the object it returns on one line — nothing is
+recounted, nothing is launched: the command opens the log read-only. The view reads it itself in the
+tab's output (`app/src/vue/closer/section.js`), and what the box returned stays readable, folded below.
+### The Manager tab
 
-### L'onglet Manager
+**Is it on?** This is where you read it, per project. At the top of the tab, above the text of
+`ssh <host> brigade <name> manager`, the app puts what it read **in that output**, and nothing
+else:
 
-**Est-il allumé ?** C'est là que ça se lit, par projet. En tête de l'onglet, au-dessus du texte de
-`ssh <hote> brigade <nom> manager`, l'app pose ce qu'elle a lu **dans cette sortie**, et rien
-d'autre :
-
-| Ce qui se lit | D'où ça vient |
+| What you read | Where it comes from |
 |---|---|
-| **`ON`** (pastille verte) ou **`OFF`** (grise), puis `since <date> · by <qui>` | la ligne `manager` de la sortie. La date est celle de la dernière bascule, à l'heure de ton poste ; `par` est celui qui l'a faite. Un manager **jamais allumé** n'a ni l'une ni l'autre : la ligne dit `never turned on`. L'app lit aussi la ligne d'avant #951 (`ALLUMÉ` / `ÉTEINT`, `depuis le … (par …)`) : une box pas encore à jour se lit sans rien changer |
-| ce que le runtime en dit ensuite | la fin de la même ligne, mot pour mot (``it judges the open issues, sets `fire` and the calibration``) |
-| **dernières décisions**, la plus récente d'abord | les lignes sous `latest decisions` (ou `dernières décisions`, d'avant) — quinze au plus, c'est le runtime qui borne : l'issue, l'instant, et ce qu'il en a fait, mot pour mot (`on the rail, haiku / low (set: fire, effort:low) — …`, `refused (an epic) — …`) |
-| **écartées**, chacune avec son motif | les lignes sous `set aside` (ou `écartées`, d'avant) — dix au plus : l'issue, l'instant, **le motif**, et dessous ce que le runtime dit de ce qui la rend au manager (``to return it to the manager: remove `blocked-on-human`: …``, ou `nothing returns it to the manager`) |
+| **`ON`** (green pill) or **`OFF`** (grey), then `since <date> · by <who>` | the `manager` line of the output. The date is that of the last switch, in your workstation's time; `by` is whoever made it. A manager **never turned on** has neither: the line says `never turned on`. The app also reads the line from before #951 (`ALLUMÉ` / `ÉTEINT`, `depuis le … (par …)`): a box not yet updated reads without any change |
+| what the runtime says about it next | the end of the same line, word for word (``it judges the open issues, sets `fire` and the calibration``) |
+| **latest decisions**, most recent first | the lines under `latest decisions` (or `dernières décisions`, from before) — fifteen at most, the runtime sets the bound: the issue, the moment, and what it did with it, word for word (`on the rail, haiku / low (set: fire, effort:low) — …`, `refused (an epic) — …`) |
+| **set aside**, each with its reason | the lines under `set aside` (or `écartées`, from before) — ten at most: the issue, the moment, **the reason**, and below it what the runtime says about what returns it to the manager (``to return it to the manager: remove `blocked-on-human`: …``, or `nothing returns it to the manager`) |
 
-- **L'app n'y devine rien.** Une lecture ratée, ou une sortie sans ligne `manager` (un runtime
-  d'avant le manager), ne dit **ni allumé ni éteint** : `l'état du manager n'a pas été lu : … Ce
-  n'est pas « éteint »`, et ce que l'app a obtenu se lit dessous, comme dans tout onglet. Une
-  section que la sortie n'a pas se dit `pas lues`, jamais `aucune` ; sans décision ni écart, c'est
-  le mot du runtime qui se lit (`aucune`). Une ligne qui n'a pas la forme attendue reste **telle
-  quelle**, à part, sous `ce que l'app n'a pas su lire`.
-- **Ce que la sortie dit d'autre se lit dessous** : les épiques, les réactions aux échecs. L'app ne
-  les pose pas à part. Une commande que le runtime cite dans un motif (`npm --prefix runtime run
-  manager -- rendre 77`) est celle de la box : depuis ton poste, c'est `ssh <hote> brigade <nom>
-  manager rendre 77` (`docs/runtime/exploitation.md`, « Piloter »).
-- **Lu tant que l'onglet est affiché**, comme les autres : à l'ouverture, puis toutes les trente
-  secondes. Revenir sur l'onglet le relit aussitôt — rien n'y reste de la lecture d'avant.
-- **Deux gestes, à côté de l'état : `allumer`, `éteindre`** — chacun sous ce que son clic fait.
-  **`allumer` écrit** sa commande dans **un shell de l'espace**, ouvert pour elle, et **n'envoie
-  rien** : l'app te mène sur ce shell, la commande à son invite, et c'est ton Entrée qui la fait
-  partir. **`éteindre` est direct** : il n'engage rien, sa commande **part** dans le second, et sa
-  sortie s'y lit (« Un geste direct part vraiment — ou dit pourquoi il ne part pas »).
+- **The app guesses nothing here.** A failed read, or an output with no `manager` line (a runtime
+  from before the manager), says **neither on nor off**: `the manager's state was not read: … This
+  is not "off"`, and what the app got is read below, as in every tab. A section the output does
+  not have reads `not read`, never `none`; with no decision and no set-aside, it is the runtime's
+  word that is read (`none`). A line that does not have the expected form stays **as it is**,
+  apart, under `what the app could not read`.
+- **What else the output says is read below**: the epics, the reactions to failures. The app does
+  not set them apart. A command the runtime cites in a reason (`npm --prefix runtime run
+  manager -- return 77`) is the box's: from your workstation, it is `ssh <host> brigade <name>
+  manager return 77` (`docs/runtime/exploitation.md`, "Piloter").
+- **Read as long as the tab is shown**, like the others: on opening, then every thirty
+  seconds. Coming back to the tab reads it again at once — nothing stays from the previous read.
+- **Two actions, next to the state: `on`, `off`** — each under what its click does.
+  **`on` writes** its command into **a shell of the space**, opened for it, and **sends
+  nothing**: the app takes you to that shell, the command at its prompt, and it is your Enter
+  that sends it. **`off` is direct**: it commits nothing, its command **goes out** into the
+  second, and its output is read there ("A direct action really goes out — or says why it does
+  not").
 
-  | Le geste | Ce qu'il écrit dans le shell, ou envoie dans le second |
+  | The action | What it writes into the shell, or sends into the second |
   |---|---|
-  | `allumer` | écrit : `ssh <hote> brigade <nom> manager on` |
-  | `éteindre` | envoie : `!ssh <hote> brigade <nom> manager off` |
+  | `on` | writes: `ssh <host> brigade <name> manager on` |
+  | `off` | sends: `!ssh <host> brigade <name> manager off` |
 
-  C'est la commande de `docs/runtime/exploitation.md`, « Piloter », dans sa forme de poste, mot pour mot : elle
-  reste dans l'historique du shell et se rejoue à la main à l'identique. La ligne sous les onglets
-  de droite dit ce qui a été écrit (``écrit dans ce shell, sans Entrée : `ssh box brigade parade manager on` — c'est la tienne qui l'envoie…``).
-  **Allumer engage** : allumé, le manager juge tout le backlog ouvert, et ce qu'il juge exécutable
-  part aussitôt en cuisine (`docs/runtime/manager.md`, « Le manager ») — c'est pour cela que la commande
-  s'écrit et se lit avant de partir. Envoyée, reviens sur **Manager** : l'état est relu.
-- **Avec « allumer », l'app dit ce qu'il engage — et le chiffre.** Dès le clic, **au-dessus du
-  shell** où la commande attend, se posent l'avertissement de `docs/runtime/manager.md`, mot pour mot
-  (« Allumé, il juge tout le backlog ouvert, et ce qu'il juge exécutable part aussitôt en cuisine.
-  Avant d'allumer, pose `blocked-on-human` sur ce qui ne doit pas partir… »), puis **deux
-  nombres**, dits en une phrase — ce qu'il va juger : `it will judge 9 of the 12 open issues — 3 carry
+  It is the command of `docs/runtime/exploitation.md`, "Piloter", in its workstation form, word for word: it
+  stays in the shell's history and can be replayed by hand identically. The line under the
+  right-hand tabs says what was written (``written in this shell, without Enter: `ssh box brigade parade manager on` — yours is the one that sends it…``).
+  **Turning on commits**: once on, the manager judges the whole open backlog, and what it judges
+  executable goes straight to the kitchen (`docs/runtime/manager.md`, "Le manager") — that is why the command
+  is written and read before it goes. Once sent, come back to **Manager**: the state is read again.
+- **With "on", the app says what it commits — and the figure.** From the click, **above the
+  shell** where the command waits, the warning of `docs/runtime/manager.md` is set, word for word
+  ("Once on, it judges the whole open backlog, and what it judges executable goes straight to the
+  kitchen. Before turning on, put `blocked-on-human` on whatever must not go…"), then **two
+  numbers**, said in one sentence — what it is going to judge: `it will judge 9 of the 12 open issues — 3 carry
   blocked-on-human` (#906).
 
-  | Ce qui se lit | D'où ça vient |
+  | What you read | Where it comes from |
   |---|---|
-  | l'avertissement | le texte de `docs/runtime/manager.md`, « Le manager » — il est là dès le clic, avant toute lecture |
-  | les deux nombres | la ligne `backlog` de `ssh <hote> brigade <nom> manager backlog`, que l'app lance **à ta place, une fois, après** avoir écrit le geste : la box compte sur GitHub les issues ouvertes du dépôt (PR écartées) et celles qui portent `blocked-on-human`, à l'instant. L'heure de la lecture et la commande sont dites dessous |
-  | pourquoi ils manquent | la box pas jointe, GitHub pas lu par elle, un runtime d'avant cette lecture (« mets brigade à jour sur la box »), ou une sortie sans sa ligne `backlog` : l'app le dit, montre ce qu'elle a obtenu à la place, et **n'écrit jamais « 0 »** — ce n'est pas « aucune issue » |
+  | the warning | the text of `docs/runtime/manager.md`, "Le manager" — it is there from the click, before any read |
+  | the two numbers | the `backlog` line of `ssh <host> brigade <name> manager backlog`, which the app runs **for you, once, after** writing the action: the box counts on GitHub the repository's open issues (PRs set aside) and those carrying `blocked-on-human`, at that moment. The time of the read and the command are said below |
+  | why they are missing | the box not reached, GitHub not read by it, a runtime from before this read ("update brigade on the box"), or an output without its `backlog` line: the app says so, shows what it got instead, and **never writes "0"** — that is not "no issue" |
 
-  **Ce n'est pas une confirmation.** La commande est déjà écrite dans le shell quand les nombres
-  sont demandés : l'avertissement ne retient rien, ne pose aucune question et n'a aucun bouton. Tu
-  peux faire Entrée avant qu'ils n'arrivent — quelques secondes, le temps d'un `ssh` et d'une
-  lecture de GitHub —, ou effacer la commande. « éteindre » n'affiche rien de tel.
-  **Aucune permission de plus sur la box** : `manager backlog` est une commande du runtime comme
-  `manager` ou `status`, lancée par le même geste (`brigade <projet> <commande>`) sous le même
-  droit — elle ne fait que lire. Il lui faut seulement un runtime qui la connaît.
-- Les deux gestes sont offerts quel que soit l'état lu — et même sans lui : ils n'attendent rien
-  de la lecture, et le runtime répond `déjà allumé` ou `rien à éteindre` s'il n'y a rien à faire.
-  Un projet **sans `hote`** et sans cuisine sur ce poste n'en a pas ; un `hote` qui commence par un tiret, ou un projet dont le
-  dossier n'est pas là, n'a rien d'écrit — aucun shell n'est ouvert, et la ligne sous les onglets
-  de droite dit pourquoi.
+  **This is not a confirmation.** The command is already written in the shell when the numbers
+  are requested: the warning holds nothing back, asks no question and has no button. You
+  can press Enter before they arrive — a few seconds, the time of an `ssh` and a
+  read of GitHub — or erase the command. "off" shows nothing of the kind.
+  **No extra permission on the box**: `manager backlog` is a runtime command like
+  `manager` or `status`, run by the same action (`brigade <project> <command>`) under the same
+  right — it only reads. It just needs a runtime that knows it.
+- Both actions are offered whatever state was read — and even without one: they wait for nothing
+  from the read, and the runtime answers `already on` or `nothing to turn off` if there is nothing to do.
+  A project **without `host`** and without a kitchen on this workstation has none; a `host` that starts with a dash, or a project whose
+  folder is not there, has nothing written — no shell is opened, and the line under the right-hand
+  tabs says why.
 
-### L'onglet Grants
+### The Grants tab
 
-**Un grant est-il actif, et jusqu'à quand ?** C'est l'autorisation la plus lourde du système —
-sous grant `merge`, du code écrit par un cook atterrit sur la branche d'intégration sans toi
-(`docs/runtime/pass-merge.md`, « Le grant `merge` ») —, et c'est là qu'elle se lit, par projet. En tête de
-l'onglet, au-dessus du texte de `ssh <hote> brigade <nom> grant`, l'app pose ce qu'elle a lu **dans
-cette sortie**, et rien d'autre — un bloc par grant :
+**Is a grant active, and until when?** It is the heaviest authorization in the system —
+under a `merge` grant, code written by a cook lands on the integration branch without you
+(`docs/runtime/pass-merge.md`, "Le grant `merge`") —, and this is where it is read, per project. At the top of
+the tab, above the text of `ssh <host> brigade <name> grant`, the app puts what it read **in
+that output**, and nothing else — one block per grant:
 
-| Ce qui se lit | D'où ça vient |
+| What you read | Where it comes from |
 |---|---|
-| **`grant merge`**, puis **`ACTIF`** (pastille verte), **`ÉTEINT SEUL`** (jaune), **`RÉVOQUÉ`** ou **`ABSENT`** (grises), puis `depuis le <date> · par <qui>` | la ligne `grant merge` de la sortie. La date est celle de son dernier changement, à l'heure de ton poste. Un grant **jamais donné** n'a ni date ni auteur ; un grant éteint seul n'a pas d'auteur — la suite de la ligne dit qui l'avait accordé. Un grant actif à moins d'une heure de son échéance, ou à un seul usage, porte en plus **`BIENTÔT ÉTEINT`**, et sa pastille est jaune |
-| **son échéance : `encore 2 h 10`**, puis `jusqu'au 13 oct. 18:40 UTC` | la même ligne. **La durée restante est en tête**, avant l'heure : c'est la box qui l'a comptée, avec son horloge, à l'heure de la lecture (`lu à 14:32:07`, dans le titre) — l'app n'en recalcule aucune. L'heure est celle de la box, **en UTC, écrit en lettres** : elle n'est pas convertie à l'heure de ton poste. À côté, ce que la ligne dit d'autre de ce qu'il en reste, mot pour mot : `encore 9 usages, dont 1 retenu par un merge en cours`, ou `sans échéance` |
-| ce que le runtime en dit ensuite | la fin de la même ligne, mot pour mot (`une pass verte est mergée sans toi`, `la pass s'arrête à la PR ouverte`) |
-| **derniers usages du grant**, le plus récent d'abord | les lignes sous `derniers usages` qui nomment ce grant — dix au plus, c'est le runtime qui borne : l'issue, l'instant, ce que le merge est devenu (`mergée`, `non mergée`, `merge en cours`), la branche, la PR, le commit et le numéro du verdict qui l'a autorisé |
-| **ce qu'aucun grant n'autorise** | les lignes sous `jamais accordé` : chaque action, et ce qu'elle interdit, mot pour mot (`identifiants-max — lire les identifiants du compte Max`, `acces-prod — toute action sur la production d'un projet`). La liste est celle du runtime, et ne se change par aucune commande |
-| **les livraisons arrêtées faute de grant** | la ligne `sans grant, N livraisons vertes arrêtées : …`, telle quelle — le chiffre sur lequel accorder. Absente tant qu'aucune livraison n'a été arrêtée |
+| **`grant merge`**, then **`ACTIVE`** (green pill), **`LAPSED`** (yellow), **`REVOKED`** or **`ABSENT`** (grey), then `since <date> · by <who>` | the `grant merge` line of the output. The date is that of its last change, in your workstation's time. A grant **never given** has neither date nor author; a lapsed grant has no author — the rest of the line says who had enabled it. A grant active within an hour of its expiry, or with a single use left, also carries **`EXPIRING SOON`**, and its pill is yellow |
+| **its expiry: `2 h 10 left`**, then `until 13 Oct 18:40 UTC` | the same line. **The remaining time comes first**, before the hour: the box counted it, with its clock, at the time of the read (`read at 14:32:07`, in the title) — the app recomputes none. The hour is the box's, **in UTC, spelled out**: it is not converted to your workstation's time. Beside it, what the line says of what is left, word for word: `9 uses left, 1 of them held by a merge in progress`, or `no expiry` |
+| what the runtime says about it next | the end of the same line, word for word (`a green pass is merged without you`, `the pass stops at the open PR`) |
+| **latest uses of the grant**, most recent first | the lines under `latest uses` that name this grant — ten at most, the runtime sets the bound: the issue, the moment, what the merge became (`merged`, `not merged`, `merge in progress`), the branch, the PR, the commit and the number of the verdict that authorized it |
+| **what no grant authorizes** | the lines under `never granted`: each action, and what it forbids, word for word (`max-credentials — read the Max account's credentials`, `prod-access — any action on a project's production`). The list is the runtime's, and no command changes it |
+| **the deliveries stopped for lack of a grant** | the line `without a grant, N green deliveries stopped: …`, as it is — the figure to enable against. Absent as long as no delivery has been stopped |
 
-- **Une échéance dépassée ne se lit jamais comme une durée.** Passé son heure, le runtime ne dit
-  plus le grant actif, que le journal l'ait déjà écrit ou non : la ligne dit `ÉTEINT SEUL depuis le
-  <échéance> — son échéance est passée`, et c'est ce que l'app pose. Aucune durée restante n'est
-  gardée de la lecture d'avant.
-- **L'app n'y devine rien.** Une lecture ratée, ou une sortie sans ligne `grant <nom>` (un runtime
-  d'avant les grants, un journal qui n'en a pas encore l'état), ne dit **ni actif ni absent** :
-  `l'état des grants n'a pas été lu : … Ce n'est pas « aucun grant actif »`, et ce que l'app a
-  obtenu se lit dessous, comme dans tout onglet. Un état que l'app ne connaît pas laisse la ligne
-  du grant **telle quelle**, en alerte. Une section que la sortie n'a pas se dit `pas lus`, jamais
-  `aucun` ; sans usage, c'est le mot du runtime qui se lit (`aucun`). Une ligne qui n'a pas la
-  forme attendue reste telle quelle, à part.
-- **Ce que la sortie dit d'autre se lit dessous** : les `derniers gestes` — qui a accordé, prolongé,
-  révoqué, ce qui s'est éteint seul, ce qui a été refusé. L'app ne les pose pas à part.
-- **Lu tant que l'onglet est affiché**, comme les autres : à l'ouverture, puis toutes les trente
-  secondes — la durée restante a donc au plus trente secondes de retard, et l'heure de la lecture
-  est dans le titre. Revenir sur l'onglet le relit aussitôt.
-- **Deux gestes par grant, à côté de son état : `accorder merge`, `révoquer merge`.** Chacun
-  **écrit** sa commande dans **un shell de l'espace**, ouvert pour elle, et **n'envoie rien** :
-  l'app te mène sur ce shell, la commande à son invite, et c'est ton Entrée qui la fait partir.
+- **An expired expiry never reads as a duration.** Past its hour, the runtime no longer calls the
+  grant active, whether or not the log has already written it: the line says `LAPSED since
+  <expiry> — its expiry has passed`, and that is what the app puts. No remaining duration is
+  kept from the previous read.
+- **The app guesses nothing here.** A failed read, or an output with no `grant <name>` line (a
+  runtime from before grants, a log that does not have their state yet), says **neither active
+  nor absent**: `the grants' state was not read: … This is not "no grant active"`, and what the
+  app got is read below, as in every tab. A state the app does not know leaves the grant's line
+  **as it is**, in alert. A section the output does not have reads `not read`, never
+  `none`; with no use, it is the runtime's word that is read (`none`). A line that does not have
+  the expected form stays as it is, apart.
+- **What else the output says is read below**: the `latest actions` — who enabled, extended,
+  revoked, what lapsed on its own, what was refused. The app does not set them apart.
+- **Read as long as the tab is shown**, like the others: on opening, then every thirty
+  seconds — the remaining duration is thus at most thirty seconds behind, and the time of the read
+  is in the title. Coming back to the tab reads it again at once.
+- **Two actions per grant, next to its state: `enable merge`, `revoke merge`.** Each
+  **writes** its command into **a shell of the space**, opened for it, and **sends nothing**:
+  the app takes you to that shell, the command at its prompt, and it is your Enter that sends it.
 
-  | Le geste | Ce qu'il écrit dans le shell |
+  | The action | What it writes into the shell |
   |---|---|
-  | `accorder merge` | `ssh <hote> brigade <nom> grant enable merge` |
-  | `révoquer merge` | `ssh <hote> brigade <nom> grant revoke merge` |
+  | `enable merge` | `ssh <host> brigade <name> grant enable merge` |
+  | `revoke merge` | `ssh <host> brigade <name> grant revoke merge` |
 
-  C'est la commande de `docs/runtime/exploitation.md`, « Piloter », dans sa forme de poste, mot pour mot : elle
-  reste dans l'historique du shell et se rejoue à la main à l'identique. **`merge` est le grant le
-  plus lourd, et il s'écrit comme les autres** : aucune boîte de confirmation ne s'ouvre. Ce qui te
-  protège, c'est que la commande **se lit et se corrige avant de partir** — tu peux lui ajouter une
-  échéance (`--for 4h`, `--until 18h30`, `--uses 10`) avant de faire Entrée ; sans elle, le
-  grant est accordé **sans échéance**. Envoyée, reviens sur **Grants** : l'état est relu.
-- Les deux gestes sont offerts quel que soit l'état lu — et même sans lui : ils n'attendent rien
-  de la lecture, et le runtime répond `déjà actif` ou `rien à révoquer` s'il n'y a rien à faire. Ils
-  ne sont offerts que pour un grant que la doc nomme (`merge`). Un projet **sans `hote`** et sans cuisine sur ce poste n'en a
-  pas ; un `hote` qui commence par un tiret, ou un projet dont le dossier n'est pas là, n'a rien
-  d'écrit — aucun shell n'est ouvert, et la ligne sous les onglets de droite dit pourquoi.
-- **Les boutons d'avant sont toujours là**, sous l'heure de la lecture : `grant activer merge`,
-  `grant prolonger merge …`, `grant revoquer merge` écrivent dans **le second**, précédés du `!`
-  (« Les boutons écrivent, ils n'envoient pas »). Prolonger n'a que ce bouton.
+  It is the command of `docs/runtime/exploitation.md`, "Piloter", in its workstation form, word for word: it
+  stays in the shell's history and can be replayed by hand identically. **`merge` is the heaviest
+  grant, and it is written like the others**: no confirmation box opens. What protects
+  you is that the command **is read and corrected before it goes** — you can add an
+  expiry to it (`--for 4h`, `--until 18h30`, `--uses 10`) before pressing Enter; without one, the
+  grant is enabled **with no expiry**. Once sent, come back to **Grants**: the state is read again.
+- Both actions are offered whatever state was read — and even without one: they wait for nothing
+  from the read, and the runtime answers `already active` or `nothing to revoke` if there is nothing to do. They
+  are only offered for a grant the doc names (`merge`). A project **without `host`** and without a kitchen on this workstation has
+  none; a `host` that starts with a dash, or a project whose folder is not there, has nothing
+  written — no shell is opened, and the line under the right-hand tabs says why.
+- **The earlier buttons are still there**, under the time of the read: `grant enable merge`,
+  `grant extend merge …`, `grant revoke merge` write into **the second**, preceded by `!`
+  ("Buttons write, they do not send"). Extending has only this button.
 
-## Les boutons écrivent, ils n'envoient pas
+## Buttons write, they do not send
 
-Un bouton de l'app **n'agit pas**. Il écrit sa commande dans le **second** de l'espace, curseur
-après, et s'arrête là : tu la lis, tu la corriges ou tu la complètes, et **c'est ton Entrée qui
-l'envoie**. Devant l'invite de `claude`, un `stop` ne part donc pas d'un clic de travers — devant
-un autre écran, lis « La limite » plus bas.
+A button of the app **does not act**. It writes its command into the space's **second**, cursor
+after it, and stops there: you read it, you correct or complete it, and **it is your Enter that
+sends it**. In front of the `claude` prompt, a `stop` therefore does not go out from a stray
+click — in front of any other screen, read "The limit" below.
 
-**Un bouton qui arrête dit ce qu'il arrête.** `garde-fous stop` n'existe que dans le panneau d'un
-projet, et n'arrête que **la cuisine de ce projet-là** : la commande qu'il écrit le nomme
-(`!ssh <hote> brigade <nom> guardrails stop`), et tu la lis avant de l'envoyer. Il ne ferme pas l'app, et ne
-touche à aucun autre projet. **Aucun bouton n'arrête tous les projets** : « Tous les projets » n'en
-a aucun.
+**A button that stops says what it stops.** `guardrails stop` exists only in a project's
+panel, and stops only **that project's kitchen**: the command it writes names it
+(`!ssh <host> brigade <name> guardrails stop`), and you read it before sending it. It does not close the app, and
+touches no other project. **No button stops all projects**: "All projects" has
+none.
 
-| Où | Le bouton | Ce qu'il écrit dans le second |
+| Where | The button | What it writes into the second |
 |---|---|---|
-| le panneau d'état, sous l'heure de la lecture | `garde-fous stop` | `!ssh <hote> brigade <nom> guardrails stop` |
-| | `garde-fous reprendre` | `!ssh <hote> brigade <nom> guardrails resume` |
-| l'onglet **Grants** | `grant activer merge` | `!ssh <hote> brigade <nom> grant enable merge` |
-| | `grant prolonger merge …` | `!ssh <hote> brigade <nom> grant extend merge ` — l'échéance reste à taper (`--for 2h`, `--uses 3`…) |
-| | `grant revoquer merge` | `!ssh <hote> brigade <nom> grant revoke merge` |
-| l'onglet **Cooks** | `station cooks …` | `!ssh <hote> brigade <nom> station cooks ` — le nombre reste à taper |
+| the state panel, under the time of the read | `guardrails stop` | `!ssh <host> brigade <name> guardrails stop` |
+| | `guardrails resume` | `!ssh <host> brigade <name> guardrails resume` |
+| the **Grants** tab | `grant enable merge` | `!ssh <host> brigade <name> grant enable merge` |
+| | `grant extend merge …` | `!ssh <host> brigade <name> grant extend merge ` — the expiry is left to type (`--for 2h`, `--uses 3`…) |
+| | `grant revoke merge` | `!ssh <host> brigade <name> grant revoke merge` |
+| the **Cooks** tab | `station cooks …` | `!ssh <host> brigade <name> station cooks ` — the number is left to type |
 
-- **C'est la commande de la doc, mot pour mot** : la forme de `docs/runtime/exploitation.md`, « Piloter »,
-  depuis ton poste (`ssh <box> brigade <projet> <commande>`), avec ton `hote` et ton `nom`. Le `!`
-  devant est celui qui lance une commande sur le Mac depuis une session `claude`. Elle reste dans
-  l'historique du second, et se rejoue à la main à l'identique.
-- **L'app n'écrit pas d'Entrée** : ce qui est écrit ne porte ni retour chariot ni saut de ligne.
-  Une commande qui en porterait un — un `nom` ou un `hote` qui en contient — **n'est pas écrite**,
-  et la ligne sous les onglets de droite le dit.
-- **La limite : l'app ne voit pas ce que `claude` affiche.** Elle écrit les caractères de la
-  commande, et c'est l'écran du moment qui les reçoit. Devant l'invite, ils s'y posent. Devant
-  **un dialogue à choix numérotés** (une permission d'outil, la confiance du dossier), ce sont des
-  touches : un chiffre de ton `hote` ou de ton `nom` (`box2`, une IP, `projet-1`) peut y choisir
-  une option. En **mode vim, hors insertion**, les lettres sont des commandes d'édition. L'app ne
-  peut ni le savoir ni l'empêcher : ne clique un bouton que lorsque le second est à son invite, et
-  regarde-le avant de valider.
-- **La commande t'attend dans le second, à droite** — le centre ne change pas —, et la ligne sous
-  son titre dit ce qui vient de se passer :
-  ``écrit dans le second, sans Entrée : `!ssh box brigade parade guardrails stop` — devant l'invite de `claude`, elle attend la tienne, à la suite de ta frappe si tu tapais. Devant un autre écran (un choix à faire, le mode vim), ces caractères sont des touches : regarde le second avant de valider``.
-- **Si tu étais en train de taper**, l'app ne le sait pas : elle ne lit pas ton terminal. Elle écrit
-  **à la suite** de ta frappe, sans rien effacer, et le dit (ci-dessus). Pareil pour deux
-  clics de suite : la seconde commande s'écrit après la première. Efface la ligne (`Ctrl+U`), et
-  reclique.
-- **Si le second ne tourne pas** — tu as quitté `claude` — le bouton **le lance d'abord**, et
-  n'écrit rien : un `claude` qui démarre prendrait la commande pour des touches. La ligne dit
-  ``le second ne tournait pas : lancé (`claude --continue /brigade:po`) — la commande n'est pas écrite dans un second qui démarre, reclique quand il est prêt``.
-- **Toujours dans le second, jamais dans un shell** ouvert à côté. Deux exceptions, et chacune
-  ouvre son propre shell : `Démarrer`, qui a besoin d'un vrai terminal (« Après l'ajout : la mise en
-  service »), et le geste `allumer` du manager (« L'onglet Manager »).
-- **Un `hote` qui commence par un tiret** (`-box`) n'a pas de commande écrite : dans la forme de la
-  doc, `ssh` le lirait comme une option. Le bouton n'écrit rien, et la ligne sous les onglets de droite
-  dit pourquoi — la lecture de la box, elle, n'en souffre pas.
-- **Un bouton qui n'a rien pu écrire le dit** sous les onglets de droite : `rien n'est écrit : …`
-  — par exemple quand le projet vient de quitter le fichier.
-- Un projet **sans `hote`** et sans cuisine sur ce poste n'a aucun bouton : il n'y a pas de commande à écrire. Un projet dont le
-  dossier n'est pas là n'a pas de second : sa colonne dit pourquoi (`dossier introuvable : …`).
-- **Seuls ces six boutons existent**, chacun là où se lit ce qu'il change — et, à part, les deux
-  gestes du manager : `allumer`, qui écrit dans un shell, et `éteindre`, qui part (« L'onglet Manager »). Le
-  reste de « Piloter » (`manager rendre`, `base rejouer`…) se tape. « Tous les projets » n'en a
-  aucun. La mise en service d'un projet qu'on vient d'ajouter a les siens, à part : `installation`
-  y est lancée pour toi, et `Démarrer` écrit dans un shell.
-- **La bannière d'arrêt reprend `garde-fous reprendre`** : le même bouton, la même commande écrite,
-  posé là où l'arrêt se lit (« Ce qui est dessiné », « La bannière d'arrêt »).
+- **It is the doc's command, word for word**: the form of `docs/runtime/exploitation.md`, "Piloter",
+  from your workstation (`ssh <box> brigade <project> <command>`), with your `host` and your `name`. The `!`
+  in front is the one that runs a command on the Mac from a `claude` session. It stays in the
+  second's history, and can be replayed by hand identically.
+- **The app writes no Enter**: what is written carries no carriage return or line feed.
+  A command that would carry one — a `name` or a `host` that contains one — **is not written**,
+  and the line under the right-hand tabs says so.
+- **The limit: the app does not see what `claude` displays.** It writes the command's
+  characters, and the screen of the moment receives them. In front of the prompt, they land there. In front of
+  **a dialog with numbered choices** (a tool permission, folder trust), they are
+  keys: a digit in your `host` or your `name` (`box2`, an IP, `project-1`) can choose
+  an option there. In **vim mode, outside insert**, letters are editing commands. The app can
+  neither know it nor prevent it: click a button only when the second is at its prompt, and
+  look at it before confirming.
+- **The command waits for you in the second, on the right** — the center does not change —, and the line under
+  its title says what just happened:
+  ``written in the second, without Enter: `!ssh box brigade parade guardrails stop` — in front of the `claude` prompt, it waits for yours, after your typing if you were typing. In front of any other screen (a choice to make, vim mode), these characters are keys: look at the second before confirming``.
+- **If you were typing**, the app does not know: it does not read your terminal. It writes
+  **after** your typing, erasing nothing, and says so (above). Same for two
+  clicks in a row: the second command is written after the first. Erase the line (`Ctrl+U`), and
+  click again.
+- **If the second is not running** — you left `claude` — the button **starts it first**, and
+  writes nothing: a starting `claude` would take the command for keys. The line says
+  ``the second was not running: started (`claude --continue /brigade:po`) — the command is not written into a starting second, click again when it is ready``.
+- **Always in the second, never in a shell** opened beside it. Two exceptions, and each
+  opens its own shell: `Start`, which needs a real terminal ("After adding: going live"), and the manager's `on` action
+  ("The Manager tab").
+- **A `host` that starts with a dash** (`-box`) has no command written: in the doc's
+  form, `ssh` would read it as an option. The button writes nothing, and the line under the right-hand tabs
+  says why — reading the box, for its part, does not suffer.
+- **A button that could write nothing says so** under the right-hand tabs: `nothing is written: …`
+  — for example when the project has just left the file.
+- A project **without `host`** and without a kitchen on this workstation has no button: there is no command to write. A project whose
+  folder is not there has no second: its column says why (`folder not found: …`).
+- **Only these six buttons exist**, each where what it changes is read — and, apart, the two
+  manager actions: `on`, which writes into a shell, and `off`, which goes out ("The Manager tab"). The
+  rest of "Piloter" (`manager return`, `base replay`…) is typed. "All projects" has
+  none. Going live with a project just added has its own, apart: `installation`
+  is run for you there, and `Start` writes into a shell.
+- **The stop banner carries `guardrails resume`**: the same button, the same written command,
+  set where the stop is read ("What is drawn", "The stop banner").
 
-### Les gestes de la cuisine et de l'installation
+### The kitchen and installation actions
 
-Sous la carte du projet — l'état de la cuisine, du « stop » et du disjoncteur que `status` relaie —,
-trois gestes du socle (`gestes.ts`) : **`reprendre la cuisine`**, **`arrêter la cuisine`**,
-**`vérifier l'installation`**. Les deux premiers, comme ceux des grants, **écrivent** leur commande
-dans **un shell de l'espace**, ouvert pour elle, et **n'envoient rien** : c'est ton Entrée qui la
-fait partir. **`vérifier l'installation` est direct** : il ne fait que lire, sa commande **part**
-dans le second (« Un geste direct part vraiment — ou dit pourquoi il ne part pas »). Les deux
-formes sont posées à part, chacune sous son libellé :
+Under the project tile — the state of the kitchen, of the "stop" and of the breaker that `status` relays —,
+three actions of the base (`gestes.ts`): **`resume the kitchen`**, **`stop the kitchen`**,
+**`check the installation`**. The first two, like those of the grants, **write** their command
+into **a shell of the space**, opened for it, and **send nothing**: it is your Enter that
+sends it. **`check the installation` is direct**: it only reads, its command **goes out**
+into the second ("A direct action really goes out — or says why it does not"). The two
+forms are set apart, each under its label:
 
 ```
-écrire dans un shell de l'espace, sans envoyer :  [reprendre la cuisine] [arrêter la cuisine]
-envoyer dans le second — part aussitôt, s'il est libre :  [vérifier l'installation]
+write into a shell of the space, without sending:  [resume the kitchen] [stop the kitchen]
+send into the second — goes out at once, if it is free:  [check the installation]
 ```
 
-| Le geste | Ce qu'il écrit dans le shell, ou envoie dans le second |
+| The action | What it writes into the shell, or sends into the second |
 |---|---|
-| `reprendre la cuisine` | écrit : `ssh <hote> brigade <nom> guardrails resume` |
-| `arrêter la cuisine` | écrit : `ssh <hote> brigade <nom> guardrails stop` |
-| `vérifier l'installation` | envoie : `!ssh <hote> brigade <nom> installation` |
+| `resume the kitchen` | writes: `ssh <host> brigade <name> guardrails resume` |
+| `stop the kitchen` | writes: `ssh <host> brigade <name> guardrails stop` |
+| `check the installation` | sends: `!ssh <host> brigade <name> installation` |
 
-- **En tête du rail, plus de phrase technique ni de bouton d'arrêt.** Le rail commence par ses
-  colonnes. Une seule mention discrète peut le précéder : `up to date 3 min ago — …`, **visible
-  seulement quand la lecture a plus de deux minutes** (ou n'a pas abouti). D'où viennent les données
-  (les commandes, l'heure de chaque lecture) se lit dans **Paramètres**, sous « where the rail's data
-  comes from ». **`stop the kitchen` est rangé dans Paramètres** aussi, sous sa forme à lui — un
-  carré plein rouge devant le mot, un trait rouge — ; sa confirmation, qui dit le prix, est inchangée.
-- **Arrêter la cuisine est dangereux** : tous les cooks en cours sont arrêtés, et plus aucun n'est
-  lancé jusqu'à « reprendre ». **L'app n'ajoute aucune confirmation** : la commande se lit, et se
-  corrige, dans le shell avant Entrée.
-- Offerts quel que soit l'état lu. Un projet **sans `hote`** et sans cuisine sur ce poste n'en a pas ; un `hote` qui commence par
-  un tiret, ou un projet dont le dossier n'est pas là, n'a rien d'écrit — la ligne sous les onglets
-  de droite dit pourquoi. Les deux boutons du panneau d'état (`garde-fous stop`, `garde-fous reprendre`) et
-  celui de la bannière d'arrêt restent : eux écrivent dans le second.
+- **At the head of the rail, no more technical sentence or stop button.** The rail starts with its
+  columns. A single discreet mention may precede it: `up to date 3 min ago — …`, **visible
+  only when the read is more than two minutes old** (or did not succeed). Where the data comes from
+  (the commands, the time of each read) is read in **Settings**, under "where the rail's data
+  comes from". **`stop the kitchen` is tucked into Settings** too, in its own form — a
+  solid red square before the word, a red line; its confirmation, which says the price, is unchanged.
+- **Stopping the kitchen is dangerous**: all running cooks are stopped, and none is
+  launched again until "resume". **The app adds no confirmation**: the command is read, and
+  corrected, in the shell before Enter.
+- Offered whatever state was read. A project **without `host`** and without a kitchen on this workstation has none; a `host` that starts with
+  a dash, or a project whose folder is not there, has nothing written — the line under the right-hand tabs
+  says why. The two buttons of the state panel (`guardrails stop`, `guardrails resume`) and
+  the one on the stop banner stay: those write into the second.
 
-## Un geste direct part vraiment — ou dit pourquoi il ne part pas
+## A direct action really goes out — or says why it does not
 
-Un geste **sans jugement**, qui ne détruit ni n'engage rien, n'a pas à attendre ton Entrée : sa
-commande **part**. Elle est envoyée dans le **second** — préfixée du `!` qui la lance sur le Mac
-depuis la session `claude` —, **sa sortie se lit dans son fil**, à droite, sans que le centre
-change. La ligne sous le titre du second dit ce qui est parti :
+An action **without judgment**, that destroys and commits nothing, need not wait for your Enter: its
+command **goes out**. It is sent into the **second** — prefixed with the `!` that runs it on the Mac
+from the `claude` session —, **its output is read in its thread**, on the right, without the center
+changing. The line under the second's title says what went out:
 
 ```
-parti dans le second : `!ssh box brigade parade installation` — `claude` s'est mis en mode shell, l'app a fait Entrée. Sa sortie se lit dans son fil, et le second la lit aussi
+sent into the second: `!ssh box brigade parade installation` — `claude` went into shell mode, the app pressed Enter. Its output is read in its thread, and the second reads it too
 ```
 
-| Le geste direct | Où | Ce qui part |
+| The direct action | Where | What goes out |
 |---|---|---|
-| `éteindre` | l'onglet **Manager** | `!ssh <hote> brigade <nom> manager off` |
-| `vérifier l'installation` | sous la carte du projet | `!ssh <hote> brigade <nom> installation` |
+| `off` | the **Manager** tab | `!ssh <host> brigade <name> manager off` |
+| `check the installation` | under the project tile | `!ssh <host> brigade <name> installation` |
 
-**Les autres gestes restent écrits** — arrêter et reprendre la cuisine, accorder et révoquer un
-grant : ils détruisent ou engagent, et se lisent avant de partir. **Allumer le
-manager** aussi, pour l'instant : il engage, et son avertissement se pose sur la commande écrite.
-**Un geste avec jugement** — la carte de T'attend — écrit une demande dans le second et s'arrête :
-sans ton Entrée, rien n'est transmis.
+**The other actions stay written** — stopping and resuming the kitchen, enabling and revoking a
+grant: they destroy or commit, and are read before they go. **Turning on the
+manager** too, for now: it commits, and its warning is set on the written command.
+**An action with judgment** — the Awaiting you slip — writes a request into the second and stops:
+without your Enter, nothing is transmitted.
 
-### Ce que devient une commande écrite dans la saisie du second
+### What happens to a command written into the second's input
 
-C'est ce qu'il fallait savoir avant de faire partir quoi que ce soit, et c'est mesuré : un vrai
-`claude` (2.1.296) dans un pty, le 2026-10-13, une commande `!…` écrite dans sa saisie.
+This is what had to be known before sending anything, and it is measured: a real
+`claude` (2.1.296) in a pty, on 2026-10-13, a `!…` command written into its input.
 
-| L'état du second | Ce que devient la commande |
+| The second's state | What happens to the command |
 |---|---|
-| **libre** — à son invite, saisie vide | suivie d'Entrée, elle s'exécute aussitôt, et **sa sortie s'affiche dans le fil**. Le second en tire ensuite **un court tour à lui** : il la commente en une ou deux lignes |
-| **occupé** — en plein tour | elle n'est **ni perdue, ni exécutée** : `claude` la met en file, et elle part **seule, à la fin du tour** — quand tu ne regardes plus |
-| **devant un dialogue** — une permission, `/model` | ses caractères sont des touches : écrite d'un bloc elle n'y fait rien, mais **une Entrée y valide le choix montré** |
-| **une frappe en cours** | elle s'écrit à sa suite, et le tout part comme **un message au second** — qui tente alors de lancer la commande lui-même |
+| **free** — at its prompt, input empty | followed by Enter, it runs at once, and **its output shows in the thread**. The second then takes **a short turn of its own** from it: it comments on it in a line or two |
+| **busy** — in the middle of a turn | it is **neither lost nor run**: `claude` queues it, and it goes out **by itself, at the end of the turn** — when you are no longer looking |
+| **in front of a dialog** — a permission, `/model` | its characters are keys: written in one block it does nothing there, but **an Enter there confirms the choice shown** |
+| **typing in progress** | it is written after it, and the whole goes out as **a message to the second** — which then tries to run the command itself |
 
-**Écrire à l'aveugle n'est donc pas envoyer.** L'app ne porte pas pour autant son propre champ de
-saisie : tu parles toujours au second dans son terminal. Elle ne lit pas non plus son écran. Elle
-tient **trois témoins**, et ne le dit libre que s'ils s'accordent :
+**Writing blind is therefore not sending.** The app does not carry its own input field for all
+that: you always talk to the second in its terminal. Nor does it read its screen. It
+holds **three witnesses**, and calls it free only if they agree:
 
-| Le témoin | Ce qu'il dit | D'où il vient |
+| The witness | What it says | Where it comes from |
 |---|---|---|
-| **ses tours** | un tour est en cours, ou fini | `claude` l'annonce lui-même : l'app le lance avec trois crochets (`--settings` : `UserPromptSubmit`, `PreToolUse`, `Stop`), qui écrivent un mot dans un fichier temporaire, propre à ce second. Devant un dialogue de permission, le tour **n'est pas fini** |
-| **son titre** | il attend (`✳ …`), ou il tourne (`◐ …`) | le titre que `claude` donne à son terminal, lu dans sa sortie. Il tourne aussi pour une commande `!` et pour un tour qu'il lance de lui-même — que les crochets n'annoncent pas |
-| **ta frappe** | ta saisie est vide, ou pas | l'app relaie ce que tu tapes dans le second : tant que ta dernière touche n'est pas **Entrée**, ta saisie n'est pas dite vide |
+| **its turns** | a turn is in progress, or finished | `claude` announces it itself: the app launches it with three hooks (`--settings`: `UserPromptSubmit`, `PreToolUse`, `Stop`), which write a word into a temporary file, specific to this second. In front of a permission dialog, the turn **is not finished** |
+| **its title** | it waits (`✳ …`), or it runs (`◐ …`) | the title `claude` gives its terminal, read in its output. It also runs for a `!` command and for a turn it launches by itself — which the hooks do not announce |
+| **your typing** | your input is empty, or not | the app relays what you type into the second: as long as your last key is not **Enter**, your input is not called empty |
 
-**Et une preuve, avant l'Entrée.** Libre, l'app **écrit** la commande, puis attend que `claude` se
-montre en **mode shell** (sa légende `! for shell mode`) : c'est la preuve que la commande est
-seule dans sa saisie, à son invite. **Alors seulement** elle fait Entrée. Sans preuve au bout de
-cinq secondes — ou si tu tapes entre-temps —, elle ne fait pas Entrée, et le dit :
+**And a proof, before the Enter.** When free, the app **writes** the command, then waits for `claude` to
+show itself in **shell mode** (its legend `! for shell mode`): that is the proof that the command is
+alone in its input, at its prompt. **Only then** does it press Enter. With no proof after
+five seconds — or if you type in the meantime —, it does not press Enter, and says so:
 
 ```
-écrit dans le second, mais pas parti : `!ssh box brigade parade installation` — `claude` ne s'est pas montré en mode shell (« ! for shell mode »), l'app n'a donc pas fait Entrée. Sa saisie n'était pas vide, ou il montrait autre chose que son invite : regarde le second, et efface ce qui y est écrit
+written in the second, but not sent: `!ssh box brigade parade installation` — `claude` did not show itself in shell mode ("! for shell mode"), so the app did not press Enter. Its input was not empty, or it was showing something other than its prompt: look at the second, and erase what is written there
 ```
 
-### Quand il ne part pas, il le dit
+### When it does not go out, it says so
 
-**Rien n'est écrit dans un second qui n'est pas dit libre**, et la ligne sous les onglets de droite dit
-pourquoi — toujours suivie de ``— la commande n'est pas partie, et rien n'est écrit : `!ssh …` `` :
+**Nothing is written into a second that is not called free**, and the line under the right-hand tabs says
+why — always followed by ``— the command did not go out, and nothing is written: `!ssh …` ``:
 
-| Ce que la ligne dit | Ce qui se passe | Quoi faire |
+| What the line says | What is happening | What to do |
 |---|---|---|
-| `le second est occupé : il est en plein tour` | il répond, ou une commande tourne | attends la fin du tour, et reclique |
-| `le second n'est pas à son invite : il attend ta réponse — une permission, une question —, ou son dernier tour a été interrompu…` | un dialogue est ouvert ; ou tu as interrompu son tour (Échap), et l'app ne le saura libre qu'à la fin du prochain | réponds-lui, ou parle-lui : le tour suivant, fini, le dit libre |
-| `ta saisie dans le second n'est pas dite vide : ta dernière touche n'y est pas Entrée…` | tu tapais, ou une touche est passée (une flèche, Échap) | envoie ou efface ta frappe ; saisie vide, **une Entrée dans le second** le dit à l'app |
-| `la saisie du second n'est pas dite vide : l'app y a écrit sans envoyer…` | une demande de carte, ou une commande restée sans preuve, y est peut-être encore | envoie-la ou efface-la, puis une Entrée |
-| `une commande de l'app est déjà en route dans le second` | tu viens de cliquer | attends qu'elle ait tourné |
-| `le second n'a encore fini aucun tour depuis son lancement : il démarre…` | il démarre ; ou ses crochets sont coupés (`disableAllHooks`) | attends la fin de son premier tour |
-| `l'app ne sait pas si le second est libre : …` | `claude` ne donne pas de titre à son terminal, ou pas l'un des deux que l'app connaît | — voir ci-dessous |
+| `the second is busy: it is in the middle of a turn` | it is answering, or a command is running | wait for the end of the turn, and click again |
+| `the second is not at its prompt: it is waiting for your answer — a permission, a question —, or its last turn was interrupted…` | a dialog is open; or you interrupted its turn (Esc), and the app will only know it free at the end of the next one | answer it, or talk to it: the next turn, once finished, calls it free |
+| `your input in the second is not called empty: your last key there is not Enter…` | you were typing, or a key went through (an arrow, Esc) | send or erase your typing; with the input empty, **an Enter in the second** tells the app |
+| `the second's input is not called empty: the app wrote there without sending…` | a slip request, or a command left without proof, may still be there | send it or erase it, then an Enter |
+| `a command from the app is already on its way into the second` | you just clicked | wait for it to have run |
+| `the second has not yet finished any turn since its launch: it is starting…` | it is starting; or its hooks are cut (`disableAllHooks`) | wait for the end of its first turn |
+| `the app does not know whether the second is free: …` | `claude` gives its terminal no title, or not one of the two the app knows | — see below |
 
-- **Le second ne tournait pas** : le geste le lance, n'y écrit rien, et le dit — reclique quand son
-  premier tour est fini.
-- **Le second commente la sortie.** Sur `claude` 2.1.296, une commande `!` lui fait tirer un court
-  tour : il la résume en une ou deux lignes. Elle entre dans son contexte — c'est ce qui lui permet
-  de savoir ce que tu as fait —, et chaque tour suivant la paie en entrée : un geste direct doit
-  sortir court.
-- **Tout cela tient à ce que `claude` montre aujourd'hui** : le glyphe de son titre, sa légende du
-  mode shell, ses crochets. Qu'une version les change, et **plus aucun geste direct ne part** — il
-  dit pourquoi, il ne devine pas. La commande est dans le refus : elle se tape.
-- **Les réglages de l'app s'ajoutent aux tiens** : ses trois crochets n'écrivent qu'un mot dans son
-  fichier, et rien sur leur sortie — `claude` n'en lit rien. Tes propres crochets tournent toujours.
+- **The second was not running**: the action starts it, writes nothing into it, and says so — click again when its
+  first turn is finished.
+- **The second comments on the output.** On `claude` 2.1.296, a `!` command makes it take a short
+  turn: it summarizes it in a line or two. It enters its context — that is what lets it
+  know what you did —, and every following turn pays for it as input: a direct action must
+  output little.
+- **All this depends on what `claude` shows today**: its title glyph, its shell-mode
+  legend, its hooks. If a version changes them, **no direct action goes out any more** — it
+  says why, it does not guess. The command is in the refusal: it is typed.
+- **The app's settings add to yours**: its three hooks only write a word into its
+  file, and nothing on their output — `claude` reads none of it. Your own hooks still run.
 
-## Ce qui est dessiné
+## What is drawn
 
-Quatre choses, et elles seules, parce qu'elles sont un **tableau à états** : la pastille de la
-barre, la carte de projet, le rail, la bannière d'arrêt. L'app ne les tire d'aucune phrase : elle
-lance `ssh <hote> brigade <nom> facts`, la commande par laquelle le runtime donne ses faits comme des faits
-(`docs/runtime/etat-et-mesures.md`, « Les faits, pour un programme ») — un état est **un mot lu**, un compteur **un
-nombre lu**. Pour tous les projets qui ont un `hote`, toutes les trente secondes, quel que soit
-l'écran.
+Four things, and only them, because they are a **table of states**: the bar's pill,
+the project tile, the rail, the stop banner. The app draws them from no sentence: it
+runs `ssh <host> brigade <name> facts`, the command by which the runtime gives its facts as facts
+(`docs/runtime/etat-et-mesures.md`, "Les faits, pour un programme") — a state is **a word read**, a counter **a
+number read**. For all projects that have a `host`, every thirty seconds, whatever the
+screen.
 
-### La carte de projet
+### The project tile
 
-En tête du panneau, dans l'espace du projet :
+At the head of the panel, in the project's space:
 
 ```
-● ouverte   lu à 14:32:07 · dernier tick 9 s avant la lecture
+● open   read at 14:32:07 · last tick 9 s before the read
   2        1            1            1           3
-  rail     au travail   à la pass    t'attend    livrés 24 h
-#14  Le journal en ajout seul                      box/claude
-dernier événement — merge.done · #216 · 13 s avant la lecture
+  rail     taken        at pass      awaiting you    served 24 h
+#14  The append-only log                           box/claude
+last event — merge.done · #216 · 13 s before the read
 ```
 
-| Ce que tu lis | D'où ça vient |
+| What you read | Where it comes from |
 |---|---|
-| la pastille et le mot | `etat` : `ouverte` (verte), `retenue` (jaune), `arrêtée` ou `éteinte` (rouges) — ce que chacun veut dire est dans `docs/runtime/etat-et-mesures.md`. *Pourquoi* la cuisine est retenue se lit dans `status`, dessous |
-| `lu à …` | l'heure de ton poste à la lecture |
-| `dernier tick … avant la lecture` | l'écart entre le dernier tick du runtime et l'heure de la box à la lecture. **L'app l'affiche et n'en conclut rien** : `ouverte` avec un tick vieux de dix minutes est un runtime à aller voir (`systemctl status brigade@<projet>`), et c'est toi qui le dis. `aucun tick` : runtime arrêté, ou pas encore de tick depuis son démarrage |
-| les cinq nombres | `rail` (en attente, `BLOQUÉ` compris), `au travail` (`pris`), `à la pass`, `t'attend` (les décisions du bloc `attend`), `livrés 24 h` |
-| les cooks en cours | `cooks` : un par ligne, dans l'ordre de la box — son ticket, le titre de ce ticket, sa station. Ce sont ceux que `station` montre sous « cooks en cours » : ni les relectures du reviewer, ni les jugements du manager. Un titre trop long passe à la ligne, rien n'est coupé ; il est vide si le ticket a quitté le rail pendant la cuisson. `aucun cook en cours` quand la box n'en donne aucun |
-| `dernier événement` | son type **tel quel** — l'app ne le traduit pas —, son ticket s'il en a un, et son âge à la lecture. `aucun : le journal est vide` sur un journal vide |
+| the pill and the word | `etat`: `open` (green), `held` (yellow), `stopped` or `off` (red) — what each means is in `docs/runtime/etat-et-mesures.md`. *Why* the kitchen is held is read in `status`, below |
+| `read at …` | your workstation's time at the read |
+| `last tick … before the read` | the gap between the runtime's last tick and the box's time at the read. **The app shows it and concludes nothing**: `open` with a ten-minute-old tick is a runtime to go and look at (`systemctl status brigade@<project>`), and it is you who says so. `no tick`: runtime stopped, or no tick yet since its start |
+| the five numbers | `rail` (queued, `BLOCKED` included), `taken` (`taken`), `at pass`, `awaiting you` (the decisions of the `awaiting` block), `served 24 h` |
+| the running cooks | `cooks`: one per line, in the box's order — its ticket, that ticket's title, its station. These are the ones `station` shows under "cooks running": neither the reviewer's reviews, nor the manager's judgments. A title too long wraps, nothing is cut; it is empty if the ticket left the rail during the cook. `no cook running` when the box gives none |
+| `last event` | its type **as it is** — the app does not translate it —, its ticket if it has one, and its age at the read. `none: the log is empty` on an empty log |
 
-Les âges se comptent entre deux heures **de la box** : l'horloge de ton poste n'y entre pas.
+Ages are counted between two times **of the box**: your workstation's clock does not enter into it.
 
-**Une box dont le runtime ne donne pas encore ses cooks** — un runtime d'avant ce champ de
-`faits` — n'est pas une box qui ne rend pas ses faits : la carte se dessine, et dit à leur place
-`cooks en cours : pas lus — le runtime de cette box ne les donne pas encore dans faits`. **Ce n'est
-pas « aucun cook »** : `station` les montre, dans l'onglet **Cooks** de l'espace. Le runtime mis à jour, la ligne s'en va seule.
+**A box whose runtime does not yet give its cooks** — a runtime from before this field of
+`facts` — is not a box that does not return its facts: the tile is drawn, and says in their place
+`cooks running: not read — this box's runtime does not give them in facts yet`. **This is not
+"no cook"**: `station` shows them, in the space's **Cooks** tab. Once the runtime is updated, the line goes away by itself.
 
-**Un cook n'a ni jauge ni couleur** : ses tours, sa durée, ses tokens, son inactivité sont dans
-`status`, et `faits` ne les porte pas. Son numéro ne s'ouvre pas non plus — le ticket s'ouvre
-depuis le rail.
+**A cook has no gauge or color**: its turns, its duration, its tokens, its inactivity are in
+`status`, and `facts` does not carry them. Its number does not open either — the ticket opens
+from the rail.
+### The rail
 
-### Le rail
-
-**C'est la vue principale de l'espace : au centre de l'écran, sous le nom du projet, quel que soit
-l'onglet affiché dessous** — le second, un shell, la sortie d'une commande. **Cinq colonnes**, un
-ticket par carte : ce qui va se passer (Sur le rail), ce qui se passe (Au travail, Pass), ce que tu
-dois faire (T'attend), ce qui est fini (Livré). **Les colonnes sont partagées entre les deux onglets du projet**
-(#1184) : ce qui se passe (Taken, Pass) est sur Cooks, le reste sur Rail ; sur Rail, la carte d'une page servie
-n'en porte que l'écran et son geste, son worktree et son port sont sur Cooks. La spec est
-`docs/superpowers/specs/2026-10-13-app-poste-de-travail-design.md` ; la langue visuelle reste celle
-de `docs/maquettes/app/Brigade.dc.html`.
+**It is the main view of the space: in the middle of the screen, under the project name, whatever
+tab is shown below it** — the second, a shell, the output of a command. **Five columns**, one
+ticket per card: what is going to happen (On the rail), what is happening (Taken, Pass), what you
+have to do (Awaiting you), what is done (Served). **The columns are shared between the project's two tabs**
+(#1184): what is happening (Taken, Pass) is on Cooks, the rest on Rail; on Rail, the card of a served page
+carries only its screen and its action, its worktree and its port are on Cooks. The spec is
+`docs/superpowers/specs/2026-10-13-app-poste-de-travail-design.md`; the visual language remains that
+of `docs/maquettes/app/Brigade.dc.html`.
 
 ```
-● Sur le rail  2       ● Au travail  1        ● Pass  1            ● T'attend  1          ● Livré  1
-  #22 en attente         #14 pris               #15 en pass          #21 BLOQUÉ             #9 servi
-  Connexion par…         Formulaire…            Export PDF…          L'export du journal    Validation SIRET
-  after #14              écrit les tests        relecture en cours   Merge it yourself.     servi à 14:02 ·
-                         · 12 min               · 1 min                                     Le champ SIRET…
+● On the rail  2       ● Taken  1             ● Pass  1            ● Awaiting you  1      ● Served  1
+  #22 queued             #14 taken              #15 in pass          #21 BLOCKED            #9 served
+  Login by…              Form…                  PDF export…          The log export        SIRET validation
+  after #14              writes the tests       review in progress   Merge it yourself.    served at 14:02 ·
+                         · 12 min               · 1 min                                    The SIRET field…
 ```
 
-**Une carte tient en deux lignes** (#622) : son numéro, son état et son titre, puis **une phrase en mots
-simples** qui dit ce qui se passe, et au plus **une ligne de signal** quand quelque chose demande ton
-attention. Chaque phrase est écrite d'après les faits que la file donne déjà de la carte
-(`app/src/ligne-carte.ts`), un test par état :
+**A card fits in two lines** (#622): its number, its state and its title, then **a sentence in plain
+words** that says what is happening, and at most **one signal line** when something asks for your
+attention. Each sentence is written from the facts the queue already gives about the card
+(`app/src/ligne-carte.ts`), one test per state:
 
-| État de la carte | Sa phrase | Son signal |
+| State of the card | Its sentence | Its signal |
 |---|---|---|
-| au travail (`pris`) | ce que le cook fait, et depuis combien de temps : `écrit les tests · 12 min` (`rail[].activite`) ; sans activité, `in the kitchen` et un repère `…` | — |
-| en pass | de même : `relecture en cours · 1 min` ; sans activité, `review in progress` et le repère | — |
-| en attente | `after #14, #15` quand `status` dit les tickets qui la retiennent ; sinon ce qui la retient, tel quel ; sinon `ready, waits for a place in the kitchen` | — |
-| `BLOQUÉ` | de même, ou `blocked` et le repère | `blocked` |
-| mise de côté (`86`) | sa raison en clair, celle que le runtime donne (`attente.raison`) ; le mot `86` s'affiche `set aside` | `set aside` |
-| chez un tiers (WAITING) | `waiting for <quoi> · from <qui>` | `follow-up date passed` quand la relance est passée |
-| question répondue (WAITING) | `answered by <qui> · the manager's turn` — `you` pour une réponse que l'app vient de poster | — |
-| t'attend | ce qu'on attend de toi, en une phrase (`decision.ts`) ; pour une question du manager — avant de découper une épique, ou qui retient le ticket par `blocked-on-human` —, la question qu'on te pose | — |
-| livrée | `served at 14:02 · <première phrase du résumé de la relecture>` ; sans résumé, l'heure et le repère | — |
+| taken (`taken`) | what the cook is doing, and for how long: `writes the tests · 12 min` (`rail[].activite`); with no activity, `in the kitchen` and a `…` marker | — |
+| in pass | likewise: `review in progress · 1 min`; with no activity, `review in progress` and the marker | — |
+| queued | `after #14, #15` when `status` names the tickets that hold it; otherwise what holds it, as is; otherwise `ready, waits for a place in the kitchen` | — |
+| `BLOCKED` | likewise, or `blocked` and the marker | `blocked` |
+| set aside (`86`) | its reason in plain words, the one the runtime gives (`attente.raison`); the word `86` is displayed as `set aside` | `set aside` |
+| with a third party (WAITING) | `waiting for <what> · from <who>` | `follow-up date passed` when the follow-up date has passed |
+| question answered (WAITING) | `answered by <who> · the manager's turn` — `you` for an answer the app has just posted | — |
+| awaiting you | what is expected of you, in one sentence (`decision.ts`); for a question from the manager — before splitting an epic, or which holds the ticket through `blocked-on-human` —, the question being asked of you | — |
+| served | `served at 14:02 · <first sentence of the review summary>`; with no summary, the time and the marker | — |
 
-**Ni « bail », ni « 86 », ni « non communiqué » sur une carte.** Quand une information manque, un
-petit repère `…` le signale, discret ; la carte ne dresse jamais la liste de ce qu'elle ne sait pas.
-Ce qui ne change pas ce que tu fais — qui tient le ticket, depuis quand, son bail, ce qu'il brûle, ce
-qui le bloque, `en ce moment` — est dans **la fiche**, qu'un clic sur la carte ouvre (`app/src/bon.ts`,
-`dit`), avec ce qui a été livré et ses remarques dépliables pour un ticket livré. La ligne brute que
-`status` écrit du ticket n'est nulle part sur la carte ni sur la fiche : elle se lit entière dans
-Paramètres. Les captures d'un ticket d'interface livré restent sur la carte.
+**Neither "lease", nor "86", nor "not given" on a card.** When a piece of information is missing, a
+small discreet `…` marker signals it; the card never lists what it does not know.
+What does not change what you do — who holds the ticket, since when, its lease, what it burns, what
+blocks it, `right now` — is in **the card sheet**, which a click on the card opens (`app/src/bon.ts`,
+`dit`), with what was served and its expandable remarks for a served ticket. The raw line that
+`status` writes for the ticket is nowhere on the card or on the sheet: it is read whole in
+Settings. The screenshots of a served interface ticket stay on the card.
 
-**La fiche porte, elle, ce que la file dit du ticket** (`app/src/bon.ts`) — cinq choses, dans cet ordre,
-et `en ce moment` (ce que la cuisine en fait, `rail[].activite`, voir « Ce que fait un cook en ce moment »
-dans `docs/runtime/garde-fous.md`) en tête :
+**The sheet carries what the queue says about the ticket** (`app/src/bon.ts`) — five things, in this order,
+with `right now` (what the kitchen is doing with it, `rail[].activite`, see "Ce que fait un cook en ce moment"
+in `docs/runtime/garde-fous.md`) first:
 
-| Sur la fiche | Ce que c'est | D'où ça vient |
+| On the sheet | What it is | Where it comes from |
 |---|---|---|
-| `tient` | la station qui tient le ticket | `cooks`, dans `faits` ; à défaut, sa ligne de `status` (`par <station> …`) |
-| `depuis` | depuis quand il est dans cet état — pris, en attente, en pass, servi | sa ligne sous `rail`, dans `status` |
-| `bail` | son bail, avec les mots du runtime : `sans progrès depuis 3 min, bail encore 27 min`, `COINCE : …`, `bail échu depuis 5 min` | de même |
-| `brûle` | ce que son cook a dépensé — jamais écrit tant que ni `faits` ni `status` ne le donnent | — |
-| `bloque` | en clair, ce qui le retient : `zone tenue par #14 (app/src)`, `attend #12, #13`, `#17 abandonné (…)`, `aucune station déclarée` | sa ligne sous `rail`, dans `status` |
+| `taken by` | the station that holds the ticket | `cooks`, in `facts`; failing that, its line of `status` (`by <station> …`) |
+| `since` | since when it has been in this state — taken, queued, in pass, served | its line under `rail`, in `status` |
+| `lease` | its lease, in the runtime's words: `no progress since 3 min, lease 27 min left`, `STUCK: …`, `lease expired since 5 min` | likewise |
+| `burns` | what its cook has spent — never written as long as neither `facts` nor `status` gives it | — |
+| `blocks` | in plain words, what holds it: `zone held by #14 (app/src)`, `awaiting #12, #13`, `#17 dropped (…)`, `no station declared` | its line under `rail`, in `status` |
 
-S'y ajoute, pour un ticket en pass ou servi, `cuisiné par` : qui l'a cuisiné n'est pas qui le tient.
+For a ticket in pass or served, `cooked by` is added: who cooked it is not who holds it.
 
-- **Ce que la file ne dit pas n'est pas affiché** (#747) — ni la carte ni la fiche n'écrivent « non communiqué
-  par la file : … » à la place d'une information : une chose absente n'a pas de ligne. Ni « personne »,
-  ni « 0 », ni un tiret non plus. (Le modèle garde `sans`, que la vue ne pose plus.)
-- **Un ticket d'interface livré montre ses captures, sans un clic** (#842) : pour chaque écran
-  changé, la capture avant et la capture après côte à côte, chacune sous sa légende (`fiche — before`,
-  `fiche — after`), sur sa carte en Pass comme en Livré. Elles viennent de `captures`, dans `faits`,
-  chacune par son adresse sur GitHub au commit livré : l'adresse reste au process principal, qui lit
-  l'image par le `gh` du poste — un dépôt privé compris — et la rend à la vue en `data:` (la page ne
-  demande rien au réseau : `img-src data:`). Une capture illisible dit `not available` à sa place, son
-  pourquoi au survol. **Une livraison d'interface qui ne les porte pas toutes est dite incomplète**, en
-  une ligne en tête de ses captures (`incomplete delivery: screenshots missing — the after screenshot
-  of fiche`), où les poser au survol ; une capture absente garde sa place, et dit `missing`. **Un
-  ticket qui n'est pas d'interface n'a pas de `captures`** : sa carte n'en dit rien, pas même une zone
-  vide (`captures.ts`).
-- **Toute carte porte son titre.** Celui que la box donne ; à défaut — un ticket hors rail, que le
-  journal ne connaît pas —, celui de son issue, lu une fois par le `gh` du poste à l'adresse que la box
-  a rendue (`question.ts`, `titreDe`). Illisible, la carte n'a pas de titre : rien n'est écrit à sa place.
-- **Une carte qui t'attend pour une question du manager dit la question qu'on me pose** (#503) — une
-  épique qu'il ne découpe pas avant ta réponse, ou un ticket retenu par `blocked-on-human` : en une ou
-  deux lignes, tirée du commentaire du manager qui l'a posée (`question.ts`, `resumeDe`), avec qui l'a
-  écrite et quand. Son issue est lue par le `gh` du poste dès que la carte est posée — la file ne porte
-  pas le texte de la question, seulement son geste. Elle remplace la ligne brute de la file ; tant
-  qu'elle n'est pas lue, la ligne brute reste. Les autres cartes de TODO ne lisent rien.
-  Sur sa fiche, deux boutons lèvent la retenue sans commande à recopier : **retirer le label** — le
-  manager juge l'issue à son prochain tour — ou **fermer l'issue** (un second clic confirme), par le `gh`
-  du poste, à ton nom (`question.ts`, `lever`). Rien ne part pour un ticket que le bloc `attend` ne
-  dit pas retenu.
-- **Une livraison qui t'attend pour merger s'explique en deux lignes, en tête de sa fiche**
-  (`decision.ts`, `teteDe`) : ce qu'elle fait — la première phrase du résumé de sa relecture, ligne
-  absente quand la relecture n'en donne pas — et pourquoi elle t'attend : `Green, but it touches the
-  judges: review it.`, `Red after 2 returns: ` suivi du premier constat bloquant (ou `Red, the manager
-  gave up: …`), `Green, the CI did not conclude.` Quand elle touche aux juges (`.claude/brigade/`,
-  `.github/workflows/`), leurs fichiers suivent, un par ligne, avec les lignes ajoutées et retirées —
-  rien de rédigé. Tout vient de `attend[].livraison` dans `faits`, ce que la pass a consigné
-  (`runtime/src/attend.ts`, `Livraison` ; `judges` du `pass.judged`) ; sans rien de consigné, la
-  phrase d'avant reste seule. Les boutons « merger » et « retirer du rail » sont dessous.
-- **Chaque valeur est un morceau de ce que la box a écrit, ou un nombre qu'elle a donné.** L'app ne
-  compte aucune durée (hors l'âge de `en ce moment`, ci-dessus) et n'additionne rien : deux cooks en vol sur le même ticket se lisent chacun
-  sous son run.
-- **La ligne lue est celle que `status` écrit sous sa ligne `rail`** —
-  `  #<ticket>  <état>  <priorité>  <détail>  <titre>` (`runtime/src/etat.ts`, `decrireEtat`). C'est,
-  avec le numéro en tête d'une ligne du bloc `attend`, **la seconde chose
-  que l'app lit hors de la forme de `faits`**, et un contrat de plus sur un texte. Elle est bornée
-  par l'état et le titre que `faits` donne pour ce ticket, et son détail n'est découpé que s'il a la
-  forme que le runtime écrit pour cet état. **Sinon rien n'en est tiré : la ligne est relayée sur la
-  carte, entière et mot pour mot**, sous ``non communiqué par `faits`, et pas lu par l'app dans ce que
-  `status` écrit de ce ticket, relayé dessous tel quel``. C'est le cas d'un `86` et d'un mot d'état
-  inconnu, dont le détail n'est pas découpé. Si le runtime reformule cette ligne, les cartes ne
-  mentent pas : elles la relaient. Et un test de l'app fait écrire `status` et `faits` par le
-  runtime lui-même, du même état, et rougit les gates avant (`app/test/bon.test.ts`).
-- **Dans T'attend, ce qui bloque le ticket est ce que le bloc `attend` en dit** : posé sur la carte
-  sous un trait de coupe, **mot pour mot** — sa ligne et, dessous, les lignes plus en retrait qui la
-  précisent, dans leurs blancs, ni tronquées ni remises en forme. Une ligne trop longue passe à la
-  suivante ; rien n'est coupé.
+- **What the queue does not say is not displayed** (#747) — neither the card nor the sheet writes "not given
+  by the queue: …" in place of a piece of information: a missing thing has no line. Nor "nobody",
+  nor "0", nor a dash either. (The model keeps `sans`, which the view no longer sets.)
+- **A served interface ticket shows its screenshots, without a click** (#842): for each screen
+  changed, the before screenshot and the after screenshot side by side, each under its caption (`fiche — before`,
+  `fiche — after`), on its card in Pass as in Served. They come from `captures`, in `facts`,
+  each by its address on GitHub at the served commit: the address stays in the main process, which reads
+  the image through the workstation's `gh` — a private repository included — and hands it to the view as `data:` (the page
+  asks the network for nothing: `img-src data:`). An unreadable screenshot says `not available` in its place, its
+  why on hover. **An interface delivery that does not carry all of them is said to be incomplete**, in
+  one line at the top of its screenshots (`incomplete delivery: screenshots missing — the after screenshot
+  of fiche`), where to put them on hover; a missing screenshot keeps its place, and says `missing`. **A
+  ticket that is not an interface ticket has no `captures`**: its card says nothing of them, not even an empty
+  zone (`captures.ts`).
+- **Every card carries its title.** The one the box gives; failing that — a ticket off the rail, which the
+  log does not know —, that of its issue, read once through the workstation's `gh` at the address the box
+  returned (`question.ts`, `titreDe`). Unreadable, the card has no title: nothing is written in its place.
+- **A card that awaits you for a manager's question says the question being asked of me** (#503) — an
+  epic that it does not split before your answer, or a ticket held by `blocked-on-human`: in one or
+  two lines, taken from the comment of the manager who asked it (`question.ts`, `resumeDe`), with who
+  wrote it and when. Its issue is read through the workstation's `gh` as soon as the card is laid down — the queue does not
+  carry the text of the question, only its action. It replaces the raw line of the queue; as long
+  as it is not read, the raw line stays. The other TODO cards read nothing.
+  On its sheet, two buttons lift the hold without a command to copy: **remove the label** — the
+  manager judges the issue at its next turn — or **close the issue** (a second click confirms), through the
+  workstation's `gh`, in your name (`question.ts`, `lever`). Nothing goes out for a ticket that the `awaiting` block does not
+  say is held.
+- **A delivery that awaits you to merge explains itself in two lines, at the top of its sheet**
+  (`decision.ts`, `teteDe`): what it does — the first sentence of the summary of its review, line
+  absent when the review gives none — and why it awaits you: `Green, but it touches the
+  judges: review it.`, `Red after 2 returns: ` followed by the first blocking finding (or `Red, the manager
+  gave up: …`), `Green, the CI did not conclude.` When it touches the judges (`.claude/brigade/`,
+  `.github/workflows/`), their files follow, one per line, with the lines added and removed —
+  nothing drafted. Everything comes from `attend[].livraison` in `facts`, what the pass recorded
+  (`runtime/src/attend.ts`, `Livraison`; `judges` of `pass.judged`); with nothing recorded, the
+  previous sentence stays alone. The "merge" and "remove from the rail" buttons are below.
+- **Each value is a piece of what the box wrote, or a number it gave.** The app
+  counts no duration (apart from the age of `right now`, above) and adds nothing up: two cooks in flight on the same ticket are each read
+  under their own run.
+- **The line read is the one `status` writes under its `rail` line** —
+  `  #<ticket>  <state>  <priority>  <detail>  <title>` (`runtime/src/etat.ts`, `decrireEtat`). It is,
+  with the number at the head of a line of the `awaiting` block, **the second thing
+  the app reads outside the shape of `facts`**, and one more contract on a text. It is bounded
+  by the state and the title that `facts` gives for this ticket, and its detail is split only if it has the
+  form the runtime writes for that state. **Otherwise nothing is taken from it: the line is relayed on the
+  card, whole and word for word**, under ``not given by `facts`, and not read by the app in what
+  `status` writes of this ticket, relayed below as is``. This is the case of an `86` and of an
+  unknown state word, whose detail is not split. If the runtime rewords this line, the cards do not
+  lie: they relay it. And a test of the app has the runtime itself write `status` and `facts`,
+  from the same state, and turns the gates red beforehand (`app/test/bon.test.ts`).
+- **In Awaiting you, what blocks the ticket is what the `awaiting` block says of it**: laid on the card
+  under a cut line, **word for word** — its line and, below, the more indented lines that
+  detail it, in their whitespace, neither truncated nor reformatted. A line that is too long wraps to the
+  next; nothing is cut.
 
-| Colonne | Ce qui y est | D'où ça vient |
+| Column | What is in it | Where it comes from |
 |---|---|---|
-| **Sur le rail** | les tickets `en attente` et `BLOQUÉ` | le mot d'état de `faits` |
-| **Au travail** | les tickets `pris` | de même |
-| **Pass** | les tickets `en pass` | de même |
-| **T'attend** | les tickets qui attendent une décision de toi : ceux que le bloc `attend` de `status` nomme, dans l'ordre du bloc — le plus ancien d'abord —, puis ceux que `faits` nomme seul | **`attend`, dans `faits`**, qui dit qui attend ; et **le numéro en tête d'une ligne du bloc** (voir « Le numéro qu'elle y lit »), qui dit en plus ce qu'on attend de lui |
-| **Livré** | les tickets servis dans les 24 h, **le plus récent en haut** — que leur issue soit fermée ou non : autant de cartes que le compteur `livrés 24 h` | **`livres`, dans `faits`** ; d'une box qui ne le donne pas encore, les tickets `servi` du rail |
+| **On the rail** | the `queued` and `BLOCKED` tickets | the state word of `facts` |
+| **Taken** | the `taken` tickets | likewise |
+| **Pass** | the `in pass` tickets | likewise |
+| **Awaiting you** | the tickets that await a decision from you: those the `awaiting` block of `status` names, in the block's order — the oldest first —, then those `facts` names alone | **`attend`, in `facts`**, which says who is awaiting; and **the number at the head of a line of the block** (see "The number it reads there"), which also says what is expected of it |
+| **Served** | the tickets served in the last 24 h, **the most recent on top** — whether their issue is closed or not: as many cards as the `served 24 h` counter | **`livres`, in `facts`**; from a box that does not give it yet, the `served` tickets of the rail |
 
-- **Un ticket mis de côté (`86`) n'est jamais hors colonne.** Le runtime donne, dans `rail[].attente`
-  de `faits`, sa raison en clair (« attend : setup du projet impossible ») et la colonne où il attend ;
-  l'app le range là — à défaut d'une colonne qu'elle connaisse, dans **Sur le rail** — et sa carte
-  porte la raison en une ligne (`set aside`), jamais la ligne brute de `status`
-  (`86 prio:1 … (setup-failed), retour dans …`). Seul un ticket d'un état inconnu, sans `attente`
-  (une box d'avant ce champ), reste rendu à part sous le rail.
+- **A ticket set aside (`86`) is never out of a column.** The runtime gives, in `rail[].attente`
+  of `facts`, its reason in plain words ("awaiting: project setup impossible") and the column where it waits;
+  the app files it there — failing a column it knows, in **On the rail** — and its card
+  carries the reason in one line (`set aside`), never the raw line of `status`
+  (`86 prio:1 … (setup-failed), back in …`). Only a ticket in an unknown state, with no `attente`
+  (a box from before this field), is still rendered apart under the rail.
 
-- **Un ticket livré reste dans Livré 24 h, issue fermée ou non.** Le merge ferme l'issue, le ticket
-  quitte le rail quelques secondes plus tard : la colonne ne le lit plus sur le rail, mais dans
-  `livres`, que la box relit à son journal. Sa carte porte son numéro (qui ouvre l'issue), son titre,
-  `livré` — son âge à la lecture, sur l'horloge de la box —, `cuisiné par` — la station —, et **un
-  bouton « ouvrir la PR mergée »**, qui l'ouvre dans le navigateur : l'adresse reste au process
-  principal, comme celle de l'issue. Un ticket servi sans merge n'a pas de PR : la carte le dit
-  (`PR  aucune — servi sans merge`). Une issue fermée **sans** avoir été servie — abandonnée,
-  écartée — n'y est pas.
-- **Sous son titre, la carte dit ce qui a été livré : le résumé de la relecture, mot pour mot.** Le
-  titre dit ce qui était demandé ; le résumé, ce que le reviewer a lu dans ce qui a été servi — celui
-  qu'il a écrit sur l'issue. Il est posé en entier, dans ses mots : ni coupé, ni reformulé, et une
-  ligne trop longue passe à la suivante. Dessous, **le nombre de ses constats, en clair** —
-  `aucune remarque`, `4 remarques`, ou `2 remarques, dont 1 bloquante` pour une livraison mergée à la
-  main malgré une relecture rouge. **Un clic sur ce nombre les déplie** sur la carte, chacun dans son
-  ordre, avec le fichier qu'il nomme et son texte tel que le reviewer l'a écrit ; un second clic les
-  replie. Ils viennent de `relecture`, dans `livres` (`docs/runtime/etat-et-mesures.md`, « Les faits, pour un
-  programme »).
-- **Sans relecture, la carte le dit, et n'invente rien** : `ce qui a été livré : non communiqué —
-  aucune relecture lisible ne porte sur cette livraison (mergée à la main, servie sans passer à la
-  pass, ou d'avant la relecture)`. D'une box dont le runtime ne donne pas encore la relecture, elle
-  dit ``ce qui a été livré : non communiqué — le runtime de cette box ne donne pas encore la relecture
-  dans `faits` ``. Le titre de l'issue n'est jamais mis à la place du résumé.
-- **Vide, la colonne le dit : « rien livré depuis 24 h ».** Ce n'est pas « aucun ticket » : rien n'a
-  été servi.
-- **Longue, elle défile dans sa hauteur** : ses cartes ne poussent rien sous la grille, et les autres
-  colonnes restent en vue à côté d'elle.
-- Un ticket `servi` encore sur le rail, servi il y a plus de 24 h, n'est plus dans Livré : il est
-  rendu à part, sous la grille. Un ticket livré que le rail porte de nouveau sous un autre mot —
-  repris depuis, `86` — est dans Livré et là où ce mot le range.
+- **A served ticket stays in Served 24 h, issue closed or not.** The merge closes the issue, the ticket
+  leaves the rail a few seconds later: the column no longer reads it on the rail, but in
+  `livres`, which the box rereads from its log. Its card carries its number (which opens the issue), its title,
+  `served` — its age at the time of reading, on the box's clock —, `cooked by` — the station —, and **a
+  button "open the merged PR"**, which opens it in the browser: the address stays in the main
+  process, like that of the issue. A ticket served without a merge has no PR: the card says so
+  (`PR  none — served without merge`). An issue closed **without** having been served — dropped,
+  set aside — is not there.
+- **Under its title, the card says what was served: the review summary, word for word.** The
+  title says what was asked; the summary, what the reviewer read in what was served — the one
+  it wrote on the issue. It is laid down whole, in its words: neither cut nor reworded, and a
+  line that is too long wraps to the next. Below it, **the number of its findings, in plain words** —
+  `no remarks`, `4 remarks`, or `2 remarks, 1 of them blocking` for a delivery merged by
+  hand despite a red review. **A click on this number expands them** on the card, each in its
+  order, with the file it names and its text as the reviewer wrote it; a second click folds
+  them back. They come from `relecture`, in `livres` (`docs/runtime/etat-et-mesures.md`, "The facts, for a
+  program").
+- **With no review, the card says so, and invents nothing**: `what was served: not given —
+  no readable review bears on this delivery (merged by hand, served without going through the
+  pass, or from before the review)`. From a box whose runtime does not give the review yet, it
+  says ``what was served: not given — this box's runtime does not give the review yet
+  in `facts` ``. The issue title is never put in place of the summary.
+- **Empty, the column says so: "nothing served in 24 h".** It is not "no ticket": nothing was
+  served.
+- **Long, it scrolls within its height**: its cards push nothing below the grid, and the other
+  columns stay in view next to it.
+- A `served` ticket still on the rail, served more than 24 h ago, is no longer in Served: it is
+  rendered apart, under the grid. A served ticket that the rail carries again under another word —
+  taken again since, `86` — is in Served and where that word files it.
 
-- **Un ticket qui attend une décision est dans T'attend, et nulle part ailleurs** — un `BLOQUÉ` quitte
-  Sur le rail, une livraison verte non mergée quitte Pass : c'est l'information qui décide d'un
-  geste. Sa carte garde son mot d'état, et porte **ce que sa ligne du bloc dit, mot pour mot** : le
-  geste y est, tel que le runtime l'écrit.
-- **Il y est dès que `faits` le nomme dans `attend`**, sans attendre `status` : `faits` est lu pour
-  tous les projets, quel que soit l'écran. Tant que le bloc n'a pas été lu, sa carte est dans
-  T'attend sans les mots du bloc — elle écrit que ce qui le bloque n'est pas communiqué, et n'offre
-  pas « demander au second », qui se compose de ces mots.
-- **Un ticket que le bloc nomme sans qu'il soit sur le rail** — une issue que le manager a écartée,
-  une épique sur laquelle il pose une question — a sa carte dans T'attend : son numéro et sa ligne.
-  Pas d'état, que `faits` ne donne pas pour lui ; **son titre seulement si `faits.attend` en porte
-  un** — le journal ne le connaît pas pour une issue écartée, et aucun appel de plus ne va le chercher : la
-  ligne du bloc dit déjà ce que c'est. **Son numéro ouvre l'issue** à l'adresse que `faits.attend`
-  donne — la box connaît le dépôt, l'app n'en compose aucune. Sans cette adresse (un runtime d'avant
-  ce champ, ou une box qui ne connaît pas son dépôt), il n'ouvre rien, et son survol le dit.
-- **Une ligne sans numéro n'est dans aucune colonne** : la station sans connexion Max, le bilan des
-  arrêts faute de grant. Elles restent dans le bloc, à droite. Le compteur `t'attend` de la carte de
-  projet compte les décisions, la colonne compte ses cartes : une station déconnectée fait l'écart.
-- **T'attend peut ne pas être lue**, et la colonne le dit (`?`, `pas lue : le runtime de cette box
-  ne donne pas `attend` dans `faits`, et le bloc `attend` de `ssh <hote> brigade <nom> status` n'a
-  pas été pris pour ce projet`) : un runtime d'avant `attend` dans `faits`, dont `status` n'est pas
-  encore lu, est raté, ou n'a pas de bord. Ce n'est pas « rien ne t'attend » — les tickets restent
-  alors dans la colonne de leur mot d'état. La colonne ne dit jamais elle-même que rien ne
-  t'attend : vide, elle dit `aucun ticket en tête d'une ligne du bloc `attend`` — ou, avant que le
-  bloc soit lu, ``aucun ticket dans `attend`, d'après `faits` `` —, et c'est le bloc qui dit le
-  reste : une connexion, la base attendent aussi, et n'ont pas de carte.
-- **Un ticket `86` qui ne t'attend pas** — sa station lui a donné une heure de retour — **n'est
-  d'aucune colonne**, comme un ticket dont l'app ne connaît pas le mot d'état : il se lit **sous les
-  colonnes**, sous le titre `hors des cinq colonnes`, avec son mot — et sa ligne de `status`, relayée telle
-  quelle sur sa carte, dit quand il revient ; la lecture Rail, dans Paramètres, relaie ce que `rail` en dit. Un `86` sans heure de retour, ou remonté par la pass, est dans le bloc : donc dans
-  T'attend.
-- **Un numéro ouvre l'issue** dans ton navigateur. L'adresse est celle que la box donne pour ce
-  ticket — celle de son issue, telle que le runtime l'a reçue de GitHub pour le dépôt que le
-  projet lui déclare. L'app n'en compose aucune. **Seule une adresse en `https` s'ouvre** : sinon le numéro n'est pas un lien, et
-  son survol le dit.
-- **Une couleur par état** : `en attente` gris, `pris` bleu, `en pass` jaune, `servi` vert,
-  `BLOQUÉ` et `86` rouges. Le point d'une colonne a celle de son état ; celui de T'attend est rouge.
-- **Pas de tags sur les cartes** : le ticket s'ouvre sur son issue, où ses labels sont, à jour.
-- Une box qui rend un rail vide dessine cinq colonnes vides (`aucun ticket`) — un fait, pas une
-  lecture manquée. Une box qui ne rend pas `faits` ne dessine pas de rail : le titre dit le cas.
-- **Ce qu'une carte porte de `status` ne vaut que pour un projet dont `status` est lu** — celui qui
-  est affiché, ou tous dans « Tous les projets ». Quand tu quittes un projet, ce que `status` en a
-  rendu est lâché : à ton retour ses cartes disent ce que `faits` donne seul le temps de la première
-  lecture, plutôt que de poser sur des faits frais une ligne d'il y a une heure.
-- **Deux lectures, deux heures** : les colonnes datent de la dernière lecture de `faits` ; ce que
-  le bloc dit et ce que les cartes portent, de celle de `status`. La provenance, dans Paramètres
-  (« d'où viennent les lectures du rail »), porte les deux commandes et les deux heures, et elles peuvent différer de trente secondes : un ticket qui vient de bouger peut, le temps d'une
-  lecture, se lire avec un mot d'état d'une lecture et une ligne de l'autre. Sa ligne ne se découpe
-  alors pas — son état n'est plus celui de `faits` — : elle est relayée telle quelle.
-- **Une carte de T'attend porte « demander au second »** (`app/src/demande.ts`). Le clic écrit
-  dans le second une demande en prose — une phrase, pas une commande — et l'affiche : elle nomme
-  le ticket, le projet, son titre s'il y en a un, et ce que le bloc `attend` en dit, mot pour mot,
-  donc le geste que la file nomme (répondre sur l'issue, fermer, retirer et reposer `fire`, un
-  `86`, une remontée de pass : chaque entrée a le sien, l'app n'en invente aucun). Elle demande au
-  second de lire l'issue, d'expliquer, puis de répondre ou de faire le geste avec toi une fois que
-  tu as décidé. **Rien n'est envoyé : c'est toi qui fais Entrée.** Il n'y a pas d'agent de popup :
-  le second a la file, son historique et son rôle, et c'est lui qui répond sur l'issue quand tu
-  passes par lui. Une question du manager se répond aussi sans lui, sur la fiche (ci-dessous).
-  - **Le second est celui du projet**, affiché comme pour un bouton. Un second arrêté est lancé, et
-    rien n'y est écrit : reclique quand il est prêt. La phrase est composée par le process
-    principal du bloc qu'il tient, pas d'un texte venu de la vue ; un ticket que le bloc ne nomme
-    plus n'écrit rien.
-  - **Un caractère de contrôle refuse tout** — un retour chariot, un saut de ligne, un Ctrl-C dans
-    ce que la file dit : rien n'est écrit, la note le dit. Aucun clic ne fait donc Entrée à ta place.
-  - **Une ligne, qui disparaît à l'envoi.** La note d'une demande écrite tient en une ligne, sans
-    recopier la demande (elle est dans le terminal) : « demande écrite dans le second — appuie sur
-    Entrée pour l'envoyer ». Elle disparaît dès ton Entrée dans le second. L'avertissement sur les
-    dialogues n'y figure que si le second attendait vraiment une réponse (une permission, un
-    choix) quand l'app a écrit, et tient lui aussi en une ligne. L'app ne lit pas l'écran de
-    `claude` : elle le sait par les tours et le titre du second (saisie.ts).
-- **La question qui t'attend, posée telle quelle, sans LLM** (`app/src/question.ts`, #681). Quand
-  le manager pose une question sur une issue — avant de découper une épique —, le clic de sa carte
-  ouvre sa fiche, et la fiche la pose : l'app lit l'issue à l'ouverture et montre **le commentaire
-  du manager mot pour mot**, sans ses marqueurs cachés (`<!-- brigade:… -->`) — ni résumé, ni
-  reformulation, ni second. Dessous, ce qui a été écrit sur l'issue depuis, s'il y a quelque chose :
-  tu vois qu'on y a déjà répondu.
-  - **Ses choix sont des boutons.** Une question qui propose `(a) … (b) … (c) …` dans sa phrase, ou
-    une liste `a)`, `(b)`, `c.`, `d :` en tête de ligne — des lettres qui se suivent depuis `a`,
-    deux au moins —, a un bouton par choix : `b) il s'ouvre par-dessus`. **Un clic, et c'est
-    répondu** : la lettre et le texte du choix, tels que la question les écrit, partent en
-    commentaire. Une question sans choix lisibles n'a pas de bouton : elle se répond en une phrase.
-  - **Une phrase, dans le champ dessous**, part par son bouton « post this answer », telle que tu
-    l'as écrite. Entrée n'envoie rien ; une phrase vide ne part pas ; ce que tu écris reste quand la
-    fiche se redessine.
-  - **La réponse est postée sur l'issue par ton `gh`** — celui du poste, connecté à ton compte, le
-    même que le second utilise : elle est signée de toi, et le manager la lit comme une réponse du
-    chef, à son prochain tick. La fiche dit `answer posted on #<n>, in your name: “…”` et n'offre
-    plus rien à poster. Aucun geste de la box ne lit ni n'écrit les commentaires d'une issue : c'est
-    pour cela que l'app joint GitHub ici, et seulement ici — `gh issue view <issue> --json comments`
-    pour lire, `gh issue comment <issue> --body-file -` au clic.
-  - **La carte quitte TODO dès que la réponse est partie** (`app/src/repondues.ts`, #503), sans
-    attendre le manager ni une nouvelle lecture de la box : elle passe dans **WAITING** — c'est lui,
-    le tiers qu'elle attend —, avec `answered by you · the manager's turn`, et sa fiche dit qui a
-    répondu, quand, et ce qui viendra. Il en va de même d'une question **répondue ailleurs** — sur
-    GitHub, par le second — : l'issue lue la dit répondue (un commentaire écrit sous la question par
-    quelqu'un qui a la main sur le dépôt, et qui n'est pas du manager — ce qu'il lira comme une
-    réponse), et la carte passe dans WAITING. Ce que le manager en fait se lit au tour suivant : il
-    découpe l'épique, et la file ne la nomme plus ; **ou il pose une autre question, et la carte
-    revient dans TODO** — l'issue d'une carte répondue est relue au plus toutes les deux minutes tant
-    que la file la nomme, c'est là que cela se voit. Ce que la file ne dit pas — qu'une question est
-    répondue — l'app le tient d'elle-même, et le perd au redémarrage : l'issue relue le redit. Le
-    compteur `awaiting you` reste celui de la box. Une question qui retient un ticket par
-    `blocked-on-human` ne quitte pas TODO quand elle est répondue : le label reste à lever.
-  - **Rien ne part sans ton geste** : ni réponse d'office, ni choix par défaut. Et rien ne part sur
-    une question qui n'est plus celle que tu as lue : l'issue est relue juste avant d'écrire. Si le
-    manager en a posé une autre entre-temps, rien n'est posté, la fiche le dit et pose la nouvelle.
-    **Si quelque chose a été écrit sous la question depuis que tu l'as lue** — une réponse donnée
-    ailleurs, sur GitHub ou par le second, ou un autre commentaire —, rien n'est posté non plus : la
-    fiche dit `nothing was posted: <qui> answered the question on the issue since you read it…` et
-    montre ce qui a été écrit ; tu postes encore, si ta réponse ajoute quelque chose. Un refus de
-    GitHub, un réseau absent, un `gh` qui ne répond pas en trente secondes : rien n'est dit posté, la
-    fiche écrit ce que `gh` a rendu. Un ticket que le bloc `attend` ne nomme plus ne se répond plus d'ici.
-  - **Une question n'est prise que de ceux qui ont la main sur le dépôt** (propriétaire, membre,
-    collaborateur), comme le manager les lit : un marqueur recopié par un autre n'ouvre rien.
-  - **Une issue sans question du manager n'ajoute rien à la fiche** : les autres entrées de T'attend
-    — merge à la main, `86`, base rouge, label `question` ou `decision` posé à la main… — gardent leur
-    geste à elles. **Une issue qui n'a pas pu être lue** — `gh` absent du poste, pas connecté, pas de
-    réponse en trente secondes — le dit sur la fiche, avec ce que `gh` a rendu ; ce n'est pas
-    « aucune question ».
-  - **« ask the second » reste sur la fiche**, sous la question, pour celles qui méritent une
-    explication : il écrit la même demande qu'avant.
-- **Ce qui n'est pas encore sur le rail** (`app/src/amont.ts`, #697). Un rail vide ne veut pas
-  dire un projet fini : en tête du rail, un nombre — `23 upcoming` — compte les issues ouvertes du
-  dépôt que le rail ne porte pas. Il vient de `ssh <hote> brigade <nom> manager upstream`
-  (`docs/runtime/manager.md`, « En amont du rail »), lu **pour le projet affiché seulement**, une fois par
-  minute : la box lit GitHub à chaque fois. Un clic déplie la liste, **regroupée par ce qui leur
-  arrive**, dans les mots de la box :
-  - `not yet read by the manager` ; `epic, not yet split` ; `awaiting your answer — it is also in
-    TODO` ; `set aside by the manager` (avec sa raison en une ligne) ; `off the rail — still
-    open` (`fire` retiré, ou `hors-cuisine` posé) ;
-  - puis trois passages, quand il y en a : `on its way to the rail` (elle porte `fire`, ou le
-    manager l'y a mise), `epic split — its tickets carry the work`, `served — its issue is still open`.
+- **A ticket that awaits a decision is in Awaiting you, and nowhere else** — a `BLOCKED` leaves
+  On the rail, a green unmerged delivery leaves Pass: it is the information that decides an
+  action. Its card keeps its state word, and carries **what its line of the block says, word for word**: the
+  action is there, as the runtime writes it.
+- **It is there as soon as `facts` names it in `attend`**, without waiting for `status`: `facts` is read for
+  all projects, whatever the screen. As long as the block has not been read, its card is in
+  Awaiting you without the block's words — it writes that what blocks it is not given, and does not
+  offer "ask the second", which is composed of those words.
+- **A ticket that the block names without its being on the rail** — an issue the manager set aside,
+  an epic on which it asks a question — has its card in Awaiting you: its number and its line.
+  No state, which `facts` does not give for it; **its title only if `facts.attend` carries
+  one** — the log does not know it for an issue set aside, and no further call goes to fetch it: the
+  block's line already says what it is. **Its number opens the issue** at the address that `facts.attend`
+  gives — the box knows the repository, the app composes none. Without this address (a runtime from before
+  this field, or a box that does not know its repository), it opens nothing, and its hover says so.
+- **A line without a number is in no column**: the station without a Max connection, the summary of
+  stops for lack of a grant. They stay in the block, on the right. The `awaiting you` counter of the project
+  tile counts the decisions, the column counts its cards: a disconnected station makes the difference.
+- **Awaiting you may not be read**, and the column says so (`?`, `not read: this box's runtime
+  does not give `attend` in `facts`, and the `awaiting` block of `ssh <host> brigade <name> status` was
+  not taken for this project`): a runtime from before `attend` in `facts`, whose `status` is not
+  read yet, is failed, or has no edge. It is not "nothing awaits you" — the tickets then stay
+  in the column of their state word. The column never says by itself that nothing awaits
+  you: empty, it says `no ticket at the head of a line of the `awaiting` block` — or, before the
+  block is read, ``no ticket in `attend`, according to `facts` `` —, and it is the block that says the
+  rest: a connection, the base also await, and have no card.
+- **An `86` ticket that does not await you** — its station gave it a return time — **is
+  in no column**, like a ticket whose state word the app does not know: it is read **under the
+  columns**, under the title `outside the five columns`, with its word — and its line of `status`, relayed as
+  is on its card, says when it comes back; the Rail reading, in Settings, relays what `rail` says of it. An `86` with no return time, or raised by the pass, is in the block: hence in
+  Awaiting you.
+- **A number opens the issue** in your browser. The address is the one the box gives for this
+  ticket — that of its issue, as the runtime received it from GitHub for the repository the
+  project declares to it. The app composes none. **Only an `https` address opens**: otherwise the number is not a link, and
+  its hover says so.
+- **One color per state**: `queued` gray, `taken` blue, `in pass` yellow, `served` green,
+  `BLOCKED` and `86` red. The dot of a column has the color of its state; that of Awaiting you is red.
+- **No tags on the cards**: the ticket opens on its issue, where its labels are, up to date.
+- A box that returns an empty rail draws five empty columns (`no ticket`) — a fact, not a
+  missed reading. A box that does not return `facts` draws no rail: the title says the case.
+- **What a card carries from `status` holds only for a project whose `status` is read** — the one
+  displayed, or all of them in "All projects". When you leave a project, what `status` returned for it
+  is dropped: when you come back its cards say what `facts` alone gives for the time of the first
+  reading, rather than laying an hour-old line over fresh facts.
+- **Two readings, two times**: the columns date from the last reading of `facts`; what
+  the block says and what the cards carry, from that of `status`. The provenance, in Settings
+  ("where the rail readings come from"), carries the two commands and the two times, and they may differ by thirty seconds: a ticket that has just moved may, for the length of one
+  reading, be read with a state word from one reading and a line from the other. Its line is then
+  not split — its state is no longer that of `facts` —: it is relayed as is.
+- **A card in Awaiting you carries "ask the second"** (`app/src/demande.ts`). The click writes
+  into the second a request in prose — a sentence, not a command — and displays it: it names
+  the ticket, the project, its title if there is one, and what the `awaiting` block says of it, word for word,
+  hence the action the queue names (answer on the issue, close, remove and re-set `fire`, an
+  `86`, a pass escalation: each entry has its own, the app invents none). It asks the
+  second to read the issue, to explain, then to answer or to do the action with you once
+  you have decided. **Nothing is sent: you are the one who presses Enter.** There is no popup agent:
+  the second has the queue, its history and its role, and it is the one who answers on the issue when you
+  go through it. A manager's question can also be answered without it, on the sheet (below).
+  - **The second is the project's own**, displayed as for a button. A stopped second is launched, and
+    nothing is written to it: click again when it is ready. The sentence is composed by the main
+    process from the block it holds, not from a text coming from the view; a ticket that the block no longer names
+    writes nothing.
+  - **A control character refuses everything** — a carriage return, a line feed, a Ctrl-C in
+    what the queue says: nothing is written, the note says so. So no click presses Enter in your place.
+  - **One line, which disappears on sending.** The note of a written request fits in one line, without
+    copying the request (it is in the terminal): "request written in the second — press
+    Enter to send it". It disappears as soon as you press Enter in the second. The warning about
+    dialogs appears only if the second was really waiting for an answer (a permission, a
+    choice) when the app wrote, and also fits in one line. The app does not read the screen of
+    `claude`: it knows it from the turns and the title of the second (saisie.ts).
+- **The question that awaits you, laid down as is, with no LLM** (`app/src/question.ts`, #681). When
+  the manager asks a question on an issue — before splitting an epic —, the click on its card
+  opens its sheet, and the sheet lays it down: the app reads the issue on opening and shows **the manager's comment
+  word for word**, without its hidden markers (`<!-- brigade:… -->`) — no summary, no
+  rewording, no second. Below it, what has been written on the issue since, if anything:
+  you see that it has already been answered.
+  - **Its choices are buttons.** A question that offers `(a) … (b) … (c) …` in its sentence, or
+    a list `a)`, `(b)`, `c.`, `d :` at the head of a line — letters that follow one another from `a`,
+    at least two —, has one button per choice: `b) it opens on top`. **One click, and it is
+    answered**: the letter and the text of the choice, as the question writes them, go out as a
+    comment. A question without readable choices has no button: it is answered in one sentence.
+  - **A sentence, in the field below**, goes out through its "post this answer" button, as you
+    wrote it. Enter sends nothing; an empty sentence does not go out; what you write stays when the
+    sheet is redrawn.
+  - **The answer is posted on the issue by your `gh`** — the workstation's, signed in to your account, the
+    same one the second uses: it is signed by you, and the manager reads it as an answer from the
+    chef, at its next tick. The sheet says `answer posted on #<n>, in your name: “…”` and offers
+    nothing more to post. No action of the box reads or writes the comments of an issue: that is
+    why the app reaches GitHub here, and only here — `gh issue view <issue> --json comments`
+    to read, `gh issue comment <issue> --body-file -` on click.
+  - **The card leaves TODO as soon as the answer has gone out** (`app/src/repondues.ts`, #503), without
+    waiting for the manager or for a new reading of the box: it moves to **WAITING** — the manager is
+    the third party it awaits —, with `answered by you · the manager's turn`, and its sheet says who
+    answered, when, and what will come. The same goes for a question **answered elsewhere** — on
+    GitHub, by the second: the issue read says it answered (a comment written under the question by
+    someone with write access to the repository, who is not the manager — which it will read as an
+    answer), and the card moves to WAITING. What the manager does with it is read at the next turn: it
+    splits the epic, and the queue no longer names it; **or it asks another question, and the card
+    comes back to TODO** — the issue of an answered card is reread at most every two minutes as long
+    as the queue names it, which is where this shows. What the queue does not say — that a question is
+    answered — the app holds by itself, and loses on restart: the issue reread says it again. The
+    `awaiting you` counter stays the box's. A question that holds a ticket through
+    `blocked-on-human` does not leave TODO when it is answered: the label is still to be lifted.
+  - **Nothing goes out without your action**: no default answer, no default choice. And nothing goes out on
+    a question that is no longer the one you read: the issue is reread just before writing. If the
+    manager has asked another one in the meantime, nothing is posted, the sheet says so and lays down the new one.
+    **If something has been written under the question since you read it** — an answer given
+    elsewhere, on GitHub or by the second, or another comment —, nothing is posted either: the
+    sheet says `nothing was posted: <who> answered the question on the issue since you read it…` and
+    shows what was written; you post again, if your answer adds something. A refusal from
+    GitHub, an absent network, a `gh` that does not answer within thirty seconds: nothing is said to be posted, the
+    sheet writes what `gh` returned. A ticket that the `awaiting` block no longer names can no longer be answered from here.
+  - **A question is taken only from those with write access to the repository** (owner, member,
+    collaborator), as the manager reads them: a marker copied by someone else opens nothing.
+  - **An issue with no manager question adds nothing to the sheet**: the other entries of Awaiting you
+    — hand merge, `86`, red base, `question` or `decision` label set by hand… — keep their own
+    action. **An issue that could not be read** — `gh` absent from the workstation, not signed in, no
+    answer within thirty seconds — says so on the sheet, with what `gh` returned; it is not
+    "no question".
+  - **"ask the second" stays on the sheet**, under the question, for those that deserve an
+    explanation: it writes the same request as before.
+- **What is not on the rail yet** (`app/src/amont.ts`, #697). An empty rail does not
+  mean a finished project: at the head of the rail, a number — `23 upcoming` — counts the open issues of the
+  repository that the rail does not carry. It comes from `ssh <host> brigade <name> manager upstream`
+  (`docs/runtime/manager.md`, "En amont du rail"), read **for the displayed project only**, once a
+  minute: the box reads GitHub each time. A click expands the list, **grouped by what is
+  happening to them**, in the box's words:
+  - `not yet read by the manager`; `epic, not yet split`; `awaiting your answer — it is also in
+    TODO`; `set aside by the manager` (with its reason in one line); `off the rail — still
+    open` (`fire` removed, or `served-elsewhere` set);
+  - then three passages, when there are any: `on its way to the rail` (it carries `fire`, or the
+    manager put it there), `epic split — its tickets carry the work`, `served — its issue is still open`.
 
-  Chaque issue porte son numéro, son titre et ce que la box en dit, mot pour mot. **Un clic l'ouvre
-  sur sa fiche**, par-dessus le rail — son titre, sa priorité (le `prio:` que la box donne), le lien
-  vers l'issue ; celle de sa carte de T'attend, si elle en a une. **Rien sur le rail** — aucune
-  carte hors de Livré —, le rail le dit en clair : `nothing on the rail, nothing upcoming` quand il
-  n'y a rien non plus en amont ; sinon combien sont à venir, groupe par groupe, et ce que le manager
-  en fait, d'après son état lu (`manager`) : allumé, il les lit à chaque réveil ; éteint, il n'en
-  lit aucune et rien de neuf n'entre ; pas lu, l'app le dit au lieu de le deviner. **L'app n'y
-  déduit rien** : elle compte ce que la box liste et range chaque issue sous le mot qu'elle porte.
-  Une lecture ratée — box pas jointe, GitHub pas lu par la box, un runtime d'avant `upstream`
-  (« update brigade on the box ») — ne donne jamais de nombre : le bouton dit `upcoming: not read`,
-  la liste dépliée dit pourquoi, et ce n'est pas « rien à venir ».
-- **Les colonnes tiennent dans la fenêtre à sa taille d'ouverture** ; plus étroite, elles défilent.
-  Le rail et ce que l'onglet affiché montre dessous se partagent la hauteur, moitié-moitié ; le
-  rail défile dans la sienne. Un projet sans `hote` et sans cuisine sur ce poste n'a pas de rail — rien n'est lu de lui — et
-  son terminal prend toute la hauteur.
+  Each issue carries its number, its title and what the box says of it, word for word. **A click opens it
+  on its sheet**, over the rail — its title, its priority (the `prio:` the box gives), the link
+  to the issue; that of its Awaiting you card, if it has one. **Nothing on the rail** — no
+  card outside Served —, the rail says so in plain words: `nothing on the rail, nothing upcoming` when
+  there is nothing upstream either; otherwise how many are upcoming, group by group, and what the manager
+  does with them, according to its state read (`manager`): on, it reads them at every wake-up; off, it reads
+  none and nothing new comes in; not read, the app says so instead of guessing. **The app deduces
+  nothing there**: it counts what the box lists and files each issue under the word it carries.
+  A failed reading — box not reached, GitHub not read by the box, a runtime from before `upstream`
+  ("update brigade on the box") — never gives a number: the button says `upcoming: not read`,
+  the expanded list says why, and it is not "nothing upcoming".
+- **The columns fit in the window at its opening size**; narrower, they scroll.
+  The rail and what the displayed tab shows below it share the height, half and half; the
+  rail scrolls within its own. A project with no `host` and no kitchen on this workstation has no rail — nothing is read from it — and
+  its terminal takes the full height.
 
-### Une correction proposée des consignes du projet (#999)
+### A proposed correction of the project's guidance (#999)
 
-Quand une même cause de ratage revient sur plusieurs tickets récents, le runtime propose de corriger
-les consignes du projet — son `CLAUDE.md`, sa doc d'équipe, ses gates (`docs/runtime/etat-et-mesures.md`,
-« Les corrections proposées »). `facts` la porte dans `corrections` ; **chaque proposition est une
-carte de la file, en tête du rail, au-dessus des colonnes**, sur le fond chaud de ce qui t'attend.
-Une carte large : le diff ne tiendrait pas dans une colonne. **Sans proposition, aucune carte**, et
-rien n'est dit à sa place.
+When the same cause of failure comes back on several recent tickets, the runtime proposes to correct
+the project's guidance — its `CLAUDE.md`, its team doc, its gates (`docs/runtime/etat-et-mesures.md`,
+"The proposed corrections"). `facts` carries it in `corrections`; **each proposal is a
+card of the queue, at the head of the rail, above the columns**, on the warm background of what awaits you.
+A wide card: the diff would not fit in a column. **With no proposal, no card**, and
+nothing is said in its place.
 
 ```
 A failure cause keeps coming back: accept this correction of the project's guidance?
@@ -2083,45 +2079,45 @@ this proposal cost 18,342 tokens · proposed 10/13/2026, 9:58:40 AM
 [yes, open it as a PR] ?   [no]
 ```
 
-- **En tête, ce qu'on attend de toi**, en une phrase ; puis la cause (sa phrase, `titre`) et le
-  pourquoi du modèle (`motif`), quand il en a dit un.
-- **Chaque ticket que la cause a fait rater s'ouvre d'un clic** sur son issue, à l'adresse que la
-  box a donnée pour lui (`corrections[].tickets[].url`) ; sans adresse en https, son numéro est posé
-  seul.
-- **La correction est un diff, fichier par fichier** : le nom du fichier, ses lignes ajoutées
-  (`+3`, en vert) et retirées (`−1`, en rouge), puis ses lignes telles quelles, dans le monospace —
-  une ligne ajoutée en vert, une retirée en rouge, la tête d'un morceau (`@@ … @@`) en bleu, chacune
-  avec son signe : la couleur n'est pas seule à le dire. Les têtes de fichier (`diff --git`,
-  `index`, `---`, `+++`) ne sont pas répétées : le nom du fichier les dit. Une longue correction
-  défile dans sa hauteur.
-- **Ce que la proposition a coûté se lit sur la carte** (`cout.tokens`) : c'est déjà dépensé.
-- **« yes, open it as a PR »**, recommandé, et **« no »**. Le prix du « yes » est dans son survol :
-  une PR qui porte exactement ce diff passe par la pass comme une livraison — gates, relecture, CI —,
-  sur ton quota. Le geste part tout de suite : la carte entière est ce qu'il faut lire avant.
-- **Le geste part sur la box du projet**, une fois, par `ssh` (`app/src/correction.ts`) :
-  `brigade <nom> correction yes <proposition>` ou `… correction no <proposition>`, pour une
-  proposition que les derniers faits lus portent. **Écrite, la réponse fait quitter la file à la
-  carte**, et `facts` est relu tout de suite : la proposition tranchée n'y est plus. Tant que la box
-  n'a pas répondu, les deux boutons attendent (`sending your “yes”…`).
-- **Rien n'est écrit** — la box pas jointe, le runtime qui refuse (code 1, sa dernière ligne dite),
-  ou **un runtime qui ne connaît pas encore le geste** (66, ou 2 sur son usage) : la carte reste,
-  ses deux boutons aussi, et une ligne en fait le constat (`nothing was sent: this station cannot take your answer
-  yet`), sans rien te demander de faire ailleurs ; la commande et ce que la box a rendu sont au survol.
+- **At the head, what is expected of you**, in one sentence; then the cause (its sentence, `titre`) and the
+  model's why (`motif`), when it gave one.
+- **Each ticket the cause made fail opens with a click** on its issue, at the address the
+  box gave for it (`corrections[].tickets[].url`); without an https address, its number is laid
+  alone.
+- **The correction is a diff, file by file**: the file name, its lines added
+  (`+3`, in green) and removed (`−1`, in red), then its lines as they are, in monospace —
+  an added line in green, a removed one in red, the head of a hunk (`@@ … @@`) in blue, each
+  with its sign: the color does not say it alone. The file heads (`diff --git`,
+  `index`, `---`, `+++`) are not repeated: the file name says them. A long correction
+  scrolls within its height.
+- **What the proposal cost is read on the card** (`cout.tokens`): it is already spent.
+- **"yes, open it as a PR"**, recommended, and **"no"**. The price of the "yes" is in its hover:
+  a PR that carries exactly this diff goes through the pass like a delivery — gates, review, CI —,
+  on your quota. The action goes out right away: the whole card is what you have to read before.
+- **The action goes out on the project's box**, once, through `ssh` (`app/src/correction.ts`):
+  `brigade <name> correction yes <proposal>` or `… correction no <proposal>`, for a
+  proposal that the latest facts read carry. **Once written, the answer makes the card leave the
+  queue**, and `facts` is reread right away: the settled proposal is no longer in it. As long as the box
+  has not answered, both buttons wait (`sending your “yes”…`).
+- **Nothing is written** — box not reached, runtime that refuses (code 1, its last line said),
+  or **a runtime that does not know the action yet** (66, or 2 on its usage): the card stays,
+  and so do its two buttons, and a line states the fact (`nothing was sent: this station cannot take your answer
+  yet`), without asking you to do anything elsewhere; the command and what the box returned are on hover.
 
-**Le contrat que l'app attend du runtime** : `correction yes|no <proposition>`, où `<proposition>`
-est le `proposition` de `corrections` — le `seq` du fait `correction.proposed`. Elle sort en 0 quand
-la réponse est écrite, ou quand la proposition était déjà tranchée (`decider`,
-`runtime/src/correctif/decision.ts`, issues `tranchee` et `deja`) ; en 1 quand aucune carte ne montre
-cette proposition (`inconnue`), la raison sur sa dernière ligne. **Cette commande n'existe pas encore
-dans le runtime** : tant qu'elle manque, chaque clic dit la ligne ci-dessus, et rien ne part.
+**The contract the app expects from the runtime**: `correction yes|no <proposal>`, where `<proposal>`
+is the `proposition` of `corrections` — the `seq` of the `correction.proposed` fact. It exits 0 when
+the answer is written, or when the proposal was already settled (`decider`,
+`runtime/src/correctif/decision.ts`, outcomes `tranchee` and `deja`); 1 when no card shows
+this proposal (`inconnue`), the reason on its last line. **This command does not exist yet
+in the runtime**: as long as it is missing, each click says the line above, and nothing goes out.
 
-### Un profil de cook proposé (#1053, épique #1033)
+### A proposed cook profile (#1053, epic #1033)
 
-Quand une zone du code revient sur assez de tickets récents et qu'elle est livrée du premier coup bien
-moins souvent que le reste du projet, le runtime propose d'en faire un profil de cook
-(`runtime/src/profils/`). `facts` le porte dans `profils` ; **chaque proposition est une carte de la
-file, sous celles des corrections, au-dessus des colonnes** — la même carte large, sur le même fond.
-**Sans proposition, aucune carte**, et rien n'est dit à sa place.
+When an area of the code comes back on enough recent tickets and is delivered on the first try far
+less often than the rest of the project, the runtime proposes to make it a cook profile
+(`runtime/src/profils/`). `facts` carries it in `profils`; **each proposal is a card of the
+queue, under those of the corrections, above the columns** — the same wide card, on the same background.
+**With no proposal, no card**, and nothing is said in its place.
 
 ```
 One part of the code keeps needing more than one try: give it a cook profile of its own?
@@ -2138,800 +2134,804 @@ proposed 10/13/2026, 9:41:05 AM
 [yes, create the profile] ?   [no] ?
 ```
 
-- **En tête, ce qu'on attend de toi**, en une phrase ; puis le nom du profil et son domaine.
-- **Les chiffres qui le justifient**, chacun en une phrase (`app/src/profil.ts`, `carteDeProfil`) :
-  combien des derniers tickets servis touchent le domaine, et sa part livrée du premier coup contre
-  celle du projet. Les seuils qui ont fait la proposition sont au survol.
-- **Chaque ticket du domaine s'ouvre d'un clic** sur son issue, à l'adresse que la box a donnée
-  (`profils[].chiffres.tickets[].url`) ; sans adresse en https, son numéro est posé seul.
-- **Ce que le profil contiendrait** : ses skills (la mesure n'en propose aucun — dit, avec le pourquoi
-  au survol), son périmètre, et son carnet de départ, leçon par leçon avec les rétros qui la portent.
-- **« yes, create the profile »**, recommandé, et **« no »** ; ce que chacun fait est dans son survol.
-  Le geste part comme celui d'une correction (`trancherSurLaBox`, `app/src/correction.ts`) :
-  `brigade <nom> profile yes <proposition>` ou `… profile no <proposition>`, une fois, sur la box du
-  projet. Écrite, la réponse fait quitter la file à la carte et `facts` est relu ; rien d'écrit, la
-  carte reste et une ligne le dit, la commande et ce que la box a rendu au survol.
+- **At the head, what is expected of you**, in one sentence; then the profile name and its domain.
+- **The figures that justify it**, each in one sentence (`app/src/profil.ts`, `carteDeProfil`):
+  how many of the latest served tickets touch the domain, and its share delivered on the first try against
+  the project's. The thresholds that made the proposal are on hover.
+- **Each ticket of the domain opens with a click** on its issue, at the address the box gave
+  (`profils[].chiffres.tickets[].url`); without an https address, its number is laid alone.
+- **What the profile would hold**: its skills (the measure proposes none — said, with the why
+  on hover), its perimeter, and its starting notebook, lesson by lesson with the retros that carry it.
+- **"yes, create the profile"**, recommended, and **"no"**; what each does is in its hover.
+  The action goes out like that of a correction (`trancherSurLaBox`, `app/src/correction.ts`):
+  `brigade <name> profile yes <proposal>` or `… profile no <proposal>`, once, on the project's
+  box. Once written, the answer makes the card leave the queue and `facts` is reread; nothing written, the
+  card stays and a line says so, the command and what the box returned on hover.
 
-**Le contrat que l'app attend du runtime** : `profile yes|no <proposition>`, où `<proposition>` est
-le `proposition` de `profils` — le `seq` du fait `profile.proposed`. Elle sort en 0 quand la réponse
-est écrite, ou quand la proposition était déjà tranchée (`decider`, `runtime/src/profils/decision.ts`,
-issues `tranchee` et `deja`) ; en 1 sur `inconnue` ou `existe` (un « yes » sur un profil que le dépôt
-définit déjà), la raison sur sa dernière ligne (`runtime/src/profil-cli.ts`,
-`docs/runtime/etat-et-mesures.md`, « Les profils proposés »). Une station dont le runtime est d'avant
-cette commande la refuse (66) : le clic dit `nothing was sent: this station cannot take your answer
-yet`, et rien ne part.
+**The contract the app expects from the runtime**: `profile yes|no <proposal>`, where `<proposal>` is
+the `proposition` of `profils` — the `seq` of the `profile.proposed` fact. It exits 0 when the answer
+is written, or when the proposal was already settled (`decider`, `runtime/src/profils/decision.ts`,
+outcomes `tranchee` and `deja`); 1 on `inconnue` or `existe` (a "yes" on a profile that the repository
+already defines), the reason on its last line (`runtime/src/profil-cli.ts`,
+`docs/runtime/etat-et-mesures.md`, "Les profils proposés"). A station whose runtime is from before
+this command refuses it (66): the click says `nothing was sent: this station cannot take your answer
+yet`, and nothing goes out.
 
-### La bannière d'arrêt
+### The stop banner
 
-Quand la box dit la cuisine `arrêtée` — ton « stop » —, l'espace du projet le dit en tête, au-dessus
-des onglets, quel que soit l'onglet :
+When the box says the kitchen is `stopped` — your "stop" —, the project's space says so at the top, above
+the tabs, whatever the tab:
 
 ```
-CUISINE À L'ARRÊT — ton « stop » tient
-Tous les cooks en cours ont été arrêtés, et plus aucun n'est lancé — redémarrage du runtime
-compris, jusqu'à « reprendre ».
-écrire la relance dans le second, sans envoyer :  [garde-fous reprendre]
+KITCHEN STOPPED — your "stop" holds
+All running cooks have been stopped, and none is launched any more — runtime restart
+included, until "resume".
+write the restart in the second, without sending:  [guardrails resume]
 ```
 
-- **Le bouton écrit la relance, il ne relance pas** : `!ssh <hote> brigade <nom> guardrails resume`
-  dans le second, sans Entrée — tout ce que « Les boutons écrivent, ils n'envoient pas » dit vaut
-  ici.
-- **Elle part d'elle-même** à la première lecture qui ne dit plus `arrêtée` : trente secondes au
-  plus après ton « reprendre ».
-- **`éteinte` n'a pas de bannière** : un runtime arrêté ne se relance pas par un geste de
-  « Piloter » (`sudo systemctl start brigade@<projet>`, sur la box). Sa pastille est rouge, et
-  `status` dit le reste.
+- **The button writes the restart, it does not restart**: `!ssh <host> brigade <name> guardrails resume`
+  in the second, without Enter — everything that "Buttons write, they do not send" says holds
+  here.
+- **It leaves by itself** at the first reading that no longer says `stopped`: thirty seconds at
+  most after your "resume".
+- **`off` has no banner**: a stopped runtime is not restarted by an action of
+  "Piloter" (`sudo systemctl start brigade@<project>`, on the box). Its pill is red, and
+  `status` says the rest.
 
-### Un mot que l'app ne connaît pas
+### A word the app does not know
 
-Les deux listes d'états sont fermées, et c'est sur elles seules que l'app pose une couleur. Si le
-runtime en gagne un — de projet ou de ticket —, **il s'affiche tel quel, sans couleur** : pastille
-vide, mot nu. L'app ne le range dans aucune des couleurs qu'elle connaît.
+The two lists of states are closed, and the app puts a color on them alone. If the
+runtime gains one — for a project or a ticket —, **it is displayed as is, with no color**: empty
+dot, bare word. The app files it under none of the colors it knows.
 
-### Une box qui ne rend pas ses faits
+### A box that does not return its facts
 
-**L'app ne dessine alors rien de ce projet — jamais un tableau vide, jamais des zéros.** À la place
-de la carte, ce qu'elle a obtenu ; dans la barre, un `!` sans couleur ; à la place du rail, une
-ligne qui dit le cas et renvoie au panneau. Et **`status` reste lisible dessous** : `faits` est lu à part, son
-échec ne retire rien au reste.
+**The app then draws nothing of this project — never an empty table, never zeros.** In place
+of the tile, what it obtained; in the bar, a colorless `!`; in place of the rail, a
+line that says the case and points to the panel. And **`status` stays readable below**: `facts` is read separately, its
+failure removes nothing from the rest.
 
-**À part, mais pas de front** : `faits`, `status` et la commande d'un onglet sont trois lectures,
-et pour un même projet elles passent **l'une après l'autre** — un projet n'ouvre qu'une connexion
-`ssh` à la fois, quel que soit le nombre de lectures qui l'attendent. Dans « Tous les projets », une box
-reçoit donc au plus une connexion par projet qu'elle sert, pas deux.
+**Separately, but not abreast**: `facts`, `status` and a tab's command are three readings,
+and for the same project they go **one after the other** — a project opens only one `ssh`
+connection at a time, whatever the number of readings waiting for it. In "All projects", a box
+therefore receives at most one connection per project it serves, not two.
 
-| À l'écran | Ce que l'app a obtenu | Ce qu'elle montre dessous |
+| On screen | What the app obtained | What it shows below |
 |---|---|---|
-| ``JOINT, MAIS `faits` N'A PAS RÉPONDU — essai de …`` | `ssh` a joint la box, et la commande y a échoué sans que son code dise un cas. **Un runtime d'avant `faits` est le cas attendu** | la commande lancée, ce qu'elle a écrit, son code — puis le geste : mettre le runtime à jour sur sa box (`docs/runtime/exploitation.md`, « Piloter ») |
-| `JOINT, MAIS INCONNU DE LA BOX`, `… SANS LE DROIT DU GESTE`, `… UNE COMMANDE MANQUE SUR LA BOX`, `… LE NODE DE LA BOX NE CONVIENT PAS AU RUNTIME` | le geste de la box a refusé (codes 65, 68, 69 ou 127, 70) : **le même cas que sous `status`**, avec les mêmes mots | ce que la box en a dit, tel quel — puis **le renvoi de ce cas**, celui du tableau de « Une lecture de box : sept états ». Pas de mise à jour du runtime : ce n'est pas lui qui est vieux |
-| ``LA BOX N'A PAS RENDU LA FORME DE `faits` — essai de …`` | la commande a abouti, et sa sortie n'est pas la forme : pas du JSON, un champ qui manque, un compteur qui n'est pas un nombre entier | **la sortie, mot pour mot**, puis ce qui n'est pas la forme (`« compteurs.rail » n'est pas un nombre entier positif`) |
-| `PAS JOINT — essai de …` | rien qui prouve que la box a été jointe | le message de `ssh`, tel quel — le même que sous `status`, où ses renvois sont donnés |
+| ``REACHED, BUT `facts` DID NOT ANSWER — tried …`` | `ssh` reached the box, and the command failed there without its code saying a case. **A runtime from before `facts` is the expected case** | the command launched, what it wrote, its code — then the action: update the runtime on its box (`docs/runtime/exploitation.md`, "Piloter") |
+| `REACHED, BUT UNKNOWN TO THE BOX`, `… WITHOUT THE RIGHT TO THE ACTION`, `… A COMMAND IS MISSING ON THE BOX`, `… THE BOX'S NODE DOES NOT SUIT THE RUNTIME` | the box's action refused (codes 65, 68, 69 or 127, 70): **the same case as under `status`**, with the same words | what the box said of it, as is — then **the pointer for that case**, the one from the table of "A box reading: seven states". No runtime update: it is not the runtime that is old |
+| ``THE BOX DID NOT RETURN THE SHAPE OF `facts` — tried …`` | the command succeeded, and its output is not the shape: not JSON, a missing field, a counter that is not a whole number | **the output, word for word**, then what is not the shape (`"compteurs.rail" is not a positive whole number`) |
+| `NOT REACHED — tried …` | nothing that proves the box was reached | the message from `ssh`, as is — the same as under `status`, where its pointers are given |
 
-Un champ qui manque refuse la forme **entière** : l'app ne complète rien. Un champ de plus est
-laissé de côté.
+A missing field refuses the **whole** shape: the app completes nothing. An extra field is
+left aside.
 
-### Une box qui ne répond pas du tout (#728)
+### A box that does not answer at all (#728)
 
-Une box muette fait rater d'un coup tout ce que l'app en lit : le manager, la version, la cuisine,
-le grant. L'app n'en fait pas quatre alertes « non vérifié », chacune avec un geste qui n'y change
-rien : **passé deux lectures de `faits` ratées de suite** (`LECTURES_POUR_INJOIGNABLE`) — la box
-pas jointe, pas la commande qui échoue —, **la bande ne dit plus qu'une ligne** :
+A mute box makes everything the app reads from it fail at once: the manager, the version, the kitchen,
+the grant. The app does not make four "unchecked" alerts of it, each with an action that changes
+nothing: **after two failed readings of `facts` in a row** (`LECTURES_POUR_INJOIGNABLE`) — the box
+not reached, not the command failing —, **the band says only one line**:
 
 > station unreachable since 03:27, 4 h 45 ago — the state of the kitchen has been unknown since then
 
-**La page du projet le dit une seule fois (#1078)**, en haut, avec ce que le chef peut y faire, en
-clair sous la ligne : vérifier que la machine est allumée et joignable, la redémarrer si elle ne
-répond plus, puis « try again » (son bouton relit la box tout de suite). La cause en mots simples
-(pas de réponse, connexion refusée, adresse introuvable — dite d'après ce que `ssh` a écrit) est
-derrière « detail ». La ligne sort dès qu'une lecture aboutit, sans relancer l'app. Une seule
-lecture ratée ne la pose pas.
+**The project page says it only once (#1078)**, at the top, with what the chef can do about it, in
+plain words under the line: check that the machine is on and reachable, restart it if it no longer
+answers, then "try again" (its button rereads the box right away). The cause in plain words
+(no answer, connection refused, address not found — said from what `ssh` wrote) is
+behind "detail". The line goes away as soon as a reading succeeds, without restarting the app. A single
+failed reading does not set it.
 
-- **La pastille du projet** dit la même chose en un mot, `unreachable`, et la case de la barre porte un `×`.
-  La station du projet (« Cooks on ») n'est plus verte : elle est rouge, `unreachable`.
-- **Les colonnes du rail** ne montrent pas de « 0 » : chacune porte `?` et dit « not known while the
-  station is unreachable ». Rien d'autre du rail n'est posé (ni amont, ni corrections). Une box jointe qui ne
-  rend pas la forme de `faits` n'est pas ce cas : le rail ne se dessine pas, comme ci-dessus.
-- **Les tickets `fire` se lisent sur GitHub** (`feu.ts`) : c'est le `gh` du poste, lancé dans le dossier
-  du projet — jamais la box. Ils sont **repliés** sous « the tickets in the kitchen according to GitHub, N » ;
-  dépliés, ce sont des lignes comme le reste de la page, chaque numéro ouvrant l'issue (l'adresse vient de `gh`).
-  Quand GitHub ne répond pas non plus, la ligne de `gh` est dite.
+- **The project's pill** says the same thing in one word, `unreachable`, and the bar's box carries a `×`.
+  The project's station ("Cooks on") is no longer green: it is red, `unreachable`.
+- **The rail's columns** show no "0": each carries `?` and says "not known while the
+  station is unreachable". Nothing else of the rail is laid down (neither upstream nor corrections). A reached box that does not
+  return the shape of `facts` is not this case: the rail is not drawn, as above.
+- **The `fire` tickets are read on GitHub** (`feu.ts`): it is the workstation's `gh`, launched in the project's
+  folder — never the box. They are **folded** under "the tickets in the kitchen according to GitHub, N";
+  expanded, they are lines like the rest of the page, each number opening the issue (the address comes from `gh`).
+  When GitHub does not answer either, the line from `gh` is said.
 
-### Ce qui n'est pas dessiné, et ne le sera pas ici
+### What is not drawn, and will not be here
 
-- **Le journal, les grants, la sortie de `station`** restent du texte : ce sont des flux, pas des
-  tableaux à états. L'état des grants, comme celui du manager, n'est pas dessiné depuis `faits` : il
-  est lu dans ce texte, et posé au-dessus de lui (« L'onglet Grants »).
-- **Aucune jauge chiffrée**, ni du quota ni de la machine : le runtime ne connaît pas la
-  consommation du compte (`/usage` la donne) et ne chiffre la machine que lorsqu'elle sature. Les
-  lignes `quota` et `machine` de `station` se lisent telles quelles, dans Cooks.
-- **Pourquoi** une cuisine est retenue, ce qu'un ticket attend, qui le tient : c'est `status` et
-  `rail`, en texte, juste dessous.
+- **The log, the grants, the output of `station`** stay text: they are streams, not
+  state tables. The state of the grants, like that of the manager, is not drawn from `facts`: it
+  is read in this text, and laid above it ("The Grants tab").
+- **No numeric gauge**, neither of the quota nor of the machine: the runtime does not know the account's
+  consumption (`/usage` gives it) and gives figures for the machine only when it saturates. The
+  `quota` and `machine` lines of `station` are read as they are, in Cooks.
+- **Why** a kitchen is held, what a ticket awaits, who holds it: that is `status` and
+  `rail`, in text, just below.
+## What the box says about the project
 
-## Ce que la box dit du projet
+To the right of the terminal, without typing anything, and whatever the tab: the project tile, then
+**what awaits you, set apart**, then the output of `ssh <hote> brigade <nom> status`, **word for
+word**. (Grants have their own tab.) The app reads nothing in it and says nothing of it again — if
+a command's wording changes, what you see changes with it. It cuts out only one thing, by its
+edge: the `awaiting` block.
 
-À droite du terminal, sans rien taper, et quel que soit l'onglet : la carte du projet, puis **ce
-qui t'attend, mis à part**, puis la sortie de `ssh <hote> brigade <nom> status`, **mot pour mot**. (Les grants ont leur onglet.) L'app n'y lit rien
-et n'en redit rien — si la formulation d'une commande change, ce que tu vois change avec elle. Elle
-n'en découpe qu'une chose, par son bord : le bloc `attend`.
+### What awaits you, set apart
 
-### Ce qui t'attend, mis à part
-
-En tête du panneau, sur son propre fond : **le bloc
-`attend` de `status`**, tel que le runtime l'a écrit, de sa ligne `attend` à sa ligne `fin attend`.
-Tu n'as plus à le chercher dans la sortie.
+At the top of the panel, on its own background: **the `awaiting` block of `status`**, as the runtime
+wrote it, from its `awaiting` line to its `end awaiting` line. You no longer have to hunt for it in
+the output.
 
 ```
-ce qui t'attend — le bloc `attend` de `ssh <hote> brigade <nom> status`
-attend     2 décisions attendent le chef — la plus ancienne depuis 2 j
-  #12  depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main : …
-  #21  depuis 3 h 02  BLOQUÉ : #17 abandonné (label `fire` retiré) — à débloquer : …
-fin attend
+what awaits you — the `awaiting` block of `ssh <hote> brigade <nom> status`
+awaiting   2 decisions await the chef — the oldest since 2 d
+  #12  since 2 d  green delivery, not merged for lack of a `merge` grant — merge by hand: …
+  #21  since 3 h 02  BLOCKED: #17 dropped (label `fire` removed) — to unblock: …
+end awaiting
 ```
 
-- **Quand rien ne t'attend, c'est le runtime qui le dit**, au même endroit — un bloc de deux
-  lignes, `rien n'attend le chef` sur la première, `fin attend` sur la seconde. L'app n'écrit pas
-  cette phrase et n'en écrit pas d'autre : si le runtime la change, elle change ici.
-- **Pour le mettre à part, l'app ne lit que le bord** : la seule ligne de la sortie qui commence
-  par `attend`, la seule qui vaut `fin attend` (`docs/runtime/etat-et-mesures.md`, « Ce qui attend le chef »). Rien
-  de ce que le bloc porte n'est compté ni reformulé. Elle ne sait donc pas *si* quelque chose
-  t'attend : le bloc plein et le bloc vide ont le même fond, pas de couleur d'alerte, aucun compteur
-  dans la barre.
-- **Le numéro qu'elle y lit** — pour ranger le rail (« Le rail », colonne T'attend) — c'est tout ce
-  qu'elle lit dans le bloc : **le numéro de ticket en tête d'une ligne du bloc**. Les lignes plus en
-  retrait posées sous une entrée — ce qui la précise — lui restent attachées, telles quelles. La forme est celle que `status`
-  écrit : deux espaces, `#`, des chiffres, puis deux espaces ou la fin de la ligne (`  #12  depuis
-  2 j  …`). **C'est un contrat de plus entre le runtime et l'app, sur un texte** : le reste de la
-  ligne n'est pas lu — il est posé sur la carte, mot pour mot —, un numéro ailleurs qu'en tête (le
-  ticket qu'un `BLOQUÉ` attend, celui d'une PR) ne l'est pas non plus, et une ligne qui ne commence
-  pas ainsi n'est à aucun ticket. Si le runtime écrit cette tête autrement, T'attend se vide sans
-  le dire, et les tickets se lisent dans leurs colonnes d'état : c'est pourquoi un test de l'app
-  fait écrire le bloc par le runtime lui-même, une attente de chaque sorte, et rougit les gates
-  avant (`app/test/attend.test.ts`).
-- **Le reste de `status` suit, mot pour mot**, sous un titre qui dit ce qui lui manque (« sans son
-  bloc `attend`, mis à part ci-dessus ») : le bloc n'est pas montré deux fois.
-- **Une sortie sans ce bord reste entière**, et l'app le dit à la place du bloc, en jaune :
+- **When nothing awaits you, the runtime says so**, in the same place — a two-line block,
+  `nothing awaits the chef` on the first, `end awaiting` on the second. The app does not write
+  that sentence and writes no other: if the runtime changes it, it changes here.
+- **To set it apart, the app reads only the edge**: the only line of the output that starts with
+  `awaiting`, the only one that equals `end awaiting` (`docs/runtime/etat-et-mesures.md`, "Ce qui
+  attend le chef"). Nothing the block carries is counted or reworded. So it does not know *whether*
+  anything awaits you: the full block and the empty block have the same background, no alert
+  color, no counter in the bar.
+- **The number it reads there** — to sort the rail ("The rail", Awaiting you column) — is all it
+  reads in the block: **the ticket number at the head of a line of the block**. The more indented
+  lines placed under an entry — what qualifies it — stay attached to it, as they are. The form is
+  the one `status` writes: two spaces, `#`, digits, then two spaces or the end of the line
+  (`  #12  since 2 d  …`). **It is one more contract between the runtime and the app, on a text**:
+  the rest of the line is not read — it is placed on the card, word for word —, a number anywhere
+  but at the head (the ticket a `BLOCKED` awaits, a PR's) is not read either, and a line that does
+  not start this way belongs to no ticket. If the runtime writes that head differently, Awaiting
+  you empties without saying so, and the tickets are read in their state columns: this is why an
+  app test has the runtime itself write the block, one wait of each kind, and turns the gates red
+  beforehand (`app/test/attend.test.ts`).
+- **The rest of `status` follows, word for word**, under a title that says what it lacks ("without
+  its `awaiting` block, set apart above"): the block is not shown twice.
+- **An output without this edge stays whole**, and the app says so in place of the block, in
+  yellow:
 
   ```
-  Rien n'a pu être mis à part : la sortie de `ssh <hote> brigade <nom> status` n'a pas le bloc que l'app sait prendre — une seule ligne qui commence par `attend`, une seule ligne `fin attend`.
-  Ce n'est pas « rien ne t'attend » : ce qui t'attend, s'il y a quelque chose, est dans la sortie ci-dessous, entière.
+  Nothing could be set apart: the output of `ssh <hote> brigade <nom> status` does not have the block the app knows how to take — a single line that starts with `awaiting`, a single `end awaiting` line.
+  This is not "nothing awaits you": what awaits you, if anything, is in the output below, whole.
   ```
 
-  Le cas attendu est un runtime d'avant ce bord — le geste est alors de le mettre à jour sur sa box
-  (`docs/runtime/exploitation.md`, « Piloter ») — mais l'app ne le devine pas : elle dit ce qu'elle n'a pas
-  trouvé. Le projet reste `pilotable` : `status` a répondu.
-- Une lecture ratée n'a rien à mettre à part : l'erreur prend toute la place, comme avant.
+  The expected case is a runtime from before this edge — the action is then to update it on its box
+  (`docs/runtime/exploitation.md`, "Piloter") — but the app does not guess: it says what it did
+  not find. The project stays `pilotable`: `status` answered.
+- A failed read has nothing to set apart: the error takes all the room, as before.
 
-### Ce que `status` dit du reste
+### What `status` says about the rest
 
-Ce qui demande ton attention sans t'attendre est là où `status` le met, et dit comme il le dit
-(voir « L'état de la cuisine » dans `docs/runtime/etat-et-mesures.md`) :
+What asks for your attention without awaiting you is where `status` puts it, and said as it says it
+(see "The state of the kitchen" in `docs/runtime/etat-et-mesures.md`):
 
-| Ce que tu cherches | Où `status` le dit |
+| What you are looking for | Where `status` says it |
 |---|---|
-| Un ticket qui ne progresse plus | `COINCE`, sur sa ligne du `rail` et sur la ligne `cooks` ; chaque ticket pris porte `sans progrès depuis <durée>` — une durée, pas une date à comparer |
-| Un grant qui va s'éteindre | `EXPIRING SOON`, sur la ligne `grant` de l'en-tête |
-| Un cook arrêté | aucune ligne à lui : `derniers événements` (`guard.tripped`, `cook.exited`), et le disjoncteur sur la ligne `kitchen` |
+| A ticket that no longer progresses | `STUCK`, on its line of the `rail` and on the `cooks` line; each taken ticket carries `no progress since <duration>` — a duration, not a date to compare |
+| A grant about to lapse | `EXPIRING SOON`, on the `grant` line of the header |
+| A stopped cook | no line of its own: `latest events` (`guard.tripped`, `cook.exited`), and the breaker on the `kitchen` line |
 
-L'app **ne prononce jamais elle-même** « rien ne t'attend » : un écran calme est un bloc `attend`
-qui dit `rien n'attend le chef`, et un `status` sans `COINCE` ni `EXPIRING SOON`.
+The app **never says "nothing awaits you" itself**: a calm screen is an `awaiting` block that says
+`nothing awaits the chef`, and a `status` with no `STUCK` nor `EXPIRING SOON`.
 
-Les lignes de tête de `status` que l'app lit (`kitchen`, `connection`, `setup`, `base`, `grant`, et `nothing cooks:`) sont en anglais depuis #928 ; elle les lit aussi sous leur forme française (`cuisine`, `connexion`, `ROUGE`, `ACTIF`, `rien ne cuit :`…), pour une box dont le runtime n'est pas à jour.
+The head lines of `status` that the app reads (`kitchen`, `connection`, `setup`, `base`, `grant`, and `nothing cooks:`) have been in English since #928; it also reads them in their French form (`cuisine`, `connexion`, `ROUGE`, `ACTIF`, `rien ne cuit :`…), for a box whose runtime is not up to date.
 
-**Dire où est la box.** Un seul champ sur le projet, dans `app.json` :
+**Say where the box is.** A single field on the project, in `app.json`:
 
-- `hote` : le nom par lequel **ton** `ssh` joint ta box — un nom de ton `~/.ssh/config`, ou
-  `compte@machine`. Il n'y a pas de valeur à recopier : c'est ce que tu tapes après `ssh`.
+- `hote`: the name by which **your** `ssh` reaches your box — a name from your `~/.ssh/config`, or
+  `account@machine`. There is no value to copy: it is what you type after `ssh`.
 
-**Ce que l'app affiche se recopie.** Tout geste que l'app nomme — dans une ligne d'onglet, un
-titre d'échec, un panneau, ce que les boutons écrivent — est le *geste de poste*,
-`ssh <hote> brigade <nom> <commande>`, avec ton `hote` et le `nom` du projet : c'est ce que tu tapes
-sur ton Mac. `brigade <nom> <commande>` seul est le *geste de box*, celui de la box elle-même
-(`docs/runtime/exploitation.md`, « Piloter ») : tapé sur le Mac, il rend `command not found`, et l'app ne pose
-rien sur ton poste pour l'éviter. Sous le nom du projet, `<hote>` et `<nom>` sont à remplacer par
-les deux champs de ton fichier.
+**What the app displays can be copied.** Every action the app names — in a tab line, a failure
+title, a panel, what the buttons write — is the *workstation action*,
+`ssh <hote> brigade <nom> <command>`, with your `hote` and the project's `nom`: it is what you type
+on your Mac. `brigade <nom> <command>` alone is the *box action*, the one of the box itself
+(`docs/runtime/exploitation.md`, "Piloter"): typed on the Mac, it returns `command not found`, and
+the app puts nothing on your workstation to avoid that. Under the project name, `<hote>` and `<nom>`
+are to be replaced by the two fields of your file.
 
-Tu ne dictes plus aucune commande. L'app lance **le geste de la box**, joint par `ssh` : `ssh <hote> brigade <nom> status` —
-et, pour l'onglet de contenu affiché, `ssh <hote> brigade <nom> rail`, `station`, `grant` ou `journal`
-(`docs/runtime/exploitation.md`, « Piloter ») : le compte, l'installation et
-l'environnement se lisent sur la box, dans l'unité du projet. Le geste doit donc y être posé, et
-permis à ton compte sans mot de passe (`docs/installer.md`, « Préparer la box »).
+You no longer dictate any command. The app runs **the box action**, reached by `ssh`: `ssh <hote>
+brigade <nom> status` — and, for the content tab displayed, `ssh <hote> brigade <nom> rail`,
+`station`, `grant` or `log` (`docs/runtime/exploitation.md`, "Piloter"): the account, the
+installation and the environment are read on the box, in the project's unit. The action must
+therefore be placed there, and allowed to your account without a password (`docs/installer.md`,
+"Prepare the box").
 
-**Le nom qui part vers le geste est le `nom` du projet dans `app.json`**, tel quel. Si la box ne
-sert aucun projet sous ce nom, le geste le refuse et l'app l'affiche — `JOINT, MAIS INCONNU DE LA
-BOX`, avec ce qu'il en a dit :
+**The name sent to the action is the project's `nom` in `app.json`**, as is. If the box serves no
+project under that name, the action refuses it and the app displays it — `REACHED, BUT UNKNOWN TO
+THE BOX`, with what it said about it:
 
 ```
 $ ssh -o BatchMode=yes -o ConnectTimeout=10 -- box brigade parade status
-brigade : projet inconnu sur cette box — « parade » n'a pas de drop-in (`sudo systemctl edit brigade@<projet>.service`, docs/installer.md)
+brigade: unknown project on this box — "parade" has no drop-in (`sudo systemctl edit brigade@<project>.service`, docs/installer.md)
 
-→ code de sortie 65
+→ exit code 65
 ```
 
-Le geste n'accepte que des minuscules, des chiffres et des tirets : un `nom` écrit autrement
-(`Parade`, `mon projet`) lui arrive entier, cité, et il le dit inconnu.
+The action accepts only lowercase letters, digits and hyphens: a `nom` written otherwise
+(`Parade`, `mon projet`) reaches it whole, quoted, and it says it is unknown.
 
-L'app lance `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> 'brigade <nom> status'` : ta
-clé, ta configuration ssh, aucun port ni API. `BatchMode` : `ssh` ne peut rien te demander depuis
-l'app — une clé qui réclame sa phrase de passe doit être dans ton agent. `ConnectTimeout` : une
-box muette, c'est `ssh` qui le dit au bout de dix secondes, avec ses mots. Un projet sans `hote`
-et sans cuisine sur ce poste n'est pas lu, et l'app le dit à la place de l'état.
+The app runs `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> 'brigade <nom> status'`: your
+key, your ssh configuration, no port or API. `BatchMode`: `ssh` cannot ask you anything from the
+app — a key that demands its passphrase must be in your agent. `ConnectTimeout`: a silent box is
+reported by `ssh` after ten seconds, in its own words. A project with no `hote` and no kitchen on
+this workstation is not read, and the app says so in place of the state.
 
-**Ça se rafraîchit seul**, toutes les trente secondes, pour ce qui est affiché et rien d'autre —
-le projet, ou chacun dans « Tous les projets » ; changer de projet lit le nouveau tout de suite. **Une lecture
-ne s'affiche que dans l'écran qui l'a demandée** : celle de « Tous les projets », encore en route quand tu
-ouvres un espace, n'y est pas montrée — et l'inverse. En tête du
-panneau, **l'état du projet et l'heure de la dernière lecture** (`pilotable — lu à 14:32:07`) :
-ce sont les seuls faits que l'app ajoute. Les durées affichées dessous sont celles que `status`
-comptait à cette heure-là.
+**It refreshes by itself**, every thirty seconds, for what is displayed and nothing else — the
+project, or each one in "All projects"; switching project reads the new one right away. **A read is
+shown only in the screen that asked for it**: the one of "All projects", still running when you
+open a space, is not shown there — and the reverse. At the top of the panel, **the project's state
+and the time of the last read** (`pilotable — read at 14:32:07`): these are the only facts the app
+adds. The durations displayed below are those `status` was counting at that time.
 
-**Quand la box n'est pas lue, c'est une erreur, et elle prend toute la place.** L'en-tête passe à
-`PAS JOINT — essai de 14:32:37, le prochain suit seul`, à `JOINT, MAIS PLUS PILOTABLE — …` ou à
-`JOINT, MAIS INCONNU DE LA BOX — …`, `JOINT, MAIS SANS LE DROIT DU GESTE — …` ou `JOINT, MAIS UNE
-COMMANDE MANQUE SUR LA BOX — …` (les états de « Une lecture de box : sept états », dits pareil ici), et dessous il n'y a
-plus que ce que l'app a obtenu — la commande lancée, ce qu'elle ou `ssh` a écrit, et le code de
-sortie — puis, quand le code le permet, où est écrit le geste qui y répond.
+**When the box is not read, it is an error, and it takes all the room.** The header changes to
+`NOT REACHED — tried at 14:32:37, the next follows by itself`, to `REACHED, BUT NO LONGER
+PILOTABLE — …` or to `REACHED, BUT UNKNOWN TO THE BOX — …`, `REACHED, BUT WITHOUT THE ACTION'S
+RIGHT — …` or `REACHED, BUT A COMMAND IS MISSING ON THE BOX — …` (the states of "A box read: seven
+states", said the same here), and below there is only what the app obtained — the command run, what
+it or `ssh` wrote, and the exit code — then, when the code allows it, where the action that answers
+it is written.
 
 ```
 $ ssh -o BatchMode=yes -o ConnectTimeout=10 -- box brigade brigade status
 ssh: connect to host box port 22: Operation timed out
 
-→ code de sortie 255
+→ exit code 255
 
-`ssh` n'a pas ouvert de session sur la box, et il a dit pourquoi : son message est ci-dessus. L'app ne le lit pas.
-Ce que chacune de ses phrases veut dire, et le geste qui y répond :
-(docs/installer.md, « Joindre la box »)
+`ssh` did not open a session on the box, and it said why: its message is above. The app does not read it.
+What each of its sentences means, and the action that answers it:
+(docs/installer.md, "Reach the box")
 
-S'il dit ta clé refusée (`Permission denied`), la box répond et c'est l'accès qui te manque. Il se donne sur la box :
-(docs/installer.md, « Ajouter un humain »)
+If it says your key was refused (`Permission denied`), the box answers and what you lack is access. It is given on the box:
+(docs/installer.md, "Add a human")
 ```
 
-Un lecteur que la box joint mais à qui le geste n'a pas été donné lit ceci, sous `JOINT, MAIS
-SANS LE DROIT DU GESTE` :
+A reader whom the box reaches but to whom the action was not given reads this, under `REACHED, BUT
+WITHOUT THE ACTION'S RIGHT`:
 
 ```
 $ ssh -o BatchMode=yes -o ConnectTimeout=10 -- box brigade brigade status
-brigade : « lecteur » n'a pas le droit de lancer le geste sur cette box — sans terminal, `sudo` ne le lui donne pas sous le compte « brigade » sans mot de passe (docs/installer.md, « Ajouter un humain »)
+brigade: "lecteur" has no right to run the action on this box — without a terminal, `sudo` does not give it to them under the account "brigade" without a password (docs/installer.md, "Add a human")
 
-→ code de sortie 68
+→ exit code 68
 
-La box a été jointe, et son geste a refusé le compte par lequel ton `ssh` la joint : ce qu'il en a dit est ci-dessus.
-Ce n'est ni une panne ni un runtime à mettre à jour : c'est un droit qui manque à ce compte.
+The box was reached, and its action refused the account through which your `ssh` reaches it: what it said about it is above.
+This is neither an outage nor a runtime to update: it is a right that this account lacks.
 
-Il se donne sur la box, par quelqu'un qui y a `sudo` — l'app ne le fait pas à ta place :
-(docs/installer.md, « Ajouter un humain »)
+It is given on the box, by someone who has `sudo` there — the app does not do it for you:
+(docs/installer.md, "Add a human")
 ```
 
-- **Rien n'est gardé de la lecture d'avant** : pas d'état périmé à côté de l'erreur. Une
-  micro-coupure remplace donc l'écran par une erreur, jusqu'à la lecture suivante.
-- **L'app ne devine pas la cause.** Un code 255 vient de `ssh` : pas joint. Un autre code vient
-  de la box, dont le message est affiché (`brigade : …`) : 65, le geste ne connaît pas le projet ;
-  68, il te refuse ; 69 ou 127, une commande manque à la box ; 70, son `node` ne convient pas au runtime ; un autre, joint, mais plus
-  pilotable.
-- Le panneau et l'onglet de contenu affiché sont lus chacun pour soi : l'erreur de l'un s'affiche
-  chez lui, sans rien retirer à l'autre.
-- Un `ssh` qui n'a rien rendu en trente secondes est arrêté, et l'app dit ce qu'elle en sait :
-  - `→ aucune réponse en 30 s : ssh arrêté` — `ssh` était connecté (il sort alors de lui-même,
-    en 255) et c'est la commande qui n'a rien rendu : « joint, mais plus pilotable ».
-  - `→ aucune réponse en 30 s : ssh arrêté, sans avoir dit s'il avait joint la box` — `ssh` est
-    mort du signal, sans code : rien ne dit jusqu'où il était allé. Ses dix secondes pour joindre la box
-    (`ConnectTimeout`) ne couvrent pas ce qui suit la connexion : un agent ssh qui attend une
-    confirmation (Touch ID, 1Password, `ssh-add -c`) le retient sans limite. L'app ne sait pas
-    où il en était : elle l'affiche « pas joint », sans le geste de mise à jour du runtime —
-    rien ne dit qu'il y a un runtime à relancer — et sans renvoi à la doc : `ssh` n'a rien écrit
-    qui s'y lise.
+- **Nothing is kept from the previous read**: no stale state beside the error. A micro-outage
+  therefore replaces the screen with an error, until the next read.
+- **The app does not guess the cause.** A 255 code comes from `ssh`: not reached. Any other code
+  comes from the box, whose message is displayed (`brigade: …`): 65, the action does not know the
+  project; 68, it refuses you; 69 or 127, a command is missing on the box; 70, its `node` does not
+  suit the runtime; any other, reached, but no longer pilotable.
+- The panel and the content tab displayed are each read on their own: the error of one is shown in
+  its own place, taking nothing from the other.
+- An `ssh` that returned nothing in thirty seconds is stopped, and the app says what it knows of it:
+  - `→ no answer in 30 s: ssh stopped` — `ssh` was connected (it then exits by itself, with 255)
+    and it is the command that returned nothing: "reached, but no longer pilotable".
+  - `→ no answer in 30 s: ssh stopped, without having said whether it had reached the box` — `ssh`
+    died of a signal, with no code: nothing says how far it had gone. Its ten seconds to reach the
+    box (`ConnectTimeout`) do not cover what follows the connection: an ssh agent waiting for a
+    confirmation (Touch ID, 1Password, `ssh-add -c`) holds it without limit. The app does not know
+    where it stood: it displays it "not reached", without the runtime update action — nothing says
+    there is a runtime to restart — and without a pointer to the docs: `ssh` wrote nothing that can
+    be read there.
 
-Le journal se lit dans `derniers événements`, rafraîchi avec le reste, et, pour sa fin (les 200 derniers
-événements), dans l'onglet **Log**. Pour le suivre en direct : `ssh <hote> brigade <nom> status -- --follow`, dans un shell de l'espace.
+The log is read in `latest events`, refreshed with the rest, and, for its end (the last 200
+events), in the **Log** tab. To follow it live: `ssh <hote> brigade <nom> status -- --follow`, in a
+shell of the space.
 
-## La peau
+## The skin
 
-L'app a une langue visuelle, et une seule : celle de la maquette (`docs/maquettes/app/`). Elle
-habille **le cadre**, jamais le contenu.
+The app has one visual language, and only one: the mockup's (`docs/maquettes/app/`). It dresses
+**the frame**, never the content.
 
-- **Un fond sombre, des cartes dessus.** Tout ce qui se lit d'un bloc a sa carte : les listes de
-  « Tous les projets », la carte de projet, la mise en service d'un projet ajouté, le retrait, les pages servies,
-  l'état du manager, celui des grants, le formulaire d'ajout. Une colonne du rail est une carte,
-  un ticket y est un **bon** — du papier clair sur le sombre —, et ce qui t'attend a la sienne, la
-  même que le bloc soit plein ou vide. Il n'y a qu'un thème, sombre, et aucun réglage.
-- **Une palette, écrite à un seul endroit** : `app/src/vue/jetons.css`. Chaque couleur y est une
-  variable, et sa valeur est une couleur de la maquette ; `vue.css` et `vue.js` ne nomment que ces
-  variables, le terminal y lit les siennes. Une couleur d'état reste celle de son mot (« Ce qui est
-  dessiné ») : sur un bon, où une couleur claire ne se lirait pas en lettres, elle est dans la
-  pastille qui précède le mot, et le mot est à l'encre. **Seules les couleurs d'un projet viennent
-  d'ailleurs** — sa couleur d'onglet et sa couleur d'accent, tirées dans la palette de
-  `app/src/couleurs.ts` et écrites dans `app.json` (« Les couleurs d'un projet ») : la vue les pose
-  sur deux variables, `--teinte` et `--accent`, et jamais sur une couleur d'état.
-- **Deux polices, embarquées** (`app/src/vue/polices/`, sous licence OFL) : rien n'est demandé au
-  réseau, la page ne s'ouvre aucune origine. **Archivo** pour l'interface. **JetBrains Mono** pour
-  ce qui se recopie tel quel — un numéro de ticket, un identifiant de run, un port, le nom d'un
-  projet, une commande — et pour ce que la box a rendu. **Le monospace est une information, pas un
-  style** : un bouton est en monospace si ce qu'il affiche est la commande qu'il écrira, et ce que
-  l'app dit elle-même, même sur plusieurs lignes, est en Archivo.
-- **Ce que la box a rendu est dans un cadre à lui**, sombre, en monospace : la sortie d'une
-  commande, le message de `ssh`, ce que le geste d'installation a répondu. **Mot pour mot** : ses
-  blancs et ses lignes sont les siens, une ligne trop longue passe à la suivante, rien n'est coupé,
-  caché ni récrit. Ce que l'app en dit est dessous, hors du cadre : on ne confond pas ses mots avec
-  ceux de la box. Rien ne se coupe dans toute l'app : le titre d'un ticket sur la ligne d'un cook en
-  cours passe à la ligne, comme le reste. La fenêtre ne se réduit pas sous 640 px de large (la moitié
-  de son ouverture) ; en deçà de 1280, les onglets et les colonnes du rail défilent, rien ne se chevauche.
+- **A dark background, cards on it.** Everything that reads as a block has its card: the lists of
+  "All projects", the project tile, the commissioning of an added project, the removal, the served
+  pages, the manager's state, the grants', the add form. A rail column is a card, a ticket there is
+  a **slip** — light paper on the dark —, and what awaits you has its own, the same whether the
+  block is full or empty. There is only one theme, dark, and no setting.
+- **A palette, written in a single place**: `app/src/vue/jetons.css`. Each color there is a
+  variable, and its value is a color from the mockup; `vue.css` and `vue.js` name only those
+  variables, the terminal reads its own there. A state color stays that of its word ("What is
+  drawn"): on a slip, where a light color would not read as letters, it is in the dot that precedes
+  the word, and the word is in ink. **Only a project's colors come from elsewhere** — its tab color
+  and its accent color, drawn from the palette of `app/src/couleurs.ts` and written in `app.json`
+  ("A project's colors"): the view puts them on two variables, `--teinte` and `--accent`, and never
+  on a state color.
+- **Two fonts, embedded** (`app/src/vue/polices/`, under the OFL license): nothing is requested
+  from the network, the page opens no origin. **Archivo** for the interface. **JetBrains Mono** for
+  what is copied as is — a ticket number, a run identifier, a port, a project's name, a command —
+  and for what the box returned. **Monospace is information, not a style**: a button is in
+  monospace if what it displays is the command it will write, and what the app says itself, even on
+  several lines, is in Archivo.
+- **What the box returned is in a frame of its own**, dark, in monospace: a command's output, the
+  `ssh` message, what the installation action answered. **Word for word**: its whitespace and its
+  lines are its own, a line that is too long wraps to the next, nothing is cut, hidden or rewritten.
+  What the app says about it is below, outside the frame: its words are not confused with the box's.
+  Nothing is cut anywhere in the app: the title of a ticket on the line of a running cook wraps, like
+  the rest. The window does not shrink below 640 px wide (half its opening); below 1280, the tabs
+  and the rail columns scroll, nothing overlaps.
 
-## Le poste est une station
+## The workstation is a station
 
-Un ticket peut demander une capacité que la box n'a pas — `chrome-connecté`, ton navigateur, avec
-tes sessions. Le projet déclare alors sur sa box une station qui la fournit et qui **ne tourne pas
-sur la box** : `mac/claude:1:chrome-connecté:distante` (`docs/runtime/station-distante.md`, « Une station distante
-tire son travail »). **C'est l'app qui la joue**, pour les projets qui le lui demandent :
+A ticket can ask for a capability the box does not have — `chrome-connecté`, your browser, with
+your sessions. The project then declares on its box a station that provides it and that **does not
+run on the box**: `mac/claude:1:chrome-connecté:distante` (`docs/runtime/station-distante.md`, "Une
+station distante tire son travail"). **The app plays it**, for the projects that ask it to:
 
 ```json
 { "nom": "brigade", "dossier": "~/Dev/brigade", "hote": "ma-box", "stations": ["mac/claude"] }
 ```
 
-Tant que l'app est ouverte, elle fait pour chaque station ce que la box attend d'elle, par le geste
-de la box et rien d'autre (`ssh <hote> brigade <nom> pull <station> …`) :
+As long as the app is open, it does for each station what the box expects of it, through the box
+action and nothing else (`ssh <hote> brigade <nom> pull <station> …`):
 
-| Ce qu'elle fait | Quand | Ce qui part vers la box |
+| What it does | When | What goes to the box |
 |---|---|---|
-| **s'annoncer** | au lancement, puis toutes les trente secondes tant que tous ses cooks sont pris | `pull mac/claude announce` |
-| **réclamer** un ticket | toutes les trente secondes tant qu'il lui reste de la place | `pull mac/claude claim` |
-| **cuisiner** | à chaque ticket reçu : un worktree dans le dossier du projet, sur la branche que la box nomme, et `claude` dedans, avec les arguments que la box a remis | rien |
-| **renouveler** son bail | toutes les trente secondes par cook | `pull mac/claude renew <run> [--proof <empreinte>] --turns <n> --tokens <n>` |
-| **rendre** | quand le cook a fini : sa branche poussée sur l'origine, puis son dernier message à la box | `git push` vers l'origine ; `pull mac/claude return <run> --end livre\|echec …` |
+| **announce** itself | at launch, then every thirty seconds while all its cooks are taken | `pull mac/claude announce` |
+| **claim** a ticket | every thirty seconds while it has room left | `pull mac/claude claim` |
+| **cook** | at each ticket received: a worktree in the project folder, on the branch the box names, and `claude` in it, with the arguments the box handed over | nothing |
+| **renew** its lease | every thirty seconds per cook | `pull mac/claude renew <run> [--proof <fingerprint>] --turns <n> --tokens <n>` |
+| **return** | when the cook is done: its branch pushed to the origin, then its last message to the box | `git push` to the origin; `pull mac/claude return <run> --end livre\|echec …` |
 
-Le pas est de trente secondes, moins si la box annonce un délai de présence ou un bail plus courts.
+The pace is thirty seconds, less if the box announces a shorter presence delay or lease.
 
-**Tout part de ton poste, rien n'y arrive.** L'app n'écoute aucun port pour ce travail et n'ouvre
-aucun serveur ; elle ne dit à la box ni son nom ni son adresse, et n'ouvre aucun transfert de
-port : un `ssh` sortant par demande, un `git` vers l'origine, et `claude`. La box, de son côté, n'a
-aucun chemin vers ton Mac (`runtime/test/architecture.test.ts`). Côté app, `app/test/runner.test.ts`
-le tient : ce que le runner importe, les trois programmes qu'il lance, et chaque ligne passée à
-`ssh` pendant un service complet.
+**Everything leaves your workstation, nothing arrives there.** The app listens on no port for this
+work and opens no server; it tells the box neither its name nor its address, and opens no port
+forwarding: one outgoing `ssh` per request, one `git` to the origin, and `claude`. The box, for its
+part, has no path to your Mac (`runtime/test/architecture.test.ts`). On the app side,
+`app/test/runner.test.ts` holds it: what the runner imports, the three programs it launches, and
+each line passed to `ssh` during a full service.
 
-**App fermée, la station est absente — et ce n'est pas une panne.** Passé le délai de présence de
-la box (deux minutes par défaut), les tickets qu'elle seule peut cuisiner sont `86`, « station
-absente », et `status` le dit ; les autres partent sur la box comme avant. Rouvre l'app : ils
-repartent seuls, à sa première demande. Il n'y a rien à faire sur la box, et l'app ne fait rien de
-spécial en fermant.
+**With the app closed, the station is absent — and this is not an outage.** Past the box's presence
+delay (two minutes by default), the tickets that only it can cook are `86`, "station absent", and
+`status` says so; the others go out on the box as before. Reopen the app: they restart by
+themselves, at its first request. There is nothing to do on the box, and the app does nothing
+special when closing.
 
-**Les tickets ordinaires, depuis les réglages du projet (#852).** Sur un Mac, dans Settings › General
-d'un projet dont ce poste joue une station (`stations`), le bloc « Ordinary tickets on this Mac » porte
-l'option « Take the ordinary tickets too » et le champ « Cooks at once », la limite de cooks du Mac. Une
-seule ligne, à côté, dit ce que ça implique : les cooks du Mac tournent dans le bac à sable de Claude
-Code, avec écriture limitée à leur worktree et réseau limité à la liste du projet. Les deux valeurs
-s'écrivent dans le fichier des projets (`"ordinaires": true`, `"limiteCooks": 2`) et se relisent à
-chaque ouverture ; une valeur mal écrite à la main refuse le fichier. **Hors d'un Mac, ou sans station
-jouée, le bloc n'existe pas.** L'état du bac à sable est lu dans `facts` (champ `stations`,
-[docs/runtime/](runtime/station-distante.md), « Les tickets ordinaires sur le poste du chef ») : quand la station le
-dit indisponible, le bloc l'écrit à côté de l'option, avec la raison que la station donne, et précise
-que le Mac ne prend aucun ticket ordinaire. Tant qu'elle n'en a rien dit, l'app ne devine rien. Le bloc
-règle ce que l'app garde ; la déclaration `distante+ordinaires` de la box reste celle du chef.
+**Ordinary tickets, from the project's settings (#852).** On a Mac, in Settings › General of a
+project for which this workstation plays a station (`stations`), the "Ordinary tickets on this Mac"
+block carries the "Take the ordinary tickets too" option and the "Cooks at once" field, the Mac's
+cooks cap. A single line, beside it, says what that implies: the Mac's cooks run in Claude Code's
+sandbox, with writing limited to their worktree and network limited to the project's list. Both
+values are written in the projects file (`"ordinaires": true`, `"limiteCooks": 2`) and re-read at
+each opening; a value badly written by hand makes the file refused. **Outside a Mac, or with no
+station played, the block does not exist.** The sandbox state is read in `facts` (`stations` field,
+[docs/runtime/](runtime/station-distante.md), "Les tickets ordinaires sur le poste du chef"): when the
+station says it is unavailable, the block writes it beside the option, with the reason the station
+gives, and specifies that the Mac takes no ordinary ticket. As long as it has said nothing, the app
+guesses nothing. The block sets what the app keeps; the box's `distante+ordinaires` declaration
+remains the chef's.
 
-**Où cuit chaque ticket (#853).** La box n'envoie un ticket ordinaire au Mac que quand elle sature
-(`docs/runtime/station-distante.md`, même section). Sur le rail, la carte d'un ticket en cours dit donc, sous « taken by »,
-**« cooks on : box »** ou **« cooks on : Mac »** — Mac pour une station distante, d'après le champ
-`stations` de `facts`. Une station que `facts` ne donne pas — un runtime d'avant ce champ — ne fait rien
-dire : l'app ne devine pas d'après son nom.
+**Where each ticket cooks (#853).** The box sends an ordinary ticket to the Mac only when it is
+saturated (`docs/runtime/station-distante.md`, same section). On the rail, the card of a running
+ticket therefore says, under "taken by", **"cooks on: box"** or **"cooks on: Mac"** — Mac for a
+remote station, according to the `stations` field of `facts`. A station that `facts` does not give
+— a runtime from before this field — makes it say nothing: the app does not guess from its name.
 
-**Un cook sur ton poste n'est pas un cook privilégié.** Ce que la box tient pour les siens, elle le
-tient pour lui, et l'app ne contourne rien :
+**A cook on your workstation is not a privileged cook.** What the box holds for its own, it holds
+for this one, and the app bypasses nothing:
 
-- **Les mêmes arguments.** `claude` est lancé avec ceux que la box a remis, tels quels : même
-  consigne, même calibrage, mêmes outils interdits (ni `git push`, ni `gh pr merge`).
-- **Aucun grant de plus.** Son environnement est celui du terminal qui a lancé l'app, trié comme la
-  box trie celui des siens : sans les variables `BRIGADE_…`, sans rien qui détourne `claude` de sa
-  connexion (`ANTHROPIC_API_KEY`…), sans mémoire automatique. L'app n'y ajoute ni jeton, ni secret
-  du projet, ni grant — la box n'en remet aucun. Ce que ton poste sait faire par ailleurs (ton
-  `gh`, ton navigateur) est à toi : c'est pour ça que le ticket vient ici.
-- **Le même bail, sur preuve de travail.** À chaque renouvellement l'app envoie ce que le cook a
-  consommé, et l'empreinte de son worktree **si elle a bougé depuis qu'il y est entré** : un
-  worktree intact n'est présenté comme la preuve de rien. La box ne renouvelle que sur une
-  empreinte qui a changé ; sinon le bail tombe à son échéance, et le cook est arrêté.
-- **Les mêmes plafonds.** Tours, jetons, durée, inactivité : la box les juge sur ce que l'app
-  rapporte et sur sa propre horloge. Dès qu'elle répond `stopped` — un plafond, le bail, ton
-  « stop », un redémarrage du runtime —, l'app arrête son cook (`SIGTERM`, puis `SIGKILL` cinq
-  secondes après) et ne rend rien : la box ne recevrait plus rien de lui.
-- **Une box muette ne laisse pas un cook sans garde.** Si aucun renouvellement n'a été accepté
-  pendant la durée du bail — la box ne répond plus, ou refuse —, l'app arrête le cook d'elle-même.
-- **Le même journal.** La prise, le lancement, le relevé, la fin et le compte-rendu du cook sont
-  écrits par la box, dans son journal, comme pour un cook à elle (`cook.launched` porte
-  `remote: true`) ; chaque demande de l'app y est aussi, avec sa réponse.
-- **La même pass.** Le cook ne pousse pas : c'est l'app qui pousse sa branche sur l'origine, et la
-  box la rapatrie de là — mêmes gates, même reviewer, même grant `merge`, mêmes renvois. Un renvoi
-  de la pass revient sur la même branche, telle que l'origine la porte.
+- **The same arguments.** `claude` is launched with those the box handed over, as they are: same
+  instruction, same calibration, same forbidden tools (neither `git push` nor `gh pr merge`).
+- **No extra grant.** Its environment is that of the terminal that launched the app, sorted as the
+  box sorts that of its own: without the `BRIGADE_…` variables, without anything that diverts
+  `claude` from its connection (`ANTHROPIC_API_KEY`…), without automatic memory. The app adds no
+  token, no project secret, no grant — the box hands over none. What your workstation can otherwise
+  do (your `gh`, your browser) is yours: this is why the ticket comes here.
+- **The same lease, on proof of work.** At each renewal the app sends what the cook has consumed,
+  and the fingerprint of its worktree **if it has changed since it entered it**: an intact worktree
+  is presented as proof of nothing. The box renews only on a fingerprint that has changed;
+  otherwise the lease lapses at its expiry, and the cook is stopped.
+- **The same caps.** Turns, tokens, duration, idleness: the box judges them on what the app
+  reports and on its own clock. As soon as it answers `stopped` — a cap, the lease, your "stop", a
+  runtime restart —, the app stops its cook (`SIGTERM`, then `SIGKILL` five seconds later) and
+  returns nothing: the box would receive nothing more from it.
+- **A silent box does not leave a cook unguarded.** If no renewal has been accepted for the length
+  of the lease — the box no longer answers, or refuses —, the app stops the cook by itself.
+- **The same log.** The taking, the launch, the reading, the end and the report of the cook are
+  written by the box, in its log, as for a cook of its own (`cook.launched` carries `remote: true`);
+  each request of the app is there too, with its answer.
+- **The same pass.** The cook does not push: the app pushes its branch to the origin, and the box
+  fetches it from there — same gates, same reviewer, same `merge` grant, same sendbacks. A sendback
+  from the pass returns to the same branch, as the origin carries it.
 
-**Ce qu'un cook d'ici livre** se juge dans son worktree, comme sur la box :
+**What a cook from here delivers** is judged in its worktree, as on the box:
 
-| Il a conclu, et… | Ce que l'app fait | Ce que la box en retient |
+| It concluded, and… | What the app does | What the box keeps of it |
 |---|---|---|
-| sa branche porte des commits | ce qui traîne non commité est commité à sa place, la branche est poussée, `return --end livre` | `done` : PR, compte-rendu, pass |
-| aucun commit, worktree intact | rien n'est poussé, `return --end livre` avec son dernier message | `done`, `no-diff`, s'il y a délimité un livrable ; sinon `no-deliverable` |
-| aucun commit, des fichiers écrits | `return --end echec --reason no-commit` | `failed` |
-| il a quitté sa branche | `return --end echec --reason off-branch` | `failed` |
-| il n'a pas conclu (code de sortie, quota, session perdue, refus du modèle) | `return --end echec`, avec la raison | `failed` |
+| its branch carries commits | what lies uncommitted is committed in its place, the branch is pushed, `return --end livre` | `done`: PR, report, pass |
+| no commit, intact worktree | nothing is pushed, `return --end livre` with its last message | `done`, `no-diff`, if it delimited a deliverable; otherwise `no-deliverable` |
+| no commit, files written | `return --end echec --reason no-commit` | `failed` |
+| it left its branch | `return --end echec --reason off-branch` | `failed` |
+| it did not conclude (exit code, quota, lost session, model refusal) | `return --end echec`, with the reason | `failed` |
 
-**Ce que ça écrit dans le dossier du projet.** Le dossier est ton clone : l'app y ajoute un
-worktree par cook, hors du dossier (`~/.config/brigade/stations/<projet>/<run>`), et sa branche
-`cook/<run>`. Ce qu'elle rapatrie de l'origine va dans des références à part
-(`refs/brigade/origine/…`) : **ta branche, tes branches de suivi et tes tags ne bougent pas.** Le
-cook fini, le worktree est retiré ; la branche part aussi, sauf si elle porte ce qui n'est pas sur
-l'origine — un cook en échec ou arrêté qui avait commité, ou laissé des fichiers : ils sont commités
-dessus, et la branche **reste dans ton clone**, jamais poussée. L'app le dit, et c'est à toi de la
-supprimer. Il faut donc que le dossier soit un clone du dépôt, dont `origin` est l'origine que la
-box sert, et que ton poste puisse y pousser.
+**What this writes in the project folder.** The folder is your clone: the app adds a worktree per
+cook to it, outside the folder (`~/.config/brigade/stations/<project>/<run>`), and its branch
+`cook/<run>`. What it fetches from the origin goes into separate references
+(`refs/brigade/origine/…`): **your branch, your tracking branches and your tags do not move.** Once
+the cook is done, the worktree is removed; the branch goes too, unless it carries what is not on the
+origin — a failed or stopped cook that had committed, or left files: they are committed on it, and
+the branch **stays in your clone**, never pushed. The app says so, and it is up to you to delete it.
+The folder must therefore be a clone of the repository, whose `origin` is the origin the box
+serves, and your workstation must be able to push to it.
 
-**Où ça se lit.** Sur la box : `station` montre la présence de `mac/claude` sur sa ligne
-`présence` (onglet Cooks), et `status` les tickets qui l'attendent (le panneau du projet). Sur ton
-poste : l'app écrit dans le terminal qui l'a lancée ce que chaque station fait, une ligne par
-changement.
+**Where to read it.** On the box: `station` shows the presence of `mac/claude` on its `presence`
+line (Cooks tab), and `status` the tickets that await it (the project's panel). On your
+workstation: the app writes in the terminal that launched it what each station does, one line per
+change.
 
 ```
-brigade : station mac/claude de « brigade » — présente — fournit chrome-connecté
-brigade : station mac/claude de « brigade » — cuisine le ticket #16 (16-9f494a1d)
-brigade : station mac/claude de « brigade » — ticket #16 rendu : done
-brigade : station mac/claude de « brigade » — refusée par la box — le projet ne déclare aucune station mac/claude : …
+brigade: station mac/claude of "brigade" — present — provides chrome-connecté
+brigade: station mac/claude of "brigade" — cooks ticket #16 (16-9f494a1d)
+brigade: station mac/claude of "brigade" — ticket #16 returned: done
+brigade: station mac/claude of "brigade" — refused by the box — the project declares no station mac/claude: …
 ```
 
-Une station que la box refuse — elle ne la déclare pas, ou pas `distante` — redemande toutes les
-cinq minutes, sans rien lancer.
+A station the box refuses — it does not declare it, or not as `distante` — asks again every five
+minutes, launching nothing.
 
-**Ce qui n'est pas garanti.**
+**What is not guaranteed.**
 
-- **Fermer l'app tue ses cooks**, sans rien rendre : le ticket reste pris jusqu'à l'échéance de son
-  bail, puis revient au rail (`guard.tripped`, `reason: lease`) — un échec compté par le
-  disjoncteur, comme pour tout cook dont le bail tombe. Le worktree reste, et il est retiré au
-  lancement suivant ; ce que le cook avait commité reste sur sa branche, dans ton clone.
-- **Une app tuée net** (pas fermée) peut laisser un `claude` tourner : rien ne le surveille plus.
-  Son worktree est retiré au lancement suivant.
-- **Le setup du worktree du projet n'est pas joué** (`.claude/brigade/worktree-setup.sh`) : sur la
-  box, la station le joue avant le cook ; ici, c'est au cook de le lancer s'il en a besoin.
-- **Un cook d'ici en échec ne livre rien**, même s'il avait commité : sur la box, ses commits
-  partent quand même en pass (« récolté ») ; ici ils restent sur sa branche, chez toi.
-- **Le quota épuisé de ton poste est un échec** pour la box, pas un `86` à heure de retour : le
-  geste `pull` ne sait dire que « livré » ou « échec ».
-- **Le flux brut du cook n'est pas gardé** sur ton poste : la box n'en reçoit que son dernier
-  message, et ce qu'il a consommé.
-- **Deux apps ouvertes sur le même fichier des projets** jouent deux fois la même station, et
-  chacune retire au lancement les worktrees que l'autre a posés.
+- **Closing the app kills its cooks**, returning nothing: the ticket stays taken until its lease
+  expires, then goes back to the rail (`guard.tripped`, `reason: lease`) — a failure counted by the
+  breaker, as for any cook whose lease lapses. The worktree stays, and is removed at the next
+  launch; what the cook had committed stays on its branch, in your clone.
+- **An app killed outright** (not closed) can leave a `claude` running: nothing watches it any
+  more. Its worktree is removed at the next launch.
+- **The project's worktree setup is not played** (`.claude/brigade/worktree-setup.sh`): on the box,
+  the station plays it before the cook; here, it is up to the cook to run it if it needs it.
+- **A failed cook from here delivers nothing**, even if it had committed: on the box, its commits go
+  to the pass anyway ("harvested"); here they stay on its branch, at your place.
+- **The exhausted quota of your workstation is a failure** for the box, not an `86` with a return
+  time: the `pull` action can only say "delivered" or "failure".
+- **The cook's raw stream is not kept** on your workstation: the box receives only its last
+  message, and what it consumed.
+- **Two apps open on the same projects file** play the same station twice, and each removes at
+  launch the worktrees the other laid.
 
-## Fil repris, ou session neuve : l'app le dit
+## Thread resumed, or new session: the app says so
 
-Sous les onglets, une ligne dit ce qui est affiché. Pour le second, elle prend l'une
-de ces trois formes :
+Under the tabs, a line says what is displayed. For the second, it takes one of these three forms:
 
-| La ligne | Ce qui s'est passé |
+| The line | What happened |
 |---|---|
-| `fil repris : `claude --continue`, la dernière conversation de ce dossier — quelle qu'elle soit, pas forcément celle d'un second ; `/brigade:po` y est invoqué` | Le second a été lancé par `claude --continue /brigade:po`, et il tourne : tu retrouves ton fil, et le rôle y est invoqué. |
-| `session neuve : `claude --continue` est sorti en code 1, le fil n'a pas été repris — `claude /brigade:po`` | `claude --continue` est sorti en erreur — le plus souvent parce que ce dossier n'a encore aucune conversation. L'app a lancé `claude /brigade:po`, **une fois**. Ce que `claude` a dit en sortant reste lisible dans le terminal. |
-| `le second s'est arrêté (code 0) — une touche le relance` | Tu as quitté `claude`, ou la session neuve n'a pas tenu. Rien n'est relancé d'office : une touche dans le terminal relance le second, en reprenant le fil et en invoquant le rôle. |
+| `thread resumed: `claude --continue`, the last conversation of this folder — whichever it is, not necessarily a second's; `/brigade:po` is invoked in it` | The second was launched by `claude --continue /brigade:po`, and it is running: you find your thread again, and the role is invoked in it. |
+| `new session: `claude --continue` exited with code 1, the thread was not resumed — `claude /brigade:po`` | `claude --continue` exited in error — most often because this folder has no conversation yet. The app launched `claude /brigade:po`, **once**. What `claude` said on exit stays readable in the terminal. |
+| `the second has stopped (code 0) — a key relaunches it` | You quit `claude`, or the new session did not hold. Nothing is relaunched on its own: a key in the terminal relaunches the second, resuming the thread and invoking the role. |
 
-À savoir :
+Worth knowing:
 
-- « Le fil » est **la dernière conversation de ce dossier**, telle que `claude --continue` la
-  choisit — y compris une conversation que tu as eue dans un autre terminal, ou celle d'un dev ou
-  d'un manager : l'app ne peut pas garantir que c'est celle d'un second, et ne le prétend pas —
-  elle invoque `/brigade:po` dans ce fil, et la ligne le dit. L'app ne tient
-  aucun registre de sessions à elle.
-- La ligne dit `fil repris` dès le lancement ; si `claude --continue` n'a rien à reprendre, elle
-  passe à `session neuve` dans l'instant où il sort.
-- Dans un dossier que `claude` ne connaît pas encore, il te demande d'abord si tu lui fais
-  confiance : c'est lui qui demande, dans le terminal, comme partout ailleurs.
+- "The thread" is **the last conversation of this folder**, as `claude --continue` picks it —
+  including a conversation you had in another terminal, or that of a dev or a manager: the app
+  cannot guarantee it is a second's, and does not pretend to — it invokes `/brigade:po` in that
+  thread, and the line says so. The app keeps no session registry of its own.
+- The line says `thread resumed` from the launch; if `claude --continue` has nothing to resume, it
+  switches to `new session` the instant it exits.
+- In a folder `claude` does not know yet, it first asks whether you trust it: it is `claude` that
+  asks, in the terminal, as everywhere else.
+## Closing the app
 
-## Fermer l'app
+Closing the window quits the app, and quitting **stops all its terminals** — seconds and shells — and
+the box reads in progress. Shells opened with `+ shell` only detach from it: their sessions hold,
+and they come back on the first click on their project (see above). **And the cooks of its
+stations**: once closed, the app plays none of them any more, and the box reports them absent (see
+"The workstation is a station"). Conversations, for their part, are kept by `claude`: on reopening,
+the first click on a project resumes its thread, and the line under the right-hand tabs tells you
+whether that worked.
 
-Fermer la fenêtre quitte l'app, et quitter **arrête tous ses terminaux** — seconds et shells — et
-les lectures de box en cours. Les shells ouverts par `+ shell` ne font que s'en détacher : leurs
-sessions tiennent, et ils reviennent au premier clic sur leur projet (voir plus haut). **Et les cooks de ses stations** : fermée, l'app n'en joue plus
-aucune, et la box les dit absentes (voir « Le poste est une station »).
-Les conversations, elles, sont gardées par `claude` : à la réouverture, le premier clic sur un
-projet reprend son fil, et la ligne sous les onglets de droite te dit si c'est bien le cas.
+## Launching the app
 
-## Lancer l'app
+Two ways: **installed**, from a `.dmg` for Apple Silicon, or **from a clone of the repo**.
 
-Deux façons : **installée**, depuis un `.dmg` pour Apple Silicon, ou **depuis un clone du dépôt**.
+**Installed.** `npm --prefix app run dist`, on a Mac, writes
+`app/packaging/construit/Brigade-<version>-arm64.dmg`; drag Brigade into Applications and open it.
+It carries its station's runtime and the `node` that plays it: no clone, no `node`, no `npm` on the
+machine. It reads `~/.config/brigade/` as it is — your projects and settings are those of the repo's
+app —, takes the `PATH` of your login shell (to find `claude` and `gh`), and does not update through
+`git`: it keeps itself up to date from the published versions (below). The `.dmg` published on the
+`app-v<version>` release is signed with Developer ID and notarized by Apple: it opens without a
+warning. One you build yourself is only ad hoc signed: copied from another Mac, macOS asks for "Open
+anyway". What it carries, how it is built and tested: [`app/packaging/README.md`](../app/packaging/README.md).
 
-**Installée.** `npm --prefix app run dist`, sur un Mac, écrit
-`app/packaging/construit/Brigade-<version>-arm64.dmg` ; glisse Brigade dans Applications et
-ouvre-la. Elle porte le runtime de sa station et le `node` qui le joue : ni clone, ni `node`, ni
-`npm` sur la machine. Elle lit `~/.config/brigade/` tel quel — tes projets et réglages sont ceux de
-l'app du dépôt —, prend le `PATH` de ton shell de connexion (pour trouver `claude` et `gh`), et ne
-se met pas à jour par `git` : elle se tient à jour sur les versions publiées (ci-dessous). Le `.dmg` publié sur la release `app-v<version>` est signé Developer ID et notarisé par Apple : il
-s'ouvre sans alerte. Celui qu'on construit soi-même n'est signé qu'ad hoc : copié d'un autre Mac,
-macOS demande « Ouvrir quand même ». Ce
-qu'elle porte, comment elle se construit et s'éprouve : [`app/packaging/README.md`](../app/packaging/README.md).
+**Updating it** (#1013). The installed app checks at launch, then every six hours, whether a version
+higher than its own is published — an `app-v<version>` release that carries its `latest-mac.yml`. If
+there is one, it announces it with its number and downloads it right away, checked against the
+published size and sha512, under `~/.config/brigade/mise-a-jour/`. Once ready, it installs on the
+"install now" action — the app closes, the new one takes its place and reopens —, or, with no
+action, at the next opening, before anything starts in it. The installer checks the signature of the
+new version (the same developer as the one running); if that fails, the app in place is not touched,
+it reopens and says why. A feed that does not answer never stops the app from opening: the error is
+reported, the next check tries again. Launched from the repo, it checks nothing — its clone updates
+it. The state and the actions go through the view's bridge (`miseAJour`, `verifierMiseAJour`,
+`installerMiseAJour`, `surMiseAJour`); the code is in `app/src/mise-a-jour/`. To try it without
+GitHub, `BRIGADE_APP_MISE_A_JOUR_SOURCE=<address>` makes it read a server that answers like GitHub.
 
-**Sa mise à jour** (#1013). L'app installée regarde à son lancement, puis toutes les six heures, si
-une version plus haute que la sienne est publiée — une release `app-v<version>` qui porte son
-`latest-mac.yml`. S'il y en a une, elle l'annonce avec son numéro et la télécharge aussitôt, vérifiée
-contre la taille et le sha512 publiés, sous `~/.config/brigade/mise-a-jour/`. Prête, elle s'installe
-au geste « installer maintenant » — l'app se ferme, la nouvelle prend sa place et se rouvre —, ou,
-sans geste, à l'ouverture suivante, avant que rien n'y démarre. L'installeur vérifie la signature de
-la nouvelle version (le même développeur que celle qui tourne) ; s'il échoue, l'app en place n'est
-pas touchée, elle se rouvre et dit pourquoi. Un flux qui ne répond pas n'empêche jamais l'app de
-s'ouvrir : l'erreur est dite, la vérification suivante réessaie. Lancée depuis le dépôt, elle ne
-regarde rien — son clone la met à jour. L'état et les gestes passent par le pont de la vue
-(`miseAJour`, `verifierMiseAJour`, `installerMiseAJour`, `surMiseAJour`) ; le code est dans
-`app/src/mise-a-jour/`. Pour l'essayer sans GitHub, `BRIGADE_APP_MISE_A_JOUR_SOURCE=<adresse>` la fait
-lire un serveur qui répond comme lui.
+**What the chef sees of it** (#1014). On "All projects", an **App** section gives the running
+version (`Brigade 1.4.0`) — in every state, including up to date, in error or launched from the
+repo; the reason for an error is in the hover of the version. When a higher version is published, a
+line announces it (`version 1.5.0 is available`, with the progress during the download) and carries
+two actions: **Install now** (the recommended button; the app closes its terminals and relaunches on
+the new version, which its hover says) and **Later** (the line disappears until the next launch,
+where the downloaded version installs itself). A refusal of the installation is told in one line
+under the message. Up to date and in error, no message.
 
-**Ce que le chef en voit** (#1014). Sur « Tous les projets », une section **App** dit la version qui
-tourne (`Brigade 1.4.0`) — dans tous les états, y compris à jour, en erreur ou lancée depuis le dépôt ;
-la raison d'une erreur est au survol de la version. Quand une version plus haute est publiée, une ligne
-l'annonce (`version 1.5.0 is available`, avec la progression pendant le téléchargement) et porte deux
-gestes : **Install now** (le bouton recommandé ; l'app ferme ses terminaux et se relance sur la
-nouvelle version, ce que dit son survol) et **Later** (la ligne disparaît jusqu'au lancement suivant,
-où la version téléchargée s'installe d'elle-même). Un refus de l'installation se dit en une ligne sous
-le message. À jour et en erreur, aucun message.
-
-**Depuis le dépôt :**
+**From the repo:**
 
 ```bash
 npm --prefix app start
 ```
 
-**C'est le seul geste, la première fois comme les suivantes.** Ce qui manque, `start` le pose
-avant de lancer l'app, et le dit :
+**It is the only action, the first time and every time after.** What is missing, `start` sets up
+before launching the app, and says so:
 
 ```
 brigade : je pose les dépendances de l'app (`npm ci --ignore-scripts`) — elles ne sont pas encore là.
 brigade : je pose Electron — téléchargé la première fois sur ce poste, 311 Mo sur le disque.
 ```
 
-- Les dépendances sont reposées quand `app/package-lock.json` a changé depuis leur pose — après
-  un `git pull` qui les touche — et la ligne le dit. Sinon `start` ne pose rien et ne dit rien.
-- Une pose qui échoue arrête tout, avec son code : `brigade : `npm ci --ignore-scripts` a échoué
-  (code 1) — l'app n'est pas lancée.` Ce que `npm` a écrit est au-dessus.
-- Il faut Node 26 et `npm` ; rien d'autre n'est à installer d'avance (voir « Ce que ça pèse »).
-- **Avant tout, `start` passe à la nouvelle version.** Si la branche de l'origine que suit ce clone
-  a avancé, le clone avance avec elle (avance rapide seulement), puis les dépendances sont reposées
-  si elle les change, et l'app s'ouvre sur la nouvelle version :
+- The dependencies are set up again when `app/package-lock.json` has changed since they were set
+  up — after a `git pull` that touches them — and the line says so. Otherwise `start` sets up
+  nothing and says nothing.
+- A setup that fails stops everything, with its code: `brigade : `npm ci --ignore-scripts` a échoué
+  (code 1) — l'app n'est pas lancée.` What `npm` wrote is above.
+- You need Node 26 and `npm`; nothing else has to be installed beforehand (see "What it weighs").
+- **First of all, `start` moves to the new version.** If the origin branch this clone follows has
+  moved on, the clone moves with it (fast-forward only), then the dependencies are set up again if it
+  changes them, and the app opens on the new version:
   `brigade: the app is updated — 5 commits from origin/v2 (3ba369f → e5123e1), in /Users/chef/dev/brigade. It opens on the new version.`
-  Déjà à jour, rien n'est dit. Une origine muette (au bout d'une minute), une branche qui ne suit
-  rien, un clone qui a des commits à lui ou des changements qui seraient écrasés : le clone ne bouge
-  pas, la raison est dite, et l'app s'ouvre sur le code qu'elle a — jamais une mise à jour ratée ne
-  l'empêche de s'ouvrir.
-- **L'app tourne sur le code de ce clone, tel qu'il était à son lancement.** Quand une nouvelle
-  version arrive pendant qu'elle tourne, la case **T** passe en jaune, les réglages de chaque projet
-  le disent, et un clic l'y fait passer (voir « Le code de l'app : à jour, ou en retard »).
+  Already up to date, nothing is said. A silent origin (after a minute), a branch that follows
+  nothing, a clone with commits of its own or changes that would be overwritten: the clone does not
+  move, the reason is given, and the app opens on the code it has — a failed update never stops it
+  from opening.
+- **The app runs on the code of this clone, as it was at its launch.** When a new version arrives
+  while it runs, the **T** tile turns yellow, each project's settings say so, and a click moves it
+  over (see "The app's code: up to date, or behind").
 
-Lancée depuis un terminal, l'app hérite de son environnement : le `PATH` qui trouve `claude`, tes
-accès.
+Launched from a terminal, the app inherits its environment: the `PATH` that finds `claude`, your
+access.
 
-## Pour qui développe l'app
+## For app developers
 
-| Geste | Commande |
+| Action | Command |
 |---|---|
 | Tests | `npm --prefix app test` |
-| Contrôle de types | `npm --prefix app run typecheck` |
-| Construire le `.dmg` (sur un Mac) | `npm --prefix app run dist` → `app/packaging/construit/` ([`app/packaging/README.md`](../app/packaging/README.md)) |
-| Lancer sans consommer de quota | `BRIGADE_CLAUDE_BIN="$PWD/app/test/aides/faux-claude.sh" BRIGADE_APP_CONFIG=<fichier d'essai> npm --prefix app start` |
-| … et sans box | ajouter `BRIGADE_SSH_BIN=<un script qui imprime une sortie de status>` — et, pour voir ce qui se dessine, l'exemple de `docs/runtime/etat-et-mesures.md` quand ses arguments finissent par `faits` |
-| … et sans que ta machine devienne une station | ajouter `BRIGADE_APP_STATION=0` |
+| Type check | `npm --prefix app run typecheck` |
+| Build the `.dmg` (on a Mac) | `npm --prefix app run dist` → `app/packaging/construit/` ([`app/packaging/README.md`](../app/packaging/README.md)) |
+| Launch without consuming quota | `BRIGADE_CLAUDE_BIN="$PWD/app/test/aides/faux-claude.sh" BRIGADE_APP_CONFIG=<trial file> npm --prefix app start` |
+| … and without a box | add `BRIGADE_SSH_BIN=<a script that prints a status output>` — and, to see what gets drawn, the example in `docs/runtime/etat-et-mesures.md` when its arguments end with `facts` |
+| … and without your machine becoming a station | add `BRIGADE_APP_STATION=0` |
 
-**L'app ouverte est une station** (voir « Cet ordinateur est une station ») : elle crée son gist
-sur ton compte GitHub par ton `gh`, et cuit les projets de son `station/projets`.
-`BRIGADE_APP_STATION=0` l'en empêche ; `BRIGADE_APP_CONFIG` déplace aussi son répertoire, à côté du
-fichier d'essai.
+**The open app is a station** (see "This computer is a station; a phone is a workstation"): it creates its gist on your GitHub
+account through your `gh`, and cooks the projects of its `station/projets`.
+`BRIGADE_APP_STATION=0` prevents that; `BRIGADE_APP_CONFIG` also moves its directory, next to the
+trial file.
 
-**Un projet qui déclare `stations` lance de vrais cooks sur ton poste** dès que l'app est ouverte
-et que sa box a un ticket pour eux — sur ton quota, sans demande de permission, dans un worktree de
-son dossier. Pour l'essayer sans box ni quota : pas de `stations` dans le fichier d'essai, ou les
-deux doublures ci-dessus.
+**A project that declares `stations` launches real cooks on your workstation** as soon as the app is
+open and its box has a ticket for them — on your quota, with no permission prompt, in a worktree of
+its folder. To try it without a box or quota: no `stations` in the trial file, or the two stand-ins
+above.
 
-**Sans `BRIGADE_SSH_BIN`, ajouter un projet installe pour de bon** : l'écran d'ajout lance le vrai
-geste d'installation sur la box choisie. Pour l'essayer sans box, le faux `ssh` rend l'objet du
-geste quand sa ligne porte `brigade-installer` (une ligne `{"ok":true,"ports":{"porte":3129,"arbitre":null},…}`).
-Pour la mise en service : la sortie d'`installation` quand ses arguments finissent par
-`installation` — avec, pour un « prêt », la ligne `brigade : projet « <nom> » : prêt` et un code 0.
-Le faux `claude` dit `reçu : /brigade:init` quand il est ouvert sur la session.
-**Et « Désinstaller de la box » désinstalle pour de bon** : pour l'essayer sans box, le faux `ssh`
-rend, quand sa ligne porte `uninstall`, les phrases du geste sur sa sortie d'erreur et son objet
-sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","projet":"<nom>",…}` pour
-`--plan`, `"fait":"desinstalle"` pour `--confirm`.
+**Without `BRIGADE_SSH_BIN`, adding a project really installs**: the add screen runs the real
+installation action on the chosen box. To try it without a box, the fake `ssh` returns the action's
+object when its line carries `brigade-installer` (a line `{"ok":true,"ports":{"porte":3129,"arbitre":null},…}`).
+For the go-live: the output of `installation` when its arguments end with `installation` — with, for
+a "ready", the line `brigade : projet « <nom> » : prêt` and a code 0. The fake `claude` says
+`reçu : /brigade:init` when it is opened on the session.
+**And "Uninstall from the box" really uninstalls**: to try it without a box, the fake `ssh` returns,
+when its line carries `uninstall`, the action's sentences on its error output and its object on its
+standard output — `{"ok":true,"action":"uninstall","fait":"plan","projet":"<nom>",…}` for
+`--plan`, `"fait":"desinstalle"` for `--confirm`.
 
-- **Pas de build.** Le process principal est du TypeScript exécuté tel quel par Electron (son
-  Node efface les types, comme celui du runtime) ; la vue est du JavaScript contrôlé par `tsc`
-  (`// @ts-check`), qui importe xterm.js par une *import map* — ni bundler ni étape de
-  compilation.
-- **Shift+Entrée revient à la ligne.** xterm.js l'envoie comme Entrée ; la vue l'intercepte
-  (`attachCustomKeyEventHandler`) et écrit à la place `ESC` + `\r` dans le second (l'Alt+Entrée de
-  `claude`) ou un saut de ligne cité `^V` `^J` dans un shell. Entrée, Ctrl+C et le collage ne
-  passent pas par là.
-- **Option/Cmd/Ctrl/Shift + flèche et Option/Cmd/Ctrl + ⌫ déplacent ou effacent.** xterm.js les
-  envoie en `CSI 1;<mod>` ou en `DEL` nu, que le shell et `claude` écrivent comme des caractères. La
-  même interception les traduit, dans le second comme dans un shell : Option/Ctrl + ←/→ → `ESC b` /
-  `ESC f` (un mot), Cmd + ←/→ → `^A` / `^E` (la ligne), Option + ⌫ → `ESC DEL` (un mot), Cmd + ⌫ →
-  `^U` (jusqu'au début de ligne), Ctrl + ⌫ → `^W`. Shift seul n'a rien à sélectionner : la flèche
-  part nue.
-- **Aucun test ne lance Electron.** Ce qui se prouve vit dans vingt modules joués par
-  `node --test` : `config.ts` (le fichier des projets : le lire, le créer, y ajouter un projet, en
-  ranger un à une autre place, y déclarer une box — et les box que l'écran d'ajout propose), `nom.ts` (la forme du nom, tenue
-  contre la règle du geste d'installation : le test appelle `lireDemande` de
-  `runtime/src/installateur.ts`), `installation.ts` (l'ajout d'un projet : les champs sans défaut,
-  ce qui part vers la box — relu par le même `lireDemande` —, et ce que l'app fait de chaque
-  réponse, contre un faux `ssh` et le vrai fichier des projets), `service.ts` (la mise en service :
-  ses trois états — init non mergé, vérification incomplète, tout prêt —, ce que `Vérifier` lance
-  et ce qu'il fait de chaque code de sortie, contre un faux `ssh` ; et que `Démarrer` n'écrit rien
-  dans aucun terminal tant que la box ne dit pas le projet prêt, sur le registre et de faux pty — la
-  ligne de verdict se compare à `runtime/src/installation-cli.ts`, le démarrage à `docs/installer.md`),
-  `retrait.ts` (retirer un projet : que « Retirer de l'app » ne lance aucun `ssh` et laisse le
-  journal de la box tel qu'il est ; que la désinstallation ne part ni sans le plan de la box, ni
-  sans le nom du projet, ni avec l'option du journal si elle n'est pas cochée — contre un faux `ssh`
-  qui tient lieu de box, dont les phrases sont celles de `direDesinstallation` et les arguments
-  relus par `lireRetrait`, de `runtime/src/desinstallateur.ts`),
-  `suivi.ts` (le même fichier relu quand il change, sur de vrais fichiers et la vraie veille du
-  système), `lancement.ts` (ce que `start` pose avant Electron — les commandes y sont relevées,
-  pas lancées), `terminaux.ts` (le registre : qui est
-  lancé, gardé, relancé, et ce que l'app en dit — et le geste direct : second libre, il part ;
-  occupé, rien n'est écrit et le refus le dit ; un prompt rempli n'est pas envoyé), `saisie.ts`
-  (ce que l'app sait de la saisie du second : ses tours — les crochets joués par un vrai `sh` —,
-  son titre, la frappe du chef, la preuve du mode shell ; les signes sont ceux relevés sur le vrai
-  `claude`, rejoués sans en lancer aucun), `pty.ts` (le vrai pty, contre un faux `claude`),
-  `box.ts` (la veille des box et ses états, contre un faux `ssh` que chaque test écrit : ni
-  réseau ni box), `attend.ts` (le bloc `attend` pris par son bord, sur des sorties recopiées du
-  runtime ; et le numéro en tête d'une ligne, sur le bloc que le runtime écrit lui-même — le test
-  appelle `decrireAttentes` de `runtime/src/attend.ts`), `barre.ts` (le monogramme d'un projet), `couleurs.ts`
-  (les couleurs d'un projet : tirées sans doublon tant que la palette n'est pas épuisée, écrites
-  dans le fichier — et seulement celles qui manquent —, changées une à une ; dans la vue jouée, la
-  case teinte, l'accent de l'espace, le choix sous Réglages ; aucune n'est une couleur d'état), `onglets.ts` (les cinq onglets de contenu :
-  chacun relaie un script qui existe dans `runtime/package.json`, et seul l'affiché est lu),
-  `boutons.ts` (ce que chaque bouton écrit, comparé à « Piloter » de `docs/runtime/exploitation.md` — et, dans
-  le registre et sur le vrai pty, que rien n'est envoyé), `gestes.ts` (les gestes qui s'écrivent
-  dans un shell de l'espace, et les deux qui partent dans le second : chaque commande comparée,
-  caractère pour caractère, à « Piloter », que rien n'envoie un geste écrit, et qu'aucun geste
-  n'expose de shell, de `sudo` ni de commande libre), `manager.ts` (l'état du manager lu dans la sortie de `manager` : allumé,
-  éteint, jamais allumé, sans décision, avec ses décisions et ses écarts — sur des sorties que le
-  test fait écrire par `runtime/src/manager-cli.ts` lui-même, sur un vrai journal ; ce qui n'a pas
-  la forme n'est jamais lu comme « éteint »), `allumage.ts` (ce qu'engage l'allumage : son
-  avertissement comparé à celui de `docs/runtime/manager.md`, et les deux nombres lus sur un backlog
-  connu — la ligne est écrite par `manager backlog` de `runtime/src/manager-cli.ts` lui-même,
-  devant un faux `gh`, puis rendue par un faux `ssh` ; une box pas jointe, un runtime d'avant la
-  commande ou une sortie sans la ligne ne donnent jamais « 0 »), `amont.ts` (ce qui n'est pas encore sur le
-  rail : la sortie écrite par `manager upstream` de `runtime/src/manager-cli.ts` lui-même, sur un
-  vrai journal et devant un faux `gh`, comptée et rangée en groupes sans rien y ajouter ; ce qui
-  n'a pas la forme, une box pas jointe ou un runtime d'avant la commande ne donnent jamais de
-  nombre ; et, vue jouée, le nombre en tête du rail, la liste qu'il déplie, la fiche qu'une issue
-  ouvre, et ce que dit un rail vide), `faits.ts` (ce qui se dessine : la
-  forme lue champ pour champ sur l'exemple de `docs/runtime/etat-et-mesures.md`, ce qui n'est pas elle refusé sans
-  un zéro, une couleur sur les seuls mots des listes fermées, l'adresse d'une issue, la bannière —
-  le rail rangé en cinq colonnes, T'attend d'après `attend` de la forme et le bloc `attend` tenu à côté des faits —
-  la vue en reçoit un tableau prêt à poser, et n'y calcule rien), `bon.ts` (ce qu'une carte du rail porte : la ligne de
-  chaque ticket sous `rail`, tenue contre `status` et `faits` écrits par le runtime lui-même du même
-  état ; les cinq choses dites, ou écrites manquantes, sur chaque ticket ; une ligne reformulée relayée
-  entière, jamais devinée), `rail.test.ts` (le rail au centre, posé quel que soit l'onglet ; ce que le
-  bloc dit d'un ticket restitué mot pour mot, long et sur plusieurs lignes ; le clic d'une carte de
-  T'attend), `retard.ts` (le retard d'un clone
-  sur son origine : compté contre le vrai `git`, sur des dépôts d'essai dont l'origine est un dossier
-  voisin — et que le clone lu est le même après qu'avant, fichier par fichier, à l'octet et à
-  l'instant près, même réglé pour élaguer et étiqueter à chaque `git fetch` ; ce qui ne se lit pas
-  n'est jamais rendu comme un zéro ; la commande écrite dans un shell, jamais lancée),
-  `rattrapage.ts` (l'app passe à la nouvelle version : le clone avance en avance rapide, ou ne bouge
-  pas et dit pourquoi — commits à lui, changement qui serait écrasé, origine muette ; à l'ouverture,
-  avant les dépendances, qui sont reposées si la nouvelle version les change ; au clic, une seule
-  relance, par `npm start`),
-  `runner.ts` (le poste joue une station, de bout en bout contre une box de test : la cuisine des
-  tests du runtime — rail, garde-fous, stations, pass —, sur un vrai dépôt git, jointe par un faux
-  `ssh` qui lance le vrai `runtime/src/tirer-cli.ts` dans son process, et un faux `claude` pour
-  cook ; le ticket part, sa livraison passe la pass, son chemin au journal est celui d'un cook de
-  la box ; app arrêtée il est `86`, relancée il repart ; le bail ne se renouvelle que sur un
-  worktree qui a bougé, et tombe sinon ; chaque ligne passée à `ssh` est comparée à la forme du
-  geste `pull` — et, pièce par pièce, la lecture du flux contre `superviser` et `lireFlux` du
-  runtime, l'environnement du cook contre son `environnementCook`).
-  `main.ts` et la vue ne font que brancher ; ils se vérifient en lançant l'app. **La peau, elle,
-  se prouve sans la lancer** (`peau.test.ts`) : `vue.js` y est joué tel qu'il est devant un faux
-  document (`app/test/aides/fausse-vue.ts` — juste ce que la vue en touche, et un faux pont), et
-  `vue.css` y est lu règle par règle. Ce qui s'y tient : qu'un texte relayé de la box est posé mot
-  pour mot sur les six onglets et l'écran d'ajout — « Tous les projets » n'en relaie rien —, et qu'aucune règle ne le
-  coupe ; qu'aucune couleur ne s'écrit hors de `jetons.css`, et que chacune est une couleur de la
-  maquette — hors celles d'un projet, que la vue reçoit du fichier (`couleurs.test.ts`) ; qu'une case
-  de la barre se range en la glissant — le trait qui dit où elle atterrira, la place qu'elle prend,
-  le clic qui reste un clic, ce qui est glissé d'ailleurs et n'est pas reçu (`rangement.test.ts`) ; que les polices sont des fichiers de l'app ; qu'un numéro de ticket ou un port est en
-  monospace partout où il se pose ; que rien du parking de la maquette n'apparaît. **Ce qui se
-  peint ne s'y voit pas** : un faux document ne mesure ni ne dessine rien — la peau se regarde en
-  lançant l'app.
-- **Lancée d'un clone, l'app joint son origine** : un `git ls-remote` au lancement et à chaque
-  retour à la fenêtre, et un `git fetch` vers un dossier jetable quand le clone est en retard.
-  **`npm start` met le clone à jour** s'il suit une branche de l'origine qui a avancé — un worktree
-  de dev sur une branche qui ne suit rien n'est pas touché (`start` le dit, et l'app dit `pas lu`).
-- **`BRIGADE_CLAUDE_BIN`** remplace `claude`, comme pour le runtime ; **`BRIGADE_SSH_BIN`**
-  remplace `ssh` ; **`BRIGADE_GH_BIN`** remplace le `gh` qui lit et répond la question d'une issue
-  (« La question qui t'attend ») ; **`BRIGADE_APP_CONFIG`** remplace le chemin du fichier des
-  projets. Aucune des quatre n'est à poser pour un usage réel.
-- **node-pty** est le seul module natif. Il est livré compilé pour macOS et passe par N-API : le
-  même binaire sert Node (les tests) et Electron (l'app), rien ne se recompile. Sur Linux il
-  n'est pas livré compilé : les tests sur un vrai pty y sont **sautés, en le disant** ; le
-  registre et la configuration y sont joués.
+- **No build.** The main process is TypeScript run as is by Electron (its Node strips the types, like
+  the runtime's); the view is JavaScript checked by `tsc` (`// @ts-check`), which imports xterm.js
+  through an *import map* — no bundler and no compilation step.
+- **Shift+Enter inserts a line break.** xterm.js sends it as Enter; the view intercepts it
+  (`attachCustomKeyEventHandler`) and writes instead `ESC` + `\r` into the second (`claude`'s
+  Alt+Enter) or a quoted line break `^V` `^J` into a shell. Enter, Ctrl+C and paste do not go
+  through there.
+- **Option/Cmd/Ctrl/Shift + arrow and Option/Cmd/Ctrl + ⌫ move or delete.** xterm.js sends them as
+  `CSI 1;<mod>` or as a bare `DEL`, which the shell and `claude` write out as characters. The same
+  interception translates them, in the second as in a shell: Option/Ctrl + ←/→ → `ESC b` /
+  `ESC f` (one word), Cmd + ←/→ → `^A` / `^E` (the line), Option + ⌫ → `ESC DEL` (one word), Cmd + ⌫ →
+  `^U` (to the start of the line), Ctrl + ⌫ → `^W`. Shift alone has nothing to select: the arrow
+  goes out bare.
+- **No test launches Electron.** What can be proven lives in twenty modules run by
+  `node --test`: `config.ts` (the projects file: reading it, creating it, adding a project to it,
+  moving one to another place in it, declaring a box in it — and the boxes the add screen offers),
+  `nom.ts` (the shape of the name, held against the rule of the installation action: the test calls
+  `lireDemande` of `runtime/src/installateur.ts`), `installation.ts` (adding a project: the fields
+  with no default, what goes to the box — read back by the same `lireDemande` —, and what the app
+  does with each answer, against a fake `ssh` and the real projects file), `service.ts` (the
+  go-live: its three states — init not merged, check incomplete, all ready —, what `Check` launches
+  and what it does with each exit code, against a fake `ssh`; and that `Start` writes nothing into
+  any terminal as long as the box does not say the project is ready, on the registry and fake ptys —
+  the verdict line is compared with `runtime/src/installation-cli.ts`, the startup with
+  `docs/installer.md`), `retrait.ts` (removing a project: that "Remove this project from the app"
+  launches no `ssh` and leaves the box's log as it is; that the uninstall goes out neither without
+  the box's plan, nor without the project's name, nor with the log option if it is not ticked —
+  against a fake `ssh` standing in for a box, whose sentences are those of `direDesinstallation` and
+  whose arguments are read back by `lireRetrait`, from `runtime/src/desinstallateur.ts`),
+  `suivi.ts` (the same file read again when it changes, on real files and the system's real
+  watch), `lancement.ts` (what `start` sets up before Electron — the commands are collected there,
+  not run), `terminaux.ts` (the registry: what is launched, kept, relaunched, and what the app says
+  of it — and the direct action: a free second, it goes; a busy one, nothing is written and the
+  refusal says so; a filled-in prompt is not sent), `saisie.ts` (what the app knows of the second's
+  input: its turns — the hooks played by a real `sh` —, its title, the chef's typing, the proof of
+  shell mode; the signs are those recorded on the real `claude`, replayed without launching any),
+  `pty.ts` (the real pty, against a fake `claude`), `box.ts` (the box watch and its states, against a
+  fake `ssh` that each test writes: no network, no box), `attend.ts` (the `awaiting` block taken by
+  its edge, on outputs copied from the runtime; and the number at the head of a line, on the block
+  the runtime itself writes — the test calls `decrireAttentes` of `runtime/src/attend.ts`),
+  `barre.ts` (a project's monogram), `couleurs.ts` (a project's colors: drawn without duplicates as
+  long as the palette is not exhausted, written to the file — and only those that are missing —,
+  changed one by one; in the played view, the tinted tile, the space's accent, the choice under
+  Settings; none is a state color), `onglets.ts` (the five content tabs: each relays a script that
+  exists in `runtime/package.json`, and only what is displayed is read), `boutons.ts` (what each
+  button writes, compared with "Piloter" in `docs/runtime/exploitation.md` — and, in the registry
+  and on the real pty, that nothing is sent), `gestes.ts` (the actions that are written into a shell
+  of the space, and the two that go into the second: each command compared, character for
+  character, with "Piloter", that nothing sends a written action, and that no action exposes a
+  shell, a `sudo` or a free command), `manager.ts` (the manager's state read in the output of
+  `manager`: on, off, never on, no decision, with its decisions and its set-asides — on outputs the
+  test has `runtime/src/manager-cli.ts` itself write, on a real log; what does not have the shape is
+  never read as "off"), `allumage.ts` (what turning it on commits: its warning compared with that of
+  `docs/runtime/manager.md`, and the two numbers read on a known backlog — the line is written by
+  `manager backlog` of `runtime/src/manager-cli.ts` itself, in front of a fake `gh`, then returned
+  by a fake `ssh`; a box not reached, a runtime from before the command or an output without the
+  line never give "0"), `amont.ts` (what is not yet on the rail: the output written by
+  `manager upstream` of `runtime/src/manager-cli.ts` itself, on a real log and in front of a fake
+  `gh`, counted and sorted into groups without adding anything to it; what does not have the shape,
+  a box not reached or a runtime from before the command never give a number; and, in the played
+  view, the number at the head of the rail, the list it unfolds, the card an issue opens, and what an
+  empty rail says), `faits.ts` (what gets drawn: the shape read field by field on the example in
+  `docs/runtime/etat-et-mesures.md`, what is not that shape refused without a zero, a color on the
+  words of closed lists only, an issue's address, the banner — the rail sorted into five columns,
+  Awaiting you from the shape's `awaiting` and the `awaiting` block held next to the facts — the view
+  receives a ready-to-lay array and computes nothing in it), `bon.ts` (what a rail card carries: the
+  line of each ticket under `rail`, held against `status` and `facts` written by the runtime itself
+  from the same state; the five things said, or written as missing, on each ticket; a reworded line
+  relayed whole, never guessed), `rail.test.ts` (the rail at the center, laid out whatever the tab;
+  what the block says of a ticket rendered word for word, long and over several lines; the click on
+  an Awaiting you card), `retard.ts` (a clone's lag behind its origin: counted against the real
+  `git`, on trial repos whose origin is a neighboring folder — and that the clone read is the same
+  after as before, file by file, to the byte and to the instant, even set to prune and tag on each
+  `git fetch`; what cannot be read is never rendered as a zero; the command written into a shell,
+  never run), `rattrapage.ts` (the app moves to the new version: the clone fast-forwards, or does not
+  move and says why — commits of its own, change that would be overwritten, silent origin; at
+  opening, before the dependencies, which are set up again if the new version changes them; on click,
+  a single relaunch, through `npm start`),
+  `runner.ts` (the workstation plays a station, end to end against a test box: the tests'
+  kitchen of the runtime — rail, guardrails, stations, pass —, on a real git repo, reached by a fake
+  `ssh` that launches the real `runtime/src/tirer-cli.ts` in its process, and a fake `claude` to
+  cook; the ticket goes out, its delivery passes the pass, its path in the log is that of a box cook;
+  app stopped it is `86`, relaunched it goes out again; the lease renews only on a worktree that
+  has moved, and lapses otherwise; each line passed to `ssh` is compared with the shape of the
+  `pull` command — and, piece by piece, the reading of the stream against `superviser` and
+  `lireFlux` of the runtime, the cook's environment against its `environnementCook`).
+  `main.ts` and the view only wire things up; they are verified by launching the app. **The skin,
+  though, is proven without launching it** (`peau.test.ts`): `vue.js` is played there as it is in
+  front of a fake document (`app/test/aides/fausse-vue.ts` — just what the view touches of it, and a
+  fake bridge), and `vue.css` is read there rule by rule. What it holds: that text relayed from the
+  box is laid word for word on the six tabs and the add screen — "All projects" relays none of it —,
+  and that no rule cuts it; that no color is written outside `jetons.css`, and that each is a color
+  of the mockup — except a project's, which the view receives from the file (`couleurs.test.ts`);
+  that a bar tile is rearranged by dragging it — the line that says where it will land, the room it
+  takes, the click that stays a click, what is dragged in from elsewhere and not received
+  (`rangement.test.ts`); that the fonts are files of the app; that a ticket number or a port is in
+  monospace everywhere it appears; that nothing from the mockup's parking lot shows. **What gets
+  painted is not seen there**: a fake document measures and draws nothing — the skin is looked at by
+  launching the app.
+- **Launched from a clone, the app reaches its origin**: a `git ls-remote` at launch and at each
+  return to the window, and a `git fetch` into a throwaway folder when the clone is behind.
+  **`npm start` updates the clone** if it follows an origin branch that has moved on — a dev
+  worktree on a branch that follows nothing is not touched (`start` says so, and the app says
+  `pas lu`).
+- **`BRIGADE_CLAUDE_BIN`** replaces `claude`, as for the runtime; **`BRIGADE_SSH_BIN`**
+  replaces `ssh`; **`BRIGADE_GH_BIN`** replaces the `gh` that reads and answers an issue's question
+  ("The question awaiting you"); **`BRIGADE_APP_CONFIG`** replaces the path of the projects file.
+  None of the four has to be set for real use.
+- **node-pty** is the only native module. It ships compiled for macOS and goes through N-API: the
+  same binary serves Node (the tests) and Electron (the app), nothing is recompiled. On Linux it
+  does not ship compiled: the tests on a real pty are **skipped there, and say so**; the registry and
+  the configuration are played there.
 
-### Ce que ça pèse
+### What it weighs
 
-Mesuré le 2026-10-11 (Mac arm64, Electron 44.7.0, node-pty 1.1.0).
+Measured on 2026-10-11 (Mac arm64, Electron 44.7.0, node-pty 1.1.0).
 
-| | Durée | Disque, par worktree |
+| | Duration | Disk, per worktree |
 |---|---|---|
-| Setup de worktree (`npm ci --ignore-scripts`, cache npm chaud) | ≈ 1 s (5 s à froid) | 115 Mo, dont 62 de node-pty |
-| Premier `npm --prefix app start` de la machine (télécharge Electron) | ≈ 25 s | + 311 Mo |
-| Premier `start` d'un autre worktree (Electron déjà dans le cache du poste) | ≈ 1 s | + 311 Mo |
+| Worktree setup (`npm ci --ignore-scripts`, warm npm cache) | ≈ 1 s (5 s cold) | 115 MB, of which 62 for node-pty |
+| First `npm --prefix app start` on the machine (downloads Electron) | ≈ 25 s | + 311 MB |
+| First `start` of another worktree (Electron already in the workstation's cache) | ≈ 1 s | + 311 MB |
 
-Le setup ne télécharge donc jamais Electron : seul celui qui lance l'app le paie. Le cache du
-poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
+So the setup never downloads Electron: only whoever launches the app pays for it. The workstation's
+cache (`~/Library/Caches/electron`) weighs 129 MB, once.
 
-## Ce que l'app ne fait pas encore
+## What the app does not do yet
 
-- Montrer dans la fenêtre les stations que le poste joue, et leurs cooks : c'est dans le terminal
-  qui a lancé l'app, et sur la ligne `présence` de `station`. Ni les déclarer depuis un écran :
-  `stations` s'écrit dans le fichier.
-- Jouer le setup du worktree avant un cook du poste, garder son flux brut, ou reprendre un cook
-  après une fermeture : « Le poste est une station », « Ce qui n'est pas garanti ».
-- Jouer une station sur un autre moteur que `claude`.
-- Préparer une box, ou y poser le geste d'installation : c'est une fois par box, sur elle, à la
-  main (`docs/installer.md`, « Préparer la box »). L'app dit quoi faire et où, elle ne le fait pas.
-- Démarrer le runtime à ta place : c'est un geste `root`, qu'aucun geste de la box ne donne sans mot
-  de passe. L'app écrit la commande dans un shell, et ne l'écrit que si `installation` dit le projet
-  prêt ; l'Entrée est la tienne.
-- Savoir si le résultat de `/brigade:init` est mergé, ou si la session a abouti : tu le dis, et
-  `installation` le constate sur l'origine.
-- Régler ce qu'`installation` nomme — créer les labels, protéger la branche : elle affiche la flèche,
-  le geste se tape (`docs/installer.md`, « Vérifier que le projet est prêt »).
-- Garder une mise en service d'un lancement à l'autre : elle repart du départ, et la box redit tout.
-- Garder d'un lancement à l'autre qu'un projet a été désinstallé de sa box : relancée, l'app relit
-  la box, qui le dit inconnu.
-- Retirer ce que la désinstallation laisse sur la box — les sauvegardes du projet, les gabarits
-  d'unités, le geste : `docs/installer.md`, « Désinstaller ».
-- Demander la branche d'intégration : la box prend la branche par défaut de l'origine. Un projet
-  dont ce n'est pas la bonne s'installe à la main, ou se corrige dans son drop-in.
-- Ajouter depuis l'écran un projet sans box, ou servi depuis ton poste.
-- Une jauge chiffrée du quota ou de la machine : le runtime dit `disponible` et `tient`, pas un
-  niveau. Si ça manque, c'est à lui de le dire.
-- Dire *pourquoi* une cuisine est retenue, ou ce qu'un ticket attend, autrement qu'en texte : la
-  forme de `faits` ne le porte pas, et l'app ne lit de la sortie de `status` que le bord du bloc
-  `attend` et le numéro en tête de ses lignes.
-- Mettre le runtime à jour : la box passe à la station, une fois, par son paquet, qui se met
-  ensuite à jour seul ([`bascule.md`](bascule.md)) — l'app n'en a aucun geste.
-- Répondre depuis la fiche à autre chose qu'une question du manager, ou retirer un label à ta
-  place : une issue qui porte `question` ou `decision` se tranche sur GitHub, ou avec le second.
-- Dire qu'un runtime ne bat plus : elle affiche l'écart entre son dernier tick et la lecture, sans
-  seuil ni couleur.
-- Montrer dans la barre *combien* de décisions t'attendent : le nombre est dans la carte.
-- Montrer l'état du manager hors de son onglet — dans la barre, la carte ou « Tous les projets » :
-  il se lit dans l'onglet **Manager**, tant qu'il est affiché.
-- Dire, au moment d'allumer le manager, combien d'issues ouvertes il va juger : le geste écrit la
-  commande, et `docs/runtime/manager.md`, « Le manager », dit ce qu'elle engage.
-- Suivre le journal en direct hors d'un terminal : l'onglet **Log** relit sa fin, toutes les
-  trente secondes.
-- Lire ce que le second affiche : l'app ne lit pas le terminal. Un bouton écrit à la suite de ta
-  frappe, n'écrit pas dans un second qu'il vient de lancer, et écrit dans un dialogue ou un mode
-  vim comme dans l'invite — ses caractères y sont des touches (« Les boutons écrivent, ils
-  n'envoient pas », « La limite »). Seul un geste direct s'en garde : il ne part que d'un second
-  dit libre, d'après ses tours, son titre et ta frappe (« Un geste direct part vraiment — ou dit
-  pourquoi il ne part pas »).
-- Porter son propre champ de saisie pour le second : tu lui parles dans son terminal.
-- Renommer un projet, régler quoi que ce soit d'autre : l'app ajoute un projet et le retire, le
-  reste se fait dans le fichier.
-- Fusionner : un clone qui a des commits à lui, ou des changements que la nouvelle version
-  écraserait, ne bouge pas — l'app le dit, et écrit `git pull` à la demande. Mettre à jour le clone
-  d'un projet : pareil, il n'est mis à jour qu'avec l'app, quand c'est le sien.
-- Dire le retard d'un clone sans que tu reviennes à sa fenêtre, ou ce que les commits qui manquent
-  changent : elle lit au lancement et au retour, et rend un nombre.
-- Dire le retard du clone d'un projet qui n'est pas un clone de brigade, ou comparer la version du
-  plugin installée chez toi à celle qui est publiée.
-- S'installer comme une app (empaquetage, signature, mise à jour) : lancée depuis le Finder, elle
-  n'aurait d'ailleurs pas le `PATH` de ton terminal — et, hors d'un clone, elle dirait son retard
-  `pas lu`.
+- Show in the window the stations the workstation plays, and their cooks: that is in the terminal
+  that launched the app, and on the `présence` line of `station`. Nor declare them from a screen:
+  `stations` is written in the file.
+- Play the worktree setup before a workstation cook, keep its raw stream, or resume a cook after a
+  closing: "The workstation is a station", "What is not guaranteed".
+- Play a station on an engine other than `claude`.
+- Prepare a box, or put the installation action on it: that is once per box, on it, by hand
+  (`docs/installer.md`, "Prepare the box"). The app says what to do and where, it does not do it.
+- Start the runtime for you: that is a `root` action, which no box action gives without a password.
+  The app writes the command into a shell, and writes it only if `installation` says the project is
+  ready; the Enter is yours.
+- Know whether the result of `/brigade:init` is merged, or whether the session succeeded: you say
+  so, and `installation` verifies it on the origin.
+- Fix what `installation` names — create the labels, protect the branch: it shows the arrow, the
+  action is typed (`docs/installer.md`, "Check that the project is ready").
+- Keep a go-live from one launch to the next: it starts over from the beginning, and the box says
+  everything again.
+- Keep from one launch to the next that a project was uninstalled from its box: relaunched, the app
+  reads the box again, which says it is unknown.
+- Remove what the uninstall leaves on the box — the project's backups, the unit templates, the
+  action: `docs/installer.md`, "Uninstall".
+- Ask for the integration branch: the box takes the origin's default branch. A project for which
+  that is not the right one is installed by hand, or fixed in its drop-in.
+- Add from the screen a project with no box, or served from your workstation.
+- A numeric gauge of the quota or the machine: the runtime says `disponible` and `tient`, not a
+  level. If it is missing, it is up to the runtime to say it.
+- Say *why* a kitchen is held, or what a ticket is awaiting, other than as text: the shape of
+  `facts` does not carry it, and the app reads of the output of `status` only the edge of the
+  `awaiting` block and the number at the head of its lines.
+- Update the runtime: the box moves to the station once, through its package, which then updates
+  itself ([`bascule.md`](bascule.md)) — the app has no action for it.
+- Answer from the card anything other than a manager question, or remove a label in your place: an
+  issue that carries `question` or `decision` is settled on GitHub, or with the second.
+- Say that a runtime is no longer beating: it shows the gap between its last tick and the read,
+  with no threshold or color.
+- Show in the bar *how many* decisions are awaiting you: the number is in the card.
+- Show the manager's state outside its tab — in the bar, the tile or "All projects": it is read in
+  the **Manager** tab, as long as it is displayed.
+- Say, when turning the manager on, how many open issues it is going to judge: the action writes the
+  command, and `docs/runtime/manager.md`, "Le manager", says what it commits.
+- Follow the log live outside a terminal: the **Log** tab reads its end again, every thirty
+  seconds.
+- Read what the second displays: the app does not read the terminal. A button writes after your
+  typing, does not write into a second it has just launched, and writes into a dialog or a vim mode
+  as into the prompt — its characters are keystrokes there ("Buttons write, they do not send", "The
+  limit"). Only a direct action guards against it: it goes out only from a second said to be free,
+  according to its turns, its title and your typing ("A direct action really goes out — or says why
+  it does not").
+- Carry its own input field for the second: you talk to it in its terminal.
+- Rename a project, set anything else: the app adds a project and removes it, the rest is done in
+  the file.
+- Merge: a clone with commits of its own, or changes the new version would overwrite, does not move
+  — the app says so, and writes `git pull` on request. Updating a project's clone: the same, it is
+  updated only with the app, when it is the app's own.
+- Say a clone's lag without you coming back to its window, or what the missing commits change: it
+  reads at launch and on return, and renders a number.
+- Say the lag of the clone of a project that is not a clone of brigade, or compare the version of
+  the plugin installed on your side with the published one.
+- Install itself as an app (packaging, signing, update): launched from the Finder, it would not
+  have your terminal's `PATH` anyway — and, outside a clone, it would say its lag `pas lu`.
 
-## La bande ne clignote pas (#721)
+## The band does not flicker (#721)
 
-La bande ne dit que ce qui est établi. Une lecture en cours n'affiche rien (« première lecture en
-cours » ne se montre jamais) ; une ligne « non vérifié » n'apparaît que si la lecture dont elle vient
-a raté **deux fois de suite** (`LECTURES_POUR_ETABLIR`) — une lecture ratée puis réussie au tour
-suivant ne montre rien, une box injoignable se dit une fois et reste. Le compte est celui de **cette
-lecture seule** : pour un sujet lu par deux sources (la cuisine, la station, la box), les réceptions de
-l'autre source ne l'établissent ni ne le défont (#746). Une ligne dite reste au moins
-`AFFICHAGE_MINIMUM` (20 s) ; elle part à la première réception qui suit, `faits` étant relu toutes les
-30 s. Une alerte vérifiée, lue d'une lecture réussie, se dit tout de suite. Un contenu identique d'une
-lecture à l'autre ne redessine pas la bande. Les deux seuils sont des constantes de `app/src/alertes.ts`.
+The band says only what is established. A read in progress shows nothing ("first read in progress"
+is never shown); a "not verified" line appears only if the read it comes from has failed **twice in
+a row** (`LECTURES_POUR_ETABLIR`) — a read that fails and then succeeds on the next round shows
+nothing, an unreachable box is reported once and stays. The count is that of **this read alone**:
+for a subject read by two sources (the kitchen, the station, the box), the other source's receipts
+neither establish it nor undo it (#746). A line that has been shown stays at least
+`AFFICHAGE_MINIMUM` (20 s); it leaves at the first receipt that follows, `facts` being read again
+every 30 s. A verified alert, read from a successful read, is shown right away. Identical content
+from one read to the next does not redraw the band. The two thresholds are constants of
+`app/src/alertes.ts`.
 
-## Le renouvellement qui échoue se dit avant l'échéance (#760)
+## A failing renewal is reported before the deadline (#760)
 
-Quand le renouvellement de la session Max rate **deux passages de suite** (`ECHECS_POUR_ALERTER`, dans
-`app/src/alertes.ts`), la bande d'un projet installé dit « Max renewal failing », avec la cause que la
-box en donne (la ligne `renouvellement` de `installation`, que la sonde du runtime écrit). Un seul
-échec ne dit rien. La ligne reste tant que le contrôle (relu toutes les 5 min) dit l'échec, et sort au
-premier passage réussi. Une session déjà tombée se dit d'elle-même par la station déconnectée.
+When the renewal of the Max session fails **two rounds in a row** (`ECHECS_POUR_ALERTER`, in
+`app/src/alertes.ts`), the band of an installed project says "Max renewal failing", with the cause
+the box gives (the `renouvellement` line of `installation`, which the runtime's probe writes). A
+single failure says nothing. The line stays as long as the check (read again every 5 min) reports
+the failure, and goes away on the first successful round. A session that has already dropped
+reports itself through the disconnected station.

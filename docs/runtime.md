@@ -1,5 +1,5 @@
-# Le runtime de la V2
+# The V2 runtime
 
-Cette doc est découpée en pages thématiques : l'index est
-[`docs/runtime/README.md`](runtime/README.md). Ouvre-le d'abord, puis seulement les pages
-de ta partie.
+This doc is split into thematic pages: the index is
+[`docs/runtime/README.md`](runtime/README.md). Open it first, then only the pages
+for your part.

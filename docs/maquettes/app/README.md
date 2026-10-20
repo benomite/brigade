@@ -1,69 +1,68 @@
-# La maquette de l'app
+# The app mockup
 
-Dessinée le **2026-10-08**, mise à jour par le chef le **2026-10-12**. Quatre écrans, et ce qu'ils
-montrent fait foi : un ticket d'app cite l'écran qu'il sert, et un dev vérifie ce qu'il a livré
-contre ce qui est dessiné ici.
+Drawn on **2026-10-08**, updated by the chef on **2026-10-12**. Four screens, and what they show is
+authoritative: an app ticket cites the screen it serves, and a dev checks what they delivered
+against what is drawn here.
 
-Les fichiers sont ceux du canvas, tels quels. **Ils ne se rendent pas hors du canvas** (ils
-attendent un `support.js` qui n'est pas ici) : ils se lisent. Tout ce qui compte y est en clair —
-les libellés, les colonnes, les états, les couleurs, ce qui est cliquable et ce qui ne l'est pas.
-`canvas.json` donne le titre et la taille de chaque écran, et porte la note du chef sur les
-retraits du 2026-10-12.
+The files are the canvas's, as they are. **They do not render outside the canvas** (they wait for
+a `support.js` that is not here): they are read. Everything that matters is in plain sight —
+the labels, the columns, the states, the colors, what is clickable and what is not.
+`canvas.json` gives the title and size of each screen, and carries the chef's note on the
+removals of 2026-10-12.
 
-**L'écran `Main.dc.html` s'appelle désormais « Tous les projets »** (#364). Les fichiers du canvas
-disent encore « Kitchen » : ils ne se modifient pas. Le mot ne désigne plus un écran — la
-**cuisine** est l'état d'un projet sur sa box, celui qu'un « stop » arrête (`docs/app.md`, « L'app
-n'est pas la cuisine »).
+**The `Main.dc.html` screen is now called "All projects"** (#364). The canvas files still say
+"Kitchen": they are not edited. The word no longer names a screen — the **kitchen** is the state
+of a project on its box, the one a "stop" stops (`docs/app.md`, "The app is not the kitchen").
 
-**Son contenu a changé depuis** (#870) : ce n'est plus une carte par projet, mais la vue d'ensemble
-de brigade — une ligne par projet, une par station, chacune avec sa pastille et ce qui s'y passe,
-qu'un clic ouvre, et la ligne de santé de Max et de GitHub. La maquette convenue est dans le ticket,
-et l'écran tel qu'il est livré dans `docs/app.md`, « Tous les projets, d'un coup ». Les cinq
-compteurs, les cooks en cours et le dernier événement vivent dans l'espace du projet.
+**Its content has changed since** (#870): it is no longer a tile per project, but brigade's
+overview — one line per project, one per station, each with its pill and what is going on in it,
+which a click opens, and the health line for Max and GitHub. The agreed mockup is in the ticket,
+and the screen as delivered in `docs/app.md`, "All projects at a glance". The five counters,
+the cooks in flight and the latest event live in the project's space.
 
-## Les quatre écrans
+## The four screens
 
-| Fichier | Écran | Ce qu'il fixe |
+| File | Screen | What it fixes |
 |---|---|---|
-| `Main.dc.html` | **Tous les projets** — dessiné sous le nom « Kitchen » | la barre d'icônes à monogrammes avec sa pastille d'état ; la ligne `Station` ; « ce qui t'attend » ; une carte par projet avec **cinq compteurs** (rail · au travail · à la pass · t'attend · livrés 24 h), ses cooks en cours et son dernier événement ; le log en direct |
-| `Espace.dc.html` | **Espace projet** — le second | les onglets de l'espace (Second · Rail · Cooks · Grants · Log) ; les onglets de terminaux (`second · claude`, `zsh`, `+`) ; ce que le second sert à l'ouverture ; les `!` qui tournent sur le Mac |
-| `Brigade.dc.html` | **Espace projet** — le rail | le rail en **cinq colonnes** (Sur le rail · Au travail · Pass · T'attend · Livré), un ticket par carte avec ses tags ; les questions avec leurs boutons ; les grants et le grant en une phrase ; le poids du projet |
-| `Commis.dc.html` | **Direct d'un cook** | **AU PARKING** — gardé pour plus tard, voir ci-dessous |
+| `Main.dc.html` | **All projects** — drawn under the name "Kitchen" | the monogram icon bar with its status pill; the `Station` line; "what awaits you"; a tile per project with **five counters** (rail · taken · at pass · awaiting you · served 24 h), its cooks in flight and its latest event; the live log |
+| `Espace.dc.html` | **Project space** — the second | the space's tabs (Second · Rail · Cooks · Grants · Log); the terminal tabs (`second · claude`, `zsh`, `+`); what the second serves on opening; the `!` commands running on the Mac |
+| `Brigade.dc.html` | **Project space** — the rail | the rail in **five columns** (On the rail · Taken · Pass · Awaiting you · Served), a ticket per card with its tags; the questions with their buttons; the grants and the grant in one sentence; the project's weight |
+| `Commis.dc.html` | **A cook live** | **PARKED** — kept for later, see below |
 
-## La règle que la maquette porte
+## The rule the mockup carries
 
-**Un bouton n'agit pas : il écrit la commande dans le terminal, et n'envoie rien.** Le chef voit ce
-qui va partir, peut le corriger, et fait Entrée. C'est visible sur les quatre écrans : le panneau
-de terminal qui apparaît, le prompt, le curseur, et la ligne « Écrit dans le terminal, pas
-exécuté. Entrée pour lancer. »
+**A button does not act: it writes the command in the terminal, and sends nothing.** The chef sees
+what is about to go out, can correct it, and hits Enter. It is visible on all four screens: the
+terminal panel that appears, the prompt, the cursor, and the line "Écrit dans le terminal, pas
+exécuté. Entrée pour lancer."
 
-C'est ce qui permet de dessiner des boutons **sans** créer un second chemin : il n'y a toujours
-qu'un seul endroit où une chose se fait, et ce qu'un bouton écrit se retrouve dans l'historique du
-terminal, rejouable à la main à l'identique.
+That is what makes it possible to draw buttons **without** creating a second path: there is still
+only one place where a thing is done, and what a button writes is found again in the terminal's
+history, replayable by hand identically.
 
-## Ce qui est dessiné mais ne doit pas être construit
+## What is drawn but must not be built
 
-La maquette a de l'avance sur des décisions qui l'ont contredite. **Ces éléments restent dessinés
-parce qu'ils resserviront ; ils ne sont pas la cible de la V2.** Un ticket qui les demande est à
-renvoyer.
+The mockup is ahead of decisions that have contradicted it. **These elements stay drawn because
+they will be used again; they are not the V2 target.** A ticket that asks for them is to be sent
+back.
 
-| Dessiné | Pourquoi pas |
+| Drawn | Why not |
 |---|---|
-| `Commis.dc.html` en entier — le direct d'un cook, son flux retransmis | **au parking** : le log dit déjà qui coince et les garde-fous l'arrêtent. Un second lecteur du même fait. |
-| `box/codex`, et tout moteur autre que `claude` | **au parking** : les autres moteurs viendront après la V2 (spec, §Au parking) |
-| `mac/chrome`, `chrome-connecté`, `revue-humaine`, `accès-prod`, « depuis ton Mac » | **au parking** : le runner Mac est sorti du jalon 6, aucun ticket ne le réclame |
-| « en preprod », « à recetter en preprod » | **n'existe pas** : le runtime n'a aucune notion de preprod |
-| un grant « toutes les brigades » (`npm install`) | **abandonné** : un grant est un fait au journal, et il y a un journal par projet. Retiré de la spec le 2026-10-10 |
-| toute **jauge chiffrée** de quota ou de machine, une heure de reset, un total de semaine | **indélivrable, et c'est acté** : le runtime ne connaît pas la consommation du compte Max et ne doit pas prétendre la connaître (`/usage` reste la vérité). Il dit `disponible`, `tient`, ou `SATURÉE` et sa charge. Les jauges **par cook** (tours, durée, tokens, inactivité) sont justes : ce sont les plafonds des garde-fous, que le runtime mesure. |
-| le bouton rouge « Écrire « stop » dans le terminal » de `Main.dc.html` | **il arrêterait tout** : sa commande boucle sur tous les projets (`for p in … ; do brigade $p garde-fous -- stop; done`), et son libellé ne le dit pas. L'app livrée n'a d'arrêt que par projet, dans le panneau du projet, et sa commande le nomme. S'il est construit un jour, son libellé dit « tous les projets » |
-| une échéance de connexion (« expire dans 2 j ») | le runtime dit `connexion Max tenue pour bonne` — aucune date |
+| `Commis.dc.html` in full — a cook live, its relayed stream | **parked**: the log already says who is stuck and the guardrails stop it. A second reader of the same fact. |
+| `box/codex`, and any engine other than `claude` | **parked**: the other engines will come after V2 (spec, §Au parking) |
+| `mac/chrome`, `chrome-connecté`, `revue-humaine`, `accès-prod`, « depuis ton Mac » | **parked**: the Mac runner left milestone 6, no ticket asks for it |
+| « en preprod », « à recetter en preprod » | **does not exist**: the runtime has no notion of preprod |
+| a grant « toutes les brigades » (`npm install`) | **dropped**: a grant is a fact in the log, and there is one log per project. Removed from the spec on 2026-10-10 |
+| any **numeric gauge (« jauge chiffrée »)** of quota or machine, a reset time, a week total | **undeliverable, and that is settled**: the runtime does not know the Max account's consumption and must not pretend to (`/usage` stays the truth). It says `disponible`, `tient`, or `SATURÉE` and its load. The **per-cook** gauges (turns, duration, tokens, idle) are right: they are the guardrails' caps, which the runtime measures. |
+| the red button "Write “stop” in the terminal" of `Main.dc.html` | **it would stop everything**: its command loops over all projects (`for p in … ; do brigade $p guardrails -- stop; done`), and its label does not say so. The delivered app only has a stop per project, in the project's panel, and its command names it. If it is ever built, its label says "all projects" |
+| an expiry for the connection (« expire dans 2 j ») | the runtime says `connection Max tenue pour bonne` — no date |
 
-Les **cook profiles** et le **carnet** de leurs leçons, longtemps au parking (jalon 8), se construisent
-depuis l'épique #1033 : la carte d'un profil proposé, dans la file du projet (#1053), est la première.
-La maquette ne les dessine pas : leur carte reprend celle d'une correction proposée.
+The **cook profiles** and the **notebook** of their lessons, long parked (milestone 8), are built
+from epic #1033: the card of a proposed profile, in the project's queue (#1053), is the first.
+The mockup does not draw them: their card reuses that of a proposed correction.
 
-## Ce que la maquette ne fixe pas
+## What the mockup does not fix
 
-Elle dit **ce qui est montré**, pas comment c'est joli. La peau — polices, couleurs, densité — y
-est posée et sert de point de départ, mais une passe visuelle est un autre sujet, et elle vient
-après que le chef s'en soit servi une journée.
+It says **what is shown**, not how pretty it is. The skin — fonts, colors, density — is laid down
+there and serves as a starting point, but a visual pass is another subject, and it comes after the
+chef has used it for a day.

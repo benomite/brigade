@@ -1,441 +1,441 @@
-# Installer brigade
+# Install brigade
 
-**Ce document suffit pour installer brigade sur un serveur neuf et y servir un premier projet** —
-par quelqu'un qui n'a jamais installé brigade, sans rien reconstituer depuis un autre document.
-Ce que fait le runtime une fois lancé est dans [`runtime/`](runtime/README.md) : on y va pour
-comprendre, jamais pour installer.
+**This document is enough to install brigade on a new server and serve a first project on it** —
+for someone who has never installed brigade, with nothing to piece together from another document.
+What the runtime does once it is running is in [`runtime/`](runtime/README.md): go there to
+understand, never to install.
 
-**On installe brigade dans un projet ; on n'ajoute pas un projet à brigade.** Le runtime est par
-projet, et brigade ne tient aucune liste de projets : ce qui est propre au projet vit **dans son
-dépôt**, ce qui est propre à la machine vit **sur la machine**, et rien d'un projet n'est écrit
-dans le code ni dans la configuration de brigade. Un projet où brigade est installée reste
-autonome — on la désinstalle sans rien y casser (voir « Désinstaller »).
+**You install brigade in a project; you do not add a project to brigade.** The runtime is per
+project, and brigade keeps no list of projects: what belongs to the project lives **in its
+repository**, what belongs to the machine lives **on the machine**, and nothing about a project is
+written in brigade's code or configuration. A project where brigade is installed stays
+self-contained — you uninstall it without breaking anything (see "Uninstall").
 
-La **box** est, partout ici, le serveur qui sert le projet.
+The **box** is, everywhere here, the server that serves the project.
 
-## Avant de commencer
+## Before you start
 
-Trois choses sont **à toi**, et il te les faut avant le premier geste. Brigade n'en fournit
-aucune, et **rien n'est partagé avec une autre installation de brigade** — ni compte, ni quota, ni
-organisation, ni machine. Le seul lien avec elle est le code, un dépôt public que la box clone.
+Three things are **yours**, and you need them before the first action. Brigade provides none of
+them, and **nothing is shared with another brigade installation** — no account, no quota, no
+organization, no machine. The only link with it is the code, a public repository that the box
+clones.
 
-| Ce qu'il te faut | Pourquoi | Ce qui ne convient pas |
+| What you need | Why | What does not fit |
 |---|---|---|
-| **Ton abonnement Claude Max** | chaque cook, chaque jugement du manager et chaque relecture tourne sur la session Max connectée sur la box : c'est ton quota qui est consommé | une clé d'API : le runtime refuse de démarrer s'il en trouve une dans son environnement |
-| **Ton GitHub** : le dépôt du projet, que tu **administres**, et un compte qui y **pousse et y merge** — le tien, ou un compte de machine que tu crées | brigade lit les issues du dépôt, y pousse des branches, y ouvre et y merge des PR ; protéger la branche d'intégration est un geste d'administrateur | un dépôt où tu n'es que contributeur |
-| **Ton serveur** : Linux avec systemd, où tu as `sudo`, joignable en `ssh` **par clé**, avec `/var/lib` sur un disque local (`df -T /var/lib` ne montre ni `nfs` ni `cifs`) | le runtime est une unité systemd, et son verrou réclame un disque local | un conteneur sans systemd ; une machine qui a un accès à ta prod — la box n'en a aucun, et n'en demande aucun |
+| **Your Claude Max subscription** | every cook, every manager judgment and every review runs on the Max session logged in on the box: your quota is what gets consumed | an API key: the runtime refuses to start if it finds one in its environment |
+| **Your GitHub**: the project's repository, which you **administer**, and an account that **pushes and merges** there — your own, or a machine account you create | brigade reads the repository's issues, pushes branches to it, opens and merges PRs there; protecting the integration branch is an administrator action | a repository where you are only a contributor |
+| **Your server**: Linux with systemd, where you have `sudo`, reachable by `ssh` **with a key**, with `/var/lib` on a local disk (`df -T /var/lib` shows neither `nfs` nor `cifs`) | the runtime is a systemd unit, and its lock needs a local disk | a container without systemd; a machine that has access to your production — the box has none, and asks for none |
 
-Et, pour le premier geste seulement, un poste de dev avec Claude Code et le plugin brigade.
+And, for the first step only, a dev workstation with Claude Code and the brigade plugin.
 
-Les commandes de paquets sont celles de Debian et d'Ubuntu ; la recette du 2026-10-09 s'est jouée
-sur un Debian 12 nu. **Tel qu'il est écrit ici, ce parcours n'a pas encore été joué de bout en
-bout sur un serveur neuf** : ce qui reste à prouver est à la fin, « Ce que seule une vraie box
-prouvera ».
+The package commands are those of Debian and Ubuntu; the 2026-10-09 acceptance run was played on a
+bare Debian 12. **As written here, this path has not yet been played end to end on a new
+server**: what remains to be proven is at the end, "What only a real box will prove".
 
-## Le parcours : dix gestes
+## The path: ten steps
 
-Un **geste** est un bloc à coller, une session à ouvrir ou une commande à lancer — en un endroit,
-pour une chose. Aucun n'ouvre un éditeur.
+A **step** is a block to paste, a session to open or a command to run — in one place, for one
+thing. None of them opens an editor.
 
-| | Geste | Où | Se rejoue |
+| | Step | Where | Replayed |
 |---|---|---|---|
-| 1 | Amorcer le dépôt — `/brigade:init`, mergé | le dépôt, sur un poste de dev | par projet |
-| 2 | Joindre la box — une vérification | ta machine | par machine qui lit |
-| 3 | Le compte du service et ses outils | la box | par box |
-| 4 | Ses connexions : Max, GitHub, identité git | la box, sous le compte | par box |
-| 5 | Brigade : son code, ses unités, le geste et son groupe | la box | par box |
-| 6 | Déclarer le projet : son clone, ses variables, sa sauvegarde | la box | par projet |
-| 7 | Protéger la branche d'intégration | GitHub | par projet |
-| 8 | Vérifier, et créer les labels | la box, puis ta machine | autant qu'on veut |
-| 9 | Mesurer le coût du setup | la box | autant qu'on veut |
-| 10 | Démarrer, et servir le premier ticket | la box | par projet |
+| 1 | Bootstrap the repository — `/brigade:init`, merged | the repository, on a dev workstation | per project |
+| 2 | Reach the box — a check | your machine | per machine that reads |
+| 3 | The service account and its tools | the box | per box |
+| 4 | Its connections: Max, GitHub, git identity | the box, under the account | per box |
+| 5 | Brigade: its code, its units, the box command and its group | the box | per box |
+| 6 | Declare the project: its clone, its variables, its backup | the box | per project |
+| 7 | Protect the integration branch | GitHub | per project |
+| 8 | Verify, and create the labels | the box, then your machine | as often as you like |
+| 9 | Measure the setup cost | the box | as often as you like |
+| 10 | Start, and serve the first ticket | the box | per project |
 
-Un second projet sur la même box rejoue les gestes 1 et 6 à 10, et pose ce qui sépare deux
-projets : « Un second projet sur la box ». Une box, une machine ou un humain **de plus** a son
-geste, dans « Ajouter une box, une machine, un humain ». **Mettre à jour une box** ne se fait plus
-projet par projet : elle passe à la station, une fois, par son paquet — « Mettre brigade à jour »,
-sous le geste 5, et [`bascule.md`](bascule.md).
+A second project on the same box replays steps 1 and 6 to 10, and sets up what separates two
+projects: "A second project on the box". An **additional** box, machine or human has its own step,
+in "Add a box, a machine, a human". **Updating a box** is no longer done project by project: it
+moves to the station, once, through its package — "Update brigade", under step 5, and
+[`bascule.md`](bascule.md).
 
-Les gestes 3 à 7 préparent ; **le geste 8 dit tout ce qu'ils ont manqué, d'un coup** — c'est lui
-qui remplace une liste de points à vérifier à la main.
+Steps 3 to 7 prepare; **step 8 tells you everything they missed, in one go** — it replaces a list
+of points to check by hand.
 
-## Ce qui vit où
+## What lives where
 
-| Quoi | Où | Qui le lit |
+| What | Where | Who reads it |
 |---|---|---|
-| Branche d'intégration, zones de fichiers, dev local, plafond des gates | le bloc de bindings du `CLAUDE.md` du dépôt | les cooks, les gates |
-| Ce que « vert » veut dire | `.claude/brigade/gates.sh` du dépôt | la pass |
-| Ce qui rend un worktree exécutable — dépendances, build, ports | `.claude/brigade/worktree-setup.sh` du dépôt | la station, avant chaque cook ; la pass, avant les gates |
-| Les labels du rail | le dépôt GitHub | le runtime, le chef |
-| Le code de brigade, ses unités | `/opt/brigade`, `/etc/systemd/system/` | systemd |
-| Les cinq variables | l'unité `brigade@.service` et le drop-in de **l'instance** | le runtime |
-| Le clone réservé, les worktrees, le journal | `/var/lib/brigade/<projet>/` | le runtime |
-| La session Max, `gh` connecté, l'identité git | le compte du service | les cooks, le runtime |
+| Integration branch, file zones, local dev, gates cap | the bindings block of the repository's `CLAUDE.md` | the cooks, the gates |
+| What "green" means | the repository's `.claude/brigade/gates.sh` | the pass |
+| What makes a worktree runnable — dependencies, build, ports | the repository's `.claude/brigade/worktree-setup.sh` | the station, before each cook; the pass, before the gates |
+| The rail's labels | the GitHub repository | the runtime, the chef |
+| Brigade's code, its units | `/opt/brigade`, `/etc/systemd/system/` | systemd |
+| The five variables | the `brigade@.service` unit and the **instance's** drop-in | the runtime |
+| The reserved clone, the worktrees, the log | `/var/lib/brigade/<project>/` | the runtime |
+| The Max session, logged-in `gh`, the git identity | the service account | the cooks, the runtime |
 
-Le runtime ne lit pas les bindings : il lit ses variables. La **branche d'intégration** est donc
-écrite deux fois — dans les bindings pour les cooks, dans `BRIGADE_BASE_BRANCH` pour la station —
-et la vérification refuse qu'elles diffèrent.
+The runtime does not read the bindings: it reads its variables. The **integration branch** is
+therefore written twice — in the bindings for the cooks, in `BRIGADE_BASE_BRANCH` for the station —
+and the check refuses a mismatch.
 
-## Par projet : le parcours par l'app
+## Per project: the path through the app
 
-Une fois la box préparée (gestes 3 à 5, à la main, une fois par box), un projet se met en service
-**dans l'app, sans rien recopier à la main** : on l'ajoute (un écran), puis son espace porte
-l'installation guidée, sous **Paramètres**. Les étapes ne sont pas à l'app : elles sont au runtime
-du projet (`installation etapes`), dans un ordre fixe, **toutes montrées avant la première action** ;
-chacune dit « What it is for » et « If you skip it », et la courante est marquée « ← now ». L'état de
-chaque étape est au journal du projet : fermer l'app et la rouvrir retrouve les mêmes étapes faites.
+Once the box is prepared (steps 3 to 5, by hand, once per box), a project is put into service
+**in the app, without copying anything by hand**: you add it (one screen), then its space carries
+the guided installation, under **Settings**. The steps do not belong to the app: they belong to
+the project's runtime (`installation etapes`), in a fixed order, **all shown before the first
+action**; each says "What it is for" and "If you skip it", and the current one is marked "← now".
+The state of each step is in the project's log: closing the app and reopening it finds the same
+steps done.
 
-**L'ajout** se fait par `Add a project` : le dossier du projet, son nom, son dépôt GitHub, sa box, le
-calibrage du manager et du reviewer, la destination des sauvegardes, puis `Install on the box, and
-add`. La box clone, pose l'instance, la cloison et l'arbitre, et attribue les ports (geste 6). L'app
-propose ensuite `Open the space of “<nom>” — its installation goes on there`.
+**Adding** is done through `Add a project`: the project's folder, its name, its GitHub repository,
+its box, the manager and reviewer calibration, where backups go, then `Install on the box, and
+add`. The box clones, sets up the instance, the partition and the arbiter, and assigns the ports
+(step 6). The app then offers `Open the space of “<name>” — its installation goes on there`.
 
-**Les sept étapes**, dans l'ordre de l'app :
+**The seven steps**, in the app's order:
 
-| | Étape | Ce qu'elle sert | Ce que fait l'app |
+| | Step | What it is for | What the app does |
 |---|---|---|---|
-| 1 | **Ajouter le projet sur la box** | faire exister le projet sur la box | notée faite dès que la box répond pour le projet |
-| 2 | **Amorcer le dépôt** | `/brigade:init` pose les bindings, les gates et le setup que les cooks lisent | `Run /brigade:init in the second` ouvre la session ; tu la tapes, tu merges sa PR, puis `The result of /brigade:init is merged onto the integration branch` — l'app ne sait pas si c'est fait |
-| 3 | **Vérifier la box** | dit d'un coup tout ce qui manque (geste 8) | `Verify` lance `installation` sur la box, et affiche tout, mot pour mot ; elle part d'elle-même à l'ouverture d'une installation pas finie |
-| 4 | **Déclarer les stations** | choisir où les tickets se servent et combien de cooks à la fois — ton quota, sans défaut | une ligne par station que la box fournit, un nombre de cooks, puis `Declare the stations` : posées au journal, sans `sudo` ni drop-in |
-| 5 | **Protéger la branche d'intégration** | PR obligatoire, administrateurs inclus, et push protection (geste 7) | `Protect the integration branch` (`Record the protection` si elle est déjà posée) ; une protection que tu as posée autrement n'est pas écrasée |
-| 6 | **Poser les décisions que le démarrage réclame** | calibrage du manager et du reviewer, seuils de coût, closer | une décision à la fois : sa question, ses options, sa recommandation ; `Answer`, ou `Skip the optional decisions — the start does not require them` pour celles que le démarrage ne réclame pas |
-| 7 | **Démarrer la cuisine** | lancer le runtime du projet : il envoie un cook sur le premier ticket prêt | `Start` : la box revérifie tout et ne note l'installation terminée que si c'est vert, puis l'app écrit le démarrage du service dans un shell, **sans l'envoyer** — ton Entrée, et ton mot de passe `sudo` si la box en veut un |
+| 1 | **Add the project on the box** | make the project exist on the box | marked done as soon as the box answers for the project |
+| 2 | **Bootstrap the repository** | `/brigade:init` sets up the bindings, the gates and the setup that the cooks read | `Run /brigade:init in the second` opens the session; you type it, you merge its PR, then `The result of /brigade:init is merged onto the integration branch` — the app cannot tell whether it is done |
+| 3 | **Verify the box** | tells you everything that is missing in one go (step 8) | `Verify` runs `installation` on the box, and shows everything, word for word; it starts by itself when an unfinished installation is opened |
+| 4 | **Declare the stations** | choose where tickets are served and how many cooks at a time — your quota, no default | one line per station the box provides, a number of cooks, then `Declare the stations`: recorded in the log, with no `sudo` and no drop-in |
+| 5 | **Protect the integration branch** | PR required, administrators included, and push protection (step 7) | `Protect the integration branch` (`Record the protection` if it is already set); a protection you set up another way is not overwritten |
+| 6 | **Settle the decisions the start requires** | manager and reviewer calibration, cost thresholds, closer | one decision at a time: its question, its options, its recommendation; `Answer`, or `Skip the optional decisions — the start does not require them` for those the start does not require |
+| 7 | **Start the kitchen** | start the project's runtime: it sends a cook to the first ready ticket | `Start`: the box rechecks everything and marks the installation finished only if it is green, then the app writes the service start in a shell, **without sending it** — your Enter, and your `sudo` password if the box wants one |
 
-**Ce que l'app ne fait pas à ta place** est annoncé en tête, avant tout bouton : la conversation
-`/brigade:init` et le merge de sa PR, ce que « Verify » dit manquer **sur la box elle-même** (avec
-sa commande, mot pour mot), et le démarrage du service, un geste `root`. La seule commande de
-terminal qui reste en dehors de ces trois cas : **mettre à niveau le geste de la box**.
+**What the app does not do for you** is announced at the top, before any button: the
+`/brigade:init` conversation and the merge of its PR, what "Verify" says is missing **on the box
+itself** (with its command, word for word), and the service start, a `root` action. The only
+terminal command left outside these three cases: **upgrading the box command**.
 
-**La seule commande de mise à niveau.** Quand la box a un geste (`brigade-installer`) absent ou plus
-ancien que celui que le runtime exige, l'app ne peut rien lancer par
-lui : « Verify » le range sous « Vérifier la box » et la dit, avec sa commande :
+**The only upgrade command.** When the box has a command (`brigade-installer`) that is missing or
+older than the one the runtime requires, the app can launch nothing through it: "Verify" files it
+under "Verify the box" and states it, with its command:
 
 ```bash
 sudo git -C /opt/brigade pull --ff-only
 ```
 
-Elle met le clone à jour, donc le geste lié dessus ; si le geste a été copié plutôt que lié, la
-commande que « Verify » nomme est `sudo install -m 755 /opt/brigade/runtime/deploy/<geste> <lien>`.
-La raison : un geste de box est un fichier à `root` que le compte du service lance par `sudo` — ni
-l'app ni le runtime ne peuvent le remplacer sans mot de passe. Une fois jouée, « Verify » repart et
-l'installation reprend là où elle en était. Le détail est dans « Le geste d'installation ».
+It updates the clone, and so the command linked to it; if the command was copied rather than
+linked, the command that "Verify" names is `sudo install -m 755 /opt/brigade/runtime/deploy/<command> <link>`.
+The reason: a box command is a `root` file that the service account runs through `sudo` — neither
+the app nor the runtime can replace it without a password. Once it has been run, "Verify" starts
+again and the installation resumes where it was. The detail is in "The installer command".
 
-**Le détail de chaque écran** — ses refus, ses messages — est dans [`app.md`](app.md). Et la recette
-qui joue ce parcours de bout en bout, pour un second projet sur la box, est
+**The detail of each screen** — its refusals, its messages — is in [`app.md`](app.md). And the
+acceptance run that plays this path end to end, for a second project on the box, is
 [`recette/second-projet.md`](recette/second-projet.md).
 
-**Chemin manuel de repli.** Les sections qui suivent font les mêmes gestes à la main, sans l'app.
-Elles ne servent que si l'app ne peut pas le faire — une box préparée sans le geste d'installation
-(« Le geste d'installation »), un poste sans app — ou si tu veux voir ce qu'elle joue. Le parcours
-par l'app est le chemin normal ; ne le remplace pas par celui-ci sans raison.
+**Manual fallback path.** The sections that follow do the same steps by hand, without the app.
+They are only for when the app cannot do it — a box prepared without the installer command ("The
+installer command"), a workstation without the app — or if you want to see what it plays. The path
+through the app is the normal one; do not replace it with this one without a reason.
 
-## 1. Amorcer le dépôt
+## 1. Bootstrap the repository
 
-*Geste 1.* Dans le dépôt du projet, sur un poste de dev, avec le plugin brigade :
+*Step 1.* In the project's repository, on a dev workstation, with the brigade plugin:
 
 ```
 /brigade:init
 ```
 
-C'est le chemin de la V1, et la V2 n'en invente pas un second : `init` pose le bloc de bindings,
-écrit les deux scripts, les **prouve** sur un worktree jetable, et se rejoue sans dégât. Puis
-**merge le résultat sur la branche d'intégration** : le runtime ne voit que ce qu'elle porte sur
-l'origine.
+This is the V1 path, and V2 does not invent a second one: `init` sets up the bindings block,
+writes the two scripts, **proves** them on a throwaway worktree, and can be replayed harmlessly.
+Then **merge the result onto the integration branch**: the runtime only sees what the branch
+carries on the origin.
 
-Ce que la V2 attend de chacun :
+What V2 expects from each:
 
-| Fichier | Contrat | S'il manque |
+| File | Contract | If missing |
 |---|---|---|
-| `CLAUDE.md`, bloc « ## Équipe multi-agents » | **Branche d'intégration** égale à `BRIGADE_BASE_BRANCH` (absente, elle vaut `main`). **Zones de fichiers**, **Dev local**, **Plafond des gates** : pour le cook et les gates | bloc absent ou branche différente : **pas prêt**. Une des trois autres lignes : signalé, rien n'est retenu |
-| `.claude/brigade/gates.sh` | exécutable ; `gates.sh <worktree>`, **le code de sortie est le verdict** | **pas prêt** — la pass remonterait chaque livraison (`unjudged`, cause `no-gates`) |
-| `.claude/brigade/worktree-setup.sh` | exécutable ; `worktree-setup.sh <n> <worktree>`, n'imprime que des `export` sur sa sortie | signalé : le cook part dans un worktree neuf tel quel, sans dépendances |
+| `CLAUDE.md`, "## Équipe multi-agents" block | **Integration branch** equal to `BRIGADE_BASE_BRANCH` (if absent, it is `main`). **File zones**, **Local dev**, **Gates cap**: for the cook and the gates | block absent or branch different: **not ready**. One of the other three lines: reported, nothing is held back |
+| `.claude/brigade/gates.sh` | executable; `gates.sh <worktree>`, **the exit code is the verdict** | **not ready** — the pass would send every delivery back (`unjudged`, cause `no-gates`) |
+| `.claude/brigade/worktree-setup.sh` | executable; `worktree-setup.sh <n> <worktree>`, prints only `export` lines on its output | reported: the cook starts in a fresh worktree as it is, without dependencies |
 
-Trois choses à savoir en écrivant le setup d'un vrai projet — un build, des dépendances, un
-service :
+Three things to know when writing the setup of a real project — a build, dependencies, a service:
 
-- **Il est joué une fois par cook**, et une fois encore par la pass avant les gates. Sur un dépôt
-  qui installe et compile, c'est le coût d'entrée de chaque ticket : le geste 9 le mesure.
-- **Les ports se dérivent du numéro reçu**, jamais écrits en dur : plusieurs cooks tournent en même
-  temps sur la même machine. Le numéro `0` est celui de la sonde du geste 9, jamais d'un ticket.
-- **Il ne laisse rien tourner** : un service dont le cook a besoin se démarre depuis le cook ou
-  depuis les gates. Et aucune variable `BRIGADE_*` du runtime ne lui parvient.
+- **It is played once per cook**, and once more by the pass before the gates. On a repository that
+  installs and compiles, it is the entry cost of every ticket: step 9 measures it.
+- **Ports are derived from the number received**, never hard-coded: several cooks run at the same
+  time on the same machine. Number `0` is the one of step 9's probe, never of a ticket.
+- **It leaves nothing running**: a service the cook needs is started from the cook or from the
+  gates. And no `BRIGADE_*` variable of the runtime reaches it.
 
-### Le mode auto : ce que le projet autorise, et ce qu'il ne peut pas
+### Auto mode: what the project allows, and what it cannot
 
-En mode auto, le classifieur de Claude Code juge chaque geste. Il refusait au second des gestes
-que son rôle prévoit — lire la file ou la doc de brigade sur la box (`[Exfil Scouting]`), merger
-la PR de `/brigade:init` à la demande du chef (`[Merge Without Review]`). `/brigade:init` pose donc
-dans le `.claude/settings.json` du projet les règles qui autorisent ce que les rôles prévoient,
-**et rien d'autre**. Elles viennent du runtime, qui les calcule depuis la liste des gestes de
-chaque rôle (la section « Gestes prévus » de `commands/<rôle>.md`) :
+In auto mode, Claude Code's classifier judges every action. It refused the second some actions
+that its role provides for — reading the queue or brigade's doc on the box (`[Exfil Scouting]`),
+merging the `/brigade:init` PR at the chef's request (`[Merge Without Review]`). So `/brigade:init`
+sets up, in the project's `.claude/settings.json`, the rules that allow what the roles provide
+for, **and nothing else**. They come from the runtime, which computes them from each role's list
+of actions (the "Gestes prévus" section of `commands/<role>.md`):
 
 ```bash
-node <clone de brigade>/runtime/src/mode-auto-cli.ts <dossier du projet> [--hote <hote>] [--nom <nom>]
+node <brigade clone>/runtime/src/mode-auto-cli.ts <project folder> [--hote <host>] [--nom <name>]
 ```
 
-L'hôte et le nom se lisent dans `~/.config/brigade/app.json`, au projet de ce dossier. La commande
-n'ajoute que les règles qui manquent à `permissions.allow`, ne retire rien — ni les autres clés,
-ni les règles du chef — et se rejoue sans dégât. Elle n'est pas une commande du geste de la box :
-elle écrit sur le poste, dans le dossier qu'on lui nomme. Ce qu'elle a posé se lit par
-`cat .claude/settings.json` ou `git diff`.
+The host and the name are read from `~/.config/brigade/app.json`, at the project for that folder.
+The command only adds the rules that are missing to `permissions.allow`, removes nothing — neither
+the other keys nor the chef's rules — and can be replayed harmlessly. It is not a command of the
+box command: it writes on the workstation, in the folder you name. What it set up can be read with
+`cat .claude/settings.json` or `git diff`.
 
-| Ce que la configuration fait | Pour quels gestes |
+| What the configuration does | For which actions |
 |---|---|
-| **Une règle exacte**, sans `*` : la commande au caractère près | lire la file (`ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> brigade <nom> status`) ; lire l'état (`… brigade <nom> <rail\|journal\|pass\|station\|base\|installation\|garde-fous\|cloison\|mesures\|faits>`, sans argument) ; lire la doc (`… -- <hote> cat /opt/brigade/docs/<installer\|runtime\|app\|glossary>.md`) ; lire `~/.config/brigade/app.json` |
-| **Rien** : le mode auto les laisse déjà passer, et une règle à `*` les élargirait | les gestes dans le dépôt de la session : worktrees, gates, `git`, pousser sa branche, ouvrir une PR, les issues, les notifications |
-| **Rien ne le peut** : le classifieur reste souverain | **mettre un ticket en attente** (`waiting set`, arguments libres) ; **merger une PR** — à la demande du chef pour le second, verte pour le manager : une règle ne voit ni la demande ni la PR, il faudrait autoriser `gh pr merge *` ; **lancer un agent** : Claude Code écarte toute règle `Agent` en mode auto ; **pousser des previews** vers Claude Design : une règle `DesignSync` autoriserait tout envoi |
+| **An exact rule**, without `*`: the command to the character | reading the queue (`ssh -o BatchMode=yes -o ConnectTimeout=10 -- <host> brigade <name> status`); reading the state (`… brigade <name> <rail\|log\|pass\|station\|base\|installation\|guardrails\|partition\|measures\|facts>`, without argument); reading the doc (`… -- <host> cat /opt/brigade/docs/<installer\|runtime\|app\|glossary>.md`); reading `~/.config/brigade/app.json` |
+| **Nothing**: auto mode already lets them through, and a rule with `*` would widen them | the actions in the session's repository: worktrees, gates, `git`, pushing its branch, opening a PR, issues, notifications |
+| **Nothing can**: the classifier stays sovereign | **putting a ticket on hold** (`waiting set`, free arguments); **merging a PR** — at the chef's request for the second, green for the manager: a rule sees neither the request nor the PR, you would have to allow `gh pr merge *`; **launching an agent**: Claude Code discards any `Agent` rule in auto mode; **pushing previews** to Claude Design: a `DesignSync` rule would allow any upload |
 
-La commande affiche, geste par geste, dans laquelle des trois lignes il tombe. Pour un geste que
-rien ne peut autoriser, c'est le **refus expliqué** des rôles qui prend le relais : le rôle dit en
-une phrase ce qu'il voulait faire, pourquoi c'est bloqué, et le geste à faire — pour un merge,
-`! gh pr merge <N> --squash`. Une demande du chef qui nomme la PR (« merge la #372 ») est souvent
-ce qui suffit au classifieur ; rien ne le garantit.
+The command prints, action by action, which of the three lines it falls in. For an action nothing
+can allow, the roles' **explained refusal** takes over: the role says in one sentence what it
+wanted to do, why it is blocked, and the action to take — for a merge, `! gh pr merge <N> --squash`.
+A chef's request that names the PR ("merge #372") is often what the classifier needs; nothing
+guarantees it.
 
-Quatre limites, qui tiennent à Claude Code et non à brigade :
+Four limits, which come from Claude Code and not from brigade:
 
-- **Les règles en prose du classifieur (`autoMode`) ne sont pas lues depuis le dépôt** — ni
-  `.claude/settings.json`, ni `.claude/settings.local.json` : seulement depuis les réglages de
-  l'utilisateur ou de son organisation. Brigade n'en écrit aucune.
-- **Les `allow` d'un `.claude/settings.json` ne s'appliquent qu'après le dialogue de confiance** du
-  dossier. Le fichier se merge avec le reste de `/brigade:init` : c'est ainsi qu'il gagne les
-  autres clones du projet.
-- **Une règle reconnaît une forme, pas un programme** : une lecture écrite autrement — sans les
-  options du `ssh`, avec un argument, entre guillemets — passe par le classifieur. Les rôles
-  écrivent les formes exactes.
-- **L'hôte est celui du poste qui a lancé `/brigade:init`.** Sans hôte déclaré pour ce projet dans
-  l'app, les lectures de la box ne sont pas posées, et la sortie le dit : relancer une fois le
-  projet ajouté. Le nom de l'hôte entre dans un fichier versionné ; un poste qui joint la box sous
-  un autre nom passe par le classifieur.
+- **The classifier's prose rules (`autoMode`) are not read from the repository** — neither
+  `.claude/settings.json` nor `.claude/settings.local.json`: only from the user's or their
+  organization's settings. Brigade writes none.
+- **The `allow` entries of a `.claude/settings.json` only apply after the folder's trust
+  dialog**. The file is merged with the rest of `/brigade:init`: that is how it reaches the
+  project's other clones.
+- **A rule recognizes a form, not a program**: a read written differently — without the `ssh`
+  options, with an argument, between quotes — goes through the classifier. The roles write the
+  exact forms.
+- **The host is that of the workstation that ran `/brigade:init`.** Without a host declared for
+  this project in the app, the box reads are not set up, and the output says so: rerun once the
+  project is added. The host's name goes into a versioned file; a workstation that reaches the box
+  under another name goes through the classifier.
 
-## 2. Joindre la box
+## 2. Reach the box
 
-*Geste 2.* **Le lien entre ta machine et la box est `ssh`, et rien d'autre.** Tout ce qui lit ou
-pilote un projet depuis ta machine — toi dans un terminal, l'app — lance `ssh <box> brigade
-<projet> <commande>`. Il n'y a donc **rien à installer sur ta machine** : ce qu'elle a déjà pour
-ouvrir un terminal suffit. Et c'est toujours ta machine qui joint la box, jamais l'inverse : aucune
-étape ne pose une clé de la box ailleurs, ni n'ouvre un tunnel depuis elle. La box n'a aucun accès
-à la prod, et t'y joindre ne t'en donne aucun.
+*Step 2.* **The link between your machine and the box is `ssh`, and nothing else.** Everything
+that reads or drives a project from your machine — you in a terminal, the app — runs `ssh <box>
+brigade <project> <command>`. So there is **nothing to install on your machine**: what it already
+has to open a terminal is enough. And it is always your machine that reaches the box, never the
+reverse: no step puts a key from the box anywhere else, or opens a tunnel from it. The box has no
+access to production, and reaching it gives you none.
 
-`<box>` est, partout dans ce document, **ce que tu passes à `ssh`** : `<ton compte>@<adresse>`, ou
-un nom de ton `~/.ssh/config`. C'est la seule chose qui désigne la box — la même valeur est le
-champ `hote` du projet dans l'app ([`app.md`](app.md)).
+`<box>` is, everywhere in this document, **what you pass to `ssh`**: `<your account>@<address>`,
+or a name from your `~/.ssh/config`. It is the only thing that designates the box — the same value
+is the project's `hote` field in the app ([`app.md`](app.md)).
 
-**Geste de box, geste de poste** (la convention est dite une fois, dans
-[`runtime/`](runtime/exploitation.md), « Piloter »). Dans ce document, un `brigade <projet> …` sans `ssh` se
-tape **sur la box** ; depuis ta machine, le même geste est `ssh <box> brigade <projet> …`. Nu sur
-ta machine, `brigade` rend `command not found` — rien n'est cassé, il n'y a rien à y installer.
+**Box command, workstation command** (the convention is stated once, in
+[`runtime/`](runtime/exploitation.md), "Piloter"). In this document, a `brigade <project> …`
+without `ssh` is typed **on the box**; from your machine, the same command is `ssh <box> brigade
+<project> …`. Bare on your machine, `brigade` returns `command not found` — nothing is broken,
+there is nothing to install there.
 
-Ce qu'il faut, et rien de plus :
+What you need, and nothing more:
 
-| Quoi | Où | Comment |
+| What | Where | How |
 |---|---|---|
-| Une adresse que ta machine joint | la box | une adresse publique, `sshd` ouvert **par clé seulement** (`PasswordAuthentication no`) |
-| Un compte **à toi** sur la box, qui porte ta clé publique et **lance la commande qu'on lui envoie** | la box | sur une box neuve, celui que le fournisseur crée avec ta clé ; sinon « Ajouter un humain ». Un compte enfermé dans une session (`ForceCommand`) ne convient pas : `true` n'y serait pas lancé |
-| Ta clé privée, dans ton agent si elle a une phrase de passe | ta machine | `ssh-add` — l'app lance `ssh` sans terminal, il ne peut rien te demander |
+| An address your machine reaches | the box | a public address, `sshd` open **by key only** (`PasswordAuthentication no`) |
+| An account **of yours** on the box, that carries your public key and **runs the command it is sent** | the box | on a new box, the one the provider creates with your key; otherwise "Add a human". An account locked into a session (`ForceCommand`) does not fit: `true` would not be run there |
+| Your private key, in your agent if it has a passphrase | your machine | `ssh-add` — the app runs `ssh` without a terminal, it cannot ask you anything |
 
-**Un VPN n'est pas une étape.** Tailscale ou WireGuard servent une box qui n'a pas d'adresse
-joignable : c'est une option de déploiement de cette box-là, et elle oblige chaque machine
-lectrice à l'installer — ce qu'un poste administré peut interdire. Derrière un VPN, `<box>` est
-l'adresse que le tunnel donne ; le reste de ce document ne change pas.
+**A VPN is not a step.** Tailscale or WireGuard serve a box that has no reachable address: it is a
+deployment option of that box, and it forces every reading machine to install it — which a managed
+workstation may forbid. Behind a VPN, `<box>` is the address the tunnel gives; the rest of this
+document does not change.
 
-**La vérification**, depuis ta machine. Le code de sortie est le verdict :
+**The check**, from your machine. The exit code is the verdict:
 
 ```bash
 ssh -o BatchMode=yes -o ConnectTimeout=10 <box> true; echo $?
 ```
 
-| Ce que tu lis | Ce que c'est | Le geste |
+| What you read | What it is | What to do |
 |---|---|---|
-| `0` | la box est jointe, sous ton compte, sans rien te demander | passe au geste 3 |
-| `255`, `Could not resolve hostname`, `Connection timed out` ou `Operation timed out` (selon ta machine) | l'adresse : `ssh` n'a pas trouvé la machine | corrige `<box>`, ou ouvre le port de `sshd` |
-| `255`, `Permission denied (publickey)` | la machine répond, ta clé n'y est pas — ou n'est pas dans ton agent | `ssh-add -l` sur ta machine ; sur la box, « Ajouter un humain » |
-| `255`, `Host key verification failed` | ta machine ne connaît pas encore cette box, et `BatchMode` interdit de te le demander | `ssh <box>` une fois, à la main, pour accepter sa clé |
+| `0` | the box is reached, under your account, without asking you anything | go on to step 3 |
+| `255`, `Could not resolve hostname`, `Connection timed out` or `Operation timed out` (depending on your machine) | the address: `ssh` did not find the machine | fix `<box>`, or open the `sshd` port |
+| `255`, `Permission denied (publickey)` | the machine answers, your key is not there — or is not in your agent | `ssh-add -l` on your machine; on the box, "Add a human" |
+| `255`, `Host key verification failed` | your machine does not know this box yet, and `BatchMode` forbids asking you | `ssh <box>` once, by hand, to accept its key |
 
-`BatchMode=yes` est ce que l'app passe : une connexion qui ne réussit qu'en te demandant quelque
-chose réussit dans ton terminal et échoue dans l'app. Ce geste ne prouve que le lien ; que tu
-peux **lancer la commande d'un projet** se vérifie au geste 8, quand il y en a un.
+`BatchMode=yes` is what the app passes: a connection that only succeeds by asking you something
+succeeds in your terminal and fails in the app. This step only proves the link; that you can **run
+a project's command** is checked at step 8, once there is one.
 
-## 3. Préparer la box
+## 3. Prepare the box
 
-Trois gestes, **une fois par box**, quel que soit le nombre de projets qu'elle servira. Tout se
-joue sur la box, sous ton compte, qui y a `sudo`.
+Three steps, **once per box**, whatever the number of projects it will serve. Everything is played
+on the box, under your account, which has `sudo` there.
 
-`<compte>` est le **compte du service** : un compte Unix que tu crées ici, réservé à brigade, sous
-lequel tournent le runtime et ses cooks. Son nom est à toi.
+`<account>` is the **service account**: a Unix account you create here, reserved for brigade,
+under which the runtime and its cooks run. Its name is yours to choose.
 
-### Le compte du service et ses outils
+### The service account and its tools
 
-*Geste 3.*
+*Step 3.*
 
 ```bash
-COMPTE=<compte>
+COMPTE=<account>
 sudo useradd --create-home --shell /bin/bash "$COMPTE"
 sudo apt install -y git curl libatomic1
-# Claude Code, par son installeur natif, sous le compte — puis un lien là où systemd le trouve.
+# Claude Code, through its native installer, under the account — then a link where systemd finds it.
 sudo -u "$COMPTE" -i sh -c 'curl -fsSL https://claude.ai/install.sh | bash'
 sudo ln -sfn "/home/$COMPTE/.local/bin/claude" /usr/local/bin/claude
 ```
 
-Deux outils s'installent par leur propre voie, **là où systemd les trouve** (`/usr/bin` ou
-`/usr/local/bin`) : **Node 26** (nodejs.org) et **`gh`**, la ligne de commande de GitHub
-(cli.github.com). Un outil posé ailleurs se rend par un lien, comme `claude` ci-dessus : une unité
-ne reçoit pas le `PATH` de ton shell, mais `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin`.
+Two tools are installed their own way, **where systemd finds them** (`/usr/bin` or
+`/usr/local/bin`): **Node 26** (nodejs.org) and **`gh`**, GitHub's command line (cli.github.com).
+A tool placed elsewhere is made available through a link, like `claude` above: a unit does not
+receive your shell's `PATH`, but `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin`.
 
-Les deux lignes qui ne se devinent pas sont déjà dans le bloc : `libatomic1`, sans quoi Node 26 ne
-démarre pas sur un Debian nu, et le lien de `claude`, sans quoi aucun cook ne part. Oubliées, le
-geste 8 les nomme.
+The two lines that cannot be guessed are already in the block: `libatomic1`, without which Node 26
+does not start on a bare Debian, and the `claude` link, without which no cook starts. If forgotten,
+step 8 names them.
 
-### Ses connexions
+### Its connections
 
-*Geste 4.* Une session sous le compte du service — c'est **lui** qui se connecte, pas toi :
+*Step 4.* A session under the service account — it is **the account** that logs in, not you:
 
 ```bash
-sudo -u <compte> -i
-claude                    # puis /login : ton abonnement Max. /exit ensuite
-gh auth login             # ton GitHub, en HTTPS — le compte qui pousse et merge sur le dépôt
-gh auth setup-git         # git pousse par lui, sans rien demander
-git config --global user.name "<nom>"
-git config --global user.email "<adresse>"
+sudo -u <account> -i
+claude                    # then /login: your Max subscription. /exit afterwards
+gh auth login             # your GitHub, over HTTPS — the account that pushes and merges on the repository
+gh auth setup-git         # git pushes through it, without asking anything
+git config --global user.name "<name>"
+git config --global user.email "<address>"
 exit
 ```
 
-**Aucune clé d'API** : ni `ANTHROPIC_API_KEY` ni jeton `claude` dans l'environnement de ce compte
-ou d'une unité — le runtime refuserait de démarrer. Si `claude` refuse de se lancer
-(`Temp directory … is owned by uid … Refusing to use it`), son répertoire temporaire a été créé par
-un autre compte : `sudo chown -R <compte> /tmp/claude-"$(id -u <compte>)"`. Les cooks, eux, ne le
-rencontrent pas : l'unité a son propre `/tmp`.
+**No API key**: neither `ANTHROPIC_API_KEY` nor a `claude` token in the environment of this
+account or of a unit — the runtime would refuse to start. If `claude` refuses to start
+(`Temp directory … is owned by uid … Refusing to use it`), its temporary directory was created by
+another account: `sudo chown -R <account> /tmp/claude-"$(id -u <account>)"`. The cooks do not run
+into it: the unit has its own `/tmp`.
 
-### Brigade : son code, ses unités, le geste et son groupe
+### Brigade: its code, its units, the box command and its group
 
-*Geste 5.*
+*Step 5.*
 
 ```bash
-COMPTE=<compte>
-TOI=<ton compte sur la box>
+COMPTE=<account>
+TOI=<your account on the box>
 
-# Le code, et les unités — copiées telles quelles, toutes.
+# The code, and the units — copied as they are, all of them.
 sudo git clone --branch v2 https://github.com/benomite/brigade.git /opt/brigade
 sudo cp /opt/brigade/runtime/deploy/*.service /opt/brigade/runtime/deploy/*.timer /etc/systemd/system/
-# Le compte sous lequel elles tournent : les unités ne partagent pas leurs réglages.
+# The account they run under: the units do not share their settings.
 for unite in brigade@ brigade-sauvegarde@ brigade-porte@ brigade-arbitre; do
   sudo install -d "/etc/systemd/system/$unite.service.d"
   printf '[Service]\nUser=%s\n' "$COMPTE" | sudo tee "/etc/systemd/system/$unite.service.d/compte.conf" >/dev/null
 done
 sudo systemctl daemon-reload
 
-# Le geste de la box, et le groupe des humains qui ont le droit de le lancer.
+# The box command, and the group of humans allowed to run it.
 sudo ln -s /opt/brigade/runtime/deploy/brigade /usr/local/bin/brigade
 sudo groupadd brigade-chefs
 sudo usermod -aG brigade-chefs "$TOI"
 echo "%brigade-chefs ALL=($COMPTE) NOPASSWD: /usr/local/bin/brigade" | sudo tee /etc/sudoers.d/brigade >/dev/null
 sudo chmod 440 /etc/sudoers.d/brigade
-sudo visudo -cf /etc/sudoers.d/brigade      # « parsed OK »
+sudo visudo -cf /etc/sudoers.d/brigade      # "parsed OK"
 ```
 
-Ce que ce bloc a posé :
+What this block set up:
 
-- **Le code de brigade**, dans `/opt/brigade`. C'est un dépôt public ; il ne porte rien de ton
-  projet, et le runtime n'y écrit jamais. Il n'a rien à installer ni à compiler.
-- **Les unités**, une fois pour toutes : celle du runtime (`brigade@.service`, une instance par
-  projet), sa sauvegarde, et celles qui ne servent qu'à partir d'un second projet (la porte de la
-  cloison, l'arbitre). Une unité copiée et jamais démarrée ne fait rien.
-- **Le geste de la box** : `brigade <projet> <commande>` lance une commande du runtime pour un
-  projet, sous le compte du service et avec l'environnement de son unité. C'est un lien, pas une
-  copie : une mise à jour du clone le met à jour.
-- **Le groupe `brigade-chefs` et sa règle**, qui ne nomme que le geste. Le geste passe sous le
-  compte du service par `sudo`, et un `ssh` sans terminal ne peut pas taper de mot de passe : le
-  droit de le lancer est celui du groupe. Ton appartenance vaut **à ta connexion suivante** —
-  déconnecte-toi et reviens.
+- **Brigade's code**, in `/opt/brigade`. It is a public repository; it carries nothing of your
+  project, and the runtime never writes there. It has nothing to install or compile.
+- **The units**, once and for all: the runtime's (`brigade@.service`, one instance per project),
+  its backup, and those only needed from a second project on (the partition's door, the arbiter).
+  A unit that is copied and never started does nothing.
+- **The box command**: `brigade <project> <command>` runs a runtime command for a project, under
+  the service account and with its unit's environment. It is a link, not a copy: updating the
+  clone updates it.
+- **The `brigade-chefs` group and its rule**, which only names the command. The command goes
+  through to the service account by `sudo`, and an `ssh` without a terminal cannot type a
+  password: the right to run it is the group's. Your membership applies **at your next login** —
+  log out and back in.
 
-**Ce que cette règle donne** à chaque membre du groupe : toutes les commandes du geste, pour tous
-les projets de la box — le grant `merge`, le « stop », `installation desinstaller`, `restaurer`
-compris. Lire et agir ne sont pas séparés (V2.5). Elle ne donne ni un shell sous le compte du
-service, ni l'exécution d'un fichier de son choix : le geste ne lance que les fichiers de `src/`
-que le `package.json` du runtime nomme, avec les arguments donnés. Un humain de plus est un compte
-de plus dans ce groupe, jamais une règle de plus (« Ajouter un humain »).
+**What this rule gives** every member of the group: all the commands of the box command, for all
+the box's projects — the `merge` grant, the "stop", `installation uninstall`, `restore`
+included. Reading and acting are not separated (V2.5). It gives neither a shell under the service
+account, nor the execution of a file of one's choice: the box command only runs the `src/` files
+that the runtime's `package.json` names, with the given arguments. One more human is one more
+account in this group, never one more rule ("Add a human").
 
-### Le geste d'installation
+### The installer command
 
-*Facultatif, une fois par box — pour ajouter un projet **depuis l'app**.* Ce n'est pas un geste du
-parcours : sans lui, un projet se déclare à la main (geste 6).
+*Optional, once per box — to add a project **from the app**.* It is not a step of the path:
+without it, a project is declared by hand (step 6).
 
 ```bash
-# Le second geste de la box, et sa propre règle sudoers : elle ne nomme que lui.
+# The box's second command, and its own sudoers rule: it names only that command.
 sudo ln -s /opt/brigade/runtime/deploy/brigade-installer /usr/local/bin/brigade-installer
 sudo install -m 440 /opt/brigade/runtime/deploy/brigade-installer.sudoers /etc/sudoers.d/brigade-installer
-sudo visudo -cf /etc/sudoers.d/brigade-installer      # « parsed OK »
+sudo visudo -cf /etc/sudoers.d/brigade-installer      # "parsed OK"
 
-# Son réglage, à root : la racine sous laquelle une destination de sauvegarde est acceptée.
-# Elle n'a pas de défaut.
-sudo install -d <racine des sauvegardes>
-printf 'sauvegardes=<racine des sauvegardes>\n' | sudo tee /etc/brigade-installer.conf
+# Its setting, owned by root: the root under which a backup destination is accepted.
+# It has no default.
+sudo install -d <backups root>
+printf 'sauvegardes=<backups root>\n' | sudo tee /etc/brigade-installer.conf
 ```
 
-`sudo brigade-installer install <projet> …` fait, en root et d'un coup, la partie « par projet » de
-ce document — le clone réservé, le drop-in, la sauvegarde, la cloison et sa porte, le port de
-l'arbitre — et **attribue lui-même le port** de la porte. Il ne démarre pas le runtime. Sa règle
-le donne au groupe `brigade-chefs` (geste 5), sans mot de passe : c'est par `ssh`, sans terminal,
-que l'app le lance quand tu y ajoutes un projet ([`app.md`](app.md), « Depuis l'app »). Ce qu'il
-accepte, ce qu'il refuse, ses codes de sortie et son journal (`/var/lib/brigade-installer`, à root)
-sont décrits en tête de `runtime/deploy/brigade-installer`.
+`sudo brigade-installer install <project> …` does, as root and in one go, the "per project" part
+of this document — the reserved clone, the drop-in, the backup, the partition and its door, the
+arbiter's port — and **assigns the door's port itself**. It does not start the runtime. Its rule
+gives it to the `brigade-chefs` group (step 5), without a password: the app launches it through
+`ssh`, without a terminal, when you add a project in it ([`app.md`](app.md), "From the app"). What
+it accepts, what it refuses, its exit codes and its log (`/var/lib/brigade-installer`, owned by
+root) are described at the top of `runtime/deploy/brigade-installer`.
 
-`brigade <projet> installation` (geste 8) relit ce réglage : il dit le fichier, la racine qu'il
-déclare, et que **root la tient seule jusqu'à elle** — le contrôle que le geste fait au moment
-d'installer, joué avant qu'on l'essaie. Un réglage absent n'est qu'un « à savoir » (une box qui
-ne sert pas d'app n'en a pas besoin) ; présent et faux, c'est un manque, avec à qui appartient le
-répertoire et la commande qui le remet à root.
+`brigade <project> installation` (step 8) rereads this setting: it states the file, the root it
+declares, and that **root alone holds the path up to it** — the check the command makes at install
+time, played before anyone tries it. An absent setting is only a "good to know" (a box that does
+not serve an app does not need one); present and wrong, it is a gap, with who owns the directory
+and the command that gives it back to root.
 
-Sur **une box préparée avant lui**, mets d'abord le clone de brigade à jour (ci-dessous, pas 1),
-puis joue ce bloc. Tant qu'il n'y est pas, l'app le dit — `le geste d'installation n'y a pas
-répondu` — et ne déclare rien.
+On **a box prepared before it**, first update brigade's clone (below, step 1), then play this
+block. As long as it is not there, the app says so — `le geste d'installation n'y a pas répondu`
+— and declares nothing.
 
-### Mettre brigade à jour
+### Update brigade
 
-Une box ne se met plus à jour projet par projet : le geste de mise en service et la bascule de
-chaque projet sont retirés. **Elle passe à la station, une fois**, en installant son paquet : il
-reprend ses projets — journal, décisions et tickets en cours laissés où ils sont — et retire ce
-que cette installation avait posé (les unités `brigade@<projet>`, leurs drop-ins, les gestes et
-leurs règles sudoers). Le geste, et ce qui se vérifie ensuite : [`bascule.md`](bascule.md).
-Ensuite, la station se met à jour seule ([`installation-station.md`](installation-station.md),
-« La mise à jour, seule »).
+A box is no longer updated project by project: the commissioning command and each project's
+switchover are removed. **It moves to the station, once**, by installing its package: the package
+takes over its projects — log, decisions and tickets in progress left where they are — and removes
+what that installation had set up (the `brigade@<project>` units, their drop-ins, the commands and
+their sudoers rules). The procedure, and what is checked afterwards: [`bascule.md`](bascule.md).
+After that, the station updates itself ([`installation-station.md`](installation-station.md),
+"Updating, on its own").
 
-D'ici là, le code des projets est le clone : `sudo git -C /opt/brigade pull --ff-only` le met à jour,
-et un projet le prend à son prochain démarrage (`sudo systemctl restart brigade@<projet>.service`).
-Une unité que la vérification (geste 8) dit périmée se recopie depuis le clone, puis `sudo
-systemctl daemon-reload` ; elle vaut pour toute la box.
+Until then, the projects' code is the clone: `sudo git -C /opt/brigade pull --ff-only` updates it,
+and a project picks it up at its next start (`sudo systemctl restart brigade@<project>.service`).
+A unit that the check (step 8) reports as stale is recopied from the clone, then `sudo systemctl
+daemon-reload`; it applies to the whole box.
+## 4. Declare the project
 
-## 4. Déclarer le projet
+*Manual fallback path.* Through the app, this step is "Add the project" in the per-project flow,
+which does the same work (the clone, the drop-in, the backup, the partition, the arbiter); reading
+it here tells you what it lays down, or lets you do it by hand if the app cannot.
 
-*Chemin manuel de repli.* Par l'app, ce geste est « Ajouter le projet » du parcours par projet,
-qui fait le même travail (le clone, le drop-in, la sauvegarde, la cloison, l'arbitre) ; le lire ici
-sert à savoir ce qu'il pose, ou à le faire à la main si l'app ne le peut pas.
+Two steps, **once per project**. `<project>` is a short identifier you choose (lowercase letters,
+digits, dashes): it names the instance, and nothing else ties it to the repository.
 
-Deux gestes, **une fois par projet**. `<projet>` est un identifiant court que tu choisis
-(minuscules, chiffres, tirets) : il nomme l'instance, rien d'autre ne le relie au dépôt.
+### Its clone, its variables, its backup
 
-### Son clone, ses variables, sa sauvegarde
-
-*Geste 6.* Sur la box. Les cinq valeurs du haut sont les seules à remplir ; le calibrage du chef
-vient après, par le geste :
+*Step 6.* On the box. The five values at the top are the only ones to fill in; the chef's
+calibration comes after, through the step:
 
 ```bash
-PROJET=<projet>
+PROJET=<project>
 DEPOT=<owner>/<repo>
-BRANCHE=<branche d'intégration>
-COMPTE=<compte>
-SAUVEGARDES=<répertoire des sauvegardes de ce projet>
+BRANCHE=<integration branch>
+COMPTE=<account>
+SAUVEGARDES=<this project's backups directory>
 
-# Le clone réservé : personne n'y travaille, la station y accroche les worktrees des cooks.
+# The reserved clone: nobody works in it, the station hangs the cooks' worktrees on it.
 sudo install -d -o "$COMPTE" "/var/lib/brigade/$PROJET"
-# Les sauvegardes sous leur racine : seul le dernier niveau est au compte. Un `-o` sur
-# le chemin entier rendrait au compte la racine qu'on lui crée au passage — et le geste
-# d'installation refuserait ensuite chaque projet (« root n'y crée rien »).
+# The backups under their root: only the last level belongs to the account. A `-o` on
+# the whole path would hand the account the root being created along the way — and the
+# installation step would then refuse every project ("root creates nothing there").
 [ -d "$(dirname "$SAUVEGARDES")" ] || sudo install -d "$(dirname "$SAUVEGARDES")"
 sudo install -d -o "$COMPTE" "$SAUVEGARDES"
 sudo -u "$COMPTE" git clone "https://github.com/$DEPOT.git" "/var/lib/brigade/$PROJET/depot"
 
-# Le drop-in de l'instance : c'est lui qui fait exister le projet sur la box.
+# The instance's drop-in: it is what makes the project exist on the box.
 sudo install -d "/etc/systemd/system/brigade@$PROJET.service.d" "/etc/systemd/system/brigade-sauvegarde@$PROJET.service.d"
 sudo tee "/etc/systemd/system/brigade@$PROJET.service.d/projet.conf" >/dev/null <<EOF
 [Service]
@@ -443,51 +443,51 @@ Environment=BRIGADE_GITHUB_REPO=$DEPOT
 Environment=BRIGADE_BASE_BRANCH=$BRANCHE
 EOF
 
-# La sauvegarde du journal, chaque nuit à 03:30.
+# The log backup, every night at 03:30.
 printf '[Service]\nEnvironment=BRIGADE_BACKUP_DIR=%s\n' "$SAUVEGARDES" | sudo tee "/etc/systemd/system/brigade-sauvegarde@$PROJET.service.d/projet.conf" >/dev/null
 sudo systemctl daemon-reload
 sudo systemctl enable --now "brigade-sauvegarde@$PROJET.timer"
 ```
 
-**Ne démarre pas encore le service** : vérifie d'abord (geste 8).
+**Do not start the service yet**: check first (step 8).
 
-**Ce que le chef décide ne se pose pas dans le drop-in.** Le drop-in ne porte que les faits de la
-machine : le compte, le chemin de `node`, l'emplacement du clone, les ports. Les stations, les
-seuils de coût de la dérive et le calibrage du manager et du reviewer sont des décisions : elles
-se posent **dans l'app**, aux étapes « Déclarer les stations » et « Poser les décisions que le
-démarrage réclame » du parcours guidé, au journal du projet — jamais par un `sudo`, et sans
-redémarrer rien. Le runtime ne suppose aucune station : sans elles il démarre, et **aucun cook ne
-part** ; la vérification du geste 8 le compte comme un manque (`aucune station déclarée`). Une
-variable de décision laissée dans un drop-in d'avant ce parcours n'est jamais relue : seule compte
-celle du journal, que l'app pose à ces mêmes étapes.
+**What the chef decides does not go in the drop-in.** The drop-in carries only the machine's
+facts: the account, the path of `node`, the location of the clone, the ports. The stations, the
+drift cost thresholds and the manager and reviewer calibration are decisions: they are set
+**in the app**, at the "Declare the stations" and "Set the decisions that startup requires" steps
+of the guided flow, in the project's log — never through a `sudo`, and without restarting
+anything. The runtime assumes no station: without any it starts, and **no cook
+launches**; the step 8 check counts that as a gap (`no station declared`). A decision variable
+left in a drop-in from before this flow is never read again: only the one in the log counts, which
+the app sets at those same steps.
 
-Les **cinq variables** sans lesquelles le runtime refuse de démarrer, et d'où chacune vient :
+The **five variables** without which the runtime refuses to start, and where each comes from:
 
-| Variable | Posée par |
+| Variable | Set by |
 |---|---|
-| `BRIGADE_STATE_DIR`, `BRIGADE_PROJECT`, `BRIGADE_REPO_DIR` | l'unité, d'après le nom de l'instance — rien à écrire |
-| `BRIGADE_GITHUB_REPO`, `BRIGADE_BASE_BRANCH` | le drop-in de l'instance |
+| `BRIGADE_STATE_DIR`, `BRIGADE_PROJECT`, `BRIGADE_REPO_DIR` | the unit, from the instance name — nothing to write |
+| `BRIGADE_GITHUB_REPO`, `BRIGADE_BASE_BRANCH` | the instance's drop-in |
 
-**La destination des sauvegardes** est propre au projet et **hors de `/var/lib/brigade/<projet>`**
-— sur un autre disque si la machine en a un. Elle n'a pas de défaut : la sauvegarde ne choisit pas
-seule un disque. Manquée (machine éteinte à 03:30), elle est jouée au démarrage suivant ; pour une
-autre cadence, un drop-in du timer avec `OnCalendar=` vide puis la tienne. Restaurer est dans
-`docs/runtime/exploitation.md`, « Sauvegarder et restaurer ».
+**The backup destination** belongs to the project and is **outside `/var/lib/brigade/<project>`**
+— on another disk if the machine has one. It has no default: the backup does not pick a disk
+on its own. If missed (machine off at 03:30), it is played at the next startup; for a
+different schedule, a timer drop-in with an empty `OnCalendar=` and then yours. Restoring is in
+`docs/runtime/exploitation.md`, "Sauvegarder et restaurer".
 
-Rien d'autre n'est nécessaire pour servir un projet. Ce qui est **facultatif** se pose plus tard
-dans le même drop-in, et se lit dans `docs/runtime/` (`exploitation.md`, `identites-et-secrets.md`) quand tu en as l'usage : les réglages
-(« Cinq variables, aucun défaut »), les secrets de dev du projet (« Les secrets du projet »), une
-identité GitHub par rôle pour un dépôt partagé (« Ce que tu crées chez GitHub »).
+Nothing else is needed to serve a project. What is **optional** is set later
+in the same drop-in, and read in `docs/runtime/` (`exploitation.md`, `identites-et-secrets.md`) when you need it: the settings
+("Cinq variables, aucun défaut"), the project's dev secrets ("The project's secrets"), one
+GitHub identity per role for a shared repository ("What you create at GitHub").
 
-### Protéger la branche d'intégration
+### Protect the integration branch
 
-*Geste 7.* Sur GitHub, par toi qui administres le dépôt — depuis n'importe quelle machine où ton
-`gh` est connecté. PR obligatoire, zéro approbation requise, administrateurs inclus : plus personne
-ne pousse directement sur la branche ; les merges de PR passent.
+*Step 7.* On GitHub, by you who administer the repository — from any machine where your
+`gh` is logged in. PR required, zero approvals required, administrators included: nobody
+pushes directly to the branch any more; PR merges go through.
 
 ```bash
 DEPOT=<owner>/<repo>
-BRANCHE=<branche d'intégration>
+BRANCHE=<integration branch>
 gh api -X PUT "repos/$DEPOT/branches/$BRANCHE/protection" --input - <<'JSON'
 {
   "required_status_checks": null,
@@ -497,511 +497,510 @@ gh api -X PUT "repos/$DEPOT/branches/$BRANCHE/protection" --input - <<'JSON'
 }
 JSON
 gh api "repos/$DEPOT/branches/$BRANCHE/protection" --jq '.required_pull_request_reviews, .enforce_admins.enabled'
-# La push protection : la seconde barrière contre une livraison qui porterait des identifiants.
+# Push protection: the second barrier against a delivery that would carry credentials.
 gh api -X PATCH "repos/$DEPOT" --input - <<'JSON'
 { "security_and_analysis": { "secret_scanning": { "status": "enabled" }, "secret_scanning_push_protection": { "status": "enabled" } } }
 JSON
 ```
 
-**La protection de branche est la seule que le runtime suppose.** « Branche à jour exigée » n'est
-pas requise ; activée, son refus repart au cook comme un finding (`pass.outdated`) et consomme un
-renvoi — tout autre refus est un arrêt (`merge-refused`). Elle ne réserve pas le merge à la pass :
-seule une identité par rôle le permet.
+**Branch protection is the only one the runtime assumes.** "Require branches to be up to date" is
+not required; if enabled, its refusal goes back to the cook as a finding (`pass.outdated`) and consumes
+a send-back — any other refusal is a stop (`merge-refused`). It does not reserve the merge for the pass:
+only an identity per role allows that.
 
-**La push protection ne se suppose pas** : le geste 8 dit ce que GitHub en rend. Gratuite sur un
-dépôt **public**, elle réclame sur un dépôt **privé** GitHub Secret Protection (plans Team et
-Enterprise, d'une organisation) — sans elle il n'y a qu'une barrière, celle de la station, qui ne
-voit que ce qui passe par elle. **Même active**, elle ne reconnaît que les formes de sa liste (des
-clés d'API Anthropic, **pas le jeton de connexion d'un abonnement Max**), ne voit pas une copie
-transformée, et quiconque écrit sur le dépôt peut la contourner depuis le site — un cook ne le peut
-pas, il n'a ni compte ni navigateur. Le jour où tu crois que la connexion Max a fui : `docs/runtime/station-cook.md`,
-« Révoquer la connexion Max ».
+**Push protection is not assumed**: step 8 says what GitHub returns for it. Free on a
+**public** repository, it requires GitHub Secret Protection on a **private** one (Team and
+Enterprise plans, of an organization) — without it there is only one barrier, the station's, which
+sees only what passes through it. **Even when active**, it recognizes only the forms in its list (Anthropic
+API keys, **not the login token of a Max subscription**), does not see a transformed copy, and anyone who writes to the repository can bypass it from the site — a cook cannot,
+it has neither account nor browser. The day you believe the Max connection has leaked: `docs/runtime/station-cook.md`,
+"Révoquer la connexion Max".
 
-## 5. Vérifier que le projet est prêt
+## 5. Check that the project is ready
 
-*Geste 8.* Une commande dit si un cook peut partir, **et nomme tout ce qui manque d'un coup** — pas le
-premier manque. Elle ne lance ni cook ni setup, ne consomme aucun quota, n'écrit rien sur GitHub
-et ne lit le journal qu'en lecture seule (pour la connexion Max, voir plus bas) ; dans le clone réservé, elle ne déplace aucune référence. Elle se rejoue
-autant qu'on veut, service arrêté ou non.
+*Step 8.* One command says whether a cook can launch, **and names everything that is missing at once** — not the
+first gap. It launches no cook or setup, consumes no quota, writes nothing to GitHub
+and reads the log read-only (for the Max connection, see below); in the reserved clone, it moves no reference. It can be replayed
+as often as you like, service stopped or not.
 
-Elle lit **l'environnement du service**, comme le runtime : sur la box, elle se lance par le geste
-`brigade <projet> <commande>`, qui le lui donne. Il ne connaît un projet qu'à son drop-in — celui
-du geste 6.
+It reads **the service's environment**, like the runtime: on the box, it is launched through the
+`brigade <project> <command>` step, which gives it that environment. It knows a project only by its drop-in — the one
+from step 6.
 
 ```
 $ brigade boutique installation
 
-Sur la machine
-  ok        les 5 variables obligatoires sont posées, et tout ce que le runtime lit de son environnement est lisible
-  ok        clone réservé : /var/lib/brigade/boutique/depot, `main` lue sur l'origine (a1b2c3d)
-  ok        session Max : `claude` est connecté sous ce compte
-  ok        unité de service : brigade@boutique.service
-  ok        unités à jour : rien de ce qui est posé sous /etc/systemd/system ne diffère du dépôt (/opt/brigade/runtime/deploy) — brigade-sauvegarde@.service, brigade-sauvegarde@.timer, brigade@.service
+On the machine
+  ok        the 5 required variables are set, and everything the runtime reads from its environment is readable
+  ok        reserved clone: /var/lib/brigade/boutique/depot, `main` read on origin (a1b2c3d)
+  ok        Max session: `claude` is logged in under this account
+  ok        service unit: brigade@boutique.service
+  ok        units up to date: nothing laid down under /etc/systemd/system differs from the repository (/opt/brigade/runtime/deploy) — brigade-sauvegarde@.service, brigade-sauvegarde@.timer, brigade@.service
 
-Dans le dépôt
-  MANQUE    `.claude/brigade/gates.sh` n'est pas exécutable : la pass le lance tel quel
-            → `git update-index --chmod=+x .claude/brigade/gates.sh`, commité sur `main`
-  ok        setup du worktree : `.claude/brigade/worktree-setup.sh`
-  ok        bindings : bloc présent, branche d'intégration `main`
+In the repository
+  MISSING   `.claude/brigade/gates.sh` is not executable: the pass runs it as is
+            → `git update-index --chmod=+x .claude/brigade/gates.sh`, committed on `main`
+  ok        worktree setup: `.claude/brigade/worktree-setup.sh`
+  ok        bindings: block present, integration branch `main`
 
-Sur GitHub
-  ok        dépôt lu par `gh` : acme/boutique
-  à savoir  la push protection de GitHub n'est pas constatée sur acme/boutique (GitHub en dit : `disabled`) : la station reste la seule barrière contre une livraison qui porterait des identifiants
-            → docs/installer.md, « Déclarer le projet »
-  MANQUE    labels absents du dépôt : fire, model:opus, model:sonnet, …
-            → la même commande, suivie de `labels`
+On GitHub
+  ok        repository read by `gh`: acme/boutique
+  to know   GitHub push protection is not confirmed on acme/boutique (GitHub says: `disabled`): the station remains the only barrier against a delivery that would carry credentials
+            → docs/installer.md, "Declare the project"
+  MISSING   labels absent from the repository: fire, model:opus, model:sonnet, …
+            → the same command, followed by `labels`
 
-brigade : projet « boutique » : 2 manques : aucun cook ne doit être lancé tant qu'il en reste
+brigade: project "boutique": 2 gaps: no cook must be launched while any remain
 ```
 
-| Marque | Ce qu'elle veut dire | Code de sortie |
+| Mark | What it means | Exit code |
 |---|---|---|
-| `ok` | constaté | |
-| `MANQUE` | un cook lancé maintenant échouerait, ou sa livraison ne serait pas jugée. Le geste qui le règle suit la flèche | `1` dès qu'il y en a un |
-| `à savoir` | rien n'est retenu, mais tu dois le savoir : pas de setup, sauvegarde non programmée, push protection non constatée, binding que le runtime ne lit pas, **box à mettre à jour** (unités périmées) | |
+| `ok` | confirmed | |
+| `MISSING` | a cook launched now would fail, or its delivery would not be judged. The step that fixes it follows the arrow | `1` as soon as there is one |
+| `to know` | nothing is held back, but you must know: no setup, backup not scheduled, push protection not confirmed, binding the runtime does not read, **box to update** (outdated units) | |
 
-Sans aucun `MANQUE`, elle sort en `0` et dit « prêt ».
+With no `MISSING`, it exits `0` and says "ready".
 
-Ce qu'elle contrôle :
+What it checks:
 
-| Où | Quoi |
+| Where | What |
 |---|---|
-| Machine | les cinq variables, **toutes** celles qui manquent ; chaque réglage mal écrit, avec les mots que le runtime emploierait pour refuser de démarrer ; aucune clé ni jeton `claude` dans l'environnement |
-| Machine | le clone réservé existe, c'est bien celui du dépôt désigné, son origine répond sous ce compte, et la branche d'intégration y existe |
-| Machine | **`node` démarre dans l'environnement de l'unité, et c'est celui que le runtime réclame** — le geste le dit avant de lancer quoi que ce soit (code `70`) |
-| Machine | le compte a une identité git : un cook y commite |
-| Machine | `claude` est connecté (`claude auth status`, aucun appel au modèle — un identifiant stocké, pas une session éprouvée : si le journal dit la connexion Max expirée, c'est **ça** qui manque, avec sa date, dans les mots de `run station`) ; l'unité `brigade@<projet>.service` est installée ; la sauvegarde est programmée |
-| Machine | `claude` se trouve dans le `PATH` **que l'unité donnera au runtime** — celui de ses drop-ins, ou le défaut de systemd —, pas dans celui du shell qui lance la commande ; son répertoire temporaire (`/tmp/claude-<uid>`, ou sous `CLAUDE_CODE_TMPDIR`) est au compte, s'il existe |
-| Machine | **les unités posées sont celles du clone** — sinon celles qui sont périmées sont nommées, avec leur geste (« Mettre brigade à jour ») |
-| Dépôt | sur la branche d'intégration **telle que l'origine la porte** : gates et setup présents et exécutables, bloc de bindings, branche d'intégration cohérente |
-| GitHub | `gh` lit le dépôt sous ce compte, **et peut y pousser** ; les labels du rail y sont ; ce que GitHub rend de la push protection |
+| Machine | the five variables, **all** those that are missing; each badly written setting, in the words the runtime would use to refuse to start; no `claude` key or token in the environment |
+| Machine | the reserved clone exists, it is indeed the one of the designated repository, its origin answers under this account, and the integration branch exists in it |
+| Machine | **`node` starts in the unit's environment, and it is the one the runtime requires** — the step says so before launching anything (code `70`) |
+| Machine | the account has a git identity: a cook commits there |
+| Machine | `claude` is logged in (`claude auth status`, no model call — a stored credential, not a proven session: if the log says the Max connection expired, **that** is what is missing, with its date, in the words of `run station`); the `brigade@<project>.service` unit is installed; the backup is scheduled |
+| Machine | `claude` is in the `PATH` **that the unit will give the runtime** — that of its drop-ins, or systemd's default —, not that of the shell running the command; its temporary directory (`/tmp/claude-<uid>`, or under `CLAUDE_CODE_TMPDIR`) belongs to the account, if it exists |
+| Machine | **the laid-down units are those of the clone** — otherwise the outdated ones are named, with their step ("Update brigade") |
+| Repository | on the integration branch **as origin carries it**: gates and setup present and executable, bindings block, consistent integration branch |
+| GitHub | `gh` reads the repository under this account, **and can push to it**; the rail's labels are there; what GitHub returns for push protection |
 
-Ce qu'elle ne contrôle **pas** : que le setup et les gates *réussissent* (le geste 9 joue le setup ;
-les gates se prouvent par `/brigade:init`), la protection de la branche (le geste 7 la relit
-lui-même), les secrets du projet, et, sous une identité par rôle, les droits de chaque App. Quand
-elle ne peut pas lire le dépôt — clone absent, branche introuvable — elle le dit (`dépôt non vérifié`) au
-lieu de le déclarer bon.
+What it does **not** check: that the setup and the gates *succeed* (step 9 plays the setup;
+the gates are proven by `/brigade:init`), the branch protection (step 7 rereads it
+itself), the project's secrets, and, under an identity per role, the rights of each App. When
+it cannot read the repository — clone absent, branch not found — it says so (`repository not checked`) instead of
+declaring it good.
 
-**Les trois pièges d'un serveur neuf ne se découvrent plus en butant dessus** — ils ont buté une
-fois, à la recette du 2026-10-09, sur un Debian 12 nu. Les deux premiers se lisent ainsi ; le
-troisième a disparu :
-
-```
-brigade : `node` ne démarre pas dans l'environnement de brigade@boutique.service — node: error while loading shared libraries: libatomic.so.1: cannot open shared object file: No such file or directory
-          → `sudo apt install libatomic1` (docs/installer.md, « Préparer la box »)
-```
+**The three traps of a new server are no longer discovered by stumbling on them** — they tripped
+us once, at the 2026-10-09 acceptance run, on a bare Debian 12. The first two read like this; the
+third has disappeared:
 
 ```
-  MANQUE    `claude` est introuvable dans le `PATH` que l'unité brigade@boutique.service donnera au runtime (/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin, le défaut de systemd : aucun `Environment=PATH=` dans ses drop-ins) : aucun cook ne partirait — le `PATH` du shell qui lance cette commande ne compte pas
-            → `sudo ln -sfn /home/<compte>/.local/bin/claude /usr/local/bin/claude` — l'installeur natif pose `claude` sous `~/.local/bin` du compte, que systemd ne donne pas à l'unité ; docs/installer.md, « Préparer la box »
+brigade: `node` does not start in the environment of brigade@boutique.service — node: error while loading shared libraries: libatomic.so.1: cannot open shared object file: No such file or directory
+          → `sudo apt install libatomic1` (docs/installer.md, "Prepare the box")
 ```
 
-Le premier est dit par le geste lui-même, qui sort en `70` : sans `node`, la commande ne peut rien
-dire. Un `node` plus ancien que celui que le runtime réclame est refusé de la même façon, avec les
-deux versions.
+```
+  MISSING   `claude` not found in the `PATH` that the unit brigade@boutique.service will give the runtime (/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin, systemd's default: no `Environment=PATH=` in its drop-ins): no cook would launch — the `PATH` of the shell running this command does not count
+            → `sudo ln -sfn /home/<account>/.local/bin/claude /usr/local/bin/claude` — the native installer puts `claude` under the account's `~/.local/bin`, which systemd does not give the unit; docs/installer.md, "Prepare the box"
+```
 
-Le troisième — un `/tmp/claude-<uid>` qui n'est pas au compte, où `claude` refuse de se lancer —
-n'arrête plus aucun cook : l'unité a son propre `/tmp`. Il ne gêne plus qu'un `claude` lancé à la
-main sous le compte, la connexion Max du geste 4 comprise, et la commande le dit en `à savoir`,
-avec son `chown`.
+The first is reported by the step itself, which exits `70`: without `node`, the command can say
+nothing. A `node` older than the one the runtime requires is refused the same way, with both
+versions.
 
-Sur un poste sans systemd, l'unité n'est pas vérifiée — ni le `PATH` qu'elle donnerait, ni ses
-copies, ni le code sur lequel le runtime tourne — et la commande le dit.
+The third — a `/tmp/claude-<uid>` that does not belong to the account, where `claude` refuses to start —
+no longer stops any cook: the unit has its own `/tmp`. It now only affects a `claude` launched
+by hand under the account, the Max connection of step 4 included, and the command reports it as `to know`,
+with its `chown`.
 
-**Puis la même commande, depuis ta machine** — c'est ce que l'app fera, et ce que la box ne peut
-pas vérifier d'elle-même. Le code de sortie est le verdict :
+On a workstation without systemd, the unit is not checked — neither the `PATH` it would give, nor its
+copies, nor the code the runtime runs on — and the command says so.
+
+**Then the same command, from your machine** — this is what the app will do, and what the box cannot
+check by itself. The exit code is the verdict:
 
 ```bash
-ssh -o BatchMode=yes -o ConnectTimeout=10 <box> brigade <projet> installation; echo $?
+ssh -o BatchMode=yes -o ConnectTimeout=10 <box> brigade <project> installation; echo $?
 ```
 
-| Ce que tu lis | Ce que c'est | Le geste |
+| What you read | What it is | The step |
 |---|---|---|
-| `0`, `1` ou `2`, et la sortie de la commande | **la commande a été lancée** : le lien et le droit sont là. `1` : il manque quelque chose au projet, la sortie le nomme | — |
-| `255` | `ssh` n'a pas joint la box, ou ta clé y est refusée | le geste 2 |
-| `68`, `brigade : « <toi> » n'a pas le droit de lancer le geste sur cette box …` | tu as un compte sur la box, pas le droit du geste | « Ajouter un humain » |
-| `65`, `brigade : projet inconnu sur cette box …` | le nom du projet, ou son drop-in | le geste 6 |
-| `69`, ``brigade : `sudo` manque sur cette box …`` | la box n'a pas de `sudo` : le geste ne peut pas passer sous le compte du service | installe-le sur la box (`apt install sudo`, sous `root`) |
-| `70`, ``brigade : `node` ne démarre pas …`` ou `` `node` est en … `` | Node manque à la box, ne démarre pas, ou est trop ancien | ce que la phrase dit ; le geste 3 |
-| `127`, `brigade: command not found` | le geste n'est pas posé sur la box | le geste 5 |
-| autre chose que la sortie de `installation` — un écran de session, une invite | ton compte sur la box est enfermé dans une commande forcée, qui remplace celle que tu envoies | « Ajouter un humain », « Un shell n'est pas le droit de lire » |
+| `0`, `1` or `2`, and the command's output | **the command was launched**: the link and the right are there. `1`: something is missing from the project, the output names it | — |
+| `255` | `ssh` did not reach the box, or your key is refused there | step 2 |
+| `68`, `brigade: "<you>" does not have the right to run the step on this box …` | you have an account on the box, not the right to the step | "Add a human" |
+| `65`, `brigade: unknown project on this box …` | the project name, or its drop-in | step 6 |
+| `69`, ``brigade: `sudo` is missing on this box …`` | the box has no `sudo`: the step cannot switch to the service account | install it on the box (`apt install sudo`, as `root`) |
+| `70`, ``brigade: `node` does not start …`` or `` `node` is at … `` | Node is missing from the box, does not start, or is too old | what the sentence says; step 3 |
+| `127`, `brigade: command not found` | the step is not laid down on the box | step 5 |
+| anything other than the output of `installation` — a session screen, a prompt | your account on the box is locked into a forced command, which replaces the one you send | "Add a human", "A shell is not the right to read" |
 
-### Créer les labels
+### Create the labels
 
-Toujours le geste 8 — c'est le seul manque que la vérification règle elle-même :
-
-```bash
-brigade <projet> installation labels
-```
-
-Crée sur le dépôt ceux qui manquent parmi `fire`, `prio:1` à `prio:3`, `model:opus|sonnet|haiku`
-et `effort:low|medium|high|xhigh|max`. **Un label qui existe n'est ni recréé ni retouché** — sa
-couleur et sa description sont au projet — et la commande se rejoue sans dégât. Les labels du
-protocole V1 (`product`, `triage`, `feature`…) sont posés par `/brigade:init` ; ceux que le manager
-lit s'il les trouve (`epic`, `question`, `decision`, `blocked-on-human`) sont à toi.
-
-## 6. Mesurer le coût du setup
-
-*Geste 9.* Sur brigade, le setup est un `npm ci` de deux paquets. Sur un vrai projet c'est une installation
-et un build, **joués une fois par cook** — et le plafond de cooks est celui que tes stations déclarent tant
-que tu ne l'as pas réglé à chaud.
+Still step 8 — it is the only gap the check fixes itself:
 
 ```bash
-brigade <projet> installation setup          # à tous les cooks que les stations déclarées font tourner à la fois
-brigade <projet> installation setup 12       # à 12
+brigade <project> installation labels
 ```
 
-Elle joue le setup **une fois, à blanc**, comme la station le jouerait avant un cook : dans un
-worktree neuf de la branche d'intégration, avec l'environnement d'un cook, sous la moitié du bail.
-Aucun cook n'est lancé ; le worktree est retiré ensuite. Elle passe au setup le numéro `0`.
-**Joue-la avant de démarrer le service, ou cuisine arrêtée** (`garde-fous -- stop`) : elle rapatrie
-la base et accroche un worktree dans le clone réservé, deux gestes que la station fait aussi, et la
-mesure d'un setup pris au milieu d'autres ne vaut rien.
+Creates on the repository those that are missing among `fire`, `prio:1` to `prio:3`, `model:opus|sonnet|haiku`
+and `effort:low|medium|high|xhigh|max`. **A label that exists is neither recreated nor touched** — its
+color and description belong to the project — and the command can be replayed harmlessly. The labels of the
+V1 protocol (`product`, `triage`, `feature`…) are laid down by `/brigade:init`; those the manager
+reads if it finds them (`epic`, `question`, `decision`, `blocked-on-human`) are yours.
 
-```
-brigade : setup joué en 48,2 s sur `main` (a1b2c3d) — une fois, seul, à blanc, charge de la machine 0,4 sur 8 cœurs
-  worktree    11,2 Mo à sa création, 412,6 Mo une fois le setup passé
-  plafond     15 min, la moitié du bail — au-delà la station arrête le setup : tient
-À 30 cooks, 4 en entrée à la fois (BRIGADE_MAX_SETUPS)
-  entrée      8 vagues de setups : le dernier cook part 5,6 min après le premier, au mieux — plus si la machine sature
-  disque      12,1 Go pour 30 worktrees, 61,3 Go disponibles une fois la réserve de la station déduite : tient
-brigade : un worktree neuf par cook tient à 30 cooks sur cette machine
-```
+## 6. Measure the setup cost
 
-**« Tient »** veut dire deux choses, et seulement celles-là : le setup finit sous la moitié du
-bail (au-delà, la station l'arrête et le ticket passe 86 `setup-failed` ; deux fois de suite, et
-plus aucun setup n'est lancé tant que la branche d'intégration ne bouge pas), et tous
-les worktrees tiennent ensemble sur le disque, réserve de la station déduite
-(`BRIGADE_MIN_FREE_DISK_MB`). Sinon elle sort en `1` et dit quoi baisser.
-
-Ce que la mesure ne dit pas, et qu'il faut lire avec elle :
-
-- Elle est prise **seule**. À quatre setups de front, chacun met plus longtemps ; la station se
-  retient d'elle-même quand la machine sature, mais ne raccourcit rien.
-- Le temps d'**entrée** est une information, pas un seuil : le dernier ticket attend sur le rail,
-  il n'échoue pas.
-- Elle pèse le worktree, pas ce que le setup pose **ailleurs** (une base de test, un cache du
-  gestionnaire de paquets) — et ne le retire pas non plus.
-- La mémoire d'un build n'est pas mesurée.
-
-Un setup **en échec** sort en `1` avec ses vingt dernières lignes : c'est le même échec que
-celui que la station rencontrerait, sans cook perdu. Brigade ne partage rien entre les worktrees
-de deux cooks : si la mesure dit que ça ne tient pas, baisse le plafond de cooks
-(`brigade <projet> station cooks <N>`) ou allège le setup — un cache partagé serait un ticket.
-
-## 7. Servir le premier ticket — sans grant `merge`
-
-*Geste 10.* **Le premier ticket d'un projet est servi sans grant `merge`** : la pass ouvre la PR, la juge, et
-s'arrête. C'est toi qui merges. Sur brigade, un cook qui se trompe casse une branche de refonte ;
-sur un projet actif, il casse la branche sur laquelle d'autres travaillent.
-
-Il n'y a rien à désactiver : le grant est **absent** sur un répertoire d'état neuf, et le manager
-est **éteint**. Vérifie-le, puis démarre.
+*Step 9.* On brigade, the setup is an `npm ci` of two packages. On a real project it is an installation
+and a build, **played once per cook** — and the cap on cooks is whatever your stations declare until
+you set it live.
 
 ```bash
-sudo systemctl enable --now brigade@<projet>                   # démarre, et redémarre à chaque reboot
-brigade <projet> grant                                         # « ABSENT — jamais donné »
-sudo systemctl start brigade-sauvegarde@<projet>.service       # une première sauvegarde, tout de suite
+brigade <project> installation setup          # at all the cooks the declared stations run at once
+brigade <project> installation setup 12       # at 12
 ```
 
-Pose `fire`, `model:haiku` et `effort:low` sur une issue courte. Suis-la avec
-`brigade <projet> status` et `brigade <projet> pass`. La PR ouverte et verte, relis-la et merge-la
-toi-même.
+It plays the setup **once, as a dry run**, as the station would play it before a cook: in a fresh
+worktree of the integration branch, with a cook's environment, under half the lease.
+No cook is launched; the worktree is removed afterwards. It passes the setup the number `0`.
+**Play it before starting the service, or with the kitchen stopped** (`guardrails -- stop`): it pulls
+the base and hangs a worktree in the reserved clone, two things the station also does, and the
+measure of a setup taken in the middle of others is worthless.
 
-Ce que le process imprime se lit par `journalctl -u brigade@<projet> -f` ; un refus de démarrer
-(code 2) ne se réessaie pas, et `systemctl status brigade@<projet>` en dit le motif. Toutes les
-commandes du geste, et la mise à jour de brigade, sont dans `docs/runtime/exploitation.md`, « Piloter ».
+```
+brigade: setup played in 48.2 s on `main` (a1b2c3d) — once, alone, as a dry run, machine load 0.4 on 8 cores
+  worktree    11.2 MB at creation, 412.6 MB once the setup has run
+  cap         15 min, half the lease — beyond that the station stops the setup: holds
+At 30 cooks, 4 entering at once (BRIGADE_MAX_SETUPS)
+  entry       8 waves of setups: the last cook leaves 5.6 min after the first, at best — more if the machine saturates
+  disk        12.1 GB for 30 worktrees, 61.3 GB available once the station's reserve is deducted: holds
+brigade: a fresh worktree per cook holds at 30 cooks on this machine
+```
 
-**N'active le grant qu'après avoir relu au moins une livraison de ce projet** — une commande, sans
-redémarrage (`brigade <projet> grant enable merge`), de préférence avec une échéance (`--for 4h`,
-`--uses 10`) : il s'éteint alors seul, voir « Le grant `merge` » dans [`runtime/`](runtime/pass-merge.md).
+**"Holds"** means two things, and only those: the setup finishes under half the
+lease (beyond that, the station stops it and the ticket goes 86 `setup-failed`; twice in a row, and
+no setup is launched any more until the integration branch moves), and all
+the worktrees fit together on the disk, the station's reserve deducted
+(`BRIGADE_MIN_FREE_DISK_MB`). Otherwise it exits `1` and says what to lower.
 
-**Avant d'accorder, lis le bilan des arrêts faute de grant.** Chaque livraison verte arrêtée dit
-sur son issue ce que la pass aurait mergé ; `pass` et `grant` comptent ce que tu en as
-fait — mergées, fermées sans merge (les désaccords), encore ouvertes. C'est le chiffre sur
-lequel accorder (`docs/runtime/pass.md`, « Les motifs, et le geste de chacun »).
+What the measure does not say, and must be read with it:
 
-## Un second projet sur la box
+- It is taken **alone**. With four setups side by side, each takes longer; the station
+  withholds itself when the machine saturates, but shortens nothing.
+- The **entry** time is information, not a threshold: the last ticket waits on the rail,
+  it does not fail.
+- It weighs the worktree, not what the setup puts **elsewhere** (a test database, a package
+  manager cache) — and does not remove it either.
+- A build's memory is not measured.
 
-Un second projet rejoue les gestes 1 et 6 à 10 — rien de « Préparer la box ». **Deux choses de
-plus se posent alors, pour tous les projets de la box** ; leurs unités sont déjà copiées. Ce
-qu'elles font est dans `docs/runtime/cloison-et-arbitre.md`, « La cloison » et « L'arbitre entre projets ».
+A **failing** setup exits `1` with its last twenty lines: it is the same failure
+the station would meet, without a lost cook. Brigade shares nothing between the worktrees
+of two cooks: if the measure says it does not hold, lower the cap on cooks
+(`brigade <project> station cooks <N>`) or lighten the setup — a shared cache would be a ticket.
 
-### La cloison
+## 7. Serve the first ticket — without a `merge` grant
 
-**Par projet.** Sans elle, les projets de la box se voient, fichiers et secrets compris, et leurs
-cooks joignent tout Internet ; le runtime le dit à chaque démarrage. À poser avant qu'un second
-projet n'arrive avec ses secrets.
+*Step 10.* **A project's first ticket is served without a `merge` grant**: the pass opens the PR, judges it, and
+stops. You do the merge. On brigade, a cook that gets it wrong breaks a rework branch;
+on an active project, it breaks the branch others are working on.
 
-À vérifier d'abord, sous le compte du service :
-
-1. `bwrap` est installé (`sudo apt install bubblewrap`) et **se lance sans privilège** :
-   `sudo -u <compte> bwrap --ro-bind / / --dev /dev --proc /proc --unshare-pid true` ne dit rien.
-   Un refus `setting up uid map: Permission denied` (AppArmor, Ubuntu récente) est un réglage de la
-   machine : `kernel.apparmor_restrict_unprivileged_userns`, ou un profil pour `bwrap`.
-2. `env --default-signal=TERM true` ne dit rien (coreutils 8.32 au moins) : c'est par lui qu'un
-   cook cloisonné entend son signal d'arrêt.
-3. `claude` n'est **pas** installé sous `~/.claude` (`readlink -f "$(command -v claude)"`), que
-   la cloison remplace par celui du projet. Sous `~/.local`, là où le geste 3 le pose, un cook le
-   lit sans pouvoir y écrire.
-4. Les secrets et les clés du projet sont sous `/etc/brigade/<projet>/`, son état sous
-   `/var/lib/brigade/<projet>/` — ce sont les deux répertoires masqués.
-5. **Le dépôt déclare ses registres de paquets** dans `.claude/brigade/reseau` (un hôte par ligne,
-   mergé sur la branche d'intégration) : aucun n'est ouvert d'office, et un setup qui installe des
-   paquets échouerait. **Rien à écrire à la main** : `/brigade:init` le propose, déduit de la ligne
-   d'installation du `worktree-setup.sh` qu'il vient d'écrire, avec l'explication en tête — et un
-   fichier vide commenté quand il n'a rien à ouvrir ou n'a pas su traduire l'outil. Il ne vaut qu'une
-   fois mergé avec le reste du résultat de l'init (geste 3). Une déclaration mergée après coup est lue à la prise du ticket suivant,
-   avant son setup — rien à redémarrer, aucun ticket perdu. `brigade <projet> partition` montre la
-   liste lue.
+There is nothing to disable: the grant is **absent** on a fresh state directory, and the manager
+is **off**. Check it, then start.
 
 ```bash
-PROJET=<projet>
-PORT=<port de la porte>     # un par projet, aucun défaut
+sudo systemctl enable --now brigade@<projet>                  # starts, and restarts at every reboot
+brigade <project> grant                                        # "ABSENT — never given"
+sudo systemctl start brigade-sauvegarde@<project>.service      # a first backup, right now
+```
+
+Put `fire`, `model:haiku` and `effort:low` on a short issue. Follow it with
+`brigade <project> status` and `brigade <project> pass`. Once the PR is open and green, reread it and merge it
+yourself.
+
+What the process prints is read with `journalctl -u brigade@<project> -f`; a refusal to start
+(code 2) is not retried, and `systemctl status brigade@<project>` gives the reason. All the
+step's commands, and updating brigade, are in `docs/runtime/exploitation.md`, "Piloter".
+
+**Enable the grant only after rereading at least one delivery from this project** — one command, no
+restart (`brigade <project> grant enable merge`), preferably with an expiry (`--for 4h`,
+`--uses 10`): it then switches off on its own, see "Le grant `merge`" in [`runtime/`](runtime/pass-merge.md).
+
+**Before granting, read the tally of stops for lack of a grant.** Each green delivery stopped says
+on its issue what the pass would have merged; `pass` and `grant` count what you did with them —
+merged, closed without merge (the disagreements), still open. That is the figure on
+which to grant (`docs/runtime/pass.md`).
+
+## A second project on the box
+
+A second project replays steps 1 and 6 to 10 — nothing from "Prepare the box". **Two more things
+are then laid down, for all the projects on the box**; their units are already copied. What
+they do is in `docs/runtime/cloison-et-arbitre.md`, "La cloison" and "L'arbitre entre projets".
+
+### The partition
+
+**Per project.** Without it, the box's projects see each other, files and secrets included, and their
+cooks reach the whole Internet; the runtime says so at every startup. Lay it down before a second
+project arrives with its secrets.
+
+Check first, under the service account:
+
+1. `bwrap` is installed (`sudo apt install bubblewrap`) and **launches without privilege**:
+   `sudo -u <account> bwrap --ro-bind / / --dev /dev --proc /proc --unshare-pid true` says nothing.
+   A `setting up uid map: Permission denied` refusal (AppArmor, recent Ubuntu) is a machine
+   setting: `kernel.apparmor_restrict_unprivileged_userns`, or a profile for `bwrap`.
+2. `env --default-signal=TERM true` says nothing (coreutils 8.32 at least): it is through it that a
+   partitioned cook hears its stop signal.
+3. `claude` is **not** installed under `~/.claude` (`readlink -f "$(command -v claude)"`), which
+   the partition replaces with the project's. Under `~/.local`, where step 3 puts it, a cook
+   reads it without being able to write to it.
+4. The project's secrets and keys are under `/etc/brigade/<project>/`, its state under
+   `/var/lib/brigade/<project>/` — these are the two masked directories.
+5. **The repository declares its package registries** in `.claude/brigade/reseau` (one host per line,
+   merged on the integration branch): none is open by default, and a setup that installs
+   packages would fail. **Nothing to write by hand**: `/brigade:init` proposes it, deduced from the
+   install line of the `worktree-setup.sh` it has just written, with the explanation at the top — and an
+   empty commented file when it has nothing to open or could not translate the tool. It counts only once
+   merged with the rest of the init result (step 3). A declaration merged afterwards is read when the next ticket is taken,
+   before its setup — nothing to restart, no ticket lost. `brigade <project> partition` shows the
+   list read.
+
+```bash
+PROJET=<project>
+PORT=<door port>     # one per project, no default
 sudo cp /opt/brigade/runtime/deploy/cloison.conf "/etc/systemd/system/brigade@$PROJET.service.d/"
 sudo install -d "/etc/systemd/system/brigade-porte@$PROJET.service.d"
-# Le même port des deux côtés : la porte l'ouvre, le runtime sort par lui.
+# The same port on both sides: the door opens it, the runtime goes out through it.
 printf '[Service]\nEnvironment=BRIGADE_PROXY_PORT=%s\n' "$PORT" | sudo tee "/etc/systemd/system/brigade@$PROJET.service.d/porte.conf" "/etc/systemd/system/brigade-porte@$PROJET.service.d/porte.conf" >/dev/null
 sudo systemctl daemon-reload
 sudo systemctl enable --now "brigade-porte@$PROJET"
 sudo systemctl restart "brigade@$PROJET"
 ```
 
-Le compte du service devient en lecture seule pour ses lancements, sauf pour les caches : **les
-outils d'un projet (pnpm, npm, yarn, pip…) écrivent leur cache à leur place habituelle sous `~`
-(`~/.cache`, `~/.npm`, `~/.local/share`, `~/.local/state`), sans rien à régler, et il atterrit dans
-`/var/lib/brigade/<projet>/compte`, que les tickets du projet se repassent et qu'aucun autre projet
-ne voit** — jest, lui, écrit dans `/tmp`, celui du projet. Une chaîne d'outils qui écrit ailleurs
-sous `~` se nomme dans `BRIGADE_SANDBOX_PRIVATE`, et ce que le compte garde et qu'un cook n'a pas
-à lire (`/home/<compte>/.ssh`) s'ajoute à `BRIGADE_SANDBOX_HIDDEN` — les deux dans le
-`cloison.conf` copié. Avant de lancer un cook : `journalctl -u brigade@<projet>` montre les lignes
-`cloison —` et `réseau —`, la seconde disant qu'**un envoi direct est refusé par le noyau** ; puis
-`brigade <projet> partition probe`, dont chaque sonde doit tenir.
+The service account becomes read-only for its launches, except for the caches: **a project's
+tools (pnpm, npm, yarn, pip…) write their cache at their usual place under `~`
+(`~/.cache`, `~/.npm`, `~/.local/share`, `~/.local/state`), with nothing to set, and it lands in
+`/var/lib/brigade/<project>/compte`, which the project's tickets pass to each other and which no other project
+sees** — jest, for its part, writes to `/tmp`, the project's own. A toolchain that writes elsewhere
+under `~` is named in `BRIGADE_SANDBOX_PRIVATE`, and what the account keeps and a cook has no
+need to read (`/home/<account>/.ssh`) is added to `BRIGADE_SANDBOX_HIDDEN` — both in the
+copied `cloison.conf`. Before launching a cook: `journalctl -u brigade@<project>` shows the lines
+`cloison —` and `réseau —`, the second saying that **a direct send is refused by the kernel**; then
+`brigade <project> partition probe`, each probe of which must hold.
 
-### L'arbitre
+### The arbiter
 
-**Un par box.** Sans lui, chaque projet se tient pour seul sur la machine et sur le compte Max :
-leurs plafonds de cooks s'additionnent, et rien ne dit qui passe devant.
+**One per box.** Without it, each project takes itself to be alone on the machine and on the Max account:
+their cook caps add up, and nothing says who goes first.
 
 ```bash
-PORT=<port de l'arbitre>
-COOKS=<plafond de cooks du compte, tous projets confondus>     # ni l'un ni l'autre n'a de défaut
+PORT=<arbiter port>
+COOKS=<account's cook cap, all projects combined>     # neither has a default
 sudo install -d /etc/systemd/system/brigade-arbitre.service.d
 printf '[Service]\nEnvironment=BRIGADE_ARBITER_PORT=%s\nEnvironment=BRIGADE_ARBITER_MAX_COOKS=%s\n' "$PORT" "$COOKS" | sudo tee /etc/systemd/system/brigade-arbitre.service.d/arbitre.conf >/dev/null
 sudo systemctl daemon-reload
 sudo systemctl enable --now brigade-arbitre.service
-# Puis, pour CHAQUE projet de la box, le même port — c'est par lui que son runtime joint l'arbitre :
-for PROJET in <projet> <projet>; do
+# Then, for EACH project on the box, the same port — it is through it that its runtime reaches the arbiter:
+for PROJET in <project> <project>; do
   printf '[Service]\nEnvironment=BRIGADE_ARBITER_PORT=%s\n' "$PORT" | sudo tee "/etc/systemd/system/brigade@$PROJET.service.d/arbitre.conf" >/dev/null
 done
 sudo systemctl daemon-reload
 sudo systemctl restart 'brigade@*'
 ```
 
-`journalctl -u brigade@<projet>` dit `arbitre — 127.0.0.1:<port>, consulté avant chaque
-lancement`. Un projet dont le drop-in n'a pas le port n'est ni arbitré ni compté : il lance comme
-s'il était seul. **Arrêter l'arbitre ne gèle personne** : chaque projet passe en mode dégradé, un
-cook à la fois.
+`journalctl -u brigade@<project>` says `arbitre — 127.0.0.1:<port>, consulted before each
+launch`. A project whose drop-in lacks the port is neither arbitrated nor counted: it launches as
+if it were alone. **Stopping the arbiter freezes no one**: each project goes into degraded mode, one
+cook at a time.
 
-## Ajouter une box, une machine, un humain
+## Add a box, a machine, a human
 
-Aucun des trois ne rejoue l'installation d'un projet, et aucun ne touche aux deux autres.
+None of the three replays a project's installation, and none touches the other two.
 
-| Un de plus | Le geste | Où | Ce qui est à refaire, et pourquoi |
+| One more | The step | Where | What is to be redone, and why |
 |---|---|---|---|
-| **Une box** | la préparer (gestes 3 à 5), puis donner son adresse | la box ; l'app | le groupe et sa règle `sudoers`, **une fois par box** ; un compte **par humain et par box** — les comptes et les règles d'une machine ne se partagent pas avec une autre |
-| **Une machine** qui lit | y avoir une clé, et la poser sur ton compte de la box | la machine ; la box | rien par projet, rien par box au-delà de la clé |
-| **Un humain** | lui créer un compte dans le groupe, avec sa clé publique | la box | rien par projet : le droit est celui du groupe |
+| **A box** | prepare it (steps 3 to 5), then give its address | the box; the app | the group and its `sudoers` rule, **once per box**; one account **per human and per box** — a machine's accounts and rules are not shared with another |
+| **A machine** that reads | have a key there, and put it on your account on the box | the machine; the box | nothing per project, nothing per box beyond the key |
+| **A human** | create them an account in the group, with their public key | the box | nothing per project: the right is the group's |
 
-### Ajouter un humain
+### Add a human
 
-**Un humain est un compte Unix à lui sur la box, avec sa clé publique, dans le groupe
-`brigade-chefs`.** Pas de compte partagé, pas de clé commune, aucun secret à se transmettre : il
-t'envoie sa clé **publique**, tu fais le reste. Le geste se joue sur la box, par quelqu'un qui y a
-`sudo` — pas forcément celui qui l'a installée.
-
-```bash
-sudo useradd --create-home --shell /bin/bash --groups brigade-chefs <humain>
-sudo install -d -m 700 -o <humain> /home/<humain>/.ssh
-sudo install -m 600 -o <humain> <sa clé publique>.pub /home/<humain>/.ssh/authorized_keys
-```
-
-S'il a déjà un compte **sans commande forcée** sur la box, seule l'appartenance au groupe manque :
-`sudo usermod -aG brigade-chefs <humain>`.
-
-Le groupe et la règle qui lui donne le geste existent déjà : ils se posent **une fois par box**,
-avec le geste lui-même (geste 5). Ajouter un humain ne réécrit aucune règle et
-ne touche à aucun projet.
-
-**Ce que tu lui donnes, en toutes lettres.** Le droit du groupe est le geste `brigade`, entier :
-**toutes ses commandes (`docs/runtime/exploitation.md`, « Piloter »), pour tous les projets de la box** — lire le `status`, mais
-aussi accorder le grant `merge`, dire « stop », désinstaller un projet. **Lire et agir ne sont pas
-séparés** : doser les droits par humain n'existe pas encore (V2.5). C'est du même ordre que lui
-donner un shell sur la box, et il en a un, sous son compte. Ce qu'il n'a pas : un shell sous le
-compte du service, la session Max, et — comme toi, comme la box — un accès à la prod.
-
-**La vérification**, depuis **sa** machine, avec son compte dans `<box>` :
+**A human is a Unix account of their own on the box, with their public key, in the group
+`brigade-chefs`.** No shared account, no common key, no secret to pass around: they
+send you their **public** key, you do the rest. The step is played on the box, by someone who has
+`sudo` there — not necessarily the one who installed it.
 
 ```bash
-ssh -o BatchMode=yes -o ConnectTimeout=10 <humain>@<adresse> brigade <projet> status; echo $?
+sudo useradd --create-home --shell /bin/bash --groups brigade-chefs <human>
+sudo install -d -m 700 -o <human> /home/<human>/.ssh
+sudo install -m 600 -o <human> <their public key>.pub /home/<human>/.ssh/authorized_keys
 ```
 
-`0` et la sortie de `status` : c'est fait. Tout autre résultat se lit dans le tableau du
-geste 8 — `255`, sa clé ; `68`, le groupe (`id <humain>` sur la box doit nommer `brigade-chefs`).
+If they already have an account **without a forced command** on the box, only group membership is missing:
+`sudo usermod -aG brigade-chefs <human>`.
 
-**Un shell n'est pas le droit de lire.** Les deux se donnent séparément, et l'un ne dit rien de
-l'autre :
+The group and the rule that gives it the step already exist: they are laid down **once per box**,
+with the step itself (step 5). Add a human rewrites no rule and
+touches no project.
 
-- Un compte de la box qui n'est pas dans `brigade-chefs` ouvre un shell et se voit refuser le geste
+**What you give them, spelled out.** The group's right is the `brigade` step, whole:
+**all its commands (`docs/runtime/exploitation.md`, "Piloter"), for all the box's projects** — reading `status`, but
+also granting the `merge` grant, saying "stop", uninstalling a project. **Reading and acting are not
+separated**: dosing rights per human does not exist yet (V2.5). It is of the same order as giving
+them a shell on the box, and they have one, under their account. What they do not have: a shell under the
+service account, the Max session, and — like you, like the box — access to prod.
+
+**The check**, from **their** machine, with their account in `<box>`:
+
+```bash
+ssh -o BatchMode=yes -o ConnectTimeout=10 <human>@<address> brigade <project> status; echo $?
+```
+
+`0` and the output of `status`: it is done. Any other result is read in the step 8
+table — `255`, their key; `68`, the group (`id <human>` on the box must name `brigade-chefs`).
+
+**A shell is not the right to read.** The two are given separately, and one says nothing about the
+other:
+
+- An account on the box that is not in `brigade-chefs` opens a shell and is refused the step
   (code `68`).
-- Un compte enfermé par un `ForceCommand` de `sshd` — une session `tmux`, un conteneur — donne une
-  session à un humain et **ne peut lancer aucune commande** : celle qu'on lui envoie est remplacée
-  par la sienne. L'app ne lira jamais rien par lui, groupe ou non. Ce compte-là reste ce qu'il est ;
-  l'humain en reçoit un second, par le geste ci-dessus. Pour le savoir, sur la box :
+- An account locked in by an `sshd` `ForceCommand` — a `tmux` session, a container — gives a
+  session to a human and **cannot run any command**: the one sent to it is replaced
+  by its own. The app will never read anything through it, group or not. That account stays what it is;
+  the human gets a second one, through the step above. To find out, on the box:
 
   ```bash
-  sudo sshd -T -C user=<humain>,host=localhost,addr=127.0.0.1 | grep -i forcecommand   # « forcecommand none »
+  sudo sshd -T -C user=<human>,host=localhost,addr=127.0.0.1 | grep -i forcecommand   # "forcecommand none"
   ```
 
-**Le retirer** : `sudo gpasswd -d <humain> brigade-chefs` lui retire le geste et lui laisse son
-compte ; `sudo userdel -r <humain>` retire le compte. Aucun autre humain n'est touché.
+**Removing them**: `sudo gpasswd -d <human> brigade-chefs` removes the step from them and leaves them their
+account; `sudo userdel -r <human>` removes the account. No other human is touched.
 
-### Ajouter une machine
+### Add a machine
 
-Une machine de plus — la tienne, ou celle d'un humain déjà ajouté — **n'installe rien** : elle a
-`ssh`, il lui faut une clé que ton compte de la box connaît.
+One more machine — yours, or that of a human already added — **installs nothing**: it has
+`ssh`, it needs a key that your account on the box knows.
 
 ```bash
-ssh-keygen -t ed25519                # sur la machine neuve, si elle n'a pas de clé
-ssh <box> 'cat >> ~/.ssh/authorized_keys' < <la clé publique de la machine neuve>.pub   # depuis une machine qui a déjà l'accès
+ssh-keygen -t ed25519                # on the new machine, if it has no key
+ssh <box> 'cat >> ~/.ssh/authorized_keys' < <the new machine's public key>.pub   # from a machine that already has access
 ```
 
-Puis la vérification du geste 2, depuis la machine neuve. Une clé par machine : en retirer une,
-c'est retirer sa ligne de `~/.ssh/authorized_keys` sur la box.
+Then the step 2 check, from the new machine. One key per machine: removing one
+means removing its line from `~/.ssh/authorized_keys` on the box.
 
-### Ajouter une box
+### Add a box
 
-Une box de plus se prépare comme la première — les gestes 3 à 5, puis 6 à 10 par projet. **Deux
-choses s'y rejouent pour les humains, et pas une de plus** : le groupe `brigade-chefs` et sa règle
-(une fois, dans le geste 5), et le compte de chaque humain (« Ajouter un humain »). Elles vivent dans `/etc` de chaque machine : rien de brigade ne les recopie d'une box à
-l'autre, et une box ne sait rien des autres.
+One more box is prepared like the first — steps 3 to 5, then 6 to 10 per project. **Two
+things are replayed there for the humans, and not one more**: the `brigade-chefs` group and its rule
+(once, in step 5), and each human's account ("Add a human"). They live in each machine's `/etc`: nothing in brigade copies them from one box to
+another, and a box knows nothing of the others.
 
-Côté lecteur, une box de plus est **une adresse** : `<box>` pour `ssh`, le champ `hote` du projet
-dans l'app. Rien d'autre ne la désigne.
+On the reader's side, one more box is **an address**: `<box>` for `ssh`, the project's `hote` field
+in the app. Nothing else designates it.
 
-## Désinstaller
+## Uninstall
 
-**Par l'app, en deux gestes distincts, qui ne se confondent jamais** (« Retirer un projet : de
-l'app, ou de sa box », dans [`app.md`](app.md)) :
+**Through the app, in two distinct steps, never to be confused** ("Remove a project: from
+the app, or from its box", in [`app.md`](app.md)):
 
-1. **Retirer de l'app** — un clic. Rien n'est envoyé à la box : le projet y reste installé, et son
-   journal aussi. Seule la ligne du projet quitte la barre.
-2. **Désinstaller de la box** — l'app affiche d'abord le plan que la box rend (ce qui serait retiré,
-   ce qui est gardé), puis tu écris le nom du projet pour confirmer. **Le journal survit par défaut** :
-   la case qui le supprime est décochée d'office, et n'est envoyée que si tu la coches.
+1. **Remove from the app** — one click. Nothing is sent to the box: the project stays installed there, and its
+   log too. Only the project's line leaves the bar.
+2. **Uninstall from the box** — the app first shows the plan the box returns (what would be removed,
+   what is kept), then you type the project name to confirm. **The log survives by default**:
+   the box that deletes it is unchecked by default, and is sent only if you check it.
 
-Le chemin manuel, ci-dessous, fait la même chose à la main sur la box : c'est le repli.
+The manual path, below, does the same by hand on the box: it is the fallback.
 
-Dans l'ordre. Rien ici ne touche au dépôt.
+In order. Nothing here touches the repository.
 
 ```bash
-sudo systemctl disable --now brigade@<projet>.service brigade-sauvegarde@<projet>.timer brigade-porte@<projet>.service   # arrête le runtime et ses cooks, la sauvegarde, la porte
-brigade <projet> installation uninstall             # dit ce qui serait retiré, ne retire rien
-brigade <projet> installation uninstall --confirm   # retire le clone réservé et les worktrees
-sudo rm -rf /etc/systemd/system/brigade@<projet>.service.d /etc/systemd/system/brigade-sauvegarde@<projet>.service.d /etc/systemd/system/brigade-porte@<projet>.service.d
-sudo rm -rf /opt/brigade-versions/<projet>               # les versions du runtime qu'une ancienne bascule lui a posées, s'il y en a
+sudo systemctl disable --now brigade@<project>.service brigade-sauvegarde@<project>.timer brigade-porte@<project>.service   # stops the runtime and its cooks, the backup, the door
+brigade <project> installation uninstall             # says what would be removed, removes nothing
+brigade <project> installation uninstall --confirm   # removes the reserved clone and the worktrees
+sudo rm -rf /etc/systemd/system/brigade@<project>.service.d /etc/systemd/system/brigade-sauvegarde@<project>.service.d /etc/systemd/system/brigade-porte@<project>.service.d
+sudo rm -rf /opt/brigade-versions/<project>               # the runtime versions an earlier switch laid down for it, if any
 sudo systemctl daemon-reload
 ```
 
-**Le même geste pour tous les projets.** `brigade-porte@<projet>` n'existe qu'**avec la cloison** ;
-sur un projet sans cloison, elle n'a jamais été activée et son répertoire de drop-ins n'a jamais
-été posé : `disable --now` la nomme sans rien avoir à retirer, et `rm -rf` ne se plaint pas d'un
-répertoire absent. Ne la saute pas pour un projet cloisonné : laissée là, la porte reste `enabled`
-et en marche, et son `code.conf` désigne `/opt/brigade-versions/<projet>/en-service/runtime`, que
-la dernière ligne vient d'effacer — elle tournerait sur un code supprimé et ne redémarrerait plus.
+**The same step for all projects.** `brigade-porte@<project>` exists only **with the partition**;
+on a project without a partition, it was never enabled and its drop-in directory was never
+laid down: `disable --now` names it without anything to remove, and `rm -rf` does not complain about a
+missing directory. Do not skip it for a partitioned project: left there, the door stays `enabled`
+and running, and its `code.conf` points to `/opt/brigade-versions/<project>/en-service/runtime`, which
+the last line has just erased — it would run on deleted code and never restart.
 
-`desinstaller` refuse tant que le runtime du projet tourne, refuse de supprimer un répertoire qui
-n'est pas un clone git ou qui contient le répertoire d'état, et se rejoue sans se plaindre. Le
-service arrêté d'abord, joue la commande tant que le drop-in existe : sans lui, le geste ne connaît
-plus le projet.
+`uninstall` refuses while the project's runtime is running, refuses to delete a directory that
+is not a git clone or that contains the state directory, and can be replayed without complaint. With the
+service stopped first, play the command as long as the drop-in exists: without it, the step no longer knows the
+project.
 
-**Rien de ce que l'origine n'a pas ne part en silence.** À blanc, la commande nomme tout ce que le
-clone et ses worktrees portent et qui serait perdu : les commits d'aucune branche de l'origine —
-têtes détachées comprises —, les remises (`git stash`), les fichiers non commités. **Tant qu'il en
-reste, `--confirm` refuse** : pousse-les ou défais-les, puis rejoue. Si le clone n'y est déjà
-plus, les worktrees qui restent sous le répertoire d'état sont annoncés puis retirés tels quels —
-sans leur clone, git ne peut plus dire ce qu'ils portent.
+**Nothing that origin does not have leaves silently.** As a dry run, the command names everything the
+clone and its worktrees carry that would be lost: commits on no branch of origin —
+detached heads included —, stashes (`git stash`), uncommitted files. **As long as any
+remain, `--confirm` refuses**: push them or undo them, then replay. If the clone is already gone,
+the worktrees remaining under the state directory are announced and then removed as they are —
+without their clone, git can no longer say what they carry.
 
-| Ce qui reste | Où | Qu'en faire |
+| What remains | Where | What to do with it |
 |---|---|---|
-| Le journal, les flux des cooks, les sauvegardes | `/var/lib/brigade/<projet>/` et ta destination de sauvegarde | l'histoire de la cuisine. `sudo rm -rf` si tu n'en veux plus |
-| Les gabarits d'unités `brigade*` (dont `brigade-porte@.service`), leur réglage `compte.conf`, le geste `brigade`, sa règle et le groupe `brigade-chefs` | `/etc/systemd/system/`, `/usr/local/bin/`, `/etc/sudoers.d/brigade` | ils servent les autres projets de la machine — **la porte d'un projet, elle, est partie avec lui** (instance et drop-ins retirés ci-dessus) ; à retirer avec le dernier. Les comptes des humains sont à eux, pas à un projet |
-| Les labels, `.claude/brigade/`, le bloc de bindings | le dépôt | ne font rien sans brigade. Les gates et le setup servent à n'importe quel dev ; garde-les ou retire-les par une PR ordinaire |
-| Les branches `cook/*`, les PR ouvertes, les commentaires de cook | le dépôt GitHub | des branches, des PR et des commentaires ordinaires : merge, ferme, supprime comme les tiens |
+| The log, the cooks' streams, the backups | `/var/lib/brigade/<project>/` and your backup destination | the history of the kitchen. `sudo rm -rf` if you no longer want it |
+| The `brigade*` unit templates (including `brigade-porte@.service`), their `compte.conf` setting, the `brigade` step, its rule and the `brigade-chefs` group | `/etc/systemd/system/`, `/usr/local/bin/`, `/etc/sudoers.d/brigade` | they serve the machine's other projects — **a project's door, for its part, left with it** (instance and drop-ins removed above); remove with the last one. The humans' accounts are theirs, not a project's |
+| The labels, `.claude/brigade/`, the bindings block | the repository | do nothing without brigade. The gates and the setup serve any dev; keep them or remove them through an ordinary PR |
+| The `cook/*` branches, the open PRs, the cooks' comments | the GitHub repository | ordinary branches, PRs and comments: merge, close, delete them like your own |
 
-**Le dépôt reste un dépôt ordinaire.** Ses issues, ses PR et son historique ne portent aucune
-dépendance à brigade : aucun hook, aucune CI, aucun fichier que le projet charge à l'exécution.
+**The repository stays an ordinary repository.** Its issues, its PRs and its history carry no
+dependency on brigade: no hook, no CI, no file the project loads at runtime.
 
-## Sur le poste de dev
+## On the dev workstation
 
-La commande se joue aussi sans systemd, pour éprouver un dépôt avant de toucher la box — avec les
-variables posées à la main, et un clone réservé à l'essai :
+The command can also be played without systemd, to try a repository before touching the box — with the
+variables set by hand, and a reserved clone for the trial:
 
 ```bash
-BRIGADE_STATE_DIR=<état de l'essai> BRIGADE_PROJECT=<projet> BRIGADE_GITHUB_REPO=<owner>/<repo> \
-  BRIGADE_REPO_DIR=<un clone réservé à cet essai> BRIGADE_BASE_BRANCH=<branche> \
+BRIGADE_STATE_DIR=<trial state> BRIGADE_PROJECT=<project> BRIGADE_GITHUB_REPO=<owner>/<repo> \
+  BRIGADE_REPO_DIR=<a clone reserved for this trial> BRIGADE_BASE_BRANCH=<branch> \
   npm --prefix runtime run installation
 ```
 
-Le calibrage du manager et du reviewer n'est pas une variable : il se pose au journal de l'essai,
-par `npm --prefix runtime run station -- manager-modele sonnet` (et ses trois pareils).
+The manager and reviewer calibration is not a variable: it is set in the trial's log,
+through `npm --prefix runtime run station -- manager-modele sonnet` (and its three siblings).
 
-## Ce que seule une vraie box prouvera
+## What only a real box will prove
 
-Une session de dev n'a ni systemd, ni `sudo`, ni `sshd`, ni serveur neuf : ce parcours y est
-prouvé contre des doublures. Le reste est une recette, à jouer **par quelqu'un qui n'a pas
-installé la première box**, sur un serveur neuf, en notant **ce qui a résisté** et **combien de
-gestes il a fallu** — la mesure de référence est en tête de ce document.
+A dev session has no systemd, no `sudo`, no `sshd`, no new server: this flow is proven there
+against stand-ins. The rest is an acceptance run, to be played **by someone who did not
+install the first box**, on a new server, noting **what resisted** and **how many
+steps it took** — the reference measure is at the top of this document.
 
-**Le parcours lui-même** (#315) :
+**The flow itself** (#315):
 
-1. Les gestes 1 à 10, dans l'ordre, sans ouvrir un autre document. À la fin, le premier ticket
-   s'arrête à la PR ouverte, et `brigade <projet> grant` montre le grant absent.
-2. Le geste 3 : l'installeur natif de `claude` pose bien son binaire sous `~/.local/bin` du
-   compte, et le lien de `/usr/local/bin` survit à une mise à jour de `claude`.
-3. Le geste 5 : `systemctl show -p User brigade@<projet>.service` rend `<compte>` (le réglage
-   `compte.conf` du gabarit vaut pour ses instances), et la règle écrite par `tee` passe
+1. Steps 1 to 10, in order, without opening another document. At the end, the first ticket
+   stops at the open PR, and `brigade <project> grant` shows the grant absent.
+2. Step 3: `claude`'s native installer does put its binary under the account's `~/.local/bin`,
+   and the `/usr/local/bin` link survives a `claude` update.
+3. Step 5: `systemctl show -p User brigade@<project>.service` returns `<account>` (the template's
+   `compte.conf` setting applies to its instances), and the rule written by `tee` passes
    `visudo -cf`.
-4. `PrivateTmp=yes` dans `brigade@.service` : un cook part et finit, et `brigade <projet>
-   installation` — lancée hors de l'unité — lit toujours la session Max.
-5. Les pièges, provoqués : sans `libatomic1`, `brigade <projet> installation` sort en `70` et le
-   nomme ; sans le lien de `claude`, elle le nomme en `MANQUE`.
-6. Ce que GitHub rend pour de vrai : `permissions.push` et l'état de la push protection, lus par
-   le geste 8 sous le compte de la box.
-7. `sudo git -C /opt/brigade status --porcelain` et `sudo git -C /opt/brigade log origin/v2..` ne
-   rendent rien à la fin (le clone est à `root`) :
-   **rien dans le code de brigade n'a eu à changer pour ce projet-là.**
-8. `brigade <projet> installation setup` : reporter la durée, le poids, et le verdict au plafond que les stations déclarent.
+4. `PrivateTmp=yes` in `brigade@.service`: a cook starts and finishes, and `brigade <project>
+   installation` — launched outside the unit — still reads the Max session.
+5. The traps, provoked: without `libatomic1`, `brigade <project> installation` exits `70` and
+   names it; without the `claude` link, it names it as `MISSING`.
+6. What GitHub really returns: `permissions.push` and the state of push protection, read by
+   step 8 under the box's account.
+7. `sudo git -C /opt/brigade status --porcelain` and `sudo git -C /opt/brigade log origin/v2..` return
+   nothing at the end (the clone belongs to `root`):
+   **nothing in brigade's code had to change for this project.**
+8. `brigade <project> installation setup`: report the duration, the weight, and the verdict against the cap the stations declare.
 
-**La désinstallation d'un projet sous cloison** (#366) — rien de systemd ne s'y joue ici. Sur la box,
-sur un projet d'essai **sous cloison**, puis sur un projet **sans** : le bloc de « Désinstaller » sort
-en `0` pour les deux (`disable --now` d'une instance jamais activée ne rougit pas) ; après lui,
-`systemctl is-enabled brigade-porte@<projet>.service` ne rend plus `enabled`, aucun process de la
-porte ne tourne et `/etc/systemd/system/brigade-porte@<projet>.service.d` n'existe plus.
+**Uninstall a partitioned project** (#366) — nothing of systemd is played here. On the box,
+on a trial project **under partition**, then on a project **without**: the block of "Uninstall" exits
+`0` for both (`disable --now` of an instance never enabled does not go red); after it,
+`systemctl is-enabled brigade-porte@<project>.service` no longer returns `enabled`, no door
+process is running and `/etc/systemd/system/brigade-porte@<project>.service.d` no longer exists.
 
-**Le geste contre une vraie unité** : ce que `systemctl show` rend d'une valeur qui contient un
-espace, et la règle `sudoers` qui le nomme. Ses tests le jouent contre des doublures.
+**The step against a real unit**: what `systemctl show` returns for a value containing a
+space, and the `sudoers` rule that names it. Its tests play it against stand-ins.
 
-**L'accès à la box** (#314) — ni `sshd`, ni `sudo`, ni un second humain n'ont pu être éprouvés :
+**Access to the box** (#314) — neither `sshd`, nor `sudo`, nor a second human could be tried:
 
-1. Depuis ta machine, les deux vérifications : `ssh -o BatchMode=yes <box> true` (geste 2) et
-   `ssh -o BatchMode=yes <box> brigade <projet> installation` (geste 8) rendent ce que leurs
-   tableaux disent.
-2. « Ajouter un humain » pour un compte d'essai, puis sa vérification : `0`. Retiré du groupe
-   (`gpasswd -d`) : **`68`**, et la phrase du geste — c'est `sudo -n` contre un vrai `sudoers`
-   qui le dit, les tests ne le jouent que contre une doublure. **`68` aussi** (#329), et non `1`,
-   pour un compte hors du groupe à qui `sudo` donne tout contre son mot de passe
-   (`%sudo ALL=(ALL:ALL) ALL`) et qui porte une entrée `NOPASSWD` sans rapport. Ce même compte,
-   dans un terminal (`ssh -t <box> 'brigade <projet> status < /dev/null'`) : `sudo` demande son
-   mot de passe, et la commande part.
-3. Un compte enfermé par `ForceCommand` : `sshd -T -C user=…` le nomme.
+1. From your machine, the two checks: `ssh -o BatchMode=yes <box> true` (step 2) and
+   `ssh -o BatchMode=yes <box> brigade <project> installation` (step 8) return what their
+   tables say.
+2. "Add a human" for a trial account, then its check: `0`. Removed from the group
+   (`gpasswd -d`): **`68`**, and the step's sentence — it is `sudo -n` against a real `sudoers`
+   that says it, the tests play it only against a stand-in. **`68` too** (#329), and not `1`,
+   for an account outside the group to whom `sudo` gives everything against their password
+   (`%sudo ALL=(ALL:ALL) ALL`) and who carries an unrelated `NOPASSWD` entry. That same account,
+   in a terminal (`ssh -t <box> 'brigade <project> status < /dev/null'`): `sudo` asks for its
+   password, and the command goes.
+3. An account locked in by `ForceCommand`: `sshd -T -C user=…` names it.
