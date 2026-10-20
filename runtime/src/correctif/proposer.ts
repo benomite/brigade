@@ -7,7 +7,7 @@
 //
 // Le lancement est celui d'un jugement du manager (`juger.ts`) : ni outil, ni
 // worktree, sous les garde-fous de la cuisine. Rien n'est appliqué ici.
-import { execFileSync } from "node:child_process";
+import { execFileSync } from "../sans-invite.ts";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";

@@ -18,7 +18,7 @@
 //   0  jeton rangé (ou déjà rangé)
 //   1  connexion non faite, dite en une ligne
 //   2  refus : ni root ni le compte de la station, ou un argument
-import { spawn } from "node:child_process";
+import { spawn } from "../sans-invite.ts";
 import { accessSync, chmodSync, constants, existsSync, lstatSync, mkdirSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { userInfo } from "node:os";
 import { delimiter, dirname, join } from "node:path";

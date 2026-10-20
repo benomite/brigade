@@ -3,7 +3,7 @@
 // fini. Rien d'autre que le binaire : ni SDK, ni API, ni lecture des
 // identifiants — c'est `claude` qui porte la connexion Max de la machine, ou le
 // jeton longue durée que `claude setup-token` a créé pour elle (`jeton-claude.ts`).
-import { execFile } from "node:child_process";
+import { execFile } from "./sans-invite.ts";
 import type { Calibrage } from "./calibrage.ts";
 import type { FinDeCook } from "./events/station.ts";
 import { CONSIGNE_DE_RETRO } from "./apprentissage/retro.ts";

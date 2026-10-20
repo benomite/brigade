@@ -8,7 +8,7 @@
 // qu'elle ne sait pas lire, puis demande à `git` quels fichiers il toucherait
 // et s'il s'applique tel quel à la base. Un seul fichier hors des consignes, et
 // tout le diff est écarté.
-import { execFileSync } from "node:child_process";
+import { execFileSync } from "../sans-invite.ts";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

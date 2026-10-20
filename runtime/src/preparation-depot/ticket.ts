@@ -3,7 +3,7 @@
 // qu'il a le droit de joindre. Ce module n'en écrit que le contenu : son
 // titre, ses labels, et le corps qui dit au cook quoi livrer et comment
 // l'éprouver.
-import { execFileSync } from "node:child_process";
+import { execFileSync } from "../sans-invite.ts";
 import { LABEL } from "../github.ts";
 import { SCRIPT_GATES, SCRIPT_SETUP } from "../gates.ts";
 import { DECLARATION_RESEAU } from "../reseau.ts";

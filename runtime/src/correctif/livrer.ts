@@ -13,7 +13,7 @@
 // Une correction acceptée a une PR au plus. Une livraison morte avec le
 // runtime est relue au démarrage suivant : sa PR, si GitHub la porte, est la
 // sienne ; sinon une autre part.
-import { execFileSync } from "node:child_process";
+import { execFileSync } from "../sans-invite.ts";
 import { randomUUID } from "node:crypto";
 import type { Depot } from "../depot.ts";
 import type { Evenement } from "../evenements.ts";

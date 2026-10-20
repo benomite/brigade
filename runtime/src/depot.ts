@@ -1,7 +1,7 @@
 // Les gestes git de la station sur le dépôt du projet. Son clone ne sert que
 // de souche : elle y rapatrie la base et y accroche des worktrees, jamais elle
 // n'y change de branche ni n'y écrit un fichier. Seul module qui lance `git`.
-import { execFile, execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "./sans-invite.ts";
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";

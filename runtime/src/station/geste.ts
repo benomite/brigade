@@ -9,7 +9,7 @@
 // qui sont au dev et feraient exécuter n'importe quel fichier sous le compte
 // de la station, ni `start`. Elle part avec l'environnement que la station
 // donne au projet, et son code de sortie est rendu tel quel.
-import { spawnSync } from "node:child_process";
+import { spawnSync } from "../sans-invite.ts";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { CONFIGURATION, environnementDuProjet, lireFichierDeConfiguration } from "./configuration.ts";

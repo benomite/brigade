@@ -20,7 +20,7 @@
 // Une livraison morte avec le runtime est relue au réveil suivant : sa PR, si
 // GitHub la porte, est la sienne ; sinon elle est dite non livrée, et le
 // jugement suivant la refait.
-import { execFileSync } from "node:child_process";
+import { execFileSync } from "../sans-invite.ts";
 import { randomUUID } from "node:crypto";
 import { CARNET_PATH, CarnetError, parseCarnet, readCarnet, saveCarnet, type Carnet } from "../carnet/carnet.ts";
 import { retrosDuProjet } from "../apprentissage/provisoires.ts";

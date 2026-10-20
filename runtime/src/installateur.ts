@@ -23,7 +23,7 @@
 // pose une variable de son choix, et les seules qu'il écrit sont celles de
 // VARIABLES_POSEES — ni secret, ni clé, ni chemin vers les identifiants du
 // compte Max, ni rien qui donne la production d'un projet à la box.
-import { execFile } from "node:child_process";
+import { execFile } from "./sans-invite.ts";
 import { existsSync, lchownSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, rmdirSync, writeFileSync, type Stats } from "node:fs";
 import { createServer } from "node:net";
 import { dirname, join, normalize, sep } from "node:path";

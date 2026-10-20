@@ -2,7 +2,7 @@
 // plafonds, s'il se tait trop longtemps, ou si on le lui demande. Mécanique
 // pure : aucun journal ici, et rien qui soit propre à `claude` au-delà de la
 // forme de son flux.
-import { spawn } from "node:child_process";
+import { spawn } from "./sans-invite.ts";
 import { closeSync, createWriteStream, openSync, readFileSync, readSync, type WriteStream } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";

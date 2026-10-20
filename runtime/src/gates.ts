@@ -4,7 +4,7 @@
 // `.claude/brigade/worktree-setup.sh <n> <worktree>` n'imprime que des `export`,
 // `.claude/brigade/gates.sh <worktree>` a pour verdict son code de sortie. Seul
 // module qui lance les scripts du projet.
-import { spawn } from "node:child_process";
+import { envSansInvite, spawn } from "./sans-invite.ts";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { envelopper, type Cloison } from "./cloison.ts";
@@ -164,11 +164,13 @@ export async function jouerSetup(demande: DemandeScript): Promise<Setup> {
   if (!existsSync(script)) return { pret: true, joue: false, env: demande.env, sortie: "", masques: 0 };
   const { code, depasse, sortie, masques, canal } = await jouer(SETUP, [script, String(demande.ticket), demande.worktree], demande);
   if (code !== 0 || depasse) return { pret: false, depasse, code, sortie, masques };
+  // Ce que le lancement ajoute lui-même (les réglages sans invite) n'est pas un export du setup.
+  const lancee = envSansInvite(demande.env);
   const exports = canal
     .split("\0")
     .filter(Boolean)
     .map((ligne): [string, string] => [ligne.slice(0, ligne.indexOf("=")), ligne.slice(ligne.indexOf("=") + 1)])
-    .filter(([nom, valeur]) => !DU_SHELL.includes(nom) && !demande.interdites?.includes(nom) && demande.env[nom] !== valeur);
+    .filter(([nom, valeur]) => !DU_SHELL.includes(nom) && !demande.interdites?.includes(nom) && lancee[nom] !== valeur);
   return { pret: true, joue: true, env: { ...demande.env, ...Object.fromEntries(exports) }, sortie, masques };
 }
 

@@ -2,7 +2,7 @@
 // installée et le contenu d'un paquet, apt pour l'installer, systemd pour la
 // station. Rien d'autre n'est lancé, et toujours sans shell. C'est le seul
 // module de la mise à jour qui lance un programme du système.
-import { spawnSync } from "node:child_process";
+import { spawnSync } from "../sans-invite.ts";
 
 export const PAQUET = "brigade-station";
 export const SERVICE = "brigade-station.service";

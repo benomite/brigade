@@ -5,7 +5,7 @@
 // runtime et ce qu'il lance : ce que lui seul doit lire (l'état, les secrets
 // et les clés de tous les projets) est masqué, et rien n'est rendu que le
 // worktree du lancement. Seul module qui sait comment `bwrap` se pilote.
-import { execFileSync } from "node:child_process";
+import { execFileSync } from "./sans-invite.ts";
 import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { Fait } from "./evenements.ts";

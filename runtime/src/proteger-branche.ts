@@ -20,7 +20,7 @@
 // des identifiants — est activée au passage quand GitHub l'accepte. Elle ne
 // retient pas l'étape : sur un dépôt privé, elle réclame un plan que le chef
 // n'a pas forcément, et la station reste alors la seule barrière.
-import { execFile } from "node:child_process";
+import { execFile } from "./sans-invite.ts";
 import { existsSync } from "node:fs";
 import { configRail } from "./alimenter.ts";
 import { Sortie, type Appel } from "./appel.ts";

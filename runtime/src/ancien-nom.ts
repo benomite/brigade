@@ -6,7 +6,7 @@
 // Le nom tapé est celui du script que `npm` lance (`npm_lifecycle_event`).
 // Lancé autrement, ce fichier ne sait pas quelle commande il remplace : il le
 // dit et sort en 2.
-import { spawnSync } from "node:child_process";
+import { spawnSync } from "./sans-invite.ts";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { direAncien, parAncienNom } from "./commandes.ts";

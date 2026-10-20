@@ -18,7 +18,7 @@
 // désinstallation du runtime (`installation.ts`), qu'ils sont inventoriés puis
 // retirés — avec tout ce qu'elle refuse : un runtime qui tourne, un clone qui
 // contient l'état, ce que l'origine n'a pas.
-import { spawn } from "node:child_process";
+import { spawn } from "./sans-invite.ts";
 import { existsSync, lstatSync, readdirSync, realpathSync, rmdirSync, rmSync } from "node:fs";
 import { join, sep } from "node:path";
 import type { Rendu } from "./desinstaller-sous-le-compte.ts";

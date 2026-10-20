@@ -11,7 +11,7 @@
 // lecture seule, pour y trouver la connexion Max telle que la station la tient.
 import { deduireLesHotes } from "./reseau-cli.ts";
 import { DECLARATION_RESEAU, lireDeclaration } from "./reseau.ts";
-import { execFile, execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "./sans-invite.ts";
 import { accessSync, constants, existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import { homedir, userInfo } from "node:os";
 import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
