@@ -626,7 +626,15 @@ describe("rien de ce qui est au parking n'apparaît", () => {
   });
 
   test("un seul thème, sombre : ni thème clair, ni réglage de thème", () => {
-    for (const fichier of fichiers) assert.doesNotMatch(lire(fichier), /@media|color-scheme:(?!\s*dark;)|data-theme|matchMedia/, fichier);
+    // La seule requête admise est la largeur de la page étroite (#1186) : elle change la mise en page, jamais le thème.
+    const sansLaPageEtroite = (texte: string) => texte.replaceAll(/@media \(max-width: \d+px\)/g, "").replaceAll("window.matchMedia?.(ECRAN_ETROIT)", "");
+    for (const fichier of fichiers) assert.doesNotMatch(sansLaPageEtroite(lire(fichier)), /@media|color-scheme:(?!\s*dark;)|data-theme|matchMedia|prefers-color-scheme/, fichier);
+  });
+
+  test("la page étroite (#1186) a un seul seuil, le même dans la vue et dans sa peau", () => {
+    const seuil = /^const ECRAN_ETROIT = "(\(max-width: \d+px\))";$/m.exec(lire("vue.js"))?.[1];
+    assert.ok(seuil !== undefined, "vue.js nomme le seuil de la page étroite");
+    assert.deepEqual([...lire("vue.css").matchAll(/@media ([^{]*?)\s*\{/g)].map(([, requete]) => requete), [seuil]);
   });
 });
 
