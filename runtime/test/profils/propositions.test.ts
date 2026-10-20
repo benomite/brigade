@@ -150,6 +150,36 @@ test("« oui » écrit la définition du profil sous .claude/brigade/profils/ du
   assert.deepEqual(decider(options, 999_999, OUI), { issue: "inconnue" });
 });
 
+test("« oui » sur une proposition écrite avant l'origine des leçons écrit leur carnet en leçons nées d'une rétro", (t) => {
+  const { journal, repoDir, options } = cuisine(t, VINGT_POINTS);
+  const { origin: _origin, ...sansOrigine } = lecon("L-001", ["#2"]);
+  const ancienne = journal.ajouter({
+    project: PROJET,
+    ticket: null,
+    author: "runtime",
+    type: "profile.proposed",
+    payload: {
+      name: "app-src-vue",
+      zone: "app/src/vue",
+      tickets: [1, 2, 3, 4, 5],
+      window: 20,
+      zoneFirstTry: { first: 3, merged: 5 },
+      projectFirstTry: { first: 16, merged: 20 },
+      gap: 20,
+      settings: { window: REGLAGES.fenetre, minTickets: REGLAGES.tickets, gapPoints: REGLAGES.ecart },
+      skills: [],
+      perimeter: ["app/src/vue"],
+      notebook: [sansOrigine],
+    },
+    dedupKey: "profile.proposed:app/src/vue",
+  } as unknown as Parameters<Journal["ajouter"]>[0]);
+  assert.ok(ancienne);
+
+  assert.equal(decider(options, ancienne.seq, OUI).issue, "tranchee");
+  const texte = readFileSync(join(repoDir, ".claude/brigade/profils/app-src-vue.md"), "utf8");
+  assert.deepEqual(parseDefinition(texte).notebook, { lessons: [lecon("L-001", ["#2"])] });
+});
+
 test("« non » retire la proposition de la file, et le relevé refait sur les mêmes tickets ne la ramène pas", (t) => {
   const { journal, repoDir, options, proposer } = cuisine(t, [{ ticket: 90, zone: VUE }, ...VINGT_POINTS]);
   const [proposee] = proposer();
