@@ -29,6 +29,7 @@ import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { RENVOIS_MAX } from "./pass.ts";
 import { bilanSansGrant, controleRetenu, etatDeLaBase, lirePass, mergesAVerifier, passDuTicket, type PassDeTicket, type Phase } from "./projections/pass.ts";
 import { ConfigInvalide } from "./runtime.ts";
+import { DIRE_VERDICT } from "./second-juge.ts";
 
 const USAGE = [
   "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run pass -- [<ticket> [--json]]",
@@ -143,6 +144,11 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
           ...(verdict === "green" ? [] : findings.map(indenter)),
           ...(review?.findings ?? []).filter((finding) => finding.severity === "remark").map(constat),
         ];
+      }
+      case "pass.second-judged": {
+        const { verdict, reason, judge, model, effort, reviewer } = evenement.payload;
+        const par = judge === null ? "not launched" : `run ${judge}, ${model} / ${effort} — the reviewer reads in ${reviewer.model} / ${reviewer.effort}`;
+        return [`${tete}second judge (${par}): ${DIRE_VERDICT[verdict] ?? verdict}`, indenter(reason)];
       }
       case "pass.served":
         return [`${tete}served without a merge: nothing to merge, authorized by verdict no. ${evenement.payload.verdict}`];

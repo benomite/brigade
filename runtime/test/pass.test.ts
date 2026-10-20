@@ -804,6 +804,95 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusqua(() => gh.commentaires.some(([, corps]) => /touche à ce qui la juge/.test(corps)));
   });
 
+  // Une livraison qui touche à ses gates, sous grant : ce qui la fait passer devant le second juge.
+  const toucheSesGates = (relectures: string[]) => ({
+    grant: true,
+    reviewer: { suite: relectures },
+    depot: (depot: Depot): Depot => ({
+      ...depot,
+      changes: () => [".claude/brigade/gates.sh", "travail.txt"],
+      comptes: () => [{ fichier: ".claude/brigade/gates.sh", ajoutees: 5, retirees: 2 }, { fichier: "travail.txt", ajoutees: 9, retirees: 0 }],
+      diff: () => "+  npm test || true",
+    }),
+  });
+
+  test("une livraison qui touche à ses juges passe devant un second juge, distinct du reviewer et plus fort que lui : son verdict et sa raison s'écrivent au journal et sur la PR, une fois", async (t) => {
+    const { gh, journal, dernier, pass, jusquAu, compter, laisserTourner, relectures } = service(t, toucheSesGates(["relit-vert", "juge-affaibli"]));
+    await jusquAu("pass.second-judged");
+
+    const jugement = dernier("pass.second-judged", 17);
+    const relecture = dernier("pass.reviewed", 17);
+    const judge = String(jugement?.judge);
+    assert.match(judge, /^second-judge-17-/);
+    assert.deepEqual(jugement, {
+      run: dernier("pass.judged", 17)?.run,
+      sha: dernier("pass.judged", 17)?.sha,
+      judge,
+      // Le reviewer relit en haiku / medium : le second juge, en opus, un cran d'effort au-dessus.
+      model: "opus",
+      effort: "high",
+      reviewer: { model: "haiku", effort: "medium" },
+      review: relecture?.review,
+      verdict: "weakened",
+      reason: "`.claude/brigade/gates.sh` ne fait plus échouer les tests du runtime : leur code de sortie est avalé par `|| true`.",
+    });
+    // Deux juges, deux lancements distincts au journal, chacun sous son nom et son calibrage.
+    const lances = journal.tout().filter((e) => e.type === "cook.launched" && e.ticket === null).map((e) => charge(e));
+    assert.deepEqual(
+      lances.map(({ run, station, model, effort }) => [run, station, model, effort]),
+      [
+        [relecture?.review, "reviewer", "haiku", "medium"],
+        [judge, "second-judge", "opus", "high"],
+      ],
+    );
+    // Sa consigne ne pose que la question de l'affaiblissement, et ne lui dit rien de la relecture.
+    const [, consigneDuJuge] = relectures().map((lance) => lance.args[1] ?? "");
+    assert.match(consigneDuJuge ?? "", /Le contrôle est-il affaibli \?/);
+    assert.match(consigneDuJuge ?? "", /`not weakened`[\s\S]*`weakened`[\s\S]*`cannot establish`/);
+    assert.match(consigneDuJuge ?? "", /- \.claude\/brigade\/gates\.sh \(\+5 \/ -2\)/);
+    assert.ok(!(consigneDuJuge ?? "").includes("Le diff fait ce que le ticket demande."));
+    assert.deepEqual(relectures()[1]?.args.slice(relectures()[1]?.args.indexOf("--model"), (relectures()[1]?.args.indexOf("--effort") ?? 0) + 2), ["--model", "opus", "--effort", "high"]);
+    // Sur la PR — son numéro, pas celui de l'issue : le verdict, sa raison, et qui l'a rendu.
+    await jusqua(() => gh.commentaires.some(([numero, corps]) => numero === 101 && corps.startsWith("**Second juge — `weakened`.**")));
+    const corps = gh.commentaires.find(([numero]) => numero === 101)?.[1] ?? "";
+    assert.match(corps, /`\.claude\/brigade\/gates\.sh` ne fait plus échouer les tests du runtime/);
+    assert.match(corps, /second juge en `opus` \/ `high` \(run `second-judge-17-[^`]+`\) : un autre process que le reviewer, qui relit en `haiku` \/ `medium`/);
+    // Rien d'autre ne change : arrêtée, non mergée — et jugée une seule fois.
+    await laisserTourner();
+    assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause], ["held", "review-required", "judge-modified"]);
+    assert.deepEqual(gh.merges, []);
+    assert.deepEqual([compter("pass.second-judged"), relectures().length], [1, 2]);
+  });
+
+  for (const [scenario, verdict, raison] of [
+    ["juge-non-affaibli", "not-weakened", /^Les gates gagnent une étape/],
+    ["juge-incertain", "cannot-establish", /^Le workflow appelle un script/],
+    // Une réponse qui ne se lit pas n'établit rien.
+    ["relit-vert", "cannot-establish", /^Sa réponse ne se lit pas \(verdict inconnu : "vert"/],
+  ] as const) {
+    test(`le second juge qui répond « ${scenario} » : ${verdict}, avec sa raison`, async (t) => {
+      const { gh, dernier, jusquAu } = service(t, toucheSesGates(["relit-vert", scenario]));
+      await jusquAu("pass.second-judged");
+
+      assert.equal(dernier("pass.second-judged", 17)?.verdict, verdict);
+      assert.match(String(dernier("pass.second-judged", 17)?.reason), raison);
+      const dit = { "not-weakened": "not weakened", "cannot-establish": "cannot establish" }[verdict];
+      await jusqua(() => gh.commentaires.some(([numero, corps]) => numero === 101 && corps.startsWith(`**Second juge — \`${dit}\`.**`)));
+    });
+  }
+
+  test("une livraison qui ne touche pas à ses juges ne passe devant aucun second juge", async (t) => {
+    const { gh, journal, compter, jusquAu, laisserTourner, relectures } = service(t, { grant: true });
+    await jusqua(() => gh.merges.length === 1);
+    await jusquAu("merge.done");
+    await laisserTourner();
+
+    assert.equal(compter("pass.second-judged"), 0);
+    assert.deepEqual(journal.tout().filter((e) => e.type === "cook.launched" && e.ticket === null).map((e) => charge(e).station), ["reviewer"]);
+    assert.equal(relectures().length, 1);
+    assert.ok(!gh.commentaires.some(([, corps]) => corps.startsWith("**Second juge")));
+  });
+
   for (const [quoi, declaration, aRelire] of [
     ["du réseau", ".claude/brigade/reseau", /chaque hôte qu'elle ajoute s'ouvre aux cooks suivants du projet/],
     ["des secrets", ".claude/brigade/secrets", /chaque nom qu'elle ajoute est une valeur de la machine remise aux cooks suivants/],

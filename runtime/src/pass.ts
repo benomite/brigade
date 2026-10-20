@@ -81,6 +81,7 @@ import {
   type MotifDAttente,
   type Review,
   type Verdict,
+  type VerdictDuSecondJuge,
 } from "./events/pass.ts";
 import type { FaitStation } from "./events/station.ts";
 import { direMasquage } from "./identifiants.ts";
@@ -120,6 +121,7 @@ import { GesteRefuse, nomAbandon } from "./rail.ts";
 import { corpsDeReparation, echecsDesGates, LABELS_REPARATION, shaDeReparation, titreDeReparation } from "./reparation.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
 import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, debutDeRelecture, diffCoupe, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
+import { calibrageDuSecondJuge, consigneDuSecondJuge, debutDuSecondJugement, DIRE_VERDICT, lireSecondJugement, SECOND_JUGE } from "./second-juge.ts";
 import { estUneLivraisonDeCorrection } from "./correctif/livrer.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { DECLARATION, lireSecrets } from "./secrets.ts";
@@ -142,6 +144,8 @@ const DECLARATIONS: Record<string, string> = {
   [DECLARATION]: "chaque nom qu'elle ajoute est une valeur de la machine remise aux cooks suivants du projet",
 };
 const WORKFLOWS = ".github/workflows";
+// Ce que l'arrêt d'une livraison qui touche à ses juges dit de son second juge.
+const SECOND_JUGE_APPELE = "Un second juge, distinct du reviewer et plus fort que lui, va dire si elle affaiblit le contrôle : son verdict s'écrira sur la PR.";
 // Un quota épuisé qui ne dit pas quand il revient est retenté une heure après.
 const REPLI_QUOTA_MS = 3_600_000;
 
@@ -165,9 +169,10 @@ const DELAI_PAR_DEFAUT_S = 1800;
 // L'horloge de GitHub n'est pas celle du runtime : une issue de réparation se
 // cherche à partir d'un peu avant l'annonce de sa création.
 const MARGE_MS = 600_000;
-// Les worktrees jetables de la pass : celui d'un jugement, par ticket, et
-// celui de la base.
+// Les worktrees jetables de la pass : celui d'un jugement et celui d'un second
+// jugement, par ticket, et celui de la base.
 const essaiDeJugement = (ticket: number) => `jugement-${ticket}`;
+const essaiDuSecondJuge = (ticket: number) => `second-jugement-${ticket}`;
 const ESSAI_DE_BASE = "base";
 
 export type ConfigPass = {
@@ -574,6 +579,24 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     for (const station of stationsAnnoncees(base)) noter(null, fait(station));
   };
 
+  // Un compte épuisé ou déconnecté, vu par un juge de la pass — `qui` : par
+  // lequel : il se dit des stations, et rien n'est jugé. Vrai si c'en est un.
+  const compteEnPanne = (comment: ReturnType<typeof finDuFlux>, flux: Lecture | null, run: string, qui: string): boolean => {
+    if (comment === "86") {
+      const instant = maintenant();
+      const annonce = flux?.quota?.retour ?? null;
+      const retour = annonce !== null && annonce > instant ? annonce : new Date(instant.getTime() + REPLI_QUOTA_MS);
+      noterDesStations((station) => ({ type: "station.86", payload: { station, reason: "quota", until: retour.toISOString(), window: flux?.quota?.fenetre ?? null } }));
+      return true;
+    }
+    if (comment === "disconnected") {
+      noterDesStations((station) => ({ type: "station.disconnected", payload: { station, reason: "authentication_failed", run } }));
+      avertir(`brigade : connexion Max absente ou expirée, vue par ${qui} — \`claude /login\` sous le compte du service — la cuisine reprend seule dans la minute`);
+      return true;
+    }
+    return false;
+  };
+
   // Ce que le cook qui a livré a dit, tel que la station l'a rapporté :
   // `livrable`, ce qu'il a délimité — nul s'il n'a rien délimité, ou si le
   // journal date d'avant la délimitation —, et `message`, son dernier message
@@ -719,18 +742,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const flux = lecture as Lecture | null;
     const relecture = lue as ReturnType<typeof lireRelecture> | null;
     const comment = fin.arret || !flux ? "failed" : finDuFlux(flux, fin.code);
-    if (comment === "86") {
-      const instant = maintenant();
-      const annonce = flux?.quota?.retour ?? null;
-      const retour = annonce !== null && annonce > instant ? annonce : new Date(instant.getTime() + REPLI_QUOTA_MS);
-      noterDesStations((station) => ({ type: "station.86", payload: { station, reason: "quota", until: retour.toISOString(), window: flux?.quota?.fenetre ?? null } }));
-      return null;
-    }
-    if (comment === "disconnected") {
-      noterDesStations((station) => ({ type: "station.disconnected", payload: { station, reason: "authentication_failed", run: review } }));
-      avertir(`brigade : connexion Max absente ou expirée, vue par une relecture du reviewer — \`claude /login\` sous le compte du service — la cuisine reprend seule dans la minute`);
-      return null;
-    }
+    if (compteEnPanne(comment, flux, review, "une relecture du reviewer")) return null;
     // Le modèle a refusé de relire. Ce n'est pas une panne : la relecture
     // repart au réveil suivant, mais pas sans fin — au-delà, elle remonte.
     if (comment === "refused") {
@@ -792,6 +804,150 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         ? `Le reviewer a relu cette livraison, mais sa réponse ne se lit pas (${pourquoi}) : ni verte ni rouge. Son flux brut est dans ${flux[0]}.`
         : `Le reviewer a relu cette livraison ${flux.length} fois — la relecture lui a été redemandée ${nombre(flux.length - 1)} fois, sans relancer de cook —, et aucune de ses réponses ne se lit (la dernière : ${pourquoi}) : ni verte ni rouge. Leurs flux bruts sont dans ${flux.join(", ")}.`,
     );
+  };
+
+  // Le second jugement d'une livraison (le run du cook, son commit), s'il est
+  // rendu. Lu au journal, il tient après un redémarrage.
+  const secondJugement = (ticket: number, run: string, sha: string) =>
+    journal.duTicket(ticket).findLast((evenement) => evenement.type === "pass.second-judged" && evenement.payload.run === run && evenement.payload.sha === sha) ?? null;
+
+  // Une livraison verte qui touche à ses juges, arrêtée pour cela, est jugée
+  // une seconde fois — une seule par livraison : par un autre juge que le
+  // reviewer, plus fort que lui, qui ne lit ni sa relecture ni son verdict, et
+  // à qui l'on ne demande qu'une chose : le contrôle est-il affaibli ? Son
+  // verdict et sa raison s'écrivent au journal et sur la PR. Rien d'autre ne
+  // change : la livraison reste arrêtée, à merger à la main.
+  const jugerUneSecondeFois = async (connu: PassDeTicket): Promise<void> => {
+    const { ticket, run, sha, number, pr, judgedBase } = connu;
+    if (connu.phase !== "held" || connu.reason !== A_RELIRE || !connu.judgeModified || sha === null || number === null) return;
+    if (!enPass(ticket) || secondJugement(ticket, run, sha) !== null || !peutRelire()) return;
+    const reviewer = options.decisions?.reviewer() ?? options.reviewer.calibrage;
+    const review = connu.review?.cook === run && connu.review.sha === sha ? connu.review.run : null;
+
+    const rendre = async (verdict: VerdictDuSecondJuge, reason: string, lance: { judge: string; model: string; effort: string } | null, masques = 0) => {
+      // Le ticket a pu quitter le rail, ou la livraison changer, pendant qu'il jugeait.
+      const actuel = passDuTicket(base, ticket);
+      if (arrete || !enPass(ticket) || actuel?.run !== run || actuel.sha !== sha || actuel.phase !== "held" || secondJugement(ticket, run, sha) !== null) return;
+      noter(ticket, { type: "pass.second-judged", payload: { run, sha, judge: lance?.judge ?? null, model: lance?.model ?? null, effort: lance?.effort ?? null, reviewer, review, verdict, reason } });
+      avertir(`brigade : second juge sur ${connu.horsRail ? `la PR #${ticket}, hors du rail,` : `le ticket #${ticket}`}, qui touche à ses juges — ${DIRE_VERDICT[verdict]}${lance ? ` (\`${lance.model}\` / \`${lance.effort}\`)` : ", sans avoir été lancé"}`);
+      const qui = lance
+        ? `_Jugé par le second juge en \`${lance.model}\` / \`${lance.effort}\` (run \`${lance.judge}\`) : un autre process que le reviewer, qui relit en \`${reviewer.model}\` / \`${reviewer.effort}\`, plus fort que lui, et qui n'a lu ni sa relecture ni son verdict. Sa seule question : le contrôle est-il affaibli ?_`
+        : `_Le second juge n'a pas été lancé : ce verdict est celui de la pass, faute de pouvoir le lui demander._`;
+      await commenter(
+        number,
+        [
+          `**Second juge — \`${DIRE_VERDICT[verdict]}\`.** \`${court(sha)}\`${pr ? ` · ${pr}` : ""}`,
+          "",
+          reason,
+          "",
+          qui,
+          ...(masques > 0 ? ["", direMasquage(masques, "ce que le second juge a dit — son flux brut, d'où vient ce verdict")] : []),
+        ].join("\n"),
+      );
+    };
+
+    const calibrage = calibrageDuSecondJuge(reviewer);
+    if (calibrage === null) {
+      return rendre("cannot-establish", `Aucun calibrage n'est plus fort que celui du reviewer (\`${reviewer.model}\` / \`${reviewer.effort}\`) : le second juge doit l'être, et rien ne peut le remplacer.`, null);
+    }
+    const issue = await github.issue(ticket);
+    if (arrete || !issue) return;
+    const ref = connu.branch === null ? null : depot.livree(connu.branch);
+    const verdictDeLaPass = journal.duTicket(ticket).findLast((evenement) => evenement.type === "pass.judged" && evenement.payload.run === run && evenement.payload.sha === sha);
+    const juges = verdictDeLaPass?.type === "pass.judged" ? (verdictDeLaPass.payload.judges ?? []) : [];
+
+    const nom = essaiDuSecondJuge(ticket);
+    let worktree: string | null = null;
+    let panne: string | null = null;
+    try {
+      depot.jeter(nom);
+      worktree = ref === null || judgedBase === null ? null : ((await depot.fusionner(nom, judgedBase, sha))?.worktree ?? null);
+    } catch (erreur) {
+      panne = message(erreur);
+    }
+    try {
+      if (arrete) return;
+      if (worktree === null || ref === null) {
+        return await rendre("cannot-establish", `La livraison (\`${court(sha)}\`) ne se fusionne plus avec \`${options.base}\` (\`${court(judgedBase)}\`)${panne === null ? "" : ` — ${panne}`} : le second juge n'a rien à lire.`, null);
+      }
+      const consigne = consigneDuSecondJuge({
+        depot: options.depotGitHub,
+        base: options.base,
+        pr: number,
+        ticket: { number: ticket, title: issue.title, body: issue.body ?? "" },
+        juges,
+        diff: { fichiers: depot.changes(ref), texte: depot.diff(ref) },
+      });
+      const poids = Buffer.byteLength(consigne);
+      if (poids > CONSIGNE_MAX) {
+        return await rendre("cannot-establish", `La consigne du second juge pèse ${nombre(poids)} octets, plus que ce qu'une commande accepte (${nombre(CONSIGNE_MAX)}) : il n'a pas pu être lancé.`, null);
+      }
+
+      const judge = `${debutDuSecondJugement(ticket)}${randomUUID().slice(0, 8)}`;
+      let lecture: Lecture | null = null;
+      const conclure = (fin: Fin): VerdictGarde => {
+        let flux = "";
+        try {
+          flux = readFileSync(join(options.repertoireEtat, "runs", `${judge}.jsonl`), "utf8");
+        } catch {
+          // Sans flux, il n'y a pas de jugement.
+        }
+        lecture = lireFlux(flux);
+        if (fin.arret) return "failed";
+        const comment = finDuFlux(lecture, fin.code);
+        if (comment === "86" || comment === "disconnected") return "neutral";
+        if (comment === "refused") return "refused";
+        return comment === "done" ? "neutral" : "failed";
+      };
+      let lance: CookLance;
+      try {
+        lance = runtime.lancer({
+          // Hors ticket, comme une relecture : c'est `pass.second-judged` qui le
+          // rattache à la livraison. Sous son nom à lui, pas celui du reviewer.
+          ticket: null,
+          run: judge,
+          contexte: { station: SECOND_JUGE, ...calibrage },
+          // Il juge : le worktree et le dépôt lui sont rendus en lecture seule.
+          ...envelopper(options.cloison, { commande: options.bin, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(consigne, calibrage), worktree) }, { cwd: worktree, depot: "lecture" }),
+          cwd: worktree,
+          env: environnementClaude(envGates, options.env ?? process.env),
+          masquer: masqueDe(worktree),
+          juger: conclure,
+        });
+      } catch (erreur) {
+        if (erreur instanceof LancementRefuse) return;
+        throw erreur;
+      }
+      const guetter = runtime.surSondage(() => {
+        if (!enPass(ticket)) lance.arreter();
+      });
+      const fin = await lance.fin.finally(guetter);
+      if (arrete || fin.outcome === "stop" || fin.outcome === "interrupted") return;
+      const flux = lecture as Lecture | null;
+      const comment = fin.arret || !flux ? "failed" : finDuFlux(flux, fin.code);
+      if (compteEnPanne(comment, flux, judge, "le second juge")) return;
+      const fait = { judge, ...calibrage };
+      // Un refus n'est ni une panne ni un verdict : il ne s'établit rien.
+      if (comment === "refused") return await rendre("cannot-establish", `Le modèle a refusé de juger (${direRefus(flux)}). Son flux brut est dans \`runs/${judge}.jsonl\`.`, fait, fin.masques);
+      // Le reste — panne, arrêt par un garde-fou — dit quelque chose de la
+      // machine : rien n'est écrit, il repart au réveil suivant.
+      if (comment !== "done" || !flux) {
+        const raison = fin.arret ? `guard:${fin.arret.reason}` : (fin.erreur ?? (fin.code === null ? `signal ${fin.signal}` : `code de sortie ${fin.code}`));
+        avertir(`brigade : second juge du ticket #${ticket} non abouti (${raison}) — il sera relancé`);
+        return;
+      }
+      const lu = lireSecondJugement(flux.message);
+      if ("illisible" in lu) return await rendre("cannot-establish", `Sa réponse ne se lit pas (${lu.illisible}). Son flux brut est dans \`runs/${judge}.jsonl\`.`, fait, fin.masques);
+      return await rendre(lu.verdict, lu.raison, fait, fin.masques);
+    } finally {
+      if (!arrete) {
+        try {
+          depot.jeter(nom);
+        } catch (erreur) {
+          avertir(`brigade : worktree jetable du second juge non retiré (${nom}) — ${message(erreur)}`);
+        }
+      }
+    }
   };
 
   // Écrit le verdict. Sur la livraison d'une relance du manager, il compte au
@@ -944,6 +1100,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       if (pr === null || number === null || sha === null) return null;
       if (connu.declarations.length > 0) {
         noter(ticket, { type: "pass.held", payload: { reason: A_RELIRE, cause: causeDeDeclarations(connu.declarations) } });
+        if (connu.judgeModified) aRefaire = true;
         return {
           commentaire: [
             `**Pass — verte, non mergée (\`${A_RELIRE}\`).** ${livraison}`,
@@ -951,7 +1108,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
             "Cette livraison touche à ce que le projet déclare au runtime pour s'ouvrir : la pass ne la merge jamais elle-même, grant ou pas. À relire avant de merger à la main :",
             ...connu.declarations.map((fichier) => `- \`${fichier}\` — ${DECLARATIONS[fichier] ?? "ce que le projet s'ouvre"} ;`),
             "- ce qu'elle en retire ou y réécrit, de même.",
-            ...(connu.judgeModified ? ["", `Elle touche aussi à ce qui la juge (${JUGES.map((juge) => `\`${juge}\``).join(", ")}).`] : []),
+            ...(connu.judgeModified ? ["", `Elle touche aussi à ce qui la juge (${JUGES.map((juge) => `\`${juge}\``).join(", ")}). ${SECOND_JUGE_APPELE}`] : []),
             "",
             `Mergée à la main, ${vuDeLaPass(connu.horsRail)}.`,
           ].join("\n"),
@@ -959,11 +1116,13 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       }
       if (connu.judgeModified) {
         noter(ticket, { type: "pass.held", payload: { reason: A_RELIRE, cause: JUGES_MODIFIES } });
+        // Son second juge part dès la passe qui suit.
+        aRefaire = true;
         return {
           commentaire: [
             `**Pass — verte, non mergée (\`${A_RELIRE}\`).** ${livraison}`,
             "",
-            `Cette livraison touche à ce qui la juge (${JUGES.map((juge) => `\`${juge}\``).join(", ")}) : la pass ne la merge jamais elle-même, grant ou pas. À relire et merger à la main — ${vuDeLaPass(connu.horsRail)}.`,
+            `Cette livraison touche à ce qui la juge (${JUGES.map((juge) => `\`${juge}\``).join(", ")}) : la pass ne la merge jamais elle-même, grant ou pas. ${SECOND_JUGE_APPELE} À relire et merger à la main — ${vuDeLaPass(connu.horsRail)}.`,
           ].join("\n"),
         };
       }
@@ -1506,7 +1665,13 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         return finir(connu.ticket);
       // GitHub n'est relu qu'au tick : une fois par minute suffit.
       // Fermée sans merge, sa PR peut encore être rouverte et mergée.
+      // Arrêtée parce qu'elle touche à ses juges, elle attend encore son
+      // second juge — lancé dès l'arrêt, ou au réveil qui suit ce qui le
+      // retenait : stop, disjoncteur, compte épuisé, redémarrage.
       case "held":
+        if (tick && (await surveiller(connu))) return;
+        await jugerUneSecondeFois(connu);
+        return;
       case "escalated":
       case "closed":
         if (tick) await surveiller(connu);

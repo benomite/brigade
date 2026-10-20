@@ -441,6 +441,9 @@ export const pass = definirProjection<Ecoutes>({
       };
       base.executer("UPDATE pass SET review = ? WHERE ticket = ?", JSON.stringify(relue), ticket);
     },
+    // The second judge's verdict changes nothing in the pass's state: it is
+    // read in the log, on the delivery it judged.
+    "pass.second-judged": () => {},
     "pass.judged": (base, { ticket, at, seq, payload }) => {
       const verdict = payload.verdict === "green" ? "green" : "red";
       passer(

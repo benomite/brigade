@@ -2,6 +2,11 @@
 // et le grant sous lequel elle merge.
 import type { Ressource } from "./station.ts";
 
+// Ce que le second juge répond d'une livraison qui touche à ses juges : le
+// contrôle n'est pas affaibli, il l'est, ou cela ne peut pas s'établir.
+export const VERDICTS_DU_SECOND_JUGE = ["not-weakened", "weakened", "cannot-establish"] as const;
+export type VerdictDuSecondJuge = (typeof VERDICTS_DU_SECOND_JUGE)[number];
+
 // La seule action qu'un grant couvre au jalon 1.
 export type ActionDeGrant = "merge";
 // Ce qui éteint un grant sans le chef : sa date, ou son compte d'usages.
@@ -226,6 +231,28 @@ export type FaitPass =
         judges?: Array<{ file: string; added: number; removed: number }>;
         declarations?: string[];
         noDiff: boolean;
+      };
+    }
+  // Une livraison verte qui touche à ses juges a été jugée par le second juge,
+  // sur ce commit (`run`, le cook ; `sha`) : écrit une fois par livraison. Sa
+  // seule question — le contrôle est-il affaibli ? — et sa réponse, avec sa
+  // raison. `judge` : son run, distinct de celui du reviewer, `model` et
+  // `effort` son calibrage — nuls s'il n'a pas été lancé : aucun calibrage
+  // n'est plus fort que celui du reviewer, ou sa fusion ne se fait plus.
+  // `reviewer` : le calibrage du premier reviewer à cet instant, et `review`
+  // le run de sa relecture — ce qui dit qu'il en est distinct et plus faible.
+  | {
+      type: "pass.second-judged";
+      payload: {
+        run: string;
+        sha: string;
+        judge: string | null;
+        model: string | null;
+        effort: string | null;
+        reviewer: { model: string; effort: string };
+        review: string | null;
+        verdict: VerdictDuSecondJuge;
+        reason: string;
       };
     }
   // L'intention de merger, écrite avant l'appel à GitHub : c'est l'usage du
