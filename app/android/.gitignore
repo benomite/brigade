@@ -1,0 +1,3 @@
+# Posé par app/packaging/android.ts à chaque construction : la vue d'app/src/vue/, ses dépendances
+# et le pont d'attente. Un artefact, jamais une source — la vue n'a qu'une copie, dans app/src/.
+www/

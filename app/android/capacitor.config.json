@@ -1,0 +1,13 @@
+{
+  "appId": "com.github.benomite.brigade",
+  "appName": "Brigade",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "appStartPath": "/src/vue/index.html"
+  },
+  "android": {
+    "path": "natif",
+    "minWebViewVersion": 89
+  }
+}

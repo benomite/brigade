@@ -5,6 +5,9 @@ Un `.dmg` pour Apple Silicon : glissée dans Applications, l'app s'ouvre sans cl
 parcours du chef est dans [`docs/app.md`](../../docs/app.md), « Lancer l'app » ; ici, ce que le
 `.dmg` porte et comment il se construit.
 
+L'APK Android se construit d'ici aussi, par sa propre commande : [« L'APK Android »](#lapk-android),
+plus bas.
+
 ## Construire
 
 Sur un Mac (Apple Silicon ou Intel), depuis un clone, avec Node 26 et les dépendances de l'app posées
@@ -131,3 +134,128 @@ Ils ne remplacent pas l'essai sur un Mac, de préférence un compte sans clone n
 
 Ce que la station dit s'écrit sur la sortie de l'app : lancée par
 `/Applications/Brigade.app/Contents/MacOS/Electron` dans un terminal, on le lit.
+
+# L'APK Android
+
+Un APK installable (`adb install`, ou ouvert depuis le téléphone) : l'enveloppe
+[Capacitor](https://capacitorjs.com) d'[`app/android/`](../android/) autour de **la même vue que
+l'app desktop**, `app/src/vue/`, posée telle quelle à chaque construction — le dépôt n'en garde
+aucune copie. Ni appairage, ni file, ni mises à jour : sur Android, la vue s'ouvre sur son premier
+écran, sans projet, derrière un pont d'attente (plus bas).
+
+## Construire l'APK
+
+Depuis un clone, sur Linux ou macOS, une seule commande :
+
+```sh
+node app/packaging/android.ts
+```
+
+écrit **`app/packaging/construit/Brigade-<version>.apk`** (ignoré par git) et dit son chemin :
+
+```
+brigade: Android app built — app/packaging/construit/Brigade-0.20261020.150000+gc9ccfe9.apk (version 0.20261020.150000+gc9ccfe9, debug-signed)
+```
+
+### Prérequis
+
+| Prérequis | Version | Où la commande le cherche |
+|---|---|---|
+| Node, et son `npm` | 26 au moins (`engines` de l'app) | celui qui lance la commande |
+| un JDK | 21 (de 21 à 24 : Capacitor 8 compile en Java 21, Gradle 8.14 ne tourne pas au-delà de 24) | `$JAVA_HOME/bin/java`, sinon le `java` du PATH |
+| le SDK Android | sa plateforme **android-36** (`sdkmanager "platforms;android-36"`) ; les build-tools qu'Android Gradle Plugin réclame sont posés par lui si les licences sont acceptées (`sdkmanager --licenses`) | `$ANDROID_HOME`, sinon `$ANDROID_SDK_ROOT` |
+| le réseau | le registre npm, `services.gradle.org` (Gradle, au premier lancement), Google Maven et Maven Central (les dépendances de Gradle) | — |
+
+Ils sont vérifiés **avant tout** : s'il en manque, la commande s'arrête (code 2), sans rien écrire,
+en les nommant tous, chacun avec de quoi le poser :
+
+```
+brigade: APK not built — missing prerequisites:
+  - a JDK 21: no `java` found (JAVA_HOME is not set, and none is on the PATH) — install a JDK 21 and set JAVA_HOME to it
+  - the Android SDK: ANDROID_HOME is not set — install the Android SDK (with `sdkmanager "platforms;android-36"`) and set ANDROID_HOME to it
+```
+
+Les dépendances de l'app (`app/node_modules`, où la vue prend xterm) sont posées par la commande si
+elles manquent (`npm ci --ignore-scripts --prefix app`, sans le binaire d'Electron).
+
+| Option (`node app/packaging/android.ts <option>`) | Sans elle |
+|---|---|
+| `--version <v>` | `0.<AAAAMMJJ>.<HHMMSS>+g<commit>`, comme le `.dmg` : c'est la `versionName` de l'APK |
+| `--sortie <dossier>` | `app/packaging/construit/` |
+
+Codes de sortie : 0 construit, 1 la construction a échoué (la sortie de `npm`, de `cap` ou de Gradle
+dit pourquoi), 2 refus — option invalide ou prérequis manquant, rien n'est écrit.
+
+### Ce que fait la commande
+
+1. Elle vérifie les prérequis.
+2. `npm ci` dans `app/android/` : Capacitor, à la version de son verrou.
+3. Elle pose `app/android/www/` (ignoré par git) : `src/vue/`, copié d'`app/src/vue/` ; ce que la vue
+   charge de `node_modules` (les fichiers d'xterm que nomme son `index.html`), au même chemin relatif
+   que dans l'app ; l'entrée que Capacitor réclame à sa racine (`app/android/web/index.html`) ; et
+   `android/pont.js`, le pont d'attente.
+4. `cap sync android` : `www/` est copié dans le projet Gradle, avec la configuration de Capacitor.
+5. `./gradlew assembleDebug` dans `app/android/natif/`, puis l'APK est copié dans `--sortie`.
+
+Rien n'y est pris « au plus récent » — à une même version du dépôt, les mêmes outils :
+
+| Quoi | Version | Épinglé dans |
+|---|---|---|
+| Capacitor (`@capacitor/android`, `core`, `cli`) | 8.5.3 | `app/android/package.json` et son verrou |
+| Gradle | 8.14.3, vérifié par sa somme SHA-256 | `app/android/natif/gradle/wrapper/gradle-wrapper.properties` |
+| Android Gradle Plugin | 8.13.0 | `app/android/natif/build.gradle` |
+| SDK visé, compilé, minimal | 36, 36, 24 (Android 7) | `app/android/natif/variables.gradle`, avec les versions d'AndroidX |
+| WebView minimale | 89 (les `importmap` de la vue) | `app/android/capacitor.config.json` |
+
+L'APK est **de debug** : signé par la clé de debug du SDK (`~/.android/debug.keystore`, créée par
+Gradle au premier besoin), il s'installe tel quel, mais pas sur un store, et deux machines le signent
+de deux clés différentes. Sa `versionCode` est 1.
+
+## Ce que porte `app/android/`
+
+| Chemin | Quoi |
+|---|---|
+| `capacitor.config.json` | l'identifiant de l'app, `com.github.benomite.brigade`, et son nom, `Brigade` — les mêmes que ceux du Mac ; la page où elle s'ouvre, `src/vue/index.html` |
+| `package.json`, `package-lock.json` | Capacitor, épinglé |
+| `web/index.html` | l'entrée que Capacitor réclame à la racine ; ouverte quand même, elle renvoie à la vue |
+| `web/pont.js` | le pont d'attente |
+| `natif/` | le projet Gradle (le gabarit de Capacitor 8.5.3) : `applicationId` et `app_name` y sont redits, `MainActivity` et `Pont.java` dans `com.github.benomite.brigade` |
+
+`www/`, `node_modules/`, et ce que `cap sync` et Gradle écrivent dans `natif/` (`capacitor.settings.gradle`,
+`app/capacitor.build.gradle`, `capacitor-cordova-android-plugins/`, `app/src/main/assets/`, `build/`)
+sont ignorés par git : la commande les repose à chaque construction. Pour ouvrir le projet dans
+Android Studio, la construire une fois, puis ouvrir `app/android/natif/`.
+
+## Le pont d'attente
+
+Sur le desktop, la vue reçoit `window.brigade` de `app/src/preload.cjs`, et derrière lui le process
+principal d'Electron, qui lit les projets, lance les terminaux, joint les stations. Sans lui, la vue
+s'arrête dès son chargement. Sur Android il n'y a pas de process principal : `app/android/web/pont.js`
+le remplace, injecté par `Pont.java` au début de chaque document de l'app, avant ses scripts.
+
+- `demarrage` rend ce que le process principal rendrait — palettes, onglets, gestes, libellés, lus à
+  la construction dans les modules d'`app/src/` (`demarrageDuPont`, dans `android.ts`), jamais
+  recopiés — et une liste de projets vide : l'app s'ouvre sur l'écran « Add a project ».
+- `ajouter` refuse, en disant que ce téléphone n'est appairé à aucune station.
+- Un abonnement (`sur…`) ne reçoit rien ; tout autre geste ne fait rien et ne rend rien.
+
+Ce téléphone ne lit rien et n'envoie rien. Le pont qui joindra une station — l'appairage — le
+remplacera ; rien du code partagé n'a changé pour Android.
+
+## Éprouver
+
+Les tests (`app/test/packaging/android.test.ts`) vérifient, sans JDK ni SDK : les prérequis nommés
+quand ils manquent (la commande lancée sur une machine qui n'en a aucun), l'identifiant et le nom
+déclarés, les versions épinglées, qu'aucun fichier d'`app/src/` n'est recopié dans `app/android/`,
+la vue posée et chacun des chemins qu'elle charge, et le pont d'attente. L'APK lui-même se construit
+et s'ouvre sur un émulateur en CI, par cette même commande. À la main, avec un émulateur ou un
+téléphone branché :
+
+```sh
+node app/packaging/android.ts
+adb install -r app/packaging/construit/Brigade-<version>.apk
+adb shell am start -n com.github.benomite.brigade/.MainActivity
+```
+
+L'app s'ouvre sur « Add a project ». Ce que dit la vue se lit dans `chrome://inspect` (l'APK de
+debug laisse inspecter sa WebView), et ce que dit l'enveloppe dans `adb logcat -s Capacitor Capacitor/Brigade`.
