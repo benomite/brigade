@@ -28,7 +28,7 @@ const station = (nom: string, plus: Partial<DuRuntime> = {}): DuRuntime => ({
 });
 const COOK_14 = { ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" };
 const COOK_15 = { ticket: 15, titre: "La carte des desserts", station: "mac/claude" };
-const REFUS = { status: "refused" as const, code: "sandbox-unusable" as const, message: "This computer cannot run the project's cooks in Claude Code's sandbox.", action: "Install or repair the sandbox on this computer, then wait: the station tries again by itself." };
+const REFUS = { status: "refused" as const, code: "sandbox-unusable" as const, message: "This computer cannot run the project's cooks in Claude Code's sandbox.", action: "Install or repair the sandbox on this computer, then wait: the station tries again by itself.", noRemedy: "Repairing the sandbox means installing software on this computer, which the app does not do for you." };
 
 const FAITS: Faits = {
   etat: "ouverte",

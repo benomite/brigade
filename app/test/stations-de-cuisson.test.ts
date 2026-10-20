@@ -218,7 +218,7 @@ describe("l'onglet Cooks : une ligne par station du projet", () => {
   });
 
   test("une station saturée garde son bouton d'arrêt ; une qui refuse le projet dit pourquoi, sans bouton", async () => {
-    const refus = { status: "refused" as const, code: "sandbox-unusable" as const, message: "This computer cannot run the project's cooks in Claude Code's sandbox.", action: "Install or repair the sandbox on this computer, then wait: the station tries again by itself." };
+    const refus = { status: "refused" as const, code: "sandbox-unusable" as const, message: "This computer cannot run the project's cooks in Claude Code's sandbox.", action: "Install or repair the sandbox on this computer, then wait: the station tries again by itself.", noRemedy: "Repairing the sandbox means installing software on this computer, which the app does not do for you." };
     const { vue } = await ouvrir([station("box/claude", { cuisson: "saturated", cooks: [COOK_14] }), station("atelier/claude", { cuisson: "refused", refus })]);
     await ouvrirOnglet(vue, "Cooks");
     assert.deepEqual(lignes(vue).map(etatDe), ["saturated", "refused"]);
@@ -263,7 +263,7 @@ describe("l'onglet Rail : une ligne quand les cooks demandent un geste", () => {
   });
 
   test("une station qui refuse le projet : une seule ligne", async () => {
-    const refus = { status: "refused" as const, code: "sandbox-unusable" as const, message: "This computer cannot run the project's cooks in Claude Code's sandbox.", action: "Install or repair the sandbox." };
+    const refus = { status: "refused" as const, code: "sandbox-unusable" as const, message: "This computer cannot run the project's cooks in Claude Code's sandbox.", action: "Install or repair the sandbox.", noRemedy: "Repairing the sandbox means installing software on this computer, which the app does not do for you." };
     const { vue } = await ouvrir([station("box/claude", { cuisson: "refused", refus })]);
     await ouvrirOnglet(vue, "Rail");
     assert.deepEqual(alertes(vue).map((p) => p.children[0]?.textContent), ["box/claude refuses the project: This computer cannot run the project's cooks in Claude Code's sandbox."]);
