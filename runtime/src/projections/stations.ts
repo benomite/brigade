@@ -16,9 +16,12 @@ export type EtatStation = {
   station: string;
   engine: string;
   provides: string[];
-  // The cap on cooks the station announces: the one that holds as long as the
-  // chef has set nothing.
+  // The cap on cooks the station declares: a ceiling on its default cap.
   maxCooks: number;
+  // The cores of the machine under it, as it announced them — null: unknown,
+  // a remote station's workstation is not seen from the box. Its default cap
+  // derives from them.
+  cores: number | null;
   // The cap set by the chef — 0: no limit —, or null if he has said nothing.
   cap: number | null;
   announcedAt: string;
@@ -166,6 +169,7 @@ export const stations = definirProjection<Ecoutes>({
       engine              TEXT NOT NULL,
       provides            TEXT NOT NULL,
       max_cooks           INTEGER NOT NULL,
+      cores               INTEGER,
       cap                 INTEGER,
       announced_at        TEXT NOT NULL,
       quota_until         TEXT,
@@ -237,10 +241,11 @@ export const stations = definirProjection<Ecoutes>({
         base,
         payload.station,
         at,
-        "engine = ?, provides = ?, max_cooks = ?, announced_at = ?, remote = ?, ordinary = ?",
+        "engine = ?, provides = ?, max_cooks = ?, cores = ?, announced_at = ?, remote = ?, ordinary = ?",
         String(payload.engine),
         JSON.stringify(Array.isArray(payload.provides) ? payload.provides : []),
         Number.isSafeInteger(payload.maxCooks) ? payload.maxCooks : 0,
+        Number.isSafeInteger(payload.cores) && Number(payload.cores) > 0 ? Number(payload.cores) : null,
         at,
         payload.remote === true ? 1 : 0,
         payload.ordinary === true ? 1 : 0,
@@ -279,7 +284,8 @@ export const stations = definirProjection<Ecoutes>({
       base.executer("INSERT OR IGNORE INTO stations_undeclared (id, since) VALUES (1, ?)", at);
     },
     "station.capped": (base, { at, payload }) => {
-      if (Number.isSafeInteger(payload.maxCooks) && payload.maxCooks >= 0) modifier(base, payload.station, at, "cap = ?", payload.maxCooks);
+      if (payload.maxCooks === null) modifier(base, payload.station, at, "cap = NULL");
+      else if (Number.isSafeInteger(payload.maxCooks) && payload.maxCooks >= 0) modifier(base, payload.station, at, "cap = ?", payload.maxCooks);
     },
     "station.saturated": (base, { at, payload }) => {
       const { resource, observed, limit } = payload;
@@ -464,7 +470,7 @@ type LigneDeStation = Omit<EtatStation, "provides" | "remote" | "ordinary" | "sa
 
 export function etatStation(base: Base, station: string): EtatStation | null {
   const ligne = base.lire<LigneDeStation>(
-    `SELECT station, engine, provides, max_cooks AS maxCooks, cap, announced_at AS announcedAt,
+    `SELECT station, engine, provides, max_cooks AS maxCooks, cores, cap, announced_at AS announcedAt,
             quota_until AS quotaUntil, quota_reason AS quotaReason,
             disconnected_at AS disconnectedAt, disconnected_reason AS disconnectedReason,
             saturated_at AS saturatedAt, saturated_resource AS saturatedResource,
@@ -487,11 +493,40 @@ export function etatStation(base: Base, station: string): EtatStation | null {
   };
 }
 
+// The cap the machine's cores allow: two cores kept for the runtime, the
+// pass and its gates, then about two per cook — a cook's `claude`, its tests,
+// its setup. The load stays under the core count: 3 on 8 cores, 7 on 16, and
+// never less than one cook.
+export const plafondDesCoeurs = (coeurs: number): number => Math.max(1, Math.floor((coeurs - 2) / 2));
+
+type ReglesDuPlafond = Pick<EtatStation, "maxCooks" | "cores" | "cap">;
+
+// The cap that holds while the chef has set nothing, and where it comes from:
+// the machine's cores, or the declaration when it is lower — or when the
+// cores are unknown. Null: no limit.
+export function plafondParDefaut({ maxCooks, cores }: ReglesDuPlafond): { plafond: number | null; origine: { coeurs: number } | "declared" } {
+  const declare = maxCooks > 0 ? maxCooks : null;
+  if (cores === null) return { plafond: declare, origine: "declared" };
+  const desCoeurs = plafondDesCoeurs(cores);
+  return declare !== null && declare < desCoeurs ? { plafond: declare, origine: "declared" } : { plafond: desCoeurs, origine: { coeurs: cores } };
+}
+
 // How many cooks the station runs at once, at most: what the chef set,
-// otherwise what it announces. Null: no limit — that is what zero says.
-export function plafondDeCooks(etat: Pick<EtatStation, "maxCooks" | "cap">): number | null {
-  const regle = etat.cap ?? etat.maxCooks;
-  return regle === 0 ? null : regle;
+// otherwise its default cap. Null: no limit — that is what zero says.
+export function plafondDeCooks(etat: ReglesDuPlafond): number | null {
+  if (etat.cap !== null) return etat.cap === 0 ? null : etat.cap;
+  return plafondParDefaut(etat).plafond;
+}
+
+export const direNombreDeCooksEn = (plafond: number | null) => (plafond === null ? "no limit" : `${plafond} at most`);
+
+// The cap as `status` and `station` say it: how many, and where it comes from
+// — `3 at most — 8 cores`, `5 at most — set by you, replaces 3 (8 cores)`.
+export function direPlafondEn(etat: ReglesDuPlafond): string {
+  const defaut = plafondParDefaut(etat);
+  const origine = defaut.origine === "declared" ? "declared" : `${defaut.origine.coeurs} cores`;
+  if (etat.cap === null) return `${direNombreDeCooksEn(defaut.plafond)} — ${origine}`;
+  return `${direNombreDeCooksEn(plafondDeCooks(etat))} — set by you, replaces ${defaut.plafond ?? "no limit"} (${origine})`;
 }
 
 const JOUR_MS = 86_400_000;

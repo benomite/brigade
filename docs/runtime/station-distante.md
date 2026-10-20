@@ -117,8 +117,8 @@ Une station distante tourne **sans cloison**, sur le poste du chef : un cook y l
 son compte — la clé `ssh` vers la box, ses accès de prod. Par défaut, elle ne prend donc **que les
 tickets qui demandent une de ses capacités**, comme avant. Le chef peut lui faire prendre aussi les
 **tickets ordinaires** — ceux dont la fiche ne demande rien — en la déclarant `distante+ordinaires` ;
-son **plafond de cooks** est alors la limite du Mac, tickets ordinaires compris
-(`run station -- cooks <N>` le règle aussi) :
+son **plafond de cooks** est alors la limite du Mac, tickets ordinaires compris — celui qu'elle
+déclare : la box ne voit pas les cœurs du Mac (`run station -- cooks <N>` le règle aussi) :
 
 ```bash
 brigade <projet> station stations box/claude:30:code,mac/claude:2:chrome-connecté:distante+ordinaires

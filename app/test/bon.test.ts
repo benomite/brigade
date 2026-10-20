@@ -201,6 +201,7 @@ const station = (nom: string, remote: boolean): EtatStation => ({
   engine: "claude",
   provides: ["code"],
   maxCooks: 2,
+  cores: null,
   cap: null,
   announcedAt: ilYA(600),
   quotaUntil: null,

@@ -452,12 +452,22 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     for (const station of stationsAnnoncees(base)) {
       if (!nomsDeToutes.includes(station)) noter(station, null, { type: "station.withdrawn", payload: { station } });
     }
+    // Les cœurs de cette machine, d'où dérive le plafond par défaut des
+    // stations d'ici. Illisibles, elles s'en tiennent à leur déclaration.
+    let coeurs: number | null;
+    try {
+      coeurs = machine().coeurs;
+    } catch {
+      coeurs = null;
+    }
     for (const declaree of toutes) {
+      const desCoeurs = !declaree.distante && coeurs !== null && Number.isSafeInteger(coeurs) && coeurs > 0 ? { cores: coeurs } : {};
       const annonce = {
         station: declaree.nom,
         engine: declaree.moteur,
         provides: declaree.fournit,
         maxCooks: declaree.cooks,
+        ...desCoeurs,
         ...(declaree.distante ? { remote: true as const } : {}),
         ...(declaree.ordinaires ? { ordinary: true as const } : {}),
       };
@@ -467,6 +477,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         engine: connue.engine,
         provides: connue.provides,
         maxCooks: connue.maxCooks,
+        ...(connue.cores === null ? {} : { cores: connue.cores }),
         ...(connue.remote ? { remote: true as const } : {}),
         ...(connue.ordinary ? { ordinary: true as const } : {}),
       };
@@ -649,7 +660,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     if (rouge) return "base";
     if (etat?.disconnectedAt) return "disconnected";
     if (etat?.quotaUntil && etat.quotaUntil > instant) return "quota";
-    const plafond = plafondDeCooks(etat ?? { maxCooks: cooks, cap: null });
+    const plafond = plafondDeCooks(etat ?? { maxCooks: cooks, cores: null, cap: null });
     if (plafond !== null && cooksDe(nom) >= plafond) return "cap";
     return null;
   };

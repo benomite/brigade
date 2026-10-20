@@ -41,7 +41,7 @@ import { lireRail, livresDepuis, type Etat as EtatTicket, type Livre, type Ticke
 import { direCommentLeVoirEn, direEcranEn, direEtatDeServeurEn, direPageEn, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus, type Serveur, type ServiceIndisponible, type WorktreeTenu } from "./projections/service.ts";
 import { lastBackup, type Backup } from "./projections/backups.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
-import { cookDeRun, cooksEnCoursDeStation, direDeconnexionEn, direRetenueDeStationEn, etatStation, GESTE_DE_CONNEXION_TOMBEE_EN, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
+import { cookDeRun, cooksEnCoursDeStation, direDeconnexionEn, direPlafondEn, direRetenueDeStationEn, etatStation, GESTE_DE_CONNEXION_TOMBEE_EN, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
 import { BLOQUE, BLOQUE_EN, direRetenueEn, EN_WAITING, etatLu, etatLuEn, nomEtat, nomEtatEn } from "./rail.ts";
 import { PAR_LE_CHEF } from "./events/rail.ts";
 import { direAttenteDeTiersEn } from "./attente.ts";
@@ -440,9 +440,10 @@ function decrireCook(cook: EtatCuisine["cooks"][number], ticket: TicketRail | un
   ].join("  ");
 }
 
+// Le plafond de chaque station, et d'où il vient : ses cœurs, sa déclaration,
+// ou le chef — et alors ce qu'il remplace.
 function decrirePlafond(station: EtatStation): string {
-  const plafond = plafondDeCooks(station);
-  return `${station.station}: ${plafond === null ? "no limit" : `${plafond} at most`}`;
+  return `${station.station}: ${direPlafondEn(station)}`;
 }
 
 // Le ticket que tient chaque cook, et les cooks dans l'ordre où le chef doit

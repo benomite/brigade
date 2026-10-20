@@ -2,6 +2,7 @@
 // variables d'environnement et par des signaux.
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { availableParallelism } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ouvrirArbitre, servirArbitre } from "../src/arbitre.ts";
@@ -263,8 +264,9 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.deepEqual(
       relire(repertoire).flatMap((e) => (e.type === "station.announced" ? [[e.author, e.payload]] : [])),
       [
-        ["station:box/claude", { station: "box/claude", engine: "claude", provides: ["code", "raisonnement"], maxCooks: 3 }],
-        ["station:box/playwright", { station: "box/playwright", engine: "playwright", provides: ["navigateur-headless"], maxCooks: 1 }],
+        // Les deux tournent ici : elles annoncent les cœurs de cette machine.
+        ["station:box/claude", { station: "box/claude", engine: "claude", provides: ["code", "raisonnement"], maxCooks: 3, cores: availableParallelism() }],
+        ["station:box/playwright", { station: "box/playwright", engine: "playwright", provides: ["navigateur-headless"], maxCooks: 1, cores: availableParallelism() }],
       ],
     );
     assert.match(runtime.sortie(), /brigade : stations — box\/claude \(3 cooks at most; provides: code, raisonnement\) ; box\/playwright \(1 cook at most; provides: navigateur-headless\)/);

@@ -299,7 +299,7 @@ test("à plusieurs cooks, le chef lit le plafond et, par cook, son ticket, son c
   const { journal, noter, arriver } = cuisine(t);
   const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:00:30.000Z`) });
   noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } }); // 10:00:00
-  noter({ type: "station.announced", payload: { station: "box/claude", engine: "claude", provides: ["code"], maxCooks: 30 } });
+  noter({ type: "station.announced", payload: { station: "box/claude", engine: "claude", provides: ["code"], maxCooks: 30, cores: 8 } });
   arriver(14, 1);
   arriver(15, 1);
   rail.prendre("box/claude"); // 14, à 10:00:04
@@ -314,8 +314,9 @@ test("à plusieurs cooks, le chef lit le plafond et, par cook, son ticket, son c
 
   const lignes = decrire(journal, `${JOUR_HORLOGE}T10:04:10.000Z`);
 
-  assert.deepEqual(lignes.slice(lignes.indexOf("cooks      3 running — box/claude: 30 at most"), lignes.indexOf("consumed   in flight: 3 launches, of which 1 judgment · 12 turns · 184,000 tokens") - 1), [
-    "cooks      3 running — box/claude: 30 at most",
+  // Huit cœurs : trois cooks au plus, pas les trente qu'elle déclare.
+  assert.deepEqual(lignes.slice(lignes.indexOf("cooks      3 running — box/claude: 3 at most — 8 cores"), lignes.indexOf("consumed   in flight: 3 launches, of which 1 judgment · 12 turns · 184,000 tokens") - 1), [
+    "cooks      3 running — box/claude: 3 at most — 8 cores",
     "  #14  14-aa  opus / high  cook/14-aa in worktrees/14-aa  4 min of 1 h 00 · 12 turns of 100 · 184,000 tokens of 2,000,000 (reading 4 min ago) · no progress since 4 min",
     "  #15  15-bb  sonnet / high  cook/15-bb in worktrees/15-bb  4 min of 1 h 00 · turns and tokens: no reading yet · no progress since 4 min",
     "  manager  juge-9-cc  haiku / high  4 min of 1 h 00 · turns and tokens: no reading yet",
@@ -325,16 +326,33 @@ test("à plusieurs cooks, le chef lit le plafond et, par cook, son ticket, son c
 test("le chef lit le plafond qu'il a réglé, et une machine saturée avec ce qui lui manque", (t) => {
   const { journal, noter } = cuisine(t);
   noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } }); // 10:00:00
-  noter({ type: "station.announced", payload: { station: "box/claude", engine: "claude", provides: ["code"], maxCooks: 30 } });
+  noter({ type: "station.announced", payload: { station: "box/claude", engine: "claude", provides: ["code"], maxCooks: 30, cores: 8 } });
   noter({ type: "station.capped", payload: { station: "box/claude", maxCooks: 0 } }, null, "chef");
   noter({ type: "station.saturated", payload: { station: "box/claude", resource: "cpu", observed: 16.24, limit: 15 } }); // 10:00:03
 
   const lignes = decrire(journal, `${JOUR_HORLOGE}T10:03:03.000Z`);
 
-  assert.deepEqual(lignes.slice(lignes.indexOf("cooks      none running — box/claude: no limit")).slice(0, 2), [
-    "cooks      none running — box/claude: no limit",
+  assert.deepEqual(lignes.slice(lignes.indexOf("cooks      none running — box/claude: no limit — set by you, replaces 3 (8 cores)")).slice(0, 2), [
+    "cooks      none running — box/claude: no limit — set by you, replaces 3 (8 cores)",
     "           MACHINE SATURATED for 3 min — load of 16.2 for at most 15: box/claude takes no more tickets as long as it lasts",
   ]);
+});
+
+test("le plafond d'une station se lit avec ce qui le donne : ses cœurs, le réglage du chef et ce qu'il remplace, puis de nouveau ses cœurs une fois le réglage retiré", (t) => {
+  const { journal, noter } = cuisine(t);
+  noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } });
+  noter({ type: "station.announced", payload: { station: "box/claude", engine: "claude", provides: ["code"], maxCooks: 30, cores: 8 } });
+  noter({ type: "station.announced", payload: { station: "mac/claude", engine: "claude", provides: ["code"], maxCooks: 2, remote: true } });
+  const cooks = () => decrire(journal, `${JOUR_HORLOGE}T10:03:03.000Z`).find((ligne) => ligne.startsWith("cooks")) ?? "";
+
+  // Une station distante n'a pas de cœurs vus de la box : sa déclaration tient.
+  assert.equal(cooks(), "cooks      none running — box/claude: 3 at most — 8 cores, mac/claude: 2 at most — declared");
+
+  noter({ type: "station.capped", payload: { station: "box/claude", maxCooks: 5 } }, null, "chef");
+  assert.match(cooks(), /box\/claude: 5 at most — set by you, replaces 3 \(8 cores\),/);
+
+  noter({ type: "station.capped", payload: { station: "box/claude", maxCooks: null } }, null, "chef");
+  assert.match(cooks(), /box\/claude: 3 at most — 8 cores,/);
 });
 
 test("à trente cooks, celui qui coince se lit sans parcourir les lignes : nommé en tête dès la moitié de son bail sans progrès, et ses lignes passent devant", (t) => {
