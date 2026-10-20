@@ -2,6 +2,8 @@
 // des gates rouges, un GitHub de test, et un faux `claude` pour ses choix.
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
+import { attentesDuChef } from "../src/attend.ts";
+import { cartesEnTodo } from "../src/carte-todo.ts";
 import { REDECOUPE } from "../src/events/rail.ts";
 import { MARQUEUR } from "../src/fiche.ts";
 import { MARQUEUR_MANAGER } from "../src/juger.ts";
@@ -124,6 +126,35 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.match(dit, /Réagi par le manager en `sonnet` \/ `medium`/);
     assert.match(dit, /Mergée à la main, sa PR sert le ticket/);
     assert.equal(c.cooks().length, 3);
+  });
+
+  test("remonté pour un choix de produit ou un geste : une carte du type juste entre dans TODO, avec son énoncé", async (t) => {
+    for (const [jugement, type, enonce] of [
+      ["reagit-remonte-produit", "product", "Choisir entre la voie A et la voie B."],
+      ["reagit-remonte-geste", "gesture", "Poser le jeton du compte client."],
+    ] as const) {
+      const c = echec(t, { issues: [issue(17)], manager: { jugement } });
+      await c.jusquAu("pass.escalated", 17);
+      await jusqua(() => c.dits(17).some((dit) => /remontée au chef/.test(dit)));
+
+      assert.deepEqual(cartesEnTodo(c.journal.base).map((carte) => [carte.ticket, carte.type, carte.enonce]), [[17, type, enonce]]);
+      assert.deepEqual(reactionDe(c.journal.base, 17)?.card, { kind: type, statement: enonce });
+      // La carte parle au chef : la remontée nue ne s'y ajoute pas.
+      assert.deepEqual(attentesDuChef(c.journal.base, c.runtime.rail.tickets()).map((attente) => attente.quoi), ["carte"]);
+      assert.ok(c.dits(17).some((dit) => dit.includes(`**Carte dans TODO** (${type}). ${enonce}`)));
+    }
+  });
+
+  test("un rouge sans choix de produit ni geste ne produit jamais de carte : il est remonté tel quel, et le manager le dit", async (t) => {
+    const c = echec(t, { issues: [issue(17)] });
+    await c.jusquAu("pass.escalated", 17);
+    await jusqua(() => c.dits(17).some((dit) => /remontée au chef/.test(dit)));
+
+    assert.deepEqual(cartesEnTodo(c.journal.base), []);
+    assert.equal(c.faits("todo.entered").length, 0);
+    assert.equal(reactionDe(c.journal.base, 17)?.card, null);
+    assert.ok(c.dits(17).some((dit) => /aucune carte n'est posée dans TODO/.test(dit)));
+    assert.deepEqual(attentesDuChef(c.journal.base, c.runtime.rail.tickets()).map((attente) => attente.quoi), ["remontee"]);
   });
 
   test("remonté sans diff, le ticket n'a pas de PR : le commentaire ne propose pas de la merger, et dit ce que le chef peut faire", async (t) => {

@@ -15,6 +15,8 @@ export type ReactionDeTicket = {
   choice: ChoixDeReaction;
   reason: string;
   proposal: string | null;
+  // La carte de TODO d'une remontée, ou null.
+  card: { kind: "product" | "gesture"; statement: string } | null;
   run: string | null;
   from: Calibration;
   to: Calibration | null;
@@ -28,6 +30,10 @@ export type ReactionDeTicket = {
 
 const CHOIX: readonly unknown[] = ["retry", "raise", "split", "escalate"];
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur !== "";
+const carte = (valeur: unknown): ReactionDeTicket["card"] => {
+  const { kind, statement } = (valeur !== null && typeof valeur === "object" ? valeur : {}) as Record<string, unknown>;
+  return (kind === "product" || kind === "gesture") && texte(statement) ? { kind, statement } : null;
+};
 const calibration = (valeur: unknown): Calibration | null => {
   const { model, effort } = (valeur !== null && typeof valeur === "object" ? valeur : {}) as Record<string, unknown>;
   return texte(model) && texte(effort) ? { model, effort } : null;
@@ -44,6 +50,7 @@ export const reactions = definirProjection<FaitReaction>({
       choice      TEXT NOT NULL,
       reason      TEXT NOT NULL,
       proposal    TEXT,
+      card        TEXT,
       run         TEXT,
       origin      TEXT NOT NULL,
       target      TEXT,
@@ -67,14 +74,15 @@ export const reactions = definirProjection<FaitReaction>({
       const from = calibration(payload.from);
       if (ticket === null || !Number.isSafeInteger(payload.verdict) || !CHOIX.includes(payload.choice) || from === null) return;
       base.executer(
-        `INSERT OR REPLACE INTO manager_reactions (ticket, verdict, returns, choice, reason, proposal, run, origin, target, decided_seq, at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO manager_reactions (ticket, verdict, returns, choice, reason, proposal, card, run, origin, target, decided_seq, at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ticket,
         payload.verdict,
         Number.isSafeInteger(payload.returns) ? payload.returns : 0,
         payload.choice,
         texte(payload.reason) ? payload.reason : "",
         texte(payload.proposal) ? payload.proposal : null,
+        JSON.stringify(carte(payload.card)),
         texte(payload.run) ? payload.run : null,
         JSON.stringify(from),
         JSON.stringify(calibration(payload.to)),
@@ -96,13 +104,14 @@ export const reactions = definirProjection<FaitReaction>({
   },
 });
 
-type Ligne = Omit<ReactionDeTicket, "from" | "to" | "raised" | "applied" | "commented"> & { origin: string; target: string | null; raised: number; applied: number; commented: number };
+type Ligne = Omit<ReactionDeTicket, "from" | "to" | "card" | "raised" | "applied" | "commented"> & { card: string | null; origin: string; target: string | null; raised: number; applied: number; commented: number };
 
 const lire = (base: Base, suite: string, ...parametres: number[]): ReactionDeTicket[] =>
   base
-    .lire<Ligne>(`SELECT ticket, verdict, returns, choice, reason, proposal, run, origin, target, raised, applied, commented, at FROM manager_reactions ${suite}`, ...parametres)
-    .map(({ origin, target, raised, applied, commented, ...ligne }) => ({
+    .lire<Ligne>(`SELECT ticket, verdict, returns, choice, reason, proposal, card, run, origin, target, raised, applied, commented, at FROM manager_reactions ${suite}`, ...parametres)
+    .map(({ origin, target, card, raised, applied, commented, ...ligne }) => ({
       ...ligne,
+      card: card === null ? null : (JSON.parse(card) as ReactionDeTicket["card"]),
       from: JSON.parse(origin) as Calibration,
       to: target === null ? null : (JSON.parse(target) as Calibration | null),
       raised: raised === 1,

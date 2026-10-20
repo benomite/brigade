@@ -81,11 +81,19 @@ export type Tentative = { model: string | null; effort: string | null; findings:
 // Ce que le code offre au jugement. `monter` : le calibrage visé, ou null.
 export type Choix = { monter: Calibrage | null; redecouper: boolean };
 
+// Ce qui rend la remontée légitime devant le chef : un choix de produit, ou un
+// geste que lui seul peut faire. Hors de ces deux types, aucune carte.
+export const TYPES_DE_REMONTEE = ["product", "gesture"] as const;
+export type CarteDeRemontee = { type: (typeof TYPES_DE_REMONTEE)[number]; enonce: string };
+
 export type Reaction = {
   choice: "raise" | "split" | "escalate";
   reason: string;
   // Ce que le manager propose au chef, quand il remonte.
   proposal: string | null;
+  // La carte de TODO de la remontée, en une ligne — nulle quand le ticket ne
+  // cache ni choix de produit ni geste : il est remonté sans carte.
+  card: CarteDeRemontee | null;
 };
 
 const FINDINGS_MAX = 4000;
@@ -100,7 +108,7 @@ export function consigneDeReaction(mission: { depot: string; issue: IssueAJuger;
     "",
     ...(choix.monter === null ? [] : [`- \`monter\` — relancer en ${dit(choix.monter)} au lieu de ${dit(pose)} : le ticket est bien posé, c'est le cook qui n'a pas eu de quoi le réussir.`]),
     ...(choix.redecouper ? ["- `redecouper` — le ticket est trop gros ou mêle plusieurs livrables : il sera découpé en tickets plus petits, qui repartiront de la base."] : []),
-    "- `remonter` — rendre la main au chef : le ticket se contredit, il lui manque une décision, ou rien de ce qui précède n'y changerait rien.",
+    "- `remonter` — rendre la main au chef : le ticket se contredit, il lui manque une décision, ou rien de ce qui précède n'y changerait rien. Une carte n'est posée devant lui que si la cause est un choix de produit (`product` : plusieurs voies, qui changent ce que l'utilisateur obtient) ou un geste que lui seul peut faire (`gesture` : un accès, un secret, une action). Sinon, pas de carte : `carte` vaut `null`.",
     "",
     ...(choix.monter === null ? [`Monter n'est pas possible : ${mission.obstacle ?? "rien ne peut monter"}.`] : []),
     ...(choix.redecouper ? [] : ["Redécouper n'est pas possible : ce ticket est lui-même né d'un redécoupage."]),
@@ -111,10 +119,10 @@ export function consigneDeReaction(mission: { depot: string; issue: IssueAJuger;
     "Un seul objet JSON, et rien après lui :",
     "",
     "```json",
-    '{"choix": "remonter", "motif": "pourquoi ce choix plutôt que les autres", "proposition": "ce que tu proposes au chef de faire"}',
+    `{"choix": "remonter", "motif": "pourquoi ce choix plutôt que les autres", "proposition": "ce que tu proposes au chef de faire", "carte": {"type": "product", "enonce": "ce qu'on attend du chef, en une ligne"}}`,
     "```",
     "",
-    "`choix` : l'un de ceux listés plus haut. `proposition` n'est exigée que pour `remonter`. `motif` et `proposition` sont lus par le chef, sur l'issue : en français, deux ou trois phrases, précises.",
+    "`choix` : l'un de ceux listés plus haut. `proposition` n'est exigée que pour `remonter`, `carte` n'y est lue que pour `remonter` (`type` : `product` ou `gesture` ; `null` si aucun des deux). `motif` et `proposition` sont lus par le chef, sur l'issue : en français, deux ou trois phrases, précises.",
     "",
     "## Le ticket et ses tentatives",
     "",
@@ -137,6 +145,15 @@ export function consigneDeReaction(mission: { depot: string; issue: IssueAJuger;
 
 const CHOIX_LUS = { monter: "raise", redecouper: "split", remonter: "escalate" } as const;
 
+// La carte de la remontée : un type admis et un énoncé d'une ligne, sinon rien.
+// Une carte mal formée n'est pas devinée, le ticket est remonté sans carte.
+function lireCarte(valeur: unknown): CarteDeRemontee | null {
+  const lu = valeur !== null && typeof valeur === "object" ? (valeur as Record<string, unknown>) : null;
+  const type = lu === null ? null : (parmi(lu.type, TYPES_DE_REMONTEE) as CarteDeRemontee["type"] | null);
+  const enonce = lu === null ? null : phrase(lu.enonce);
+  return type === null || enonce === null ? null : { type, enonce: enonce.replace(/\s+/g, " ").trim() };
+}
+
 // Lit la réaction dans le dernier message du jugement. Un choix que le code
 // n'a pas offert ne se lit pas.
 export function lireReaction(message: string | null, choix: Choix): { valeur: Reaction } | { illisible: string } {
@@ -150,5 +167,5 @@ export function lireReaction(message: string | null, choix: Choix): { valeur: Re
   if ((nom === "monter" && choix.monter === null) || (nom === "redecouper" && !choix.redecouper)) return { illisible: `« ${nom} » n'était pas offert` };
   const proposal = phrase(lu.proposition);
   if (nom === "remonter" && !proposal) return { illisible: "remontée sans proposition" };
-  return { valeur: { choice: CHOIX_LUS[nom], reason, proposal: nom === "remonter" ? proposal : null } };
+  return { valeur: { choice: CHOIX_LUS[nom], reason, proposal: nom === "remonter" ? proposal : null, card: nom === "remonter" ? lireCarte(lu.carte) : null } };
 }

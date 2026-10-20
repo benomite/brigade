@@ -84,6 +84,10 @@ export type FaitReaction =
         run: string | null;
         from: { model: string; effort: string };
         to: { model: string; effort: string } | null;
+        // The TODO card of an escalation: `kind` is `product` or `gesture`, and
+        // `statement` says in one line what is expected of the chef. Absent or
+        // null: the ticket hides neither, and escalates without a card.
+        card?: { kind: string; statement: string } | null;
       };
     }
   // The calibration labels changed by a raise, written once GitHub has been
