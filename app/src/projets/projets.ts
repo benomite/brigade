@@ -23,7 +23,7 @@
 // demande : une station qui refuse de le reprendre le laisse cuire là où il cuisait.
 import type { GitHubDesStations } from "../stations/github.ts";
 import type { StationVue } from "../stations/stations.ts";
-import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireOnboarding, lireSuivi, type Bascule, type Calibre, type EtatDuProjet, type Onboarding, type ProjetDemande, type SuiviDuProjet } from "./demande.ts";
+import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireOnboarding, lireSuivi, type AccesBloque, type Bascule, type Calibre, type EchecDuWorktree, type EtatDuProjet, type Onboarding, type ProjetDemande, type SuiviDuProjet } from "./demande.ts";
 import type { Demenagement, Demenageur } from "./demenagement.ts";
 import type { DepotDuChef } from "./github.ts";
 
@@ -67,6 +67,11 @@ export type ProjetVu = {
   // Où il en est de son ajout à son premier ticket, tel que sa principale le publie (#1110) ; nul
   // tant qu'elle n'en dit rien.
   onboarding?: Onboarding | null;
+  // Ce qui retient sa cuisine, tel que sa principale le publie (#1117, #1118) : l'accès au dépôt refusé,
+  // avec son geste ; un worktree impossible à préparer, avec sa raison et l'heure du prochain essai.
+  // Nuls (ou absents) quand rien ne retient.
+  acces?: AccesBloque | null;
+  worktree?: EchecDuWorktree | null;
 };
 // Ce que l'app propose pour une station choisie comme principale (#1107) : ce que ce choix implique —
 // toujours allumée, ou arrêtée avec l'app de son ordinateur —, et le nombre de cooks à la fois que
@@ -386,6 +391,11 @@ export function tenirProjets(options: OptionsProjets): Projets {
           const sien = projet.principale ? onboarding[projet.nom] : undefined;
           if (sien !== undefined) vu.onboarding = sien;
           const dit = suivi.find(({ nom }) => nom === projet.nom);
+          // Ce qui retient la cuisine, seule la principale le dit ; relu à chaque lecture, il s'efface quand elle ne le dit plus.
+          if (projet.principale) {
+            vu.acces = dit?.acces ?? null;
+            vu.worktree = dit?.worktree ?? null;
+          }
           vu.stations.push({ id: station.id, nom: station.nom, principale: projet.principale, etat: dit?.etat ?? "attendu", dit: dit?.dit ?? `${station.nom} has not read it yet: it reads what the app asks every 30 s`, autoriser: dit?.autoriser ?? [] });
           if (projet.principale && dit?.etat === "servi" && dit.serviLe !== null) {
             const depuis = projet.ouvertLe ?? projet.demandeLe;

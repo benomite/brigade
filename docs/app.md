@@ -902,6 +902,19 @@ quittée, il ne revient pas (jusqu'au prochain lancement de l'app, et jamais une
 sur le rail). Les pages qu'il ouvre sont celles que la station a publiées, et aucune autre
 (`autoriserSurGitHub`). Le module est `app/src/vue/onboarding/parcours.js`.
 
+**Ce qui retient la cuisine** (#1119) : sa principale publie, dans la ligne du projet de son suivi, `acces`
+(l'accès au dépôt refusé, #1117 : la raison et le geste) et `worktree` (un worktree impossible à préparer,
+#1118 : le ticket, la raison, l'heure du prochain essai, et `acces` quand c'est l'accès qui refuse).
+Sous la ligne des stations — et sur l'onglet Rail comme sur Cooks, puisque c'est ce qui t'attend —, un bloc
+rouge dit en une phrase la raison puis le geste (`parade-box cannot fetch from benomite/parade: … Run
+gh auth setup-git on parade-box, under the account that runs it.`, la commande en code, le détail de git au
+survol), et un bouton recommandé « copy the command » qui copie la commande seule — le geste se fait sur la
+machine de la station, que l'app ne pilote pas), ou, pour un worktree, `The worktree of #433 could not be prepared: <raison>` et
+`Next retry at 10:14 AM, in 10 min.`. Tant qu'il tient, la phrase « prepares it within a minute » ne se dit
+plus. Sans l'un ni l'autre, rien ne change. La station l'efface quand le geste est fait : la page relue
+(chaque lecture des stations) revient à son message, sans recharger l'app. Le module est
+`app/src/vue/onboarding/depot-retenu.js`.
+
 **La décision devant une station sans bac à sable** (#1113) : quand l'état publié dit `decisionAttendue`,
 l'étape *Cooking machine* pose la phrase du runtime en avertissement — les cooks de cette machine
 tournent sans bac à sable, rien ne part avant le choix du chef — et deux boutons : « choose another

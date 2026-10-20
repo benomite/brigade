@@ -44,7 +44,13 @@ export type EtapeDeBascule = "demandee" | "acceptee" | "refusee" | "remise" | "r
 export type Bascule = { de: string; vers: string; demandeLe: string; etape: EtapeDeBascule };
 // `cuitSur` : la station où il cuit, telle que celle-ci la connaît ; `ici` : il cuit sur celle-ci, et
 // c'est l'ordinateur du chef. Une station d'avant le déménagement (#1094) n'en dit rien.
-export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null };
+// `acces` : le dépôt refuse à la station de le récupérer ou d'y pousser, avec le geste qui le lève
+// (#1117, runtime/src/projets/acces.ts) ; `worktree` : sa cuisine ne parvient pas à préparer un
+// worktree, avec la raison et l'heure du prochain essai (#1118, runtime/src/echec-du-worktree.ts).
+// Absents quand la station n'en dit rien.
+export type AccesBloque = { bloque: "fetch" | "push"; raison: string; geste: string };
+export type EchecDuWorktree = { ticket: number; raison: string; prochainEssai: string | null; acces: AccesBloque | null };
+export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; worktree: EchecDuWorktree | null };
 
 const ETATS: readonly string[] = ["servi", "a-autoriser", "en-preparation", "refuse", "secondaire"];
 const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];
@@ -52,6 +58,15 @@ const texte = (valeur: unknown): valeur is string => typeof valeur === "string";
 const date = (valeur: unknown): string | null => (texte(valeur) && !Number.isNaN(Date.parse(valeur)) ? valeur : null);
 const nomDeStation = (valeur: unknown): valeur is string => texte(valeur) && valeur.trim() !== "" && valeur.length <= 100;
 const gist = (valeur: unknown): valeur is string => texte(valeur) && /^[A-Za-z0-9]{1,64}$/.test(valeur);
+const lireAcces = (lu: unknown): AccesBloque | null => {
+  const { bloque, raison, geste } = (lu ?? {}) as Record<string, unknown>;
+  return (bloque === "fetch" || bloque === "push") && texte(raison) && raison.trim() !== "" && texte(geste) && geste.trim() !== "" ? { bloque, raison, geste } : null;
+};
+const lireEchec = (lu: unknown): EchecDuWorktree | null => {
+  const { ticket, raison, prochainEssai, acces } = (lu ?? {}) as Record<string, unknown>;
+  if (typeof ticket !== "number" || !Number.isInteger(ticket) || ticket <= 0 || !texte(raison) || raison.trim() === "") return null;
+  return { ticket, raison, prochainEssai: date(prochainEssai), acces: lireAcces(acces) };
+};
 const calibre = (lu: unknown): Calibre => {
   const { modele, effort } = (lu ?? {}) as Record<string, unknown>;
   return { modele: texte(modele) ? modele : "", effort: texte(effort) ? effort : "" };
@@ -103,7 +118,7 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
     const lu = JSON.parse(brut) as { brigade?: unknown; projets?: unknown };
     if (lu?.brigade !== "projets-suivi" || !Array.isArray(lu.projets)) return [];
     return (lu.projets as unknown[]).flatMap((brut) => {
-      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule } = (brut ?? {}) as Record<string, unknown>;
+      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule, acces, worktree } = (brut ?? {}) as Record<string, unknown>;
       if (!texte(nom) || !texte(etat) || !ETATS.includes(etat)) return [];
       return [
         {
@@ -115,6 +130,8 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
           cuitSur: nomDeStation(cuitSur) ? cuitSur : null,
           ici: ici === true,
           bascule: lireBascule(bascule),
+          acces: lireAcces(acces),
+          worktree: lireEchec(worktree),
         },
       ];
     });

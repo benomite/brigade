@@ -583,6 +583,7 @@ main > header,
 #stations-du-projet .parcours .etat-de-preparation {
   color: var(--texte-doux);
 }
+#stations-du-projet .depot-retenu,
 #stations-du-projet .parcours .echec {
   display: flex;
   flex-direction: column;
@@ -591,6 +592,12 @@ main > header,
   color: var(--rouge-clair);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
+}
+#stations-du-projet .depot-retenu > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
 }
 /* Le choix de la cuisine (ticket 1107) : une carte, comme dans la maquette. Sa phrase en tête, puis
    chaque partie sous son petit titre — la machine principale, les renforts, les cooks, les réglages

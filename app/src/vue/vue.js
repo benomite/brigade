@@ -104,6 +104,7 @@ import { apresRendu, lireLancement, poserLancement, REPOS } from "./closer/lance
 import { lireDerive, poserDerive } from "./closer/derive/derive.js";
 import { apresRendu as apresLaCorrection, poserCorrections, REPOS as CORRECTION_AU_REPOS } from "./correction/carte.js";
 import { poserProfils } from "./profil/carte.js";
+import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { apresLaDecision, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
@@ -525,7 +526,11 @@ demenagementDit.ariaLive = "polite";
 const parcoursDuProjet = document.createElement("div");
 parcoursDuProjet.className = "parcours-du-projet";
 parcoursDuProjet.ariaLive = "polite";
-stationsDuProjet.append(ligneDesStationsDuProjet, ouvrirLeDemenagement, ouvrirLaConfiance, choixDuDemenagement, formulaireDeConfiance, demenagementDit, confianceDite, parcoursDuProjet);
+// Ce qui retient la cuisine du projet (ticket 1119) : l'accès au dépôt refusé, avec son geste, ou un worktree
+// impossible à préparer, avec sa raison et l'heure du prochain essai — à la place de « prepares it within a minute ».
+const depotRetenu = document.createElement("div");
+depotRetenu.hidden = true;
+stationsDuProjet.append(ligneDesStationsDuProjet, ouvrirLeDemenagement, ouvrirLaConfiance, choixDuDemenagement, formulaireDeConfiance, demenagementDit, depotRetenu, confianceDite, parcoursDuProjet);
 
 // La lecture de `station` sur l'onglet Cooks (ticket 1184), sous ses colonnes : le plafond de cooks, la machine — saturée
 // ou non —, le quota, et le bouton qui écrit le réglage du plafond dans le second. Elle était sous Settings → Cooks ;
@@ -5347,14 +5352,20 @@ function poserStationsDuProjet() {
   poserLeDemenagement(projet, ou, enCours, lues);
   ouvrirLaConfiance.textContent = stations.length === 0 && !seLit(projet) && projet.sansStation !== true ? "choose its machine" : "+ station";
   ouvrirLaConfiance.hidden = confiance !== undefined || demenagement !== undefined || !lues;
-  const onboarding = projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.onboarding ?? null;
-  const annonceTenue = onboarding === null && Date.now() - confianceDitePour.a < 60_000;
+  const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
+  const onboarding = vu?.onboarding ?? null;
+  const retenu = poserDepotRetenu(document, { acces: vu?.acces ?? null, worktree: vu?.worktree ?? null, maintenant: Date.now(), copier: (commande) => void navigator.clipboard.writeText(commande) });
+  depotRetenu.hidden = retenu === null;
+  depotRetenu.replaceChildren(...(retenu === null ? [] : [retenu]));
+  // La station dit ce qui la retient : la phrase qui promet de se préparer « within a minute » ne se dit plus.
+  const annonceTenue = onboarding === null && retenu === null && Date.now() - confianceDitePour.a < 60_000;
   confianceDite.textContent = confianceDitePour.projet === projet.nom && annonceTenue ? confianceDitePour.dit : "";
   poserLeParcours(projet.nom, onboarding);
   // Les stations sont de l'onglet Cooks (ticket 1184). Sur Rail, elles restent en vue tant qu'elles sont ce qui
-  // t'attend : le projet ne cuit nulle part, son parcours est à suivre, ou un choix de machine est ouvert.
+  // t'attend : le projet ne cuit nulle part, son parcours est à suivre, un choix de machine est ouvert, ou
+  // sa cuisine est retenue — l'accès au dépôt refusé, un worktree qui ne se prépare pas (ticket 1119).
   stationsDuProjet.hidden =
-    ongletDe(projet) !== CUISINE && seLit(projet) && parcoursDuProjet.hidden && confiance === undefined && demenagement?.projet !== projet.nom;
+    ongletDe(projet) !== CUISINE && seLit(projet) && parcoursDuProjet.hidden && depotRetenu.hidden && confiance === undefined && demenagement?.projet !== projet.nom;
   if (confiance === undefined) return;
   poserLaConfiance(confiance, projet, { exclues: stations.map(({ id }) => id), demande, principale });
 }
