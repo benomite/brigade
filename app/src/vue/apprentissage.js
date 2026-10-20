@@ -14,6 +14,8 @@ import { survol } from "./briques.js";
 /** @typedef {import("../apprentissage.ts").Apprentissage} Apprentissage */
 /** @typedef {import("../apprentissage.ts").Lecon} Lecon */
 /** @typedef {import("../apprentissage.ts").ProfilApprisLu} Profil */
+/** @typedef {import("../apprentissage.ts").Progres} Progres */
+/** @typedef {import("../apprentissage.ts").Livraison} Livraison */
 
 export const TITRE = "what the cooks learned";
 export const RIEN_APPRIS = "The cooks have learned nothing on this project yet: no lesson, no profile.";
@@ -26,6 +28,10 @@ export const PROMUE = "promoted";
 export const LIEN = "open in the notebook";
 export const CARNET_VIDE = "empty";
 export const AUCUN_TICKET = "none yet";
+export const PREMIER_COUP = "delivered on the first try";
+export const ESSAIS = "attempts per ticket";
+// Un côté sans ticket mergé : les mots, jamais 0 ni NaN.
+export const PAS_ASSEZ = "not enough tickets yet";
 
 // Ce que chaque statut veut dire, au survol de sa pastille.
 export const DIT_PROVISOIRE = "provisional: proposed by the retro of a cook, given to the next cooks, not in the project's notebook";
@@ -83,6 +89,44 @@ function identifiant(doc, id) {
   return pose;
 }
 
+// Un nombre d'essais ou une part, dit sans zéros inutiles.
+const nombre = (/** @type {number} */ n) => String(Math.round(n * 10) / 10);
+
+// Un côté de la mesure : le chiffre, ou les mots quand aucun ticket mergé n'y est.
+/** @param {Fabrique} doc @param {string} cote @param {Livraison | null} livraison @param {(l: Livraison) => string} dit */
+function unCote(doc, cote, livraison, dit) {
+  const pose = cree(doc, "span");
+  pose.className = "cote";
+  if (livraison === null) pose.className = "cote absent";
+  pose.append(cree(doc, "span", cote));
+  const valeur = cree(doc, "span", livraison === null ? PAS_ASSEZ : dit(livraison));
+  valeur.className = "valeur";
+  pose.append(valeur);
+  return pose;
+}
+
+// Ce que la leçon ou le profil a changé : la part livrée du premier coup et les essais moyens, avant puis
+// après son entrée.
+/** @param {Fabrique} doc @param {Progres} progres */
+function leProgres(doc, progres) {
+  const bloc = cree(doc, "div");
+  bloc.className = "progres";
+  /** @type {[string, (l: Livraison) => string][]} */
+  const mesures = [
+    [PREMIER_COUP, (l) => `${Math.round(l.premierCoup * 100)}% (${l.premiers} of ${l.retenus})`],
+    [ESSAIS, (l) => `${nombre(l.essaisMoyens)} on average`],
+  ];
+  for (const [libelle, dit] of mesures) {
+    const ligne = cree(doc, "p");
+    ligne.className = "mesure";
+    const titre = cree(doc, "span", libelle);
+    titre.className = "libelle";
+    ligne.append(titre, unCote(doc, "before", progres.avant, dit), unCote(doc, "after", progres.apres, dit));
+    bloc.append(ligne);
+  }
+  return bloc;
+}
+
 // Une leçon : son statut — son sens au survol —, son identifiant et son texte, puis sa date, ses tickets et
 // ses cooks ; promue, son lien vers sa ligne du carnet.
 /** @param {Fabrique} doc @param {Lecon} lecon @param {(ticket: number, bouton: any) => void} ouvrir @param {(id: string) => void} ouvrirLaLigne */
@@ -118,7 +162,7 @@ function uneLecon(doc, lecon, ouvrir, ouvrirLaLigne) {
     lien.addEventListener("click", () => ouvrirLaLigne(lecon.id));
     details.append(lien);
   }
-  item.append(tete, details);
+  item.append(tete, details, leProgres(doc, lecon.progres));
   return item;
 }
 
@@ -168,7 +212,7 @@ function unProfil(doc, profil, ouvrir) {
   const details = cree(doc, "p");
   details.className = "details";
   details.append(lesTickets(doc, "cooked", profil.tickets, AUCUN_TICKET, ouvrir));
-  item.append(tete, carnet, details);
+  item.append(tete, carnet, details, leProgres(doc, profil.progres));
   return item;
 }
 

@@ -4355,3 +4355,32 @@ button.recommande {
 .closer-lancement .confirmation .maintenant.ferme {
   color: var(--rouge-clair);
 }
+.apprentissage-fiabilite .progres {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+.apprentissage-fiabilite .mesure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 16px;
+  margin: 0;
+  color: var(--discret);
+}
+.apprentissage-fiabilite .mesure .libelle {
+  min-width: 150px;
+}
+.apprentissage-fiabilite .cote {
+  display: inline-flex;
+  gap: 6px;
+}
+.apprentissage-fiabilite .cote .valeur {
+  color: var(--texte-doux);
+}
+.apprentissage-fiabilite .cote.absent .valeur {
+  color: var(--discret);
+  font-style: italic;
+}

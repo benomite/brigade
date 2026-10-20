@@ -12,12 +12,19 @@ import { ecran as fiabilite } from "./fiabilite.ts";
 const PARADE = RENDUS.parade as Rendu;
 const CARNET = "https://github.com/chef/parade/blob/main/.claude/brigade/carnet.md";
 
+// Le progrès de chacun (#1059, `progres` de `facts`) : la livraison avant et après son entrée ; un côté sans
+// ticket mergé est `null`, et la page le dit en mots.
+const livraison = (retenus: number, premiers: number, essaisMoyens: number) => ({ retenus, premiers, premierCoup: premiers / retenus, essaisMoyens });
+const COMPLET = { avant: livraison(10, 6, 1.5), apres: livraison(4, 3, 1.25) };
+const SANS_APRES = { avant: livraison(8, 5, 1.4), apres: null };
+const RIEN = { avant: null, apres: null };
+
 export const APPRENTISSAGE = {
   lecons: [
-    { id: "L4", texte: "run the app tests before touching the view: the skin test reads every class the view sets", statut: "provisoire", date: "2026-10-17", tickets: [29, 33], cooks: 3 },
-    { id: "L6", texte: "a capture screen is a file under scripts/capture-ecran/ecrans/, its data written as the box renders it", statut: "provisoire", date: "2026-10-19", tickets: [36], cooks: 0 },
-    { id: "L-001", texte: "read CLAUDE.md before writing anything: the zones and the gates are there", statut: "promue", date: "2026-10-01", tickets: [12, 15, 22], cooks: 14, url: `${CARNET}#L5` },
-    { id: "L-002", texte: "a test waits for a fact, never for a duration", statut: "promue", date: "2026-10-08", tickets: [18], cooks: 9, url: `${CARNET}#L11` },
+    { id: "L4", texte: "run the app tests before touching the view: the skin test reads every class the view sets", statut: "provisoire", date: "2026-10-17", tickets: [29, 33], cooks: 3, progres: COMPLET },
+    { id: "L6", texte: "a capture screen is a file under scripts/capture-ecran/ecrans/, its data written as the box renders it", statut: "provisoire", date: "2026-10-19", tickets: [36], cooks: 0, progres: SANS_APRES },
+    { id: "L-001", texte: "read CLAUDE.md before writing anything: the zones and the gates are there", statut: "promue", date: "2026-10-01", tickets: [12, 15, 22], cooks: 14, url: `${CARNET}#L5`, progres: COMPLET },
+    { id: "L-002", texte: "a test waits for a fact, never for a duration", statut: "promue", date: "2026-10-08", tickets: [18], cooks: 9, url: `${CARNET}#L11`, progres: SANS_APRES },
   ],
   profils: [
     {
@@ -28,8 +35,9 @@ export const APPRENTISSAGE = {
         { id: "L-002", texte: "every gesture is a button", etat: "retired" },
       ],
       tickets: [29, 33, 36],
+      progres: COMPLET,
     },
-    { nom: "runtime-src-correctif", domaine: "runtime/src/correctif", carnet: [], tickets: [41] },
+    { nom: "runtime-src-correctif", domaine: "runtime/src/correctif", carnet: [], tickets: [41], progres: RIEN },
   ],
 };
 

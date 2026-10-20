@@ -1271,7 +1271,10 @@ tickets servis**, et **ce que le projet a coûté** (#1022). Elle n'est pas un o
   et son survol le dit. Une provisoire n'a pas de lien. **Ses profils** : le nom, le domaine (`for
   app/src/vue`), le carnet — chaque leçon par son identifiant et son texte, son état quand elle n'est plus
   promue (`retired`, `expired`), ou `empty` — et **les tickets qu'il a cuisinés** (`cooked #29 #36`, ou `none
-  yet`). Une partie vide se dit en une ligne (`no profile yet`). **Tant que le projet n'a ni leçon ni profil,
+  yet`). **Chaque leçon et chaque profil montre aussi son progrès** (#1059) : sous sa ligne, la part livrée du
+  premier coup (`60% (6 of 10)`) et les essais moyens par ticket (`1.5 on average`), **avant puis après son
+  entrée** — les chiffres de `progres` dans `facts`. Un côté sans ticket mergé se dit en mots, `not enough
+  tickets yet`, jamais par 0 ni NaN. Une partie vide se dit en une ligne (`no profile yet`). **Tant que le projet n'a ni leçon ni profil,
   la section dit une seule phrase** — `The cooks have learned nothing on this project yet: no lesson, no
   profile.` —, **et aucune liste**. Elle vient de `facts` (`apprentissage`, `docs/runtime/etat-et-mesures.md`),
   lu par `app/src/apprentissage.ts` ; un runtime d'avant ce champ ne le rend pas non plus, et la page dit la

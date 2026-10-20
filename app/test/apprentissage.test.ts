@@ -20,7 +20,7 @@ import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
-import { AUCUN_PROFIL, DIT_PROMUE, DIT_PROVISOIRE, LIEN, poserApprentissage, PROMUE, PROVISOIRE, RIEN_APPRIS, TITRE } from "../src/vue/apprentissage.js";
+import { AUCUN_PROFIL, DIT_PROMUE, PAS_ASSEZ, DIT_PROVISOIRE, LIEN, poserApprentissage, PROMUE, PROVISOIRE, RIEN_APPRIS, TITRE } from "../src/vue/apprentissage.js";
 import { Faux, jouerLaVue, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
 
 const A = "2026-10-19T10:00:00.000Z";
@@ -29,8 +29,9 @@ const LIGNE = "https://github.com/chef/parade/blob/main/.claude/brigade/carnet.m
 
 // Une leçon provisoire, une promue avec l'adresse de sa ligne, une promue sans (la box ne connaît pas le
 // dépôt), et deux profils — dans la forme que `facts` écrit (runtime/src/apprentissage/projet.ts). Le
-// `progres` de chacun (#1057) est la part de #1059 : cette section le laisse de côté, comme tout champ de plus.
-const PROGRES = { avant: { retenus: 10, premiers: 6, premierCoup: 0.6, essaisMoyens: 1.5 }, apres: null };
+// `progres` de chacun (#1057) : la part livrée du premier coup et les essais moyens, avant et après son entrée.
+const PROGRES = { avant: { retenus: 10, premiers: 6, premierCoup: 0.6, essaisMoyens: 1.5 }, apres: { retenus: 4, premiers: 3, premierCoup: 0.75, essaisMoyens: 1.25 } };
+const SANS_APRES = { avant: PROGRES.avant, apres: null };
 const GARNI: ApprentissageDuRuntime = {
   lecons: [
     { id: "L4", texte: "run the app tests before touching the view", statut: "provisoire", date: "2026-10-17", tickets: [29, 33], cooks: 3, progres: PROGRES },
@@ -51,11 +52,8 @@ const GARNI: ApprentissageDuRuntime = {
     { nom: "runtime-src-correctif", domaine: "runtime/src/correctif", carnet: [], tickets: [], progres: { avant: null, apres: null } },
   ],
 };
-// Ce que l'app en lit : la même chose, sans `progres`.
-const LU = {
-  lecons: GARNI.lecons.map(({ progres: _progres, ...lecon }) => lecon),
-  profils: GARNI.profils.map(({ progres: _progres, ...profil }) => profil),
-};
+// Ce que l'app en lit : la même chose.
+const LU = { lecons: GARNI.lecons, profils: GARNI.profils };
 
 const FAITS = { etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [] };
 const lus = (apprentissage: unknown) => comprendre(JSON.stringify({ ...FAITS, apprentissage }));
@@ -87,7 +85,7 @@ describe("le champ `apprentissage` de `facts`", () => {
   test("la section : l'adresse d'une promue ne passe pas à la vue — seulement si sa ligne s'ouvre ; une provisoire n'a pas de lien", () => {
     const { lecons, profils } = section(GARNI);
     const [provisoire, ouvrable, sansAdresse] = lecons;
-    assert.deepEqual(provisoire, { id: "L4", texte: "run the app tests before touching the view", statut: "provisoire", date: "2026-10-17", tickets: [29, 33], cooks: 3 });
+    assert.deepEqual(provisoire, { id: "L4", texte: "run the app tests before touching the view", statut: "provisoire", date: "2026-10-17", tickets: [29, 33], cooks: 3, progres: PROGRES });
     assert.deepEqual(ouvrable?.lien, { ouvrable: true });
     assert.deepEqual(sansAdresse?.lien, { ouvrable: false });
     assert.equal(JSON.stringify(lecons).includes("https://"), false);
@@ -191,6 +189,42 @@ describe("la section, telle que la vue la pose", () => {
     assert.equal(lecons(bloc).length, 3);
   });
 
+  test("chaque leçon et chaque profil dit la part livrée du premier coup et les essais moyens, avant puis après son entrée", () => {
+    const [bloc] = poser(section(GARNI)).poses;
+    assert.ok(bloc !== undefined);
+    const [provisoire] = lecons(bloc);
+    assert.match(provisoire?.textContent ?? "", /delivered on the first trybefore60% \(6 of 10\)after75% \(3 of 4\)/);
+    assert.match(provisoire?.textContent ?? "", /attempts per ticketbefore1\.5 on averageafter1\.3 on average/);
+    const [vue] = profils(bloc);
+    assert.match(vue?.textContent ?? "", /delivered on the first trybefore60% \(6 of 10\)after75% \(3 of 4\)/);
+    assert.equal(bloc.dessous("div").filter(({ className }) => className === "progres").length, 5);
+  });
+
+  test("un côté sans ticket est dit en mots, jamais 0 ni NaN", () => {
+    const [bloc] = poser(section({ lecons: [{ ...GARNI.lecons[0]!, progres: SANS_APRES }], profils: [GARNI.profils[1]!] })).poses;
+    assert.ok(bloc !== undefined);
+    const [lecon] = lecons(bloc);
+    assert.match(lecon?.textContent ?? "", new RegExp(`before60% \\(6 of 10\\)after${PAS_ASSEZ}`));
+    assert.match(lecon?.textContent ?? "", new RegExp(`before1\\.5 on averageafter${PAS_ASSEZ}`));
+    const [profil] = profils(bloc);
+    assert.match(profil?.textContent ?? "", new RegExp(`first trybefore${PAS_ASSEZ}after${PAS_ASSEZ}`));
+    assert.doesNotMatch(bloc.textContent, /NaN|undefined|before0|after0/);
+    const absents = bloc.dessous("span").filter(({ className }) => className === "cote absent");
+    assert.equal(absents.length, 2 + 4);
+  });
+
+  test("un runtime d'avant `progres` ne casse pas la page : rien n'est mesuré", () => {
+    const { progres: _p, ...sans } = GARNI.lecons[0]!;
+    const lu = section({ lecons: [sans as never], profils: [] });
+    assert.deepEqual(lu.lecons[0]?.progres, { avant: null, apres: null });
+  });
+
+  test("un chiffre qui n'a pas sa forme refuse les faits", () => {
+    const [provisoire] = GARNI.lecons;
+    const mauvais = { ...provisoire, progres: { avant: { ...PROGRES.avant, premierCoup: null }, apres: null } };
+    assert.deepEqual(lus({ ...GARNI, lecons: [mauvais] }), { informe: "apprentissage.lecons[0].progres.avant.premierCoup: expected a non-negative number" });
+  });
+
   test("ni leçon ni profil : une phrase, et aucune liste", () => {
     const [bloc, ...reste] = poser(section({ lecons: [], profils: [] })).poses;
     assert.deepEqual(reste, []);
@@ -198,6 +232,7 @@ describe("la section, telle que la vue la pose", () => {
     assert.equal(bloc.dessous("p").length, 1);
     assert.equal(bloc.dessous("p")[0]?.textContent, RIEN_APPRIS);
     assert.deepEqual([...bloc.dessous("ol"), ...bloc.dessous("ul"), ...bloc.dessous("li")], []);
+    assert.deepEqual(bloc.dessous("div"), []);
   });
 });
 

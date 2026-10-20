@@ -7,10 +7,14 @@
 //   - la lecture du champ `apprentissage` de `facts`, champ pour champ (`apprentissageLu`) ;
 //   - la section, prête à poser (`apprentissageDe`) : l'adresse d'une leçon promue n'y passe pas — la vue
 //     nomme la leçon, le process principal ouvre la ligne du carnet que la box a donnée (`faits.ts`, `lecon`).
+// La livraison d'un côté de la date d'entrée (runtime/src/apprentissage/progres.ts, `Livraison`) : `null`,
+// aucun ticket mergé de ce côté.
+export type Livraison = { retenus: number; premiers: number; premierCoup: number; essaisMoyens: number };
+export type Progres = { avant: Livraison | null; apres: Livraison | null };
 // Une leçon, telle que `facts` la dit (runtime/src/apprentissage/projet.ts, `LeconAffichee`).
-export type LeconLue = { id: string; texte: string; statut: "provisoire" | "promue"; date: string; tickets: number[]; cooks: number; url?: string };
+export type LeconLue = { id: string; texte: string; statut: "provisoire" | "promue"; date: string; tickets: number[]; cooks: number; url?: string; progres: Progres };
 // Un profil, tel que `facts` le dit (`ProfilAffiche`) : son carnet, ses leçons promues ou sorties.
-export type ProfilApprisLu = { nom: string; domaine: string; carnet: { id: string; texte: string; etat: string }[]; tickets: number[] };
+export type ProfilApprisLu = { nom: string; domaine: string; carnet: { id: string; texte: string; etat: string }[]; tickets: number[]; progres: Progres };
 export type ApprentissageLu = { lecons: LeconLue[]; profils: ProfilApprisLu[] };
 
 // Une leçon, telle que la vue la pose. `lien` : promue, sa ligne du carnet s'ouvre (`ouvrable`), ou la
@@ -29,6 +33,24 @@ const texte = (valeur: unknown, champ: string): string => (typeof valeur === "st
 const entier = (valeur: unknown, champ: string): number => (typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 0 ? valeur : refuser(champ, "a non-negative integer"));
 const liste = (valeur: unknown, champ: string): unknown[] => (Array.isArray(valeur) ? valeur : refuser(champ, "a list"));
 const tickets = (valeur: unknown, champ: string): number[] => liste(valeur, champ).map((ticket, n) => entier(ticket, `${champ}[${n}]`));
+// Un nombre fini qui n'est pas négatif : jamais NaN, jamais infini.
+const mesure = (valeur: unknown, champ: string): number => (typeof valeur === "number" && Number.isFinite(valeur) && valeur >= 0 ? valeur : refuser(champ, "a non-negative number"));
+const livraison = (valeur: unknown, champ: string): Livraison | null => {
+  if (valeur === null) return null;
+  const lu = objet(valeur, champ);
+  return {
+    retenus: entier(lu.retenus, `${champ}.retenus`),
+    premiers: entier(lu.premiers, `${champ}.premiers`),
+    premierCoup: mesure(lu.premierCoup, `${champ}.premierCoup`),
+    essaisMoyens: mesure(lu.essaisMoyens, `${champ}.essaisMoyens`),
+  };
+};
+// Un runtime d'avant #1057 n'écrit pas `progres` : rien n'est mesuré, des deux côtés.
+const progres = (valeur: unknown, champ: string): Progres => {
+  if (valeur === undefined) return { avant: null, apres: null };
+  const lu = objet(valeur, champ);
+  return { avant: livraison(lu.avant, `${champ}.avant`), apres: livraison(lu.apres, `${champ}.apres`) };
+};
 const jour = (valeur: unknown, champ: string): string => {
   const lu = texte(valeur, champ);
   return /^\d{4}-\d{2}-\d{2}$/.test(lu) && !Number.isNaN(Date.parse(lu)) ? lu : refuser(champ, "a date (YYYY-MM-DD)");
@@ -52,6 +74,7 @@ export function apprentissageLu(brut: unknown): ApprentissageLu {
         tickets: tickets(lecon.tickets, `${lequel}.tickets`),
         cooks: entier(lecon.cooks, `${lequel}.cooks`),
         ...(lecon.url === undefined ? {} : { url: texte(lecon.url, `${lequel}.url`) }),
+        progres: progres(lecon.progres, `${lequel}.progres`),
       };
     }),
     profils: liste(lu.profils, "apprentissage.profils").map((un, rang): ProfilApprisLu => {
@@ -66,6 +89,7 @@ export function apprentissageLu(brut: unknown): ApprentissageLu {
           return { id: texte(lecon.id, `${laquelle}.id`), texte: texte(lecon.texte, `${laquelle}.texte`), etat: texte(lecon.etat, `${laquelle}.etat`) };
         }),
         tickets: tickets(profil.tickets, `${lequel}.tickets`),
+        progres: progres(profil.progres, `${lequel}.progres`),
       };
     }),
   };
