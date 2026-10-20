@@ -23,7 +23,7 @@
 import { execFileSync } from "../sans-invite.ts";
 import { randomUUID } from "node:crypto";
 import { CARNET_PATH, CarnetError, parseCarnet, readCarnet, saveCarnet, type Carnet } from "../carnet/carnet.ts";
-import { retrosDuProjet } from "../apprentissage/provisoires.ts";
+import { candidatesDuProjet, retrosDuProjet } from "../apprentissage/provisoires.ts";
 import type { Depot } from "../depot.ts";
 import type { GitHub } from "../github.ts";
 import type { Journal } from "../journal.ts";
@@ -149,7 +149,7 @@ export function livreurDuCarnet(runtime: Runtime & Pick<Pass, "prendreHorsRail">
     if (etat === juge) return "inchange";
     juge = etat;
     const aujourdhui = maintenant().toISOString().slice(0, 10);
-    const juger = (carnet: Carnet) => changementDuCarnet({ carnet, retros: retrosDuProjet(journal.base, projet), seuils: options.seuils, aujourdhui, fusionnees: fusionnees(journal) });
+    const juger = (carnet: Carnet) => changementDuCarnet({ carnet, retros: retrosDuProjet(journal.base, projet), candidates: candidatesDuProjet(journal.base, projet), seuils: options.seuils, aujourdhui, fusionnees: fusionnees(journal) });
 
     // D'abord sur ce que le clone porte : sans changement, rien ne se prépare.
     try {

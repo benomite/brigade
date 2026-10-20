@@ -2,6 +2,7 @@
 // des gates rouges, un GitHub de test, et un faux `claude` pour ses choix.
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
+import { carnetDuProjet } from "../src/apprentissage/provisoires.ts";
 import { attentesDuChef } from "../src/attend.ts";
 import { cartesEnTodo } from "../src/carte-todo.ts";
 import { REDECOUPE } from "../src/events/rail.ts";
@@ -60,6 +61,12 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.deepEqual(c.charges("manager.raised", 30), [{ added: ["effort:medium"], removed: ["effort:low"] }]);
     // Le premier renvoi est celui de la pass, le second celui du manager.
     assert.deepEqual(c.faits("pass.returned", 30).map((e) => [e.author, (e.payload as Charge).n]), [["pass", 1], ["manager", 2]]);
+    // Chacun fait de sa raison une leçon candidate ; la même raison, mot pour
+    // mot, reconfirme la leçon que le premier a fait naître.
+    assert.deepEqual(c.faits("lesson.candidate", 30).map((e) => [e.author, (e.payload as Charge).origin]), [["pass", "pass-send-back"], ["manager", "pass-send-back"]]);
+    const lecons = carnetDuProjet(c.journal.base, "brigade").lecons;
+    assert.deepEqual(lecons.map((l) => [l.origin, l.entrees.map((e) => e.genre)]), [[{ kind: "pass-send-back", ticket: 30 }, ["propose", "reconfirme"]]]);
+    assert.match(lecons[0]?.texte ?? "", /^Gates rouges sur la fusion de `[^`]+` avec `v2` .* est sorti en 1\. FAIL tests du projet en échec$/);
     // Le seul appel au modèle est le jugement qui a mis le ticket sur le rail.
     assert.equal(c.jugements().length, 1);
     assert.ok(c.dits(30).some((dit) => /second renvoi.*monté de `haiku` \/ `low` à `haiku` \/ `medium`/s.test(dit)));

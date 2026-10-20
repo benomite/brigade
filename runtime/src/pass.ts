@@ -90,6 +90,7 @@ import { blocDesLecons, type LeconRecue } from "./apprentissage/injection.ts";
 import { blocDuCarnet, type CarnetRecu } from "./profils/preference.ts";
 import { CONSIGNE_DE_RETRO } from "./apprentissage/retro.ts";
 import { enregistrerRetro } from "./apprentissage/provisoires.ts";
+import { noterLeRenvoi } from "./apprentissage/renvoi.ts";
 import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE, FERMETURE, OUVERTURE } from "./livrable.ts";
 import { LancementRefuse, type CookLance, type GardeFous, type Verdict as VerdictGarde } from "./garde-fous.ts";
 import { REJOUER_LA_BASE } from "./dire-base.ts";
@@ -1127,6 +1128,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         if (connu.returns < RENVOIS_MAX) {
           const n = connu.returns + 1;
           noter(ticket, { type: "pass.returned", payload: { n, findings: connu.findings } });
+          // Sa raison devient une leçon candidate du projet (`apprentissage/renvoi.ts`).
+          noterLeRenvoi(journal, { projet, ticket, auteur: AUTEUR, origine: "pass-send-back", raisons: connu.findings });
           rail.rendre(ticket, PASS_ROUGE);
           return {
             commentaire: [

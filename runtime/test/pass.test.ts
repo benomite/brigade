@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { carnetDuProjet } from "../src/apprentissage/provisoires.ts";
 import { attentesDuChef } from "../src/attend.ts";
 import { Base } from "../src/base.ts";
 import { consigne } from "../src/claude.ts";
@@ -1276,6 +1277,27 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.notEqual(dernier("pass.judged", 17)?.sha, premier?.sha);
     const dit = gh.commentaires.find(([, corps]) => corps.startsWith("**Reviewer — 1 constat bloquant."))?.[1] ?? "";
     assert.match(dit, /- \*\*Bloquant\*\* \(`travail\.txt`\) — Le cas d'erreur est avalé : rien ne remonte\.\n- \*\*Remarque\*\* — Un test de plus ne nuirait pas\./);
+  });
+
+  test("la raison d'un renvoi de la pass devient une leçon candidate du projet, d'origine « pass-send-back #17 », que le cook renvoyé reçoit", async (t) => {
+    const { journal, cooks, jusquAu } = service(t, { reviewer: { suite: ["relit-rouge"] } });
+    await jusquAu("pass.returned");
+    await jusqua(() => cooks().length === 2);
+
+    const raison = "Relecture — constat bloquant (`travail.txt`) : Le cas d'erreur est avalé : rien ne remonte.";
+    assert.deepEqual(journal.duTicket(17).find((e) => e.type === "pass.returned")?.payload.findings, [raison]);
+    // Écrite par la pass, avec son renvoi.
+    assert.deepEqual(
+      journal.duTicket(17).filter((e) => e.type === "lesson.candidate").map((e) => [e.author, e.payload]),
+      [["pass", { origin: "pass-send-back", text: raison }]],
+    );
+    const [lecon, ...autres] = carnetDuProjet(journal.base, "brigade").lecons;
+    assert.deepEqual(autres, []);
+    assert.deepEqual([lecon?.texte, lecon?.statut, lecon?.origin, lecon?.entrees.map((e) => [e.genre, e.ticket])], [raison, "provisoire", { kind: "pass-send-back", ticket: 17 }, [["propose", 17]]]);
+    // Provisoire dès son écriture : le cook du renvoi la reçoit, avec son id.
+    const lances = journal.duTicket(17).filter((e) => e.type === "cook.launched").map((e) => e.payload.lessons);
+    assert.deepEqual(lances, [[], [lecon?.id]]);
+    assert.match(cooks()[1]?.args[1] ?? "", new RegExp(`${lecon?.id} : Relecture — constat bloquant`));
   });
 
   test("un reviewer resté rouge consomme les deux renvois comme des gates rouges, puis la pass remonte au chef", async (t) => {
