@@ -692,6 +692,10 @@ son nom, son état, ce qu'elle fait et les projets qu'elle porte ; sa machine et
 **Un clic sur sa ligne ouvre la page de la station** : en tête, son nom, sa pastille et son état en
 une phrase (#877) ; dessous, ses pannes avec leur bouton, les projets que l'app lui a ajoutés et le
 parcours « add a project » (voir « Ajouter un projet à tes stations, sans terminal »).
+Sous l'en-tête (#1081) : le plafond de cooks de la station et d'où il vient (`3 at most — 8 cores`, lu dans
+`status`), ce qui retient les tickets quand elle est saturée (mémoire, processeur, valeur et seuil), un champ
+et « set the cap » pour le régler, « back to the default » pour le retirer. Le réglage lance `station cooks <N|0|auto>`
+sur la box de chaque projet qui nomme la station — il vaut pour toutes les stations de ces projets.
 « ‹ All projects » ramène à l'accueil, comme la case **T**.
 
 ```

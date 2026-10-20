@@ -1144,6 +1144,26 @@ main > header,
   gap: 8px;
   color: var(--jaune);
 }
+/* Le plafond de cooks de la page d'une station : ce que sa box en dit, ce qui la retient — en alerte, comme une
+   panne —, et le champ qui le règle, avec ses boutons à la suite. */
+#station .plafond-de-station p {
+  margin: 4px 0;
+}
+#station .plafond-de-station .retenue,
+#station .plafond-de-station .indisponible {
+  color: var(--jaune);
+}
+#station .plafond-de-station .regle-le-plafond {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#station .plafond-de-station input[type="number"] {
+  width: 96px;
+}
+#station .plafond-de-station:empty {
+  display: none;
+}
 /* La ligne de mise à jour de la page d'une station, discrète, sous son en-tête ; « remove the station »
    tout en bas, à l'écart, et sa confirmation sous lui. */
 #station .version-de-station {

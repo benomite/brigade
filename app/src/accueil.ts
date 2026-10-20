@@ -22,6 +22,7 @@ import { COMMANDE as FAITS, comprendre, type Faits } from "./faits.ts";
 import { deriveDe } from "./fiabilite.ts";
 import { heure, heureCourte } from "./format.ts";
 import type { VuDesProjets } from "./projets/projets.ts";
+import { plafondsDe, retenuesDe, type PlafondVu, type RetenueVue } from "./plafond.ts";
 import { LIMITE, type StationVue, type VuDesStations } from "./stations/stations.ts";
 
 // Les tons des pastilles de la peau (vue.css) : vert, jaune — l'orange de la maquette —, rouge, gris.
@@ -31,7 +32,9 @@ export type LigneDeProjet = { nom: string; ton: Ton; dit: string; survol: string
 // Une station a aussi `phrase` : son état en une phrase, en tête de sa page (#877) — « online · 2 cooks
 // running », « offline for 12 min », « saturated ». Ni sa machine, ni sa version, ni ses projets.
 // `note` : sous la phrase, une station en ligne qui ne fait la cuisine d'aucun projet dit en une phrase si c'est normal.
-export type LigneDeStation = { id: string; nom: string; ton: Ton; dit: string; phrase: string; survol: string; note?: string };
+// `plafond` et `retenue` : ce que le `status` d'un projet dit de son plafond de cooks et de ce qui la retient (plafond.ts) ;
+// `reglable` : un projet que l'app lit nomme son plafond, la page peut donc le régler.
+export type LigneDeStation = { id: string; nom: string; ton: Ton; dit: string; phrase: string; survol: string; note?: string; plafond?: PlafondVu; retenue?: RetenueVue; reglable?: true };
 export type Sante = { ton: Ton; dit: string; survol: string };
 // `stations` : absentes, la première lecture sur GitHub est en route.
 export type Accueil = { projets: LigneDeProjet[]; stations?: LigneDeStation[]; sante: Sante };
@@ -270,9 +273,18 @@ export function tenirAccueil({ projets, locale = () => null, maintenant = Date.n
       });
     const ici = locale();
     const pleines = new Set([...statuts.values()].flatMap(({ texte }) => saturees(texte)));
+    const plafonds = [...statuts.values()].map(({ texte }) => plafondsDe(texte));
+    const retenues = [...statuts.values()].map(({ texte }) => retenuesDe(texte));
+    // Ce que dit le premier projet lu qui nomme la station : un plafond se règle pour tous, et ils disent le même.
+    const premier = <T>(dits: readonly Map<string, T>[], station: string) => dits.find((lus) => lus.has(station))?.get(station);
+    const detail = (station: StationVue): Partial<LigneDeStation> => {
+      const plafond = premier(plafonds, station.nom);
+      const retenue = premier(retenues, station.nom);
+      return { ...(plafond === undefined ? {} : { plafond, reglable: true as const }), ...(retenue === undefined ? {} : { retenue }) };
+    };
     return {
       projets: liste.map((projet) => ligneDeProjet(projet, faits.get(projet.nom), statuts.get(projet.nom))),
-      ...(stations === undefined ? {} : { stations: stations.stations.map((station) => ligneDeStation(station, cooks(station.nom), pleines.has(station.nom), station.id === ici ? ailleursDe(station.id) : [])) }),
+      ...(stations === undefined ? {} : { stations: stations.stations.map((station) => ({ ...ligneDeStation(station, cooks(station.nom), pleines.has(station.nom), station.id === ici ? ailleursDe(station.id) : []), ...detail(station) })) }),
       sante: sante(
         stations,
         projetsDesStations,
@@ -292,6 +304,8 @@ export function tenirAccueil({ projets, locale = () => null, maintenant = Date.n
 
   return {
     vu,
+    // Les projets dont le `status` lu nomme le plafond de cette station : ce sont leurs box qui reçoivent son réglage.
+    projetsDe: (station: string): string[] => [...statuts].filter(([, { texte }]) => plafondsDe(texte).has(station)).map(([nom]) => nom),
     // Le fichier des projets a changé : leurs lignes suivent.
     relire: change,
     // Une lecture de `faits`.

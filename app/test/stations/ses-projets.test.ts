@@ -96,8 +96,8 @@ async function laPage(nom: string, projets: VuDesProjets | undefined = PARADE) {
 
 // Les lignes de projet de la page : une par projet, sous « Projects ».
 const lignes = (page: Faux) => {
-  assert.equal(page.children[4]?.textContent, "Projects");
-  return (page.children[5] ?? assert.fail("pas de liste")).dessous("button").filter(({ className }) => className === "ligne");
+  assert.equal(page.children[5]?.textContent, "Projects");
+  return (page.children[6] ?? assert.fail("pas de liste")).dessous("button").filter(({ className }) => className === "ligne");
 };
 const ligne = (page: Faux, projet: string) => lignes(page).find(({ dataset }) => dataset.projet === projet) ?? assert.fail(`pas de ligne « ${projet} »`);
 // La marque d'une ligne : « main » ou « secondary », sur la ligne même.
@@ -183,7 +183,7 @@ test("un clic sur un projet l'ouvre : son espace s'il est dans les projets de l'
 test("le vide ne se dit que sur une station qui ne porte vraiment aucun projet", async () => {
   const { page } = await laPage("atelier");
   assert.equal(lignes(page).length, 0);
-  assert.equal(page.children[5]?.textContent, "no project on this station yet");
+  assert.equal(page.children[6]?.textContent, "no project on this station yet");
   for (const nom of ["box", "macbook"]) {
     const { page: portee } = await laPage(nom);
     assert.ok(lignes(portee).length > 0);

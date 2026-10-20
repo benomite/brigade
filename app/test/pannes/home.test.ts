@@ -43,7 +43,7 @@ const demarrage = (stations: VuDesStations) => ({
 });
 
 // Les lignes de la page de la station, sous son en-tête : ses pannes.
-const lignes = (page: Faux) => page.children[3]?.children ?? [];
+const lignes = (page: Faux) => page.children[4]?.children ?? [];
 // Ce que le survol de la ligne dit : son nom accessible, jamais du texte posé dans la page.
 const survolDe = (ligne: Faux | undefined) => ligne?.dessous("button").find(({ className }) => className === "aide")?.ariaLabel ?? assert.fail("pas de survol sur la panne");
 
