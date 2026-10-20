@@ -9,6 +9,7 @@ import { describe, test, type TestContext } from "node:test";
 import { ROLES } from "../../src/identites.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { REPERTOIRE_COMPTEUR } from "../../src/limite-github.ts";
+import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { lirePortes } from "../../src/station/portes.ts";
 import { fauxGitHubApps } from "../aides/faux-github-apps.ts";
 import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, mort, repertoireTemporaire, temporaireDuFichier, tuerLesRelais, vivant } from "../outils.ts";
@@ -48,6 +49,7 @@ function uneStation(t: TestContext) {
     FAUX_GISTS: gists,
     HOME: compte,
     BRIGADE_STATION_DIR: racine,
+    BRIGADE_STATION_NOM: "box",
     BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
     // La machine du poste ne décide d'aucun test : une suite qui tourne à côté
     // charge le processeur bien au-delà du seuil par défaut.
@@ -64,6 +66,8 @@ function uneStation(t: TestContext) {
     for (const [name, value] of Object.entries(DECIDE)) journal.ajouter({ project: projet, ticket: null, author: "chef", type: "decision.set", payload: { name, value, previous: null } });
     if (options.grant) journal.ajouter({ project: projet, ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
     journal.fermer();
+    // Ces cuisines tournent sans bac à sable : le chef a décidé de continuer ainsi.
+    accepterSansBacASable({ repertoireEtat: etat(projet), station: "box" });
     if (options.clone !== false) {
       const clone = join(racine, "clones", projet);
       mkdirSync(clone, { recursive: true });

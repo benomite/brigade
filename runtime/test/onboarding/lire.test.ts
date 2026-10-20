@@ -41,6 +41,7 @@ test("sans journal — la cuisine ne s'est pas encore ouverte : le ticket noté 
     premierTicket: null,
     dejaServi: false,
     sansBacASable: null,
+    decision: null,
   });
   const onboarding = projet.onboarding();
   assert.equal(onboarding.courante, "preparation");

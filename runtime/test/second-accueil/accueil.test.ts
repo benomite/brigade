@@ -12,6 +12,7 @@ const base: Entrees = {
   suivi: { etat: "servi", dit: "served by macbook", autoriser: [] },
   clone: true,
   sansBacASable: false,
+  decision: null,
   preparation: null,
   premierTicket: null,
   dejaServi: false,

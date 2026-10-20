@@ -19,6 +19,7 @@ import { ATTEND_UN_TIERS, REVENU_D_ATTENTE, SANS_STATION, STATION_ABSENTE } from
 import type { Phase } from "../projections/pass.ts";
 import type { Etat as EtatDuRail } from "../projections/rail.ts";
 import type { SuiviDuProjet } from "../projets/demande.ts";
+import { decisionAttendue, type DecisionSansBacASable } from "./attente.ts";
 
 export const ETAPES = ["depot", "machine", "preparation", "premier-ticket"] as const;
 export type Etape = (typeof ETAPES)[number];
@@ -67,6 +68,9 @@ export type Onboarding = {
   // La station fait tourner ses cooks sans bac à sable (le dernier
   // `isolation.configured` du journal, `sandbox: null`). Null : on ne le sait pas encore.
   sansBacASable: boolean | null;
+  // Une station sans bac à sable retient le projet jusqu'à ce que le chef
+  // choisisse : `true` tant que la décision est attendue — rien ne part.
+  decisionAttendue: boolean;
 };
 
 // Ce que le journal du projet dit de son ticket de préparation.
@@ -92,6 +96,9 @@ export type Entrees = {
   // Le dépôt est cloné sur la station.
   clone: boolean;
   sansBacASable: boolean | null;
+  // La décision du chef de continuer sans bac à sable, avec la station pour
+  // laquelle il l'a prise, ou null.
+  decision: Pick<DecisionSansBacASable, "station"> | null;
   // Le ticket de préparation ouvert pour ce projet, ou null.
   preparation: FaitsDePreparation | null;
   // Le premier ticket, autre que celui de préparation, entré sur le rail, ou null.
@@ -157,7 +164,8 @@ function etapeDepot({ depot, station, suivi, clone }: Entrees): Vue {
   return { faite: true, dit: `${depot} is authorized and cloned on ${station}.`, geste: null };
 }
 
-function etapeMachine({ projet, station, suivi, sansBacASable }: Entrees): Vue {
+function etapeMachine(entrees: Entrees): Vue {
+  const { projet, station, suivi, sansBacASable } = entrees;
   if (station === null) {
     return {
       faite: false,
@@ -166,8 +174,15 @@ function etapeMachine({ projet, station, suivi, sansBacASable }: Entrees): Vue {
     };
   }
   const sansBac = sansBacASable === true ? `: its cooks run without a sandbox, they read everything the station's account reads` : "";
-  if (suivi?.etat === "servi") return { faite: true, dit: `${station} cooks ${projet}${sansBac}.`, geste: null };
   if (suivi?.etat === "refuse") return { faite: false, dit: phrase(suivi.dit), geste: null };
+  if (decisionAttendue(entrees)) {
+    return {
+      faite: false,
+      dit: `${station} has no sandbox: its cooks would read everything the station's account reads. Nothing is launched for ${projet} until you choose.`,
+      geste: { quoi: `Continue without a sandbox on ${station}, or choose another station for ${projet}.`, ou: "In the app, on the project's page.", liens: [] },
+    };
+  }
+  if (suivi?.etat === "servi") return { faite: true, dit: `${station} cooks ${projet}${sansBac}.`, geste: null };
   return { faite: false, dit: `${station} is opening the kitchen of ${projet}${sansBac}.`, geste: null };
 }
 
@@ -265,5 +280,6 @@ export function etatDOnboarding(entrees: Entrees): Onboarding {
     }),
     preparation: preparation.vue,
     sansBacASable: entrees.sansBacASable,
+    decisionAttendue: decisionAttendue(entrees),
   };
 }

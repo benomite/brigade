@@ -13,6 +13,7 @@ const servi: Entrees = {
   suivi: { etat: "servi", dit: "served by macbook", autoriser: [] },
   clone: true,
   sansBacASable: false,
+  decision: null,
   preparation: null,
   premierTicket: null,
   dejaServi: false,
@@ -122,15 +123,34 @@ test("préparation à relire : sa PR est exposée ; quand la pass s'arrête sur 
   assert.deepEqual(etape(arretee, "preparation")?.geste, { quoi: "Review and merge the preparation PR.", ou: "On GitHub.", liens: [pr] });
 });
 
-test("une station dont les cooks tournent sans bac à sable : l'état l'expose, et l'étape de la machine le dit", () => {
-  const onboarding = etatDOnboarding({ ...servi, sansBacASable: true, preparation: surLeRail({ etat: "waiting" }) });
+test("une station dont les cooks tournent sans bac à sable, décision prise : l'état l'expose, et l'étape de la machine le dit", () => {
+  const decide = { ...servi, sansBacASable: true, decision: { station: "macbook" } };
+  const onboarding = etatDOnboarding({ ...decide, preparation: surLeRail({ etat: "waiting" }) });
   assert.equal(onboarding.sansBacASable, true);
+  assert.equal(onboarding.decisionAttendue, false);
   assert.match(etape(onboarding, "machine")?.dit ?? "", /^macbook cooks mirrorlab: its cooks run without a sandbox/);
   assert.equal(etatDOnboarding({ ...servi, sansBacASable: false }).sansBacASable, false);
-  // Dit aussi tant que la cuisine s'ouvre : avant que rien ne parte.
-  const ouverture = etatDOnboarding({ ...servi, suivi: { etat: "en-preparation", dit: "its line is written", autoriser: [] }, sansBacASable: true });
-  assert.equal(ouverture.courante, "machine");
-  assert.match(etape(ouverture, "machine")?.dit ?? "", /without a sandbox/);
+});
+
+test("sans bac à sable et sans décision : la décision est attendue, la machine est l'étape courante, le geste offre les deux choix", () => {
+  const onboarding = etatDOnboarding({ ...servi, sansBacASable: true });
+  assert.equal(onboarding.decisionAttendue, true);
+  assert.equal(onboarding.courante, "machine");
+  assert.equal(onboarding.termine, false);
+  assert.match(etape(onboarding, "machine")?.dit ?? "", /^macbook has no sandbox.*Nothing is launched for mirrorlab until you choose\.$/);
+  assert.equal(etape(onboarding, "machine")?.geste?.quoi, "Continue without a sandbox on macbook, or choose another station for mirrorlab.");
+});
+
+test("la décision se lève par l'acceptation, ou par une autre station — elle ne se reprend pas pour la nouvelle", () => {
+  const sans = { ...servi, sansBacASable: true };
+  assert.equal(etatDOnboarding({ ...sans, decision: { station: "macbook" } }).decisionAttendue, false);
+  // Une autre station : la décision prise pour macbook ne vaut pas pour elle.
+  assert.equal(etatDOnboarding({ ...sans, station: "mini", decision: { station: "macbook" } }).decisionAttendue, true);
+  assert.equal(etatDOnboarding({ ...sans, station: "mini", decision: { station: "mini" } }).decisionAttendue, false);
+  // Un bac à sable configuré, ou inconnu, ne retient jamais ; pas de station, rien à décider.
+  assert.equal(etatDOnboarding({ ...servi, sansBacASable: false }).decisionAttendue, false);
+  assert.equal(etatDOnboarding({ ...servi, sansBacASable: null }).decisionAttendue, false);
+  assert.equal(etatDOnboarding({ ...sans, station: null, suivi: null }).decisionAttendue, false);
 });
 
 test("prêt : la préparation mergée, le premier ticket peut être posé — l'onboarding est fini, et la dernière étape dit le geste", () => {
