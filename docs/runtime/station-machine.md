@@ -193,6 +193,14 @@ en lecture seule ; rien n'est écrit pour lui.
 - **Sans bac à sable** (`sansBacASable`) : vrai si la cuisine du projet a noté au journal que ses
   cooks tournent sans bac à sable (`isolation.configured`, `sandbox: null`) ; nul tant qu'elle
   n'a rien noté.
+- **Décision attendue** (`decisionAttendue`) : vrai tant que la station du projet cuit sans bac à
+  sable et que le chef n'a pas décidé pour elle. Rien ne part pour le projet — pas même le ticket
+  de préparation : le rail est retenu (`onboarding/attente.ts`), et l'étape `machine` est la
+  courante, son geste offre les deux choix : continuer sans bac à sable sur cette machine, ou
+  choisir une autre station. La décision (`decision-sans-bac-a-sable.json`, dans l'état du
+  projet) porte le nom de la station et ne vaut que pour elle : la retenue se lève à la
+  prochaine prise du rail, et un projet changé de station la redemande si la nouvelle n'a pas de
+  bac à sable non plus. Un bac à sable configuré, ou inconnu, ne retient jamais.
 - **Prêt** : les trois premières étapes faites, le premier ticket peut être posé — `etat` vaut
   `pret`, et `termine` est vrai : l'onboarding est fini. Un projet qui servait déjà des tickets
   avant que le ticket de préparation existe est prêt d'emblée.

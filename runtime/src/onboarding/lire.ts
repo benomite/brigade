@@ -9,15 +9,17 @@ import { ouvrirJournal } from "../journal.ts";
 import { lirePreparation } from "../preparation-depot/ouvrir.ts";
 import { passDuTicket } from "../projections/pass.ts";
 import { sortDuTicket, ticketDuRail } from "../projections/rail.ts";
+import { lireDecisionSansBacASable } from "./attente.ts";
 import { etatDOnboarding, type Entrees, type FaitsDePreparation, type Onboarding } from "./etat.ts";
 
-export type FaitsDuProjet = Pick<Entrees, "preparation" | "premierTicket" | "dejaServi" | "sansBacASable">;
+export type FaitsDuProjet = Pick<Entrees, "preparation" | "premierTicket" | "dejaServi" | "sansBacASable" | "decision">;
 
-const RIEN: FaitsDuProjet = { preparation: null, premierTicket: null, dejaServi: false, sansBacASable: null };
+const RIEN: FaitsDuProjet = { preparation: null, premierTicket: null, dejaServi: false, sansBacASable: null, decision: null };
 
 export function lireFaitsDuProjet(repertoireEtat: string): FaitsDuProjet {
+  const decision = lireDecisionSansBacASable(repertoireEtat);
   const ouverte = lirePreparation(repertoireEtat);
-  const sansJournal: FaitsDuProjet = { ...RIEN, preparation: ouverte === null ? null : { ticket: ouverte.ticket, rail: null, sort: null, pass: null } };
+  const sansJournal: FaitsDuProjet = { ...RIEN, decision, preparation: ouverte === null ? null : { ticket: ouverte.ticket, rail: null, sort: null, pass: null } };
   let journal;
   try {
     journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
@@ -51,6 +53,7 @@ export function lireFaitsDuProjet(repertoireEtat: string): FaitsDuProjet {
       premierTicket: premier === undefined ? null : { ticket: premier.ticket, url: premier.url ?? "" },
       dejaServi: servis > 0,
       sansBacASable: cloison === undefined ? null : cloison.sandbox === null,
+      decision,
     };
   } catch {
     // Un journal d'avant les projections lues ici : rien d'autre que le ticket ouvert.
