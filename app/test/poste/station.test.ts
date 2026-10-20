@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../../../runtime/src/journal.ts";
+import { accepterSansBacASable } from "../../../runtime/src/onboarding/attente.ts";
 import { BASE, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, git, issueGitHub, jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
 import { roleDe } from "../../src/poste/role.ts";
 import { tenirStationLocale, TENUE_PAR, type OptionsStationLocale, type StationLocale } from "../../src/poste/station.ts";
@@ -146,6 +147,8 @@ test("ajouter un projet dont cette station est la principale : un ticket du proj
     journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: "decision.set", payload: { name, value, previous: null } });
   }
   journal.fermer();
+  // Cette cuisine tourne sans bac à sable : le chef a décidé de continuer ainsi.
+  accepterSansBacASable({ repertoireEtat: etat, station: "ordi" });
   writeFileSync(join(racine, "projets"), `brigade benomite/brigade ${BASE} BRIGADE_GH_BIN=${gh.bin} BRIGADE_REPO_DIR=${clone}\n`);
 
   const { dit } = tenir(t, { node: process.execPath, principal: PRINCIPAL, racine, env: { ...env, FAUX_CLAUDE: "livre" }, appairer: async (): Promise<Appairage> => ({ refus: "pas de home dans ce test" }), reessaiMs: 3_600_000 });
