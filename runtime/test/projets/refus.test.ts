@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CAUSES, CODES_DE_REFUS, refus } from "../../src/projets/refus.ts";
+import { decrire } from "../../src/remedes/registre.ts";
 
 test("chaque cause de refus a un message d'une phrase et une action", () => {
   assert.deepEqual(Object.keys(CAUSES).sort(), [...CODES_DE_REFUS].sort());
@@ -16,6 +17,6 @@ test("chaque cause de refus a un message d'une phrase et une action", () => {
   }
 });
 
-test("un refus porte son statut, son code, son message et son action", () => {
-  assert.deepEqual(refus("sandbox-unusable"), { status: "refused", code: "sandbox-unusable", ...CAUSES["sandbox-unusable"] });
+test("un refus porte son statut, son code, son message et son action — et son remède, ou pourquoi il n'y en a pas (`remedes/registre.ts`)", () => {
+  assert.deepEqual(refus("sandbox-unusable"), { status: "refused", code: "sandbox-unusable", ...CAUSES["sandbox-unusable"], ...decrire("sandbox-unusable") });
 });

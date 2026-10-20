@@ -6,6 +6,7 @@
 //
 // Toute cause de refus du runtime a ici son entrée : `CAUSES` est typé par
 // `CodeDeRefus`, et un test relit le catalogue.
+import { decrire, REMEDES, type CoteRemede, type Registre } from "../remedes/registre.ts";
 
 export const CODES_DE_REFUS = [
   // La cuisine du projet refuse de s'ouvrir.
@@ -49,8 +50,11 @@ export const CAUSES: Record<CodeDeRefus, Cause> = {
 };
 
 // Ce que le suivi d'un projet refusé porte : `status` est toujours « refused ».
-export type Refus = { status: "refused"; code: CodeDeRefus; message: string; action: string };
+// Et, du remède qui le lève (`remedes/registre.ts`), son descripteur
+// (`remedy`) — ou pourquoi l'app n'a pas de bouton (`noRemedy`).
+export type Refus = { status: "refused"; code: CodeDeRefus; message: string; action: string } & CoteRemede;
 
-export function refus(code: CodeDeRefus): Refus {
-  return { status: "refused", code, ...CAUSES[code] };
+// `registre` : les remèdes de la station — par défaut, ceux du runtime.
+export function refus(code: CodeDeRefus, registre: Registre = REMEDES): Refus {
+  return { status: "refused", code, ...CAUSES[code], ...decrire(code, registre) };
 }

@@ -41,7 +41,9 @@
 //     `refus` (absent tant que rien n'est refusé) : pourquoi la station ne sert
 //     pas ce projet, pour le chef (`refus.ts`) — `status` (toujours
 //     « refused »), `code` (stable), `message` (une phrase) et `action` (ce que
-//     le chef fait). Il accompagne l'état `refuse`, et disparaît dès que le
+//     le chef fait) ; et `remedy` (`id`, `description`, `destructive`), le
+//     remède qu'un bouton de l'app fait jouer à la station, ou `noRemedy`,
+//     pourquoi il n'y a pas de bouton (`remedes/`). Il accompagne l'état `refuse`, et disparaît dès que le
 //     projet est servi.
 //     `worktree` (absent tant qu'aucun n'échoue) : la cuisine du projet n'a pas
 //     pu préparer le worktree d'un ticket (`echec-du-worktree.ts`) — `ticket`,
