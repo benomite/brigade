@@ -184,7 +184,7 @@ describe("la ligne d'une station : son état, ce qu'elle fait, ses projets — s
       const maintenant = new Date(A);
       const etat = lireEtat(journal, maintenant);
       const saturee = (nom: string, saturatedAt: string | null): EtatStation => ({
-        station: nom, engine: "claude", provides: ["code"], maxCooks: 2, cap: null, announcedAt: "2026-10-16T08:00:00.000Z",
+        station: nom, engine: "claude", provides: ["code"], maxCooks: 2, cores: null, cap: null, announcedAt: "2026-10-16T08:00:00.000Z",
         quotaUntil: null, quotaReason: null, disconnectedAt: null, disconnectedReason: null,
         saturatedAt, saturatedResource: saturatedAt === null ? null : "memory", saturatedObserved: saturatedAt === null ? null : 812, saturatedLimit: saturatedAt === null ? null : 1024,
         heldAt: null, heldReason: null, unarbitratedAt: null, unarbitratedReason: null,

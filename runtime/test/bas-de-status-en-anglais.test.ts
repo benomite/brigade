@@ -96,7 +96,7 @@ test("l'état d'exemple fait paraître chaque ligne du bas de `status`, et aucun
     "  #39  taken  -  by box/claude since 2 min, STUCK: no progress since 2 min, lease expired since 4 min  Expired lease",
     "  #41  served  -  since 2 min, cooked by box/claude  Served",
     "",
-    "cooks      3 running — box/claude: 2 at most — 1 STUCK: #23",
+    "cooks      3 running — box/claude: 2 at most — declared — 1 STUCK: #23",
     "           MACHINE SATURATED for 2 min — load of 16.2 for at most 15: box/claude takes no more tickets as long as it lasts",
     "           box/claude WITHHOLDING for 2 min — gradual ramp-up, cooks that have just left weigh in advance: the servable tickets wait",
     "           ARBITER UNREACHABLE for 2 min — connection refused: box/claude launches only one cook at a time, with no arbitration, until it is back",

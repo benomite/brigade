@@ -8,7 +8,8 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { prisPar } from "../src/projections/rail.ts";
 import { etatStation, plafondDeCooks, sansStationDepuis, stationsAnnoncees } from "../src/projections/stations.ts";
 import { lireStations } from "../src/stations-declarees.ts";
-import { chef, cuisine, issue, plafonner } from "./aides/cuisine.ts";
+import type { Machine } from "../src/machine.ts";
+import { chef, cuisine, issue, MACHINE_CALME, plafonner } from "./aides/cuisine.ts";
 import { jusqua } from "./outils.ts";
 
 const DEUX = lireStations({ BRIGADE_STATIONS: "box/claude:1:code+raisonnement,box/playwright:2:navigateur-headless" });
@@ -24,8 +25,8 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
     assert.deepEqual(
       journal.tout().filter((e) => e.type === "station.announced").map((e) => [e.author, e.payload]),
       [
-        ["station:box/claude", { station: "box/claude", engine: "claude", provides: ["code", "raisonnement"], maxCooks: 1 }],
-        ["station:box/playwright", { station: "box/playwright", engine: "playwright", provides: ["navigateur-headless"], maxCooks: 2 }],
+        ["station:box/claude", { station: "box/claude", engine: "claude", provides: ["code", "raisonnement"], maxCooks: 1, cores: 8 }],
+        ["station:box/playwright", { station: "box/playwright", engine: "playwright", provides: ["navigateur-headless"], maxCooks: 2, cores: 8 }],
       ],
     );
     assert.deepEqual(stationsAnnoncees(journal.base), [CLAUDE, PLAYWRIGHT]);
@@ -40,8 +41,9 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
       ],
     );
     assert.equal(sansStationDepuis(journal.base), null);
-    // `status` dit le plafond de chacune.
-    assert.match(decrireEtat(lireEtat(journal), new Date()).join("\n"), /box\/claude: 1 at most, box\/playwright: 2 at most/);
+    // `status` dit le plafond de chacune, et d'où il vient : sous les trois
+    // que permettent huit cœurs, c'est celui qu'elles déclarent.
+    assert.match(decrireEtat(lireEtat(journal), new Date()).join("\n"), /box\/claude: 1 at most — declared, box\/playwright: 2 at most — declared/);
   });
 
   test("le plafond de chaque station est respecté : celle à un cook n'en reçoit pas un second, l'autre prend les siens, et le ticket de trop attend", async (t) => {
@@ -73,6 +75,40 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
         ["station:box/playwright", { station: PLAYWRIGHT, reason: "cap" }],
       ],
     );
+  });
+
+  test("le plafond que donnent les cœurs est tenu comme celui qu'on déclare : une station pleine laisse le ticket suivant à l'autre, puis il attend son tour", async (t) => {
+    // Trente déclarés chacune, sur six cœurs : deux cooks au plus par station.
+    const TRENTE = lireStations({ BRIGADE_STATIONS: "box/claude:30:code+raisonnement,box/playwright:30:navigateur-headless" });
+    const six: Machine = { ...MACHINE_CALME, coeurs: 6 };
+    const { journal, etat, lancements } = cuisine(t, { stations: TRENTE, scenario: "muet", machine: () => six, issues: [issue(14), issue(15), issue(16), issue(17), issue(18)] });
+    await jusqua(() => lancements().length === 4);
+    await laisserServir();
+
+    assert.equal(lancements().length, 4);
+    assert.deepEqual([14, 15, 16, 17, 18].map(etat), ["taken", "taken", "taken", "taken", "waiting"]);
+    assert.deepEqual([prisPar(journal.base, CLAUDE), prisPar(journal.base, PLAYWRIGHT)], [2, 2]);
+    // Les deux premiers dans la première station, les deux suivants dans l'autre.
+    assert.deepEqual(
+      journal
+        .tout()
+        .flatMap((e) => (e.type === "ticket.taken" ? [[e.ticket, e.author]] : [])),
+      [
+        [14, `station:${CLAUDE}`],
+        [15, `station:${CLAUDE}`],
+        [16, `station:${PLAYWRIGHT}`],
+        [17, `station:${PLAYWRIGHT}`],
+      ],
+    );
+    // Le ticket de trop attend par le même chemin qu'au plafond déclaré : chaque station le dit.
+    assert.deepEqual(
+      journal.tout().filter((e) => e.type === "station.held").map((e) => e.payload),
+      [
+        { station: CLAUDE, reason: "cap" },
+        { station: PLAYWRIGHT, reason: "cap" },
+      ],
+    );
+    assert.match(decrireEtat(lireEtat(journal), new Date()).join("\n"), /4 running — box\/claude: 2 at most — 6 cores, box\/playwright: 2 at most — 6 cores/);
   });
 
   test("une station à plafond 1, seule : jamais deux cooks à la fois, même devant un rail plein", async (t) => {

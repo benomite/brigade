@@ -4,7 +4,9 @@
 //                                                    qu'elle fait tourner pour qu'on regarde une livraison d'interface,
 //                                                    puis ce que tous les lancements ont consommé ensemble : ce que le
 //                                                    chef paie ; enfin les décisions du chef, posées ou non
-//   npm --prefix runtime run station -- cooks <N>    règle le plafond de cooks simultanés ; 0 : pas de limite
+//   npm --prefix runtime run station -- cooks <N>    règle le plafond de cooks simultanés ; 0 : pas de limite ;
+//                                                    `auto` : retire le réglage, le plafond par défaut revient —
+//                                                    celui des cœurs de la machine
 //   npm --prefix runtime run station -- <geste> <valeur>
 //                                                    pose une décision du chef (`decisions.ts`) — un geste par
 //                                                    décision, listés par `station -- help` : les stations, les deux
@@ -39,6 +41,8 @@ import {
   cooksDeStation,
   cooksEnCoursDeStation,
   direConnexionTombeeEn,
+  direNombreDeCooksEn,
+  direPlafondEn,
   direRetenueDeStationEn,
   etatStation,
   plafondDeCooks,
@@ -72,8 +76,9 @@ const LU = "read by the runtime at its next read, without a restart; no running 
 
 const geste = (nom: string) => `${nom} ${GESTES[nom]?.valeur ?? ""}`;
 const USAGE = [
-  "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run station -- [cooks <N> | <geste> <valeur> | remove <geste> | help]",
+  "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run station -- [cooks <N> | cooks auto | <geste> <valeur> | remove <geste> | help]",
   `  ${"cooks <N>".padEnd(26)}the cap of simultaneous cooks of every station — a number, 0 for no limit`,
+  `  ${"cooks auto".padEnd(26)}withdraws your cap: each station comes back to its default — derived from its machine's cores, its declared cap if lower`,
   ...Object.entries(GESTES).map(([nom, { quoi, attendu }]) => `  ${geste(nom).padEnd(26)}${quoi} — ${attendu}`),
   `  ${"remove <geste>".padEnd(26)}withdraws a decision: it is no longer decided, and the runtime keeps to what it read`,
   "A decision is written to the log in the chef's name: the runtime reads it at its next read, without a restart, and no cook is stopped.",
@@ -119,16 +124,15 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
       .join("  ");
   }
 
-  const direPlafond = (plafond: number | null) => (plafond === null ? "no limit" : `${plafond} at most`);
-
   function decrirePlafond(etat: EtatStation): string {
-    const regle = etat.cap === null ? "the default: the chef has set nothing" : "set by the chef";
-    return `${direPlafond(plafondDeCooks(etat))} (${regle}) — \`station -- cooks <N>\` to change it, 0 for no limit`;
+    const retour = etat.cap === null ? "" : ", `station -- cooks auto` to come back to the default";
+    return `${direPlafondEn(etat)} — \`station -- cooks <N>\` to change it, 0 for no limit${retour}`;
   }
 
   // Écrit le plafond du chef s'il change quelque chose, et dit ce qu'il en est.
-  // Vérifier et écrire tiennent dans une seule transaction.
-  function plafonner(journal: Journal, maxCooks: number): string {
+  // Vérifier et écrire tiennent dans une seule transaction. `maxCooks` nul :
+  // le chef retire son réglage.
+  function plafonner(journal: Journal, maxCooks: number | null): string {
     const { base } = journal;
     return base.transaction(() => {
       const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
@@ -139,11 +143,12 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
       return stations
         .map((station) => {
           const etat = etatStation(base, station);
-          if (etat?.cap === maxCooks) return `${station}: cap already set — ${direPlafond(plafondDeCooks(etat))}`;
-          const avant = etat ? direPlafond(plafondDeCooks(etat)) : "unknown";
+          if (etat && etat.cap === maxCooks) return `${station}: ${maxCooks === null ? "no cap set by you, already the default" : "cap already set"} — ${direPlafondEn(etat)}`;
+          // Ce qu'il remplaçait de lui-même : le défaut, lui, se lit dans la phrase.
+          const avant = etat && etat.cap !== null ? ` (was: ${direNombreDeCooksEn(plafondDeCooks(etat))}, set by you)` : "";
           journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "station.capped", payload: { station, maxCooks } });
-          const apres = direPlafond(maxCooks === 0 ? null : maxCooks);
-          return `${station}: simultaneous cooks, ${apres} (was: ${avant}) — no running cook is stopped, the station launches no more while it is above${absent}`;
+          const apres = etatStation(base, station);
+          return `${station}: simultaneous cooks, ${apres ? direPlafondEn(apres) : "unknown"}${avant} — no running cook is stopped, the station launches no more while it is above${absent}`;
         })
         .join("\n");
     });
@@ -282,7 +287,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
   const retrait = commande === "remove";
   if (decision && args.length !== 2) echouer(2, `${commande} expects one value, and only one — \`station -- ${geste(commande)}\`: ${GESTES[commande]?.attendu}`);
   if (retrait && (args.length !== 2 || !Object.hasOwn(GESTES, valeur ?? ""))) echouer(2, `remove expects a decision setting — ${Object.keys(GESTES).join(", ")}`);
-  if (plafond ? args.length !== 2 || !/^(0|[1-9][0-9]{0,5})$/.test(valeur ?? "") : !decision && !retrait && args.length > 0) echouer(2, USAGE);
+  if (plafond ? args.length !== 2 || !/^(0|[1-9][0-9]{0,5}|auto)$/.test(valeur ?? "") : !decision && !retrait && args.length > 0) echouer(2, USAGE);
   const regler = plafond || decision || retrait;
   // Un réglage ouvre le journal en écriture : sans ce contrôle, il en créerait
   // un là où il n'y en a pas. Une décision est la seule à le faire : un projet
@@ -298,7 +303,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
   }
   try {
     if (plafond) {
-      dire(`brigade : ${plafonner(journal, Number(valeur))}`);
+      dire(`brigade : ${plafonner(journal, valeur === "auto" ? null : Number(valeur))}`);
     } else if (decision) {
       dire(`brigade : ${decider(journal, commande, valeur ?? "")}`);
     } else if (retrait) {

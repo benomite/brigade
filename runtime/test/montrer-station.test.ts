@@ -39,7 +39,7 @@ test("le chef voit la station : son nom, ce qu'elle fournit, son plafond, sa con
 
   assert.equal(code, 0);
   assert.match(sortie, /station\s+box\/claude — engine claude, provides: code/);
-  assert.match(sortie, /simultaneous cooks\s+1 at most \(the default: the chef has set nothing\) — `station -- cooks <N>` to change it, 0 for no limit/);
+  assert.match(sortie, /simultaneous cooks\s+1 at most — declared — `station -- cooks <N>` to change it, 0 for no limit\n/);
   assert.match(sortie, /machine\s+holds/);
   assert.match(sortie, /Max connection\s+taken as good/);
   assert.match(sortie, /quota\s+available/);
@@ -111,11 +111,11 @@ test("le chef règle le plafond de cooks : le journal le porte, la station le mo
   const reglage = await montrer("cooks", "12");
 
   assert.equal(reglage.code, 0);
-  assert.match(reglage.sortie, /box\/claude: simultaneous cooks, 12 at most \(was: 1 at most\) — no running cook is stopped/);
+  assert.match(reglage.sortie, /box\/claude: simultaneous cooks, 12 at most — set by you, replaces 1 \(declared\) — no running cook is stopped/);
   assert.match(reglage.sortie, /no runtime is running/);
   const fait = journal.tout().at(-1);
   assert.deepEqual([fait?.type, fait?.author, fait?.payload], ["station.capped", "chef", { station: STATION, maxCooks: 12 }]);
-  assert.match((await montrer()).sortie, /simultaneous cooks\s+12 at most \(set by the chef\)/);
+  assert.match((await montrer()).sortie, /simultaneous cooks\s+12 at most — set by you, replaces 1 \(declared\) — `station -- cooks <N>` to change it, 0 for no limit, `station -- cooks auto` to come back to the default/);
 
   assert.match((await montrer("cooks", "12")).sortie, /cap already set — 12 at most/);
   assert.equal(journal.tout().filter((evenement) => evenement.type === "station.capped").length, 1);
@@ -125,8 +125,34 @@ test("zéro lève la limite", async (t) => {
   const { annoncer, montrer } = cuisine(t);
   annoncer();
 
-  assert.match((await montrer("cooks", "0")).sortie, /simultaneous cooks, no limit \(was: 1 at most\)/);
-  assert.match((await montrer()).sortie, /simultaneous cooks\s+no limit \(set by the chef\)/);
+  assert.match((await montrer("cooks", "0")).sortie, /simultaneous cooks, no limit — set by you, replaces 1 \(declared\) — no running cook/);
+  assert.match((await montrer()).sortie, /simultaneous cooks\s+no limit — set by you/);
+  // D'un réglage à l'autre, ce qu'il remplaçait de lui-même se lit aussi.
+  assert.match((await montrer("cooks", "4")).sortie, /simultaneous cooks, 4 at most — set by you, replaces 1 \(declared\) \(was: no limit, set by you\)/);
+});
+
+test("sur huit cœurs, le plafond par défaut est trois ; le chef le règle à cinq, puis le retire par `cooks auto` et les trois reviennent", async (t) => {
+  const { journal, noter, montrer } = cuisine(t);
+  noter({ type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["code"], maxCooks: 30, cores: 8 } });
+
+  assert.match((await montrer()).sortie, /simultaneous cooks\s+3 at most — 8 cores — `station -- cooks <N>` to change it, 0 for no limit\n/);
+
+  const reglage = await montrer("cooks", "5");
+  assert.equal(reglage.code, 0);
+  assert.match(reglage.sortie, /box\/claude: simultaneous cooks, 5 at most — set by you, replaces 3 \(8 cores\) — no running cook is stopped/);
+  assert.match((await montrer()).sortie, /simultaneous cooks\s+5 at most — set by you, replaces 3 \(8 cores\)/);
+
+  const retrait = await montrer("cooks", "auto");
+  assert.equal(retrait.code, 0);
+  assert.match(retrait.sortie, /box\/claude: simultaneous cooks, 3 at most — 8 cores \(was: 5 at most, set by you\)/);
+  assert.deepEqual(journal.tout().at(-1)?.payload, { station: STATION, maxCooks: null });
+  assert.match((await montrer()).sortie, /simultaneous cooks\s+3 at most — 8 cores — /);
+
+  // Rien à retirer : rien n'est écrit.
+  assert.match((await montrer("cooks", "auto")).sortie, /no cap set by you, already the default — 3 at most — 8 cores/);
+  assert.equal(journal.tout().filter((evenement) => evenement.type === "station.capped").length, 2);
+  // Ni un autre mot.
+  assert.equal((await montrer("cooks", "defaut")).code, 2);
 });
 
 test("une base d'intégration rouge se lit sur la ligne de retenue", async (t) => {
@@ -206,7 +232,7 @@ test("deux stations déclarées : la commande montre chacune, avec ce qu'elle fo
   const deux = (await montrer()).sortie;
   assert.match(deux, /box\/claude — engine claude, provides: code/);
   assert.match(deux, /box\/playwright — engine playwright, provides: navigateur-headless/);
-  assert.match(deux, /2 at most \(the default: the chef has set nothing\)/);
+  assert.match(deux, /2 at most — declared/);
 
   noter({ type: "station.withdrawn", payload: { station: playwright } }, null, `station:${playwright}`);
 

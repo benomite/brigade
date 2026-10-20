@@ -17,7 +17,7 @@ import { worktreesGardes } from "../src/projections/cleanup.ts";
 import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { configStation } from "../src/station.ts";
-import { BAIL_MS, CALIBRE, chef, controlerBase, cuisine, issue, MACHINE_CALME, PLAFONDS, plafonner, STATION } from "./aides/cuisine.ts";
+import { BAIL_MS, CALIBRE, chef, controlerBase, cuisine, issue, MACHINE_CALME, MACHINE_VASTE, PLAFONDS, plafonner, STATION } from "./aides/cuisine.ts";
 import { BASE, commiter, DEPOT, git, jusqua, mort, tuerLesRelais } from "./outils.ts";
 
 // Une base que le test fait bouger — un correctif mergé —, et le compte des
@@ -29,12 +29,12 @@ const baseMobile = () => {
 
 // Chaque test a ses lieux — répertoire d'état, dépôt, GitHub : ils se jouent de front.
 describe("la station", { concurrency: 8 }, () => {
-  test("au branchement, la station annonce son nom, son moteur, ce qu'elle fournit et son plafond de cooks", (t) => {
+  test("au branchement, la station annonce son nom, son moteur, ce qu'elle fournit, son plafond de cooks et les cœurs de sa machine", (t) => {
     const { journal } = cuisine(t);
 
     const annonce = journal.tout().find((e) => e.type === "station.announced");
-    assert.deepEqual([annonce?.author, annonce?.payload], [`station:${STATION}`, { station: "box/claude", engine: "claude", provides: ["code"], maxCooks: 1 }]);
-    assert.equal(etatStation(journal.base, STATION)?.maxCooks, 1);
+    assert.deepEqual([annonce?.author, annonce?.payload], [`station:${STATION}`, { station: "box/claude", engine: "claude", provides: ["code"], maxCooks: 1, cores: 8 }]);
+    assert.deepEqual([etatStation(journal.base, STATION)?.maxCooks, etatStation(journal.base, STATION)?.cores], [1, 8]);
   });
 
   test("l'annonce n'est réécrite au redémarrage que si elle a changé", (t) => {
@@ -407,6 +407,7 @@ describe("la station", { concurrency: 8 }, () => {
   test("un cook qui meurt et un cook qui dépasse un plafond n'emportent pas les autres : leurs tickets repartent, les autres continuent", async (t) => {
     const { journal, etat, lancements } = cuisine(t, {
       cooks: 4,
+      machine: () => MACHINE_VASTE,
       scenario: "muet",
       suite: ["echec", "bavard"],
       plafonds: { turns: 5 },
@@ -473,7 +474,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("au plus deux tickets en entrée à la fois : le setup des suivants attend que les premiers soient partis", async (t) => {
-    const { journal, setup, etat, dernier, lancements } = cuisine(t, { cooks: 10, entrees: 2, setup: "attend", scenario: "muet", issues: [14, 15, 16, 17].map((numero) => issue(numero)) });
+    const { journal, setup, etat, dernier, lancements } = cuisine(t, { cooks: 10, machine: () => MACHINE_VASTE, entrees: 2, setup: "attend", scenario: "muet", issues: [14, 15, 16, 17].map((numero) => issue(numero)) });
     await jusqua(() => setup.appels().length === 2);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
@@ -564,8 +565,10 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un rail de trente tickets ne part pas d'un bloc : la station compte d'avance les cooks qu'elle vient de lancer, et monte par paliers d'une minute", async (t) => {
-    // Deux cœurs : trois de charge au plus. La machine, elle, ne voit rien venir.
-    const calme: Machine = { ...MACHINE_CALME, coeurs: 2 };
+    // Vingt cœurs déjà chargés à 27 : trois de charge de marge, avant les trente
+    // au plus — et un plafond par défaut de neuf cooks, que la montée n'atteint
+    // pas. La machine, elle, ne voit rien venir.
+    const calme: Machine = { ...MACHINE_CALME, coeurs: 20, charge: 27 };
     const numeros = Array.from({ length: 30 }, (_, i) => 101 + i);
     const { journal, heure, etat, types, lancements } = cuisine(t, { cooks: 30, entrees: 30, scenario: "muet", machine: () => calme, issues: numeros.map((numero) => issue(numero)) });
     await jusqua(() => lancements().length === 4);

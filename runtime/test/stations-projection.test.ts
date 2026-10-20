@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { compteRetenu, consommationDesCooks, cooksDeStation, etatStation, plafondDeCooks, sansStationDepuis, stationsAnnoncees } from "../src/projections/stations.ts";
+import { compteRetenu, consommationDesCooks, cooksDeStation, direPlafondEn, etatStation, plafondDeCooks, plafondDesCoeurs, sansStationDepuis, stationsAnnoncees } from "../src/projections/stations.ts";
 import { faitInconnu, horloge, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const STATION = "box/claude";
@@ -38,6 +38,7 @@ test("une station annoncée se lit avec son moteur, ce qu'elle fournit et son pl
 
   assert.deepEqual(etatStation(base, STATION), {
     ...ANNONCE,
+    cores: null,
     cap: null,
     announcedAt: `${JOUR_HORLOGE}T10:00:00.000Z`,
     quotaUntil: null,
@@ -125,7 +126,7 @@ test("ce qui retient la station se lit sur elle, avec la raison, jusqu'à ce qu'
 
 test("le plafond de cooks est celui de l'annonce tant que le chef n'a rien réglé ; son réglage l'emporte, et zéro lève la limite", (t) => {
   const { base, noter } = cuisine(t);
-  const plafond = () => plafondDeCooks(etatStation(base, STATION) ?? { maxCooks: -1, cap: null });
+  const plafond = () => plafondDeCooks(etatStation(base, STATION) ?? { maxCooks: -1, cores: null, cap: null });
   noter({ type: "station.announced", payload: { ...ANNONCE, maxCooks: 30 } });
   assert.equal(plafond(), 30);
 
@@ -137,6 +138,55 @@ test("le plafond de cooks est celui de l'annonce tant que le chef n'a rien régl
 
   noter({ type: "station.capped", payload: { station: STATION, maxCooks: 0 } }, null, "chef");
   assert.equal(plafond(), null);
+
+  // Retiré, le réglage du chef rend la main au plafond par défaut.
+  noter({ type: "station.capped", payload: { station: STATION, maxCooks: null } }, null, "chef");
+  assert.deepEqual([etatStation(base, STATION)?.cap, plafond()], [null, 12]);
+});
+
+test("le plafond par défaut dérive des cœurs de la machine, jamais des trente déclarés : deux cœurs, un cook ; huit, trois ; seize, sept", (t) => {
+  const { base, noter } = cuisine(t);
+  const plafond = () => plafondDeCooks(etatStation(base, STATION) ?? { maxCooks: -1, cores: null, cap: null });
+  const dit = () => direPlafondEn(etatStation(base, STATION) ?? { maxCooks: -1, cores: null, cap: null });
+  for (const [cores, attendu] of [
+    [1, 1],
+    [2, 1],
+    [4, 1],
+    [8, 3],
+    [16, 7],
+  ] as const) {
+    assert.equal(plafondDesCoeurs(cores), attendu);
+    noter({ type: "station.announced", payload: { ...ANNONCE, maxCooks: 30, cores } });
+    assert.deepEqual([cores, etatStation(base, STATION)?.cores, plafond(), dit()], [cores, cores, attendu, `${attendu} at most — ${cores} cores`]);
+  }
+  // Soixante-quatre cœurs en permettraient trente et un : la déclaration, plus
+  // basse, l'emporte, et le dit.
+  noter({ type: "station.announced", payload: { ...ANNONCE, maxCooks: 30, cores: 64 } });
+  assert.deepEqual([plafondDesCoeurs(64), plafond(), dit()], [31, 30, "30 at most — declared"]);
+  noter({ type: "station.announced", payload: { ...ANNONCE, maxCooks: 30, cores: 8 } });
+  assert.equal(dit(), "3 at most — 8 cores");
+  // Une déclaration plus basse que les cœurs l'emporte : `box/playwright:2`.
+  noter({ type: "station.announced", payload: { ...ANNONCE, maxCooks: 2, cores: 16 } });
+  assert.deepEqual([plafond(), dit()], [2, "2 at most — declared"]);
+  // Des cœurs inconnus — une station distante, un journal d'avant — : la déclaration tient.
+  noter({ type: "station.announced", payload: { ...ANNONCE, maxCooks: 30 } });
+  assert.deepEqual([etatStation(base, STATION)?.cores, plafond(), dit()], [null, 30, "30 at most — declared"]);
+  // Des cœurs illisibles ne comptent pas.
+  noter({ type: "station.announced", payload: { ...ANNONCE, maxCooks: 30, cores: 0 } });
+  assert.equal(etatStation(base, STATION)?.cores, null);
+});
+
+test("le réglage du chef se dit avec ce qu'il remplace : `5 at most — set by you, replaces 3 (8 cores)`", (t) => {
+  const { base, noter } = cuisine(t);
+  const dit = () => direPlafondEn(etatStation(base, STATION) ?? { maxCooks: -1, cores: null, cap: null });
+  noter({ type: "station.announced", payload: { ...ANNONCE, maxCooks: 30, cores: 8 } });
+
+  noter({ type: "station.capped", payload: { station: STATION, maxCooks: 5 } }, null, "chef");
+  assert.equal(dit(), "5 at most — set by you, replaces 3 (8 cores)");
+  noter({ type: "station.capped", payload: { station: STATION, maxCooks: 0 } }, null, "chef");
+  assert.equal(dit(), "no limit — set by you, replaces 3 (8 cores)");
+  noter({ type: "station.capped", payload: { station: STATION, maxCooks: null } }, null, "chef");
+  assert.equal(dit(), "3 at most — 8 cores");
 });
 
 test("un plafond illisible est ignoré : il reste au journal, sans effet", (t) => {

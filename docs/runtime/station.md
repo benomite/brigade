@@ -25,7 +25,7 @@ brigade <projet> station stations box/claude:30:code+raisonnement,box/playwright
 | Champ | Ce qu'il dit | Ce qui est accepté |
 |---|---|---|
 | **nom** | `<machine>/<moteur>` : le nom par lequel le rail, le journal, `status` et `station` la désignent | une machine et un moteur, chacun en minuscules, chiffres et tirets ; **un nom ne se déclare qu'une fois** |
-| **plafond** | combien de cooks elle fait tourner à la fois | un entier supérieur à zéro |
+| **plafond** | combien de cooks elle fait tourner à la fois, **au plus** : une station d'ici n'en fait tourner que ce que permettent les cœurs de la machine, s'ils en permettent moins (voir « Plusieurs cooks à la fois ») | un entier supérieur à zéro |
 | **fournit** | ses **capacités** : ce que cette machine sait faire (`code`, `navigateur-headless`, `chrome-connecté`…) | au moins une ; des lettres, des chiffres et des tirets, séparées par `+` |
 | **distante** | facultatif : la station **ne tourne pas sur la machine du runtime** — le poste du chef. Le runtime n'y lance rien et ne la joint jamais : c'est elle qui vient tirer son travail (voir « Une station distante tire son travail ») | le mot `distante`, et rien d'autre : **ni hôte, ni port, ni adresse** — la box ne sait pas où elle est |
 | **ordinaires** | facultatif, après `distante` (`distante+ordinaires`) : la station distante prend **aussi les tickets ordinaires** — ceux qui ne demandent aucune capacité —, chacun dans le bac à sable de Claude Code de son poste (voir « Les tickets ordinaires sur le poste du chef ») | le mot `ordinaires`, et seulement d'une station `distante` : une station de la box les prend déjà |
@@ -55,7 +55,8 @@ brigade <projet> station stations box/claude:30:code+raisonnement,box/playwright
   que dans une station qui fournit ce qu'il demande (voir « Les capacités qu'un ticket demande »).
 
 Au démarrage, le runtime dit ce qu'il a lu : `brigade : stations — box/claude (30 cooks au plus ;
-fournit : code, raisonnement) ; box/playwright (2 cooks au plus ; fournit : navigateur-headless)`.
+fournit : code, raisonnement) ; box/playwright (2 cooks au plus ; fournit : navigateur-headless)` —
+le plafond déclaré ; celui qui tient, cœurs compris, se lit dans `run status`.
 
 ### Plusieurs cooks à la fois
 
@@ -63,13 +64,34 @@ Une station prend des tickets tant que **trois bornes** le permettent, relues à
 
 | Borne | Ce qu'elle retient | Réglage |
 |---|---|---|
-| **Le plafond de cooks** | le nombre de tickets que la station tient en même temps | celui qu'elle déclare (`station stations`) ; à chaud : `run station -- cooks <N>`, pour **toutes** les stations du projet, `0` pour aucune limite |
+| **Le plafond de cooks** | le nombre de tickets que la station tient en même temps | par défaut, celui des **cœurs de la machine**, borné par celui qu'elle déclare (`station stations`) ; à chaud : `run station -- cooks <N>`, pour **toutes** les stations du projet, `0` pour aucune limite, `auto` pour revenir au défaut |
 | **L'entrée** | le nombre de tickets dont le worktree se prépare et le setup se joue | `BRIGADE_MAX_SETUPS`, **4** par défaut |
 | **La machine** | plus aucune prise quand processeur, mémoire ou disque manquent | trois seuils, ci-dessous |
 
+**Le plafond par défaut vient des cœurs.** Chaque station d'ici annonce les cœurs de sa machine
+(`cores` dans `station.announced`), et n'en fait tourner que **`max(1, ⌊(cœurs − 2) / 2⌋)`** cooks :
+deux cœurs gardés pour le runtime, la pass et ses gates, puis environ deux par cook — son `claude`,
+ses tests, son setup —, pour que la charge reste sous le nombre de cœurs. Un cœur ou deux : 1 cook ;
+**8 cœurs : 3** ; 12 : 5 ; 16 : 7. Le plafond déclaré n'est plus qu'une borne : `box/claude:30` sur
+8 cœurs fait tourner 3 cooks, `box/playwright:2` en fait tourner 2. Une station **distante** garde son
+plafond déclaré : la box ne voit pas les cœurs du poste qui la porte. Mesuré sur une box de 8 cœurs
+sous l'ancien plafond fixe de 30 : la charge montait de 16 à 34, et les gates passaient de ~250 s à
+364-438 s (#1045).
+
+`run status` et `run station` disent le plafond et **d'où il vient** :
+
+| Ce qui le donne | Ce qui s'affiche |
+|---|---|
+| les cœurs | `box/claude: 3 at most — 8 cores` |
+| la déclaration, plus basse — ou les cœurs inconnus | `box/playwright: 2 at most — declared` |
+| ton réglage, et ce qu'il remplace | `box/claude: 5 at most — set by you, replaces 3 (8 cores)` ; `no limit — set by you, replaces 3 (8 cores)` |
+
 `cooks <N>` écrit `station.capped` pour chaque station, lu dans la seconde, tenu après un
-redémarrage — **il l'emporte sur le plafond déclaré**, et le reste tant qu'un autre `cooks <N>` ne
-le remplace pas. L'entrée et la machine sont communes aux stations du projet. **Baisser le
+redémarrage — **il l'emporte sur le plafond par défaut**, cœurs et déclaration, et le reste tant qu'un
+autre `cooks <N>` ne le remplace pas. **`cooks auto` le retire** (`station.capped` avec
+`maxCooks: null`) : chaque station revient à son défaut, celui des cœurs. Un ticket au-delà du
+plafond ne part pas par-dessus : il va dans une autre station qui a de la place, ou attend son tour
+(`station.held`, raison `cap`). L'entrée et la machine sont communes aux stations du projet. **Baisser le
 plafond n'arrête aucun cook.** Il ne compte que les cooks de tickets — ni jugement ni relecture —,
 et un ticket rendu ou retiré jusqu'à l'arrêt de son cook. Un ticket qui attend l'entrée reste en
 attente, son bail ne court pas.

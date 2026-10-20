@@ -295,6 +295,7 @@ puis ferme la PR et supprime la branche.
 ```bash
 npm --prefix runtime run station                 # la voir
 npm --prefix runtime run station -- cooks 12     # régler son plafond de cooks (0 : aucune limite)
+npm --prefix runtime run station -- cooks auto   # revenir au plafond par défaut, celui des cœurs
 ```
 
 Ses sorties, ses refus et ses erreurs sont **en anglais**, avec les mots de `docs/glossary.md`
@@ -310,10 +311,10 @@ session, reste la mesure de vérité du compte ; le runtime ne la remplace pas.
 
 | Événement | Sens |
 |---|---|
-| `station.announced` | Une station que le projet déclare se présente : moteur, ce qu'elle fournit, plafond de cooks déclaré, `remote: true` si elle est distante, et `ordinary: true` si elle prend aussi les tickets ordinaires (hors ticket) |
+| `station.announced` | Une station que le projet déclare se présente : moteur, ce qu'elle fournit, plafond de cooks déclaré, `cores` — les cœurs de sa machine, d'une station d'ici seulement —, `remote: true` si elle est distante, et `ordinary: true` si elle prend aussi les tickets ordinaires (hors ticket) |
 | `station.withdrawn` | Le projet ne déclare plus cette station : elle sort de `status` et de `station` (hors ticket) |
 | `stations.undeclared` | Le projet ne déclare aucune station : aucun cook ne part. Écrit une fois, par le runtime ; la première annonce l'efface (hors ticket) |
-| `station.capped` | Le chef a réglé le plafond de cooks : `maxCooks`, `0` pour aucune limite (hors ticket) |
+| `station.capped` | Le chef a réglé le plafond de cooks : `maxCooks`, `0` pour aucune limite, `null` quand il retire son réglage (`cooks auto`) (hors ticket) |
 | `station.saturated`, `station.relieved` | La machine n'en peut plus (`resource` : `cpu`, `memory`, `disk` ; `observed`, `limit`), puis respire (hors ticket) |
 | `station.held`, `station.released` | Un ticket pourrait partir et n'est pas pris (`reason`, voir « Plusieurs cooks à la fois ») ; plus rien ne retient (hors ticket) |
 | `station.unarbitrated`, `station.arbitrated` | L'arbitre ne répond plus : mode dégradé, un cook à la fois, chaque `cook.launched` porte `unarbitrated: true` ; puis il répond de nouveau (hors ticket) |

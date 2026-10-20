@@ -41,8 +41,10 @@ export type FaitStation =
   // combien de cooks elle fait tourner à la fois tant qu'il n'a rien réglé.
   // `remote` : elle ne tourne pas sur cette machine, elle tire son travail.
   // `ordinary` : distante, elle prend aussi les tickets ordinaires, dans le bac
-  // à sable de son poste.
-  | { type: "station.announced"; payload: { station: string; engine: string; provides: string[]; maxCooks: number; remote?: true; ordinary?: true } }
+  // à sable de son poste. `cores` : les cœurs de la machine qui la porte —
+  // seulement d'une station d'ici, la box ne voit pas le poste d'une distante ;
+  // c'est d'eux que dérive son plafond par défaut (`plafondDesCoeurs`).
+  | { type: "station.announced"; payload: { station: string; engine: string; provides: string[]; maxCooks: number; cores?: number; remote?: true; ordinary?: true } }
   // Une station distante s'est manifestée — elle s'annonce, réclame, renouvelle
   // ou rend — alors qu'elle était absente : elle sert de nouveau. Écrit quand
   // ça change, pas à chaque manifestation.
@@ -92,7 +94,8 @@ export type FaitStation =
   | { type: "cook.out-of-zone"; payload: { run: string; zone: string[]; files: { path: string; owners: number[] }[]; cardChanged: boolean } }
   // Le chef règle le plafond de cooks simultanés, pendant que la station
   // tourne ou non. `maxCooks: 0` : pas de limite. Il l'emporte sur l'annonce.
-  | { type: "station.capped"; payload: { station: string; maxCooks: number } }
+  // `maxCooks: null` : le chef retire son réglage, le plafond par défaut revient.
+  | { type: "station.capped"; payload: { station: string; maxCooks: number | null } }
   // La machine n'en peut plus : la station ne prend plus de ticket tant que ça
   // dure. `observed`, `limit` : la charge et son plafond (cpu), ou ce qui reste
   // et le minimum exigé, en Mo (memory, disk). Écrit quand la ressource en
