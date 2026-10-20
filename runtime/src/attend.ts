@@ -35,6 +35,11 @@
 // s'il n'en avait pas, une à lui : ce qu'il attendait, et les gestes.
 // Une carte typée qui a passé la porte de TODO (carte-todo.ts) y est, avec son
 // type et son énoncé, tant qu'elle n'en est pas sortie.
+// La pause du renommage du code (pause/pause.ts) y entre par sa carte : la
+// durée attendue, les tickets en vol qu'elle retiendra, le « oui » ou le
+// « non ». Acceptée, elle n'attend plus le chef : le bloc la dit en une ligne
+// à elle, « paused for the code rename », qui nomme les tickets qui finissent
+// leur travail et ceux qui sont retenus, jusqu'à sa fin.
 import type { Base } from "./base.ts";
 import { geste } from "./geste.ts";
 import { absentesDuMotif, direManque, direManqueEn, direStationAbsente, direStationAbsenteEn, GESTE_DE_PRESENCE, GESTE_DE_PRESENCE_EN, gesteDeCapacite, gesteDeCapaciteEn, manqueDuMotif, type Manque } from "./capacites.ts";
@@ -59,6 +64,8 @@ import { SCRIPT_SETUP } from "./gates.ts";
 import { CAUSES_DU_PROJET } from "./mise-de-cote.ts";
 import { REVENU_D_ATTENTE } from "./events/rail.ts";
 import { cartesEnTodo, direCarte, direCarteEn, type CarteDeTodo } from "./carte-todo.ts";
+import type { EnVol } from "./pause/evenements.ts";
+import { EN_PAUSE_POUR_LE_RENOMMAGE, NON, OUI, pauseAccordee, pauseEnCours, ticketsEnVol } from "./pause/pause.ts";
 
 // Ce que le chef lit de la livraison qui l'attend, tel que la pass l'a consigné :
 // `resume`, celui de la relecture ; `constat`, le premier constat bloquant (celui
@@ -156,6 +163,10 @@ type AttenteHorsTicket = { ticket: null; title: null; since: string } & (
   // Le disjoncteur ouvert : plus aucun cook ne part. `since` : son ouverture ;
   // `echecs` : les échecs d'affilée qui l'ont ouvert.
   | { quoi: "disjoncteur"; echecs: EchecDuDisjoncteur[]; seuil: number | null }
+  // La carte du renommage du code, qui demande la pause : `minutes`, la durée
+  // attendue ; `enVol`, les tickets que la pause retiendra, lus à l'instant ;
+  // `renommage`, son ticket, nul s'il n'en est pas un. `since` : la demande.
+  | { quoi: "pause"; minutes: number; enVol: EnVol[]; renommage: number | null }
 );
 
 export type Attente = AttenteDeTicket | AttenteHorsTicket;
@@ -310,11 +321,66 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
 
   const cartes = cartesEnTodo(base).map(({ ticket, since, ...carte }): AttenteDeTicket => ({ ticket, title: tickets.get(ticket)?.title ?? null, since, quoi: "carte", carte }));
 
+  // La pause du renommage attend le « oui » du chef ; acceptée, elle n'attend
+  // plus personne (`pauseDeLaCuisine`).
+  const enCours = pauseEnCours(base);
+  const pause: Attente[] =
+    enCours === null || enCours.agreedAt !== null
+      ? []
+      : [{ ticket: null, title: null, since: enCours.since, quoi: "pause", minutes: enCours.minutes, enVol: ticketsEnVol(rail, enCours.ticket), renommage: enCours.ticket }];
+
   // Ce qui attend un tiers n'attend pas le chef, quoi qu'il attendait avant.
   const enWaiting = (attente: Attente) => attente.ticket !== null && tickets.get(attente.ticket)?.waitingFor != null;
-  return [...disjoncteur, ...baseRouge, ...setup, ...aside, ...connexions, ...session, ...jeton, ...fermeture, ...livraisons, ...bloques, ...repris, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets), ...cartes]
+  return [...disjoncteur, ...pause, ...baseRouge, ...setup, ...aside, ...connexions, ...session, ...jeton, ...fermeture, ...livraisons, ...bloques, ...repris, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets), ...cartes]
     .filter((attente) => !enWaiting(attente))
     .sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
+}
+
+// Les gestes du chef sur la pause du renommage : le « oui », le « non » — qui,
+// la pause acceptée, la lève.
+export const ACCEPTER_LA_PAUSE = geste(`guardrails pause ${OUI}`);
+export const REFUSER_LA_PAUSE = geste(`guardrails pause ${NON}`);
+
+// Ce que la pause fera de chaque ticket en vol : pris, son cook finit son
+// travail, puis sa livraison attend ; en pass, son merge attend.
+const ticketsRetenusEn = (enVol: EnVol[]) =>
+  enVol.length === 0
+    ? "no ticket in flight"
+    : `in flight, held: ${enVol.map(({ ticket, state }) => `#${ticket} (${state === "taken" ? "taken: its cook finishes its work, then its delivery waits" : "in pass: its merge waits"})`).join(", ")}`;
+const ticketsRetenus = (enVol: EnVol[]) =>
+  enVol.length === 0
+    ? "aucun ticket en vol"
+    : `en vol, retenus : ${enVol.map(({ ticket, state }) => `#${ticket} (${state === "taken" ? "pris : son cook finit son travail, puis sa livraison attend" : "en pass : son merge attend"})`).join(", ")}`;
+
+// La carte du renommage : combien de temps, ce qui est retenu, et les deux
+// réponses.
+function direDemandeDePauseEn({ minutes, enVol, renommage }: Extract<Attente, { quoi: "pause" }>): string {
+  const sauf = renommage === null ? "" : ` but #${renommage}'s`;
+  return `the code rename asks to pause the kitchen for about ${minutes} min — no merge${sauf}, no new cook until it ends — ${ticketsRetenusEn(enVol)} — to agree: \`${ACCEPTER_LA_PAUSE}\`; to decline: \`${REFUSER_LA_PAUSE}\``;
+}
+function direDemandeDePause({ minutes, enVol, renommage }: Extract<Attente, { quoi: "pause" }>): string {
+  const sauf = renommage === null ? "" : ` que celui de #${renommage}`;
+  return `le renommage du code demande de mettre la cuisine en pause pendant environ ${minutes} min — aucun merge${sauf}, aucun cook neuf jusqu'à sa fin — ${ticketsRetenus(enVol)} — pour accepter : \`${ACCEPTER_LA_PAUSE}\` ; pour refuser : \`${REFUSER_LA_PAUSE}\``;
+}
+
+// La pause acceptée, qui tient : depuis le « oui » (`since`), la durée
+// attendue, les tickets dont le cook finit son travail (`finissent`) et ceux
+// dont la livraison est retenue (`retenus`), lus à l'instant.
+export type PauseEnVigueur = { since: string; minutes: number; renommage: number | null; finissent: number[]; retenus: number[] };
+
+export function pauseDeLaCuisine(base: Base, rail: readonly TicketRail[]): PauseEnVigueur | null {
+  const pause = pauseAccordee(base);
+  if (pause === null) return null;
+  const enVol = ticketsEnVol(rail, pause.ticket);
+  const de = (etat: EnVol["state"]) => enVol.flatMap(({ ticket, state }) => (state === etat ? [ticket] : []));
+  return { since: pause.agreedAt, minutes: pause.minutes, renommage: pause.ticket, finissent: de("taken"), retenus: de("pass") };
+}
+
+// La ligne de la pause dans le bloc `awaiting` : une seule, qui commence par
+// ce que la cuisine fait.
+export function direPauseEn({ since, minutes, finissent, retenus }: PauseEnVigueur, depuis: (instant: string) => string): string {
+  const numeros = (tickets: number[]) => (tickets.length === 0 ? "none" : tickets.map((ticket) => `#${ticket}`).join(", "));
+  return `${EN_PAUSE_POUR_LE_RENOMMAGE} — for ${depuis(since)}, expected about ${minutes} min — finishing their work: ${numeros(finissent)} · held: ${numeros(retenus)} — to end it now: \`${REFUSER_LA_PAUSE}\``;
 }
 
 // Ce que le ticket attendait d'un tiers, à sa dernière mise en attente.
@@ -468,6 +534,8 @@ export function direAttenteEn(attente: Attente): string {
       return direMiseDeCoteBloqueeEn(attente);
     case "disjoncteur":
       return direDisjoncteurEn(attente);
+    case "pause":
+      return direDemandeDePauseEn(attente);
   }
 }
 
@@ -567,7 +635,7 @@ export const TETE_AWAITING = "awaiting";
 export const FIN_AWAITING = "end awaiting";
 
 // Ce qui nomme une entrée, en tête de sa ligne : son ticket, sa station,
-// `session`, `jeton`, `fermeture`, `base`, `setup`, `aside` ou `disjoncteur`.
+// `session`, `jeton`, `fermeture`, `base`, `setup`, `aside`, `disjoncteur` ou `pause`.
 // C'est aussi le nom que les faits donnent à la décision.
 export const nommerAttente = (attente: Attente): string => (attente.ticket !== null ? `#${attente.ticket}` : attente.quoi === "connexion" ? attente.station : attente.quoi);
 
@@ -581,13 +649,17 @@ export const nommerEn = (attente: Attente): string => (attente.ticket === null ?
 // distinguerait pas d'une lecture ratée —, et ne porte rien d'autre que la
 // version passée en service. Ni l'un ni l'autre ne compte pour une décision.
 // `depuis` : la durée écoulée depuis un instant, en anglais (`3 d`, `2 h 04`).
-export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string, sansGrant: SansGrant | null = null, passage: Passage | null = null): string[] {
+export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string, sansGrant: SansGrant | null = null, passage: Passage | null = null, pause: PauseEnVigueur | null = null): string[] {
   const [premiere] = attentes;
   const passee = passage === null ? [] : [`  ${passage.ligne}`];
-  if (premiere === undefined) return [`${TETE_AWAITING.padEnd(11)}nothing awaits the chef`, ...passee, FIN_AWAITING, ""];
+  // La pause acceptée n'est pas une décision : sa ligne vient sous la tête,
+  // et ne compte pas.
+  const enPause = pause === null ? [] : [`  ${direPauseEn(pause, depuis)}`];
+  if (premiere === undefined) return [`${TETE_AWAITING.padEnd(11)}nothing awaits the chef`, ...enPause, ...passee, FIN_AWAITING, ""];
   const tete = attentes.length === 1 ? `1 decision awaits the chef — for ${depuis(premiere.since)}` : `${attentes.length} decisions await the chef — the oldest for ${depuis(premiere.since)}`;
   return [
     `${TETE_AWAITING.padEnd(11)}${tete}`,
+    ...enPause,
     ...attentes.map((attente) => `  ${nommerEn(attente)}  for ${depuis(attente.since)}  ${direAttenteEn(attente)}${attente.title === null ? "" : `  ${attente.title}`}`),
     ...[sansGrant === null ? null : direSansGrantEn(sansGrant)].flatMap((bilan) => (bilan === null ? [] : [`  ${bilan}`])),
     ...passee,
@@ -751,6 +823,8 @@ export function direAttente(attente: Attente): string {
       return direMiseDeCoteBloquee(attente);
     case "disjoncteur":
       return direDisjoncteur(attente);
+    case "pause":
+      return direDemandeDePause(attente);
   }
 }
 

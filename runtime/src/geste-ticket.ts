@@ -13,6 +13,7 @@ import { attentesDuChef } from "./attend.ts";
 import type { GitHub } from "./github.ts";
 import { LABEL } from "./github.ts";
 import type { Journal } from "./journal.ts";
+import { EN_PAUSE_POUR_LE_RENOMMAGE, mergeRetenu } from "./pause/pause.ts";
 import { nomEtatEn } from "./rail.ts";
 import { passDuTicket } from "./projections/pass.ts";
 import { lireRail, ticketDuRail } from "./projections/rail.ts";
@@ -90,9 +91,11 @@ export async function changerPriorite(journal: Journal, github: GitHub, projet: 
 // PR (attend.ts, `merge` et `remontee`) —, à la tête que sa PR porte sur GitHub.
 // Rien n'est écrit au journal : la pass constate le merge à son tour suivant et
 // sert le ticket, comme pour tout merge à la main. Une livraison que la pass
-// tient encore, une PR fermée ou déjà mergée, un refus de GitHub : rien n'est
-// mergé, et la raison est dite.
+// tient encore, une PR fermée ou déjà mergée, un refus de GitHub, la cuisine
+// en pause pour le renommage du code : rien n'est mergé, et la raison est dite.
 export async function mergerLaLivraison(journal: Journal, github: GitHub, ticket: number): Promise<Resultat> {
+  const pause = mergeRetenu(journal.base, ticket);
+  if (pause !== null) return refuse(`${EN_PAUSE_POUR_LE_RENOMMAGE} since ${pause.agreedAt}: no other merge until it ends — merge it once the pause is over`);
   const attente = attenteDuTicket(journal, ticket);
   const livraison = passDuTicket(journal.base, ticket);
   const aMerger = attente !== undefined && (attente.quoi === "merge" || attente.quoi === "remontee") && attente.pr !== null;

@@ -106,6 +106,7 @@ function manque(valeur: unknown): Manque | null {
 const RETENUES: Record<Retenue, string> = {
   stopped: "cuisine arrêtée par le chef",
   breaker: "disjoncteur ouvert",
+  paused: "cuisine en pause pour le renommage du code",
   deploy: "mise en service demandée, la cuisine se vide avant le redémarrage",
   base: "base d'intégration rouge",
   disconnected: "connexion Max expirée",
@@ -126,6 +127,7 @@ export const direRetenueDeStation = (raison: Retenue) => RETENUES[raison];
 const RETENUES_EN: Record<Retenue, string> = {
   stopped: "kitchen stopped by the chef",
   breaker: "breaker open",
+  paused: "kitchen paused for the code rename",
   deploy: "deploy requested, the kitchen empties before the restart",
   base: "integration base red",
   disconnected: "Max connection expired",

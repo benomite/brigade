@@ -65,6 +65,7 @@ import {
   causeDeDeclarations,
   DIRE_GATES_COUPEES,
   ENCORE_ROUGE,
+  EN_PAUSE,
   GATES_COUPEES,
   HORS_RAIL,
   JUGES_MODIFIES,
@@ -98,6 +99,7 @@ import { constaterExtinction, direExtinction } from "./grant.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import type { GitHub, PR } from "./github.ts";
 import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
+import { mergeRetenu } from "./pause/pause.ts";
 import { etatDesGardeFous } from "./projections/guardrails.ts";
 import { managerAllume } from "./projections/manager.ts";
 import {
@@ -1181,6 +1183,20 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           ].join("\n"),
         };
       }
+      // La cuisine en pause pour le renommage du code, sur le « oui » du chef :
+      // aucun autre merge que celui du renommage. La livraison attend, et
+      // repart seule à la fin de la pause.
+      if (mergeRetenu(base, ticket) !== null) {
+        if (connu.phase === "waiting" && connu.reason === EN_PAUSE) return null;
+        noter(ticket, { type: "pass.waiting", payload: { reason: EN_PAUSE } });
+        return {
+          commentaire: [
+            `**Pass — en attente (\`${EN_PAUSE}\`).** ${livraison}`,
+            "",
+            `La cuisine est en pause pour le renommage du code, sur l'accord du chef : aucun autre merge ne se fait avant sa fin. Rien n'est à refaire sur cette livraison : elle repart seule à la fin de la pause — rejugée d'abord si \`${options.base}\` a bougé, puis mergée sous grant.`,
+          ].join("\n"),
+        };
+      }
       const grant = etatDuGrant(base, "merge", maintenant());
       if (!grant?.active) {
         // Ce qu'elle aurait fait sous grant, dit avec l'arrêt : rien n'est
@@ -1710,7 +1726,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       // reprend — et ne relit la PR — qu'une fois levé ce qu'il attendait.
       case "waiting":
         if (tick && (await surveiller(connu))) return;
-        if (connu.reason === BASE_ROUGE ? etatDeLaBase(base)?.outcome === "red" && !estLaReparation(connu.ticket) : sature() !== null) return;
+        if (connu.reason === EN_PAUSE ? mergeRetenu(base, connu.ticket) !== null : connu.reason === BASE_ROUGE ? etatDeLaBase(base)?.outcome === "red" && !estLaReparation(connu.ticket) : sature() !== null) return;
         if (enPass(connu.ticket)) await juger(connu);
         return;
       case "merging":

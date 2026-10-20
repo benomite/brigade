@@ -24,8 +24,9 @@ export type OrigineDuSeuil = { totalMb: number } | "env";
 // le quota, le plafond de cooks, celui des setups, le setup du projet bloqué
 // sur un échec qui se répète, la machine saturée, ou la montée progressive — les cooks tout juste partis, comptés d'avance. Et, quand
 // la machine a un arbitre entre projets : son refus, ou son absence — sans
-// lui, la station ne fait tourner qu'un cook à la fois.
-export type Retenue = "stopped" | "breaker" | "deploy" | "base" | "disconnected" | "quota" | "cap" | "setups" | "setup" | "aside" | "machine" | "ramp" | "arbiter" | "unarbitrated";
+// lui, la station ne fait tourner qu'un cook à la fois. `paused` : la cuisine
+// est en pause pour le renommage du code, sur le « oui » du chef.
+export type Retenue = "stopped" | "breaker" | "paused" | "deploy" | "base" | "disconnected" | "quota" | "cap" | "setups" | "setup" | "aside" | "machine" | "ramp" | "arbiter" | "unarbitrated";
 
 // Un cook est signalé quand cette part du bail de son ticket est passée sans
 // progrès : assez tôt pour que le chef le voie avant que le bail ne tombe.

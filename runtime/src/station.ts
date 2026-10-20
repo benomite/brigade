@@ -81,6 +81,7 @@ import { commitsConserves, travailLaisse, type TravailLaisse } from "./travail-c
 import { lire } from "./plafonds.ts";
 import { etatDesGardeFous, fluxDuCook } from "./projections/guardrails.ts";
 import { etatDeLaBase, passDuTicket, renvoiEnAttente, reparationEnCours } from "./projections/pass.ts";
+import { pauseAccordee } from "./pause/pause.ts";
 import { communsDuRail, lireRail, prisPar, ticketDuRail, type TicketRail } from "./projections/rail.ts";
 import { consommationDesCooks, derniereMiseDeCote, dernierEchecDeSetup, etatStation, miseDeCoteBloquee, memeCause, plafondDeCooks, refusDAffilee, SANS_CONNEXION, sansStationDepuis, setupBloque, stationsAnnoncees } from "./projections/stations.ts";
 import { GesteRefuse, type Preneuse } from "./rail.ts";
@@ -696,11 +697,12 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
 
   // Les bornes qu'une station lit avant de prendre un ticket, qu'elle tourne
   // ici ou qu'elle tire son travail : le « stop » du chef, le disjoncteur, la
-  // base rouge, sa connexion, son quota, son
+  // pause du renommage, la base rouge, sa connexion, son quota, son
   // plafond de cooks.
-  const borneDe = ({ nom, cooks }: StationDeclaree, etat: ReturnType<typeof etatStation>, garde: ReturnType<typeof etatDesGardeFous>, rouge: boolean, instant: string): Retenue | null => {
+  const borneDe = ({ nom, cooks }: StationDeclaree, etat: ReturnType<typeof etatStation>, garde: ReturnType<typeof etatDesGardeFous>, rouge: boolean, instant: string, enPause: boolean): Retenue | null => {
     if (garde.stoppedAt !== null) return "stopped";
     if (garde.breakerOpenedAt !== null) return "breaker";
+    if (enPause) return "paused";
     if (rouge) return "base";
     if (etat?.disconnectedAt) return "disconnected";
     if (etat?.quotaUntil && etat.quotaUntil > instant) return "quota";
@@ -710,9 +712,14 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   };
 
   // Ce que la prise peut donner : sur une base rouge, son ticket de réparation
-  // en cours, et lui seul — null s'il n'y en a pas. `undefined` : la base
-  // n'est pas rouge, rien ne restreint la prise.
-  const seuleAPartir = (): number | null | undefined => (etatDeLaBase(base)?.outcome === "red" ? reparationEnCours(base) : undefined);
+  // en cours, et lui seul — null s'il n'y en a pas ; la cuisine en pause pour
+  // le renommage du code, le ticket du renommage, et lui seul — null s'il n'en
+  // est pas un. `undefined` : rien ne restreint la prise.
+  const seuleAPartir = (): number | null | undefined => {
+    if (etatDeLaBase(base)?.outcome === "red") return reparationEnCours(base);
+    const pause = pauseAccordee(base);
+    return pause === null ? undefined : pause.ticket;
+  };
 
   // Le plafond d'une station ne compte que ses cooks de tickets : un jugement
   // du manager ou une relecture du reviewer ne retient rien. Tout se lit à
@@ -743,9 +750,12 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // à un ticket à la fois : celui qui sonde si la cause a changé — la valeur
     // d'un secret posée, GitHub revenu n'ont aucun commit à attendre.
     const sansCause = miseDeCoteBloquee(base) !== null && rail.tickets().some((ticket) => ticket.state === "taken");
+    // En pause pour le renommage du code, seul le ticket du renommage part —
+    // la station qui peut le prendre n'est pas retenue par la pause.
+    const enPause = pauseAccordee(base) !== null;
     const retient = (declaree: StationDeclaree): Retenue | null => {
       const reparable = typeof seule === "number" && rail.servables(enCuisine, preneuses([declaree.nom]), seule) > 0;
-      const borne = borneDe(declaree, etats.get(declaree.nom) ?? null, garde, rouge && !reparable, instant);
+      const borne = borneDe(declaree, etats.get(declaree.nom) ?? null, garde, rouge && !reparable, instant, enPause && !rouge && !reparable);
       if (borne !== null) return borne;
       if (sansSetup) return "setup";
       if (sansCause) return "aside";
@@ -758,7 +768,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // les bornes de toute station. L'entrée et la machine sont celles d'ici —
   // son worktree et son cook pèsent sur son poste, pas sur la box.
   const ceQuiRetientLaDistante = (declaree: StationDeclaree): Retenue | null =>
-    borneDe(declaree, etatStation(base, declaree.nom), etatDesGardeFous(base), etatDeLaBase(base)?.outcome === "red", maintenant().toISOString());
+    borneDe(declaree, etatStation(base, declaree.nom), etatDesGardeFous(base), etatDeLaBase(base)?.outcome === "red", maintenant().toISOString(), pauseAccordee(base) !== null);
 
   // La box sature : aucune de ses stations n'a de place pour un cook de plus —
   // chacune est à son plafond, ou la machine n'en peut plus, lue à l'instant.
@@ -2297,7 +2307,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           // Sans station, personne ne prend.
           const libres = preneuses(noms.filter((station) => retenues.get(station) === null));
           if (libres.length === 0) break;
-          // Une base rouge ne laisse partir que sa réparation.
+          // Une base rouge ne laisse partir que sa réparation ; la pause du
+          // renommage, que le ticket du renommage.
           const seule = seuleAPartir();
           if (seule === null) break;
           if (arbitre !== null) {

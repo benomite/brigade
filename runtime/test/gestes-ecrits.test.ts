@@ -43,7 +43,7 @@ test("les gestes cités en constantes sont ceux de la box", async () => {
   for (const texte of [
     fermeture.DEMANDER, fermeture.ANNULER,
     stations.GESTE_DE_CONNEXION, declarees.GESTE_DE_STATION_A_CHAUD,
-    attend.ACCORDER_LE_GRANT, base.REJOUER_LA_BASE, manager.commandeRendre(12),
+    attend.ACCORDER_LE_GRANT, attend.ACCEPTER_LA_PAUSE, attend.REFUSER_LA_PAUSE, base.REJOUER_LA_BASE, manager.commandeRendre(12),
   ]) accepte(texte);
 });
 
