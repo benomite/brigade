@@ -33,8 +33,8 @@ const A = "2026-10-13T10:04:12.000Z";
 const PARADE = "parade";
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 const SHELL: Terminal = { id: 2, projet: PARADE, genre: "shell", titre: "shell 1", note: "", arrete: false };
-const demarrage = (projets: Parameters<typeof pourLaBarre>[0]["projets"] = [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }]) => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets, hotes: ["box"] }),
+const demarrage = (projets: Parameters<typeof pourLaBarre>[0]["projets"] = [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }], ici?: (nom: string) => boolean) => ({
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets, hotes: ["box"] }, undefined, ici),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS, rubriques: RUBRIQUES,
@@ -214,6 +214,20 @@ describe("le rail occupe le centre de l'écran principal", () => {
     (sansBox.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
     await repos();
     assert.equal(sansBox.element("rail").hidden, true);
+  });
+
+  test("un projet qui cuit sur cet ordinateur (#1122) a son rail, sans « hote » : lu ici, sans ssh, comme une box", async () => {
+    const ici = await jouerLaVue({ demarrage: () => demarrage([{ nom: PARADE, dossier: "/tmp/parade" }], (nom) => nom === PARADE), espace: () => [SECOND] });
+    (ici.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
+    await repos();
+    assert.equal(ici.element("rail").hidden, false);
+    // La lecture est celle du geste de sa station, ici : aucune commande `ssh` n'est dite.
+    assert.match(ici.element("rail").textContent, /^the rail: first read of `brigade parade facts` in progress…$/);
+    recevoir(ici);
+    assert.deepEqual(
+      colonnes(ici).map((colonne) => colonne.children[0]?.children[0]?.textContent),
+      ["On the rail", "Taken", "Pass", "TODO", "WAITING", "Served"],
+    );
   });
 
   test("une box qui ne rend pas ses faits : le rail dit qu'il n'est pas dessiné, et ne montre aucune colonne vide à la place", async () => {

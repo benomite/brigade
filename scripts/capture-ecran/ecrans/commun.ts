@@ -62,9 +62,10 @@ const STATIONS: VuDesStations = { a: MAINTENANT, stations: [{ id: "box", nom: "b
 const PROJETS_DES_STATIONS: VuDesProjets = { a: MAINTENANT, projets: [], recommandee: null, avertissements: {} };
 
 // La réponse de `demarrage`, comme main.ts la rend : les listes de l'app sont celles de son code.
-export function demarrage(projets: Configuration) {
+// `ici` : les projets dont la cuisine tourne sur cet ordinateur (poste/cuisine-ici.ts).
+export function demarrage(projets: Configuration, ici: (nom: string) => boolean = () => false) {
   return {
-    configuration: pourLaBarre(projets),
+    configuration: pourLaBarre(projets, undefined, ici),
     palette: PALETTE,
     exemple: EXEMPLE,
     onglets: ONGLETS,

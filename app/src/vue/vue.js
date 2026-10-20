@@ -144,13 +144,19 @@ const brigade = window.brigade;
 // `ssh <hote> brigade <nom> <commande>`, avec son hôte et son nom — ce qui
 // s'affiche se recopie. Le renderer ne charge pas boutons.ts : les deux citations
 // y sont reprises, au mot près. Un projet sans box n'a pas d'hôte : le geste
-// générique reste, c'est ce que son panneau dit qu'il manque.
+// générique reste, c'est ce que son panneau dit qu'il manque. Un projet qui cuit
+// sur cet ordinateur (`ici`) est lu par le geste de sa station, ici, sans `ssh` :
+// `brigade <nom> <commande>`, ce que `ssh` aurait lancé sur une box.
 /** @param {string} texte */
 const mot = (texte) => (/^[A-Za-z0-9@._:-]+$/.test(texte) ? texte : `'${texte.replaceAll("'", `'\\''`)}'`);
 /** @param {string} nom */
 const cite = (nom) => (/^[a-z0-9-]+$/.test(nom) ? nom : `'${nom.replaceAll("'", `'\\''`)}'`);
 /** @param {Projet} projet @param {string} commande */
-const geste = (projet, commande) => `ssh ${projet.box === undefined ? "<hote>" : mot(projet.box.hote)} brigade ${mot(cite(projet.nom))} ${commande}`;
+const geste = (projet, commande) => `${projet.ici === true ? "" : `ssh ${projet.box === undefined ? "<hote>" : mot(projet.box.hote)} `}brigade ${mot(cite(projet.nom))} ${commande}`;
+// Ce qui se lit d'un projet : sa box, jointe par `ssh` — ou cet ordinateur, quand c'est sa station
+// qui fait tourner sa cuisine (`ici`, poste/cuisine-ici.ts) : il se lit alors sans `ssh` ni `hote`.
+/** @param {Projet} projet */
+const seLit = (projet) => projet.box !== undefined || projet.ici === true;
 // Le geste que faits.ts écrit, n'ayant pas le projet : la vue le pose sur le sien.
 /** @param {Projet} projet @param {string} texte */
 const surMesure = (projet, texte) => texte.replaceAll("ssh <hote> brigade <nom> ", `${geste(projet, "")}`);
@@ -959,7 +965,7 @@ function montrer() {
     );
   }
   // Le journal : un geste, pas un onglet. Le recliquer le referme.
-  journal.hidden = courant === undefined || courant.box === undefined;
+  journal.hidden = courant === undefined || !seLit(courant);
   journal.ariaPressed = String(visible === JOURNAL);
   // Au centre, seul un fichier des projets illisible a sa raison à la place de l'espace.
   message.hidden = courant !== undefined;
@@ -2285,9 +2291,9 @@ function marquerSignal(nom) {
 /** @param {HTMLElement} ou @param {Projet} projet */
 function poserCarte(ou, projet) {
   const tenu = tenus.get(projet.nom);
-  // Sans box, rien n'est lu : le panneau le dit déjà.
-  ou.hidden = projet.box === undefined;
-  if (projet.box === undefined) return ou.replaceChildren();
+  // Rien n'est lu — ni box, ni cuisine sur cet ordinateur : le panneau le dit déjà.
+  ou.hidden = !seLit(projet);
+  if (!seLit(projet)) return ou.replaceChildren();
   if (tenu === undefined) return ou.replaceChildren(bloc("p", "facts: first read in progress…"));
   const heure = heureDe(tenu.a);
   if (!("tableau" in tenu)) {
@@ -3683,7 +3689,7 @@ function listeAmont(projet, vu, cartes) {
 /** @param {Projet} projet */
 function poserRail(projet) {
   const tenu = tenus.get(projet.nom);
-  rail.hidden = projet.box === undefined || projet.desinstalle !== undefined;
+  rail.hidden = !seLit(projet) || projet.desinstalle !== undefined;
   provenance.hidden = arreterCuisine.hidden = true;
   // Plus de rail, plus de fiche par-dessus.
   if (rail.hidden && ouverte !== undefined) fermerFiche();
@@ -3996,7 +4002,7 @@ function basculerPerdus() {
 const projetDuCout = ({ nom, couleurs }) => ({ nom, teinte: couleurs?.onglet ?? couleurs?.accent });
 function poserCout() {
   if (!coutsOuverts) return corpsDesCouts.replaceChildren();
-  const projets = configuration.projets.filter(({ box, desinstalle }) => box !== undefined && desinstalle === undefined).map(projetDuCout);
+  const projets = configuration.projets.filter((projet) => seLit(projet) && projet.desinstalle === undefined).map(projetDuCout);
   corpsDesCouts.replaceChildren(
     poserTete(document, projets, coutsLus, ouvrirDepuisLesCouts),
     poserPerdus(document, projets, coutsLus, titreSurLeRail, perdusOuverts, basculerPerdus, ouvrirTicketDepuisLesCouts),
@@ -4059,7 +4065,7 @@ function basculerPerdusDuProjet() {
 }
 function poserLaFiabilite() {
   const projet = courant;
-  fiabilite.hidden = projet === undefined || projet.box === undefined || actif() !== FIABILITE;
+  fiabilite.hidden = projet === undefined || !seLit(projet) || actif() !== FIABILITE;
   if (projet === undefined || fiabilite.hidden) return fiabilite.replaceChildren();
   const vu = fiabiliteVue?.projet === projet.nom ? fiabiliteVue : undefined;
   const seul = [projetDuCout(projet)];
@@ -4087,7 +4093,7 @@ function poserLaFiabilite() {
 // sont posées ; celle du bilan se remplit quand la dernière passe a fini (closer/bilan/bilan.js).
 function poserLeCloser() {
   const projet = courant;
-  closer.hidden = projet === undefined || projet.box === undefined || actif() !== CLOSER;
+  closer.hidden = projet === undefined || !seLit(projet) || actif() !== CLOSER;
   if (projet === undefined || closer.hidden) return closer.replaceChildren();
   const lu = closerLu?.projet === projet.nom ? closerLu.lu : undefined;
   const basculer = () => {
@@ -4152,7 +4158,7 @@ function poserLeLancement(nom, lu) {
 function poserManager() {
   const projet = courant;
   // Sans box, rien n'est lu et rien ne s'écrit : l'onglet le dit déjà.
-  manager.hidden = projet === undefined || projet.box === undefined || actif() !== "manager";
+  manager.hidden = projet === undefined || !seLit(projet) || actif() !== "manager";
   if (projet === undefined || manager.hidden) return manager.replaceChildren();
   const vu = managerVu?.projet === projet.nom ? managerVu : undefined;
 
@@ -4190,7 +4196,7 @@ function poserManager() {
 function poserGrants() {
   const projet = courant;
   // Sans box, rien n'est lu et rien ne s'écrit : l'onglet le dit déjà.
-  grants.hidden = projet === undefined || projet.box === undefined || actif() !== "grants";
+  grants.hidden = projet === undefined || !seLit(projet) || actif() !== "grants";
   if (projet === undefined || grants.hidden) return grants.replaceChildren();
   const vu = grantsVus?.projet === projet.nom ? grantsVus : undefined;
 
@@ -4967,6 +4973,11 @@ function poserStationsDuProjet() {
         return [...(rang === 0 ? [] : [bloc("span", " · ")]), nomme, ...autoriser];
       }),
     );
+  } else if (projet.ici === true) {
+    // La station de cet ordinateur le sert : l'app le lit ici, sans `ssh` — son « hote », s'il en a un, n'y change rien.
+    const appele = bloc("strong", "this computer");
+    appele.title = "this computer's station serves it: the app reads it here, without ssh";
+    ligneDesStationsDuProjet.replaceChildren(bloc("span", "Cooked by "), appele);
   } else if (projet.box !== undefined) {
     // Écrit à la main avec « hote » : l'app le lit là, sans qu'aucune station appairée ne le publie.
     const appele = bloc("strong", projet.box.hote);
@@ -4976,7 +4987,7 @@ function poserStationsDuProjet() {
   } else {
     ligneDesStationsDuProjet.textContent = lues ? `No station cooks ${projet.nom} yet.` : "reading your stations on GitHub…";
   }
-  ouvrirLaConfiance.textContent = stations.length === 0 && projet.box === undefined ? "choose its machine" : "+ station";
+  ouvrirLaConfiance.textContent = stations.length === 0 && !seLit(projet) ? "choose its machine" : "+ station";
   ouvrirLaConfiance.hidden = confiance !== undefined || !lues;
   confianceDite.textContent = confianceDitePour.projet === projet.nom ? confianceDitePour.dit : "";
   if (confiance === undefined) return;
@@ -5318,7 +5329,7 @@ function poserAlertes(projet) {
   // Une ligne dont le geste est celui d'un interrupteur de l'espace n'est pas posée : l'interrupteur la
   // dit, et c'est lui qui la lève — le manager éteint (ticket 906), le grant `merge` éteint seul (ticket
   // 907). Non vérifiée, elle se pose : l'interrupteur ne sait pas, la ligne dit pourquoi.
-  const alertes = projet.box === undefined ? [] : (bandes.get(projet.nom) ?? []).filter(({ appel }) => !(appel !== undefined && "geste" in appel && (appel.geste === "manager-allumer" || (appel.geste === "grant-activer" && appel.grant === "merge"))));
+  const alertes = !seLit(projet) ? [] : (bandes.get(projet.nom) ?? []).filter(({ appel }) => !(appel !== undefined && "geste" in appel && (appel.geste === "manager-allumer" || (appel.geste === "grant-activer" && appel.grant === "merge"))));
   gesteDeLUrgence = undefined;
   bande.hidden = alertes.length === 0;
   bande.replaceChildren(...alertes.map((alerte) => poserAlerte(projet, alerte)));
@@ -5487,7 +5498,7 @@ function attendre(projet, tete, corps) {
     tete.dataset.etat = "desinstalle";
     tete.textContent = `${projet.desinstalle.titre} — since ${heureDe(projet.desinstalle.a)}`;
     corps.replaceChildren(propos(projet.desinstalle.lignes.join("\n")));
-  } else if (projet.box === undefined) {
+  } else if (!seLit(projet)) {
     tete.dataset.etat = "sans-station";
     tete.textContent = "no read";
     corps.replaceChildren(
@@ -5969,8 +5980,8 @@ function afficher() {
       // Désinstallé de sa box par l'app : son entrée le dit, et n'a pas de pastille — rien n'est lu de lui.
       entree.classList.toggle("desinstalle", projet.desinstalle !== undefined);
       if (projet.desinstalle !== undefined) entree.ariaLabel = entree.title = `${projet.nom} — ${projet.desinstalle.titre}`;
-      // Un projet sans box n'a pas de pastille : rien n'est lu de lui.
-      if (projet.box !== undefined) {
+      // Un projet qui ne se lit nulle part n'a pas de pastille : rien n'est lu de lui.
+      if (seLit(projet)) {
         const posee = document.createElement("span");
         posee.className = "pastille";
         entree.append(posee);

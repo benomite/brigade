@@ -41,10 +41,11 @@ export const RUBRIQUES: readonly Rubrique[] = [
 export const COUTS = "couts";
 export const COMMANDE_DES_COUTS = "station";
 
-// Les projets dont une lecture lit la box : pour un onglet, son projet et lui seul ; pour la page des coûts,
-// chaque projet qu'une box sert encore — jamais un projet sans box, ni un projet désinstallé de la sienne.
-export function projetsLus<P extends { nom: string; box?: unknown; desinstalle?: unknown }>(id: unknown, nom: unknown, projets: readonly P[]): P[] {
-  if (id === COUTS) return projets.filter(({ box, desinstalle }) => box !== undefined && desinstalle === undefined);
+// Les projets dont une lecture lit la cuisine : pour un onglet, son projet et lui seul ; pour la page des coûts,
+// chaque projet qu'une box sert encore, ou qui cuit sur cet ordinateur (`ici`) — jamais un projet qui
+// n'est lu nulle part, ni un projet désinstallé de sa box.
+export function projetsLus<P extends { nom: string; box?: unknown; ici?: unknown; desinstalle?: unknown }>(id: unknown, nom: unknown, projets: readonly P[]): P[] {
+  if (id === COUTS) return projets.filter(({ box, ici, desinstalle }) => (box !== undefined || ici === true) && desinstalle === undefined);
   return projets.filter((projet) => projet.nom === nom);
 }
 
