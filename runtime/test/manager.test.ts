@@ -170,15 +170,17 @@ describe("le manager", { concurrency: 8 }, () => {
 
   test("ce que le code sait écarter ne coûte aucun jugement : roadmap, question, décision, issue retenue", async (t) => {
     const { jugements, dits, journal, labels, laisserTourner } = brigade(t, {
-      manager: { roadmap: 1 },
+      manager: { roadmap: 1, jugement: "requalifie-enoncee" },
       issues: [issue(1, ["tech"]), issue(3, ["question"]), issue(4, ["decision"]), issue(5, ["blocked-on-human", "feature"])],
     });
 
     await laisserTourner();
 
-    assert.equal(jugements().length, 0);
+    // Seule l'issue retenue est relue, pour la décision qu'elle attend (#1102) : jamais jugée.
+    assert.deepEqual(jugements().map((l) => /^Tu es le manager.*Le chef a posé `blocked-on-human`/.test(l.args[1] ?? "")), [true]);
+    assert.equal(journal.duTicket(5).filter((e) => e.type === "manager.judged").length, 0);
     const ecarts = [1, 3, 4, 5].map((numero) => {
-      const ecart = journal.duTicket(numero).filter((e) => e.type.startsWith("manager."));
+      const ecart = journal.duTicket(numero).filter((e) => e.type.startsWith("manager.") && e.type !== "manager.requalified");
       assert.equal(ecart.length, 1, `#${numero} : un seul fait`);
       assert.deepEqual(dits(numero), []);
       assert.ok(!labels(numero).includes("fire"));
@@ -198,9 +200,11 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("une issue retenue par le chef est jugée dès qu'il la libère", async (t) => {
-    const { gh, jugements, labels, laisserTourner } = brigade(t, { issues: [issue(30, ["blocked-on-human"])] });
+    const { gh, jugements, labels, laisserTourner } = brigade(t, { manager: { suite: ["requalifie-enoncee", "juge-ticket"] }, issues: [issue(30, ["blocked-on-human"])] });
     await laisserTourner();
-    assert.equal(jugements().length, 0);
+    // Un seul passage : la requalification, qui garde l'issue retenue.
+    assert.equal(jugements().length, 1);
+    assert.deepEqual(labels(30), ["blocked-on-human"]);
 
     gh.poser(issue(30, [], { updatedAt: "2026-10-08T11:00:00Z" }));
 
@@ -433,7 +437,9 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("ranger son backlog n'écarte rien : `prio:`, `question` et `blocked-on-human`, posés ou retirés, ne font jamais un `chef-changed`", async (t) => {
-    const { gh, labels, jugements, faits, laisserTourner } = brigade(t, { scenario: "muet", issues: [issue(30, []), issue(31, ["blocked-on-human", "prio:2"])] });
+    const { gh, labels, jugements, faits: tous, laisserTourner } = brigade(t, { scenario: "muet", issues: [issue(30, []), issue(31, ["blocked-on-human", "prio:2"])] });
+    // La relecture de l'issue retenue (`manager.requalified`) n'est pas une décision d'écart.
+    const faits = (numero: number) => tous(numero).filter((e) => e.type !== "manager.requalified");
     await jusqua(() => labels(30).includes("fire") && faits(31).length === 1);
 
     // Sur un ticket que le manager a lancé : le second corrige une priorité, pose une question, la retire.
@@ -449,7 +455,7 @@ describe("le manager", { concurrency: 8 }, () => {
 
     assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.labeled", "manager.commented"]);
     assert.deepEqual(faits(31).map((e) => [e.type, charge(e)?.reason ?? null]).slice(0, 2), [["manager.set-aside", "blocked-on-human"], ["manager.judged", "Un livrable, vérifiable par un test."]]);
-    assert.equal(jugements().length, 2);
+    assert.equal(jugements().length, 3);
   });
 
   test("le chef corrige un calibrage posé par le manager : rien n'est réécrit", async (t) => {
@@ -652,7 +658,8 @@ describe("le manager", { concurrency: 8 }, () => {
     await jusqua(() => issueDuManager(seconde.journal.base, 40) !== null);
     await seconde.laisserTourner();
 
-    assert.equal(seconde.jugements().length, 1);
+    // Le jugement de #30 n'est pas rejoué ; l'issue #40, retenue, n'est que relue (#1102).
+    assert.equal(seconde.jugements().filter((l) => /Issue #30 /.test(l.args[1] ?? "")).length, 1);
     assert.equal(seconde.dits(30).length, 1);
   });
 

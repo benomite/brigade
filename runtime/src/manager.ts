@@ -649,8 +649,9 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
       }
       const connue = issueDuManager(base, issue.number);
       let tri = trier(issue, connue);
-      // Retenue sans dire ce qu'elle attend : une carte, ou la cuisine la reprend.
-      if (tri.quoi === "ecart" && tri.raison === RETENUE && decoupageDe(base, issue.number)?.state !== "split") {
+      // Un ticket retenu sans dire ce qu'il attend : une carte, ou la cuisine le
+      // reprend. Une épique retenue est au chef, pas requalifiée.
+      if (tri.quoi === "ecart" && tri.raison === RETENUE && !issue.labels.includes(LABEL_EPIQUE) && decoupageDe(base, issue.number)?.state !== "split") {
         const { corps } = await lire(issue);
         const suite = await requalification.traiter(issue, corps);
         if (suite === "attente") {
