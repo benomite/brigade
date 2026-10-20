@@ -332,8 +332,11 @@ il laisse les gates vertes. Voir « Le plafond de durée des gates n'est pas jug
 
 ### Les seuils, et ce qui te prévient
 
-Un seuil se déclare dans l'environnement du runtime. **Aucun n'a de défaut** : non déclaré, il ne
-signale rien ; mal écrit, le runtime refuse de démarrer.
+Un seuil se déclare dans l'environnement du runtime. **Un seul a un défaut : la durée des gates**,
+à `SEUIL_DUREE_GATES_PAR_DEFAUT` (`runtime/src/derive.ts`), 100 s — juste au-dessus des 90 s que les
+gates tiennent sur une box au calme ; `BRIGADE_DRIFT_GATES_SECONDS` le remplace. Elle compte
+l'exécution des gates, pas l'attente de leur tour. Les autres, non déclarés, ne signalent rien ;
+mal écrit, le runtime refuse de démarrer.
 `BRIGADE_DRIFT_TESTS` (nombre de tests), `BRIGADE_DRIFT_TESTS_SECONDS` (durée de la suite),
 `BRIGADE_DRIFT_GATES_SECONDS` (durée des gates de la dernière livraison), `BRIGADE_DRIFT_CONTEXT_KB`
 (contexte, en ko) et `BRIGADE_DRIFT_REPO_MB` (dépôt, en Mo) sont franchis quand la mesure les
