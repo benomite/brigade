@@ -30,6 +30,8 @@ for nom in $(compgen -e); do printf '%s=%s\\0' "$nom" "\${!nom}"; done >&${CANAL
 // Un seul canal pour les gates : entre deux tubes, l'ordre où deux lignes sont
 // lues n'est pas celui où elles ont été écrites.
 const GATES = 'exec "$1" "$2" 2>&1';
+// Un outil du projet, sa commande et ses arguments : de même, un seul canal.
+const OUTIL = 'exec "$@" 2>&1';
 // Ce que le shell du setup exporte de lui-même.
 const DU_SHELL = ["_", "OLDPWD", "PWD", "SHLVL"];
 
@@ -172,6 +174,17 @@ export async function jouerSetup(demande: DemandeScript): Promise<Setup> {
     .map((ligne): [string, string] => [ligne.slice(0, ligne.indexOf("=")), ligne.slice(ligne.indexOf("=") + 1)])
     .filter(([nom, valeur]) => !DU_SHELL.includes(nom) && !demande.interdites?.includes(nom) && lancee[nom] !== valeur);
   return { pret: true, joue: true, env: { ...demande.env, ...Object.fromEntries(exports) }, sortie, masques };
+}
+
+// Un outil du projet, joué dans le worktree comme ses scripts — l'outil du
+// renommage du code (`pause/renommage.ts`) : son propre groupe de process, son
+// plafond, l'abandon. Rend son code de sortie (null : arrêté, au plafond ou
+// abandonné), s'il est tombé sur son plafond, et la fin de sa sortie. Ne lève
+// pas : un outil impossible à lancer est un outil en échec.
+export async function jouerOutil(commande: string, args: string[], demande: DemandeScript): Promise<{ code: number | null; depasse: boolean; fin: string }> {
+  const { code, depasse, sortie } = await jouer(OUTIL, [commande, ...args], demande);
+  const lignes = sortie.split("\n").filter((ligne) => ligne.trim() !== "");
+  return { code, depasse, fin: lignes.slice(-LIGNES_DE_FIN).join("\n").slice(-FIN_MAX) };
 }
 
 // Le plafond que nomme une ligne FAIL de plafond franchi.

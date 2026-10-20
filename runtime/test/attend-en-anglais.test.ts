@@ -199,6 +199,10 @@ const EXEMPLES = {
     { ...horsTicket, quoi: "pause", minutes: 45, enVol: [{ ticket: 12, state: "taken" }, { ticket: 14, state: "pass" }], renommage: 9 },
     { ...horsTicket, quoi: "pause", minutes: 30, enVol: [], renommage: null },
   ],
+  renommage: [
+    { ...horsTicket, quoi: "renommage", why: `the pass judged it red: red gates — \`FAIL  tests du projet en échec\`: ${pr(7)}`, pr: pr(7) },
+    { ...horsTicket, quoi: "renommage", why: "the rename tool failed (`scripts/rename-code/rename.sh --apply`, exit code 1): `1 unresolved identifier(s)` — the tree was left as it was", pr: null },
+  ],
 } satisfies { [Q in Attente["quoi"]]: Array<Extract<Attente, { quoi: Q }>> };
 
 const TOUTES: Attente[] = Object.values(EXEMPLES).flat();
@@ -224,7 +228,7 @@ test("sur un état qui porte chaque sorte d'attente, le bloc `awaiting` n'a aucu
   sansMotFrancais(vide);
   // Les entrées hors ticket se nomment en anglais.
   const noms = decrireAttentes(TOUTES, () => "3 d").flatMap((ligne) => /^ {2}(\S+) {2}for /.exec(ligne)?.slice(1) ?? []);
-  assert.deepEqual([...new Set(noms.filter((nom) => !nom.startsWith("#")))], ["box/claude", "mac/claude", "session", "token", "closing", "base", "setup", "aside", "breaker", "pause"]);
+  assert.deepEqual([...new Set(noms.filter((nom) => !nom.startsWith("#")))], ["box/claude", "mac/claude", "session", "token", "closing", "base", "setup", "aside", "breaker", "pause", "rename"]);
 });
 
 test("la pause du renommage acceptée se dit en anglais, sur une seule ligne sous la tête, qui ne compte pas pour une décision", () => {

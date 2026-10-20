@@ -40,7 +40,7 @@ ou en pass (son merge attend).
 
 ```bash
 npm --prefix runtime run guardrails -- pause yes   # « oui » : la pause tient
-npm --prefix runtime run guardrails -- pause no    # « non » : la carte quitte la file ; la pause acceptée, elle est levée
+npm --prefix runtime run guardrails -- pause no    # « non » : la carte quitte la file ; la pause acceptée, elle est levée ; la carte d'un renommage échoué, lue, est ôtée
 ```
 
 - **Sans ton « oui », rien ne change** : la pass merge, les stations prennent.
@@ -55,8 +55,35 @@ npm --prefix runtime run guardrails -- pause no    # « non » : la carte quitte
 - **La pause finit** quand le renommage la lève (`leverPause`), ou sur ton « non ». La cuisine
   repart seule : chaque livraison retenue est reprise par la pass, rejugée si la base a bougé.
 
+**Le renommage lui-même** (`runtime/src/pause/renommage.ts`) part sur ton « oui », et sur lui
+seul :
+
+1. Le runtime prépare une branche sur la tête de `v2` qu'il vient de rapatrier, y joue
+   `scripts/rename-code/rename.sh --apply` (#1039) après le setup du worktree, commite l'arbre
+   renommé, le pousse et ouvre sa PR.
+2. Il la remet à la pass, hors du rail, comme la livraison du carnet. Elle est jugée comme toute
+   livraison : la fusion avec la base, les gates, le reviewer et la CI. Verte, elle est mergée
+   sous grant dans la même pause. C'est la seule PR que la pause laisse passer.
+3. Mergée, la pause est levée et la cuisine repart.
+
+En cas d'échec, **rien n'est mergé**, et la pause est levée sans geste de ta part. Les échecs
+possibles : l'outil, le setup, des gates rouges, un conflit avec `v2`, une pass qui ne juge pas
+ou s'arrête avant le merge, une PR fermée. La file garde alors une carte, `rename`, qui dit
+pourquoi et donne la PR restée ouverte. `pause no` l'ôte une fois lue.
+
+Sans grant `merge` actif, rien ne part : la pass ne mergerait pas le renommage.
+
+La pause dure **moins d'une heure** : passé 55 minutes depuis ton « oui » (`LIMITE_DU_RENOMMAGE_MS`),
+l'outil est arrêté s'il tourne encore, et la pause est levée de même. Seule exception : un merge
+déjà parti vers GitHub, dont on attend le sort. Ton « non » sur la pause en vigueur abandonne de
+même le renommage. Une PR de renommage abandonnée n'est jamais mergée par la pass, même une fois
+la pause levée : elle remonte sans merge (`pass.escalated`, cause `rename-abandoned`).
+
 Au journal, hors ticket : `pause.requested` (`ticket` du renommage ou nul, `minutes`, `inFlight`),
-`pause.agreed`, `pause.declined`, `pause.released` (`why`) — chacun nomme sa demande (`request`).
+`pause.agreed`, `pause.declined`, `pause.released` (`why` ; et, levée par le renommage, `outcome`
+— `merged` ou `failed` — avec la `cause` d'un échec), `pause.dismissed`, `rename.started`
+(`run`, `branch`, `base`, `deadline`) et `rename.delivered` (`pr`, `number`, `sha`). Chacun nomme
+sa demande (`request`).
 
 **Les gestes que le runtime te cite** (la file, `status`, les refus) sont écrits
 sous la forme qui se tape là où tu les lis : sur la box, `brigade <projet> <commande> [arguments…]`,

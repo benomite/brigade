@@ -39,7 +39,9 @@
 // durée attendue, les tickets en vol qu'elle retiendra, le « oui » ou le
 // « non ». Acceptée, elle n'attend plus le chef : le bloc la dit en une ligne
 // à elle, « paused for the code rename », qui nomme les tickets qui finissent
-// leur travail et ceux qui sont retenus, jusqu'à sa fin.
+// leur travail et ceux qui sont retenus, jusqu'à sa fin. Un renommage qui
+// échoue dans sa pause (pause/renommage.ts) y laisse une carte qui dit
+// pourquoi, jusqu'à ce que le chef l'ôte.
 import type { Base } from "./base.ts";
 import { geste } from "./geste.ts";
 import { absentesDuMotif, direManque, direManqueEn, direStationAbsente, direStationAbsenteEn, GESTE_DE_PRESENCE, GESTE_DE_PRESENCE_EN, gesteDeCapacite, gesteDeCapaciteEn, manqueDuMotif, type Manque } from "./capacites.ts";
@@ -65,7 +67,7 @@ import { CAUSES_DU_PROJET } from "./mise-de-cote.ts";
 import { REVENU_D_ATTENTE } from "./events/rail.ts";
 import { cartesEnTodo, direCarte, direCarteEn, type CarteDeTodo } from "./carte-todo.ts";
 import type { EnVol } from "./pause/evenements.ts";
-import { EN_PAUSE_POUR_LE_RENOMMAGE, NON, OUI, pauseAccordee, pauseEnCours, ticketsEnVol } from "./pause/pause.ts";
+import { echecDuRenommage, EN_PAUSE_POUR_LE_RENOMMAGE, NON, OUI, pauseAccordee, pauseEnCours, ticketsEnVol } from "./pause/pause.ts";
 
 // Ce que le chef lit de la livraison qui l'attend, tel que la pass l'a consigné :
 // `resume`, celui de la relecture ; `constat`, le premier constat bloquant (celui
@@ -167,6 +169,10 @@ type AttenteHorsTicket = { ticket: null; title: null; since: string } & (
   // attendue ; `enVol`, les tickets que la pause retiendra, lus à l'instant ;
   // `renommage`, son ticket, nul s'il n'en est pas un. `since` : la demande.
   | { quoi: "pause"; minutes: number; enVol: EnVol[]; renommage: number | null }
+  // Le renommage du code a échoué dans sa pause : rien n'est mergé, la cuisine
+  // est repartie seule. `why` : pourquoi, tel que la levée de la pause le dit ;
+  // `pr` : sa PR restée sans merge, s'il en a ouvert une. `since` : la levée.
+  | { quoi: "renommage"; why: string; pr: string | null }
 );
 
 export type Attente = AttenteDeTicket | AttenteHorsTicket;
@@ -328,10 +334,13 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
     enCours === null || enCours.agreedAt !== null
       ? []
       : [{ ticket: null, title: null, since: enCours.since, quoi: "pause", minutes: enCours.minutes, enVol: ticketsEnVol(rail, enCours.ticket), renommage: enCours.ticket }];
+  // Le renommage échoué dit pourquoi, jusqu'à ce que le chef l'ait lu.
+  const echec = echecDuRenommage(base);
+  const renommage: Attente[] = echec === null ? [] : [{ ticket: null, title: null, since: echec.at, quoi: "renommage", why: echec.why, pr: echec.pr }];
 
   // Ce qui attend un tiers n'attend pas le chef, quoi qu'il attendait avant.
   const enWaiting = (attente: Attente) => attente.ticket !== null && tickets.get(attente.ticket)?.waitingFor != null;
-  return [...disjoncteur, ...pause, ...baseRouge, ...setup, ...aside, ...connexions, ...session, ...jeton, ...fermeture, ...livraisons, ...bloques, ...repris, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets), ...cartes]
+  return [...disjoncteur, ...pause, ...renommage, ...baseRouge, ...setup, ...aside, ...connexions, ...session, ...jeton, ...fermeture, ...livraisons, ...bloques, ...repris, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets), ...cartes]
     .filter((attente) => !enWaiting(attente))
     .sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
 }
@@ -361,6 +370,17 @@ function direDemandeDePauseEn({ minutes, enVol, renommage }: Extract<Attente, { 
 function direDemandeDePause({ minutes, enVol, renommage }: Extract<Attente, { quoi: "pause" }>): string {
   const sauf = renommage === null ? "" : ` que celui de #${renommage}`;
   return `le renommage du code demande de mettre la cuisine en pause pendant environ ${minutes} min — aucun merge${sauf}, aucun cook neuf jusqu'à sa fin — ${ticketsRetenus(enVol)} — pour accepter : \`${ACCEPTER_LA_PAUSE}\` ; pour refuser : \`${REFUSER_LA_PAUSE}\``;
+}
+
+// La carte du renommage échoué : pourquoi, ce qu'il reste — rien de mergé, sa
+// PR ouverte s'il en a une —, et le geste qui l'ôte de la file.
+function direEchecDuRenommageEn({ why, pr }: Extract<Attente, { quoi: "renommage" }>): string {
+  const reste = pr === null ? "" : ` — its PR stays open, unmerged, to close: ${pr}`;
+  return `the code rename failed: ${why} — nothing was merged, the kitchen went on by itself${reste} — once read: \`${REFUSER_LA_PAUSE}\``;
+}
+function direEchecDuRenommage({ why, pr }: Extract<Attente, { quoi: "renommage" }>): string {
+  const reste = pr === null ? "" : ` — sa PR reste ouverte, sans merge, à fermer : ${pr}`;
+  return `le renommage du code a échoué : ${why} — rien n'est mergé, la cuisine est repartie seule${reste} — une fois lu : \`${REFUSER_LA_PAUSE}\``;
 }
 
 // La pause acceptée, qui tient : depuis le « oui » (`since`), la durée
@@ -536,6 +556,8 @@ export function direAttenteEn(attente: Attente): string {
       return direDisjoncteurEn(attente);
     case "pause":
       return direDemandeDePauseEn(attente);
+    case "renommage":
+      return direEchecDuRenommageEn(attente);
   }
 }
 
@@ -635,12 +657,12 @@ export const TETE_AWAITING = "awaiting";
 export const FIN_AWAITING = "end awaiting";
 
 // Ce qui nomme une entrée, en tête de sa ligne : son ticket, sa station,
-// `session`, `jeton`, `fermeture`, `base`, `setup`, `aside`, `disjoncteur` ou `pause`.
-// C'est aussi le nom que les faits donnent à la décision.
+// `session`, `jeton`, `fermeture`, `base`, `setup`, `aside`, `disjoncteur`, `pause`
+// ou `renommage`. C'est aussi le nom que les faits donnent à la décision.
 export const nommerAttente = (attente: Attente): string => (attente.ticket !== null ? `#${attente.ticket}` : attente.quoi === "connexion" ? attente.station : attente.quoi);
 
 // Le même nom, tel que le bloc l'écrit : en anglais (docs/glossary.md, §2).
-const NOMS_EN: Partial<Record<Attente["quoi"], string>> = { jeton: "token", fermeture: "closing", disjoncteur: "breaker" };
+const NOMS_EN: Partial<Record<Attente["quoi"], string>> = { jeton: "token", fermeture: "closing", disjoncteur: "breaker", renommage: "rename" };
 export const nommerEn = (attente: Attente): string => (attente.ticket === null ? (NOMS_EN[attente.quoi] ?? nommerAttente(attente)) : nommerAttente(attente));
 
 // Le bloc `awaiting` de l'état : le décompte, puis une ligne par décision, puis le bilan des arrêts
@@ -825,6 +847,8 @@ export function direAttente(attente: Attente): string {
       return direDisjoncteur(attente);
     case "pause":
       return direDemandeDePause(attente);
+    case "renommage":
+      return direEchecDuRenommage(attente);
   }
 }
 
