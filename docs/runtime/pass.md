@@ -24,8 +24,9 @@ reviewer a relu le diff sans rien trouver de bloquant ».** Pas « un humain a r
 « vert sur sa branche ».
 
 Une livraison peut lui arriver **hors du rail** : la PR d'une passe de fermeture, ou celle d'une
-correction des consignes que tu as acceptée (« Les corrections proposées »), qui n'ont pas de
-ticket. Elle passe par les mêmes juges et le même grant ; ce qui tient au ticket — le renvoi à un
+correction des consignes que tu as acceptée (« Les corrections proposées »), ou celle du carnet
+des leçons ([`carnet-lecons.md`](carnet-lecons.md)), qui n'ont pas de ticket.
+Elle passe par les mêmes juges et le même grant ; ce qui tient au ticket — le renvoi à un
 cook, le service, la fermeture de l'issue — n'a pas lieu (voir « La PR passe par la pass »).
 
 ### Le plafond de durée des gates n'est pas jugé par la pass

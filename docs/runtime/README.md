@@ -25,6 +25,7 @@ sont dans les specs, [`superpowers/specs/`](../superpowers/specs/) — ici, seul
 | [`pass.md`](pass.md) | La pass : relecture, reviewer, décision, vert une fois fusionné |
 | [`pass-merge.md`](pass-merge.md) | Le grant `merge`, voir la pass, ce qui reste après un cook, ce que la pass ne garantit pas |
 | [`etat-et-mesures.md`](etat-et-mesures.md) | L'état de la cuisine, le relevé des mesures |
+| [`carnet-lecons.md`](carnet-lecons.md) | Le carnet des leçons : ses seuils, la promotion et la péremption livrées par une PR, retirer une leçon |
 | [`fermeture.md`](fermeture.md) | La fermeture qui observe, la fermeture qui écrit |
 | [`identites-et-secrets.md`](identites-et-secrets.md) | Une identité GitHub par rôle, les secrets du projet |
 | [`cloison-et-arbitre.md`](cloison-et-arbitre.md) | La cloison, l'arbitre entre projets |
