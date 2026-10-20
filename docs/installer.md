@@ -698,7 +698,7 @@ There is nothing to disable: the grant is **absent** on a fresh state directory,
 is **off**. Check it, then start.
 
 ```bash
-sudo systemctl enable --now brigade@<project>                  # starts, and restarts at every reboot
+sudo systemctl enable --now brigade@<projet>                  # starts, and restarts at every reboot
 brigade <project> grant                                        # "ABSENT — never given"
 sudo systemctl start brigade-sauvegarde@<project>.service      # a first backup, right now
 ```

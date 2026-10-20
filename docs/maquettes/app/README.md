@@ -50,12 +50,12 @@ back.
 |---|---|
 | `Commis.dc.html` in full — a cook live, its relayed stream | **parked**: the log already says who is stuck and the guardrails stop it. A second reader of the same fact. |
 | `box/codex`, and any engine other than `claude` | **parked**: the other engines will come after V2 (spec, §Au parking) |
-| `mac/chrome`, `chrome-connecté`, `revue-humaine`, `accès-prod`, "from your Mac" | **parked**: the Mac runner left milestone 6, no ticket asks for it |
-| "in preprod", "to be tested in preprod" | **does not exist**: the runtime has no notion of preprod |
-| an "all brigades" grant (`npm install`) | **dropped**: a grant is a fact in the log, and there is one log per project. Removed from the spec on 2026-10-10 |
-| any **numeric gauge** of quota or machine, a reset time, a week total | **undeliverable, and that is settled**: the runtime does not know the Max account's consumption and must not pretend to (`/usage` stays the truth). It says `disponible`, `tient`, or `SATURÉE` and its load. The **per-cook** gauges (turns, duration, tokens, idle) are right: they are the guardrails' caps, which the runtime measures. |
+| `mac/chrome`, `chrome-connecté`, `revue-humaine`, `accès-prod`, « depuis ton Mac » | **parked**: the Mac runner left milestone 6, no ticket asks for it |
+| « en preprod », « à recetter en preprod » | **does not exist**: the runtime has no notion of preprod |
+| a grant « toutes les brigades » (`npm install`) | **dropped**: a grant is a fact in the log, and there is one log per project. Removed from the spec on 2026-10-10 |
+| any **numeric gauge (« jauge chiffrée »)** of quota or machine, a reset time, a week total | **undeliverable, and that is settled**: the runtime does not know the Max account's consumption and must not pretend to (`/usage` stays the truth). It says `disponible`, `tient`, or `SATURÉE` and its load. The **per-cook** gauges (turns, duration, tokens, idle) are right: they are the guardrails' caps, which the runtime measures. |
 | the red button "Write “stop” in the terminal" of `Main.dc.html` | **it would stop everything**: its command loops over all projects (`for p in … ; do brigade $p guardrails -- stop; done`), and its label does not say so. The delivered app only has a stop per project, in the project's panel, and its command names it. If it is ever built, its label says "all projects" |
-| an expiry for the connection ("expires in 2 d") | the runtime says `connection Max tenue pour bonne` — no date |
+| an expiry for the connection (« expire dans 2 j ») | the runtime says `connection Max tenue pour bonne` — no date |
 
 The **cook profiles** and the **notebook** of their lessons, long parked (milestone 8), are built
 from epic #1033: the card of a proposed profile, in the project's queue (#1053), is the first.
