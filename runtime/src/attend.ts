@@ -209,6 +209,9 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
   const tickets = new Map(rail.map((ticket) => [ticket.ticket, ticket]));
   const instant = (seq: number) => base.lire<{ at: string }>("SELECT at FROM events WHERE seq = ?", seq)[0]?.at;
 
+  // Le manager qui remonte un ticket rouge avec une carte : la carte parle au
+  // chef, la remontée nue ferait doublon.
+  const avecCarte = new Set(cartesEnTodo(base).map((carte) => carte.ticket));
   const livraisons = lirePass(base).flatMap((pass): AttenteDeTicket[] => {
     const ticket = tickets.get(pass.ticket);
     if (!ticket) return [];
@@ -221,7 +224,7 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
     // Rendu au rail par le chef, le ticket n'est plus 86 : sa pass garde sa
     // phase jusqu'au cook suivant, mais plus rien n'attend. Redécoupé, il
     // n'attend personne : ses sous-tickets portent le travail.
-    if (pass.phase === "escalated" && ticket.state === "86" && pass.reason !== REDECOUPE) return [{ ...commun, quoi: "remontee" }];
+    if (pass.phase === "escalated" && ticket.state === "86" && pass.reason !== REDECOUPE) return pass.cause === DU_MANAGER && avecCarte.has(pass.ticket) ? [] : [{ ...commun, quoi: "remontee" }];
     // De même rendu au rail, il n'attend plus ; et fermer la PR d'un ticket
     // redécoupé n'appelle rien d'autre.
     if (pass.phase === "closed" && (ticket.state === "pass" || ticket.state === "86") && pass.reason !== REDECOUPE) return [{ ...commun, quoi: "fermee" }];

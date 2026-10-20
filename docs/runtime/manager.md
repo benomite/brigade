@@ -301,6 +301,8 @@ ticket qui a échoué deux fois ne repart jamais à l'identique** : si rien ne c
 | **redécouper** | le ticket devient **l'épique de ses sous-tickets** : ils naissent calibrés, ordonnés et lancés, et repartent de la base. Lui passe **86** (`manager:split`, pass `manager-split`) ; sa PR reste ouverte, comme référence, et **il ne tient plus sa zone**. Un ticket né d'un tel redécoupage ne se redécoupe pas |
 | **remonter** | le ticket passe **86** (`manager:escalated`, pass `still-red`, cause `manager-escalated`), et tu reçois de quoi trancher : chaque tentative avec son calibrage et ce que la pass y a trouvé, pourquoi il remonte, et **ce qu'il propose** |
 
+Une carte n'entre dans TODO que si la cause du rouge est un **choix de produit** (`product`) ou un **geste** que toi seul peux faire (`gesture`) : le manager la pose avec la remontée, en une ligne (`todo.entered`), et elle remplace la remontée nue dans `attend`. Un rouge qui ne cache ni l'un ni l'autre est remonté **sans carte** — l'issue le dit —, et aucune carte n'est jamais posée pour lui. La carte sort de TODO dès que le ticket n'est plus 86 `manager:escalated`.
+
 Une réponse illisible, un choix qui n'était pas offert (monter au plafond, redécouper un
 sous-ticket) ou un redécoupage impossible vaut **remontée**. **Le disjoncteur garde le dernier
 mot** : au seuil, le manager remonte sans plus rien relancer ni juger. Chaque réaction est au

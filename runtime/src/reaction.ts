@@ -13,6 +13,7 @@
 // GitHub, chaque pas y est noté une fois fait, et ce qui échoue se reprend au
 // réveil suivant sans rejuger.
 import { DE_CONFIANCE } from "./alimenter.ts";
+import { cartesEnTodo, entrerDansTodo, sortirDeTodo } from "./carte-todo.ts";
 import { geste } from "./geste.ts";
 import { calibrage as calibragePose, complet, type Calibrage, type CalibragePose } from "./calibrage.ts";
 import type { Reponse } from "./decoupage.ts";
@@ -30,7 +31,7 @@ import { lirePass, passDuTicket, type PassDeTicket } from "./projections/pass.ts
 import { ticketDuRail } from "./projections/rail.ts";
 import { labelsMontes, reactionDe, type ReactionDeTicket } from "./projections/reactions.ts";
 import type { Rail } from "./rail.ts";
-import { consigneDeReaction, lireReaction, monter, obstacle, type Choix, type Libre, type Plafond, type Tentative } from "./reagir.ts";
+import { consigneDeReaction, lireReaction, monter, obstacle, type CarteDeRemontee, type Choix, type Libre, type Plafond, type Tentative } from "./reagir.ts";
 import { NOM_DE_STATION } from "./stations-declarees.ts";
 
 // Le motif du 86 d'un ticket que le manager remonte au chef.
@@ -38,6 +39,7 @@ export const REMONTE = "manager:escalated";
 
 export type AtelierDeReaction = {
   journal: Journal;
+  projet: string;
   rail: Rail;
   github: GitHub;
   // `<owner>/<repo>`, pour la consigne.
@@ -169,6 +171,7 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
           ...lister(tentatives(connu.ticket)),
           `**Pourquoi le manager remonte.** ${reaction.reason}`,
           ...(reaction.proposal === null ? [] : ["", `**Ce qu'il propose.** ${reaction.proposal}`]),
+          ...(reaction.card === null ? ["", "Aucun choix de produit ni geste derrière ce rouge : aucune carte n'est posée dans TODO."] : ["", `**Carte dans TODO** (${reaction.card.kind}). ${reaction.card.statement}`]),
           "",
           `Rien n'est mergé, et aucun cook n'est relancé : le ticket est 86 (\`${REMONTE}\`). ${connu.pr ? "Mergée à la main, sa PR sert le ticket ; retirer \`fire\` le sort du rail." : "Il n'a pas de PR, donc rien à merger : retirer \`fire\` le sort du rail, ou ferme-le si le compte-rendu du cook, plus haut sur cette issue, suffit."}`,
           ...(reaction.run === null ? [] : ["", atelier.signature(reaction.run, "Réagi")]),
@@ -194,10 +197,20 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
     const libre = libres(ticket, pose);
     const cible = monter(pose, atelier.plafond, libre);
     const empechement = cible === null ? obstacle(pose, atelier.plafond, libre) : null;
-    const retenir = (choice: ChoixDeReaction, suite: { reason: string; proposal?: string | null; run?: string }) =>
+    const retenir = (choice: ChoixDeReaction, suite: { reason: string; proposal?: string | null; card?: CarteDeRemontee | null; run?: string }) =>
       noter(ticket, {
         type: "manager.reacted",
-        payload: { verdict, returns: connu.returns, choice, reason: suite.reason, proposal: suite.proposal ?? null, run: suite.run ?? null, from: pose, to: choice === "raise" ? cible : null },
+        payload: {
+          verdict,
+          returns: connu.returns,
+          choice,
+          reason: suite.reason,
+          proposal: suite.proposal ?? null,
+          ...(suite.card ? { card: { kind: suite.card.type, statement: suite.card.enonce } } : {}),
+          run: suite.run ?? null,
+          from: pose,
+          to: choice === "raise" ? cible : null,
+        },
       });
     const ouvert = etatDesGardeFous(base).breakerOpenedAt !== null;
 
@@ -357,16 +370,31 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
         if (arreter(connu, REDECOUPE_PAR_LE_MANAGER, REDECOUPE, redecoupe.retenir)) await commenter(connu, reaction);
         return;
       }
-      case "escalate":
-        if (!arreter(connu, DU_MANAGER, REMONTE)) return;
+      case "escalate": {
+        // La carte entre par la porte de TODO, avec la remontée : sans elle, le
+        // ticket est remonté tel quel — le chef n'a pas de carte à lire.
+        const carte = reaction.card;
+        const poser = () => {
+          if (carte !== null) entrerDansTodo(journal, atelier.projet, ticket, { type: carte.kind, enonce: carte.statement }, "manager");
+        };
+        if (!arreter(connu, DU_MANAGER, REMONTE, poser)) return;
         avertir(`brigade : le manager remonte le ticket #${ticket} au chef`);
         return commenter(connu, reaction);
+      }
     }
   };
 
   return {
     // Fait avancer chaque ticket que la pass a passé au manager.
     async traiter(): Promise<void> {
+      // La carte d'une remontée sort de TODO dès que le ticket n'est plus 86
+      // remonté : le chef l'a rendu au rail, ou il a quitté le rail.
+      for (const carte of cartesEnTodo(base)) {
+        if (reactionDe(base, carte.ticket)?.card == null) continue;
+        const sur = ticketDuRail(base, carte.ticket);
+        if (sur && sur.state === "86" && sur.reason === REMONTE) continue;
+        sortirDeTodo(journal, atelier.projet, carte.ticket, "the ticket is no longer escalated by the manager", "manager");
+      }
       for (const { ticket } of lirePass(base)) {
         if (arrete() || atelier.eteint()) return;
         const connu = passDuTicket(base, ticket);

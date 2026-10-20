@@ -474,6 +474,18 @@ FIN
 {"choix":"remonter","motif":"Le critère d'acceptation n° 2 se contredit.","proposition":"Trancher le critère n° 2, puis rendre le ticket."}
 FIN
       ;;
+    reagit-remonte-produit)
+      assistant
+      resultat <<'FIN'
+{"choix":"remonter","motif":"Deux voies s'opposent.","proposition":"Choisir la voie A.","carte":{"type":"product","enonce":"Choisir entre la voie A et la voie B."}}
+FIN
+      ;;
+    reagit-remonte-geste)
+      assistant
+      resultat <<'FIN'
+{"choix":"remonter","motif":"Il faut un secret.","proposition":"Donner le jeton.","carte":{"type":"gesture","enonce":"Poser le jeton du compte client."}}
+FIN
+      ;;
     # Conclut sans rien commiter, et délimite son livrable dans son message.
     rapporte-sans-commit)
       assistant

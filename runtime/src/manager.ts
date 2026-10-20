@@ -513,6 +513,7 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
 
   const reaction = ouvrirReaction({
     journal,
+    projet,
     rail,
     github,
     depotGitHub: options.depotGitHub,

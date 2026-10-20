@@ -86,11 +86,11 @@ const CHOIX = { monter: { model: "sonnet", effort: "medium" }, redecouper: true 
 
 test("la réaction se lit dans un objet JSON : le choix, son motif, et ce que le manager propose", () => {
   assert.deepEqual(lireReaction('Je monte.\n{"choix": "monter", "motif": "Le cook cale sur le raisonnement."}', CHOIX), {
-    valeur: { choice: "raise", reason: "Le cook cale sur le raisonnement.", proposal: null },
+    valeur: { choice: "raise", reason: "Le cook cale sur le raisonnement.", proposal: null, card: null },
   });
-  assert.deepEqual(lireReaction('{"choix": "redecouper", "motif": "Deux livrables."}', CHOIX), { valeur: { choice: "split", reason: "Deux livrables.", proposal: null } });
+  assert.deepEqual(lireReaction('{"choix": "redecouper", "motif": "Deux livrables."}', CHOIX), { valeur: { choice: "split", reason: "Deux livrables.", proposal: null, card: null } });
   assert.deepEqual(lireReaction('{"choix": "remonter", "motif": "Le critère 2 se contredit.", "proposition": "Trancher le critère 2."}', CHOIX), {
-    valeur: { choice: "escalate", reason: "Le critère 2 se contredit.", proposal: "Trancher le critère 2." },
+    valeur: { choice: "escalate", reason: "Le critère 2 se contredit.", proposal: "Trancher le critère 2.", card: null },
   });
 });
 
@@ -105,4 +105,16 @@ test("une réaction illisible, sans motif, ou qui remonte sans rien proposer ne 
 test("un choix que le code n'a pas offert est illisible : monter au plafond, redécouper un ticket né d'un redécoupage", () => {
   assert.deepEqual(lireReaction('{"choix": "monter", "motif": "x"}', { monter: null, redecouper: true }), { illisible: "« monter » n'était pas offert" });
   assert.deepEqual(lireReaction('{"choix": "redecouper", "motif": "x"}', { monter: null, redecouper: false }), { illisible: "« redecouper » n'était pas offert" });
+});
+
+test("une remontée porte sa carte seulement si elle est product ou gesture, sur une ligne ; sinon elle est sans carte", () => {
+  const lire = (carte: string) => lireReaction(`{"choix": "remonter", "motif": "x", "proposition": "y", "carte": ${carte}}`, CHOIX);
+  assert.deepEqual(lire('{"type": "product", "enonce": "Choisir A ou B."}'), { valeur: { choice: "escalate", reason: "x", proposal: "y", card: { type: "product", enonce: "Choisir A ou B." } } });
+  assert.deepEqual(lire('{"type": "gesture", "enonce": "Poser\\nle jeton."}'), { valeur: { choice: "escalate", reason: "x", proposal: "y", card: { type: "gesture", enonce: "Poser le jeton." } } });
+  for (const carte of ["null", '{"type": "design", "enonce": "x"}', '{"type": "product"}', '"product"']) {
+    assert.equal((lire(carte) as { valeur: { card: unknown } }).valeur.card, null, carte);
+  }
+  // Une carte sur un choix qui n'est pas une remontée ne se lit pas.
+  const monte = lireReaction('{"choix": "monter", "motif": "x", "carte": {"type": "product", "enonce": "x"}}', CHOIX) as { valeur: { card: unknown } };
+  assert.equal(monte.valeur.card, null);
 });
