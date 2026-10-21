@@ -1,0 +1,7 @@
+{
+  "applicationId": "com.github.benomite.brigade",
+  "signing": {
+    "source": "environment",
+    "variables": ["BRIGADE_KEYSTORE_FILE", "BRIGADE_KEYSTORE_PASSWORD", "BRIGADE_KEY_ALIAS", "BRIGADE_KEY_PASSWORD"]
+  }
+}

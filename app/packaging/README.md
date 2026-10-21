@@ -209,7 +209,32 @@ Rien n'y est pris « au plus récent » — à une même version du dépôt, les
 
 L'APK est **de debug** : signé par la clé de debug du SDK (`~/.android/debug.keystore`, créée par
 Gradle au premier besoin), il s'installe tel quel, mais pas sur un store, et deux machines le signent
-de deux clés différentes. Sa `versionCode` est 1.
+de deux clés différentes. Sa `versionCode` suit celle de `build.gradle` (voir « Une mise à jour qui garde les données »).
+
+## Une mise à jour qui garde les données
+
+Android installe un APK par-dessus l'ancien, appairage et projets liés conservés, à trois conditions :
+même identifiant d'app, même clé de signature, `versionCode` plus haute. Le dépôt les tient ainsi :
+
+- l'identifiant, `com.github.benomite.brigade`, est dans `natif/app/build.gradle`, `capacitor.config.json`
+  et `strings.xml` ; `packaging/android-stable.json` en garde la valeur fixe ;
+- la `versionCode` de `build.gradle` monte d'au moins un à chaque release ;
+- une release (`./gradlew assembleRelease`) est signée par `signingConfigs.release`, qui lit la clé de
+  l'environnement — `BRIGADE_KEYSTORE_FILE`, `BRIGADE_KEYSTORE_PASSWORD`, `BRIGADE_KEY_ALIAS`,
+  `BRIGADE_KEY_PASSWORD`, posées par la CI depuis ses secrets — et refuse de se construire sans elles.
+  Aucune clé ni mot de passe n'est versionné ;
+- le manifeste demande `android.permission.REQUEST_INSTALL_PACKAGES` et déclare un `FileProvider`
+  (`${applicationId}.fileprovider`, chemins de `file_paths.xml`, dont `updates/` du cache) pour ouvrir
+  l'APK téléchargé avec l'installeur du système.
+
+```sh
+node app/packaging/android-stable.ts                                # sort 0 et dit l'id, la versionCode, la source de la clé
+node app/packaging/android-stable.ts --previous-version-code <n>   # échoue si la versionCode n'est pas > n
+```
+
+Il sort 1, en disant ce qui a bougé, si l'identifiant ou la configuration de signature change, si la
+`versionCode` n'augmente pas, si la permission ou le fournisseur manque, ou si une clé est versionnée.
+Les tests : `app/test/packaging/android-stable.test.ts`.
 
 ## Ce que porte `app/android/`
 
