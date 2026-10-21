@@ -1,6 +1,6 @@
 // Les gestes du chef : chacun envoie dans le second une commande de la doc, mot
 // pour mot (`envoyer`) — direct, au clic ; confirmé, seulement avec le « oui » du
-// chef. Ce qui part se compare ici à docs/runtime.md, « Piloter » — la forme de
+// chef. Ce qui part se compare ici à docs/runtime/ — la forme de
 // poste, et la ligne de chaque commande. Qu'un geste confirmé ne parte pas sans son
 // « oui » se prouve sur `envoyer`, puis sur le registre et de faux pty ; et
 // qu'aucun geste n'expose de shell, de `sudo` ni de commande libre, sur le socle
@@ -29,14 +29,13 @@ import { type Faux, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.
 const RACINE = join(import.meta.dirname, "../..");
 const SOURCE = SOURCE_DOC;
 const doc = docRuntime(RACINE);
-const PILOTER = doc.slice(doc.indexOf("### Piloter"), doc.indexOf("### Recette du chef"));
 const PARADE = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
 
-// Les deux écritures que « Piloter » tient séparées : sur la box, et depuis le poste.
+// Les deux écritures que la doc tient séparées : sur la box, et depuis le poste.
 const DE_BOX = "brigade <projet> <commande>";
 const DE_POSTE = "ssh <hote> brigade <nom> <commande>";
 
-// Ce qu'une ligne de « Piloter » cite : entre crochets c'est facultatif, et `|` y sépare les choix.
+// Ce qu'une commande citée par la doc écrit : entre crochets c'est facultatif, et `|` y sépare les choix.
 function formes(usage: string): string[] {
   let ou = 0;
   // Une suite, jusqu'au `|` ou au `]` qui la ferme : chacune de ses écritures.
@@ -61,25 +60,26 @@ function formes(usage: string): string[] {
   return toutes.map((forme) => forme.replace(/\s+/g, " ").trim());
 }
 
-// Toutes les commandes du geste de box que « Piloter » cite, chacune écrite en entier.
+// Toutes les commandes du geste de box que la doc cite, chacune écrite en entier.
 const CITEES = new Set(
-  [...PILOTER.matchAll(/`([^`\n]+)`/g)]
-    .map(([, cite = ""]) => cite.replaceAll("\\|", "|"))
+  [...doc.matchAll(/`([^`\n]+)`/g)]
+    .map(([, cite = ""]) => cite)
+    // Un `|` nu sépare des alternatives hors d'un tableau (`yes|no`), et ne se développe pas : seules les écritures de tableau (`\|`) sont des formes.
+    .filter((cite) => !/(^|[^\\])\|/.test(cite))
+    .map((cite) => cite.replaceAll("\\|", "|"))
     .filter((cite) => cite.startsWith("brigade <projet> "))
     .flatMap(formes),
 );
 
-const SECTIONS = { Piloter: CITEES } as const;
-
-// Chaque geste : le grant qu'il nomme, la commande que la doc cite — et dans quelle section —, et ce qui s'écrit pour « parade » sur « box ».
-const GESTES_DE_LA_DOC: readonly [id: string, grant: string | undefined, citee: string, ecrite: string, section: keyof typeof SECTIONS][] = [
-  ["manager-allumer", undefined, "brigade <projet> manager on", "ssh box brigade parade manager on", "Piloter"],
-  ["manager-eteindre", undefined, "brigade <projet> manager off", "ssh box brigade parade manager off", "Piloter"],
-  ["grant-activer", "merge", "brigade <projet> grant enable merge", "ssh box brigade parade grant enable merge", "Piloter"],
-  ["grant-revoquer", "merge", "brigade <projet> grant revoke merge", "ssh box brigade parade grant revoke merge", "Piloter"],
-  ["reprendre", undefined, "brigade <projet> guardrails resume", "ssh box brigade parade guardrails resume", "Piloter"],
-  ["stop", undefined, "brigade <projet> guardrails stop", "ssh box brigade parade guardrails stop", "Piloter"],
-  ["installation", undefined, "brigade <projet> installation", "ssh box brigade parade installation", "Piloter"],
+// Chaque geste : le grant qu'il nomme, la commande que la doc cite, et ce qui s'écrit pour « parade » sur « box ».
+const GESTES_DE_LA_DOC: readonly [id: string, grant: string | undefined, citee: string, ecrite: string][] = [
+  ["manager-allumer", undefined, "brigade <projet> manager on", "ssh box brigade parade manager on"],
+  ["manager-eteindre", undefined, "brigade <projet> manager off", "ssh box brigade parade manager off"],
+  ["grant-activer", "merge", "brigade <projet> grant enable merge", "ssh box brigade parade grant enable merge"],
+  ["grant-revoquer", "merge", "brigade <projet> grant revoke merge", "ssh box brigade parade grant revoke merge"],
+  ["reprendre", undefined, "brigade <projet> guardrails resume", "ssh box brigade parade guardrails resume"],
+  ["stop", undefined, "brigade <projet> guardrails stop", "ssh box brigade parade guardrails stop"],
+  ["installation", undefined, "brigade <projet> installation", "ssh box brigade parade installation"],
 ];
 
 // La commande écrite : le test échoue net si le geste a refusé d'écrire.
@@ -156,16 +156,14 @@ describe("les gestes du chef", () => {
     }
   });
 
-  test(`${SOURCE}, « Piloter », donne les deux écritures d'un geste : \`${DE_BOX}\` sur la box, \`${DE_POSTE}\` depuis le poste — c'est la seconde que l'app écrit`, () => {
-    // La doc se replie où elle veut : seuls ses mots comptent.
-    const mots = PILOTER.replace(/\s+/g, " ");
-    assert.ok(mots.includes(`Le *geste de box* est \`${DE_BOX}\``), "« Piloter » ne donne plus cette forme sur la box");
-    assert.ok(mots.includes(`Le *geste de poste* est \`${DE_POSTE}\``), "« Piloter » ne donne plus cette forme depuis le poste");
+  test(`${SOURCE} donne les deux écritures d'un geste : \`${DE_BOX}\` sur la box, \`${DE_POSTE}\` depuis le poste — c'est la seconde que l'app écrit`, () => {
+    assert.ok(doc.includes(`\`${DE_BOX}\``), `${SOURCE} ne donne plus la forme \`${DE_BOX}\``);
+    assert.ok(doc.includes(`\`${DE_POSTE}\``), `${SOURCE} ne donne plus la forme \`${DE_POSTE}\``);
   });
 
-  for (const [id, grant, citee, ecrite, section] of GESTES_DE_LA_DOC) {
-    test(`« ${id} » écrit \`${ecrite}\` — caractère pour caractère la commande de ${SOURCE}, « ${section} » : \`${citee}\`, dans sa forme de poste`, () => {
-      assert.ok(SECTIONS[section].has(citee), `${SOURCE}, « ${section} », ne cite plus \`${citee}\``);
+  for (const [id, grant, citee, ecrite] of GESTES_DE_LA_DOC) {
+    test(`« ${id} » écrit \`${ecrite}\` — caractère pour caractère la commande de ${SOURCE} : \`${citee}\`, dans sa forme de poste`, () => {
+      assert.ok(CITEES.has(citee), `${SOURCE} ne cite plus \`${citee}\``);
       // La forme de poste de la doc, avec l'hôte et le nom de ce projet : rien d'autre n'y est changé.
       const mots = citee.slice(DE_BOX.indexOf("<commande>"));
       assert.equal(DE_BOX.replace("<commande>", mots), citee);

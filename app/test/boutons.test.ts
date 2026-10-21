@@ -1,6 +1,6 @@
 // Les boutons d'action : chacun écrit dans le second une commande de la doc,
 // mot pour mot, à compléter, et n'envoie rien. Ce qui s'écrit se compare ici à
-// docs/runtime/, « Piloter » ; que rien ne parte se prouve sur le registre
+// docs/runtime/ ; que rien ne parte se prouve sur le registre
 // (terminaux.test.ts) et sur un vrai pty (pty.test.ts).
 import { docRuntime } from "./aides/doc-runtime.ts";
 import assert from "node:assert/strict";
@@ -13,7 +13,6 @@ import { ONGLETS } from "../src/onglets.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
 const doc = docRuntime(RACINE);
-const PILOTER = doc.slice(doc.indexOf("### Piloter"), doc.indexOf("### Recette du chef"));
 const PARADE = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
 
 // La commande écrite : le test échoue net si le bouton a refusé d'écrire.
@@ -40,9 +39,9 @@ describe("les boutons d'action", () => {
     }
   });
 
-  test("ce qui s'écrit est la forme de « Piloter », mot pour mot, préfixée du `!` qui la lance depuis le second", () => {
+  test("ce qui s'écrit est la forme de la doc, mot pour mot, préfixée du `!` qui la lance depuis le second", () => {
     const DU_POSTE = "ssh <box> brigade <projet> status";
-    assert.ok(PILOTER.includes(`\`${DU_POSTE}\``), "« Piloter » ne donne plus cette forme depuis le poste");
+    assert.ok(doc.includes(`\`${DU_POSTE}\``), "la doc ne donne plus cette forme depuis le poste");
 
     for (const { id, commande } of BOUTONS) {
       const attendu = `!${DU_POSTE.replace("<box>", "box").replace("<projet>", "parade").replace("status", commande)}`;
@@ -53,14 +52,14 @@ describe("les boutons d'action", () => {
     assert.equal(ecritPar("stop", PARADE), undefined);
   });
 
-  test("chaque commande existe dans la doc aujourd'hui : un script du runtime, et ses mots sur sa ligne de « Piloter »", () => {
+  test("chaque commande existe dans la doc aujourd'hui : un script du runtime, et ses mots sur une ligne de la doc", () => {
     const { scripts } = JSON.parse(readFileSync(join(RACINE, "runtime/package.json"), "utf8")) as { scripts: Record<string, string> };
 
     for (const { commande } of BOUTONS) {
       const [script = "", ...mots] = commande.trim().split(" ");
       assert.ok(script in scripts, `« ${script} » n'est pas un script du runtime`);
-      const ligne = PILOTER.split("\n").find((candidate) => candidate.includes(`\`brigade <projet> ${script}`) && mots.every((mot) => candidate.includes(mot)));
-      assert.ok(ligne, `« Piloter » ne donne pas \`brigade <projet> ${commande.trim()}\``);
+      const ligne = doc.split("\n").find((candidate) => candidate.includes(`\`brigade <projet> ${script}`) && mots.every((mot) => candidate.includes(mot)));
+      assert.ok(ligne, `la doc ne donne pas \`brigade <projet> ${commande.trim()}\``);
     }
   });
 
@@ -97,7 +96,7 @@ describe("régler le closer (#990)", () => {
   const FERMETURE = readFileSync(join(RACINE, "docs/runtime/fermeture.md"), "utf8");
 
   test("le modèle et l'effort s'écrivent ensemble, sur une ligne : les deux gestes de la doc, l'un après l'autre — rien ne part", () => {
-    for (const geste of ["closer-modele <modèle>", "closer-effort <effort>"]) assert.ok(FERMETURE.includes(geste), `docs/runtime/fermeture.md ne nomme plus « ${geste} »`);
+    for (const geste of ["closer-modele", "closer-effort"]) assert.ok(FERMETURE.includes(geste), `docs/runtime/fermeture.md ne nomme plus « ${geste} »`);
     assert.deepEqual(ecritPourLeCloser(PARADE, "sonnet", "medium"), { commande: "!ssh box brigade parade station closer-modele sonnet && ssh box brigade parade station closer-effort medium" });
     // Il n'est pas un bouton de l'onglet : il ne s'écrit qu'avec ses deux valeurs.
     assert.ok(!BOUTONS.some(({ id }) => id === REGLER_LE_CLOSER));

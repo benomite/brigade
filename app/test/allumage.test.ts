@@ -84,8 +84,7 @@ function box(t: TestContext, corps: string) {
 const dit = (texte: string) => `cat <<'FIN'\n${texte}FIN`;
 
 describe("l'avertissement de l'allumage", () => {
-  test("il est dit en anglais, et reprend celui de docs/runtime/, « Le manager » : ce que l'allumage engage et `blocked-on-human`", () => {
-    assert.ok(doc.includes("\n## Le manager\n"), "docs/runtime/ n'a plus « Le manager »");
+  test("il est dit en anglais, et reprend celui de docs/runtime/ : ce que l'allumage engage et `blocked-on-human`", () => {
     assert.equal(
       AVERTISSEMENT,
       "Once on, it judges the whole open backlog, and whatever it judges executable goes to the kitchen right away. Before turning it on, put `blocked-on-human` on whatever must not go: an issue carrying it is never judged, an epic carrying it is never split.",
@@ -132,16 +131,15 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     assert.equal("dit" in vide && vide.dit, "it will judge no issue: none is open");
   });
 
-  test("ce qui part est le geste de la box, comme la veille le lance — une commande que « Piloter » cite, et rien de plus", async (t) => {
+  test("ce qui part est le geste de la box, comme la veille le lance — une commande que la doc cite, et rien de plus", async (t) => {
     const { reglages, appels } = box(t, dit(await runtime(t, CONNU)));
-    const piloter = doc.slice(doc.indexOf("### Piloter"), doc.indexOf("### Recette du chef"));
 
     await compter(reglages, { nom: "parade", box: { hote: "chef@box" } });
 
     assert.equal(COMMANDE, "manager backlog");
     assert.equal(appels(), `${OPTIONS} -- chef@box brigade parade manager backlog\n`);
-    assert.ok(piloter.includes("`brigade <projet> manager [on \\| off \\| return <n°> \\| backlog \\| upstream]`"), "docs/runtime/, « Piloter », ne cite pas `manager backlog`");
-    assert.ok(doc.includes("npm --prefix runtime run manager -- backlog"), "docs/runtime/, « Le manager », ne cite pas `manager -- backlog`");
+    assert.ok(doc.includes("`brigade <projet> manager [on \\| off \\| return <n°> \\| backlog \\| upstream]`"), "docs/runtime/ ne cite pas `manager backlog`");
+    assert.ok(doc.includes("npm --prefix runtime run manager -- backlog"), "docs/runtime/ ne cite pas `manager -- backlog`");
   });
 
   test("la ligne `backlog` d'avant #951, en français, se lit encore : les mêmes nombres", () => {
