@@ -13,6 +13,7 @@ import type { CarteDeCorrection as CarteDuRuntime } from "../../../runtime/src/c
 import { carteDeCorrection, commandeDe, correctionsLues, type CorrectionLue, decouper, INCONNUE, PAS_COMPRIS, repondreALaCorrection, SANS_GESTE } from "../../src/correction.ts";
 import { comprendre, tenirFaits, type Faits } from "../../src/faits.ts";
 import { CORRECTION, DIFF, FAITS } from "./donnees.ts";
+import { SANS_POSIX } from "../aides/posix.ts";
 
 // Ce que le runtime écrit, l'app le lit : toute carte de `facts` entre dans la forme de l'app.
 const _formeTenue: CarteDuRuntime extends CorrectionLue ? true : never = true;
@@ -174,7 +175,7 @@ describe("le « yes » ou le « no » du chef, sur la box", () => {
     assert.equal(commandeDe("no", 7), "correction no 7");
   });
 
-  test("« yes » lance `correction yes 412`, une fois : écrite, la réponse fait quitter la file à la carte", async (t) => {
+  test("« yes » lance `correction yes 412`, une fois : écrite, la réponse fait quitter la file à la carte", { skip: SANS_POSIX }, async (t) => {
     const { reglages, appels } = box(t, dit("correction 412 accepted"));
     const rendu = await repondreALaCorrection(reglages, SERVI, [412], 412, "yes");
     assert.ok("tranchee" in rendu);
@@ -182,7 +183,7 @@ describe("le « yes » ou le « no » du chef, sur la box", () => {
     assert.equal(appels(), `${OPTIONS} -- box brigade parade correction yes 412\n`);
   });
 
-  test("« no » lance `correction no 412`, une fois", async (t) => {
+  test("« no » lance `correction no 412`, une fois", { skip: SANS_POSIX }, async (t) => {
     const { reglages, appels } = box(t, dit("correction 412 refused"));
     const rendu = await repondreALaCorrection(reglages, SERVI, [412], 412, "no");
     assert.ok("tranchee" in rendu);
@@ -197,7 +198,7 @@ describe("le « yes » ou le « no » du chef, sur la box", () => {
     assert.equal(appels(), "");
   });
 
-  test("refusée par le runtime (1) : sa dernière ligne le dit, rien n'est écrit, la carte reste", async (t) => {
+  test("refusée par le runtime (1) : sa dernière ligne le dit, rien n'est écrit, la carte reste", { skip: SANS_POSIX }, async (t) => {
     const { reglages } = box(t, dit("brigade: correction 412 is not shown in the queue: it cannot be answered", 1));
     const rendu = await repondreALaCorrection(reglages, SERVI, [412], 412, "yes");
     assert.ok("refus" in rendu);
@@ -205,7 +206,7 @@ describe("le « yes » ou le « no » du chef, sur la box", () => {
     assert.match(rendu.detail, /exit code 1/);
   });
 
-  test("un runtime qui ne connaît pas encore le geste (66, ou 2 sur son usage) : une ligne, la commande et le code au survol", async (t) => {
+  test("un runtime qui ne connaît pas encore le geste (66, ou 2 sur son usage) : une ligne, la commande et le code au survol", { skip: SANS_POSIX }, async (t) => {
     for (const code of [66, 2]) {
       const { reglages } = box(t, `echo "brigade: “correction” is not a command of the runtime" >&2\nexit ${code}`);
       const rendu = await repondreALaCorrection(reglages, SERVI, [412], 412, "no");
@@ -217,7 +218,7 @@ describe("le « yes » ou le « no » du chef, sur la box", () => {
     }
   });
 
-  test("une box pas jointe : une ligne, et ce que `ssh` a rendu au survol", async (t) => {
+  test("une box pas jointe : une ligne, et ce que `ssh` a rendu au survol", { skip: SANS_POSIX }, async (t) => {
     const { reglages } = box(t, `echo "ssh: connect to host box port 22: Connection refused" >&2\nexit 255`);
     const rendu = await repondreALaCorrection(reglages, SERVI, [412], 412, "yes");
     assert.ok("refus" in rendu);

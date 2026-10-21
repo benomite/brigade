@@ -45,6 +45,11 @@ describe("les tours du second, dits par ses crochets", () => {
     });
   });
 
+  test("sous Windows, le chemin des tours part avec des barres obliques : `claude` y joue ses crochets par le `bash` de Git", () => {
+    const { hooks } = JSON.parse(reglages("C:\\Users\\chef\\AppData\\Local\\Temp\\brigade-app-x\\second-1.tours", "\\")) as { hooks: Record<string, { hooks: { command: string }[] }[]> };
+    assert.equal(hooks.Stop?.[0]?.hooks[0]?.command, "printf 'fin\\n' >> 'C:/Users/chef/AppData/Local/Temp/brigade-app-x/second-1.tours'");
+  });
+
   test("joués par un vrai `sh`, les crochets écrivent ce que l'app relit — dans un dossier dont le nom porte une espace et une apostrophe, sans rien sur leur sortie", (t) => {
     const tours = ouvrirTours(dossier(t, "brigade l'app "));
     t.after(tours.fermer);

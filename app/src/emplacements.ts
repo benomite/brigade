@@ -85,12 +85,16 @@ export function emplacementsDe(options: OptionsEmplacements): Emplacements {
 
 // Là où un Mac pose `claude`, `gh` et `git` quand le shell de connexion ne les a pas dits :
 // Homebrew sur Apple Silicon, puis sur Intel, puis l'installation de `claude` dans le dossier du chef.
-export const CHEMINS_CONNUS = (maison: string): string[] => ["/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin", join(maison, ".local", "bin"), join(maison, ".claude", "local")];
+// Sous Windows, `gh` et `git` s'installent dans le PATH du compte, que l'app reçoit : seul reste le
+// dossier où l'installeur de `claude` le pose.
+export const CHEMINS_CONNUS = (maison: string, plateforme: string): string[] =>
+  plateforme === "win32" ? [join(maison, ".local", "bin")] : ["/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin", join(maison, ".local", "bin"), join(maison, ".claude", "local")];
 
 export type OptionsChemin = {
   emplacements: Emplacements;
   env: Record<string, string | undefined>;
   maison: string;
+  plateforme: string;
   // Le PATH du shell de connexion du chef, ou rien s'il ne s'est pas lu.
   duShell(): string | undefined;
 };
@@ -102,7 +106,7 @@ export type OptionsChemin = {
 export function cheminDe(options: OptionsChemin): string | undefined {
   const { emplacements } = options;
   if (emplacements.facon === "depot") return undefined;
-  const morceaux = [options.duShell() ?? "", options.env.PATH ?? "", CHEMINS_CONNUS(options.maison).join(delimiter), join(emplacements.node, "..")];
+  const morceaux = [options.duShell() ?? "", options.env.PATH ?? "", CHEMINS_CONNUS(options.maison, options.plateforme).join(delimiter), join(emplacements.node, "..")];
   const vus = new Set<string>();
   for (const dossier of morceaux.join(delimiter).split(delimiter)) if (dossier !== "") vus.add(dossier);
   return [...vus].join(delimiter);
@@ -113,7 +117,8 @@ export function cheminDe(options: OptionsChemin): string | undefined {
 const DEBUT = "__brigade_path_debut__";
 const FIN = "__brigade_path_fin__";
 
-// Le PATH du shell de connexion du chef, tel qu'un terminal le lui donne (`-l`, et `-i` pour ce
+// Le PATH du shell de connexion du chef, tel qu'un terminal le lui donne — sur un Mac ou un Linux :
+// sous Windows, une app reçoit le PATH du compte, il n'y a pas de shell de connexion à lire (`-l`, et `-i` pour ce
 // que son `.zshrc` ajoute) — ou rien : un shell absent, qui échoue, ou qui n'a rien rendu dans le
 // délai. Il est lu une fois, au lancement de l'app : rien de ce qu'il dit d'autre n'est gardé.
 export function lireCheminDuShell(shell: string, delaiMs: number, env: Record<string, string | undefined> = process.env): string | undefined {

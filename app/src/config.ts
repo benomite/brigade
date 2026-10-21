@@ -8,7 +8,7 @@
 // que le chef choisit.
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join } from "node:path";
+import { dirname, isAbsolute, join, sep } from "node:path";
 import { ordinairesLus } from "./ordinaires.ts";
 import { couleursLues, entieres, estCouleur, ROLES, tirer, type Couleurs, type Role } from "./couleurs.ts";
 
@@ -97,7 +97,8 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
     const lequel = `project #${rang + 1} (${nom})`;
     if (typeof dossier !== "string" || dossier === "") return refuse(`${lequel}: “dossier” is missing`);
     if (projets.some((projet) => projet.nom === nom)) return refuse(`two projects are named “${nom}”`);
-    const absolu = dossier === "~" || dossier.startsWith("~/") ? join(maison, dossier.slice(1)) : dossier;
+    // `~\` aussi, comme on l'écrit sous Windows.
+    const absolu = dossier === "~" || dossier.startsWith("~/") || (sep === "\\" && dossier.startsWith("~\\")) ? join(maison, dossier.slice(1)) : dossier;
     if (!isAbsolute(absolu)) return refuse(`${lequel}: “dossier” must be an absolute path, or start with ~/`);
     // Le fichier d'avant dictait une ligne de commande : il le dit, plutôt que d'être lu à moitié.
     if (commande !== undefined) return refuse(`${lequel}: “commande” is no longer read — remove it: the app runs the station's action (\`ssh <hote> brigade ${nom} <commande>\`), “hote” is all it needs`);
@@ -282,12 +283,12 @@ export function changerCouleur(chemin: string, nom: string, role: Role, couleur:
   return reecrire(chemin, ecrit(ouvert.contenu));
 }
 
-// Règle, pour un projet, si le Mac prend aussi les tickets ordinaires et combien de cooks il
+// Règle, pour un projet, si la station de cet ordinateur prend aussi les tickets ordinaires et combien de cooks il
 // fait tourner (`null` : aucune limite écrite) — rien d'autre du fichier. Rend la raison, si
 // rien n'a été écrit.
 export function changerOrdinaires(chemin: string, nom: string, actif: unknown, limite: unknown, maison = homedir()): string | undefined {
-  if (typeof actif !== "boolean") return "nothing was written: whether the Mac takes the ordinary tickets is true or false";
-  if (limite !== null && (!Number.isInteger(limite) || (limite as number) < 1)) return "nothing was written: the Mac's cook limit is a whole number, one or more — or empty, for none";
+  if (typeof actif !== "boolean") return "nothing was written: whether this computer's station takes the ordinary tickets is true or false";
+  if (limite !== null && (!Number.isInteger(limite) || (limite as number) < 1)) return "nothing was written: this computer's cook limit is a whole number, one or more — or empty, for none";
   const ouvert = relu(chemin, maison);
   if ("refus" in ouvert) return ouvert.refus;
   const declare = ouvert.contenu.projets.find((candidat) => (candidat as { nom?: unknown } | null)?.nom === nom) as { ordinaires?: boolean; limiteCooks?: number } | undefined;

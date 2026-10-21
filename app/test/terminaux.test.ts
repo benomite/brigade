@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { DIT, reglages } from "../src/saisie.ts";
 import { ouvrirTerminaux, type Lancement, type Terminal } from "../src/terminaux.ts";
+import { ICI } from "../src/plateforme.ts";
 
 const FIL_REPRIS = "thread resumed: `claude --continue`, the latest conversation in this folder — whichever it is, not necessarily a second's; `/brigade:po` is invoked in it";
 const BRIGADE = { nom: "brigade", dossier: "/projets/brigade" };
@@ -176,7 +177,7 @@ describe("le registre des terminaux", () => {
     terminaux.shell(BRIGADE);
 
     assert.deepEqual(commandes().slice(1), ["/bin/zsh -l /projets/brigade", "/bin/zsh -l /projets/brigade"]);
-    assert.deepEqual([shell.genre, shell.titre, shell.note], ["shell", "shell 1", "shell on this Mac, in /projets/brigade"]);
+    assert.deepEqual([shell.genre, shell.titre, shell.note], ["shell", "shell 1", `shell on ${ICI}, in /projets/brigade`]);
     // Rouvrir l'espace ne relance rien : le même second, les mêmes shells.
     assert.deepEqual(terminaux.espace(BRIGADE).map(({ id, titre }) => [id, titre]), [[second.id, "Second"], [shell.id, "shell 1"], [shell.id + 1, "shell 2"]]);
     assert.equal(commandes().length, 3);

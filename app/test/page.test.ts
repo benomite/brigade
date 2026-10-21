@@ -14,6 +14,7 @@ import type { Montree } from "../src/attend.ts";
 import type { Reglages } from "../src/box.ts";
 import type { Projet } from "../src/config.ts";
 import { ouvrirTransfert, serveursDe, tenirPages, type Pages } from "../src/page.ts";
+import { SANS_POSIX } from "./aides/posix.ts";
 
 const AIDE = join(import.meta.dirname, "aides/faux-transfert.ts");
 const SOURCES = join(import.meta.dirname, "../src");
@@ -94,7 +95,7 @@ const vivant = (pid: number) => {
 // Un essai : un faux `ssh` — il lance `aides/faux-transfert.ts` dans le mode dit —, la
 // commande d'ouverture du poste remplacée par une liste, et les pages branchées dessus
 // comme dans le process principal (main.ts).
-function essai(t: TestContext, mode: "relaie" | "ouvre" | "refuse" | "muet" = "relaie", reglages: Partial<Reglages> = {}, ouvrir?: (url: string) => Promise<void>) {
+function essai(t: TestContext, mode: "relaie" | "ouvre" | "refuse" | "muet" = "relaie", reglages: Partial<Reglages> = {}, ouvrir?: (url: string) => Promise<void>, plateforme?: string) {
   const racine = mkdtempSync(join(tmpdir(), "brigade-app-page-"));
   const ssh = join(racine, "ssh");
   writeFileSync(ssh, `#!/bin/sh\nexec '${process.execPath}' '${AIDE}' '${racine}' ${mode} "$@"\n`);
@@ -102,7 +103,7 @@ function essai(t: TestContext, mode: "relaie" | "ouvre" | "refuse" | "muet" = "r
 
   const ouvertes: string[] = [];
   const pages = tenirPages({
-    transferer: (servi, port, signal) => ouvrirTransfert({ ssh, delaiMs: 60_000, connexionS: 10, ...reglages }, servi, port, signal),
+    transferer: (servi, port, signal) => ouvrirTransfert({ ssh, delaiMs: 60_000, connexionS: 10, ...reglages }, servi, port, signal, plateforme),
     ouvrir: ouvrir ?? (async (url) => void ouvertes.push(url)),
   });
   t.after(() => {
@@ -307,7 +308,7 @@ describe("le geste posé", () => {
 });
 
 describe("le geste : la page du worktree, dans le navigateur du poste", () => {
-  test("il amène le port du worktree sur ce poste par `ssh`, sans rien lancer sur la box, et ouvre l'adresse locale — elle rend la page du worktree", async (t) => {
+  test("il amène le port du worktree sur ce poste par `ssh`, sans rien lancer sur la box, et ouvre l'adresse locale — elle rend la page du worktree", { skip: SANS_POSIX }, async (t) => {
     const port = await servir(t, "la page du worktree 412");
     const { pages, ouvertes, appels } = essai(t);
     pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
@@ -333,7 +334,22 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     assert.ok(page.dit?.texte.includes(`to port ${local} on this workstation (port ${port} is taken there)`));
   });
 
-  test("le port de ce poste est celui du worktree quand il y est libre : l'adresse est celle que `station` écrit", async (t) => {
+  test("sous Windows, dont le `ssh` n'ouvre pas de prise Unix, `ssh` écoute sur un port de ce poste, sur 127.0.0.1 seulement — la page arrive pareil", { skip: SANS_POSIX }, async (t) => {
+    const port = await servir(t, "la page du worktree 412");
+    const { pages, ouvertes, appels } = essai(t, "relaie", {}, undefined, "win32");
+    pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
+
+    const page = seule(await pages.ouvrir(CALCULUS, WORKTREE));
+
+    assert.equal(page.dit?.ouverte, true);
+    assert.equal(await lire(ouvertes[0] as string), "la page du worktree 412");
+    const [, prise] = TRANSFERT.exec(appels()[0] as string) ?? [];
+    assert.match(prise ?? "", /^127\.0\.0\.1:\d+$/);
+    // Ni le port du worktree, ni celui où la page s'ouvre : celui de `ssh`, que l'app relaie.
+    assert.notEqual(prise, `127.0.0.1:${portDe(ouvertes[0])}`);
+  });
+
+  test("le port de ce poste est celui du worktree quand il y est libre : l'adresse est celle que `station` écrit", { skip: SANS_POSIX }, async (t) => {
     // Un port que le poste vient de donner, et de reprendre : rien n'y écoute.
     const donne = ouvrirPort();
     await new Promise<void>((resoudre) => donne.listen(0, "127.0.0.1", resoudre));
@@ -348,7 +364,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     assert.ok(page.dit?.texte.includes("to the same port on this workstation"));
   });
 
-  test("un second geste ne rouvre rien : le transfert est tenu, et la même adresse s'ouvre", async (t) => {
+  test("un second geste ne rouvre rien : le transfert est tenu, et la même adresse s'ouvre", { skip: SANS_POSIX }, async (t) => {
     const port = await servir(t, "la page");
     const { pages, ouvertes, appels } = essai(t);
     pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
@@ -364,7 +380,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     assert.equal(await lire(ouvertes[1] as string), "la page");
   });
 
-  test("deux gestes de front n'ouvrent qu'un transfert, et qu'une fois la page", async (t) => {
+  test("deux gestes de front n'ouvrent qu'un transfert, et qu'une fois la page", { skip: SANS_POSIX }, async (t) => {
     const port = await servir(t, "la page");
     const { pages, ouvertes, appels } = essai(t);
     pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
@@ -378,7 +394,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     assert.equal(ouvertes.length, 1);
   });
 
-  test("quand `status` ne montre plus le serveur, son transfert est fermé — et le geste ne lance plus rien", async (t) => {
+  test("quand `status` ne montre plus le serveur, son transfert est fermé — et le geste ne lance plus rien", { skip: SANS_POSIX }, async (t) => {
     const port = await servir(t, "la page");
     const { pages, ouvertes, appels, pids } = essai(t);
     pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
@@ -397,7 +413,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     assert.equal(ouvertes.length, 1);
   });
 
-  test("une lecture ratée ne ferme rien : rien ne prouve que le serveur n'est plus là — mais aucun geste ne part", async (t) => {
+  test("une lecture ratée ne ferme rien : rien ne prouve que le serveur n'est plus là — mais aucun geste ne part", { skip: SANS_POSIX }, async (t) => {
     const port = await servir(t, "la page");
     const { pages, ouvertes, appels } = essai(t);
     pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
@@ -412,7 +428,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     assert.equal(await lire(ouvertes[0] as string), "la page");
   });
 
-  test("un `ssh` qui ne joint pas la box : rien n'est ouvert, et ce qu'il a dit est rendu tel quel", async (t) => {
+  test("un `ssh` qui ne joint pas la box : rien n'est ouvert, et ce qu'il a dit est rendu tel quel", { skip: SANS_POSIX }, async (t) => {
     const port = await servir(t, "la page");
     const { pages, ouvertes, ssh } = essai(t, "refuse");
     pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
@@ -429,7 +445,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     assert.equal(page.enCours, false);
   });
 
-  test("un `ssh` qui n'ouvre pas le transfert est arrêté au délai, et l'app le dit", async (t) => {
+  test("un `ssh` qui n'ouvre pas le transfert est arrêté au délai, et l'app le dit", { skip: SANS_POSIX }, async (t) => {
     // Court, et vrai quel que soit le temps que tout met : ce `ssh`-là n'ouvre jamais rien.
     const port = await servir(t, "la page");
     const { pages, ouvertes, pids } = essai(t, "muet", { delaiMs: 300 });
@@ -474,7 +490,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     assert.deepEqual(ouvertes, []);
   });
 
-  test("l'écran déclaré ouvre sa route, quelle qu'elle soit — sa requête et son ancre comprises", async (t) => {
+  test("l'écran déclaré ouvre sa route, quelle qu'elle soit — sa requête et son ancre comprises", { skip: SANS_POSIX }, async (t) => {
     const port = await servir(t, "la page");
     const { pages, ouvertes } = essai(t);
     pages.recevoir(lue(status(SERVEURS(1), serveur(412, port, "écoute", `http://127.0.0.1:${port}/projets/12?onglet=notes#haut`), "")));
@@ -485,7 +501,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     assert.match(ouvertes[0] ?? "", /^http:\/\/127\.0\.0\.1:\d+\/projets\/12\?onglet=notes#haut$/);
   });
 
-  test("le poste n'a pas pu ouvrir l'adresse : le transfert reste, et l'adresse est dite pour être ouverte à la main", async (t) => {
+  test("le poste n'a pas pu ouvrir l'adresse : le transfert reste, et l'adresse est dite pour être ouverte à la main", { skip: SANS_POSIX }, async (t) => {
     const port = await servir(t, "la page");
     const { pages } = essai(t, "relaie", {}, () => Promise.reject(new Error("aucun navigateur")));
     pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
@@ -498,7 +514,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     assert.equal(await lire(url as string), "la page");
   });
 
-  test("un transfert qui tombe de lui-même se dit : la page ouverte ne répond plus", async (t) => {
+  test("un transfert qui tombe de lui-même se dit : la page ouverte ne répond plus", { skip: SANS_POSIX }, async (t) => {
     const port = await servir(t, "la page");
     const { pages, pids } = essai(t);
     pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
@@ -515,7 +531,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     assert.match(page.dit.texte, /^the port forward closed/);
   });
 
-  test("un projet qui quitte l'app, et l'app qui ferme : leurs transferts sont fermés, par leur pid", async (t) => {
+  test("un projet qui quitte l'app, et l'app qui ferme : leurs transferts sont fermés, par leur pid", { skip: SANS_POSIX }, async (t) => {
     const port = await servir(t, "la page");
     const { pages, pids } = essai(t);
     pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
@@ -532,7 +548,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     await jusqua(() => !vivant(second));
   });
 
-  test("un geste encore en route quand l'app ferme est abandonné : son `ssh` est arrêté", async (t) => {
+  test("un geste encore en route quand l'app ferme est abandonné : son `ssh` est arrêté", { skip: SANS_POSIX }, async (t) => {
     const port = await servir(t, "la page");
     const { pages, ouvertes, pids } = essai(t, "muet");
     pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));

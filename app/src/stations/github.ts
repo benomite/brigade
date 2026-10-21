@@ -42,7 +42,7 @@ function echec(reglages: Reglages, erreur: ExecFileException, erreurs: string): 
 export function githubDesStations(reglages: Reglages): GitHubDesStations {
   const appeler = (args: string[], entree?: unknown): Promise<string> =>
     new Promise((resoudre, rejeter) => {
-      const enfant = execFile(reglages.gh, ["api", ...args], { timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (erreur, sortie, erreurs) => {
+      const enfant = execFile(reglages.gh, ["api", ...args], { windowsHide: true, timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (erreur, sortie, erreurs) => {
         if (erreur === null) return resoudre(sortie);
         if (ABSENT.test(erreurs)) return rejeter(new Absent());
         rejeter(new Error(echec(reglages, erreur, erreurs)));

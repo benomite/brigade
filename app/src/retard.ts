@@ -54,7 +54,7 @@ type Rendu = { sortie: string } | { dit: string };
 // n'a pas répondu. Ce que le trousseau ou l'agent `ssh` du poste savent déjà sert tel quel.
 export function git(reglages: Reglages, dossier: string, args: readonly string[], signal?: AbortSignal, env: NodeJS.ProcessEnv = {}): Promise<Rendu> {
   return new Promise((resoudre) => {
-    execFile(reglages.git, ["-C", dossier, ...args], { timeout: reglages.delaiMs, maxBuffer: 1024 * 1024, signal, env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_ASKPASS: "", SSH_ASKPASS_REQUIRE: "never", GIT_OPTIONAL_LOCKS: "0", ...env } }, (erreur, sortie, erreurs) => {
+    execFile(reglages.git, ["-C", dossier, ...args], { windowsHide: true, timeout: reglages.delaiMs, maxBuffer: 1024 * 1024, signal, env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_ASKPASS: "", SSH_ASKPASS_REQUIRE: "never", GIT_OPTIONAL_LOCKS: "0", ...env } }, (erreur, sortie, erreurs) => {
       if (erreur === null) return resoudre({ sortie: sortie.replace(/\n+$/, "") });
       const ecrit = erreurs.split("\n").find((ligne) => ligne.trim() !== "")?.trim();
       resoudre({ dit: sansJeton(erreur.killed ? `stopped after ${reglages.delaiMs / 1000} s, no response` : (ecrit ?? erreur.message)) });

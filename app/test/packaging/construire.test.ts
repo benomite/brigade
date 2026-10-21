@@ -26,6 +26,7 @@ import {
 } from "../../packaging/construire.ts";
 import { emplacementsDe, estInstallee } from "../../src/emplacements.ts";
 import { roleDe } from "../../src/poste/role.ts";
+import { PAQUETS } from "../aides/posix.ts";
 
 const CONSTRUIRE = join(APP, "packaging", "construire.ts");
 
@@ -119,7 +120,7 @@ function outils(otool = "node:\n\t/usr/lib/libSystem.B.dylib (compatibility vers
   return { executer, appels, volume: () => volume };
 }
 
-test("Brigade.app porte l'app, le runtime et le `node` du paquet — et l'app installée y trouve sa station", (t) => {
+test("Brigade.app porte l'app, le runtime et le `node` du paquet — et l'app installée y trouve sa station", { skip: PAQUETS }, (t) => {
   const racine = dossier(t);
   const paquet = assembler({ version: "0.20261019.151600+g76f93fe", electron: fauxElectron(racine), node: fauxNode(racine) }, join(racine, "volume"));
   const ressources = join(paquet, "Contents", "Resources");
@@ -184,7 +185,7 @@ test("la station du paquet se charge tout entière depuis lui : l'enveloppe de l
   assert.match(lance.stderr, /refus de démarrer la station — BRIGADE_STATION_DIR n'est pas défini/);
 });
 
-test("le .dmg : l'app signée ad hoc, puis un volume qui porte Brigade.app et le lien vers Applications", (t) => {
+test("le .dmg : l'app signée ad hoc, puis un volume qui porte Brigade.app et le lien vers Applications", { skip: PAQUETS }, (t) => {
   const racine = dossier(t);
   const { executer, appels, volume } = outils();
   const sortie = join(racine, "construit");
@@ -206,7 +207,7 @@ test("le .dmg : l'app signée ad hoc, puis un volume qui porte Brigade.app et le
   ]);
 });
 
-test("signé Developer ID et notarisé : du plus profond au paquet, l'app agrafée avant le .dmg, qui l'est à son tour", (t) => {
+test("signé Developer ID et notarisé : du plus profond au paquet, l'app agrafée avant le .dmg, qui l'est à son tour", { skip: PAQUETS }, (t) => {
   const racine = dossier(t);
   const { executer: base, appels } = outils();
   const executer: Executer = (commande, args) => (commande === "xcrun" && args[0] === "notarytool" ? (appels.push([commande, ...args]), { status: 0, stdout: "  status: Accepted\n", stderr: "" }) : base(commande, args));

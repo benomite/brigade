@@ -48,6 +48,7 @@ import { depotsDuChef } from "./projets/github.ts";
 import { EFFORTS, MODELES, tenirProjets } from "./projets/projets.ts";
 import { memoireDansFichier, tenirNotifications } from "./notification.ts";
 import { tenirCuisinesIci } from "./poste/cuisine-ici.ts";
+import { estUnMac, nomDuPoste, persistantSur, shellDuPoste } from "./plateforme.ts";
 import { cuisinesIci, roleDe } from "./poste/role.ts";
 import { tenirStationLocale } from "./poste/station.ts";
 import { ouvrirPty } from "./pty.ts";
@@ -71,13 +72,17 @@ import { ouvrirTerminaux } from "./terminaux.ts";
 // paquet de l'app installée (emplacements.ts). Installée, l'app prend le PATH du shell de
 // connexion du chef avant de rien lancer : ouverte depuis le Finder, elle n'a que celui du système.
 const emplacements = emplacementsDe({ ressources: process.resourcesPath, src: import.meta.dirname, env: process.env });
-const chemin = cheminDe({ emplacements, env: process.env, maison: homedir(), duShell: () => lireCheminDuShell(process.env.SHELL || "/bin/zsh", 10_000) });
+// Ce qui dépend de la plateforme de ce poste — son nom à l'écran, son shell, ses sessions — vient
+// d'un seul module (plateforme.ts) : le reste de l'app est le même code sur un Mac et sous Windows.
+const plateforme = process.platform;
+const shellIci = shellDuPoste(plateforme, process.env);
+const chemin = cheminDe({ emplacements, env: process.env, maison: homedir(), plateforme, duShell: () => (plateforme === "win32" ? undefined : lireCheminDuShell(shellIci.commande, 10_000)) });
 if (chemin !== undefined) process.env.PATH = chemin;
 
 // Ce qu'est l'app sur cette machine (poste/role.ts) : une station sur un ordinateur, le runtime
 // à côté d'elle dans son clone, ou dans son paquet une fois installée ; un poste sur un
 // téléphone — il pilote, rien n'y cuit, ni sa station ni celles que ses projets lui confient.
-const role = roleDe({ plateforme: process.platform, runtime: emplacements.runtime, env: process.env });
+const role = roleDe({ plateforme, runtime: emplacements.runtime, env: process.env });
 // Le répertoire de la station de cet ordinateur : `station/`, à côté du fichier des projets.
 const racineDeLaStation = process.env.BRIGADE_STATION_DIR || join(dirname(cheminConfiguration()), "station");
 // Où cuit chaque projet (poste/cuisine-ici.ts) : un projet que la station de cet ordinateur sert
@@ -133,7 +138,9 @@ const terminaux = ouvrirTerminaux({
   ssh: process.env.BRIGADE_SSH_BIN || "ssh",
   // La même doublure que le runtime : jamais posée hors des essais.
   claude: process.env.BRIGADE_CLAUDE_BIN || "claude",
-  shell: process.env.SHELL || "/bin/zsh",
+  shell: shellIci.commande,
+  argsDuShell: shellIci.args,
+  persistantIci: persistantSur(plateforme),
   surSortie: (id, donnees) => dire("sortie", id, donnees),
   surEtat: (terminal) => dire("etat", terminal),
 });
@@ -537,7 +544,7 @@ function projet(nom: unknown): Projet {
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu(), stations: stations.vu(), projetsDesStations: projetsDesStations.vu(), accueil: accueil.vu(), miseAJour: miseAJour.vu() }));
+ipcMain.handle("demarrage", () => ({ poste: { nom: nomDuPoste(plateforme), mac: estUnMac(plateforme) }, configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu(), stations: stations.vu(), projetsDesStations: projetsDesStations.vu(), accueil: accueil.vu(), miseAJour: miseAJour.vu() }));
 // Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
 // décide hors de la vue — elle reçoit ce qu'il en est advenu, et pourquoi.
 ipcMain.handle("choisirDossier", async () => {
@@ -560,12 +567,12 @@ ipcMain.handle("colorer", (_, nom: unknown, role: unknown, couleur: unknown) => 
   const voulue = choix(role, couleur);
   return "refus" in voulue ? voulue.refus : suivi.changerCouleur(vise.nom, voulue.role, voulue.valeur);
 });
-// Les tickets ordinaires du Mac (ordinaires.ts) : le bloc que la vue pose pour un projet — rien,
-// quand l'option n'existe pas ici —, et le réglage, que la vue nomme et que le fichier écrit.
+// Les tickets ordinaires de cet ordinateur (ordinaires.ts) : le bloc que la vue pose pour un projet —
+// rien, quand ce poste ne joue aucune station du projet ; hors d'un Mac, pourquoi il n'en prend pas —, et le réglage, que la vue nomme et que le fichier écrit.
 // Écrit, il arrive par `surConfiguration`. Le réglage rend la raison, s'il ne l'a pas été.
 ipcMain.handle("ordinaires", (_, nom: unknown) => {
   const vise = declare(nom);
-  return vise === undefined ? undefined : blocDesOrdinaires(vise, process.platform, faits.stations(vise.nom));
+  return vise === undefined ? undefined : blocDesOrdinaires(vise, plateforme, faits.stations(vise.nom));
 });
 ipcMain.handle("reglerOrdinaires", (_, nom: unknown, actif: unknown, limite: unknown) => {
   const vise = declare(nom);
@@ -1120,6 +1127,11 @@ app.on("browser-window-focus", () => {
   suivi.relire();
   void retards.relire();
 });
+
+// Sous Windows, une notification ne s'affiche que pour une app qui a son identifiant de modèle
+// d'application : celui d'Electron lancé depuis le dépôt est son exécutable (la doc d'Electron,
+// « Notifications »). Un Mac n'en a pas besoin.
+if (plateforme === "win32") app.setAppUserModelId(process.execPath);
 
 // Pas d'`await` au premier niveau : Electron n'annonce « prêt » qu'une fois ce
 // module chargé en entier — l'attendre ici, c'est ne jamais démarrer.

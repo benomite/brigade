@@ -981,6 +981,26 @@ function deplacer({ key, shiftKey, altKey = false, ctrlKey = false, metaKey = fa
   return `\x1b[${sens}`;
 }
 
+// Cet ordinateur, tel que le process principal le dit au démarrage : son nom à l'écran, et s'il est un Mac.
+let POSTE = { nom: "this Mac", mac: true };
+
+/**
+ * Copier et coller dans un terminal, hors d'un Mac. Sur un Mac, Cmd+C et Cmd+V passent par le menu
+ * Édition, et Ctrl+C reste au shell. Ailleurs, Ctrl est la touche des deux : comme le Terminal de
+ * Windows, Ctrl+Shift+C copie, Ctrl+C copie quand du texte est sélectionné — sans sélection, il
+ * interrompt —, et Ctrl+V comme Ctrl+Shift+V collent.
+ * @param {{ key: string; shiftKey: boolean; altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean }} touche
+ * @param {{ mac: boolean; selection: boolean }} contexte
+ * @returns {"copier" | "coller" | undefined} le geste, ou rien quand la touche reste à xterm
+ */
+function pressePapiers({ key, shiftKey, altKey = false, ctrlKey = false, metaKey = false }, { mac, selection }) {
+  if (mac || !ctrlKey || altKey || metaKey) return undefined;
+  const lettre = key.toLowerCase();
+  if (lettre === "c" && (shiftKey || selection)) return "copier";
+  if (lettre === "v") return "coller";
+  return undefined;
+}
+
 /** @param {number} id */
 function vue(id) {
   let tenue = vues.get(id);
@@ -997,6 +1017,11 @@ function vue(id) {
     // l'envoient. Un retour à la ligne, lui, ne part pas : `ESC` + `\r` pour `claude` (son Alt+Entrée),
     // un saut de ligne cité (`^V` `^J`) pour le shell.
     xterm.attachCustomKeyEventHandler((touche) => {
+      // Copier : la sélection va au presse-papiers. Coller : la touche est laissée au navigateur, qui
+      // colle dans le terminal comme le menu le ferait.
+      const geste = pressePapiers(touche, { mac: POSTE.mac, selection: xterm.hasSelection() });
+      if (geste === "copier" && touche.type === "keydown" && xterm.hasSelection()) void navigator.clipboard?.writeText(xterm.getSelection());
+      if (geste !== undefined) return false;
       const deplacement = deplacer(touche);
       if (deplacement !== undefined) {
         if (touche.type === "keydown") brigade.ecrire(id, deplacement);
@@ -2265,10 +2290,10 @@ async function colorer(projet, role, nom) {
   if (courant?.nom === projet.nom) poserCouleurs(courant);
 }
 
-// Les tickets ordinaires du Mac, sous Paramètres : l'option, la limite de cooks, une ligne qui dit
-// ce que ça implique — et, quand la station dit son bac à sable indisponible, pourquoi le Mac ne
-// prend aucun ticket ordinaire. Le process principal décide si le bloc existe (ordinaires.ts) :
-// sur un autre poste qu'un Mac, rien ne se pose.
+// Les tickets ordinaires de cet ordinateur, sous Paramètres : l'option, la limite de cooks, une ligne
+// qui dit ce que ça implique — et, quand la station dit son bac à sable indisponible, pourquoi ce poste
+// ne prend aucun ticket ordinaire. Le process principal décide du bloc (ordinaires.ts) : hors d'un Mac,
+// il n'est pas réglable, et seule sa ligne se pose — pourquoi ce poste n'en prend pas.
 let ordinairesRefuses = { projet: "", refus: "" };
 // Ce qui est posé : une lecture qui n'a rien changé ne le repose pas — le chef peut être en train d'écrire la limite.
 let ordinairesPose = "";
@@ -2285,6 +2310,10 @@ async function poserOrdinaires(projet) {
   const pose = JSON.stringify([projet.nom, recu, ordinairesRefuses.refus]);
   if (pose === ordinairesPose) return;
   ordinairesPose = pose;
+  const titre = `Ordinary tickets on ${POSTE.nom}`;
+  ordinaires.ariaLabel = titre;
+  ordinaires.hidden = false;
+  if (recu.reglable === false) return ordinaires.replaceChildren(bloc("h3", titre), bloc("p", recu.explication));
   const option = document.createElement("input");
   option.type = "checkbox";
   option.checked = recu.actif;
@@ -2293,7 +2322,7 @@ async function poserOrdinaires(projet) {
   limite.min = "1";
   limite.step = "1";
   limite.value = recu.limite === null ? "" : String(recu.limite);
-  limite.ariaLabel = "Cooks the Mac runs at once";
+  limite.ariaLabel = `Cooks ${POSTE.nom} runs at once`;
   /** @param {string} libelle @param {HTMLElement} champ */
   const etiquette = (libelle, champ) => {
     const cree = document.createElement("label");
@@ -2313,9 +2342,8 @@ async function poserOrdinaires(projet) {
   refus.className = "refus";
   const indisponible = recu.indisponible === undefined ? [] : [bloc("p", recu.indisponible)];
   for (const dit of indisponible) dit.className = "indisponible";
-  ordinaires.hidden = false;
   ordinaires.replaceChildren(
-    bloc("h3", "Ordinary tickets on this Mac"),
+    bloc("h3", titre),
     etiquette("Take the ordinary tickets too", option),
     etiquette("Cooks at once", limite),
     bloc("p", recu.explication),
@@ -5317,12 +5345,12 @@ function ouCuit(projet, stations) {
   return undefined;
 }
 
-// Le nom d'une station tel que la page d'un projet le dit : « this Mac » pour celle de cet ordinateur.
+// Le nom d'une station tel que la page d'un projet le dit : « this Mac » (« this PC » sous Windows) pour celle de cet ordinateur.
 /** @param {string} nom */
 function nomDit(nom) {
   const locale = projetsVus?.locale ?? null;
   const sienne = (stationsVues?.stations ?? []).find(({ id }) => id === locale);
-  return sienne !== undefined && sienne.nom === nom ? "this Mac" : nom;
+  return sienne !== undefined && sienne.nom === nom ? POSTE.nom : nom;
 }
 
 // Une station du projet, sur sa ligne : sa pastille et son nom — « this Mac » pour cet ordinateur —,
@@ -5333,9 +5361,9 @@ function stationNommee(station, ici, renfort = false) {
   nomme.type = "button";
   nomme.className = "station-du-projet";
   nomme.title = [ici && station.nom !== "" ? `${station.nom}, this computer's station` : "", station.dit, station.survol].filter((ligne) => ligne !== "").join("\n");
-  const appele = bloc("strong", ici ? "this Mac" : station.nom);
+  const appele = bloc("strong", ici ? POSTE.nom : station.nom);
   appele.className = ici ? "" : "mono";
-  nomme.ariaLabel = `${ici ? "this Mac" : station.nom} — ${station.principale ? "main" : "secondary"} — ${station.dit}`;
+  nomme.ariaLabel = `${ici ? POSTE.nom : station.nom} — ${station.principale ? "main" : "secondary"} — ${station.dit}`;
   nomme.append(pastille(station.dit, station.ton), appele, ...(renfort && !station.principale ? [bloc("span", " (backup)")] : []));
   if (station.id !== "") nomme.addEventListener("click", () => ouvrirStation(station.id));
   else nomme.disabled = true;
@@ -5396,14 +5424,14 @@ function poserLeDemenagement(projet, ou, enCours, lues) {
   demenagementDit.hidden = dit === "";
 
   if (demenagement === undefined || ou === undefined) return;
-  const depuis = ou.ici ? "this Mac" : ou.nom;
+  const depuis = ou.ici ? POSTE.nom : ou.nom;
   const recommandee = projetsVus?.recommandee ?? null;
   const vise = demenagement;
   // Chaque machine est un bouton ; celle que l'app recommande — toujours allumée — se distingue. Ce que
   // la choisir implique est au survol.
   const machines = destinations.map((station) => {
     const garder = station.id === ou.id;
-    const nomme = station.id === projetsVus?.locale ? "this Mac" : station.nom;
+    const nomme = station.id === projetsVus?.locale ? POSTE.nom : station.nom;
     const bouton = /** @type {HTMLButtonElement} */ (bloc("button", garder ? `keep it on ${nomme}` : nomme));
     bouton.type = "button";
     bouton.className = !garder && station.id === recommandee ? "recommande" : "";
@@ -6688,6 +6716,7 @@ function afficher() {
 }
 
 const demarrage = await brigade.demarrage();
+POSTE = demarrage.poste ?? POSTE;
 const exemple = demarrage.exemple;
 PALETTE = demarrage.palette;
 ONGLETS = demarrage.onglets;

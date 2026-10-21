@@ -27,6 +27,7 @@ import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Lue } from "../src/question.ts";
 import type { Terminal } from "../src/terminaux.ts";
 import { carteDuTicket, type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
+import { SANS_POSIX } from "./aides/posix.ts";
 
 const PARADE = "parade";
 const PROJET = { nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } };
@@ -135,14 +136,14 @@ function box(t: TestContext, reponse: unknown, code = 0) {
 }
 
 describe("lire l'issue et commenter, sur la box du projet", () => {
-  test("la lecture lance `brigade <projet> pass <ticket> issue`, et rien d'autre : aucune écriture", async (t) => {
+  test("la lecture lance `brigade <projet> pass <ticket> issue`, et rien d'autre : aucune écriture", { skip: SANS_POSIX }, async (t) => {
     const { lancer, recus } = box(t, ISSUE);
     const discussion = await lireDiscussion(lancer, PROJET, 21, DELAI);
     assert.ok(!("sans" in discussion) && discussion.messages.length === 4);
     assert.deepEqual(recus(), [[PARADE, "pass", "21", "issue"]]);
   });
 
-  test("le commentaire arrive sur la box en un seul argument, tel qu'il est écrit : guillemets, retours à la ligne et `$(…)` compris, rien n'est exécuté", async (t) => {
+  test("le commentaire arrive sur la box en un seul argument, tel qu'il est écrit : guillemets, retours à la ligne et `$(…)` compris, rien n'est exécuté", { skip: SANS_POSIX }, async (t) => {
     const { lancer, recus } = box(t, { done: true, price: "a comment is posted on issue #21" });
     const texte = "  Contexte : l'export doit *aussi* sortir en JSON.\n\n- \"guillemets\" et 'apostrophes'\n- $(touch /tmp/pas-ca) `whoami` ; rm -rf ~\r\nfin  ";
     const rendu = await commenter(lancer, PROJET, 21, texte, DELAI);
@@ -150,7 +151,7 @@ describe("lire l'issue et commenter, sur la box du projet", () => {
     assert.deepEqual(recus(), [[PARADE, "pass", "21", "comment", "Contexte : l'export doit *aussi* sortir en JSON.\n\n- \"guillemets\" et 'apostrophes'\n- $(touch /tmp/pas-ca) `whoami` ; rm -rf ~\nfin"]]);
   });
 
-  test("un refus de la box est rendu tel qu'elle le dit", async (t) => {
+  test("un refus de la box est rendu tel qu'elle le dit", { skip: SANS_POSIX }, async (t) => {
     const { lancer } = box(t, { done: false, reason: "#21 is a pull request, not an issue", price: "none: nothing was posted" }, 1);
     assert.deepEqual(await commenter(lancer, PROJET, 21, "du contexte", DELAI), { poste: false, refus: "nothing was posted: #21 is a pull request, not an issue" });
   });
@@ -353,20 +354,20 @@ describe("la fiche de toute carte montre l'issue et sa discussion (#684)", () =>
 const DEMANDE = { done: true, request: "Je te demande à propos de l'issue #21 (« L'export du journal »). Voici le contexte que je viens d'écrire : « le CSV d'abord ».", price: "none: nothing is posted" };
 
 describe("demander au second depuis la fiche, sur la box du projet (#686)", () => {
-  test("`pass <ticket> ask <contexte>` : le contexte arrive en un seul argument, tel qu'il est écrit ; la demande est rendue", async (t) => {
+  test("`pass <ticket> ask <contexte>` : le contexte arrive en un seul argument, tel qu'il est écrit ; la demande est rendue", { skip: SANS_POSIX }, async (t) => {
     const { lancer, recus } = box(t, DEMANDE);
     const rendu = await demanderAuSecond(lancer, PROJET, 21, "  le CSV d'abord\n$(touch /tmp/pas-ca)  ", DELAI);
     assert.deepEqual(rendu, { demande: DEMANDE.request });
     assert.deepEqual(recus(), [[PARADE, "pass", "21", "ask", "le CSV d'abord\n$(touch /tmp/pas-ca)"]]);
   });
 
-  test("un contexte vide est permis : `pass <ticket> ask`, sans argument", async (t) => {
+  test("un contexte vide est permis : `pass <ticket> ask`, sans argument", { skip: SANS_POSIX }, async (t) => {
     const { lancer, recus } = box(t, DEMANDE);
     assert.deepEqual(await demanderAuSecond(lancer, PROJET, 21, "  ", DELAI), { demande: DEMANDE.request });
     assert.deepEqual(recus(), [[PARADE, "pass", "21", "ask"]]);
   });
 
-  test("une box qui refuse, ou injoignable : rien n'est écrit, et l'erreur est dite", async (t) => {
+  test("une box qui refuse, ou injoignable : rien n'est écrit, et l'erreur est dite", { skip: SANS_POSIX }, async (t) => {
     const refus = box(t, { done: false, reason: "#21 has no GitHub issue", price: "none: nothing was written to the second" }, 1);
     assert.deepEqual(await demanderAuSecond(refus.lancer, PROJET, 21, "x", DELAI), { refus: "nothing was written: #21 has no GitHub issue" });
     const injoignable = demandeRendue({ lance: "$ ssh -- box brigade parade pass 21 ask", erreur: Object.assign(new Error("Command failed"), { code: 255, killed: false, cmd: "ssh" }), sortie: "", erreurs: "ssh: connect to host box: Connection refused" }, DELAI);

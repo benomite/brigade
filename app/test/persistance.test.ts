@@ -29,6 +29,7 @@ import {
   type Session,
 } from "../src/persistance.ts";
 import { ouvrirPty, ptyDisponible } from "../src/pty.ts";
+import { SANS_POSIX } from "./aides/posix.ts";
 
 const POSTE: Cible = { lieu: "poste" };
 const BOX: Cible = { lieu: "box", nom: "parade-box", hote: "parade-box" };
@@ -103,7 +104,7 @@ describe("la commande d'un shell persistant", () => {
     assert.deepEqual(sonde(POSTE), { commande: "/bin/sh", args: ["-c", "true"] });
   });
 
-  test("une machine qui ne répond pas : la sonde rend ce que `ssh` en a dit, sans exception", async () => {
+  test("une machine qui ne répond pas : la sonde rend ce que `ssh` en a dit, sans exception", { skip: SANS_POSIX }, async () => {
     assert.deepEqual(await joindre(POSTE), { joint: true });
     const rendu = await joindre(BOX, { ssh: "/nonexistent/ssh" });
     assert.ok("erreur" in rendu && rendu.erreur.length > 0, JSON.stringify(rendu));
@@ -118,7 +119,7 @@ describe("la commande d'un shell persistant", () => {
     assert.deepEqual(destruction(session, "ssh", 7).args, ["-o", "BatchMode=yes", "-o", "ConnectTimeout=7", "--", "parade-box", `sh -c '${scriptDeDestruction("brigade-parade-1")}'`]);
   });
 
-  test("par un faux `ssh` qui joue la ligne reçue comme le shell de la box : le compte n'est pas changé, et la ligne se lit entière", (t) => {
+  test("par un faux `ssh` qui joue la ligne reçue comme le shell de la box : le compte n'est pas changé, et la ligne se lit entière", { skip: SANS_POSIX }, (t) => {
     const racine = mkdtempSync(join(tmpdir(), "brigade-app-persistance-"));
     t.after(() => rmSync(racine, { recursive: true, force: true }));
     // Il note ses arguments, puis joue le dernier sous le compte qui l'a lancé — celui du chef.
@@ -154,7 +155,7 @@ function joue(t: TestContext, faux: "tmux" | "screen" | "aucun"): { appels: stri
 }
 
 describe("la configuration appliquée à la session", () => {
-  test("avec `tmux` : ni souris, ni préfixe, ni barre — et rien qui active un mode de copie", (t) => {
+  test("avec `tmux` : ni souris, ni préfixe, ni barre — et rien qui active un mode de copie", { skip: SANS_POSIX }, (t) => {
     const { appels } = joue(t, "tmux");
     const racine = appels.find((appel) => appel.startsWith("tmux new-session"))?.match(/-c (\S+)$/)?.[1];
     assert.deepEqual(appels, [
@@ -170,7 +171,7 @@ describe("la configuration appliquée à la session", () => {
     assert.ok(!appels.some((appel) => /mouse on|copy-mode|set-clipboard|mode-keys/.test(appel)), appels.join("\n"));
   });
 
-  test("avec `screen`, quand `tmux` manque : aucun suivi de la souris, et Ctrl-A reste au shell", (t) => {
+  test("avec `screen`, quand `tmux` manque : aucun suivi de la souris, et Ctrl-A reste au shell", { skip: SANS_POSIX }, (t) => {
     const { appels } = joue(t, "screen");
     assert.deepEqual(appels, [
       "screen -ls",
@@ -184,7 +185,7 @@ describe("la configuration appliquée à la session", () => {
     assert.ok(!appels.some((appel) => /mousetrack on|copy/.test(appel)), appels.join("\n"));
   });
 
-  test("sans aucun des deux : le shell s'ouvre quand même, et dit qu'il ne survivra pas à son terminal", (t) => {
+  test("sans aucun des deux : le shell s'ouvre quand même, et dit qu'il ne survivra pas à son terminal", { skip: SANS_POSIX }, (t) => {
     const { appels, sortie } = joue(t, "aucun");
     assert.deepEqual(appels, []);
     assert.equal(sortie, `${SANS_MULTIPLEXEUR}\n`);

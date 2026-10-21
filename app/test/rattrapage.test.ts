@@ -11,6 +11,7 @@ import { describe, test, type TestContext } from "node:test";
 import { preparer } from "../src/lancement.ts";
 import { direAuLancement, rattraper, relanceDe, tenirPassage } from "../src/rattrapage.ts";
 import { lireRetard, type Reglages } from "../src/retard.ts";
+import { SANS_POSIX } from "./aides/posix.ts";
 
 const git = (dossier: string, ...args: string[]) => execFileSync("git", ["-C", dossier, "-c", "user.name=essai", "-c", "user.email=essai@example.invalid", "-c", "commit.gpgsign=false", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 
@@ -40,7 +41,7 @@ function essai(t: TestContext) {
 }
 
 describe("le clone de l'app avance jusqu'à la nouvelle version", () => {
-  test("en retard : il avance jusqu'à la branche qu'il suit, depuis le dossier de l'app — et le lancement le dit", async (t) => {
+  test("en retard : il avance jusqu'à la branche qu'il suit, depuis le dossier de l'app — et le lancement le dit", { skip: SANS_POSIX }, async (t) => {
     const { origine, reglages, cloner } = essai(t);
     const clone = cloner("clone");
     const avant = git(clone, "rev-parse", "HEAD");
@@ -57,7 +58,7 @@ describe("le clone de l'app avance jusqu'à la nouvelle version", () => {
     assert.equal(direAuLancement(rattrape), `brigade: the app is updated — 5 commits from origin/v2 (${avant.slice(0, 7)} → ${nouvelle.slice(0, 7)}), in ${clone}. It opens on the new version.`);
   });
 
-  test("déjà à jour : rien ne bouge, et le lancement n'en dit rien", async (t) => {
+  test("déjà à jour : rien ne bouge, et le lancement n'en dit rien", { skip: SANS_POSIX }, async (t) => {
     const { reglages, cloner } = essai(t);
     const clone = cloner("clone");
     const avant = git(clone, "rev-parse", "HEAD");
@@ -68,7 +69,7 @@ describe("le clone de l'app avance jusqu'à la nouvelle version", () => {
     assert.equal(direAuLancement(rattrape), undefined);
   });
 
-  test("des commits à lui, sans retard : rien de nouveau à prendre — il ne bouge pas, et ce n'est pas un échec", async (t) => {
+  test("des commits à lui, sans retard : rien de nouveau à prendre — il ne bouge pas, et ce n'est pas un échec", { skip: SANS_POSIX }, async (t) => {
     const { reglages, cloner } = essai(t);
     const clone = cloner("clone");
     livrer(clone, 2);
@@ -80,7 +81,7 @@ describe("le clone de l'app avance jusqu'à la nouvelle version", () => {
     assert.equal(git(clone, "rev-parse", "HEAD"), avant);
   });
 
-  test("des commits à lui et du retard : il ne fusionne rien — il ne bouge pas, et dit que fusionner est au chef", async (t) => {
+  test("des commits à lui et du retard : il ne fusionne rien — il ne bouge pas, et dit que fusionner est au chef", { skip: SANS_POSIX }, async (t) => {
     const { origine, reglages, cloner } = essai(t);
     const clone = cloner("clone");
     livrer(clone, 2);

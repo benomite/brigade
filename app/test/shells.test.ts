@@ -13,6 +13,7 @@ import { detruire, joindre, scriptDeRattachement, VIGILANCE_SSH, type Cible, typ
 import { ouvrirPty as vraiPty, ptyDisponible } from "../src/pty.ts";
 import { rappelLu, souvenirsDansFichier, type Rappel, type Souvenirs } from "../src/souvenirs.ts";
 import { ouvrirTerminaux, REPRISES_MS, type Lancement, type Pty, type Terminal } from "../src/terminaux.ts";
+import { ICI } from "../src/plateforme.ts";
 
 const BRIGADE = { nom: "brigade", dossier: "/projets/brigade" };
 const POSTE: Cible = { lieu: "poste" };
@@ -71,7 +72,7 @@ function reseau() {
 }
 
 // Un registre comme l'app en ouvre un à chaque lancement : ses pty sont faux, ses souvenirs ceux qu'on lui donne.
-function lancement(souvenirs: Souvenirs, detruites: Session[] = [], rendu: { detruite: true } | { erreur: string } = { detruite: true }, reglages: { reseau?: ReturnType<typeof reseau>; horloge?: ReturnType<typeof horloge> } = {}) {
+function lancement(souvenirs: Souvenirs, detruites: Session[] = [], rendu: { detruite: true } | { erreur: string } = { detruite: true }, reglages: { reseau?: ReturnType<typeof reseau>; horloge?: ReturnType<typeof horloge>; windows?: boolean } = {}) {
   const lances: FauxPty[] = [];
   const etats: Terminal[] = [];
   const sorties = new Map<number, string>();
@@ -84,6 +85,8 @@ function lancement(souvenirs: Souvenirs, detruites: Session[] = [], rendu: { det
     detruire: (session) => (detruites.push(session), Promise.resolve(rendu)),
     ...(reglages.reseau === undefined ? {} : { joindre: reglages.reseau.joindre }),
     ...(reglages.horloge === undefined ? {} : { plusTard: reglages.horloge.plusTard }),
+    // Ce que main.ts donne sous Windows (plateforme.ts) : le `bash` de Git, et aucune session sur ce poste.
+    ...(reglages.windows === true ? { shell: "C:\\Program Files\\Git\\bin\\bash.exe", argsDuShell: ["--login", "-i"], persistantIci: false } : {}),
     ouvrirPty(lance) {
       const faux: FauxPty = { ...lance, ecrits: [], tue: false };
       lances.push(faux);
@@ -116,7 +119,7 @@ describe("un shell persistant, ouvert sur la machine choisie", () => {
       ],
     );
     assert.deepEqual([ici.titre, labas.titre, studio.titre], ["shell 1", "shell 2 · parade-box", "shell 3 · studio"]);
-    assert.equal(ici.note, "persistent shell on this Mac, in /projets/brigade — session `brigade-brigade-1`: closing the app only detaches from it, closing this shell destroys it");
+    assert.equal(ici.note, `persistent shell on ${ICI}, in /projets/brigade — session \`brigade-brigade-1\`: closing the app only detaches from it, closing this shell destroys it`);
     assert.equal(labas.note, "persistent shell on main station parade-box (`ssh parade-box`, with the account your ssh gives it) — session `brigade-brigade-2`: closing the app only detaches from it, closing this shell destroys it");
     assert.deepEqual(souvenirs.tel(), {
       brigade: {
@@ -128,6 +131,32 @@ describe("un shell persistant, ouvert sur la machine choisie", () => {
         ],
       },
     });
+  });
+
+  test("sous Windows, sans `tmux` ni `screen`, le shell de ce poste s'ouvre tel quel et finit avec son terminal : rien n'en est retenu, rien n'est à détruire — ceux des machines distantes restent persistants", async () => {
+    const souvenirs = enMemoire({ brigade: { dernier: 1, shells: [{ rang: 1, session: "brigade-brigade-1", cible: POSTE }] } });
+    const detruites: Session[] = [];
+    const { terminaux, shells } = lancement(souvenirs, detruites, { detruite: true }, { windows: true });
+    // Un souvenir de ce poste ne se rattache à rien : il n'y a pas de session où revenir.
+    assert.deepEqual(terminaux.espace(BRIGADE).map(({ genre }) => genre), ["second"]);
+
+    const ici = terminaux.ouvrir(BRIGADE, POSTE);
+    const labas = terminaux.ouvrir(BRIGADE, STATION);
+
+    assert.deepEqual(
+      shells().map(({ commande, args, dossier }) => [commande, args, dossier]),
+      [
+        ["C:\\Program Files\\Git\\bin\\bash.exe", ["--login", "-i"], "/projets/brigade"],
+        ["/usr/bin/ssh", ["-t", ...VIGILANCE_SSH, "--", "parade-box", `sh -c '${scriptDeRattachement("brigade-brigade-3")}'`], "/projets/brigade"],
+      ],
+    );
+    assert.equal(ici.note, `shell on ${ICI}, in /projets/brigade — not persistent: neither tmux nor screen runs on Windows, this shell ends with its terminal`);
+    // Le même bandeau que celui d'un shell persistant de ce poste : où l'on est, avec quel compte.
+    assert.equal(ici.bandeau, `${ICI} · benoit`);
+    assert.match(labas.note, /^persistent shell on main station parade-box/);
+    assert.deepEqual(souvenirs.tel().brigade?.shells.map(({ cible }) => cible), [POSTE, STATION]);
+    assert.deepEqual(await terminaux.fermerShell(ici.id), { ferme: true });
+    assert.deepEqual(detruites, []);
   });
 
   test("le shell qu'un geste ouvre pour y écrire sa commande reste un shell de ce poste, qui finit avec l'app : il n'est pas retenu", () => {
@@ -165,7 +194,7 @@ describe("fermer l'app, puis la rouvrir : les shells persistants reviennent", ()
 
     assert.deepEqual(espace.map(({ genre, titre }) => [genre, titre]), [["second", "Second"], ["shell", "shell 1"], ["shell", "shell 2 · parade-box"]]);
     assert.deepEqual(apres.shells().map(({ commande, args }) => [commande, ...args]), commandes);
-    assert.match(espace[1]?.note ?? "", /^persistent shell, reattached on this Mac, in \/projets\/brigade — session `brigade-brigade-1`/);
+    assert.match(espace[1]?.note ?? "", new RegExp(`^persistent shell, reattached on ${ICI}, in /projets/brigade — session \`brigade-brigade-1\``));
     assert.deepEqual(souvenirs.tel(), retenu);
     // Rouvrir l'espace ne les relance pas une seconde fois.
     apres.terminaux.espace(BRIGADE);
@@ -344,7 +373,7 @@ describe("une machine qui n'est pas joignable : le terminal le dit, et se reconn
 
     assert.equal(shells()[0]?.tue, false, "le shell de ce poste tourne toujours");
     assert.equal(shells()[1]?.tue, true, "la connexion d'avant le sommeil est quittée");
-    assert.match(sortie(box.id), /\[brigade\] this Mac woke up — reattaching to session `brigade-brigade-2` on main station parade-box/);
+    assert.match(sortie(box.id), new RegExp(`\\[brigade\\] ${ICI} woke up — reattaching to session \`brigade-brigade-2\` on main station parade-box`));
     assert.deepEqual(net.sondees, [STATION, STUDIO], "sondées sans attendre");
     assert.deepEqual(temps.prevues, []);
     // La fin du pty quitté ne dit rien : le shell n'est ni oublié ni dit injoignable.

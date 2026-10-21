@@ -34,7 +34,8 @@ import type { Appairage, RetraitDeStation, VuDesStations } from "../stations/sta
 import type { Terminal } from "../terminaux.ts";
 
 export type Pont = {
-  demarrage(): Promise<{ configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations; projetsDesStations?: VuDesProjets; accueil?: Accueil; miseAJour?: EtatDeMiseAJour }>;
+  // `poste` : le nom que l'écran donne à cet ordinateur (« this Mac », « this PC »), et s'il est un Mac — les raccourcis du terminal en dépendent.
+  demarrage(): Promise<{ poste?: { nom: string; mac: boolean }; configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations; projetsDesStations?: VuDesProjets; accueil?: Accueil; miseAJour?: EtatDeMiseAJour }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
   // Le dépôt GitHub et la branche d'intégration du dossier choisi, lus dans son clone — ou pourquoi ils restent à écrire.
@@ -45,9 +46,9 @@ export type Pont = {
   // Change la couleur d'onglet ou d'accent d'un projet, par le nom d'une couleur de la palette
   // (couleurs.ts). Rend la raison, si elle ne l'a pas été. Écrite, elle arrive par `surConfiguration`.
   colorer(projet: string, role: Role, couleur: string): Promise<string | undefined>;
-  // Le bloc « tickets ordinaires » du Mac pour un projet (ordinaires.ts) — rien, quand l'option n'existe pas ici.
+  // Le bloc « tickets ordinaires » de cet ordinateur pour un projet (ordinaires.ts) — rien, quand l'option n'existe pas ici.
   ordinaires(projet: string): Promise<Bloc | undefined>;
-  // Règle l'option et la limite de cooks du Mac (`null` : aucune). Rend la raison, si rien n'a été écrit.
+  // Règle l'option et la limite de cooks de cet ordinateur (`null` : aucune). Rend la raison, si rien n'a été écrit.
   reglerOrdinaires(projet: string, actif: boolean, limite: number | null): Promise<string | undefined>;
   // Range un projet à la place `rang` de la barre, comptée depuis zéro parmi les projets : les autres
   // se décalent. Rend la raison, s'il ne l'a pas été. Rangé, le nouvel ordre arrive par `surConfiguration`.

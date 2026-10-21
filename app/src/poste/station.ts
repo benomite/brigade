@@ -181,6 +181,8 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
     }
     tenant = undefined;
     const lance = spawn(options.node, [ENVELOPPE, options.principal], {
+      // Sous Windows, une app sans console qui lance `node` lui en ouvrirait une : elle reste cachée.
+      windowsHide: true,
       // Le dossier du runtime, comme pour le service d'un serveur.
       cwd: dirname(dirname(dirname(options.principal))),
       env: { ...options.env, BRIGADE_STATION_DIR: racine },

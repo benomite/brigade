@@ -49,8 +49,13 @@ function repertoire(t: TestContext, nom: string): string {
 // dite ; `lire`, `faits` tel que l'app le lit ; `debloquer`, le merge du chef.
 function toutRetenu(t: TestContext) {
   let instant = heure("08:00:00");
-  const journal = ouvrirJournal(repertoire(t, "notification"), { maintenant: () => new Date(instant) });
-  t.after(() => journal.fermer());
+  // Le journal se ferme avant que son dossier soit retiré : Windows ne retire pas un fichier ouvert.
+  const dossier = mkdtempSync(join(tmpdir(), "brigade-app-notification-"));
+  const journal = ouvrirJournal(dossier, { maintenant: () => new Date(instant) });
+  t.after(() => {
+    journal.fermer();
+    rmSync(dossier, { recursive: true, force: true });
+  });
   const noter = (fait: Fait, ticket: number | null = null, author = "runtime") => void journal.ajouter({ project: "parade", ticket, author, ...fait });
   const a = (h: string) => void (instant = heure(h));
   const arriver = (ticket: number, zone: string[]) =>

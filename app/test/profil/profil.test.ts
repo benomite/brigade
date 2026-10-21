@@ -13,6 +13,7 @@ import { INCONNUE, PAS_COMPRIS, SANS_GESTE } from "../../src/correction.ts";
 import { comprendre, tenirFaits, type Faits } from "../../src/faits.ts";
 import { carteDeProfil, commandeDe, type ProfilLu, profilsLus, repondreAuProfil } from "../../src/profil.ts";
 import { FAITS, PROFIL } from "./donnees.ts";
+import { SANS_POSIX } from "../aides/posix.ts";
 
 // Ce que le runtime écrit, l'app le lit : toute carte de `facts` entre dans la forme de l'app.
 const _formeTenue: CarteDuRuntime extends ProfilLu ? true : never = true;
@@ -127,7 +128,7 @@ describe("le « yes » ou le « no » du chef sur un profil proposé, sur la box
     assert.equal(commandeDe("no", 7), "profile no 7");
   });
 
-  test("« yes » lance `profile yes 377`, une fois : écrite, la réponse fait quitter la file à la carte", async (t) => {
+  test("« yes » lance `profile yes 377`, une fois : écrite, la réponse fait quitter la file à la carte", { skip: SANS_POSIX }, async (t) => {
     const { reglages, appels } = box(t, dit("profile app-src-vue accepted: .claude/brigade/profils/app-src-vue.md"));
     const rendu = await repondreAuProfil(reglages, SERVI, [377], 377, "yes");
     assert.ok("tranchee" in rendu);
@@ -136,7 +137,7 @@ describe("le « yes » ou le « no » du chef sur un profil proposé, sur la box
     assert.equal(appels(), `${OPTIONS} -- box brigade parade profile yes 377\n`);
   });
 
-  test("« no » lance `profile no 377`, une fois", async (t) => {
+  test("« no » lance `profile no 377`, une fois", { skip: SANS_POSIX }, async (t) => {
     const { reglages, appels } = box(t, dit("profile app-src-vue refused"));
     const rendu = await repondreAuProfil(reglages, SERVI, [377], 377, "no");
     assert.ok("tranchee" in rendu);
@@ -151,7 +152,7 @@ describe("le « yes » ou le « no » du chef sur un profil proposé, sur la box
     assert.equal(appels(), "");
   });
 
-  test("refusée par le runtime (1) — le profil existe déjà dans le dépôt : sa dernière ligne le dit, la carte reste", async (t) => {
+  test("refusée par le runtime (1) — le profil existe déjà dans le dépôt : sa dernière ligne le dit, la carte reste", { skip: SANS_POSIX }, async (t) => {
     const { reglages } = box(t, dit("brigade: .claude/brigade/profils/app-src-vue.md already exists: nothing was written", 1));
     const rendu = await repondreAuProfil(reglages, SERVI, [377], 377, "yes");
     assert.ok("refus" in rendu);
@@ -159,7 +160,7 @@ describe("le « yes » ou le « no » du chef sur un profil proposé, sur la box
     assert.match(rendu.detail, /exit code 1/);
   });
 
-  test("un runtime qui ne connaît pas encore le geste (66, ou 2 sur son usage) : une ligne, la commande et le code au survol", async (t) => {
+  test("un runtime qui ne connaît pas encore le geste (66, ou 2 sur son usage) : une ligne, la commande et le code au survol", { skip: SANS_POSIX }, async (t) => {
     for (const code of [66, 2]) {
       const { reglages } = box(t, `echo "brigade: “profile” is not a command of the runtime" >&2\nexit ${code}`);
       const rendu = await repondreAuProfil(reglages, SERVI, [377], 377, "no");

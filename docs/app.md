@@ -2518,17 +2518,23 @@ delay (two minutes by default), the tickets that only it can cook are `86`, "sta
 themselves, at its first request. There is nothing to do on the box, and the app does nothing
 special when closing.
 
-**Ordinary tickets, from the project's settings (#852).** On a Mac, in Settings › General of a
-project for which this workstation plays a station (`stations`), the "Ordinary tickets on this Mac"
-block carries the "Take the ordinary tickets too" option and the "Cooks at once" field, the Mac's
-cooks cap. A single line, beside it, says what that implies: the Mac's cooks run in Claude Code's
-sandbox, with writing limited to their worktree and network limited to the project's list. Both
-values are written in the projects file (`"ordinaires": true`, `"limiteCooks": 2`) and re-read at
-each opening; a value badly written by hand makes the file refused. **Outside a Mac, or with no
-station played, the block does not exist.** The sandbox state is read in `facts` (`stations` field,
+**Ordinary tickets, from the project's settings (#852).** In Settings › General of a project for
+which this workstation plays a station (`stations`), the block is titled with this workstation's
+name — "Ordinary tickets on this Mac", "Ordinary tickets on this PC" under Windows (#1154). On a Mac,
+it carries the "Take the ordinary tickets too" option and the "Cooks at once" field, this Mac's
+cooks cap. A single line, beside it, says what that implies: `Cooks on this Mac run in Claude Code's
+sandbox: they write only in their own worktree, and reach only the network hosts on the project's
+list.` Both values are written in the projects file (`"ordinaires": true`, `"limiteCooks": 2`) and
+re-read at each opening; a value badly written by hand makes the file refused. **Outside a Mac — a
+PC under Windows, a desktop Linux —, the block has no option and no field: its single line says why**
+— `This PC takes no ordinary ticket: a cook of an ordinary ticket runs only in Claude Code's sandbox,
+which the station sets up only on macOS.` The runtime sets up the sandbox of a local kitchen only on
+macOS (`runtime/src/bac-a-sable/local.ts`), and a remote station without a sandbox takes no ordinary
+ticket: the app says so rather than hiding the setting. **With no station played, the block does
+not exist.** The sandbox state is read in `facts` (`stations` field,
 [docs/runtime/](runtime/station-distante.md), "Les tickets ordinaires sur le poste du chef"): when the
 station says it is unavailable, the block writes it beside the option, with the reason the station
-gives, and specifies that the Mac takes no ordinary ticket. As long as it has said nothing, the app
+gives, and specifies that this Mac takes no ordinary ticket. As long as it has said nothing, the app
 guesses nothing. The block sets what the app keeps; the box's `distante+ordinaires` declaration
 remains the chef's.
 
@@ -2726,6 +2732,7 @@ access.
 |---|---|
 | Tests | `npm --prefix app test` |
 | Type check | `npm --prefix app run typecheck` |
+| Tests and type check on Windows | the `app-windows` workflow (`.github/workflows/app-windows.yml`), on every PR that touches `app/`: a test that cannot run there is skipped with its reason, taken from `app/test/aides/posix.ts` — POSIX stand-ins, the box's code, the Mac and Android packages, a link to a missing file |
 | Build the `.dmg` (on a Mac) | `npm --prefix app run dist` → `app/packaging/construit/` ([`app/packaging/README.md`](../app/packaging/README.md)) |
 | Launch without consuming quota | `BRIGADE_CLAUDE_BIN="$PWD/app/test/aides/faux-claude.sh" BRIGADE_APP_CONFIG=<trial file> npm --prefix app start` |
 | … and without a box | add `BRIGADE_SSH_BIN=<a script that prints a status output>` — and, to see what gets drawn, the example in `docs/runtime/etat-et-mesures.md` when its arguments end with `facts` |

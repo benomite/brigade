@@ -30,6 +30,7 @@ import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { CAUSES, ESSAIS, PERDUS, PREMIER_COUP, poserFiabilite } from "../src/vue/fiabilite.js";
 import { Faux, jouerLaVue, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
+import { SANS_POSIX } from "./aides/posix.ts";
 
 const A = "2026-10-19T10:00:00.000Z";
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -124,7 +125,7 @@ describe("les réglages du chef, lus dans `station`", () => {
     assert.match(readFileSync(join(import.meta.dirname, "../../runtime/src/montrer-mesures.ts"), "utf8"), /\["--by", "--last"\]/);
   });
 
-  test("la veille compose la commande d'après la sortie lue juste avant, dans la même lecture", async (t) => {
+  test("la veille compose la commande d'après la sortie lue juste avant, dans la même lecture", { skip: SANS_POSIX }, async (t) => {
     const racine = mkdtempSync(join(tmpdir(), "brigade-app-fiabilite-"));
     const ssh = join(racine, "ssh");
     writeFileSync(ssh, `#!/bin/sh\necho "$*" >>'${racine}/appels'\ncase "$*" in *station) printf '%s\\n' "chef's decisions      x" "  fenetre-renvois     6";; *) echo "sortie de $*";; esac\n`);

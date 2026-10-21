@@ -3,17 +3,18 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { lieuDe, machineChoisie, machinesDe } from "../src/machines.ts";
+import { ICI } from "../src/plateforme.ts";
 
 const PARADE = { box: { hote: "parade-box" }, stations: ["mac/claude"] };
 
 describe("les machines proposées par « + shell »", () => {
   test("un projet sans box : ce poste seul", () => {
-    assert.deepEqual(machinesDe({}), [{ id: "poste", titre: "this Mac", cible: { lieu: "poste" } }]);
+    assert.deepEqual(machinesDe({}), [{ id: "poste", titre: ICI, cible: { lieu: "poste" } }]);
   });
 
   test("un projet servi, avant que sa box ait dit ses stations : ce poste, et la box sous le nom que son `ssh` connaît", () => {
     assert.deepEqual(machinesDe({ box: { hote: "parade-box" } }), [
-      { id: "poste", titre: "this Mac", cible: { lieu: "poste" } },
+      { id: "poste", titre: ICI, cible: { lieu: "poste" } },
       { id: "box", titre: "main station parade-box", cible: { lieu: "box", nom: "parade-box", hote: "parade-box" } },
     ]);
   });
@@ -27,7 +28,7 @@ describe("les machines proposées par « + shell »", () => {
       { nom: "studio/codex", distante: true },
     ];
     assert.deepEqual(machinesDe(PARADE, declarees), [
-      { id: "poste", titre: "this Mac — station mac/claude", cible: { lieu: "poste" } },
+      { id: "poste", titre: `${ICI} — station mac/claude`, cible: { lieu: "poste" } },
       { id: "box", titre: "main station parade-box — station box/claude", cible: { lieu: "box", nom: "parade-box", hote: "parade-box" } },
       // Deux stations d'une même machine n'en font qu'une.
       { id: "station:studio", titre: "station studio/claude, studio/codex", cible: { lieu: "station", nom: "studio", hote: "studio" } },
@@ -42,7 +43,7 @@ describe("les machines proposées par « + shell »", () => {
   });
 
   test("où est un shell, dit comme la liste le dit", () => {
-    assert.equal(lieuDe({ lieu: "poste" }), "this Mac");
+    assert.equal(lieuDe({ lieu: "poste" }), ICI);
     assert.equal(lieuDe({ lieu: "box", nom: "parade-box", hote: "parade-box" }), "main station parade-box");
     assert.equal(lieuDe({ lieu: "station", nom: "studio", hote: "studio" }), "station studio");
   });

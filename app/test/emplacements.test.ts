@@ -9,6 +9,7 @@ import { test, type TestContext } from "node:test";
 import { cheminConfiguration } from "../src/config.ts";
 import { CHEMINS_CONNUS, cheminDe, emplacementsDe, estInstallee, lireCheminDuShell } from "../src/emplacements.ts";
 import { PRINCIPAL, roleDe } from "../src/poste/role.ts";
+import { SANS_POSIX } from "./aides/posix.ts";
 
 const SRC = join(import.meta.dirname, "..", "src");
 const APP = join(SRC, "..");
@@ -56,15 +57,15 @@ test("installée, le paquet sans son runtime : l'app est un poste, et dit lequel
 test("depuis le dépôt, le PATH reste celui du terminal qui a lancé l'app : le shell du chef n'est pas lu", () => {
   const emplacements = emplacementsDe({ ressources: ELECTRON_DU_DEPOT, src: SRC, env: {} });
   let lu = false;
-  assert.equal(cheminDe({ emplacements, env: { PATH: "/usr/bin" }, maison: "/Users/chef", duShell: () => ((lu = true), "/opt/homebrew/bin") }), undefined);
+  assert.equal(cheminDe({ emplacements, env: { PATH: "/usr/bin" }, maison: "/Users/chef", plateforme: "darwin", duShell: () => ((lu = true), "/opt/homebrew/bin") }), undefined);
   assert.equal(lu, false);
 });
 
 test("installée, le PATH est celui du shell du chef, puis le sien, puis les dossiers connus, puis le `node` du paquet — chacun une fois", () => {
   const emplacements = emplacementsDe({ ressources: RESSOURCES, src: join(RESSOURCES, "app", "src"), env: {} });
-  const chemin = cheminDe({ emplacements, env: { PATH: "/usr/bin:/bin:/usr/sbin:/sbin" }, maison: "/Users/chef", duShell: () => "/Users/chef/.local/bin:/opt/homebrew/bin:/usr/bin:/bin" });
+  const chemin = cheminDe({ emplacements, env: { PATH: ["/usr/bin", "/bin", "/usr/sbin", "/sbin"].join(delimiter) }, maison: "/Users/chef", plateforme: "darwin", duShell: () => [join("/Users/chef", ".local", "bin"), "/opt/homebrew/bin", "/usr/bin", "/bin"].join(delimiter) });
   assert.deepEqual(chemin?.split(delimiter), [
-    "/Users/chef/.local/bin",
+    join("/Users/chef", ".local", "bin"),
     "/opt/homebrew/bin",
     "/usr/bin",
     "/bin",
@@ -72,12 +73,17 @@ test("installée, le PATH est celui du shell du chef, puis le sien, puis les dos
     "/sbin",
     "/opt/homebrew/sbin",
     "/usr/local/bin",
-    "/Users/chef/.claude/local",
+    join("/Users/chef", ".claude", "local"),
     join(RESSOURCES, "node", "bin"),
   ]);
   // Un shell qui ne s'est pas lu : le PATH du système, les dossiers connus — où sont `claude` et `gh` —, et le `node` du paquet.
-  const sansShell = cheminDe({ emplacements, env: { PATH: "/usr/bin:/bin" }, maison: "/Users/chef", duShell: () => undefined });
-  assert.deepEqual(sansShell?.split(delimiter), ["/usr/bin", "/bin", ...CHEMINS_CONNUS("/Users/chef"), join(RESSOURCES, "node", "bin")]);
+  const sansShell = cheminDe({ emplacements, env: { PATH: ["/usr/bin", "/bin"].join(delimiter) }, maison: "/Users/chef", plateforme: "darwin", duShell: () => undefined });
+  assert.deepEqual(sansShell?.split(delimiter), ["/usr/bin", "/bin", ...CHEMINS_CONNUS("/Users/chef", "darwin"), join(RESSOURCES, "node", "bin")]);
+});
+
+test("sous Windows, les dossiers connus ne sont pas ceux d'Homebrew : seul celui où l'installeur pose `claude`", () => {
+  assert.deepEqual(CHEMINS_CONNUS("C:\\Users\\chef", "win32"), [join("C:\\Users\\chef", ".local", "bin")]);
+  assert.ok(CHEMINS_CONNUS("/Users/chef", "darwin").includes("/opt/homebrew/bin"));
 });
 
 // Un faux shell de connexion : un script qui joue ce qu'on lui donne, avec les arguments que l'app passe.
@@ -90,7 +96,7 @@ function fauxShell(t: TestContext, corps: string): string {
   return shell;
 }
 
-test("le PATH du shell de connexion se lit au milieu de ce que ses fichiers de démarrage écrivent", (t) => {
+test("le PATH du shell de connexion se lit au milieu de ce que ses fichiers de démarrage écrivent", { skip: SANS_POSIX }, (t) => {
   // Ce que l'app lui demande, `-ilc <commande>`, joué par `sh` avec un PATH à lui ; et du bruit avant et après.
   const shell = fauxShell(t, 'echo "bienvenue"; [ "$1" = "-ilc" ] || exit 9; PATH="/opt/homebrew/bin:/usr/bin:/bin"; eval "$2"; echo; echo "au revoir"');
   assert.equal(lireCheminDuShell(shell, 60_000, { PATH: "/usr/bin:/bin" }), "/opt/homebrew/bin:/usr/bin:/bin");
@@ -106,7 +112,7 @@ test("un shell qui échoue, qui n'existe pas ou qui ne rend rien dans le délai 
 
 test("le fichier des projets et le répertoire de la station ne dépendent pas de la façon dont l'app est lancée", () => {
   // Installée ou non, l'app lit `~/.config/brigade/` tel quel (config.ts) : rien ici n'en décide.
-  assert.equal(cheminConfiguration({}, "/Users/chef"), "/Users/chef/.config/brigade/app.json");
+  assert.equal(cheminConfiguration({}, "/Users/chef"), join("/Users/chef", ".config", "brigade", "app.json"));
   const source = readFileSync(join(SRC, "emplacements.ts"), "utf8").split("\n").filter((ligne) => !ligne.trimStart().startsWith("//")).join("\n");
   assert.doesNotMatch(source, /\.config|cheminConfiguration|BRIGADE_STATION_DIR|homedir/);
 });

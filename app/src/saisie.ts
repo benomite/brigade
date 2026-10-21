@@ -26,7 +26,7 @@
 // change, et plus rien ne part : le geste dit pourquoi, il ne devine pas.
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 
 // Ce que `claude` affiche sous sa saisie quand elle est en mode shell.
 export const PREUVE = "! for shell mode";
@@ -39,8 +39,11 @@ const FIN = "fin";
 
 // Les réglages donnés à `claude` (`--settings`) : trois crochets, qui n'écrivent
 // qu'un mot dans le fichier des tours — rien sur leur sortie, que `claude` lirait.
-export function reglages(chemin: string): string {
-  const crochet = (mot: string) => [{ hooks: [{ type: "command", command: `printf '${mot}\\n' >> '${chemin.replaceAll("'", `'\\''`)}'` }] }];
+// Sous Windows, `claude` joue ses crochets par le `bash` de Git, qui lit `C:/…` : le chemin y part
+// avec des barres obliques.
+export function reglages(chemin: string, separateur: string = sep): string {
+  const lu = separateur === "\\" ? chemin.replaceAll("\\", "/") : chemin;
+  const crochet = (mot: string) => [{ hooks: [{ type: "command", command: `printf '${mot}\\n' >> '${lu.replaceAll("'", `'\\''`)}'` }] }];
   return JSON.stringify({ hooks: { UserPromptSubmit: crochet(TOUR), PreToolUse: crochet(TOUR), Stop: crochet(FIN) } });
 }
 

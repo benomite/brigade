@@ -32,6 +32,7 @@ import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import type { Terminal } from "../src/terminaux.ts";
 import { type Faux, type Jouee, jouerLaVue, repos } from "./aides/fausse-vue.ts";
+import { SANS_POSIX } from "./aides/posix.ts";
 
 const PARADE = "parade";
 const A = "2026-10-15T09:12:04.000Z";
@@ -98,7 +99,7 @@ async function unDepot(t: TestContext) {
 }
 
 describe("ce qui n'est pas encore sur le rail, lu dans la sortie de `manager upstream`", () => {
-  test("le nombre est celui des issues ouvertes que la box liste — ni le rail, ni les PR — et chacune est rangée sous ce qui lui arrive, dans les mots de la box", async (t) => {
+  test("le nombre est celui des issues ouvertes que la box liste — ni le rail, ni les PR — et chacune est rangée sous ce qui lui arrive, dans les mots de la box", { skip: SANS_POSIX }, async (t) => {
     const { sortie } = await unDepot(t);
 
     const vu = compte(voir(lecture(sortie)));
@@ -143,7 +144,7 @@ describe("ce qui n'est pas encore sur le rail, lu dans la sortie de `manager ups
     );
   });
 
-  test("rail vide : l'app dit ce qui est en amont et ce que le manager en fait, d'après son état lu — ou qu'il n'y a rien à venir", async (t) => {
+  test("rail vide : l'app dit ce qui est en amont et ce que le manager en fait, d'après son état lu — ou qu'il n'y a rien à venir", { skip: SANS_POSIX }, async (t) => {
     const { sortie, manager, noter } = await unDepot(t);
     const amonts = tenirAmont();
 
@@ -255,7 +256,7 @@ const liste = (vue: Jouee): Faux | undefined => vue.element("rail").dessous("sec
 const fiche = (vue: Jouee) => vue.element("fiche");
 
 describe("dans l'espace du projet, ce qui est à venir se lit à côté du rail", () => {
-  test("un nombre en tête du rail ; un clic déplie la liste, groupe par groupe ; un autre la replie", async (t) => {
+  test("un nombre en tête du rail ; un clic déplie la liste, groupe par groupe ; un autre la replie", { skip: SANS_POSIX }, async (t) => {
     const { sortie } = await unDepot(t);
     const vue = await ouvrir();
     recevoirFaits(vue, FAITS);
@@ -286,7 +287,7 @@ describe("dans l'espace du projet, ce qui est à venir se lit à côté du rail"
     assert.equal(liste(vue), undefined);
   });
 
-  test("une issue s'ouvre sur sa fiche, avec son titre et sa priorité ; son lien nomme le projet et le ticket, jamais une adresse", async (t) => {
+  test("une issue s'ouvre sur sa fiche, avec son titre et sa priorité ; son lien nomme le projet et le ticket, jamais une adresse", { skip: SANS_POSIX }, async (t) => {
     const { sortie } = await unDepot(t);
     const vue = await ouvrir();
     recevoirFaits(vue, FAITS);
@@ -309,7 +310,7 @@ describe("dans l'espace du projet, ce qui est à venir se lit à côté du rail"
     assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 11]);
   });
 
-  test("rail vide : il le dit, et dit ce qui est en amont — ou qu'il n'y a rien, ni sur le rail ni à venir", async (t) => {
+  test("rail vide : il le dit, et dit ce qui est en amont — ou qu'il n'y a rien, ni sur le rail ni à venir", { skip: SANS_POSIX }, async (t) => {
     const { sortie } = await unDepot(t);
     const vue = await ouvrir();
     recevoirFaits(vue, RAIL_VIDE);

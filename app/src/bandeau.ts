@@ -14,7 +14,7 @@ export const texteBandeau = (cible: Cible, compte: string): string => `${lieuDe(
 // Le compte que `ssh` donne à cet hôte : `ssh -G` ne joint personne, il imprime la configuration résolue.
 export function compteDeSsh(ssh: string, hote: string): string {
   try {
-    const sortie = execFileSync(ssh, ["-G", "--", hote], { encoding: "utf8", timeout: 3000, stdio: ["ignore", "pipe", "ignore"] });
+    const sortie = execFileSync(ssh, ["-G", "--", hote], { windowsHide: true, encoding: "utf8", timeout: 3000, stdio: ["ignore", "pipe", "ignore"] });
     return /^user (\S+)$/m.exec(sortie)?.[1] ?? COMPTE_INCONNU;
   } catch {
     return COMPTE_INCONNU;

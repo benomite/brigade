@@ -12,6 +12,7 @@ import { ouvrirVeille } from "../src/box.ts";
 import type { Projet } from "../src/config.ts";
 import { argumentsDuRetrait, DESINSTALLER, gesteDeRetrait, lancerRetrait, PLANIFIER, RETIRER, tenirRetraits, type Demande, type Montre, type Rendu, type Retrait } from "../src/retrait.ts";
 import { suivreConfiguration } from "../src/suivi.ts";
+import { SANS_POSIX } from "./aides/posix.ts";
 
 const OPTIONS = "-o BatchMode=yes -o ConnectTimeout=10";
 const GESTE = "sudo -n /usr/local/bin/brigade-installer uninstall calculus";
@@ -157,7 +158,7 @@ describe("retirer de l'app", () => {
     assert.match(rendu.avis.lignes.join("\n"), /Uninstalling it from the station is another action/);
   });
 
-  test("même après un plan demandé à la box, le retirer de l'app n'y envoie rien de plus", async (t) => {
+  test("même après un plan demandé à la box, le retirer de l'app n'y envoie rien de plus", { skip: SANS_POSIX }, async (t) => {
     const { retraits, calculus, demandes, appels, lu, declares } = essai(t);
     await retraits.planifier(calculus);
 
@@ -210,7 +211,7 @@ describe("ce qui part vers la box pour désinstaller", () => {
     assert.deepEqual(lireRetrait(argumentsDuRetrait("calculus", { plan: false, confirmation: "calculus", journal: true })), { projet: "calculus", plan: false, confirmation: "calculus", journal: true });
   });
 
-  test("ssh ne peut rien demander, et reçoit l'hôte du projet tel quel, après `--`", async (t) => {
+  test("ssh ne peut rien demander, et reçoit l'hôte du projet tel quel, après `--`", { skip: SANS_POSIX }, async (t) => {
     const { ssh, appels } = essai(t);
 
     const rendu = await lancerRetrait({ ssh, delaiMs: 60_000, connexionS: 10 }, { nom: "calculus", box: { hote: "chef@autre-box" } }, { plan: true, journal: false });
@@ -219,7 +220,7 @@ describe("ce qui part vers la box pour désinstaller", () => {
     assert.deepEqual(appels(), [`${OPTIONS} -- chef@autre-box ${GESTE} --plan`]);
   });
 
-  test("le shell de la box rend le nom au geste en un seul argument, sans rien en exécuter", async (t) => {
+  test("le shell de la box rend le nom au geste en un seul argument, sans rien en exécuter", { skip: SANS_POSIX }, async (t) => {
     // Le faux ssh fait ce que fait la box : son shell lit la ligne. `sudo` y note ses arguments, un par ligne.
     const { ssh, lu, racine } = essai(t, `for geste; do :; done\nsudo() { printf '%s\\n' "$@" >"$D/recus"; }\neval "$geste"`);
     const nom = `calculus'; touch ${racine}/pirate; $(touch ${racine}/pirate)`;
@@ -232,7 +233,7 @@ describe("ce qui part vers la box pour désinstaller", () => {
 });
 
 describe("désinstaller de la box", () => {
-  test("le plan d'abord : ce que la box dit qu'elle retirerait est affiché mot pour mot, et rien n'est retiré", async (t) => {
+  test("le plan d'abord : ce que la box dit qu'elle retirerait est affiché mot pour mot, et rien n'est retiré", { skip: SANS_POSIX }, async (t) => {
     const { retraits, calculus, appels, lu, racine, desinstalles } = essai(t);
 
     const { plan: montre, desinstallerRefuse } = geste(await retraits.planifier(calculus));
@@ -271,7 +272,7 @@ describe("désinstaller de la box", () => {
     ["la vue n'envoie pas un texte", true, /You have not typed the project name/],
   ];
   for (const [quoi, saisi, raison] of SANS_NOM) {
-    test(`le plan rendu, ${quoi} : rien n'est exécuté tant que le chef n'a pas confirmé en nommant le projet`, async (t) => {
+    test(`le plan rendu, ${quoi} : rien n'est exécuté tant que le chef n'a pas confirmé en nommant le projet`, { skip: SANS_POSIX }, async (t) => {
       const { retraits, calculus, appels, lu, racine, desinstalles } = essai(t);
       await retraits.planifier(calculus);
 
@@ -290,7 +291,7 @@ describe("désinstaller de la box", () => {
     });
   }
 
-  test("confirmée en nommant le projet, la box retire ce que son plan disait — et sans l'option, le journal existe encore, et l'écran le dit", async (t) => {
+  test("confirmée en nommant le projet, la box retire ce que son plan disait — et sans l'option, le journal existe encore, et l'écran le dit", { skip: SANS_POSIX }, async (t) => {
     const { retraits, calculus, appels, lu, racine, desinstalles } = essai(t);
     await retraits.planifier(calculus);
 
@@ -320,7 +321,7 @@ describe("désinstaller de la box", () => {
     assert.match(journal.avertissement.join("\n"), /cannot be undone/);
   });
 
-  test("cochée, l'option part avec le plan et avec la désinstallation : le journal est supprimé, et l'écran le dit — un plan demandé sans elle ne vaut plus", async (t) => {
+  test("cochée, l'option part avec le plan et avec la désinstallation : le journal est supprimé, et l'écran le dit — un plan demandé sans elle ne vaut plus", { skip: SANS_POSIX }, async (t) => {
     const { retraits, calculus, appels, lu, racine } = essai(t);
     await retraits.planifier(calculus);
 
@@ -345,7 +346,7 @@ describe("désinstaller de la box", () => {
     assert.match(texte(pose.issue), /The project's log was deleted along with its state \(\/var\/lib\/brigade\/calculus\): this cannot be undone\./);
   });
 
-  test("décocher lâche de même le plan qui emportait le journal", async (t) => {
+  test("décocher lâche de même le plan qui emportait le journal", { skip: SANS_POSIX }, async (t) => {
     const { retraits, calculus, appels } = essai(t);
     retraits.direJournal(calculus, true);
     await retraits.planifier(calculus);
@@ -358,7 +359,7 @@ describe("désinstaller de la box", () => {
     assert.deepEqual(appels(), [`${OPTIONS} -- box ${GESTE} --plan --supprimer-le-journal`]);
   });
 
-  test("après une désinstallation réussie, le projet n'est plus pilotable depuis l'app : elle le signale, et ne lit plus sa box", async (t) => {
+  test("après une désinstallation réussie, le projet n'est plus pilotable depuis l'app : elle le signale, et ne lit plus sa box", { skip: SANS_POSIX }, async (t) => {
     const { retraits, calculus, ssh } = essai(t);
     // Tant qu'il est sur sa box, l'app le voit tel que le fichier le dit.
     assert.equal(retraits.vu(calculus), calculus);
@@ -395,7 +396,7 @@ describe("désinstaller de la box", () => {
     assert.match(desinstaller.lignes.join("\n"), /It is uninstalled from station “box”/);
   });
 
-  test("désinstallé, journal gardé : le geste se rejoue avec l'option, par le même chemin — le plan, puis la confirmation", async (t) => {
+  test("désinstallé, journal gardé : le geste se rejoue avec l'option, par le même chemin — le plan, puis la confirmation", { skip: SANS_POSIX }, async (t) => {
     const { retraits, calculus, appels, racine } = essai(t);
     await retraits.planifier(calculus);
     await retraits.desinstaller(calculus, "calculus");
@@ -411,7 +412,7 @@ describe("désinstaller de la box", () => {
     assert.match(retraits.vu(calculus).desinstalle?.lignes.join("\n") ?? "", /The project's log was deleted along with its state/);
   });
 
-  test("la box retient la désinstallation (code 81) : sa phrase est montrée mot pour mot, rien n'est dit désinstallé, et le projet reste pilotable", async (t) => {
+  test("la box retient la désinstallation (code 81) : sa phrase est montrée mot pour mot, rien n'est dit désinstallé, et le projet reste pilotable", { skip: SANS_POSIX }, async (t) => {
     const message = "le clone de « calculus » porte ce que l'origine n'a pas — le pousser, ou le défaire, puis rejouer ; rien n'est retiré :\n  depot : 2 commits que l'origine n'a pas";
     const { retraits, calculus, desinstalles } = essai(t, confirmee(refus(81, "travail-jamais-pousse", message)));
     await retraits.planifier(calculus);
@@ -428,7 +429,7 @@ describe("désinstaller de la box", () => {
     assert.equal(pose.plan?.etat, "plan");
   });
 
-  test("une désinstallation arrêtée en chemin (code 79) : ce que la box dit fait, et ce qui reste, est montré — le plan ne vaut plus, et rien n'est dit désinstallé", async (t) => {
+  test("une désinstallation arrêtée en chemin (code 79) : ce que la box dit fait, et ce qui reste, est montré — le plan ne vaut plus, et rien n'est dit désinstallé", { skip: SANS_POSIX }, async (t) => {
     const message = "`systemctl daemon-reload` rend 1 : échec — la désinstallation s'est arrêtée là, et se rejoue. Fait : brigade@calculus.service (arrêtée, désactivée). Reste : systemctl daemon-reload";
     const { retraits, calculus, desinstalles } = essai(t, confirmee(refus(79, "echec", message, { retires: ["brigade@calculus.service (arrêtée, désactivée)"], restes: ["systemctl daemon-reload"] })));
     await retraits.planifier(calculus);
@@ -444,7 +445,7 @@ describe("désinstaller de la box", () => {
     assert.deepEqual(desinstalles, []);
   });
 
-  test("la box ne connaît pas le projet (code 65) : il n'y a pas de plan, et l'écran renvoie à l'autre geste", async (t) => {
+  test("la box ne connaît pas le projet (code 65) : il n'y a pas de plan, et l'écran renvoie à l'autre geste", { skip: SANS_POSIX }, async (t) => {
     const message = "le projet « calculus » n'est pas connu de cette box : ni drop-in sous /etc/systemd/system, ni état sous /var/lib/brigade — rien n'est fait, rien n'a changé. Elle ne porte aucun projet";
     const { retraits, calculus } = essai(t, `${NOTE}\n${refus(65, "projet-inconnu", message)}`);
 
@@ -457,7 +458,7 @@ describe("désinstaller de la box", () => {
     assert.equal(geste(await retraits.desinstaller(calculus, "calculus")).issue?.etat, "pas-parti");
   });
 
-  test("la box est injoignable (ssh sort en 255) : pas de plan, donc rien à confirmer — et l'écran dit où lire ce que ssh a dit", async (t) => {
+  test("la box est injoignable (ssh sort en 255) : pas de plan, donc rien à confirmer — et l'écran dit où lire ce que ssh a dit", { skip: SANS_POSIX }, async (t) => {
     const { retraits, calculus, appels } = essai(t, `${NOTE}\necho 'ssh: connect to host box port 22: Connection refused' >&2\nexit 255`);
 
     const pose = geste(await retraits.planifier(calculus));
@@ -479,7 +480,7 @@ describe("désinstaller de la box", () => {
     ["la box rend le plan d'un autre projet", `${dit(JSON.stringify({ ok: true, action: "uninstall", fait: "plan", ...plan(false), projet: "parade" }))}`],
   ];
   for (const [quoi, corps] of ABSENTS) {
-    test(`${quoi} : ce n'est pas un plan — l'écran dit quoi faire et où, sans le faire, et rien ne peut s'exécuter`, async (t) => {
+    test(`${quoi} : ce n'est pas un plan — l'écran dit quoi faire et où, sans le faire, et rien ne peut s'exécuter`, { skip: SANS_POSIX }, async (t) => {
       const { retraits, calculus, appels } = essai(t, `${NOTE}\n${corps}`);
 
       const pose = geste(await retraits.planifier(calculus));
@@ -492,7 +493,7 @@ describe("désinstaller de la box", () => {
     });
   }
 
-  test("ssh sort en 255 pendant la désinstallation : jamais jointe ou session perdue en route, son code ne le dit pas — l'app ne dit ni « rien n'est retiré », ni « désinstallé », et le plan ne vaut plus", async (t) => {
+  test("ssh sort en 255 pendant la désinstallation : jamais jointe ou session perdue en route, son code ne le dit pas — l'app ne dit ni « rien n'est retiré », ni « désinstallé », et le plan ne vaut plus", { skip: SANS_POSIX }, async (t) => {
     const { retraits, calculus, desinstalles } = essai(t, confirmee("echo 'Connection to station closed by remote host.' >&2\nexit 255"));
     await retraits.planifier(calculus);
 
@@ -524,7 +525,7 @@ describe("désinstaller de la box", () => {
     assert.deepEqual(appels(), []);
   });
 
-  test("la box répond à la confirmation par un plan : ce n'est pas une désinstallation, et rien n'est dit désinstallé", async (t) => {
+  test("la box répond à la confirmation par un plan : ce n'est pas une désinstallation, et rien n'est dit désinstallé", { skip: SANS_POSIX }, async (t) => {
     const { retraits, calculus, desinstalles } = essai(t, confirmee(`cat "$D/rendus/plan-garde.out"`));
     await retraits.planifier(calculus);
 
@@ -537,7 +538,7 @@ describe("désinstaller de la box", () => {
   });
 
   // Le délai n'est pas une course : arrêté tôt ou tard, un `ssh` qui n'a rien rendu donne le même rendu.
-  test("un ssh arrêté au délai pendant la désinstallation n'a pas dit où la box en était : l'app ne le dit pas désinstallé, et le plan ne vaut plus", async (t) => {
+  test("un ssh arrêté au délai pendant la désinstallation n'a pas dit où la box en était : l'app ne le dit pas désinstallé, et le plan ne vaut plus", { skip: SANS_POSIX }, async (t) => {
     // Le plan a tout son temps : seule la désinstallation est laissée sans réponse.
     const { retraits, calculus, desinstalles } = essai(t, confirmee("exec sleep 600"), undefined, { plan: 60_000, execution: 200 });
     await retraits.planifier(calculus);

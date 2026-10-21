@@ -40,7 +40,7 @@ export function tenirLogin(options: OptionsLogin): () => Promise<RenduDePanne> {
   return () => {
     if (enCours) return Promise.resolve({ fait: `a login is already open: ${LANCE}` });
     return new Promise((resoudre) => {
-      const lance = spawn(options.claude, ["auth", "login"], { env: options.env, stdio: ["ignore", "pipe", "pipe"] });
+      const lance = spawn(options.claude, ["auth", "login"], { windowsHide: true, env: options.env, stdio: ["ignore", "pipe", "pipe"] });
       let sortie = "";
       for (const flux of [lance.stdout, lance.stderr]) flux.on("data", (morceau: Buffer) => void (sortie = `${sortie}${morceau.toString()}`.slice(-4096)));
       const garde = setTimeout(() => lance.kill(), options.gardeMs ?? GARDE_MS);

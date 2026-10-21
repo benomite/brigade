@@ -13,6 +13,7 @@ import { pourLaBarre } from "../src/barre.ts";
 import { GESTE, mots, ouvrirVeille, type Lecture, type Locale } from "../src/box.ts";
 import { COUTS, projetsLus } from "../src/onglets.ts";
 import { servisPar, tenirCuisinesIci } from "../src/poste/cuisine-ici.ts";
+import { SANS_POSIX } from "./aides/posix.ts";
 
 const RUNTIME = join(import.meta.dirname, "../../runtime");
 
@@ -128,7 +129,7 @@ describe("où cuit un projet : la configuration de la station de cet ordinateur"
 });
 
 describe("un projet qui cuit ici se lit sans ssh, comme une box", () => {
-  test("sans « hote », sa lecture part par le geste de la station de ce poste — dans le dossier du runtime, avec son répertoire — et aucun ssh n'est lancé", async (t) => {
+  test("sans « hote », sa lecture part par le geste de la station de ce poste — dans le dossier du runtime, avec son répertoire — et aucun ssh n'est lancé", { skip: SANS_POSIX }, async (t) => {
     const { veille, jusqua, lu, servir, locale } = essai(t);
     servir("mirrorlab BOBL-tech/mirrorlab main");
     veille.regarder([{ nom: "mirrorlab", dossier: "/projets/mirrorlab" }], ["status", "station"], 3);
@@ -146,7 +147,7 @@ describe("un projet qui cuit ici se lit sans ssh, comme une box", () => {
     assert.equal(lu("ssh-lance"), "", "aucun ssh pour un projet qui cuit ici");
   });
 
-  test("il se relit au rythme de la veille, comme une box — et jamais par ssh", async (t) => {
+  test("il se relit au rythme de la veille, comme une box — et jamais par ssh", { skip: SANS_POSIX }, async (t) => {
     const { veille, jusqua, lu, servir, lectures } = essai(t, { intervalleMs: 5 });
     servir("mirrorlab BOBL-tech/mirrorlab main");
     veille.regarder([{ nom: "mirrorlab", dossier: "/projets/mirrorlab" }], ["status"], 1);
@@ -155,7 +156,7 @@ describe("un projet qui cuit ici se lit sans ssh, comme une box", () => {
     assert.equal(lu("ssh-lance"), "", "aucun ssh pour un projet qui cuit ici");
   });
 
-  test("sa cuisine passe de la box à cet ordinateur, puis y revient : la lecture suivante suit, sans que rien ne change du projet déclaré", async (t) => {
+  test("sa cuisine passe de la box à cet ordinateur, puis y revient : la lecture suivante suit, sans que rien ne change du projet déclaré", { skip: SANS_POSIX }, async (t) => {
     const { veille, jusqua, lu, servir, lectures } = essai(t, { intervalleMs: 5 });
     // Le même projet, tel que `app.json` le déclare d'un bout à l'autre : avec son « hote ».
     const espace = { nom: "espace", dossier: "/projets/espace", box: { hote: "box" } };

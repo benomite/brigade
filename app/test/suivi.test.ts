@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Configuration } from "../src/config.ts";
 import { suivreConfiguration } from "../src/suivi.ts";
+import { LIENS } from "./aides/posix.ts";
 
 function suivi(t: TestContext, contenu?: unknown) {
   const racine = realpathSync(mkdtempSync(join(tmpdir(), "brigade-app-")));
@@ -289,7 +290,7 @@ describe("le fichier des projets, suivi", () => {
     );
   });
 
-  test("un lien qui ne mène nulle part est refusé avec sa raison, sans que l'app tombe — et suivi dès qu'il mène quelque part", (t) => {
+  test("un lien qui ne mène nulle part est refusé avec sa raison, sans que l'app tombe — et suivi dès qu'il mène quelque part", { skip: LIENS }, (t) => {
     const racine = realpathSync(mkdtempSync(join(tmpdir(), "brigade-app-")));
     t.after(() => rmSync(racine, { recursive: true, force: true }));
     const chemin = join(racine, "app.json");

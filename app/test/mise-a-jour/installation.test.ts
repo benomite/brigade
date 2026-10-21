@@ -10,6 +10,7 @@ import { test, type TestContext } from "node:test";
 import { jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
 import { ECHEC } from "../../src/mise-a-jour/etat.ts";
 import { APP_DU_DMG, commandeDInstallation, installabilite, lancerInstallation, paquetDe } from "../../src/mise-a-jour/installation.ts";
+import { PAQUETS } from "../aides/posix.ts";
 
 const executable = (chemin: string, corps: string) => {
   writeFileSync(chemin, `#!/bin/sh\n${corps}\n`);
@@ -78,7 +79,7 @@ function installer(machine: ReturnType<typeof uneMachine>, pid = unPidMort()) {
   return spawnSync(commande, args, { env, encoding: "utf8" });
 }
 
-test("le paquet de l'app est celui de son Contents/Resources", () => {
+test("le paquet de l'app est celui de son Contents/Resources", { skip: PAQUETS }, () => {
   assert.equal(paquetDe("/Applications/Brigade.app/Contents/Resources"), "/Applications/Brigade.app");
 });
 
@@ -94,7 +95,7 @@ test("une app qui ne pourrait pas se remplacer là où elle est le dit", () => {
   assert.equal(installabilite("/Applications/Brigade.app", ferme), "this account cannot write to /Applications");
 });
 
-test("l'installeur met la nouvelle version à la place de l'app, range le .dmg et la rouvre", (t) => {
+test("l'installeur met la nouvelle version à la place de l'app, range le .dmg et la rouvre", { skip: PAQUETS }, (t) => {
   const machine = uneMachine(t);
   const fini = installer(machine);
   assert.equal(fini.status, 0, fini.stderr);
@@ -108,7 +109,7 @@ test("l'installeur met la nouvelle version à la place de l'app, range le .dmg e
   assert.ok(appels.indexOf(appels.find((appel) => appel.startsWith("hdiutil detach")) ?? "") < appels.length - 1);
 });
 
-test("une app qui tourne sans développeur identifié (signée ad hoc) prend la version signée", (t) => {
+test("une app qui tourne sans développeur identifié (signée ad hoc) prend la version signée", { skip: PAQUETS }, (t) => {
   const machine = uneMachine(t, { equipe: "not set" });
   assert.equal(installer(machine).status, 0);
   assert.equal(machine.version(), "1.1.0");
@@ -119,7 +120,7 @@ for (const [cas, reglages, raison] of [
   ["un autre développeur", { equipeNouvelle: "ZZZZZ99999" }, "the new version is not signed by the same developer as this one (ABCDE12345)"],
   ["un .dmg qui ne s'ouvre pas", { montage: false }, "the disk image of the new version could not be opened"],
 ] as const) {
-  test(`${cas} : l'app en place n'est pas touchée, la raison est écrite et l'ancienne est rouverte`, (t) => {
+  test(`${cas} : l'app en place n'est pas touchée, la raison est écrite et l'ancienne est rouverte`, { skip: PAQUETS }, (t) => {
     const machine = uneMachine(t, reglages);
     assert.equal(installer(machine).status, 1);
     assert.equal(machine.version(), "1.0.0");
@@ -130,7 +131,7 @@ for (const [cas, reglages, raison] of [
   });
 }
 
-test("l'installeur, détaché, attend que l'app soit fermée avant de rien toucher", async (t) => {
+test("l'installeur, détaché, attend que l'app soit fermée avant de rien toucher", { skip: PAQUETS }, async (t) => {
   const machine = uneMachine(t);
   // L'app qui tourne : un process qui attend qu'on le ferme.
   const app = spawn("sh", ["-c", "read ligne"], { stdio: ["pipe", "ignore", "ignore"] });

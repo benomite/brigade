@@ -21,6 +21,7 @@ import { jouerGesteDeFiche } from "../src/gestes-fiche.ts";
 import { commandeDuGeste, ecrireGeste } from "../src/gestes.ts";
 import { JUGEMENT, tenirServices, type Guide } from "../src/service.ts";
 import type { Terminal } from "../src/terminaux.ts";
+import { SANS_POSIX } from "./aides/posix.ts";
 
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "Second", note: "", arrete: false };
 
@@ -95,7 +96,7 @@ function temoin() {
 const recu = (essai: ReturnType<typeof poste>, ...suite: string[]) => ({ pwd: essai.locale.runtime, station: essai.locale.racine, args: [GESTE, "parade", ...suite] });
 
 describe("les gestes d'un projet qui cuit sur cet ordinateur partent ici, sans ssh", () => {
-  test("arrêter la cuisine puis la reprendre : le geste de la station les joue ici, et le rail le dit à la lecture suivante", async (t) => {
+  test("arrêter la cuisine puis la reprendre : le geste de la station les joue ici, et le rail le dit à la lecture suivante", { skip: SANS_POSIX }, async (t) => {
     const essai = poste(t);
     const lectures: Lecture[] = [];
     let attendue: (() => void) | undefined;
@@ -154,7 +155,7 @@ describe("les gestes d'un projet qui cuit sur cet ordinateur partent ici, sans s
     assert.equal(confirmationDe("stop", PARADE, { sans: "pas lus" }), undefined);
   });
 
-  test("accorder, révoquer le grant `merge` et merger une livraison : ici aussi, et un projet qui garde son « hote » n'y va pas", async (t) => {
+  test("accorder, révoquer le grant `merge` et merger une livraison : ici aussi, et un projet qui garde son « hote » n'y va pas", { skip: SANS_POSIX }, async (t) => {
     const essai = poste(t);
     const { ecrits, terminaux } = temoin();
     for (const projet of [PARADE, AVEC_HOTE]) {
@@ -171,7 +172,7 @@ describe("les gestes d'un projet qui cuit sur cet ordinateur partent ici, sans s
     assert.equal(essai.lu("ssh-lance"), "", "aucun `ssh` n'a été lancé");
   });
 
-  test("ce que le chef tape passe un seul shell, ici : chaque mot arrive entier, et rien n'en est exécuté", async (t) => {
+  test("ce que le chef tape passe un seul shell, ici : chaque mot arrive entier, et rien n'en est exécuté", { skip: SANS_POSIX }, async (t) => {
     const essai = poste(t);
     const { ecrits, terminaux } = temoin();
     const quoi = "the client's go — $(touch pris) `touch pris`";
@@ -184,7 +185,7 @@ describe("les gestes d'un projet qui cuit sur cet ordinateur partent ici, sans s
     assert.equal(essai.lu("ssh-lance"), "");
   });
 
-  test("vérifier l'installation : lancée ici, elle rend le même verdict — et la même erreur — que sur une box", async (t) => {
+  test("vérifier l'installation : lancée ici, elle rend le même verdict — et la même erreur — que sur une box", { skip: SANS_POSIX }, async (t) => {
     const essai = poste(t);
     // Un service par lieu, branché comme dans le process principal : sur la box par `ssh`, ou ici.
     const verifie = async (cuisine: Cuisine, projet: Projet) => {
@@ -230,7 +231,7 @@ describe("les gestes d'un projet qui cuit sur cet ordinateur partent ici, sans s
 });
 
 describe("les mêmes gestes, sur un projet servi par une box, partent toujours par ssh", () => {
-  test("la forme de poste ne change pas : `ssh <hote> brigade <nom> <commande>`, jouée par le `ssh` du poste", async (t) => {
+  test("la forme de poste ne change pas : `ssh <hote> brigade <nom> <commande>`, jouée par le `ssh` du poste", { skip: SANS_POSIX }, async (t) => {
     const essai = poste(t);
     const { ecrits, terminaux } = temoin();
     const box: Cuisine = { hote: "box" };

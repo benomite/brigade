@@ -111,7 +111,7 @@ export function lancerRetrait(reglages: Reglages, { nom, box }: Servi, demande: 
       resoudre({ etat: jointe ? "geste-absent" : "injoignable", obtenu });
     };
     try {
-      execFile(reglages.ssh, args, { timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024 }, rendre);
+      execFile(reglages.ssh, args, { windowsHide: true, timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024 }, rendre);
     } catch (erreur) {
       // Un argument que le système refuse — un nom qui porte un caractère nul — : `ssh` n'est pas lancé, et rien n'est parti.
       resoudre({ etat: "injoignable", obtenu: `${lance}\n→ ${erreur instanceof Error ? erreur.message : String(erreur)}` });

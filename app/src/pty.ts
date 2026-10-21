@@ -1,6 +1,6 @@
 // Le vrai pty : node-pty, le seul module natif de l'app. Il est livré compilé
-// pour macOS et passe par N-API — le même binaire sert Node (les tests) et
-// Electron (l'app), sans recompilation.
+// pour macOS et pour Windows (ConPTY), et passe par N-API — le même binaire sert
+// Node (les tests) et Electron (l'app), sans recompilation.
 import { chmodSync, existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
@@ -10,11 +10,11 @@ const requerir = createRequire(import.meta.url);
 const PRECOMPILE = join(dirname(requerir.resolve("node-pty/package.json")), "prebuilds", `${process.platform}-${process.arch}`);
 
 // node-pty 1.1.0 livre `spawn-helper` sans son bit d'exécution : tout lancement
-// échoue alors par « posix_spawnp failed ».
+// échoue alors par « posix_spawnp failed ». Windows n'en a pas.
 const AIDE = join(PRECOMPILE, "spawn-helper");
 if (existsSync(AIDE)) chmodSync(AIDE, 0o755);
 
-// Faux là où node-pty n'est pas livré compilé (Linux) : l'app est une app Mac.
+// Faux là où node-pty n'est pas livré compilé (Linux) : l'app est une app du Mac et de Windows.
 export const ptyDisponible = existsSync(PRECOMPILE);
 
 // L'environnement du chef, moins ce que `npm start` y a ajouté : ses variables

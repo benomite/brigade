@@ -6,7 +6,8 @@
 // session, sur la machine choisie (machines.ts), et l'app s'en souvient (souvenirs.ts). Fermer
 // l'app ne fait que s'en détacher : à la réouverture, il revient dans l'espace de son projet,
 // rattaché à sa session. Seule sa fermeture par le chef la détruit. Le shell qu'un geste ouvre
-// pour y écrire sa commande, lui, est un shell de ce poste qui finit avec l'app.
+// pour y écrire sa commande, lui, est un shell de ce poste qui finit avec l'app — comme, sous
+// Windows, celui que « + shell » ouvre sur ce poste : il n'y a pas de session où le tenir.
 //
 // Un shell sur une machine distante dont la connexion lâche (réseau perdu, machine éteinte, poste
 // endormi) ne quitte pas l'espace : son terminal dit que la machine n'est pas joignable, et l'app la
@@ -15,6 +16,7 @@
 import { compteDe, texteBandeau } from "./bandeau.ts";
 import type { Projet } from "./config.ts";
 import { lieuDe } from "./machines.ts";
+import { ICI, SANS_SESSION } from "./plateforme.ts";
 import { detruire as detruireSession, joindre as joindreMachine, nomDeSession, rattachement, type Cible, type Session } from "./persistance.ts";
 import { DIT, PREUVE, reglages, suivreSaisie, type Saisie, type Tours } from "./saisie.ts";
 import type { Rappel, Souvenir, Souvenirs } from "./souvenirs.ts";
@@ -90,7 +92,12 @@ export const SANS_ECRIRE = "nothing is written: the command carries a control ch
 export function ouvrirTerminaux(options: {
   ouvrirPty(lancement: Lancement): Pty;
   claude: string;
+  // Le shell de ce poste, et ses arguments — `-l` par défaut : un shell de connexion (plateforme.ts).
   shell: string;
+  argsDuShell?: readonly string[];
+  // Un shell de ce poste tient-il une session persistante ? Oui par défaut ; non sous Windows, qui n'a
+  // ni `tmux` ni `screen` : « + shell » y ouvre un shell qui finit avec son terminal, et rien ne s'en retient.
+  persistantIci?: boolean;
   surSortie(id: number, donnees: string): void;
   // Un terminal a changé : sa note, ou il s'est arrêté.
   surEtat(terminal: Terminal): void;
@@ -113,6 +120,8 @@ export function ouvrirTerminaux(options: {
   plusTard?(faire: () => void, ms: number): () => void;
 }) {
   const tenus = new Map<number, Tenu>();
+  const argsDuShell = options.argsDuShell ?? ["-l"];
+  const persistantIci = options.persistantIci ?? true;
   // Un shell fermé ne rend pas son numéro : deux onglets ne portent jamais le même titre.
   const shellsOuverts = new Map<string, number>();
   let dernier = 0;
@@ -279,6 +288,18 @@ export function ouvrirTerminaux(options: {
     });
   }
 
+  // Un shell de ce poste, sans session : il finit avec l'app, ou quand le chef y tape `exit`.
+  function shellIci(projet: Projet, note: string): Tenu {
+    const rang = rangNeuf(projet.nom);
+    const tenu = tenir(projet, "shell", `shell ${rang}`);
+    tenu.note = note;
+    lancer(tenu, options.shell, [...argsDuShell], () => {
+      tenu.arrete = true;
+      tenus.delete(tenu.id);
+    });
+    return tenu;
+  }
+
   // --- Les shells persistants.
 
   const rappel = (): Rappel => options.souvenirs?.lire() ?? {};
@@ -309,7 +330,7 @@ export function ouvrirTerminaux(options: {
   }
 
   const titreDe = (rang: number, cible: Cible) => (cible.lieu === "poste" ? `shell ${rang}` : `shell ${rang} · ${cible.nom}`);
-  const ouEst = (cible: Cible, dossier: string) => (cible.lieu === "poste" ? `this Mac, in ${dossier}` : `${lieuDe(cible)} (\`ssh ${cible.hote}\`, with the account your ssh gives it)`);
+  const ouEst = (cible: Cible, dossier: string) => (cible.lieu === "poste" ? `${ICI}, in ${dossier}` : `${lieuDe(cible)} (\`ssh ${cible.hote}\`, with the account your ssh gives it)`);
 
   // Lance le shell dans sa session — la même commande la crée ou s'y rattache. Il finit quand sa
   // session finit (le chef y a tapé `exit`) : il quitte l'espace, et l'app l'oublie. Sauf quand
@@ -429,7 +450,7 @@ export function ouvrirTerminaux(options: {
   // Les shells dont l'app se souvient pour ce projet, rattachés à leur session, dans l'ordre de leurs rangs.
   function revenir(projet: Projet): void {
     const souvenus = [...(rappel()[projet.nom]?.shells ?? [])].sort((a, b) => a.rang - b.rang);
-    for (const { rang, session, cible } of souvenus) rattacher(projet, { rang, session: { nom: session, cible } }, "persistent shell, reattached");
+    for (const { rang, session, cible } of souvenus) if (cible.lieu !== "poste" || persistantIci) rattacher(projet, { rang, session: { nom: session, cible } }, "persistent shell, reattached");
   }
 
   return {
@@ -445,6 +466,12 @@ export function ouvrirTerminaux(options: {
 
     // Un shell persistant, sur la machine choisie : une session neuve, que l'app retient.
     ouvrir(projet: Projet, cible: Cible): Terminal {
+      // Sans session sur ce poste (Windows) : un shell qui finit avec son terminal, sous le même bandeau qu'ailleurs.
+      if (cible.lieu === "poste" && !persistantIci) {
+        const tenu = shellIci(projet, `shell on ${ICI}, in ${projet.dossier} — ${SANS_SESSION}`);
+        tenu.bandeau = texteBandeau(cible, (options.compte ?? ((machine) => compteDe(machine, options.ssh)))(cible));
+        return montre(tenu);
+      }
       const rang = rangNeuf(projet.nom);
       const session = { nom: nomDeSession(projet.nom, rang), cible };
       retenir(projet.nom, { rang, session: session.nom, cible });
@@ -473,13 +500,7 @@ export function ouvrirTerminaux(options: {
     // geste qui réclame un vrai terminal, ce que le `!` du second ne donne pas. Un shell
     // de connexion garde ce qui lui arrive avant son invite : la commande l'y attend.
     shell(projet: Projet, ecrit?: string): Terminal {
-      const rang = rangNeuf(projet.nom);
-      const tenu = tenir(projet, "shell", `shell ${rang}`);
-      tenu.note = `shell on this Mac, in ${projet.dossier}`;
-      lancer(tenu, options.shell, ["-l"], () => {
-        tenu.arrete = true;
-        tenus.delete(tenu.id);
-      });
+      const tenu = shellIci(projet, `shell on ${ICI}, in ${projet.dossier}`);
       if (ecrit !== undefined && CONTROLE.test(ecrit)) tenu.note = SANS_ECRIRE;
       else if (ecrit !== undefined) {
         tenu.pty?.ecrire(ecrit);
@@ -569,8 +590,8 @@ export function ouvrirTerminaux(options: {
         tenu.pty = undefined;
         const attente: Attente = { essais: 0 };
         attendre(tenu, attente);
-        tenu.note = noteDAttente(tenu, `this Mac woke up: reattaching to ${lieuDe(session.cible)}`);
-        options.surSortie(tenu.id, ligne(`this Mac woke up — reattaching to session \`${session.nom}\` on ${lieuDe(session.cible)}`));
+        tenu.note = noteDAttente(tenu, `${ICI} woke up: reattaching to ${lieuDe(session.cible)}`);
+        options.surSortie(tenu.id, ligne(`${ICI} woke up — reattaching to session \`${session.nom}\` on ${lieuDe(session.cible)}`));
         options.surEtat(montre(tenu));
         void sonder(tenu, attente);
       }

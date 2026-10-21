@@ -91,7 +91,7 @@ export function brancheDe(sortie: string): string | undefined {
 export type Lu = { depot?: string; base?: string; raisons: Signales };
 
 const git = (binaire: string, dossier: string, args: string[]) =>
-  new Promise<string | undefined>((resoudre) => execFile(binaire, ["-C", dossier, ...args], { timeout: 10_000 }, (erreur, sortie) => resoudre(erreur === null ? sortie : undefined)));
+  new Promise<string | undefined>((resoudre) => execFile(binaire, ["-C", dossier, ...args], { windowsHide: true, timeout: 10_000 }, (erreur, sortie) => resoudre(erreur === null ? sortie : undefined)));
 
 export async function lireClone(binaire: string, dossier: string): Promise<Lu> {
   const [origine, tete] = await Promise.all([git(binaire, dossier, ["remote", "get-url", "origin"]), git(binaire, dossier, ["rev-parse", "--abbrev-ref", "origin/HEAD"])]);

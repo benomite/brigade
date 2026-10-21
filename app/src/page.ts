@@ -197,6 +197,19 @@ async function tenirPort(prefere: number): Promise<Server | undefined> {
   return undefined;
 }
 
+// Un port de ce poste que le système dit libre à l'instant, sur 127.0.0.1 — ou rien.
+async function portLibre(): Promise<number | undefined> {
+  const essai = createServer();
+  const ouvert = await new Promise<boolean>((resoudre) => {
+    essai.on("error", () => resoudre(false));
+    essai.listen(0, "127.0.0.1", () => resoudre(true));
+  });
+  if (!ouvert) return undefined;
+  const { port } = essai.address() as AddressInfo;
+  await new Promise<void>((resoudre) => essai.close(() => resoudre()));
+  return port;
+}
+
 // Amène le port d'un worktree de la box sur ce poste, et rend la main quand il y
 // répond. Jamais d'exception : ce qui l'a empêché est rendu, avec ce que `ssh` a dit.
 //
@@ -205,7 +218,11 @@ async function tenirPort(prefere: number): Promise<Server | undefined> {
 // rien y lire. Seul ce `ssh` peut ouvrir cette prise : quand elle répond, c'est lui, et la
 // box est jointe — un port de ce poste qui répondrait ne dirait pas à qui il est.
 // Le `ssh` lancé est celui de l'app, tué par son pid — `fermer`, ou `signal` tant qu'il s'installe.
-export async function ouvrirTransfert(reglages: Reglages, { box }: Servi, port: number, signal?: AbortSignal): Promise<Transfert | { refus: string }> {
+//
+// Sous Windows, le `ssh` du système n'ouvre pas de prise Unix : `ssh` y écoute sur un second port de
+// ce poste, que l'app vient de trouver libre, sur 127.0.0.1 seulement. Un autre process qui l'aurait
+// pris entre-temps fait sortir `ssh` (`ExitOnForwardFailure`), et le transfert est refusé.
+export async function ouvrirTransfert(reglages: Reglages, { box }: Servi, port: number, signal?: AbortSignal, plateforme: string = process.platform): Promise<Transfert | { refus: string }> {
   const ABANDON = "nothing opened: the action was abandoned — its project left the app, or the app is closing";
   if (signal?.aborted === true) return { refus: ABANDON };
   const relais = await tenirPort(port);
@@ -227,14 +244,23 @@ export async function ouvrirTransfert(reglages: Reglages, { box }: Servi, port: 
     }
   };
   try {
-    dossier = mkdtempSync(join(tmpdir(), "brigade-page-"));
-    const prise = join(dossier, "ssh");
+    const libre = plateforme === "win32" ? await portLibre() : undefined;
+    if (plateforme === "win32" && libre === undefined) {
+      ranger();
+      return { refus: "nothing opened: this workstation gave no port for `ssh` to forward to" };
+    }
+    let prise = `127.0.0.1:${libre}`;
+    if (libre === undefined) {
+      dossier = mkdtempSync(join(tmpdir(), "brigade-page-"));
+      prise = join(dossier, "ssh");
+    }
+    const joindre = () => (libre === undefined ? connect(prise) : connect({ host: "127.0.0.1", port: libre }));
     // Les options de la veille (box.ts) : sans terminal, `ssh` échoue plutôt que d'attendre un mot de
     // passe. Le transfert a sa propre connexion — partagée, il survivrait à ce process —, et une prise
     // qu'il ne peut pas ouvrir le fait sortir. Après l'hôte, rien : aucune commande ne part vers la box.
     const args = ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${reglages.connexionS}`, "-o", "ControlPath=none", "-o", "ExitOnForwardFailure=yes", "-N", "-L", `${prise}:127.0.0.1:${port}`, "--", box.hote];
     const lance = `$ ${reglages.ssh} ${args.join(" ")}`;
-    const enfant = spawn(reglages.ssh, args, { stdio: ["ignore", "ignore", "pipe"] });
+    const enfant = spawn(reglages.ssh, args, { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
     let erreurs = "";
     enfant.stderr.on("data", (morceau: Buffer) => void (erreurs = (erreurs + morceau.toString()).slice(-SORTIE_MAX)));
     // Sa fin, dite : son code, son signal — ou pourquoi il n'a pas pu être lancé.
@@ -245,7 +271,7 @@ export async function ouvrirTransfert(reglages: Reglages, { box }: Servi, port: 
     const fini = fin.then(ranger);
     const obtenu = (suite: string) => [lance, erreurs.trimEnd(), `→ ${suite}`].filter(Boolean).join("\n");
     relais.on("connection", (venue) => {
-      const vers = connect(prise);
+      const vers = joindre();
       venues.add(venue);
       venue.once("close", () => venues.delete(venue));
       venue.on("error", () => vers.destroy());
@@ -279,7 +305,7 @@ export async function ouvrirTransfert(reglages: Reglages, { box }: Servi, port: 
       // La prise répond-elle ? `ssh` ne l'ouvre qu'une fois la box jointe.
       const sonder = () => {
         if (conclu) return;
-        const essai = connect(prise);
+        const essai = joindre();
         essai.once("connect", () => {
           essai.destroy();
           conclure({
