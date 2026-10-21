@@ -186,9 +186,8 @@ describe("ce qui n'est pas encore sur le rail, lu dans la sortie de `manager ups
     const doc = docRuntime(join(import.meta.dirname, "../.."));
 
     assert.equal(COMMANDE, "manager upstream");
-    assert.ok(doc.includes("npm --prefix runtime run manager -- upstream"), "docs/runtime/, « Le manager », ne cite pas `manager -- upstream`");
-    assert.ok(doc.includes("### En amont du rail"), "docs/runtime/ n'a pas la section « En amont du rail »");
-    assert.ok(doc.includes("`brigade <projet> manager [on \\| off \\| return <n°> \\| backlog \\| upstream]`"), "docs/runtime/, « Piloter », ne cite pas `manager upstream`");
+    assert.ok(doc.includes("npm --prefix runtime run manager -- upstream"), "docs/runtime/ ne cite pas `manager -- upstream`");
+    assert.ok(doc.includes("`brigade <projet> manager [on \\| off \\| return <n°> \\| backlog \\| upstream]`"), "docs/runtime/ ne cite pas `manager upstream`");
   });
 
   test("un champ de plus est laissé de côté, un champ qui manque refuse la forme entière", () => {

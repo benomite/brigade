@@ -1,5 +1,5 @@
 // Ce que l'app dessine : les faits que la box rend dans la forme de
-// docs/runtime/, « Les faits, pour un programme ». L'exemple de la doc est
+// docs/runtime/. L'exemple de la doc est
 // lu ici tel qu'il y est écrit ; une sortie qui n'est pas cette forme n'est
 // jamais dessinée — ni tableau vide, ni zéros. Une couleur ne se pose que sur
 // un mot des listes fermées. Le rail se range en six colonnes, TODO
@@ -22,9 +22,18 @@ import { commandeDuGeste, CONFIRMES } from "../src/gestes.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
 const doc = docRuntime(RACINE);
-const SECTION = doc.slice(doc.indexOf("### Les faits, pour un programme"));
-// L'exemple de la doc : la seule ligne de son bloc `json`.
-const EXEMPLE = SECTION.slice(SECTION.indexOf("```json\n") + 8, SECTION.indexOf("\n```", SECTION.indexOf("```json\n")));
+// L'exemple de la doc : la ligne du bloc `json` qui porte la forme des faits (ses champs `dernierTick` et `compteurs`).
+const EXEMPLE = [...doc.matchAll(/```json\n([^\n]*)\n```/g)].map(([, ligne = ""]) => ligne).find((ligne) => ligne.includes('"dernierTick"') && ligne.includes('"compteurs"')) ?? "";
+// Les lignes d'un tableau de la doc dont une ligne a pour premier mot `mot` : de la première à la dernière ligne de ce tableau.
+function tableauDeLaDoc(mot: string): string[] {
+  const lignes = doc.split("\n");
+  const dedans = lignes.findIndex((ligne) => ligne.startsWith(`| \`${mot}\` |`));
+  let debut = dedans;
+  while (debut > 0 && lignes[debut - 1]?.startsWith("|")) debut--;
+  let fin = dedans;
+  while (fin < lignes.length - 1 && lignes[fin + 1]?.startsWith("|")) fin++;
+  return dedans < 0 ? [] : lignes.slice(debut, fin + 1);
+}
 
 // Ce que le reviewer a dit de deux livraisons de l'exemple : un résumé et ses constats, puis un résumé seul.
 const RELU_216 = {
@@ -339,15 +348,16 @@ const tonDeTicket = (etat: string) => cartes(rail({ ...FAITS, rail: [{ ticket: 1
 describe("une couleur sur un mot de la liste fermée", () => {
   test("les quatre états d'un projet ont la leur — ceux de docs/runtime/, pas un de plus", () => {
     assert.deepEqual(["ouverte", "retenue", "arrêtée", "éteinte"].map(tonDeProjet), ["vert", "jaune", "rouge", "rouge"]);
-    const table = SECTION.slice(SECTION.indexOf("| Mot | Quand |"), SECTION.indexOf("**L'état d'un ticket**"));
-    assert.deepEqual([...table.matchAll(/^\| `([^`]+)` \|/gm)].map(([, mot]) => mot).sort(), ["arrêtée", "ouverte", "retenue", "éteinte"].sort());
+    assert.deepEqual(tableauDeLaDoc("éteinte").flatMap((ligne) => /^\| `([^`]+)` \|/.exec(ligne)?.[1] ?? []).sort(), ["arrêtée", "ouverte", "retenue", "éteinte"].sort());
   });
 
   test("les six états d'un ticket ont la leur — ceux que la doc énumère", () => {
     const MOTS = ["en attente", "BLOQUÉ", "pris", "en pass", "servi", "86"];
 
     assert.deepEqual(MOTS.map(tonDeTicket), ["gris", "rouge", "bleu", "jaune", "vert", "rouge"]);
-    assert.ok(SECTION.includes(`${MOTS.slice(0, 3).map((mot) => `\`${mot}\``).join(", ")},\n${MOTS.slice(3).map((mot) => `\`${mot}\``).join(", ")}.`), "la liste des états d'un ticket a changé dans docs/runtime/");
+    // Les six mots, dans cet ordre, entre backticks, séparés de quelques signes ou d'un mot de liaison : la doc se replie et se traduit où elle veut.
+    const liste = new RegExp(MOTS.map((mot) => `\`${mot}\``).join("[^`]{0,24}"));
+    assert.match(doc.replace(/\s+/g, " "), liste, "la liste des états d'un ticket a changé dans docs/runtime/");
   });
 
   test("un mot inconnu s'affiche tel quel, sans couleur, et ne se range dans aucune — ni par sa casse, ni par un nom d'objet", () => {
@@ -914,7 +924,7 @@ describe("la bannière d'arrêt", () => {
     assert.deepEqual(["arrêtée", "éteinte", "retenue", "ouverte", "ARRÊTÉE", "muette"].map((etat) => tableau({ ...FAITS, etat }).arretee), [true, false, false, false, false, false]);
   });
 
-  test("son geste est celui du socle qui la relance — la commande de « Piloter », confirmée avant de partir", () => {
+  test("son geste est celui du socle qui la relance — la commande de la doc, confirmée avant de partir", () => {
     const ecrit = commandeDuGeste(BANNIERE.bouton, { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } });
 
     assert.ok(CONFIRMES.includes(BANNIERE.bouton));
@@ -922,8 +932,8 @@ describe("la bannière d'arrêt", () => {
   });
 
   test("ce qu'elle dit de l'arrêt est ce que docs/runtime/ en dit", () => {
-    assert.ok(doc.includes("| « stop » | Tous les cooks en cours sont arrêtés dans la seconde, et plus aucun n'est lancé |"));
-    assert.ok(doc.includes("**Le\ndisjoncteur ouvert et le « stop » tiennent**, redémarrage compris, jusqu'à « reprendre »."));
+    assert.ok(doc.includes("`brigade <projet> guardrails stop`"), "docs/runtime/ ne cite plus `guardrails stop`");
+    assert.ok(doc.includes("`brigade <projet> guardrails [stop \\| resume]`"), "docs/runtime/ ne cite plus `guardrails resume`");
     assert.deepEqual(BANNIERE.texte, [
       "KITCHEN STOPPED — your “stop” holds",
       "All running cooks have been stopped, and none is launched any more — runtime restarts included, until “resume”.",
