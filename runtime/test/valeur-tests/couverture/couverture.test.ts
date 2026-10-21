@@ -10,13 +10,10 @@ import { pathToFileURL } from "node:url";
 import { principal } from "../../../src/valeur-tests/couverture/mesurer-cli.ts";
 import { assembler, Couverture, lireCouverture, lireMesures, RapportIlisible, TestInconnu } from "../../../src/valeur-tests/couverture/rapport.ts";
 import { appeler, ENV_ENFANT, repertoireTemporaire } from "../../outils.ts";
-import { posixOnly } from "../../support/plateforme.ts";
 
 const RUNTIME = join(import.meta.dirname, "../../..");
 const EXEMPLES = join(import.meta.dirname, "exemples");
 const CROCHET = pathToFileURL(join(RUNTIME, "src/valeur-tests/couverture/crochet.ts")).href;
-// La commande joue chaque zone par `npm`, qui sous Windows est `npm.cmd`.
-const NPM = "the command runs each zone by `npm`, a `.cmd` launcher under Windows";
 const TOUR = { date: new Date("2026-10-21T10:00:00Z"), commit: "c0ffee", suites: [] };
 
 // Joue des suites d'exemple avec le crochet, les chemins comptés depuis les
@@ -99,10 +96,10 @@ test("la couverture propre d'un test que la mesure n'a pas vu est une erreur qui
   assert.throws(() => couverture.uniqueCoverage("t.ts > jamais vu"), (erreur: unknown) => erreur instanceof TestInconnu && /unknown test: “t\.ts > jamais vu”/.test(erreur.message));
 });
 
-test("la commande joue la zone par sa commande de tests et écrit le rapport : chaque test, son compte de lignes en propre", { skip: posixOnly(NPM) }, async (t) => {
+test("la commande joue la zone par sa commande de tests et écrit le rapport : chaque test, son compte de lignes en propre", async (t) => {
   const zone = repertoireTemporaire(t);
   const sortie = join(repertoireTemporaire(t), "test-coverage.json");
-  writeFileSync(join(zone, "package.json"), JSON.stringify({ name: "zone", private: true, scripts: { test: `node --test ${JSON.stringify(join(EXEMPLES, "trois-tests.ts"))}` } }));
+  writeFileSync(join(zone, "package.json"), JSON.stringify({ name: "zone", private: true, scripts: { test: `node --test ${JSON.stringify(join(EXEMPLES, "trois-tests.ts").replaceAll("\\", "/"))}` } }));
 
   const appel = appeler((a) => principal(a, { cwd: RUNTIME, maintenant: () => TOUR.date }), ["--zone", zone, "--root", EXEMPLES, "--out", sortie], ENV_ENFANT);
   const [code, texte] = [await appel.fin, appel.sortie()];
@@ -126,16 +123,16 @@ test("la commande joue la zone par sa commande de tests et écrit le rapport : c
   assert.throws(() => couverture.uniqueCoverage("trois-tests.ts > D"), TestInconnu);
 });
 
-test("une suite en échec : le rapport est écrit tout de même, la commande le dit et rend 1", { skip: posixOnly(NPM) }, async (t) => {
+test("une suite en échec : le rapport est écrit tout de même, la commande le dit et rend 1", async (t) => {
   const zone = repertoireTemporaire(t);
   const sortie = join(repertoireTemporaire(t), "test-coverage.json");
-  writeFileSync(join(zone, "package.json"), JSON.stringify({ name: "zone", private: true, scripts: { test: `node --test ${JSON.stringify(join(EXEMPLES, "trois-tests.ts"))} && exit 3` } }));
+  writeFileSync(join(zone, "package.json"), JSON.stringify({ name: "zone", private: true, scripts: { test: `node --test ${JSON.stringify(join(EXEMPLES, "trois-tests.ts").replaceAll("\\", "/"))} && exit 1` } }));
 
   const appel = appeler((a) => principal(a, { cwd: RUNTIME }), ["--zone", zone, "--root", EXEMPLES, "--out", sortie], ENV_ENFANT);
   const [code, texte] = [await appel.fin, appel.sortie()];
   assert.equal(code, 1, texte);
-  assert.match(texte, /the tests of .* failed \(code 3\); their coverage is measured all the same/);
-  assert.deepEqual(lireCouverture(sortie).rapport.suites, [{ zone, code: 3 }]);
+  assert.match(texte, /the tests of .* failed \(code 1\); their coverage is measured all the same/);
+  assert.deepEqual(lireCouverture(sortie).rapport.suites, [{ zone, code: 1 }]);
   assert.deepEqual(lireCouverture(sortie).uniqueCoverage("trois-tests.ts > B"), ["code.ts:6", "code.ts:7", "code.ts:8"]);
 });
 

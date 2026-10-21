@@ -1,13 +1,11 @@
 // Mesure la couverture propre de chaque test du projet (`rapport.ts`) :
 //   BRIGADE_STATE_DIR=<state directory> node runtime/src/valeur-tests/couverture/mesurer-cli.ts
-// depuis le dépôt. Chaque zone est jouée par sa propre commande de tests,
-// `npm --prefix <zone> test` — le lanceur du projet, `node --test` —, avec le
-// crochet de mesure (`crochet.ts`) chargé par `NODE_OPTIONS` dans chacun de ses
-// process. Le rapport est écrit quand toutes les zones ont été jouées, même si
+// depuis le dépôt. Chaque zone est jouée par sa propre commande de tests, le
+// script `test` de son `package.json` — le lanceur du projet, `node --test` —,
+// que joue `node --run test` dans la zone, comme `npm --prefix <zone> test`
+// mais sans lancer npm —, avec le crochet de mesure (`crochet.ts`) chargé par
+// `NODE_OPTIONS` dans chacun de ses process. Le rapport est écrit quand toutes les zones ont été jouées, même si
 // une suite a échoué : un test en échec a tout de même sa couverture.
-//
-// Sous Windows, `npm` est `npm.cmd`, que Node ne lance pas sans shell : la
-// mesure se fait sur la box du projet, sous Linux ou macOS.
 //
 // La mesure coûte plus que la suite : chaque test y est relevé deux fois.
 //
@@ -33,7 +31,7 @@ import { assembler, cheminCouverture, ecrireRapport, lireMesures, type Suite } f
 
 const USAGE = [
   "usage: node runtime/src/valeur-tests/couverture/mesurer-cli.ts [--zone <directory>]... [--out <report>] [--root <directory>]",
-  "  each zone is run by `npm --prefix <zone> test`; the report goes to --out, or to <BRIGADE_STATE_DIR>/test-coverage.json",
+  "  each zone is run by its `test` script (`node --run test`); the report goes to --out, or to <BRIGADE_STATE_DIR>/test-coverage.json",
 ].join("\n");
 
 const CROCHET = pathToFileURL(join(import.meta.dirname, "crochet.ts")).href;
@@ -84,8 +82,8 @@ export function principal({ args, env, dire, redire }: Appel, options: { cwd?: s
     const suites: Suite[] = [];
     for (const zone of zones) {
       dire(`measuring ${zone}…`);
-      const joue = spawnSync("npm", ["--prefix", zone, "test"], {
-        cwd: racine,
+      const joue = spawnSync(process.execPath, ["--run", "test"], {
+        cwd: zone,
         env: { ...env, NODE_OPTIONS: `${env.NODE_OPTIONS ?? ""} --import=${CROCHET}`.trim(), BRIGADE_COUVERTURE_DIR: dossier, BRIGADE_COUVERTURE_RACINE: racine },
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
