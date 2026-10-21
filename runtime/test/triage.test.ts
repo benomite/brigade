@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { brancherLeTriage, cartesEnTodo, cartesRetenues, entrerDansTodo } from "../src/carte-todo.ts";
+import { brancherLeTriage, cartesEnTodo, cartesRetenues, entrerDansTodo, triagesParJour } from "../src/carte-todo.ts";
 import type { Fait } from "../src/evenements.ts";
 import type { Check } from "../src/events/pass.ts";
 import { REDECOUPE } from "../src/events/rail.ts";
@@ -102,7 +102,7 @@ function atelier(t: TestContext, reponses: Array<unknown | Promise<unknown>>) {
   };
   const poser = (auteur = "pass", proposition: Parameters<typeof entrerDansTodo>[3] = CARTE) => entrerDansTodo(journal, PROJET, 30, proposition, auteur);
   const dits = () => gh.commentaires.filter(([numero]) => numero === 30).map(([, corps]) => corps);
-  return { journal, rail, gh, heure, triage, consignes, decoupes, retenus, avertissements, noter, arriver, livrer, poser, dits };
+  return { repertoire, journal, rail, gh, heure, triage, consignes, decoupes, retenus, avertissements, noter, arriver, livrer, poser, dits };
 }
 
 // La phrase posée sur l'issue : le seul commentaire, et une seule phrase.
@@ -149,6 +149,42 @@ describe("la porte de TODO, devant le triage", () => {
       [{ ticket: 30, type: "product", question: "Export CSV ou export JSON ?", choix: [{ texte: "L'export CSV.", suite: "resume" }, { texte: "L'export JSON.", suite: "resume" }] }],
     );
     assert.equal(c.journal.duTicket(30).findLast((e) => e.type === "todo.entered")?.author, "pass");
+  });
+
+  test("les décisions prises seul et les cartes envoyées en TODO se comptent par jour, et le compte survit à un redémarrage", async (t) => {
+    const c = atelier(t, [REPONSES.retirer, REPONSES.todo, REPONSES.retirer]);
+    const jour = (j: string) => new Date(`${j}T00:00:00.000Z`);
+    const lire = (base = c.journal.base) => triagesParJour(base, jour("2026-10-01"), jour("2026-11-01"));
+    assert.deepEqual(lire(), []);
+
+    // Une décision prise seule : le compte du jour monte de un.
+    c.arriver();
+    c.poser();
+    await c.triage.traiter();
+    assert.deepEqual(lire(), [{ day: "2026-10-08", decidedAlone: 1, sentToTodo: 0 }]);
+
+    // Une carte envoyée en TODO : l'autre compte du jour monte de un.
+    c.arriver();
+    c.poser();
+    await c.triage.traiter();
+    assert.deepEqual(lire(), [{ day: "2026-10-08", decidedAlone: 1, sentToTodo: 1 }]);
+
+    // Un autre jour : compté à part, rendu par jour.
+    c.heure.avancer(2 * 86_400_000);
+    c.arriver();
+    c.poser();
+    await c.triage.traiter();
+    const attendu = [
+      { day: "2026-10-08", decidedAlone: 1, sentToTodo: 1 },
+      { day: "2026-10-10", decidedAlone: 1, sentToTodo: 0 },
+    ];
+    assert.deepEqual(lire(), attendu);
+    assert.deepEqual(triagesParJour(c.journal.base, jour("2026-10-09"), jour("2026-10-11")), [attendu[1]]);
+
+    // Le journal rouvert, sur le même répertoire, rend les mêmes comptes.
+    const rouvert = ouvrirJournal(c.repertoire);
+    aArreter(t, () => rouvert.fermer());
+    assert.deepEqual(lire(rouvert.base), attendu);
   });
 
   test("sans triage branché, une carte avec sa question et ses choix entre dans TODO ; sans eux, elle est renvoyée au triage", (t) => {

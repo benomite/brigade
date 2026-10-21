@@ -298,6 +298,31 @@ export function entreesParType(base: Base, depuis: Date, jusqua: Date): Record<T
   return comptes;
 }
 
+// Ce que le triage a fait un jour (UTC) : `decidedAlone`, les cartes qu'il a
+// tranchées lui-même — l'une de ses cinq actions, faite — ; `sentToTodo`, celles
+// qu'il a laissées entrer dans TODO. Une carte que la porte lui renvoie
+// (`back`) n'est encore ni l'un ni l'autre.
+export type TriagesDuJour = { day: string; decidedAlone: number; sentToTodo: number };
+
+// Les comptes du triage par jour, entre `depuis` (compris) et `jusqua` (exclu),
+// du plus ancien au plus récent ; un jour sans issue n'y est pas. Relus du
+// journal, où chaque issue est écrite (`todo.triaged`) au moment où elle est
+// connue : ils survivent à un redémarrage.
+export function triagesParJour(base: Base, depuis: Date, jusqua: Date): TriagesDuJour[] {
+  const lignes = base.lire<{ at: string; payload: string }>("SELECT at, payload FROM events WHERE type = 'todo.triaged' AND at >= ? AND at < ? ORDER BY seq", depuis.toISOString(), jusqua.toISOString());
+  const jours = new Map<string, TriagesDuJour>();
+  for (const { at, payload } of lignes) {
+    const { action } = JSON.parse(payload) as { action?: string };
+    if (action === "back") continue;
+    const day = at.slice(0, 10);
+    const jour = jours.get(day) ?? { day, decidedAlone: 0, sentToTodo: 0 };
+    jours.set(day, jour);
+    if (action === "through") jour.sentToTodo++;
+    else jour.decidedAlone++;
+  }
+  return [...jours.values()].sort((a, b) => (a.day < b.day ? -1 : 1));
+}
+
 // La ligne de `status` : les entrées de la période, par sorte.
 export function direEntreesEn(comptes: Record<TypeDeCarte, number>, jours: number): string {
   const total = TYPES_DE_CARTE.reduce((somme, type) => somme + comptes[type], 0);
