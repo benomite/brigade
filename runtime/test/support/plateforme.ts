@@ -19,6 +19,11 @@ export function macOnly(raison: string, courante: Plateforme = process.platform)
   return seulementSur(["darwin"], raison, courante);
 }
 
+// Le test ne se joue que sous Windows.
+export function windowsOnly(raison: string, courante: Plateforme = process.platform): string | false {
+  return seulementSur(["win32"], raison, courante);
+}
+
 // Le test suppose un système POSIX (Linux ou macOS) : permissions, signaux, `/bin/sh`.
 export function posixOnly(raison: string, courante: Plateforme = process.platform): string | false {
   return seulementSur(["linux", "darwin"], raison, courante);

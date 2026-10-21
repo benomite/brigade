@@ -34,6 +34,7 @@
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import { format } from "node:util";
+import { ouvertADAutres } from "./droits.ts";
 import { PREAVIS_DU_JETON_JOURS, VIE_DU_JETON_JOURS, type ObservationDuJeton } from "./events/token.ts";
 import { masquerIdentifiants, retenirJeton } from "./identifiants.ts";
 import { jetonObserve } from "./projections/token.ts";
@@ -78,13 +79,13 @@ export function configJeton(env: Record<string, string | undefined>, lieux: { re
     throw new ConfigInvalide(`${FICHIER_DU_JETON} invalide : « ${fichier} » ${pourquoi}`);
   };
   if (!isAbsolute(fichier)) refuser("n'est pas un chemin absolu");
-  let mode: number;
   try {
-    mode = statSync(fichier).mode;
+    statSync(fichier);
   } catch {
     return refuser("est illisible ou absent");
   }
-  if ((mode & 0o077) !== 0) refuser("est lisible par d'autres que le compte du service — c'est le jeton de la connexion Max : chmod 600");
+  const ouvert = ouvertADAutres(fichier, "c'est le jeton de la connexion Max");
+  if (ouvert !== null) refuser(ouvert);
   // Ni dans ce que `sauvegarder` emporte, ni dans un worktree, ni dans ce qui
   // se commite.
   if (dans(lieux.repertoireEtat, reel(fichier)) || dans(lieux.clone, reel(fichier))) {

@@ -6,6 +6,7 @@
 // d'un process lancé, jamais dans un problème, un événement ou un message.
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
+import { ouvertADAutres } from "./droits.ts";
 import { SCRIPT_SETUP } from "./gates.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
@@ -51,13 +52,12 @@ const dans = (repertoire: string, fichier: string) => {
 
 // Pourquoi le fichier de valeurs ne peut pas être lu, ou null.
 function defautDuFichier(fichier: string): string | null {
-  let mode: number;
   try {
-    mode = statSync(fichier).mode;
+    statSync(fichier);
   } catch {
     return "est illisible ou absent";
   }
-  return (mode & 0o077) === 0 ? null : "est lisible par d'autres que le compte du service — ce sont les secrets du projet : chmod 600";
+  return ouvertADAutres(fichier, "ce sont les secrets du projet");
 }
 
 // Lit `BRIGADE_SECRETS_FILE` : le fichier de la machine qui porte les valeurs

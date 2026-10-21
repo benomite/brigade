@@ -1,11 +1,13 @@
 // Les identités GitHub par rôle, contre un faux GitHub local : ni réseau, ni
 // vraie App. Les clés sont fabriquées une fois pour le fichier.
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { ecrireSecret } from "../src/droits.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { configIdentites, DROITS, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Role } from "../src/identites.ts";
+import { exposer, REMEDE } from "./aides/droits.ts";
 import { fauxGitHubApps, type FauxGitHubApps } from "./aides/faux-github-apps.ts";
 import { DEPOT, fauxGh, issueGitHub, repertoireTemporaire } from "./outils.ts";
 
@@ -155,7 +157,7 @@ function repertoireDApps(t: TestContext, apps: FauxGitHubApps): string {
   mkdirSync(copie);
   for (const role of ROLES) {
     writeFileSync(join(copie, `${role}.id`), `${apps.id(role)}\n`);
-    writeFileSync(join(copie, `${role}.pem`), apps.cle(role), { mode: 0o600 });
+    ecrireSecret(join(copie, `${role}.pem`), apps.cle(role));
   }
   return copie;
 }
@@ -172,14 +174,14 @@ test("un fichier manquant fait refuser le démarrage, et il est nommé", async (
 
 test("une clé lisible par d'autres que le compte du service fait refuser le démarrage", async (t) => {
   const repertoire = repertoireDApps(t, await fauxGitHubApps(t));
-  chmodSync(join(repertoire, "cook.pem"), 0o644);
+  exposer(join(repertoire, "cook.pem"));
 
-  assert.throws(() => configIdentites({ BRIGADE_GITHUB_APPS_DIR: repertoire }), /cook\.pem.*chmod 600/);
+  assert.throws(() => configIdentites({ BRIGADE_GITHUB_APPS_DIR: repertoire }), new RegExp(`cook\\.pem.*${REMEDE.source}`));
 });
 
 test("un fichier qui n'est pas une clé privée fait refuser le démarrage, sans en citer le contenu", async (t) => {
   const repertoire = repertoireDApps(t, await fauxGitHubApps(t));
-  writeFileSync(join(repertoire, "manager.pem"), "pas-une-cle-mais-un-secret", { mode: 0o600 });
+  ecrireSecret(join(repertoire, "manager.pem"), "pas-une-cle-mais-un-secret");
 
   assert.throws(
     () => configIdentites({ BRIGADE_GITHUB_APPS_DIR: repertoire }),

@@ -5,21 +5,23 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { format } from "node:util";
+import { ecrireSecret } from "../src/droits.ts";
 import { JETON_MASQUE, masquerIdentifiants } from "../src/identifiants.ts";
 import { configJeton, direJeton, environnementClaude, FICHIER_DU_JETON, masquerLaConsole, VARIABLE_DU_JETON } from "../src/jeton-claude.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
+import { exposer, REMEDE } from "./aides/droits.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
 const JETON = "sk-ant-oat01-un-jeton-fabrique-pour-le-test";
 
 // Une machine : l'état et le clone du projet, et le fichier du jeton à côté.
-function machine(t: TestContext, contenu: string | null = `${JETON}\n`, mode = 0o600) {
+function machine(t: TestContext, contenu: string | null = `${JETON}\n`) {
   const racine = repertoireTemporaire(t);
   const lieux = { repertoireEtat: join(racine, "etat"), clone: join(racine, "depot") };
   mkdirSync(lieux.repertoireEtat);
   mkdirSync(lieux.clone);
   const fichier = join(racine, "jeton-claude");
-  if (contenu !== null) writeFileSync(fichier, contenu, { mode });
+  if (contenu !== null) ecrireSecret(fichier, contenu);
   return { racine, lieux, fichier };
 }
 
@@ -39,18 +41,19 @@ test("le fichier du jeton, lisible du seul compte et hors de l'état et du clone
 test("un fichier de jeton qu'on ne pourrait pas lire, ou que d'autres liraient, fait refuser de démarrer", (t) => {
   const { lieux, fichier, racine } = machine(t);
   const dansLEtat = join(lieux.repertoireEtat, "jeton");
-  writeFileSync(dansLEtat, JETON, { mode: 0o600 });
+  ecrireSecret(dansLEtat, JETON);
   const dansLeClone = join(lieux.clone, "jeton");
-  writeFileSync(dansLeClone, JETON, { mode: 0o600 });
+  ecrireSecret(dansLeClone, JETON);
   const ouvert = join(racine, "ouvert");
-  writeFileSync(ouvert, JETON, { mode: 0o644 });
+  ecrireSecret(ouvert, JETON);
+  exposer(ouvert);
   const vide = join(racine, "vide");
-  writeFileSync(vide, "\n", { mode: 0o600 });
+  ecrireSecret(vide, "\n");
 
   for (const [valeur, motif] of [
     ["jeton-claude", /n'est pas un chemin absolu/],
     [join(racine, "absent"), /est illisible ou absent/],
-    [ouvert, /lisible par d'autres que le compte du service.*chmod 600/],
+    [ouvert, new RegExp(`lisible par d'autres que le compte du service.*${REMEDE.source}`)],
     [dansLEtat, /hors de BRIGADE_STATE_DIR et de BRIGADE_REPO_DIR/],
     [dansLeClone, /hors de BRIGADE_STATE_DIR et de BRIGADE_REPO_DIR/],
     [vide, /ne porte aucun jeton.*claude setup-token/],
@@ -100,7 +103,7 @@ test("sans jeton lisible au moment du lancement, `claude` part sur la connexion 
 test("le démarrage dit d'où vient la connexion de `claude`, sans jamais citer le jeton", (t) => {
   const { fichier } = machine(t);
   assert.match(direJeton(null, {}), /the account's own \(BRIGADE_CLAUDE_TOKEN_FILE is not set\)$/);
-  assert.match(direJeton(fichier, {}), new RegExp(`long-lived token read from ${fichier}, read again at each launch`));
+  assert.ok(direJeton(fichier, {}).includes(`long-lived token read from ${fichier}, read again at each launch`));
   const ignore = direJeton(null, { CLAUDE_CODE_OAUTH_TOKEN: JETON });
   assert.match(ignore, /CLAUDE_CODE_OAUTH_TOKEN is in the runtime's environment: it is passed to no `claude`/);
   assert.equal(ignore.includes(JETON), false);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { linuxOnly, macOnly, posixOnly, seulementSur } from "./plateforme.ts";
+import { linuxOnly, macOnly, posixOnly, seulementSur, windowsOnly } from "./plateforme.ts";
 import { lireListe, partager } from "./windows.ts";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -16,6 +16,12 @@ test("a macOS-only test is skipped on linux and win32", () => {
   assert.equal(macOnly("needs launchd", "darwin"), false);
   assert.equal(macOnly("needs launchd", "linux"), "skipped on linux: needs launchd");
   assert.equal(macOnly("needs launchd", "win32"), "skipped on win32: needs launchd");
+});
+
+test("a Windows-only test is skipped on linux and darwin", () => {
+  assert.equal(windowsOnly("reads Windows ACLs", "win32"), false);
+  assert.equal(windowsOnly("reads Windows ACLs", "linux"), "skipped on linux: reads Windows ACLs");
+  assert.equal(windowsOnly("reads Windows ACLs", "darwin"), "skipped on darwin: reads Windows ACLs");
 });
 
 test("a POSIX-only test plays on linux and darwin, not on win32", () => {
