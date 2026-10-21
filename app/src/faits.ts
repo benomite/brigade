@@ -27,6 +27,7 @@ import { entete, type Entete } from "./fiche.ts";
 import { cuissonDe, type CuissonDuProjet } from "./cuisson.ts";
 import { plafondVu, type PlafondLu, type PlafondVu } from "./plafond-de-calibrage.ts";
 import { LABEL_RETENUE } from "./question.ts";
+import { carteDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
 import type { Repondue } from "./repondues.ts";
 
 export const COMMANDE = "facts";
@@ -42,7 +43,9 @@ export type Cook = { ticket: number; titre: string; station: string };
 // runtime d'avant ce champ.
 // `livraison` : pour une livraison qui attend, ce que la pass en a consigné (decision.ts) — absente
 // quand elle n'a rien consigné, et d'un runtime d'avant ce champ.
-export type Attendu = { ticket: number; titre: string; url: string | null; decision?: Decision; livraison?: LivraisonAttendue };
+// `carte` : pour une carte entrée par la porte de TODO, sa question, ses choix et ses captures
+// (carte-todo.ts) — absente pour toute autre entrée, et d'un runtime d'avant ce champ.
+export type Attendu = { ticket: number; titre: string; url: string | null; decision?: Decision; livraison?: LivraisonAttendue; carte?: CarteLue };
 
 // Un ticket servi dans les 24 h avant la lecture, que la box garde après la
 // fermeture de son issue : `livre`, l'heure de son service ; `station`, celle qui
@@ -157,11 +160,13 @@ export type Faits = {
 // le ticket n'est pas d'interface ou n'a rien livré, et la carte n'en dit rien.
 // `question` : sur une carte de TODO, son issue porte une question du manager — avant de découper
 // une épique, ou qui la retient (`blocked-on-human`) —, que la carte dit en deux lignes (question.ts).
+// `todo` : sur une carte de TODO entrée par la porte du runtime, sa question, ses choix et ses captures
+// (carte-todo.ts) — ce que le chef tranche sur la carte même, d'un clic ou d'un texte.
 // `repondue` : sur une carte de WAITING, sa question est répondue, et elle attend que le manager lise
 // la réponse (repondues.ts) — qui y a répondu, et quand.
 // Et ce qu'elle dit, elle, en deux lignes (ligne-carte.ts) : `ligne`, ce qui se passe ; `signal`, ce qui demande
 // l'attention ; `repere`, la file ne dit pas tout — le détail est dans la fiche, avec `dit` et `sans`.
-export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; repondue?: { par: string; a: string } } & Porte;
+export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; repondue?: { par: string; a: string } } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -440,7 +445,8 @@ export function comprendre(sortie: string): Faits | { informe: string } {
               const lu = objet(attendu, lequel);
               const decision = lu.decision === undefined ? undefined : (decisionLue(lu.decision) ?? refuser(`${lequel}.decision`, "a decision"));
               const livraison = lu.livraison === undefined ? undefined : livraisonLue(lu.livraison);
-              return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), url: ouRien(lu.url, `${lequel}.url`, texte), ...(decision === undefined ? {} : { decision }), ...(livraison === undefined ? {} : { livraison }) };
+              const carte = lu.carte === undefined ? undefined : carteLue(lu.carte);
+              return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), url: ouRien(lu.url, `${lequel}.url`, texte), ...(decision === undefined ? {} : { decision }), ...(livraison === undefined ? {} : { livraison }), ...(carte === undefined ? {} : { carte }) };
             }),
           }),
       ...(racine.livres === undefined
@@ -738,6 +744,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       // Dans TODO, un ticket du rail que la cuisine ne tient pas peut attendre un tiers.
       ...(dit !== undefined && connu !== undefined && POSABLES.includes(connu.etat) ? { gestes: ["attente-poser" as const] } : {}),
       ...(dit !== undefined && interroges.has(ticket) ? { question: true as const } : {}),
+      ...(dit !== undefined && donne?.carte !== undefined ? { todo: carteDeTodo(donne.carte) } : {}),
     };
   };
 
@@ -980,11 +987,16 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
       return url != null && ouvrable(url) ? url : undefined;
     },
     // L'adresse d'une capture d'un ticket d'interface, telle que la box l'a donnée à la dernière
-    // lecture — sa livraison servie d'abord, puis le rail. Rien pour une capture qu'elle n'a pas.
+    // lecture — sa livraison servie d'abord, puis le rail, puis sa carte de TODO. Rien pour une capture
+    // qu'elle n'a pas.
     capture(projet: unknown, ticket: unknown, ecran: unknown, moment: unknown): string | undefined {
       const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;
       if (moment !== "avant" && moment !== "apres") return undefined;
-      const captures = donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.captures ?? donnes?.rail.find((candidat) => candidat.ticket === ticket)?.captures;
+      const captures =
+        donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.captures ??
+        donnes?.rail.find((candidat) => candidat.ticket === ticket)?.captures ??
+        donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.carte?.captures ??
+        undefined;
       return captures?.ecrans.find((candidat) => candidat.ecran === ecran)?.[moment as Moment] ?? undefined;
     },
     // La ligne du carnet d'une leçon promue, telle que la box l'a donnée à la dernière lecture : la seule
@@ -993,6 +1005,12 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
       const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;
       const url = donnes?.apprentissage?.lecons.find((candidate) => candidate.statut === "promue" && candidate.id === id)?.url;
       return ligneOuvrable(url) ? url : undefined;
+    },
+    // La carte de TODO d'un ticket, telle que la box l'a donnée à la dernière lecture : la seule à
+    // laquelle le chef répond depuis l'app (carte-todo.ts). Rien pour un ticket qui n'en a pas.
+    carte(projet: unknown, ticket: unknown): CarteLue | undefined {
+      const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;
+      return donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.carte;
     },
     // La PR mergée d'un ticket livré, telle que la box l'a donnée à la dernière lecture.
     pr(projet: unknown, ticket: unknown): string | undefined {

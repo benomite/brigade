@@ -79,6 +79,7 @@ const pont = {
   compter: (projet) => ipcRenderer.invoke("compter", projet),
   closer: (projet, action, oui) => ipcRenderer.invoke("closer", projet, action, oui),
   corriger: (projet, proposition, reponse) => ipcRenderer.invoke("corriger", projet, proposition, reponse),
+  repondreCarte: (projet, ticket, reponse) => ipcRenderer.invoke("repondreCarte", projet, ticket, reponse),
   trancherLeProfil: (projet, proposition, reponse) => ipcRenderer.invoke("trancherLeProfil", projet, proposition, reponse),
   ouvrirBilan: (projet, url) => ipcRenderer.invoke("ouvrirBilan", projet, url),
   ouvrirLecon: (projet, id) => ipcRenderer.invoke("ouvrirLecon", projet, id),

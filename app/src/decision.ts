@@ -75,6 +75,9 @@ export function attenduDe(decision: Decision | undefined): Attendu {
         : { phrase: "The manager's judgement of it cannot be read: edit the issue and it judges it again, or close the issue.", gestes: ["issue"] };
     case "question":
       return { phrase: "The manager asks a question before splitting this epic: answer it on the issue.", gestes: ["issue"] };
+    case "carte":
+      // Une carte entrée par la porte de TODO : sa question et ses choix sont sur la carte même (carte-todo.ts).
+      return { phrase: motif === "design" ? "Validate its screen: answer its question." : "A product choice is yours: answer its question.", gestes: [] };
     case "repris":
       return { phrase: "Back from WAITING, it waits for you: send it back to the kitchen, or take it off the rail.", gestes: ["cuisine", "retirer"] };
     default:
