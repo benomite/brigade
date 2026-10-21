@@ -9,6 +9,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { runInThisContext } from "node:vm";
 import type { Pont } from "../../src/vue/pont.d.ts";
 
 const VUE = join(import.meta.dirname, "../../src/vue");
@@ -279,8 +280,6 @@ export type Jouee = {
   polices: string[];
 };
 
-let jouees = 0;
-
 // Le stockage de la vue (`window.localStorage`) : ce qu'elle y a écrit, par clé. Un test le passe à deux vues
 // jouées l'une après l'autre — l'app fermée puis rouverte.
 export class FauxStockage {
@@ -309,6 +308,31 @@ export class FauxEcran {
     this.matches = etroit;
     for (const ecoute of this.#ecoutes) ecoute();
   }
+}
+
+// Le module de la vue, tel qu'il est — moins ses deux imports de xterm, que le navigateur résout par
+// l'import map de index.html : ici, les faux prennent leur place. Ses modules à elle (`./briques.js`,
+// `./cost/tete.js`), le navigateur les résout à côté d'elle : ici, ils sont chargés par leur adresse sur
+// le disque, une fois par process comme dans la page, et chacun de ses imports devient la lecture
+// du module chargé — une ligne pour une ligne, les lignes d'une erreur restent celles de vue.js.
+// Le reste est joué tel quel, comme le corps d'une fonction asynchrone en mode strict — ce qu'est
+// un module, `await` compris : chaque vue est jouée de zéro, mais sur le même texte, que V8
+// n'analyse et ne compile qu'une fois par process. Importée comme un module, la vue devait avoir
+// une adresse neuve à chaque fois, et ses 400 Ko étaient relus, décodés et recompilés à chaque vue.
+let jouable: { texte: string; modules: string[] } | undefined;
+function laVueJouable(): { texte: string; modules: string[] } {
+  if (jouable !== undefined) return jouable;
+  const source = readFileSync(join(VUE, "vue.js"), "utf8");
+  const imports = /^import \{ FitAddon \} from "@xterm\/addon-fit";\nimport \{ Terminal as Xterm \} from "@xterm\/xterm";$/m;
+  const siens = /^import (\{[^}]*\}) from "\.\/((?:[a-z-]+\/)*[a-z-]+\.js)";$/gm;
+  if (!imports.test(source) || /^import /m.test(source.replace(imports, "").replace(siens, ""))) throw new Error("vue.js n'importe plus ce que la fausse vue remplace : ses deux imports de xterm, et ses propres modules");
+  const modules: string[] = [];
+  const corps = source.replace(imports, "const { FitAddon } = globalThis.fauxXterm;\nconst { Xterm } = globalThis.fauxXterm;").replace(siens, (_, noms: string, module: string) => {
+    modules.push(module);
+    return `const ${noms.replace(/\b([A-Za-z_$][\w$]*) as ([A-Za-z_$][\w$]*)\b/g, "$1: $2")} = globalThis.modulesDeLaVue[${JSON.stringify(module)}];`;
+  });
+  jouable = { texte: `(async function () { "use strict"; ${corps}\n})`, modules };
+  return jouable;
 }
 
 // Charge une vue neuve — son module entier, jusqu'à son premier affichage. Sans stockage, la vue n'en a pas ; sans
@@ -393,16 +417,10 @@ export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "d
     },
   });
 
-  // Le module de la vue, tel qu'il est — moins ses deux imports de xterm, que le navigateur
-  // résout par l'import map de index.html : ici, les faux prennent leur place. Ses modules à elle
-  // (`./briques.js`, `./cost/tete.js`), le navigateur les résout à côté d'elle : ici, par leur adresse
-  // sur le disque, une vue jouée depuis une adresse `data:` n'ayant pas d'« à côté ».
-  const source = readFileSync(join(VUE, "vue.js"), "utf8");
-  const imports = /^import \{ FitAddon \} from "@xterm\/addon-fit";\nimport \{ Terminal as Xterm \} from "@xterm\/xterm";$/m;
-  const siens = /^(import \{[^}]*\} from )"\.\/((?:[a-z-]+\/)*[a-z-]+\.js)";$/gm;
-  if (!imports.test(source) || /^import /m.test(source.replace(imports, "").replace(siens, ""))) throw new Error("vue.js n'importe plus ce que la fausse vue remplace : ses deux imports de xterm, et ses propres modules");
-  const jouable = `${source.replace(imports, "const { FitAddon, Xterm } = globalThis.fauxXterm;").replace(siens, (_, debut: string, module: string) => `${debut}${JSON.stringify(pathToFileURL(join(VUE, module)).href)};`)}\n// vue jouée n° ${++jouees}`;
-  await import(`data:text/javascript;base64,${Buffer.from(jouable).toString("base64")}`);
+  const { texte, modules } = laVueJouable();
+  const charges = await Promise.all(modules.map(async (module) => [module, await import(pathToFileURL(join(VUE, module)).href)] as const));
+  Object.assign(globalThis, { modulesDeLaVue: Object.fromEntries(charges) });
+  await (runInThisContext(texte, { filename: join(VUE, "vue.js") }) as () => Promise<void>)();
   await repos();
 
   return {

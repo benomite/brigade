@@ -11,10 +11,10 @@ import { empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, lireDocument, type Docum
 import { githubDesStations } from "../../src/stations/github.ts";
 import { versionsDansFichier } from "../../src/stations/versions.ts";
 import { ghDuRepertoire } from "../aides/gh-du-repertoire.ts";
+import { repondre } from "./faux-gh-gists.ts";
 import { duree, ligneDe, ligneDeVersion, tenirStations, type VuDesStations } from "../../src/stations/stations.ts";
 import { SANS_POSIX } from "../aides/posix.ts";
 
-const FAUX_GH = join(import.meta.dirname, "faux-gh-gists.ts");
 const SOURCES = join(import.meta.dirname, "../../src/stations");
 const MAINTENANT = Date.parse("2026-10-15T12:00:00Z");
 const CODE = "7KQ2-M9XD";
@@ -39,7 +39,7 @@ const publie = (champs: Partial<DocumentStation> = {}) => ({
 function unGitHub(t: TestContext) {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-app-gists-"));
   writeFileSync(join(repertoire, "appels"), "");
-  const gh = ghDuRepertoire(repertoire, FAUX_GH);
+  const gh = ghDuRepertoire(repertoire, repondre);
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const fichier = (id: string) => join(repertoire, `${id}.gist.json`);
   const gist = (id: string) => JSON.parse(readFileSync(fichier(id), "utf8")) as { files: Record<string, { filename: string; content: string }> };
