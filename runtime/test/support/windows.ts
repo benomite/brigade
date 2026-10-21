@@ -6,6 +6,7 @@
 // Usage : node test/support/windows.ts   (depuis runtime/)
 import { spawnSync } from "node:child_process";
 import { globSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const RACINE_TESTS = join(import.meta.dirname, "..");
@@ -37,7 +38,7 @@ if (import.meta.main) {
   const r = spawnSync(process.execPath, ["--test", "--test-concurrency=5", "--test-force-exit", "--test-timeout=120000", ...joues], {
     cwd: join(RACINE_TESTS, ".."),
     stdio: "inherit",
-    env: { ...process.env, NODE_COMPILE_CACHE: process.env.NODE_COMPILE_CACHE ?? join(process.env.RUNNER_TEMP ?? process.env.TMPDIR ?? "", "brigade-runtime-compile-cache") },
+    env: { ...process.env, NODE_COMPILE_CACHE: process.env.NODE_COMPILE_CACHE ?? join(tmpdir(), "brigade-runtime-compile-cache") },
   });
   process.exit(r.status ?? 1);
 }
