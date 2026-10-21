@@ -1,59 +1,68 @@
 # Profil CPU des gates
 
-Les gates (`.claude/brigade/gates.sh`) se règlent au temps **processeur**, pas à l'horloge : l'horloge dépend de la charge de la box (plusieurs passages en même temps), le processeur presque pas. Cette page dit comment le mesurer, et garde la mesure de départ à laquelle comparer les tickets de réduction.
+Les gates (`.claude/brigade/gates.sh`) se règlent au temps **processeur**, pas à l'horloge : l'horloge dépend de la charge de la box (plusieurs passages en même temps), le processeur presque pas. Cette page dit comment le mesurer, comment comparer deux passages, et garde la mesure de départ.
 
-## Les scripts
+## Reproduire
 
-Dans `scripts/mesure-cpu-gates/`. Aucun ne juge : ils impriment.
+Un seul script, en arrière-plan (une quarantaine de minutes), sur un poste aussi calme que possible :
 
-- `gates.sh [<worktree>]` — joue les gates en entier et imprime sur stdout une ligne `cpu_s=… utilisateur_s=… systeme_s=… horloge_s=… code=…`. Le code est celui des gates (un rouge est mesuré aussi). Les gates s'impriment sur stderr, lignes `MESURE` comprises. Les gates arrêtent la suite au bout de 300 s d'horloge : sur une box chargée, relève `BRIGADE_GATES_DELAI_TESTS` (par exemple `1200`), sinon la mesure est celle d'une suite coupée.
-- `profil-par-fichier.sh [<worktree>] [runtime|app|tout]` — joue chaque fichier `test/**/*.test.ts` seul, l'un après l'autre, avec les options de `npm test` de sa zone. Imprime un TSV trié du plus coûteux au moins coûteux (`cpu_s utilisateur_s systeme_s horloge_s code fichier`) et, sur stderr, le total par zone. Les sorties des tests restent dans `<worktree>/.brigade-state/profil-cpu/`. Compte une trentaine de minutes sur une box chargée.
-- `mesure.py` — l'outil des deux autres : lance une commande et lit `getrusage(RUSAGE_CHILDREN)`, c'est-à-dire le processeur de la commande et de tout ce qu'elle a lancé et attendu.
+```sh
+BRIGADE_GATES_DELAI_TESTS=1200 scripts/mesure-cpu-gates/mesure-cpu-gates.sh .brigade-state/mesure
+```
 
-La mesure se lance **en arrière-plan**, sortie dans `.brigade-state/`, jamais en même temps qu'une autre.
+L'argument est le dossier de sortie, facultatif (défaut : `<worktree>/.brigade-state/mesure-cpu-gates/`). `BRIGADE_GATES_DELAI_TESTS=1200` est déjà la valeur par défaut du script : les gates coupent leur suite à 300 s d'horloge, et sur un poste chargé une mesure coupée ne vaut rien. Le script ne modifie ni `gates.sh` ni aucun test. Il :
+
+1. joue `.claude/brigade/gates.sh` une fois et écrit dans `mesure.txt` le CPU total (utilisateur, système, somme, process fils compris), l'horloge, le code des gates, la charge (`uptime`) et `nproc`, relevés avant et après chaque mesure ;
+2. joue ensuite chaque fichier de test seul, runtime puis app, avec les options de `npm test` de sa zone et le reporter TAP. Il écrit `profil-cpu.tsv` (`cpu_s user_s sys_s horloge_s code fichier`, trié par `cpu_s` décroissant) et `tests.txt` ;
+3. imprime le résumé et les 15 fichiers les plus coûteux.
+
+`tests.txt` a une ligne par test : `fichier<TAB>nom complet` (les suites imbriquées jointes par ` > `), suivi de `<TAB>SKIP` si le test est sauté. Il est trié avec `LC_ALL=C sort`. Les sorties brutes sont dans `sorties/`. Les briques : `mesure.py` (CPU d'une commande via `getrusage(RUSAGE_CHILDREN)`) et `releve-tap.py` (relève les tests d'une sortie TAP).
+
+## Comparer deux passages
+
+Lance le script avant et après le changement, chacun dans son dossier, puis :
+
+```sh
+diff avant/tests.txt apres/tests.txt        # vide : exactement les mêmes tests, sautés compris
+head -15 avant/profil-cpu.tsv apres/profil-cpu.tsv
+cat avant/mesure.txt apres/mesure.txt       # CPU total, charge et nproc
+```
+
+`diff` vide veut dire qu'aucun test n'a disparu ni changé de nom, ni été sauté de plus. Compare le CPU (`cpu_s`), pas l'horloge ; rejoue la mesure de départ sur la même box avant de conclure, le CPU varie de quelques pour cent d'un passage à l'autre. Réduire l'horloge sans réduire le CPU (jouer les deux zones en même temps) ne baisse pas le coût.
 
 ## Mesure de départ
 
-Prise sur la parade-box (8 cœurs), sur `v2` à `c3d5de2`, charge du poste de 19 à 28 pendant la mesure — d'autres cooks tournaient. Le processeur se compare d'une mesure à l'autre ; l'horloge, non.
+Prise sur `v2` à `6e165c3`, sur la parade-box, **nproc 8**. D'autres cooks tournaient pendant la mesure : la charge est celle relevée par le script.
 
 | Mesure | Valeur |
 |---|---|
-| Gates complètes (`gates.sh`), vert | **999 s** de processeur (820 utilisateur + 178 système), 337 s d'horloge, 5095 tests |
-| Somme des fichiers de tests joués seuls | 810 s de processeur : runtime 589 s (174 fichiers), app 221 s (140 fichiers) |
+| **Gates complètes, vert** | **1022.1 s de CPU** (837.9 utilisateur + 184.3 système), 429.8 s d'horloge |
+| Charge avant les gates (1, 5, 15 min) | 20.00, 17.96, 20.85, nproc 8 |
+| Charge après les gates (1, 5, 15 min) | 21.34, 18.23, 19.66, nproc 8 |
+| Charge avant le profil par fichier | 21.34, 18.23, 19.66, nproc 8 |
+| Charge après le profil par fichier | 22.99, 14.08, 16.43, nproc 8 |
+| Somme des fichiers joués seuls, runtime | 727.8 s de CPU (247 fichiers) |
+| Somme des fichiers joués seuls, app | 175.1 s de CPU (140 fichiers) |
+| Tests relevés | 5097 dont 12 sautés |
 
-Les ~190 s restants entre les deux sont ce que le profil par fichier ne compte pas : les deux contrôles de types (`tsc`), `npm`, et les gates elles-mêmes. Une suite jouée par morceaux paie aussi son démarrage Node par fichier.
+Les fichiers joués seuls paient chacun leur démarrage de Node et ne comptent ni les contrôles de types ni les gates elles-mêmes : leur somme n'est pas celle des gates.
 
-**Où va le processeur.** Dix fichiers font 315 s (39 % de la somme), vingt font 428 s (53 %), trente font 482 s (60 %) ; 65 fichiers sur 314 dépassent 2 s. Le reste est une longue traîne. Un fichier rouge au profil : `runtime/test/desinstallateur.test.ts` (code 1, 11 s) — il a échoué joué seul, pendant ce profil (cause non cherchée), et la suite des gates, elle, est restée verte.
-
-Les vingt premiers fichiers (`cpu_s` = utilisateur + système) :
+### Les 15 fichiers les plus coûteux
 
 | cpu_s | horloge_s | fichier |
 |---:|---:|---|
-| 48.6 | 60.6 | `runtime/test/pass.test.ts` |
-| 45.2 | 17.8 | `runtime/test/station.test.ts` |
-| 35.2 | 17.8 | `runtime/test/main.test.ts` |
-| 29.2 | 32.4 | `app/test/runner.test.ts` |
-| 29.0 | 60.1 | `runtime/test/mise-a-jour/machine.test.ts` |
-| 27.9 | 14.6 | `runtime/test/geste.test.ts` |
-| 26.7 | 29.0 | `runtime/test/reaction.test.ts` |
-| 25.7 | 43.2 | `runtime/test/installation.test.ts` |
-| 24.8 | 20.9 | `runtime/test/exploitation-en-anglais.test.ts` |
-| 22.4 | 7.2 | `app/test/projets/projets.test.ts` |
-| 21.2 | 36.8 | `runtime/test/fusion.test.ts` |
-| 13.8 | 9.2 | `runtime/test/station/main.test.ts` |
-| 11.3 | 4.5 | `app/test/stations/stations.test.ts` |
-| 11.2 | 16.5 | `runtime/test/servir.test.ts` |
-| 11.0 | 11.2 | `runtime/test/desinstallateur.test.ts` |
-| 9.6 | 14.8 | `runtime/test/paquet/paquet.test.ts` |
-| 9.4 | 5.8 | `runtime/test/secrets-en-cuisine.test.ts` |
-| 9.1 | 8.0 | `runtime/test/reprise-de-session.test.ts` |
-| 8.7 | 16.6 | `runtime/test/manager.test.ts` |
-| 8.3 | 6.7 | `runtime/test/station-decisions.test.ts` |
-
-Le profil complet (314 lignes) se rejoue avec `profil-par-fichier.sh`.
-
-## Lire une comparaison
-
-- Compare `cpu_s` des gates, pas `horloge_s` ni `gates_s`.
-- Rejoue la mesure de départ sur la même box avant de conclure : le processeur varie de quelques pour cent d'un passage à l'autre.
-- Réduire l'horloge sans réduire le processeur (jouer les deux zones en même temps, par exemple) ne baisse pas le coût : sur une box où tourne plusieurs passages, il le rend seulement plus brusque.
+| 71.9 | 10.8 | `runtime/test/commandes.test.ts` |
+| 46.0 | 19.1 | `runtime/test/station.test.ts` |
+| 41.8 | 21.6 | `runtime/test/pass.test.ts` |
+| 34.2 | 15.8 | `runtime/test/main.test.ts` |
+| 27.6 | 9.2 | `runtime/test/geste.test.ts` |
+| 27.2 | 52.4 | `runtime/test/mise-a-jour/machine.test.ts` |
+| 26.0 | 11.7 | `app/test/runner.test.ts` |
+| 24.3 | 31.6 | `runtime/test/installation.test.ts` |
+| 22.4 | 17.2 | `runtime/test/exploitation-en-anglais.test.ts` |
+| 20.5 | 4.0 | `app/test/projets/projets.test.ts` |
+| 20.4 | 20.2 | `runtime/test/fusion.test.ts` |
+| 20.1 | 8.5 | `runtime/test/reaction.test.ts` |
+| 16.1 | 7.9 | `runtime/test/desinstallateur.test.ts` |
+| 13.9 | 9.3 | `runtime/test/station/main.test.ts` |
+| 11.4 | 5.9 | `app/test/stations/stations.test.ts` |
