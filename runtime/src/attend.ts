@@ -33,8 +33,8 @@
 // Un ticket en WAITING n'y est pas : il attend un tiers, pas le chef. Repris
 // par le chef, il y revient — avec l'entrée qu'il avait avant d'attendre, ou,
 // s'il n'en avait pas, une à lui : ce qu'il attendait, et les gestes.
-// Une carte typée qui a passé la porte de TODO (carte-todo.ts) y est, avec son
-// type et son énoncé, tant qu'elle n'en est pas sortie.
+// Une carte typée qui a passé la porte de TODO (carte-todo.ts) y est, avec sa
+// sorte, sa question et ses choix, tant qu'elle n'en est pas sortie.
 // La pause du renommage du code (pause/pause.ts) y entre par sa carte : la
 // durée attendue, les tickets en vol qu'elle retiendra, le « oui » ou le
 // « non ». Acceptée, elle n'attend plus le chef : le bloc la dit en une ligne
@@ -125,8 +125,8 @@ type AttenteDeTicket = { ticket: number; title: string | null; since: string } &
   // d'attendre. `attendait` : ce qu'il attendait, et de qui — nul si le journal
   // ne le dit plus.
   | { quoi: "repris"; attendait: { what: string; who: string } | null }
-  // Une carte typée entrée par la porte de TODO : son type, son énoncé, sa
-  // capture (carte-todo.ts).
+  // Une carte typée entrée par la porte de TODO : sa sorte, sa question, ses
+  // choix, ses captures (carte-todo.ts).
   | { quoi: "carte"; carte: CarteDeTodo }
 );
 
@@ -279,7 +279,7 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
   // Le motif du 86 porte ce qui manquait quand la station l'a écarté : c'est
   // elle qui le relit, à chaque service, et rend le ticket dès que ça suffit.
   // Le manager le reprend avant le chef (sans-capacite.ts) : il le réécrit, ou
-  // pose une carte `gesture`. Le chef ne le voit tel quel que si le manager est
+  // propose une carte `gesture` au triage. Le chef ne le voit tel quel que si le manager est
   // éteint — personne d'autre ne le reprendrait.
   const manager = managerAllume(base);
   const sansStation = rail.flatMap((ticket): AttenteDeTicket[] => {
@@ -576,8 +576,8 @@ export function direAttenteEn(attente: Attente): string {
 // (`no-grant`, `still-red`, `refused`, `question`…) ; `cause`, ce qui le précise sans changer le
 // geste ; `pr`, la PR de la livraison, nulle sans elle. Ce que la ligne du bloc dit en mots, ceci
 // le dit en champs : le lecteur choisit ses mots, et les gestes qu'il pose. Une
-// carte typée : `carte`, son type pour motif (`product`, `design`, `gesture`),
-// son énoncé pour ce qui le précise.
+// carte typée : `carte`, sa sorte pour motif (`product`, `design`), sa
+// question pour ce qui la précise.
 export type Decision = { quoi: AttenteDeTicket["quoi"]; motif: string | null; cause: string | null; pr: string | null };
 
 export function decisionDe(attente: AttenteDeTicket): Decision {
@@ -593,7 +593,7 @@ export function decisionDe(attente: AttenteDeTicket): Decision {
     case "illisible":
       return { quoi, motif: attente.epique ? "epic" : "issue", cause: null, pr: null };
     case "carte":
-      return { quoi, motif: attente.carte.type, cause: attente.carte.enonce, pr: null };
+      return { quoi, motif: attente.carte.type, cause: attente.carte.question, pr: null };
     default:
       return { quoi, motif: null, cause: null, pr: null };
   }

@@ -7,9 +7,14 @@
 // diagnostic, redécouper, corriger une dépendance livrée, attendre une CI
 // lente, retirer le ticket du rail — et écrit sur l'issue, en un seul
 // commentaire, la phrase qui dit ce qui a été fait. La carte n'entre pas dans
-// TODO. L'agent ne tranche pas — il répond `todo`, sa réponse ne se lit pas,
-// il n'a pas pu partir, ou son action ne peut pas se faire — : la carte entre
-// dans TODO telle qu'elle a été posée, comme avant le triage.
+// TODO. L'agent ne tranche pas — il répond `todo` — : la carte qu'il écrit,
+// une question et ses choix, va à la porte de TODO (carte-todo.ts). Sa
+// réponse ne se lit pas, il n'a pas pu partir, son action ne peut pas se
+// faire : c'est la carte telle qu'elle a été posée qui y va. La porte refuse
+// ce qui n'est pas un choix de produit ou une validation de design avec sa
+// question et ses choix : la carte reste retenue, renvoyée au triage, qui la
+// reprend au tour suivant avec la raison du refus — au plus `RENVOIS_MAX`
+// fois après une réponse de l'agent.
 //
 // Le triage ne merge jamais : aucune de ses actions ne touche au merge, qui
 // reste au grant, sur une pass verte. Un merge que l'agent demanderait n'est
@@ -18,7 +23,7 @@
 // Rien n'est gardé en mémoire : la carte retenue, la décision et son action se
 // relisent du journal.
 import { DE_CONFIANCE } from "../alimenter.ts";
-import { cartesEnTodo, cartesRetenues, laisserEntrer, sortirDeTodo, type CarteRetenue } from "../carte-todo.ts";
+import { capturesDuTicket, cartesEnTodo, cartesRetenues, jugerCarte, laisserEntrer, sortirDeTodo, type CarteRetenue, type Proposition } from "../carte-todo.ts";
 import type { Reponse } from "../decoupage.ts";
 import type { Check } from "../events/pass.ts";
 import { REDECOUPE as REDECOUPE_EN_PASS } from "../events/pass.ts";
@@ -39,6 +44,10 @@ const AUTEUR = "manager";
 export const RELANCE_DU_TRIAGE = "triage:relaunched";
 // Combien de temps une carte attend la CI lente avant d'être retriée.
 export const ATTENTE_CI_MS = 15 * 60_000;
+// Combien de fois l'agent peut envoyer en TODO une carte que la porte lui
+// renvoie : au-delà, il ne la reprend plus, et elle reste retenue — le ticket
+// se montre au chef tel qu'il est, sans carte.
+export const RENVOIS_MAX = 3;
 
 export type AtelierDuTriage = {
   journal: Journal;
@@ -72,16 +81,25 @@ export function ouvrirTriage(atelier: AtelierDuTriage) {
   // tranchée, ni partie avec son ticket.
   const tenue = (carte: CarteRetenue) => cartesRetenues(base).some((autre) => autre.seq === carte.seq);
 
-  const noter = (carte: CarteRetenue, action: Action | "through", reason: string, run: string | null, sentence: string | null = null, until: string | null = null) =>
+  const noter = (carte: CarteRetenue, action: Action | "through" | "back", reason: string, run: string | null, sentence: string | null = null, until: string | null = null) =>
     journal.ajouter({ project: projet, ticket: carte.ticket, author: AUTEUR, type: "todo.triaged", payload: { action, sentence, reason, run, ...(until === null ? {} : { until }) } });
 
-  // L'agent n'a pas tranché : la carte entre dans TODO.
-  const laisserPasser = (carte: CarteRetenue, reason: string, run: string | null) =>
+  // L'agent n'a pas tranché : la carte va à la porte de TODO — celle qu'il a
+  // écrite, ou celle qui a été posée. Admise, elle entre ; refusée, elle
+  // reste retenue, renvoyée au triage — et, si l'agent avait répondu, ce
+  // renvoi compte. Rend vrai si elle est entrée.
+  const laisserPasser = (carte: CarteRetenue, reason: string, run: string | null, proposition: Proposition | null = null): boolean =>
     base.transaction(() => {
-      if (!tenue(carte)) return;
-      noter(carte, "through", reason, run);
-      laisserEntrer(journal, projet, carte);
+      if (!tenue(carte)) return false;
+      const jugement = jugerCarte(proposition ?? carte, capturesDuTicket(base, carte.ticket));
+      if (jugement.admise) noter(carte, "through", reason, run);
+      else if (run !== null) noter(carte, "back", `${reason} — refused at the TODO gate: ${jugement.raison}`, run);
+      return laisserEntrer(journal, projet, carte, proposition ?? carte).admise;
     });
+
+  // Ce que l'avertissement dit de la carte, selon la porte.
+  const devenue = (entree: boolean, carte: CarteRetenue) =>
+    entree ? "la carte entre dans TODO" : `la porte de TODO la refuse, elle reste au triage${carte.renvois + 1 >= RENVOIS_MAX ? " — le triage ne la reprendra plus" : ""}`;
 
   // Tout ce que l'agent doit lire du ticket de la carte.
   const rassembler = async (carte: CarteRetenue): Promise<Dossier> => {
@@ -227,13 +245,21 @@ export function ouvrirTriage(atelier: AtelierDuTriage) {
     if (arrete() || !tenue(carte)) return;
     const reponse = await atelier.demander({ numero: carte.ticket, prefixe: "trie", nom: "triage" }, consigneDeTriage(dossier), lireTriage);
     if (arrete() || !tenue(carte)) return;
-    if (reponse === null) return laisserPasser(carte, "the triage agent did not answer", null);
+    if (reponse === null) {
+      laisserPasser(carte, "the triage agent did not answer", null);
+      return;
+    }
     if ("illisible" in reponse) {
-      avertir(`brigade : triage illisible sur le ticket #${carte.ticket} (${reponse.illisible}) — la carte entre dans TODO`);
-      return laisserPasser(carte, `unreadable answer: ${reponse.illisible}`, reponse.run);
+      const entree = laisserPasser(carte, `unreadable answer: ${reponse.illisible}`, reponse.run);
+      avertir(`brigade : triage illisible sur le ticket #${carte.ticket} (${reponse.illisible}) — ${devenue(entree, carte)}`);
+      return;
     }
     const { run, valeur } = reponse;
-    if (valeur.action === "through") return laisserPasser(carte, valeur.motif ?? "the triage agent sends the card to the chef", run);
+    if (valeur.action === "through") {
+      const entree = laisserPasser(carte, valeur.motif ?? "the triage agent sends the card to the chef", run, valeur.carte);
+      if (!entree) avertir(`brigade : le triage envoie en TODO la carte du ticket #${carte.ticket} — ${devenue(entree, carte)}`);
+      return;
+    }
     let execution: Execution;
     try {
       execution = await executer(carte, valeur, dossier);
@@ -242,8 +268,9 @@ export function ouvrirTriage(atelier: AtelierDuTriage) {
     }
     if (arrete()) return;
     if (!execution.faite) {
-      avertir(`brigade : le triage voulait ${valeur.action} sur le ticket #${carte.ticket}, impossible (${execution.pourquoi}) — la carte entre dans TODO`);
-      return laisserPasser(carte, `${valeur.action} chosen, but impossible: ${execution.pourquoi}`, run);
+      const entree = laisserPasser(carte, `${valeur.action} chosen, but impossible: ${execution.pourquoi}`, run);
+      avertir(`brigade : le triage voulait ${valeur.action} sur le ticket #${carte.ticket}, impossible (${execution.pourquoi}) — ${devenue(entree, carte)}`);
+      return;
     }
     base.transaction(() => {
       noter(carte, valeur.action, valeur.motif ?? valeur.phrase, run, valeur.phrase, execution.until ?? null);
@@ -259,12 +286,16 @@ export function ouvrirTriage(atelier: AtelierDuTriage) {
 
   return {
     // Trie chaque carte retenue, une à la fois. Sans de quoi lancer l'agent —
-    // « stop », disjoncteur, compte retenu —, la carte entre dans TODO : le
-    // triage ne cache rien au chef faute de pouvoir décider.
+    // « stop », disjoncteur, compte retenu —, la carte va à la porte de TODO
+    // telle qu'elle a été posée : le triage ne cache rien au chef faute de
+    // pouvoir décider, mais la porte ne laisse passer qu'une question et ses
+    // choix. Une carte que la porte a renvoyée `RENVOIS_MAX` fois n'est plus
+    // reprise.
     async traiter(): Promise<void> {
       for (const carte of cartesRetenues(base)) {
         if (arrete()) return;
         if (carte.until !== null && Date.parse(carte.until) > atelier.maintenant().getTime()) continue;
+        if (carte.renvois >= RENVOIS_MAX) continue;
         if (!atelier.peutJuger()) {
           laisserPasser(carte, "the triage agent cannot run: kitchen stopped, breaker open, or account held", null);
           continue;
@@ -274,7 +305,8 @@ export function ouvrirTriage(atelier: AtelierDuTriage) {
     },
 
     // Le triage ne retient plus : le manager est éteint. Chaque carte retenue
-    // entre dans TODO.
+    // va à la porte de TODO ; celle qu'elle refuse reste retenue, jusqu'au
+    // prochain triage.
     relacher(pourquoi: string): void {
       for (const carte of cartesRetenues(base)) laisserPasser(carte, pourquoi, null);
     },

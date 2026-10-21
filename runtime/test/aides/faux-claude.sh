@@ -399,11 +399,12 @@ FIN
 {"nature":"incomplete","motif":"Rien ne dit comment vérifier que c'est fait.","manque":"Un critère d'acceptation."}
 FIN
       ;;
-    # L'agent de triage : il laisse la carte entrer dans TODO, ou tranche.
+    # L'agent de triage : il envoie la carte en TODO, une question et ses
+    # choix, ou tranche.
     triage-laisse)
       assistant
       resultat <<'FIN'
-{"action":"todo","motif":"Un choix de produit, que seul le chef tranche."}
+{"action":"todo","carte":{"type":"produit","question":"Export CSV ou export JSON ?","choix":[{"texte":"L'export CSV.","suite":"reprendre"},{"texte":"L'export JSON.","suite":"reprendre"}]},"motif":"Un choix de produit, que seul le chef tranche."}
 FIN
       ;;
     triage-relance)
@@ -448,7 +449,7 @@ FIN
       assistant
       while [ ! -e "$FAUX_CLAUDE_FEU" ]; do sleep 0.02; done
       resultat <<'FIN'
-{"action":"todo","motif":"Un choix de produit."}
+{"action":"todo","carte":{"type":"produit","question":"Export CSV ou export JSON ?","choix":["L'export CSV.","L'export JSON."]},"motif":"Un choix de produit."}
 FIN
       ;;
     requalifie-carte)

@@ -5,12 +5,13 @@
 // joint pas GitHub lui-même, ses jugements partent sans compte.
 //
 // Sa réponse est un objet JSON : l'une de ses cinq actions, ou `todo` — la
-// carte entre dans TODO. Rien d'autre ne se lit : un merge qu'il demanderait
-// n'est pas une action, et la carte entre dans TODO comme s'il n'avait pas
-// décidé.
+// carte va à la porte de TODO, telle qu'il l'écrit : sa sorte, sa question,
+// ses choix (carte-todo.ts). Rien d'autre ne se lit : un merge qu'il
+// demanderait n'est pas une action, et la carte va à la porte comme s'il
+// n'avait pas décidé.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { CarteRetenue } from "../carte-todo.ts";
+import type { CarteRetenue, ChoixPropose, Proposition } from "../carte-todo.ts";
 import type { Check } from "../events/pass.ts";
 import { couper, objet, parmi, phrase, COMMENTAIRES_MAX, CORPS_MAX } from "../juger.ts";
 
@@ -26,8 +27,10 @@ export const ACTIONS = { relancer: "relaunch", redecouper: "resplit", dependance
 export type Action = (typeof ACTIONS)[keyof typeof ACTIONS];
 const MOTS = [...Object.keys(ACTIONS), "todo"];
 
+// `carte` : la carte que l'agent envoie en TODO, nulle quand il la laisse
+// telle qu'elle a été posée.
 export type DecisionDuTriage =
-  | { action: "through"; motif: string | null }
+  | { action: "through"; motif: string | null; carte: Proposition | null }
   | { action: Exclude<Action, "relaunch" | "dependency">; phrase: string; motif: string | null }
   | { action: "relaunch"; phrase: string; diagnostic: string; motif: string | null }
   | { action: "dependency"; phrase: string; dependance: number; motif: string | null };
@@ -69,7 +72,11 @@ export function consigneDeTriage(dossier: Dossier): string {
     "",
     `### La carte qui allait entrer en TODO`,
     "",
-    `Ticket #${carte.ticket}, posée par \`${carte.auteur}\` — ${carte.type} : ${carte.enonce}${carte.capture === null ? "" : ` (capture : ${carte.capture})`}`,
+    `Ticket #${carte.ticket}, posée par \`${carte.auteur}\` — ${carte.type ?? "sans sorte"} : ${carte.enonce ?? "sans énoncé"}${carte.capture === null ? "" : ` (capture : ${carte.capture})`}`,
+    ...(carte.choix === null ? [] : carte.choix.map(({ texte, suite }, rang) => `${rang + 1}. ${texte ?? "(vide)"}${suite ? ` — ${suite}` : ""}`)),
+    ...(carte.refus === null
+      ? []
+      : ["", `La porte de TODO l'a refusée${carte.renvois > 0 ? ` (${carte.renvois} fois après ta réponse)` : ""} : ${carte.refus}. Si tu l'envoies en TODO, écris une carte qui passe.`]),
     "",
     "### L'issue",
     "",
@@ -104,7 +111,7 @@ export function consigneDeTriage(dossier: Dossier): string {
     "Un seul objet JSON, et rien après lui :",
     "",
     "```json",
-    '{"action": "relancer", "phrase": "Sent #12 back to the cook: …", "diagnostic": "le test X échoue à foo.ts:12, parce que …", "dependance": null, "motif": "pourquoi"}',
+    '{"action": "relancer", "phrase": "Sent #12 back to the cook: …", "diagnostic": "le test X échoue à foo.ts:12, parce que …", "dependance": null, "carte": null, "motif": "pourquoi"}',
     "```",
     "",
     "`action` :",
@@ -114,15 +121,53 @@ export function consigneDeTriage(dossier: Dossier): string {
     "- `dependance` — corriger une dépendance livrée : `dependance` est le numéro à retirer de la ligne `attend` de sa fiche ;",
     "- `attendre` — attendre une CI lente, qui tourne encore ;",
     "- `retirer` — retirer le ticket du rail ;",
-    "- `todo` — tu ne tranches pas : la carte entre dans TODO, telle qu'elle a été posée.",
+    "- `todo` — tu ne tranches pas : la carte va devant le chef, telle que tu l'écris dans `carte`.",
     "",
-    "Aucune autre valeur n'est lue, et une réponse illisible fait entrer la carte dans TODO. `phrase` est la phrase que la cuisine écrit sur l'issue, telle quelle : exactement une phrase, en anglais, sur une ligne — elle est exigée pour toute action sauf `todo`. `motif` est écrit au journal : en français, une ou deux phrases.",
+    "Aucune autre valeur n'est lue, et une réponse illisible laisse la carte telle qu'elle a été posée. `phrase` est la phrase que la cuisine écrit sur l'issue, telle quelle : exactement une phrase, en anglais, sur une ligne — elle est exigée pour toute action sauf `todo`. `motif` est écrit au journal : en français, une ou deux phrases.",
+    "",
+    "### La carte, pour `todo`",
+    "",
+    "```json",
+    '{"action": "todo", "carte": {"type": "produit", "question": "Une liste par projet, ou une seule pour tous ?", "choix": [{"texte": "Une liste par projet : chaque projet garde la sienne.", "suite": "reprendre"}, {"texte": "Une seule liste, pour tous les projets ensemble.", "suite": "reprendre"}]}, "motif": "pourquoi"}',
+    "```",
+    "",
+    "La porte de TODO n'admet que cette carte, et la refuse sinon — elle te revient alors, avec la raison :",
+    "",
+    "- `type` : `produit` (un choix qui change le produit) ou `design` (un écran à valider) — aucune autre sorte, pas de `gesture` ;",
+    "- `question` : une seule, sur une ligne, qui finit par son seul « ? » ;",
+    "- `choix` : au moins un, chacun sur une ligne, tous différents. `suite` : `reprendre` — la cuisine reprend le ticket avec la réponse du chef —, ou `merger` — la livraison verte qui attend est mergée, pour valider un écran ou garder une voie déjà livrée. Le chef peut toujours répondre en texte libre : ne l'offre pas en choix ;",
+    "- une carte `design` montre les captures avant et après que le cook a livrées pour le ticket : la cuisine les joint, tu ne les écris pas. Un ticket qui n'en a pas livré ne fait pas de carte `design`.",
+    "",
+    "Sans `carte`, c'est la carte telle qu'elle a été posée qui va à la porte.",
   ].join("\n");
 }
 
 // Une phrase, et une seule : sur une ligne, sans fin de phrase suivie d'une
 // autre. « foo.ts:12 », « #1160, » ne la coupent pas.
 export const unePhrase = (texte: string) => !/[\r\n]/.test(texte) && texte.split(/[.!?…]+\s+(?=\S)/).length === 1;
+
+// Les mots de l'agent, en français, et ceux de la porte. Un autre mot passe
+// tel quel : la porte dit pourquoi elle le refuse.
+const SORTES: Record<string, string> = { produit: "product", product: "product", design: "design" };
+const SUITES: Record<string, string> = { reprendre: "resume", resume: "resume", merger: "merge", merge: "merge" };
+const texteOuRien = (valeur: unknown): string | null => (typeof valeur === "string" ? valeur : null);
+
+// La carte que l'agent écrit, telle quelle : rien n'y est encore jugé — c'est
+// la porte qui le fait. Null : ce n'est pas un objet.
+function lireCarteDuTriage(brute: unknown): Proposition | null {
+  if (typeof brute !== "object" || brute === null || Array.isArray(brute)) return null;
+  const { type, question, choix } = brute as Record<string, unknown>;
+  const sorte = texteOuRien(type);
+  const lus: ChoixPropose[] | null = Array.isArray(choix)
+    ? choix.map((un: unknown) => {
+        if (typeof un === "string") return { texte: un, suite: null };
+        const { texte, suite } = (typeof un === "object" && un !== null ? un : {}) as Record<string, unknown>;
+        const dite = texteOuRien(suite);
+        return { texte: texteOuRien(texte), suite: dite === null ? null : (SUITES[dite.trim().toLowerCase()] ?? dite) };
+      })
+    : null;
+  return { type: sorte === null ? null : (SORTES[sorte.trim().toLowerCase()] ?? sorte), enonce: texteOuRien(question), choix: lus };
+}
 
 export function lireTriage(message: string | null): { valeur: DecisionDuTriage } | { illisible: string } {
   if (message === null || message.trim() === "") return { illisible: "aucune réponse" };
@@ -131,7 +176,12 @@ export function lireTriage(message: string | null): { valeur: DecisionDuTriage }
   const mot = parmi(lu.action, MOTS);
   if (!mot) return { illisible: `action inconnue : ${JSON.stringify(lu.action)} — attendu ${MOTS.join(", ")}` };
   const motif = phrase(lu.motif);
-  if (mot === "todo") return { valeur: { action: "through", motif } };
+  if (mot === "todo") {
+    if (lu.carte === undefined || lu.carte === null) return { valeur: { action: "through", motif, carte: null } };
+    const carte = lireCarteDuTriage(lu.carte);
+    if (carte === null) return { illisible: `carte illisible : ${JSON.stringify(lu.carte)} — attendu un objet avec type, question et choix` };
+    return { valeur: { action: "through", motif, carte } };
+  }
   const dite = phrase(lu.phrase);
   if (dite === null) return { illisible: `action ${mot} sans la phrase à écrire sur l'issue` };
   if (!unePhrase(dite)) return { illisible: `la phrase à écrire sur l'issue n'est pas une seule phrase sur une ligne : ${JSON.stringify(dite)}` };

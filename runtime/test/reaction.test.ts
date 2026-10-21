@@ -151,7 +151,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.equal(c.cooks().length, 3);
   });
 
-  test("remonté pour un choix de produit ou un geste : une carte du type juste entre dans TODO, avec son énoncé", async (t) => {
+  test("remonté pour un choix de produit ou un geste : la carte proposée passe par le triage, et c'est sa question et ses choix qui entrent dans TODO", async (t) => {
     for (const [jugement, type, enonce] of [
       ["reagit-remonte-produit", "product", "Choisir entre la voie A et la voie B."],
       ["reagit-remonte-geste", "gesture", "Poser le jeton du compte client."],
@@ -159,10 +159,11 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
       const c = echec(t, { issues: [issue(17)], manager: { jugement } });
       await c.jusquAu("pass.escalated", 17);
       await jusqua(() => c.dits(17).some((dit) => /remontée au chef/.test(dit)));
-      // La carte passe d'abord par le triage, qui la laisse entrer.
+      // La carte passe d'abord par le triage, qui l'écrit en question et la laisse entrer.
       await jusqua(() => c.faits("todo.triaged", 17).length === 1);
 
-      assert.deepEqual(cartesEnTodo(c.journal.base).map((carte) => [carte.ticket, carte.type, carte.enonce]), [[17, type, enonce]]);
+      assert.deepEqual(c.faits("todo.held", 17)[0]?.payload, { kind: type, statement: enonce, capture: null, choices: null });
+      assert.deepEqual(cartesEnTodo(c.journal.base).map((carte) => [carte.ticket, carte.type, carte.question, carte.choix.length]), [[17, "product", "Export CSV ou export JSON ?", 2]]);
       assert.deepEqual(reactionDe(c.journal.base, 17)?.card, { kind: type, statement: enonce });
       // La carte parle au chef : la remontée nue ne s'y ajoute pas.
       assert.deepEqual(attentesDuChef(c.journal.base, c.runtime.rail.tickets()).map((attente) => attente.quoi), ["carte"]);

@@ -14,7 +14,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { configPass, consigneDeRenvoi, plafondADire } from "../src/pass.ts";
 import { bilanSansGrant, etatDuGrant, passDuTicket, usagesDuGrant } from "../src/projections/pass.ts";
 import { CONSIGNE_MAX } from "../src/reviewer.ts";
-import { cartesEnTodo } from "../src/carte-todo.ts";
+import { cartesEnTodo, cartesRetenues } from "../src/carte-todo.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { sortDuTicket } from "../src/projections/rail.ts";
@@ -917,9 +917,9 @@ describe("la pass", { concurrency: 8 }, () => {
     ["juge-affaibli", "weakened", "weakened", /^Weakened, says the second judge: `\.claude\/brigade\/gates\.sh` ne fait plus échouer les tests du runtime/],
     ["juge-incertain", "cannot-establish", "cannot establish", /^Cannot establish that the check is not weakened, says the second judge: Le workflow appelle un script/],
   ] as const) {
-    test(`le second juge qui répond « ${dit} », sous grant : rien n'est mergé, et une carte \`gesture\` dit au chef en trois lignes ce qui est affaibli, et où`, async (t) => {
+    test(`le second juge qui répond « ${dit} », sous grant : rien n'est mergé, et une carte \`gesture\` proposée au triage dit en trois lignes ce qui est affaibli, et où`, async (t) => {
       const { gh, journal, pass, dernier, compter, jusquAu, laisserTourner } = service(t, toucheSesGates(["relit-vert", scenario]));
-      await jusquAu("todo.entered");
+      await jusquAu("todo.held");
       await laisserTourner();
 
       assert.equal(dernier("pass.second-judged", 17)?.verdict, verdict);
@@ -934,15 +934,15 @@ describe("la pass", { concurrency: 8 }, () => {
       assert.match(lignes[0] ?? "", quoi);
       assert.equal(lignes[1], `Where: \`.claude/brigade/gates.sh\` (+5 / -2) — ${PR}`);
       assert.equal(lignes[2], `To decide: review ${PR}; merge it by hand to accept what it changes in its judges, or close it.`);
-      // La carte : posée par la pass, de type `gesture` — les mêmes trois lignes, bout à bout, la porte de TODO n'en prenant qu'une.
-      const cartes = cartesEnTodo(journal.base);
+      // La carte : proposée par la pass, de type `gesture` — les mêmes trois lignes, bout à bout. Ni choix de
+      // produit ni validation de design, elle n'entre pas dans TODO : elle est renvoyée au triage.
+      assert.deepEqual(cartesEnTodo(journal.base), []);
       assert.deepEqual(
-        cartes.map(({ ticket, type, enonce, capture }) => [ticket, type, enonce, capture]),
-        [[17, "gesture", lignes.join(" — "), null]],
+        cartesRetenues(journal.base).map(({ ticket, type, enonce, auteur }) => [ticket, type, enonce, auteur]),
+        [[17, "gesture", lignes.join(" — "), "pass"]],
       );
-      assert.equal(journal.tout().find((e) => e.type === "todo.entered")?.author, "pass");
-      // Une seule carte, même quand la pass repasse.
-      assert.equal(compter("todo.entered"), 1);
+      // Une seule proposition, même quand la pass repasse.
+      assert.equal(compter("todo.held"), 1);
     });
   }
 

@@ -1,63 +1,126 @@
-// La porte de TODO : ce qui entre dans la file du chef en carte typée. Une
-// carte dit son type — `product` (un choix entre plusieurs voies, qui change
-// ce que l'utilisateur obtient), `design` (un écran ou un rendu à valider,
-// montré avec sa capture) ou `gesture` (un accès ou une action que seul le
-// chef peut faire : un `sudo`, un compte client, un secret) — et, en une
-// ligne, ce qu'on attend de lui. Une carte qui n'est d'aucun de ces trois
-// types n'entre pas, une carte `design` sans sa capture non plus : le refus
-// s'écrit au journal avec sa raison (`todo.refused`), et la carte n'est pas
-// dans TODO.
+// La porte de TODO : ce qui entre dans la file du chef en carte typée. Deux
+// sortes de cartes y entrent, pas une de plus : `product` (un choix qui change
+// ce que l'utilisateur obtient) et `design` (un écran à valider). Chacune pose
+// une seule question, précise, et ses choix — au moins un, chacun sur une
+// ligne, que le chef clique ; il peut aussi répondre en texte libre
+// (reponse-carte.ts). Une carte `design` montre ses captures, avant et après,
+// celles que le cook a livrées pour le ticket (captures.ts, `cook.reported`) :
+// sans elles, elle n'entre pas. Une carte `product` les montre aussi quand le
+// ticket en a livré, et n'en montre aucune sinon.
+//
+// Une carte d'une autre sorte — un `gesture`, que le manager ou la pass
+// proposent encore —, ou sans sa question et ses choix, n'entre pas : le refus
+// s'écrit au journal avec sa raison (`todo.refused`), et la carte est renvoyée
+// à l'agent de triage (triage/triage.ts), retenue (`todo.held`) jusqu'à ce
+// qu'il la tranche ou la réécrive en carte qui passe.
 //
 // `jugerCarte` est la porte elle-même, sans E/S ; `entrerDansTodo`, le seul
-// chemin par lequel une carte entre — celui que prend tout ce qui veut poser
-// une carte devant le chef (le manager, la pass, une station). Une carte
-// admise est relue du journal par la file du chef (attend.ts) : elle y est
-// jusqu'à ce qu'elle en sorte (`sortirDeTodo`), que son ticket quitte le rail
-// ou soit servi, ou qu'une autre carte du même ticket la remplace.
+// chemin par lequel une proposition de carte entre — celui que prend tout ce
+// qui veut poser une carte devant le chef (le manager, la pass, une station).
+// Une carte admise est relue du journal par la file du chef (attend.ts) : elle
+// y est jusqu'à ce qu'elle en sorte (`sortirDeTodo`, la réponse du chef), que
+// son ticket quitte le rail ou soit servi, ou qu'une autre carte du même
+// ticket la remplace.
 //
-// Devant la porte, le triage (triage/triage.ts) : tant qu'il est branché sur
-// le journal (`brancherLeTriage`), une carte admise n'entre pas — elle est
-// retenue (`todo.held`), et c'est l'agent de triage qui la tranche ou la
-// laisse entrer (`laisserEntrer`). Elle n'est pas dans TODO tant qu'il décide.
+// Devant la porte, le triage : tant qu'il est branché sur le journal
+// (`brancherLeTriage`), une carte proposée n'entre pas — elle est retenue
+// (`todo.held`), et c'est l'agent de triage qui la tranche ou la fait entrer
+// (`laisserEntrer`), telle qu'elle a été posée ou telle qu'il l'a réécrite.
+// Elle n'est pas dans TODO tant qu'il décide.
 import type { Base } from "./base.ts";
+import { capturesManquantes, lireCaptures, type Captures } from "./captures.ts";
 import type { Journal } from "./journal.ts";
 
-export const TYPES_DE_CARTE = ["product", "design", "gesture"] as const;
+// Les deux sortes de cartes qui entrent dans TODO.
+export const TYPES_DE_CARTE = ["product", "design"] as const;
 export type TypeDeCarte = (typeof TYPES_DE_CARTE)[number];
 
-// Ce qu'on propose d'entrer : tel quel, rien n'y est encore vérifié.
-export type Proposition = { type?: string | null; enonce?: string | null; capture?: string | null };
+// Ce qu'un producteur peut encore proposer : les deux, et `gesture` — un accès
+// ou une action que seul le chef ferait. Une telle proposition va au triage,
+// jamais dans TODO.
+export const TYPES_PROPOSES = [...TYPES_DE_CARTE, "gesture"] as const;
+export type TypePropose = (typeof TYPES_PROPOSES)[number];
 
-// Une carte qui a passé la porte. `capture` : nulle sur une carte qui n'en
-// porte pas — jamais sur une carte `design`.
-export type CarteDeTodo = { type: TypeDeCarte; enonce: string; capture: string | null };
+// Ce qui suit la réponse du chef (reponse-carte.ts). `resume` : la cuisine
+// reprend le ticket avec sa réponse. `merge` : la livraison verte qui attend
+// est mergée — valider un écran, garder une voie déjà livrée.
+export const SUITES = ["resume", "merge"] as const;
+export type Suite = (typeof SUITES)[number];
+
+// Un choix de la carte : ce que le chef clique, en une ligne, et sa suite.
+export type Choix = { texte: string; suite: Suite };
+
+// Ce qu'on propose d'entrer : tel quel, rien n'y est encore vérifié.
+// `enonce` : ce qui est demandé au chef — pour entrer, une seule question.
+// `choix` : ses choix, chacun avec sa suite (`resume` sans elle). `capture` :
+// l'écran qu'un producteur montre, que le triage lit — la carte, elle, montre
+// les captures livrées.
+export type ChoixPropose = { texte?: string | null; suite?: string | null };
+export type Proposition = { type?: string | null; enonce?: string | null; capture?: string | null; choix?: readonly ChoixPropose[] | null };
+
+// Une carte qui a passé la porte. `captures` : celles de la livraison du
+// ticket, chaque écran avant et après — jamais nulles sur une carte `design`,
+// nulles sur une carte `product` dont le ticket n'a livré aucun écran.
+export type CarteDeTodo = { type: TypeDeCarte; question: string; choix: Choix[]; captures: Captures | null };
 
 export type Jugement = { admise: true; carte: CarteDeTodo } | { admise: false; raison: string };
 
-const LES_TROIS = TYPES_DE_CARTE.join(", ").replace(/, (?=[^,]*$)/, " or ");
-const estType = (mot: string): mot is TypeDeCarte => (TYPES_DE_CARTE as readonly string[]).includes(mot);
-const surPlusieursLignes = (texte: string) => /[\r\n]/.test(texte);
+// Où une proposition est allée : dans TODO, ou au triage — retenue, avec la
+// raison de la porte quand elle l'a refusée (nulle : le triage retient tout).
+export type Entree = { porte: "todo"; carte: CarteDeTodo } | { porte: "triage"; raison: string | null };
 
-// La porte : admise, la carte est rendue nettoyée (type en minuscules, énoncé
-// et capture sans blancs autour) ; refusée, la raison en clair — en anglais,
-// c'est ce que disent les sorties du chef.
-export function jugerCarte({ type, enonce, capture }: Proposition): Jugement {
+const surPlusieursLignes = (texte: string) => /[\r\n]/.test(texte);
+const estType = (mot: string): mot is TypeDeCarte => (TYPES_DE_CARTE as readonly string[]).includes(mot);
+const estSuite = (mot: string): mot is Suite => (SUITES as readonly string[]).includes(mot);
+
+// Une seule question : elle finit par son « ? », et n'en porte pas d'autre.
+export const uneQuestion = (texte: string) => texte.endsWith("?") && texte.indexOf("?") === texte.length - 1;
+
+// La porte : admise, la carte est rendue nettoyée (type en minuscules,
+// question et choix sans blancs autour) ; refusée, la raison en clair — en
+// anglais, c'est ce que disent les sorties du chef. `captures` : celles que le
+// ticket a livrées, nulles sans elles.
+export function jugerCarte({ type, enonce, choix }: Proposition, captures: Captures | null = null): Jugement {
   const mot = type?.trim().toLowerCase() ?? "";
-  if (mot === "") return { admise: false, raison: `no type: a TODO card says whether it is ${LES_TROIS}` };
-  if (!estType(mot)) return { admise: false, raison: `unknown type “${type?.trim()}”: a TODO card is ${LES_TROIS}` };
-  const dit = enonce?.trim() ?? "";
-  if (dit === "") return { admise: false, raison: "no statement: a TODO card says in one line what is expected of the chef" };
-  if (surPlusieursLignes(dit)) return { admise: false, raison: "statement on several lines: a TODO card says in one line what is expected of the chef" };
-  const montree = capture?.trim() ?? "";
-  if (surPlusieursLignes(montree)) return { admise: false, raison: "capture on several lines: a capture is one path or one address" };
-  if (mot === "design" && montree === "") return { admise: false, raison: "design card without a capture: a screen or render to validate is shown with its capture" };
-  return { admise: true, carte: { type: mot, enonce: dit, capture: montree === "" ? null : montree } };
+  if (mot === "") return { admise: false, raison: "no kind: a TODO card is a product choice (product) or a design validation (design)" };
+  if (!estType(mot)) return { admise: false, raison: `“${type?.trim()}” is not a TODO card: only a product choice (product) or a design validation (design) reaches the chef` };
+  const question = enonce?.trim() ?? "";
+  if (question === "") return { admise: false, raison: "no question: a TODO card asks the chef exactly one question" };
+  if (surPlusieursLignes(question)) return { admise: false, raison: "question on several lines: a TODO card asks one question, on one line" };
+  if (!uneQuestion(question)) return { admise: false, raison: "not exactly one question: a TODO card asks one question, ending with its only “?”" };
+  if (!choix || choix.length === 0) return { admise: false, raison: "no choice: a TODO card offers at least one choice to click" };
+  const lus: Choix[] = [];
+  for (const [rang, propose] of choix.entries()) {
+    const texte = propose.texte?.trim() ?? "";
+    if (texte === "" || surPlusieursLignes(texte)) return { admise: false, raison: `choice ${rang + 1} is empty or on several lines: each choice is one line` };
+    if (lus.some((lu) => lu.texte === texte)) return { admise: false, raison: `choice ${rang + 1} repeats another: each choice is a different way` };
+    const suite = propose.suite?.trim().toLowerCase() || "resume";
+    if (!estSuite(suite)) return { admise: false, raison: `choice ${rang + 1}: unknown follow-up “${propose.suite}” — ${SUITES.join(" or ")}` };
+    lus.push({ texte, suite });
+  }
+  const montrees = captures !== null && captures.screens.length > 0 ? captures : null;
+  if (mot === "design") {
+    if (montrees === null) return { admise: false, raison: "design card without its captures: a design validation shows each screen before and after, as its delivery carries them" };
+    const manquantes = capturesManquantes(montrees.screens);
+    if (manquantes !== null) return { admise: false, raison: `design card with incomplete captures (missing: ${manquantes}): each screen is shown before and after` };
+  }
+  return { admise: true, carte: { type: mot, question, choix: lus, captures: montrees } };
+}
+
+// Les captures que le ticket a livrées : celles de sa dernière livraison
+// finie, telles que la station les a rangées (`cook.reported`). Nulles quand
+// elle n'en porte aucune.
+export function capturesDuTicket(base: Base, ticket: number): Captures | null {
+  const [derniere] = base.lire<{ captures: string | null }>(
+    "SELECT json_extract(payload, '$.captures') AS captures FROM events WHERE ticket = ? AND type = 'cook.reported' AND json_extract(payload, '$.ending') = 'done' ORDER BY seq DESC LIMIT 1",
+    ticket,
+  );
+  const captures = derniere?.captures == null ? null : lireCaptures(JSON.parse(derniere.captures));
+  return captures === null || captures.screens.length === 0 ? null : captures;
 }
 
 // Le triage branché sur chaque journal, et s'il retient en ce moment : le
-// manager le branche, et ne retient que tant qu'il est allumé. Rien n'est
-// branché — un outil du chef, un test qui n'en veut pas — : la carte entre
-// comme avant.
+// manager le branche, et ne retient que tant qu'il est allumé.
 const triages = new WeakMap<Base, () => boolean>();
 
 // Branche le triage devant la porte de ce journal ; rend de quoi le débrancher.
@@ -68,27 +131,51 @@ export function brancherLeTriage(base: Base, retient: () => boolean): () => void
   };
 }
 
-// Le seul chemin d'une carte vers TODO : la porte la juge, et le journal le
-// retient — `todo.entered` admise, `todo.refused` et sa raison sinon ; admise
-// devant un triage qui retient, `todo.held` : elle attend son triage. Rend le
-// jugement. `auteur` : qui la pose (`manager`, `pass`, `station:<nom>`…).
-export function entrerDansTodo(journal: Journal, projet: string, ticket: number, proposition: Proposition, auteur: string): Jugement {
-  const jugement = jugerCarte(proposition);
-  if (jugement.admise) {
-    const { type: kind, enonce: statement, capture } = jugement.carte;
-    const type = triages.get(journal.base)?.() === true ? "todo.held" : "todo.entered";
-    journal.ajouter({ project: projet, ticket, author: auteur, type, payload: { kind, statement, capture } });
-  } else {
-    const brut = (valeur: string | null | undefined) => (valeur === undefined || valeur === null || valeur.trim() === "" ? null : valeur);
-    journal.ajouter({
-      project: projet,
-      ticket,
-      author: auteur,
-      type: "todo.refused",
-      payload: { kind: brut(proposition.type), statement: brut(proposition.enonce), capture: brut(proposition.capture), reason: jugement.raison },
-    });
-  }
-  return jugement;
+const brut = (valeur: string | null | undefined) => (valeur === undefined || valeur === null || valeur.trim() === "" ? null : valeur);
+
+// La proposition telle que le journal la garde : ce qui a été proposé, tel
+// quel, nul quand il manque.
+function proposee({ type, enonce, capture, choix }: Proposition) {
+  return {
+    kind: brut(type),
+    statement: brut(enonce),
+    capture: brut(capture),
+    choices: choix ? choix.map(({ texte, suite }) => ({ text: brut(texte), then: brut(suite) })) : null,
+  };
+}
+
+// La carte admise entre dans TODO, au nom de celui qui l'a posée.
+function poserEnTodo(journal: Journal, projet: string, ticket: number, { type: kind, question: statement, choix, captures }: CarteDeTodo, auteur: string): void {
+  journal.ajouter({ project: projet, ticket, author: auteur, type: "todo.entered", payload: { kind, statement, choices: choix.map(({ texte, suite }) => ({ text: texte, then: suite })), captures } });
+}
+
+// Le refus de la porte, au journal, avec ce qui a été proposé.
+function noterLeRefus(journal: Journal, projet: string, ticket: number, proposition: Proposition, raison: string, auteur: string): void {
+  journal.ajouter({ project: projet, ticket, author: auteur, type: "todo.refused", payload: { ...proposee(proposition), reason: raison } });
+}
+
+// Le seul chemin d'une proposition vers TODO. Devant un triage qui retient,
+// elle est retenue (`todo.held`) : il la lira d'abord. Sinon la porte la juge :
+// admise, `todo.entered` ; refusée, `todo.refused` et sa raison, et elle est
+// renvoyée au triage — retenue, il la reprendra dès qu'il retiendra. Rien
+// n'est jamais perdu : une proposition va dans TODO, ou au triage.
+// `auteur` : qui la pose (`manager`, `pass`, `station:<nom>`…).
+export function entrerDansTodo(journal: Journal, projet: string, ticket: number, proposition: Proposition, auteur: string): Entree {
+  return journal.base.transaction((): Entree => {
+    const retenir = () => journal.ajouter({ project: projet, ticket, author: auteur, type: "todo.held", payload: proposee(proposition) });
+    if (triages.get(journal.base)?.() === true) {
+      retenir();
+      return { porte: "triage", raison: null };
+    }
+    const jugement = jugerCarte(proposition, capturesDuTicket(journal.base, ticket));
+    if (jugement.admise) {
+      poserEnTodo(journal, projet, ticket, jugement.carte, auteur);
+      return { porte: "todo", carte: jugement.carte };
+    }
+    retenir();
+    noterLeRefus(journal, projet, ticket, proposition, jugement.raison, auteur);
+    return { porte: "triage", raison: jugement.raison };
+  });
 }
 
 // La carte du ticket sort de TODO : la décision est prise, ou elle n'est plus
@@ -101,43 +188,81 @@ export function sortirDeTodo(journal: Journal, projet: string, ticket: number, p
   });
 }
 
-// Une carte retenue par le triage : son ticket, qui l'a posée, depuis quand
-// elle attend (`since`) — et, si le triage attend une CI lente, jusqu'à quand
-// (`until`) : il ne la retrie pas avant. `seq` : son entrée, qui la distingue
-// d'une carte qui la remplacerait pendant son triage.
-export type CarteRetenue = CarteDeTodo & { ticket: number; since: string; seq: number; auteur: string; until: string | null };
+// Une carte retenue par le triage : ce qui a été proposé, son ticket, qui l'a
+// posée, depuis quand elle attend (`since`) — et, si le triage attend une CI
+// lente, jusqu'à quand (`until`) : il ne la retrie pas avant. `seq` : son
+// entrée, qui la distingue d'une carte qui la remplacerait pendant son
+// triage. `refus` : pourquoi la porte l'a refusée en dernier, nul tant
+// qu'elle ne l'a pas jugée ; `renvois` : combien de fois l'agent l'a envoyée
+// en TODO et que la porte la lui a renvoyée.
+export type CarteRetenue = {
+  type: string | null;
+  enonce: string | null;
+  capture: string | null;
+  choix: ChoixPropose[] | null;
+  ticket: number;
+  since: string;
+  seq: number;
+  auteur: string;
+  until: string | null;
+  refus: string | null;
+  renvois: number;
+};
+
+type PayloadPropose = { kind: string | null; statement: string | null; capture?: string | null; choices?: Array<{ text: string | null; then: string | null }> | null };
 
 // Les cartes que le triage retient, dans l'ordre de leur entrée : ni entrées
 // dans TODO, ni tranchées, ni parties avec leur ticket.
 export function cartesRetenues(base: Base): CarteRetenue[] {
   const lignes = base.lire<{ seq: number; at: string; ticket: number; type: string; author: string; payload: string }>(
     `SELECT seq, at, ticket, type, author, payload FROM events
-     WHERE type IN ('todo.held', 'todo.triaged', 'todo.entered', 'ticket.left', 'ticket.served')
+     WHERE type IN ('todo.held', 'todo.triaged', 'todo.refused', 'todo.entered', 'ticket.left', 'ticket.served')
        AND ticket IN (SELECT ticket FROM events WHERE type = 'todo.held')
      ORDER BY seq`,
   );
   const cartes = new Map<number, CarteRetenue>();
   for (const { seq, at, ticket, type, author, payload } of lignes) {
-    const lu = JSON.parse(payload) as { kind: TypeDeCarte; statement: string; capture: string | null; action?: string; until?: string | null };
+    const lu = JSON.parse(payload) as PayloadPropose & { action?: string; until?: string | null; reason?: string };
     const retenue = cartes.get(ticket);
     if (type === "todo.held") {
       cartes.delete(ticket);
-      cartes.set(ticket, { ticket, since: at, seq, auteur: author, type: lu.kind, enonce: lu.statement, capture: lu.capture, until: null });
-    } else if (type === "todo.triaged" && lu.action === "wait" && retenue) retenue.until = lu.until ?? null;
-    else cartes.delete(ticket);
+      const choix = lu.choices ? lu.choices.map(({ text, then }) => ({ texte: text, suite: then })) : null;
+      cartes.set(ticket, { ticket, since: at, seq, auteur: author, type: lu.kind, enonce: lu.statement, capture: lu.capture ?? null, choix, until: null, refus: null, renvois: 0 });
+    } else if (type === "todo.refused") {
+      if (retenue) retenue.refus = lu.reason ?? null;
+    } else if (type === "todo.triaged" && lu.action === "wait") {
+      if (retenue) retenue.until = lu.until ?? null;
+    } else if (type === "todo.triaged" && lu.action === "back") {
+      if (retenue) retenue.renvois++;
+    } else cartes.delete(ticket);
   }
   return [...cartes.values()];
 }
 
-// La carte retenue entre dans TODO, telle qu'elle a été posée et au nom de
-// celui qui l'a posée : le triage ne l'a pas tranchée.
-export function laisserEntrer(journal: Journal, projet: string, carte: CarteRetenue): void {
-  const { ticket, auteur, type: kind, enonce: statement, capture } = carte;
-  journal.ajouter({ project: projet, ticket, author: auteur, type: "todo.entered", payload: { kind, statement, capture } });
+// La carte retenue tente d'entrer, telle qu'elle a été posée ou telle que le
+// triage l'a réécrite (`proposition`), au nom de celui qui l'a posée. Admise,
+// elle est dans TODO ; refusée, `todo.refused` — sauf si la porte vient de
+// lui dire la même chose — et elle reste retenue : renvoyée au triage. Rend le
+// jugement.
+export function laisserEntrer(journal: Journal, projet: string, carte: CarteRetenue, proposition: Proposition = carte): Jugement {
+  const jugement = jugerCarte(proposition, capturesDuTicket(journal.base, carte.ticket));
+  if (jugement.admise) poserEnTodo(journal, projet, carte.ticket, jugement.carte, carte.auteur);
+  else if (proposition !== carte || carte.refus !== jugement.raison) noterLeRefus(journal, projet, carte.ticket, proposition, jugement.raison, carte.auteur);
+  return jugement;
 }
 
 // Une carte dans TODO : son ticket, depuis quand elle y est.
 export type CarteEnTodo = CarteDeTodo & { ticket: number; since: string };
+
+type PayloadEntre = { kind: string; statement: string; choices?: Array<{ text: string; then: Suite }>; captures?: unknown };
+
+// La carte telle que le journal la porte, ou null : une entrée d'avant les
+// deux sortes et leurs choix (`gesture`, une carte sans choix) ne pose aucune
+// question au chef, et ne se lit pas comme une carte.
+function lireCarte({ kind, statement, choices, captures }: PayloadEntre): CarteDeTodo | null {
+  if (!estType(kind) || !choices || choices.length === 0) return null;
+  return { type: kind, question: statement, choix: choices.map(({ text, then }) => ({ texte: text, suite: then })), captures: captures == null ? null : lireCaptures(captures) };
+}
 
 // Les cartes dans TODO, relues du journal, dans l'ordre de leur entrée. Seuls
 // les tickets qui ont eu une carte sont lus.
@@ -150,44 +275,48 @@ export function cartesEnTodo(base: Base): CarteEnTodo[] {
   );
   const cartes = new Map<number, CarteEnTodo>();
   for (const { at, ticket, type, payload } of lignes) {
-    if (type !== "todo.entered") {
-      cartes.delete(ticket);
-      continue;
-    }
-    const { kind, statement, capture } = JSON.parse(payload) as { kind: TypeDeCarte; statement: string; capture: string | null };
     // Remplacée, elle prend la place de l'ancienne : depuis sa propre entrée.
     cartes.delete(ticket);
-    cartes.set(ticket, { ticket, since: at, type: kind, enonce: statement, capture });
+    const carte = type === "todo.entered" ? lireCarte(JSON.parse(payload) as PayloadEntre) : null;
+    if (carte !== null) cartes.set(ticket, { ticket, since: at, ...carte });
   }
   return [...cartes.values()];
 }
 
 // Combien de cartes sont entrées dans TODO entre `depuis` (compris) et `jusqua`
-// (exclu), par type. Chaque entrée compte, une carte qui en remplace une autre
-// aussi ; une carte refusée (`todo.refused`) ne compte nulle part. Les trois
-// types y sont toujours, à zéro quand rien n'est entré.
+// (exclu), par sorte. Chaque entrée compte, une carte qui en remplace une autre
+// aussi ; une carte refusée (`todo.refused`) ne compte nulle part, une entrée
+// d'avant les deux sortes non plus. Les deux sortes y sont toujours, à zéro
+// quand rien n'est entré.
 export function entreesParType(base: Base, depuis: Date, jusqua: Date): Record<TypeDeCarte, number> {
-  const comptes: Record<TypeDeCarte, number> = { product: 0, design: 0, gesture: 0 };
+  const comptes: Record<TypeDeCarte, number> = { product: 0, design: 0 };
   const lignes = base.lire<{ payload: string }>("SELECT payload FROM events WHERE type = 'todo.entered' AND at >= ? AND at < ?", depuis.toISOString(), jusqua.toISOString());
-  for (const { payload } of lignes) comptes[(JSON.parse(payload) as { kind: TypeDeCarte }).kind]++;
+  for (const { payload } of lignes) {
+    const carte = lireCarte(JSON.parse(payload) as PayloadEntre);
+    if (carte !== null) comptes[carte.type]++;
+  }
   return comptes;
 }
 
-// La ligne de `status` : les entrées de la période, par type.
+// La ligne de `status` : les entrées de la période, par sorte.
 export function direEntreesEn(comptes: Record<TypeDeCarte, number>, jours: number): string {
   const total = TYPES_DE_CARTE.reduce((somme, type) => somme + comptes[type], 0);
   return `todo       last ${jours} d: ${total} entered — ${TYPES_DE_CARTE.map((type) => `${type} ${comptes[type]}`).join(" · ")}`;
 }
 
-// Ce que la carte dit dans la file du chef, sur une ligne : son type, son
-// énoncé, et sa capture si elle en a une. En anglais : la ligne du bloc
-// `awaiting`.
-export function direCarteEn({ type, enonce, capture }: CarteDeTodo): string {
-  return `${type}: ${enonce}${capture === null ? "" : ` — capture: \`${capture}\``}`;
+const nombreDEcrans = (captures: Captures, un: string, plusieurs: string) => `${captures.screens.length} ${captures.screens.length === 1 ? un : plusieurs}`;
+
+// Ce que la carte dit dans la file du chef, sur une ligne : sa sorte, sa
+// question, ses choix numérotés — le numéro que `rail choose` prend —, et ses
+// écrans si elle en montre. En anglais : la ligne du bloc `awaiting`.
+export function direCarteEn({ type, question, choix, captures }: CarteDeTodo): string {
+  const choisis = choix.map(({ texte }, rang) => `${rang + 1}. ${texte}`).join(" · ");
+  return `${type}: ${question} — choices: ${choisis}${captures === null ? "" : ` — captures: ${nombreDEcrans(captures, "screen", "screens")}, before and after`}`;
 }
 
 // La même, en français, pour les sorties que rien n'a encore traduites.
-const TYPES_EN_FRANCAIS: Record<TypeDeCarte, string> = { product: "produit", design: "design", gesture: "geste" };
-export function direCarte({ type, enonce, capture }: CarteDeTodo): string {
-  return `${TYPES_EN_FRANCAIS[type]} : ${enonce}${capture === null ? "" : ` — capture : \`${capture}\``}`;
+const TYPES_EN_FRANCAIS: Record<TypeDeCarte, string> = { product: "produit", design: "design" };
+export function direCarte({ type, question, choix, captures }: CarteDeTodo): string {
+  const choisis = choix.map(({ texte }, rang) => `${rang + 1}. ${texte}`).join(" · ");
+  return `${TYPES_EN_FRANCAIS[type]} : ${question} — choix : ${choisis}${captures === null ? "" : ` — captures : ${nombreDEcrans(captures, "écran", "écrans")}, avant et après`}`;
 }

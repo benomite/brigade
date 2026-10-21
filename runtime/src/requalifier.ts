@@ -10,7 +10,7 @@
 //     et le manager le juge au même tour.
 // Chaque issue est écrite au journal (`manager.requalified`), avec l'empreinte
 // de ce qui a été lu : le même état ne se requalifie pas deux fois.
-import { cartesEnTodo, entrerDansTodo, sortirDeTodo, TYPES_DE_CARTE, type TypeDeCarte } from "./carte-todo.ts";
+import { cartesEnTodo, entrerDansTodo, sortirDeTodo, TYPES_PROPOSES, type TypePropose } from "./carte-todo.ts";
 import type { Reponse } from "./decoupage.ts";
 import type { FaitManager } from "./events/manager.ts";
 import type { GitHub, IssueOuverte } from "./github.ts";
@@ -22,7 +22,7 @@ const AUTEUR_DE_CARTE = "manager";
 
 export type Requalification =
   | { issue: "enoncee"; motif: string }
-  | { issue: "carte"; motif: string; carte: { type: TypeDeCarte; enonce: string; capture: string | null } }
+  | { issue: "carte"; motif: string; carte: { type: TypePropose; enonce: string; capture: string | null } }
   | { issue: "reprise"; motif: string };
 
 export function consigneDeRequalification(mission: { depot: string; issue: { number: number; title: string; body: string; labels: string[] }; commentaires: string[] }): string {
@@ -50,7 +50,7 @@ export function consigneDeRequalification(mission: { depot: string; issue: { num
     '{"issue": "carte", "motif": "pourquoi", "type": "product", "enonce": "la question, en une ligne", "capture": null}',
     "```",
     "",
-    `\`issue\` : \`enoncee\`, \`carte\` ou \`reprise\`. \`type\`, \`enonce\` et \`capture\` ne servent que pour \`carte\` (\`type\` : ${TYPES_DE_CARTE.join(", ")}). \`motif\` est lu par le chef, sur l'issue : en français, deux ou trois phrases, précises.`,
+    `\`issue\` : \`enoncee\`, \`carte\` ou \`reprise\`. \`type\`, \`enonce\` et \`capture\` ne servent que pour \`carte\` (\`type\` : ${TYPES_PROPOSES.join(", ")}). \`motif\` est lu par le chef, sur l'issue : en français, deux ou trois phrases, précises.`,
     "",
     "## L'issue",
     "",
@@ -80,8 +80,8 @@ export function lireRequalification(message: string | null): { valeur: Requalifi
   const motif = phrase(lu.motif);
   if (!motif) return { illisible: "motif absent" };
   if (issue !== "carte") return { valeur: { issue: issue as "enoncee" | "reprise", motif } };
-  const type = parmi(lu.type, TYPES_DE_CARTE) as TypeDeCarte | null;
-  if (!type) return { illisible: `type de carte inconnu : ${JSON.stringify(lu.type)} — attendu ${TYPES_DE_CARTE.join(", ")}` };
+  const type = parmi(lu.type, TYPES_PROPOSES) as TypePropose | null;
+  if (!type) return { illisible: `type de carte inconnu : ${JSON.stringify(lu.type)} — attendu ${TYPES_PROPOSES.join(", ")}` };
   const enonce = phrase(lu.enonce);
   if (!enonce) return { illisible: "carte sans énoncé" };
   const capture = phrase(lu.capture);
@@ -161,27 +161,23 @@ export function ouvrirRequalification(atelier: AtelierDeRequalification) {
       }
       if (valeur.issue === "carte") {
         const { carte } = valeur;
-        const admise = base.transaction(() => {
-          const jugement = entrerDansTodo(journal, projet, issue.number, { type: carte.type, enonce: carte.enonce, capture: carte.capture }, AUTEUR_DE_CARTE);
-          noter(issue.number, {
-            type: "manager.requalified",
-            payload: { run, fingerprint: etat, outcome: jugement.admise ? "card" : "unreadable", reason: valeur.motif, ...(jugement.admise ? { card: { kind: carte.type, statement: carte.enonce } } : {}) },
-          });
-          return jugement.admise;
+        // Elle entre dans TODO, ou va au triage : une proposition n'est jamais perdue.
+        const entree = base.transaction(() => {
+          const entree = entrerDansTodo(journal, projet, issue.number, { type: carte.type, enonce: carte.enonce, capture: carte.capture }, AUTEUR_DE_CARTE);
+          noter(issue.number, { type: "manager.requalified", payload: { run, fingerprint: etat, outcome: "card", reason: valeur.motif, card: { kind: carte.type, statement: carte.enonce } } });
+          return entree;
         });
-        if (admise) {
-          await commenter(issue.number, [
-            "**Manager — `blocked-on-human` sans décision écrite : une carte est posée devant le chef.**",
-            "",
-            valeur.motif,
-            "",
-            `**Carte dans TODO** (${carte.type}). ${carte.enonce}`,
-            "",
-            "L'issue reste retenue ; la carte sort de TODO quand tu retires `blocked-on-human` ou fermes l'issue.",
-            "",
-            signature,
-          ]);
-        }
+        await commenter(issue.number, [
+          "**Manager — `blocked-on-human` sans décision écrite : une carte est proposée au chef.**",
+          "",
+          valeur.motif,
+          "",
+          `**${entree.porte === "todo" ? "Carte dans TODO" : "Carte proposée, que le triage lit d'abord"}** (${carte.type}). ${carte.enonce}`,
+          "",
+          "L'issue reste retenue ; la carte sort de TODO quand tu retires `blocked-on-human` ou fermes l'issue.",
+          "",
+          signature,
+        ]);
         return "retenue";
       }
       // La cuisine reprend le ticket : le label s'en va, puis le fait est écrit.
