@@ -12,6 +12,11 @@ and its saturation, the quota). One click switches from one to the other; **the 
 last tab you opened in it**, even after you quit it — a project never opened opens on Rail. **On the right, the
 terminals, permanently**: the second, and beside it, at the same level, the shells you open — nothing you look at
 in the middle hides them, and switching tabs neither cuts nor empties the conversation.
+**At the top of Cooks, the project's tickets in the last hour and the last day** (#1272), above its tile: how many were
+`served`, `sent back` to a cook and `escalated` to you, in a small table — one row per window, `last hour` then `last day`.
+Six numbers read in `facts` (`activiteCuisine`, docs/runtime/etat-et-mesures.md), counted in tickets and for this project only;
+with no activity, six `0`. What each counts is in the help of its heading. A runtime that does not give them shows nothing
+there, nor a box that does not answer; on a narrow screen, they sit above the stations' lines.
 **On Cooks, one block per station of the project** (#1185, #1270), under the project's tile, wherever it runs — the box, the Mac,
 another computer (`remote`): its state, a word of `facts` (`cooking`, `stopped`, `saturated`, `refused`, #1183)
 and what it means (`by you, for 3 min · 1 cook finishing`, `its machine has no room`, the reason for a refusal),

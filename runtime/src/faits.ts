@@ -2,6 +2,7 @@
 // programme : `npm --prefix runtime run facts` rend un objet JSON, sur une
 // ligne. C'est la lecture de `status`, autrement dite — et un contrat :
 // docs/runtime/etat-et-mesures.md, « Les faits, pour un programme ».
+import { activiteDeLaCuisine } from "./activite-cuisine/comptes.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { cartesDeCorrection } from "./correctif/cartes.ts";
 import { reculDesCorrections } from "./correctif/recul.ts";
@@ -62,7 +63,11 @@ export function principal({ args, env, dire, redire }: Appel): void {
     const plafondDeCalibrage = { modele: plafond.model, effort: plafond.effort, parLeChef: { modele: plafond.pose.model, effort: plafond.pose.effort } };
     // Ce que le triage a fait chacun des sept derniers jours (UTC) : les cartes qu'il a tranchées seul, celles qu'il a laissées entrer dans TODO.
     const triage = triagesDesDerniersJours(journal.base, maintenant, 7);
-    dire(JSON.stringify({ ...forme, plafondDeCalibrage, triage, ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) }));
+    // Ce que la cuisine du projet a servi, renvoyé et remonté au chef dans la dernière heure et le dernier
+    // jour : six nombres, six zéros sans activité. Le projet est celui de l'unité, à défaut celui du journal.
+    const projetDuJournal = journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
+    const activiteCuisine = activiteDeLaCuisine(journal.base, projet || projetDuJournal || "", maintenant);
+    dire(JSON.stringify({ ...forme, plafondDeCalibrage, triage, activiteCuisine, ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) }));
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.

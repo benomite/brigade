@@ -113,6 +113,7 @@ import { apresRendu as apresLaCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS }
 import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
 import { poserLePlafond as plafondDeCalibrage } from "./plafond-de-calibrage.js";
+import { poserLActivite } from "./activite-cuisine.js";
 import { apresLaDecision, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
@@ -260,6 +261,10 @@ const retraitGestes = element("retrait-gestes");
 const couleurs = element("couleurs");
 const ordinaires = element("ordinaires");
 const avis = element("avis");
+// En tête de l'onglet Cooks, au-dessus de la carte du projet (ticket 1272) : ses tickets servis, renvoyés et remontés
+// au chef dans la dernière heure et le dernier jour. poserCuisson le remplit ; poserRail le pose.
+const activiteDuProjet = document.createElement("div");
+activiteDuProjet.id = "activite-du-projet";
 // La carte du projet — son état, ses compteurs, ses cooks en cours et leur station, le dernier événement — est
 // sur l'onglet Cooks (ticket 1184) : poserRail l'y pose, en tête.
 const carte = document.createElement("section");
@@ -4077,6 +4082,9 @@ function poserCuisson(projet, posees = new Map()) {
     regler: (station, valeur) => void reglerLePlafondDuProjet(projet.nom, station, valeur),
   });
   cuissonDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
+  // Les six nombres de sa cuisine : rien tant que sa box ne répond pas, ni d'un runtime qui ne les donne pas.
+  const activite = poserLActivite(document, tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.activiteCuisine : undefined);
+  activiteDuProjet.replaceChildren(...(activite === null ? [] : [activite]));
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
   const alerte = ligneDAlerte(document, {
     alerte: stations?.alerte ?? null,
@@ -4185,7 +4193,7 @@ async function reglerLePlafondDuProjet(projet, station, valeur) {
 /** @param {Projet} projet @param {Dessinable | undefined} tenu */
 function poserCuisineEtroite(projet, tenu) {
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
-  if (cuissonDuProjet.childElementCount > 0) return rail.replaceChildren(cuissonDuProjet);
+  if (cuissonDuProjet.childElementCount > 0) return rail.replaceChildren(activiteDuProjet, cuissonDuProjet);
   const pourquoi = muets.has(projet.nom)
     ? "its stations: not known while the station is unreachable"
     : tenu === undefined
@@ -4225,7 +4233,7 @@ function poserRail(projet) {
   poserCuisson(projet, posees);
   if (cuisine && etroit()) return poserCuisineEtroite(projet, tenu);
   /** @param {(HTMLElement | string)[]} poses */
-  const poser = (...poses) => rail.replaceChildren(...(cuisine ? [carte, cuissonDuProjet, plafondDuProjet] : alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses, ...(cuisine ? [pages, lectureDeLaCuisine] : []));
+  const poser = (...poses) => rail.replaceChildren(...(cuisine ? [activiteDuProjet, carte, cuissonDuProjet, plafondDuProjet] : alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses, ...(cuisine ? [pages, lectureDeLaCuisine] : []));
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
   // l'autre onglet.
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));

@@ -37,6 +37,26 @@ export const COMMANDE = "facts";
 // rail pendant la cuisson —, sa station.
 export type Cook = { ticket: number; titre: string; station: string };
 
+// Ce que la cuisine du projet a fait de ses tickets sur une fenêtre, en tickets (runtime/src/activite-cuisine/comptes.ts) :
+// servis, renvoyés à un cook, remontés au chef — et la dernière heure et le dernier jour.
+export type ComptesDeCuisine = { served: number; sentBack: number; escalated: number };
+export type ActiviteCuisine = { lastHour: ComptesDeCuisine; lastDay: ComptesDeCuisine };
+
+// Le champ `activiteCuisine` d'un `facts` : deux fenêtres de trois nombres. Un champ qui n'a pas cette forme n'est pas
+// lu — l'onglet Cooks se dessine sans, comme pour un runtime d'avant ce champ.
+export function activiteCuisineLue(brut: unknown): ActiviteCuisine | undefined {
+  const compte = (valeur: unknown): valeur is number => typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 0;
+  const fenetre = (valeur: unknown): ComptesDeCuisine | undefined => {
+    if (typeof valeur !== "object" || valeur === null) return undefined;
+    const { served, sentBack, escalated } = valeur as Record<string, unknown>;
+    return compte(served) && compte(sentBack) && compte(escalated) ? { served, sentBack, escalated } : undefined;
+  };
+  if (typeof brut !== "object" || brut === null) return undefined;
+  const lastHour = fenetre((brut as Record<string, unknown>).lastHour);
+  const lastDay = fenetre((brut as Record<string, unknown>).lastDay);
+  return lastHour === undefined || lastDay === undefined ? undefined : { lastHour, lastDay };
+}
+
 // Un ticket que le bloc `attend` nomme, et ce que `faits` en donne : son titre —
 // vide s'il n'est pas sur le rail, le journal ne le connaît pas — et l'adresse de
 // son issue, que la box donne : nulle quand elle n'en a pas. L'app n'en compose aucune.
@@ -128,6 +148,9 @@ export type Faits = {
   plafondDeCalibrage?: PlafondLu;
   // Ce que le triage a fait chacun des sept derniers jours (UTC), le plus ancien d'abord (triage.ts) ; absent d'un runtime d'avant ce champ.
   triage?: JourLu[];
+  // Ce que la cuisine du projet a servi, renvoyé et remonté au chef dans la dernière heure et le dernier jour (ticket
+  // 1272) : six nombres, à zéro sans activité ; absent d'un runtime d'avant ce champ.
+  activiteCuisine?: ActiviteCuisine;
   // Les corrections proposées des consignes du projet, que le chef tranche (correction.ts) : absent
   // quand il n'y en a aucune, et d'un runtime d'avant ce champ.
   corrections?: CorrectionLue[];
@@ -215,6 +238,8 @@ export type Tableau = {
   plafondDeCalibrage?: PlafondVu;
   // Ce que le triage a fait chaque jour, le plus récent d'abord : la file le pose en tête (triage.ts) — absent d'un runtime qui ne le donne pas.
   triage?: JourDeTriage[];
+  // Les six nombres de la cuisine du projet, en tête de l'onglet Cooks — absent d'un runtime qui ne les donne pas.
+  activiteCuisine?: ActiviteCuisine;
   // Ce que chaque correction acceptée des consignes du projet a fait de sa cause, avant et après son
   // merge (recul.ts), la plus ancienne d'abord : la page Reliability la pose. Absent quand il n'y en a aucune.
   reculs?: Recul[];
@@ -478,6 +503,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
         : { stations: (Array.isArray(racine.stations) ? racine.stations : refuser("stations", "a list")).map((station: unknown, rang) => comprendreStation(station, `stations[${rang}]`)) }),
       ...(racine.plafondDeCalibrage === undefined ? {} : { plafondDeCalibrage: plafondLu(racine.plafondDeCalibrage) }),
       ...(triageLu(racine.triage) === undefined ? {} : { triage: triageLu(racine.triage) }),
+      ...(activiteCuisineLue(racine.activiteCuisine) === undefined ? {} : { activiteCuisine: activiteCuisineLue(racine.activiteCuisine) }),
       ...(racine.corrections === undefined ? {} : { corrections: correctionsLues(racine.corrections) }),
       ...(racine.reculs === undefined ? {} : { reculs: reculsLus(racine.reculs) }),
       ...(racine.profils === undefined ? {} : { profils: profilsLus(racine.profils) }),
@@ -909,6 +935,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...(faits.stations === undefined ? {} : { stations: cuissonDe(faits.stations, faits.cooks, faits.lu) }),
     ...(faits.plafondDeCalibrage === undefined ? {} : { plafondDeCalibrage: plafondVu(faits.plafondDeCalibrage) }),
     ...(triageDe(faits.triage, faits.lu) === undefined ? {} : { triage: triageDe(faits.triage, faits.lu) }),
+    ...(faits.activiteCuisine === undefined ? {} : { activiteCuisine: faits.activiteCuisine }),
     ...(faits.reculs === undefined || faits.reculs.length === 0 ? {} : { reculs: faits.reculs.map(reculDe) }),
     apprentissage: apprentissageDe(faits.apprentissage),
   };
