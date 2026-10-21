@@ -1,5 +1,5 @@
-// Settings → Reliability de « parade » quand ses cooks ont appris (#1058, épique 1034) : sous les causes
-// corrigées, ses leçons — provisoires et promues, chacune avec sa date, les tickets qui l'ont proposée et
+// L'onglet Cooks de « parade » quand ses cooks ont appris (#1058, épique 1034 ; sur Cooks depuis #1273) : sous ses
+// stations et son plafond, ses leçons — provisoires et promues, chacune avec sa date, les tickets qui l'ont proposée et
 // les cooks qui l'ont reçue, et pour une promue le lien vers sa ligne du carnet — et ses profils, chacun
 // avec son domaine, son carnet et les tickets qu'il a cuisinés. Ce que la box rend de plus que la cuisine
 // figée : le champ `apprentissage` de `facts` (runtime/src/apprentissage/projet.ts). La lecture de
@@ -7,7 +7,8 @@
 // en une phrase qu'il n'y a ni leçon ni profil.
 import { cuisine, type Ecran, type Rendu } from "./commun.ts";
 import { RENDUS } from "./cuisine-figee.ts";
-import { ecran as fiabilite } from "./fiabilite.ts";
+import { configuration, demarrage, MAINTENANT } from "./commun.ts";
+import { PROJETS } from "./cuisine-figee.ts";
 
 const PARADE = RENDUS.parade as Rendu;
 const CARNET = "https://github.com/chef/parade/blob/main/.claude/brigade/carnet.md";
@@ -45,11 +46,13 @@ export const APPRENTISSAGE = {
 };
 
 export const ecran: Ecran = {
-  ...fiabilite,
-  dit: "Settings → Reliability de « parade » quand ses cooks ont appris : sous la fiabilité, ses quatre leçons, chacune avec son origine (rétro, renvoi de la pass ou correction du chef sur un ticket) — deux provisoires, deux promues avec le lien vers leur ligne du carnet — et ses deux profils, leur domaine, leur carnet et leurs tickets",
-  hauteur: 1700,
-  donnees: () => {
-    const sans = fiabilite.donnees();
-    return { ...sans, envois: { ...sans.envois, ...cuisine({ ...RENDUS, parade: { ...PARADE, facts: { ...PARADE.facts, apprentissage: APPRENTISSAGE } as Rendu["facts"] } }) } };
-  },
+  dit: "L'onglet Cooks de « parade » quand ses cooks ont appris : sous ses stations, ses quatre leçons, chacune avec son origine (rétro, renvoi de la pass ou correction du chef sur un ticket) — deux provisoires, deux promues avec le lien vers leur ligne du carnet — et ses trois profils, leur domaine, leur carnet et leurs tickets",
+  largeur: 1440,
+  hauteur: 1900,
+  etapes: [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets-du-projet button:nth-child(2)" }],
+  donnees: () => ({
+    maintenant: MAINTENANT,
+    reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [] },
+    envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: { ...PARADE.facts, apprentissage: APPRENTISSAGE } as Rendu["facts"] } }),
+  }),
 };

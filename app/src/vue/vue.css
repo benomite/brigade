@@ -4284,6 +4284,13 @@ button.recommande {
   font-weight: 600;
   color: var(--discret);
 }
+/* Sur Cooks (ticket 1273), à la marge des autres blocs de l'onglet. */
+#appris-du-projet:empty {
+  display: none;
+}
+#rail .apprentissage-fiabilite {
+  margin: 12px 16px 0;
+}
 .apprentissage-fiabilite .rien-appris {
   margin: 0;
   font-size: 14px;
