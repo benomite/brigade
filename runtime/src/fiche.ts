@@ -140,3 +140,26 @@ export function requises(lue: Fiche | null): string[] {
 export function illisible(lue: Fiche | null): string | null {
   return lue === null || lue.problems.length === 0 ? null : lue.problems.join(" ; ");
 }
+
+// La fiche réécrite sans `#<numero>` dans sa ligne `attend` : le reste du
+// commentaire est rendu tel quel, et une ligne qui n'attend plus personne dit
+// « rien ». Nulle si aucune ligne `attend`, hors des blocs de code, ne
+// l'attend : il n'y a rien à corriger.
+export function sansAttente(corps: string, numero: number): string | null {
+  let dansUnBloc = false;
+  let corrigee = false;
+  const lignes = corps.split(/(\r?\n)/).map((ligne) => {
+    if (corrigee || /^\r?\n$/.test(ligne)) return ligne;
+    if (BLOC_DE_CODE.test(ligne)) dansUnBloc = !dansUnBloc;
+    if (dansUnBloc) return ligne;
+    const champ = /^(.*?[*_`]*attend[*_`]*\s*:[*_`]*)(.*)$/i.exec(ligne);
+    if (!champ || CHAMP.exec(ligne.replace(EN_TETE_DE_LIGNE, "").replace(PUCE, "").trim())?.[2]?.toLowerCase() !== "attend") return ligne;
+    const [, cle = "", valeur = ""] = champ;
+    const mots = valeur.split(/[\s,]+/).filter(Boolean);
+    const restants = mots.filter((mot) => mot !== `#${numero}`);
+    if (restants.length === mots.length) return ligne;
+    corrigee = true;
+    return `${cle} ${restants.length === 0 ? "rien" : restants.join(", ")}`;
+  });
+  return corrigee ? lignes.join("") : null;
+}

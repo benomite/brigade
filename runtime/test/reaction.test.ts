@@ -159,6 +159,8 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
       const c = echec(t, { issues: [issue(17)], manager: { jugement } });
       await c.jusquAu("pass.escalated", 17);
       await jusqua(() => c.dits(17).some((dit) => /remontée au chef/.test(dit)));
+      // La carte passe d'abord par le triage, qui la laisse entrer.
+      await jusqua(() => c.faits("todo.triaged", 17).length === 1);
 
       assert.deepEqual(cartesEnTodo(c.journal.base).map((carte) => [carte.ticket, carte.type, carte.enonce]), [[17, type, enonce]]);
       assert.deepEqual(reactionDe(c.journal.base, 17)?.card, { kind: type, statement: enonce });

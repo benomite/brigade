@@ -328,6 +328,30 @@ drop-in or on a station line, the runtime says them ignored, with the gesture th
 project. Each reaction notes the ceiling it chose within (`manager.reacted`, `ceiling`), and its comment on a raise
 names it.
 
+### Before TODO: the triage
+
+While the manager is on, **no card enters TODO directly**: a card admitted at the door is held
+(`todo.held`) and goes first to the triage agent (`agents/triage.md`; the runtime ships its copy,
+`runtime/src/triage/agent.md`, which a test keeps identical). At its next wake-up, the manager gives
+it the issue and its trusted comments, the ticket on the rail and what it waits for, the delivery
+and what the pass and the review found, the PR diff, the CI checks and the log of each red job.
+While it decides, the card is not in TODO.
+
+| Its answer | What the runtime does |
+|---|---|
+| **relaunch** | the ticket goes back to queued (`triage:relaunched`), and its delivery is returned to a cook with the agent's diagnostic in place of the findings |
+| **re-split** | the manager's split, then the ticket goes 86 `manager:split`, like a re-split after a red |
+| **dependency** | the number is removed from the `attend` line of the card (fiche) on the issue |
+| **wait** | only if a check is still running: the card stays held for 15 minutes, then is triaged again |
+| **remove** | `fire` is removed, the ticket leaves the rail |
+| **todo** | the card enters TODO as it was set, in the name of whoever set it |
+
+Each action done writes **exactly one sentence** on the issue (the agent's, refused if it is not a
+single sentence on one line), and `todo.triaged` in the log. An unreadable answer, an action that
+cannot be done, an agent that cannot run (stop, breaker, held account): the card enters TODO, as
+before. **The triage never merges**: no action merges, an agent asking for it is not read, and
+merging stays with the grant on a green pass. Manager off, every held card enters TODO.
+
 ### What it leaves on the issue
 
 - **Executable**: the labels, then a comment — why, **why this calibration**, what

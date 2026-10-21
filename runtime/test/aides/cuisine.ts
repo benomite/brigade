@@ -93,6 +93,9 @@ export function fauxGitHub(...issues: Issue[]) {
   // Ce que la CI répond, et ce que GitHub fait d'une demande de merge : il
   // merge, refuse (avec ce motif), ou tombe en panne — avant ou après avoir mergé.
   const ci: { checks: Check[] } = { checks: [] };
+  // Le diff de chaque PR, et le journal de chaque check, tels que GitHub les rend.
+  const diffs = new Map<number, string>();
+  const journauxDeCI = new Map<string, string>();
   const merge: { mode: "ok" | "panne" | "panne-apres-merge" | { refus: string } } = { mode: "ok" };
   const merges: Array<[number, string]> = [];
   const fermetures: number[] = [];
@@ -196,6 +199,16 @@ export function fauxGitHub(...issues: Issue[]) {
     async ci() {
       return ci.checks;
     },
+    diff: async (numero) => diffs.get(numero) ?? "",
+    journalDuCheck: async (check) => journauxDeCI.get(check.name) ?? null,
+    async remplacerCommentaire(numero, ancien, nouveau) {
+      const lus = poses.get(numero) ?? [];
+      const rang = lus.findIndex((commentaire) => commentaire.body === ancien);
+      if (rang === -1) return false;
+      poses.set(numero, lus.map((commentaire, i) => (i === rang ? { ...commentaire, body: nouveau } : commentaire)));
+      toucher(numero);
+      return true;
+    },
     async merger(numero, sha) {
       merges.push([numero, sha]);
       if (merge.mode === "panne") throw new Error("gh api : HTTP 502");
@@ -212,7 +225,7 @@ export function fauxGitHub(...issues: Issue[]) {
     identite: async () => comptes.pass,
     fermer: () => {},
   };
-  return { github, comptes, commentaires, prs, pannes, ouvertes, ci, merge, merges, fermetures, mergerPR, labellisations, delabellisations, sondages, creations, ecritures,
+  return { github, comptes, commentaires, prs, pannes, ouvertes, ci, diffs, journauxDeCI, merge, merges, fermetures, mergerPR, labellisations, delabellisations, sondages, creations, ecritures,
     // Le corps d'une issue, tel que GitHub le rend.
     corpsDe: (numero: number) => corps.get(numero)?.body ?? "",
     poser: (i: Issue) => void etat.set(i.number, i),
@@ -429,7 +442,9 @@ export type Options = {
   // roadmap du projet s'il en a une.
   // `plafond` : jusqu'où une montée de calibrage peut aller — celui d'un projet
   // où le chef ne l'a pas posé, par défaut.
-  manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond> };
+  // `triage` : le scénario de l'agent de triage, ou leur suite — par défaut,
+  // il ne tranche rien et laisse chaque carte entrer dans TODO.
+  manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond>; triage?: string | string[] };
   // Les chemins communs du projet.
   communs?: string[];
   // Le plafond de cooks tant que le chef n'a rien réglé : un, par défaut — un
@@ -598,6 +613,9 @@ export function cuisine(t: TestContext, options: Options = {}) {
     : null;
   const suiteDuJuge = join(repertoire, "suite-juge.txt");
   if (options.manager?.suite) ecrireSuite(suiteDuJuge, options.manager.suite);
+  const suiteDuTriage = join(repertoire, "suite-triage.txt");
+  const triage = options.manager?.triage;
+  if (Array.isArray(triage)) ecrireSuite(suiteDuTriage, triage);
   const servie = brancherStation(jugee ?? garde, {
     repertoireEtat: repertoire,
     depot: depotDuTest,
@@ -640,6 +658,8 @@ export function cuisine(t: TestContext, options: Options = {}) {
         bacASable: options.bacASable,
         // Les jugements ont leur scénario : ils ne consomment pas celui des cooks.
         env: { ...env, FAUX_CLAUDE: options.manager.jugement ?? "juge-ticket", FAUX_CLAUDE_SUITE: suiteDuJuge },
+        // Le triage aussi : il ne consomme pas celui des jugements.
+        envDuTriage: { ...env, FAUX_CLAUDE: typeof triage === "string" ? triage : "triage-laisse", FAUX_CLAUDE_SUITE: suiteDuTriage },
         maintenant: heure.maintenant,
         avertir: (message) => void avertissements.push(message),
       })

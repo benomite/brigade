@@ -14,6 +14,11 @@
 // admise est relue du journal par la file du chef (attend.ts) : elle y est
 // jusqu'à ce qu'elle en sorte (`sortirDeTodo`), que son ticket quitte le rail
 // ou soit servi, ou qu'une autre carte du même ticket la remplace.
+//
+// Devant la porte, le triage (triage/triage.ts) : tant qu'il est branché sur
+// le journal (`brancherLeTriage`), une carte admise n'entre pas — elle est
+// retenue (`todo.held`), et c'est l'agent de triage qui la tranche ou la
+// laisse entrer (`laisserEntrer`). Elle n'est pas dans TODO tant qu'il décide.
 import type { Base } from "./base.ts";
 import type { Journal } from "./journal.ts";
 
@@ -49,14 +54,30 @@ export function jugerCarte({ type, enonce, capture }: Proposition): Jugement {
   return { admise: true, carte: { type: mot, enonce: dit, capture: montree === "" ? null : montree } };
 }
 
+// Le triage branché sur chaque journal, et s'il retient en ce moment : le
+// manager le branche, et ne retient que tant qu'il est allumé. Rien n'est
+// branché — un outil du chef, un test qui n'en veut pas — : la carte entre
+// comme avant.
+const triages = new WeakMap<Base, () => boolean>();
+
+// Branche le triage devant la porte de ce journal ; rend de quoi le débrancher.
+export function brancherLeTriage(base: Base, retient: () => boolean): () => void {
+  triages.set(base, retient);
+  return () => {
+    if (triages.get(base) === retient) triages.delete(base);
+  };
+}
+
 // Le seul chemin d'une carte vers TODO : la porte la juge, et le journal le
-// retient — `todo.entered` admise, `todo.refused` et sa raison sinon. Rend le
+// retient — `todo.entered` admise, `todo.refused` et sa raison sinon ; admise
+// devant un triage qui retient, `todo.held` : elle attend son triage. Rend le
 // jugement. `auteur` : qui la pose (`manager`, `pass`, `station:<nom>`…).
 export function entrerDansTodo(journal: Journal, projet: string, ticket: number, proposition: Proposition, auteur: string): Jugement {
   const jugement = jugerCarte(proposition);
   if (jugement.admise) {
     const { type: kind, enonce: statement, capture } = jugement.carte;
-    journal.ajouter({ project: projet, ticket, author: auteur, type: "todo.entered", payload: { kind, statement, capture } });
+    const type = triages.get(journal.base)?.() === true ? "todo.held" : "todo.entered";
+    journal.ajouter({ project: projet, ticket, author: auteur, type, payload: { kind, statement, capture } });
   } else {
     const brut = (valeur: string | null | undefined) => (valeur === undefined || valeur === null || valeur.trim() === "" ? null : valeur);
     journal.ajouter({
@@ -78,6 +99,41 @@ export function sortirDeTodo(journal: Journal, projet: string, ticket: number, p
     journal.ajouter({ project: projet, ticket, author: auteur, type: "todo.left", payload: { why: pourquoi } });
     return true;
   });
+}
+
+// Une carte retenue par le triage : son ticket, qui l'a posée, depuis quand
+// elle attend (`since`) — et, si le triage attend une CI lente, jusqu'à quand
+// (`until`) : il ne la retrie pas avant. `seq` : son entrée, qui la distingue
+// d'une carte qui la remplacerait pendant son triage.
+export type CarteRetenue = CarteDeTodo & { ticket: number; since: string; seq: number; auteur: string; until: string | null };
+
+// Les cartes que le triage retient, dans l'ordre de leur entrée : ni entrées
+// dans TODO, ni tranchées, ni parties avec leur ticket.
+export function cartesRetenues(base: Base): CarteRetenue[] {
+  const lignes = base.lire<{ seq: number; at: string; ticket: number; type: string; author: string; payload: string }>(
+    `SELECT seq, at, ticket, type, author, payload FROM events
+     WHERE type IN ('todo.held', 'todo.triaged', 'todo.entered', 'ticket.left', 'ticket.served')
+       AND ticket IN (SELECT ticket FROM events WHERE type = 'todo.held')
+     ORDER BY seq`,
+  );
+  const cartes = new Map<number, CarteRetenue>();
+  for (const { seq, at, ticket, type, author, payload } of lignes) {
+    const lu = JSON.parse(payload) as { kind: TypeDeCarte; statement: string; capture: string | null; action?: string; until?: string | null };
+    const retenue = cartes.get(ticket);
+    if (type === "todo.held") {
+      cartes.delete(ticket);
+      cartes.set(ticket, { ticket, since: at, seq, auteur: author, type: lu.kind, enonce: lu.statement, capture: lu.capture, until: null });
+    } else if (type === "todo.triaged" && lu.action === "wait" && retenue) retenue.until = lu.until ?? null;
+    else cartes.delete(ticket);
+  }
+  return [...cartes.values()];
+}
+
+// La carte retenue entre dans TODO, telle qu'elle a été posée et au nom de
+// celui qui l'a posée : le triage ne l'a pas tranchée.
+export function laisserEntrer(journal: Journal, projet: string, carte: CarteRetenue): void {
+  const { ticket, auteur, type: kind, enonce: statement, capture } = carte;
+  journal.ajouter({ project: projet, ticket, author: auteur, type: "todo.entered", payload: { kind, statement, capture } });
 }
 
 // Une carte dans TODO : son ticket, depuis quand elle y est.
