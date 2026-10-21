@@ -50,6 +50,15 @@ where there is a computer. Rail shows the same columns and cards as on a wide sc
 switch's confirmation (`manager`, `merge`) opens under the project's header, full width, not 440 px wide under the
 switch. The last tab opened is remembered; remembered on a wide screen, the conversation reopens the project on Rail.
 On a wide screen, nothing changes. The threshold is `ECRAN_ETROIT` in `app/src/vue/vue.js`, and the same one in `vue.css`.
+**A TODO card the runtime let in asks its question on the card itself** (#1281): a product choice or a design
+validation (`attend[].carte` in `facts`, see `docs/runtime/manager.md`, "What enters TODO, and how you answer"). The
+card says what is expected (`Validate its screen: answer its question.`), then the question, one button per choice — in
+the runtime's order —, and a free-text field with its `send` button, inactive while empty. A design validation shows its
+before and after captures under the question, read without a click like those of a delivery; a card without a screen
+has no capture area. One click on a choice, or `send`, is the answer: it plays `rail choose <ticket> <n>` or
+`rail answer <ticket> <text>` on the project's box, once — no confirmation; each choice's price (a merge, a cook relaunched)
+is on hover. Written, the card leaves TODO at once and `facts` is read again; refused, it stays with its gestures, and a
+line says why, the box's output on hover. The modules are `app/src/carte-todo.ts` and `app/src/vue/carte-todo.js`.
 **The main screen keeps only three things: the alert band, the rail and the terminals**; there is
 nothing at the bottom of the window. The rest is behind a tab, at the top, next to the name of the
 project: **Settings** (the state of the project, the backup and its age, the settings, the

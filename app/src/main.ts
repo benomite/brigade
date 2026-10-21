@@ -16,6 +16,7 @@ import { BOUTONS, ecritPar, ecritPourLeCloser, REGLER_LE_CLOSER } from "./bouton
 import { lancerGeste, lancerLa, ouvrirVeille, type Lu, type Servi } from "./box.ts";
 import { agirSurLeCloser } from "./closer-lancement.ts";
 import { repondreALaCorrection } from "./correction.ts";
+import { repondreALaCarte } from "./carte-todo.ts";
 import { repondreAuProfil } from "./profil.ts";
 import { histoireDe, situationDe } from "./histoire.ts";
 import { commenter, demanderAuSecond, lireDiscussion } from "./discussion.ts";
@@ -1006,6 +1007,17 @@ ipcMain.handle("corriger", (_, nom: unknown, proposition: unknown, reponse: unkn
   if (vise?.box === undefined) return undefined;
   const servi = { nom: vise.nom, box: vise.box };
   const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => repondreALaCorrection({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, faits.corrections(servi.nom), proposition, reponse));
+  passage.set(servi.nom, rendu);
+  return rendu;
+});
+// La réponse du chef à une carte de TODO (carte-todo.ts) : un choix, d'un clic, ou son texte — par le même
+// chemin, lancée une fois sur la box par le passage du projet, pour la carte que ses derniers faits lus
+// portent : `rail choose` ou `rail answer` l'écrit sur l'issue, sort la carte de TODO et fait avancer le ticket.
+ipcMain.handle("repondreCarte", (_, nom: unknown, ticket: unknown, reponse: unknown) => {
+  const vise = connu(nom);
+  if (vise?.box === undefined) return undefined;
+  const servi = { nom: vise.nom, box: vise.box };
+  const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => repondreALaCarte({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, faits.carte(servi.nom, ticket), ticket, reponse));
   passage.set(servi.nom, rendu);
   return rendu;
 });

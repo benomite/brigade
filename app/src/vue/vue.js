@@ -108,6 +108,7 @@ import { apresRendu, lireLancement, poserLancement, REPOS } from "./closer/lance
 import { lireDerive, poserDerive } from "./closer/derive/derive.js";
 import { apresRendu as apresLaCorrection, poserCorrections, REPOS as CORRECTION_AU_REPOS } from "./correction/carte.js";
 import { poserProfils } from "./profil/carte.js";
+import { apresRendu as apresLaCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS } from "./carte-todo.js";
 import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
 import { poserLePlafond as plafondDeCalibrage } from "./plafond-de-calibrage.js";
@@ -740,6 +741,15 @@ const lancementsDuCloser = new Map();
 // proposition — tranchée, la carte reste hors de la file jusqu'à la lecture qui ne la porte plus.
 /** @type {Map<string, import("./correction/carte.js").Etat>} */
 const reponsesAuxCorrections = new Map();
+// La réponse du chef en route sur une carte de TODO (carte-todo.js), par projet et ticket
+// (`<projet>#<numéro>`), avec la question à laquelle elle répond. Absente : la carte attend. Répondue, la
+// carte quitte TODO aussitôt, et reste hors de la colonne tant que les faits lus portent cette question ;
+// la lecture qui ne la porte plus l'oublie.
+/** @type {Map<string, { question: string, etat: import("./carte-todo.js").Etat }>} */
+const reponsesAuxCartes = new Map();
+// Ce que le chef a tapé dans le champ d'une carte de TODO, par projet et ticket : un rail redessiné le lui rend.
+/** @type {Map<string, string>} */
+const brouillonsDeCartes = new Map();
 // La réponse du chef en route sur un profil de cook proposé (profil/carte.js), tenue de même.
 /** @type {Map<string, import("./correction/carte.js").Etat>} */
 const reponsesAuxProfils = new Map();
@@ -2614,7 +2624,7 @@ function poserBon(projet, carte, tonAttend, execution = true) {
   bon.tabIndex = 0;
   bon.addEventListener("click", (evenement) => {
     const cible = /** @type {Element | null | undefined} */ (evenement.target);
-    if (cible?.closest?.("button, a, summary, input, select, form") || String(globalThis.getSelection?.() ?? "") !== "") return;
+    if (cible?.closest?.("button, a, summary, input, textarea, select, form") || String(globalThis.getSelection?.() ?? "") !== "") return;
     ouvrirFiche(projet, carte, bon);
   });
   bon.addEventListener("keydown", (evenement) => {
@@ -2669,8 +2679,9 @@ function poserBon(projet, carte, tonAttend, execution = true) {
     bon.append(resume, bloc("small", `asked by ${poseeLa.auteur}, ${dateHeure(poseeLa.a)}`));
   }
   // Deux lignes au plus : ce qui se passe, et ce qui demande l'attention. Le reste est dans la fiche.
-  // Les captures d'un ticket d'interface livré restent sur sa carte : elles se lisent sans un clic.
-  if (carte.captures !== undefined) bon.append(...poserCaptures(projet, ticket, carte.captures));
+  // Les captures d'un ticket d'interface livré restent sur sa carte : elles se lisent sans un clic. Celles
+  // d'une carte de TODO se posent sous sa question.
+  if (carte.captures !== undefined && carte.todo?.captures === undefined) bon.append(...poserCaptures(projet, ticket, carte.captures));
   if (carte.ligne !== undefined) {
     const phrase = bloc("p", carte.ligne);
     phrase.className = "ligne-carte";
@@ -2681,6 +2692,9 @@ function poserBon(projet, carte, tonAttend, execution = true) {
     signal.className = "signal";
     bon.append(signal);
   }
+  // Une carte de TODO entrée par la porte du runtime : sa question, ses captures, un bouton par choix et
+  // un champ pour répondre dans tes mots — tranchée sur la carte même, sans ouvrir sa fiche.
+  if (attendu && carte.todo !== undefined) bon.append(...poserLaCarteDeTodo(projet, ticket, carte.todo));
   // La file ne dit pas tout : un repère discret, le détail est dans la fiche.
   if (carte.repere === true) {
     const repere = bloc("small", "…");
@@ -4224,7 +4238,8 @@ function poserRail(projet) {
     const sans = tenu === undefined || cuisine ? "" : `the rail is not drawn: ${tenu.titre} — tried at ${heureDe(tenu.a)}. What the app got is in the panel, on the right`;
     return poser(...marque, ...(sans === "" ? [] : [bloc("h3", sans)]));
   }
-  const { colonnes: lues, hors, attendLu, railLu } = tenu.tableau.rail;
+  const { hors, attendLu, railLu } = tenu.tableau.rail;
+  const lues = sansCartesRepondues(projet, tenu.tableau.rail.colonnes);
   // La box ne répond pas : ce que ses colonnes contenaient n'est plus lu. Elles le disent, au lieu de montrer des « 0 ».
   const toutes = muet === undefined ? lues : lues.map((colonne) => ({ ...colonne, compte: "?", cartes: [], vide: "not known while the station is unreachable" }));
   // Le kanban est entier sur Rail, Taken et Pass compris ; Cooks n'en porte aucune colonne.
@@ -4297,9 +4312,9 @@ function poserRail(projet) {
     const [nom, numero] = cle.split("#");
     if (nom === projet.nom && !toutes.some(({ cartes: siennes }) => siennes.some(({ ticket, gestes }) => String(ticket) === numero && gestes?.includes("attente-poser")))) formulairesDAttente.delete(cle);
   }
-  // Le champ où le chef tapait garde le clavier : le rail redessiné le lui rend.
+  // Le champ où le chef tapait garde le clavier, et son curseur : le rail redessiné le lui rend.
   const tape = /** @type {HTMLInputElement | null | undefined} */ (document.activeElement);
-  const reprise = tape?.dataset?.cle === undefined ? undefined : { cle: tape.dataset.cle, champ: tape.dataset.champ };
+  const reprise = tape?.dataset?.cle === undefined ? undefined : { cle: tape.dataset.cle, champ: tape.dataset.champ, debut: tape.selectionStart, fin: tape.selectionEnd };
   poser(
     ...fraicheur(tenu.a),
     ...(cuisine
@@ -4314,7 +4329,73 @@ function poserRail(projet) {
     ...(cuisine || hors.length === 0 ? [] : [bloc("h3", `outside the columns — their state is none of the six, and nothing says they await you: the Rail read, in Settings, relays what \`${geste(projet, "rail")}\` says`), bons(hors)]),
     ...(sansCarte.length === 0 ? [] : [bloc("h3", `served, without a card here — \`${geste(projet, "status")}\` shows their server`), servis(sansCarte)]),
   );
-  if (reprise !== undefined) [...rail.querySelectorAll("input")].find(({ dataset }) => dataset.cle === reprise.cle && dataset.champ === reprise.champ)?.focus();
+  if (reprise !== undefined) {
+    const repris = /** @type {HTMLInputElement[]} */ ([...rail.querySelectorAll("input, textarea")]).find(({ dataset }) => dataset.cle === reprise.cle && dataset.champ === reprise.champ);
+    repris?.focus();
+    if (repris !== undefined && reprise.debut !== null && reprise.fin !== null) repris.setSelectionRange?.(reprise.debut, reprise.fin);
+  }
+}
+
+// Une carte de TODO à laquelle le chef vient de répondre quitte sa colonne aussitôt, sans attendre la
+// lecture suivante, et le compte de la colonne avec elle. Une réponse que les faits lus ne portent plus —
+// la carte a quitté TODO, ou pose une autre question — est oubliée, et son brouillon avec.
+/** @param {Projet} projet @param {import("../faits.ts").Colonne[]} colonnes */
+function sansCartesRepondues(projet, colonnes) {
+  const portees = new Map(colonnes.flatMap(({ cartes }) => cartes).flatMap(({ ticket, todo }) => (todo === undefined ? [] : [[`${projet.nom}#${ticket}`, todo.question]])));
+  for (const tenues of [reponsesAuxCartes, brouillonsDeCartes]) {
+    for (const cle of tenues.keys()) if (cle.startsWith(`${projet.nom}#`) && !portees.has(cle)) tenues.delete(cle);
+  }
+  for (const [cle, { question }] of reponsesAuxCartes) if (cle.startsWith(`${projet.nom}#`) && portees.get(cle) !== question) reponsesAuxCartes.delete(cle);
+  const repondue = (/** @type {import("../faits.ts").Carte} */ { ticket }) => reponsesAuxCartes.get(`${projet.nom}#${ticket}`)?.etat.etape === "repondue";
+  return colonnes.map((colonne) => {
+    const cartes = colonne.cartes.filter((carte) => !repondue(carte));
+    return cartes.length === colonne.cartes.length ? colonne : { ...colonne, cartes, compte: String(cartes.length) };
+  });
+}
+
+// La carte de TODO d'un ticket, dans l'état de sa réponse (carte-todo.js) : ses captures posées comme
+// celles d'une livraison, lues sans un clic.
+/** @param {Projet} projet @param {number} ticket @param {import("../carte-todo.ts").CarteDeTodo} todo */
+function poserLaCarteDeTodo(projet, ticket, todo) {
+  const cle = `${projet.nom}#${ticket}`;
+  const tenue = reponsesAuxCartes.get(cle);
+  const etat = tenue !== undefined && tenue.question === todo.question ? tenue.etat : CARTE_AU_REPOS;
+  return poserCarteDeTodo(
+    document,
+    ticket,
+    todo,
+    etat,
+    { captures: todo.captures === undefined ? [] : poserCaptures(projet, ticket, todo.captures), brouillon: brouillonsDeCartes.get(cle) ?? "", cle },
+    {
+      repondre: (reponse) => void repondreALaCarte(projet, ticket, reponse),
+      ecrire: (texte) => void brouillonsDeCartes.set(cle, texte),
+    },
+  );
+}
+
+// La réponse du chef à une carte de TODO part par le process principal (carte-todo.ts) — une seule à la
+// fois. Écrite, la carte quitte TODO, et `facts` est relu tout de suite ; refusée, elle reste, et dit pourquoi.
+/** @param {Projet} projet @param {number} ticket @param {import("../carte-todo.ts").Reponse} reponse */
+async function repondreALaCarte(projet, ticket, reponse) {
+  const cle = `${projet.nom}#${ticket}`;
+  if (reponsesAuxCartes.get(cle)?.etat.etape === "envoi") return;
+  /** @param {import("./carte-todo.js").Etat} etat */
+  const poser = (etat) => {
+    reponsesAuxCartes.set(cle, { question: reponse.question, etat });
+    if (courant?.nom === projet.nom) poserRail(projet);
+  };
+  poser({ etape: "envoi", reponse });
+  /** @type {import("../carte-todo.ts").Rendu | undefined} */
+  let rendu;
+  try {
+    rendu = await brigade.repondreCarte(projet.nom, ticket, reponse);
+  } catch (erreur) {
+    rendu = { refus: "nothing was sent: the app could not ask the station", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  const suite = apresLaCarte(reponse, rendu);
+  if (suite.etape === "repondue") brouillonsDeCartes.delete(cle);
+  poser(suite);
+  if (suite.etape === "repondue") brigade.relireBox(demandeFaits);
 }
 
 // Les corrections proposées des consignes du projet, chacune une carte de la file, au-dessus des
