@@ -25,7 +25,7 @@ import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { Panne } from "../../src/pannes/pannes.ts";
 import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type Ajout, type VuDesProjets } from "../../src/projets/projets.ts";
 import type { VuDesStations } from "../../src/stations/stations.ts";
-import { type Faux, type Jouee, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-19T12:00:00.000Z";
 const BOX = { id: "g1", nom: "parade-box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [] as Panne[], dit: "online", version: "1.4.0", projets: [] as string[], max: null } as const;
@@ -315,6 +315,26 @@ test("confiée, la page nomme les stations qui font sa cuisine, et « + station 
   await repos();
   assert.equal(jouee.element("tous").hidden, false);
   assert.equal(jouee.element("station").dessous("h2")[0]?.textContent, "parade-box");
+});
+
+test("sur l'onglet Cooks, « + station » ouvre le même parcours que sur Rail, et la box est relue dès que la demande est écrite", async () => {
+  const { jouee, bloc } = await laPage(CONFIE);
+  await ouvrirOnglet(jouee, "Cooks");
+  const bouton = boutonSous(bloc, "+ station");
+  assert.equal(bouton.hidden, false);
+  bouton.click();
+  await repos();
+  const formulaire = bloc.dessous("form")[0] ?? assert.fail("pas de formulaire");
+  assert.equal(formulaire.hidden, false);
+  assert.equal(formulaire.dessous("h3")[0]?.textContent, "Add a station to parade's kitchen.");
+  const renfort = machines(formulaire, "checkbox")[0]?.champ ?? assert.fail("pas de case");
+  renfort.checked = true;
+  renfort.declencher("change");
+  const relectures = jouee.appels.filter(({ geste }) => geste === "relireBox").length;
+  await Promise.all(formulaire.declencher("submit"));
+  await repos();
+  assert.equal(jouee.dernier("confierAUneStation").length, 1);
+  assert.equal(jouee.appels.filter(({ geste }) => geste === "relireBox").length, relectures + 1);
 });
 
 test("une station qui sert le projet sans l'app le fait aussi : la page la nomme, et ne dit jamais qu'aucune ne le fait", async () => {
