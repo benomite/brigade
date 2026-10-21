@@ -40,6 +40,7 @@ const VERS = {
   "porte.ts": "les hôtes de la liste blanche du projet, pour ses lancements — elle écoute sur 127.0.0.1",
   "reseau.ts": "la porte du projet, et la sonde du filtre de son unité",
   "servir.ts": "le serveur d'une livraison d'interface, sur 127.0.0.1",
+  "telephone/guichet.ts": "n'ouvre rien : il écoute — le téléphone du chef le joint pour s'appairer, puis lire les stations",
 };
 // Ce qui sert les stations distantes, côté box.
 const DISTANTES = ["distantes.ts", "tirer.ts", "tirer-cli.ts", "superviseur-distant.ts", "events/remote.ts"];
@@ -54,10 +55,10 @@ test("la déclaration d'une station distante ne porte aucune adresse : la box ne
   }
 });
 
-test("`runtime/src` : seuls huit modules touchent au réseau, aucun vers une station — et ce qui sert les stations distantes n'en importe aucun", () => {
+test("`runtime/src` : seuls neuf modules touchent au réseau, aucun vers une station — et ce qui sert les stations distantes n'en importe aucun", () => {
   const fichiers = sources();
   assert.deepEqual(fichiers.filter((fichier) => RESEAU.test(lire(fichier))).map(nom).sort(), Object.keys(VERS).sort());
-  // Aucun de ces huit ne connaît les stations distantes : ni leurs modules, ni
+  // Aucun de ces neuf ne connaît les stations distantes : ni leurs modules, ni
   // leur déclaration, ni leurs demandes.
   for (const fichier of Object.keys(VERS)) {
     assert.doesNotMatch(lire(join(SRC, fichier)), /distante|remote\.|tirer\.ts|stations-declarees/i, fichier);
