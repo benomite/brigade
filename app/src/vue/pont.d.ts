@@ -210,6 +210,18 @@ export type Pont = {
   appairerLeTelephone(demande: DemandeDuTelephone): Promise<ReponseDuGuichet>;
   // Le QR que la station montre, lu par l'appareil photo du téléphone : son texte, tel quel.
   scannerLeQr(): Promise<LectureDuQr>;
+  // L'app Android seule (le ticket 1165) : la conversation avec le second d'un projet, là où il n'y a pas de terminal
+  // où la lire. C'est celle du second du desktop — ce que le chef y a écrit, d'ici ou de son ordinateur, et ce que le
+  // second a répondu, du plus ancien au plus récent —, ou pourquoi elle ne se lit pas. Le desktop ne les porte pas :
+  // son second est un terminal. Un pont qui ne les porte pas encore rend `undefined`, et la vue le dit.
+  conversation?(projet: string): Promise<Conversation | RefusDeConversation | undefined>;
+  // Un message du chef au second du projet, tel qu'il l'a tapé : il part dans cette même conversation, comme s'il était
+  // tapé dans le terminal du second sur le desktop. Rend la conversation qui le porte, ou pourquoi rien n'est parti.
+  envoyerAuSecond?(projet: string, texte: string): Promise<Conversation | RefusDeConversation | undefined>;
+  // La conversation d'un projet a bougé : le second répond, ou le chef a écrit du desktop.
+  surConversation?(recevoir: (projet: string, conversation: Conversation) => void): void;
+  // Un lien d'un message du second, ouvert dans le navigateur du téléphone.
+  ouvrirLienDuSecond?(projet: string, url: string): Promise<boolean>;
   // Le code qu'une station affiche, tapé par le chef : rend le nom de la station appairée, ou le
   // refus en une ligne — code mal formé, inconnu, expiré, ou GitHub muet. Rien n'est écrit alors.
   appairer(code: string): Promise<Appairage>;
@@ -345,6 +357,13 @@ declare global {
 }
 
 // L'appairage du téléphone, tel que le pont de l'app Android le garde : aucun, sur une installation neuve.
+// Un message de la conversation avec le second (le ticket 1165) : qui l'a écrit — le chef, d'où qu'il l'ait envoyé, ou
+// le second —, quand, et son texte, le markdown rendu (markdown.ts), comme une discussion d'issue.
+export type MessageDuSecond = { de: "chef" | "second"; a: string; blocs: import("../markdown.ts").Bloc[] };
+// `repond` : le second écrit encore sa réponse au dernier message.
+export type Conversation = { messages: MessageDuSecond[]; repond?: true };
+// Une phrase, et ce que la station ou le pont en a dit, au survol.
+export type RefusDeConversation = { refus: string; detail?: string };
 export type Telephone = { appaire: false } | { appaire: true; station: string; adresse: string };
 // Ce que le téléphone envoie au guichet : son adresse (`http://<hôte>:<port>`), le code tapé ou scanné,
 // et ce qu'il dit de lui — son nom de station et sa machine.

@@ -93,6 +93,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 // d'un geste dans son survol, une lecture qui manque en une ligne, une confirmation qui dit son prix.
 import { tenirInvite } from "./mise-a-jour/invite.js";
 import { poserAppaire, tenirAppairage } from "./telephone/appairage.js";
+import { tenirConversation } from "./telephone/conversation.js";
 import { boutonAction, confirmationDeGeste, lectureIndisponible, prixDit, survol } from "./briques.js";
 import { poserChers } from "./cost/chers.js";
 import { poserCourbe } from "./cost/courbe.js";
@@ -237,6 +238,13 @@ const colonneSecond = element("second");
 const noteSecond = element("note-second");
 const fil = element("fil");
 const bandeau = element("bandeau");
+const teteDuSecond = element("tete-du-second");
+const sectionConversation = element("conversation");
+// Sur le téléphone (ticket 1165), l'onglet Second n'a pas de terminal : il tient la conversation avec le second, en
+// messages (telephone/conversation.js). Posée au démarrage, quand le pont dit que l'app est celle du téléphone ; sur le
+// desktop, il n'y en a pas, et le second reste son terminal.
+/** @type {ReturnType<typeof tenirConversation> | undefined} */
+let conversationDuTelephone;
 const message = element("message");
 const etat = element("etat");
 const parametresOnglets = element("parametres-onglets");
@@ -1204,13 +1212,20 @@ function poserSecond(ouvrable, montre) {
   colonneSecond.hidden = courant === undefined || (etroit() && !conversation);
   centre.hidden = conversation;
   principal.toggleAttribute("data-conversation", conversation);
+  // Le téléphone n'a ni terminal ni shell : à leur place, la conversation du projet — sauf s'il ne s'ouvre pas, ce que
+  // la note dit, comme sur le desktop.
+  const enMessages = conversationDuTelephone !== undefined && courant !== undefined && courant.refus === undefined;
+  teteDuSecond.hidden = conversationDuTelephone !== undefined;
+  sectionConversation.hidden = !enMessages;
+  noteSecond.hidden = enMessages;
+  if (enMessages && !colonneSecond.hidden) conversationDuTelephone?.montrer(/** @type {Projet} */ (courant).nom);
   noteSecond.textContent =
     courant !== undefined && courant.refus !== undefined
       ? `“${courant.nom}” does not open: ${courant.refus} — it has no second`
       : nonEcritSecond !== ""
         ? nonEcritSecond
         : (montre?.note ?? (ouvrable ? "the second is opening…" : ""));
-  fil.hidden = !ouvrable;
+  fil.hidden = !ouvrable || conversationDuTelephone !== undefined;
 }
 
 // Une phrase longue tient en une ligne : son début, avant toute commande ou
@@ -1532,6 +1547,8 @@ function montrerADroite(id) {
 /** @param {string} id */
 function choisirOnglet(id) {
   if (courant === undefined) return;
+  // Sur le téléphone, choisir Second relit la conversation : ce qui est montré reste en attendant.
+  if (id === CONVERSATION) conversationDuTelephone?.relire(courant.nom);
   retenir(courant.nom, id);
   laisse.delete(courant.nom);
   nonEcrit = "";
@@ -6411,7 +6428,8 @@ async function ouvrir(projet) {
   brigade.regarder(projet.nom, ++demande);
   // Un projet qui ne s'ouvre pas n'a pas de second : sa colonne dit pourquoi.
   if (projet.refus !== undefined) return montrer();
-  const terminaux = await brigade.espace(projet.nom);
+  // Le pont du téléphone n'ouvre aucun terminal : il ne rend rien (ticket 1165).
+  const terminaux = (await brigade.espace(projet.nom)) ?? [];
   terminaux.forEach(recevoir);
   // Le chef a pu cliquer ailleurs pendant que l'espace s'ouvrait. Sinon, le terminal montré à
   // droite prend le clavier : le second, ou le shell où le chef l'avait laissé.
@@ -6794,6 +6812,11 @@ let configuration = demarrage.configuration;
 // appairé, l'app s'ouvre sur l'écran qui le relie aux projets, et le reste de l'app est caché derrière. Appairé,
 // elle passe à « Tous les projets », où une ligne dit à quelle station (telephone/appairage.js).
 const telephone = demarrage.telephone;
+if (telephone !== undefined) {
+  const tenue = tenirConversation(sectionConversation, document, { pont: brigade, rendre: poserBlocs });
+  conversationDuTelephone = tenue;
+  brigade.surConversation?.((projet, conversation) => tenue.recevoir(projet, conversation));
+}
 const appairageDuTelephone = element("appairage");
 const cadreDeLApp = element("cadre");
 if (telephone !== undefined && !telephone.appaire) {

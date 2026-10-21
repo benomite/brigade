@@ -768,6 +768,32 @@ is in the Second tab`. Screens: `telephone-gestes-*` of `scripts/capture-ecran` 
 Android bridge does not carry these actions yet**, for the same reason as the readings above: until the station's
 phone desk takes them, a gesture on the phone sends nothing, and says so in that one line.
 
+**Talking to a project's second from the phone** (#1165): on a phone, the Second tab has no terminal and no shell —
+no pty runs there —, it holds **the conversation with the second, as messages**: what you wrote to it, from the phone
+or from your computer, on the right; what the second answered, on the left, its markdown rendered as in an issue's
+discussion; oldest first, the list scrolling on its own. At the top, one line — *Write to parade's second: it answers
+here.* —, and on hover that it is the same conversation as your computer's Second. At the bottom, always in view, the
+message field and **send**, the recommended gesture, inactive while the field is empty; its price is on hover (the
+second's reply is spent on your Max quota).
+
+- **send** calls `envoyerAuSecond` (the project, the text as typed): the message goes into the same conversation as
+  the desktop's second, as if typed in its terminal, and the bridge answers with the conversation that carries it — it
+  appears, the field empties, and *the second is answering…* closes the list until the reply comes. While the answer
+  has not come, *sending to the second…*, and the field and send are inactive: nothing goes twice.
+- **The reply**, and anything typed on the desktop into that second, come back by `surConversation`: the list is
+  posed again, never the field — what you are typing is not lost, and each project keeps its own draft.
+- **Not sent**: one line under the list — the bridge's sentence, or *your message was not sent* —, what the station
+  said on hover; the text stays in the field, and send can be played again.
+- **A conversation that cannot be read** says *conversation unavailable* in one line, why on hover, with **read
+  again**, and no field. Choosing the Second tab again re-reads it; a re-read that fails keeps what was shown.
+
+On the desktop, nothing changes: the Second tab of a narrow window is still the second's terminal. The screen is
+`app/src/vue/telephone/conversation.js`; the bridge actions are `conversation`, `envoyerAuSecond`, `surConversation`
+and `ouvrirLienDuSecond` (`app/src/vue/pont.d.ts`, optional: only a phone's bridge carries them). Screens:
+`telephone-second*` of `scripts/capture-ecran` (`docs/captures/1165/`). **The Android bridge does not carry the
+conversation yet**: the station's phone desk does not serve the second's conversation, and the desktop app does not
+hand its second to the station — until both do, the Second tab of the phone says *conversation unavailable*.
+
 ### Your stations: paired with a code, read on GitHub
 
 **On the home screen**, the "Stations" list shows the ones you have paired, one line each —

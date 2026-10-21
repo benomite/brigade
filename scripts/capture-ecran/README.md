@@ -111,6 +111,8 @@ compare que deux captures du même navigateur.
 | `telephone-gestes-merger`, `telephone-gestes-en-route`, `telephone-gestes-merge-fait`, `telephone-gestes-refus` | Les gestes de la file sur le téléphone (#1164), en 412 × 915 : la fiche de #12 — verte, sans le grant — ouverte depuis TODO, « merge the PR » touché et sa confirmation, puis le merge parti et la station pas encore revenue, gestes inactifs ; fait ; refusé par GitHub, la réponse au survol |
 | `telephone-gestes-retire` | La fiche de #31, sa PR fermée sans merge, tranchée : « remove from the rail » confirmé, fait (#1164) |
 | `telephone-gestes-arreter`, `telephone-gestes-arretee` | Cooks sur le téléphone (#1164) : « stop cooking » touché sur la box, ce que la station en dit ; puis la box arrêtée, « start cooking » |
+| `telephone-second`, `telephone-second-tape`, `telephone-second-envoi`, `telephone-second-repond`, `telephone-second-refus` | La conversation de `parade` avec son second sur le téléphone (#1165), en 412 × 915, onglet Second : ce que le chef a demandé et ce que le second a répondu, le champ du message ; un message tapé, « send » actif ; parti, la station pas encore revenue, le champ et « send » inactifs ; arrivé, le second qui répond ; refusé, la ligne et le texte gardé |
+| `telephone-second-sans-pont` | Le même onglet avec le pont de l'app Android d'aujourd'hui, qui ne porte pas la conversation (#1165) : « conversation unavailable », la raison au survol, et « read again » |
 | `telephone-relance` | L'app Android relancée, le téléphone déjà appairé : « Tous les projets », sans écran d'appairage |
 
 Tous en 1440 × 900, sauf ceux du téléphone. `--liste` donne la liste à jour.
@@ -191,8 +193,10 @@ dans `main.ts`, à partir de ce que la box rendrait (`pass 14 --json`, `pass 14 
   de la dernière demande de cette lecture, que la vue compare au sien.
 - **D'autres données de box** : un autre état du rail, une box qui ne répond pas… s'écrivent comme
   la box les rendrait, dans `cuisine-figee.ts` ou à côté, et passent par `cuisine()`.
-- **`etapes`** : après chacune, la page se pose avant la suivante. Un sélecteur qui ne désigne pas
-  exactement un élément arrête la capture en le disant.
+- **`etapes`** : après chacune, la page se pose avant la suivante. Une étape est un clic
+  (`{ cliquer: <sélecteur> }`) ou un texte tapé dans un champ (`{ saisir: <sélecteur>, texte }` : sa
+  valeur posée, et l'`input` que la frappe déclencherait — `telephone-second-tape`). Un sélecteur qui
+  ne désigne pas exactement un élément arrête la capture en le disant.
 
 Puis : `--liste` le montre, une capture le rend, et `npm --prefix scripts/capture-ecran test` le
 rend avec les autres — le test vérifie que **chaque** écran de `ecrans/` se rend sans accroc.
