@@ -710,6 +710,38 @@ THIS APP'S CODE IS 39 COMMITS BEHIND origin/v2 — read at 14:32:07, reread when
 
 At launch, the Android app checks the manifest of the latest release (`app/src/mise-a-jour/android.ts`). When that check returns an offer, the app puts a prompt at the very top of the window, above every screen: **"Version 1.5.0 is available"**, the release notes under it, and two buttons — **Update** (recommended) and **Not now**. *Update* hands the offer's `apkUrl` to the install step (`brigade.installerApk`); *Not now* closes the prompt, and it does not come back until the next launch. With no update — or a failed check — nothing is shown and the launch is unchanged. The desktop app never gets an offer: it updates itself (`miseAJour`). The view is `app/src/vue/mise-a-jour/invite.js`; the capture is `scripts/capture-ecran` screen `offre-apk` (`docs/captures/1170/`). The Android bridge (`app/android/web/pont.js`) does not yet run the check nor the install: until it does, the prompt is built and tested but nothing sends it an offer.
 
+### Pairing the phone with your projects (#1161)
+
+On a fresh install, **the Android app opens on one screen: "Link this phone to your projects"** — the rest of
+the app stays behind it until the phone is paired. Under the title, one sentence: *Type the code your station
+shows, or scan its QR.* Two fields, **your station's address** (`192.168.1.20:7010`, with or without `http://`)
+and the **pairing code** (`7KQ2-M9XD`, lowercase, spaces and dashes make no difference), then two buttons:
+**pair** (recommended) and **scan the QR**. What a code is — fifteen minutes, one phone, once — is on hover over
+the "?" next to the title. A running station issues the code and its QR (`runtime/src/telephone/appairage-cli.ts`),
+and listens for the phone on its phone desk (`BRIGADE_GUICHET_TELEPHONES`, `runtime/src/telephone/guichet.ts`).
+
+- **Scanning** reads the station's QR with Google Play's code scanner — the app does not ask for the camera
+  itself. The QR carries the code and the desk's address (`brigade://pair?code=…&url=…`): both fields fill in and
+  the pairing leaves at once. Cancelled, nothing changes; unreadable, or not a station's QR, one line says so.
+- **"pair"** sends the code to the desk (`POST /pairing`). The phone introduces itself under its model's name
+  (`pixel-8`, its machine `Android 14 · Pixel 8`); if a station that cooks already has that name, it tries once
+  more as `pixel-8-phone`. While it waits, the line under the buttons says *Waiting for your station at
+  192.168.1.20:7010…* and both buttons are inactive.
+- **Paired**: the app goes to "All projects", with one line at the top — *This phone is paired with
+  `atelier`.* The phone keeps its token in the app's storage, the view never sees it; at the next launch it opens
+  straight on "All projects". Uninstalling the app forgets the pairing.
+- **Refused**, one line under the buttons, what the station answered on hover, the fields kept as typed:
+  *Wrong code: check it on your station, then type it again.* — *This code has expired: ask your station for a new
+  one.* — *This code was already used: ask your station for a new one.* — *Too many wrong codes: wait a few
+  minutes, then try again.* Nothing is paired, and the chef types again.
+- **Unreachable**: *Your station does not answer at 192.168.1.20:7010.* — what the network said, and to check that
+  the station is running and the phone is on its network, on hover. The screen never stays blank.
+
+On the desktop, nothing of this is shown. The screen is `app/src/vue/telephone/appairage.js`; the Android bridge
+that reaches the desk and keeps the token is `app/android/web/pont.js` (with `Pont.java` for the scanner); the
+captures are the `telephone-*` screens of `scripts/capture-ecran` (`docs/captures/1161/`). What the paired phone
+then reads — its place in the stations list, each project's queue — comes with the next tickets of #1151.
+
 ### Your stations: paired with a code, read on GitHub
 
 **On the home screen**, the "Stations" list shows the ones you have paired, one line each —

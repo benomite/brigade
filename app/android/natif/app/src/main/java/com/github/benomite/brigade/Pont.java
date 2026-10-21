@@ -2,9 +2,15 @@ package com.github.benomite.brigade;
 
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
+import com.getcapacitor.JSObject;
 import com.getcapacitor.Logger;
 import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.google.mlkit.vision.barcode.common.Barcode;
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions;
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -14,7 +20,7 @@ import java.util.Collections;
 // Le `window.brigade` de la vue, que preload.cjs pose sur le desktop : ici, le pont d'attente
 // (app/android/web/pont.js), posé par la construction dans les fichiers de l'app. Il est injecté
 // au début de chaque document de l'app, avant ses scripts — `load` est joué avant que la WebView
-// ne charge sa première page. Rien d'autre ne passe par ce plugin.
+// ne charge sa première page. Le pont y appelle aussi le lecteur de QR (`scanner`, le ticket 1161).
 @CapacitorPlugin(name = "Pont")
 public class Pont extends Plugin {
 
@@ -37,5 +43,27 @@ public class Pont extends Plugin {
             return;
         }
         WebViewCompat.addDocumentStartJavaScript(getBridge().getWebView(), script, Collections.singleton(getBridge().getLocalUrl()));
+    }
+
+    // Le QR que montre une station, pour appairer le téléphone : lu par le lecteur de Google Play, qui
+    // ouvre l'appareil photo lui-même — l'app ne le demande pas. Rend `{texte}` ; renoncé, rien ;
+    // impossible, la raison.
+    @PluginMethod
+    public void scanner(PluginCall call) {
+        GmsBarcodeScannerOptions options = new GmsBarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build();
+        GmsBarcodeScanning.getClient(getActivity(), options)
+            .startScan()
+            .addOnSuccessListener((lu) -> {
+                String texte = lu.getRawValue();
+                if (texte == null) {
+                    call.reject("this QR holds no text");
+                    return;
+                }
+                JSObject rendu = new JSObject();
+                rendu.put("texte", texte);
+                call.resolve(rendu);
+            })
+            .addOnCanceledListener(() -> call.resolve(new JSObject()))
+            .addOnFailureListener((erreur) -> call.reject(String.valueOf(erreur.getMessage())));
     }
 }

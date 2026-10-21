@@ -7,7 +7,15 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/AppTheme">
+        android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="true">
+
+        <!-- Le guichet d'une station, où le téléphone s'appaire, parle http, à une adresse du réseau du chef
+             qu'on ne connaît pas d'avance (runtime/src/telephone/guichet.ts) : d'où le http en clair, ci-dessus.
+             Le lecteur de QR de Google Play est posé avec l'app, pas à son premier usage. -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="barcode_ui" />
 
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"

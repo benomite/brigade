@@ -153,8 +153,10 @@ test("le pont d'attente : la vue s'ouvre sans projet, chaque geste répond sans 
   const json = (valeur: unknown) => JSON.parse(JSON.stringify(valeur));
   const recu = json(await pont.demarrage!()) as Record<string, unknown>;
   assert.deepEqual(recu.configuration, { chemin: "no projects file on this phone — the Android app is not paired with a station yet: this phone reads nothing and sends nothing", projets: [] });
-  // Le reste est ce que le process principal rendrait : les constantes des modules d'app/src/.
-  assert.deepEqual(Object.fromEntries(Object.entries(recu).filter(([cle]) => cle !== "configuration")), JSON.parse(JSON.stringify(demarrage)));
+  // Le reste est ce que le process principal rendrait : les constantes des modules d'app/src/ — et l'appairage du
+  // téléphone, aucun sans stockage qui en garde un (#1161).
+  assert.deepEqual(recu.telephone, { appaire: false });
+  assert.deepEqual(Object.fromEntries(Object.entries(recu).filter(([cle]) => cle !== "configuration" && cle !== "telephone")), JSON.parse(JSON.stringify(demarrage)));
   assert.equal(await pont.choisirDossier!(), undefined);
   assert.deepEqual(json(await pont.ajouter!({ dossier: "/x", depot: "a/b", base: "main" })), { etat: "pas-ajoute", titre: "Nothing was added: the Android app is not paired with a station yet: this phone reads nothing and sends nothing." });
   assert.equal(pont.then, undefined);
@@ -164,6 +166,93 @@ test("le pont d'attente : la vue s'ouvre sans projet, chaque geste répond sans 
   for (const geste of gestes) assert.equal(typeof pont[geste], "function", geste);
   assert.equal(pont.surConfiguration!(() => assert.fail("nothing is received")), undefined);
   assert.equal(await pont.verifier!("projet"), undefined);
+});
+
+// Le pont joué comme dans la WebView (#1161) : son stockage, et le pont natif de Capacitor (`nativePromise`), dont
+// chaque appel est noté et reçoit la réponse de `natif` — ce que CapacitorHttp rendrait du guichet, ou ce que lève
+// un réseau qui ne joint rien.
+type AppelNatif = { plugin: string; methode: string; options: Record<string, unknown> };
+async function pontDuTelephone(natif: (appel: AppelNatif) => unknown, stockage = new Map<string, string>()) {
+  const appels: AppelNatif[] = [];
+  const window: Record<string, unknown> = {
+    localStorage: { getItem: (cle: string) => stockage.get(cle) ?? null, setItem: (cle: string, valeur: string) => void stockage.set(cle, valeur) },
+    Capacitor: {
+      nativePromise: async (plugin: string, methode: string, options: Record<string, unknown>) => {
+        // Les options viennent du contexte du pont : on les garde en JSON, comme elles passent au natif.
+        appels.push({ plugin, methode, options: JSON.parse(JSON.stringify(options)) });
+        return natif({ plugin, methode, options });
+      },
+    },
+  };
+  vm.runInNewContext(scriptDuPont(await demarrageDuPont()), { window });
+  const pont = window.brigade as Record<string, (...args: unknown[]) => Promise<unknown>>;
+  const json = async (promesse: Promise<unknown>) => JSON.parse(JSON.stringify(await promesse));
+  return { pont, appels, stockage, json };
+}
+const DEMANDE = { adresse: "http://192.168.1.20:7010", code: "7KQ2-M9XD", nom: "pixel-8", machine: "Android 14 · Pixel 8" };
+const STATION = { nom: "pixel-8", machine: "Android 14 · Pixel 8", sorte: "telephone", cuisine: false, statut: "acceptee" };
+
+test("le pont appaire le téléphone : le code part au guichet par le HTTP natif, le jeton est gardé, et le lancement suivant le sait", async () => {
+  const { pont, appels, stockage, json } = await pontDuTelephone(() => ({ status: 201, headers: {}, data: { paired: true, station: STATION, token: "brgt_secret" } }));
+  assert.deepEqual(await json(pont.appairerLeTelephone!(DEMANDE)), { paired: true, station: "pixel-8" });
+  assert.deepEqual(appels, [
+    {
+      plugin: "CapacitorHttp",
+      methode: "request",
+      options: { url: "http://192.168.1.20:7010/pairing", method: "POST", headers: { "Content-Type": "application/json" }, data: { code: "7KQ2-M9XD", name: "pixel-8", machine: "Android 14 · Pixel 8" }, connectTimeout: 10_000, readTimeout: 10_000 },
+    },
+  ]);
+  // Le jeton est gardé, et la vue n'en reçoit rien.
+  assert.deepEqual(JSON.parse(stockage.get("brigade.telephone") ?? "null"), { station: "pixel-8", adresse: "http://192.168.1.20:7010", jeton: "brgt_secret" });
+  // Relancée sur le même stockage, l'app se sait appairée.
+  const relance = await pontDuTelephone(() => assert.fail("nothing is sent at launch"), stockage);
+  assert.deepEqual((await relance.json(relance.pont.demarrage!())).telephone, { appaire: true, station: "pixel-8", adresse: "http://192.168.1.20:7010" });
+});
+
+test("le pont rend le refus du guichet tel quel, et ne garde rien", async () => {
+  const said = "code refused: it expired at 2026-10-21T09:58:00.000Z — ask your station for a new one";
+  const { pont, stockage, json } = await pontDuTelephone(() => ({ status: 403, headers: {}, data: { paired: false, reason: "expire", said } }));
+  assert.deepEqual(await json(pont.appairerLeTelephone!(DEMANDE)), { paired: false, reason: "expire", said });
+  // Un corps resté en texte se lit aussi.
+  const texte = await pontDuTelephone(() => ({ status: 403, headers: {}, data: JSON.stringify({ paired: false, reason: "inconnu", said: "no code" }) }));
+  assert.deepEqual(await texte.json(texte.pont.appairerLeTelephone!(DEMANDE)), { paired: false, reason: "inconnu", said: "no code" });
+  assert.equal(stockage.size, 0);
+  assert.deepEqual((await json(pont.demarrage!())).telephone, { appaire: false });
+});
+
+test("le pont dit la station injoignable quand la demande n'arrive pas, et une réponse qui n'est pas d'un guichet comme telle", async () => {
+  const muet = await pontDuTelephone(() => {
+    throw new Error("failed to connect to /192.168.1.20 (port 7010) after 10000ms");
+  });
+  assert.deepEqual(await muet.json(muet.pont.appairerLeTelephone!(DEMANDE)), { paired: false, reason: "injoignable", said: "failed to connect to /192.168.1.20 (port 7010) after 10000ms" });
+  const autre = await pontDuTelephone(() => ({ status: 404, headers: {}, data: "<html>not found</html>" }));
+  assert.deepEqual(await autre.json(autre.pont.appairerLeTelephone!(DEMANDE)), { paired: false, reason: "inattendu", said: "http://192.168.1.20:7010 answered 404, not as a station's phone desk" });
+  assert.equal(muet.stockage.size + autre.stockage.size, 0);
+});
+
+test("le pont lit le QR par le plugin natif : son texte, un renoncement, ou la raison d'un échec", async () => {
+  for (const [rendu, attendu] of [
+    [{ texte: "brigade://pair?code=7KQ2-M9XD" }, { lu: "brigade://pair?code=7KQ2-M9XD" }],
+    [{}, { annule: true }],
+  ] as const) {
+    const { pont, appels, json } = await pontDuTelephone(() => rendu);
+    assert.deepEqual(await json(pont.scannerLeQr!()), attendu);
+    assert.deepEqual(appels, [{ plugin: "Pont", methode: "scanner", options: {} }]);
+  }
+  const { pont, json } = await pontDuTelephone(() => {
+    throw { message: "Waiting for the Barcode UI module to be downloaded." };
+  });
+  assert.deepEqual(await json(pont.scannerLeQr!()), { refus: "Waiting for the Barcode UI module to be downloaded." });
+});
+
+test("l'enveloppe native a de quoi appairer : le lecteur de QR du pont, et le http en clair vers le guichet", () => {
+  const java = join(NATIF, "app", "src", "main", "java", ...IDENTIFIANT.split("."));
+  assert.match(readFileSync(join(java, "Pont.java"), "utf8"), /@PluginMethod\s+public void scanner\(PluginCall call\)/);
+  assert.match(readFileSync(join(NATIF, "app", "build.gradle"), "utf8"), /com\.google\.android\.gms:play-services-code-scanner:\$codeScannerVersion/);
+  assert.match(readFileSync(join(NATIF, "variables.gradle"), "utf8"), /codeScannerVersion = '\d+\.\d+\.\d+'/);
+  const manifeste = readFileSync(join(NATIF, "app", "src", "main", "AndroidManifest.xml"), "utf8");
+  assert.match(manifeste, /android:usesCleartextTraffic="true"/);
+  assert.match(manifeste, /android:name="com\.google\.mlkit\.vision\.DEPENDENCIES"\s+android:value="barcode_ui"/);
 });
 
 test("ce que posent la construction et `cap sync` n'est pas une source : git l'ignore", () => {

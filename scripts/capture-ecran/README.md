@@ -103,8 +103,11 @@ compare que deux captures du même navigateur.
 | `fiabilite-apprentissage` | La même page quand ses cooks ont appris (#1058) : sous les causes, ses quatre leçons — deux provisoires, deux promues avec « open in the notebook » — et ses deux profils, leur domaine, leur carnet et leurs tickets. Sans `apprentissage` dans `facts`, `fiabilite` montre la phrase qui le dit |
 | `projet-refuse`, `projet-refuse-confirmer`, `projet-refuse-tient`, `projet-refuse-sans-remede` | L'onglet Cooks de `parade`, que sa box refuse de servir (#1178, #1205) : le refus, sa consigne et le bouton de son remède — puis le bouton cliqué et sa confirmation, le remède joué et la phrase qui dit pourquoi le refus tient, et un refus sans remède avec la phrase qui dit pourquoi il n'y a pas de bouton |
 | `fiabilite-recul` | La même page quand quatre corrections de ses consignes ont été acceptées (#1001) : sous les causes, chaque cause corrigée avant et après le merge — elle recule, elle ne recule pas, rien à comparer encore, pas encore mergée |
+| `telephone-lancement` | Le premier écran de l'app Android installée neuve (#1161), en 412 × 915 : « Link this phone to your projects », l'adresse de la station et son code, « pair » et « scan the QR » |
+| `telephone-attente`, `telephone-code-faux`, `telephone-code-expire`, `telephone-injoignable`, `telephone-appaire` | Le même, « scan the QR » cliqué — le QR remplit les deux champs et part au guichet : la station qui n'a pas encore répondu, un code faux, un code expiré, la station injoignable, puis l'appairage réussi — « Tous les projets », la station nommée en tête |
+| `telephone-relance` | L'app Android relancée, le téléphone déjà appairé : « Tous les projets », sans écran d'appairage |
 
-Tous en 1440 × 900. `--liste` donne la liste à jour.
+Tous en 1440 × 900, sauf ceux du téléphone. `--liste` donne la liste à jour.
 
 ## Ce qui est figé
 
@@ -174,7 +177,8 @@ dans `main.ts`, à partir de ce que la box rendrait (`pass 14 --json`, `pass 14 
 - **`reponses`** : la réponse de chaque geste invoqué que l'écran fait jouer, par son nom dans le
   pont (`pont.d.ts`) — `demarrage` toujours. Une réponse est la même quels que soient les arguments.
   Prends-la, autant que possible, à la fonction de l'app qui la calcule (comme `ajout.ts` prend
-  `proposerCalibrage` à `proposition.ts`) : elle suivra le code.
+  `proposerCalibrage` à `proposition.ts`) : elle suivra le code. Une réponse `{ __enAttente: true }` ne vient jamais : l'écran
+  montre ce que la vue pose en l'attendant (`telephone-attente`).
 - **`envois`** : ce que le process principal pousse à la vue. `cuisine(RENDUS)` les rend pour la
   cuisine figée ; ajoutes-y un envoi (`{ sur: "surSortie", args: [id, texte] }` écrit dans un
   terminal, voir `espace-projet.ts`). `demande` sur un envoi : son premier argument reçoit le numéro

@@ -36,7 +36,7 @@ import type { Terminal } from "../terminaux.ts";
 
 export type Pont = {
   // `poste` : le nom que l'écran donne à cet ordinateur (« this Mac », « this PC »), et s'il est un Mac — les raccourcis du terminal en dépendent.
-  demarrage(): Promise<{ poste?: { nom: string; mac: boolean }; configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations; projetsDesStations?: VuDesProjets; accueil?: Accueil; miseAJour?: EtatDeMiseAJour }>;
+  demarrage(): Promise<{ poste?: { nom: string; mac: boolean }; configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations; projetsDesStations?: VuDesProjets; accueil?: Accueil; miseAJour?: EtatDeMiseAJour; telephone?: Telephone }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
   // Le dépôt GitHub et la branche d'intégration du dossier choisi, lus dans son clone — ou pourquoi ils restent à écrire.
@@ -200,6 +200,14 @@ export type Pont = {
   // `miseAJour`, le pont ne rend aucune offre : `surOffreApk` n'y reçoit jamais rien.
   installerApk(apkUrl: string): Promise<unknown> | void;
   surOffreApk(recevoir: (offre: UpdateOffer) => void): void;
+  // L'app Android seule (le ticket 1161) : le téléphone s'appaire au guichet d'une station qui tourne
+  // (runtime/src/telephone/guichet.ts) avec le code qu'elle montre — `POST /pairing`. Appairé, le pont
+  // garde son jeton, que la vue ne voit jamais, et `telephone` le dit au lancement suivant. Refusé ou
+  // injoignable, rien n'est gardé. Sur le desktop, qui n'a rien à appairer ainsi, `demarrage` ne rend
+  // aucun `telephone` : la vue ne pose pas l'écran, et ces deux gestes n'y font rien.
+  appairerLeTelephone(demande: DemandeDuTelephone): Promise<ReponseDuGuichet>;
+  // Le QR que la station montre, lu par l'appareil photo du téléphone : son texte, tel quel.
+  scannerLeQr(): Promise<LectureDuQr>;
   // Le code qu'une station affiche, tapé par le chef : rend le nom de la station appairée, ou le
   // refus en une ligne — code mal formé, inconnu, expiré, ou GitHub muet. Rien n'est écrit alors.
   appairer(code: string): Promise<Appairage>;
@@ -333,3 +341,15 @@ declare global {
     brigade: Pont;
   }
 }
+
+// L'appairage du téléphone, tel que le pont de l'app Android le garde : aucun, sur une installation neuve.
+export type Telephone = { appaire: false } | { appaire: true; station: string; adresse: string };
+// Ce que le téléphone envoie au guichet : son adresse (`http://<hôte>:<port>`), le code tapé ou scanné,
+// et ce qu'il dit de lui — son nom de station et sa machine.
+export type DemandeDuTelephone = { adresse: string; code: string; nom: string; machine: string };
+// Ce que le guichet a répondu : appairé, et à quelle station ; ou refusé, avec son motif (`inconnu`,
+// `expire`, `utilise`, `nom-pris`, `essais`, `invalide`) et sa phrase. `injoignable` : la demande
+// n'est jamais arrivée — `said` dit ce que le réseau en a dit.
+export type ReponseDuGuichet = { paired: true; station: string } | { paired: false; reason: string; said: string };
+// Le QR lu, renoncé, ou impossible à lire — l'appareil photo refusé, le lecteur absent.
+export type LectureDuQr = { lu: string } | { annule: true } | { refus: string };

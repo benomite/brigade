@@ -142,8 +142,8 @@ Ce que la station dit s'écrit sur la sortie de l'app : lancée par
 Un APK installable (`adb install`, ou ouvert depuis le téléphone) : l'enveloppe
 [Capacitor](https://capacitorjs.com) d'[`app/android/`](../android/) autour de **la même vue que
 l'app desktop**, `app/src/vue/`, posée telle quelle à chaque construction — le dépôt n'en garde
-aucune copie. Ni appairage, ni file, ni mises à jour : sur Android, la vue s'ouvre sur son premier
-écran, sans projet, derrière un pont d'attente (plus bas).
+aucune copie. Ni file, ni mises à jour : sur Android, la vue s'ouvre, sans projet, derrière un pont
+d'attente (plus bas), qui sait seulement appairer le téléphone à une station.
 
 ## Construire l'APK
 
@@ -245,7 +245,7 @@ Les tests : `app/test/packaging/android-stable.test.ts`.
 | `capacitor.config.json` | l'identifiant de l'app, `com.github.benomite.brigade`, et son nom, `Brigade` — les mêmes que ceux du Mac ; la page où elle s'ouvre, `src/vue/index.html` |
 | `package.json`, `package-lock.json` | Capacitor, épinglé |
 | `web/index.html` | l'entrée que Capacitor réclame à la racine ; ouverte quand même, elle renvoie à la vue |
-| `web/pont.js` | le pont d'attente |
+| `web/pont.js` | le pont d'attente, et l'appairage du téléphone |
 | `natif/` | le projet Gradle (le gabarit de Capacitor 8.5.3) : `applicationId` et `app_name` y sont redits, `MainActivity` et `Pont.java` dans `com.github.benomite.brigade` |
 
 `www/`, `node_modules/`, et ce que `cap sync` et Gradle écrivent dans `natif/` (`capacitor.settings.gradle`,
@@ -262,11 +262,20 @@ le remplace, injecté par `Pont.java` au début de chaque document de l'app, ava
 
 - `demarrage` rend ce que le process principal rendrait — palettes, onglets, gestes, libellés, lus à
   la construction dans les modules d'`app/src/` (`demarrageDuPont`, dans `android.ts`), jamais
-  recopiés — et une liste de projets vide : l'app s'ouvre sur l'écran « Add a project ».
+  recopiés —, une liste de projets vide, et `telephone`, ce que l'app garde de son appairage (#1161) :
+  aucun sur une installation neuve, et la vue s'ouvre sur l'écran qui relie le téléphone aux projets.
+- `appairerLeTelephone` envoie le code au guichet de la station (`POST /pairing`,
+  `runtime/src/telephone/guichet.ts`) par le HTTP natif de Capacitor (`CapacitorHttp`) : le guichet
+  parle http sur le réseau du chef, que la WebView, servie en https, ne joindrait pas elle-même — d'où
+  aussi `android:usesCleartextTraffic` dans le manifeste. Appairé, le jeton, l'adresse et la station
+  sont gardés dans le stockage de l'app ; la vue ne reçoit que le nom de la station.
+- `scannerLeQr` lit le QR de la station par le lecteur de Google Play
+  (`play-services-code-scanner`, épinglé dans `natif/variables.gradle`), que `Pont.java` appelle
+  (`scanner`) : il ouvre l'appareil photo lui-même, l'app ne le demande pas.
 - `ajouter` refuse, en disant que ce téléphone n'est appairé à aucune station.
 - Un abonnement (`sur…`) ne reçoit rien ; tout autre geste ne fait rien et ne rend rien.
 
-Ce téléphone ne lit rien et n'envoie rien. Le pont qui joindra une station — l'appairage — le
+Hors de l'appairage, ce téléphone ne lit rien et n'envoie rien. Le pont qui lira une station le
 remplacera ; rien du code partagé n'a changé pour Android.
 
 ## Éprouver
@@ -274,7 +283,8 @@ remplacera ; rien du code partagé n'a changé pour Android.
 Les tests (`app/test/packaging/android.test.ts`) vérifient, sans JDK ni SDK : les prérequis nommés
 quand ils manquent (la commande lancée sur une machine qui n'en a aucun), l'identifiant et le nom
 déclarés, les versions épinglées, qu'aucun fichier d'`app/src/` n'est recopié dans `app/android/`,
-la vue posée et chacun des chemins qu'elle charge, et le pont d'attente. L'APK lui-même se construit
+la vue posée et chacun des chemins qu'elle charge, et le pont d'attente — son appairage joué contre un
+faux pont natif. L'APK lui-même se construit
 et s'ouvre sur un émulateur en CI, par cette même commande. À la main, avec un émulateur ou un
 téléphone branché :
 
