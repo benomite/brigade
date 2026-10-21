@@ -1,7 +1,9 @@
 // @ts-check
 // Les stations du projet sur l'onglet Cooks (ticket 1185) : une ligne par station — son nom, son mot (cooking,
 // stopped, saturated, refused) et ce qu'il veut dire, ses cooks en cours, et un seul bouton, qui arrête ou
-// relance la cuisine du projet sur elle, la box comme le Mac ou un autre ordinateur. Le clic part par le process
+// relance la cuisine du projet sur elle, la box comme le Mac ou un autre ordinateur. Sur un écran large, chaque
+// station est un bloc, et ses cooks en cours y sont les cartes de leurs tickets — celles du kanban de Rail, qui
+// s'ouvrent de même (ticket 1270) ; sur un écran étroit, en lecture seule, une ligne par cook. Le clic part par le process
 // principal (cuisson.ts) ; tant qu'il n'a pas répondu, le bouton dit qu'il s'y met. Ce qu'il a fait se dit en une
 // ligne sous la station, ce que le runtime a répondu au survol — jusqu'à ce que la lecture suivante la montre
 // dans son état neuf.
@@ -14,6 +16,7 @@ import { boutonAction } from "./briques.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../cuisson.ts").LigneDeStation} Ligne */
+/** @typedef {import("../faits.ts").Cook} Cook */
 /** @typedef {import("../cuisson.ts").GesteDeCuisson} Geste */
 /** @typedef {import("../projets/demande.ts").AccesBloque} Acces */
 /** @typedef {import("../projets/demande.ts").Refus} Refus */
@@ -41,17 +44,55 @@ function cree(doc, balise, texte) {
   return pose;
 }
 
+// Les cooks en cours d'une station, une ligne chacun : son ticket et son titre (l'écran étroit).
+/** @param {Fabrique} doc @param {Ligne} ligne */
+function lignesDeCooks(doc, ligne) {
+  const cooks = cree(doc, "ul");
+  cooks.className = ligne.cooks.length === 0 ? "cooks vide" : "cooks";
+  cooks.append(
+    ...(ligne.cooks.length === 0
+      ? [cree(doc, "li", AUCUN_COOK)]
+      : ligne.cooks.map(({ ticket, titre }) => {
+          const cook = cree(doc, "li");
+          const numero = cree(doc, "strong", `#${ticket}`);
+          numero.className = "mono";
+          const dit = cree(doc, "span", titre);
+          dit.title = titre;
+          cook.append(numero, dit);
+          return cook;
+        })),
+  );
+  return cooks;
+}
+
+// Les cooks en cours d'une station, la carte de son ticket chacun, telle que `carte` la pose.
+/** @param {Fabrique} doc @param {Ligne} ligne @param {(cook: Cook) => any} carte */
+function cartesDeCooks(doc, ligne, carte) {
+  if (ligne.cooks.length === 0) {
+    const vide = cree(doc, "p", AUCUN_COOK);
+    vide.className = "aucun-cook";
+    return vide;
+  }
+  const cartes = cree(doc, "ol");
+  cartes.className = "cartes";
+  cartes.ariaLabel = `tickets in progress on ${ligne.station}`;
+  cartes.append(...ligne.cooks.map(carte));
+  return cartes;
+}
+
 // La section des stations, ou null : `facts` ne les donne pas. `enCours` : les stations dont un clic attend sa
-// réponse, et lequel ; `dits` : ce que le dernier clic de chacune a rendu. `pastille` : celle de la vue.
+// réponse, et lequel ; `dits` : ce que le dernier clic de chacune a rendu. `pastille` : celle de la vue. `carte` :
+// la carte du ticket d'un cook, celle du kanban — sans elle, une ligne par cook.
 /**
  * @param {Fabrique} doc
- * @param {{ lignes: readonly Ligne[] | undefined, enCours: ReadonlyMap<string, Geste>, dits: ReadonlyMap<string, Dit>, jouer: (station: string, geste: Geste) => void, pastille: (mot: string, ton: string | undefined) => any }} options
+ * @param {{ lignes: readonly Ligne[] | undefined, enCours: ReadonlyMap<string, Geste>, dits: ReadonlyMap<string, Dit>, jouer: (station: string, geste: Geste) => void, pastille: (mot: string, ton: string | undefined) => any, carte?: (cook: Cook) => any }} options
  */
-export function poserLesStations(doc, { lignes, enCours, dits, jouer, pastille }) {
+export function poserLesStations(doc, { lignes, enCours, dits, jouer, pastille, carte }) {
   if (lignes === undefined) return null;
   const section = cree(doc, "section");
   section.className = "stations-de-cuisson";
   section.ariaLabel = TITRE;
+  if (carte !== undefined) section.dataset.cartes = "";
   const liste = cree(doc, "ol");
   liste.append(
     ...lignes.map((ligne) => {
@@ -73,24 +114,9 @@ export function poserLesStations(doc, { lignes, enCours, dits, jouer, pastille }
       pilule.append(pastille(ligne.etat, ligne.ton), cree(doc, "strong", ligne.etat));
       pilule.title = ligne.survol;
       etat.append(pilule, ...(ligne.dit === "" ? [] : [cree(doc, "small", ligne.dit)]));
-      // Ses cooks en cours : arrêtée, ce sont ceux qui finissent.
-      const cooks = cree(doc, "ul");
-      cooks.className = "cooks";
-      cooks.append(
-        ...(ligne.cooks.length === 0
-          ? [cree(doc, "li", AUCUN_COOK)]
-          : ligne.cooks.map(({ ticket, titre }) => {
-              const cook = cree(doc, "li");
-              const numero = cree(doc, "strong", `#${ticket}`);
-              numero.className = "mono";
-              const dit = cree(doc, "span", titre);
-              dit.title = titre;
-              cook.append(numero, dit);
-              return cook;
-            })),
-      );
-      if (ligne.cooks.length === 0) cooks.className = "cooks vide";
-      pose.append(nom, etat, cooks);
+      // Ses cooks en cours : arrêtée, ce sont ceux qui finissent. Leurs cartes ferment le bloc, sous son geste.
+      const cooks = carte === undefined ? lignesDeCooks(doc, ligne) : cartesDeCooks(doc, ligne, carte);
+      pose.append(nom, etat, ...(carte === undefined ? [cooks] : []));
       // Le geste : un seul bouton, et seulement quand c'est d'elle que l'arrêt vient ou s'en va.
       if (ligne.geste !== null) {
         const geste = ligne.geste;
@@ -113,6 +139,7 @@ export function poserLesStations(doc, { lignes, enCours, dits, jouer, pastille }
         if (rendu.detail !== "") dit.title = rendu.detail;
         pose.append(dit);
       }
+      if (carte !== undefined) pose.append(cooks);
       return pose;
     }),
   );

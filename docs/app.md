@@ -12,10 +12,13 @@ and its saturation, the quota). One click switches from one to the other; **the 
 last tab you opened in it**, even after you quit it — a project never opened opens on Rail. **On the right, the
 terminals, permanently**: the second, and beside it, at the same level, the shells you open — nothing you look at
 in the middle hides them, and switching tabs neither cuts nor empties the conversation.
-**On Cooks, one line per station of the project** (#1185), under the project's tile, wherever it runs — the box, the Mac,
+**On Cooks, one block per station of the project** (#1185, #1270), under the project's tile, wherever it runs — the box, the Mac,
 another computer (`remote`): its state, a word of `facts` (`cooking`, `stopped`, `saturated`, `refused`, #1183)
 and what it means (`by you, for 3 min · 1 cook finishing`, `its machine has no room`, the reason for a refusal),
-its cooks in flight, and **a single button**: `stop cooking` when it cooks (saturated included), `start cooking`
+and, at the bottom of the block, **the cards of the tickets in flight on that station, and only those** — the very cards of
+the Rail kanban: a click (or Enter) opens the same sheet as the same card in Taken, its number opens the issue; a ticket
+the rail read does not carry has a card with its number and its title (`no cook running` when there is none). Nothing in a
+block is command output. Each block has **a single button**: `stop cooking` when it cooks (saturated included), `start cooking`
 when you have stopped it. It plays `station stop|start <station>` where the project's kitchen runs — its box by
 `ssh`, or this Mac —, says `stopping…` until the runtime has answered, then rereads the box: the line takes
 the new state without reloading the page. Stopping cuts nothing: the cook in flight finishes — served, or its ticket goes
@@ -38,7 +41,8 @@ by the runtime, a line says so, its output on hover. A runtime that does not giv
 **On a narrow screen — the phone (#1151), or a window under 720 px —, three tabs** (#1186): Rail, Cooks and
 **Second**, the conversation with the second, which takes the place of the middle instead of sitting on the right; one
 tap switches from one to the other, and switching tabs neither cuts nor empties the conversation. The projects bar
-moves to the top. **Cooks is read-only there**: the stations' lines, their state and their cooks, and on each one its
+moves to the top. **Cooks is read-only there**: the stations' lines, their state and their cooks — one line each, not
+their cards —, and on each one its
 only button, `stop cooking` or `start cooking` — no project tile, no Taken and Pass, no delivery servers, no stations
 line to set up (`+ station`, `move the kitchen`, the sandbox), no reading of `station` and its cap: cooks are set up
 where there is a computer. Rail shows the same columns and cards as on a wide screen, `open Cooks` line included, but

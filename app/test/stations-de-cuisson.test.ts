@@ -1,6 +1,8 @@
 // L'onglet Cooks couvre chaque station du projet (#1185) : chaque cook avec sa station, une ligne par station — son
 // état, ses cooks en cours, un bouton qui la lance ou l'arrête, pour la box comme pour le Mac ou un autre
-// ordinateur —, et la ligne mise à jour par la lecture qui suit le clic, sans recharger la page. Sur l'onglet Rail,
+// ordinateur —, et la ligne mise à jour par la lecture qui suit le clic, sans recharger la page. Chaque station y est
+// un bloc, et ses cooks en cours les cartes de leurs tickets — celles du kanban de Rail, qui ouvrent la même fiche,
+// et seulement les siennes (#1270). Sur l'onglet Rail,
 // une seule ligne dit ce qui, du côté des cooks, demande un geste — une station saturée, un projet refusé, l'accès
 // au dépôt bloqué —, avec de quoi ouvrir Cooks ; aucune quand rien ne le demande.
 // La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
@@ -111,7 +113,13 @@ const lignes = (vue: Jouee) => vue.element("rail").dessous("li").filter((li) => 
 const ligne = (vue: Jouee, nom: string) => lignes(vue).find((li) => li.dataset.station === nom) ?? assert.fail(`pas de ligne pour ${nom}`);
 const etatDe = (pose: Faux) => pose.dessous("span").find((span) => span.className === "pilule")?.textContent;
 const boutonDe = (pose: Faux) => pose.dessous("button").find((bouton) => bouton.ariaLabel?.includes(" on ") === true);
-const cooksDe = (pose: Faux) => (pose.dessous("ul")[0]?.children ?? []).map((li) => li.textContent);
+// Les cartes d'un bloc : le numéro et le titre de chacune — ou, sans cook, ce qui le dit.
+const cartesDe = (pose: Faux) => pose.dessous("li").filter((li) => li.className === "bon");
+const cooksDe = (pose: Faux) => {
+  const cartes = cartesDe(pose);
+  if (cartes.length > 0) return cartes.map((bon) => `${bon.children[0]?.children[0]?.textContent}${bon.children[1]?.textContent}`);
+  return pose.dessous("p").filter((p) => p.className === "aucun-cook").map((p) => p.textContent);
+};
 const alertes = (vue: Jouee) => vue.element("rail").dessous("p").filter((p) => p.className === "alerte-de-cuisine");
 
 describe("l'onglet Cooks : une ligne par station du projet", () => {
@@ -225,6 +233,87 @@ describe("l'onglet Cooks : une ligne par station du projet", () => {
     assert.equal(boutonDe(ligne(vue, "box/claude"))?.textContent, "stop cooking");
     assert.equal(boutonDe(ligne(vue, "atelier/claude")), undefined);
     assert.match(ligne(vue, "atelier/claude").textContent, /cannot run the project's cooks/);
+  });
+});
+
+describe("l'onglet Cooks : un bloc par station, et les cartes de ses tickets en cours (#1270)", () => {
+  const COOK_16 = { ticket: 16, titre: "Le menu du soir", station: "atelier/claude" };
+  const REFUS = { status: "refused" as const, code: "sandbox-unusable" as const, message: "This computer cannot run the project's cooks in Claude Code's sandbox.", action: "Install or repair the sandbox.", noRemedy: "Repairing the sandbox means installing software on this computer, which the app does not do for you." };
+  // Une station dans chacun des quatre états : la box cuit #14, le Mac arrêté par le chef y finit #15, l'atelier saturé
+  // cuit encore #16 — que le rail lu ne porte pas —, le PC refuse le projet. #21 attend sur le rail, aucune station ne l'a.
+  const QUATRE: DuRuntime[] = [
+    station("box/claude", { cooks: [COOK_14] }),
+    station("mac/claude", { distante: true, cuisson: "stopped", arreteeDepuis: ARRETEE, cooks: [COOK_15] }),
+    station("atelier/claude", { cuisson: "saturated", cooks: [COOK_16] }),
+    station("pc/claude", { distante: true, cuisson: "refused", refus: REFUS }),
+  ];
+  const FAITS_QUATRE: Faits = { ...FAITS, compteurs: { ...FAITS.compteurs, auTravail: 3 }, cooks: [COOK_14, COOK_15, COOK_16] };
+  const fiche = (vue: Jouee) => vue.element("fiche");
+  const fermer = (vue: Jouee) => (fiche(vue).dessous("button").find((pose) => pose.className === "fermer") ?? assert.fail("pas de bouton pour fermer la fiche")).click();
+  const carteDe = (pose: Faux, numero: number) => cartesDe(pose).find((bon) => bon.children[0]?.children[0]?.textContent === `#${numero}`) ?? assert.fail(`pas de carte #${numero}`);
+
+  test("les quatre états, un bloc chacun : son mot, son bouton tel qu'aujourd'hui, et les cartes de ses tickets en cours, rien d'autre", async () => {
+    const { vue } = await ouvrir(QUATRE, FAITS_QUATRE);
+    await ouvrirOnglet(vue, "Cooks");
+    // Exactement un bloc par station du projet, dans l'ordre de `facts`.
+    assert.deepEqual(lignes(vue).map((li) => li.dataset.station), ["box/claude", "mac/claude", "atelier/claude", "pc/claude"]);
+    assert.deepEqual(lignes(vue).map(etatDe), ["cooking", "stopped", "saturated", "refused"]);
+    assert.deepEqual(lignes(vue).map((li) => boutonDe(li)?.textContent), ["stop cooking", "start cooking", "stop cooking", undefined]);
+    // Chacun porte les cartes des tickets en cours sur sa station, et seulement celles-là : #21, sur le rail, n'est nulle part.
+    assert.deepEqual(lignes(vue).map(cooksDe), [["#14Le journal en ajout seul"], ["#15La carte des desserts"], ["#16Le menu du soir"], [AUCUN_COOK]]);
+    assert.doesNotMatch(vue.element("rail").textContent, /#21/);
+    // Ce sont les cartes du kanban : le même bon, l'état du ticket compris — #16, que le rail lu ne porte pas, n'a que
+    // son numéro et son titre, et son numéro n'ouvre pas d'issue.
+    const quatorze = carteDe(ligne(vue, "box/claude"), 14);
+    assert.equal((quatorze as Faux & { tabIndex?: number }).tabIndex, 0);
+    assert.equal(quatorze.children[0]?.children[1]?.textContent, "pris");
+    assert.equal(quatorze.children[0]?.children[0]?.balise, "button");
+    assert.equal(carteDe(ligne(vue, "atelier/claude"), 16).children[0]?.children[0]?.balise, "span");
+    // Aucune sortie brute de commande dans un bloc : ni `pre`, ni ligne lancée, ni code de sortie.
+    for (const bloc of lignes(vue)) {
+      assert.deepEqual(bloc.dessous("pre"), []);
+      assert.doesNotMatch(bloc.textContent, /\$ |ssh |stderr|stdout|exit code|brigade :/);
+    }
+  });
+
+  test("une carte d'un bloc ouvre la même fiche que la même carte du kanban de Rail", async () => {
+    const { vue } = await ouvrir(QUATRE, FAITS_QUATRE);
+    await ouvrirOnglet(vue, "Cooks");
+    assert.equal(fiche(vue).hidden, true);
+    carteDe(ligne(vue, "box/claude"), 14).click();
+    await repos();
+    assert.equal(fiche(vue).hidden, false);
+    const depuisCooks = fiche(vue).textContent;
+    assert.match(depuisCooks, /#14/);
+    assert.match(depuisCooks, /Le journal en ajout seul/);
+    fermer(vue);
+    await repos();
+    assert.equal(fiche(vue).hidden, true);
+
+    await ouvrirOnglet(vue, "Rail");
+    const taken = vue.element("rail").dessous("section").find((colonne) => colonne.className === "colonne" && colonne.children[0]?.children[0]?.textContent === "Taken") ?? assert.fail("pas de colonne Taken");
+    carteDe(taken, 14).click();
+    await repos();
+    assert.equal(fiche(vue).hidden, false);
+    assert.equal(fiche(vue).textContent, depuisCooks);
+    fermer(vue);
+    await repos();
+
+    // Au clavier aussi, comme sur le kanban : Entrée sur la carte.
+    await ouvrirOnglet(vue, "Cooks");
+    carteDe(ligne(vue, "mac/claude"), 15).declencher("keydown", { key: "Enter" });
+    await repos();
+    assert.equal(fiche(vue).hidden, false);
+    assert.match(fiche(vue).textContent, /La carte des desserts/);
+  });
+
+  test("la lecture suivante redessine les blocs : un ticket qui quitte sa station quitte son bloc", async () => {
+    const { vue } = await ouvrir(QUATRE, FAITS_QUATRE);
+    await ouvrirOnglet(vue, "Cooks");
+    recevoir(vue, { ...FAITS_QUATRE, cooks: [COOK_15, COOK_16] }, [station("box/claude"), ...QUATRE.slice(1)]);
+    await repos();
+    assert.deepEqual(cooksDe(ligne(vue, "box/claude")), [AUCUN_COOK]);
+    assert.deepEqual(cooksDe(ligne(vue, "mac/claude")), ["#15La carte des desserts"]);
   });
 });
 

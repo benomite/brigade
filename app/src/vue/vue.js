@@ -4042,8 +4042,10 @@ const STATION_ARRETEE = "this computer's station is not running";
 // Les stations du projet sur Cooks, et la ligne d'alerte de Rail (ticket 1185), d'après ses derniers faits — rien
 // tant que sa box ne répond pas : ce qu'ils en disaient n'est plus lu — et, pour l'alerte, ce que la station du
 // projet publie de l'accès à son dépôt et de son refus (projets/demande.ts), que le bloc de ses stations détaille.
-/** @param {Projet} projet */
-function poserCuisson(projet) {
+// Sur un écran large, chaque cook en cours est la carte de son ticket, celle du kanban de Rail, qui ouvre la même
+// fiche (ticket 1270) ; `posees` reçoit chacune, que la fiche ouverte suive la carte posée.
+/** @param {Projet} projet @param {Map<import("../faits.ts").Carte, HTMLElement>} [posees] */
+function poserCuisson(projet, posees = new Map()) {
   const tenu = tenus.get(projet.nom);
   const stations = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.stations : undefined;
   const siens = (/** @type {Map<string, any>} */ ou) => new Map([...ou].flatMap(([cle, valeur]) => (cle.startsWith(cleDeCuisson(projet.nom, "")) ? [[cle.slice(cleDeCuisson(projet.nom, "").length), valeur]] : [])));
@@ -4053,6 +4055,16 @@ function poserCuisson(projet) {
     dits: siens(cuissonsDites),
     jouer: (station, geste) => void cuire(projet.nom, station, geste),
     pastille,
+    ...(etroit() || ongletDe(projet) !== CUISINE
+      ? {}
+      : {
+          carte: (/** @type {import("../faits.ts").Cook} */ cook) => {
+            const carte = carteDuCook(projet.nom, cook);
+            const bon = poserBon(projet, carte, undefined, true);
+            posees.set(carte, bon);
+            return bon;
+          },
+        }),
   });
   cuissonDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
@@ -4176,7 +4188,11 @@ function poserRail(projet) {
   // Sur Cooks, la carte du projet en tête ; en bas, ses serveurs de livraison et la lecture de `station`, quoi qu'il y
   // ait entre eux.
   // Sur Cooks, ses stations sous la carte ; sur Rail, en tête, la ligne qui dit ce qui y demande un geste (ticket 1185).
-  poserCuisson(projet);
+  // Le bon posé pour chaque carte, celles des stations comprises (ticket 1270) : celui de la fiche ouverte y reprend
+  // le clavier.
+  /** @type {Map<import("../faits.ts").Carte, HTMLElement>} */
+  const posees = new Map();
+  poserCuisson(projet, posees);
   if (cuisine && etroit()) return poserCuisineEtroite(projet, tenu);
   /** @param {(HTMLElement | string)[]} poses */
   const poser = (...poses) => rail.replaceChildren(...(cuisine ? [carte, cuissonDuProjet, plafondDuProjet] : alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses, ...(cuisine ? [pages, lectureDeLaCuisine] : []));
@@ -4201,9 +4217,6 @@ function poserRail(projet) {
   // Toutes les cartes lues, quel que soit l'onglet : la fiche ouverte et ce qui est en amont les suivent.
   const lesCartes = [...toutes.flatMap(({ cartes: siennes }) => siennes), ...hors];
   const heure = heureDe(tenu.a);
-  // Le bon posé pour chaque carte : celui de la fiche ouverte y reprend le clavier.
-  /** @type {Map<import("../faits.ts").Carte, HTMLElement>} */
-  const posees = new Map();
   /** @param {import("../faits.ts").Carte[]} cartes @param {string} [ton] */
   const bons = (cartes, ton) => {
     const liste = document.createElement("ol");
@@ -4240,9 +4253,9 @@ function poserRail(projet) {
   // C'est dans Paramètres, pour le jour d'une panne ; en tête, seule une lecture vieille se dit.
   poserProvenance(projet, heure, attendLu, railLu);
   poserArreter(projet, tenu.tableau.arretee);
-  // Les serveurs sont sur Cooks : la page dont le ticket n'y a pas de carte — il est sur Rail, ou nulle part — se pose
-  // à part, sous les colonnes, son worktree et son port compris. Sur Rail, sa carte n'en porte que l'écran et le geste.
-  const cartes = new Set(colonnes.flatMap(({ cartes: siennes }) => siennes).map(({ ticket }) => ticket));
+  // Les serveurs sont sur Cooks : la page dont le ticket n'y a pas de carte — dans le bloc de sa station — se pose
+  // à part, sous les stations, son worktree et son port compris. Sur Rail, sa carte n'en porte que l'écran et le geste.
+  const cartes = new Set([...colonnes.flatMap(({ cartes: siennes }) => siennes), ...posees.keys()].map(({ ticket }) => ticket));
   const sansCarte = !cuisine
     ? []
     : [
@@ -4538,6 +4551,17 @@ function carteSurLeRail(nom, ticket) {
   if (tenu === undefined || !("tableau" in tenu)) return undefined;
   const { colonnes, hors } = tenu.tableau.rail;
   return [...colonnes.flatMap(({ cartes }) => cartes), ...hors].find((carte) => carte.ticket === ticket);
+}
+
+// La carte du ticket d'un cook en cours, sur l'onglet Cooks (ticket 1270) : celle que le kanban de Rail pose — dans
+// Taken plutôt que dans TODO, quand il est dans les deux. Un ticket que le rail lu ne porte pas a la carte de ce que
+// le cook en dit : son numéro et son titre.
+/** @param {string} nom @param {import("../faits.ts").Cook} cook */
+function carteDuCook(nom, { ticket, titre }) {
+  const tenu = tenus.get(nom);
+  const lues = tenu === undefined || !("tableau" in tenu) ? [] : [...tenu.tableau.rail.colonnes.flatMap(({ cartes }) => cartes), ...tenu.tableau.rail.hors].filter((carte) => carte.ticket === ticket);
+  const sans = { sans: "not communicated — this ticket is not on the rail the station returned" };
+  return lues.find(({ attendu }) => !attendu) ?? lues[0] ?? { ticket, titre, ouvrable: false, attendu: false, attend: [], dit: [], fiche: { titre: sans, priorite: sans, issue: sans } };
 }
 /** @param {string} nom @param {number} ticket */
 const titreSurLeRail = (nom, ticket) => carteSurLeRail(nom, ticket)?.titre;
