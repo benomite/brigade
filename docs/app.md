@@ -414,7 +414,7 @@ comes before its first action lets it stand.
 
 | What the screen says | What happened | What to do |
 |---|---|---|
-| `WHAT THE BOX "box" WOULD REMOVE — nothing is removed` | the box returned its plan | read it, then type the project's name |
+| `STATION "box" HAS DRAWN UP ITS UNINSTALL PLAN — nothing is removed yet` | the box returned its plan; the app says what it reads of it (the log) | check the log line, then type the project's name |
 | `UNINSTALLED FROM THE BOX "box"` | the box removed what it lists | nothing — or remove it from the app, with the other action |
 | `THE BOX "box" REFUSED (…) — nothing is removed` | the action said no before removing anything: a clone that carries what the origin does not have, a project it does not know, another action in progress | its sentence is above, word for word; sort it out, then replay |
 | `THE UNINSTALL STOPPED HALFWAY…` | it had started: the box says what is done and what remains | ask for the plan again — it says what is left to remove |

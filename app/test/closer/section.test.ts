@@ -296,8 +296,9 @@ describe("la partie closer, dans l'espace du projet", () => {
       [DOUBLONS, "2"],
       [MORTS, "1"],
     ]);
-    // Ce que la box a dit reste lisible, replié dessous, mot pour mot.
-    assert.ok(vue.element("lecture-onglet").dessous("pre").some(({ textContent }) => textContent === `${JSON.stringify(OBSERVEE)}\n`));
+    // Ce que la box a dit n'est pas recopié : aucun bloc brut.
+    assert.deepEqual(vue.element("lecture-onglet").dessous("pre"), []);
+    assert.doesNotMatch(vue.element("lecture-onglet").textContent, /what the station said/);
 
     (page.dessous("button").find(({ className }) => className === "deplier") ?? assert.fail("pas de bouton")).click();
     await repos();

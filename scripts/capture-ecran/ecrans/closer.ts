@@ -60,7 +60,7 @@ export const ecran: Ecran = {
   dit: "Settings → Closer de « parade » : les quatre chiffres de la dernière observation du closer, la liste repliée",
   largeur: 1440,
   hauteur: 900,
-  etapes: [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets > button:nth-child(2)" }, { cliquer: "#parametres-onglets > button:nth-child(6)" }],
+  etapes: [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets > button:first-child" }, { cliquer: "#parametres-onglets > button:nth-child(6)" }],
   donnees: () => ({
     maintenant: MAINTENANT,
     reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [] },

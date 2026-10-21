@@ -271,7 +271,7 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
     assert.deepEqual(vue.xterms.map(({ ecrits }) => ecrits), [[RELAYE, "\r\n"]]);
   });
 
-  test("dans les onglets Rail, Cooks, Manager, Grants, Reliability, Closer et Log : la sortie de leur commande, mot pour mot", async () => {
+  test("dans les onglets Rail, Cooks, Manager, Grants, Reliability, Closer et Log : la sortie brute de leur commande n'est pas montrée", async () => {
     const vue = await ouvrirUnEspace();
     assert.deepEqual(ONGLETS.map(({ titre }) => titre), ["Rail", "Cooks", "Manager", "Grants", "Reliability", "Closer", "Log"]);
 
@@ -279,7 +279,6 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
       await ouvrirLecture(vue, titre);
       const [projet, demande, numero] = vue.dernier("onglet") as [string, string, number];
       assert.deepEqual([projet, demande], [PARADE, id]);
-      // Chaque onglet a sa sortie : la même, avec son nom en tête — rien ne reste de l'onglet d'avant.
       const texte = `${titre}\n${RELAYE}`;
       const lecture: Lecture = { projet: PARADE, demande: numero, a: A, sorties: [{ commande, texte }] };
       vue.dire("surContenu", lecture, undefined, undefined);
@@ -287,7 +286,9 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
       // Cooks est un onglet du projet (#1184) : sa lecture est posée sur lui, aucune page ne s'ouvre.
       const cuisine = id === "cooks";
       assert.equal(vue.element("contenu").hidden, cuisine, titre);
-      assert.deepEqual(textes(relayes(vue.element(cuisine ? "lecture-cuisine" : "lecture-onglet"))), [texte], titre);
+      // La sortie brute de la commande n'est montrée nulle part : ni bloc, ni texte.
+      assert.deepEqual(textes(relayes(vue.element(cuisine ? "lecture-cuisine" : "lecture-onglet"))), [], titre);
+      assert.doesNotMatch(vue.element(cuisine ? "lecture-cuisine" : "lecture-onglet").textContent, /what the station said/, titre);
     }
   });
 
@@ -296,7 +297,8 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
     const demande = vue.dernier("regarder")[1] as number;
     const pages: Pages = { projet: PARADE, pages: [], aLancer: [], illisibles: ["  serveur illisible   tel quel  "], empeche: [], vide: "aucun serveur" };
     vue.dire("surLecture", { projet: PARADE, demande, a: A, attend: BLOC, sorties: [{ commande: "status", texte: RELAYE }] }, pages);
-    assert.deepEqual(textes(relayes(vue.element("lecture"))), [BLOC, RELAYE]);
+    // Le bloc `attend`, mis à part, reste ; la sortie de `status` n'est pas recopiée.
+    assert.deepEqual(textes(relayes(vue.element("lecture"))), [BLOC]);
     // Une ligne de `status` que l'app n'a pas su lire reste entière, elle aussi — sur l'onglet Cooks (#1184).
     await ouvrirOnglet(vue, "Cooks");
     assert.deepEqual(textes(relayes(vue.element("pages"))), ["  serveur illisible   tel quel  "]);
@@ -455,7 +457,7 @@ describe("la fenêtre se réduit sans que rien ne se casse", () => {
     const vue = await ouvrirUnEspace();
     const demande = vue.dernier("regarder")[1] as number;
     vue.dire("surLecture", { projet: PARADE, demande, a: A, attend: longue, sorties: [{ commande: "status", texte: longue }] }, { projet: PARADE, pages: [], aLancer: [], illisibles: [longue], empeche: [] });
-    assert.deepEqual(textes(relayes(vue.element("lecture"))), [longue, longue]);
+    assert.deepEqual(textes(relayes(vue.element("lecture"))), [longue]);
     await ouvrirOnglet(vue, "Cooks");
     assert.deepEqual(textes(relayes(vue.element("pages"))), [longue]);
 
@@ -463,7 +465,7 @@ describe("la fenêtre se réduit sans que rien ne se casse", () => {
       await ouvrirLecture(vue, titre);
       const numero = (vue.dernier("onglet") as [string, string, number])[2];
       vue.dire("surContenu", { projet: PARADE, demande: numero, a: A, sorties: [{ commande, texte: longue }] }, undefined, undefined);
-      assert.deepEqual(textes(relayes(vue.element(id === "cooks" ? "lecture-cuisine" : "lecture-onglet"))), [longue], titre);
+      assert.deepEqual(textes(relayes(vue.element(id === "cooks" ? "lecture-cuisine" : "lecture-onglet"))), [], titre);
     }
   });
 });

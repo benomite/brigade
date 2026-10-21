@@ -367,8 +367,8 @@ describe("la page Reliability, dans l'espace du projet", () => {
     vue.dire("surContenu", lecture, undefined, undefined, { ...voir(lecture), demande });
     await repos();
     assert.match(page.textContent, /delivered on the first try/);
-    // Ce que la box a dit reste lisible, replié dessous, mot pour mot.
-    assert.ok(vue.element("lecture-onglet").dessous("pre").some(({ textContent }) => textContent.startsWith("report     parade")));
+    // Ce que la box a dit n'est pas recopié : aucun bloc brut.
+    assert.deepEqual(vue.element("lecture-onglet").dessous("pre"), []);
     // Rien de technique à plat : ni commande, ni mode d'emploi.
     assert.doesNotMatch(page.textContent, /ssh|brigade parade|usage|`/);
 
