@@ -584,9 +584,6 @@ gestesCuisine.id = "gestes-cuisine";
 gestesCuisine.className = "gestes";
 const lectureCuisine = document.createElement("div");
 lectureCuisine.id = "lecture-cuisine";
-// Ce que `station` a dit y est déplié — le plafond, la machine, le quota s'y lisent sans un clic ; replié par le chef,
-// il le reste d'une relecture à l'autre.
-let cuisineRepliee = false;
 // Ce qu'elle est, en une ligne ; la commande lue et sa cadence, au survol.
 const teteDeLaCuisine = document.createElement("h3");
 lectureDeLaCuisine.append(teteDeLaCuisine, luCuisine, gestesCuisine, lectureCuisine);
@@ -1804,28 +1801,6 @@ function aPart(projet, attend, accueil = false) {
   return cree;
 }
 
-// Ce que l'app a obtenu d'une lecture en échec, et dessous ce qu'elle en dit :
-// le code de sortie choisit le renvoi, le texte n'est jamais traduit. Sans
-// message de `ssh` — pas lancé, ou arrêté au délai — il n'y a rien à aller lire.
-/** @param {Projet} projet @param {import("../box.ts").Echec & { projet: string }} recue @param {string} plusPilotable ce qui se dit d'une box jointe dont le code ne dit aucun cas */
-function obtenu(projet, recue, plusPilotable) {
-  const suite =
-    recue.cas === "projet-inconnu"
-      ? inconnu(recue.projet)
-      : recue.cas === "sans-droit"
-        ? SANS_DROIT
-        : recue.cas === "commande-manque"
-          ? commandeManque(projet)
-          : recue.cas === "node-inapte"
-            ? NODE_INAPTE
-            : recue.atteinte
-              ? plusPilotable
-              : recue.cas === "ssh-en-echec"
-                ? SSH_EN_ECHEC
-                : undefined;
-  return [bloc("pre", recue.erreur), ...(suite === undefined ? [] : [propos(suite)])];
-}
-
 // Une lecture en échec se dit en une ligne, dans les mots de l'app ; ce que la box ou `ssh` a
 // répondu, et ce que l'app en dit de plus (le code de sortie choisit le renvoi, le texte n'est jamais
 // traduit), se lisent au survol. Rien de technique n'est écrit à plat.
@@ -1852,10 +1827,9 @@ function obtenuEnUneLigne(projet, recue, plusPilotable) {
 // un onglet de contenu : un des sept états, dit en toutes lettres, et dessous ce
 // que l'app a obtenu. Celle d'un onglet n'a rien de mis à part : ce n'est pas `status`.
 /**
- * @param {Montree | Lecture} recue @param {HTMLElement} tete @param {HTMLElement} corps @param {boolean} [accueil] vrai : le détail est replié ou au survol, aucune commande n'est écrite
- * @param {{ ouvert: boolean, basculer: (ouvert: boolean) => void }} [deplie] le détail est déplié tant que le chef ne l'a pas replié — sur Cooks
+ * @param {Montree | Lecture} recue @param {HTMLElement} tete @param {HTMLElement} corps
  */
-function rendre(recue, tete, corps, accueil = false, deplie = undefined) {
+function rendre(recue, tete, corps) {
   // Le projet a pu quitter le fichier depuis la demande : il n'y a plus rien à lui écrire.
   const projet = projetDe(recue.projet);
   if (projet === undefined) return;
@@ -1864,17 +1838,8 @@ function rendre(recue, tete, corps, accueil = false, deplie = undefined) {
     const mise = "attend" in recue;
     tete.dataset.etat = "pilotable";
     tete.textContent = `${mise ? "controllable — " : ""}read at ${heure}`;
-    const sans = !mise || recue.attend === undefined ? "" : " — without its `attend` block, set apart above";
-    if (accueil) {
-      // Ce que la box a dit se lit, replié : le détail n'est pas la première chose que l'écran montre.
-      const lue = document.createElement("details");
-      if (deplie !== undefined) {
-        lue.open = deplie.ouvert;
-        lue.addEventListener("toggle", () => deplie.basculer(lue.open));
-      }
-      lue.append(bloc("summary", "what the station said"), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", commande), bloc("pre", texte)]));
-      corps.replaceChildren(...(mise ? [aPart(projet, recue.attend, true)] : []), lue);
-    } else corps.replaceChildren(...(mise ? [aPart(projet, recue.attend)] : []), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", `${geste(projet, commande)}${commande === "status" ? sans : ""}`), bloc("pre", texte)]));
+    // Ce que la box a dit n'est pas montré : l'état se lit dans la phrase de la tête ; seul le bloc `attend`, mis à part, reste.
+    corps.replaceChildren(...(mise ? [aPart(projet, recue.attend, true)] : []));
   } else if (recue.cas === "projet-inconnu") {
     tete.dataset.etat = "inconnu";
     tete.textContent = `REACHED, BUT UNKNOWN TO THE STATION — tried at ${heure}, the next follows on its own`;
@@ -1903,7 +1868,7 @@ function rendre(recue, tete, corps, accueil = false, deplie = undefined) {
     const forme = formeDe(ton);
     if (forme !== undefined) tete.dataset.forme = forme;
   }
-  if ("erreur" in recue) corps.replaceChildren(...(accueil ? obtenuEnUneLigne : obtenu)(projet, recue, GESTE));
+  if ("erreur" in recue) corps.replaceChildren(...obtenuEnUneLigne(projet, recue, GESTE));
 }
 
 // Ce qu'une vérification a donné. En tête, son verdict en une phrase ; dessous, une ligne par
@@ -1991,9 +1956,7 @@ function poserRate(projet, rate) {
   tete.dataset.verdict = rate.etat === "en-cours" ? "en-cours" : "sans-verdict";
   if (rate.etat === "en-cours") return [tete];
   if (rate.etat === "echec") return [tete, ...obtenuEnUneLigne(projet, { ...rate.echec, projet: projet.nom }, GESTE)];
-  const brut = document.createElement("details");
-  brut.append(bloc("summary", "what the station said"), bloc("pre", rate.obtenu));
-  return [tete, brut, ...rate.lignes.map((ligne) => bloc("p", ligne))];
+  return [tete, ...rate.lignes.map((ligne) => bloc("p", ligne))];
 }
 
 // Les mots d'un état d'étape, tels que l'écran les montre.
@@ -2065,9 +2028,7 @@ function poserService(projet, guide) {
     const fait = bloc("p", `${guide.fait.titre} — at ${heureDe(guide.fait.a)}`);
     fait.className = "verdict";
     fait.dataset.verdict = guide.fait.ok ? "pret" : "incomplete";
-    const brut = document.createElement("details");
-    brut.append(bloc("summary", "what the station said"), bloc("pre", guide.fait.obtenu));
-    tete.push(fait, brut);
+    tete.push(fait);
   }
   if (guide.lecture.etat === "lue") tete.push(action("Verify", () => brigade.verifier(projet.nom)), ...poserVerdict(projet, guide.verification, action));
   serviceTete.replaceChildren(...tete);
@@ -6614,7 +6575,7 @@ brigade.surLecture((recue, servies) => {
   // Demandée par un écran quitté depuis, elle était déjà en route : elle n'est pas pour celui-ci.
   if (recue.demande !== demande) return;
   if (recue.projet === courant?.nom && courant.sansStation !== true) {
-    rendre(recue, lu, lecture, true);
+    rendre(recue, lu, lecture);
     servir(courant, servies);
   }
 });
@@ -6697,8 +6658,8 @@ brigade.surContenu((recue, vu, desGrants, laFiabilite) => {
   // Reliability : son `station` dit aussi ce que le projet a coûté.
   if (ongletDemande === FIABILITE) lectureDeLaFiabilite = recue;
   // Sans page par-dessus, c'est la lecture de l'onglet Cooks : elle se pose sur lui (ticket 1184).
-  if (actif() === undefined) rendre(recue, luCuisine, lectureCuisine, true, { ouvert: !cuisineRepliee, basculer: (ouvert) => void (cuisineRepliee = !ouvert) });
-  else rendre(recue, luOnglet, lectureOnglet, true);
+  if (actif() === undefined) rendre(recue, luCuisine, lectureCuisine);
+  else rendre(recue, luOnglet, lectureOnglet);
   managerVu = vu;
   poserManager();
   grantsVus = desGrants;

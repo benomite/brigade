@@ -202,10 +202,10 @@ describe("ce que chaque onglet montre", () => {
     assert.equal(pose(vue, "pages"), true);
     // Le serveur de #31, dont la carte est sur Rail, est ici aussi — son worktree et son port compris.
     assert.match(centre(vue).textContent, /31-5be0c1d2 · port 20031 · sert/);
-    // La lecture de `station` — le plafond, la machine saturée, le quota —, dépliée, et son geste.
+    // La lecture de `station` : son geste, et aucun bloc de sortie brute.
     assert.equal(pose(vue, "lecture-cuisine"), true);
-    assert.deepEqual(vue.element("lecture-cuisine").dessous("pre").map(({ textContent }) => textContent), [STATION]);
-    assert.equal((vue.element("lecture-cuisine").dessous("details")[0] as (Faux & { open?: boolean }) | undefined)?.open, true);
+    assert.deepEqual(vue.element("lecture-cuisine").dessous("pre"), []);
+    assert.deepEqual(vue.element("lecture-cuisine").dessous("details"), []);
     assert.deepEqual(vue.element("gestes-cuisine").dessous("button").filter(({ className }) => className !== "aide").map(({ textContent }) => textContent), ["Set the cooks of a station…"]);
     // Les stations du projet.
     assert.equal(vue.element("stations-du-projet").hidden, false);
