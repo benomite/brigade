@@ -1,280 +1,289 @@
-## La station
+## The station
 
-Une **station** vient prendre les tickets : un endroit où un moteur tourne, `<machine>/<moteur>` —
-`box/claude`, c'est cette machine, le binaire `claude`, la connexion Max du compte du service. Pour
-chaque ticket : elle le prend, crée un **worktree** sur une branche neuve `cook/<run>` partie de la
-branche d'intégration, le rend exécutable, y lance le cook sous garde-fous, puis **récolte**. Le
-clone du dépôt n'est jamais modifié.
+A **station** comes to take the tickets: a place where an engine runs, `<machine>/<engine>` —
+`box/claude` is this machine, the `claude` binary, the Max connection of the service's account. For
+each ticket: it takes it, creates a **worktree** on a new branch `cook/<run>` cut from the
+integration branch, makes it executable, launches the cook there under guardrails, then
+**harvests**. The repository's clone is never modified.
 
-### Déclarer les stations
+### Declaring the stations
 
-**Le runtime ne suppose aucune station : le projet déclare les siennes**, par le geste `station`
-— une décision du chef, posée au journal du projet, lue sans redémarrage. Ce n'est pas un fait de
-la machine : le drop-in de l'unité n'en porte plus rien, et une variable `BRIGADE_STATIONS` qui y
-traîne est **ignorée** (le runtime le dit à son démarrage, avec le geste). Une station par entrée,
-séparées par des virgules ; trois champs par station, séparés par `:` :
+**The runtime assumes no station: the project declares its own**, by the `station` gesture — a
+decision of the chef, set in the project's log, read without a restart. It is not a fact of the
+machine: the unit's drop-in carries nothing of it any more, and a `BRIGADE_STATIONS` variable left
+lying there is **ignored** (the runtime says so at its start, with the gesture). One entry per
+station, separated by commas; three fields per station, separated by `:`:
 
 ```
-<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>[:distante[+ordinaires]],…
+<machine>/<engine>:<cooks cap>:<capability>+<capability>[:distante[+ordinaires]],…
 ```
 
 ```bash
-brigade <projet> station stations box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless
+brigade <project> station stations box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless
 ```
 
-| Champ | Ce qu'il dit | Ce qui est accepté |
+The words `distante` and `ordinaires` are what the runtime reads, so they stay French in the
+declaration, as do the capability names you choose (`raisonnement`, `navigateur-headless`…): the
+runtime recognizes none, it compares them as they are written.
+
+| Field | What it says | What is accepted |
 |---|---|---|
-| **nom** | `<machine>/<moteur>` : le nom par lequel le rail, le journal, `status` et `station` la désignent | une machine et un moteur, chacun en minuscules, chiffres et tirets ; **un nom ne se déclare qu'une fois** |
-| **plafond** | combien de cooks elle fait tourner à la fois, **au plus** : une station d'ici n'en fait tourner que ce que permettent les cœurs de la machine, s'ils en permettent moins (voir « Plusieurs cooks à la fois ») | un entier supérieur à zéro |
-| **fournit** | ses **capacités** : ce que cette machine sait faire (`code`, `navigateur-headless`, `chrome-connecté`…) | au moins une ; des lettres, des chiffres et des tirets, séparées par `+` |
-| **distante** | facultatif : la station **ne tourne pas sur la machine du runtime** — le poste du chef. Le runtime n'y lance rien et ne la joint jamais : c'est elle qui vient tirer son travail (voir « Une station distante tire son travail ») | le mot `distante`, et rien d'autre : **ni hôte, ni port, ni adresse** — la box ne sait pas où elle est |
-| **ordinaires** | facultatif, après `distante` (`distante+ordinaires`) : la station distante prend **aussi les tickets ordinaires** — ceux qui ne demandent aucune capacité —, chacun dans le bac à sable de Claude Code de son poste (voir « Les tickets ordinaires sur le poste du chef ») | le mot `ordinaires`, et seulement d'une station `distante` : une station de la box les prend déjà |
+| **name** | `<machine>/<engine>`: the name by which the rail, the log, `status` and `station` designate it | a machine and an engine, each in lower case, digits and hyphens; **a name is declared only once** |
+| **cap** | how many cooks it runs at once, **at most**: a station of this machine runs only what the machine's cores allow, if they allow fewer (see "Several cooks at once") | an integer greater than zero |
+| **provides** | its **capabilities**: what this machine knows how to do (`code`, `navigateur-headless`, `chrome-connecté`…) | at least one; letters, digits and hyphens, separated by `+` |
+| **distante** | optional: the station **does not run on the runtime's machine** — it is the chef's workstation. The runtime launches nothing there and never reaches it: it comes to pull its work itself (see "A remote station pulls its work") | the word `distante`, and nothing else: **no host, no port, no address** — the box does not know where it is |
+| **ordinaires** | optional, after `distante` (`distante+ordinaires`): the remote station takes **the ordinary tickets too** — those that ask for no capability —, each one in the Claude Code sandbox of its workstation (see "The ordinary tickets on the chef's workstation") | the word `ordinaires`, and only on a `distante` station: a station of the box already takes them |
 
-- **Plusieurs stations de la même machine** se déclarent côte à côte (`box/claude`, `box/playwright`) :
-  chacune a son plafond et ses cooks, et un ticket part dans la première, dans l'ordre de la
-  déclaration, que rien ne retient et qui fournit ce qu'il demande. Toutes celles que le projet déclare
-  sans le mot `distante` tournent sur cette machine,
-  par le même `claude` et la même connexion Max : **l'entrée, la machine, le quota, la connexion et
-  l'arbitre leur sont communs** — un quota épuisé ou une connexion tombée se disent de toutes.
-- **Aucune station** (rien de posé, ou une déclaration vide) : c'est accepté, le runtime démarre —
-  et **aucun cook ne part**. Les tickets restent en attente ; le manager juge et la pass relit
-  toujours. Le runtime le dit au démarrage (`brigade : stations — aucune…`), l'écrit
-  (`stations.undeclared`), et `status` le montre tant que ça dure (`stations  NONE DECLARED…`,
-  et `aucune station déclarée` sur chaque ticket qui attend) ; `installation` le compte comme un
-  **manque**. Le geste : `station stations <déclaration>` — lu au réveil suivant, sans redémarrer.
-- **Mal écrite, la déclaration fait refuser le démarrage**, et le refus nomme la station et le champ
-  en cause — `BRIGADE_STATIONS invalide : station n° 2 (« box/claude:0:code ») — plafond : « 0 »
-  n'est pas un entier supérieur à zéro`. Un plafond ne se devine pas, et une station ne disparaît
-  pas sur une faute de frappe.
-- **Une station retirée de la déclaration** sort de `status` et de `station` au redémarrage
-  (`station.withdrawn`) ; le ticket qu'elle tenait revient en attente, et les cooks qu'elle a lancés
-  restent au journal et au relevé.
-- **Une capacité n'est pas une permission.** Elle dit ce qu'une machine *peut faire* ; ce qui est
-  *permis* reste l'affaire des grants. Le runtime ne reconnaît aucun nom de capacité : il les lit,
-  les annonce, les montre, et les compare à ce que la fiche d'un ticket demande — un ticket ne part
-  que dans une station qui fournit ce qu'il demande (voir « Les capacités qu'un ticket demande »).
+- **Several stations on the same machine** are declared side by side (`box/claude`,
+  `box/playwright`): each has its cap and its cooks, and a ticket goes to the first one, in the order
+  of the declaration, that nothing withholds and that provides what it asks. All those that the
+  project declares without the word `distante` run on this machine, through the same `claude` and
+  the same Max connection: **the entry, the machine, the quota, the connection and the arbiter are
+  common to them** — an exhausted quota or a dropped connection are said of all of them.
+- **No station** (nothing set, or an empty declaration): this is accepted, the runtime starts — and
+  **no cook leaves**. The tickets stay queued; the manager judges and the pass reads as always. The
+  runtime says so at start (`brigade : stations — none …`), writes it (`stations.undeclared`), and
+  `status` shows it as long as it lasts (`stations  NONE DECLARED…`, and `no station declared` on
+  each waiting ticket); `installation` counts it as a **gap**. The gesture: `station stations
+  <declaration>` — read at the next wake-up, with no restart.
+- **Badly written, the declaration makes the start refuse**, and the refusal names the station and
+  the field at fault — `BRIGADE_STATIONS invalid: station no. 2 (“box/claude:0:code”) — cap: “0” is
+  not an integer greater than zero. Expected …`. A cap is not guessed, and a station does not
+  disappear on a typo.
+- **A station removed from the declaration** leaves `status` and `station` at restart
+  (`station.withdrawn`); the ticket it held returns to queued, and the cooks it launched stay in the
+  log and in the report.
+- **A capability is not a permission.** It says what a machine *can do*; what is *allowed* remains
+  the business of the grants. The runtime recognizes no capability name: it reads them, announces
+  them, shows them, and compares them to what a ticket's card asks — a ticket leaves only in a
+  station that provides what it asks (see "The capabilities a ticket asks for").
 
-Au démarrage, le runtime dit ce qu'il a lu : `brigade : stations — box/claude (30 cooks au plus ;
-fournit : code, raisonnement) ; box/playwright (2 cooks au plus ; fournit : navigateur-headless)` —
-le plafond déclaré ; celui qui tient, cœurs compris, se lit dans `run status`.
+At start, the runtime says what it has read: `brigade : stations — box/claude (30 cooks at most;
+provides: code, raisonnement) ; box/playwright (2 cooks at most; provides: navigateur-headless)` —
+the declared cap; the one that holds, cores included, reads in `run status`. (The `brigade :` prefix
+of the runtime's startup lines is written with the French spacing.)
 
-### Plusieurs cooks à la fois
+### Several cooks at once
 
-Une station prend des tickets tant que **trois bornes** le permettent, relues à chaque prise :
+A station takes tickets as long as **three bounds** allow it, read again at each take:
 
-| Borne | Ce qu'elle retient | Réglage |
+| Bound | What it holds back | Setting |
 |---|---|---|
-| **Le plafond de cooks** | le nombre de tickets que la station tient en même temps | par défaut, celui des **cœurs de la machine**, borné par celui qu'elle déclare (`station stations`) ; à chaud : `run station -- cooks <N>`, pour **toutes** les stations du projet, `0` pour aucune limite, `auto` pour revenir au défaut |
-| **L'entrée** | le nombre de tickets dont le worktree se prépare et le setup se joue | `BRIGADE_MAX_SETUPS`, **4** par défaut |
-| **La machine** | plus aucune prise quand processeur, mémoire ou disque manquent | trois seuils, ci-dessous |
+| **The cooks cap** | the number of tickets the station holds at the same time | by default, that of the **machine's cores**, bounded by the one it declares (`station stations`); live: `run station -- cooks <N>`, for **all** the project's stations, `0` for no limit, `auto` to return to the default |
+| **The entry** | the number of tickets whose worktree is being prepared and whose setup is playing | `BRIGADE_MAX_SETUPS`, **4** by default |
+| **The machine** | no more takes when processor, memory or disk run short | three thresholds, below |
 
-**Le plafond par défaut vient des cœurs.** Chaque station d'ici annonce les cœurs de sa machine
-(`cores` dans `station.announced`), et n'en fait tourner que **`max(1, ⌊(cœurs − 2) / 2⌋)`** cooks :
-deux cœurs gardés pour le runtime, la pass et ses gates, puis environ deux par cook — son `claude`,
-ses tests, son setup —, pour que la charge reste sous le nombre de cœurs. Un cœur ou deux : 1 cook ;
-**8 cœurs : 3** ; 12 : 5 ; 16 : 7. Le plafond déclaré n'est plus qu'une borne : `box/claude:30` sur
-8 cœurs fait tourner 3 cooks, `box/playwright:2` en fait tourner 2. Une station **distante** garde son
-plafond déclaré : la box ne voit pas les cœurs du poste qui la porte. Mesuré sur une box de 8 cœurs
-sous l'ancien plafond fixe de 30 : la charge montait de 16 à 34, et les gates passaient de ~250 s à
-364-438 s (#1045).
+**The default cap comes from the cores.** Each station of this machine announces its machine's
+cores (`cores` in `station.announced`), and runs only **`max(1, ⌊(cores − 2) / 2⌋)`** cooks: two
+cores kept for the runtime, the pass and its gates, then about two per cook — its `claude`, its
+tests, its setup —, so that the load stays under the number of cores. One core or two: 1 cook;
+**8 cores: 3**; 12: 5; 16: 7. The declared cap is now only a bound: `box/claude:30` on 8 cores runs
+3 cooks, `box/playwright:2` runs 2. A **remote** station keeps its declared cap: the box does not
+see the cores of the workstation that carries it. Measured on an 8-core box under the old fixed cap
+of 30: the load rose from 16 to 34, and the gates went from ~250 s to 364-438 s (#1045).
 
-`run status` et `run station` disent le plafond et **d'où il vient** :
+`run status` and `run station` say the cap and **where it comes from**:
 
-| Ce qui le donne | Ce qui s'affiche |
+| What gives it | What is shown |
 |---|---|
-| les cœurs | `box/claude: 3 at most — 8 cores` |
-| la déclaration, plus basse — ou les cœurs inconnus | `box/playwright: 2 at most — declared` |
-| ton réglage, et ce qu'il remplace | `box/claude: 5 at most — set by you, replaces 3 (8 cores)` ; `no limit — set by you, replaces 3 (8 cores)` |
+| the cores | `box/claude: 3 at most — 8 cores` |
+| the declaration, lower — or the cores unknown | `box/playwright: 2 at most — declared` |
+| your setting, and what it replaces | `box/claude: 5 at most — set by you, replaces 3 (8 cores)` ; `no limit — set by you, replaces 3 (8 cores)` |
 
-`cooks <N>` écrit `station.capped` pour chaque station, lu dans la seconde, tenu après un
-redémarrage — **il l'emporte sur le plafond par défaut**, cœurs et déclaration, et le reste tant qu'un
-autre `cooks <N>` ne le remplace pas. **`cooks auto` le retire** (`station.capped` avec
-`maxCooks: null`) : chaque station revient à son défaut, celui des cœurs. Un ticket au-delà du
-plafond ne part pas par-dessus : il va dans une autre station qui a de la place, ou attend son tour
-(`station.held`, raison `cap`). L'entrée et la machine sont communes aux stations du projet. **Baisser le
-plafond n'arrête aucun cook.** Il ne compte que les cooks de tickets — ni jugement ni relecture —,
-et un ticket rendu ou retiré jusqu'à l'arrêt de son cook. Un ticket qui attend l'entrée reste en
-attente, son bail ne court pas.
+`cooks <N>` writes `station.capped` for each station, read within the second, kept after a restart —
+**it wins over the default cap**, cores and declaration, and stays until another `cooks <N>`
+replaces it. **`cooks auto` removes it** (`station.capped` with `maxCooks: null`): each station
+returns to its default, the cores'. A ticket beyond the cap does not leave on top: it goes to
+another station that has room, or waits its turn (`station.held`, reason `cap`). The entry and the
+machine are common to the project's stations. **Lowering the cap stops no cook.** It counts only
+the tickets' cooks — no judgement or review —, and a ticket returned or removed until its cook has
+stopped. A ticket that waits for the entry stays queued, its lease does not run.
 
-| Ressource | Elle se retient quand | Variable | Défaut |
+| Resource | It withholds when | Variable | Default |
 |---|---|---|---|
-| processeur | la charge moyenne sur une minute, par cœur, dépasse ce seuil | `BRIGADE_MAX_LOAD_PER_CORE` | `1.5` |
-| mémoire | il reste moins que ce nombre de Mo de mémoire **disponible** | `BRIGADE_MIN_FREE_MEMORY_MB` | un dixième de la mémoire totale, `1024` au moins |
-| disque | il reste moins que ce nombre de Mo libres sur le disque de `BRIGADE_STATE_DIR` | `BRIGADE_MIN_FREE_DISK_MB` | `5120` |
+| processor | the one-minute load average, per core, exceeds this threshold | `BRIGADE_MAX_LOAD_PER_CORE` | `1.5` |
+| memory | less than this number of MB of **available** memory remains | `BRIGADE_MIN_FREE_MEMORY_MB` | a tenth of the total memory, `1024` at least |
+| disk | less than this number of free MB remains on the disk of `BRIGADE_STATE_DIR` | `BRIGADE_MIN_FREE_DISK_MB` | `5120` |
 
-**La garde de la mémoire** (#1080). Sans `BRIGADE_MIN_FREE_MEMORY_MB`, son minimum dérive de la
-mémoire totale de la machine — celle du cgroup du service s'il en a moins : un dixième, un Go au
-moins — `3277` Mo sur 32 Go, `1638` sur 16, `1024` sur 8 et moins. La mémoire disponible
-(`MemAvailable` sous Linux) est ce que le noyau peut encore rendre : son tueur de mémoire n'agit
-qu'une fois presque tout pris. La station cesse de prendre bien avant, et ce qui reste tient `sshd`,
-le runtime qui continue de publier son état — `run status` se lit pendant toute la retenue —, et
-les cooks en cours le temps qu'ils grossissent. C'est la panne du 20 octobre 2026 qu'elle évite :
-32 Go, 512 Mo de swap, des process tués par le noyau et la box sans `ssh` pendant quatre heures. Une
-valeur dans `BRIGADE_MIN_FREE_MEMORY_MB` l'emporte, comme les autres garde-fous : lue au démarrage
-du runtime, `0` pour ne jamais retenir.
+**The memory guard** (#1080). Without `BRIGADE_MIN_FREE_MEMORY_MB`, its minimum derives from the
+machine's total memory — the service's cgroup's if it has less: a tenth, one GB at least — `3277`
+MB on 32 GB, `1638` on 16, `1024` on 8 and less. Available memory (`MemAvailable` on Linux) is what
+the kernel can still give back: its out-of-memory killer acts only once nearly everything is taken.
+The station stops taking well before, and what remains holds `sshd`, the runtime that keeps
+publishing its state — `run status` reads throughout the withholding —, and the running cooks while
+they grow. It is the outage of 20 October 2026 that it avoids: 32 GB, 512 MB of swap, processes
+killed by the kernel and the box without `ssh` for four hours. A value in
+`BRIGADE_MIN_FREE_MEMORY_MB` wins, like the other guardrails: read at the runtime's start, `0` to
+never withhold.
 
-Saturée, elle le dit : `station.saturated` puis `station.relieved`, `MACHINE SATURATED` dans `run
-status` (`MACHINE SATURÉE` avant #940) et `run station`. Le fait nomme la première ressource en cause
-et, dans `also`, les autres ; il se réécrit quand l'une s'ajoute ou se lève, pas quand une valeur
-bouge. `run status` nomme chaque ressource en cause — la mémoire, le processeur, les deux —, avec ce
-qu'elle a, son seuil, et d'où vient celui de la mémoire :
+Saturated, it says so: `station.saturated` then `station.relieved`, `MACHINE SATURATED` in `run
+status` (`MACHINE SATURÉE` before #940) and `run station`. The fact names the first resource at
+fault and, in `also`, the others; it is rewritten when one is added or lifts, not when a value
+moves. `run status` names each resource at fault — memory, processor, both —, with what it has, its
+threshold, and where the memory's comes from:
 
 ```
 MACHINE SATURATED for 3 min on CPU and memory — load of 18.4 for at most 12 · 812 MB of memory available for at least 3,205 MB (default: 10% of the machine's 32,050 MB): box/claude takes no more tickets as long as it lasts
 MACHINE SATURATED for 1 min on memory — 812 MB of memory available for at least 2,000 MB (set by BRIGADE_MIN_FREE_MEMORY_MB): box/claude takes no more tickets as long as it lasts
 ```
 
-**Les cooks en cours continuent**, et la station reprend seule quand la machine respire. La saturation se lève avec dix pour
-cent de marge, ressource par ressource ; `0` pour la mémoire ou le disque : jamais retenu. **Un rail plein ne part pas d'un
-bloc** : pendant sa première minute, chaque cook lancé — et chaque ticket en entrée — pèse d'avance
-une unité de charge et 512 Mo. Les gates que la pass joue chargent la machine elles aussi.
+**The running cooks continue**, and the station resumes by itself when the machine breathes. The
+saturation lifts with ten percent of margin, resource by resource; `0` for memory or disk: never
+withheld. **A full rail does not leave in one block**: during its first minute, each cook launched
+— and each ticket in the entry — weighs in advance one unit of load and 512 MB. The gates that the
+pass plays load the machine too.
 
-**Un ticket qui pourrait partir et ne part pas dit pourquoi** : `station.held` au journal, une ligne
-`WITHHOLDING` dans `run status` (`SE RETIENT` avant #940 ; `retenue` dans `run station`), et la raison
-sur la ligne du ticket (`withheld by <station> (…)`).
+**A ticket that could leave and does not says why**: `station.held` in the log, a `WITHHOLDING`
+line in `run status` (`SE RETIENT` before #940; `withholding` in `run station`), and the reason on
+the ticket's line (`withheld by <station> (…)`).
 
-| `reason` | Ce qui retient la station |
+| `reason` | What withholds the station |
 |---|---|
-| `ramp`, `machine` | la montée progressive (les cooks tout juste partis pèsent d'avance) ; la machine saturée |
-| `cap`, `setups` | le plafond de cooks, le plafond de setups atteint |
-| `stopped`, `breaker` | ton « stop », le disjoncteur ouvert |
-| `station-stopped` | tu as arrêté la cuisine du projet sur cette station seule (voir « Lancer et arrêter la cuisine, station par station ») |
-| `deploy` | une mise en service demandée — ne se lit plus que dans les journaux d'avant la station, qui ne demande plus de mise en service |
-| `base` | la branche d'intégration est rouge (voir « La base est jugée seule ») |
-| `setup` | le setup du projet est bloqué : il a échoué deux fois de suite à l'identique (voir « Le setup du worktree passe avant le cook ») |
-| `quota`, `disconnected` | le quota épuisé, la connexion Max expirée |
-| `arbiter`, `unarbitrated` | l'arbitre garde la place pour un autre projet ; il est injoignable : un seul cook à la fois (voir « L'arbitre entre projets ») |
+| `ramp`, `machine` | the gradual ramp-up (the cooks just gone weigh in advance); the machine saturated |
+| `cap`, `setups` | the cooks cap, the setups cap reached |
+| `stopped`, `breaker` | your "stop", the breaker open |
+| `station-stopped` | you stopped the project's kitchen on this station alone (see "Starting and stopping the kitchen, station by station") |
+| `deploy` | a requested rollout — now read only in logs from before the station, which no longer asks for a rollout |
+| `base` | the integration branch is red (see « La base est jugée seule » in [`pass.md`](pass.md), not translated yet, so its title is still French) |
+| `setup` | the project's setup is blocked: it failed twice in a row identically (see "The worktree setup comes before the cook") |
+| `quota`, `disconnected` | the quota exhausted, the Max connection expired |
+| `arbiter`, `unarbitrated` | the arbiter keeps the place for another project; it is unreachable: one cook at a time (see "The arbiter between projects") |
 
-Le fait s'écrit quand la raison change, jamais quand aucun ticket n'attend ; `station.released`
-quand plus rien ne retient. **Deux tickets dont les zones se recouvrent ne partent jamais ensemble.**
-**Un cook qui tombe n'emporte pas les autres** ; un ticket rendu pendant que son cook tourne n'est
-repris qu'une fois ce cook arrêté, et sa zone reste tenue d'ici là. Limites : un ticket qui échoue
-en boucle accumule des **branches locales** dans le clone ; **aucune jauge de quota** (#63) — monte
-le plafond par paliers.
+The fact is written when the reason changes, never when no ticket waits; `station.released` when
+nothing withholds any more. **Two tickets whose zones overlap never leave together.** **A cook that
+falls does not take the others with it**; a ticket returned while its cook runs is taken up again
+only once that cook has stopped, and its zone stays held until then. Limits: a ticket that fails in
+a loop accumulates **local branches** in the clone; **no quota gauge** (#63) — raise the cap in
+steps.
 
-### Lancer et arrêter la cuisine, station par station
+### Starting and stopping the kitchen, station by station
 
-*Ticket #1183.* Le « stop » des garde-fous arrête toute la cuisine et coupe ses cooks dans la
-seconde. Pour retirer le projet d'**une** station sans rien couper — ton Mac qui doit servir à
-autre chose, une station distante à libérer —, le geste est par station, le même pour une station
-d'ici et pour une distante, sans rien taper ailleurs :
+*Ticket #1183.* The guardrails' "stop" stops the whole kitchen and cuts its cooks within the second.
+To remove the project from **one** station without cutting anything — your Mac that has to serve
+something else, a remote station to free —, the gesture is per station, the same for a station of
+this machine and for a remote one, with nothing to type elsewhere:
 
 ```bash
-brigade <projet> station stop mac/claude     # elle ne prend plus aucun ticket du projet
-brigade <projet> station start mac/claude    # elle reprend
+brigade <project> station stop mac/claude     # it takes no more ticket of the project
+brigade <project> station start mac/claude    # it resumes
 ```
 
-- **Arrêter est un arrêt en douceur.** La station ne prend plus rien (`station.held`, raison
-  `station-stopped` ; une distante qui réclame reçoit `mission: null, held: "station-stopped"`).
-  **Ses cooks en cours ne sont pas touchés** : un cook d'ici finit, une distante continue de
-  renouveler son bail et rend comme avant. Ce qu'il livre va en pass ; s'il ne livre rien, son
-  ticket revient au rail, comme toujours — rien n'est perdu. La station arrêtée ne le reprend pas :
-  une autre station qui peut le cuisiner le prend, sinon il attend qu'on la relance.
-- **Une station de la box arrêtée n'a pas de place** : quand toutes les stations de la box sont
-  arrêtées ou saturées, une station distante qui prend les tickets ordinaires les reçoit (voir
-  « Les tickets ordinaires sur le poste du chef »).
-- **L'arrêt tient** après un redémarrage, et même si la station est retirée puis redéclarée,
-  jusqu'au `start`. Au journal : `station.stopped` et `station.started`, au nom du `chef`.
-- Le geste dit ce qu'il a fait et combien de cooks finissent ; répété, il ne réécrit rien
-  (`already stopped`, `already cooking`) ; une station que le projet ne déclare pas est refusée
-  (code 1) en nommant les siennes. `run station` le montre sur la ligne `cooking` de chaque station.
+- **Stopping is a soft stop.** The station takes nothing more (`station.held`, reason
+  `station-stopped`; a remote one that claims receives `mission: null, held: "station-stopped"`).
+  **Its running cooks are not touched**: a cook of this machine finishes, a remote one keeps
+  renewing its lease and returns as before. What it delivers goes to the pass; if it delivers
+  nothing, its ticket returns to the rail, as always — nothing is lost. The stopped station does
+  not take it up again: another station that can cook it takes it, otherwise it waits for the
+  station to be started again.
+- **A stopped station of the box has no room**: when all the box's stations are stopped or
+  saturated, a remote station that takes the ordinary tickets receives them (see "The ordinary
+  tickets on the chef's workstation").
+- **The stop holds** after a restart, and even if the station is removed then declared again, until
+  `start`. In the log: `station.stopped` and `station.started`, in the name of the `chef`.
+- The gesture says what it did and how many cooks are finishing; repeated, it rewrites nothing
+  (`already stopped`, `already cooking`); a station the project does not declare is refused (code 1)
+  naming its own. `run station` shows it on the `cooking` line of each station.
 
-**Ce que chaque station fait du projet** se lit dans `facts`, champ `stations` (voir « Les faits,
-pour un programme ») : `cuisson` vaut `refused` (la station de la machine refuse le projet, `refus`
-dit pourquoi — d'une station d'ici seulement), `stopped` (ton arrêt de cette station,
-`arreteeDepuis` ; ou ton « stop » de toute la cuisine, `arreteeDepuis` nul), `saturated` (sa
-machine n'en peut plus — d'une station d'ici seulement) ou `cooking`, dans cet ordre ; `cooks`
-porte ses cooks en cours — arrêtée, ceux qui finissent —, chacun avec le nom de sa station.
+**What each station does with the project** reads in `facts`, field `stations` (see « Les faits,
+pour un programme » in [`etat-et-mesures.md`](etat-et-mesures.md), not translated yet, so its title
+is still French): `cuisson` is `refused` (the machine's station refuses the project, `refus` says
+why — of a station of this machine only), `stopped` (your stop of this station, `arreteeDepuis`; or
+your "stop" of the whole kitchen, `arreteeDepuis` null), `saturated` (its machine can take no more —
+of a station of this machine only) or `cooking`, in that order; `cooks` carries its running cooks —
+stopped, those that are finishing —, each with the name of its station. The names of these fields
+(`cuisson`, `refus`, `arreteeDepuis`) are still French in `facts`.
 
-### Le setup du worktree passe avant le cook
+### The worktree setup comes before the cook
 
-Si le projet a un `.claude/brigade/worktree-setup.sh` sur la branche du cook, la station le joue
-avant le cook — `worktree-setup.sh <n° du ticket> <worktree>` — et **ce qu'il exporte entre dans
-l'environnement du cook**. La pass fait de même avant les gates.
+If the project has a `.claude/brigade/worktree-setup.sh` on the cook's branch, the station plays it
+before the cook — `worktree-setup.sh <ticket number> <worktree>` — and **what it exports enters the
+cook's environment**. The pass does the same before the gates.
 
-| Cas | Ce que fait la station |
+| Case | What the station does |
 |---|---|
-| Le projet n'a pas de setup | rien : le cook part |
-| Le setup réussit | le cook part avec ses exports, et le bail repart de zéro |
-| Le setup échoue, ou dépasse **la moitié du bail** | **aucun cook** : 86 dix minutes, motif `setup-failed`, puis retour en attente. Le disjoncteur ne compte rien |
-| Le setup échoue **comme le précédent du projet** — même motif, aucun hôte refusé de plus —, sur ce ticket ou sur un autre | **le projet est bloqué** (`setup.blocked`) : plus aucun setup n'est lancé, pour aucun ticket, tant que la branche d'intégration n'a pas bougé |
-| Un ticket renvoyé par la pass | le setup est joué dans le worktree neuf du renvoi |
-| Le dépôt déclare un secret que la machine ne peut pas donner | **ni setup ni cook** : 86 dix minutes, motif `secrets-unavailable` ; l'issue dit lequel, une fois (voir « Les secrets du projet ») |
-| Sous une identité par rôle, le ticket ne se lit pas sur GitHub | **aucun cook** : 86 dix minutes, motif `ticket-unreadable` (voir « Une identité GitHub par rôle ») |
+| The project has no setup | nothing: the cook leaves |
+| The setup succeeds | the cook leaves with its exports, and the lease starts again from zero |
+| The setup fails, or exceeds **half the lease** | **no cook**: 86 for ten minutes, reason `setup-failed`, then back to queued. The breaker counts nothing |
+| The setup fails **like the project's previous one** — same reason, no more host refused —, on this ticket or another | **the project is blocked** (`setup.blocked`): no setup is launched any more, for any ticket, as long as the integration branch has not moved |
+| A ticket sent back by the pass | the setup is played in the send-back's new worktree |
+| The repository declares a secret that the machine cannot give | **neither setup nor cook**: 86 for ten minutes, reason `secrets-unavailable`; the issue says which, once (see "The project's secrets" in [`identites-et-secrets.md`](identites-et-secrets.md)) |
+| Under one identity per role, the ticket cannot be read on GitHub | **no cook**: 86 for ten minutes, reason `ticket-unreadable` (see "One GitHub identity per role" in [`identites-et-secrets.md`](identites-et-secrets.md)) |
 
-**Un setup en échec se lit sur l'issue** : code de sortie ou plafond dépassé, la fin de sa sortie
-(secrets du projet et forme des identifiants de Claude masqués), l'heure du retour, et **l'hôte que
-la porte a refusé** pendant ce setup, avec le geste qui l'ouvre — une ligne dans
-`.claude/brigade/reseau`, mergée sur la branche d'intégration (voir « La liste blanche »). **Une
-fois par cause** : de nouveau si le motif change, si un hôte jamais nommé sur ce ticket est
-refusé, ou si un cook est parti depuis. `run partition` montre les derniers refus.
+**A failing setup reads on the issue**: exit code or cap exceeded, the end of its output (project
+secrets and the shape of Claude's credentials masked), the time of the return, and **the host that
+the door refused** during this setup, with the gesture that opens it — a line in
+`.claude/brigade/reseau`, merged into the integration branch (see "The allowlist" in
+[`cloison-et-arbitre.md`](cloison-et-arbitre.md)). **Once per cause**: again if the reason changes,
+if a host never named on this ticket is refused, or if a cook has left since. `run partition` shows
+the latest refusals.
 
-**Un échec qui se répète bloque le projet, pas le ticket.** Réessayer toutes les dix minutes, ticket
-par ticket, ne ferait que redire la même chose : dès qu'un setup échoue comme le précédent du
-projet — le même motif (`code de sortie 1`, plafond dépassé), et aucun hôte refusé que le précédent
-ne nommait pas —, la station écrit `setup.blocked` avec la cause et le commit de la branche
-d'intégration dont le worktree était parti, le dit sur l'issue et dans journald, et ne lance plus
-aucun setup : ses stations se retiennent (`setup`), les tickets 86 reviennent en attente à leur
-heure et y restent. Un setup passé entre deux échecs remet le compte à zéro ; un échec d'une autre
-cause suit le cours ordinaire. **La reprise est seule** : ce qui lève la cause — un hôte déclaré
-dans `.claude/brigade/reseau`, un setup corrigé, une dépendance réparée — arrive en étant mergé
-sur la branche d'intégration. Tant que le projet est bloqué, la station la rapatrie à chaque tick ;
-dès qu'elle a bougé, `setup.unblocked`, les tickets 86 pour un setup en échec reviennent en
-attente sans attendre leur heure, et les setups repartent. Si la cause n'est pas levée, le premier
-échec à l'identique rebloque aussitôt, sur la nouvelle base : un setup par merge, pas un toutes
-les dix minutes. Un échec passager (un registre en panne) bloque comme un autre : il se lève au
-premier merge sur la branche d'intégration. Le blocage tient après un redémarrage.
+**A failure that repeats blocks the project, not the ticket.** Retrying every ten minutes, ticket by
+ticket, would only say the same thing again: as soon as a setup fails like the project's previous
+one — the same reason (`exit code 1`, cap exceeded), and no refused host that the previous one did
+not name —, the station writes `setup.blocked` with the cause and the integration-branch commit the
+worktree started from, says so on the issue and in journald, and launches no setup any more: its
+stations withhold (`setup`), the 86 tickets return to queued at their time and stay there. A setup
+that passes between two failures resets the count; a failure of another cause follows the ordinary
+course. **The resumption is on its own**: what lifts the cause — a host declared in
+`.claude/brigade/reseau`, a fixed setup, a repaired dependency — arrives by being merged into the
+integration branch. As long as the project is blocked, the station brings it in at each tick; as
+soon as it has moved, `setup.unblocked`, the tickets 86 for a failing setup return to queued without
+waiting for their time, and the setups start again. If the cause is not lifted, the first identical
+failure blocks again at once, on the new base: one setup per merge, not one every ten minutes. A
+passing failure (a registry down) blocks like any other: it lifts at the first merge into the
+integration branch. The block holds after a restart.
 
-**Le même mécanisme vaut pour toute cause de mise de côté qui ne tient pas au ticket.** Un
-worktree qui ne se prépare pas (`worktree-failed`), un ticket illisible sur GitHub
-(`ticket-unreadable`), des secrets indisponibles (`secrets-unavailable`) : la station écrit
-`aside.failed` à chaque mise de côté ; la même cause deux fois de suite sur le projet, sans cook
-parti entre les deux, écrit `aside.blocked` (la cause, le commit de la base) — une alerte
-journald, et une entrée `aside` dans la file du chef, avec la cause en clair et le geste. Ces
-causes se lèvent hors du dépôt (une valeur posée, GitHub revenu) : le blocage n'arrête donc pas la
-cuisine, il la met **à un ticket à la fois** — les tickets reviennent à leur heure, un seul sonde.
-**La reprise est seule** : dès qu'un cook part, la cause est levée et l'entrée tombe ; si une autre
-cause se présente, `aside.unblocked` (`why: cause`) et c'est elle qui compte ; si la branche
-d'intégration bouge, `aside.unblocked` (`why: base`) et les tickets 86 pour cette cause reviennent
-sans attendre. Le setup garde son blocage propre, ci-dessus, inchangé.
+**The same mechanism applies to every cause of setting aside that is not the ticket's.** A worktree
+that does not prepare (`worktree-failed`), a ticket unreadable on GitHub (`ticket-unreadable`),
+secrets unavailable (`secrets-unavailable`): the station writes `aside.failed` at each setting
+aside; the same cause twice in a row on the project, with no cook gone in between, writes
+`aside.blocked` (the cause, the base's commit) — a journald alert, and an `aside` entry in the
+chef's queue, with the cause in plain words and the gesture. These causes lift outside the
+repository (a value set, GitHub back): the block therefore does not stop the kitchen, it puts it
+**at one ticket at a time** — the tickets return at their time, a single one probes. **The
+resumption is on its own**: as soon as a cook leaves, the cause is lifted and the entry falls; if
+another cause shows up, `aside.unblocked` (`why: cause`) and that one is counted; if the
+integration branch moves, `aside.unblocked` (`why: base`) and the tickets 86 for that cause return
+without waiting. The setup keeps its own block, above, unchanged.
 
-**Un worktree qui ne se prépare pas se dit au projet, pas seulement à journald** (*ticket #1118*).
-Son `ticket.86` porte la raison dans les mots de git (`why`) et, si la station ne peut pas
-récupérer le dépôt ou y pousser, l'accès refusé et son geste (`access` : `blocked`, `reason`,
-`gesture` — la vérification de `projets/acces.ts`, faite après l'échec, sous l'environnement de
-ses fetchs). Tant qu'un échec tient, **chaque essai revérifie l'accès d'abord** : refusé, il
-échoue aussitôt, sans rien rapatrier, et repousse l'heure du suivant de dix minutes ; le geste fait
-(`gh auth setup-git`, par exemple), l'essai suivant prépare son worktree dans le même process,
-sans redémarrage, et `worktree.prepared` clôt l'échec. La station publie l'échec en cours dans le
-suivi du projet (`worktree`, voir [`station-machine.md`](station-machine.md)), jusqu'à cet essai.
+**A worktree that does not prepare is told to the project, not only to journald** (*ticket #1118*).
+Its `ticket.86` carries the reason in git's words (`why`) and, if the station cannot fetch the
+repository or push to it, the denied access and its gesture (`access`: `blocked`, `reason`,
+`gesture` — the check of `projets/acces.ts`, made after the failure, under the environment of its
+fetches). As long as a failure holds, **each try first checks the access again**: denied, it fails
+at once, fetching nothing, and pushes the time of the next one back by ten minutes; the gesture
+done (`gh auth setup-git`, for example), the next try prepares its worktree in the same process,
+with no restart, and `worktree.prepared` closes the failure. The station publishes the failure in
+progress in the project's follow-up (`worktree`, see [`station-machine.md`](station-machine.md)),
+until that try.
 
-**Le blocage entre dans ta file.** Tant qu'il tient, le bloc `attend` porte une entrée `setup`, une
-seule pour le projet quel que soit le nombre de tickets retenus, avec la cause en clair et le geste :
-``setup impossible : la porte refuse `cdn.sheetjs.com` (…) — à déclarer dans `.claude/brigade/reseau`
-du projet, une ligne par hôte, puis merger sur la branche d'intégration`` ; sans hôte refusé, le
-setup lui-même est à corriger, et l'entrée nomme l'issue où lire ce qu'il a dit. La ligne `setup`
-en tête de `status` le redit, et la cuisine est `retenue` pour l'app — sauf si une station
-distante, qui prépare son setup sur son poste, peut encore cuisiner. Au `setup.unblocked`,
-l'entrée et la ligne disparaissent seules. Voir « Ce qui attend le chef ».
+**The block enters your queue.** As long as it holds, the `awaiting` block carries a `setup` entry,
+a single one for the project whatever the number of tickets held, with the cause in plain words and
+the gesture: ``setup impossible: the door refuses `cdn.sheetjs.com` (…) — to declare in the
+project's `.claude/brigade/reseau`, one line per host, then merge into the integration branch``;
+without a refused host, the setup itself is to be fixed, and the entry names the issue where to read
+what it said. The `setup` line at the top of `status` says it again, and the kitchen is `held` for
+the app — unless a remote station, which prepares its setup on its workstation, can still cook. At
+`setup.unblocked`, the entry and the line disappear by themselves. See « Ce qui attend le chef » in
+[`etat-et-mesures.md`](etat-et-mesures.md) (not translated yet, so its title is still French).
 
-En écrivant le script : **les variables `BRIGADE_*` du runtime ne lui parviennent pas**, ni au
-cook ; ce qu'il exporte, si — sauf `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` et
-`CLAUDE_CODE_OAUTH_TOKEN`, que la station retire. **Les secrets que le dépôt déclare lui
-parviennent**, masqués dans ce qu'il en dit. **Il ne laisse rien tourner** en arrière-plan.
+When writing the script: **the runtime's `BRIGADE_*` variables do not reach it**, nor the cook;
+what it exports does — except `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` and
+`CLAUDE_CODE_OAUTH_TOKEN`, which the station removes. **The secrets the repository declares reach
+it**, masked in what it says. **It leaves nothing running** in the background.
 
-### Calibrer un ticket
+### Calibrating a ticket
 
-**Aucun cook ne part sans calibrage**, posé sur l'issue par deux labels — par le manager s'il est
-allumé, à la main sinon. Pas de valeur par défaut.
-`model:` vaut `opus`, `sonnet` ou `haiku` ; `effort:` vaut `low`, `medium`, `high`, `xhigh` ou
-`max`. Sans l'un des deux, avec deux pour la même dimension ou une valeur hors liste, le ticket est
-**refusé** : 86, motif `no-calibration`, un commentaire dit ce qui manque. Les labels posés, il
-revient en attente seul, au sondage suivant.
+**No cook leaves without a calibration**, set on the issue by two labels — by the manager if it is
+on, by hand otherwise. No default value. `model:` is `opus`, `sonnet` or `haiku`; `effort:` is
+`low`, `medium`, `high`, `xhigh` or `max`. Without one of the two, with two for the same dimension
+or a value outside the list, the ticket is **refused**: 86, reason `no-calibration`, a comment says
+what is missing. Once the labels are set, it returns to queued by itself, at the next poll.
 
-### La fiche d'un ticket
+### A ticket's card
 
-**Les tickets qu'il attend**, **la zone de fichiers qu'il possède** et **les capacités qu'il demande
-à sa station** vivent dans **un commentaire de son issue**, repéré par un marqueur :
+**The tickets it awaits**, **the file zone it owns** and **the capabilities it asks of its
+station** live in **a comment of its issue**, spotted by a marker:
 
 ```
 <!-- brigade:fiche -->
@@ -284,74 +293,77 @@ revient en attente seul, au sondage suivant.
 - requiert : navigateur-headless
 ```
 
-`attend` : des `#N`, séparés par des virgules ou des espaces. `zone` : des chemins relatifs à la
-racine du dépôt — fichiers ou dossiers —, séparés par des virgules. `requiert` : des noms de
-capacité, séparés par des virgules ou des espaces — la ligne est **facultative**, et une fiche qui
-ne l'a pas se lit exactement comme avant (voir « Les capacités qu'un ticket demande »).
-Sans fiche, un ticket n'attend personne, ne possède rien et ne demande rien. **Elle se corrige à la main**, en
-éditant le commentaire ; la lecture tolère la casse, le gras, la puce ou son absence, l'ordre, et
-de la prose autour. Le marqueur **ne compte qu'en tête de ligne, hors d'un bloc de code**. Le
-manager écrit celle des tickets qu'il découpe.
+The marker `<!-- brigade:fiche -->` and the keys `attend`, `zone` and `requiert` are what the
+runtime still reads in the card, so they stay French (the heading line is free prose, which the
+manager writes in French today). `attend` (*awaiting*): `#N`s, separated by commas or spaces.
+`zone`: paths relative to the repository root — files or directories —, separated by commas.
+`requiert` (*requires*): capability names, separated by commas or spaces — the line is
+**optional**, and a card without it reads exactly as before (see "The capabilities a ticket asks
+for"). Without a card, a ticket awaits no one, owns nothing and asks for nothing. **It is corrected
+by hand**, by editing the comment; the reading tolerates case, bold, the bullet or its absence, the
+order, and prose around. The marker **counts only at the head of a line, outside a code block**.
+The manager writes the card of the tickets it splits.
 
-| Ce que porte l'issue | Ce que le runtime en fait |
+| What the issue carries | What the runtime does with it |
 |---|---|
-| Une clé inconnue (`budget : 40`) ; une puce qui n'est pas `clé : valeur` ; une clé posée deux fois | fiche illisible |
-| Une valeur qui n'est pas un `#N`, pas un chemin du dépôt (absolu, `~`, `..`), ou pas un nom de capacité (`chrome/connecté`) | fiche illisible — la valeur est citée |
-| Un **motif** dans la zone (`*`, `?`) | fiche illisible : un dossier possède déjà tout ce qu'il contient |
-| Deux fiches | fiche illisible, **aucune n'est lue** |
-| Un `#N` qui ne désigne aucune issue, le ticket lui-même, ou une PR | fiche illisible |
-| Des `attend` qui forment un cycle entre tickets du rail | fiche illisible pour chaque ticket du cycle |
-| Une fiche posée par quelqu'un qui n'a pas la main sur le dépôt | **ignorée**, et dit sur journald (`fiche ignorée sur le ticket #N`) |
+| An unknown key (`budget : 40`); a bullet that is not `key : value`; a key set twice | unreadable card |
+| A value that is not a `#N`, not a path of the repository (absolute, `~`, `..`), or not a capability name (`chrome/connecté`) | unreadable card — the value is quoted |
+| A **pattern** in the zone (`*`, `?`) | unreadable card: a directory already owns everything it contains |
+| Two cards | unreadable card, **neither is read** |
+| A `#N` that designates no issue, the ticket itself, or a PR | unreadable card |
+| `attend` entries that form a cycle between tickets of the rail | unreadable card for each ticket of the cycle |
+| A card set by someone who has no hand on the repository | **ignored**, and said in journald (`fiche ignorée sur le ticket #N` — a message the runtime still writes in French) |
 
-Fiche illisible, le ticket est **refusé** à la prise : 86, motif `unreadable-card`, un commentaire
-liste ce qu'il faut corriger. Lisible ou supprimée, il revient seul (`ticket.released`, motif
-`card-readable`) ; ce qui reste à corriger se lit dans `run rail`. La fiche est relue quand l'issue
-change, et entre au journal (`ticket.arrived`, `ticket.changed`, champ `card`).
+Unreadable card, the ticket is **refused** at the take: 86, reason `unreadable-card`, a comment lists
+what must be corrected. Readable or removed, it returns by itself (`ticket.released`, reason
+`card-readable`); what remains to be corrected reads in `run rail`. The card is read again when the
+issue changes, and enters the log (`ticket.arrived`, `ticket.changed`, field `card`).
 
-### Les capacités qu'un ticket demande
+### The capabilities a ticket asks for
 
-**Une station fournit des capacités** (la décision `stations`, voir « Déclarer les stations ») ; **un
-ticket en demande** par la ligne `requiert` de sa fiche. Le manager la pose au découpage, pour un
-ticket infaisable sans elle — il lit ce que fournissent les stations du projet — ; elle se corrige à
-la main comme le reste. La plupart des tickets n'en demandent aucune.
+**A station provides capabilities** (the `stations` decision, see "Declaring the stations"); **a
+ticket asks for some** by the `requiert` line of its card. The manager sets it at the split, for a
+ticket that cannot be done without it — it reads what the project's stations provide —; it is
+corrected by hand like the rest. Most tickets ask for none.
 
-| Ce que le ticket demande | Où il part |
+| What the ticket asks for | Where it goes |
 |---|---|
-| Rien | dans la première station, dans l'ordre de la déclaration, que rien ne retient — **quoi qu'elle fournisse** |
-| Une ou plusieurs capacités | dans la première station libre qui les fournit **toutes** ; ce qu'elle fournit en plus ne l'écarte pas |
-| Une capacité que fournit une station **pleine ou retenue** | nulle part pour l'instant : il attend sa place, aucune autre ne le prend, et `status` dit laquelle le retient |
-| Une capacité qu'**aucune station déclarée ne fournit** — ou plusieurs qu'aucune ne fournit ensemble | **il ne part pas** : 86, sans cook |
+| Nothing | to the first station, in the order of the declaration, that nothing withholds — **whatever it provides** |
+| One or more capabilities | to the first free station that provides them **all**; what it provides in addition does not rule it out |
+| A capability that a **full or withheld** station provides | nowhere for now: it waits for its place, no other takes it, and `status` says which one holds it |
+| A capability that **no declared station provides** — or several that none provides together | **it does not leave**: 86, no cook |
 
-- **Seule la capacité choisit la station, jamais une préférence.** Une spécialité (sécu, rédaction,
-  BDD) n'est pas une capacité : rien dans le runtime n'écarte une station parce qu'un ticket « irait
-  mieux » ailleurs.
-- **Les noms se comparent tels quels** (`chrome-connecté` n'est pas `chrome-connecte`) : le runtime
-  n'en reconnaît aucun. Seule la façon d'écrire un accent est indifférente.
-- **Sans station qui la fournisse, le ticket est 86 avant toute prise** — écrit par le runtime, motif
-  `no-station: chrome-connecté` (`no-station: a + b` quand chacune est fournie quelque part, jamais
-  ensemble), sans heure de retour. **Aucun cook n'est lancé**, aucun worktree préparé ; les autres
-  tickets partent, et lui ne tient pas sa zone. Son issue reçoit un commentaire qui nomme ce qui
-  manque et les stations déclarées.
-- **Le manager le reprend avant le chef** (manager allumé). Il réécrit ou redécoupe le ticket pour
-  qu'il n'ait plus besoin de la capacité : `manager.capability-resplit` au journal, le ticket sort du
-  rail (86 `manager:split`), ses sous-tickets naissent comme ceux d'une épique, et rien n'arrive en
-  TODO. Un ticket né d'une telle réécriture ne se réécrit pas deux fois. Si la réécriture est
-  impossible, le manager pose une carte `gesture` (`manager.capability-gestured`) qui nomme l'accès à
-  donner et pourquoi le ticket ne s'en passe pas ; le ticket reste 86, et la carte sort de TODO dès
-  qu'il n'est plus dans ce cas. Manager éteint, rien ne le reprend : le bloc ci-dessous le montre tel quel.
-- **`status` dit ce qui manque et le geste qui le fournirait**, dans le bloc `attend` (manager éteint) :
+- **Only the capability chooses the station, never a preference.** A specialty (security, writing,
+  database) is not a capability: nothing in the runtime rules a station out because a ticket "would
+  fit better" elsewhere.
+- **Names are compared as they are** (`chrome-connecté` is not `chrome-connecte`): the runtime
+  recognizes none. Only the way of writing an accent is indifferent.
+- **Without a station that provides it, the ticket is 86 before any take** — written by the
+  runtime, reason `no-station: chrome-connecté` (`no-station: a + b` when each is provided
+  somewhere, never together), with no return time. **No cook is launched**, no worktree prepared;
+  the other tickets leave, and it does not hold its zone. Its issue receives a comment that names
+  what is missing and the declared stations.
+- **The manager takes it up before the chef** (manager on). It rewrites or re-splits the ticket so
+  that it no longer needs the capability: `manager.capability-resplit` in the log, the ticket
+  leaves the rail (86 `manager:split`), its sub-tickets are born like an epic's, and nothing
+  arrives in TODO. A ticket born from such a rewrite is not rewritten twice. If the rewrite is
+  impossible, the manager sets a `gesture` card (`manager.capability-gestured`) that names the
+  access to give and why the ticket cannot do without it; the ticket stays 86, and the card leaves
+  TODO as soon as it is no longer in this case. Manager off, nothing takes it up: the block below
+  shows it as it is.
+- **`status` says what is missing and the gesture that would provide it**, in the `awaiting` block
+  (manager off):
 
   ```
-  #14  depuis 3 min  aucune station ne fournit `chrome-connecté` — à fournir : déclarer une station qui la fournit par `brigade <projet> station stations <machine>/<moteur>:<plafond de cooks>:chrome-connecté`, ou retirer `chrome-connecté` de la ligne `requiert` de sa fiche — il repart seul
+  #14  for 3 min  no station provides `chrome-connecté` — to provide: declare a station that provides it with `brigade <project> station stations <machine>/<engine>:<cook cap>:chrome-connecté`, or remove `chrome-connecté` from the `requiert` line of its card — it starts again on its own
   ```
 
-- **Il revient en attente seul** (`ticket.released`, motif `capabilities-reread`) : au redémarrage,
-  si une station déclarée fournit désormais ce qu'il demande ; au sondage, si sa fiche ne le demande
-  plus. Une fiche qui demande maintenant autre chose qui manque le renvoie 86, sous le nouveau motif.
-- **Sans aucune station déclarée**, un ticket qui demande une capacité est 86 de la même façon ;
-  celui qui n'en demande pas attend, comme avant.
-- **Demander une capacité n'autorise rien.** Elle dit dans quelle station le ticket part ; ce que son
-  cook a le droit de faire ne change pas. `accès-prod` écrit sur une ligne `requiert` est un nom
-  comme un autre : la liste de ce qu'aucun grant n'autorise (`runtime/src/grant.ts`) reste ce
-  qu'elle était, et `grant -- activer acces-prod` est refusé comme avant.
-
+- **It returns to queued by itself** (`ticket.released`, reason `capabilities-reread`): at restart,
+  if a declared station now provides what it asks; at the poll, if its card no longer asks for it.
+  A card that now asks for something else that is missing sends it back 86, under the new reason.
+- **With no declared station at all**, a ticket that asks for a capability is 86 in the same way;
+  one that asks for none waits, as before.
+- **Asking for a capability authorizes nothing.** It says in which station the ticket leaves; what
+  its cook is allowed to do does not change. `accès-prod` written on a `requiert` line is a name
+  like any other: the list of what no grant authorizes (`runtime/src/grant.ts`) stays what it was,
+  and `grant -- enable acces-prod` is refused as before.
