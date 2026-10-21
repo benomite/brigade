@@ -6035,6 +6035,8 @@ async function confier() {
         a: Date.now(),
       };
       if (courant?.nom === projet.nom) poserStationsDuProjet();
+      // Les blocs de Cooks viennent des faits de la box : relus tout de suite, la station neuve y paraît sans attendre.
+      brigade.relireBox(demandeFaits);
     }
   } catch (erreur) {
     confianceRefusee.replaceChildren(bloc("p", `nothing was sent: ${erreur instanceof Error ? erreur.message : String(erreur)}`));

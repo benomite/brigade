@@ -1018,7 +1018,7 @@ Once handed over, the page says **where it cooks** — `Cooks on <station>`, its
 all the stations cook.` **"+ station"** opens the same card reduced to stations (`Add a station to
 <projet>'s kitchen.`, `Add <station> to the kitchen`, with the same sentence): the extra station takes
 the repository, the integration branch and the cook cap from the first station, and the cooks and
-calibration already requested — nothing is re-entered. **A value the first station does not say** (#1288)
+calibration already requested — nothing is re-entered. The button is on the Cooks tab too (#1271): the same card, the same steps; once the request is written, the app re-reads the box at once, so the new station's block appears on the tab without reloading. **A value the first station does not say** (#1288)
 comes back from the request as `manque`: its field — repository, integration branch or cook cap — then
 shows in the form, preset with what the app can guess, and only a visible field is asked of you.
 
