@@ -991,9 +991,8 @@ cooks <projet> yet.` is followed by **"choose its machine"**. The choice opens b
   server, `stops when you close the app on this computer` for the app on a Mac or a PC. **The
   server station is chosen by default**, marked `recommended`; with no server, the first readable
   machine.
-- **Then the backups, optional** (`Backup machines · optional`): one checkbox per other station,
-  and what a backup is for — it cooks the tickets the main station has no room to take, without
-  manager or pass.
+- **Then the other stations, optional** (`Other stations · optional`): one checkbox per other station.
+  Every station cooks; only the main one runs the manager and the pass.
 - **The number of cooks at a time comes preset**, drawn from the main station's cores — those the station
   publishes in its gist (`coeurs`, [docs/runtime/](runtime/station-machine.md)) —, by the very rule
   the station applies: `max(1, ⌊(cores − 2) / 2⌋)`, 3 for 8 cores. Below:
@@ -1010,10 +1009,14 @@ cooks <projet> yet.` is followed by **"choose its machine"**. The choice opens b
 - **The button says what it does**: `Start the kitchen on <station>`. Nothing goes out with an empty
   field: what is missing is read above the button, and the card stays open.
 
-Once handed over, the page says **where it cooks** — `Cooks on <station>`, its backups after it
-(`· macbook (backup)`) —, and **"+ station"** opens the same card reduced to backups (`Add a
-backup machine to <projet>'s kitchen.`, `Add <station> to the kitchen`): the extra station takes up
-the cooks and calibration already requested.
+Once handed over, the page says **where it cooks** — `Cooks on <station>`, its other stations after it
+(`· macbook (second station)`) — and, under that line, `The first station keeps the manager and the pass;
+all the stations cook.` **"+ station"** opens the same card reduced to stations (`Add a station to
+<projet>'s kitchen.`, `Add <station> to the kitchen`, with the same sentence): the extra station takes
+the repository, the integration branch and the cook cap from the first station, and the cooks and
+calibration already requested — nothing is re-entered. **A value the first station does not say** (#1288)
+comes back from the request as `manque`: its field — repository, integration branch or cook cap — then
+shows in the form, preset with what the app can guess, and only a visible field is asked of you.
 
 **The flow of a new project** (#1111), under that line, in place of the empty space: the four steps
 its main station publishes in its tracking (`onboarding`, #1110) — *Repository*, *Cooking machine*,

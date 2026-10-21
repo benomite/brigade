@@ -169,8 +169,8 @@ test("le choix dit en tête ce que le chef fait, puis la machine principale — 
     ],
   );
   // Les renforts ensuite, facultatifs, et ce à quoi ils servent ; la principale n'y est pas.
-  assert.equal(renforts?.dessous("legend")[0]?.textContent, "Backup machines · optional");
-  assert.match(renforts?.textContent ?? "", /A backup cooks the tickets the main machine has no room for; it runs neither the manager nor the pass\./);
+  assert.equal(renforts?.dessous("legend")[0]?.textContent, "Other stations · optional");
+  assert.match(renforts?.textContent ?? "", /All the stations cook the tickets; only the main machine runs the manager and the pass\./);
   assert.deepEqual(machines(renforts ?? assert.fail(), "checkbox").map(({ nom, choisie }) => [nom, choisie]), [["macbook", false]]);
   // L'ancien avertissement jaune n'est plus : ce que choisir un ordinateur implique est sur sa ligne.
   assert.doesNotMatch(formulaire.textContent, /is a computer's app/);
@@ -292,7 +292,7 @@ test("confiée, la page nomme les stations qui font sa cuisine, et « + station 
   boutonSous(bloc, "+ station").click();
   await repos();
   const formulaire = bloc.dessous("form")[0] ?? assert.fail("pas de formulaire");
-  assert.equal(formulaire.dessous("h3")[0]?.textContent, "Add a backup machine to parade's kitchen.");
+  assert.equal(formulaire.dessous("h3")[0]?.textContent, "Add a station to parade's kitchen.");
   assert.deepEqual(machines(formulaire, "checkbox").map(({ nom }) => nom), ["macbook"]);
   assert.deepEqual(machines(formulaire, "radio"), []);
   assert.equal(visibles(formulaire, "select").length, 0);
@@ -348,4 +348,78 @@ test("tant que les stations ne sont pas lues, la page ne dit pas qu'aucune ne fa
   await repos();
   assert.equal(jouee.element("stations-du-projet").children[0]?.textContent, "reading your stations on GitHub…");
   assert.equal(boutonSous(jouee.element("stations-du-projet"), "choose its machine").hidden, true);
+});
+
+// Un projet monté avant l'app : une station le sert déjà, l'app n'a rien gardé de lui.
+const avantLApp = (confier: (appel: number) => Ajout, projet: Projet = PARADE) => {
+  let appel = 0;
+  return jouerLaVue({
+    demarrage: () => ({ ...demarrage([projet], SANS_PROJET), stations: { a: A, stations: [{ ...BOX, projets: ["parade"] }, MAC] } }),
+    confierAUneStation: () => confier(appel++),
+    depotsDuChef: () => ({ depots: [{ depot: "benomite/parade", base: "main" }] }),
+    espace: () => [],
+  });
+};
+const ouvrirLAjout = async (jouee: Jouee) => {
+  (jouee.element("projets").children.at(1) ?? assert.fail("pas de case « parade »")).click();
+  await repos();
+  const bloc = jouee.element("stations-du-projet");
+  boutonSous(bloc, "+ station").click();
+  await repos();
+  const formulaire = bloc.dessous("form")[0] ?? assert.fail("pas de formulaire");
+  const renfort = machines(formulaire, "checkbox")[0]?.champ ?? assert.fail("pas de case");
+  renfort.checked = true;
+  renfort.declencher("change");
+  return { bloc, formulaire };
+};
+
+test("la page et le formulaire disent que la première station garde le manager et la passe, et que toutes cuisent — sans plus parler de « backup machine »", async () => {
+  const jouee = await avantLApp(() => ({ ajoute: "parade" }));
+  const { bloc, formulaire } = await ouvrirLAjout(jouee);
+  assert.equal(formulaire.dessous("h3")[0]?.textContent, "Add a station to parade's kitchen.");
+  const phrase = "The first station keeps the manager and the pass; all the stations cook.";
+  assert.equal(formulaire.dessous("p").filter(({ textContent }) => textContent === phrase).length, 1);
+  assert.equal(bloc.children.filter(({ textContent, hidden }) => textContent === phrase && !hidden).length, 1);
+  assert.doesNotMatch(bloc.textContent, /backup/i);
+  const source = readFileSync(join(import.meta.dirname, "../../src/vue/vue.js"), "utf8");
+  assert.doesNotMatch(source, /backup machine/i);
+});
+
+test("un projet d'avant l'app : cocher une machine et confirmer l'ajoute sans qu'aucun champ soit redit ni montré", async () => {
+  const jouee = await avantLApp(() => ({ ajoute: "parade" }));
+  const { formulaire } = await ouvrirLAjout(jouee);
+  assert.equal(visibles(formulaire, "select").length, 0);
+  assert.equal(parLibelle(formulaire, "integration branch"), undefined);
+  assert.equal(parLibelle(formulaire, "cooks at once"), undefined);
+  await Promise.all(formulaire.declencher("submit"));
+  await repos();
+  const [saisie] = jouee.dernier("confierAUneStation") as [{ stations: string[]; principale: string; cooks: string }];
+  assert.deepEqual([saisie.stations, saisie.principale, saisie.cooks], [["g2"], "", ""]);
+  assert.match(jouee.element("stations-du-projet").textContent, /parade is asked of macbook/);
+});
+
+test("une valeur que la première station ne dit pas se montre, posée de ce qu'on devine : seuls les champs visibles se demandent", async () => {
+  const jouee = await avantLApp(
+    (appel) => (appel === 0 ? { signales: { depot: "parade-box does not say which GitHub repository it serves for parade: give the repository.", cooks: "parade-box does not say how many cooks it may run at once for parade: give the cook cap." }, manque: ["depot", "cooks"] } : { ajoute: "parade" }),
+    { nom: "parade", dossier: "/tmp/parade", base: "main" },
+  );
+  const { formulaire } = await ouvrirLAjout(jouee);
+  assert.equal(parLibelle(formulaire, "repository"), undefined);
+  await Promise.all(formulaire.declencher("submit"));
+  await repos();
+  await repos();
+  assert.match(formulaire.textContent, /does not say which GitHub repository/);
+  assert.equal(formulaire.hidden, false);
+  // Le dépôt et les cooks se montrent, posés ; la branche, que rien ne demandait, reste cachée.
+  const depot = parLibelle(formulaire, "repository") ?? assert.fail("le dépôt ne se montre pas");
+  assert.equal(parLibelle(formulaire, "integration branch"), undefined);
+  const cooks = parLibelle(formulaire, "cooks at once") ?? assert.fail("les cooks ne se montrent pas");
+  assert.notEqual(cooks.value, "");
+  depot.value = "benomite/parade";
+  cooks.value = "4";
+  cooks.declencher("input");
+  await Promise.all(formulaire.declencher("submit"));
+  await repos();
+  const [saisie] = jouee.dernier("confierAUneStation") as [{ depot: string; base: string; cooks: string }];
+  assert.deepEqual([saisie.depot, saisie.base, saisie.cooks], ["benomite/parade", "main", "4"]);
 });

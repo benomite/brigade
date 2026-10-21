@@ -74,7 +74,7 @@ async function laPage(vu: VuDesProjets, demenager: (nom: string, vers: string) =
 
 test("un projet qui cuit sur sa box : « Cooks on parade-box », sans rien dire de l'app qu'on ferme", async () => {
   const { bloc } = await laPage(vuDes(SUR_LA_BOX));
-  assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (backup)");
+  assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (second station)");
   assert.doesNotMatch(bloc.textContent, /stops when you close the app/);
   const sienne = ligne(bloc).dessous("button")[0] ?? assert.fail();
   assert.equal(sienne.ariaLabel, "parade-box — main — served");
@@ -82,7 +82,7 @@ test("un projet qui cuit sur sa box : « Cooks on parade-box », sans rien dire 
 
 test("un projet qui cuit sur ce Mac : « Cooks on this Mac », et sa cuisine s'arrête quand on ferme l'app", async () => {
   const { bloc } = await laPage(vuDes(SUR_LE_MAC));
-  assert.equal(ligne(bloc).textContent, "Cooks on this Mac · its kitchen stops when you close the app · parade-box (backup)");
+  assert.equal(ligne(bloc).textContent, "Cooks on this Mac · its kitchen stops when you close the app · parade-box (second station)");
   const sienne = ligne(bloc).dessous("button")[0] ?? assert.fail();
   assert.match(sienne.title, /^macbook, this computer's station/);
 });
@@ -116,7 +116,7 @@ test("un seul geste l'emmène sur ce Mac : le choix dit d'où, vers où, et son 
   assert.equal(dit(bloc).textContent, "parade's kitchen moves to this Mac: parade-box hands it over as soon as this Mac is ready — until then it cooks on parade-box");
   assert.equal(dit(bloc).classList.contains("refus"), false);
   // La ligne dit où il cuit, tel que les stations le publient : toujours la box, tant qu'elle n'a pas remis.
-  assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (backup)");
+  assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (second station)");
 });
 
 test("le même geste le ramène sur sa box — recommandée, toujours allumée — ou sur une autre station", async () => {
@@ -145,7 +145,7 @@ test("refusé — pas de bac à sable sur ce Mac —, la raison se lit en une ph
   assert.equal(dit(bloc).hidden, false);
   assert.equal(dit(bloc).textContent, `parade stays on parade-box: ${said}`);
   assert.ok(dit(bloc).classList.contains("refus"));
-  assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (backup)");
+  assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (second station)");
   assert.equal(choix(bloc).hidden, true);
   // Le geste reste offert : on peut réessayer une fois le bac à sable posé.
   bouton(bloc, "move the kitchen");
