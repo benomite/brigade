@@ -32,9 +32,11 @@ tap switches from one to the other, and switching tabs neither cuts nor empties 
 moves to the top. **Cooks is read-only there**: the stations' lines, their state and their cooks, and on each one its
 only button, `stop cooking` or `start cooking` — no project tile, no Taken and Pass, no delivery servers, no stations
 line to set up (`+ station`, `move the kitchen`, the sandbox), no reading of `station` and its cap: cooks are set up
-where there is a computer. Rail is the same as on a wide screen, `open Cooks` line included, and the last tab opened is
-remembered; remembered on a wide screen, the conversation reopens the project on Rail. On a wide screen, nothing
-changes. The threshold is `ECRAN_ETROIT` in `app/src/vue/vue.js`, and the same one in `vue.css`.
+where there is a computer. Rail shows the same columns and cards as on a wide screen, `open Cooks` line included, but
+**stacked, full width, with TODO — what waits for you — first** (#1163): the page scrolls down, never sideways. A
+switch's confirmation (`manager`, `merge`) opens under the project's header, full width, not 440 px wide under the
+switch. The last tab opened is remembered; remembered on a wide screen, the conversation reopens the project on Rail.
+On a wide screen, nothing changes. The threshold is `ECRAN_ETROIT` in `app/src/vue/vue.js`, and the same one in `vue.css`.
 **The main screen keeps only three things: the alert band, the rail and the terminals**; there is
 nothing at the bottom of the window. The rest is behind a tab, at the top, next to the name of the
 project: **Settings** (the state of the project, the backup and its age, the settings, the
@@ -741,6 +743,14 @@ On the desktop, nothing of this is shown. The screen is `app/src/vue/telephone/a
 that reaches the desk and keeps the token is `app/android/web/pont.js` (with `Pont.java` for the scanner); the
 captures are the `telephone-*` screens of `scripts/capture-ecran` (`docs/captures/1161/`). What the paired phone
 then reads — its place in the stations list, each project's queue — comes with the next tickets of #1151.
+
+**Each project's queue on the phone** (#1163) is the project's page of a narrow screen (see above): Rail — TODO
+first, then On the rail, WAITING and Served, stacked — and Cooks — each station, its state and its running cooks.
+It is the desktop's view, fed the same way: what it shows of a reading is what the desktop shows of the same reading,
+and nothing on it scrolls sideways at phone width. Screens: `telephone-file`, `telephone-file-cooks` and
+`telephone-file-merge` of `scripts/capture-ecran` (`docs/captures/1163/`). **The Android bridge does not read a
+project yet**: the phone desk serves `/pairing` and `/stations` only, so a paired phone has no project to open until
+the station serves a project's readings to it.
 
 ### Your stations: paired with a code, read on GitHub
 

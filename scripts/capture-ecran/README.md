@@ -107,6 +107,7 @@ compare que deux captures du même navigateur.
 | `fiabilite-recul` | La même page quand quatre corrections de ses consignes ont été acceptées (#1001) : sous les causes, chaque cause corrigée avant et après le merge — elle recule, elle ne recule pas, rien à comparer encore, pas encore mergée |
 | `telephone-lancement` | Le premier écran de l'app Android installée neuve (#1161), en 412 × 915 : « Link this phone to your projects », l'adresse de la station et son code, « pair » et « scan the QR » |
 | `telephone-attente`, `telephone-code-faux`, `telephone-code-expire`, `telephone-injoignable`, `telephone-appaire` | Le même, « scan the QR » cliqué — le QR remplit les deux champs et part au guichet : la station qui n'a pas encore répondu, un code faux, un code expiré, la station injoignable, puis l'appairage réussi — « Tous les projets », la station nommée en tête |
+| `telephone-file`, `telephone-file-cooks`, `telephone-file-merge` | La file de `parade` sur le téléphone appairé (#1163), en 412 × 915 : Rail — TODO en tête, puis On the rail, WAITING et Served, empilées —, Cooks — #14 cuit sur la box, #15 sur le Mac —, puis Rail, l'interrupteur `merge` touché, sa confirmation de toute la largeur |
 | `telephone-relance` | L'app Android relancée, le téléphone déjà appairé : « Tous les projets », sans écran d'appairage |
 
 Tous en 1440 × 900, sauf ceux du téléphone. `--liste` donne la liste à jour.

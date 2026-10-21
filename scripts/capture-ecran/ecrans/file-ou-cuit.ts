@@ -8,7 +8,7 @@ import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const PARADE = RENDUS.parade as Rendu;
 const TITRE = "La carte des desserts";
-const FACTS: Faits = {
+export const FACTS: Faits = {
   ...PARADE.facts,
   compteurs: { ...PARADE.facts.compteurs, auTravail: 2 },
   rail: [
@@ -22,7 +22,7 @@ const FACTS: Faits = {
     { station: "mac/claude", distante: true, plafond: 2, ordinaires: true, bacASable: { disponible: true, raison: null, version: "2.1.250", depuis: "2026-10-13T09:30:00.000Z" }, prendOrdinaires: true },
   ],
 };
-const STATUS = PARADE.status
+export const STATUS = PARADE.status
   .replace("rail       1 taken · 2 in pass · 2 queued", "rail       2 taken · 2 in pass · 2 queued")
   .replace(/(  #14  taken .*\n)/, `$1  #15  taken  -  by mac/claude since 6 min, lease 24 min left  ${TITRE}\n`)
   .replace("cooks      1 running", "cooks      2 running");
