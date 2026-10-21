@@ -58,6 +58,11 @@ la variable ; `seuils-cli.ts` le montre avec les seuils.
 Le journal dit ce qu'il a reçu : `lessons` de son `cook.launched`, les ids, dans l'ordre de sa
 consigne — `[]` s'il n'en a reçu aucune. Sans leçon, sa consigne est celle d'avant.
 
+Un cook d'un projet servi par une station dont la configuration compte au moins deux projets reçoit
+aussi, après elles et dans leur bloc à part, les leçons de l'**étage commun** que tu as acceptées
+(`C1`, `C2`…, voir plus bas) — hors du plafond, qui ne compte que les provisoires. Leurs ids sont dans
+`lessons` de son `cook.launched`, après ceux du projet.
+
 Un cook lancé sous un **profil de cook** reçoit en plus, après elles, le carnet de ce profil — ses
 seules leçons promues : voir [`etat-et-mesures.md`](etat-et-mesures.md), « Un profil au dispatch ».
 
@@ -176,3 +181,41 @@ Dans les deux cas, la leçon **garde son id**, et le runtime ne compte plus que 
 reconfirmations d'avant ne la ramènent pas ; il faut que **trois nouvelles rétros** (le seuil de
 promotion), de tickets différents, la citent pour qu'une nouvelle PR la repromeuve. Une leçon
 expirée revient de la même façon.
+
+### L'étage commun : une leçon promue dans plusieurs projets
+
+Une station sert plusieurs projets — sa configuration, `<BRIGADE_STATION_DIR>/projets`, en est
+l'**installation**. Une leçon que le carnet d'**au moins deux** de ces projets tient promue, à leur
+branche d'intégration, est **proposée à l'étage commun**, qui sert les cooks de tous les projets.
+C'est la même leçon quand elle dit **mot pour mot** la même chose — ses blancs ramenés à un — quels
+que soient ses ids, propres à chaque projet. Rien n'y entre sans toi.
+
+| Seuil | Défaut | Variable |
+|---|---|---|
+| **Étage commun** : une leçon promue dans le carnet d'autant de projets de l'installation y est proposée | **2** projets (au moins 2) | `BRIGADE_COMMON_TIER_PROJECTS` |
+
+C'est un réglage de la **station**, pas d'un projet : dans l'environnement de son unité, lu au
+démarrage (un entier mal écrit, ou moins de 2, fait refuser le démarrage en nommant la variable).
+`seuils-cli.ts` le montre avec les seuils.
+
+**Voir et trancher** — avec l'environnement de la station :
+
+```
+node runtime/src/commun/commun-cli.ts                   # les leçons proposées, avec leurs projets, et celles de l'étage
+node runtime/src/commun/commun-cli.ts yes <proposition> # « oui » : elle entre à l'étage
+node runtime/src/commun/commun-cli.ts no <proposition>  # « non » : elle reste propre à chaque projet
+```
+
+Chaque proposition se donne par sa clé (huit caractères, tirée de son texte), son texte, puis
+`promoted in alpha (L4), beta (L7)` : les projets d'où elle vient, avec son id dans chacun. Un
+projet dont le carnet ne se lit pas est dit, et ne compte pour aucune proposition.
+
+- **Oui** : elle reçoit un id de l'étage (`C1`, `C2`…), et le cook de chaque ticket, de **chaque
+  projet** de l'installation, la reçoit dans sa consigne (voir « Ce que reçoit un cook »).
+- **Non** : elle reste dans le carnet des projets qui la tiennent, servie à eux seuls ; elle n'est
+  **plus jamais proposée**, même quand un autre projet la promeut à son tour.
+
+Une proposition se tranche une fois : un second geste n'écrit rien et redit le premier. Ce que tu
+as tranché vit dans `<BRIGADE_STATION_DIR>/etage-commun.json`, pas dans un dépôt ni dans un journal
+de projet. **Une installation d'un seul projet n'a pas d'étage commun** : rien n'y est proposé, et
+la consigne de ses cooks reste celle d'avant. Le module est `runtime/src/commun/`.
