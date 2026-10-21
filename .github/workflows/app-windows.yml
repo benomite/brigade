@@ -24,6 +24,10 @@ jobs:
   tests:
     runs-on: windows-latest
     steps:
+      # Git for Windows extrait en `\r\n` par défaut : les tests qui relisent une source ou une doc
+      # du dépôt y attendent les `\n` du dépôt.
+      - name: Garder les fins de ligne du dépôt
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:

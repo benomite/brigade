@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ACTIONS, agirSurLeCloser, SANS_OUI } from "../../../src/closer-lancement.ts";
+import { SANS_POSIX } from "../../aides/posix.ts";
 import { APERCU } from "./donnees.ts";
 
 const SERVI = { nom: "parade", box: { hote: "box" } };
@@ -38,7 +39,7 @@ describe("les gestes de la partie closer, sur la box", () => {
     assert.deepEqual(ACTIONS, { apercu: "closing preview --json", lancer: "closing write --json --confirm", annuler: "closing cancel --json" });
   });
 
-  test("l'aperçu lance `closing preview --json`, une fois, et rend ce qu'il dit", async (t) => {
+  test("l'aperçu lance `closing preview --json`, une fois, et rend ce qu'il dit", { skip: SANS_POSIX }, async (t) => {
     const { reglages, appels } = box(t, dit(ligne(APERCU)));
     assert.deepEqual(await agirSurLeCloser(reglages, SERVI, "apercu"), { apercu: APERCU });
     assert.equal(appels(), `${OPTIONS} -- box brigade parade closing preview --json\n`);
@@ -50,14 +51,14 @@ describe("les gestes de la partie closer, sur la box", () => {
     assert.equal(appels(), "");
   });
 
-  test("avec lui, une demande, et une seule : `closing write --json --confirm`", async (t) => {
+  test("avec lui, une demande, et une seule : `closing write --json --confirm`", { skip: SANS_POSIX }, async (t) => {
     const demandee = { outcome: "requested", waits: null, text: "closing pass requested — start condition met" };
     const { reglages, appels } = box(t, dit(ligne(demandee)));
     assert.deepEqual(await agirSurLeCloser(reglages, SERVI, "lancer", true), { demandee });
     assert.equal(appels(), `${OPTIONS} -- box brigade parade closing write --json --confirm\n`);
   });
 
-  test("refusée ou impossible, le runtime sort en 1 et le dit sur sa sortie : c'est rendu, pas une panne", async (t) => {
+  test("refusée ou impossible, le runtime sort en 1 et le dit sur sa sortie : c'est rendu, pas une panne", { skip: SANS_POSIX }, async (t) => {
     const refusee = { outcome: "refused", reason: { reason: "nothing", observed: null, limit: null, detail: "no candidate" }, text: "closing pass refused, nothing is started — nothing to tidy up — no candidate" };
     assert.deepEqual(await agirSurLeCloser(box(t, dit(ligne(refusee), 1)).reglages, SERVI, "lancer", true), { demandee: refusee });
     const partie = { outcome: "refused", run: "closing-1", text: "closing run closing-1 has left: it cannot be recalled" };
@@ -72,7 +73,7 @@ describe("les gestes de la partie closer, sur la box", () => {
     assert.equal(appels(), "");
   });
 
-  test("une box pas jointe, un runtime qui ne connaît pas le geste, une sortie sans réponse : une ligne, et ce qui a été obtenu à part", async (t) => {
+  test("une box pas jointe, un runtime qui ne connaît pas le geste, une sortie sans réponse : une ligne, et ce qui a été obtenu à part", { skip: SANS_POSIX }, async (t) => {
     const injoignable = await agirSurLeCloser(box(t, `echo "ssh: connect to host box port 22: Connection refused" >&2\nexit 255`).reglages, SERVI, "apercu");
     assert.ok(injoignable !== undefined && "refus" in injoignable);
     assert.equal(injoignable.refus, "the station could not be asked — not reached");
