@@ -76,6 +76,8 @@ compare que deux captures du même navigateur.
 | `demenager-choix` | L'espace de `parade`, qui cuit sur sa box (#1095) : `Cooks on box`, « move the kitchen » cliqué — le choix de la machine où l'emmener (ce Mac) et son prix en une ligne |
 | `demenager-sur-ce-mac` | Le même, `parade` cuisant sur ce Mac : `Cooks on this Mac`, sa cuisine qui s'arrête avec l'app, et le choix ouvert — la box, recommandée, pour l'y ramener |
 | `demenager-refuse` | Le même, sur la box, le déménagement vers ce Mac refusé par le runtime (pas de bac à sable) : la raison en une phrase sous la ligne, qui dit toujours `Cooks on box` |
+| `stations-avec-telephone` | « Tous les projets » avec un téléphone appairé (#1162) : sa ligne dit `does not cook` |
+| `demenager-choix-telephone` | Le choix du déménagement de `parade`, avec ce téléphone appairé (#1162) : il n'y est pas offert |
 | `ajout` | « Add a project », ouvert par le `+` de la barre : le formulaire, la box déclarée choisie, le calibrage proposé |
 | `fiche` | La fiche de #14, ouverte par sa carte dans la colonne Taken du rail de `parade` : ce que son cook fait, son histoire et son coût, ses gestes et leur prix, l'issue et sa discussion |
 | `fiche-retro`, `fiche-sans-retro` | La fiche de #9, servi, ouverte par sa carte dans la colonne Served du rail de `parade` (#1038) : sous son histoire et son coût, sa rétro — trois leçons provisoires et ce que son cook a écrit — puis la même fiche quand la box ne lui connaît aucune rétro, et la phrase qui le dit |

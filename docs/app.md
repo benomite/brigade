@@ -753,6 +753,14 @@ its name, its state, what it is doing and the projects it carries; its machine a
 ○ box  offline for 4 min · brigade                        ›
 ```
 
+**A paired phone is listed like the others** (#1162), with the mention that it does not cook:
+`● pixel  online · does not cook` — offline, `offline for 12 min · does not cook`. It never
+runs a project's cooks: it is not offered among the machines of "Choose the machine that runs … kitchen"
+(nor in the backups, nor in "move the kitchen"), the app never recommends it, and a request that
+names it is refused (`pixel does not cook: choose a station that does.`). The station says it by
+publishing `cuisine: false` in its gist (#1158); a station that does not publish it cooks. Screens:
+`docs/captures/1162/`.
+
 **A click on its line opens the station's page**: at the top, its name, its dot and its state in
 one sentence (#877); below, its faults with their button, the projects the app added to it and the
 "add a project" flow (see "Add a project to your stations, without a terminal").

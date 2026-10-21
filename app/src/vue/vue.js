@@ -5188,7 +5188,7 @@ function poserChoixDesStations() {
  * @param {{ exclues: readonly string[], principale: boolean, groupe: string, relancer: () => void }} options
  */
 function poserLesStations(vise, ou, averti, { exclues, principale: avecPrincipale, groupe, relancer }) {
-  const appairees = (stationsVues?.stations ?? []).filter(({ id }) => !exclues.includes(id));
+  const appairees = (stationsVues?.stations ?? []).filter(({ id, cuisine }) => cuisine !== false && !exclues.includes(id));
   const recommandee = projetsVus?.recommandee;
   if (avecPrincipale && !vise.touchee && vise.principale === "" && recommandee && appairees.some(({ id }) => id === recommandee)) {
     vise.principale = recommandee;
@@ -5410,7 +5410,7 @@ function poserLeDemenagement(projet, ou, enCours, lues) {
   const confie = projetsVus?.projets.some(({ nom, stations }) => nom === projet.nom && stations.some(({ principale }) => principale)) ?? false;
   const fige = enCours !== null && (enCours.etape === "acceptee" || enCours.etape === "remise");
   const repris = enCours !== null && !fige;
-  const appairees = (stationsVues?.stations ?? []).filter(({ etat }) => etat !== "illisible");
+  const appairees = (stationsVues?.stations ?? []).filter(({ etat, cuisine }) => etat !== "illisible" && cuisine !== false);
   const destinations = appairees.filter(({ id }) => id !== ou?.id || repris);
   const offert = lues && confie && ou !== undefined && ou.id !== null && !fige && destinations.length > 0;
   ouvrirLeDemenagement.hidden = !offert || demenagement !== undefined || confiance !== undefined;
@@ -5668,7 +5668,7 @@ function poserLeParcours(nom, onboarding) {
  * @param {{ exclues: readonly string[], demande: boolean, principale: boolean }} deja
  */
 function poserLaConfiance(vise, projet, { exclues, demande, principale: aSaPrincipale }) {
-  const appairees = (stationsVues?.stations ?? []).filter(({ id }) => !exclues.includes(id));
+  const appairees = (stationsVues?.stations ?? []).filter(({ id, cuisine }) => cuisine !== false && !exclues.includes(id));
   const machines = projetsVus?.machines ?? {};
   const recommandee = projetsVus?.recommandee ?? undefined;
   const avecPrincipale = !aSaPrincipale;
