@@ -211,7 +211,7 @@ describe("la page d'un projet sur un écran étroit : trois onglets", () => {
 
   test("Rail y est celui d'un écran large : ses colonnes, et la ligne qui ouvre Cooks", async () => {
     const { vue } = await ouvrir();
-    assert.deepEqual(colonnes(vue), ["On the rail", "TODO", "WAITING", "Served"]);
+    assert.deepEqual(colonnes(vue), ["On the rail", "Taken", "Pass", "TODO", "WAITING", "Served"]);
     const alerte = vue.element("rail").dessous("p").find((p) => p.className === "alerte-de-cuisine") ?? assert.fail("pas de ligne d'alerte");
     assert.match(alerte.textContent, /atelier\/claude is saturated/);
     (alerte.dessous("button")[0] ?? assert.fail("pas de lien")).click();
@@ -269,13 +269,13 @@ describe("l'onglet Cooks d'un écran étroit, en lecture seule", () => {
 });
 
 describe("sur un écran large, rien ne change", () => {
-  test("deux onglets, et le second à droite quel que soit l'onglet ; Cooks porte la carte, Taken, Pass et la lecture de `station`", async () => {
+  test("deux onglets, et le second à droite quel que soit l'onglet ; Cooks porte la carte et la lecture de `station`", async () => {
     const { vue } = await ouvrir({ etroit: false });
     assert.deepEqual(titres(vue), ["Rail", "Cooks"]);
     assert.deepEqual(vu(vue), { centre: true, second: true });
     await taper(vue, "Cooks");
     assert.deepEqual(vu(vue), { centre: true, second: true });
-    assert.deepEqual(colonnes(vue), ["Taken", "Pass"]);
+    assert.deepEqual(colonnes(vue), []);
     assert.equal(dansLeRail(vue, "carte"), true);
     assert.equal(dansLeRail(vue, "lecture-cuisine"), true);
     assert.equal(lecture(vue), "cooks");

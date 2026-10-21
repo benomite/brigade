@@ -5,8 +5,8 @@ second runs. You no longer open a terminal, you no longer move into a folder.
 
 **In the middle of the space, two tabs, Rail and Cooks** (#1184), next to the project name, only one shown at a
 time: **Rail** says where the project stands and what you have to decide — what awaits you and its action, the
-tickets of the rail in their order, TODO, WAITING and what is served, with nothing about execution; **Cooks** says
-what is running — the project tile and its cooks in flight, Taken and Pass (the gates), the delivery servers with
+whole kanban in its order — On the rail, Taken, Pass, TODO, WAITING and what is served — with nothing about
+execution; **Cooks** says what is running — the project tile and its cooks in flight, the delivery servers with
 their worktree and their port, the project's stations, and the reading of `station` (the cap on cooks, the machine
 and its saturation, the quota). One click switches from one to the other; **the app reopens each project on the
 last tab you opened in it**, even after you quit it — a project never opened opens on Rail. **On the right, the
@@ -1315,7 +1315,7 @@ over the rail; clicking it again closes it. The seven readings below are those o
 action.
 
 **The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): On the
-rail, TODO, WAITING and Served on Rail; Taken and Pass on Cooks. **The space opens with no page**: the shown
+rail, Taken, Pass, TODO, WAITING and Served, all on Rail; Cooks shows no kanban column. **The space opens with no page**: the shown
 tab has the whole center, over its full height. **A page opens over the rail**: it covers it entirely, without undoing it —
 it stays laid underneath, and re-read, but nothing of it can be clicked through. Clicking the tab again closes
 the page, and **the rail comes back as you left it**, scrolled where it was. The alert band,
@@ -1872,7 +1872,7 @@ from the rail.
 tab is shown below it** — the second, a shell, the output of a command. **Five columns**, one
 ticket per card: what is going to happen (On the rail), what is happening (Taken, Pass), what you
 have to do (Awaiting you), what is done (Served). **The columns are shared between the project's two tabs**
-(#1184): what is happening (Taken, Pass) is on Cooks, the rest on Rail; on Rail, the card of a served page
+(#1184, then #1269): the kanban stays whole on Rail, Taken and Pass included, and Cooks shows no column; on Rail, the card of a served page
 carries only its screen and its action, its worktree and its port are on Cooks. The spec is
 `docs/superpowers/specs/2026-10-13-app-poste-de-travail-design.md`; the visual language remains that
 of `docs/maquettes/app/Brigade.dc.html`.

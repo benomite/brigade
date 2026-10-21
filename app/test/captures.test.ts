@@ -20,7 +20,7 @@ import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
-import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, type Reponses, repos } from "./aides/fausse-vue.ts";
+import { type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 import { SANS_POSIX } from "./aides/posix.ts";
 
 const A = "2026-10-16T10:04:12.000Z";
@@ -182,18 +182,17 @@ const paires = (bon: Faux) =>
   );
 const manquantes = (bon: Faux) => bon.dessous("p").filter((pose) => pose.className === "captures-manquantes");
 
-// Les cartes de Pass (#30, #31, #32) sont sur l'onglet Cooks, celle de Served (#40) sur Rail (#1184).
+// Les cartes de Pass (#30, #31, #32) et celle de Served (#40) sont toutes sur Rail.
 describe("la carte d'un ticket d'interface, dans la vue", () => {
   test("ses deux captures se posent côte à côte, lues dès que la carte se pose, sans un clic", async () => {
     const images: Record<string, string> = { avant: "data:image/png;base64,QVZBTlQ=", apres: "data:image/png;base64,QVBSRVM=" };
     const vue = await ouvrir({ lireCapture: (_, __, ___, moment) => ({ image: images[moment] as string }) });
-    await ouvrirOnglet(vue, "Cooks");
 
     assert.deepEqual(paires(bonDe(vue, 30)), [[["avant", images.avant, "fiche — before"], ["apres", images.apres, "fiche — after"]]]);
     assert.deepEqual(manquantes(bonDe(vue, 30)), []);
     assert.deepEqual(
       vue.appels.filter(({ geste }) => geste === "lireCapture").map(({ args }) => args),
-      [[PARADE, 40, "bandeau", "avant"], [PARADE, 30, "fiche", "avant"], [PARADE, 30, "fiche", "apres"]],
+      [[PARADE, 30, "fiche", "avant"], [PARADE, 30, "fiche", "apres"], [PARADE, 40, "bandeau", "avant"]],
     );
   });
 
@@ -202,7 +201,6 @@ describe("la carte d'un ticket d'interface, dans la vue", () => {
 
     assert.equal(manquantes(bonDe(vue, 40))[0]?.textContent, "incomplete delivery: screenshots missing — the after screenshot of bandeau");
     assert.deepEqual(paires(bonDe(vue, 40)), [[["avant", "data:image/png;base64,QVZBTlQ=", "bandeau — before"], ["apres", "missing", "bandeau — after"]]]);
-    await ouvrirOnglet(vue, "Cooks");
     const [ligne] = manquantes(bonDe(vue, 31));
     assert.equal(ligne?.textContent, "incomplete delivery: screenshots missing — no screenshot");
     assert.match(ligne?.title ?? "", /docs\/captures\/<ticket>/);
@@ -211,7 +209,6 @@ describe("la carte d'un ticket d'interface, dans la vue", () => {
 
   test("une image qui ne se lit pas le dit à sa place, son pourquoi au survol", async () => {
     const vue = await ouvrir({ lireCapture: () => ({ sans: "gh: HTTP 404" }) });
-    await ouvrirOnglet(vue, "Cooks");
     const [figure] = bonDe(vue, 30).dessous("figure");
     assert.equal(figure?.children[0]?.textContent, "not available");
     assert.equal(figure?.children[0]?.title, "gh: HTTP 404");
@@ -219,7 +216,6 @@ describe("la carte d'un ticket d'interface, dans la vue", () => {
 
   test("un ticket qui n'est pas d'interface n'a aucune zone de captures, pas même vide", async () => {
     const vue = await ouvrir();
-    await ouvrirOnglet(vue, "Cooks");
     const bon = bonDe(vue, 32);
     assert.deepEqual([bon.dessous("figure"), manquantes(bon), paires(bon)], [[], [], []]);
   });
