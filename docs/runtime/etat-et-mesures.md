@@ -164,10 +164,10 @@ Times are ISO 8601, UTC.
 
 | Word | When | What `status` says of it |
 |---|---|---|
-| `éteinte` (off) | the runtime is stopped, or never started, according to the log | `runtime    stopped … ago`, `never started` |
-| `arrêtée` (stopped) | your "stop" | `kitchen    STOPPED by the chef …` |
-| `retenue` (held) | it is running, but nothing leaves any more: breaker open, Max connection missing or expired, no station declared, red base, project setup blocked with no remote station | `breaker OPEN`, the `connection` line, `stations   NONE DECLARED`, `base       RED since …`, `setup      BLOCKED` |
-| `ouverte` (open) | none of the above | |
+| `éteinte` | (off) the runtime is stopped, or never started, according to the log | `runtime    stopped … ago`, `never started` |
+| `arrêtée` | (stopped) your "stop" | `kitchen    STOPPED by the chef …` |
+| `retenue` | (held) it is running, but nothing leaves any more: breaker open, Max connection missing or expired, no station declared, red base, project setup blocked with no remote station | `breaker OPEN`, the `connection` line, `stations   NONE DECLARED`, `base       RED since …`, `setup      BLOCKED` |
+| `ouverte` | (open) none of the above | |
 
 **The state of a ticket**: the word that `rail` and the shape write — `en attente`, `BLOQUÉ`, `pris`,
 `en pass`, `servi`, `86`.
