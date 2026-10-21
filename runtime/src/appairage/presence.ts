@@ -63,6 +63,10 @@ export type OptionsPresence = {
   // horloge simulée.
   apres?: (tache: () => void, ms: number, retient?: boolean) => () => void;
   dureeDuCodeMs?: number;
+  // L'écart minimal entre deux écritures, à la place de `ECART_MINIMAL_MS`.
+  // Seule la recette de bout en bout, qui laisse tourner une vraie station,
+  // le raccourcit : le plancher de 60 s se prouve sur l'horloge simulée.
+  ecartMinimalMs?: number;
   maintenant?: () => number;
   tirer?: (borne: number) => number;
 };
@@ -131,6 +135,7 @@ export function tenirPresence(options: OptionsPresence): Presence {
     return () => clearTimeout(minuteur);
   });
   const dureeDuCodeMs = options.dureeDuCodeMs ?? DUREE_DU_CODE_MS;
+  const ecartMinimalMs = options.ecartMinimalMs ?? ECART_MINIMAL_MS;
   const maintenant = options.maintenant ?? Date.now;
   const fichier = join(options.racine, FICHIER_LOCAL);
   let etat = lireEtat(fichier);
@@ -232,12 +237,12 @@ export function tenirPresence(options: OptionsPresence): Presence {
     let ecriture = preparer(instant, arret);
     const ecart = instant - dernierEcrit;
     const aEcrire = arret || demandee || etat.gist === null || ecriture.cle !== publie || ecart >= BATTEMENT_MS;
-    if (aEcrire && !arret && ecart < ECART_MINIMAL_MS) {
+    if (aEcrire && !arret && ecart < ecartMinimalMs) {
       // Trop tôt : le regard suivant, ou ce minuteur, l'écrira.
       reportee ??= apres(() => {
         reportee = null;
         void enchainer(false);
-      }, ECART_MINIMAL_MS - ecart);
+      }, ecartMinimalMs - ecart);
       return;
     }
     if (aEcrire) {

@@ -340,8 +340,39 @@ DEBUT_ATTENTE=$SECONDS
 prendre_le_tour
 ATTENTE=$((SECONDS - DEBUT_ATTENTE))
 DEBUT_EXECUTION=$SECONDS
+# Les deux zones se jouent en même temps : leurs suites ne se partagent rien
+# (chacune ses dépendances, ses répertoires temporaires, ses ports 0), et en
+# série la plus lente attendait pour rien la plus courte. L'app part dans un
+# sous-shell, dont les variables ne remontent pas : sa sortie, ses lignes FAIL et
+# ce qu'il a posé (tests, durée, rouge) passent par des fichiers, relus une fois
+# la suite du runtime rendue. Les lignes de chaque zone restent groupées.
+APP_OUT="$(mktemp)"; APP_ERR="$(mktemp)"; APP_ETAT="$(mktemp)"
+(
+  TOUR=0
+  rc=0; NB_TESTS=""; MS_TESTS=""; SUITE_ROUGE=0
+  suite app "de l'app" "app absente" de-l-app
+  printf '%s\n%s\n%s\n%s\n' "$rc" "$NB_TESTS" "$MS_TESTS" "$SUITE_ROUGE" >"$APP_ETAT"
+) >"$APP_OUT" 2>"$APP_ERR" &
+PID_APP=$!
+trap 'kill "$PID_APP" 2>/dev/null; rendre_le_tour; exit 130' INT
+trap 'kill "$PID_APP" 2>/dev/null; rendre_le_tour; exit 143' TERM
 suite runtime "du runtime" "runtime absent" du-runtime
-suite app "de l'app" "app absente" de-l-app
+wait "$PID_APP" 2>/dev/null
+trap 'rendre_le_tour; exit 130' INT
+trap 'rendre_le_tour; exit 143' TERM
+cat "$APP_OUT"
+# Ses lignes FAIL repassent par `fail` : le rouge ne se pose toujours que là.
+while IFS= read -r LIGNE_APP; do
+  case "$LIGNE_APP" in "FAIL  "*) fail "${LIGNE_APP#FAIL  }" ;; *) printf '%s\n' "$LIGNE_APP" >&2 ;; esac
+done <"$APP_ERR"
+{ read -r APP_RC; read -r APP_NB; read -r APP_MS; read -r APP_ROUGE; } <"$APP_ETAT"
+rm -f "$APP_OUT" "$APP_ERR" "$APP_ETAT"
+# Un sous-shell mort avant d'avoir écrit son état est une app injouée : rouge.
+if [ -z "${APP_ROUGE:-}" ]; then fail "tests de l'app : la suite s'est arrêtée sans rendre de verdict"; APP_ROUGE=1; fi
+[ "$APP_ROUGE" -eq 0 ] || SUITE_ROUGE=1
+[ -z "$APP_NB" ] || NB_TESTS="$(( ${NB_TESTS:-0} + APP_NB ))"
+# Les durées des deux suites se recouvrent : on les additionne quand même, comme avant — la mesure `tests_s` reste la somme du travail des suites, non l'horloge.
+[ -z "$APP_MS" ] || MS_TESTS="$(LC_ALL=C awk -v a="${MS_TESTS:-0}" -v b="$APP_MS" 'BEGIN { printf "%.3f", a + b }')"
 EXECUTION=$((SECONDS - DEBUT_EXECUTION))
 rendre_le_tour
 ok "tour des tests : $ATTENTE s à attendre son tour, $EXECUTION s d'exécution (la garde de ${BRIGADE_GATES_DELAI_TESTS:-300} s ne compte que l'exécution)"
