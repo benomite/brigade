@@ -1,173 +1,170 @@
-## Les garde-fous
+## The guardrails
 
-| Garde-fou | Ce qui se passe |
+| Guardrail | What happens |
 |---|---|
-| Plafond de tours, de durée, de tokens | Le cook qui en dépasse un est arrêté. Les tokens comptent l'entrée, la sortie et l'écriture de cache — pas les lectures de cache |
-| Inactivité | Le cook qui n'a rien produit depuis le délai d'inactivité est arrêté |
-| Disjoncteur | Après N échecs d'affilée, plus aucun cook n'est lancé. Un échec : un arrêt par plafond, inactivité ou bail tombé, ou un cook sorti en erreur — **sans avoir rien commité** ; ou une relance décidée par le manager dont la livraison est jugée rouge (`relaunch.judged`). Ne comptent pas : le « stop », le quota épuisé, une connexion Max expirée, un refus du modèle, un redémarrage du runtime |
-| « stop » | Tous les cooks en cours sont arrêtés dans la seconde, et plus aucun n'est lancé |
+| Cap on turns, duration, tokens | A cook that goes over one is stopped. Tokens count input, output and cache writes — not cache reads |
+| Idle | A cook that has produced nothing since the idle delay is stopped |
+| Breaker | After N failures in a row, no more cooks are launched. A failure: a stop by cap, idleness or lapsed lease, or a cook that exited in error — **without having committed anything**; or a relaunch decided by the manager whose delivery is judged red (`relaunch.judged`). Not counted: the "stop", an exhausted quota, an expired Max connection, a model refusal, a runtime restart |
+| "stop" | Every running cook is stopped within the second, and none is launched any more |
 
-Arrêter un cook : `SIGTERM` à son groupe de process, puis `SIGKILL` dix secondes plus tard. **Le
-disjoncteur ouvert et le « stop » tiennent**, redémarrage compris, jusqu'à « reprendre ».
+Stopping a cook: `SIGTERM` to its process group, then `SIGKILL` ten seconds later. **An open breaker
+and the "stop" both hold**, restarts included, until "resume".
 
-### D'affilée, à plusieurs cooks
+### In a row, across several cooks
 
-Le disjoncteur compte les échecs de **tous** les lancements du projet — cooks, relectures,
-jugements du manager — sur un seul compteur, **dans l'ordre des lancements** : le nombre d'échecs
-parmi les cooks lancés **après le dernier qui a réussi**, depuis ton dernier « resume ». La
-livraison d'une relance du manager ne vaut réussite que jugée verte. Si les trois derniers lancés
-échouent, il s'ouvre, quel que soit le nombre de réussites avant. Les plafonds restent **par cook**.
+The breaker counts the failures of **all** the project's launches — cooks, reviews, manager
+judgements — on a single counter, **in launch order**: the number of failures among the cooks
+launched **after the last one that succeeded**, since your last "resume". The delivery of a manager
+relaunch only counts as a success once judged green. If the last three launched fail, it opens,
+however many successes came before. The caps stay **per cook**.
 
-### Voir et commander
+### See and command
 
 ```bash
-npm --prefix runtime run guardrails             # l'état
-npm --prefix runtime run guardrails -- stop     # arrête tout
-npm --prefix runtime run guardrails -- resume   # rouvre la cuisine, referme le disjoncteur
+npm --prefix runtime run guardrails             # the state
+npm --prefix runtime run guardrails -- stop     # stops everything
+npm --prefix runtime run guardrails -- resume   # reopens the kitchen, closes the breaker
 ```
 
-« stop » et « resume » s'écrivent au journal au nom du `chef` ; le runtime les voit en une
-seconde. L'état montre `caps per ticket`, `kitchen`, `breaker`, `cooks running` et `latest guardrail stops`.
+"stop" and "resume" are written to the log in the name of the `chef`; the runtime sees them within a
+second. The state shows `caps per ticket`, `kitchen`, `breaker`, `cooks running` and `latest guardrail stops`.
 
-Ce que `guardrails` écrit — état, `stop`, `resume`, refus, erreurs — est **en anglais** (mots de `docs/glossary.md`) : `kitchen already stopped since …`, `nothing to resume: the kitchen is open and the breaker closed`. `reprendre` répond encore, en disant `resume` (jusqu'au 2027-01-14).
+What `guardrails` writes — state, `stop`, `resume`, refusals, errors — is **in English** (words from `docs/glossary.md`): `kitchen already stopped since …`, `nothing to resume: the kitchen is open and the breaker closed`. `reprendre` still answers, saying `resume` (until 2027-01-14).
 
-### La pause du renommage du code
+### The pause for the code rename
 
-Avant de partir, un renommage du code demande ton accord par **une carte de ta file**
-(`runtime/src/pause/pause.ts`, `demanderPause`) : combien de temps la cuisine sera en pause, et
-quels tickets en vol elle retiendra — pris (son cook finit son travail, puis sa livraison attend)
-ou en pass (son merge attend).
+Before it starts, a code rename asks for your agreement through **a slip in your queue**
+(`runtime/src/pause/pause.ts`, `demanderPause`): how long the kitchen will be paused, and which
+in-flight tickets it will hold back — taken (its cook finishes its work, then its delivery waits)
+or in pass (its merge waits).
 
 ```bash
-npm --prefix runtime run guardrails -- pause yes   # « oui » : la pause tient
-npm --prefix runtime run guardrails -- pause no    # « non » : la carte quitte la file ; la pause acceptée, elle est levée ; la carte d'un renommage échoué, lue, est ôtée
+npm --prefix runtime run guardrails -- pause yes   # "yes": the pause holds
+npm --prefix runtime run guardrails -- pause no    # "no": the slip leaves the queue; an accepted pause is lifted; the slip of a failed rename, once read, is removed
 ```
 
-- **Sans ton « oui », rien ne change** : la pass merge, les stations prennent.
-- **Après ton « oui »**, et jusqu'à la fin de la pause : la pass juge encore, mais une livraison
-  verte **attend** au lieu d'être mergée (`pass.waiting`, motif `paused`) ; `rail merge` est
-  refusé ; les stations ne prennent plus de ticket (`station.held`, motif `paused`). Seul le ticket
-  du renommage, s'il en a un, part en cuisine et se merge. Un merge déjà parti vers GitHub avant
-  le « oui » n'est pas rattrapé.
-- **La file le dit en une ligne**, sous la tête du bloc `awaiting`, sans compter pour une
-  décision : `paused for the code rename — for …, expected about … min — finishing their work: #12 · held: #14`.
-  `status` dit `kitchen PAUSED for the code rename`.
-- **La pause finit** quand le renommage la lève (`leverPause`), ou sur ton « non ». La cuisine
-  repart seule : chaque livraison retenue est reprise par la pass, rejugée si la base a bougé.
+- **Without your "yes", nothing changes**: the pass merges, the stations take tickets.
+- **After your "yes"**, and until the pause ends: the pass still judges, but a green delivery
+  **waits** instead of being merged (`pass.waiting`, reason `paused`); `rail merge` is refused;
+  stations take no more tickets (`station.held`, reason `paused`). Only the rename's own ticket, if
+  it has one, goes to the kitchen and is merged. A merge already sent to GitHub before the "yes" is
+  not caught up with.
+- **The queue says it in one line**, under the head of the `awaiting` block, without counting as a
+  decision: `paused for the code rename — for …, expected about … min — finishing their work: #12 · held: #14`.
+  `status` says `kitchen PAUSED for the code rename`.
+- **The pause ends** when the rename lifts it (`leverPause`), or on your "no". The kitchen restarts
+  by itself: the pass picks up each held delivery again, and judges it again if the base moved.
 
-**Le renommage lui-même** (`runtime/src/pause/renommage.ts`) part sur ton « oui », et sur lui
-seul :
+**The rename itself** (`runtime/src/pause/renommage.ts`) starts on your "yes", and on that alone:
 
-1. Le runtime prépare une branche sur la tête de `v2` qu'il vient de rapatrier, y joue
-   `scripts/rename-code/rename.sh --apply` (#1039) après le setup du worktree, commite l'arbre
-   renommé, le pousse et ouvre sa PR.
-2. Il la remet à la pass, hors du rail, comme la livraison du carnet. Elle est jugée comme toute
-   livraison : la fusion avec la base, les gates, le reviewer et la CI. Verte, elle est mergée
-   sous grant dans la même pause. C'est la seule PR que la pause laisse passer.
-3. Mergée, la pause est levée et la cuisine repart.
+1. The runtime prepares a branch on the head of `v2`, which it has just fetched, runs
+   `scripts/rename-code/rename.sh --apply` (#1039) there after the worktree setup, commits the
+   renamed tree, pushes it and opens its PR.
+2. It hands the PR to the pass, off the rail, like the notebook's delivery. It is judged like any
+   delivery: the merge with the base, the gates, the reviewer and the CI. Once green, it is merged
+   under grant within the same pause. It is the only PR the pause lets through.
+3. Once merged, the pause is lifted and the kitchen restarts.
 
-**Après le merge, la cuisine reprend seule** (`runtime/src/pause/reprise.ts`) : la pass merge à
-nouveau, les stations prennent à nouveau. Les tickets que la pause a retenus nomment encore les
-chemins d'avant le renommage ; ils sont repris sur le nouvel arbre, par les déplacements que
-l'outil a dits (ses lignes `move`, gardées au journal) :
+**After the merge, the kitchen resumes by itself** (`runtime/src/pause/reprise.ts`): the pass
+merges again, the stations take tickets again. The tickets the pause held back still name the paths
+from before the rename; they are picked up on the new tree, through the moves the tool reported
+(its `move` lines, kept in the log):
 
-- **Leur zone** se lit sur les nouveaux chemins, comme celle de tout ticket du rail : la levée la
-  réécrit au journal, et chaque relecture d'une fiche la traduit de même. La fiche de l'issue reste
-  telle que tu l'as écrite.
-- **Leur branche** est portée sur le nouvel arbre par la pass, avant de la juger : un commit de plus,
-  qui fusionne `v2` renommée et y déplace ce que la livraison avait écrit. Il est poussé, puis jugé
-  comme toute livraison, et l'issue le dit. Il en va de même pour un cook parti avant la pause et
-  qui livre après.
-- **Une livraison qui ne touchait aucun fichier déplacé** est jugée telle quelle.
-- **Une livraison qui ne se porte pas** (ce qu'elle change entre en conflit avec ce que le renommage
-  a écrit) n'est pas mergée. Elle est remontée (`pass.escalated`, cause `rename-conflict`), et ta
-  file la nomme : `held by the code rename and not resumed on the renamed tree: … conflict on …`.
+- **Their zone** is read on the new paths, like that of any ticket on the rail: the lifting rewrites
+  it in the log, and each re-read of a card translates it the same way. The issue's card stays as
+  you wrote it.
+- **Their branch** is carried onto the new tree by the pass, before judging it: one more commit,
+  which merges the renamed `v2` and moves there what the delivery had written. It is pushed, then
+  judged like any delivery, and the issue says so. The same goes for a cook that left before the
+  pause and delivers after it.
+- **A delivery that touched no moved file** is judged as it is.
+- **A delivery that cannot be carried** (what it changes conflicts with what the rename wrote) is
+  not merged. It is escalated (`pass.escalated`, cause `rename-conflict`), and your queue names it:
+  `held by the code rename and not resumed on the renamed tree: … conflict on …`.
 
-En cas d'échec, **rien n'est mergé**, et la pause est levée sans geste de ta part. Les échecs
-possibles : l'outil, le setup, des gates rouges, un conflit avec `v2`, une pass qui ne juge pas
-ou s'arrête avant le merge, une PR fermée. La file garde alors une carte, `rename`, qui dit
-pourquoi et donne la PR restée ouverte. `pause no` l'ôte une fois lue.
+On failure, **nothing is merged**, and the pause is lifted with no action from you. The possible
+failures: the tool, the setup, red gates, a conflict with `v2`, a pass that does not judge or stops
+before the merge, a closed PR. The queue then keeps a slip, `rename`, which says why and names the
+PR left open. `pause no` removes it once read.
 
-Sans grant `merge` actif, rien ne part : la pass ne mergerait pas le renommage.
+Without an active `merge` grant, nothing goes out: the pass would not merge the rename.
 
-La pause dure **moins d'une heure** : passé 55 minutes depuis ton « oui » (`LIMITE_DU_RENOMMAGE_MS`),
-l'outil est arrêté s'il tourne encore, et la pause est levée de même. Seule exception : un merge
-déjà parti vers GitHub, dont on attend le sort. Ton « non » sur la pause en vigueur abandonne de
-même le renommage. Une PR de renommage abandonnée n'est jamais mergée par la pass, même une fois
-la pause levée : elle remonte sans merge (`pass.escalated`, cause `rename-abandoned`).
+The pause lasts **less than an hour**: past 55 minutes since your "yes" (`LIMITE_DU_RENOMMAGE_MS`),
+the tool is stopped if it is still running, and the pause is lifted all the same. The one exception:
+a merge already sent to GitHub, whose outcome is awaited. Your "no" on the pause in force abandons
+the rename just the same. An abandoned rename PR is never merged by the pass, even once the pause is
+lifted: it is escalated without a merge (`pass.escalated`, cause `rename-abandoned`).
 
-Au journal, hors ticket : `pause.requested` (`ticket` du renommage ou nul, `minutes`, `inFlight`),
-`pause.agreed`, `pause.declined`, `pause.released` (`why` ; et, levée par le renommage, `outcome`
-— `merged` ou `failed` — avec la `cause` d'un échec), `pause.dismissed`, `rename.started`
-(`run`, `branch`, `base`, `deadline`) et `rename.delivered` (`pr`, `number`, `sha`, `moves`). Sur le
-ticket d'une livraison retenue : `rename.carried` (`branch`, `from`, `to`, `base`, `paths`) ou
-`rename.stranded` (`branch`, `sha`, `why`, `paths`). Chacun nomme sa demande (`request`).
+In the log, off any ticket: `pause.requested` (`ticket` of the rename or null, `minutes`,
+`inFlight`), `pause.agreed`, `pause.declined`, `pause.released` (`why`; and, when the rename lifted
+it, `outcome` — `merged` or `failed` — with the `cause` of a failure), `pause.dismissed`,
+`rename.started` (`run`, `branch`, `base`, `deadline`) and `rename.delivered` (`pr`, `number`,
+`sha`, `moves`). On the ticket of a held delivery: `rename.carried` (`branch`, `from`, `to`, `base`,
+`paths`) or `rename.stranded` (`branch`, `sha`, `why`, `paths`). Each names its request (`request`).
 
-**Les gestes que le runtime te cite** (la file, `status`, les refus) sont écrits
-sous la forme qui se tape là où tu les lis : sur la box, `brigade <projet> <commande> [arguments…]`,
-avec le nom du projet du service (`BRIGADE_PROJECT`) — jamais `run <commande>`, que le geste de box
-refuse (code 66). `npm --prefix runtime run <commande>` est la forme du poste de dev ; les deux
-lancent la même commande. Le test `test/gestes-ecrits.test.ts` vérifie que chaque geste écrit est une
-commande que le geste de box accepte.
+**The actions the runtime quotes to you** (the queue, `status`, the refusals) are written in the
+form you type where you read them: on the box, `brigade <project> <command> [arguments…]`, with the
+service's project name (`BRIGADE_PROJECT`) — never `run <command>`, which the box action refuses
+(code 66). `npm --prefix runtime run <command>` is the dev workstation's form; both run the same
+command. The test `test/gestes-ecrits.test.ts` checks that every written action is a command the
+box action accepts.
 
-### Pourquoi ce ticket s'est-il arrêté ?
+### Why did this ticket stop?
 
-Chaque arrêt est au journal du ticket : `npm --prefix runtime run log -- <ticket>`.
+Every stop is in the ticket's log: `npm --prefix runtime run log -- <ticket>`.
 
-| Événement | Sens |
+| Event | Meaning |
 |---|---|
-| `cook.launched` | Un cook part, avec son calibrage (`model`, `effort`), sa station, sa branche, ses plafonds et son flux brut (`runs/<run>.jsonl` dans le répertoire d'état ; sa sortie d'erreur en `.stderr`) |
-| `cook.progressed` | Le relevé du cook à chaque tick : `turns` et `tokens`, et `activity` — ce qu'il fait en ce moment (voir « Ce que fait un cook en ce moment ») |
-| `guard.tripped` | Un garde-fou l'arrête. `reason` : `turns`, `duration`, `tokens`, `idle`, `lease` ou `stop` ; `limit` et `observed` |
-| `cook.exited` | Le process est mort. `outcome` : `ok`, `failed`, `guard`, `stop`, `neutral` ou `refused` ; code de sortie, tours, tokens ; `credentialsMasked` : combien de fois la forme des identifiants de Claude a été masquée dans son flux et sa sortie d'erreur (voir « Ni publiés dans ce qu'un cook dit ») |
-| `cook.interrupted` | Le runtime s'est arrêté pendant que le cook tournait : il est mort avec lui |
-| `breaker.opened`, `kitchen.stopped`, `kitchen.resumed` | Le disjoncteur s'ouvre ; « stop », « resume » (hors ticket) |
+| `cook.launched` | A cook leaves, with its calibration (`model`, `effort`), its station, its branch, its caps and its raw stream (`runs/<run>.jsonl` in the state directory; its error output in `.stderr`) |
+| `cook.progressed` | The cook's reading at each tick: `turns` and `tokens`, and `activity` — what it is doing right now (see "What a cook is doing right now") |
+| `guard.tripped` | A guardrail stops it. `reason`: `turns`, `duration`, `tokens`, `idle`, `lease` or `stop`; `limit` and `observed` |
+| `cook.exited` | The process is dead. `outcome`: `ok`, `failed`, `guard`, `stop`, `neutral` or `refused`; exit code, turns, tokens; `credentialsMasked`: how many times the shape of Claude's credentials was masked in its stream and its error output (see « Ni publiés dans ce qu'un cook dit ») |
+| `cook.interrupted` | The runtime stopped while the cook was running: it died with it |
+| `breaker.opened`, `kitchen.stopped`, `kitchen.resumed` | The breaker opens; "stop", "resume" (off any ticket) |
 
-### Ce que fait un cook en ce moment
+### What a cook is doing right now
 
-Le surveillant d'un cook lit son flux au fil de l'eau (`runtime/src/activite.ts`) et en garde **un
-seul fait** : son dernier geste, et ce qu'il vise. Chaque relevé du tick le porte au journal
-(`cook.progressed`, champ `activity` : `doing`, `target`, `since`), et c'est de là que `status`,
-`faits` et la carte de l'app le lisent — au rythme du reste, une fois par tick.
+A cook's watcher reads its stream as it flows (`runtime/src/activite.ts`) and keeps **a single
+fact** from it: its last action, and what it targets. Each tick's reading carries it to the log
+(`cook.progressed`, `activity` field: `doing`, `target`, `since`), and that is where `status`,
+`faits` and the app's card read it — at the pace of the rest, once per tick.
 
-- **Le geste, en mots du chef** : `lit`, `écrit`, `cherche dans le code`, `lance les tests`,
-  `tests rouges`, `tests rouges, corrige` (ce qui s'écrit après des tests rouges, jusqu'à ce qu'ils
-  repassent), `tests verts`, `lance les gates`, `gates rouges, corrige`, `vérifie les types`,
-  `commite`, `pousse sa branche`, `ouvre la PR`, `lit le ticket`, `lance <programme>`,
-  `cherche sur le web`, `confie une tâche à un agent`, `planifie`, `réfléchit` (entre deux
-  outils), `démarre`, `rend son travail`. Un outil sans nom pour le chef est dit par le sien :
-  `utilise l'outil <nom>`.
-- **Ce qu'il vise, jamais ce qu'il y a dedans.** Un fichier lu ou écrit : son chemin, relatif au
-  worktree du cook quand il y est. Une commande : son programme, et sa sous-commande pour ceux qui
-  en ont (`git status`, `npm install`) — **aucun argument**, ni variable posée devant, ni ce qu'elle
-  cite entre guillemets ou dans un here-document. Ni le code écrit, ni ce que le modèle dit ou
-  pense, ni ce qu'un outil rend ne sortent. La cible passe par le même masque que le flux
-  (identifiants de Claude, secrets du projet), tient sur une ligne, et ne garde que sa fin
-  au-delà de 120 caractères.
-- **`since` : depuis quand il fait cette chose.** Le même geste sur la même cible garde son heure ;
-  un cook « sans progrès » montre ainsi **où** il s'est arrêté, et depuis quand.
-- **Un cook dont le runtime ne lit pas le flux** — celui d'une station distante — n'a pas
-  d'`activity` : rien n'est inventé, `faits` le dit nul et la carte écrit `activité non communiquée`.
+- **The action, in the chef's words**: `reading`, `writing`, `searching the code`, `running the
+  tests`, `tests red`, `tests red, fixing` (what is written after red tests, until they pass again),
+  `tests green`, `running the gates`, `gates red, fixing`, `checking the types`, `committing`,
+  `pushing its branch`, `opening the PR`, `reading the ticket`, `running <program>`, `searching the
+  web`, `handing a task to an agent`, `planning`, `thinking` (between two tools), `starting`,
+  `handing back its work`. A tool with no name for the chef is said by its own: `using the tool <name>`.
+- **What it targets, never what is inside.** A file read or written: its path, relative to the
+  cook's worktree when it is inside. A command: its program, and its subcommand for those that have
+  one (`git status`, `npm install`) — **no argument**, no variable set in front, nothing it quotes
+  between quotation marks or in a here-document. Neither the code written, nor what the model says
+  or thinks, nor what a tool returns comes out. The target goes through the same mask as the stream
+  (Claude's credentials, the project's secrets), fits on one line, and keeps only its end past 120
+  characters.
+- **`since`: since when it has been doing this.** The same action on the same target keeps its
+  time; a "no progress" cook thus shows **where** it stopped, and since when.
+- **A cook whose stream the runtime does not read** — one on a remote station — has no `activity`:
+  nothing is invented, `faits` says it is null and the card writes `activité non communiquée`.
 
-Ce qu'en dit `faits` (`rail[].activite`) est l'activité **du ticket**, pas seulement du cook :
+What `faits` says (`rail[].activite`) is the activity **of the ticket**, not only of the cook:
 
-| État du ticket | Ce que dit `activite.fait` |
+| Ticket state | What `activite.fait` says |
 |---|---|
-| pris, cook pas encore parti | `la station prépare le poste du cook` (depuis la prise) |
-| pris, cook parti | son dernier geste ; `démarre` avant son premier relevé ; `null` si son relevé ne le dit pas |
-| pris, cook fini | `la station livre son travail` (depuis la fin du cook) |
-| en pass | `attend la pass`, puis `gates en cours`, `relecture en cours` (le reviewer tourne), `jugement en cours` (relu, la pass attend la CI) ; après le verdict : `jugée verte, la pass décide`, `jugée rouge, la pass décide`, `merge en cours`, `la pass attend` — ou, quand ses gates ont été coupées sur une machine saturée, `gates rejouées plus tard : machine saturée, aucun test en échec` —, `arrêtée par la pass`, `remontée au chef` |
+| taken, cook not yet gone | the station is preparing the cook's workstation (since the take) |
+| taken, cook gone | its last action; `starting` before its first reading; `null` if its reading does not say |
+| taken, cook finished | the station is delivering its work (since the cook's end) |
+| in pass | waiting for the pass, then gates running, review running (the reviewer is running), judgement running (reviewed, the pass waits for the CI); after the verdict: judged green, the pass decides; judged red, the pass decides; merging; the pass waits — or, when its gates were cut off on a saturated machine, gates replayed later: machine saturated, no test failing —, stopped by the pass, escalated to the chef |
 
-### Régler les plafonds
+### Setting the caps
 
-Par l'environnement du runtime. Absente, une variable prend son défaut ; illisible, elle fait
-**refuser le démarrage**.
+Through the runtime's environment. When absent, a variable takes its default; when unreadable, it
+makes the runtime **refuse to start**.
 
-| Variable | Défaut | Rôle |
+| Variable | Default | Role |
 |---|---|---|
-| `BRIGADE_MAX_TURNS` | 100 | Tours par cook |
-| `BRIGADE_MAX_MINUTES` | 60 | Durée d'un cook |
-| `BRIGADE_MAX_TOKENS` | 2 000 000 | Tokens par cook |
-| `BRIGADE_IDLE_MINUTES` | 10 | Silence toléré avant de conclure à l'inactivité |
-| `BRIGADE_BREAKER_FAILURES` | 3 | Échecs d'affilée qui ouvrent le disjoncteur |
-
+| `BRIGADE_MAX_TURNS` | 100 | Turns per cook |
+| `BRIGADE_MAX_MINUTES` | 60 | Duration of a cook |
+| `BRIGADE_MAX_TOKENS` | 2,000,000 | Tokens per cook |
+| `BRIGADE_IDLE_MINUTES` | 10 | Silence tolerated before concluding idleness |
+| `BRIGADE_BREAKER_FAILURES` | 3 | Failures in a row that open the breaker |

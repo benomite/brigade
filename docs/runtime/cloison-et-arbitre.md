@@ -1,248 +1,247 @@
-## La cloison
+## The partition
 
-Sans elle, tout ce que le runtime lance — setup, cook, gates, reviewer, juges — tourne sous le
-compte du service : un cook lit l'état, le clone, les worktrees et les secrets des **autres**
-projets, le fichier de secrets du sien en entier, les clés des GitHub Apps, et parle à tout
-Internet. Le runtime le dit à chaque démarrage (`cloison — aucune …`, `réseau — ouvert …`). Elle se
-pose **projet par projet**, en deux moitiés indépendantes :
+Without it, everything the runtime launches — setup, cook, gates, reviewer, judges — runs under the
+service account: a cook reads the state, the clone, the worktrees and the secrets of the **other**
+projects, the whole secrets file of its own, the GitHub Apps' keys, and talks to the whole Internet.
+The runtime says so at every start (`cloison — aucune …`, `réseau — ouvert …`). It is put in place
+**project by project**, in two independent halves:
 
-- **Les fichiers et les process**, à chaque lancement, par `bwrap` (bubblewrap) : son espace de
-  montage et son espace de process, sans privilège.
-- **Le réseau**, au projet : l'unité `brigade@<projet>` ne joint que la boucle locale ; sa seule
-  sortie est **la porte**, `brigade-porte@<projet>`.
+- **Files and processes**, at each launch, through `bwrap` (bubblewrap): its own mount namespace and
+  process namespace, unprivileged.
+- **The network**, per project: the `brigade@<project>` unit reaches only the loopback; its only way
+  out is **the door**, `brigade-porte@<project>`.
 
-**Sur une station installée par le paquet, la cloison est posée pour tous les projets, sans
-réglage** : l'unité `brigade-station` ne joint que la boucle locale, et `brigade-station-porte`
-tient une porte par projet de sa configuration — chacune avec la liste blanche de son projet, lue
-au journal de ce projet, qui y reçoit aussi ses refus — et celle de la station elle-même
-(Anthropic et GitHub seulement). Personne ne choisit leurs ports : chaque porte reprend le sien ou
-en prend un libre, et les écrit dans `/var/lib/brigade/portes.json`, d'où la station donne à chaque
-projet le sien ; une ligne de la configuration qui nomme sa porte (`BRIGADE_PROXY_PORT`) est
-refusée. Un projet dont la porte n'a pas encore dit son port attend, et la station le dit ; la
-station elle-même attend la sienne avant de rien joindre. La bascule arrête les
-`brigade-porte@<projet>` de l'ancienne installation et remet leurs ports aux portes de la station :
-même port, même liste — un cook en vol retrouve la sienne. Les refus se lisent par
-`journalctl -u brigade-station-porte`.
+**On a station installed by the package, the partition is in place for every project, with no
+setting**: the `brigade-station` unit reaches only the loopback, and `brigade-station-porte` holds
+one door per project of its configuration — each with its project's allowlist, read from that
+project's log, which also receives its refusals — and the station's own door (Anthropic and GitHub
+only). Nobody chooses their ports: each door takes back its own or takes a free one, and writes them
+to `/var/lib/brigade/portes.json`, from which the station gives each project its own; a line of the
+configuration that names its door (`BRIGADE_PROXY_PORT`) is refused. A project whose door has not yet
+said its port waits, and the station says so; the station itself waits for its own door before
+reaching anything. The switchover stops the old installation's `brigade-porte@<project>` units and
+hands their ports to the station's doors: same port, same list — a cook in flight finds its own
+again. Refusals are read with `journalctl -u brigade-station-porte`.
 
-La frontière des fichiers passe **entre le runtime et ce qu'il lance** : ce qu'il fait lui-même —
-`git`, `gh`, `claude auth status` — n'est pas cloisonné.
+The file boundary runs **between the runtime and what it launches**: what it does itself — `git`,
+`gh`, `claude auth status` — is not partitioned.
 
-### Ce qu'un lancement cloisonné voit
+### What a partitioned launch sees
 
 | | |
 |---|---|
-| **Masqué** — un répertoire vide à la place | chaque répertoire de `BRIGADE_SANDBOX_HIDDEN` : sur la box `/var/lib/brigade` et `/etc/brigade`, donc l'état, le clone, les worktrees, les secrets et les clés de **tous** les projets, le sien compris |
-| **Rendu, en écriture** | son worktree, et **sa vue du `.git` du clone** : objets, références et worktrees sont les vrais ; la `config` et les `hooks` sont **les siens** |
-| **Rendu, en lecture seule** | au reviewer, le worktree et la vue du `.git` ; au cook sans identité GitHub, son ticket remis |
-| **En lecture seule** | toute la machine, **et le répertoire du compte** : son `.gitconfig`, ses chaînes d'outils, le binaire `claude` |
-| **Au projet, en écriture** | ce qui s'écrit sous `~` : `~/.npm`, `~/.cache`, `~/.claude.json`, toute entrée que le compte n'a pas — dans `~` comme dans `~/.local`, `~/.local/share` et `~/.local/state` —, et ce que nomme `BRIGADE_SANDBOX_PRIVATE` — rangé dans `<état>/compte` |
-| **En écriture, tel quel** | `/tmp` (celui du projet : `PrivateTmp`) |
-| **Remplacé** | `~/.claude` : celui du projet, `<état>/claude` — ni transcripts ni mémoire d'un autre projet |
-| **Identifiants Max** | `~/.claude/.credentials.json`, monté **en lecture seule** : `claude` les lit, rien ne les réécrit |
-| **Process** | les siens : ni `ps` ni `/proc/<pid>/environ` ne montrent un autre cook |
+| **Masked** — an empty directory in its place | each directory of `BRIGADE_SANDBOX_HIDDEN`: on the box `/var/lib/brigade` and `/etc/brigade`, so the state, the clone, the worktrees, the secrets and the keys of **all** the projects, its own included |
+| **Given back, writable** | its worktree, and **its view of the clone's `.git`**: objects, references and worktrees are the real ones; the `config` and the `hooks` are **its own** |
+| **Given back, read-only** | to the reviewer, the worktree and the view of the `.git`; to the cook with no GitHub identity, its ticket handed over |
+| **Read-only** | the whole machine, **and the account's home directory**: its `.gitconfig`, its toolchains, the `claude` binary |
+| **Writable, per project** | what is written under `~`: `~/.npm`, `~/.cache`, `~/.claude.json`, any entry the account does not have — in `~` as in `~/.local`, `~/.local/share` and `~/.local/state` —, and what `BRIGADE_SANDBOX_PRIVATE` names — stored in `<state>/compte` |
+| **Writable, as is** | `/tmp` (the project's own: `PrivateTmp`) |
+| **Replaced** | `~/.claude`: the project's, `<state>/claude` — no transcripts or memory of another project |
+| **Max credentials** | `~/.claude/.credentials.json`, mounted **read-only**: `claude` reads them, nothing rewrites them |
+| **Processes** | its own: neither `ps` nor `/proc/<pid>/environ` shows another cook |
 
-**Rien de ce qu'un cook écrit n'est lu comme configuration, ni exécuté, par le runtime** — dont le
-`git`, le `gh` et le `claude` tournent hors cloison, sous le même compte et dans le même clone :
+**Nothing a cook writes is read as configuration, or executed, by the runtime** — whose `git`, `gh`
+and `claude` run outside the partition, under the same account and in the same clone:
 
-- **Le compte** est en lecture seule : un `git config --global` échoue, un `npm ci` écrit son
-  cache dans celui du projet. **Les outils écrivent leur cache à leur place habituelle, sans
-  réglage** : `~/.cache`, `~/.npm`, et sous `~/.local/share` et `~/.local/state` ce que le compte
-  n'y a pas (le store de pnpm, `~/.local/share/pnpm`) ; jest écrit dans `/tmp`. Ce cache est au
-  projet, dans `<état>/compte` : retrouvé d'un ticket à l'autre, jamais partagé avec un autre
-  projet. Ce que le compte garde sous `~/.local` (le binaire `claude`) reste en lecture seule.
-  Une chaîne d'outils qui écrit sous `~` (`~/.cargo`, `~/.gradle`) se nomme dans
-  `BRIGADE_SANDBOX_PRIVATE` (noms séparés par `:`) : le projet a la sienne, vide au départ.
-- **Le `.git`.** Ce qu'un lancement y configure (`git config`, `git remote add`, husky) va dans la
-  `config` de sa vue, que le `git` du runtime ne lit jamais. La cloison pose `gc.auto=0` et
-  `maintenance.auto=false` dans le clone servi. **Ne lance pas `git gc` ni `git pack-refs` à la
-  main dans ce clone pendant qu'un cook tourne.**
-- **Le worktree**, où le runtime lance `git` hors cloison : il lit lui-même le fichier `.git` du
-  worktree et son `commondir`, et **impose le dépôt à `git`**. Un fichier qui ne mène plus au clone
-  est un **refus** (``ne désigne plus son dépôt dans le clone (fichier `.git` réécrit)``, ou
-  ``(`commondir` réécrit)``) : au tick, un avertissement ; à la fin du cook, la livraison échoue,
-  rien n'est poussé, le worktree est gardé. Il **ne descend dans aucun sous-module** : ce qu'un
-  cook y change n'est ni un progrès ni récolté — à lui de commiter le pointeur. `core.fsmonitor`
-  et `core.hooksPath` sont neutralisés. Ces protections valent aussi sans `bwrap`, sans la
-  remplacer : sans elle, la `config` et les `hooks` du clone restent inscriptibles par le cook.
+- **The account** is read-only: a `git config --global` fails, an `npm ci` writes its cache into the
+  project's. **Tools write their cache in their usual place, with no setting**: `~/.cache`, `~/.npm`,
+  and under `~/.local/share` and `~/.local/state` what the account does not have there (pnpm's
+  store, `~/.local/share/pnpm`); jest writes to `/tmp`. This cache belongs to the project, in
+  `<state>/compte`: found again from one ticket to the next, never shared with another project. What
+  the account keeps under `~/.local` (the `claude` binary) stays read-only. A toolchain that writes
+  under `~` (`~/.cargo`, `~/.gradle`) is named in `BRIGADE_SANDBOX_PRIVATE` (names separated by
+  `:`): the project has its own, empty at the start.
+- **The `.git`.** What a launch configures there (`git config`, `git remote add`, husky) goes into
+  the `config` of its view, which the runtime's `git` never reads. The partition sets `gc.auto=0` and
+  `maintenance.auto=false` in the served clone. **Do not run `git gc` or `git pack-refs` by hand in
+  that clone while a cook is running.**
+- **The worktree**, where the runtime runs `git` outside the partition: it reads the worktree's
+  `.git` file and its `commondir` itself, and **imposes the repository on `git`**. A file that no
+  longer leads to the clone is a **refusal** (``ne désigne plus son dépôt dans le clone (fichier `.git` réécrit)``,
+  or ``(`commondir` réécrit)``): at the tick, a warning; at the cook's end, the delivery fails,
+  nothing is pushed, the worktree is kept. It **descends into no submodule**: what a cook changes
+  there is neither progress nor harvested — it is up to the cook to commit the pointer.
+  `core.fsmonitor` and `core.hooksPath` are neutralized. These protections also hold without
+  `bwrap`, without replacing it: without it, the clone's `config` and `hooks` stay writable by the cook.
 
-**Le runtime refuse de démarrer** si la cloison laisse dehors ce qu'elle doit cacher —
-`BRIGADE_STATE_DIR`, `BRIGADE_REPO_DIR`, `BRIGADE_SECRETS_FILE` ou `BRIGADE_GITHUB_APPS_DIR` hors
-de tout répertoire masqué —, si elle masquerait le compte, `/tmp` ou le système, si un masque est
-un fichier, ou si elle est posée à moitié.
+**The runtime refuses to start** if the partition leaves outside what it must hide —
+`BRIGADE_STATE_DIR`, `BRIGADE_REPO_DIR`, `BRIGADE_SECRETS_FILE` or `BRIGADE_GITHUB_APPS_DIR` outside
+every masked directory —, if it would mask the account, `/tmp` or the system, if a mask is a file,
+or if it is only half in place.
 
-### La liste blanche
+### The allowlist
 
-Sur les ports 443 et 80 : `anthropic.com`, `claude.ai`, `claude.com`, `github.com`,
-`githubusercontent.com`, leurs sous-domaines, et ce que le dépôt déclare dans
-`.claude/brigade/reseau`. **Aucun registre de paquets n'est ouvert d'office.**
-`/brigade:init` écrit ce fichier — il le déduit de ce que le `worktree-setup.sh` installe, et laisse
-un fichier vide commenté, jamais un fichier absent, quand il n'a rien à ouvrir ou n'a pas su traduire
-l'outil. Les hôtes viennent des lignes d'installation connues et des URLs que le setup nomme
-(`https://cdn.sheetjs.com/…` donne `cdn.sheetjs.com`) ; `runtime/src/reseau-cli.ts` fait cette
-déduction et écrit le fichier dans tous les cas, sans jamais réécrire un fichier déjà là.
-C'est une proposition : elle n'ouvre rien tant qu'elle n'est pas mergée.
+On ports 443 and 80: `anthropic.com`, `claude.ai`, `claude.com`, `github.com`,
+`githubusercontent.com`, their subdomains, and what the repository declares in
+`.claude/brigade/reseau`. **No package registry is open by default.** `/brigade:init` writes that
+file — it infers it from what `worktree-setup.sh` installs, and leaves a commented empty file,
+never an absent one, when it has nothing to open or could not translate the tool. The hosts come
+from the known install lines and the URLs the setup names (`https://cdn.sheetjs.com/…` gives
+`cdn.sheetjs.com`); `runtime/src/reseau-cli.ts` makes that inference and writes the file in every
+case, never rewriting a file already there. It is a proposal: it opens nothing until it is merged.
 
 ```
-# .claude/brigade/reseau — un hôte par ligne
+# .claude/brigade/reseau — one host per line
 registry.npmjs.org
-*.pythonhosted.org          # l'hôte et ses sous-domaines
-base.exemple.org:5432       # un autre port que 443 et 80
+*.pythonhosted.org          # the host and its subdomains
+base.exemple.org:5432       # a port other than 443 and 80
 ```
 
-Ni adresse IP, ni `*` seul, ni `*.com` : une ligne qui n'est pas un hôte n'ouvre rien, et
-`npm run partition` la montre.
+No IP address, no bare `*`, no `*.com`: a line that is not a host opens nothing, and
+`npm run partition` shows it.
 
-**La déclaration se lit sur la branche d'intégration, pas dans le worktree du cook** — à l'inverse
-des secrets. Un hôte s'ouvre donc par un **merge**, que la pass ne fait jamais elle-même
-(`review-required`, cause `declaration-modified: …`). Le runtime la relit chaque fois qu'il
-rapatrie la base et à chaque tick (`network.declared`) ; la porte lit sa liste là, sans redémarrer.
-**Le runtime sort par la porte, lui aussi** : avec `BRIGADE_PROXY_PORT`, il pose `HTTPS_PROXY`,
-`HTTP_PROXY` et `NO_PROXY` pour lui-même et pour tout ce qu'il lance. **`git` en SSH ne passe
-pas** : l'origine du clone doit être en `https`.
+**The declaration is read on the integration branch, not in the cook's worktree** — unlike the
+secrets. A host is therefore opened by a **merge**, which the pass never does itself
+(`review-required`, cause `declaration-modified: …`). The runtime re-reads it each time it fetches
+the base and at each tick (`network.declared`); the door reads its list there, with no restart.
+**The runtime goes out through the door too**: with `BRIGADE_PROXY_PORT`, it sets `HTTPS_PROXY`,
+`HTTP_PROXY` and `NO_PROXY` for itself and for everything it launches. **`git` over SSH does not
+get through**: the clone's origin must be `https`.
 
-### Un refus se lit
+### A refusal can be read
 
-| Ce qui est tenté | Ce que le process reçoit | Où tu le lis |
+| What is attempted | What the process receives | Where you read it |
 |---|---|---|
-| un hôte hors liste, par la porte | `403`, aussitôt ; en clair, la réponse nomme l'hôte et le geste qui l'ouvre | `npm run partition` (`network.refused`), `journalctl -u brigade-porte@<projet>` |
-| une connexion qui contourne la porte | le noyau jette ses paquets : UDP reçoit `EPERM`, **TCP attend le délai de son client** — à confirmer sur la box | nulle part |
-| un hôte permis qui ne répond pas | `502` | la réponse |
+| a host off the list, through the door | `403`, at once; in clear text, the response names the host and the action that opens it | `npm run partition` (`network.refused`), `journalctl -u brigade-porte@<project>` |
+| a connection that bypasses the door | the kernel drops its packets: UDP receives `EPERM`, **TCP waits for its client's timeout** — to confirm on the box | nowhere |
+| a permitted host that does not answer | `502` | the response |
 
-Un événement par hôte et par dix minutes, cent hôtes nommés au plus. **Le filtre de l'unité est
-sondé à chaque démarrage** : s'il ne tient pas, le runtime le dit — `MAIS un envoi direct part :
-l'unité ne semble rien filtrer (IPAddressDeny)`. Son verdict se confirme sur la box (recette).
+One event per host and per ten minutes, a hundred hosts named at most. **The unit's filter is probed
+at every start**: if it does not hold, the runtime says so — `BUT a direct send goes out: the unit does
+not seem to filter anything (IPAddressDeny)`. Its verdict is confirmed on the box (acceptance run).
 
-### Ce qui est refusé, et pourquoi
+### What is refused, and why
 
-`BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run partition` lit le journal
-(`isolation.configured`, écrit au démarrage quand l'état de la cloison change) et montre :
-`fichiers` (`CLOISONNÉS` ou `OUVERTS`, ce qui est masqué), `réseau` (`LISTE BLANCHE` ou `OUVERT`,
-et si l'unité filtre), `ce qui passe` (chaque hôte, et d'où il vient), et les `derniers refus`.
+`BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run partition` reads the log
+(`isolation.configured`, written at start when the partition's state changes) and shows: `files`
+(`PARTITIONED` or `OPEN`, what is masked), `network` (`ALLOWLIST` or `OPEN`, and whether the unit
+filters), `what gets through` (each host, and where it comes from), and the `latest refusals`.
 
-### L'éprouver, et ce qu'elle coûte
-
-```bash
-brigade <projet> partition probe [<essais>]
-```
-
-De vraies sondes, sans cook ni quota : le lancement part dans `bwrap`, chaque répertoire masqué
-est vide, les identifiants Max sont en lecture seule, les outils écrivent leur cache sous `~`
-(`~/.cache`, `~/.npm`, `~/.local/share`, `~/.local/state`), les process des autres sont invisibles,
-`claude` retrouve la connexion Max ; puis le coût d'un lancement. Une sonde en échec rend le code
-1 et dit pourquoi. À jouer sur la box : c'est une étape de la recette.
-
-### Les transcripts du projet sont rangés
-
-Sous cloison, `claude` écrit ses transcripts dans `<état>/claude/projects/`, et **le runtime les
-range** — au démarrage, puis une fois par jour. Part un transcript que rien n'a écrit depuis
-`BRIGADE_TRANSCRIPTS_KEEP_DAYS` jours (`7` par défaut ; `0.5` vaut douze heures), avec son
-répertoire de session. Reste tout ce qui a été écrit depuis le départ du plus ancien lancement
-encore en cours, et ce qui n'est pas un transcript (la mémoire du projet, ses réglages). Un lien
-n'est jamais suivi. Chaque passage est au journal — `transcripts.tidied` (`removed`, `freedBytes`,
-`kept`, `keptBytes`, `keepMs`) —, et `status` montre le dernier ; un projet qui redémarre sans
-cloison écrit `transcripts.released`, une fois. **Sans cloison, rien n'est rangé** : les transcripts
-vont sous le `~/.claude` du compte, où le runtime ne retire jamais rien — il n'y écrit que la copie
-du transcript qu'un renvoi reprend, dans le répertoire du projet de son worktree. Un transcript retiré n'est
-pas perdu pour le diagnostic : le flux brut reste sous `runs/`, et lui est sauvegardé. Il l'est
-pour la reprise d'un renvoi : passé la durée de garde, le cook du renvoi repart de zéro (« Le cook
-d'un renvoi reprend la session du précédent »).
-
-### Ce qui n'est pas garanti
-
-- **Rien de cela n'a encore tourné sur la box.** Deux choses ne se prouvent que là-bas : le filtre
-  de l'unité (`IPAddressDeny`), et le vrai `claude` sous cloison — dont le jeton Max se renouvelle
-  peut-être mal en lecture seule (un cook qui finit `disconnected` alors que `claude auth status`,
-  hors cloison, répond connecté).
-- **Les identifiants Max restent lisibles du cook.** « Non copiables » tient à la liste blanche et
-  à l'absence de montage partagé ; reste la branche poussée, où la station refuse leur nom ou leur
-  forme (`credentials-committed`). Une copie transformée passe.
-- **Le répertoire du compte reste lisible de tous les projets**, en lecture seule. Ce qu'il garde
-  de sensible (`~/.ssh`, `~/.config/gh`) s'ajoute à `BRIGADE_SANDBOX_HIDDEN` ; un fichier seul
-  (`~/.netrc`) ne se masque pas, c'est son répertoire qui se masque.
-- **Un clone où `extensions.worktreeConfig` est activé rouvre le chemin** de la configuration : ne
-  l'active pas dans le clone servi. **Un cook peut faire échouer la livraison d'un autre cook du
-  même projet** : `<clone>/.git/worktrees/`, les objets et les références sont partagés en
-  écriture. Réécrire le répertoire d'un voisin ne fait rien lancer — sa livraison est refusée.
-- **Les filtres que la configuration du compte ou du clone nomme restent appelés** (`git-lfs`).
-- **Le cache du compte n'est plus partagé** : chaque projet remplit le sien, que rien ne range. Du
-  `~/.claude` du projet, seuls les transcripts sont rangés ; il n'est pas sauvegardé.
-- **La boucle locale est commune aux projets** : un service sur `localhost` est joignable de tous,
-  et n'a pour protection que son mot de passe. **La résolution de noms reste ouverte** : un tunnel
-  DNS sort. **`github.com` est en liste blanche** : sous l'identité unique, le cook y écrit avec le
-  compte de la machine — la clôture est une identité par rôle.
-
-## L'arbitre entre projets
-
-Dès qu'un second projet tourne sur la machine, le compte Max et la machine sont partagés.
-L'arbitre est le process qui les additionne : **un seul par machine**, sans LLM. Il ne répond qu'à
-une question : *ce projet peut-il lancer un cook de plus ?* Il est **facultatif** — sans lui, un
-projet tourne comme avant (`arbitre — aucun`). On le désigne à un runtime par
-`BRIGADE_ARBITER_PORT`.
-
-### Ce qu'il sait, et d'où
-
-Chaque runtime lui **redit** l'état de son projet — ses cooks de tickets en cours, s'il a des
-tickets qu'il pourrait lancer, s'il les retient pour « machine saturée », ce que ses cooks ont
-consommé — à chaque demande de place, à chaque changement, à chaque tick, et en s'arrêtant. Un
-projet arrêté par le chef, au disjoncteur ouvert, à la base rouge, déconnecté, au quota épuisé ou à
-son propre plafond **ne demande rien**. L'arbitre garde ce dernier mot **en mémoire**, et ne compte
-que les cooks de **tickets**. Sur disque (`arbitre.db`, dans `BRIGADE_ARBITER_STATE_DIR`) : tes
-réglages seuls, relus à chaque décision.
-
-### La règle
-
-`P` est le plafond de cooks du compte, tous projets confondus (`BRIGADE_ARBITER_MAX_COOKS`, **sans
-défaut** : l'arbitre refuse de démarrer sans). Un projet **compte** s'il a des cooks, des tickets
-qui attendent, ou s'il est connu et n'a pas reparlé.
-
-- **Chaque projet qui compte a une part** : le plafond au prorata de son poids, arrondi vers le
-  bas, **jamais moins d'une place**. **Sous sa part, il passe**, tant que le compte n'est pas plein.
-- **Au-delà, il emprunte** les places que personne ne demande — jamais tant qu'un projet connu n'a
-  pas reparlé. **Sans préemption** : l'arbitre ne tue jamais un cook, il retient le suivant.
-- **Quand la machine sature** (un runtime dit retenir des tickets pour elle), les parts se
-  calculent sur **le nombre de cooks en cours** et plus personne n'emprunte.
-
-Un projet refusé le lit comme une retenue : `station.held`, motif `arbiter`, dans `run status` et
-`run station`. Il redemande à son réveil suivant — une minute au plus.
-
-### Arbitre injoignable : le projet lance quand même
-
-Quand l'arbitre désigné ne répond pas (connexion refusée, réponse illisible, dix secondes de
-garde), le projet passe en **mode dégradé** : **au plus un cook de ticket à la fois**, les cooks
-déjà partis finissent. C'est écrit **une fois** à l'entrée (`station.unarbitrated`, et
-`journalctl`), une fois au retour (`station.arbitrated`) ; chaque cook parti ainsi porte
-`unarbitrated: true` ; `run status` (`ARBITER UNREACHABLE for …`) et `run station` le montrent.
-Chaque tentative de lancement redemande d'abord : dès que l'arbitre répond, la marche reprend.
-
-### Quand il redémarre
-
-Il repart **vide**. Tant qu'un projet **connu n'a pas reparlé**, sa part reste **réservée** (`N'A
-PAS REPARLÉ depuis …`) ; elle se libère s'il reparle, si son runtime s'arrête proprement, ou si tu
-le retires. **Arrêté pour de bon sans arrêt propre, il la garde jusqu'à ce que tu le retires.**
-
-### Le lire, et le régler
+### Trying it, and what it costs
 
 ```bash
-export BRIGADE_ARBITER_PORT=<port> BRIGADE_ARBITER_STATE_DIR=<répertoire de l'arbitre>
-npm --prefix runtime run arbiter                          # l'état
-npm --prefix runtime run arbiter -- weight thermigo 3     # « thermigo est prioritaire cette semaine »
-npm --prefix runtime run arbiter -- remove vieux-projet   # sa part n'est plus réservée
+brigade <project> partition probe [<tries>]
 ```
 
-Ce que `arbiter` écrit est en anglais (`account cap`, `weight 1 · 2 running · share 5 · 3 left`, `cooks consumed`). Par projet : son poids, ses cooks en cours, sa **`part`**, et **`encore`** — ce qu'il pourrait
-lancer de plus à l'instant, emprunts compris ; `machine` dit `SATURATED according to <projets>`. **Le
-poids** est un entier, 1 par défaut, durable, sans échéance ; il ne touche à aucun plafond — ni
-celui du compte, ni celui de chaque projet (`run station -- cooks <N>`). **La consommation des
-cooks n'est pas celle du compte**, et l'arbitre ne retient rien à cause d'elle. Arbitre
-injoignable, la commande le dit et sort avec le code 1.
+Real probes, with no cook or quota: the launch goes into `bwrap`, every masked directory is empty,
+the Max credentials are read-only, tools write their cache under `~` (`~/.cache`, `~/.npm`,
+`~/.local/share`, `~/.local/state`), other projects' processes are invisible, `claude` finds the Max
+connection again; then the cost of a launch. A failing probe returns code 1 and says why. To be
+played on the box: it is a step of the acceptance run.
 
-### Ce qui n'est pas garanti
+### The project's transcripts are tidied
 
-- **Un runtime mort sans le dire laisse son dernier mot** à l'arbitre jusqu'à ce qu'il reparle ou
-  que tu le retires. **Juste après un redémarrage de l'arbitre**, ce qui avait été emprunté avant
-  tourne encore : le plafond peut être dépassé de cet emprunt, le temps que ces cooks finissent.
-- **Un cook joint la boucle locale**, donc l'arbitre : il pourrait y parler au nom d'un projet, et
-  fausser un compte que le runtime redit à l'échange suivant. Il ne peut pas régler les poids, que
-  la cloison lui masque.
-- **L'arbitre ne connaît pas le quota du compte** : voir « 86 : le quota est épuisé ».
+Under the partition, `claude` writes its transcripts into `<state>/claude/projects/`, and **the
+runtime tidies them** — at start, then once a day. A transcript that nothing has written to for
+`BRIGADE_TRANSCRIPTS_KEEP_DAYS` days (`7` by default; `0.5` is twelve hours) goes, with its session
+directory. What stays: everything written since the oldest launch still running left, and what is
+not a transcript (the project's memory, its settings). A link is never followed. Each pass is in the
+log — `transcripts.tidied` (`removed`, `freedBytes`, `kept`, `keptBytes`, `keepMs`) —, and `status`
+shows the latest; a project that restarts without the partition writes `transcripts.released`,
+once. **Without the partition, nothing is tidied**: the transcripts go under the account's
+`~/.claude`, where the runtime never removes anything — it only writes there the copy of the
+transcript that a send-back resumes, in the project directory of its worktree. A removed transcript
+is not lost for diagnosis: the raw stream stays under `runs/`, and is backed up. It is lost for
+resuming a send-back: past the keeping period, the send-back's cook starts again from zero
+(« Le cook d'un renvoi reprend la session du précédent »).
 
+### What is not guaranteed
+
+- **None of this has run on the box yet.** Two things can only be proven there: the unit's filter
+  (`IPAddressDeny`), and the real `claude` under the partition — whose Max token renewal perhaps
+  fails read-only (a cook that ends `disconnected` while `claude auth status`, outside the partition,
+  answers connected).
+- **The Max credentials stay readable by the cook.** "Not copyable" rests on the allowlist and on
+  the absence of a shared mount; what remains is the pushed branch, where the station refuses their
+  name or their shape (`credentials-committed`). A transformed copy gets through.
+- **The account's directory stays readable by all projects**, read-only. What it keeps that is
+  sensitive (`~/.ssh`, `~/.config/gh`) is added to `BRIGADE_SANDBOX_HIDDEN`; a single file
+  (`~/.netrc`) cannot be masked, its directory is what gets masked.
+- **A clone where `extensions.worktreeConfig` is enabled reopens the path** to the configuration:
+  do not enable it in the served clone. **A cook can make another cook's delivery of the same
+  project fail**: `<clone>/.git/worktrees/`, the objects and the references are shared writable.
+  Rewriting a neighbour's directory launches nothing — its delivery is refused.
+- **The filters that the account's or the clone's configuration names are still called**
+  (`git-lfs`).
+- **The account's cache is no longer shared**: each project fills its own, which nothing tidies. Of
+  the project's `~/.claude`, only the transcripts are tidied; it is not backed up.
+- **The loopback is common to the projects**: a service on `localhost` is reachable by all, and has
+  only its password as protection. **Name resolution stays open**: a DNS tunnel gets out.
+  **`github.com` is on the allowlist**: under the single identity, the cook writes there with the
+  machine's account — the closing is one identity per role.
+
+## The arbiter between projects
+
+As soon as a second project runs on the machine, the Max account and the machine are shared. The
+arbiter is the process that adds them up: **one per machine**, with no LLM. It answers only one
+question: *can this project launch one more cook?* It is **optional** — without it, a project runs
+as before (`arbitre — aucun`). A runtime is pointed to it by `BRIGADE_ARBITER_PORT`.
+
+### What it knows, and from where
+
+Each runtime **tells it again** the state of its project — its ticket cooks in flight, whether it
+has tickets it could launch, whether it holds them back for "machine saturated", what its cooks
+have consumed — at every request for a place, at every change, at every tick, and when it stops. A
+project stopped by the chef, with the breaker open, the base red, disconnected, the quota exhausted
+or at its own cap **asks for nothing**. The arbiter keeps this last word **in memory**, and counts
+only **ticket** cooks. On disk (`arbitre.db`, in `BRIGADE_ARBITER_STATE_DIR`): your settings alone,
+re-read at every decision.
+
+### The rule
+
+`P` is the account's cap on cooks, all projects together (`BRIGADE_ARBITER_MAX_COOKS`, **no
+default**: the arbiter refuses to start without it). A project **counts** if it has cooks, waiting
+tickets, or if it is known and has not spoken again.
+
+- **Each project that counts has a share**: the cap in proportion to its weight, rounded down,
+  **never less than one place**. **Under its share, it passes**, as long as the account is not full.
+- **Beyond it, it borrows** the places nobody asks for — never while a known project has not spoken
+  again. **No preemption**: the arbiter never kills a cook, it holds back the next one.
+- **When the machine saturates** (a runtime says it is holding tickets back for it), shares are
+  computed on **the number of cooks running** and nobody borrows any more.
+
+A refused project reads it as a hold: `station.held`, reason `arbiter`, in `run status` and `run
+station`. It asks again at its next wake-up — a minute at most.
+
+### Arbiter unreachable: the project launches anyway
+
+When the designated arbiter does not answer (connection refused, unreadable response, ten seconds of
+guard), the project goes into **degraded mode**: **at most one ticket cook at a time**, the cooks
+already gone finish. This is written **once** on entry (`station.unarbitrated`, and `journalctl`),
+once on return (`station.arbitrated`); each cook launched this way carries `unarbitrated: true`;
+`run status` (`ARBITER UNREACHABLE for …`) and `run station` show it. Each launch attempt asks again
+first: as soon as the arbiter answers, normal running resumes.
+
+### When it restarts
+
+It starts **empty**. As long as a **known project has not spoken again**, its share stays
+**reserved** (`HAS NOT SPOKEN SINCE …`); it is freed if it speaks again, if its runtime stops
+cleanly, or if you remove it. **Stopped for good without a clean stop, it keeps the share until you
+remove it.**
+
+### Reading it, and setting it
+
+```bash
+export BRIGADE_ARBITER_PORT=<port> BRIGADE_ARBITER_STATE_DIR=<arbiter directory>
+npm --prefix runtime run arbiter                          # the state
+npm --prefix runtime run arbiter -- weight thermigo 3     # "thermigo has priority this week"
+npm --prefix runtime run arbiter -- remove vieux-projet   # its share is no longer reserved
+```
+
+What `arbiter` writes is in English (`account cap`, `weight 1 · 2 running · share 5 · 3 left`,
+`cooks consumed`). Per project: its weight, its cooks running, its **`share`**, and **`left`** —
+what it could launch in addition right now, borrowing included; `machine` says `SATURATED according
+to <projects>`. **The weight** is an integer, 1 by default, durable, with no expiry; it touches no
+cap — neither the account's, nor each project's (`run station -- cooks <N>`). **The cooks'
+consumption is not the account's**, and the arbiter holds nothing back because of it. With the
+arbiter unreachable, the command says so and exits with code 1.
+
+### What is not guaranteed
+
+- **A runtime dead without saying so leaves its last word** with the arbiter until it speaks again
+  or you remove it. **Just after an arbiter restart**, what had been borrowed before is still
+  running: the cap can be exceeded by that loan, until those cooks finish.
+- **A cook reaches the loopback**, hence the arbiter: it could speak there in a project's name, and
+  skew a count that the runtime tells again at the next exchange. It cannot set the weights, which
+  the partition masks from it.
+- **The arbiter does not know the account's quota**: see « 86 : le quota est épuisé ».
