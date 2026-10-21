@@ -162,7 +162,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
     await station.attendre("brigade [espace] : sondage GitHub en échec");
     assert.doesNotMatch(station.sortie(), /^brigade : sondage/m);
 
-    station.process.kill("SIGTERM");
+    station.signaler("SIGTERM");
     assert.equal(await station.fin, 0);
     for (const projet of ["brigade", "espace"]) assert.deepEqual(relire(projet).at(-1)?.payload, { signal: "SIGTERM" }, projet);
     assert.match(station.sortie(), /station arrêtée \(SIGTERM\)/);
@@ -223,7 +223,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
     assert.deepEqual(readdirSync(join(racine, "etat")).sort(), ["brigade", "espace"]);
     assert.equal(relire("espace").every((e) => e.project === "espace"), true);
 
-    station.process.kill("SIGTERM");
+    station.signaler("SIGTERM");
     assert.equal(await station.fin, 0);
   });
 
@@ -242,7 +242,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
     assert.match(station.sortie(), /brigade : station — ligne 3 de la configuration \(« seul »\)/);
     assert.equal(faits("brigade", "runtime.started").length, 1);
     assert.deepEqual(faits("espace", "runtime.started"), []);
-    station.process.kill("SIGTERM");
+    station.signaler("SIGTERM");
     assert.equal(await station.fin, 0);
   });
 
@@ -271,9 +271,9 @@ describe("la station, son process", { concurrency: 8 }, () => {
       assert.equal((faits(projet, "isolation.configured")[0]?.payload.proxy as { port: number }).port, ports.projets[projet], projet);
     }
 
-    station.process.kill("SIGTERM");
+    station.signaler("SIGTERM");
     assert.equal(await station.fin, 0);
-    portes.process.kill("SIGTERM");
+    portes.signaler("SIGTERM");
     assert.equal(await portes.fin, 0);
   });
 
@@ -294,7 +294,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
     const vide = lancer(t, STATION, [], env);
     await vide.attendre("station démarrée");
     assert.match(vide.sortie(), /aucun projet servi/);
-    vide.process.kill("SIGTERM");
+    vide.signaler("SIGTERM");
     assert.equal(await vide.fin, 0);
   });
 
@@ -327,7 +327,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
         const pr = p.gh.appels().find((appel) => appel.at(-1) === `repos/${p.depot}/pulls`) ?? [];
         assert.equal(pr.includes(`head=cook/${String(lancement?.payload.run)}`) && pr.includes(`base=${BASE}`), true);
       }
-      station.process.kill("SIGTERM");
+      station.signaler("SIGTERM");
       assert.equal(await station.fin, 0);
     });
 
@@ -361,7 +361,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
         assert.equal(lance.env.GH_CONFIG_DIR, join(etat("brigade"), "gh-sans-compte"));
         assert.ok(!JSON.stringify(lance).includes("ghs_"));
       }
-      station.process.kill("SIGTERM");
+      station.signaler("SIGTERM");
       assert.equal(await station.fin, 0);
       const secrets = [...ROLES.flatMap((role) => apps.jetons(role)), ...apps.jwts(), "ghp_du_compte"];
       const ecrits = [JSON.stringify(faits("brigade", "cook.launched")), JSON.stringify(faits("brigade", "cook.exited")), station.sortie()];
@@ -407,7 +407,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
     const pid = Number(readFileSync(fichierDuPid, "utf8"));
     await jusqua(() => existsSync(join(etat("brigade"), "worktrees", run, "travail.txt")));
 
-    premiere.process.kill("SIGTERM");
+    premiere.signaler("SIGTERM");
     assert.equal(await premiere.fin, 0);
     assert.equal(vivant(pid), true);
 
@@ -424,7 +424,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
     assert.deepEqual([faits("brigade", "pass.judged")[0]?.payload.verdict, faits("brigade", "pass.judged")[0]?.payload.sha], ["green", juge]);
     assert.deepEqual(gh.appels().find((appel) => appel.includes("PUT")), ["api", "-i", "-X", "PUT", "-f", `sha=${juge}`, "-f", "merge_method=merge", `repos/${depot}/pulls/40/merge`]);
     assert.deepEqual(faits("brigade", "grant.used").length, 1);
-    seconde.process.kill("SIGTERM");
+    seconde.signaler("SIGTERM");
     assert.equal(await seconde.fin, 0);
   });
 });

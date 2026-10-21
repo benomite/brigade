@@ -169,7 +169,7 @@ test("après le redémarrage du runtime, la même lecture rend les mêmes états
   await premier.attendre("démarré");
   // Pendant qu'il tourne, la lecture est la même.
   assert.deepEqual(await lire(repertoire), avant);
-  premier.process.kill("SIGTERM");
+  premier.signaler("SIGTERM");
   assert.equal(await premier.fin, 0, premier.sortie());
 
   // Arrêté net, puis relancé : rien de ce qui était noté ne s'est perdu.
@@ -189,7 +189,7 @@ test("après le redémarrage du runtime, la même lecture rend les mêmes états
   // Le chef reprend où il en était : l'étape en attente faite, la courante avance.
   const reprise = lancer(t, INSTALLATION, ["etapes", "verification", "faite"], { BRIGADE_STATE_DIR: repertoire });
   assert.equal(await reprise.fin, 0, reprise.sortie());
-  troisieme.process.kill("SIGTERM");
+  troisieme.signaler("SIGTERM");
   assert.equal(await troisieme.fin, 0, troisieme.sortie());
   const apres = await lire(repertoire);
   assert.equal(apres.courante, "stations");

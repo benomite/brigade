@@ -162,7 +162,7 @@ test("la station réelle compte chacun de ses appels au gist dans le compteur de
   mkdirSync(racine);
   const station = lancer(t, STATION, [], { BRIGADE_STATION_DIR: racine, BRIGADE_GH_BIN: FAUX_GH_GISTS, FAUX_GISTS: gists, BRIGADE_STATION_NOM: "box", BRIGADE_STATION_VERSION: "1.4.0" });
   await station.attendre("station à appairer");
-  station.process.kill("SIGTERM");
+  station.signaler("SIGTERM");
   assert.equal(await station.fin, 0);
 
   assert.ok(existsSync(join(racine, REPERTOIRE_COMPTEUR)));

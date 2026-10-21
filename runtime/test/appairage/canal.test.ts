@@ -70,7 +70,7 @@ test("la station réelle affiche son code, publie « aucun projet » sur GitHub,
   assert.equal(document().arreteeLe, null);
   assert.equal(document().appairage?.empreinte, empreinte(code));
 
-  station.process.kill("SIGTERM");
+  station.signaler("SIGTERM");
   assert.equal(await station.fin, 0);
   assert.ok(document().arreteeLe);
   // Tout est passé par `gh api`, sur les gists du compte, et rien d'autre.

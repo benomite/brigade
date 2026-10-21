@@ -113,7 +113,7 @@ function projet(t: TestContext, porte: Porte = {}) {
   cpSync(gabarit(porte), racine, { recursive: true });
   const [origine, clone] = [join(racine, "origine.git"), join(racine, "clone")];
   const config = join(clone, ".git/config");
-  writeFileSync(config, readFileSync(config, "utf8").replaceAll(ORIGINE, origine));
+  writeFileSync(config, readFileSync(config, "utf8").replaceAll(ORIGINE, origine.replaceAll("\\", "/")));
 
   const etat = join(racine, "etat");
   mkdirSync(etat);
@@ -893,7 +893,7 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 8 
     };
     await jusqua(() => lancements().length > 0);
     assert.deepEqual(lancements(), [15]);
-    runtime.process.kill("SIGTERM");
+    runtime.signaler("SIGTERM");
     assert.equal(await runtime.fin, 0, runtime.sortie());
   });
 });

@@ -210,7 +210,7 @@ describe("la commande de l'arbitre", { concurrency: 8 }, () => {
     assert.match(second.sortie(), /the arbiter refuses to start — an arbiter already holds/);
     assert.equal((await client.etat()).plafond, 2);
 
-    tenu.process.kill("SIGTERM");
+    tenu.signaler("SIGTERM");
     assert.equal(await tenu.fin, 0);
     assert.match(tenu.sortie(), /arbiter closed \(SIGTERM\)/);
 

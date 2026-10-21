@@ -87,7 +87,7 @@ test("avec `--suivre`, le chef voit la photo puis chaque événement à mesure q
   noter(7, "ticket.taken");
   noter(7, "pass.verdict");
   await commande.attendre("pass.verdict");
-  commande.process.kill("SIGINT");
+  commande.signaler("SIGINT");
 
   assert.equal(await commande.fin, 0);
   const suivi = commande.sortie().split("Ctrl-C pour arrêter\n")[1] ?? "";
@@ -106,8 +106,8 @@ test("avec `--suivre`, deux signaux rapprochés arrêtent proprement la commande
   // en reprenant : aucun ne peut le surprendre en train de sortir. Deux signaux
   // différents, parce que deux SIGINT en attente n'en font qu'un.
   commande.process.kill("SIGSTOP");
-  commande.process.kill("SIGINT");
-  commande.process.kill("SIGTERM");
+  commande.signaler("SIGINT");
+  commande.signaler("SIGTERM");
   commande.process.kill("SIGCONT");
 
   assert.equal(await commande.fin, 0);
